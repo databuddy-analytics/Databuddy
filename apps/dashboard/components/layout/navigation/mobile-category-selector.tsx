@@ -79,11 +79,11 @@ export function MobileCategorySelector({
 	const currentCategory = categories.find((cat) => cat.id === activeCategory);
 
 	return (
-		<div className="border-sidebar-border border-b p-3 md:hidden">
+		<div className="p-3 md:hidden">
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
-						className="flex h-10 w-full items-center justify-between px-3"
+						className="flex h-10 w-full items-center justify-between border-sidebar-border border-b px-3"
 						type="button"
 						variant="secondary"
 					>

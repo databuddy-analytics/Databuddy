@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { countEvents, findEvent, hasEvent } from "./test-utils";
 
 test.describe("Sampling & Filtering", () => {
 	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
 		await page.addInitScript(() => {
 			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
 		});
@@ -19,175 +19,114 @@ test.describe("Sampling & Filtering", () => {
 
 	test.describe("samplingRate", () => {
 		test("sends all events when samplingRate is 1.0", async ({ page }) => {
-			let eventCount = 0;
-
 			await page.goto("/test");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
 					clientId: "test-sampling",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					samplingRate: 1.0,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
 
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
+			const requestPromise = page.waitForRequest((req) =>
+				hasEvent(req, (e) => e.name === "screen_view")
+			);
 
-			page.on("request", (req) => {
-				const payload = req.postDataJSON?.();
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					payload?.name?.startsWith("test_event")
-				) {
-					eventCount += 1;
-				}
-			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-			// Send 10 events
-			await page.evaluate(() => {
-				for (let i = 0; i < 10; i++) {
-					(window as any).db.track(`test_event_${i}`);
-				}
-			});
-
-			await page.waitForTimeout(500);
-			expect(eventCount).toBe(10);
+			const request = await requestPromise;
+			const event = findEvent(request, (e) => e.name === "screen_view");
+			expect(event).toBeDefined();
 		});
 
 		test("sends no events when samplingRate is 0", async ({ page }) => {
-			let eventCount = 0;
+			let eventSent = false;
 
 			await page.goto("/test");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
 					clientId: "test-sampling",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					samplingRate: 0,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			// Skip initial screen_view
-			await page.waitForTimeout(100);
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			page.on("request", (req) => {
-				const payload = req.postDataJSON?.();
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "sampled_event"
-				) {
-					eventCount += 1;
-				}
-			});
-
-			// Send multiple events
-			await page.evaluate(() => {
-				for (let i = 0; i < 20; i++) {
-					(window as any).db.track("sampled_event");
+				if (req.url().includes("basket.databuddy.cc")) {
+					eventSent = true;
 				}
 			});
 
 			await page.waitForTimeout(500);
-			expect(eventCount).toBe(0);
+			expect(eventSent).toBe(false);
 		});
 
-		test("approximately samples at 50% rate", async ({ page }) => {
-			let eventCount = 0;
+		test("custom events bypass sampling", async ({ page }) => {
+			let customEventCount = 0;
 
 			await page.goto("/test");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
-					clientId: "test-sampling",
+					clientId: "test-sampling-bypass",
 					ignoreBotDetection: true,
-					samplingRate: 0.5,
+					batchTimeout: 200,
+					samplingRate: 0,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			await page.waitForTimeout(100);
-
 			page.on("request", (req) => {
-				const payload = req.postDataJSON?.();
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "fifty_percent_event"
-				) {
-					eventCount += 1;
+				if (!req.url().includes("basket.databuddy.cc")) {
+					return;
 				}
+				customEventCount += countEvents(
+					req,
+					(e) => e.name === "custom_bypass"
+				);
 			});
 
-			// Send 100 events
 			await page.evaluate(() => {
-				for (let i = 0; i < 100; i++) {
-					(window as any).db.track("fifty_percent_event");
-				}
+				(window as any).db.track("custom_bypass");
 			});
 
-			await page.waitForTimeout(1000);
-
-			// With 50% sampling, expect roughly 30-70 events (allowing for randomness)
-			expect(eventCount).toBeGreaterThan(20);
-			expect(eventCount).toBeLessThan(80);
+			await page.waitForTimeout(500);
+			expect(customEventCount).toBe(1);
 		});
 	});
 
 	test.describe("filter function", () => {
-		test("blocks events that fail filter", async ({ page }) => {
-			let blockedEventSent = false;
-			let allowedEventSent = false;
+		test("blocks batch events that fail filter", async ({ page }) => {
+			let screenViewSent = false;
 
 			await page.goto("/test");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
 					clientId: "test-filter",
 					ignoreBotDetection: true,
-					filter: (event: any) => {
-						// Block events with name starting with "blocked_"
-						return !event.name?.startsWith("blocked_");
-					},
+					batchTimeout: 200,
+					filter: () => false,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
-
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			page.on("request", (req) => {
-				const payload = req.postDataJSON?.();
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "blocked_event"
-				) {
-					blockedEventSent = true;
+				if (!req.url().includes("basket.databuddy.cc")) {
+					return;
 				}
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "allowed_event"
-				) {
-					allowedEventSent = true;
+				if (countEvents(req, (e) => e.name === "screen_view") > 0) {
+					screenViewSent = true;
 				}
-			});
-
-			await page.evaluate(() => {
-				(window as any).db.track("blocked_event");
-				(window as any).db.track("allowed_event");
 			});
 
 			await page.waitForTimeout(500);
-
-			expect(blockedEventSent).toBe(false);
-			expect(allowedEventSent).toBe(true);
+			expect(screenViewSent).toBe(false);
 		});
 
 		test("filter receives full event payload", async ({ page }) => {
@@ -197,75 +136,63 @@ test.describe("Sampling & Filtering", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-filter",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					filter: (event: any) => {
-						if (event.name === "inspect_event") {
+						if (event.name === "screen_view" && !(window as any).receivedPayload) {
 							(window as any).receivedPayload = event;
 						}
 						return true;
 					},
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
-			await expect
-				.poll(async () => await page.evaluate(() => !!(window as any).db))
-				.toBeTruthy();
-
-			await page.evaluate(() => {
-				(window as any).db.track("inspect_event", { custom_prop: "test" });
-			});
-
-			await page.waitForTimeout(200);
+			await page.waitForTimeout(300);
 
 			const receivedPayload = await page.evaluate(
 				() => (window as any).receivedPayload
 			);
 
 			expect(receivedPayload).not.toBeNull();
-			expect(receivedPayload.name).toBe("inspect_event");
-			expect(receivedPayload.custom_prop).toBe("test");
-			expect(receivedPayload.eventId).toBeTruthy();
+			expect(receivedPayload.name).toBe("screen_view");
 			expect(receivedPayload.anonymousId).toBeTruthy();
 			expect(receivedPayload.sessionId).toBeTruthy();
 			expect(receivedPayload.timestamp).toBeTruthy();
 		});
 
-		test("filter can block based on event properties", async ({ page }) => {
-			let sensitiveEventSent = false;
+		test("custom events bypass filter", async ({ page }) => {
+			let customEventSent = false;
 
 			await page.goto("/test");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
-					clientId: "test-filter",
+					clientId: "test-filter-bypass",
 					ignoreBotDetection: true,
-					filter: (event: any) => {
-						// Block events marked as sensitive
-						return event.is_sensitive !== true;
-					},
+					batchTimeout: 200,
+					filter: () => false,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
 			page.on("request", (req) => {
-				const payload = req.postDataJSON?.();
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "sensitive_action"
-				) {
-					sensitiveEventSent = true;
+				if (!req.url().includes("basket.databuddy.cc")) {
+					return;
+				}
+				if (countEvents(req, (e) => e.name === "custom_unfiltered") > 0) {
+					customEventSent = true;
 				}
 			});
 
 			await page.evaluate(() => {
-				(window as any).db.track("sensitive_action", { is_sensitive: true });
+				(window as any).db.track("custom_unfiltered");
 			});
 
-			await page.waitForTimeout(300);
-			expect(sensitiveEventSent).toBe(false);
+			await page.waitForTimeout(500);
+			expect(customEventSent).toBe(true);
 		});
 	});
 
@@ -278,10 +205,11 @@ test.describe("Sampling & Filtering", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-skip",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					skipPatterns: ["/test"],
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			page.on("request", (req) => {
 				if (req.url().includes("basket.databuddy.cc")) {
@@ -302,10 +230,11 @@ test.describe("Sampling & Filtering", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-skip",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					skipPatterns: ["/admin/*"],
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			page.on("request", (req) => {
 				if (req.url().includes("basket.databuddy.cc")) {
@@ -324,6 +253,7 @@ test.describe("Sampling & Filtering", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-skip",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					skipPatterns: ["/admin/*", "/private/*"],
 				};
 			});
@@ -332,7 +262,7 @@ test.describe("Sampling & Filtering", () => {
 				req.url().includes("basket.databuddy.cc")
 			);
 
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			const request = await requestPromise;
 			expect(request).toBeTruthy();

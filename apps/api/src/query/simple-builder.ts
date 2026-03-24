@@ -659,12 +659,12 @@ export class SimpleQueryBuilder {
 			const timeField = this.config.timeField || "time";
 			whereClause.push(`${timeField} >= toDateTime({from:String})`);
 
-			if (this.config.appendEndOfDayToTo !== false) {
+			if (this.config.appendEndOfDayToTo === false) {
+				whereClause.push(`${timeField} <= toDateTime({to:String})`);
+			} else {
 				whereClause.push(
 					`${timeField} <= toDateTime(concat({to:String}, ' 23:59:59'))`
 				);
-			} else {
-				whereClause.push(`${timeField} <= toDateTime({to:String})`);
 			}
 		}
 

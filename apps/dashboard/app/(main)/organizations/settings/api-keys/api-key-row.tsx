@@ -7,9 +7,9 @@ import {
 	LockKeyIcon,
 	WarningIcon,
 } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
 import { Badge } from "@/components/ui/badge";
+import dayjs from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 
 interface ApiKeyRowProps {
@@ -76,7 +76,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 				</div>
 				<div className="flex items-center gap-3 text-muted-foreground text-sm">
 					<code className="rounded border bg-secondary px-1.5 py-0.5 font-mono text-foreground text-xs">
-						{apiKey.prefix}_{apiKey.start}…
+						{apiKey.start}
 					</code>
 					<span className="flex items-center gap-1 text-xs">
 						<CalendarIcon size={12} />

@@ -32,6 +32,18 @@
     },
     "globals": ["chrome"]
   },
+  "overrides": [
+    {
+      "includes": ["apps/basket/**/*.ts", "apps/api/**/*.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useHookAtTopLevel": "off"
+          }
+        }
+      }
+    }
+  ],
   "linter": {
     "rules": {
       "suspicious": {
@@ -58,7 +70,6 @@
       },
       "nursery": {
         "noShadow": "off",
-        "useMaxParams": "off",
         "noLeakedRender": "off"
       },
       "a11y": {

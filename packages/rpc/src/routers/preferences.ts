@@ -1,6 +1,7 @@
 import { eq, userPreferences } from "@databuddy/db";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
+import { rpcError } from "..";
 import { protectedProcedure } from "../orpc";
 
 const defaultPreferences = {
@@ -22,6 +23,9 @@ export const preferencesRouter = {
 		})
 		.output(preferencesOutputSchema)
 		.handler(async ({ context }) => {
+			if (!context.user) {
+				throw rpcError.unauthorized("User not authenticated");
+			}
 			let preferences = await context.db.query.userPreferences.findFirst({
 				where: eq(userPreferences.userId, context.user.id),
 			});
@@ -58,6 +62,9 @@ export const preferencesRouter = {
 		)
 		.output(preferencesOutputSchema)
 		.handler(async ({ context, input }) => {
+			if (!context.user) {
+				throw rpcError.unauthorized("User not authenticated");
+			}
 			const now = new Date();
 
 			const result = await context.db

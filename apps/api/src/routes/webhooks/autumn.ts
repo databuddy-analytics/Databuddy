@@ -1,12 +1,12 @@
 import { and, db, eq, gt, usageAlertLog, user } from "@databuddy/db";
 import { UsageLimitEmail } from "@databuddy/email";
 import { cacheable } from "@databuddy/redis";
-import { logger } from "@databuddy/shared/logger";
 import { createId } from "@databuddy/shared/utils/ids";
 import { Elysia } from "elysia";
+import { useLogger } from "evlog/elysia";
 import { Resend } from "resend";
 import { Webhook } from "svix";
-import { record, setAttributes } from "../../lib/tracing";
+import { mergeWideEvent } from "../../lib/tracing";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const SVIX_WEBHOOK_SECRET = process.env.AUTUMN_WEBHOOK_SECRET;
@@ -127,27 +127,24 @@ async function handleThresholdReached(
 	const { customer, feature, threshold_type } = payload;
 
 	if (process.env.NODE_ENV === "production" && customer.env === "sandbox") {
-		logger.info(
-			{ customerId: customer.id, feature: feature.id },
-			"Skipping sandbox threshold event in production"
-		);
+		useLogger().info("Skipping sandbox threshold event in production", {
+			autumn: { customerId: customer.id, feature: feature.id },
+		});
 		return { success: true, message: "Skipped sandbox event" };
 	}
 
 	const featureData = customer.features[feature.id];
 	if (featureData?.overage_allowed) {
-		logger.info(
-			{ customerId: customer.id, feature: feature.id },
-			"Skipping alert - overage allowed (paid plan)"
-		);
+		useLogger().info("Skipping alert - overage allowed (paid plan)", {
+			autumn: { customerId: customer.id, feature: feature.id },
+		});
 		return { success: true, message: "Skipped - overage allowed" };
 	}
 
 	if (featureData?.unlimited) {
-		logger.info(
-			{ customerId: customer.id, feature: feature.id },
-			"Skipping alert - unlimited feature"
-		);
+		useLogger().info("Skipping alert - unlimited feature", {
+			autumn: { customerId: customer.id, feature: feature.id },
+		});
 		return { success: true, message: "Skipped - unlimited feature" };
 	}
 
@@ -157,19 +154,18 @@ async function handleThresholdReached(
 		? String(activeProduct.id).toLowerCase()
 		: "free";
 	if (planId !== "free") {
-		logger.info(
-			{ customerId: customer.id, feature: feature.id, planId },
-			"Skipping alert - paid plan (limit emails only for free tier)"
+		useLogger().info(
+			"Skipping alert - paid plan (limit emails only for free tier)",
+			{ autumn: { customerId: customer.id, feature: feature.id, planId } }
 		);
 		return { success: true, message: "Skipped - paid plan" };
 	}
 
 	const recentlySent = await wasAlertSentRecently(customer.id, feature.id);
 	if (recentlySent) {
-		logger.info(
-			{ customerId: customer.id, feature: feature.id },
-			"Skipping alert - already sent within cooldown period"
-		);
+		useLogger().info("Skipping alert - already sent within cooldown period", {
+			autumn: { customerId: customer.id, feature: feature.id },
+		});
 		return {
 			success: true,
 			message: `Alert already sent within ${ALERT_COOLDOWN_DAYS} days`,
@@ -178,10 +174,9 @@ async function handleThresholdReached(
 
 	const email = customer.email ?? (await getUserEmail(customer.id));
 	if (!email) {
-		logger.warn(
-			{ customerId: customer.id, feature: feature.id },
-			"No email found for customer"
-		);
+		useLogger().warn("No email found for customer", {
+			autumn: { customerId: customer.id, feature: feature.id },
+		});
 		return { success: false, message: "No email found for customer" };
 	}
 
@@ -189,7 +184,7 @@ async function handleThresholdReached(
 	const limitAmount = featureData?.included_usage ?? 0;
 	const featureName = formatFeatureName(feature.id, feature.name);
 
-	setAttributes({
+	mergeWideEvent({
 		customer_id: customer.id,
 		feature_id: feature.id,
 		threshold_type,
@@ -197,35 +192,35 @@ async function handleThresholdReached(
 		limit: limitAmount,
 	});
 
-	const result = await record("resendSendEmail", () =>
-		resend.emails.send({
-			from: "Databuddy <alerts@databuddy.cc>",
-			to: email,
-			subject: `You've reached your ${featureName} limit`,
-			react: UsageLimitEmail({
-				featureName,
-				usageAmount,
-				limitAmount,
-				userName: customer.name ?? undefined,
-				thresholdType: threshold_type,
-			}),
-		})
-	);
+	const result = await resend.emails.send({
+		from: "Databuddy <alerts@databuddy.cc>",
+		to: email,
+		subject: `You've reached your ${featureName} limit`,
+		react: UsageLimitEmail({
+			featureName,
+			usageAmount,
+			limitAmount,
+			userName: customer.name ?? undefined,
+			thresholdType: threshold_type,
+		}),
+	});
 
 	if (result.error) {
-		logger.error(
-			{ error: result.error, customerId: customer.id },
-			"Failed to send usage limit email"
-		);
+		useLogger().error(new Error(result.error.message), {
+			autumn: { customerId: customer.id, resend: result.error },
+		});
 		return { success: false, message: result.error.message };
 	}
 
 	await logAlertSent(customer.id, feature.id, threshold_type, email);
 
-	logger.info(
-		{ customerId: customer.id, feature: feature.id, emailId: result.data?.id },
-		"Sent usage limit alert email"
-	);
+	useLogger().info("Sent usage limit alert email", {
+		autumn: {
+			customerId: customer.id,
+			feature: feature.id,
+			emailId: result.data?.id,
+		},
+	});
 
 	return { success: true, message: "Email sent successfully" };
 }
@@ -236,10 +231,13 @@ function handleProductsUpdated(payload: ProductsUpdatedData): {
 } {
 	const { scenario, customer, updated_product } = payload;
 
-	logger.info(
-		{ customerId: customer.id, scenario, product: updated_product.id },
-		"Received products updated webhook"
-	);
+	useLogger().info("Received products updated webhook", {
+		autumn: {
+			customerId: customer.id,
+			scenario,
+			product: updated_product.id,
+		},
+	});
 
 	return { success: true, message: `Processed ${scenario} event` };
 }
@@ -257,7 +255,10 @@ function verifyWebhookSignature(
 	const svixSignature = headers["svix-signature"];
 
 	if (!(svixId && svixTimestamp && svixSignature)) {
-		logger.error("Missing Svix headers for webhook verification");
+		useLogger().error(
+			new Error("Missing Svix headers for webhook verification"),
+			{ autumn: { step: "verify" } }
+		);
 		return false;
 	}
 
@@ -270,7 +271,10 @@ function verifyWebhookSignature(
 		});
 		return true;
 	} catch (error) {
-		logger.error({ error }, "Failed to verify webhook signature");
+		useLogger().error(
+			error instanceof Error ? error : new Error(String(error)),
+			{ autumn: { step: "verify_signature" } }
+		);
 		return false;
 	}
 }
@@ -304,17 +308,17 @@ export const autumnWebhook = new Elysia().post(
 			);
 		}
 
-		return record("autumnWebhook", async () => {
+		return (async () => {
 			// Svix-wrapped format: { type: "...", data: {...} }
 			if ("type" in parsedBody && "data" in parsedBody) {
 				const { type, data } = parsedBody;
 
-				setAttributes({
+				mergeWideEvent({
 					webhook_type: type,
 					svix_id: headers["svix-id"] ?? "unknown",
 				});
 
-				logger.info({ type }, "Received Autumn webhook");
+				useLogger().info("Received Autumn webhook", { autumn: { type } });
 
 				if (type === "customer.threshold_reached") {
 					return await handleThresholdReached(data as ThresholdData);
@@ -323,7 +327,7 @@ export const autumnWebhook = new Elysia().post(
 					return handleProductsUpdated(data as ProductsUpdatedData);
 				}
 
-				logger.warn({ type }, "Unknown webhook type");
+				useLogger().warn("Unknown webhook type", { autumn: { type } });
 				return { success: true, message: "Unknown event type, ignored" };
 			}
 
@@ -332,7 +336,7 @@ export const autumnWebhook = new Elysia().post(
 				const { customer, feature, threshold_type, scenario, updated_product } =
 					parsedBody;
 
-				setAttributes({
+				mergeWideEvent({
 					webhook_type: threshold_type
 						? "customer.threshold_reached"
 						: "customer.products.updated",
@@ -340,7 +344,9 @@ export const autumnWebhook = new Elysia().post(
 				});
 
 				if (threshold_type && feature) {
-					logger.info({ threshold_type }, "Received Autumn threshold webhook");
+					useLogger().info("Received Autumn threshold webhook", {
+						autumn: { threshold_type },
+					});
 					return await handleThresholdReached({
 						customer,
 						feature,
@@ -349,7 +355,9 @@ export const autumnWebhook = new Elysia().post(
 				}
 
 				if (scenario && updated_product) {
-					logger.info({ scenario }, "Received Autumn products updated webhook");
+					useLogger().info("Received Autumn products updated webhook", {
+						autumn: { scenario },
+					});
 					return handleProductsUpdated({
 						scenario,
 						customer,
@@ -358,9 +366,11 @@ export const autumnWebhook = new Elysia().post(
 				}
 			}
 
-			logger.warn({ body: parsedBody }, "Unknown webhook payload format");
+			useLogger().warn("Unknown webhook payload format", {
+				autumn: { body: parsedBody },
+			});
 			return { success: true, message: "Unknown payload format, ignored" };
-		});
+		})();
 	},
 	{ parse: "none" }
 );

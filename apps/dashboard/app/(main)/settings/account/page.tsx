@@ -12,7 +12,6 @@ import {
 	ShieldCheckIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "@/lib/dayjs";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { RightSidebar } from "@/components/right-sidebar";
@@ -31,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import dayjs from "@/lib/dayjs";
 import { UnsavedChangesFooter } from "../_components/settings-section";
 import { TwoFactorDialog } from "./sections/two-factor-dialog";
 

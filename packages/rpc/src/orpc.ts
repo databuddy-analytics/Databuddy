@@ -4,10 +4,10 @@ import { db } from "@databuddy/db";
 import { os as createOS } from "@orpc/server";
 import { baseErrors } from "./errors";
 import {
-	enrichSpanWithContext,
+	enrichRpcWideEventContext,
 	recordORPCError,
-	setProcedureAttributes,
-} from "./lib/otel";
+	setRpcProcedureType,
+} from "./lib/rpc-log-context";
 import {
 	type BillingOwner,
 	getBillingOwner,
@@ -32,21 +32,18 @@ export const createRPCContext = async (opts: { headers: Headers }) => {
 	let billingResolved = false;
 
 	const getBilling = async (): Promise<BillingOwner | undefined> => {
-		if (billingResolved) return billingCache;
+		if (billingResolved) {
+			return billingCache;
+		}
 		billingResolved = true;
 
 		try {
 			if (user) {
 				billingCache = await getBillingOwner(user.id, organizationId);
 			} else if (apiKey?.organizationId) {
-				const ownerId = await getOrganizationOwnerId(
-					apiKey.organizationId
-				);
+				const ownerId = await getOrganizationOwnerId(apiKey.organizationId);
 				if (ownerId) {
-					billingCache = await getBillingOwner(
-						ownerId,
-						apiKey.organizationId
-					);
+					billingCache = await getBillingOwner(ownerId, apiKey.organizationId);
 				}
 			}
 		} catch {
@@ -73,16 +70,16 @@ export type Context = Awaited<ReturnType<typeof createRPCContext>>;
 const os = createOS.$context<Context>().errors(baseErrors);
 
 export const publicProcedure = os.use(({ context, next }) => {
-	setProcedureAttributes("public");
-	enrichSpanWithContext(context);
+	setRpcProcedureType("public");
+	enrichRpcWideEventContext(context);
 	return next();
 });
 
 export const protectedProcedure = os.use(({ context, next, errors }) => {
-	setProcedureAttributes("protected");
-	enrichSpanWithContext(context);
+	setRpcProcedureType("protected");
+	enrichRpcWideEventContext(context);
 
-	if (!context.user && !context.apiKey) {
+	if (!(context.user || context.apiKey)) {
 		recordORPCError({ code: "UNAUTHORIZED" });
 		throw errors.UNAUTHORIZED();
 	}
@@ -92,7 +89,7 @@ export const protectedProcedure = os.use(({ context, next, errors }) => {
 
 export const sessionProcedure = protectedProcedure.use(
 	({ context, next, errors }) => {
-		if (!context.user || !context.session) {
+		if (!(context.user && context.session)) {
 			recordORPCError({ code: "UNAUTHORIZED" });
 			throw errors.UNAUTHORIZED({ message: "Session required" });
 		}
@@ -109,8 +106,8 @@ export const sessionProcedure = protectedProcedure.use(
 
 export const adminProcedure = protectedProcedure.use(
 	({ context, next, errors }) => {
-		setProcedureAttributes("admin");
-		enrichSpanWithContext(context);
+		setRpcProcedureType("admin");
+		enrichRpcWideEventContext(context);
 
 		if (!context.user || context.user.role !== "ADMIN") {
 			recordORPCError({

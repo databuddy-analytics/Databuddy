@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 const CHART_COLORS = [
-	"var(--color-primary)",
+	"var(--color-chart-1)",
 	"var(--color-chart-2)",
 	"var(--color-chart-3)",
 	"var(--color-chart-4)",

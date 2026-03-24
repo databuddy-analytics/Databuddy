@@ -238,7 +238,7 @@ export class BaseTracker {
 				const starIndex = pattern.indexOf("*");
 				if (
 					starIndex !== -1 &&
-					pathname.startsWith(pattern.substring(0, starIndex))
+					pathname.startsWith(pattern.slice(0, starIndex))
 				) {
 					return true;
 				}
@@ -263,14 +263,14 @@ export class BaseTracker {
 				continue;
 			}
 
-			const prefix = pattern.substring(0, starIndex);
+			const prefix = pattern.slice(0, starIndex);
 			if (pathname.startsWith(prefix)) {
-				if (pattern.substring(starIndex, starIndex + 2) === "**") {
+				if (pattern.slice(starIndex, starIndex + 2) === "**") {
 					return `${prefix}*`;
 				}
-				const remainder = pathname.substring(prefix.length);
+				const remainder = pathname.slice(prefix.length);
 				const nextSlash = remainder.indexOf("/");
-				return `${prefix}*${nextSlash === -1 ? "" : remainder.substring(nextSlash)}`;
+				return `${prefix}*${nextSlash === -1 ? "" : remainder.slice(nextSlash)}`;
 			}
 		}
 		return pathname;

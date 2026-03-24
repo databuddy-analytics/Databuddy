@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { findEvent, hasEvent } from "./test-utils";
 
 test.describe("Feature Tracking", () => {
 	test.beforeEach(async ({ page }) => {
@@ -26,21 +27,21 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-mask",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					maskPatterns: ["/users/*/profile"],
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			const requestPromise = page.waitForRequest((req) =>
 				req.url().includes("basket.databuddy.cc")
 			);
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-
-			// Path should be masked
-			expect(payload.path).toContain("/users/*/profile");
-			expect(payload.path).not.toContain("12345");
+			const event = findEvent(request, (e) => e.name === "screen_view");
+			expect(event).toBeTruthy();
+			expect(String(event?.path)).toContain("/users/*/profile");
+			expect(String(event?.path)).not.toContain("12345");
 		});
 
 		test("masks entire path suffix with **", async ({ page }) => {
@@ -50,21 +51,22 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-mask",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					maskPatterns: ["/admin/**"],
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			const requestPromise = page.waitForRequest((req) =>
 				req.url().includes("basket.databuddy.cc")
 			);
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-
-			expect(payload.path).toContain("/admin/*");
-			expect(payload.path).not.toContain("12345");
-			expect(payload.path).not.toContain("security");
+			const event = findEvent(request, (e) => e.name === "screen_view");
+			expect(event).toBeTruthy();
+			expect(String(event?.path)).toContain("/admin/*");
+			expect(String(event?.path)).not.toContain("12345");
+			expect(String(event?.path)).not.toContain("security");
 		});
 
 		test("preserves unmasked paths", async ({ page }) => {
@@ -74,19 +76,20 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-mask",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					maskPatterns: ["/users/*", "/admin/**"],
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			const requestPromise = page.waitForRequest((req) =>
 				req.url().includes("basket.databuddy.cc")
 			);
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-
-			expect(payload.path).toContain("/public/about");
+			const event = findEvent(request, (e) => e.name === "screen_view");
+			expect(event).toBeTruthy();
+			expect(String(event?.path)).toContain("/public/about");
 		});
 	});
 
@@ -105,17 +108,25 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-outgoing",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					trackOutgoingLinks: true,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest((req) =>
-				req.url().includes("/outgoing")
+			const requestPromise = page.waitForRequest(
+				(req) =>
+					req.url().includes("/outgoing") &&
+					hasEvent(
+						req,
+						(e) =>
+							e.href === "https://external-site.com/page" &&
+							e.text === "External Link"
+					)
 			);
 
 			// Click the external link (prevent navigation)
@@ -126,10 +137,15 @@ test.describe("Feature Tracking", () => {
 			await page.click("#external-link");
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-
-			expect(payload.href).toBe("https://external-site.com/page");
-			expect(payload.text).toBe("External Link");
+			const outgoing = findEvent(request, (e) =>
+				Boolean(
+					e.href === "https://external-site.com/page" &&
+					e.text === "External Link"
+				)
+			);
+			expect(outgoing).toBeTruthy();
+			expect(outgoing?.href).toBe("https://external-site.com/page");
+			expect(outgoing?.text).toBe("External Link");
 		});
 
 		test("does not track internal links", async ({ page }) => {
@@ -146,10 +162,11 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-outgoing",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					trackOutgoingLinks: true,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -187,31 +204,31 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-attributes",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					trackAttributes: true,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "cta_click"
-				);
-			});
+					hasEvent(req, (e) => e.name === "cta_click")
+			);
 
 			await page.click("#tracked-btn");
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-
-			expect(payload.name).toBe("cta_click");
-			expect(payload.buttonType).toBe("primary");
-			expect(payload.position).toBe("header");
+			const event = findEvent(request, (e) => e.name === "cta_click");
+			expect(event).toBeTruthy();
+			expect(event?.name).toBe("cta_click");
+			const props = event?.properties as Record<string, unknown> | undefined;
+			expect(props?.buttonType).toBe("primary");
+			expect(props?.position).toBe("header");
 		});
 
 		test("converts kebab-case attributes to camelCase", async ({ page }) => {
@@ -228,29 +245,29 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-attributes",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					trackAttributes: true,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "element_interaction"
-				);
-			});
+					hasEvent(req, (e) => e.name === "element_interaction")
+			);
 
 			await page.click("#tracked-div");
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-
-			expect(payload.myCustomProperty).toBe("test-value");
+			const event = findEvent(request, (e) => e.name === "element_interaction");
+			expect(event).toBeTruthy();
+			const props = event?.properties as Record<string, unknown> | undefined;
+			expect(props?.myCustomProperty).toBe("test-value");
 		});
 
 		test("tracks clicks on child elements of data-track parent", async ({
@@ -267,31 +284,31 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-attributes",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					trackAttributes: true,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "card_click"
-				);
-			});
+					hasEvent(req, (e) => e.name === "card_click")
+			);
 
 			// Click the inner span
 			await page.click("#inner-span");
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-
-			expect(payload.name).toBe("card_click");
-			expect(payload.cardId).toBe("123");
+			const event = findEvent(request, (e) => e.name === "card_click");
+			expect(event).toBeTruthy();
+			expect(event?.name).toBe("card_click");
+			const props = event?.properties as Record<string, unknown> | undefined;
+			expect(props?.cardId).toBe("123");
 		});
 	});
 
@@ -304,10 +321,11 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-scroll",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					trackScrollDepth: true,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -340,10 +358,11 @@ test.describe("Feature Tracking", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-interactions",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 					trackInteractions: true,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))

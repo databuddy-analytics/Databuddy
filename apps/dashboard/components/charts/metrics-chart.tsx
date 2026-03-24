@@ -5,7 +5,6 @@ import {
 	NoteIcon,
 	XIcon,
 } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
 import {
@@ -29,6 +28,7 @@ import {
 	CHART_ANNOTATION_STYLES,
 } from "@/lib/annotation-constants";
 import { isSingleDayAnnotation } from "@/lib/annotation-utils";
+import dayjs from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 import {
 	metricVisibilityAtom,
@@ -80,7 +80,7 @@ const CustomTooltip = ({
 	return (
 		<div className="min-w-[200px] rounded border bg-popover p-3 shadow-lg">
 			<div className="mb-2 flex items-center gap-2 border-b pb-2">
-				<div className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+				<div className="h-1.5 w-1.5 animate-pulse rounded-full bg-chart-1" />
 				<p className="font-medium text-foreground text-xs">{label}</p>
 			</div>
 			<div className="space-y-1.5">
@@ -230,8 +230,7 @@ export function MetricsChart({
 		() =>
 			rawData.map((row) => {
 				const raw = (row as ChartDataRow & { rawDate?: string }).rawDate;
-				const xKey =
-					typeof raw === "string" && raw.length > 0 ? raw : row.date;
+				const xKey = typeof raw === "string" && raw.length > 0 ? raw : row.date;
 				return { ...row, xKey };
 			}),
 		[rawData]
@@ -324,7 +323,9 @@ export function MetricsChart({
 	};
 
 	if (isLoading) {
-		return <SkeletonChart className={cn("w-full", className)} height={height} />;
+		return (
+			<SkeletonChart className={cn("w-full", className)} height={height} />
+		);
 	}
 
 	if (!chartData.length) {
@@ -373,9 +374,7 @@ export function MetricsChart({
 							{onToggleAnnotations !== undefined && (
 								<Button
 									aria-label={
-										showAnnotations
-											? "Hide annotations"
-											: "Show annotations"
+										showAnnotations ? "Hide annotations" : "Show annotations"
 									}
 									className="size-7 text-muted-foreground hover:text-foreground"
 									onClick={() => onToggleAnnotations(!showAnnotations)}
@@ -485,24 +484,24 @@ export function MetricsChart({
 										justFinishedDragging={suppressTooltip}
 									/>
 								}
-								labelFormatter={(value) =>
-									formatAxisTickLabel(String(value), granularity)
-								}
 								cursor={
 									suppressTooltip
 										? false
 										: {
-												stroke: "var(--color-primary)",
+												stroke: "var(--color-chart-1)",
 												strokeDasharray: "4 4",
 												strokeOpacity: 0.5,
 											}
 								}
+								labelFormatter={(value) =>
+									formatAxisTickLabel(String(value), granularity)
+								}
 							/>
 							{refAreaLeft !== null && refAreaRight !== null && (
 								<ReferenceArea
-									fill="var(--color-primary)"
+									fill="var(--color-chart-1)"
 									fillOpacity={0.2}
-									stroke="var(--color-primary)"
+									stroke="var(--color-chart-1)"
 									strokeOpacity={0.6}
 									strokeWidth={1}
 									x1={refAreaLeft}
@@ -549,7 +548,10 @@ export function MetricsChart({
 										? chartLastD.toDate()
 										: chartLastD.endOf("day").toDate();
 
-									if (rangeEnd < chartDomainStart || rangeStart > chartDomainEnd) {
+									if (
+										rangeEnd < chartDomainStart ||
+										rangeStart > chartDomainEnd
+									) {
 										return null;
 									}
 

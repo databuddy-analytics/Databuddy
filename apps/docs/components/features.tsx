@@ -103,7 +103,7 @@ const whatYouGet = [
 
 export default function Features() {
 	return (
-		<div className="relative mx-auto rounded-none border-border bg-background/95 -pr-2 font-geist md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
+		<div className="relative mx-auto rounded-none border-border bg-background/95 -pr-2 md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
 			<div className="w-full md:mx-0">
 				{/* Why We Exist Section */}
 				<div className="border-border border-t-[1.2px] border-l-[1.2px] p-10 pb-2 md:border-t-0">

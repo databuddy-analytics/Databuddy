@@ -102,4 +102,4 @@ const owner = ac.newRole({
 	llm: ["read", "view_analytics", "manage"],
 });
 
-export { ac, owner, admin, member, viewer };
+export { ac, admin, member, owner, viewer };

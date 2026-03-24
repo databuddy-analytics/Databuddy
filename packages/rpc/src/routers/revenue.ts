@@ -1,4 +1,4 @@
-import { and, db, eq, isNull, revenueConfig } from "@databuddy/db";
+import { and, eq, isNull, revenueConfig } from "@databuddy/db";
 import { createId } from "@databuddy/shared/utils/ids";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -29,26 +29,26 @@ export const revenueRouter = {
 		.handler(async ({ context, input }) => {
 			const workspace = input.websiteId
 				? await withWorkspace(context, {
-					websiteId: input.websiteId,
-					permissions: ["read"],
-				})
+						websiteId: input.websiteId,
+						permissions: ["read"],
+					})
 				: await withWorkspace(context, {
-					resource: "website",
-					permissions: ["configure"],
-				});
+						resource: "website",
+						permissions: ["configure"],
+					});
 
 			const ownerId = workspace.organizationId;
 
 			const config = await context.db.query.revenueConfig.findFirst({
 				where: input.websiteId
 					? and(
-						eq(revenueConfig.ownerId, ownerId),
-						eq(revenueConfig.websiteId, input.websiteId)
-					)
+							eq(revenueConfig.ownerId, ownerId),
+							eq(revenueConfig.websiteId, input.websiteId)
+						)
 					: and(
-						eq(revenueConfig.ownerId, ownerId),
-						isNull(revenueConfig.websiteId)
-					),
+							eq(revenueConfig.ownerId, ownerId),
+							isNull(revenueConfig.websiteId)
+						),
 			});
 
 			if (!config) {
@@ -98,13 +98,13 @@ export const revenueRouter = {
 			const existing = await context.db.query.revenueConfig.findFirst({
 				where: input.websiteId
 					? and(
-						eq(revenueConfig.ownerId, ownerId),
-						eq(revenueConfig.websiteId, input.websiteId)
-					)
+							eq(revenueConfig.ownerId, ownerId),
+							eq(revenueConfig.websiteId, input.websiteId)
+						)
 					: and(
-						eq(revenueConfig.ownerId, ownerId),
-						isNull(revenueConfig.websiteId)
-					),
+							eq(revenueConfig.ownerId, ownerId),
+							isNull(revenueConfig.websiteId)
+						),
 			});
 
 			if (existing) {
@@ -177,13 +177,13 @@ export const revenueRouter = {
 			const existing = await context.db.query.revenueConfig.findFirst({
 				where: input.websiteId
 					? and(
-						eq(revenueConfig.ownerId, ownerId),
-						eq(revenueConfig.websiteId, input.websiteId)
-					)
+							eq(revenueConfig.ownerId, ownerId),
+							eq(revenueConfig.websiteId, input.websiteId)
+						)
 					: and(
-						eq(revenueConfig.ownerId, ownerId),
-						isNull(revenueConfig.websiteId)
-					),
+							eq(revenueConfig.ownerId, ownerId),
+							isNull(revenueConfig.websiteId)
+						),
 			});
 
 			if (!existing) {
@@ -223,13 +223,13 @@ export const revenueRouter = {
 			const existing = await context.db.query.revenueConfig.findFirst({
 				where: input.websiteId
 					? and(
-						eq(revenueConfig.ownerId, ownerId),
-						eq(revenueConfig.websiteId, input.websiteId)
-					)
+							eq(revenueConfig.ownerId, ownerId),
+							eq(revenueConfig.websiteId, input.websiteId)
+						)
 					: and(
-						eq(revenueConfig.ownerId, ownerId),
-						isNull(revenueConfig.websiteId)
-					),
+							eq(revenueConfig.ownerId, ownerId),
+							isNull(revenueConfig.websiteId)
+						),
 			});
 
 			if (!existing) {

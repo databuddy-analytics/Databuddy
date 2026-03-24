@@ -251,12 +251,12 @@ export function VitalGaugeCard({
 	let trendIsNegative = false;
 
 	if (hasTrend && trendChange !== null) {
-		if (config.lowerIsBetter !== false) {
-			trendIsPositive = trendChange < 0;
-			trendIsNegative = trendChange > 0;
-		} else {
+		if (config.lowerIsBetter === false) {
 			trendIsPositive = trendChange > 0;
 			trendIsNegative = trendChange < 0;
+		} else {
+			trendIsPositive = trendChange < 0;
+			trendIsNegative = trendChange > 0;
 		}
 	}
 
@@ -336,13 +336,13 @@ export function VitalGaugeCard({
 							)}
 							<div className="flex justify-between bg-accent px-3 py-1.5">
 								<span className="text-muted-foreground text-xs">
-									Good: {config.lowerIsBetter !== false ? "≤" : "≥"}{" "}
+									Good: {config.lowerIsBetter === false ? "≥" : "≤"}{" "}
 									{config.name === "CLS"
 										? config.goodThreshold
 										: `${config.goodThreshold}${config.unit}`}
 								</span>
 								<span className="text-muted-foreground text-xs">
-									Poor: {config.lowerIsBetter !== false ? ">" : "<"}{" "}
+									Poor: {config.lowerIsBetter === false ? "<" : ">"}{" "}
 									{config.name === "CLS"
 										? config.poorThreshold
 										: `${config.poorThreshold}${config.unit}`}
@@ -387,15 +387,15 @@ export function VitalGaugeCard({
 						<span className={cn("font-semibold text-xs", ratingInfo.className)}>
 							{ratingInfo.label}
 						</span>
-					) : samples !== undefined ? (
+					) : samples === undefined ? null : (
 						<span className="text-muted-foreground text-xs">
 							{samples.toLocaleString()}
 						</span>
-					) : null}
+					)}
 				</div>
 			</div>
 		</Card>
 	);
 }
 
-export type { VitalConfig, VitalGaugeCardProps, TrendData };
+export type { TrendData, VitalConfig, VitalGaugeCardProps };

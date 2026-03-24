@@ -164,14 +164,14 @@ export function Slider({
 					>
 						<div className="h-2 w-full rounded-full bg-secondary">
 							<div
-								className="h-full rounded-full bg-primary transition-[width] duration-75"
+								className="h-full rounded-full bg-brand-purple transition-[width] duration-75"
 								style={{ width: `${percentage}%` }}
 							/>
 						</div>
 
 						<motion.div
 							className={cn(
-								'-translate-y-1/2 absolute top-1/2 size-4 rounded-full border-2 border-primary bg-background shadow-sm',
+								'-translate-y-1/2 absolute top-1/2 size-4 rounded-full border-2 border-brand-purple bg-background shadow-sm',
 								isDragging ? 'cursor-grabbing' : 'cursor-grab'
 							)}
 							style={{ left: `${percentage}%`, x: '-50%' }}

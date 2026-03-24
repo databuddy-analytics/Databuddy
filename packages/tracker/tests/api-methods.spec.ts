@@ -1,4 +1,16 @@
 import { expect, test } from "@playwright/test";
+import { countEvents, findEvent, hasEvent } from "./test-utils";
+
+/** Flatten `properties` for /track payloads; batch events are already flat. */
+function eventPayloadForAssert(event: Record<string, unknown>): Record<string, unknown> {
+	const nested = event.properties;
+	const fromNested =
+		nested && typeof nested === "object" && !Array.isArray(nested)
+			? (nested as Record<string, unknown>)
+			: {};
+	const { properties: _omit, ...rest } = event;
+	return { ...fromNested, ...rest };
+}
 
 test.describe("API Methods", () => {
 	test.beforeEach(async ({ page }) => {
@@ -7,7 +19,7 @@ test.describe("API Methods", () => {
 			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
 		});
 
-		await page.route("**/basket.databuddy.cc/*", async (route) => {
+		await page.route("**/basket.databuddy.cc/**", async (route) => {
 			await route.fulfill({
 				status: 200,
 				contentType: "application/json",
@@ -24,9 +36,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-global-props",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -40,20 +53,23 @@ test.describe("API Methods", () => {
 				});
 			});
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "test_event"
-				);
-			});
+					hasEvent(req, (e) => e.name === "test_event")
+			);
 
 			await page.evaluate(() => {
 				(window as any).db.track("test_event", { custom: "value" });
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const raw = findEvent(request, (e) => e.name === "test_event");
+			expect(raw).toBeDefined();
+			if (raw === undefined) {
+				throw new Error("Expected test_event in request payload");
+			}
+			const payload = eventPayloadForAssert(raw);
 
 			expect(payload.app_version).toBe("1.2.3");
 			expect(payload.environment).toBe("test");
@@ -66,9 +82,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-global-props",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -80,13 +97,11 @@ test.describe("API Methods", () => {
 				});
 			});
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "override_test"
-				);
-			});
+					hasEvent(req, (e) => e.name === "override_test")
+			);
 
 			// Override the global property
 			await page.evaluate(() => {
@@ -94,7 +109,12 @@ test.describe("API Methods", () => {
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const raw = findEvent(request, (e) => e.name === "override_test");
+			expect(raw).toBeDefined();
+			if (raw === undefined) {
+				throw new Error("Expected override_test in request payload");
+			}
+			const payload = eventPayloadForAssert(raw);
 
 			// Event-level props should override global
 			expect(payload.environment).toBe("staging");
@@ -106,9 +126,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-global-props",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -119,60 +140,64 @@ test.describe("API Methods", () => {
 				(window as any).db.setGlobalProperties({ prop2: "value2" });
 			});
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "accumulate_test"
-				);
-			});
+					hasEvent(req, (e) => e.name === "accumulate_test")
+			);
 
 			await page.evaluate(() => {
 				(window as any).db.track("accumulate_test");
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const raw = findEvent(request, (e) => e.name === "accumulate_test");
+			expect(raw).toBeDefined();
+			if (raw === undefined) {
+				throw new Error("Expected accumulate_test in request payload");
+			}
+			const payload = eventPayloadForAssert(raw);
 
 			expect(payload.prop1).toBe("value1");
 			expect(payload.prop2).toBe("value2");
 		});
 	});
 
-	test.describe("trackCustomEvent", () => {
-		test("adds event_type: custom to events", async ({ page }) => {
+	test.describe("track (custom events)", () => {
+		test("sends custom event with properties", async ({ page }) => {
 			await page.goto("/test");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
 					clientId: "test-custom-event",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "my_custom_event"
-				);
-			});
+					hasEvent(req, (e) => e.name === "my_custom_event")
+			);
 
 			await page.evaluate(() => {
-				(window as any).db.trackCustomEvent("my_custom_event", {
-					foo: "bar",
-				});
+				(window as any).db.track("my_custom_event", { foo: "bar" });
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const raw = findEvent(request, (e) => e.name === "my_custom_event");
+			expect(raw).toBeDefined();
+			if (raw === undefined) {
+				throw new Error("Expected my_custom_event in request payload");
+			}
+			const payload = eventPayloadForAssert(raw);
 
 			expect(payload.name).toBe("my_custom_event");
-			expect(payload.event_type).toBe("custom");
 			expect(payload.foo).toBe("bar");
 		});
 
@@ -182,9 +207,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-custom-event",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -194,22 +220,24 @@ test.describe("API Methods", () => {
 				(window as any).db.setGlobalProperties({ user_tier: "premium" });
 			});
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "custom_with_global"
-				);
-			});
+					hasEvent(req, (e) => e.name === "custom_with_global")
+			);
 
 			await page.evaluate(() => {
-				(window as any).db.trackCustomEvent("custom_with_global");
+				(window as any).db.track("custom_with_global");
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const raw = findEvent(request, (e) => e.name === "custom_with_global");
+			expect(raw).toBeDefined();
+			if (raw === undefined) {
+				throw new Error("Expected custom_with_global in request payload");
+			}
+			const payload = eventPayloadForAssert(raw);
 
-			expect(payload.event_type).toBe("custom");
 			expect(payload.user_tier).toBe("premium");
 		});
 	});
@@ -221,9 +249,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-clear",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -247,9 +276,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-clear",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -276,9 +306,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-clear",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -289,20 +320,23 @@ test.describe("API Methods", () => {
 				(window as any).db.clear();
 			});
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "after_clear"
-				);
-			});
+					hasEvent(req, (e) => e.name === "after_clear")
+			);
 
 			await page.evaluate(() => {
 				(window as any).db.track("after_clear");
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const raw = findEvent(request, (e) => e.name === "after_clear");
+			expect(raw).toBeDefined();
+			if (raw === undefined) {
+				throw new Error("Expected after_clear in request payload");
+			}
+			const payload = eventPayloadForAssert(raw);
 
 			expect(payload.should_be_cleared).toBeUndefined();
 		});
@@ -313,9 +347,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-clear",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -332,21 +367,29 @@ test.describe("API Methods", () => {
 			});
 
 			// Force a new screen view by changing lastPath
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "screen_view" &&
-					payload?.page_count === 1
-				);
-			});
+					hasEvent(
+						req,
+						(e) => e.name === "screen_view" && e.page_count === 1
+					)
+			);
 
 			await page.evaluate(() => {
 				history.pushState({}, "", "/fresh-page");
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const raw = findEvent(
+				request,
+				(e) => e.name === "screen_view" && e.page_count === 1
+			);
+			expect(raw).toBeDefined();
+			if (raw === undefined) {
+				throw new Error("Expected screen_view with page_count 1 in payload");
+			}
+			const payload = eventPayloadForAssert(raw);
 			expect(payload.page_count).toBe(1);
 		});
 	});
@@ -375,7 +418,7 @@ test.describe("API Methods", () => {
 					batchTimeout: 60_000, // Long timeout
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -385,11 +428,18 @@ test.describe("API Methods", () => {
 				req.url().includes("/batch")
 			);
 
-			// Add events but don't reach batch size
+			// Queue extra batched screen_views (track() uses /track, not the batch queue).
+			// Two navigations so the batch still has ≥2 events if the first screen_view already flushed.
 			await page.evaluate(() => {
-				(window as any).db.track("event1");
-				(window as any).db.track("event2");
-				// Manually flush
+				history.pushState({}, "", "/flush-extra-a");
+			});
+			await page.waitForTimeout(150);
+			await page.evaluate(() => {
+				history.pushState({}, "", "/flush-extra-b");
+			});
+			await page.waitForTimeout(150);
+
+			await page.evaluate(() => {
 				(window as any).db.flush();
 			});
 
@@ -421,7 +471,7 @@ test.describe("API Methods", () => {
 					batchTimeout: 60_000,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -447,9 +497,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-destroy",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -474,9 +525,10 @@ test.describe("API Methods", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-destroy",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -488,11 +540,11 @@ test.describe("API Methods", () => {
 			});
 
 			page.on("request", (req) => {
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					req.postDataJSON?.()?.name === "after_destroy"
-				) {
-					postOptOutRequests += 1;
+				if (req.url().includes("basket.databuddy.cc")) {
+					postOptOutRequests += countEvents(
+						req,
+						(e) => e.name === "after_destroy"
+					);
 				}
 			});
 

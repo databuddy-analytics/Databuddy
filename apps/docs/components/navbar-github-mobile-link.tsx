@@ -29,9 +29,7 @@ export function NavbarGithubMobileLink({
 			className={cn(
 				"group flex transform items-center gap-3 rounded border border-border/30 font-medium transition-all duration-200 hover:translate-x-1 hover:border-border/50 hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-muted/70",
 				densityClass,
-				isMenuOpen
-					? "translate-x-0 opacity-100"
-					: "-translate-x-4 opacity-0"
+				isMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
 			)}
 			href={githubRepoUrl}
 			onClick={onCloseAction}

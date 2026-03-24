@@ -1,7 +1,6 @@
 "use client";
 
 import { HeartbeatIcon, PlusIcon } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
@@ -13,6 +12,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import dayjs from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 
 interface MonitorsSectionProps {

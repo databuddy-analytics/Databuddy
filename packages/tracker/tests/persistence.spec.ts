@@ -21,9 +21,10 @@ test.describe("Persistence", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-persist",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		// Get first ID
 		const id1 = await page.evaluate(() => localStorage.getItem("did"));
@@ -35,9 +36,10 @@ test.describe("Persistence", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-persist",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		// Get second ID
 		const id2 = await page.evaluate(() => localStorage.getItem("did"));
@@ -50,9 +52,10 @@ test.describe("Persistence", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-persist",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		const sess1 = await page.evaluate(() =>
 			sessionStorage.getItem("did_session")
@@ -64,9 +67,10 @@ test.describe("Persistence", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-persist",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		const sess2 = await page.evaluate(() =>
 			sessionStorage.getItem("did_session")

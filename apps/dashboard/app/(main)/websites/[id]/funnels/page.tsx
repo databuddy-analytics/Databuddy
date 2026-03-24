@@ -173,12 +173,13 @@ export default function FunnelsPage() {
 					subtitle={
 						isLoading
 							? undefined
-							: `${funnels.length} funnel${funnels.length !== 1 ? "s" : ""}`
+							: `${funnels.length} funnel${funnels.length === 1 ? "" : "s"}`
 					}
 					title="Conversion Funnels"
 					websiteId={websiteId}
 				/>
 
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
 				{isLoading ? (
 					<FunnelsListSkeleton />
 				) : (
@@ -222,6 +223,7 @@ export default function FunnelsPage() {
 						}}
 					</FunnelsList>
 				)}
+				</div>
 
 				{editing !== null && (
 					<EditFunnelDialog

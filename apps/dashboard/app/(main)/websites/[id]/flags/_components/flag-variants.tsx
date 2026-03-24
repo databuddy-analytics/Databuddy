@@ -34,7 +34,7 @@ export function FlagVariants({ variants }: { variants: Variant[] }) {
 		<Tooltip delayDuration={200}>
 			<TooltipTrigger asChild>
 				<span className="cursor-help underline decoration-dotted underline-offset-2">
-					{variants.length} {variants.length !== 1 ? "variants" : "variant"}
+					{variants.length} {variants.length === 1 ? "variant" : "variants"}
 				</span>
 			</TooltipTrigger>
 			<TooltipContent className="p-0" side="top">

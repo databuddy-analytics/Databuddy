@@ -184,8 +184,8 @@ export function buildToolInfo(
 
 /** Token count extractor for streaming */
 export {
-	getTokenCount,
-	getReasoningTokens,
 	getCachedTokens,
+	getReasoningTokens,
+	getTokenCount,
 	getWebSearchCount,
 };

@@ -1,5 +1,5 @@
 import { chQuery } from "@databuddy/db";
-import { record, setAttributes } from "../lib/tracing";
+import { mergeWideEvent } from "../lib/tracing";
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import type { QueryRequest, SimpleQueryConfig } from "./types";
@@ -36,7 +36,7 @@ function runSingle(
 		});
 	}
 
-	return record(`query.single.${req.type}`, async () => {
+	return (async () => {
 		const startTime = performance.now();
 		try {
 			const builder = new SimpleQueryBuilder(
@@ -46,7 +46,7 @@ function runSingle(
 			);
 			const data = await builder.execute();
 
-			setAttributes({
+			mergeWideEvent({
 				query_type: req.type,
 				query_from: req.from,
 				query_to: req.to,
@@ -57,10 +57,10 @@ function runSingle(
 			return { type: req.type, data };
 		} catch (e) {
 			const error = e instanceof Error ? e.message : "Query failed";
-			setAttributes({ query_error: error });
+			mergeWideEvent({ query_error: error });
 			return { type: req.type, data: [], error };
 		}
-	});
+	})();
 }
 
 function groupBySchema(
@@ -146,10 +146,10 @@ export function executeBatch(
 		return Promise.resolve([]);
 	}
 
-	return record("query.batch", async () => {
+	return (async () => {
 		const startTime = performance.now();
 
-		setAttributes({
+		mergeWideEvent({
 			batch_size: requests.length,
 			batch_types: requests.map((r) => r.type).join(","),
 		});
@@ -180,7 +180,7 @@ export function executeBatch(
 				const rawRows = await chQuery(sql, params);
 				const queryDuration = Math.round(performance.now() - queryStart);
 
-				setAttributes({
+				mergeWideEvent({
 					batch_union_query_count: indices.length,
 					batch_union_rows: rawRows.length,
 					batch_union_duration_ms: queryDuration,
@@ -214,7 +214,7 @@ export function executeBatch(
 		const unionCount = groupResults.reduce((s, r) => s + r.unionCount, 0);
 		const singleCount = groupResults.reduce((s, r) => s + r.singleCount, 0);
 
-		setAttributes({
+		mergeWideEvent({
 			batch_union_groups: unionCount,
 			batch_single_queries: singleCount,
 			batch_duration_ms: Math.round(performance.now() - startTime),
@@ -223,7 +223,7 @@ export function executeBatch(
 		return results.map(
 			(r, i) => r || { type: requests[i]?.type || "unknown", data: [] }
 		);
-	});
+	})();
 }
 
 export function areQueriesCompatible(type1: string, type2: string): boolean {

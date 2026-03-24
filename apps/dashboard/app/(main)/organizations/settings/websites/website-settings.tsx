@@ -161,7 +161,7 @@ export function WebsiteSettings({
 					</Button>
 					{!isEmpty && (
 						<RightSidebar.InfoCard
-							description={`Website${websites.length !== 1 ? "s" : ""}`}
+							description={`Website${websites.length === 1 ? "" : "s"}`}
 							icon={GlobeIcon}
 							title={String(websites.length)}
 						/>

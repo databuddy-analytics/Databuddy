@@ -72,7 +72,7 @@ interface PercentageRow {
 
 function getRowPercentage(row: PercentageRow): number {
 	const value = row.percentage;
-	return value !== undefined ? Number.parseFloat(String(value)) || 0 : 0;
+	return value === undefined ? 0 : Number.parseFloat(String(value)) || 0;
 }
 
 const GRADIENT_COLORS = {
@@ -280,18 +280,18 @@ function TableContentInner<TData extends { name: string | number }>({
 										(header.column.columnDef.meta as any)?.className
 									)}
 									key={header.id}
+									style={{
+										width:
+											header.getSize() === 150
+												? undefined
+												: `${Math.min(header.getSize(), 300)}px`,
+										maxWidth: "300px",
+										minWidth: "80px",
+									}}
 									title={resolveShareColumnTitle(
 										header.column.id,
 										shareColumnTooltip
 									)}
-									style={{
-										width:
-											header.getSize() !== 150
-												? `${Math.min(header.getSize(), 300)}px`
-												: undefined,
-										maxWidth: "300px",
-										minWidth: "80px",
-									}}
 								>
 									<span className="truncate">
 										{header.isPlaceholder

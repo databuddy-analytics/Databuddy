@@ -1,384 +1,188 @@
 # @databuddy/notifications
 
-A unified notification package for sending alerts, messages, and webhooks across multiple platforms (Slack, Discord, Email, and custom webhooks).
+Unified notification package for sending alerts across Slack, Discord, Email, Teams, Telegram, Google Chat, and custom webhooks.
 
-## Features
+## Channels
 
-- **Multi-channel support**: Send notifications to Slack, Discord, Email, or custom webhooks
-- **Unified API**: Single interface for all notification channels
-- **Error handling**: Built-in retry logic and timeout handling
-- **Type-safe**: Full TypeScript support with strict typing
-- **Extensible**: Easy to add new notification providers
 
-## Installation
+| Channel     | Config                | Setup                                      |
+| ----------- | --------------------- | ------------------------------------------ |
+| Slack       | `webhookUrl`          | Incoming webhook URL                       |
+| Discord     | `webhookUrl`          | Channel webhook URL                        |
+| Email       | `sendEmailAction`     | Injected send function (Resend, SES, etc.) |
+| Webhook     | `url`                 | Any HTTP endpoint                          |
+| Teams       | `webhookUrl`          | Incoming webhook URL                       |
+| Telegram    | `botToken` + `chatId` | Create bot via BotFather                   |
+| Google Chat | `webhookUrl`          | Space webhook URL                          |
 
-This is an internal workspace package. Install it in your app:
 
-```json
-{
-  "dependencies": {
-    "@databuddy/notifications": "workspace:*"
-  }
-}
-```
+## Quick Start
 
-## Usage
-
-### Helper Functions (Simple)
-
-For quick one-off notifications, use the helper functions:
+### One-off sends
 
 ```typescript
-import { sendSlackWebhook, sendDiscordWebhook, sendEmail, sendWebhook } from "@databuddy/notifications";
+import {
+  sendSlackWebhook,
+  sendDiscordWebhook,
+  sendTeamsWebhook,
+  sendTelegramMessage,
+  sendGoogleChatWebhook,
+  sendEmail,
+  sendWebhook,
+} from "@databuddy/notifications";
 
-// Send to Slack
-await sendSlackWebhook(process.env.SLACK_WEBHOOK_URL!, {
+await sendSlackWebhook(SLACK_URL, {
   title: "Alert",
   message: "Something happened!",
   priority: "high",
-  metadata: { key: "value" },
-}, {
-  channel: "#alerts",
-  username: "Bot",
+  metadata: { website: "example.com" },
 });
 
-// Send to Discord
-await sendDiscordWebhook(process.env.DISCORD_WEBHOOK_URL!, {
-  title: "Deployment Complete",
-  message: "New version deployed successfully",
-  priority: "normal",
-});
-
-// Send Email
-import { Resend } from "resend";
-const resend = new Resend(process.env.RESEND_API_KEY);
-
-await sendEmail(
-  async (payload) => resend.emails.send({ from: "noreply@databuddy.cc", ...payload }),
-  {
-    title: "Welcome",
-    message: "Thanks for signing up!",
-    to: "user@example.com",
-  },
-  { from: "noreply@databuddy.cc" }
-);
-
-// Send to custom webhook
-await sendWebhook(process.env.CUSTOM_WEBHOOK_URL!, {
-  title: "Event",
-  message: "Something occurred",
-}, {
-  method: "POST",
-  headers: { Authorization: `Bearer ${token}` },
+await sendTelegramMessage(BOT_TOKEN, CHAT_ID, {
+  title: "Deploy Complete",
+  message: "v2.1.0 is live",
 });
 ```
 
-### Client Setup (Advanced)
+### Client (multi-channel)
 
 ```typescript
 import { NotificationClient } from "@databuddy/notifications";
+
+const client = new NotificationClient({
+  slack: { webhookUrl: SLACK_URL },
+  discord: { webhookUrl: DISCORD_URL },
+  teams: { webhookUrl: TEAMS_URL },
+  telegram: { botToken: BOT_TOKEN, chatId: CHAT_ID },
+  defaultChannels: ["slack", "discord"],
+  defaultRetries: 2,
+});
+
+const results = await client.send({
+  title: "Traffic Spike",
+  message: "300% increase detected",
+  priority: "high",
+  metadata: { website: "example.com", traffic: "15,000" },
+});
+
+// Send to specific channels
+await client.send(payload, { channels: ["slack", "telegram"] });
+
+// Send to one channel
+await client.sendToChannel("teams", payload);
+```
+
+## Uptime templates
+
+Build consistent payloads for downtime and recovery (map your monitor model to the input in your app):
+
+```typescript
+import {
+  buildUptimeNotificationPayload,
+  NotificationClient,
+  sendSlackWebhook,
+} from "@databuddy/notifications";
+
+const downPayload = buildUptimeNotificationPayload({
+  kind: "down",
+  siteLabel: "Marketing site",
+  url: "https://example.com",
+  checkedAt: Date.now(),
+  httpCode: 0,
+  error: "Connection refused",
+  probeRegion: "eu-west",
+  totalMs: 12_000,
+});
+
+await sendSlackWebhook(SLACK_URL, downPayload);
+
+const recoveredPayload = buildUptimeNotificationPayload({
+  kind: "recovered",
+  siteLabel: "Marketing site",
+  url: "https://example.com",
+  checkedAt: Date.now(),
+  httpCode: 200,
+  error: "",
+  totalMs: 120,
+  ttfbMs: 45,
+});
+
+const client = new NotificationClient({
+  discord: { webhookUrl: DISCORD_URL },
+  teams: { webhookUrl: TEAMS_URL },
+});
+
+await client.send(recoveredPayload, { channels: ["discord", "teams"] });
+```
+
+Metadata includes `template: "uptime"`, `kind`, `url`, `siteLabel`, `checkedAt`, `httpCode`, and optional fields (`error`, `probeRegion`, timings, SSL) for webhooks and filtering. 
+
+## Email
+
+Email uses an injected send function so you can plug in any provider:
+
+```typescript
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const client = new NotificationClient({
-  slack: {
-    webhookUrl: process.env.SLACK_WEBHOOK_URL!,
-    channel: "#alerts",
-    username: "Databuddy",
-  },
-  discord: {
-    webhookUrl: process.env.DISCORD_WEBHOOK_URL!,
-    username: "Databuddy Bot",
-  },
   email: {
-    sendEmail: async (payload) => {
-      return resend.emails.send({
-        from: "noreply@databuddy.cc",
-        ...payload,
-      });
-    },
-    from: "noreply@databuddy.cc",
-  },
-  webhook: {
-    url: process.env.CUSTOM_WEBHOOK_URL!,
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.WEBHOOK_TOKEN}`,
-    },
-  },
-  defaultChannels: ["slack", "discord"],
-});
-```
-
-### Sending Notifications
-
-#### Send to all default channels
-
-```typescript
-const results = await client.send({
-  title: "Traffic Spike Detected",
-  message: "Your website has experienced a 300% increase in traffic.",
-  priority: "high",
-  metadata: {
-    website: "example.com",
-    traffic: "15,000 visits",
-    threshold: "5,000 visits",
+    sendEmailAction: async (payload) =>
+      new Resend(API_KEY).emails.send({ from: "noreply@example.com", ...payload }),
+    defaultTo: "alerts@example.com",
+    from: "noreply@example.com",
   },
 });
 
-results.forEach((result) => {
-  if (result.success) {
-    console.log(`✅ Sent to ${result.channel}`);
-  } else {
-    console.error(`❌ Failed to send to ${result.channel}: ${result.error}`);
-  }
-});
-```
-
-#### Send to specific channels
-
-```typescript
-const results = await client.send(
-  {
-    title: "Goal Completed",
-    message: "Your conversion goal has been reached!",
-    priority: "normal",
-  },
-  {
-    channels: ["slack", "email"],
-  }
-);
-```
-
-#### Send to a single channel
-
-```typescript
-const result = await client.sendToChannel("slack", {
-  title: "Error Alert",
-  message: "High error rate detected on your website.",
-  priority: "urgent",
-  metadata: {
-    errorRate: "5.2%",
-    threshold: "1%",
-  },
-});
-```
-
-### Email Notifications
-
-For email notifications, you must provide the recipient address in `metadata.to`:
-
-```typescript
+// Uses defaultTo
 await client.sendToChannel("email", {
   title: "Weekly Report",
-  message: "Your weekly analytics report is ready.",
-  metadata: {
-    to: "user@example.com",
-    // or multiple recipients:
-    // to: ["user1@example.com", "user2@example.com"],
-  },
+  message: "Your report is ready.",
+});
+
+// Override recipient per-send
+await client.sendToChannel("email", {
+  title: "Welcome",
+  message: "Thanks for signing up!",
+  metadata: { to: "user@example.com" },
 });
 ```
 
-### Custom Webhook Transformations
+## Priority
 
-You can customize how the payload is transformed for webhooks:
+All channels support priority levels with channel-specific rendering:
 
-```typescript
-const client = new NotificationClient({
-  webhook: {
-    url: process.env.CUSTOM_WEBHOOK_URL!,
-    transformPayload: (payload) => ({
-      alert: {
-        title: payload.title,
-        body: payload.message,
-        severity: payload.priority ?? "normal",
-        data: payload.metadata,
-      },
-    }),
-  },
-});
-```
 
-### Priority Levels
+| Priority | Discord      | Teams           | Telegram  | Slack         |
+| -------- | ------------ | --------------- | --------- | ------------- |
+| `urgent` | Red embed    | Attention color | 🔴 prefix | Context block |
+| `high`   | Orange embed | Warning color   | 🟠 prefix | Context block |
+| `normal` | Green embed  | Good color      | (none)    | (none)        |
+| `low`    | Blue embed   | Accent color    | 🔵 prefix | Context block |
 
-Notifications support priority levels that affect Discord embed colors:
 
-- `urgent` - Red
-- `high` - Orange
-- `normal` - Green (default)
-- `low` - Blue
+## Reliability
 
-## Provider Configuration
+- **Retries** with exponential backoff + jitter (configurable per-provider)
+- **Timeouts** via `AbortController` signal on fetch (default 10s)
+- **Isolated failures** via `Promise.allSettled` — one channel failing doesn't block others
 
-### Slack Provider
-
-```typescript
-{
-  slack: {
-    webhookUrl: string;           // Required: Slack webhook URL
-    channel?: string;              // Optional: Override default channel
-    username?: string;             // Optional: Bot username
-    iconEmoji?: string;            // Optional: Bot emoji icon
-    iconUrl?: string;              // Optional: Bot icon URL
-    timeout?: number;              // Optional: Request timeout (default: 10000ms)
-    retries?: number;              // Optional: Retry attempts (default: 0)
-    retryDelay?: number;          // Optional: Delay between retries (default: 1000ms)
-  }
-}
-```
-
-### Discord Provider
-
-```typescript
-{
-  discord: {
-    webhookUrl: string;            // Required: Discord webhook URL
-    username?: string;             // Optional: Bot username
-    avatarUrl?: string;            // Optional: Bot avatar URL
-    timeout?: number;              // Optional: Request timeout (default: 10000ms)
-    retries?: number;              // Optional: Retry attempts (default: 0)
-    retryDelay?: number;          // Optional: Delay between retries (default: 1000ms)
-  }
-}
-```
-
-### Email Provider
-
-```typescript
-{
-  email: {
-    sendEmail: (payload: EmailPayload) => Promise<unknown>;  // Required: Email sending function
-    from?: string;                // Optional: Default from address
-    timeout?: number;             // Optional: Request timeout (default: 10000ms)
-    retries?: number;             // Optional: Retry attempts (default: 0)
-    retryDelay?: number;          // Optional: Delay between retries (default: 1000ms)
-  }
-}
-```
-
-### Webhook Provider
-
-```typescript
-{
-  webhook: {
-    url: string;                   // Required: Webhook URL
-    method?: "GET" | "POST" | "PUT" | "PATCH";  // Optional: HTTP method (default: POST)
-    headers?: Record<string, string>;  // Optional: Custom headers
-    timeout?: number;              // Optional: Request timeout (default: 10000ms)
-    retries?: number;              // Optional: Retry attempts (default: 0)
-    retryDelay?: number;           // Optional: Delay between retries (default: 1000ms)
-    transformPayload?: (payload: NotificationPayload) => unknown;  // Optional: Custom payload transformer
-  }
-}
-```
-
-## API Reference
-
-### Helper Functions
-
-#### `sendSlackWebhook(webhookUrl, payload, options?)`
-
-Send a notification to Slack via webhook.
-
-```typescript
-await sendSlackWebhook(webhookUrl, {
-  title: string;
-  message: string;
-  priority?: NotificationPriority;
-  metadata?: Record<string, unknown>;
-}, {
-  channel?: string;
-  username?: string;
-  iconEmoji?: string;
-  iconUrl?: string;
-  timeout?: number;
-  retries?: number;
-  retryDelay?: number;
-});
-```
-
-#### `sendDiscordWebhook(webhookUrl, payload, options?)`
-
-Send a notification to Discord via webhook.
-
-```typescript
-await sendDiscordWebhook(webhookUrl, {
-  title: string;
-  message: string;
-  priority?: NotificationPriority;
-  metadata?: Record<string, unknown>;
-}, {
-  username?: string;
-  avatarUrl?: string;
-  timeout?: number;
-  retries?: number;
-  retryDelay?: number;
-});
-```
-
-#### `sendEmail(sendEmailFn, payload, options?)`
-
-Send an email notification.
-
-```typescript
-await sendEmail(sendEmailFn, {
-  title: string;
-  message: string;
-  to: string | string[];  // Required
-  priority?: NotificationPriority;
-  metadata?: Record<string, unknown>;
-}, {
-  from?: string;
-  timeout?: number;
-  retries?: number;
-  retryDelay?: number;
-});
-```
-
-#### `sendWebhook(url, payload, options?)`
-
-Send a notification to a custom webhook.
-
-```typescript
-await sendWebhook(url, {
-  title: string;
-  message: string;
-  priority?: NotificationPriority;
-  metadata?: Record<string, unknown>;
-}, {
-  method?: "GET" | "POST" | "PUT" | "PATCH";
-  headers?: Record<string, string>;
-  transformPayload?: (payload: NotificationPayload) => unknown;
-  timeout?: number;
-  retries?: number;
-  retryDelay?: number;
-});
-```
+## API
 
 ### `NotificationClient`
 
-Main client for sending notifications.
 
-#### Methods
+| Method                            | Returns                         |
+| --------------------------------- | ------------------------------- |
+| `send(payload, options?)`         | `Promise<NotificationResult[]>` |
+| `sendToChannel(channel, payload)` | `Promise<NotificationResult>`   |
+| `hasChannel(channel)`             | `boolean`                       |
+| `getConfiguredChannels()`         | `NotificationChannel[]`         |
 
-- `send(payload: NotificationPayload, options?: NotificationOptions): Promise<NotificationResult[]>`
-  - Sends a notification to all configured default channels or specified channels
-
-- `sendToChannel(channel: NotificationChannel, payload: NotificationPayload): Promise<NotificationResult>`
-  - Sends a notification to a specific channel
-
-- `hasChannel(channel: NotificationChannel): boolean`
-  - Checks if a channel is configured
-
-- `getConfiguredChannels(): NotificationChannel[]`
-  - Returns all configured channels
 
 ### Types
 
 ```typescript
-type NotificationChannel = "slack" | "discord" | "email" | "webhook";
+type NotificationChannel = "slack" | "discord" | "email" | "webhook" | "teams" | "telegram" | "google-chat";
 type NotificationPriority = "low" | "normal" | "high" | "urgent";
 
 interface NotificationPayload {
@@ -396,41 +200,3 @@ interface NotificationResult {
 }
 ```
 
-## Examples
-
-### Migrating from existing code
-
-If you have existing Slack webhook code:
-
-```typescript
-// Before
-async function sendToSlack(data: AmbassadorFormData) {
-  const response = await fetch(SLACK_WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ blocks }),
-  });
-}
-
-// After
-const client = new NotificationClient({
-  slack: { webhookUrl: SLACK_WEBHOOK_URL },
-});
-
-await client.sendToChannel("slack", {
-  title: "New Ambassador Application",
-  message: `Name: ${data.name}\nEmail: ${data.email}`,
-  metadata: data,
-});
-```
-
-## Roadmap
-
-See [TODO.md](./TODO.md) for planned features including:
-- Database-backed alarm system
-- Uptime monitoring integration
-- Additional notification providers (Teams, Telegram, PagerDuty, SMS, etc.)
-
-## License
-
-Internal use only.

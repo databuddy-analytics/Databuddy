@@ -1,6 +1,6 @@
 import type { RolloutStep } from "@databuddy/shared/flags";
-import { logger } from "@databuddy/shared/logger";
 import { Client } from "@upstash/qstash";
+import { logger } from "../lib/logger";
 
 if (!process.env.UPSTASH_QSTASH_TOKEN) {
 	throw new Error("UPSTASH_QSTASH_TOKEN environment variable is required");

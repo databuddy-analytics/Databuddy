@@ -95,8 +95,8 @@ export function SubmitFeedbackDialog() {
 				<DialogHeader>
 					<DialogTitle>Submit Feedback</DialogTitle>
 					<DialogDescription>
-						Help us improve and earn credits when your feedback is
-						approved. More detail = more credits.
+						Help us improve and earn credits when your feedback is approved.
+						More detail = more credits.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -115,9 +115,7 @@ export function SubmitFeedbackDialog() {
 					<div className="grid gap-1.5">
 						<Label htmlFor="feedback-category">Category</Label>
 						<Select
-							onValueChange={(v) =>
-								setCategory(v as FeedbackCategoryValue)
-							}
+							onValueChange={(v) => setCategory(v as FeedbackCategoryValue)}
 							value={category}
 						>
 							<SelectTrigger className="w-full" id="feedback-category">

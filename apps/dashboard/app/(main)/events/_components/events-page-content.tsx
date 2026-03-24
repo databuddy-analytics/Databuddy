@@ -7,12 +7,12 @@ import {
 	TrendUpIcon,
 	UserIcon,
 } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { useMemo } from "react";
 import { StatCard } from "@/components/analytics";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import dayjs from "@/lib/dayjs";
 import { classifyEventProperties } from "./classify-properties";
 import { EventsList } from "./events-list";
 import { useEventsPageContext } from "./events-page-context";

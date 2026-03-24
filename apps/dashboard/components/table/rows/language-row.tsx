@@ -26,11 +26,11 @@ export function createLanguageColumns(
 	// Use provided displayNames or create fallback
 	const effectiveDisplayNames =
 		displayNames ||
-		(typeof window !== "undefined"
-			? new Intl.DisplayNames([navigator.language || "en"], {
+		(typeof window === "undefined"
+			? null
+			: new Intl.DisplayNames([navigator.language || "en"], {
 					type: "language",
-				})
-			: null);
+				}));
 
 	return [
 		{

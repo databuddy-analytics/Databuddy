@@ -385,5 +385,5 @@ export function validateInteractionCount(count: unknown): number | null {
  */
 export function validateExitIntent(intent: unknown): number {
 	const validated = validateNumeric(intent, 0, 1);
-	return validated !== null ? validated : 0;
+	return validated === null ? 0 : validated;
 }

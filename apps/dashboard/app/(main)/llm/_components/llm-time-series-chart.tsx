@@ -33,7 +33,7 @@ const METRICS: MetricConfig[] = [
 	{
 		key: "total_cost",
 		label: "Cost",
-		color: "hsl(var(--primary))",
+		color: "var(--chart-1)",
 		gradient: "llm-cost",
 		formatValue: formatCurrency,
 	},
@@ -81,7 +81,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 	return (
 		<div className="min-w-[200px] rounded border bg-popover p-3 shadow-lg">
 			<div className="mb-2 flex items-center gap-2 border-b pb-2">
-				<div className="size-1.5 animate-pulse rounded-full bg-primary" />
+				<div className="size-1.5 animate-pulse rounded-full bg-chart-1" />
 				<p className="font-medium text-foreground text-xs">{label}</p>
 			</div>
 			<div className="space-y-1.5">
@@ -272,7 +272,7 @@ export function LLMTimeSeriesChart({
 									<Tooltip
 										content={<CustomTooltip />}
 										cursor={{
-											stroke: "var(--color-primary)",
+											stroke: "var(--color-chart-1)",
 											strokeDasharray: "4 4",
 											strokeOpacity: 0.5,
 										}}

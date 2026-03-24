@@ -19,7 +19,6 @@ import { StripeLogoIcon } from "@phosphor-icons/react/dist/ssr/StripeLogo";
 import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
 import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import dayjs from "@/lib/dayjs";
 import { useAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useMemo, useState } from "react";
@@ -40,6 +39,7 @@ import {
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import dayjs from "@/lib/dayjs";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {

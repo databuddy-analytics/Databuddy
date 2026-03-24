@@ -309,7 +309,7 @@ export default function SecurityPage() {
 				icon={<LockIcon />}
 				title="Security & Access"
 			/>
-			<div className="flex min-h-0 flex-1 flex-col">
+			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
 				{/* Allowed Origins */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="space-y-3">

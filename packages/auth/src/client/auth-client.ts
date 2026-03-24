@@ -51,4 +51,4 @@ const signOut = authClient.signOut;
 const useSession = authClient.useSession;
 const getSession = authClient.getSession;
 
-export { signIn, signUp, signOut, useSession, getSession };
+export { getSession, signIn, signOut, signUp, useSession };

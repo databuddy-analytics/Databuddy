@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 
 type WebVitalEvent = {
 	name: "web_vital";
-	eventId: string;
 	timestamp: number;
 	path: string;
 	metricName: string;
@@ -48,7 +47,7 @@ test.describe("Web Vitals Tracking", () => {
 				ignoreBotDetection: true,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/vitals.js" });
+		await page.addScriptTag({ url: "/dist/vitals-debug.js" });
 
 		// Wait for FPS measurement (2 seconds) + batch timeout (2 seconds) + buffer
 		await page.waitForTimeout(5000);
@@ -60,7 +59,6 @@ test.describe("Web Vitals Tracking", () => {
 			const validMetrics = ["FCP", "LCP", "CLS", "INP", "TTFB", "FPS"];
 			for (const vital of allVitals) {
 				expect(vital.name).toBe("web_vital");
-				expect(vital.eventId).toBeDefined();
 				expect(validMetrics).toContain(vital.metricName);
 				expect(typeof vital.metricValue).toBe("number");
 			}
@@ -95,7 +93,7 @@ test.describe("Web Vitals Tracking", () => {
 				ignoreBotDetection: true,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/vitals.js" });
+		await page.addScriptTag({ url: "/dist/vitals-debug.js" });
 
 		// FPS measurement takes 2 seconds + batch timeout
 		await page.waitForTimeout(5000);
@@ -133,7 +131,7 @@ test.describe("Web Vitals Tracking", () => {
 				ignoreBotDetection: true,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/vitals.js" });
+		await page.addScriptTag({ url: "/dist/vitals-debug.js" });
 
 		await page.waitForTimeout(5000);
 

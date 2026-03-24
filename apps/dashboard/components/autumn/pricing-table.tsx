@@ -397,7 +397,7 @@ function PricingCard({
 			)}
 		>
 			{isRecommended && (
-				<Badge className="absolute top-3 right-3 bg-primary text-primary-foreground">
+				<Badge className="absolute top-3 right-3 bg-brand-purple text-white">
 					<StarIcon className="mr-1" size={12} weight="fill" />
 					{productDisplay?.recommend_text}
 				</Badge>
@@ -600,7 +600,7 @@ function GatedFeatureItem({
 				<div className="flex items-center gap-2">
 					<span>{name}</span>
 					{isNew && (
-						<Badge className="bg-primary/10 text-primary text-xs">New</Badge>
+						<Badge className="bg-brand-purple/10 text-brand-purple text-xs">New</Badge>
 					)}
 				</div>
 				{limitText && (
@@ -611,4 +611,4 @@ function GatedFeatureItem({
 	);
 }
 
-export { PricingCard, FeatureItem as PricingFeatureItem };
+export { FeatureItem as PricingFeatureItem, PricingCard };

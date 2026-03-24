@@ -1,7 +1,7 @@
 import { ClockIcon } from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
-import dayjs from "@/lib/dayjs";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
+import dayjs from "@/lib/dayjs";
 
 export interface TimezoneEntry {
 	name: string;

@@ -49,8 +49,6 @@ export default function MonitorsPage() {
 		granularity: string;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
-			fields?: string[];
 		} | null;
 	} | null>(null);
 

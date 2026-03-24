@@ -37,7 +37,6 @@ import {
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { CollapsibleSection } from "./collapsible-section";
-import { FieldPathInput } from "./field-path-input";
 
 const granularityOptions = [
 	{ value: "minute", label: "1m" },
@@ -62,8 +61,6 @@ const monitorFormSchema = z.object({
 	timeout: z.number().int().min(1000).max(120_000).nullable(),
 	cacheBust: z.boolean(),
 	jsonParsingEnabled: z.boolean(),
-	jsonParsingMode: z.enum(["auto", "manual"]),
-	jsonParsingFields: z.array(z.string()),
 });
 
 type MonitorFormData = z.infer<typeof monitorFormSchema>;
@@ -82,8 +79,6 @@ interface MonitorSheetProps {
 		cacheBust?: boolean;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
-			fields?: string[];
 		} | null;
 	} | null;
 }
@@ -111,9 +106,7 @@ export function MonitorSheet({
 				"ten_minutes",
 			timeout: schedule?.timeout ?? null,
 			cacheBust: schedule?.cacheBust ?? false,
-			jsonParsingEnabled: schedule?.jsonParsingConfig?.enabled ?? false,
-			jsonParsingMode: schedule?.jsonParsingConfig?.mode ?? "auto",
-			jsonParsingFields: schedule?.jsonParsingConfig?.fields ?? [],
+			jsonParsingEnabled: schedule?.jsonParsingConfig?.enabled ?? true,
 		},
 	});
 
@@ -130,16 +123,22 @@ export function MonitorSheet({
 
 			// If creating new and websiteId exists, pre-fill URL if empty
 			let initialUrl = schedule?.url ?? "";
-			if (!(isEditing || initialUrl) && website?.domain) {
-				initialUrl = website.domain.startsWith("http")
+			const siteDomain =
+				website != null && typeof website.domain === "string"
 					? website.domain
-					: `https://${website.domain}`;
+					: "";
+			if (!(isEditing || initialUrl) && siteDomain) {
+				initialUrl = siteDomain.startsWith("http")
+					? siteDomain
+					: `https://${siteDomain}`;
 			}
 
 			// Pre-fill name if available or creating for website
 			let initialName = schedule?.name ?? "";
-			if (!(isEditing || initialName) && website?.name) {
-				initialName = website.name;
+			const siteName =
+				website != null && typeof website.name === "string" ? website.name : "";
+			if (!(isEditing || initialName) && siteName) {
+				initialName = siteName;
 			}
 
 			form.reset({
@@ -150,12 +149,10 @@ export function MonitorSheet({
 					"ten_minutes",
 				timeout: schedule?.timeout ?? null,
 				cacheBust: schedule?.cacheBust ?? false,
-				jsonParsingEnabled: jsonConfig?.enabled ?? false,
-				jsonParsingMode: jsonConfig?.mode ?? "auto",
-				jsonParsingFields: jsonConfig?.fields ?? [],
+				jsonParsingEnabled: jsonConfig?.enabled ?? true,
 			});
 			const hasAdvancedSettings =
-				(jsonConfig?.enabled ?? false) ||
+				jsonConfig?.enabled === false ||
 				schedule?.timeout !== null ||
 				(schedule?.cacheBust ?? false);
 			setIsAdvancedOpen(hasAdvancedSettings);
@@ -165,17 +162,7 @@ export function MonitorSheet({
 	const handleSubmit = async () => {
 		const data = form.getValues();
 
-		const jsonParsingConfig = data.jsonParsingEnabled
-			? {
-					enabled: true,
-					mode: data.jsonParsingMode,
-					fields:
-						data.jsonParsingMode === "manual" &&
-						data.jsonParsingFields.length > 0
-							? data.jsonParsingFields
-							: undefined,
-				}
-			: undefined;
+		const jsonParsingConfig = { enabled: data.jsonParsingEnabled };
 
 		try {
 			if (isEditing && schedule) {
@@ -425,7 +412,7 @@ export function MonitorSheet({
 									icon={CodeIcon}
 									isExpanded={isAdvancedOpen}
 									onToggleAction={() => setIsAdvancedOpen(!isAdvancedOpen)}
-									title="JSON Response Parsing"
+									title="JSON health payload"
 								>
 									<div className="space-y-6">
 										<FormField
@@ -435,10 +422,10 @@ export function MonitorSheet({
 												<FormItem className="flex items-center justify-between gap-4 space-y-0 rounded border p-3">
 													<div className="space-y-1">
 														<FormLabel className="font-normal text-sm">
-															Enable Parsing
+															Capture service latency
 														</FormLabel>
-														<p className="text-muted-foreground text-xs">
-															Extract status and latency from JSON health checks
+														<p className="text-pretty text-muted-foreground text-xs">
+															Parse JSON responses for status and latency fields
 														</p>
 													</div>
 													<FormControl>
@@ -446,7 +433,7 @@ export function MonitorSheet({
 															checked={field.value}
 															onCheckedChange={(checked) => {
 																field.onChange(checked);
-																if (checked) {
+																if (!checked) {
 																	setIsAdvancedOpen(true);
 																}
 															}}
@@ -455,85 +442,6 @@ export function MonitorSheet({
 												</FormItem>
 											)}
 										/>
-
-										{form.watch("jsonParsingEnabled") && (
-											<div className="fade-in slide-in-from-top-2 animate-in space-y-6">
-												<FormField
-													control={form.control}
-													name="jsonParsingMode"
-													render={({ field }) => (
-														<FormItem>
-															<div className="mb-2 flex items-center justify-between">
-																<FormLabel>Parsing Mode</FormLabel>
-																<span className="text-muted-foreground text-xs">
-																	{field.value === "auto"
-																		? "Recursively search for status/latency fields"
-																		: "Manually specify paths using dot notation"}
-																</span>
-															</div>
-															<FormControl>
-																<div className="flex items-center justify-center gap-0 rounded border">
-																	<Button
-																		className={clsx(
-																			"h-9 flex-1 cursor-pointer rounded-none rounded-l border-r px-0 font-medium text-sm hover:bg-accent/50",
-																			field.value === "auto" &&
-																				"bg-accent text-accent-foreground hover:bg-accent"
-																		)}
-																		onClick={() => field.onChange("auto")}
-																		type="button"
-																		variant={
-																			field.value === "auto"
-																				? "secondary"
-																				: "ghost"
-																		}
-																	>
-																		Auto
-																	</Button>
-																	<Button
-																		className={clsx(
-																			"h-9 flex-1 cursor-pointer rounded-none rounded-r px-0 font-medium text-sm hover:bg-accent/50",
-																			field.value === "manual" &&
-																				"bg-accent text-accent-foreground hover:bg-accent"
-																		)}
-																		onClick={() => field.onChange("manual")}
-																		type="button"
-																		variant={
-																			field.value === "manual"
-																				? "secondary"
-																				: "ghost"
-																		}
-																	>
-																		Manual
-																	</Button>
-																</div>
-															</FormControl>
-															<FormMessage />
-														</FormItem>
-													)}
-												/>
-
-												{form.watch("jsonParsingMode") === "manual" && (
-													<FormField
-														control={form.control}
-														name="jsonParsingFields"
-														render={({ field }) => (
-															<FormItem>
-																<FormLabel className="flex items-center gap-2">
-																	Field Paths
-																</FormLabel>
-																<FormControl>
-																	<FieldPathInput
-																		onChange={field.onChange}
-																		value={field.value}
-																	/>
-																</FormControl>
-																<FormMessage />
-															</FormItem>
-														)}
-													/>
-												)}
-											</div>
-										)}
 									</div>
 								</CollapsibleSection>
 							</div>
@@ -543,7 +451,7 @@ export function MonitorSheet({
 							<Button
 								onClick={() => onCloseAction(false)}
 								type="button"
-								variant="ghost"
+								variant="outline"
 							>
 								Cancel
 							</Button>

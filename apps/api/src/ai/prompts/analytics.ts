@@ -71,6 +71,13 @@ const ANALYTICS_CORE_RULES = `**Bounce rate (CRITICAL):**
 - get_profile_sessions: Get a visitor's session history with page-by-page journey
 - Use these when users ask about specific visitors, user segments, "who visited", "show me users from Germany", etc.
 
+**Memory:**
+- search_memory: Search past conversations with this user. Use when you need context about their preferences, past questions, or previous findings
+- save_memory: Save important insights, user preferences, or notable patterns for future conversations
+- Proactively search memory when the user asks about something they may have discussed before
+- Save key findings (e.g. "traffic drops every Monday", "user focuses on /pricing bounce rate") so future conversations have context
+- Do NOT save trivial or redundant information
+
 **Web Search:**
 - web_search: Search the web for external context. Use for industry benchmarks, best practices, competitor analysis, marketing advice, SEO tips, or any question that goes beyond the analytics data
 - Pass a clear, specific query and optional context about the user's situation

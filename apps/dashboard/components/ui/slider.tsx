@@ -44,14 +44,14 @@ function Slider({
 			>
 				<SliderPrimitive.Range
 					className={cn(
-						'absolute bg-primary data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full'
+						'absolute bg-brand-purple data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full'
 					)}
 					data-slot="slider-range"
 				/>
 			</SliderPrimitive.Track>
 			{_values.map((value, index) => (
 				<SliderPrimitive.Thumb
-					className="block size-4 shrink-0 rounded-full border border-primary bg-background shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:outline-hidden focus-visible:ring-4 disabled:pointer-events-none disabled:opacity-50"
+					className="block size-4 shrink-0 rounded-full border border-brand-purple bg-background shadow-sm ring-ring/50 transition-[color,box-shadow] hover:ring-4 focus-visible:outline-hidden focus-visible:ring-4 disabled:pointer-events-none disabled:opacity-50"
 					data-slot="slider-thumb"
 					key={`slider-thumb-${index}-${value}`}
 				/>

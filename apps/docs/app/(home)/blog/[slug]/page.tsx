@@ -15,6 +15,7 @@ import { Footer } from "@/components/footer";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { Prose } from "@/components/prose";
 import { SciFiCard } from "@/components/scifi-card";
+import { StructuredData } from "@/components/structured-data";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getPosts, getSinglePost } from "@/lib/blog-query";
 
@@ -53,38 +54,26 @@ export async function generateMetadata({
 			return { title: "Not Found | Databuddy" };
 		}
 
+		const postUrl = `${SITE_URL}/blog/${slug}`;
+		const ogImage = data.post.coverImage ?? `${SITE_URL}/og.webp`;
+		const publishedIso = new Date(data.post.publishedAt).toISOString();
+
 		return {
-			title: `${data.post.title} | Databuddy`,
+			title: data.post.title,
 			description: data.post.description,
-			twitter: {
-				title: `${data.post.title} | Databuddy`,
-				description: data.post.description,
-				card: "summary_large_image",
-				images: [
-					{
-						url: data.post.coverImage ?? `${SITE_URL}/og.webp`,
-						width: "1200",
-						height: "630",
-						alt: data.post.title,
-					},
-				],
+			alternates: {
+				canonical: postUrl,
 			},
 			openGraph: {
-				title: `${data.post.title} | Databuddy`,
+				title: data.post.title,
 				description: data.post.description,
 				type: "article",
+				url: postUrl,
 				images: [
-					{
-						url: data.post.coverImage ?? `${SITE_URL}/og.webp`,
-						width: "1200",
-						height: "630",
-						alt: data.post.title,
-					},
+					{ url: ogImage, width: 1200, height: 630, alt: data.post.title },
 				],
-				publishedTime: new Date(data.post.publishedAt).toISOString(),
-				authors: [
-					...data.post.authors.map((author: { name: string }) => author.name),
-				],
+				publishedTime: publishedIso,
+				authors: data.post.authors.map((a: { name: string }) => a.name),
 			},
 		};
 	} catch {
@@ -150,8 +139,34 @@ export default async function PostPage({
 
 	const readingTime = estimateReadingTime(post.content);
 
+	const postUrl = `${SITE_URL}/blog/${slug}`;
+	const publishedIso = new Date(post.publishedAt).toISOString();
+	const ogImage = post.coverImage ?? `${SITE_URL}/og.webp`;
+
 	return (
 		<>
+			<StructuredData
+				elements={[
+					{
+						type: "article",
+						value: {
+							title: post.title,
+							description: post.description,
+							imageUrl: ogImage,
+							datePublished: publishedIso,
+							dateModified: publishedIso,
+						},
+					},
+				]}
+				page={{
+					title: `${post.title} | Databuddy`,
+					description: post.description,
+					url: postUrl,
+					imageUrl: ogImage,
+					datePublished: publishedIso,
+					dateModified: publishedIso,
+				}}
+			/>
 			<div className="mx-auto w-full max-w-3xl px-4 pt-10 sm:px-6 sm:pt-12 lg:px-8">
 				<div className="mb-4">
 					<Link

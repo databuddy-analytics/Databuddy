@@ -1,13 +1,13 @@
 import { DiscordProvider } from "./providers/discord";
 import { EmailProvider } from "./providers/email";
+import { GoogleChatProvider } from "./providers/google-chat";
 import { SlackProvider } from "./providers/slack";
+import { TeamsProvider } from "./providers/teams";
+import { TelegramProvider } from "./providers/telegram";
 import { WebhookProvider } from "./providers/webhook";
-import type { NotificationPayload } from "./types";
+import type { NotificationPayload, NotificationResult } from "./types";
 
-/**
- * Send a notification to Slack via webhook
- */
-export async function sendSlackWebhook(
+export function sendSlackWebhook(
 	webhookUrl: string,
 	payload: NotificationPayload,
 	options?: {
@@ -19,7 +19,7 @@ export async function sendSlackWebhook(
 		retries?: number;
 		retryDelay?: number;
 	}
-) {
+): Promise<NotificationResult> {
 	const provider = new SlackProvider({
 		webhookUrl,
 		channel: options?.channel,
@@ -31,13 +31,10 @@ export async function sendSlackWebhook(
 		retryDelay: options?.retryDelay,
 	});
 
-	return await provider.send(payload);
+	return provider.send(payload);
 }
 
-/**
- * Send a notification to Discord via webhook
- */
-export async function sendDiscordWebhook(
+export function sendDiscordWebhook(
 	webhookUrl: string,
 	payload: NotificationPayload,
 	options?: {
@@ -47,7 +44,7 @@ export async function sendDiscordWebhook(
 		retries?: number;
 		retryDelay?: number;
 	}
-) {
+): Promise<NotificationResult> {
 	const provider = new DiscordProvider({
 		webhookUrl,
 		username: options?.username,
@@ -57,14 +54,11 @@ export async function sendDiscordWebhook(
 		retryDelay: options?.retryDelay,
 	});
 
-	return await provider.send(payload);
+	return provider.send(payload);
 }
 
-/**
- * Send a notification via email
- */
-export async function sendEmail(
-	sendEmailFn: (payload: {
+export function sendEmail(
+	sendEmailAction: (payload: {
 		to: string | string[];
 		subject: string;
 		html?: string;
@@ -78,44 +72,97 @@ export async function sendEmail(
 		retries?: number;
 		retryDelay?: number;
 	}
-) {
+): Promise<NotificationResult> {
 	const provider = new EmailProvider({
-		sendEmail: sendEmailFn,
+		sendEmailAction,
 		from: options?.from,
 		timeout: options?.timeout,
 		retries: options?.retries,
 		retryDelay: options?.retryDelay,
 	});
 
-	return await provider.send({
+	return provider.send({
 		...payload,
-		metadata: {
-			...payload.metadata,
-			to: payload.to,
-		},
+		metadata: { ...payload.metadata, to: payload.to },
 	});
 }
 
-/**
- * Send a notification to a custom webhook
- */
 export function sendWebhook(
 	url: string,
 	payload: NotificationPayload,
 	options?: {
 		method?: "GET" | "POST" | "PUT" | "PATCH";
 		headers?: Record<string, string>;
-		transformPayload?: (payload: NotificationPayload) => unknown;
+		transformPayloadAction?: (payload: NotificationPayload) => unknown;
 		timeout?: number;
 		retries?: number;
 		retryDelay?: number;
 	}
-) {
+): Promise<NotificationResult> {
 	const provider = new WebhookProvider({
 		url,
 		method: options?.method,
 		headers: options?.headers,
-		transformPayload: options?.transformPayload,
+		transformPayloadAction: options?.transformPayloadAction,
+		timeout: options?.timeout,
+		retries: options?.retries,
+		retryDelay: options?.retryDelay,
+	});
+
+	return provider.send(payload);
+}
+
+export function sendTeamsWebhook(
+	webhookUrl: string,
+	payload: NotificationPayload,
+	options?: {
+		timeout?: number;
+		retries?: number;
+		retryDelay?: number;
+	}
+): Promise<NotificationResult> {
+	const provider = new TeamsProvider({
+		webhookUrl,
+		timeout: options?.timeout,
+		retries: options?.retries,
+		retryDelay: options?.retryDelay,
+	});
+
+	return provider.send(payload);
+}
+
+export function sendTelegramMessage(
+	botToken: string,
+	chatId: string,
+	payload: NotificationPayload,
+	options?: {
+		timeout?: number;
+		retries?: number;
+		retryDelay?: number;
+	}
+): Promise<NotificationResult> {
+	const provider = new TelegramProvider({
+		botToken,
+		chatId,
+		timeout: options?.timeout,
+		retries: options?.retries,
+		retryDelay: options?.retryDelay,
+	});
+
+	return provider.send(payload);
+}
+
+export function sendGoogleChatWebhook(
+	webhookUrl: string,
+	payload: NotificationPayload,
+	options?: {
+		timeout?: number;
+		retries?: number;
+		retryDelay?: number;
+	}
+): Promise<NotificationResult> {
+	const provider = new GoogleChatProvider({
+		webhookUrl,
 		timeout: options?.timeout,
 		retries: options?.retries,
 		retryDelay: options?.retryDelay,

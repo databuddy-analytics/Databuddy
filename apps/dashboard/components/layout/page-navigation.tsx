@@ -142,7 +142,7 @@ export function PageNavigation(props: PageNavigationProps) {
 						)}
 						{isActive && (
 							<motion.div
-								className="absolute inset-x-0 bottom-0 h-0.5 bg-primary"
+								className="absolute inset-x-0 bottom-0 h-0.5 bg-brand-purple"
 								layoutId="page-nav-indicator"
 								transition={{ type: "spring", stiffness: 400, damping: 30 }}
 							/>

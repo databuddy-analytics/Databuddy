@@ -106,7 +106,7 @@ function TabsList({
 					{...props}
 				/>
 				<div
-					className="absolute bottom-0 left-0 h-0.5 bg-primary transition-all duration-200 ease-out"
+					className="absolute bottom-0 left-0 h-0.5 bg-brand-purple transition-all duration-200 ease-out"
 					style={indicatorStyle}
 				/>
 			</div>
@@ -126,7 +126,7 @@ function TabsList({
 					{...props}
 				/>
 				<div
-					className="absolute bottom-0 left-0 h-0.5 bg-primary transition-all duration-200 ease-out"
+					className="absolute bottom-0 left-0 h-0.5 bg-brand-purple transition-all duration-200 ease-out"
 					style={indicatorStyle}
 				/>
 			</div>
@@ -191,7 +191,7 @@ function TabsTrigger({
 					"focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
 					"disabled:pointer-events-none disabled:opacity-50",
 					"[&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
-					"data-[state=active]:[&_svg]:text-primary",
+					"data-[state=active]:[&_svg]:text-brand-purple",
 					className
 				)}
 				data-slot="tabs-trigger"
@@ -291,9 +291,9 @@ function TabsBadge({
 		<span
 			className={cn(
 				"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
-				isActive
-					? "bg-primary text-primary-foreground"
-					: "bg-muted text-foreground",
+			isActive
+				? "bg-brand-purple text-white"
+				: "bg-muted text-foreground",
 				className
 			)}
 			data-slot="tabs-badge"

@@ -1,4 +1,11 @@
-export type NotificationChannel = "slack" | "discord" | "email" | "webhook";
+export type NotificationChannel =
+	| "slack"
+	| "discord"
+	| "email"
+	| "webhook"
+	| "teams"
+	| "telegram"
+	| "google-chat";
 
 export type NotificationPriority = "low" | "normal" | "high" | "urgent";
 
@@ -9,14 +16,30 @@ export interface NotificationPayload {
 	metadata?: Record<string, unknown>;
 }
 
+export interface NotificationResult {
+	success: boolean;
+	channel: NotificationChannel;
+	error?: string;
+	response?: unknown;
+}
+
+export interface NotificationOptions {
+	channels?: NotificationChannel[];
+	timeout?: number;
+	retries?: number;
+	retryDelay?: number;
+}
+
+export interface SlackTextElement {
+	type: "plain_text" | "mrkdwn";
+	text: string;
+}
+
 export interface SlackBlock {
-	type: string;
-	text?: {
-		type: string;
-		text: string;
-	};
-	fields?: Array<{ title: string; value: string; short?: boolean }>;
-	[key: string]: unknown;
+	type: "header" | "section" | "context" | "divider" | "actions";
+	text?: SlackTextElement;
+	fields?: SlackTextElement[];
+	elements?: SlackTextElement[];
 }
 
 export interface SlackPayload {
@@ -38,16 +61,9 @@ export interface DiscordEmbed {
 		inline?: boolean;
 	}>;
 	timestamp?: string;
-	footer?: {
-		text: string;
-		icon_url?: string;
-	};
-	thumbnail?: {
-		url: string;
-	};
-	image?: {
-		url: string;
-	};
+	footer?: { text: string; icon_url?: string };
+	thumbnail?: { url: string };
+	image?: { url: string };
 }
 
 export interface DiscordPayload {
@@ -73,16 +89,54 @@ export interface WebhookPayload {
 	timeout?: number;
 }
 
-export interface NotificationResult {
-	success: boolean;
-	channel: NotificationChannel;
-	error?: string;
-	response?: unknown;
+export interface TeamsCard {
+	type: "AdaptiveCard";
+	version: string;
+	body: TeamsCardElement[];
 }
 
-export interface NotificationOptions {
-	channels?: NotificationChannel[];
-	timeout?: number;
-	retries?: number;
-	retryDelay?: number;
+export interface TeamsCardElement {
+	type: "TextBlock" | "FactSet" | "Container" | "ColumnSet";
+	text?: string;
+	size?: string;
+	weight?: string;
+	color?: string;
+	wrap?: boolean;
+	spacing?: string;
+	facts?: Array<{ title: string; value: string }>;
+	items?: TeamsCardElement[];
+}
+
+export interface TeamsPayload {
+	type: "message";
+	attachments: Array<{
+		contentType: "application/vnd.microsoft.card.adaptive";
+		content: TeamsCard;
+	}>;
+}
+
+export interface TelegramPayload {
+	chat_id: string;
+	text: string;
+	parse_mode: "HTML" | "Markdown";
+	disable_web_page_preview?: boolean;
+}
+
+export interface GoogleChatCard {
+	header?: {
+		title: string;
+		subtitle?: string;
+		imageUrl?: string;
+	};
+	sections?: Array<{
+		widgets: Array<{
+			keyValue?: { topLabel: string; content: string };
+			textParagraph?: { text: string };
+		}>;
+	}>;
+}
+
+export interface GoogleChatPayload {
+	text?: string;
+	cards?: GoogleChatCard[];
 }

@@ -154,10 +154,9 @@ export const targetGroupsRouter = {
 		.output(targetGroupOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-
 			const cacheKey = `byId:${input.id}:website:${input.websiteId}`;
 
-			return targetGroupsCache.withCache({
+			return await targetGroupsCache.withCache({
 				key: cacheKey,
 				ttl: CACHE_DURATION,
 				tables: ["target_groups"],
@@ -178,13 +177,11 @@ export const targetGroupsRouter = {
 						throw rpcError.notFound("Target group", input.id);
 					}
 
-					// Check if user is fully authorized
 					const isAuthorized = await isFullyAuthorized(
 						context,
 						input.websiteId
 					);
 
-					// Sanitize data for unauthorized/demo users
 					if (!isAuthorized) {
 						return sanitizeGroupForDemo(result[0]);
 					}

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { findEvent, hasEvent } from "./test-utils";
 
 test.describe("Network & Batching", () => {
 	test.beforeEach(async ({ page }) => {
@@ -30,12 +31,13 @@ test.describe("Network & Batching", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-retry",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 				enableRetries: true,
 				maxRetries: 3,
 				initialRetryDelay: 100, // Fast retry for test
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect.poll(() => attemptCount).toBeGreaterThanOrEqual(3);
 	});
@@ -47,16 +49,19 @@ test.describe("Network & Batching", () => {
 			"WebKit/Playwright issue with intercepting keepalive/beacon request bodies"
 		);
 
-		await page.route("**/basket.databuddy.cc/batch", async (route) => {
+		await page.route("**/basket.databuddy.cc/track", async (route) => {
 			await route.fulfill({
 				status: 200,
 				body: JSON.stringify({ success: true }),
 			});
 		});
 
-		// Wait specifically for a POST to /batch
+		// db.track queues events and POSTs an array to /track (screen_view uses /batch)
 		const requestPromise = page.waitForRequest(
-			(req) => req.url().includes("/batch") && req.method() === "POST"
+			(req) =>
+				req.url().includes("/track") &&
+				req.method() === "POST" &&
+				hasEvent(req, (e) => e.name === "event1")
 		);
 
 		await page.goto("/test");
@@ -66,10 +71,10 @@ test.describe("Network & Batching", () => {
 				ignoreBotDetection: true,
 				enableBatching: true,
 				batchSize: 3,
-				batchTimeout: 1000,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		// Fire 3 events quickly
 		await page.evaluate(() => {
@@ -90,7 +95,7 @@ test.describe("Network & Batching", () => {
 
 		expect(Array.isArray(payload)).toBe(true);
 		expect(payload.length).toBeGreaterThanOrEqual(2);
-		expect(payload.find((e: any) => e.name === "event1")).toBeTruthy();
-		expect(payload.find((e: any) => e.name === "event2")).toBeTruthy();
+		expect(findEvent(request, (e) => e.name === "event1")).toBeTruthy();
+		expect(findEvent(request, (e) => e.name === "event2")).toBeTruthy();
 	});
 });

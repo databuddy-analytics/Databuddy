@@ -30,7 +30,7 @@ function createMetricDisplay(
 }
 
 function createToolIndicator() {
-	return <div className="size-2 shrink-0 rounded bg-primary" />;
+	return <div className="size-2 shrink-0 rounded bg-chart-1" />;
 }
 
 function createModelIndicator() {

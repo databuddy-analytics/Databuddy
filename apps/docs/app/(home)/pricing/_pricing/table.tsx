@@ -108,10 +108,10 @@ export function PlansComparisonTable({ plans }: Props) {
 								>
 									{p.id === "enterprise" ? (
 										"Unlimited"
-									) : p.assistantMessagesPerDay != null ? (
-										Number(p.assistantMessagesPerDay).toLocaleString()
-									) : (
+									) : p.assistantMessagesPerDay == null ? (
 										<FeatureX />
+									) : (
+										Number(p.assistantMessagesPerDay).toLocaleString()
 									)}
 								</td>
 							))}

@@ -7,7 +7,8 @@ import {
 import { checkAutumnUsage } from "@lib/billing";
 import { logBlockedTraffic } from "@lib/blocked-traffic";
 import { sendEvent } from "@lib/producer";
-import { record, setAttributes } from "@lib/tracing";
+import { basketErrors } from "@lib/structured-errors";
+import { record } from "@lib/tracing";
 import { extractIpFromRequest } from "@utils/ip-geo";
 import { detectBot } from "@utils/user-agent";
 import {
@@ -15,9 +16,9 @@ import {
 	VALIDATION_LIMITS,
 	validatePayloadSize,
 } from "@utils/validation";
+import { useLogger } from "evlog/elysia";
 
-interface ValidationResult {
-	success: boolean;
+export interface ValidatedRequest {
 	clientId: string;
 	userAgent: string;
 	ip: string;
@@ -25,7 +26,7 @@ interface ValidationResult {
 	organizationId?: string;
 }
 
-interface ValidationError {
+interface BillingBlocked {
 	error: Response;
 }
 
@@ -55,14 +56,17 @@ export function getWebsiteSecuritySettings(
 }
 
 /**
- * Validate incoming request for analytics events
+ * Validate incoming request for analytics events.
+ * Throws basket ingest EvlogErrors on failure; returns `{ error: billing.response }` when quota is exceeded.
  */
 export function validateRequest(
-	body: any,
-	query: any,
+	body: unknown,
+	query: unknown,
 	request: Request
-): Promise<ValidationResult | ValidationError> {
+): Promise<ValidatedRequest | BillingBlocked> {
 	return record("validateRequest", async () => {
+		const log = useLogger();
+
 		if (!validatePayloadSize(body, VALIDATION_LIMITS.PAYLOAD_MAX_SIZE)) {
 			logBlockedTraffic(
 				request,
@@ -71,23 +75,17 @@ export function validateRequest(
 				"payload_too_large",
 				"Validation Error"
 			);
-			setAttributes({
-				validation_failed: true,
-				validation_reason: "payload_too_large",
-			});
-			return {
-				error: new Response(
-					JSON.stringify({ status: "error", message: "Payload too large" }),
-					{
-						status: 413,
-						headers: { "Content-Type": "application/json" },
-					}
-				),
-			};
+			log.set({ validation: { failed: true, reason: "payload_too_large" } });
+			throw basketErrors.ingestPayloadTooLarge();
 		}
 
+		const queryRecord =
+			query && typeof query === "object" && !Array.isArray(query)
+				? (query as Record<string, unknown>)
+				: {};
+
 		let clientId = sanitizeString(
-			query.client_id,
+			queryRecord.client_id,
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 		);
 
@@ -109,24 +107,11 @@ export function validateRequest(
 				"missing_client_id",
 				"Validation Error"
 			);
-			setAttributes({
-				validation_failed: true,
-				validation_reason: "missing_client_id",
-			});
-			return {
-				error: new Response(
-					JSON.stringify({ status: "error", message: "Missing client ID" }),
-					{
-						status: 400,
-						headers: { "Content-Type": "application/json" },
-					}
-				),
-			};
+			log.set({ validation: { failed: true, reason: "missing_client_id" } });
+			throw basketErrors.ingestMissingClientId();
 		}
 
-		setAttributes({
-			client_id: clientId,
-		});
+		log.set({ clientId });
 
 		const website = await record("getWebsiteByIdV2", () =>
 			getWebsiteByIdV2(clientId)
@@ -141,29 +126,14 @@ export function validateRequest(
 				undefined,
 				clientId
 			);
-			setAttributes({
-				validation_failed: true,
-				validation_reason: "invalid_client_id",
-				website_status: website?.status || "not_found",
+			log.set({
+				validation: { failed: true, reason: "invalid_client_id" },
+				website: { status: website?.status || "not_found" },
 			});
-			return {
-				error: new Response(
-					JSON.stringify({
-						status: "error",
-						message: "Invalid or inactive client ID",
-					}),
-					{
-						status: 400,
-						headers: { "Content-Type": "application/json" },
-					}
-				),
-			};
+			throw basketErrors.ingestInvalidClientId();
 		}
 
-		setAttributes({
-			website_domain: website.domain,
-			website_status: website.status,
-		});
+		log.set({ website: { domain: website.domain, status: website.status } });
 
 		if (website.ownerId) {
 			const billing = await checkAutumnUsage(website.ownerId, "events", {
@@ -192,7 +162,6 @@ export function validateRequest(
 		const allowedOrigins = securitySettings?.allowedOrigins;
 		const allowedIps = securitySettings?.allowedIps;
 
-		// Check origin against settings if configured
 		if (origin && allowedOrigins && allowedOrigins.length > 0) {
 			if (
 				!(await record("isValidOriginFromSettings", () =>
@@ -208,23 +177,10 @@ export function validateRequest(
 					undefined,
 					clientId
 				);
-				setAttributes({
-					validation_failed: true,
-					validation_reason: "origin_not_authorized",
-					request_origin: origin,
+				log.set({
+					validation: { failed: true, reason: "origin_not_authorized", origin },
 				});
-				return {
-					error: new Response(
-						JSON.stringify({
-							status: "error",
-							message: "Origin not authorized",
-						}),
-						{
-							status: 403,
-							headers: { "Content-Type": "application/json" },
-						}
-					),
-				};
+				throw basketErrors.ingestOriginNotAuthorized();
 			}
 		} else if (
 			origin &&
@@ -241,26 +197,12 @@ export function validateRequest(
 				undefined,
 				clientId
 			);
-			setAttributes({
-				validation_failed: true,
-				validation_reason: "origin_not_authorized",
-				request_origin: origin,
+			log.set({
+				validation: { failed: true, reason: "origin_not_authorized", origin },
 			});
-			return {
-				error: new Response(
-					JSON.stringify({
-						status: "error",
-						message: "Origin not authorized",
-					}),
-					{
-						status: 403,
-						headers: { "Content-Type": "application/json" },
-					}
-				),
-			};
+			throw basketErrors.ingestOriginNotAuthorized();
 		}
 
-		// Check IP against settings if configured
 		if (
 			ip &&
 			allowedIps &&
@@ -278,23 +220,8 @@ export function validateRequest(
 				undefined,
 				clientId
 			);
-			setAttributes({
-				validation_failed: true,
-				validation_reason: "ip_not_authorized",
-				request_ip: ip,
-			});
-			return {
-				error: new Response(
-					JSON.stringify({
-						status: "error",
-						message: "IP address not authorized",
-					}),
-					{
-						status: 403,
-						headers: { "Content-Type": "application/json" },
-					}
-				),
-			};
+			log.set({ validation: { failed: true, reason: "ip_not_authorized" } });
+			throw basketErrors.ingestIpNotAuthorized();
 		}
 
 		const userAgent =
@@ -303,14 +230,7 @@ export function validateRequest(
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			) || "";
 
-		setAttributes({
-			validation_success: true,
-			request_has_user_agent: Boolean(userAgent),
-			request_has_ip: Boolean(ip),
-		});
-
 		return {
-			success: true,
 			clientId,
 			userAgent,
 			ip,
@@ -319,6 +239,7 @@ export function validateRequest(
 		};
 	});
 }
+
 /**
  * Check if request is from a bot
  * - ALLOW: Process normally (search engines, social media)
@@ -327,12 +248,22 @@ export function validateRequest(
  */
 export function checkForBot(
 	request: Request,
-	body: any,
-	query: any,
+	body: unknown,
+	query: unknown,
 	clientId: string,
 	userAgent: string
 ): Promise<{ error?: Response } | undefined> {
 	return record("checkForBot", () => {
+		const log = useLogger();
+		const bodyRecord =
+			body && typeof body === "object" && !Array.isArray(body)
+				? (body as Record<string, unknown>)
+				: {};
+		const queryRecord =
+			query && typeof query === "object" && !Array.isArray(query)
+				? (query as Record<string, unknown>)
+				: {};
+
 		const botCheck = detectBot(userAgent, request);
 
 		if (!botCheck.isBot) {
@@ -340,28 +271,27 @@ export function checkForBot(
 		}
 
 		const { action, result } = botCheck;
+		log.set({
+			bot: { name: botCheck.botName, category: botCheck.category, action },
+		});
 
-		// Handle ALLOW action - let the request through normally
 		if (action === "allow") {
-			setAttributes({
-				bot_detected: true,
-				bot_action: "allow",
-				bot_category: botCheck.category || "unknown",
-				bot_name: botCheck.botName || "unknown",
-			});
-			return; // Process as normal traffic
+			return;
 		}
 
-		// Handle TRACK_ONLY action - log to AI traffic table
 		if (action === "track_only") {
 			const path =
-				body?.path ||
-				body?.url ||
-				query?.path ||
+				(typeof bodyRecord.path === "string" ? bodyRecord.path : undefined) ||
+				(typeof bodyRecord.url === "string" ? bodyRecord.url : undefined) ||
+				(typeof queryRecord.path === "string" ? queryRecord.path : undefined) ||
 				request.headers.get("referer") ||
 				"";
 			const referrer =
-				body?.referrer || request.headers.get("referer") || undefined;
+				(typeof bodyRecord.referrer === "string"
+					? bodyRecord.referrer
+					: undefined) ||
+				request.headers.get("referer") ||
+				undefined;
 
 			sendEvent("analytics-ai-traffic-spans", {
 				client_id: clientId,
@@ -374,14 +304,6 @@ export function checkForBot(
 				action: "tracked",
 			});
 
-			setAttributes({
-				validation_failed: true,
-				validation_reason: "ai_traffic",
-				bot_action: "track_only",
-				bot_type: result?.category || "unknown",
-				bot_name: botCheck.botName || "unknown",
-			});
-
 			return {
 				error: new Response(JSON.stringify({ status: "ignored" }), {
 					status: 200,
@@ -390,7 +312,6 @@ export function checkForBot(
 			};
 		}
 
-		// Handle BLOCK action - log to blocked traffic and reject
 		logBlockedTraffic(
 			request,
 			body,
@@ -400,15 +321,6 @@ export function checkForBot(
 			botCheck.botName,
 			clientId
 		);
-
-		setAttributes({
-			validation_failed: true,
-			validation_reason: "bot_blocked",
-			bot_action: "block",
-			bot_name: botCheck.botName || "unknown",
-			bot_category: botCheck.category || "Bot Detection",
-			bot_detection_reason: botCheck.reason || "unknown_bot",
-		});
 
 		return {
 			error: new Response(JSON.stringify({ status: "ignored" }), {

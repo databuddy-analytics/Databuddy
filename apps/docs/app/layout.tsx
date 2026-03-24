@@ -2,7 +2,7 @@ import "./global.css";
 import { Databuddy } from "@databuddy/sdk/react";
 import { RootProvider } from "fumadocs-ui/provider";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Manrope } from "next/font/google";
+import localFont from "next/font/local";
 import Script from "next/script";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
@@ -10,29 +10,38 @@ import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { SITE_URL } from "./util/constants";
 
-const geist = Geist({
-	subsets: ["latin"],
-	weight: ["400", "500", "600", "700"],
-	variable: "--font-geist",
+const ltSuperior = localFont({
+	src: [
+		{ path: "../fonts/lt-superior/light.otf", weight: "300" },
+		{ path: "../fonts/lt-superior/regular.otf", weight: "400" },
+		{ path: "../fonts/lt-superior/medium.otf", weight: "500" },
+		{ path: "../fonts/lt-superior/semibold.otf", weight: "600" },
+		{ path: "../fonts/lt-superior/bold.otf", weight: "700" },
+		{ path: "../fonts/lt-superior/extrabold.otf", weight: "800" },
+	],
+	variable: "--font-lt-superior",
+	display: "swap",
 });
 
-const geistMono = Geist_Mono({
-	subsets: ["latin"],
-	weight: ["400", "500", "600", "700"],
-	variable: "--font-geist-mono",
-});
-
-const manrope = Manrope({
-	subsets: ["latin"],
-	weight: ["400", "500", "600", "700"],
-	variable: "--font-manrope",
+const ltSuperiorMono = localFont({
+	src: [
+		{ path: "../fonts/lt-superior-mono/regular.otf", weight: "400" },
+		{ path: "../fonts/lt-superior-mono/medium.otf", weight: "500" },
+		{ path: "../fonts/lt-superior-mono/semibold.otf", weight: "600" },
+		{ path: "../fonts/lt-superior-mono/bold.otf", weight: "700" },
+	],
+	variable: "--font-lt-superior-mono",
+	display: "swap",
 });
 
 export const metadata: Metadata = {
-	title:
-		"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
+	title: {
+		template: "%s | Databuddy",
+		default:
+			"Databuddy — Privacy-first analytics, error tracking & feature flags",
+	},
 	description:
-		"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
+		"One lightweight layer for analytics, error tracking, and feature flags. Under 30 KB, no cookies, GDPR compliant by default. Open-source Google Analytics alternative.",
 	authors: [{ name: "Databuddy Team" }],
 	creator: "Databuddy",
 	publisher: "Databuddy",
@@ -40,19 +49,11 @@ export const metadata: Metadata = {
 	openGraph: {
 		type: "website",
 		locale: "en_US",
-		url: SITE_URL,
-		title:
-			"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
-		description:
-			"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
 		siteName: "Databuddy",
+		images: ["/og-image.png"],
 	},
 	twitter: {
 		card: "summary_large_image",
-		title:
-			"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
-		description:
-			"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
 		images: ["/og-image.png"],
 		creator: "@databuddyps",
 		site: "@databuddyps",
@@ -68,8 +69,8 @@ export const metadata: Metadata = {
 			"max-snippet": -1,
 		},
 	},
-	alternates: {
-		canonical: SITE_URL,
+	appleWebApp: {
+		title: "Databuddy",
 	},
 	pinterest: {
 		richPin: false,
@@ -89,7 +90,7 @@ export const viewport: Viewport = {
 export default function Layout({ children }: { children: ReactNode }) {
 	return (
 		<html
-			className={`${manrope.variable} ${geist.className} ${geistMono.variable} `}
+			className={`${ltSuperior.className} ${ltSuperior.variable} ${ltSuperiorMono.variable}`}
 			lang="en"
 			suppressHydrationWarning
 		>

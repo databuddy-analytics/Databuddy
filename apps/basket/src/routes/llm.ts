@@ -2,8 +2,10 @@ import { resolveApiKeyOwnerId } from "@hooks/auth";
 import { getApiKeyFromHeader, hasKeyScope } from "@lib/api-key";
 import { checkAutumnUsage } from "@lib/billing";
 import { insertAICallSpans } from "@lib/event-service";
-import { captureError } from "@lib/tracing";
+import { basketErrors } from "@lib/structured-errors";
 import { Elysia } from "elysia";
+import { createError, EvlogError } from "evlog";
+import { useLogger } from "evlog/elysia";
 import { z } from "zod";
 
 const aiCallSchema = z.object({
@@ -52,69 +54,41 @@ const app = new Elysia().post("/llm", async (context) => {
 		body: unknown;
 		request: Request;
 	};
+	const log = useLogger();
+	log.set({ route: "llm" });
 
 	try {
 		const apiKey = await getApiKeyFromHeader(request.headers);
 		if (apiKey === null) {
-			return new Response(
-				JSON.stringify({
-					status: "error",
-					message: "Invalid or missing API key with write:llm scope",
-				}),
-				{
-					status: 401,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			log.set({ rejected: "missing_api_key" });
+			throw basketErrors.llmMissingApiKey();
 		}
 		if (!hasKeyScope(apiKey, "write:llm")) {
-			return new Response(
-				JSON.stringify({
-					status: "error",
-					message: "Invalid or missing API key with write:llm scope",
-				}),
-				{
-					status: 401,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			log.set({ rejected: "missing_scope" });
+			throw basketErrors.llmMissingScope();
 		}
 
-		// owner_id for ClickHouse storage (org or user ID)
 		const ownerId = apiKey.organizationId ?? apiKey.userId;
 		if (!ownerId) {
-			return new Response(
-				JSON.stringify({
-					status: "error",
-					message: "API key missing owner ID",
-				}),
-				{
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			log.set({ rejected: "missing_owner" });
+			throw basketErrors.llmMissingOwner();
 		}
+
+		log.set({ ownerId, apiKeyId: apiKey.id });
 
 		const billingOwnerId = await resolveApiKeyOwnerId(
 			apiKey.organizationId ?? null
 		);
 		if (!billingOwnerId) {
-			return new Response(
-				JSON.stringify({
-					status: "error",
-					message: "Could not resolve billing owner",
-				}),
-				{
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			log.set({ rejected: "billing_resolve_failed" });
+			throw basketErrors.llmBillingOwnerUnresolved();
 		}
 
 		const billing = await checkAutumnUsage(billingOwnerId, "events", {
 			api_key_id: apiKey.id,
 		});
 		if ("exceeded" in billing) {
+			log.set({ rejected: "billing_exceeded" });
 			return billing.response;
 		}
 
@@ -123,21 +97,15 @@ const app = new Elysia().post("/llm", async (context) => {
 			.safeParse(body);
 
 		if (!parseResult.success) {
-			return new Response(
-				JSON.stringify({
-					status: "error",
-					message: "Invalid request body",
-				}),
-				{
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			log.set({ rejected: "schema" });
+			throw basketErrors.llmInvalidBody();
 		}
 
 		const calls = Array.isArray(parseResult.data)
 			? parseResult.data
 			: [parseResult.data];
+
+		log.set({ count: calls.length });
 
 		const now = Date.now();
 		const spans = calls.map((call) => {
@@ -191,14 +159,17 @@ const app = new Elysia().post("/llm", async (context) => {
 			}
 		);
 	} catch (error) {
-		captureError(error, { message: "Error processing AI call" });
-		return new Response(
-			JSON.stringify({ status: "error", message: "Internal server error" }),
-			{
-				status: 500,
-				headers: { "Content-Type": "application/json" },
-			}
-		);
+		if (error instanceof EvlogError) {
+			throw error;
+		}
+		const err = error instanceof Error ? error : new Error(String(error));
+		log.error(err);
+		throw createError({
+			message: "Internal server error",
+			status: 500,
+			why: process.env.NODE_ENV === "development" ? err.message : undefined,
+			cause: err,
+		});
 	}
 });
 

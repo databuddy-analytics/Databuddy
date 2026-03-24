@@ -11,10 +11,7 @@ const SKELETON_BAR_HEIGHTS = [78, 95, 42, 110, 63, 87, 55];
 export function SkeletonChart({ height = 550, className }: SkeletonChartProps) {
 	return (
 		<div
-			className={cn(
-				"w-full overflow-hidden rounded border bg-card",
-				className
-			)}
+			className={cn("w-full overflow-hidden rounded border bg-card", className)}
 		>
 			<div className="p-0">
 				<div

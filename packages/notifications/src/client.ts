@@ -3,8 +3,14 @@ import type { DiscordProviderConfig } from "./providers/discord";
 import { DiscordProvider } from "./providers/discord";
 import type { EmailProviderConfig } from "./providers/email";
 import { EmailProvider } from "./providers/email";
+import type { GoogleChatProviderConfig } from "./providers/google-chat";
+import { GoogleChatProvider } from "./providers/google-chat";
 import type { SlackProviderConfig } from "./providers/slack";
 import { SlackProvider } from "./providers/slack";
+import type { TeamsProviderConfig } from "./providers/teams";
+import { TeamsProvider } from "./providers/teams";
+import type { TelegramProviderConfig } from "./providers/telegram";
+import { TelegramProvider } from "./providers/telegram";
 import type { WebhookProviderConfig } from "./providers/webhook";
 import { WebhookProvider } from "./providers/webhook";
 import type {
@@ -19,6 +25,9 @@ export interface NotificationClientConfig {
 	discord?: DiscordProviderConfig;
 	email?: EmailProviderConfig;
 	webhook?: WebhookProviderConfig;
+	teams?: TeamsProviderConfig;
+	telegram?: TelegramProviderConfig;
+	googleChat?: GoogleChatProviderConfig;
 	defaultChannels?: NotificationChannel[];
 	defaultTimeout?: number;
 	defaultRetries?: number;
@@ -28,25 +37,25 @@ export interface NotificationClientConfig {
 export class NotificationClient {
 	private readonly providers: Map<NotificationChannel, NotificationProvider>;
 	private readonly defaultChannels: NotificationChannel[];
-	private readonly defaultTimeout: number;
-	private readonly defaultRetries: number;
-	private readonly defaultRetryDelay: number;
 
 	constructor(config: NotificationClientConfig = {}) {
 		this.providers = new Map();
 		this.defaultChannels = config.defaultChannels ?? [];
-		this.defaultTimeout = config.defaultTimeout ?? 10_000;
-		this.defaultRetries = config.defaultRetries ?? 0;
-		this.defaultRetryDelay = config.defaultRetryDelay ?? 1000;
+
+		const defaults = {
+			timeout: config.defaultTimeout ?? 10_000,
+			retries: config.defaultRetries ?? 0,
+			retryDelay: config.defaultRetryDelay ?? 1000,
+		};
 
 		if (config.slack) {
 			this.providers.set(
 				"slack",
 				new SlackProvider({
 					...config.slack,
-					timeout: config.slack.timeout ?? this.defaultTimeout,
-					retries: config.slack.retries ?? this.defaultRetries,
-					retryDelay: config.slack.retryDelay ?? this.defaultRetryDelay,
+					timeout: config.slack.timeout ?? defaults.timeout,
+					retries: config.slack.retries ?? defaults.retries,
+					retryDelay: config.slack.retryDelay ?? defaults.retryDelay,
 				})
 			);
 		}
@@ -56,9 +65,9 @@ export class NotificationClient {
 				"discord",
 				new DiscordProvider({
 					...config.discord,
-					timeout: config.discord.timeout ?? this.defaultTimeout,
-					retries: config.discord.retries ?? this.defaultRetries,
-					retryDelay: config.discord.retryDelay ?? this.defaultRetryDelay,
+					timeout: config.discord.timeout ?? defaults.timeout,
+					retries: config.discord.retries ?? defaults.retries,
+					retryDelay: config.discord.retryDelay ?? defaults.retryDelay,
 				})
 			);
 		}
@@ -68,9 +77,9 @@ export class NotificationClient {
 				"email",
 				new EmailProvider({
 					...config.email,
-					timeout: config.email.timeout ?? this.defaultTimeout,
-					retries: config.email.retries ?? this.defaultRetries,
-					retryDelay: config.email.retryDelay ?? this.defaultRetryDelay,
+					timeout: config.email.timeout ?? defaults.timeout,
+					retries: config.email.retries ?? defaults.retries,
+					retryDelay: config.email.retryDelay ?? defaults.retryDelay,
 				})
 			);
 		}
@@ -80,9 +89,45 @@ export class NotificationClient {
 				"webhook",
 				new WebhookProvider({
 					...config.webhook,
-					timeout: config.webhook.timeout ?? this.defaultTimeout,
-					retries: config.webhook.retries ?? this.defaultRetries,
-					retryDelay: config.webhook.retryDelay ?? this.defaultRetryDelay,
+					timeout: config.webhook.timeout ?? defaults.timeout,
+					retries: config.webhook.retries ?? defaults.retries,
+					retryDelay: config.webhook.retryDelay ?? defaults.retryDelay,
+				})
+			);
+		}
+
+		if (config.teams) {
+			this.providers.set(
+				"teams",
+				new TeamsProvider({
+					...config.teams,
+					timeout: config.teams.timeout ?? defaults.timeout,
+					retries: config.teams.retries ?? defaults.retries,
+					retryDelay: config.teams.retryDelay ?? defaults.retryDelay,
+				})
+			);
+		}
+
+		if (config.telegram) {
+			this.providers.set(
+				"telegram",
+				new TelegramProvider({
+					...config.telegram,
+					timeout: config.telegram.timeout ?? defaults.timeout,
+					retries: config.telegram.retries ?? defaults.retries,
+					retryDelay: config.telegram.retryDelay ?? defaults.retryDelay,
+				})
+			);
+		}
+
+		if (config.googleChat) {
+			this.providers.set(
+				"google-chat",
+				new GoogleChatProvider({
+					...config.googleChat,
+					timeout: config.googleChat.timeout ?? defaults.timeout,
+					retries: config.googleChat.retries ?? defaults.retries,
+					retryDelay: config.googleChat.retryDelay ?? defaults.retryDelay,
 				})
 			);
 		}
@@ -98,27 +143,21 @@ export class NotificationClient {
 				: this.defaultChannels;
 
 		if (channels.length === 0) {
-			return [
-				{
-					success: false,
-					channel: "slack",
-					error: "No notification channels configured",
-				},
-			];
+			return [];
 		}
 
 		const results = await Promise.allSettled(
-			channels.map(async (channel) => {
+			channels.map((channel) => {
 				const provider = this.providers.get(channel);
 				if (!provider) {
-					return {
+					return Promise.resolve({
 						success: false,
 						channel,
 						error: `Provider for channel '${channel}' not configured`,
-					} satisfies NotificationResult;
+					} satisfies NotificationResult);
 				}
 
-				return await provider.send(payload);
+				return provider.send(payload);
 			})
 		);
 
@@ -128,7 +167,7 @@ export class NotificationClient {
 			}
 			return {
 				success: false,
-				channel: channels[index] ?? "slack",
+				channel: channels[index],
 				error:
 					result.reason instanceof Error
 						? result.reason.message
@@ -137,20 +176,20 @@ export class NotificationClient {
 		});
 	}
 
-	async sendToChannel(
+	sendToChannel(
 		channel: NotificationChannel,
 		payload: NotificationPayload
 	): Promise<NotificationResult> {
 		const provider = this.providers.get(channel);
 		if (!provider) {
-			return {
+			return Promise.resolve({
 				success: false,
 				channel,
 				error: `Provider for channel '${channel}' not configured`,
-			};
+			});
 		}
 
-		return await provider.send(payload);
+		return provider.send(payload);
 	}
 
 	hasChannel(channel: NotificationChannel): boolean {

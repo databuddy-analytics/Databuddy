@@ -19,22 +19,23 @@ import { getPosts } from "@/lib/blog-query";
 
 export const revalidate = 3600;
 
-// Move regex to top level for performance
 const WORD_SPLIT_REGEX = /\s+/;
 
+const blogTitle = "Blog — Privacy-First Analytics Guides & Updates";
+const blogDescription =
+	"Practical articles on instrumentation, GDPR compliance, Core Web Vitals, and developer-first analytics from the Databuddy team.";
+const blogUrl = "https://www.databuddy.cc/blog";
+
 export const metadata: Metadata = {
-	title: "Blog | Databuddy",
-	description:
-		"Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.",
+	title: blogTitle,
+	description: blogDescription,
 	alternates: {
-		canonical: "https://www.databuddy.cc/blog",
+		canonical: blogUrl,
 	},
 	openGraph: {
-		title: "Blog | Databuddy",
-		description:
-			"Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.",
-		url: "https://www.databuddy.cc/blog",
-		images: ["/og-image.png"],
+		title: blogTitle,
+		description: blogDescription,
+		url: blogUrl,
 	},
 };
 
@@ -170,18 +171,13 @@ export default async function BlogPage() {
 			new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
 	);
 
-	const title = "Blog | Databuddy";
-	const description =
-		"Insights, updates, and guides on privacy-first analytics, GDPR compliance, and modern web development.";
-	const url = "https://www.databuddy.cc/blog";
-
 	return (
 		<div className="overflow-hidden">
 			<StructuredData
 				page={{
-					title,
-					description,
-					url,
+					title: blogTitle,
+					description: blogDescription,
+					url: blogUrl,
 				}}
 			/>
 			<Spotlight transform="translateX(-60%) translateY(-50%)" />

@@ -10,8 +10,6 @@ import { initWebVitalsTracking } from "./plugins/vitals";
 
 export class Databuddy extends BaseTracker {
 	private cleanupFns: Array<() => void> = [];
-	private originalPushState: typeof history.pushState | null = null;
-	private originalReplaceState: typeof history.replaceState | null = null;
 	private globalProperties: Record<string, unknown> = {};
 	private hasInitialized = false;
 	private hasSentExitBeacon = false;
@@ -92,48 +90,39 @@ export class Databuddy extends BaseTracker {
 			return;
 		}
 
-		this.originalPushState = history.pushState;
-		this.originalReplaceState = history.replaceState;
-
-		const originalPushState = this.originalPushState;
-		history.pushState = (...args) => {
-			const ret = originalPushState.apply(history, args);
-			window.dispatchEvent(new Event("pushstate"));
-			window.dispatchEvent(new Event("locationchange"));
-			return ret;
-		};
-
-		const originalReplaceState = this.originalReplaceState;
-		history.replaceState = (...args) => {
-			const ret = originalReplaceState.apply(history, args);
-			window.dispatchEvent(new Event("replacestate"));
-			window.dispatchEvent(new Event("locationchange"));
-			return ret;
-		};
-
-		const popstateHandler = () =>
-			window.dispatchEvent(new Event("locationchange"));
-		window.addEventListener("popstate", popstateHandler);
-		this.cleanupFns.push(() =>
-			window.removeEventListener("popstate", popstateHandler)
-		);
-
 		let debounceTimer: ReturnType<typeof setTimeout>;
 		const debouncedScreenView = () => {
 			clearTimeout(debounceTimer);
 			debounceTimer = setTimeout(() => this.screenView(), 50);
 		};
 
-		window.addEventListener("locationchange", debouncedScreenView);
-		this.cleanupFns.push(() =>
-			window.removeEventListener("locationchange", debouncedScreenView)
-		);
+		if ("navigation" in window) {
+			const nav = window.navigation as EventTarget;
+			const handler = () => debouncedScreenView();
+			nav.addEventListener("navigate", handler);
+			this.cleanupFns.push(() => nav.removeEventListener("navigate", handler));
+		} else {
+			let lastUrl = location.href;
+			const interval = setInterval(() => {
+				if (location.href !== lastUrl) {
+					lastUrl = location.href;
+					debouncedScreenView();
+				}
+			}, 200);
+			this.cleanupFns.push(() => clearInterval(interval));
 
-		if (this.options.trackHashChanges) {
-			window.addEventListener("hashchange", debouncedScreenView);
+			const popstateHandler = () => debouncedScreenView();
+			window.addEventListener("popstate", popstateHandler);
 			this.cleanupFns.push(() =>
-				window.removeEventListener("hashchange", debouncedScreenView)
+				window.removeEventListener("popstate", popstateHandler)
 			);
+
+			if (this.options.trackHashChanges) {
+				window.addEventListener("hashchange", debouncedScreenView);
+				this.cleanupFns.push(() =>
+					window.removeEventListener("hashchange", debouncedScreenView)
+				);
+			}
 		}
 	}
 
@@ -303,7 +292,7 @@ export class Databuddy extends BaseTracker {
 			return;
 		}
 
-		this.addToBatch({
+		const event = {
 			eventId: generateUUIDv4(),
 			name,
 			anonymousId: this.anonymousId,
@@ -312,14 +301,25 @@ export class Databuddy extends BaseTracker {
 			...this.getBaseContext(),
 			...this.globalProperties,
 			...props,
-		});
+		};
+
+		if (this.options.filter && !this.options.filter(event)) {
+			return;
+		}
+
+		const samplingRate = this.options.samplingRate ?? 1.0;
+		if (samplingRate < 1.0 && Math.random() > samplingRate) {
+			return;
+		}
+
+		this.addToBatch(event);
 	}
 
 	track(name: string, props?: Record<string, unknown>) {
 		if (this.shouldSkipTracking()) {
 			return;
 		}
-		this.trackEvent(name, props);
+		this.trackEvent(name, { ...this.globalProperties, ...props });
 	}
 
 	setGlobalProperties(props: Record<string, unknown>) {
@@ -351,14 +351,6 @@ export class Databuddy extends BaseTracker {
 		}
 		this.cleanupFns = [];
 
-		if (this.originalPushState) {
-			history.pushState = this.originalPushState;
-			this.originalPushState = null;
-		}
-		if (this.originalReplaceState) {
-			history.replaceState = this.originalReplaceState;
-			this.originalReplaceState = null;
-		}
 		if (this.batchTimer) {
 			clearTimeout(this.batchTimer);
 			this.batchTimer = null;

@@ -68,21 +68,21 @@ const TOOLS: Record<string, ToolConfig> = {
 		},
 		(output) => {
 			const count = countArray(output, "data") ?? countArray(output, "pages");
-			return count !== null ? <p>Found {count} results</p> : null;
+			return count === null ? null : <p>Found {count} results</p>;
 		},
 	],
 	execute_sql_query: [
 		() => "Running custom query",
 		(output) => {
 			const count = countArray(output, "data");
-			return count !== null ? <p>Found {count} results</p> : null;
+			return count === null ? null : <p>Found {count} results</p>;
 		},
 	],
 	get_top_pages: [
 		() => "Getting top pages",
 		(output) => {
 			const count = countArray(output, "pages");
-			return count !== null ? <p>Found {count} pages</p> : null;
+			return count === null ? null : <p>Found {count} pages</p>;
 		},
 	],
 
@@ -92,7 +92,7 @@ const TOOLS: Record<string, ToolConfig> = {
 		(output) => {
 			const count =
 				countArray(output, "links") ?? (output.count as number | null);
-			return count !== null ? <p>Found {count} links</p> : null;
+			return count === null ? null : <p>Found {count} links</p>;
 		},
 	],
 	get_link: [
@@ -136,7 +136,7 @@ const TOOLS: Record<string, ToolConfig> = {
 		() => "Searching links",
 		(output) => {
 			const count = countArray(output, "links");
-			return count !== null ? <p>Found {count} matches</p> : null;
+			return count === null ? null : <p>Found {count} matches</p>;
 		},
 	],
 
@@ -145,7 +145,7 @@ const TOOLS: Record<string, ToolConfig> = {
 		() => "Fetching funnels",
 		(output) => {
 			const count = countArray(output, "funnels");
-			return count !== null ? <p>Found {count} funnels</p> : null;
+			return count === null ? null : <p>Found {count} funnels</p>;
 		},
 	],
 	get_funnel_by_id: [
@@ -170,10 +170,10 @@ const TOOLS: Record<string, ToolConfig> = {
 		() => "Analyzing funnel by source",
 		(output) => {
 			const count = countArray(output, "data");
-			return count !== null ? (
-				<p>Found {count} sources</p>
-			) : (
+			return count === null ? (
 				<p>Analysis complete</p>
+			) : (
+				<p>Found {count} sources</p>
 			);
 		},
 	],
@@ -203,7 +203,7 @@ const TOOLS: Record<string, ToolConfig> = {
 		() => "Fetching goals",
 		(output) => {
 			const count = countArray(output, "goals");
-			return count !== null ? <p>Found {count} goals</p> : null;
+			return count === null ? null : <p>Found {count} goals</p>;
 		},
 	],
 	get_goal_by_id: [
@@ -260,7 +260,7 @@ const TOOLS: Record<string, ToolConfig> = {
 		() => "Fetching annotations",
 		(output) => {
 			const count = countArray(output, "annotations");
-			return count !== null ? <p>Found {count} annotations</p> : null;
+			return count === null ? null : <p>Found {count} annotations</p>;
 		},
 	],
 	get_annotation_by_id: [
@@ -318,7 +318,7 @@ const TOOLS: Record<string, ToolConfig> = {
 		(output) => {
 			const count =
 				countArray(output, "profiles") ?? (output.count as number | null);
-			return count !== null ? <p>Found {count} visitors</p> : null;
+			return count === null ? null : <p>Found {count} visitors</p>;
 		},
 	],
 	get_profile: [
@@ -333,7 +333,7 @@ const TOOLS: Record<string, ToolConfig> = {
 		(output) => {
 			const count =
 				countArray(output, "sessions") ?? (output.count as number | null);
-			return count !== null ? <p>Found {count} sessions</p> : null;
+			return count === null ? null : <p>Found {count} sessions</p>;
 		},
 	],
 

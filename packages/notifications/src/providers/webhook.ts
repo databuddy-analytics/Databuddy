@@ -8,14 +8,16 @@ export interface WebhookProviderConfig {
 	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
-	transformPayload?: (payload: NotificationPayload) => unknown;
+	transformPayloadAction?: (payload: NotificationPayload) => unknown;
 }
 
 export class WebhookProvider extends BaseProvider {
 	private readonly url: string;
 	private readonly method: "GET" | "POST" | "PUT" | "PATCH";
 	private readonly headers?: Record<string, string>;
-	private readonly transformPayload?: (payload: NotificationPayload) => unknown;
+	private readonly transformPayloadAction?: (
+		payload: NotificationPayload
+	) => unknown;
 
 	constructor(config: WebhookProviderConfig) {
 		super({
@@ -26,7 +28,7 @@ export class WebhookProvider extends BaseProvider {
 		this.url = config.url;
 		this.method = config.method ?? "POST";
 		this.headers = config.headers;
-		this.transformPayload = config.transformPayload;
+		this.transformPayloadAction = config.transformPayloadAction;
 	}
 
 	async send(payload: NotificationPayload): Promise<NotificationResult> {
@@ -39,11 +41,11 @@ export class WebhookProvider extends BaseProvider {
 		}
 
 		try {
-			const body = this.transformPayload
-				? this.transformPayload(payload)
+			const body = this.transformPayloadAction
+				? this.transformPayloadAction(payload)
 				: payload;
 
-			const requestInit: RequestInit = {
+			const init: RequestInit = {
 				method: this.method,
 				headers: {
 					"Content-Type": "application/json",
@@ -52,25 +54,23 @@ export class WebhookProvider extends BaseProvider {
 			};
 
 			if (this.method !== "GET" && body) {
-				requestInit.body = JSON.stringify(body);
+				init.body = JSON.stringify(body);
 			}
 
 			const response = await this.withRetry(async () => {
-				const res = await fetch(this.url, requestInit);
+				const res = await this.fetchWithTimeout(this.url, init);
 
 				if (!res.ok) {
-					const responseText = await res
-						.text()
-						.catch(() => "Unable to read response");
+					const text = await res.text().catch(() => "Unable to read response");
 					throw new Error(
-						`Webhook error: ${res.status} ${res.statusText} - ${responseText.slice(0, 200)}`
+						`Webhook error: ${res.status} ${res.statusText} - ${text.slice(0, 200)}`
 					);
 				}
 
 				return res;
 			});
 
-			const responseData = await response.json().catch(() => null);
+			const data = await response.json().catch(() => null);
 
 			return {
 				success: true,
@@ -78,7 +78,7 @@ export class WebhookProvider extends BaseProvider {
 				response: {
 					status: response.status,
 					statusText: response.statusText,
-					data: responseData,
+					data,
 				},
 			};
 		} catch (error) {

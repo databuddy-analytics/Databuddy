@@ -11,7 +11,6 @@ import {
 	SmileyIcon,
 	WarningCircleIcon,
 } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +23,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import dayjs from "@/lib/dayjs";
 
 interface CancelSubscriptionDialogProps {
 	open: boolean;

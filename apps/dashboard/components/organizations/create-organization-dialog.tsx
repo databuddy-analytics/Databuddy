@@ -1,6 +1,6 @@
 "use client";
 
-import { BuildingsIcon, UsersIcon } from "@phosphor-icons/react";
+import { BuildingsIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,26 +145,17 @@ export function CreateOrganizationDialog({
 							const shouldShowError =
 								(touchedFields.name || hasUserTyped) && !isNameValid;
 							return (
-								<>
-									<Input
-										aria-describedby="org-name-help"
-										aria-invalid={shouldShowError}
-										id="org-name"
-										maxLength={100}
-										onBlur={() =>
-											setTouchedFields((prev) => ({ ...prev, name: true }))
-										}
-										onChange={(e) => setName(e.target.value)}
-										placeholder="e.g., Acme Corporation"
-										value={name}
-									/>
-									<p
-										className="text-muted-foreground text-xs"
-										id="org-name-help"
-									>
-										This is the display name for your organization
-									</p>
-								</>
+								<Input
+									aria-invalid={shouldShowError}
+									id="org-name"
+									maxLength={100}
+									onBlur={() =>
+										setTouchedFields((prev) => ({ ...prev, name: true }))
+									}
+									onChange={(e) => setName(e.target.value)}
+									placeholder="e.g., Acme Corporation"
+									value={name}
+								/>
 							);
 						})()}
 					</div>
@@ -205,28 +196,6 @@ export function CreateOrganizationDialog({
 							);
 						})()}
 					</div>
-
-					{/* Getting Started */}
-					<div className="space-y-3">
-						<div className="flex items-center gap-2">
-							<UsersIcon
-								className="text-muted-foreground"
-								size={16}
-								weight="duotone"
-							/>
-							<Label className="font-medium">Getting Started</Label>
-						</div>
-						<div className="rounded border bg-muted/20 p-4">
-							<p className="text-muted-foreground text-sm">
-								After creating your organization, you'll be able to:
-							</p>
-							<ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground text-sm">
-								<li>Invite team members with different roles</li>
-								<li>Share websites and analytics data</li>
-								<li>Manage organization settings and permissions</li>
-							</ul>
-						</div>
-					</div>
 				</SheetBody>
 
 				<SheetFooter>
@@ -234,7 +203,7 @@ export function CreateOrganizationDialog({
 						disabled={isCreatingOrganization}
 						onClick={handleClose}
 						type="button"
-						variant="ghost"
+						variant="outline"
 					>
 						Cancel
 					</Button>

@@ -65,9 +65,9 @@ export function RangeSelectionPopup({
 		};
 		const start = dateRange.startDate.toLocaleDateString("en-US", opts);
 		const end = dateRange.endDate.toLocaleDateString("en-US", opts);
-		return dateRange.startDate.getTime() !== dateRange.endDate.getTime()
-			? `${start} – ${end}`
-			: start;
+		return dateRange.startDate.getTime() === dateRange.endDate.getTime()
+			? start
+			: `${start} – ${end}`;
 	};
 
 	return (
@@ -80,7 +80,9 @@ export function RangeSelectionPopup({
 			/>
 			<div className="relative min-w-[160px] overflow-hidden rounded border bg-popover shadow-xl">
 				<div className="border-b px-3 py-1.5">
-					<p className="font-medium text-foreground text-xs">{formatDateRange()}</p>
+					<p className="font-medium text-foreground text-xs">
+						{formatDateRange()}
+					</p>
 				</div>
 				<div className="p-0.5">
 					<button
@@ -92,7 +94,9 @@ export function RangeSelectionPopup({
 							className="size-3.5 text-muted-foreground"
 							weight="duotone"
 						/>
-						<span className="flex-1 text-foreground text-xs">Zoom to range</span>
+						<span className="flex-1 text-foreground text-xs">
+							Zoom to range
+						</span>
 						<kbd className="rounded border px-1 py-px text-[10px] text-muted-foreground">
 							Z
 						</kbd>
@@ -106,7 +110,9 @@ export function RangeSelectionPopup({
 							className="size-3.5 text-muted-foreground"
 							weight="duotone"
 						/>
-						<span className="flex-1 text-foreground text-xs">Add annotation…</span>
+						<span className="flex-1 text-foreground text-xs">
+							Add annotation…
+						</span>
 						<kbd className="rounded border px-1 py-px text-[10px] text-muted-foreground">
 							A
 						</kbd>

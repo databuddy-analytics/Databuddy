@@ -1,7 +1,21 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db";
-import { captureError, record, setAttributes } from "@lib/tracing";
+import { captureError, record } from "@lib/tracing";
+import { createError, log } from "evlog";
+import { useLogger } from "evlog/elysia";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
+
+/**
+ * Merge producer transport context into the request wide event when in an HTTP
+ * handler; otherwise emit a standalone structured line (timer flush, etc.).
+ */
+function mergeProducerContext(data: Record<string, unknown>): void {
+	try {
+		useLogger().set({ producer: data });
+	} catch {
+		log.info({ producer: data });
+	}
+}
 
 /**
  * JSON stringify with undefined -> null conversion
@@ -122,9 +136,12 @@ export class EventProducer {
 	private initializeProducer(): void {
 		if (!(this.config.username && this.config.password)) {
 			captureError(
-				new Error(
-					"REDPANDA_BROKER set but credentials missing. Kafka producer disabled."
-				)
+				createError({
+					message: "Kafka producer disabled: credentials missing",
+					status: 500,
+					why: "REDPANDA_BROKER was set without username and password.",
+					fix: "Set broker credentials or use ClickHouse-only mode.",
+				})
 			);
 			return;
 		}
@@ -180,7 +197,16 @@ export class EventProducer {
 				message: "Redpanda connection failed, using ClickHouse fallback",
 			});
 			if (this.dependencies.onError) {
-				this.dependencies.onError(new Error(String(error)));
+				const cause = error instanceof Error ? error : new Error(String(error));
+				this.dependencies.onError(
+					createError({
+						message: "Redpanda connection failed",
+						status: 500,
+						why: cause.message,
+						fix: "Check broker credentials, network, and broker health.",
+						cause,
+					})
+				);
 			}
 			return false;
 		}
@@ -217,10 +243,11 @@ export class EventProducer {
 
 					try {
 						await record("clickhouseFallbackInsert", async () => {
-							setAttributes({
-								ch_table: table,
-								ch_event_count: events.length,
-								ch_chunk_size: this.config.chunkSize,
+							mergeProducerContext({
+								op: "clickhouse_fallback",
+								table,
+								eventCount: events.length,
+								chunkSize: this.config.chunkSize,
 							});
 
 							for (let i = 0; i < events.length; i += this.config.chunkSize) {
@@ -233,8 +260,10 @@ export class EventProducer {
 							}
 
 							this.stats.flushed += events.length;
-							setAttributes({
-								ch_flushed: events.length,
+							mergeProducerContext({
+								op: "clickhouse_fallback",
+								table,
+								flushed: events.length,
 							});
 						});
 					} catch (error) {
@@ -265,9 +294,15 @@ export class EventProducer {
 
 			const failures = results.filter((r) => r.status === "rejected");
 			if (failures.length > 0) {
-				captureError(new Error("Table flush operations failed"), {
-					failures: failures.length,
-				});
+				captureError(
+					createError({
+						message: "Table flush operations failed",
+						status: 500,
+						why: `${String(failures.length)} flush operation(s) rejected.`,
+						fix: "Inspect ClickHouse connectivity and table configuration.",
+					}),
+					{ failures: failures.length }
+				);
 			}
 		} catch (error) {
 			this.stats.errors += 1;
@@ -298,22 +333,43 @@ export class EventProducer {
 
 	private toBuffer(topic: string, event: unknown): void {
 		if (this.shuttingDown) {
-			captureError(new Error("Cannot buffer event during shutdown"));
+			captureError(
+				createError({
+					message: "Cannot buffer event during shutdown",
+					status: 503,
+					why: "Producer is shutting down and new events are not accepted.",
+					fix: "During graceful shutdown, events may be dropped.",
+				})
+			);
 			return;
 		}
 
 		const table = this.dependencies.topicMap[topic];
 		if (!table) {
 			this.stats.errors += 1;
-			captureError(new Error("Unknown topic"), { topic });
+			captureError(
+				createError({
+					message: "Unknown Kafka topic",
+					status: 500,
+					why: "Topic is not mapped to a ClickHouse table.",
+					fix: "Check topicMap configuration.",
+				}),
+				{ topic }
+			);
 			return;
 		}
 
 		if (this.buffer.length >= this.config.bufferHardMax) {
 			this.stats.dropped += 1;
-			captureError(new Error("Buffer overflow, dropping event"), {
-				bufferLength: this.buffer.length,
-			});
+			captureError(
+				createError({
+					message: "Buffer overflow, dropping event",
+					status: 500,
+					why: "Internal buffer exceeded bufferHardMax.",
+					fix: "Investigate downstream slowness or increase buffer limits.",
+				}),
+				{ bufferLength: this.buffer.length }
+			);
 			return;
 		}
 
@@ -333,16 +389,19 @@ export class EventProducer {
 
 	send(topic: string, event: unknown, key?: string): Promise<void> {
 		return record("kafkaSend", async () => {
-			setAttributes({
-				kafka_topic: topic,
-				kafka_has_key: Boolean(key),
+			mergeProducerContext({
+				op: "kafka_send",
+				topic,
+				hasKey: Boolean(key),
 			});
 
 			if (this.shuttingDown) {
 				this.toBuffer(topic, event);
-				setAttributes({
-					kafka_buffered: true,
-					kafka_reason: "shutting_down",
+				mergeProducerContext({
+					op: "kafka_send",
+					topic,
+					buffered: true,
+					reason: "shutting_down",
 				});
 				return;
 			}
@@ -367,9 +426,11 @@ export class EventProducer {
 							compression: CompressionTypes.GZIP,
 						});
 						this.stats.sent += 1;
-						setAttributes({
-							kafka_sent: true,
-							kafka_stats_sent: this.stats.sent,
+						mergeProducerContext({
+							op: "kafka_send",
+							topic,
+							sent: true,
+							totalSent: this.stats.sent,
 						});
 						return;
 					} catch (error) {
@@ -378,25 +439,31 @@ export class EventProducer {
 							message: "Redpanda send failed, buffering to ClickHouse",
 						});
 						this.failed = true;
-						setAttributes({
-							kafka_send_failed: true,
-							kafka_stats_failed: this.stats.failed,
+						mergeProducerContext({
+							op: "kafka_send",
+							topic,
+							sendFailed: true,
+							totalFailed: this.stats.failed,
 						});
 					}
 				}
 				this.toBuffer(topic, event);
-				setAttributes({
-					kafka_buffered: true,
-					kafka_reason: "not_connected",
+				mergeProducerContext({
+					op: "kafka_send",
+					topic,
+					buffered: true,
+					reason: "not_connected",
 				});
 			} catch (error) {
 				this.stats.errors += 1;
 				this.stats.lastErrorTime = Date.now();
 				captureError(error, { message: "Send error" });
 				this.toBuffer(topic, event);
-				setAttributes({
-					kafka_error: true,
-					kafka_buffered: true,
+				mergeProducerContext({
+					op: "kafka_send",
+					topic,
+					error: true,
+					buffered: true,
 				});
 			}
 		});
@@ -423,18 +490,21 @@ export class EventProducer {
 				return;
 			}
 
-			setAttributes({
-				kafka_topic: topic,
-				kafka_batch_size: events.length,
+			mergeProducerContext({
+				op: "kafka_send_batch",
+				topic,
+				batchSize: events.length,
 			});
 
 			if (this.shuttingDown) {
 				for (const e of events) {
 					this.toBuffer(topic, e);
 				}
-				setAttributes({
-					kafka_buffered: true,
-					kafka_reason: "shutting_down",
+				mergeProducerContext({
+					op: "kafka_send_batch",
+					topic,
+					buffered: true,
+					reason: "shutting_down",
 				});
 				return;
 			}
@@ -459,9 +529,11 @@ export class EventProducer {
 							compression: CompressionTypes.GZIP,
 						});
 						this.stats.sent += events.length;
-						setAttributes({
-							kafka_sent: true,
-							kafka_stats_sent: this.stats.sent,
+						mergeProducerContext({
+							op: "kafka_send_batch",
+							topic,
+							sent: true,
+							totalSent: this.stats.sent,
 						});
 						return;
 					} catch (error) {
@@ -470,18 +542,22 @@ export class EventProducer {
 							message: "Redpanda batch failed, buffering to ClickHouse",
 						});
 						this.failed = true;
-						setAttributes({
-							kafka_send_failed: true,
-							kafka_stats_failed: this.stats.failed,
+						mergeProducerContext({
+							op: "kafka_send_batch",
+							topic,
+							sendFailed: true,
+							totalFailed: this.stats.failed,
 						});
 					}
 				}
 				for (const e of events) {
 					this.toBuffer(topic, e);
 				}
-				setAttributes({
-					kafka_buffered: true,
-					kafka_reason: "not_connected",
+				mergeProducerContext({
+					op: "kafka_send_batch",
+					topic,
+					buffered: true,
+					reason: "not_connected",
 				});
 			} catch (error) {
 				this.stats.errors += 1;
@@ -489,9 +565,11 @@ export class EventProducer {
 				for (const e of events) {
 					this.toBuffer(topic, e);
 				}
-				setAttributes({
-					kafka_error: true,
-					kafka_buffered: true,
+				mergeProducerContext({
+					op: "kafka_send_batch",
+					topic,
+					error: true,
+					buffered: true,
 				});
 			}
 		});

@@ -10,14 +10,18 @@ import {
 	VideoIcon,
 	WarningCircleIcon,
 } from "@phosphor-icons/react";
-import { useDebouncedValue } from "@tanstack/react-pacer";
-import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	type FetchedOgData,
+	getProxiedImageUrl,
+	useImageValidation,
+	useOgMetadata,
+} from "./use-og-metadata";
 
 export interface OgData {
 	ogTitle: string;
@@ -26,20 +30,8 @@ export interface OgData {
 	ogVideoUrl: string;
 }
 
-function getProxiedImageUrl(url: string): string {
-	if (!url) {
-		return "";
-	}
-	// Skip proxy for internal/CDN images
-	if (
-		url.startsWith("/") ||
-		url.includes("cdn.databuddy.cc") ||
-		url.includes("api.dicebear.com")
-	) {
-		return url;
-	}
-	return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-}
+const TITLE_MAX = 120;
+const DESCRIPTION_MAX = 240;
 
 interface OgPreviewProps {
 	targetUrl: string;
@@ -49,71 +41,6 @@ interface OgPreviewProps {
 	onUseCustomOgChange: (useCustom: boolean) => void;
 }
 
-interface FetchedOgData {
-	title: string;
-	description: string;
-	image: string;
-}
-
-async function fetchOgData(url: string): Promise<FetchedOgData> {
-	if (!url) {
-		throw new Error("No URL provided");
-	}
-
-	const fullUrl = url.startsWith("http") ? url : `https://${url}`;
-
-	const response = await fetch(
-		`https://api.microlink.io?url=${encodeURIComponent(fullUrl)}`
-	);
-
-	if (!response.ok) {
-		throw new Error("Failed to fetch OG data");
-	}
-
-	const data = await response.json();
-
-	return {
-		title: data.data?.title ?? "",
-		description: data.data?.description ?? "",
-		image: data.data?.image?.url ?? data.data?.logo?.url ?? "",
-	};
-}
-
-type ImageStatus = "idle" | "loading" | "success" | "error";
-
-function useImageValidation(imageUrl: string) {
-	const [status, setStatus] = useState<ImageStatus>("idle");
-	const [retryKey, setRetryKey] = useState(0);
-
-	useEffect(() => {
-		if (!imageUrl) {
-			setStatus("idle");
-			return;
-		}
-
-		setStatus("loading");
-
-		const img = new Image();
-		img.onload = () => setStatus("success");
-		img.onerror = () => setStatus("error");
-		img.src = getProxiedImageUrl(imageUrl);
-
-		return () => {
-			img.onload = null;
-			img.onerror = null;
-		};
-	}, [imageUrl, retryKey]);
-
-	const retry = useCallback(() => setRetryKey((k) => k + 1), []);
-
-	return { status, retry };
-}
-
-const TITLE_MAX = 120;
-const DESCRIPTION_MAX = 240;
-
-const OG_FETCH_DEBOUNCE_MS = 500;
-
 export function OgPreview({
 	targetUrl,
 	value,
@@ -121,17 +48,7 @@ export function OgPreview({
 	useCustomOg,
 	onUseCustomOgChange,
 }: OgPreviewProps) {
-	const [debouncedTargetUrl] = useDebouncedValue(targetUrl, {
-		wait: OG_FETCH_DEBOUNCE_MS,
-	});
-
-	const { data: fetchedOg, isLoading } = useQuery({
-		queryKey: ["og-preview", debouncedTargetUrl],
-		queryFn: () => fetchOgData(debouncedTargetUrl),
-		enabled: !!debouncedTargetUrl && debouncedTargetUrl.length > 3,
-		staleTime: 5 * 60 * 1000,
-		retry: 1,
-	});
+	const { data: fetchedOg, isLoading } = useOgMetadata(targetUrl);
 
 	const customImageUrl = value.ogImageUrl;
 	const { status: imageStatus, retry: retryImage } =
@@ -152,7 +69,7 @@ export function OgPreview({
 		(field: keyof OgData, fieldValue: string) => {
 			onChange({ ...value, [field]: fieldValue });
 		},
-		[onChange, value]
+		[onChange, value],
 	);
 
 	const handleReset = useCallback(() => {
@@ -176,7 +93,6 @@ export function OgPreview({
 
 	return (
 		<div className="space-y-4">
-			{/* Preview Card */}
 			<div className="overflow-hidden rounded border bg-muted/30">
 				{isLoading ? (
 					<div className="flex h-40 items-center justify-center">
@@ -184,7 +100,6 @@ export function OgPreview({
 					</div>
 				) : (
 					<>
-						{/* Custom image preview with status */}
 						{showCustomImage && (
 							<div className="group relative aspect-video w-full overflow-hidden bg-muted">
 								{imageStatus === "loading" && (
@@ -267,14 +182,13 @@ export function OgPreview({
 							</div>
 						)}
 
-						{/* No image placeholder */}
 						{showNoImage && (
 							<div className="flex aspect-video w-full flex-col items-center justify-center gap-2 bg-muted">
 								<ImageIcon
 									className="size-10 text-muted-foreground/50"
 									weight="duotone"
 								/>
-								<p className="text-muted-foreground text-xs">
+								<p className="text-muted-foreground text-xs text-pretty">
 									Enter a URL to generate preview
 								</p>
 							</div>
@@ -284,7 +198,7 @@ export function OgPreview({
 							<p className="line-clamp-1 font-medium text-sm">
 								{displayData.title || "No title"}
 							</p>
-							<p className="line-clamp-2 text-muted-foreground text-xs">
+							<p className="line-clamp-2 text-muted-foreground text-xs text-pretty">
 								{displayData.description || "No description"}
 							</p>
 						</div>
@@ -292,7 +206,6 @@ export function OgPreview({
 				)}
 			</div>
 
-			{/* Custom OG Toggle */}
 			<div className="flex items-center justify-between">
 				<Label className="text-sm" htmlFor="use-custom-og">
 					Use custom social preview
@@ -304,10 +217,8 @@ export function OgPreview({
 				/>
 			</div>
 
-			{/* Custom OG Fields */}
 			{useCustomOg && (
 				<div className="space-y-3 border-primary/20 border-l-2 pl-4">
-					{/* Title */}
 					<div className="grid gap-1.5">
 						<div className="flex items-center justify-between">
 							<Label className="text-xs" htmlFor="og-title">
@@ -334,7 +245,6 @@ export function OgPreview({
 						/>
 					</div>
 
-					{/* Description */}
 					<div className="grid gap-1.5">
 						<div className="flex items-center justify-between">
 							<Label className="text-xs" htmlFor="og-description">
@@ -364,7 +274,6 @@ export function OgPreview({
 						/>
 					</div>
 
-					{/* Image URL */}
 					<div className="grid gap-1.5">
 						<div className="flex items-center justify-between">
 							<Label className="text-xs" htmlFor="og-image">
@@ -419,12 +328,11 @@ export function OgPreview({
 							type="url"
 							value={value.ogImageUrl}
 						/>
-						<p className="text-muted-foreground text-xs">
+						<p className="text-muted-foreground text-xs text-pretty">
 							Recommended: 1200 × 630 pixels (PNG or JPG)
 						</p>
 					</div>
 
-					{/* Video URL */}
 					<div className="grid gap-1.5">
 						<Label
 							className="flex items-center gap-1.5 text-xs"
@@ -441,12 +349,11 @@ export function OgPreview({
 							type="url"
 							value={value.ogVideoUrl}
 						/>
-						<p className="text-muted-foreground text-xs">
+						<p className="text-muted-foreground text-xs text-pretty">
 							MP4 format recommended for best compatibility
 						</p>
 					</div>
 
-					{/* Reset Button */}
 					{hasCustomValues && (
 						<Button
 							className="h-7 w-full"

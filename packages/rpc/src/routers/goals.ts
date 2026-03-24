@@ -10,10 +10,7 @@ import {
 	processGoalAnalytics,
 } from "../lib/analytics-utils";
 import { protectedProcedure, publicProcedure } from "../orpc";
-import {
-	withWebsiteRead,
-	withWorkspace,
-} from "../procedures/with-workspace";
+import { withWebsiteRead, withWorkspace } from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
 
 const cache = createDrizzleCache({ redis, namespace: "goals" });
@@ -83,7 +80,7 @@ export const goalsRouter = {
 		.output(z.array(goalOutputSchema))
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-			return context.db
+			return await context.db
 				.select()
 				.from(goals)
 				.where(
@@ -286,7 +283,6 @@ export const goalsRouter = {
 		.output(z.record(z.string(), z.unknown()))
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -370,7 +366,6 @@ export const goalsRouter = {
 		.output(z.record(z.string(), z.any()))
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -414,10 +409,10 @@ export const goalsRouter = {
 					const filters = (goal.filters as Filter[]) || [];
 					const totalUsers = goal.ignoreHistoricData
 						? await getTotalWebsiteUsers(
-							input.websiteId,
-							effectiveStartDate,
-							endDate
-						)
+								input.websiteId,
+								effectiveStartDate,
+								endDate
+							)
 						: baseTotalUsers;
 
 					try {

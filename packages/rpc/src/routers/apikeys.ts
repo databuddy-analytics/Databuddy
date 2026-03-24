@@ -7,7 +7,6 @@ import { API_SCOPES } from "@databuddy/api-keys/scopes";
 import { websitesApi } from "@databuddy/auth";
 import { apikey, desc, eq } from "@databuddy/db";
 import { invalidateCacheableKey } from "@databuddy/redis";
-import { rpcError } from "../errors";
 import {
 	ApiKeyErrorCode,
 	hasAllScopes,
@@ -16,6 +15,7 @@ import {
 	isExpired,
 } from "keypal";
 import { z } from "zod";
+import { rpcError } from "../errors";
 import type { Context } from "../orpc";
 import { protectedProcedure, publicProcedure } from "../orpc";
 
@@ -115,7 +115,9 @@ async function verifyOrganizationAccess(
 			throw rpcError.forbidden("Missing organization permissions");
 		}
 	} catch (error) {
-		if (error instanceof Error && "code" in error) throw error;
+		if (error instanceof Error && "code" in error) {
+			throw error;
+		}
 		throw rpcError.forbidden("Missing organization permissions");
 	}
 }

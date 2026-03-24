@@ -6,7 +6,8 @@ import {
 	extractSecret,
 	getApiKeyFromHeader as resolveApiKey,
 } from "@databuddy/api-keys/resolve";
-import { record, setAttributes } from "@lib/tracing";
+import { record } from "@lib/tracing";
+import { useLogger } from "evlog/elysia";
 
 export type { ApiKeyRow, ApiScope } from "@databuddy/api-keys/resolve";
 export { hasKeyScope } from "@databuddy/api-keys/resolve";
@@ -15,19 +16,15 @@ export function getApiKeyFromHeader(
 	headers: Headers
 ): Promise<ApiKeyRow | null> {
 	return record("getApiKeyFromHeader", async () => {
+		const log = useLogger();
 		const secret = extractSecret(headers);
+
 		if (!secret) {
-			setAttributes({ api_key_present: false });
 			return null;
 		}
 
-		setAttributes({ api_key_present: true });
 		const key = await resolveApiKey(headers);
-
-		setAttributes({
-			api_key_valid: Boolean(key),
-			...(!key && { api_key_reason: "invalid_or_expired" }),
-		});
+		log.set({ auth: { method: "api_key", valid: Boolean(key) } });
 
 		return key;
 	});

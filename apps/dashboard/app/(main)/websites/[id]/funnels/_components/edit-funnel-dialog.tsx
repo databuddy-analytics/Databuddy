@@ -15,7 +15,6 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -331,7 +330,6 @@ export function EditFunnelDialog({
 									: `${formData.steps.length} steps configured`}
 							</SheetDescription>
 						</div>
-						<Badge variant="secondary">{formData.steps.length} steps</Badge>
 					</div>
 				</SheetHeader>
 
@@ -607,7 +605,7 @@ export function EditFunnelDialog({
 				</SheetBody>
 
 				<SheetFooter>
-					<Button onClick={handleClose} variant="ghost">
+					<Button onClick={handleClose} variant="outline">
 						Cancel
 					</Button>
 					<Button

@@ -52,5 +52,9 @@ yarn-error.log*
 *.tsbuildinfo
 *.buildinfo
 tmp
+
+# Local evlog file-system drain (dev NDJSON under .evlog/logs)
+**/.evlog/
+
 # next-agents-md
 .next-docs/

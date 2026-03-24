@@ -1,3 +1,4 @@
+import type { db as DbType } from "@databuddy/db";
 import {
 	and,
 	desc,
@@ -6,11 +7,10 @@ import {
 	feedbackRedemptions,
 	sql,
 } from "@databuddy/db";
-import type { db as DbType } from "@databuddy/db";
-import { logger } from "@databuddy/shared/logger";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { logger } from "../lib/logger";
 import { sessionProcedure } from "../orpc";
 import { getBillingCustomerId } from "../utils/billing";
 
@@ -32,7 +32,9 @@ async function notifySlack(
 	description: string,
 	userEmail: string
 ) {
-	if (!SLACK_WEBHOOK_URL) return;
+	if (!SLACK_WEBHOOK_URL) {
+		return;
+	}
 
 	const blocks = [
 		{
@@ -97,9 +99,9 @@ async function notifySlack(
 }
 
 const REWARD_TIERS = [
-	{ creditsRequired: 50, rewardType: "events", rewardAmount: 1_000 },
-	{ creditsRequired: 100, rewardType: "events", rewardAmount: 2_500 },
-	{ creditsRequired: 200, rewardType: "events", rewardAmount: 5_000 },
+	{ creditsRequired: 50, rewardType: "events", rewardAmount: 1000 },
+	{ creditsRequired: 100, rewardType: "events", rewardAmount: 2500 },
+	{ creditsRequired: 200, rewardType: "events", rewardAmount: 5000 },
 	{ creditsRequired: 500, rewardType: "events", rewardAmount: 15_000 },
 ] as const;
 
@@ -209,7 +211,7 @@ export const feedbackRouter = {
 				input.category,
 				input.description,
 				context.user.email
-			).catch(() => { });
+			).catch(() => {});
 
 			return newFeedback;
 		}),
@@ -244,7 +246,7 @@ export const feedbackRouter = {
 				conditions.push(eq(feedback.status, input.status));
 			}
 
-			return context.db
+			return await context.db
 				.select()
 				.from(feedback)
 				.where(and(...conditions))
@@ -271,7 +273,7 @@ export const feedbackRouter = {
 				throw rpcError.badRequest("Organization context is required");
 			}
 
-			return computeCreditsBalance(
+			return await computeCreditsBalance(
 				context.db,
 				context.user.id,
 				context.organizationId
@@ -309,7 +311,11 @@ export const feedbackRouter = {
 		})
 		.input(
 			z.object({
-				tierIndex: z.number().int().min(0).max(REWARD_TIERS.length - 1),
+				tierIndex: z
+					.number()
+					.int()
+					.min(0)
+					.max(REWARD_TIERS.length - 1),
 			})
 		)
 		.output(
@@ -364,9 +370,7 @@ export const feedbackRouter = {
 
 				if (!response.ok) {
 					const body = await response.text();
-					throw new Error(
-						`Autumn API ${response.status}: ${body}`
-					);
+					throw new Error(`Autumn API ${response.status}: ${body}`);
 				}
 			} catch (error) {
 				const errorMessage =
@@ -419,5 +423,4 @@ export const feedbackRouter = {
 				remainingCredits: newBalance.available,
 			};
 		}),
-
 };

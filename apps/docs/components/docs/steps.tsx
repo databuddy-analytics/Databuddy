@@ -110,4 +110,4 @@ function CompletedStep({
 	);
 }
 
-export { Steps, Step, CompletedStep };
+export { CompletedStep, Step, Steps };

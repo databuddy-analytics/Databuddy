@@ -42,25 +42,18 @@ export async function generateMetadata({
 		};
 	}
 
+	const compareUrl = `https://www.databuddy.cc/compare/${slug}`;
+
 	return {
 		title: data.seo.title,
 		description: data.seo.description,
 		openGraph: {
 			title: data.seo.title,
 			description: data.seo.description,
-			url: `https://www.databuddy.cc/compare/${slug}`,
-			siteName: "Databuddy",
-			type: "website",
-			images: ["/og-image.png"],
-		},
-		twitter: {
-			card: "summary_large_image",
-			title: data.seo.title,
-			description: data.seo.description,
-			images: ["/og-image.png"],
+			url: compareUrl,
 		},
 		alternates: {
-			canonical: `https://www.databuddy.cc/compare/${slug}`,
+			canonical: compareUrl,
 		},
 	};
 }

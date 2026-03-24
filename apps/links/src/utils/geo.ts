@@ -5,6 +5,7 @@ import {
 	BadMethodCallError,
 	Reader,
 } from "@maxmind/geoip2-node";
+import { log } from "evlog";
 import { captureError, record, setAttributes } from "../lib/tracing";
 
 interface GeoIPReader extends Reader {
@@ -110,7 +111,10 @@ async function lookupGeoLocation(ip: string): Promise<{
 		) {
 			return { country: null, region: null, city: null };
 		}
-		console.error("GeoIP lookup error:", err);
+		log.error({
+			links: "geoip_lookup",
+			error: err instanceof Error ? err.message : String(err),
+		});
 		return { country: null, region: null, city: null };
 	}
 }

@@ -21,8 +21,6 @@ export interface Monitor {
 	} | null;
 	jsonParsingConfig?: {
 		enabled: boolean;
-		mode: "auto" | "manual";
-		fields?: string[];
 	} | null;
 }
 

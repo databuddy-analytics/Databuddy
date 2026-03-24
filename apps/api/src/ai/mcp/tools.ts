@@ -11,6 +11,11 @@ import {
 } from "../../lib/api-key";
 import { trackAgentEvent } from "../../lib/databuddy";
 import {
+	isMemoryEnabled,
+	searchMemories,
+	storeConversation as storeMemory,
+} from "../../lib/supermemory";
+import {
 	getCachedWebsite,
 	getWebsiteDomain,
 	validateWebsite,
@@ -572,25 +577,28 @@ export function createMcpTools(ctx: McpToolContext) {
 				const queryTypes = useFull
 					? getQueryTypeDetails()
 					: getQueryTypeDescriptions();
+				const availableTools = [
+					"ask",
+					"list_websites",
+					"get_data",
+					"get_schema",
+					"capabilities",
+					"list_funnels",
+					"get_funnel_analytics",
+					"list_goals",
+					"get_goal_analytics",
+					"list_links",
+					"search_links",
+					...(isMemoryEnabled() ? ["search_memory", "save_memory"] : []),
+				];
+
 				return toMcpResult({
 					queryTypes,
 					schemaSummary: getSchemaSummary(),
 					datePresets: MCP_DATE_PRESETS,
 					dateFormat: "YYYY-MM-DD",
 					maxLimit: 1000,
-					availableTools: [
-						"ask",
-						"list_websites",
-						"get_data",
-						"get_schema",
-						"capabilities",
-						"list_funnels",
-						"get_funnel_analytics",
-						"list_goals",
-						"get_goal_analytics",
-						"list_links",
-						"search_links",
-					],
+					availableTools,
 					hints: [
 						"get_data accepts websiteId, websiteName, or websiteDomain — no need to call list_websites first if you know the name or domain",
 						"list_websites returns ids, names, and domains — use it when you need to discover available websites",
@@ -889,5 +897,100 @@ export function createMcpTools(ctx: McpToolContext) {
 				}
 			},
 		},
+		...(isMemoryEnabled()
+			? {
+					search_memory: {
+						description:
+							"Search past conversations and saved context. Returns relevant memories ranked by similarity. Use to recall preferences, past questions, and previous findings. No LLM cost.",
+						inputSchema: z.object({
+							query: z
+								.string()
+								.describe(
+									"What to search for (e.g. 'pricing page performance', 'past traffic issues')"
+								),
+							limit: z
+								.number()
+								.min(1)
+								.max(10)
+								.optional()
+								.describe("Max memories to return (default 5)"),
+						}),
+						handler: async (args: { query: string; limit?: number }) => {
+							try {
+								const apiKeyId = ctx.apiKey
+									? (ctx.apiKey as { id: string }).id
+									: null;
+								const results = await searchMemories(
+									args.query,
+									ctx.userId,
+									apiKeyId,
+									{
+										limit: args.limit ?? 5,
+										threshold: 0.4,
+									}
+								);
+								trackToolCompletion(ctx, "search_memory", true);
+								if (results.length === 0) {
+									return toMcpResult({
+										found: false,
+										message: "No relevant memories found.",
+									});
+								}
+								return toMcpResult({
+									found: true,
+									memories: results.map((r) => ({
+										content: r.memory,
+										relevance: Math.round(r.similarity * 100),
+									})),
+								});
+							} catch (err) {
+								trackToolCompletion(ctx, "search_memory", false);
+								return toMcpResult(
+									{
+										error:
+											err instanceof Error
+												? err.message
+												: "Memory search failed",
+									},
+									true
+								);
+							}
+						},
+					},
+					save_memory: {
+						description:
+							"Save an important insight, preference, or finding for future conversations. No LLM cost.",
+						inputSchema: z.object({
+							content: z
+								.string()
+								.describe(
+									"The insight or information to save (e.g. 'User focuses on /pricing bounce rate')"
+								),
+							category: z
+								.enum(["preference", "insight", "pattern", "alert", "context"])
+								.optional()
+								.describe("Category of the memory (default: insight)"),
+						}),
+						handler: (args: { content: string; category?: string }) => {
+							const apiKeyId = ctx.apiKey
+								? (ctx.apiKey as { id: string }).id
+								: null;
+							storeMemory(
+								[
+									{
+										role: "assistant",
+										content: args.content,
+									},
+								],
+								ctx.userId,
+								apiKeyId,
+								{ category: args.category ?? "insight" }
+							);
+							trackToolCompletion(ctx, "save_memory", true);
+							return toMcpResult({ saved: true });
+						},
+					},
+				}
+			: {}),
 	};
 }

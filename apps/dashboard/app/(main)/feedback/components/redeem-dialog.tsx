@@ -55,16 +55,14 @@ export function RedeemDialog({
 				<DialogHeader>
 					<DialogTitle>Confirm Redemption</DialogTitle>
 					<DialogDescription>
-						This will deduct credits from your balance and add events
-						to your account.
+						This will deduct credits from your balance and add events to your
+						account.
 					</DialogDescription>
 				</DialogHeader>
 
 				<div className="space-y-2">
 					<div className="flex items-center justify-between rounded border bg-secondary/50 px-4 py-3">
-						<span className="text-muted-foreground text-sm">
-							Credits spent
-						</span>
+						<span className="text-muted-foreground text-sm">Credits spent</span>
 						<span className="font-semibold tabular-nums">
 							{creditsRequired}
 						</span>
@@ -77,9 +75,7 @@ export function RedeemDialog({
 						/>
 					</div>
 					<div className="flex items-center justify-between rounded border bg-secondary/50 px-4 py-3">
-						<span className="text-muted-foreground text-sm">
-							Events added
-						</span>
+						<span className="text-muted-foreground text-sm">Events added</span>
 						<span className="font-semibold text-green-600 tabular-nums dark:text-green-400">
 							+{rewardAmount.toLocaleString()} {rewardType}
 						</span>
@@ -99,9 +95,7 @@ export function RedeemDialog({
 						onClick={() => redeemMutation.mutate({ tierIndex })}
 						type="button"
 					>
-						{redeemMutation.isPending
-							? "Redeeming..."
-							: "Confirm Redemption"}
+						{redeemMutation.isPending ? "Redeeming..." : "Confirm Redemption"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

@@ -307,9 +307,9 @@ export function EventsTrendChart({
 							/>
 							{refAreaLeft && refAreaRight && (
 								<ReferenceArea
-									fill="var(--primary)"
+									fill="var(--chart-1)"
 									fillOpacity={0.1}
-									stroke="var(--primary)"
+									stroke="var(--chart-1)"
 									strokeOpacity={0.3}
 									x1={refAreaLeft}
 									x2={refAreaRight}

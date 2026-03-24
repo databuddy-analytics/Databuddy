@@ -359,7 +359,7 @@ function FlagRow({
 					<div className="flex flex-col gap-0.5 text-muted-foreground text-xs">
 						{ruleCount > 0 && (
 							<span>
-								{ruleCount} {ruleCount !== 1 ? "rules" : "rule"}
+								{ruleCount} {ruleCount === 1 ? "rule" : "rules"}
 							</span>
 						)}
 						{variantCount > 0 && (

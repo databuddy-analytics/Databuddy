@@ -100,7 +100,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 							}}
 							className={cn(
 								"pointer-events-none absolute inset-x-1 bottom-0 h-[2px] rounded-full",
-								hasError ? "bg-destructive" : "bg-primary"
+								hasError ? "bg-destructive" : "bg-brand-purple"
 							)}
 							initial={false}
 							style={{ originX: 0.5 }}
@@ -141,7 +141,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 						}}
 						className={cn(
 							"pointer-events-none absolute inset-x-1 bottom-0 h-[2px] rounded-full",
-							hasError ? "bg-destructive" : "bg-primary"
+							hasError ? "bg-destructive" : "bg-brand-purple"
 						)}
 						initial={false}
 						style={{ originX: 0.5 }}

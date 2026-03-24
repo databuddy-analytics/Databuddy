@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { hasEvent } from "./test-utils";
 
 test.describe("Privacy & Opt-out", () => {
 	test.beforeEach(async ({ page }) => {
@@ -30,10 +31,11 @@ test.describe("Privacy & Opt-out", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-privacy",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
 
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		// Try to track
 		await page.evaluate(() => {
@@ -52,9 +54,10 @@ test.describe("Privacy & Opt-out", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-privacy",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		// Ensure we are loaded
 		await expect
@@ -79,7 +82,7 @@ test.describe("Privacy & Opt-out", () => {
 		page.on("request", (req) => {
 			if (
 				req.url().includes("basket.databuddy.cc") &&
-				req.postDataJSON()?.name === "after_opt_out"
+				hasEvent(req, (e) => e.name === "after_opt_out")
 			) {
 				requestSent = true;
 			}

@@ -1,7 +1,6 @@
 "use client";
 
 import { HeartbeatIcon } from "@phosphor-icons/react/dist/ssr/Heartbeat";
-import dayjs from "@/lib/dayjs";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -16,6 +15,7 @@ import { DataTable, type TabConfig } from "@/components/table/data-table";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { usePersistentState } from "@/hooks/use-persistent-state";
+import dayjs from "@/lib/dayjs";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,

@@ -1,6 +1,8 @@
 import { ArrowLeftIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
+import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 
 export const metadata: Metadata = {
 	title: "Live Demo | Databuddy",
@@ -8,7 +10,10 @@ export const metadata: Metadata = {
 		"Experience Databuddy analytics in action with our live demo dashboard. See real-time analytics, insights, and privacy-first tracking.",
 };
 
-export default function DemoPage() {
+export default async function DemoPage() {
+	const headerList = await headers();
+	const iframeSrc = getDemoEmbedBaseUrl(hostFromNextHeaders(headerList));
+
 	return (
 		<div className="fixed inset-0 h-full w-full">
 			{/* Floating Navigation Header */}
@@ -52,7 +57,7 @@ export default function DemoPage() {
 				allow="fullscreen"
 				className="h-full w-full border-0"
 				loading="lazy"
-				src="https://app.databuddy.cc/demo/OXmNQsViBT-FOS_wZCTHc"
+				src={iframeSrc}
 				style={{
 					colorScheme: "light dark",
 				}}

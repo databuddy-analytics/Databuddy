@@ -1,6 +1,8 @@
 import { relations } from "drizzle-orm/relations";
 import {
 	account,
+	alarmDestinations,
+	alarms,
 	apikey,
 	flags,
 	flagsToTargetGroups,
@@ -48,6 +50,7 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 		relationName: "websites_organizationId_organization_id",
 	}),
 	teams: many(team),
+	alarms: many(alarms),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -110,6 +113,7 @@ export const websitesRelations = relations(websites, ({ one, many }) => ({
 		relationName: "websites_organizationId_organization_id",
 	}),
 	funnelDefinitions: many(funnelDefinitions),
+	alarms: many(alarms),
 }));
 
 export const funnelDefinitionsRelations = relations(
@@ -208,3 +212,25 @@ export const revenueConfigRelations = relations(revenueConfig, ({ one }) => ({
 		references: [websites.id],
 	}),
 }));
+
+export const alarmsRelations = relations(alarms, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [alarms.organizationId],
+		references: [organization.id],
+	}),
+	website: one(websites, {
+		fields: [alarms.websiteId],
+		references: [websites.id],
+	}),
+	destinations: many(alarmDestinations),
+}));
+
+export const alarmDestinationsRelations = relations(
+	alarmDestinations,
+	({ one }) => ({
+		alarm: one(alarms, {
+			fields: [alarmDestinations.alarmId],
+			references: [alarms.id],
+		}),
+	})
+);

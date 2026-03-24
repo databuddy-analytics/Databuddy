@@ -2,7 +2,6 @@
 
 import { ClockIcon, RobotIcon, WarningIcon } from "@phosphor-icons/react";
 import type { ColumnDef } from "@tanstack/react-table";
-import dayjs from "@/lib/dayjs";
 import { useCallback, useMemo, useState } from "react";
 import { SimpleMetricsChart } from "@/components/charts/simple-metrics-chart";
 import { DataTable, type TabConfig } from "@/components/table/data-table";
@@ -13,6 +12,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import dayjs from "@/lib/dayjs";
 import { useLLMPageContext } from "../_components/llm-page-context";
 import {
 	formatDuration,

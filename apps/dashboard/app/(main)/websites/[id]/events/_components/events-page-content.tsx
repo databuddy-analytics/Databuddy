@@ -8,7 +8,6 @@ import {
 	UserIcon,
 	UsersIcon,
 } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { useAtom } from "jotai";
 import { use, useCallback, useMemo } from "react";
 import { StatCard } from "@/components/analytics";
@@ -16,6 +15,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import dayjs from "@/lib/dayjs";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,

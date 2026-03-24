@@ -10,9 +10,12 @@
     - `name` - Alarm name
     - `description` - Alarm description
     - `enabled` - Whether alarm is active
-    - `notification_channels` - Array of channels (slack, discord, email, webhook)
+    - `notification_channels` - Array of channels (slack, discord, email, webhook, teams, telegram, google-chat)
     - `slack_webhook_url` - Optional Slack webhook URL
     - `discord_webhook_url` - Optional Discord webhook URL
+    - `teams_webhook_url` - Optional Teams webhook URL
+    - `telegram_bot_token` + `telegram_chat_id` - Optional Telegram config
+    - `google_chat_webhook_url` - Optional Google Chat webhook URL
     - `email_addresses` - Array of email addresses
     - `webhook_url` - Optional custom webhook URL
     - `webhook_headers` - JSON object for custom webhook headers
@@ -37,22 +40,18 @@
 
 ## Additional Notification Providers
 
-- [ ] **Microsoft Teams** - Webhook support for Teams channels
-- [ ] **Telegram** - Bot API for sending messages to Telegram channels/groups
+- [x] **Slack** - Webhook support
+- [x] **Discord** - Webhook support
+- [x] **Email** - Injected send function
+- [x] **Webhook** - Generic HTTP webhook
+- [x] **Microsoft Teams** - Adaptive Cards via webhook
+- [x] **Telegram** - Bot API (sendMessage)
+- [x] **Google Chat** - Cards via webhook
 - [ ] **PagerDuty** - Integration for incident management
 - [ ] **Opsgenie** - Alerting and on-call management
 - [ ] **SMS/Twilio** - SMS notifications via Twilio API
 - [ ] **Pushover** - Push notifications for mobile devices
-- [ ] **Mattermost** - Webhook support for Mattermost channels
-- [ ] **Rocket.Chat** - Webhook support for Rocket.Chat
-- [ ] **Google Chat** - Webhook support for Google Chat spaces
-- [ ] **Zulip** - Webhook support for Zulip streams
-- [ ] **Line** - Line Notify API for Line messaging
-- [ ] **WeChat** - WeChat Work webhook support
-- [ ] **Amazon SNS** - AWS Simple Notification Service integration
-- [ ] **Google Cloud Pub/Sub** - GCP Pub/Sub integration
-- [ ] **Azure Service Bus** - Azure messaging integration
-- [ ] **Apprise** - Universal notification library wrapper (supports 70+ services)
+- [ ] **Mattermost** - Webhook support (Slack-compatible format)
 
 ## Notification Templates & Branding
 

@@ -133,7 +133,7 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 						<div className="flex gap-1 border-b">
 							{tabs.map((tab) => (
 								<Skeleton
-									className="h-9 w-20 rounded-none border-b-2 border-transparent"
+									className="h-9 w-20 rounded-none border-transparent border-b-2"
 									key={tab.id}
 								/>
 							))}

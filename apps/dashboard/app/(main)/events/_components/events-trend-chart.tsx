@@ -93,7 +93,7 @@ function ChartTooltip({
 		<div className="min-w-[160px] rounded border bg-popover p-2.5 shadow-lg">
 			{label && (
 				<div className="mb-2 flex items-center gap-2 border-b pb-2">
-					<div className="size-1.5 animate-pulse rounded-full bg-primary" />
+					<div className="size-1.5 animate-pulse rounded-full bg-chart-1" />
 					<p className="font-medium text-foreground text-xs">{label}</p>
 				</div>
 			)}
@@ -492,9 +492,9 @@ export function EventsTrendChart({
 							/>
 							{refAreaLeft && refAreaRight && (
 								<ReferenceArea
-									fill="var(--primary)"
+									fill="var(--chart-1)"
 									fillOpacity={0.1}
-									stroke="var(--primary)"
+									stroke="var(--chart-1)"
 									strokeOpacity={0.3}
 									x1={refAreaLeft}
 									x2={refAreaRight}

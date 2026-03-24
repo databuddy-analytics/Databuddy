@@ -14,7 +14,7 @@ export function PercentageBadge({
 			return "bg-green-100 border border-green-800/50 green-angled-rectangle-gradient text-green-800 dark:bg-green-900/30 dark:text-green-400";
 		}
 		if (pct >= 25) {
-			return "bg-blue-100 border border-blue-800/50 blue-angled-rectangle-gradient text-blue-800 dark:bg-blue-900/30 dark:text-blue-400";
+			return "bg-brand-purple/10 border border-brand-purple/30 blue-angled-rectangle-gradient text-brand-purple dark:bg-brand-purple/20 dark:text-[#8B80BF]";
 		}
 		if (pct >= 10) {
 			return "bg-amber-100 border border-amber-800/40 amber-angled-rectangle-gradient text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";

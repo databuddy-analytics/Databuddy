@@ -174,7 +174,7 @@ const FeatureRow = ({ feature }: { feature: (typeof features)[0] }) => (
 
 export default function Comparison() {
 	return (
-		<div className="relative mx-auto rounded-none border-border bg-background/95 -pr-2 font-geist md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
+		<div className="relative mx-auto rounded-none border-border bg-background/95 -pr-2 md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
 			<div className="w-full md:mx-0">
 				{/* Single wide section for comparison */}
 				<div className="border-border border-t-[1.2px] border-b-[1.2px] border-l-[1.2px] p-6 sm:p-8 md:border-t-0 md:p-10">

@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 const chartConfig = {
 	value: {
 		label: "Value",
-		color: "var(--color-primary)",
+		color: "var(--color-chart-1)",
 	},
 } satisfies ChartConfig;
 
@@ -72,12 +72,12 @@ const ChartPreview = ({
 												>
 													<stop
 														offset="0%"
-														stopColor="var(--color-primary)"
+														stopColor="var(--color-chart-1)"
 														stopOpacity={0.4}
 													/>
 													<stop
 														offset="100%"
-														stopColor="var(--color-primary)"
+														stopColor="var(--color-chart-1)"
 														stopOpacity={0}
 													/>
 												</linearGradient>
@@ -102,7 +102,7 @@ const ChartPreview = ({
 											<Line
 												dataKey="value"
 												dot={false}
-												stroke="var(--color-primary)"
+												stroke="var(--color-chart-1)"
 												strokeWidth={1.5}
 												type="monotone"
 											/>
@@ -124,12 +124,12 @@ const ChartPreview = ({
 												>
 													<stop
 														offset="0%"
-														stopColor="var(--color-primary)"
+														stopColor="var(--color-chart-1)"
 														stopOpacity={0.4}
 													/>
 													<stop
 														offset="100%"
-														stopColor="var(--color-primary)"
+														stopColor="var(--color-chart-1)"
 														stopOpacity={0}
 													/>
 												</linearGradient>
@@ -139,14 +139,14 @@ const ChartPreview = ({
 											<Area
 												activeDot={{
 													r: 2.5,
-													fill: "var(--color-primary)",
+													fill: "var(--color-chart-1)",
 													stroke: "var(--color-background)",
 													strokeWidth: 1.5,
 												}}
 												dataKey="value"
 												dot={false}
 												fill={`url(#gradient-${chartId})`}
-												stroke="var(--color-primary)"
+												stroke="var(--color-chart-1)"
 												strokeWidth={1.5}
 												type="monotone"
 											/>
@@ -162,7 +162,7 @@ const ChartPreview = ({
 											<YAxis domain={["dataMin", "dataMax"]} hide />
 											<Bar
 												dataKey="value"
-												fill="var(--color-primary)"
+												fill="var(--color-chart-1)"
 												radius={[2, 2, 0, 0]}
 											/>
 										</BarChart>

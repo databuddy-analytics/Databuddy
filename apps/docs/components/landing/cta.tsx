@@ -29,7 +29,7 @@ function CTAContent() {
 	const trackingParams = getTrackingParams(searchParams);
 
 	return (
-		<div className="relative mx-auto rounded-none border-border bg-background/95 -pr-2 font-geist md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
+		<div className="relative mx-auto rounded-none border-border bg-background/95 -pr-2 md:w-10/12 md:border-[1.2px] md:border-b-0 md:border-l-0">
 			<div className="w-full md:mx-0">
 				{/* CTA grid */}
 				<div className="relative grid grid-cols-1 border-border border-t-[1.2px] md:grid-cols-3 md:grid-rows-1">

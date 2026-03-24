@@ -87,11 +87,14 @@ jobs:
             sleep 1
           done
           
-          # Check health endpoint response structure
-          RESPONSE=$(curl -sf http://localhost:3001/health || echo '{}')
-          echo "API Health Response: $RESPONSE"
+          # Dependency probe (optional in CI — may 503 without Postgres/ClickHouse)
+          STATUS_BODY=$(curl -sS http://localhost:3001/health/status || echo '{}')
+          echo "API /health/status: $STATUS_BODY"
           
-          # Verify response has expected fields
+          RESPONSE=$(curl -sf http://localhost:3001/health || echo '{}')
+          echo "API /health: $RESPONSE"
+          
+          # Verify simple liveness shape
           if echo "$RESPONSE" | grep -q '"status"'; then
             echo "API health endpoint structure is valid"
           else
@@ -174,11 +177,12 @@ jobs:
             sleep 1
           done
           
-          # Check health endpoint response structure
-          RESPONSE=$(curl -sf http://localhost:4000/health || echo '{}')
-          echo "Basket Health Response: $RESPONSE"
+          STATUS_BODY=$(curl -sS http://localhost:4000/health/status || echo '{}')
+          echo "Basket /health/status: $STATUS_BODY"
           
-          # Verify response has expected fields
+          RESPONSE=$(curl -sf http://localhost:4000/health || echo '{}')
+          echo "Basket /health: $RESPONSE"
+          
           if echo "$RESPONSE" | grep -q '"status"'; then
             echo "Basket health endpoint structure is valid"
           else

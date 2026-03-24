@@ -2,9 +2,9 @@
 
 import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr/Spinner";
 import { TableIcon } from "@phosphor-icons/react/dist/ssr/Table";
-import dayjs from "@/lib/dayjs";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
+import dayjs from "@/lib/dayjs";
 
 interface RetentionCohort {
 	cohort: string;
@@ -36,18 +36,18 @@ const getRetentionColor = (percentage: number | null): RetentionColor => {
 	const normalizedPct = Math.min(percentage, 100) / 100;
 
 	if (normalizedPct >= 0.7) {
-		return { className: "bg-primary text-primary-foreground" };
+		return { className: "bg-chart-1 text-white" };
 	}
 	if (normalizedPct >= 0.5) {
-		return { className: "bg-primary/70 text-primary-foreground" };
+		return { className: "bg-chart-1/70 text-white" };
 	}
 	if (normalizedPct >= 0.3) {
-		return { className: "bg-primary/40 text-foreground" };
+		return { className: "bg-chart-1/40 text-foreground" };
 	}
 	if (normalizedPct >= 0.1) {
-		return { className: "bg-primary/20 text-foreground" };
+		return { className: "bg-chart-1/20 text-foreground" };
 	}
-	return { className: "bg-primary/10 text-foreground" };
+	return { className: "bg-chart-1/10 text-foreground" };
 };
 
 const formatCohortDate = (dateStr: string): string => {
@@ -136,9 +136,9 @@ export function RetentionCohortsGrid({
 						return (
 							<tr
 								className={`hover:bg-accent ${
-									rowIndex !== sortedCohorts.length - 1
-										? "border-border border-b"
-										: ""
+									rowIndex === sortedCohorts.length - 1
+										? ""
+										: "border-border border-b"
 								}`}
 								key={cohort.cohort}
 							>
@@ -163,9 +163,9 @@ export function RetentionCohortsGrid({
 											<div
 												className={`flex h-8 items-center justify-center rounded font-medium text-xs tabular-nums ${className}`}
 											>
-												{percentage !== null
-													? `${percentage.toFixed(0)}%`
-													: "—"}
+												{percentage === null
+													? "—"
+													: `${percentage.toFixed(0)}%`}
 											</div>
 										</td>
 									);

@@ -170,9 +170,9 @@ export function AnnotationModal(props: AnnotationModalProps) {
 			month: "short",
 			day: "numeric",
 		});
-		return dateRange.startDate.getTime() !== dateRange.endDate.getTime()
-			? `${start} – ${end}`
-			: start;
+		return dateRange.startDate.getTime() === dateRange.endDate.getTime()
+			? start
+			: `${start} – ${end}`;
 	};
 
 	const isCreate = mode === "create";
@@ -276,7 +276,7 @@ export function AnnotationModal(props: AnnotationModalProps) {
 							<div className="flex flex-wrap gap-1">
 								{availableTags.map((tag) => (
 									<button
-										className="flex cursor-pointer items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-muted-foreground text-[11px] transition-colors hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+										className="flex cursor-pointer items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
 										disabled={loading}
 										key={tag.value}
 										onClick={() => addTag(tag.value)}
@@ -318,7 +318,10 @@ export function AnnotationModal(props: AnnotationModalProps) {
 					<div className="flex items-center justify-between rounded border px-3 py-2">
 						<div className="flex items-center gap-2">
 							{isPublic ? (
-								<EyeIcon className="size-3.5 text-foreground" weight="duotone" />
+								<EyeIcon
+									className="size-3.5 text-foreground"
+									weight="duotone"
+								/>
 							) : (
 								<EyeSlashIcon
 									className="size-3.5 text-muted-foreground"

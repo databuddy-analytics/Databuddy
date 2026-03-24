@@ -29,11 +29,11 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import type { Context } from "../orpc";
 import { protectedProcedure, publicProcedure } from "../orpc";
+import { isFullyAuthorized, withWorkspace } from "../procedures/with-workspace";
 import {
-	isFullyAuthorized,
-	withWorkspace,
-} from "../procedures/with-workspace";
-import { requireFeatureWithLimit, requireUsageWithinLimit } from "../types/billing";
+	requireFeatureWithLimit,
+	requireUsageWithinLimit,
+} from "../types/billing";
 import { getCacheAuthContext } from "../utils/cache-keys";
 
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
@@ -225,7 +225,7 @@ function sanitizeFlagForDemo<T extends FlagWithTargetGroups>(flag: T): T {
 		...flag,
 		rules: Array.isArray(flag.rules) && flag.rules.length > 0 ? [] : flag.rules,
 		targetGroups: flag.targetGroups?.map(
-			(group: { rules?: unknown;[key: string]: unknown }) => ({
+			(group: { rules?: unknown; [key: string]: unknown }) => ({
 				...group,
 				rules:
 					Array.isArray(group.rules) && group.rules.length > 0
@@ -479,14 +479,14 @@ export const flagsRouter = {
 
 			const workspace = wsId
 				? await withWorkspace(context, {
-					websiteId: wsId,
-					permissions: ["update"],
-				})
+						websiteId: wsId,
+						permissions: ["update"],
+					})
 				: await withWorkspace(context, {
-					organizationId: orgId,
-					resource: "website",
-					permissions: ["create"],
-				});
+						organizationId: orgId,
+						resource: "website",
+						permissions: ["create"],
+					});
 
 			const createdBy = await workspace.getCreatedBy();
 

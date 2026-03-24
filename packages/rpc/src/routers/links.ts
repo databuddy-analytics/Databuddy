@@ -1,20 +1,14 @@
-import {
-	and,
-	desc,
-	eq,
-	isUniqueViolationFor,
-	links,
-} from "@databuddy/db";
+import { and, desc, eq, isUniqueViolationFor, links } from "@databuddy/db";
 import {
 	type CachedLink,
 	invalidateLinkCache,
 	setCachedLink,
 } from "@databuddy/redis";
-import { logger } from "@databuddy/shared/logger";
 import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { logger } from "../lib/logger";
 import { protectedProcedure } from "../orpc";
 import {
 	withLinksAccess,
@@ -105,7 +99,9 @@ const linkOutputSchema = z.object({
 function validateHttpUrl(url: string): void {
 	const parsed = new URL(url);
 	if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-		throw rpcError.badRequest("Target URL must be an absolute HTTP or HTTPS URL");
+		throw rpcError.badRequest(
+			"Target URL must be an absolute HTTP or HTTPS URL"
+		);
 	}
 }
 
@@ -310,20 +306,20 @@ export const linksRouter = {
 					.set({
 						...updates,
 						expiresAt:
-							expiresAt !== undefined
-								? expiresAt
+							expiresAt === undefined
+								? undefined
+								: expiresAt
 									? new Date(expiresAt)
-									: null
-								: undefined,
+									: null,
 						updatedAt: new Date(),
 					})
 					.where(eq(links.id, id))
 					.returning();
 
 				await Promise.all([
-					oldSlug !== updatedLink.slug
-						? invalidateLinkCache(oldSlug)
-						: Promise.resolve(),
+					oldSlug === updatedLink.slug
+						? Promise.resolve()
+						: invalidateLinkCache(oldSlug),
 					setCachedLink(updatedLink.slug, toCachedLink(updatedLink)),
 				]).catch((err) =>
 					logger.error(
@@ -385,7 +381,9 @@ export const linksRouter = {
 					{ slug: link.slug, linkId: input.id, error: String(error) },
 					"Failed to invalidate link cache before delete"
 				);
-				throw rpcError.internal("Failed to invalidate cache. Link not deleted.");
+				throw rpcError.internal(
+					"Failed to invalidate cache. Link not deleted."
+				);
 			}
 
 			// Hard delete the link

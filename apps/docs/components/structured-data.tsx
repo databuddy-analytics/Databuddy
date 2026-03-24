@@ -103,7 +103,7 @@ function planToOffer(plan: RawPlan, baseUrl: string) {
 				typeof pf.included_usage === "number" ? pf.included_usage : undefined;
 
 			for (const t of pf.tiers) {
-				const minValue = prevMax != null ? prevMax + 1 : undefined;
+				const minValue = prevMax == null ? undefined : prevMax + 1;
 				const maxValue = t.to === "inf" ? undefined : (t.to as number);
 
 				priceSpecs.push({

@@ -10,7 +10,12 @@ import type { UmamiCsvRow } from "./adapters/umami";
 import { adapters, mapEvents } from "./index";
 
 const BATCH_SIZE = 1000;
-const CSV_FILE_PATH = join(__dirname, "adapters", "data", "mailbuddy.csv");
+const CSV_FILE_PATH = join(
+	import.meta.dirname,
+	"adapters",
+	"data",
+	"mailbuddy.csv"
+);
 
 /**
  * Test script to validate the mapper functionality

@@ -234,7 +234,7 @@ export function RevenueChart({
 								/>
 							)}
 							cursor={{
-								stroke: "var(--color-primary)",
+								stroke: "var(--color-chart-1)",
 								strokeDasharray: "4 4",
 								strokeOpacity: 0.5,
 							}}

@@ -44,9 +44,9 @@ export function SegmentedControl<T extends string>({
 						className={cn(
 							"relative z-10 flex items-center justify-center rounded px-2.5 font-medium  ",
 							size === "sm" ? "h-6 text-xs" : "h-7 text-xs",
-							isSelected
-								? "text-primary-foreground"
-								: "text-muted-foreground hover:text-foreground"
+						isSelected
+							? "text-white"
+							: "text-muted-foreground hover:text-foreground"
 						)}
 						key={option.value}
 						onClick={() => onValueChangeAction(option.value)}
@@ -56,7 +56,7 @@ export function SegmentedControl<T extends string>({
 						{isSelected && (
 							<motion.span
 								className={cn(
-									"absolute inset-0 rounded bg-primary",
+									"absolute inset-0 rounded bg-brand-purple",
 									size === "sm" ? "h-6" : "h-7"
 								)}
 								layoutId={layoutId}

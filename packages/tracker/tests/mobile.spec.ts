@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { countEvents, findEvent, hasEvent } from "./test-utils";
 
 test.describe("Mobile Tracking", () => {
 	// biome-ignore lint/correctness/noEmptyPattern: skip test if not mobile
-	test.beforeEach(({}, testInfo) => {
+	test.beforeEach(({ }, testInfo) => {
 		if (!testInfo.project.name.includes("mobile")) {
 			test.skip();
 		}
@@ -24,8 +25,10 @@ test.describe("Mobile Tracking", () => {
 	});
 
 	test("captures correct mobile viewport dimensions", async ({ page }) => {
-		const requestPromise = page.waitForRequest((req) =>
-			req.url().includes("basket.databuddy.cc")
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("basket.databuddy.cc") &&
+				hasEvent(req, (e) => typeof e.viewport_size === "string")
 		);
 
 		await page.goto("/test");
@@ -33,14 +36,18 @@ test.describe("Mobile Tracking", () => {
 			(window as never as { databuddyConfig: unknown }).databuddyConfig = {
 				clientId: "test-mobile",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-
-		const [vpWidth] = payload.viewport_size.split("x").map(Number);
+		const event = findEvent(
+			request,
+			(e) => typeof e.viewport_size === "string"
+		);
+		expect(event).toBeTruthy();
+		const [vpWidth] = String(event?.viewport_size).split("x").map(Number);
 		expect(vpWidth).toBeLessThan(500);
 		expect(vpWidth).toBeGreaterThan(200);
 	});
@@ -58,10 +65,11 @@ test.describe("Mobile Tracking", () => {
 			(window as never as { databuddyConfig: unknown }).databuddyConfig = {
 				clientId: "test-mobile",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 				trackAttributes: true,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(
@@ -70,32 +78,32 @@ test.describe("Mobile Tracking", () => {
 			)
 			.toBeTruthy();
 
-		const requestPromise = page.waitForRequest((req) => {
-			const payload = req.postDataJSON?.();
-			return (
+		const requestPromise = page.waitForRequest(
+			(req) =>
 				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "mobile_tap"
-			);
-		});
+				hasEvent(req, (e) => e.name === "mobile_tap")
+		);
 
 		await page.touchscreen.tap(150, 125);
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-		expect(payload.name).toBe("mobile_tap");
+		const event = findEvent(request, (e) => e.name === "mobile_tap");
+		expect(event).toBeTruthy();
+		expect(event?.name).toBe("mobile_tap");
 	});
 
 	test("handles rapid touch events without losing data", async ({ page }) => {
-		const sentEvents: string[] = [];
+		let rapidEventCount = 0;
 
 		await page.goto("/test");
 		await page.evaluate(() => {
 			(window as never as { databuddyConfig: unknown }).databuddyConfig = {
 				clientId: "test-mobile",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(
@@ -105,13 +113,14 @@ test.describe("Mobile Tracking", () => {
 			.toBeTruthy();
 
 		page.on("request", (req) => {
-			const payload = req.postDataJSON?.();
-			if (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name?.startsWith("rapid_")
-			) {
-				sentEvents.push(payload.name);
+			if (!req.url().includes("basket.databuddy.cc")) {
+				return;
 			}
+			rapidEventCount += countEvents(
+				req,
+				(e) =>
+					typeof e.name === "string" && e.name.startsWith("rapid_")
+			);
 		});
 
 		await page.evaluate(() => {
@@ -123,12 +132,14 @@ test.describe("Mobile Tracking", () => {
 		});
 
 		await page.waitForTimeout(1000);
-		expect(sentEvents.length).toBe(10);
+		expect(rapidEventCount).toBe(10);
 	});
 
 	test("all required fields present in mobile events", async ({ page }) => {
-		const requestPromise = page.waitForRequest((req) =>
-			req.url().includes("basket.databuddy.cc")
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("basket.databuddy.cc") &&
+				hasEvent(req, (e) => e.name === "screen_view")
 		);
 
 		await page.goto("/test");
@@ -136,20 +147,20 @@ test.describe("Mobile Tracking", () => {
 			(window as never as { databuddyConfig: unknown }).databuddyConfig = {
 				clientId: "test-mobile-fields",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-
-		expect(payload.eventId).toBeTruthy();
-		expect(payload.name).toBe("screen_view");
-		expect(payload.anonymousId).toBeTruthy();
-		expect(payload.sessionId).toBeTruthy();
-		expect(payload.timestamp).toBeTruthy();
-		expect(payload.path).toBeTruthy();
-		expect(payload.viewport_size).toBeTruthy();
+		const event = findEvent(request, (e) => e.name === "screen_view");
+		expect(event).toBeTruthy();
+		expect(event?.name).toBe("screen_view");
+		expect(event?.anonymousId).toBeTruthy();
+		expect(event?.sessionId).toBeTruthy();
+		expect(event?.timestamp).toBeTruthy();
+		expect(event?.path).toBeTruthy();
+		expect(event?.viewport_size).toBeTruthy();
 	});
 
 	test("IDs persist correctly on mobile", async ({ page }) => {
@@ -158,9 +169,10 @@ test.describe("Mobile Tracking", () => {
 			(window as never as { databuddyConfig: unknown }).databuddyConfig = {
 				clientId: "test-mobile-persist",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		const id1 = await page.evaluate(() => localStorage.getItem("did"));
 		expect(id1).toBeTruthy();
@@ -170,9 +182,10 @@ test.describe("Mobile Tracking", () => {
 			(window as never as { databuddyConfig: unknown }).databuddyConfig = {
 				clientId: "test-mobile-persist",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		const id2 = await page.evaluate(() => localStorage.getItem("did"));
 		expect(id2).toBe(id1);

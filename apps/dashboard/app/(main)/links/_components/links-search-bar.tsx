@@ -6,8 +6,6 @@ import {
 	SortAscendingIcon,
 	XIcon,
 } from "@phosphor-icons/react";
-import { useDebouncedValue } from "@tanstack/react-pacer";
-import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -19,119 +17,53 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { Link } from "@/hooks/use-links";
 import { cn } from "@/lib/utils";
+import type { SortOption } from "./use-filtered-links";
 
-type SortOption = "newest" | "oldest" | "name-asc" | "name-desc";
+const SORT_LABELS: Record<SortOption, string> = {
+	newest: "Newest",
+	oldest: "Oldest",
+	"name-asc": "A → Z",
+	"name-desc": "Z → A",
+};
 
 interface LinksSearchBarProps {
-	disabled?: boolean;
-	links: Link[];
-	onFilteredLinksChange: (filteredLinks: Link[]) => void;
+	searchQuery: string;
+	onSearchQueryChangeAction: (query: string) => void;
+	sortBy: SortOption;
+	onSortByChangeAction: (sort: SortOption) => void;
 }
 
 export function LinksSearchBar({
-	disabled = false,
-	links,
-	onFilteredLinksChange,
+	searchQuery,
+	onSearchQueryChangeAction,
+	sortBy,
+	onSortByChangeAction,
 }: LinksSearchBarProps) {
-	const [searchQuery, setSearchQuery] = useState("");
-	const [sortBy, setSortBy] = useState<SortOption>("newest");
-
-	const [debouncedSearch] = useDebouncedValue(searchQuery, {
-		wait: 200,
-	});
-
-	const filteredAndSortedLinks = useMemo(() => {
-		let result = [...links];
-
-		// Filter by search query
-		if (debouncedSearch.trim()) {
-			const query = debouncedSearch.toLowerCase();
-			result = result.filter(
-				(link) =>
-					link.name.toLowerCase().includes(query) ||
-					link.slug.toLowerCase().includes(query) ||
-					link.targetUrl.toLowerCase().includes(query) ||
-					(link.externalId?.toLowerCase().includes(query) ?? false)
-			);
-		}
-
-		// Sort
-		switch (sortBy) {
-			case "newest":
-				result.sort(
-					(a, b) =>
-						new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-				);
-				break;
-			case "oldest":
-				result.sort(
-					(a, b) =>
-						new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-				);
-				break;
-			case "name-asc":
-				result.sort((a, b) => a.name.localeCompare(b.name));
-				break;
-			case "name-desc":
-				result.sort((a, b) => b.name.localeCompare(a.name));
-				break;
-			default:
-				break;
-		}
-
-		return result;
-	}, [links, debouncedSearch, sortBy]);
-
-	useEffect(() => {
-		onFilteredLinksChange(filteredAndSortedLinks);
-	}, [filteredAndSortedLinks, onFilteredLinksChange]);
-
-	const handleClearSearch = useCallback(() => {
-		setSearchQuery("");
-	}, []);
-
-	const getSortLabel = (option: SortOption): string => {
-		switch (option) {
-			case "newest":
-				return "Newest first";
-			case "oldest":
-				return "Oldest first";
-			case "name-asc":
-				return "Name (A-Z)";
-			case "name-desc":
-				return "Name (Z-A)";
-			default:
-				return "Newest first";
-		}
-	};
-
 	const hasActiveFilters = searchQuery.trim() !== "" || sortBy !== "newest";
 
 	return (
-		<div className="flex h-full w-full items-center gap-2">
+		<div className="flex w-full items-center gap-1.5">
 			<div className="relative flex-1">
 				<MagnifyingGlassIcon
-					className="absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-muted-foreground"
+					className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
 					weight="bold"
 				/>
 				<Input
-					className="h-8 pr-8 pl-9"
-					disabled={disabled}
-					onChange={(e) => setSearchQuery(e.target.value)}
-					placeholder="Search by name, slug, URL, or external ID…"
+					className="h-7 border-transparent bg-transparent pr-7 pl-8 text-sm shadow-none placeholder:text-muted-foreground/50 focus-visible:border-border focus-visible:bg-background"
+					onChange={(e) => onSearchQueryChangeAction(e.target.value)}
+					placeholder="Search links…"
 					showFocusIndicator={false}
 					value={searchQuery}
 				/>
 				{searchQuery && (
 					<button
 						aria-label="Clear search"
-						className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-						onClick={handleClearSearch}
+						className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+						onClick={() => onSearchQueryChangeAction("")}
 						type="button"
 					>
-						<XIcon className="size-4" />
+						<XIcon className="size-3.5" />
 					</button>
 				)}
 			</div>
@@ -140,22 +72,21 @@ export function LinksSearchBar({
 				<DropdownMenuTrigger asChild>
 					<Button
 						className={cn(
-							"h-8 border-accent-brighter bg-background",
-							sortBy !== "newest" && "border-primary/50"
+							"h-7 gap-1 border-transparent px-2 text-xs shadow-none",
+							sortBy !== "newest" && "border-primary/30 text-primary"
 						)}
-						disabled={disabled}
 						size="sm"
 						variant="outline"
 					>
-						<SortAscendingIcon size={16} weight="bold" />
-						<span className="hidden sm:inline">{getSortLabel(sortBy)}</span>
+						<SortAscendingIcon size={14} weight="bold" />
+						<span className="hidden sm:inline">{SORT_LABELS[sortBy]}</span>
 					</Button>
 				</DropdownMenuTrigger>
-				<DropdownMenuContent align="end" className="w-40">
+				<DropdownMenuContent align="end" className="w-36">
 					<DropdownMenuLabel>Sort by</DropdownMenuLabel>
 					<DropdownMenuSeparator />
 					<DropdownMenuRadioGroup
-						onValueChange={(value) => setSortBy(value as SortOption)}
+						onValueChange={(value) => onSortByChangeAction(value as SortOption)}
 						value={sortBy}
 					>
 						<DropdownMenuRadioItem value="newest">
@@ -176,16 +107,15 @@ export function LinksSearchBar({
 
 			{hasActiveFilters && (
 				<Button
-					className="h-8"
-					disabled={disabled}
+					className="h-7 gap-1 px-2 text-xs"
 					onClick={() => {
-						setSearchQuery("");
-						setSortBy("newest");
+						onSearchQueryChangeAction("");
+						onSortByChangeAction("newest");
 					}}
 					size="sm"
 					variant="ghost"
 				>
-					<FunnelIcon size={16} weight="duotone" />
+					<FunnelIcon size={14} weight="duotone" />
 					Clear
 				</Button>
 			)}

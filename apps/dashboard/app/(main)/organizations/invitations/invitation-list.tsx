@@ -1,12 +1,12 @@
 "use client";
 
 import { EnvelopeIcon, TrashIcon } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import type { CancelInvitation, Invitation } from "@/hooks/use-organizations";
+import dayjs from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 
 interface InvitationToCancel {

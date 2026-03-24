@@ -383,9 +383,9 @@ export default function EventsStreamPage() {
 
 		if (selectedPropertyKey !== "all") {
 			const propLabel =
-				selectedPropertyValue !== "all"
-					? `${selectedPropertyKey} = ${selectedPropertyValue}`
-					: selectedPropertyKey;
+				selectedPropertyValue === "all"
+					? selectedPropertyKey
+					: `${selectedPropertyKey} = ${selectedPropertyValue}`;
 			result.push({
 				type: "property",
 				label: "Property",
@@ -826,7 +826,7 @@ export default function EventsStreamPage() {
 					<div className="flex items-center gap-3">
 						<span className="rounded-full bg-foreground/5 px-2.5 py-1 font-medium text-foreground text-xs tabular-nums">
 							{filteredEvents.length.toLocaleString()} event
-							{filteredEvents.length !== 1 ? "s" : ""}
+							{filteredEvents.length === 1 ? "" : "s"}
 						</span>
 
 						{hasActiveFilters && (

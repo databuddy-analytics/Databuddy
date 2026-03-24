@@ -7,10 +7,6 @@ import { useRef, useState } from "react";
 import { SciFiButton } from "./scifi-btn";
 import { Spotlight } from "./spotlight";
 
-const DEMO_ID = "OXmNQsViBT-FOS_wZCTHc";
-const PROD_BASE_URL = `https://app.databuddy.cc/demo/${DEMO_ID}`;
-const DEV_BASE_URL = `http://localhost:3000/demo/${DEMO_ID}`;
-
 const tabs = [
 	{
 		id: "overview",
@@ -50,21 +46,15 @@ type FullscreenElement = HTMLIFrameElement & {
 	msRequestFullscreen?: () => Promise<void>;
 };
 
-function getBaseUrl() {
-	if (
-		typeof window !== "undefined" &&
-		window.location.hostname === "localhost"
-	) {
-		return DEV_BASE_URL;
-	}
-	return PROD_BASE_URL;
-}
-
-export default function Hero() {
+export default function Hero({
+	demoEmbedBaseUrl,
+}: {
+	demoEmbedBaseUrl: string;
+}) {
 	const [activeTab, setActiveTab] = useState(tabs[0].id);
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 
-	const baseUrl = getBaseUrl();
+	const baseUrl = demoEmbedBaseUrl;
 	const activeTabData = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
 	const iframeSrc = `${baseUrl}${activeTabData.path}?embed=true`;
 

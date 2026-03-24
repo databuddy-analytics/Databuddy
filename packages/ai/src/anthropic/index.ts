@@ -260,9 +260,9 @@ class DatabuddyMessages extends AnthropicOriginal.Messages {
 								}
 								if (chunk.delta?.type === "input_json_delta") {
 									const block =
-										chunk.index !== undefined
-											? contentBlocks[chunk.index]
-											: undefined;
+										chunk.index === undefined
+											? undefined
+											: contentBlocks[chunk.index];
 									if (block?.type === "tool-call" && block.id) {
 										const tool = toolsInProgress.get(block.id);
 										if (tool) {

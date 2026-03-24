@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { findEvent, hasEvent } from "./test-utils";
 
 test.describe("SPA Navigation", () => {
 	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
 		await page.addInitScript(() => {
 			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
 		});
@@ -23,36 +23,42 @@ test.describe("SPA Navigation", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-spa",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBeTruthy();
 
-		// Wait for initial screen_view
 		await page.waitForTimeout(100);
 
-		const requestPromise = page.waitForRequest((req) => {
-			const payload = req.postDataJSON();
-			return (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "screen_view" &&
-				payload?.path?.includes("/new-page")
-			);
-		});
+		const requestPromise = page.waitForRequest((req) =>
+			hasEvent(
+				req,
+				(e) =>
+					e.name === "screen_view" &&
+					typeof e.path === "string" &&
+					e.path.includes("/new-page")
+			)
+		);
 
-		// Trigger pushState navigation
 		await page.evaluate(() => {
 			history.pushState({}, "", "/new-page");
 		});
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-		expect(payload.name).toBe("screen_view");
-		expect(payload.path).toContain("/new-page");
-		expect(payload.page_count).toBe(2);
+		const event = findEvent(
+			request,
+			(e) =>
+				e.name === "screen_view" &&
+				typeof e.path === "string" &&
+				e.path.includes("/new-page")
+		);
+		expect(event?.name).toBe("screen_view");
+		expect(event?.path).toContain("/new-page");
+		expect(event?.page_count).toBe(2);
 	});
 
 	test("tracks screen_view on replaceState navigation", async ({ page }) => {
@@ -61,9 +67,10 @@ test.describe("SPA Navigation", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-spa",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -71,23 +78,30 @@ test.describe("SPA Navigation", () => {
 
 		await page.waitForTimeout(100);
 
-		const requestPromise = page.waitForRequest((req) => {
-			const payload = req.postDataJSON();
-			return (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "screen_view" &&
-				payload?.path?.includes("/replaced-page")
-			);
-		});
+		const requestPromise = page.waitForRequest((req) =>
+			hasEvent(
+				req,
+				(e) =>
+					e.name === "screen_view" &&
+					typeof e.path === "string" &&
+					e.path.includes("/replaced-page")
+			)
+		);
 
 		await page.evaluate(() => {
 			history.replaceState({}, "", "/replaced-page");
 		});
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-		expect(payload.name).toBe("screen_view");
-		expect(payload.path).toContain("/replaced-page");
+		const event = findEvent(
+			request,
+			(e) =>
+				e.name === "screen_view" &&
+				typeof e.path === "string" &&
+				e.path.includes("/replaced-page")
+		);
+		expect(event?.name).toBe("screen_view");
+		expect(event?.path).toContain("/replaced-page");
 	});
 
 	test("tracks screen_view on popstate (back/forward)", async ({ page }) => {
@@ -96,35 +110,41 @@ test.describe("SPA Navigation", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-spa",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBeTruthy();
 
-		// Navigate forward
 		await page.evaluate(() => {
 			history.pushState({}, "", "/page-2");
 		});
 		await page.waitForTimeout(100);
 
-		const requestPromise = page.waitForRequest((req) => {
-			const payload = req.postDataJSON();
-			return (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "screen_view" &&
-				payload?.path?.includes("/test")
-			);
-		});
+		const requestPromise = page.waitForRequest((req) =>
+			hasEvent(
+				req,
+				(e) =>
+					e.name === "screen_view" &&
+					typeof e.path === "string" &&
+					e.path.includes("/test")
+			)
+		);
 
-		// Go back
 		await page.goBack();
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-		expect(payload.name).toBe("screen_view");
+		const event = findEvent(
+			request,
+			(e) =>
+				e.name === "screen_view" &&
+				typeof e.path === "string" &&
+				e.path.includes("/test")
+		);
+		expect(event?.name).toBe("screen_view");
 	});
 
 	test("does NOT track hash changes by default", async ({ page }) => {
@@ -135,38 +155,40 @@ test.describe("SPA Navigation", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-spa",
 				ignoreBotDetection: true,
-				// trackHashChanges is NOT set (defaults to false)
+				batchTimeout: 200,
 			};
 		});
 
 		page.on("request", (req) => {
-			const payload = req.postDataJSON?.();
-			if (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "screen_view"
-			) {
-				screenViewCount += 1;
+			if (!req.url().includes("basket.databuddy.cc")) {
+				return;
 			}
+			try {
+				const data = req.postDataJSON();
+				const events = Array.isArray(data) ? data : [data];
+				for (const e of events) {
+					if (e.name === "screen_view") {
+						screenViewCount += 1;
+					}
+				}
+			} catch { }
 		});
 
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBeTruthy();
 
-		// Wait for initial screen_view
-		await page.waitForTimeout(200);
+		await page.waitForTimeout(500);
 		const initialCount = screenViewCount;
 
-		// Change hash - should NOT trigger another screen_view
 		await page.evaluate(() => {
 			window.location.hash = "#section";
 		});
 
-		await page.waitForTimeout(300);
+		await page.waitForTimeout(500);
 
-		// Count should not have increased
 		expect(screenViewCount).toBe(initialCount);
 	});
 
@@ -179,9 +201,10 @@ test.describe("SPA Navigation", () => {
 				clientId: "test-spa",
 				ignoreBotDetection: true,
 				trackHashChanges: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -189,22 +212,29 @@ test.describe("SPA Navigation", () => {
 
 		await page.waitForTimeout(100);
 
-		const requestPromise = page.waitForRequest((req) => {
-			const payload = req.postDataJSON();
-			return (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "screen_view" &&
-				payload?.path?.includes("#my-section")
-			);
-		});
+		const requestPromise = page.waitForRequest((req) =>
+			hasEvent(
+				req,
+				(e) =>
+					e.name === "screen_view" &&
+					typeof e.path === "string" &&
+					e.path.includes("#my-section")
+			)
+		);
 
 		await page.evaluate(() => {
 			window.location.hash = "#my-section";
 		});
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-		expect(payload.path).toContain("#my-section");
+		const event = findEvent(
+			request,
+			(e) =>
+				e.name === "screen_view" &&
+				typeof e.path === "string" &&
+				e.path.includes("#my-section")
+		);
+		expect(event?.path).toContain("#my-section");
 	});
 
 	test("debounces rapid navigation events", async ({ page }) => {
@@ -215,38 +245,40 @@ test.describe("SPA Navigation", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-spa",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBeTruthy();
 
-		// Wait for initial screen_view
-		await page.waitForTimeout(100);
+		await page.waitForTimeout(500);
 
 		page.on("request", (req) => {
-			const payload = req.postDataJSON?.();
-			if (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "screen_view"
-			) {
-				screenViewCount += 1;
+			if (!req.url().includes("basket.databuddy.cc")) {
+				return;
 			}
+			try {
+				const data = req.postDataJSON();
+				const events = Array.isArray(data) ? data : [data];
+				for (const e of events) {
+					if (e.name === "screen_view") {
+						screenViewCount += 1;
+					}
+				}
+			} catch { }
 		});
 
-		// Fire multiple navigations rapidly
 		await page.evaluate(() => {
 			history.pushState({}, "", "/page-1");
 			history.pushState({}, "", "/page-2");
 			history.pushState({}, "", "/page-3");
 		});
 
-		// Wait for debounce to settle
-		await page.waitForTimeout(200);
+		await page.waitForTimeout(500);
 
-		// Should only have tracked the final URL due to debouncing
 		expect(screenViewCount).toBeLessThanOrEqual(2);
 	});
 
@@ -258,35 +290,40 @@ test.describe("SPA Navigation", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-spa",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBeTruthy();
 
-		await page.waitForTimeout(100);
-		screenViewCount = 0; // Reset after initial
+		await page.waitForTimeout(500);
+		screenViewCount = 0;
 
 		page.on("request", (req) => {
-			const payload = req.postDataJSON?.();
-			if (
-				req.url().includes("basket.databuddy.cc") &&
-				payload?.name === "screen_view"
-			) {
-				screenViewCount += 1;
+			if (!req.url().includes("basket.databuddy.cc")) {
+				return;
 			}
+			try {
+				const data = req.postDataJSON();
+				const events = Array.isArray(data) ? data : [data];
+				for (const e of events) {
+					if (e.name === "screen_view") {
+						screenViewCount += 1;
+					}
+				}
+			} catch { }
 		});
 
-		// Call screenView manually for same URL
 		await page.evaluate(() => {
 			(window as any).db.screenView();
 			(window as any).db.screenView();
 			(window as any).db.screenView();
 		});
 
-		await page.waitForTimeout(100);
-		expect(screenViewCount).toBe(0); // Should not track since URL hasn't changed
+		await page.waitForTimeout(500);
+		expect(screenViewCount).toBe(0);
 	});
 });

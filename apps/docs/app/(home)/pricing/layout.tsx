@@ -2,27 +2,23 @@ import type { Metadata } from "next";
 import { StructuredData } from "@/components/structured-data";
 import { RAW_PLANS } from "./data";
 
+const pricingTitle = "Pricing — Free Tier, Fair Overage, Scale to 100M Events";
+const pricingDescription =
+	"Simple, transparent pricing for privacy-first analytics. Start free with 10,000 events per month, then pay only for what you use with tiered overage.";
+const pricingUrl = "https://www.databuddy.cc/pricing";
+
 export const metadata: Metadata = {
-	title: "Databuddy Pricing — Free tier, fair overage, scale to 100M events",
-	description:
-		"Simple, transparent pricing for privacy-first analytics. Start free with 10K events/month, then pay only for what you use with fair tiered overage.",
+	title: pricingTitle,
+	description: pricingDescription,
 	alternates: {
-		canonical: "https://www.databuddy.cc/pricing",
+		canonical: pricingUrl,
 	},
 	openGraph: {
-		title: "Databuddy Pricing — Free tier, fair overage, scale to 100M events",
-		description:
-			"Simple, transparent pricing for privacy-first analytics. Start free with 10K events/month, then pay only for what you use with fair tiered overage.",
-		url: "https://www.databuddy.cc/pricing",
-		images: ["/og-image.png"],
+		title: pricingTitle,
+		description: pricingDescription,
+		url: pricingUrl,
 	},
 };
-
-const title =
-	"Databuddy Pricing — Free tier, fair overage, scale to 100M events";
-const description =
-	"Simple, transparent pricing for privacy-first analytics. Start free with 10K events/month, then pay only for what you use with fair tiered overage.";
-const url = "https://www.databuddy.cc/pricing";
 
 export default function PricingLayout({
 	children,
@@ -40,9 +36,9 @@ export default function PricingLayout({
 					},
 				]}
 				page={{
-					title,
-					description,
-					url,
+					title: pricingTitle,
+					description: pricingDescription,
+					url: pricingUrl,
 				}}
 			/>
 			{children}

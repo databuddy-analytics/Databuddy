@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { connect } from "node:tls";
 import { db, eq, uptimeSchedules } from "@databuddy/db";
-import { type JsonParsingConfig, parseJsonResponse } from "./json-parser";
-import { captureError, record } from "./lib/tracing";
+import { extractHealth, isHealthExtractionEnabled } from "./json-parser";
+import { captureError, mergeWideEvent, record } from "./lib/tracing";
 import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
@@ -43,13 +43,29 @@ interface FetchFailure {
 	error: string;
 }
 
-interface ScheduleData {
+export interface ScheduleData {
 	id: string;
 	url: string;
 	websiteId: string | null;
+	organizationId: string;
+	name: string | null;
+	website: { name: string | null; domain: string } | null;
 	jsonParsingConfig: unknown;
 	timeout: number | null;
 	cacheBust: boolean;
+}
+
+function mergeUptimeCheckMetrics(data: UptimeData): void {
+	mergeWideEvent({
+		monitor_status: data.status,
+		http_code: data.http_code,
+		total_ms: data.total_ms,
+		ttfb_ms: data.ttfb_ms,
+		probe_region: data.probe_region,
+		ssl_valid: data.ssl_valid === 1,
+		response_bytes: data.response_bytes,
+		redirect_count: data.redirect_count,
+	});
 }
 
 export function lookupSchedule(
@@ -59,6 +75,7 @@ export function lookupSchedule(
 		try {
 			const schedule = await db.query.uptimeSchedules.findFirst({
 				where: eq(uptimeSchedules.id, id),
+				with: { website: true },
 			});
 
 			if (!schedule) {
@@ -72,18 +89,36 @@ export function lookupSchedule(
 				};
 			}
 
+			mergeWideEvent({
+				db_schedule_loaded: true,
+				schedule_cache_bust: schedule.cacheBust,
+				schedule_timeout_ms: schedule.timeout ?? 0,
+				json_parsing_enabled: isHealthExtractionEnabled(
+					schedule.jsonParsingConfig
+				),
+			});
+
 			return {
 				success: true,
 				data: {
 					id: schedule.id,
 					url: schedule.url,
 					websiteId: schedule.websiteId,
+					organizationId: schedule.organizationId,
+					name: schedule.name,
+					website: schedule.website
+						? {
+								name: schedule.website.name,
+								domain: schedule.website.domain,
+							}
+						: null,
 					jsonParsingConfig: schedule.jsonParsingConfig,
 					timeout: schedule.timeout,
 					cacheBust: schedule.cacheBust,
 				},
 			};
 		} catch (error) {
+			captureError(error, { error_step: "lookup_schedule" });
 			return {
 				success: false,
 				error: error instanceof Error ? error.message : "Database error",
@@ -118,7 +153,7 @@ function buildHeaders(acceptEncoding: string): Record<string, string> {
 
 function applyCacheBust(url: string): string {
 	const parsed = new URL(url);
-	parsed.searchParams.set("_cb", Math.random().toString(36).substring(2, 10));
+	parsed.searchParams.set("_cb", Math.random().toString(36).slice(2, 10));
 	return parsed.toString();
 }
 
@@ -359,7 +394,7 @@ function getProbeMetadata(): Promise<{ ip: string; region: string }> {
 export interface CheckOptions {
 	timeout?: number;
 	cacheBust?: boolean;
-	jsonParsingConfig?: JsonParsingConfig | null;
+	extractHealth?: boolean;
 }
 
 export function checkUptime(
@@ -387,52 +422,7 @@ export function checkUptime(
 			if (!pingResult.ok) {
 				const cert = await checkCertificate(normalizedUrl);
 
-				return {
-					success: true,
-					data: {
-						site_id: siteId,
-						url: normalizedUrl,
-						timestamp,
-						status,
-						http_code: pingResult.statusCode,
-						ttfb_ms: pingResult.ttfb,
-						total_ms: pingResult.total,
-						attempt,
-						retries: 0,
-						failure_streak: 0,
-						response_bytes: 0,
-						content_hash: "",
-						redirect_count: 0,
-						probe_region: probe.region,
-						probe_ip: probe.ip,
-						ssl_expiry: cert.expiry,
-						ssl_valid: cert.valid ? 1 : 0,
-						env: CONFIG.env,
-						check_type: "http",
-						user_agent: CONFIG.userAgent,
-						error: pingResult.error,
-					},
-				};
-			}
-
-			const [cert, contentHash] = await Promise.all([
-				checkCertificate(normalizedUrl),
-				Promise.resolve(
-					createHash("sha256").update(pingResult.content).digest("hex")
-				),
-			]);
-
-			const jsonData = options.jsonParsingConfig
-				? parseJsonResponse(
-						pingResult.parsedJson ?? pingResult.content,
-						pingResult.contentType,
-						options.jsonParsingConfig
-					)
-				: null;
-
-			return {
-				success: true,
-				data: {
+				const data: UptimeData = {
 					site_id: siteId,
 					url: normalizedUrl,
 					timestamp,
@@ -443,9 +433,9 @@ export function checkUptime(
 					attempt,
 					retries: 0,
 					failure_streak: 0,
-					response_bytes: pingResult.bytes,
-					content_hash: contentHash,
-					redirect_count: pingResult.redirects,
+					response_bytes: 0,
+					content_hash: "",
+					redirect_count: 0,
 					probe_region: probe.region,
 					probe_ip: probe.ip,
 					ssl_expiry: cert.expiry,
@@ -453,12 +443,51 @@ export function checkUptime(
 					env: CONFIG.env,
 					check_type: "http",
 					user_agent: CONFIG.userAgent,
-					error: "",
-					json_data: jsonData ? JSON.stringify(jsonData) : undefined,
-				},
+					error: pingResult.error,
+				};
+				mergeUptimeCheckMetrics(data);
+				return { success: true, data };
+			}
+
+			const [cert, contentHash] = await Promise.all([
+				checkCertificate(normalizedUrl),
+				Promise.resolve(
+					createHash("sha256").update(pingResult.content).digest("hex")
+				),
+			]);
+
+			const jsonData = options.extractHealth
+				? extractHealth(pingResult.parsedJson ?? pingResult.content)
+				: null;
+
+			const data: UptimeData = {
+				site_id: siteId,
+				url: normalizedUrl,
+				timestamp,
+				status,
+				http_code: pingResult.statusCode,
+				ttfb_ms: pingResult.ttfb,
+				total_ms: pingResult.total,
+				attempt,
+				retries: 0,
+				failure_streak: 0,
+				response_bytes: pingResult.bytes,
+				content_hash: contentHash,
+				redirect_count: pingResult.redirects,
+				probe_region: probe.region,
+				probe_ip: probe.ip,
+				ssl_expiry: cert.expiry,
+				ssl_valid: cert.valid ? 1 : 0,
+				env: CONFIG.env,
+				check_type: "http",
+				user_agent: CONFIG.userAgent,
+				error: "",
+				json_data: jsonData ? JSON.stringify(jsonData) : undefined,
 			};
+			mergeUptimeCheckMetrics(data);
+			return { success: true, data };
 		} catch (error) {
-			captureError(error);
+			captureError(error, { error_step: "check_uptime" });
 
 			return {
 				success: false,

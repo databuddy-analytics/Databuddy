@@ -60,8 +60,6 @@ export default function MonitorDetailsPage() {
 		granularity: string;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
-			fields?: string[];
 		} | null;
 	} | null>(null);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -167,8 +165,6 @@ export default function MonitorDetailsPage() {
 				granularity: schedule.granularity,
 				jsonParsingConfig: schedule.jsonParsingConfig as {
 					enabled: boolean;
-					mode: "auto" | "manual";
-					fields?: string[];
 				} | null,
 			});
 			setIsDialogOpen(true);

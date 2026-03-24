@@ -548,9 +548,7 @@ describe("cache invalidation scenarios", () => {
 		const newSlug = "new-slug";
 
 		cacheOperations.push(`invalidate:${oldSlug}`);
-		if (newSlug !== oldSlug) {
-			cacheOperations.push(`invalidate:${newSlug}`);
-		}
+		cacheOperations.push(`invalidate:${newSlug}`);
 
 		expect(cacheOperations).toContain(`invalidate:${oldSlug}`);
 		expect(cacheOperations).toContain(`invalidate:${newSlug}`);

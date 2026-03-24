@@ -1,5 +1,4 @@
 import { MinusIcon, TrendDownIcon, TrendUpIcon } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { type ElementType, memo } from "react";
 import {
 	Area,
@@ -21,6 +20,7 @@ import {
 	HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import dayjs from "@/lib/dayjs";
 import { formatMetricNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
@@ -162,7 +162,7 @@ const MiniChart = memo(
 		if (!hasVariation) {
 			return (
 				<div className="flex h-24 items-center pt-2">
-					<div className="h-px w-full bg-primary opacity-30" />
+					<div className="h-px w-full bg-chart-1 opacity-30" />
 				</div>
 			);
 		}
@@ -185,12 +185,12 @@ const MiniChart = memo(
 								>
 									<stop
 										offset="0%"
-										stopColor="var(--color-primary)"
+										stopColor="var(--color-chart-1)"
 										stopOpacity={0.4}
 									/>
 									<stop
 										offset="100%"
-										stopColor="var(--color-primary)"
+										stopColor="var(--color-chart-1)"
 										stopOpacity={0}
 									/>
 								</linearGradient>
@@ -222,7 +222,7 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke: "var(--color-chart-1)", strokeOpacity: 0.3 }}
 							/>
 							<Bar
 								dataKey="value"
@@ -264,12 +264,12 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke: "var(--color-chart-1)", strokeOpacity: 0.3 }}
 							/>
 							<Line
 								dataKey="value"
 								dot={false}
-								stroke="var(--color-primary)"
+								stroke="var(--color-chart-1)"
 								strokeWidth={1.5}
 								type={chartStepType}
 							/>
@@ -291,12 +291,12 @@ const MiniChart = memo(
 								>
 									<stop
 										offset="0%"
-										stopColor="var(--color-primary)"
+										stopColor="var(--color-chart-1)"
 										stopOpacity={0.4}
 									/>
 									<stop
 										offset="100%"
-										stopColor="var(--color-primary)"
+										stopColor="var(--color-chart-1)"
 										stopOpacity={0}
 									/>
 								</linearGradient>
@@ -328,19 +328,19 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke: "var(--color-chart-1)", strokeOpacity: 0.3 }}
 							/>
 							<Area
 								activeDot={{
 									r: 2.5,
-									fill: "var(--color-primary)",
+									fill: "var(--color-chart-1)",
 									stroke: "var(--color-background)",
 									strokeWidth: 1.5,
 								}}
 								dataKey="value"
 								dot={false}
 								fill={`url(#gradient-${id})`}
-								stroke="var(--color-primary)"
+								stroke="var(--color-chart-1)"
 								strokeWidth={1.5}
 								type={chartStepType}
 							/>
@@ -362,12 +362,12 @@ const MiniChart = memo(
 								>
 									<stop
 										offset="0%"
-										stopColor="var(--color-primary)"
+										stopColor="var(--color-chart-1)"
 										stopOpacity={0.4}
 									/>
 									<stop
 										offset="100%"
-										stopColor="var(--color-primary)"
+										stopColor="var(--color-chart-1)"
 										stopOpacity={0}
 									/>
 								</linearGradient>
@@ -399,19 +399,19 @@ const MiniChart = memo(
 										</div>
 									) : null
 								}
-								cursor={{ stroke: "var(--color-primary)", strokeOpacity: 0.3 }}
+								cursor={{ stroke: "var(--color-chart-1)", strokeOpacity: 0.3 }}
 							/>
 							<Area
 								activeDot={{
 									r: 2.5,
-									fill: "var(--color-primary)",
+									fill: "var(--color-chart-1)",
 									stroke: "var(--color-background)",
 									strokeWidth: 1.5,
 								}}
 								dataKey="value"
 								dot={false}
 								fill={`url(#gradient-${id})`}
-								stroke="var(--color-primary)"
+								stroke="var(--color-chart-1)"
 								strokeWidth={1.5}
 								type={chartStepType}
 							/>

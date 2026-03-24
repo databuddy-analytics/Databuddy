@@ -268,7 +268,7 @@ export default function PunchCardHeatmap({ data }: Props) {
 
 				<SciFiCard className="rounded border border-border bg-card/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70 sm:p-6">
 					<div className="font-bold text-xl sm:text-2xl">
-						{insights.peakHour !== null ? formatHour(insights.peakHour) : "N/A"}
+						{insights.peakHour === null ? "N/A" : formatHour(insights.peakHour)}
 					</div>
 					<div className="text-muted-foreground text-sm">Peak Hour</div>
 				</SciFiCard>
@@ -489,9 +489,9 @@ export default function PunchCardHeatmap({ data }: Props) {
 					are most active on{" "}
 					<span className="font-medium">{insights.peakDay}s</span> around{" "}
 					<span className="font-medium">
-						{insights.peakHour !== null
-							? formatHour(insights.peakHour)
-							: "unknown time"}
+						{insights.peakHour === null
+							? "unknown time"
+							: formatHour(insights.peakHour)}
 					</span>
 					.
 					{insights.peakDay === "Mon" ||

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { findEvent, hasEvent } from "./test-utils";
 
 test.describe("General Tracking", () => {
 	test.beforeEach(async ({ page }) => {
@@ -25,9 +26,10 @@ test.describe("General Tracking", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-client-id",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).databuddy))
@@ -43,7 +45,7 @@ test.describe("General Tracking", () => {
 		await page.goto("/test");
 		await page.evaluate(() => {
 			const script = document.createElement("script");
-			script.src = "/dist/databuddy.js";
+			script.src = "/dist/databuddy-debug.js";
 			script.setAttribute("data-client-id", "data-attr-client");
 			script.setAttribute("data-ignore-bot-detection", "true");
 			document.body.appendChild(script);
@@ -65,7 +67,7 @@ test.describe("General Tracking", () => {
 		await page.evaluate(() => {
 			const script = document.createElement("script");
 			script.src =
-				"/dist/databuddy.js?clientId=query-param-client&ignoreBotDetection=true";
+				"/dist/databuddy-debug.js?clientId=query-param-client&ignoreBotDetection=true";
 			document.body.appendChild(script);
 		});
 
@@ -82,30 +84,28 @@ test.describe("General Tracking", () => {
 
 	test("sends screen_view event on load", async ({ page }) => {
 		// Match exactly the root endpoint for track events
-		const requestPromise = page.waitForRequest((request) => {
-			const url = request.url();
-			return (
-				(url === "https://basket.databuddy.cc/" ||
-					url === "https://basket.databuddy.cc") &&
-				request.method() === "POST"
-			);
-		});
+		const requestPromise = page.waitForRequest(
+			(request) =>
+				request.url().includes("basket.databuddy.cc") &&
+				request.method() === "POST" &&
+				hasEvent(request, (e) => e.name === "screen_view")
+		);
 
 		await page.goto("/test");
 		await page.evaluate(() => {
 			(window as any).databuddyConfig = {
 				clientId: "test-client-id",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-
-		console.log("Screen view payload:", payload);
-		expect(payload.name).toBe("screen_view");
-		expect(payload.anonymousId).toBeTruthy();
+		const event = findEvent(request, (e) => e.name === "screen_view");
+		expect(event).toBeTruthy();
+		expect(event?.name).toBe("screen_view");
+		expect(event?.anonymousId).toBeTruthy();
 	});
 
 	test("tracks custom events via window.db", async ({ page }) => {
@@ -114,30 +114,31 @@ test.describe("General Tracking", () => {
 			(window as any).databuddyConfig = {
 				clientId: "test-client-id",
 				ignoreBotDetection: true,
+				batchTimeout: 200,
 			};
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		await expect
 			.poll(async () => await page.evaluate(() => !!(window as any).db))
 			.toBeTruthy();
 
-		const requestPromise = page.waitForRequest((req) => {
-			const url = req.url();
-			return (
-				(url === "https://basket.databuddy.cc/" ||
-					url === "https://basket.databuddy.cc") &&
-				req.postDataJSON()?.name === "custom_click"
-			);
-		});
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("basket.databuddy.cc") &&
+				req.method() === "POST" &&
+				hasEvent(req, (e) => e.name === "custom_click")
+		);
 
 		await page.evaluate(() => {
 			(window as any).db.track("custom_click", { foo: "bar" });
 		});
 
 		const request = await requestPromise;
-		const payload = request.postDataJSON();
-		expect(payload.foo).toBe("bar");
+		const event = findEvent(request, (e) => e.name === "custom_click");
+		expect(event).toBeTruthy();
+		const props = event?.properties as Record<string, unknown> | undefined;
+		expect(props?.foo).toBe("bar");
 	});
 
 	test("blocks tracking when bot detection is active (default)", async ({
@@ -159,7 +160,7 @@ test.describe("General Tracking", () => {
 		await page.evaluate(() => {
 			(window as any).databuddyConfig = { clientId: "test-client-id" }; // ignoreBotDetection defaults to false
 		});
-		await page.addScriptTag({ url: "/dist/databuddy.js" });
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 		// Wait a bit to ensure no request is fired
 		await page.waitForTimeout(1000);

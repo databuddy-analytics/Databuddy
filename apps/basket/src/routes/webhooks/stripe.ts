@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { clickHouse, db, eq, revenueConfig } from "@databuddy/db";
-import { logger } from "@databuddy/shared/logger";
 import { Elysia } from "elysia";
+import { useLogger } from "evlog/elysia";
 
 const DATE_REGEX = /\.\d{3}Z$/;
 const SIGNATURE_TOLERANCE_SECONDS = 300;
@@ -211,13 +211,23 @@ async function handlePaymentIntent(
 	pi: WebhookPaymentIntent,
 	config: WebhookConfig
 ): Promise<void> {
+	const log = useLogger();
 	const metadata = extractAnalyticsMetadata(pi.metadata);
 	const customerId = extractCustomerId(pi.customer);
-
 	const type: "sale" | "subscription" = pi.invoice ? "subscription" : "sale";
-
 	const amount = (pi.amount_received ?? pi.amount) / 100;
 	const currency = pi.currency.toUpperCase();
+
+	log.set({
+		revenue: {
+			type,
+			status: "completed",
+			amount,
+			currency,
+			customerId,
+			transactionId: pi.id,
+		},
+	});
 
 	await clickHouse.insert({
 		table: "analytics.revenue",
@@ -244,8 +254,6 @@ async function handlePaymentIntent(
 		],
 		format: "JSONEachRow",
 	});
-
-	logger.info({ type, amount, currency, customerId }, "Revenue: payment");
 }
 
 async function handleFailedPayment(
@@ -253,12 +261,23 @@ async function handleFailedPayment(
 	config: WebhookConfig,
 	status: "failed" | "canceled"
 ): Promise<void> {
+	const log = useLogger();
 	const metadata = extractAnalyticsMetadata(pi.metadata);
 	const customerId = extractCustomerId(pi.customer);
 	const amount = (pi.amount_received ?? pi.amount) / 100;
 	const currency = pi.currency.toUpperCase();
-
 	const type: "sale" | "subscription" = pi.invoice ? "subscription" : "sale";
+
+	log.set({
+		revenue: {
+			type,
+			status,
+			amount,
+			currency,
+			customerId,
+			transactionId: pi.id,
+		},
+	});
 
 	await clickHouse.insert({
 		table: "analytics.revenue",
@@ -285,22 +304,22 @@ async function handleFailedPayment(
 		],
 		format: "JSONEachRow",
 	});
-
-	logger.info(
-		{ status, amount, currency, customerId },
-		`Revenue: payment ${status}`
-	);
 }
 
 async function handleInvoicePaid(
 	invoice: WebhookInvoice,
 	config: WebhookConfig
 ): Promise<void> {
+	const log = useLogger();
+
 	if (invoice.payment_intent) {
-		logger.debug(
-			{ invoiceId: invoice.id },
-			"Skipping invoice.paid with payment_intent (handled by payment_intent.succeeded)"
-		);
+		log.set({
+			revenue: {
+				skipped: true,
+				reason: "has_payment_intent",
+				invoiceId: invoice.id,
+			},
+		});
 		return;
 	}
 
@@ -308,6 +327,18 @@ async function handleInvoicePaid(
 	const customerId = extractCustomerId(invoice.customer);
 	const amount = invoice.amount_paid / 100;
 	const currency = invoice.currency.toUpperCase();
+
+	log.set({
+		revenue: {
+			type: "subscription",
+			status: "completed",
+			amount,
+			currency,
+			customerId,
+			transactionId: invoice.id,
+			billingReason: invoice.billing_reason,
+		},
+	});
 
 	await clickHouse.insert({
 		table: "analytics.revenue",
@@ -334,21 +365,30 @@ async function handleInvoicePaid(
 		],
 		format: "JSONEachRow",
 	});
-
-	logger.info(
-		{ amount, currency, customerId, billingReason: invoice.billing_reason },
-		"Revenue: invoice paid (no payment_intent)"
-	);
 }
 
 async function handleInvoiceFailed(
 	invoice: WebhookInvoice,
 	config: WebhookConfig
 ): Promise<void> {
+	const log = useLogger();
 	const metadata = extractAnalyticsMetadata(invoice.metadata);
 	const customerId = extractCustomerId(invoice.customer);
 	const amount = invoice.amount_paid / 100;
 	const currency = invoice.currency.toUpperCase();
+
+	log.set({
+		revenue: {
+			type: "subscription",
+			status: "failed",
+			amount,
+			currency,
+			customerId,
+			transactionId: invoice.id,
+			billingReason: invoice.billing_reason,
+			subscriptionId: invoice.subscription,
+		},
+	});
 
 	await clickHouse.insert({
 		table: "analytics.revenue",
@@ -375,17 +415,6 @@ async function handleInvoiceFailed(
 		],
 		format: "JSONEachRow",
 	});
-
-	logger.info(
-		{
-			amount,
-			currency,
-			customerId,
-			billingReason: invoice.billing_reason,
-			subscriptionId: invoice.subscription,
-		},
-		"Revenue: invoice payment failed"
-	);
 }
 
 async function handleSubscriptionEvent(
@@ -393,6 +422,7 @@ async function handleSubscriptionEvent(
 	config: WebhookConfig,
 	eventType: string
 ): Promise<void> {
+	const log = useLogger();
 	const metadata = extractAnalyticsMetadata(sub.metadata);
 	const customerId = extractCustomerId(sub.customer);
 	const firstItem = sub.items?.data?.[0];
@@ -403,6 +433,20 @@ async function handleSubscriptionEvent(
 		"USD"
 	).toUpperCase();
 	const interval = firstItem?.price?.recurring?.interval;
+
+	log.set({
+		revenue: {
+			type: "subscription_event",
+			eventType,
+			subscriptionId: sub.id,
+			status: sub.status,
+			amount,
+			currency,
+			customerId,
+			interval,
+			cancelAtPeriodEnd: sub.cancel_at_period_end,
+		},
+	});
 
 	const subscriptionMetadata = {
 		...metadata,
@@ -440,28 +484,26 @@ async function handleSubscriptionEvent(
 		],
 		format: "JSONEachRow",
 	});
-
-	logger.info(
-		{
-			subscriptionId: sub.id,
-			status: sub.status,
-			eventType,
-			amount,
-			currency,
-			customerId,
-		},
-		`Revenue: subscription ${eventType}`
-	);
 }
 
 async function handleRefund(
 	charge: WebhookCharge,
 	config: WebhookConfig
 ): Promise<void> {
+	const log = useLogger();
 	const metadata = extractAnalyticsMetadata(charge.metadata);
 	const customerId = extractCustomerId(charge.customer);
 	const currency = charge.currency.toUpperCase();
 	const refunds = charge.refunds?.data || [];
+
+	log.set({
+		revenue: {
+			type: "refund",
+			currency,
+			customerId,
+			refundCount: refunds.length,
+		},
+	});
 
 	for (const refund of refunds) {
 		const amount = refund.amount / 100;
@@ -491,17 +533,19 @@ async function handleRefund(
 			],
 			format: "JSONEachRow",
 		});
-
-		logger.info({ amount, currency, customerId }, "Revenue: refund");
 	}
 }
 
 export const stripeWebhook = new Elysia().post(
 	"/webhooks/stripe/:hash",
 	async ({ params, request, set }) => {
+		const log = useLogger();
+		log.set({ provider: "stripe", webhookHash: params.hash });
+
 		const result = await getConfig(params.hash);
 
 		if ("error" in result) {
+			log.set({ configError: result.error });
 			if (result.error === "not_found") {
 				set.status = 404;
 				return { error: "Webhook endpoint not found" };
@@ -510,14 +554,16 @@ export const stripeWebhook = new Elysia().post(
 			return { error: "Stripe webhook not configured for this account" };
 		}
 
+		log.set({ ownerId: result.ownerId, websiteId: result.websiteId });
+
 		const signature = request.headers.get("stripe-signature");
 		if (!signature) {
+			log.set({ signatureError: "missing_header" });
 			set.status = 400;
 			return { error: "Missing stripe-signature header" };
 		}
 
 		const body = await request.text();
-
 		const verification = verifyStripeSignature(
 			body,
 			signature,
@@ -525,17 +571,14 @@ export const stripeWebhook = new Elysia().post(
 		);
 
 		if (!verification.valid) {
-			logger.warn(
-				{ error: verification.error },
-				"Stripe signature verification failed"
-			);
+			log.warn("Stripe signature verification failed");
+			log.set({ signatureError: verification.error });
 			set.status = 401;
 			return { error: "Invalid webhook signature" };
 		}
 
 		const event = verification.event;
-
-		logger.info({ type: event.type, id: event.id }, "Stripe webhook received");
+		log.set({ eventType: event.type, eventId: event.id });
 
 		try {
 			switch (event.type) {
@@ -591,13 +634,13 @@ export const stripeWebhook = new Elysia().post(
 					break;
 				}
 				default: {
-					logger.debug({ type: event.type }, "Unhandled Stripe event type");
+					log.set({ unhandled: true });
 				}
 			}
 
 			return { received: true, type: event.type };
 		} catch (error) {
-			logger.error({ error, type: event.type }, "Failed to process webhook");
+			log.error(error instanceof Error ? error : new Error(String(error)));
 			set.status = 500;
 			return { error: "Failed to process webhook event" };
 		}

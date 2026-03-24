@@ -1,6 +1,5 @@
 "use client";
 
-import dayjs from "@/lib/dayjs";
 import { memo } from "react";
 import {
 	Area,
@@ -15,6 +14,7 @@ import {
 	YAxis,
 } from "recharts";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import dayjs from "@/lib/dayjs";
 
 interface MiniChartProps {
 	data: { date: string; value: number }[];

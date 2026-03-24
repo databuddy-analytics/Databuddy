@@ -2,10 +2,7 @@
 
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
-import {
-	DataTable,
-	type TabConfig,
-} from "@/components/table/data-table";
+import { DataTable, type TabConfig } from "@/components/table/data-table";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 import type {
 	OutboundDomainRow,
@@ -165,7 +162,10 @@ const outboundDomainsColumns: ColumnDef<OutboundDomainRow, unknown>[] = [
 	},
 ];
 
-function isOutboundLinkRecord(value: unknown): value is Record<string, unknown> & {
+function isOutboundLinkRecord(value: unknown): value is Record<
+	string,
+	unknown
+> & {
 	href: string;
 } {
 	return (
@@ -190,7 +190,9 @@ function isOutboundDomainRecord(value: unknown): value is Record<
 	);
 }
 
-function toOutboundLinkRow(link: Record<string, unknown> & { href: string }): OutboundLinkRow {
+function toOutboundLinkRow(
+	link: Record<string, unknown> & { href: string }
+): OutboundLinkRow {
 	return {
 		name: link.href,
 		href: link.href,
@@ -246,8 +248,10 @@ export function OutboundLinksSection({
 				id: "outbound_domains",
 				label: "Outbound Domains",
 				data: domainRows as unknown as OutboundLinkRow[],
-				columns:
-					outboundDomainsColumns as ColumnDef<OutboundLinkRow, unknown>[],
+				columns: outboundDomainsColumns as ColumnDef<
+					OutboundLinkRow,
+					unknown
+				>[],
 				getFilter: (row: OutboundLinkRow) => ({
 					field: "href",
 					value: `*${(row as unknown as OutboundDomainRow).domain}*`,

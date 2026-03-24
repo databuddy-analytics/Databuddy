@@ -1,17 +1,9 @@
-import {
-	and,
-	db,
-	desc,
-	eq,
-	gt,
-	invitation,
-	organization,
-} from "@databuddy/db";
-import { logger } from "@databuddy/shared/logger";
+import { and, db, desc, eq, gt, invitation, organization } from "@databuddy/db";
 import { getPendingInvitationsSchema } from "@databuddy/validation";
 import { Autumn as autumn } from "autumn-js";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { logger } from "../lib/logger";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import { getBillingOwner } from "../utils/billing";
@@ -276,14 +268,14 @@ export const organizationsRouter = {
 
 			const debugInfo = isDev
 				? {
-					_debug: {
-						userId: context.user?.id ?? null,
-						activeOrganizationId: activeOrgId ?? null,
-						customerId,
-						websiteId: input?.websiteId ?? null,
-						sessionId: context.session?.id ?? null,
-					},
-				}
+						_debug: {
+							userId: context.user?.id ?? null,
+							activeOrganizationId: activeOrgId ?? null,
+							customerId,
+							websiteId: input?.websiteId ?? null,
+							sessionId: context.session?.id ?? null,
+						},
+					}
 				: {};
 
 			// No customer ID means we can't look up billing

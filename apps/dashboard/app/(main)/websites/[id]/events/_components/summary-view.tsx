@@ -102,7 +102,7 @@ export function SummaryView({
 					<>
 						<span className="text-muted-foreground text-sm">
 							{activeEvent.summaryProperties.length} propert
-							{activeEvent.summaryProperties.length !== 1 ? "ies" : "y"}
+							{activeEvent.summaryProperties.length === 1 ? "y" : "ies"}
 						</span>
 						{isFetching && !isLoading && (
 							<div className="flex items-center gap-1.5 text-muted-foreground text-xs">

@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { clickHouse, db, eq, revenueConfig } from "@databuddy/db";
-import { logger } from "@databuddy/shared/logger";
 import { Elysia } from "elysia";
+import { useLogger } from "evlog/elysia";
 
 const DATE_REGEX = /\.\d{3}Z$/;
 
@@ -113,12 +113,24 @@ async function handleTransaction(
 	tx: PaddleTransaction,
 	config: { ownerId: string; websiteId: string | null }
 ): Promise<void> {
+	const log = useLogger();
 	const metadata = extractAnalyticsMetadata(tx.custom_data);
 	const lineItems = tx.details.line_items || [];
 	const isSubscription = lineItems.some((i) => i?.price?.billing_cycle != null);
-
+	const type = isSubscription ? "subscription" : "sale";
 	const amount = Number.parseFloat(tx.details.totals.total) / 100;
 	const currency = tx.currency_code;
+
+	log.set({
+		revenue: {
+			type,
+			status: "completed",
+			amount,
+			currency,
+			transactionId: tx.id,
+			product: lineItems[0]?.product?.name,
+		},
+	});
 
 	await clickHouse.insert({
 		table: "analytics.revenue",
@@ -128,7 +140,7 @@ async function handleTransaction(
 				website_id: metadata.website_id || config.websiteId || undefined,
 				transaction_id: tx.id,
 				provider: "paddle",
-				type: isSubscription ? "subscription" : "sale",
+				type,
 				status: "completed",
 				amount,
 				original_amount: amount,
@@ -145,19 +157,18 @@ async function handleTransaction(
 		],
 		format: "JSONEachRow",
 	});
-
-	logger.info(
-		{ type: isSubscription ? "subscription" : "sale", amount },
-		"Revenue: paddle transaction"
-	);
 }
 
 export const paddleWebhook = new Elysia().post(
 	"/webhooks/paddle/:hash",
 	async ({ params, request, set }) => {
+		const log = useLogger();
+		log.set({ provider: "paddle", webhookHash: params.hash });
+
 		const result = await getConfig(params.hash);
 
 		if ("error" in result) {
+			log.set({ configError: result.error });
 			if (result.error === "not_found") {
 				set.status = 404;
 				return { error: "Webhook endpoint not found" };
@@ -166,24 +177,25 @@ export const paddleWebhook = new Elysia().post(
 			return { error: "Paddle webhook not configured for this account" };
 		}
 
+		log.set({ ownerId: result.ownerId, websiteId: result.websiteId });
+
 		const signature = request.headers.get("paddle-signature");
 		if (!signature) {
+			log.set({ signatureError: "missing_header" });
 			set.status = 400;
 			return { error: "Missing paddle-signature header" };
 		}
 
 		const body = await request.text();
-
 		const valid = await verifySignature(
 			body,
 			signature,
 			result.paddleWebhookSecret
 		);
+
 		if (!valid) {
-			logger.warn(
-				{ hash: params.hash },
-				"Paddle signature verification failed"
-			);
+			log.warn("Paddle signature verification failed");
+			log.set({ signatureError: "mismatch" });
 			set.status = 401;
 			return { error: "Invalid webhook signature" };
 		}
@@ -192,11 +204,12 @@ export const paddleWebhook = new Elysia().post(
 		try {
 			event = JSON.parse(body);
 		} catch {
+			log.set({ parseError: "invalid_json" });
 			set.status = 400;
 			return { error: "Invalid JSON payload" };
 		}
 
-		logger.info({ type: event.event_type }, "Paddle webhook received");
+		log.set({ eventType: event.event_type });
 
 		try {
 			if (
@@ -205,15 +218,12 @@ export const paddleWebhook = new Elysia().post(
 			) {
 				await handleTransaction(event.data, result);
 			} else {
-				logger.debug({ type: event.event_type }, "Unhandled Paddle event type");
+				log.set({ unhandled: true });
 			}
 
 			return { received: true, type: event.event_type };
 		} catch (error) {
-			logger.error(
-				{ error, type: event.event_type },
-				"Failed to process webhook"
-			);
+			log.error(error instanceof Error ? error : new Error(String(error)));
 			set.status = 500;
 			return { error: "Failed to process webhook event" };
 		}

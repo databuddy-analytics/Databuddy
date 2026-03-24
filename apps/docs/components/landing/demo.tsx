@@ -2,6 +2,7 @@
 
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
 import { useRef } from "react";
+import { getDemoEmbedBaseUrl } from "@/lib/demo-embed-url";
 
 type FullscreenElement = HTMLIFrameElement & {
 	webkitRequestFullscreen?: () => Promise<void>;
@@ -9,8 +10,13 @@ type FullscreenElement = HTMLIFrameElement & {
 	msRequestFullscreen?: () => Promise<void>;
 };
 
-export default function DemoContainer() {
+export default function DemoContainer({
+	embedBaseUrl,
+}: {
+	embedBaseUrl?: string;
+}) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
+	const iframeSrc = embedBaseUrl ?? getDemoEmbedBaseUrl(null);
 
 	const handleFullscreen = async () => {
 		const element = iframeRef.current as FullscreenElement | null;
@@ -101,7 +107,7 @@ export default function DemoContainer() {
 					className="h-[500px] w-full rounded border-0 bg-linear-to-b from-transparent to-background shadow-2xl sm:h-[600px] lg:h-[700px]"
 					loading="lazy"
 					ref={iframeRef}
-					src="https://app.databuddy.cc/demo/OXmNQsViBT-FOS_wZCTHc"
+					src={iframeSrc}
 					title="Databuddy Demo Dashboard"
 				/>
 

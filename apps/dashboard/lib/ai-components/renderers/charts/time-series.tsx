@@ -1,6 +1,5 @@
 "use client";
 
-import dayjs from "@/lib/dayjs";
 import { useId } from "react";
 import {
 	Area,
@@ -17,6 +16,7 @@ import {
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { Card } from "@/components/ui/card";
 import { CHART_COLORS } from "@/lib/ai-components/renderers/config";
+import dayjs from "@/lib/dayjs";
 import type { ChartComponentProps } from "../../types";
 
 export interface TimeSeriesProps extends ChartComponentProps {

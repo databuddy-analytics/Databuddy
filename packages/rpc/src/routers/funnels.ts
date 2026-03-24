@@ -1,11 +1,4 @@
-import {
-	and,
-	desc,
-	eq,
-	funnelDefinitions,
-	isNull,
-	sql,
-} from "@databuddy/db";
+import { and, desc, eq, funnelDefinitions, isNull, sql } from "@databuddy/db";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { randomUUIDv7 } from "bun";
@@ -17,11 +10,7 @@ import {
 	processFunnelAnalyticsByReferrer,
 } from "../lib/analytics-utils";
 import { protectedProcedure, publicProcedure } from "../orpc";
-import {
-	withWebsiteRead,
-	withWebsiteWrite,
-	withWorkspace,
-} from "../procedures/with-workspace";
+import { withWebsiteRead, withWorkspace } from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
 
 const cache = createDrizzleCache({ redis, namespace: "funnels" });
@@ -118,6 +107,59 @@ const funnelOutputSchema = z.object({
 });
 
 const successOutputSchema = z.object({ success: z.literal(true) });
+
+const stepErrorInsightOutputSchema = z.object({
+	message: z.string(),
+	error_type: z.string(),
+	count: z.number(),
+});
+
+const stepAnalyticsOutputSchema = z.object({
+	step_number: z.number(),
+	step_name: z.string(),
+	users: z.number(),
+	total_users: z.number(),
+	conversion_rate: z.number(),
+	dropoffs: z.number(),
+	dropoff_rate: z.number(),
+	avg_time_to_complete: z.number(),
+	error_count: z.number(),
+	error_rate: z.number(),
+	top_errors: z.array(stepErrorInsightOutputSchema),
+});
+
+const funnelAnalyticsOutputSchema = z.object({
+	overall_conversion_rate: z.number(),
+	total_users_entered: z.number(),
+	total_users_completed: z.number(),
+	avg_completion_time: z.number(),
+	avg_completion_time_formatted: z.string(),
+	biggest_dropoff_step: z.number(),
+	biggest_dropoff_rate: z.number(),
+	steps_analytics: z.array(stepAnalyticsOutputSchema),
+	error_insights: z.object({
+		total_errors: z.number(),
+		sessions_with_errors: z.number(),
+		dropoffs_with_errors: z.number(),
+		error_correlation_rate: z.number(),
+	}),
+});
+
+const referrerAnalyticsOutputSchema = z.object({
+	referrer: z.string(),
+	referrer_parsed: z.object({
+		name: z.string(),
+		type: z.string(),
+		domain: z.string(),
+	}),
+	total_users: z.number(),
+	completed_users: z.number(),
+	conversion_rate: z.number(),
+});
+
+const funnelAnalyticsByReferrerOutputSchema = z.object({
+	referrer_analytics: z.array(referrerAnalyticsOutputSchema),
+});
 
 export const funnelsRouter = {
 	list: publicProcedure
@@ -387,10 +429,9 @@ export const funnelsRouter = {
 				endDate: z.string().optional(),
 			})
 		)
-		.output(z.record(z.string(), z.unknown()))
+		.output(funnelAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
@@ -460,10 +501,9 @@ export const funnelsRouter = {
 				endDate: z.string().optional(),
 			})
 		)
-		.output(z.record(z.string(), z.unknown()))
+		.output(funnelAnalyticsByReferrerOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
-
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }

@@ -7,7 +7,6 @@ import {
 	TagIcon,
 	TrashIcon,
 } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,7 +70,7 @@ export function AnnotationsPanel({
 							<SheetTitle className="text-base">Annotations</SheetTitle>
 							<SheetDescription className="text-xs">
 								{annotations.length} annotation
-								{annotations.length !== 1 ? "s" : ""} on this chart
+								{annotations.length === 1 ? "" : "s"} on this chart
 							</SheetDescription>
 						</SheetHeader>
 
@@ -105,7 +104,7 @@ export function AnnotationsPanel({
 													{annotation.text}
 												</p>
 												<div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-													<span className="flex items-center gap-1 text-muted-foreground text-[11px]">
+													<span className="flex items-center gap-1 text-[11px] text-muted-foreground">
 														<CalendarIcon className="size-3" />
 														{formatAnnotationDateRange(
 															annotation.xValue,

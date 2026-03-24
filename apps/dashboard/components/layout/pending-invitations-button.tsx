@@ -52,7 +52,7 @@ export function PendingInvitationsButton() {
 					</DropdownMenuTrigger>
 				</TooltipTrigger>
 				<TooltipContent side="right">
-					{count} pending invitation{count !== 1 ? "s" : ""}
+					{count} pending invitation{count === 1 ? "" : "s"}
 				</TooltipContent>
 			</Tooltip>
 

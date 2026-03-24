@@ -1,5 +1,6 @@
-import { captureError, record, setAttributes } from "@lib/tracing";
+import { captureError, record } from "@lib/tracing";
 import { Autumn as autumn } from "autumn-js";
+import { useLogger } from "evlog/elysia";
 
 type BillingResult = { allowed: true } | { exceeded: true; response: Response };
 
@@ -9,6 +10,8 @@ export function checkAutumnUsage(
 	properties?: Record<string, unknown>
 ): Promise<BillingResult> {
 	return record("checkAutumnUsage", async (): Promise<BillingResult> => {
+		const log = useLogger();
+
 		try {
 			const result = await record("autumn.check", () =>
 				autumn.check({
@@ -22,6 +25,15 @@ export function checkAutumnUsage(
 			const data = result.data;
 
 			if (data) {
+				log.set({
+					billing: {
+						allowed: true,
+						usage: data.usage,
+						usageLimit: data.usage_limit,
+						includedUsage: data.included_usage,
+						unlimited: data.unlimited,
+					},
+				});
 				const usage = data.usage ?? 0;
 				const usageLimit = data.usage_limit ?? data.included_usage ?? 0;
 				const isUnlimited = data.unlimited ?? false;
@@ -29,13 +41,8 @@ export function checkAutumnUsage(
 					!isUnlimited && usageLimit > 0 && usage >= usageLimit * 1.5;
 
 				if (usageExceeds150Percent) {
-					setAttributes({
-						validation_failed: true,
-						validation_reason: "exceeded_event_limit",
-						autumn_allowed: false,
-						usage_exceeded_150_percent: true,
-						usage,
-						usage_limit: usageLimit,
+					log.set({
+						billing: { allowed: false, usage, usageLimit, exceeded: true },
 					});
 					return {
 						exceeded: true,
@@ -53,18 +60,12 @@ export function checkAutumnUsage(
 				}
 			}
 
-			setAttributes({
-				autumn_allowed: data?.allowed ?? false,
-				autumn_overage_allowed: data?.overage_allowed ?? false,
-			});
-
+			log.set({ billing: { allowed: true } });
 			return { allowed: true };
 		} catch (error) {
+			log.set({ billing: { allowed: true, checkFailed: true } });
 			captureError(error, {
 				message: "Autumn check failed, allowing event through",
-			});
-			setAttributes({
-				autumn_check_failed: true,
 			});
 			return { allowed: true };
 		}

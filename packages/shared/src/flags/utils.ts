@@ -12,7 +12,7 @@ import {
 	invalidateCacheableWithArgs,
 	redis,
 } from "@databuddy/redis";
-import { logger } from "@/utils/logger";
+import { log } from "evlog";
 
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 
@@ -208,14 +208,13 @@ export async function handleFlagUpdateDependencyCascading(
 			}
 		}
 	} catch (error) {
-		logger.error(
-			{
-				error,
-				flagId: updatedFlag.id,
-				flagKey: updatedFlag.key,
-			},
-			"Failed to cascade flag updates"
-		);
+		log.error({
+			service: "shared-flags",
+			message: "Failed to cascade flag updates",
+			error,
+			flagId: updatedFlag.id,
+			flagKey: updatedFlag.key,
+		});
 		throw error;
 	}
 }

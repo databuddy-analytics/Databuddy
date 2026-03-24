@@ -15,12 +15,17 @@ import {
 } from "@lib/event-service";
 import { checkForBot, validateRequest } from "@lib/request-validation";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
-import { captureError, record } from "@lib/tracing";
+import {
+	basketErrors,
+	buildBasketErrorPayload,
+	createIngestSchemaValidationError,
+} from "@lib/structured-errors";
+import { record } from "@lib/tracing";
 import { analyticsEventSchema, outgoingLinkSchema } from "@utils/event-schema";
 import { getGeo } from "@utils/ip-geo";
 import {
-	createBotDetectedResponse,
-	createSchemaErrorResponse,
+	batchBotIgnoredItem,
+	batchSchemaItemFailure,
 	parseEventId,
 	parseProperties,
 	parseTimestamp,
@@ -36,6 +41,8 @@ import {
 } from "@utils/validation";
 import { randomUUIDv7 } from "bun";
 import { Elysia } from "elysia";
+import { createError, EvlogError } from "evlog";
+import { useLogger } from "evlog/elysia";
 
 function processTrackEventData(
 	trackData: any,
@@ -171,17 +178,23 @@ async function processOutgoingLinkData(
 
 const app = new Elysia()
 	.get("/px.jpg", async ({ query, request }) => {
+		const log = useLogger();
+		log.set({ route: "pixel" });
+
 		try {
 			const { eventData, eventType } = parsePixelQuery(
 				query as Record<string, string>
 			);
+			log.set({ eventType });
 
 			const validation = await validateRequest(eventData, query, request);
 			if ("error" in validation) {
+				log.set({ rejected: "validation" });
 				return createPixelResponse();
 			}
 
 			const { clientId, userAgent, ip } = validation;
+			log.set({ clientId });
 
 			const botError = await checkForBot(
 				request,
@@ -191,6 +204,7 @@ const app = new Elysia()
 				userAgent
 			);
 			if (botError) {
+				log.set({ rejected: "bot" });
 				return createPixelResponse();
 			}
 
@@ -202,7 +216,10 @@ const app = new Elysia()
 
 			return createPixelResponse();
 		} catch (error) {
-			captureError(error, { message: "Error processing pixel request" });
+			if (error instanceof EvlogError) {
+				return createPixelResponse();
+			}
+			log.error(error instanceof Error ? error : new Error(String(error)));
 			return createPixelResponse();
 		}
 	})
@@ -212,21 +229,26 @@ const app = new Elysia()
 			query: Record<string, string>;
 			request: Request;
 		};
+		const log = useLogger();
+		log.set({ route: "vitals" });
 
 		try {
 			const validation = await validateRequest(body, query, request);
 			if ("error" in validation) {
+				log.set({ rejected: "validation" });
 				return validation.error;
 			}
 
 			const { clientId, userAgent } = validation;
+			log.set({ clientId });
 
-			// v2.x tracker sends batched individual vital metrics to /vitals
 			const parseResult = batchedVitalsSchema.safeParse(body);
-
 			if (!parseResult.success) {
-				return createSchemaErrorResponse(parseResult.error.issues);
+				log.set({ rejected: "schema" });
+				throw createIngestSchemaValidationError(parseResult.error.issues);
 			}
+
+			log.set({ count: parseResult.data.length });
 
 			const botError = await checkForBot(
 				request,
@@ -236,6 +258,7 @@ const app = new Elysia()
 				userAgent
 			);
 			if (botError) {
+				log.set({ rejected: "bot" });
 				return botError.error;
 			}
 
@@ -253,14 +276,17 @@ const app = new Elysia()
 				}
 			);
 		} catch (error) {
-			captureError(error, { message: "Error processing vitals" });
-			return new Response(
-				JSON.stringify({ status: "error", message: "Internal server error" }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+			const err = error instanceof Error ? error : new Error(String(error));
+			log.error(err);
+			throw createError({
+				message: "Internal server error",
+				status: 500,
+				why: process.env.NODE_ENV === "development" ? err.message : undefined,
+				cause: err,
+			});
 		}
 	})
 	.post("/errors", async (context) => {
@@ -269,20 +295,26 @@ const app = new Elysia()
 			query: Record<string, string>;
 			request: Request;
 		};
+		const log = useLogger();
+		log.set({ route: "errors" });
 
 		try {
 			const validation = await validateRequest(body, query, request);
 			if ("error" in validation) {
+				log.set({ rejected: "validation" });
 				return validation.error;
 			}
 
 			const { clientId, userAgent } = validation;
+			log.set({ clientId });
 
 			const parseResult = batchedErrorsSchema.safeParse(body);
-
 			if (!parseResult.success) {
-				return createSchemaErrorResponse(parseResult.error.issues);
+				log.set({ rejected: "schema" });
+				throw createIngestSchemaValidationError(parseResult.error.issues);
 			}
+
+			log.set({ count: parseResult.data.length });
 
 			const botError = await checkForBot(
 				request,
@@ -292,6 +324,7 @@ const app = new Elysia()
 				userAgent
 			);
 			if (botError) {
+				log.set({ rejected: "bot" });
 				return botError.error;
 			}
 
@@ -309,14 +342,17 @@ const app = new Elysia()
 				}
 			);
 		} catch (error) {
-			captureError(error, { message: "Error processing error" });
-			return new Response(
-				JSON.stringify({ status: "error", message: "Internal server error" }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+			const err = error instanceof Error ? error : new Error(String(error));
+			log.error(err);
+			throw createError({
+				message: "Internal server error",
+				status: 500,
+				why: process.env.NODE_ENV === "development" ? err.message : undefined,
+				cause: err,
+			});
 		}
 	})
 	.post("/events", async (context) => {
@@ -325,33 +361,31 @@ const app = new Elysia()
 			query: Record<string, string>;
 			request: Request;
 		};
+		const log = useLogger();
+		log.set({ route: "events" });
 
 		try {
 			const validation = await validateRequest(body, query, request);
 			if ("error" in validation) {
+				log.set({ rejected: "validation" });
 				return validation.error;
 			}
 
 			const { clientId, userAgent, organizationId } = validation;
+			log.set({ clientId, organizationId });
 
 			if (!organizationId) {
-				return new Response(
-					JSON.stringify({
-						status: "error",
-						message: "Website missing organization",
-					}),
-					{
-						status: 400,
-						headers: { "Content-Type": "application/json" },
-					}
-				);
+				log.set({ rejected: "missing_organization" });
+				throw basketErrors.ingestWebsiteMissingOrganization();
 			}
 
 			const parseResult = batchedCustomEventSpansSchema.safeParse(body);
-
 			if (!parseResult.success) {
-				return createSchemaErrorResponse(parseResult.error.issues);
+				log.set({ rejected: "schema" });
+				throw createIngestSchemaValidationError(parseResult.error.issues);
 			}
+
+			log.set({ count: parseResult.data.length });
 
 			const botError = await checkForBot(
 				request,
@@ -361,6 +395,7 @@ const app = new Elysia()
 				userAgent
 			);
 			if (botError) {
+				log.set({ rejected: "bot" });
 				return botError.error;
 			}
 
@@ -389,14 +424,17 @@ const app = new Elysia()
 				}
 			);
 		} catch (error) {
-			captureError(error, { message: "Error processing custom events" });
-			return new Response(
-				JSON.stringify({ status: "error", message: "Internal server error" }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+			const err = error instanceof Error ? error : new Error(String(error));
+			log.error(err);
+			throw createError({
+				message: "Internal server error",
+				status: 500,
+				why: process.env.NODE_ENV === "development" ? err.message : undefined,
+				cause: err,
+			});
 		}
 	})
 	.post("/", async (context) => {
@@ -405,16 +443,20 @@ const app = new Elysia()
 			query: any;
 			request: Request;
 		};
+		const log = useLogger();
+		log.set({ route: "ingest" });
 
 		try {
 			const validation = await validateRequest(body, query, request);
 
 			if ("error" in validation) {
+				log.set({ rejected: "validation" });
 				return validation.error;
 			}
 
 			const { clientId, userAgent, ip } = validation;
 			const eventType = body.type || "track";
+			log.set({ clientId, eventType });
 
 			if (eventType === "track") {
 				const [botError, parseResult] = await Promise.all([
@@ -429,11 +471,13 @@ const app = new Elysia()
 				]);
 
 				if (botError) {
+					log.set({ rejected: "bot" });
 					return botError.error;
 				}
 
 				if (!parseResult.success) {
-					return createSchemaErrorResponse(parseResult.error.issues);
+					log.set({ rejected: "schema" });
+					throw createIngestSchemaValidationError(parseResult.error.issues);
 				}
 
 				insertTrackEvent(body, clientId, userAgent, ip, request);
@@ -459,11 +503,13 @@ const app = new Elysia()
 				]);
 
 				if (botError) {
+					log.set({ rejected: "bot" });
 					return botError.error;
 				}
 
 				if (!parseResult.success) {
-					return createSchemaErrorResponse(parseResult.error.issues);
+					log.set({ rejected: "schema" });
+					throw createIngestSchemaValidationError(parseResult.error.issues);
 				}
 
 				insertOutgoingLink(body, clientId, userAgent, ip);
@@ -476,22 +522,20 @@ const app = new Elysia()
 				);
 			}
 
-			return new Response(
-				JSON.stringify({ status: "error", message: "Unknown event type" }),
-				{
-					status: 400,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			log.set({ rejected: "unknown_type" });
+			throw basketErrors.ingestUnknownEventType();
 		} catch (error) {
-			captureError(error, { message: "Error processing event" });
-			return new Response(
-				JSON.stringify({ status: "error", message: "Internal server error" }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+			const err = error instanceof Error ? error : new Error(String(error));
+			log.error(err);
+			throw createError({
+				message: "Internal server error",
+				status: 500,
+				why: process.env.NODE_ENV === "development" ? err.message : undefined,
+				cause: err,
+			});
 		}
 	})
 	.post("/batch", async (context) => {
@@ -500,52 +544,57 @@ const app = new Elysia()
 			query: any;
 			request: Request;
 		};
+		const log = useLogger();
+		log.set({ route: "batch" });
 
 		try {
 			if (!Array.isArray(body)) {
-				captureError(new Error("Batch endpoint received non-array body"), {
-					body,
-				});
-				return new Response(
-					JSON.stringify({
-						status: "error",
-						message: "Batch endpoint expects array of events",
-					}),
-					{
-						status: 400,
-						headers: { "Content-Type": "application/json" },
-					}
-				);
+				log.set({ rejected: "not_array" });
+				throw basketErrors.ingestBatchNotArray();
 			}
+
+			log.set({ batchSize: body.length });
 
 			if (body.length > VALIDATION_LIMITS.BATCH_MAX_SIZE) {
-				return new Response(
-					JSON.stringify({ status: "error", message: "Batch too large" }),
-					{
-						status: 400,
-						headers: { "Content-Type": "application/json" },
-					}
-				);
+				log.set({ rejected: "too_large" });
+				throw basketErrors.ingestBatchTooLarge();
 			}
 
-			const validation = await validateRequest(body, query, request);
-			if ("error" in validation) {
-				const errorResponse = validation.error;
-				if (errorResponse instanceof Response) {
-					const errorBody = await errorResponse.json();
-					return new Response(JSON.stringify({ ...errorBody, batch: true }), {
-						status: errorResponse.status,
+			let validation: Awaited<ReturnType<typeof validateRequest>>;
+			try {
+				validation = await validateRequest(body, query, request);
+			} catch (error) {
+				if (error instanceof EvlogError) {
+					const { status, payload } = buildBasketErrorPayload(error, {
+						extra: { batch: true },
+					});
+					return new Response(JSON.stringify(payload), {
+						status,
 						headers: { "Content-Type": "application/json" },
 					});
 				}
-				return errorResponse;
+				throw error;
+			}
+
+			if ("error" in validation) {
+				log.set({ rejected: "validation" });
+				const errorResponse = validation.error;
+				const errorBody = (await errorResponse.json()) as Record<
+					string,
+					unknown
+				>;
+				return new Response(JSON.stringify({ ...errorBody, batch: true }), {
+					status: errorResponse.status,
+					headers: { "Content-Type": "application/json" },
+				});
 			}
 
 			const { clientId, userAgent, ip } = validation;
+			log.set({ clientId });
 
 			const trackEvents: AnalyticsEvent[] = [];
 			const outgoingLinkEvents: CustomOutgoingLink[] = [];
-			const results: any[] = [];
+			const results: Record<string, unknown>[] = [];
 
 			for (const event of body) {
 				const eventType = event.type || "track";
@@ -560,7 +609,7 @@ const app = new Elysia()
 							userAgent
 						);
 						if (botError) {
-							results.push(createBotDetectedResponse(eventType));
+							results.push(batchBotIgnoredItem(eventType));
 							continue;
 						}
 
@@ -573,11 +622,13 @@ const app = new Elysia()
 						);
 
 						if (!parseResult.success) {
-							results.push({
-								...createSchemaErrorResponse(parseResult.error.issues),
-								eventType,
-								eventId: event.eventId,
-							});
+							results.push(
+								batchSchemaItemFailure(
+									parseResult.error.issues,
+									eventType,
+									event.eventId
+								)
+							);
 							continue;
 						}
 
@@ -603,7 +654,7 @@ const app = new Elysia()
 							userAgent
 						);
 						if (botError) {
-							results.push(createBotDetectedResponse(eventType));
+							results.push(batchBotIgnoredItem(eventType));
 							continue;
 						}
 
@@ -616,11 +667,13 @@ const app = new Elysia()
 						);
 
 						if (!parseResult.success) {
-							results.push({
-								...createSchemaErrorResponse(parseResult.error.issues),
-								eventType,
-								eventId: event.eventId,
-							});
+							results.push(
+								batchSchemaItemFailure(
+									parseResult.error.issues,
+									eventType,
+									event.eventId
+								)
+							);
 							continue;
 						}
 
@@ -653,6 +706,14 @@ const app = new Elysia()
 				insertOutgoingLinksBatch(outgoingLinkEvents),
 			]);
 
+			log.set({
+				processed: results.length,
+				batched: {
+					track: trackEvents.length,
+					outgoingLink: outgoingLinkEvents.length,
+				},
+			});
+
 			return new Response(
 				JSON.stringify({
 					status: "success",
@@ -670,14 +731,17 @@ const app = new Elysia()
 				}
 			);
 		} catch (error) {
-			captureError(error, { message: "Error processing batch event" });
-			return new Response(
-				JSON.stringify({ status: "error", message: "Internal server error" }),
-				{
-					status: 500,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+			const err = error instanceof Error ? error : new Error(String(error));
+			log.error(err);
+			throw createError({
+				message: "Internal server error",
+				status: 500,
+				why: process.env.NODE_ENV === "development" ? err.message : undefined,
+				cause: err,
+			});
 		}
 	});
 

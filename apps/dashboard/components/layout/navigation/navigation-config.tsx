@@ -274,10 +274,6 @@ export const websiteNavigation: NavigationSection[] = [
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.USERS,
 		}),
-		createNavItem("Events", LightningIcon, "/events", {
-			rootLevel: false,
-			alpha: true,
-		}),
 		createNavItem("Funnels", FunnelIcon, "/funnels", {
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.FUNNELS,

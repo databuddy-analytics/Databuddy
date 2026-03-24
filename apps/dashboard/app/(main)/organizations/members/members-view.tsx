@@ -131,7 +131,7 @@ export function MembersView({
 						Invite Member
 					</Button>
 					<RightSidebar.InfoCard
-						description={`Team member${members.length !== 1 ? "s" : ""}`}
+						description={`Team member${members.length === 1 ? "" : "s"}`}
 						icon={UsersIcon}
 						title={String(members.length)}
 					/>

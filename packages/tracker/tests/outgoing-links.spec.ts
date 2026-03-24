@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { findEvent, hasEvent } from "./test-utils";
 
 test.describe("Outgoing Links Tracking", () => {
     test.beforeEach(async ({ page }) => {
@@ -29,17 +30,20 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
             .toBeTruthy();
 
-        const requestPromise = page.waitForRequest((req) =>
-            req.url().includes("/outgoing")
+        const requestPromise = page.waitForRequest(
+            (req) =>
+                req.url().includes("/outgoing") &&
+                hasEvent(req, (e) => e.href === "https://external-site.com/page")
         );
 
         await page.evaluate(() => {
@@ -49,10 +53,12 @@ test.describe("Outgoing Links Tracking", () => {
         await page.click("#external-link");
 
         const request = await requestPromise;
-        const payload = request.postDataJSON();
-
-        expect(payload.href).toBe("https://external-site.com/page");
-        expect(payload.text).toBe("External Link");
+        const outgoing = findEvent(request, (e) =>
+            Boolean(e.href === "https://external-site.com/page")
+        );
+        expect(outgoing).toBeTruthy();
+        expect(outgoing?.href).toBe("https://external-site.com/page");
+        expect(outgoing?.text).toBe("External Link");
     });
 
     test("does not track internal links", async ({ page }) => {
@@ -69,10 +75,11 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -108,10 +115,11 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -147,10 +155,11 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -186,10 +195,11 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -226,17 +236,20 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
             .toBeTruthy();
 
-        const requestPromise = page.waitForRequest((req) =>
-            req.url().includes("/outgoing")
+        const requestPromise = page.waitForRequest(
+            (req) =>
+                req.url().includes("/outgoing") &&
+                hasEvent(req, (e) => e.href === "https://external-site.com/page")
         );
 
         await page.evaluate(() => {
@@ -246,9 +259,11 @@ test.describe("Outgoing Links Tracking", () => {
         await page.click("#link-child");
 
         const request = await requestPromise;
-        const payload = request.postDataJSON();
-
-        expect(payload.href).toBe("https://external-site.com/page");
+        const outgoing = findEvent(request, (e) =>
+            Boolean(e.href === "https://external-site.com/page")
+        );
+        expect(outgoing).toBeTruthy();
+        expect(outgoing?.href).toBe("https://external-site.com/page");
     });
 
     test("uses title as fallback when innerText is empty", async ({ page }) => {
@@ -265,17 +280,20 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
             .toBeTruthy();
 
-        const requestPromise = page.waitForRequest((req) =>
-            req.url().includes("/outgoing")
+        const requestPromise = page.waitForRequest(
+            (req) =>
+                req.url().includes("/outgoing") &&
+                hasEvent(req, (e) => e.text === "Link Title")
         );
 
         await page.evaluate(() => {
@@ -285,9 +303,9 @@ test.describe("Outgoing Links Tracking", () => {
         await page.click("#external-link");
 
         const request = await requestPromise;
-        const payload = request.postDataJSON();
-
-        expect(payload.text).toBe("Link Title");
+        const outgoing = findEvent(request, (e) => e.text === "Link Title");
+        expect(outgoing).toBeTruthy();
+        expect(outgoing?.text).toBe("Link Title");
     });
 
     test("treats same origin with different path as internal", async ({
@@ -308,10 +326,11 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         }, currentOrigin);
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -346,17 +365,24 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
             .toBeTruthy();
 
-        const requestPromise = page.waitForRequest((req) =>
-            req.url().includes("/outgoing")
+        const requestPromise = page.waitForRequest(
+            (req) =>
+                req.url().includes("/outgoing") &&
+                hasEvent(req, (e) =>
+                    typeof e.href === "string"
+                        ? e.href.includes("external-site.com/page")
+                        : false
+                )
         );
 
         await page.evaluate(() => {
@@ -366,9 +392,11 @@ test.describe("Outgoing Links Tracking", () => {
         await page.click("#protocol-relative-link");
 
         const request = await requestPromise;
-        const payload = request.postDataJSON();
-
-        expect(payload.href).toContain("external-site.com/page");
+        const outgoing = findEvent(request, (e) =>
+            typeof e.href === "string" ? e.href.includes("external-site.com/page") : false
+        );
+        expect(outgoing).toBeTruthy();
+        expect(String(outgoing?.href)).toContain("external-site.com/page");
     });
 
     test("does not track hash-only links", async ({ page }) => {
@@ -385,10 +413,11 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -423,17 +452,23 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
             .toBeTruthy();
 
-        const requestPromise = page.waitForRequest((req) =>
-            req.url().includes("/outgoing")
+        const requestPromise = page.waitForRequest(
+            (req) =>
+                req.url().includes("/outgoing") &&
+                hasEvent(
+                    req,
+                    (e) => e.href === "https://subdomain.localhost/page"
+                )
         );
 
         await page.evaluate(() => {
@@ -443,9 +478,11 @@ test.describe("Outgoing Links Tracking", () => {
         await page.click("#subdomain-link");
 
         const request = await requestPromise;
-        const payload = request.postDataJSON();
-
-        expect(payload.href).toBe("https://subdomain.localhost/page");
+        const outgoing = findEvent(request, (e) =>
+            Boolean(e.href === "https://subdomain.localhost/page")
+        );
+        expect(outgoing).toBeTruthy();
+        expect(outgoing?.href).toBe("https://subdomain.localhost/page");
     });
 
     test("does not throw on links without href", async ({ page }) => {
@@ -459,10 +496,11 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -497,17 +535,20 @@ test.describe("Outgoing Links Tracking", () => {
             (window as any).databuddyConfig = {
                 clientId: "test-outgoing",
                 ignoreBotDetection: true,
+                batchTimeout: 200,
                 trackOutgoingLinks: true,
             };
         });
-        await page.addScriptTag({ url: "/dist/databuddy.js" });
+        await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
         await expect
             .poll(async () => await page.evaluate(() => !!(window as any).db))
             .toBeTruthy();
 
-        const requestPromise = page.waitForRequest((req) =>
-            req.url().includes("/outgoing")
+        const requestPromise = page.waitForRequest(
+            (req) =>
+                req.url().includes("/outgoing") &&
+                hasEvent(req, (e) => e.href === "https://external-site.com/page")
         );
 
         await page.evaluate(() => {
@@ -517,10 +558,12 @@ test.describe("Outgoing Links Tracking", () => {
         await page.click("#empty-link");
 
         const request = await requestPromise;
-        const payload = request.postDataJSON();
-
-        expect(payload.href).toBe("https://external-site.com/page");
-        expect(payload.text).toBe("");
+        const outgoing = findEvent(request, (e) =>
+            Boolean(e.href === "https://external-site.com/page")
+        );
+        expect(outgoing).toBeTruthy();
+        expect(outgoing?.href).toBe("https://external-site.com/page");
+        expect(outgoing?.text).toBe("");
     });
 });
 

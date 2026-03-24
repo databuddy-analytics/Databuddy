@@ -10,6 +10,7 @@ import { getDataTool } from "../tools/get-data";
 import { getTopPagesTool } from "../tools/get-top-pages";
 import { createGoalTools } from "../tools/goals";
 import { createLinksTools } from "../tools/links";
+import { createMemoryTools } from "../tools/memory";
 import { createProfileTools } from "../tools/profiles";
 import { webSearchTool } from "../tools/web-search";
 import type { AgentConfig, AgentContext } from "./types";
@@ -21,6 +22,7 @@ function createTools() {
 		execute_query_builder: executeQueryBuilderTool,
 		execute_sql_query: executeSqlQueryTool,
 		web_search: webSearchTool,
+		...createMemoryTools(),
 		...createProfileTools(),
 		...createFunnelTools(),
 		...createGoalTools(),

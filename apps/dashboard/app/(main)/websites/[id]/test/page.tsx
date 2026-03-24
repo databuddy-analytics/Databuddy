@@ -153,7 +153,7 @@ export default function TestPage() {
 				<div>
 					<h1 className="font-semibold text-lg">Custom Dashboard</h1>
 					<p className="text-muted-foreground text-sm">
-						{cards.length} card{cards.length !== 1 ? "s" : ""}
+						{cards.length} card{cards.length === 1 ? "" : "s"}
 					</p>
 				</div>
 				<Button onClick={handleOpenAddSheet} size="sm" variant="outline">

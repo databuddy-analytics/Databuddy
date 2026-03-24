@@ -51,11 +51,11 @@ export default function PulsePage() {
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [editingSchedule, setEditingSchedule] = useState<{
 		id: string;
+		url: string;
+		name?: string | null;
 		granularity: string;
 		jsonParsingConfig?: {
 			enabled: boolean;
-			mode: "auto" | "manual";
-			fields?: string[];
 		} | null;
 	} | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);

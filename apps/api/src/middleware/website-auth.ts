@@ -1,6 +1,7 @@
 import { auth } from "@databuddy/auth";
 import { and, db, eq, member } from "@databuddy/db";
 import { Elysia } from "elysia";
+import { useLogger } from "evlog/elysia";
 import {
 	getApiKeyFromHeader,
 	hasWebsiteScope,
@@ -24,9 +25,7 @@ export function websiteAuth() {
 
 			const debug = shouldDebug();
 			const rid = Math.random().toString(36).slice(2, 8);
-			if (debug) {
-				console.time(`websiteAuth:${rid}`);
-			}
+			const authStarted = debug ? Date.now() : 0;
 
 			const url = new URL(request.url);
 			const websiteId = url.searchParams.get("website_id");
@@ -38,7 +37,9 @@ export function websiteAuth() {
 				: checkNoWebsiteAuth(sessionUser, apiKey);
 
 			if (debug) {
-				console.timeEnd(`websiteAuth:${rid}`);
+				useLogger().set({
+					websiteAuth: { rid, durationMs: Date.now() - authStarted },
+				});
 			}
 			return outcome;
 		})

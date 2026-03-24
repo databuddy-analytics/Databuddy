@@ -1,9 +1,9 @@
 import { and, db, eq, uptimeSchedules } from "@databuddy/db";
-import { logger } from "@databuddy/shared/logger";
 import { Client } from "@upstash/qstash";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { logger } from "../lib/logger";
 import { protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
@@ -207,8 +207,6 @@ export const uptimeRouter = {
 				jsonParsingConfig: z
 					.object({
 						enabled: z.boolean(),
-						mode: z.enum(["auto", "manual"]),
-						fields: z.array(z.string()).optional(),
 					})
 					.optional(),
 			})
@@ -229,7 +227,9 @@ export const uptimeRouter = {
 			});
 
 			if (existing) {
-				throw rpcError.conflict("Monitor already exists for this URL in this workspace");
+				throw rpcError.conflict(
+					"Monitor already exists for this URL in this workspace"
+				);
 			}
 
 			const scheduleId = randomUUIDv7();
@@ -245,7 +245,7 @@ export const uptimeRouter = {
 				isPaused: false,
 				timeout: input.timeout ?? null,
 				cacheBust: input.cacheBust ?? false,
-				jsonParsingConfig: input.jsonParsingConfig ?? null,
+				jsonParsingConfig: input.jsonParsingConfig ?? { enabled: true },
 			});
 
 			try {
@@ -292,8 +292,6 @@ export const uptimeRouter = {
 				jsonParsingConfig: z
 					.object({
 						enabled: z.boolean(),
-						mode: z.enum(["auto", "manual"]),
-						fields: z.array(z.string()).optional(),
 					})
 					.optional(),
 			})
@@ -390,9 +388,7 @@ export const uptimeRouter = {
 
 			if (schedule.isPaused === input.pause) {
 				throw rpcError.badRequest(
-					input.pause
-						? "Schedule is already paused"
-						: "Schedule is not paused"
+					input.pause ? "Schedule is already paused" : "Schedule is not paused"
 				);
 			}
 

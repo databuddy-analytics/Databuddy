@@ -158,4 +158,4 @@ export const GaugeChart = memo(function GaugeChart({
 	);
 });
 
-export type { GaugeRating, GaugeChartProps };
+export type { GaugeChartProps, GaugeRating };

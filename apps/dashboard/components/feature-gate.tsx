@@ -36,7 +36,11 @@ const PLAN_CONFIG: Record<
 		color: "text-success",
 	},
 	[PLAN_IDS.PRO]: { name: "Pro", icon: StarIcon, color: "text-primary" },
-	[PLAN_IDS.SCALE]: { name: "Scale", icon: CrownIcon, color: "text-amber-500" },
+	[PLAN_IDS.SCALE]: {
+		name: "Scale",
+		icon: CrownIcon,
+		color: "text-brand-amber",
+	},
 };
 
 interface FeatureGateProps {

@@ -1,11 +1,21 @@
 import { logBlockedTraffic } from "@lib/blocked-traffic";
-import { record, setAttributes } from "@lib/tracing";
+import { record } from "@lib/tracing";
 import { VALIDATION_LIMITS } from "@utils/validation";
+import { log } from "evlog";
+import { useLogger } from "evlog/elysia";
 import type { z } from "zod";
+
+function mergeValidationWideEvent(context: Record<string, unknown>): void {
+	try {
+		useLogger().set({ validation: context });
+	} catch {
+		log.info({ validation: context });
+	}
+}
 
 type ParseResult<T> =
 	| { success: true; data: T }
-	| { success: false; error: { issues: z.ZodIssue[] } };
+	| { success: false; error: { issues: z.core.$ZodIssue[] } };
 
 /**
  * Validates event schema in production, skips validation in development
@@ -34,11 +44,12 @@ export function validateEventSchema<T>(
 				undefined,
 				clientId
 			);
-			setAttributes({
-				validation_failed: true,
-				validation_reason: "invalid_schema",
-				schema_error_count: parseResult.error.issues.length,
-			});
+			const validationContext = {
+				failed: true,
+				reason: "invalid_schema" as const,
+				issueCount: parseResult.error.issues.length,
+			};
+			mergeValidationWideEvent(validationContext);
 			return {
 				success: false,
 				error: { issues: parseResult.error.issues },
@@ -49,39 +60,29 @@ export function validateEventSchema<T>(
 	});
 }
 
-/**
- * Standard error response for schema validation failures
- */
-export function createSchemaErrorResponse(errors: z.ZodIssue[]) {
-	return new Response(
-		JSON.stringify({
-			status: "error",
-			message: "Invalid event schema",
-			errors,
-		}),
-		{
-			status: 400,
-			headers: { "Content-Type": "application/json" },
-		}
-	);
+/** Per-item batch result when schema validation fails */
+export function batchSchemaItemFailure(
+	issues: z.core.$ZodIssue[],
+	eventType: string,
+	eventId: unknown
+) {
+	return {
+		status: "error" as const,
+		message: "Invalid event schema",
+		errors: issues,
+		eventType,
+		eventId,
+	};
 }
 
-/**
- * Standard error response for bot detection
- */
-export function createBotDetectedResponse(eventType: string) {
-	return new Response(
-		JSON.stringify({
-			status: "error",
-			message: "Bot detected",
-			eventType,
-			error: "ignored",
-		}),
-		{
-			status: 200,
-			headers: { "Content-Type": "application/json" },
-		}
-	);
+/** Per-item batch result when request is treated as bot (ignored) */
+export function batchBotIgnoredItem(eventType: string) {
+	return {
+		status: "error" as const,
+		message: "Bot detected",
+		eventType,
+		error: "ignored" as const,
+	};
 }
 
 /**
@@ -98,9 +99,6 @@ export function parseProperties(properties: unknown): string {
 	return properties ? JSON.stringify(properties) : "{}";
 }
 
-/**
- * Creates standardized bot check result
- */
 export interface BotCheckResult {
 	isBot: boolean;
 	response?: {

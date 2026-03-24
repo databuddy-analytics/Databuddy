@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
 	BuildingsIcon,
 	CaretDownIcon,
-	ClockIcon,
 	CodeIcon,
 	FlagIcon,
 	GitBranchIcon,
@@ -58,7 +57,6 @@ type ExpandedSection =
 	| "targeting"
 	| "groups"
 	| "dependencies"
-	| "scheduling"
 	| "implementation"
 	| null;
 
@@ -958,27 +956,6 @@ export function FlagSheet({
 								</CollapsibleSection>
 
 								<CollapsibleSection
-									icon={ClockIcon}
-									isExpanded={expandedSection === "scheduling"}
-									onToggleAction={() => toggleSection("scheduling")}
-									title="Scheduling"
-								>
-									<div className="rounded border border-border border-dashed bg-muted/30 px-4 py-8 text-center">
-										<ClockIcon
-											className="mx-auto mb-2 text-muted-foreground"
-											size={24}
-											weight="duotone"
-										/>
-										<p className="font-medium text-foreground text-sm">
-											Coming Soon
-										</p>
-										<p className="mt-1 text-muted-foreground text-xs">
-											Schedule flag changes and rollouts for future dates
-										</p>
-									</div>
-								</CollapsibleSection>
-
-								<CollapsibleSection
 									icon={CodeIcon}
 									isExpanded={expandedSection === "implementation"}
 									onToggleAction={() => toggleSection("implementation")}
@@ -993,7 +970,7 @@ export function FlagSheet({
 						</SheetBody>
 
 						<SheetFooter>
-							<Button onClick={onCloseAction} type="button" variant="ghost">
+							<Button onClick={onCloseAction} type="button" variant="outline">
 								Cancel
 							</Button>
 							<Button className="min-w-28" disabled={isLoading} type="submit">

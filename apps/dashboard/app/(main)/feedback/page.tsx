@@ -1,9 +1,6 @@
 "use client";
 
-import {
-	ChatTextIcon,
-	ShoppingCartIcon,
-} from "@phosphor-icons/react";
+import { ChatTextIcon, ShoppingCartIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,9 +12,9 @@ import { ShopRewardCard } from "./components/shop-reward-card";
 import { SubmitFeedbackDialog } from "./components/submit-feedback-dialog";
 
 const REWARD_TIERS = [
-	{ creditsRequired: 50, rewardType: "events", rewardAmount: 1_000 },
-	{ creditsRequired: 100, rewardType: "events", rewardAmount: 2_500 },
-	{ creditsRequired: 200, rewardType: "events", rewardAmount: 5_000 },
+	{ creditsRequired: 50, rewardType: "events", rewardAmount: 1000 },
+	{ creditsRequired: 100, rewardType: "events", rewardAmount: 2500 },
+	{ creditsRequired: 200, rewardType: "events", rewardAmount: 5000 },
 	{ creditsRequired: 500, rewardType: "events", rewardAmount: 15_000 },
 ] as const;
 
@@ -66,9 +63,7 @@ export default function FeedbackPage() {
 
 				<TabsContent value="shop">
 					<div className="border-b p-4">
-						<h2 className="text-balance font-semibold text-sm">
-							Credits Shop
-						</h2>
+						<h2 className="text-balance font-semibold text-sm">Credits Shop</h2>
 						<p className="text-pretty text-muted-foreground text-xs">
 							Exchange earned credits for extra event balance
 						</p>
@@ -78,9 +73,7 @@ export default function FeedbackPage() {
 							<ShopRewardCard
 								availableCredits={balance?.available ?? 0}
 								creditsRequired={tier.creditsRequired}
-								isRedeeming={
-									redeemTier === index
-								}
+								isRedeeming={redeemTier === index}
 								key={tier.creditsRequired}
 								onRedeemAction={() => setRedeemTier(index)}
 								rewardAmount={tier.rewardAmount}

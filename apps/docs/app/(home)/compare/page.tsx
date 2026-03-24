@@ -9,28 +9,22 @@ import { StructuredData } from "@/components/structured-data";
 import { Badge } from "@/components/ui/badge";
 import { competitors } from "@/lib/comparison-config";
 
+const compareTitle =
+	"Databuddy vs Other Analytics Platforms — Feature Comparisons";
+const compareDescription =
+	"Side-by-side comparisons of Databuddy against Google Analytics, Plausible, Fathom, and more. See which privacy-first analytics platform fits your stack.";
+const compareUrl = "https://www.databuddy.cc/compare";
+
 export const metadata: Metadata = {
-	title: "Analytics Platform Comparisons | Databuddy",
-	description:
-		"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.",
+	title: compareTitle,
+	description: compareDescription,
 	openGraph: {
-		title: "Analytics Platform Comparisons | Databuddy",
-		description:
-			"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.",
-		url: "https://www.databuddy.cc/compare",
-		siteName: "Databuddy",
-		type: "website",
-		images: ["/og-image.png"],
-	},
-	twitter: {
-		card: "summary_large_image",
-		title: "Analytics Platform Comparisons | Databuddy",
-		description:
-			"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.",
-		images: ["/og-image.png"],
+		title: compareTitle,
+		description: compareDescription,
+		url: compareUrl,
 	},
 	alternates: {
-		canonical: "https://www.databuddy.cc/compare",
+		canonical: compareUrl,
 	},
 };
 
@@ -150,18 +144,13 @@ function CompetitorCard({
 export default function ComparePage() {
 	const competitorEntries = Object.entries(competitors);
 
-	const title = "Analytics Platform Comparisons | Databuddy";
-	const description =
-		"Compare Databuddy with other analytics platforms. See why developers choose privacy-first analytics with better performance and data ownership.";
-	const url = "https://www.databuddy.cc/compare";
-
 	return (
 		<div className="overflow-hidden">
 			<StructuredData
 				page={{
-					title,
-					description,
-					url,
+					title: compareTitle,
+					description: compareDescription,
+					url: compareUrl,
 				}}
 			/>
 			<Spotlight transform="translateX(-60%) translateY(-50%)" />

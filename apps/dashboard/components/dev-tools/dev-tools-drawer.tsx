@@ -17,11 +17,13 @@ import {
 	MonitorIcon,
 	MoonIcon,
 	PresentationChartIcon,
+	SpinnerIcon,
 	SquaresFourIcon,
 	StackIcon,
 	SunIcon,
 	TrashIcon,
 	UsersIcon,
+	WarningCircleIcon,
 	XIcon,
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -118,6 +120,49 @@ function EnvironmentInfo() {
 					<span className="text-muted-foreground">Hostname:</span>
 					<span className="font-medium">{window.location.hostname}</span>
 				</div>
+			</div>
+		</InfoSection>
+	);
+}
+
+function ToastPreview() {
+	return (
+		<InfoSection title="Toasts">
+			<p className="mb-3 text-pretty text-muted-foreground">
+				Trigger Sonner to preview dashboard styling.
+			</p>
+			<div className="flex flex-wrap gap-2">
+				<ActionButton
+					icon={CheckCircleIcon}
+					label="Success"
+					onClick={() => toast.success("Success")}
+				/>
+				<ActionButton
+					icon={XIcon}
+					label="Error"
+					onClick={() => toast.error("Error")}
+					variant="destructive"
+				/>
+				<ActionButton
+					icon={WarningCircleIcon}
+					label="Warning"
+					onClick={() => toast.warning("Warning")}
+				/>
+				<ActionButton
+					icon={InfoIcon}
+					label="Info"
+					onClick={() => toast.info("Info")}
+				/>
+				<ActionButton
+					icon={SpinnerIcon}
+					label="Loading"
+					onClick={() => toast.loading("Loading")}
+				/>
+				<ActionButton
+					icon={LightningIcon}
+					label="Default"
+					onClick={() => toast("Default")}
+				/>
 			</div>
 		</InfoSection>
 	);
@@ -1050,6 +1095,8 @@ export function DevToolsDrawer() {
 
 							{/* Debug Tools */}
 							<EnvironmentInfo />
+							<Separator />
+							<ToastPreview />
 							<Separator />
 							<ReactQueryCache />
 							<Separator />

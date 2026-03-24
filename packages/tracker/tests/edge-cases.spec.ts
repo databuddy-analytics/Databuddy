@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { countEvents, findEvent, hasEvent } from "./test-utils";
 
 test.describe("Edge Cases", () => {
 	test.beforeEach(async ({ page }) => {
@@ -24,9 +25,10 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-url-override",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -42,9 +44,10 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-url-override",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -93,7 +96,7 @@ test.describe("Edge Cases", () => {
 			await page.evaluate(() => {
 				localStorage.setItem("databuddy_opt_out", "true");
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			// Opt back in
 			await page.evaluate(() => {
@@ -106,6 +109,7 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-optin",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
 
@@ -113,7 +117,7 @@ test.describe("Edge Cases", () => {
 				req.url().includes("basket.databuddy.cc")
 			);
 
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			const request = await requestPromise;
 			expect(request).toBeTruthy();
@@ -129,6 +133,7 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					// No clientId
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
 
@@ -138,7 +143,7 @@ test.describe("Edge Cases", () => {
 				}
 			});
 
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 			await page.waitForTimeout(500);
 
 			expect(requestMade).toBe(false);
@@ -154,23 +159,18 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-reinit",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
 
 			page.on("request", (req) => {
-				const payload = req.postDataJSON?.();
-				if (
-					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "screen_view"
-				) {
-					initCount += 1;
-				}
+				initCount += countEvents(req, (e) => e.name === "screen_view");
 			});
 
 			// Load script twice
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 			await page.waitForTimeout(100);
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 			await page.waitForTimeout(500);
 
 			// Should only have one screen_view
@@ -188,6 +188,7 @@ test.describe("Edge Cases", () => {
 					clientId: "test-disabled",
 					ignoreBotDetection: true,
 					disabled: true,
+					batchTimeout: 200,
 				};
 			});
 
@@ -197,7 +198,7 @@ test.describe("Edge Cases", () => {
 				}
 			});
 
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 			await page.waitForTimeout(500);
 
 			expect(requestMade).toBe(false);
@@ -231,7 +232,7 @@ test.describe("Edge Cases", () => {
 					batchTimeout: 500, // Short timeout for test
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -262,7 +263,12 @@ test.describe("Edge Cases", () => {
 		}) => {
 			let pixelRequestMade = false;
 
-			await page.route("**/basket.databuddy.cc/px.jpg*", async (route) => {
+			// Pixel transport uses GET Image loads to /px.jpg, /batch, /track, etc.
+			await page.route("**/basket.databuddy.cc/*", async (route) => {
+				if (route.request().method() !== "GET") {
+					await route.fallback();
+					return;
+				}
 				pixelRequestMade = true;
 				await route.fulfill({
 					status: 200,
@@ -277,9 +283,10 @@ test.describe("Edge Cases", () => {
 					clientId: "test-pixel",
 					ignoreBotDetection: true,
 					usePixel: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await page.waitForTimeout(500);
 			expect(pixelRequestMade).toBe(true);
@@ -296,9 +303,10 @@ test.describe("Edge Cases", () => {
 					clientId: "test-circular",
 					ignoreBotDetection: true,
 					usePixel: true, // Pixel mode uses the safeStringify
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -333,6 +341,7 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-storage-error",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 
 				// Restore after a short delay
@@ -362,9 +371,10 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-empty",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
@@ -391,26 +401,31 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-long",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest((req) =>
-				req.url().includes("basket.databuddy.cc")
+			const longName = "a".repeat(1000);
+			const requestPromise = page.waitForRequest(
+				(req) =>
+					req.url().includes("basket.databuddy.cc") &&
+					req.method() === "POST" &&
+					hasEvent(req, (e) => e.name === longName)
 			);
 
-			const longName = "a".repeat(1000);
 			await page.evaluate((name) => {
 				(window as any).db.track(name);
 			}, longName);
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
-			expect(payload.name.length).toBe(1000);
+			const event = findEvent(request, (e) => e.name === longName);
+			expect(event).toBeDefined();
+			expect(String(event?.name).length).toBe(1000);
 		});
 	});
 
@@ -421,21 +436,21 @@ test.describe("Edge Cases", () => {
 				(window as any).databuddyConfig = {
 					clientId: "test-special",
 					ignoreBotDetection: true,
+					batchTimeout: 200,
 				};
 			});
-			await page.addScriptTag({ url: "/dist/databuddy.js" });
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 
 			await expect
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest((req) => {
-				const payload = req.postDataJSON();
-				return (
+			const requestPromise = page.waitForRequest(
+				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					payload?.name === "special_chars"
-				);
-			});
+					req.method() === "POST" &&
+					hasEvent(req, (e) => e.name === "special_chars")
+			);
 
 			await page.evaluate(() => {
 				(window as any).db.track("special_chars", {
@@ -448,13 +463,14 @@ test.describe("Edge Cases", () => {
 			});
 
 			const request = await requestPromise;
-			const payload = request.postDataJSON();
+			const event = findEvent(request, (e) => e.name === "special_chars");
+			const props = event?.properties as Record<string, unknown> | undefined;
 
-			expect(payload.emoji).toBe("🎉🚀");
-			expect(payload.unicode).toBe("日本語");
-			expect(payload.quotes).toBe('He said "hello"');
-			expect(payload.newlines).toBe("line1\nline2");
-			expect(payload.html).toBe("<script>alert('xss')</script>");
+			expect(props?.emoji).toBe("🎉🚀");
+			expect(props?.unicode).toBe("日本語");
+			expect(props?.quotes).toBe('He said "hello"');
+			expect(props?.newlines).toBe("line1\nline2");
+			expect(props?.html).toBe("<script>alert('xss')</script>");
 		});
 	});
 });

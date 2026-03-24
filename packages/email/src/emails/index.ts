@@ -7,5 +7,6 @@ export * from "./invitation-email";
 export * from "./magic-link-email";
 export * from "./otp-email";
 export * from "./reset-password-email";
+export * from "./uptime-alert-email";
 export * from "./usage-limit-email";
 export * from "./verification-email";

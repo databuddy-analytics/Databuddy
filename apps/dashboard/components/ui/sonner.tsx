@@ -58,8 +58,8 @@ function Toaster({ ...props }: ToasterProps) {
 					title: "group-[.toast]:font-semibold group-[.toast]:text-foreground group-[.toast]:text-sm",
 					description:
 						"group-[.toast]:text-muted-foreground group-[.toast]:text-xs",
-					actionButton:
-						"group-[.toast]:bg-primary group-[.toast]:text-primary-foreground group-[.toast]:rounded group-[.toast]:text-xs group-[.toast]:font-medium",
+				actionButton:
+					"group-[.toast]:bg-brand-purple group-[.toast]:text-white group-[.toast]:rounded group-[.toast]:text-xs group-[.toast]:font-medium",
 					cancelButton:
 						"group-[.toast]:bg-muted group-[.toast]:text-muted-foreground group-[.toast]:rounded group-[.toast]:text-xs",
 					closeButton:

@@ -31,9 +31,9 @@ function messagesKey(websiteId: string, chatId: string): string {
 
 function safeGetItem(key: string): string | null {
 	try {
-		return typeof localStorage !== "undefined"
-			? localStorage.getItem(key)
-			: null;
+		return typeof localStorage === "undefined"
+			? null
+			: localStorage.getItem(key);
 	} catch {
 		return null;
 	}

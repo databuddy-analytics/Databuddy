@@ -16,6 +16,13 @@ export interface DiscordProviderConfig {
 	retryDelay?: number;
 }
 
+const PRIORITY_COLORS: Record<NotificationPriority, number> = {
+	urgent: 0xe7_4c_3c,
+	high: 0xf3_9c_12,
+	normal: 0x57_f2_87,
+	low: 0x58_65_f2,
+};
+
 export class DiscordProvider extends BaseProvider {
 	private readonly webhookUrl: string;
 	private readonly username?: string;
@@ -42,22 +49,18 @@ export class DiscordProvider extends BaseProvider {
 		}
 
 		try {
-			const discordPayload = this.buildDiscordPayload(payload);
+			const discordPayload = this.buildPayload(payload);
 			const response = await this.withRetry(async () => {
-				const res = await fetch(this.webhookUrl, {
+				const res = await this.fetchWithTimeout(this.webhookUrl, {
 					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(discordPayload),
 				});
 
 				if (!res.ok) {
-					const responseText = await res
-						.text()
-						.catch(() => "Unable to read response");
+					const text = await res.text().catch(() => "Unable to read response");
 					throw new Error(
-						`Discord API error: ${res.status} ${res.statusText} - ${responseText.slice(0, 200)}`
+						`Discord API error: ${res.status} ${res.statusText} - ${text.slice(0, 200)}`
 					);
 				}
 
@@ -81,13 +84,11 @@ export class DiscordProvider extends BaseProvider {
 		}
 	}
 
-	private buildDiscordPayload(payload: NotificationPayload): DiscordPayload {
-		const color = this.getPriorityColor(payload.priority);
-
+	private buildPayload(payload: NotificationPayload): DiscordPayload {
 		const embed: DiscordEmbed = {
 			title: payload.title,
 			description: payload.message,
-			color,
+			color: PRIORITY_COLORS[payload.priority ?? "normal"],
 			timestamp: new Date().toISOString(),
 		};
 
@@ -99,32 +100,10 @@ export class DiscordProvider extends BaseProvider {
 			}));
 		}
 
-		const discordPayload: DiscordPayload = {
+		return {
 			embeds: [embed],
+			...(this.username && { username: this.username }),
+			...(this.avatarUrl && { avatar_url: this.avatarUrl }),
 		};
-
-		if (this.username) {
-			discordPayload.username = this.username;
-		}
-		if (this.avatarUrl) {
-			discordPayload.avatar_url = this.avatarUrl;
-		}
-
-		return discordPayload;
-	}
-
-	private getPriorityColor(priority?: NotificationPriority): number {
-		switch (priority) {
-			case "urgent":
-				return 15_158_720; // Red
-			case "high":
-				return 16_771_200; // Orange
-			case "low":
-				return 8_442_624; // Blue
-			case "normal":
-				return 5_763_719; // Green
-			default:
-				return 5_763_719; // Green
-		}
 	}
 }

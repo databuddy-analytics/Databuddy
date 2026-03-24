@@ -56,7 +56,7 @@ export interface LinksListProps extends BaseComponentProps {
 function formatUrl(url: string, maxLen = 40): string {
 	try {
 		const { host, pathname } = new URL(url);
-		const display = host + (pathname !== "/" ? pathname : "");
+		const display = host + (pathname === "/" ? "" : pathname);
 		return display.length > maxLen
 			? `${display.slice(0, maxLen - 3)}...`
 			: display;

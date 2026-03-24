@@ -189,7 +189,7 @@ export const WebsiteCard = memo(
 									) : chartData ? (
 										chartData.hasAnyData ? (
 											<div className="h-28 space-y-2">
-												<div className="h-full duration-300 [--chart-color:var(--color-primary)] motion-reduce:transition-none group-hover:[--chart-color:theme(colors.primary.600)]">
+												<div className="h-full duration-300 [--chart-color:var(--color-chart-1)] motion-reduce:transition-none group-hover:[--chart-color:theme(colors.primary.600)]">
 													<MiniChart
 														data={chartData.data}
 														days={chartData.data.length}

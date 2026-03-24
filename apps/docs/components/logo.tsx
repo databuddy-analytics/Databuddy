@@ -1,57 +1,21 @@
-import { Geist_Mono } from "next/font/google";
-import Image from "next/image";
 import Link from "next/link";
+import { Branding } from "./logo/branding";
 
-const geistMono = Geist_Mono({
-	subsets: ["latin"],
-	weight: ["400", "500", "600", "700"],
-	variable: "--font-geist-mono",
-});
+export type { BrandingProps, BrandVariant } from "./logo/branding";
+export { Branding } from "./logo/branding";
 
 export function LogoContent() {
 	return (
 		<div className="group flex items-center gap-3">
-			<div className="relative shrink-0">
-				<Image
-					alt="Databuddy Logo"
-					className="drop-shadow-sm invert dark:invert-0"
-					height={32}
-					priority
-					src="/logo.svg"
-					width={32}
-				/>
-			</div>
-			<div className="flex items-center">
-				<span
-					className={`
-          ${geistMono.variable}text-lg select-none font-semibold leading-none tracking-wider duration-200`}
-				>
-					DATABUDDY
-				</span>
-			</div>
+			<Branding priority variant="primary-logo" />
 		</div>
 	);
 }
 
-// Full Logo component with Link wrapper - for standalone use
 export function Logo() {
 	return (
-		<Link className="flex items-center gap-3" href="/">
-			<div className="relative shrink-0">
-				<Image
-					alt="Databuddy Logo"
-					className="drop-shadow-sm invert dark:invert-0"
-					height={32}
-					priority
-					src="/logo.svg"
-					width={32}
-				/>
-			</div>
-			<div className="flex items-center">
-				<span className="select-none font-mono font-semibold text-lg leading-none tracking-wider duration-200">
-					DATABUDDY
-				</span>
-			</div>
+		<Link className="flex items-center" href="/">
+			<Branding priority variant="primary-logo" />
 		</Link>
 	);
 }

@@ -42,7 +42,7 @@ const cards = [
 		id: 5,
 		title: "Lightweight",
 		description:
-			"Under 1KB. No cookies, no consent banners, no impact on performance.",
+			"Under 30 KB. No cookies, no consent banners, no impact on performance.",
 		icon: LightningIcon,
 	},
 	{

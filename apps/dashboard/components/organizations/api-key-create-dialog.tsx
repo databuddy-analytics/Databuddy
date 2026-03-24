@@ -6,7 +6,6 @@ import {
 	CheckCircleIcon,
 	CheckIcon,
 	CopyIcon,
-	GlobeIcon,
 	KeyIcon,
 	PlusIcon,
 	TrashIcon,
@@ -17,7 +16,6 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import type { Website } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -268,21 +266,8 @@ export function ApiKeyCreateDialog({
 							)}
 						</section>
 
-						{/* Global Permissions */}
-						<section className="space-y-3">
-							<div className="flex items-center justify-between">
-								<div className="flex items-center gap-2">
-									<GlobeIcon className="text-muted-foreground" size={16} />
-									<Label className="font-medium">Global Permissions</Label>
-								</div>
-								<Badge className="font-normal" variant="secondary">
-									{globalScopes.length} selected
-								</Badge>
-							</div>
-							<p className="text-muted-foreground text-xs">
-								These permissions apply to all websites. Read Data is included
-								by default.
-							</p>
+						<section className="space-y-2">
+							<Label className="font-medium">Permissions</Label>
 							<div className="rounded border bg-card p-1">
 								<div className="grid grid-cols-2 gap-1">
 									{SCOPE_OPTIONS.map((scope) => {
@@ -290,7 +275,7 @@ export function ApiKeyCreateDialog({
 										const isDefault = scope.value === "read:data";
 										return (
 											<button
-												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm"
+												className="flex items-center gap-2 rounded px-3 py-2.5 text-left text-sm hover:bg-muted/50"
 												key={scope.value}
 												onClick={() => toggleGlobalScope(scope.value)}
 												type="button"
@@ -298,17 +283,11 @@ export function ApiKeyCreateDialog({
 												<div
 													className={`flex size-4 shrink-0 items-center justify-center rounded-sm border ${
 														isSelected
-															? "border-primary bg-primary text-primary"
+															? "border-primary bg-primary text-primary-foreground"
 															: "border-muted-foreground/30"
 													}`}
 												>
-													{isSelected && (
-														<CheckIcon
-															className="text-white"
-															size={12}
-															weight="bold"
-														/>
-													)}
+													{isSelected && <CheckIcon size={12} weight="bold" />}
 												</div>
 												<span className="truncate">{scope.label}</span>
 												{isDefault && (
@@ -326,17 +305,13 @@ export function ApiKeyCreateDialog({
 						{/* Website-Specific Permissions */}
 						{websites && websites.length > 0 && (
 							<section className="space-y-3">
-								<div className="flex items-center gap-2">
-									<Label className="font-medium">Website Restrictions</Label>
-									<span className="text-muted-foreground text-xs">
-										optional
+								<Label className="font-medium">
+									Website Restrictions{" "}
+									<span className="font-normal text-muted-foreground">
+										(optional)
 									</span>
-								</div>
-								<p className="text-muted-foreground text-xs">
-									Limit this key to specific websites with custom permissions
-								</p>
+								</Label>
 
-								{/* Add Website */}
 								<div className="flex gap-2">
 									<Select onValueChange={setWebsiteToAdd} value={websiteToAdd}>
 										<SelectTrigger className="h-10 flex-1">
@@ -444,7 +419,7 @@ export function ApiKeyCreateDialog({
 					</SheetBody>
 
 					<SheetFooter>
-						<Button onClick={handleClose} type="button" variant="ghost">
+						<Button onClick={handleClose} type="button" variant="outline">
 							Cancel
 						</Button>
 						<Button disabled={mutation.isPending} type="submit">

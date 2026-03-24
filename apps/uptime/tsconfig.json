@@ -7,14 +7,10 @@
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
-  "references": [
-    { "path": "../../packages/db" },
-    { "path": "../../packages/redis" },
-    { "path": "../../packages/shared" },
-    { "path": "../../packages/validation" }
-  ]
+  "exclude": ["node_modules", "dist"]
 }

@@ -12,8 +12,7 @@ const DAY = 1000 * 60 * 60 * 24;
 const GRACE_PERIOD = DAY;
 const COOLDOWN_DEFAULT = DAY * 7;
 const COOLDOWN_ENGAGED = DAY * 4;
-const SHOW_DELAY_MS =
-	process.env.NODE_ENV === "development" ? 3_000 : 45_000;
+const SHOW_DELAY_MS = process.env.NODE_ENV === "development" ? 3000 : 45_000;
 
 const PROMPTS = [
 	{
@@ -63,10 +62,7 @@ function readState(): PromptState {
 
 function writeState(patch: Partial<PromptState>) {
 	const current = readState();
-	localStorage.setItem(
-		STORAGE_KEY,
-		JSON.stringify({ ...current, ...patch })
-	);
+	localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...patch }));
 }
 
 export function markFeedbackSubmitted() {
@@ -137,9 +133,7 @@ export function FeedbackPrompt() {
 					<XIcon size={14} />
 				</button>
 			</div>
-			<p className="mb-1 text-balance font-medium text-sm">
-				{prompt.heading}
-			</p>
+			<p className="mb-1 text-balance font-medium text-sm">{prompt.heading}</p>
 			<p className="mb-3 text-pretty text-muted-foreground text-xs leading-relaxed">
 				{prompt.body}
 			</p>

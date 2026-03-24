@@ -51,7 +51,7 @@ function formatLinkForDisplay(link: LinkData, baseUrl?: string): string {
 		: "";
 	return `- **${link.name}** (${shortUrl})
   Target: ${link.targetUrl}
-  ${expiresInfo}${link.clickCount !== undefined ? ` | Clicks: ${link.clickCount}` : ""}${externalInfo}`;
+  ${expiresInfo}${link.clickCount === undefined ? "" : ` | Clicks: ${link.clickCount}`}${externalInfo}`;
 }
 
 export function createLinksTools() {

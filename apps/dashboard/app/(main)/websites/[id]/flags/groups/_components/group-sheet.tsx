@@ -332,7 +332,7 @@ export function GroupSheet({
 						</SheetBody>
 
 						<SheetFooter>
-							<Button onClick={onCloseAction} type="button" variant="ghost">
+							<Button onClick={onCloseAction} type="button" variant="outline">
 								Cancel
 							</Button>
 							<Button className="min-w-28" disabled={isLoading} type="submit">

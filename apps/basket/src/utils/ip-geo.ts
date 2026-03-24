@@ -1,15 +1,25 @@
 import { createHash } from "node:crypto";
 import { cacheable } from "@databuddy/redis";
-import { captureError, record, setAttributes } from "@lib/tracing";
+import { captureError, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
 import {
 	AddressNotFoundError,
 	BadMethodCallError,
 	Reader,
 } from "@maxmind/geoip2-node";
+import { createError, EvlogError, log } from "evlog";
+import { useLogger } from "evlog/elysia";
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
+}
+
+function mergeGeoWideEvent(context: Record<string, unknown>): void {
+	try {
+		useLogger().set({ geo: context });
+	} catch {
+		log.info({ geo: context });
+	}
 }
 
 const CDN_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
@@ -25,27 +35,40 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 		try {
 			const response = await fetch(CDN_URL);
 			if (!response.ok) {
-				throw new Error(
-					`Failed to fetch database from CDN: ${response.status} ${response.statusText}`
-				);
+				throw createError({
+					message: `Failed to fetch database from CDN: ${response.status} ${response.statusText}`,
+					status: 502,
+					why: "The GeoIP database CDN returned a non-success response.",
+					fix: "Retry later or verify CDN availability.",
+				});
 			}
 
 			const arrayBuffer = await response.arrayBuffer();
 			const buf = Buffer.from(arrayBuffer);
 
-			setAttributes({
-				cdn_status: response.status,
-				cdn_db_size_bytes: buf.length,
-			});
-
 			if (buf.length < 1_000_000) {
-				throw new Error(`Database file seems too small: ${buf.length} bytes`);
+				throw createError({
+					message: `Database file seems too small: ${buf.length} bytes`,
+					status: 502,
+					why: "The downloaded file is below the expected minimum size.",
+					fix: "Verify the CDN artifact is the full GeoLite2-City database.",
+				});
 			}
 
 			return buf;
 		} catch (error) {
 			captureError(error, { message: "Failed to load database from CDN" });
-			throw error;
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+			const cause = error instanceof Error ? error : new Error(String(error));
+			throw createError({
+				message: "Failed to load GeoIP database from CDN",
+				status: 500,
+				why: cause.message,
+				fix: "Ensure the CDN is reachable and the database file is valid.",
+				cause,
+			});
 		}
 	});
 }
@@ -113,52 +136,29 @@ function lookupGeoLocation(ip: string): Promise<{
 				captureError(error, {
 					message: "Failed to load database for IP lookup",
 				});
-				setAttributes({
-					geo_lookup_failed: true,
-					geo_error: "database_load_failed",
-				});
 				return { country: undefined, region: undefined, city: undefined };
 			}
 		}
 
 		if (!reader) {
-			setAttributes({
-				geo_lookup_failed: true,
-				geo_error: "no_reader",
-			});
 			return { country: undefined, region: undefined, city: undefined };
 		}
 
 		try {
 			const response = reader.city(ip);
-			const result = {
+			return {
 				country: response.country?.names?.en,
 				region: response.subdivisions?.[0]?.names?.en,
 				city: response.city?.names?.en,
 			};
-
-			setAttributes({
-				geo_country: result.country || "unknown",
-				geo_region: result.region || "unknown",
-				geo_city: result.city || "unknown",
-			});
-
-			return result;
 		} catch (error) {
 			if (
 				error instanceof AddressNotFoundError ||
 				error instanceof BadMethodCallError
 			) {
-				setAttributes({
-					geo_address_not_found: true,
-				});
 				return { country: undefined, region: undefined, city: undefined };
 			}
 			captureError(error, { message: "Error looking up IP" });
-			setAttributes({
-				geo_lookup_failed: true,
-				geo_error: "lookup_error",
-			});
 			return { country: undefined, region: undefined, city: undefined };
 		}
 	});
@@ -179,13 +179,13 @@ export function anonymizeIp(ip: string): string {
 	const salt = process.env.IP_HASH_SALT || "databuddy-ip-salt";
 	const hash = createHash("sha256");
 	hash.update(`${ip}${salt}`);
-	return hash.digest("hex").substring(0, 12);
+	return hash.digest("hex").slice(0, 12);
 }
 
 export function getGeo(ip: string, request?: Request) {
 	return record("getGeo", async () => {
 		if (!ip || ignore.includes(ip) || !isValidIp(ip)) {
-			setAttributes({ geo_skipped: true, geo_reason: "invalid_ip" });
+			mergeGeoWideEvent({ skipped: true, reason: "invalid_or_local_ip" });
 			return {
 				anonymizedIP: anonymizeIp(ip),
 				country: undefined,
@@ -196,13 +196,12 @@ export function getGeo(ip: string, request?: Request) {
 
 		const geo = await getGeoLocation(ip);
 
-		// Fallback to Cloudflare headers if MMDB lookup failed
 		if (!geo.country && request?.headers) {
 			const cfCountry = getCloudflareCountry(request.headers);
 			if (cfCountry) {
-				setAttributes({
-					geo_fallback: "cloudflare",
-					geo_country: cfCountry,
+				mergeGeoWideEvent({
+					source: "cloudflare_header",
+					country: cfCountry,
 				});
 				return {
 					anonymizedIP: anonymizeIp(ip),

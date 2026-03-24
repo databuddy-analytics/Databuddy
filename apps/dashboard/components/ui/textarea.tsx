@@ -57,7 +57,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 					<motion.span
 						className={cn(
 							'absolute bottom-0 left-1 right-1 h-[2px] pointer-events-none rounded-full',
-							hasError ? 'bg-destructive' : 'bg-primary'
+							hasError ? 'bg-destructive' : 'bg-brand-purple'
 						)}
 						initial={false}
 						animate={{

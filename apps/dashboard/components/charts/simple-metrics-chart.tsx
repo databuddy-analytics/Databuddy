@@ -158,7 +158,7 @@ export function SimpleMetricsChart({
 										/>
 									)}
 									cursor={{
-										stroke: "var(--color-primary)",
+										stroke: "var(--color-chart-1)",
 										strokeOpacity: 0.3,
 									}}
 								/>
@@ -185,7 +185,7 @@ export function SimpleMetricsChart({
 						</ResponsiveContainer>
 					) : (
 						<div className="flex items-center px-4" style={{ height }}>
-							<div className="h-px w-full bg-primary/30" />
+							<div className="h-px w-full bg-chart-1/30" />
 						</div>
 					)
 				) : (

@@ -1,5 +1,5 @@
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
-import { captureError } from "./tracing";
+import { captureError, mergeWideEvent } from "./tracing";
 
 function stringifyEvent(event: unknown): string {
 	return JSON.stringify(event, (_key, value) =>
@@ -56,7 +56,7 @@ class UptimeProducer {
 			this.connected = true;
 			return true;
 		} catch (error) {
-			captureError(error);
+			captureError(error, { error_step: "kafka_producer_connect" });
 			this.connected = false;
 			return false;
 		}
@@ -65,6 +65,7 @@ class UptimeProducer {
 	async send(topic: string, event: unknown, key?: string): Promise<void> {
 		try {
 			if (!((await this.connect()) && this.producer)) {
+				mergeWideEvent({ uptime_kafka_skipped: true });
 				return;
 			}
 
@@ -78,8 +79,9 @@ class UptimeProducer {
 				],
 				compression: CompressionTypes.GZIP,
 			});
+			mergeWideEvent({ uptime_kafka_sent: true });
 		} catch (error) {
-			captureError(error);
+			captureError(error, { error_step: "kafka_producer_send" });
 		}
 	}
 
@@ -88,7 +90,7 @@ class UptimeProducer {
 			try {
 				await this.producer.disconnect();
 			} catch (error) {
-				captureError(error);
+				captureError(error, { error_step: "kafka_producer_disconnect" });
 			}
 			this.producer = null;
 			this.connected = false;

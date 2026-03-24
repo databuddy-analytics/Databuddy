@@ -167,12 +167,12 @@ export default function FlagsLayout({
 					isLoading
 						? undefined
 						: isTemplatesPage
-							? `${templates?.length ?? 0} template${(templates?.length ?? 0) !== 1 ? "s" : ""}`
+							? `${templates?.length ?? 0} template${(templates?.length ?? 0) === 1 ? "" : "s"}`
 							: isGroupsPage
-								? `${groups?.length ?? 0} group${(groups?.length ?? 0) !== 1 ? "s" : ""}`
+								? `${groups?.length ?? 0} group${(groups?.length ?? 0) === 1 ? "" : "s"}`
 								: isArchivePage
 									? `${archivedFlags.length} archived`
-									: `${activeFlags.length} flag${activeFlags.length !== 1 ? "s" : ""}`
+									: `${activeFlags.length} flag${activeFlags.length === 1 ? "" : "s"}`
 				}
 				title={
 					isTemplatesPage

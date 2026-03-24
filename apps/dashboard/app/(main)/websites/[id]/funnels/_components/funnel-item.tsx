@@ -88,7 +88,7 @@ function MiniFunnelPreview({
 
 				return (
 					<div
-						className="h-full rounded-sm bg-primary transition-all"
+						className="h-full rounded-sm bg-chart-1 transition-all"
 						key={`step-${index + 1}`}
 						style={{
 							width: `${width}px`,

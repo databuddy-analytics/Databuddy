@@ -545,18 +545,18 @@ Context:
 							<div className="flex flex-col gap-1.5 rounded border bg-accent/30 p-3">
 								<span className="text-muted-foreground text-xs">Location</span>
 								<div className="flex items-center gap-2">
-									{locationLabel !== "Unknown" ? (
-										<>
-											<CountryFlag country={locationCode} size={16} />
-											<span className="text-foreground text-sm">
-												{locationLabel}
-											</span>
-										</>
-									) : (
+									{locationLabel === "Unknown" ? (
 										<>
 											<GlobeIcon className="size-4 text-muted-foreground" />
 											<span className="text-muted-foreground text-sm">
 												Unknown
+											</span>
+										</>
+									) : (
+										<>
+											<CountryFlag country={locationCode} size={16} />
+											<span className="text-foreground text-sm">
+												{locationLabel}
 											</span>
 										</>
 									)}

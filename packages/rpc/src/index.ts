@@ -1,23 +1,21 @@
 /** biome-ignore-all lint/performance/noBarrelFile: we need to export these functions */
-export {
-	createAbortSignalInterceptor,
-	createORPCInstrumentation,
-	enrichSpanWithContext,
-	recordError,
-	recordORPCError,
-	setProcedureAttributes,
-	setupUncaughtErrorHandlers,
-} from "./lib/otel";
-export { type Context, createRPCContext, sessionProcedure } from "./orpc";
+
 export { rpcError } from "./errors";
 export {
+	createAbortSignalInterceptor,
+	enrichRpcWideEventContext,
+	recordORPCError,
+	setRpcProcedureType,
+} from "./lib/rpc-log-context";
+export { type Context, createRPCContext, sessionProcedure } from "./orpc";
+export {
+	isFullyAuthorized,
 	type PermissionFor,
 	type PlanId,
 	type ResourceType,
 	type Website,
 	type WithWorkspaceOptions,
 	type Workspace,
-	isFullyAuthorized,
 	websiteInputSchema,
 	withWebsiteRead,
 	withWebsiteWrite,

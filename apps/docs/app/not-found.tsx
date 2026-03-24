@@ -1,13 +1,10 @@
 "use client";
 
 import { ArrowLeft, Home } from "lucide-react";
-import { Geist } from "next/font/google";
 import Link from "next/link";
 import { LiquidChrome } from "@/components/bits/liquid";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
-
-const geist = Geist({ subsets: ["latin"] });
 
 export default function NotFound() {
 	return (
@@ -31,9 +28,7 @@ export default function NotFound() {
 
 				{/* Main Content */}
 				<div className="relative z-10 flex flex-col items-center text-center">
-					<h1
-						className={`mb-3 font-bold text-4xl text-white tracking-tighter md:text-5xl ${geist.className}`}
-					>
+					<h1 className="mb-3 font-bold text-4xl text-white tracking-tighter md:text-5xl">
 						Page Not Found
 					</h1>
 
@@ -48,7 +43,7 @@ export default function NotFound() {
 							className="flex-1 bg-sky-600 hover:bg-sky-700"
 							size="lg"
 						>
-							<Link className={geist.className} href="/">
+							<Link href="/">
 								<Home className="mr-2 size-4" />
 								Go Home
 							</Link>

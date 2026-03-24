@@ -7,7 +7,8 @@
 
 import { and, db, eq, member, type Website, websites } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
-import { captureError, record, setAttributes } from "@lib/tracing";
+import { captureError, record } from "@lib/tracing";
+import { createError, EvlogError } from "evlog";
 
 type WebsiteWithOwner = Website & {
 	ownerId: string | null;
@@ -23,11 +24,8 @@ const REGEX_DOMAIN_LABEL = /^[a-zA-Z0-9-]+$/;
 function _resolveOwnerId(website: Website): Promise<string | null> {
 	return record("resolveOwnerId", async () => {
 		if (!website.organizationId) {
-			setAttributes({ owner_resolve_skipped: true });
 			return null;
 		}
-
-		setAttributes({ organization_id: website.organizationId });
 
 		try {
 			const orgMember = await db.query.member.findFirst({
@@ -41,11 +39,8 @@ function _resolveOwnerId(website: Website): Promise<string | null> {
 			});
 
 			if (orgMember) {
-				setAttributes({ owner_found: true });
 				return orgMember.userId;
 			}
-
-			setAttributes({ owner_found: false });
 		} catch (error) {
 			captureError(error, {
 				message: "Failed to fetch workspace owner",
@@ -78,11 +73,8 @@ function _resolveApiKeyOwnerId(
 ): Promise<string | null> {
 	return record("resolveApiKeyOwnerId", async () => {
 		if (!organizationId) {
-			setAttributes({ api_key_owner_resolve_skipped: true });
 			return null;
 		}
-
-		setAttributes({ organization_id: organizationId });
 
 		try {
 			const orgMember = await db.query.member.findFirst({
@@ -96,11 +88,8 @@ function _resolveApiKeyOwnerId(
 			});
 
 			if (orgMember) {
-				setAttributes({ api_key_owner_found: true });
 				return orgMember.userId;
 			}
-
-			setAttributes({ api_key_owner_found: false });
 		} catch (error) {
 			captureError(error, {
 				message: "Failed to fetch workspace owner for API key",
@@ -123,7 +112,6 @@ export const resolveApiKeyOwnerId = cacheable(
 	}
 );
 
-// Cache the website lookup and owner lookup
 export const getWebsiteById = cacheable(
 	async (id: string): Promise<WebsiteWithOwner | null> => {
 		try {
@@ -156,16 +144,6 @@ export const getWebsiteById = cacheable(
 
 /**
  * Validates if an origin header matches or is a subdomain of the allowed domain
- *
- * @param originHeader - The Origin header value from the request
- * @param allowedDomain - The domain to validate against (can include protocol, port, www prefix)
- * @returns true if origin is valid, false otherwise
- *
- * @example
- * isValidOrigin('https://app.example.com', 'example.com') // true
- * isValidOrigin('https://example.com', 'https://www.example.com:3000') // true
- * isValidOrigin('https://malicious.com', 'example.com') // false
- * isValidOrigin('http://localhost:3000', 'localhost') // true
  */
 export function isValidOrigin(
 	originHeader: string,
@@ -175,7 +153,6 @@ export function isValidOrigin(
 		return true;
 	}
 	if (!allowedDomain?.trim()) {
-		// logger.warn({ originHeader }, "[isValidOrigin] No allowed domain provided");
 		return false;
 	}
 	try {
@@ -183,7 +160,6 @@ export function isValidOrigin(
 		const originUrl = new URL(originHeader.trim());
 		const normalizedOriginDomain = normalizeDomain(originUrl.hostname);
 
-		// Exact match or subdomain match
 		return (
 			normalizedOriginDomain === normalizedAllowedDomain ||
 			isSubdomain(normalizedOriginDomain, normalizedAllowedDomain)
@@ -200,10 +176,6 @@ export function isValidOrigin(
 
 /**
  * Normalizes a domain by removing the protocol, port, and "www." prefix.
- * This ensures a consistent format for comparison.
- * @param domain - Domain string to normalize.
- * @returns Normalized domain string.
- * @throws {Error} if the domain format is invalid.
  */
 export function normalizeDomain(domain: string): string {
 	if (!domain) {
@@ -211,7 +183,6 @@ export function normalizeDomain(domain: string): string {
 	}
 	let urlString = domain.toLowerCase().trim();
 
-	// Ensure there's a protocol for the URL constructor to work correctly.
 	if (!urlString.includes("://")) {
 		urlString = `https://${urlString}`;
 	}
@@ -221,23 +192,30 @@ export function normalizeDomain(domain: string): string {
 		const finalDomain = hostname.replace(REGEX_WWW_PREFIX, "");
 
 		if (!isValidDomainFormat(finalDomain)) {
-			throw new Error(
-				`Invalid domain format after normalization: ${finalDomain}`
-			);
+			throw createError({
+				message: `Invalid domain format after normalization: ${finalDomain}`,
+				status: 400,
+				why: "The domain failed format validation after extracting the hostname.",
+				fix: "Use a valid hostname (for example example.com).",
+			});
 		}
 		return finalDomain;
 	} catch (error) {
 		captureError(error, { message: "Failed to parse domain", domain });
-		throw new Error(`Invalid domain format: ${domain}`);
+		if (error instanceof EvlogError) {
+			throw error;
+		}
+		const cause = error instanceof Error ? error : new Error(String(error));
+		throw createError({
+			message: `Invalid domain format: ${domain}`,
+			status: 400,
+			why: cause.message,
+			fix: "Enter a valid domain or URL.",
+			cause,
+		});
 	}
 }
 
-/**
- * Checks if originDomain is a subdomain of allowedDomain.
- * @param originDomain - The origin domain to check (e.g., "blog.example.com").
- * @param allowedDomain - The allowed parent domain (e.g., "example.com").
- * @returns `true` if originDomain is a subdomain of allowedDomain.
- */
 export function isSubdomain(
 	originDomain: string,
 	allowedDomain: string
@@ -248,11 +226,6 @@ export function isSubdomain(
 	);
 }
 
-/**
- * Performs a basic validation of the domain format.
- * @param domain - Domain to validate.
- * @returns `true` if the domain format appears to be valid.
- */
 export function isValidDomainFormat(domain: string): boolean {
 	if (
 		!domain ||
@@ -281,7 +254,6 @@ export function isValidDomainFormat(domain: string): boolean {
 	return true;
 }
 
-// Enhanced version with additional security features
 export function isValidOriginSecure(
 	originHeader: string,
 	allowedDomain: string,
@@ -310,17 +282,14 @@ export function isValidOriginSecure(
 	try {
 		const originUrl = new URL(originHeader.trim());
 
-		// HTTPS requirement check
 		if (requireHttps && originUrl.protocol !== "https:") {
 			return false;
 		}
 
-		// Localhost handling
 		if (isLocalhost(originUrl.hostname)) {
 			return allowLocalhost;
 		}
 
-		// Specific subdomain checks
 		const normalizedOriginDomain = normalizeDomain(originUrl.hostname);
 		if (
 			allowedSubdomains.length > 0 &&
@@ -340,7 +309,6 @@ export function isValidOriginSecure(
 			return false;
 		}
 
-		// Main domain check
 		const normalizedAllowedDomain = normalizeDomain(allowedDomain);
 		return (
 			normalizedOriginDomain === normalizedAllowedDomain ||
@@ -356,17 +324,12 @@ export function isValidOriginSecure(
 	}
 }
 
-/**
- * Checks if a hostname is a localhost or a private network address.
- * @param hostname - The hostname to check.
- * @returns `true` if the hostname is considered localhost.
- */
 export function isLocalhost(hostname: string): boolean {
 	return (
-		hostname === "localhost" || // "localhost"
-		hostname === "[::1]" || // IPv6 loopback
+		hostname === "localhost" ||
+		hostname === "[::1]" ||
 		hostname.startsWith("127.")
-	); // IPv4 loopback
+	);
 }
 
 const getWebsiteByIdWithOwnerCached = cacheable(
@@ -391,16 +354,15 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 		}
 	},
 	{
-		expireInSec: 600, // 10 minutes - longer cache for better performance
+		expireInSec: 600,
 		prefix: "website_with_owner_v2",
 		staleWhileRevalidate: true,
-		staleTime: 120, // 2 minutes stale time
+		staleTime: 120,
 	}
 );
 
 /**
  * Validates if an origin matches any of the allowed origins from website settings
- * Supports wildcard patterns like *.cal.com
  */
 export function isValidOriginFromSettings(
 	originHeader: string,
@@ -460,7 +422,6 @@ export function isValidOriginFromSettings(
 
 /**
  * Validates if an IP address matches any of the allowed IPs from website settings
- * Supports CIDR notation like 192.168.1.0/24
  */
 export function isValidIpFromSettings(
 	ip: string,
@@ -489,9 +450,6 @@ export function isValidIpFromSettings(
 	return false;
 }
 
-/**
- * Checks if an IP address is within a CIDR range
- */
 function isIpInCidrRange(ip: string, cidr: string): boolean {
 	try {
 		const [network, prefixLengthStr] = cidr.split("/");
@@ -526,33 +484,12 @@ function isIpInCidrRange(ip: string, cidr: string): boolean {
 
 export function getWebsiteByIdV2(id: string): Promise<WebsiteWithOwner | null> {
 	return record("getWebsiteByIdV2", async () => {
-		setAttributes({
-			website_id: id,
-		});
-
 		try {
-			const result = await getWebsiteByIdWithOwnerCached(id);
-
-			if (result) {
-				setAttributes({
-					website_found: true,
-					website_status: result.status,
-					website_has_owner: Boolean(result.ownerId),
-				});
-			} else {
-				setAttributes({
-					website_found: false,
-				});
-			}
-
-			return result;
+			return await getWebsiteByIdWithOwnerCached(id);
 		} catch (error) {
 			captureError(error, {
 				message: "Failed to get website by ID V2",
 				websiteId: id,
-			});
-			setAttributes({
-				website_lookup_failed: true,
 			});
 			return null;
 		}

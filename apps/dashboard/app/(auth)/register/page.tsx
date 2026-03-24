@@ -439,7 +439,7 @@ function RegisterPageContent() {
 					<div className="flex items-center gap-2">
 						<Checkbox
 							checked={acceptTerms}
-							className="cursor-pointer data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=unchecked]:bg-input"
+							className="cursor-pointer data-[state=checked]:border-brand-purple/50 data-[state=checked]:bg-brand-purple data-[state=unchecked]:bg-input"
 							disabled={isLoading}
 							id="terms"
 							onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}

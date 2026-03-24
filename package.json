@@ -2,8 +2,6 @@
   "name": "databuddy",
   "module": "index.ts",
   "devDependencies": {
-    "husky": "^9.1.7",
-    "lint-staged": "^16.4.0",
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/plugin-transform-react-jsx": "^7.28.6",
     "@biomejs/biome": "^2.4.8",
@@ -14,7 +12,9 @@
     "culori": "^4.0.2",
     "dockerode": "^4.0.9",
     "dotenv-cli": "^10.0.0",
+    "husky": "^9.1.7",
     "knip": "^5.88.1",
+    "lint-staged": "^16.4.0",
     "turbo": "^2.8.19",
     "typescript": "^5.9.3",
     "ultracite": "^6.5.1"

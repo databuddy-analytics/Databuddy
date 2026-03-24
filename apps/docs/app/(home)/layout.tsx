@@ -34,7 +34,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
 	return (
 		<HomeLayout {...baseOptions}>
 			<Navbar stars={stars} />
-			<main className="flex min-h-screen flex-col font-manrope">
+			<main className="flex min-h-screen flex-col">
 				{children}
 			</main>
 		</HomeLayout>

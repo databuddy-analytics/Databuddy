@@ -1037,10 +1037,7 @@ export const feedback = pgTable(
 			"btree",
 			table.organizationId.asc().nullsLast().op("text_ops")
 		),
-		index("feedback_status_idx").using(
-			"btree",
-			table.status.asc().nullsLast()
-		),
+		index("feedback_status_idx").using("btree", table.status.asc().nullsLast()),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
@@ -1094,6 +1091,89 @@ export const feedbackRedemptions = pgTable(
 	]
 );
 
+export const alarms = pgTable(
+	"alarms",
+	{
+		id: text().primaryKey().notNull(),
+		organizationId: text("organization_id").notNull(),
+		websiteId: text("website_id"),
+		name: text().notNull(),
+		description: text(),
+		enabled: boolean().notNull().default(true),
+		triggerType: text("trigger_type").notNull(),
+		triggerConditions: jsonb("trigger_conditions").notNull().default({}),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("alarms_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_website_id_idx").using(
+			"btree",
+			table.websiteId.asc().nullsLast().op("text_ops")
+		),
+		index("alarms_enabled_idx").using("btree", table.enabled.asc().nullsLast()),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "alarms_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "alarms_website_id_fkey",
+		})
+			.onUpdate("cascade")
+			.onDelete("set null"),
+	]
+);
+
+export const alarmDestinations = pgTable(
+	"alarm_destinations",
+	{
+		id: text().primaryKey().notNull(),
+		alarmId: text("alarm_id").notNull(),
+		type: text("type").notNull(),
+		/** Webhook URL, email address, Telegram chat id, etc.; may be empty when `config` holds all fields */
+		identifier: text("identifier").notNull().default(""),
+		/** Extra fields (e.g. Telegram `botToken`, webhook headers, multiple emails) */
+		config: jsonb("config").notNull().default({}),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("alarm_destinations_alarm_id_idx").using(
+			"btree",
+			table.alarmId.asc().nullsLast().op("text_ops")
+		),
+		index("alarm_destinations_type_idx").using(
+			"btree",
+			table.type.asc().nullsLast().op("text_ops")
+		),
+		uniqueIndex("alarm_destinations_alarm_type_identifier_unique").using(
+			"btree",
+			table.alarmId.asc().nullsLast().op("text_ops"),
+			table.type.asc().nullsLast().op("text_ops"),
+			table.identifier.asc().nullsLast().op("text_ops")
+		),
+		foreignKey({
+			columns: [table.alarmId],
+			foreignColumns: [alarms.id],
+			name: "alarm_destinations_alarm_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
+
 export type Website = typeof websites.$inferSelect;
 export type WebsiteInsert = typeof websites.$inferInsert;
 export type Organization = typeof organization.$inferSelect;
@@ -1116,3 +1196,29 @@ export type Feedback = typeof feedback.$inferSelect;
 export type FeedbackInsert = typeof feedback.$inferInsert;
 export type FeedbackRedemption = typeof feedbackRedemptions.$inferSelect;
 export type FeedbackRedemptionInsert = typeof feedbackRedemptions.$inferInsert;
+export type Alarm = typeof alarms.$inferSelect;
+export type AlarmInsert = typeof alarms.$inferInsert;
+export type AlarmDestination = typeof alarmDestinations.$inferSelect;
+export type AlarmDestinationInsert = typeof alarmDestinations.$inferInsert;
+
+/** Validate in Zod / RPC — not Postgres enums */
+export const alarmTriggerTypeValues = [
+	"uptime",
+	"traffic_spike",
+	"error_rate",
+	"goal",
+	"custom",
+] as const;
+export type AlarmTriggerTypeValue = (typeof alarmTriggerTypeValues)[number];
+
+export const alarmDestinationTypeValues = [
+	"slack",
+	"discord",
+	"email",
+	"webhook",
+	"teams",
+	"telegram",
+	"google_chat",
+] as const;
+export type AlarmDestinationTypeValue =
+	(typeof alarmDestinationTypeValues)[number];

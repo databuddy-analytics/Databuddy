@@ -101,7 +101,7 @@ export function ApiKeyList({
 						<div>
 							<h1 className="font-medium text-base">API Keys</h1>
 							<p className="text-muted-foreground text-xs">
-								{items.length} active key{items.length !== 1 ? "s" : ""}
+								{items.length} active key{items.length === 1 ? "" : "s"}
 							</p>
 						</div>
 						<Button onClick={onCreateNew} size="sm" type="button">
@@ -135,7 +135,7 @@ export function ApiKeyList({
 										</TableCell>
 										<TableCell className="p-3">
 											<code className="rounded bg-accent-brighter px-2 py-1 font-mono text-accent-foreground text-xs hover:bg-accent-brighter/70">
-												{k.prefix}-{k.start}
+												{k.start}
 											</code>
 										</TableCell>
 										<TableCell className="p-3">

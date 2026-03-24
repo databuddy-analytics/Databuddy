@@ -3,7 +3,6 @@
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
 import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
-import dayjs from "@/lib/dayjs";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import type { DateRange as DayPickerRange } from "react-day-picker";
@@ -16,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useLink } from "@/hooks/use-links";
+import dayjs from "@/lib/dayjs";
 
 const MAX_HOURLY_DAYS = 7;
 
@@ -241,7 +241,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 				</div>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
 				{children}
 			</div>
 		</div>

@@ -326,7 +326,7 @@ export function ConsumptionChart({
 								cursor={{
 									fill: "var(--muted)",
 									fillOpacity: 0.1,
-									stroke: "var(--primary)",
+									stroke: "var(--chart-1)",
 									strokeOpacity: 0.2,
 								}}
 								wrapperStyle={{ outline: "none" }}

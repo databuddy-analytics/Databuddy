@@ -9,13 +9,13 @@ import {
 	type User,
 	websitesApi,
 } from "@databuddy/auth";
-import { db, eq, member, websites } from "@databuddy/db";
+import { db, eq, websites } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
-import { logger } from "@databuddy/shared/logger";
 import type { PlanId } from "@databuddy/shared/types/features";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { os, type Context } from "../orpc";
+import { logger } from "../lib/logger";
+import { type Context, os } from "../orpc";
 
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
 
@@ -29,9 +29,7 @@ export interface Workspace {
 	getCreatedBy: () => Promise<string>;
 }
 
-export interface WithWorkspaceOptions<
-	R extends ResourceType = "organization",
-> {
+export interface WithWorkspaceOptions<R extends ResourceType = "organization"> {
 	organizationId?: string | null;
 	websiteId?: string;
 	resource?: R;
@@ -42,7 +40,9 @@ export interface WithWorkspaceOptions<
 
 const getWebsiteById = cacheable(
 	async (id: string) => {
-		if (!id) return null;
+		if (!id) {
+			return null;
+		}
 		try {
 			return await db.query.websites.findFirst({
 				where: eq(websites.id, id),
@@ -104,12 +104,11 @@ async function getPlan(context: Context): Promise<PlanId> {
 }
 
 function requirePlan(plan: PlanId, requiredPlans: PlanId[] | undefined): void {
-	if (!requiredPlans?.length) return;
+	if (!requiredPlans?.length) {
+		return;
+	}
 	if (!requiredPlans.includes(plan)) {
-		throw rpcError.featureUnavailable(
-			"workspace_action",
-			requiredPlans.at(0)
-		);
+		throw rpcError.featureUnavailable("workspace_action", requiredPlans.at(0));
 	}
 }
 
@@ -151,7 +150,9 @@ async function resolveUserWorkspace(
 				);
 			}
 		} catch (error) {
-			if (error instanceof Error && "code" in error) throw error;
+			if (error instanceof Error && "code" in error) {
+				throw error;
+			}
 			logger.error(
 				{ error, resource: options.resource, permissions: options.permissions },
 				"Permission check failed"
@@ -174,12 +175,12 @@ function resolveApiKeyWorkspace(
 	organizationId: string,
 	plan: PlanId
 ): Omit<Workspace, "website" | "getCreatedBy"> {
-	if (!context.apiKey) throw rpcError.unauthorized();
+	if (!context.apiKey) {
+		throw rpcError.unauthorized();
+	}
 
 	if (context.apiKey.organizationId !== organizationId) {
-		throw rpcError.forbidden(
-			"API key does not have access to this workspace"
-		);
+		throw rpcError.forbidden("API key does not have access to this workspace");
 	}
 
 	return {
@@ -223,7 +224,9 @@ export async function withWorkspace<R extends ResourceType = "organization">(
 
 	if (websiteId) {
 		const found = await getWebsiteById(websiteId);
-		if (!found) throw rpcError.notFound("website", websiteId);
+		if (!found) {
+			throw rpcError.notFound("website", websiteId);
+		}
 		website = found;
 
 		const isReadOnly = permissions.every(
@@ -245,16 +248,18 @@ export async function withWorkspace<R extends ResourceType = "organization">(
 	}
 
 	const organizationId =
-		options.organizationId ??
-		website?.organizationId ??
-		context.organizationId;
+		options.organizationId ?? website?.organizationId ?? context.organizationId;
 
-	if (!organizationId) throw rpcError.badRequest("Workspace is required");
+	if (!organizationId) {
+		throw rpcError.badRequest("Workspace is required");
+	}
 
 	const plan = await getPlan(context);
 	requirePlan(plan, requiredPlans);
 
-	const resolvedResource = websiteId ? ("website" as string) : (resource as string);
+	const resolvedResource = websiteId
+		? ("website" as string)
+		: (resource as string);
 	const resolvedPermissions = websiteId
 		? (permissions as string[])
 		: (permissions as string[]);
@@ -296,7 +301,7 @@ export async function withLinksAccess(
 		}
 	}
 
-	return withWorkspace(context, {
+	return await withWorkspace(context, {
 		organizationId: options.organizationId,
 		resource: "link",
 		permissions: [options.permission],
@@ -307,7 +312,9 @@ async function _resolveCreatedBy(
 	context: Context,
 	organizationId: string
 ): Promise<string> {
-	if (context.user) return context.user.id;
+	if (context.user) {
+		return context.user.id;
+	}
 
 	if (context.apiKey) {
 		const ownerRow = await db.query.member.findFirst({
@@ -325,7 +332,6 @@ async function _resolveCreatedBy(
 
 	throw rpcError.unauthorized();
 }
-
 
 export async function isFullyAuthorized(
 	context: Context,
@@ -355,15 +361,13 @@ export const withWebsiteRead = os.middleware(
 export const withWebsiteWrite = (
 	permissions: PermissionFor<"website">[] = ["update"]
 ) =>
-	os.middleware(
-		async ({ context, next }, input: { websiteId: string }) => {
-			const workspace = await withWorkspace<"website">(context, {
-				websiteId: input.websiteId,
-				permissions,
-			});
-			return next({ context: { workspace } });
-		}
-	);
+	os.middleware(async ({ context, next }, input: { websiteId: string }) => {
+		const workspace = await withWorkspace<"website">(context, {
+			websiteId: input.websiteId,
+			permissions,
+		});
+		return next({ context: { workspace } });
+	});
 
-export type { PlanId, Website };
 export type { PermissionFor, ResourceType } from "@databuddy/auth";
+export type { PlanId, Website };

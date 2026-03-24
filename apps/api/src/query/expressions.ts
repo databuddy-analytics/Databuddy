@@ -945,5 +945,5 @@ export function compileFields(fields: ConfigFieldType[]): string[] {
 // Type Guards for External Use
 // ============================================================================
 
+export type { AliasedExpressionType, ConfigFieldType, FieldDefinitionType };
 export { isAliasedExpression, isFieldDefinition };
-export type { FieldDefinitionType, ConfigFieldType, AliasedExpressionType };

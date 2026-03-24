@@ -11,7 +11,6 @@ import {
 } from "@phosphor-icons/react";
 import type { CustomerProduct, Product } from "autumn-js";
 import { useCustomer } from "autumn-js/react";
-import dayjs from "@/lib/dayjs";
 import Link from "next/link";
 import { useMemo } from "react";
 import AttachDialog from "@/components/autumn/attach-dialog";
@@ -19,6 +18,7 @@ import { EmptyState } from "@/components/empty-state";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import dayjs from "@/lib/dayjs";
 import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog";
 import { CreditCardDisplay } from "./components/credit-card-display";
 import { ErrorState } from "./components/empty-states";

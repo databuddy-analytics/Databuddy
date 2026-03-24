@@ -2,9 +2,12 @@ import { getWebsiteByIdV2, resolveApiKeyOwnerId } from "@hooks/auth";
 import { getApiKeyFromHeader, hasKeyScope } from "@lib/api-key";
 import { checkAutumnUsage } from "@lib/billing";
 import { insertCustomEvents } from "@lib/event-service";
-import { captureError, record, setAttributes } from "@lib/tracing";
+import { basketErrors } from "@lib/structured-errors";
+import { record } from "@lib/tracing";
 import { VALIDATION_LIMITS, validatePayloadSize } from "@utils/validation";
 import { Elysia } from "elysia";
+import { createError, EvlogError } from "evlog";
+import { useLogger } from "evlog/elysia";
 import { z } from "zod";
 
 const trackEventSchema = z.union([
@@ -34,18 +37,11 @@ const trackEventSchema = z.union([
 		.max(VALIDATION_LIMITS.BATCH_MAX_SIZE),
 ]);
 
-type AuthResult =
-	| {
-			success: true;
-			ownerId: string;
-			websiteId?: string;
-			organizationId?: string;
-	  }
-	| {
-			success: false;
-			error: { status: string; message: string };
-			status: number;
-	  };
+interface ResolvedAuth {
+	ownerId: string;
+	websiteId?: string;
+	organizationId?: string;
+}
 
 function json(data: unknown, status: number): Response {
 	return new Response(JSON.stringify(data), {
@@ -73,78 +69,77 @@ function parseTimestamp(
 function resolveAuth(
 	headers: Headers,
 	websiteIdParam?: string
-): Promise<AuthResult> {
+): Promise<ResolvedAuth> {
 	return record("resolveAuth", async () => {
+		const log = useLogger();
 		const apiKey = await getApiKeyFromHeader(headers);
 
 		if (apiKey) {
 			if (!hasKeyScope(apiKey, "track:events")) {
-				setAttributes({ auth_failed: true, auth_reason: "missing_scope" });
-				return {
-					success: false,
-					error: {
-						status: "error",
-						message: "API key missing track:events scope",
-					},
-					status: 403,
-				};
+				log.set({
+					auth: { ok: false, reason: "missing_scope", method: "api_key" },
+				});
+				throw basketErrors.trackMissingScope();
 			}
 
 			const ownerId = apiKey.organizationId ?? apiKey.userId;
 			if (!ownerId) {
-				setAttributes({ auth_failed: true, auth_reason: "missing_owner" });
-				return {
-					success: false,
-					error: { status: "error", message: "API key missing owner" },
-					status: 400,
-				};
+				log.set({
+					auth: { ok: false, reason: "missing_owner", method: "api_key" },
+				});
+				throw basketErrors.trackMissingOwner();
 			}
 
-			setAttributes({ auth_method: "api_key", auth_success: true });
+			log.set({
+				auth: {
+					ok: true,
+					method: "api_key",
+					organizationId: apiKey.organizationId ?? undefined,
+				},
+			});
 			return {
-				success: true,
 				ownerId,
 				organizationId: apiKey.organizationId ?? undefined,
 			};
 		}
 
 		if (!websiteIdParam) {
-			setAttributes({ auth_failed: true, auth_reason: "no_credentials" });
-			return {
-				success: false,
-				error: {
-					status: "error",
-					message: "API key or website_id required",
-				},
-				status: 401,
-			};
+			log.set({ auth: { ok: false, reason: "no_credentials" } });
+			throw basketErrors.trackMissingCredentials();
 		}
 
 		const website = await getWebsiteByIdV2(websiteIdParam);
 		if (!website) {
-			setAttributes({ auth_failed: true, auth_reason: "website_not_found" });
-			return {
-				success: false,
-				error: { status: "error", message: "Website not found" },
-				status: 404,
-			};
+			log.set({
+				auth: {
+					ok: false,
+					reason: "website_not_found",
+					websiteId: websiteIdParam,
+				},
+			});
+			throw basketErrors.trackWebsiteNotFound();
 		}
 
 		if (!website.organizationId) {
-			setAttributes({ auth_failed: true, auth_reason: "no_organization" });
-			return {
-				success: false,
-				error: {
-					status: "error",
-					message: "Website missing organization",
+			log.set({
+				auth: {
+					ok: false,
+					reason: "no_organization",
+					websiteId: websiteIdParam,
 				},
-				status: 400,
-			};
+			});
+			throw basketErrors.trackWebsiteNoOrganization();
 		}
 
-		setAttributes({ auth_method: "website_id", auth_success: true });
+		log.set({
+			auth: {
+				ok: true,
+				method: "website_id",
+				websiteId: websiteIdParam,
+				organizationId: website.organizationId,
+			},
+		});
 		return {
-			success: true,
 			ownerId: website.organizationId,
 			websiteId: websiteIdParam,
 			organizationId: website.organizationId,
@@ -155,23 +150,21 @@ function resolveAuth(
 export const trackRoute = new Elysia().post(
 	"/track",
 	async ({ body, query, request }) => {
+		const log = useLogger();
+		log.set({ route: "track" });
 		const typedBody = body as unknown;
 		const typedQuery = query as Record<string, string>;
 
 		try {
 			if (!validatePayloadSize(typedBody, VALIDATION_LIMITS.PAYLOAD_MAX_SIZE)) {
-				return json({ status: "error", message: "Payload too large" }, 413);
+				log.set({ rejected: "payload_too_large" });
+				throw basketErrors.trackPayloadTooLarge();
 			}
 
 			const parseResult = trackEventSchema.safeParse(typedBody);
 			if (!parseResult.success) {
-				return json(
-					{
-						status: "error",
-						message: "Invalid request body",
-					},
-					400
-				);
+				log.set({ rejected: "schema" });
+				throw basketErrors.trackInvalidBody();
 			}
 
 			const events = Array.isArray(parseResult.data)
@@ -180,9 +173,12 @@ export const trackRoute = new Elysia().post(
 			const websiteIdParam = typedQuery.website_id || events[0]?.websiteId;
 
 			const auth = await resolveAuth(request.headers, websiteIdParam);
-			if (!auth.success) {
-				return json(auth.error, auth.status);
-			}
+
+			log.set({
+				ownerId: auth.ownerId,
+				websiteId: auth.websiteId,
+				count: events.length,
+			});
 
 			const billingUserId = auth.organizationId
 				? await resolveApiKeyOwnerId(auth.organizationId)
@@ -193,6 +189,7 @@ export const trackRoute = new Elysia().post(
 					api_route: "track",
 				});
 				if ("exceeded" in billing) {
+					log.set({ rejected: "billing_exceeded" });
 					return billing.response;
 				}
 			}
@@ -217,8 +214,17 @@ export const trackRoute = new Elysia().post(
 				200
 			);
 		} catch (error) {
-			captureError(error, { message: "Error processing track events" });
-			return json({ status: "error", message: "Internal server error" }, 500);
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+			const err = error instanceof Error ? error : new Error(String(error));
+			log.error(err);
+			throw createError({
+				message: "Internal server error",
+				status: 500,
+				why: process.env.NODE_ENV === "development" ? err.message : undefined,
+				cause: err,
+			});
 		}
 	}
 );

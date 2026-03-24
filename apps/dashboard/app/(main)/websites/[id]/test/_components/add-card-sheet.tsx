@@ -296,7 +296,7 @@ export function CardSheet({
 				title: customTitle.trim() || undefined,
 				category: selectedQueryType.category,
 				dateRangePreset:
-					dateRangePreset !== "global" ? dateRangePreset : undefined,
+					dateRangePreset === "global" ? undefined : dateRangePreset,
 				filters: filters.length > 0 ? filters : undefined,
 				dataSourceMode: "predefined",
 			};
@@ -324,7 +324,7 @@ export function CardSheet({
 				title: customTitle.trim() || undefined,
 				category: "Custom",
 				dateRangePreset:
-					dateRangePreset !== "global" ? dateRangePreset : undefined,
+					dateRangePreset === "global" ? undefined : dateRangePreset,
 				dataSourceMode: "custom",
 				customQuery,
 			};
@@ -1007,7 +1007,7 @@ export function CardSheet({
 						<div />
 					)}
 					<div className="flex gap-2">
-						<Button onClick={onCloseAction} type="button" variant="ghost">
+						<Button onClick={onCloseAction} type="button" variant="outline">
 							Cancel
 						</Button>
 						<Button

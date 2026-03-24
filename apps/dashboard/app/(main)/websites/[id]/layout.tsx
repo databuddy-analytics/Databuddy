@@ -100,7 +100,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
 			{!hideToolbar && (
-				<div className="sticky top-0 right-0 left-0 z-50 shrink-0 overscroll-contain bg-background md:top-0 md:left-84">
+				<div className="shrink-0 bg-background">
 					<AnalyticsToolbar
 						isDisabled={isToolbarDisabled}
 						isLoading={isToolbarLoading}
@@ -111,17 +111,21 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 				</div>
 			)}
 
-			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-				{hideToolbar ? (
-					children
-				) : showTrackingSetup ? (
-					<div className="p-4">
-						<WebsiteTrackingSetupTab websiteId={websiteId} />
-					</div>
-				) : (
-					children
-				)}
-			</div>
+			{hideToolbar ? (
+				<div className="min-h-0 flex-1 overflow-hidden">
+					{children}
+				</div>
+			) : (
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
+					{showTrackingSetup ? (
+						<div className="p-4">
+							<WebsiteTrackingSetupTab websiteId={websiteId} />
+						</div>
+					) : (
+						children
+					)}
+				</div>
+			)}
 		</div>
 	);
 }

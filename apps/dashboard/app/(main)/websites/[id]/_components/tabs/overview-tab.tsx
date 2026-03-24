@@ -7,7 +7,6 @@ import { TimerIcon } from "@phosphor-icons/react/dist/ssr/Timer";
 import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
 import { WarningIcon } from "@phosphor-icons/react/dist/ssr/Warning";
 import type { ColumnDef } from "@tanstack/react-table";
-import dayjs from "@/lib/dayjs";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
 import { useCallback, useMemo } from "react";
@@ -30,6 +29,7 @@ import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import dayjs from "@/lib/dayjs";
 import { metricVisibilityAtom } from "@/stores/jotai/chartAtoms";
 import {
 	calculatePercentChange,

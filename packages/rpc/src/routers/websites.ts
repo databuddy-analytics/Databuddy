@@ -1,16 +1,11 @@
 import { chQuery, db, eq, websites } from "@databuddy/db";
 import {
-	generateExport,
-	validateExportDateRange,
-} from "../services/export-service";
-import {
 	DuplicateDomainError,
 	ValidationError,
 	type Website,
 	WebsiteNotFoundError,
 	WebsiteService,
 } from "@databuddy/services/websites";
-import { logger } from "@databuddy/shared/logger";
 import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
 import {
 	createWebsiteSchema,
@@ -22,8 +17,13 @@ import {
 } from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { logger } from "../lib/logger";
 import { protectedProcedure, publicProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+import {
+	generateExport,
+	validateExportDateRange,
+} from "../services/export-service";
 
 const websiteService = new WebsiteService(db);
 const TREND_THRESHOLD = 5;
@@ -282,10 +282,7 @@ export const websitesRouter = {
 			});
 
 			return context.db.query.websites.findMany({
-				where: eq(
-					websites.organizationId,
-					workspace.organizationId as string
-				),
+				where: eq(websites.organizationId, workspace.organizationId as string),
 				orderBy: (table, { desc }) => [desc(table.createdAt)],
 			});
 		}),
@@ -308,10 +305,7 @@ export const websitesRouter = {
 			});
 
 			const websitesList = await context.db.query.websites.findMany({
-				where: eq(
-					websites.organizationId,
-					workspace.organizationId as string
-				),
+				where: eq(websites.organizationId, workspace.organizationId as string),
 				orderBy: (table, { desc }) => [desc(table.createdAt)],
 			});
 
@@ -535,9 +529,7 @@ export const websitesRouter = {
 			});
 
 			if (!input.organizationId) {
-				throw rpcError.badRequest(
-					"Website must be transferred to a workspace"
-				);
+				throw rpcError.badRequest("Website must be transferred to a workspace");
 			}
 
 			await withWorkspace(context, {
@@ -603,8 +595,9 @@ export const websitesRouter = {
 				allowPublicAccess: true,
 			});
 
-			const { hasEvents, error: eventsError } =
-				await getTrackingEventsStatus(input.websiteId);
+			const { hasEvents, error: eventsError } = await getTrackingEventsStatus(
+				input.websiteId
+			);
 
 			return {
 				tracking_setup: hasEvents,
@@ -689,9 +682,7 @@ export const websitesRouter = {
 		.input(
 			z.object({
 				websiteId: z.string().min(1),
-				format: z
-					.enum(["csv", "json", "txt", "proto"])
-					.default("json"),
+				format: z.enum(["csv", "json", "txt", "proto"]).default("json"),
 				startDate: z
 					.string()
 					.regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -734,8 +725,7 @@ export const websitesRouter = {
 			return {
 				filename: exportResult.filename,
 				data: exportResult.buffer.toString("base64"),
-				metadata:
-					exportResult.meta as unknown as Record<string, unknown>,
+				metadata: exportResult.meta as unknown as Record<string, unknown>,
 			};
 		}),
 };

@@ -1,15 +1,13 @@
 import "./polyfills/compression";
 
-import { disconnectProducer } from "@lib/producer";
 import {
-	captureError,
-	endRequestSpan,
-	initTracing,
-	setCurrentRequestSpan,
-	shutdownTracing,
-	startRequestSpan,
-} from "@lib/tracing";
-import type { context } from "@opentelemetry/api";
+	basketLoggerDrain,
+	enrichBasketWideEvent,
+	flushBatchedAxiomDrain,
+} from "@lib/evlog-basket";
+import { disconnectProducer } from "@lib/producer";
+import { buildBasketErrorPayload } from "@lib/structured-errors";
+import { captureError } from "@lib/tracing";
 import basketRouter from "@routes/basket";
 import llmRouter from "@routes/llm";
 import { trackRoute } from "@routes/track";
@@ -17,43 +15,76 @@ import { paddleWebhook } from "@routes/webhooks/paddle";
 import { stripeWebhook } from "@routes/webhooks/stripe";
 import { closeGeoIPReader } from "@utils/ip-geo";
 import { Elysia } from "elysia";
+import { initLogger, log } from "evlog";
+import { evlog } from "evlog/elysia";
 
-initTracing();
+initLogger({
+	env: { service: "basket" },
+	drain: basketLoggerDrain,
+	sampling: {
+		rates: { info: 20, warn: 50, debug: 5 },
+		keep: [{ status: 400 }, { duration: 1500 }],
+	},
+});
 
 process.on("unhandledRejection", (reason, _promise) => {
-	console.error("Unhandled Rejection:", reason);
 	captureError(reason);
+	log.error({
+		process: "unhandledRejection",
+		reason: reason instanceof Error ? reason.message : String(reason),
+	});
 });
 
 process.on("uncaughtException", (error) => {
-	console.error("Uncaught Exception:", error);
 	captureError(error);
+	log.error({
+		process: "uncaughtException",
+		error: error instanceof Error ? error.message : String(error),
+	});
 });
 
 process.on("SIGTERM", async () => {
-	console.log("SIGTERM received, shutting down gracefully...");
-	await Promise.all([disconnectProducer(), shutdownTracing()]).catch((error) =>
-		console.error("Shutdown error:", error)
+	log.info("lifecycle", "SIGTERM received, shutting down gracefully");
+	await flushBatchedAxiomDrain().catch((error) =>
+		log.error({
+			lifecycle: "drainFlush",
+			error: error instanceof Error ? error.message : String(error),
+		})
+	);
+	await disconnectProducer().catch((error) =>
+		log.error({
+			lifecycle: "shutdown",
+			error: error instanceof Error ? error.message : String(error),
+		})
 	);
 	closeGeoIPReader();
 	process.exit(0);
 });
 
 process.on("SIGINT", async () => {
-	console.log("SIGINT received, shutting down gracefully...");
-	await Promise.all([disconnectProducer(), shutdownTracing()]).catch((error) =>
-		console.error("Shutdown error:", error)
+	log.info("lifecycle", "SIGINT received, shutting down gracefully");
+	await flushBatchedAxiomDrain().catch((error) =>
+		log.error({
+			lifecycle: "drainFlush",
+			error: error instanceof Error ? error.message : String(error),
+		})
+	);
+	await disconnectProducer().catch((error) =>
+		log.error({
+			lifecycle: "shutdown",
+			error: error instanceof Error ? error.message : String(error),
+		})
 	);
 	closeGeoIPReader();
 	process.exit(0);
 });
 
 const app = new Elysia()
-	.state("tracing", {
-		span: null as ReturnType<typeof startRequestSpan>["span"] | null,
-		activeContext: null as ReturnType<typeof context.active> | null | undefined,
-		startTime: 0,
-	})
+	.use(
+		evlog({
+			enrich: enrichBasketWideEvent,
+		})
+	)
 	.onBeforeHandle(function handleCors({ request, set }) {
 		const origin = request.headers.get("origin");
 		if (origin) {
@@ -66,45 +97,21 @@ const app = new Elysia()
 			set.headers["Access-Control-Allow-Credentials"] = "true";
 		}
 	})
-	.onBeforeHandle(function startTrace({ request, path, store }) {
-		if (request.method === "OPTIONS" || path === "/health") {
-			return;
-		}
-
-		const method = request.method;
-		const startTime = Date.now();
-		const { span, activeContext } = startRequestSpan(method, request.url, path);
-
-		// Set the span as active for this request (fallback for context propagation)
-		setCurrentRequestSpan(span);
-
-		store.tracing = {
-			span,
-			activeContext,
-			startTime,
-		};
-	})
-	.onAfterHandle(function endTrace({ responseValue, store }) {
-		if (store.tracing?.span && store.tracing.startTime) {
-			const statusCode =
-				responseValue instanceof Response ? responseValue.status : 200;
-			endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
-		}
-		// Clear the current request span
-		setCurrentRequestSpan(null);
-	})
-	.onError(function handleError({ error, code, store }) {
-		if (store.tracing?.span && store.tracing.startTime) {
-			const statusCode = code === "NOT_FOUND" ? 404 : 500;
-			endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
-		}
-
+	.onError(function handleError({ error, code }) {
 		if (code === "NOT_FOUND") {
-			setCurrentRequestSpan(null);
 			return new Response(null, { status: 404 });
 		}
+
 		captureError(error);
-		setCurrentRequestSpan(null);
+
+		const { status, payload } = buildBasketErrorPayload(error, {
+			elysiaCode: code ?? "INTERNAL_SERVER_ERROR",
+		});
+
+		return new Response(JSON.stringify(payload), {
+			status,
+			headers: { "Content-Type": "application/json" },
+		});
 	})
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(basketRouter)
@@ -112,9 +119,72 @@ const app = new Elysia()
 	.use(trackRoute)
 	.use(stripeWebhook)
 	.use(paddleWebhook)
-	.get("/health", function healthCheck() {
-		return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
-	});
+	.get("/health/status", async function basketHealthStatus() {
+		const { clickHouseOG } = await import("@databuddy/db");
+		const { Kafka } = await import("kafkajs");
+
+		async function ping(probe: () => Promise<void>) {
+			const start = performance.now();
+			try {
+				await probe();
+				return {
+					status: "ok" as const,
+					latency_ms: Math.round(performance.now() - start),
+				};
+			} catch (err) {
+				return {
+					status: "error" as const,
+					latency_ms: Math.round(performance.now() - start),
+					error: err instanceof Error ? err.message : "unknown",
+				};
+			}
+		}
+
+		const [clickhouse, redpanda] = await Promise.all([
+			ping(async () => {
+				const { success } = await clickHouseOG.ping();
+				if (!success) {
+					throw new Error("ping failed");
+				}
+			}),
+			ping(async () => {
+				const broker = process.env.REDPANDA_BROKER;
+				if (!broker) {
+					throw new Error("not configured");
+				}
+				const kafka = new Kafka({
+					clientId: "health",
+					brokers: [broker],
+					connectionTimeout: 5000,
+					...(process.env.REDPANDA_USER &&
+						process.env.REDPANDA_PASSWORD && {
+							sasl: {
+								mechanism: "scram-sha-256",
+								username: process.env.REDPANDA_USER,
+								password: process.env.REDPANDA_PASSWORD,
+							},
+							ssl: false,
+						}),
+				});
+				const admin = kafka.admin();
+				try {
+					await admin.connect();
+				} finally {
+					await admin.disconnect().catch(() => {});
+				}
+			}),
+		]);
+
+		const services = { clickhouse, redpanda };
+		const status = Object.values(services).every((s) => s.status === "ok")
+			? "ok"
+			: "degraded";
+		return Response.json(
+			{ status, services },
+			{ status: status === "ok" ? 200 : 503 }
+		);
+	})
+	.get("/health", () => Response.json({ status: "ok" }, { status: 200 }));
 
 const port = process.env.PORT || 4000;
 

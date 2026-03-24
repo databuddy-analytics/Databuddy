@@ -74,7 +74,7 @@ function buildRuleSummary(group: TargetGroup): string {
 
 	if (group.memberCount !== undefined && group.memberCount > 0) {
 		parts.push(
-			`${group.memberCount} member${group.memberCount !== 1 ? "s" : ""}`
+			`${group.memberCount} member${group.memberCount === 1 ? "" : "s"}`
 		);
 	}
 

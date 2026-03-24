@@ -2,20 +2,32 @@ import "./globals.css";
 
 import { Databuddy } from "@databuddy/sdk/react";
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
 import Providers from "./providers";
 
-const geist = Geist({
-	subsets: ["latin"],
+const ltSuperior = localFont({
+	src: [
+		{ path: "../fonts/lt-superior/light.otf", weight: "300" },
+		{ path: "../fonts/lt-superior/regular.otf", weight: "400" },
+		{ path: "../fonts/lt-superior/medium.otf", weight: "500" },
+		{ path: "../fonts/lt-superior/semibold.otf", weight: "600" },
+		{ path: "../fonts/lt-superior/bold.otf", weight: "700" },
+		{ path: "../fonts/lt-superior/extrabold.otf", weight: "800" },
+	],
+	variable: "--font-lt-superior",
 	display: "swap",
-	variable: "--font-geist",
 });
 
-const geistMono = Geist_Mono({
-	subsets: ["latin"],
+const ltSuperiorMono = localFont({
+	src: [
+		{ path: "../fonts/lt-superior-mono/regular.otf", weight: "400" },
+		{ path: "../fonts/lt-superior-mono/medium.otf", weight: "500" },
+		{ path: "../fonts/lt-superior-mono/semibold.otf", weight: "600" },
+		{ path: "../fonts/lt-superior-mono/bold.otf", weight: "700" },
+	],
+	variable: "--font-lt-superior-mono",
 	display: "swap",
-	variable: "--font-geist-mono",
 });
 
 export const metadata: Metadata = {
@@ -82,11 +94,8 @@ export const metadata: Metadata = {
 	alternates: {
 		canonical: "https://app.databuddy.cc",
 	},
-	icons: {
-		icon: "/favicon.ico",
-		shortcut: "/favicon.ico",
-		apple: "/favicon.ico",
-		other: { rel: "icon", url: "/favicon.ico" },
+	appleWebApp: {
+		title: "Databuddy",
 	},
 };
 
@@ -110,7 +119,7 @@ export default function RootLayout({
 
 	return (
 		<html
-			className={`${geist.variable} ${geistMono.variable} h-full`}
+			className={`${ltSuperior.className} ${ltSuperior.variable} ${ltSuperiorMono.variable} h-full`}
 			lang="en"
 			suppressHydrationWarning
 		>

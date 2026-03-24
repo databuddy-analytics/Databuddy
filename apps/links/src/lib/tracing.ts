@@ -7,6 +7,7 @@ import {
 	ATTR_SERVICE_NAME,
 	ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
+import { log } from "evlog";
 import pkg from "../../package.json";
 
 let sdk: NodeSDK | null = null;
@@ -91,7 +92,8 @@ export function captureError(
 	const errorMessage = errorObj.message;
 	const errorStack = errorObj.stack;
 
-	console.error("[links] Error:", errorMessage, {
+	log.error({
+		links: "captureError",
 		error: errorMessage,
 		stack: errorStack,
 		...(attributes ?? {}),

@@ -1,5 +1,5 @@
 import { createDrizzleCache, getRedisCache, redis } from "@databuddy/redis";
-import { logger } from "@databuddy/shared/logger";
+import { logger } from "../lib/logger";
 
 /**
  * Invalidates basic website caches (websites table and getById key)

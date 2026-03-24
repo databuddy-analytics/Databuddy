@@ -7,13 +7,13 @@ import {
 	UserPlusIcon,
 	UsersIcon,
 } from "@phosphor-icons/react";
-import dayjs from "@/lib/dayjs";
 import { useMemo, useState } from "react";
 import { StatCard } from "@/components/analytics";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
+import dayjs from "@/lib/dayjs";
 import { RetentionCohortsGrid } from "./retention-cohorts-grid";
 import { RetentionRateChart } from "./retention-rate-chart";
 

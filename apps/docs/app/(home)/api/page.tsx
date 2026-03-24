@@ -8,36 +8,27 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { apiPlaygroundSeo } from "@/lib/api-playground-seo";
 import { getQueryTypes } from "./actions";
 import { QueryDemo } from "./query-demo";
 import { QueryTypesGrid } from "./query-types-grid";
 
 export const metadata: Metadata = {
-	title:
-		"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
-	description:
-		"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
+	title: apiPlaygroundSeo.title,
+	description: apiPlaygroundSeo.description,
 	alternates: {
-		canonical: "https://www.databuddy.cc/api",
+		canonical: apiPlaygroundSeo.url,
 	},
 	openGraph: {
-		title:
-			"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy",
-		description:
-			"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.",
-		url: "https://www.databuddy.cc/api",
-		images: ["/og-image.png"],
+		title: apiPlaygroundSeo.title,
+		description: apiPlaygroundSeo.description,
+		url: apiPlaygroundSeo.url,
 	},
 };
 
 export default async function ApiPlaygroundPage() {
 	const queryTypesData = await getQueryTypes();
-
-	const title =
-		"Privacy-first web analytics (Google Analytics alternative) — 3 KB, GDPR-compliant | Databuddy";
-	const description =
-		"Experience powerful, privacy-first analytics that matches Google Analytics feature-for-feature without compromising user data. Zero cookies required, 100% data ownership, and AI-powered insights to help your business grow while staying compliant.";
-	const url = "https://www.databuddy.cc/api";
+	const docDateIso = new Date().toISOString();
 
 	return (
 		<>
@@ -46,25 +37,25 @@ export default async function ApiPlaygroundPage() {
 					{
 						type: "documentation",
 						value: {
-							title,
-							description,
-							datePublished: new Date().toISOString(),
-							section: "API Documentation",
+							title: apiPlaygroundSeo.title,
+							description: apiPlaygroundSeo.description,
+							datePublished: docDateIso,
+							dateModified: docDateIso,
+							section: "API Reference",
 							keywords: [
-								"API",
-								"analytics",
+								"Query API",
+								"REST API",
+								"analytics API",
 								"privacy-first",
 								"web analytics",
-								"GDPR",
-								"documentation",
 							],
 						},
 					},
 				]}
 				page={{
-					title,
-					description,
-					url,
+					title: apiPlaygroundSeo.title,
+					description: apiPlaygroundSeo.description,
+					url: apiPlaygroundSeo.url,
 				}}
 			/>
 			<div className="px-4 pt-10 sm:px-6 lg:px-8">

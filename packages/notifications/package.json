@@ -9,12 +9,10 @@
     ".": "./src/index.ts",
     "./types": "./src/types.ts",
     "./client": "./src/client.ts",
-    "./providers": "./src/providers/index.ts"
+    "./providers": "./src/providers/index.ts",
+    "./templates/uptime": "./src/templates/uptime.ts"
   },
   "scripts": {},
-  "dependencies": {
-    "zod": "catalog:"
-  },
   "devDependencies": {
     "@types/node": "^24.10.4",
     "typescript": "catalog:"

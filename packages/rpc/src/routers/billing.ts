@@ -166,8 +166,7 @@ export const billingRouter = {
 					: getDefaultDateRange();
 
 			const resolvedOrgId =
-				(input.organizationId?.trim() || null) ??
-				context.organizationId;
+				(input.organizationId?.trim() || null) ?? context.organizationId;
 
 			if (!resolvedOrgId) {
 				throw rpcError.badRequest("Organization ID is required");
@@ -233,7 +232,11 @@ export const billingRouter = {
 					error instanceof Error ? error.message : String(error);
 
 				logger.error(
-					{ error: errorMessage, userId: context.user?.id, organizationId: resolvedOrgId },
+					{
+						error: errorMessage,
+						userId: context.user?.id,
+						organizationId: resolvedOrgId,
+					},
 					`Failed to fetch billing usage: ${errorMessage}`
 				);
 

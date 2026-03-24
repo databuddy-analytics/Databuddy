@@ -1,11 +1,11 @@
 "use client";
 
 import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import dayjs from "@/lib/dayjs";
 import { createContext, useContext, useMemo } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useWebsitesLight } from "@/hooks/use-websites";
+import dayjs from "@/lib/dayjs";
 import { useGlobalCustomEventsData } from "./use-global-custom-events";
 
 /**

@@ -8,8 +8,7 @@ type NavbarMobileMenuButtonProps = {
 	onToggleAction: () => void;
 };
 
-const iconBase =
-	"absolute inset-0 size-6 transition-all duration-300 ease-out";
+const iconBase = "absolute inset-0 size-6 transition-all duration-300 ease-out";
 
 export function NavbarMobileMenuButton({
 	isOpen,

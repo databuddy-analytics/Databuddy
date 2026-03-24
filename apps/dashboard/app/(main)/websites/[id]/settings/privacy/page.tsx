@@ -80,7 +80,7 @@ export default function PrivacyPage() {
 				icon={<ShareIcon />}
 				title="Privacy"
 			/>
-			<div className="flex min-h-0 flex-1 flex-col">
+			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div className="space-y-1">

@@ -15,6 +15,7 @@ import { createAnnotationTools } from "../tools/annotations";
 import { createFunnelTools } from "../tools/funnels";
 import { createGoalTools } from "../tools/goals";
 import { createLinksTools } from "../tools/links";
+import { createMemoryTools } from "../tools/memory";
 import { createProfileTools } from "../tools/profiles";
 import {
 	executeTimedQuery,
@@ -280,6 +281,7 @@ export function createMcpAgentTools() {
 			},
 		}),
 		web_search: webSearchTool,
+		...createMemoryTools(),
 		...createProfileTools(),
 		...createFunnelTools(),
 		...createGoalTools(),

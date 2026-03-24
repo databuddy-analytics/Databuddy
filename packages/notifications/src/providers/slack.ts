@@ -1,7 +1,6 @@
 import type {
 	NotificationPayload,
 	NotificationResult,
-	SlackBlock,
 	SlackPayload,
 } from "../types";
 import { BaseProvider } from "./base";
@@ -47,22 +46,18 @@ export class SlackProvider extends BaseProvider {
 		}
 
 		try {
-			const slackPayload = this.buildSlackPayload(payload);
+			const slackPayload = this.buildPayload(payload);
 			const response = await this.withRetry(async () => {
-				const res = await fetch(this.webhookUrl, {
+				const res = await this.fetchWithTimeout(this.webhookUrl, {
 					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
+					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify(slackPayload),
 				});
 
 				if (!res.ok) {
-					const responseText = await res
-						.text()
-						.catch(() => "Unable to read response");
+					const text = await res.text().catch(() => "Unable to read response");
 					throw new Error(
-						`Slack API error: ${res.status} ${res.statusText} - ${responseText.slice(0, 200)}`
+						`Slack API error: ${res.status} ${res.statusText} - ${text.slice(0, 200)}`
 					);
 				}
 
@@ -86,55 +81,47 @@ export class SlackProvider extends BaseProvider {
 		}
 	}
 
-	private buildSlackPayload(payload: NotificationPayload): SlackPayload {
-		const blocks: SlackBlock[] = [
+	private buildPayload(payload: NotificationPayload): SlackPayload {
+		const blocks: SlackPayload["blocks"] = [
 			{
 				type: "header",
-				text: {
-					type: "plain_text",
-					text: payload.title,
-				},
+				text: { type: "plain_text", text: payload.title },
 			},
 			{
 				type: "section",
-				text: {
-					type: "mrkdwn",
-					text: payload.message,
-				},
+				text: { type: "mrkdwn", text: payload.message },
 			},
 		];
 
 		if (payload.metadata && Object.keys(payload.metadata).length > 0) {
-			const fields = Object.entries(payload.metadata).map(([key, value]) => ({
-				title: key,
-				value: String(value),
-				short: true,
-			}));
-
 			blocks.push({
 				type: "section",
-				fields,
+				fields: Object.entries(payload.metadata).map(([key, value]) => ({
+					type: "mrkdwn" as const,
+					text: `*${key}*\n${String(value)}`,
+				})),
 			});
 		}
 
-		const slackPayload: SlackPayload = {
+		if (payload.priority && payload.priority !== "normal") {
+			blocks.push({
+				type: "context",
+				elements: [
+					{
+						type: "mrkdwn",
+						text: `Priority: *${payload.priority.toUpperCase()}*`,
+					},
+				],
+			});
+		}
+
+		return {
 			blocks,
 			text: payload.title,
+			...(this.channel && { channel: this.channel }),
+			...(this.username && { username: this.username }),
+			...(this.iconEmoji && { icon_emoji: this.iconEmoji }),
+			...(this.iconUrl && { icon_url: this.iconUrl }),
 		};
-
-		if (this.channel) {
-			slackPayload.channel = this.channel;
-		}
-		if (this.username) {
-			slackPayload.username = this.username;
-		}
-		if (this.iconEmoji) {
-			slackPayload.icon_emoji = this.iconEmoji;
-		}
-		if (this.iconUrl) {
-			slackPayload.icon_url = this.iconUrl;
-		}
-
-		return slackPayload;
 	}
 }

@@ -4,13 +4,13 @@ import { CaretDownIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useState } from "react";
+import { Branding } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { NavLink } from "./nav-link";
+import { navMenu } from "./navbar";
 import { NavbarGithubDesktopLink } from "./navbar-github-desktop-link";
 import { NavbarGithubMobileLink } from "./navbar-github-mobile-link";
 import { NavbarMobileMenuButton } from "./navbar-mobile-menu-button";
-import { Logo } from "./logo";
-import { NavLink } from "./nav-link";
-import { navMenu } from "./navbar";
 import { contents } from "./sidebar-content";
 
 export interface DocsNavbarProps {
@@ -27,17 +27,19 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 		setOpenSection(openSection === index ? -1 : index);
 	};
 
-	const githubDelayMs =
-		(contents.length * 5 + docsSecondaryNav.length) * 30;
+	const githubDelayMs = (contents.length * 5 + docsSecondaryNav.length) * 30;
 
 	return (
 		<div className="sticky top-0 z-30 flex flex-col border-b bg-background/60 backdrop-blur-xl">
 			<nav>
 				<div className="mx-auto w-full px-2 md:px-6 lg:px-8">
 					<div className="flex h-16 items-center justify-between">
-						<div className="shrink-0 transition-opacity hover:opacity-90">
-							<Logo />
-						</div>
+						<Link
+							className="flex shrink-0 items-center transition-opacity hover:opacity-90"
+							href="/"
+						>
+							<Branding heightPx={28} priority variant="primary-logo" />
+						</Link>
 
 						<div className="hidden md:block">
 							<ul className="flex items-center gap-1">
@@ -59,9 +61,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 
 						<NavbarMobileMenuButton
 							isOpen={isMobileMenuOpen}
-							onToggleAction={() =>
-								setIsMobileMenuOpen((open) => !open)
-							}
+							onToggleAction={() => setIsMobileMenuOpen((open) => !open)}
 						/>
 					</div>
 				</div>
@@ -75,9 +75,7 @@ export const DocsNavbar = ({ stars }: DocsNavbarProps) => {
 				}`}
 			>
 				<div className="bg-background/95 backdrop-blur-sm">
-					<div
-						className="mx-auto max-h-[70dvh] max-w-7xl overflow-y-auto px-4 py-4 sm:px-6 lg:px-8"
-					>
+					<div className="mx-auto max-h-[70dvh] max-w-7xl overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
 						<div className="space-y-2">
 							{contents.map((section, sectionIndex) => (
 								<div key={section.title}>

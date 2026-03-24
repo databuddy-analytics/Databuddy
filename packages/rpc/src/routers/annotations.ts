@@ -12,10 +12,7 @@ import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { protectedProcedure, publicProcedure } from "../orpc";
-import {
-	isFullyAuthorized,
-	withWorkspace,
-} from "../procedures/with-workspace";
+import { isFullyAuthorized, withWorkspace } from "../procedures/with-workspace";
 import { getCacheAuthContext } from "../utils/cache-keys";
 
 const annotationsCache = createDrizzleCache({
@@ -97,7 +94,6 @@ export const annotationsRouter = {
 						permissions: ["read"],
 						allowPublicAccess: true,
 					});
-					const website = workspace.website;
 
 					const baseConditions = [
 						eq(annotations.websiteId, input.websiteId),

@@ -23,31 +23,36 @@ export abstract class BaseProvider implements NotificationProvider {
 
 	protected async withRetry<T>(fn: () => Promise<T>, attempt = 0): Promise<T> {
 		try {
-			return await this.withTimeout(fn());
+			return await fn();
 		} catch (error) {
 			if (attempt < this.retries) {
-				await this.delay(this.retryDelay);
+				const backoff = this.retryDelay * 2 ** attempt + Math.random() * 500;
+				await this.delay(backoff);
 				return this.withRetry(fn, attempt + 1);
 			}
 			throw error;
 		}
 	}
 
-	protected async withTimeout<T>(promise: Promise<T>): Promise<T> {
+	protected fetchWithTimeout(
+		url: string,
+		init?: RequestInit
+	): Promise<Response> {
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-		try {
-			const result = await promise;
-			clearTimeout(timeoutId);
-			return result;
-		} catch (error) {
-			clearTimeout(timeoutId);
-			if (error instanceof Error && error.name === "AbortError") {
-				throw new Error(`Request timed out after ${this.timeout}ms`);
-			}
-			throw error;
-		}
+		return fetch(url, { ...init, signal: controller.signal })
+			.then((res) => {
+				clearTimeout(timeoutId);
+				return res;
+			})
+			.catch((error) => {
+				clearTimeout(timeoutId);
+				if (error instanceof Error && error.name === "AbortError") {
+					throw new Error(`Request timed out after ${this.timeout}ms`);
+				}
+				throw error;
+			});
 	}
 
 	protected delay(ms: number): Promise<void> {

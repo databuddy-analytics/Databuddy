@@ -34,6 +34,6 @@ export default defineBuildConfig({
 	},
 	declaration: true,
 	alias: {
-		"@": resolve(__dirname, "src"),
+		"@": resolve(import.meta.dirname, "src"),
 	},
 });

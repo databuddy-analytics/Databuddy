@@ -6,11 +6,8 @@ import {
 	createRPCContext,
 	getBillingCustomerId,
 	recordORPCError,
-	setupUncaughtErrorHandlers,
 } from "@databuddy/rpc";
-import { logger } from "@databuddy/shared/logger";
 import cors from "@elysiajs/cors";
-import { context } from "@opentelemetry/api";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { ORPCError, onError } from "@orpc/server";
@@ -18,12 +15,15 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { autumnHandler } from "autumn-js/elysia";
 import { Elysia } from "elysia";
+import { initLogger, log, parseError } from "evlog";
+import { evlog, useLogger } from "evlog/elysia";
+import { applyAuthWideEvent } from "@/lib/auth-wide-event";
 import {
-	endRequestSpan,
-	initTracing,
-	shutdownTracing,
-	startRequestSpan,
-} from "./lib/tracing";
+	apiLoggerDrain,
+	enrichApiWideEvent,
+	flushBatchedApiDrain,
+} from "@/lib/evlog-api";
+import { captureError } from "@/lib/tracing";
 import { agent } from "./routes/agent";
 import { health } from "./routes/health";
 import { insights } from "./routes/insights";
@@ -32,37 +32,54 @@ import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
 import { webhooks } from "./routes/webhooks/index";
 
-initTracing();
-setupUncaughtErrorHandlers();
+initLogger({
+	env: { service: "api" },
+	drain: apiLoggerDrain,
+	sampling: {
+		rates: { info: 20, warn: 50, debug: 5 },
+		keep: [{ status: 400 }, { duration: 1500 }],
+	},
+});
+
+process.on("unhandledRejection", (reason, _promise) => {
+	captureError(reason);
+	log.error({
+		process: "unhandledRejection",
+		reason: reason instanceof Error ? reason.message : String(reason),
+	});
+});
+
+process.on("uncaughtException", (error) => {
+	captureError(error);
+	log.error({
+		process: "uncaughtException",
+		error: error instanceof Error ? error.message : String(error),
+	});
+});
 
 async function handleRpcRoute(
-	ctx: {
-		request: Request;
-		store: {
-			tracing?: {
-				activeContext?: ReturnType<typeof context.active> | null;
-			};
-		};
-	},
+	ctx: { request: Request },
 	handle: (
 		request: Request,
 		rpcContext: Awaited<ReturnType<typeof createRPCContext>>
 	) => Promise<{ matched: boolean; response?: Response }>
 ) {
-	const { request, store } = ctx;
+	const { request } = ctx;
 	try {
 		const rpcContext = await createRPCContext({ headers: request.headers });
 		const run = async () => {
 			const result = await handle(request, rpcContext);
 			return result.response ?? new Response("Not Found", { status: 404 });
 		};
-		const activeContext = store.tracing?.activeContext;
-		return activeContext ? context.with(activeContext, run) : run();
+		return run();
 	} catch (error) {
 		if (error instanceof ORPCError) {
 			recordORPCError({ code: error.code, message: error.message });
 		}
-		logger.error({ error }, "RPC handler failed");
+		useLogger().error(
+			error instanceof Error ? error : new Error(String(error)),
+			{ rpc: "handler" }
+		);
 		return new Response("Internal Server Error", { status: 500 });
 	}
 }
@@ -71,7 +88,9 @@ const rpcHandler = new RPCHandler(appRouter, {
 	interceptors: [
 		createAbortSignalInterceptor(),
 		onError((error) => {
-			logger.error(error);
+			useLogger().error(
+				error instanceof Error ? error : new Error(String(error))
+			);
 		}),
 	],
 });
@@ -214,16 +233,21 @@ const openApiHandler = new OpenAPIHandler(docsRouter, {
 	interceptors: [
 		createAbortSignalInterceptor(),
 		onError((error) => {
-			logger.error(error);
+			useLogger().error(
+				error instanceof Error ? error : new Error(String(error))
+			);
 		}),
 	],
 });
 
 const app = new Elysia()
-	.state("tracing", {
-		span: null as ReturnType<typeof startRequestSpan>["span"] | null,
-		activeContext: null as ReturnType<typeof context.active> | null | undefined,
-		startTime: 0,
+	.use(
+		evlog({
+			enrich: enrichApiWideEvent,
+		})
+	)
+	.onBeforeHandle(async ({ request }) => {
+		await applyAuthWideEvent(request.headers);
 	})
 	.use(
 		cors({
@@ -247,33 +271,6 @@ const app = new Elysia()
 			})
 	)
 	.use(webhooks)
-	.onBeforeHandle(function startTrace({ request, path, store }) {
-		const method = request.method;
-		const startTime = Date.now();
-
-		const route = path.startsWith("/rpc/")
-			? path.slice(5)
-			: path.startsWith("/api/")
-				? path.slice(5)
-				: path;
-		const { span, activeContext } = startRequestSpan(
-			method,
-			request.url,
-			route
-		);
-
-		store.tracing = {
-			span,
-			activeContext,
-			startTime,
-		};
-	})
-	.onAfterHandle(function endTrace({ response, store }) {
-		if (store.tracing?.span && store.tracing.startTime) {
-			const statusCode = response instanceof Response ? response.status : 200;
-			endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
-		}
-	})
 	.use(
 		autumnHandler({
 			identify: async ({ request }) => {
@@ -302,7 +299,10 @@ const app = new Elysia()
 						},
 					};
 				} catch (error) {
-					logger.error({ error }, "Failed to get session for autumn handler");
+					useLogger().error(
+						error instanceof Error ? error : new Error(String(error)),
+						{ autumn: "identify" }
+					);
 					return null;
 				}
 			},
@@ -334,23 +334,33 @@ const app = new Elysia()
 			),
 		{ parse: "none" }
 	)
-	.onError(function handleError({ error, code, store }) {
+	.onError(function handleError({ error, code }) {
 		const statusCode = code === "NOT_FOUND" ? 404 : 500;
-		if (store.tracing?.span && store.tracing.startTime) {
-			endRequestSpan(store.tracing.span, statusCode, store.tracing.startTime);
-		}
 
-		const errorMessage = error instanceof Error ? error.message : String(error);
+		const parsed = parseError(error);
 		const isDevelopment = process.env.NODE_ENV === "development";
-		logger.error({ error, code }, errorMessage);
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const safeClientError =
+			isDevelopment || statusCode === 404
+				? errorMessage
+				: "An internal server error occurred";
+		const exposeStructured =
+			isDevelopment || (parsed.status >= 400 && parsed.status < 500);
 
 		return new Response(
 			JSON.stringify({
 				success: false,
-				error: isDevelopment
-					? errorMessage
-					: "An internal server error occurred",
+				error: safeClientError,
 				code: code ?? "INTERNAL_SERVER_ERROR",
+				...(exposeStructured && parsed.why != null && parsed.why !== ""
+					? { why: parsed.why }
+					: {}),
+				...(exposeStructured && parsed.fix != null && parsed.fix !== ""
+					? { fix: parsed.fix }
+					: {}),
+				...(exposeStructured && parsed.link != null && parsed.link !== ""
+					? { link: parsed.link }
+					: {}),
 			}),
 			{ status: statusCode, headers: { "Content-Type": "application/json" } }
 		);
@@ -362,17 +372,23 @@ export default {
 };
 
 process.on("SIGINT", async () => {
-	logger.info("SIGINT received, shutting down gracefully...");
-	await shutdownTracing().catch((error) =>
-		logger.error({ error }, "Shutdown error")
+	log.info("lifecycle", "SIGINT received, shutting down gracefully");
+	await flushBatchedApiDrain().catch((error) =>
+		log.error({
+			lifecycle: "drainFlush",
+			error: error instanceof Error ? error.message : String(error),
+		})
 	);
 	process.exit(0);
 });
 
 process.on("SIGTERM", async () => {
-	logger.info("SIGTERM received, shutting down gracefully...");
-	await shutdownTracing().catch((error) =>
-		logger.error({ error }, "Shutdown error")
+	log.info("lifecycle", "SIGTERM received, shutting down gracefully");
+	await flushBatchedApiDrain().catch((error) =>
+		log.error({
+			lifecycle: "drainFlush",
+			error: error instanceof Error ? error.message : String(error),
+		})
 	);
 	process.exit(0);
 });

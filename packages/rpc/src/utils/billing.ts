@@ -1,7 +1,7 @@
 import { and, db, eq, member } from "@databuddy/db";
 import { cacheable } from "@databuddy/redis";
-import { logger } from "@databuddy/shared/logger";
 import { Autumn as autumn } from "autumn-js";
+import { logger } from "../lib/logger";
 
 export interface BillingOwner {
 	customerId: string;

@@ -9,7 +9,6 @@ import {
 	TableIcon,
 } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
-import dayjs from "@/lib/dayjs";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import type { DateRange as DayPickerRange } from "react-day-picker";
@@ -20,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useWebsite } from "@/hooks/use-websites";
+import dayjs from "@/lib/dayjs";
 import { orpc } from "@/lib/orpc";
 import { PageHeader } from "../../../_components/page-header";
 
@@ -136,9 +136,7 @@ export default function ExportPage() {
 				icon={<DownloadIcon />}
 				title="Data Export"
 			/>
-
-			{/* Content */}
-			<div className="flex min-h-0 flex-1 flex-col">
+			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
 				{/* Format selection */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="mb-3">

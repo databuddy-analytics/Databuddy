@@ -11,8 +11,7 @@ import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const LINKS_BASE_URL = "https://dby.sh";
+import { LINKS_FULL_URL } from "./link-constants";
 
 type QrStyle = "squares" | "dots";
 
@@ -50,7 +49,7 @@ export function LinkQrCode({
 	const qrRef = useRef<QRCode>(null);
 	const qrContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const shortUrl = `${LINKS_BASE_URL}/${slug}`;
+	const shortUrl = `${LINKS_FULL_URL}/${slug}`;
 
 	// Customization state
 	const [qrStyle, setQrStyle] = useState<QrStyle>("dots");

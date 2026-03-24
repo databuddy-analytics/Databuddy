@@ -6,7 +6,9 @@ export const source = loader({
 	source: docs.toFumadocsSource(),
 });
 
-export function getPageImage(page: InferPageType<typeof source>) {
+export type DocPage = InferPageType<typeof source>;
+
+export function getPageImage(page: DocPage) {
 	const segments = [...page.slugs, "image.png"];
 
 	return {

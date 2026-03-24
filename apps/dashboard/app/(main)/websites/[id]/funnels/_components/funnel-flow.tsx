@@ -182,7 +182,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 													<div className="space-y-1.5">
 														<p className="font-medium text-sm">
 															{step.error_count} error
-															{step.error_count !== 1 ? "s" : ""} (
+															{step.error_count === 1 ? "" : "s"} (
 															{step.error_rate}% of users)
 														</p>
 														{step.top_errors.length > 0 && (

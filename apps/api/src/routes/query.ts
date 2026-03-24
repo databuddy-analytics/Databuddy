@@ -22,7 +22,7 @@ import {
 	isApiKeyPresent,
 } from "../lib/api-key";
 import { resolveDatePreset } from "../lib/date-presets";
-import { record, setAttributes } from "../lib/tracing";
+import { mergeWideEvent } from "../lib/tracing";
 import { getCachedWebsiteDomain, getWebsiteDomain } from "../lib/website-utils";
 import { compileQuery, executeBatch } from "../query";
 import { QueryBuilders } from "../query/builders";
@@ -344,8 +344,8 @@ function verifyWebsiteAccess(
 	ctx: AuthContext,
 	websiteId: string
 ): Promise<boolean> {
-	return record("verifyWebsiteAccess", async () => {
-		setAttributes({ access_check_type: "website", website_id: websiteId });
+	return (async () => {
+		mergeWideEvent({ access_check_type: "website", website_id: websiteId });
 
 		const website = await db.query.websites.findFirst({
 			where: eq(websites.id, websiteId),
@@ -357,27 +357,27 @@ function verifyWebsiteAccess(
 		});
 
 		if (!website) {
-			setAttributes({ access_result: "not_found" });
+			mergeWideEvent({ access_result: "not_found" });
 			return false;
 		}
 
 		if (isAdminUser(ctx.user)) {
-			setAttributes({ access_result: "admin" });
+			mergeWideEvent({ access_result: "admin" });
 			return true;
 		}
 
 		if (website.isPublic) {
-			setAttributes({ access_result: "public" });
+			mergeWideEvent({ access_result: "public" });
 			return true;
 		}
 
 		if (!ctx.isAuthenticated) {
-			setAttributes({ access_result: "unauthenticated" });
+			mergeWideEvent({ access_result: "unauthenticated" });
 			return false;
 		}
 
 		if (!website.organizationId) {
-			setAttributes({ access_result: "no_organization" });
+			mergeWideEvent({ access_result: "no_organization" });
 			return false;
 		}
 
@@ -385,18 +385,18 @@ function verifyWebsiteAccess(
 			if (hasGlobalAccess(ctx.apiKey)) {
 				if (ctx.apiKey.organizationId) {
 					const granted = website.organizationId === ctx.apiKey.organizationId;
-					setAttributes({
+					mergeWideEvent({
 						access_result: granted ? "api_key_global" : "api_key_denied",
 					});
 					return granted;
 				}
-				setAttributes({ access_result: "api_key_no_org" });
+				mergeWideEvent({ access_result: "api_key_no_org" });
 				return false;
 			}
 
 			const accessibleIds = getAccessibleWebsiteIds(ctx.apiKey);
 			const granted = accessibleIds.includes(websiteId);
-			setAttributes({
+			mergeWideEvent({
 				access_result: granted ? "api_key_scoped" : "api_key_denied",
 			});
 			return granted;
@@ -413,23 +413,23 @@ function verifyWebsiteAccess(
 				},
 			});
 
-			setAttributes({
+			mergeWideEvent({
 				access_result: membership ? "member" : "not_member",
 			});
 			return !!membership;
 		}
 
-		setAttributes({ access_result: "denied" });
+		mergeWideEvent({ access_result: "denied" });
 		return false;
-	});
+	})();
 }
 
 function verifyScheduleAccess(
 	ctx: AuthContext,
 	scheduleId: string
 ): Promise<boolean> {
-	return record("verifyScheduleAccess", async () => {
-		setAttributes({ access_check_type: "schedule", schedule_id: scheduleId });
+	return (async () => {
+		mergeWideEvent({ access_check_type: "schedule", schedule_id: scheduleId });
 
 		const schedule = await db.query.uptimeSchedules.findFirst({
 			where: eq(uptimeSchedules.id, scheduleId),
@@ -440,17 +440,17 @@ function verifyScheduleAccess(
 		});
 
 		if (!schedule) {
-			setAttributes({ access_result: "not_found" });
+			mergeWideEvent({ access_result: "not_found" });
 			return false;
 		}
 
 		if (isAdminUser(ctx.user)) {
-			setAttributes({ access_result: "admin" });
+			mergeWideEvent({ access_result: "admin" });
 			return true;
 		}
 
 		if (!ctx.isAuthenticated) {
-			setAttributes({ access_result: "unauthenticated" });
+			mergeWideEvent({ access_result: "unauthenticated" });
 			return false;
 		}
 
@@ -462,7 +462,7 @@ function verifyScheduleAccess(
 				),
 				columns: { id: true },
 			});
-			setAttributes({
+			mergeWideEvent({
 				access_result: membership ? "member" : "not_member",
 			});
 			return !!membership;
@@ -470,20 +470,20 @@ function verifyScheduleAccess(
 
 		if (ctx.apiKey) {
 			const granted = ctx.apiKey.organizationId === schedule.organizationId;
-			setAttributes({
+			mergeWideEvent({
 				access_result: granted ? "api_key_match" : "api_key_denied",
 			});
 			return granted;
 		}
 
-		setAttributes({ access_result: "denied" });
+		mergeWideEvent({ access_result: "denied" });
 		return false;
-	});
+	})();
 }
 
 function verifyLinkAccess(ctx: AuthContext, linkId: string): Promise<boolean> {
-	return record("verifyLinkAccess", async () => {
-		setAttributes({ access_check_type: "link", link_id: linkId });
+	return (async () => {
+		mergeWideEvent({ access_check_type: "link", link_id: linkId });
 
 		const link = await db.query.links.findFirst({
 			where: and(eq(links.id, linkId), isNull(links.deletedAt)),
@@ -495,17 +495,17 @@ function verifyLinkAccess(ctx: AuthContext, linkId: string): Promise<boolean> {
 		});
 
 		if (!link) {
-			setAttributes({ access_result: "not_found" });
+			mergeWideEvent({ access_result: "not_found" });
 			return false;
 		}
 
 		if (isAdminUser(ctx.user)) {
-			setAttributes({ access_result: "admin" });
+			mergeWideEvent({ access_result: "admin" });
 			return true;
 		}
 
 		if (!ctx.isAuthenticated) {
-			setAttributes({ access_result: "unauthenticated" });
+			mergeWideEvent({ access_result: "unauthenticated" });
 			return false;
 		}
 
@@ -517,7 +517,7 @@ function verifyLinkAccess(ctx: AuthContext, linkId: string): Promise<boolean> {
 				),
 				columns: { id: true },
 			});
-			setAttributes({
+			mergeWideEvent({
 				access_result: membership ? "member" : "not_member",
 			});
 			return !!membership;
@@ -525,7 +525,7 @@ function verifyLinkAccess(ctx: AuthContext, linkId: string): Promise<boolean> {
 
 		if (ctx.user) {
 			const granted = link.createdBy === ctx.user.id;
-			setAttributes({
+			mergeWideEvent({
 				access_result: granted ? "owner" : "not_owner",
 			});
 			return granted;
@@ -533,34 +533,34 @@ function verifyLinkAccess(ctx: AuthContext, linkId: string): Promise<boolean> {
 
 		if (ctx.apiKey) {
 			const granted = ctx.apiKey.organizationId === link.organizationId;
-			setAttributes({
+			mergeWideEvent({
 				access_result: granted ? "api_key_match" : "api_key_denied",
 			});
 			return granted;
 		}
 
-		setAttributes({ access_result: "denied" });
+		mergeWideEvent({ access_result: "denied" });
 		return false;
-	});
+	})();
 }
 
 function verifyOrganizationAccess(
 	ctx: AuthContext,
 	organizationId: string
 ): Promise<boolean> {
-	return record("verifyOrganizationAccess", async () => {
-		setAttributes({
+	return (async () => {
+		mergeWideEvent({
 			access_check_type: "organization",
 			organization_id: organizationId,
 		});
 
 		if (isAdminUser(ctx.user)) {
-			setAttributes({ access_result: "admin" });
+			mergeWideEvent({ access_result: "admin" });
 			return true;
 		}
 
 		if (!ctx.isAuthenticated) {
-			setAttributes({ access_result: "unauthenticated" });
+			mergeWideEvent({ access_result: "unauthenticated" });
 			return false;
 		}
 
@@ -572,7 +572,7 @@ function verifyOrganizationAccess(
 				),
 				columns: { id: true },
 			});
-			setAttributes({
+			mergeWideEvent({
 				access_result: membership ? "member" : "not_member",
 			});
 			return !!membership;
@@ -580,15 +580,15 @@ function verifyOrganizationAccess(
 
 		if (ctx.apiKey) {
 			const granted = ctx.apiKey.organizationId === organizationId;
-			setAttributes({
+			mergeWideEvent({
 				access_result: granted ? "api_key_match" : "api_key_denied",
 			});
 			return granted;
 		}
 
-		setAttributes({ access_result: "denied" });
+		mergeWideEvent({ access_result: "denied" });
 		return false;
-	});
+	})();
 }
 
 async function resolveProjectAccess(
@@ -948,20 +948,20 @@ export const query = new Elysia({ prefix: "/v1/query" })
 	})
 
 	.get("/websites", ({ auth: ctx }) =>
-		record("getWebsites", async () => {
+		(async () => {
 			const requestId = generateRequestId();
 			if (!ctx.isAuthenticated) {
 				return createAuthFailedResponse(requestId);
 			}
 			const list = await getAccessibleWebsites(ctx);
 			const count = Array.isArray(list) ? list.length : 0;
-			setAttributes({
+			mergeWideEvent({
 				websites_count: count,
 				auth_method: ctx.authMethod,
 				request_id: requestId,
 			});
 			return { success: true, requestId, websites: list, total: count };
-		})
+		})()
 	)
 
 	.get("/types", ({ query: params }: { query: { include_meta?: string } }) => {
@@ -1051,7 +1051,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			};
 			auth: AuthContext;
 		}) =>
-			record("executeQuery", async () => {
+			(async () => {
 				const requestId = generateRequestId();
 				const timezone = q.timezone || "UTC";
 
@@ -1072,7 +1072,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				}
 
 				const isBatch = Array.isArray(body);
-				setAttributes({
+				mergeWideEvent({
 					query_is_batch: isBatch,
 					query_count: isBatch ? body.length : 1,
 					request_id: requestId,
@@ -1169,7 +1169,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 						timezone
 					)),
 				};
-			}),
+			})(),
 		{
 			body: t.Union([
 				DynamicQueryRequestSchema,
@@ -1189,7 +1189,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			query: { website_id?: string };
 			auth: AuthContext;
 		}) =>
-			record("executeCustomQuery", async () => {
+			(async () => {
 				const requestId = generateRequestId();
 
 				if (!q.website_id) {
@@ -1214,7 +1214,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 					);
 				}
 
-				setAttributes({
+				mergeWideEvent({
 					custom_query_table: body.query.table,
 					custom_query_selects: body.query.selects.length,
 					custom_query_filters: body.query.filters?.length || 0,
@@ -1232,7 +1232,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				}
 
 				return { ...result, requestId };
-			}),
+			})(),
 		{
 			body: t.Object({
 				query: t.Object({

@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { cacheable, redis } from "@databuddy/redis";
-import { captureError, record, setAttributes } from "@lib/tracing";
+import { captureError, record } from "@lib/tracing";
 import { CryptoHasher } from "bun";
+import { useLogger } from "evlog/elysia";
 
 const EXIT_EVENT_TTL = 172_800;
 const STANDARD_EVENT_TTL = 86_400;
@@ -17,7 +18,6 @@ export const getDailySalt = cacheable(
 			const saltKey = `salt:${getCurrentDay()}`;
 			try {
 				const salt = await redis.get(saltKey);
-				setAttributes({ redis_hit: Boolean(salt) });
 				if (salt) {
 					return salt;
 				}
@@ -71,12 +71,12 @@ export function checkDuplicate(
 			? EXIT_EVENT_TTL
 			: STANDARD_EVENT_TTL;
 
-		setAttributes({ dedup_event_type: eventType });
-
 		try {
 			const result = await redis.set(key, "1", "EX", ttl, "NX");
 			const isDuplicate = result === null;
-			setAttributes({ dedup_is_duplicate: isDuplicate });
+			if (isDuplicate) {
+				useLogger().set({ dedup: { duplicate: true, eventType } });
+			}
 			return isDuplicate;
 		} catch (error) {
 			captureError(error, {

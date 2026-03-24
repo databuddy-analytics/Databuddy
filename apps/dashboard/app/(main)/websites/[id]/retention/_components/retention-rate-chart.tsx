@@ -2,7 +2,6 @@
 
 import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
 import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr/Spinner";
-import dayjs from "@/lib/dayjs";
 import { useMemo } from "react";
 import {
 	Area,
@@ -14,6 +13,7 @@ import {
 	YAxis,
 } from "recharts";
 import { EmptyState } from "@/components/empty-state";
+import dayjs from "@/lib/dayjs";
 
 interface RetentionRate {
 	date: string;
@@ -58,7 +58,7 @@ function CustomTooltip({
 			<div className="space-y-1.5">
 				<div className="flex items-center justify-between gap-4">
 					<div className="flex items-center gap-2">
-						<div className="size-2 rounded-full bg-primary" />
+						<div className="size-2 rounded-full bg-chart-1" />
 						<span className="text-muted-foreground text-xs">Retention</span>
 					</div>
 					<span className="font-semibold text-foreground text-xs tabular-nums">
@@ -141,7 +141,7 @@ export function RetentionRateChart({
 			{/* Legend */}
 			<div className="flex items-center gap-4">
 				<div className="flex items-center gap-2">
-					<div className="size-2.5 rounded-full bg-primary" />
+					<div className="size-2.5 rounded-full bg-chart-1" />
 					<span className="text-muted-foreground text-xs">
 						Daily Retention Rate
 					</span>
@@ -165,17 +165,17 @@ export function RetentionRateChart({
 							>
 								<stop
 									offset="0%"
-									stopColor="var(--color-primary)"
+									stopColor="var(--color-chart-1)"
 									stopOpacity={0.35}
 								/>
 								<stop
 									offset="50%"
-									stopColor="var(--color-primary)"
+									stopColor="var(--color-chart-1)"
 									stopOpacity={0.12}
 								/>
 								<stop
 									offset="100%"
-									stopColor="var(--color-primary)"
+									stopColor="var(--color-chart-1)"
 									stopOpacity={0}
 								/>
 							</linearGradient>
@@ -208,7 +208,7 @@ export function RetentionRateChart({
 						<Tooltip content={<CustomTooltip />} />
 						<Area
 							activeDot={{
-								fill: "var(--color-primary)",
+								fill: "var(--color-chart-1)",
 								r: 5,
 								stroke: "var(--color-background)",
 								strokeWidth: 2,
@@ -217,7 +217,7 @@ export function RetentionRateChart({
 							dataKey="retention_rate"
 							fill="url(#retentionGradient)"
 							fillOpacity={1}
-							stroke="var(--color-primary)"
+							stroke="var(--color-chart-1)"
 							strokeWidth={2}
 							type="monotone"
 						/>

@@ -20,7 +20,7 @@ export const ErrorChartTooltip = ({
 		<div className="min-w-[160px] rounded border bg-popover p-2.5 shadow-lg">
 			{label && (
 				<div className="mb-2 flex items-center gap-2 border-b pb-2">
-					<div className="size-1.5 animate-pulse rounded-full bg-primary" />
+					<div className="size-1.5 animate-pulse rounded-full bg-chart-1" />
 					<p className="font-medium text-foreground text-xs">{label}</p>
 				</div>
 			)}

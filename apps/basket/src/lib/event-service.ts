@@ -9,7 +9,7 @@ import type {
 import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
 import { sendEvent, sendEventBatch } from "@lib/producer";
 import { checkDuplicate, getDailySalt, saltAnonymousId } from "@lib/security";
-import { captureError, record, setAttributes } from "@lib/tracing";
+import { captureError, record } from "@lib/tracing";
 import { getGeo } from "@utils/ip-geo";
 import { parseUserAgent } from "@utils/user-agent";
 import {
@@ -18,6 +18,7 @@ import {
 	validatePerformanceMetric,
 	validateSessionId,
 } from "@utils/validation";
+import { useLogger } from "evlog/elysia";
 
 /**
  * Insert a track event (pageview/analytics event) via Kafka
@@ -30,6 +31,7 @@ export function insertTrackEvent(
 	request?: Request
 ): Promise<void> {
 	return record("insertTrackEvent", async () => {
+		const log = useLogger();
 		let eventId = sanitizeString(
 			trackData.eventId,
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
@@ -39,13 +41,6 @@ export function insertTrackEvent(
 			eventId = randomUUID();
 		}
 
-		setAttributes({
-			event_type: "track",
-			event_id: eventId,
-			client_id: clientId,
-			event_name: trackData.name,
-		});
-
 		const [isDuplicate, geoData, salt] = await Promise.all([
 			checkDuplicate(eventId, "track"),
 			getGeo(ip, request),
@@ -53,9 +48,17 @@ export function insertTrackEvent(
 		]);
 
 		if (isDuplicate) {
-			setAttributes({ event_duplicate: true });
 			return;
 		}
+
+		log.set({
+			event: { id: eventId, name: trackData.name, path: trackData.path },
+			geo: {
+				country: geoData.country,
+				region: geoData.region,
+				city: geoData.city,
+			},
+		});
 
 		let anonymousId = sanitizeString(
 			trackData.anonymousId,
@@ -157,14 +160,6 @@ export function insertTrackEvent(
 			created_at: now,
 		};
 
-		setAttributes({
-			geo_country: country || "unknown",
-			geo_city: city || "unknown",
-			browser_name: browserName || "unknown",
-			device_type: deviceType || "unknown",
-			event_path: trackData.path,
-		});
-
 		try {
 			sendEvent("analytics-events", trackEvent);
 		} catch (error) {
@@ -183,6 +178,7 @@ export function insertOutgoingLink(
 	_ip: string
 ): Promise<void> {
 	return record("insertOutgoingLink", async () => {
+		const log = useLogger();
 		let eventId = sanitizeString(
 			linkData.eventId,
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
@@ -192,16 +188,13 @@ export function insertOutgoingLink(
 			eventId = randomUUID();
 		}
 
-		setAttributes({
-			event_type: "outgoing_link",
-			event_id: eventId,
-			client_id: clientId,
-		});
-
 		if (await checkDuplicate(eventId, "outgoing_link")) {
-			setAttributes({ event_duplicate: true });
 			return;
 		}
+
+		log.set({
+			event: { id: eventId, type: "outgoing_link", href: linkData.href },
+		});
 
 		const now = Date.now();
 
@@ -241,11 +234,6 @@ export function insertTrackEventsBatch(
 			return;
 		}
 
-		setAttributes({
-			batch_type: "track",
-			batch_size: events.length,
-		});
-
 		try {
 			await sendEventBatch("analytics-events", events);
 		} catch (error) {
@@ -265,12 +253,6 @@ export function insertErrorSpans(
 		if (errors.length === 0) {
 			return;
 		}
-
-		setAttributes({
-			batch_type: "error_span",
-			batch_size: errors.length,
-			client_id: clientId,
-		});
 
 		const salt = await getDailySalt();
 		const now = Date.now();
@@ -325,12 +307,6 @@ export function insertIndividualVitals(
 			return;
 		}
 
-		setAttributes({
-			batch_type: "web_vital",
-			batch_size: vitals.length,
-			client_id: clientId,
-		});
-
 		const salt = await getDailySalt();
 		const now = Date.now();
 		const spans: WebVitalsSpan[] = vitals.map((vital) => {
@@ -364,11 +340,6 @@ export function insertOutgoingLinksBatch(
 		if (events.length === 0) {
 			return;
 		}
-
-		setAttributes({
-			batch_type: "outgoing_link",
-			batch_size: events.length,
-		});
 
 		try {
 			await sendEventBatch("analytics-outgoing-links", events);
@@ -415,11 +386,6 @@ export function insertAICallSpans(
 		if (calls.length === 0) {
 			return;
 		}
-
-		setAttributes({
-			batch_type: "ai_call_span",
-			batch_size: calls.length,
-		});
 
 		const spans: AICallSpan[] = calls.map((call) => ({
 			owner_id: call.owner_id,
@@ -482,11 +448,6 @@ export function insertCustomEvents(
 		if (events.length === 0) {
 			return;
 		}
-
-		setAttributes({
-			batch_type: "custom_event",
-			batch_size: events.length,
-		});
 
 		const salt = await getDailySalt();
 
