@@ -11,6 +11,7 @@ export function createMcpAgentConfig(
 		apiKey: unknown;
 		userId: string | null;
 		timezone?: string;
+		chatId?: string;
 	}
 ) {
 	const timezone = context.timezone ?? "UTC";
@@ -26,7 +27,7 @@ export function createMcpAgentConfig(
 		websiteDomain: "",
 		timezone,
 		currentDateTime: new Date().toISOString(),
-		chatId: crypto.randomUUID(),
+		chatId: context.chatId ?? crypto.randomUUID(),
 		requestHeaders: context.requestHeaders,
 		apiKey: context.apiKey,
 	};

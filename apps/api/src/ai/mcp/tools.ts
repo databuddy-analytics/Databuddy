@@ -315,6 +315,7 @@ export function createMcpTools(ctx: McpToolContext) {
 						apiKey: ctx.apiKey,
 						userId: ctx.userId,
 						timezone: args.timezone,
+						conversationId,
 						priorMessages: priorMessages.length > 0 ? priorMessages : undefined,
 					});
 

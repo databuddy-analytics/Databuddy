@@ -56,6 +56,12 @@ const MAX_MESSAGES = 100;
 const MAX_PARTS_PER_MESSAGE = 50;
 const MAX_PROPERTIES_PER_PART = 20;
 
+type AgentExperimentalTelemetry = {
+	isEnabled: true;
+	functionId: string;
+	metadata?: Record<string, string>;
+};
+
 /**
  * Schema uses t.Any() for message parts because UIMessage parts
  * are polymorphic (text, tool, reasoning, etc.) and validated
@@ -87,7 +93,8 @@ const AgentRequestSchema = t.Object({
  * Create a ToolLoopAgent from AgentConfig.
  */
 function createToolLoopAgent(
-	config: AgentConfig
+	config: AgentConfig,
+	experimentalTelemetry?: AgentExperimentalTelemetry
 ): InstanceType<typeof ToolLoopAgent> {
 	return new ToolLoopAgent({
 		model: config.model,
@@ -96,6 +103,7 @@ function createToolLoopAgent(
 		stopWhen: config.stopWhen,
 		temperature: config.temperature,
 		experimental_context: config.experimental_context,
+		experimental_telemetry: experimentalTelemetry,
 	});
 }
 
@@ -228,7 +236,27 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						emptyMessages: "remove",
 					});
 
-					const agent = createToolLoopAgent(config);
+					const dashboardTelemetryMetadata: Record<string, string> = {
+						source: "dashboard",
+						userId,
+						websiteId: body.websiteId,
+						websiteDomain: domain,
+						chatId,
+						agentType,
+						model,
+						timezone,
+						"tcc.sessionId": chatId,
+						"tcc.conversational": "true",
+					};
+					if (organizationId) {
+						dashboardTelemetryMetadata.organizationId = organizationId;
+					}
+
+					const agent = createToolLoopAgent(config, {
+						isEnabled: true,
+						functionId: `databuddy.dashboard.agent.${agentType}`,
+						metadata: dashboardTelemetryMetadata,
+					});
 
 					const result = await agent.stream({
 						messages: modelMessages,

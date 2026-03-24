@@ -137,6 +137,7 @@ function createInsightsTools() {
 }
 
 async function analyzeWebsite(
+	organizationId: string,
 	websiteId: string,
 	domain: string,
 	timezone: string,
@@ -161,6 +162,20 @@ async function analyzeWebsite(
 		stopWhen: stepCountIs(10),
 		temperature: 0.2,
 		experimental_context: appContext,
+		experimental_telemetry: {
+			isEnabled: true,
+			functionId: "databuddy.insights.analyze_website",
+			metadata: {
+				source: "insights",
+				feature: "smart_insights",
+				organizationId,
+				userId,
+				websiteId,
+				websiteDomain: domain,
+				timezone,
+				"tcc.sessionId": `insights-${websiteId}`,
+			},
+		},
 	});
 
 	try {
@@ -285,6 +300,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 					sites.slice(0, MAX_WEBSITES),
 					async (site) => {
 						const results = await analyzeWebsite(
+							organizationId,
 							site.id,
 							site.domain,
 							timezone,

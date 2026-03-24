@@ -1,5 +1,6 @@
 import { generateText, tool } from "ai";
 import { z } from "zod";
+import type { AppContext } from "../config/context";
 import { models } from "../config/models";
 import { createToolLogger } from "./utils/logger";
 
@@ -21,7 +22,7 @@ export const webSearchTool = tool({
 				"Brief context about why you're searching, to help refine the answer"
 			),
 	}),
-	execute: async ({ query, context }) => {
+	execute: async ({ query, context }, options) => {
 		const searchStart = Date.now();
 
 		try {
@@ -29,10 +30,38 @@ export const webSearchTool = tool({
 				? `You are a research assistant. The user is analyzing their website analytics and needs external context. Their specific situation: ${context}. Provide a concise, factual answer focused on actionable information. No fluff.`
 				: "You are a research assistant. Provide a concise, factual answer focused on actionable information. No fluff.";
 
+			const appContext = (options as { experimental_context?: AppContext })
+				.experimental_context;
+
+			const webSearchMetadata: Record<string, string> = {
+				source: "agent_tool",
+				tool: "web_search",
+			};
+			if (appContext?.userId) {
+				webSearchMetadata.userId = appContext.userId;
+			}
+			if (appContext?.websiteId) {
+				webSearchMetadata.websiteId = appContext.websiteId;
+			}
+			if (appContext?.websiteDomain) {
+				webSearchMetadata.websiteDomain = appContext.websiteDomain;
+			}
+			if (appContext?.timezone) {
+				webSearchMetadata.timezone = appContext.timezone;
+			}
+			if (appContext?.chatId) {
+				webSearchMetadata["tcc.sessionId"] = appContext.chatId;
+			}
+
 			const result = await generateText({
 				model: models.perplexity,
 				system: systemPrompt,
 				prompt: query,
+				experimental_telemetry: {
+					isEnabled: true,
+					functionId: "databuddy.agent.web_search",
+					metadata: webSearchMetadata,
+				},
 			});
 
 			const executionTime = Date.now() - searchStart;

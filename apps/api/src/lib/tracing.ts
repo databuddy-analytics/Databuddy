@@ -1,3 +1,4 @@
+import { TCCSpanProcessor } from "@contextcompany/otel";
 import { createORPCInstrumentation } from "@databuddy/rpc";
 import { context, type Span, SpanStatusCode, trace } from "@opentelemetry/api";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -30,17 +31,27 @@ export function initTracing(): void {
 		},
 	});
 
-	sdk = new NodeSDK({
-		resource: resourceFromAttributes({
-			[ATTR_SERVICE_NAME]: "api",
-			[ATTR_SERVICE_VERSION]: pkg.version,
-		}),
-		spanProcessor: new BatchSpanProcessor(exporter, {
+	const spanProcessors: NonNullable<
+		NonNullable<ConstructorParameters<typeof NodeSDK>[0]>["spanProcessors"]
+	> = [
+		new BatchSpanProcessor(exporter, {
 			scheduledDelayMillis: 1000,
 			exportTimeoutMillis: 30_000,
 			maxExportBatchSize: 512,
 			maxQueueSize: 2048,
 		}),
+	];
+
+	if (process.env.TCC_API_KEY) {
+		spanProcessors.push(new TCCSpanProcessor());
+	}
+
+	sdk = new NodeSDK({
+		resource: resourceFromAttributes({
+			[ATTR_SERVICE_NAME]: "api",
+			[ATTR_SERVICE_VERSION]: pkg.version,
+		}),
+		spanProcessors,
 		instrumentations: [
 			new HttpInstrumentation({
 				ignoreIncomingRequestHook: (req: { url?: string }) => {
