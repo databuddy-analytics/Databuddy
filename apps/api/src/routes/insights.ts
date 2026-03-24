@@ -287,7 +287,6 @@ async function analyzeWebsite(
 					websiteId,
 					websiteDomain: domain,
 					timezone,
-					"tcc.sessionId": `insights-${websiteId}`,
 				},
 			},
 		});
