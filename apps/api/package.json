@@ -52,6 +52,9 @@
     "resend": "^4.0.1",
     "svix": "^1.84.1",
     "zod": "catalog:",
-    "zod-to-json-schema": "^3.25.1"
+    "zod-to-json-schema": "^3.25.1",
+    "drizzle-orm": "^0.45.1",
+    "nanoid": "^5.1.6",
+    "@databuddy/notifications": "workspace:*"
   }
 }

@@ -1116,3 +1116,4 @@ export type Feedback = typeof feedback.$inferSelect;
 export type FeedbackInsert = typeof feedback.$inferInsert;
 export type FeedbackRedemption = typeof feedbackRedemptions.$inferSelect;
 export type FeedbackRedemptionInsert = typeof feedbackRedemptions.$inferInsert;
+export * from "./drizzle/alarms-schema";

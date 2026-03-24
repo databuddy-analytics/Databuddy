@@ -1,327 +1,228 @@
-// Alarms Service - 告警服务
-// 版权声明：MIT License | Copyright (c) 2026 思捷娅科技 (SJYKJ)
-
-import { db } from '@databuddy/db';
-import { nanoid } from 'nanoid';
+// Alarms Service — Drizzle ORM
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
+import { alarms, alarmLogs } from "@databuddy/db";
+import { db } from "@databuddy/db";
 import type {
   Alarm,
   AlarmLog,
-  CreateAlarmInput,
-  UpdateAlarmInput,
   AlarmStats,
+  CreateAlarmInput,
   TriggerType,
   NotificationChannel,
-} from './alarms.types';
-import { sendNotification } from '@databuddy/notifications';
+} from "./alarms.types";
+import { NotificationClient } from "@databuddy/notifications";
+
+function mapRow(row: typeof alarms.$inferSelect): Alarm {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    organization_id: row.organizationId,
+    website_id: row.websiteId,
+    name: row.name,
+    description: row.description,
+    enabled: row.enabled,
+    notification_channels: row.notificationChannels as NotificationChannel[],
+    slack_webhook_url: row.slackWebhookUrl,
+    discord_webhook_url: row.discordWebhookUrl,
+    teams_webhook_url: row.teamsWebhookUrl,
+    telegram_bot_token: row.telegramBotToken,
+    telegram_chat_id: row.telegramChatId,
+    google_chat_webhook_url: row.googleChatWebhookUrl,
+    email_addresses: row.emailAddresses ?? [],
+    webhook_url: row.webhookUrl,
+    webhook_headers: row.webhookHeaders as Record<string, string> | undefined,
+    trigger_type: row.triggerType as TriggerType,
+    trigger_conditions: row.triggerConditions as Record<string, unknown>,
+    check_interval: row.checkInterval,
+    cooldown_period: row.cooldownPeriod,
+    last_triggered_at: row.lastTriggeredAt,
+    last_error: row.lastError,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
+}
 
 export class AlarmsService {
-  /**
-   * 创建告警
-   */
   async createAlarm(input: CreateAlarmInput, userId: string, organizationId?: string): Promise<Alarm> {
     const id = nanoid();
-    
-    const alarm = await db.alarms.create({
-      data: {
+    const [row] = await db
+      .insert(alarms)
+      .values({
         id,
-        user_id: userId,
-        organization_id: organizationId,
-        website_id: input.website_id,
+        userId,
+        organizationId,
+        websiteId: input.website_id,
         name: input.name,
         description: input.description,
         enabled: input.enabled ?? true,
-        notification_channels: input.notification_channels,
-        slack_webhook_url: input.slack_webhook_url,
-        discord_webhook_url: input.discord_webhook_url,
-        teams_webhook_url: input.teams_webhook_url,
-        telegram_bot_token: input.telegram_bot_token,
-        telegram_chat_id: input.telegram_chat_id,
-        google_chat_webhook_url: input.google_chat_webhook_url,
-        email_addresses: input.email_addresses ?? [],
-        webhook_url: input.webhook_url,
-        webhook_headers: input.webhook_headers,
-        trigger_type: input.trigger_type,
-        trigger_conditions: input.trigger_conditions,
-        check_interval: input.check_interval ?? 300,
-        cooldown_period: input.cooldown_period ?? 3600,
-      },
-    });
-    
-    return this.mapToAlarm(alarm);
+        notificationChannels: input.notification_channels,
+        slackWebhookUrl: input.slack_webhook_url,
+        discordWebhookUrl: input.discord_webhook_url,
+        teamsWebhookUrl: input.teams_webhook_url,
+        telegramBotToken: input.telegram_bot_token,
+        telegramChatId: input.telegram_chat_id,
+        googleChatWebhookUrl: input.google_chat_webhook_url,
+        emailAddresses: input.email_addresses ?? [],
+        webhookUrl: input.webhook_url,
+        webhookHeaders: input.webhook_headers,
+        triggerType: input.trigger_type,
+        triggerConditions: input.trigger_conditions,
+        checkInterval: input.check_interval ?? 300,
+        cooldownPeriod: input.cooldown_period ?? 3600,
+      })
+      .returning();
+
+    return mapRow(row);
   }
 
-  /**
-   * 更新告警
-   */
-  async updateAlarm(input: UpdateAlarmInput): Promise<Alarm> {
-    const { id, ...updateData } = input;
-    
-    const alarm = await db.alarms.update({
-      where: { id },
-      data: {
-        ...updateData,
-        updated_at: new Date(),
-      },
-    });
-    
-    return this.mapToAlarm(alarm);
+  async updateAlarm(input: { id: string; [key: string]: unknown }): Promise<Alarm> {
+    const { id, ...data } = input;
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.enabled !== undefined) updateData.enabled = data.enabled;
+    if (data.website_id !== undefined) updateData.websiteId = data.website_id;
+    if (data.notification_channels !== undefined) updateData.notificationChannels = data.notification_channels;
+    if (data.slack_webhook_url !== undefined) updateData.slackWebhookUrl = data.slack_webhook_url;
+    if (data.discord_webhook_url !== undefined) updateData.discordWebhookUrl = data.discord_webhook_url;
+    if (data.teams_webhook_url !== undefined) updateData.teamsWebhookUrl = data.teams_webhook_url;
+    if (data.telegram_bot_token !== undefined) updateData.telegramBotToken = data.telegram_bot_token;
+    if (data.telegram_chat_id !== undefined) updateData.telegramChatId = data.telegram_chat_id;
+    if (data.google_chat_webhook_url !== undefined) updateData.googleChatWebhookUrl = data.google_chat_webhook_url;
+    if (data.email_addresses !== undefined) updateData.emailAddresses = data.email_addresses;
+    if (data.webhook_url !== undefined) updateData.webhookUrl = data.webhook_url;
+    if (data.webhook_headers !== undefined) updateData.webhookHeaders = data.webhook_headers;
+    if (data.trigger_type !== undefined) updateData.triggerType = data.trigger_type;
+    if (data.trigger_conditions !== undefined) updateData.triggerConditions = data.trigger_conditions;
+    if (data.check_interval !== undefined) updateData.checkInterval = data.check_interval;
+    if (data.cooldown_period !== undefined) updateData.cooldownPeriod = data.cooldown_period;
+
+    const [row] = await db
+      .update(alarms)
+      .set(updateData)
+      .where(eq(alarms.id, id))
+      .returning();
+
+    return mapRow(row);
   }
 
-  /**
-   * 删除告警
-   */
   async deleteAlarm(id: string): Promise<void> {
-    await db.alarms.delete({
-      where: { id },
-    });
+    await db.delete(alarms).where(eq(alarms.id, id));
   }
 
-  /**
-   * 获取告警详情
-   */
   async getAlarm(id: string): Promise<Alarm | null> {
-    const alarm = await db.alarms.findUnique({
-      where: { id },
-      include: {
-        logs: {
-          orderBy: { triggered_at: 'desc' },
-          take: 10,
-        },
-      },
-    });
-    
-    return alarm ? this.mapToAlarm(alarm) : null;
+    const [row] = await db
+      .select()
+      .from(alarms)
+      .where(eq(alarms.id, id))
+      .limit(1);
+
+    return row ? mapRow(row) : null;
   }
 
-  /**
-   * 获取用户的告警列表
-   */
   async getUserAlarms(
     userId: string,
     options?: {
       enabled?: boolean;
-      trigger_type?: TriggerType;
+      trigger_type?: string;
       limit?: number;
       offset?: number;
     }
   ): Promise<Alarm[]> {
-    const where: any = { user_id: userId };
-    
+    const conditions = [eq(alarms.userId, userId)];
     if (options?.enabled !== undefined) {
-      where.enabled = options.enabled;
+      conditions.push(eq(alarms.enabled, options.enabled));
     }
-    
     if (options?.trigger_type) {
-      where.trigger_type = options.trigger_type;
+      conditions.push(eq(alarms.triggerType, options.trigger_type));
     }
-    
-    const alarms = await db.alarms.findMany({
-      where,
-      orderBy: { created_at: 'desc' },
-      limit: options?.limit ?? 50,
-      offset: options?.offset ?? 0,
-    });
-    
-    return alarms.map(this.mapToAlarm);
+
+    const rows = await db
+      .select()
+      .from(alarms)
+      .where(and(...conditions))
+      .orderBy(desc(alarms.createdAt))
+      .limit(options?.limit ?? 50)
+      .offset(options?.offset ?? 0);
+
+    return rows.map(mapRow);
   }
 
-  /**
-   * 启用/禁用告警
-   */
   async toggleAlarm(id: string, enabled: boolean): Promise<Alarm> {
     return this.updateAlarm({ id, enabled });
   }
 
-  /**
-   * 触发告警
-   */
-  async triggerAlarm(alarmId: string, triggerValue: Record<string, any>): Promise<void> {
+  async triggerAlarm(alarmId: string, triggerValue: Record<string, unknown>): Promise<void> {
     const alarm = await this.getAlarm(alarmId);
-    if (!alarm || !alarm.enabled) {
-      return;
-    }
-    
-    // 检查冷却时间
+    if (!alarm || !alarm.enabled) return;
+
     if (alarm.last_triggered_at) {
       const cooldownMs = alarm.cooldown_period * 1000;
-      const timeSinceLastTrigger = Date.now() - alarm.last_triggered_at.getTime();
-      
-      if (timeSinceLastTrigger < cooldownMs) {
-        console.log(`Alarm ${alarmId} in cooldown period, skipping`);
-        return;
-      }
+      if (Date.now() - alarm.last_triggered_at.getTime() < cooldownMs) return;
     }
-    
-    // 发送通知
-    const channelsSent: NotificationChannel[] = [];
+
+    const client = new NotificationClient();
     const errors: string[] = [];
-    
-    for (const channel of alarm.notification_channels) {
-      try {
-        await sendNotification({
-          channel,
-          alarm,
-          triggerValue,
-        });
-        channelsSent.push(channel);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        errors.push(`${channel}: ${errorMsg}`);
-        console.error(`Failed to send notification via ${channel}:`, error);
+
+    const results = await client.send(
+      {
+        title: `Alarm: ${alarm.name}`,
+        message: JSON.stringify(triggerValue),
+        priority: "high",
+      },
+      { channels: alarm.notification_channels as any }
+    );
+
+    const channelsSent: string[] = [];
+    for (const r of results) {
+      if (r.success) {
+        channelsSent.push(r.channel);
+      } else {
+        errors.push(`${r.channel}: ${r.error ?? "unknown"}`);
       }
     }
-    
-    // 记录日志
-    await this.logAlarmTrigger({
-      alarm_id: alarmId,
-      trigger_value: triggerValue,
-      notification_channels_sent: channelsSent,
-      status: errors.length === 0 ? 'sent' : 'failed',
-      error_message: errors.length > 0 ? errors.join('; ') : undefined,
+
+    await db.insert(alarmLogs).values({
+      id: nanoid(),
+      alarmId,
+      triggerValue,
+      notificationChannelsSent: channelsSent,
+      status: errors.length === 0 ? "sent" : "failed",
+      errorMessage: errors.length > 0 ? errors.join("; ") : undefined,
     });
-    
-    // 更新告警最后触发时间
-    await db.alarms.update({
-      where: { id: alarmId },
-      data: {
-        last_triggered_at: new Date(),
-        last_error: errors.length > 0 ? errors.join('; ') : null,
-      },
-    });
+
+    await db
+      .update(alarms)
+      .set({
+        lastTriggeredAt: new Date(),
+        lastError: errors.length > 0 ? errors.join("; ") : null,
+      })
+      .where(eq(alarms.id, alarmId));
   }
 
-  /**
-   * 记录告警触发日志
-   */
-  private async logAlarmTrigger(input: {
-    alarm_id: string;
-    trigger_value: Record<string, any>;
-    notification_channels_sent: NotificationChannel[];
-    status: 'sent' | 'failed' | 'pending';
-    error_message?: string;
-    response_data?: Record<string, any>;
-  }): Promise<AlarmLog> {
-    const id = nanoid();
-    
-    const log = await db.alarm_logs.create({
-      data: {
-        id,
-        alarm_id: input.alarm_id,
-        trigger_value: input.trigger_value,
-        notification_channels_sent: input.notification_channels_sent,
-        status: input.status,
-        error_message: input.error_message,
-        response_data: input.response_data,
-      },
-    });
-    
-    return this.mapToAlarmLog(log);
-  }
-
-  /**
-   * 获取告警统计
-   */
   async getAlarmStats(userId: string): Promise<AlarmStats> {
-    const [total, active, todayTriggered, todayFailed, byTriggerType, byChannel] = await Promise.all([
-      db.alarms.count({ where: { user_id: userId } }),
-      db.alarms.count({ where: { user_id: userId, enabled: true } }),
-      db.alarm_logs.count({
-        where: {
-          alarm: { user_id: userId },
-          triggered_at: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-        },
-      }),
-      db.alarm_logs.count({
-        where: {
-          alarm: { user_id: userId },
-          triggered_at: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
-          status: 'failed',
-        },
-      }),
-      this.getGroupCount('trigger_type', userId),
-      this.getGroupCount('notification_channels', userId),
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const [totalResult, activeResult, triggeredResult, failedResult] = await Promise.all([
+      db.select({ c: count() }).from(alarms).where(eq(alarms.userId, userId)),
+      db.select({ c: count() }).from(alarms).where(and(eq(alarms.userId, userId), eq(alarms.enabled, true))),
+      db.select({ c: count() }).from(alarmLogs)
+        .innerJoin(alarms, eq(alarmLogs.alarmId, alarms.id))
+        .where(and(eq(alarms.userId, userId), gte(alarmLogs.triggeredAt, todayStart))),
+      db.select({ c: count() }).from(alarmLogs)
+        .innerJoin(alarms, eq(alarmLogs.alarmId, alarms.id))
+        .where(and(eq(alarms.userId, userId), eq(alarmLogs.status, "failed"), gte(alarmLogs.triggeredAt, todayStart))),
     ]);
-    
-    return {
-      total_alarms: total,
-      active_alarms: active,
-      triggered_today: todayTriggered,
-      failed_today: todayFailed,
-      by_trigger_type: byTriggerType as Record<TriggerType, number>,
-      by_channel: byChannel as Record<NotificationChannel, number>,
-    };
-  }
 
-  /**
-   * 获取分组统计
-   */
-  private async getGroupCount(field: string, userId: string): Promise<Record<string, number>> {
-    const results = await db.alarms.groupBy({
-      by: [field as 'trigger_type' | 'notification_channels'],
-      where: { user_id: userId },
-      _count: true,
-    });
-    
-    return results.reduce((acc, item: any) => {
-      const key = item[field];
-      if (Array.isArray(key)) {
-        // notification_channels is an array
-        key.forEach((channel: string) => {
-          acc[channel] = (acc[channel] || 0) + 1;
-        });
-      } else {
-        acc[key] = item._count;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-  }
-
-  /**
-   * 映射数据库对象到 Alarm 类型
-   */
-  private mapToAlarm(data: any): Alarm {
     return {
-      id: data.id,
-      user_id: data.user_id,
-      organization_id: data.organization_id,
-      website_id: data.website_id,
-      name: data.name,
-      description: data.description,
-      enabled: data.enabled,
-      notification_channels: data.notification_channels,
-      slack_webhook_url: data.slack_webhook_url,
-      discord_webhook_url: data.discord_webhook_url,
-      teams_webhook_url: data.teams_webhook_url,
-      telegram_bot_token: data.telegram_bot_token,
-      telegram_chat_id: data.telegram_chat_id,
-      google_chat_webhook_url: data.google_chat_webhook_url,
-      email_addresses: data.email_addresses,
-      webhook_url: data.webhook_url,
-      webhook_headers: data.webhook_headers,
-      trigger_type: data.trigger_type,
-      trigger_conditions: data.trigger_conditions,
-      check_interval: data.check_interval,
-      cooldown_period: data.cooldown_period,
-      last_triggered_at: data.last_triggered_at,
-      last_error: data.last_error,
-      created_at: data.created_at,
-      updated_at: data.updated_at,
-    };
-  }
-
-  /**
-   * 映射数据库对象到 AlarmLog 类型
-   */
-  private mapToAlarmLog(data: any): AlarmLog {
-    return {
-      id: data.id,
-      alarm_id: data.alarm_id,
-      triggered_at: data.triggered_at,
-      trigger_value: data.trigger_value,
-      notification_channels_sent: data.notification_channels_sent,
-      status: data.status,
-      error_message: data.error_message,
-      response_data: data.response_data,
+      total_alarms: totalResult[0].c,
+      active_alarms: activeResult[0].c,
+      triggered_today: triggeredResult[0].c,
+      failed_today: failedResult[0].c,
+      by_trigger_type: {} as Record<TriggerType, number>,
+      by_channel: {} as Record<NotificationChannel, number>,
     };
   }
 }

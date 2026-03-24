@@ -1,247 +1,255 @@
-// Alarms API Routes
-// 版权声明：MIT License | Copyright (c) 2026 思捷娅科技 (SJYKJ)
+// Alarms API Routes — Elysia Plugin
+import { auth } from "@databuddy/auth";
+import { logger } from "@databuddy/shared/logger";
+import { Elysia, t } from "elysia";
+import { alarmsService } from "./alarms.service";
+import type { CreateAlarmInput, UpdateAlarmInput } from "./alarms.types";
 
-import { Hono } from 'hono';
-import { zValidator } from '@hono/zod-validator';
-import { z } from 'zod';
-import { alarmsService } from './alarms.service';
-import { authMiddleware } from '../middleware/auth';
-import type { CreateAlarmInput, UpdateAlarmInput } from './alarms.types';
+const notificationChannels = [
+  "slack",
+  "discord",
+  "email",
+  "webhook",
+  "teams",
+  "telegram",
+  "google-chat",
+] as const;
 
-const alarmsRouter = new Hono();
+const triggerTypes = [
+  "uptime",
+  "traffic_spike",
+  "error_rate",
+  "response_time",
+  "custom",
+] as const;
 
-// 使用认证中间件
-alarmsRouter.use('/*', authMiddleware);
-
-// ========== Schema 验证 ==========
-
-const createAlarmSchema = z.object({
-  name: z.string().min(1).max(255),
-  description: z.string().max(1000).optional(),
-  website_id: z.string().optional(),
-  enabled: z.boolean().default(true),
-  notification_channels: z.array(z.enum(['slack', 'discord', 'email', 'webhook', 'teams', 'telegram', 'google-chat'])),
-  slack_webhook_url: z.string().url().optional(),
-  discord_webhook_url: z.string().url().optional(),
-  teams_webhook_url: z.string().url().optional(),
-  telegram_bot_token: z.string().optional(),
-  telegram_chat_id: z.string().optional(),
-  google_chat_webhook_url: z.string().url().optional(),
-  email_addresses: z.array(z.string().email()).optional(),
-  webhook_url: z.string().url().optional(),
-  webhook_headers: z.record(z.string()).optional(),
-  trigger_type: z.enum(['uptime', 'traffic_spike', 'error_rate', 'response_time', 'custom']),
-  trigger_conditions: z.object({
-    uptime_threshold: z.number().min(0).max(100).optional(),
-    downtime_minutes: z.number().min(0).optional(),
-    traffic_increase_percent: z.number().min(0).optional(),
-    traffic_decrease_percent: z.number().min(0).optional(),
-    error_rate_threshold: z.number().min(0).max(100).optional(),
-    error_count_threshold: z.number().min(0).optional(),
-    response_time_threshold: z.number().min(0).optional(),
-    comparison: z.enum(['gt', 'lt', 'eq', 'gte', 'lte']).optional(),
-    consecutive_failures: z.number().min(1).optional(),
+const createAlarmBody = t.Object({
+  name: t.String({ minLength: 1, maxLength: 255 }),
+  description: t.Optional(t.String({ maxLength: 1000 })),
+  website_id: t.Optional(t.String()),
+  enabled: t.Optional(t.Boolean({ default: true })),
+  notification_channels: t.Array(
+    t.Enum(notificationChannels.reduce((a, c) => ({ ...a, [c]: c }), {} as Record<string, string>))
+  ),
+  slack_webhook_url: t.Optional(t.String({ format: "uri" })),
+  discord_webhook_url: t.Optional(t.String({ format: "uri" })),
+  teams_webhook_url: t.Optional(t.String({ format: "uri" })),
+  telegram_bot_token: t.Optional(t.String()),
+  telegram_chat_id: t.Optional(t.String()),
+  google_chat_webhook_url: t.Optional(t.String({ format: "uri" })),
+  email_addresses: t.Optional(t.Array(t.String({ format: "email" }))),
+  webhook_url: t.Optional(t.String({ format: "uri" })),
+  webhook_headers: t.Optional(t.Record(t.String(), t.String())),
+  trigger_type: t.Enum(triggerTypes.reduce((a, c) => ({ ...a, [c]: c }), {} as Record<string, string>)),
+  trigger_conditions: t.Object({
+    uptime_threshold: t.Optional(t.Number({ minimum: 0, maximum: 100 })),
+    downtime_minutes: t.Optional(t.Number({ minimum: 0 })),
+    traffic_increase_percent: t.Optional(t.Number({ minimum: 0 })),
+    traffic_decrease_percent: t.Optional(t.Number({ minimum: 0 })),
+    error_rate_threshold: t.Optional(t.Number({ minimum: 0, maximum: 100 })),
+    error_count_threshold: t.Optional(t.Number({ minimum: 0 })),
+    response_time_threshold: t.Optional(t.Number({ minimum: 0 })),
+    comparison: t.Optional(
+      t.Enum({ gt: "gt", lt: "lt", eq: "eq", gte: "gte", lte: "lte" })
+    ),
+    consecutive_failures: t.Optional(t.Number({ minimum: 1 })),
   }),
-  check_interval: z.number().min(60).max(86400).default(300),
-  cooldown_period: z.number().min(60).max(86400).default(3600),
+  check_interval: t.Optional(t.Number({ minimum: 60, maximum: 86400 })),
+  cooldown_period: t.Optional(t.Number({ minimum: 60, maximum: 86400 })),
 });
 
-const updateAlarmSchema = createAlarmSchema.partial().extend({
-  id: z.string(),
-  enabled: z.boolean().optional(),
-});
-
-// ========== 路由 ==========
-
-/**
- * POST /api/alarms
- * 创建告警
- */
-alarmsRouter.post('/', zValidator('json', createAlarmSchema), async (c) => {
-  const user = c.get('user');
-  const body = c.req.valid('json');
-  
-  try {
-    const alarm = await alarmsService.createAlarm(
-      body as CreateAlarmInput,
-      user.id,
-      user.organization_id
-    );
-    
-    return c.json({
-      success: true,
-      data: alarm,
-      message: 'Alarm created successfully',
-    }, 201);
-  } catch (error) {
-    console.error('Failed to create alarm:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to create alarm',
-    }, 500);
-  }
-});
-
-/**
- * PUT /api/alarms/:id
- * 更新告警
- */
-alarmsRouter.put('/:id', zValidator('json', updateAlarmSchema), async (c) => {
-  const body = c.req.valid('json');
-  
-  try {
-    const alarm = await alarmsService.updateAlarm(body as UpdateAlarmInput);
-    
-    return c.json({
-      success: true,
-      data: alarm,
-      message: 'Alarm updated successfully',
-    });
-  } catch (error) {
-    console.error('Failed to update alarm:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to update alarm',
-    }, 500);
-  }
-});
-
-/**
- * DELETE /api/alarms/:id
- * 删除告警
- */
-alarmsRouter.delete('/:id', async (c) => {
-  const id = c.req.param('id');
-  
-  try {
-    await alarmsService.deleteAlarm(id);
-    
-    return c.json({
-      success: true,
-      message: 'Alarm deleted successfully',
-    });
-  } catch (error) {
-    console.error('Failed to delete alarm:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to delete alarm',
-    }, 500);
-  }
-});
-
-/**
- * GET /api/alarms/:id
- * 获取告警详情
- */
-alarmsRouter.get('/:id', async (c) => {
-  const id = c.req.param('id');
-  
-  try {
-    const alarm = await alarmsService.getAlarm(id);
-    
-    if (!alarm) {
-      return c.json({
+export const alarms = new Elysia({ prefix: "/v1/alarms" })
+  .derive(async ({ request }) => {
+    const session = await auth.api.getSession({ headers: request.headers });
+    return { user: session?.user ?? null };
+  })
+  .onBeforeHandle(({ user, set }) => {
+    if (!user) {
+      set.status = 401;
+      return {
         success: false,
-        error: 'Alarm not found',
-      }, 404);
+        error: "Authentication required",
+        code: "AUTH_REQUIRED",
+      };
     }
-    
-    return c.json({
-      success: true,
-      data: alarm,
-    });
-  } catch (error) {
-    console.error('Failed to get alarm:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to get alarm',
-    }, 500);
-  }
-});
-
-/**
- * GET /api/alarms
- * 获取用户的告警列表
- */
-alarmsRouter.get('/', async (c) => {
-  const user = c.get('user');
-  const enabled = c.req.query('enabled');
-  const trigger_type = c.req.query('trigger_type') as any;
-  const limit = parseInt(c.req.query('limit') || '50');
-  const offset = parseInt(c.req.query('offset') || '0');
-  
-  try {
-    const alarms = await alarmsService.getUserAlarms(user.id, {
-      enabled: enabled === 'true' ? true : enabled === 'false' ? false : undefined,
-      trigger_type,
-      limit,
-      offset,
-    });
-    
-    return c.json({
-      success: true,
-      data: alarms,
-      pagination: {
-        limit,
-        offset,
-        total: alarms.length,
-      },
-    });
-  } catch (error) {
-    console.error('Failed to get alarms:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to get alarms',
-    }, 500);
-  }
-});
-
-/**
- * POST /api/alarms/:id/toggle
- * 启用/禁用告警
- */
-alarmsRouter.post('/:id/toggle', async (c) => {
-  const id = c.req.param('id');
-  const { enabled } = await c.req.json();
-  
-  try {
-    const alarm = await alarmsService.toggleAlarm(id, enabled);
-    
-    return c.json({
-      success: true,
-      data: alarm,
-      message: `Alarm ${enabled ? 'enabled' : 'disabled'} successfully`,
-    });
-  } catch (error) {
-    console.error('Failed to toggle alarm:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to toggle alarm',
-    }, 500);
-  }
-});
-
-/**
- * GET /api/alarms/stats
- * 获取告警统计
- */
-alarmsRouter.get('/stats', async (c) => {
-  const user = c.get('user');
-  
-  try {
-    const stats = await alarmsService.getAlarmStats(user.id);
-    
-    return c.json({
-      success: true,
-      data: stats,
-    });
-  } catch (error) {
-    console.error('Failed to get alarm stats:', error);
-    return c.json({
-      success: false,
-      error: 'Failed to get alarm stats',
-    }, 500);
-  }
-});
-
-export { alarmsRouter };
+  })
+  // GET /v1/alarms/stats — BEFORE :id to avoid param capture
+  .get(
+    "/stats",
+    async ({ user }) => {
+      try {
+        const stats = await alarmsService.getAlarmStats(user!.id);
+        return { success: true, data: stats };
+      } catch (error) {
+        logger.error({ error }, "Failed to get alarm stats");
+        return {
+          success: false,
+          error: "Failed to get alarm stats",
+        };
+      }
+    }
+  )
+  .get(
+    "/",
+    async ({ user, query }) => {
+      try {
+        const alarms = await alarmsService.getUserAlarms(user!.id, {
+          enabled:
+            query.enabled === "true"
+              ? true
+              : query.enabled === "false"
+                ? false
+                : undefined,
+          trigger_type: query.trigger_type as any,
+          limit: Number(query.limit) || 50,
+          offset: Number(query.offset) || 0,
+        });
+        return {
+          success: true,
+          data: alarms,
+          pagination: {
+            limit: Number(query.limit) || 50,
+            offset: Number(query.offset) || 0,
+            total: alarms.length,
+          },
+        };
+      } catch (error) {
+        logger.error({ error }, "Failed to get alarms");
+        return { success: false, error: "Failed to get alarms" };
+      }
+    },
+    {
+      query: t.Object({
+        enabled: t.Optional(t.String()),
+        trigger_type: t.Optional(t.String()),
+        limit: t.Optional(t.String()),
+        offset: t.Optional(t.String()),
+      }),
+    }
+  )
+  .post(
+    "/",
+    async ({ body, user }) => {
+      try {
+        const alarm = await alarmsService.createAlarm(
+          body as CreateAlarmInput,
+          user!.id
+        );
+        return {
+          success: true,
+          data: alarm,
+          message: "Alarm created successfully",
+        };
+      } catch (error) {
+        logger.error({ error }, "Failed to create alarm");
+        return { success: false, error: "Failed to create alarm" };
+      }
+    },
+    { body: createAlarmBody }
+  )
+  .get(
+    "/:id",
+    async ({ params, set }) => {
+      try {
+        const alarm = await alarmsService.getAlarm(params.id);
+        if (!alarm) {
+          set.status = 404;
+          return { success: false, error: "Alarm not found" };
+        }
+        return { success: true, data: alarm };
+      } catch (error) {
+        logger.error({ error }, "Failed to get alarm");
+        return { success: false, error: "Failed to get alarm" };
+      }
+    },
+    { params: t.Object({ id: t.String() }) }
+  )
+  .put(
+    "/:id",
+    async ({ params, body, user, set }) => {
+      try {
+        // Ownership check
+        const existing = await alarmsService.getAlarm(params.id);
+        if (!existing) {
+          set.status = 404;
+          return { success: false, error: "Alarm not found" };
+        }
+        if (existing.user_id !== user!.id) {
+          set.status = 403;
+          return { success: false, error: "Forbidden" };
+        }
+        const alarm = await alarmsService.updateAlarm({
+          ...(body as UpdateAlarmInput),
+          id: params.id,
+        });
+        return {
+          success: true,
+          data: alarm,
+          message: "Alarm updated successfully",
+        };
+      } catch (error) {
+        logger.error({ error }, "Failed to update alarm");
+        return { success: false, error: "Failed to update alarm" };
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Partial(createAlarmBody),
+    }
+  )
+  .delete(
+    "/:id",
+    async ({ params, user, set }) => {
+      try {
+        // Ownership check
+        const existing = await alarmsService.getAlarm(params.id);
+        if (!existing) {
+          set.status = 404;
+          return { success: false, error: "Alarm not found" };
+        }
+        if (existing.user_id !== user!.id) {
+          set.status = 403;
+          return { success: false, error: "Forbidden" };
+        }
+        await alarmsService.deleteAlarm(params.id);
+        return {
+          success: true,
+          message: "Alarm deleted successfully",
+        };
+      } catch (error) {
+        logger.error({ error }, "Failed to delete alarm");
+        return { success: false, error: "Failed to delete alarm" };
+      }
+    },
+    { params: t.Object({ id: t.String() }) }
+  )
+  .post(
+    "/:id/toggle",
+    async ({ params, body, user, set }) => {
+      try {
+        // Ownership check
+        const existing = await alarmsService.getAlarm(params.id);
+        if (!existing) {
+          set.status = 404;
+          return { success: false, error: "Alarm not found" };
+        }
+        if (existing.user_id !== user!.id) {
+          set.status = 403;
+          return { success: false, error: "Forbidden" };
+        }
+        const alarm = await alarmsService.toggleAlarm(params.id, body.enabled);
+        return {
+          success: true,
+          data: alarm,
+          message: `Alarm ${body.enabled ? "enabled" : "disabled"} successfully`,
+        };
+      } catch (error) {
+        logger.error({ error }, "Failed to toggle alarm");
+        return { success: false, error: "Failed to toggle alarm" };
+      }
+    },
+    {
+      params: t.Object({ id: t.String() }),
+      body: t.Object({ enabled: t.Boolean() }),
+    }
+  );

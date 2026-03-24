@@ -26,6 +26,7 @@ import {
 } from "./lib/tracing";
 import { agent } from "./routes/agent";
 import { health } from "./routes/health";
+import { alarms } from "./alarms/alarms.routes";
 import { insights } from "./routes/insights";
 import { mcp } from "./routes/mcp";
 import { publicApi } from "./routes/public";
@@ -310,6 +311,7 @@ const app = new Elysia()
 	)
 	.use(query)
 	.use(agent)
+	.use(alarms)
 	.use(insights)
 	.use(mcp)
 	.all(
