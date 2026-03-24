@@ -19,14 +19,15 @@ export function initTccTracing(): void {
 		return;
 	}
 
-	sdk = new NodeSDK({
+	const next = new NodeSDK({
 		resource: resourceFromAttributes({
 			[ATTR_SERVICE_NAME]: "databuddy-api",
 			[ATTR_SERVICE_VERSION]: pkg.version,
 		}),
 		spanProcessors: [new TCCSpanProcessor()],
 	});
-	sdk.start();
+	next.start();
+	sdk = next;
 }
 
 export async function shutdownTccTracing(): Promise<void> {

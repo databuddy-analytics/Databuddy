@@ -33,8 +33,6 @@ import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
 import { webhooks } from "./routes/webhooks/index";
 
-initTccTracing();
-
 initLogger({
 	env: { service: "api" },
 	drain: apiLoggerDrain,
@@ -43,6 +41,17 @@ initLogger({
 		keep: [{ status: 400 }, { duration: 1500 }],
 	},
 });
+
+try {
+	initTccTracing();
+} catch (error) {
+	log.warn({
+		service: "api",
+		component: "tcc_otel",
+		message: "TCC tracing disabled (init failed)",
+		error: error instanceof Error ? error.message : String(error),
+	});
+}
 
 process.on("unhandledRejection", (reason, _promise) => {
 	captureError(reason);
