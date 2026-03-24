@@ -221,6 +221,7 @@ Rules:
 
 async function analyzeWebsite(
 	organizationId: string,
+	userId: string,
 	websiteId: string,
 	domain: string,
 	timezone: string
@@ -418,6 +419,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 					async (site) => {
 						const results = await analyzeWebsite(
 							organizationId,
+							userId,
 							site.id,
 							site.domain,
 							timezone

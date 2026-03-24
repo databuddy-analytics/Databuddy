@@ -51,6 +51,7 @@ export const webSearchTool = tool({
 			}
 			if (appContext?.chatId) {
 				webSearchMetadata["tcc.sessionId"] = appContext.chatId;
+				webSearchMetadata["tcc.conversational"] = "true";
 			}
 
 			const result = await generateText({

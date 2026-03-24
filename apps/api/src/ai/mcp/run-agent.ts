@@ -25,6 +25,8 @@ export interface RunMcpAgentOptions {
 export async function runMcpAgent(
 	options: RunMcpAgentOptions
 ): Promise<string> {
+	const sessionId = options.conversationId ?? crypto.randomUUID();
+
 	const apiKeyId =
 		options.apiKey &&
 		typeof options.apiKey === "object" &&
@@ -39,7 +41,7 @@ export async function runMcpAgent(
 				apiKey: options.apiKey,
 				userId: options.userId,
 				timezone: options.timezone,
-				chatId: options.conversationId,
+				chatId: sessionId,
 			})
 		),
 		isMemoryEnabled()
@@ -65,9 +67,7 @@ export async function runMcpAgent(
 	if (options.apiKey?.organizationId) {
 		mcpTelemetryMetadata.organizationId = options.apiKey.organizationId;
 	}
-	if (options.conversationId) {
-		mcpTelemetryMetadata["tcc.sessionId"] = options.conversationId;
-	}
+	mcpTelemetryMetadata["tcc.sessionId"] = sessionId;
 
 	const agent = new ToolLoopAgent({
 		model: config.model,
