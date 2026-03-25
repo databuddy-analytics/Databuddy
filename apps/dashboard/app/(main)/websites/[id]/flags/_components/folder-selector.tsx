@@ -38,7 +38,7 @@ export function FolderSelector({
 	const [newFolderName, setNewFolderName] = useState("");
 
 	// Get unique folders from the list
-	const uniqueFolders = Array.from(new Set(folders.filter(Boolean)));
+	const uniqueFolders = Array.from(new Set(folders.filter((folder): folder is string => Boolean(folder))));
 
 	const handleCreateFolder = () => {
 		const trimmed = newFolderName.trim();

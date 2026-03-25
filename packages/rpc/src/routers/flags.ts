@@ -297,10 +297,12 @@ export const flagsRouter = {
 							);
 						} else {
 							// Support hierarchical filtering: exact match OR starts with folder path + "/"
+							// Escape underscores in LIKE pattern to prevent wildcard matching
+							const escapedFolder = input.folder.replace(/_/g, '\\_');
 							conditions.push(
 								or(
 									eq(flags.folder, input.folder),
-									like(flags.folder, `${input.folder}/%`)
+									like(flags.folder, `${escapedFolder}/%`)
 								)
 							);
 						}

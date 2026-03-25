@@ -688,7 +688,7 @@ export const flags = pgTable(
 			"btree",
 			table.createdBy.asc().nullsLast().op("text_ops")
 		),
-		index("idx_flags_folder_website").on(table.folder, table.websiteId),
+		index("idx_flags_website_folder").on(table.websiteId, table.folder),
 		foreignKey({
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],

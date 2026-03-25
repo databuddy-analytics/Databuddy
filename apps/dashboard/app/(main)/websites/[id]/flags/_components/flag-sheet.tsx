@@ -567,7 +567,7 @@ export function FlagSheet({
 												<FolderSelector
 													value={field.value || ""}
 													onValueChange={field.onChange}
-													folders={flagsList?.map(f => f.folder).filter(Boolean) || []}
+													folders={flagsList?.map(f => f.folder).filter((folder): folder is string => Boolean(folder)) || []}
 													placeholder="Select or create folder..."
 													className="w-full"
 												/>

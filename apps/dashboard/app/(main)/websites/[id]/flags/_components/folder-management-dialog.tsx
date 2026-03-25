@@ -44,7 +44,7 @@ export function FolderManagementDialog({
 
 	// Get unique folders from flags
 	const folders = Array.from(
-		new Set(flags.map((flag) => flag.folder).filter(Boolean))
+		new Set(flags.map((flag) => flag.folder).filter((folder): folder is string => Boolean(folder)))
 	).sort();
 
 	const getFolderFlagCount = (folderPath: string) => {
@@ -109,19 +109,34 @@ export function FolderManagementDialog({
 				flag.folder === oldPath || flag.folder?.startsWith(oldPath + "/")
 			);
 			
-			await Promise.all(
-				flagsToUpdate.map((flag) => {
+			// Update flags sequentially to handle partial failures gracefully
+			const results = [];
+			for (const flag of flagsToUpdate) {
+				try {
 					// For exact match, use new path. For subfolders, replace the prefix
 					const newFolderPath = flag.folder === oldPath 
 						? newPath.trim()
 						: flag.folder?.replace(oldPath + "/", newPath.trim() + "/");
 					
-					return onUpdateFlag(flag.id, { folder: newFolderPath });
-				})
-			);
+					await onUpdateFlag(flag.id, { folder: newFolderPath });
+					results.push({ success: true, flag });
+				} catch (error) {
+					console.error(`Failed to update flag ${flag.key}:`, error);
+					results.push({ success: false, flag, error });
+				}
+			}
 
-			toast.success(`Folder renamed to "${newPath.trim()}" (${flagsToUpdate.length} flags updated)`);
-			setEditingFolder(null);
+			const successCount = results.filter(r => r.success).length;
+			const failureCount = results.filter(r => !r.success).length;
+
+			if (failureCount === 0) {
+				toast.success(`Folder renamed to "${newPath.trim()}" (${successCount} flags updated)`);
+				setEditingFolder(null);
+			} else if (successCount > 0) {
+				toast.error(`Partial rename: ${successCount} flags updated, ${failureCount} failed. Some flags may still be in the old folder.`);
+			} else {
+				toast.error("Failed to rename folder - no flags were updated");
+			}
 		} catch (error) {
 			console.error("Failed to rename folder:", error);
 			toast.error("Failed to rename folder");
@@ -138,6 +153,7 @@ export function FolderManagementDialog({
 		
 		if (flagsToUpdate.length === 0) {
 			toast.success("Folder deleted");
+			setFolderToDelete(null); // Close dialog on empty folder deletion
 			return;
 		}
 
