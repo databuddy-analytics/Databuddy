@@ -6,8 +6,10 @@ import {
 	flagsToTargetGroups,
 	inArray,
 	isNull,
+	like,
 	ne,
 	notDeleted,
+	or,
 	targetGroups,
 	withTransaction,
 } from "@databuddy/db";
@@ -67,6 +69,7 @@ const listFlagsSchema = z
 		websiteId: z.string().optional(),
 		organizationId: z.string().optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
+		folder: z.string().optional(),
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
 		message: "Either websiteId or organizationId must be provided",
@@ -125,6 +128,14 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z
+			.string()
+			.max(200, "Folder path too long")
+			.regex(
+				/^$|^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)*$/,
+				"Folder path must be empty or valid segments separated by forward slashes (e.g., 'auth/login')"
+			)
+			.optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -254,7 +265,8 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(({ context, input }) => {
 			const scope = getScope(input.websiteId, input.organizationId);
-			const cacheKey = `list:${scope}:${input.status || "all"}`;
+			const folderKey = input.folder === undefined ? "undefined" : input.folder === "" ? "empty" : input.folder;
+			const cacheKey = `list:${scope}:${input.status || "all"}:${folderKey}`;
 
 			return flagsCache.withCache({
 				key: cacheKey,
@@ -276,6 +288,22 @@ export const flagsRouter = {
 
 					if (input.status) {
 						conditions.push(eq(flags.status, input.status));
+					}
+
+					if (input.folder !== undefined) {
+						if (input.folder === "") {
+							conditions.push(
+								or(isNull(flags.folder), eq(flags.folder, ""))
+							);
+						} else {
+							// Support hierarchical filtering: exact match OR starts with folder path + "/"
+							conditions.push(
+								or(
+									eq(flags.folder, input.folder),
+									like(flags.folder, `${input.folder}/%`)
+								)
+							);
+						}
 					}
 
 					const flagsList = await context.db.query.flags.findMany({
@@ -572,6 +600,7 @@ export const flagsRouter = {
 							variants: input.variants,
 							dependencies: input.dependencies,
 							environment: input.environment,
+							folder: input.folder || null, // Add folder support
 							deletedAt: null,
 							updatedAt: new Date(),
 						})
@@ -629,6 +658,7 @@ export const flagsRouter = {
 						websiteId: input.websiteId || null,
 						organizationId: input.organizationId || null,
 						environment: input.environment || existingFlag?.[0]?.environment,
+						folder: input.folder || null,
 						userId: null,
 						createdBy,
 					})
@@ -781,12 +811,18 @@ export const flagsRouter = {
 
 			const { id, targetGroupIds, ...updates } = input;
 
+			// Coerce empty folder string to null for consistency
+			const finalUpdates = {
+				...updates,
+				...(updates.folder !== undefined && { folder: updates.folder || null }),
+			};
+
 			// Use transaction to ensure flag update + target group associations are atomic
 			const updatedFlag = await withTransaction(async (tx) => {
 				const [updated] = await tx
 					.update(flags)
 					.set({
-						...updates,
+						...finalUpdates,
 						updatedAt: new Date(),
 					})
 					.where(and(eq(flags.id, id), notDeleted(flags)))
