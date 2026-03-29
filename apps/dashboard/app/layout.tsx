@@ -4,6 +4,7 @@ import { Databuddy } from "@databuddy/sdk/react";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Toaster } from "@/components/ui/sonner";
+import { APP_URL } from "@/lib/app-url";
 import Providers from "./providers";
 
 const ltSuperior = localFont({
@@ -31,9 +32,7 @@ const ltSuperiorMono = localFont({
 });
 
 export const metadata: Metadata = {
-	metadataBase: new URL(
-		process.env.NEXT_PUBLIC_APP_URL || "https://app.databuddy.cc"
-	),
+	metadataBase: new URL(APP_URL),
 	title: {
 		template: "%s | Databuddy Dashboard",
 		default: "Databuddy Dashboard",
@@ -58,7 +57,7 @@ export const metadata: Metadata = {
 	openGraph: {
 		type: "website",
 		locale: "en_US",
-		url: "https://app.databuddy.cc",
+		url: APP_URL,
 		title: "Databuddy Dashboard",
 		description:
 			"Powerful analytics dashboard for your websites. Track visitors, monitor performance, and gain insights into your audience.",
@@ -92,7 +91,7 @@ export const metadata: Metadata = {
 		},
 	},
 	alternates: {
-		canonical: "https://app.databuddy.cc",
+		canonical: APP_URL,
 	},
 	appleWebApp: {
 		title: "Databuddy",

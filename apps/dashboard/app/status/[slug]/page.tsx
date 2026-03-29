@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { getStatusPageUrl } from "@/lib/app-url";
 import { publicRPCClient } from "@/lib/orpc-public";
 import { IncidentTimeline } from "./_components/incident-timeline";
 import { LastUpdated } from "./_components/last-updated";
@@ -57,11 +58,14 @@ export async function generateMetadata({
 
 	const title = `${data.organization.name} Status`;
 	const description = `Real-time system status for ${data.organization.name}`;
-	const url = `https://app.databuddy.cc/status/${slug}`;
+	const url = getStatusPageUrl(slug);
 
 	return {
 		title,
 		description,
+		alternates: {
+			canonical: `/status/${slug}`,
+		},
 		openGraph: {
 			title,
 			description,
@@ -108,7 +112,7 @@ export default async function StatusPage({
 		"@type": "WebPage",
 		name: `${data.organization.name} Status`,
 		description: `Real-time system status for ${data.organization.name}`,
-		url: `https://app.databuddy.cc/status/${slug}`,
+		url: getStatusPageUrl(slug),
 		publisher: {
 			"@type": "Organization",
 			name: data.organization.name,

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Branding } from "@/components/logo/branding";
 import { Button } from "@/components/ui/button";
+import { APP_URL } from "@/lib/app-url";
 
 export function StatusNavbar() {
 	return (
@@ -33,7 +34,7 @@ export function StatusNavbar() {
 
 					<Button asChild className="ml-1" size="sm">
 						<Link
-							href="https://app.databuddy.cc/login"
+							href={`${APP_URL}/login`}
 							rel="noopener noreferrer"
 							target="_blank"
 						>

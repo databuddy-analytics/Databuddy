@@ -7,8 +7,9 @@ import {
 } from "@databuddy/redis";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
+import { APP_URL } from "@/lib/app-url";
 
-const OG_IMAGE_BASE = "https://app.databuddy.cc/dby/og";
+const OG_IMAGE_BASE = `${APP_URL}/dby/og`;
 
 function generateOgImageUrl(title: string, description?: string): string {
 	const params = new URLSearchParams({ title });
