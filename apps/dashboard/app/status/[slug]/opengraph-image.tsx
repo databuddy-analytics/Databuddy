@@ -1,3 +1,4 @@
+// biome-ignore-all lint/a11y: OG image SVGs don't need alt text and it breaks the ui because it displays the alt text
 import { ImageResponse } from "next/og";
 import { publicRPCClient } from "@/lib/orpc-public";
 
@@ -81,7 +82,7 @@ export default async function OGImage({
 		.catch(() => null);
 
 	const orgName = data?.organization.name ?? "Status Page";
-	const status = data?.overallStatus ?? "operational";
+	const status = (data?.overallStatus ?? "operational") as string;
 	const banner = STATUS_BANNER[status] ?? STATUS_BANNER.operational;
 	const monitors = data?.monitors.slice(0, MAX_MONITORS) ?? [];
 	const totalMonitors = data?.monitors.length ?? 0;
@@ -109,7 +110,6 @@ export default async function OGImage({
 					viewBox="0 0 4633.76 1091.09"
 					xmlns="http://www.w3.org/2000/svg"
 				>
-					<title>Databuddy</title>
 					<g>
 						<path
 							d="M1503.66,899.63c-2.75-27.56-4.69-68.41-4.69-104.87v-409.18c0-9.54-7.73-17.27-17.27-17.27h-81.49c-9.53,0-17.26,7.73-17.26,17.27v134.82c0,14.2-16.11,22.24-27.56,13.84-24.49-17.97-56.62-29.53-86.9-29.53-96.42,0-163.84,87.02-163.84,210.09s67.42,210.09,163.84,210.09c37.51,0,75.02-13.18,100.88-34.47,10.61-8.74,26.65-2.44,28.25,11.22.07.58.13,1.16.2,1.72,1.01,8.71,8.39,15.26,17.15,15.26h71.51c10.23,0,18.19-8.82,17.18-18.99ZM1382.95,725.78c0,68.98-30.58,109.75-76.83,109.75-51.74,0-85.45-45.47-85.45-120.73s33.71-118.37,85.45-118.37c47.04,0,76.83,39.2,76.83,105.83v23.52Z"
@@ -191,7 +191,6 @@ export default async function OGImage({
 					width="22"
 					xmlns="http://www.w3.org/2000/svg"
 				>
-					<title>Status</title>
 					<circle cx="12" cy="12" fill={banner.text} r="12" />
 					{status === "operational" && (
 						<path
@@ -242,6 +241,15 @@ export default async function OGImage({
 						flex: 1,
 					}}
 				>
+					<span
+						style={{
+							color: THEME.mutedForeground,
+							fontSize: "13px",
+							fontWeight: 500,
+						}}
+					>
+						Last {BAR_DAYS} days
+					</span>
 					{monitors.map((monitor) => {
 						const monitorStatus = monitor.currentStatus as string;
 						const statusColor =
@@ -277,13 +285,12 @@ export default async function OGImage({
 											width="18"
 											xmlns="http://www.w3.org/2000/svg"
 										>
-											<title>Monitor status</title>
 											<circle cx="12" cy="12" fill={statusColor} r="12" />
 											{monitorStatus === "degraded" ? (
 												<path
 													d="M12 7v6M12 16v1"
 													fill="none"
-													stroke="#fff"
+													stroke={THEME.background}
 													strokeLinecap="round"
 													strokeWidth="2.5"
 												/>
@@ -291,7 +298,7 @@ export default async function OGImage({
 												<path
 													d="M8 8l8 8M16 8l-8 8"
 													fill="none"
-													stroke="#fff"
+													stroke={THEME.background}
 													strokeLinecap="round"
 													strokeWidth="2.5"
 												/>
@@ -299,7 +306,7 @@ export default async function OGImage({
 												<path
 													d="M7 12.5l3 3 7-7"
 													fill="none"
-													stroke="#fff"
+													stroke={THEME.background}
 													strokeLinecap="round"
 													strokeLinejoin="round"
 													strokeWidth="2.5"
