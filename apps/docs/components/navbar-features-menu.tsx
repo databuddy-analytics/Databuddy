@@ -89,10 +89,10 @@ export function NavbarFeaturesMenu({
 				aria-expanded={open}
 				aria-haspopup="true"
 				className={cn(
-					"flex items-center gap-1 px-4 py-4 font-medium text-sm transition-colors",
+					"flex items-center gap-1 rounded px-3 py-2 font-medium text-sm transition-colors",
 					open
-						? "text-foreground"
-						: "text-muted-foreground hover:text-foreground"
+						? "bg-muted/60 text-foreground"
+						: "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
 				)}
 				onClick={() => setOpen((prev) => !prev)}
 				onKeyDown={handleKeyDown}

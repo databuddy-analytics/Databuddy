@@ -3,14 +3,12 @@
 import Link from "next/link";
 import { useState } from "react";
 import { BrandContextMenu } from "@/components/brand-context-menu";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Logo } from "./logo";
 import { NavLink } from "./nav-link";
 import {
 	NavbarFeaturesMenu,
 	NavbarFeaturesMobileMenu,
 } from "./navbar-features-menu";
-import { NavbarGithubDesktopLink } from "./navbar-github-desktop-link";
 import { NavbarGithubMobileLink } from "./navbar-github-mobile-link";
 import { NavbarMobileMenuButton } from "./navbar-mobile-menu-button";
 
@@ -45,10 +43,14 @@ export const Navbar = ({ stars }: NavbarProps) => {
 											{menu.name}
 										</NavLink>
 									))}
-									<NavbarGithubDesktopLink stars={stars} />
-									<li className="ml-2">
+									{/* <NavbarGithubDesktopLink stars={stars} /> */}
+									<li aria-hidden className="mx-2 h-5 w-px bg-border" />
+									<NavLink external href="https://app.databuddy.cc/login">
+										Log in
+									</NavLink>
+									{/* <li className="ml-2">
 										<ThemeToggle />
-									</li>
+									</li> */}
 									<li className="ml-2">
 										<a
 											className="inline-flex items-center rounded bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-opacity hover:opacity-90"
@@ -143,9 +145,4 @@ export const navMenu: NavMenuItem[] = [
 	{ name: "Pricing", path: "/pricing" },
 	{ name: "Compare", path: "/compare" },
 	{ name: "Changelog", path: "/changelog" },
-	{
-		name: "Log in",
-		path: "https://app.databuddy.cc/login",
-		external: true,
-	},
 ];

@@ -31,7 +31,7 @@ export function NavLink({ href, children, className, external }: NavLinkProps) {
 	return (
 		<Component
 			className={cn(
-				"flex items-center gap-2 px-4 py-4 font-medium text-muted-foreground text-sm hover:text-foreground",
+				"flex items-center gap-2 rounded px-3 py-2 font-medium text-muted-foreground text-sm transition-colors hover:bg-muted/60 hover:text-foreground",
 				className
 			)}
 			href={href}
