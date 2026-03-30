@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FaDiscord, FaXTwitter } from "react-icons/fa6";
 import { IoMdMail } from "react-icons/io";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { CCPAIcon } from "./icons/ccpa";
 import { GDPRIcon } from "./icons/gdpr";
 import { SciFiButton } from "./landing/scifi-btn";
@@ -175,52 +176,55 @@ export function Footer() {
 				</div>
 
 				<div className="mt-6">
-					<div className="flex flex-col gap-4">
-						<div className="flex items-center gap-6">
-							<Link
-								aria-label="CCPA Compliance"
-								className="text-muted-foreground/90 transition-colors hover:text-muted-foreground"
-								href="/"
-							>
-								<CCPAIcon className="size-9" />
-							</Link>
-							<Link
-								aria-label="GDPR Compliance"
-								className="text-muted-foreground/90 transition-colors hover:text-muted-foreground"
-								href="/"
-							>
-								<GDPRIcon className="size-11" />
-							</Link>
+					<div className="flex items-end justify-between gap-4">
+						<div className="flex flex-col gap-4">
+							<div className="flex items-center gap-6">
+								<Link
+									aria-label="CCPA Compliance"
+									className="text-muted-foreground/90 transition-colors hover:text-muted-foreground"
+									href="/"
+								>
+									<CCPAIcon className="size-9" />
+								</Link>
+								<Link
+									aria-label="GDPR Compliance"
+									className="text-muted-foreground/90 transition-colors hover:text-muted-foreground"
+									href="/"
+								>
+									<GDPRIcon className="size-11" />
+								</Link>
+							</div>
+							<div className="flex flex-wrap items-center gap-4">
+								<Link
+									className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
+									href="/privacy"
+								>
+									Privacy Policy
+								</Link>
+								<span className="text-muted-foreground/50 text-xs">•</span>
+								<Link
+									className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
+									href="/data-policy"
+								>
+									Data Policy
+								</Link>
+								<span className="text-muted-foreground/50 text-xs">•</span>
+								<Link
+									className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
+									href="/dpa"
+								>
+									DPA
+								</Link>
+								<span className="text-muted-foreground/50 text-xs">•</span>
+								<Link
+									className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
+									href="/terms"
+								>
+									Terms of Service
+								</Link>
+							</div>
 						</div>
-						<div className="flex flex-wrap items-center gap-4">
-							<Link
-								className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
-								href="/privacy"
-							>
-								Privacy Policy
-							</Link>
-							<span className="text-muted-foreground/50 text-xs">•</span>
-							<Link
-								className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
-								href="/data-policy"
-							>
-								Data Policy
-							</Link>
-							<span className="text-muted-foreground/50 text-xs">•</span>
-							<Link
-								className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
-								href="/dpa"
-							>
-								DPA
-							</Link>
-							<span className="text-muted-foreground/50 text-xs">•</span>
-							<Link
-								className="text-muted-foreground/70 text-xs hover:text-muted-foreground sm:text-sm"
-								href="/terms"
-							>
-								Terms of Service
-							</Link>
-						</div>
+						<ThemeToggle />
 					</div>
 				</div>
 
