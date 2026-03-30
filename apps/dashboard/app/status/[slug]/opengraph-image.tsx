@@ -41,15 +41,11 @@ const STATUS_BANNER: Record<
 
 const MONITOR_STATUS_COLORS: Record<string, string> = {
 	up: "#10b981",
-	degraded: "#f59e0b",
 	down: "#ef4444",
 	unknown: "#a3a4ab",
 };
 
-function getBarColor(uptime: number, hasData: boolean): string {
-	if (!hasData) {
-		return THEME.secondary;
-	}
+function getBarColor(uptime: number): string {
 	if (uptime >= 99.9) {
 		return "#10b981";
 	}
@@ -286,15 +282,7 @@ export default async function OGImage({
 											xmlns="http://www.w3.org/2000/svg"
 										>
 											<circle cx="12" cy="12" fill={statusColor} r="12" />
-											{monitorStatus === "degraded" ? (
-												<path
-													d="M12 7v6M12 16v1"
-													fill="none"
-													stroke={THEME.background}
-													strokeLinecap="round"
-													strokeWidth="2.5"
-												/>
-											) : monitorStatus === "down" ? (
+											{monitorStatus === "down" ? (
 												<path
 													d="M8 8l8 8M16 8l-8 8"
 													fill="none"
@@ -358,8 +346,7 @@ export default async function OGImage({
 											style={{
 												flex: 1,
 												backgroundColor: getBarColor(
-													day.uptime_percentage,
-													day.uptime_percentage > 0
+													day.uptime_percentage
 												),
 												borderRadius: "2px",
 											}}
