@@ -9,6 +9,7 @@ import {
 	HeartbeatIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ComponentType } from "react";
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ export function NavbarFeaturesMenu({
 }: {
 	onNavigateAction?: () => void;
 }) {
+	const router = useRouter();
 	const [open, setOpen] = useState(false);
 	const closeTimer = useRef<ReturnType<typeof setTimeout>>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -153,6 +155,22 @@ export function NavbarFeaturesMenu({
 							</div>
 						</Link>
 					))}
+					<div className="mt-1 border-border/50 border-t px-1 pt-1">
+						<button
+							className="flex w-full items-center gap-2 rounded px-3 py-2 transition-colors hover:bg-muted/50"
+							onClick={() => {
+								router.push("/changelog");
+								handleItemClick();
+							}}
+							role="menuitem"
+							type="button"
+						>
+							<span className="size-1.5 shrink-0 rounded-full bg-[var(--brand-amber)]" />
+							<span className="text-sm" style={{ color: "var(--brand-amber)" }}>
+								Changelog
+							</span>
+						</button>
+					</div>
 				</div>
 			</div>
 		</li>
