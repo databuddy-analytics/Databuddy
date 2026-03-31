@@ -1,17 +1,10 @@
 "use client";
 
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { formatLocaleNumber } from "@/lib/format-locale-number";
 import { cn } from "@/lib/utils";
-import { SciFiButton } from "./scifi-btn";
-import { Spotlight } from "./spotlight";
+import { GithubNavMark } from "../github-nav-mark";
+import { GridBackground } from "./grid-background";
 
 const tabs = [
 	{ id: "overview", label: "Overview", path: "" },
@@ -88,11 +81,22 @@ export default function Hero({
 
 	return (
 		<section className="relative flex w-full flex-col items-center overflow-hidden">
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
+			{/* <Spotlight transform="translateX(-60%) translateY(-50%)" /> */}
+			{/* <Gradient /> */}
+			<GridBackground />
+			{/* <img
+				src="/brand/bunny/black.svg"
+				alt=""
+				aria-hidden
+				className="pointer-events-none absolute bottom-0 right-[-20%] z-0 h-[90%] w-auto select-none"
+			/>  */}
 
-			<div className="mx-auto w-full max-w-7xl px-4 pt-16 pb-8 sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
-				<div className="mx-auto flex max-w-4xl flex-col items-center space-y-8 text-center">
+			<div className="relative z-10 mx-auto w-full max-w-7xl px-4 pt-40 pb-8 sm:px-6 sm:pt-48 lg:px-8 lg:pt-58">
+				<div className="flex flex-col items-start space-y-8">
 					<h1 className="text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+						Analytics that runs itself
+					</h1>
+					{/* <h1 className="text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
 						Privacy-first analytics.{" "}
 						<span className="text-muted-foreground">
 							One script,{" "}
@@ -127,12 +131,12 @@ export default function Hero({
 							</Tooltip>
 							no consent banners.
 						</span>
-					</h1>
+					</h1> */}
 
-					<p className="max-w-2xl text-pretty font-medium text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
-						Web analytics, error tracking, and feature flags in a single script
-						under 30 KB. GDPR compliant out of the box.{" "}
-						<Link
+					<p className="max-w-3xl text-pretty font-normal text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
+						Databuddy gives developers a single script to track web analytics,
+						catch errors, and ship features.{" "}
+						{/* <Link
 							className="text-foreground"
 							href="https://github.com/databuddy-analytics/databuddy"
 							rel="noopener noreferrer"
@@ -140,10 +144,10 @@ export default function Hero({
 						>
 							Open source
 						</Link>
-						.
+						{' '}and autonomous. */}
 					</p>
 
-					<p className="max-w-2xl text-pretty text-muted-foreground text-xs leading-relaxed sm:text-sm">
+					{/* <p className="max-w-2xl text-pretty text-muted-foreground text-xs leading-relaxed sm:text-sm">
 						<a
 							className="underline underline-offset-2 hover:text-foreground"
 							href="https://www.advance-metrics.com/en/blog/cookie-behaviour-study/"
@@ -160,18 +164,34 @@ export default function Hero({
 							Model the opportunity cost
 						</Link>{" "}
 						for your traffic.
-					</p>
+					</p> */}
 
-					<div className="flex items-center gap-3">
-						<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
-							<a href="https://app.databuddy.cc/login">Start free</a>
-						</SciFiButton>
-						<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
+					<div className="flex items-center gap-5">
+						<a
+							className="inline-flex items-center rounded bg-primary px-6 py-2.5 font-medium text-base text-primary-foreground transition-opacity hover:opacity-90 sm:px-8"
+							href="https://app.databuddy.cc/login"
+						>
+							Start free
+						</a>
+						<a
+							className="flex items-center gap-2 leading-none"
+							href="https://github.com/databuddy-analytics/Databuddy"
+							rel="noopener noreferrer"
+							target="_blank"
+						>
+							<GithubNavMark className="text-xl transition-transform duration-200 hover:scale-110" />
+							{typeof stars === "number" && (
+								<span className="translate-y-px">
+									{stars.toLocaleString()} ★
+								</span>
+							)}
+						</a>
+						{/* <SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
 							<Link href="/demo">Live demo</Link>
-						</SciFiButton>
+						</SciFiButton> */}
 					</div>
 
-					<p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
+					{/* <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
 						<span>Used by 400+ teams</span>
 						<span className="text-border">·</span>
 						{stars ? (
@@ -181,7 +201,7 @@ export default function Hero({
 							</>
 						) : null}
 						<span>Open source</span>
-					</p>
+					</p> */}
 				</div>
 
 				<div className="mt-8 space-y-8">
