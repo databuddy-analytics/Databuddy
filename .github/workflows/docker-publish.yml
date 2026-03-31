@@ -3,6 +3,18 @@ name: Publish Docker Images
 on:
   release:
     types: [published]
+  push:
+    branches: [main]
+    paths:
+      - "*.Dockerfile"
+      - "apps/**"
+      - "packages/**"
+      - ".github/workflows/docker-publish.yml"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/databuddy-analytics/databuddy
 
 jobs:
   build:
@@ -16,6 +28,15 @@ jobs:
       matrix:
         service: [api, basket, links, uptime]
         platform: [linux/amd64, linux/arm64]
+        include:
+          - service: api
+            description: "Databuddy API service - analytics backend"
+          - service: basket
+            description: "Databuddy Basket service - event ingestion"
+          - service: links
+            description: "Databuddy Links service - URL shortening and tracking"
+          - service: uptime
+            description: "Databuddy Uptime service - availability monitoring"
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +48,7 @@ jobs:
 
       - uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -37,6 +58,26 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
 
+      - name: Determine version tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=edge" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract metadata (labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+          labels: |
+            org.opencontainers.image.title=databuddy-${{ matrix.service }}
+            org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.vendor=Databuddy Analytics
+            org.opencontainers.image.licenses=AGPL-3.0
+
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -44,7 +85,12 @@ jobs:
           push: true
           platforms: ${{ matrix.platform }}
           provenance: false
-          tags: ghcr.io/databuddy-analytics/databuddy-${{ matrix.service }}:${{ github.event.release.tag_name }}-${{ steps.platform.outputs.arch }}
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ steps.version.outputs.tag }}-${{ steps.platform.outputs.arch }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.tag }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.event.release.created_at }}
+            GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}-${{ steps.platform.outputs.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ steps.platform.outputs.arch }}
 
@@ -61,17 +107,46 @@ jobs:
     steps:
       - uses: docker/login-action@v3
         with:
-          registry: ghcr.io
+          registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine version tag
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=edge" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create multi-arch manifest
         run: |
-          IMAGE="ghcr.io/databuddy-analytics/databuddy-${{ matrix.service }}"
-          TAG="${{ github.event.release.tag_name }}"
+          IMAGE="${{ env.IMAGE_PREFIX }}-${{ matrix.service }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          SHA_SHORT="${{ github.sha }}"
+          SHA_SHORT="${SHA_SHORT:0:7}"
 
+          # Create manifest with version tag
           docker buildx imagetools create \
             --tag "$IMAGE:$TAG" \
-            --tag "$IMAGE:latest" \
+            --tag "$IMAGE:sha-$SHA_SHORT" \
             "$IMAGE:$TAG-amd64" \
             "$IMAGE:$TAG-arm64"
+
+          # Add latest tag only for releases
+          if [[ "${{ steps.version.outputs.is_release }}" == "true" ]]; then
+            docker buildx imagetools create \
+              --tag "$IMAGE:latest" \
+              "$IMAGE:$TAG-amd64" \
+              "$IMAGE:$TAG-arm64"
+          fi
+
+      - name: Verify manifest
+        run: |
+          IMAGE="${{ env.IMAGE_PREFIX }}-${{ matrix.service }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          echo "Inspecting $IMAGE:$TAG"
+          docker buildx imagetools inspect "$IMAGE:$TAG"
