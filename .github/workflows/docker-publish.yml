@@ -60,12 +60,19 @@ jobs:
 
       - name: Determine version tag
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            echo "tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
           else
             echo "tag=edge" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Capture build date
+        id: builddate
+        run: echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Extract metadata (labels)
         id: meta
@@ -89,7 +96,7 @@ jobs:
           tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ steps.version.outputs.tag }}-${{ steps.platform.outputs.arch }}
           build-args: |
             VERSION=${{ steps.version.outputs.tag }}
-            BUILD_DATE=${{ github.event.head_commit.timestamp || github.event.release.created_at }}
+            BUILD_DATE=${{ steps.builddate.outputs.timestamp }}
             GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}-${{ steps.platform.outputs.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ steps.platform.outputs.arch }}
@@ -113,9 +120,12 @@ jobs:
 
       - name: Determine version tag
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
-          if [[ "${{ github.event_name }}" == "release" ]]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            echo "tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
             echo "is_release=true" >> "$GITHUB_OUTPUT"
           else
             echo "tag=edge" >> "$GITHUB_OUTPUT"
