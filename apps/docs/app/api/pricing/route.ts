@@ -1,54 +1,39 @@
-import { RAW_PLANS } from "@/app/(home)/pricing/data";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { acceptMarkdownOverHtml } from "./accept-markdown";
+import { buildPricingApiPayload } from "./build-response";
 
-function buildPricingResponse() {
-	return {
-		currency: "USD",
-		plans: RAW_PLANS.map((plan) => {
-			const priceItem = plan.items.find((i) => i.type === "price") as
-				| Extract<(typeof plan.items)[number], { type: "price" }>
-				| undefined;
+const PRICING_MD = join(process.cwd(), "public", "pricing.md");
 
-			const features = plan.items
-				.filter(
-					(
-						i
-					): i is Extract<
-						(typeof plan.items)[number],
-						{ type: "feature" | "priced_feature" }
-					> => i.type === "feature" || i.type === "priced_feature"
-				)
-				.map((f) => ({
-					id: f.feature_id,
-					name: f.feature.name,
-					included: f.included_usage === "inf" ? "unlimited" : f.included_usage,
-					interval: f.interval,
-					...(f.type === "priced_feature" && f.tiers
-						? {
-								overageTiers: f.tiers.map((t) => ({
-									upTo: t.to === "inf" ? "unlimited" : t.to,
-									pricePerUnit: t.amount,
-								})),
-							}
-						: {}),
-				}));
-
-			return {
-				id: plan.id,
-				name: plan.name,
-				pricePerMonth: priceItem?.price ?? 0,
-				features,
-			};
-		}),
-		signUpUrl: "https://app.databuddy.cc/login",
-		pricingPageUrl: "https://www.databuddy.cc/pricing",
-	};
-}
-
-export function GET() {
-	return Response.json(buildPricingResponse(), {
+export async function GET(request: Request) {
+	const accept = request.headers.get("accept") ?? "";
+	if (acceptMarkdownOverHtml(accept)) {
+		const body = await readFile(PRICING_MD, "utf8");
+		return new Response(body, {
+			headers: {
+				"Content-Type": "text/markdown; charset=utf-8",
+				"Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+				"Access-Control-Allow-Origin": "*",
+				Vary: "Accept",
+			},
+		});
+	}
+	return Response.json(buildPricingApiPayload(request), {
 		headers: {
 			"Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
 			"Access-Control-Allow-Origin": "*",
+			Vary: "Accept",
+		},
+	});
+}
+
+export function OPTIONS() {
+	return new Response(null, {
+		status: 204,
+		headers: {
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "GET, OPTIONS",
+			"Access-Control-Max-Age": "86400",
 		},
 	});
 }

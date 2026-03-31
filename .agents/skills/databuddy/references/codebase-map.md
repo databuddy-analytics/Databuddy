@@ -52,6 +52,7 @@ Use this file when the task spans multiple packages or when the right edit locat
 - Next.js docs site using Fumadocs
 - Default dev port: `3005`
 - Good place for product docs, guides, and marketing-adjacent content with app integrations
+- Pricing for agents: `public/pricing.md`; `GET /api/pricing` (JSON or markdown via `Accept`); middleware rewrites `/pricing` → `/api/pricing` when markdown wins.
 - Cookie cost calculator: [`apps/docs/app/(home)/calculator/`](/Users/iza/Dev/Databuddy/apps/docs/app/(home)/calculator/) — uses **visitor data loss rate** (consent / analytics visibility), not “banner bounce”; literature band 40–70% in `calculator-engine.ts`.
 
 ### `apps/uptime`
