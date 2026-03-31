@@ -165,7 +165,6 @@ export function NavbarFeaturesMenu({
 							role="menuitem"
 							type="button"
 						>
-							<span className="size-1.5 shrink-0 rounded-full bg-[var(--brand-amber)]" />
 							<span className="text-sm" style={{ color: "var(--brand-amber)" }}>
 								Changelog
 							</span>
