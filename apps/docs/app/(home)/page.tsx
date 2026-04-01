@@ -10,6 +10,7 @@ import Hero from "@/components/landing/hero";
 import Section from "@/components/landing/section";
 import Testimonials from "@/components/landing/testimonials";
 import { TrustedBy } from "@/components/landing/trusted-by";
+import { ValueProp } from "@/components/landing/value-prop";
 import { StructuredData } from "@/components/structured-data";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 import { homeFaqItems, homePageSeo } from "@/lib/home-seo";
@@ -84,6 +85,10 @@ export default async function HomePage() {
 					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 						<TrustedBy />
 					</div>
+				</Section>
+
+				<Section className="border-border border-b" id="value-prop" customPaddings>
+					<ValueProp />
 				</Section>
 
 				<Section className="border-border border-b" id="bento">
