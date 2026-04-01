@@ -85,12 +85,21 @@ export default function Hero({
 			{/* <Spotlight transform="translateX(-60%) translateY(-50%)" /> */}
 			<Gradient />
 			<GridBackground />
-			<img
-				alt=""
-				aria-hidden
-				className="pointer-events-none absolute top-1/2 right-[-10%] z-0 h-[60%] w-auto -translate-y-1/2 select-none"
-				src="/brand/bunny/black.svg"
-			/>
+			<div className="pointer-events-none absolute top-1/2 right-[-10%] z-0 h-[60%] w-auto -translate-y-1/2">
+				<img
+					alt=""
+					aria-hidden
+					className="h-full w-auto select-none"
+					src="/brand/bunny/black.svg"
+				/>
+				<div
+					className="absolute inset-0"
+					style={{
+						background:
+							"linear-gradient(to bottom, transparent 50%, var(--background) 100%)",
+					}}
+				/>
+			</div>
 
 			<div className="relative z-10 mx-auto w-full max-w-7xl px-4 pt-40 pb-8 sm:px-6 sm:pt-48 lg:px-8 lg:pt-58">
 				<div className="flex flex-col items-start space-y-8">
