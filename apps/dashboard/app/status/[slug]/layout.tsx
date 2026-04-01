@@ -45,12 +45,6 @@ export default function StatusLayout({
 									Databuddy
 								</a>
 							</p>
-							<p className="text-muted-foreground text-xs">
-								Get your own status page{" "}
-								<span className="font-medium text-foreground">
-									· Coming soon
-								</span>
-							</p>
 						</div>
 					</footer>
 				</div>

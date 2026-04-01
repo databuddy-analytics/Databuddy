@@ -12,8 +12,8 @@ export const gateway = createGateway({
 	headers,
 });
 
-// const overrideModel: string | null = null;
-const overrideModel = "openai/gpt-oss-20b";
+const overrideModel: string | null = null;
+// const overrideModel = "openai/gpt-oss-20b";
 
 const modelNames = {
 	triage: overrideModel ?? "openai/gpt-oss-120b",

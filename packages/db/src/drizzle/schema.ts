@@ -941,6 +941,119 @@ export const uptimeSchedules = pgTable(
 	]
 );
 
+export const statusPages = pgTable(
+	"status_pages",
+	{
+		id: text().primaryKey().notNull(),
+		organizationId: text("organization_id").notNull(),
+		slug: text().notNull(),
+		title: text().notNull(),
+		description: text(),
+		logoUrl: text("logo_url"),
+		faviconUrl: text("favicon_url"),
+		theme: text().notNull().default("system"),
+		accentColor: text("accent_color"),
+		customDomain: text("custom_domain"),
+		isPublished: boolean("is_published").default(false).notNull(),
+		isPasswordProtected: boolean("is_password_protected")
+			.default(false)
+			.notNull(),
+		passwordHash: text("password_hash"),
+		showOverallUptime: boolean("show_overall_uptime").default(true).notNull(),
+		defaultTimeRange: integer("default_time_range").default(90).notNull(),
+		showSubscribeButton: boolean("show_subscribe_button")
+			.default(false)
+			.notNull(),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		unique("status_pages_slug_unique").on(table.slug),
+		index("status_pages_organization_id_idx").using(
+			"btree",
+			table.organizationId.asc().nullsLast()
+		),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "status_pages_organization_id_fk",
+		}).onDelete("cascade"),
+	]
+);
+
+export const statusPageSections = pgTable(
+	"status_page_sections",
+	{
+		id: text().primaryKey().notNull(),
+		statusPageId: text("status_page_id").notNull(),
+		name: text().notNull(),
+		description: text(),
+		sortOrder: integer("sort_order").default(0).notNull(),
+		isCollapsed: boolean("is_collapsed").default(false).notNull(),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("status_page_sections_status_page_id_idx").using(
+			"btree",
+			table.statusPageId.asc().nullsLast()
+		),
+		foreignKey({
+			columns: [table.statusPageId],
+			foreignColumns: [statusPages.id],
+			name: "status_page_sections_status_page_id_fk",
+		}).onDelete("cascade"),
+	]
+);
+
+export const statusPageMonitors = pgTable(
+	"status_page_monitors",
+	{
+		id: text().primaryKey().notNull(),
+		statusPageId: text("status_page_id").notNull(),
+		sectionId: text("section_id"),
+		scheduleId: text("schedule_id").notNull(),
+		displayName: text("display_name"),
+		sortOrder: integer("sort_order").default(0).notNull(),
+		showLink: boolean("show_link").default(true).notNull(),
+		showLatency: boolean("show_latency").default(true).notNull(),
+		showUptimePct: boolean("show_uptime_pct").default(true).notNull(),
+		showStatus: boolean("show_status").default(true).notNull(),
+		showLastChecked: boolean("show_last_checked").default(true).notNull(),
+		createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("status_page_monitors_status_page_id_idx").using(
+			"btree",
+			table.statusPageId.asc().nullsLast()
+		),
+		index("status_page_monitors_schedule_id_idx").using(
+			"btree",
+			table.scheduleId.asc().nullsLast()
+		),
+		unique("status_page_monitors_page_schedule_unique").on(
+			table.statusPageId,
+			table.scheduleId
+		),
+		foreignKey({
+			columns: [table.statusPageId],
+			foreignColumns: [statusPages.id],
+			name: "status_page_monitors_status_page_id_fk",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.sectionId],
+			foreignColumns: [statusPageSections.id],
+			name: "status_page_monitors_section_id_fk",
+		}).onDelete("set null"),
+		foreignKey({
+			columns: [table.scheduleId],
+			foreignColumns: [uptimeSchedules.id],
+			name: "status_page_monitors_schedule_id_fk",
+		}).onDelete("cascade"),
+	]
+);
+
 export const links = pgTable(
 	"links",
 	{
@@ -1365,6 +1478,12 @@ export type Alarm = typeof alarms.$inferSelect;
 export type AlarmInsert = typeof alarms.$inferInsert;
 export type AlarmDestination = typeof alarmDestinations.$inferSelect;
 export type AlarmDestinationInsert = typeof alarmDestinations.$inferInsert;
+export type StatusPage = typeof statusPages.$inferSelect;
+export type StatusPageInsert = typeof statusPages.$inferInsert;
+export type StatusPageSection = typeof statusPageSections.$inferSelect;
+export type StatusPageSectionInsert = typeof statusPageSections.$inferInsert;
+export type StatusPageMonitor = typeof statusPageMonitors.$inferSelect;
+export type StatusPageMonitorInsert = typeof statusPageMonitors.$inferInsert;
 
 /** Validate in Zod / RPC — not Postgres enums */
 export const alarmTriggerTypeValues = [

@@ -4,6 +4,7 @@ import {
 	ArrowSquareOutIcon,
 	BellIcon,
 	BookOpenIcon,
+	BrowserIcon,
 	BugIcon,
 	BuildingsIcon,
 	CalendarIcon,
@@ -278,32 +279,47 @@ export const createMonitorsNavigation = (
 		website: { id: string; name: string | null; domain: string } | null;
 	}>
 ): NavigationSection[] => [
-	...createDynamicNavigation(
-		monitors.map((m) => ({
-			id: m.id,
-			name: m.name || m.website?.name || m.url || "Monitor",
-			domain: m.website?.domain || m.url || "",
-		})),
-		"Monitoring",
-		HeartbeatIcon,
-		"All Monitors",
-		"/monitors",
-		HeartbeatIcon,
-		"/monitors",
-		"Add Your First Monitor",
-		(monitor) => ({ domain: monitor.domain })
-	),
+	createNavSection("Monitoring", HeartbeatIcon, [
+		createNavItem("All Monitors", ChartBarIcon, "/monitors", {
+			highlight: true,
+		}),
+		createNavItem("Status Pages", BrowserIcon, "/monitors/status-pages", {
+			highlight: true,
+		}),
+		...(monitors.length > 0
+			? monitors.map((m) =>
+					createNavItem(
+						m.name || m.website?.name || m.url || "Monitor",
+						HeartbeatIcon,
+						`/monitors/${m.id}`,
+						{
+							highlight: true,
+							domain: m.website?.domain || m.url || "",
+						}
+					)
+				)
+			: [
+					createNavItem("Add Your First Monitor", PlusIcon, "/monitors", {
+						highlight: true,
+						disabled: true,
+					}),
+				]),
+	]),
 ];
 
 export const createLoadingMonitorsNavigation = (): NavigationSection[] => [
-	...createLoadingNavigation(
-		"Monitoring",
-		HeartbeatIcon,
-		"All Monitors",
-		"/monitors",
-		"Loading monitors...",
-		HeartbeatIcon
-	),
+	createNavSection("Monitoring", HeartbeatIcon, [
+		createNavItem("All Monitors", ChartBarIcon, "/monitors", {
+			highlight: true,
+		}),
+		createNavItem("Status Pages", BrowserIcon, "/monitors/status-pages", {
+			highlight: true,
+		}),
+		createNavItem("Loading monitors...", HeartbeatIcon, "/monitors", {
+			highlight: true,
+			disabled: true,
+		}),
+	]),
 ];
 
 export const websiteNavigation: NavigationSection[] = [

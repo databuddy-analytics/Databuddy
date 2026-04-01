@@ -61,6 +61,12 @@ Use this file when the task spans multiple packages or when the right edit locat
 - Elysia service for uptime monitoring and related notifications
 - Integrates with email and services packages
 
+### Status Pages
+
+- **Postgres tables:** `status_pages`, `status_page_sections`, `status_page_monitors` — decoupled from `uptime_schedules.is_public` (legacy, kept for backward compat)
+- **RPC router:** `packages/rpc/src/routers/status-page.ts` — protected CRUD (`statusPage.list/get/create/update/delete/addMonitor/updateMonitor/removeMonitor/addSection/updateSection/removeSection/reorder`) + public `statusPage.getPublic`; legacy `getBySlug` falls back to org slug
+- **Dashboard management:** `apps/dashboard/app/(main)/monitors/status-pages/` — list, create, editor (general + monitors tabs with per-monitor display toggles)
+- **Public page:** `apps/dashboard/app/status/[slug]/` — renders from `getPublic` endpoint; supports sections, per-monitor toggles (showLink, showLatency, showUptimePct, showStatus, showLastChecked), theming (light/dark/system + accent color), password protection
 ## Shared Packages
 
 ### `packages/db`

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
 	Chart,
 	type ChartCurveType,
@@ -30,6 +31,15 @@ export default function MiniChart({ data, id, days = 7 }: MiniChartProps) {
 	const seriesKind: ChartSeriesKind =
 		chartType === "bar" ? "bar" : chartType === "line" ? "line" : "area";
 
+	const tooltip = useMemo(
+		() => ({
+			formatLabelAction: (label: string) => dayjs(label).format("ddd, MMM D"),
+			formatValue: formatNumber,
+			valueSuffixLabel: "views" as const,
+		}),
+		[]
+	);
+
 	return (
 		<div
 			aria-label={`Mini chart showing views for the last ${days} days`}
@@ -45,11 +55,7 @@ export default function MiniChart({ data, id, days = 7 }: MiniChartProps) {
 				id={`${id}-${days}`}
 				margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
 				seriesKind={seriesKind}
-				tooltip={{
-					formatLabelAction: (label) => dayjs(label).format("ddd, MMM D"),
-					formatValue: formatNumber,
-					valueSuffixLabel: "views",
-				}}
+				tooltip={tooltip}
 				yDomain={["dataMin - 5", "dataMax + 5"]}
 			/>
 		</div>

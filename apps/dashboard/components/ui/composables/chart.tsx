@@ -341,6 +341,12 @@ export function createRechartsSingleValueTooltip(
 
 const ZERO_MARGIN = { top: 0, right: 0, left: 0, bottom: 0 } as const;
 
+/** Recharts tooltip defaults to 400ms ease — too slow for dashboard hover. */
+const chartRechartsTooltipMotionProps = {
+	animationDuration: 0,
+	isAnimationActive: false,
+} as const;
+
 interface ChartSingleSeriesProps {
 	data: any[];
 	dataKey?: string;
@@ -408,6 +414,7 @@ function ChartSingleSeries({
 			content={tooltipContent}
 			cursor={isBar ? chartTooltipCursorBar : chartTooltipCursorLine}
 			wrapperStyle={{ zIndex: 50 }}
+			{...chartRechartsTooltipMotionProps}
 		/>
 	) : null;
 
@@ -552,6 +559,7 @@ function ChartCartesianArea({
 						width={chartAxisYWidthDefault}
 					/>
 					<Tooltip
+						allowEscapeViewBox={{ x: true, y: true }}
 						content={(props) => (
 							<ChartTooltip
 								active={props.active}
@@ -570,7 +578,8 @@ function ChartCartesianArea({
 							/>
 						)}
 						cursor={chartTooltipCursorLine}
-						wrapperStyle={{ outline: "none" }}
+						wrapperStyle={{ outline: "none", zIndex: 50 }}
+						{...chartRechartsTooltipMotionProps}
 					/>
 					<Area
 						activeDot={{
@@ -657,6 +666,7 @@ function ChartMultiSeries({
 			/>
 			<YAxis domain={["dataMin", "dataMax"]} hide />
 			<Tooltip
+				allowEscapeViewBox={{ x: true, y: true }}
 				content={(props) => (
 					<ChartTooltip
 						active={props.active}
@@ -675,6 +685,8 @@ function ChartMultiSeries({
 				cursor={
 					seriesKind === "bar" ? chartTooltipCursorBar : chartTooltipCursorLine
 				}
+				wrapperStyle={{ zIndex: 50 }}
+				{...chartRechartsTooltipMotionProps}
 			/>
 		</>
 	);

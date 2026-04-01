@@ -74,10 +74,31 @@ export default async function OGImage({
 }) {
 	const { slug } = await params;
 	const data = await publicRPCClient.statusPage
-		.getBySlug({ slug, days: BAR_DAYS })
-		.catch(() => null);
+		.getPublic({ slug, days: BAR_DAYS })
+		.catch(() =>
+			publicRPCClient.statusPage
+				.getBySlug({ slug, days: BAR_DAYS })
+				.then((legacy) => ({
+					page: { title: legacy.organization.name },
+					organization: legacy.organization,
+					overallStatus: legacy.overallStatus,
+					monitors: legacy.monitors.map((m) => ({
+						...m,
+						showLink: true,
+						showLatency: true,
+						showUptimePct: true,
+						showStatus: true,
+						showLastChecked: true,
+						sectionId: null,
+						sortOrder: 0,
+					})),
+					sections: [],
+				}))
+				.catch(() => null)
+		);
 
-	const orgName = data?.organization.name ?? "Status Page";
+	const orgName =
+		data?.page?.title ?? data?.organization?.name ?? "Status Page";
 	const status = (data?.overallStatus ?? "operational") as string;
 	const banner = STATUS_BANNER[status] ?? STATUS_BANNER.operational;
 	const monitors = data?.monitors.slice(0, MAX_MONITORS) ?? [];

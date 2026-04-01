@@ -16,6 +16,9 @@ import {
 	organization,
 	revenueConfig,
 	session,
+	statusPageMonitors,
+	statusPageSections,
+	statusPages,
 	targetGroups,
 	team,
 	twoFactor,
@@ -55,6 +58,7 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 	teams: many(team),
 	alarms: many(alarms),
 	analyticsInsights: many(analyticsInsights),
+	statusPages: many(statusPages),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -266,6 +270,44 @@ export const featureInviteRelations = relations(featureInvite, ({ one }) => ({
 		relationName: "redeemer",
 	}),
 }));
+
+export const statusPagesRelations = relations(statusPages, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [statusPages.organizationId],
+		references: [organization.id],
+	}),
+	sections: many(statusPageSections),
+	monitors: many(statusPageMonitors),
+}));
+
+export const statusPageSectionsRelations = relations(
+	statusPageSections,
+	({ one, many }) => ({
+		statusPage: one(statusPages, {
+			fields: [statusPageSections.statusPageId],
+			references: [statusPages.id],
+		}),
+		monitors: many(statusPageMonitors),
+	})
+);
+
+export const statusPageMonitorsRelations = relations(
+	statusPageMonitors,
+	({ one }) => ({
+		statusPage: one(statusPages, {
+			fields: [statusPageMonitors.statusPageId],
+			references: [statusPages.id],
+		}),
+		section: one(statusPageSections, {
+			fields: [statusPageMonitors.sectionId],
+			references: [statusPageSections.id],
+		}),
+		schedule: one(uptimeSchedules, {
+			fields: [statusPageMonitors.scheduleId],
+			references: [uptimeSchedules.id],
+		}),
+	})
+);
 
 export const featureAccessLogRelations = relations(
 	featureAccessLog,
