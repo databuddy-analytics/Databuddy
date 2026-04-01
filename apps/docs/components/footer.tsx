@@ -12,9 +12,9 @@ import { Button } from "./ui/button";
 export function Footer() {
 	return (
 		<footer className="border-border border-t bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
-			<div className="mx-auto max-w-7xl px-4 pt-10 sm:px-6 lg:px-8">
+			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				{/* CTA Section */}
-				<div className="mb-12 text-center">
+				<div className="py-32 text-center sm:py-36 lg:py-44">
 					<h2 className="mb-6 font-medium text-2xl leading-tight sm:text-3xl">
 						You're just one click away.
 					</h2>
