@@ -4,6 +4,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GithubNavMark } from "../github-nav-mark";
+import { Gradient } from "./gradient";
 import { GridBackground } from "./grid-background";
 
 const tabs = [
@@ -82,14 +83,14 @@ export default function Hero({
 	return (
 		<section className="relative flex w-full flex-col items-center overflow-hidden">
 			{/* <Spotlight transform="translateX(-60%) translateY(-50%)" /> */}
-			{/* <Gradient /> */}
+			<Gradient />
 			<GridBackground />
-			{/* <img
-				src="/brand/bunny/black.svg"
+			<img
 				alt=""
 				aria-hidden
-				className="pointer-events-none absolute bottom-0 right-[-20%] z-0 h-[90%] w-auto select-none"
-			/>  */}
+				className="pointer-events-none absolute top-1/2 right-[-10%] z-0 h-[60%] w-auto -translate-y-1/2 select-none"
+				src="/brand/bunny/black.svg"
+			/>
 
 			<div className="relative z-10 mx-auto w-full max-w-7xl px-4 pt-40 pb-8 sm:px-6 sm:pt-48 lg:px-8 lg:pt-58">
 				<div className="flex flex-col items-start space-y-8">
