@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { FaDiscord, FaXTwitter } from "react-icons/fa6";
-import { IoMdMail } from "react-icons/io";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CCPAIcon } from "./icons/ccpa";
 import { GDPRIcon } from "./icons/gdpr";
-import { SciFiButton } from "./landing/scifi-btn";
 import { Wordmark } from "./landing/wordmark";
 import { LogoContent } from "./logo";
 import { NewsletterForm } from "./newsletter-form";
+import { Button } from "./ui/button";
 
 export function Footer() {
 	return (
@@ -21,12 +19,12 @@ export function Footer() {
 						You're just one click away.
 					</h2>
 					<div className="flex items-center justify-center gap-3">
-						<SciFiButton asChild>
-							<a href="https://app.databuddy.cc/login">START FREE</a>
-						</SciFiButton>
-						<SciFiButton asChild>
-							<Link href="/contact">CONTACT US</Link>
-						</SciFiButton>
+						<Button asChild className="rounded text-md">
+							<Link href="https://app.databuddy.cc/login">Start Free</Link>
+						</Button>
+						<Button asChild className="rounded text-md" variant="secondary">
+							<Link href="/contact">Contact Us</Link>
+						</Button>
 					</div>
 				</div>
 
