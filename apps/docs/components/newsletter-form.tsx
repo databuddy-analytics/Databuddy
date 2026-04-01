@@ -72,7 +72,6 @@ export function NewsletterForm() {
 					type="submit"
 				>
 					<PaperPlaneIcon className="size-3.5" weight="fill" />
-					{status === "loading" ? "..." : "Subscribe"}
 				</button>
 			</form>
 			{status === "error" && errorMessage ? (
