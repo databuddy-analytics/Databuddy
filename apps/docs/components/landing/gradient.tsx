@@ -28,7 +28,7 @@ export function Gradient() {
 
 			{/* Grain.  */}
 			<div
-				className="absolute inset-0 opacity-[0.05]"
+				className="absolute inset-0 opacity-[0.00]"
 				style={{
 					backgroundImage: NOISE,
 					backgroundRepeat: "repeat",
