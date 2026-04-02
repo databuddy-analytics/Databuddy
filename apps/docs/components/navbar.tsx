@@ -56,7 +56,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 											className="inline-flex items-center rounded bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-opacity hover:opacity-90"
 											href="https://app.databuddy.cc/login"
 										>
-											Start free
+											Start Free
 										</a>
 									</li>
 								</ul>
@@ -119,7 +119,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 									href="https://app.databuddy.cc/login"
 									onClick={() => setIsMobileMenuOpen(false)}
 								>
-									Start free
+									Start Free
 								</a>
 							</div>
 						</div>

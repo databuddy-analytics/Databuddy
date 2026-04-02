@@ -16,6 +16,7 @@ import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
 import { Spotlight } from "@/components/landing/spotlight";
 import { StructuredData } from "@/components/structured-data";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
 	title: "Uptime Monitoring & Status Pages | Databuddy",
@@ -254,14 +255,14 @@ export default function UptimePage() {
 								</p>
 
 								<div className="flex items-center gap-3">
-									<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
-										<a href="https://app.databuddy.cc/login">
-											Get early access
-										</a>
-									</SciFiButton>
-									<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
+									<Button asChild className="px-6 py-5 text-base sm:px-8">
+										<Link href="https://app.databuddy.cc/login">
+											Get Early Access
+										</Link>
+									</Button>
+									<Button asChild className="px-6 py-5 text-base sm:px-8" variant='secondary'>
 										<Link href="/pricing">See pricing</Link>
-									</SciFiButton>
+									</Button>
 								</div>
 
 								<p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
@@ -322,12 +323,12 @@ export default function UptimePage() {
 								Uptime monitoring is launching soon. Sign up now and
 								you&apos;ll be first in line when it goes live.
 							</p>
-							<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
+							<Button asChild className="px-6 py-5 text-base sm:px-8">
 								<a href="https://app.databuddy.cc/login">
-									Get early access
+									Get Early Access
 									<ArrowRightIcon className="ml-2 size-4" weight="bold" />
 								</a>
-							</SciFiButton>
+							</Button>
 						</div>
 					</div>
 				</Section>
