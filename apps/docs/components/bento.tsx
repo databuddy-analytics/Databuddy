@@ -675,91 +675,93 @@ export default function Bento() {
 		<div className="w-full">
 			<div className="mb-12 text-center lg:mb-16 lg:text-left">
 				<h2 className="mx-auto max-w-4xl text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
-					<span className="text-muted-foreground">Raw data is not insight, </span>
-					<span className="text-foreground">
-						context is
+					<span className="text-muted-foreground">
+						Raw data is not insight,{" "}
 					</span>
+					<span className="text-foreground">context is</span>
 				</h2>
 				<p className="mt-3 max-w-2xl text-pretty text-base text-muted-foreground sm:px-0 sm:text-base lg:text-lg">
-					A single analytics platform to see how users find you, what they do, where they drop off, and what breaks along the way.
+					A single analytics platform to see how users find you, what they do,
+					where they drop off, and what breaks along the way.
 				</p>
 			</div>
-		<div className="grid h-full w-full grid-cols-1 gap-4 p-1 md:grid-cols-12">
-			{/* Funnels - Large Card */}
-			<BentoCard
-				className="h-full md:col-span-4 md:row-span-2"
-				description="Track user journeys through your app"
-				icon={Funnel}
-				title="Conversion Funnels"
-			>
-				<FunnelsFeature />
-			</BentoCard>
+			<div className="grid h-full w-full grid-cols-1 gap-4 p-1 md:grid-cols-12">
+				{/* Funnels - Large Card */}
+				<BentoCard
+					className="h-full md:col-span-4 md:row-span-2"
+					description="Track user journeys through your app"
+					icon={Funnel}
+					title="Conversion Funnels"
+				>
+					<FunnelsFeature />
+				</BentoCard>
 
-			{/* Real-time - Medium Card */}
-			<BentoCard
-				className="h-full md:col-span-4 md:row-span-1"
-				contentClassName="px-0 pb-0"
-				description="See who's on your site right now"
-				icon={ActivityIcon}
-				title="Real-time"
-			>
-				<RealTimeFeature />
-			</BentoCard>
+				{/* Real-time - Medium Card */}
+				<BentoCard
+					className="h-full md:col-span-4 md:row-span-1"
+					contentClassName="px-0 pb-0"
+					description="See who's on your site right now"
+					icon={ActivityIcon}
+					title="Real-time"
+				>
+					<RealTimeFeature />
+				</BentoCard>
 
-			{/* Sessions - Medium Card */}
-			<BentoCard
-				className="h-full md:col-span-4 md:row-span-2"
-				description="Watch real user sessions"
-				icon={Users}
-				title="Live Sessions"
-			>
-				<SessionsFeature />
-			</BentoCard>
+				{/* Sessions - Medium Card */}
+				<BentoCard
+					className="h-full md:col-span-4 md:row-span-2"
+					description="Watch real user sessions"
+					icon={Users}
+					title="Live Sessions"
+				>
+					<SessionsFeature />
+				</BentoCard>
 
-			{/* Web Vitals - Small Card */}
-			<BentoCard
-				className="h-full md:col-span-4 md:row-span-1"
-				contentClassName="pb-0"
-				description="Monitor core performance metrics"
-				href="/docs/performance/core-web-vitals-guide"
-				icon={Gauge}
-				title="Web Vitals"
-			>
-				<WebVitalsFeature />
-			</BentoCard>
+				{/* Web Vitals - Small Card */}
+				<BentoCard
+					className="h-full md:col-span-4 md:row-span-1"
+					contentClassName="pb-0"
+					description="Monitor core performance metrics"
+					href="/web-vitals"
+					icon={Gauge}
+					title="Web Vitals"
+				>
+					<WebVitalsFeature />
+				</BentoCard>
 
-			{/* Error Tracking - Medium Card */}
-			<BentoCard
-				className="h-full md:col-span-4 md:row-span-1"
-				contentClassName="pb-0"
-				description="Catch and fix bugs fast"
-				href="/docs"
-				icon={Bug}
-				title="Error Tracking"
-			>
-				<ErrorTrackingFeature />
-			</BentoCard>
+				{/* Error Tracking - Medium Card */}
+				<BentoCard
+					className="h-full md:col-span-4 md:row-span-1"
+					contentClassName="pb-0"
+					description="Catch and fix bugs fast"
+					href="/docs"
+					icon={Bug}
+					title="Error Tracking"
+				>
+					<ErrorTrackingFeature />
+				</BentoCard>
 
-			{/* Feature Flags - Small Card */}
-			<BentoCard
-				className="h-full md:col-span-4 md:row-span-1"
-				description="Roll out features safely"
-				href="/feature-flags"
-				icon={Flag}
-				title="Feature Flags"
-			>
-				<FeatureFlagsFeature />
-			</BentoCard>
+				{/* Feature Flags - Small Card */}
+				<BentoCard
+					className="h-full md:col-span-4 md:row-span-1"
+					description="Roll out features safely"
+					href="/feature-flags"
+					icon={Flag}
+					title="Feature Flags"
+				>
+					<FeatureFlagsFeature />
+				</BentoCard>
 
-			{/* Custom Events - Small Card */}
-			<BentoCard
-				className="h-full md:col-span-4 md:row-span-1"
-				description="Track what matters to you"
-				icon={CursorClick}
-				title="Events"
-			>
-				<CustomEventsFeature />
-			</BentoCard>
+				{/* Custom Events - Small Card */}
+				<BentoCard
+					className="h-full md:col-span-4 md:row-span-1"
+					description="Track what matters to you"
+					icon={CursorClick}
+					title="Events"
+				>
+					<CustomEventsFeature />
+				</BentoCard>
+			</div>
 		</div>
 	);
 }
