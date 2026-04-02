@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Alarm } from "@/app/(main)/alarms/page";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,7 +37,10 @@ const TRIGGER_TYPES = [
 	{ value: "custom", label: "Custom" },
 ];
 
-async function updateAlarm(id: string, payload: Partial<Alarm>): Promise<void> {
+async function updateAlarm(
+	id: string,
+	payload: { name: string; description?: string; triggerType: string }
+): Promise<void> {
 	const res = await fetch(`/v1/alarms/${id}`, {
 		method: "PUT",
 		headers: { "Content-Type": "application/json" },
@@ -46,16 +49,15 @@ async function updateAlarm(id: string, payload: Partial<Alarm>): Promise<void> {
 	if (!res.ok) throw new Error("Failed to update alarm");
 }
 
+/**
+ * The parent (AlarmsList) passes `key={alarm.id}`, so this component is
+ * remounted whenever a different alarm is selected — no need for useEffect
+ * to sync prop changes into state.
+ */
 export function EditAlarmDialog({ alarm, open, onOpenChange, onSuccess }: EditAlarmDialogProps) {
 	const [name, setName] = useState(alarm.name);
 	const [description, setDescription] = useState(alarm.description ?? "");
 	const [triggerType, setTriggerType] = useState(alarm.triggerType);
-
-	useEffect(() => {
-		setName(alarm.name);
-		setDescription(alarm.description ?? "");
-		setTriggerType(alarm.triggerType);
-	}, [alarm]);
 
 	const mutation = useMutation({
 		mutationFn: () =>

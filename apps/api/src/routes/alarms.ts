@@ -5,15 +5,14 @@ import {
 	and,
 	db,
 	eq,
-	member,
 } from "@databuddy/db";
 import {
 	sendDiscordWebhook,
-	sendSlackWebhook,
-	sendTelegramMessage,
-	sendTeamsWebhook,
-	sendWebhook,
 	sendGoogleChatWebhook,
+	sendSlackWebhook,
+	sendTeamsWebhook,
+	sendTelegramMessage,
+	sendWebhook,
 } from "@databuddy/notifications";
 import { generateId } from "ai";
 import { Elysia, t } from "elysia";
@@ -52,17 +51,14 @@ const UpdateAlarmBody = t.Object({
 	destinations: t.Optional(t.Array(AlarmDestinationSchema)),
 });
 
-async function getActiveOrganizationId(userId: string): Promise<string | null> {
-	const membership = await db
-		.select({ organizationId: member.organizationId })
-		.from(member)
-		.where(eq(member.userId, userId))
-		.limit(1);
-	return membership[0]?.organizationId ?? null;
-}
+type AlarmDestinationRow = {
+	type: string;
+	identifier: string;
+	config: Record<string, unknown> | null;
+};
 
 async function sendTestNotification(
-	destination: { type: string; identifier: string; config?: Record<string, unknown> },
+	destination: AlarmDestinationRow,
 	alarmName: string
 ): Promise<void> {
 	const payload = {
@@ -93,6 +89,12 @@ async function sendTestNotification(
 		case "webhook":
 			await sendWebhook(destination.identifier, payload);
 			break;
+		case "email":
+			// Email requires a mailer action provided by the caller; silently skip for test
+			// (the full alarm trigger path wires up sendEmail via the app-level config)
+			break;
+		default:
+			break;
 	}
 }
 
@@ -100,7 +102,12 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 	.use(useLogger())
 	.derive(async ({ request }) => {
 		const session = await auth.api.getSession({ headers: request.headers });
-		return { user: session?.user ?? null };
+		const user = session?.user ?? null;
+		// Use the active organization from the session (deterministic for multi-org users)
+		const activeOrganizationId =
+			(session?.session as { activeOrganizationId?: string | null } | undefined)
+				?.activeOrganizationId ?? null;
+		return { user, activeOrganizationId };
 	})
 	.onBeforeHandle(({ user, set }) => {
 		if (!user) {
@@ -109,17 +116,16 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 		}
 	})
 	// GET /v1/alarms — list alarms for the current org
-	.get("/", async ({ user, set }) => {
+	.get("/", async ({ activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization. Switch to an organization first." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const rows = await db
 				.select()
 				.from(alarms)
-				.where(eq(alarms.organizationId, orgId));
+				.where(eq(alarms.organizationId, activeOrganizationId));
 			return { success: true, data: rows };
 		} catch (err) {
 			captureError(err);
@@ -127,18 +133,17 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 			return { success: false, error: "Failed to fetch alarms" };
 		}
 	})
-	// GET /v1/alarms/stats — MUST be before /:id
-	.get("/stats", async ({ user, set }) => {
+	// GET /v1/alarms/stats — MUST be before /:id to prevent route shadowing
+	.get("/stats", async ({ activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const rows = await db
 				.select()
 				.from(alarms)
-				.where(eq(alarms.organizationId, orgId));
+				.where(eq(alarms.organizationId, activeOrganizationId));
 			const total = rows.length;
 			const enabled = rows.filter((r) => r.enabled).length;
 			const disabled = total - enabled;
@@ -150,17 +155,16 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 		}
 	})
 	// GET /v1/alarms/:id
-	.get("/:id", async ({ params, user, set }) => {
+	.get("/:id", async ({ params, activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const [alarm] = await db
 				.select()
 				.from(alarms)
-				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)));
+				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)));
 			if (!alarm) {
 				set.status = 404;
 				return { success: false, error: "Alarm not found" };
@@ -177,19 +181,18 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 		}
 	}, { params: t.Object({ id: t.String() }) })
 	// POST /v1/alarms — create
-	.post("/", async ({ body, user, set }) => {
+	.post("/", async ({ body, activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const id = generateId();
 			const [alarm] = await db
 				.insert(alarms)
 				.values({
 					id,
-					organizationId: orgId,
+					organizationId: activeOrganizationId,
 					websiteId: body.websiteId ?? null,
 					name: body.name,
 					description: body.description ?? null,
@@ -216,23 +219,22 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 			return { success: false, error: "Failed to create alarm" };
 		}
 	}, { body: CreateAlarmBody })
-	// PUT /v1/alarms/:id — update (ownership enforced)
-	.put("/:id", async ({ params, body, user, set }) => {
+	// PUT /v1/alarms/:id — update (ownership enforced via activeOrganizationId)
+	.put("/:id", async ({ params, body, activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const [existing] = await db
 				.select()
 				.from(alarms)
-				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)));
+				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)));
 			if (!existing) {
 				set.status = 404;
 				return { success: false, error: "Alarm not found" };
 			}
-			const updates: Partial<typeof existing> = {};
+			const updates: Record<string, unknown> = { updatedAt: new Date() };
 			if (body.name !== undefined) updates.name = body.name;
 			if (body.description !== undefined) updates.description = body.description;
 			if (body.enabled !== undefined) updates.enabled = body.enabled;
@@ -241,8 +243,8 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 
 			const [updated] = await db
 				.update(alarms)
-				.set({ ...updates, updatedAt: new Date() })
-				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)))
+				.set(updates)
+				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)))
 				.returning();
 
 			if (body.destinations !== undefined) {
@@ -267,22 +269,21 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 		}
 	}, { params: t.Object({ id: t.String() }), body: UpdateAlarmBody })
 	// DELETE /v1/alarms/:id (ownership enforced)
-	.delete("/:id", async ({ params, user, set }) => {
+	.delete("/:id", async ({ params, activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const [existing] = await db
 				.select()
 				.from(alarms)
-				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)));
+				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)));
 			if (!existing) {
 				set.status = 404;
 				return { success: false, error: "Alarm not found" };
 			}
-			await db.delete(alarms).where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)));
+			await db.delete(alarms).where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)));
 			return { success: true };
 		} catch (err) {
 			captureError(err);
@@ -291,17 +292,16 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 		}
 	}, { params: t.Object({ id: t.String() }) })
 	// POST /v1/alarms/:id/toggle (ownership enforced)
-	.post("/:id/toggle", async ({ params, user, set }) => {
+	.post("/:id/toggle", async ({ params, activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const [existing] = await db
 				.select()
 				.from(alarms)
-				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)));
+				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)));
 			if (!existing) {
 				set.status = 404;
 				return { success: false, error: "Alarm not found" };
@@ -309,7 +309,7 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 			const [updated] = await db
 				.update(alarms)
 				.set({ enabled: !existing.enabled, updatedAt: new Date() })
-				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)))
+				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)))
 				.returning();
 			return { success: true, data: updated };
 		} catch (err) {
@@ -318,18 +318,17 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 			return { success: false, error: "Failed to toggle alarm" };
 		}
 	}, { params: t.Object({ id: t.String() }) })
-	// POST /v1/alarms/:id/test — send test notification
-	.post("/:id/test", async ({ params, user, set }) => {
+	// POST /v1/alarms/:id/test — send test notifications to all destinations
+	.post("/:id/test", async ({ params, activeOrganizationId, set }) => {
+		if (!activeOrganizationId) {
+			set.status = 400;
+			return { success: false, error: "No active organization." };
+		}
 		try {
-			const orgId = await getActiveOrganizationId(user!.id);
-			if (!orgId) {
-				set.status = 400;
-				return { success: false, error: "No organization found" };
-			}
 			const [alarm] = await db
 				.select()
 				.from(alarms)
-				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, orgId)));
+				.where(and(eq(alarms.id, params.id), eq(alarms.organizationId, activeOrganizationId)));
 			if (!alarm) {
 				set.status = 404;
 				return { success: false, error: "Alarm not found" };
@@ -341,7 +340,11 @@ export const alarmsRoute = new Elysia({ prefix: "/v1/alarms" })
 			await Promise.allSettled(
 				destinations.map((d) =>
 					sendTestNotification(
-						{ type: d.type, identifier: d.identifier, config: (d.config as Record<string, unknown>) ?? {} },
+						{
+							type: d.type,
+							identifier: d.identifier,
+							config: (d.config as Record<string, unknown> | null) ?? null,
+						},
 						alarm.name
 					)
 				)

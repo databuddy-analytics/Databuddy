@@ -1,7 +1,7 @@
 "use client";
 
 import { BellIcon, PlusIcon } from "@phosphor-icons/react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AlarmsList } from "@/components/alarms/alarms-list";
@@ -52,7 +52,6 @@ export default function AlarmsPage() {
 			<AlarmsList
 				alarms={alarms}
 				isLoading={isLoading}
-				onRefresh={() => queryClient.invalidateQueries({ queryKey: ["alarms"] })}
 			/>
 
 			<CreateAlarmDialog

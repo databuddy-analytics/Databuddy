@@ -29,13 +29,13 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { EditAlarmDialog } from "./edit-alarm-dialog";
 
 interface AlarmsListProps {
 	alarms: Alarm[];
 	isLoading: boolean;
-	onRefresh: () => void;
 }
 
 async function deleteAlarm(id: string): Promise<void> {
@@ -53,7 +53,7 @@ async function testAlarm(id: string): Promise<void> {
 	if (!res.ok) throw new Error("Failed to send test notification");
 }
 
-export function AlarmsList({ alarms, isLoading, onRefresh }: AlarmsListProps) {
+export function AlarmsList({ alarms, isLoading }: AlarmsListProps) {
 	const queryClient = useQueryClient();
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [editAlarm, setEditAlarm] = useState<Alarm | null>(null);
@@ -76,7 +76,14 @@ export function AlarmsList({ alarms, isLoading, onRefresh }: AlarmsListProps) {
 	});
 
 	if (isLoading) {
-		return <div className="text-muted-foreground">Loading alarms...</div>;
+		return (
+			<div className="flex flex-col gap-3">
+				{Array.from({ length: 3 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton list
+					<Skeleton key={i} className="h-16 w-full rounded-lg" />
+				))}
+			</div>
+		);
 	}
 
 	if (alarms.length === 0) {
@@ -97,7 +104,10 @@ export function AlarmsList({ alarms, isLoading, onRefresh }: AlarmsListProps) {
 						className="flex items-center justify-between rounded-lg border p-4"
 					>
 						<div className="flex items-center gap-3">
-							<BellIcon size={20} className={alarm.enabled ? "text-primary" : "text-muted-foreground"} />
+							<BellIcon
+								size={20}
+								className={alarm.enabled ? "text-primary" : "text-muted-foreground"}
+							/>
 							<div>
 								<div className="flex items-center gap-2">
 									<span className="font-medium">{alarm.name}</span>
@@ -119,7 +129,11 @@ export function AlarmsList({ alarms, isLoading, onRefresh }: AlarmsListProps) {
 							/>
 							<DropdownMenu>
 								<DropdownMenuTrigger asChild>
-									<Button variant="ghost" size="icon">
+									<Button
+										variant="ghost"
+										size="icon"
+										aria-label={`Options for alarm ${alarm.name}`}
+									>
 										<DotsThreeIcon size={16} />
 									</Button>
 								</DropdownMenuTrigger>
@@ -170,9 +184,10 @@ export function AlarmsList({ alarms, isLoading, onRefresh }: AlarmsListProps) {
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/* Edit dialog */}
+			{/* Edit dialog — keyed by alarm.id so state resets on alarm change */}
 			{editAlarm && (
 				<EditAlarmDialog
+					key={editAlarm.id}
 					alarm={editAlarm}
 					open={!!editAlarm}
 					onOpenChange={(open) => !open && setEditAlarm(null)}

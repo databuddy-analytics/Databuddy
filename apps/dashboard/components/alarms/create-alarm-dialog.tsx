@@ -60,13 +60,23 @@ export function CreateAlarmDialog({ open, onOpenChange, onSuccess }: CreateAlarm
 		onSuccess,
 	});
 
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen) {
+			// Reset form state on close
+			setName("");
+			setDescription("");
+			setTriggerType("");
+		}
+		onOpenChange(nextOpen);
+	};
+
 	const handleSubmit = () => {
 		if (!name.trim() || !triggerType) return;
 		mutation.mutate({ name: name.trim(), description: description.trim() || undefined, triggerType });
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent>
 				<DialogHeader>
 					<DialogTitle>Create Alarm</DialogTitle>
@@ -108,7 +118,7 @@ export function CreateAlarmDialog({ open, onOpenChange, onSuccess }: CreateAlarm
 					</div>
 				</div>
 				<DialogFooter>
-					<Button variant="outline" onClick={() => onOpenChange(false)}>
+					<Button variant="outline" onClick={() => handleOpenChange(false)}>
 						Cancel
 					</Button>
 					<Button
