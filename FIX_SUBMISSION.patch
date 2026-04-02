@@ -1,0 +1,166 @@
+```typescript
+// packages/db/src/drizzle/schema.ts
+import { defineTable, defineField } from 'drizzle-orm';
+
+export const flags = defineTable({
+  name: 'flags',
+  fields: {
+    id: defineField({
+      name: 'id',
+      dataType: 'serial',
+      isPrimaryKey: true,
+    }),
+    key: defineField({
+      name: 'key',
+      dataType: 'text',
+    }),
+    value: defineField({
+      name: 'value',
+      dataType: 'text',
+    }),
+    folder: defineField({
+      name: 'folder',
+      dataType: 'text',
+      isNullable: true,
+    }),
+  },
+});
+
+// packages/rpc/src/routers/flags.ts
+import { flags } from '../db/schema';
+import { router } from '../utils/router';
+
+export const flagsRouter = router({
+  list: async (ctx) => {
+    const folder = ctx.request.query.folder;
+    const flagsList = await ctx.db.selectFrom(flags)
+      .where(folder ? flags.folder.equals(folder) : true)
+      .selectAll();
+    return flagsList;
+  },
+  update: async (ctx) => {
+    const id = ctx.request.params.id;
+    const folder = ctx.request.body.folder;
+    await ctx.db.update(flags)
+      .set({ folder })
+      .where(flags.id.equals(id));
+    return { message: 'Flag updated successfully' };
+  },
+  create: async (ctx) => {
+    const key = ctx.request.body.key;
+    const value = ctx.request.body.value;
+    const folder = ctx.request.body.folder;
+    const newFlag = await ctx.db.insertInto(flags)
+      .values({ key, value, folder })
+      .returningAll();
+    return newFlag;
+  },
+});
+
+// apps/dashboard/app/(main)/websites/[id]/flags/_components/folder-tree.tsx
+import React from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { flags } from '../../../db/schema';
+
+const FolderTree = () => {
+  const { data: flagsList, isLoading } = useQuery(
+    ['flags'],
+    async () => {
+      const response = await fetch('/api/flags');
+      return response.json();
+    }
+  );
+
+  const { mutate: updateFlag } = useMutation(
+    async (flag) => {
+      const response = await fetch(`/api/flags/${flag.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder: flag.folder }),
+      });
+      return response.json();
+    }
+  );
+
+  if (isLoading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      {flagsList.map((flag) => (
+        <div key={flag.id}>
+          <span>{flag.key}</span>
+          <input
+            type="text"
+            value={flag.folder}
+            onChange={(e) => updateFlag({ ...flag, folder: e.target.value })}
+          />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default FolderTree;
+
+// apps/dashboard/app/(main)/websites/[id]/flags/page.tsx
+import React from 'react';
+import FolderTree from './_components/folder-tree';
+
+const FlagsPage = () => {
+  return (
+    <div>
+      <h1>Flags</h1>
+      <FolderTree />
+    </div>
+  );
+};
+
+export default FlagsPage;
+
+// apps/dashboard/app/(main)/websites/[id]/flags/_components/flag-sheet.tsx
+import React from 'react';
+import { useMutation } from '@tanstack/react-query';
+
+const FlagSheet = () => {
+  const { mutate: createFlag } = useMutation(
+    async (flag) => {
+      const response = await fetch('/api/flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(flag),
+      });
+      return response.json();
+    }
+  );
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const flag = {
+      key: e.target.key.value,
+      value: e.target.value.value,
+      folder: e.target.folder.value,
+    };
+    createFlag(flag);
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <label>
+        Key:
+        <input type="text" name="key" />
+      </label>
+      <label>
+        Value:
+        <input type="text" name="value" />
+      </label>
+      <label>
+        Folder:
+        <input type="text" name="folder" />
+      </label>
+      <button type="submit">Create Flag</button>
+    </form>
+  );
+};
+
+export default FlagSheet;
+```
