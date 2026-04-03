@@ -8,12 +8,7 @@ import {
 	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
-import {
-	Area,
-	AreaChart,
-	ResponsiveContainer,
-	Tooltip,
-} from "recharts";
+import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -130,7 +125,7 @@ function TopErrorCard() {
 
 export function ErrorTrackingDemo({ children }: { children?: ReactNode }) {
 	return (
-		<div className="relative overflow-hidden">
+		<div className="relative min-h-[calc(100dvh-7rem)] w-full overflow-hidden sm:min-h-[calc(100dvh-8rem)]">
 			{/* Chart fills the full container as background */}
 			<div className="absolute inset-0">
 				<ResponsiveContainer height="100%" width="100%">
@@ -147,26 +142,26 @@ export function ErrorTrackingDemo({ children }: { children?: ReactNode }) {
 						</defs>
 						<Tooltip content={<CustomTooltip />} />
 						<Area
+							activeDot={{ r: 4, fill: "#E3A512" }}
 							dataKey="errors"
+							dot={false}
 							fill="url(#errGold)"
 							name="Errors"
 							stroke="#E3A512"
-							strokeWidth={1.5}
 							strokeOpacity={0.5}
+							strokeWidth={1.5}
 							type="monotone"
-							dot={false}
-							activeDot={{ r: 4, fill: "#E3A512" }}
 						/>
 						<Area
+							activeDot={{ r: 4, fill: "#ef4444" }}
 							dataKey="critical"
+							dot={false}
 							fill="url(#errRed)"
 							name="Critical"
 							stroke="#ef4444"
-							strokeWidth={1.5}
 							strokeOpacity={0.4}
+							strokeWidth={1.5}
 							type="monotone"
-							dot={false}
-							activeDot={{ r: 4, fill: "#ef4444" }}
 						/>
 					</AreaChart>
 				</ResponsiveContainer>
@@ -176,28 +171,35 @@ export function ErrorTrackingDemo({ children }: { children?: ReactNode }) {
 				<div className="pointer-events-none absolute inset-y-0 left-0 w-2/3 bg-gradient-to-r from-background via-background/50 to-transparent" />
 			</div>
 
-			{/* Content layer */}
-			<div className="pointer-events-none relative z-10 flex min-h-[420px] flex-col justify-between px-4 pb-8 pt-6 sm:px-6 lg:px-8">
-				{/* Hero text top-left */}
-				<div className="pointer-events-auto max-w-2xl">
-					{children}
+			{/* Hero copy — top; reserve space so cards don’t cover CTAs on narrow viewports */}
+			<div className="pointer-events-none relative z-10 px-0 pt-8 pb-[min(28rem,52vh)] sm:pt-10 sm:pb-16 lg:pt-12 lg:pb-20">
+				<div className="pointer-events-auto max-w-2xl">{children}</div>
+			</div>
+
+			{/* Demo cards — flush to bottom-right (flex-end) */}
+			<div className="pointer-events-auto absolute right-0 bottom-8 z-10 flex w-full flex-col items-end gap-3 px-4 pt-0 pb-4 sm:bottom-10 sm:flex-row sm:items-end sm:justify-end sm:gap-3 sm:px-6 sm:pt-0 sm:pb-5 lg:bottom-12 lg:px-8 lg:pt-0 lg:pb-6">
+				<div className="grid w-[min(100%,17.5rem)] shrink-0 grid-cols-2 gap-2 sm:w-[17.5rem]">
+					<ErrorStatCard
+						icon={WarningCircleIcon}
+						title="Total Errors"
+						value="1,919"
+						variant="destructive"
+					/>
+					<ErrorStatCard
+						icon={TrendUpIcon}
+						title="Error Rate"
+						value="0.80%"
+						variant="warning"
+					/>
+					<ErrorStatCard icon={UsersIcon} title="Affected Users" value="576" />
+					<ErrorStatCard
+						icon={ActivityIcon}
+						title="Affected Sessions"
+						value="847"
+					/>
 				</div>
-
-				{/* Overlay cards bottom */}
-				<div className="mt-8 flex items-end justify-between gap-4">
-					{/* Spacer so cards sit on the right */}
-					<div className="flex-1" />
-
-					{/* Stat grid + top error card */}
-					<div className="pointer-events-auto w-72 space-y-2">
-						<div className="grid grid-cols-2 gap-2">
-							<ErrorStatCard icon={WarningCircleIcon} title="Total Errors" value="1,919" variant="destructive" />
-							<ErrorStatCard icon={TrendUpIcon} title="Error Rate" value="0.80%" variant="warning" />
-							<ErrorStatCard icon={UsersIcon} title="Affected Users" value="576" />
-							<ErrorStatCard icon={ActivityIcon} title="Affected Sessions" value="847" />
-						</div>
-						<TopErrorCard />
-					</div>
+				<div className="w-[min(100%,18rem)] min-w-0 sm:w-72">
+					<TopErrorCard />
 				</div>
 			</div>
 		</div>
