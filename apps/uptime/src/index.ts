@@ -280,9 +280,11 @@ const app = new Elysia()
 				});
 			}
 
-			// Fire-and-forget: trigger alarm notifications on status transitions
-			checkAndTriggerAlarms(monitorId, result.data).catch((err) => {
-				captureError(err, { error_step: "alarm_trigger", monitor_id: monitorId });
+			// Fire-and-forget: trigger alarm notifications on status transitions.
+			// Must use scheduleId (not monitorId) — monitorId = websiteId || scheduleId,
+			// so passing it would break the schedule DB lookup when websiteId is present.
+			checkAndTriggerAlarms(scheduleId, result.data).catch((err) => {
+				captureError(err, { error_step: "alarm_trigger", schedule_id: scheduleId });
 			});
 
 			return new Response("Uptime check complete", { status: 200 });

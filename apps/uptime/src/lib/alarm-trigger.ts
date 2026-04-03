@@ -20,6 +20,7 @@ import {
 	NotificationClient,
 	type NotificationChannel,
 } from "@databuddy/notifications";
+import { getRedisCache } from "@databuddy/redis";
 import { log } from "evlog";
 import { captureError } from "./tracing";
 import { MonitorStatus, type UptimeData } from "../types";
@@ -27,8 +28,36 @@ import { MonitorStatus, type UptimeData } from "../types";
 /** Consecutive failures required to fire a "site down" alarm. */
 const DOWN_THRESHOLD = 2;
 
-/** In-memory deduplication: tracks last notified status per schedule. */
-const lastNotifiedStatus = new Map<string, MonitorStatus>();
+/** Redis key TTL: 7 days (covers expected restart cycles). */
+const DEDUP_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/** Redis key prefix for alarm deduplication state. */
+const DEDUP_KEY_PREFIX = "alarm:dedup:uptime:";
+
+/** Get last notified status for a schedule from Redis. Returns null on miss or error. */
+async function getLastNotifiedStatus(scheduleId: string): Promise<MonitorStatus | null> {
+	try {
+		const redis = getRedisCache();
+		const val = await redis.get(`${DEDUP_KEY_PREFIX}${scheduleId}`);
+		if (val === null) return null;
+		const parsed = Number.parseInt(val, 10);
+		return Number.isNaN(parsed) ? null : (parsed as MonitorStatus);
+	} catch (err) {
+		// Redis unavailable — fall through (may cause duplicate notifications, preferable to lost ones)
+		log.warn({ scheduleId, err }, "alarm-trigger: redis get failed, skipping dedup");
+		return null;
+	}
+}
+
+/** Persist last notified status for a schedule in Redis. */
+async function setLastNotifiedStatus(scheduleId: string, status: MonitorStatus): Promise<void> {
+	try {
+		const redis = getRedisCache();
+		await redis.setex(`${DEDUP_KEY_PREFIX}${scheduleId}`, DEDUP_TTL_SECONDS, String(status));
+	} catch (err) {
+		log.warn({ scheduleId, err }, "alarm-trigger: redis setex failed");
+	}
+}
 
 type DestinationRow = {
 	type: string;
@@ -69,8 +98,8 @@ function buildNotificationClient(destinations: DestinationRow[]): {
 				break;
 			case "telegram":
 				clientConfig.telegram = {
-					botToken: cfg.botToken as string ?? dest.identifier,
-					chatId: (cfg.chatId as string) ?? dest.identifier,
+					botToken: (cfg.botToken as string | undefined) ?? dest.identifier,
+					chatId: (cfg.chatId as string | undefined) ?? dest.identifier,
 				};
 				channels.push("telegram");
 				break;
@@ -185,7 +214,7 @@ export async function checkAndTriggerAlarms(
 		}
 
 		const currentStatus = uptimeData.status as MonitorStatus;
-		const lastStatus = lastNotifiedStatus.get(scheduleId);
+		const lastStatus = await getLastNotifiedStatus(scheduleId);
 		const failureStreak = uptimeData.failure_streak;
 
 		// Determine transition type
@@ -210,7 +239,7 @@ export async function checkAndTriggerAlarms(
 
 		if (matchingAlarms.length === 0) {
 			// Update deduplication state even with no alarms
-			lastNotifiedStatus.set(scheduleId, currentStatus);
+			await setLastNotifiedStatus(scheduleId, currentStatus);
 			return;
 		}
 
@@ -266,7 +295,7 @@ export async function checkAndTriggerAlarms(
 		);
 
 		// Update deduplication state after successful dispatch
-		lastNotifiedStatus.set(scheduleId, currentStatus);
+		await setLastNotifiedStatus(scheduleId, currentStatus);
 	} catch (err) {
 		captureError(err);
 		log.error({ scheduleId, err }, "alarm-trigger: unexpected error");

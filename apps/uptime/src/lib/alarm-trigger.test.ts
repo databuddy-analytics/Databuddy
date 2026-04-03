@@ -6,6 +6,7 @@
  */
 
 import { describe, test, expect, mock, beforeEach } from "bun:test";
+import { MonitorStatus } from "../types";
 
 // ---- Mock @databuddy/db -----------------------------------------------
 const mockFindFirst = mock(() => Promise.resolve(null));
@@ -29,6 +30,13 @@ mock.module("@databuddy/db", () => ({
 	and: (...args: unknown[]) => ({ type: "and", args }),
 	or: (...args: unknown[]) => ({ type: "or", args }),
 	isNull: (_col: unknown) => ({ type: "isNull", _col }),
+}));
+
+// ---- Mock @databuddy/redis -------------------------------------------
+const mockRedisGet = mock(() => Promise.resolve(null));
+const mockRedisSetex = mock(() => Promise.resolve("OK"));
+mock.module("@databuddy/redis", () => ({
+	getRedisCache: () => ({ get: mockRedisGet, setex: mockRedisSetex }),
 }));
 
 // ---- Mock @databuddy/notifications ------------------------------------
@@ -97,8 +105,12 @@ describe("checkAndTriggerAlarms", () => {
 		mockSelect.mockReset();
 		mockSend.mockReset();
 		MockNotificationClient.mockReset();
+		mockRedisGet.mockReset();
+		mockRedisSetex.mockReset();
 		mockSend.mockImplementation(() => Promise.resolve([{ success: true, channel: "slack" }]));
 		MockNotificationClient.mockImplementation(() => ({ send: mockSend }));
+		mockRedisGet.mockResolvedValue(null); // default: no prior state
+		mockRedisSetex.mockResolvedValue("OK");
 	});
 
 	test("returns early when schedule not found", async () => {
@@ -162,26 +174,27 @@ describe("checkAndTriggerAlarms", () => {
 	});
 
 	test("sends recovery notification on UP transition after DOWN", async () => {
-		// First: trigger a DOWN to set lastNotifiedStatus
 		mockFindFirst.mockResolvedValue(mockSchedule);
+
+		// Redis reports the last status as DOWN (simulates previous notification)
+		mockRedisGet.mockResolvedValue(String(MonitorStatus.DOWN));
+
+		const mockAlarm = {
+			id: "alarm_2",
+			organizationId: "org_1",
+			websiteId: null,
+			name: "Org Alarm",
+			enabled: true,
+			triggerType: "uptime",
+		};
+		const mockDest = {
+			alarmId: "alarm_2",
+			type: "discord",
+			identifier: "https://discord.com/api/webhooks/test",
+			config: {},
+		};
+
 		let callCount = 0;
-		mockSelect.mockImplementation(() => ({
-			from: () => ({
-				where: () => {
-					callCount++;
-					if (callCount % 2 === 1) return Promise.resolve([]);
-					return Promise.resolve([]);
-				},
-			}),
-		}));
-
-		const downData = { ...baseUptimeData, status: 0, failure_streak: 3 };
-		await checkAndTriggerAlarms("sched_recovery", downData);
-
-		// Now set UP transition — need to set up mock for recovery
-		const mockAlarm = { id: "alarm_2", organizationId: "org_1", websiteId: null, name: "Org Alarm", enabled: true, triggerType: "uptime" };
-		const mockDest = { alarmId: "alarm_2", type: "discord", identifier: "https://discord.com/api/webhooks/test", config: {} };
-		callCount = 0;
 		mockSelect.mockImplementation(() => ({
 			from: () => ({
 				where: () => {
@@ -191,30 +204,33 @@ describe("checkAndTriggerAlarms", () => {
 				},
 			}),
 		}));
-		mockSend.mockReset();
 		mockSend.mockImplementation(() => Promise.resolve([{ success: true, channel: "discord" }]));
 		MockNotificationClient.mockImplementation(() => ({ send: mockSend }));
 
 		const upData = { ...baseUptimeData, status: 1, failure_streak: 0 };
-		// We need a fresh import state — since lastNotifiedStatus is module-level, this test
-		// exercises the recovery flow only if DOWN was previously set.
-		// This verifies the API surface works end-to-end for the recovered case.
-		await checkAndTriggerAlarms("sched_recovery", upData);
-		// Recovery send will be called if lastNotifiedStatus has DOWN for this id
-		// (it may or may not depending on whether prior DOWN was stored — this tests the path)
-		expect(mockSend.mock.calls.length).toBeGreaterThanOrEqual(0);
+		await checkAndTriggerAlarms("sched_recovery_2", upData);
+
+		expect(mockSend).toHaveBeenCalledTimes(1);
+		const [payload] = mockSend.mock.calls[0] as [{ title: string }];
+		expect(payload.title).toContain("Site Recovered");
+		// Redis should be updated to UP
+		expect(mockRedisSetex).toHaveBeenCalledWith(
+			expect.stringContaining("sched_recovery_2"),
+			expect.any(Number),
+			String(MonitorStatus.UP)
+		);
 	});
 
-	test("no notification when same status repeated (deduplication)", async () => {
+	test("no notification when same status repeated (deduplication via Redis)", async () => {
 		mockFindFirst.mockResolvedValue(mockSchedule);
-		mockSelect.mockImplementation(() => ({ from: () => ({ where: () => Promise.resolve([]) }) }));
+		// Redis reports last status was already DOWN
+		mockRedisGet.mockResolvedValue(String(MonitorStatus.DOWN));
 
 		const data = { ...baseUptimeData, status: 0, failure_streak: 3 };
 		await checkAndTriggerAlarms("sched_dedup", data);
-		// Second call with same DOWN — no transition, no query
-		mockSelect.mockReset();
-		await checkAndTriggerAlarms("sched_dedup", data);
+		// No transition (DOWN→DOWN), so alarm query should not be called
 		expect(mockSelect).not.toHaveBeenCalled();
+		expect(mockSend).not.toHaveBeenCalled();
 	});
 
 	test("org-level alarms (null websiteId) match all monitors", async () => {
