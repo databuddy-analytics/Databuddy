@@ -2,9 +2,13 @@
 
 import {
 	ArchiveIcon,
+	CaretDownIcon,
+	CaretRightIcon,
 	DotsThreeIcon,
 	FlagIcon,
 	FlaskIcon,
+	FolderIcon,
+	FolderOpenIcon,
 	GaugeIcon,
 	LinkIcon,
 	PencilSimpleIcon,
@@ -12,7 +16,7 @@ import {
 	TrashIcon,
 } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { List } from "@/components/ui/composables/list";
@@ -404,6 +408,65 @@ function FlagRow({
 	);
 }
 
+function FolderSection({
+	name,
+	flags,
+	flagMap,
+	dependentsMap,
+	groups,
+	onEdit,
+	onDelete,
+}: {
+	name: string;
+	flags: Flag[];
+	flagMap: Map<string, Flag>;
+	dependentsMap: Map<string, Flag[]>;
+	groups: Map<string, TargetGroup[]>;
+	onEdit: (flag: Flag) => void;
+	onDelete: (flagId: string) => void;
+}) {
+	const [open, setOpen] = useState(true);
+
+	return (
+		<div className="mb-1">
+			<button
+				type="button"
+				onClick={() => setOpen((v) => !v)}
+				className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50 transition-colors"
+			>
+				{open ? (
+					<>
+						<FolderOpenIcon size={15} className="text-amber-500" />
+						<CaretDownIcon size={12} />
+					</>
+				) : (
+					<>
+						<FolderIcon size={15} className="text-amber-500" />
+						<CaretRightIcon size={12} />
+					</>
+				)}
+				<span>{name}</span>
+				<span className="ml-auto text-xs text-muted-foreground/60">{flags.length}</span>
+			</button>
+			{open && (
+				<List className="rounded bg-card ml-2 border-l border-border/50 pl-1">
+					{flags.map((flag) => (
+						<FlagRow
+							dependents={dependentsMap.get(flag.key) ?? []}
+							flag={flag}
+							flagMap={flagMap}
+							groups={groups.get(flag.id) ?? []}
+							key={flag.id}
+							onDelete={onDelete}
+							onEdit={onEdit}
+						/>
+					))}
+				</List>
+			)}
+		</div>
+	);
+}
+
 export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 	const flagMap = useMemo(() => {
 		const map = new Map<string, Flag>();
@@ -427,20 +490,64 @@ export function FlagsList({ flags, groups, onEdit, onDelete }: FlagsListProps) {
 		return map;
 	}, [flags]);
 
+	// Group flags by folder; flags without a folder go into the root (null) group
+	const { folderGroups, rootFlags } = useMemo(() => {
+		const byFolder = new Map<string, Flag[]>();
+		const root: Flag[] = [];
+		for (const f of flags) {
+			if (f.folder) {
+				const existing = byFolder.get(f.folder) ?? [];
+				existing.push(f);
+				byFolder.set(f.folder, existing);
+			} else {
+				root.push(f);
+			}
+		}
+		// Sort folder names alphabetically for stable UI
+		const sortedFolders = [...byFolder.entries()].sort(([a], [b]) =>
+			a.localeCompare(b)
+		);
+		return { folderGroups: sortedFolders, rootFlags: root };
+	}, [flags]);
+
+	const hasFolders = folderGroups.length > 0;
+
 	return (
-		<List className="rounded bg-card">
-			{flags.map((flag) => (
-				<FlagRow
-					dependents={dependentsMap.get(flag.key) ?? []}
-					flag={flag}
-					flagMap={flagMap}
-					groups={groups.get(flag.id) ?? []}
-					key={flag.id}
-					onDelete={onDelete}
-					onEdit={onEdit}
-				/>
-			))}
-		</List>
+		<div>
+			{/* Folder sections */}
+			{hasFolders && (
+				<div className="mb-2">
+					{folderGroups.map(([folderName, folderFlags]) => (
+						<FolderSection
+							key={folderName}
+							name={folderName}
+							flags={folderFlags}
+							flagMap={flagMap}
+							dependentsMap={dependentsMap}
+							groups={groups}
+							onEdit={onEdit}
+							onDelete={onDelete}
+						/>
+					))}
+				</div>
+			)}
+			{/* Root (unfiled) flags */}
+			{rootFlags.length > 0 && (
+				<List className="rounded bg-card">
+					{rootFlags.map((flag) => (
+						<FlagRow
+							dependents={dependentsMap.get(flag.key) ?? []}
+							flag={flag}
+							flagMap={flagMap}
+							groups={groups.get(flag.id) ?? []}
+							key={flag.id}
+							onDelete={onDelete}
+							onEdit={onEdit}
+						/>
+					))}
+				</List>
+			)}
+		</div>
 	);
 }
 

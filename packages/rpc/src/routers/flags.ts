@@ -101,6 +101,7 @@ const createFlagSchema = z
 		organizationId: z.string().optional(),
 		payload: z.any().optional(),
 		persistAcrossAuth: z.boolean().optional(),
+		folder: z.string().max(100).nullable().optional(),
 		...flagFormSchema.shape,
 	})
 	.refine((data) => data.websiteId || data.organizationId, {
@@ -125,6 +126,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().max(100).nullable().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -572,6 +574,7 @@ export const flagsRouter = {
 							variants: input.variants,
 							dependencies: input.dependencies,
 							environment: input.environment,
+							folder: input.folder !== undefined ? input.folder : existingFlag[0].folder,
 							deletedAt: null,
 							updatedAt: new Date(),
 						})
@@ -629,6 +632,7 @@ export const flagsRouter = {
 						websiteId: input.websiteId || null,
 						organizationId: input.organizationId || null,
 						environment: input.environment || existingFlag?.[0]?.environment,
+						folder: input.folder ?? null,
 						userId: null,
 						createdBy,
 					})
