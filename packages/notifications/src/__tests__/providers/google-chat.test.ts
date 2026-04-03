@@ -32,6 +32,14 @@ describe("GoogleChatProvider", () => {
 		expect(fetchCalls[0].url).toBe(WEBHOOK_URL);
 	});
 
+	test("sends POST with application/json content-type", async () => {
+		const provider = new GoogleChatProvider({ webhookUrl: WEBHOOK_URL });
+		await provider.send(basePayload);
+		expect(fetchCalls[0].init.method).toBe("POST");
+		const headers = fetchCalls[0].init.headers as Record<string, string>;
+		expect(headers["Content-Type"]).toBe("application/json");
+	});
+
 	test("formats payload with cards array containing header", async () => {
 		const provider = new GoogleChatProvider({ webhookUrl: WEBHOOK_URL });
 		await provider.send(basePayload);

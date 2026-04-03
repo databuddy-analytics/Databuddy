@@ -32,6 +32,14 @@ describe("TeamsProvider", () => {
 		expect(fetchCalls[0].url).toBe(WEBHOOK_URL);
 	});
 
+	test("sends POST with application/json content-type", async () => {
+		const provider = new TeamsProvider({ webhookUrl: WEBHOOK_URL });
+		await provider.send(basePayload);
+		expect(fetchCalls[0].init.method).toBe("POST");
+		const headers = fetchCalls[0].init.headers as Record<string, string>;
+		expect(headers["Content-Type"]).toBe("application/json");
+	});
+
 	test("formats as Adaptive Card message", async () => {
 		const provider = new TeamsProvider({ webhookUrl: WEBHOOK_URL });
 		await provider.send(basePayload);

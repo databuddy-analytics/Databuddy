@@ -138,6 +138,29 @@ describe("NotificationClient", () => {
 		});
 	});
 
+	describe("default config propagation", () => {
+		test("default retries propagate to providers", async () => {
+			let fetchCallCount = 0;
+			globalThis.fetch = mock(() => {
+				fetchCallCount++;
+				return Promise.reject(new Error("fail"));
+			}) as typeof fetch;
+
+			const client = new NotificationClient({
+				slack: { webhookUrl: "https://slack.test" },
+				defaultRetries: 2,
+				defaultRetryDelay: 1,
+				defaultChannels: ["slack"],
+			});
+
+			const results = await client.send(basePayload);
+			expect(results).toHaveLength(1);
+			expect(results[0].success).toBe(false);
+			// 1 initial + 2 retries = 3 fetch calls
+			expect(fetchCallCount).toBe(3);
+		});
+	});
+
 	describe("getConfiguredChannels()", () => {
 		test("returns all configured channel names", () => {
 			const client = new NotificationClient({

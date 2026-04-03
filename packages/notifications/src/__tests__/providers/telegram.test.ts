@@ -30,6 +30,14 @@ describe("TelegramProvider", () => {
 		expect(fetchCalls[0].url).toBe("https://api.telegram.org/bot123:ABC/sendMessage");
 	});
 
+	test("sends POST with application/json content-type", async () => {
+		const provider = new TelegramProvider({ botToken: "123:ABC", chatId: "456" });
+		await provider.send(basePayload);
+		expect(fetchCalls[0].init.method).toBe("POST");
+		const headers = fetchCalls[0].init.headers as Record<string, string>;
+		expect(headers["Content-Type"]).toBe("application/json");
+	});
+
 	test("sends HTML-formatted text with title in bold", async () => {
 		const provider = new TelegramProvider({ botToken: "123:ABC", chatId: "456" });
 		await provider.send(basePayload);

@@ -111,6 +111,18 @@ describe("BaseProvider", () => {
 			expect(res.status).toBe(200);
 		});
 
+		test("clears timeout on success — no delayed error", async () => {
+			globalThis.fetch = mock(() =>
+				Promise.resolve(new Response("ok", { status: 200 }))
+			) as typeof fetch;
+
+			const provider = new TestProvider({ timeout: 100 });
+			const res = await provider.testFetchWithTimeout("http://example.com");
+			expect(res.status).toBe(200);
+			// Wait longer than timeout to confirm no delayed error fires
+			await new Promise((resolve) => setTimeout(resolve, 150));
+		});
+
 		test("throws timeout error when request exceeds timeout", async () => {
 			globalThis.fetch = mock(
 				(_url: string, init?: RequestInit) =>
