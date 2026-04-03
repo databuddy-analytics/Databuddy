@@ -12,6 +12,7 @@ import {
 } from "./lib/evlog-uptime";
 import { sendUptimeEvent } from "./lib/producer";
 import { captureError, mergeWideEvent } from "./lib/tracing";
+import { checkAndTriggerAlarms } from "./lib/alarm-trigger";
 import {
 	getPreviousMonitorStatus,
 	sendUptimeTransitionEmailsIfNeeded,
@@ -278,6 +279,11 @@ const app = new Elysia()
 					http_code: result.data.http_code,
 				});
 			}
+
+			// Fire-and-forget: trigger alarm notifications on status transitions
+			checkAndTriggerAlarms(monitorId, result.data).catch((err) => {
+				captureError(err, { error_step: "alarm_trigger", monitor_id: monitorId });
+			});
 
 			return new Response("Uptime check complete", { status: 200 });
 		} catch (error) {
