@@ -40,7 +40,7 @@ export class WebhookReceiver {
 				});
 			},
 		});
-		return this.server.port;
+		return this.server.port!;
 	}
 
 	getRequests(): CapturedRequest[] {
