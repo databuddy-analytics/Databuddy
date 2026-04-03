@@ -15,23 +15,23 @@ import dayjs from "@/lib/dayjs";
 type RefreshFn = () => void;
 
 interface LLMPageContextValue {
-	selectedWebsiteId: string | null;
-	setSelectedWebsiteId: (id: string | null) => void;
-	selectedWebsite: { id: string; name: string; domain: string } | undefined;
-	websites: Array<{ id: string; name: string; domain: string }>;
-	isLoadingWebsites: boolean;
-	queryOptions: { websiteId?: string; organizationId?: string };
-	hasQueryId: boolean;
 	dateRange: {
 		start_date: string;
 		end_date: string;
 		granularity: "daily";
 	};
-	isLoadingOrg: boolean;
-	registerRefresh: (fn: RefreshFn) => () => void;
-	refresh: () => void;
+	hasQueryId: boolean;
 	isFetching: boolean;
+	isLoadingOrg: boolean;
+	isLoadingWebsites: boolean;
+	queryOptions: { websiteId?: string; organizationId?: string };
+	refresh: () => void;
+	registerRefresh: (fn: RefreshFn) => () => void;
+	selectedWebsite: { id: string; name: string; domain: string } | undefined;
+	selectedWebsiteId: string | null;
 	setIsFetching: (fetching: boolean) => void;
+	setSelectedWebsiteId: (id: string | null) => void;
+	websites: Array<{ id: string; name: string; domain: string }>;
 }
 
 const LLMPageContext = createContext<LLMPageContextValue | null>(null);

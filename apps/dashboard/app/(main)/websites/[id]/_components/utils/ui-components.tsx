@@ -19,10 +19,10 @@ export const BORDER_RADIUS = {
 };
 
 interface MetricToggleProps {
-	label: string;
 	checked: boolean;
-	onChange: () => void;
 	color: string;
+	label: string;
+	onChange: () => void;
 }
 
 export const MetricToggle: React.FC<MetricToggleProps> = ({
@@ -98,10 +98,10 @@ export const MetricToggle: React.FC<MetricToggleProps> = ({
 };
 
 interface MetricTogglesProps {
-	metrics: Record<string, boolean>;
-	onToggle: (metric: string) => void;
 	colors: Record<string, string>;
 	labels?: Record<string, string>;
+	metrics: Record<string, boolean>;
+	onToggle: (metric: string) => void;
 }
 
 const EMPTY_LABELS: Record<string, string> = {};
@@ -126,11 +126,11 @@ export const MetricToggles: React.FC<MetricTogglesProps> = ({
 );
 
 interface ExternalLinkButtonProps {
+	className?: string;
 	href: string;
 	label: string;
-	title?: string;
-	className?: string;
 	showTooltip?: boolean;
+	title?: string;
 }
 
 export const ExternalLinkButton: React.FC<ExternalLinkButtonProps> = ({

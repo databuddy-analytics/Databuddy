@@ -1,12 +1,12 @@
 export interface FeatureDisplay {
-	singular: string;
 	plural: string;
+	singular: string;
 }
 export interface RawFeature {
+	display: FeatureDisplay;
 	id: string;
 	name: string;
 	type: "single_use";
-	display: FeatureDisplay;
 }
 export type RawItem =
 	| {
@@ -41,8 +41,8 @@ export type RawItem =
 
 export interface RawPlan {
 	id: string;
-	name: string;
 	items: RawItem[];
+	name: string;
 }
 
 export const RAW_PLANS: RawPlan[] = [

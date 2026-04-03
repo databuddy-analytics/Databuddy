@@ -6,20 +6,20 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export interface SavedFilter {
+	createdAt: string;
+	filters: DynamicQueryFilter[];
 	id: string;
 	name: string;
-	filters: DynamicQueryFilter[];
-	createdAt: string;
 	updatedAt: string;
 }
 
 export interface SavedFilterError {
+	message: string;
 	type:
 		| "storage_quota"
 		| "invalid_data"
 		| "duplicate_name"
 		| "validation_error";
-	message: string;
 }
 
 const STORAGE_KEY = "databuddy-saved-filters";

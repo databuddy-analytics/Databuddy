@@ -16,15 +16,15 @@ export const INSIGHT_CACHE = {
 } as const;
 
 export interface InsightsAiResponse {
-	success: boolean;
 	insights: Insight[];
 	source: "ai" | "fallback";
+	success: boolean;
 }
 
 export interface InsightsHistoryPage {
-	success: boolean;
-	insights: HistoryInsightRow[];
 	hasMore: boolean;
+	insights: HistoryInsightRow[];
+	success: boolean;
 }
 
 export async function fetchInsightsAi(
@@ -77,9 +77,9 @@ export async function fetchInsightsHistoryPage(
 }
 
 export interface ClearInsightsResponse {
-	success: boolean;
 	deleted: number;
 	error?: string;
+	success: boolean;
 }
 
 export async function clearInsightsHistory(

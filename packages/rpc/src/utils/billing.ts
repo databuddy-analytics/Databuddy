@@ -4,9 +4,9 @@ import { getAutumn } from "../lib/autumn-client";
 import { logger } from "../lib/logger";
 
 export interface BillingOwner {
+	canUserUpgrade: boolean;
 	customerId: string;
 	isOrganization: boolean;
-	canUserUpgrade: boolean;
 	planId: string;
 }
 

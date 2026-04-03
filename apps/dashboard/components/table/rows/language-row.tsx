@@ -3,11 +3,11 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface LanguageEntry {
+	code?: string;
 	name: string;
-	visitors: number;
 	pageviews: number;
 	percentage: number;
-	code?: string;
+	visitors: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {

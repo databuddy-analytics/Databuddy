@@ -21,15 +21,15 @@ import type { Goal } from "@/hooks/use-goals";
 import { cn } from "@/lib/utils";
 
 interface GoalItemProps {
-	goal: Goal;
 	analytics?: {
 		total_users_entered: number;
 		total_users_completed: number;
 		overall_conversion_rate: number;
 	} | null;
+	goal: Goal;
 	isLoadingAnalytics?: boolean;
-	onEdit: (goal: Goal) => void;
 	onDelete: (goalId: string) => void;
+	onEdit: (goal: Goal) => void;
 }
 
 function formatNumber(num: number): string {

@@ -44,8 +44,8 @@ function handleServiceError(error: unknown): never {
 }
 
 interface EventsCheckResult {
-	hasEvents: boolean;
 	error: string | null;
+	hasEvents: boolean;
 }
 
 async function getTrackingEventsStatus(
@@ -87,10 +87,10 @@ const buildStatusMessage = (hasEvents: boolean, eventsError: string | null) => {
 };
 
 interface ChartDataPoint {
-	websiteId: string;
 	date: string;
-	value: number;
 	hasAnyData: number;
+	value: number;
+	websiteId: string;
 }
 
 const calculateAverage = (values: { value: number }[]) =>
@@ -178,8 +178,8 @@ const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
 };
 
 interface ActiveUsersRow {
-	websiteId: string;
 	activeUsers: number;
+	websiteId: string;
 }
 
 const fetchActiveUsers = async (

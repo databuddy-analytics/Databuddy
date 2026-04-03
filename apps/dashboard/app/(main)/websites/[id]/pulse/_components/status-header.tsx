@@ -33,6 +33,15 @@ const granularityLabels: Record<string, string> = {
 };
 
 interface StatusHeaderProps {
+	currentStatus?: "up" | "down" | "unknown";
+	lastCheck?: {
+		timestamp: string;
+		status: number;
+		probe_region?: string;
+	};
+	onDeleteAction: () => void;
+	onEditAction: () => void;
+	onRefetchAction: () => void;
 	schedule: {
 		id: string;
 		granularity: string;
@@ -41,15 +50,6 @@ interface StatusHeaderProps {
 		createdAt: Date | string;
 		updatedAt: Date | string;
 	};
-	currentStatus?: "up" | "down" | "unknown";
-	lastCheck?: {
-		timestamp: string;
-		status: number;
-		probe_region?: string;
-	};
-	onEditAction: () => void;
-	onDeleteAction: () => void;
-	onRefetchAction: () => void;
 }
 
 export function StatusHeader({

@@ -48,13 +48,13 @@ import type {
 } from "./navigation/types";
 
 interface MobileSidebarProps {
-	navigation: NavigationEntry[];
-	header: React.ReactNode;
-	currentWebsiteId?: string | null;
 	accordionStates: ReturnType<typeof useAccordionStates>;
+	currentWebsiteId?: string | null;
+	header: React.ReactNode;
+	navigation: NavigationEntry[];
+	onCategoryChangeAction: (categoryId: string) => void;
 	searchParams: ReadonlyURLSearchParams;
 	selectedCategory?: string;
-	onCategoryChangeAction: (categoryId: string) => void;
 }
 
 const isNavigationSection = (

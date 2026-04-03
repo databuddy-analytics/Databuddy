@@ -111,11 +111,11 @@ type CreateParams = (
 };
 
 interface TransportConfig {
-	transport: OpenAITransport;
 	computeCosts: boolean;
-	privacyMode: boolean;
-	onSuccess?: (call: OpenAILLMCall) => void;
 	onError?: (call: OpenAILLMCall) => void;
+	onSuccess?: (call: OpenAILLMCall) => void;
+	privacyMode: boolean;
+	transport: OpenAITransport;
 }
 
 /** OpenAI client with Databuddy observability */

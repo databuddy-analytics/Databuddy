@@ -4,9 +4,9 @@ import type React from "react";
 import { formatMetricNumber } from "@/lib/formatters";
 
 interface FormattedNumberProps {
+	className?: string;
 	id?: string;
 	value: number;
-	className?: string;
 }
 
 export const FormattedNumber: React.FC<FormattedNumberProps> = ({

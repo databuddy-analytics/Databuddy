@@ -38,8 +38,8 @@ const LINE_WIDTH = 1;
 const LINE_GAP = 2;
 
 interface LineProgressProps {
-	percentage: number;
 	isLast: boolean;
+	percentage: number;
 }
 
 function LineProgress({ percentage, isLast }: LineProgressProps) {

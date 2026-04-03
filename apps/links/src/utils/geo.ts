@@ -14,9 +14,9 @@ interface GeoIPReader extends Reader {
 }
 
 interface GeoResult {
+	city: string | null;
 	country: string | null;
 	region: string | null;
-	city: string | null;
 }
 
 const CDN_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";

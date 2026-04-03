@@ -5,17 +5,17 @@ import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../types";
 
 export interface DataTableColumn {
-	key: string;
-	header: string;
 	align?: "left" | "center" | "right";
+	header: string;
+	key: string;
 }
 
 export interface DataTableProps extends BaseComponentProps {
-	title?: string;
-	description?: string;
 	columns: DataTableColumn[];
-	rows: Record<string, string | number | boolean | null>[];
+	description?: string;
 	footer?: string;
+	rows: Record<string, string | number | boolean | null>[];
+	title?: string;
 }
 
 function formatCellValue(value: string | number | boolean | null): string {

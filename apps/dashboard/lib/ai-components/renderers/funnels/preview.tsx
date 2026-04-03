@@ -22,24 +22,24 @@ import type { CreateFunnelData, Funnel } from "@/types/funnels";
 import type { BaseComponentProps, FunnelStepInput } from "../../types";
 
 interface FunnelPreviewData {
-	name: string;
 	description?: string | null;
-	steps: FunnelStepInput[];
 	ignoreHistoricData?: boolean;
+	name: string;
+	steps: FunnelStepInput[];
 }
 
 export interface FunnelPreviewProps extends BaseComponentProps {
-	mode: "create" | "update" | "delete";
 	funnel: FunnelPreviewData;
+	mode: "create" | "update" | "delete";
 }
 
 interface ModeConfig {
-	title: string;
+	accent: string;
+	ButtonIcon: Icon;
 	confirmLabel: string;
 	confirmMessage: string;
-	accent: string;
+	title: string;
 	variant: "default" | "destructive";
-	ButtonIcon: Icon;
 }
 
 const MODE_CONFIG: Record<string, ModeConfig> = {

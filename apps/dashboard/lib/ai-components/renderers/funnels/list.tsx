@@ -29,17 +29,17 @@ import type { CreateFunnelData, Funnel } from "@/types/funnels";
 import type { BaseComponentProps, FunnelStepInput } from "../../types";
 
 interface FunnelItem {
-	id: string;
-	name: string;
-	description?: string | null;
-	steps: FunnelStepInput[];
-	isActive: boolean;
 	createdAt?: string;
+	description?: string | null;
+	id: string;
+	isActive: boolean;
+	name: string;
+	steps: FunnelStepInput[];
 }
 
 export interface FunnelsListProps extends BaseComponentProps {
-	title?: string;
 	funnels: FunnelItem[];
+	title?: string;
 }
 
 function FunnelRow({

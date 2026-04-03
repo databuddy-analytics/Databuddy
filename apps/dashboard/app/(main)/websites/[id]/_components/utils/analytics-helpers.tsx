@@ -16,9 +16,9 @@ interface DataItem {
 }
 
 interface ChartDataPoint {
+	color?: string;
 	name: string;
 	value: number;
-	color?: string;
 }
 
 // Helper to handle generic data refresh

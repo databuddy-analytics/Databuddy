@@ -2,10 +2,10 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 interface NavLinkProps {
-	href: string;
 	children: React.ReactNode;
 	className?: string;
 	external?: boolean;
+	href: string;
 }
 
 export function NavLink({ href, children, className, external }: NavLinkProps) {

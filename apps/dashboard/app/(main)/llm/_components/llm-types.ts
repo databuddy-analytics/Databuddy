@@ -1,43 +1,43 @@
 export interface LLMKpiData {
-	total_calls: number;
-	total_cost: number;
-	total_tokens: number;
-	total_input_tokens: number;
-	total_output_tokens: number;
 	avg_duration_ms: number;
-	p75_duration_ms: number;
+	cache_hit_rate: number;
 	error_count: number;
 	error_rate: number;
-	cache_hit_rate: number;
+	p75_duration_ms: number;
 	tool_use_rate: number;
+	total_calls: number;
+	total_cost: number;
+	total_input_tokens: number;
+	total_output_tokens: number;
+	total_tokens: number;
 	web_search_rate: number;
 }
 
 export interface LLMTimeSeriesData {
+	avg_duration_ms: number;
 	date: string;
+	p75_duration_ms: number;
 	total_calls: number;
 	total_cost: number;
 	total_tokens: number;
-	avg_duration_ms: number;
-	p75_duration_ms: number;
 }
 
 export interface LLMModelData {
-	name: string;
-	model: string;
-	provider: string;
+	avg_duration_ms: number;
 	calls: number;
+	error_rate: number;
+	model: string;
+	name: string;
+	p75_duration_ms: number;
+	provider: string;
 	total_cost: number;
 	total_tokens: number;
-	avg_duration_ms: number;
-	p75_duration_ms: number;
-	error_rate: number;
 }
 
 export interface LLMToolData {
+	calls: number;
 	name: string;
 	tool_name: string;
-	calls: number;
 }
 
 export interface LLMErrorSeriesData {
@@ -47,28 +47,28 @@ export interface LLMErrorSeriesData {
 }
 
 export interface LLMErrorBreakdownData {
-	name: string;
-	error_name: string;
-	sample_message: string;
 	error_count: number;
+	error_name: string;
+	name: string;
+	sample_message: string;
 }
 
 export interface LLMHttpStatusData {
-	name: string;
-	http_status: number;
 	calls: number;
+	http_status: number;
+	name: string;
 }
 
 export interface LLMRecentErrorData {
-	name: string;
-	timestamp: string;
-	error_name: string;
-	error_message: string;
-	error_stack?: string;
-	model: string;
-	provider: string;
-	http_status?: number;
 	duration_ms: number;
+	error_message: string;
+	error_name: string;
+	error_stack?: string;
+	http_status?: number;
+	model: string;
+	name: string;
+	provider: string;
+	timestamp: string;
 }
 
 export function formatCurrency(value: number | null | undefined): string {

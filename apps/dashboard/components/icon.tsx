@@ -70,11 +70,11 @@ export type OSIconName = (typeof OS_ICONS)[number];
 export type IconType = "browser" | "os";
 
 interface PublicIconProps {
-	type: IconType;
-	name: string;
-	size?: "sm" | "md" | "lg" | number;
 	className?: string;
 	fallback?: React.ReactNode;
+	name: string;
+	size?: "sm" | "md" | "lg" | number;
+	type: IconType;
 }
 
 const sizeMap = {
@@ -237,10 +237,10 @@ export function OSIcon({
 }
 
 interface CountryFlagProps {
-	country: string;
-	size?: "sm" | "md" | "lg" | number;
 	className?: string;
+	country: string;
 	fallback?: React.ReactNode;
+	size?: "sm" | "md" | "lg" | number;
 }
 
 export function CountryFlag({

@@ -3,11 +3,11 @@ import { localDayjs } from "@/lib/time";
 export interface UptimeHeatmapDay {
 	date: Date;
 	dateStr: string;
-	hasData: boolean;
-	uptime: number;
-	totalChecks: number;
-	successfulChecks: number;
 	downtimeSeconds: number;
+	hasData: boolean;
+	successfulChecks: number;
+	totalChecks: number;
+	uptime: number;
 }
 
 export function buildUptimeHeatmapDays(

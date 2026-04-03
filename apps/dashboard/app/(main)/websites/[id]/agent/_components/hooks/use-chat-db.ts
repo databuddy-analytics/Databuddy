@@ -3,9 +3,9 @@ import { useCallback, useMemo, useSyncExternalStore } from "react";
 
 export interface ChatRecord {
 	id: string;
-	websiteId: string;
 	title: string;
 	updatedAt: string;
+	websiteId: string;
 }
 
 interface ChatListState {

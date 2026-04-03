@@ -24,28 +24,28 @@ import type {
 } from "@/types/funnels";
 
 export interface FunnelItemData {
-	id: string;
-	name: string;
+	createdAt: string | Date;
 	description?: string | null;
-	steps: FunnelStep[];
 	filters?: FunnelFilter[];
+	id: string;
 	ignoreHistoricData?: boolean;
 	isActive: boolean;
-	createdAt: string | Date;
+	name: string;
+	steps: FunnelStep[];
 	updatedAt: string | Date;
 }
 
 interface FunnelItemProps {
-	funnel: FunnelItemData;
 	analytics?: FunnelAnalyticsData | null;
+	children?: React.ReactNode;
+	className?: string;
+	funnel: FunnelItemData;
 	isExpanded: boolean;
 	isLast?: boolean;
 	isLoadingAnalytics?: boolean;
-	onToggle: (funnelId: string) => void;
-	onEdit: (funnel: FunnelItemData) => void;
 	onDelete: (funnelId: string) => void;
-	children?: React.ReactNode;
-	className?: string;
+	onEdit: (funnel: FunnelItemData) => void;
+	onToggle: (funnelId: string) => void;
 }
 
 function formatNumber(num: number): string {

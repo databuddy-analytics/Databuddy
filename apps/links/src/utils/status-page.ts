@@ -1,8 +1,8 @@
 interface StatusPageConfig {
-	title: string;
-	heading: string;
 	description: string;
+	heading: string;
 	icon: "clock" | "link-break" | "warning";
+	title: string;
 }
 
 const ICONS = {

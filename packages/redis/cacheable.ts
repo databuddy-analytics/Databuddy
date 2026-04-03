@@ -14,8 +14,8 @@ let lastRedisCheck = 0;
 interface CacheOptions {
 	expireInSec: number;
 	prefix?: string;
-	staleWhileRevalidate?: boolean;
 	staleTime?: number;
+	staleWhileRevalidate?: boolean;
 }
 
 function deserialize(data: string): unknown {

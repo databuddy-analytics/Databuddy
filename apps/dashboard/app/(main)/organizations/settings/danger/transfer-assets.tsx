@@ -24,9 +24,9 @@ import { cn } from "@/lib/utils";
 import { useWebsiteTransfer } from "./hooks/use-website-transfer";
 
 interface WebsiteItemProps {
-	website: Website;
-	selected: boolean;
 	onClickAction: () => void;
+	selected: boolean;
+	website: Website;
 }
 
 function WebsiteItem({ website, selected, onClickAction }: WebsiteItemProps) {

@@ -19,10 +19,10 @@ import {
 import { cn } from "@/lib/utils";
 
 export interface WebPreviewContextValue {
-	url: string;
-	setUrl: (url: string) => void;
 	consoleOpen: boolean;
 	setConsoleOpen: (open: boolean) => void;
+	setUrl: (url: string) => void;
+	url: string;
 }
 
 const WebPreviewContext = createContext<WebPreviewContextValue | null>(null);

@@ -4,13 +4,13 @@ import type { Icon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
 interface EmptyStateProps {
-	icon: Icon;
-	title: string;
+	action?: ReactNode;
 	description: string;
 	features?: Array<{
 		label: string;
 	}>;
-	action?: ReactNode;
+	icon: Icon;
+	title: string;
 	variant?: "default" | "success" | "warning" | "destructive";
 }
 

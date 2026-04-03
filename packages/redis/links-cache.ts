@@ -4,16 +4,16 @@ const LINKS_CACHE_PREFIX = "link:slug";
 const LINKS_CACHE_TTL = 604_800; // 7 days - long TTL with manual invalidation on update/delete
 
 export interface CachedLink {
-	id: string;
-	targetUrl: string;
-	expiresAt: string | null;
+	androidUrl: string | null;
 	expiredRedirectUrl: string | null;
-	ogTitle: string | null;
+	expiresAt: string | null;
+	id: string;
+	iosUrl: string | null;
 	ogDescription: string | null;
 	ogImageUrl: string | null;
+	ogTitle: string | null;
 	ogVideoUrl: string | null;
-	iosUrl: string | null;
-	androidUrl: string | null;
+	targetUrl: string;
 }
 
 /**

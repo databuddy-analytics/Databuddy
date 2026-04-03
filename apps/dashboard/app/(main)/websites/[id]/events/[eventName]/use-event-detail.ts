@@ -12,17 +12,17 @@ import type {
 
 interface EventSummary {
 	total_events: number;
-	unique_users: number;
-	unique_sessions: number;
 	unique_pages: number;
+	unique_sessions: number;
+	unique_users: number;
 }
 
 interface ClassifiedPropertySimple {
-	key: string;
 	classification: {
 		cardinality: number;
 		inferred_type: string;
 	};
+	key: string;
 	values: Array<{
 		property_value: string;
 		count: number;
@@ -31,10 +31,10 @@ interface ClassifiedPropertySimple {
 }
 
 interface EventDetailData {
+	classifiedProperties: ClassifiedPropertySimple[];
+	recentEvents: RecentCustomEvent[];
 	summary: EventSummary;
 	trends: CustomEventsTrend[];
-	recentEvents: RecentCustomEvent[];
-	classifiedProperties: ClassifiedPropertySimple[];
 }
 
 export function useEventDetailData(

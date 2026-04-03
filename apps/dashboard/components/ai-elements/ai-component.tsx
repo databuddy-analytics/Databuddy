@@ -46,8 +46,8 @@ function ComponentSkeleton({ type, title }: { type: string; title?: string }) {
 }
 
 interface AIComponentProps {
-	input: RawComponentInput;
 	className?: string;
+	input: RawComponentInput;
 	streaming?: boolean;
 }
 

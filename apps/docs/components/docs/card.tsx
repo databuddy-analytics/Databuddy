@@ -4,10 +4,10 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 interface CardProps extends React.ComponentProps<"div"> {
-	href?: string;
-	title?: string;
 	description?: string;
+	href?: string;
 	icon?: React.ReactNode;
+	title?: string;
 }
 
 function Card({

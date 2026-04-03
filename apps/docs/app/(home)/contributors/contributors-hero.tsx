@@ -9,10 +9,10 @@ import {
 } from "@phosphor-icons/react";
 
 interface ContributorsHeroProps {
-	stars: number;
+	contributors: number;
 	forks: number;
 	issues: number;
-	contributors: number;
+	stars: number;
 }
 
 function formatNumber(num: number): string {

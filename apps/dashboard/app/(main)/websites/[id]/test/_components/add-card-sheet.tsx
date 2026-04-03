@@ -90,13 +90,13 @@ const CARD_COMPATIBLE_VISUALIZATIONS = new Set([
 ]);
 
 interface CardSheetProps {
-	isOpen: boolean;
-	onCloseAction: () => void;
-	onSaveAction: (card: DashboardCardConfig) => void;
-	onDeleteAction?: (cardId: string) => void;
-	websiteId: string;
 	dateRange: DateRange;
 	editingCard?: DashboardCardConfig | null;
+	isOpen: boolean;
+	onCloseAction: () => void;
+	onDeleteAction?: (cardId: string) => void;
+	onSaveAction: (card: DashboardCardConfig) => void;
+	websiteId: string;
 }
 
 function mapVisualizationToDisplayMode(

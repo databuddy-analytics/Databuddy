@@ -44,11 +44,11 @@ const PLAN_CONFIG: Record<
 };
 
 interface FeatureGateProps {
-	feature: GatedFeatureId;
-	children: ReactNode;
-	title?: string;
-	description?: string;
 	blockWhileLoading?: boolean;
+	children: ReactNode;
+	description?: string;
+	feature: GatedFeatureId;
+	title?: string;
 }
 
 export function FeatureGate({

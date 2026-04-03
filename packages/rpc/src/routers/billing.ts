@@ -24,10 +24,10 @@ const EVENT_CATEGORIES = {
 type EventCategory = (typeof EVENT_CATEGORIES)[keyof typeof EVENT_CATEGORIES];
 
 interface EventSource {
-	table: string;
-	dateColumn: string;
 	category: EventCategory;
+	dateColumn: string;
 	filterColumn?: string;
+	table: string;
 }
 
 const EVENT_SOURCES: EventSource[] = [

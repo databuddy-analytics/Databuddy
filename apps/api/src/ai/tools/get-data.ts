@@ -56,10 +56,10 @@ const queryItemSchema = z.object({
 type QueryItem = z.infer<typeof queryItemSchema>;
 
 interface QueryItemResult {
-	type: string;
 	data: unknown[];
-	rowCount: number;
 	executionTime: number;
+	rowCount: number;
+	type: string;
 }
 
 function resolveDates(item: QueryItem): { from: string; to: string } {

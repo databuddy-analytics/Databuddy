@@ -16,18 +16,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export interface AnomalyItemData {
-	metric: "pageviews" | "custom_events" | "errors";
-	type: "spike" | "drop";
-	severity: "warning" | "critical";
-	currentValue: number;
 	baselineMean: number;
 	baselineStdDev: number;
-	zScore: number;
-	percentChange: number;
+	currentValue: number;
 	detectedAt: string;
-	periodStart: string;
-	periodEnd: string;
 	eventName?: string;
+	metric: "pageviews" | "custom_events" | "errors";
+	percentChange: number;
+	periodEnd: string;
+	periodStart: string;
+	severity: "warning" | "critical";
+	type: "spike" | "drop";
+	zScore: number;
 }
 
 const METRIC_CONFIG: Record<

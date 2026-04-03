@@ -39,11 +39,11 @@ import {
 import { runMcpAgent } from "./run-agent";
 
 interface McpToolContext {
-	requestHeaders: Headers;
-	userId: string | null;
 	apiKey: Awaited<
 		ReturnType<typeof import("../../lib/api-key").getApiKeyFromHeader>
 	>;
+	requestHeaders: Headers;
+	userId: string | null;
 }
 
 async function ensureWebsiteAccess(
@@ -147,16 +147,6 @@ function coerceQueriesArray(val: unknown): unknown[] | undefined {
 }
 
 interface GetDataArgs {
-	websiteId?: string;
-	websiteName?: string;
-	websiteDomain?: string;
-	type?: string;
-	preset?: (typeof MCP_DATE_PRESETS)[number];
-	from?: string;
-	to?: string;
-	timeUnit?: TimeUnit;
-	limit?: number;
-	timezone?: string;
 	filters?: Array<{
 		field: string;
 		op: string;
@@ -164,9 +154,19 @@ interface GetDataArgs {
 		target?: string;
 		having?: boolean;
 	}>;
+	from?: string;
 	groupBy?: string[];
+	limit?: number;
 	orderBy?: string;
+	preset?: (typeof MCP_DATE_PRESETS)[number];
 	queries?: McpQueryItem[];
+	timeUnit?: TimeUnit;
+	timezone?: string;
+	to?: string;
+	type?: string;
+	websiteDomain?: string;
+	websiteId?: string;
+	websiteName?: string;
 }
 
 const PROTOCOL_RE = /^https?:\/\//;

@@ -3,9 +3,9 @@ import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface MetricEntry {
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {
@@ -20,11 +20,11 @@ const formatNumber = (value: number | null | undefined): string => {
 
 interface MetricRowProps {
 	includeName?: boolean;
-	nameLabel?: string;
 	includePageviews?: boolean;
-	visitorsLabel?: string;
+	nameLabel?: string;
 	pageviewsLabel?: string;
 	percentageLabel?: string;
+	visitorsLabel?: string;
 }
 
 export function createMetricColumns({

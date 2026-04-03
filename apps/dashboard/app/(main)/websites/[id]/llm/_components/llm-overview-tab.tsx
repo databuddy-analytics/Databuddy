@@ -25,17 +25,17 @@ import {
 } from "./llm-columns";
 
 interface LlmOverviewTabProps {
-	websiteId: string;
 	dateRange: DateRange;
+	websiteId: string;
 }
 
 interface LlmTimeSeriesRow {
+	avg_duration_ms: number;
 	date: string;
+	p75_duration_ms: number;
 	total_calls: number;
 	total_cost: number;
 	total_tokens: number;
-	avg_duration_ms: number;
-	p75_duration_ms: number;
 }
 
 export function LlmOverviewTab({ websiteId, dateRange }: LlmOverviewTabProps) {

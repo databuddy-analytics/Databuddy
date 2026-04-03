@@ -5,14 +5,14 @@ import type { FunnelAnalyticsData } from "@/types/funnels";
 import { FunnelItem, type FunnelItemData } from "./funnel-item";
 
 interface FunnelsListProps {
-	funnels: FunnelItemData[];
-	expandedFunnelId: string | null;
 	analyticsMap?: Map<string, FunnelAnalyticsData | null>;
-	loadingAnalyticsIds?: Set<string>;
-	onToggleFunnel: (funnelId: string) => void;
-	onEditFunnel: (funnel: FunnelItemData) => void;
-	onDeleteFunnel: (funnelId: string) => void;
 	children?: (funnel: FunnelItemData) => React.ReactNode;
+	expandedFunnelId: string | null;
+	funnels: FunnelItemData[];
+	loadingAnalyticsIds?: Set<string>;
+	onDeleteFunnel: (funnelId: string) => void;
+	onEditFunnel: (funnel: FunnelItemData) => void;
+	onToggleFunnel: (funnelId: string) => void;
 }
 
 export function FunnelsList({

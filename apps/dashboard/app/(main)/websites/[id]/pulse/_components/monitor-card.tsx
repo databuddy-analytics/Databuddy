@@ -30,6 +30,9 @@ const granularityLabels: Record<string, string> = {
 };
 
 interface MonitorCardProps {
+	onDeleteAction: () => void;
+	onEditAction: () => void;
+	onRefetchAction: () => void;
 	schedule: {
 		id: string;
 		granularity: string;
@@ -38,9 +41,6 @@ interface MonitorCardProps {
 		createdAt: Date | string;
 		updatedAt: Date | string;
 	};
-	onEditAction: () => void;
-	onDeleteAction: () => void;
-	onRefetchAction: () => void;
 }
 
 export function MonitorCard({

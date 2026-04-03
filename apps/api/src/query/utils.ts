@@ -7,17 +7,17 @@ import { mapScreenResolutionToDeviceType } from "./screen-resolution-to-device-t
 import type { SimpleQueryConfig } from "./types";
 
 interface DataRow {
-	name?: string;
-	pageviews?: number;
-	visitors?: number;
-	revenue?: number;
-	transactions?: number;
-	customers?: number;
-	percentage?: number;
-	referrer?: string;
-	domain?: string;
 	country_code?: string;
 	country_name?: string;
+	customers?: number;
+	domain?: string;
+	name?: string;
+	pageviews?: number;
+	percentage?: number;
+	referrer?: string;
+	revenue?: number;
+	transactions?: number;
+	visitors?: number;
 	[key: string]: unknown;
 }
 

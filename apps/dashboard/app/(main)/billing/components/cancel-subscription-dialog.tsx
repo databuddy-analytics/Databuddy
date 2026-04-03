@@ -26,12 +26,12 @@ import { Textarea } from "@/components/ui/textarea";
 import dayjs from "@/lib/dayjs";
 
 interface CancelSubscriptionDialogProps {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	onCancel: (immediate: boolean, feedback?: CancelFeedback) => void;
-	planName: string;
 	currentPeriodEnd?: number;
 	isLoading: boolean;
+	onCancel: (immediate: boolean, feedback?: CancelFeedback) => void;
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
+	planName: string;
 }
 
 type CancelOption = "end_of_period" | "immediate" | null;
@@ -46,14 +46,14 @@ type CancelReasonId =
 	| "other";
 
 interface CancelReason {
+	icon: React.ElementType;
 	id: CancelReasonId;
 	label: string;
-	icon: React.ElementType;
 }
 
 export interface CancelFeedback {
-	reason: CancelReasonId;
 	details?: string;
+	reason: CancelReasonId;
 }
 
 const CANCEL_REASONS: CancelReason[] = [

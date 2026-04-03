@@ -7,14 +7,14 @@ import { cn } from "@/lib/utils";
 import type { NavigationItem as NavigationItemType } from "./types";
 
 interface NavigationItemProps extends Omit<NavigationItemType, "icon"> {
+	currentWebsiteId?: string | null;
 	icon: NavigationItemType["icon"];
 	isActive: boolean;
-	isRootLevel: boolean;
 	isExternal?: boolean;
-	currentWebsiteId?: string | null;
-	sectionName?: string;
 	isLocked?: boolean;
+	isRootLevel: boolean;
 	lockedPlanName?: string | null;
+	sectionName?: string;
 }
 
 export function NavigationItem({

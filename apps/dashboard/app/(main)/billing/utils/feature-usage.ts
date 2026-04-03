@@ -2,41 +2,41 @@ import dayjs from "@/lib/dayjs";
 import { formatLocaleNumber } from "@/lib/format-locale-number";
 
 export interface PricingTier {
-	to: number | "inf";
 	amount: number;
+	to: number | "inf";
 }
 
 export interface BalanceLike {
-	remaining: number;
-	granted: number;
-	unlimited: boolean;
-	nextResetAt?: number | null;
-	featureId: string;
-	feature?: { name?: string } | null;
 	breakdown?: Array<{
 		reset?: { interval?: string } | null;
 		price?: {
 			tiers?: Array<{ to?: number | "inf" | null; amount?: number }>;
 		} | null;
 	}> | null;
+	feature?: { name?: string } | null;
+	featureId: string;
+	granted: number;
+	nextResetAt?: number | null;
+	remaining: number;
+	unlimited: boolean;
 }
 
 export interface FeatureUsage {
-	id: string;
-	name: string;
 	balance: number;
-	limit: number;
-	includedLimit: number;
-	unlimited: boolean;
 	hasExtraCredits: boolean;
 	hasPricedOverage: boolean;
-	pricingTiers: PricingTier[];
+	id: string;
+	includedLimit: number;
 	interval: string | null;
-	resetAt: number | null;
+	limit: number;
+	name: string;
 	overage: {
 		amount: number;
 		cost: number;
 	} | null;
+	pricingTiers: PricingTier[];
+	resetAt: number | null;
+	unlimited: boolean;
 }
 
 function calculateOverageCost(

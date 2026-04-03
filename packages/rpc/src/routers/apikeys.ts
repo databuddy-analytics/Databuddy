@@ -21,10 +21,10 @@ import { protectedProcedure, publicProcedure } from "../orpc";
 
 type ApiKey = ApiKeyRow;
 interface Metadata {
-	resources?: Record<string, string[]>;
-	tags?: string[];
 	description?: string;
 	lastUsedAt?: string;
+	resources?: Record<string, string[]>;
+	tags?: string[];
 }
 
 const scopeEnum = z.enum(API_SCOPES);

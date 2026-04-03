@@ -8,17 +8,17 @@ import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../types";
 
 export interface ReferrerItem {
-	name: string;
-	referrer?: string;
 	domain?: string;
-	visitors: number;
+	name: string;
 	pageviews?: number;
 	percentage?: number;
+	referrer?: string;
+	visitors: number;
 }
 
 export interface ReferrersListProps extends BaseComponentProps {
-	title?: string;
 	referrers: ReferrerItem[];
+	title?: string;
 }
 
 function formatNumber(value: number): string {

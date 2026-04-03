@@ -34,19 +34,19 @@ const {
 } = Chart.Recharts;
 
 interface RevenueChartDataPoint {
-	date: string;
-	revenue: number;
-	transactions: number;
 	avg_transaction: number;
 	customers: number;
+	date: string;
 	refunds: number;
+	revenue: number;
+	transactions: number;
 }
 
 interface RevenueChartMetric {
-	key: keyof RevenueChartDataPoint;
-	label: string;
 	color: string;
 	formatValue: (value: number) => string;
+	key: keyof RevenueChartDataPoint;
+	label: string;
 }
 
 const REVENUE_METRICS: RevenueChartMetric[] = [
@@ -101,10 +101,10 @@ const REVENUE_METRICS: RevenueChartMetric[] = [
 ];
 
 interface RevenueChartProps {
-	data: RevenueChartDataPoint[];
-	isLoading: boolean;
-	height?: number;
 	className?: string;
+	data: RevenueChartDataPoint[];
+	height?: number;
+	isLoading: boolean;
 }
 
 export function RevenueChart({

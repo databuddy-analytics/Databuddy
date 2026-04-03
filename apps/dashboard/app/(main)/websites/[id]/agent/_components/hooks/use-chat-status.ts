@@ -8,10 +8,10 @@ const TOOL_PREFIX_REGEX = /^tool-/;
 interface ChatStatusResult {
 	agentStatus: AgentStatus;
 	currentToolCall: string | null;
-	toolMessage: string | null;
 	displayMessage: string | null;
 	hasTextContent: boolean;
 	isStreaming: boolean;
+	toolMessage: string | null;
 }
 
 function getTextContent(message: UIMessage): string {

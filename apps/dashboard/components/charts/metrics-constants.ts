@@ -132,45 +132,45 @@ export const METRIC_COLORS = {
 } as const;
 
 export interface ChartDataRow {
-	date: string;
-	/** Stable category for Recharts X-axis; usually rawDate (YYYY-MM-DD or hourly key) */
-	xKey?: string;
-	pageviews?: number;
-	visitors?: number;
-	unique_visitors?: number;
-	sessions?: number;
-	bounce_rate?: number;
-	median_session_duration?: number;
-	median_session_duration_formatted?: string;
-	// Load time metrics
-	avg_load_time?: number;
-	p50_load_time?: number;
-	// TTFB metrics
-	avg_ttfb?: number;
+	avg_cls?: number;
 	// Core Web Vitals
 	avg_fcp?: number;
-	p50_fcp?: number;
-	avg_lcp?: number;
-	p50_lcp?: number;
-	avg_cls?: number;
-	p50_cls?: number;
 	avg_fid?: number;
-	p50_fid?: number;
 	avg_inp?: number;
-	p50_inp?: number;
+	avg_lcp?: number;
+	// Load time metrics
+	avg_load_time?: number;
+	// TTFB metrics
+	avg_ttfb?: number;
+	bounce_rate?: number;
+	date: string;
 	measurements?: number;
+	median_session_duration?: number;
+	median_session_duration_formatted?: string;
+	p50_cls?: number;
+	p50_fcp?: number;
+	p50_fid?: number;
+	p50_inp?: number;
+	p50_lcp?: number;
+	p50_load_time?: number;
+	pageviews?: number;
+	sessions?: number;
+	unique_visitors?: number;
+	visitors?: number;
+	/** Stable category for Recharts X-axis; usually rawDate (YYYY-MM-DD or hourly key) */
+	xKey?: string;
 	[key: string]: unknown;
 }
 
 export interface MetricConfig {
+	category?: "analytics" | "performance" | "core_web_vitals";
+	color: string;
+	formatValue?: (value: number, row: ChartDataRow) => string;
+	gradient: string;
+	icon: React.ComponentType<{ className?: string }>;
 	key: string;
 	label: string;
-	color: string;
-	gradient: string;
 	yAxisId: string;
-	icon: React.ComponentType<{ className?: string }>;
-	formatValue?: (value: number, row: ChartDataRow) => string;
-	category?: "analytics" | "performance" | "core_web_vitals";
 }
 
 // Utility functions

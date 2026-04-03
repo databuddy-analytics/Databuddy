@@ -4,10 +4,10 @@ import type { FullTabProps } from "@/app/(main)/websites/[id]/_components/utils/
 export type AssistantModel = "chat" | "deep-research" | string;
 
 export interface Message {
-	id: string;
-	role: "user" | "assistant" | "system";
 	content: string;
 	createdAt?: Date;
+	id: string;
+	role: "user" | "assistant" | "system";
 	[key: string]: unknown;
 }
 

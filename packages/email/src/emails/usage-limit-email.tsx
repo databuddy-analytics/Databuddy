@@ -5,10 +5,10 @@ import { EmailLayout } from "./email-layout";
 
 interface UsageLimitEmailProps {
 	featureName?: string;
-	usageAmount?: number;
 	limitAmount?: number;
-	userName?: string;
 	thresholdType?: "limit_reached" | "allowance_used";
+	usageAmount?: number;
+	userName?: string;
 }
 
 function formatNumber(num: number): string {

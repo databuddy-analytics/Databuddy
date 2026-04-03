@@ -39,8 +39,8 @@ export const COMMON_RESOLUTION_DEVICE_TYPE: Record<string, DeviceType> = {
 };
 
 interface Resolution {
-	width: number;
 	height: number;
+	width: number;
 }
 
 function parseResolution(input: string): Resolution | null {

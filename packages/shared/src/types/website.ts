@@ -9,8 +9,8 @@ export interface MiniChartDataPoint {
 
 export interface ProcessedMiniChartData {
 	data: MiniChartDataPoint[];
-	totalViews: number;
 	hasAnyData: boolean;
+	totalViews: number;
 	trend: {
 		type: "up" | "down" | "neutral";
 		value: number;
@@ -18,8 +18,8 @@ export interface ProcessedMiniChartData {
 }
 
 export interface CreateWebsiteData {
-	name: string;
 	domain: string;
+	name: string;
 	subdomain?: string;
 }
 
@@ -29,35 +29,35 @@ export interface UpdateWebsiteData {
 
 // For components that need minimal website info
 export interface WebsiteBasic {
+	domain: string;
 	id: string;
 	name?: string | null;
-	domain: string;
 }
 
 // API response types
 export interface WebsiteApiResponse {
-	success: boolean;
 	data?: Website;
 	error?: string;
+	success: boolean;
 }
 
 export interface WebsitesApiResponse {
-	success: boolean;
 	data?: Website[];
 	error?: string;
+	success: boolean;
 }
 
 export interface CountryData {
 	country: string;
 	country_code?: string;
-	visitors: number;
 	pageviews: number;
+	visitors: number;
 }
 
 export interface RegionData {
 	country: string;
-	visitors: number;
 	pageviews: number;
+	visitors: number;
 }
 
 export interface LocationData {

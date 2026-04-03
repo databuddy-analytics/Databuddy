@@ -28,12 +28,12 @@ function StatusRoot({ children, className }: StatusRootProps) {
 // ── Header ───────────────────────────────────────────────────────────────
 
 interface StatusHeaderProps {
-	name: string;
-	description?: string;
-	logoUrl?: string | null;
-	websiteUrl?: string | null;
 	children?: ReactNode;
 	className?: string;
+	description?: string;
+	logoUrl?: string | null;
+	name: string;
+	websiteUrl?: string | null;
 }
 
 function StatusHeader({
@@ -117,8 +117,8 @@ const BANNER_CONFIG = {
 } as const;
 
 interface StatusBannerProps {
-	status: "operational" | "degraded" | "outage";
 	className?: string;
+	status: "operational" | "degraded" | "outage";
 }
 
 function StatusBanner({ status, className }: StatusBannerProps) {
@@ -157,10 +157,10 @@ function StatusBanner({ status, className }: StatusBannerProps) {
 // ── Section ──────────────────────────────────────────────────────────────
 
 interface StatusSectionProps {
-	title: string;
-	children: ReactNode;
 	action?: ReactNode;
+	children: ReactNode;
 	className?: string;
+	title: string;
 }
 
 function StatusSection({
@@ -202,22 +202,22 @@ const MONITOR_STATUS = {
 } as const;
 
 interface DailyData {
-	date: string;
-	uptime_percentage?: number;
 	avg_response_time?: number;
+	date: string;
 	p95_response_time?: number;
+	uptime_percentage?: number;
 }
 
 interface StatusMonitorCardProps {
-	id: string;
 	anchorId: string;
-	name: string;
-	domain?: string;
 	currentStatus: "up" | "down" | "degraded" | "unknown";
-	uptimePercentage?: number;
 	dailyData: DailyData[];
 	days: number;
+	domain?: string;
+	id: string;
 	lastCheckedAt: string | null;
+	name: string;
+	uptimePercentage?: number;
 }
 
 function StatusMonitorCard({

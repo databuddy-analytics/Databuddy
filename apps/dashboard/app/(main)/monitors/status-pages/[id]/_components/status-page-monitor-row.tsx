@@ -22,25 +22,25 @@ import { cn } from "@/lib/utils";
 type ToggleKey = "hideUrl" | "hideUptimePercentage" | "hideLatency";
 
 export interface StatusPageMonitor {
+	displayName: string | null;
+	hideLatency: boolean;
+	hideUptimePercentage: boolean;
+	hideUrl: boolean;
 	id: string;
 	statusPageId: string;
-	uptimeScheduleId: string;
-	displayName: string | null;
-	hideUrl: boolean;
-	hideUptimePercentage: boolean;
-	hideLatency: boolean;
 	uptimeSchedule: {
 		id: string;
 		name: string | null;
 		url: string | null;
 		isPaused: boolean;
 	};
+	uptimeScheduleId: string;
 }
 
 interface StatusPageMonitorRowProps {
 	monitor: StatusPageMonitor;
-	statusPageId: string;
 	onRemoveRequestAction: (monitorId: string) => void;
+	statusPageId: string;
 }
 
 export function StatusPageMonitorRow({

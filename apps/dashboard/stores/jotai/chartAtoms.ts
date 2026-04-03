@@ -2,11 +2,11 @@ import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 export interface MetricVisibilityState {
-	pageviews: boolean;
-	visitors: boolean;
-	sessions: boolean;
 	bounce_rate: boolean;
 	median_session_duration: boolean;
+	pageviews: boolean;
+	sessions: boolean;
+	visitors: boolean;
 }
 
 const defaultVisibleMetrics: MetricVisibilityState = {
@@ -40,11 +40,11 @@ export const visibleMetricsAtom = atom((get) => {
 });
 
 export interface RevenueMetricVisibilityState {
-	revenue: boolean;
-	transactions: boolean;
 	avg_transaction: boolean;
 	customers: boolean;
 	refunds: boolean;
+	revenue: boolean;
+	transactions: boolean;
 }
 
 const defaultRevenueVisibleMetrics: RevenueMetricVisibilityState = {

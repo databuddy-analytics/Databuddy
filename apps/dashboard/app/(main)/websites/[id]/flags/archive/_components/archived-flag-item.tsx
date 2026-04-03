@@ -21,10 +21,10 @@ import { cn } from "@/lib/utils";
 import type { Flag } from "../../_components/types";
 
 interface ArchivedFlagItemProps {
-	flag: Flag;
-	onEdit: (flag: Flag) => void;
-	onDelete: (flagId: string) => void;
 	className?: string;
+	flag: Flag;
+	onDelete: (flagId: string) => void;
+	onEdit: (flag: Flag) => void;
 }
 
 export function ArchivedFlagItem({

@@ -7,13 +7,13 @@ import { applyPlugins } from "./utils";
 
 type BatchRequest = QueryRequest & { type: string };
 interface BatchResult {
-	type: string;
 	data: Record<string, unknown>[];
 	error?: string;
+	type: string;
 }
 interface BatchOptions {
-	websiteDomain?: string | null;
 	timezone?: string;
+	websiteDomain?: string | null;
 }
 
 function getSchemaSignature(config: SimpleQueryConfig): string | null {

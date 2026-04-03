@@ -73,25 +73,25 @@ interface BuildPayloadInput {
 		androidUrl?: string;
 		externalId?: string;
 	};
-	utmParams: UtmParams;
 	ogData: OgData;
 	useCustomOg: boolean;
+	utmParams: UtmParams;
 }
 
 interface LinkPayload {
-	name: string;
-	targetUrl: string;
-	slug: string | undefined;
+	androidUrl: string | undefined;
+	expiredRedirectUrl: string | undefined;
 	expiresAtDate: Date | undefined;
 	expiresAtString: string | undefined;
-	expiredRedirectUrl: string | undefined;
-	ogTitle: string | undefined;
+	externalId: string | undefined;
+	iosUrl: string | undefined;
+	name: string;
 	ogDescription: string | undefined;
 	ogImageUrl: string | undefined;
+	ogTitle: string | undefined;
 	ogVideoUrl: string | undefined;
-	iosUrl: string | undefined;
-	androidUrl: string | undefined;
-	externalId: string | undefined;
+	slug: string | undefined;
+	targetUrl: string;
 }
 
 export function buildLinkPayload({

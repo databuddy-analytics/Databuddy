@@ -14,9 +14,9 @@ export interface Usage {
 	features: FeatureUsage[];
 }
 export interface CancelTarget {
+	currentPeriodEnd?: number;
 	id: string;
 	name: string;
-	currentPeriodEnd?: number;
 }
 
 export type { Customer, Invoice } from "autumn-js";

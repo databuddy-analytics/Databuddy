@@ -23,17 +23,17 @@ import { getFeatureLabel } from "@/lib/feature-gates";
 import { orpc } from "@/lib/orpc";
 
 interface FeatureInviteDialogProps {
-	open: boolean;
-	onOpenChangeAction: (open: boolean) => void;
 	flagKey: string;
+	onOpenChangeAction: (open: boolean) => void;
+	open: boolean;
 }
 
 interface InviteLink {
-	id: string;
-	token: string;
-	status: string;
-	redeemedById: string | null;
 	createdAt: string | Date;
+	id: string;
+	redeemedById: string | null;
+	status: string;
+	token: string;
 }
 
 function InviteLinkRow({ link }: { link: InviteLink }) {

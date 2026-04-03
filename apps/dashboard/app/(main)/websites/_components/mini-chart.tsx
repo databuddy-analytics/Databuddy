@@ -10,8 +10,8 @@ import dayjs from "@/lib/dayjs";
 
 interface MiniChartProps {
 	data: { date: string; value: number }[];
-	id: string;
 	days?: number;
+	id: string;
 }
 
 const formatNumber = (num: number) => {

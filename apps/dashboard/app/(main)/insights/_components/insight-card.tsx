@@ -162,12 +162,12 @@ function buildDiagnosticPrompt(insight: Insight): string {
 }
 
 export interface InsightCardProps {
-	insight: Insight;
 	expanded: boolean;
-	onToggleAction: () => void;
-	onDismissAction?: () => void;
 	feedbackVote?: InsightFeedbackVote | null;
+	insight: Insight;
+	onDismissAction?: () => void;
 	onFeedbackAction?: (vote: InsightFeedbackVote | null) => void;
+	onToggleAction: () => void;
 }
 
 export function InsightCard({

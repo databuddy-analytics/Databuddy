@@ -25,29 +25,29 @@ import { LlmLoadingSkeleton } from "./llm-loading-skeleton";
 import { LlmOverviewTab } from "./llm-overview-tab";
 
 interface LlmOverviewKpiRow {
-	total_calls: number;
-	total_cost: number;
-	total_tokens: number;
-	total_input_tokens: number;
-	total_output_tokens: number;
 	avg_duration_ms: number;
-	p75_duration_ms: number;
+	cache_hit_rate: number;
 	error_count: number;
 	error_rate: number;
-	cache_hit_rate: number;
+	p75_duration_ms: number;
 	tool_use_rate: number;
+	total_calls: number;
+	total_cost: number;
+	total_input_tokens: number;
+	total_output_tokens: number;
+	total_tokens: number;
 	web_search_rate: number;
 }
 
 interface LlmTimeSeriesRow {
+	avg_duration_ms: number;
 	date: string;
+	error_count: number;
+	error_rate: number;
+	p75_duration_ms: number;
 	total_calls: number;
 	total_cost: number;
 	total_tokens: number;
-	avg_duration_ms: number;
-	p75_duration_ms: number;
-	error_count: number;
-	error_rate: number;
 }
 
 export function LlmAnalyticsContent() {

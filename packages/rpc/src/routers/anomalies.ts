@@ -224,9 +224,9 @@ export const anomaliesRouter = {
 };
 
 interface AlarmDest {
-	type: string;
-	identifier: string;
 	config: unknown;
+	identifier: string;
+	type: string;
 }
 
 function buildClientConfig(

@@ -37,8 +37,8 @@ import { type ApiKeyListItem, SCOPE_OPTIONS } from "./api-key-types";
 
 interface ApiKeyDetailDialogProps {
 	apiKey: ApiKeyListItem | null;
-	open: boolean;
 	onOpenChangeAction: (open: boolean) => void;
+	open: boolean;
 }
 
 const scopeSchema = z.enum(API_SCOPES);

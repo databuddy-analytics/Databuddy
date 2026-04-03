@@ -9,15 +9,15 @@ import {
 import { cn } from "@/lib/utils";
 
 export interface FaqItem {
-	question: string;
 	answer: string;
+	question: string;
 }
 
 interface FaqSectionProps {
-	title?: string;
-	subtitle?: string;
-	items: FaqItem[];
 	className?: string;
+	items: FaqItem[];
+	subtitle?: string;
+	title?: string;
 }
 
 export function FaqSection({

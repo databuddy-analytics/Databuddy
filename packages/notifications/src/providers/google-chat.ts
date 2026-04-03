@@ -6,10 +6,10 @@ import type {
 import { BaseProvider } from "./base";
 
 export interface GoogleChatProviderConfig {
-	webhookUrl: string;
-	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
+	timeout?: number;
+	webhookUrl: string;
 }
 
 export class GoogleChatProvider extends BaseProvider {

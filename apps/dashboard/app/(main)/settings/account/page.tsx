@@ -36,10 +36,10 @@ import { TwoFactorDialog } from "./sections/two-factor-dialog";
 
 // Types
 interface Account {
-	id: string;
-	providerId: string;
 	accountId: string;
 	createdAt: Date;
+	id: string;
+	providerId: string;
 }
 
 type SocialProvider = "google" | "github";

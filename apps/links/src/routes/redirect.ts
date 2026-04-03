@@ -64,10 +64,10 @@ function generateETag(link: CachedLink, targetUrl: string): string {
 }
 
 interface LinkLookupResult {
-	link: CachedLink | null;
 	cacheHit: boolean;
 	cacheMs: number;
 	dbMs: number;
+	link: CachedLink | null;
 }
 
 async function getLinkBySlug(slug: string): Promise<LinkLookupResult> {

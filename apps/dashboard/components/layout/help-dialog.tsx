@@ -18,8 +18,8 @@ import {
 import { KeyboardShortcuts } from "@/components/ui/keyboard-shortcuts";
 
 interface HelpDialogProps {
-	open: boolean;
 	onOpenChangeAction: (open: boolean) => void;
+	open: boolean;
 }
 
 const helpItems = [

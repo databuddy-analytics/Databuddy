@@ -170,7 +170,11 @@ export default async function StatusPage({
 						/>
 
 						{page.customCss ? (
-							<style dangerouslySetInnerHTML={{ __html: page.customCss }} />
+							<style
+								dangerouslySetInnerHTML={{
+									__html: page.customCss.replaceAll(/<\/style/gi, "<\\/style"),
+								}}
+							/>
 						) : null}
 
 						<Status>

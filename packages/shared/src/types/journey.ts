@@ -1,39 +1,39 @@
 export interface JourneyTransition {
+	avg_step_in_journey: number;
 	from_page: string;
+	sessions: number;
 	to_page: string;
 	transitions: number;
-	sessions: number;
 	users: number;
-	avg_step_in_journey: number;
 }
 
 export interface JourneyPath {
-	name: string;
+	avg_duration_minutes: number;
+	avg_duration_seconds: number;
+	avg_pages_in_path: number;
 	entry_page: string;
 	exit_page: string;
 	frequency: number;
+	name: string;
 	unique_users: number;
-	avg_pages_in_path: number;
-	avg_duration_seconds: number;
-	avg_duration_minutes: number;
 }
 
 export interface JourneyDropoff {
-	name: string;
-	total_visits: number;
-	total_sessions: number;
-	total_users: number;
-	exits: number;
+	continuation_rate: number;
 	continuations: number;
 	exit_rate: number;
-	continuation_rate: number;
+	exits: number;
+	name: string;
+	total_sessions: number;
+	total_users: number;
+	total_visits: number;
 }
 
 export interface JourneyEntryPoint {
-	name: string;
+	avg_pages_per_session: number;
+	bounce_rate: number;
 	entries: number;
+	name: string;
 	sessions: number;
 	users: number;
-	bounce_rate: number;
-	avg_pages_per_session: number;
 }

@@ -24,12 +24,12 @@ import { ORPCError } from "@orpc/server";
  * This is automatically populated when a user is authenticated
  */
 export interface BillingContext {
+	/** Whether the current user can upgrade the plan */
+	canUserUpgrade: boolean;
 	/** The customer ID for billing (user ID or org owner ID) */
 	customerId: string;
 	/** Whether the billing is based on an organization */
 	isOrganization: boolean;
-	/** Whether the current user can upgrade the plan */
-	canUserUpgrade: boolean;
 	/** The current plan ID (e.g., 'free', 'hobby', 'pro', 'scale') */
 	planId: string;
 }

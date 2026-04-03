@@ -18,13 +18,13 @@ export type AggregateFunction =
  * Aggregate function metadata for UI
  */
 export interface AggregateFunctionInfo {
-	value: AggregateFunction;
-	label: string;
-	description: string;
-	/** Whether this aggregate requires a specific column (false for count(*)) */
-	requiresColumn: boolean;
 	/** Column types this aggregate can be applied to */
 	applicableTypes: ("string" | "number" | "datetime" | "boolean" | "array")[];
+	description: string;
+	label: string;
+	/** Whether this aggregate requires a specific column (false for count(*)) */
+	requiresColumn: boolean;
+	value: AggregateFunction;
 }
 
 /**
@@ -95,12 +95,12 @@ export type CustomQueryOperator =
  * Operator metadata for UI
  */
 export interface OperatorInfo {
-	value: CustomQueryOperator;
-	label: string;
 	/** Column types this operator can be applied to */
 	applicableTypes: ("string" | "number" | "datetime" | "boolean")[];
+	label: string;
 	/** Whether this operator accepts multiple values (for IN) */
 	multiValue: boolean;
+	value: CustomQueryOperator;
 }
 
 /**
@@ -179,12 +179,12 @@ export const CUSTOM_QUERY_OPERATORS: OperatorInfo[] = [
  * A single SELECT expression in the query
  */
 export interface CustomQuerySelect {
-	/** Field name to aggregate (use "*" for count(*)) */
-	field: string;
 	/** Aggregate function to apply */
 	aggregate: AggregateFunction;
 	/** Display alias for the result */
 	alias?: string;
+	/** Field name to aggregate (use "*" for count(*)) */
+	field: string;
 }
 
 /**
@@ -203,45 +203,45 @@ export interface CustomQueryFilter {
  * Complete custom query configuration
  */
 export interface CustomQueryConfig {
-	/** Table to query */
-	table: string;
-	/** SELECT expressions with aggregates */
-	selects: CustomQuerySelect[];
 	/** WHERE conditions (AND'd together) */
 	filters?: CustomQueryFilter[];
 	/** GROUP BY fields for breakdown queries */
 	groupBy?: string[];
+	/** SELECT expressions with aggregates */
+	selects: CustomQuerySelect[];
+	/** Table to query */
+	table: string;
 }
 
 /**
  * Request payload for custom query API
  */
 export interface CustomQueryRequest {
-	/** The query configuration */
-	query: CustomQueryConfig;
-	/** Start date for time range */
-	startDate: string;
 	/** End date for time range */
 	endDate: string;
-	/** Timezone for date interpretation */
-	timezone?: string;
 	/** Granularity for time-based grouping */
 	granularity?: "hourly" | "daily";
 	/** Maximum rows to return */
 	limit?: number;
+	/** The query configuration */
+	query: CustomQueryConfig;
+	/** Start date for time range */
+	startDate: string;
+	/** Timezone for date interpretation */
+	timezone?: string;
 }
 
 /**
  * Response from custom query API
  */
 export interface CustomQueryResponse {
-	success: boolean;
 	data?: Record<string, unknown>[];
 	error?: string;
 	meta?: {
 		rowCount: number;
 		executionTime: number;
 	};
+	success: boolean;
 }
 
 /**

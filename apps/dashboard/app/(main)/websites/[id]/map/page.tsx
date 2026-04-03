@@ -36,14 +36,14 @@ const MapComponent = dynamic(
 interface CountryData {
 	country: string;
 	country_code?: string;
-	visitors: number;
 	pageviews: number;
+	visitors: number;
 }
 
 interface CountryRowProps {
 	country: CountryData;
-	totalVisitors: number;
 	onCountrySelect: (countryCode: string) => void;
+	totalVisitors: number;
 }
 
 function CountryRow({

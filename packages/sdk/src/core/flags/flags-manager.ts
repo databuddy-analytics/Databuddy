@@ -21,9 +21,9 @@ const ANON_ID_KEY = "did";
 const DEFAULT_API = "https://api.databuddy.cc";
 
 interface CacheEntry {
+	expiresAt: number;
 	promise: Promise<FlagResult>;
 	result: FlagResult | null;
-	expiresAt: number;
 	staleAt: number;
 }
 

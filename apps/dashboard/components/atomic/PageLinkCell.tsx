@@ -6,9 +6,9 @@ import { formatDomainLink } from "@/app/(main)/websites/[id]/_components/utils/a
 import { cn } from "@/lib/utils";
 
 export interface PageLinkCellData {
+	id?: string;
 	path: string;
 	websiteDomain?: string;
-	id?: string;
 }
 
 type PageLinkCellProps = PageLinkCellData & {

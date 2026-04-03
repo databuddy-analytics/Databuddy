@@ -39,22 +39,22 @@ function getDatabuddyMonthlyCost(monthlyEvents: number): {
 
 export interface CalculatorInputs {
 	monthlyVisitors: number;
+	revenuePerConversion: number;
 	visitorDataLossRate: number;
 	visitorToPaidRate: number;
-	revenuePerConversion: number;
 }
 
 export interface CalculatorOutputs {
-	lostVisitors: number;
+	databuddyMonthlyCost: number;
+	databuddyPlanName: string;
 	lostConversions: number;
 	lostRevenueMonthly: number;
 	lostRevenueYearly: number;
-	/** Same inputs, lower bound of literature band (visitor data loss) */
-	lostRevenueYearlyRangeLow: number;
 	/** Same inputs, upper bound of literature band (visitor data loss) */
 	lostRevenueYearlyRangeHigh: number;
-	databuddyMonthlyCost: number;
-	databuddyPlanName: string;
+	/** Same inputs, lower bound of literature band (visitor data loss) */
+	lostRevenueYearlyRangeLow: number;
+	lostVisitors: number;
 }
 
 function coreCalc(
@@ -115,9 +115,9 @@ export function calculateCookieBannerCost(
 }
 
 export interface Scenario {
-	name: string;
 	description: string;
 	inputs: CalculatorInputs;
+	name: string;
 	outputs: CalculatorOutputs;
 }
 

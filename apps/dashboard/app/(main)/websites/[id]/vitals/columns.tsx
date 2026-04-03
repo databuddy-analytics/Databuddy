@@ -13,17 +13,17 @@ import {
 } from "../_components/tabs/performance/_utils/performance-utils";
 
 export interface VitalsBreakdownData {
-	name: string;
-	samples: number;
-	visitors?: number;
-	lcp?: number;
-	fcp?: number;
 	cls?: number;
-	inp?: number;
-	ttfb?: number;
-	fps?: number;
 	country_code?: string;
 	country_name?: string;
+	fcp?: number;
+	fps?: number;
+	inp?: number;
+	lcp?: number;
+	name: string;
+	samples: number;
+	ttfb?: number;
+	visitors?: number;
 }
 
 const createMetricColumns = (): ColumnDef<VitalsBreakdownData>[] => [

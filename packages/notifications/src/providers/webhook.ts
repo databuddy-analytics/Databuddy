@@ -2,13 +2,13 @@ import type { NotificationPayload, NotificationResult } from "../types";
 import { BaseProvider } from "./base";
 
 export interface WebhookProviderConfig {
-	url: string;
-	method?: "GET" | "POST" | "PUT" | "PATCH";
 	headers?: Record<string, string>;
-	timeout?: number;
+	method?: "GET" | "POST" | "PUT" | "PATCH";
 	retries?: number;
 	retryDelay?: number;
+	timeout?: number;
 	transformPayloadAction?: (payload: NotificationPayload) => unknown;
+	url: string;
 }
 
 export class WebhookProvider extends BaseProvider {

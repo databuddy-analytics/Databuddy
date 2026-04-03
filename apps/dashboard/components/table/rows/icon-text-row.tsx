@@ -4,16 +4,16 @@ import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface IconTextEntry {
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
 
 interface IconTextRowProps {
-	header: string;
 	accessorKey?: string;
 	getIcon: (name: string, entry?: IconTextEntry) => ReactNode;
 	getSubtitle?: (entry: IconTextEntry) => string | undefined;
+	header: string;
 	includeMetrics?: boolean;
 }
 

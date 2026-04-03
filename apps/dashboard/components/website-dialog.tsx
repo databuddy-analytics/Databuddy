@@ -24,17 +24,17 @@ import {
 } from "@/hooks/use-websites";
 
 interface UpdateWebsiteInput {
-	id: string;
-	name: string;
 	domain?: string;
+	id: string;
 	isPublic?: boolean;
+	name: string;
 }
 
 interface CreateWebsiteData {
-	name: string;
 	domain: string;
-	subdomain?: string;
+	name: string;
 	organizationId?: string;
+	subdomain?: string;
 }
 
 const domainRegex =
@@ -55,10 +55,10 @@ const formSchema = z.object({
 
 type FormData = z.infer<typeof formSchema>;
 interface WebsiteDialogProps {
-	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	website?: Website | WebsiteOutput | null;
 	onSave?: (website: Website) => void;
+	open: boolean;
+	website?: Website | WebsiteOutput | null;
 }
 
 export type { CreateWebsiteData, WebsiteDialogProps };

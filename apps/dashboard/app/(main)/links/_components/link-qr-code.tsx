@@ -34,10 +34,10 @@ const QR_COLORS = [
 ];
 
 interface LinkQrCodeProps {
-	slug: string;
+	className?: string;
 	name: string;
 	showControls?: boolean;
-	className?: string;
+	slug: string;
 }
 
 export function LinkQrCode({

@@ -12,8 +12,8 @@ import { LinkQrCode } from "./link-qr-code";
 
 interface QrCodeDialogProps {
 	link: Link | null;
-	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	open: boolean;
 }
 
 export function QrCodeDialog({ link, open, onOpenChange }: QrCodeDialogProps) {

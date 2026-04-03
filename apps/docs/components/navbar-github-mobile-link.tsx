@@ -7,11 +7,11 @@ import {
 } from "./github-nav-mark";
 
 interface NavbarGithubMobileLinkProps {
-	stars?: number | null;
-	isMenuOpen: boolean;
-	transitionDelayMs: number;
-	onCloseAction: () => void;
 	density?: "default" | "compact";
+	isMenuOpen: boolean;
+	onCloseAction: () => void;
+	stars?: number | null;
+	transitionDelayMs: number;
 }
 
 export function NavbarGithubMobileLink({

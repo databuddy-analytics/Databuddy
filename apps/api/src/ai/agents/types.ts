@@ -6,12 +6,12 @@ import type {
 } from "ai";
 
 export interface AgentContext {
-	userId: string;
-	websiteId: string;
-	websiteDomain: string;
-	timezone: string;
 	chatId: string;
 	requestHeaders?: Headers;
+	timezone: string;
+	userId: string;
+	websiteDomain: string;
+	websiteId: string;
 }
 
 export type AgentType =
@@ -21,11 +21,11 @@ export type AgentType =
 	| "reflection-max";
 
 export interface AgentConfig {
-	model: LanguageModel;
-	system: SystemModelMessage;
-	tools: ToolSet;
-	stopWhen: StopCondition<ToolSet>;
-	temperature: number;
-	providerOptions?: Record<string, Record<string, unknown>>;
 	experimental_context?: unknown;
+	model: LanguageModel;
+	providerOptions?: Record<string, Record<string, unknown>>;
+	stopWhen: StopCondition<ToolSet>;
+	system: SystemModelMessage;
+	temperature: number;
+	tools: ToolSet;
 }

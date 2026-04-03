@@ -70,18 +70,18 @@ const {
 } = Chart.Recharts;
 
 interface TooltipPayloadEntry {
-	dataKey: string;
-	value: number;
 	color: string;
+	dataKey: string;
 	payload: Record<string, unknown>;
+	value: number;
 }
 
 interface TooltipProps {
 	active?: boolean;
-	payload?: TooltipPayloadEntry[];
-	label?: string;
 	isDragging?: boolean;
 	justFinishedDragging?: boolean;
+	label?: string;
+	payload?: TooltipPayloadEntry[];
 }
 
 const CustomTooltip = ({
@@ -143,8 +143,8 @@ const CustomTooltip = ({
 };
 
 interface DateRangeState {
-	startDate: Date;
 	endDate: Date;
+	startDate: Date;
 }
 
 interface CreateAnnotationInput {
@@ -917,14 +917,14 @@ export function TrafficTrendsRechartsPlot({
 }
 
 interface TrafficTrendsChartProps {
-	websiteId: string;
-	dateRange: DateRange;
 	chartData: ChartDataRow[];
 	dateDiff: number;
+	dateRange: DateRange;
 	isError: boolean;
 	isLoading: boolean;
 	isMobile: boolean;
 	onRangeSelect: (range: { startDate: Date; endDate: Date }) => void;
+	websiteId: string;
 }
 
 export function TrafficTrendsChart({

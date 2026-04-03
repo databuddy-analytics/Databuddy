@@ -2,8 +2,8 @@ export const EVENT_COST = 0.000_035;
 
 export interface OverageInfo {
 	hasOverage: boolean;
-	overageEvents: number;
 	includedEvents: number;
+	overageEvents: number;
 }
 
 export function calculateOverageCost(

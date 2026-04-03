@@ -5,9 +5,9 @@ import dayjs from "@/lib/dayjs";
 
 export interface TimezoneEntry {
 	name: string;
-	visitors: number;
 	pageviews: number;
 	percentage: number;
+	visitors: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {

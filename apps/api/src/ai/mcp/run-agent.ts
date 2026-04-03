@@ -11,15 +11,15 @@ import { models } from "../config/models";
 const MCP_AGENT_TIMEOUT_MS = 45_000;
 
 export interface RunMcpAgentOptions {
-	question: string;
-	requestHeaders: Headers;
 	apiKey: Awaited<
 		ReturnType<typeof import("../../lib/api-key").getApiKeyFromHeader>
 	>;
-	userId: string | null;
-	timezone?: string;
 	conversationId?: string;
 	priorMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+	question: string;
+	requestHeaders: Headers;
+	timezone?: string;
+	userId: string | null;
 }
 
 export async function runMcpAgent(

@@ -29,18 +29,18 @@ import { fromNow } from "@/lib/time";
 import type { BaseComponentProps } from "../../types";
 
 interface GoalItem {
-	id: string;
-	name: string;
-	description?: string | null;
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
-	isActive: boolean;
 	createdAt?: string;
+	description?: string | null;
+	id: string;
+	isActive: boolean;
+	name: string;
+	target: string;
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
 export interface GoalsListProps extends BaseComponentProps {
-	title?: string;
 	goals: GoalItem[];
+	title?: string;
 }
 
 function GoalTypeIcon({ type }: { type: string }) {

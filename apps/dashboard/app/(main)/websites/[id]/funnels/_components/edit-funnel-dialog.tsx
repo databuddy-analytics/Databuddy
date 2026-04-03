@@ -52,14 +52,14 @@ const defaultFilter: FunnelFilter = {
 } as const;
 
 interface EditFunnelDialogProps {
-	isOpen: boolean;
-	onClose: () => void;
-	onSubmit: (funnel: Funnel) => Promise<void>;
-	onCreate?: (data: CreateFunnelData) => Promise<void>;
-	funnel: Funnel | null;
-	isUpdating: boolean;
-	isCreating?: boolean;
 	autocompleteData?: AutocompleteData;
+	funnel: Funnel | null;
+	isCreating?: boolean;
+	isOpen: boolean;
+	isUpdating: boolean;
+	onClose: () => void;
+	onCreate?: (data: CreateFunnelData) => Promise<void>;
+	onSubmit: (funnel: Funnel) => Promise<void>;
 }
 
 export function EditFunnelDialog({

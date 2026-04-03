@@ -32,28 +32,28 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 export interface StatusPage {
+	createdAt: Date | string;
+	customCss?: string | null;
+	description: string | null;
+	faviconUrl?: string | null;
+	hideBranding?: boolean;
 	id: string;
+	logoUrl?: string | null;
+	monitorCount: number;
+	name: string;
 	organizationId: string;
 	slug: string;
-	name: string;
-	description: string | null;
-	logoUrl?: string | null;
-	faviconUrl?: string | null;
-	websiteUrl?: string | null;
 	supportUrl?: string | null;
 	theme?: string | null;
-	hideBranding?: boolean;
-	customCss?: string | null;
-	monitorCount: number;
-	createdAt: Date | string;
 	updatedAt: Date | string;
+	websiteUrl?: string | null;
 }
 
 interface StatusPageRowProps {
-	statusPage: StatusPage;
-	onEditAction: () => void;
 	onDeleteAction: () => void;
+	onEditAction: () => void;
 	onTransferSuccessAction?: () => void;
+	statusPage: StatusPage;
 }
 
 function StatusPageActions({

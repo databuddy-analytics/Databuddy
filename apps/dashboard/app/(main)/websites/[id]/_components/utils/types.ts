@@ -2,15 +2,15 @@ import type { useWebsite } from "@/hooks/use-websites";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
 
 export interface DateRange {
-	start_date: string;
 	end_date: string;
 	granularity?: "hourly" | "daily";
+	start_date: string;
 	timezone?: string;
 }
 
 export interface BaseTabProps {
-	websiteId: string;
 	dateRange: DateRange;
+	websiteId: string;
 }
 
 export type WebsiteData = ReturnType<typeof useWebsite>["data"];
@@ -24,38 +24,38 @@ export type FullTabProps = BaseTabProps & {
 };
 
 export interface MetricPoint {
+	bounce_rate?: number;
 	date: string;
 	pageviews?: number;
-	visitors?: number;
 	sessions?: number;
-	bounce_rate?: number;
+	visitors?: number;
 	[key: string]: string | number | undefined;
 }
 
 export interface TrackingOptions {
-	disabled: boolean;
-	trackScreenViews: boolean;
-	trackHashChanges: boolean;
-	trackSessions: boolean;
-	trackAttributes: boolean;
-	trackOutgoingLinks: boolean;
-	trackInteractions: boolean;
-	trackPerformance: boolean;
-	trackWebVitals: boolean;
-	trackErrors: boolean;
-	samplingRate: number;
-	enableRetries: boolean;
-	maxRetries: number;
-	initialRetryDelay: number;
-	enableBatching: boolean;
 	batchSize: number;
 	batchTimeout: number;
+	disabled: boolean;
+	enableBatching: boolean;
+	enableRetries: boolean;
+	initialRetryDelay: number;
+	maxRetries: number;
+	samplingRate: number;
+	trackAttributes: boolean;
+	trackErrors: boolean;
+	trackHashChanges: boolean;
+	trackInteractions: boolean;
+	trackOutgoingLinks: boolean;
+	trackPerformance: boolean;
+	trackScreenViews: boolean;
+	trackSessions: boolean;
+	trackWebVitals: boolean;
 }
 
 export interface TrackingOptionConfig {
+	data: string[];
+	description: string;
+	inverted?: boolean;
 	key: keyof TrackingOptions;
 	title: string;
-	description: string;
-	data: string[];
-	inverted?: boolean;
 }

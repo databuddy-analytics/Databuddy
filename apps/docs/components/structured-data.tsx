@@ -6,32 +6,32 @@ interface Breadcrumb {
 	url: string;
 }
 interface FAQItem {
-	question: string;
 	answer: string;
+	question: string;
 }
 
 interface PageProps {
-	title?: string;
-	description?: string;
-	url?: string;
-	imageUrl?: string;
 	breadcrumbs?: Breadcrumb[];
-	datePublished?: string;
 	dateModified?: string;
+	datePublished?: string;
+	description?: string;
+	imageUrl?: string;
 	inLanguage?: string;
+	title?: string;
+	url?: string;
 }
 
 interface ArticleProps {
-	title: string;
+	dateModified?: string;
+	datePublished: string;
 	description?: string;
 	imageUrl?: string;
-	datePublished: string;
-	dateModified?: string;
+	title: string;
 }
 
 interface DocumentationProps extends ArticleProps {
-	section?: string;
 	keywords?: string[];
+	section?: string;
 }
 
 type ElementItem =
@@ -42,12 +42,12 @@ type ElementItem =
 
 interface StructuredDataProps {
 	baseUrl?: string; // default: https://www.databuddy.cc
-	logoUrl?: string; // default: {baseUrl}/logo.png
-
-	page: PageProps;
 
 	/** Mixed, repeatable elements */
 	elements?: ElementItem[];
+	logoUrl?: string; // default: {baseUrl}/logo.png
+
+	page: PageProps;
 }
 
 const EMPTY_ELEMENTS: ElementItem[] = [];

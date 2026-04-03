@@ -10,14 +10,14 @@ import { formatLocaleNumber } from "@/lib/format-locale-number";
 import { cn } from "@/lib/utils";
 
 interface PricingTier {
-	to: number | "inf";
 	amount: number;
+	to: number | "inf";
 }
 
 interface PricingTiersTooltipProps {
-	tiers: PricingTier[];
 	className?: string;
 	showText?: boolean;
+	tiers: PricingTier[];
 }
 
 export function PricingTiersTooltip({

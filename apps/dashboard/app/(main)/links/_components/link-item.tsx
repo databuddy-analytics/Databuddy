@@ -220,10 +220,10 @@ function LinkRow({
 
 interface LinksListProps {
 	links: Link[];
-	onEdit: (link: Link) => void;
-	onDelete: (linkId: string) => void;
-	onShowQr: (link: Link) => void;
 	onCreateLink: () => void;
+	onDelete: (linkId: string) => void;
+	onEdit: (link: Link) => void;
+	onShowQr: (link: Link) => void;
 }
 
 export function LinksList({

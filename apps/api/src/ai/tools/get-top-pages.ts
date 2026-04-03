@@ -4,8 +4,8 @@ import { executeTimedQuery } from "./utils";
 
 interface TopPageResult extends Record<string, unknown> {
 	path: string;
-	views: number;
 	unique_visitors: number;
+	views: number;
 }
 
 /**

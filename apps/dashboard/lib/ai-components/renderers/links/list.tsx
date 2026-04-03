@@ -32,25 +32,25 @@ import type { BaseComponentProps } from "../../types";
 const BASE_URL = "dby.sh";
 
 interface LinkItem {
-	id: string;
-	name: string;
-	slug: string;
-	targetUrl: string;
-	expiresAt?: string | null;
+	androidUrl?: string | null;
 	createdAt?: string;
-	ogTitle?: string | null;
+	expiredRedirectUrl?: string | null;
+	expiresAt?: string | null;
+	id: string;
+	iosUrl?: string | null;
+	name: string;
 	ogDescription?: string | null;
 	ogImageUrl?: string | null;
-	iosUrl?: string | null;
-	androidUrl?: string | null;
-	expiredRedirectUrl?: string | null;
+	ogTitle?: string | null;
 	ogVideoUrl?: string | null;
 	organizationId?: string;
+	slug: string;
+	targetUrl: string;
 }
 
 export interface LinksListProps extends BaseComponentProps {
-	title?: string;
 	links: LinkItem[];
+	title?: string;
 }
 
 function formatUrl(url: string, maxLen = 40): string {

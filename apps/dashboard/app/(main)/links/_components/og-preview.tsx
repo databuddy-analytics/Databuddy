@@ -24,9 +24,9 @@ import {
 } from "./use-og-metadata";
 
 export interface OgData {
-	ogTitle: string;
 	ogDescription: string;
 	ogImageUrl: string;
+	ogTitle: string;
 	ogVideoUrl: string;
 }
 
@@ -34,11 +34,11 @@ const TITLE_MAX = 120;
 const DESCRIPTION_MAX = 240;
 
 interface OgPreviewProps {
-	targetUrl: string;
-	value: OgData;
 	onChange: (data: OgData) => void;
-	useCustomOg: boolean;
 	onUseCustomOgChange: (useCustom: boolean) => void;
+	targetUrl: string;
+	useCustomOg: boolean;
+	value: OgData;
 }
 
 export function OgPreview({

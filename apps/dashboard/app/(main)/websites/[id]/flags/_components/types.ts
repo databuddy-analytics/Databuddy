@@ -6,34 +6,37 @@ import type {
 import type { UseFormReturn } from "react-hook-form";
 
 export interface Flag {
+	createdAt: Date;
+	createdBy: string;
+	defaultValue?: boolean;
+	deletedAt?: Date | null;
+	dependencies?: string[];
+	description?: string | null;
+	environment?: string;
 	id: string;
 	key: string;
 	name?: string | null;
-	description?: string | null;
-	type: FlagType;
-	status: "active" | "inactive" | "archived";
-	defaultValue?: boolean;
-	payload?: unknown;
-	rolloutPercentage?: number | null;
-	rolloutBy?: string | null;
-	rules?: UserRule[];
-	targetGroups?: TargetGroup[] | string[];
-	targetGroupIds?: string[];
-	variants?: Variant[];
-	dependencies?: string[];
-	environment?: string;
-	persistAcrossAuth?: boolean;
-	websiteId?: string | null;
 	organizationId?: string | null;
-	userId?: string | null;
-	createdBy: string;
-	createdAt: Date;
+	payload?: unknown;
+	persistAcrossAuth?: boolean;
+	rolloutBy?: string | null;
+	rolloutPercentage?: number | null;
+	rules?: UserRule[];
+	status: "active" | "inactive" | "archived";
+	targetGroupIds?: string[];
+	targetGroups?: TargetGroup[] | string[];
+	type: FlagType;
 	updatedAt: Date;
-	deletedAt?: Date | null;
+	userId?: string | null;
+	variants?: Variant[];
+	websiteId?: string | null;
 }
 
 export interface UserRule {
-	type: "user_id" | "email" | "property";
+	batch: boolean;
+	batchValues?: string[];
+	enabled: boolean;
+	field?: string;
 	operator:
 		| "equals"
 		| "contains"
@@ -43,78 +46,75 @@ export interface UserRule {
 		| "not_in"
 		| "exists"
 		| "not_exists";
-	field?: string;
+	type: "user_id" | "email" | "property";
 	value?: string;
 	values?: string[];
-	enabled: boolean;
-	batch: boolean;
-	batchValues?: string[];
 }
 
 export interface TargetGroup {
-	id: string;
-	name: string;
-	description?: string | null;
 	color: string;
-	rules: UserRule[];
-	memberCount?: number;
-	websiteId: string;
-	createdBy: string;
 	createdAt: Date;
+	createdBy: string;
+	description?: string | null;
+	id: string;
+	memberCount?: number;
+	name: string;
+	rules: UserRule[];
 	updatedAt: Date;
+	websiteId: string;
 }
 
 export type FlagStatus = "active" | "inactive" | "archived";
 
 export interface FlagSheetProps {
+	flag?: Flag | null;
 	isOpen: boolean;
 	onCloseAction: () => void;
-	websiteId: string;
-	flag?: Flag | null;
 	template?: FlagTemplate | null;
+	websiteId: string;
 }
 
 export interface VariantEditorProps {
-	variants: Variant[];
 	onChangeAction: (variants: Variant[]) => void;
+	variants: Variant[];
 }
 
 export interface ScheduleManagerProps {
-	form: UseFormReturn<FlagWithScheduleForm>;
 	flagId?: string;
+	form: UseFormReturn<FlagWithScheduleForm>;
 }
 
 export interface DependencySelectorProps {
-	value: string[];
-	onChange: (dependencies: string[]) => void;
 	availableFlags: Flag[];
 	currentFlagKey?: string;
+	onChange: (dependencies: string[]) => void;
+	value: string[];
 }
 
 export interface UserRulesBuilderProps {
-	rules: UserRule[];
 	onChange: (rules: UserRule[]) => void;
+	rules: UserRule[];
 }
 
 export interface GroupsListProps {
 	groups: TargetGroup[];
 	isLoading: boolean;
 	onCreateGroupAction: () => void;
-	onEditGroupAction: (group: TargetGroup) => void;
 	onDeleteGroup?: (groupId: string) => void;
+	onEditGroupAction: (group: TargetGroup) => void;
 }
 
 export interface GroupSheetProps {
+	group?: TargetGroup | null;
 	isOpen: boolean;
 	onCloseAction: () => void;
 	websiteId: string;
-	group?: TargetGroup | null;
 }
 
 export interface GroupSelectorProps {
-	selectedGroups: string[];
 	availableGroups: TargetGroup[];
 	onChangeAction: (groupIds: string[]) => void;
+	selectedGroups: string[];
 }
 
 export const GROUP_COLORS = [
@@ -131,12 +131,12 @@ export const GROUP_COLORS = [
 ] as const;
 
 interface BaseFlagTemplate {
-	id: string;
-	name: string;
-	description: string;
 	category: string;
+	description: string;
 	icon: string;
+	id: string;
 	isBuiltIn: true;
+	name: string;
 	rules?: UserRule[];
 }
 
@@ -164,7 +164,7 @@ export type FlagTemplate =
 	| MultivariantFlagTemplate;
 
 export interface TemplatesListProps {
-	templates: FlagTemplate[];
 	isLoading: boolean;
 	onUseTemplateAction: (template: FlagTemplate) => void;
+	templates: FlagTemplate[];
 }

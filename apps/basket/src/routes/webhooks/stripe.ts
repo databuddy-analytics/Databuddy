@@ -8,27 +8,27 @@ const SIGNATURE_TOLERANCE_SECONDS = 300;
 
 interface WebhookConfig {
 	ownerId: string;
-	websiteId: string | null;
 	stripeWebhookSecret: string;
+	websiteId: string | null;
 }
 
 interface WebhookPaymentIntent {
-	id: string;
 	amount: number;
 	amount_received?: number;
-	currency: string;
 	created: number;
-	description?: string | null;
-	invoice?: string | { id: string } | null;
+	currency: string;
 	customer?: string | { id: string } | null;
+	description?: string | null;
+	id: string;
+	invoice?: string | { id: string } | null;
 	metadata?: Record<string, string>;
 }
 
 interface WebhookCharge {
-	id: string;
 	amount_refunded: number;
 	currency: string;
 	customer?: string | { id: string } | null;
+	id: string;
 	metadata?: Record<string, string>;
 	refunds?: {
 		data: Array<{
@@ -40,30 +40,28 @@ interface WebhookCharge {
 }
 
 interface WebhookInvoice {
-	id: string;
-	subscription?: string | null;
-	customer?: string | { id: string } | null;
-	payment_intent?: string | null;
 	amount_paid: number;
-	currency: string;
-	status?: string;
-	created: number;
-	metadata?: Record<string, string>;
 	billing_reason?: string | null;
+	created: number;
+	currency: string;
+	customer?: string | { id: string } | null;
 	description?: string | null;
+	id: string;
+	metadata?: Record<string, string>;
+	payment_intent?: string | null;
+	status?: string;
+	subscription?: string | null;
 }
 
 interface WebhookSubscription {
-	id: string;
-	customer?: string | { id: string } | null;
-	status: string;
 	cancel_at_period_end?: boolean;
 	canceled_at?: number | null;
-	current_period_start?: number;
-	current_period_end?: number;
-	currency?: string;
 	created: number;
-	metadata?: Record<string, string>;
+	currency?: string;
+	current_period_end?: number;
+	current_period_start?: number;
+	customer?: string | { id: string } | null;
+	id: string;
 	items?: {
 		data: Array<{
 			price?: {
@@ -74,11 +72,11 @@ interface WebhookSubscription {
 			plan?: { product?: string };
 		}>;
 	};
+	metadata?: Record<string, string>;
+	status: string;
 }
 
 interface WebhookEvent {
-	id: string;
-	type: string;
 	data: {
 		object:
 			| WebhookPaymentIntent
@@ -86,6 +84,8 @@ interface WebhookEvent {
 			| WebhookInvoice
 			| WebhookSubscription;
 	};
+	id: string;
+	type: string;
 }
 
 function verifyStripeSignature(
@@ -150,8 +150,8 @@ function verifyStripeSignature(
 
 interface AnalyticsMetadata {
 	anonymous_id?: string;
-	session_id?: string;
 	client_id?: string;
+	session_id?: string;
 }
 
 function extractAnalyticsMetadata(

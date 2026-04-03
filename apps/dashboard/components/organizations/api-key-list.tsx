@@ -17,9 +17,9 @@ import {
 import type { ApiKeyListItem } from "./api-key-types";
 
 interface ApiKeyListProps {
-	organizationId: string;
 	onCreateNew?: () => void;
 	onSelect?: (apiKey: ApiKeyListItem) => void;
+	organizationId: string;
 }
 
 function ApiKeyListSkeleton() {

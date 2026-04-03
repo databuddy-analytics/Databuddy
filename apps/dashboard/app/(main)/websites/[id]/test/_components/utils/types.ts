@@ -33,43 +33,43 @@ export type DataSourceMode = "predefined" | "custom";
 
 /** Base config all dashboard widgets share */
 export interface DashboardWidgetBase {
+	category?: string;
+	/** Custom query config - used when dataSourceMode is 'custom' */
+	customQuery?: CustomQueryConfig;
+	/** Data source mode - 'predefined' uses queryType, 'custom' uses customQuery */
+	dataSourceMode?: DataSourceMode;
+	/** Date range preset - defaults to 'global' */
+	dateRangePreset?: DateRangePreset;
+	/** Filters to apply to this widget's data */
+	filters?: CardFilter[];
 	id: string;
 	/** Predefined query type - used when dataSourceMode is 'predefined' */
 	queryType: string;
-	category?: string;
 	title?: string;
-	/** Filters to apply to this widget's data */
-	filters?: CardFilter[];
-	/** Date range preset - defaults to 'global' */
-	dateRangePreset?: DateRangePreset;
-	/** Data source mode - 'predefined' uses queryType, 'custom' uses customQuery */
-	dataSourceMode?: DataSourceMode;
-	/** Custom query config - used when dataSourceMode is 'custom' */
-	customQuery?: CustomQueryConfig;
 }
 
 /** Card widget - displays a single value with optional chart */
 export interface DashboardCardConfig extends DashboardWidgetBase {
-	type: "card";
+	displayMode: StatCardDisplayMode;
 	field: string;
 	label: string;
-	displayMode: StatCardDisplayMode;
+	type: "card";
 }
 
 /** Table widget - displays multiple rows with multiple columns */
 export interface DashboardTableConfig extends DashboardWidgetBase {
-	type: "table";
 	fields: string[];
 	labels?: Record<string, string>;
 	limit?: number;
+	type: "table";
 }
 
 /** Chart widget - displays time series with multiple series */
 export interface DashboardChartConfig extends DashboardWidgetBase {
-	type: "chart";
+	chartType: "area" | "bar" | "line";
 	fields: string[];
 	labels?: Record<string, string>;
-	chartType: "area" | "bar" | "line";
+	type: "chart";
 }
 
 /** Union of all widget types */

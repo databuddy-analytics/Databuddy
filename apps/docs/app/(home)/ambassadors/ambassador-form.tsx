@@ -10,14 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 interface FormData {
-	name: string;
+	audience: string;
 	email: string;
-	xHandle: string;
+	experience: string;
+	name: string;
+	referralSource: string;
 	website: string;
 	whyAmbassador: string;
-	experience: string;
-	audience: string;
-	referralSource: string;
+	xHandle: string;
 }
 
 const initialFormData: FormData = {

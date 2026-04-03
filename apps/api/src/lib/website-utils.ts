@@ -9,16 +9,16 @@ import {
 } from "./api-key";
 
 export interface WebsiteContext {
-	user: unknown;
 	session: unknown;
-	website?: Website;
 	timezone: string;
+	user: unknown;
+	website?: Website;
 }
 
 export interface WebsiteValidationResult {
+	error?: string;
 	success: boolean;
 	website?: Website;
-	error?: string;
 }
 
 const getCachedWebsite = cacheable(

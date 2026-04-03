@@ -9,17 +9,17 @@ import {
 } from "@phosphor-icons/react";
 
 interface Language {
-	name: string;
 	bytes: number;
+	name: string;
 	percentage: string;
 }
 
 interface Stats {
-	totalContributors: number;
-	totalContributions: number;
-	openPRs: number;
-	mergedPRs: number;
 	closedPRs: number;
+	mergedPRs: number;
+	openPRs: number;
+	totalContributions: number;
+	totalContributors: number;
 }
 
 interface ActivityStatsProps {

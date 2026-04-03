@@ -55,26 +55,26 @@ interface RevenueContentProps {
 }
 
 interface RevenueOverview {
-	total_revenue: number;
-	total_transactions: number;
+	attributed_revenue: number;
+	attributed_transactions: number;
 	refund_amount: number;
 	refund_count: number;
-	subscription_revenue: number;
-	subscription_count: number;
-	sale_revenue: number;
 	sale_count: number;
+	sale_revenue: number;
+	subscription_count: number;
+	subscription_revenue: number;
+	total_revenue: number;
+	total_transactions: number;
 	unique_customers: number;
-	attributed_transactions: number;
-	attributed_revenue: number;
 }
 
 interface RevenueTimeSeries {
-	date: string;
-	revenue: number;
-	transactions: number;
 	customers: number;
+	date: string;
 	refund_amount: number;
 	refund_count: number;
+	revenue: number;
+	transactions: number;
 }
 
 const BASKET_URL =

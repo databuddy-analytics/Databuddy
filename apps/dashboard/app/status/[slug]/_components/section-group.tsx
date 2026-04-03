@@ -5,9 +5,9 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface SectionGroupProps {
-	name: string;
-	isCollapsed: boolean;
 	children: React.ReactNode;
+	isCollapsed: boolean;
+	name: string;
 }
 
 export function SectionGroup({

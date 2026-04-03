@@ -11,9 +11,9 @@ import { useLogger } from "evlog/elysia";
 import { trackEventSchema } from "./track-event-schema";
 
 interface ResolvedAuth {
+	organizationId?: string;
 	ownerId: string;
 	websiteId?: string;
-	organizationId?: string;
 }
 
 function json(data: unknown, status: number): Response {

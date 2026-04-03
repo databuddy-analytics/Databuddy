@@ -20,22 +20,22 @@ import { type Context, os } from "../orpc";
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
 
 export interface Workspace {
-	organizationId: string;
-	user: User | null;
-	role: string | null;
-	plan: PlanId;
-	isPublicAccess: boolean;
-	website: Website | null;
 	getCreatedBy: () => Promise<string>;
+	isPublicAccess: boolean;
+	organizationId: string;
+	plan: PlanId;
+	role: string | null;
+	user: User | null;
+	website: Website | null;
 }
 
 export interface WithWorkspaceOptions<R extends ResourceType = "organization"> {
+	allowPublicAccess?: boolean;
 	organizationId?: string | null;
-	websiteId?: string;
-	resource?: R;
 	permissions?: PermissionFor<R>[];
 	requiredPlans?: PlanId[];
-	allowPublicAccess?: boolean;
+	resource?: R;
+	websiteId?: string;
 }
 
 const getWebsiteById = cacheable(

@@ -54,10 +54,10 @@ const DEFAULT_OG_DATA: OgData = {
 };
 
 interface LinkSheetProps {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
 	link?: Link | null;
+	onOpenChange: (open: boolean) => void;
 	onSave?: (link: Link) => void;
+	open: boolean;
 }
 
 function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {

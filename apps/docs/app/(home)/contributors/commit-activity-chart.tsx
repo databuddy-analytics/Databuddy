@@ -13,9 +13,9 @@ import {
 import { SciFiCard } from "@/components/scifi-card";
 
 interface CommitActivity {
-	week: string;
 	commits: number;
 	date: Date;
+	week: string;
 }
 
 interface CommitActivityChartProps {

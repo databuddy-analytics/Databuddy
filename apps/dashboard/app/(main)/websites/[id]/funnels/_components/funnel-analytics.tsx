@@ -42,13 +42,13 @@ function safePercent(value: number | undefined | null): string {
 }
 
 interface FunnelAnalyticsProps {
-	isLoading: boolean;
-	error: Error | null;
 	data: FunnelAnalyticsData | undefined;
-	onRetry: () => void;
-	selectedReferrer?: string;
-	referrerAnalytics?: FunnelAnalyticsByReferrerResult[];
+	error: Error | null;
 	headerAction?: React.ReactNode;
+	isLoading: boolean;
+	onRetry: () => void;
+	referrerAnalytics?: FunnelAnalyticsByReferrerResult[];
+	selectedReferrer?: string;
 }
 
 function AnalyticsSkeleton() {

@@ -17,13 +17,13 @@ type GoalAnalyticsRecord = Record<
 >;
 
 interface GoalsListProps {
+	analyticsLoading?: boolean;
+	goalAnalytics?: GoalAnalyticsRecord;
 	goals: Goal[];
 	isLoading: boolean;
-	onEditGoal: (goal: Goal) => void;
-	onDeleteGoal: (goalId: string) => void;
 	onCreateGoal: () => void;
-	goalAnalytics?: GoalAnalyticsRecord;
-	analyticsLoading?: boolean;
+	onDeleteGoal: (goalId: string) => void;
+	onEditGoal: (goal: Goal) => void;
 }
 
 const EMPTY_GOAL_ANALYTICS: GoalAnalyticsRecord = {};

@@ -28,10 +28,10 @@ const SORT_LABELS: Record<SortOption, string> = {
 };
 
 interface LinksSearchBarProps {
-	searchQuery: string;
 	onSearchQueryChangeAction: (query: string) => void;
-	sortBy: SortOption;
 	onSortByChangeAction: (sort: SortOption) => void;
+	searchQuery: string;
+	sortBy: SortOption;
 }
 
 export function LinksSearchBar({

@@ -15,12 +15,12 @@ import {
 import { orpc } from "@/lib/orpc";
 
 interface RedeemDialogProps {
-	open: boolean;
-	onOpenChangeAction: (open: boolean) => void;
-	tierIndex: number;
 	creditsRequired: number;
+	onOpenChangeAction: (open: boolean) => void;
+	open: boolean;
 	rewardAmount: number;
 	rewardType: string;
+	tierIndex: number;
 }
 
 export function RedeemDialog({

@@ -6,13 +6,13 @@ import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface RevenueEntry {
-	name: string;
-	revenue: number;
-	transactions: number;
-	customers: number;
-	percentage: number;
 	country_code?: string;
 	country_name?: string;
+	customers: number;
+	name: string;
+	percentage: number;
+	revenue: number;
+	transactions: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {
@@ -35,6 +35,7 @@ const formatCurrency = (amount: number, currency = "USD"): string => {
 };
 
 interface RevenueRowProps {
+	nameLabel?: string;
 	type?:
 		| "default"
 		| "country"
@@ -45,7 +46,6 @@ interface RevenueRowProps {
 		| "os"
 		| "referrer"
 		| "utm";
-	nameLabel?: string;
 }
 
 export function createRevenueColumns({

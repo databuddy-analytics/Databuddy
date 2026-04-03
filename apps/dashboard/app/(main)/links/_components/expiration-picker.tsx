@@ -19,9 +19,9 @@ import dayjs from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 
 interface ExpirationPreset {
+	getDate: () => Date;
 	label: string;
 	value: string;
-	getDate: () => Date;
 }
 
 const EXPIRATION_PRESETS: ExpirationPreset[] = [
@@ -73,9 +73,9 @@ function formatPresetPreview(preset: ExpirationPreset): string {
 }
 
 interface ExpirationPickerProps {
-	value?: string;
-	onChange: (value: string) => void;
 	className?: string;
+	onChange: (value: string) => void;
+	value?: string;
 }
 
 export function ExpirationPicker({

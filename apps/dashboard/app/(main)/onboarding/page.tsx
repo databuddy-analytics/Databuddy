@@ -19,13 +19,13 @@ import { useWebsitesLight } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 
 interface OnboardingStep {
-	id: string;
-	title: string;
-	description: string;
-	icon: Icon;
-	completed: boolean;
 	action?: () => void;
 	actionLabel?: string;
+	completed: boolean;
+	description: string;
+	icon: Icon;
+	id: string;
+	title: string;
 }
 
 function StepIndicator({

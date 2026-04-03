@@ -158,9 +158,9 @@ Context:
 • Location: ${locationLabel}`;
 
 	interface QuickAction {
+		description: string;
 		key: string;
 		node: ReactNode;
-		description: string;
 	}
 
 	const quickActions: QuickAction[] = [];

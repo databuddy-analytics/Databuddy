@@ -5,8 +5,8 @@ const TTL_SEC = 24 * 60 * 60; // 24 hours
 const MAX_MESSAGES = 20; // 10 turns
 
 export interface ConversationMessage {
-	role: "user" | "assistant";
 	content: string;
+	role: "user" | "assistant";
 }
 
 function scopeFor(

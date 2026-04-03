@@ -26,8 +26,8 @@ import type { TrackingOptions } from "../../app/(main)/websites/[id]/_components
 
 // --- Date Range ---
 export interface DateRangeState {
-	startDate: Date;
 	endDate: Date;
+	startDate: Date;
 }
 
 const initialStartDate = dayjs().subtract(30, "day").toDate();
@@ -119,8 +119,8 @@ export type FilterOperator =
 	| "isNotSet"; // Checks if a field does not have a value
 
 export interface ComplexFilter {
-	id: string; // Should be unique, e.g., generated with nanoid()
 	field: string; // The data field to filter on (e.g., 'browser.name', 'geo.country', 'event.pagePath')
+	id: string; // Should be unique, e.g., generated with nanoid()
 	operator: FilterOperator;
 	value?: string | number | boolean | Array<string | number>; // Value is optional for 'isSet'/'isNotSet'
 	// --- Future Enhancements for Grouping ---

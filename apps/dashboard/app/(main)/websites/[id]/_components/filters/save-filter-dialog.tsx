@@ -38,16 +38,16 @@ type EditingFilter = {
 } | null;
 
 interface SaveFilterDialogProps {
+	editingFilter?: EditingFilter;
+	filters: DynamicQueryFilter[];
+	isLoading?: boolean;
 	isOpen: boolean;
 	onClose: () => void;
 	onSave: (name: string) => void;
-	filters: DynamicQueryFilter[];
-	isLoading?: boolean;
 	validateName?: (
 		name: string,
 		excludeId?: string
 	) => { type: string; message: string } | null;
-	editingFilter?: EditingFilter;
 }
 
 export function SaveFilterDialog({

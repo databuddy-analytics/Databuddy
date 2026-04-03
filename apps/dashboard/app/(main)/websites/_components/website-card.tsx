@@ -42,10 +42,10 @@ import MiniChart from "./mini-chart";
 import { TransferWebsiteDialog } from "./transfer-website-dialog";
 
 interface WebsiteCardProps {
-	website: Website | WebsiteOutput;
-	chartData?: ProcessedMiniChartData;
 	activeUsers?: number;
+	chartData?: ProcessedMiniChartData;
 	isLoadingChart?: boolean;
+	website: Website | WebsiteOutput;
 }
 
 function TrendStat({

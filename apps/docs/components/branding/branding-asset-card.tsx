@@ -15,8 +15,8 @@ type CardVariant = "dark" | "light";
 interface ActionButtonProps {
 	ariaLabel: string;
 	children: ReactNode;
-	variant: CardVariant;
 	onClickAction: () => Promise<void> | void;
+	variant: CardVariant;
 }
 
 function ActionButton({
@@ -123,10 +123,10 @@ function downloadAction(path: string, filename: string) {
 }
 
 export interface BrandingAssetItem {
+	filename: string;
 	label: string;
 	path: string;
 	variant: CardVariant;
-	filename: string;
 }
 
 interface BrandingAssetCardProps {

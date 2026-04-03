@@ -29,20 +29,20 @@ import { orpc } from "@/lib/orpc";
 import { AlarmSheet } from "./_components/alarm-sheet";
 
 interface AlarmDestination {
-	id: string;
-	type: string;
-	identifier: string;
 	config: Record<string, string | boolean | number | null>;
+	id: string;
+	identifier: string;
+	type: string;
 }
 
 interface Alarm {
+	description?: string | null;
+	destinations?: AlarmDestination[];
+	enabled: boolean;
 	id: string;
 	name: string;
-	description?: string | null;
-	enabled: boolean;
 	triggerType: string;
 	websiteId?: string | null;
-	destinations?: AlarmDestination[];
 }
 
 const DEST_LABELS: Record<string, string> = {

@@ -117,11 +117,11 @@ type CreateParams = (
 };
 
 interface TransportConfig {
-	transport: AnthropicTransport;
 	computeCosts: boolean;
-	privacyMode: boolean;
-	onSuccess?: (call: AnthropicLLMCall) => void;
 	onError?: (call: AnthropicLLMCall) => void;
+	onSuccess?: (call: AnthropicLLMCall) => void;
+	privacyMode: boolean;
+	transport: AnthropicTransport;
 }
 
 /** Anthropic client with Databuddy observability */

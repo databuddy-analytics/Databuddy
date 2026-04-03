@@ -20,27 +20,27 @@ export type ApiResourceType =
 	| "export_data";
 
 export interface ApiKeyAccessEntry {
-	resourceType: ApiResourceType;
 	resourceId?: string | null;
+	resourceType: ApiResourceType;
 	scopes: ApiScope[];
 }
 
 export interface ApiKeyListItem {
+	createdAt: Date;
+	enabled: boolean;
+	expiresAt?: string | null;
 	id: string;
+	metadata?: Record<string, unknown>;
 	name: string;
 	prefix: string;
+	rateLimitEnabled?: boolean;
+	rateLimitMax?: number | null;
+	rateLimitTimeWindow?: number | null;
+	revokedAt?: Date | null;
+	scopes: ApiScope[];
 	start: string;
 	type: "user" | "sdk" | "automation";
-	enabled: boolean;
-	revokedAt?: Date | null;
-	expiresAt?: string | null;
-	scopes: ApiScope[];
-	rateLimitEnabled?: boolean;
-	rateLimitTimeWindow?: number | null;
-	rateLimitMax?: number | null;
-	createdAt: Date;
 	updatedAt: Date;
-	metadata?: Record<string, unknown>;
 }
 
 export interface ApiKeyDetail extends ApiKeyListItem {
@@ -48,14 +48,14 @@ export interface ApiKeyDetail extends ApiKeyListItem {
 }
 
 export interface CreateApiKeyInput {
+	access?: ApiKeyAccessEntry[];
+	expiresAt?: string;
+	globalScopes?: ApiScope[];
+	metadata?: Record<string, unknown>;
 	name: string;
 	organizationId: string;
-	type?: "user" | "sdk" | "automation";
-	globalScopes?: ApiScope[];
-	access?: ApiKeyAccessEntry[];
 	rateLimitEnabled?: boolean;
-	rateLimitTimeWindow?: number;
 	rateLimitMax?: number;
-	expiresAt?: string;
-	metadata?: Record<string, unknown>;
+	rateLimitTimeWindow?: number;
+	type?: "user" | "sdk" | "automation";
 }

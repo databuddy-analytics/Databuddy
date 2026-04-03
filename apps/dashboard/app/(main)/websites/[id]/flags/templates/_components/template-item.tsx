@@ -20,8 +20,8 @@ import {
 import type { FlagTemplate } from "../../_components/types";
 
 export interface TemplateItemProps {
-	template: FlagTemplate;
 	onUseAction: (template: FlagTemplate) => void;
+	template: FlagTemplate;
 }
 
 function getTemplateIcon(icon: string) {

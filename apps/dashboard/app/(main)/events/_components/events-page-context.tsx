@@ -16,27 +16,27 @@ import { useGlobalCustomEventsData } from "./use-global-custom-events";
 export type WebsiteFilterMode = "no-website" | "all" | string;
 
 export interface WebsiteEntry {
+	domain: string;
 	id: string;
 	name: string;
-	domain: string;
 }
 
 interface EventsPageContextValue {
-	websiteFilterMode: WebsiteFilterMode;
-	setWebsiteFilterMode: (mode: WebsiteFilterMode) => void;
-	selectedWebsite: WebsiteEntry | undefined;
-	websites: WebsiteEntry[];
-	isLoadingWebsites: boolean;
-	queryOptions: { websiteId?: string; organizationId?: string };
-	websiteFilters: DynamicQueryFilter[];
-	hasQueryId: boolean;
 	dateRange: {
 		start_date: string;
 		end_date: string;
 		granularity: "daily" | "hourly";
 	};
+	hasQueryId: boolean;
 	isLoadingOrg: boolean;
+	isLoadingWebsites: boolean;
 	query: ReturnType<typeof useGlobalCustomEventsData>;
+	queryOptions: { websiteId?: string; organizationId?: string };
+	selectedWebsite: WebsiteEntry | undefined;
+	setWebsiteFilterMode: (mode: WebsiteFilterMode) => void;
+	websiteFilterMode: WebsiteFilterMode;
+	websiteFilters: DynamicQueryFilter[];
+	websites: WebsiteEntry[];
 }
 
 const EventsPageContext = createContext<EventsPageContextValue | null>(null);

@@ -75,28 +75,28 @@ import { cn } from "@/lib/utils";
 // ============================================================================
 
 export interface AttachmentsContext {
-	files: (FileUIPart & { id: string })[];
 	add: (files: File[] | FileList) => void;
-	remove: (id: string) => void;
 	clear: () => void;
-	openFileDialog: () => void;
 	fileInputRef: RefObject<HTMLInputElement | null>;
+	files: (FileUIPart & { id: string })[];
+	openFileDialog: () => void;
+	remove: (id: string) => void;
 }
 
 export interface TextInputContext {
-	value: string;
-	setInput: (v: string) => void;
 	clear: () => void;
+	setInput: (v: string) => void;
+	value: string;
 }
 
 export interface PromptInputControllerProps {
-	textInput: TextInputContext;
-	attachments: AttachmentsContext;
 	/** INTERNAL: Allows PromptInput to register its file textInput + "open" callback */
 	__registerFileInput: (
 		ref: RefObject<HTMLInputElement | null>,
 		open: () => void
 	) => void;
+	attachments: AttachmentsContext;
+	textInput: TextInputContext;
 }
 
 const PromptInputController = createContext<PromptInputControllerProps | null>(
@@ -429,8 +429,8 @@ export const PromptInputActionAddAttachments = ({
 };
 
 export interface PromptInputMessage {
-	text: string;
 	files: FileUIPart[];
+	text: string;
 }
 
 export type PromptInputProps = Omit<
@@ -1058,39 +1058,39 @@ interface SpeechRecognition extends EventTarget {
 	continuous: boolean;
 	interimResults: boolean;
 	lang: string;
-	start(): void;
-	stop(): void;
-	onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
 	onend: ((this: SpeechRecognition, ev: Event) => any) | null;
-	onresult:
-		| ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any)
-		| null;
 	onerror:
 		| ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any)
 		| null;
+	onresult:
+		| ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any)
+		| null;
+	onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+	start(): void;
+	stop(): void;
 }
 
 interface SpeechRecognitionEvent extends Event {
-	results: SpeechRecognitionResultList;
 	resultIndex: number;
+	results: SpeechRecognitionResultList;
 }
 
 interface SpeechRecognitionResultList {
-	readonly length: number;
 	item(index: number): SpeechRecognitionResult;
+	readonly length: number;
 	[index: number]: SpeechRecognitionResult;
 }
 
 interface SpeechRecognitionResult {
-	readonly length: number;
-	item(index: number): SpeechRecognitionAlternative;
-	[index: number]: SpeechRecognitionAlternative;
 	isFinal: boolean;
+	item(index: number): SpeechRecognitionAlternative;
+	readonly length: number;
+	[index: number]: SpeechRecognitionAlternative;
 }
 
 interface SpeechRecognitionAlternative {
-	transcript: string;
 	confidence: number;
+	transcript: string;
 }
 
 interface SpeechRecognitionErrorEvent extends Event {

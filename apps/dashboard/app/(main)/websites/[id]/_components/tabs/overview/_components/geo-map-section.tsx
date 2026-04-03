@@ -26,10 +26,10 @@ const MapComponent = dynamic(
 );
 
 interface CountryDataItem {
-	name: string;
 	country_code?: string;
-	visitors: number;
+	name: string;
 	pageviews: number;
+	visitors: number;
 }
 
 interface GeoMapSectionProps {

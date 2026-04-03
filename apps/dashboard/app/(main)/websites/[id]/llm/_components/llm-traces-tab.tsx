@@ -15,8 +15,8 @@ import {
 } from "./llm-columns";
 
 interface LlmTracesTabProps {
-	websiteId: string;
 	dateRange: DateRange;
+	websiteId: string;
 }
 
 export function LlmTracesTab({ websiteId, dateRange }: LlmTracesTabProps) {

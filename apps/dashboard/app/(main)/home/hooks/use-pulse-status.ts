@@ -6,9 +6,7 @@ import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { orpc } from "@/lib/orpc";
 
 export interface PulseStatus {
-	totalMonitors: number;
 	activeMonitors: number;
-	pausedMonitors: number;
 	healthPercentage: number;
 	monitors: Array<{
 		id: string;
@@ -18,6 +16,8 @@ export interface PulseStatus {
 		isPaused: boolean;
 		granularity: string;
 	}>;
+	pausedMonitors: number;
+	totalMonitors: number;
 }
 
 export function usePulseStatus() {

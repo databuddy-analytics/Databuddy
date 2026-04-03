@@ -4,10 +4,10 @@ import type React from "react";
 import { cn } from "@/lib/utils";
 
 interface TrendArrowProps {
-	id?: string;
-	value: number;
-	invertColor?: boolean;
 	className?: string;
+	id?: string;
+	invertColor?: boolean;
+	value: number;
 }
 
 export const TrendArrow: React.FC<TrendArrowProps> = ({

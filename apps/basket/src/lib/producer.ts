@@ -33,39 +33,39 @@ export type ProducerError =
 	| FlushError;
 
 interface BufferedEvent {
-	table: string;
 	event: unknown;
+	table: string;
 }
 
 interface ProducerState {
 	buffer: BufferedEvent[];
-	sent: number;
-	failedCount: number;
 	buffered: number;
-	flushed: number;
-	dropped: number;
-	errors: number;
-	lastErrorTime: number | null;
 	connected: boolean;
 	connectionFailed: boolean;
-	lastRetry: number;
-	shuttingDown: boolean;
+	dropped: number;
+	errors: number;
+	failedCount: number;
+	flushed: number;
 	flushing: boolean;
+	lastErrorTime: number | null;
+	lastRetry: number;
+	sent: number;
+	shuttingDown: boolean;
 }
 
 interface ProducerConfig {
 	broker?: string;
-	username?: string;
-	password?: string;
-	selfHost: boolean;
-	reconnectCooldown: number;
-	kafkaTimeout: number;
-	maxProducerRetries: number;
-	producerRetryDelay: number;
+	bufferHardMax: number;
 	bufferInterval: number;
 	bufferMax: number;
-	bufferHardMax: number;
 	chunkSize: number;
+	kafkaTimeout: number;
+	maxProducerRetries: number;
+	password?: string;
+	producerRetryDelay: number;
+	reconnectCooldown: number;
+	selfHost: boolean;
+	username?: string;
 }
 
 const INITIAL_STATE: ProducerState = {
@@ -447,18 +447,18 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 }
 
 export interface ProducerStatsSnapshot {
-	sent: number;
-	failedCount: number;
 	buffered: number;
-	flushed: number;
-	dropped: number;
-	errors: number;
-	lastErrorTime: number | null;
 	bufferSize: number;
 	connected: boolean;
+	dropped: number;
+	errors: number;
 	failed: boolean;
+	failedCount: number;
+	flushed: number;
 	kafkaEnabled: boolean;
+	lastErrorTime: number | null;
 	lastRetry: number;
+	sent: number;
 }
 
 const CONFIG: ProducerConfig = {

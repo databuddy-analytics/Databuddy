@@ -2,12 +2,12 @@ import { cn } from "@/lib/utils";
 
 interface SciFiCardProps extends React.ComponentProps<"div"> {
 	children: React.ReactNode;
+	className?: string;
+	cornerColor?: string;
+	cornerOpacity?: string;
 	opacity?: "full" | "reduced";
 	size?: "sm" | "md";
-	className?: string;
 	variant?: "foreground" | "primary";
-	cornerOpacity?: string;
-	cornerColor?: string;
 }
 
 export function SciFiCard({

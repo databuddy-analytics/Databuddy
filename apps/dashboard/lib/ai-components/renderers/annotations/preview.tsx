@@ -18,27 +18,27 @@ import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 
 interface AnnotationPreviewData {
-	text: string;
 	annotationType: "point" | "line" | "range";
-	xValue: string;
-	xEndValue?: string | null;
 	color?: string | null;
-	tags?: string[];
 	isPublic?: boolean;
+	tags?: string[];
+	text: string;
+	xEndValue?: string | null;
+	xValue: string;
 }
 
 export interface AnnotationPreviewProps extends BaseComponentProps {
-	mode: "create" | "update" | "delete";
 	annotation: AnnotationPreviewData;
+	mode: "create" | "update" | "delete";
 }
 
 interface ModeConfig {
-	title: string;
+	accent: string;
+	ButtonIcon: Icon;
 	confirmLabel: string;
 	confirmMessage: string;
-	accent: string;
+	title: string;
 	variant: "default" | "destructive";
-	ButtonIcon: Icon;
 }
 
 const MODE_CONFIG: Record<string, ModeConfig> = {

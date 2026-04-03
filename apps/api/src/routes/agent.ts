@@ -73,8 +73,8 @@ const MAX_PARTS_PER_MESSAGE = 50;
 const MAX_PROPERTIES_PER_PART = 20;
 
 interface AgentExperimentalTelemetry {
-	isEnabled: true;
 	functionId: string;
+	isEnabled: true;
 	metadata?: Record<string, string>;
 }
 

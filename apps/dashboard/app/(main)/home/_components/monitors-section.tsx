@@ -15,6 +15,9 @@ import { UptimeHeatmapStrip } from "@/lib/uptime/heatmap-strip";
 import { cn } from "@/lib/utils";
 
 interface MonitorsSectionProps {
+	activeMonitors: number;
+	hasAccess: boolean;
+	isLoading: boolean;
 	monitors: Array<{
 		id: string;
 		name: string | null;
@@ -23,11 +26,8 @@ interface MonitorsSectionProps {
 		isPaused: boolean;
 		granularity: string;
 	}>;
-	totalMonitors: number;
-	activeMonitors: number;
-	hasAccess: boolean;
-	isLoading: boolean;
 	onCreateMonitorAction?: () => void;
+	totalMonitors: number;
 }
 
 function HomeMonitorHeatmap({

@@ -40,8 +40,8 @@ export type SqlExpression = string & { readonly __brand: "SqlExpression" };
 
 /** Aliased SQL expression with output name */
 export interface AliasedExpression {
-	readonly expression: SqlExpression;
 	readonly alias: string;
+	readonly expression: SqlExpression;
 }
 
 /** Field that can be used in SELECT clause */
@@ -90,38 +90,40 @@ export function fieldsToSql(fields: SelectField[]): string[] {
 // ============================================================================
 
 interface AggregateBuilder {
-	/** COUNT(*) or COUNT(column) */
-	count: (column?: string) => SqlExpression;
-	/** COUNT(*) with condition */
-	countIf: (condition: string) => SqlExpression;
-	/** COUNT(DISTINCT column) */
-	uniq: (column: string) => SqlExpression;
-	/** COUNT(DISTINCT column) with condition - returns null for non-matching rows */
-	uniqIf: (column: string, condition: string) => SqlExpression;
-	/** SUM(column) */
-	sum: (column: string) => SqlExpression;
-	/** SUM with condition */
-	sumIf: (column: string, condition: string) => SqlExpression;
+	/** ANY(column) - returns arbitrary value from group */
+	any: (column: string) => SqlExpression;
+	/** argMax(column, by) - returns column value at max of by */
+	argMax: (column: string, by: string) => SqlExpression;
+	/** argMin(column, by) - returns column value at min of by */
+	argMin: (column: string, by: string) => SqlExpression;
 	/** AVG(column) */
 	avg: (column: string) => SqlExpression;
 	/** AVG with condition */
 	avgIf: (column: string, condition: string) => SqlExpression;
+	/** COUNT(*) or COUNT(column) */
+	count: (column?: string) => SqlExpression;
+	/** COUNT(*) with condition */
+	countIf: (condition: string) => SqlExpression;
+	/** dateDiff(unit, start, end) */
+	dateDiff: (
+		unit: "second" | "minute" | "hour" | "day",
+		start: string,
+		end: string
+	) => SqlExpression;
+	/** groupArray(column) - collects values into array */
+	groupArray: (column: string) => SqlExpression;
+	/** MAX(column) */
+	max: (column: string) => SqlExpression;
+	/** maxIf(column, condition) - max with condition */
+	maxIf: (column: string, condition: string) => SqlExpression;
 	/** MEDIAN(column) */
 	median: (column: string) => SqlExpression;
 	/** MEDIAN with condition */
 	medianIf: (column: string, condition: string) => SqlExpression;
 	/** MIN(column) */
 	min: (column: string) => SqlExpression;
-	/** MAX(column) */
-	max: (column: string) => SqlExpression;
-	/** ANY(column) - returns arbitrary value from group */
-	any: (column: string) => SqlExpression;
-	/** argMin(column, by) - returns column value at min of by */
-	argMin: (column: string, by: string) => SqlExpression;
-	/** argMax(column, by) - returns column value at max of by */
-	argMax: (column: string, by: string) => SqlExpression;
-	/** groupArray(column) - collects values into array */
-	groupArray: (column: string) => SqlExpression;
+	/** minIf(column, condition) - min with condition */
+	minIf: (column: string, condition: string) => SqlExpression;
 	/** quantile(level)(column) - percentile value */
 	quantile: (level: number, column: string) => SqlExpression;
 	/** quantileIf(level)(column, condition) - percentile with condition */
@@ -130,18 +132,16 @@ interface AggregateBuilder {
 		column: string,
 		condition: string
 	) => SqlExpression;
-	/** minIf(column, condition) - min with condition */
-	minIf: (column: string, condition: string) => SqlExpression;
-	/** maxIf(column, condition) - max with condition */
-	maxIf: (column: string, condition: string) => SqlExpression;
 	/** ROUND(expr, decimals) */
 	round: (expression: string, decimals?: number) => SqlExpression;
-	/** dateDiff(unit, start, end) */
-	dateDiff: (
-		unit: "second" | "minute" | "hour" | "day",
-		start: string,
-		end: string
-	) => SqlExpression;
+	/** SUM(column) */
+	sum: (column: string) => SqlExpression;
+	/** SUM with condition */
+	sumIf: (column: string, condition: string) => SqlExpression;
+	/** COUNT(DISTINCT column) */
+	uniq: (column: string) => SqlExpression;
+	/** COUNT(DISTINCT column) with condition - returns null for non-matching rows */
+	uniqIf: (column: string, condition: string) => SqlExpression;
 }
 
 export const agg: AggregateBuilder = {
@@ -183,26 +183,26 @@ export const agg: AggregateBuilder = {
 // ============================================================================
 
 interface TimeFunctions {
-	/** Get ClickHouse function for time bucketing */
-	bucketFn: (granularity: Granularity) => string;
 	/** Create time bucket expression */
 	bucket: (
 		granularity: Granularity,
 		field?: string,
 		timezone?: string
 	) => SqlExpression;
+	/** Get ClickHouse function for time bucketing */
+	bucketFn: (granularity: Granularity) => string;
 	/** Create time bucket with timezone and format for output */
 	bucketFormatted: (
 		granularity: Granularity,
 		field?: string,
 		timezone?: string
 	) => SqlExpression;
-	/** Convert timezone */
-	toTimezone: (field: string, timezone: string) => SqlExpression;
 	/** Parse datetime string */
 	parse: (paramName: string) => SqlExpression;
 	/** Parse datetime with end of day */
 	parseEndOfDay: (paramName: string) => SqlExpression;
+	/** Convert timezone */
+	toTimezone: (field: string, timezone: string) => SqlExpression;
 }
 
 const granularityToFn: Record<Granularity, string> = {
@@ -445,6 +445,11 @@ export const field: FieldBuilder = {
 // ============================================================================
 
 interface WhereBuilder {
+	/** Combine conditions with AND */
+	and: (...conditions: (string | undefined | null)[]) => string;
+
+	/** Client ID filter */
+	clientId: (paramName?: string) => string;
 	/** Standard date range filter */
 	dateRange: (
 		timeField: string,
@@ -452,12 +457,6 @@ interface WhereBuilder {
 		endParam: string,
 		includeEndOfDay?: boolean
 	) => string[];
-
-	/** Client ID filter */
-	clientId: (paramName?: string) => string;
-
-	/** Combine conditions with AND */
-	and: (...conditions: (string | undefined | null)[]) => string;
 
 	/** Combine conditions with OR */
 	or: (...conditions: (string | undefined | null)[]) => string;
@@ -525,15 +524,6 @@ export type SessionAttributionField =
 	(typeof SESSION_ATTRIBUTION_FIELDS)[number];
 
 interface SessionAttributionBuilder {
-	/** Fields to select in CTE */
-	readonly fields: readonly SessionAttributionField[];
-
-	/** Generate SELECT fields for session CTE (argMin pattern) */
-	selectFields: (timeField?: string) => string[];
-
-	/** Generate SELECT fields for join (aliased) */
-	joinSelectFields: (cteAlias?: string) => string[];
-
 	/** Generate full CTE SQL */
 	cte: (
 		timeField: string,
@@ -541,9 +531,17 @@ interface SessionAttributionBuilder {
 		startParam: string,
 		endParam: string
 	) => string;
+	/** Fields to select in CTE */
+	readonly fields: readonly SessionAttributionField[];
 
 	/** Generate JOIN clause */
 	join: (alias: string, cteAlias?: string) => string;
+
+	/** Generate SELECT fields for join (aliased) */
+	joinSelectFields: (cteAlias?: string) => string[];
+
+	/** Generate SELECT fields for session CTE (argMin pattern) */
+	selectFields: (timeField?: string) => string[];
 }
 
 export const sessionAttribution: SessionAttributionBuilder = {
@@ -657,8 +655,8 @@ type FieldDefinitionType =
 	  };
 
 interface AliasedExpressionType {
-	expression: SqlExpression;
 	alias: string;
+	expression: SqlExpression;
 }
 type ConfigFieldType = string | FieldDefinitionType | AliasedExpressionType;
 

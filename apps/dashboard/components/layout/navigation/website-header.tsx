@@ -5,8 +5,8 @@ import { FaviconImage } from "@/components/analytics/favicon-image";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface WebsiteHeaderProps {
-	website: WebsiteBasic | null | undefined;
 	showBackButton?: boolean;
+	website: WebsiteBasic | null | undefined;
 }
 
 export function WebsiteHeader({

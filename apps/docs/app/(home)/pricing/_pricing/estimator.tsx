@@ -10,12 +10,12 @@ import { formatCompact, formatInteger, formatMoney } from "./estimator-utils";
 import type { NormalizedPlan } from "./types";
 
 interface Props {
-	monthlyEvents: number;
-	setMonthlyEvents: (value: number) => void;
 	bestPlan: NormalizedPlan | null;
 	bestPlanDisplayName: string;
-	estimatedOverage: number;
 	estimatedMonthly: number;
+	estimatedOverage: number;
+	monthlyEvents: number;
+	setMonthlyEvents: (value: number) => void;
 }
 
 export function Estimator({

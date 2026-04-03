@@ -1,8 +1,8 @@
 import type { EvalCase, ParsedAgentResponse, ScoreCard } from "./types";
 
 interface ScoreResult {
-	score: number;
 	failures: string[];
+	score: number;
 }
 
 export function scoreToolRouting(

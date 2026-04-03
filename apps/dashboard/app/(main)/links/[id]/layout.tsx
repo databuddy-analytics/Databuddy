@@ -19,10 +19,10 @@ import dayjs from "@/lib/dayjs";
 const MAX_HOURLY_DAYS = 7;
 
 interface QuickRange {
-	label: string;
+	days?: number;
 	fullLabel: string;
 	hours?: number;
-	days?: number;
+	label: string;
 }
 
 const QUICK_RANGES: QuickRange[] = [

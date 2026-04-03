@@ -21,19 +21,19 @@ import { formatLocalTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 export interface RecentActivityCheck {
-	timestamp: string;
-	status: number; // 1 = up, 0 = down, 2 = pending
-	total_ms: number;
-	http_code: number;
-	probe_region: string;
-	probe_ip?: string;
 	error?: string;
+	http_code: number;
+	probe_ip?: string;
+	probe_region: string;
+	status: number; // 1 = up, 0 = down, 2 = pending
+	timestamp: string;
+	total_ms: number;
 }
 
 interface RecentActivityProps {
 	checks: RecentActivityCheck[];
-	isLoading?: boolean;
 	hasMore?: boolean;
+	isLoading?: boolean;
 	isLoadingMore?: boolean;
 	loadMoreRef?: RefCallback<HTMLTableCellElement | null>;
 }

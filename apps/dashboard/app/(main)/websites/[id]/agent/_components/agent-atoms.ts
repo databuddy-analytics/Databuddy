@@ -13,13 +13,13 @@ export type AgentStatus =
 	| "error";
 
 export interface AgentCommand {
-	id: string;
 	command: string;
-	title: string;
 	description: string;
+	id: string;
+	keywords: string[];
+	title: string;
 	toolName: string;
 	toolParams?: Record<string, unknown>;
-	keywords: string[];
 }
 
 export const agentMessagesAtom = atom<UIMessage[]>([]);

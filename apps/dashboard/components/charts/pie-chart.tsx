@@ -20,34 +20,34 @@ const CHART_COLORS = [
 ];
 
 interface PieChartDataPoint {
+	color?: string;
 	name: string;
 	value: number;
-	color?: string;
 }
 
 export type PieChartVariant = "pie" | "donut";
 
 interface MiniPieChartProps {
+	className?: string;
 	data: PieChartDataPoint[];
 	id: string;
-	variant?: PieChartVariant;
+	isLoading?: boolean;
 	showLabels?: boolean;
 	title?: string;
-	isLoading?: boolean;
-	className?: string;
+	variant?: PieChartVariant;
 }
 
 interface ActiveShapeProps {
 	cx: number;
 	cy: number;
-	innerRadius: number;
-	outerRadius: number;
-	startAngle: number;
 	endAngle: number;
 	fill: string;
+	innerRadius: number;
 	name: string;
-	value: number;
+	outerRadius: number;
 	percent: number;
+	startAngle: number;
+	value: number;
 }
 
 const renderActiveShape = (props: ActiveShapeProps) => {

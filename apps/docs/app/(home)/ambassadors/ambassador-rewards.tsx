@@ -13,12 +13,12 @@ import { SciFiCard } from "@/components/scifi-card";
 import { cn } from "@/lib/utils";
 
 interface Reward {
-	icon: React.ComponentType<{ className?: string; weight?: IconWeight }>;
-	title: string;
 	description: string;
-	value: string;
 	highlight?: boolean;
+	icon: React.ComponentType<{ className?: string; weight?: IconWeight }>;
 	soon?: boolean;
+	title: string;
+	value: string;
 }
 
 const rewards: Reward[] = [

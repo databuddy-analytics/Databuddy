@@ -86,10 +86,10 @@ function SkeletonRow() {
 }
 
 interface ActiveFilter {
-	type: "event" | "path" | "property" | "hasProps";
 	label: string;
-	value: string;
 	onRemoveAction: () => void;
+	type: "event" | "path" | "property" | "hasProps";
+	value: string;
 }
 
 function getFilterIcon(type: ActiveFilter["type"]) {

@@ -2,22 +2,22 @@ import type { Session, User } from "./auth";
 
 export interface SessionData {
 	role: string;
-	user: User;
 	session: Session;
+	user: User;
 }
 
 export interface AuthError {
-	message: string;
 	code?: string;
+	message: string;
 	status?: number;
 }
 
 export type Provider = "email" | "google" | "github" | "credentials";
 
 export interface SignInOptions {
+	provider?: Provider;
 	redirect?: boolean;
 	redirectUrl?: string;
-	provider?: Provider;
 }
 
 export interface SignUpOptions {

@@ -27,10 +27,10 @@ import {
 } from "@/components/ui/tooltip";
 
 export interface ProfileButtonUser {
-	id?: string;
-	name?: string | null;
 	email?: string | null;
+	id?: string;
 	image?: string | null;
+	name?: string | null;
 }
 
 interface ProfileButtonClientProps {

@@ -13,20 +13,20 @@ import { cn } from "@/lib/utils";
 import type { FunnelAnalyticsByReferrerResult } from "@/types/funnels";
 
 interface FunnelAnalyticsByReferrerProps {
-	onReferrerChange?: (referrer: string) => void;
 	data: { referrer_analytics: FunnelAnalyticsByReferrerResult[] } | undefined;
-	isLoading: boolean;
 	error: Error | null;
+	isLoading: boolean;
+	onReferrerChange?: (referrer: string) => void;
 }
 
 interface SourceCardProps {
-	label: string;
-	domain?: string;
-	users: number;
 	conversionRate?: number;
-	isSelected: boolean;
-	onClick: () => void;
+	domain?: string;
 	isAll?: boolean;
+	isSelected: boolean;
+	label: string;
+	onClick: () => void;
+	users: number;
 }
 
 function SourceCard({

@@ -3,15 +3,15 @@
  * Contains website and user information needed for queries.
  */
 export interface AppContext {
-	userId: string;
-	websiteId: string;
-	websiteDomain: string;
-	timezone: string;
-	currentDateTime: string;
-	chatId: string;
-	requestHeaders?: Headers;
 	/** Available query builder types */
 	availableQueryTypes?: string[];
+	chatId: string;
+	currentDateTime: string;
+	requestHeaders?: Headers;
+	timezone: string;
+	userId: string;
+	websiteDomain: string;
+	websiteId: string;
 	[key: string]: unknown;
 }
 

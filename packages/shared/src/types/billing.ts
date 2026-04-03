@@ -17,13 +17,13 @@ export interface EventTypeBreakdown {
 }
 
 export interface UsageResponse {
-	totalEvents: number;
 	dailyUsage: DailyUsageRow[];
 	dailyUsageByType: DailyUsageByTypeRow[];
-	eventTypeBreakdown: EventTypeBreakdown[];
-	websiteCount: number;
 	dateRange: {
 		startDate: string;
 		endDate: string;
 	};
+	eventTypeBreakdown: EventTypeBreakdown[];
+	totalEvents: number;
+	websiteCount: number;
 }

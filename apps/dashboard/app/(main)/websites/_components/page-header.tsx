@@ -6,10 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
-	title: string;
-	description: string;
-	icon: React.ReactElement<IconProps>;
-	className?: string;
+	badgeClassName?: string;
 	badgeContent?: string;
 	badgeVariant?:
 		| "default"
@@ -20,9 +17,12 @@ interface PageHeaderProps {
 		| "amber"
 		| "gray"
 		| "blue";
-	badgeClassName?: string;
-	right?: React.ReactNode;
+	className?: string;
 	count?: number;
+	description: string;
+	icon: React.ReactElement<IconProps>;
+	right?: React.ReactNode;
+	title: string;
 }
 
 export const PageHeader = memo(

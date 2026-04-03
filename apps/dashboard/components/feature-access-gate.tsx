@@ -7,8 +7,8 @@ import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { getFeatureDescription, getFeatureLabel } from "@/lib/feature-gates";
 
 interface FeatureAccessGateProps {
-	flagKey: string;
 	children: ReactNode;
+	flagKey: string;
 	loadingFallback?: ReactNode;
 }
 

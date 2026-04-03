@@ -19,40 +19,40 @@ const CONFIG = {
 } as const;
 
 interface FetchOptions {
-	timeout?: number;
 	cacheBust?: boolean;
+	timeout?: number;
 }
 
 interface FetchSuccess {
-	ok: true;
-	statusCode: number;
-	ttfb: number;
-	total: number;
-	redirects: number;
 	bytes: number;
 	content: string;
 	contentType: string | null;
+	ok: true;
 	parsedJson?: unknown;
+	redirects: number;
+	statusCode: number;
+	total: number;
+	ttfb: number;
 }
 
 interface FetchFailure {
+	error: string;
 	ok: false;
 	statusCode: number;
-	ttfb: number;
 	total: number;
-	error: string;
+	ttfb: number;
 }
 
 export interface ScheduleData {
-	id: string;
-	url: string;
-	websiteId: string | null;
-	organizationId: string;
-	name: string | null;
-	website: { name: string | null; domain: string } | null;
-	jsonParsingConfig: unknown;
-	timeout: number | null;
 	cacheBust: boolean;
+	id: string;
+	jsonParsingConfig: unknown;
+	name: string | null;
+	organizationId: string;
+	timeout: number | null;
+	url: string;
+	website: { name: string | null; domain: string } | null;
+	websiteId: string | null;
 }
 
 function mergeUptimeCheckMetrics(data: UptimeData): void {
@@ -392,9 +392,9 @@ function getProbeMetadata(): Promise<{ ip: string; region: string }> {
 }
 
 export interface CheckOptions {
-	timeout?: number;
 	cacheBust?: boolean;
 	extractHealth?: boolean;
+	timeout?: number;
 }
 
 export function checkUptime(

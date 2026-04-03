@@ -12,22 +12,22 @@ import {
 import { cn } from "@/lib/utils";
 
 interface VitalConfig {
-	name: string;
-	label: string;
+	/** Color for the chart line */
+	color: string;
 	description: string;
 	/** Detailed explanation for users who don't know what this metric means */
 	explanation: string;
+	goodThreshold: number;
 	/** What users should do to improve this metric */
 	improvementTips: string[];
-	unit: string;
-	goodThreshold: number;
-	poorThreshold: number;
+	label: string;
 	/** If true, lower is better (most metrics). If false, higher is better (FPS) */
 	lowerIsBetter?: boolean;
 	/** Max value for the gauge (determines 100% fill) */
 	maxValue: number;
-	/** Color for the chart line */
-	color: string;
+	name: string;
+	poorThreshold: number;
+	unit: string;
 }
 
 export const VITAL_CONFIGS: Record<string, VitalConfig> = {
@@ -175,22 +175,22 @@ const RATING_LABELS: Record<GaugeRating, { label: string; className: string }> =
 	};
 
 interface TrendData {
-	previousValue: number | null;
 	change: number | null;
+	previousValue: number | null;
 }
 
 interface VitalGaugeCardProps {
-	metricName: keyof typeof VITAL_CONFIGS;
-	value: number | null;
-	samples?: number;
-	isLoading?: boolean;
 	className?: string;
 	/** Whether this metric is selected/active for the chart */
 	isActive?: boolean;
+	isLoading?: boolean;
+	metricName: keyof typeof VITAL_CONFIGS;
 	/** Callback when the card is clicked to toggle */
 	onToggleAction?: () => void;
+	samples?: number;
 	/** Trend data comparing to previous period */
 	trend?: TrendData;
+	value: number | null;
 }
 
 export function VitalGaugeCard({

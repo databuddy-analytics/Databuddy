@@ -19,9 +19,9 @@ const VALID_REASONS = [
 
 interface TrackCancelFeedbackParams {
 	feedback: CancelFeedback;
+	immediate: boolean;
 	planId: string;
 	planName: string;
-	immediate: boolean;
 }
 
 export async function trackCancelFeedbackAction({

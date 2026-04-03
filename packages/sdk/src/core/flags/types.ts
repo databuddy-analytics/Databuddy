@@ -1,62 +1,62 @@
 export interface FlagResult {
 	enabled: boolean;
-	value: boolean | string | number;
 	payload: Record<string, unknown> | null;
 	reason: string;
+	value: boolean | string | number;
 	variant?: string;
 }
 
 export interface UserContext {
-	userId?: string;
 	email?: string;
 	organizationId?: string;
-	teamId?: string;
 	properties?: Record<string, unknown>;
+	teamId?: string;
+	userId?: string;
 }
 
 export interface FlagsConfig {
-	clientId: string;
 	apiUrl?: string;
-	user?: UserContext;
-	disabled?: boolean;
-	debug?: boolean;
-	/** Skip persistent storage (browser only) */
-	skipStorage?: boolean;
-	/** Defer evaluation until session resolves */
-	isPending?: boolean;
 	/** Auto-fetch all flags on init (default: true) */
 	autoFetch?: boolean;
-	environment?: string;
 	/** Cache TTL in ms (default: 60000) */
 	cacheTtl?: number;
-	/** Stale time in ms — revalidate in background after this (default: cacheTtl/2) */
-	staleTime?: number;
+	clientId: string;
+	debug?: boolean;
 	/** Default values by flag key */
 	defaults?: Record<string, boolean | string | number>;
+	disabled?: boolean;
+	environment?: string;
+	/** Defer evaluation until session resolves */
+	isPending?: boolean;
+	/** Skip persistent storage (browser only) */
+	skipStorage?: boolean;
+	/** Stale time in ms — revalidate in background after this (default: cacheTtl/2) */
+	staleTime?: number;
+	user?: UserContext;
 }
 
 export type FlagStatus = "loading" | "ready" | "error" | "pending";
 
 export interface FlagState {
+	loading: boolean;
 	on: boolean;
 	status: FlagStatus;
-	loading: boolean;
 	value?: boolean | string | number;
 	variant?: string;
 }
 
 export interface FlagsContext {
+	fetchAllFlags: () => Promise<void>;
+	fetchFlag: (key: string) => Promise<FlagResult>;
 	getFlag: (key: string) => FlagState;
 	getValue: <T extends boolean | string | number = boolean>(
 		key: string,
 		defaultValue?: T
 	) => T;
 	isOn: (key: string) => boolean;
-	fetchFlag: (key: string) => Promise<FlagResult>;
-	fetchAllFlags: () => Promise<void>;
-	updateUser: (user: UserContext) => void;
-	refresh: (forceClear?: boolean) => Promise<void>;
 	isReady: boolean;
+	refresh: (forceClear?: boolean) => Promise<void>;
+	updateUser: (user: UserContext) => void;
 }
 
 export interface FlagsSnapshot {
@@ -65,9 +65,9 @@ export interface FlagsSnapshot {
 }
 
 export interface StorageInterface {
+	clear(): void;
 	getAll(): Record<string, FlagResult>;
 	setAll(flags: Record<string, FlagResult>): void;
-	clear(): void;
 }
 
 export interface FlagsManagerOptions {
@@ -76,16 +76,16 @@ export interface FlagsManagerOptions {
 }
 
 export interface FlagsManager {
-	getFlag(key: string, user?: UserContext): Promise<FlagResult>;
-	isEnabled(key: string): FlagState;
-	getValue<T = boolean | string | number>(key: string, defaultValue?: T): T;
-	fetchAllFlags(user?: UserContext): Promise<void>;
-	updateUser(user: UserContext): void;
-	refresh(forceClear?: boolean): Promise<void>;
-	updateConfig(config: FlagsConfig): void;
-	getMemoryFlags(): Record<string, FlagResult>;
-	isReady(): boolean;
 	destroy(): void;
-	subscribe(callback: () => void): () => void;
+	fetchAllFlags(user?: UserContext): Promise<void>;
+	getFlag(key: string, user?: UserContext): Promise<FlagResult>;
+	getMemoryFlags(): Record<string, FlagResult>;
 	getSnapshot(): FlagsSnapshot;
+	getValue<T = boolean | string | number>(key: string, defaultValue?: T): T;
+	isEnabled(key: string): FlagState;
+	isReady(): boolean;
+	refresh(forceClear?: boolean): Promise<void>;
+	subscribe(callback: () => void): () => void;
+	updateConfig(config: FlagsConfig): void;
+	updateUser(user: UserContext): void;
 }

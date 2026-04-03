@@ -150,12 +150,12 @@ export function SummaryView({
 
 interface PropertyCardProps {
 	eventName: string;
-	property: ClassifiedProperty;
 	onFilterAction: (
 		eventName: string,
 		propertyKey: string,
 		value: string
 	) => void;
+	property: ClassifiedProperty;
 }
 
 function PropertyCard({

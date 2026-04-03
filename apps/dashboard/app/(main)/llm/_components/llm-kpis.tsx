@@ -17,14 +17,14 @@ import {
 } from "./llm-types";
 
 interface LLMKpisProps {
-	kpis: LLMKpiData | null;
-	isLoading: boolean;
 	chartData: {
 		cost: Array<{ date: string; value: number }>;
 		calls: Array<{ date: string; value: number }>;
 		tokens: Array<{ date: string; value: number }>;
 		latency: Array<{ date: string; value: number }>;
 	};
+	isLoading: boolean;
+	kpis: LLMKpiData | null;
 }
 
 export function LLMPrimaryKpis({ kpis, isLoading, chartData }: LLMKpisProps) {

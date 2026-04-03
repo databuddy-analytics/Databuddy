@@ -21,8 +21,8 @@ const { Cell, Pie, PieChart, ResponsiveContainer, Sector, Tooltip } =
 	Chart.Recharts;
 
 export interface DistributionProps extends ChartComponentProps {
-	variant: "pie" | "donut";
 	data: Array<{ name: string; value: number }>;
+	variant: "pie" | "donut";
 }
 
 const PLOT_HEIGHT = 220;
@@ -93,10 +93,10 @@ export function DistributionRenderer({
 									outerRadius={80}
 									paddingAngle={1}
 								>
-									{data.map((_, index) => (
+									{data.map((entry, index) => (
 										<Cell
 											fill={chartSeriesColorAtIndex(index)}
-											key={`cell-${index}`}
+											key={entry.name}
 											stroke="var(--background)"
 											strokeWidth={2}
 										/>

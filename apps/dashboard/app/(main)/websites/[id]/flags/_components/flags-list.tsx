@@ -40,8 +40,8 @@ import type { Flag, TargetGroup } from "./types";
 interface FlagsListProps {
 	flags: Flag[];
 	groups: Map<string, TargetGroup[]>;
-	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
+	onEdit: (flag: Flag) => void;
 }
 
 const TYPE_CONFIG = {

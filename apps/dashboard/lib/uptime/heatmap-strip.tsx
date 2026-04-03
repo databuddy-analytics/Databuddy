@@ -15,11 +15,11 @@ import type { UptimeHeatmapDay } from "./heatmap-days";
 
 export interface UptimeHeatmapStripProps {
 	days: UptimeHeatmapDay[];
+	emptyLabel: string;
+	getDateLabel: (date: Date) => string;
 	interactive: boolean;
 	isActive: boolean;
 	stripClassName: string;
-	emptyLabel: string;
-	getDateLabel: (date: Date) => string;
 	tooltipHasData?: (day: UptimeHeatmapDay) => boolean;
 }
 

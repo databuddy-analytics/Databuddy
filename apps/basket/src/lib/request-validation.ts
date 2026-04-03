@@ -20,10 +20,10 @@ import { useLogger } from "evlog/elysia";
 
 export interface ValidatedRequest {
 	clientId: string;
-	userAgent: string;
 	ip: string;
-	ownerId?: string;
 	organizationId?: string;
+	ownerId?: string;
+	userAgent: string;
 }
 
 interface BillingBlocked {
@@ -31,8 +31,8 @@ interface BillingBlocked {
 }
 
 interface WebsiteSecuritySettings {
-	allowedOrigins?: string[];
 	allowedIps?: string[];
+	allowedOrigins?: string[];
 }
 
 export function getWebsiteSecuritySettings(

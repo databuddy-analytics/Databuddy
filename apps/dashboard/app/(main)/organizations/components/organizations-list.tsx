@@ -28,8 +28,8 @@ function getDicebearUrl(seed: string): string {
 }
 
 interface OrganizationsListProps {
-	organizations: Organization[] | null | undefined;
 	activeOrganization: Organization | null | undefined;
+	organizations: Organization[] | null | undefined;
 }
 
 function EmptyState() {
@@ -60,10 +60,10 @@ function EmptyState() {
 }
 
 interface OrganizationRowProps {
-	organization: Organization;
 	isActive: boolean;
 	isProcessing: boolean;
 	onClick: () => void;
+	organization: Organization;
 }
 
 function OrganizationRow({

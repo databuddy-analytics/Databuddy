@@ -7,10 +7,10 @@
  * Schema table definition with description
  */
 interface TableDef {
-	name: string;
+	additionalInfo?: string;
 	description: string;
 	keyColumns: string[];
-	additionalInfo?: string;
+	name: string;
 }
 
 /**

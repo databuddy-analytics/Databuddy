@@ -56,15 +56,15 @@ export const Wordmark = () => {
 
 interface MagicSVGProps {
 	children: React.ReactNode;
-	width: number;
-	height: number;
 	className?: string;
-	gradientSize?: number;
-	gradientFrom?: string;
-	gradientTo?: string;
-	strokeWidth?: number;
 	fill?: string;
+	gradientFrom?: string;
+	gradientSize?: number;
+	gradientTo?: string;
+	height: number;
 	strokeColor?: string;
+	strokeWidth?: number;
+	width: number;
 }
 
 export function MagicSVG({

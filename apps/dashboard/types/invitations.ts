@@ -10,15 +10,15 @@ export type InvitationPageStatus =
 	| "already-accepted";
 
 export interface InvitationData {
+	email: string;
+	expiresAt: Date;
+	id: string;
+	inviterEmail: string;
+	inviterId: string;
+	organizationId: string;
 	organizationName: string;
 	organizationSlug: string;
-	inviterEmail: string;
-	id: string;
-	email: string;
-	status: InvitationStatus;
-	expiresAt: Date;
-	organizationId: string;
 	role: string;
-	inviterId: string;
+	status: InvitationStatus;
 	teamId?: string;
 }

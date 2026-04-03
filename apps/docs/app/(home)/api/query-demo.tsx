@@ -8,10 +8,10 @@ import { QueryTypeSelector } from "./query-type-selector";
 import type { BatchQueryResponse, DynamicQueryRequest } from "./types";
 
 interface QueryType {
-	name: string;
-	defaultLimit?: number;
-	customizable?: boolean;
 	allowedFilters?: string[];
+	customizable?: boolean;
+	defaultLimit?: number;
+	name: string;
 }
 
 export function QueryDemo() {

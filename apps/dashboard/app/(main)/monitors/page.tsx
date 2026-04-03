@@ -22,24 +22,24 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 export interface Monitor {
-	id: string;
-	organizationId: string;
-	websiteId: string | null;
-	url: string | null;
-	name: string | null;
-	granularity: string;
-	cron: string;
-	isPaused: boolean;
 	createdAt: Date | string;
+	cron: string;
+	granularity: string;
+	id: string;
+	isPaused: boolean;
+	jsonParsingConfig?: {
+		enabled: boolean;
+	} | null;
+	name: string | null;
+	organizationId: string;
 	updatedAt: Date | string;
+	url: string | null;
 	website: {
 		id: string;
 		name: string | null;
 		domain: string;
 	} | null;
-	jsonParsingConfig?: {
-		enabled: boolean;
-	} | null;
+	websiteId: string | null;
 }
 
 export default function MonitorsPage() {

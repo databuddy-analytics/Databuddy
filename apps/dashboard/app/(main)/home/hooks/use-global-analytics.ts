@@ -6,11 +6,12 @@ import type { Website } from "@/hooks/use-websites";
 import { useWebsites } from "@/hooks/use-websites";
 
 export interface GlobalAnalytics {
-	totalActiveUsers: number;
-	totalViews: number;
 	averageTrend: number;
-	trendDirection: "up" | "down" | "neutral";
-	websiteCount: number;
+	needsSetup: Array<{
+		id: string;
+		name: string | null;
+		domain: string;
+	}>;
 	topPerformers: Array<{
 		id: string;
 		name: string | null;
@@ -19,11 +20,10 @@ export interface GlobalAnalytics {
 		trend: ProcessedMiniChartData["trend"];
 		activeUsers: number;
 	}>;
-	needsSetup: Array<{
-		id: string;
-		name: string | null;
-		domain: string;
-	}>;
+	totalActiveUsers: number;
+	totalViews: number;
+	trendDirection: "up" | "down" | "neutral";
+	websiteCount: number;
 }
 
 export function useGlobalAnalytics() {

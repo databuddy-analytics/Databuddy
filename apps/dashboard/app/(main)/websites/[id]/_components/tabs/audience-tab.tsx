@@ -21,26 +21,26 @@ import { PercentageBadge } from "../utils/technology-helpers";
 import type { FullTabProps } from "../utils/types";
 
 interface BrowserVersion {
-	version: string;
-	visitors: number;
 	pageviews: number;
 	percentage?: number;
+	version: string;
+	visitors: number;
 }
 
 interface BrowserEntry {
-	name: string;
 	browserName: string;
-	visitors: number;
+	name: string;
 	pageviews: number;
 	percentage: number;
 	versions: BrowserVersion[];
+	visitors: number;
 }
 
 interface ScreenResolutionEntry {
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {

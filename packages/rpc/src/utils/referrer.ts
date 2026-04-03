@@ -1,10 +1,10 @@
 import { referrers } from "@databuddy/shared/lists/referrers";
 
 export interface ReferrerInfo {
-	type: string;
-	name: string;
-	url: string;
 	domain: string;
+	name: string;
+	type: string;
+	url: string;
 }
 
 export function parseReferrer(

@@ -8,112 +8,112 @@ import {
 } from "../_lib/llm-analytics-utils";
 
 export interface LlmProviderBreakdownRow {
-	name: string;
-	provider: string;
+	avg_duration_ms: number;
 	calls: number;
+	error_rate: number;
+	name: string;
+	p75_duration_ms: number;
+	provider: string;
 	total_cost: number;
 	total_tokens: number;
-	avg_duration_ms: number;
-	p75_duration_ms: number;
-	error_rate: number;
 }
 
 export interface LlmModelBreakdownRow {
-	name: string;
-	model: string;
-	provider: string;
+	avg_duration_ms: number;
 	calls: number;
+	error_rate: number;
+	model: string;
+	name: string;
+	p75_duration_ms: number;
+	provider: string;
 	total_cost: number;
 	total_tokens: number;
-	avg_duration_ms: number;
-	p75_duration_ms: number;
-	error_rate: number;
 }
 
 export interface LlmFinishReasonRow {
-	name: string;
-	finish_reason: string;
 	calls: number;
+	finish_reason: string;
+	name: string;
 }
 
 export interface LlmErrorBreakdownRow {
-	name: string;
-	error_name: string;
-	sample_message: string;
 	error_count: number;
+	error_name: string;
+	name: string;
+	sample_message: string;
 }
 
 export interface LlmLatencyBreakdownRow {
-	name: string;
-	model?: string;
-	provider?: string;
-	calls: number;
 	avg_duration_ms: number;
+	calls: number;
+	model?: string;
+	name: string;
 	p50_duration_ms: number;
 	p75_duration_ms: number;
 	p95_duration_ms: number;
+	provider?: string;
 }
 
 export interface LlmSlowCallRow {
-	name: string;
-	timestamp: string;
-	provider: string;
-	model: string;
-	total_tokens: number;
 	duration_ms: number;
-	finish_reason?: string;
 	error_name?: string;
+	finish_reason?: string;
+	model: string;
+	name: string;
+	provider: string;
+	timestamp: string;
+	total_tokens: number;
 	trace_id?: string;
 }
 
 export interface LlmHttpStatusRow {
-	name: string;
-	http_status: number;
 	calls: number;
+	http_status: number;
+	name: string;
 }
 
 export interface LlmRecentErrorRow {
-	name: string;
-	timestamp: string;
-	error_name: string;
-	error_message: string;
-	model: string;
-	provider: string;
-	http_status?: number;
 	duration_ms: number;
+	error_message: string;
+	error_name: string;
+	http_status?: number;
+	model: string;
+	name: string;
+	provider: string;
+	timestamp: string;
 }
 
 export interface LlmToolNameRow {
+	calls: number;
 	name: string;
 	tool_name: string;
-	calls: number;
 }
 
 export interface LlmTraceSummaryRow {
+	avg_duration_ms: number;
+	calls: number;
+	errors: number;
 	name: string;
+	p75_duration_ms: number;
+	total_cost: number;
+	total_tokens: number;
 	trace_id: string;
 	user_id: string;
 	website_id?: string;
-	calls: number;
-	total_tokens: number;
-	total_cost: number;
-	errors: number;
-	avg_duration_ms: number;
-	p75_duration_ms: number;
 }
 
 export interface LlmRecentCallRow {
+	duration_ms: number;
+	error_name?: string;
+	finish_reason?: string;
+	model: string;
 	name: string;
+	provider: string;
 	timestamp: string;
+	total_token_cost_usd: number;
+	total_tokens: number;
 	trace_id?: string;
 	user_id?: string;
-	provider: string;
-	model: string;
-	total_tokens: number;
-	total_token_cost_usd: number;
-	duration_ms: number;
-	finish_reason?: string;
-	error_name?: string;
 }
 
 export const createProviderColumns =

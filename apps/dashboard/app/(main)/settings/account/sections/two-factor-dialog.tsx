@@ -43,11 +43,11 @@ type TwoFactorStep =
 	| "manage";
 
 interface TwoFactorDialogProps {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	isEnabled: boolean;
 	hasCredentialAccount: boolean;
+	isEnabled: boolean;
+	onOpenChange: (open: boolean) => void;
 	onSuccess: () => void;
+	open: boolean;
 }
 
 const MIN_PASSWORD_LENGTH = 8;

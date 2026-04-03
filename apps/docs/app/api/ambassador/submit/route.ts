@@ -8,14 +8,14 @@ const MIN_NAME_LENGTH = 2;
 const MIN_WHY_AMBASSADOR_LENGTH = 10;
 
 interface AmbassadorFormData {
-	name: string;
+	audience?: string;
 	email: string;
-	xHandle?: string;
+	experience?: string;
+	name: string;
+	referralSource?: string;
 	website?: string;
 	whyAmbassador: string;
-	experience?: string;
-	audience?: string;
-	referralSource?: string;
+	xHandle?: string;
 }
 
 type ValidationResult =

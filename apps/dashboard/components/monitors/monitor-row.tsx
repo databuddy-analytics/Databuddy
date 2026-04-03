@@ -48,6 +48,9 @@ const GRANULARITY_LABELS: Record<string, string> = {
 const HEATMAP_DAYS = 30;
 
 interface MonitorRowProps {
+	onDeleteAction: () => void;
+	onEditAction: () => void;
+	onRefetchAction: () => void;
 	schedule: {
 		id: string;
 		organizationId?: string;
@@ -65,9 +68,6 @@ interface MonitorRowProps {
 			domain: string;
 		} | null;
 	};
-	onEditAction: () => void;
-	onDeleteAction: () => void;
-	onRefetchAction: () => void;
 }
 
 function MonitorActions({

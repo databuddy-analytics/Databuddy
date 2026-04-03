@@ -24,10 +24,10 @@ import type { Annotation } from "@/types/annotations";
 
 interface AnnotationsPanelProps {
 	annotations: Annotation[];
-	onEdit: (annotation: Annotation) => void;
-	onDelete: (id: string) => Promise<void>;
-	isDeleting?: boolean;
 	granularity?: "hourly" | "daily" | "weekly" | "monthly";
+	isDeleting?: boolean;
+	onDelete: (id: string) => Promise<void>;
+	onEdit: (annotation: Annotation) => void;
 }
 
 export function AnnotationsPanel({

@@ -41,7 +41,10 @@ export default function FlagsPage() {
 				flag.targetGroups.length > 0 &&
 				typeof flag.targetGroups[0] === "object"
 			) {
-				map.set(flag.id as string, flag.targetGroups as unknown as TargetGroup[]);
+				map.set(
+					flag.id as string,
+					flag.targetGroups as unknown as TargetGroup[]
+				);
 			} else {
 				map.set(flag.id as string, []);
 			}

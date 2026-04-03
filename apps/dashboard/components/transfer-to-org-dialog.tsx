@@ -26,15 +26,15 @@ function getDicebearUrl(seed: string): string {
 }
 
 interface TransferToOrgDialogProps {
-	open: boolean;
-	onOpenChangeAction: (open: boolean) => void;
-	title: string;
-	description: string;
-	warning?: string;
-	currentOrganizationId: string;
-	isPending: boolean;
-	onTransferAction: (targetOrganizationId: string) => void;
 	children?: React.ReactNode;
+	currentOrganizationId: string;
+	description: string;
+	isPending: boolean;
+	onOpenChangeAction: (open: boolean) => void;
+	onTransferAction: (targetOrganizationId: string) => void;
+	open: boolean;
+	title: string;
+	warning?: string;
 }
 
 export function TransferToOrgDialog({

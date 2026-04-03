@@ -6,9 +6,9 @@ import {
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface ReferrerEntry extends ReferrerSourceCellData {
-	visitors: number;
 	pageviews: number;
 	percentage: number;
+	visitors: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {

@@ -13,12 +13,6 @@ export {
 export { CLICKHOUSE_SCHEMA_DOCS } from "../config/schema-docs";
 
 export interface McpQueryItem {
-	type: string;
-	preset?: string;
-	from?: string;
-	to?: string;
-	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
-	limit?: number;
 	filters?: Array<{
 		field: string;
 		op: string;
@@ -26,8 +20,14 @@ export interface McpQueryItem {
 		target?: string;
 		having?: boolean;
 	}>;
+	from?: string;
 	groupBy?: string[];
+	limit?: number;
 	orderBy?: string;
+	preset?: string;
+	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
+	to?: string;
+	type: string;
 }
 
 const QUERY_TYPE_ALIASES: Record<string, string> = {
@@ -227,9 +227,9 @@ function getDescription(
 }
 
 interface QueryTypeInfo {
-	description: string;
 	allowedFilters?: string[];
 	customizable?: boolean;
+	description: string;
 }
 
 export function getQueryTypeDescriptions(): Record<string, string> {

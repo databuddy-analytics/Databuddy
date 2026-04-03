@@ -6,12 +6,12 @@ import type {
 import { BaseProvider } from "./base";
 
 export interface EmailProviderConfig {
-	sendEmailAction: (payload: EmailPayload) => Promise<unknown>;
 	defaultTo?: string | string[];
 	from?: string;
-	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
+	sendEmailAction: (payload: EmailPayload) => Promise<unknown>;
+	timeout?: number;
 }
 
 function escapeHtml(str: string): string {

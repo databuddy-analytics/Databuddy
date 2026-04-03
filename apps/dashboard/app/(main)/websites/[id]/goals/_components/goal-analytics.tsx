@@ -8,15 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface GoalAnalyticsProps {
-	isLoading: boolean;
-	error: Error | null;
 	data: any;
+	error: Error | null;
+	isLoading: boolean;
+	onRetry: () => void;
 	summaryStats: {
 		totalUsers: number;
 		conversionRate: number;
 		completions: number;
 	};
-	onRetry: () => void;
 }
 
 export function GoalAnalytics({

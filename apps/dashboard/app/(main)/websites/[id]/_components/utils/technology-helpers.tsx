@@ -17,28 +17,28 @@ const MOBILE_SUFFIX_REGEX = /\s+Mobile$/;
 
 // Types
 export interface DeviceTypeEntry {
-	device_type: string;
 	device_brand?: string;
 	device_model?: string;
-	visitors: number;
+	device_type: string;
 	pageviews?: number;
+	visitors: number;
 }
 
 export interface BrowserVersionEntry {
 	browser: string;
+	count?: number;
+	pageviews?: number;
 	version?: string;
 	visitors: number;
-	pageviews?: number;
-	count?: number;
 }
 
 export interface TechnologyTableEntry {
-	name: string;
-	visitors: number;
-	percentage: number;
+	category?: string;
 	icon?: string;
 	iconComponent?: React.ReactNode;
-	category?: string;
+	name: string;
+	percentage: number;
+	visitors: number;
 }
 
 export const getDeviceTypeIcon = (

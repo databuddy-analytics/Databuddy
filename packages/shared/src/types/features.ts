@@ -184,9 +184,9 @@ export type PlanAiCapabilities = Record<AiCapabilityId, boolean>;
 
 /** Complete plan capabilities including features and AI capabilities */
 export interface PlanCapabilities {
+	ai: PlanAiCapabilities;
 	features: Record<GatedFeatureId, boolean>;
 	limits: Record<GatedFeatureId, FeatureLimit>;
-	ai: PlanAiCapabilities;
 }
 
 /**
@@ -248,11 +248,11 @@ export const PLAN_CAPABILITIES: Record<PlanId, PlanCapabilities> = {
 };
 
 interface FeatureMeta {
-	name: string;
 	description: string;
-	upgradeMessage: string;
 	minPlan?: PlanId;
+	name: string;
 	unit?: string; // e.g., "funnels", "flags", "exports/month"
+	upgradeMessage: string;
 }
 
 export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =

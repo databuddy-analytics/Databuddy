@@ -35,8 +35,8 @@ interface RetentionCohort {
 interface RetentionRate {
 	date: string;
 	new_users: number;
-	returning_users: number;
 	retention_rate: number;
+	returning_users: number;
 }
 
 export function RetentionContent({ websiteId }: RetentionContentProps) {

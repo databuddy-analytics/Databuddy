@@ -350,8 +350,8 @@ export const userPreferences = pgTable(
 );
 
 export interface WebsiteSettings {
-	allowedOrigins?: string[];
 	allowedIps?: string[];
+	allowedOrigins?: string[];
 }
 
 export const websites = pgTable(
@@ -419,10 +419,10 @@ export interface DataFilter {
 }
 
 export interface FunnelStep {
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
-	name: string;
 	conditions?: Record<string, unknown>;
+	name: string;
+	target: string;
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
 export const funnelDefinitions = pgTable(
@@ -580,10 +580,10 @@ export const apiResourceType = pgEnum("api_resource_type", [
 ]);
 
 export interface ApiKeyMetadata {
-	resources?: Record<string, string[]>;
-	tags?: string[];
 	description?: string;
 	lastUsedAt?: string;
+	resources?: Record<string, string[]>;
+	tags?: string[];
 }
 
 export const apikey = pgTable(
@@ -679,7 +679,10 @@ export const annotationType = pgEnum("annotation_type", [
 export const chartType = pgEnum("chart_type", ["metrics"]);
 
 export interface FlagUserRule {
-	type: "user_id" | "email" | "property";
+	batch: boolean;
+	batchValues?: string[];
+	enabled: boolean;
+	field?: string;
 	operator:
 		| "equals"
 		| "contains"
@@ -689,20 +692,17 @@ export interface FlagUserRule {
 		| "not_in"
 		| "exists"
 		| "not_exists";
-	field?: string;
+	type: "user_id" | "email" | "property";
 	value?: string;
 	values?: string[];
-	enabled: boolean;
-	batch: boolean;
-	batchValues?: string[];
 }
 
 export interface FlagVariant {
+	description?: string;
 	key: string;
+	type: "string" | "number" | "json";
 	value: string | number;
 	weight?: number;
-	description?: string;
-	type: "string" | "number" | "json";
 }
 
 export const flags = pgTable(

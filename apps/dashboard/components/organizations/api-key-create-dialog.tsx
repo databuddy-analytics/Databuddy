@@ -37,15 +37,15 @@ import {
 import { type ApiKeyAccessEntry, SCOPE_OPTIONS } from "./api-key-types";
 
 interface ApiKeyCreateDialogProps {
-	open: boolean;
 	onOpenChangeAction: (open: boolean) => void;
-	organizationId: string;
 	onSuccessAction: (data: {
 		id: string;
 		secret: string;
 		prefix: string;
 		start: string;
 	}) => void;
+	open: boolean;
+	organizationId: string;
 }
 
 const formSchema = z.object({

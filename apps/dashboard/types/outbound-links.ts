@@ -1,25 +1,25 @@
 export interface OutboundLinkRow {
-	name: string;
 	href: string;
+	name: string;
+	percentage: number;
 	text: string;
 	total_clicks: number;
-	unique_users: number;
 	unique_sessions: number;
-	percentage: number;
+	unique_users: number;
 }
 
 export interface OutboundDomainRow {
-	name: string;
 	domain: string;
-	total_clicks: number;
-	unique_users: number;
-	unique_links: number;
+	name: string;
 	percentage: number;
+	total_clicks: number;
+	unique_links: number;
+	unique_users: number;
 }
 
 export interface OutboundLinksSectionData {
-	outbound_links: unknown[];
 	outbound_domains: unknown[];
+	outbound_links: unknown[];
 }
 
 export interface OutboundLinksSectionProps {

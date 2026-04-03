@@ -25,32 +25,32 @@ interface MiniChartDataPoint {
 interface Trend {
 	change?: number;
 	current: number;
-	previous: number;
 	currentPeriod: { start: string; end: string };
+	previous: number;
 	previousPeriod: { start: string; end: string };
 }
 
 export type StatCardDisplayMode = "compact" | "chart" | "text";
 
 interface StatCardProps {
+	chartData?: MiniChartDataPoint[];
+	chartStepType?: ChartCurveType;
+	chartType?: ChartSeriesKind;
+	className?: string;
+	description?: string;
+	displayMode?: StatCardDisplayMode;
+	formatChartValue?: (value: number) => string;
+	formatValue?: (value: number) => string;
+	icon?: ElementType;
+	id?: string;
+	invertTrend?: boolean;
+	isLoading?: boolean;
+	partialLastSegment?: boolean;
+	showChart?: boolean;
 	title: string;
 	titleExtra?: React.ReactNode;
-	value: string | number;
-	description?: string;
-	icon?: ElementType;
 	trend?: Trend | number;
-	isLoading?: boolean;
-	className?: string;
-	invertTrend?: boolean;
-	id?: string;
-	chartData?: MiniChartDataPoint[];
-	showChart?: boolean;
-	chartType?: ChartSeriesKind;
-	chartStepType?: ChartCurveType;
-	formatValue?: (value: number) => string;
-	formatChartValue?: (value: number) => string;
-	displayMode?: StatCardDisplayMode;
-	partialLastSegment?: boolean;
+	value: string | number;
 }
 
 const formatTrendValue = (

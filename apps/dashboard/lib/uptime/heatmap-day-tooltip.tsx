@@ -5,12 +5,12 @@ export const uptimeHeatmapTooltipContentClassName =
 
 interface UptimeHeatmapDayTooltipBodyProps {
 	dateLabel: string;
-	hasData: boolean;
-	uptimePercent: number;
 	downtimeSeconds?: number;
-	totalChecks?: number;
-	successfulChecks?: number;
 	emptyLabel?: string;
+	hasData: boolean;
+	successfulChecks?: number;
+	totalChecks?: number;
+	uptimePercent: number;
 }
 
 export function UptimeHeatmapDayTooltipBody({

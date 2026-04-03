@@ -155,9 +155,9 @@ function createModelColumns(
 }
 
 interface LLMTablesProps {
-	tools: LLMToolData[];
-	models: LLMModelData[];
 	isLoading: boolean;
+	models: LLMModelData[];
+	tools: LLMToolData[];
 }
 
 export function LLMTables({ tools, models, isLoading }: LLMTablesProps) {

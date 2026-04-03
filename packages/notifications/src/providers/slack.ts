@@ -6,14 +6,14 @@ import type {
 import { BaseProvider } from "./base";
 
 export interface SlackProviderConfig {
-	webhookUrl: string;
 	channel?: string;
-	username?: string;
 	iconEmoji?: string;
 	iconUrl?: string;
-	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
+	timeout?: number;
+	username?: string;
+	webhookUrl: string;
 }
 
 export class SlackProvider extends BaseProvider {

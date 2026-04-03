@@ -39,24 +39,24 @@ export interface GatedFeatureAccess {
 }
 
 export interface BillingContextValue {
-	customer: HookCustomer | null;
-	plans: HookPlan[];
-	isLoading: boolean;
-	hasActiveSubscription: boolean;
-	currentPlanId: PlanId | null;
-	isFree: boolean;
-	isOrganizationBilling: boolean;
-	canUserUpgrade: boolean;
 	canUse: (featureId: FeatureId | string) => boolean;
-	getUsage: (featureId: FeatureId | string) => FeatureAccess;
+	canUserUpgrade: boolean;
+	currentPlanId: PlanId | null;
+	customer: HookCustomer | null;
 	getBalance: (featureId: FeatureId | string) => HookBalance | null;
-	isFeatureEnabled: (feature: GatedFeatureId) => boolean;
 	getGatedFeatureAccess: (feature: GatedFeatureId) => GatedFeatureAccess;
+	getPlanCapabilities: () => PlanCapabilities;
 	getUpgradeMessage: (
 		featureId: FeatureId | GatedFeatureId | string
 	) => string | null;
+	getUsage: (featureId: FeatureId | string) => FeatureAccess;
+	hasActiveSubscription: boolean;
 	isAiCapabilityEnabled: (capability: AiCapabilityId) => boolean;
-	getPlanCapabilities: () => PlanCapabilities;
+	isFeatureEnabled: (feature: GatedFeatureId) => boolean;
+	isFree: boolean;
+	isLoading: boolean;
+	isOrganizationBilling: boolean;
+	plans: HookPlan[];
 	refetch: () => void;
 }
 

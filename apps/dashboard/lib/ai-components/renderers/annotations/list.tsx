@@ -22,20 +22,20 @@ import { fromNow } from "@/lib/time";
 import type { BaseComponentProps } from "../../types";
 
 interface AnnotationItem {
-	id: string;
-	text: string;
 	annotationType: "point" | "line" | "range";
-	xValue: string;
-	xEndValue?: string | null;
 	color?: string | null;
-	tags?: string[];
-	isPublic?: boolean;
 	createdAt?: string;
+	id: string;
+	isPublic?: boolean;
+	tags?: string[];
+	text: string;
+	xEndValue?: string | null;
+	xValue: string;
 }
 
 export interface AnnotationsListProps extends BaseComponentProps {
-	title?: string;
 	annotations: AnnotationItem[];
+	title?: string;
 }
 
 function AnnotationTypeLabel({ type }: { type: string }) {

@@ -8,12 +8,12 @@ import type {
 import { BaseProvider } from "./base";
 
 export interface DiscordProviderConfig {
-	webhookUrl: string;
-	username?: string;
 	avatarUrl?: string;
-	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
+	timeout?: number;
+	username?: string;
+	webhookUrl: string;
 }
 
 const PRIORITY_COLORS: Record<NotificationPriority, number> = {

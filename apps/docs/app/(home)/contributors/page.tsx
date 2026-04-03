@@ -38,19 +38,19 @@ export const metadata: Metadata = {
 
 // GitHub API interfaces
 interface GitHubRepo {
-	stargazers_count: number;
 	forks_count: number;
-	open_issues_count: number;
-	watchers_count: number;
 	language: string;
+	open_issues_count: number;
+	stargazers_count: number;
+	watchers_count: number;
 }
 
 interface GitHubContributor {
-	login: string;
-	id: number;
 	avatar_url: string;
-	html_url: string;
 	contributions: number;
+	html_url: string;
+	id: number;
+	login: string;
 	type: string;
 }
 
@@ -59,8 +59,8 @@ interface GitHubLanguages {
 }
 
 interface GitHubPullRequest {
-	state: "open" | "closed";
 	merged_at: string | null;
+	state: "open" | "closed";
 }
 
 interface GitHubCommitActivity {
@@ -70,9 +70,9 @@ interface GitHubCommitActivity {
 }
 
 interface ProcessedCommitActivity {
-	week: string;
 	commits: number;
 	date: Date;
+	week: string;
 }
 
 interface GitHubCodeFrequency {
@@ -82,10 +82,10 @@ interface GitHubCodeFrequency {
 }
 
 interface ProcessedCodeFrequency {
-	week: string;
 	additions: number;
-	deletions: number;
 	date: Date;
+	deletions: number;
+	week: string;
 }
 
 interface GitHubPunchCard {
@@ -95,26 +95,26 @@ interface GitHubPunchCard {
 }
 
 interface ProcessedPunchCard {
-	day: number;
-	hour: number;
 	commits: number;
+	day: number;
 	dayName: string;
+	hour: number;
 }
 
 interface GitHubRelease {
-	tag_name: string;
-	name: string;
-	published_at: string;
-	prerelease: boolean;
 	draft: boolean;
+	name: string;
+	prerelease: boolean;
+	published_at: string;
+	tag_name: string;
 }
 
 interface ProcessedRelease {
-	name: string;
-	tagName: string;
-	publishedAt: string;
 	date: Date;
 	isPrerelease: boolean;
+	name: string;
+	publishedAt: string;
+	tagName: string;
 }
 
 function fetchWithRetry(

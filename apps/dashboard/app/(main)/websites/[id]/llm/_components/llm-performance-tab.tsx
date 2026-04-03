@@ -15,13 +15,13 @@ import {
 } from "./llm-columns";
 
 interface LlmPerformanceTabProps {
-	websiteId: string;
 	dateRange: DateRange;
+	websiteId: string;
 }
 
 interface LlmLatencySeriesRow {
-	date: string;
 	avg_duration_ms: number;
+	date: string;
 	p75_duration_ms: number;
 	p95_duration_ms: number;
 }

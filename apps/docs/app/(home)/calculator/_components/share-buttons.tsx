@@ -50,9 +50,9 @@ function buildRedditShareUrl(
 }
 
 interface ShareButtonsProps {
+	databuddyMonthlyCost: number;
 	lostRevenueYearly: number;
 	monthlyVisitors: number;
-	databuddyMonthlyCost: number;
 }
 
 export function ShareButtons({

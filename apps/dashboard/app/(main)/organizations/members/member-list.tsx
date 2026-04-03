@@ -26,21 +26,21 @@ interface MemberToRemove {
 }
 
 interface MemberListProps {
+	isRemovingMember: boolean;
+	isUpdatingMember: boolean;
 	members: OrganizationMember[];
 	onRemoveMember: (memberId: string) => void;
-	isRemovingMember: boolean;
 	onUpdateRole: (member: UpdateMemberData) => void;
-	isUpdatingMember: boolean;
 	organizationId: string;
 }
 
 interface RoleSelectorProps {
-	member: OrganizationMember;
-	onUpdateRole: MemberListProps["onUpdateRole"];
-	isUpdatingMember: boolean;
-	organizationId: string;
 	canEditRoles: boolean;
 	isCurrentUser: boolean;
+	isUpdatingMember: boolean;
+	member: OrganizationMember;
+	onUpdateRole: MemberListProps["onUpdateRole"];
+	organizationId: string;
 }
 
 function RoleSelector({
@@ -92,15 +92,15 @@ function RoleSelector({
 }
 
 interface MemberRowProps {
-	member: OrganizationMember;
-	onRemoveMember: MemberListProps["onRemoveMember"];
-	isRemovingMember: boolean;
-	onUpdateRole: MemberListProps["onUpdateRole"];
-	isUpdatingMember: boolean;
-	organizationId: string;
-	onConfirmRemove: (member: MemberToRemove) => void;
 	canEditRoles: boolean;
 	isCurrentUser: boolean;
+	isRemovingMember: boolean;
+	isUpdatingMember: boolean;
+	member: OrganizationMember;
+	onConfirmRemove: (member: MemberToRemove) => void;
+	onRemoveMember: MemberListProps["onRemoveMember"];
+	onUpdateRole: MemberListProps["onUpdateRole"];
+	organizationId: string;
 }
 
 function MemberRow({

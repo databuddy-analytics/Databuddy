@@ -32,18 +32,19 @@ import { cn } from "@/lib/utils";
 import type { Annotation, AnnotationFormData } from "@/types/annotations";
 
 interface EditModeProps {
-	isOpen: boolean;
-	mode: "edit";
 	annotation: Annotation;
+	isOpen: boolean;
+	isSubmitting?: boolean;
+	mode: "edit";
 	onClose: () => void;
 	onSubmit: (id: string, updates: AnnotationFormData) => Promise<void>;
-	isSubmitting?: boolean;
 }
 
 interface CreateModeProps {
-	isOpen: boolean;
-	mode: "create";
 	dateRange: { startDate: Date; endDate: Date };
+	isOpen: boolean;
+	isSubmitting?: boolean;
+	mode: "create";
 	onClose: () => void;
 	onCreate: (annotation: {
 		annotationType: "range";
@@ -54,7 +55,6 @@ interface CreateModeProps {
 		color: string;
 		isPublic: boolean;
 	}) => Promise<void> | void;
-	isSubmitting?: boolean;
 }
 
 type AnnotationModalProps = EditModeProps | CreateModeProps;

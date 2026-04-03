@@ -9,22 +9,21 @@ export interface LatestEventData {
 }
 
 export interface TodayMetricsData {
-	visitors: number;
-	sessions: number;
 	pageviews: number;
+	sessions: number;
+	visitors: number;
 }
 
 export interface EventsByDateData {
-	date: string;
-	pageviews: number;
-	visitors: number;
-	unique_visitors: number;
-	sessions: number;
-	bounce_rate: number;
-	median_session_duration: number;
-	revenue_by_currency: unknown;
-	revenue_by_card_brand: unknown;
-
 	active_stats: ActiveStatsData;
+	bounce_rate: number;
+	date: string;
 	latest_events: LatestEventData;
+	median_session_duration: number;
+	pageviews: number;
+	revenue_by_card_brand: unknown;
+	revenue_by_currency: unknown;
+	sessions: number;
+	unique_visitors: number;
+	visitors: number;
 }

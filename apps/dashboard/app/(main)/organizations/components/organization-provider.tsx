@@ -25,18 +25,18 @@ import {
 } from "@/stores/jotai/organizationsAtoms";
 
 interface HeaderActionButton {
-	text: string;
-	icon: PhosphorIcon;
 	action: () => void;
 	disabled?: boolean;
+	icon: PhosphorIcon;
+	text: string;
 }
 
 interface PageInfo {
-	title: string;
+	actionButton?: HeaderActionButton;
 	description: string;
 	icon: PhosphorIcon;
 	requiresOrg?: boolean;
-	actionButton?: HeaderActionButton;
+	title: string;
 }
 
 const PAGE_INFO_MAP: Record<string, PageInfo> = {

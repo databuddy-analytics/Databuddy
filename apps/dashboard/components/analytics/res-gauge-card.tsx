@@ -30,26 +30,26 @@ interface MetricInput {
 }
 
 interface PercentileOption {
-	value: string;
-	label: string;
 	description: string;
+	label: string;
+	value: string;
 }
 
 interface RESGaugeCardProps {
-	/** Current period metrics with p75 values */
-	metrics: MetricInput[];
-	/** Previous period metrics for trend comparison */
-	previousMetrics?: MetricInput[];
-	/** Loading state */
-	isLoading?: boolean;
 	/** Additional class names */
 	className?: string;
-	/** Percentile options for the selector */
-	percentileOptions?: PercentileOption[];
-	/** Currently selected percentile */
-	selectedPercentile?: string;
+	/** Loading state */
+	isLoading?: boolean;
+	/** Current period metrics with p75 values */
+	metrics: MetricInput[];
 	/** Callback when percentile changes */
 	onPercentileChangeAction?: (value: string) => void;
+	/** Percentile options for the selector */
+	percentileOptions?: PercentileOption[];
+	/** Previous period metrics for trend comparison */
+	previousMetrics?: MetricInput[];
+	/** Currently selected percentile */
+	selectedPercentile?: string;
 }
 
 const STATUS_CONFIG = {

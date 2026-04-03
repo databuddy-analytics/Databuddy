@@ -24,12 +24,12 @@ import {
 } from "@/components/ui/table";
 
 interface Props {
-	typeKey: string;
+	allowedFilters?: string[];
+	children: React.ReactNode; // trigger content
 	customizable?: boolean;
 	defaultLimit?: number;
-	allowedFilters?: string[];
 	meta?: QueryBuilderMeta;
-	children: React.ReactNode; // trigger content
+	typeKey: string;
 }
 
 function DetailRow({

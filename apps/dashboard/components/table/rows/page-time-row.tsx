@@ -2,11 +2,11 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface PageTimeEntry {
-	name: string;
-	visitors: number;
-	sessions_with_time: number;
 	median_time_on_page: number;
+	name: string;
 	percentage: number;
+	sessions_with_time: number;
+	visitors: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {

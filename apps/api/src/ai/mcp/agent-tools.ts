@@ -27,10 +27,10 @@ import { webSearchTool } from "../tools/web-search";
 import { buildBatchQueryRequests, MCP_DATE_PRESETS } from "./mcp-utils";
 
 export interface McpAgentContext {
-	requestHeaders: Headers;
 	apiKey: Awaited<
 		ReturnType<typeof import("../../lib/api-key").getApiKeyFromHeader>
 	>;
+	requestHeaders: Headers;
 	userId: string | null;
 }
 

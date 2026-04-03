@@ -19,18 +19,18 @@ const LatencyChart = dynamic(
 );
 
 interface DailyData {
-	date: string;
-	uptime_percentage?: number;
 	avg_response_time?: number;
+	date: string;
 	p95_response_time?: number;
+	uptime_percentage?: number;
 }
 
 interface MonitorRowInteractiveProps {
-	id: string;
 	dailyData: DailyData[];
 	days: number;
 	hasLatencyData: boolean;
 	hasUptimeData?: boolean;
+	id: string;
 }
 
 interface MonthMarker {

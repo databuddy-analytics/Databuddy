@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -71,9 +70,9 @@ const statusPageFormSchema = z.object({
 type StatusPageFormData = z.infer<typeof statusPageFormSchema>;
 
 interface StatusPageSheetProps {
-	open: boolean;
 	onCloseAction: (open: boolean) => void;
 	onSaveAction?: () => void;
+	open: boolean;
 	statusPage?: {
 		id: string;
 		name: string;
@@ -110,12 +109,6 @@ export function StatusPageSheet({
 	const updateMutation = useMutation({
 		...orpc.statusPage.update.mutationOptions(),
 	});
-
-	useEffect(() => {
-		if (open) {
-			form.reset(buildDefaults(statusPage));
-		}
-	}, [open, statusPage, form]);
 
 	const handleSubmit = async () => {
 		const data = form.getValues();

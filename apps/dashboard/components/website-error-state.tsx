@@ -41,9 +41,9 @@ const ALL_NAVIGATION: NavigationSection[] = [
 ];
 
 interface SearchItem {
+	icon: typeof MagnifyingGlassIcon;
 	name: string;
 	path: string;
-	icon: typeof MagnifyingGlassIcon;
 }
 
 function toSearchItem(item: NavigationItem): SearchItem | null {
@@ -72,8 +72,8 @@ function flattenNavigation(sections: NavigationSection[]): SearchItem[] {
 
 interface WebsiteErrorStateProps {
 	error: unknown;
-	websiteId?: string;
 	isDemoRoute?: boolean;
+	websiteId?: string;
 }
 
 function getErrorType(error: unknown): {

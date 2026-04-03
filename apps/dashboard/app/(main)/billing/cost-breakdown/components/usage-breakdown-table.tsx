@@ -48,9 +48,9 @@ const EVENT_TYPE_CONFIG = {
 } as const;
 
 interface UsageBreakdownTableProps {
-	usageData?: UsageResponse;
 	isLoading: boolean;
 	overageInfo: OverageInfo | null;
+	usageData?: UsageResponse;
 }
 
 export function UsageBreakdownTable({

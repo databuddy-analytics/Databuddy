@@ -22,8 +22,8 @@ type ChatApi = ReturnType<typeof useAiSdkChat<UIMessage>>;
 type SendArg = Parameters<ChatApi["sendMessage"]>[0];
 
 interface PendingEntry {
-	text: string;
 	metadata?: unknown;
+	text: string;
 }
 
 interface PendingQueueValue {

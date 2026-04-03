@@ -5,8 +5,8 @@ import { Chart } from "@/components/ui/composables/chart";
 import dayjs from "@/lib/dayjs";
 
 export interface ChartDataPoint {
-	date: string;
 	clicks: number;
+	date: string;
 }
 
 interface ClicksChartProps {

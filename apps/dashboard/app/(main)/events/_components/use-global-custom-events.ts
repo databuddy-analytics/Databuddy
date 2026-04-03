@@ -8,8 +8,8 @@ import { useMemo } from "react";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 
 interface QueryOptions {
-	websiteId?: string;
 	organizationId?: string;
+	websiteId?: string;
 }
 
 export function useGlobalCustomEventsData(

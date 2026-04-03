@@ -299,10 +299,10 @@ function ErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
 
 interface InsightsSectionProps {
 	insights: Insight[];
-	isLoading?: boolean;
+	isError?: boolean;
 	isFetching?: boolean;
 	isFetchingFresh?: boolean;
-	isError?: boolean;
+	isLoading?: boolean;
 	onRefreshAction?: () => void;
 	/** `compact` = capped list height (home). `full` = grows with parent flex layout (`/insights`). */
 	variant?: "compact" | "full";

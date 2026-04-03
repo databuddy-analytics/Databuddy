@@ -4,22 +4,22 @@ import { PercentageBadge } from "@/app/(main)/websites/[id]/_components/utils/te
 
 // Generic data item that all tab data should extend
 export interface BaseTabItem {
-	visitors: number;
 	pageviews?: number;
-	visits?: number;
 	percentage?: number;
+	visitors: number;
+	visits?: number;
 	[key: string]: any;
 }
 
 // Configuration for a single tab
 export interface TabConfig<T extends BaseTabItem> {
+	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
+	data: T[];
+	getFilter?: (row: T) => { field: string; value: string };
 	id: string;
 	label: string;
-	data: T[];
 	primaryField: keyof T;
 	primaryHeader: string;
-	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
-	getFilter?: (row: T) => { field: string; value: string };
 }
 
 // Generic function to add percentages to data
@@ -99,12 +99,12 @@ export function createTabColumns<T extends BaseTabItem>(
 
 // Simplified type for tab configuration
 export interface SimpleTabConfig<T extends BaseTabItem> {
+	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
 	data: T[];
+	getFilter?: (row: T) => { field: string; value: string };
 	label: string;
 	primaryField: string;
 	primaryHeader: string;
-	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
-	getFilter?: (row: T) => { field: string; value: string };
 }
 
 // Hook to create tabs from simple data configuration

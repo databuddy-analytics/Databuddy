@@ -16,16 +16,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 interface SummaryStatsProps {
-	totalActiveUsers: number;
-	totalViews: number;
-	averageTrend: number;
-	trendDirection: "up" | "down" | "neutral";
-	websiteCount: number;
-	pulseHealthPercentage: number;
-	totalMonitors: number;
 	activeMonitors: number;
+	averageTrend: number;
 	hasPulseAccess: boolean;
 	isLoading?: boolean;
+	pulseHealthPercentage: number;
+	totalActiveUsers: number;
+	totalMonitors: number;
+	totalViews: number;
+	trendDirection: "up" | "down" | "neutral";
+	websiteCount: number;
 }
 
 function formatNumber(num: number) {

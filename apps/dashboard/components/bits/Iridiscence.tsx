@@ -49,10 +49,10 @@ void main() {
 `;
 
 interface IridescenceProps {
-	color?: [number, number, number];
-	speed?: number;
 	amplitude?: number;
+	color?: [number, number, number];
 	mouseReact?: boolean;
+	speed?: number;
 }
 
 export default function Iridescence({

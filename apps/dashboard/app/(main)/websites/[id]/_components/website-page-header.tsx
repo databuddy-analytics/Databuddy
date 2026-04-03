@@ -67,35 +67,34 @@ function WebsitePageHeaderSubtitle({
 }
 
 interface WebsitePageHeaderProps {
-	title: string;
-	description?: string;
-	icon: React.ReactElement<IconProps>;
-
-	websiteId: string;
-	websiteName?: string;
-
-	isLoading?: boolean;
-	isRefreshing?: boolean;
-
-	hasError?: boolean;
-	errorMessage?: string;
-
-	onRefreshAction?: () => void;
-	onCreateAction?: () => void;
-	createActionLabel?: string;
-
-	subtitle?: string | ReactNode;
-
-	showBackButton?: boolean;
-	variant?: "default" | "minimal";
-
 	additionalActions?: ReactNode;
+	createActionLabel?: string;
+	currentUsage?: number;
+	description?: string;
 
 	docsUrl?: string;
+	errorMessage?: string;
 
 	// NEW: Feature usage tracking
 	feature?: GatedFeatureId;
-	currentUsage?: number;
+
+	hasError?: boolean;
+	icon: React.ReactElement<IconProps>;
+
+	isLoading?: boolean;
+	isRefreshing?: boolean;
+	onCreateAction?: () => void;
+
+	onRefreshAction?: () => void;
+
+	showBackButton?: boolean;
+
+	subtitle?: string | ReactNode;
+	title: string;
+	variant?: "default" | "minimal";
+
+	websiteId: string;
+	websiteName?: string;
 }
 
 export function WebsitePageHeader({

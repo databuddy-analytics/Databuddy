@@ -65,10 +65,10 @@ type ChartType = "area" | "bar";
 
 interface EventsTrendChartProps {
 	chartData: Array<{ date: string; events: number; users: number }>;
-	perEventData?: Record<string, string | number>[];
 	eventNames?: string[];
 	isFetching?: boolean;
 	isLoading?: boolean;
+	perEventData?: Record<string, string | number>[];
 }
 
 function formatYTick(value: number): string {

@@ -65,10 +65,10 @@ export interface InsightsAgentPeriodBounds {
 }
 
 export interface CreateInsightsAgentToolsParams {
-	websiteId: string;
 	domain: string;
-	timezone: string;
 	periodBounds: InsightsAgentPeriodBounds;
+	timezone: string;
+	websiteId: string;
 }
 
 export function createInsightsAgentTools(

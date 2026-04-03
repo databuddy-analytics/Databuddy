@@ -2,22 +2,22 @@
 
 export interface SessionEvent {
 	event_id: string;
-	time: string;
 	event_name: string;
 	path: string;
 	properties: Record<string, unknown>;
+	time: string;
 }
 
 export interface SessionReferrer {
-	name: string;
 	domain: string | null;
+	name: string;
 }
 
 export interface SessionMetrics {
-	total_sessions: number;
-	median_session_duration: number;
 	bounce_rate: number;
+	median_session_duration: number;
 	total_events: number;
+	total_sessions: number;
 }
 
 export interface SessionDurationRange {
@@ -27,24 +27,24 @@ export interface SessionDurationRange {
 }
 
 export interface SessionsByDevice {
+	median_session_duration: number;
 	name: string;
 	sessions: number;
 	visitors: number;
-	median_session_duration: number;
 }
 
 export interface SessionsByBrowser {
+	median_session_duration: number;
 	name: string;
 	sessions: number;
 	visitors: number;
-	median_session_duration: number;
 }
 
 export interface SessionTimeSeries {
 	date: string;
+	median_session_duration: number;
 	sessions: number;
 	visitors: number;
-	median_session_duration: number;
 }
 
 export interface SessionFlow {
@@ -54,26 +54,26 @@ export interface SessionFlow {
 }
 
 export interface Session {
-	session_id: string;
-	first_visit: string;
-	last_visit: string;
-	page_views: number;
-	visitor_id: string;
-	country: string;
-	country_name: string;
-	country_code: string;
-	referrer: string;
-	device_type: string;
 	browser_name: string;
-	os_name: string;
+	country: string;
+	country_code: string;
+	country_name: string;
+	device_type: string;
 	events: RawSessionEventTuple[] | SessionEvent[];
-	session_name?: string;
+	first_visit: string;
 	is_returning_visitor?: boolean;
-	visitor_session_count?: number;
+	last_visit: string;
+	os_name: string;
+	page_views: number;
+	referrer: string;
 	referrer_parsed?: {
 		name?: string;
 		domain?: string;
 	};
+	session_id: string;
+	session_name?: string;
+	visitor_id: string;
+	visitor_session_count?: number;
 }
 
 export interface SessionListResponse {
@@ -85,10 +85,10 @@ export interface SessionsListProps {
 }
 
 export interface SessionRowProps {
-	session: Session;
 	index: number;
 	isExpanded: boolean;
 	onToggle: (sessionId: string) => void;
+	session: Session;
 }
 
 // Raw ClickHouse tuple format for events (before transformation)
@@ -102,26 +102,26 @@ export type RawSessionEventTuple = [
 
 // Raw session data from ClickHouse (before transformation)
 export interface RawSession {
-	session_id: string;
-	first_visit: string;
-	last_visit: string;
-	page_views: number;
-	visitor_id: string;
+	browser_name: string;
 	country: string;
 	country_code: string;
 	country_name: string;
-	referrer: string;
 	device_type: string;
-	browser_name: string;
-	os_name: string;
 	events: RawSessionEventTuple[];
+	first_visit: string;
+	last_visit: string;
+	os_name: string;
+	page_views: number;
+	referrer: string;
+	session_id: string;
+	visitor_id: string;
 }
 
 // Event icon and styling configuration
 export interface EventIconConfig {
-	icon: unknown;
-	color: string;
+	badgeColor: string;
 	bgColor: string;
 	borderColor: string;
-	badgeColor: string;
+	color: string;
+	icon: unknown;
 }

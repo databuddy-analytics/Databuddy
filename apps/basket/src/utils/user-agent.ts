@@ -21,8 +21,8 @@ export interface UserAgentInfo {
 		type?: string;
 	};
 	browser?: string;
-	os?: string;
 	device?: "desktop" | "mobile" | "tablet" | "unknown";
+	os?: string;
 }
 
 /**

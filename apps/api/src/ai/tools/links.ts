@@ -9,20 +9,20 @@ const logger = createToolLogger("Links Tools");
 const SLUG_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 interface LinkData {
-	id: string;
-	slug: string;
-	name: string;
-	targetUrl: string;
-	organizationId: string;
-	externalId: string | null;
+	clickCount?: number;
 	createdAt: string;
-	updatedAt: string;
-	expiresAt: string | null;
 	expiredRedirectUrl: string | null;
-	ogTitle: string | null;
+	expiresAt: string | null;
+	externalId: string | null;
+	id: string;
+	name: string;
 	ogDescription: string | null;
 	ogImageUrl: string | null;
-	clickCount?: number;
+	ogTitle: string | null;
+	organizationId: string;
+	slug: string;
+	targetUrl: string;
+	updatedAt: string;
 }
 
 async function getOrganizationIdFromWebsite(

@@ -26,57 +26,57 @@ export type InsightMetricFormat =
 	| "duration_s";
 
 export interface InsightMetric {
-	label: string;
 	current: number;
-	previous?: number;
 	format: InsightMetricFormat;
+	label: string;
+	previous?: number;
 }
 
 export interface Insight {
-	id: string;
-	type: InsightType;
-	severity: InsightSeverity;
-	sentiment: InsightSentiment;
-	priority: number;
-	websiteId: string;
-	websiteName: string | null;
-	websiteDomain: string;
-	title: string;
-	description: string;
-	suggestion: string;
-	metrics?: InsightMetric[];
 	changePercent?: number;
-	link: string;
-	insightSource?: InsightSource;
 	createdAt?: string;
 	currentPeriodFrom?: string | null;
 	currentPeriodTo?: string | null;
+	description: string;
+	id: string;
+	insightSource?: InsightSource;
+	link: string;
+	metrics?: InsightMetric[];
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
+	priority: number;
+	sentiment: InsightSentiment;
+	severity: InsightSeverity;
+	suggestion: string;
 	timezone?: string | null;
+	title: string;
+	type: InsightType;
+	websiteDomain: string;
+	websiteId: string;
+	websiteName: string | null;
 }
 
 export interface HistoryInsightRow {
-	id: string;
-	type: string;
-	severity: string;
-	sentiment: string;
-	priority: number;
-	websiteId: string;
-	websiteName: string | null;
-	websiteDomain: string;
-	title: string;
-	description: string;
-	suggestion: string;
-	metrics?: InsightMetric[];
 	changePercent?: number | null;
-	link: string;
 	createdAt?: string;
 	currentPeriodFrom?: string | null;
 	currentPeriodTo?: string | null;
+	description: string;
+	id: string;
+	link: string;
+	metrics?: InsightMetric[];
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
+	priority: number;
+	sentiment: string;
+	severity: string;
+	suggestion: string;
 	timezone?: string | null;
+	title: string;
+	type: string;
+	websiteDomain: string;
+	websiteId: string;
+	websiteName: string | null;
 }
 
 export function mapHistoryRowToInsight(row: HistoryInsightRow): Insight {

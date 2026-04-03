@@ -1,12 +1,7 @@
 export type EvalCategory = "tool-routing" | "behavioral" | "quality" | "format";
 
 export interface EvalCase {
-	id: string;
 	category: EvalCategory;
-	name: string;
-	query: string;
-	websiteId: string;
-	model?: "basic" | "agent" | "agent-max";
 	expect: {
 		toolsCalled?: string[];
 		toolsNotCalled?: string[];
@@ -21,64 +16,69 @@ export interface EvalCase {
 		maxInputTokens?: number;
 		confirmationFlow?: boolean;
 	};
+	id: string;
+	model?: "basic" | "agent" | "agent-max";
+	name: string;
+	query: string;
+	websiteId: string;
 }
 
 export interface ScoreCard {
-	tool_routing: number;
 	behavioral: number;
-	quality: number;
 	format: number;
 	performance: number;
+	quality: number;
+	tool_routing: number;
 }
 
 export interface CaseMetrics {
-	steps: number;
-	latencyMs: number;
-	inputTokens: number;
-	outputTokens: number;
 	costUsd: number;
+	inputTokens: number;
+	latencyMs: number;
+	outputTokens: number;
+	steps: number;
 }
 
 export interface CaseResult {
-	id: string;
 	category: string;
+	failures: string[];
+	id: string;
+	metrics: CaseMetrics;
 	name: string;
 	passed: boolean;
-	scores: Partial<ScoreCard>;
-	metrics: CaseMetrics;
-	toolsCalled: string[];
-	failures: string[];
 	response?: string;
+	scores: Partial<ScoreCard>;
+	toolsCalled: string[];
 }
 
 export interface EvalRun {
-	timestamp: string;
-	model: string;
 	apiUrl: string;
+	cases: CaseResult[];
+	dimensions: ScoreCard;
 	duration: number;
+	model: string;
 	summary: {
 		total: number;
 		passed: number;
 		failed: number;
 		score: number;
 	};
-	dimensions: ScoreCard;
-	cases: CaseResult[];
+	timestamp: string;
 }
 
 export interface ParsedAgentResponse {
-	textContent: string;
-	toolCalls: Array<{ name: string; input: unknown; output: unknown }>;
 	chartJSONs: Array<{ type: string; raw: string; parsed: unknown }>;
+	latencyMs: number;
 	rawJSONLeaks: string[];
 	steps: number;
-	latencyMs: number;
+	textContent: string;
+	toolCalls: Array<{ name: string; input: unknown; output: unknown }>;
 }
 
 export interface EvalConfig {
+	apiKey?: string;
 	apiUrl: string;
 	authCookie?: string;
-	apiKey?: string;
 	judgeModel?: string;
 	skipJudge: boolean;
 }

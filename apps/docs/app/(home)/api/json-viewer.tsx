@@ -5,9 +5,9 @@ import { useMemo, useState } from "react";
 
 export interface JsonNodeProps {
 	data: unknown;
-	name?: string;
 	level?: number;
 	maxDepth?: number;
+	name?: string;
 }
 
 const MAX_DEPTH = 20;

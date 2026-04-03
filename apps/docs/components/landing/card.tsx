@@ -5,9 +5,9 @@ import { cn } from "@/lib/utils";
 import { GridPatternBg } from "./grid-pattern";
 
 interface GridCard {
-	title: string;
 	description: string;
 	icon: ComponentType<IconProps>;
+	title: string;
 }
 
 type SciFiGridCardProps = GridCard & {

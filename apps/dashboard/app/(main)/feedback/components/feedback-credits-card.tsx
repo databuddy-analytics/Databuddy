@@ -5,9 +5,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface FeedbackCreditsCardProps {
 	available: number;
+	isLoading: boolean;
 	totalEarned: number;
 	totalSpent: number;
-	isLoading: boolean;
 }
 
 export function FeedbackCreditsCard({

@@ -18,10 +18,10 @@ import { FiltersSection } from "./filters/filters-section";
 const MAX_HOURLY_DAYS = 7;
 
 interface QuickRange {
-	label: string;
+	days?: number;
 	fullLabel: string;
 	hours?: number;
-	days?: number;
+	label: string;
 }
 
 const QUICK_RANGES: QuickRange[] = [

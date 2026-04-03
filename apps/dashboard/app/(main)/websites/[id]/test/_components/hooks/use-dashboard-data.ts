@@ -32,9 +32,11 @@ interface ChartDataPoint {
 }
 
 interface DashboardDataResult {
-	isLoading: boolean;
-	isFetching: boolean;
-	getValue: (cardId: string, queryType: string, field: string) => string;
+	getChartData: (
+		cardId: string,
+		queryType: string,
+		field: string
+	) => ChartDataPoint[];
 	getRawValue: (
 		cardId: string,
 		queryType: string,
@@ -42,19 +44,17 @@ interface DashboardDataResult {
 	) => QueryCell | undefined;
 	getRow: (cardId: string, queryType: string) => QueryRow | undefined;
 	getRows: (cardId: string, queryType: string) => QueryRow[];
-	getChartData: (
-		cardId: string,
-		queryType: string,
-		field: string
-	) => ChartDataPoint[];
+	getValue: (cardId: string, queryType: string, field: string) => string;
 	hasData: (cardId: string, queryType: string) => boolean;
+	isFetching: boolean;
+	isLoading: boolean;
 }
 
 interface WidgetWithSettings extends DashboardWidgetBase {
-	filters?: CardFilter[];
-	dateRangePreset?: DateRangePreset;
-	dataSourceMode?: DataSourceMode;
 	customQuery?: CustomQueryConfig;
+	dataSourceMode?: DataSourceMode;
+	dateRangePreset?: DateRangePreset;
+	filters?: CardFilter[];
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";

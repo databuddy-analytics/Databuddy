@@ -66,11 +66,10 @@ const monitorFormSchema = z.object({
 type MonitorFormData = z.infer<typeof monitorFormSchema>;
 
 interface MonitorSheetProps {
-	open: boolean;
 	onCloseAction: (open: boolean) => void;
-	websiteId?: string;
-	onSaveAction?: () => void;
 	onCreatedAction?: (scheduleId: string) => void;
+	onSaveAction?: () => void;
+	open: boolean;
 	schedule?: {
 		id: string;
 		url: string;
@@ -82,6 +81,7 @@ interface MonitorSheetProps {
 			enabled: boolean;
 		} | null;
 	} | null;
+	websiteId?: string;
 }
 
 export function MonitorSheet({

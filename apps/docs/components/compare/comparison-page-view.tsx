@@ -25,21 +25,21 @@ export interface ComparisonBreadcrumbItem {
 }
 
 interface ComparisonPageViewProps {
-	pageUrl: string;
-	structuredTitle: string;
-	structuredDescription: string;
 	breadcrumbTrail: ComparisonBreadcrumbItem[];
-	heroHeading: ReactNode;
-	heroDescription: string;
-	introText?: string;
 	competitor: CompetitorInfo;
+	faqs: FaqItem[];
+	featureSectionSubtitle?: string;
 	features: ComparisonFeature[];
 	featuresWin: number;
-	faqs: FaqItem[];
-	pricingTiers: PricingTier[];
-	migrationSection?: MigrationSection;
 	heroCta: string;
-	featureSectionSubtitle?: string;
+	heroDescription: string;
+	heroHeading: ReactNode;
+	introText?: string;
+	migrationSection?: MigrationSection;
+	pageUrl: string;
+	pricingTiers: PricingTier[];
+	structuredDescription: string;
+	structuredTitle: string;
 }
 
 export function ComparisonPageView({

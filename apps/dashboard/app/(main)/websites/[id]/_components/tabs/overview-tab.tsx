@@ -51,23 +51,23 @@ const OutboundLinksSection = dynamic(() =>
 );
 
 interface ChartDataPoint {
-	date: string;
-	rawDate?: string;
-	pageviews?: number;
-	visitors?: number;
-	sessions?: number;
 	bounce_rate?: number;
+	date: string;
 	median_session_duration?: number;
+	pageviews?: number;
+	rawDate?: string;
+	sessions?: number;
+	visitors?: number;
 	[key: string]: unknown;
 }
 
 interface TechnologyData {
+	category?: string;
+	icon?: string;
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage: number;
-	icon?: string;
-	category?: string;
+	visitors: number;
 }
 
 interface CellInfo {
@@ -77,17 +77,17 @@ interface CellInfo {
 
 interface PageRowData {
 	name: string;
-	visitors: number;
 	pageviews: number;
 	percentage: number;
+	visitors: number;
 }
 
 interface AnalyticsRowData {
 	name: string;
-	visitors: number;
 	pageviews: number;
 	percentage: number;
 	referrer?: string;
+	visitors: number;
 }
 
 const MIN_PREVIOUS_SESSIONS_FOR_TREND = 5;

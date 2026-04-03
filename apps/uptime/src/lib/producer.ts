@@ -9,8 +9,8 @@ function stringifyEvent(event: unknown): string {
 
 interface ProducerConfig {
 	broker?: string;
-	username?: string;
 	password?: string;
+	username?: string;
 }
 
 class UptimeProducer {

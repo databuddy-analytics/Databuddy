@@ -22,14 +22,14 @@ import { getOperatorLabel } from "@/hooks/use-filters";
 import type { SavedFilter } from "@/hooks/use-saved-filters";
 
 interface SavedFiltersMenuProps {
-	savedFilters: SavedFilter[];
+	currentFilters: DynamicQueryFilter[];
 	isLoading: boolean;
 	onApplyFilter: (filters: DynamicQueryFilter[]) => void;
+	onDeleteAll: () => void;
 	onDeleteFilter: (id: string) => void;
 	onDuplicateFilter: (id: string) => void;
 	onEditFilter: (id: string) => void;
-	onDeleteAll: () => void;
-	currentFilters: DynamicQueryFilter[];
+	savedFilters: SavedFilter[];
 }
 
 function getFieldLabel(field: string): string {

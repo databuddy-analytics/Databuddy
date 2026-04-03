@@ -92,8 +92,8 @@ function TabsContent({
 }
 
 interface TabProps {
-	value?: string;
 	children: React.ReactNode;
+	value?: string;
 }
 
 function Tab({ children }: TabProps) {

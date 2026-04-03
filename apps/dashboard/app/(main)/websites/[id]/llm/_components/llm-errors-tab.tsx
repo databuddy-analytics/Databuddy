@@ -17,8 +17,8 @@ import {
 } from "./llm-columns";
 
 interface LlmErrorsTabProps {
-	websiteId: string;
 	dateRange: DateRange;
+	websiteId: string;
 }
 
 interface LlmErrorRateSeriesRow {

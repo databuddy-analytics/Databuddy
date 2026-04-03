@@ -18,15 +18,15 @@ const COOLDOWN_DAYS = 7;
 
 interface LimitReachedData {
 	customer_id: string;
-	feature_id: string;
 	entity_id?: string;
+	feature_id: string;
 	limit_type: "included" | "max_purchase" | "spend_limit";
 }
 
 interface UsageAlertData {
 	customer_id: string;
-	feature_id: string;
 	entity_id?: string;
+	feature_id: string;
 	usage_alert: {
 		name?: string;
 		threshold: number;
@@ -35,7 +35,6 @@ interface UsageAlertData {
 }
 
 interface ProductsUpdatedData {
-	scenario: ProductScenario;
 	customer: {
 		id: string | null;
 		name: string | null;
@@ -53,6 +52,7 @@ interface ProductsUpdatedData {
 		>;
 		products: Array<{ id: string; name: string; status: string }>;
 	};
+	scenario: ProductScenario;
 	updated_product: { id: string; name: string | null };
 }
 
@@ -67,8 +67,8 @@ type ProductScenario =
 	| "scheduled";
 
 interface WebhookResult {
-	success: boolean;
 	message: string;
+	success: boolean;
 }
 
 // ── Shared helpers ──────────────────────────────────────────────────

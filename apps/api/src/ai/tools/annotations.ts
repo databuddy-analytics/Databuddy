@@ -6,17 +6,17 @@ import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
 const logger = createToolLogger("Annotations Tools");
 
 interface AnnotationRecord {
-	id: string;
-	text: string;
 	annotationType: "point" | "line" | "range";
-	xValue: string;
-	xEndValue?: string | null;
-	yValue?: number | null;
 	color?: string | null;
-	tags?: string[];
-	isPublic?: boolean;
 	createdAt?: string;
+	id: string;
+	isPublic?: boolean;
+	tags?: string[];
+	text: string;
 	updatedAt?: string;
+	xEndValue?: string | null;
+	xValue: string;
+	yValue?: number | null;
 }
 
 const chartContextSchema = z.object({

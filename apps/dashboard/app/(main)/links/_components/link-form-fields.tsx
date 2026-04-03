@@ -29,22 +29,22 @@ import { type OgData, OgPreview } from "./og-preview";
 import { UtmBuilder, type UtmParams } from "./utm-builder";
 
 interface LinkFormFieldsProps {
-	form: UseFormReturn<LinkFormData>;
-	isEditMode: boolean;
+	deviceTargetingCount: number;
 	expandedSection: ExpandedSection;
-	onToggleSectionAction: (section: ExpandedSection) => void;
-	slugValue: string | undefined;
+	form: UseFormReturn<LinkFormData>;
 	fullTargetUrl: string;
-	utmParams: UtmParams;
-	onUtmParamsChangeAction: (params: UtmParams) => void;
+	hasCustomSocial: boolean;
+	hasExpiration: boolean;
+	isEditMode: boolean;
 	ogData: OgData;
 	onOgDataChangeAction: (data: OgData) => void;
-	useCustomOg: boolean;
+	onToggleSectionAction: (section: ExpandedSection) => void;
 	onUseCustomOgChangeAction: (useCustom: boolean) => void;
-	hasExpiration: boolean;
-	deviceTargetingCount: number;
+	onUtmParamsChangeAction: (params: UtmParams) => void;
+	slugValue: string | undefined;
+	useCustomOg: boolean;
+	utmParams: UtmParams;
 	utmParamsCount: number;
-	hasCustomSocial: boolean;
 }
 
 export function LinkFormFields({

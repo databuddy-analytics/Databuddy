@@ -22,9 +22,9 @@ import type { TargetGroup } from "../../_components/types";
 
 export interface GroupItemProps {
 	group: TargetGroup;
-	onEdit: (group: TargetGroup) => void;
-	onDelete: (groupId: string) => void;
 	isSelected?: boolean;
+	onDelete: (groupId: string) => void;
+	onEdit: (group: TargetGroup) => void;
 	onSelect?: () => void;
 }
 

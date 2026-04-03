@@ -3,16 +3,16 @@
 import { METRIC_COLORS } from "@/components/charts/metrics-constants";
 
 interface TooltipPayload {
-	dataKey: string;
-	value: number;
 	color: string;
+	dataKey: string;
 	name: string;
+	value: number;
 }
 
 interface EventsChartTooltipProps {
 	active?: boolean;
-	payload?: TooltipPayload[];
 	label?: string;
+	payload?: TooltipPayload[];
 }
 
 export function EventsChartTooltip({

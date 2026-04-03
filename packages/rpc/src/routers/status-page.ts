@@ -93,21 +93,21 @@ function deriveOverallStatus(
 }
 
 interface DailyRow {
-	site_id: string;
-	date: string;
-	uptime_percentage: number;
-	total_checks: number;
-	successful_checks: number;
-	downtime_seconds: number;
 	avg_response_time: number;
+	date: string;
+	downtime_seconds: number;
 	p95_response_time: number;
+	site_id: string;
+	successful_checks: number;
+	total_checks: number;
+	uptime_percentage: number;
 }
 
 interface LatestCheckRow {
-	site_id: string;
-	last_timestamp: string;
-	last_status: number;
 	last_http_code: number;
+	last_status: number;
+	last_timestamp: string;
+	site_id: string;
 }
 
 async function _fetchStatusPageData(

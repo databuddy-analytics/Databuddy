@@ -6,13 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { QueryTypeDialog } from "./query-type-dialog";
 
 export interface QueryTypeItem {
-	name: string;
 	config: {
 		customizable?: boolean;
 		defaultLimit?: number;
 		allowedFilters?: string[];
 		meta?: QueryBuilderMeta;
 	};
+	name: string;
 }
 
 export function QueryTypesGrid({ items }: { items: QueryTypeItem[] }) {

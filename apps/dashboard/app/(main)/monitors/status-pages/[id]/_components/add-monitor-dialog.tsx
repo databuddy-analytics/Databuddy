@@ -63,11 +63,11 @@ const createSchema = z.object({
 type CreateFormData = z.infer<typeof createSchema>;
 
 interface AddMonitorDialogProps {
-	statusPageId: string;
 	existingMonitorIds: string[];
-	open: boolean;
-	onOpenChangeAction: (open: boolean) => void;
 	onCompleteAction: () => void;
+	onOpenChangeAction: (open: boolean) => void;
+	open: boolean;
+	statusPageId: string;
 }
 
 export function AddMonitorDialog({

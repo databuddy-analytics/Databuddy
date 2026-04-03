@@ -126,18 +126,18 @@ function normalCDF(z: number): number {
 }
 
 export interface MetricScoreData {
+	contribution: number | null;
 	metric: RESMetric;
 	rawValue: number | null;
 	score: number | null;
-	weight: number;
-	contribution: number | null;
 	status: "good" | "needs-improvement" | "poor" | null;
+	weight: number;
 }
 
 export interface RESResult {
+	metrics: MetricScoreData[];
 	score: number | null;
 	status: "good" | "needs-improvement" | "poor" | null;
-	metrics: MetricScoreData[];
 	totalSamples: number;
 }
 

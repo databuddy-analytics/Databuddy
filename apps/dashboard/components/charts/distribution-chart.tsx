@@ -28,17 +28,17 @@ const COLORS = [
 ];
 
 interface ChartDataItem {
+	color?: string;
 	name: string;
 	value: number;
-	color?: string;
 }
 
 interface DistributionChartProps {
 	data: ChartDataItem[] | undefined;
-	isLoading: boolean;
-	title: string;
 	description?: string;
 	height?: number;
+	isLoading: boolean;
+	title: string;
 }
 
 interface CustomTooltipProps {

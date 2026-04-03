@@ -27,14 +27,14 @@ export function RightSidebar({ children, className }: RightSidebarProps) {
 }
 
 interface SectionProps {
-	children: React.ReactNode;
-	className?: string;
-	title?: string;
-	border?: boolean;
 	badge?: {
 		label: string;
 		variant?: VariantProps<typeof badgeVariants>["variant"];
 	};
+	border?: boolean;
+	children: React.ReactNode;
+	className?: string;
+	title?: string;
 }
 
 function Section({
@@ -60,14 +60,14 @@ function Section({
 }
 
 interface InfoCardProps {
-	icon: ComponentType<IconProps>;
-	title: string;
-	description?: string;
-	className?: string;
 	badge?: {
 		label: string;
 		variant?: VariantProps<typeof badgeVariants>["variant"];
 	};
+	className?: string;
+	description?: string;
+	icon: ComponentType<IconProps>;
+	title: string;
 }
 
 function InfoCard({
@@ -109,9 +109,9 @@ function InfoCard({
 }
 
 interface DocsLinkProps {
+	className?: string;
 	href?: string;
 	label?: string;
-	className?: string;
 }
 
 function DocsLink({

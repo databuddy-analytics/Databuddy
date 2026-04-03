@@ -3,19 +3,19 @@
 import { createServerFlagsManager } from "@databuddy/sdk/node";
 
 export interface ExamplesDisplayStrategy {
-	exampleCount: number; // 0, 3, or 6
-	variant: string; // Variant key (for debugging)
-	variantValue: any; // The actual variant value
-	testCondition?: string; // Optional human-readable test condition
 	dependencies?: {
 		prerequisiteFlag: string;
 		prerequisiteEnabled: boolean;
 	};
+	environment?: string;
+	exampleCount: number; // 0, 3, or 6
 	schedule?: {
 		hasSchedule: boolean;
 		nextChange?: string;
 	};
-	environment?: string;
+	testCondition?: string; // Optional human-readable test condition
+	variant: string; // Variant key (for debugging)
+	variantValue: any; // The actual variant value
 }
 
 export async function getExamplesDisplayStrategy(

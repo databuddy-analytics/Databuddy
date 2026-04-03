@@ -7,10 +7,10 @@ import { formatCompactNumber } from "./events-utils";
 import type { CustomEventItem } from "./types";
 
 interface EventsListProps {
-	events: CustomEventItem[];
 	eventColorMap?: Map<string, string>;
-	isLoading?: boolean;
+	events: CustomEventItem[];
 	isFetching?: boolean;
+	isLoading?: boolean;
 }
 
 export function EventsList({

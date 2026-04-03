@@ -4,8 +4,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface ListSkeletonProps {
 	count?: number;
-	showAvatar?: boolean;
 	showActions?: boolean;
+	showAvatar?: boolean;
 }
 
 export function ListSkeleton({

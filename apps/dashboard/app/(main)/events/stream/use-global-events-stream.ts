@@ -12,8 +12,8 @@ import type {
 } from "../_components/types";
 
 interface QueryOptions {
-	websiteId?: string;
 	organizationId?: string;
+	websiteId?: string;
 }
 
 function parseEventProperties(

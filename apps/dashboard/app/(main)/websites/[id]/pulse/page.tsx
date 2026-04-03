@@ -48,15 +48,15 @@ const granularityLabels: Record<string, string> = {
 };
 
 interface Schedule {
-	id: string;
-	url: string;
-	name?: string | null;
 	granularity: string;
+	id: string;
 	isPaused: boolean;
 	isPublic: boolean;
 	jsonParsingConfig?: {
 		enabled: boolean;
 	} | null;
+	name?: string | null;
+	url: string;
 }
 
 export default function PulsePage() {

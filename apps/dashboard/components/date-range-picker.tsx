@@ -20,8 +20,8 @@ import { formatMonthDay } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 interface PresetRange {
-	label: string;
 	getValue: () => DateRange;
+	label: string;
 }
 
 const PRESET_RANGES: PresetRange[] = [
@@ -85,11 +85,11 @@ const PRESET_RANGES: PresetRange[] = [
 
 interface DateRangePickerProps {
 	className?: string;
-	value?: DateRange;
-	onChange?: (dateRange: DateRange | undefined) => void;
 	disabled?: boolean;
 	maxDate?: Date;
 	minDate?: Date;
+	onChange?: (dateRange: DateRange | undefined) => void;
+	value?: DateRange;
 }
 
 export function DateRangePicker({

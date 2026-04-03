@@ -32,11 +32,11 @@ const {
 } = Chart.Recharts;
 
 interface MetricConfig {
+	color: string;
+	formatValue: (value: number) => string;
+	gradient: string;
 	key: string;
 	label: string;
-	color: string;
-	gradient: string;
-	formatValue: (value: number) => string;
 }
 
 const METRICS: MetricConfig[] = [
@@ -71,16 +71,16 @@ const METRICS: MetricConfig[] = [
 ];
 
 interface TooltipPayloadEntry {
-	dataKey: string;
-	value: number;
 	color: string;
+	dataKey: string;
 	payload: Record<string, unknown>;
+	value: number;
 }
 
 interface TooltipProps {
 	active?: boolean;
-	payload?: TooltipPayloadEntry[];
 	label?: string;
+	payload?: TooltipPayloadEntry[];
 }
 
 function CustomTooltip({ active, payload, label }: TooltipProps) {
@@ -128,8 +128,8 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 
 interface LLMTimeSeriesChartProps {
 	data: LLMTimeSeriesData[];
-	isLoading: boolean;
 	height?: number;
+	isLoading: boolean;
 }
 
 export function LLMTimeSeriesChart({

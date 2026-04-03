@@ -36,9 +36,9 @@ const {
 } = Chart.Recharts;
 
 export interface TimeSeriesProps extends ChartComponentProps {
-	variant: "line" | "bar" | "area" | "stacked-bar";
 	data: Record<string, string | number>[];
 	series: string[];
+	variant: "line" | "bar" | "area" | "stacked-bar";
 }
 
 const PLOT_HEIGHT = 200;

@@ -1,7 +1,7 @@
 // biome-ignore-all lint/a11y: OG image SVGs don't need alt text and it breaks the ui because it displays the alt text
 
-import { publicRPCClient } from "@/lib/orpc-public";
 import { ImageResponse } from "next/og";
+import { publicRPCClient } from "@/lib/orpc-public";
 
 export const revalidate = 60;
 export const contentType = "image/png";
@@ -341,9 +341,9 @@ export default async function OGImage({
 										height: "28px",
 									}}
 								>
-									{barDays.map((day, i) => (
+									{barDays.map((day) => (
 										<div
-											key={i}
+											key={day.date}
 											style={{
 												flex: 1,
 												backgroundColor: getBarColor(

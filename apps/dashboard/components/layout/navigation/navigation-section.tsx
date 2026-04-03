@@ -25,15 +25,15 @@ interface FeatureState {
 }
 
 interface NavigationSectionProps {
-	title: string;
+	accordionStates: ReturnType<typeof useAccordionStates>;
+	className?: string;
+	currentWebsiteId?: string | null;
+	flag?: string;
 	icon: NavigationSectionType["icon"];
 	items: NavigationSectionType["items"];
 	pathname: string;
 	searchParams: ReadonlyURLSearchParams;
-	currentWebsiteId?: string | null;
-	className?: string;
-	accordionStates: ReturnType<typeof useAccordionStates>;
-	flag?: string;
+	title: string;
 }
 
 export const NavigationSection = memo(function NavigationSectionComponent({

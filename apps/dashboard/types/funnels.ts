@@ -1,88 +1,90 @@
 export interface FunnelStep {
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
-	name: string;
 	conditions?: Record<string, unknown>;
+	name: string;
+	target: string;
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
 export interface FunnelFilter {
 	field: string;
+	label?: string;
 	operator: "equals" | "contains" | "not_equals" | "in" | "not_in";
 	value: string | string[];
-	label?: string;
 }
 
 export interface Funnel {
-	id: string;
-	name: string;
+	createdAt: string;
 	description?: string | null;
-	steps: FunnelStep[];
 	filters?: FunnelFilter[];
+	id: string;
 	ignoreHistoricData?: boolean;
 	isActive: boolean;
-	createdAt: string;
+	name: string;
+	steps: FunnelStep[];
 	updatedAt: string;
 }
 
 export interface CreateFunnelData {
-	name: string;
 	description?: string;
-	steps: FunnelStep[];
 	filters?: FunnelFilter[];
 	ignoreHistoricData?: boolean;
+	name: string;
+	steps: FunnelStep[];
 }
 
 export interface StepErrorInsight {
-	message: string;
-	error_type: string;
 	count: number;
+	error_type: string;
+	message: string;
 }
 
 export interface FunnelStepAnalytics {
-	step_number: number;
-	step_name: string;
-	users: number;
-	total_users: number;
-	conversion_rate: number;
-	dropoffs: number;
-	dropoff_rate: number;
 	avg_time_to_complete: number;
+	conversion_rate: number;
+	dropoff_rate: number;
+	dropoffs: number;
 	error_count: number;
 	error_rate: number;
+	step_name: string;
+	step_number: number;
 	top_errors: StepErrorInsight[];
+	total_users: number;
+	users: number;
 }
 
 export interface FunnelErrorInsights {
-	total_errors: number;
-	sessions_with_errors: number;
 	dropoffs_with_errors: number;
 	error_correlation_rate: number;
+	sessions_with_errors: number;
+	total_errors: number;
 }
 
 export interface FunnelTimeSeriesPoint {
-	date: string;
-	users: number;
-	conversions: number;
-	conversion_rate: number;
-	dropoffs: number;
 	avg_time: number;
+	conversion_rate: number;
+	conversions: number;
+	date: string;
+	dropoffs: number;
 	errors?: number;
+	users: number;
 }
 
 export interface FunnelAnalyticsData {
-	overall_conversion_rate: number;
-	total_users_entered: number;
-	total_users_completed: number;
 	avg_completion_time: number;
 	avg_completion_time_formatted: string;
-	biggest_dropoff_step: number;
 	biggest_dropoff_rate: number;
+	biggest_dropoff_step: number;
+	error_insights?: FunnelErrorInsights;
+	overall_conversion_rate: number;
 	steps_analytics: FunnelStepAnalytics[];
 	time_series?: FunnelTimeSeriesPoint[];
-	error_insights?: FunnelErrorInsights;
+	total_users_completed: number;
+	total_users_entered: number;
 }
 
 export interface FunnelAnalyticsByReferrerResult {
+	completed_users: number;
+	conversion_rate: number;
 	referrer: string;
 	referrer_parsed: {
 		name: string;
@@ -90,6 +92,4 @@ export interface FunnelAnalyticsByReferrerResult {
 		domain: string;
 	};
 	total_users: number;
-	completed_users: number;
-	conversion_rate: number;
 }

@@ -34,10 +34,10 @@ function getDicebearUrl(seed: string): string {
 }
 
 interface TransferWebsiteDialogProps {
-	website: Website | WebsiteOutput;
-	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onTransferSuccess?: () => void;
+	open: boolean;
+	website: Website | WebsiteOutput;
 }
 
 export function TransferWebsiteDialog({

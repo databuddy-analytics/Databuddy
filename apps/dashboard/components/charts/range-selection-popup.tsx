@@ -4,14 +4,14 @@ import { MagnifyingGlassPlusIcon, NoteIcon } from "@phosphor-icons/react";
 import { useHotkeys } from "react-hotkeys-hook";
 
 interface RangeSelectionPopupProps {
-	isOpen: boolean;
 	dateRange: {
 		startDate: Date;
 		endDate: Date;
 	};
+	isOpen: boolean;
+	onAddAnnotationAction: () => void;
 	onCloseAction: () => void;
 	onZoomAction: (dateRange: { startDate: Date; endDate: Date }) => void;
-	onAddAnnotationAction: () => void;
 	/** When false, only “Zoom to range” is shown (e.g. annotations disabled on chart). Default: true. */
 	showAnnotationAction?: boolean;
 }

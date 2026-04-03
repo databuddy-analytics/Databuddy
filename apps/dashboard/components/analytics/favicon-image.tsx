@@ -6,11 +6,11 @@ import { useState } from "react";
 import { resolveFaviconCanonicalHost } from "@/lib/favicon-domain";
 
 interface FaviconImageProps {
-	domain: string;
 	altText?: string;
-	size?: number;
 	className?: string;
+	domain: string;
 	fallbackIcon?: React.ReactNode;
+	size?: number;
 }
 
 const hostnameRegex = /^https?:\/\//;

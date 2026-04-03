@@ -234,12 +234,12 @@ function generateRequestId(): string {
 }
 
 interface AuthContext {
-	apiKey: ApiKeyRow | null;
-	user: { id: string; name: string; email: string; role?: string } | null;
-	isAuthenticated: boolean;
-	authMethod: "api_key" | "session" | "none";
 	/** Session active org; used when query omits organization_id. */
 	activeOrganizationId: string | null;
+	apiKey: ApiKeyRow | null;
+	authMethod: "api_key" | "session" | "none";
+	isAuthenticated: boolean;
+	user: { id: string; name: string; email: string; role?: string } | null;
 }
 
 function isAdminUser(user: AuthContext["user"]): boolean {
@@ -741,10 +741,10 @@ function parseQueryParameter(param: ParameterInput) {
 }
 
 interface QueryResult {
-	parameter: string;
-	success: boolean;
 	data: Record<string, unknown>[];
 	error?: string;
+	parameter: string;
+	success: boolean;
 }
 
 async function executeDynamicQuery(

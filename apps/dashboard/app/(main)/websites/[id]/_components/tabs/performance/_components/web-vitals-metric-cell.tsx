@@ -5,8 +5,8 @@ import { WarningIcon as Warning } from "@phosphor-icons/react/dist/ssr/Warning";
 import { formatPerformanceTime } from "../_utils/performance-utils";
 
 interface WebVitalsMetricCellProps {
-	value?: number;
 	metric: "lcp" | "fcp" | "fid" | "inp" | "cls";
+	value?: number;
 }
 
 const getWebVitalsThresholds = (metric: string) => {

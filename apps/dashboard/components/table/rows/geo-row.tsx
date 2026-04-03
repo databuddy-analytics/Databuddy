@@ -4,12 +4,12 @@ import { CountryFlag } from "@/components/icon";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface GeoEntry {
-	name: string;
-	visitors: number;
-	pageviews: number;
-	percentage: number;
 	country_code?: string;
 	country_name?: string;
+	name: string;
+	pageviews: number;
+	percentage: number;
+	visitors: number;
 }
 
 const formatNumber = (value: number | null | undefined): string => {

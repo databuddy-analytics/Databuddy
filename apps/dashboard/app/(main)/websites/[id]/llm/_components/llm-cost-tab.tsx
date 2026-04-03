@@ -17,14 +17,14 @@ import {
 } from "./llm-columns";
 
 interface LlmCostTabProps {
-	websiteId: string;
 	dateRange: DateRange;
+	websiteId: string;
 }
 
 interface LlmCostSeriesRow {
 	date: string;
-	provider?: string;
 	model?: string;
+	provider?: string;
 	total_cost: number;
 }
 

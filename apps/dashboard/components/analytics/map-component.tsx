@@ -24,9 +24,9 @@ const GeoJSON = dynamic(
 );
 
 interface TooltipContent {
-	name: string;
 	code: string;
 	count: number;
+	name: string;
 	percentage: number;
 }
 

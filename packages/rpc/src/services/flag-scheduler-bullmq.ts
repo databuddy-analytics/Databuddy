@@ -2,8 +2,8 @@ import { Queue } from "bullmq";
 import { logger } from "../lib/logger";
 
 interface RolloutStep {
-	scheduledAt: string;
 	executedAt?: string;
+	scheduledAt: string;
 	value: number | "enable" | "disable";
 }
 
@@ -45,11 +45,11 @@ const flagScheduleQueue = new Queue("flag-schedules", {
 });
 
 export interface FlagScheduleJobData {
-	scheduleId: string;
-	type: "enable" | "disable" | "update_rollout";
 	flagId: string;
+	scheduleId: string;
 	stepScheduledAt?: string;
 	stepValue?: number | "enable" | "disable";
+	type: "enable" | "disable" | "update_rollout";
 }
 
 /**

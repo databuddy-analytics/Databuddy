@@ -12,11 +12,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 export interface QueueMessagePart {
-	type: string;
-	text?: string;
-	url?: string;
 	filename?: string;
 	mediaType?: string;
+	text?: string;
+	type: string;
+	url?: string;
 }
 
 export interface QueueMessage {
@@ -25,10 +25,10 @@ export interface QueueMessage {
 }
 
 export interface QueueTodo {
-	id: string;
-	title: string;
 	description?: string;
+	id: string;
 	status?: "pending" | "completed";
+	title: string;
 }
 
 export type QueueItemProps = ComponentProps<"li">;

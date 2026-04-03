@@ -23,16 +23,16 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "../../websites/_components/page-header";
 
 interface InvitationData {
+	email: string;
+	expiresAt: Date;
+	id: string;
+	inviterEmail: string;
+	inviterId: string;
+	organizationId: string;
 	organizationName: string;
 	organizationSlug: string;
-	inviterEmail: string;
-	id: string;
-	email: string;
-	status: "pending" | "accepted" | "rejected" | "canceled";
-	expiresAt: Date;
-	organizationId: string;
 	role: string;
-	inviterId: string;
+	status: "pending" | "accepted" | "rejected" | "canceled";
 	teamId?: string;
 }
 

@@ -8,18 +8,18 @@ import { CountryFlag } from "@/components/icon";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 
 export interface SourceEntry {
-	name: string;
 	clicks: number;
+	domain?: string;
+	name: string;
 	percentage: number;
 	referrer?: string;
-	domain?: string;
 }
 
 export interface GeoEntry {
-	name: string;
+	clicks: number;
 	country_code: string;
 	country_name: string;
-	clicks: number;
+	name: string;
 	percentage: number;
 }
 

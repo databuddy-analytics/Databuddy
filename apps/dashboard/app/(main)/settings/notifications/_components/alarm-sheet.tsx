@@ -75,28 +75,28 @@ const alarmFormSchema = z.object({
 type AlarmFormData = z.infer<typeof alarmFormSchema>;
 
 interface AlarmDestination {
-	id: string;
-	type: string;
-	identifier: string;
 	config: Record<string, unknown>;
+	id: string;
+	identifier: string;
+	type: string;
 }
 
 export interface AlarmData {
+	description?: string | null;
+	destinations?: AlarmDestination[];
+	enabled: boolean;
 	id: string;
 	name: string;
-	description?: string | null;
-	enabled: boolean;
-	websiteId?: string | null;
-	triggerType: string;
 	triggerConditions?: Record<string, unknown>;
-	destinations?: AlarmDestination[];
+	triggerType: string;
+	websiteId?: string | null;
 }
 
 interface AlarmSheetProps {
-	open: boolean;
+	alarm?: AlarmData | null;
 	onCloseAction: (open: boolean) => void;
 	onSaveAction?: () => void;
-	alarm?: AlarmData | null;
+	open: boolean;
 }
 
 const IDENTIFIER_LABELS: Record<string, string> = {

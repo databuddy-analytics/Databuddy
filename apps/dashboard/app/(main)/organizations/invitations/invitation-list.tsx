@@ -10,8 +10,8 @@ import dayjs from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 
 interface InvitationToCancel {
-	id: string;
 	email: string;
+	id: string;
 }
 
 interface InvitationRowProps {

@@ -11,10 +11,10 @@ export type ManifestoChapterId =
 	| "build-for-builders";
 
 export interface ManifestoChapter {
+	blocks: readonly ManifestoBlock[];
 	id: ManifestoChapterId;
 	number: string;
 	title: string;
-	blocks: readonly ManifestoBlock[];
 }
 
 export const manifestoIntro = {

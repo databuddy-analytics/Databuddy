@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 interface BrandingColorSwatchProps {
 	hex: string;
 	name: string;
-	usage: string;
 	textColor?: "light" | "dark";
+	usage: string;
 }
 
 export function BrandingColorSwatch({

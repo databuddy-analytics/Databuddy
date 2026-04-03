@@ -1,23 +1,22 @@
 // Page-related analytics types
 
 export interface EntryPageData {
-	name: string; // This is the path
-	entries: number;
-	visitors: number;
-	sessions: number;
 	bounce_rate: number;
+	entries: number;
+	name: string; // This is the path
+	sessions: number;
+	visitors: number;
 }
 
 export interface ExitPageData {
-	name: string; // This is the path
 	exits: number;
+	name: string; // This is the path
 	sessions: number;
 	visitors?: number;
 }
 
 export interface GroupedBrowserData {
 	name: string; // browser name (e.g., "Chrome", "Firefox")
-	visitors: number;
 	pageviews: number;
 	sessions: number;
 	versions: {
@@ -27,6 +26,7 @@ export interface GroupedBrowserData {
 		pageviews: number;
 		sessions: number;
 	}[];
+	visitors: number;
 }
 
 export interface SessionsSummaryData {
@@ -35,11 +35,11 @@ export interface SessionsSummaryData {
 }
 
 export interface SessionsResponse {
-	sessions: any[];
 	pagination: {
 		page: number;
 		limit: number;
 		hasNext: boolean;
 		hasPrev: boolean;
 	};
+	sessions: any[];
 }

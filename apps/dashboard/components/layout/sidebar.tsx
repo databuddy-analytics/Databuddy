@@ -33,9 +33,9 @@ import { WebsiteHeader } from "./navigation/website-header";
 import { OrganizationSelector } from "./organization-selector";
 
 interface NavigationConfig {
-	navigation: NavigationEntry[];
-	header: React.ReactNode;
 	currentWebsiteId?: string | null;
+	header: React.ReactNode;
+	navigation: NavigationEntry[];
 }
 
 const isNavigationSection = (

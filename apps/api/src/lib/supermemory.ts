@@ -32,9 +32,9 @@ function buildContainerTag(
 }
 
 export interface MemoryContext {
-	staticProfile: string[];
 	dynamicProfile: string[];
 	relevantMemories: string[];
+	staticProfile: string[];
 }
 
 /**

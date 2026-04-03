@@ -3,10 +3,10 @@ import Image from "next/image";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 interface StatusNavbarProps {
-	name?: string;
 	logoUrl?: string | null;
-	websiteUrl?: string | null;
+	name?: string;
 	supportUrl?: string | null;
+	websiteUrl?: string | null;
 }
 
 export function StatusNavbar({

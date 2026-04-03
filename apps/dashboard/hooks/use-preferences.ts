@@ -10,9 +10,9 @@ import { useCallback } from "react";
 import { orpc } from "@/lib/orpc";
 
 interface UserPreferences {
-	timezone: string;
 	dateFormat: string;
 	timeFormat: string;
+	timezone: string;
 }
 
 const defaultPreferences: UserPreferences = {

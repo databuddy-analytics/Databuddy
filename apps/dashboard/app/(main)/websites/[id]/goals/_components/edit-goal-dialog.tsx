@@ -38,22 +38,22 @@ const defaultFilter: GoalFilter = {
 } as const;
 
 interface GoalFormData {
-	id?: string;
-	name: string;
 	description: string | null;
-	type: string;
-	target: string;
 	filters: GoalFilter[];
+	id?: string;
 	ignoreHistoricData?: boolean;
+	name: string;
+	target: string;
+	type: string;
 }
 
 interface EditGoalDialogProps {
+	autocompleteData?: AutocompleteData;
+	goal: Goal | null;
 	isOpen: boolean;
+	isSaving: boolean;
 	onClose: () => void;
 	onSave: (data: Goal | Omit<CreateGoalData, "websiteId">) => Promise<void>;
-	goal: Goal | null;
-	isSaving: boolean;
-	autocompleteData?: AutocompleteData;
 }
 
 export function EditGoalDialog({

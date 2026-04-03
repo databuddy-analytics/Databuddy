@@ -20,28 +20,28 @@ import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 
 interface LinkPreviewData {
-	name: string;
-	targetUrl: string;
-	slug?: string;
-	expiresAt?: string | null;
 	expiredRedirectUrl?: string | null;
-	ogTitle?: string | null;
+	expiresAt?: string | null;
+	name: string;
 	ogDescription?: string | null;
 	ogImageUrl?: string | null;
+	ogTitle?: string | null;
+	slug?: string;
+	targetUrl: string;
 }
 
 export interface LinkPreviewProps extends BaseComponentProps {
-	mode: "create" | "update" | "delete";
 	link: LinkPreviewData;
+	mode: "create" | "update" | "delete";
 }
 
 interface ModeConfig {
-	title: string;
+	accent: string;
+	ButtonIcon: Icon;
 	confirmLabel: string;
 	confirmMessage: string;
-	accent: string;
+	title: string;
 	variant: "default" | "destructive";
-	ButtonIcon: Icon;
 }
 
 const MODE_CONFIG: Record<string, ModeConfig> = {

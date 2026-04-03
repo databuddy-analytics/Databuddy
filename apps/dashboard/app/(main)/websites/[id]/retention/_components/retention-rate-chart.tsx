@@ -30,8 +30,8 @@ const {
 interface RetentionRate {
 	date: string;
 	new_users: number;
-	returning_users: number;
 	retention_rate: number;
+	returning_users: number;
 }
 
 interface RetentionRateChartProps {

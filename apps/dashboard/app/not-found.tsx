@@ -38,9 +38,9 @@ const ALL_NAVIGATION: NavigationSection[] = [
 ];
 
 interface SearchItem {
+	icon: typeof MagnifyingGlassIcon;
 	name: string;
 	path: string;
-	icon: typeof MagnifyingGlassIcon;
 }
 
 function toSearchItem(item: NavigationItem): SearchItem | null {

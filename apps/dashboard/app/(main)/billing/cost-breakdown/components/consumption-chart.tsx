@@ -47,10 +47,10 @@ const EVENT_TYPE_COLORS = {
 } as const;
 
 interface ConsumptionChartProps {
-	usageData?: UsageResponse;
 	isLoading: boolean;
 	onDateRangeChange: (startDate: string, endDate: string) => void;
 	overageInfo: OverageInfo | null;
+	usageData?: UsageResponse;
 }
 
 export function ConsumptionChart({

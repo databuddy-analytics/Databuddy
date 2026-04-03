@@ -6,8 +6,10 @@ import { useLogger } from "evlog/elysia";
 const DATE_REGEX = /\.\d{3}Z$/;
 
 interface PaddleTransaction {
-	id: string;
+	billed_at: string | null;
+	created_at: string;
 	currency_code: string;
+	custom_data?: Record<string, string>;
 	details: {
 		totals: { total: string };
 		line_items?: Array<{
@@ -15,9 +17,7 @@ interface PaddleTransaction {
 			price: { billing_cycle: { interval: string } | null };
 		}>;
 	};
-	custom_data?: Record<string, string>;
-	created_at: string;
-	billed_at: string | null;
+	id: string;
 }
 
 function extractAnalyticsMetadata(
@@ -40,8 +40,8 @@ function extractAnalyticsMetadata(
 }
 
 interface PaddleEvent {
-	event_type: string;
 	data: PaddleTransaction;
+	event_type: string;
 }
 
 function formatDate(date: Date): string {

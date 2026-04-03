@@ -67,8 +67,8 @@ function isValidStepType(value: unknown): value is ChartCurveType {
 }
 
 interface LocationPreferences {
-	chartType: ChartSeriesKind;
 	chartStepType: ChartCurveType;
+	chartType: ChartSeriesKind;
 }
 
 type AllPreferences = Partial<Record<ChartLocation, LocationPreferences>>;

@@ -47,17 +47,17 @@ const DASH_UNDERSCORE_SPLIT = /[-_]/g;
 
 interface WebsiteInsight extends ParsedInsight {
 	id: string;
+	link: string;
+	websiteDomain: string;
 	websiteId: string;
 	websiteName: string | null;
-	websiteDomain: string;
-	link: string;
 }
 
 interface InsightMetricRow {
-	label: string;
 	current: number;
-	previous?: number;
 	format: "number" | "percent" | "duration_ms" | "duration_s";
+	label: string;
+	previous?: number;
 }
 
 interface InsightsPayload {
@@ -66,12 +66,12 @@ interface InsightsPayload {
 }
 
 interface PeriodData {
+	browsers: Record<string, unknown>[];
+	countries: Record<string, unknown>[];
+	errorSummary: Record<string, unknown>[];
 	summary: Record<string, unknown>[];
 	topPages: Record<string, unknown>[];
-	errorSummary: Record<string, unknown>[];
 	topReferrers: Record<string, unknown>[];
-	countries: Record<string, unknown>[];
-	browsers: Record<string, unknown>[];
 	vitalsOverview: Record<string, unknown>[];
 }
 
@@ -81,9 +81,9 @@ interface WeekOverWeekPeriod {
 }
 
 interface OrgWebsiteRow {
+	domain: string;
 	id: string;
 	name: string | null;
-	domain: string;
 }
 
 function humanizeMetricKey(key: string): string {
