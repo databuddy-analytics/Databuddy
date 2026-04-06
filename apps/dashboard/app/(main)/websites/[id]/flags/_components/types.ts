@@ -13,6 +13,7 @@ export interface Flag {
 	dependencies?: string[];
 	description?: string | null;
 	environment?: string;
+	folder?: string | null;
 	id: string;
 	key: string;
 	name?: string | null;

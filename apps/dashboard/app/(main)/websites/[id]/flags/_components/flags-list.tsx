@@ -1,14 +1,17 @@
 "use client";
 
-import { ArchiveIcon } from "@phosphor-icons/react";
-import { DotsThreeIcon } from "@phosphor-icons/react";
-import { FlagIcon } from "@phosphor-icons/react";
-import { FlaskIcon } from "@phosphor-icons/react";
-import { GaugeIcon } from "@phosphor-icons/react";
-import { LinkIcon } from "@phosphor-icons/react";
-import { PencilSimpleIcon } from "@phosphor-icons/react";
-import { ShareNetworkIcon } from "@phosphor-icons/react";
-import { TrashIcon } from "@phosphor-icons/react";
+import {
+	ArchiveIcon,
+	DotsThreeIcon,
+	FlagIcon,
+	FlaskIcon,
+	FolderIcon,
+	GaugeIcon,
+	LinkIcon,
+	PencilSimpleIcon,
+	ShareNetworkIcon,
+	TrashIcon,
+} from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -329,7 +332,15 @@ function FlagRow({
 									flagMap={flagMap}
 								/>
 							</div>
-							<FlagKey className="-ms-1.5 max-w-full" flag={flag} />
+							<div className="flex items-center gap-2">
+								<FlagKey className="-ms-1.5 max-w-full" flag={flag} />
+								{flag.folder && (
+									<span className="flex items-center gap-1 text-muted-foreground text-xs">
+										<FolderIcon className="size-3" weight="duotone" />
+										{flag.folder}
+									</span>
+								)}
+							</div>
 						</div>
 					</div>
 				</List.Cell>

@@ -244,6 +244,7 @@ export function FlagSheet({
 				dependencies: [],
 				environment: undefined,
 				targetGroupIds: [],
+				folder: undefined,
 			},
 			schedule: undefined,
 		},
@@ -286,6 +287,7 @@ export function FlagSheet({
 					dependencies: flag.dependencies ?? [],
 					environment: flag.environment || undefined,
 					targetGroupIds: extractTargetGroupIds(),
+					folder: (flag.folder as string | undefined) || undefined,
 				},
 				schedule: undefined,
 			});
@@ -396,6 +398,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || null,
 				};
 				await updateMutation.mutateAsync(updateData);
 			} else {
@@ -414,6 +417,7 @@ export function FlagSheet({
 					rolloutPercentage: data.rolloutPercentage ?? 0,
 					rolloutBy: data.rolloutBy || undefined,
 					targetGroupIds: data.targetGroupIds || [],
+					folder: data.folder?.trim() || undefined,
 				};
 				await createMutation.mutateAsync(createData);
 			}
@@ -539,6 +543,26 @@ export function FlagSheet({
 													className="min-h-16 resize-none"
 													placeholder="What does this flag control?…"
 													{...field}
+												/>
+											</FormControl>
+											<FormMessage />
+										</FormItem>
+									)}
+								/>
+
+								<FormField
+									control={form.control}
+									name="flag.folder"
+									render={({ field }) => (
+										<FormItem>
+											<FormLabel className="text-muted-foreground">
+												Folder (optional)
+											</FormLabel>
+											<FormControl>
+												<Input
+													placeholder="e.g. auth/login or payments"
+													{...field}
+													value={field.value ?? ""}
 												/>
 											</FormControl>
 											<FormMessage />
