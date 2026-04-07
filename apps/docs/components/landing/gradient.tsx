@@ -1,38 +1,236 @@
-const NOISE = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
+"use client";
 
+import { useEffect, useId, useRef } from "react";
+
+function readVar(name: string, fallback: string) {
+	if (typeof document === "undefined") {
+		return fallback;
+	}
+	const v = getComputedStyle(document.documentElement)
+		.getPropertyValue(name)
+		.trim();
+	return v || fallback;
+}
+
+type Point = { x: number; y: number };
+
+/** Cubic Bézier — two handles give a visible S / arc (quadratic with near-collinear control looks straight). */
+function cubicBezier(
+	p0: Point,
+	p1: Point,
+	p2: Point,
+	p3: Point,
+	t: number
+): Point {
+	const u = 1 - t;
+	const uu = u * u;
+	const tt = t * t;
+	return {
+		x: uu * u * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + tt * t * p3.x,
+		y: uu * u * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + tt * t * p3.y,
+	};
+}
+
+function cubicTangent(
+	p0: Point,
+	p1: Point,
+	p2: Point,
+	p3: Point,
+	t: number
+): Point {
+	const u = 1 - t;
+	const uu = u * u;
+	const tt = t * t;
+	return {
+		x:
+			3 * uu * (p1.x - p0.x) +
+			6 * u * t * (p2.x - p1.x) +
+			3 * tt * (p3.x - p2.x),
+		y:
+			3 * uu * (p1.y - p0.y) +
+			6 * u * t * (p2.y - p1.y) +
+			3 * tt * (p3.y - p2.y),
+	};
+}
+
+function hypot(v: Point) {
+	return Math.hypot(v.x, v.y);
+}
+
+function norm(v: Point): Point {
+	const L = hypot(v);
+	if (L < 1e-9) {
+		return { x: 0, y: 1 };
+	}
+	return { x: v.x / L, y: v.y / L };
+}
+
+/** Perpendicular (CCW 90°) to tangent — gradient runs across stroke width */
+function normalFromTangent(tan: Point): Point {
+	return norm({ x: -tan.y, y: tan.x });
+}
+
+const STRIP_STEPS = 135;
+
+/** Broad S-swoop BL → TR (cubic path + strip quads); colors are set in the draw loop only. */
 export function Gradient() {
+	const containerRef = useRef<HTMLDivElement>(null);
+	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const rawId = useId();
+	const noiseFilterId = `grain-${rawId.replace(/:/g, "")}`;
+
+	useEffect(() => {
+		const container = containerRef.current;
+		const canvas = canvasRef.current;
+		if (!(container && canvas)) {
+			return;
+		}
+
+		const draw = () => {
+			const w = container.clientWidth;
+			const h = container.clientHeight;
+			if (w < 1 || h < 1) {
+				return;
+			}
+
+			const dpr = Math.min(
+				typeof window === "undefined" ? 1 : window.devicePixelRatio,
+				2
+			);
+			canvas.width = Math.floor(w * dpr);
+			canvas.height = Math.floor(h * dpr);
+			canvas.style.width = `${w}px`;
+			canvas.style.height = `${h}px`;
+
+			const ctx = canvas.getContext("2d", { alpha: true });
+			if (!ctx) {
+				return;
+			}
+
+			ctx.setTransform(1, 0, 0, 1, 0, 0);
+			ctx.scale(dpr, dpr);
+			ctx.clearRect(0, 0, w, h);
+
+			const amber = readVar("--brand-amber", "#E3A514");
+			const orange = "#D66736";
+			const coral = readVar("--brand-coral", "#B74677");
+			const purple = readVar("--brand-purple", "#453C7C");
+			const blue = "#152E7F";
+
+			/*
+			 * Softer flowing S: handles inset from the viewport edges so the arc bends
+			 * gradually (less “railroad” than P1 on y≈h and P2 on x≈w).
+			 * p2 sets the incoming tangent at p3 (top-right): lower x / higher y = sharper
+			 * final hook into the corner (vector p3 − p2 is longer and more “up”).
+			 */
+			const p0: Point = { x: 0, y: h * 0.97 };
+			const p1: Point = { x: w * 0.35, y: h * 0.22 };
+			const p2: Point = { x: w * 0.72, y: h * 0.9 };
+			const p3: Point = { x: w * 0.92, y: 0 };
+
+			/* t=0 at BL (thick) → t=1 at TR (thin): band width tapers along the swoop */
+			const m = Math.min(w, h);
+			const thickBL = Math.max(56, m * 0.28);
+			const thinTR = Math.max(22, m * 0.09);
+			const halfWAt = (t: number) => thickBL * (1 - t) + thinTR * t;
+
+			for (let i = 0; i < STRIP_STEPS; i++) {
+				const t0 = i / STRIP_STEPS;
+				const t1 = (i + 1) / STRIP_STEPS;
+				const w0 = halfWAt(t0);
+				const w1 = halfWAt(t1);
+				const wMid = (w0 + w1) / 2;
+
+				const pa = cubicBezier(p0, p1, p2, p3, t0);
+				const pb = cubicBezier(p0, p1, p2, p3, t1);
+				const ta = cubicTangent(p0, p1, p2, p3, t0);
+				const tb = cubicTangent(p0, p1, p2, p3, t1);
+				const na = normalFromTangent(ta);
+				const nb = normalFromTangent(tb);
+
+				const mid: Point = { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 };
+				const navg = norm({ x: na.x + nb.x, y: na.y + nb.y });
+
+				const g = ctx.createLinearGradient(
+					mid.x - wMid * navg.x,
+					mid.y - wMid * navg.y,
+					mid.x + wMid * navg.x,
+					mid.y + wMid * navg.y
+				);
+				g.addColorStop(0, "rgba(28, 28, 36, 0)");
+				g.addColorStop(0.04, amber); // yellow
+				g.addColorStop(0.22, orange); // orange
+				g.addColorStop(0.4, coral); // pink
+				g.addColorStop(0.62, purple); // purple
+				g.addColorStop(0.82, blue); // blue
+				g.addColorStop(0.96, "#0A1040");
+				g.addColorStop(1, "rgba(28, 28, 36, 0)");
+
+				ctx.beginPath();
+				ctx.moveTo(pa.x - w0 * na.x, pa.y - w0 * na.y);
+				ctx.lineTo(pa.x + w0 * na.x, pa.y + w0 * na.y);
+				ctx.lineTo(pb.x + w1 * nb.x, pb.y + w1 * nb.y);
+				ctx.lineTo(pb.x - w1 * nb.x, pb.y - w1 * nb.y);
+				ctx.closePath();
+				ctx.fillStyle = g;
+				ctx.globalAlpha = 1;
+				ctx.fill();
+			}
+			ctx.globalAlpha = 1;
+		};
+
+		const ro = new ResizeObserver(draw);
+		ro.observe(container);
+		draw();
+
+		return () => {
+			ro.disconnect();
+		};
+	}, []);
+
 	return (
 		<div
 			aria-hidden
 			className="pointer-events-none absolute inset-0 overflow-hidden"
+			ref={containerRef}
 		>
-			{/* Stacked arcs anchored at bottom-right */}
+			<div className="absolute inset-0 bg-[#1c1c24]" />
+
+			<div className="absolute inset-0 origin-center scale-[1.2]">
+				<canvas
+					className="block size-full blur-[10px] sm:blur-[12px]"
+					ref={canvasRef}
+				/>
+			</div>
+
+			<svg
+				aria-hidden
+				className="pointer-events-none absolute inset-0 size-full opacity-[0.06]"
+			>
+				<title>Grain</title>
+				<defs>
+					<filter colorInterpolationFilters="sRGB" id={noiseFilterId}>
+						<feTurbulence
+							baseFrequency="0.85"
+							numOctaves="3"
+							stitchTiles="stitch"
+							type="fractalNoise"
+						/>
+					</filter>
+				</defs>
+				<rect
+					className="size-full"
+					filter={`url(#${noiseFilterId})`}
+					height="100%"
+					width="100%"
+				/>
+			</svg>
+
 			<div
 				className="absolute inset-0"
 				style={{
-					background: `
-                    radial-gradient(ellipse 160%  98%  at 100% 120%, var(--brand-amber) 30%, transparent 80%),
-                    radial-gradient(ellipse 171% 103%  at 100% 120%, #C86020 50%, transparent 80%),
-                    radial-gradient(ellipse 183% 109%  at 100% 120%, var(--brand-coral) 50%, transparent 80%),
-                    radial-gradient(ellipse 196% 116%  at 100% 120%, #5C3A90 50%, transparent 80%),
-                    radial-gradient(ellipse 210% 124%  at 100% 120%, var(--brand-purple) 50%, transparent 80%),
-                    radial-gradient(ellipse 225% 133%  at 100% 120%, #16163C 50%, transparent 80%),
-                    #1a1a1f
-                    `,
-					maskImage:
-						"linear-gradient(to bottom, black 0%, black 50%, transparent 75%)",
-					WebkitMaskImage:
-						"linear-gradient(to bottom, black 0%, black 50%, transparent 75%)",
-				}}
-			/>
-
-			{/* Grain.  */}
-			<div
-				className="absolute inset-0 opacity-[0.00]"
-				style={{
-					backgroundImage: NOISE,
-					backgroundRepeat: "repeat",
-					backgroundSize: "256px 256px",
+					background:
+						"linear-gradient(to bottom, transparent 0%, transparent 34%, #1c1c24 100%)",
 				}}
 			/>
 		</div>
