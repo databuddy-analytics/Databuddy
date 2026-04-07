@@ -90,6 +90,11 @@ const config: NextConfig = {
 				destination: "/docs/sdk/tracker",
 				permanent: false,
 			},
+			{
+				source: "/web-vitals",
+				destination: "/docs/performance/core-web-vitals-guide",
+				permanent: false,
+			},
 		];
 	},
 

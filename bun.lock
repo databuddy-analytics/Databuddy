@@ -496,6 +496,10 @@
         "typescript": "catalog:",
       },
     },
+    "packages/private": {
+      "name": "@databuddy/private",
+      "version": "0.1.0",
+    },
     "packages/redis": {
       "name": "@databuddy/redis",
       "version": "1.0.0",
@@ -847,6 +851,8 @@
     "@databuddy/mapper": ["@databuddy/mapper@workspace:packages/mapper"],
 
     "@databuddy/notifications": ["@databuddy/notifications@workspace:packages/notifications"],
+
+    "@databuddy/private": ["@databuddy/private@workspace:packages/private"],
 
     "@databuddy/redis": ["@databuddy/redis@workspace:packages/redis"],
 
