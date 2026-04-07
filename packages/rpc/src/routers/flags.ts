@@ -1,5 +1,6 @@
 import {
 	and,
+	asc,
 	desc,
 	eq,
 	flags,
@@ -9,7 +10,6 @@ import {
 	isNull,
 	ne,
 	notDeleted,
-	sql,
 	targetGroups,
 	withTransaction,
 } from "@databuddy/db";
@@ -885,7 +885,7 @@ export const flagsRouter = {
 						isNotNull(flags.folder)
 					)
 				)
-				.orderBy(sql`${flags.folder} asc`);
+				.orderBy(asc(flags.folder));
 
 			return rows.map((r) => r.folder as string);
 		}),
