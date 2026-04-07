@@ -32,14 +32,27 @@ const CHART_DATA = [
 	{ errors: 167, critical: 41 },
 ] as const;
 
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }> }) {
-	if (!active || !payload?.length) return null;
+function CustomTooltip({
+	active,
+	payload,
+}: {
+	active?: boolean;
+	payload?: Array<{ value: number; name: string; color: string }>;
+}) {
+	if (!(active && payload?.length)) {
+		return null;
+	}
 	return (
 		<div className="rounded border border-border bg-card/90 px-3 py-2 shadow-lg backdrop-blur-sm">
 			{payload.map((p) => (
 				<div className="flex items-center gap-2" key={p.name}>
-					<span className="size-1.5 rounded-full" style={{ backgroundColor: p.color }} />
-					<span className="font-mono text-[11px] text-foreground">{p.name}: {p.value}</span>
+					<span
+						className="size-1.5 rounded-full"
+						style={{ backgroundColor: p.color }}
+					/>
+					<span className="font-mono text-[11px] text-foreground">
+						{p.name}: {p.value}
+					</span>
 				</div>
 			))}
 		</div>

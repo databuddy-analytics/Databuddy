@@ -47,9 +47,9 @@ const cards = [
 	},
 	{
 		id: 6,
-		title: "GDPR compliant by default",
+		title: "Feature Flags",
 		description:
-			"No personal data collected. GDPR, CCPA, and ePrivacy compliant out of the box.",
+			"Roll out features safely with instant kill switches and targeted releases.",
 		icon: BrainIcon,
 	},
 ];

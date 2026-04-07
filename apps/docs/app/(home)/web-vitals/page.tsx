@@ -17,6 +17,7 @@ import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
 import { Spotlight } from "@/components/landing/spotlight";
 import { StructuredData } from "@/components/structured-data";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
 	title: "Core Web Vitals Monitoring | Databuddy",
@@ -295,16 +296,16 @@ export default function WebVitalsPage() {
 								</p>
 
 								<div className="flex items-center gap-3">
-									<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
+									<Button asChild className="px-6 py-5 text-base sm:px-8">
 										<a href="https://app.databuddy.cc/login">
 											Monitor your vitals
 										</a>
-									</SciFiButton>
-									<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
+									</Button>
+									<Button asChild className="px-6 py-5 text-base sm:px-8" variant="secondary">
 										<Link href="/docs/performance/core-web-vitals-guide">
 											Read the guide
 										</Link>
-									</SciFiButton>
+									</Button>
 								</div>
 
 								<p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
