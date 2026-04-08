@@ -1,4 +1,5 @@
 import { chQuery } from "@databuddy/db";
+import { Expressions } from "../query/expressions";
 
 export interface DimensionRow {
 	current: number;
@@ -15,7 +16,7 @@ export type DimensionKind = "country" | "page" | "referrer";
 
 export function mergeDimensionRows(
 	rows: DimensionRow[],
-	limit: number
+	limit = 5
 ): DimensionResult[] {
 	if (rows.length === 0) {
 		return [];
@@ -60,10 +61,19 @@ export function mergeDimensionRows(
 	return results.slice(0, limit);
 }
 
-const DIMENSION_COL: Record<DimensionKind, string> = {
-	country: "country",
-	page: "path",
-	referrer: "referrer",
+const DIMENSION_EXPR: Record<
+	DimensionKind,
+	{ expr: string; emptyFilter: string }
+> = {
+	country: { expr: "country", emptyFilter: "c.key != ''" },
+	page: {
+		expr: Expressions.path.normalized,
+		emptyFilter: "c.key != '/'  AND c.key != ''",
+	},
+	referrer: {
+		expr: Expressions.referrer.normalized,
+		emptyFilter: "c.key != 'direct'",
+	},
 };
 
 export async function fetchOrgDimensions(
@@ -76,14 +86,14 @@ export async function fetchOrgDimensions(
 		return [];
 	}
 
-	const col = DIMENSION_COL[kind];
+	const { expr: colExpr, emptyFilter } = DIMENSION_EXPR[kind];
 	const lookbackDays = rangeDays * 2;
 	const fetchLimit = limit * 3;
 
 	const sql = `
 WITH
   current_window AS (
-    SELECT ${col} AS key, count() AS value
+    SELECT (${colExpr}) AS key, count() AS value
     FROM analytics.events
     WHERE client_id IN {websiteIds:Array(String)}
       AND event_name = 'screen_view'
@@ -93,7 +103,7 @@ WITH
     GROUP BY key
   ),
   previous_window AS (
-    SELECT ${col} AS key, count() AS value
+    SELECT (${colExpr}) AS key, count() AS value
     FROM analytics.events
     WHERE client_id IN {websiteIds:Array(String)}
       AND event_name = 'screen_view'
@@ -109,7 +119,7 @@ SELECT
   toInt64(ifNull(p.value, 0)) AS previous
 FROM current_window c
 LEFT JOIN previous_window p ON p.key = c.key
-WHERE c.key != ''
+WHERE ${emptyFilter}
 ORDER BY current DESC
 LIMIT {fetchLimit:UInt32}
 `;
