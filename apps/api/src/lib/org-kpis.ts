@@ -161,13 +161,14 @@ page_agg AS (
   WHERE client_id IN {websiteIds:Array(String)}
     AND time >= today() - {lookbackDays:UInt32}
     AND time < today() + 1
+    AND session_id != ''
   GROUP BY date, client_id
 ),
 session_stats AS (
   SELECT
     date,
     client_id,
-    count() AS sessions,
+    countIf(page_count >= 1) AS sessions,
     countIf(page_count = 1 AND duration < 10 AND engagement_count = 0) AS bounces
   FROM session_agg
   GROUP BY date, client_id
