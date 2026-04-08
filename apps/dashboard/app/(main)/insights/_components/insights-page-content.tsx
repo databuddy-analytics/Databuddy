@@ -15,6 +15,7 @@ import {
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { useWebsites } from "@/hooks/use-websites";
 import {
 	clearInsightsHistory,
 	INSIGHT_QUERY_KEYS,
@@ -24,12 +25,24 @@ import {
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
 import { SparkleIcon } from "@phosphor-icons/react";
 import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useOrgDimensions } from "../hooks/use-org-dimensions";
+import { insightsRangeAtom } from "../lib/time-range";
+import { CockpitNarrative } from "./cockpit-narrative";
 import { CockpitSignals } from "./cockpit-signals";
+import { DimensionTile } from "./dimension-tile";
+import { KpiRow } from "./kpi-row";
+import { SiteHealthGrid } from "./site-health-grid";
+import { TimeRangeSelector } from "./time-range-selector";
 
 export function InsightsPageContent() {
 	const queryClient = useQueryClient();
@@ -38,6 +51,10 @@ export function InsightsPageContent() {
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
 	const { insights, isLoading, isRefreshing, refetch } = useInsightsFeed();
+
+	const range = useAtomValue(insightsRangeAtom);
+	const { websites, isLoading: websitesLoading } = useWebsites();
+	const dimensionsQuery = useOrgDimensions(range);
 
 	const insightIdsForVotes = useMemo(
 		() => insights.map((i) => i.id),
@@ -92,15 +109,19 @@ export function InsightsPageContent() {
 		},
 	});
 
+	const hasNoWebsites =
+		!websitesLoading && websites !== undefined && websites.length === 0;
+
 	return (
 		<>
 			<div className="h-full overflow-y-auto">
 				<PageHeader
 					count={isLoading ? undefined : insights.length}
-					description="Week-over-week AI analysis across all your websites"
+					description="Understand your business at a glance"
 					icon={<SparkleIcon weight="duotone" />}
 					right={
 						<div className="flex items-center gap-2">
+							<TimeRangeSelector />
 							<Button
 								aria-label="Refresh insights"
 								disabled={isLoading}
@@ -128,7 +149,46 @@ export function InsightsPageContent() {
 					title="Insights"
 				/>
 
-				<CockpitSignals />
+				{hasNoWebsites ? (
+					<EmptyOrgState />
+				) : (
+					<>
+						<CockpitNarrative />
+						<KpiRow />
+						<SiteHealthGrid />
+						<CockpitSignals />
+						<section
+							aria-label="Explore dimensions"
+							className="border-b px-4 py-4 sm:px-6"
+						>
+							<div className="mb-3 flex items-center">
+								<span className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+									Explore dimensions
+								</span>
+							</div>
+							<div className="grid gap-3 lg:grid-cols-3">
+								<DimensionTile
+									icon={GlobeIcon}
+									isLoading={dimensionsQuery.isLoading}
+									rows={dimensionsQuery.data?.countries}
+									title="Top countries"
+								/>
+								<DimensionTile
+									icon={FileTextIcon}
+									isLoading={dimensionsQuery.isLoading}
+									rows={dimensionsQuery.data?.pages}
+									title="Top pages"
+								/>
+								<DimensionTile
+									icon={LinkIcon}
+									isLoading={dimensionsQuery.isLoading}
+									rows={dimensionsQuery.data?.referrers}
+									title="Top referrers"
+								/>
+							</div>
+						</section>
+					</>
+				)}
 			</div>
 
 			<AlertDialog onOpenChange={setClearDialogOpen} open={clearDialogOpen}>
@@ -162,5 +222,27 @@ export function InsightsPageContent() {
 				</AlertDialogContent>
 			</AlertDialog>
 		</>
+	);
+}
+
+function EmptyOrgState() {
+	return (
+		<div className="flex flex-col items-center justify-center gap-4 py-24 text-center">
+			<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent">
+				<GlobeIcon className="size-6 text-muted-foreground" weight="duotone" />
+			</div>
+			<div className="space-y-1">
+				<p className="font-medium text-foreground">No websites yet</p>
+				<p className="text-muted-foreground text-sm">
+					Add a website to see insights across your organization.
+				</p>
+			</div>
+			<Link
+				className="inline-flex items-center gap-2 rounded bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-opacity hover:opacity-90"
+				href="/websites"
+			>
+				Go to websites
+			</Link>
+		</div>
 	);
 }
