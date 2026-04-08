@@ -145,10 +145,6 @@ export function InsightsPageContent() {
 					pages: [emptyHistoryPage],
 					pageParams: [0],
 				});
-				queryClient.setQueryData<InsightsHistoryPage>(
-					[INSIGHT_QUERY_KEYS.history, orgId],
-					emptyHistoryPage
-				);
 				await queryClient.invalidateQueries({
 					queryKey: orpc.insights.getVotes.key(),
 				});
