@@ -166,6 +166,7 @@ export interface InsightCardProps {
 	onDismissAction?: () => void;
 	onFeedbackAction?: (vote: InsightFeedbackVote | null) => void;
 	onToggleAction: () => void;
+	variant?: "full" | "compact";
 }
 
 export function InsightCard({
@@ -175,7 +176,9 @@ export function InsightCard({
 	onDismissAction,
 	feedbackVote,
 	onFeedbackAction,
+	variant = "full",
 }: InsightCardProps) {
+	const isCompact = variant === "compact";
 	const typeStyle = TYPE_STYLES[insight.type];
 	const sentimentStyle = SENTIMENT_STYLES[insight.sentiment];
 	const freshnessLine = formatInsightFreshness(insight);
@@ -229,7 +232,10 @@ export function InsightCard({
 		>
 			{/* biome-ignore lint/a11y/useSemanticElements: full-row toggle cannot use <button> because of nested dismiss control */}
 			<div
-				className="flex cursor-pointer items-start gap-3 px-4 py-3.5 sm:px-6"
+				className={cn(
+					"flex cursor-pointer items-start gap-3 px-4 sm:px-6",
+					isCompact ? "py-3" : "py-3.5"
+				)}
 				onClick={onToggleAction}
 				onKeyDown={(e) => {
 					if (e.key === "Enter" || e.key === " ") {
@@ -255,7 +261,7 @@ export function InsightCard({
 							{insight.title}
 						</p>
 						<div className="flex shrink-0 items-center gap-1.5">
-							{onDismissAction && (
+							{!isCompact && onDismissAction && (
 								<button
 									aria-label="Dismiss insight"
 									className="flex size-6 items-center justify-center rounded text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-hover:opacity-100"
@@ -324,7 +330,7 @@ export function InsightCard({
 						role="button"
 						tabIndex={-1}
 					>
-						{insight.metrics && insight.metrics.length > 0 && (
+						{!isCompact && insight.metrics && insight.metrics.length > 0 && (
 							<InsightMetrics metrics={insight.metrics} />
 						)}
 
@@ -338,105 +344,107 @@ export function InsightCard({
 							</p>
 						</div>
 
-						<div className="flex items-center gap-2">
-							<Link
-								aria-label="Open AI agent with this insight as context"
-								className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs transition-opacity hover:opacity-90"
-								href={agentHref}
-								onClick={(e) => e.stopPropagation()}
-							>
-								Ask agent
-								<ArrowRightIcon className="size-3" weight="fill" />
-							</Link>
-							<Link
-								aria-label={
-									pathHint
-										? `View live events filtered to ${pathHint}`
-										: "Open website overview"
-								}
-								className="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
-								href={analyticsHref}
-								onClick={(e) => e.stopPropagation()}
-							>
-								{analyticsLabel}
-							</Link>
+						{!isCompact && (
+							<div className="flex items-center gap-2">
+								<Link
+									aria-label="Open AI agent with this insight as context"
+									className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs transition-opacity hover:opacity-90"
+									href={agentHref}
+									onClick={(e) => e.stopPropagation()}
+								>
+									Ask agent
+									<ArrowRightIcon className="size-3" weight="fill" />
+								</Link>
+								<Link
+									aria-label={
+										pathHint
+											? `View live events filtered to ${pathHint}`
+											: "Open website overview"
+									}
+									className="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
+									href={analyticsHref}
+									onClick={(e) => e.stopPropagation()}
+								>
+									{analyticsLabel}
+								</Link>
 
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<button
-										aria-label="More actions"
-										className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-										onClick={(e) => e.stopPropagation()}
-										type="button"
-									>
-										<DotsThreeIcon className="size-4" weight="bold" />
-									</button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent align="start" className="w-44">
-									<DropdownMenuItem
-										onClick={(e) => {
-											e.stopPropagation();
-											copyAgentPromptAction();
-										}}
-									>
-										<CopyIcon className="size-4" weight="duotone" />
-										Copy prompt
-									</DropdownMenuItem>
-									<DropdownMenuItem onClick={copyLinkAction}>
-										<LinkIcon className="size-4" weight="duotone" />
-										Copy link
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-
-							<div className="ml-auto flex items-center gap-1.5">
-								{freshnessLine && (
-									<span className="text-[11px] text-muted-foreground">
-										{freshnessLine}
-									</span>
-								)}
-								{onFeedbackAction && (
-									<>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
 										<button
-											aria-label="Mark as helpful"
-											aria-pressed={feedbackVote === "up"}
-											className={cn(
-												"flex size-7 items-center justify-center rounded border transition-colors",
-												feedbackVote === "up"
-													? "border-primary bg-primary/10 text-primary"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground"
-											)}
-											onClick={(e) => {
-												e.stopPropagation();
-												onFeedbackAction(feedbackVote === "up" ? null : "up");
-											}}
+											aria-label="More actions"
+											className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+											onClick={(e) => e.stopPropagation()}
 											type="button"
 										>
-											<ThumbsUpIcon className="size-3.5" weight="duotone" />
+											<DotsThreeIcon className="size-4" weight="bold" />
 										</button>
-										<button
-											aria-label="Mark as not helpful"
-											aria-pressed={feedbackVote === "down"}
-											className={cn(
-												"flex size-7 items-center justify-center rounded border transition-colors",
-												feedbackVote === "down"
-													? "border-destructive bg-destructive/10 text-destructive"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground"
-											)}
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="start" className="w-44">
+										<DropdownMenuItem
 											onClick={(e) => {
 												e.stopPropagation();
-												onFeedbackAction(
-													feedbackVote === "down" ? null : "down"
-												);
+												copyAgentPromptAction();
 											}}
-											type="button"
 										>
-											<ThumbsDownIcon className="size-3.5" weight="duotone" />
-										</button>
-									</>
-								)}
+											<CopyIcon className="size-4" weight="duotone" />
+											Copy prompt
+										</DropdownMenuItem>
+										<DropdownMenuItem onClick={copyLinkAction}>
+											<LinkIcon className="size-4" weight="duotone" />
+											Copy link
+										</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+
+								<div className="ml-auto flex items-center gap-1.5">
+									{freshnessLine && (
+										<span className="text-[11px] text-muted-foreground">
+											{freshnessLine}
+										</span>
+									)}
+									{onFeedbackAction && (
+										<>
+											<button
+												aria-label="Mark as helpful"
+												aria-pressed={feedbackVote === "up"}
+												className={cn(
+													"flex size-7 items-center justify-center rounded border transition-colors",
+													feedbackVote === "up"
+														? "border-primary bg-primary/10 text-primary"
+														: "text-muted-foreground hover:bg-accent hover:text-foreground"
+												)}
+												onClick={(e) => {
+													e.stopPropagation();
+													onFeedbackAction(feedbackVote === "up" ? null : "up");
+												}}
+												type="button"
+											>
+												<ThumbsUpIcon className="size-3.5" weight="duotone" />
+											</button>
+											<button
+												aria-label="Mark as not helpful"
+												aria-pressed={feedbackVote === "down"}
+												className={cn(
+													"flex size-7 items-center justify-center rounded border transition-colors",
+													feedbackVote === "down"
+														? "border-destructive bg-destructive/10 text-destructive"
+														: "text-muted-foreground hover:bg-accent hover:text-foreground"
+												)}
+												onClick={(e) => {
+													e.stopPropagation();
+													onFeedbackAction(
+														feedbackVote === "down" ? null : "down"
+													);
+												}}
+												type="button"
+											>
+												<ThumbsDownIcon className="size-3.5" weight="duotone" />
+											</button>
+										</>
+									)}
+								</div>
 							</div>
-						</div>
+						)}
 					</div>
 				</>
 			)}
