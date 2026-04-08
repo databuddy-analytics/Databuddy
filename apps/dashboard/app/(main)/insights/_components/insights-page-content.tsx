@@ -43,6 +43,7 @@ import type { DimensionRow } from "./dimension-tile";
 import { DimensionTile } from "./dimension-tile";
 import { KpiRow } from "./kpi-row";
 import { SiteHealthGrid } from "./site-health-grid";
+import { SocialReferrals } from "./social-referrals";
 import { TimeRangeSelector } from "./time-range-selector";
 
 function countryFlag(code: string): string {
@@ -178,6 +179,7 @@ export function InsightsPageContent() {
 						<KpiRow />
 						<SiteHealthGrid />
 						<CockpitSignals />
+						<SocialReferrals />
 						<section
 							aria-label="Explore dimensions"
 							className="border-b px-4 py-4 sm:px-6"
