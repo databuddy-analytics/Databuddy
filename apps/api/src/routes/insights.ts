@@ -15,7 +15,6 @@ import {
 } from "@databuddy/db";
 import { cacheable, getRedisCache } from "@databuddy/redis";
 import { getRateLimitHeaders, rateLimit } from "@databuddy/redis/rate-limit";
-import { fetchOrgKpis } from "@databuddy/rpc";
 import { generateText, Output, stepCountIs, ToolLoopAgent } from "ai";
 import dayjs from "dayjs";
 import { Elysia, t } from "elysia";
@@ -932,14 +931,7 @@ async function invalidateInsightsCacheForOrg(
 const NARRATIVE_RATE_LIMIT = 30;
 const NARRATIVE_RATE_WINDOW_SECS = 3600;
 const NARRATIVE_CACHE_TTL_SECS = 3600;
-
-function formatDelta(n: number): string {
-	if (n === 0) {
-		return "0%";
-	}
-	const sign = n > 0 ? "+" : "−";
-	return `${sign}${Math.abs(n).toFixed(1)}%`;
-}
+const NARRATIVE_INSIGHTS_LIMIT = 5;
 
 function rangeWord(range: "7d" | "30d" | "90d"): string {
 	if (range === "7d") {
@@ -953,90 +945,35 @@ function rangeWord(range: "7d" | "30d" | "90d"): string {
 
 function buildDeterministicNarrative(
 	range: "7d" | "30d" | "90d",
-	kpis: Awaited<ReturnType<typeof fetchOrgKpis>>
+	topInsights: {
+		title: string;
+		severity: string;
+		websiteName: string | null;
+	}[]
 ): string {
 	const word = rangeWord(range);
-	const visitors = kpis.visitors.current;
-
-	if (visitors === 0) {
-		return `No traffic in the last ${word}. Check that your tracking script is installed.`;
+	if (topInsights.length === 0) {
+		return `All systems healthy this ${word}. No actionable signals detected.`;
 	}
-
-	const metrics = [
-		{
-			label: "visitors",
-			change: kpis.visitors.change,
-			invert: false,
-		},
-		{
-			label: "sessions",
-			change: kpis.sessions.change,
-			invert: false,
-		},
-		{
-			label: "bounce rate",
-			change: kpis.bounce.change,
-			invert: true,
-		},
-		{
-			label: "errors",
-			change: kpis.errors.change,
-			invert: true,
-		},
-		{
-			label: "LCP",
-			change: kpis.lcp.change,
-			invert: true,
-		},
-	];
-
-	const moved = metrics
-		.filter((m) => Math.abs(m.change) >= 1)
-		.sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
-		.slice(0, 2);
-
-	if (moved.length === 0) {
-		return `No meaningful changes this ${word}. Traffic is steady at ${visitors.toLocaleString()} visitors.`;
+	const headline = topInsights[0];
+	const siteSuffix = headline.websiteName ? ` on ${headline.websiteName}` : "";
+	if (topInsights.length === 1) {
+		return `This ${word}: ${headline.title}${siteSuffix}.`;
 	}
-
-	const parts = moved.map((m) => {
-		const dir = m.change > 0 ? "up" : "down";
-		return `${m.label} ${dir} ${Math.abs(m.change).toFixed(0)}%`;
-	});
-
-	return `This ${word}: ${parts.join(", ")}. ${visitors.toLocaleString()} total visitors.`;
+	const extra = topInsights.length - 1;
+	return `This ${word}: ${headline.title}${siteSuffix}, plus ${extra} more signal${extra === 1 ? "" : "s"} worth reviewing.`;
 }
 
 const generateNarrativeCached = cacheable(
 	async function generateNarrativeCached(
 		organizationId: string,
 		range: "7d" | "30d" | "90d"
-	): Promise<{
-		narrative: string;
-		deltas: { label: string; value: number; sign: number }[];
-	}> {
-		const rangeDays = { "7d": 7, "30d": 30, "90d": 90 }[range];
-
-		const orgWebsites = await db
-			.select({ id: websites.id, domain: websites.domain, name: websites.name })
-			.from(websites)
-			.where(eq(websites.organizationId, organizationId));
-
-		if (orgWebsites.length === 0) {
-			return {
-				narrative:
-					"No websites are active in this organization yet. Add one to see your business state.",
-				deltas: [],
-			};
-		}
-
-		const websiteIds = orgWebsites.map((w) => w.id);
-		const kpis = await fetchOrgKpis(websiteIds, rangeDays);
-
+	): Promise<{ narrative: string }> {
 		const topInsights = await db
 			.select({
 				title: analyticsInsights.title,
 				description: analyticsInsights.description,
+				severity: analyticsInsights.severity,
 				changePercent: analyticsInsights.changePercent,
 				websiteName: websites.name,
 			})
@@ -1044,34 +981,35 @@ const generateNarrativeCached = cacheable(
 			.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 			.where(eq(analyticsInsights.organizationId, organizationId))
 			.orderBy(desc(analyticsInsights.priority))
-			.limit(3);
+			.limit(NARRATIVE_INSIGHTS_LIMIT);
+
+		if (topInsights.length === 0) {
+			return {
+				narrative: `All systems healthy this ${rangeWord(range)}. No actionable signals detected.`,
+			};
+		}
 
 		const insightLines = topInsights.map((ins) => {
-			const delta =
-				ins.changePercent == null ? "" : ` (${formatDelta(ins.changePercent)})`;
 			const site = ins.websiteName ? ` [${ins.websiteName}]` : "";
-			return `- ${ins.title}${delta}${site}: ${ins.description ?? ""}`;
+			const change =
+				ins.changePercent == null
+					? ""
+					: ` (${ins.changePercent > 0 ? "+" : ""}${ins.changePercent.toFixed(0)}%)`;
+			return `- [${ins.severity}] ${ins.title}${change}${site}: ${ins.description ?? ""}`;
 		});
 
 		const prompt = `You are an analytics assistant summarizing an organization's state over the last ${range}.
 
-Based on the KPI deltas and top insights below, write a crisp 2–3 sentence executive summary.
+Write a crisp 2–3 sentence executive summary of the top insights below.
 
 Rules:
 - Lead with the most important change
-- Include concrete signed deltas ("+12%", "−8%") inline
+- Include concrete numbers when available
 - Never exceed 60 words total
 - State facts, do not editorialize
-- If nothing meaningful changed, say so plainly
+- If nothing meaningful is happening, say so plainly
 
-KPI deltas (${range}):
-Visitors: ${kpis.visitors.current} (${formatDelta(kpis.visitors.change)})
-Sessions: ${kpis.sessions.current} (${formatDelta(kpis.sessions.change)})
-Bounce rate: ${kpis.bounce.current.toFixed(1)}% (${formatDelta(kpis.bounce.change)})
-Errors: ${kpis.errors.current} (${formatDelta(kpis.errors.change)})
-LCP p75: ${(kpis.lcp.current / 1000).toFixed(2)}s (${formatDelta(kpis.lcp.change)})
-
-Top 3 insights:
+Top signals this ${range}:
 ${insightLines.join("\n")}`;
 
 		let narrative = "";
@@ -1090,39 +1028,11 @@ ${insightLines.join("\n")}`;
 		}
 
 		if (!narrative) {
-			narrative = buildDeterministicNarrative(range, kpis);
+			narrative = buildDeterministicNarrative(range, topInsights);
 			mergeWideEvent({ insights_narrative_fallback: true });
 		}
 
-		const deltas = [
-			{
-				label: "Visitors",
-				value: kpis.visitors.current,
-				sign: Math.sign(kpis.visitors.change),
-			},
-			{
-				label: "Sessions",
-				value: kpis.sessions.current,
-				sign: Math.sign(kpis.sessions.change),
-			},
-			{
-				label: "Bounce",
-				value: kpis.bounce.current,
-				sign: -Math.sign(kpis.bounce.change),
-			},
-			{
-				label: "Errors",
-				value: kpis.errors.current,
-				sign: -Math.sign(kpis.errors.change),
-			},
-			{
-				label: "LCP",
-				value: kpis.lcp.current,
-				sign: -Math.sign(kpis.lcp.change),
-			},
-		];
-
-		return { narrative, deltas };
+		return { narrative };
 	},
 	{
 		expireInSec: NARRATIVE_CACHE_TTL_SECS,
@@ -1306,14 +1216,13 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 			}
 
 			try {
-				const { narrative, deltas } = await generateNarrativeCached(
+				const { narrative } = await generateNarrativeCached(
 					organizationId,
 					range
 				);
 				return {
 					success: true,
 					narrative,
-					deltas,
 					generatedAt: new Date().toISOString(),
 				};
 			} catch (error) {

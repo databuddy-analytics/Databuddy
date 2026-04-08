@@ -107,7 +107,6 @@ export type OrgNarrativeResponse =
 	| {
 			success: true;
 			narrative: string;
-			deltas: Array<{ label: string; value: number; sign: number }>;
 			generatedAt: string;
 	  }
 	| {

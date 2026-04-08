@@ -52,11 +52,3 @@ export {
 	getBillingCustomerId,
 	getBillingOwner,
 } from "./utils/billing";
-export {
-	aggregateKpiSeries,
-	fetchOrgKpis,
-	type DailyKpiRow,
-	type KpiMetric,
-	type KpiSummary,
-	type OrgKpis,
-} from "./lib/org-kpis";
