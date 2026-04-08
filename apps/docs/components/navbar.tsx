@@ -9,7 +9,8 @@ import {
 	NavbarFeaturesMenu,
 	NavbarFeaturesMobileMenu,
 } from "./navbar-features-menu";
-// import { NavbarGithubMobileLink } from "./navbar-github-mobile-link";
+import { NavbarGithubDesktopLink } from "./navbar-github-desktop-link";
+import { NavbarGithubMobileLink } from "./navbar-github-mobile-link";
 import { NavbarMobileMenuButton } from "./navbar-mobile-menu-button";
 
 export interface NavbarProps {
@@ -21,7 +22,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 
 	return (
 		<>
-			<header className="fixed inset-x-0 top-0 z-40 flex flex-col border-border/50 border-b bg-background/60 pt-[env(safe-area-inset-top,0px)] backdrop-blur-xl">
+			<header className="fixed inset-x-0 top-0 z-40 flex flex-col border-border/25 border-b bg-transparent pt-[env(safe-area-inset-top,0px)] backdrop-blur-sm [transform:translateZ(0)]">
 				<nav>
 					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
 						<div className="flex h-16 items-center justify-between">
@@ -43,14 +44,11 @@ export const Navbar = ({ stars }: NavbarProps) => {
 											{menu.name}
 										</NavLink>
 									))}
-									{/* <NavbarGithubDesktopLink stars={stars} /> */}
+									<NavbarGithubDesktopLink stars={stars} />
 									<li aria-hidden className="mx-2 h-5 w-px bg-border" />
 									<NavLink external href="https://app.databuddy.cc/login">
 										Log in
 									</NavLink>
-									{/* <li className="ml-2">
-										<ThemeToggle />
-									</li> */}
 									<li className="ml-2">
 										<a
 											className="inline-flex items-center rounded bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-opacity hover:opacity-90"
@@ -107,12 +105,12 @@ export const Navbar = ({ stars }: NavbarProps) => {
 									{menu.name}
 								</Link>
 							))}
-							{/* <NavbarGithubMobileLink
+							<NavbarGithubMobileLink
 								isMenuOpen={isMobileMenuOpen}
 								onCloseAction={() => setIsMobileMenuOpen(false)}
 								stars={stars}
 								transitionDelayMs={(navMenu.length + 1) * 50}
-							/> */}
+							/>
 							<div className="px-4 pt-2">
 								<a
 									className="block w-full rounded bg-primary px-4 py-3 text-center font-medium text-base text-primary-foreground"
