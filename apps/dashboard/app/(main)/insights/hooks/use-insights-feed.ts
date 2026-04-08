@@ -136,12 +136,15 @@ export function useInsightsFeed() {
 
 	const isRefreshing = isFetching && !isInitialLoading;
 
+	const isFetchingFresh = mergedInsights.length > 0 && aiQuery.isFetching;
+
 	return {
 		insights: mergedInsights,
 		source: aiQuery.data?.source ?? null,
 		isLoading: isInitialLoading,
 		isRefreshing,
 		isFetching,
+		isFetchingFresh,
 		isError,
 		refetch: refetchAll,
 		fetchNextPage: historyInfinite.fetchNextPage,
