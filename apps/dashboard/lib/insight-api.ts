@@ -7,6 +7,7 @@ export const INSIGHT_QUERY_KEYS = {
 	ai: "ai-insights",
 	history: "insights-history",
 	historyInfinite: "insights-history-infinite",
+	orgNarrative: "insights-org-narrative",
 } as const;
 
 export const INSIGHT_CACHE = {
@@ -100,4 +101,34 @@ export async function clearInsightsHistory(
 	}
 
 	return data;
+}
+
+export type OrgNarrativeResponse =
+	| {
+			success: true;
+			narrative: string;
+			deltas: Array<{ label: string; value: number; sign: number }>;
+			generatedAt: string;
+	  }
+	| {
+			success: false;
+			error: string;
+	  };
+
+export async function fetchInsightsOrgNarrative(
+	organizationId: string,
+	range: "7d" | "30d" | "90d"
+): Promise<OrgNarrativeResponse> {
+	const url = new URL(`${API_URL}/v1/insights/org-narrative`);
+	url.searchParams.set("organizationId", organizationId);
+	url.searchParams.set("range", range);
+	const res = await fetch(url.toString(), {
+		method: "GET",
+		credentials: "include",
+		signal: AbortSignal.timeout(30_000),
+	});
+	if (!res.ok) {
+		return { success: false, error: `HTTP ${res.status}` };
+	}
+	return (await res.json()) as OrgNarrativeResponse;
 }
