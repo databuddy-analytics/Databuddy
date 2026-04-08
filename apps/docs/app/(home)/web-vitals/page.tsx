@@ -353,24 +353,6 @@ export default function WebVitalsPage() {
 					</div>
 				</Section>
 
-				{/* Mid-page CTA */}
-				<Section className="border-border border-b bg-background/50" id="cta">
-					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<div className="mx-auto flex max-w-2xl flex-col items-center space-y-6 text-center">
-							<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl">
-								One script measures everything
-							</h2>
-							<p className="max-w-lg text-pretty text-muted-foreground text-sm sm:text-base">
-								Add the Databuddy script and Core Web Vitals are collected
-								automatically from every user. No extra setup, no separate RUM
-								tool.
-							</p>
-							<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
-								<a href="https://app.databuddy.cc/login">
-									Get started free
-									<ArrowRightIcon className="ml-2 size-4" weight="bold" />
-								</a>
-							</SciFiButton>
 						</div>
 					</div>
 				</Section>
