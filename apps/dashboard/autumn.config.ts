@@ -100,15 +100,20 @@ export const agent_cache_write_tokens = feature({
 });
 
 /*
- * 1 credit ≈ $0.005 of LLM compute. Sonnet 4.6 rates per token:
+ * 1 credit ≈ $0.005 of LLM compute. Sonnet 4.6 rates per token with
+ * Anthropic's 1-hour prompt cache (the agent pins ANTHROPIC_CACHE_1H on
+ * user turns):
  *   input        $3.00/M  → 0.000_6  credits
  *   output      $15.00/M  → 0.003    credits
  *   cache read   $0.30/M  → 0.000_06 credits
- *   cache write  $3.75/M  → 0.000_75 credits
+ *   cache write  $6.00/M  → 0.001_2  credits   (1h cache, 2× base)
  *
- * After the prompt/tool trim pass, a fresh analytics chat's first turn
- * costs ~6 credits (dominated by the 7.7k-token cache write); subsequent
- * cached turns cost ~3-4 credits each.
+ * Verified against 133 live Sonnet 4.6 gateway rows: predicted spend
+ * matches billed spend to within rounding ($5.8122 vs $5.81224).
+ *
+ * A fresh analytics chat's cache-write turn costs ~10 credits (dominated
+ * by the 8k-token cache write); subsequent cache-read turns cost ~4-5
+ * credits each.
  */
 export const agent_credits = feature({
 	id: "agent_credits",
@@ -118,7 +123,7 @@ export const agent_credits = feature({
 		{ meteredFeatureId: "agent_input_tokens", creditCost: 0.0006 },
 		{ meteredFeatureId: "agent_output_tokens", creditCost: 0.003 },
 		{ meteredFeatureId: "agent_cache_read_tokens", creditCost: 0.000_06 },
-		{ meteredFeatureId: "agent_cache_write_tokens", creditCost: 0.000_75 },
+		{ meteredFeatureId: "agent_cache_write_tokens", creditCost: 0.0012 },
 	],
 });
 

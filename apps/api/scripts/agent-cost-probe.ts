@@ -63,7 +63,7 @@ const CURRENT_SCHEMA = {
 	input: 0.0006,
 	output: 0.003,
 	cacheRead: 0.000_06,
-	cacheWrite: 0.000_75,
+	cacheWrite: 0.0012,
 };
 
 function computeCredits(
