@@ -1,5 +1,17 @@
 import { chQuery } from "@databuddy/db";
-import { Expressions } from "../query/expressions";
+
+// TODO(DAT-100): dedupe expression constants once shared package lands
+const NORMALIZED_PATH_EXPR =
+	"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END";
+const NORMALIZED_REFERRER_EXPR = `
+			CASE
+				WHEN referrer = '' OR referrer IS NULL THEN 'direct'
+				WHEN domain(referrer) LIKE '%.google.com%' OR domain(referrer) LIKE 'google.com%' THEN 'https://google.com'
+				WHEN domain(referrer) LIKE '%.facebook.com%' OR domain(referrer) LIKE 'facebook.com%' THEN 'https://facebook.com'
+				WHEN domain(referrer) LIKE '%.twitter.com%' OR domain(referrer) LIKE 'twitter.com%' OR domain(referrer) LIKE 't.co%' THEN 'https://twitter.com'
+				WHEN domain(referrer) LIKE '%.instagram.com%' OR domain(referrer) LIKE 'instagram.com%' OR domain(referrer) LIKE 'l.instagram.com%' THEN 'https://instagram.com'
+				ELSE concat('https://', domain(referrer))
+			END`;
 
 export interface DimensionRow {
 	current: number;
@@ -67,11 +79,11 @@ const DIMENSION_EXPR: Record<
 > = {
 	country: { expr: "country", emptyFilter: "c.key != ''" },
 	page: {
-		expr: Expressions.path.normalized,
+		expr: NORMALIZED_PATH_EXPR,
 		emptyFilter: "c.key != ''",
 	},
 	referrer: {
-		expr: Expressions.referrer.normalized,
+		expr: NORMALIZED_REFERRER_EXPR,
 		emptyFilter: "c.key != 'direct'",
 	},
 };
