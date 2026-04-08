@@ -10,6 +10,7 @@ import { cacheable } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { fetchOrgDimensions } from "../lib/org-dimensions";
 import { fetchOrgKpis } from "../lib/org-kpis";
 import { sessionProcedure } from "../orpc";
 
@@ -20,6 +21,14 @@ const kpiSummarySchema = z.object({
 	previous: z.number(),
 	change: z.number(),
 	sparkline: z.array(z.object({ date: z.string(), value: z.number() })),
+});
+
+const dimensionResultSchema = z.object({
+	key: z.string(),
+	label: z.string(),
+	current: z.number(),
+	previous: z.number(),
+	change: z.number(),
 });
 
 function emptyKpiSummary(rangeDays: number) {
@@ -40,20 +49,20 @@ function emptyOrgKpis(rangeDays: number) {
 	return { visitors: s, sessions: s, bounce: s, errors: s, lcp: s };
 }
 
+function listOrgWebsites(organizationId: string) {
+	return db
+		.select({ id: websites.id, domain: websites.domain, name: websites.name })
+		.from(websites)
+		.where(eq(websites.organizationId, organizationId));
+}
+
 async function _fetchOrgSummary(
 	organizationId: string,
 	range: "7d" | "30d" | "90d"
 ) {
 	const rangeDays = RANGE_TO_DAYS[range];
 
-	const orgWebsites = await db
-		.select({
-			id: websites.id,
-			domain: websites.domain,
-			name: websites.name,
-		})
-		.from(websites)
-		.where(eq(websites.organizationId, organizationId));
+	const orgWebsites = await listOrgWebsites(organizationId);
 
 	if (orgWebsites.length === 0) {
 		return { kpis: emptyOrgKpis(rangeDays), sites: [] };
@@ -76,6 +85,30 @@ async function _fetchOrgSummary(
 const fetchOrgSummary = cacheable(_fetchOrgSummary, {
 	expireInSec: 300,
 	prefix: "insights:orgSummary",
+});
+
+async function _fetchOrgDimensions(
+	organizationId: string,
+	range: "7d" | "30d" | "90d",
+	limit: number
+) {
+	const rangeDays = RANGE_TO_DAYS[range];
+	const orgWebsites = await listOrgWebsites(organizationId);
+	if (orgWebsites.length === 0) {
+		return { countries: [], pages: [], referrers: [] };
+	}
+	const websiteIds = orgWebsites.map((w) => w.id);
+	const [countries, pages, referrers] = await Promise.all([
+		fetchOrgDimensions(websiteIds, rangeDays, "country", limit),
+		fetchOrgDimensions(websiteIds, rangeDays, "page", limit),
+		fetchOrgDimensions(websiteIds, rangeDays, "referrer", limit),
+	]);
+	return { countries, pages, referrers };
+}
+
+const fetchOrgDimensionsCached = cacheable(_fetchOrgDimensions, {
+	expireInSec: 300,
+	prefix: "insights:orgDimensions",
 });
 
 const voteSchema = z.enum(["up", "down"]);
@@ -120,6 +153,40 @@ export const insightsRouter = {
 				throw rpcError.badRequest("Organization context is required");
 			}
 			return await fetchOrgSummary(context.organizationId, input.range);
+		}),
+
+	orgDimensions: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/orgDimensions",
+			tags: ["Insights"],
+			summary: "Org-wide top dimensions",
+			description:
+				"Returns top-N countries, pages, and referrers across all websites in the active organization with previous-period comparison.",
+		})
+		.input(
+			z.object({
+				range: z.enum(["7d", "30d", "90d"]),
+				limit: z.number().int().min(1).max(20).optional(),
+			})
+		)
+		.output(
+			z.object({
+				countries: z.array(dimensionResultSchema),
+				pages: z.array(dimensionResultSchema),
+				referrers: z.array(dimensionResultSchema),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			if (!context.organizationId) {
+				throw rpcError.badRequest("Organization context is required");
+			}
+			const limit = input.limit ?? 5;
+			return await fetchOrgDimensionsCached(
+				context.organizationId,
+				input.range,
+				limit
+			);
 		}),
 
 	getVotes: sessionProcedure
