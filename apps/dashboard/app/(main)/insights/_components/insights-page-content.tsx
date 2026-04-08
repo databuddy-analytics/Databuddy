@@ -60,7 +60,6 @@ import { cn } from "@/lib/utils";
 import { insightsRangeAtom } from "../lib/time-range";
 import { CockpitNarrative } from "./cockpit-narrative";
 import { CockpitSignals } from "./cockpit-signals";
-import { SocialReferrals } from "./social-referrals";
 import { TimeRangeSelector } from "./time-range-selector";
 
 const insightsFocusSiteAtom = atomWithStorage<string | null>(
@@ -486,8 +485,6 @@ export function InsightsPageContent() {
 							minHeight={320}
 							title="Top countries"
 						/>
-
-						<SocialReferrals />
 
 						<CockpitSignals />
 					</div>
