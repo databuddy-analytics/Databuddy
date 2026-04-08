@@ -39,10 +39,28 @@ import { useOrgDimensions } from "../hooks/use-org-dimensions";
 import { insightsRangeAtom } from "../lib/time-range";
 import { CockpitNarrative } from "./cockpit-narrative";
 import { CockpitSignals } from "./cockpit-signals";
+import type { DimensionRow } from "./dimension-tile";
 import { DimensionTile } from "./dimension-tile";
 import { KpiRow } from "./kpi-row";
 import { SiteHealthGrid } from "./site-health-grid";
 import { TimeRangeSelector } from "./time-range-selector";
+
+function countryFlag(code: string): string {
+	if (code.length !== 2) {
+		return "🌐";
+	}
+	const upper = code.toUpperCase();
+	const a = upper.codePointAt(0);
+	const b = upper.codePointAt(1);
+	if (a === undefined || b === undefined) {
+		return "🌐";
+	}
+	return String.fromCodePoint(a + 127_397, b + 127_397);
+}
+
+function renderCountryIcon(row: DimensionRow) {
+	return <span className="text-base leading-none">{countryFlag(row.key)}</span>;
+}
 
 export function InsightsPageContent() {
 	const queryClient = useQueryClient();
@@ -175,6 +193,7 @@ export function InsightsPageContent() {
 									isError={dimensionsQuery.isError}
 									isLoading={dimensionsQuery.isLoading}
 									onRetry={() => dimensionsQuery.refetch()}
+									renderRowIcon={renderCountryIcon}
 									rows={dimensionsQuery.data?.countries}
 									title="Top countries"
 								/>

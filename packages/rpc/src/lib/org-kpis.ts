@@ -134,7 +134,7 @@ export async function fetchOrgKpis(
 
 	const lookbackDays = rangeDays * 2;
 
-	const sql = `
+	const eventsSql = `
 WITH session_agg AS (
   SELECT
     toDate(time) AS date,
@@ -154,9 +154,7 @@ page_agg AS (
   SELECT
     toDate(time) AS date,
     client_id,
-    countIf(event_name = 'screen_view') AS pageviews,
-    uniqIf(anonymous_id, event_name = 'screen_view') AS visitors,
-    toInt64(0) AS errors -- TODO(DAT-100): wire real error event filter (errors live in analytics.error_spans)
+    uniqIf(anonymous_id, event_name = 'screen_view') AS visitors
   FROM analytics.events
   WHERE client_id IN {websiteIds:Array(String)}
     AND time >= today() - {lookbackDays:UInt32}
@@ -178,36 +176,91 @@ SELECT
   p.client_id AS website_id,
   toInt64(p.visitors) AS visitors,
   toInt64(s.sessions) AS sessions,
-  toInt64(s.bounces) AS bounces,
-  toInt64(p.errors) AS errors,
-  toInt64(0) AS lcp_p75_ms -- TODO(DAT-100): wire vitals query
+  toInt64(s.bounces) AS bounces
 FROM page_agg p
 LEFT JOIN session_stats s ON s.date = p.date AND s.client_id = p.client_id
 ORDER BY date ASC
 `;
 
-	const raw = await chQuery<{
-		date: unknown;
-		website_id: unknown;
-		visitors: unknown;
-		sessions: unknown;
-		bounces: unknown;
-		errors: unknown;
-		lcp_p75_ms: unknown;
-	}>(sql, { websiteIds, lookbackDays });
+	const errorsSql = `
+SELECT
+  formatDateTime(toDate(timestamp), '%Y-%m-%d') AS date,
+  client_id AS website_id,
+  toInt64(count()) AS errors
+FROM analytics.error_spans
+WHERE client_id IN {websiteIds:Array(String)}
+  AND timestamp >= today() - {lookbackDays:UInt32}
+  AND timestamp < today() + 1
+  AND message != ''
+GROUP BY date, client_id
+ORDER BY date ASC
+`;
 
-	const rows = raw.map(
-		(r) =>
-			({
-				date: String(r.date),
-				website_id: String(r.website_id),
-				visitors: Number(r.visitors ?? 0),
-				sessions: Number(r.sessions ?? 0),
-				bounces: Number(r.bounces ?? 0),
-				errors: Number(r.errors ?? 0),
-				lcp_p75_ms: Number(r.lcp_p75_ms ?? 0),
-			}) satisfies DailyKpiRow
-	);
+	const vitalsSql = `
+SELECT
+  formatDateTime(toDate(timestamp), '%Y-%m-%d') AS date,
+  client_id AS website_id,
+  toInt64(quantileIf(0.75)(metric_value, metric_name = 'LCP' AND metric_value > 0)) AS lcp_p75_ms
+FROM analytics.web_vitals_spans
+WHERE client_id IN {websiteIds:Array(String)}
+  AND timestamp >= today() - {lookbackDays:UInt32}
+  AND timestamp < today() + 1
+GROUP BY date, client_id
+ORDER BY date ASC
+`;
+
+	const [eventRowsRaw, errorRowsRaw, vitalsRowsRaw] = await Promise.all([
+		chQuery<{
+			date: unknown;
+			website_id: unknown;
+			visitors: unknown;
+			sessions: unknown;
+			bounces: unknown;
+		}>(eventsSql, { websiteIds, lookbackDays }),
+		chQuery<{
+			date: unknown;
+			website_id: unknown;
+			errors: unknown;
+		}>(errorsSql, { websiteIds, lookbackDays }),
+		chQuery<{
+			date: unknown;
+			website_id: unknown;
+			lcp_p75_ms: unknown;
+		}>(vitalsSql, { websiteIds, lookbackDays }),
+	]);
+
+	const key = (date: string, websiteId: string) => `${date}|${websiteId}`;
+
+	const errorsByKey = new Map<string, number>();
+	for (const r of errorRowsRaw) {
+		errorsByKey.set(
+			key(String(r.date), String(r.website_id)),
+			Number(r.errors ?? 0)
+		);
+	}
+
+	const lcpByKey = new Map<string, number>();
+	for (const r of vitalsRowsRaw) {
+		lcpByKey.set(
+			key(String(r.date), String(r.website_id)),
+			Number(r.lcp_p75_ms ?? 0)
+		);
+	}
+
+	const rows = eventRowsRaw.map((r) => {
+		const date = String(r.date);
+		const websiteId = String(r.website_id);
+		const k = key(date, websiteId);
+		return {
+			date,
+			website_id: websiteId,
+			visitors: Number(r.visitors ?? 0),
+			sessions: Number(r.sessions ?? 0),
+			bounces: Number(r.bounces ?? 0),
+			errors: errorsByKey.get(k) ?? 0,
+			lcp_p75_ms: lcpByKey.get(k) ?? 0,
+		} satisfies DailyKpiRow;
+	});
 
 	return {
 		visitors: aggregateKpiSeries(rows, { rangeDays, metric: "visitors" }),

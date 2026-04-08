@@ -941,6 +941,72 @@ function formatDelta(n: number): string {
 	return `${sign}${Math.abs(n).toFixed(1)}%`;
 }
 
+function rangeWord(range: "7d" | "30d" | "90d"): string {
+	if (range === "7d") {
+		return "week";
+	}
+	if (range === "30d") {
+		return "month";
+	}
+	return "quarter";
+}
+
+function buildDeterministicNarrative(
+	range: "7d" | "30d" | "90d",
+	kpis: Awaited<ReturnType<typeof fetchOrgKpis>>
+): string {
+	const word = rangeWord(range);
+	const visitors = kpis.visitors.current;
+
+	if (visitors === 0) {
+		return `No traffic in the last ${word}. Check that your tracking script is installed.`;
+	}
+
+	const metrics = [
+		{
+			label: "visitors",
+			change: kpis.visitors.change,
+			invert: false,
+		},
+		{
+			label: "sessions",
+			change: kpis.sessions.change,
+			invert: false,
+		},
+		{
+			label: "bounce rate",
+			change: kpis.bounce.change,
+			invert: true,
+		},
+		{
+			label: "errors",
+			change: kpis.errors.change,
+			invert: true,
+		},
+		{
+			label: "LCP",
+			change: kpis.lcp.change,
+			invert: true,
+		},
+	];
+
+	const moved = metrics
+		.filter((m) => Math.abs(m.change) >= 1)
+		.sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
+		.slice(0, 2);
+
+	if (moved.length === 0) {
+		return `No meaningful changes this ${word}. Traffic is steady at ${visitors.toLocaleString()} visitors.`;
+	}
+
+	const parts = moved.map((m) => {
+		const dir = m.change > 0 ? "up" : "down";
+		return `${m.label} ${dir} ${Math.abs(m.change).toFixed(0)}%`;
+	});
+
+	return `This ${word}: ${parts.join(", ")}. ${visitors.toLocaleString()} total visitors.`;
+}
+
 const generateNarrativeCached = cacheable(
 	async function generateNarrativeCached(
 		organizationId: string,
@@ -1008,14 +1074,25 @@ LCP p75: ${(kpis.lcp.current / 1000).toFixed(2)}s (${formatDelta(kpis.lcp.change
 Top 3 insights:
 ${insightLines.join("\n")}`;
 
-		const result = await generateText({
-			model: models.triage,
-			prompt,
-			temperature: 0.2,
-			maxOutputTokens: 200,
-		});
+		let narrative = "";
+		try {
+			const result = await generateText({
+				model: models.analytics,
+				prompt,
+				temperature: 0.2,
+				maxOutputTokens: 200,
+			});
+			narrative = result.text.trim();
+		} catch (error) {
+			useLogger().warn("Narrative LLM call failed", {
+				insights: { organizationId, range, error },
+			});
+		}
 
-		const narrative = result.text.trim();
+		if (!narrative) {
+			narrative = buildDeterministicNarrative(range, kpis);
+			mergeWideEvent({ insights_narrative_fallback: true });
+		}
 
 		const deltas = [
 			{
