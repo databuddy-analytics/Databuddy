@@ -2,11 +2,9 @@
 
 import {
 	ArrowsClockwiseIcon,
-	BrainIcon,
 	CaretRightIcon,
 	CheckCircleIcon,
 	CheckIcon,
-	CircleNotchIcon,
 	CopyIcon,
 } from "@phosphor-icons/react";
 import type { UIMessage } from "ai";
@@ -23,6 +21,11 @@ import {
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { useThinkingPhrase } from "@/components/ai-elements/thinking-phrases";
+import {
+	UnicodeSpinner,
+	useRandomThinkingVariant,
+} from "@/components/ai-elements/unicode-spinner";
 import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
@@ -288,9 +291,10 @@ function InspectableToolStep({
 				)}
 			>
 				{isActive ? (
-					<CircleNotchIcon
-						className="size-3 shrink-0 animate-spin"
-						weight="bold"
+					<UnicodeSpinner
+						className="text-foreground text-xs"
+						label="Running tool"
+						variant="dots"
 					/>
 				) : (
 					<CheckCircleIcon
@@ -608,17 +612,20 @@ function showTailIndicator(
 }
 
 function StreamingIndicator({ label }: { label: string | null }) {
+	const phrase = useThinkingPhrase();
+	const variant = useRandomThinkingVariant();
 	return (
 		<div
 			className="fade-in flex w-full animate-in items-center gap-2 duration-200"
 			data-role="assistant"
 		>
-			<BrainIcon
-				className="size-4 shrink-0 text-muted-foreground"
-				weight="duotone"
+			<UnicodeSpinner
+				className="text-muted-foreground text-sm"
+				label="Thinking"
+				variant={variant}
 			/>
 			<Shimmer as="span" className="text-sm" duration={1} spread={4}>
-				{label ?? "Thinking"}
+				{label ?? phrase}
 			</Shimmer>
 		</div>
 	);

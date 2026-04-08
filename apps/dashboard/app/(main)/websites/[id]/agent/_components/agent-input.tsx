@@ -9,6 +9,10 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
+import {
+	UnicodeSpinner,
+	useRandomThinkingVariant,
+} from "@/components/ai-elements/unicode-spinner";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -192,17 +196,22 @@ function Kbd({ children }: { children: React.ReactNode }) {
 	);
 }
 
+function GeneratingHint() {
+	const variant = useRandomThinkingVariant();
+	return (
+		<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+			<UnicodeSpinner label="Generating" variant={variant} />
+			<span>Generating…</span>
+		</div>
+	);
+}
+
 function KeyboardHints({ isLoading }: { isLoading: boolean }) {
 	// Keep this slot mounted in both states so the footer layout doesn't
 	// shift when a message is sent. Streaming state shows a subtle status
 	// line in the same height instead of the keyboard shortcuts.
 	if (isLoading) {
-		return (
-			<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
-				<span className="inline-block size-1.5 animate-pulse rounded-full bg-foreground/60" />
-				<span>Generating…</span>
-			</div>
-		);
+		return <GeneratingHint />;
 	}
 	return (
 		<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">

@@ -1,18 +1,19 @@
 "use client";
 
-import { BrainIcon } from "@phosphor-icons/react";
-import { CaretDownIcon } from "@phosphor-icons/react";
-import { useControllableState } from "@radix-ui/react-use-controllable-state";
-import type { ComponentProps, ReactNode } from "react";
-import { createContext, memo, useContext, useEffect, useState } from "react";
-import { Streamdown } from "streamdown";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { BrainIcon, CaretDownIcon } from "@phosphor-icons/react";
+import { useControllableState } from "@radix-ui/react-use-controllable-state";
+import type { ComponentProps, ReactNode } from "react";
+import { createContext, memo, useContext, useEffect, useState } from "react";
+import { Streamdown } from "streamdown";
 import { Shimmer } from "./shimmer";
+import { useThinkingPhrase } from "./thinking-phrases";
+import { UnicodeSpinner, useRandomThinkingVariant } from "./unicode-spinner";
 
 interface ReasoningContextValue {
 	duration: number | undefined;
@@ -118,15 +119,28 @@ export type ReasoningTriggerProps = ComponentProps<
 	getThinkingMessage?: (isStreaming: boolean, duration?: number) => ReactNode;
 };
 
-const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => {
+interface ThinkingMessageProps {
+	duration?: number;
+	isStreaming: boolean;
+}
+
+const DefaultThinkingMessage = ({
+	isStreaming,
+	duration,
+}: ThinkingMessageProps) => {
+	const phrase = useThinkingPhrase();
 	if (isStreaming || duration === 0) {
-		return <Shimmer duration={1}>Thinking</Shimmer>;
+		return <Shimmer duration={1}>{phrase}</Shimmer>;
 	}
 	if (duration === undefined) {
 		return <span>Thought</span>;
 	}
 	return <span>Thought for {duration}s</span>;
 };
+
+const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number) => (
+	<DefaultThinkingMessage duration={duration} isStreaming={isStreaming} />
+);
 
 export const ReasoningTrigger = memo(
 	({
@@ -136,6 +150,7 @@ export const ReasoningTrigger = memo(
 		...props
 	}: ReasoningTriggerProps) => {
 		const { isStreaming, isOpen, duration } = useReasoning();
+		const variant = useRandomThinkingVariant();
 
 		return (
 			<CollapsibleTrigger
@@ -148,10 +163,18 @@ export const ReasoningTrigger = memo(
 				{children ?? (
 					<>
 						<span className="flex items-center gap-2">
-							<BrainIcon
-								className="size-3.5 shrink-0 opacity-70"
-								weight="duotone"
-							/>
+							{isStreaming ? (
+								<UnicodeSpinner
+									className="text-[13px] opacity-80"
+									label="Thinking"
+									variant={variant}
+								/>
+							) : (
+								<BrainIcon
+									className="size-3.5 shrink-0 opacity-70"
+									weight="duotone"
+								/>
+							)}
 							<span>{getThinkingMessage(isStreaming, duration)}</span>
 						</span>
 						<CaretDownIcon
