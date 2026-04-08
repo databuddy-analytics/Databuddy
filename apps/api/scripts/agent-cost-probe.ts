@@ -58,12 +58,11 @@ if (!(websiteId && userId)) {
 	process.exit(1);
 }
 
-// Matches creditSchema in apps/dashboard/autumn.config.ts.
 const CURRENT_SCHEMA = {
-	input: 0.0006,
-	output: 0.003,
-	cacheRead: 0.000_06,
-	cacheWrite: 0.0012,
+	input: 0.000_72,
+	output: 0.0036,
+	cacheRead: 0.000_072,
+	cacheWrite: 0.001_44,
 };
 
 function computeCredits(
