@@ -274,12 +274,31 @@ export default function WebVitalsPage() {
 					</section>
 				</Section>
 
+				{/* Breakdown Section */}
+				<Section
+					className="border-border border-b bg-background/30 pt-12 sm:pt-16 lg:pt-24 xl:pt-32"
+					customPaddings
+					id="breakdown"
+				>
+					<WebVitalsColumnDivider />
+					<div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-10 px-4 sm:px-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-stretch lg:gap-10 lg:px-8 xl:gap-12">
+						<div className="min-w-0 pb-12 text-left sm:pb-16 lg:max-w-none lg:pt-1 lg:pb-24 xl:pb-32">
+							<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
+								Performance, broken down
 							</h2>
-							<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-								Real user monitoring gives you the full picture — across pages,
-								devices, and percentiles.
+							<p className="mt-3 text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
+								Every vital, sliced by page, device, and percentile, so you fix
+								the right thing, not just the average.
 							</p>
 						</div>
+						<div className="flex min-h-0 flex-col border-border border-t pt-8 lg:h-full lg:border-t-0 lg:pt-1">
+							<p className="mb-4 shrink-0 text-balance text-pretty text-foreground text-lg leading-relaxed sm:mb-6 sm:text-xl lg:pl-10">
+								Pinpoint the pages hurting your score before users notice.
+							</p>
+							<div className="shrink-0 lg:pl-10">
+								<WebVitalsBreakdownDemo />
+							</div>
+							<WebVitalsBreakdownSubpanels />
 						</div>
 					</div>
 				</Section>
