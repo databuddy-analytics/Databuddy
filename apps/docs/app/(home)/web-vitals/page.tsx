@@ -303,6 +303,24 @@ export default function WebVitalsPage() {
 					</div>
 				</Section>
 
+				{/* Alerts Section */}
+				<Section className="border-border border-b" id="features">
+					<div className="relative z-10 mx-auto w-full max-w-7xl">
+						<div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center lg:gap-10 xl:gap-12">
+							<div className="text-left">
+								<h3 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
+									Alerts worth acting on
+								</h3>
+								<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
+									Get alerted when any vital drops below thresholds. Fix
+									regressions before they hurt your rankings.
+								</p>
+							</div>
+							<div className="flex w-full min-w-0 items-center justify-center lg:justify-end">
+								<div className="w-full min-w-0 max-w-xl lg:max-w-none">
+									<WebVitalsAlertCycleDemo />
+								</div>
+							</div>
 						</div>
 					</div>
 				</Section>
