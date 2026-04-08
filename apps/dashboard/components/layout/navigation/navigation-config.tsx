@@ -43,7 +43,7 @@ import {
 	UserIcon,
 	UsersThreeIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
+} from "@phosphor-icons/react/ssr";
 import type { Category, NavigationEntry, NavigationSection } from "./types";
 
 const createNavItem = (
