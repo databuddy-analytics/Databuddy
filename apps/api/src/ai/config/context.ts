@@ -5,6 +5,7 @@
 export interface AppContext {
 	/** Available query builder types */
 	availableQueryTypes?: string[];
+	billingCustomerId?: string | null;
 	chatId: string;
 	currentDateTime: string;
 	requestHeaders?: Headers;

@@ -28,6 +28,7 @@ export const AGENT_THINKING_LEVELS: readonly AgentThinking[] = [
 ] as const;
 
 export interface AgentContext {
+	billingCustomerId?: string | null;
 	chatId: string;
 	requestHeaders?: Headers;
 	thinking?: AgentThinking;

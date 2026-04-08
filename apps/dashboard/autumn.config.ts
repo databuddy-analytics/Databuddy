@@ -92,6 +92,13 @@ export const agent_cache_write_tokens = feature({
 	consumable: true,
 });
 
+export const agent_web_search_calls = feature({
+	id: "agent_web_search_calls",
+	name: "Agent Web Search Calls",
+	type: "metered",
+	consumable: true,
+});
+
 export const agent_credits = feature({
 	id: "agent_credits",
 	name: "Agent Credits",
@@ -101,6 +108,7 @@ export const agent_credits = feature({
 		{ meteredFeatureId: "agent_output_tokens", creditCost: 0.0036 },
 		{ meteredFeatureId: "agent_cache_read_tokens", creditCost: 0.000_072 },
 		{ meteredFeatureId: "agent_cache_write_tokens", creditCost: 0.001_44 },
+		{ meteredFeatureId: "agent_web_search_calls", creditCost: 5 },
 	],
 });
 

@@ -60,6 +60,7 @@ export function createConfig(context: AgentContext): AgentConfig {
 		currentDateTime: new Date().toISOString(),
 		chatId: context.chatId,
 		requestHeaders: context.requestHeaders,
+		billingCustomerId: context.billingCustomerId,
 	};
 
 	return {

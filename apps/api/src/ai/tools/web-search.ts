@@ -1,3 +1,4 @@
+import { getAutumn } from "@databuddy/rpc";
 import { generateText, tool } from "ai";
 import { z } from "zod";
 import type { AppContext } from "../config/context";
@@ -66,6 +67,23 @@ export const webSearchTool = tool({
 				executionTime: `${executionTime}ms`,
 				responseLength: result.text.length,
 			});
+
+			if (appContext?.billingCustomerId) {
+				getAutumn()
+					.track({
+						customerId: appContext.billingCustomerId,
+						featureId: "agent_web_search_calls",
+						value: 1,
+					})
+					.catch((trackError) => {
+						logger.error("Failed to track web search usage", {
+							error:
+								trackError instanceof Error
+									? trackError.message
+									: String(trackError),
+						});
+					});
+			}
 
 			// Sanitize web content before returning to the agent to prevent
 			// indirect prompt injection from adversarial web pages.

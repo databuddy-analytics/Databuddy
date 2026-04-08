@@ -354,6 +354,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								chatId,
 								requestHeaders: request.headers,
 								thinking: body.thinking,
+								billingCustomerId,
 							})
 						),
 						isMemoryEnabled() && lastMessage
