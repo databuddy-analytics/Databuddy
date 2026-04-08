@@ -213,7 +213,7 @@ export function SmartInsightsSection({
 			{showInsights && (
 				<div
 					className={cn(
-						"divide-y overflow-y-auto",
+						"overflow-y-auto",
 						variant === "compact"
 							? "max-h-[min(400px,60dvh)]"
 							: "min-h-0 flex-1"
