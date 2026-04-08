@@ -2,7 +2,6 @@
 
 import {
 	BrainIcon,
-	CaretDownIcon,
 	ClockCountdownIcon,
 	PaperPlaneRightIcon,
 	StopIcon,
@@ -14,15 +13,13 @@ import {
 	useRandomThinkingVariant,
 } from "@/components/ai-elements/unicode-spinner";
 import { Button } from "@/components/ui/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuLabel,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useChat, usePendingQueue } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
 import {
@@ -139,52 +136,49 @@ function ThinkingControl() {
 	const [thinking, setThinking] = useAtom(agentThinkingAtom);
 	const isOn = thinking !== "off";
 
+	const cycleThinking = () => {
+		const currentIndex = AGENT_THINKING_LEVELS.indexOf(thinking);
+		const nextIndex = (currentIndex + 1) % AGENT_THINKING_LEVELS.length;
+		const next = AGENT_THINKING_LEVELS[nextIndex];
+		if (next) {
+			setThinking(next);
+		}
+	};
+
 	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<button
-					aria-label={`Thinking effort: ${THINKING_LABELS[thinking]}`}
-					className={cn(
-						"flex h-7 items-center gap-1 rounded border px-2 text-xs transition-colors",
-						isOn
-							? "border-border bg-accent text-foreground"
-							: "border-transparent text-muted-foreground hover:border-border/60 hover:bg-accent/40 hover:text-foreground"
-					)}
-					type="button"
-				>
-					<BrainIcon className="size-3.5" weight={isOn ? "fill" : "duotone"} />
-					<span className="font-medium">{THINKING_LABELS[thinking]}</span>
-					<CaretDownIcon className="size-3 opacity-60" weight="bold" />
-				</button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="end"
-				className="w-56"
-				side="top"
-				sideOffset={8}
-			>
-				<DropdownMenuLabel className="pb-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-					Thinking effort
-				</DropdownMenuLabel>
-				<DropdownMenuRadioGroup
-					onValueChange={(value) => setThinking(value as AgentThinking)}
-					value={thinking}
-				>
-					{AGENT_THINKING_LEVELS.map((level) => (
-						<DropdownMenuRadioItem className="py-1.5" key={level} value={level}>
-							<div className="flex min-w-0 flex-col">
-								<span className="font-medium text-sm leading-tight">
-									{THINKING_LABELS[level]}
-								</span>
-								<span className="text-muted-foreground text-xs leading-snug">
-									{THINKING_DESCRIPTIONS[level]}
-								</span>
-							</div>
-						</DropdownMenuRadioItem>
-					))}
-				</DropdownMenuRadioGroup>
-			</DropdownMenuContent>
-		</DropdownMenu>
+		<TooltipProvider delayDuration={250}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<button
+						aria-label={`Thinking effort: ${THINKING_LABELS[thinking]}. Click to cycle.`}
+						className={cn(
+							"flex h-7 items-center gap-1 rounded border px-2 text-xs transition-colors",
+							isOn
+								? "border-border bg-accent text-foreground"
+								: "border-transparent text-muted-foreground hover:border-border/60 hover:bg-accent/40 hover:text-foreground"
+						)}
+						onClick={cycleThinking}
+						type="button"
+					>
+						<BrainIcon
+							className="size-3.5"
+							weight={isOn ? "fill" : "duotone"}
+						/>
+						<span className="font-medium">{THINKING_LABELS[thinking]}</span>
+					</button>
+				</TooltipTrigger>
+				<TooltipContent side="top" sideOffset={8}>
+					<div className="flex flex-col gap-0.5">
+						<span className="font-medium">
+							Thinking · {THINKING_LABELS[thinking]}
+						</span>
+						<span className="text-muted-foreground">
+							{THINKING_DESCRIPTIONS[thinking]}
+						</span>
+					</div>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 
