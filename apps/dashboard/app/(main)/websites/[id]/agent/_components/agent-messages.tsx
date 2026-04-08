@@ -539,19 +539,20 @@ export function AgentMessages() {
 				const isAssistant = message.role === "assistant";
 				const showActions = isAssistant && !(isLastMessage && isStreaming);
 				const groupedParts = collectToolGroups(message.parts);
+				const messageKey = message.id || `msg-${index}`;
 
 				return (
 					<Message
 						className="group/message"
 						from={message.role}
-						key={message.id}
+						key={messageKey}
 					>
 						<MessageContent className={cn(isAssistant ? "w-full" : "")}>
 							{groupedParts.map((part, partIndex) =>
 								renderMessagePart(
 									part,
 									partIndex,
-									message.id,
+									messageKey,
 									isLastMessage,
 									isStreaming,
 									message.role
