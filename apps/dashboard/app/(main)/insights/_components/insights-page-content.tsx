@@ -390,7 +390,7 @@ export function InsightsPageContent() {
 				{hasNoWebsites ? (
 					<EmptyOrgState />
 				) : (
-					<div className="flex flex-col gap-3 p-3 sm:gap-4 sm:p-4 lg:p-6">
+					<div className="space-y-3 p-4 sm:space-y-4">
 						<CockpitNarrative />
 
 						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">

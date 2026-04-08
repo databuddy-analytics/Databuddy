@@ -234,7 +234,7 @@ export function InsightCard({
 	return (
 		<div
 			className={cn(
-				"group scroll-mt-24 border-b transition-colors",
+				"group scroll-mt-24 border-b transition-colors last:border-b-0",
 				expanded ? "bg-accent/20" : "hover:bg-accent/40"
 			)}
 			id={`insight-${insight.id}`}
@@ -242,7 +242,7 @@ export function InsightCard({
 			{/* biome-ignore lint/a11y/useSemanticElements: full-row toggle cannot use <button> because of nested dismiss control */}
 			<div
 				className={cn(
-					"flex cursor-pointer items-start gap-3 px-4 sm:px-6",
+					"flex cursor-pointer items-start gap-3 px-4",
 					isCompact ? "py-3" : "py-3.5"
 				)}
 				onClick={onToggleAction}
@@ -463,7 +463,7 @@ export function InsightCard({
 
 export function InsightCardSkeleton() {
 	return (
-		<div className="flex items-start gap-3 border-b px-4 py-3 sm:px-6">
+		<div className="flex items-start gap-3 border-b px-4 py-3 last:border-b-0">
 			<Skeleton className="mt-0.5 size-7 shrink-0 rounded" />
 			<div className="min-w-0 flex-1 space-y-2">
 				<div className="flex items-start justify-between gap-2">

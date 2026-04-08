@@ -17,18 +17,30 @@ export function CockpitNarrative() {
 	return (
 		<section
 			aria-label="Weekly summary"
-			className="border-b bg-linear-to-b from-primary/[0.04] to-transparent px-4 py-5 sm:px-6"
+			className="overflow-hidden rounded border bg-card"
 		>
-			<div className="flex items-center gap-2">
-				<div className="flex size-6 items-center justify-center rounded bg-primary/10 text-primary">
-					<SparkleIcon aria-hidden className="size-3.5" weight="duotone" />
+			<div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+				<div className="flex items-center gap-2">
+					<SparkleIcon
+						aria-hidden
+						className="size-4 text-primary"
+						weight="duotone"
+					/>
+					<h3 className="font-semibold text-foreground text-sm">
+						This {rangeLabel(range)}
+					</h3>
 				</div>
-				<span className="font-medium text-[11px] text-primary uppercase tracking-wide">
-					This {rangeLabel(range)}
-				</span>
+				{!(isLoading || isError) &&
+					data &&
+					data.success &&
+					data.generatedAt && (
+						<span className="text-[11px] text-muted-foreground tabular-nums">
+							Updated {dayjs(data.generatedAt).fromNow(true)} ago
+						</span>
+					)}
 			</div>
 
-			<div className="mt-3 min-h-[42px]">
+			<div className="min-h-[44px] px-4 py-3">
 				{isLoading && (
 					<div className="space-y-2">
 						<Skeleton className="h-4 w-11/12 rounded" />
@@ -67,12 +79,6 @@ export function CockpitNarrative() {
 					</p>
 				)}
 			</div>
-
-			{!(isLoading || isError) && data && data.success && data.generatedAt && (
-				<p className="mt-2 text-[11px] text-muted-foreground">
-					Updated {dayjs(data.generatedAt).fromNow(true)} ago
-				</p>
-			)}
 		</section>
 	);
 }

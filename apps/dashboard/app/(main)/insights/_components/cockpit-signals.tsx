@@ -202,11 +202,33 @@ export function CockpitSignals(): ReactElement {
 	}, [hydrated, isLoading, filteredInsights.length, scrollToHashInsight]);
 
 	const showFilterBar = !(isLoading || isError) && insights.length > 0;
+	const visibleCount = filteredInsights.length;
 
 	return (
-		<section aria-label="Signals" ref={sectionRef}>
+		<section
+			aria-label="Signals"
+			className="overflow-hidden rounded border bg-card"
+			ref={sectionRef}
+		>
+			<div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+				<div className="flex items-center gap-2">
+					<SparkleIcon
+						aria-hidden
+						className="size-4 text-primary"
+						weight="duotone"
+					/>
+					<h3 className="font-semibold text-foreground text-sm">Signals</h3>
+				</div>
+				{insights.length > 0 && (
+					<span className="text-muted-foreground text-xs tabular-nums">
+						{visibleCount} of {insights.length}{" "}
+						{insights.length === 1 ? "signal" : "signals"}
+					</span>
+				)}
+			</div>
+
 			{showFilterBar && (
-				<div className="flex items-center gap-2 border-b px-4 py-2 sm:px-6">
+				<div className="flex items-center gap-2 border-b px-4 py-2">
 					{websites.length > 1 && (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -425,7 +447,7 @@ function InsightsFetchStatusRow({
 	return (
 		<div
 			aria-live="polite"
-			className="flex h-10 shrink-0 items-center gap-2 border-b px-4 sm:px-6"
+			className="flex h-10 shrink-0 items-center gap-2 border-b px-4"
 			role="status"
 		>
 			{variant === "refresh" ? (
