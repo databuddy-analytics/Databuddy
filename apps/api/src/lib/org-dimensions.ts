@@ -68,7 +68,7 @@ const DIMENSION_EXPR: Record<
 	country: { expr: "country", emptyFilter: "c.key != ''" },
 	page: {
 		expr: Expressions.path.normalized,
-		emptyFilter: "c.key != '/'  AND c.key != ''",
+		emptyFilter: "c.key != ''",
 	},
 	referrer: {
 		expr: Expressions.referrer.normalized,
