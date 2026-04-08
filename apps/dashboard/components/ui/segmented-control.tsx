@@ -42,7 +42,7 @@ export function SegmentedControl<T extends string>({
 					<button
 						aria-checked={isSelected}
 						className={cn(
-							"relative z-10 flex items-center justify-center rounded px-2.5 font-medium",
+							"relative z-10 flex items-center justify-center rounded px-2.5 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:z-10",
 							size === "sm" ? "h-6 text-xs" : "h-7 text-xs",
 							isSelected
 								? "text-white"

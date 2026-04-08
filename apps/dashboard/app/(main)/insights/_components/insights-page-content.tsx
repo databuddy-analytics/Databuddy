@@ -24,12 +24,12 @@ import {
 } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react";
-import { FileTextIcon } from "@phosphor-icons/react";
-import { GlobeIcon } from "@phosphor-icons/react";
-import { LinkIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
-import { TrashIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { FileTextIcon } from "@phosphor-icons/react/dist/ssr/FileText";
+import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
+import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
+import { SparkleIcon } from "@phosphor-icons/react/dist/ssr/Sparkle";
+import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import Link from "next/link";
@@ -114,7 +114,10 @@ export function InsightsPageContent() {
 
 	return (
 		<>
-			<div className="h-full overflow-y-auto">
+			<div
+				aria-busy={isLoading || dimensionsQuery.isLoading || websitesLoading}
+				className="h-full overflow-y-auto"
+			>
 				<PageHeader
 					count={isLoading ? undefined : insights.length}
 					description="Understand your business at a glance"
@@ -169,19 +172,25 @@ export function InsightsPageContent() {
 							<div className="grid gap-3 lg:grid-cols-3">
 								<DimensionTile
 									icon={GlobeIcon}
+									isError={dimensionsQuery.isError}
 									isLoading={dimensionsQuery.isLoading}
+									onRetry={() => dimensionsQuery.refetch()}
 									rows={dimensionsQuery.data?.countries}
 									title="Top countries"
 								/>
 								<DimensionTile
 									icon={FileTextIcon}
+									isError={dimensionsQuery.isError}
 									isLoading={dimensionsQuery.isLoading}
+									onRetry={() => dimensionsQuery.refetch()}
 									rows={dimensionsQuery.data?.pages}
 									title="Top pages"
 								/>
 								<DimensionTile
 									icon={LinkIcon}
+									isError={dimensionsQuery.isError}
 									isLoading={dimensionsQuery.isLoading}
+									onRetry={() => dimensionsQuery.refetch()}
 									rows={dimensionsQuery.data?.referrers}
 									title="Top referrers"
 								/>

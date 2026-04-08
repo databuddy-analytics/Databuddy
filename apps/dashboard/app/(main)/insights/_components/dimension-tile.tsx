@@ -18,7 +18,9 @@ interface DimensionTileProps {
 	emptyMessage?: string;
 	formatValue?: (value: number) => string;
 	icon: ElementType;
+	isError?: boolean;
 	isLoading?: boolean;
+	onRetry?: () => void;
 	rows: DimensionRow[] | undefined;
 	title: string;
 }
@@ -28,10 +30,13 @@ export function DimensionTile({
 	icon: Icon,
 	rows,
 	isLoading = false,
+	isError = false,
+	onRetry,
 	formatValue = formatNumber,
 	emptyMessage = "No data yet",
 }: DimensionTileProps) {
-	const hasRows = !isLoading && rows !== undefined && rows.length > 0;
+	const hasRows =
+		!(isLoading || isError) && rows !== undefined && rows.length > 0;
 
 	return (
 		<section aria-label={title} className="rounded border bg-card p-4">
@@ -43,7 +48,23 @@ export function DimensionTile({
 			</div>
 
 			<ul className="divide-y">
-				{isLoading &&
+				{isError && (
+					<li className="flex items-center gap-3 py-2">
+						<p className="text-muted-foreground text-xs">Couldn't load</p>
+						{onRetry && (
+							<button
+								className="inline-flex items-center gap-1 rounded text-primary text-xs transition-colors hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+								onClick={onRetry}
+								type="button"
+							>
+								Retry
+							</button>
+						)}
+					</li>
+				)}
+
+				{!isError &&
+					isLoading &&
 					Array.from({ length: 5 }, (_, i) => (
 						<li
 							className="flex items-center justify-between py-2"
@@ -82,7 +103,7 @@ export function DimensionTile({
 						</li>
 					))}
 
-				{!isLoading && rows !== undefined && rows.length === 0 && (
+				{!(isError || isLoading) && rows !== undefined && rows.length === 0 && (
 					<li className="py-2 text-muted-foreground text-xs">{emptyMessage}</li>
 				)}
 			</ul>

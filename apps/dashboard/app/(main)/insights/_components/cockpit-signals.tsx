@@ -12,14 +12,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { Insight, InsightSeverity } from "@/lib/insight-types";
 import { cn } from "@/lib/utils";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react";
-import { ArrowsDownUpIcon } from "@phosphor-icons/react";
-import { CaretDownIcon } from "@phosphor-icons/react";
-import { CheckCircleIcon } from "@phosphor-icons/react";
-import { FunnelIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
-import { WarningCircleIcon } from "@phosphor-icons/react";
-import { XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { ArrowsDownUpIcon } from "@phosphor-icons/react/dist/ssr/ArrowsDownUp";
+import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
+import { CheckCircleIcon } from "@phosphor-icons/react/dist/ssr/CheckCircle";
+import { FunnelIcon } from "@phosphor-icons/react/dist/ssr/Funnel";
+import { SparkleIcon } from "@phosphor-icons/react/dist/ssr/Sparkle";
+import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/dist/ssr/X";
 import {
 	type ReactElement,
 	useCallback,
@@ -204,14 +204,14 @@ export function CockpitSignals(): ReactElement {
 	const showFilterBar = !(isLoading || isError) && insights.length > 0;
 
 	return (
-		<section ref={sectionRef}>
+		<section aria-label="Signals" ref={sectionRef}>
 			{showFilterBar && (
 				<div className="flex items-center gap-2 border-b px-4 py-2 sm:px-6">
 					{websites.length > 1 && (
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<button
-									className="flex items-center gap-1.5 rounded px-2 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
+									className="flex items-center gap-1.5 rounded px-2 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 									disabled={controlsLocked}
 									type="button"
 								>
@@ -239,7 +239,7 @@ export function CockpitSignals(): ReactElement {
 						<DropdownMenuTrigger asChild>
 							<button
 								className={cn(
-									"flex items-center gap-1.5 rounded px-2 py-1 font-medium text-xs transition-colors",
+									"flex items-center gap-1.5 rounded px-2 py-1 font-medium text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
 									severityFilter === "all"
 										? "text-muted-foreground hover:text-foreground"
 										: "bg-primary/10 text-primary"
@@ -276,7 +276,7 @@ export function CockpitSignals(): ReactElement {
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<button
-								className="flex items-center gap-1.5 rounded px-2 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
+								className="flex items-center gap-1.5 rounded px-2 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 								type="button"
 							>
 								<ArrowsDownUpIcon className="size-3.5" />
@@ -299,7 +299,7 @@ export function CockpitSignals(): ReactElement {
 					{dismissedIdSet.size > 0 && (
 						<button
 							className={cn(
-								"text-xs transition-colors",
+								"text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
 								showDismissed
 									? "font-medium text-foreground"
 									: "text-muted-foreground hover:text-foreground"
@@ -315,7 +315,7 @@ export function CockpitSignals(): ReactElement {
 
 					{hasActiveFilters && (
 						<button
-							className="ml-auto flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+							className="ml-auto flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 							onClick={clearFilters}
 							type="button"
 						>
@@ -505,7 +505,12 @@ function NoMatchState({
 				</p>
 			</div>
 			<div className="flex flex-wrap items-center justify-center gap-2">
-				<Button onClick={onClearAction} size="sm" variant="outline">
+				<Button
+					onClick={onClearAction}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
 					Clear filters
 				</Button>
 				{onShowDismissedAction && (

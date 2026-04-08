@@ -42,7 +42,7 @@ export function CockpitNarrative() {
 							Couldn't generate summary
 						</p>
 						<button
-							className="inline-flex items-center gap-1 text-primary text-xs transition-colors hover:underline"
+							className="inline-flex items-center gap-1 rounded text-primary text-xs transition-colors hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
 							onClick={() => refetch()}
 							type="button"
 						>

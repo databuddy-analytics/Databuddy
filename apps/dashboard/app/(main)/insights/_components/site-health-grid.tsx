@@ -59,9 +59,44 @@ function StatusIcon({
 }
 
 export function SiteHealthGrid() {
-	const { websites, isLoading: websitesLoading } = useWebsites();
-	const { insights, isLoading: insightsLoading } = useInsightsFeed();
+	const {
+		websites,
+		isLoading: websitesLoading,
+		isError: websitesError,
+		refetch: websitesRefetch,
+	} = useWebsites();
+	const {
+		insights,
+		isLoading: insightsLoading,
+		isError: insightsError,
+		refetch: insightsRefetch,
+	} = useInsightsFeed();
 	const isLoading = websitesLoading || insightsLoading;
+	const isError = websitesError || insightsError;
+
+	const handleRetry = () => {
+		websitesRefetch();
+		insightsRefetch();
+	};
+
+	if (!isLoading && isError) {
+		return (
+			<section aria-label="Site health" className="border-b px-4 py-4 sm:px-6">
+				<div className="flex items-center gap-3">
+					<p className="text-muted-foreground text-sm">
+						Couldn't load site health
+					</p>
+					<button
+						className="inline-flex items-center gap-1 rounded text-primary text-xs transition-colors hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+						onClick={handleRetry}
+						type="button"
+					>
+						Retry
+					</button>
+				</div>
+			</section>
+		);
+	}
 
 	if (!isLoading && (!websites || websites.length === 0)) {
 		return null;
@@ -91,12 +126,15 @@ export function SiteHealthGrid() {
 
 			<div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
 				{isLoading &&
-					Array.from({ length: 4 }, (_, i) => (
-						<Skeleton
-							className="h-[68px] w-full rounded"
-							key={`site-skeleton-${i}`}
-						/>
-					))}
+					Array.from(
+						{ length: (websites?.length ?? 0) > 0 ? websites.length : 4 },
+						(_, i) => (
+							<Skeleton
+								className="h-[68px] w-full rounded"
+								key={`site-skeleton-${i}`}
+							/>
+						)
+					)}
 				{!isLoading &&
 					tiles.map(({ site, health }) => {
 						const style = STATUS_STYLES[health.status];
