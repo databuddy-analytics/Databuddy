@@ -6,7 +6,7 @@ import {
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { BrainIcon, CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
@@ -169,12 +169,7 @@ export const ReasoningTrigger = memo(
 									label="Thinking"
 									variant={variant}
 								/>
-							) : (
-								<BrainIcon
-									className="size-3.5 shrink-0 opacity-70"
-									weight="duotone"
-								/>
-							)}
+							) : null}
 							<span>{getThinkingMessage(isStreaming, duration)}</span>
 						</span>
 						<CaretDownIcon
