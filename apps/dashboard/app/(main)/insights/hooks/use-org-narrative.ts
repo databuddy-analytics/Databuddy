@@ -6,9 +6,9 @@ import {
 	fetchInsightsOrgNarrative,
 	INSIGHT_QUERY_KEYS,
 } from "@/lib/insight-api";
-import type { InsightsRange } from "./use-org-summary";
+import type { TimeRange } from "../lib/time-range";
 
-export function useOrgNarrative(range: InsightsRange) {
+export function useOrgNarrative(range: TimeRange) {
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;

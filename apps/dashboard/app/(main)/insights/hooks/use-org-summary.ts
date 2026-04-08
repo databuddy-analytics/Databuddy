@@ -3,10 +3,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
+import type { TimeRange } from "../lib/time-range";
 
-export type InsightsRange = "7d" | "30d" | "90d";
-
-export function useOrgSummary(range: InsightsRange) {
+export function useOrgSummary(range: TimeRange) {
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;

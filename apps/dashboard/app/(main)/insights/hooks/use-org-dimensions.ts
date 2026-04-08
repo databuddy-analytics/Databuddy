@@ -3,9 +3,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
-import type { InsightsRange } from "./use-org-summary";
+import type { TimeRange } from "../lib/time-range";
 
-export function useOrgDimensions(range: InsightsRange, limit = 5) {
+export function useOrgDimensions(range: TimeRange, limit = 5) {
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
