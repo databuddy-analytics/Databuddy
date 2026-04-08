@@ -1,47 +1,49 @@
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { ActivityIcon } from "@phosphor-icons/react";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react";
-import { BellIcon } from "@phosphor-icons/react";
-import { BookOpenIcon } from "@phosphor-icons/react";
-import { BugIcon } from "@phosphor-icons/react";
-import { BuildingsIcon } from "@phosphor-icons/react";
-import { CalendarIcon } from "@phosphor-icons/react";
-import { ChartBarIcon } from "@phosphor-icons/react";
-import { ChartLineUpIcon } from "@phosphor-icons/react";
-import { ChartPieIcon } from "@phosphor-icons/react";
-import { CodeIcon } from "@phosphor-icons/react";
-import { CreditCardIcon } from "@phosphor-icons/react";
-import { CurrencyDollarIcon } from "@phosphor-icons/react";
-import { EyeIcon } from "@phosphor-icons/react";
-import { FileArrowDownIcon } from "@phosphor-icons/react";
-import { FlagIcon } from "@phosphor-icons/react";
-import { FunnelIcon } from "@phosphor-icons/react";
-import { GearIcon } from "@phosphor-icons/react";
-import { GlobeIcon } from "@phosphor-icons/react";
-import { GlobeSimpleIcon } from "@phosphor-icons/react";
-import { HeartbeatIcon } from "@phosphor-icons/react";
-import { HouseIcon } from "@phosphor-icons/react";
-import { IdentificationCardIcon } from "@phosphor-icons/react";
-import { KeyIcon } from "@phosphor-icons/react";
-import { LightningIcon } from "@phosphor-icons/react";
-import { LinkIcon } from "@phosphor-icons/react";
-import { LockIcon } from "@phosphor-icons/react";
-import { MapPinIcon } from "@phosphor-icons/react";
-import { PlayIcon } from "@phosphor-icons/react";
-import { PlugIcon } from "@phosphor-icons/react";
-import { ReceiptIcon } from "@phosphor-icons/react";
-import { RoadHorizonIcon } from "@phosphor-icons/react";
-import { RobotIcon } from "@phosphor-icons/react";
-import { ShieldCheckIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
-import { SpeakerHighIcon } from "@phosphor-icons/react";
-import { SquaresFourIcon } from "@phosphor-icons/react";
-import { TargetIcon } from "@phosphor-icons/react";
-import { TrendUpIcon } from "@phosphor-icons/react";
-import { UserIcon } from "@phosphor-icons/react";
-import { UserGearIcon } from "@phosphor-icons/react";
-import { UsersThreeIcon } from "@phosphor-icons/react";
-import { WarningIcon } from "@phosphor-icons/react";
+import {
+	ActivityIcon,
+	ArrowSquareOutIcon,
+	BellIcon,
+	BookOpenIcon,
+	BugIcon,
+	BuildingsIcon,
+	CalendarIcon,
+	ChartBarIcon,
+	ChartLineUpIcon,
+	ChartPieIcon,
+	CodeIcon,
+	CreditCardIcon,
+	CurrencyDollarIcon,
+	EyeIcon,
+	FileArrowDownIcon,
+	FlagIcon,
+	FunnelIcon,
+	GearIcon,
+	GlobeIcon,
+	GlobeSimpleIcon,
+	HeartbeatIcon,
+	HouseIcon,
+	IdentificationCardIcon,
+	KeyIcon,
+	LightningIcon,
+	LinkIcon,
+	LockIcon,
+	MapPinIcon,
+	PlayIcon,
+	PlugIcon,
+	ReceiptIcon,
+	RoadHorizonIcon,
+	RobotIcon,
+	ShieldCheckIcon,
+	SparkleIcon,
+	SpeakerHighIcon,
+	SquaresFourIcon,
+	TargetIcon,
+	TrendUpIcon,
+	UserGearIcon,
+	UserIcon,
+	UsersThreeIcon,
+	WarningIcon,
+} from "@phosphor-icons/react";
 import type { Category, NavigationEntry, NavigationSection } from "./types";
 
 const createNavItem = (
@@ -109,7 +111,6 @@ export const homeNavigation: NavigationEntry[] = [
 		}),
 		createNavItem("Insights", SparkleIcon, "/insights", {
 			highlight: true,
-			flag: "insights",
 		}),
 	]),
 	createNavSection("Observability", ActivityIcon, [
@@ -286,9 +287,6 @@ export const websiteNavigation: NavigationSection[] = [
 		createNavItem("AI Agent", RobotIcon, "/agent", {
 			alpha: true,
 			rootLevel: false,
-			tag: "WIP",
-			flag: "agent",
-			// gatedFeature: GATED_FEATURES.AI_AGENT,
 		}),
 	]),
 ];
