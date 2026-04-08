@@ -184,19 +184,28 @@ export function InsightCard({
 	const freshnessLine = formatInsightFreshness(insight);
 
 	const agentHref = useMemo(() => {
+		if (isCompact) {
+			return "";
+		}
 		const chatId = crypto.randomUUID();
 		const prompt = encodeURIComponent(buildDiagnosticPrompt(insight));
 		return `/websites/${insight.websiteId}/agent/${chatId}?prompt=${prompt}`;
-	}, [insight]);
+	}, [isCompact, insight]);
 
-	const pathHint = useMemo(() => extractInsightPathHint(insight), [insight]);
+	const pathHint = useMemo(
+		() => (isCompact ? null : extractInsightPathHint(insight)),
+		[isCompact, insight]
+	);
 
 	const analyticsHref = useMemo(() => {
+		if (isCompact) {
+			return insight.link;
+		}
 		if (pathHint) {
 			return `/websites/${insight.websiteId}/events/stream?path=${encodeURIComponent(pathHint)}`;
 		}
 		return insight.link;
-	}, [insight.websiteId, insight.link, pathHint]);
+	}, [isCompact, insight.websiteId, insight.link, pathHint]);
 
 	const analyticsLabel = pathHint ? "View events" : "Overview";
 
