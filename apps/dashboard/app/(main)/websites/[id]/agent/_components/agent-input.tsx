@@ -8,6 +8,7 @@ import {
 	XIcon,
 } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
+import { useMemo, useState } from "react";
 import {
 	UnicodeSpinner,
 	useRandomThinkingVariant,
@@ -28,6 +29,8 @@ import {
 	agentInputAtom,
 	agentThinkingAtom,
 } from "./agent-atoms";
+import { AgentCommandMenu } from "./agent-command-menu";
+import { type AgentCommand, filterCommands } from "./agent-commands";
 import { useEnterSubmit } from "./hooks/use-enter-submit";
 
 export function AgentInput() {
@@ -36,6 +39,23 @@ export function AgentInput() {
 	const isLoading = status === "streaming" || status === "submitted";
 	const [input, setInput] = useAtom(agentInputAtom);
 	const { formRef, onKeyDown } = useEnterSubmit();
+	const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+	const [commandsDismissed, setCommandsDismissed] = useState(false);
+
+	const filteredCommands = useMemo(() => {
+		if (!input.startsWith("/")) {
+			return [];
+		}
+		const query = input.slice(1);
+		return filterCommands(query);
+	}, [input]);
+
+	const showCommands =
+		!(commandsDismissed || isLoading) && filteredCommands.length > 0;
+	const safeCommandIndex =
+		filteredCommands.length === 0
+			? 0
+			: Math.min(selectedCommandIndex, filteredCommands.length - 1);
 
 	const handleSubmit = (e?: React.FormEvent) => {
 		e?.preventDefault();
@@ -44,6 +64,67 @@ export function AgentInput() {
 		}
 		sendMessage({ text: input.trim() });
 		setInput("");
+		setCommandsDismissed(false);
+	};
+
+	const selectCommand = (command: AgentCommand) => {
+		setInput(command.prompt);
+		setSelectedCommandIndex(0);
+		setCommandsDismissed(true);
+	};
+
+	const handleTextareaKeyDown = (
+		event: React.KeyboardEvent<HTMLTextAreaElement>
+	) => {
+		if (showCommands) {
+			if (event.key === "ArrowDown") {
+				event.preventDefault();
+				setSelectedCommandIndex((prev) => (prev + 1) % filteredCommands.length);
+				return;
+			}
+			if (event.key === "ArrowUp") {
+				event.preventDefault();
+				setSelectedCommandIndex(
+					(prev) =>
+						(prev - 1 + filteredCommands.length) % filteredCommands.length
+				);
+				return;
+			}
+			if (event.key === "Escape") {
+				event.preventDefault();
+				setCommandsDismissed(true);
+				return;
+			}
+			if (
+				event.key === "Enter" &&
+				!event.shiftKey &&
+				!event.nativeEvent.isComposing
+			) {
+				event.preventDefault();
+				const target = filteredCommands[safeCommandIndex];
+				if (target) {
+					selectCommand(target);
+				}
+				return;
+			}
+			if (event.key === "Tab") {
+				event.preventDefault();
+				const target = filteredCommands[safeCommandIndex];
+				if (target) {
+					selectCommand(target);
+				}
+				return;
+			}
+		}
+		onKeyDown(event);
+	};
+
+	const handleInputChange = (value: string) => {
+		setInput(value);
+		if (!value.startsWith("/")) {
+			setCommandsDismissed(false);
+		}
+		setSelectedCommandIndex(0);
 	};
 
 	return (
@@ -61,59 +142,69 @@ export function AgentInput() {
 				/>
 			) : null}
 
-			<div
-				className={cn(
-					"rounded border border-border bg-background shadow-xs transition-colors",
-					"focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
-				)}
-			>
-				<Textarea
-					className={cn(
-						"min-h-0 resize-none border-0 bg-transparent px-3 pt-3 pb-2 text-sm shadow-none",
-						"focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0"
-					)}
-					maxRows={8}
-					minRows={1}
-					onChange={(e) => setInput(e.target.value)}
-					onKeyDown={onKeyDown}
-					placeholder="Ask Databunny anything about your analytics…"
-					showFocusIndicator={false}
-					value={input}
-				/>
-
-				<div className="flex items-center justify-between gap-3 rounded-b border-border/60 border-t bg-muted/30 px-3 py-1.5">
-					<KeyboardHints isLoading={isLoading} />
-
-					<div className="flex shrink-0 items-center gap-1">
-						<ThinkingControl />
-						{isLoading ? (
-							<Button
-								aria-label="Stop generation"
-								className="size-7"
-								onClick={stop}
-								size="icon"
-								type="button"
-								variant="default"
-							>
-								<StopIcon className="size-3.5" weight="fill" />
-							</Button>
-						) : (
-							<Button
-								aria-label="Send message"
-								className="size-7"
-								disabled={!input.trim()}
-								size="icon"
-								type="submit"
-							>
-								<PaperPlaneRightIcon
-									className="size-3.5"
-									weight={input.trim() ? "fill" : "duotone"}
-								/>
-							</Button>
+			<AgentCommandMenu
+				anchor={
+					<div
+						className={cn(
+							"rounded border border-border bg-background shadow-xs transition-colors",
+							"focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
 						)}
+					>
+						<Textarea
+							className={cn(
+								"min-h-0 resize-none border-0 bg-transparent px-3 pt-3 pb-2 text-sm shadow-none",
+								"focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0"
+							)}
+							maxRows={8}
+							minRows={1}
+							onChange={(e) => handleInputChange(e.target.value)}
+							onKeyDown={handleTextareaKeyDown}
+							placeholder="Ask Databunny anything about your analytics…"
+							showFocusIndicator={false}
+							value={input}
+						/>
+
+						<div className="flex items-center justify-between gap-3 rounded-b border-border/60 border-t bg-muted/30 px-3 py-1.5">
+							<KeyboardHints isLoading={isLoading} />
+
+							<div className="flex shrink-0 items-center gap-1">
+								<ThinkingControl />
+								{isLoading ? (
+									<Button
+										aria-label="Stop generation"
+										className="size-7"
+										onClick={stop}
+										size="icon"
+										type="button"
+										variant="default"
+									>
+										<StopIcon className="size-3.5" weight="fill" />
+									</Button>
+								) : (
+									<Button
+										aria-label="Send message"
+										className="size-7"
+										disabled={!input.trim()}
+										size="icon"
+										type="submit"
+									>
+										<PaperPlaneRightIcon
+											className="size-3.5"
+											weight={input.trim() ? "fill" : "duotone"}
+										/>
+									</Button>
+								)}
+							</div>
+						</div>
 					</div>
-				</div>
-			</div>
+				}
+				commands={filteredCommands}
+				onDismiss={() => setCommandsDismissed(true)}
+				onHover={setSelectedCommandIndex}
+				onSelect={selectCommand}
+				open={showCommands}
+				selectedIndex={safeCommandIndex}
+			/>
 		</form>
 	);
 }
