@@ -1,13 +1,3 @@
-import {
-	ArrowRightIcon,
-	ChartLineUpIcon,
-	ClockIcon,
-	DeviceMobileIcon,
-	GaugeIcon,
-	GlobeIcon,
-	LightningIcon,
-	WarningCircleIcon,
-} from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
@@ -33,45 +23,6 @@ export const metadata: Metadata = {
 		images: ["/og-image.png"],
 	},
 };
-
-const FEATURES = [
-	{
-		icon: GaugeIcon,
-		title: "All Core Web Vitals",
-		description:
-			"LCP, CLS, FID, INP, and TTFB — tracked automatically from real user sessions, not synthetic lab tests.",
-	},
-	{
-		icon: ChartLineUpIcon,
-		title: "Percentile Breakdowns",
-		description:
-			"See p50, p75, and p95 values side by side. Google scores your site at the 75th percentile — so you know exactly what matters.",
-	},
-	{
-		icon: GlobeIcon,
-		title: "Page-Level Analysis",
-		description:
-			"Break down vitals by URL so you can pinpoint which pages are dragging down your score instead of chasing averages.",
-	},
-	{
-		icon: DeviceMobileIcon,
-		title: "Device Segmentation",
-		description:
-			"Mobile and desktop users have very different experiences. See vitals split by device type so you fix the right thing.",
-	},
-	{
-		icon: LightningIcon,
-		title: "Real User Monitoring",
-		description:
-			"Scores come from actual user interactions — not Lighthouse simulations. What you see is what Google sees.",
-	},
-	{
-		icon: WarningCircleIcon,
-		title: "Score Alerts",
-		description:
-			"Get notified when a vital drops below Good thresholds. Catch regressions before they hurt your search rankings.",
-	},
-] as const;
 
 const FAQ_ITEMS = [
 	{
@@ -323,32 +274,12 @@ export default function WebVitalsPage() {
 					</section>
 				</Section>
 
-				{/* Feature Grid */}
-				<Section className="border-border border-b" id="features">
-					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<div className="mb-12 text-center lg:mb-16 lg:text-left">
-							<h2 className="mx-auto max-w-4xl text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
-								<span className="text-muted-foreground">See what users feel, </span>
-								<span className="bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-									not what Lighthouse says
-								</span>
 							</h2>
 							<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
 								Real user monitoring gives you the full picture — across pages,
 								devices, and percentiles.
 							</p>
 						</div>
-
-						<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 lg:gap-10 xl:gap-12">
-							{FEATURES.map((feature) => (
-								<div className="flex" key={feature.title}>
-									<SciFiGridCard
-										description={feature.description}
-										icon={feature.icon}
-										title={feature.title}
-									/>
-								</div>
-							))}
 						</div>
 					</div>
 				</Section>
