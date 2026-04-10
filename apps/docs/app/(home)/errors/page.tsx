@@ -1,24 +1,15 @@
-import {
-	ArrowRightIcon,
-	BellIcon,
-	BugIcon,
-	ChartLineUpIcon,
-	CodeIcon,
-	GitBranchIcon,
-	MagnifyingGlassIcon,
-	UsersIcon,
-} from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
-import { SciFiGridCard } from "@/components/landing/card";
+import { ClosingCtaSection } from "@/components/landing/closing-cta-section";
+import { ErrorAutoCaptureAlertsStackDemo } from "@/components/landing/error-auto-capture-alerts-stack-demo";
+import { ErrorPerPageBreakdownDemo } from "@/components/landing/error-per-page-breakdown-demo";
+import { ErrorFrequencyChartDemo } from "@/components/landing/error-frequency-chart-demo";
+import { ErrorImpactTableArtifact } from "@/components/landing/error-who-it-affects-artifacts";
 import { FaqSection } from "@/components/landing/faq-section";
-import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
 import { StructuredData } from "@/components/structured-data";
 import { Button } from "@/components/ui/button";
-import { ErrorTrackingDemo } from "./demo";
 
 export const metadata: Metadata = {
 	title: "Error Tracking | Databuddy",
@@ -36,44 +27,6 @@ export const metadata: Metadata = {
 	},
 };
 
-const FEATURES = [
-	{
-		icon: BugIcon,
-		title: "Automatic Error Capture",
-		description:
-			"Unhandled exceptions, promise rejections, and console errors are captured automatically. One script, zero configuration.",
-	},
-	{
-		icon: CodeIcon,
-		title: "Full Stack Traces",
-		description:
-			"Source-mapped stack traces show the exact file and line number in your original code — not minified gibberish.",
-	},
-	{
-		icon: UsersIcon,
-		title: "User Impact",
-		description:
-			"See how many users hit each error and who they are. Prioritize fixes by real impact, not just occurrence count.",
-	},
-	{
-		icon: GitBranchIcon,
-		title: "Release Tracking",
-		description:
-			"Errors are tagged to the release that introduced them. Spot regressions immediately after a deploy.",
-	},
-	{
-		icon: BellIcon,
-		title: "Instant Alerts",
-		description:
-			"Get notified via email, Slack, or webhooks the moment a new error appears or an existing one spikes.",
-	},
-	{
-		icon: ChartLineUpIcon,
-		title: "Error Trends",
-		description:
-			"See error frequency over time so you can tell if a fix actually worked or if issues are getting worse.",
-	},
-] as const;
 
 const FAQ_ITEMS = [
 	{
@@ -103,7 +56,8 @@ const FAQ_ITEMS = [
 	},
 ] as const;
 
-
+const CELL_TITLE_CLASS =
+	"mb-5 text-balance font-semibold text-base text-foreground sm:mb-6 sm:text-lg";
 
 export default function ErrorsPage() {
 	return (
@@ -117,104 +71,109 @@ export default function ErrorsPage() {
 					url: "https://www.databuddy.cc/errors",
 				}}
 			/>
-			<div className="overflow-hidden">
+			<div className="overflow-x-hidden">
 				{/* Hero */}
-				<Section className="overflow-hidden" customPaddings id="hero">
-					<section className="relative flex w-full flex-col items-center overflow-hidden">
-						<Spotlight transform="translateX(-60%) translateY(-50%)" />
+				<Section
+					className="overflow-hidden border-border border-b"
+					customPaddings
+					id="hero"
+				>
+					<section className="relative flex w-full flex-col overflow-hidden">
+						<div className="mx-auto w-full max-w-7xl px-4 pt-16 pb-12 sm:px-6 sm:pt-20 sm:pb-16 lg:px-8 lg:pt-24 lg:pb-24 xl:pb-28">
+							<div className="flex w-full max-w-4xl flex-col items-start space-y-5 text-left sm:space-y-6">
 
-						<div className="mx-auto w-full max-w-7xl px-4 pt-16 pb-8 sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
-							<div className="mx-auto max-w-7xl">
-								<ErrorTrackingDemo>
-									<h1 className="text-balance font-bold text-5xl leading-[1.1] tracking-tight sm:text-6xl lg:text-7xl">
-										Catch errors before your users do
-									</h1>
-									<p className="mt-5 max-w-lg text-pretty font-medium text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
-										Automatic capture, source-mapped stack traces, and release tracking built into your analytics.
-									</p>
-									<div className="mt-6 flex items-center gap-3">
-										<Button asChild className="px-6 py-5 text-base sm:px-8">
-											<a href="https://app.databuddy.cc/login">Start Free</a>
-										</Button>
-										<Button asChild className="px-6 py-5 text-base sm:px-8" variant="secondary">
-											<Link href="/docs/error-tracking">Read Docs</Link>
-										</Button>
-									</div>
-								</ErrorTrackingDemo>
+								<h1 className="max-w-3xl text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+									Understand what your errors are costing users.
+								</h1>
+
+								<p className="max-w-2xl text-pretty font-medium text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
+									Every error tied to the session, the page, and the funnel step where it happened.
+								</p>
+
+								<div className="flex flex-wrap items-center justify-start gap-3">
+									<Button asChild className="px-6 py-5 text-base sm:px-8">
+										<a href="https://app.databuddy.cc/login">
+											Start Monitoring
+										</a>
+									</Button>
+									<Button
+										asChild
+										className="px-6 py-5 text-base sm:px-8"
+										variant="secondary"
+									>
+										<Link href="/docs/error-tracking">Read Docs</Link>
+									</Button>
+								</div>
 							</div>
 						</div>
 					</section>
 				</Section>
 
-				{/* Feature Grid */}
-				<Section className="border-border border-b" id="features">
-					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<div className="mb-12 text-center lg:mb-16 lg:text-left">
-							<h2 className="mx-auto max-w-4xl text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
-								<span className="text-muted-foreground">Know what broke, </span>
-								<span className="bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-									and why
-								</span>
-							</h2>
-							<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-								Everything you need to find, understand, and fix errors — without
-								switching to another tool.
-							</p>
-						</div>
+				<Section
+					className="border-border border-b pt-12 pb-0 sm:pt-16 sm:pb-0 lg:pt-24 lg:pb-0 xl:pt-32 xl:pb-0"
+					customPaddings
+					id="impact"
+				>
+					<div className="mx-auto mb-8 w-full max-w-7xl px-4 sm:mb-10 sm:px-6 lg:px-8">
+						<p className="mb-2 font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest sm:text-[11px]">
+							Impact
+						</p>
+						<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
+							Prioritize by{" "}
+							<span className="text-muted-foreground">real impact.</span>
+						</h2>
+						<p className="mt-3 text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
+							See affected user counts, per-page error rates, and track progress post-fixes all in one place.
+						</p>
+					</div>
 
-						<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 lg:gap-10 xl:gap-12">
-							{FEATURES.map((feature) => (
-								<div className="flex" key={feature.title}>
-									<SciFiGridCard
-										align="left"
-										description={feature.description}
-										icon={feature.icon}
-										title={feature.title}
-									/>
-								</div>
-							))}
+					<div className="w-full border-border border-t border-b">
+						<div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 lg:grid-cols-2">
+							<div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border lg:block" />
+							<div className="border-border border-b px-4 pt-5 pb-2 sm:px-6 lg:border-r lg:border-b-0 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Find the one page generating all the errors.
+								</h3>
+								<ErrorPerPageBreakdownDemo />
+							</div>
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Know about errors before your users report them.
+								</h3>
+								<ErrorAutoCaptureAlertsStackDemo />
+							</div>
+						</div>
+					</div>
+					<div className="w-full border-border border-b">
+						<div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 lg:grid-cols-2">
+							<div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border lg:block" />
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:border-r lg:border-b-0 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									An error hitting 500 users matters more than one hitting 1
+									user 500 times.
+								</h3>
+								<ErrorImpactTableArtifact />
+							</div>
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									See when the error stops hitting users.
+								</h3>
+								<ErrorFrequencyChartDemo />
+							</div>
 						</div>
 					</div>
 				</Section>
 
-				{/* Mid-page CTA */}
-				<Section className="border-border border-b bg-background/50" id="cta">
-					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<div className="mx-auto flex max-w-2xl flex-col items-center space-y-6 text-center">
-							<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl">
-								One script. Errors, analytics, flags.
-							</h2>
-							<p className="max-w-lg text-pretty text-muted-foreground text-sm sm:text-base">
-								Add the Databuddy script and error tracking is on by default.
-								No separate SDK, no extra config — it just works.
-							</p>
-							<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
-								<a href="https://app.databuddy.cc/login">
-									Get started free
-									<ArrowRightIcon className="ml-2 size-4" weight="bold" />
-								</a>
-							</SciFiButton>
-						</div>
-					</div>
-				</Section>
 
 				{/* FAQ */}
-				<Section className="border-border border-b bg-background/30" id="faq">
+				<Section className="border-border border-b" id="faq">
 					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<FaqSection items={[...FAQ_ITEMS]} />
+						<FaqSection eyebrow="FAQ" items={[...FAQ_ITEMS]} />
 					</div>
 				</Section>
 
-				{/* Gradient Divider */}
-				<div className="w-full">
-					<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
-				</div>
-
+				<ClosingCtaSection docsHref="/docs/error-tracking" />
 				<Footer />
-
-				<div className="w-full">
-					<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
-				</div>
 			</div>
 		</>
 	);
