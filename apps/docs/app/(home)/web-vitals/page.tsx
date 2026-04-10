@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
-import { SciFiGridCard } from "@/components/landing/card";
+import { ClosingCtaSection } from "@/components/landing/closing-cta-section";
 import { FaqSection } from "@/components/landing/faq-section";
-import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+import { WebVitalsAlertCycleDemo } from "@/components/landing/web-vitals-alert-cycle-demo";
+import { WebVitalsBreakdownDemo } from "@/components/landing/web-vitals-breakdown-demo";
+import { WebVitalsGraphsDemo } from "@/components/landing/web-vitals-graphs-demo";
+import { WebVitalsPercentileCycleDemo } from "@/components/landing/web-vitals-percentile-cycle-demo";
+import { WebVitalsTrendsSparklinesDemo } from "@/components/landing/web-vitals-trends-sparklines-demo";
 import { StructuredData } from "@/components/structured-data";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
 	title: "Core Web Vitals Monitoring | Databuddy",
@@ -23,6 +27,9 @@ export const metadata: Metadata = {
 		images: ["/og-image.png"],
 	},
 };
+
+const CELL_TITLE_CLASS =
+	"mb-5 text-balance font-semibold text-base text-foreground sm:mb-6 sm:text-lg";
 
 const FAQ_ITEMS = [
 	{
@@ -52,166 +59,6 @@ const FAQ_ITEMS = [
 	},
 ] as const;
 
-const DEMO_METRICS = [
-	{ label: "LCP", value: "1.2s", score: 98, status: "good" as const },
-	{ label: "CLS", value: "0.04", score: 91, status: "good" as const },
-	{ label: "INP", value: "48ms", score: 95, status: "good" as const },
-	{ label: "FID", value: "12ms", score: 100, status: "good" as const },
-	{ label: "TTFB", value: "210ms", score: 82, status: "needs-improvement" as const },
-] as const;
-
-const DEMO_PAGES = [
-	{ path: "/", lcp: "1.2s", cls: "0.04", inp: "48ms", score: 97 },
-	{ path: "/pricing", lcp: "1.8s", cls: "0.01", inp: "64ms", score: 93 },
-	{ path: "/blog", lcp: "2.4s", cls: "0.08", inp: "112ms", score: 71 },
-	{ path: "/checkout", lcp: "3.1s", cls: "0.12", inp: "180ms", score: 54 },
-] as const;
-
-const STATUS_COLOR = {
-	good: "stroke-emerald-500",
-	"needs-improvement": "stroke-amber-500",
-	poor: "stroke-red-500",
-} as const;
-
-const SCORE_TEXT_COLOR = {
-	good: "text-emerald-400",
-	"needs-improvement": "text-amber-400",
-	poor: "text-red-400",
-} as const;
-
-function ScoreRing({
-	score,
-	status,
-}: {
-	score: number;
-	status: "good" | "needs-improvement" | "poor";
-}) {
-	return (
-		<div className="relative flex size-12 items-center justify-center">
-			<svg className="h-full w-full -rotate-90" viewBox="0 0 36 36">
-				<title>Score</title>
-				<circle
-					className="stroke-secondary"
-					cx="18"
-					cy="18"
-					fill="none"
-					r="16"
-					strokeWidth="2.5"
-				/>
-				<circle
-					className={STATUS_COLOR[status]}
-					cx="18"
-					cy="18"
-					fill="none"
-					pathLength="100"
-					r="16"
-					strokeDasharray="100"
-					strokeDashoffset={100 - score}
-					strokeLinecap="round"
-					strokeWidth="2.5"
-				/>
-			</svg>
-			<span
-				className={`absolute font-medium font-mono text-[11px] ${SCORE_TEXT_COLOR[status]}`}
-			>
-				{score}
-			</span>
-		</div>
-	);
-}
-
-function pageScoreColor(score: number) {
-	if (score >= 90) return "text-emerald-400";
-	if (score >= 50) return "text-amber-400";
-	return "text-red-400";
-}
-
-function WebVitalsDemo() {
-	return (
-		<div className="overflow-hidden rounded border border-border/50 bg-card/30 shadow-2xl backdrop-blur-sm">
-			<div className="border-border border-b px-5 py-4">
-				<div className="flex items-center justify-between">
-					<div className="space-y-1">
-						<h3 className="font-semibold text-foreground text-sm">
-							Core Web Vitals
-						</h3>
-						<p className="text-muted-foreground text-xs">
-							Real user data · p75 · Last 30 days
-						</p>
-					</div>
-					<div className="flex items-center gap-2 rounded bg-emerald-500/10 px-3 py-1.5">
-						<span className="size-1.5 rounded-full bg-emerald-500" />
-						<span className="font-medium text-emerald-400 text-xs">
-							4 / 5 Good
-						</span>
-					</div>
-				</div>
-			</div>
-
-			{/* Metric scores */}
-			<div className="grid grid-cols-5 divide-x divide-border/50 border-border border-b">
-				{DEMO_METRICS.map((m) => (
-					<div
-						className="flex flex-col items-center gap-2 px-3 py-4"
-						key={m.label}
-					>
-						<ScoreRing score={m.score} status={m.status} />
-						<div className="space-y-0.5 text-center">
-							<div className="font-bold font-mono text-[9px] text-muted-foreground uppercase tracking-widest">
-								{m.label}
-							</div>
-							<div className="font-medium font-mono text-foreground text-[11px]">
-								{m.value}
-							</div>
-						</div>
-					</div>
-				))}
-			</div>
-
-			{/* Per-page breakdown */}
-			<div className="divide-y divide-border/50">
-				{DEMO_PAGES.map((page) => (
-					<div
-						className="flex items-center justify-between px-5 py-2.5"
-						key={page.path}
-					>
-						<span className="font-mono text-muted-foreground text-xs">
-							{page.path}
-						</span>
-						<div className="flex items-center gap-4 text-[10px] text-muted-foreground tabular-nums">
-							<span>LCP {page.lcp}</span>
-							<span>CLS {page.cls}</span>
-							<span>INP {page.inp}</span>
-							<span
-								className={`font-medium ${pageScoreColor(page.score)}`}
-							>
-								{page.score}
-							</span>
-						</div>
-					</div>
-				))}
-			</div>
-
-			<div className="border-border border-t px-5 py-3">
-				<div className="flex items-center gap-4 text-[10px] text-muted-foreground">
-					<div className="flex items-center gap-1.5">
-						<span className="size-1.5 rounded-full bg-emerald-500" />
-						<span>Good ≥ 90</span>
-					</div>
-					<div className="flex items-center gap-1.5">
-						<span className="size-1.5 rounded-full bg-amber-500" />
-						<span>Needs improvement</span>
-					</div>
-					<div className="flex items-center gap-1.5">
-						<span className="size-1.5 rounded-full bg-red-500" />
-						<span>Poor</span>
-					</div>
-				</div>
-			</div>
-		</div>
-	);
-}
-
 export default function WebVitalsPage() {
 	return (
 		<>
@@ -224,124 +71,148 @@ export default function WebVitalsPage() {
 					url: "https://www.databuddy.cc/web-vitals",
 				}}
 			/>
-			<div className="overflow-hidden">
-				{/* Hero */}
-				<Section className="overflow-hidden" customPaddings id="hero">
-					<section className="relative flex w-full flex-col items-center overflow-hidden">
-						<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-						<div className="mx-auto w-full max-w-7xl px-4 pt-16 pb-8 sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
-							<div className="mx-auto flex max-w-4xl flex-col items-center space-y-8 text-center">
-								<h1 className="text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-									Real user performance.{" "}
-									<span className="text-muted-foreground">
-										Not lab simulations.
-									</span>
+			<div className="overflow-x-hidden">
+				<Section
+					className="overflow-hidden border-border border-b"
+					customPaddings
+					id="hero"
+				>
+					<section className="relative flex w-full flex-col overflow-hidden">
+						<div className="mx-auto w-full max-w-7xl px-4 pt-16 pb-12 sm:px-6 sm:pt-20 sm:pb-16 lg:px-8 lg:pt-24 lg:pb-24 xl:pb-32">
+							<div className="flex w-full max-w-4xl flex-col items-start space-y-5 text-left sm:space-y-6">
+								<h1 className="max-w-3xl text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+									Slow pages hide in averages.
 								</h1>
 
 								<p className="max-w-2xl text-pretty font-medium text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
-									LCP, CLS, INP, FID, and TTFB collected from every real user
-									session — with percentile breakdowns and per-page analysis
-									built in.
+									See exactly how your site performs for real users, not
+									simulated tests. LCP, INP, CLS, FCP, and TTFB sliced by
+									page, device, and country.
 								</p>
 
-								<div className="flex items-center gap-3">
-									<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
-										<a href="https://app.databuddy.cc/login">
-											Monitor your vitals
-										</a>
-									</SciFiButton>
-									<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
+								<div className="flex flex-wrap items-center justify-start gap-3">
+									<Button asChild className="px-6 py-5 text-base sm:px-8">
+										<a href="https://app.databuddy.cc/login">Start Free</a>
+									</Button>
+									<Button
+										asChild
+										className="px-6 py-5 text-base sm:px-8"
+										variant="secondary"
+									>
 										<Link href="/docs/performance/core-web-vitals-guide">
-											Read the guide
+											Read Docs
 										</Link>
-									</SciFiButton>
+									</Button>
 								</div>
-
-								<p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
-									<span>No credit card required</span>
-									<span className="text-border">·</span>
-									<span>Automatic — no config</span>
-									<span className="text-border">·</span>
-									<span>Free plan available</span>
-								</p>
-							</div>
-
-							<div className="mx-auto mt-8 max-w-2xl">
-								<WebVitalsDemo />
 							</div>
 						</div>
 					</section>
 				</Section>
 
-				{/* Breakdown Section */}
 				<Section
-					className="border-border border-b bg-background/30 pt-12 sm:pt-16 lg:pt-24 xl:pt-32"
+					className="border-border border-b pt-12 pb-0 sm:pt-16 sm:pb-0 lg:pt-24 lg:pb-0 xl:pt-32 xl:pb-0"
 					customPaddings
 					id="breakdown"
 				>
-					<WebVitalsColumnDivider />
-					<div className="relative z-10 mx-auto grid w-full max-w-7xl grid-cols-1 gap-10 px-4 sm:px-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-stretch lg:gap-10 lg:px-8 xl:gap-12">
-						<div className="min-w-0 pb-12 text-left sm:pb-16 lg:max-w-none lg:pt-1 lg:pb-24 xl:pb-32">
-							<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
-								Performance, broken down
-							</h2>
-							<p className="mt-3 text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-								Every vital, sliced by page, device, and percentile, so you fix
-								the right thing, not just the average.
-							</p>
-						</div>
-						<div className="flex min-h-0 flex-col border-border border-t pt-8 lg:h-full lg:border-t-0 lg:pt-1">
-							<p className="mb-4 shrink-0 text-balance text-pretty text-foreground text-lg leading-relaxed sm:mb-6 sm:text-xl lg:pl-10">
-								Pinpoint the pages hurting your score before users notice.
-							</p>
-							<div className="shrink-0 lg:pl-10">
-								<WebVitalsBreakdownDemo />
+					<div className="mx-auto mb-8 w-full max-w-7xl px-4 sm:mb-10 sm:px-6 lg:px-8">
+						<p className="mb-2 font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest sm:text-[11px]">
+							Real user performance
+						</p>
+						<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
+							Performance,{" "}
+							<span className="text-muted-foreground">broken down.</span>
+						</h2>
+						<p className="mt-3 text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
+							Every vital, sliced by page, device, and percentile, so you fix
+							the right thing, not just the average.
+						</p>
+					</div>
+
+					<div className="w-full border-border border-t border-b">
+						<div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 lg:grid-cols-2">
+							<div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border lg:block" />
+							<div className="border-border border-b px-4 pt-5 pb-2 sm:px-6 lg:border-r lg:border-b-0 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Every vital, measured from real users.
+								</h3>
+								<WebVitalsGraphsDemo />
 							</div>
-							<WebVitalsBreakdownSubpanels />
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Find out which environments are making users wait.
+								</h3>
+								<WebVitalsBreakdownDemo compact variant="browser" />
+							</div>
+						</div>
+					</div>
+
+					<div className="w-full border-border border-b">
+						<div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 lg:grid-cols-2">
+							<div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border lg:block" />
+							<div className="border-border border-b px-4 pt-5 pb-2 sm:px-6 lg:border-r lg:border-b-0 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Pinpoint the pages hurting your score before users notice.								
+								</h3>
+								<WebVitalsBreakdownDemo compact />
+							</div>
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Optimize for the threshold Google actually uses to rank you.
+								</h3>
+								<WebVitalsPercentileCycleDemo />
+							</div>
 						</div>
 					</div>
 				</Section>
 
-				{/* Alerts Section */}
-				<Section className="border-border border-b" id="features">
-					<div className="relative z-10 mx-auto w-full max-w-7xl">
-						<div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center lg:gap-10 xl:gap-12">
-							<div className="text-left">
-								<h3 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
-									Alerts worth acting on
+				<Section
+					className="border-border border-b pt-12 pb-0 sm:pt-16 sm:pb-0 lg:pt-24 lg:pb-0 xl:pt-32 xl:pb-0"
+					customPaddings
+					id="monitoring"
+				>
+					<div className="mx-auto mb-8 w-full max-w-7xl px-4 sm:mb-10 sm:px-6 lg:px-8">
+						<p className="mb-2 font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest sm:text-[11px]">
+							Monitoring
+						</p>
+						<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
+							Signal, <span className="text-muted-foreground">not noise</span>
+						</h2>
+						<p className="mt-3 text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
+							Get alerted when a vital degrades. Track frequency over time to
+							confirm your fix actually held.
+						</p>
+					</div>
+
+					<div className="w-full border-border border-t border-b">
+						<div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 lg:grid-cols-2">
+							<div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border lg:block" />
+							<div className="flex flex-col border-border border-b px-4 pt-5 pb-2 sm:px-6 lg:min-h-[18rem] lg:border-r lg:border-b-0 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Know the moment something breaks.
 								</h3>
-								<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-									Get alerted when any vital drops below thresholds. Fix
-									regressions before they hurt your rankings.
-								</p>
+								<WebVitalsAlertCycleDemo />
 							</div>
-							<div className="flex w-full min-w-0 items-center justify-center lg:justify-end">
-								<div className="w-full min-w-0 max-w-xl lg:max-w-none">
-									<WebVitalsAlertCycleDemo />
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Confirm the fix actually held.
+								</h3>
+								<div className="mt-3">
+									<WebVitalsTrendsSparklinesDemo />
 								</div>
 							</div>
 						</div>
 					</div>
 				</Section>
 
-				{/* FAQ */}
-				<Section className="border-border border-b bg-background/30" id="faq">
+				<Section id="faq">
 					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<FaqSection items={[...FAQ_ITEMS]} />
+						<FaqSection eyebrow="FAQ" items={[...FAQ_ITEMS]} />
 					</div>
 				</Section>
 
-				{/* Gradient Divider */}
-				<div className="w-full">
-					<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
-				</div>
+				<ClosingCtaSection docsHref="/docs/performance/core-web-vitals-guide" />
 
 				<Footer />
-
-				<div className="w-full">
-					<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
-				</div>
 			</div>
 		</>
 	);
