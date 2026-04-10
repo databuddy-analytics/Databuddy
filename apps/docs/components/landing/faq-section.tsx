@@ -29,10 +29,15 @@ export function FaqSection({
 	className,
 }: FaqSectionProps) {
 	return (
-		<div className={cn("mx-auto w-full max-w-3xl", className)}>
+		<div
+			className={cn(
+				"mx-auto grid w-full max-w-7xl gap-8 sm:gap-10 lg:grid-cols-12 lg:gap-12 xl:gap-16",
+				className
+			)}
+		>
 			<div
 				className={cn(
-					"mb-8 text-center sm:mb-10",
+					"lg:col-span-4 lg:pt-1",
 					subtitle ? "space-y-2" : undefined
 				)}
 			>
@@ -51,7 +56,7 @@ export function FaqSection({
 				) : null}
 			</div>
 
-			<Accordion className="w-full" collapsible type="single">
+			<Accordion className="w-full lg:col-span-8" collapsible type="single">
 				{items.map((faq) => (
 					<AccordionItem
 						className="border-l-4 border-l-transparent bg-background/50 duration-200 hover:border-l-primary/20 hover:bg-background/80"
