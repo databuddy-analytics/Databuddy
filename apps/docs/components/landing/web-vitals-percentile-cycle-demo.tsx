@@ -55,55 +55,66 @@ export function WebVitalsPercentileCycleDemo() {
 	}, []);
 
 	return (
-		<div className="mb-4 overflow-hidden rounded border border-border/50 bg-card/30">
-			<div className="border-border border-b px-3 py-2.5 text-left font-mono text-[11px] text-muted-foreground uppercase sm:px-4 sm:text-xs">
-				LCP
-			</div>
-			<ul
-				aria-label="LCP percentile breakdown"
-				className="list-none border-border border-l px-2 py-2 sm:px-3 sm:py-3"
-			>
-				{LCP_ROWS.map((row, index) => {
-					const active = index === activeRowIndex;
-					const tone = percentileTone(row.key);
+		<section
+			aria-label="LCP percentile breakdown"
+			className="relative overflow-hidden rounded bg-card/30 backdrop-blur-sm"
+		>
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-0 z-0 rounded border border-border/50 [-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_100%)] [mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_100%)]"
+			/>
 
-					return (
-						<li
-							className={cn(
-								"flex items-center gap-3 py-2 sm:py-3",
-								index > 0 && "border-border/30 border-t"
-							)}
-							key={row.key}
-						>
-							<span
-								aria-hidden
+			<div className="relative">
+				<div className="border-border/40 border-b bg-background/35 px-2 py-2 text-left font-medium font-mono text-muted-foreground text-xs uppercase tracking-wide sm:px-3 sm:py-2.5">
+					LCP
+				</div>
+				<ul className="relative list-none divide-y divide-border/40 bg-background/25 px-2 py-0 sm:px-3">
+					{LCP_ROWS.map((row, index) => {
+						const active = index === activeRowIndex;
+						const tone = percentileTone(row.key);
+
+						return (
+							<li
 								className={cn(
-									"shrink-0 rounded-full transition-[width,height] duration-200",
-									active ? "size-2" : "size-1.5",
-									active ? DOT_BY_TONE[tone] : "bg-muted-foreground/40"
+									"flex items-center gap-3 py-2 sm:py-2.5",
+									active && "bg-muted/5"
 								)}
-							/>
-							<span
-								className={cn(
-									"min-w-0 flex-1 font-mono text-xs sm:text-sm",
-									active ? "text-foreground" : "text-muted-foreground"
-								)}
+								key={row.key}
 							>
-								{row.key}
-							</span>
-							<span
-								className={cn(
-									"shrink-0 text-right font-mono text-xs tabular-nums sm:text-sm",
-									active ? "text-foreground" : "text-muted-foreground",
-									active && "font-semibold"
-								)}
-							>
-								{row.value}
-							</span>
-						</li>
-					);
-				})}
-			</ul>
-		</div>
+								<span
+									aria-hidden
+									className={cn(
+										"shrink-0 rounded-full transition-[width,height] duration-200",
+										active ? "size-2" : "size-1.5",
+										active ? DOT_BY_TONE[tone] : "bg-muted-foreground/40"
+									)}
+								/>
+								<span
+									className={cn(
+										"min-w-0 flex-1 font-mono text-xs tabular-nums",
+										active ? "text-foreground" : "text-muted-foreground"
+									)}
+								>
+									{row.key}
+								</span>
+								<span
+									className={cn(
+										"shrink-0 text-right font-mono text-xs tabular-nums",
+										active ? "text-foreground" : "text-muted-foreground",
+										active && "font-semibold"
+									)}
+								>
+									{row.value}
+								</span>
+							</li>
+						);
+					})}
+				</ul>
+				<div
+					aria-hidden
+					className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-linear-to-t from-background/100 via-background/50 to-transparent"
+				/>
+			</div>
+		</section>
 	);
 }
