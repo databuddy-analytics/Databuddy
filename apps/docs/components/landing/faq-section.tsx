@@ -14,6 +14,7 @@ export interface FaqItem {
 }
 
 interface FaqSectionProps {
+	eyebrow?: string;
 	title?: string;
 	subtitle?: string;
 	items: FaqItem[];
@@ -21,6 +22,7 @@ interface FaqSectionProps {
 }
 
 export function FaqSection({
+	eyebrow,
 	title = "Frequently asked questions",
 	subtitle,
 	items,
@@ -34,7 +36,12 @@ export function FaqSection({
 					subtitle ? "space-y-2" : undefined
 				)}
 			>
-				<h2 className="text-balance font-semibold text-2xl tracking-tight sm:text-3xl">
+				{eyebrow ? (
+					<p className="mb-2 font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest sm:text-[11px]">
+						{eyebrow}
+					</p>
+				) : null}
+				<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
 					{title}
 				</h2>
 				{subtitle ? (
