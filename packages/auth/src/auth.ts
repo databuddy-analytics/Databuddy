@@ -91,13 +91,17 @@ function shouldUseSecureCookies(): boolean {
 	return !(isLocalhost && appOrigin.protocol === "http:");
 }
 
-function normalizeOrigin(value: string): string {
+function normalizeOrigin(value: string): string | null {
 	const trimmed = value.trim().replace(TRAILING_SLASHES_REGEX, "");
+
+	if (!trimmed) {
+		return null;
+	}
 
 	try {
 		return new URL(trimmed).origin;
 	} catch {
-		return trimmed;
+		return null;
 	}
 }
 
@@ -112,13 +116,15 @@ function getTrustedOrigins(): string[] {
 		isProduction() ? undefined : "http://localhost:3001",
 	]
 		.filter((value): value is string => Boolean(value))
-		.map(normalizeOrigin);
+		.map(normalizeOrigin)
+		.filter((origin): origin is string => Boolean(origin));
 
 	const extraOrigins = (process.env.AUTH_TRUSTED_ORIGINS ?? "")
 		.split(",")
 		.map((origin) => origin.trim())
 		.filter(Boolean)
-		.map(normalizeOrigin);
+		.map(normalizeOrigin)
+		.filter((origin): origin is string => Boolean(origin));
 
 	return [...new Set([...defaults, ...extraOrigins])];
 }
