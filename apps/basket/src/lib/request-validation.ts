@@ -16,6 +16,10 @@ import {
 	VALIDATION_LIMITS,
 	validatePayloadSize,
 } from "@utils/validation";
+import {
+	getClientAppAllowedOrigins,
+	isOriginInList,
+} from "@databuddy/shared/utils/origins";
 import { useLogger } from "evlog/elysia";
 
 export interface ValidatedRequest {
@@ -141,12 +145,15 @@ export function validateRequest(
 
 		const origin = request.headers.get("origin");
 		const ip = extractIpFromRequest(request);
+		const clientAppAllowedOrigins = getClientAppAllowedOrigins();
 
 		const securitySettings = getWebsiteSecuritySettings(website.settings);
 		const allowedOrigins = securitySettings?.allowedOrigins;
 		const allowedIps = securitySettings?.allowedIps;
 
-		if (origin && allowedOrigins && allowedOrigins.length > 0) {
+		if (origin && isOriginInList(origin, clientAppAllowedOrigins)) {
+			log.set({ validation: { clientAppOriginAllowed: true, origin } });
+		} else if (origin && allowedOrigins && allowedOrigins.length > 0) {
 			if (
 				!(await record("isValidOriginFromSettings", () =>
 					isValidOriginFromSettings(origin, allowedOrigins)

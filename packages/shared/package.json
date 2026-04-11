@@ -36,6 +36,7 @@
     "./flags/utils": "./src/flags/utils.ts",
     "./utils/date-utils": "./src/utils/date-utils.ts",
     "./utils/ids": "./src/utils/ids.ts",
+    "./utils/origins": "./src/utils/origins.ts",
     "./utils/openrouter": "./src/utils/openrouter.ts",
     "./bot-detection": "./src/utils/bot-detection/index.ts",
     "./bot-detection/detector": "./src/utils/bot-detection/detector.ts",

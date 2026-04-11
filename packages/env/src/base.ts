@@ -26,6 +26,7 @@ export const commonEnvSchema = {
 	NODE_ENV: z.string().default("development"),
 	DATABASE_URL: z.string(),
 	REDIS_URL: z.string(),
+	CLIENT_APP_ALLOWED_ORIGINS: z.string().optional(),
 } as const;
 
 /**

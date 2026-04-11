@@ -144,12 +144,15 @@ function FlagsProviderWrapper({ children }: { children: React.ReactNode }) {
 	const { data: session, isPending } = authClient.useSession();
 
 	const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-	const clientId =
-		process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID ?? "OXmNQsViBT-FOS_wZCTHc";
+	const clientId = process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID;
 
 	const user = session?.user
 		? { userId: session.user.id, email: session.user.email }
 		: undefined;
+
+	if (!clientId) {
+		return <>{children}</>;
+	}
 
 	return (
 		<FlagsProvider

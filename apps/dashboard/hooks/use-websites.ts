@@ -5,6 +5,7 @@ import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
 
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 
 export type { Website } from "@databuddy/db/schema";
@@ -18,9 +19,9 @@ export interface WebsitesListData {
 export const getWebsiteByIdKey = (id: string): QueryKey =>
 	orpc.websites.getById.queryKey({ input: { id } });
 
-export const getWebsitesListKey = (): QueryKey =>
+export const getWebsitesListKey = (organizationId?: string): QueryKey =>
 	orpc.websites.listWithCharts.queryKey({
-		input: {},
+		input: organizationId ? { organizationId } : {},
 	});
 
 export const updateWebsiteInList = (
@@ -86,11 +87,16 @@ const removeWebsiteFromList = (
 };
 
 export function useWebsites(options?: { enabled?: boolean }) {
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+
 	const query = useQuery({
 		...orpc.websites.listWithCharts.queryOptions({
-			input: {},
+			input: organizationId ? { organizationId } : {},
 		}),
-		enabled: options?.enabled !== false,
+		enabled: options?.enabled !== false && !!organizationId,
 	});
 
 	return {
@@ -105,11 +111,16 @@ export function useWebsites(options?: { enabled?: boolean }) {
 }
 
 export function useWebsitesLight(options?: { enabled?: boolean }) {
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+
 	const query = useQuery({
 		...orpc.websites.list.queryOptions({
-			input: {},
+			input: organizationId ? { organizationId } : {},
 		}),
-		enabled: options?.enabled !== false,
+		enabled: options?.enabled !== false && !!organizationId,
 		staleTime: 5 * 60 * 1000,
 	});
 
@@ -133,12 +144,16 @@ export function useWebsite(id: string) {
 
 export function useCreateWebsite() {
 	const queryClient = useQueryClient();
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
 	return useMutation({
 		...orpc.websites.create.mutationOptions(),
 		onSuccess: (data) => {
 			const newWebsite = data as Website;
-			const listKey = getWebsitesListKey();
+			const listKey = getWebsitesListKey(organizationId);
 			queryClient.setQueryData<WebsitesListData>(listKey, (old) =>
 				addWebsiteToList(old, newWebsite)
 			);
@@ -148,10 +163,11 @@ export function useCreateWebsite() {
 
 export const updateWebsiteCache = (
 	queryClient: ReturnType<typeof useQueryClient>,
-	updatedWebsite: Website
+	updatedWebsite: Website,
+	organizationId?: string
 ) => {
 	const getByIdKey = getWebsiteByIdKey(updatedWebsite.id);
-	const listKey = getWebsitesListKey();
+	const listKey = getWebsitesListKey(organizationId);
 
 	queryClient.setQueryData<WebsitesListData>(listKey, (old) =>
 		updateWebsiteInList(old, updatedWebsite)
@@ -161,17 +177,25 @@ export const updateWebsiteCache = (
 
 export function useUpdateWebsite() {
 	const queryClient = useQueryClient();
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
 	return useMutation({
 		...orpc.websites.update.mutationOptions(),
 		onSuccess: (data) => {
 			const updatedWebsite = data as Website;
-			updateWebsiteCache(queryClient, updatedWebsite);
+			updateWebsiteCache(queryClient, updatedWebsite, organizationId);
 		},
 	});
 }
 
 export function useDeleteWebsite() {
 	const queryClient = useQueryClient();
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
 	return useMutation({
 		...orpc.websites.delete.mutationOptions(),
@@ -179,7 +203,7 @@ export function useDeleteWebsite() {
 			const getByIdKey = getWebsiteByIdKey(id);
 			const _previousWebsite = queryClient.getQueryData<Website>(getByIdKey);
 
-			const listKey = getWebsitesListKey();
+			const listKey = getWebsitesListKey(organizationId);
 
 			await queryClient.cancelQueries({ queryKey: listKey });
 			const previousData = queryClient.getQueryData<WebsitesListData>(listKey);

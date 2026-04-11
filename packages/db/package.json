@@ -29,6 +29,6 @@
     "db:push": "dotenv -- drizzle-kit push",
     "db:studio": "dotenv -- drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
-    "clickhouse:init": "tsx src/clickhouse/setup.ts"
+    "clickhouse:init": "bun run src/clickhouse/setup.ts"
   }
 }

@@ -1,6 +1,5 @@
 import { getApiKeyFromHeader } from "@databuddy/api-keys/resolve";
 import { auth, type User } from "@databuddy/auth";
-import { db } from "@databuddy/db";
 import { os as createOS } from "@orpc/server";
 import { baseErrors } from "./errors";
 import {
@@ -15,6 +14,8 @@ import {
 } from "./utils/billing";
 
 export const createRPCContext = async (opts: { headers: Headers }) => {
+	const { db } = await import("@databuddy/db");
+
 	const [session, apiKey] = await Promise.all([
 		auth.api.getSession({ headers: opts.headers }),
 		getApiKeyFromHeader(opts.headers),

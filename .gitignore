@@ -9,6 +9,7 @@ admin
 
 # Local env files
 .env
+.env.prod
 .mcp.json
 .env.local
 .env.development.local

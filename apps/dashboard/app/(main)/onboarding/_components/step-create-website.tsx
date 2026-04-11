@@ -42,7 +42,10 @@ interface StepCreateWebsiteProps {
 }
 
 export function StepCreateWebsite({ onComplete }: StepCreateWebsiteProps) {
-	const { activeOrganization } = useOrganizationsContext();
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
 	const createWebsiteMutation = useCreateWebsite();
 
 	const form = useForm<FormData>({
@@ -59,7 +62,7 @@ export function StepCreateWebsite({ onComplete }: StepCreateWebsiteProps) {
 			const result = await createWebsiteMutation.mutateAsync({
 				name: formData.name,
 				domain: formData.domain,
-				organizationId: activeOrganization?.id,
+				organizationId,
 			});
 			toast.success("Website created!");
 			try {

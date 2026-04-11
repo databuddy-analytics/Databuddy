@@ -44,8 +44,9 @@ interface SentInvite {
 }
 
 export function StepInviteTeam() {
-	const { activeOrganization } = useOrganizationsContext();
-	const organizationId = activeOrganization?.id ?? "";
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId = activeOrganization?.id ?? activeOrganizationId ?? "";
 	const { inviteMember, isInviting } =
 		useOrganizationInvitations(organizationId);
 	const [sentInvites, setSentInvites] = useState<SentInvite[]>([]);

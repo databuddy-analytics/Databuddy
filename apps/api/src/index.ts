@@ -19,6 +19,7 @@ import { initLogger, log, parseError } from "evlog";
 import { evlog, useLogger } from "evlog/elysia";
 import { applyAuthWideEvent } from "@/lib/auth-wide-event";
 import { AUTUMN_API_PREFIX, withAutumnApiPath } from "@/lib/autumn-mount";
+import { getAllowedCorsOrigins } from "@/lib/cors-origins";
 import {
 	apiLoggerDrain,
 	enrichApiWideEvent,
@@ -260,12 +261,7 @@ const app = new Elysia({ precompile: true })
 	.use(
 		cors({
 			credentials: true,
-			origin: [
-				/(?:^|\.)databuddy\.cc$/,
-				...(process.env.NODE_ENV === "development"
-					? ["http://localhost:3000"]
-					: []),
-			],
+			origin: getAllowedCorsOrigins(),
 		})
 	)
 	.use(publicApi)

@@ -33,12 +33,18 @@ import {
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
 
+const NON_SLUG_CHARACTERS_REGEX = /[^a-z0-9\s-]/g;
+const WHITESPACE_REGEX = /\s+/g;
+const MULTIPLE_DASHES_REGEX = /-+/g;
+const TRAILING_SLASHES_REGEX = /\/+$/;
+const LOCALHOST_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
 function generateOrgSlug(name: string): string {
 	return name
 		.toLowerCase()
-		.replace(/[^a-z0-9\s-]/g, "")
-		.replace(/\s+/g, "-")
-		.replace(/-+/g, "-")
+		.replace(NON_SLUG_CHARACTERS_REGEX, "")
+		.replace(WHITESPACE_REGEX, "-")
+		.replace(MULTIPLE_DASHES_REGEX, "-")
 		.slice(0, 48);
 }
 
@@ -54,7 +60,71 @@ function isProduction() {
 	return process.env.NODE_ENV === "production";
 }
 
+function getConfiguredAppOrigin(): URL | null {
+	const candidates = [
+		process.env.BETTER_AUTH_URL,
+		process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
+		process.env.NEXT_PUBLIC_APP_URL,
+		process.env.APP_URL,
+	].filter((value): value is string => Boolean(value));
+
+	for (const candidate of candidates) {
+		try {
+			return new URL(candidate);
+		} catch {}
+	}
+
+	return null;
+}
+
+function shouldUseSecureCookies(): boolean {
+	if (!isProduction()) {
+		return false;
+	}
+
+	const appOrigin = getConfiguredAppOrigin();
+	if (!appOrigin) {
+		return true;
+	}
+
+	const isLocalhost = LOCALHOST_HOSTNAMES.has(appOrigin.hostname);
+	return !(isLocalhost && appOrigin.protocol === "http:");
+}
+
+function normalizeOrigin(value: string): string {
+	const trimmed = value.trim().replace(TRAILING_SLASHES_REGEX, "");
+
+	try {
+		return new URL(trimmed).origin;
+	} catch {
+		return trimmed;
+	}
+}
+
+function getTrustedOrigins(): string[] {
+	const defaults = [
+		process.env.BETTER_AUTH_URL,
+		process.env.NEXT_PUBLIC_APP_URL,
+		process.env.NEXT_PUBLIC_API_URL,
+		process.env.DASHBOARD_URL,
+		isProduction() ? undefined : "http://localhost:3000",
+		isProduction() ? undefined : "http://localhost:3100",
+		isProduction() ? undefined : "http://localhost:3001",
+	]
+		.filter((value): value is string => Boolean(value))
+		.map(normalizeOrigin);
+
+	const extraOrigins = (process.env.AUTH_TRUSTED_ORIGINS ?? "")
+		.split(",")
+		.map((origin) => origin.trim())
+		.filter(Boolean)
+		.map(normalizeOrigin);
+
+	return [...new Set([...defaults, ...extraOrigins])];
+}
+
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
+const AUTH_COOKIE_DOMAIN = process.env.AUTH_COOKIE_DOMAIN;
 
 function notifySignUpSlackAction(input: {
 	userId: string;
@@ -207,17 +277,13 @@ export const auth = betterAuth({
 	},
 	advanced: {
 		crossSubDomainCookies: {
-			enabled: isProduction(),
-			domain: ".databuddy.cc",
+			enabled: isProduction() && Boolean(AUTH_COOKIE_DOMAIN),
+			domain: AUTH_COOKIE_DOMAIN,
 		},
 		cookiePrefix: isProduction() ? "databuddy" : "databuddy-dev",
-		useSecureCookies: isProduction(),
+		useSecureCookies: shouldUseSecureCookies(),
 	},
-	trustedOrigins: [
-		"https://databuddy.cc",
-		"https://app.databuddy.cc",
-		"https://api.databuddy.cc",
-	],
+	trustedOrigins: getTrustedOrigins(),
 	socialProviders: {
 		google: {
 			clientId: process.env.GOOGLE_CLIENT_ID as string,

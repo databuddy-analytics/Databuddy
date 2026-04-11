@@ -115,6 +115,10 @@ export default function RootLayout({
 	children: React.ReactNode;
 }>) {
 	const isLocalhost = process.env.NODE_ENV === "development";
+	const basketUrl =
+		process.env.NEXT_PUBLIC_BASKET_URL ??
+		(isLocalhost ? "http://localhost:4000" : "https://basket.databuddy.cc");
+	const trackingClientId = process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID;
 
 	return (
 		<html
@@ -130,16 +134,8 @@ export default function RootLayout({
 				</Providers>
 				<Toaster />
 				<Databuddy
-					apiUrl={
-						isLocalhost
-							? "http://localhost:4000"
-							: "https://basket.databuddy.cc"
-					}
-					clientId={
-						isLocalhost
-							? "5ced32e5-0219-4e75-a18a-ad9826f85698"
-							: "3ed1fce1-5a56-4cb6-a977-66864f6d18e3"
-					}
+					apiUrl={basketUrl}
+					clientId={trackingClientId}
 					trackAttributes={true}
 					trackErrors={true}
 					trackPerformance={true}

@@ -1,9 +1,9 @@
 "use client";
 
 import { authClient, useSession } from "@databuddy/auth/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import {
 	activeOrganizationAtom,
 	getOrganizationBySlugAtom,
@@ -21,9 +21,11 @@ export const AUTH_QUERY_KEYS = {
 } as const;
 
 export function OrganizationsProvider({ children }: { children: ReactNode }) {
+	const queryClient = useQueryClient();
 	const setOrganizations = useSetAtom(organizationsAtom);
 	const setActiveOrganization = useSetAtom(activeOrganizationAtom);
 	const setIsLoading = useSetAtom(isLoadingOrganizationsAtom);
+	const hasSyncedInitialOrganization = useRef(false);
 
 	const { data: session, isPending: isLoadingSession } = useSession();
 
@@ -42,7 +44,7 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 			session?.session as { activeOrganizationId?: string | null } | undefined
 		)?.activeOrganizationId;
 		if (!activeId) {
-			return null;
+			return organizationsData?.[0] ?? null;
 		}
 		return organizationsData?.find((org) => org.id === activeId) ?? null;
 	}, [session, organizationsData]);
@@ -61,6 +63,49 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 		setIsLoading(isLoadingSession || isLoadingOrgs);
 	}, [isLoadingSession, isLoadingOrgs, setIsLoading]);
 
+	useEffect(() => {
+		const activeId = (
+			session?.session as { activeOrganizationId?: string | null } | undefined
+		)?.activeOrganizationId;
+		const fallbackOrganizationId = organizationsData?.[0]?.id;
+
+		if (isLoadingSession || isLoadingOrgs) {
+			return;
+		}
+
+		if (
+			activeId ||
+			!fallbackOrganizationId ||
+			hasSyncedInitialOrganization.current
+		) {
+			return;
+		}
+
+		hasSyncedInitialOrganization.current = true;
+
+		authClient.organization
+			.setActive({
+				organizationId: fallbackOrganizationId,
+			})
+			.then(() => {
+				queryClient.invalidateQueries({
+					queryKey: AUTH_QUERY_KEYS.activeOrganization,
+				});
+				queryClient.invalidateQueries({
+					queryKey: AUTH_QUERY_KEYS.organizations,
+				});
+			})
+			.catch(() => {
+				hasSyncedInitialOrganization.current = false;
+			});
+	}, [
+		isLoadingOrgs,
+		isLoadingSession,
+		organizationsData,
+		queryClient,
+		session,
+	]);
+
 	return <>{children}</>;
 }
 
@@ -73,11 +118,13 @@ export function useOrganizationsContext() {
 	const { data: sessionData } = useSession();
 
 	const activeOrganizationId =
+		activeOrganization?.id ??
 		(
 			sessionData?.session as
 				| { activeOrganizationId?: string | null }
 				| undefined
-		)?.activeOrganizationId ?? null;
+		)?.activeOrganizationId ??
+		null;
 
 	return {
 		organizations,

@@ -70,7 +70,10 @@ export function WebsiteDialog({
 	onSave,
 }: WebsiteDialogProps) {
 	const isEditing = !!website;
-	const { activeOrganization } = useOrganizationsContext();
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
 	const createWebsiteMutation = useCreateWebsite();
 	const updateWebsiteMutation = useUpdateWebsite();
@@ -127,7 +130,7 @@ export function WebsiteDialog({
 		const submissionData: CreateWebsiteData = {
 			name: formData.name,
 			domain: formData.domain,
-			organizationId: activeOrganization?.id,
+			organizationId,
 		};
 
 		try {

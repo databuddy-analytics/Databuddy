@@ -20,9 +20,13 @@ import { extractIp, getGeo } from "../utils/geo";
 import { hashIp } from "../utils/hash";
 import { parseUserAgent } from "../utils/user-agent";
 
-const EXPIRED_URL = "https://app.databuddy.cc/dby/expired";
-const NOT_FOUND_URL = "https://app.databuddy.cc/dby/not-found";
-const PROXY_URL = "https://app.databuddy.cc/dby/l";
+const APP_URL = (process.env.APP_URL ?? "https://app.databuddy.cc").replace(
+	/\/+$/,
+	""
+);
+const EXPIRED_URL = `${APP_URL}/dby/expired`;
+const NOT_FOUND_URL = `${APP_URL}/dby/not-found`;
+const PROXY_URL = `${APP_URL}/dby/l`;
 
 /** Set to `true` to enforce per-IP Redis rate limits (100 req / 60s). */
 const RATE_LIMIT_ENABLED = true;

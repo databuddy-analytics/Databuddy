@@ -1,4 +1,3 @@
-import { db } from "@databuddy/db";
 import {
 	type CachedLink,
 	getCachedLink,
@@ -14,6 +13,8 @@ async function getLinkBySlug(slug: string): Promise<CachedLink | null> {
 	if (cached) {
 		return cached;
 	}
+
+	const { db } = await import("@databuddy/db");
 
 	const dbLink = await db.query.links.findFirst({
 		where: (links, { and, eq, isNull }) =>

@@ -1,5 +1,3 @@
-import { and, db, eq } from "@databuddy/db";
-import { organization, uptimeSchedules } from "@databuddy/db/schema";
 import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 import { APP_URL } from "@/lib/app-url";
@@ -9,6 +7,10 @@ export const revalidate = 86_400;
 
 const getPublicStatusPages = unstable_cache(
 	async (): Promise<StatusSitemapRow[]> => {
+		const { and, db, eq, organization, uptimeSchedules } = await import(
+			"@databuddy/db"
+		);
+
 		const rows = await db
 			.select({
 				slug: organization.slug,

@@ -10,10 +10,17 @@ import { Resend } from "resend";
 import { Webhook } from "svix";
 import { mergeWideEvent } from "../../lib/tracing";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const SVIX_SECRET = process.env.AUTUMN_WEBHOOK_SECRET;
 const SLACK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
 const COOLDOWN_DAYS = 7;
+
+function getResendClient(): Resend | null {
+	const apiKey = process.env.RESEND_API_KEY;
+	if (!apiKey) {
+		return null;
+	}
+	return new Resend(apiKey);
+}
 
 interface LimitReachedData {
 	customer_id: string;
@@ -143,6 +150,17 @@ async function sendAlertEmailAction(opts: {
 			autumn: { customerId, cooldownKey },
 		});
 		return { success: false, message: "No email found" };
+	}
+
+	const resend = getResendClient();
+	if (!resend) {
+		useLogger().warn(
+			"Skipping alert email - RESEND_API_KEY is not configured",
+			{
+				autumn: { customerId, cooldownKey },
+			}
+		);
+		return { success: true, message: "Email provider not configured" };
 	}
 
 	const result = await resend.emails.send({

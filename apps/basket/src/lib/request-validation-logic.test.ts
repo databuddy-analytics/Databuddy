@@ -83,9 +83,16 @@ vi.mock("@lib/tracing", () => ({
 	record: (_name: string, fn: Function) => Promise.resolve().then(() => fn()),
 	captureError: vi.fn(),
 }));
+mock.module("@databuddy/shared/utils/origins", () => ({
+	getClientAppAllowedOrigins: mock(() => []),
+	isOriginInList: mock(() => false),
+}));
 
 // Import after mocks
 const { validateRequest, checkForBot } = await import("./request-validation");
+const { getClientAppAllowedOrigins, isOriginInList } = await import(
+	"@databuddy/shared/utils/origins"
+);
 
 function makeReq(
 	url = "https://example.com?client_id=ws_1",
@@ -112,6 +119,8 @@ describe("validateRequest", () => {
 		mockIsValidIpFromSettings.mockReset();
 		mockLogBlockedTraffic.mockReset();
 		mockLoggerSet.mockReset();
+		(getClientAppAllowedOrigins as any).mockReset();
+		(isOriginInList as any).mockReset();
 
 		// Defaults: everything passes
 		mockGetWebsiteByIdV2.mockResolvedValue({
@@ -127,6 +136,8 @@ describe("validateRequest", () => {
 		mockIsValidOrigin.mockReturnValue(true);
 		mockIsValidOriginFromSettings.mockReturnValue(true);
 		mockIsValidIpFromSettings.mockReturnValue(true);
+		(getClientAppAllowedOrigins as any).mockReturnValue([]);
+		(isOriginInList as any).mockReturnValue(false);
 	});
 
 	test("happy path → returns ValidatedRequest", async () => {
@@ -268,6 +279,25 @@ describe("validateRequest", () => {
 			expect(e).toBeInstanceOf(EvlogError);
 			expect((e as EvlogError).status).toBe(403);
 		}
+	});
+
+	test("globally allowed client app origin bypasses website origin checks", async () => {
+		(getClientAppAllowedOrigins as any).mockReturnValue([
+			"https://starter1.emeruslabs.com",
+		]);
+		(isOriginInList as any).mockReturnValue(true);
+
+		const result = await validateRequest(
+			{},
+			{ client_id: "ws_1" },
+			makeReq("https://example.com", {
+				origin: "https://starter1.emeruslabs.com",
+			})
+		);
+
+		expect(result.clientId).toBe("ws_1");
+		expect(mockIsValidOrigin).not.toHaveBeenCalled();
+		expect(mockIsValidOriginFromSettings).not.toHaveBeenCalled();
 	});
 
 	test("IP not authorized → throws 403", async () => {

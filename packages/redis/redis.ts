@@ -30,7 +30,13 @@ export function getRedisCache() {
 }
 
 export const redis = new Proxy({} as Redis, {
-	get(_, prop) {
-		return Reflect.get(getRedisCache(), prop);
+	get(_target, prop, receiver) {
+		const client = getRedisCache();
+		const value = Reflect.get(client, prop, receiver);
+		return typeof value === "function" ? value.bind(client) : value;
 	},
-});
+	set(_target, prop, value, receiver) {
+		const client = getRedisCache();
+		return Reflect.set(client, prop, value, receiver);
+	},
+}) as Redis;

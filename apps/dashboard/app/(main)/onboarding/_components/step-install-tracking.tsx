@@ -37,6 +37,20 @@ import {
 
 // TODO: Replace with published skill URL once available
 const SKILL_URL = "https://github.com/databuddy-cc/skill";
+const TRACKER_SCRIPT_URL =
+	process.env.NEXT_PUBLIC_SCRIPT_URL || "https://cdn.databuddy.cc/databuddy.js";
+const TRACKER_API_URL =
+	process.env.NEXT_PUBLIC_BASKET_URL || "https://basket.databuddy.cc";
+const PUBLIC_API_URL =
+	process.env.NEXT_PUBLIC_API_URL || "https://api.databuddy.cc";
+
+function toOrigin(value: string) {
+	try {
+		return new URL(value).origin;
+	} catch {
+		return value;
+	}
+}
 
 function generateAgentPrompt(websiteId: string): string {
 	return `Add Databuddy analytics to this repository. Client ID: ${websiteId}
@@ -70,7 +84,7 @@ import { Databuddy } from "@databuddy/sdk/vue";
 
 **Vanilla JS / HTML** — CDN script in \`<head>\`:
 \`\`\`html
-<script src="https://cdn.databuddy.cc/databuddy.js" data-client-id="${websiteId}" crossorigin="anonymous" async></script>
+<script src="${TRACKER_SCRIPT_URL}" data-api-url="${TRACKER_API_URL}" data-client-id="${websiteId}" crossorigin="anonymous" async></script>
 \`\`\`
 
 Store the Client ID in an env var — never hardcode it.
@@ -116,8 +130,8 @@ Use snake_case event names. Track decisions and milestones (signup_completed, pu
 ## Verification — How to Confirm It Works
 
 1. Open DevTools → Network tab, reload the page
-2. Look for a request to cdn.databuddy.cc/databuddy.js (script loading)
-3. Look for requests to basket.databuddy.cc (events being sent)
+2. Look for a request to ${TRACKER_SCRIPT_URL} (script loading)
+3. Look for requests to ${TRACKER_API_URL} (events being sent)
 4. Both should return 200. If events show the correct Client ID in the payload, tracking is working.
 
 ## Common Issues & Fixes
@@ -125,8 +139,8 @@ Use snake_case event names. Track decisions and milestones (signup_completed, pu
 **Domain mismatch**: Events are rejected if sent from a domain that doesn't match the website configured in Databuddy. The domain in settings must match the domain the script runs on.
 
 **Content Security Policy (CSP)**: If the site has strict CSP headers, add these directives:
-- script-src: https://cdn.databuddy.cc
-- connect-src: https://basket.databuddy.cc
+- script-src: ${toOrigin(TRACKER_SCRIPT_URL)}
+- connect-src: ${toOrigin(TRACKER_API_URL)}
 
 **Ad blockers**: uBlock Origin, Privacy Badger, and similar extensions may block analytics scripts. Test with extensions disabled. For production, consider a custom tracking domain (proxy through your own domain).
 
@@ -134,7 +148,7 @@ Use snake_case event names. Track decisions and milestones (signup_completed, pu
 
 **Script not loading**: Verify the script tag is in <head> (not <body>), the src URL is correct, and no CSP or network error appears in the console.
 
-**Events not appearing in dashboard**: Data typically appears within 30 seconds. Check the Network tab for failed requests to basket.databuddy.cc. Verify the Client ID matches. Check for console errors.
+**Events not appearing in dashboard**: Data typically appears within 30 seconds. Check the Network tab for failed requests to ${TRACKER_API_URL}. Verify the Client ID matches. Check for console errors.
 
 **If another analytics tool is present**: Both can run in parallel. No conflicts. Optionally disable the other tool's page view tracking if Databuddy handles it.
 
@@ -143,7 +157,7 @@ Use snake_case event names. Track decisions and milestones (signup_completed, pu
 After installation (success or failure), send a POST to report what happened. This helps us improve the setup experience.
 
 \`\`\`bash
-curl -X POST https://api.databuddy.cc/public/v1/agent-telemetry \\
+curl -X POST ${PUBLIC_API_URL}/public/v1/agent-telemetry \\
   -H "Content-Type: application/json" \\
   -d '{
     "websiteId": "${websiteId}",
@@ -164,7 +178,7 @@ Fields:
 - **framework**: What framework was detected (nextjs, react, vue, vanilla, etc.)
 - **installMethod**: "sdk" or "script-tag"
 - **stepsCompleted**: Array of steps that succeeded: "install", "mount", "env-var", "verify"
-- **issues**: Array of problems encountered, e.g. [{"type": "csp", "detail": "blocked cdn.databuddy.cc", "resolved": true}]
+- **issues**: Array of problems encountered, e.g. [{"type": "csp", "detail": "blocked ${TRACKER_SCRIPT_URL}", "resolved": true}]
   - Common issue types: csp, adblocker, domain-mismatch, script-blocked, build-error, type-error, env-var-missing
 - **errorMessage**: Final error message if status is "failed"
 - **metadata**: Any extra context (package manager used, versions, etc.)

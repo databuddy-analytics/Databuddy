@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
 import { AlarmSheet } from "./_components/alarm-sheet";
 
@@ -101,6 +102,10 @@ function parseAlarms(rows: readonly Record<string, unknown>[]): Alarm[] {
 
 export default function NotificationsSettingsPage() {
 	const queryClient = useQueryClient();
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
 	const [sheetOpen, setSheetOpen] = useState(false);
 	const [editingAlarm, setEditingAlarm] = useState<Alarm | null>(null);
 	const [deletingAlarm, setDeletingAlarm] = useState<Alarm | null>(null);
@@ -108,8 +113,9 @@ export default function NotificationsSettingsPage() {
 
 	const { data: alarms, isLoading } = useQuery({
 		...orpc.alarms.list.queryOptions({
-			input: {},
+			input: organizationId ? { organizationId } : {},
 		}),
+		enabled: !!organizationId,
 	});
 
 	const deleteMutation = useMutation({

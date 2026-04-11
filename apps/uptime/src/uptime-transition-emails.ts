@@ -120,7 +120,10 @@ export async function sendUptimeTransitionEmailsIfNeeded(options: {
 	}
 
 	const siteLabel = buildSiteLabel(options.schedule);
-	const baseUrl = process.env.DASHBOARD_APP_URL ?? "https://app.databuddy.cc";
+	const baseUrl =
+		process.env.DASHBOARD_APP_URL ??
+		process.env.NEXT_PUBLIC_APP_URL ??
+		"https://app.databuddy.cc";
 	const dashboardUrl = `${baseUrl.replace(TRAILING_SLASH, "")}/monitors/${options.schedule.id}`;
 
 	const resend = new Resend(apiKey);

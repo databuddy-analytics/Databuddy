@@ -143,13 +143,14 @@ export function AlarmSheet({
 	const isEditing = !!alarm;
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
+	const organizationId = activeOrganization?.id ?? activeOrganizationId ?? null;
 	const queryClient = useQueryClient();
 
 	const { data: websites } = useQuery({
 		...orpc.websites.list.queryOptions({
-			input: {},
+			input: organizationId ? { organizationId } : {},
 		}),
-		enabled: open,
+		enabled: open && !!organizationId,
 	});
 
 	const form = useForm<AlarmFormData>({
@@ -178,8 +179,6 @@ export function AlarmSheet({
 	const isPending = createMutation.isPending || updateMutation.isPending;
 
 	const handleSubmit = async (data: AlarmFormData) => {
-		const organizationId =
-			activeOrganization?.id ?? activeOrganizationId ?? null;
 		if (!organizationId) {
 			return;
 		}

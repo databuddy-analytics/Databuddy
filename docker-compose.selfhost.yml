@@ -44,10 +44,15 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
+      test:
+        [
+          "CMD-SHELL",
+          "clickhouse-client --host 127.0.0.1 --user \"$${CLICKHOUSE_USER:-default}\" --password \"$${CLICKHOUSE_PASSWORD}\" --query \"SELECT 1\" >/dev/null 2>&1",
+        ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      start_period: 20s
+      retries: 12
     restart: unless-stopped
     networks:
       - databuddy
@@ -74,8 +79,35 @@ services:
       - databuddy
     <<: *logging
 
+  init:
+    build:
+      context: .
+      dockerfile: api.Dockerfile
+    container_name: databuddy-init
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL}
+    command:
+      [
+        "sh",
+        "-lc",
+        "cd /app/packages/db && bun run db:push && bun run clickhouse:init",
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - databuddy
+    <<: *logging
+
   api:
-    image: ghcr.io/databuddy-analytics/databuddy-api:${IMAGE_TAG:-edge}
+    build:
+      context: .
+      dockerfile: api.Dockerfile
     container_name: databuddy-api
     ports:
       - "${API_PORT:-3001}:3001"
@@ -87,7 +119,14 @@ services:
       CLICKHOUSE_URL: ${CLICKHOUSE_URL}
       BETTER_AUTH_URL: ${BETTER_AUTH_URL}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      CLIENT_APP_ALLOWED_ORIGINS: ${CLIENT_APP_ALLOWED_ORIGINS:-}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
       DASHBOARD_URL: ${DASHBOARD_URL:-}
+      APP_URL: ${APP_URL:-${NEXT_PUBLIC_APP_URL}}
+      AUTUMN_SECRET_KEY: ${AUTUMN_SECRET_KEY:-}
       AI_API_KEY: ${AI_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
     healthcheck:
@@ -103,13 +142,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - databuddy
     <<: *logging
 
   basket:
-    image: ghcr.io/databuddy-analytics/databuddy-basket:${IMAGE_TAG:-edge}
+    build:
+      context: .
+      dockerfile: basket.Dockerfile
     container_name: databuddy-basket
     ports:
       - "${BASKET_PORT:-4000}:4000"
@@ -119,6 +162,11 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       CLICKHOUSE_URL: ${CLICKHOUSE_URL}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      CLIENT_APP_ALLOWED_ORIGINS: ${CLIENT_APP_ALLOWED_ORIGINS:-}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
       SELFHOST: "true"
     healthcheck:
       test: [ "CMD", "bun", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
@@ -133,13 +181,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - databuddy
     <<: *logging
 
   links:
-    image: ghcr.io/databuddy-analytics/databuddy-links:${IMAGE_TAG:-edge}
+    build:
+      context: .
+      dockerfile: links.Dockerfile
     container_name: databuddy-links
     ports:
       - "${LINKS_PORT:-2500}:2500"
@@ -161,13 +213,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - databuddy
     <<: *logging
   # Uncomment to enable uptime monitoring (requires Upstash QStash keys)
   # uptime:
-  #   image: ghcr.io/databuddy-analytics/databuddy-uptime:${IMAGE_TAG:-edge}
+  #   build:
+  #     context: .
+  #     dockerfile: uptime.Dockerfile
   #   container_name: databuddy-uptime
   #   ports:
   #     - "${UPTIME_PORT:-4001}:4000"
@@ -193,6 +249,53 @@ services:
   #   networks:
   #     - databuddy
   #   <<: *logging
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard.Dockerfile
+      args:
+        BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+        NEXT_PUBLIC_BETTER_AUTH_URL: ${NEXT_PUBLIC_BETTER_AUTH_URL:-${BETTER_AUTH_URL}}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_BASKET_URL: ${NEXT_PUBLIC_BASKET_URL:-https://basket.databuddy.cc}
+        NEXT_PUBLIC_SCRIPT_URL: ${NEXT_PUBLIC_SCRIPT_URL:-https://cdn.databuddy.cc/databuddy.js}
+    container_name: databuddy-dashboard
+    ports:
+      - "127.0.0.1:${DASHBOARD_PORT:-3100}:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      AUTUMN_SECRET_KEY: ${AUTUMN_SECRET_KEY:-}
+      NEXT_PUBLIC_BETTER_AUTH_URL: ${NEXT_PUBLIC_BETTER_AUTH_URL:-${BETTER_AUTH_URL}}
+      CLIENT_APP_ALLOWED_ORIGINS: ${CLIENT_APP_ALLOWED_ORIGINS:-}
+      AUTH_TRUSTED_ORIGINS: ${AUTH_TRUSTED_ORIGINS:-}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      NEXT_PUBLIC_BASKET_URL: ${NEXT_PUBLIC_BASKET_URL:-https://basket.databuddy.cc}
+      NEXT_PUBLIC_SCRIPT_URL: ${NEXT_PUBLIC_SCRIPT_URL:-https://cdn.databuddy.cc/databuddy.js}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      init:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - databuddy
 
 volumes:
   postgres_data:

@@ -7,6 +7,7 @@ import { UserPlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { PageHeader } from "@/app/(main)/websites/_components/page-header";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { FeatureAccessGate } from "@/components/feature-access-gate";
 import { MonitorRow } from "@/components/monitors/monitor-row";
@@ -45,6 +46,10 @@ export interface Monitor {
 export default function MonitorsPage() {
 	const { hasAccess, isLoading: isAccessLoading } =
 		useFeatureAccess("monitors");
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [showInviteDialog, setShowInviteDialog] = useState(false);
 	const [editingSchedule, setEditingSchedule] = useState<{
@@ -60,8 +65,10 @@ export default function MonitorsPage() {
 	} | null>(null);
 
 	const schedulesQuery = useQuery({
-		...orpc.uptime.listSchedules.queryOptions({ input: {} }),
-		enabled: hasAccess,
+		...orpc.uptime.listSchedules.queryOptions({
+			input: organizationId ? { organizationId } : {},
+		}),
+		enabled: hasAccess && !!organizationId,
 	});
 
 	const handleCreate = () => {

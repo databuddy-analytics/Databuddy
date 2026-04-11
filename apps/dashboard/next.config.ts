@@ -1,5 +1,17 @@
 import type { NextConfig } from "next";
 
+function toOrigin(value?: string): string | null {
+	if (!value) {
+		return null;
+	}
+
+	try {
+		return new URL(value).origin;
+	} catch {
+		return null;
+	}
+}
+
 const nextConfig: NextConfig = {
 	experimental: {
 		optimizePackageImports: ["@phosphor-icons/react"],
@@ -73,14 +85,25 @@ const nextConfig: NextConfig = {
 		const localhostFrameAncestors = isDev
 			? "http://localhost:* http://127.0.0.1:*"
 			: "";
+		const envScriptSrc = [toOrigin(process.env.NEXT_PUBLIC_SCRIPT_URL)]
+			.filter((value): value is string => Boolean(value))
+			.join(" ");
+		const envConnectSrc = [
+			toOrigin(process.env.NEXT_PUBLIC_API_URL),
+			toOrigin(process.env.NEXT_PUBLIC_APP_URL),
+			toOrigin(process.env.BETTER_AUTH_URL),
+			toOrigin(process.env.NEXT_PUBLIC_BASKET_URL),
+		]
+			.filter((value): value is string => Boolean(value))
+			.join(" ");
 
 		const cspDirectives = [
 			"default-src 'self'",
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.databuddy.cc",
+			`script-src 'self' 'unsafe-inline' 'unsafe-eval' ${envScriptSrc} https://cdn.databuddy.cc`.trim(),
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
 			"img-src 'self' data: blob: https://cdn.databuddy.cc https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
-			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc https://api.microlink.io`.trim(),
+			`connect-src 'self' ${localhostConnectSrc} ${envConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc https://api.microlink.io`.trim(),
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
 			"form-action 'self'",
@@ -88,11 +111,11 @@ const nextConfig: NextConfig = {
 
 		const demoCspDirectives = [
 			"default-src 'self'",
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.databuddy.cc",
+			`script-src 'self' 'unsafe-inline' 'unsafe-eval' ${envScriptSrc} https://cdn.databuddy.cc`.trim(),
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
 			"img-src 'self' data: blob: https://cdn.databuddy.cc https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
-			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc`.trim(),
+			`connect-src 'self' ${localhostConnectSrc} ${envConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc`.trim(),
 			`frame-ancestors 'self' ${localhostFrameAncestors} https://*.databuddy.cc https://databuddy.cc`.trim(),
 			"base-uri 'self'",
 			"form-action 'self'",

@@ -93,6 +93,33 @@ Services started:
 
 All ports are configurable via env vars (`API_PORT`, `BASKET_PORT`, etc.). See the compose file comments for the full env var reference.
 
+### Troubleshooting
+
+If the `init` job fails and Postgres logs show `password authentication failed for user "databuddy"`, the Postgres volume was likely initialized with an older password.
+
+Changing `POSTGRES_PASSWORD` or `DATABASE_URL` in your environment does not update the password stored inside an existing Postgres data volume.
+
+To keep the existing data, update the password inside the running Postgres container to match your current environment and redeploy:
+
+```bash
+docker exec -it databuddy-postgres psql -U databuddy -d databuddy
+```
+
+Then inside `psql`:
+
+```sql
+ALTER USER databuddy WITH PASSWORD 'your-current-postgres-password';
+```
+
+Make sure the password in `DATABASE_URL` matches the same value.
+
+If you do not need to preserve the database, remove the existing volume and start fresh so Postgres initializes with the current environment values:
+
+```bash
+docker compose -f docker-compose.selfhost.yml down -v
+docker compose -f docker-compose.selfhost.yml up -d
+```
+
 ## 🤝 Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

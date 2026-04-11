@@ -1,6 +1,21 @@
 import { ACTUAL_LIBRARY_DEFAULTS } from "./tracking-defaults";
 import type { TrackingOptions } from "./types";
 
+function getTrackerEndpoints() {
+	const isLocalhost = process.env.NODE_ENV === "development";
+
+	return {
+		scriptUrl:
+			process.env.NEXT_PUBLIC_SCRIPT_URL ??
+			(isLocalhost
+				? "http://localhost:3000/databuddy.js"
+				: "https://cdn.databuddy.cc/databuddy.js"),
+		apiUrl:
+			process.env.NEXT_PUBLIC_BASKET_URL ??
+			(isLocalhost ? "http://localhost:4000" : "https://basket.databuddy.cc"),
+	};
+}
+
 /**
  * Generate HTML script tag for tracking
  */
@@ -8,13 +23,7 @@ export function generateScriptTag(
 	websiteId: string,
 	trackingOptions: TrackingOptions
 ): string {
-	const isLocalhost = process.env.NODE_ENV === "development";
-	const scriptUrl = isLocalhost
-		? "http://localhost:3000/databuddy.js"
-		: "https://cdn.databuddy.cc/databuddy.js";
-	const _apiUrl = isLocalhost
-		? "http://localhost:4000"
-		: "https://basket.databuddy.cc";
+	const { apiUrl, scriptUrl } = getTrackerEndpoints();
 
 	const options = Object.entries(trackingOptions)
 		.filter(([key, value]) => {
@@ -38,6 +47,7 @@ export function generateScriptTag(
 
 	return `<script
     src="${scriptUrl}"
+    data-api-url="${apiUrl}"
     data-client-id="${websiteId}"
 ${optionsLine}    crossorigin="anonymous"
     async
@@ -51,6 +61,7 @@ export function generateNpmCode(
 	websiteId: string,
 	trackingOptions: TrackingOptions
 ): string {
+	const { apiUrl, scriptUrl } = getTrackerEndpoints();
 	const meaningfulProps = Object.entries(trackingOptions)
 		.filter(([key, value]) => {
 			const actualDefault =
@@ -83,6 +94,8 @@ function AppLayout({ children }) {
     <>
       {children}
       <Databuddy
+        apiUrl="${apiUrl}"
+        scriptUrl="${scriptUrl}"
         clientId="${websiteId}"${propsString}/>
     </>
   );
@@ -96,6 +109,7 @@ export function generateNpmComponentCode(
 	websiteId: string,
 	trackingOptions: TrackingOptions
 ): string {
+	const { apiUrl, scriptUrl } = getTrackerEndpoints();
 	const meaningfulProps = Object.entries(trackingOptions)
 		.filter(([key, value]) => {
 			const actualDefault =
@@ -122,5 +136,8 @@ export function generateNpmComponentCode(
 		meaningfulProps.length > 0 ? `\n${meaningfulProps.join("\n")}\n` : "";
 
 	return `<Databuddy
-  clientId="${websiteId}"${propsString}/>`;
+  apiUrl="${apiUrl}"
+  scriptUrl="${scriptUrl}"
+  clientId="${websiteId}"${propsString}
+/>`;
 }
