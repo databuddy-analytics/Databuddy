@@ -4,6 +4,7 @@ import { authClient, useSession } from "@databuddy/auth/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import {
 	activeOrganizationAtom,
 	getOrganizationBySlugAtom,
@@ -26,6 +27,7 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 	const setActiveOrganization = useSetAtom(activeOrganizationAtom);
 	const setIsLoading = useSetAtom(isLoadingOrganizationsAtom);
 	const hasSyncedInitialOrganization = useRef(false);
+	const hasShownInitialOrganizationSyncError = useRef(false);
 
 	const { data: session, isPending: isLoadingSession } = useSession();
 
@@ -87,7 +89,13 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 			.setActive({
 				organizationId: fallbackOrganizationId,
 			})
-			.then(() => {
+			.then(({ error }) => {
+				if (error) {
+					throw new Error(
+						error.message || "Failed to set initial active organization"
+					);
+				}
+				hasShownInitialOrganizationSyncError.current = false;
 				queryClient.invalidateQueries({
 					queryKey: AUTH_QUERY_KEYS.activeOrganization,
 				});
@@ -95,8 +103,18 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 					queryKey: AUTH_QUERY_KEYS.organizations,
 				});
 			})
-			.catch(() => {
+			.catch((error) => {
 				hasSyncedInitialOrganization.current = false;
+				console.error(
+					"[OrganizationsProvider] Failed to sync initial active organization:",
+					error
+				);
+				if (!hasShownInitialOrganizationSyncError.current) {
+					hasShownInitialOrganizationSyncError.current = true;
+					toast.error(
+						"Couldn't set your active workspace automatically. Please select it manually."
+					);
+				}
 			});
 	}, [
 		isLoadingOrgs,
