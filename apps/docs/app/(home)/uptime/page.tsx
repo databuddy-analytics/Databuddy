@@ -1,77 +1,36 @@
-import {
-	ArrowRightIcon,
-	BellIcon,
-	ChartLineUpIcon,
-	ClockIcon,
-	GlobeIcon,
-	ShieldCheckIcon,
-	SquaresFourIcon,
-} from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
-import { SciFiGridCard } from "@/components/landing/card";
+import { ClosingCtaSection } from "@/components/landing/closing-cta-section";
 import { FaqSection } from "@/components/landing/faq-section";
-import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+import {
+	UptimeAlertsStackVisual,
+	UptimeIncidentTimelineVisual,
+	UptimeRegionsHubDiagram,
+	UptimeStatusPageMiniVisual,
+} from "@/components/landing/uptime-landing-visuals";
 import { StructuredData } from "@/components/structured-data";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
-	title: "Uptime Monitoring & Status Pages | Databuddy",
+	title: "Uptime Monitoring (coming Q3 2026) | Databuddy",
 	description:
-		"Monitor your services with 1-minute checks, beautiful public status pages, latency tracking, and instant alerts. Built into your analytics stack.",
+		"1-minute checks from six regions, instant alerts, and public status pages — included with Databuddy. Launching Q3 2026. Join the waitlist for early access.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/uptime",
 	},
 	openGraph: {
-		title: "Uptime Monitoring & Status Pages | Databuddy",
+		title: "Uptime Monitoring (coming Q3 2026) | Databuddy",
 		description:
-			"Monitor your services with 1-minute checks, beautiful public status pages, latency tracking, and instant alerts. Built into your analytics stack.",
+			"1-minute checks from six regions, instant alerts, and public status pages — included with Databuddy. Launching Q3 2026.",
 		url: "https://www.databuddy.cc/uptime",
 		images: ["/og-image.png"],
 	},
 };
 
-const FEATURES = [
-	{
-		icon: ClockIcon,
-		title: "1-Minute Checks",
-		description:
-			"HTTP monitoring as frequent as every 60 seconds. Know about downtime before your users do.",
-	},
-	{
-		icon: GlobeIcon,
-		title: "Public Status Pages",
-		description:
-			"Branded, SEO-indexed status pages at /status/your-org. Share uptime transparently with customers.",
-	},
-	{
-		icon: ChartLineUpIcon,
-		title: "Latency Tracking",
-		description:
-			"Average and p95 response times plotted daily. Spot slow endpoints before they become outages.",
-	},
-	{
-		icon: BellIcon,
-		title: "Instant Alerts",
-		description:
-			"Get notified on status transitions via email, Slack, or webhooks. No alert fatigue — only real changes.",
-	},
-	{
-		icon: ShieldCheckIcon,
-		title: "TLS Monitoring",
-		description:
-			"Automatic SSL/TLS checks on every probe. See certificate validity and expiry at a glance.",
-	},
-	{
-		icon: SquaresFourIcon,
-		title: "90-Day Heatmap",
-		description:
-			"Per-day uptime heatmap with color-coded bars. Instantly see patterns and incident history.",
-	},
-] as const;
+const CELL_TITLE_CLASS =
+	"mb-5 text-balance font-semibold text-base text-foreground sm:mb-6 sm:text-lg";
 
 const FAQ_ITEMS = [
 	{
@@ -90,131 +49,16 @@ const FAQ_ITEMS = [
 			"No. Alerts only fire when status actually changes — from up to down, or down to up. You won't get repeated notifications during intermittent issues, just one clear signal when something needs attention.",
 	},
 	{
-		question: "What kind of services can I monitor?",
+		question: "Can I create a public status page?",
 		answer:
 			"Any public website, API, or web service. You can also parse JSON health endpoints to monitor specific fields — useful for services that report their own status.",
 	},
 	{
-		question: "Is uptime monitoring included in all plans?",
+		question: "Will it integrate with my existing alerts?",
 		answer:
 			"Uptime monitoring is available on every paid plan. The number of monitors and how frequently they run depends on your tier — check the pricing page for the full breakdown.",
 	},
 ] as const;
-
-function seededColor(index: number, seed: number): string {
-	const hash = Math.abs(((index + 1) * 31 + seed * 17) % 1000);
-	if (hash < 10) {
-		return "bg-amber-400";
-	}
-	return "bg-emerald-500";
-}
-
-const DEMO_MONITORS = [
-	{
-		name: "API",
-		domain: "api.acme.com",
-		uptime: "99.98",
-		seed: 42,
-		incidents: [
-			{ start: 31, end: 32, color: "bg-red-500" },
-			{ start: 33, end: 33, color: "bg-amber-400" },
-		],
-	},
-	{
-		name: "Dashboard",
-		domain: "app.acme.com",
-		uptime: "99.95",
-		seed: 77,
-		incidents: [{ start: 58, end: 59, color: "bg-red-500" }],
-	},
-	{
-		name: "Marketing Site",
-		domain: "acme.com",
-		uptime: "100.00",
-		seed: 13,
-		incidents: [],
-	},
-] as const;
-
-function DemoHeatmapStrip({
-	seed,
-	incidents,
-}: {
-	seed: number;
-	incidents: ReadonlyArray<{
-		start: number;
-		end: number;
-		color: string;
-	}>;
-}) {
-	return (
-		<div className="flex gap-px">
-			{Array.from({ length: 90 }, (_, i) => {
-				const incident = incidents.find(
-					(inc) => i >= inc.start && i <= inc.end
-				);
-				const color = incident ? incident.color : seededColor(i, seed);
-				return <div className={`h-7 flex-1 rounded-sm ${color}`} key={i} />;
-			})}
-		</div>
-	);
-}
-
-function StatusPageDemo() {
-	return (
-		<div className="overflow-hidden rounded border border-border/50 bg-card/30 shadow-2xl backdrop-blur-sm">
-			<div className="border-border border-b px-5 py-4">
-				<div className="flex items-center justify-between">
-					<div className="space-y-1">
-						<h3 className="font-semibold text-foreground text-sm">Acme Corp</h3>
-						<p className="text-muted-foreground text-xs">
-							System status and uptime
-						</p>
-					</div>
-					<div className="flex items-center gap-2 rounded bg-emerald-500/10 px-3 py-1.5">
-						<span className="relative flex size-2">
-							<span className="absolute inline-flex size-full animate-ping rounded bg-emerald-400 opacity-75" />
-							<span className="relative inline-flex size-2 rounded bg-emerald-500" />
-						</span>
-						<span className="font-medium text-emerald-500 text-xs">
-							All Systems Operational
-						</span>
-					</div>
-				</div>
-			</div>
-
-			<div className="space-y-4 p-5">
-				{DEMO_MONITORS.map((monitor) => (
-					<div key={monitor.name}>
-						<div className="mb-2 flex items-center justify-between">
-							<div className="flex items-center gap-2">
-								<span className="size-1.5 rounded bg-emerald-500" />
-								<span className="font-medium text-foreground text-xs">
-									{monitor.name}
-								</span>
-								<span className="text-muted-foreground text-xs">
-									{monitor.domain}
-								</span>
-							</div>
-							<span className="font-medium text-foreground text-xs tabular-nums">
-								{monitor.uptime}%
-							</span>
-						</div>
-						<DemoHeatmapStrip
-							incidents={monitor.incidents}
-							seed={monitor.seed}
-						/>
-					</div>
-				))}
-			</div>
-
-			<div className="flex items-center justify-between border-border border-t px-5 py-3 text-muted-foreground text-xs">
-				<span>90 days ago</span>
-				<span>Today</span>
-			</div>
-		</div>
-	);
-}
 
 export default function UptimePage() {
 	return (
@@ -222,134 +66,141 @@ export default function UptimePage() {
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Uptime Monitoring & Status Pages | Databuddy",
+					title: "Uptime Monitoring | Databuddy",
 					description:
-						"Monitor your services with 1-minute checks, beautiful public status pages, latency tracking, and instant alerts.",
+						"1-minute checks, status pages, and instant alerts — coming to Databuddy Q3 2026.",
 					url: "https://www.databuddy.cc/uptime",
 				}}
 			/>
-			<div className="overflow-hidden">
-				{/* Hero */}
-				<Section className="overflow-hidden" customPaddings id="hero">
-					<section className="relative flex w-full flex-col items-center overflow-hidden">
-						<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-						<div className="mx-auto w-full max-w-7xl px-4 pt-16 pb-8 sm:px-6 sm:pt-20 lg:px-8 lg:pt-24">
-							<div className="mx-auto flex max-w-4xl flex-col items-center space-y-8 text-center">
-								<span className="inline-flex items-center gap-2 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-medium text-amber-400 text-xs uppercase tracking-wider">
-									<span className="size-1.5 rounded-full bg-amber-400" />
-									Coming soon
-								</span>
-
-								<h1 className="text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-									Uptime monitoring.{" "}
-									<span className="text-muted-foreground">
-										Status pages your users trust.
+			<div className="overflow-x-hidden">
+				<Section
+					className="overflow-hidden border-border border-b"
+					customPaddings
+					id="hero"
+				>
+					<section className="relative flex w-full flex-col overflow-hidden">
+						<div className="mx-auto w-full max-w-7xl px-4 pt-16 pb-12 sm:px-6 sm:pt-20 sm:pb-16 lg:px-8 lg:pt-24 lg:pb-24 xl:pb-28">
+							<div className="flex w-full max-w-4xl flex-col items-start space-y-5 text-left sm:space-y-6">
+								<div className="flex flex-wrap items-center gap-2">
+									<span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.06] bg-white/[0.02] px-3 py-1.5">
+										<span
+											aria-hidden
+											className="size-1.5 rounded-full bg-amber-400"
+										/>
+										<span className="font-mono text-[10px] text-muted-foreground uppercase tracking-widest sm:text-[11px]">
+											Coming Soon
+										</span>
 									</span>
+								</div>
+
+								<h1 className="max-w-4xl text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+									Be the first to know when your site goes down.
 								</h1>
 
 								<p className="max-w-2xl text-pretty font-medium text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
-									HTTP checks as fast as every minute, alerts on real status
-									changes, and beautiful public status pages — built into
-									Databuddy, no extra tool needed.
+									Status pages, 1-minute checks, and instant alerts so you find
+									out before your users tweet about it.
 								</p>
 
-								<div className="flex items-center gap-3">
+								<div className="flex flex-wrap items-center gap-3">
 									<Button asChild className="px-6 py-5 text-base sm:px-8">
-										<Link href="https://app.databuddy.cc/login">
-											Get Early Access
-										</Link>
+										<a href="https://app.databuddy.cc/login">
+											Join Waitlist
+										</a>
 									</Button>
-									<Button asChild className="px-6 py-5 text-base sm:px-8" variant='secondary'>
-										<Link href="/pricing">See pricing</Link>
+									<Button
+										asChild
+										className="px-6 py-5 text-base sm:px-8"
+										variant="secondary"
+									>
+										<Link href="/roadmap">View Roadmap</Link>
 									</Button>
 								</div>
-
-								<p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
-									<span>No credit card required</span>
-									<span className="text-border">·</span>
-									<span>Setup in under 2 minutes</span>
-									<span className="text-border">·</span>
-									<span>Free plan available</span>
-								</p>
-							</div>
-
-							{/* Status Page Demo */}
-							<div className="mx-auto mt-8 max-w-2xl">
-								<StatusPageDemo />
 							</div>
 						</div>
 					</section>
 				</Section>
 
-				{/* Feature Grid */}
-				<Section className="border-border border-b" id="features">
+				<Section
+					className="border-border border-b pt-12 pb-0 sm:pt-16 sm:pb-0 lg:pt-24 lg:pb-0 xl:pt-32 xl:pb-0"
+					customPaddings
+					id="how-it-works"
+				>
 					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<div className="mb-12 text-center lg:mb-16 lg:text-left">
-							<h2 className="mx-auto max-w-4xl text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
-								<span className="text-muted-foreground">Monitor once, </span>
-								<span className="bg-linear-to-r from-foreground to-muted-foreground bg-clip-text text-transparent">
-									understand everything
-								</span>
-							</h2>
-							<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-								Everything you need to keep services healthy and users informed
-								— from 1-minute checks to public status pages.
-							</p>
-						</div>
+						<p className="mb-2 font-medium font-mono text-[10px] text-muted-foreground uppercase tracking-widest sm:text-[11px]">
+							How it works
+						</p>
+						<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:text-5xl">
+							Catch issues{" "}
+							<span className="text-muted-foreground">
+								before your users do.
+							</span>
+						</h2>
+						<p className="mt-3 text-pretty pb-8 text-muted-foreground text-sm sm:text-base lg:pb-10 lg:text-lg">
+							1-minute checks from multiple regions. Alerts the second
+							something&apos;s wrong. Status pages your users actually trust.
+						</p>
+					</div>
 
-						<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 lg:gap-10 xl:gap-12">
-							{FEATURES.map((feature) => (
-								<div className="flex" key={feature.title}>
-									<SciFiGridCard
-										description={feature.description}
-										icon={feature.icon}
-										title={feature.title}
-									/>
+					<div className="w-full border-border border-t border-b">
+						<div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 lg:grid-cols-2">
+							<div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border lg:block" />
+							<div className="border-border border-b px-4 pt-5 pb-2 sm:px-6 lg:border-r lg:border-b-0 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									HTTP monitoring every 60 seconds, from 6 regions.
+								</h3>
+								<div className="mt-2">
+									<UptimeRegionsHubDiagram />
 								</div>
-							))}
+							</div>
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Slack, email, or webhook in under 30 seconds.
+								</h3>
+								<div className="mt-2">
+									<UptimeAlertsStackVisual />
+								</div>
+							</div>
+						</div>
+					</div>
+					<div className="w-full border-border border-b">
+						<div className="relative mx-auto grid w-full max-w-7xl grid-cols-1 lg:grid-cols-2">
+							<div aria-hidden className="pointer-events-none absolute inset-y-0 left-1/2 hidden w-px -translate-x-1/2 bg-border lg:block" />
+							<div className="border-border border-b px-4 pt-5 pb-2 sm:px-6 lg:border-r lg:border-b-0 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Share a status page transparently with your users.
+								</h3>
+								<div className="mt-2">
+									<UptimeStatusPageMiniVisual />
+								</div>
+							</div>
+							<div className="px-4 pt-5 pb-2 sm:px-6 lg:px-8 lg:pt-6 lg:pb-2">
+								<h3 className={CELL_TITLE_CLASS}>
+									Every incident, documented automatically.
+								</h3>
+								<div className="mt-2">
+									<UptimeIncidentTimelineVisual />
+								</div>
+							</div>
 						</div>
 					</div>
 				</Section>
 
-				{/* Mid-page CTA */}
-				<Section className="border-border border-b bg-background/50" id="cta">
+				<Section className="border-border border-b" id="faq">
 					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<div className="mx-auto flex max-w-2xl flex-col items-center space-y-6 text-center">
-							<h2 className="text-balance font-semibold text-3xl leading-tight sm:text-4xl">
-								Be the first to try it
-							</h2>
-							<p className="max-w-lg text-pretty text-muted-foreground text-sm sm:text-base">
-								Uptime monitoring is launching soon. Sign up now and
-								you&apos;ll be first in line when it goes live.
-							</p>
-							<Button asChild className="px-6 py-5 text-base sm:px-8">
-								<a href="https://app.databuddy.cc/login">
-									Get Early Access
-									<ArrowRightIcon className="ml-2 size-4" weight="bold" />
-								</a>
-							</Button>
-						</div>
+						<FaqSection eyebrow="FAQ" items={[...FAQ_ITEMS]} />
 					</div>
 				</Section>
 
-				{/* FAQ */}
-				<Section className="border-border border-b bg-background/30" id="faq">
-					<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
-						<FaqSection items={[...FAQ_ITEMS]} />
-					</div>
-				</Section>
-
-				{/* Gradient Divider */}
-				<div className="w-full">
-					<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
-				</div>
+				<ClosingCtaSection
+					primaryCta={{
+						href: "https://app.databuddy.cc/login",
+						label: "Join Waitlist",
+					}}
+					secondaryCta={{ href: "/", label: "Explore what's live" }}
+				/>
 
 				<Footer />
-
-				<div className="w-full">
-					<div className="mx-auto h-px max-w-6xl bg-linear-to-r from-transparent via-border/30 to-transparent" />
-				</div>
 			</div>
 		</>
 	);
