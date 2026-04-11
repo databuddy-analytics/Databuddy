@@ -1,7 +1,12 @@
 import { and, db, eq } from "@databuddy/db";
-import { member, user } from "@databuddy/db/schema";
+import { alarms, member, user } from "@databuddy/db/schema";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { UptimeAlertEmail } from "@databuddy/email";
+import {
+	type NotificationChannel,
+	NotificationClient,
+} from "@databuddy/notifications";
+import { buildUptimeNotificationPayload } from "@databuddy/notifications/templates/uptime";
 import { Resend } from "resend";
 import type { ScheduleData } from "./actions";
 import { captureError } from "./lib/tracing";
@@ -157,5 +162,107 @@ export async function sendUptimeTransitionEmailsIfNeeded(options: {
 		}
 	} catch (error) {
 		captureError(error, { error_step: "transition_email" });
+	}
+}
+
+export async function sendUptimeAlarmNotificationsIfNeeded(options: {
+	schedule: ScheduleData;
+	data: UptimeData;
+	previousStatus: number | undefined;
+}): Promise<void> {
+	const kind = resolveTransitionKind(
+		options.previousStatus,
+		options.data.status
+	);
+	if (kind === null) {
+		return;
+	}
+
+	if (!options.schedule.websiteId) {
+		return;
+	}
+
+	const matchingAlarms = await db.query.alarms.findMany({
+		where: and(
+			eq(alarms.websiteId, options.schedule.websiteId),
+			eq(alarms.enabled, true),
+			eq(alarms.triggerType, "uptime")
+		),
+		with: { destinations: true },
+	});
+
+	if (matchingAlarms.length === 0) {
+		return;
+	}
+
+	const siteLabel = buildSiteLabel(options.schedule);
+	const sslExpiry =
+		options.data.ssl_expiry > 0 ? options.data.ssl_expiry : undefined;
+
+	const payload = buildUptimeNotificationPayload({
+		kind,
+		siteLabel,
+		url: options.data.url,
+		checkedAt: options.data.timestamp,
+		httpCode: options.data.http_code,
+		error: options.data.error ?? "",
+		probeRegion: options.data.probe_region,
+		totalMs: options.data.total_ms,
+		ttfbMs: options.data.ttfb_ms,
+		sslValid: options.data.ssl_valid === 1,
+		sslExpiryMs: sslExpiry,
+	});
+
+	for (const alarm of matchingAlarms) {
+		if (!alarm.destinations || alarm.destinations.length === 0) {
+			continue;
+		}
+
+		const clientConfig: Record<string, Record<string, unknown>> = {};
+		const channels: NotificationChannel[] = [];
+
+		for (const dest of alarm.destinations) {
+			const cfg = (dest.config ?? {}) as Record<string, unknown>;
+
+			if (dest.type === "slack") {
+				clientConfig.slack = { webhookUrl: dest.identifier };
+				channels.push("slack");
+			} else if (dest.type === "discord") {
+				clientConfig.discord = { webhookUrl: dest.identifier };
+				channels.push("discord");
+			} else if (dest.type === "teams") {
+				clientConfig.teams = { webhookUrl: dest.identifier };
+				channels.push("teams");
+			} else if (dest.type === "google_chat") {
+				clientConfig.googleChat = { webhookUrl: dest.identifier };
+				channels.push("google-chat");
+			} else if (dest.type === "telegram") {
+				clientConfig.telegram = {
+					botToken: cfg.botToken as string,
+					chatId: dest.identifier || (cfg.chatId as string),
+				};
+				channels.push("telegram");
+			} else if (dest.type === "webhook") {
+				clientConfig.webhook = {
+					url: dest.identifier,
+					headers: cfg.headers as Record<string, string> | undefined,
+				};
+				channels.push("webhook");
+			}
+		}
+
+		if (channels.length === 0) {
+			continue;
+		}
+
+		try {
+			const client = new NotificationClient(clientConfig);
+			await client.send(payload, { channels });
+		} catch (error) {
+			captureError(error, {
+				error_step: "uptime_alarm_notification",
+				alarm_id: alarm.id,
+			});
+		}
 	}
 }

@@ -14,6 +14,7 @@ import { disconnectProducer, sendUptimeEvent } from "./lib/producer";
 import { captureError, mergeWideEvent } from "./lib/tracing";
 import {
 	getPreviousMonitorStatus,
+	sendUptimeAlarmNotificationsIfNeeded,
 	sendUptimeTransitionEmailsIfNeeded,
 } from "./uptime-transition-emails";
 
@@ -259,6 +260,11 @@ const app = new Elysia()
 			try {
 				await sendUptimeEvent(result.data, monitorId);
 				await sendUptimeTransitionEmailsIfNeeded({
+					schedule: schedule.data,
+					data: result.data,
+					previousStatus,
+				});
+				await sendUptimeAlarmNotificationsIfNeeded({
 					schedule: schedule.data,
 					data: result.data,
 					previousStatus,
