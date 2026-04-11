@@ -2,7 +2,7 @@ import cors from "@elysiajs/cors";
 import { serverTiming } from "@elysiajs/server-timing";
 import { Elysia } from "elysia";
 import { parseError } from "evlog";
-import { getAllowedCorsOrigins } from "@/lib/cors-origins";
+import { getPublicCorsOrigins } from "@/lib/cors-origins";
 import { captureError, mergeWideEvent } from "@/lib/tracing";
 import { agentTelemetryRoute } from "./agent-telemetry";
 import { flagsRoute } from "./flags";
@@ -23,7 +23,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 	.use(
 		cors({
 			credentials: false,
-			origin: getAllowedCorsOrigins(),
+			origin: getPublicCorsOrigins(),
 		})
 	)
 	.options("*", () => new Response(null, { status: 204 }))

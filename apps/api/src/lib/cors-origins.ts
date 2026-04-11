@@ -37,3 +37,9 @@ export function getAllowedCorsOrigins(): Array<string | RegExp> {
 		...new Set([...defaults, ...authTrustedOrigins, ...extraOrigins]),
 	];
 }
+
+export function getPublicCorsOrigins(): true | Array<string | RegExp> {
+	return process.env.PUBLIC_API_CORS_MODE === "restricted"
+		? getAllowedCorsOrigins()
+		: true;
+}

@@ -13,6 +13,7 @@ const apiEnvSchema = z.object({
 	...commonEnvSchema,
 	...authEnvSchema,
 	AI_API_KEY: z.string(),
+	PUBLIC_API_CORS_MODE: z.enum(["any", "restricted"]).default("any"),
 	PORT: z.string().default("3001"),
 	CLICKHOUSE_URL: z.string(),
 	CLICKHOUSE_USER: z.string().default("default"),
