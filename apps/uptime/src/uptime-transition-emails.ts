@@ -213,56 +213,61 @@ export async function sendUptimeAlarmNotificationsIfNeeded(options: {
 		sslExpiryMs: sslExpiry,
 	});
 
-	for (const alarm of matchingAlarms) {
-		if (!alarm.destinations || alarm.destinations.length === 0) {
-			continue;
-		}
+	const dispatchPromises = matchingAlarms
+		.filter((alarm) => alarm.destinations && alarm.destinations.length > 0)
+		.map(async (alarm) => {
+			const clientConfig: Record<string, Record<string, unknown>> = {};
+			const channels: NotificationChannel[] = [];
 
-		const clientConfig: Record<string, Record<string, unknown>> = {};
-		const channels: NotificationChannel[] = [];
+			for (const dest of alarm.destinations) {
+				const cfg = (dest.config ?? {}) as Record<string, unknown>;
 
-		for (const dest of alarm.destinations) {
-			const cfg = (dest.config ?? {}) as Record<string, unknown>;
-
-			if (dest.type === "slack") {
-				clientConfig.slack = { webhookUrl: dest.identifier };
-				channels.push("slack");
-			} else if (dest.type === "discord") {
-				clientConfig.discord = { webhookUrl: dest.identifier };
-				channels.push("discord");
-			} else if (dest.type === "teams") {
-				clientConfig.teams = { webhookUrl: dest.identifier };
-				channels.push("teams");
-			} else if (dest.type === "google_chat") {
-				clientConfig.googleChat = { webhookUrl: dest.identifier };
-				channels.push("google-chat");
-			} else if (dest.type === "telegram") {
-				clientConfig.telegram = {
-					botToken: cfg.botToken as string,
-					chatId: dest.identifier || (cfg.chatId as string),
-				};
-				channels.push("telegram");
-			} else if (dest.type === "webhook") {
-				clientConfig.webhook = {
-					url: dest.identifier,
-					headers: cfg.headers as Record<string, string> | undefined,
-				};
-				channels.push("webhook");
+				if (dest.type === "slack") {
+					clientConfig.slack = { webhookUrl: dest.identifier };
+					channels.push("slack");
+				} else if (dest.type === "discord") {
+					clientConfig.discord = { webhookUrl: dest.identifier };
+					channels.push("discord");
+				} else if (dest.type === "teams") {
+					clientConfig.teams = { webhookUrl: dest.identifier };
+					channels.push("teams");
+				} else if (dest.type === "google_chat") {
+					clientConfig.googleChat = { webhookUrl: dest.identifier };
+					channels.push("google-chat");
+				} else if (dest.type === "telegram") {
+					const botToken = typeof cfg.botToken === "string" ? cfg.botToken : "";
+					const chatId = dest.identifier || (typeof cfg.chatId === "string" ? cfg.chatId : "");
+					if (!botToken || !chatId) {
+						return;
+					}
+					clientConfig.telegram = { botToken, chatId };
+					channels.push("telegram");
+				} else if (dest.type === "webhook") {
+					const headers = cfg.headers && typeof cfg.headers === "object"
+						? cfg.headers as Record<string, string>
+						: undefined;
+					clientConfig.webhook = {
+						url: dest.identifier,
+						headers,
+					};
+					channels.push("webhook");
+				}
 			}
-		}
 
-		if (channels.length === 0) {
-			continue;
-		}
+			if (channels.length === 0) {
+				return;
+			}
 
-		try {
-			const client = new NotificationClient(clientConfig);
-			await client.send(payload, { channels });
-		} catch (error) {
-			captureError(error, {
-				error_step: "uptime_alarm_notification",
-				alarm_id: alarm.id,
-			});
-		}
-	}
+			try {
+				const client = new NotificationClient(clientConfig);
+				await client.send(payload, { channels });
+			} catch (error) {
+				captureError(error, {
+					error_step: "uptime_alarm_notification",
+					alarm_id: alarm.id,
+				});
+			}
+		});
+
+	await Promise.allSettled(dispatchPromises);
 }
