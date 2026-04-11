@@ -68,9 +68,8 @@ function sortInsights(items: Insight[], mode: SortMode): Insight[] {
 }
 
 export function CockpitSignals(): ReactElement {
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
+	const orgId = organizationId ?? undefined;
 
 	const {
 		insights,

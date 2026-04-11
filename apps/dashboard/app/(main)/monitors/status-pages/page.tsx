@@ -27,8 +27,7 @@ import { cn } from "@/lib/utils";
 export default function StatusPagesListPage() {
 	const { hasAccess, isLoading: isAccessLoading } =
 		useFeatureAccess("monitors");
-	const { activeOrganizationId, activeOrganization } =
-		useOrganizationsContext();
+	const { organizationId } = useOrganizationsContext();
 	const queryClient = useQueryClient();
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [editingStatusPage, setEditingStatusPage] = useState<StatusPage | null>(
@@ -37,7 +36,7 @@ export default function StatusPagesListPage() {
 	const [statusPageToDelete, setStatusPageToDelete] =
 		useState<StatusPage | null>(null);
 
-	const resolvedOrgId = activeOrganization?.id ?? activeOrganizationId ?? "";
+	const resolvedOrgId = organizationId ?? "";
 
 	const statusPagesQuery = useQuery({
 		...orpc.statusPage.list.queryOptions({

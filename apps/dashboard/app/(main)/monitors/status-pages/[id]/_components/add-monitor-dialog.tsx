@@ -79,9 +79,8 @@ export function AddMonitorDialog({
 	onOpenChangeAction,
 	onCompleteAction,
 }: AddMonitorDialogProps) {
-	const { activeOrganizationId, activeOrganization } =
-		useOrganizationsContext();
-	const resolvedOrgId = activeOrganization?.id ?? activeOrganizationId ?? "";
+	const { organizationId } = useOrganizationsContext();
+	const resolvedOrgId = organizationId ?? "";
 
 	const [mode, setMode] = useState<Mode>("existing");
 	const [selectedScheduleId, setSelectedScheduleId] = useState("");

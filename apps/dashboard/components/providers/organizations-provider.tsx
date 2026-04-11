@@ -130,6 +130,7 @@ export function useOrganizationsContext() {
 		organizations,
 		activeOrganization,
 		activeOrganizationId,
+		organizationId: activeOrganizationId ?? undefined,
 		isLoading,
 		getOrganization: getOrganizationBySlug,
 	};

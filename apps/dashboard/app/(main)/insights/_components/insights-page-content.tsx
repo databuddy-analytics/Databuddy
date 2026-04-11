@@ -169,9 +169,8 @@ function FocusSitePicker({ websites, value, onChange }: FocusSitePickerProps) {
 
 export function InsightsPageContent() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
+	const orgId = organizationId ?? undefined;
 
 	const { insights, isLoading, isRefreshing, refetch } = useInsightsFeed();
 

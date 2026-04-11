@@ -87,10 +87,7 @@ const removeWebsiteFromList = (
 };
 
 export function useWebsites(options?: { enabled?: boolean }) {
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	const query = useQuery({
 		...orpc.websites.listWithCharts.queryOptions({
@@ -111,10 +108,7 @@ export function useWebsites(options?: { enabled?: boolean }) {
 }
 
 export function useWebsitesLight(options?: { enabled?: boolean }) {
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	const query = useQuery({
 		...orpc.websites.list.queryOptions({
@@ -144,10 +138,7 @@ export function useWebsite(id: string) {
 
 export function useCreateWebsite() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	return useMutation({
 		...orpc.websites.create.mutationOptions(),
@@ -177,10 +168,7 @@ export const updateWebsiteCache = (
 
 export function useUpdateWebsite() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 	return useMutation({
 		...orpc.websites.update.mutationOptions(),
 		onSuccess: (data) => {
@@ -192,10 +180,7 @@ export function useUpdateWebsite() {
 
 export function useDeleteWebsite() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	return useMutation({
 		...orpc.websites.delete.mutationOptions(),

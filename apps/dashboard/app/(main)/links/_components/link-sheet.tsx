@@ -60,8 +60,7 @@ interface LinkSheetProps {
 
 function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 	const isEditing = !!link;
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
+	const { organizationId } = useOrganizationsContext();
 
 	const createLinkMutation = useCreateLink();
 	const updateLinkMutation = useUpdateLink();
@@ -170,8 +169,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 	}, [targetUrlValue]);
 
 	const handleSubmit: SubmitHandler<LinkFormData> = async (formData) => {
-		const resolvedOrganizationId =
-			activeOrganization?.id ?? activeOrganizationId ?? null;
+		const resolvedOrganizationId = organizationId;
 
 		const payload = buildLinkPayload({
 			formData,

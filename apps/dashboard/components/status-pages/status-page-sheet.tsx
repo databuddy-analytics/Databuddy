@@ -95,8 +95,7 @@ export function StatusPageSheet({
 	statusPage,
 }: StatusPageSheetProps) {
 	const isEditing = !!statusPage;
-	const { activeOrganizationId, activeOrganization } =
-		useOrganizationsContext();
+	const { organizationId } = useOrganizationsContext();
 
 	const form = useForm<StatusPageFormData>({
 		resolver: zodResolver(statusPageFormSchema),
@@ -132,8 +131,7 @@ export function StatusPageSheet({
 				});
 				toast.success("Status page updated successfully");
 			} else {
-				const resolvedOrganizationId =
-					activeOrganization?.id ?? activeOrganizationId ?? null;
+				const resolvedOrganizationId = organizationId;
 
 				if (!resolvedOrganizationId) {
 					toast.error("No active organization selected");

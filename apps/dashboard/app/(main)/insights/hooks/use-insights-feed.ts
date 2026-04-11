@@ -50,13 +50,8 @@ function mergeAiWithHistoryPages(
 
 export function useInsightsFeed() {
 	const queryClient = useQueryClient();
-	const {
-		activeOrganization,
-		activeOrganizationId,
-		isLoading: isOrgContextLoading,
-	} = useOrganizationsContext();
-
-	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId: orgId, isLoading: isOrgContextLoading } =
+		useOrganizationsContext();
 
 	const historyInfinite = useInfiniteQuery({
 		queryKey: [INSIGHT_QUERY_KEYS.historyInfinite, orgId],

@@ -46,10 +46,7 @@ export interface Monitor {
 export default function MonitorsPage() {
 	const { hasAccess, isLoading: isAccessLoading } =
 		useFeatureAccess("monitors");
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [showInviteDialog, setShowInviteDialog] = useState(false);
 	const [editingSchedule, setEditingSchedule] = useState<{

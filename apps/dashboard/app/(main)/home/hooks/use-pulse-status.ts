@@ -24,10 +24,7 @@ export interface PulseStatus {
 export function usePulseStatus() {
 	const { hasAccess, isLoading: isAccessLoading } =
 		useFeatureAccess("monitors");
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	const query = useQuery({
 		...orpc.uptime.listSchedules.queryOptions({

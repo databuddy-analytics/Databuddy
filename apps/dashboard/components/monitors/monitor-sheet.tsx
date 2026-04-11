@@ -96,8 +96,7 @@ export function MonitorSheet({
 }: MonitorSheetProps) {
 	const isEditing = !!schedule;
 	const { data: website } = useWebsite(websiteId || "");
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
+	const { organizationId } = useOrganizationsContext();
 	const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
 	const form = useForm<MonitorFormData>({
@@ -180,8 +179,7 @@ export function MonitorSheet({
 				});
 				toast.success("Monitor updated successfully");
 			} else {
-				const resolvedOrganizationId =
-					activeOrganization?.id ?? activeOrganizationId ?? null;
+				const resolvedOrganizationId = organizationId;
 				const result = await createMutation.mutateAsync({
 					...(resolvedOrganizationId
 						? { organizationId: resolvedOrganizationId }

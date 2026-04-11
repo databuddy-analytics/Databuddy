@@ -42,10 +42,7 @@ interface StepCreateWebsiteProps {
 }
 
 export function StepCreateWebsite({ onComplete }: StepCreateWebsiteProps) {
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 	const createWebsiteMutation = useCreateWebsite();
 
 	const form = useForm<FormData>({

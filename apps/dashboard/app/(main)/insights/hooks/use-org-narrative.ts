@@ -9,9 +9,7 @@ import {
 import type { TimeRange } from "../lib/time-range";
 
 export function useOrgNarrative(range: TimeRange) {
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId: orgId } = useOrganizationsContext();
 
 	return useQuery({
 		queryKey: [INSIGHT_QUERY_KEYS.orgNarrative, orgId, range],

@@ -102,10 +102,7 @@ function parseAlarms(rows: readonly Record<string, unknown>[]): Alarm[] {
 
 export default function NotificationsSettingsPage() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 	const [sheetOpen, setSheetOpen] = useState(false);
 	const [editingAlarm, setEditingAlarm] = useState<Alarm | null>(null);
 	const [deletingAlarm, setDeletingAlarm] = useState<Alarm | null>(null);

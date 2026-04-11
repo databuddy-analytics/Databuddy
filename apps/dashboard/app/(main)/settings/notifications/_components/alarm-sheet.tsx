@@ -141,9 +141,7 @@ export function AlarmSheet({
 	alarm,
 }: AlarmSheetProps) {
 	const isEditing = !!alarm;
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId = activeOrganization?.id ?? activeOrganizationId ?? null;
+	const { organizationId } = useOrganizationsContext();
 	const queryClient = useQueryClient();
 
 	const { data: websites } = useQuery({

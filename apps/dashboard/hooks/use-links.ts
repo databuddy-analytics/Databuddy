@@ -89,10 +89,7 @@ const removeLinkFromList = (
 };
 
 export function useLinks(options?: { enabled?: boolean }) {
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	const query = useQuery({
 		...orpc.links.list.queryOptions({
@@ -229,10 +226,7 @@ export function useLinkStats(linkId: string, dateRange: DateRange) {
 
 export function useCreateLink() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	return useMutation({
 		...orpc.links.create.mutationOptions(),
@@ -247,10 +241,7 @@ export function useCreateLink() {
 
 export function useUpdateLink() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	return useMutation({
 		...orpc.links.update.mutationOptions(),
@@ -267,10 +258,7 @@ export function useUpdateLink() {
 
 export function useDeleteLink() {
 	const queryClient = useQueryClient();
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	return useMutation({
 		...orpc.links.delete.mutationOptions(),

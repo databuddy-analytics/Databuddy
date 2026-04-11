@@ -5,10 +5,7 @@ import { useOrganizationsContext } from "@/components/providers/organizations-pr
 import { orpc } from "@/lib/orpc";
 
 export function useMonitorsLight(options?: { enabled?: boolean }) {
-	const { activeOrganization, activeOrganizationId } =
-		useOrganizationsContext();
-	const organizationId =
-		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const { organizationId } = useOrganizationsContext();
 
 	const query = useQuery({
 		...orpc.uptime.listSchedules.queryOptions({
