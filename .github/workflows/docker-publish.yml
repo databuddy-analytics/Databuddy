@@ -49,7 +49,7 @@ jobs:
             description: "Databuddy Uptime service - availability monitoring"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Mount Docker build cache
         uses: useblacksmith/stickydisk@v1
