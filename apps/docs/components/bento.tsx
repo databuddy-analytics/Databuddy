@@ -734,7 +734,7 @@ export default function Bento() {
 					className="h-full md:col-span-4 md:row-span-1"
 					contentClassName="pb-0"
 					description="Catch and fix bugs fast"
-					href="/web-vitals"
+					href="/errors"
 					icon={Bug}
 					title="Error Tracking"
 				>
