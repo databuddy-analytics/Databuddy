@@ -75,10 +75,10 @@ const BentoCard = ({
 				{href && (
 					<Link
 						aria-label={"Learn more about " + title}
-						className="z-30 flex size-10 shrink-0 items-center justify-center rounded border border-border bg-card text-muted-foreground shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-amber-500/50 hover:text-amber-500"
+						className="z-30 flex size-10 shrink-0 items-center justify-center rounded border border-border/50 bg-card text-muted-foreground shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-border hover:text-foreground"
 						href={href}
 					>
-						<ArrowRightIcon className="size-5" weight="duotone" />
+						<ArrowRightIcon className="size-5" weight="thin" />
 					</Link>
 				)}
 			</div>
@@ -734,7 +734,7 @@ export default function Bento() {
 					className="h-full md:col-span-4 md:row-span-1"
 					contentClassName="pb-0"
 					description="Catch and fix bugs fast"
-					href="/docs"
+					href="/web-vitals"
 					icon={Bug}
 					title="Error Tracking"
 				>
