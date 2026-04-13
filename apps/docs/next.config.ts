@@ -85,16 +85,6 @@ const config: NextConfig = {
 				destination: "/docs/:path*",
 				permanent: true,
 			},
-			{
-				source: "/error-tracking",
-				destination: "/docs/sdk/tracker",
-				permanent: false,
-			},
-			{
-				source: "/web-vitals",
-				destination: "/docs/performance/core-web-vitals-guide",
-				permanent: false,
-			},
 		];
 	},
 
