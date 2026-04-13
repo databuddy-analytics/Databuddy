@@ -217,7 +217,7 @@ export function UptimeRegionsHubDiagram() {
 // ---------------------------------------------------------------------------
 // UptimeAlertsStackVisual — focus-aware carousel
 // ---------------------------------------------------------------------------
-const ROW_H = 44;
+const ROW_H = 62;
 const GAP = 8;
 const STRIDE = ROW_H + GAP;
 const CYCLE_MS = 3200;
@@ -227,7 +227,7 @@ const ANIM_EASE = "cubic-bezier(0.16, 1, 0.3, 1)";
 const ALERT_ITEMS = [
 	{
 		kind: "down" as const,
-		text: "api.yoursite.com returned 503",
+		text: "api.acme.com returned 503",
 		time: "14:32 UTC",
 	},
 	{
@@ -242,7 +242,7 @@ const ALERT_ITEMS = [
 	},
 	{
 		kind: "down" as const,
-		text: "cdn.yoursite.com returned 503",
+		text: "cdn.acme.com returned 503",
 		time: "09:14 UTC",
 	},
 	{
@@ -252,12 +252,12 @@ const ALERT_ITEMS = [
 	},
 	{
 		kind: "up" as const,
-		text: "cdn.yoursite.com — back online",
+		text: "cdn.acme.com — back online",
 		time: "09:22 UTC",
 	},
 	{
 		kind: "down" as const,
-		text: "app.yoursite.com returned 503",
+		text: "app.acme.com returned 503",
 		time: "03:58 UTC",
 	},
 	{
@@ -267,7 +267,7 @@ const ALERT_ITEMS = [
 	},
 	{
 		kind: "up" as const,
-		text: "app.yoursite.com — back online",
+		text: "app.acme.com — back online",
 		time: "04:06 UTC",
 	},
 	{
