@@ -165,7 +165,7 @@ const FunnelsFeature = () => {
 							lastShapeType="rectangle"
 						>
 							<LabelList
-								className="fill-muted-foreground font-mono font-regular text-xs"
+								className="fill-muted-foreground font-mono font-normal text-xs"
 								dataKey="name"
 								offset={20}
 								position="right"
