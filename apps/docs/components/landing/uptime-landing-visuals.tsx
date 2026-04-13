@@ -4,84 +4,23 @@ import * as d3 from "d3";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as topojson from "topojson-client";
 
-const GHOST_CARD = "rounded border border-white/[0.04] p-4";
-
-// ---------------------------------------------------------------------------
-// UptimeAvailabilityLineVisual
-// ---------------------------------------------------------------------------
-export function UptimeAvailabilityLineVisual() {
-	return (
-		<div className="mx-auto mt-10 w-[80%] max-w-2xl">
-			<svg
-				aria-hidden
-				className="w-full"
-				preserveAspectRatio="xMidYMid meet"
-				role="img"
-				viewBox="0 0 400 56"
-			>
-				<title>Uptime timeline with a short outage segment</title>
-				<line
-					stroke="rgba(34, 197, 94, 0.4)"
-					strokeLinecap="round"
-					strokeWidth="1.5"
-					x1="8"
-					x2="168"
-					y1="28"
-					y2="28"
-				/>
-				<path
-					d="M 168 28 L 188 44 L 212 44 L 232 28"
-					fill="none"
-					stroke="rgba(239, 68, 68, 0.5)"
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					strokeWidth="1.5"
-				/>
-				<line
-					stroke="rgba(34, 197, 94, 0.4)"
-					strokeLinecap="round"
-					strokeWidth="1.5"
-					x1="232"
-					x2="392"
-					y1="28"
-					y2="28"
-				/>
-			</svg>
-			<p className="mt-2 text-center font-mono text-[10px] text-muted-foreground tabular-nums">
-				3m 42s
-			</p>
-		</div>
-	);
-}
-
 // ---------------------------------------------------------------------------
 // UptimeRegionsHubDiagram — animated D3 canvas world map with zone dithering
 // ---------------------------------------------------------------------------
 const ZONE_DEFS = [
-	{ color: "", ids: new Set([840, 124, 484, 304]) },
+	{ ids: new Set([840, 124, 484, 304]) },
+	{ ids: new Set([826, 372, 250, 724, 620, 380, 56, 528, 300, 196]) },
 	{
-		color: "#4ADE80",
-		ids: new Set([826, 372, 250, 724, 620, 380, 56, 528, 300, 196]),
-	},
-	{
-		color: "#C084FC",
 		ids: new Set([
 			276, 208, 752, 578, 246, 40, 756, 616, 203, 348, 642, 100, 440, 428, 233,
 			191,
 		]),
 	},
-	{
-		color: "#F5A623",
-		ids: new Set([392, 410, 408, 704, 764, 360, 608, 458, 702]),
-	},
-	{ color: "#818CF8", ids: new Set([356, 586, 50, 144, 524, 64]) },
-	{
-		color: "#22D3EE",
-		ids: new Set([76, 32, 152, 170, 604, 862, 68, 600, 858, 218, 328, 740]),
-	},
+	{ ids: new Set([392, 410, 408, 704, 764, 360, 608, 458, 702]) },
+	{ ids: new Set([356, 586, 50, 144, 524, 64]) },
+	{ ids: new Set([76, 32, 152, 170, 604, 862, 68, 600, 858, 218, 328, 740]) },
 ];
 
-// Bayer 4x4 ordered dithering matrix (values 0-15)
 const BAYER: number[][] = [
 	[0, 8, 2, 10],
 	[12, 4, 14, 6],
@@ -203,16 +142,13 @@ export function UptimeRegionsHubDiagram() {
 				rampUp: boolean;
 			}[];
 
-			// Staggered initial fires
 			// Sequential zone lighting — one at a time, cycling through the array
 			let seqIndex = 0;
-			// RAMP_MS + DECAY_MS must match the dt divisors below
 			const RAMP_MS = 700;
 			const DECAY_MS = 1800;
 
 			function fireNext() {
 				if (destroyed) return;
-				// Reset all zones, then light up the current one
 				for (const z of zones) {
 					z.brightness = 0;
 					z.rampUp = false;
@@ -223,7 +159,6 @@ export function UptimeRegionsHubDiagram() {
 					zone.rampUp = true;
 				}
 				seqIndex++;
-				// Wait for ramp + hold + decay before firing next
 				setTimeout(fireNext, RAMP_MS + 400 + DECAY_MS);
 			}
 			setTimeout(fireNext, 300);
@@ -236,7 +171,7 @@ export function UptimeRegionsHubDiagram() {
 				last = ts;
 
 				ctx.fillStyle = BG;
-				ctx.fillRect(G, G, logW, logH);
+				ctx.fillRect(0, 0, logW, logH);
 				ctx.drawImage(baseC, 0, 0);
 
 				for (const zone of zones) {
@@ -364,13 +299,13 @@ function rowStyles(pos: number): {
 	if (pos === 1)
 		return {
 			opacity: 0.42,
-			filter: "blur(0.6px)",
+			filter: "blur(2px)",
 			border: "border-white/[0.06]",
 			bg: "bg-white/[0.02]",
 		};
 	if (pos === 2)
 		return {
-			opacity: 0.16,
+			opacity: 0.6,
 			filter: "blur(2px)",
 			border: "border-transparent",
 			bg: "bg-transparent",
@@ -451,7 +386,7 @@ export function UptimeAlertsStackVisual() {
 					const s = rowStyles(pos);
 					return (
 						<div
-							className={`flex items-center justify-between gap-3 rounded border px-3 font-mono text-muted-foreground text-xs ${s.border} ${s.bg}`}
+							className={`flex items-center justify-between gap-4 rounded border px-3 font-mono text-muted-foreground text-sm ${s.border} ${s.bg}`}
 							// biome-ignore lint/suspicious/noArrayIndexKey: static list
 							key={i}
 							style={{
@@ -467,7 +402,7 @@ export function UptimeAlertsStackVisual() {
 								/>
 								{row.text}
 							</span>
-							<span className="shrink-0 text-[10px] tabular-nums opacity-70">
+							<span className="shrink-0 text-xs tabular-nums opacity-70">
 								{row.time}
 							</span>
 						</div>
@@ -648,105 +583,6 @@ export function UptimeIncidentTimelineVisual() {
 					</div>
 				</div>
 			))}
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// UptimeConnectedContextVisual
-// ---------------------------------------------------------------------------
-const CONTEXT_ROWS = [
-	{
-		time: "14:28",
-		label: "LCP degraded to 4.1s on /checkout",
-		tag: "Vitals",
-		tone: "green" as const,
-	},
-	{
-		time: "14:31",
-		label: "Error spike: 48 new TypeError events",
-		tag: "Errors",
-		tone: "red" as const,
-	},
-	{
-		time: "14:32",
-		label: "Site went down",
-		tag: "Uptime",
-		tone: "amber" as const,
-	},
-] as const;
-
-export function UptimeConnectedContextVisual() {
-	return (
-		<div className={`${GHOST_CARD} space-y-3`}>
-			{CONTEXT_ROWS.map((row) => (
-				<div
-					className="flex flex-col gap-1.5 border-white/[0.04] border-b pb-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-start sm:gap-3"
-					key={row.time}
-				>
-					<span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
-						{row.time}
-					</span>
-					<div className="min-w-0 flex-1 font-mono text-muted-foreground text-xs">
-						<span
-							className={`mr-2 inline-block rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ${
-								row.tone === "green"
-									? "bg-green-500/15 text-green-400/90"
-									: row.tone === "red"
-										? "bg-red-500/15 text-red-400/90"
-										: "bg-amber-500/15 text-amber-400/90"
-							}`}
-						>
-							{row.tag}
-						</span>
-						{row.label}
-					</div>
-				</div>
-			))}
-		</div>
-	);
-}
-
-// ---------------------------------------------------------------------------
-// UptimeVendorComparisonVisual
-// ---------------------------------------------------------------------------
-const OTHER_TOOLS = [
-	{ name: "Pingdom", price: "$10" },
-	{ name: "PagerDuty", price: "$21" },
-	{ name: "Statuspage", price: "$29" },
-	{ name: "UptimeRobot", price: "$7" },
-] as const;
-
-export function UptimeVendorComparisonVisual() {
-	return (
-		<div className={`${GHOST_CARD}`}>
-			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8">
-				<div>
-					<p className="mb-3 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-						Without Databuddy
-					</p>
-					<ul className="space-y-2">
-						{OTHER_TOOLS.map((t) => (
-							<li
-								className="flex justify-between gap-2 font-mono text-muted-foreground text-xs line-through opacity-70"
-								key={t.name}
-							>
-								<span>{t.name}</span>
-								<span className="tabular-nums">{t.price}</span>
-							</li>
-						))}
-					</ul>
-					<p className="mt-3 border-border border-t border-dashed pt-3 font-mono text-muted-foreground text-xs line-through opacity-70">
-						= $67/mo
-					</p>
-				</div>
-				<div className="flex flex-col justify-center border-border border-t border-dashed pt-4 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-8">
-					<p className="mb-2 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-						With Databuddy
-					</p>
-					<p className="font-mono text-green-500 text-xs">Included</p>
-				</div>
-			</div>
 		</div>
 	);
 }
