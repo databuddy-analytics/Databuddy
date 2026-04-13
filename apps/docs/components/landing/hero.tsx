@@ -1,11 +1,12 @@
 "use client";
 
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { GithubNavMark } from "../github-nav-mark";
+import { Button } from "../ui/button";
 import { Gradient } from "./gradient";
-import { GridBackground } from "./grid-background";
 
 const tabs = [
 	{ id: "overview", label: "Overview", path: "" },
@@ -26,7 +27,7 @@ type FullscreenElement = HTMLIFrameElement & {
 
 export default function Hero({
 	demoEmbedBaseUrl,
-	stars,
+	stars: _stars,
 }: {
 	demoEmbedBaseUrl: string;
 	stars?: number | null;
@@ -81,221 +82,147 @@ export default function Hero({
 	};
 
 	return (
-		<section className="relative flex w-full flex-col items-center overflow-hidden">
-			{/* <Spotlight transform="translateX(-60%) translateY(-50%)" /> */}
-			<Gradient />
-			<GridBackground />
-			<div className="pointer-events-none absolute top-1/2 right-[-10%] z-0 h-[60%] w-auto -translate-y-1/2">
-				<img
-					alt=""
-					aria-hidden
-					className="h-full w-auto select-none"
-					src="/brand/bunny/black.svg"
-				/>
-				<div
-					className="absolute inset-0"
-					style={{
-						background:
-							"linear-gradient(to bottom, transparent 50%, var(--background) 100%)",
-					}}
-				/>
+		<section className="relative flex w-full flex-col items-center overflow-visible">
+			{/*
+				Absolute (not fixed): only fills this hero; scrolls away with the section.
+				Negative top pulls into the nav spacer so color can read behind the transparent navbar.
+				Do not put z-index on this <section> — it can break stacking vs the gradient.
+			*/}
+			<div
+				aria-hidden
+				className="pointer-events-none absolute inset-x-0 top-[calc(-4rem-env(safe-area-inset-top,0px))] bottom-0 z-0 w-full sm:left-1/2 sm:w-[min(132vw,2400px)] sm:max-w-none sm:-translate-x-1/2 lg:inset-x-0 lg:w-full lg:translate-x-0"
+			>
+				<Gradient />
 			</div>
 
-			<div className="relative z-10 mx-auto w-full max-w-7xl px-4 pt-40 pb-8 sm:px-6 sm:pt-48 lg:px-8 lg:pt-58">
-				<div className="flex flex-col items-start space-y-8">
-					<h1 className="text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+			<div className="relative z-10 mx-auto w-full max-w-7xl px-4 pt-28 pb-6 sm:px-6 sm:pt-32 lg:px-8 lg:pt-36">
+				<div className="flex flex-col items-start space-y-5 sm:space-y-6">
+					<h1 className="text-balance font-bold text-5xl leading-[1.1] tracking-tight sm:text-6xl md:text-7xl lg:text-7xl">
 						Analytics that runs itself
 					</h1>
-					{/* <h1 className="text-balance font-bold text-4xl leading-[1.1] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
-						Privacy-first analytics.{" "}
-						<span className="text-muted-foreground">
-							One script,{" "}
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<button
-										className="cursor-help border-0 bg-transparent p-0 font-inherit text-inherit underline decoration-muted-foreground/70 decoration-dotted underline-offset-[0.15em] hover:decoration-foreground/60"
-										type="button"
-									>
-										no cookies,
-									</button>
-								</TooltipTrigger>
-								<TooltipContent
-									className="max-w-72 text-pretty text-left text-xs leading-relaxed sm:max-w-sm"
-									side="bottom"
-									sideOffset={8}
-								>
-									<span className="block">
-										Cookieless by design. No fingerprints, no consent banner.
-										B2B research on 1.2M+ interactions found 68.9% of cookie
-										banners closed or ignored.{" "}
-										<a
-											className="font-medium underline underline-offset-2 hover:text-primary-foreground/90"
-											href="https://www.advance-metrics.com/en/blog/cookie-behaviour-study/"
-											rel="noopener noreferrer"
-											target="_blank"
-										>
-											Advance Metrics
-										</a>
-									</span>
-								</TooltipContent>
-							</Tooltip>
-							no consent banners.
-						</span>
-					</h1> */}
 
-					<p className="max-w-3xl text-pretty font-normal text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
+					<p className="max-w-3xl text-pretty font-normal text-base text-foreground leading-relaxed sm:text-base lg:text-lg">
 						Databuddy gives developers a single script to track web analytics,
 						catch errors, and ship features.{" "}
-						{/* <Link
-							className="text-foreground"
-							href="https://github.com/databuddy-analytics/databuddy"
-							rel="noopener noreferrer"
-							target="_blank"
-						>
-							Open source
-						</Link>
-						{' '}and autonomous. */}
 					</p>
 
-					{/* <p className="max-w-2xl text-pretty text-muted-foreground text-xs leading-relaxed sm:text-sm">
-						<a
-							className="underline underline-offset-2 hover:text-foreground"
-							href="https://www.advance-metrics.com/en/blog/cookie-behaviour-study/"
-							rel="noopener noreferrer"
-							target="_blank"
+					<div className="flex items-center gap-3">
+						<Button asChild className="px-6 py-5 text-base sm:px-8">
+							<Link href="https://app.databuddy.cc/login">Start Free</Link>
+						</Button>
+						<Button
+							asChild
+							className="px-6 py-5 text-base sm:px-8"
+							variant="secondary"
 						>
-							Advance Metrics
-						</a>{" "}
-						on real-world banner behavior.{" "}
-						<Link
-							className="underline underline-offset-2 hover:text-foreground"
-							href="/calculator"
-						>
-							Model the opportunity cost
-						</Link>{" "}
-						for your traffic.
-					</p> */}
-
-					<div className="flex items-center gap-5">
-						<a
-							className="inline-flex items-center rounded bg-primary px-6 py-2.5 font-medium text-base text-primary-foreground transition-opacity hover:opacity-90 sm:px-8"
-							href="https://app.databuddy.cc/login"
-						>
-							Start free
-						</a>
-						<a
-							className="flex items-center gap-2 leading-none"
-							href="https://github.com/databuddy-analytics/Databuddy"
-							rel="noopener noreferrer"
-							target="_blank"
-						>
-							<GithubNavMark className="text-xl transition-transform duration-200 hover:scale-110" />
-							{typeof stars === "number" && (
-								<span className="translate-y-px">
-									{stars.toLocaleString()} ★
-								</span>
-							)}
-						</a>
-						{/* <SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
-							<Link href="/demo">Live demo</Link>
-						</SciFiButton> */}
+							<Link href="/demo">Live Demo</Link>
+						</Button>
 					</div>
-
-					{/* <p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
-						<span>Used by 400+ teams</span>
-						<span className="text-border">·</span>
-						{stars ? (
-							<>
-								<span>{formatLocaleNumber(stars)} GitHub stars</span>
-								<span className="text-border">·</span>
-							</>
-						) : null}
-						<span>Open source</span>
-					</p> */}
 				</div>
 
-				<div className="mt-8 space-y-8">
-					<div className="flex justify-center">
-						<div className="relative flex items-center gap-0 border-border border-b">
-							{tabs.map((tab) => {
-								const isActive = activeTab === tab.id;
-								return (
-									<button
-										className={cn(
-											"relative cursor-pointer px-4 py-3 font-medium text-sm transition-colors duration-200 sm:px-6 sm:py-3.5 sm:text-base",
-											isActive
-												? "text-foreground"
-												: "text-muted-foreground hover:text-foreground"
-										)}
-										key={tab.id}
-										onClick={() => selectTab(tab.id)}
-										type="button"
-									>
-										{tab.label}
-										{isActive ? (
-											<div className="absolute right-0 bottom-0 left-0 h-0.5 bg-foreground" />
-										) : null}
-									</button>
-								);
-							})}
-						</div>
-					</div>
-
-					<div className="group relative rounded border border-border/50 bg-card/30 p-1.5 shadow-2xl backdrop-blur-sm sm:p-2">
-						<div className="relative min-h-[400px] overflow-hidden rounded bg-muted sm:min-h-[500px] lg:min-h-[600px]">
-							{tabs.map((tab) => {
-								const isActive = activeTab === tab.id;
-								const src = loadedTabIds.has(tab.id)
-									? `${demoEmbedBaseUrl}${tab.path}?embed=true`
-									: "about:blank";
-								return (
-									<iframe
-										allowFullScreen
-										aria-hidden={!isActive}
-										className={cn(
-											"h-[400px] w-full rounded border-0 bg-muted shadow-inner sm:h-[500px] lg:h-[600px]",
-											isActive
-												? "relative z-10"
-												: "pointer-events-none absolute inset-0 z-0 opacity-0"
-										)}
-										key={tab.id}
-										onLoad={(e) => {
-											const url = e.currentTarget.src;
-											if (url.includes("embed=true")) {
-												markEmbedReady(tab.id);
-											}
-										}}
-										ref={(el) => {
-											iframeRefs.current[tab.id] = el;
-										}}
-										src={src}
-										tabIndex={isActive ? 0 : -1}
-										title={`Databuddy ${tab.label} Demo`}
-									/>
-								);
-							})}
-							<div
-								aria-hidden
-								className={cn(
-									"pointer-events-none absolute inset-0 z-20 rounded bg-muted transition-opacity duration-200",
-									loadedTabIds.has(activeTab) && !embedReady.has(activeTab)
-										? "opacity-100"
-										: "opacity-0"
-								)}
+				<div className="mt-8 w-full sm:mt-10">
+					<div className="group relative overflow-visible">
+						<div
+							aria-hidden
+							className="pointer-events-none absolute right-200 bottom-full z-30 translate-y-8.5 sm:right-2 sm:translate-y-11 md:right-8 md:translate-y-11"
+						>
+							<Image
+								alt=""
+								className="h-22 w-auto select-none drop-shadow-sm sm:h-26 lg:h-30"
+								height={220}
+								priority={false}
+								src="/brand/bunny/off-black.svg"
+								unoptimized
+								width={220}
 							/>
 						</div>
-
-						<button
-							aria-label="Open demo in fullscreen"
-							className="absolute inset-1.5 flex items-center justify-center rounded bg-background/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:inset-2"
-							onClick={handleFullscreen}
-							type="button"
-						>
-							<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-200 hover:bg-card">
-								<ArrowsOutSimpleIcon className="size-4" weight="fill" />
-								<span>Click to view fullscreen</span>
+						<div className="flex justify-center overflow-x-auto">
+							<div
+								className="inline-flex max-w-full items-end rounded-t border border-border/50 bg-muted backdrop-blur-sm"
+								role="tablist"
+							>
+								{tabs.map((tab) => {
+									const isActive = activeTab === tab.id;
+									return (
+										<button
+											aria-selected={isActive}
+											className={cn(
+												"relative shrink-0 cursor-pointer px-3 py-2 font-medium text-xs transition-colors duration-200 sm:px-4 sm:py-2.5 sm:text-sm",
+												isActive
+													? "text-foreground"
+													: "text-muted-foreground hover:text-foreground"
+											)}
+											key={tab.id}
+											onClick={() => selectTab(tab.id)}
+											role="tab"
+											type="button"
+										>
+											{tab.label}
+											{isActive ? (
+												<div className="absolute right-2 bottom-0 left-2 h-px rounded bg-foreground sm:right-3 sm:left-3" />
+											) : null}
+										</button>
+									);
+								})}
 							</div>
-						</button>
+						</div>
+
+						<div className="relative px-1.5 pt-0 pb-1.5 sm:px-2 sm:pb-2">
+							<div className="relative min-h-[360px] overflow-hidden rounded bg-muted sm:min-h-[460px] lg:min-h-[540px]">
+								{tabs.map((tab) => {
+									const isActive = activeTab === tab.id;
+									const src = loadedTabIds.has(tab.id)
+										? `${demoEmbedBaseUrl}${tab.path}?embed=true`
+										: "about:blank";
+									return (
+										<iframe
+											allowFullScreen
+											aria-hidden={!isActive}
+											className={cn(
+												"h-[360px] w-full rounded border-0 bg-muted shadow-inner sm:h-[460px] lg:h-[540px]",
+												isActive
+													? "relative z-10"
+													: "pointer-events-none absolute inset-0 z-0 opacity-0"
+											)}
+											key={tab.id}
+											onLoad={(e) => {
+												const url = e.currentTarget.src;
+												if (url.includes("embed=true")) {
+													markEmbedReady(tab.id);
+												}
+											}}
+											ref={(el) => {
+												iframeRefs.current[tab.id] = el;
+											}}
+											src={src}
+											tabIndex={isActive ? 0 : -1}
+											title={`Databuddy ${tab.label} Demo`}
+										/>
+									);
+								})}
+								<div
+									aria-hidden
+									className={cn(
+										"pointer-events-none absolute inset-0 z-20 rounded bg-muted transition-opacity duration-200",
+										loadedTabIds.has(activeTab) && !embedReady.has(activeTab)
+											? "opacity-100"
+											: "opacity-0"
+									)}
+								/>
+							</div>
+
+							<button
+								aria-label="Open demo in fullscreen"
+								className="absolute inset-1.5 flex items-center justify-center rounded bg-background/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:inset-2"
+								onClick={handleFullscreen}
+								type="button"
+							>
+								<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-200 hover:bg-card">
+									<ArrowsOutSimpleIcon className="size-4" weight="fill" />
+									<span>Click to view fullscreen</span>
+								</div>
+							</button>
+						</div>
 					</div>
 				</div>
 			</div>
