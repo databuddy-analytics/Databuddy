@@ -2,6 +2,16 @@
 
 import { useEffect, useId, useRef } from "react";
 
+function hexToRgba(hex: string, alpha: number): string {
+	const h = hex.replace("#", "");
+	const r = Number.parseInt(h.slice(0, 2), 16);
+	const g = Number.parseInt(h.slice(2, 4), 16);
+	const b = Number.parseInt(h.slice(4, 6), 16);
+	if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b))
+		return `rgba(0,0,0,${alpha})`;
+	return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function readVar(name: string, fallback: string) {
 	if (typeof document === "undefined") {
 		return fallback;
@@ -111,11 +121,13 @@ export function Gradient() {
 			ctx.scale(dpr, dpr);
 			ctx.clearRect(0, 0, w, h);
 
+			const bg = readVar("--background", "#19191D");
+			const bgTransparent = hexToRgba(bg, 0);
 			const amber = readVar("--brand-amber", "#E3A514");
-			const orange = "#D66736";
+			const orange = readVar("--brand-orange", "#D66736");
 			const coral = readVar("--brand-coral", "#B74677");
 			const purple = readVar("--brand-purple", "#453C7C");
-			const blue = "#152E7F";
+			const blue = readVar("--brand-blue", "#152E7F");
 
 			/*
 			 * Softer flowing S: handles inset from the viewport edges so the arc bends
@@ -123,10 +135,10 @@ export function Gradient() {
 			 * p2 sets the incoming tangent at p3 (top-right): lower x / higher y = sharper
 			 * final hook into the corner (vector p3 − p2 is longer and more “up”).
 			 */
-			const p0: Point = { x: 0, y: h * 0.97 };
-			const p1: Point = { x: w * 0.35, y: h * 0.22 };
-			const p2: Point = { x: w * 0.72, y: h * 0.9 };
-			const p3: Point = { x: w * 0.92, y: 0 };
+			const p0: Point = { x: 0, y: h * 0.9 };
+			const p1: Point = { x: w * 0.55, y: h * 0.32 };
+			const p2: Point = { x: w * 0.82, y: h * 0.9 };
+			const p3: Point = { x: w * 0.89, y: 0 };
 
 			/* t=0 at BL (thick) → t=1 at TR (thin): band width tapers along the swoop */
 			const m = Math.min(w, h);
@@ -157,14 +169,14 @@ export function Gradient() {
 					mid.x + wMid * navg.x,
 					mid.y + wMid * navg.y
 				);
-				g.addColorStop(0, "rgba(28, 28, 36, 0)");
-				g.addColorStop(0.04, amber); // yellow
-				g.addColorStop(0.22, orange); // orange
-				g.addColorStop(0.4, coral); // pink
-				g.addColorStop(0.62, purple); // purple
-				g.addColorStop(0.82, blue); // blue
-				g.addColorStop(0.96, "#0A1040");
-				g.addColorStop(1, "rgba(28, 28, 36, 0)");
+				g.addColorStop(0, bgTransparent);
+				g.addColorStop(0.04, amber);
+				g.addColorStop(0.22, orange);
+				g.addColorStop(0.4, coral);
+				g.addColorStop(0.62, purple);
+				g.addColorStop(0.82, blue);
+				g.addColorStop(0.96, bg);
+				g.addColorStop(1, bgTransparent);
 
 				ctx.beginPath();
 				ctx.moveTo(pa.x - w0 * na.x, pa.y - w0 * na.y);
@@ -194,11 +206,11 @@ export function Gradient() {
 			className="pointer-events-none absolute inset-0 overflow-hidden"
 			ref={containerRef}
 		>
-			<div className="absolute inset-0 bg-[#1c1c24]" />
+			<div className="absolute inset-0 bg-background" />
 
 			<div className="absolute inset-0 origin-center scale-[1.2]">
 				<canvas
-					className="block size-full blur-[10px] sm:blur-[12px]"
+					className="block size-full blur-[10px] sm:blur-[16px]"
 					ref={canvasRef}
 				/>
 			</div>
@@ -230,7 +242,7 @@ export function Gradient() {
 				className="absolute inset-0"
 				style={{
 					background:
-						"linear-gradient(to bottom, transparent 0%, transparent 34%, #1c1c24 100%)",
+						"linear-gradient(to bottom, transparent 0%, transparent 34%, var(--background) 100%)",
 				}}
 			/>
 		</div>
