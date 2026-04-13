@@ -23,7 +23,7 @@ interface FaqSectionProps {
 
 export function FaqSection({
 	eyebrow,
-	title = "Frequently asked questions",
+	title = "Frequently asked questions.",
 	subtitle,
 	items,
 	className,
