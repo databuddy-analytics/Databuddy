@@ -58,7 +58,7 @@ export function NewsletterForm() {
 		<div className="space-y-2">
 			<form className="flex gap-2" onSubmit={handleSubmit}>
 				<input
-					className="h-9 w-full min-w-0 rounded border border-border bg-background px-3 text-foreground text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary sm:w-56"
+					className="w-full min-w-0 self-stretch rounded border border-border bg-background px-3 text-foreground text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
 					disabled={status === "loading"}
 					placeholder="you@company.com"
 					ref={inputRef}
@@ -67,7 +67,7 @@ export function NewsletterForm() {
 				/>
 				<button
 					aria-label="Subscribe to newsletter"
-					className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded bg-primary px-3 font-medium text-primary-foreground text-sm transition-opacity hover:opacity-90 disabled:opacity-50"
+					className="inline-flex size-9 shrink-0 items-center justify-center rounded bg-primary font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
 					disabled={status === "loading"}
 					type="submit"
 				>
