@@ -122,7 +122,7 @@ export default function Hero({
 					<div className="group relative overflow-visible">
 						<div
 							aria-hidden
-							className="pointer-events-none absolute right-200 bottom-full z-30 translate-y-8.5 sm:right-2 sm:translate-y-11 md:right-8 md:translate-y-11"
+							className="pointer-events-none absolute bottom-full z-30 translate-y-8.5 sm:right-2 sm:translate-y-11 md:right-8 md:translate-y-11"
 						>
 							<Image
 								alt=""
