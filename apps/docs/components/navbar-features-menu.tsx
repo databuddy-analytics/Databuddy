@@ -156,19 +156,16 @@ export function NavbarFeaturesMenu({
 						</Link>
 					))}
 					<div className="mt-1 border-border/50 border-t px-1 pt-1">
-						<button
+						<Link
 							className="flex w-full items-center gap-2 rounded px-3 py-2 transition-colors hover:bg-muted/50"
-							onClick={() => {
-								router.push("/changelog");
-								handleItemClick();
-							}}
+							href={"/changelog"}
 							role="menuitem"
 							type="button"
 						>
 							<span className="text-sm" style={{ color: "var(--brand-amber)" }}>
 								Changelog
 							</span>
-						</button>
+						</Link>
 					</div>
 				</div>
 			</div>
