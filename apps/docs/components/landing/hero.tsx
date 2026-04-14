@@ -27,10 +27,8 @@ type FullscreenElement = HTMLIFrameElement & {
 
 export default function Hero({
 	demoEmbedBaseUrl,
-	stars: _stars,
 }: {
 	demoEmbedBaseUrl: string;
-	stars?: number | null;
 }) {
 	const [activeTab, setActiveTab] = useState<string>(tabs[0].id);
 	const [loadedTabIds, setLoadedTabIds] = useState<Set<string>>(
