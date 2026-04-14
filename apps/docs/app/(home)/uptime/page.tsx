@@ -49,12 +49,12 @@ const FAQ_ITEMS = [
 			"No. Alerts only fire when status actually changes — from up to down, or down to up. You won't get repeated notifications during intermittent issues, just one clear signal when something needs attention.",
 	},
 	{
-		question: "Can I create a public status page?",
+		question: "What kind of services can I monitor?",
 		answer:
 			"Any public website, API, or web service. You can also parse JSON health endpoints to monitor specific fields — useful for services that report their own status.",
 	},
 	{
-		question: "Will it integrate with my existing alerts?",
+		question: "Is uptime monitoring included in all plans?",
 		answer:
 			"Uptime monitoring is available on every paid plan. The number of monitors and how frequently they run depends on your tier — check the pricing page for the full breakdown.",
 	},
