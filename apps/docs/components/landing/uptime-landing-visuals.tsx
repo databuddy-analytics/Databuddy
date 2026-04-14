@@ -1,8 +1,9 @@
 "use client";
 
-import * as d3 from "d3";
+import { type GeoPermissibleObjects, geoNaturalEarth1, geoPath } from "d3-geo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as topojson from "topojson-client";
+import worldTopo from "world-atlas/countries-110m.json";
 
 // ---------------------------------------------------------------------------
 // UptimeRegionsHubDiagram — animated D3 canvas world map with zone dithering
@@ -27,19 +28,6 @@ const BAYER: number[][] = [
 	[3, 11, 1, 9],
 	[15, 7, 13, 5],
 ];
-
-// biome-ignore lint/suspicious/noExplicitAny: topojson types
-let _topoCache: any = null;
-
-// biome-ignore lint/suspicious/noExplicitAny: topojson types
-async function getWorldTopo(): Promise<any> {
-	if (_topoCache) return _topoCache;
-	const res = await fetch(
-		"https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
-	);
-	_topoCache = await res.json();
-	return _topoCache;
-}
 
 export function UptimeRegionsHubDiagram() {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -66,26 +54,22 @@ export function UptimeRegionsHubDiagram() {
 			const BORDER = rootStyle.getPropertyValue("--border").trim() || "#33333B";
 			const FG = rootStyle.getPropertyValue("--foreground").trim() || "#E7E8EB";
 
-			const projection = d3.geoNaturalEarth1().fitExtent(
+			const projection = geoNaturalEarth1().fitExtent(
 				[
 					[-100, -50],
 					[logW + 100, logH + 50],
 				],
-				{ type: "Sphere" } as d3.GeoPermissibleObjects
+				{ type: "Sphere" } as GeoPermissibleObjects
 			);
 
-			// biome-ignore lint/suspicious/noExplicitAny: topojson types
-			let topo: any;
-			try {
-				topo = await getWorldTopo();
-			} catch {
-				return;
-			}
 			if (destroyed) return;
 
 			// biome-ignore lint/suspicious/noExplicitAny: topojson types
 			const features = (
-				topojson.feature(topo, topo.objects.countries as any) as any
+				topojson.feature(
+					worldTopo as any,
+					(worldTopo as any).objects.countries
+				) as any
 			).features;
 
 			// Base map — drawn once onto an offscreen canvas
@@ -94,7 +78,7 @@ export function UptimeRegionsHubDiagram() {
 			baseC.height = logH;
 			const bx = baseC.getContext("2d");
 			if (!bx) return;
-			const bPath = d3.geoPath(projection, bx);
+			const bPath = geoPath(projection, bx);
 			bx.fillStyle = BG;
 			bx.fillRect(0, 0, logW, logH);
 			for (const f of features) {
@@ -115,7 +99,7 @@ export function UptimeRegionsHubDiagram() {
 				off.height = logH;
 				const ox = off.getContext("2d");
 				if (!ox) return null;
-				const oPath = d3.geoPath(projection, ox);
+				const oPath = geoPath(projection, ox);
 				for (const f of features) {
 					if (def.ids.has(+(f.id ?? -1))) {
 						ox.beginPath();
