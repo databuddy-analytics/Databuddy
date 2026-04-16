@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { PlusIcon } from '@phosphor-icons/react';
-import * as AccordionPrimitive from '@radix-ui/react-accordion';
-import { motion } from 'motion/react';
-import type * as React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { PlusIcon } from "@phosphor-icons/react";
+import * as AccordionPrimitive from "@radix-ui/react-accordion";
+import { motion } from "motion/react";
+import type * as React from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 function Accordion({
 	...props
@@ -20,7 +20,7 @@ function AccordionItem({
 }: React.ComponentProps<typeof AccordionPrimitive.Item>) {
 	return (
 		<AccordionPrimitive.Item
-			className={cn('border-t last:border-b-0', className)}
+			className={cn("border-t last:border-b-0", className)}
 			data-slot="accordion-item"
 			{...props}
 		/>
@@ -42,18 +42,18 @@ function AccordionTrigger({
 		}
 
 		const observer = new MutationObserver(() => {
-			const dataState = trigger.getAttribute('data-state');
-			setIsOpen(dataState === 'open');
+			const dataState = trigger.getAttribute("data-state");
+			setIsOpen(dataState === "open");
 		});
 
 		observer.observe(trigger, {
 			attributes: true,
-			attributeFilter: ['data-state'],
+			attributeFilter: ["data-state"],
 		});
 
 		// Initial check
-		const dataState = trigger.getAttribute('data-state');
-		setIsOpen(dataState === 'open');
+		const dataState = trigger.getAttribute("data-state");
+		setIsOpen(dataState === "open");
 
 		return () => observer.disconnect();
 	}, []);
@@ -62,7 +62,7 @@ function AccordionTrigger({
 		<AccordionPrimitive.Header className="flex">
 			<AccordionPrimitive.Trigger
 				className={cn(
-					'flex flex-1 items-start justify-between gap-4 rounded py-4 text-left font-medium text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180',
+					"flex flex-1 items-start justify-between gap-4 rounded py-4 text-left font-medium text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180",
 					className
 				)}
 				data-slot="accordion-trigger"
@@ -102,9 +102,9 @@ function AccordionContent({
 			data-slot="accordion-content"
 			{...props}
 		>
-			<div className={cn('pt-0 pb-4', className)}>{children}</div>
+			<div className={cn("pt-0 pb-4", className)}>{children}</div>
 		</AccordionPrimitive.Content>
 	);
 }
 
-export { Accordion, AccordionItem, AccordionTrigger, AccordionContent };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger };

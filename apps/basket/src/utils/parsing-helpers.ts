@@ -99,16 +99,6 @@ export function parseProperties(properties: unknown): string {
 	return properties ? JSON.stringify(properties) : "{}";
 }
 
-export interface BotCheckResult {
-	isBot: boolean;
-	response?: {
-		status: string;
-		message: string;
-		eventType: string;
-		error?: string;
-	};
-}
-
 /**
  * Parses and sanitizes event ID, generates UUID if missing
  */

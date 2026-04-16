@@ -1,15 +1,13 @@
 "use client";
 
-import {
-	ArrowCounterClockwiseIcon,
-	ArrowsClockwiseIcon,
-	CheckCircleIcon,
-	CircleNotchIcon,
-	XIcon as CloseIcon,
-	ImageIcon,
-	VideoIcon,
-	WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { XIcon as CloseIcon } from "@phosphor-icons/react";
+import { ImageIcon } from "@phosphor-icons/react";
+import { VideoIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,9 +22,9 @@ import {
 } from "./use-og-metadata";
 
 export interface OgData {
-	ogTitle: string;
 	ogDescription: string;
 	ogImageUrl: string;
+	ogTitle: string;
 	ogVideoUrl: string;
 }
 
@@ -34,11 +32,11 @@ const TITLE_MAX = 120;
 const DESCRIPTION_MAX = 240;
 
 interface OgPreviewProps {
-	targetUrl: string;
-	value: OgData;
 	onChange: (data: OgData) => void;
-	useCustomOg: boolean;
 	onUseCustomOgChange: (useCustom: boolean) => void;
+	targetUrl: string;
+	useCustomOg: boolean;
+	value: OgData;
 }
 
 export function OgPreview({

@@ -1,15 +1,13 @@
 "use client";
 
 import type { Icon } from "@phosphor-icons/react";
-import {
-	CheckIcon,
-	CircleNotchIcon,
-	EyeIcon,
-	MouseMiddleClickIcon,
-	PencilSimpleIcon,
-	TargetIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { MouseMiddleClickIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TargetIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -23,25 +21,25 @@ import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 
 interface GoalPreviewData {
-	name: string;
 	description?: string | null;
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
 	ignoreHistoricData?: boolean;
+	name: string;
+	target: string;
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
 export interface GoalPreviewProps extends BaseComponentProps {
-	mode: "create" | "update" | "delete";
 	goal: GoalPreviewData;
+	mode: "create" | "update" | "delete";
 }
 
 interface ModeConfig {
-	title: string;
+	accent: string;
+	ButtonIcon: Icon;
 	confirmLabel: string;
 	confirmMessage: string;
-	accent: string;
+	title: string;
 	variant: "default" | "destructive";
-	ButtonIcon: Icon;
 }
 
 const MODE_CONFIG: Record<string, ModeConfig> = {
@@ -101,7 +99,7 @@ export function GoalPreviewRenderer({
 		isActive: true,
 		createdAt: new Date(),
 		updatedAt: new Date(),
-		createdBy: null,
+		createdBy: "",
 		deletedAt: null,
 	};
 

@@ -1,22 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { countEvents, findEvent, hasEvent } from "./test-utils";
+import { countEvents, expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Edge Cases", () => {
-	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/*", async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ success: true }),
-				headers: { "Access-Control-Allow-Origin": "*" },
-			});
-		});
-	});
 
 	test.describe("URL-based ID Override", () => {
 		test("uses anonId from URL query param", async ({ page }) => {
@@ -262,14 +246,19 @@ test.describe("Edge Cases", () => {
 			page,
 		}) => {
 			let pixelRequestMade = false;
+			let pixelRequestPath: string | null = null;
 
-			// Pixel transport uses GET Image loads to /px.jpg, /batch, /track, etc.
 			await page.route("**/basket.databuddy.cc/*", async (route) => {
 				if (route.request().method() !== "GET") {
 					await route.fallback();
 					return;
 				}
 				pixelRequestMade = true;
+				try {
+					pixelRequestPath = new URL(route.request().url()).pathname;
+				} catch {
+					/* best-effort */
+				}
 				await route.fulfill({
 					status: 200,
 					contentType: "image/jpeg",
@@ -290,6 +279,7 @@ test.describe("Edge Cases", () => {
 
 			await page.waitForTimeout(500);
 			expect(pixelRequestMade).toBe(true);
+			expect(pixelRequestPath).toBe("/px.jpg");
 		});
 	});
 

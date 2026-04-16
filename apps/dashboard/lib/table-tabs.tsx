@@ -1,28 +1,26 @@
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { PercentageBadge } from "@/app/(main)/websites/[id]/_components/utils/technology-helpers";
+import { formatNumber } from "@/lib/formatters";
 
-// Generic data item that all tab data should extend
 export interface BaseTabItem {
-	visitors: number;
 	pageviews?: number;
-	visits?: number;
 	percentage?: number;
+	visitors: number;
+	visits?: number;
 	[key: string]: any;
 }
 
-// Configuration for a single tab
 export interface TabConfig<T extends BaseTabItem> {
+	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
+	data: T[];
+	getFilter?: (row: T) => { field: string; value: string };
 	id: string;
 	label: string;
-	data: T[];
 	primaryField: keyof T;
 	primaryHeader: string;
-	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
-	getFilter?: (row: T) => { field: string; value: string };
 }
 
-// Generic function to add percentages to data
 export function addPercentages<T extends BaseTabItem>(data: T[]): T[] {
 	if (!data?.length) {
 		return [];
@@ -40,18 +38,6 @@ export function addPercentages<T extends BaseTabItem>(data: T[]): T[] {
 	}));
 }
 
-// Utility for compact number formatting
-const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
-
-// Generic function to create columns for any tab data
 export function createTabColumns<T extends BaseTabItem>(
 	primaryField: string,
 	primaryHeader: string,
@@ -97,17 +83,15 @@ export function createTabColumns<T extends BaseTabItem>(
 	];
 }
 
-// Simplified type for tab configuration
 export interface SimpleTabConfig<T extends BaseTabItem> {
+	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
 	data: T[];
+	getFilter?: (row: T) => { field: string; value: string };
 	label: string;
 	primaryField: string;
 	primaryHeader: string;
-	customCell?: (info: CellContext<T, unknown>) => React.ReactNode;
-	getFilter?: (row: T) => { field: string; value: string };
 }
 
-// Hook to create tabs from simple data configuration
 export function useTableTabs(tabsData: Record<string, SimpleTabConfig<any>>) {
 	return useMemo(
 		() =>

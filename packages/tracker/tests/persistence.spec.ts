@@ -1,19 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./test-utils";
 
 test.describe("Persistence", () => {
-	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/*", async (route) => {
-			await route.fulfill({
-				status: 200,
-				body: JSON.stringify({ success: true }),
-			});
-		});
-	});
 
 	test("persists anonymousId across reloads", async ({ page }) => {
 		await page.goto("/test");

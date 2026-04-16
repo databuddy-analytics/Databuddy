@@ -47,53 +47,22 @@ process.on("uncaughtException", (error) => {
 	});
 });
 
-process.on("SIGTERM", async () => {
-	log.info("lifecycle", "SIGTERM received, shutting down gracefully");
-	await flushBatchedAxiomDrain().catch((error) =>
+async function gracefulShutdown(signal: string) {
+	log.info("lifecycle", `${signal} received, shutting down gracefully`);
+	const logErr = (lifecycle: string) => (error: unknown) =>
 		log.error({
-			lifecycle: "drainFlush",
+			lifecycle,
 			error_message: error instanceof Error ? error.message : String(error),
-		})
-	);
-	await runPromise(disconnect).catch((error) =>
-		log.error({
-			lifecycle: "shutdown",
-			error_message: error instanceof Error ? error.message : String(error),
-		})
-	);
-	await disposeRuntime().catch((error) =>
-		log.error({
-			lifecycle: "runtimeDispose",
-			error_message: error instanceof Error ? error.message : String(error),
-		})
-	);
+		});
+	await flushBatchedAxiomDrain().catch(logErr("drainFlush"));
+	await runPromise(disconnect).catch(logErr("shutdown"));
+	await disposeRuntime().catch(logErr("runtimeDispose"));
 	closeGeoIPReader();
 	process.exit(0);
-});
+}
 
-process.on("SIGINT", async () => {
-	log.info("lifecycle", "SIGINT received, shutting down gracefully");
-	await flushBatchedAxiomDrain().catch((error) =>
-		log.error({
-			lifecycle: "drainFlush",
-			error_message: error instanceof Error ? error.message : String(error),
-		})
-	);
-	await runPromise(disconnect).catch((error) =>
-		log.error({
-			lifecycle: "shutdown",
-			error_message: error instanceof Error ? error.message : String(error),
-		})
-	);
-	await disposeRuntime().catch((error) =>
-		log.error({
-			lifecycle: "runtimeDispose",
-			error_message: error instanceof Error ? error.message : String(error),
-		})
-	);
-	closeGeoIPReader();
-	process.exit(0);
-});
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 const app = new Elysia()
 	.use(

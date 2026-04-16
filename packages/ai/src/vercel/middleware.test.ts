@@ -10,19 +10,34 @@ import type { LLMCall, Transport } from "./types";
 
 function createMockTransport(): { transport: Transport; calls: LLMCall[] } {
 	const calls: LLMCall[] = [];
-	return { transport: async (call) => { calls.push(call); }, calls };
+	return {
+		transport: async (call) => {
+			calls.push(call);
+		},
+		calls,
+	};
 }
 
 function getPromptText(content: unknown): string {
-	if (typeof content === "string") return content;
+	if (typeof content === "string") {
+		return content;
+	}
 	if (Array.isArray(content)) {
-		const text = content.find((c: { type: string; text?: string }) => c.type === "text");
+		const text = content.find(
+			(c: { type: string; text?: string }) => c.type === "text"
+		);
 		return text?.text ?? "";
 	}
 	return "";
 }
 
-function v3Usage(input: number, output: number, reasoning?: number, cacheRead?: number, cacheWrite?: number) {
+function v3Usage(
+	input: number,
+	output: number,
+	reasoning?: number,
+	cacheRead?: number,
+	cacheWrite?: number
+) {
 	return {
 		inputTokens: {
 			total: input + (cacheRead ?? 0) + (cacheWrite ?? 0),
@@ -39,7 +54,10 @@ function v3Usage(input: number, output: number, reasoning?: number, cacheRead?: 
 }
 
 function createV3Model(modelId: string): LanguageModelV3 {
-	const responses: Record<string, { text: string; usage: ReturnType<typeof v3Usage> }> = {
+	const responses: Record<
+		string,
+		{ text: string; usage: ReturnType<typeof v3Usage> }
+	> = {
 		"What is 9 + 10?": { text: "19", usage: v3Usage(10, 2) },
 	};
 
@@ -49,8 +67,13 @@ function createV3Model(modelId: string): LanguageModelV3 {
 		modelId,
 		supportedUrls: {},
 		doGenerate: mock(async (params: LanguageModelV3CallOptions) => {
-			const user = params.prompt.find((m: { role: string }) => m.role === "user");
-			const response = responses[getPromptText(user?.content)] ?? { text: "Unknown", usage: v3Usage(5, 1) };
+			const user = params.prompt.find(
+				(m: { role: string }) => m.role === "user"
+			);
+			const response = responses[getPromptText(user?.content)] ?? {
+				text: "Unknown",
+				usage: v3Usage(5, 1),
+			};
 			return {
 				text: response.text,
 				usage: response.usage,
@@ -61,13 +84,22 @@ function createV3Model(modelId: string): LanguageModelV3 {
 				warnings: [],
 			};
 		}),
-		doStream: mock(async () => ({ stream: new ReadableStream(), response: { modelId } })),
+		doStream: mock(async () => ({
+			stream: new ReadableStream(),
+			response: { modelId },
+		})),
 	} as LanguageModelV3;
 }
 
 function createV2Model(modelId: string): LanguageModelV2 {
-	const responses: Record<string, { text: string; usage: { inputTokens: number; outputTokens: number } }> = {
-		"What is 9 + 10?": { text: "19", usage: { inputTokens: 10, outputTokens: 2 } },
+	const responses: Record<
+		string,
+		{ text: string; usage: { inputTokens: number; outputTokens: number } }
+	> = {
+		"What is 9 + 10?": {
+			text: "19",
+			usage: { inputTokens: 10, outputTokens: 2 },
+		},
 	};
 
 	return {
@@ -76,8 +108,13 @@ function createV2Model(modelId: string): LanguageModelV2 {
 		modelId,
 		supportedUrls: {},
 		doGenerate: mock(async (params: LanguageModelV2CallOptions) => {
-			const user = params.prompt.find((m: { role: string }) => m.role === "user");
-			const response = responses[getPromptText(user?.content)] ?? { text: "Unknown", usage: { inputTokens: 5, outputTokens: 1 } };
+			const user = params.prompt.find(
+				(m: { role: string }) => m.role === "user"
+			);
+			const response = responses[getPromptText(user?.content)] ?? {
+				text: "Unknown",
+				usage: { inputTokens: 5, outputTokens: 1 },
+			};
 			return {
 				text: response.text,
 				usage: response.usage,
@@ -88,7 +125,10 @@ function createV2Model(modelId: string): LanguageModelV2 {
 				warnings: [],
 			};
 		}),
-		doStream: mock(async () => ({ stream: new ReadableStream(), response: { modelId } })),
+		doStream: mock(async () => ({
+			stream: new ReadableStream(),
+			response: { modelId },
+		})),
 	} as LanguageModelV2;
 }
 
@@ -100,7 +140,12 @@ describe("createTracker", () => {
 
 			const model = track(createV3Model("gpt-4"), { traceId: "test-123" });
 			const result = await model.doGenerate({
-				prompt: [{ role: "user", content: [{ type: "text", text: "What is 9 + 10?" }] }],
+				prompt: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "What is 9 + 10?" }],
+					},
+				],
 			});
 
 			expect(result.content[0]?.text).toBe("19");
@@ -143,9 +188,16 @@ describe("createTracker", () => {
 			const { transport, calls } = createMockTransport();
 			const { track } = createTracker({ transport });
 
-			const model = track(createV2Model("gpt-3.5-turbo"), { traceId: "test-456" });
+			const model = track(createV2Model("gpt-3.5-turbo"), {
+				traceId: "test-456",
+			});
 			const result = await model.doGenerate({
-				prompt: [{ role: "user", content: [{ type: "text", text: "What is 9 + 10?" }] }],
+				prompt: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "What is 9 + 10?" }],
+					},
+				],
 			});
 
 			expect(result.content[0]?.text).toBe("19");
@@ -217,7 +269,9 @@ describe("createTracker", () => {
 			const { track } = createTracker({ transport });
 
 			const model = createV3Model("gpt-4");
-			model.doGenerate = mock(async () => { throw new Error("API Error"); });
+			model.doGenerate = mock(async () => {
+				throw new Error("API Error");
+			});
 
 			await expect(
 				track(model).doGenerate({
@@ -256,7 +310,12 @@ describe("createTracker", () => {
 					start(ctrl) {
 						ctrl.enqueue({ type: "text-delta", id: "1", delta: "Hello" });
 						ctrl.enqueue({ type: "text-delta", id: "1", delta: " world" });
-						ctrl.enqueue({ type: "finish", usage: v3Usage(10, 2), finishReason: { unified: "stop", raw: undefined }, providerMetadata: {} });
+						ctrl.enqueue({
+							type: "finish",
+							usage: v3Usage(10, 2),
+							finishReason: { unified: "stop", raw: undefined },
+							providerMetadata: {},
+						});
 						ctrl.close();
 					},
 				});
@@ -283,9 +342,22 @@ describe("createTracker", () => {
 			model.doStream = mock(async () => {
 				const stream = new ReadableStream({
 					start(ctrl) {
-						ctrl.enqueue({ type: "tool-input-start", id: "tc-1", toolName: "get_weather" });
-						ctrl.enqueue({ type: "tool-input-delta", id: "tc-1", delta: '{"location":"NYC"}' });
-						ctrl.enqueue({ type: "finish", usage: v3Usage(20, 15), finishReason: { unified: "stop", raw: undefined }, providerMetadata: {} });
+						ctrl.enqueue({
+							type: "tool-input-start",
+							id: "tc-1",
+							toolName: "get_weather",
+						});
+						ctrl.enqueue({
+							type: "tool-input-delta",
+							id: "tc-1",
+							delta: '{"location":"NYC"}',
+						});
+						ctrl.enqueue({
+							type: "finish",
+							usage: v3Usage(20, 15),
+							finishReason: { unified: "stop", raw: undefined },
+							providerMetadata: {},
+						});
 						ctrl.close();
 					},
 				});
@@ -317,7 +389,12 @@ describe("createTracker", () => {
 				usage: v3Usage(10, 5),
 				content: [
 					{ type: "text", text: "Checking weather" },
-					{ type: "tool-call", toolCallId: "tc-1", toolName: "get_weather", input: { location: "NYC" } },
+					{
+						type: "tool-call",
+						toolCallId: "tc-1",
+						toolName: "get_weather",
+						input: { location: "NYC" },
+					},
 				],
 				response: { modelId: "gpt-4" },
 				providerMetadata: {},
@@ -333,7 +410,10 @@ describe("createTracker", () => {
 			await new Promise((r) => setTimeout(r, 10));
 			expect(calls[0].tools.callCount).toBe(1);
 			expect(calls[0].tools.calledTools).toContain("get_weather");
-			expect(calls[0].tools.availableTools).toEqual(["get_weather", "get_time"]);
+			expect(calls[0].tools.availableTools).toEqual([
+				"get_weather",
+				"get_time",
+			]);
 		});
 	});
 
@@ -349,7 +429,9 @@ describe("createTracker", () => {
 				usage: v3Usage(10, 5),
 				content: [{ type: "text", text: "test" }],
 				response: { modelId: "claude-3-opus" },
-				providerMetadata: { anthropic: { server_tool_use: { web_search_requests: 3 } } },
+				providerMetadata: {
+					anthropic: { server_tool_use: { web_search_requests: 3 } },
+				},
 				finishReason: { unified: "stop", raw: undefined },
 				warnings: [],
 			}));

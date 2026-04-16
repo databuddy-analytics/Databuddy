@@ -131,7 +131,7 @@ export default function Hero({
 
 					<p className="max-w-2xl text-pretty font-medium text-muted-foreground text-sm leading-relaxed sm:text-base lg:text-lg">
 						Web analytics, error tracking, and feature flags in a single script
-						under 30 KB. GDPR compliant out of the box.{" "}
+						under 30 KB. GDPR compliant out of the box. Used by 500+ teams.{" "}
 						<Link
 							className="text-foreground"
 							href="https://github.com/databuddy-analytics/databuddy"
@@ -140,48 +140,23 @@ export default function Hero({
 						>
 							Open source
 						</Link>
+						{stars ? (
+							<>
+								{" · "}
+								{formatLocaleNumber(stars)} GitHub stars
+							</>
+						) : null}
 						.
-					</p>
-
-					<p className="max-w-2xl text-pretty text-muted-foreground text-xs leading-relaxed sm:text-sm">
-						<a
-							className="underline underline-offset-2 hover:text-foreground"
-							href="https://www.advance-metrics.com/en/blog/cookie-behaviour-study/"
-							rel="noopener noreferrer"
-							target="_blank"
-						>
-							Advance Metrics
-						</a>{" "}
-						on real-world banner behavior.{" "}
-						<Link
-							className="underline underline-offset-2 hover:text-foreground"
-							href="/calculator"
-						>
-							Model the opportunity cost
-						</Link>{" "}
-						for your traffic.
 					</p>
 
 					<div className="flex items-center gap-3">
 						<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
-							<a href="https://app.databuddy.cc/login">Start free</a>
+							<a href="https://app.databuddy.cc/login">Try it free</a>
 						</SciFiButton>
 						<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
 							<Link href="/demo">Live demo</Link>
 						</SciFiButton>
 					</div>
-
-					<p className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-muted-foreground text-sm">
-						<span>Used by 400+ teams</span>
-						<span className="text-border">·</span>
-						{stars ? (
-							<>
-								<span>{formatLocaleNumber(stars)} GitHub stars</span>
-								<span className="text-border">·</span>
-							</>
-						) : null}
-						<span>Open source</span>
-					</p>
 				</div>
 
 				<div className="mt-8 space-y-8">

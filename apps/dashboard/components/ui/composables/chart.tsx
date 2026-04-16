@@ -12,11 +12,11 @@ import {
 	Cell,
 	ComposedChart,
 	Customized,
-	Legend as RechartsLegendPrimitive,
 	Line,
 	LineChart,
 	Pie,
 	PieChart,
+	Legend as RechartsLegendPrimitive,
 	ReferenceArea,
 	ReferenceLine,
 	ResponsiveContainer,
@@ -29,12 +29,6 @@ import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { useDynamicDasharray } from "@/components/charts/use-dynamic-dasharray";
 import { EmptyState, type EmptyStateProps } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatLocaleNumber } from "@/lib/format-locale-number";
-import type {
-	ChartQueryOutcome,
-	ChartQuerySlice,
-} from "@/lib/chart-query-outcome";
-import { chartQueryOutcomeFromQuery } from "@/lib/chart-query-outcome";
 import {
 	chartAxisTickDefault,
 	chartAxisYWidthCompact,
@@ -62,31 +56,37 @@ import {
 	chartTooltipMultiShellClassName,
 	chartTooltipSingleShellClassName,
 } from "@/lib/chart-presentation";
+import type {
+	ChartQueryOutcome,
+	ChartQuerySlice,
+} from "@/lib/chart-query-outcome";
+import { chartQueryOutcomeFromQuery } from "@/lib/chart-query-outcome";
 import dayjs from "@/lib/dayjs";
-import { formatMetricNumber } from "@/lib/formatters";
+import { formatLocaleNumber } from "@/lib/format-locale-number";
+import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 // ── Tooltip primitives ──────────────────────────────────────────────────
 
 interface TooltipEntry {
+	color: string;
+	formattedValue?: string;
 	key: string;
 	label: string;
 	value: number;
-	color: string;
-	formattedValue?: string;
 }
 
 interface ChartTooltipProps {
 	active?: boolean;
-	label?: string;
-	formatLabelAction?: (label: string) => string;
+	className?: string;
 	entries?: TooltipEntry[];
+	formatLabelAction?: (label: string) => string;
+	label?: string;
 	singleValue?: {
 		value: number;
 		formattedValue?: string;
 		label?: string;
 	};
-	className?: string;
 }
 
 function ChartTooltip({
@@ -97,7 +97,9 @@ function ChartTooltip({
 	singleValue,
 	className,
 }: ChartTooltipProps) {
-	if (!active) return null;
+	if (!active) {
+		return null;
+	}
 
 	const displayLabel =
 		label == null || label === ""
@@ -113,8 +115,7 @@ function ChartTooltip({
 					<p className="text-[10px] text-muted-foreground">{displayLabel}</p>
 				)}
 				<p className="font-semibold text-foreground text-sm tabular-nums">
-					{singleValue.formattedValue ??
-						formatLocaleNumber(singleValue.value)}
+					{singleValue.formattedValue ?? formatLocaleNumber(singleValue.value)}
 					{singleValue.label && (
 						<span className="ml-1 font-normal text-muted-foreground text-xs">
 							{singleValue.label}
@@ -125,7 +126,9 @@ function ChartTooltip({
 		);
 	}
 
-	if (!entries?.length) return null;
+	if (!entries?.length) {
+		return null;
+	}
 
 	return (
 		<div className={cn(chartTooltipMultiShellClassName, className)}>
@@ -161,25 +164,27 @@ function ChartTooltip({
 }
 
 export interface MetricConfig {
-	key: string;
-	label: string;
 	color?: string;
 	formatValue?: (value: number) => string;
+	key: string;
+	label: string;
 }
 
 function createTooltipEntries(
-	payload:
-		| Array<{ dataKey: string; value: number; color: string }>
-		| undefined,
+	payload: Array<{ dataKey: string; value: number; color: string }> | undefined,
 	metrics: MetricConfig[]
 ): TooltipEntry[] {
-	if (!payload?.length) return [];
+	if (!payload?.length) {
+		return [];
+	}
 
 	const entries: TooltipEntry[] = [];
 
 	for (const p of payload) {
 		const metric = metrics.find((m) => m.key === p.dataKey);
-		if (!metric || p.value == null) continue;
+		if (!metric || p.value == null) {
+			continue;
+		}
 
 		entries.push({
 			key: p.dataKey,
@@ -281,10 +286,10 @@ export function mergeChartInteractiveFeatures(
 }
 
 export interface RechartsSingleValueTooltipParams {
-	formatValue?: (value: number) => string;
-	valueSuffixLabel?: string;
 	/** Overrides default `formatTooltipDate` for the tooltip subtitle line. */
 	formatLabelAction?: (label: string) => string;
+	formatValue?: (value: number) => string;
+	valueSuffixLabel?: string;
 }
 
 function toFiniteNumber(v: unknown): number | null {
@@ -375,7 +380,7 @@ export function createRechartsSingleValueTooltip(
 				singleValue={{
 					formattedValue: params.formatValue
 						? params.formatValue(raw)
-						: formatMetricNumber(raw),
+						: formatNumber(raw),
 					label: params.valueSuffixLabel,
 					value: raw,
 				}}
@@ -387,18 +392,18 @@ export function createRechartsSingleValueTooltip(
 const ZERO_MARGIN = { top: 0, right: 0, left: 0, bottom: 0 } as const;
 
 interface ChartSingleSeriesProps {
+	color?: string;
+	curveType?: ChartCurveType;
 	data: any[];
 	dataKey?: string;
-	seriesKind?: ChartSeriesKind;
-	curveType?: ChartCurveType;
-	partialLastSegment?: boolean;
+	fallbackClassName?: string;
 	height: number;
 	id: string;
-	color?: string;
-	tooltip?: RechartsSingleValueTooltipParams | false;
-	fallbackClassName?: string;
 	/** Recharts margin; defaults to `Chart.zeroMargin`. */
 	margin?: { bottom?: number; left?: number; right?: number; top?: number };
+	partialLastSegment?: boolean;
+	seriesKind?: ChartSeriesKind;
+	tooltip?: RechartsSingleValueTooltipParams | false;
 	/** Passed to `YAxis` `domain` (e.g. mini charts use `dataMin - 5` / `dataMax + 5`). */
 	yDomain?: [number | string, number | string];
 }
@@ -524,22 +529,22 @@ const CARTESIAN_AREA_MARGIN = {
 } as const;
 
 interface ChartCartesianAreaProps {
+	color?: string;
 	data: Array<Record<string, string | number>>;
 	dataKey: string;
 	dateKey?: string;
-	height: number;
-	id: string;
-	color?: string;
-	/** X tick labels (e.g. dayjs). */
-	xTickFormatter: (value: string) => string;
+	fallbackClassName?: string;
 	/** Tooltip title line (formatted date/time). */
 	formatTooltipLabel: (label: string) => string;
-	/** Legend row label in the tooltip (e.g. “Clicks”). */
-	valueLabel: string;
+	height: number;
+	id: string;
 	margin?: { bottom?: number; left?: number; right?: number; top?: number };
 	showGrid?: boolean;
 	strokeWidth?: number;
-	fallbackClassName?: string;
+	/** Legend row label in the tooltip (e.g. “Clicks”). */
+	valueLabel: string;
+	/** X tick labels (e.g. dayjs). */
+	xTickFormatter: (value: string) => string;
 }
 
 /**
@@ -643,18 +648,18 @@ export interface ChartMultiSeriesDataPoint {
 }
 
 interface ChartMultiSeriesProps {
-	data: ChartMultiSeriesDataPoint[];
-	metrics: Array<MetricConfig & { color: string }>;
-	height: number;
-	seriesKind?: ChartSeriesKind;
-	curveType?: ChartCurveType;
-	partialLastSegment?: boolean;
-	/** When false (default), shows date ticks on the X axis. Mini charts often hide this. */
-	hideXAxis?: boolean;
 	/** Grouped (default) or stacked bars; only applies when `seriesKind` is `bar`. */
 	barLayout?: "grouped" | "stacked";
 	/** `stackId` for stacked bars (default `"stack"`). */
 	barStackId?: string;
+	curveType?: ChartCurveType;
+	data: ChartMultiSeriesDataPoint[];
+	height: number;
+	/** When false (default), shows date ticks on the X axis. Mini charts often hide this. */
+	hideXAxis?: boolean;
+	metrics: Array<MetricConfig & { color: string }>;
+	partialLastSegment?: boolean;
+	seriesKind?: ChartSeriesKind;
 }
 
 function ChartMultiSeries({
@@ -674,7 +679,9 @@ function ChartMultiSeries({
 		chartType: curveType,
 		curveAdjustment: isStepCurve(curveType) ? 0 : 1,
 		splitIndex:
-			seriesUsesDashSplit && partialLastSegment ? points.length - 2 : points.length,
+			seriesUsesDashSplit && partialLastSegment
+				? points.length - 2
+				: points.length,
 	});
 
 	const hasVariation =
@@ -747,9 +754,7 @@ function ChartMultiSeries({
 							key={metric.key}
 							name={metric.label}
 							radius={[2, 2, 0, 0]}
-							stackId={
-								barLayout === "stacked" ? barStackId : undefined
-							}
+							stackId={barLayout === "stacked" ? barStackId : undefined}
 						/>
 					))}
 				</BarChart>
@@ -829,8 +834,8 @@ function ChartMultiSeries({
 }
 
 interface ChartLegendProps {
-	metrics: Array<{ color: string; key: string; label: string }>;
 	className?: string;
+	metrics: Array<{ color: string; key: string; label: string }>;
 }
 
 function ChartLegend({ metrics, className }: ChartLegendProps) {
@@ -868,12 +873,12 @@ function ChartRoot({ children, className, id }: ChartRootProps) {
 }
 
 interface ChartHeaderProps {
-	title?: string;
-	description?: ReactNode;
 	children?: ReactNode;
 	className?: string;
-	titleClassName?: string;
+	description?: ReactNode;
 	descriptionClassName?: string;
+	title?: string;
+	titleClassName?: string;
 }
 
 function ChartHeader({
@@ -949,7 +954,7 @@ interface ChartViewportProps {
 function ChartViewport({ children, className, height }: ChartViewportProps) {
 	return (
 		<div
-			className={cn("w-full min-h-0", className)}
+			className={cn("min-h-0 w-full", className)}
 			data-slot="chart-viewport"
 			style={{ height }}
 		>
@@ -986,11 +991,11 @@ interface ChartContentBaseProps<T> {
 	error?: ReactNode;
 	errorProps?: EmptyStateProps;
 	gatePending?: boolean;
+	isEmpty?: (data: T) => boolean;
 	loading?: ReactNode;
 	outcome?: ChartQueryOutcome<T>;
 	query?: ChartQuerySlice<T>;
 	stateWrapperClassName?: string;
-	isEmpty?: (data: T) => boolean;
 }
 
 type ChartContentProps<T> =
@@ -1162,7 +1167,8 @@ const chartMembers = {
 		rechartsLegendInteractiveWrapperStyle:
 			chartRechartsLegendInteractiveWrapperStyle,
 		rechartsLegendStaticLabelClassName: chartRechartsLegendStaticLabelClassName,
-		rechartsLegendStaticWrapperMerge: chartRechartsLegendStaticWrapperStyleMerge,
+		rechartsLegendStaticWrapperMerge:
+			chartRechartsLegendStaticWrapperStyleMerge,
 		rechartsLegendStaticWrapperStyle: chartRechartsLegendStaticWrapperStyle,
 		seriesPalette: chartSeriesPalette,
 		seriesColorAtIndex: chartSeriesColorAtIndex,
@@ -1176,5 +1182,7 @@ const chartMembers = {
 	zeroMargin: ZERO_MARGIN,
 } as const;
 
-export const Chart: typeof ChartRoot & typeof chartMembers =
-	Object.assign(ChartRoot, chartMembers);
+export const Chart: typeof ChartRoot & typeof chartMembers = Object.assign(
+	ChartRoot,
+	chartMembers
+);

@@ -1,4 +1,4 @@
-import { chQuery } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import type { Granularity } from "./expressions";
 import {
 	compileConfigField,
@@ -7,10 +7,6 @@ import {
 	sessionAttribution,
 	time,
 } from "./expressions";
-import {
-	COMMON_RESOLUTION_DEVICE_TYPE,
-	type DeviceType,
-} from "./screen-resolution-to-device-type";
 import type {
 	CompiledQuery,
 	ConfigField,
@@ -22,13 +18,6 @@ import type {
 } from "./types";
 import { FilterOperators } from "./types";
 import { applyPlugins } from "./utils";
-
-const SPECIAL_FILTER_FIELDS = {
-	PATH: "path",
-	QUERY_STRING: "query_string",
-	REFERRER: "referrer",
-	DEVICE_TYPE: "device_type",
-} as const;
 
 // Filters that are always allowed regardless of per-builder allowedFilters
 const GLOBAL_ALLOWED_FILTERS = [
@@ -61,10 +50,10 @@ const DANGEROUS_SQL_KEYWORDS = [
 ] as const;
 
 const SQL_EXPRESSIONS = {
-	normalizedPath: Expressions.path.normalized as string,
-	normalizedReferrer: Expressions.referrer.normalized as string,
-	queryString: "queryString(url)" as string,
-} as const;
+	normalizedPath: Expressions.path.normalized,
+	normalizedReferrer: Expressions.referrer.normalized,
+	queryString: "queryString(url)",
+};
 
 const REFERRER_MAPPINGS: Record<string, string> = {
 	direct: "direct",
@@ -101,10 +90,7 @@ function normalizeReferrerValue(value: string, forLikeSearch = false): string {
 		: value;
 }
 
-/**
- * Escapes special characters in LIKE patterns for ClickHouse
- * Escapes backslashes first (they're used for escaping), then escapes LIKE special characters
- */
+// Escape backslashes first so the subsequent [%_] replacement doesn't double-escape them.
 function escapeLikePattern(value: string): string {
 	return value.replace(/\\/g, "\\\\").replace(/[%_]/g, "\\$&");
 }
@@ -120,34 +106,15 @@ function validateNoSqlInjection(field: string, context: string): void {
 	}
 }
 
-function buildDeviceTypeSQL(deviceType: DeviceType): string {
-	const exactMatches = Object.entries(COMMON_RESOLUTION_DEVICE_TYPE)
-		.filter(([, type]) => type === deviceType)
-		.map(([resolution]) => `'${resolution}'`)
-		.join(", ");
-
-	const widthExpr =
-		"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, 1, position(screen_resolution, 'x') - 1), NULL))";
-	const heightExpr =
-		"toFloat64(if(position(screen_resolution, 'x') > 0, substring(screen_resolution, position(screen_resolution, 'x') + 1), NULL))";
-	const longSide = `greatest(${widthExpr}, ${heightExpr})`;
-	const shortSide = `least(${widthExpr}, ${heightExpr})`;
-	const aspect = `${longSide} / ${shortSide}`;
-
-	const heuristics: Record<DeviceType, string> = {
-		mobile: `(${shortSide} <= 480 AND ${shortSide} IS NOT NULL)`,
-		tablet: `(${shortSide} <= 1024 AND ${shortSide} > 480 AND ${aspect} < 1.5 AND ${shortSide} IS NOT NULL)`,
-		laptop: `(${aspect} >= 1.5 AND ${longSide} >= 1100 AND ${shortSide} > 480 AND ${longSide} <= 1920 AND ${longSide} IS NOT NULL)`,
-		desktop: `(${longSide} > 1920 AND ${longSide} <= 3000 AND ${longSide} IS NOT NULL)`,
-		ultrawide: `(${aspect} >= 2.0 AND ${longSide} >= 2560 AND ${longSide} IS NOT NULL)`,
-		watch: `(${longSide} <= 400 AND ${aspect} >= 0.85 AND ${aspect} <= 1.15 AND ${longSide} IS NOT NULL)`,
-		unknown: "1 = 0",
-	};
-
-	const heuristic = heuristics[deviceType] || "1 = 0";
-	return exactMatches
-		? `(screen_resolution IN (${exactMatches}) OR ${heuristic})`
-		: heuristic;
+function buildDeviceTypeSQL(value: string, isNegative: boolean): string {
+	const lower = value.toLowerCase();
+	if (lower === "desktop") {
+		const clause = "(device_type = '' OR lower(device_type) = 'desktop')";
+		return isNegative ? `NOT ${clause}` : clause;
+	}
+	return isNegative
+		? `lower(device_type) != '${lower}'`
+		: `lower(device_type) = '${lower}'`;
 }
 
 interface FilterResult {
@@ -164,7 +131,6 @@ function buildGenericFilter(
 ): FilterResult {
 	const transform = valueTransform || ((v: string) => v);
 
-	// Contains / not_contains - wrap value with %
 	if (filter.op === "contains" || filter.op === "not_contains") {
 		const value = transform(String(filter.value));
 		const escaped = escapeLikePattern(value);
@@ -174,7 +140,6 @@ function buildGenericFilter(
 		};
 	}
 
-	// Starts with - append % to value
 	if (filter.op === "starts_with") {
 		const value = transform(String(filter.value));
 		const escaped = escapeLikePattern(value);
@@ -184,7 +149,6 @@ function buildGenericFilter(
 		};
 	}
 
-	// In / not_in - array of values
 	if (filter.op === "in" || filter.op === "not_in") {
 		const values = Array.isArray(filter.value)
 			? filter.value.map((v) => transform(String(v)))
@@ -195,19 +159,10 @@ function buildGenericFilter(
 		};
 	}
 
-	// eq / ne - exact match
 	return {
 		clause: `${fieldExpr} ${operator} {${key}:String}`,
 		params: { [key]: transform(String(filter.value)) },
 	};
-}
-
-function buildSessionFieldsSelect(timeField: string): string {
-	return sessionAttribution.selectFields(timeField).join(",\n\t\t\t");
-}
-
-function buildSessionFieldsJoinSelect(): string {
-	return sessionAttribution.joinSelectFields("sa").join(",\n\t\t\t\t");
 }
 
 export class SimpleQueryBuilder {
@@ -240,7 +195,7 @@ export class SimpleQueryBuilder {
 		const key = `f${index}`;
 		const operator = FilterOperators[filter.op];
 
-		if (filter.field === SPECIAL_FILTER_FIELDS.PATH) {
+		if (filter.field === "path") {
 			return buildGenericFilter(
 				filter,
 				key,
@@ -249,7 +204,7 @@ export class SimpleQueryBuilder {
 			);
 		}
 
-		if (filter.field === SPECIAL_FILTER_FIELDS.QUERY_STRING) {
+		if (filter.field === "query_string") {
 			return buildGenericFilter(
 				filter,
 				key,
@@ -258,7 +213,7 @@ export class SimpleQueryBuilder {
 			);
 		}
 
-		if (filter.field === SPECIAL_FILTER_FIELDS.REFERRER) {
+		if (filter.field === "referrer") {
 			return buildGenericFilter(
 				filter,
 				key,
@@ -272,17 +227,13 @@ export class SimpleQueryBuilder {
 			);
 		}
 
-		if (
-			filter.field === SPECIAL_FILTER_FIELDS.DEVICE_TYPE &&
-			typeof filter.value === "string"
-		) {
-			const deviceClause = buildDeviceTypeSQL(filter.value as DeviceType);
+		if (filter.field === "device_type" && typeof filter.value === "string") {
 			const isNegative =
 				filter.op === "ne" ||
 				filter.op === "not_in" ||
 				filter.op === "not_contains";
 			return {
-				clause: isNegative ? `NOT (${deviceClause})` : deviceClause,
+				clause: buildDeviceTypeSQL(filter.value, isNegative),
 				params: {},
 			};
 		}
@@ -315,7 +266,7 @@ export class SimpleQueryBuilder {
 		return `session_attribution AS (
 			SELECT 
 				session_id,
-				${buildSessionFieldsSelect(timeField)}
+				${sessionAttribution.selectFields(timeField).join(",\n\t\t\t")}
 			FROM ${table}
 			WHERE ${idField} = {websiteId:String}
 				AND ${timeField} >= toDateTime({${fromParam}:String})
@@ -354,7 +305,7 @@ export class SimpleQueryBuilder {
 			const whereClause = this.buildWhereClauseFromFilters(whereClauseParams);
 
 			if (this.request.organizationWebsiteIds) {
-				whereClauseParams.orgWebsiteIds = this.request.organizationWebsiteIds;
+				whereClauseParams.__orgLevel = true;
 			}
 
 			const helpers = this.config.plugins?.sessionAttribution
@@ -401,8 +352,8 @@ export class SimpleQueryBuilder {
 			to: this.formatDateTime(this.request.to),
 		};
 
-		if (this.config.timeBucket?.timezone && this.getTimezone()) {
-			params.timezone = this.getTimezone() as string;
+		if (this.config.timeBucket?.timezone && this.request.timezone) {
+			params.timezone = this.request.timezone as string;
 		}
 
 		const hasCTEs =
@@ -541,10 +492,6 @@ export class SimpleQueryBuilder {
 		return requestGranularity || this.config.timeBucket?.granularity;
 	}
 
-	private getTimezone(): string | undefined {
-		return this.request.timezone;
-	}
-
 	private buildTimeBucketField(config: TimeBucketConfig): string {
 		const granularity = this.getGranularity();
 		if (!granularity) {
@@ -553,7 +500,7 @@ export class SimpleQueryBuilder {
 
 		const field = config.field || this.config.timeField || "time";
 		const alias = config.alias || "date";
-		const tz = config.timezone ? this.getTimezone() : undefined;
+		const tz = config.timezone ? this.request.timezone : undefined;
 
 		if (
 			config.format !== false &&
@@ -625,7 +572,7 @@ export class SimpleQueryBuilder {
 		attributed_events AS (
 			SELECT 
 				e.*,
-				${buildSessionFieldsJoinSelect()}
+				${sessionAttribution.joinSelectFields("sa").join(",\n\t\t\t\t")}
 			FROM ${table} e
 			${this.generateSessionAttributionJoin("e")}
 			WHERE e.${idField} = {websiteId:String}

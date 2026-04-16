@@ -3,8 +3,8 @@ import { chartSurfaceClassName } from "@/lib/chart-presentation";
 import { cn } from "@/lib/utils";
 
 interface SkeletonChartProps {
-	height?: number;
 	className?: string;
+	height?: number;
 }
 
 const SKELETON_BAR_HEIGHTS = [78, 95, 42, 110, 63, 87, 55];

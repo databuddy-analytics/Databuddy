@@ -5,6 +5,10 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./autumn": "./src/lib/autumn-client.ts"
+  },
   "dependencies": {
     "@databuddy/api-keys": "workspace:*",
     "@databuddy/auth": "workspace:*",
@@ -18,11 +22,11 @@
     "@types/jszip": "^3.4.1",
     "@upstash/qstash": "^2.8.4",
     "ai": "^6.0.0",
-    "autumn-js": "^0.0.101",
+    "autumn-js": "catalog:",
     "bullmq": "^5.34.0",
     "dayjs": "^1.11.19",
-    "drizzle-orm": "^0.44.7",
-    "evlog": "^2.8.0",
+    "drizzle-orm": "^0.45.2",
+    "evlog": "catalog:",
     "jszip": "^3.10.1",
     "keypal": "^0.1.11",
     "nanoid": "^5.1.6",

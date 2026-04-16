@@ -47,3 +47,6 @@ next-env.d.ts
 .env.sentry-build-plugin
 
 certificates
+
+# atmn pull auto-generates this — would drift on every pull
+@useautumn-sdk.d.ts

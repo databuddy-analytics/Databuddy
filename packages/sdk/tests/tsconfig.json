@@ -5,7 +5,8 @@
     "noEmit": true,
     "composite": false,
     "declaration": false,
-    "declarationMap": false
+    "declarationMap": false,
+    "strictNullChecks": true
   },
   "include": ["**/*", "../src/**/*"],
   "exclude": []

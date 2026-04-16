@@ -23,8 +23,8 @@ const {
 } = Chart.Recharts;
 
 interface LatencyDataPoint {
-	date: string;
 	avg_response_time?: number;
+	date: string;
 	p50_response_time?: number;
 	p95_response_time?: number;
 }
@@ -120,8 +120,8 @@ function formatTooltipLabel(
 }
 
 interface ChartDataPoint {
-	date: string;
 	avg_response_time: number | null;
+	date: string;
 	p95_response_time: number | null;
 }
 

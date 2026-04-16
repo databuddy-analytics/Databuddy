@@ -1,4 +1,4 @@
-import { formatMetricNumber } from "@/lib/formatters";
+import { formatNumber } from "@/lib/formatters";
 import type { QueryCell } from "./types";
 
 export interface FormatOptions {
@@ -38,7 +38,7 @@ export function formatWidgetValue(
 		case "duration":
 			return formatDuration(num);
 		case "number":
-			return formatMetricNumber(num);
+			return formatNumber(num);
 		default:
 			return String(value);
 	}

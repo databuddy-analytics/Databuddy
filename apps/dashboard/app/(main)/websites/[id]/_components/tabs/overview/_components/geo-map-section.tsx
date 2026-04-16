@@ -1,10 +1,11 @@
 "use client";
 
 import type { LocationData } from "@databuddy/shared/types/website";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
+import { GlobeIcon } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { CountryFlag } from "@/components/icon";
+import { formatNumber } from "@/lib/formatters";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const MapComponent = dynamic(
@@ -26,25 +27,15 @@ const MapComponent = dynamic(
 );
 
 interface CountryDataItem {
-	name: string;
 	country_code?: string;
-	visitors: number;
+	name: string;
 	pageviews: number;
+	visitors: number;
 }
 
 interface GeoMapSectionProps {
 	countries: CountryDataItem[];
 	isLoading: boolean;
-}
-
-function formatNumber(value: number): string {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
 }
 
 export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
@@ -94,7 +85,6 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 
 	return (
 		<div className="w-full overflow-hidden rounded border bg-card backdrop-blur-sm">
-			{/* Toolbar */}
 			<div className="px-3 pt-3 pb-2">
 				<div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
 					<div className="min-w-0 flex-1">
@@ -108,7 +98,6 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 				</div>
 			</div>
 
-			{/* Content */}
 			<div
 				className="relative flex flex-col lg:flex-row"
 				style={{ minHeight: 350 }}

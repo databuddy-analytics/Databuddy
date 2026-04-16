@@ -1,0 +1,205 @@
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: databuddy-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-databuddy}
+      POSTGRES_USER: ${POSTGRES_USER:-databuddy}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-databuddy} -d ${POSTGRES_DB:-databuddy}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.5.1-alpine
+    container_name: databuddy-clickhouse
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-databuddy_analytics}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "127.0.0.1:${CLICKHOUSE_PORT:-8123}:8123"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: databuddy-redis
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    command: >
+      redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy noeviction --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+
+  api:
+    image: ghcr.io/databuddy-analytics/databuddy-api:${IMAGE_TAG:-edge}
+    container_name: databuddy-api
+    ports:
+      - "${API_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      DASHBOARD_URL: ${DASHBOARD_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+    healthcheck:
+      test: [ "CMD", "bun", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+
+  basket:
+    image: ghcr.io/databuddy-analytics/databuddy-basket:${IMAGE_TAG:-edge}
+    container_name: databuddy-basket
+    ports:
+      - "${BASKET_PORT:-4000}:4000"
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL}
+      SELFHOST: "true"
+    healthcheck:
+      test: [ "CMD", "bun", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+
+  links:
+    image: ghcr.io/databuddy-analytics/databuddy-links:${IMAGE_TAG:-edge}
+    container_name: databuddy-links
+    ports:
+      - "${LINKS_PORT:-2500}:2500"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      APP_URL: ${APP_URL:-https://app.databuddy.cc}
+      LINKS_ROOT_REDIRECT_URL: ${LINKS_ROOT_REDIRECT_URL:-https://databuddy.cc}
+      GEOIP_DB_URL: ${GEOIP_DB_URL:-https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb}
+    healthcheck:
+      test: [ "CMD", "bun", "-e", "fetch('http://localhost:2500/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+  # Uncomment to enable uptime monitoring (requires Upstash QStash keys)
+  # uptime:
+  #   image: ghcr.io/databuddy-analytics/databuddy-uptime:${IMAGE_TAG:-edge}
+  #   container_name: databuddy-uptime
+  #   ports:
+  #     - "${UPTIME_PORT:-4001}:4000"
+  #   environment:
+  #     NODE_ENV: production
+  #     DATABASE_URL: ${DATABASE_URL}
+  #     REDIS_URL: ${REDIS_URL}
+  #     QSTASH_CURRENT_SIGNING_KEY: ${QSTASH_CURRENT_SIGNING_KEY}
+  #     QSTASH_NEXT_SIGNING_KEY: ${QSTASH_NEXT_SIGNING_KEY}
+  #     RESEND_API_KEY: ${RESEND_API_KEY:-}
+  #   healthcheck:
+  #     test: ["CMD", "bun", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  #     interval: 30s
+  #     timeout: 3s
+  #     start_period: 10s
+  #     retries: 3
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - databuddy
+  #   <<: *logging
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+  redis_data:
+
+
+networks:
+  databuddy:
+    driver: bridge

@@ -1,26 +1,13 @@
 import dayjs from "@/lib/dayjs";
 
-export const formatMetricNumber = (num: number | undefined | null): string => {
-	if (num === undefined || num === null) {
+export const formatNumber = (value: number | null | undefined): string => {
+	if (value == null || Number.isNaN(value)) {
 		return "0";
 	}
-
-	// Handle edge case for non-numeric strings that might have been converted to NaN
-	if (Number.isNaN(num)) {
-		return "0";
-	}
-
-	if (Math.abs(num) >= 1_000_000_000) {
-		return `${(num / 1_000_000_000).toFixed(1)}B`;
-	}
-	if (Math.abs(num) >= 1_000_000) {
-		return `${(num / 1_000_000).toFixed(1)}M`;
-	}
-	if (Math.abs(num) >= 1000) {
-		return `${(num / 1000).toFixed(1)}K`;
-	}
-	// Ensure small numbers are also returned as strings
-	return num.toString();
+	return Intl.NumberFormat(undefined, {
+		notation: "compact",
+		maximumFractionDigits: 1,
+	}).format(value);
 };
 
 // Format currency values
@@ -36,15 +23,6 @@ export const formatCurrency = (
 		style: "currency",
 		currency,
 	}).format(amount);
-};
-
-// Format regular numbers with commas
-export const formatNumber = (num: number | undefined | null): string => {
-	if (num === undefined || num === null || Number.isNaN(num)) {
-		return "0";
-	}
-
-	return new Intl.NumberFormat("en-US").format(num);
 };
 
 // Predefined date formats for consistency across the app
@@ -80,39 +58,6 @@ export const formatDate = (
 		return "";
 	}
 };
-
-// Specific format functions for common use cases
-export const formatDateOnly = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.DATE_ONLY);
-
-export const formatDateTime = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.DATE_TIME);
-
-export const formatDateTimeSeconds = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.DATE_TIME_SECONDS);
-
-export const formatMonthDay = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.DATE_MONTH_DAY);
-
-export const formatISODate = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.ISO_DATE);
-
-export const formatTimeOnly = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.TIME_ONLY);
-
-export const formatDateTimeNoYear = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.DATE_TIME_NO_YEAR);
-
-export const formatDateTime12H = (
-	dateString: string | Date | undefined | null
-): string => formatDate(dateString, DATE_FORMATS.DATE_TIME_12H);
 
 // Helper function for date ranges
 export const formatDateRange = (

@@ -1,12 +1,5 @@
-import {
-	and,
-	annotations,
-	desc,
-	eq,
-	isNull,
-	or,
-	type SQL,
-} from "@databuddy/db";
+import { and, desc, eq, isNull, or, type SQL } from "@databuddy/db";
+import { annotations } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -307,15 +300,16 @@ export const annotationsRouter = {
 
 			await withWorkspace(context, {
 				websiteId: annotation.websiteId,
-				permissions: ["read"],
+				permissions: ["update"],
 			});
 
-			const isOwner =
-				context.apiKey ||
-				(await isFullyAuthorized(context, annotation.websiteId));
+			const isWebsiteOwner = await isFullyAuthorized(
+				context,
+				annotation.websiteId
+			);
 
 			if (
-				!isOwner &&
+				!isWebsiteOwner &&
 				context.user &&
 				annotation.createdBy !== context.user.id
 			) {
@@ -379,15 +373,16 @@ export const annotationsRouter = {
 
 			await withWorkspace(context, {
 				websiteId: annotation.websiteId,
-				permissions: ["read"],
+				permissions: ["delete"],
 			});
 
-			const canDeleteAny =
-				context.apiKey ||
-				(await isFullyAuthorized(context, annotation.websiteId));
+			const isWebsiteOwner = await isFullyAuthorized(
+				context,
+				annotation.websiteId
+			);
 
 			if (
-				!canDeleteAny &&
+				!isWebsiteOwner &&
 				context.user &&
 				annotation.createdBy !== context.user.id
 			) {

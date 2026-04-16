@@ -2,5 +2,23 @@
   "title": "Integrations",
   "description": "Add Databuddy to your favorite platforms",
   "icon": "Plug",
-  "pages": ["react", "nextjs", "wordpress", "shopify", "framer", "cal", "gtm"]
+  "pages": [
+    "react",
+    "nextjs",
+    "angular",
+    "svelte",
+    "sveltekit",
+    "wordpress",
+    "shopify",
+    "webflow",
+    "squarespace",
+    "wix",
+    "bubble",
+    "framer",
+    "hugo",
+    "jekyll",
+    "laravel",
+    "cal",
+    "gtm"
+  ]
 }

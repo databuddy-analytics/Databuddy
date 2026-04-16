@@ -1,57 +1,19 @@
-/**
- * User Agent Utilities
- *
- * Provides functions for user agent analysis including bot detection
- * and platform identification.
- */
-
 import {
 	type BotAction,
 	BotCategory,
 	type BotDetectionResult,
-	detectBot as detectBotShared,
-	parseUserAgent as parseUserAgentShared,
+	detectBot as sharedDetectBot,
+	parseUserAgent as sharedParseUserAgent,
 } from "@databuddy/shared/bot-detection";
 import { captureError, record } from "@lib/tracing";
 
-export interface UserAgentInfo {
-	bot: {
-		isBot: boolean;
-		name?: string;
-		type?: string;
-	};
-	browser?: string;
-	os?: string;
-	device?: "desktop" | "mobile" | "tablet" | "unknown";
-}
-
-/**
- * Parse user agent to extract useful information
- */
-export function parseUserAgent(userAgent: string): Promise<{
-	browserName?: string;
-	browserVersion?: string;
-	osName?: string;
-	osVersion?: string;
-	deviceType?: string;
-	deviceBrand?: string;
-	deviceModel?: string;
-}> {
+export function parseUserAgent(userAgent: string) {
 	return record("parseUserAgent", () => {
 		if (!userAgent) {
-			return {
-				browserName: undefined,
-				browserVersion: undefined,
-				osName: undefined,
-				osVersion: undefined,
-				deviceType: undefined,
-				deviceBrand: undefined,
-				deviceModel: undefined,
-			};
+			return {};
 		}
-
 		try {
-			const parsed = parseUserAgentShared(userAgent);
+			const parsed = sharedParseUserAgent(userAgent);
 			return {
 				browserName: parsed.browserName,
 				browserVersion: parsed.browserVersion,
@@ -63,24 +25,16 @@ export function parseUserAgent(userAgent: string): Promise<{
 			};
 		} catch (error) {
 			captureError(error, { userAgent, message: "Failed to parse user agent" });
-			return {
-				browserName: undefined,
-				browserVersion: undefined,
-				osName: undefined,
-				osVersion: undefined,
-				deviceType: undefined,
-				deviceBrand: undefined,
-				deviceModel: undefined,
-			};
+			return {};
 		}
 	});
 }
 
-/**
- * Detect bot using new centralized system
- *
- * Maps to legacy format for backwards compatibility
- */
+const LEGACY_CATEGORIES: Record<string, string> = {
+	[BotCategory.AI_CRAWLER]: "AI Crawler",
+	[BotCategory.AI_ASSISTANT]: "AI Assistant",
+};
+
 export function detectBot(
 	userAgent: string,
 	_request: Request
@@ -92,24 +46,16 @@ export function detectBot(
 	action?: BotAction;
 	result?: BotDetectionResult;
 } {
-	const result = detectBotShared(userAgent);
-
-	// Map new category to legacy format
-	let legacyCategory: string | undefined;
-	if (result.category === BotCategory.AI_CRAWLER) {
-		legacyCategory = "AI Crawler";
-	} else if (result.category === BotCategory.AI_ASSISTANT) {
-		legacyCategory = "AI Assistant";
-	} else if (result.isBot) {
-		legacyCategory = "Known Bot";
-	}
-
+	const result = sharedDetectBot(userAgent);
 	return {
 		isBot: result.isBot,
 		reason: result.reason,
-		category: legacyCategory,
+		category: result.category
+			? (LEGACY_CATEGORIES[result.category] ??
+				(result.isBot ? "Known Bot" : undefined))
+			: undefined,
 		botName: result.name,
 		action: result.action,
-		result, // Include full result for new code
+		result,
 	};
 }

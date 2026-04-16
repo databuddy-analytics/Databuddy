@@ -9,20 +9,20 @@ const logger = createToolLogger("Links Tools");
 const SLUG_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 interface LinkData {
-	id: string;
-	slug: string;
-	name: string;
-	targetUrl: string;
-	organizationId: string;
-	externalId: string | null;
+	clickCount?: number;
 	createdAt: string;
-	updatedAt: string;
-	expiresAt: string | null;
 	expiredRedirectUrl: string | null;
-	ogTitle: string | null;
+	expiresAt: string | null;
+	externalId: string | null;
+	id: string;
+	name: string;
 	ogDescription: string | null;
 	ogImageUrl: string | null;
-	clickCount?: number;
+	ogTitle: string | null;
+	organizationId: string;
+	slug: string;
+	targetUrl: string;
+	updatedAt: string;
 }
 
 async function getOrganizationIdFromWebsite(
@@ -40,41 +40,22 @@ async function getOrganizationIdFromWebsite(
 	return website.organizationId;
 }
 
-function formatLinkForDisplay(link: LinkData, baseUrl?: string): string {
-	const shortUrl = baseUrl ? `${baseUrl}/${link.slug}` : link.slug;
-	const expiresInfo = link.expiresAt
-		? `Expires: ${dayjs(link.expiresAt).format("MMM D, YYYY")}`
-		: "No expiration";
-
-	const externalInfo = link.externalId
-		? ` | External ID: ${link.externalId}`
-		: "";
-	return `- **${link.name}** (${shortUrl})
-  Target: ${link.targetUrl}
-  ${expiresInfo}${link.clickCount === undefined ? "" : ` | Clicks: ${link.clickCount}`}${externalInfo}`;
-}
-
 export function createLinksTools() {
 	const listLinksTool = tool({
 		description:
-			"List all short links for the current website's organization. Returns links with their slugs, target URLs, and metadata.",
-		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID to get links for"),
-		}),
+			"List short links for the website org (slug, target URL, metadata).",
+		inputSchema: z.object({ websiteId: z.string() }),
 		execute: async ({ websiteId }, options) => {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-
 				const result = (await callRPCProcedure(
 					"links",
 					"list",
 					{ organizationId },
 					context
 				)) as LinkData[];
-
 				const links = Array.isArray(result) ? result : [];
-
 				return {
 					links: links.map((link) => ({
 						id: link.id,
@@ -88,10 +69,6 @@ export function createLinksTools() {
 						ogDescription: link.ogDescription,
 					})),
 					count: links.length,
-					summary:
-						links.length === 0
-							? "No links found for this organization."
-							: `Found ${links.length} link${links.length === 1 ? "" : "s"}:\n${links.map((l) => formatLinkForDisplay(l)).join("\n")}`,
 				};
 			} catch (error) {
 				logger.error("Failed to list links", { websiteId, error });
@@ -102,105 +79,21 @@ export function createLinksTools() {
 		},
 	});
 
-	const getLinkTool = tool({
-		description:
-			"Get details of a specific short link by ID. Returns full link information including OG metadata.",
-		inputSchema: z.object({
-			id: z.string().describe("The link ID"),
-			websiteId: z.string().describe("The website ID"),
-		}),
-		execute: async ({ id, websiteId }, options) => {
-			const context = getAppContext(options);
-			try {
-				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-
-				const link = (await callRPCProcedure(
-					"links",
-					"get",
-					{ id, organizationId },
-					context
-				)) as LinkData;
-
-				return {
-					link,
-					summary: `**${link.name}**
-- Short URL: /${link.slug}
-- Target: ${link.targetUrl}
-- Created: ${dayjs(link.createdAt).format("MMM D, YYYY")}
-- Expires: ${link.expiresAt ? dayjs(link.expiresAt).format("MMM D, YYYY") : "Never"}
-${link.ogTitle ? `- OG Title: ${link.ogTitle}` : ""}
-${link.ogDescription ? `- OG Description: ${link.ogDescription}` : ""}`,
-				};
-			} catch (error) {
-				logger.error("Failed to get link", { id, websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve link. Please try again.");
-			}
-		},
-	});
-
 	const createLinkTool = tool({
 		description:
-			"Create a new short link. REQUIRES EXPLICIT USER CONFIRMATION before creating. Always show a preview first and ask the user to confirm before setting confirmed=true.",
+			"Create a short link. slug auto-generated if omitted. expiresAt is ISO date.",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			name: z
-				.string()
-				.min(1)
-				.max(255)
-				.describe(
-					"A descriptive name for the link (e.g., 'Black Friday Sale')"
-				),
-			targetUrl: z
-				.string()
-				.url()
-				.describe("The destination URL to redirect to"),
-			slug: z
-				.string()
-				.min(3)
-				.max(50)
-				.regex(SLUG_REGEX)
-				.optional()
-				.describe(
-					"Custom short URL slug (e.g., 'sale' creates /sale). Auto-generated if not provided."
-				),
-			expiresAt: z
-				.string()
-				.optional()
-				.describe("Expiration date in ISO format (e.g., 2024-12-31)"),
-			expiredRedirectUrl: z
-				.string()
-				.url()
-				.optional()
-				.describe("URL to redirect to after the link expires"),
-			ogTitle: z
-				.string()
-				.max(200)
-				.optional()
-				.describe("Custom Open Graph title for social sharing"),
-			ogDescription: z
-				.string()
-				.max(500)
-				.optional()
-				.describe("Custom Open Graph description for social sharing"),
-			ogImageUrl: z
-				.string()
-				.url()
-				.optional()
-				.describe("Custom Open Graph image URL for social sharing"),
-			externalId: z
-				.string()
-				.max(255)
-				.optional()
-				.describe(
-					"Third-party ID for querying (e.g. company, campaign, or partner ID)"
-				),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms. When false, returns a preview and asks for confirmation."
-				),
+			websiteId: z.string(),
+			name: z.string().min(1).max(255),
+			targetUrl: z.string().url(),
+			slug: z.string().min(3).max(50).regex(SLUG_REGEX).optional(),
+			expiresAt: z.string().optional(),
+			expiredRedirectUrl: z.string().url().optional(),
+			ogTitle: z.string().max(200).optional(),
+			ogDescription: z.string().max(500).optional(),
+			ogImageUrl: z.string().url().optional(),
+			externalId: z.string().max(255).optional(),
+			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
 		execute: async (
 			{
@@ -220,7 +113,6 @@ ${link.ogDescription ? `- OG Description: ${link.ogDescription}` : ""}`,
 		) => {
 			const context = getAppContext(options);
 			try {
-				// If not confirmed, return preview and ask for confirmation
 				if (!confirmed) {
 					return {
 						preview: true,
@@ -279,68 +171,24 @@ ${link.ogDescription ? `- OG Description: ${link.ogDescription}` : ""}`,
 	});
 
 	const updateLinkTool = tool({
-		description:
-			"Update an existing short link. REQUIRES EXPLICIT USER CONFIRMATION before updating. Always show a preview of changes first.",
+		description: "Update a short link. Pass null to nullable fields to clear.",
 		inputSchema: z.object({
-			id: z.string().describe("The link ID to update"),
-			websiteId: z.string().describe("The website ID"),
-			name: z.string().min(1).max(255).optional().describe("New name"),
-			targetUrl: z.string().url().optional().describe("New target URL"),
-			slug: z
-				.string()
-				.min(3)
-				.max(50)
-				.regex(SLUG_REGEX)
-				.optional()
-				.describe("New slug"),
-			expiresAt: z
-				.string()
-				.datetime()
-				.nullable()
-				.optional()
-				.describe("New expiration date (null to remove)"),
-			expiredRedirectUrl: z
-				.string()
-				.url()
-				.nullable()
-				.optional()
-				.describe("New expired redirect URL"),
-			ogTitle: z
-				.string()
-				.max(200)
-				.nullable()
-				.optional()
-				.describe("New OG title"),
-			ogDescription: z
-				.string()
-				.max(500)
-				.nullable()
-				.optional()
-				.describe("New OG description"),
-			ogImageUrl: z
-				.string()
-				.url()
-				.nullable()
-				.optional()
-				.describe("New OG image URL"),
-			externalId: z
-				.string()
-				.max(255)
-				.nullable()
-				.optional()
-				.describe(
-					"Third-party ID for querying (e.g. company, campaign, or partner ID). Pass null to clear."
-				),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms."
-				),
+			id: z.string(),
+			websiteId: z.string(),
+			name: z.string().min(1).max(255).optional(),
+			targetUrl: z.string().url().optional(),
+			slug: z.string().min(3).max(50).regex(SLUG_REGEX).optional(),
+			expiresAt: z.string().datetime().nullable().optional(),
+			expiredRedirectUrl: z.string().url().nullable().optional(),
+			ogTitle: z.string().max(200).nullable().optional(),
+			ogDescription: z.string().max(500).nullable().optional(),
+			ogImageUrl: z.string().url().nullable().optional(),
+			externalId: z.string().max(255).nullable().optional(),
+			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
 		execute: async ({ id, websiteId, confirmed, ...updates }, options) => {
 			const context = getAppContext(options);
 			try {
-				// First, get the current link
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
 				const currentLink = (await callRPCProcedure(
 					"links",
@@ -349,7 +197,6 @@ ${link.ogDescription ? `- OG Description: ${link.ogDescription}` : ""}`,
 					context
 				)) as LinkData;
 
-				// Build preview of changes
 				const changes: string[] = [];
 				if (updates.name && updates.name !== currentLink.name) {
 					changes.push(`Name: "${currentLink.name}" → "${updates.name}"`);
@@ -398,7 +245,6 @@ ${link.ogDescription ? `- OG Description: ${link.ogDescription}` : ""}`,
 					};
 				}
 
-				// Filter out undefined values
 				const cleanUpdates = Object.fromEntries(
 					Object.entries(updates).filter(([_, v]) => v !== undefined)
 				);
@@ -426,23 +272,17 @@ ${link.ogDescription ? `- OG Description: ${link.ogDescription}` : ""}`,
 	});
 
 	const deleteLinkTool = tool({
-		description:
-			"Delete a short link. REQUIRES EXPLICIT USER CONFIRMATION before deleting. This action cannot be undone.",
+		description: "Delete a short link. Cannot be undone.",
 		inputSchema: z.object({
-			id: z.string().describe("The link ID to delete"),
-			websiteId: z.string().describe("The website ID"),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms deletion."
-				),
+			id: z.string(),
+			websiteId: z.string(),
+			confirmed: z.boolean().describe("false=preview, true=delete"),
 		}),
 		execute: async ({ id, websiteId, confirmed }, options) => {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
 
-				// Get link details for confirmation
 				const link = (await callRPCProcedure(
 					"links",
 					"get",
@@ -481,68 +321,10 @@ ${link.ogDescription ? `- OG Description: ${link.ogDescription}` : ""}`,
 		},
 	});
 
-	const searchLinksTool = tool({
-		description:
-			"Search for links by name, slug, target URL, or external ID. Useful for finding specific links.",
-		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			query: z
-				.string()
-				.min(1)
-				.describe(
-					"Search query (matches name, slug, target URL, or external ID)"
-				),
-		}),
-		execute: async ({ websiteId, query }, options) => {
-			const context = getAppContext(options);
-			try {
-				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-
-				const allLinks = (await callRPCProcedure(
-					"links",
-					"list",
-					{ organizationId },
-					context
-				)) as LinkData[];
-
-				const queryLower = query.toLowerCase();
-				const matches = allLinks.filter(
-					(link) =>
-						link.name.toLowerCase().includes(queryLower) ||
-						link.slug.toLowerCase().includes(queryLower) ||
-						link.targetUrl.toLowerCase().includes(queryLower) ||
-						(link.externalId?.toLowerCase().includes(queryLower) ?? false)
-				);
-
-				return {
-					links: matches.map((link) => ({
-						id: link.id,
-						name: link.name,
-						slug: link.slug,
-						targetUrl: link.targetUrl,
-						externalId: link.externalId,
-					})),
-					count: matches.length,
-					summary:
-						matches.length === 0
-							? `No links found matching "${query}".`
-							: `Found ${matches.length} link${matches.length === 1 ? "" : "s"} matching "${query}":\n${matches.map((l) => formatLinkForDisplay(l)).join("\n")}`,
-				};
-			} catch (error) {
-				logger.error("Failed to search links", { websiteId, query, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to search links. Please try again.");
-			}
-		},
-	});
-
 	return {
 		list_links: listLinksTool,
-		get_link: getLinkTool,
 		create_link: createLinkTool,
 		update_link: updateLinkTool,
 		delete_link: deleteLinkTool,
-		search_links: searchLinksTool,
 	} as const;
 }

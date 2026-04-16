@@ -12,11 +12,11 @@ const DEFAULT_DATE_FORMAT = "MMM D, YYYY";
 const DEFAULT_TIME_FORMAT = "h:mm A";
 
 interface DateFormatOptions {
-	timezone?: string;
-	dateFormat?: string;
-	timeFormat?: string;
-	showTime?: boolean;
 	customFormat?: string;
+	dateFormat?: string;
+	showTime?: boolean;
+	timeFormat?: string;
+	timezone?: string;
 }
 
 type DateInput = Date | string | number | null;

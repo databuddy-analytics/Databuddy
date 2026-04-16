@@ -4,13 +4,12 @@ import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 function projectWhereClause(
 	filterParams?: Record<string, Filter["value"]>
 ): string {
-	if (
-		filterParams?.orgWebsiteIds &&
-		Array.isArray(filterParams.orgWebsiteIds) &&
-		filterParams.orgWebsiteIds.length > 0
-	) {
-		return "(owner_id = {projectId:String} OR website_id = {projectId:String} OR website_id IN {orgWebsiteIds:Array(String)})";
+	// Org-level: owner_id is always the organizationId at ingestion, so a
+	// primary-key scan on owner_id alone covers all events for the org.
+	if (filterParams?.__orgLevel) {
+		return "owner_id = {projectId:String}";
 	}
+	// Website-level: match either owner_id or website_id (bloom-filter indexed).
 	return "(owner_id = {projectId:String} OR website_id = {projectId:String})";
 }
 

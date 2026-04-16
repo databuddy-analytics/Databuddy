@@ -1,0 +1,963 @@
+"use client";
+
+import { BracketsSquareIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { FunnelIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { TagIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
+import { useDebouncedCallback } from "@tanstack/react-pacer";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+	flexRender,
+	getCoreRowModel,
+	useReactTable,
+} from "@tanstack/react-table";
+import { parseAsString, parseAsStringLiteral, useQueryState } from "nuqs";
+import {
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { EmptyState } from "@/components/empty-state";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import { formatTime, fromNow } from "@/lib/time";
+import { cn } from "@/lib/utils";
+
+export interface RecentCustomEvent {
+	anonymous_id: string;
+	event_name: string;
+	name: string;
+	path: string;
+	properties: Record<string, unknown>;
+	session_id: string;
+	timestamp: string;
+}
+
+export interface EventsStreamData {
+	error: Error | null;
+	events: RecentCustomEvent[] | undefined;
+	isError: boolean;
+	isLoading: boolean;
+	pagination: { hasNext: boolean };
+}
+
+export interface EventsStreamContentProps {
+	data: EventsStreamData;
+	eventsKey: string;
+	isPageLoading?: boolean;
+	onPageChange: (page: number) => void;
+	page: number;
+	renderEventName: (event: RecentCustomEvent) => ReactNode;
+}
+
+type HasPropertiesFilter = "all" | "with" | "without";
+
+const hasPropertiesOptions = [
+	{ value: "all", label: "All events" },
+	{ value: "with", label: "With properties" },
+	{ value: "without", label: "Without properties" },
+] as const;
+
+const FILTER_TRIGGER_CLASS =
+	"h-7 gap-1 border-transparent bg-transparent px-2 text-xs shadow-none";
+const FILTER_ACTIVE_CLASS = "border-primary/30 text-primary";
+
+function SkeletonRow() {
+	return (
+		<TableRow className="h-[65px]">
+			<TableCell className="py-2">
+				<Skeleton className="h-4 w-16" />
+			</TableCell>
+			<TableCell className="py-2">
+				<Skeleton className="h-5 w-24" />
+			</TableCell>
+			<TableCell className="py-2">
+				<Skeleton className="h-4 w-32" />
+			</TableCell>
+			<TableCell className="py-2">
+				<div className="space-y-1">
+					<Skeleton className="h-4 w-full" />
+					<Skeleton className="h-3 w-2/3" />
+				</div>
+			</TableCell>
+			<TableCell className="py-2">
+				<Skeleton className="h-6 w-6" />
+			</TableCell>
+		</TableRow>
+	);
+}
+
+interface ActiveFilter {
+	label: string;
+	onRemoveAction: () => void;
+	type: "event" | "path" | "property" | "hasProps";
+	value: string;
+}
+
+function getFilterIcon(type: ActiveFilter["type"]) {
+	switch (type) {
+		case "event":
+			return <LightningIcon className="size-3" weight="fill" />;
+		case "path":
+			return <LinkIcon className="size-3" />;
+		case "property":
+			return <TagIcon className="size-3" weight="fill" />;
+		case "hasProps":
+			return <BracketsSquareIcon className="size-3" />;
+		default:
+			return <FunnelIcon className="size-3" />;
+	}
+}
+
+function ActiveFiltersDisplay({ filters }: { filters: ActiveFilter[] }) {
+	if (filters.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="flex flex-wrap items-center gap-1.5">
+			<span className="font-medium text-muted-foreground text-xs uppercase">
+				Active:
+			</span>
+			{filters.map((filter) => (
+				<Badge
+					className="gap-1 pr-1"
+					key={`${filter.type}-${filter.value}`}
+					variant="outline"
+				>
+					<span className="text-muted-foreground">
+						{getFilterIcon(filter.type)}
+					</span>
+					<span className="text-muted-foreground">{filter.label}</span>
+					<span className="text-muted-foreground/60">=</span>
+					<span className="max-w-[100px] truncate text-foreground">
+						{filter.value}
+					</span>
+					<button
+						aria-label={`Remove ${filter.label} filter`}
+						className="flex size-4 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+						onClick={filter.onRemoveAction}
+						type="button"
+					>
+						<XIcon className="size-3" weight="bold" />
+					</button>
+				</Badge>
+			))}
+		</div>
+	);
+}
+
+export function EventsStreamContent({
+	data,
+	eventsKey,
+	isPageLoading = false,
+	page,
+	onPageChange,
+	renderEventName,
+}: EventsStreamContentProps) {
+	const { events, pagination, isLoading, isError, error } = data;
+
+	const [allEvents, setAllEvents] = useState<RecentCustomEvent[]>([]);
+	const [loadMoreRef, setLoadMoreRef] = useState<HTMLTableCellElement | null>(
+		null
+	);
+	const [scrollContainerRef, setScrollContainerRef] =
+		useState<HTMLDivElement | null>(null);
+	const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+	const [searchQuery, setSearchQuery] = useQueryState(
+		"search",
+		parseAsString.withDefault("")
+	);
+	const [searchInput, setSearchInput] = useState(searchQuery);
+
+	const debouncedSetSearchQuery = useDebouncedCallback(
+		(value: string) => {
+			setSearchQuery(value);
+		},
+		{ wait: 300 }
+	);
+
+	const handleSearchInputChange = useCallback(
+		(value: string) => {
+			setSearchInput(value);
+			debouncedSetSearchQuery(value);
+		},
+		[debouncedSetSearchQuery]
+	);
+
+	const [selectedEventType, setSelectedEventType] = useQueryState(
+		"event",
+		parseAsString.withDefault("all")
+	);
+	const [selectedPath, setSelectedPath] = useQueryState(
+		"path",
+		parseAsString.withDefault("all")
+	);
+	const [selectedPropertyKey, setSelectedPropertyKey] = useQueryState(
+		"propKey",
+		parseAsString.withDefault("all")
+	);
+	const [selectedPropertyValue, setSelectedPropertyValue] = useQueryState(
+		"propVal",
+		parseAsString.withDefault("all")
+	);
+	const [hasProperties, setHasProperties] = useQueryState(
+		"hasProps",
+		parseAsStringLiteral(["all", "with", "without"] as const).withDefault("all")
+	);
+
+	const pageRef = useRef(page);
+	pageRef.current = page;
+
+	const justResetRef = useRef(false);
+	useEffect(() => {
+		onPageChange(1);
+		setAllEvents([]);
+		setIsInitialLoad(true);
+		justResetRef.current = true;
+	}, [eventsKey, onPageChange]);
+
+	const handleIntersection = useCallback(
+		(entries: IntersectionObserverEntry[]) => {
+			const [entry] = entries;
+			if (entry?.isIntersecting && pagination.hasNext && !isLoading) {
+				onPageChange(pageRef.current + 1);
+			}
+		},
+		[pagination.hasNext, isLoading, onPageChange]
+	);
+
+	const observerRef = useRef<IntersectionObserver | null>(null);
+	useEffect(() => {
+		if (!(loadMoreRef && scrollContainerRef)) {
+			return;
+		}
+		if (observerRef.current) {
+			observerRef.current.disconnect();
+		}
+		observerRef.current = new IntersectionObserver(handleIntersection, {
+			root: scrollContainerRef,
+			threshold: 0.1,
+			rootMargin: "300px",
+		});
+		observerRef.current.observe(loadMoreRef);
+		return () => {
+			observerRef.current?.disconnect();
+			observerRef.current = null;
+		};
+	}, [loadMoreRef, scrollContainerRef, handleIntersection]);
+
+	useEffect(() => {
+		if (!events?.length) {
+			return;
+		}
+		if (justResetRef.current) {
+			justResetRef.current = false;
+			setAllEvents(events);
+			setIsInitialLoad(false);
+			return;
+		}
+		setAllEvents((prev) => {
+			const existingKeys = new Set(
+				prev.map((e) => `${e.timestamp}-${e.event_name}-${e.session_id}`)
+			);
+			let hasNewEvents = false;
+			const newEvents = [...prev];
+			for (const event of events) {
+				const key = `${event.timestamp}-${event.event_name}-${event.session_id}`;
+				if (!existingKeys.has(key)) {
+					newEvents.push(event);
+					hasNewEvents = true;
+				}
+			}
+			return hasNewEvents ? newEvents : prev;
+		});
+		setIsInitialLoad(false);
+	}, [events]);
+
+	const eventTypes = useMemo(() => {
+		const types = new Set(allEvents.map((e) => e.event_name));
+		return Array.from(types).sort();
+	}, [allEvents]);
+
+	const uniquePaths = useMemo(() => {
+		const paths = new Set(allEvents.map((e) => e.path).filter(Boolean));
+		return Array.from(paths).sort() as string[];
+	}, [allEvents]);
+
+	const uniquePropertyKeys = useMemo(() => {
+		const keys = new Set<string>();
+		for (const event of allEvents) {
+			for (const key of Object.keys(event.properties)) {
+				keys.add(key);
+			}
+		}
+		return Array.from(keys).sort();
+	}, [allEvents]);
+
+	const propertyValues = useMemo(() => {
+		if (selectedPropertyKey === "all") {
+			return [];
+		}
+		const values = new Set<string>();
+		for (const event of allEvents) {
+			const val = event.properties[selectedPropertyKey];
+			if (val !== undefined && val !== null) {
+				values.add(String(val));
+			}
+		}
+		return Array.from(values).sort();
+	}, [allEvents, selectedPropertyKey]);
+
+	const filteredEvents = useMemo(() => {
+		let result = allEvents;
+
+		if (selectedEventType !== "all") {
+			result = result.filter((e) => e.event_name === selectedEventType);
+		}
+		if (selectedPath !== "all") {
+			result = result.filter((e) => e.path === selectedPath);
+		}
+		if (hasProperties === "with") {
+			result = result.filter((e) => Object.keys(e.properties).length > 0);
+		} else if (hasProperties === "without") {
+			result = result.filter((e) => Object.keys(e.properties).length === 0);
+		}
+		if (selectedPropertyKey !== "all") {
+			result = result.filter((e) => selectedPropertyKey in e.properties);
+			if (selectedPropertyValue !== "all") {
+				result = result.filter(
+					(e) =>
+						String(e.properties[selectedPropertyKey]) === selectedPropertyValue
+				);
+			}
+		}
+		if (searchQuery.trim()) {
+			const query = searchQuery.toLowerCase();
+			result = result.filter(
+				(e) =>
+					e.event_name.toLowerCase().includes(query) ||
+					e.path?.toLowerCase().includes(query) ||
+					Object.values(e.properties).some((val) =>
+						String(val).toLowerCase().includes(query)
+					)
+			);
+		}
+
+		return result;
+	}, [
+		allEvents,
+		selectedEventType,
+		selectedPath,
+		hasProperties,
+		selectedPropertyKey,
+		selectedPropertyValue,
+		searchQuery,
+	]);
+
+	const activeFilters = useMemo<ActiveFilter[]>(() => {
+		const result: ActiveFilter[] = [];
+
+		if (selectedEventType !== "all") {
+			result.push({
+				type: "event",
+				label: "Event",
+				value: selectedEventType,
+				onRemoveAction: () => setSelectedEventType("all"),
+			});
+		}
+		if (selectedPath !== "all") {
+			result.push({
+				type: "path",
+				label: "Path",
+				value: selectedPath,
+				onRemoveAction: () => setSelectedPath("all"),
+			});
+		}
+		if (hasProperties !== "all") {
+			result.push({
+				type: "hasProps",
+				label: "Properties",
+				value: hasProperties === "with" ? "With" : "Without",
+				onRemoveAction: () => setHasProperties("all"),
+			});
+		}
+		if (selectedPropertyKey !== "all") {
+			const propLabel =
+				selectedPropertyValue === "all"
+					? selectedPropertyKey
+					: `${selectedPropertyKey} = ${selectedPropertyValue}`;
+			result.push({
+				type: "property",
+				label: "Property",
+				value: propLabel,
+				onRemoveAction: () => {
+					setSelectedPropertyKey("all");
+					setSelectedPropertyValue("all");
+				},
+			});
+		}
+
+		return result;
+	}, [
+		selectedEventType,
+		selectedPath,
+		hasProperties,
+		selectedPropertyKey,
+		selectedPropertyValue,
+		setSelectedEventType,
+		setSelectedPath,
+		setHasProperties,
+		setSelectedPropertyKey,
+		setSelectedPropertyValue,
+	]);
+
+	const clearAllFilters = useCallback(() => {
+		setSelectedEventType("all");
+		setSelectedPath("all");
+		setHasProperties("all");
+		setSelectedPropertyKey("all");
+		setSelectedPropertyValue("all");
+		setSearchQuery("");
+		setSearchInput("");
+	}, [
+		setSelectedEventType,
+		setSelectedPath,
+		setHasProperties,
+		setSelectedPropertyKey,
+		setSelectedPropertyValue,
+		setSearchQuery,
+	]);
+
+	const handleCopyEvent = useCallback((event: RecentCustomEvent) => {
+		const copyData = {
+			event_name: event.event_name,
+			path: event.path,
+			timestamp: event.timestamp,
+			properties: event.properties,
+		};
+		navigator.clipboard.writeText(JSON.stringify(copyData, null, 2));
+	}, []);
+
+	const handlePropertyKeyChange = useCallback(
+		(value: string) => {
+			setSelectedPropertyKey(value);
+			setSelectedPropertyValue("all");
+		},
+		[setSelectedPropertyKey, setSelectedPropertyValue]
+	);
+
+	const columns = useMemo<ColumnDef<RecentCustomEvent>[]>(
+		() => [
+			{
+				id: "timestamp",
+				header: "Time",
+				accessorFn: (row) => row.timestamp,
+				cell: ({ row }) => (
+					<div className="flex flex-col">
+						<span className="text-foreground text-sm">
+							{fromNow(row.original.timestamp)}
+						</span>
+						<span className="text-muted-foreground text-xs">
+							{formatTime(row.original.timestamp)}
+						</span>
+					</div>
+				),
+				size: 100,
+			},
+			{
+				id: "event_name",
+				header: "Event",
+				accessorFn: (row) => row.event_name,
+				cell: ({ row }) => renderEventName(row.original),
+				size: 160,
+			},
+			{
+				id: "path",
+				header: "Page",
+				accessorFn: (row) => row.path,
+				cell: ({ row }) =>
+					row.original.path ? (
+						<button
+							className="flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
+							onClick={() => setSelectedPath(row.original.path)}
+							title={`Filter by ${row.original.path}`}
+							type="button"
+						>
+							<LinkIcon className="size-3.5 shrink-0" />
+							<span className="max-w-[200px] truncate">
+								{row.original.path}
+							</span>
+						</button>
+					) : (
+						<span className="text-muted-foreground/50 text-sm">—</span>
+					),
+				size: 200,
+			},
+			{
+				id: "properties",
+				header: "Properties",
+				cell: ({ row }) => {
+					const props = row.original.properties;
+					const entries = Object.entries(props);
+
+					if (entries.length === 0) {
+						return (
+							<span className="text-muted-foreground/50 text-sm">
+								No properties
+							</span>
+						);
+					}
+
+					return (
+						<div className="flex flex-wrap gap-1.5">
+							{entries.slice(0, 3).map(([key, value]) => {
+								const strValue = String(value);
+								const isLong = strValue.length > 30;
+								return (
+									<button
+										className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-xs transition-colors hover:bg-muted/80"
+										key={key}
+										onClick={() => {
+											setSelectedPropertyKey(key);
+											setSelectedPropertyValue(strValue);
+										}}
+										title={`Filter by ${key}: ${strValue}`}
+										type="button"
+									>
+										<span className="text-muted-foreground">{key}:</span>
+										<span className="max-w-[120px] truncate text-foreground">
+											{isLong ? `${strValue.slice(0, 27)}…` : strValue}
+										</span>
+									</button>
+								);
+							})}
+							{entries.length > 3 && (
+								<span className="text-muted-foreground text-xs">
+									+{entries.length - 3} more
+								</span>
+							)}
+						</div>
+					);
+				},
+				size: 300,
+			},
+			{
+				id: "actions",
+				header: "",
+				cell: ({ row }) => (
+					<Button
+						aria-label="Copy event JSON"
+						className="size-7 opacity-0 transition-opacity focus:opacity-100 group-hover/row:opacity-100"
+						onClick={() => handleCopyEvent(row.original)}
+						size="icon"
+						title="Copy event JSON"
+						variant="ghost"
+					>
+						<CopyIcon className="size-3.5" />
+					</Button>
+				),
+				size: 40,
+			},
+		],
+		[
+			renderEventName,
+			handleCopyEvent,
+			setSelectedPath,
+			setSelectedPropertyKey,
+			setSelectedPropertyValue,
+		]
+	);
+
+	const table = useReactTable({
+		data: filteredEvents,
+		columns,
+		getCoreRowModel: getCoreRowModel(),
+		getRowId: (row, index) => `${index}-${row.timestamp}-${row.event_name}`,
+	});
+
+	if (isPageLoading || (isLoading && isInitialLoad)) {
+		return (
+			<div className="flex h-full flex-col">
+				<div className="shrink-0 border-b px-2 py-1.5">
+					<div className="flex flex-wrap items-center gap-1.5">
+						<Skeleton className="size-4 rounded" />
+						<Skeleton className="h-7 w-[140px]" />
+						<div className="h-4 w-px bg-border/60" />
+						<Skeleton className="size-4 rounded" />
+						<Skeleton className="h-7 w-[140px]" />
+						<div className="h-4 w-px bg-border/60" />
+						<Skeleton className="size-4 rounded" />
+						<Skeleton className="h-7 w-[135px]" />
+						<Skeleton className="h-7 w-[130px]" />
+						<div className="h-4 w-px bg-border/60" />
+						<Skeleton className="h-7 w-[160px]" />
+						<div className="flex-1" />
+						<Skeleton className="h-5 w-20 rounded" />
+					</div>
+				</div>
+				<div className="flex-1 overflow-auto">
+					<Table>
+						<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
+							<TableRow className="border-b bg-accent">
+								{columns.map((column) => (
+									<TableHead
+										className="h-[39px]"
+										key={column.id}
+										style={{ width: column.size }}
+									>
+										{typeof column.header === "string" ? column.header : null}
+									</TableHead>
+								))}
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{Array.from({ length: 10 }).map((_, i) => (
+								<SkeletonRow key={`skeleton-row-${i}`} />
+							))}
+						</TableBody>
+					</Table>
+				</div>
+			</div>
+		);
+	}
+
+	if (isError) {
+		return (
+			<div className="flex flex-1 items-center justify-center py-16">
+				<EmptyState
+					description={
+						error?.message || "There was an error loading the events"
+					}
+					icon={<LightningIcon />}
+					title="Failed to load events"
+					variant="error"
+				/>
+			</div>
+		);
+	}
+
+	if (!allEvents || allEvents.length === 0) {
+		return (
+			<div className="flex flex-1 items-center justify-center py-16">
+				<EmptyState
+					description={
+						<>
+							Events will appear here once your tracker starts collecting them.
+							Use{" "}
+							<code className="rounded bg-muted px-1 py-0.5 text-xs">
+								databuddy.track()
+							</code>{" "}
+							to send custom events.
+						</>
+					}
+					icon={<LightningIcon />}
+					title="No events yet"
+					variant="minimal"
+				/>
+			</div>
+		);
+	}
+
+	const hasActiveFilters = activeFilters.length > 0 || searchQuery.trim();
+
+	return (
+		<div className="flex h-full flex-col">
+			<div className="shrink-0 space-y-1.5 border-b px-2 py-1.5">
+				<div className="flex flex-wrap items-center gap-1.5">
+					<div className="flex items-center gap-1.5">
+						<LightningIcon
+							className="size-4 text-muted-foreground"
+							weight="duotone"
+						/>
+						<Select
+							onValueChange={setSelectedEventType}
+							value={selectedEventType}
+						>
+							<SelectTrigger
+								className={cn(
+									FILTER_TRIGGER_CLASS,
+									"w-[140px]",
+									selectedEventType !== "all" && FILTER_ACTIVE_CLASS
+								)}
+							>
+								<SelectValue placeholder="Event type" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All events</SelectItem>
+								{eventTypes.map((type) => (
+									<SelectItem key={type} value={type}>
+										{type}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					<div className="h-4 w-px bg-border/60" />
+
+					<div className="flex items-center gap-1.5">
+						<LinkIcon className="size-4 text-muted-foreground" />
+						<Select onValueChange={setSelectedPath} value={selectedPath}>
+							<SelectTrigger
+								className={cn(
+									FILTER_TRIGGER_CLASS,
+									"w-[140px]",
+									selectedPath !== "all" && FILTER_ACTIVE_CLASS
+								)}
+							>
+								<SelectValue placeholder="Page" />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All pages</SelectItem>
+								{uniquePaths.map((path) => (
+									<SelectItem key={path} value={path}>
+										<span className="max-w-[200px] truncate">{path}</span>
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					<div className="h-4 w-px bg-border/60" />
+
+					<div className="flex items-center gap-1.5">
+						<TagIcon
+							className="size-4 text-muted-foreground"
+							weight="duotone"
+						/>
+						<Select
+							onValueChange={(v) => setHasProperties(v as HasPropertiesFilter)}
+							value={hasProperties}
+						>
+							<SelectTrigger
+								className={cn(
+									FILTER_TRIGGER_CLASS,
+									"w-[135px]",
+									hasProperties !== "all" && FILTER_ACTIVE_CLASS
+								)}
+							>
+								<SelectValue placeholder="Properties" />
+							</SelectTrigger>
+							<SelectContent>
+								{hasPropertiesOptions.map((opt) => (
+									<SelectItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+
+						{uniquePropertyKeys.length > 0 && (
+							<Select
+								onValueChange={handlePropertyKeyChange}
+								value={selectedPropertyKey}
+							>
+								<SelectTrigger
+									className={cn(
+										FILTER_TRIGGER_CLASS,
+										"w-[130px]",
+										selectedPropertyKey !== "all" && FILTER_ACTIVE_CLASS
+									)}
+								>
+									<SelectValue placeholder="Key" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">Any key</SelectItem>
+									{uniquePropertyKeys.map((key) => (
+										<SelectItem key={key} value={key}>
+											{key}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						)}
+
+						{selectedPropertyKey !== "all" && propertyValues.length > 0 && (
+							<>
+								<span className="text-muted-foreground">=</span>
+								<Select
+									onValueChange={setSelectedPropertyValue}
+									value={selectedPropertyValue}
+								>
+									<SelectTrigger
+										className={cn(
+											FILTER_TRIGGER_CLASS,
+											"w-[120px]",
+											selectedPropertyValue !== "all" && FILTER_ACTIVE_CLASS
+										)}
+									>
+										<SelectValue placeholder="Value" />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="all">Any value</SelectItem>
+										{propertyValues.map((val) => (
+											<SelectItem key={val} value={val}>
+												<span className="max-w-[160px] truncate">{val}</span>
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</>
+						)}
+					</div>
+
+					<div className="h-4 w-px bg-border/60" />
+
+					<div className="relative w-[180px] flex-none">
+						<MagnifyingGlassIcon
+							className="absolute top-1/2 left-2.5 z-10 size-3.5 -translate-y-1/2 text-muted-foreground"
+							weight="bold"
+						/>
+						<Input
+							className={cn(
+								"h-7 border-transparent bg-transparent pr-7 pl-8 text-sm shadow-none placeholder:text-muted-foreground/50 focus-visible:border-border focus-visible:bg-background",
+								searchQuery.trim() && FILTER_ACTIVE_CLASS
+							)}
+							onChange={(e) => handleSearchInputChange(e.target.value)}
+							placeholder="Search…"
+							showFocusIndicator={false}
+							value={searchInput}
+						/>
+						{searchInput && (
+							<button
+								aria-label="Clear search"
+								className="absolute top-1/2 right-2 z-10 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+								onClick={() => handleSearchInputChange("")}
+								type="button"
+							>
+								<XIcon className="size-3.5" />
+							</button>
+						)}
+					</div>
+
+					<div className="flex-1" />
+
+					<div className="flex items-center gap-1.5">
+						<Badge className="tabular-nums" variant="gray">
+							{filteredEvents.length.toLocaleString()} event
+							{filteredEvents.length === 1 ? "" : "s"}
+						</Badge>
+
+						{hasActiveFilters && (
+							<Button
+								className="h-7 gap-1 px-2 text-xs shadow-none"
+								onClick={clearAllFilters}
+								size="sm"
+								variant="ghost"
+							>
+								<XIcon className="size-3" />
+								Clear
+							</Button>
+						)}
+					</div>
+				</div>
+
+				{activeFilters.length > 0 && (
+					<ActiveFiltersDisplay filters={activeFilters} />
+				)}
+			</div>
+
+			<div className="min-h-0 flex-1 overflow-auto" ref={setScrollContainerRef}>
+				<Table>
+					<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
+						{table.getHeaderGroups().map((headerGroup) => (
+							<TableRow className="border-b bg-accent" key={headerGroup.id}>
+								{headerGroup.headers.map((header) => (
+									<TableHead
+										className="h-[39px]"
+										key={header.id}
+										style={{ width: header.column.getSize() }}
+									>
+										{header.isPlaceholder
+											? null
+											: flexRender(
+													header.column.columnDef.header,
+													header.getContext()
+												)}
+									</TableHead>
+								))}
+							</TableRow>
+						))}
+					</TableHeader>
+					<TableBody>
+						{filteredEvents.length === 0 ? (
+							<TableRow>
+								<TableCell
+									className="h-32 text-center text-muted-foreground"
+									colSpan={columns.length}
+								>
+									No events match your filters
+								</TableCell>
+							</TableRow>
+						) : (
+							table.getRowModel().rows.map((row) => (
+								<TableRow
+									className="group/row h-[65px] transition-colors hover:bg-muted/30"
+									key={row.id}
+								>
+									{row.getVisibleCells().map((cell) => (
+										<TableCell
+											className="py-2"
+											key={cell.id}
+											style={{ width: cell.column.getSize() }}
+										>
+											{flexRender(
+												cell.column.columnDef.cell,
+												cell.getContext()
+											)}
+										</TableCell>
+									))}
+								</TableRow>
+							))
+						)}
+
+						{pagination.hasNext && filteredEvents.length > 0 && (
+							<>
+								<TableRow>
+									<TableCell
+										className="h-0 p-0"
+										colSpan={columns.length}
+										ref={setLoadMoreRef}
+									/>
+								</TableRow>
+								{isLoading && (
+									<>
+										<SkeletonRow />
+										<SkeletonRow />
+										<SkeletonRow />
+									</>
+								)}
+							</>
+						)}
+					</TableBody>
+				</Table>
+			</div>
+		</div>
+	);
+}

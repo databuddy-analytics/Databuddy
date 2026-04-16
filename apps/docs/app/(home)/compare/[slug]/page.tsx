@@ -49,10 +49,17 @@ export default async function ComparisonPage({ params }: PageProps) {
 		notFound();
 	}
 
-	const { competitor, features, hero, seo, faqs, pricingTiers, migrationSection } =
-		data;
+	const {
+		competitor,
+		features,
+		hero,
+		seo,
+		faqs,
+		pricingTiers,
+		migrationSection,
+	} = data;
 	const featuresWin = features.filter(
-		(f) => f.databuddy && !f.competitor,
+		(f) => f.databuddy && !f.competitor
 	).length;
 
 	const pageUrl = `${SITE_URL}/compare/${slug}`;
@@ -76,8 +83,7 @@ export default async function ComparisonPage({ params }: PageProps) {
 			heroDescription={hero.description}
 			heroHeading={
 				<>
-					{titleParts.at(0)}{" "}
-					<span className="text-muted-foreground">vs</span>{" "}
+					{titleParts.at(0)} <span className="text-muted-foreground">vs</span>{" "}
 					<span className="text-muted-foreground">{titleParts.at(1)}</span>
 				</>
 			}

@@ -23,8 +23,8 @@ import {
 import { useOrganizationInvitations } from "@/hooks/use-organization-invitations";
 
 interface InviteMemberDialogProps {
-	open: boolean;
 	onOpenChange: (open: boolean) => void;
+	open: boolean;
 	organizationId: string;
 }
 

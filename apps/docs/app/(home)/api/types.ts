@@ -5,24 +5,22 @@ export interface DynamicQueryFilter {
 }
 
 export interface DynamicQueryRequest {
-	id: string;
-	parameters: string[];
 	filters?: DynamicQueryFilter[];
+	granularity?: string;
+	id: string;
 	limit?: number;
 	page?: number;
-	granularity?: string;
+	parameters: string[];
 }
 
 export interface ParameterResult {
-	parameter: string;
-	success: boolean;
 	data: unknown[];
 	error?: string;
+	parameter: string;
+	success: boolean;
 }
 
 export interface DynamicQueryResponse {
-	success: boolean;
-	queryId: string;
 	data: ParameterResult[];
 	meta: {
 		parameters: string[];
@@ -31,10 +29,12 @@ export interface DynamicQueryResponse {
 		limit: number;
 		filters_applied: number;
 	};
+	queryId: string;
+	success: boolean;
 }
 
 export interface BatchQueryResponse {
-	success: boolean;
 	batch: true;
 	results: DynamicQueryResponse[];
+	success: boolean;
 }

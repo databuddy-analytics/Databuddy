@@ -1,28 +1,107 @@
 import { hasComponent } from "./registry";
+import { validateComponentJSON } from "./schemas";
 import type {
 	ContentSegment,
-	ParsedContent,
 	ParsedSegments,
 	RawComponentInput,
 } from "./types";
 
 const COMPONENT_START = '{"type":"';
 
-/**
- * Type guard to validate raw component input structure
- */
+const TRAILING_COMMA_RE = /,\s*$/;
+const DANGLING_KEY_TEST_RE = /,\s*"[^"]*"\s*$/;
+const DANGLING_KV_TEST_RE = /,\s*"[^"]*"\s*:\s*$/;
+const DANGLING_KV_REPLACE_RE = /,\s*"[^"]*"(\s*:\s*[^,}\]]*?)?\s*$/;
+
 function isRawComponentInput(obj: unknown): obj is RawComponentInput {
 	if (typeof obj !== "object" || obj === null) {
 		return false;
 	}
 	const record = obj as Record<string, unknown>;
-	return typeof record.type === "string" && hasComponent(record.type);
+	if (typeof record.type !== "string" || !hasComponent(record.type)) {
+		return false;
+	}
+	const { valid } = validateComponentJSON(obj);
+	return valid;
 }
 
-/**
- * Parse content into ordered segments of text and components.
- * Components are rendered in the order they appear in the content.
- */
+export function repairPartialJSON(input: string): string | null {
+	if (input.length < 10) {
+		return null;
+	}
+
+	let result = input;
+	result = result.replace(TRAILING_COMMA_RE, "");
+
+	let inString = false;
+	let escaped = false;
+	const stack: string[] = [];
+
+	for (const ch of result) {
+		if (escaped) {
+			escaped = false;
+			continue;
+		}
+
+		if (ch === "\\") {
+			escaped = true;
+			continue;
+		}
+
+		if (ch === '"') {
+			if (inString) {
+				inString = false;
+			} else {
+				inString = true;
+			}
+			continue;
+		}
+
+		if (inString) {
+			continue;
+		}
+
+		if (ch === "{") {
+			stack.push("}");
+		} else if (ch === "[") {
+			stack.push("]");
+		} else if (ch === "}" || ch === "]") {
+			stack.pop();
+		}
+	}
+
+	if (inString) {
+		result += '"';
+	}
+
+	// Drop dangling key-value pair before the current open object closes.
+	// e.g. {"type":"line-chart","tit  ->  {"type":"line-chart"
+	const lastBrace = result.lastIndexOf("{");
+	if (stack.length > 0 && stack.at(-1) === "}") {
+		const afterLastBrace = result.slice(lastBrace);
+		if (
+			DANGLING_KEY_TEST_RE.test(afterLastBrace) ||
+			DANGLING_KV_TEST_RE.test(afterLastBrace)
+		) {
+			result = result.replace(DANGLING_KV_REPLACE_RE, "");
+		}
+	}
+
+	// Trailing commas may have been exposed by closing an unterminated string.
+	result = result.replace(TRAILING_COMMA_RE, "");
+
+	while (stack.length > 0) {
+		result += stack.pop();
+	}
+
+	try {
+		JSON.parse(result);
+		return result;
+	} catch {
+		return null;
+	}
+}
+
 export function parseContentSegments(content: string): ParsedSegments {
 	const segments: ContentSegment[] = [];
 	let searchIndex = 0;
@@ -31,21 +110,18 @@ export function parseContentSegments(content: string): ParsedSegments {
 		const startIndex = content.indexOf(COMPONENT_START, searchIndex);
 
 		if (startIndex === -1) {
-			// No more components, add remaining text
-			const remainingText = content.substring(searchIndex).trim();
+			const remainingText = content.slice(searchIndex).trim();
 			if (remainingText) {
 				segments.push({ type: "text", content: remainingText });
 			}
 			break;
 		}
 
-		// Add text before the component
-		const textBefore = content.substring(searchIndex, startIndex).trim();
+		const textBefore = content.slice(searchIndex, startIndex).trim();
 		if (textBefore) {
 			segments.push({ type: "text", content: textBefore });
 		}
 
-		// Find matching closing brace
 		let braceCount = 0;
 		let endIndex = -1;
 		for (let i = startIndex; i < content.length; i++) {
@@ -61,15 +137,27 @@ export function parseContentSegments(content: string): ParsedSegments {
 		}
 
 		if (endIndex === -1) {
-			// Unclosed brace, treat rest as text
-			const remainingText = content.substring(searchIndex).trim();
-			if (remainingText) {
-				segments.push({ type: "text", content: remainingText });
+			// JSON is still streaming — attempt repair and render a streaming-component
+			// segment. Partial or invalid JSON is silently hidden; never leaked as text.
+			const partialJson = content.slice(startIndex);
+			const repaired = repairPartialJSON(partialJson);
+
+			if (repaired) {
+				try {
+					const parsed = JSON.parse(repaired) as unknown;
+					const record = parsed as Record<string, unknown>;
+					if (typeof record.type === "string" && hasComponent(record.type)) {
+						segments.push({
+							type: "streaming-component",
+							content: record as RawComponentInput,
+						});
+					}
+				} catch {}
 			}
 			break;
 		}
 
-		const jsonString = content.substring(startIndex, endIndex + 1);
+		const jsonString = content.slice(startIndex, endIndex + 1);
 		try {
 			const parsed = JSON.parse(jsonString) as unknown;
 			if (isRawComponentInput(parsed)) {
@@ -77,35 +165,17 @@ export function parseContentSegments(content: string): ParsedSegments {
 				searchIndex = endIndex + 1;
 				continue;
 			}
-		} catch {
-			// Invalid JSON, skip
-		}
+			// Valid JSON with a known component type but failed schema validation —
+			// skip past it silently rather than dumping raw JSON as text.
+			const record = parsed as Record<string, unknown>;
+			if (typeof record.type === "string" && hasComponent(record.type)) {
+				searchIndex = endIndex + 1;
+				continue;
+			}
+		} catch {}
 
-		// Not a valid component, continue searching
 		searchIndex = startIndex + COMPONENT_START.length;
 	}
 
 	return { segments };
-}
-
-/**
- * @deprecated Use parseContentSegments for ordered rendering
- * Parse component JSON objects from markdown content.
- * Extracts components in format: {"type":"..."}
- */
-export function parseComponents(content: string): ParsedContent {
-	const { segments } = parseContentSegments(content);
-
-	const text = segments
-		.filter((s): s is ContentSegment & { type: "text" } => s.type === "text")
-		.map((s) => s.content)
-		.join(" ");
-
-	const components = segments
-		.filter(
-			(s): s is ContentSegment & { type: "component" } => s.type === "component"
-		)
-		.map((s) => s.content);
-
-	return { text, components };
 }

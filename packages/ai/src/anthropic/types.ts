@@ -1,19 +1,19 @@
 /** Token usage statistics */
 export interface AnthropicUsage {
+	cacheCreationInputTokens?: number;
+	cachedInputTokens?: number;
 	inputTokens: number;
 	outputTokens: number;
 	totalTokens: number;
-	cachedInputTokens?: number;
-	cacheCreationInputTokens?: number;
 	webSearchCount?: number;
 }
 
 /** Raw Anthropic API usage format */
 export interface AnthropicRawUsage {
-	input_tokens?: number;
-	output_tokens?: number;
 	cache_creation_input_tokens?: number;
 	cache_read_input_tokens?: number;
+	input_tokens?: number;
+	output_tokens?: number;
 	server_tool_use?: { web_search_requests?: number };
 }
 
@@ -26,36 +26,36 @@ export interface AnthropicCost {
 
 /** Tool usage information */
 export interface AnthropicToolInfo {
-	callCount: number;
-	resultCount: number;
-	calledTools: string[];
 	availableTools?: string[];
+	callCount: number;
+	calledTools: string[];
+	resultCount: number;
 }
 
 /** Error details */
 export interface AnthropicErrorInfo {
-	name: string;
 	message: string;
+	name: string;
 	stack?: string;
 }
 
 /** Message content types */
 export interface AnthropicTextContent {
-	type: "text";
 	text: string;
+	type: "text";
 }
 
 export interface AnthropicToolCallContent {
-	type: "tool-call";
-	id: string;
 	function: { name: string; arguments: string };
+	id: string;
+	type: "tool-call";
 }
 
 export interface AnthropicToolResultContent {
-	type: "tool-result";
+	output: unknown;
 	toolCallId: string;
 	toolName: string;
-	output: unknown;
+	type: "tool-result";
 }
 
 export type AnthropicMessageContent =
@@ -66,26 +66,26 @@ export type AnthropicMessageContent =
 
 /** A message in the conversation */
 export interface AnthropicMessage {
-	role: string;
 	content: string | AnthropicMessageContent[];
+	role: string;
 }
 
 /** Complete LLM call record */
 export interface AnthropicLLMCall {
+	cost: AnthropicCost;
+	durationMs: number;
+	error?: AnthropicErrorInfo;
+	finishReason?: string;
+	httpStatus?: number;
+	input: AnthropicMessage[];
+	model: string;
+	output: AnthropicMessage[];
+	provider: string;
 	timestamp: Date;
+	tools: AnthropicToolInfo;
 	traceId: string;
 	type: "generate" | "stream";
-	model: string;
-	provider: string;
-	finishReason?: string;
-	input: AnthropicMessage[];
-	output: AnthropicMessage[];
 	usage: AnthropicUsage;
-	cost: AnthropicCost;
-	tools: AnthropicToolInfo;
-	error?: AnthropicErrorInfo;
-	durationMs: number;
-	httpStatus?: number;
 }
 
 /** Function that sends LLM call data */
@@ -95,20 +95,20 @@ export type AnthropicTransport = (
 
 /** Tracker options */
 export interface AnthropicTrackerOptions {
-	apiUrl?: string;
 	apiKey?: string;
-	transport?: AnthropicTransport;
+	apiUrl?: string;
 	computeCosts?: boolean;
-	privacyMode?: boolean;
-	onSuccess?: (call: AnthropicLLMCall) => void;
 	onError?: (call: AnthropicLLMCall) => void;
+	onSuccess?: (call: AnthropicLLMCall) => void;
+	privacyMode?: boolean;
+	transport?: AnthropicTransport;
 }
 
 /** Per-call options */
 export interface AnthropicCallOptions {
-	traceId?: string;
 	computeCosts?: boolean;
-	privacyMode?: boolean;
-	onSuccess?: (call: AnthropicLLMCall) => void;
 	onError?: (call: AnthropicLLMCall) => void;
+	onSuccess?: (call: AnthropicLLMCall) => void;
+	privacyMode?: boolean;
+	traceId?: string;
 }

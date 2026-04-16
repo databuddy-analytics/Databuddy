@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	CalendarIcon,
-	CaretRightIcon,
-	KeyIcon,
-	LockKeyIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { CalendarIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react";
+import { KeyIcon } from "@phosphor-icons/react";
+import { LockKeyIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
 import { Badge } from "@/components/ui/badge";
 import dayjs from "@/lib/dayjs";
@@ -32,7 +30,6 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 			onClick={onSelect}
 			type="button"
 		>
-			{/* Icon */}
 			<div
 				className={cn(
 					"flex size-10 items-center justify-center rounded border bg-background",
@@ -56,7 +53,6 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 				)}
 			</div>
 
-			{/* Info */}
 			<div className="min-w-0">
 				<div className="flex items-center gap-2">
 					<span
@@ -85,7 +81,6 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 				</div>
 			</div>
 
-			{/* Status */}
 			{isActive ? (
 				<Badge variant="green">
 					<div className="mr-1.5 size-1.5 rounded-full bg-green-600 dark:bg-green-400" />
@@ -95,7 +90,6 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 				<Badge variant="gray">{isRevoked ? "Revoked" : "Disabled"}</Badge>
 			)}
 
-			{/* Arrow */}
 			<CaretRightIcon
 				className={cn(
 					"text-muted-foreground/40 transition-all",

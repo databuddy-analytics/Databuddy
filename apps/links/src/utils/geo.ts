@@ -7,111 +7,89 @@ import {
 } from "@maxmind/geoip2-node";
 import { log } from "evlog";
 import { LRUCache } from "lru-cache";
-import { captureError, record, setAttributes } from "../lib/tracing";
+import { captureError, setAttributes } from "../lib/logging";
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
 }
 
 interface GeoResult {
+	city: string | null;
 	country: string | null;
 	region: string | null;
-	city: string | null;
 }
 
 const CDN_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
 const EMPTY_GEO: GeoResult = { country: null, region: null, city: null };
 
 let reader: GeoIPReader | null = null;
-let isLoading = false;
 let loadPromise: Promise<void> | null = null;
-let dbBuffer: Buffer | null = null;
 
 const geoMemCache = new LRUCache<string, GeoResult>({
 	max: 2000,
 	ttl: 60_000,
 });
 
-function loadDatabaseFromCdn(): Promise<Buffer> {
-	return record("links-geo_load_database", async () => {
-		const response = await fetch(CDN_URL);
-		if (!response.ok) {
-			throw new Error(`Failed to fetch GeoIP database: ${response.status}`);
-		}
-
-		const arrayBuffer = await response.arrayBuffer();
-		const buffer = Buffer.from(arrayBuffer);
-
-		setAttributes({ geo_db_size_bytes: buffer.length });
-
-		if (buffer.length < 1_000_000) {
-			throw new Error(`Database file too small: ${buffer.length} bytes`);
-		}
-
-		return buffer;
-	});
-}
-
-function loadDatabase() {
-	if (isLoading && loadPromise) {
-		return loadPromise;
-	}
-
+function loadDatabase(): Promise<void> {
 	if (reader) {
 		return;
 	}
+	if (loadPromise) {
+		return loadPromise;
+	}
 
-	isLoading = true;
 	loadPromise = (async () => {
 		try {
-			dbBuffer = await loadDatabaseFromCdn();
-			reader = Reader.openBuffer(dbBuffer) as GeoIPReader;
+			const response = await fetch(CDN_URL);
+			if (!response.ok) {
+				throw new Error(`GeoIP fetch failed: ${response.status}`);
+			}
+
+			const buffer = Buffer.from(await response.arrayBuffer());
+			setAttributes({ geo_db_size_bytes: buffer.length });
+
+			if (buffer.length < 1_000_000) {
+				throw new Error(`GeoIP database too small: ${buffer.length} bytes`);
+			}
+
+			reader = Reader.openBuffer(buffer) as GeoIPReader;
 			setAttributes({ geo_db_loaded: true });
 		} catch (err) {
 			captureError(err, { operation: "geo_load_database" });
 			reader = null;
-			dbBuffer = null;
 		} finally {
-			isLoading = false;
+			loadPromise = null;
 		}
 	})();
 
 	return loadPromise;
 }
 
-const ipv4Regex =
-	/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
-const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+const IPV4_RE =
+	/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
+const IPV6_RE =
+	/^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
 
 function isValidIp(ip: string): boolean {
-	return Boolean(ip && (ipv4Regex.test(ip) || ipv6Regex.test(ip)));
+	return Boolean(ip && (IPV4_RE.test(ip) || IPV6_RE.test(ip)));
 }
 
-const ignore = ["127.0.0.1", "::1", "unknown"];
+const IGNORED_IPS = new Set(["127.0.0.1", "::1", "unknown"]);
 
-function getCloudflareCountry(headers: Headers): string | null {
-	const cfCountry = headers.get("cf-ipcountry");
-	if (cfCountry && cfCountry.length === 2) {
-		return cfCountry;
-	}
-	return null;
-}
-
-async function lookupGeoLocation(ip: string): Promise<GeoResult> {
-	if (!(reader || isLoading)) {
+async function lookupGeo(ip: string): Promise<GeoResult> {
+	if (!(reader || loadPromise)) {
 		await loadDatabase();
 	}
-
 	if (!reader) {
 		return EMPTY_GEO;
 	}
 
 	try {
-		const response = reader.city(ip);
+		const r = reader.city(ip);
 		return {
-			country: response.country?.names?.en || null,
-			region: response.subdivisions?.[0]?.names?.en || null,
-			city: response.city?.names?.en || null,
+			country: r.country?.names?.en || null,
+			region: r.subdivisions?.[0]?.names?.en || null,
+			city: r.city?.names?.en || null,
 		};
 	} catch (err) {
 		if (
@@ -128,7 +106,7 @@ async function lookupGeoLocation(ip: string): Promise<GeoResult> {
 	}
 }
 
-const cachedGeoLookup = cacheable(lookupGeoLocation, {
+const cachedGeoLookup = cacheable(lookupGeo, {
 	expireInSec: 86_400 * 7,
 	prefix: "geoip",
 	staleWhileRevalidate: true,
@@ -139,7 +117,7 @@ export async function getGeo(
 	ip: string,
 	request?: Request
 ): Promise<GeoResult> {
-	if (!ip || ignore.includes(ip) || !isValidIp(ip)) {
+	if (!ip || IGNORED_IPS.has(ip) || !isValidIp(ip)) {
 		return EMPTY_GEO;
 	}
 
@@ -151,15 +129,11 @@ export async function getGeo(
 	const geo = await cachedGeoLookup(ip);
 
 	if (!geo.country && request?.headers) {
-		const cfCountry = getCloudflareCountry(request.headers);
-		if (cfCountry) {
-			const result: GeoResult = {
-				country: cfCountry,
-				region: null,
-				city: null,
-			};
+		const cf = request.headers.get("cf-ipcountry");
+		if (cf && cf.length === 2) {
+			const result: GeoResult = { country: cf, region: null, city: null };
 			geoMemCache.set(ip, result);
-			setAttributes({ geo_fallback: "cloudflare", geo_country: cfCountry });
+			setAttributes({ geo_fallback: "cloudflare", geo_country: cf });
 			return result;
 		}
 	}
@@ -167,7 +141,6 @@ export async function getGeo(
 	if (geo.country) {
 		geoMemCache.set(ip, geo);
 	}
-
 	return geo;
 }
 

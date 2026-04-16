@@ -1,6 +1,8 @@
 "use client";
 
-import { LockIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
+import { LockIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -310,7 +312,6 @@ export default function SecurityPage() {
 				title="Security & Access"
 			/>
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
-				{/* Allowed Origins */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="space-y-3">
 						<div>
@@ -343,7 +344,6 @@ export default function SecurityPage() {
 					</div>
 				</section>
 
-				{/* Allowed IPs */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="space-y-3">
 						<div>
@@ -370,7 +370,6 @@ export default function SecurityPage() {
 					</div>
 				</section>
 
-				{/* Info Banner */}
 				<section className="px-4 py-5 sm:px-6">
 					<NoticeBanner
 						description="By default, only your registered domain can send analytics. Add origins here for third-party integrations like Cal.com or embedded widgets."
@@ -378,15 +377,10 @@ export default function SecurityPage() {
 					/>
 				</section>
 
-				{/* Save Button */}
 				{hasChanges && (
 					<div className="border-t bg-background px-4 py-4 sm:px-6">
 						<div className="flex items-center justify-end gap-3">
-							<Button
-								onClick={initializeSettings}
-								size="sm"
-								variant="outline"
-							>
+							<Button onClick={initializeSettings} size="sm" variant="outline">
 								Cancel
 							</Button>
 							<Button

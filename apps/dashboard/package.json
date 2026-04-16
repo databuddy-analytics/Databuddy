@@ -6,7 +6,7 @@
     "dev": "next dev -p 3000",
     "build": "bun run --bun next build",
     "start": "next start -p 3000",
-    "typecheck": "tsgo --noEmit"
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@ai-sdk/react": "^3.0.118",
@@ -48,7 +48,8 @@
     "@types/react-grid-layout": "^2.1.0",
     "@xyflow/react": "^12.10.1",
     "ai": "^6.0.116",
-    "autumn-js": "^1.2.2",
+    "atmn": "^1.1.8",
+    "autumn-js": "catalog:",
     "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
     "better-auth": "^1.5.5",
     "class-variance-authority": "^0.7.1",
@@ -58,7 +59,6 @@
     "dayjs": "^1.11.20",
     "embla-carousel-react": "^8.6.0",
     "flag-icons": "^7.5.0",
-    "framer-motion": "^12.38.0",
     "idb": "^8.0.3",
     "input-otp": "^1.4.2",
     "jotai": "^2.18.1",
@@ -67,7 +67,7 @@
     "maplibre-gl": "^5.20.2",
     "motion": "^12.38.0",
     "nanoid": "^5.1.7",
-    "next": "^16.2.0",
+    "next": "^16.2.3",
     "next-themes": "^0.4.6",
     "nuqs": "^2.8.9",
     "ogl": "^1.0.11",
@@ -116,8 +116,8 @@
     "ultracite": "catalog:"
   },
   "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
-      "npx ultracite format"
+    "*.{js,jsx,ts,tsx,json,jsonc,css,scss}": [
+      "bunx ultracite fix"
     ]
   }
 }

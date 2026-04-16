@@ -2,41 +2,41 @@ import dayjs from "@/lib/dayjs";
 import { formatLocaleNumber } from "@/lib/format-locale-number";
 
 export interface PricingTier {
-	to: number | "inf";
 	amount: number;
+	to: number | "inf";
 }
 
 export interface BalanceLike {
-	remaining: number;
-	granted: number;
-	unlimited: boolean;
-	nextResetAt?: number | null;
-	featureId: string;
-	feature?: { name?: string } | null;
 	breakdown?: Array<{
 		reset?: { interval?: string } | null;
 		price?: {
 			tiers?: Array<{ to?: number | "inf" | null; amount?: number }>;
 		} | null;
 	}> | null;
+	feature?: { name?: string } | null;
+	featureId: string;
+	granted: number;
+	nextResetAt?: number | null;
+	remaining: number;
+	unlimited: boolean;
 }
 
 export interface FeatureUsage {
-	id: string;
-	name: string;
 	balance: number;
-	limit: number;
-	includedLimit: number;
-	unlimited: boolean;
 	hasExtraCredits: boolean;
 	hasPricedOverage: boolean;
-	pricingTiers: PricingTier[];
+	id: string;
+	includedLimit: number;
 	interval: string | null;
-	resetAt: number | null;
+	limit: number;
+	name: string;
 	overage: {
 		amount: number;
 		cost: number;
 	} | null;
+	pricingTiers: PricingTier[];
+	resetAt: number | null;
+	unlimited: boolean;
 }
 
 function calculateOverageCost(
@@ -83,25 +83,22 @@ export function calculateFeatureUsage(
 	const hasExtraCredits = !unlimited && remaining > limit;
 
 	const overageAmount = remaining < 0 ? Math.abs(remaining) : 0;
-	const hasPricedOverage =
-		pricingTiers?.length
-			? pricingTiers.length > 0
-			: (bal.breakdown?.some((b) => b.price?.tiers?.length) ?? false);
+	const hasPricedOverage = pricingTiers?.length
+		? pricingTiers.length > 0
+		: (bal.breakdown?.some((b) => b.price?.tiers?.length) ?? false);
 	const effectiveTiers =
 		pricingTiers ??
-		(bal.breakdown
-			?.at(0)
-			?.price?.tiers?.map((t) => ({
-				to: (t.to ?? "inf") as number | "inf",
-				amount: t.amount ?? 0,
-			})) ??
-			[]);
+		bal.breakdown?.at(0)?.price?.tiers?.map((t) => ({
+			to: (t.to ?? "inf") as number | "inf",
+			amount: t.amount ?? 0,
+		})) ??
+		[];
 	const overage =
 		overageAmount > 0
 			? {
-				amount: overageAmount,
-				cost: calculateOverageCost(overageAmount, effectiveTiers),
-			}
+					amount: overageAmount,
+					cost: calculateOverageCost(overageAmount, effectiveTiers),
+				}
 			: null;
 
 	const effectiveLimit = unlimited
@@ -110,8 +107,7 @@ export function calculateFeatureUsage(
 			? remaining
 			: limit;
 
-	const interval =
-		bal.breakdown?.at(0)?.reset?.interval ?? null;
+	const interval = bal.breakdown?.at(0)?.reset?.interval ?? null;
 
 	return {
 		id: bal.featureId,

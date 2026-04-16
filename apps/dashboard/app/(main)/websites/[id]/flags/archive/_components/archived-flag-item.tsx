@@ -1,11 +1,9 @@
 "use client";
 
-import {
-	ArrowCounterClockwiseIcon,
-	DotsThreeIcon,
-	PencilSimpleIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,10 +19,10 @@ import { cn } from "@/lib/utils";
 import type { Flag } from "../../_components/types";
 
 interface ArchivedFlagItemProps {
-	flag: Flag;
-	onEdit: (flag: Flag) => void;
-	onDelete: (flagId: string) => void;
 	className?: string;
+	flag: Flag;
+	onDelete: (flagId: string) => void;
+	onEdit: (flag: Flag) => void;
 }
 
 export function ArchivedFlagItem({
@@ -56,13 +54,11 @@ export function ArchivedFlagItem({
 	return (
 		<div className={cn("border-border border-b", className)}>
 			<div className="group flex h-15 items-center hover:bg-accent/50">
-				{/* Clickable area for editing */}
 				<button
 					className="flex flex-1 cursor-pointer items-center gap-4 px-4 text-left sm:px-6"
 					onClick={() => onEdit(flag)}
 					type="button"
 				>
-					{/* Flag details */}
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center gap-2">
 							<h3 className="truncate font-medium text-foreground">
@@ -87,7 +83,6 @@ export function ArchivedFlagItem({
 					</div>
 				</button>
 
-				{/* Restore button */}
 				<div className="shrink-0 pr-2">
 					<Button
 						disabled={restoreMutation.isPending}
@@ -100,7 +95,6 @@ export function ArchivedFlagItem({
 					</Button>
 				</div>
 
-				{/* Actions dropdown */}
 				<div className="shrink-0 pr-4 sm:pr-6">
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

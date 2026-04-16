@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Bento from "@/components/bento";
 import { Footer } from "@/components/footer";
+import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
 import { Description } from "@/components/landing/description";
 import FAQ from "@/components/landing/faq";
 import { GridCards } from "@/components/landing/grid-cards";
-import { DemoPreconnectLinks } from "@/components/landing/demo-preconnect-links";
 import Hero from "@/components/landing/hero";
 import Section from "@/components/landing/section";
 import Testimonials from "@/components/landing/testimonials";
@@ -49,10 +49,7 @@ async function getGithubStars(): Promise<number | null> {
 }
 
 export default async function HomePage() {
-	const [headerList, stars] = await Promise.all([
-		headers(),
-		getGithubStars(),
-	]);
+	const [headerList, stars] = await Promise.all([headers(), getGithubStars()]);
 	const demoEmbedBaseUrl = getDemoEmbedBaseUrl(hostFromNextHeaders(headerList));
 
 	return (

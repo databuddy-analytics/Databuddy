@@ -5,7 +5,8 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { API_SCOPES } from "@databuddy/api-keys/scopes";
 import { websitesApi } from "@databuddy/auth";
-import { apikey, desc, eq } from "@databuddy/db";
+import { desc, eq } from "@databuddy/db";
+import { apikey } from "@databuddy/db/schema";
 import { invalidateCacheableKey } from "@databuddy/redis";
 import {
 	ApiKeyErrorCode,
@@ -21,10 +22,10 @@ import { protectedProcedure, publicProcedure } from "../orpc";
 
 type ApiKey = ApiKeyRow;
 interface Metadata {
-	resources?: Record<string, string[]>;
-	tags?: string[];
 	description?: string;
 	lastUsedAt?: string;
+	resources?: Record<string, string[]>;
+	tags?: string[];
 }
 
 const scopeEnum = z.enum(API_SCOPES);
@@ -107,7 +108,7 @@ async function verifyOrganizationAccess(
 			headers: ctx.headers,
 			body: {
 				organizationId,
-				permissions: { website: ["configure"] },
+				permissions: { website: ["update"] },
 			},
 		});
 

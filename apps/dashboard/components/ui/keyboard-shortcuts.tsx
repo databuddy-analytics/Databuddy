@@ -1,7 +1,7 @@
-    "use client";
+"use client";
 
-import { cn } from "@/lib/utils";
 import { useMemo } from "react";
+import { cn } from "@/lib/utils";
 
 type ShortcutGroup = {
 	title: string;
@@ -15,9 +15,7 @@ type ShortcutGroup = {
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
 	{
 		title: "General",
-		shortcuts: [
-			{ label: "Search", keys: "Ctrl+K", macKeys: "⌘K" },
-		],
+		shortcuts: [{ label: "Search", keys: "Ctrl+K", macKeys: "⌘K" }],
 	},
 	{
 		title: "Forms & Dialogs",
@@ -65,25 +63,31 @@ export function KeyboardShortcuts({
 	const isMacOS = useMemo(() => isMac(), []);
 
 	return (
-		<div className={compact ? "divide-y dark:divide-border divide-border/50" : "space-y-4"}>
+		<div
+			className={
+				compact ? "divide-y divide-border/50 dark:divide-border" : "space-y-4"
+			}
+		>
 			{groups.map((group) => (
-				<div key={group.title} className={cn({"py-3 first:pt-0 last:pb-0": compact})}>
+				<div
+					className={cn({ "py-3 first:pt-0 last:pb-0": compact })}
+					key={group.title}
+				>
 					{!compact && (
-						<h4 className="mb-2 font-medium text-sm text-foreground">
+						<h4 className="mb-2 font-medium text-foreground text-sm">
 							{group.title}
 						</h4>
 					)}
 					<div className={compact ? "space-y-1.5" : "space-y-2"}>
 						{group.shortcuts.map((shortcut) => {
-							const displayKeys = isMacOS && shortcut.macKeys
-								? shortcut.macKeys
-								: shortcut.keys;
+							const displayKeys =
+								isMacOS && shortcut.macKeys ? shortcut.macKeys : shortcut.keys;
 							return (
 								<div
 									className="flex items-center justify-between"
 									key={shortcut.label}
 								>
-									<span className="text-muted-foreground dark:text-foreground/70 text-sm">
+									<span className="text-muted-foreground text-sm dark:text-foreground/70">
 										{shortcut.label}
 									</span>
 									<kbd className="rounded border bg-secondary px-1.5 py-0.5 text-xs">
@@ -98,4 +102,3 @@ export function KeyboardShortcuts({
 		</div>
 	);
 }
-

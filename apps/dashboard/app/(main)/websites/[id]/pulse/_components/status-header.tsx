@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	CircleIcon,
-	PauseIcon,
-	PencilIcon,
-	PlayIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CircleIcon } from "@phosphor-icons/react";
+import { PauseIcon } from "@phosphor-icons/react";
+import { PencilIcon } from "@phosphor-icons/react";
+import { PlayIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +31,15 @@ const granularityLabels: Record<string, string> = {
 };
 
 interface StatusHeaderProps {
+	currentStatus?: "up" | "down" | "unknown";
+	lastCheck?: {
+		timestamp: string;
+		status: number;
+		probe_region?: string;
+	};
+	onDeleteAction: () => void;
+	onEditAction: () => void;
+	onRefetchAction: () => void;
 	schedule: {
 		id: string;
 		granularity: string;
@@ -41,15 +48,6 @@ interface StatusHeaderProps {
 		createdAt: Date | string;
 		updatedAt: Date | string;
 	};
-	currentStatus?: "up" | "down" | "unknown";
-	lastCheck?: {
-		timestamp: string;
-		status: number;
-		probe_region?: string;
-	};
-	onEditAction: () => void;
-	onDeleteAction: () => void;
-	onRefetchAction: () => void;
 }
 
 export function StatusHeader({

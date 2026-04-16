@@ -1,17 +1,16 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	ArrowRightIcon,
-	ChartBarIcon,
-	FunnelIcon,
-	ListBulletsIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ChartBarIcon } from "@phosphor-icons/react";
+import { FunnelIcon } from "@phosphor-icons/react";
+import { ListBulletsIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
+import { formatNumber } from "@/lib/formatters";
 import {
 	Select,
 	SelectContent,
@@ -150,12 +149,12 @@ export function SummaryView({
 
 interface PropertyCardProps {
 	eventName: string;
-	property: ClassifiedProperty;
 	onFilterAction: (
 		eventName: string,
 		propertyKey: string,
 		value: string
 	) => void;
+	property: ClassifiedProperty;
 }
 
 function PropertyCard({
@@ -245,13 +244,6 @@ function isPropertyDistribution(
 	value: PropertyTopValue | PropertyDistribution
 ): value is PropertyDistribution {
 	return "cardinality" in value;
-}
-
-function formatNumber(value: number): string {
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
 }
 
 function SummaryViewSkeleton() {

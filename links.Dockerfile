@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.6 AS build
+FROM oven/bun:1.3.11-slim AS build
 
 WORKDIR /app
 
@@ -28,7 +28,7 @@ RUN bun build \
 	--bytecode \
 	./src/index.ts
 
-FROM gcr.io/distroless/base
+FROM oven/bun:1.3.11-distroless
 
 WORKDIR /app
 
@@ -36,6 +36,7 @@ COPY --from=build /app/server server
 
 ENV NODE_ENV=production
 
-CMD ["./server"]
-
 EXPOSE 2500
+
+ENTRYPOINT []
+CMD ["./server"]

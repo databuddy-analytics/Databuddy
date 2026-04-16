@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { ChatProvider } from "@/contexts/chat-context";
 import { AgentPageClient } from "../_components/agent-page-client";
 
@@ -11,19 +10,7 @@ export default async function AgentPage(props: Props) {
 
 	return (
 		<ChatProvider chatId={chatId} websiteId={id}>
-			<Suspense fallback={<AgentPageSkeleton />}>
-				<AgentPageClient chatId={chatId} websiteId={id} />
-			</Suspense>
+			<AgentPageClient chatId={chatId} websiteId={id} />
 		</ChatProvider>
-	);
-}
-
-function AgentPageSkeleton() {
-	return (
-		<div className="flex h-full items-center justify-center">
-			<div className="animate-pulse text-muted-foreground text-sm">
-				Loading agent...
-			</div>
-		</div>
 	);
 }

@@ -1,4 +1,5 @@
-import { and, db, eq, flags, isNull, or } from "@databuddy/db";
+import { and, db, eq, isNull, or } from "@databuddy/db";
+import { flags } from "@databuddy/db/schema";
 import { cacheable } from "@databuddy/redis";
 import { Elysia, t } from "elysia";
 import { useLogger } from "evlog/elysia";
@@ -21,38 +22,38 @@ function fromMemory<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
 }
 
 interface UserContext {
-	userId?: string;
 	email?: string;
 	organizationId?: string;
-	teamId?: string;
 	properties?: Record<string, unknown>;
+	teamId?: string;
+	userId?: string;
 }
 
 interface FlagRule {
-	type: "user_id" | "email" | "property";
-	operator: string;
-	field?: string;
-	value?: unknown;
-	values?: unknown[];
-	enabled: boolean;
 	batch: boolean;
 	batchValues?: string[];
+	enabled: boolean;
+	field?: string;
+	operator: string;
+	type: "user_id" | "email" | "property";
+	value?: unknown;
+	values?: unknown[];
 }
 
 interface FlagResult {
 	enabled: boolean;
-	value: boolean | string | number | unknown;
 	payload: unknown;
 	reason: string;
+	value: boolean | string | number | unknown;
 	variant?: string;
 }
 
 interface Variant {
+	description?: string;
 	key: string;
+	type: "string" | "number";
 	value: string | number;
 	weight?: number;
-	description?: string;
-	type: "string" | "number";
 }
 
 interface TargetGroupData {
@@ -61,17 +62,17 @@ interface TargetGroupData {
 }
 
 interface EvaluableFlag {
-	key: string;
-	type: "boolean" | "rollout" | "multivariant";
-	status: "active" | "inactive" | "archived";
 	defaultValue: string | number | boolean | unknown;
-	rolloutPercentage: number | null;
-	rolloutBy?: string | null;
-	rules?: FlagRule[] | unknown;
-	variants?: Variant[];
+	key: string;
 	payload?: unknown;
-	targetGroupIds?: string[];
 	resolvedTargetGroups?: TargetGroupData[];
+	rolloutBy?: string | null;
+	rolloutPercentage: number | null;
+	rules?: FlagRule[] | unknown;
+	status: "active" | "inactive" | "archived";
+	targetGroupIds?: string[];
+	type: "boolean" | "rollout" | "multivariant";
+	variants?: Variant[];
 }
 
 const flagQuerySchema = t.Object({

@@ -1,19 +1,18 @@
-import { type LanguageModel, stepCountIs } from "ai";
-import type { models } from "../config/models";
+import { stepCountIs } from "ai";
+import { models } from "../config/models";
+import { cachedSystemPrompt } from "../config/prompt-cache";
 import { createMcpAgentTools } from "../mcp/agent-tools";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
 import { maxSteps } from "./analytics";
 
-export function createMcpAgentConfig(
-	model: (typeof models)["analytics"],
-	context: {
-		requestHeaders: Headers;
-		apiKey: unknown;
-		userId: string | null;
-		timezone?: string;
-		chatId?: string;
-	}
-) {
+export function createMcpAgentConfig(context: {
+	billingCustomerId?: string | null;
+	requestHeaders: Headers;
+	apiKey: unknown;
+	userId: string | null;
+	timezone?: string;
+	chatId?: string;
+}) {
 	const timezone = context.timezone ?? "UTC";
 	const tools = createMcpAgentTools();
 	const system = buildAnalyticsInstructionsForMcp({
@@ -22,22 +21,23 @@ export function createMcpAgentConfig(
 	});
 
 	const experimental_context = {
+		apiKey: context.apiKey,
+		billingCustomerId: context.billingCustomerId,
+		chatId: context.chatId ?? crypto.randomUUID(),
+		currentDateTime: new Date().toISOString(),
+		requestHeaders: context.requestHeaders,
+		timezone,
 		userId: context.userId ?? "",
 		websiteId: "",
 		websiteDomain: "",
-		timezone,
-		currentDateTime: new Date().toISOString(),
-		chatId: context.chatId ?? crypto.randomUUID(),
-		requestHeaders: context.requestHeaders,
-		apiKey: context.apiKey,
 	};
 
 	return {
-		model: model as LanguageModel,
-		system,
+		model: models.analytics,
+		system: cachedSystemPrompt(system),
 		tools,
 		stopWhen: stepCountIs(maxSteps),
-		temperature: 0.3,
+		temperature: 0.1,
 		experimental_context,
 	};
 }

@@ -5,11 +5,11 @@ import { useMemo } from "react";
 import { SciFiCard } from "@/components/scifi-card";
 
 interface ProcessedRelease {
-	name: string;
-	tagName: string;
-	publishedAt: string;
 	date: Date;
 	isPrerelease: boolean;
+	name: string;
+	publishedAt: string;
+	tagName: string;
 }
 
 interface Props {

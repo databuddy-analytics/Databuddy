@@ -514,7 +514,7 @@ describe("slug collision handling", () => {
 	it("should fail after max attempts exhausted", () => {
 		const maxAttempts = 10;
 		let attempts = 0;
-		let success = false;
+		const success = false;
 
 		// Simulate all attempts failing
 		while (attempts < maxAttempts && !success) {
@@ -573,10 +573,22 @@ describe("OG metadata handling", () => {
 			return link.ogTitle ?? link.ogDescription ?? link.ogImageUrl;
 		};
 
-		expect(hasCustomOg({ ogTitle: "Title", ogDescription: null, ogImageUrl: null })).toBeTruthy();
-		expect(hasCustomOg({ ogTitle: null, ogDescription: "Desc", ogImageUrl: null })).toBeTruthy();
-		expect(hasCustomOg({ ogTitle: null, ogDescription: null, ogImageUrl: "https://img.com" })).toBeTruthy();
-		expect(hasCustomOg({ ogTitle: null, ogDescription: null, ogImageUrl: null })).toBeFalsy();
+		expect(
+			hasCustomOg({ ogTitle: "Title", ogDescription: null, ogImageUrl: null })
+		).toBeTruthy();
+		expect(
+			hasCustomOg({ ogTitle: null, ogDescription: "Desc", ogImageUrl: null })
+		).toBeTruthy();
+		expect(
+			hasCustomOg({
+				ogTitle: null,
+				ogDescription: null,
+				ogImageUrl: "https://img.com",
+			})
+		).toBeTruthy();
+		expect(
+			hasCustomOg({ ogTitle: null, ogDescription: null, ogImageUrl: null })
+		).toBeFalsy();
 	});
 
 	it("should respect OG field length limits", () => {

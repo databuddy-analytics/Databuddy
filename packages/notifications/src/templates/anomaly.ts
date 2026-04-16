@@ -3,18 +3,18 @@ import type { NotificationPayload, NotificationPriority } from "../types";
 export type AnomalyNotificationKind = "spike" | "drop";
 
 export interface AnomalyNotificationInput {
+	baselineValue: number;
+	currentValue: number;
+	dashboardUrl?: string;
+	eventName?: string;
 	kind: AnomalyNotificationKind;
 	metric: string;
-	siteLabel: string;
-	currentValue: number;
-	baselineValue: number;
 	percentChange: number;
-	zScore: number;
-	severity: "warning" | "critical";
-	periodStart: string;
 	periodEnd: string;
-	eventName?: string;
-	dashboardUrl?: string;
+	periodStart: string;
+	severity: "warning" | "critical";
+	siteLabel: string;
+	zScore: number;
 }
 
 function priorityForSeverity(

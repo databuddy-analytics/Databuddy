@@ -1,11 +1,15 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { scrollDepthPercentFromScrollY } from "../src/plugins/scroll-depth-math";
-import { findEvent, readMaxScrollDepth, requestHasNamedEvent, setupBasketMock, waitForDebugScrollHook } from "./test-utils";
+import {
+	expect,
+	findEvent,
+	readMaxScrollDepth,
+	requestHasNamedEvent,
+	test,
+	waitForDebugScrollHook,
+} from "./test-utils";
 
 test.describe("scroll depth", () => {
-	test.beforeEach(async ({ page }) => {
-		await setupBasketMock(page);
-	});
 
 	async function boot(
 		page: Page,
@@ -17,13 +21,14 @@ test.describe("scroll depth", () => {
 				document.documentElement.style.margin = "0";
 				document.documentElement.style.padding = "0";
 				document.body.style.margin = "0";
-				(window as unknown as { databuddyConfig: Record<string, unknown> }).databuddyConfig =
-					{
-						clientId: o.clientId ?? "test-scroll-depth",
-						ignoreBotDetection: true,
-						batchTimeout: o.batchTimeout ?? 30_000,
-						batchSize: o.batchSize ?? 100,
-					};
+				(
+					window as unknown as { databuddyConfig: Record<string, unknown> }
+				).databuddyConfig = {
+					clientId: o.clientId ?? "test-scroll-depth",
+					ignoreBotDetection: true,
+					batchTimeout: o.batchTimeout ?? 30_000,
+					batchSize: o.batchSize ?? 100,
+				};
 			},
 			[opts]
 		);
@@ -89,13 +94,14 @@ test.describe("scroll depth", () => {
 		await page.goto("/test");
 		await page.evaluate(() => {
 			document.body.style.minHeight = "4000px";
-			(window as unknown as { databuddyConfig: Record<string, unknown> }).databuddyConfig =
-				{
-					clientId: "test-scroll-idle",
-					ignoreBotDetection: true,
-					batchTimeout: 30_000,
-					batchSize: 100,
-				};
+			(
+				window as unknown as { databuddyConfig: Record<string, unknown> }
+			).databuddyConfig = {
+				clientId: "test-scroll-idle",
+				ignoreBotDetection: true,
+				batchTimeout: 30_000,
+				batchSize: 100,
+			};
 		});
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
 		await waitForDebugScrollHook(page);

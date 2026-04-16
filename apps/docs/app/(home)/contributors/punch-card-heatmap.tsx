@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import { SciFiCard } from "@/components/scifi-card";
 
 interface ProcessedPunchCard {
-	day: number;
-	hour: number;
 	commits: number;
+	day: number;
 	dayName: string;
+	hour: number;
 }
 
 interface Props {
@@ -15,11 +15,11 @@ interface Props {
 }
 
 interface HeatmapCell {
-	day: number;
-	hour: number;
 	commits: number;
-	intensity: number;
+	day: number;
 	dayName: string;
+	hour: number;
+	intensity: number;
 }
 
 interface TooltipData {

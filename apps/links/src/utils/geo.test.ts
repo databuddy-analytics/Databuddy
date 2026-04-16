@@ -89,9 +89,13 @@ describe("extractIp", () => {
 
 		test("should handle IPv6 addresses", () => {
 			const request = new Request("https://example.com", {
-				headers: { "cf-connecting-ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334" },
+				headers: {
+					"cf-connecting-ip": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+				},
 			});
-			expect(extractIp(request)).toBe("2001:0db8:85a3:0000:0000:8a2e:0370:7334");
+			expect(extractIp(request)).toBe(
+				"2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+			);
 		});
 	});
 });

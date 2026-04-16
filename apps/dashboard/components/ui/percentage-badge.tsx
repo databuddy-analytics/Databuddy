@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
 interface PercentageBadgeProps {
-	percentage: number;
 	className?: string;
+	percentage: number;
 }
 
 export function PercentageBadge({
@@ -22,7 +22,8 @@ export function PercentageBadge({
 		return "bg-accent-brighter border border-accent-foreground/30 badge-angled-rectangle-gradient text-accent-foreground";
 	};
 
-	const safePercentage = percentage == null || Number.isNaN(percentage) ? 0 : percentage;
+	const safePercentage =
+		percentage == null || Number.isNaN(percentage) ? 0 : percentage;
 
 	return (
 		<span

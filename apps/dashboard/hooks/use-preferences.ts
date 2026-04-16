@@ -10,9 +10,9 @@ import { useCallback } from "react";
 import { orpc } from "@/lib/orpc";
 
 interface UserPreferences {
-	timezone: string;
 	dateFormat: string;
 	timeFormat: string;
+	timezone: string;
 }
 
 const defaultPreferences: UserPreferences = {
@@ -35,13 +35,13 @@ export function usePreferences() {
 		...orpc.preferences.updateUserPreferences.mutationOptions(),
 	});
 
-	const getEffectiveTimezone = useCallback(() => {
+	const getEffectiveTimezone = useCallback((): string => {
 		if (!preferences) {
 			return getBrowserTimezone();
 		}
 		return preferences.timezone === "auto"
 			? getBrowserTimezone()
-			: preferences.timezone;
+			: String(preferences.timezone);
 	}, [preferences]);
 
 	const formatWithPreferences = useCallback(
@@ -58,8 +58,10 @@ export function usePreferences() {
 			const timezone = getEffectiveTimezone();
 			return formatDate(date, {
 				timezone,
-				dateFormat: preferences?.dateFormat || defaultPreferences.dateFormat,
-				timeFormat: preferences?.timeFormat || defaultPreferences.timeFormat,
+				dateFormat:
+					(preferences?.dateFormat as string) || defaultPreferences.dateFormat,
+				timeFormat:
+					(preferences?.timeFormat as string) || defaultPreferences.timeFormat,
 				showTime: options?.showTime,
 				customFormat: options?.customFormat,
 			});

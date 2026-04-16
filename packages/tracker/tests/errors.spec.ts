@@ -1,4 +1,5 @@
-import { expect, test } from "@playwright/test";
+import type { Request } from "@playwright/test";
+import { expect, test } from "./test-utils";
 
 function findError(
 	req: Request,
@@ -16,20 +17,6 @@ function findError(
 }
 
 test.describe("Error Tracking", () => {
-	test.beforeEach(async ({ page }) => {
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/errors**", async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ success: true }),
-				headers: { "Access-Control-Allow-Origin": "*" },
-			});
-		});
-	});
 
 	test("captures unhandled errors", async ({ page }) => {
 		await page.goto("/test");
@@ -128,8 +115,7 @@ test.describe("Error Tracking", () => {
 		const error = findError(
 			request,
 			(e) =>
-				typeof e.message === "string" &&
-				e.message.includes("String Rejection")
+				typeof e.message === "string" && e.message.includes("String Rejection")
 		);
 		expect(error).toBeTruthy();
 		expect(error?.message).toContain("String Rejection");
@@ -162,8 +148,7 @@ test.describe("Error Tracking", () => {
 		const error = findError(
 			request,
 			(e) =>
-				typeof e.message === "string" &&
-				e.message.includes("Object Rejection")
+				typeof e.message === "string" && e.message.includes("Object Rejection")
 		);
 		expect(error).toBeTruthy();
 		expect(error?.message).toContain(

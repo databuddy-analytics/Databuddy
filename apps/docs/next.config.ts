@@ -102,7 +102,7 @@ const config: NextConfig = {
 		remotePatterns: [
 			{
 				protocol: "https" as const,
-				hostname: "icons.duckduckgo.com",
+				hostname: "www.google.com",
 			},
 			{
 				protocol: "https" as const,

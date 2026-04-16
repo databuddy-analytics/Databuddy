@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
 
-export { parseComponents, parseContentSegments } from "./parser";
+export { parseContentSegments } from "./parser";
 
 export { componentRegistry, getComponent, hasComponent } from "./registry";
 
@@ -11,12 +11,10 @@ export type {
 	ComponentRegistry,
 	ContentSegment,
 	CountryItem,
-	DataTableColumn,
 	DataTableInput,
 	DistributionInput,
 	LinksListInput,
 	MiniMapInput,
-	ParsedContent,
 	ParsedSegments,
 	RawComponentInput,
 	ReferrerItem,

@@ -53,39 +53,82 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 			startDate: string,
 			endDate: string,
 			_filters?: Filter[],
-			_granularity?: string
+			_granularity?: string,
+			_limit?: number,
+			_offset?: number,
+			timezone?: string
 		) => {
 			const granularity = _granularity ?? "hour";
+			const tz = timezone || "UTC";
 			const timeGroup =
 				granularity === "minute"
-					? "toStartOfMinute(timestamp)"
+					? "toStartOfMinute(ts)"
 					: granularity === "hour"
-						? "toStartOfHour(timestamp)"
+						? "toStartOfHour(ts)"
 						: granularity === "day"
-							? "toDate(timestamp)"
-							: "toStartOfHour(timestamp)";
+							? "toDate(toTimeZone(ts, {timezone:String}))"
+							: "toStartOfHour(ts)";
+
+			const windowSec =
+				granularity === "day" ? 86_400 : granularity === "hour" ? 3600 : 60;
+
+			const uptimePercentageExpr =
+				granularity === "minute"
+					? "if(total_checks = 0, 0, round(100 * successful_checks / total_checks, 2))"
+					: `round(100 * (1 - least(downtime_seconds, ${windowSec}) / ${windowSec}), 2)`;
 
 			return {
 				sql: `
-					SELECT 
-						${timeGroup} as date,
-						if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
-						avg(total_ms) as avg_response_time,
-						quantile(0.50)(total_ms) as p50_response_time,
-						quantile(0.95)(total_ms) as p95_response_time,
-						max(total_ms) as max_response_time,
-						avg(ttfb_ms) as avg_ttfb,
-						quantile(0.50)(ttfb_ms) as p50_ttfb,
-						quantile(0.95)(ttfb_ms) as p95_ttfb
-					FROM ${UPTIME_TABLE}
-					WHERE 
-						site_id = {websiteId:String}
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					GROUP BY date
+					SELECT
+						date,
+						${uptimePercentageExpr} as uptime_percentage,
+						total_checks,
+						successful_checks,
+						downtime_seconds,
+						avg_response_time,
+						p50_response_time,
+						p95_response_time,
+						max_response_time,
+						avg_ttfb,
+						p50_ttfb,
+						p95_ttfb
+					FROM (
+						SELECT
+							${timeGroup} as date,
+							toUInt32(countIf(status = 1) + countIf(status = 0)) as total_checks,
+							toUInt32(countIf(status = 1)) as successful_checks,
+							toUInt32(sumIf(
+								least(dateDiff('second', ts, next_ts), 86400),
+								status = 0
+							)) as downtime_seconds,
+							avg(total_ms) as avg_response_time,
+							quantile(0.50)(total_ms) as p50_response_time,
+							quantile(0.95)(total_ms) as p95_response_time,
+							max(total_ms) as max_response_time,
+							avg(ttfb_ms) as avg_ttfb,
+							quantile(0.50)(ttfb_ms) as p50_ttfb,
+							quantile(0.95)(ttfb_ms) as p95_ttfb
+						FROM (
+							SELECT
+								timestamp as ts,
+								status,
+								total_ms,
+								ttfb_ms,
+								leadInFrame(timestamp, 1, now()) OVER (
+									ORDER BY timestamp ASC
+									ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+								) as next_ts
+							FROM ${UPTIME_TABLE}
+							WHERE
+								site_id = {websiteId:String}
+								AND timestamp >= parseDateTimeBestEffort({startDate:String}, {timezone:String})
+								AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})
+						)
+						GROUP BY date
+					)
 					ORDER BY date ASC
 				`,
-				params: { websiteId, startDate, endDate },
+				params: { websiteId, startDate, endDate, timezone: tz },
 			};
 		},
 		timeField: "timestamp",

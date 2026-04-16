@@ -16,11 +16,11 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const URL_TLD_REGEX = /\.[a-z]{2,}$/i;
 
 interface ContactFormData {
-	fullName: string;
 	businessName: string;
-	website: string;
 	email: string;
+	fullName: string;
 	phone?: string;
+	website: string;
 }
 
 type ValidationResult =

@@ -62,39 +62,40 @@ test.describe("Fuzz — BrowserFlagsManager (many async getFlag tries)", () => {
 
 		const n = MANAGER_ITERATIONS;
 
-		const result = await page.evaluate(async ({ iterations: total }) => {
-			const failures: string[] = [];
-			const SDK = window.__SDK__;
-			const manager = new SDK.BrowserFlagsManager({
-				config: { clientId: "fuzz-client", autoFetch: false },
-			});
+		const result = await page.evaluate(
+			async ({ iterations: total }) => {
+				const failures: string[] = [];
+				const SDK = window.__SDK__;
+				const manager = new SDK.BrowserFlagsManager({
+					config: { clientId: "fuzz-client", autoFetch: false },
+				});
 
-			const pool: string[] = [];
-			for (let p = 0; p < 25; p++) {
-				pool.push(`pool-flag-${p}-on`);
-				pool.push(`pool-flag-${p}-off`);
-			}
-
-			for (let i = 0; i < total; i++) {
-				const key = pool[i % pool.length];
-				const flag = await manager.getFlag(key);
-				const expectOn = !key.includes("off");
-				if (flag.enabled !== expectOn) {
-					failures.push(`iter ${i} key ${key} enabled=${flag.enabled}`);
+				const pool: string[] = [];
+				for (let p = 0; p < 25; p++) {
+					pool.push(`pool-flag-${p}-on`);
+					pool.push(`pool-flag-${p}-off`);
 				}
-			}
 
-			manager.destroy();
-			return { failures, iterations: total };
-		}, { iterations: n });
+				for (let i = 0; i < total; i++) {
+					const key = pool[i % pool.length];
+					const flag = await manager.getFlag(key);
+					const expectOn = !key.includes("off");
+					if (flag.enabled !== expectOn) {
+						failures.push(`iter ${i} key ${key} enabled=${flag.enabled}`);
+					}
+				}
+
+				manager.destroy();
+				return { failures, iterations: total };
+			},
+			{ iterations: n }
+		);
 
 		expect(result.failures, result.failures.join("\n")).toHaveLength(0);
 		expect(result.iterations).toBe(n);
 	});
 
-	test("parallel getFlag burst (same tick, batcher path)", async ({
-		page,
-	}) => {
+	test("parallel getFlag burst (same tick, batcher path)", async ({ page }) => {
 		test.slow();
 
 		const result = await page.evaluate(async () => {
@@ -104,16 +105,8 @@ test.describe("Fuzz — BrowserFlagsManager (many async getFlag tries)", () => {
 				config: { clientId: "fuzz-client", autoFetch: false },
 			});
 
-			const keys = [
-				"b-a-on",
-				"b-b-on",
-				"b-c-off",
-				"d-a-on",
-				"d-b-off",
-			];
-			const results = await Promise.all(
-				keys.map((k) => manager.getFlag(k))
-			);
+			const keys = ["b-a-on", "b-b-on", "b-c-off", "d-a-on", "d-b-off"];
+			const results = await Promise.all(keys.map((k) => manager.getFlag(k)));
 
 			for (let i = 0; i < keys.length; i++) {
 				const expectOn = !keys[i].includes("off");
@@ -134,24 +127,27 @@ test.describe("Fuzz — BrowserFlagsManager (many async getFlag tries)", () => {
 	}) => {
 		const iterations = 80;
 
-		const result = await page.evaluate(async ({ iterations: total }) => {
-			const failures: string[] = [];
-			const SDK = window.__SDK__;
-			const manager = new SDK.BrowserFlagsManager({
-				config: { clientId: "fuzz-client", autoFetch: false },
-			});
+		const result = await page.evaluate(
+			async ({ iterations: total }) => {
+				const failures: string[] = [];
+				const SDK = window.__SDK__;
+				const manager = new SDK.BrowserFlagsManager({
+					config: { clientId: "fuzz-client", autoFetch: false },
+				});
 
-			const first = await manager.getFlag("stable-key-on");
-			for (let i = 0; i < total; i++) {
-				const again = await manager.getFlag("stable-key-on");
-				if (again.enabled !== first.enabled) {
-					failures.push(`mismatch at ${i}`);
+				const first = await manager.getFlag("stable-key-on");
+				for (let i = 0; i < total; i++) {
+					const again = await manager.getFlag("stable-key-on");
+					if (again.enabled !== first.enabled) {
+						failures.push(`mismatch at ${i}`);
+					}
 				}
-			}
 
-			manager.destroy();
-			return { failures };
-		}, { iterations });
+				manager.destroy();
+				return { failures };
+			},
+			{ iterations }
+		);
 
 		expect(result.failures, result.failures.join("\n")).toHaveLength(0);
 	});

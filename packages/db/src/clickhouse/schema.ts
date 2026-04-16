@@ -533,31 +533,31 @@ SETTINGS index_granularity = 8192
  * Lean error span type
  */
 export interface ErrorSpanRow {
-	client_id: string;
 	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
-	message: string;
+	client_id: string;
+	colno?: number;
+	error_type: string;
 	filename?: string;
 	lineno?: number;
-	colno?: number;
+	message: string;
+	path: string;
+	session_id: string;
 	stack?: string;
-	error_type: string;
+	timestamp: number;
 }
 
 /**
  * Error hourly aggregate type
  */
 export interface ErrorHourlyAggregate {
-	client_id: string;
-	path: string;
-	error_type: string;
-	message_hash: number;
-	hour: number;
-	error_count: number;
-	affected_users: number;
 	affected_sessions: number;
+	affected_users: number;
+	client_id: string;
+	error_count: number;
+	error_type: string;
+	hour: number;
+	message_hash: number;
+	path: string;
 	sample_message: string;
 }
 
@@ -572,68 +572,68 @@ export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";
  * Each row = single metric measurement
  */
 export interface WebVitalsSpan {
-	client_id: string;
 	anonymous_id: string;
-	session_id: string;
-	timestamp: number;
-	path: string;
+	client_id: string;
 	metric_name: WebVitalMetricName;
 	metric_value: number;
+	path: string;
+	session_id: string;
+	timestamp: number;
 }
 
 /**
  * Web Vitals hourly aggregate type
  */
 export interface WebVitalsHourlyAggregate {
-	client_id: string;
-	path: string;
-	metric_name: WebVitalMetricName;
-	hour: number;
-	sample_count: number;
-	p75: number;
-	p50: number;
 	avg_value: number;
-	min_value: number;
+	client_id: string;
+	hour: number;
 	max_value: number;
+	metric_name: WebVitalMetricName;
+	min_value: number;
+	p50: number;
+	p75: number;
+	path: string;
+	sample_count: number;
 }
 
 export interface BlockedTraffic {
-	id: string;
-	client_id?: string;
-	timestamp: number;
-	path?: string;
-	url?: string;
-	referrer?: string;
-	method: string;
-	origin?: string;
-	ip: string;
-	user_agent?: string;
 	accept_header?: string;
-	language?: string;
-	block_reason: string;
 	block_category: string;
+	block_reason: string;
 	bot_name?: string;
-	country?: string;
-	region?: string;
-	city?: string;
 	browser_name?: string;
 	browser_version?: string;
+	city?: string;
+	client_id?: string;
+	country?: string;
+	created_at: number;
+	device_type?: string;
+	id: string;
+	ip: string;
+	language?: string;
+	method: string;
+	origin?: string;
 	os_name?: string;
 	os_version?: string;
-	device_type?: string;
+	path?: string;
 	payload_size?: number;
-	created_at: number;
+	referrer?: string;
+	region?: string;
+	timestamp: number;
+	url?: string;
+	user_agent?: string;
 }
 
 export interface EmailEvent {
-	event_id: string;
-	email_hash: string;
 	domain: string;
-	labels: string[];
+	email_hash: string;
+	event_id: string;
 	event_time: number;
-	received_at: number;
 	ingestion_time: number;
+	labels: string[];
 	metadata_json: string;
+	received_at: number;
 }
 
 /**
@@ -642,16 +642,16 @@ export interface EmailEvent {
  * website_id: optional website scope
  */
 export interface CustomEvent {
-	owner_id: string;
-	website_id?: string;
-	timestamp: number;
+	anonymous_id?: string;
 	event_name: string;
 	namespace?: string;
+	owner_id: string;
 	path?: string;
 	properties: string;
-	anonymous_id?: string;
 	session_id?: string;
 	source?: string;
+	timestamp: number;
+	website_id?: string;
 }
 
 /**
@@ -664,13 +664,13 @@ export interface DailyPageviewsAggregate {
 }
 
 export interface CustomOutgoingLink {
-	id: string;
-	client_id: string;
 	anonymous_id: string;
-	session_id: string;
+	client_id: string;
 	href: string;
-	text?: string;
+	id: string;
 	properties: string;
+	session_id: string;
+	text?: string;
 	timestamp: number;
 }
 
@@ -678,37 +678,37 @@ export interface CustomOutgoingLink {
  * AI traffic span - tracks AI crawlers and AI assistants
  */
 export interface AITrafficSpan {
-	client_id: string;
-	timestamp: number;
-	bot_type: "ai_crawler" | "ai_assistant";
 	bot_name: string;
-	user_agent: string;
+	bot_type: "ai_crawler" | "ai_assistant";
+	client_id: string;
 	path: string;
 	referrer?: string;
+	timestamp: number;
+	user_agent: string;
 }
 
 export interface UptimeMonitor {
-	site_id: string;
-	url: string;
-	timestamp: number;
-	status: number;
-	http_code: number;
-	ttfb_ms: number;
-	total_ms: number;
 	attempt: number;
-	failure_streak: number;
-	response_bytes: number;
+	check_type: string;
 	content_hash: string;
-	redirect_count: number;
-	probe_region: string;
+	env: string;
+	error: string;
+	failure_streak: number;
+	http_code: number;
+	json_data?: string;
 	probe_ip: string;
+	probe_region: string;
+	redirect_count: number;
+	response_bytes: number;
+	site_id: string;
 	ssl_expiry?: number;
 	ssl_valid: number;
-	env: string;
-	check_type: string;
+	status: number;
+	timestamp: number;
+	total_ms: number;
+	ttfb_ms: number;
+	url: string;
 	user_agent: string;
-	error: string;
-	json_data?: string;
 }
 
 /**
@@ -719,24 +719,24 @@ export interface UptimeMonitor {
  * status: payment state or subscription state from the provider
  */
 export interface RevenueTransaction {
-	owner_id: string;
-	website_id?: string;
-	transaction_id: string;
-	provider: "stripe" | "paddle";
-	type: "sale" | "refund" | "subscription" | "subscription_event";
-	status: string;
 	amount: number;
+	anonymous_id?: string;
+	created: number;
+	currency: string;
+	customer_id?: string;
+	metadata: string | Record<string, unknown>;
 	original_amount: number;
 	original_currency: string;
-	currency: string;
-	anonymous_id?: string;
-	session_id?: string;
-	customer_id?: string;
+	owner_id: string;
 	product_id?: string;
 	product_name?: string;
-	metadata: string | Record<string, unknown>;
-	created: number;
+	provider: "stripe" | "paddle";
+	session_id?: string;
+	status: string;
 	synced_at: number;
+	transaction_id: string;
+	type: "sale" | "refund" | "subscription" | "subscription_event";
+	website_id?: string;
 }
 
 /**
@@ -744,111 +744,111 @@ export interface RevenueTransaction {
  * owner_id: The org or user ID that owns this data (from API key)
  */
 export interface AICallSpan {
-	owner_id: string;
-	timestamp: number;
-	type: "generate" | "stream";
-	model: string;
-	provider: string;
-	finish_reason?: string;
-	input_tokens: number;
-	output_tokens: number;
-	total_tokens: number;
-	cached_input_tokens?: number;
 	cache_creation_input_tokens?: number;
-	reasoning_tokens?: number;
-	web_search_count?: number;
-	input_token_cost_usd?: number;
-	output_token_cost_usd?: number;
-	total_token_cost_usd?: number;
-	tool_call_count: number;
-	tool_result_count: number;
-	tool_call_names: string[];
+	cached_input_tokens?: number;
 	duration_ms: number;
-	trace_id?: string;
-	http_status?: number;
-	error_name?: string;
 	error_message?: string;
+	error_name?: string;
 	error_stack?: string;
+	finish_reason?: string;
+	http_status?: number;
+	input_token_cost_usd?: number;
+	input_tokens: number;
+	model: string;
+	output_token_cost_usd?: number;
+	output_tokens: number;
+	owner_id: string;
+	provider: string;
+	reasoning_tokens?: number;
+	timestamp: number;
+	tool_call_count: number;
+	tool_call_names: string[];
+	tool_result_count: number;
+	total_token_cost_usd?: number;
+	total_tokens: number;
+	trace_id?: string;
+	type: "generate" | "stream";
+	web_search_count?: number;
 }
 
 export interface LinkVisit {
-	id: string;
-	link_id: string;
-	timestamp: number;
-	referrer?: string;
-	user_agent?: string;
-	ip_hash: string;
-	country?: string;
-	region?: string;
-	city?: string;
 	browser_name?: string;
+	city?: string;
+	country?: string;
 	device_type?: string;
+	id: string;
+	ip_hash: string;
+	link_id: string;
+	referrer?: string;
+	region?: string;
+	timestamp: number;
+	user_agent?: string;
 }
 
 export interface AnalyticsEvent {
-	id: string;
-	client_id: string;
-	event_name: string;
 	anonymous_id: string;
-	time: number;
-	session_id: string;
-
-	event_type?: "track" | "error" | "web_vitals";
-	event_id?: string;
-	session_start_time?: number;
-	timestamp?: number;
-
-	referrer?: string;
-	url: string;
-	path: string;
-	title?: string;
-
-	ip: string;
-	user_agent: string;
 	browser_name?: string;
 	browser_version?: string;
-	os_name?: string;
-	os_version?: string;
-	device_type?: string;
-	device_brand?: string;
-	device_model?: string;
-	country?: string;
-	region?: string;
 	city?: string;
-
-	screen_resolution?: string;
-	viewport_size?: string;
-	language?: string;
-	timezone?: string;
+	client_id: string;
+	connection_time?: number;
 
 	connection_type?: string;
-	rtt?: number;
-	downlink?: number;
-
-	time_on_page?: number;
-	scroll_depth?: number;
-	interaction_count?: number;
-	page_count: number;
-
-	utm_source?: string;
-	utm_medium?: string;
-	utm_campaign?: string;
-	utm_term?: string;
-	utm_content?: string;
-	gclid?: string;
-
-	load_time?: number;
-	dom_ready_time?: number;
-	dom_interactive?: number;
-	ttfb?: number;
-	connection_time?: number;
-	render_time?: number;
-	redirect_time?: number;
-	domain_lookup_time?: number;
-
-	properties: string;
+	country?: string;
 
 	created_at: number;
+	device_brand?: string;
+	device_model?: string;
+	device_type?: string;
+	dom_interactive?: number;
+	dom_ready_time?: number;
+	domain_lookup_time?: number;
+	downlink?: number;
+	event_id?: string;
+	event_name: string;
+
+	event_type?: "track" | "error" | "web_vitals";
+	gclid?: string;
+	id: string;
+	interaction_count?: number;
+
+	ip: string;
+	language?: string;
+
+	load_time?: number;
+	os_name?: string;
+	os_version?: string;
+	page_count: number;
+	path: string;
+
+	properties: string;
+	redirect_time?: number;
+
+	referrer?: string;
+	region?: string;
+	render_time?: number;
+	rtt?: number;
+
+	screen_resolution?: string;
+	scroll_depth?: number;
+	session_id: string;
+	session_start_time?: number;
+	time: number;
+
+	time_on_page?: number;
+	timestamp?: number;
+	timezone?: string;
+	title?: string;
+	ttfb?: number;
+	url: string;
+	user_agent: string;
+	utm_campaign?: string;
+	utm_content?: string;
+	utm_medium?: string;
+
+	utm_source?: string;
+	utm_term?: string;
+	viewport_size?: string;
 }
 
 /**

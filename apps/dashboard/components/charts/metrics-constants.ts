@@ -129,7 +129,6 @@ export const METRIC_COLORS = {
 		"#ffe4e6",
 		"from-rose-500/20 to-rose-600/5"
 	),
-	// Load time metrics
 	avg_load_time: createColorSet(
 		"#3b82f6",
 		"#1d4ed8",
@@ -145,33 +144,30 @@ export const METRIC_COLORS = {
 } as const;
 
 export interface ChartDataRow {
-	date: string;
-	/** Stable category for Recharts X-axis; usually rawDate (YYYY-MM-DD or hourly key) */
-	xKey?: string;
-	pageviews?: number;
-	visitors?: number;
-	unique_visitors?: number;
-	sessions?: number;
+	avg_cls?: number;
+	avg_fcp?: number;
+	avg_fid?: number;
+	avg_inp?: number;
+	avg_lcp?: number;
+	avg_load_time?: number;
+	avg_ttfb?: number;
 	bounce_rate?: number;
+	date: string;
+	measurements?: number;
 	median_session_duration?: number;
 	median_session_duration_formatted?: string;
-	// Load time metrics
-	avg_load_time?: number;
-	p50_load_time?: number;
-	// TTFB metrics
-	avg_ttfb?: number;
-	// Core Web Vitals
-	avg_fcp?: number;
-	p50_fcp?: number;
-	avg_lcp?: number;
-	p50_lcp?: number;
-	avg_cls?: number;
 	p50_cls?: number;
-	avg_fid?: number;
+	p50_fcp?: number;
 	p50_fid?: number;
-	avg_inp?: number;
 	p50_inp?: number;
-	measurements?: number;
+	p50_lcp?: number;
+	p50_load_time?: number;
+	pageviews?: number;
+	sessions?: number;
+	unique_visitors?: number;
+	visitors?: number;
+	/** Stable category for Recharts X-axis; usually rawDate (YYYY-MM-DD or hourly key) */
+	xKey?: string;
 	// Revenue metrics
 	revenue?: number;
 	refunds?: number;
@@ -179,17 +175,16 @@ export interface ChartDataRow {
 }
 
 export interface MetricConfig {
+	category?: "analytics" | "performance" | "core_web_vitals";
+	color: string;
+	formatValue?: (value: number, row: ChartDataRow) => string;
+	gradient: string;
+	icon: React.ComponentType<{ className?: string }>;
 	key: string;
 	label: string;
-	color: string;
-	gradient: string;
 	yAxisId: string;
-	icon: React.ComponentType<{ className?: string }>;
-	formatValue?: (value: number, row: ChartDataRow) => string;
-	category?: "analytics" | "performance" | "core_web_vitals";
 }
 
-// Utility functions
 export const formatPerformanceTime = (value: number): string => {
 	if (!value || value === 0) {
 		return "N/A";
@@ -258,7 +253,6 @@ export const ANALYTICS_METRICS: MetricConfig[] = [
 ];
 
 export const PERFORMANCE_METRICS: MetricConfig[] = [
-	// Load time metrics
 	createMetric(
 		"avg_load_time",
 		"Avg Load Time",
@@ -278,7 +272,6 @@ export const PERFORMANCE_METRICS: MetricConfig[] = [
 ];
 
 export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
-	// FCP metrics
 	createMetric(
 		"avg_fcp",
 		"FCP (Avg)",
@@ -295,7 +288,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		formatPerformanceTime,
 		"core_web_vitals"
 	),
-	// LCP metrics
 	createMetric(
 		"avg_lcp",
 		"LCP (Avg)",
@@ -312,7 +304,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		formatPerformanceTime,
 		"core_web_vitals"
 	),
-	// CLS metrics
 	createMetric(
 		"avg_cls",
 		"CLS (Avg)",
@@ -329,7 +320,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		formatCLS,
 		"core_web_vitals"
 	),
-	// FID metrics
 	createMetric(
 		"avg_fid",
 		"FID (Avg)",
@@ -346,7 +336,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 		formatPerformanceTime,
 		"core_web_vitals"
 	),
-	// INP metrics
 	createMetric(
 		"avg_inp",
 		"INP (Avg)",
@@ -365,7 +354,6 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 	),
 ];
 
-// Error metrics
 export const ERROR_METRICS: MetricConfig[] = [
 	createMetric("total_errors", "Total Errors", "bounce_rate", Bug, (value) =>
 		formatLocaleNumber(value)

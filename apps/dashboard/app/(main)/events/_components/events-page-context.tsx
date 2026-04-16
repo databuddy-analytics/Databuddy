@@ -16,27 +16,27 @@ import { useGlobalCustomEventsData } from "./use-global-custom-events";
 export type WebsiteFilterMode = "no-website" | "all" | string;
 
 export interface WebsiteEntry {
+	domain: string;
 	id: string;
 	name: string;
-	domain: string;
 }
 
 interface EventsPageContextValue {
-	websiteFilterMode: WebsiteFilterMode;
-	setWebsiteFilterMode: (mode: WebsiteFilterMode) => void;
-	selectedWebsite: WebsiteEntry | undefined;
-	websites: WebsiteEntry[];
-	isLoadingWebsites: boolean;
-	queryOptions: { websiteId?: string; organizationId?: string };
-	websiteFilters: DynamicQueryFilter[];
-	hasQueryId: boolean;
 	dateRange: {
 		start_date: string;
 		end_date: string;
 		granularity: "daily" | "hourly";
 	};
+	hasQueryId: boolean;
 	isLoadingOrg: boolean;
+	isLoadingWebsites: boolean;
 	query: ReturnType<typeof useGlobalCustomEventsData>;
+	queryOptions: { websiteId?: string; organizationId?: string };
+	selectedWebsite: WebsiteEntry | undefined;
+	setWebsiteFilterMode: (mode: WebsiteFilterMode) => void;
+	websiteFilterMode: WebsiteFilterMode;
+	websiteFilters: DynamicQueryFilter[];
+	websites: WebsiteEntry[];
 }
 
 const EventsPageContext = createContext<EventsPageContextValue | null>(null);
@@ -52,8 +52,11 @@ export function EventsPageProvider({
 }: {
 	children: React.ReactNode;
 }) {
-	const { activeOrganization, activeOrganizationId, isLoading: isLoadingOrg } =
-		useOrganizationsContext();
+	const {
+		activeOrganization,
+		activeOrganizationId,
+		isLoading: isLoadingOrg,
+	} = useOrganizationsContext();
 	const { websites: rawWebsites, isLoading: isLoadingWebsites } =
 		useWebsitesLight();
 	const websites = useMemo(
@@ -77,10 +80,11 @@ export function EventsPageProvider({
 		if (isSpecificWebsite) {
 			return { websiteId: websiteFilterMode };
 		}
-		// Org scope: `/v1/query` resolves active org from the session cookie when
-		// organization_id is omitted.
+		if (activeOrganizationId) {
+			return { organizationId: activeOrganizationId };
+		}
 		return {};
-	}, [isSpecificWebsite, websiteFilterMode]);
+	}, [isSpecificWebsite, websiteFilterMode, activeOrganizationId]);
 
 	const websiteFilters = useMemo<DynamicQueryFilter[]>(() => {
 		if (websiteFilterMode === "no-website") {

@@ -2,17 +2,15 @@
 
 import { getCountryCode } from "@databuddy/shared/country-codes";
 import type { Session } from "@databuddy/shared/types/sessions";
-import {
-	ArrowLeftIcon,
-	ChartLineIcon,
-	ClockIcon,
-	CursorClickIcon,
-	DevicesIcon,
-	EyeIcon,
-	GlobeIcon,
-	SpinnerIcon,
-	UserIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { ChartLineIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { CursorClickIcon } from "@phosphor-icons/react";
+import { DevicesIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { SpinnerIcon } from "@phosphor-icons/react";
+import { UserIcon } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
@@ -341,9 +339,7 @@ export default function UserDetailPage() {
 			<Header onBack={handleBack} userProfile={userProfile} />
 
 			<div className="flex min-h-0 flex-1 overflow-hidden">
-				{/* Sidebar - User Overview */}
 				<aside className="hidden w-80 shrink-0 overflow-y-auto border-r bg-sidebar lg:block">
-					{/* Stats Grid */}
 					<div className="grid grid-cols-2 gap-px border-b bg-border">
 						<div className="bg-sidebar p-4">
 							<StatItem
@@ -375,7 +371,6 @@ export default function UserDetailPage() {
 						</div>
 					</div>
 
-					{/* Location */}
 					<div className="border-b p-4">
 						<div className="mb-3 flex items-center gap-2">
 							<GlobeIcon
@@ -404,7 +399,6 @@ export default function UserDetailPage() {
 						</div>
 					</div>
 
-					{/* Technology */}
 					<div className="border-b p-4">
 						<div className="mb-3 flex items-center gap-2">
 							<DevicesIcon
@@ -439,7 +433,6 @@ export default function UserDetailPage() {
 						</div>
 					</div>
 
-					{/* Timeline */}
 					<div className="p-4">
 						<div className="mb-3 flex items-center gap-2">
 							<ClockIcon
@@ -490,9 +483,7 @@ export default function UserDetailPage() {
 					</div>
 				</aside>
 
-				{/* Main Content - Sessions */}
 				<main className="min-w-0 flex-1 overflow-y-auto">
-					{/* Mobile Stats (visible on small screens) */}
 					<div className="grid grid-cols-2 gap-px border-b bg-border sm:grid-cols-4 lg:hidden">
 						<div className="bg-background p-3">
 							<p className="font-bold text-foreground text-xl tabular-nums">
@@ -520,7 +511,6 @@ export default function UserDetailPage() {
 						</div>
 					</div>
 
-					{/* Sessions Header */}
 					<div className="sticky top-0 z-10 grid h-[39px] grid-cols-[24px_1fr_120px_80px_60px_60px_70px_80px] items-center gap-2 border-b bg-accent px-3 font-medium text-muted-foreground text-xs shadow-[0_0_0_0.5px_var(--border)] lg:grid-cols-[24px_1fr_120px_80px_100px_60px_60px_70px_80px]">
 						<div />
 						<span>Session</span>
@@ -532,7 +522,6 @@ export default function UserDetailPage() {
 						<span className="text-right">Last seen</span>
 					</div>
 
-					{/* Sessions List */}
 					{userProfile.sessions && userProfile.sessions.length > 0 ? (
 						<div className="divide-y">
 							{userProfile.sessions.map(

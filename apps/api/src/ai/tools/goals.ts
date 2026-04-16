@@ -7,11 +7,8 @@ const logger = createToolLogger("Goals Tools");
 
 export function createGoalTools() {
 	const listGoalsTool = tool({
-		description:
-			"List all goals for a website. Returns goals with their type, target, filters, and metadata.",
-		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID to get goals for"),
-		}),
+		description: "List goals with type, target, filters, metadata.",
+		inputSchema: z.object({ websiteId: z.string() }),
 		execute: async ({ websiteId }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -34,45 +31,14 @@ export function createGoalTools() {
 		},
 	});
 
-	const getGoalByIdTool = tool({
-		description:
-			"Get a specific goal by ID. Returns detailed information including type, target, filters, and configuration.",
-		inputSchema: z.object({
-			id: z.string().describe("The goal ID"),
-			websiteId: z.string().describe("The website ID"),
-		}),
-		execute: async ({ id, websiteId }, options) => {
-			const context = getAppContext(options);
-			try {
-				return await callRPCProcedure(
-					"goals",
-					"getById",
-					{ id, websiteId },
-					context
-				);
-			} catch (error) {
-				logger.error("Failed to get goal by ID", { id, websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve goal. Please try again.");
-			}
-		},
-	});
-
 	const getGoalAnalyticsTool = tool({
 		description:
-			"Get analytics data for a goal. Returns conversion rates, total users entered, total users completed, and overall conversion rate.",
+			"Goal analytics: conversion rate, users entered, users completed. Dates YYYY-MM-DD, default last 30d.",
 		inputSchema: z.object({
-			goalId: z.string().describe("The goal ID"),
-			websiteId: z.string().describe("The website ID"),
-			startDate: z
-				.string()
-				.optional()
-				.describe("Start date in YYYY-MM-DD format (defaults to 30 days ago)"),
-			endDate: z
-				.string()
-				.optional()
-				.describe("End date in YYYY-MM-DD format (defaults to today)"),
+			goalId: z.string(),
+			websiteId: z.string(),
+			startDate: z.string().optional(),
+			endDate: z.string().optional(),
 		}),
 		execute: async ({ goalId, websiteId, startDate, endDate }, options) => {
 			const context = getAppContext(options);
@@ -111,54 +77,30 @@ export function createGoalTools() {
 
 	const createGoalTool = tool({
 		description:
-			"Create a new goal to track single-step conversions. REQUIRES EXPLICIT USER CONFIRMATION before creating. Always show a preview first and ask the user to confirm before setting confirmed=true.",
+			"Create a single-step conversion goal. Target is a page path (PAGE_VIEW) or event name (EVENT/CUSTOM).",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			name: z
-				.string()
-				.min(1)
-				.max(100)
-				.describe("The goal name (1-100 characters)"),
-			description: z
-				.string()
-				.optional()
-				.describe("Optional description of the goal"),
-			type: z
-				.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
-				.describe(
-					"Goal type: PAGE_VIEW for page paths, EVENT for custom events"
-				),
-			target: z
-				.string()
-				.min(1)
-				.describe(
-					"Goal target: page path (e.g., '/thank-you') or event name (e.g., 'purchase_complete')"
-				),
+			websiteId: z.string(),
+			name: z.string().min(1).max(100),
+			description: z.string().optional(),
+			type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+			target: z.string().min(1),
 			filters: z
 				.array(
 					z.object({
-						field: z.string().describe("Filter field name"),
-						operator: z
-							.enum(["equals", "contains", "not_equals", "in", "not_in"])
-							.describe("Filter operator"),
-						value: z
-							.union([z.string(), z.array(z.string())])
-							.describe("Filter value (string or array of strings)"),
+						field: z.string(),
+						operator: z.enum([
+							"equals",
+							"contains",
+							"not_equals",
+							"in",
+							"not_in",
+						]),
+						value: z.union([z.string(), z.array(z.string())]),
 					})
 				)
-				.optional()
-				.describe("Optional filters to apply to the goal"),
-			ignoreHistoricData: z
-				.boolean()
-				.optional()
-				.describe(
-					"Whether to ignore historic data before goal creation (default: false)"
-				),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms. When false, returns a preview and asks for confirmation."
-				),
+				.optional(),
+			ignoreHistoricData: z.boolean().optional(),
+			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
 		execute: async (
 			{
@@ -240,17 +182,13 @@ export function createGoalTools() {
 	});
 
 	const updateGoalTool = tool({
-		description:
-			"Update an existing goal. Can modify name, description, type, target, filters, active status, or ignore historic data setting.",
+		description: "Update a goal.",
 		inputSchema: z.object({
-			id: z.string().describe("The goal ID to update"),
-			name: z.string().min(1).max(100).optional().describe("New goal name"),
-			description: z.string().optional().describe("New goal description"),
-			type: z
-				.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
-				.optional()
-				.describe("New goal type"),
-			target: z.string().min(1).optional().describe("New goal target"),
+			id: z.string(),
+			name: z.string().min(1).max(100).optional(),
+			description: z.string().optional(),
+			type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]).optional(),
+			target: z.string().min(1).optional(),
 			filters: z
 				.array(
 					z.object({
@@ -265,13 +203,9 @@ export function createGoalTools() {
 						value: z.union([z.string(), z.array(z.string())]),
 					})
 				)
-				.optional()
-				.describe("New filters"),
+				.optional(),
 			ignoreHistoricData: z.boolean().optional(),
-			isActive: z
-				.boolean()
-				.optional()
-				.describe("Whether the goal is active (paused if false)"),
+			isActive: z.boolean().optional(),
 		}),
 		execute: async (
 			{
@@ -319,15 +253,10 @@ export function createGoalTools() {
 	});
 
 	const deleteGoalTool = tool({
-		description:
-			"Delete a goal. REQUIRES EXPLICIT USER CONFIRMATION before deleting. Always ask for confirmation first.",
+		description: "Delete a goal. Cannot be undone.",
 		inputSchema: z.object({
-			id: z.string().describe("The goal ID to delete"),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms deletion."
-				),
+			id: z.string(),
+			confirmed: z.boolean().describe("false=preview, true=delete"),
 		}),
 		execute: async ({ id, confirmed }, options) => {
 			const context = getAppContext(options);
@@ -361,7 +290,6 @@ export function createGoalTools() {
 
 	return {
 		list_goals: listGoalsTool,
-		get_goal_by_id: getGoalByIdTool,
 		get_goal_analytics: getGoalAnalyticsTool,
 		create_goal: createGoalTool,
 		update_goal: updateGoalTool,

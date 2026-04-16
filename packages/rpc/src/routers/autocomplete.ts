@@ -1,4 +1,4 @@
-import { chQuery } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { z } from "zod";
 import { rpcError } from "../errors";

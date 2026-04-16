@@ -21,18 +21,9 @@ const QUERY_LABELS: Record<string, string> = {
 	summary: "summary",
 	engagement: "engagement",
 	profiles: "profiles",
-	llm_analytics: "LLM analytics",
 	uptime: "uptime",
 	links: "links",
 };
-
-function queryLabel(input: Input): string {
-	const type = input.type as string | undefined;
-	const label = type
-		? (QUERY_LABELS[type] ?? type.replace(/_/g, " "))
-		: "analytics";
-	return `Querying ${label}`;
-}
 
 function confirmLabel(input: Input, pending: string, active: string): string {
 	return input.confirmed === true ? active : pending;
@@ -61,9 +52,7 @@ function crudLabel(
 }
 
 const TOOL_LABELS: Record<string, (input: Input) => string> = {
-	execute_query_builder: queryLabel,
 	execute_sql_query: () => "Running custom query",
-	get_top_pages: () => "Getting top pages",
 	get_data: (input) => {
 		const queries = input.queries as { type: string }[] | undefined;
 		if (queries?.length) {
@@ -77,14 +66,11 @@ const TOOL_LABELS: Record<string, (input: Input) => string> = {
 	},
 
 	list_links: () => "Fetching links",
-	get_link: () => "Getting link details",
 	create_link: crudLabel("link")("create"),
 	update_link: crudLabel("link")("update"),
 	delete_link: crudLabel("link")("delete"),
-	search_links: () => "Searching links",
 
 	list_funnels: () => "Fetching funnels",
-	get_funnel_by_id: () => "Getting funnel details",
 	get_funnel_analytics: () => "Analyzing funnel",
 	get_funnel_analytics_by_referrer: () => "Analyzing funnel by source",
 	create_funnel: crudLabel("funnel")("create"),
@@ -92,14 +78,12 @@ const TOOL_LABELS: Record<string, (input: Input) => string> = {
 	delete_funnel: crudLabel("funnel")("delete"),
 
 	list_goals: () => "Fetching goals",
-	get_goal_by_id: () => "Getting goal details",
 	get_goal_analytics: () => "Analyzing goal",
 	create_goal: crudLabel("goal")("create"),
 	update_goal: crudLabel("goal")("update"),
 	delete_goal: crudLabel("goal")("delete"),
 
 	list_annotations: () => "Fetching annotations",
-	get_annotation_by_id: () => "Getting annotation",
 	create_annotation: crudLabel("annotation")("create"),
 	update_annotation: crudLabel("annotation")("update"),
 	delete_annotation: crudLabel("annotation")("delete"),

@@ -1,7 +1,10 @@
 "use client";
 
-import { EyeIcon, EyeSlashIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
-import { SpinnerGapIcon } from "@phosphor-icons/react/dist/ssr/SpinnerGap";
+import { EyeIcon } from "@phosphor-icons/react";
+import { EyeSlashIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
+import { SpinnerGapIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { Badge } from "@/components/ui/badge";
@@ -32,18 +35,19 @@ import { cn } from "@/lib/utils";
 import type { Annotation, AnnotationFormData } from "@/types/annotations";
 
 interface EditModeProps {
-	isOpen: boolean;
-	mode: "edit";
 	annotation: Annotation;
+	isOpen: boolean;
+	isSubmitting?: boolean;
+	mode: "edit";
 	onClose: () => void;
 	onSubmit: (id: string, updates: AnnotationFormData) => Promise<void>;
-	isSubmitting?: boolean;
 }
 
 interface CreateModeProps {
-	isOpen: boolean;
-	mode: "create";
 	dateRange: { startDate: Date; endDate: Date };
+	isOpen: boolean;
+	isSubmitting?: boolean;
+	mode: "create";
 	onClose: () => void;
 	onCreate: (annotation: {
 		annotationType: "range";
@@ -54,7 +58,6 @@ interface CreateModeProps {
 		color: string;
 		isPublic: boolean;
 	}) => Promise<void> | void;
-	isSubmitting?: boolean;
 }
 
 type AnnotationModalProps = EditModeProps | CreateModeProps;

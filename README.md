@@ -41,7 +41,7 @@ A comprehensive analytics and data management platform built with Next.js, TypeS
 - 📊 Funnel analysis
 - 📈 Cohort analysis // Soon
 - 🔄 A/B testing // Soon
-- 📈 Export capabilities // Soon
+- 📈 Export capabilities
 - 🔒 GDPR compliance
 - 🔐 Data encryption
 - 📊 API access
@@ -60,6 +60,38 @@ A comprehensive analytics and data management platform built with Next.js, TypeS
 
 - Bun 1.3.4+
 - Node.js 20+
+
+## 🏠 Self-Hosting
+
+Databuddy can be self-hosted using Docker Compose. The repo includes two compose files:
+
+| File | Purpose |
+|---|---|
+| `docker-compose.yaml` | **Development only** — starts infrastructure (Postgres, ClickHouse, Redis) for local dev |
+| `docker-compose.selfhost.yml` | **Production / self-hosting** — full stack with all application services from GHCR images |
+
+### Quick Start
+
+```bash
+# 1. Configure environment
+cp .env.example .env
+# Edit .env — at minimum set BETTER_AUTH_SECRET and BETTER_AUTH_URL
+
+# 2. Start everything
+docker compose -f docker-compose.selfhost.yml up -d
+
+# 3. Initialize databases (first run only)
+docker compose -f docker-compose.selfhost.yml exec api bun run db:push
+docker compose -f docker-compose.selfhost.yml exec api bun run clickhouse:init
+```
+
+Services started:
+- **API** → `localhost:3001`
+- **Basket** (event ingestion) → `localhost:4000`
+- **Links** (short links) → `localhost:2500`
+- **Uptime** monitoring is optional — uncomment in the compose file and set QStash keys.
+
+All ports are configurable via env vars (`API_PORT`, `BASKET_PORT`, etc.). See the compose file comments for the full env var reference.
 
 ## 🤝 Contributing
 

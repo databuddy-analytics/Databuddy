@@ -16,10 +16,7 @@ interface ListRootProps {
 
 function ListRoot({ children, className }: ListRootProps) {
 	return (
-		<div
-			className={cn("w-full overflow-x-auto", className)}
-			data-slot="list"
-		>
+		<div className={cn("w-full overflow-x-auto", className)} data-slot="list">
 			{children}
 		</div>
 	);
@@ -31,11 +28,7 @@ interface ListHeadProps {
 	sticky?: boolean;
 }
 
-function ListHead({
-	children,
-	className,
-	sticky = false,
-}: ListHeadProps) {
+function ListHead({ children, className, sticky = false }: ListHeadProps) {
 	return (
 		<div
 			className={cn(
@@ -126,11 +119,11 @@ function ListCell({
 	return (
 		<div
 			className={cn(
-				"min-w-0",
+				"flex min-w-0 items-center",
 				!grow && "shrink-0",
 				grow && "flex-1",
-				align === "center" && "flex justify-center text-center",
-				align === "end" && "text-balance text-right",
+				align === "center" && "justify-center text-center",
+				align === "end" && "justify-end text-balance text-right",
 				className
 			)}
 			data-slot="list-cell"
@@ -174,7 +167,7 @@ function ListDefaultLoading() {
 		<ListRoot className="rounded bg-card">
 			{Array.from({ length: 5 }).map((_, i) => (
 				<div
-					className="flex min-h-15 items-start gap-4 border-border/80 border-b px-4 py-3 last:border-b-0"
+					className="flex min-h-15 items-center gap-4 border-border/80 border-b px-4 py-3 last:border-b-0"
 					key={`list-skeleton-${i + 1}`}
 				>
 					<Skeleton className="size-8 shrink-0 rounded" />

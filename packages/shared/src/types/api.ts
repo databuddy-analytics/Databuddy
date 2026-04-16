@@ -1,19 +1,19 @@
 export interface ParameterWithDates {
-	name: string;
-	start_date?: string;
 	end_date?: string;
 	granularity?: "hourly" | "daily";
 	id?: string;
+	name: string;
+	start_date?: string;
 }
 
 export interface DynamicQueryRequest {
-	id?: string;
-	parameters: (string | ParameterWithDates)[];
-	limit?: number;
-	page?: number;
 	filters?: DynamicQueryFilter[];
 	granularity?: "hourly" | "daily";
 	groupBy?: string | string[];
+	id?: string;
+	limit?: number;
+	page?: number;
+	parameters: (string | ParameterWithDates)[];
 }
 
 export interface DynamicQueryFilter {
@@ -30,16 +30,16 @@ export interface DynamicQueryFilter {
 }
 
 export interface DynamicQueryResult {
-	parameter: string;
 	data: Record<string, unknown>[];
-	success: boolean;
 	error?: string;
+	parameter: string;
+	success: boolean;
 }
 
 export interface DynamicQueryResponse {
-	success: boolean;
-	queryId?: string;
 	data: DynamicQueryResult[];
+	date_range?: { start: string; end: string };
+	error?: string;
 	meta: {
 		parameters: string[];
 		total_parameters: number;
@@ -47,8 +47,8 @@ export interface DynamicQueryResponse {
 		limit: number;
 		filters_applied: number;
 	};
-	error?: string;
-	date_range?: { start: string; end: string };
+	queryId?: string;
+	success: boolean;
 }
 
 export interface GoalFilter {
@@ -58,12 +58,12 @@ export interface GoalFilter {
 }
 
 export interface BatchQueryResponse {
-	success: boolean;
 	batch: true;
-	results: DynamicQueryResponse[];
 	meta: {
 		total_queries: number;
 		successful_queries: number;
 		failed_queries: number;
 	};
+	results: DynamicQueryResponse[];
+	success: boolean;
 }

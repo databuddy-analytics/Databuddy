@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 interface SpotlightProps {
 	className?: string;
 	fill?: string;
-	top?: string;
 	left?: string;
+	top?: string;
 	transform?: string;
 }
 

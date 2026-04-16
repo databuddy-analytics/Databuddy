@@ -31,13 +31,13 @@ const DataTable = dynamic(
 );
 
 interface ErrorDataTableProps {
+	isLoading: boolean;
+	isRefreshing: boolean;
+	onAddFilter?: (field: string, value: string) => void;
 	processedData: {
 		error_types: ErrorType[];
 		errors_by_page: ErrorByPage[];
 	};
-	isLoading: boolean;
-	isRefreshing: boolean;
-	onAddFilter?: (field: string, value: string) => void;
 }
 
 export const ErrorDataTable = ({

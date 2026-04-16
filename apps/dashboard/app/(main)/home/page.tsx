@@ -1,11 +1,9 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	GlobeIcon,
-	HouseIcon,
-	PlusIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { HouseIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
@@ -159,7 +157,6 @@ export default function HomePage() {
 				}
 				className="flex-1 space-y-6 overflow-y-auto p-3 sm:p-4 lg:p-6"
 			>
-				{/* Summary Stats */}
 				<SummaryStats
 					activeMonitors={activeMonitors}
 					averageTrend={averageTrend}
@@ -191,7 +188,6 @@ export default function HomePage() {
 					/>
 				</div>
 
-				{/* Websites Section */}
 				<div className="space-y-4">
 					<div className="flex items-center justify-between">
 						<h2 className="font-semibold text-foreground">Your Websites</h2>

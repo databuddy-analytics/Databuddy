@@ -1,4 +1,4 @@
-import { chQuery } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import { createToolLogger } from "./logger";
 
 export interface QueryResult<T = unknown> {
@@ -19,6 +19,9 @@ const USER_CONTENT_FIELDS = new Set([
 	"utm_campaign",
 	"utm_term",
 	"utm_content",
+	"event_name",
+	"property_key",
+	"property_value",
 ]);
 
 const MAX_STRING_LENGTH = 2000;
@@ -59,7 +62,7 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 	const queryStart = Date.now();
 
 	try {
-		const raw = await chQuery<T>(sql, params);
+		const raw = await chQuery<T>(sql, params, { readonly: true });
 		const executionTime = Date.now() - queryStart;
 		const result = raw.map(sanitizeRow);
 
@@ -87,14 +90,4 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 
 		throw error;
 	}
-}
-
-/**
- * Wraps an error with a consistent message format.
- */
-export function wrapError(error: unknown, defaultMessage: string): Error {
-	if (error instanceof Error) {
-		return error;
-	}
-	return new Error(defaultMessage);
 }

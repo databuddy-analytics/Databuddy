@@ -1,4 +1,6 @@
-import { and, db, eq, uptimeSchedules } from "@databuddy/db";
+import { and, db, eq } from "@databuddy/db";
+import { uptimeSchedules } from "@databuddy/db/schema";
+import { rateLimit } from "@databuddy/redis";
 import { Client } from "@upstash/qstash";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -97,7 +99,6 @@ const getScheduleOutputSchema = z
 		granularity: z.string(),
 		cron: z.string(),
 		isPaused: z.boolean(),
-		isPublic: z.boolean(),
 		timeout: z.number().nullable().optional(),
 		cacheBust: z.boolean(),
 		jsonParsingConfig: z.unknown().nullable(),
@@ -184,6 +185,7 @@ export const uptimeRouter = {
 				where: eq(uptimeSchedules.organizationId, orgId),
 				orderBy: (table, { desc }) => [desc(table.createdAt)],
 				with: { website: true },
+				limit: 100,
 			});
 		}),
 
@@ -238,7 +240,6 @@ export const uptimeRouter = {
 				organizationId: z.string().optional(),
 				websiteId: z.string().optional(),
 				granularity: granularityEnum,
-				isPublic: z.boolean().optional(),
 				timeout: z.number().int().min(1000).max(120_000).optional(),
 				cacheBust: z.boolean().optional(),
 				jsonParsingConfig: z
@@ -286,7 +287,6 @@ export const uptimeRouter = {
 				granularity: input.granularity,
 				cron: CRON_GRANULARITIES[input.granularity],
 				isPaused: false,
-				isPublic: input.isPublic ?? false,
 				timeout: input.timeout ?? null,
 				cacheBust: input.cacheBust ?? false,
 				jsonParsingConfig: input.jsonParsingConfig ?? { enabled: true },
@@ -330,8 +330,8 @@ export const uptimeRouter = {
 		.input(
 			z.object({
 				scheduleId: z.string(),
+				name: z.string().nullish(),
 				granularity: granularityEnum.optional(),
-				isPublic: z.boolean().optional(),
 				timeout: z.number().int().min(1000).max(120_000).nullish(),
 				cacheBust: z.boolean().optional(),
 				jsonParsingConfig: z
@@ -346,9 +346,9 @@ export const uptimeRouter = {
 			await getScheduleAndAuthorize(input.scheduleId, context);
 
 			const updateData: {
+				name?: string | null;
 				granularity?: string;
 				cron?: string;
-				isPublic?: boolean;
 				timeout?: number | null;
 				cacheBust?: boolean;
 				jsonParsingConfig?: unknown;
@@ -357,15 +357,16 @@ export const uptimeRouter = {
 				updatedAt: new Date(),
 			};
 
+			if (input.name !== undefined) {
+				const trimmed = input.name?.trim();
+				updateData.name = trimmed ? trimmed : null;
+			}
+
 			if (input.granularity) {
 				await client.schedules.delete(input.scheduleId);
 				await createQStashSchedule(input.scheduleId, input.granularity);
 				updateData.granularity = input.granularity;
 				updateData.cron = CRON_GRANULARITIES[input.granularity];
-			}
-
-			if (input.isPublic !== undefined) {
-				updateData.isPublic = input.isPublic;
 			}
 
 			if (input.timeout !== undefined) {
@@ -393,6 +394,7 @@ export const uptimeRouter = {
 
 			return {
 				scheduleId: input.scheduleId,
+				name: schedule?.name ?? null,
 				granularity: schedule?.granularity,
 				cron: schedule?.cron,
 				jsonParsingConfig: schedule?.jsonParsingConfig ?? null,
@@ -503,6 +505,100 @@ export const uptimeRouter = {
 
 			logger.info({ scheduleId: input.scheduleId }, "Schedule paused");
 			return { success: true, isPaused: true };
+		}),
+
+	transfer: monitorsProcedure
+		.route({
+			description:
+				"Transfers an uptime monitor to another organization. Requires update permission on source and create on target.",
+			method: "POST",
+			path: "/uptime/transfer",
+			summary: "Transfer monitor",
+			tags: ["Uptime"],
+		})
+		.input(
+			z.object({
+				scheduleId: z.string(),
+				targetOrganizationId: z.string(),
+			})
+		)
+		.output(z.object({ success: z.literal(true) }))
+		.handler(async ({ context, input }) => {
+			const schedule = await getScheduleAndAuthorize(input.scheduleId, context);
+
+			if (schedule.organizationId === input.targetOrganizationId) {
+				throw rpcError.badRequest(
+					"Monitor already belongs to this organization"
+				);
+			}
+
+			await withWorkspace(context, {
+				organizationId: input.targetOrganizationId,
+				resource: "website",
+				permissions: ["create"],
+			});
+
+			await db
+				.update(uptimeSchedules)
+				.set({
+					organizationId: input.targetOrganizationId,
+					updatedAt: new Date(),
+				})
+				.where(eq(uptimeSchedules.id, input.scheduleId));
+
+			logger.info(
+				{
+					scheduleId: input.scheduleId,
+					from: schedule.organizationId,
+					to: input.targetOrganizationId,
+				},
+				"Monitor transferred"
+			);
+
+			return { success: true };
+		}),
+
+	manualCheck: monitorsProcedure
+		.route({
+			description:
+				"Triggers an immediate uptime check for a monitor. Monitor must not be paused.",
+			method: "POST",
+			path: "/uptime/manualCheck",
+			summary: "Manual check",
+			tags: ["Uptime"],
+		})
+		.input(z.object({ scheduleId: z.string() }))
+		.output(z.object({ success: z.literal(true) }))
+		.handler(async ({ context, input }) => {
+			const schedule = await getScheduleAndAuthorize(input.scheduleId, context);
+
+			if (schedule.isPaused) {
+				throw rpcError.badRequest("Cannot trigger check on a paused monitor");
+			}
+
+			const rl = await rateLimit(`manual-check:${input.scheduleId}`, 5, 60);
+			if (!rl.success) {
+				throw rpcError.rateLimited(60);
+			}
+
+			try {
+				await client.publish({
+					urlGroup: UPTIME_URL_GROUP,
+					headers: {
+						"Content-Type": "application/json",
+						"X-Schedule-Id": input.scheduleId,
+					},
+				});
+			} catch (error) {
+				logger.error(
+					{ scheduleId: input.scheduleId, error },
+					"Manual check failed"
+				);
+				throw rpcError.internal("Failed to trigger check");
+			}
+
+			logger.info({ scheduleId: input.scheduleId }, "Manual check triggered");
+			return { success: true };
 		}),
 
 	resumeSchedule: monitorsProcedure

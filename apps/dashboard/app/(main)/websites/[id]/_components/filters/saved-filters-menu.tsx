@@ -2,13 +2,11 @@
 
 import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import {
-	BookmarkIcon,
-	CheckIcon,
-	CopyIcon,
-	PencilIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { BookmarkIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { PencilIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,14 +20,14 @@ import { getOperatorLabel } from "@/hooks/use-filters";
 import type { SavedFilter } from "@/hooks/use-saved-filters";
 
 interface SavedFiltersMenuProps {
-	savedFilters: SavedFilter[];
+	currentFilters: DynamicQueryFilter[];
 	isLoading: boolean;
 	onApplyFilter: (filters: DynamicQueryFilter[]) => void;
+	onDeleteAll: () => void;
 	onDeleteFilter: (id: string) => void;
 	onDuplicateFilter: (id: string) => void;
 	onEditFilter: (id: string) => void;
-	onDeleteAll: () => void;
-	currentFilters: DynamicQueryFilter[];
+	savedFilters: SavedFilter[];
 }
 
 function getFieldLabel(field: string): string {

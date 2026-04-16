@@ -133,9 +133,9 @@ export const Navbar = ({ stars }: NavbarProps) => {
 };
 
 export interface NavMenuItem {
+	external?: boolean;
 	name: string;
 	path: string;
-	external?: boolean;
 }
 
 export const navMenu: NavMenuItem[] = [

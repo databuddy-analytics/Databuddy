@@ -473,29 +473,6 @@ Event: purchase_completed (156 events, 89 users)
   </Card>
 </Cards>
 
-## Real-time Analytics
-
-<Callout type="warn">
-  **Coming Soon**: Real-time analytics with WebSocket streaming will be
-  available in the next major update.
-</Callout>
-
-### Planned Features
-
-**Live Metrics Dashboard:**
-
-- **Active visitors** - Users currently on your site
-- **Current pageviews** - Real-time page popularity
-- **Live updates** - Data refreshed automatically
-- **Real-time charts** - Live data visualization
-
-**WebSocket Integration:**
-
-- **Instant updates** - No page refresh needed
-- **Configurable intervals** - Customize update frequency
-- **Live indicators** - Visual real-time status
-- **Mobile optimized** - Real-time on all devices
-
 ## Advanced Filtering & Segmentation
 
 Slice and dice your data for specific insights:
@@ -850,56 +827,3 @@ Get your data where you need it:
   **Need Help?** Join our [Discord community](https://discord.gg/JTk7a38tCZ) or
   [contact support](mailto:support@databuddy.cc) for dashboard assistance.
 </Callout>
-
----
-
-## Funnel Analysis
-
-Funnel analysis helps you understand how users progress through specific sequences of actions on your site, such as a signup process or a checkout flow. Defining and tracking these steps is crucial for identifying drop-off points and optimizing conversion rates.
-
-<Callout type="tip" title="Populating Funnel Data">
-To populate funnel data, you need to:
-1. Define the steps of your funnel within the Databuddy dashboard settings.
-2. Ensure each step corresponds to a custom event (or page view) that you are tracking with the SDK. For example, a signup funnel might be defined by a sequence of events like `viewed_signup_page` (a screen view), `started_signup_form` (custom event), and `completed_signup` (custom event).
-
-The sequence of these events for users will then build the funnel visualization. For more details on sending custom events, see the [SDK Methods Reference](/docs/sdk#sdk-methods) in the SDK documentation.
-
-</Callout>
-
-_(Detailed instructions on how to define funnels within the dashboard interface and interpret the funnel visualization will be available here. This feature helps pinpoint where users drop off in key workflows.)_
-
----
-
-## User Journey Visualization
-
-User journey visualization allows you to see the paths users take through your website on a session-by-session basis. This includes the sequence of page views and custom events they trigger, offering insights into user behavior and navigation patterns.
-
-<Callout type="tip" title="Data for User Journeys">
-This feature relies on the comprehensive event data tracked by the SDK. The richness of the user journeys depends on:
-- Thorough `screen_view` tracking (often automatic via `trackScreenViews={true}` in the [SDK configuration](/docs/sdk#configuration-options)).
-- Detailed custom event tracking (`db.track()`) for significant interactions as described in the [SDK Methods Reference](/docs/sdk#sdk-methods).
-
-Each event is tied to a user's session, allowing the dashboard to reconstruct their path.
-
-</Callout>
-
-_(Information on how to access and interpret user journey maps in the dashboard, including filtering by user segments or starting/ending events, will be detailed here. This helps understand common paths to conversion or points of confusion.)_
-
----
-
-## User Profiles
-
-The dashboard can compile user profiles that show a history of activity for individual visitors, even if they are anonymous. These profiles are built by aggregating all events linked to the same unique user ID, which the SDK manages automatically as part of session tracking (`trackSessions={true}`).
-
-<Callout type="tip" title="Building Rich User Profiles">
-Richer user profiles are developed when you consistently track custom events that provide context about user actions and milestones. While the SDK handles user identification, the depth of each profile is determined by the quality and breadth of your event tracking strategy.
-
-Refer to these SDK documentation sections for more:
-
-- [Custom Event Tracking](/docs/sdk#custom-event-tracking) for strategy.
-- [Standard Event Reference](/docs/sdk#standard-events) for common event types.
-- [SDK Methods Reference](/docs/sdk#sdk-methods) for `db.track()` and `db.setGlobalProperties()`.
-- The `db.setGlobalProperties()` method can be particularly useful for adding persistent attributes to a user's profile.
-</Callout>
-
-_(Details on where to find user profiles in the dashboard, what information they contain (e.g., event history, first seen, last seen, device info, location), and how to use them for segmentation or understanding individual user behavior will be provided here.)_

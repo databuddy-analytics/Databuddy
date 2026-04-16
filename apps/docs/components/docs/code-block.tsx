@@ -19,10 +19,10 @@ import { cn } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 
 interface CodeBlockProps extends React.ComponentProps<"div"> {
-	language?: string;
-	filename?: string;
-	code?: string;
 	children?: React.ReactNode;
+	code?: string;
+	filename?: string;
+	language?: string;
 }
 
 const highlighter = createHighlighterCoreSync({

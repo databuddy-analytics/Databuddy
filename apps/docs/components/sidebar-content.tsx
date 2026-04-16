@@ -22,19 +22,19 @@ import {
 } from "@phosphor-icons/react";
 
 export interface SidebarItem {
-	title: string;
+	children?: SidebarItem[];
+	group?: boolean;
 	href?: string;
 	icon?: React.ComponentType<{ className?: string; weight?: IconWeight }>;
 	isNew?: boolean;
-	group?: boolean;
-	children?: SidebarItem[];
+	title: string;
 }
 
 export interface SidebarSection {
-	title: string;
 	Icon: React.ComponentType<{ className?: string; weight?: IconWeight }>;
 	isNew?: boolean;
 	list: SidebarItem[];
+	title: string;
 }
 
 export const contents: SidebarSection[] = [
@@ -355,20 +355,6 @@ export const contents: SidebarSection[] = [
 				title: "Security Guide",
 				href: "/docs/security",
 				icon: ShieldCheckIcon,
-			},
-		],
-	},
-];
-
-export const examples: SidebarSection[] = [
-	{
-		title: "Examples",
-		Icon: CodeIcon,
-		list: [
-			{
-				title: "Coming Soon",
-				group: true,
-				icon: FileTextIcon,
 			},
 		],
 	},

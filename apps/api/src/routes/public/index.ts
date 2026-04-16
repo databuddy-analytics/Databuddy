@@ -3,6 +3,7 @@ import { serverTiming } from "@elysiajs/server-timing";
 import { Elysia } from "elysia";
 import { parseError } from "evlog";
 import { captureError, mergeWideEvent } from "@/lib/tracing";
+import { agentTelemetryRoute } from "./agent-telemetry";
 import { flagsRoute } from "./flags";
 
 export const publicApi = new Elysia({ prefix: "/public" })
@@ -25,6 +26,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 		})
 	)
 	.options("*", () => new Response(null, { status: 204 }))
+	.use(agentTelemetryRoute)
 	.use(flagsRoute)
 	.onError(function handlePublicError({ error, code, set }) {
 		const isNotFound = code === "NOT_FOUND";

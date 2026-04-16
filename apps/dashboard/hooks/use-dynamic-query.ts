@@ -15,12 +15,12 @@ import { guessTimezone } from "@/lib/dayjs";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 interface BuildParamsOptions {
-	websiteId?: string;
-	scheduleId?: string;
+	additionalParams?: Record<string, string | number>;
+	dateRange?: DateRange;
 	linkId?: string;
 	organizationId?: string;
-	dateRange?: DateRange;
-	additionalParams?: Record<string, string | number>;
+	scheduleId?: string;
+	websiteId?: string;
 }
 
 function buildParams({
@@ -89,10 +89,10 @@ function transformFilters(filters?: DynamicQueryRequest["filters"]) {
 }
 
 interface FetchOptions {
-	websiteId?: string;
-	scheduleId?: string;
 	linkId?: string;
 	organizationId?: string;
+	scheduleId?: string;
+	websiteId?: string;
 }
 
 async function fetchDynamicQuery(
@@ -227,10 +227,10 @@ export function useDynamicQuery<T extends (keyof ParameterDataMap)[]>(
 }
 
 interface BatchQueryOptions {
-	websiteId?: string;
-	scheduleId?: string;
 	linkId?: string;
 	organizationId?: string;
+	scheduleId?: string;
+	websiteId?: string;
 }
 
 export function useBatchDynamicQuery(

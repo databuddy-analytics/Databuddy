@@ -9,9 +9,9 @@ import { BaseProvider } from "./base";
 export interface TelegramProviderConfig {
 	botToken: string;
 	chatId: string;
-	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
+	timeout?: number;
 }
 
 const PRIORITY_LABELS: Record<NotificationPriority, string> = {

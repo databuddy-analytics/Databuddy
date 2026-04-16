@@ -1,22 +1,25 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import {
-	CaretDownIcon,
-	CheckIcon,
-	PlusIcon,
-	SpinnerGapIcon,
-} from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CreditCardIcon } from "@phosphor-icons/react";
+import { GearIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { SpinnerGapIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
+import { useBillingContext } from "@/components/providers/billing-provider";
 import {
 	AUTH_QUERY_KEYS,
 	useOrganizationsContext,
 } from "@/components/providers/organizations-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -131,12 +134,23 @@ function OrganizationSelectorTrigger({
 
 export function OrganizationSelector() {
 	const queryClient = useQueryClient();
+	const router = useRouter();
 	const { organizations, activeOrganization, isLoading } =
 		useOrganizationsContext();
+	const { currentPlanId } = useBillingContext();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [query, setQuery] = useState("");
 	const [isSwitching, setIsSwitching] = useState(false);
+
+	const planLabel = currentPlanId
+		? currentPlanId.charAt(0).toUpperCase() + currentPlanId.slice(1)
+		: null;
+
+	const navigateTo = (href: string) => {
+		setIsOpen(false);
+		router.push(href);
+	};
 
 	const handleSelectOrganization = async (organizationId: string) => {
 		if (organizationId === activeOrganization?.id) {
@@ -262,6 +276,32 @@ export function OrganizationSelector() {
 						</div>
 					)}
 
+					<DropdownMenuSeparator className="m-0 p-0" />
+					<DropdownMenuItem
+						className={MENU_ITEM_BASE_CLASSES}
+						onClick={() => navigateTo("/organizations/settings")}
+					>
+						<GearIcon
+							className="size-5 text-accent-foreground"
+							weight="duotone"
+						/>
+						<span className="font-medium text-sm">Workspace settings</span>
+					</DropdownMenuItem>
+					<DropdownMenuItem
+						className={MENU_ITEM_BASE_CLASSES}
+						onClick={() => navigateTo("/billing")}
+					>
+						<CreditCardIcon
+							className="size-5 text-accent-foreground"
+							weight="duotone"
+						/>
+						<span className="font-medium text-sm">Billing</span>
+						{planLabel && (
+							<Badge className="ml-auto" variant="outline">
+								{planLabel}
+							</Badge>
+						)}
+					</DropdownMenuItem>
 					<DropdownMenuSeparator className="m-0 p-0" />
 					<DropdownMenuItem
 						className={MENU_ITEM_BASE_CLASSES}

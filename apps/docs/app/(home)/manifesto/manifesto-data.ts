@@ -10,12 +10,12 @@ export type ManifestoChapterId =
 	| "ask-your-data"
 	| "build-for-builders";
 
-export type ManifestoChapter = {
+export interface ManifestoChapter {
+	blocks: readonly ManifestoBlock[];
 	id: ManifestoChapterId;
 	number: string;
 	title: string;
-	blocks: readonly ManifestoBlock[];
-};
+}
 
 export const manifestoIntro = {
 	title: "The Databuddy Manifesto",

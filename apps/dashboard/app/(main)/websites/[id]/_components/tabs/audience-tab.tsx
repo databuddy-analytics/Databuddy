@@ -1,14 +1,13 @@
 "use client";
 
-import {
-	DeviceMobileIcon,
-	DeviceTabletIcon,
-	LaptopIcon,
-	MonitorIcon,
-} from "@phosphor-icons/react";
+import { DeviceMobileIcon } from "@phosphor-icons/react";
+import { DeviceTabletIcon } from "@phosphor-icons/react";
+import { LaptopIcon } from "@phosphor-icons/react";
+import { MonitorIcon } from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { useCallback, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { formatNumber } from "@/lib/formatters";
 import { BrowserIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import {
@@ -21,37 +20,27 @@ import { PercentageBadge } from "../utils/technology-helpers";
 import type { FullTabProps } from "../utils/types";
 
 interface BrowserVersion {
-	version: string;
-	visitors: number;
 	pageviews: number;
 	percentage?: number;
+	version: string;
+	visitors: number;
 }
 
 interface BrowserEntry {
-	name: string;
 	browserName: string;
-	visitors: number;
+	name: string;
 	pageviews: number;
 	percentage: number;
 	versions: BrowserVersion[];
+	visitors: number;
 }
 
 interface ScreenResolutionEntry {
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
-
-const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
 
 const getGradientConfig = (percentage: number) => {
 	if (percentage >= 40) {

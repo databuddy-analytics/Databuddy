@@ -21,17 +21,17 @@ import type {
 } from "./types";
 
 export interface NotificationClientConfig {
-	slack?: SlackProviderConfig;
-	discord?: DiscordProviderConfig;
-	email?: EmailProviderConfig;
-	webhook?: WebhookProviderConfig;
-	teams?: TeamsProviderConfig;
-	telegram?: TelegramProviderConfig;
-	googleChat?: GoogleChatProviderConfig;
 	defaultChannels?: NotificationChannel[];
-	defaultTimeout?: number;
 	defaultRetries?: number;
 	defaultRetryDelay?: number;
+	defaultTimeout?: number;
+	discord?: DiscordProviderConfig;
+	email?: EmailProviderConfig;
+	googleChat?: GoogleChatProviderConfig;
+	slack?: SlackProviderConfig;
+	teams?: TeamsProviderConfig;
+	telegram?: TelegramProviderConfig;
+	webhook?: WebhookProviderConfig;
 }
 
 export class NotificationClient {

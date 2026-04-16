@@ -1,13 +1,11 @@
 "use client";
 
-import {
-	CalendarIcon,
-	DotsThreeIcon,
-	NoteIcon,
-	PencilSimpleIcon,
-	PlusIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CalendarIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { NoteIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,20 +20,20 @@ import { fromNow } from "@/lib/time";
 import type { BaseComponentProps } from "../../types";
 
 interface AnnotationItem {
-	id: string;
-	text: string;
 	annotationType: "point" | "line" | "range";
-	xValue: string;
-	xEndValue?: string | null;
 	color?: string | null;
-	tags?: string[];
-	isPublic?: boolean;
 	createdAt?: string;
+	id: string;
+	isPublic?: boolean;
+	tags?: string[];
+	text: string;
+	xEndValue?: string | null;
+	xValue: string;
 }
 
 export interface AnnotationsListProps extends BaseComponentProps {
-	title?: string;
 	annotations: AnnotationItem[];
+	title?: string;
 }
 
 function AnnotationTypeLabel({ type }: { type: string }) {

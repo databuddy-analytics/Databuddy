@@ -2,15 +2,13 @@
 
 import { API_SCOPES, type ApiScope } from "@databuddy/api-keys/scopes";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	ArrowsClockwiseIcon,
-	CheckCircleIcon,
-	CheckIcon,
-	CopyIcon,
-	KeyIcon,
-	ProhibitIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { KeyIcon } from "@phosphor-icons/react";
+import { ProhibitIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -37,16 +35,15 @@ import { type ApiKeyListItem, SCOPE_OPTIONS } from "./api-key-types";
 
 interface ApiKeyDetailDialogProps {
 	apiKey: ApiKeyListItem | null;
-	open: boolean;
 	onOpenChangeAction: (open: boolean) => void;
+	open: boolean;
 }
 
-const scopeSchema = z.enum(API_SCOPES);
 const formSchema = z.object({
 	name: z.string().min(1, "Name is required"),
 	enabled: z.boolean(),
 	expiresAt: z.string().optional(),
-	scopes: z.array(scopeSchema),
+	scopes: z.array(z.string()),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -55,7 +52,9 @@ function getEffectiveScopes(
 	key: ApiKeyListItem | { scopes: string[] }
 ): ApiScope[] {
 	const scopes = key.scopes ?? [];
-	return scopes.filter((s) => API_SCOPES.includes(s as ApiScope)) as ApiScope[];
+	return scopes.filter((s) =>
+		(API_SCOPES as readonly string[]).includes(s)
+	) as ApiScope[];
 }
 
 export function ApiKeyDetailDialog({
@@ -79,7 +78,7 @@ export function ApiKeyDetailDialog({
 			name: "",
 			enabled: true,
 			expiresAt: "",
-			scopes: [] as ApiScope[],
+			scopes: [] as string[],
 		},
 	});
 
@@ -121,8 +120,8 @@ export function ApiKeyDetailDialog({
 		}
 	};
 
-	const toggleScope = (scope: ApiScope) => {
-		const current = form.getValues("scopes") as ApiScope[];
+	const toggleScope = (scope: string) => {
+		const current = form.getValues("scopes");
 		const next = current.includes(scope)
 			? current.filter((s) => s !== scope)
 			: [...current, scope];
@@ -173,20 +172,23 @@ export function ApiKeyDetailDialog({
 		if (!apiKey) {
 			return;
 		}
-		const payload: Parameters<typeof updateMutation.mutate>[0] = {
+		type MutationInput = Parameters<typeof updateMutation.mutate>[0];
+		const payload: MutationInput = {
 			id: apiKey.id,
 			name: values.name,
 			enabled: values.enabled,
 			expiresAt: values.expiresAt || null,
 		};
-		const scopes = values.scopes ?? [];
+		const scopes = (values.scopes ?? []) as NonNullable<
+			MutationInput["scopes"]
+		>;
 		if (fullKey?.resources === undefined) {
 			payload.scopes = scopes;
 		} else {
-			const existing = fullKey.resources as Record<string, ApiScope[]>;
+			const existing = fullKey.resources as Record<string, string[]>;
 			const websiteResources = Object.fromEntries(
 				Object.entries(existing).filter(([k]) => k !== "global")
-			) as Record<string, ApiScope[]>;
+			) as MutationInput["resources"];
 			payload.scopes = [];
 			payload.resources = {
 				...websiteResources,
@@ -295,7 +297,7 @@ export function ApiKeyDetailDialog({
 								<div className="rounded border bg-card p-1">
 									<div className="grid grid-cols-2 gap-1">
 										{SCOPE_OPTIONS.map((scope) => {
-											const selectedScopes = form.watch("scopes") as ApiScope[];
+											const selectedScopes = form.watch("scopes");
 											const hasScope = selectedScopes.includes(scope.value);
 											const isDefault = scope.value === "read:data";
 											return (

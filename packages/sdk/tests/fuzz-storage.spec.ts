@@ -101,7 +101,9 @@ test.describe("Fuzz — BrowserFlagStorage stress + edge cases", () => {
 					const all = storage.getAll();
 					const count = Object.keys(all).length;
 					if (count !== batchSize) {
-						failures.push(`round ${round}: expected ${batchSize} keys, got ${count}`);
+						failures.push(
+							`round ${round}: expected ${batchSize} keys, got ${count}`
+						);
 					}
 				}
 

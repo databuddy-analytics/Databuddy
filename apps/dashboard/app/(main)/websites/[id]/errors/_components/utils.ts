@@ -1,7 +1,5 @@
 import type { ErrorCategory } from "@databuddy/shared/types/errors";
 
-export { formatDateTime, formatDateTimeSeconds } from "@/lib/formatters";
-
 export const getErrorCategory = (errorMessage: string): ErrorCategory => {
 	if (!errorMessage) {
 		return { type: "Unknown Error", category: "Other", severity: "low" };

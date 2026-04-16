@@ -7,22 +7,22 @@ export type AnnotationType = "point" | "line" | "range";
 export type ChartType = "metrics";
 
 export interface Annotation {
-	id: string;
-	websiteId: string;
-	chartType: ChartType;
-	chartContext: ChartContext;
 	annotationType: AnnotationType;
-	xValue: Date | string;
-	xEndValue: Date | string | null;
-	yValue?: number | null;
-	text: string;
-	tags: string[] | null;
+	chartContext: ChartContext;
+	chartType: ChartType;
 	color: string;
-	isPublic: boolean;
-	createdBy: string;
 	createdAt: Date | string;
-	updatedAt: Date | string;
+	createdBy: string;
 	deletedAt?: Date | string | null;
+	id: string;
+	isPublic: boolean;
+	tags: string[] | null;
+	text: string;
+	updatedAt: Date | string;
+	websiteId: string;
+	xEndValue: Date | string | null;
+	xValue: Date | string;
+	yValue?: number | null;
 }
 
 export interface ChartContext {
@@ -41,47 +41,47 @@ export interface ChartContext {
 }
 
 export interface CreateAnnotationData {
-	websiteId: string;
-	chartType: ChartType;
-	chartContext: ChartContext;
 	annotationType: AnnotationType;
-	xValue: string;
-	xEndValue?: string;
-	yValue?: number;
-	text: string;
-	tags?: string[];
+	chartContext: ChartContext;
+	chartType: ChartType;
 	color?: string;
 	isPublic?: boolean;
+	tags?: string[];
+	text: string;
+	websiteId: string;
+	xEndValue?: string;
+	xValue: string;
+	yValue?: number;
 }
 
 export interface UpdateAnnotationData {
-	id: string;
-	text?: string;
-	tags?: string[];
 	color?: string;
+	id: string;
 	isPublic?: boolean;
+	tags?: string[];
+	text?: string;
 }
 
 export interface AnnotationColor {
-	value: string;
 	label: string;
+	value: string;
 }
 
 export interface AnnotationTag {
+	color: string;
 	label: string;
 	value: string;
-	color: string;
 }
 
 export interface ListAnnotationsInput {
-	websiteId: string;
-	chartType: ChartType;
 	chartContext: ChartContext;
+	chartType: ChartType;
+	websiteId: string;
 }
 
 export interface AnnotationFormData {
-	text: string;
-	tags: string[];
 	color: string;
 	isPublic: boolean;
+	tags: string[];
+	text: string;
 }

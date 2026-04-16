@@ -1,7 +1,7 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import fg from "fast-glob";
 import matter from "gray-matter";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 export const revalidate = false;
 

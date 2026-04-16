@@ -16,11 +16,11 @@ import {
 import { cn } from "@/lib/utils";
 
 export interface AttachDialogProps {
-	open: boolean;
-	setOpen: (open: boolean) => void;
-	preview: PreviewAttachResponse;
-	planId: string;
 	onConfirm: () => Promise<void>;
+	open: boolean;
+	planId: string;
+	preview: PreviewAttachResponse;
+	setOpen: (open: boolean) => void;
 }
 
 export default function AttachDialog({

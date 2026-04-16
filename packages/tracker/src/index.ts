@@ -26,7 +26,8 @@ export class Databuddy extends BaseTracker {
 			initWebVitalsTracking(this);
 		}
 		if (this.options.trackErrors) {
-			initErrorTracking(this);
+			const cleanup = initErrorTracking(this);
+			this.cleanupFns.push(cleanup);
 		}
 
 		if (!this.isServer()) {
@@ -83,10 +84,6 @@ export class Databuddy extends BaseTracker {
 		this.trackScreenViews();
 		this.setupPageLifecycle();
 
-		if (document.visibilityState === "visible") {
-			this.startEngagement();
-		}
-
 		setTimeout(() => this.screenView(), 0);
 
 		if (this.options.trackOutgoingLinks) {
@@ -96,9 +93,11 @@ export class Databuddy extends BaseTracker {
 		if (this.options.trackAttributes) {
 			this.trackAttributes();
 		}
-		initScrollDepthTracking(this);
+		const scrollCleanup = initScrollDepthTracking(this);
+		this.cleanupFns.push(scrollCleanup);
 		if (this.options.trackInteractions) {
-			initInteractionTracking(this);
+			const interactionCleanup = initInteractionTracking(this);
+			this.cleanupFns.push(interactionCleanup);
 		}
 		this.checkCheckoutSession();
 	}
@@ -125,6 +124,7 @@ export class Databuddy extends BaseTracker {
 				provider: "paddle",
 			});
 		}
+		this.checkCheckoutSession();
 	}
 
 	trackScreenViews() {
@@ -210,17 +210,9 @@ export class Databuddy extends BaseTracker {
 
 	private setupPageLifecycle() {
 		const handleUnload = () => this.handlePageUnload();
-		const handleVisibilityChange = () => {
-			if (document.visibilityState === "hidden") {
-				this.pauseEngagement();
-			} else {
-				this.startEngagement();
-			}
-		};
 
 		window.addEventListener("beforeunload", handleUnload);
 		window.addEventListener("pagehide", handleUnload);
-		document.addEventListener("visibilitychange", handleVisibilityChange);
 
 		const pageshowHandler = (event: PageTransitionEvent) => {
 			if (!event.persisted) {
@@ -233,16 +225,35 @@ export class Databuddy extends BaseTracker {
 		this.cleanupFns.push(() => {
 			window.removeEventListener("beforeunload", handleUnload);
 			window.removeEventListener("pagehide", handleUnload);
-			document.removeEventListener("visibilitychange", handleVisibilityChange);
 			window.removeEventListener("pageshow", pageshowHandler);
 		});
 	}
 
+	private flushQueueViaBeacon(
+		queue: unknown[],
+		endpoint: string,
+		fallback: () => Promise<unknown>
+	): void {
+		if (queue.length === 0) {
+			return;
+		}
+		if (this.sendBeacon(queue, endpoint)) {
+			queue.length = 0;
+		} else {
+			fallback().catch(() => { });
+		}
+	}
+
 	private handlePageUnload() {
-		this.flushTrack().catch(() => { });
-		this.flushVitals().catch(() => { });
-		this.flushErrors().catch(() => { });
-		this.pauseEngagement();
+		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
+			this.flushTrack()
+		);
+		this.flushQueueViaBeacon(this.vitalsQueue, "/vitals", () =>
+			this.flushVitals()
+		);
+		this.flushQueueViaBeacon(this.errorsQueue, "/errors", () =>
+			this.flushErrors()
+		);
 		if (this.hasSentExitBeacon) {
 			return;
 		}
@@ -268,8 +279,6 @@ export class Databuddy extends BaseTracker {
 
 	private handleBfCacheRestore() {
 		this.hasSentExitBeacon = false;
-		this.resetEngagement();
-		this.startEngagement();
 
 		const sessionTimestamp = sessionStorage.getItem("did_session_timestamp");
 		if (sessionTimestamp) {
@@ -302,10 +311,6 @@ export class Databuddy extends BaseTracker {
 		this.pageStartTime = Date.now();
 		this.interactionCount = 0;
 		this.maxScrollDepth = 0;
-		this.resetEngagement();
-		if (document.visibilityState === "visible") {
-			this.startEngagement();
-		}
 	}
 
 	trackAttributes() {
@@ -403,11 +408,29 @@ export class Databuddy extends BaseTracker {
 		}
 		this.cleanupFns = [];
 
-		if (this.batchTimer) {
-			clearTimeout(this.batchTimer);
-			this.batchTimer = null;
+		// Flush all pending data via sendBeacon (with fetch fallback) before clearing.
+		// flushQueueViaBeacon empties the array in-place on success; on failure it
+		// kicks off the fetch fallback which also clears the array via _flushQueue.
+		this.flushQueueViaBeacon(this.batchQueue, "/batch", () =>
+			this.flushBatch()
+		);
+		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
+			this.flushTrack()
+		);
+		this.flushQueueViaBeacon(this.vitalsQueue, "/vitals", () =>
+			this.flushVitals()
+		);
+		this.flushQueueViaBeacon(this.errorsQueue, "/errors", () =>
+			this.flushErrors()
+		);
+
+		// Cancel any pending flush timers that beacon-success paths left behind.
+		for (const meta of Object.values(this._meta)) {
+			if (meta.timer) {
+				clearTimeout(meta.timer);
+				meta.timer = null;
+			}
 		}
-		this.batchQueue = [];
 
 		if (typeof window !== "undefined") {
 			window.databuddy = undefined;
@@ -462,5 +485,12 @@ if (typeof window !== "undefined") {
 		} catch { }
 		window.databuddyOptedOut = false;
 		window.databuddyDisabled = false;
+
+		// Reinitialize if tracker was a noop stub
+		if (window.databuddy?.options.disabled) {
+			window.databuddy = undefined;
+			window.db = undefined;
+			initializeDatabuddy();
+		}
 	};
 }

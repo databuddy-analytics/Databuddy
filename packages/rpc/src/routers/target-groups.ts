@@ -1,11 +1,5 @@
-import {
-	and,
-	desc,
-	eq,
-	flagsToTargetGroups,
-	isNull,
-	targetGroups,
-} from "@databuddy/db";
+import { and, desc, eq, isNull } from "@databuddy/db";
+import { flagsToTargetGroups, targetGroups } from "@databuddy/db/schema";
 import {
 	createDrizzleCache,
 	invalidateCacheablePattern,

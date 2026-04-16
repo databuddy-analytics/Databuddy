@@ -1,21 +1,26 @@
 import { type Tool, tool } from "ai";
 import { z } from "zod";
 import {
+	forgetMemory,
 	isMemoryEnabled,
+	sanitizeMemoryContent,
+	saveCuratedMemory,
 	searchMemories,
-	storeConversation,
 } from "../../lib/supermemory";
 
 function getAgentContext(options: unknown): {
 	userId: string | null;
 	apiKeyId: string | null;
+	websiteId: string | null;
 } {
 	const ctx = (options as { experimental_context?: Record<string, unknown> })
 		?.experimental_context;
 	const userId =
 		typeof ctx?.userId === "string" && ctx.userId ? ctx.userId : null;
 	const apiKey = ctx?.apiKey as { id: string } | null | undefined;
-	return { userId, apiKeyId: apiKey?.id ?? null };
+	const websiteId =
+		typeof ctx?.websiteId === "string" && ctx.websiteId ? ctx.websiteId : null;
+	return { userId, apiKeyId: apiKey?.id ?? null, websiteId };
 }
 
 export function createMemoryTools(): Record<string, Tool> {
@@ -26,27 +31,18 @@ export function createMemoryTools(): Record<string, Tool> {
 	return {
 		search_memory: tool({
 			description:
-				"Search your memory of past conversations with this user. Use when you need context about their preferences, past questions, patterns, or previous analytics findings. Returns relevant memories ranked by similarity.",
+				"Search past conversation memory for this user's preferences, patterns, or prior findings.",
 			strict: true,
 			inputSchema: z.object({
-				query: z
-					.string()
-					.describe(
-						"What to search for in memory (e.g. 'pricing page performance', 'user preferences', 'previous traffic issues')"
-					),
-				limit: z
-					.number()
-					.min(1)
-					.max(10)
-					.optional()
-					.default(5)
-					.describe("Max number of memories to return"),
+				query: z.string(),
+				limit: z.number().min(1).max(10).optional().default(5),
 			}),
 			execute: async (args, options) => {
-				const { userId, apiKeyId } = getAgentContext(options);
+				const { userId, apiKeyId, websiteId } = getAgentContext(options);
 				const results = await searchMemories(args.query, userId, apiKeyId, {
 					limit: args.limit,
 					threshold: 0.4,
+					websiteId: websiteId ?? undefined,
 				});
 
 				if (results.length === 0) {
@@ -56,7 +52,7 @@ export function createMemoryTools(): Record<string, Tool> {
 				return {
 					found: true,
 					memories: results.map((r) => ({
-						content: r.memory,
+						content: sanitizeMemoryContent(r.memory),
 						relevance: Math.round(r.similarity * 100),
 					})),
 				};
@@ -64,29 +60,55 @@ export function createMemoryTools(): Record<string, Tool> {
 		}),
 		save_memory: tool({
 			description:
-				"Save an important insight, user preference, or finding to memory for future conversations. Use when the user shares preferences, you discover important patterns, or want to remember key findings.",
+				"Save an important user preference, pattern, or finding for future conversations.",
 			strict: true,
 			inputSchema: z.object({
-				content: z
-					.string()
-					.describe(
-						"The insight or information to remember (e.g. 'User cares most about /pricing page bounce rate', 'Traffic drops every Monday')"
-					),
+				content: z.string(),
 				category: z
 					.enum(["preference", "insight", "pattern", "alert", "context"])
 					.optional()
-					.default("insight")
-					.describe("Category of the memory"),
+					.default("insight"),
 			}),
 			execute: (args, options) => {
-				const { userId, apiKeyId } = getAgentContext(options);
-				storeConversation(
-					[{ role: "assistant", content: args.content }],
-					userId,
-					apiKeyId,
-					{ category: args.category ?? "insight" }
-				);
+				const { userId, apiKeyId, websiteId } = getAgentContext(options);
+				saveCuratedMemory(args.content, userId, apiKeyId, {
+					category: args.category ?? "insight",
+					websiteId: websiteId ?? undefined,
+				});
 				return { saved: true };
+			},
+		}),
+		forget_memory: tool({
+			description:
+				"Delete an incorrect or outdated memory. Use when the user says something previously saved is wrong.",
+			strict: true,
+			inputSchema: z.object({
+				query: z.string().describe("Search query to find the memory to forget"),
+			}),
+			execute: async (args, options) => {
+				const { userId, apiKeyId } = getAgentContext(options);
+				const results = await searchMemories(args.query, userId, apiKeyId, {
+					limit: 1,
+					threshold: 0.3,
+				});
+				if (results.length === 0 || !results[0]) {
+					return {
+						forgotten: false,
+						message: "No matching memory found to forget.",
+					};
+				}
+				const containerTag = userId
+					? `user:${userId}`
+					: apiKeyId
+						? `apikey:${apiKeyId}`
+						: "anonymous";
+				const result = await forgetMemory(containerTag, results[0].memory);
+				return {
+					forgotten: result.success,
+					message: result.success
+						? "Memory forgotten."
+						: "Failed to forget memory.",
+				};
 			},
 		}),
 	};

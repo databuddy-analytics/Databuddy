@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	DotsThreeIcon,
-	EnvelopeIcon,
-	PencilSimpleIcon,
-	TrashIcon,
-	UserIcon,
-	UsersThreeIcon,
-	WrenchIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { EnvelopeIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
+import { UserIcon } from "@phosphor-icons/react";
+import { UsersThreeIcon } from "@phosphor-icons/react";
+import { WrenchIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -22,9 +20,9 @@ import type { TargetGroup } from "../../_components/types";
 
 export interface GroupItemProps {
 	group: TargetGroup;
-	onEdit: (group: TargetGroup) => void;
-	onDelete: (groupId: string) => void;
 	isSelected?: boolean;
+	onDelete: (groupId: string) => void;
+	onEdit: (group: TargetGroup) => void;
 	onSelect?: () => void;
 }
 
@@ -181,7 +179,6 @@ export function GroupItem({
 			}}
 			type="button"
 		>
-			{/* Group icon */}
 			<div
 				className="shrink-0 rounded p-1.5"
 				style={{ backgroundColor: `${group.color}20` }}

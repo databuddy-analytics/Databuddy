@@ -12,9 +12,9 @@ import { EmailFooter } from "./email-footer";
 import { EmailHeader } from "./email-header";
 
 interface EmailLayoutProps {
+	children: React.ReactNode;
 	preview: string;
 	tagline?: string;
-	children: React.ReactNode;
 }
 
 export const EmailLayout = ({

@@ -1,9 +1,8 @@
 import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 const mockGet = mock((_key: string) => Promise.resolve(null as string | null));
-const mockSetex = mock(
-	(_key: string, _seconds: number, _value: string) =>
-		Promise.resolve("OK" as string),
+const mockSetex = mock((_key: string, _seconds: number, _value: string) =>
+	Promise.resolve("OK" as string)
 );
 const mockTtl = mock((_key: string) => Promise.resolve(100 as number));
 
@@ -90,9 +89,7 @@ describe("cacheable", () => {
 				expireInSec: 60,
 				prefix: "test",
 			});
-			expect(fn.getKey({ z: "1", a: "2" })).toBe(
-				fn.getKey({ a: "2", z: "1" }),
-			);
+			expect(fn.getKey({ z: "1", a: "2" })).toBe(fn.getKey({ a: "2", z: "1" }));
 		});
 
 		it("handles null, undefined, boolean, and number arguments", () => {
@@ -132,7 +129,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ id: 1 })),
+				Promise.resolve(JSON.stringify({ id: 1 }))
 			);
 
 			const result = await cached();
@@ -145,7 +142,7 @@ describe("cacheable", () => {
 		it("deserializes ISO date strings back to Date objects", async () => {
 			const iso = "2024-01-15T10:30:00.000Z";
 			const original = mock(() =>
-				Promise.resolve({ createdAt: new Date(iso) }),
+				Promise.resolve({ createdAt: new Date(iso) })
 			);
 			const cached = cacheable(original, {
 				expireInSec: 60,
@@ -153,7 +150,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ createdAt: iso })),
+				Promise.resolve(JSON.stringify({ createdAt: iso }))
 			);
 
 			const result = await cached();
@@ -256,7 +253,7 @@ describe("cacheable", () => {
 
 		it("forwards arguments to the original function", async () => {
 			const original = mock((a: string, b: number) =>
-				Promise.resolve(`${a}-${b}`),
+				Promise.resolve(`${a}-${b}`)
 			);
 			const cached = cacheable(original, {
 				expireInSec: 60,
@@ -335,7 +332,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 0 })),
+				Promise.resolve(JSON.stringify({ version: 0 }))
 			);
 			mockTtl.mockImplementation(() => Promise.resolve(30));
 
@@ -359,7 +356,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
 			mockTtl.mockImplementation(() => Promise.resolve(200));
 
@@ -384,7 +381,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
 			mockTtl.mockImplementation(() => Promise.resolve(10));
 
@@ -399,7 +396,7 @@ describe("cacheable", () => {
 		it("handles revalidation failure gracefully (no throw, no crash)", async () => {
 			const original = mock(
 				(): Promise<{ version: number }> =>
-					Promise.reject(new Error("revalidation failed")),
+					Promise.reject(new Error("revalidation failed"))
 			);
 
 			const cached = cacheable(original, {
@@ -410,7 +407,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
 			mockTtl.mockImplementation(() => Promise.resolve(10));
 
@@ -427,7 +424,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
 
 			await cached();
@@ -446,7 +443,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
 			mockTtl.mockImplementation(() => Promise.resolve(1));
 
@@ -467,12 +464,11 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
 
 			mockTtl.mockImplementation(
-				() =>
-					new Promise((resolve) => setTimeout(() => resolve(200), 300)),
+				() => new Promise((resolve) => setTimeout(() => resolve(200), 300))
 			);
 
 			const start = realDateNow();
@@ -494,11 +490,9 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
-			mockTtl.mockImplementation(() =>
-				Promise.reject(new Error("ttl failed")),
-			);
+			mockTtl.mockImplementation(() => Promise.reject(new Error("ttl failed")));
 
 			await cached();
 			await new Promise((resolve) => setTimeout(resolve, 50));
@@ -516,7 +510,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve(JSON.stringify({ version: 1 })),
+				Promise.resolve(JSON.stringify({ version: 1 }))
 			);
 			mockTtl.mockImplementation(() => Promise.resolve(10));
 
@@ -536,7 +530,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("Connection refused")),
+				Promise.reject(new Error("Connection refused"))
 			);
 
 			const result = await cached();
@@ -553,7 +547,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("Connection refused")),
+				Promise.reject(new Error("Connection refused"))
 			);
 			await cached();
 
@@ -572,7 +566,7 @@ describe("cacheable", () => {
 			});
 
 			mockSetex.mockImplementation(() =>
-				Promise.reject(new Error("Write failed")),
+				Promise.reject(new Error("Write failed"))
 			);
 
 			const result = await cached();
@@ -586,7 +580,7 @@ describe("cacheable", () => {
 			});
 
 			mockSetex.mockImplementation(() =>
-				Promise.reject(new Error("Write failed")),
+				Promise.reject(new Error("Write failed"))
 			);
 			await cached();
 			await new Promise((resolve) => setTimeout(resolve, 10));
@@ -605,9 +599,7 @@ describe("cacheable", () => {
 				prefix: "cb-skip",
 			});
 
-			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("down")),
-			);
+			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
 			await cached();
 
 			mockGet.mockClear();
@@ -627,9 +619,7 @@ describe("cacheable", () => {
 				prefix: "cb-recover",
 			});
 
-			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("down")),
-			);
+			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
 			await cached();
 
 			timeOffset += 31_000;
@@ -655,9 +645,7 @@ describe("cacheable", () => {
 				prefix: "global-2",
 			});
 
-			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("down")),
-			);
+			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
 			await cached1();
 
 			mockGet.mockClear();
@@ -675,9 +663,7 @@ describe("cacheable", () => {
 				prefix: "cb-full-recovery",
 			});
 
-			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("down")),
-			);
+			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
 			await cached();
 
 			timeOffset += 31_000;
@@ -697,8 +683,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(
-				() =>
-					new Promise((resolve) => setTimeout(() => resolve(null), 500)),
+				() => new Promise((resolve) => setTimeout(() => resolve(null), 500))
 			);
 
 			const start = realDateNow();
@@ -716,10 +701,7 @@ describe("cacheable", () => {
 			});
 
 			mockSetex.mockImplementation(
-				() =>
-					new Promise((resolve) =>
-						setTimeout(() => resolve("OK"), 500),
-					),
+				() => new Promise((resolve) => setTimeout(() => resolve("OK"), 500))
 			);
 
 			const start = realDateNow();
@@ -738,10 +720,7 @@ describe("cacheable", () => {
 			});
 
 			mockGet.mockImplementation(
-				() =>
-					new Promise((resolve) =>
-						setTimeout(() => resolve(null), 3000),
-					),
+				() => new Promise((resolve) => setTimeout(() => resolve(null), 3000))
 			);
 
 			const start = realDateNow();
@@ -766,10 +745,7 @@ describe("cacheable", () => {
 			});
 
 			mockSetex.mockImplementation(
-				() =>
-					new Promise((resolve) =>
-						setTimeout(() => resolve("OK"), 3000),
-					),
+				() => new Promise((resolve) => setTimeout(() => resolve("OK"), 3000))
 			);
 
 			const start = realDateNow();
@@ -839,7 +815,7 @@ describe("cacheable", () => {
 				async () => {
 					throw new Error("Database error");
 				},
-				{ expireInSec: 60, prefix: "fn-err" },
+				{ expireInSec: 60, prefix: "fn-err" }
 			);
 
 			await expect(cached()).rejects.toThrow("Database error");
@@ -847,9 +823,7 @@ describe("cacheable", () => {
 
 		it("propagates errors when redis is unavailable (fn called directly)", async () => {
 			// First: break redis
-			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("down")),
-			);
+			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
 			const setup = cacheable(async () => "x", {
 				expireInSec: 1,
 				prefix: "setup-err",
@@ -861,7 +835,7 @@ describe("cacheable", () => {
 				async () => {
 					throw new Error("Service unavailable");
 				},
-				{ expireInSec: 60, prefix: "fn-err-no-redis" },
+				{ expireInSec: 60, prefix: "fn-err-no-redis" }
 			);
 
 			await expect(cached()).rejects.toThrow("Service unavailable");
@@ -879,9 +853,7 @@ describe("cacheable", () => {
 				prefix: "double-fail",
 			});
 
-			mockGet.mockImplementation(() =>
-				Promise.reject(new Error("redis down")),
-			);
+			mockGet.mockImplementation(() => Promise.reject(new Error("redis down")));
 
 			await expect(cached()).rejects.toThrow("fn failed attempt 1");
 		});
@@ -889,16 +861,14 @@ describe("cacheable", () => {
 
 	describe("corrupted cache data", () => {
 		it("falls back to fn when cached value is invalid JSON", async () => {
-			const original = mock(() =>
-				Promise.resolve({ source: "fallback" }),
-			);
+			const original = mock(() => Promise.resolve({ source: "fallback" }));
 			const cached = cacheable(original, {
 				expireInSec: 60,
 				prefix: "corrupt",
 			});
 
 			mockGet.mockImplementation(() =>
-				Promise.resolve("this is not valid json{{{"),
+				Promise.resolve("this is not valid json{{{")
 			);
 
 			const result = await cached();
@@ -957,7 +927,7 @@ describe("cacheable", () => {
 					}
 					return { ok: true };
 				},
-				{ expireInSec: 60, prefix: "circular-mark" },
+				{ expireInSec: 60, prefix: "circular-mark" }
 			);
 
 			await cached();

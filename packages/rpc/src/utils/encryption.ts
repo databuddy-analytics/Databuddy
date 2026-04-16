@@ -7,8 +7,8 @@ const ITERATIONS = 100_000;
 const HASH_ALGORITHM = "sha512";
 
 interface EncryptedData {
-	iv: string;
 	data: string;
+	iv: string;
 	tag: string;
 }
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { trackError } from "@databuddy/sdk";
-import { ArrowLeftIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";

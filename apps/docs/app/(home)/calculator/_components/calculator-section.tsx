@@ -236,21 +236,21 @@ export function CalculatorSection() {
 }
 
 interface InputFieldProps {
+	displayPercent?: boolean;
+	hint: string;
 	id: string;
 	label: string;
-	hint: string;
-	value: number;
-	onChangeAction: (value: number) => void;
-	min: number;
 	max: number;
-	sliderMin?: number;
-	sliderMax: number;
-	sliderStep: number;
-	valueToSlider: (value: number) => number;
-	sliderToValue: (slider: number) => number;
+	min: number;
+	onChangeAction: (value: number) => void;
 	prefix?: string;
+	sliderMax: number;
+	sliderMin?: number;
+	sliderStep: number;
+	sliderToValue: (slider: number) => number;
 	suffix?: string;
-	displayPercent?: boolean;
+	value: number;
+	valueToSlider: (value: number) => number;
 }
 
 function InputField({

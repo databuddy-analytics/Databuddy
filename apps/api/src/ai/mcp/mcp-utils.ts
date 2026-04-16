@@ -5,20 +5,22 @@ import {
 import { QueryBuilders } from "../../query/builders";
 import type { QueryRequest } from "../../query/types";
 import type { DatePreset } from "../../schemas/query-schemas";
+import {
+	type SchemaDocOptions,
+	generateSchemaDocumentation,
+} from "../config/schema-docs";
 
 export {
 	MCP_DATE_PRESETS,
 	resolveDatePreset as resolveDatePresetForMcp,
 } from "../../lib/date-presets";
-export { CLICKHOUSE_SCHEMA_DOCS } from "../config/schema-docs";
+export {
+	CLICKHOUSE_SCHEMA_DOCS,
+	SCHEMA_SECTIONS,
+	type SchemaSection,
+} from "../config/schema-docs";
 
 export interface McpQueryItem {
-	type: string;
-	preset?: string;
-	from?: string;
-	to?: string;
-	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
-	limit?: number;
 	filters?: Array<{
 		field: string;
 		op: string;
@@ -26,8 +28,14 @@ export interface McpQueryItem {
 		target?: string;
 		having?: boolean;
 	}>;
+	from?: string;
 	groupBy?: string[];
+	limit?: number;
 	orderBy?: string;
+	preset?: string;
+	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
+	to?: string;
+	type: string;
 }
 
 const QUERY_TYPE_ALIASES: Record<string, string> = {
@@ -95,7 +103,7 @@ export function buildBatchQueryRequests(
 }
 
 const SCHEMA_SUMMARY =
-	"analytics.events (client_id, path, time, country, device_type, referrer, utm_*); analytics.error_spans; analytics.web_vitals_hourly. Filter: client_id = {websiteId:String}.";
+	"analytics.events (client_id, path, time, country, device_type, referrer, utm_*); analytics.custom_events (owner_id, event_name, properties — use get_data custom_events_* builders, not raw SQL); analytics.error_spans; analytics.web_vitals_hourly. Filter: client_id = {websiteId:String}.";
 
 const QUERY_TYPE_DESCRIPTIONS: Record<string, string> = {
 	entry_pages:
@@ -227,9 +235,9 @@ function getDescription(
 }
 
 interface QueryTypeInfo {
-	description: string;
 	allowedFilters?: string[];
 	customizable?: boolean;
+	description: string;
 }
 
 export function getQueryTypeDescriptions(): Record<string, string> {
@@ -258,4 +266,90 @@ export function getQueryTypeDetails(): Record<string, QueryTypeInfo> {
 
 export function getSchemaSummary(): string {
 	return SCHEMA_SUMMARY;
+}
+
+export function getSchemaDocumentation(opts: SchemaDocOptions = {}): string {
+	return generateSchemaDocumentation(opts);
+}
+
+/**
+ * Canonical categories for query types. A query type may appear in multiple
+ * categories. Filters in `capabilities({ category })` use this map.
+ */
+export const QUERY_TYPE_CATEGORIES: Record<string, readonly string[]> = {
+	overview: ["summary", "today", "active", "session"],
+	traffic: [
+		"top_pages",
+		"entry_pages",
+		"exit_pages",
+		"events_by_date",
+		"active_stats",
+	],
+	acquisition: ["top_referrers", "utm", "traffic_sources"],
+	audience: [
+		"country",
+		"region",
+		"city",
+		"language",
+		"timezone",
+		"browser",
+		"os",
+		"device",
+		"screen",
+		"viewport",
+	],
+	errors: ["error", "errors"],
+	performance: ["performance", "slow", "load_time", "page_performance"],
+	vitals: ["vitals", "web_vitals"],
+	sessions: ["session"],
+	custom_events: ["custom_event"],
+	profiles: ["profile"],
+	links: ["link_"],
+	outbound: ["outbound", "outgoing"],
+	scroll: ["scroll"],
+	interaction: ["interaction"],
+	retention: ["retention"],
+	uptime: ["uptime"],
+	llm: ["llm"],
+	revenue: ["revenue", "transaction"],
+};
+
+export const QUERY_CATEGORY_KEYS = Object.keys(
+	QUERY_TYPE_CATEGORIES
+) as readonly string[];
+
+function matchesCategory(typeKey: string, category: string): boolean {
+	const needles = QUERY_TYPE_CATEGORIES[category];
+	if (!needles) {
+		return false;
+	}
+	for (const needle of needles) {
+		if (typeKey.includes(needle)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Return query type descriptions filtered by a category key or a free-form
+ * substring needle. Passing neither returns everything.
+ */
+export function getFilteredQueryTypeDescriptions(opts: {
+	category?: string;
+	contains?: string;
+}): Record<string, string> {
+	const { category, contains } = opts;
+	const needle = contains?.toLowerCase();
+	const result: Record<string, string> = {};
+	for (const [key, config] of Object.entries(QueryBuilders)) {
+		if (category && !matchesCategory(key, category)) {
+			continue;
+		}
+		if (needle && !key.toLowerCase().includes(needle)) {
+			continue;
+		}
+		result[key] = getDescription(key, config);
+	}
+	return result;
 }

@@ -1,20 +1,16 @@
 "use client";
 
-import {
-	ArrowLeftIcon,
-	CommandIcon,
-	HouseIcon,
-	MagnifyingGlassIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { CommandIcon } from "@phosphor-icons/react";
+import { HouseIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { Command as CommandPrimitive } from "cmdk";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
-	billingNavigation,
-	organizationNavigation,
-	personalNavigation,
 	resourcesNavigation,
+	settingsNavigation,
 } from "@/components/layout/navigation/navigation-config";
 import type {
 	NavigationItem,
@@ -31,16 +27,14 @@ import {
 import { cn } from "@/lib/utils";
 
 const ALL_NAVIGATION: NavigationSection[] = [
-	...organizationNavigation,
-	...billingNavigation,
-	...personalNavigation,
+	...settingsNavigation,
 	...resourcesNavigation,
 ];
 
 interface SearchItem {
+	icon: typeof MagnifyingGlassIcon;
 	name: string;
 	path: string;
-	icon: typeof MagnifyingGlassIcon;
 }
 
 function toSearchItem(item: NavigationItem): SearchItem | null {

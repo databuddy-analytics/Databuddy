@@ -21,20 +21,14 @@ export function EventLimitIndicator() {
 		return null;
 	}
 
-	const balance = data.balance ?? 0;
-	const planLimit = data.includedUsage ?? 0;
-	const overageAllowed = data.overageAllowed ?? false;
-
-	// Balance > Plan limit = Bonus credits, show remaining
-	// Balance < Plan limit = Normal usage, balance is remaining
-	// Balance < 0 = Overage
+	const balance = Number(data.balance ?? 0);
+	const planLimit = Number(data.includedUsage ?? 0);
+	const overageAllowed = Boolean(data.overageAllowed);
 
 	if (balance < 0) {
-		// Don't show overage warning if user is allowed to have overage
 		if (overageAllowed) {
 			return null;
 		}
-		// Overage state
 		const overage = Math.abs(balance);
 		return (
 			<div className="flex items-center justify-between rounded border border-red-200 bg-red-50 px-3 py-2 text-sm dark:border-red-800 dark:bg-red-950/20">
@@ -67,12 +61,10 @@ export function EventLimitIndicator() {
 		);
 	}
 
-	// Calculate percentage of limit used
 	const remaining = balance;
 	const used = planLimit > 0 ? planLimit - balance : 0;
 	const percentage = planLimit > 0 ? (used / planLimit) * 100 : 0;
 
-	// Only show warning at 80%+ usage
 	if (percentage < 80) {
 		return null;
 	}

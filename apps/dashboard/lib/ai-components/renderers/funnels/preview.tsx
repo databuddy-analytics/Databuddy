@@ -1,13 +1,11 @@
 "use client";
 
 import type { Icon } from "@phosphor-icons/react";
-import {
-	CheckIcon,
-	CircleNotchIcon,
-	FunnelIcon,
-	PencilSimpleIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { FunnelIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -22,24 +20,24 @@ import type { CreateFunnelData, Funnel } from "@/types/funnels";
 import type { BaseComponentProps, FunnelStepInput } from "../../types";
 
 interface FunnelPreviewData {
-	name: string;
 	description?: string | null;
-	steps: FunnelStepInput[];
 	ignoreHistoricData?: boolean;
+	name: string;
+	steps: FunnelStepInput[];
 }
 
 export interface FunnelPreviewProps extends BaseComponentProps {
-	mode: "create" | "update" | "delete";
 	funnel: FunnelPreviewData;
+	mode: "create" | "update" | "delete";
 }
 
 interface ModeConfig {
-	title: string;
+	accent: string;
+	ButtonIcon: Icon;
 	confirmLabel: string;
 	confirmMessage: string;
-	accent: string;
+	title: string;
 	variant: "default" | "destructive";
-	ButtonIcon: Icon;
 }
 
 const MODE_CONFIG: Record<string, ModeConfig> = {
@@ -117,9 +115,13 @@ export function FunnelPreviewRenderer({
 		[createAction]
 	);
 
-	const handleUpdateFromDialog = useCallback((_funnel: Funnel) => {
-		setIsDialogOpen(false);
-	}, []);
+	const handleUpdateFromDialog = useCallback(
+		(_funnel: Funnel): Promise<void> => {
+			setIsDialogOpen(false);
+			return Promise.resolve();
+		},
+		[]
+	);
 
 	return (
 		<>

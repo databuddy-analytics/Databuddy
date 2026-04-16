@@ -2,15 +2,15 @@ import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 
 export interface AutocompleteData {
-	customEvents: string[];
-	pagePaths: string[];
 	browsers: string[];
-	operatingSystems: string[];
 	countries: string[];
+	customEvents: string[];
 	deviceTypes: string[];
-	utmSources: string[];
-	utmMediums: string[];
+	operatingSystems: string[];
+	pagePaths: string[];
 	utmCampaigns: string[];
+	utmMediums: string[];
+	utmSources: string[];
 }
 
 export function useAutocompleteData(websiteId: string, enabled = true) {

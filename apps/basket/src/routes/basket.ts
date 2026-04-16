@@ -1,10 +1,16 @@
-import type { AnalyticsEvent, CustomOutgoingLink } from "@databuddy/db";
+import type {
+	AnalyticsEvent,
+	CustomOutgoingLink,
+} from "@databuddy/db/clickhouse/schema";
 import {
+	analyticsEventSchema,
 	batchedCustomEventSpansSchema,
 	batchedErrorsSchema,
 	batchedVitalsSchema,
+	outgoingLinkSchema,
 } from "@databuddy/validation";
 import {
+	buildTrackEvent,
 	insertCustomEvents,
 	insertErrorSpans,
 	insertIndividualVitals,
@@ -13,15 +19,19 @@ import {
 	insertTrackEvent,
 	insertTrackEventsBatch,
 } from "@lib/event-service";
-import { checkForBot, validateRequest } from "@lib/request-validation";
+import {
+	checkForBot,
+	type ValidatedRequest,
+	validateRequest,
+} from "@lib/request-validation";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
 import {
 	basketErrors,
 	buildBasketErrorPayload,
 	createIngestSchemaValidationError,
+	rethrowOrWrap,
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { analyticsEventSchema, outgoingLinkSchema } from "@utils/event-schema";
 import { getGeo } from "@utils/ip-geo";
 import {
 	batchBotIgnoredItem,
@@ -36,12 +46,11 @@ import { parseUserAgent } from "@utils/user-agent";
 import {
 	sanitizeString,
 	VALIDATION_LIMITS,
-	validatePerformanceMetric,
 	validateSessionId,
 } from "@utils/validation";
 import { randomUUIDv7 } from "bun";
 import { Elysia } from "elysia";
-import { createError, EvlogError } from "evlog";
+import { EvlogError } from "evlog";
 import { useLogger } from "evlog/elysia";
 
 function processTrackEventData(
@@ -50,30 +59,15 @@ function processTrackEventData(
 	userAgent: string,
 	ip: string,
 	request?: Request
-): Promise<AnalyticsEvent> {
+) {
 	return record("processTrackEventData", async () => {
 		const eventId = parseEventId(trackData.eventId, () => randomUUIDv7());
 
-		const [geoData, uaData, salt] = await Promise.all([
+		const [geoData, ua, salt] = await Promise.all([
 			getGeo(ip, request),
 			parseUserAgent(userAgent),
 			getDailySalt(),
 		]);
-
-		const { anonymizedIP, country, region, city } = geoData;
-		const {
-			browserName,
-			browserVersion,
-			osName,
-			osVersion,
-			deviceType,
-			deviceBrand,
-			deviceModel,
-		} = uaData;
-
-		const now = Date.now();
-		const timestamp = parseTimestamp(trackData.timestamp);
-		const sessionStartTime = parseTimestamp(trackData.sessionStartTime);
 
 		let anonymousId = sanitizeString(
 			trackData.anonymousId,
@@ -81,72 +75,14 @@ function processTrackEventData(
 		);
 		anonymousId = saltAnonymousId(anonymousId, salt);
 
-		return {
-			id: randomUUIDv7(),
-			client_id: clientId,
-			event_name: sanitizeString(
-				trackData.name,
-				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
-			),
-			anonymous_id: anonymousId,
-			time: timestamp,
-			session_id: validateSessionId(trackData.sessionId),
-			event_type: "track",
-			event_id: eventId,
-			session_start_time: sessionStartTime,
-			timestamp,
-			referrer: sanitizeString(
-				trackData.referrer,
-				VALIDATION_LIMITS.STRING_MAX_LENGTH
-			),
-			url: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-			path: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-			title: sanitizeString(
-				trackData.title,
-				VALIDATION_LIMITS.STRING_MAX_LENGTH
-			),
-			ip: anonymizedIP || "",
-			user_agent: "",
-			browser_name: browserName || "",
-			browser_version: browserVersion || "",
-			os_name: osName || "",
-			os_version: osVersion || "",
-			device_type: deviceType || "",
-			device_brand: deviceBrand || "",
-			device_model: deviceModel || "",
-			country: country || "",
-			region: region || "",
-			city: city || "",
-			screen_resolution: trackData.screen_resolution,
-			viewport_size: trackData.viewport_size,
-			language: trackData.language,
-			timezone: trackData.timezone,
-			connection_type: trackData.connection_type,
-			rtt: trackData.rtt,
-			downlink: trackData.downlink,
-			time_on_page: trackData.time_on_page,
-			scroll_depth: trackData.scroll_depth,
-			interaction_count: trackData.interaction_count,
-			page_count: trackData.page_count || 1,
-			utm_source: trackData.utm_source,
-			utm_medium: trackData.utm_medium,
-			utm_campaign: trackData.utm_campaign,
-			utm_term: trackData.utm_term,
-			utm_content: trackData.utm_content,
-			gclid: trackData.gclid,
-			load_time: validatePerformanceMetric(trackData.load_time),
-			dom_ready_time: validatePerformanceMetric(trackData.dom_ready_time),
-			dom_interactive: validatePerformanceMetric(trackData.dom_interactive),
-			ttfb: validatePerformanceMetric(trackData.ttfb),
-			connection_time: validatePerformanceMetric(trackData.connection_time),
-			render_time: validatePerformanceMetric(trackData.render_time),
-			redirect_time: validatePerformanceMetric(trackData.redirect_time),
-			domain_lookup_time: validatePerformanceMetric(
-				trackData.domain_lookup_time
-			),
-			properties: parseProperties(trackData.properties),
-			created_at: now,
-		};
+		return buildTrackEvent(trackData, {
+			clientId,
+			eventId,
+			anonymousId,
+			geo: geoData,
+			ua,
+			now: Date.now(),
+		});
 	});
 }
 
@@ -188,13 +124,11 @@ const app = new Elysia()
 			);
 			log.set({ eventType });
 
-			const validation = await validateRequest(eventData, query, request);
-			if ("error" in validation) {
-				log.set({ rejected: "validation" });
-				return createPixelResponse();
-			}
-
-			const { clientId, userAgent, ip } = validation;
+			const { clientId, userAgent, ip } = await validateRequest(
+				eventData,
+				query,
+				request
+			);
 			log.set({ clientId });
 
 			const botError = await checkForBot(
@@ -224,23 +158,16 @@ const app = new Elysia()
 			return createPixelResponse();
 		}
 	})
-	.post("/vitals", async (context) => {
-		const { body, query, request } = context as {
-			body: unknown;
-			query: Record<string, string>;
-			request: Request;
-		};
+	.post("/vitals", async ({ body, query, request }) => {
 		const log = useLogger();
 		log.set({ route: "vitals" });
 
 		try {
-			const validation = await validateRequest(body, query, request);
-			if ("error" in validation) {
-				log.set({ rejected: "validation" });
-				return validation.error;
-			}
-
-			const { clientId, userAgent } = validation;
+			const { clientId, userAgent } = await validateRequest(
+				body,
+				query,
+				request
+			);
 			log.set({ clientId });
 
 			const parseResult = batchedVitalsSchema.safeParse(body);
@@ -265,48 +192,25 @@ const app = new Elysia()
 
 			await insertIndividualVitals(parseResult.data, clientId);
 
-			return new Response(
-				JSON.stringify({
-					status: "success",
-					type: "web_vitals",
-					count: parseResult.data.length,
-				}),
-				{
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
-		} catch (error) {
-			if (error instanceof EvlogError) {
-				throw error;
-			}
-			const err = error instanceof Error ? error : new Error(String(error));
-			log.error(err);
-			throw createError({
-				message: "Internal server error",
-				status: 500,
-				why: process.env.NODE_ENV === "development" ? err.message : undefined,
-				cause: err,
+			return Response.json({
+				status: "success",
+				type: "web_vitals",
+				count: parseResult.data.length,
 			});
+		} catch (error) {
+			rethrowOrWrap(error, log);
 		}
 	})
-	.post("/errors", async (context) => {
-		const { body, query, request } = context as {
-			body: unknown;
-			query: Record<string, string>;
-			request: Request;
-		};
+	.post("/errors", async ({ body, query, request }) => {
 		const log = useLogger();
 		log.set({ route: "errors" });
 
 		try {
-			const validation = await validateRequest(body, query, request);
-			if ("error" in validation) {
-				log.set({ rejected: "validation" });
-				return validation.error;
-			}
-
-			const { clientId, userAgent } = validation;
+			const { clientId, userAgent } = await validateRequest(
+				body,
+				query,
+				request
+			);
 			log.set({ clientId });
 
 			const parseResult = batchedErrorsSchema.safeParse(body);
@@ -331,48 +235,25 @@ const app = new Elysia()
 
 			await insertErrorSpans(parseResult.data, clientId);
 
-			return new Response(
-				JSON.stringify({
-					status: "success",
-					type: "error",
-					count: parseResult.data.length,
-				}),
-				{
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
-		} catch (error) {
-			if (error instanceof EvlogError) {
-				throw error;
-			}
-			const err = error instanceof Error ? error : new Error(String(error));
-			log.error(err);
-			throw createError({
-				message: "Internal server error",
-				status: 500,
-				why: process.env.NODE_ENV === "development" ? err.message : undefined,
-				cause: err,
+			return Response.json({
+				status: "success",
+				type: "error",
+				count: parseResult.data.length,
 			});
+		} catch (error) {
+			rethrowOrWrap(error, log);
 		}
 	})
-	.post("/events", async (context) => {
-		const { body, query, request } = context as {
-			body: unknown;
-			query: Record<string, string>;
-			request: Request;
-		};
+	.post("/events", async ({ body, query, request }) => {
 		const log = useLogger();
 		log.set({ route: "events" });
 
 		try {
-			const validation = await validateRequest(body, query, request);
-			if ("error" in validation) {
-				log.set({ rejected: "validation" });
-				return validation.error;
-			}
-
-			const { clientId, userAgent, organizationId } = validation;
+			const { clientId, userAgent, organizationId } = await validateRequest(
+				body,
+				query,
+				request
+			);
 			log.set({ clientId, organizationId });
 
 			if (!organizationId) {
@@ -413,50 +294,26 @@ const app = new Elysia()
 
 			await insertCustomEvents(events);
 
-			return new Response(
-				JSON.stringify({
-					status: "success",
-					type: "custom_event",
-					count: parseResult.data.length,
-				}),
-				{
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
-		} catch (error) {
-			if (error instanceof EvlogError) {
-				throw error;
-			}
-			const err = error instanceof Error ? error : new Error(String(error));
-			log.error(err);
-			throw createError({
-				message: "Internal server error",
-				status: 500,
-				why: process.env.NODE_ENV === "development" ? err.message : undefined,
-				cause: err,
+			return Response.json({
+				status: "success",
+				type: "custom_event",
+				count: parseResult.data.length,
 			});
+		} catch (error) {
+			rethrowOrWrap(error, log);
 		}
 	})
-	.post("/", async (context) => {
-		const { body, query, request } = context as {
-			body: any;
-			query: any;
-			request: Request;
-		};
+	.post("/", async ({ body, query, request }) => {
 		const log = useLogger();
 		log.set({ route: "ingest" });
 
 		try {
-			const validation = await validateRequest(body, query, request);
-
-			if ("error" in validation) {
-				log.set({ rejected: "validation" });
-				return validation.error;
-			}
-
-			const { clientId, userAgent, ip } = validation;
-			const eventType = body.type || "track";
+			const { clientId, userAgent, ip } = await validateRequest(
+				body,
+				query,
+				request
+			);
+			const eventType = (body as any).type || "track";
 			log.set({ clientId, eventType });
 
 			if (eventType === "track") {
@@ -482,13 +339,7 @@ const app = new Elysia()
 				}
 
 				insertTrackEvent(body, clientId, userAgent, ip, request);
-				return new Response(
-					JSON.stringify({ status: "success", type: "track" }),
-					{
-						status: 200,
-						headers: { "Content-Type": "application/json" },
-					}
-				);
+				return Response.json({ status: "success", type: "track" });
 			}
 
 			if (eventType === "outgoing_link") {
@@ -514,37 +365,16 @@ const app = new Elysia()
 				}
 
 				insertOutgoingLink(body, clientId, userAgent, ip);
-				return new Response(
-					JSON.stringify({ status: "success", type: "outgoing_link" }),
-					{
-						status: 200,
-						headers: { "Content-Type": "application/json" },
-					}
-				);
+				return Response.json({ status: "success", type: "outgoing_link" });
 			}
 
 			log.set({ rejected: "unknown_type" });
 			throw basketErrors.ingestUnknownEventType();
 		} catch (error) {
-			if (error instanceof EvlogError) {
-				throw error;
-			}
-			const err = error instanceof Error ? error : new Error(String(error));
-			log.error(err);
-			throw createError({
-				message: "Internal server error",
-				status: 500,
-				why: process.env.NODE_ENV === "development" ? err.message : undefined,
-				cause: err,
-			});
+			rethrowOrWrap(error, log);
 		}
 	})
-	.post("/batch", async (context) => {
-		const { body, query, request } = context as {
-			body: any;
-			query: any;
-			request: Request;
-		};
+	.post("/batch", async ({ body, query, request }) => {
 		const log = useLogger();
 		log.set({ route: "batch" });
 
@@ -561,7 +391,7 @@ const app = new Elysia()
 				throw basketErrors.ingestBatchTooLarge();
 			}
 
-			let validation: Awaited<ReturnType<typeof validateRequest>>;
+			let validation: ValidatedRequest;
 			try {
 				validation = await validateRequest(body, query, request);
 			} catch (error) {
@@ -569,25 +399,9 @@ const app = new Elysia()
 					const { status, payload } = buildBasketErrorPayload(error, {
 						extra: { batch: true },
 					});
-					return new Response(JSON.stringify(payload), {
-						status,
-						headers: { "Content-Type": "application/json" },
-					});
+					return Response.json(payload, { status });
 				}
 				throw error;
-			}
-
-			if ("error" in validation) {
-				log.set({ rejected: "validation" });
-				const errorResponse = validation.error;
-				const errorBody = (await errorResponse.json()) as Record<
-					string,
-					unknown
-				>;
-				return new Response(JSON.stringify({ ...errorBody, batch: true }), {
-					status: errorResponse.status,
-					headers: { "Content-Type": "application/json" },
-				});
 			}
 
 			const { clientId, userAgent, ip } = validation;
@@ -715,34 +529,18 @@ const app = new Elysia()
 				},
 			});
 
-			return new Response(
-				JSON.stringify({
-					status: "success",
-					batch: true,
-					processed: results.length,
-					batched: {
-						track: trackEvents.length,
-						outgoing_link: outgoingLinkEvents.length,
-					},
-					results,
-				}),
-				{
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				}
-			);
-		} catch (error) {
-			if (error instanceof EvlogError) {
-				throw error;
-			}
-			const err = error instanceof Error ? error : new Error(String(error));
-			log.error(err);
-			throw createError({
-				message: "Internal server error",
-				status: 500,
-				why: process.env.NODE_ENV === "development" ? err.message : undefined,
-				cause: err,
+			return Response.json({
+				status: "success",
+				batch: true,
+				processed: results.length,
+				batched: {
+					track: trackEvents.length,
+					outgoing_link: outgoingLinkEvents.length,
+				},
+				results,
 			});
+		} catch (error) {
+			rethrowOrWrap(error, log);
 		}
 	});
 

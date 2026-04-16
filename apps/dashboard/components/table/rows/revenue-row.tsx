@@ -1,29 +1,20 @@
-import { CurrencyDollarIcon } from "@phosphor-icons/react/dist/ssr/CurrencyDollar";
-import { MapPinIcon } from "@phosphor-icons/react/dist/ssr/MapPin";
-import { QuestionIcon } from "@phosphor-icons/react/dist/ssr/Question";
+import { CurrencyDollarIcon } from "@phosphor-icons/react";
+import { MapPinIcon } from "@phosphor-icons/react";
+import { QuestionIcon } from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
+import { formatNumber } from "@/lib/formatters";
 
 export interface RevenueEntry {
-	name: string;
-	revenue: number;
-	transactions: number;
-	customers: number;
-	percentage: number;
 	country_code?: string;
 	country_name?: string;
+	customers: number;
+	name: string;
+	percentage: number;
+	revenue: number;
+	transactions: number;
 }
-
-const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
 
 const formatCurrency = (amount: number, currency = "USD"): string => {
 	return new Intl.NumberFormat("en-US", {
@@ -35,6 +26,7 @@ const formatCurrency = (amount: number, currency = "USD"): string => {
 };
 
 interface RevenueRowProps {
+	nameLabel?: string;
 	type?:
 		| "default"
 		| "country"
@@ -45,7 +37,6 @@ interface RevenueRowProps {
 		| "os"
 		| "referrer"
 		| "utm";
-	nameLabel?: string;
 }
 
 export function createRevenueColumns({

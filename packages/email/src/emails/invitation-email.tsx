@@ -7,9 +7,9 @@ import { EmailLinkFallback } from "./email-link-fallback";
 import { EmailNote } from "./email-note";
 
 interface InvitationEmailProps {
+	invitationLink: string;
 	inviterName: string;
 	organizationName: string;
-	invitationLink: string;
 }
 
 export const InvitationEmail = ({

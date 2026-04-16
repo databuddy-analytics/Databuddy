@@ -1,4 +1,5 @@
-import { and, desc, eq, funnelDefinitions, isNull, sql } from "@databuddy/db";
+import { and, desc, eq, isNull, sql } from "@databuddy/db";
+import { funnelDefinitions } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { randomUUIDv7 } from "bun";

@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	ArrowSquareOutIcon,
-	CheckIcon,
-	ClipboardIcon,
-	GearIcon,
-	PencilSimpleIcon,
-	TrashIcon,
-	WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { ClipboardIcon } from "@phosphor-icons/react";
+import { GearIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -80,7 +78,6 @@ export default function GeneralSettingsPage() {
 				title="General"
 			/>
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
-				{/* Website ID */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="flex items-center justify-between gap-3">
 						<div className="min-w-0 flex-1">
@@ -105,7 +102,6 @@ export default function GeneralSettingsPage() {
 					</div>
 				</section>
 
-				{/* Name */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="flex items-center justify-between gap-3">
 						<div className="min-w-0">
@@ -124,7 +120,6 @@ export default function GeneralSettingsPage() {
 					</div>
 				</section>
 
-				{/* Domain */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="flex items-center justify-between gap-3">
 						<div className="min-w-0">
@@ -163,7 +158,6 @@ export default function GeneralSettingsPage() {
 					</div>
 				</section>
 
-				{/* Danger Zone */}
 				<section className="px-4 py-5 sm:px-6">
 					<div className="flex items-center justify-between gap-3">
 						<div>
@@ -183,7 +177,6 @@ export default function GeneralSettingsPage() {
 				</section>
 			</div>
 
-			{/* Dialogs */}
 			<WebsiteDialog
 				onOpenChange={setShowEditDialog}
 				onSave={handleWebsiteUpdated}

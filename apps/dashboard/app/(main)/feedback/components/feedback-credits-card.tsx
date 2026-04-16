@@ -1,13 +1,15 @@
 "use client";
 
-import { CoinIcon, ShoppingCartIcon, TrendUpIcon } from "@phosphor-icons/react";
+import { CoinIcon } from "@phosphor-icons/react";
+import { ShoppingCartIcon } from "@phosphor-icons/react";
+import { TrendUpIcon } from "@phosphor-icons/react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface FeedbackCreditsCardProps {
 	available: number;
+	isLoading: boolean;
 	totalEarned: number;
 	totalSpent: number;
-	isLoading: boolean;
 }
 
 export function FeedbackCreditsCard({

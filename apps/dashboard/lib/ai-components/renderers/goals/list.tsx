@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	DotsThreeIcon,
-	EyeIcon,
-	MouseMiddleClickIcon,
-	PencilSimpleIcon,
-	PlusIcon,
-	TargetIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { MouseMiddleClickIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TargetIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -29,18 +27,18 @@ import { fromNow } from "@/lib/time";
 import type { BaseComponentProps } from "../../types";
 
 interface GoalItem {
-	id: string;
-	name: string;
-	description?: string | null;
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
-	isActive: boolean;
 	createdAt?: string;
+	description?: string | null;
+	id: string;
+	isActive: boolean;
+	name: string;
+	target: string;
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
 export interface GoalsListProps extends BaseComponentProps {
-	title?: string;
 	goals: GoalItem[];
+	title?: string;
 }
 
 function GoalTypeIcon({ type }: { type: string }) {
@@ -225,7 +223,7 @@ export function GoalsListRenderer({ title, goals, className }: GoalsListProps) {
 					? new Date(editingGoal.createdAt)
 					: new Date(),
 				updatedAt: new Date(),
-				createdBy: null,
+				createdBy: "",
 				deletedAt: null,
 			}
 		: null;

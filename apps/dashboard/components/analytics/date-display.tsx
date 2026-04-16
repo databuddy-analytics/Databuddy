@@ -3,9 +3,9 @@
 import { usePreferences } from "@/hooks/use-preferences";
 
 interface DateDisplayProps {
+	customFormat?: string;
 	date: string | Date;
 	showTime?: boolean;
-	customFormat?: string;
 }
 
 export function DateDisplay({
@@ -27,8 +27,8 @@ export function DateDisplay({
 }
 
 interface RelativeDateDisplayProps {
-	date: string | Date;
 	className?: string;
+	date: string | Date;
 }
 
 export function RelativeDateDisplay({

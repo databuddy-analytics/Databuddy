@@ -1,7 +1,7 @@
 "use client";
 
-import { ChartBarIcon } from "@phosphor-icons/react/dist/ssr/ChartBar";
-import { ListBulletsIcon } from "@phosphor-icons/react/dist/ssr/ListBullets";
+import { ChartBarIcon } from "@phosphor-icons/react";
+import { ListBulletsIcon } from "@phosphor-icons/react";
 import { PageNavigation } from "@/components/layout/page-navigation";
 import { EventsPageProvider } from "./_components/events-page-context";
 import { EventsPageHeader } from "./_components/events-page-header";

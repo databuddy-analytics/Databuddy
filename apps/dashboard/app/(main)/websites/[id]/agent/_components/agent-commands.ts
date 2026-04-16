@@ -1,148 +1,97 @@
-import type { AgentCommand } from "./agent-atoms";
+export interface AgentCommand {
+	command: string;
+	description: string;
+	id: string;
+	keywords: readonly string[];
+	prompt: string;
+	title: string;
+}
 
-export const AGENT_COMMANDS: AgentCommand[] = [
-	// Traffic Analysis
+export const AGENT_COMMANDS: readonly AgentCommand[] = [
 	{
 		id: "analyze-traffic",
 		command: "/analyze",
 		title: "Analyze traffic patterns",
-		description: "Deep dive into your traffic data and trends",
-		toolName: "analyze_traffic",
+		description: "Deep dive into recent traffic trends",
+		prompt:
+			"Analyze my traffic patterns over the last 7 days. Call out any notable spikes, drops, or shifts in source mix, and tell me what's driving the biggest changes.",
 		keywords: ["analyze", "traffic", "patterns", "trends", "visitors"],
 	},
 	{
 		id: "analyze-sources",
-		command: "/analyze",
-		title: "Analyze traffic sources",
-		description: "Break down traffic by source and medium",
-		toolName: "analyze_sources",
-		keywords: ["analyze", "sources", "referrers", "channels", "medium"],
+		command: "/sources",
+		title: "Break down traffic sources",
+		description: "Where's traffic coming from right now",
+		prompt:
+			"Break down my traffic sources for the last 7 days — referrers, search, direct, social — and flag any sources that are over- or under-performing vs the prior period.",
+		keywords: ["sources", "referrers", "channels", "medium", "acquisition"],
 	},
 	{
-		id: "analyze-conversions",
-		command: "/analyze",
-		title: "Analyze conversion funnel",
-		description: "Identify drop-offs in your conversion funnel",
-		toolName: "analyze_funnel",
-		keywords: ["analyze", "conversions", "funnel", "drop-off", "goals"],
-	},
-	// Reports
-	{
-		id: "report-weekly",
-		command: "/report",
-		title: "Generate weekly report",
-		description: "Create a comprehensive weekly analytics report",
-		toolName: "generate_report",
-		toolParams: { period: "week" },
-		keywords: ["report", "weekly", "summary", "overview"],
+		id: "analyze-funnel",
+		command: "/funnel",
+		title: "Inspect my funnels",
+		description: "Look for drop-offs and weak steps",
+		prompt:
+			"List my funnels and walk through each one. Point out the steps with the biggest drop-offs and suggest what to investigate next.",
+		keywords: ["funnel", "funnels", "conversion", "drop-off", "goals"],
 	},
 	{
-		id: "report-monthly",
-		command: "/report",
-		title: "Generate monthly report",
-		description: "Create a detailed monthly performance report",
-		toolName: "generate_report",
-		toolParams: { period: "month" },
-		keywords: ["report", "monthly", "summary", "performance"],
-	},
-	// Visualizations
-	{
-		id: "chart-traffic",
-		command: "/chart",
-		title: "Create traffic chart",
-		description: "Visualize traffic trends over time",
-		toolName: "create_chart",
-		toolParams: { type: "traffic" },
-		keywords: ["chart", "traffic", "visualization", "graph", "trend"],
+		id: "top-pages",
+		command: "/pages",
+		title: "Top pages",
+		description: "Most-visited pages with context",
+		prompt:
+			"Show me my top 10 pages by pageviews over the last 7 days, including bounce rate and average time on page. Highlight any pages that stand out.",
+		keywords: ["pages", "top", "popular", "content", "views"],
 	},
 	{
-		id: "chart-sources",
-		command: "/chart",
-		title: "Create sources breakdown",
-		description: "Pie chart of traffic sources",
-		toolName: "create_chart",
-		toolParams: { type: "sources" },
-		keywords: ["chart", "sources", "pie", "breakdown"],
-	},
-	// Show data
-	{
-		id: "show-top-pages",
-		command: "/show",
-		title: "Show top pages",
-		description: "Display your most visited pages",
-		toolName: "get_top_pages",
-		keywords: ["show", "top", "pages", "popular", "views"],
+		id: "live",
+		command: "/live",
+		title: "What's happening now",
+		description: "Live sessions and recent activity",
+		prompt:
+			"Tell me what's happening on the site right now — active sessions, most-viewed pages in the last hour, and any recent events worth knowing about.",
+		keywords: ["live", "now", "active", "realtime", "sessions"],
 	},
 	{
-		id: "show-events",
-		command: "/show",
-		title: "Show recent events",
-		description: "Display recent tracked events",
-		toolName: "get_events",
-		keywords: ["show", "events", "recent", "actions", "tracking"],
+		id: "anomalies",
+		command: "/anomalies",
+		title: "Find anomalies",
+		description: "Detect unusual patterns in the data",
+		prompt:
+			"Scan my analytics for anomalies over the last 14 days — unusual spikes, drops, or new traffic sources — and rank them by how concerning they are.",
+		keywords: ["anomalies", "unusual", "spikes", "drops", "alerts"],
 	},
 	{
-		id: "show-sessions",
-		command: "/show",
-		title: "Show active sessions",
-		description: "Display currently active user sessions",
-		toolName: "get_sessions",
-		keywords: ["show", "sessions", "active", "users", "live"],
-	},
-	// Find/Search
-	{
-		id: "find-anomalies",
-		command: "/find",
-		title: "Find traffic anomalies",
-		description: "Detect unusual patterns in your data",
-		toolName: "find_anomalies",
-		keywords: ["find", "anomalies", "unusual", "spikes", "drops"],
-	},
-	{
-		id: "find-insights",
-		command: "/find",
-		title: "Find actionable insights",
-		description: "Discover opportunities to improve",
-		toolName: "find_insights",
-		keywords: [
-			"find",
-			"insights",
-			"opportunities",
-			"improve",
-			"recommendations",
-		],
-	},
-	// Compare
-	{
-		id: "compare-periods",
+		id: "compare",
 		command: "/compare",
-		title: "Compare time periods",
-		description: "Compare metrics between two time periods",
-		toolName: "compare_periods",
-		keywords: ["compare", "periods", "before", "after", "change"],
+		title: "Compare periods",
+		description: "Last 7 days vs prior 7 days",
+		prompt:
+			"Compare my key metrics (visitors, sessions, pageviews, bounce rate, conversion) between the last 7 days and the prior 7 days. Explain what changed and why.",
+		keywords: ["compare", "periods", "before", "after", "change", "delta"],
 	},
-];
+	{
+		id: "report",
+		command: "/report",
+		title: "Weekly report",
+		description: "Executive summary of the last week",
+		prompt:
+			"Generate a concise weekly analytics report: top-line metrics, biggest wins, biggest concerns, and recommended actions for next week.",
+		keywords: ["report", "weekly", "summary", "executive", "overview"],
+	},
+] as const;
 
-export function filterCommands(query: string): AgentCommand[] {
-	if (!query) {
+export function filterCommands(query: string): readonly AgentCommand[] {
+	const normalized = query.toLowerCase().trim();
+	if (!normalized) {
 		return AGENT_COMMANDS;
 	}
-
-	const normalizedQuery = query.toLowerCase().trim();
-
-	return AGENT_COMMANDS.filter((cmd) => {
-		const matchesCommand = cmd.command.toLowerCase().includes(normalizedQuery);
-		const matchesTitle = cmd.title.toLowerCase().includes(normalizedQuery);
-		const matchesDescription = cmd.description
-			.toLowerCase()
-			.includes(normalizedQuery);
-		const matchesKeywords = cmd.keywords.some((kw) =>
-			kw.includes(normalizedQuery)
-		);
-
-		return (
-			matchesCommand || matchesTitle || matchesDescription || matchesKeywords
-		);
-	});
+	return AGENT_COMMANDS.filter(
+		(cmd) =>
+			cmd.command.toLowerCase().includes(normalized) ||
+			cmd.title.toLowerCase().includes(normalized) ||
+			cmd.description.toLowerCase().includes(normalized) ||
+			cmd.keywords.some((kw) => kw.includes(normalized))
+	);
 }
-

@@ -22,7 +22,7 @@ Feature flags allow you to control feature rollouts and conduct A/B testing with
 <CodeBlock language="tsx" filename="app.tsx">
   {`'use client';
 
-  import { FlagsProvider, useFeature } from '@databuddy/sdk/react';
+  import { FlagsProvider, useFlag } from '@databuddy/sdk/react';
   import { useSession } from '@databuddy/auth/client';
 
   function App() {
@@ -51,8 +51,8 @@ Feature flags allow you to control feature rollouts and conduct A/B testing with
   }
 
   function MyComponent() {
-    const { on: isDarkMode, loading } = useFeature('dark-mode');
-    const { on: showNewDashboard } = useFeature('new-dashboard');
+    const { on: isDarkMode, loading } = useFlag('dark-mode');
+    const { on: showNewDashboard } = useFlag('new-dashboard');
 
     if (loading) return <Skeleton />;
 
@@ -69,7 +69,7 @@ Feature flags allow you to control feature rollouts and conduct A/B testing with
 <CodeBlock language="tsx" filename="app.tsx">
   {`'use client';
 
-  import { FlagsProvider, useFeature } from '@databuddy/sdk/react';
+  import { FlagsProvider, useFlag } from '@databuddy/sdk/react';
 
   function App() {
     return (
@@ -87,7 +87,7 @@ Feature flags allow you to control feature rollouts and conduct A/B testing with
   }
 
   function MyComponent() {
-    const { on, loading } = useFeature('new-feature');
+    const { on, loading } = useFlag('new-feature');
 
     if (loading) return <Skeleton />;
     return on ? <NewFeature /> : <OldFeature />;
@@ -106,50 +106,29 @@ Feature flags allow you to control feature rollouts and conduct A/B testing with
 
 ## Hooks API
 
-### `useFeature(key)` - Simple Feature Check
+### `useFlag(key)` - Flag State
 
-The simplest way to check if a feature is enabled. Returns an object with `{ on, loading, status, value, variant }`.
+The primary hook for checking feature flags. Returns `{ on, loading, status, value, variant }`.
 
 <CodeBlock language="tsx">
-  {`import { useFeature } from '@databuddy/sdk/react';
+  {`import { useFlag } from '@databuddy/sdk/react';
 
   function MyComponent() {
-    const { on, loading } = useFeature('new-dashboard');
-    
+    const { on, loading } = useFlag('new-dashboard');
+
     if (loading) return <Skeleton />;
     return on ? <NewDashboard /> : <OldDashboard />;
   }`}
 </CodeBlock>
 
-### `useFeatureOn(key, defaultValue)` - SSR-Safe Boolean
-
-Returns a boolean directly with a default value. Perfect for SSR where you need an immediate value.
-
-<CodeBlock language="tsx">
-  {`import { useFeatureOn } from '@databuddy/sdk/react';
-
-  function MyComponent() {
-    // Returns false while loading, then the actual value
-    const isDarkMode = useFeatureOn('dark-mode', false);
-    
-    return (
-      <div className={isDarkMode ? 'dark' : 'light'}>
-        Content
-      </div>
-    );
-  }`}
-</CodeBlock>
-
-### `useFlag(key)` - Full State Control
-
-Get the complete flag state with all properties including status and error handling.
+You can also use the `status` field for more granular control:
 
 <CodeBlock language="tsx">
   {`import { useFlag } from '@databuddy/sdk/react';
 
   function MyComponent() {
     const flag = useFlag('experiment');
-    
+
     switch (flag.status) {
       case 'loading':
         return <Skeleton />;
@@ -163,39 +142,40 @@ Get the complete flag state with all properties including status and error handl
   }`}
 </CodeBlock>
 
-### `useFlagValue(key, defaultValue)` - Typed Values
+### `useFlags()` - Context API
 
-Get typed values for string or number flags.
+Access the full flags context for advanced use cases like checking multiple flags, fetching typed values, or updating user context.
 
 <CodeBlock language="tsx">
-  {`import { useFlagValue } from '@databuddy/sdk/react';
+  {`import { useFlags } from '@databuddy/sdk/react';
 
   function MyComponent() {
-    const maxItems = useFlagValue('max-items', 10);
-    const theme = useFlagValue<'light' | 'dark'>('theme', 'light');
-    
-    return (
-      <div className={theme}>
-        Showing {maxItems} items
-      </div>
-    );
-  }`}
-</CodeBlock>
+    const {
+      isOn,           // Simple boolean check
+      getFlag,        // Get full flag state
+      getValue,       // Get typed value
+      fetchFlag,      // Async fetch single flag
+      fetchAllFlags,  // Async fetch all flags
+      updateUser,     // Update user context
+      refresh,        // Refresh all flags
+      isReady         // SDK ready state
+    } = useFlags();
 
-### `useVariant(key)` - A/B Testing
+    // Simple boolean check
+    if (isOn('premium-feature')) {
+      // Show premium content
+    }
 
-Get the variant name for multivariate testing.
+    // Typed values (string, number, boolean)
+    const maxItems = getValue<number>('max-items', 10);
+    const theme = getValue<'light' | 'dark'>('theme', 'light');
 
-<CodeBlock language="tsx">
-  {`import { useVariant } from '@databuddy/sdk/react';
+    // Get full state
+    const flag = getFlag('experiment');
+    console.log(flag.on, flag.loading, flag.status);
 
-  function CheckoutPage() {
-    const variant = useVariant('checkout-experiment');
-    
-    if (variant === 'control') return <OldCheckout />;
-    if (variant === 'variant-a') return <NewCheckoutA />;
-    if (variant === 'variant-b') return <NewCheckoutB />;
-    return <DefaultCheckout />;
+    // A/B test variants
+    const variant = getFlag('checkout-experiment').variant;
   }`}
 </CodeBlock>
 
@@ -205,15 +185,16 @@ Get the variant name for multivariate testing.
 Simple on/off switches for features.
 
 <CodeBlock language="tsx">
-  {`const { on } = useFeature('my-feature');`}
+  {`const { on } = useFlag('my-feature');`}
 </CodeBlock>
 
 ### String/Number Flags
-For configuration values and multivariate testing.
+For configuration values and multivariate testing. Use `getValue` from the context:
 
 <CodeBlock language="tsx">
-  {`const maxUsers = useFlagValue('max-users', 100);
-  const theme = useFlagValue<'light' | 'dark'>('theme', 'light');`}
+  {`const { getValue } = useFlags();
+  const maxUsers = getValue<number>('max-users', 100);
+  const theme = getValue<'light' | 'dark'>('theme', 'light');`}
 </CodeBlock>
 
 ### Rollout Flags
@@ -221,7 +202,7 @@ Gradually roll out features to a percentage of users.
 
 <CodeBlock language="tsx">
   {`// Set rollout percentage in dashboard (e.g., 25%)
-  const { on } = useFeature('new-ui-rollout');`}
+  const { on } = useFlag('new-ui-rollout');`}
 </CodeBlock>
 
 #### Rollout Units
@@ -255,18 +236,16 @@ Control how users are grouped for rollouts. In the dashboard, choose the **Rollo
 
 ### Multivariant Flags (A/B/n Testing)
 
-Run experiments with multiple variants. Each user is consistently assigned to a variant based on their identifier.
+Run experiments with multiple variants. Each user is consistently assigned to a variant based on their identifier. Use the `variant` field from `useFlag`:
 
 <CodeBlock language="tsx" filename="checkout-experiment.tsx">
-  {`import { useVariant, useFeature } from '@databuddy/sdk/react';
+  {`import { useFlag } from '@databuddy/sdk/react';
 
   function CheckoutPage() {
-    const variant = useVariant('checkout-experiment');
-    const { value, loading } = useFeature('checkout-experiment');
-    
+    const { variant, loading } = useFlag('checkout-experiment');
+
     if (loading) return <Skeleton />;
-    
-    // Variant-based rendering
+
     switch (variant) {
       case 'control':
         return <CurrentCheckout />;
@@ -351,53 +330,9 @@ Run experiments with multiple variants. Each user is consistently assigned to a 
 | `teamId` | string | Team ID for team-level rollouts |
 | `properties` | object | Custom properties for targeting rules |
 
-## Advanced Context API
-
-Access the flags context directly for more control:
-
-<CodeBlock language="tsx">
-  {`import { useFlags } from '@databuddy/sdk/react';
-
-  function MyComponent() {
-    const { 
-      isOn,           // Simple boolean check
-      getFlag,        // Get full flag state
-      getValue,       // Get typed value
-      fetchFlag,      // Async fetch single flag
-      fetchAllFlags,  // Async fetch all flags
-      updateUser,     // Update user context
-      refresh,        // Refresh all flags
-      isReady         // SDK ready state
-    } = useFlags();
-
-    // Simple check
-    if (isOn('premium-feature')) {
-      // Show premium content
-    }
-
-    // Get full state
-    const flag = getFlag('experiment');
-    console.log(flag.on, flag.loading, flag.status);
-
-    // Refresh flags
-    const handleRefresh = async () => {
-      await refresh();
-    };
-
-    // Update user context
-    const handleUpgrade = async () => {
-      updateUser({
-        userId: user.id,
-        email: user.email,
-        properties: { plan: 'premium' }
-      });
-    };
-  }`}
-</CodeBlock>
-
 ## Flag States
 
-The `FlagState` object has the following properties:
+The `FlagState` object returned by `useFlag`:
 
 <CodeBlock language="tsx">
   {`interface FlagState {
@@ -416,7 +351,7 @@ Flags return cached values immediately while revalidating in the background.
 
 <CodeBlock language="tsx">
   {`// Returns cached value instantly, revalidates if stale
-  const { on } = useFeature('my-feature');  // Instant!`}
+  const { on } = useFlag('my-feature');  // Instant!`}
 </CodeBlock>
 
 ### Request Batching
@@ -424,9 +359,9 @@ Multiple flag requests within 10ms are batched into a single API call.
 
 <CodeBlock language="tsx">
   {`// These 3 calls become 1 API request
-  const feature1 = useFeature('feature-1');
-  const feature2 = useFeature('feature-2');
-  const feature3 = useFeature('feature-3');`}
+  const feature1 = useFlag('feature-1');
+  const feature2 = useFlag('feature-2');
+  const feature3 = useFlag('feature-3');`}
 </CodeBlock>
 
 ### Visibility API
@@ -440,14 +375,14 @@ Identical requests are deduplicated automatically.
 The `isPending` prop prevents race conditions during authentication:
 
 <CodeBlock language="tsx">
-  {`// ❌ Bad: Flags evaluate with wrong user context
+  {`// Bad: Flags evaluate with wrong user context
   <FlagsProvider user={undefined}>
     <App /> // Shows anonymous features, then switches
   </FlagsProvider>
 
-  // ✅ Good: Waits for session before evaluating
-  <FlagsProvider 
-    isPending={isPending} 
+  // Good: Waits for session before evaluating
+  <FlagsProvider
+    isPending={isPending}
     user={session?.user ? {...} : undefined}
   >
     <App /> // Shows correct features immediately
@@ -517,44 +452,47 @@ Then in the dashboard, set the **Rollout Unit** to "Organization" or "Team" when
 
 ## Best Practices
 
-### ✅ Use the Right Hook
+### Use the Right API
 
 <CodeBlock language="tsx">
-  {`// Simple boolean check
-  const { on, loading } = useFeature('dark-mode');
-
-  // SSR-safe with default
-  const isDarkMode = useFeatureOn('dark-mode', false);
+  {`// Simple boolean check — most common
+  const { on, loading } = useFlag('dark-mode');
 
   // Full control with status
   const flag = useFlag('experiment');
   if (flag.status === 'ready') { ... }
 
-  // Typed values
-  const maxItems = useFlagValue('max-items', 10);
-
   // A/B test variants
-  const variant = useVariant('checkout-test');`}
+  const { variant } = useFlag('checkout-test');
+
+  // Typed values via context
+  const { getValue } = useFlags();
+  const maxItems = getValue<number>('max-items', 10);
+
+  // Quick boolean via context (no loading state)
+  const { isOn } = useFlags();
+  if (isOn('premium')) { ... }`}
 </CodeBlock>
 
-### ✅ Handle Loading States
+### Handle Loading States
 
 <CodeBlock language="tsx">
   {`function FeatureComponent() {
-    const { on, loading } = useFeature('new-feature');
-    
+    const { on, loading } = useFlag('new-feature');
+
     if (loading) return <Skeleton />;
     return on ? <NewFeature /> : <OldFeature />;
   }`}
 </CodeBlock>
 
-### ✅ Multiple Flags
+### Multiple Flags
 
 <CodeBlock language="tsx">
   {`function Dashboard() {
-    const { on: darkMode } = useFeature('dark-mode');
-    const { on: newLayout } = useFeature('new-layout');
-    const maxItems = useFlagValue('max-items', 10);
+    const { on: darkMode } = useFlag('dark-mode');
+    const { on: newLayout } = useFlag('new-layout');
+    const { getValue } = useFlags();
+    const maxItems = getValue<number>('max-items', 10);
 
     return (
       <div className={darkMode ? 'dark' : ''}>
@@ -564,7 +502,7 @@ Then in the dashboard, set the **Rollout Unit** to "Organization" or "Team" when
   }`}
 </CodeBlock>
 
-### ✅ Update User Context
+### Update User Context
 
 <CodeBlock language="tsx">
   {`function UpgradeButton() {
@@ -581,26 +519,6 @@ Then in the dashboard, set the **Rollout Unit** to "Organization" or "Team" when
 
     return <button onClick={handleUpgrade}>Upgrade</button>;
   }`}
-</CodeBlock>
-
-## Migration from Old API
-
-<CodeBlock language="tsx">
-  {`// ❌ Removed from context — use getFlag / hooks instead
-  const { getFlag } = useFlags();
-  const flag = getFlag('my-feature');
-  if (flag.status === 'ready' && flag.on) {
-    return <NewFeature />;
-  }
-
-  // ✅ Prefer hooks
-  const { on, loading } = useFeature('my-feature');
-  if (loading) return <Skeleton />;
-  return on ? <NewFeature /> : <OldFeature />;
-
-  // Or even simpler for SSR
-  const isOn = useFeatureOn('my-feature', false);
-  return isOn ? <NewFeature /> : <OldFeature />;`}
 </CodeBlock>
 
 ## Debug Mode

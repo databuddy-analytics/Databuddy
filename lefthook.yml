@@ -1,0 +1,9 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{js,jsx,ts,tsx,json,jsonc,css,scss}"
+      stage_fixed: true
+      run: bunx ultracite fix {staged_files}
+    check-types:
+      run: bun run check-types

@@ -10,7 +10,7 @@
   "type": "module",
   "scripts": {
     "build": "unbuild",
-    "test": "bun test",
+    "test": "bun test tests/*.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install",
     "serve": "bun test-server.ts",

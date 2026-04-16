@@ -110,7 +110,7 @@ export function validateAnnotationForm(data: {
  * Generates a unique annotation ID
  */
 export function generateAnnotationId(): string {
-	return `annotation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+	return `annotation_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 }
 
 /**

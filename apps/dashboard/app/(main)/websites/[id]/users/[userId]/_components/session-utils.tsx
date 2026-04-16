@@ -1,9 +1,7 @@
-import {
-	CursorClickIcon,
-	FileTextIcon,
-	LightningIcon,
-	SparkleIcon,
-} from "@phosphor-icons/react";
+import { CursorClickIcon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { SparkleIcon } from "@phosphor-icons/react";
 
 export const getEventIconAndColor = (
 	eventName: string,

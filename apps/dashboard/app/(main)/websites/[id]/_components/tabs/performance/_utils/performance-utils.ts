@@ -11,16 +11,6 @@ export const formatPerformanceTime = (value: number): string => {
 		: `${seconds.toFixed(1)}s`;
 };
 
-export const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
-
 export const getPerformanceRating = (
 	score: number
 ): { rating: string; className: string } => {

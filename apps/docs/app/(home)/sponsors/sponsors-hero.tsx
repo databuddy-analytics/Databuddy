@@ -5,8 +5,8 @@ import { HeartIcon, SparkleIcon } from "@phosphor-icons/react";
 import { SciFiCard } from "@/components/scifi-card";
 
 interface SponsorsHeroProps {
-	totalSponsors: number;
 	featuredSponsors: number;
+	totalSponsors: number;
 }
 
 function formatNumber(num: number): string {

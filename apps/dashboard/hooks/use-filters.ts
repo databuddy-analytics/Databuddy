@@ -41,9 +41,9 @@ interface BaseFilterType {
 }
 
 interface UseFiltersProps<T extends BaseFilterType> {
+	defaultFilter?: T;
 	filters: T[];
 	onFiltersChange: (filters: T[]) => void;
-	defaultFilter?: T;
 }
 
 export function useFilters<T extends BaseFilterType>({

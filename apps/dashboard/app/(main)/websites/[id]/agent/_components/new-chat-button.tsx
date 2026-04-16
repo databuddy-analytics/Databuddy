@@ -1,6 +1,6 @@
 "use client";
 
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
+import { PlusIcon } from "@phosphor-icons/react";
 import { generateId } from "ai";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";

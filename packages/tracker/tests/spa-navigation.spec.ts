@@ -1,21 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { findEvent, hasEvent } from "./test-utils";
+import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("SPA Navigation", () => {
-	test.beforeEach(async ({ page }) => {
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/*", async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ success: true }),
-				headers: { "Access-Control-Allow-Origin": "*" },
-			});
-		});
-	});
 
 	test("tracks screen_view on pushState navigation", async ({ page }) => {
 		await page.goto("/test");
@@ -171,7 +156,7 @@ test.describe("SPA Navigation", () => {
 						screenViewCount += 1;
 					}
 				}
-			} catch { }
+			} catch {}
 		});
 
 		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
@@ -268,7 +253,7 @@ test.describe("SPA Navigation", () => {
 						screenViewCount += 1;
 					}
 				}
-			} catch { }
+			} catch {}
 		});
 
 		await page.evaluate(() => {
@@ -314,7 +299,7 @@ test.describe("SPA Navigation", () => {
 						screenViewCount += 1;
 					}
 				}
-			} catch { }
+			} catch {}
 		});
 
 		await page.evaluate(() => {

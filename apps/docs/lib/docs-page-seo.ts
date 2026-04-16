@@ -1,13 +1,13 @@
 import { type DocPage, getPageImage } from "@/lib/source";
 
 export interface DocsPageSeoModel {
-	pageTitle: string;
-	title: string;
 	description: string;
-	url: string;
-	ogImage: string;
 	keywords: string[];
+	ogImage: string;
+	pageTitle: string;
 	sectionLabel: string;
+	title: string;
+	url: string;
 }
 
 const SECTION_MAP: [test: string, label: string][] = [

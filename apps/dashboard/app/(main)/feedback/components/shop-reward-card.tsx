@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface ShopRewardCardProps {
+	availableCredits: number;
 	creditsRequired: number;
+	isRedeeming: boolean;
+	onRedeemAction: () => void;
 	rewardAmount: number;
 	rewardType: string;
-	availableCredits: number;
-	onRedeemAction: () => void;
-	isRedeeming: boolean;
 }
 
 export function ShopRewardCard({

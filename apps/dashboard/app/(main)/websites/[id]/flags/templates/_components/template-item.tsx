@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	ArrowRightIcon,
-	RocketLaunchIcon,
-	TestTubeIcon,
-	UsersIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { RocketLaunchIcon } from "@phosphor-icons/react";
+import { TestTubeIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,8 +18,8 @@ import {
 import type { FlagTemplate } from "../../_components/types";
 
 export interface TemplateItemProps {
-	template: FlagTemplate;
 	onUseAction: (template: FlagTemplate) => void;
+	template: FlagTemplate;
 }
 
 function getTemplateIcon(icon: string) {

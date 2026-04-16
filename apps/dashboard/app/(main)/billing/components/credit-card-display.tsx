@@ -1,6 +1,7 @@
 "use client";
 
-import { CreditCardIcon, WifiHighIcon } from "@phosphor-icons/react";
+import { CreditCardIcon } from "@phosphor-icons/react";
+import { WifiHighIcon } from "@phosphor-icons/react";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { cn } from "@/lib/utils";
 import type { CustomerWithPaymentMethod } from "../types/billing";
@@ -42,7 +43,6 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 
 	return (
 		<div className="relative aspect-[1.586/1] w-full select-none">
-			{/* Card base */}
 			<div
 				className={cn(
 					"absolute inset-0 flex flex-col justify-between overflow-hidden rounded p-4",
@@ -50,7 +50,6 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 					"ring-1 ring-white/[0.06] ring-inset"
 				)}
 			>
-				{/* Holographic strip */}
 				<div
 					className="pointer-events-none absolute top-0 right-0 h-full w-1/3 opacity-30"
 					style={{
@@ -68,10 +67,8 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 					}}
 				/>
 
-				{/* Top row */}
 				<div className="relative z-10 flex items-start justify-between">
 					<div className="flex items-center gap-2.5">
-						{/* EMV Chip */}
 						<div className="relative flex h-8 w-10 items-center justify-center overflow-hidden rounded-sm bg-linear-to-br from-amber-200 via-amber-300 to-amber-400 shadow-sm">
 							<div className="absolute inset-0.5 rounded-[2px] bg-linear-to-br from-amber-100 to-amber-300 opacity-60" />
 							<div className="relative grid h-5 w-6 grid-cols-3 grid-rows-3 gap-px">
@@ -83,7 +80,6 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 								))}
 							</div>
 						</div>
-						{/* Contactless */}
 						<WifiHighIcon
 							className="rotate-90 text-white/40"
 							size={18}
@@ -95,7 +91,6 @@ export function CreditCardDisplay({ customer }: CreditCardDisplayProps) {
 					</span>
 				</div>
 
-				{/* Bottom content */}
 				<div className="relative z-10 flex flex-col gap-3">
 					{showCardDetails ? (
 						<>

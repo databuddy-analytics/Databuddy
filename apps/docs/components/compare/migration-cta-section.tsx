@@ -2,10 +2,10 @@ import { ArrowRightIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 
 export interface MigrationCtaSectionProps {
-	heading: string;
-	steps: string[];
 	guideHref: string;
 	guideLabel: string;
+	heading: string;
+	steps: string[];
 }
 
 export function MigrationCtaSection({

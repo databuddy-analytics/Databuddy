@@ -42,7 +42,7 @@
     "url": "https://github.com/databuddy-analytics/databuddy/issues"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.1"
+    "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

@@ -1,247 +1,249 @@
 "use client";
 
-import {
-	ArrowRightIcon,
-	CheckIcon,
-	CodeIcon,
-	GlobeIcon,
-	type Icon,
-	SparkleIcon,
-} from "@phosphor-icons/react";
+import { track } from "@databuddy/sdk";
+import { ArrowLeftIcon, ArrowRightIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { PageHeader } from "@/app/(main)/websites/_components/page-header";
-import { EmptyState } from "@/components/empty-state";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { WebsiteDialog } from "@/components/website-dialog";
 import { useWebsitesLight } from "@/hooks/use-websites";
-import { cn } from "@/lib/utils";
+import { OnboardingStepIndicator } from "./_components/onboarding-step-indicator";
+import { StepCreateWebsite } from "./_components/step-create-website";
+import { StepExplore } from "./_components/step-explore";
+import { StepInstallTracking } from "./_components/step-install-tracking";
+import { StepInviteTeam } from "./_components/step-invite-team";
 
-interface OnboardingStep {
-	id: string;
-	title: string;
-	description: string;
-	icon: Icon;
-	completed: boolean;
-	action?: () => void;
-	actionLabel?: string;
-}
+const STEPS = [
+	{ id: "website", title: "Add Website" },
+	{ id: "tracking", title: "Install Tracking" },
+	{ id: "team", title: "Invite Team" },
+	{ id: "explore", title: "Explore" },
+] as const;
 
-function StepIndicator({
-	steps,
-	currentStep,
-}: {
-	steps: OnboardingStep[];
-	currentStep: number;
-}) {
-	return (
-		<div className="flex items-center justify-center gap-2 py-8">
-			{steps.map((step, index) => (
-				<div className="flex items-center" key={step.id}>
-					<div
-						className={cn(
-							"flex size-8 items-center justify-center rounded-full border-2 transition-all duration-300",
-							step.completed
-								? "border-primary bg-primary text-primary-foreground"
-								: index === currentStep
-									? "border-primary bg-primary/10 text-primary"
-									: "border-muted bg-card text-muted-foreground"
-						)}
-					>
-						{step.completed ? (
-							<CheckIcon className="size-4" weight="bold" />
-						) : (
-							<span className="font-semibold text-xs tabular-nums">
-								{index + 1}
-							</span>
-						)}
-					</div>
-					{index < steps.length - 1 && (
-						<div
-							className={cn("h-0.5 w-8 transition-all duration-300", {
-								"bg-primary": step.completed,
-								"bg-muted": !step.completed,
-							})}
-						/>
-					)}
-				</div>
-			))}
-		</div>
-	);
-}
-
-function OnboardingStepCard({
-	step,
-	isActive,
-}: {
-	step: OnboardingStep;
-	isActive: boolean;
-}) {
-	return (
-		<Card
-			className={cn(
-				"group gap-0 overflow-hidden border bg-card py-0 transition-all duration-300 hover:border-primary",
-				isActive
-					? "border-primary/50"
-					: step.completed
-						? "border-primary/20"
-						: "border-muted"
-			)}
-		>
-			<div className="flex items-center gap-2.5 px-2.5 py-2.5">
-				<div
-					className={cn(
-						"flex size-7 shrink-0 items-center justify-center rounded bg-accent transition-colors",
-						isActive || step.completed ? "bg-primary/10" : "bg-accent"
-					)}
-				>
-					<step.icon
-						className={cn(
-							"size-4 transition-colors",
-							isActive || step.completed
-								? "text-primary"
-								: "text-muted-foreground"
-						)}
-						weight="bold"
-					/>
-				</div>
-				<div className="min-w-0 flex-1">
-					<p className="truncate font-semibold text-base leading-tight">
-						{step.title}
-					</p>
-					<p className="truncate text-muted-foreground text-xs">
-						{step.description}
-					</p>
-				</div>
-				<div className="shrink-0 text-balance text-right">
-					{step.completed ? (
-						<CheckIcon
-							aria-label="Completed"
-							className="size-4 text-primary"
-							weight="bold"
-						/>
-					) : isActive && step.action ? (
-						<Button className="rounded" onClick={step.action} size="sm">
-							{step.actionLabel || "Continue"}
-							<ArrowRightIcon className="ml-2 size-4" weight="bold" />
-						</Button>
-					) : null}
-				</div>
-			</div>
-		</Card>
-	);
+function trackOnboarding(
+	event: string,
+	properties?: Record<string, string | number | boolean>
+) {
+	try {
+		track(`onboarding_${event}`, properties);
+	} catch {
+		// SDK not loaded yet
+	}
 }
 
 export default function OnboardingPage() {
 	const router = useRouter();
-	const [showCreateWebsiteDialog, setShowCreateWebsiteDialog] = useState(false);
-
 	const { websites } = useWebsitesLight();
+	const trackedStepRef = useRef<number>(-1);
 
-	const hasWebsite = Boolean(websites && websites.length > 0);
+	const [currentStep, setCurrentStep] = useState(0);
+	const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
+	const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
 
-	const steps: OnboardingStep[] = [
-		{
-			id: "website",
-			title: "Add Your Website",
-			description: hasWebsite
-				? "Website added successfully"
-				: "Add your first website to start tracking analytics",
-			icon: GlobeIcon,
-			completed: hasWebsite,
-			action: hasWebsite ? undefined : () => setShowCreateWebsiteDialog(true),
-			actionLabel: "Add Website",
-		},
-		{
-			id: "setup",
-			title: "Install Tracking",
-			description: "Add the tracking script to your website to collect data",
-			icon: CodeIcon,
-			completed: false,
-			action: () => {
-				if (websites && websites.length > 0) {
-					window.location.href = `/websites/${websites[0].id}?tab=tracking-setup`;
-				}
-			},
-			actionLabel: "Setup Tracking",
-		},
-	];
+	const hasWebsite = websites && websites.length > 0;
+	const websiteId = createdWebsiteId ?? websites?.[0]?.id ?? "";
 
-	const currentStepIndex = steps.findIndex((step) => !step.completed);
-	const allCompleted = currentStepIndex === -1;
-
-	// Check for pending plan selection and redirect to billing
+	// Update URL and track step views
 	useEffect(() => {
-		const pendingPlan = localStorage.getItem("pendingPlanSelection");
-		if (pendingPlan && allCompleted) {
-			localStorage.removeItem("pendingPlanSelection");
-			router.push(`/billing?tab=plans&plan=${pendingPlan}`);
+		const stepId = STEPS[currentStep].id;
+		window.history.replaceState(null, "", `/onboarding?step=${stepId}`);
+
+		if (trackedStepRef.current !== currentStep) {
+			trackedStepRef.current = currentStep;
+			trackOnboarding("step_viewed", {
+				step: stepId,
+				step_number: currentStep + 1,
+			});
 		}
-	}, [allCompleted, router]);
+	}, [currentStep]);
+
+	useEffect(() => {
+		if (hasWebsite && !completedSteps.has("website")) {
+			setCompletedSteps((prev) => new Set([...prev, "website"]));
+			if (currentStep === 0) {
+				setCurrentStep(1);
+			}
+		}
+	}, [hasWebsite, completedSteps, currentStep]);
+
+	// Track onboarding start once
+	useEffect(() => {
+		trackOnboarding("started");
+	}, []);
+
+	const markComplete = useCallback((stepId: string) => {
+		setCompletedSteps((prev) => new Set([...prev, stepId]));
+	}, []);
+
+	const goNext = useCallback(() => {
+		setCurrentStep((prev) => Math.min(prev + 1, STEPS.length - 1));
+	}, []);
+
+	const goBack = useCallback(() => {
+		setCurrentStep((prev) => Math.max(prev - 1, 0));
+	}, []);
+
+	const handleWebsiteCreated = useCallback(
+		(id: string) => {
+			setCreatedWebsiteId(id);
+			markComplete("website");
+			trackOnboarding("step_completed", { step: "website" });
+			goNext();
+		},
+		[markComplete, goNext]
+	);
+
+	const handleTrackingComplete = useCallback(() => {
+		markComplete("tracking");
+		trackOnboarding("step_completed", {
+			step: "tracking",
+			verified: true,
+		});
+		goNext();
+	}, [markComplete, goNext]);
+
+	const handleTeamComplete = useCallback(() => {
+		markComplete("team");
+		trackOnboarding("step_completed", { step: "team" });
+		goNext();
+	}, [markComplete, goNext]);
+
+	const handleExploreComplete = useCallback(() => {
+		markComplete("explore");
+		trackOnboarding("completed");
+		const pendingPlan = localStorage.getItem("pendingPlanSelection");
+		if (pendingPlan) {
+			localStorage.removeItem("pendingPlanSelection");
+			router.replace(`/billing?tab=plans&plan=${pendingPlan}`);
+		} else {
+			router.replace(`/websites/${websiteId}`);
+		}
+	}, [markComplete, router, websiteId]);
+
+	const handleSkipOnboarding = useCallback(() => {
+		trackOnboarding("skipped", {
+			skipped_at_step: STEPS[currentStep].id,
+			step_number: currentStep + 1,
+		});
+		router.push("/websites");
+	}, [currentStep, router]);
+
+	const canContinue = useMemo(() => {
+		const step = STEPS[currentStep];
+		switch (step.id) {
+			case "website":
+				return completedSteps.has("website");
+			case "tracking":
+				return true;
+			case "team":
+				return true;
+			case "explore":
+				return true;
+			default:
+				return false;
+		}
+	}, [currentStep, completedSteps]);
+
+	const handleContinue = useCallback(() => {
+		const step = STEPS[currentStep];
+		if (step.id === "explore") {
+			handleExploreComplete();
+			return;
+		}
+		if (step.id === "team") {
+			handleTeamComplete();
+			return;
+		}
+		if (step.id === "tracking") {
+			if (!completedSteps.has("tracking")) {
+				markComplete("tracking");
+				trackOnboarding("step_completed", {
+					step: "tracking",
+					verified: false,
+				});
+			}
+			goNext();
+			return;
+		}
+		goNext();
+	}, [
+		currentStep,
+		completedSteps,
+		goNext,
+		markComplete,
+		handleExploreComplete,
+		handleTeamComplete,
+	]);
+
+	const renderStep = () => {
+		switch (STEPS[currentStep].id) {
+			case "website":
+				return <StepCreateWebsite onComplete={handleWebsiteCreated} />;
+			case "tracking":
+				return (
+					<StepInstallTracking
+						onComplete={handleTrackingComplete}
+						websiteId={websiteId}
+					/>
+				);
+			case "team":
+				return <StepInviteTeam />;
+			case "explore":
+				return (
+					<StepExplore
+						onComplete={handleExploreComplete}
+						websiteId={websiteId}
+					/>
+				);
+			default:
+				return null;
+		}
+	};
+
+	const isFirstStep = currentStep === 0;
+	const showBottomNav = STEPS[currentStep].id !== "explore";
 
 	return (
 		<div className="flex h-full flex-col">
-			<PageHeader
-				description="Follow these steps to set up your analytics dashboard"
-				icon={<SparkleIcon />}
-				title="Get Started"
-			/>
-
-			<div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
-				<div className="mx-auto max-w-2xl space-y-6">
-					{!allCompleted && (
-						<>
-							<StepIndicator currentStep={currentStepIndex} steps={steps} />
-
-							<div className="space-y-3">
-								{steps.map((step, index) => (
-									<OnboardingStepCard
-										isActive={index === currentStepIndex}
-										key={step.id}
-										step={step}
-									/>
-								))}
-							</div>
-
-							<div className="flex justify-center pt-4">
-								<Button
-									className="rounded"
-									onClick={() => {
-										window.location.href = "/websites";
-									}}
-									variant="ghost"
-								>
-									Skip for now
-									<ArrowRightIcon className="ml-2 size-4" weight="bold" />
-								</Button>
-							</div>
-						</>
-					)}
-
-					{allCompleted && (
-						<EmptyState
-							action={{
-								label: "View My Websites",
-								onClick: () => {
-									window.location.href = "/websites";
-								},
-							}}
-							className="h-full"
-							description="You've successfully completed the onboarding. You're ready to start tracking analytics!"
-							icon={<CheckIcon weight="bold" />}
-							showPlusBadge={false}
-							title="All Set!"
-							variant="minimal"
-						/>
-					)}
-				</div>
+			<div className="flex h-12 shrink-0 items-center justify-between border-b px-4 sm:px-6">
+				<OnboardingStepIndicator
+					completedSteps={completedSteps}
+					currentStep={currentStep}
+					steps={STEPS.map((s) => ({ id: s.id, title: s.title }))}
+				/>
+				<Button
+					className="text-muted-foreground text-xs"
+					onClick={handleSkipOnboarding}
+					size="sm"
+					variant="ghost"
+				>
+					Skip onboarding
+				</Button>
 			</div>
 
-			<WebsiteDialog
-				onOpenChange={setShowCreateWebsiteDialog}
-				open={showCreateWebsiteDialog}
-			/>
+			<div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+				<div className="mx-auto max-w-xl">{renderStep()}</div>
+			</div>
+
+			{showBottomNav && (
+				<div className="flex h-12 shrink-0 items-center justify-between border-t px-4 sm:px-6">
+					<Button
+						className={isFirstStep ? "invisible" : ""}
+						disabled={isFirstStep}
+						onClick={goBack}
+						variant="ghost"
+					>
+						<ArrowLeftIcon className="mr-1 size-4" weight="bold" />
+						Back
+					</Button>
+					<Button disabled={!canContinue} onClick={handleContinue}>
+						{STEPS[currentStep].id === "tracking" &&
+						!completedSteps.has("tracking")
+							? "Skip for now"
+							: "Continue"}
+						<ArrowRightIcon className="ml-1 size-4" weight="bold" />
+					</Button>
+				</div>
+			)}
 		</div>
 	);
 }

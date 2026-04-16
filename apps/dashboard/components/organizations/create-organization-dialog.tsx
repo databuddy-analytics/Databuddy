@@ -134,7 +134,6 @@ export function CreateOrganizationDialog({
 				</SheetHeader>
 
 				<SheetBody className="space-y-6">
-					{/* Organization Name */}
 					<div className="space-y-2">
 						<Label className="font-medium" htmlFor="org-name">
 							Organization Name
@@ -160,7 +159,6 @@ export function CreateOrganizationDialog({
 						})()}
 					</div>
 
-					{/* Organization Slug */}
 					<div className="space-y-2">
 						<Label className="font-medium" htmlFor="org-slug">
 							Organization Slug

@@ -1,13 +1,4 @@
 /** biome-ignore-all lint/correctness/noUnusedImports: we need to import React to use the createContext function */
-import React, {
-	createContext,
-	type ReactNode,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useSyncExternalStore,
-} from "react";
 import { BrowserFlagStorage } from "@/core/flags/browser-storage";
 import { BrowserFlagsManager } from "@/core/flags/flags-manager";
 import type {
@@ -19,6 +10,15 @@ import type {
 	UserContext,
 } from "@/core/flags/types";
 import { logger } from "@/logger";
+import {
+	createContext,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useSyncExternalStore,
+	type ReactNode,
+} from "react";
 
 const FlagsReactContext = createContext<FlagsContext | null>(null);
 

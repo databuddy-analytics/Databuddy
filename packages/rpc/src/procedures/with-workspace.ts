@@ -2,6 +2,7 @@ import { hasKeyScope } from "@databuddy/api-keys/resolve";
 import {
 	LINKS_SCOPE_MAP,
 	type LinksPermission,
+	requiredScopesForResource,
 } from "@databuddy/api-keys/scopes";
 import {
 	type PermissionFor,
@@ -9,7 +10,8 @@ import {
 	type User,
 	websitesApi,
 } from "@databuddy/auth";
-import { db, eq, websites } from "@databuddy/db";
+import { db, eq } from "@databuddy/db";
+import { websites } from "@databuddy/db/schema";
 import { cacheable } from "@databuddy/redis";
 import type { PlanId } from "@databuddy/shared/types/features";
 import { z } from "zod";
@@ -20,22 +22,22 @@ import { type Context, os } from "../orpc";
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
 
 export interface Workspace {
-	organizationId: string;
-	user: User | null;
-	role: string | null;
-	plan: PlanId;
-	isPublicAccess: boolean;
-	website: Website | null;
 	getCreatedBy: () => Promise<string>;
+	isPublicAccess: boolean;
+	organizationId: string;
+	plan: PlanId;
+	role: string | null;
+	user: User | null;
+	website: Website | null;
 }
 
 export interface WithWorkspaceOptions<R extends ResourceType = "organization"> {
+	allowPublicAccess?: boolean;
 	organizationId?: string | null;
-	websiteId?: string;
-	resource?: R;
 	permissions?: PermissionFor<R>[];
 	requiredPlans?: PlanId[];
-	allowPublicAccess?: boolean;
+	resource?: R;
+	websiteId?: string;
 }
 
 const getWebsiteById = cacheable(
@@ -173,7 +175,9 @@ async function resolveUserWorkspace(
 function resolveApiKeyWorkspace(
 	context: Context,
 	organizationId: string,
-	plan: PlanId
+	plan: PlanId,
+	resource: string,
+	permissions: string[]
 ): Omit<Workspace, "website" | "getCreatedBy"> {
 	if (!context.apiKey) {
 		throw rpcError.unauthorized();
@@ -181,6 +185,13 @@ function resolveApiKeyWorkspace(
 
 	if (context.apiKey.organizationId !== organizationId) {
 		throw rpcError.forbidden("API key does not have access to this workspace");
+	}
+
+	const requiredScopes = requiredScopesForResource(resource, permissions);
+	for (const scope of requiredScopes) {
+		if (!hasKeyScope(context.apiKey, scope)) {
+			throw rpcError.forbidden(`API key missing required scope: ${scope}`);
+		}
 	}
 
 	return {
@@ -280,7 +291,13 @@ export async function withWorkspace<R extends ResourceType = "organization">(
 	}
 
 	if (context.apiKey) {
-		const ws = resolveApiKeyWorkspace(context, organizationId, plan);
+		const ws = resolveApiKeyWorkspace(
+			context,
+			organizationId,
+			plan,
+			resolvedResource,
+			resolvedPermissions
+		);
 		return { ...ws, website, getCreatedBy };
 	}
 
@@ -370,4 +387,5 @@ export const withWebsiteWrite = (
 	});
 
 export type { PermissionFor, ResourceType } from "@databuddy/auth";
-export type { PlanId, Website };
+export type { PlanId } from "@databuddy/shared/types/features";
+export type { Website };

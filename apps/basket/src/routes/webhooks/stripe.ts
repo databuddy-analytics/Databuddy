@@ -1,34 +1,34 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { clickHouse, db, eq, revenueConfig } from "@databuddy/db";
+import { clickHouse } from "@databuddy/db/clickhouse";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
+import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
 
-const DATE_REGEX = /\.\d{3}Z$/;
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 
 interface WebhookConfig {
 	ownerId: string;
-	websiteId: string | null;
 	stripeWebhookSecret: string;
+	websiteId: string | null;
 }
 
 interface WebhookPaymentIntent {
-	id: string;
 	amount: number;
 	amount_received?: number;
-	currency: string;
 	created: number;
-	description?: string | null;
-	invoice?: string | { id: string } | null;
+	currency: string;
 	customer?: string | { id: string } | null;
+	description?: string | null;
+	id: string;
+	invoice?: string | { id: string } | null;
 	metadata?: Record<string, string>;
 }
 
 interface WebhookCharge {
-	id: string;
 	amount_refunded: number;
 	currency: string;
 	customer?: string | { id: string } | null;
+	id: string;
 	metadata?: Record<string, string>;
 	refunds?: {
 		data: Array<{
@@ -40,30 +40,28 @@ interface WebhookCharge {
 }
 
 interface WebhookInvoice {
-	id: string;
-	subscription?: string | null;
-	customer?: string | { id: string } | null;
-	payment_intent?: string | null;
 	amount_paid: number;
-	currency: string;
-	status?: string;
-	created: number;
-	metadata?: Record<string, string>;
 	billing_reason?: string | null;
+	created: number;
+	currency: string;
+	customer?: string | { id: string } | null;
 	description?: string | null;
+	id: string;
+	metadata?: Record<string, string>;
+	payment_intent?: string | null;
+	status?: string;
+	subscription?: string | null;
 }
 
 interface WebhookSubscription {
-	id: string;
-	customer?: string | { id: string } | null;
-	status: string;
 	cancel_at_period_end?: boolean;
 	canceled_at?: number | null;
-	current_period_start?: number;
-	current_period_end?: number;
-	currency?: string;
 	created: number;
-	metadata?: Record<string, string>;
+	currency?: string;
+	current_period_end?: number;
+	current_period_start?: number;
+	customer?: string | { id: string } | null;
+	id: string;
 	items?: {
 		data: Array<{
 			price?: {
@@ -74,11 +72,11 @@ interface WebhookSubscription {
 			plan?: { product?: string };
 		}>;
 	};
+	metadata?: Record<string, string>;
+	status: string;
 }
 
 interface WebhookEvent {
-	id: string;
-	type: string;
 	data: {
 		object:
 		| WebhookPaymentIntent
@@ -86,9 +84,11 @@ interface WebhookEvent {
 		| WebhookInvoice
 		| WebhookSubscription;
 	};
+	id: string;
+	type: string;
 }
 
-function verifyStripeSignature(
+export function verifyStripeSignature(
 	payload: string,
 	header: string,
 	secret: string
@@ -150,8 +150,8 @@ function verifyStripeSignature(
 
 interface AnalyticsMetadata {
 	anonymous_id?: string;
-	session_id?: string;
 	client_id?: string;
+	session_id?: string;
 }
 
 function extractAnalyticsMetadata(
@@ -176,35 +176,10 @@ function extractCustomerId(
 	return typeof customer === "string" ? customer : customer.id;
 }
 
-function formatDate(date: Date): string {
-	return date.toISOString().replace("T", " ").replace(DATE_REGEX, "");
-}
-
-async function getConfig(
-	hash: string
-): Promise<WebhookConfig | { error: string }> {
-	const config = await db.query.revenueConfig.findFirst({
-		where: eq(revenueConfig.webhookHash, hash),
-		columns: {
-			ownerId: true,
-			websiteId: true,
-			stripeWebhookSecret: true,
-		},
-	});
-
-	if (!config) {
-		return { error: "not_found" };
-	}
-
-	if (!config.stripeWebhookSecret) {
-		return { error: "stripe_not_configured" };
-	}
-
-	return {
-		ownerId: config.ownerId,
-		websiteId: config.websiteId,
-		stripeWebhookSecret: config.stripeWebhookSecret,
-	};
+function getConfig(hash: string): Promise<WebhookConfig | { error: string }> {
+	return getWebhookConfig(hash, "stripeWebhookSecret", "stripe") as Promise<
+		WebhookConfig | { error: string }
+	>;
 }
 
 async function fetchSessionFromCheckoutSessionId(
@@ -271,7 +246,11 @@ async function handlePaymentIntent(
 		values: [
 			{
 				owner_id: config.ownerId,
-				website_id: metadata.client_id || config.websiteId || undefined,
+				website_id: await resolveWebsiteId(
+					metadata.client_id,
+					config.websiteId,
+					config.ownerId
+				),
 				transaction_id: pi.id,
 				provider: "stripe",
 				type,
@@ -324,7 +303,11 @@ async function handleFailedPayment(
 		values: [
 			{
 				owner_id: config.ownerId,
-				website_id: metadata.client_id || config.websiteId || undefined,
+				website_id: await resolveWebsiteId(
+					metadata.client_id,
+					config.websiteId,
+					config.ownerId
+				),
 				transaction_id: pi.id,
 				provider: "stripe",
 				type,
@@ -387,7 +370,11 @@ async function handleInvoicePaid(
 		values: [
 			{
 				owner_id: config.ownerId,
-				website_id: metadata.client_id || config.websiteId || undefined,
+				website_id: await resolveWebsiteId(
+					metadata.client_id,
+					config.websiteId,
+					config.ownerId
+				),
 				transaction_id: invoice.id,
 				provider: "stripe",
 				type: "subscription" as const,
@@ -439,7 +426,11 @@ async function handleInvoiceFailed(
 		values: [
 			{
 				owner_id: config.ownerId,
-				website_id: metadata.client_id || config.websiteId || undefined,
+				website_id: await resolveWebsiteId(
+					metadata.client_id,
+					config.websiteId,
+					config.ownerId
+				),
 				transaction_id: invoice.id,
 				provider: "stripe",
 				type: "subscription" as const,
@@ -510,7 +501,11 @@ async function handleSubscriptionEvent(
 		values: [
 			{
 				owner_id: config.ownerId,
-				website_id: metadata.client_id || config.websiteId || undefined,
+				website_id: await resolveWebsiteId(
+					metadata.client_id,
+					config.websiteId,
+					config.ownerId
+				),
 				transaction_id: `${sub.id}_${eventType}`,
 				provider: "stripe",
 				type: "subscription_event",
@@ -561,7 +556,11 @@ async function handleRefund(
 			values: [
 				{
 					owner_id: config.ownerId,
-					website_id: metadata.client_id || config.websiteId || undefined,
+					website_id: await resolveWebsiteId(
+						metadata.client_id,
+						config.websiteId,
+						config.ownerId
+					),
 					transaction_id: refund.id,
 					provider: "stripe",
 					type: "refund",

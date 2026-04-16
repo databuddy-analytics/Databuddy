@@ -1,3 +1,4 @@
+import { validateUrl } from "@databuddy/shared/ssrf-guard";
 import { type NextRequest, NextResponse } from "next/server";
 
 const ALLOWED_CONTENT_TYPES = [
@@ -5,11 +6,10 @@ const ALLOWED_CONTENT_TYPES = [
 	"image/png",
 	"image/gif",
 	"image/webp",
-	"image/svg+xml",
 	"image/avif",
 ];
 
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 
 export async function GET(request: NextRequest) {
 	const url = request.nextUrl.searchParams.get("url");
@@ -21,30 +21,10 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	let parsedUrl: URL;
-	try {
-		parsedUrl = new URL(url);
-	} catch {
-		return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
-	}
-
-	// Only allow http/https protocols
-	if (!["http:", "https:"].includes(parsedUrl.protocol)) {
-		return NextResponse.json({ error: "Invalid protocol" }, { status: 400 });
-	}
-
-	// Block internal/private IPs
-	const hostname = parsedUrl.hostname.toLowerCase();
-	if (
-		hostname === "localhost" ||
-		hostname === "127.0.0.1" ||
-		hostname.startsWith("192.168.") ||
-		hostname.startsWith("10.") ||
-		hostname.startsWith("172.") ||
-		hostname.endsWith(".local")
-	) {
+	const check = await validateUrl(url);
+	if (!check.safe) {
 		return NextResponse.json(
-			{ error: "Private addresses not allowed" },
+			{ error: check.error ?? "URL not allowed" },
 			{ status: 400 }
 		);
 	}
@@ -55,6 +35,7 @@ export async function GET(request: NextRequest) {
 
 		const response = await fetch(url, {
 			signal: controller.signal,
+			redirect: "error",
 			headers: {
 				"User-Agent": "Databuddy Image Proxy/1.0",
 				Accept: "image/*",
@@ -96,6 +77,7 @@ export async function GET(request: NextRequest) {
 				"Content-Type": contentType,
 				"Cache-Control": "public, max-age=86400, s-maxage=86400",
 				"X-Content-Type-Options": "nosniff",
+				"Content-Security-Policy": "default-src 'none'; img-src 'self'",
 			},
 		});
 	} catch (error) {

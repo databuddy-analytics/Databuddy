@@ -29,7 +29,7 @@ export default function NotFound() {
 								<h3 className="mb-3 font-semibold text-foreground text-sm">
 									Available comparisons
 								</h3>
-							<div className="flex flex-wrap justify-center gap-2">
+								<div className="flex flex-wrap justify-center gap-2">
 									{entries.map(([slug, data]) => (
 										<Link
 											className="rounded border border-border bg-muted/30 px-3 py-1.5 text-foreground text-sm transition-colors hover:bg-muted/60"

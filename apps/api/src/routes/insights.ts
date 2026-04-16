@@ -1,63 +1,58 @@
 import { auth } from "@databuddy/auth";
+import { and, db, desc, eq, gte, inArray, isNull } from "@databuddy/db";
 import {
 	analyticsInsights,
-	and,
 	annotations,
-	db,
-	desc,
-	eq,
-	gte,
-	inArray,
 	insightUserFeedback,
-	isNull,
 	member,
 	websites,
-} from "@databuddy/db";
-import { getRedisCache } from "@databuddy/redis";
+} from "@databuddy/db/schema";
+import { cacheable, getRedisCache } from "@databuddy/redis";
+import { getRateLimitHeaders, rateLimit } from "@databuddy/redis/rate-limit";
 import { generateText, Output, stepCountIs, ToolLoopAgent } from "ai";
 import dayjs from "dayjs";
 import { Elysia, t } from "elysia";
 import { useLogger } from "evlog/elysia";
+import {
+	fetchInsightDedupeKeyToIdMap,
+	insightDedupeKey,
+} from "../ai/insights/dedupe";
+import {
+	fetchWebPeriodData,
+	getWeekOverWeekPeriod,
+	hasWebInsightData,
+} from "../ai/insights/fetch-context";
+import { formatLegacyWebDataForPrompt } from "../ai/insights/normalize";
+import type {
+	InsightMetricRow,
+	WeekOverWeekPeriod,
+} from "../ai/insights/types";
+import type { AppContext } from "../ai/config/context";
 import { models } from "../ai/config/models";
 import type { ParsedInsight } from "../ai/schemas/smart-insights-output";
 import { insightsOutputSchema } from "../ai/schemas/smart-insights-output";
 import { createInsightsAgentTools } from "../ai/tools/insights-agent-tools";
 import { storeAnalyticsSummary } from "../lib/supermemory";
-import { mergeWideEvent } from "../lib/tracing";
-import { executeQuery } from "../query";
+import { getAILogger } from "../ai/config/ai-logger";
+import { captureError, mergeWideEvent } from "../lib/tracing";
 
 const CACHE_TTL = 900;
 const CACHE_KEY_PREFIX = "ai-insights";
 const TIMEOUT_MS = 60_000;
 const INSIGHTS_AGENT_MAX_STEPS = 24;
 const INSIGHTS_AGENT_TIMEOUT_MS = 120_000;
-const QUERY_FETCH_TIMEOUT_MS = 45_000;
 const MAX_WEBSITES = 5;
 const CONCURRENCY = 3;
 const GENERATION_COOLDOWN_HOURS = 6;
 const RECENT_INSIGHTS_LOOKBACK_DAYS = 14;
 const RECENT_INSIGHTS_PROMPT_LIMIT = 12;
 
-const PATH_SEGMENT_ALNUM = /^[a-zA-Z0-9_-]+$/;
-const DIGIT_CLASS = /\d/;
-const LETTER_CLASS = /[a-zA-Z]/;
-const LOWER_CLASS = /[a-z]/;
-const UPPER_CLASS = /[A-Z]/;
-const DASH_UNDERSCORE_SPLIT = /[-_]/g;
-
 interface WebsiteInsight extends ParsedInsight {
 	id: string;
+	link: string;
+	websiteDomain: string;
 	websiteId: string;
 	websiteName: string | null;
-	websiteDomain: string;
-	link: string;
-}
-
-interface InsightMetricRow {
-	label: string;
-	current: number;
-	previous?: number;
-	format: "number" | "percent" | "duration_ms" | "duration_s";
 }
 
 interface InsightsPayload {
@@ -65,391 +60,10 @@ interface InsightsPayload {
 	source: "ai" | "fallback";
 }
 
-interface PeriodData {
-	summary: Record<string, unknown>[];
-	topPages: Record<string, unknown>[];
-	errorSummary: Record<string, unknown>[];
-	topReferrers: Record<string, unknown>[];
-	countries: Record<string, unknown>[];
-	browsers: Record<string, unknown>[];
-	vitalsOverview: Record<string, unknown>[];
-}
-
-interface WeekOverWeekPeriod {
-	current: { from: string; to: string };
-	previous: { from: string; to: string };
-}
-
 interface OrgWebsiteRow {
+	domain: string;
 	id: string;
 	name: string | null;
-	domain: string;
-}
-
-function humanizeMetricKey(key: string): string {
-	return key.replaceAll("_", " ").replaceAll(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function formatMetricValue(value: unknown): string {
-	if (value === null || value === undefined) {
-		return "";
-	}
-	if (typeof value === "number") {
-		return Number.isInteger(value) ? String(value) : value.toFixed(2);
-	}
-	if (typeof value === "boolean") {
-		return value ? "yes" : "no";
-	}
-	if (typeof value === "string") {
-		return value;
-	}
-	return JSON.stringify(value);
-}
-
-function formatObjectLine(record: Record<string, unknown>): string {
-	return Object.entries(record)
-		.filter(([, v]) => v !== null && v !== undefined)
-		.map(([k, v]) => `${humanizeMetricKey(k)}: ${formatMetricValue(v)}`)
-		.join(" | ");
-}
-
-function formatRowsBlock(
-	rows: Record<string, unknown>[],
-	sectionTitle: string
-): string {
-	if (rows.length === 0) {
-		return "";
-	}
-	const lines = rows.map((row) => formatObjectLine(row));
-	return `### ${sectionTitle}\n${lines.join("\n")}`;
-}
-
-function isOpaquePathSegment(segment: string): boolean {
-	if (segment.length < 8) {
-		return false;
-	}
-	if (!PATH_SEGMENT_ALNUM.test(segment)) {
-		return false;
-	}
-	const hasDigit = DIGIT_CLASS.test(segment);
-	const hasLetter = LETTER_CLASS.test(segment);
-	if (segment.length >= 16) {
-		return hasLetter || hasDigit;
-	}
-	return hasDigit || (LOWER_CLASS.test(segment) && UPPER_CLASS.test(segment));
-}
-
-function titleCasePathWords(segment: string): string {
-	return segment
-		.replaceAll(DASH_UNDERSCORE_SPLIT, " ")
-		.split(" ")
-		.filter(Boolean)
-		.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-		.join(" ");
-}
-
-/** Readable page name for titles; raw path may still appear in data rows for accuracy. */
-function humanizePagePathForPrompt(rawPath: string): string {
-	const path = rawPath.trim() || "/";
-	if (path === "/" || path === "") {
-		return "Home";
-	}
-	const segments = path.split("/").filter(Boolean);
-	const last = segments.at(-1) ?? "";
-	if (isOpaquePathSegment(last) && segments.length >= 2) {
-		const parent = segments.at(-2) ?? "";
-		if (parent && !isOpaquePathSegment(parent)) {
-			return `${titleCasePathWords(parent)} page`;
-		}
-		return "Page";
-	}
-	if (isOpaquePathSegment(last)) {
-		return "Page";
-	}
-	return `${titleCasePathWords(last)} page`;
-}
-
-function formatTopPagesBlock(rows: Record<string, unknown>[]): string {
-	if (rows.length === 0) {
-		return "";
-	}
-	const lines = rows.map((row) => {
-		const rawName =
-			typeof row.name === "string" ? row.name : String(row.name ?? "");
-		const human = humanizePagePathForPrompt(rawName);
-		const base = formatObjectLine(row);
-		return `${base} | Human label (use in titles, not raw paths with IDs): ${human}`;
-	});
-	return `### Top Pages\n${lines.join("\n")}`;
-}
-
-function directionKeyFromParts(
-	changePercent: number | null | undefined,
-	sentiment: ParsedInsight["sentiment"]
-): "up" | "down" | "flat" {
-	if (
-		changePercent !== null &&
-		changePercent !== undefined &&
-		changePercent !== 0
-	) {
-		return changePercent > 0 ? "up" : "down";
-	}
-	if (sentiment === "positive") {
-		return "up";
-	}
-	if (sentiment === "negative") {
-		return "down";
-	}
-	return "flat";
-}
-
-function insightDedupeKey(
-	websiteId: string,
-	type: ParsedInsight["type"],
-	sentiment: ParsedInsight["sentiment"],
-	changePercent: number | null | undefined
-): string {
-	const dir = directionKeyFromParts(changePercent, sentiment);
-	return `${websiteId}|${type}|${dir}`;
-}
-
-async function fetchInsightDedupeKeyToIdMap(
-	organizationId: string
-): Promise<Map<string, string>> {
-	const cutoff = dayjs().subtract(GENERATION_COOLDOWN_HOURS, "hour").toDate();
-	const rows = await db
-		.select({
-			id: analyticsInsights.id,
-			websiteId: analyticsInsights.websiteId,
-			type: analyticsInsights.type,
-			sentiment: analyticsInsights.sentiment,
-			changePercent: analyticsInsights.changePercent,
-		})
-		.from(analyticsInsights)
-		.where(
-			and(
-				eq(analyticsInsights.organizationId, organizationId),
-				gte(analyticsInsights.createdAt, cutoff)
-			)
-		)
-		.orderBy(desc(analyticsInsights.createdAt));
-	const map = new Map<string, string>();
-	for (const r of rows) {
-		const key = insightDedupeKey(
-			r.websiteId,
-			r.type as ParsedInsight["type"],
-			r.sentiment as ParsedInsight["sentiment"],
-			r.changePercent
-		);
-		if (!map.has(key)) {
-			map.set(key, r.id);
-		}
-	}
-	return map;
-}
-
-function runQueryWithTimeout<T>(
-	label: string,
-	fn: () => Promise<T>
-): Promise<T> {
-	return Promise.race([
-		fn(),
-		new Promise<never>((_, reject) => {
-			setTimeout(() => {
-				reject(new Error(`${label} timed out`));
-			}, QUERY_FETCH_TIMEOUT_MS);
-		}),
-	]);
-}
-
-function getWeekOverWeekPeriod(): WeekOverWeekPeriod {
-	const now = dayjs();
-	return {
-		current: {
-			from: now.subtract(7, "day").format("YYYY-MM-DD"),
-			to: now.format("YYYY-MM-DD"),
-		},
-		previous: {
-			from: now.subtract(14, "day").format("YYYY-MM-DD"),
-			to: now.subtract(7, "day").format("YYYY-MM-DD"),
-		},
-	};
-}
-
-async function fetchPeriodData(
-	websiteId: string,
-	domain: string,
-	from: string,
-	to: string,
-	timezone: string
-): Promise<PeriodData> {
-	const base = { projectId: websiteId, from, to, timezone };
-
-	const safe = async (
-		label: string,
-		run: () => Promise<Record<string, unknown>[]>
-	): Promise<Record<string, unknown>[]> => {
-		try {
-			const value = await runQueryWithTimeout(label, run);
-			return Array.isArray(value) ? value : [];
-		} catch (error) {
-			useLogger().warn("Insights period query failed or timed out", {
-				insights: { websiteId, label, error },
-			});
-			return [];
-		}
-	};
-
-	const [
-		summary,
-		topPages,
-		errorSummary,
-		topReferrers,
-		countries,
-		browsers,
-		vitalsOverview,
-	] = await Promise.all([
-		safe("summary_metrics", () =>
-			executeQuery({ ...base, type: "summary_metrics" }, domain, timezone)
-		),
-		safe("top_pages", () =>
-			executeQuery({ ...base, type: "top_pages", limit: 10 }, domain, timezone)
-		),
-		safe("error_summary", () =>
-			executeQuery({ ...base, type: "error_summary" }, domain, timezone)
-		),
-		safe("top_referrers", () =>
-			executeQuery(
-				{ ...base, type: "top_referrers", limit: 10 },
-				domain,
-				timezone
-			)
-		),
-		safe("country", () =>
-			executeQuery({ ...base, type: "country", limit: 8 }, domain, timezone)
-		),
-		safe("browser_name", () =>
-			executeQuery(
-				{ ...base, type: "browser_name", limit: 8 },
-				domain,
-				timezone
-			)
-		),
-		safe("vitals_overview", () =>
-			executeQuery({ ...base, type: "vitals_overview" }, domain, timezone)
-		),
-	]);
-
-	return {
-		summary,
-		topPages,
-		errorSummary,
-		topReferrers,
-		countries,
-		browsers,
-		vitalsOverview,
-	};
-}
-
-async function checkHasInsightData(
-	websiteId: string,
-	domain: string,
-	from: string,
-	to: string,
-	timezone: string
-): Promise<boolean> {
-	const base = { projectId: websiteId, from, to, timezone };
-	const safe = async (
-		label: string,
-		run: () => Promise<Record<string, unknown>[]>
-	): Promise<Record<string, unknown>[]> => {
-		try {
-			const value = await runQueryWithTimeout(label, run);
-			return Array.isArray(value) ? value : [];
-		} catch {
-			return [];
-		}
-	};
-	const [summary, topPages] = await Promise.all([
-		safe("summary_metrics", () =>
-			executeQuery({ ...base, type: "summary_metrics" }, domain, timezone)
-		),
-		safe("top_pages", () =>
-			executeQuery({ ...base, type: "top_pages", limit: 1 }, domain, timezone)
-		),
-	]);
-	return summary.length > 0 || topPages.length > 0;
-}
-
-function formatDataForPrompt(
-	current: PeriodData,
-	previous: PeriodData,
-	currentRange: { from: string; to: string },
-	previousRange: { from: string; to: string }
-): string {
-	const sections: string[] = [];
-
-	sections.push(
-		`## Current Period (${currentRange.from} to ${currentRange.to})`
-	);
-	sections.push(formatRowsBlock(current.summary, "Summary"));
-	if (current.topPages.length > 0) {
-		sections.push(formatTopPagesBlock(current.topPages));
-	}
-	if (current.errorSummary.length > 0) {
-		sections.push(formatRowsBlock(current.errorSummary, "Errors"));
-	}
-	if (current.topReferrers.length > 0) {
-		sections.push(formatRowsBlock(current.topReferrers, "Top Referrers"));
-	}
-	if (current.countries.length > 0) {
-		sections.push(
-			formatRowsBlock(current.countries, "Countries (by visitors)")
-		);
-	}
-	if (current.browsers.length > 0) {
-		sections.push(formatRowsBlock(current.browsers, "Browsers (by visitors)"));
-	}
-	if (current.vitalsOverview.length > 0) {
-		sections.push(
-			formatRowsBlock(
-				current.vitalsOverview,
-				"Web Vitals (p75 and samples; use for performance insights when samples are meaningful)"
-			)
-		);
-	}
-
-	sections.push(
-		`\n## Previous Period (${previousRange.from} to ${previousRange.to})`
-	);
-	sections.push(formatRowsBlock(previous.summary, "Summary"));
-	if (previous.topPages.length > 0) {
-		sections.push(formatTopPagesBlock(previous.topPages));
-	}
-	if (previous.errorSummary.length > 0) {
-		sections.push(formatRowsBlock(previous.errorSummary, "Errors"));
-	}
-	if (previous.topReferrers.length > 0) {
-		sections.push(formatRowsBlock(previous.topReferrers, "Top Referrers"));
-	}
-	if (previous.countries.length > 0) {
-		sections.push(
-			formatRowsBlock(previous.countries, "Countries (by visitors)")
-		);
-	}
-	if (previous.browsers.length > 0) {
-		sections.push(formatRowsBlock(previous.browsers, "Browsers (by visitors)"));
-	}
-	if (previous.vitalsOverview.length > 0) {
-		sections.push(
-			formatRowsBlock(
-				previous.vitalsOverview,
-				"Web Vitals (p75 and samples; use for performance insights when samples are meaningful)"
-			)
-		);
-	}
-
-	return sections.filter(Boolean).join("\n\n");
 }
 
 async function fetchRecentAnnotations(websiteId: string): Promise<string> {
@@ -546,65 +160,125 @@ ${lines.join("\n")}
 `;
 }
 
-const INSIGHTS_SYSTEM_PROMPT = `You are an analytics insights engine. Your job is to find the 1-3 most significant findings from week-over-week website data, written like an analyst: descriptive where needed, but every insight MUST include a prescriptive "so what / now what" in the suggestion field.
+const INSIGHTS_SYSTEM_PROMPT = `<role>
+You are an analytics insights engine. Return 1-3 week-over-week insights ranked by actionability and business impact.
+</role>
 
-Priority scoring (priority 1-10):
-- Score by actionability × business impact, NOT by how large the percentage move is. Traffic spikes without conversion or outcome context are lower priority than errors, session/engagement collapses, or clear negative trends affecting users.
-- Operational health (errors, reliability) often matters more than vanity traffic growth. A moderate error-rate improvement during high traffic can be high value.
-- Do not assign 8-10 to pure volume spikes unless the data also shows a linked risk or opportunity worth acting on.
+<prioritization>
+- Score by actionability x impact, not raw percentage magnitude.
+- Reliability, errors, engagement drops, and meaningful behavior changes usually matter more than vanity traffic spikes.
+- Reserve priority 8-10 for issues or opportunities that likely affect users, outcomes, or operational health.
+</prioritization>
 
-Significance thresholds (for what to mention):
-- Traffic (pageviews/visitors/sessions): <5% change = only mention if nothing else notable. 5-15% = worth noting. >15% = significant. >30% = notable volume change.
-- Errors: new error types = always report. Error rate up >0.5% = warning. Error rate up >2% = critical.
-- Bounce rate: change >5 percentage points = notable.
-- Pages: new page entering top 10 or page dropping out = notable. Individual page change >25% = significant.
-- Referrers: new source appearing or major source declining >20% = notable.
+<data_boundaries>
+- Use only metrics returned from analytics data plus annotations and recently reported insights included in the user message.
+- Do not invent revenue, funnel conversion, signups, retention, or root causes that are not supported by the data.
+- If the message lists multiple organization websites, treat them as separate properties and name the relevant property clearly in the insight.
+- If a referrer is another organization website, describe it as cross-property traffic rather than a generic referral.
+</data_boundaries>
 
-Anti-redundancy:
-- If the user message includes a "Recently reported insights" section, treat those as already surfaced. Do NOT output a new insight that tells the same story (same underlying signal and direction) unless the narrative would be materially different (e.g. new root cause, reversal, or threshold crossed). Prefer novel angles or omit.
+<writing_rules>
+- Metrics belong in the metrics array. Description and suggestion should reference metric labels, not repeat the numbers.
+- Keep the description analytical: explain why the change matters, likely context, and implications.
+- Keep the suggestion concrete and specific. Avoid generic advice such as "monitor this" or "keep an eye on it".
+- Never use raw opaque URL slugs in titles. Use the provided human page labels.
+- If the week is mostly positive, still include one real risk or watch item when supported by the data.
+- If the same narrative already appears in recently reported insights, avoid repeating it unless the change is materially new.
+</writing_rules>
 
-Data boundaries:
-- Only use metrics returned from your insight_query tool results (and annotations / recently reported insights in the user message). Do not invent funnel conversion rates, MRR, revenue, cohort retention, or signup counts unless they appear in the data.
-- If conversion or goal data appears in summary_metrics, you may connect traffic to outcomes. If absent, do not fabricate funnel or revenue insights.
+<metrics_rules>
+- Every insight needs 1-5 metrics.
+- Put the primary metric first.
+- Include supporting metrics only when they add context.
+- Use the right format: number, percent, duration_ms, or duration_s.
+- Include previous when comparison data exists.
+- changePercent should be the signed week-over-week change for the primary metric when that comparison exists.
+- subjectKey should be a stable identifier for the signal, such as pricing_page, organic_search, signup_goal, or signup_errors.
+- sources must list only the evidence domains actually used: web, product, ops, business.
+- confidence should be between 0 and 1 based on how directly the data supports the conclusion.
+- impactSummary is optional and should briefly state user or business impact when the impact is clear.
+</metrics_rules>
 
-Multi-property organizations:
-- When the user message includes "Organization websites", each bullet is a separate site in the same account. Titles and descriptions MUST name which property (domain or product label from the list) the insight applies to—do not assume the reader knows which site is "app" vs marketing.
-- Referrers that appear as another domain in that list are cross-site traffic: explain the relationship (e.g. www → app) instead of treating them like generic external referrers.
+<examples>
+<example name="traffic_growth_with_context">
+Input pattern: visitors and sessions rise, bounce rate improves, top pages show stronger pricing/demo intent.
+Output pattern:
+{
+  "title": "Pricing page traffic up 28%",
+  "description": "Pricing Page Visitors became a larger share of site activity while Bounce Rate improved, which suggests the extra traffic was more qualified than a broad awareness spike. If annotations mention a launch or campaign, use that as context rather than inventing a cause.",
+  "suggestion": "Review the journey from Pricing Page Visitors into the next high-intent step and tighten the CTA path if Contact Page Visitors or demo pages are lagging.",
+  "metrics": [
+    { "label": "Pricing Page Visitors", "current": 640, "previous": 500, "format": "number" },
+    { "label": "Sessions", "current": 3100, "previous": 2800, "format": "number" },
+    { "label": "Bounce Rate", "current": 42, "previous": 47, "format": "percent" }
+  ],
+  "severity": "info",
+  "sentiment": "positive",
+  "priority": 6,
+  "type": "page_trend",
+  "changePercent": 28,
+  "subjectKey": "pricing_page",
+  "sources": ["web"],
+  "confidence": 0.74,
+  "impactSummary": "Higher-intent page demand improved this week."
+}
+</example>
 
-Cross-dimension depth (when Countries, Browsers, or Web Vitals sections appear):
-- Prefer at least one insight that connects two data domains when the numbers support it (e.g. summary traffic trend + a major country or browser share shift; or bounce/session signals + a vitals regression). Single-metric stories are fine when nothing else stands out.
-- For geography: compare week-over-week visitor share or rank changes for named countries—call out a country that moved materially even if sitewide traffic looks flat.
-- For browsers: note a browser gaining or losing meaningful share of visitors; relate to errors or vitals only when those sections align.
-- For Web Vitals: use metric rows with non-trivial sample counts. Compare p75 between periods for LCP, INP, CLS, FCP when present. Tie performance language to user impact (load responsiveness, layout stability)—do not invent vitals that are missing from the data.
+<example name="error_regression">
+Input pattern: error rate rises and a browser, page, or referrer shift may help explain it.
+Output pattern:
+{
+  "title": "Error rate up 2.1 pts",
+  "description": "Error Rate worsened while Sessions stayed healthy, so this looks like a product or delivery issue rather than a demand problem. If browser or page data points to a concentrated segment, call that out directly.",
+  "suggestion": "Inspect the dominant error class and the affected browser or page path first, then verify whether the recent release or traffic source introduced a broken flow.",
+  "metrics": [
+    { "label": "Error Rate", "current": 3.4, "previous": 1.3, "format": "percent" },
+    { "label": "Errors", "current": 81, "previous": 29, "format": "number" },
+    { "label": "Sessions", "current": 2600, "previous": 2550, "format": "number" }
+  ],
+  "severity": "warning",
+  "sentiment": "negative",
+  "priority": 8,
+  "type": "error_spike",
+  "changePercent": 161.5,
+  "subjectKey": "error_rate",
+  "sources": ["web", "ops"],
+  "confidence": 0.88,
+  "impactSummary": "More sessions are likely encountering broken flows."
+}
+</example>
 
-Suggestion field (required quality):
-- Must answer "what should we do next?" in one or two sentences. Reference metric labels (e.g. "Contact Page Visitors", "Bounce Rate") but do NOT restate the values — those are in the metrics array. This is an analytics product—avoid generic marketing coaching.
-- Bad: "Monitor traffic", "Keep an eye on this", "the 199 visitors compared to the 294 visitors" (number repetition).
-- Good: tie to pages, channels, CTAs, error classes, or experiments by label. "Audit CTAs on Pricing Page to drive traffic toward Contact Page given the visitor disparity."
+<example name="mostly_flat_week">
+Input pattern: top-line traffic is stable, but one supporting metric signals risk.
+Output pattern:
+{
+  "title": "Traffic steady, engagement softer",
+  "description": "Visitors stayed broadly stable, but Avg Session Duration moved the wrong way, which suggests the week was less healthy than the topline implies. Use a risk framing instead of forcing a celebratory narrative.",
+  "suggestion": "Check which landing pages or referrers contributed most to the weaker Avg Session Duration and test whether the entry experience or message match slipped.",
+  "metrics": [
+    { "label": "Visitors", "current": 2400, "previous": 2360, "format": "number" },
+    { "label": "Avg Session Duration", "current": 118, "previous": 143, "format": "duration_s" },
+    { "label": "Bounce Rate", "current": 46, "previous": 43, "format": "percent" }
+  ],
+  "severity": "info",
+  "sentiment": "neutral",
+  "priority": 5,
+  "type": "engagement_change",
+  "changePercent": -17.5,
+  "subjectKey": "session_duration",
+  "sources": ["web"],
+  "confidence": 0.63
+}
+</example>
+</examples>
 
-Titles and page paths:
-- Never put raw URL paths with opaque ID segments in the title (no long random slugs). Use the Human label from Top Pages (e.g. "Demo page", "Pricing page").
-
-Balanced weeks (mostly positive metrics):
-- Still surface at least one insight that highlights a downside risk or watch item when the data supports it: e.g. median session duration down, bounce up, errors up in absolute count, heavy reliance on one volatile referrer or channel. If you only report wins when those signals exist, you are failing the user.
-
-Metrics array (required):
-- Every insight MUST include a "metrics" array of 1-5 data points that back the narrative.
-- The first metric should be the primary one the insight is about (e.g. Visitors, Error Rate, Bounce Rate).
-- Add supporting metrics that give context (e.g. alongside a traffic insight, include Sessions or Bounce Rate).
-- Use the correct format: "number" for counts, "percent" for rates/percentages, "duration_ms" for millisecond timings (LCP, INP, FCP), "duration_s" for second-based durations.
-- Both "current" and "previous" must come directly from the data. Omit "previous" only when comparison data is missing.
-
-Separation of numbers and narrative (critical):
-- The metrics array is the SINGLE SOURCE OF TRUTH for numbers. The UI shows metrics as structured data chips.
-- The description MUST NOT restate values already in the metrics array. Instead, reference metrics by their label name (e.g. "Contact Page Visitors dropped sharply" not "visitors fell from 352 to 199"). Focus description on the WHY: causes, implications, context, and connections between metrics.
-- The suggestion MUST NOT restate metric values either. Reference labels and recommend a specific action grounded in the pattern.
-- The title MAY include the primary number or percentage for scannability (e.g. "Contact page visitors down 43%").
-
-Rules:
-- If annotations explain a change, mention it but still populate the metrics array.
-- If everything is stable, return ONE positive/neutral insight (e.g. "Steady at 2,400 weekly visitors") with a light suggestion if appropriate.
-- Never fabricate or round numbers beyond what's in the data`;
+<self_check>
+Before finalizing, verify each insight:
+1. Uses only provided data.
+2. Includes a metrics array with the primary metric first.
+3. Does not restate metric values in description or suggestion.
+4. Gives a specific next action instead of generic monitoring advice.
+</self_check>`;
 
 async function analyzeWebsiteLegacy(
 	organizationId: string,
@@ -621,14 +295,14 @@ async function analyzeWebsiteLegacy(
 	const previousRange = period.previous;
 
 	const [current, previous] = await Promise.all([
-		fetchPeriodData(
+		fetchWebPeriodData(
 			websiteId,
 			domain,
 			currentRange.from,
 			currentRange.to,
 			timezone
 		),
-		fetchPeriodData(
+		fetchWebPeriodData(
 			websiteId,
 			domain,
 			previousRange.from,
@@ -642,7 +316,7 @@ async function analyzeWebsiteLegacy(
 		return [];
 	}
 
-	const dataSection = formatDataForPrompt(
+	const dataSection = formatLegacyWebDataForPrompt(
 		current,
 		previous,
 		currentRange,
@@ -653,8 +327,9 @@ async function analyzeWebsiteLegacy(
 	const prompt = `Analyze this website's week-over-week data and return insights.\n\n${orgContext}${dataSection}${annotationContext}${recentInsightsBlock}`;
 
 	try {
+		const ai = getAILogger();
 		const result = await generateText({
-			model: models.analytics,
+			model: ai.wrap(models.analytics),
 			output: Output.object({ schema: insightsOutputSchema }),
 			system: INSIGHTS_SYSTEM_PROMPT,
 			prompt,
@@ -700,12 +375,13 @@ async function analyzeWebsite(
 	domain: string,
 	timezone: string,
 	period: WeekOverWeekPeriod,
-	orgSites: OrgWebsiteRow[]
+	orgSites: OrgWebsiteRow[],
+	requestHeaders: Headers
 ): Promise<ParsedInsight[]> {
 	const currentRange = period.current;
 	const previousRange = period.previous;
 
-	const hasData = await checkHasInsightData(
+	const hasData = await hasWebInsightData(
 		websiteId,
 		domain,
 		currentRange.from,
@@ -729,18 +405,11 @@ async function analyzeWebsite(
 **Timezone:** ${timezone}
 **Domain:** ${domain}
 
-Use insight_query to pull metrics for **both** current and previous periods before inferring trends. When ready, call submit_insights once with 1-3 insights.
+Use web_metrics to pull metrics for both current and previous periods before inferring trends. Start with summary_metrics for both periods, then add top_pages, error_summary, top_referrers, country, browser_name, vitals_overview, or custom_events queries only when they sharpen the narrative. Use product_metrics for goals, funnels, retention, and custom event behavior when a traffic change may have downstream product impact. Use ops_context for page-level errors, uptime, anomaly signals, and recent flag rollouts when reliability or product changes may explain the trend. Use business_context for revenue totals, attribution, and product mix when commercial impact matters.
 
 ${orgContext}${annotationContext}${recentInsightsBlock}`;
 
-	const insightsToolWorkflow = `
-
-## Tool workflow (required)
-1. Start with insight_query for summary_metrics for **both** current and previous periods.
-2. Add top_pages, error_summary, top_referrers, and cross-dimension data (country, browser_name, vitals_overview, custom_events_*) as needed to support conclusions.
-3. When you have concrete week-over-week comparisons grounded in tool results, call **submit_insights** exactly once with 1-3 insights. You must call submit_insights to complete the task.`;
-
-	const { tools, getSubmittedInsights } = createInsightsAgentTools({
+	const { tools } = createInsightsAgentTools({
 		websiteId,
 		domain,
 		timezone,
@@ -748,12 +417,51 @@ ${orgContext}${annotationContext}${recentInsightsBlock}`;
 	});
 
 	try {
+		const appContext: AppContext = {
+			userId,
+			organizationId,
+			websiteId,
+			websiteDomain: domain,
+			timezone,
+			currentDateTime: new Date().toISOString(),
+			chatId: `insights:${organizationId}:${websiteId}`,
+			requestHeaders,
+		};
+
+		const ai = getAILogger();
 		const agent = new ToolLoopAgent({
-			model: models.analytics,
-			instructions: `${INSIGHTS_SYSTEM_PROMPT}${insightsToolWorkflow}`,
+			model: ai.wrap(models.analytics),
+			instructions: INSIGHTS_SYSTEM_PROMPT,
+			output: Output.object({ schema: insightsOutputSchema }),
 			tools,
 			stopWhen: stepCountIs(INSIGHTS_AGENT_MAX_STEPS),
+			prepareStep: ({ stepNumber }) => {
+				if (stepNumber === 0) {
+					return {
+						activeTools: ["web_metrics"],
+						toolChoice: { type: "tool", toolName: "web_metrics" },
+					};
+				}
+				return {};
+			},
+			onStepFinish: ({ usage, finishReason, toolCalls }) => {
+				const toolNames = toolCalls.map((toolCall) => toolCall.toolName);
+				mergeWideEvent({
+					insights_agent_step_tool_calls: toolCalls.length,
+					insights_agent_step_total_tokens: usage?.totalTokens ?? 0,
+					insights_agent_step_used_tools: toolNames.length > 0,
+				});
+				useLogger().info("Insights agent step finished", {
+					insights: {
+						websiteId,
+						finishReason,
+						toolCalls: toolNames,
+						totalTokens: usage?.totalTokens,
+					},
+				});
+			},
 			temperature: 0.2,
+			experimental_context: appContext,
 			experimental_telemetry: {
 				isEnabled: true,
 				functionId: "databuddy.insights.analyze_website",
@@ -770,17 +478,16 @@ ${orgContext}${annotationContext}${recentInsightsBlock}`;
 			},
 		});
 
-		await agent.generate({
+		const result = await agent.generate({
 			messages: [{ role: "user", content: userPrompt }],
 			abortSignal: AbortSignal.timeout(INSIGHTS_AGENT_TIMEOUT_MS),
 		});
 
-		const submitted = getSubmittedInsights();
-		if (submitted && submitted.length > 0) {
-			return submitted;
+		if (result.output?.insights?.length) {
+			return result.output.insights;
 		}
 
-		useLogger().warn("Insights agent finished without submit_insights", {
+		useLogger().warn("Insights agent finished without structured output", {
 			insights: { websiteId },
 		});
 	} catch (error) {
@@ -850,6 +557,10 @@ async function getRecentInsightsFromDb(
 			type: analyticsInsights.type,
 			priority: analyticsInsights.priority,
 			changePercent: analyticsInsights.changePercent,
+			subjectKey: analyticsInsights.subjectKey,
+			sources: analyticsInsights.sources,
+			confidence: analyticsInsights.confidence,
+			impactSummary: analyticsInsights.impactSummary,
 			metrics: analyticsInsights.metrics,
 			createdAt: analyticsInsights.createdAt,
 		})
@@ -885,6 +596,12 @@ async function getRecentInsightsFromDb(
 			type: r.type as ParsedInsight["type"],
 			priority: r.priority,
 			changePercent: r.changePercent ?? undefined,
+			subjectKey: r.subjectKey,
+			sources:
+				(r.sources as Array<"web" | "product" | "ops" | "business"> | null) ??
+				[],
+			confidence: r.confidence,
+			impactSummary: r.impactSummary ?? undefined,
 		})
 	);
 }
@@ -927,10 +644,132 @@ async function invalidateInsightsCacheForOrg(
 	}
 }
 
+const NARRATIVE_RATE_LIMIT = 30;
+const NARRATIVE_RATE_WINDOW_SECS = 3600;
+const NARRATIVE_CACHE_TTL_SECS = 3600;
+const NARRATIVE_INSIGHTS_LIMIT = 5;
+
+function rangeWord(range: "7d" | "30d" | "90d"): string {
+	if (range === "7d") {
+		return "week";
+	}
+	if (range === "30d") {
+		return "month";
+	}
+	return "quarter";
+}
+
+function buildDeterministicNarrative(
+	range: "7d" | "30d" | "90d",
+	topInsights: {
+		title: string;
+		severity: string;
+		websiteName: string | null;
+	}[]
+): string {
+	const word = rangeWord(range);
+	const headline = topInsights[0];
+	if (!headline) {
+		return `All systems healthy this ${word}. No actionable signals detected.`;
+	}
+	const siteSuffix = headline.websiteName ? ` on ${headline.websiteName}` : "";
+	if (topInsights.length === 1) {
+		return `This ${word}: ${headline.title}${siteSuffix}.`;
+	}
+	const extra = topInsights.length - 1;
+	return `This ${word}: ${headline.title}${siteSuffix}, plus ${extra} more signal${extra === 1 ? "" : "s"} worth reviewing.`;
+}
+
+const RANGE_TO_DAYS = { "7d": 7, "30d": 30, "90d": 90 } as const;
+
+const generateNarrativeCached = cacheable(
+	async function generateNarrativeCached(
+		organizationId: string,
+		range: "7d" | "30d" | "90d"
+	): Promise<{ narrative: string }> {
+		const cutoff = dayjs().subtract(RANGE_TO_DAYS[range], "day").toDate();
+
+		const topInsights = await db
+			.select({
+				title: analyticsInsights.title,
+				description: analyticsInsights.description,
+				severity: analyticsInsights.severity,
+				changePercent: analyticsInsights.changePercent,
+				websiteName: websites.name,
+			})
+			.from(analyticsInsights)
+			.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+			.where(
+				and(
+					eq(analyticsInsights.organizationId, organizationId),
+					gte(analyticsInsights.createdAt, cutoff),
+					isNull(websites.deletedAt)
+				)
+			)
+			.orderBy(desc(analyticsInsights.priority))
+			.limit(NARRATIVE_INSIGHTS_LIMIT);
+
+		if (topInsights.length === 0) {
+			return {
+				narrative: `All systems healthy this ${rangeWord(range)}. No actionable signals detected.`,
+			};
+		}
+
+		const insightLines = topInsights.map((ins) => {
+			const site = ins.websiteName ? ` [${ins.websiteName}]` : "";
+			const change =
+				ins.changePercent == null
+					? ""
+					: ` (${ins.changePercent > 0 ? "+" : ""}${ins.changePercent.toFixed(0)}%)`;
+			return `- [${ins.severity}] ${ins.title}${change}${site}: ${ins.description ?? ""}`;
+		});
+
+		const prompt = `You are an analytics assistant summarizing an organization's state over the last ${range}.
+
+Write a crisp 2–3 sentence executive summary of the top insights below.
+
+Rules:
+- Lead with the most important change
+- Include concrete numbers when available
+- Never exceed 60 words total
+- State facts, do not editorialize
+- If nothing meaningful is happening, say so plainly
+
+Top signals this ${range}:
+${insightLines.join("\n")}`;
+
+		let narrative = "";
+		try {
+			const result = await generateText({
+				model: getAILogger().wrap(models.analytics),
+				prompt,
+				temperature: 0.2,
+				maxOutputTokens: 200,
+			});
+			narrative = result.text.trim();
+		} catch (error) {
+			useLogger().warn("Narrative LLM call failed", {
+				insights: { organizationId, range, error },
+			});
+		}
+
+		if (!narrative) {
+			narrative = buildDeterministicNarrative(range, topInsights);
+			mergeWideEvent({ insights_narrative_fallback: true });
+		}
+
+		return { narrative };
+	},
+	{
+		expireInSec: NARRATIVE_CACHE_TTL_SECS,
+		prefix: "insights-narrative",
+	}
+);
+
 export const insights = new Elysia({ prefix: "/v1/insights" })
 	.derive(async ({ request }) => {
 		const session = await auth.api.getSession({ headers: request.headers });
-		return { user: session?.user ?? null };
+		return { user: session?.user ?? null, requestHeaders: request.headers };
 	})
 	.onBeforeHandle(({ user, set }) => {
 		if (!user) {
@@ -1005,6 +844,10 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 					type: analyticsInsights.type,
 					priority: analyticsInsights.priority,
 					changePercent: analyticsInsights.changePercent,
+					subjectKey: analyticsInsights.subjectKey,
+					sources: analyticsInsights.sources,
+					confidence: analyticsInsights.confidence,
+					impactSummary: analyticsInsights.impactSummary,
 					metrics: analyticsInsights.metrics,
 					createdAt: analyticsInsights.createdAt,
 					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
@@ -1036,6 +879,12 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 				type: r.type,
 				priority: r.priority,
 				changePercent: r.changePercent ?? undefined,
+				subjectKey: r.subjectKey,
+				sources:
+					(r.sources as Array<"web" | "product" | "ops" | "business"> | null) ??
+					[],
+				confidence: r.confidence,
+				impactSummary: r.impactSummary ?? undefined,
 				createdAt: r.createdAt.toISOString(),
 				currentPeriodFrom: r.currentPeriodFrom,
 				currentPeriodTo: r.currentPeriodTo,
@@ -1056,6 +905,78 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 				limit: t.Optional(t.String()),
 				offset: t.Optional(t.String()),
 				websiteId: t.Optional(t.String()),
+			}),
+		}
+	)
+	.get(
+		"/org-narrative",
+		async ({ query, user, set }) => {
+			const userId = user?.id;
+			if (!userId) {
+				return { success: false, error: "User ID required" };
+			}
+
+			const { organizationId, range } = query;
+			mergeWideEvent({
+				insights_narrative_org_id: organizationId,
+				insights_narrative_range: range,
+			});
+
+			const memberships = await db.query.member.findMany({
+				where: eq(member.userId, userId),
+				columns: { organizationId: true },
+			});
+
+			const orgIds = new Set(memberships.map((m) => m.organizationId));
+			if (!orgIds.has(organizationId)) {
+				mergeWideEvent({ insights_narrative_access: "denied" });
+				set.status = 403;
+				return { success: false, error: "Access denied to this organization" };
+			}
+
+			const rl = await rateLimit(
+				`insights:narrative:${organizationId}:${userId}`,
+				NARRATIVE_RATE_LIMIT,
+				NARRATIVE_RATE_WINDOW_SECS
+			);
+			const rlHeaders = getRateLimitHeaders(rl);
+			for (const [key, value] of Object.entries(rlHeaders)) {
+				set.headers[key] = value;
+			}
+			if (!rl.success) {
+				set.status = 429;
+				return {
+					success: false,
+					error: "Rate limit exceeded. Try again later.",
+				};
+			}
+
+			try {
+				const { narrative } = await generateNarrativeCached(
+					organizationId,
+					range
+				);
+				return {
+					success: true,
+					narrative,
+					generatedAt: new Date().toISOString(),
+				};
+			} catch (error) {
+				captureError(error, {
+					insights_narrative_org_id: organizationId,
+					insights_narrative_range: range,
+				});
+				useLogger().warn("Failed to generate org narrative", {
+					insights: { organizationId, range, error },
+				});
+				set.status = 500;
+				return { success: false, error: "Could not generate narrative" };
+			}
+		},
+		{
+			query: t.Object({
+				organizationId: t.String(),
+				range: t.Union([t.Literal("7d"), t.Literal("30d"), t.Literal("90d")]),
 			}),
 		}
 	)
@@ -1119,7 +1040,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 	)
 	.post(
 		"/ai",
-		async ({ body, user, set }) => {
+		async ({ body, user, set, requestHeaders }) => {
 			const userId = user?.id;
 			if (!userId) {
 				mergeWideEvent({ insights_ai_error: "missing_user_id" });
@@ -1216,7 +1137,8 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 							site.domain,
 							timezone,
 							period,
-							orgSites
+							orgSites,
+							requestHeaders
 						);
 						return results.map(
 							(insight): WebsiteInsight => ({
@@ -1236,12 +1158,14 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 				const seenInBatch = new Set<string>();
 				const sorted: WebsiteInsight[] = [];
 				for (const insight of merged) {
-					const key = insightDedupeKey(
-						insight.websiteId,
-						insight.type,
-						insight.sentiment,
-						insight.changePercent ?? null
-					);
+					const key = insightDedupeKey({
+						websiteId: insight.websiteId,
+						type: insight.type,
+						sentiment: insight.sentiment,
+						changePercent: insight.changePercent ?? null,
+						subjectKey: insight.subjectKey,
+						title: insight.title,
+					});
 					if (seenInBatch.has(key)) {
 						continue;
 					}
@@ -1273,6 +1197,10 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 						type: string;
 						priority: number;
 						changePercent: number | null;
+						subjectKey: string;
+						sources: Array<"web" | "product" | "ops" | "business">;
+						confidence: number;
+						impactSummary: string | null;
 						metrics: InsightMetricRow[] | null;
 						timezone: string;
 						currentPeriodFrom: string;
@@ -1282,12 +1210,14 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 					}[] = [];
 
 					for (const insight of sorted) {
-						const key = insightDedupeKey(
-							insight.websiteId,
-							insight.type,
-							insight.sentiment,
-							insight.changePercent ?? null
-						);
+						const key = insightDedupeKey({
+							websiteId: insight.websiteId,
+							type: insight.type,
+							sentiment: insight.sentiment,
+							changePercent: insight.changePercent ?? null,
+							subjectKey: insight.subjectKey,
+							title: insight.title,
+						});
 						const existingId = dedupeKeyToId.get(key);
 						if (existingId && insight.id === existingId) {
 							continue;
@@ -1305,6 +1235,10 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 							type: insight.type,
 							priority: insight.priority,
 							changePercent: insight.changePercent ?? null,
+							subjectKey: insight.subjectKey,
+							sources: insight.sources,
+							confidence: insight.confidence,
+							impactSummary: insight.impactSummary ?? null,
 							metrics: insight.metrics.length > 0 ? insight.metrics : null,
 							timezone,
 							currentPeriodFrom: period.current.from,
@@ -1329,12 +1263,14 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 							await db.insert(analyticsInsights).values(toInsert);
 						}
 						const toRefresh = sorted.filter((insight) => {
-							const key = insightDedupeKey(
-								insight.websiteId,
-								insight.type,
-								insight.sentiment,
-								insight.changePercent ?? null
-							);
+							const key = insightDedupeKey({
+								websiteId: insight.websiteId,
+								type: insight.type,
+								sentiment: insight.sentiment,
+								changePercent: insight.changePercent ?? null,
+								subjectKey: insight.subjectKey,
+								title: insight.title,
+							});
 							const existingId = dedupeKeyToId.get(key);
 							return existingId !== undefined && insight.id === existingId;
 						});
@@ -1352,6 +1288,10 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 										type: insight.type,
 										priority: insight.priority,
 										changePercent: insight.changePercent ?? null,
+										subjectKey: insight.subjectKey,
+										sources: insight.sources,
+										confidence: insight.confidence,
+										impactSummary: insight.impactSummary ?? null,
 										metrics:
 											insight.metrics.length > 0 ? insight.metrics : null,
 									})

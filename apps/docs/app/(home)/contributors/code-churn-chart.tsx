@@ -14,10 +14,10 @@ import { SciFiCard } from "@/components/scifi-card";
 import { cn } from "@/lib/utils";
 
 interface ProcessedCodeFrequency {
-	week: string;
 	additions: number;
-	deletions: number;
 	date: Date;
+	deletions: number;
+	week: string;
 }
 
 interface Props {
@@ -26,12 +26,12 @@ interface Props {
 
 interface CustomTooltipProps {
 	active?: boolean;
+	label?: string;
 	payload?: Array<{
 		value: number;
 		name: string;
 		color: string;
 	}>;
-	label?: string;
 }
 
 function CustomTooltip({ active, payload, label }: CustomTooltipProps) {

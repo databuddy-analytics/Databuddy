@@ -1,9 +1,9 @@
-import { DocsLayout } from "fumadocs-ui/layouts/docs";
-import type { ReactNode } from "react";
 import { baseOptions } from "@/app/layout.config";
 import CustomSidebar from "@/components/custom-sidebar";
 import { Navbar } from "@/components/navbar";
 import { source } from "@/lib/source";
+import { DocsLayout } from "fumadocs-ui/layouts/docs";
+import type { ReactNode } from "react";
 
 async function getGithubStars(): Promise<number | null> {
 	try {

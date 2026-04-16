@@ -42,10 +42,7 @@ export default function AlternativesHubPage() {
 
 			<div className="container mx-auto px-4 pt-8">
 				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<Link
-						className="transition-colors hover:text-foreground"
-						href="/"
-					>
+					<Link className="transition-colors hover:text-foreground" href="/">
 						Home
 					</Link>
 					<span>/</span>
@@ -53,7 +50,11 @@ export default function AlternativesHubPage() {
 				</div>
 			</div>
 
-			<Section className="overflow-hidden" customPaddings id="alternatives-hero">
+			<Section
+				className="overflow-hidden"
+				customPaddings
+				id="alternatives-hero"
+			>
 				<section className="relative w-full pt-12 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-20">
 					<div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
 						<div className="text-center">

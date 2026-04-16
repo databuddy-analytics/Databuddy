@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	CalendarIcon,
-	NoteIcon,
-	PencilIcon,
-	TagIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CalendarIcon } from "@phosphor-icons/react";
+import { NoteIcon } from "@phosphor-icons/react";
+import { PencilIcon } from "@phosphor-icons/react";
+import { TagIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,10 +22,10 @@ import type { Annotation } from "@/types/annotations";
 
 interface AnnotationsPanelProps {
 	annotations: Annotation[];
-	onEdit: (annotation: Annotation) => void;
-	onDelete: (id: string) => Promise<void>;
-	isDeleting?: boolean;
 	granularity?: "hourly" | "daily" | "weekly" | "monthly";
+	isDeleting?: boolean;
+	onDelete: (id: string) => Promise<void>;
+	onEdit: (annotation: Annotation) => void;
 }
 
 export function AnnotationsPanel({

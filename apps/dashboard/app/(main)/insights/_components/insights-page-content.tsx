@@ -1,23 +1,36 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	ArrowsDownUpIcon,
-	CaretDownIcon,
-	CheckCircleIcon,
-	FunnelIcon,
-	SparkleIcon,
-	TrashIcon,
-	WarningCircleIcon,
-	XIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
+import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
+import { CursorIcon } from "@phosphor-icons/react/dist/ssr/Cursor";
+import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
+import { SparkleIcon } from "@phosphor-icons/react/dist/ssr/Sparkle";
+import { TimerIcon } from "@phosphor-icons/react/dist/ssr/Timer";
+import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
+import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAtom, useAtomValue } from "jotai";
+import { atomWithStorage } from "jotai/utils";
+import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useInsightsFeed } from "@/app/(main)/insights/hooks/use-insights-feed";
 import { useInsightsLocalState } from "@/app/(main)/insights/hooks/use-insights-local-state";
 import { PageHeader } from "@/app/(main)/websites/_components/page-header";
+import { FaviconImage } from "@/components/analytics/favicon-image";
+import { StatCard } from "@/components/analytics/stat-card";
+import { EmptyState } from "@/components/empty-state";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { DataTable } from "@/components/table/data-table";
+import {
+	createGeoColumns,
+	createPageColumns,
+	createReferrerColumns,
+	type GeoEntry,
+	type PageEntry,
+	type ReferrerEntry,
+} from "@/components/table/rows";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -33,55 +46,125 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import { useWebsites } from "@/hooks/use-websites";
+import dayjs from "@/lib/dayjs";
+import { formatNumber } from "@/lib/formatters";
 import {
 	clearInsightsHistory,
 	INSIGHT_QUERY_KEYS,
 	type InsightsAiResponse,
 	type InsightsHistoryPage,
 } from "@/lib/insight-api";
-import type { Insight, InsightSeverity } from "@/lib/insight-types";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { InsightCard } from "./insight-card";
+import { insightsRangeAtom } from "../lib/time-range";
+import { CockpitNarrative } from "./cockpit-narrative";
+import { CockpitSignals } from "./cockpit-signals";
+import { TimeRangeSelector } from "./time-range-selector";
 
-type SeverityFilter = "all" | InsightSeverity;
-type SortMode = "priority" | "newest" | "change";
+const insightsFocusSiteAtom = atomWithStorage<string | null>(
+	"insights.focus-site",
+	null
+);
 
-const SEVERITY_OPTIONS: { value: SeverityFilter; label: string }[] = [
-	{ value: "all", label: "All severities" },
-	{ value: "critical", label: "Critical" },
-	{ value: "warning", label: "Warning" },
-	{ value: "info", label: "Info" },
-];
+function rangeToDateRange(range: "7d" | "30d" | "90d") {
+	const days = range === "7d" ? 7 : range === "30d" ? 30 : 90;
+	return {
+		start_date: dayjs()
+			.subtract(days - 1, "day")
+			.format("YYYY-MM-DD"),
+		end_date: dayjs().format("YYYY-MM-DD"),
+		granularity: "daily" as const,
+	};
+}
 
-const SORT_OPTIONS: { value: SortMode; label: string }[] = [
-	{ value: "priority", label: "Priority" },
-	{ value: "newest", label: "Newest" },
-	{ value: "change", label: "Biggest change" },
-];
+interface SummaryRow {
+	bounce_rate?: number;
+	median_session_duration?: number;
+	pageviews?: number;
+	sessions?: number;
+	unique_visitors?: number;
+}
 
-function sortInsights(items: Insight[], mode: SortMode): Insight[] {
-	const sorted = [...items];
-	switch (mode) {
-		case "priority":
-			return sorted.sort((a, b) => b.priority - a.priority);
-		case "newest":
-			return sorted.sort((a, b) => {
-				const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-				const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-				return bTime - aTime;
-			});
-		case "change":
-			return sorted.sort(
-				(a, b) =>
-					Math.abs(b.changePercent ?? 0) - Math.abs(a.changePercent ?? 0)
-			);
-		default:
-			return sorted;
+function clampBounceRate(v: unknown): number {
+	const n = Number(v ?? 0);
+	if (Number.isNaN(n)) {
+		return 0;
 	}
+	return Math.max(0, Math.min(100, n));
+}
+
+function formatDuration(value: number): string {
+	if (!value || value < 60) {
+		return `${Math.round(value || 0)}s`;
+	}
+	const minutes = Math.floor(value / 60);
+	const seconds = Math.round(value % 60);
+	return `${minutes}m ${seconds}s`;
+}
+
+interface FocusSitePickerProps {
+	onChange: (id: string) => void;
+	value: string | null;
+	websites:
+		| {
+				domain: string;
+				id: string;
+				name: string | null;
+		  }[]
+		| undefined;
+}
+
+function FocusSitePicker({ websites, value, onChange }: FocusSitePickerProps) {
+	const list = websites ?? [];
+	const selected = list.find((w) => w.id === value) ?? list[0];
+	if (!(selected && list.length > 1)) {
+		return null;
+	}
+	return (
+		<DropdownMenu>
+			<DropdownMenuTrigger asChild>
+				<Button
+					className="min-w-[180px] justify-between"
+					type="button"
+					variant="outline"
+				>
+					<span className="flex min-w-0 items-center gap-2">
+						<FaviconImage
+							className="shrink-0 rounded"
+							domain={selected.domain}
+							size={16}
+						/>
+						<span className="truncate font-medium text-sm">
+							{selected.name ?? selected.domain}
+						</span>
+					</span>
+					<CaretDownIcon className="ml-2 size-4 shrink-0" weight="fill" />
+				</Button>
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end" className="w-[240px]">
+				{list.map((site) => (
+					<DropdownMenuItem
+						className="gap-2"
+						key={site.id}
+						onClick={() => onChange(site.id)}
+					>
+						<FaviconImage
+							className="shrink-0 rounded"
+							domain={site.domain}
+							size={16}
+						/>
+						<span className="min-w-0 flex-1 truncate">
+							{site.name ?? site.domain}
+						</span>
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
+	);
 }
 
 export function InsightsPageContent() {
@@ -90,43 +173,121 @@ export function InsightsPageContent() {
 		useOrganizationsContext();
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
+	const { insights, isLoading, isRefreshing, refetch } = useInsightsFeed();
+
+	const range = useAtomValue(insightsRangeAtom);
+	const { websites, isLoading: websitesLoading } = useWebsites();
+	const [focusSiteId, setFocusSiteId] = useAtom(insightsFocusSiteAtom);
+
+	const effectiveSiteId = useMemo(() => {
+		if (!websites || websites.length === 0) {
+			return "";
+		}
+		if (focusSiteId && websites.some((w) => w.id === focusSiteId)) {
+			return focusSiteId;
+		}
+		return websites[0].id;
+	}, [focusSiteId, websites]);
+
+	const dateRange = useMemo(() => rangeToDateRange(range), [range]);
+
+	const queries = useMemo(
+		() => [
+			{
+				id: "cockpit-summary",
+				parameters: ["summary_metrics", "events_by_date"],
+				limit: 100,
+				granularity: dateRange.granularity,
+			},
+			{
+				id: "cockpit-pages",
+				parameters: ["top_pages"],
+				limit: 8,
+				granularity: dateRange.granularity,
+			},
+			{
+				id: "cockpit-referrers",
+				parameters: ["top_referrers"],
+				limit: 8,
+				granularity: dateRange.granularity,
+			},
+			{
+				id: "cockpit-geo",
+				parameters: ["country"],
+				limit: 8,
+				granularity: dateRange.granularity,
+			},
+		],
+		[dateRange.granularity]
+	);
+
 	const {
-		insights,
-		isLoading,
-		isRefreshing,
-		isError,
-		refetch,
-		fetchNextPage,
-		hasNextPage,
-		isFetchingNextPage,
-	} = useInsightsFeed();
+		getDataForQuery,
+		isLoading: cockpitLoading,
+		refetch: refetchCockpit,
+	} = useBatchDynamicQuery(effectiveSiteId, dateRange, queries, {
+		enabled: Boolean(effectiveSiteId),
+	});
+
+	const summary = (getDataForQuery("cockpit-summary", "summary_metrics") ??
+		[])[0] as SummaryRow | undefined;
+	const eventsByDate = (getDataForQuery("cockpit-summary", "events_by_date") ??
+		[]) as Record<string, unknown>[];
+	// DataTable requires name as a string or number, but ReferrerEntry inherits
+	// an optional name from ReferrerSourceCellData. The analytics pipeline
+	// always populates name, so narrow it here for the cockpit tables.
+	type CockpitReferrerEntry = ReferrerEntry & { name: string };
+
+	const topPages = (getDataForQuery("cockpit-pages", "top_pages") ??
+		[]) as PageEntry[];
+	const topReferrers = (getDataForQuery("cockpit-referrers", "top_referrers") ??
+		[]) as CockpitReferrerEntry[];
+	const topCountries = (getDataForQuery("cockpit-geo", "country") ??
+		[]) as GeoEntry[];
+
+	const miniCharts = useMemo(() => {
+		const build = (field: string, transform?: (value: number) => number) =>
+			eventsByDate.map((row) => ({
+				date: String(row.date ?? "").slice(0, 10),
+				value: transform
+					? transform(Number(row[field] ?? 0))
+					: Number(row[field] ?? 0),
+			}));
+		return {
+			visitors: build("visitors"),
+			sessions: build("sessions"),
+			pageviews: build("pageviews"),
+			bounce: build("bounce_rate", clampBounceRate),
+			duration: build("median_session_duration"),
+		};
+	}, [eventsByDate]);
+
+	const pageColumns = useMemo(() => createPageColumns(), []);
+	const referrerColumns = useMemo(
+		() => createReferrerColumns() as ColumnDef<CockpitReferrerEntry>[],
+		[]
+	);
+	const countryColumns = useMemo(
+		() => createGeoColumns({ type: "country" }),
+		[]
+	);
 
 	const insightIdsForVotes = useMemo(
 		() => insights.map((i) => i.id),
 		[insights]
 	);
 
-	const {
-		hydrated,
-		dismissedIdSet,
-		dismissAction,
-		clearAllDismissedAction,
-		feedbackById,
-		setFeedbackAction,
-	} = useInsightsLocalState(orgId, insightIdsForVotes);
+	const { clearAllDismissedAction } = useInsightsLocalState(
+		orgId,
+		insightIdsForVotes
+	);
 
-	const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
-	const [websiteFilter, setWebsiteFilter] = useState("all");
-	const [sortMode, setSortMode] = useState<SortMode>("priority");
-	const [showDismissed, setShowDismissed] = useState(false);
-	const [expandedId, setExpandedId] = useState<string | null>(null);
 	const [clearDialogOpen, setClearDialogOpen] = useState(false);
 
 	const clearInsightsMutation = useMutation({
 		mutationFn: () => clearInsightsHistory(orgId ?? ""),
 		onSuccess: async (data) => {
 			setClearDialogOpen(false);
-			setExpandedId(null);
 			clearAllDismissedAction();
 			if (orgId) {
 				const emptyAi: InsightsAiResponse = {
@@ -147,10 +308,6 @@ export function InsightsPageContent() {
 					pages: [emptyHistoryPage],
 					pageParams: [0],
 				});
-				queryClient.setQueryData<InsightsHistoryPage>(
-					[INSIGHT_QUERY_KEYS.history, orgId],
-					emptyHistoryPage
-				);
 				await queryClient.invalidateQueries({
 					queryKey: orpc.insights.getVotes.key(),
 				});
@@ -168,159 +325,46 @@ export function InsightsPageContent() {
 		},
 	});
 
-	const websites = useMemo(() => {
-		const map = new Map<string, string>();
-		for (const i of insights) {
-			if (!map.has(i.websiteId)) {
-				map.set(i.websiteId, i.websiteName ?? i.websiteDomain);
-			}
-		}
-		return [...map.entries()].map(([id, name]) => ({ id, name }));
-	}, [insights]);
+	const handleRefreshAll = useCallback(() => {
+		refetch();
+		refetchCockpit();
+	}, [refetch, refetchCockpit]);
 
-	const filteredInsights = useMemo(() => {
-		const filtered = insights.filter((i) => {
-			if (!showDismissed && dismissedIdSet.has(i.id)) {
-				return false;
-			}
-			if (severityFilter !== "all" && i.severity !== severityFilter) {
-				return false;
-			}
-			if (websiteFilter !== "all" && i.websiteId !== websiteFilter) {
-				return false;
-			}
-			return true;
-		});
-		return sortInsights(filtered, sortMode);
-	}, [
-		insights,
-		severityFilter,
-		websiteFilter,
-		dismissedIdSet,
-		showDismissed,
-		sortMode,
-	]);
-
-	const counts = useMemo(
-		() => ({
-			total: insights.length,
-			critical: insights.filter((i) => i.severity === "critical").length,
-			warning: insights.filter((i) => i.severity === "warning").length,
-			info: insights.filter((i) => i.severity === "info").length,
-		}),
-		[insights]
-	);
-
-	const controlsLocked =
-		isLoading || clearInsightsMutation.isPending || isFetchingNextPage;
-	const hasActiveFilters = severityFilter !== "all" || websiteFilter !== "all";
-
-	const clearFilters = () => {
-		setSeverityFilter("all");
-		setWebsiteFilter("all");
-	};
-
-	const selectedWebsiteName =
-		websiteFilter === "all"
-			? "All Websites"
-			: (websites.find((w) => w.id === websiteFilter)?.name ?? "All Websites");
-
-	const selectedSeverityLabel =
-		SEVERITY_OPTIONS.find((o) => o.value === severityFilter)?.label ??
-		"All severities";
-
-	const selectedSortLabel =
-		SORT_OPTIONS.find((o) => o.value === sortMode)?.label ?? "Priority";
-
-	const scrollRef = useRef<HTMLDivElement>(null);
-	const hasScrolledToHash = useRef(false);
-
-	const scrollToHashInsight = useCallback(() => {
-		if (typeof window === "undefined") {
-			return;
-		}
-		const raw = window.location.hash.slice(1);
-		if (!raw.startsWith("insight-")) {
-			return;
-		}
-		const el = document.getElementById(raw);
-		const container = scrollRef.current;
-		if (!(el && container)) {
-			return;
-		}
-		requestAnimationFrame(() => {
-			const containerRect = container.getBoundingClientRect();
-			const elRect = el.getBoundingClientRect();
-			const nextTop = container.scrollTop + (elRect.top - containerRect.top);
-			container.scrollTo({ behavior: "smooth", top: nextTop });
-			const targetId = raw.replace("insight-", "");
-			setExpandedId(targetId);
-		});
-	}, []);
-
-	useEffect(() => {
-		if (
-			hasScrolledToHash.current ||
-			!hydrated ||
-			isLoading ||
-			filteredInsights.length === 0
-		) {
-			return;
-		}
-		hasScrolledToHash.current = true;
-		scrollToHashInsight();
-	}, [hydrated, isLoading, filteredInsights.length, scrollToHashInsight]);
-
-	const showFilterBar = !(isLoading || isError) && insights.length > 0;
+	const hasNoWebsites =
+		!websitesLoading && websites !== undefined && websites.length === 0;
 
 	return (
 		<>
-			<div className="h-full overflow-y-auto" ref={scrollRef}>
+			<div
+				aria-busy={isLoading || cockpitLoading || websitesLoading}
+				className="h-full overflow-y-auto"
+			>
 				<PageHeader
 					count={isLoading ? undefined : insights.length}
-					description="Week-over-week AI analysis across all your websites"
+					description="Understand your business at a glance"
 					icon={<SparkleIcon weight="duotone" />}
 					right={
 						<div className="flex items-center gap-2">
-							{websites.length > 1 && (
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button
-											className="min-w-[140px] justify-between"
-											disabled={controlsLocked}
-											variant="outline"
-										>
-											<span className="truncate">{selectedWebsiteName}</span>
-											<CaretDownIcon className="ml-2 size-4" weight="fill" />
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end" className="w-[200px]">
-										<DropdownMenuItem onClick={() => setWebsiteFilter("all")}>
-											All Websites
-										</DropdownMenuItem>
-										<DropdownMenuSeparator />
-										{websites.map((w) => (
-											<DropdownMenuItem
-												key={w.id}
-												onClick={() => setWebsiteFilter(w.id)}
-											>
-												{w.name}
-											</DropdownMenuItem>
-										))}
-									</DropdownMenuContent>
-								</DropdownMenu>
-							)}
+							<FocusSitePicker
+								onChange={setFocusSiteId}
+								value={focusSiteId}
+								websites={websites}
+							/>
+							<TimeRangeSelector />
 							<Button
 								aria-label="Refresh insights"
-								disabled={isLoading}
-								onClick={() => refetch()}
+								disabled={isLoading || cockpitLoading}
+								onClick={handleRefreshAll}
 								size="icon"
 								type="button"
 								variant="outline"
 							>
 								<ArrowClockwiseIcon
 									aria-hidden
-									className={cn("size-4", isRefreshing && "animate-spin")}
+									className={cn(
+										"size-4",
+										(isRefreshing || cockpitLoading) && "animate-spin"
+									)}
 								/>
 							</Button>
 							<Button
@@ -337,183 +381,107 @@ export function InsightsPageContent() {
 					title="Insights"
 				/>
 
-				{showFilterBar && (
-					<div className="flex items-center gap-2 border-b px-4 py-2 sm:px-6">
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<button
-									className={cn(
-										"flex items-center gap-1.5 rounded px-2 py-1 font-medium text-xs transition-colors",
-										severityFilter === "all"
-											? "text-muted-foreground hover:text-foreground"
-											: "bg-primary/10 text-primary"
-									)}
-									type="button"
-								>
-									<FunnelIcon className="size-3.5" />
-									{selectedSeverityLabel}
-									<CaretDownIcon className="size-3" weight="fill" />
-								</button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="start">
-								{SEVERITY_OPTIONS.map((opt) => {
-									const count =
-										opt.value === "all" ? counts.total : counts[opt.value];
-									if (opt.value !== "all" && count === 0) {
-										return null;
-									}
-									return (
-										<DropdownMenuItem
-											key={opt.value}
-											onClick={() => setSeverityFilter(opt.value)}
-										>
-											<span className="flex-1">{opt.label}</span>
-											<span className="font-mono text-muted-foreground text-xs tabular-nums">
-												{count}
-											</span>
-										</DropdownMenuItem>
-									);
-								})}
-							</DropdownMenuContent>
-						</DropdownMenu>
+				{hasNoWebsites ? (
+					<EmptyOrgState />
+				) : (
+					<div className="space-y-3 p-4 sm:space-y-4">
+						<CockpitNarrative />
 
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<button
-									className="flex items-center gap-1.5 rounded px-2 py-1 font-medium text-muted-foreground text-xs transition-colors hover:text-foreground"
-									type="button"
-								>
-									<ArrowsDownUpIcon className="size-3.5" />
-									{selectedSortLabel}
-									<CaretDownIcon className="size-3" weight="fill" />
-								</button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="start">
-								{SORT_OPTIONS.map((opt) => (
-									<DropdownMenuItem
-										key={opt.value}
-										onClick={() => setSortMode(opt.value)}
-									>
-										{opt.label}
-									</DropdownMenuItem>
-								))}
-							</DropdownMenuContent>
-						</DropdownMenu>
-
-						{dismissedIdSet.size > 0 && (
-							<button
-								className={cn(
-									"text-xs transition-colors",
-									showDismissed
-										? "font-medium text-foreground"
-										: "text-muted-foreground hover:text-foreground"
-								)}
-								onClick={() => setShowDismissed((v) => !v)}
-								type="button"
-							>
-								{showDismissed
-									? "Hide dismissed"
-									: `Show dismissed (${dismissedIdSet.size})`}
-							</button>
-						)}
-
-						{hasActiveFilters && (
-							<button
-								className="ml-auto flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-								onClick={clearFilters}
-								type="button"
-							>
-								<XIcon className="size-3" />
-								Clear
-							</button>
-						)}
-					</div>
-				)}
-
-				{isLoading && (
-					<InsightsFetchStatusRow
-						description="Comparing week-over-week traffic, errors, and referrers"
-						title="Loading insights…"
-						variant="initial"
-					/>
-				)}
-
-				{!(isLoading || isError) && isRefreshing && (
-					<InsightsFetchStatusRow
-						description="Refreshing analysis from your data"
-						title="Updating insights…"
-						variant="refresh"
-					/>
-				)}
-
-				{!isLoading && isError && <ErrorState onRetryAction={refetch} />}
-
-				{!(isLoading || isError) && (
-					<>
-						{insights.length === 0 && !isRefreshing && <AllHealthyState />}
-
-						{filteredInsights.length > 0 &&
-							filteredInsights.map((insight) => (
-								<InsightCard
-									expanded={expandedId === insight.id}
-									feedbackVote={feedbackById[insight.id] ?? null}
-									insight={insight}
-									key={insight.id}
-									onDismissAction={() => dismissAction(insight.id)}
-									onFeedbackAction={(vote) =>
-										setFeedbackAction(insight.id, vote)
-									}
-									onToggleAction={() =>
-										setExpandedId((prev) =>
-											prev === insight.id ? null : insight.id
-										)
-									}
-								/>
-							))}
-
-						{insights.length > 0 && filteredInsights.length === 0 && (
-							<NoMatchState
-								onClearAction={clearFilters}
-								onShowDismissedAction={
-									dismissedIdSet.size > 0
-										? () => setShowDismissed(true)
-										: undefined
+						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
+							<StatCard
+								chartData={cockpitLoading ? undefined : miniCharts.visitors}
+								formatValue={formatNumber}
+								icon={UsersIcon}
+								id="cockpit-visitors"
+								isLoading={cockpitLoading}
+								showChart
+								title="Visitors"
+								value={
+									summary?.unique_visitors
+										? formatNumber(summary.unique_visitors)
+										: "0"
 								}
 							/>
-						)}
+							<StatCard
+								chartData={cockpitLoading ? undefined : miniCharts.sessions}
+								formatValue={formatNumber}
+								icon={ChartLineIcon}
+								id="cockpit-sessions"
+								isLoading={cockpitLoading}
+								showChart
+								title="Sessions"
+								value={summary?.sessions ? formatNumber(summary.sessions) : "0"}
+							/>
+							<StatCard
+								chartData={cockpitLoading ? undefined : miniCharts.pageviews}
+								formatValue={formatNumber}
+								icon={GlobeIcon}
+								id="cockpit-pageviews"
+								isLoading={cockpitLoading}
+								showChart
+								title="Pageviews"
+								value={
+									summary?.pageviews ? formatNumber(summary.pageviews) : "0"
+								}
+							/>
+							<StatCard
+								chartData={cockpitLoading ? undefined : miniCharts.bounce}
+								formatValue={(v) => `${v.toFixed(1)}%`}
+								icon={CursorIcon}
+								id="cockpit-bounce"
+								invertTrend
+								isLoading={cockpitLoading}
+								showChart
+								title="Bounce rate"
+								value={
+									summary?.bounce_rate == null
+										? "0%"
+										: `${clampBounceRate(summary.bounce_rate).toFixed(1)}%`
+								}
+							/>
+							<StatCard
+								chartData={cockpitLoading ? undefined : miniCharts.duration}
+								formatChartValue={formatDuration}
+								formatValue={formatDuration}
+								icon={TimerIcon}
+								id="cockpit-duration"
+								isLoading={cockpitLoading}
+								showChart
+								title="Session duration"
+								value={formatDuration(summary?.median_session_duration ?? 0)}
+							/>
+						</div>
 
-						{hasNextPage && (
-							<div className="flex justify-center border-b py-4">
-								<Button
-									disabled={isFetchingNextPage}
-									onClick={() => fetchNextPage()}
-									type="button"
-									variant="outline"
-								>
-									{isFetchingNextPage ? (
-										<>
-											<ArrowClockwiseIcon className="size-4 animate-spin" />
-											Loading…
-										</>
-									) : (
-										"Load more history"
-									)}
-								</Button>
-							</div>
-						)}
+						<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
+							<DataTable
+								columns={pageColumns}
+								data={topPages}
+								description="Most-visited pages"
+								isLoading={cockpitLoading}
+								minHeight={320}
+								title="Top pages"
+							/>
+							<DataTable
+								columns={referrerColumns}
+								data={topReferrers}
+								description="Where your traffic comes from"
+								isLoading={cockpitLoading}
+								minHeight={320}
+								title="Top referrers"
+							/>
+						</div>
 
-						{hydrated && dismissedIdSet.size > 0 && (
-							<div className="flex justify-center py-6">
-								<Button
-									onClick={clearAllDismissedAction}
-									type="button"
-									variant="ghost"
-								>
-									Clear all dismissed
-								</Button>
-							</div>
-						)}
-					</>
+						<DataTable
+							columns={countryColumns}
+							data={topCountries}
+							description="Audience by country"
+							isLoading={cockpitLoading}
+							minHeight={320}
+							title="Top countries"
+						/>
+
+						<CockpitSignals />
+					</div>
 				)}
 			</div>
 
@@ -551,112 +519,19 @@ export function InsightsPageContent() {
 	);
 }
 
-function InsightsFetchStatusRow({
-	title,
-	description,
-	variant,
-}: {
-	title: string;
-	description: string;
-	variant: "initial" | "refresh";
-}) {
+function EmptyOrgState() {
 	return (
-		<div
-			aria-live="polite"
-			className="flex h-10 shrink-0 items-center gap-2 border-b px-4 sm:px-6"
-			role="status"
-		>
-			{variant === "refresh" ? (
-				<ArrowClockwiseIcon
-					aria-hidden
-					className="size-4 shrink-0 animate-spin text-primary"
-				/>
-			) : (
-				<SparkleIcon
-					aria-hidden
-					className="size-4 shrink-0 animate-pulse text-primary"
-					weight="duotone"
-				/>
-			)}
-			<div className="min-w-0">
-				<p className="text-pretty font-medium text-foreground text-sm">
-					{title}
-				</p>
-				<p className="sr-only">{description}</p>
-			</div>
-		</div>
-	);
-}
-
-function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
-	return (
-		<div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
-				<WarningCircleIcon className="size-5 text-red-500" weight="duotone" />
-			</div>
-			<div className="space-y-1">
-				<p className="font-medium text-foreground">Couldn't load insights</p>
-				<p className="text-muted-foreground text-sm">
-					AI analysis timed out or failed. Try again.
-				</p>
-			</div>
-			<Button onClick={onRetryAction} size="sm" variant="outline">
-				<ArrowClockwiseIcon className="size-4" />
-				Retry
-			</Button>
-		</div>
-	);
-}
-
-function AllHealthyState() {
-	return (
-		<div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
-				<CheckCircleIcon className="size-5 text-emerald-500" weight="fill" />
-			</div>
-			<div className="space-y-1">
-				<p className="font-medium text-foreground">All systems healthy</p>
-				<p className="text-pretty text-muted-foreground text-sm">
-					No actionable insights detected across your websites this week
-				</p>
-			</div>
-		</div>
-	);
-}
-
-function NoMatchState({
-	onClearAction,
-	onShowDismissedAction,
-}: {
-	onClearAction: () => void;
-	onShowDismissedAction?: () => void;
-}) {
-	return (
-		<div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent">
-				<FunnelIcon className="size-5 text-muted-foreground" weight="duotone" />
-			</div>
-			<div className="space-y-1">
-				<p className="font-medium text-foreground">No matching insights</p>
-				<p className="text-muted-foreground text-sm">
-					Try adjusting your filters
-				</p>
-			</div>
-			<div className="flex flex-wrap items-center justify-center gap-2">
-				<Button onClick={onClearAction} size="sm" variant="outline">
-					Clear filters
-				</Button>
-				{onShowDismissedAction && (
-					<Button
-						onClick={onShowDismissedAction}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						Show dismissed
-					</Button>
-				)}
-			</div>
-		</div>
+		<EmptyState
+			action={{
+				label: "Go to websites",
+				onClick: () => {
+					window.location.href = "/websites";
+				},
+			}}
+			description="Add a website to see insights across your organization."
+			icon={<GlobeIcon weight="duotone" />}
+			title="No websites yet"
+			variant="minimal"
+		/>
 	);
 }

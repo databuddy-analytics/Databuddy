@@ -14,9 +14,9 @@ export interface Usage {
 	features: FeatureUsage[];
 }
 export interface CancelTarget {
+	currentPeriodEnd?: number;
 	id: string;
 	name: string;
-	currentPeriodEnd?: number;
 }
 
 export type { Customer, Invoice } from "autumn-js";
@@ -48,9 +48,7 @@ export function useBilling(refetch?: () => void) {
 		try {
 			await updateSubscription({
 				planId,
-				cancelAction: immediate
-					? "cancel_immediately"
-					: "cancel_end_of_cycle",
+				cancelAction: immediate ? "cancel_immediately" : "cancel_end_of_cycle",
 			});
 			toast.success(
 				immediate
@@ -140,8 +138,8 @@ export function useBillingData() {
 		() => ({
 			features: customer?.balances
 				? Object.values(customer.balances).map((bal) =>
-					calculateFeatureUsage(bal)
-				)
+						calculateFeatureUsage(bal)
+					)
 				: [],
 		}),
 		[customer?.balances]

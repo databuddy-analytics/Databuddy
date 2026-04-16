@@ -1,57 +1,57 @@
 export interface ComparisonFeature {
-	name: string;
-	databuddy: boolean;
-	competitor: boolean;
 	benefit: string;
 	category: "privacy" | "performance" | "features" | "pricing" | "technical";
+	competitor: boolean;
+	databuddy: boolean;
+	name: string;
 }
 
 export interface CompetitorInfo {
-	name: string;
-	slug: string;
-	description: string;
-	website: string;
-	tagline: string;
 	color: string;
+	description: string;
+	name: string;
 	pricing: {
 		starting: string;
 		note?: string;
 	};
+	slug: string;
+	tagline: string;
+	website: string;
 }
 
 export interface FaqItem {
-	question: string;
 	answer: string;
+	question: string;
 }
 
 export interface PricingTier {
-	pageviews: string;
 	competitor: string;
 	databuddy: string;
+	pageviews: string;
 }
 
 export interface MigrationSection {
-	heading: string;
-	steps: string[];
 	guideHref: string;
 	guideLabel: string;
+	heading: string;
+	steps: string[];
 }
 
 export interface ComparisonData {
 	competitor: CompetitorInfo;
+	faqs: FaqItem[];
 	features: ComparisonFeature[];
 	hero: {
 		title: string;
 		description: string;
 		cta: string;
 	};
+	migrationSection?: MigrationSection;
+	pricingTiers: PricingTier[];
 	seo: {
 		title: string;
 		description: string;
 	};
-	faqs: FaqItem[];
-	pricingTiers: PricingTier[];
-	migrationSection?: MigrationSection;
 }
 
 export const competitors: Record<string, ComparisonData> = {

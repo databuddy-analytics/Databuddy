@@ -1,73 +1,26 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { useFlags } from "@databuddy/sdk/react";
-import {
-	ListIcon,
-	MagnifyingGlassIcon,
-	MonitorIcon,
-	MoonIcon,
-	SignOutIcon,
-	SunIcon,
-} from "@phosphor-icons/react";
-import Link from "next/link";
-import type { ReadonlyURLSearchParams } from "next/navigation";
-import { usePathname, useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useCommandSearchOpenAction } from "@/components/ui/command-search";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useHasMounted } from "@/hooks/use-has-mounted";
-import { useMonitorsLight } from "@/hooks/use-monitors";
-import type { useAccordionStates } from "@/hooks/use-persistent-state";
-import { useWebsitesLight } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
+import { authClient } from "@databuddy/auth/client";
+import { ListIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { MonitorIcon } from "@phosphor-icons/react";
+import { MoonIcon } from "@phosphor-icons/react";
+import { SignOutIcon } from "@phosphor-icons/react";
+import { SunIcon } from "@phosphor-icons/react";
+import { useTheme } from "next-themes";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Branding } from "./logo";
-import { isNavItemActive } from "./navigation/nav-item-active";
-import {
-	categoryConfig,
-	createLoadingMonitorsNavigation,
-	createLoadingWebsitesNavigation,
-	createMonitorsNavigation,
-	createWebsitesNavigation,
-	filterCategoriesByFlags,
-	filterCategoriesForRoute,
-	getContextConfig,
-	getDefaultCategory,
-} from "./navigation/navigation-config";
-import { NavigationItem } from "./navigation/navigation-item";
-import { NavigationSection } from "./navigation/navigation-section";
-import type {
-	NavigationEntry,
-	NavigationItem as NavigationItemType,
-	NavigationSection as NavigationSectionType,
-} from "./navigation/types";
-
-interface MobileSidebarProps {
-	navigation: NavigationEntry[];
-	header: React.ReactNode;
-	currentWebsiteId?: string | null;
-	accordionStates: ReturnType<typeof useAccordionStates>;
-	searchParams: ReadonlyURLSearchParams;
-	selectedCategory?: string;
-	onCategoryChangeAction: (categoryId: string) => void;
-}
-
-const isNavigationSection = (
-	entry: NavigationEntry
-): entry is NavigationSectionType => {
-	return "items" in entry;
-};
-
-const isNavigationItem = (
-	entry: NavigationEntry
-): entry is NavigationItemType => {
-	return "href" in entry && !("items" in entry);
-};
+import { NavigationRenderer } from "./navigation/navigation-renderer";
+import { useSidebarNavigation } from "./sidebar-navigation-provider";
 
 function MobileThemeToggle() {
 	const { theme, setTheme } = useTheme();
@@ -106,74 +59,35 @@ function MobileThemeToggle() {
 	);
 }
 
-export function MobileSidebar({
-	navigation,
-	header,
-	currentWebsiteId,
-	accordionStates,
-	searchParams,
-	selectedCategory,
-	onCategoryChangeAction,
-}: MobileSidebarProps) {
+const getInitials = (
+	name: string | null | undefined,
+	email: string | null | undefined
+) => {
+	if (name) {
+		return name
+			.split(" ")
+			.map((n) => n.at(0))
+			.join("")
+			.toUpperCase()
+			.slice(0, 2);
+	}
+	return email?.at(0)?.toUpperCase() || "U";
+};
+
+export function MobileSidebar() {
 	const { data: session } = authClient.useSession();
 	const user = session?.user ?? null;
 
+	const { header, categories, activeCategory, setCategory, pathname } =
+		useSidebarNavigation();
+
 	const [isOpen, setIsOpen] = useState(false);
-	const pathname = usePathname();
 	const router = useRouter();
 	const openCommandSearchAction = useCommandSearchOpenAction();
-	const { getFlag } = useFlags();
-	const hasMounted = useHasMounted();
-
-	const { websites, isLoading: isLoadingWebsites } = useWebsitesLight({
-		enabled: user !== null,
-	});
-	const { monitors, isLoading: isLoadingMonitors } = useMonitorsLight({
-		enabled: user !== null,
-	});
 
 	useEffect(() => {
 		setIsOpen(false);
 	}, [pathname]);
-
-	const categories = useMemo(() => {
-		const baseConfig = getContextConfig(pathname);
-		const config =
-			baseConfig === categoryConfig.main
-				? {
-						...baseConfig,
-						navigationMap: {
-							...baseConfig.navigationMap,
-							home: (!hasMounted || isLoadingWebsites)
-								? createLoadingWebsitesNavigation()
-								: createWebsitesNavigation(websites),
-							monitors: (!hasMounted || isLoadingMonitors)
-								? createLoadingMonitorsNavigation()
-								: createMonitorsNavigation(monitors),
-						},
-					}
-				: baseConfig;
-
-		return filterCategoriesByFlags(
-			filterCategoriesForRoute(config.categories, pathname),
-			hasMounted,
-			getFlag
-		);
-	}, [
-		pathname,
-		websites,
-		isLoadingWebsites,
-		monitors,
-		isLoadingMonitors,
-		hasMounted,
-		getFlag,
-	]);
-
-	const defaultCategory = useMemo(
-		() => getDefaultCategory(pathname),
-		[pathname]
-	);
-	const activeCategory = selectedCategory || defaultCategory;
 
 	const handleSignOut = useCallback(async () => {
 		setIsOpen(false);
@@ -190,21 +104,6 @@ export function MobileSidebar({
 			},
 		});
 	}, [router]);
-
-	const getInitials = (
-		name: string | null | undefined,
-		email: string | null | undefined
-	) => {
-		if (name) {
-			return name
-				.split(" ")
-				.map((n) => n.at(0))
-				.join("")
-				.toUpperCase()
-				.slice(0, 2);
-		}
-		return email?.at(0)?.toUpperCase() || "U";
-	};
 
 	return (
 		<div className="md:hidden">
@@ -275,7 +174,7 @@ export function MobileSidebar({
 													: "text-sidebar-foreground/50 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
 											)}
 											key={category.id}
-											onClick={() => onCategoryChangeAction(category.id)}
+											onClick={() => setCategory(category.id)}
 											type="button"
 										>
 											<Icon
@@ -291,69 +190,7 @@ export function MobileSidebar({
 					) : null}
 
 					<ScrollArea className="flex-1">
-						<nav aria-label="Main navigation" className="flex flex-col">
-							{navigation.map((entry, idx) => {
-								if (isNavigationSection(entry)) {
-									return (
-										<NavigationSection
-											accordionStates={accordionStates}
-											className={cn(
-												navigation.length > 1 && idx === navigation.length - 1
-													? "border-t"
-													: idx === 0 && navigation.length < 2
-														? "border-b"
-														: idx !== 0 && navigation.length > 1
-															? "border-t"
-															: "border-transparent"
-											)}
-											currentWebsiteId={currentWebsiteId}
-											flag={entry.flag}
-											icon={entry.icon}
-											items={entry.items}
-											key={entry.title}
-											pathname={pathname}
-											searchParams={searchParams}
-											title={entry.title}
-										/>
-									);
-								}
-
-								if (isNavigationItem(entry)) {
-									return (
-										<div
-											className={cn(idx !== 0 && "border-t")}
-											key={entry.name}
-										>
-											<NavigationItem
-												alpha={entry.alpha}
-												badge={entry.badge}
-												currentWebsiteId={currentWebsiteId}
-												disabled={entry.disabled}
-												domain={entry.domain}
-												href={entry.href}
-												icon={entry.icon}
-												isActive={isNavItemActive(
-													entry,
-													pathname,
-													searchParams,
-													currentWebsiteId
-												)}
-												isExternal={entry.external}
-												isLocked={false}
-												isRootLevel={!!entry.rootLevel}
-												lockedPlanName={null}
-												name={entry.name}
-												production={entry.production}
-												sectionName="main"
-												tag={entry.tag}
-											/>
-										</div>
-									);
-								}
-
-								return null;
-							})}
-						</nav>
+						<NavigationRenderer />
 					</ScrollArea>
 
 					<div className="shrink-0 border-t bg-sidebar">

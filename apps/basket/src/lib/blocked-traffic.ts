@@ -1,4 +1,4 @@
-import type { BlockedTraffic } from "@databuddy/db";
+import type { BlockedTraffic } from "@databuddy/db/clickhouse/schema";
 import { runFork, send } from "@lib/producer";
 import { captureError } from "@lib/tracing";
 import { extractIpFromRequest, getGeo } from "@utils/ip-geo";

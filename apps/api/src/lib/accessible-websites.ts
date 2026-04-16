@@ -1,4 +1,5 @@
-import { db, eq, inArray, member, websites } from "@databuddy/db";
+import { db, eq, inArray } from "@databuddy/db";
+import { member, websites } from "@databuddy/db/schema";
 import {
 	type ApiKeyRow,
 	getAccessibleWebsiteIds,
@@ -6,16 +7,16 @@ import {
 } from "./api-key";
 
 export interface WebsiteSummary {
-	id: string;
-	name: string | null;
-	domain: string | null;
-	isPublic: boolean | null;
 	createdAt: Date | null;
+	domain: string | null;
+	id: string;
+	isPublic: boolean | null;
+	name: string | null;
 }
 
 export interface AccessibleWebsitesAuth {
-	user: { id: string; role?: string } | null;
 	apiKey: ApiKeyRow | null;
+	user: { id: string; role?: string } | null;
 }
 
 export async function getAccessibleWebsites(

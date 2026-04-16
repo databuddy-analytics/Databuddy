@@ -1,10 +1,4 @@
-/**
- * Custom Query Builder
- * Builds safe ClickHouse SQL from user-defined query configurations
- * All table/column names are validated against the schema whitelist
- */
-
-import { chQuery } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	ANALYTICS_TABLES,
 	getColumnDefinition,
@@ -23,7 +17,6 @@ import type {
 } from "@databuddy/shared/types/custom-query";
 import { useLogger } from "evlog/elysia";
 
-// Identifier validation for SQL injection prevention
 const IDENTIFIER_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/u;
 
 function containsSqlInjectionChars(str: string): boolean {
@@ -57,9 +50,6 @@ function isValidIdentifier(value: unknown): value is string {
 	return IDENTIFIER_PATTERN.test(value);
 }
 
-/**
- * Validation error for custom queries
- */
 export class CustomQueryValidationError extends Error {
 	field?: string;
 
@@ -70,9 +60,6 @@ export class CustomQueryValidationError extends Error {
 	}
 }
 
-/**
- * Map aggregate function to ClickHouse SQL
- */
 function aggregateToSQL(aggregate: AggregateFunction, field: string): string {
 	switch (aggregate) {
 		case "count":
@@ -94,9 +81,6 @@ function aggregateToSQL(aggregate: AggregateFunction, field: string): string {
 	}
 }
 
-/**
- * Map filter operator to ClickHouse SQL expression
- */
 function operatorToSQL(
 	field: string,
 	operator: CustomQueryOperator,
@@ -130,9 +114,6 @@ function operatorToSQL(
 	}
 }
 
-/**
- * Prepare filter value for parameterization
- */
 function prepareFilterValue(
 	operator: CustomQueryOperator,
 	value: string | number | (string | number)[]
@@ -152,9 +133,6 @@ function prepareFilterValue(
 	return value;
 }
 
-/**
- * Validate a SELECT expression
- */
 function validateSelect(select: CustomQuerySelect, tableName: string): void {
 	if (
 		select.field !== "*" &&
@@ -190,9 +168,6 @@ function validateSelect(select: CustomQuerySelect, tableName: string): void {
 	}
 }
 
-/**
- * Validate a filter condition
- */
 function validateFilter(filter: CustomQueryFilter, tableName: string): void {
 	if (
 		typeof filter.field !== "string" ||
@@ -213,9 +188,6 @@ function validateFilter(filter: CustomQueryFilter, tableName: string): void {
 	}
 }
 
-/**
- * Validate the entire query configuration
- */
 function validateQueryConfig(config: CustomQueryConfig): void {
 	if (typeof config.table !== "string" || !isValidTable(config.table)) {
 		const validTables = ANALYTICS_TABLES.map((table) => table.name).join(", ");
@@ -273,9 +245,6 @@ function validateQueryConfig(config: CustomQueryConfig): void {
 	}
 }
 
-/**
- * Build the SQL query from a validated configuration
- */
 function buildSQL(
 	config: CustomQueryConfig,
 	websiteId: string,
@@ -317,7 +286,6 @@ function buildSQL(
 		return `${sqlExpr} AS ${alias}`;
 	});
 
-	// Add GROUP BY fields to SELECT if present
 	if (config.groupBy && config.groupBy.length > 0) {
 		for (const field of config.groupBy) {
 			if (!selectExpressions.some((expr: string) => expr.includes(field))) {
@@ -326,7 +294,6 @@ function buildSQL(
 		}
 	}
 
-	// Build WHERE clause
 	const whereConditions: string[] = [
 		`${table.clientIdField} = {website_id:String}`,
 		`${table.primaryTimeField} >= parseDateTimeBestEffort({start_date:String}, {timezone:String})`,
@@ -344,13 +311,11 @@ function buildSQL(
 		}
 	}
 
-	// Build GROUP BY clause
 	const groupByClause =
 		config.groupBy && config.groupBy.length > 0
 			? `GROUP BY ${config.groupBy.join(", ")}`
 			: "";
 
-	// Build ORDER BY clause (order by first aggregate descending)
 	const firstAlias =
 		config.selects[0]?.alias ||
 		`${config.selects[0]?.aggregate}_${config.selects[0]?.field === "*" ? "all" : config.selects[0]?.field}`;
@@ -371,9 +336,6 @@ function buildSQL(
 	return { sql, params };
 }
 
-/**
- * Execute a custom query
- */
 export async function executeCustomQuery(
 	request: CustomQueryRequest,
 	websiteId: string
@@ -381,13 +343,11 @@ export async function executeCustomQuery(
 	const startTime = Date.now();
 
 	try {
-		// Validate the query configuration
 		validateQueryConfig(request.query);
 
 		const timezone = request.timezone || "UTC";
 		const limit = Math.max(1, Math.min(request.limit || 1000, 10_000));
 
-		// Build the SQL
 		const { sql, params } = buildSQL(
 			request.query,
 			websiteId,
@@ -397,7 +357,6 @@ export async function executeCustomQuery(
 			limit
 		);
 
-		// Execute the query with a timeout
 		const result = await chQuery<Record<string, unknown>>(sql, params);
 
 		return {

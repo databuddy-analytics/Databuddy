@@ -1,0 +1,78 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "extends": [
+    "ultracite/biome/core",
+    "ultracite/biome/react",
+    "ultracite/biome/next"
+  ],
+  "files": {
+    "includes": [
+      "!**/*.md",
+      "!**/*.test.ts",
+      "!**/*.spec.ts",
+      "!**/ui/**/*.tsx",
+      "!apps/dashboard/public/subdivisions.json"
+    ]
+  },
+  "javascript": {
+    "formatter": {
+      "indentStyle": "tab",
+      "indentWidth": 2
+    },
+    "globals": ["chrome"]
+  },
+  "overrides": [
+    {
+      "includes": ["apps/basket/**/*.ts", "apps/api/**/*.ts"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "useHookAtTopLevel": "off"
+          }
+        }
+      }
+    }
+  ],
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "off"
+      }
+    }
+  },
+  "linter": {
+    "rules": {
+      "suspicious": {
+        "noConsole": "off",
+        "noExplicitAny": "off",
+        "noEmptyBlockStatements": "off",
+        "noArrayIndexKey": "off",
+        "noDocumentCookie": "off"
+      },
+      "style": {
+        "noNestedTernary": "off",
+        "useFilenamingConvention": "off",
+        "noMagicNumbers": "off"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": "off"
+      },
+      "performance": {
+        "noImgElement": "off",
+        "noBarrelFile": "off"
+      },
+      "correctness": {
+        "useExhaustiveDependencies": "off"
+      },
+      "nursery": {
+        "noShadow": "off"
+      },
+      "a11y": {
+        "noStaticElementInteractions": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      }
+    }
+  }
+}

@@ -1,22 +1,23 @@
 "use client";
 
-import { ArrowClockwiseIcon as ArrowClockwise } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
-import { TargetIcon as Target } from "@phosphor-icons/react/dist/ssr/Target";
-import { TrendUpIcon as TrendUp } from "@phosphor-icons/react/dist/ssr/TrendUp";
-import { UsersIcon as Users } from "@phosphor-icons/react/dist/ssr/Users";
+import { ArrowClockwiseIcon as ArrowClockwise } from "@phosphor-icons/react";
+import { TargetIcon as Target } from "@phosphor-icons/react";
+import { TrendUpIcon as TrendUp } from "@phosphor-icons/react";
+import { UsersIcon as Users } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatNumber } from "@/lib/formatters";
 
 interface GoalAnalyticsProps {
-	isLoading: boolean;
-	error: Error | null;
 	data: any;
+	error: Error | null;
+	isLoading: boolean;
+	onRetry: () => void;
 	summaryStats: {
 		totalUsers: number;
 		conversionRate: number;
 		completions: number;
 	};
-	onRetry: () => void;
 }
 
 export function GoalAnalytics({
@@ -81,22 +82,11 @@ export function GoalAnalytics({
 		);
 	}
 
-	const formatNumber = (num: number) => {
-		if (num >= 1_000_000) {
-			return `${(num / 1_000_000).toFixed(1)}M`;
-		}
-		if (num >= 1000) {
-			return `${(num / 1000).toFixed(1)}K`;
-		}
-		return num.toLocaleString();
-	};
-
 	const formatPercentage = (num: number) => `${num.toFixed(1)}%`;
 
 	return (
 		<div className="space-y-4">
 			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-				{/* Total Users */}
 				<Card className="rounded">
 					<CardContent className="p-6">
 						<div className="flex items-center gap-3">
@@ -115,7 +105,6 @@ export function GoalAnalytics({
 					</CardContent>
 				</Card>
 
-				{/* Completions */}
 				<Card className="rounded">
 					<CardContent className="p-6">
 						<div className="flex items-center gap-3">
@@ -138,7 +127,6 @@ export function GoalAnalytics({
 					</CardContent>
 				</Card>
 
-				{/* Conversion Rate */}
 				<Card className="rounded">
 					<CardContent className="p-6">
 						<div className="flex items-center gap-3">
@@ -162,7 +150,6 @@ export function GoalAnalytics({
 				</Card>
 			</div>
 
-			{/* Goal Details */}
 			<Card className="rounded">
 				<CardHeader className="pb-3">
 					<CardTitle className="text-lg">Goal Performance</CardTitle>

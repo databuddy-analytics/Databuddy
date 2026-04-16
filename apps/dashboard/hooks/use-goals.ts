@@ -1,4 +1,5 @@
-import type { goals, InferInsertModel, InferSelectModel } from "@databuddy/db";
+import type { InferInsertModel, InferSelectModel } from "@databuddy/db";
+import type { goals } from "@databuddy/db/schema";
 import type { GoalFilter } from "@databuddy/shared/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -11,24 +12,24 @@ export type UpdateGoalData = Partial<InferInsertModel<typeof goals>>;
 
 // RPC input types matching the API schema exactly
 interface CreateGoalInput {
-	websiteId: string;
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
-	name: string;
 	description?: string | null;
 	filters?: GoalFilter[];
 	ignoreHistoricData?: boolean;
+	name: string;
+	target: string;
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
+	websiteId: string;
 }
 
 interface UpdateGoalInput {
-	id: string;
-	type?: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target?: string;
-	name?: string;
 	description?: string | null;
 	filters?: GoalFilter[];
+	id: string;
 	ignoreHistoricData?: boolean;
 	isActive?: boolean;
+	name?: string;
+	target?: string;
+	type?: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
 export function useGoals(websiteId: string, enabled = true) {

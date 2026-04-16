@@ -21,10 +21,12 @@ export function Footer() {
 					</h2>
 					<div className="flex items-center justify-center gap-3">
 						<SciFiButton asChild>
-							<a href="https://app.databuddy.cc/login">START FREE</a>
+							<a href="https://app.databuddy.cc/login">
+								START TRACKING FOR FREE
+							</a>
 						</SciFiButton>
 						<SciFiButton asChild>
-							<Link href="/contact">CONTACT US</Link>
+							<Link href="/contact">TALK TO THE TEAM</Link>
 						</SciFiButton>
 					</div>
 				</div>

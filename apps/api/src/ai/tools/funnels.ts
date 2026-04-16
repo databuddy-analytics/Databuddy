@@ -7,11 +7,8 @@ const logger = createToolLogger("Funnels Tools");
 
 export function createFunnelTools() {
 	const listFunnelsTool = tool({
-		description:
-			"List all funnels for a website. Returns funnels with their steps, filters, and metadata.",
-		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID to get funnels for"),
-		}),
+		description: "List funnels with steps, filters, metadata.",
+		inputSchema: z.object({ websiteId: z.string() }),
 		execute: async ({ websiteId }, options) => {
 			const context = getAppContext(options);
 			try {
@@ -34,45 +31,14 @@ export function createFunnelTools() {
 		},
 	});
 
-	const getFunnelByIdTool = tool({
-		description:
-			"Get a specific funnel by ID. Returns detailed information including steps, filters, and configuration.",
-		inputSchema: z.object({
-			id: z.string().describe("The funnel ID"),
-			websiteId: z.string().describe("The website ID"),
-		}),
-		execute: async ({ id, websiteId }, options) => {
-			const context = getAppContext(options);
-			try {
-				return await callRPCProcedure(
-					"funnels",
-					"getById",
-					{ id, websiteId },
-					context
-				);
-			} catch (error) {
-				logger.error("Failed to get funnel by ID", { id, websiteId, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve funnel. Please try again.");
-			}
-		},
-	});
-
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Get analytics data for a funnel. Returns conversion rates, drop-off points, and step-by-step metrics.",
+			"Funnel analytics: conversion rates, drop-offs, step metrics. Dates YYYY-MM-DD, default last 30d.",
 		inputSchema: z.object({
-			funnelId: z.string().describe("The funnel ID"),
-			websiteId: z.string().describe("The website ID"),
-			startDate: z
-				.string()
-				.optional()
-				.describe("Start date in YYYY-MM-DD format (defaults to 30 days ago)"),
-			endDate: z
-				.string()
-				.optional()
-				.describe("End date in YYYY-MM-DD format (defaults to today)"),
+			funnelId: z.string(),
+			websiteId: z.string(),
+			startDate: z.string().optional(),
+			endDate: z.string().optional(),
 		}),
 		execute: async ({ funnelId, websiteId, startDate, endDate }, options) => {
 			const context = getAppContext(options);
@@ -111,18 +77,12 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsByReferrerTool = tool({
 		description:
-			"Get funnel analytics broken down by referrer/traffic source. Shows which sources drive the best conversions.",
+			"Funnel analytics broken down by referrer/source. Shows which sources convert best.",
 		inputSchema: z.object({
-			funnelId: z.string().describe("The funnel ID"),
-			websiteId: z.string().describe("The website ID"),
-			startDate: z
-				.string()
-				.optional()
-				.describe("Start date in YYYY-MM-DD format (defaults to 30 days ago)"),
-			endDate: z
-				.string()
-				.optional()
-				.describe("End date in YYYY-MM-DD format (defaults to today)"),
+			funnelId: z.string(),
+			websiteId: z.string(),
+			startDate: z.string().optional(),
+			endDate: z.string().optional(),
 		}),
 		execute: async ({ funnelId, websiteId, startDate, endDate }, options) => {
 			const context = getAppContext(options);
@@ -163,74 +123,39 @@ export function createFunnelTools() {
 
 	const createFunnelTool = tool({
 		description:
-			"Create a new funnel to track a user journey. REQUIRES EXPLICIT USER CONFIRMATION before creating. Always show a preview first and ask the user to confirm before setting confirmed=true.",
+			"Create a funnel to track a user journey. 2-10 steps where target is a page path (PAGE_VIEW) or event name.",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			name: z
-				.string()
-				.min(1)
-				.max(100)
-				.describe("The funnel name (1-100 characters)"),
-			description: z
-				.string()
-				.optional()
-				.describe("Optional description of the funnel"),
+			websiteId: z.string(),
+			name: z.string().min(1).max(100),
+			description: z.string().optional(),
 			steps: z
 				.array(
 					z.object({
-						type: z
-							.enum(["PAGE_VIEW", "EVENT", "CUSTOM"])
-							.describe(
-								"Step type: PAGE_VIEW for page paths, EVENT for custom events"
-							),
-						target: z
-							.string()
-							.min(1)
-							.describe(
-								"Step target: page path (e.g., '/signup') or event name (e.g., 'button_click')"
-							),
-						name: z
-							.string()
-							.min(1)
-							.describe(
-								"Human-readable step name (e.g., 'Sign Up Page', 'Add to Cart')"
-							),
-						conditions: z
-							.record(z.string(), z.unknown())
-							.optional()
-							.describe("Optional conditions for the step"),
+						type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
+						target: z.string().min(1),
+						name: z.string().min(1),
+						conditions: z.record(z.string(), z.unknown()).optional(),
 					})
 				)
 				.min(2)
-				.max(10)
-				.describe(
-					"Array of funnel steps (minimum 2, maximum 10). Steps define the user journey path."
-				),
+				.max(10),
 			filters: z
 				.array(
 					z.object({
-						field: z.string().describe("Filter field name"),
-						operator: z
-							.enum(["equals", "contains", "not_equals", "in", "not_in"])
-							.describe("Filter operator"),
-						value: z
-							.union([z.string(), z.array(z.string())])
-							.describe("Filter value (string or array of strings)"),
+						field: z.string(),
+						operator: z.enum([
+							"equals",
+							"contains",
+							"not_equals",
+							"in",
+							"not_in",
+						]),
+						value: z.union([z.string(), z.array(z.string())]),
 					})
 				)
-				.optional()
-				.describe("Optional filters to apply to the funnel"),
-			ignoreHistoricData: z
-				.boolean()
-				.optional()
-				.describe(
-					"Whether to ignore historic data before funnel creation (default: false)"
-				),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms. When false, returns a preview and asks for confirmation."
-				),
+				.optional(),
+			ignoreHistoricData: z.boolean().optional(),
+			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
 		execute: async (
 			{
@@ -316,7 +241,6 @@ export function createFunnelTools() {
 
 	return {
 		list_funnels: listFunnelsTool,
-		get_funnel_by_id: getFunnelByIdTool,
 		get_funnel_analytics: getFunnelAnalyticsTool,
 		get_funnel_analytics_by_referrer: getFunnelAnalyticsByReferrerTool,
 		create_funnel: createFunnelTool,

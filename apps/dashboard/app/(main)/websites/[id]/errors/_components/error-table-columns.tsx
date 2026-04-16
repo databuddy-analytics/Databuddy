@@ -1,13 +1,12 @@
-import {
-	BugIcon,
-	MonitorIcon,
-	PhoneIcon,
-	TableIcon,
-} from "@phosphor-icons/react";
+import { BugIcon } from "@phosphor-icons/react";
+import { MonitorIcon } from "@phosphor-icons/react";
+import { PhoneIcon } from "@phosphor-icons/react";
+import { TableIcon } from "@phosphor-icons/react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { Badge } from "@/components/ui/badge";
+import { formatLocalTime } from "@/lib/time";
 import { getErrorTypeIcon } from "./error-icons";
-import { formatDateTime, getErrorCategory, getSeverityColor } from "./utils";
+import { getErrorCategory, getSeverityColor } from "./utils";
 
 interface CellInfo<T = unknown> {
 	getValue: () => T;
@@ -161,7 +160,7 @@ export const createErrorTypeColumns = () => [
 		header: "Last Occurrence",
 		cell: (info: CellInfo<string>) => {
 			const lastSeen = info.getValue();
-			const formatted = formatDateTime(lastSeen);
+			const formatted = formatLocalTime(lastSeen, "MMM D, YYYY HH:mm");
 			const now = new Date();
 			const lastSeenDate = new Date(lastSeen);
 			const diffHours = Math.floor(

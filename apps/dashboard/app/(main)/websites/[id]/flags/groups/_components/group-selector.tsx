@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	CheckIcon,
-	PlusIcon,
-	UsersThreeIcon,
-	XIcon,
-} from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "framer-motion";
+import { CheckIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { UsersThreeIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,7 +147,6 @@ export function GroupSelector({
 
 	return (
 		<div className="space-y-3">
-			{/* Selected groups pills */}
 			{selectedGroupObjects.length > 0 && (
 				<div className="flex flex-wrap gap-2">
 					<AnimatePresence mode="popLayout">
@@ -164,7 +161,6 @@ export function GroupSelector({
 				</div>
 			)}
 
-			{/* Add group button */}
 			<Popover onOpenChange={setIsOpen} open={isOpen}>
 				<PopoverTrigger asChild>
 					<Button

@@ -31,10 +31,10 @@ function getCountryName(code: Country): string {
 }
 
 interface PhoneInputProps {
-	value: string;
-	onChangeAction: (value: string) => void;
 	error?: boolean;
 	id?: string;
+	onChangeAction: (value: string) => void;
+	value: string;
 }
 
 export function PhoneInput({

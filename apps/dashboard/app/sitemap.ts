@@ -1,4 +1,5 @@
-import { and, db, eq, organization, uptimeSchedules } from "@databuddy/db";
+import { and, db, eq } from "@databuddy/db";
+import { organization, uptimeSchedules } from "@databuddy/db/schema";
 import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 import { APP_URL } from "@/lib/app-url";

@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	CheckCircleIcon,
-	CircleIcon,
-	PlusIcon,
-	XIcon,
-} from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "framer-motion";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { CircleIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,7 +61,6 @@ export function DependencySelector({
 
 	return (
 		<div className="space-y-2">
-			{/* Selected */}
 			{selectedFlags.length > 0 && (
 				<div className="flex flex-wrap gap-1.5">
 					<AnimatePresence mode="popLayout">
@@ -100,7 +97,6 @@ export function DependencySelector({
 				</div>
 			)}
 
-			{/* Add */}
 			{selectableFlags.length > 0 && (
 				<Popover onOpenChange={setIsOpen} open={isOpen}>
 					<PopoverTrigger asChild>

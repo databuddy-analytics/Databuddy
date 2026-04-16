@@ -1,25 +1,26 @@
 "use client";
 
-import { MapPinIcon } from "@phosphor-icons/react/dist/ssr/MapPin";
+import { MapPinIcon } from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { DeviceTypeCell } from "@/components/analytics";
 import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
 import { CountryFlag } from "@/components/icon";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
+import { formatNumber } from "@/lib/formatters";
 
 export interface SourceEntry {
-	name: string;
 	clicks: number;
+	domain?: string;
+	name: string;
 	percentage: number;
 	referrer?: string;
-	domain?: string;
 }
 
 export interface GeoEntry {
-	name: string;
+	clicks: number;
 	country_code: string;
 	country_name: string;
-	clicks: number;
+	name: string;
 	percentage: number;
 }
 
@@ -39,16 +40,6 @@ function extractDomain(referrer: string | undefined): string | undefined {
 	} catch {
 		return undefined;
 	}
-}
-
-function formatNumber(value: number): string {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
 }
 
 export function createReferrerColumns(): ColumnDef<SourceEntry>[] {

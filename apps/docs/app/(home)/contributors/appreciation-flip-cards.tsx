@@ -8,18 +8,18 @@ import { SciFiCard } from "@/components/scifi-card";
 
 interface Sponsor {
 	id: string;
-	name: string;
 	logo: string;
-	website: string;
+	name: string;
 	tier: "platinum" | "gold" | "silver" | "bronze";
+	website: string;
 }
 
 interface NonCodeContributor {
+	avatar?: string;
+	contribution: string;
 	id: string;
 	name: string;
 	role: string;
-	contribution: string;
-	avatar?: string;
 	website?: string;
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArchiveIcon } from "@phosphor-icons/react/dist/ssr/Archive";
+import { ArchiveIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
@@ -44,9 +44,10 @@ export default function ArchivePage() {
 	const [flagToDelete, setFlagToDelete] = useState<Flag | null>(null);
 	const queryClient = useQueryClient();
 
-	const { data: flags, isLoading: flagsLoading } = useQuery({
+	const { data: flagsRaw, isLoading: flagsLoading } = useQuery({
 		...orpc.flags.list.queryOptions({ input: { websiteId } }),
 	});
+	const flags = flagsRaw as Flag[] | undefined;
 
 	const archivedFlags = useMemo(
 		() => flags?.filter((f) => f.status === "archived") ?? [],
@@ -70,7 +71,7 @@ export default function ArchivePage() {
 	const handleDeleteFlagRequest = (flagId: string) => {
 		const flag = archivedFlags.find((f) => f.id === flagId);
 		if (flag) {
-			setFlagToDelete(flag as Flag);
+			setFlagToDelete(flag);
 		}
 	};
 
@@ -107,7 +108,7 @@ export default function ArchivePage() {
 						<div>
 							{archivedFlags.map((flag) => (
 								<ArchivedFlagItem
-									flag={flag as Flag}
+									flag={flag}
 									key={flag.id}
 									onDelete={handleDeleteFlagRequest}
 									onEdit={handleEditFlag}

@@ -19,38 +19,38 @@ const FULLSCREEN_HEIGHT = "h-[92vh]";
 const FULLSCREEN_WIDTH = "w-[92vw]";
 
 export interface TabConfig<TData> {
+	columns: ColumnDef<TData, unknown>[];
+	data: TData[];
+	getFilter?: (row: TData) => { field: string; value: string };
 	id: string;
 	label: string;
-	data: TData[];
-	columns: ColumnDef<TData, unknown>[];
-	getFilter?: (row: TData) => { field: string; value: string };
 }
 
 interface DataTableProps<TData extends { name: string | number }, TValue> {
-	data?: TData[] | undefined;
-	columns?: ColumnDef<TData, TValue>[];
-	tabs?: TabConfig<TData>[];
-	title: string;
-	description?: string;
-	isLoading?: boolean;
-	initialPageSize?: number;
-	emptyMessage?: string;
 	className?: string;
-	onRowClick?: (field: string, value: string | number) => void;
+	columns?: ColumnDef<TData, TValue>[];
+	data?: TData[] | undefined;
+	description?: string;
+	emptyMessage?: string;
+	expandable?: boolean;
+	getSubRows?: (row: TData) => TData[] | undefined;
+	initialPageSize?: number;
+	isLoading?: boolean;
+	minHeight?: string | number;
 	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
 	onRowAction?: (row: TData) => void;
-	minHeight?: string | number;
-	getSubRows?: (row: TData) => TData[] | undefined;
+	onRowClick?: (field: string, value: string | number) => void;
 	renderSubRow?: (
 		subRow: TData,
 		parentRow: TData,
 		index: number
 	) => React.ReactNode;
-	expandable?: boolean;
 	/** Native title on Share column; omit for default visitor-share explanation; pass "" to hide. */
 	shareColumnTooltip?: string;
 	/** Primary logo in the card header (e.g. overview screenshots). */
 	showBrandInHeader?: boolean;
+	tabs?: TabConfig<TData>[];
+	title: string;
 }
 
 const SKELETON_ROW_WIDTHS = ["60%", "45%", "55%", "35%", "50%"] as const;
@@ -159,7 +159,6 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 					className
 				)}
 			>
-				{/* Toolbar */}
 				<TableToolbar
 					borderBottom={!tabs}
 					description={description}
@@ -168,7 +167,6 @@ export function DataTable<TData extends { name: string | number }, TValue>({
 					title={title}
 				/>
 
-				{/* Tabs */}
 				{tabs && (
 					<TableTabs
 						activeTab={activeTab}

@@ -75,7 +75,9 @@ export function SubmitFeedbackDialog() {
 		!submitMutation.isPending;
 
 	const handleSubmitAction = () => {
-		if (!canSubmit) return;
+		if (!canSubmit) {
+			return;
+		}
 		submitMutation.mutate({
 			title: title.trim(),
 			description: description.trim(),

@@ -68,23 +68,39 @@ describe("evaluateStringRule", () => {
 	});
 
 	it("handles all operators correctly", () => {
-		expect(evaluateStringRule("user-123", rule("equals", "user-123"))).toBe(true);
+		expect(evaluateStringRule("user-123", rule("equals", "user-123"))).toBe(
+			true
+		);
 		expect(evaluateStringRule("other", rule("equals", "user-123"))).toBe(false);
 
-		expect(evaluateStringRule("user@company.com", rule("contains", "@company"))).toBe(true);
-		expect(evaluateStringRule("user@other.com", rule("contains", "@company"))).toBe(false);
+		expect(
+			evaluateStringRule("user@company.com", rule("contains", "@company"))
+		).toBe(true);
+		expect(
+			evaluateStringRule("user@other.com", rule("contains", "@company"))
+		).toBe(false);
 
-		expect(evaluateStringRule("admin-user", rule("starts_with", "admin-"))).toBe(true);
-		expect(evaluateStringRule("user-admin", rule("starts_with", "admin-"))).toBe(false);
+		expect(
+			evaluateStringRule("admin-user", rule("starts_with", "admin-"))
+		).toBe(true);
+		expect(
+			evaluateStringRule("user-admin", rule("starts_with", "admin-"))
+		).toBe(false);
 
-		expect(evaluateStringRule("file.com", rule("ends_with", ".com"))).toBe(true);
-		expect(evaluateStringRule("file.org", rule("ends_with", ".com"))).toBe(false);
+		expect(evaluateStringRule("file.com", rule("ends_with", ".com"))).toBe(
+			true
+		);
+		expect(evaluateStringRule("file.org", rule("ends_with", ".com"))).toBe(
+			false
+		);
 
 		const vals = ["a", "b", "c"];
 		expect(evaluateStringRule("b", rule("in", undefined, vals))).toBe(true);
 		expect(evaluateStringRule("z", rule("in", undefined, vals))).toBe(false);
 		expect(evaluateStringRule("z", rule("not_in", undefined, vals))).toBe(true);
-		expect(evaluateStringRule("a", rule("not_in", undefined, vals))).toBe(false);
+		expect(evaluateStringRule("a", rule("not_in", undefined, vals))).toBe(
+			false
+		);
 
 		expect(evaluateStringRule("test", rule("unknown_op", "test"))).toBe(false);
 		expect(evaluateStringRule(undefined, rule("equals", "test"))).toBe(false);
@@ -103,40 +119,120 @@ describe("evaluateStringRule - email pattern matching", () => {
 
 	it("handles ends_with for email domain patterns", () => {
 		// Common use case: target users by email domain
-		expect(evaluateStringRule("user@databuddy.cc", emailRule("ends_with", "@databuddy.cc"))).toBe(true);
-		expect(evaluateStringRule("admin@databuddy.cc", emailRule("ends_with", "@databuddy.cc"))).toBe(true);
-		expect(evaluateStringRule("user@other.com", emailRule("ends_with", "@databuddy.cc"))).toBe(false);
-		expect(evaluateStringRule("user@company.io", emailRule("ends_with", ".io"))).toBe(true);
-		expect(evaluateStringRule("user@company.com", emailRule("ends_with", ".io"))).toBe(false);
+		expect(
+			evaluateStringRule(
+				"user@databuddy.cc",
+				emailRule("ends_with", "@databuddy.cc")
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule(
+				"admin@databuddy.cc",
+				emailRule("ends_with", "@databuddy.cc")
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule(
+				"user@other.com",
+				emailRule("ends_with", "@databuddy.cc")
+			)
+		).toBe(false);
+		expect(
+			evaluateStringRule("user@company.io", emailRule("ends_with", ".io"))
+		).toBe(true);
+		expect(
+			evaluateStringRule("user@company.com", emailRule("ends_with", ".io"))
+		).toBe(false);
 	});
 
 	it("handles starts_with for email prefix patterns", () => {
 		// Target emails starting with a prefix (e.g., admin@, support@)
-		expect(evaluateStringRule("admin@company.com", emailRule("starts_with", "admin@"))).toBe(true);
-		expect(evaluateStringRule("admin@other.org", emailRule("starts_with", "admin@"))).toBe(true);
-		expect(evaluateStringRule("user@company.com", emailRule("starts_with", "admin@"))).toBe(false);
-		expect(evaluateStringRule("support@company.com", emailRule("starts_with", "support"))).toBe(true);
+		expect(
+			evaluateStringRule(
+				"admin@company.com",
+				emailRule("starts_with", "admin@")
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule("admin@other.org", emailRule("starts_with", "admin@"))
+		).toBe(true);
+		expect(
+			evaluateStringRule("user@company.com", emailRule("starts_with", "admin@"))
+		).toBe(false);
+		expect(
+			evaluateStringRule(
+				"support@company.com",
+				emailRule("starts_with", "support")
+			)
+		).toBe(true);
 	});
 
 	it("handles contains for partial email matching", () => {
 		// Target emails containing a substring
-		expect(evaluateStringRule("user@company.internal.com", emailRule("contains", "internal"))).toBe(true);
-		expect(evaluateStringRule("internal-user@company.com", emailRule("contains", "internal"))).toBe(true);
-		expect(evaluateStringRule("user@company.com", emailRule("contains", "internal"))).toBe(false);
-		expect(evaluateStringRule("beta-tester@company.com", emailRule("contains", "beta"))).toBe(true);
+		expect(
+			evaluateStringRule(
+				"user@company.internal.com",
+				emailRule("contains", "internal")
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule(
+				"internal-user@company.com",
+				emailRule("contains", "internal")
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule("user@company.com", emailRule("contains", "internal"))
+		).toBe(false);
+		expect(
+			evaluateStringRule(
+				"beta-tester@company.com",
+				emailRule("contains", "beta")
+			)
+		).toBe(true);
 	});
 
 	it("handles exact match for full email addresses", () => {
-		expect(evaluateStringRule("user@databuddy.cc", emailRule("equals", "user@databuddy.cc"))).toBe(true);
-		expect(evaluateStringRule("other@databuddy.cc", emailRule("equals", "user@databuddy.cc"))).toBe(false);
+		expect(
+			evaluateStringRule(
+				"user@databuddy.cc",
+				emailRule("equals", "user@databuddy.cc")
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule(
+				"other@databuddy.cc",
+				emailRule("equals", "user@databuddy.cc")
+			)
+		).toBe(false);
 	});
 
 	it("handles in/not_in for email lists", () => {
 		const allowedEmails = ["admin@co.com", "support@co.com", "dev@co.com"];
-		expect(evaluateStringRule("admin@co.com", emailRule("in", undefined, allowedEmails))).toBe(true);
-		expect(evaluateStringRule("random@co.com", emailRule("in", undefined, allowedEmails))).toBe(false);
-		expect(evaluateStringRule("random@co.com", emailRule("not_in", undefined, allowedEmails))).toBe(true);
-		expect(evaluateStringRule("admin@co.com", emailRule("not_in", undefined, allowedEmails))).toBe(false);
+		expect(
+			evaluateStringRule(
+				"admin@co.com",
+				emailRule("in", undefined, allowedEmails)
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule(
+				"random@co.com",
+				emailRule("in", undefined, allowedEmails)
+			)
+		).toBe(false);
+		expect(
+			evaluateStringRule(
+				"random@co.com",
+				emailRule("not_in", undefined, allowedEmails)
+			)
+		).toBe(true);
+		expect(
+			evaluateStringRule(
+				"admin@co.com",
+				emailRule("not_in", undefined, allowedEmails)
+			)
+		).toBe(false);
 	});
 });
 
@@ -157,9 +253,9 @@ describe("evaluateValueRule", () => {
 			true
 		);
 		expect(evaluateValueRule("basic", rule("contains", "pro"))).toBe(false);
-		expect(evaluateValueRule("pro", rule("in", undefined, ["pro", "ent"]))).toBe(
-			true
-		);
+		expect(
+			evaluateValueRule("pro", rule("in", undefined, ["pro", "ent"]))
+		).toBe(true);
 		expect(
 			evaluateValueRule("free", rule("in", undefined, ["pro", "ent"]))
 		).toBe(false);
@@ -223,12 +319,12 @@ describe("evaluateRule", () => {
 			batchValues: ["@databuddy.cc"],
 			enabled: true,
 		};
-		expect(evaluateRule(emailEndsWithRule, { email: "user@databuddy.cc" })).toBe(
-			true
-		);
-		expect(evaluateRule(emailEndsWithRule, { email: "admin@databuddy.cc" })).toBe(
-			true
-		);
+		expect(
+			evaluateRule(emailEndsWithRule, { email: "user@databuddy.cc" })
+		).toBe(true);
+		expect(
+			evaluateRule(emailEndsWithRule, { email: "admin@databuddy.cc" })
+		).toBe(true);
 		expect(evaluateRule(emailEndsWithRule, { email: "user@other.com" })).toBe(
 			false
 		);
@@ -336,7 +432,9 @@ describe("selectVariant", () => {
 		let heavyCount = 0;
 		for (let i = 0; i < SAMPLE_SIZE; i += 1) {
 			const r = selectVariant(flag, { userId: randomId() });
-			if (r.variant === "heavy") heavyCount += 1;
+			if (r.variant === "heavy") {
+				heavyCount += 1;
+			}
 		}
 
 		expect(heavyCount).toBeGreaterThan(SAMPLE_SIZE * 0.6);
@@ -646,9 +744,10 @@ describe("target groups", () => {
 			reason: "TARGET_GROUP_MATCH",
 		});
 
-		expect(
-			evaluateFlag(flag, { properties: { plan: "pro" } })
-		).toMatchObject({ enabled: true, reason: "TARGET_GROUP_MATCH" });
+		expect(evaluateFlag(flag, { properties: { plan: "pro" } })).toMatchObject({
+			enabled: true,
+			reason: "TARGET_GROUP_MATCH",
+		});
 
 		expect(evaluateFlag(flag, { email: "x@blocked.com" })).toMatchObject({
 			enabled: false,
@@ -708,12 +807,19 @@ describe("edge cases and stress tests", () => {
 				defaultValue: true,
 				rules: [{ type: "user_id", operator: "in", values: "not-array" }],
 			},
-			{ key: "x", type: "rollout", rolloutPercentage: null, defaultValue: false },
+			{
+				key: "x",
+				type: "rollout",
+				rolloutPercentage: null,
+				defaultValue: false,
+			},
 			{ key: "x", type: "multivariant", variants: null },
 		];
 
 		for (const flag of badFlags) {
-			expect(() => evaluateFlag(flag as never, { userId: "test" })).not.toThrow();
+			expect(() =>
+				evaluateFlag(flag as never, { userId: "test" })
+			).not.toThrow();
 		}
 	});
 

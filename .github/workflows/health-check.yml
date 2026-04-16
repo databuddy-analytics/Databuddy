@@ -3,8 +3,22 @@ name: Health Check
 on:
   push:
     branches: [main, staging]
+    paths:
+      - "*.Dockerfile"
+      - "apps/api/**"
+      - "apps/basket/**"
+      - ".github/workflows/health-check.yml"
   pull_request:
     branches: [main, staging]
+    paths:
+      - "*.Dockerfile"
+      - "apps/api/**"
+      - "apps/basket/**"
+      - ".github/workflows/health-check.yml"
+
+concurrency:
+  group: health-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   api-health-check:
@@ -71,7 +85,7 @@ jobs:
             -e IP_HASH_SALT=test-ip-hash-salt \
             -e UPSTASH_QSTASH_TOKEN=test-upstash-qstash-token \
             api:test
-          
+
           echo "Waiting for API to start..."
           for i in {1..30}; do
             if curl -sf http://localhost:3001/health > /dev/null 2>&1; then
@@ -86,14 +100,14 @@ jobs:
             fi
             sleep 1
           done
-          
+
           # Dependency probe (optional in CI — may 503 without Postgres/ClickHouse)
           STATUS_BODY=$(curl -sS http://localhost:3001/health/status || echo '{}')
           echo "API /health/status: $STATUS_BODY"
-          
+
           RESPONSE=$(curl -sf http://localhost:3001/health || echo '{}')
           echo "API /health: $RESPONSE"
-          
+
           # Verify simple liveness shape
           if echo "$RESPONSE" | grep -q '"status"'; then
             echo "API health endpoint structure is valid"
@@ -103,7 +117,7 @@ jobs:
             docker rm -f api-health-check
             exit 1
           fi
-          
+
           docker rm -f api-health-check
           echo "API health check passed!"
 
@@ -161,7 +175,7 @@ jobs:
             -e IP_HASH_SALT=test-ip-hash-salt \
             -e KAFKA_ENABLED=false \
             basket:test
-          
+
           echo "Waiting for Basket to start..."
           for i in {1..30}; do
             if curl -sf http://localhost:4000/health > /dev/null 2>&1; then
@@ -176,13 +190,13 @@ jobs:
             fi
             sleep 1
           done
-          
+
           STATUS_BODY=$(curl -sS http://localhost:4000/health/status || echo '{}')
           echo "Basket /health/status: $STATUS_BODY"
-          
+
           RESPONSE=$(curl -sf http://localhost:4000/health || echo '{}')
           echo "Basket /health: $RESPONSE"
-          
+
           if echo "$RESPONSE" | grep -q '"status"'; then
             echo "Basket health endpoint structure is valid"
           else
@@ -191,6 +205,6 @@ jobs:
             docker rm -f basket-health-check
             exit 1
           fi
-          
+
           docker rm -f basket-health-check
           echo "Basket health check passed!"

@@ -9,18 +9,18 @@ import type { z } from "zod";
 export const basketErrors = {
 	llmMissingApiKey: () =>
 		createError({
-			message: "Invalid or missing API key with write:llm scope",
+			message: "Invalid or missing API key with track:llm scope",
 			status: 401,
 			why: "No API key was sent or the key could not be resolved.",
-			fix: "Send a valid API key with the write:llm scope in the Authorization or x-api-key header.",
+			fix: "Send a valid API key with the track:llm scope in the Authorization or x-api-key header.",
 		}),
 
 	llmMissingScope: () =>
 		createError({
-			message: "Invalid or missing API key with write:llm scope",
+			message: "Invalid or missing API key with track:llm scope",
 			status: 401,
-			why: "The API key does not include the write:llm scope.",
-			fix: "Create or use an API key that includes the write:llm scope.",
+			why: "The API key does not include the track:llm scope.",
+			fix: "Create or use an API key that includes the track:llm scope.",
 		}),
 
 	llmMissingOwner: () =>
@@ -200,6 +200,26 @@ export function isIngestSchemaValidationError(
 		"issues" in error &&
 		Array.isArray((error as { issues: unknown }).issues)
 	);
+}
+
+/**
+ * Re-throw EvlogErrors; wrap anything else as a 500 and log it.
+ */
+export function rethrowOrWrap(
+	error: unknown,
+	log?: { error: (err: Error) => void }
+): never {
+	if (error instanceof EvlogError) {
+		throw error;
+	}
+	const err = error instanceof Error ? error : new Error(String(error));
+	log?.error(err);
+	throw createError({
+		message: "Internal server error",
+		status: 500,
+		why: process.env.NODE_ENV === "development" ? err.message : undefined,
+		cause: err,
+	});
 }
 
 export function buildBasketErrorPayload(

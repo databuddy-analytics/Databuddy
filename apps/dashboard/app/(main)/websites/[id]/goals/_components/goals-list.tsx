@@ -1,8 +1,8 @@
 "use client";
 
-import { TargetIcon } from "@phosphor-icons/react/dist/ssr/Target";
-import { List } from "@/components/ui/composables/list";
+import { TargetIcon } from "@phosphor-icons/react";
 import { EmptyState } from "@/components/empty-state";
+import { List } from "@/components/ui/composables/list";
 import type { Goal } from "@/hooks/use-goals";
 import { GoalItem } from "./goal-item";
 
@@ -17,13 +17,13 @@ type GoalAnalyticsRecord = Record<
 >;
 
 interface GoalsListProps {
+	analyticsLoading?: boolean;
+	goalAnalytics?: GoalAnalyticsRecord;
 	goals: Goal[];
 	isLoading: boolean;
-	onEditGoal: (goal: Goal) => void;
-	onDeleteGoal: (goalId: string) => void;
 	onCreateGoal: () => void;
-	goalAnalytics?: GoalAnalyticsRecord;
-	analyticsLoading?: boolean;
+	onDeleteGoal: (goalId: string) => void;
+	onEditGoal: (goal: Goal) => void;
 }
 
 const EMPTY_GOAL_ANALYTICS: GoalAnalyticsRecord = {};

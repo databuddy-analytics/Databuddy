@@ -26,6 +26,17 @@ const DID_PARAMS_KEY = "did_params";
 
 const HEADLESS_CHROME_REGEX = /\bHeadlessChrome\b/i;
 const PHANTOMJS_REGEX = /\bPhantomJS\b/i;
+const ANON_ID_PATTERN = /^anon_[0-9a-f-]{36}$/;
+const SESSION_ID_PATTERN = /^[0-9a-f-]{36}$/;
+
+interface QueueMeta<T> {
+	endpoint: string;
+	flushing: boolean;
+	onFailure?: (items: T[]) => void;
+	queryParam: string;
+	threshold: number;
+	timer: Timer | null;
+}
 
 export class BaseTracker {
 	options: TrackerOptions;
@@ -34,38 +45,31 @@ export class BaseTracker {
 	anonymousId?: string;
 	sessionId?: string;
 	sessionStartTime = 0;
-	lastActivityTime = Date.now();
 
 	pageCount = 0;
 	lastPath = "";
-	isInternalNavigation = false;
 	interactionCount = 0;
 	maxScrollDepth = 0;
 	pageStartTime = Date.now();
-	pageEngagementStart = Date.now();
 
-	private engagedTime = 0;
-	private engagementStartTime: number | null = null;
-	private isPageVisible = true;
+	private readonly cachedTimezone: string | undefined;
 
 	isLikelyBot = false;
-	hasInteracted = false;
 
 	batchQueue: BaseEvent[] = [];
-	batchTimer: Timer | null = null;
-	private isFlushing = false;
-
 	vitalsQueue: WebVitalEvent[] = [];
-	vitalsTimer: Timer | null = null;
-	private isFlushingVitals = false;
-
 	errorsQueue: ErrorSpan[] = [];
-	errorsTimer: Timer | null = null;
-	private isFlushingErrors = false;
-
 	trackQueue: TrackEventPayload[] = [];
-	trackTimer: Timer | null = null;
-	private isFlushingTrack = false;
+
+	// One meta entry per queue: holds timer/flushing state + flush config.
+	// Public flushBatch/flushVitals/flushErrors/flushTrack remain as thin
+	// wrappers for backwards-compat with tests + index.ts.
+	protected _meta!: {
+		batch: QueueMeta<BaseEvent>;
+		vitals: QueueMeta<WebVitalEvent>;
+		errors: QueueMeta<ErrorSpan>;
+		track: QueueMeta<TrackEventPayload>;
+	};
 
 	private readonly routeChangeCallbacks: Array<(path: string) => void> = [];
 
@@ -78,7 +82,6 @@ export class BaseTracker {
 
 		this.options = {
 			disabled: false,
-			trackPerformance: true,
 			samplingRate: 1.0,
 			enableRetries: true,
 			maxRetries: 3,
@@ -105,6 +108,42 @@ export class BaseTracker {
 			initialRetryDelay: this.options.initialRetryDelay ?? 500,
 		});
 
+		this._meta = {
+			batch: {
+				timer: null,
+				flushing: false,
+				endpoint: "/batch",
+				queryParam: "client_id",
+				threshold: this.options.batchSize || 10,
+				onFailure: (items) => {
+					for (const evt of items) {
+						this.send({ ...evt, isForceSend: true });
+					}
+				},
+			},
+			vitals: {
+				timer: null,
+				flushing: false,
+				endpoint: "/vitals",
+				queryParam: "client_id",
+				threshold: 6,
+			},
+			errors: {
+				timer: null,
+				flushing: false,
+				endpoint: "/errors",
+				queryParam: "client_id",
+				threshold: 10,
+			},
+			track: {
+				timer: null,
+				flushing: false,
+				endpoint: "/track",
+				queryParam: "website_id",
+				threshold: 10,
+			},
+		};
+
 		if (this.isServer()) {
 			return;
 		}
@@ -114,11 +153,14 @@ export class BaseTracker {
 			logger.log("Bot detected, tracking might be filtered");
 		}
 
+		try {
+			this.cachedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		} catch {}
+
 		this.anonymousId = this.getOrCreateAnonymousId();
 		this.sessionId = this.getOrCreateSessionId();
 		this.sessionStartTime = this.getSessionStartTime();
 		this.refreshUrlParams();
-		this.setupBotDetection();
 		logger.log("Tracker initialized", this.options);
 	}
 
@@ -150,19 +192,6 @@ export class BaseTracker {
 		);
 	}
 
-	setupBotDetection() {
-		if (this.isServer()) {
-			return;
-		}
-
-		const handler = () => {
-			this.hasInteracted = true;
-		};
-		for (const event of ["mousemove", "scroll", "keydown"]) {
-			window.addEventListener(event, handler, { once: true, passive: true });
-		}
-	}
-
 	getOrCreateAnonymousId(): string {
 		if (this.isServer()) {
 			return this.generateAnonymousId();
@@ -170,7 +199,7 @@ export class BaseTracker {
 
 		const urlParams = new URLSearchParams(window.location.search);
 		const anonId = urlParams.get("anonId");
-		if (anonId) {
+		if (anonId && ANON_ID_PATTERN.test(anonId)) {
 			localStorage.setItem("did", anonId);
 			return anonId;
 		}
@@ -196,7 +225,7 @@ export class BaseTracker {
 
 		const urlParams = new URLSearchParams(window.location.search);
 		const sessionIdFromUrl = urlParams.get("sessionId");
-		if (sessionIdFromUrl) {
+		if (sessionIdFromUrl && SESSION_ID_PATTERN.test(sessionIdFromUrl)) {
 			sessionStorage.setItem("did_session", sessionIdFromUrl);
 			sessionStorage.setItem("did_session_timestamp", Date.now().toString());
 			return sessionIdFromUrl;
@@ -356,11 +385,6 @@ export class BaseTracker {
 			height = undefined;
 		}
 
-		let timezone: string | undefined;
-		try {
-			timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		} catch {}
-
 		return {
 			path:
 				window.location.origin +
@@ -370,7 +394,7 @@ export class BaseTracker {
 			title: document.title,
 			referrer: document.referrer || "direct",
 			viewport_size: width && height ? `${width}x${height}` : undefined,
-			timezone,
+			timezone: this.cachedTimezone,
 			language: navigator.language,
 			...this.urlParams,
 		};
@@ -401,144 +425,84 @@ export class BaseTracker {
 		);
 	}
 
-	addToBatch(event: BaseEvent): Promise<void> {
-		this.batchQueue.push(event);
-		if (this.batchTimer === null) {
-			this.batchTimer = setTimeout(
-				() => this.flushBatch(),
+	private _enqueue<T>(queue: T[], meta: QueueMeta<T>, item: T): void {
+		queue.push(item);
+		if (meta.timer === null) {
+			meta.timer = setTimeout(
+				() => this._flushQueue(queue, meta),
 				this.options.batchTimeout
 			);
 		}
-		if (this.batchQueue.length >= (this.options.batchSize || 10)) {
-			this.flushBatch();
+		if (queue.length >= meta.threshold) {
+			this._flushQueue(queue, meta);
 		}
-		return Promise.resolve();
 	}
 
-	async flushBatch() {
-		if (this.batchTimer) {
-			clearTimeout(this.batchTimer);
-			this.batchTimer = null;
+	private async _flushQueue<T>(
+		queue: T[],
+		meta: QueueMeta<T>
+	): Promise<unknown> {
+		if (meta.flushing) {
+			return;
 		}
-		if (this.batchQueue.length === 0 || this.isFlushing) {
+		if (meta.timer) {
+			clearTimeout(meta.timer);
+			meta.timer = null;
+		}
+		if (queue.length === 0) {
 			return;
 		}
 
-		this.isFlushing = true;
-		const batchEvents = [...this.batchQueue];
-		this.batchQueue = [];
+		meta.flushing = true;
+		const items = queue.slice();
+		queue.length = 0;
 
 		try {
 			return await this.api.fetch(
-				"/batch",
-				batchEvents,
+				meta.endpoint,
+				items,
 				{ keepalive: true },
-				{ client_id: this.options.clientId }
+				{ [meta.queryParam]: this.options.clientId }
 			);
-		} catch (_error) {
-			for (const evt of batchEvents) {
-				this.send({ ...evt, isForceSend: true });
-			}
+		} catch {
+			meta.onFailure?.(items);
 			return null;
 		} finally {
-			this.isFlushing = false;
+			meta.flushing = false;
 		}
+	}
+
+	addToBatch(event: BaseEvent): Promise<void> {
+		this._enqueue(this.batchQueue, this._meta.batch, event);
+		return Promise.resolve();
+	}
+
+	flushBatch() {
+		return this._flushQueue(this.batchQueue, this._meta.batch);
 	}
 
 	sendVital(event: WebVitalEvent): Promise<void> {
 		if (this.shouldSkipTracking()) {
 			return Promise.resolve();
 		}
-		return this.addToVitalsQueue(event);
-	}
-
-	addToVitalsQueue(event: WebVitalEvent): Promise<void> {
-		this.vitalsQueue.push(event);
-		if (this.vitalsTimer === null) {
-			this.vitalsTimer = setTimeout(
-				() => this.flushVitals(),
-				this.options.batchTimeout
-			);
-		}
-		if (this.vitalsQueue.length >= 6) {
-			this.flushVitals();
-		}
+		this._enqueue(this.vitalsQueue, this._meta.vitals, event);
 		return Promise.resolve();
 	}
 
-	async flushVitals() {
-		if (this.vitalsTimer) {
-			clearTimeout(this.vitalsTimer);
-			this.vitalsTimer = null;
-		}
-		if (this.vitalsQueue.length === 0 || this.isFlushingVitals) {
-			return;
-		}
-
-		this.isFlushingVitals = true;
-		const vitals = [...this.vitalsQueue];
-		this.vitalsQueue = [];
-
-		try {
-			return await this.api.fetch(
-				"/vitals",
-				vitals,
-				{ keepalive: true },
-				{ client_id: this.options.clientId }
-			);
-		} catch {
-			return null;
-		} finally {
-			this.isFlushingVitals = false;
-		}
+	flushVitals() {
+		return this._flushQueue(this.vitalsQueue, this._meta.vitals);
 	}
 
 	sendError(error: ErrorSpan): Promise<void> {
 		if (this.shouldSkipTracking()) {
 			return Promise.resolve();
 		}
-		return this.addToErrorsQueue(error);
-	}
-
-	addToErrorsQueue(error: ErrorSpan): Promise<void> {
-		this.errorsQueue.push(error);
-		if (this.errorsTimer === null) {
-			this.errorsTimer = setTimeout(
-				() => this.flushErrors(),
-				this.options.batchTimeout
-			);
-		}
-		if (this.errorsQueue.length >= 10) {
-			this.flushErrors();
-		}
+		this._enqueue(this.errorsQueue, this._meta.errors, error);
 		return Promise.resolve();
 	}
 
-	async flushErrors() {
-		if (this.errorsTimer) {
-			clearTimeout(this.errorsTimer);
-			this.errorsTimer = null;
-		}
-		if (this.errorsQueue.length === 0 || this.isFlushingErrors) {
-			return;
-		}
-
-		this.isFlushingErrors = true;
-		const errors = [...this.errorsQueue];
-		this.errorsQueue = [];
-
-		try {
-			return await this.api.fetch(
-				"/errors",
-				errors,
-				{ keepalive: true },
-				{ client_id: this.options.clientId }
-			);
-		} catch {
-			return null;
-		} finally {
-			this.isFlushingErrors = false;
-		}
+	flushErrors() {
+		return this._flushQueue(this.errorsQueue, this._meta.errors);
 	}
 
 	trackEvent(
@@ -559,48 +523,12 @@ export class BaseTracker {
 			source: "browser",
 		};
 
-		this.trackQueue.push(event);
-
-		if (this.trackTimer === null) {
-			this.trackTimer = setTimeout(
-				() => this.flushTrack(),
-				this.options.batchTimeout
-			);
-		}
-
-		if (this.trackQueue.length >= 10) {
-			this.flushTrack();
-		}
-
+		this._enqueue(this.trackQueue, this._meta.track, event);
 		return Promise.resolve();
 	}
 
-	async flushTrack() {
-		if (this.trackTimer) {
-			clearTimeout(this.trackTimer);
-			this.trackTimer = null;
-		}
-
-		if (this.trackQueue.length === 0 || this.isFlushingTrack) {
-			return;
-		}
-
-		this.isFlushingTrack = true;
-		const events = [...this.trackQueue];
-		this.trackQueue = [];
-
-		try {
-			return await this.api.fetch(
-				"/track",
-				events,
-				{ keepalive: true },
-				{ website_id: this.options.clientId }
-			);
-		} catch {
-			return null;
-		} finally {
-			this.isFlushingTrack = false;
-		}
+	flushTrack() {
+		return this._flushQueue(this.trackQueue, this._meta.track);
 	}
 
 	sendBeacon(data: unknown, endpoint = "/vitals"): boolean {
@@ -642,41 +570,5 @@ export class BaseTracker {
 				callback(path);
 			} catch {}
 		}
-	}
-
-	startEngagement(): void {
-		if (this.engagementStartTime === null) {
-			this.engagementStartTime = Date.now();
-			this.isPageVisible = true;
-		}
-	}
-
-	pauseEngagement(): void {
-		if (this.engagementStartTime !== null) {
-			this.engagedTime += Date.now() - this.engagementStartTime;
-			this.engagementStartTime = null;
-			this.isPageVisible = false;
-		}
-	}
-
-	getEngagedTime(): number {
-		let total = this.engagedTime;
-		if (this.engagementStartTime !== null) {
-			total += Date.now() - this.engagementStartTime;
-		}
-		return total;
-	}
-
-	getEngagedTimeSeconds(): number {
-		return Math.round(this.getEngagedTime() / 1000);
-	}
-
-	resetEngagement(): void {
-		this.engagedTime = 0;
-		this.engagementStartTime = this.isPageVisible ? Date.now() : null;
-	}
-
-	getIsPageVisible(): boolean {
-		return this.isPageVisible;
 	}
 }

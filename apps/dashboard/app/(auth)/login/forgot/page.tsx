@@ -1,12 +1,10 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import {
-	ArrowLeftIcon,
-	EyeIcon,
-	EyeSlashIcon,
-	SpinnerIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { EyeSlashIcon } from "@phosphor-icons/react";
+import { SpinnerIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useState } from "react";

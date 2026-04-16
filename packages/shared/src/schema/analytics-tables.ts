@@ -10,27 +10,27 @@
 export type ColumnType = "string" | "number" | "datetime" | "boolean" | "array";
 
 export interface TableColumn {
-	name: string;
-	type: ColumnType;
-	nullable: boolean;
-	label: string;
-	description?: string;
 	/** Can use SUM, AVG, MAX, MIN on this field */
 	aggregatable: boolean;
+	description?: string;
 	/** Can use in WHERE clause */
 	filterable: boolean;
+	label: string;
+	name: string;
+	nullable: boolean;
+	type: ColumnType;
 }
 
 export interface TableDefinition {
-	name: string;
-	database: "analytics" | "uptime" | "observability";
-	label: string;
-	description: string;
-	columns: TableColumn[];
-	/** Field used for date range filtering */
-	primaryTimeField: string;
 	/** Field used for website scoping */
 	clientIdField: string;
+	columns: TableColumn[];
+	database: "analytics" | "uptime" | "observability";
+	description: string;
+	label: string;
+	name: string;
+	/** Field used for date range filtering */
+	primaryTimeField: string;
 }
 
 // Helper to create columns with common defaults

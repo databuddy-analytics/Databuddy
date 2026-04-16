@@ -2,12 +2,12 @@ import { CaretDownIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 interface CollapsibleSectionProps {
-	icon: React.ComponentType<{ size?: number; weight?: "duotone" | "fill" }>;
-	title: string;
 	badge?: number | boolean;
+	children: React.ReactNode;
+	icon: React.ComponentType<{ size?: number; weight?: "duotone" | "fill" }>;
 	isExpanded: boolean;
 	onToggleAction: () => void;
-	children: React.ReactNode;
+	title: string;
 }
 
 export function CollapsibleSection({

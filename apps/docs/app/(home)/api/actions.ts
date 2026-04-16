@@ -13,9 +13,9 @@ export interface QueryConfigWithMeta extends QueryConfig {
 }
 
 interface QueryTypesResponse {
+	configs: Record<string, QueryConfigWithMeta>;
 	success: boolean;
 	types: string[];
-	configs: Record<string, QueryConfigWithMeta>;
 }
 
 const API_BASE_URL =

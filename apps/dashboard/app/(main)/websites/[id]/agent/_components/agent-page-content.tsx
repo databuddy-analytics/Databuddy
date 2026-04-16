@@ -1,28 +1,40 @@
 "use client";
 
-import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowRight";
-import { BrainIcon } from "@phosphor-icons/react/dist/ssr/Brain";
-import { ChartBarIcon } from "@phosphor-icons/react/dist/ssr/ChartBar";
-import { LightningIcon } from "@phosphor-icons/react/dist/ssr/Lightning";
-import { TableIcon } from "@phosphor-icons/react/dist/ssr/Table";
-import { useSetAtom } from "jotai";
-import { useSearchParams } from "next/navigation";
+import {
+	ArrowRightIcon,
+	BrainIcon,
+	ChartBarIcon,
+	LightningIcon,
+	SparkleIcon,
+	TableIcon,
+} from "@phosphor-icons/react";
+import { useQuery } from "@tanstack/react-query";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import {
 	Conversation,
 	ConversationContent,
-	ConversationEmptyState,
 	ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
+import {
+	useBillingContext,
+	useUsageFeature,
+} from "@/components/providers/billing-provider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useChat } from "@/contexts/chat-context";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useChat, useChatLoading } from "@/contexts/chat-context";
+import { useWebsite } from "@/hooks/use-websites";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { agentInputAtom } from "./agent-atoms";
-import { AgentChatProvider } from "./agent-chat-context";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
 import { ChatHistory } from "./chat-history";
-import { setLastChatId, useChatList } from "./hooks/use-chat-db";
+import { setLastChatId } from "./hooks/use-chat-db";
 import { NewChatButton } from "./new-chat-button";
 
 interface AgentPageContentProps {
@@ -30,55 +42,28 @@ interface AgentPageContentProps {
 	websiteId: string;
 }
 
-const SUGGESTED_PROMPTS = [
-	{
-		text: "Analyze my traffic trends and find anomalies",
-		icon: ChartBarIcon,
-		category: "Analysis",
-	},
-	{
-		text: "What's causing my bounce rate to increase?",
-		icon: BrainIcon,
-		category: "Insights",
-	},
-	{
-		text: "Generate a weekly performance report",
-		icon: TableIcon,
-		category: "Reports",
-	},
-	{
-		text: "Find my best converting traffic sources",
-		icon: LightningIcon,
-		category: "Discovery",
-	},
-];
+const FALLBACK_ICONS = [
+	ChartBarIcon,
+	BrainIcon,
+	TableIcon,
+	LightningIcon,
+] as const;
 
 export function AgentPageContent({ chatId, websiteId }: AgentPageContentProps) {
 	useEffect(() => {
 		setLastChatId(websiteId, chatId);
 	}, [websiteId, chatId]);
-	return (
-		<AgentChatProvider chatId={chatId}>
-			<AgentPageContentInner chatId={chatId} websiteId={websiteId} />
-		</AgentChatProvider>
-	);
-}
 
-function AgentPageContentInner({
-	chatId,
-	websiteId,
-}: {
-	chatId: string;
-	websiteId: string;
-}) {
-	const setInputValue = useSetAtom(agentInputAtom);
 	const { messages, sendMessage } = useChat();
+	const { isRestoring } = useChatLoading();
+	const { data: website } = useWebsite(websiteId);
 	const searchParams = useSearchParams();
-	const { saveChat } = useChatList(websiteId);
+	const router = useRouter();
+	const pathname = usePathname();
 	const autoSentRef = useRef(false);
 
 	useEffect(() => {
-		if (autoSentRef.current) {
+		if (autoSentRef.current || isRestoring) {
 			return;
 		}
 		const prompt = searchParams.get("prompt");
@@ -87,64 +72,77 @@ function AgentPageContentInner({
 		}
 
 		autoSentRef.current = true;
-		saveChat({ id: chatId, websiteId, title: prompt.slice(0, 100) });
 		sendMessage({ text: prompt });
-	}, [searchParams, messages.length, chatId, websiteId, saveChat, sendMessage]);
+		// Strip ?prompt= so reloading or sharing the URL doesn't re-send.
+		router.replace(pathname);
+	}, [
+		searchParams,
+		messages.length,
+		sendMessage,
+		router,
+		pathname,
+		isRestoring,
+	]);
 
 	const hasMessages = messages.length > 0;
+	const domain = website?.domain ?? null;
+
+	const launchPrompt = (text: string) => {
+		sendMessage({ text });
+	};
 
 	return (
 		<div className="relative flex flex-1 overflow-hidden">
-			<div
-				className={cn(
-					"flex flex-1 flex-col overflow-hidden",
-					"transition-all duration-300 ease-in-out"
-				)}
-			>
-				<div className="relative z-10 bg-sidebar-accent">
-					<div className="flex h-12 items-center gap-3 border-b px-3 sm:h-12 sm:px-3">
-						<div className="rounded-lg bg-sidebar/80 p-1.5 shadow-sm ring-1 ring-sidebar-border/50">
-							<Avatar className="size-8">
-								<AvatarImage alt="Databunny avatar" src="/databunny.webp" />
-								<AvatarFallback className="bg-primary/10 font-semibold text-primary">
-									DB
-								</AvatarFallback>
-							</Avatar>
-						</div>
-						<div className="min-w-0 flex-1 space-y-0.5">
-							<div className="flex items-center gap-2">
-								<h1 className="truncate font-semibold text-sidebar-accent-foreground text-sm">
-									Databunny
-								</h1>
-								<span className="rounded border border-border/50 bg-accent px-1.5 py-0.5 text-[10px] text-foreground/60 uppercase">
-									Alpha
-								</span>
-							</div>
-							<p className="truncate text-sidebar-accent-foreground/70 text-xs">
-								Analytics co-pilot with instant answers and guided insights.
-							</p>
-						</div>
-						<div className="flex shrink-0 items-center gap-1.5">
-							<ChatHistory />
-							<NewChatButton />
-						</div>
+			<div className="flex flex-1 flex-col overflow-hidden">
+				<header className="flex h-12 shrink-0 items-center gap-2.5 border-b bg-background px-4">
+					<div className="flex min-w-0 flex-1 items-center gap-2.5">
+						<Avatar className="size-6 rounded">
+							<AvatarImage alt="Databunny avatar" src="/databunny.webp" />
+							<AvatarFallback className="rounded bg-primary/10 font-semibold text-[10px] text-primary">
+								DB
+							</AvatarFallback>
+						</Avatar>
+						<h1 className="truncate font-semibold text-foreground text-sm">
+							Databunny
+						</h1>
+						<span className="rounded border border-border/60 px-1.5 py-px font-medium text-[10px] text-muted-foreground uppercase">
+							Alpha
+						</span>
 					</div>
-				</div>
+					<div className="flex shrink-0 items-center gap-1">
+						<AgentCreditBalance />
+						<span aria-hidden className="mx-1 h-4 w-px bg-border/60" />
+						<ChatHistory />
+						<NewChatButton />
+					</div>
+				</header>
 
-				<Conversation className="flex-1">
-					<ConversationContent className="mx-auto w-full max-w-4xl">
-						{hasMessages ? (
-							<AgentMessages />
-						) : (
-							<ConversationEmptyState>
-								<WelcomeState onPromptSelect={setInputValue} />
-							</ConversationEmptyState>
-						)}
+				<Conversation className="flex-1 overscroll-none">
+					<ConversationContent
+						className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-4 py-6"
+						scrollClassName="overscroll-none"
+					>
+						{(() => {
+							if (isRestoring) {
+								return <ConversationLoadingSkeleton />;
+							}
+							if (hasMessages) {
+								return <AgentMessages />;
+							}
+							return (
+								<div className="flex flex-1 items-center justify-center">
+									<WelcomeState
+										domain={domain}
+										onPromptSelect={launchPrompt}
+										websiteId={websiteId}
+									/>
+								</div>
+							);
+						})()}
+						<AgentInput />
 					</ConversationContent>
 					<ConversationScrollButton />
 				</Conversation>
-
-				<AgentInput />
 			</div>
 		</div>
 	);
@@ -152,70 +150,229 @@ function AgentPageContentInner({
 
 function WelcomeState({
 	onPromptSelect,
+	websiteId,
+	domain,
 }: {
 	onPromptSelect: (text: string) => void;
+	websiteId: string;
+	domain: string | null;
 }) {
+	const { data: prompts, isLoading } = useQuery({
+		...orpc.agentChats.suggestedPrompts.queryOptions({
+			input: { websiteId },
+		}),
+		staleTime: 5 * 60 * 1000,
+	});
+
 	return (
-		<div className="min-h-[400px] space-y-6 py-8">
-			<div className="flex flex-col items-center justify-center">
-				<Avatar className="size-10">
+		<div className="w-full space-y-6">
+			<div className="flex flex-col items-center gap-3">
+				<Avatar className="size-10 rounded">
 					<AvatarImage alt="Databunny avatar" src="/databunny.webp" />
-					<AvatarFallback className="bg-primary/10 font-semibold text-primary">
+					<AvatarFallback className="rounded bg-primary/10 font-semibold text-primary text-xs">
 						DB
 					</AvatarFallback>
 				</Avatar>
 
-				<div className="max-w-md space-y-2 text-center">
-					<h3 className="font-semibold text-xl">Meet Databunny</h3>
-					<p className="text-balance text-foreground/60 text-sm leading-relaxed">
-						Databunny explores your analytics, uncovers patterns, and surfaces
-						actionable insights without you babysitting every step.
+				<div className="space-y-1 text-center">
+					<h3 className="text-balance font-semibold text-lg">Meet Databunny</h3>
+					<p className="text-pretty text-muted-foreground text-sm">
+						Ask anything about{" "}
+						<span className="font-medium text-foreground">
+							{domain ?? "your"}
+						</span>
+						's analytics.
 					</p>
 				</div>
 			</div>
 
-			<div className="flex flex-wrap justify-center gap-2">
-				{[
-					"Deep Analysis",
-					"Pattern Detection",
-					"Anomaly Alerts",
-					"Auto Reports",
-				].map((capability) => (
-					<span
-						className="rounded border border-border/50 bg-accent px-3 py-1 text-foreground/70 text-xs"
-						key={capability}
-					>
-						{capability}
-					</span>
-				))}
+			<div className="grid gap-2 sm:grid-cols-2">
+				{isLoading || !prompts
+					? SKELETON_WIDTHS.map((widthClass) => (
+							<SuggestionSkeleton key={widthClass} widthClass={widthClass} />
+						))
+					: prompts.map((item, idx) => {
+							const Icon =
+								item.source === "insight"
+									? SparkleIcon
+									: (FALLBACK_ICONS[idx] ?? FALLBACK_ICONS[0]);
+							return (
+								<button
+									className={cn(
+										"group flex items-start gap-3 rounded border border-border/60 bg-card p-3 text-left",
+										"transition-colors hover:border-border hover:bg-accent/40"
+									)}
+									key={`${item.source}-${item.label}`}
+									onClick={() => onPromptSelect(item.prompt)}
+									type="button"
+								>
+									<div
+										className={cn(
+											"flex size-7 shrink-0 items-center justify-center rounded",
+											item.source === "insight"
+												? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+												: "bg-accent/60 text-muted-foreground"
+										)}
+									>
+										<Icon className="size-3.5" weight="duotone" />
+									</div>
+									<div className="min-w-0 flex-1">
+										<p className="line-clamp-2 text-sm leading-tight">
+											{item.label}
+										</p>
+										<p className="mt-0.5 text-muted-foreground text-xs">
+											{item.source === "insight"
+												? "From your insights"
+												: "Suggested"}
+										</p>
+									</div>
+									<ArrowRightIcon className="mt-0.5 size-3.5 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
+								</button>
+							);
+						})}
 			</div>
+		</div>
+	);
+}
 
-			<div className="grid max-w-4xl gap-2 sm:grid-cols-2">
-				{SUGGESTED_PROMPTS.map((prompt) => (
+function AgentCreditBalance() {
+	const { balance, limit, unlimited } = useUsageFeature("agent_credits");
+	const { refetch, isLoading } = useBillingContext();
+	const { status } = useChat();
+	const router = useRouter();
+	const prevStatusRef = useRef(status);
+
+	useEffect(() => {
+		const prev = prevStatusRef.current;
+		prevStatusRef.current = status;
+		const justFinished =
+			(prev === "streaming" || prev === "submitted") &&
+			(status === "ready" || status === "error");
+		if (!justFinished) {
+			return;
+		}
+		const timer = setTimeout(() => refetch(), 1500);
+		return () => clearTimeout(timer);
+	}, [status, refetch]);
+
+	if (isLoading) {
+		return <Skeleton className="h-6 w-20 rounded" />;
+	}
+
+	if (unlimited) {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
 					<button
-						className={cn(
-							"group flex items-start gap-3 rounded border border-dashed p-3 text-left",
-							"transition-all hover:border-solid hover:bg-accent/30",
-							"disabled:cursor-not-allowed disabled:opacity-50"
-						)}
-						key={prompt.text}
-						onClick={() => onPromptSelect(prompt.text)}
+						className="flex items-center gap-1 rounded border border-border/60 bg-card px-2 py-0.5 text-muted-foreground text-xs transition-colors hover:border-border hover:text-foreground"
+						onClick={() => router.push("/billing")}
 						type="button"
 					>
-						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-accent/50">
-							<prompt.icon
-								className="size-4 text-foreground/60"
-								weight="duotone"
-							/>
-						</div>
-						<div className="min-w-0 flex-1">
-							<p className="text-sm">{prompt.text}</p>
-							<p className="text-foreground/50 text-xs">{prompt.category}</p>
-						</div>
-						<ArrowRightIcon className="size-4 shrink-0 text-transparent transition-all group-hover:text-foreground/50" />
+						<SparkleIcon className="size-3" weight="duotone" />
+						<span className="font-medium tabular-nums">∞ credits</span>
 					</button>
-				))}
+				</TooltipTrigger>
+				<TooltipContent>Unlimited agent credits on your plan</TooltipContent>
+			</Tooltip>
+		);
+	}
+
+	const isEmpty = balance <= 0;
+	const isLow = !isEmpty && limit > 0 && balance / limit < 0.2;
+
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					className={cn(
+						"flex items-center gap-1 rounded border px-2 py-0.5 text-xs transition-colors",
+						isEmpty &&
+							"border-destructive/40 bg-destructive/5 text-destructive hover:border-destructive/60",
+						isLow &&
+							"border-amber-500/40 bg-amber-500/5 text-amber-600 hover:border-amber-500/60 dark:text-amber-400",
+						!(isEmpty || isLow) &&
+							"border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground"
+					)}
+					onClick={() => router.push("/billing")}
+					type="button"
+				>
+					<SparkleIcon className="size-3" weight="duotone" />
+					<span className="font-medium tabular-nums">
+						{balance.toLocaleString()} / {limit.toLocaleString()}
+					</span>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent>
+				{isEmpty
+					? "Out of agent credits — click to upgrade"
+					: `${balance.toLocaleString()} of ${limit.toLocaleString()} agent credits remaining this month`}
+			</TooltipContent>
+		</Tooltip>
+	);
+}
+
+function SuggestionSkeleton({ widthClass }: { widthClass: string }) {
+	return (
+		<div
+			aria-hidden
+			className="flex items-start gap-3 rounded border border-border/60 bg-card p-3"
+		>
+			<Skeleton className="size-7 shrink-0 rounded" />
+			<div className="min-w-0 flex-1 space-y-1.5">
+				<Skeleton className="h-3.5 w-full rounded-sm" />
+				<Skeleton className={cn("h-3.5 rounded-sm", widthClass)} />
+				<Skeleton className="mt-1 h-2.5 w-20 rounded-sm" />
 			</div>
+			<Skeleton className="mt-1 size-3.5 shrink-0 rounded-sm opacity-50" />
+		</div>
+	);
+}
+
+// Pre-baked widths so the skeleton doesn't all line up — feels more natural
+// while still being layout-stable.
+const SKELETON_WIDTHS = ["w-3/5", "w-4/5", "w-2/3", "w-1/2"] as const;
+
+function ConversationLoadingSkeleton() {
+	return (
+		<div aria-hidden className="flex w-full flex-col gap-6 py-2">
+			<MessageSkeleton align="end" widthClass="w-2/5" />
+			<MessageSkeleton align="start" lines={3} widthClass="w-11/12" />
+			<MessageSkeleton align="end" widthClass="w-1/3" />
+			<MessageSkeleton align="start" lines={2} widthClass="w-10/12" />
+		</div>
+	);
+}
+
+const ASSISTANT_LINE_KEYS = ["a", "b", "c", "d"] as const;
+
+function MessageSkeleton({
+	align,
+	lines = 1,
+	widthClass,
+}: {
+	align: "start" | "end";
+	lines?: number;
+	widthClass: string;
+}) {
+	if (align === "end") {
+		return (
+			<div className="flex justify-end">
+				<Skeleton className={cn("h-9 max-w-[60%] rounded", widthClass)} />
+			</div>
+		);
+	}
+	const lineKeys = ASSISTANT_LINE_KEYS.slice(0, lines);
+	return (
+		<div className="flex w-full flex-col gap-2">
+			{lineKeys.map((lineKey, idx) => (
+				<Skeleton
+					className={cn(
+						"h-3.5 rounded-sm",
+						idx === lineKeys.length - 1 ? widthClass : "w-full"
+					)}
+					key={lineKey}
+				/>
+			))}
 		</div>
 	);
 }

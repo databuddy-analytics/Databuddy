@@ -5,8 +5,8 @@ import {
 	MagnifyingGlassIcon,
 	PlusIcon,
 	TrendDownIcon,
-} from "@phosphor-icons/react/dist/ssr";
-import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
+} from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/app/(main)/websites/_components/page-header";

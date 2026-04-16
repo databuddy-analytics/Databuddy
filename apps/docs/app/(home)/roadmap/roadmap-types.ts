@@ -14,49 +14,49 @@ export type RoadmapCategory =
 	| "developer-experience";
 
 export interface RoadmapItem {
-	id: string;
-	title: string;
-	description: string;
-	status: RoadmapStatus;
-	priority: RoadmapPriority;
+	assignees?: string[]; // GitHub usernames
 	category: RoadmapCategory;
-	startDate?: string; // ISO date string
-	targetDate?: string; // ISO date string
 	completedDate?: string; // ISO date string
-	progress?: number; // 0-100 percentage
+	description: string;
 	features?: string[]; // List of key features/tasks
 	githubIssue?: string; // GitHub issue URL
 	githubPR?: string; // GitHub PR URL
-	assignees?: string[]; // GitHub usernames
+	id: string;
+	priority: RoadmapPriority;
+	progress?: number; // 0-100 percentage
+	startDate?: string; // ISO date string
+	status: RoadmapStatus;
 	tags?: string[]; // Additional tags
+	targetDate?: string; // ISO date string
+	title: string;
 }
 
 export interface RoadmapQuarter {
+	endDate: string;
 	id: string;
+	items: RoadmapItem[];
 	name: string; // e.g., "Q1 2024"
 	startDate: string;
-	endDate: string;
-	items: RoadmapItem[];
 }
 
 export interface RoadmapStats {
-	totalItems: number;
-	completedItems: number;
-	inProgressItems: number;
-	plannedItems: number;
-	onHoldItems: number;
 	cancelledItems: number;
-	overallProgress: number; // 0-100 percentage
+	completedItems: number;
 	currentQuarter: string;
+	inProgressItems: number;
+	onHoldItems: number;
+	overallProgress: number; // 0-100 percentage
+	plannedItems: number;
+	totalItems: number;
 	upcomingMilestones: number;
 }
 
 export interface RoadmapMilestone {
-	id: string;
-	title: string;
 	description: string;
-	targetDate: string;
-	status: "upcoming" | "current" | "completed" | "delayed";
+	id: string;
 	items: string[]; // RoadmapItem IDs
 	progress: number; // 0-100 percentage
+	status: "upcoming" | "current" | "completed" | "delayed";
+	targetDate: string;
+	title: string;
 }

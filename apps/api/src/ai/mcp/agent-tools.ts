@@ -3,17 +3,11 @@ import {
 	AGENT_SQL_VALIDATION_ERROR,
 	requiresTenantFilter,
 	validateAgentSQL,
-} from "@databuddy/db";
+} from "@databuddy/db/clickhouse";
 import { tool } from "ai";
 import { z } from "zod";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
-import {
-	getAccessibleWebsiteIds,
-	hasGlobalAccess,
-	hasKeyScope,
-	hasWebsiteScope,
-} from "../../lib/api-key";
-import { getWebsiteDomain, validateWebsite } from "../../lib/website-utils";
+import { getWebsiteDomain } from "../../lib/website-utils";
 import { executeBatch, executeQuery, QueryBuilders } from "../../query";
 import type { QueryRequest } from "../../query/types";
 import { createAnnotationTools } from "../tools/annotations";
@@ -25,12 +19,13 @@ import { createProfileTools } from "../tools/profiles";
 import { executeTimedQuery } from "../tools/utils";
 import { webSearchTool } from "../tools/web-search";
 import { buildBatchQueryRequests, MCP_DATE_PRESETS } from "./mcp-utils";
+import { ensureWebsiteAccess } from "./tool-context";
 
 export interface McpAgentContext {
-	requestHeaders: Headers;
 	apiKey: Awaited<
 		ReturnType<typeof import("../../lib/api-key").getApiKeyFromHeader>
 	>;
+	requestHeaders: Headers;
 	userId: string | null;
 }
 
@@ -41,44 +36,6 @@ function getContext(ctx: unknown): McpAgentContext {
 		);
 	}
 	return ctx as McpAgentContext;
-}
-
-async function ensureWebsiteAccess(
-	websiteId: string,
-	ctx: McpAgentContext
-): Promise<{ domain: string } | Error> {
-	const validation = await validateWebsite(websiteId);
-	if (!(validation.success && validation.website)) {
-		return new Error(validation.error ?? "Website not found");
-	}
-	const { website } = validation;
-
-	if (website.isPublic) {
-		return { domain: website.domain ?? "unknown" };
-	}
-
-	if (ctx.apiKey) {
-		if (!hasKeyScope(ctx.apiKey, "read:data")) {
-			return new Error("API key missing read:data scope");
-		}
-		const accessibleIds = getAccessibleWebsiteIds(ctx.apiKey);
-		const hasWebsiteAccess =
-			hasWebsiteScope(ctx.apiKey, websiteId, "read:data") ||
-			accessibleIds.includes(websiteId) ||
-			(hasGlobalAccess(ctx.apiKey) &&
-				ctx.apiKey.organizationId === website.organizationId);
-		if (!hasWebsiteAccess) {
-			return new Error("Access denied to this website");
-		}
-		return { domain: website.domain ?? "unknown" };
-	}
-
-	const session = await auth.api.getSession({ headers: ctx.requestHeaders });
-	if (session?.user?.role === "ADMIN") {
-		return { domain: website.domain ?? "unknown" };
-	}
-
-	return new Error("Authentication required");
 }
 
 export function createMcpAgentTools() {
@@ -140,7 +97,11 @@ export function createMcpAgentTools() {
 					options as { experimental_context?: unknown }
 				).experimental_context;
 				const ctx = getContext(experimental_context);
-				const access = await ensureWebsiteAccess(args.websiteId, ctx);
+				const access = await ensureWebsiteAccess(
+					args.websiteId,
+					ctx.requestHeaders,
+					ctx.apiKey
+				);
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
@@ -182,7 +143,11 @@ export function createMcpAgentTools() {
 					options as { experimental_context?: unknown }
 				).experimental_context;
 				const ctx = getContext(experimental_context);
-				const access = await ensureWebsiteAccess(websiteId, ctx);
+				const access = await ensureWebsiteAccess(
+					websiteId,
+					ctx.requestHeaders,
+					ctx.apiKey
+				);
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
@@ -205,7 +170,7 @@ export function createMcpAgentTools() {
 			},
 		}),
 		get_data: tool({
-			description: `Batch 2-10 analytics queries in one call. PREFERRED when user asks for multiple metrics (traffic + top pages + referrers, etc). Types: ${Object.keys(QueryBuilders).join(", ")}. Use preset (e.g. last_7d, last_30d) or from/to dates. Supports filters (e.g. os_name eq "Mac" for slowest page for Mac users), groupBy, orderBy.`,
+			description: `Run 1-10 analytics queries in one call. PREFERRED when user asks for one or many metrics (traffic + top pages + referrers, etc). Types: ${Object.keys(QueryBuilders).join(", ")}. Use preset (e.g. last_7d, last_30d) or from/to dates. Supports filters (e.g. os_name eq "Mac" for slowest page for Mac users), groupBy, orderBy.`,
 			strict: true,
 			inputSchema: z.object({
 				websiteId: z.string(),
@@ -249,7 +214,7 @@ export function createMcpAgentTools() {
 							orderBy: z.string().optional(),
 						})
 					)
-					.min(2)
+					.min(1)
 					.max(10),
 				timezone: z.string().optional().default("UTC"),
 			}),
@@ -258,7 +223,11 @@ export function createMcpAgentTools() {
 					options as { experimental_context?: unknown }
 				).experimental_context;
 				const ctx = getContext(experimental_context);
-				const access = await ensureWebsiteAccess(args.websiteId, ctx);
+				const access = await ensureWebsiteAccess(
+					args.websiteId,
+					ctx.requestHeaders,
+					ctx.apiKey
+				);
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}

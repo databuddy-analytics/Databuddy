@@ -1,5 +1,5 @@
-import type { InferSelectModel } from "@databuddy/db";
-import { apikey, db, eq } from "@databuddy/db";
+import { db, eq, type InferSelectModel } from "@databuddy/db";
+import { apikey } from "@databuddy/db/schema";
 import { cacheable } from "@databuddy/redis";
 import {
 	createKeys,

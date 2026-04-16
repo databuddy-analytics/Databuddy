@@ -1,11 +1,10 @@
 import { sso } from "@better-auth/sso";
+import { db, eq } from "@databuddy/db";
 import {
-	db,
-	eq,
 	member as memberTable,
 	organization as organizationTable,
 	user,
-} from "@databuddy/db";
+} from "@databuddy/db/schema";
 import {
 	InvitationEmail,
 	MagicLinkEmail,
@@ -17,9 +16,11 @@ import {
 	type NotificationResult,
 	sendSlackWebhook,
 } from "@databuddy/notifications";
+import { getRedisCache, rateLimit } from "@databuddy/redis";
 import { createId } from "@databuddy/shared/utils/ids";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
+import { log } from "evlog";
 import {
 	customSession,
 	emailOTP,
@@ -93,6 +94,28 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "pg",
 	}),
+	rateLimit: {
+		window: 60,
+		max: 100,
+		customStorage: {
+			get: async (key) => {
+				const value = await getRedisCache().get(key);
+				return value ? JSON.parse(value) : null;
+			},
+			// TTL is 2x the longest window so counters survive the full window
+			// without lingering indefinitely.
+			set: async (key, value) => {
+				await getRedisCache().set(key, JSON.stringify(value), "EX", 120);
+			},
+		},
+		customRules: {
+			"/sign-up/email": { window: 60, max: 3 },
+			"/sign-in/email": { window: 10, max: 3 },
+			"/forget-password": { window: 60, max: 3 },
+			"/magic-link/send": { window: 60, max: 3 },
+			"/email-otp/send": { window: 60, max: 3 },
+		},
+	},
 	account: {
 		accountLinking: {
 			enabled: true,
@@ -212,6 +235,17 @@ export const auth = betterAuth({
 		autoSignIn: false,
 		requireEmailVerification: process.env.NODE_ENV === "production",
 		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
+			const { success } = await rateLimit(`reset:${user.email}`, 3, 3600);
+			if (!success) {
+				log.warn({
+					service: "auth",
+					auth_rate_limited: true,
+					auth_callback: "reset_password",
+					auth_rate_limit_email: user.email,
+				});
+				return;
+			}
+
 			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
 				from: "no-reply@databuddy.cc",
@@ -232,6 +266,17 @@ export const auth = betterAuth({
 			user: any;
 			url: string;
 		}) => {
+			const { success } = await rateLimit(`verify:${user.email}`, 3, 900);
+			if (!success) {
+				log.warn({
+					service: "auth",
+					auth_rate_limited: true,
+					auth_callback: "verify_email",
+					auth_rate_limit_email: user.email,
+				});
+				return;
+			}
+
 			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
 				from: "no-reply@databuddy.cc",
@@ -257,8 +302,19 @@ export const auth = betterAuth({
 			},
 		}),
 		emailOTP({
-			// biome-ignore lint/suspicious/useAwait: we don't want to await here
 			async sendVerificationOTP({ email, otp, type }) {
+				const { success } = await rateLimit(`otp:${email}`, 3, 900);
+				if (!success) {
+					log.warn({
+						service: "auth",
+						auth_rate_limited: true,
+						auth_callback: "verification_otp",
+						auth_otp_type: type,
+						auth_rate_limit_email: email,
+					});
+					return;
+				}
+
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 
 				let subject = "Your verification code";
@@ -283,7 +339,18 @@ export const auth = betterAuth({
 			},
 		}),
 		magicLink({
-			sendMagicLink: ({ email, url }) => {
+			sendMagicLink: async ({ email, url }) => {
+				const { success } = await rateLimit(`magic:${email}`, 3, 900);
+				if (!success) {
+					log.warn({
+						service: "auth",
+						auth_rate_limited: true,
+						auth_callback: "magic_link",
+						auth_rate_limit_email: email,
+					});
+					return;
+				}
+
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				resend.emails.send({
 					from: "no-reply@databuddy.cc",
@@ -334,6 +401,21 @@ export const auth = betterAuth({
 				organization,
 				invitation,
 			}) => {
+				const { success } = await rateLimit(
+					`invite:${organization.id}`,
+					5,
+					3600
+				);
+				if (!success) {
+					log.warn({
+						service: "auth",
+						auth_rate_limited: true,
+						auth_callback: "invitation",
+						auth_organization_id: organization.id,
+					});
+					return;
+				}
+
 				const invitationLink = `https://app.databuddy.cc/invitations/${invitation.id}`;
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({

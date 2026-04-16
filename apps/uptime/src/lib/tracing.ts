@@ -2,21 +2,13 @@ import { log } from "evlog";
 import { useLogger as getRequestLogger } from "evlog/elysia";
 
 /**
- * Run a named operation. Request-level timing and HTTP metadata are emitted by
- * evlog on the wide event.
- */
-export function record<T>(_name: string, fn: () => Promise<T> | T): Promise<T> {
-	return Promise.resolve().then(() => fn());
-}
-
-/**
  * Merge structured fields into the active request wide event (evlog).
  */
 export function mergeWideEvent(
 	fields: Record<string, string | number | boolean>
 ): void {
 	try {
-		getRequestLogger().set(fields as Record<string, string | number | boolean>);
+		getRequestLogger().set(fields);
 	} catch {
 		log.info({ service: "uptime", ...fields });
 	}
@@ -44,10 +36,7 @@ export function captureError(
 	try {
 		const requestLog = getRequestLogger();
 		if (attributes) {
-			requestLog.error(
-				err,
-				attributes as Record<string, string | number | boolean>
-			);
+			requestLog.error(err, attributes);
 		} else {
 			requestLog.error(err);
 		}

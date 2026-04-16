@@ -1,3 +1,11 @@
+import { atom } from "jotai";
+import { RECOMMENDED_DEFAULTS } from "../../app/(main)/websites/[id]/_components/utils/tracking-defaults";
+import {
+	enableAllAdvancedTracking,
+	enableAllBasicTracking,
+	enableAllOptimization,
+} from "../../app/(main)/websites/[id]/_components/utils/tracking-helpers";
+import type { TrackingOptions } from "../../app/(main)/websites/[id]/_components/utils/types";
 import dayjs, { guessTimezone } from "@/lib/dayjs";
 
 export interface DynamicQueryFilter {
@@ -13,21 +21,9 @@ export interface DynamicQueryFilter {
 	value: string | number | (string | number)[];
 }
 
-import { atom } from "jotai";
-import { RECOMMENDED_DEFAULTS } from "../../app/(main)/websites/[id]/_components/utils/tracking-defaults";
-import {
-	enableAllAdvancedTracking,
-	enableAllBasicTracking,
-	enableAllOptimization,
-} from "../../app/(main)/websites/[id]/_components/utils/tracking-helpers";
-import type { TrackingOptions } from "../../app/(main)/websites/[id]/_components/utils/types";
-// Consider adding nanoid for unique ID generation for complex filters
-// import { nanoid } from 'nanoid';
-
-// --- Date Range ---
 export interface DateRangeState {
-	startDate: Date;
 	endDate: Date;
+	startDate: Date;
 }
 
 const initialStartDate = dayjs().subtract(30, "day").toDate();
@@ -38,10 +34,6 @@ export const dateRangeAtom = atom<DateRangeState>({
 	endDate: initialEndDate,
 });
 
-/**
- * Derived atom that provides the date range in 'yyyy-MM-dd' string format.
- * Useful for API calls or display purposes.
- */
 export const formattedDateRangeAtom = atom((get) => {
 	const { startDate, endDate } = get(dateRangeAtom);
 	return {
@@ -54,7 +46,6 @@ export const formattedDateRangeAtom = atom((get) => {
 	};
 });
 
-// --- Time Granularity ---
 export type TimeGranularity = "daily" | "hourly";
 
 const MAX_HOURLY_DAYS = 7;
@@ -62,12 +53,6 @@ const AUTO_HOURLY_DAYS = 2;
 
 export const timeGranularityAtom = atom<TimeGranularity>("daily");
 
-/**
- * Action atom to update the date range and intelligently adjust granularity.
- * - Ranges <= 2 days: auto-set to hourly
- * - Ranges 3-7 days: preserve current selection
- * - Ranges > 7 days: force daily (hourly not supported for performance)
- */
 export const setDateRangeAndAdjustGranularityAtom = atom(
 	null,
 	(_get, set, newRange: DateRangeState) => {
@@ -83,12 +68,8 @@ export const setDateRangeAndAdjustGranularityAtom = atom(
 	}
 );
 
-// --- Timezone ---
 export const timezoneAtom = atom<string>(guessTimezone());
 
-// --- Basic Filters ---
-// Used for simple selections, e.g., a list of countries or device types.
-// Example: { countries: ['US', 'CA'], deviceTypes: ['desktop'] }
 export type BasicFilterValue =
 	| string[]
 	| number[]
@@ -97,13 +78,11 @@ export type BasicFilterValue =
 	| boolean
 	| undefined;
 export interface BasicFilters {
-	[key: string]: BasicFilterValue; // Allow any string key for flexibility
+	[key: string]: BasicFilterValue;
 }
 
 export const basicFiltersAtom = atom<BasicFilters>({});
 
-// --- Complex Filters ---
-// Used for building more structured, rule-based queries.
 export type FilterOperator =
 	| "is"
 	| "isNot"
@@ -113,33 +92,20 @@ export type FilterOperator =
 	| "endsWith"
 	| "greaterThan"
 	| "lessThan"
-	| "in" // Value is an array, e.g., field IN [val1, val2]
-	| "notIn" // Value is an array, e.g., field NOT IN [val1, val2]
-	| "isSet" // Checks if a field has a value
-	| "isNotSet"; // Checks if a field does not have a value
+	| "in"
+	| "notIn"
+	| "isSet"
+	| "isNotSet";
 
 export interface ComplexFilter {
-	id: string; // Should be unique, e.g., generated with nanoid()
-	field: string; // The data field to filter on (e.g., 'browser.name', 'geo.country', 'event.pagePath')
+	field: string;
+	id: string;
 	operator: FilterOperator;
-	value?: string | number | boolean | Array<string | number>; // Value is optional for 'isSet'/'isNotSet'
-	// --- Future Enhancements for Grouping ---
-	// groupId?: string; // ID of the group this filter belongs to
-	// groupCondition?: 'AND' | 'OR'; // How filters within the same group combine
+	value?: string | number | boolean | Array<string | number>;
 }
 
 export const complexFiltersAtom = atom<ComplexFilter[]>([]);
 
-// --- Actions / Derived Atoms for Managing Filter State ---
-
-/**
- * Sets or updates a specific basic filter.
- * If the value is undefined, the filter key is removed.
- * @example
- * const [, setFilter] = useAtom(setBasicFilterAtom);
- * setFilter({ key: 'country', value: ['US', 'CA'] });
- * setFilter({ key: 'country', value: undefined }); // Clears 'country' filter
- */
 export const setBasicFilterAtom = atom(
 	null,
 	(_get, set, { key, value }: { key: string; value: BasicFilterValue }) => {
@@ -153,9 +119,6 @@ export const setBasicFilterAtom = atom(
 	}
 );
 
-/**
- * Clears a specific basic filter by its key, or all basic filters if no key is provided.
- */
 export const clearBasicFilterAtom = atom(null, (_get, set, key?: string) => {
 	if (key) {
 		set(basicFiltersAtom, (prev) => {
@@ -167,13 +130,6 @@ export const clearBasicFilterAtom = atom(null, (_get, set, key?: string) => {
 	}
 });
 
-/**
- * Adds a new complex filter or updates an existing one based on its ID.
- * Remember to generate a unique ID (e.g., using nanoid) for new filters.
- * @example
- * const [, saveFilter] = useAtom(upsertComplexFilterAtom);
- * saveFilter({ id: nanoid(), field: 'geo.city', operator: 'is', value: 'New York' });
- */
 export const upsertComplexFilterAtom = atom(
 	null,
 	(_get, set, filter: ComplexFilter) => {
@@ -189,9 +145,6 @@ export const upsertComplexFilterAtom = atom(
 	}
 );
 
-/**
- * Removes a complex filter by its ID.
- */
 export const removeComplexFilterAtom = atom(
 	null,
 	(_get, set, filterId: string) => {
@@ -199,27 +152,17 @@ export const removeComplexFilterAtom = atom(
 	}
 );
 
-/**
- * Clears all complex filters.
- */
 export const clearComplexFiltersAtom = atom(null, (_get, set) => {
 	set(complexFiltersAtom, []);
 });
 
-/**
- * Resets all filters (date range, granularity, basic, complex) to their initial states.
- */
 export const clearAllFiltersAtom = atom(null, (_get, set) => {
 	set(dateRangeAtom, { startDate: initialStartDate, endDate: initialEndDate });
-	set(timeGranularityAtom, "daily"); // Reset to default granularity
+	set(timeGranularityAtom, "daily");
 	set(basicFiltersAtom, {});
 	set(complexFiltersAtom, []);
 });
 
-/**
- * A derived atom that provides a snapshot of all currently active filters,
- * with dates formatted as strings for API compatibility.
- */
 export const activeFiltersForApiAtom = atom((get) => {
 	const { startDate: fmtStartDate, endDate: fmtEndDate } = get(
 		formattedDateRangeAtom
@@ -229,7 +172,6 @@ export const activeFiltersForApiAtom = atom((get) => {
 	const complexFiltersValue = get(complexFiltersAtom);
 	const timezoneValue = get(timezoneAtom);
 
-	// Example: Convert array values in basic filters to comma-separated strings if API needs it
 	const apiReadyBasicFilters: Record<
 		string,
 		string | number | boolean | undefined
@@ -249,61 +191,34 @@ export const activeFiltersForApiAtom = atom((get) => {
 		dateRange: { startDate: fmtStartDate, endDate: fmtEndDate },
 		granularity: granularityValue,
 		timezone: timezoneValue,
-		basicFilters: apiReadyBasicFilters, // Or basicFiltersValue if API handles arrays
+		basicFilters: apiReadyBasicFilters,
 		complexFilters: complexFiltersValue,
 	};
 });
 
-// --- Convenience Selector Atoms ---
-
-/**
- * Creates an atom to select the value of a specific basic filter by its key.
- */
 export const selectBasicFilterValueAtom = (key: string) =>
 	atom<BasicFilterValue>((get) => get(basicFiltersAtom)[key]);
 
-/**
- * Creates an atom to select a specific complex filter by its ID.
- */
 export const selectComplexFilterByIdAtom = (id: string) =>
 	atom<ComplexFilter | undefined>((get) =>
 		get(complexFiltersAtom).find((filter) => filter.id === id)
 	);
 
-/**
- * Atom that returns true if any sub-filters (basic or complex) are currently active.
- * Excludes date range and granularity from this check.
- */
 export const hasActiveSubFiltersAtom = atom((get) => {
 	const basic = get(basicFiltersAtom);
 	const complex = get(complexFiltersAtom);
 	return Object.keys(basic).length > 0 || complex.length > 0;
 });
 
-// --- Global Refresh State for Analytics Tabs ---
-/**
- * Atom to indicate if a user-initiated refresh of analytics data is in progress.
- * This is primarily for UI feedback (e.g., disabling refresh button) while TanStack Query handles actual data refetching.
- */
 export const isAnalyticsRefreshingAtom = atom(false);
 
-// --- Dynamic Query Filters (for shared package compatibility) ---
-/**
- * Internal atom storing filters with their associated websiteId.
- * Filters are automatically cleared when accessing from a different website.
- */
 const dynamicQueryFiltersBaseAtom = atom<{
 	websiteId: string | null;
 	filters: DynamicQueryFilter[];
 }>({ websiteId: null, filters: [] });
 
-/** Atom to track current website context for filter scoping */
 export const currentFilterWebsiteIdAtom = atom<string | null>(null);
 
-/**
- * Derived atom that returns filters only if they belong to the current website.
- * Automatically clears stale filters from other websites.
- */
 export const dynamicQueryFiltersAtom = atom(
 	(get) => {
 		const { websiteId, filters } = get(dynamicQueryFiltersBaseAtom);
@@ -322,10 +237,6 @@ export const dynamicQueryFiltersAtom = atom(
 	}
 );
 
-/**
- * Action atom for adding a new dynamic query filter.
- * Adds the filter if it doesn't already exist (based on field and value).
- */
 export const addDynamicFilterAtom = atom(
 	null,
 	(get, set, filter: DynamicQueryFilter) => {
@@ -343,10 +254,6 @@ export const addDynamicFilterAtom = atom(
 	}
 );
 
-/**
- * Action atom for removing a dynamic query filter.
- * Removes the first filter that matches the field, operator, and value.
- */
 export const removeDynamicFilterAtom = atom(
 	null,
 	(get, set, filter: Partial<DynamicQueryFilter>) => {
@@ -365,23 +272,12 @@ export const removeDynamicFilterAtom = atom(
 	}
 );
 
-/**
- * Action atom for clearing all dynamic query filters.
- */
 export const clearDynamicFiltersAtom = atom(null, (_get, set) => {
 	set(dynamicQueryFiltersAtom, []);
 });
 
-// --- Tracking Options ---
-/**
- * Atom for website tracking options configuration.
- * Shared across settings and tracking setup tabs.
- */
 export const trackingOptionsAtom = atom<TrackingOptions>(RECOMMENDED_DEFAULTS);
 
-/**
- * Action atom for updating tracking options.
- */
 export const setTrackingOptionsAtom = atom(
 	null,
 	(_get, set, newOptions: TrackingOptions) => {
@@ -389,9 +285,6 @@ export const setTrackingOptionsAtom = atom(
 	}
 );
 
-/**
- * Action atom for toggling a specific tracking option.
- */
 export const toggleTrackingOptionAtom = atom(
 	null,
 	(get, set, option: keyof TrackingOptions) => {
@@ -403,32 +296,20 @@ export const toggleTrackingOptionAtom = atom(
 	}
 );
 
-/**
- * Action atom for resetting tracking options to defaults.
- */
 export const resetTrackingOptionsAtom = atom(null, (_get, set) => {
 	set(trackingOptionsAtom, RECOMMENDED_DEFAULTS);
 });
 
-/**
- * Action atom for enabling all basic tracking options.
- */
 export const enableAllBasicTrackingAtom = atom(null, (get, set) => {
 	const current = get(trackingOptionsAtom);
 	set(trackingOptionsAtom, enableAllBasicTracking(current));
 });
 
-/**
- * Action atom for enabling all advanced tracking options.
- */
 export const enableAllAdvancedTrackingAtom = atom(null, (get, set) => {
 	const current = get(trackingOptionsAtom);
 	set(trackingOptionsAtom, enableAllAdvancedTracking(current));
 });
 
-/**
- * Action atom for enabling all optimization options.
- */
 export const enableAllOptimizationAtom = atom(null, (get, set) => {
 	const current = get(trackingOptionsAtom);
 	set(trackingOptionsAtom, enableAllOptimization(current));

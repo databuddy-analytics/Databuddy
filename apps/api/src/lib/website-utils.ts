@@ -1,5 +1,6 @@
 import { auth } from "@databuddy/auth";
-import { db, eq, inArray, userPreferences, websites } from "@databuddy/db";
+import { db, eq, inArray } from "@databuddy/db";
+import { userPreferences, websites } from "@databuddy/db/schema";
 import { cacheable } from "@databuddy/redis";
 import type { Website } from "@databuddy/shared/types/website";
 import {
@@ -9,16 +10,16 @@ import {
 } from "./api-key";
 
 export interface WebsiteContext {
-	user: unknown;
 	session: unknown;
-	website?: Website;
 	timezone: string;
+	user: unknown;
+	website?: Website;
 }
 
 export interface WebsiteValidationResult {
+	error?: string;
 	success: boolean;
 	website?: Website;
-	error?: string;
 }
 
 const getCachedWebsite = cacheable(

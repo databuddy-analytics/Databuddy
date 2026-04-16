@@ -5,9 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 export interface FetchedOgData {
-	title: string;
 	description: string;
 	image: string;
+	title: string;
 }
 
 const TRUSTED_IMAGE_HOSTS = new Set(["cdn.databuddy.cc", "api.dicebear.com"]);

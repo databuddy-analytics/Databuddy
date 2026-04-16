@@ -524,7 +524,7 @@ const WebVitalsFeature = () => {
 
 	return (
 		<div className="grid h-[150px] grid-cols-3 gap-3">
-			{metrics.map((m, i) => (
+			{metrics.map((m, _i) => (
 				<div
 					className={cn(
 						"angled-rectangle-gradient flex h-full flex-col items-center justify-between gap-2 border border-border border-b-0 p-3"

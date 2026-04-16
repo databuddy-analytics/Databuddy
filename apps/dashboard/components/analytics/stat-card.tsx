@@ -1,6 +1,8 @@
 "use client";
 
-import { MinusIcon, TrendDownIcon, TrendUpIcon } from "@phosphor-icons/react";
+import { MinusIcon } from "@phosphor-icons/react";
+import { TrendDownIcon } from "@phosphor-icons/react";
+import { TrendUpIcon } from "@phosphor-icons/react";
 import type { ElementType } from "react";
 import {
 	Chart,
@@ -14,7 +16,7 @@ import {
 } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import dayjs from "@/lib/dayjs";
-import { formatMetricNumber } from "@/lib/formatters";
+import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 interface MiniChartDataPoint {
@@ -25,32 +27,32 @@ interface MiniChartDataPoint {
 interface Trend {
 	change?: number;
 	current: number;
-	previous: number;
 	currentPeriod: { start: string; end: string };
+	previous: number;
 	previousPeriod: { start: string; end: string };
 }
 
 export type StatCardDisplayMode = "compact" | "chart" | "text";
 
 interface StatCardProps {
+	chartData?: MiniChartDataPoint[];
+	chartStepType?: ChartCurveType;
+	chartType?: ChartSeriesKind;
+	className?: string;
+	description?: string;
+	displayMode?: StatCardDisplayMode;
+	formatChartValue?: (value: number) => string;
+	formatValue?: (value: number) => string;
+	icon?: ElementType;
+	id?: string;
+	invertTrend?: boolean;
+	isLoading?: boolean;
+	partialLastSegment?: boolean;
+	showChart?: boolean;
 	title: string;
 	titleExtra?: React.ReactNode;
-	value: string | number;
-	description?: string;
-	icon?: ElementType;
 	trend?: Trend | number;
-	isLoading?: boolean;
-	className?: string;
-	invertTrend?: boolean;
-	id?: string;
-	chartData?: MiniChartDataPoint[];
-	showChart?: boolean;
-	chartType?: ChartSeriesKind;
-	chartStepType?: ChartCurveType;
-	formatValue?: (value: number) => string;
-	formatChartValue?: (value: number) => string;
-	displayMode?: StatCardDisplayMode;
-	partialLastSegment?: boolean;
+	value: string | number;
 }
 
 const formatTrendValue = (
@@ -63,7 +65,7 @@ const formatTrendValue = (
 		}
 		const safeValue = value == null || Number.isNaN(value) ? 0 : value;
 		return Number.isInteger(safeValue)
-			? formatMetricNumber(safeValue)
+			? formatNumber(safeValue)
 			: safeValue.toFixed(1);
 	}
 	return value;
@@ -225,7 +227,7 @@ export function StatCard({
 		(typeof value === "string" && (value.endsWith("%") || isTimeValue)) ||
 		typeof value !== "number"
 			? value.toString()
-			: formatMetricNumber(value);
+			: formatNumber(value);
 
 	const cardContent = (
 		<Chart

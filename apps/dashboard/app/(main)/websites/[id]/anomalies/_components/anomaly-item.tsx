@@ -1,33 +1,31 @@
 "use client";
 
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	BugIcon,
-	EyeIcon,
-	LightningIcon,
-	WarningCircleIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { ArrowDownIcon } from "@phosphor-icons/react";
+import { ArrowUpIcon } from "@phosphor-icons/react";
+import { BugIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import type { ElementType } from "react";
-import { List } from "@/components/ui/composables/list";
 import { Badge } from "@/components/ui/badge";
+import { List } from "@/components/ui/composables/list";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export interface AnomalyItemData {
-	metric: "pageviews" | "custom_events" | "errors";
-	type: "spike" | "drop";
-	severity: "warning" | "critical";
-	currentValue: number;
 	baselineMean: number;
 	baselineStdDev: number;
-	zScore: number;
-	percentChange: number;
+	currentValue: number;
 	detectedAt: string;
-	periodStart: string;
-	periodEnd: string;
 	eventName?: string;
+	metric: "pageviews" | "custom_events" | "errors";
+	percentChange: number;
+	periodEnd: string;
+	periodStart: string;
+	severity: "warning" | "critical";
+	type: "spike" | "drop";
+	zScore: number;
 }
 
 const METRIC_CONFIG: Record<

@@ -1,52 +1,72 @@
 "use client";
 
+import { EnvelopeIcon, UsersIcon } from "@phosphor-icons/react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useOrganizations } from "@/hooks/use-organizations";
+import {
+	InvitationsSkeleton,
+	MembersPageSkeleton,
+	MembersSkeleton,
+} from "../components/settings-skeletons";
+import { InvitationsView } from "./invitations-view";
 import { MembersView } from "./members-view";
 
-function SkeletonRow() {
-	return (
-		<div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 px-5 py-4">
-			<Skeleton className="size-10 rounded-full" />
-			<div className="space-y-2">
-				<Skeleton className="h-4 w-32" />
-				<Skeleton className="h-3 w-48" />
-			</div>
-			<Skeleton className="h-7 w-20" />
-			<Skeleton className="size-7" />
-		</div>
-	);
-}
-
-function PageSkeleton() {
-	return (
-		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			<div className="divide-y border-b lg:border-b-0">
-				<SkeletonRow />
-				<SkeletonRow />
-				<SkeletonRow />
-				<SkeletonRow />
-			</div>
-			<div className="space-y-4 bg-card p-5">
-				<Skeleton className="h-18 w-full rounded" />
-				<Skeleton className="h-10 w-full" />
-				<Skeleton className="h-20 w-full rounded" />
-			</div>
-		</div>
-	);
-}
+type TabValue = "members" | "invitations";
 
 export default function MembersPage() {
 	const { activeOrganization } = useOrganizations();
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const tabParam = searchParams.get("tab");
+	const activeTab: TabValue =
+		tabParam === "invitations" ? "invitations" : "members";
+
+	const handleTabChange = (value: string) => {
+		const params = new URLSearchParams(searchParams.toString());
+		if (value === "invitations") {
+			params.set("tab", "invitations");
+		} else {
+			params.delete("tab");
+		}
+		const query = params.toString();
+		router.replace(`/organizations/members${query ? `?${query}` : ""}`);
+	};
 
 	if (!activeOrganization) {
-		return <PageSkeleton />;
+		return <MembersPageSkeleton />;
 	}
 
 	return (
-		<Suspense fallback={<PageSkeleton />}>
-			<MembersView organization={activeOrganization} />
-		</Suspense>
+		<Tabs
+			className="flex h-full flex-col gap-0"
+			onValueChange={handleTabChange}
+			value={activeTab}
+			variant="navigation"
+		>
+			<TabsList>
+				<TabsTrigger value="members">
+					<UsersIcon weight="duotone" />
+					Members
+				</TabsTrigger>
+				<TabsTrigger value="invitations">
+					<EnvelopeIcon weight="duotone" />
+					Invitations
+				</TabsTrigger>
+			</TabsList>
+
+			<TabsContent className="m-0 min-h-0 flex-1" value="members">
+				<Suspense fallback={<MembersSkeleton />}>
+					<MembersView organization={activeOrganization} />
+				</Suspense>
+			</TabsContent>
+
+			<TabsContent className="m-0 min-h-0 flex-1" value="invitations">
+				<Suspense fallback={<InvitationsSkeleton />}>
+					<InvitationsView organization={activeOrganization} />
+				</Suspense>
+			</TabsContent>
+		</Tabs>
 	);
 }

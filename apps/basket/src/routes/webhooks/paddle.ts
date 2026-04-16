@@ -1,13 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
-import { clickHouse, db, eq, revenueConfig } from "@databuddy/db";
+import { clickHouse } from "@databuddy/db/clickhouse";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
-
-const DATE_REGEX = /\.\d{3}Z$/;
+import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
 
 interface PaddleTransaction {
-	id: string;
+	billed_at: string | null;
+	created_at: string;
 	currency_code: string;
+	custom_data?: Record<string, string>;
 	details: {
 		totals: { total: string };
 		line_items?: Array<{
@@ -15,9 +16,7 @@ interface PaddleTransaction {
 			price: { billing_cycle: { interval: string } | null };
 		}>;
 	};
-	custom_data?: Record<string, string>;
-	created_at: string;
-	billed_at: string | null;
+	id: string;
 }
 
 function extractAnalyticsMetadata(
@@ -40,37 +39,12 @@ function extractAnalyticsMetadata(
 }
 
 interface PaddleEvent {
-	event_type: string;
 	data: PaddleTransaction;
+	event_type: string;
 }
 
-function formatDate(date: Date): string {
-	return date.toISOString().replace("T", " ").replace(DATE_REGEX, "");
-}
-
-async function getConfig(hash: string) {
-	const config = await db.query.revenueConfig.findFirst({
-		where: eq(revenueConfig.webhookHash, hash),
-		columns: {
-			ownerId: true,
-			websiteId: true,
-			paddleWebhookSecret: true,
-		},
-	});
-
-	if (!config) {
-		return { error: "not_found" as const };
-	}
-
-	if (!config.paddleWebhookSecret) {
-		return { error: "paddle_not_configured" as const };
-	}
-
-	return {
-		ownerId: config.ownerId,
-		websiteId: config.websiteId,
-		paddleWebhookSecret: config.paddleWebhookSecret,
-	};
+function getConfig(hash: string) {
+	return getWebhookConfig(hash, "paddleWebhookSecret", "paddle");
 }
 
 async function verifySignature(
@@ -137,7 +111,11 @@ async function handleTransaction(
 		values: [
 			{
 				owner_id: config.ownerId,
-				website_id: metadata.website_id || config.websiteId || undefined,
+				website_id: await resolveWebsiteId(
+					metadata.website_id,
+					config.websiteId,
+					config.ownerId
+				),
 				transaction_id: tx.id,
 				provider: "paddle",
 				type,

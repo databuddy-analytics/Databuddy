@@ -226,7 +226,7 @@ const openApiHandler = new OpenAPIHandler(docsRouter, {
 
 **Scope requirements:** Session auth uses organization membership and roles; no scopes. API key auth may require scopes. The Links router enforces scopes: \`read:links\` for list/get, \`write:links\` for create/update/delete. Operations that require scopes include \`x-required-scopes\` in their schema.
 
-**Available scopes:** read:data | write:llm | track:events | read:links | write:links
+**Available scopes:** read:data | track:events | track:llm | read:links | write:links | manage:websites | manage:flags | manage:config
 
 **Creating keys:** Keys are created in the dashboard (Organization → API Keys) and must be scoped to an organization. Store the secret securely; it is shown only once.`,
 						},

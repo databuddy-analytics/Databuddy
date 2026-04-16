@@ -1,6 +1,6 @@
 import type { PreviewAttachResponse } from "autumn-js";
 
-export const getAttachContent = (preview: PreviewAttachResponse) => {
+export const getAttachContent = (_preview: PreviewAttachResponse) => {
 	const planName = "this plan";
 
 	return {

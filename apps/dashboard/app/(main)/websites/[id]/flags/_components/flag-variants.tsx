@@ -41,7 +41,6 @@ export function FlagVariants({ variants }: { variants: Variant[] }) {
 			</TooltipTrigger>
 			<TooltipContent className="p-0" side="top">
 				<div className="flex items-start gap-3 p-3">
-					{/* Pie chart */}
 					<div className="relative shrink-0">
 						<PieChart height={80} width={80}>
 							<Pie
@@ -66,7 +65,6 @@ export function FlagVariants({ variants }: { variants: Variant[] }) {
 						</span>
 					</div>
 
-					{/* Variant list */}
 					<div className="flex flex-col gap-1.5">
 						<p className="font-medium text-xs">Variants</p>
 						{variants.map((variant, index) => (

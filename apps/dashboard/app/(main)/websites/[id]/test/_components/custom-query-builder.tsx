@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/select";
 
 interface CustomQueryBuilderProps {
-	value: CustomQueryConfig | null;
-	onChangeAction: (config: CustomQueryConfig) => void;
 	disabled?: boolean;
+	onChangeAction: (config: CustomQueryConfig) => void;
+	value: CustomQueryConfig | null;
 }
 
 const AGGREGATES: {

@@ -1,37 +1,30 @@
 import type { TrackingOptions } from "./types";
 
-// Library defaults - what the actual SDK uses when no options are provided
-// Reference: packages/sdk/src/core/types.ts
+// Mirrors the SDK's zero-config behavior. Source of truth: packages/sdk/src/core/types.ts.
 export const ACTUAL_LIBRARY_DEFAULTS: TrackingOptions = {
-	// Core tracking
 	disabled: false,
-	trackScreenViews: true, // Always true, automatic
+	trackScreenViews: true,
 	trackHashChanges: false,
-	trackSessions: true, // Always true, automatic
+	trackSessions: true,
 
-	// Interaction tracking
 	trackAttributes: false,
 	trackOutgoingLinks: false,
 	trackInteractions: false,
 
-	// Performance tracking
 	trackPerformance: true,
 	trackWebVitals: false,
 	trackErrors: false,
 
-	// Optimization
 	samplingRate: 1.0,
 	enableRetries: true,
 	maxRetries: 3,
 	initialRetryDelay: 500,
 
-	// Batching
 	enableBatching: true,
 	batchSize: 10,
 	batchTimeout: 2000,
 };
 
-// Recommended defaults for new users
 export const RECOMMENDED_DEFAULTS: TrackingOptions = {
 	...ACTUAL_LIBRARY_DEFAULTS,
 };

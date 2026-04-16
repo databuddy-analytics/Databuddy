@@ -1,1 +1,1 @@
-export * from "./umami";
+export { mapUmamiRow, type UmamiCsvRow } from "./umami";

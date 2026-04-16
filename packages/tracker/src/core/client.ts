@@ -1,44 +1,24 @@
 export interface ClientConfig {
 	baseUrl: string;
-	defaultHeaders?: Record<string, string | (() => string | Promise<string>)>;
-	maxRetries?: number;
+	defaultHeaders?: Record<string, string>;
 	initialRetryDelay?: number;
+	maxRetries?: number;
 }
 
 export class HttpClient {
 	baseUrl: string;
-	staticHeaders: Record<string, string> = {};
-	dynamicHeaderFns: Record<string, () => string | Promise<string>> = {};
+	headers: Record<string, string>;
 	maxRetries: number;
 	initialRetryDelay: number;
 
 	constructor(config: ClientConfig) {
 		this.baseUrl = config.baseUrl;
-		const headers = {
+		this.headers = {
 			"Content-Type": "application/json",
 			...config.defaultHeaders,
 		};
-
-		for (const [key, value] of Object.entries(headers)) {
-			if (typeof value === "function") {
-				this.dynamicHeaderFns[key] = value;
-			} else {
-				this.staticHeaders[key] = value as string;
-			}
-		}
-
 		this.maxRetries = config.maxRetries ?? 3;
 		this.initialRetryDelay = config.initialRetryDelay ?? 500;
-	}
-
-	async resolveHeaders(): Promise<Record<string, string>> {
-		const dynamicEntries = await Promise.all(
-			Object.entries(this.dynamicHeaderFns).map(async ([key, fn]) => [
-				key,
-				await fn(),
-			])
-		);
-		return { ...this.staticHeaders, ...Object.fromEntries(dynamicEntries) };
 	}
 
 	async post<T>(
@@ -68,7 +48,7 @@ export class HttpClient {
 		try {
 			const fetchOptions: RequestInit = {
 				method: "POST",
-				headers: await this.resolveHeaders(),
+				headers: this.headers,
 				body: JSON.stringify(data ?? {}),
 				keepalive: true,
 				credentials: "omit",
@@ -97,11 +77,14 @@ export class HttpClient {
 				);
 			}
 
+			const text = await response.text();
+			if (!text) {
+				return null;
+			}
 			try {
-				return await response.json();
-			} catch (_e) {
-				const text = await response.text();
-				return text ? JSON.parse(text) : null;
+				return JSON.parse(text);
+			} catch {
+				return null;
 			}
 		} catch (error) {
 			const isNetworkError =

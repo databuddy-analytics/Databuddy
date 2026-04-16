@@ -5,9 +5,9 @@ import {
 } from "./github-nav-mark";
 import { NavLink } from "./nav-link";
 
-type NavbarGithubDesktopLinkProps = {
+interface NavbarGithubDesktopLinkProps {
 	stars?: number | null;
-};
+}
 
 export function NavbarGithubDesktopLink({
 	stars,

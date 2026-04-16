@@ -21,17 +21,6 @@ import type { CacheConfig } from "drizzle-orm/cache/core/types";
  */
 export interface RedisCacheConfig {
 	/**
-	 * Cache client instance.
-	 * Can be any cache implementation that supports get, setex, unlink, and del methods.
-	 *
-	 * @example
-	 * ```typescript
-	 * import Redis from "ioredis";
-	 * const redis = new Redis("redis://localhost:6379");
-	 * ```
-	 */
-	redis: any;
-	/**
 	 * Default time-to-live for cached entries in seconds.
 	 * Used when no explicit TTL is provided via CacheConfig.
 	 *
@@ -44,6 +33,30 @@ export interface RedisCacheConfig {
 	 * ```
 	 */
 	defaultTtl?: number;
+	/**
+	 * Optional namespace prefix for all cache keys.
+	 * Useful for isolating cache entries from different applications or environments.
+	 *
+	 * @default "drizzle"
+	 *
+	 * @example
+	 * ```typescript
+	 * // Cache keys will be prefixed with "myapp:drizzle:..."
+	 * namespace: "myapp:drizzle"
+	 * ```
+	 */
+	namespace?: string;
+	/**
+	 * Cache client instance.
+	 * Can be any cache implementation that supports get, setex, unlink, and del methods.
+	 *
+	 * @example
+	 * ```typescript
+	 * import Redis from "ioredis";
+	 * const redis = new Redis("redis://localhost:6379");
+	 * ```
+	 */
+	redis: any;
 	/**
 	 * Cache strategy determines when queries are cached.
 	 *
@@ -65,19 +78,6 @@ export interface RedisCacheConfig {
 	 * ```
 	 */
 	strategy?: "explicit" | "all";
-	/**
-	 * Optional namespace prefix for all cache keys.
-	 * Useful for isolating cache entries from different applications or environments.
-	 *
-	 * @default "drizzle"
-	 *
-	 * @example
-	 * ```typescript
-	 * // Cache keys will be prefixed with "myapp:drizzle:..."
-	 * namespace: "myapp:drizzle"
-	 * ```
-	 */
-	namespace?: string;
 }
 
 /**

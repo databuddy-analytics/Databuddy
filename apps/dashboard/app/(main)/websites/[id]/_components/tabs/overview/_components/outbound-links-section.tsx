@@ -3,6 +3,7 @@
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { DataTable, type TabConfig } from "@/components/table/data-table";
+import { formatNumber } from "@/lib/formatters";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
 import type {
 	OutboundDomainRow,
@@ -11,16 +12,6 @@ import type {
 } from "@/types/outbound-links";
 
 const PROTOCOL_REGEX = /^https?:\/\//;
-
-const formatNumber = (value: number): string => {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
 
 const createDomainIndicator = () => (
 	<div className="size-2 shrink-0 rounded bg-blue-500" />

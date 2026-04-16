@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
-import { countEvents, findEvent, hasEvent } from "./test-utils";
+import { countEvents, expect, findEvent, hasEvent, test } from "./test-utils";
 
 /** Flatten `properties` for /track payloads; batch events are already flat. */
-function eventPayloadForAssert(event: Record<string, unknown>): Record<string, unknown> {
+function eventPayloadForAssert(
+	event: Record<string, unknown>
+): Record<string, unknown> {
 	const nested = event.properties;
 	const fromNested =
 		nested && typeof nested === "object" && !Array.isArray(nested)
@@ -13,21 +14,6 @@ function eventPayloadForAssert(event: Record<string, unknown>): Record<string, u
 }
 
 test.describe("API Methods", () => {
-	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/**", async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ success: true }),
-				headers: { "Access-Control-Allow-Origin": "*" },
-			});
-		});
-	});
 
 	test.describe("setGlobalProperties", () => {
 		test("merges global properties into all events", async ({ page }) => {
@@ -439,10 +425,7 @@ test.describe("API Methods", () => {
 			const requestPromise = page.waitForRequest(
 				(req) =>
 					req.url().includes("basket.databuddy.cc") &&
-					hasEvent(
-						req,
-						(e) => e.name === "screen_view" && e.page_count === 1
-					)
+					hasEvent(req, (e) => e.name === "screen_view" && e.page_count === 1)
 			);
 
 			await page.evaluate(() => {

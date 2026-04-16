@@ -7,17 +7,17 @@ import { Label } from "@/components/ui/label";
 const PROTOCOL_REGEX = /^https?:\/\//;
 
 export interface UtmParams {
-	utm_source: string;
-	utm_medium: string;
 	utm_campaign: string;
 	utm_content: string;
+	utm_medium: string;
+	utm_source: string;
 	utm_term: string;
 }
 
 interface UtmBuilderProps {
-	value: UtmParams;
-	onChange: (params: UtmParams) => void;
 	baseUrl?: string;
+	onChange: (params: UtmParams) => void;
+	value: UtmParams;
 }
 
 const UTM_FIELDS = [

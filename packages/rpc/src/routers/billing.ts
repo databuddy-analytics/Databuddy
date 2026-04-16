@@ -1,4 +1,6 @@
-import { chQuery, eq, websites } from "@databuddy/db";
+import { eq } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
+import { websites } from "@databuddy/db/schema";
 import type {
 	DailyUsageByTypeRow,
 	DailyUsageRow,
@@ -24,10 +26,10 @@ const EVENT_CATEGORIES = {
 type EventCategory = (typeof EVENT_CATEGORIES)[keyof typeof EVENT_CATEGORIES];
 
 interface EventSource {
-	table: string;
-	dateColumn: string;
 	category: EventCategory;
+	dateColumn: string;
 	filterColumn?: string;
+	table: string;
 }
 
 const EVENT_SOURCES: EventSource[] = [

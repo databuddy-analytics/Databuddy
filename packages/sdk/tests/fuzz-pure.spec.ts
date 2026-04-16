@@ -45,8 +45,7 @@ test.describe("Fuzz — pure flag helpers (seeded, many iterations)", () => {
 				for (let i = 0; i < n; i++) {
 					const key = `k-${i}-${randomString()}`;
 					const userId = rand() > 0.5 ? `u-${randomString()}` : "";
-					const email =
-						rand() > 0.5 ? `${randomString()}@x.test` : undefined;
+					const email = rand() > 0.5 ? `${randomString()}@x.test` : undefined;
 
 					const user =
 						userId || email
@@ -85,23 +84,23 @@ test.describe("Fuzz — pure flag helpers (seeded, many iterations)", () => {
 			const failures: string[] = [];
 			const SDK = window.__SDK__;
 
-			const cases: { key: string; user?: { userId?: string; email?: string } }[] =
-				[
-					{ key: "" },
-					{ key: "a:b:c" },
-					{ key: "フラグ" },
-					{ key: "x", user: { userId: "u" } },
-					{ key: "x", user: { email: "a@b.co" } },
-					{ key: "x", user: { userId: "", email: "only@email.com" } },
-					{ key: "p", user: { userId: "id", email: "e@e" } },
-				];
+			const cases: {
+				key: string;
+				user?: { userId?: string; email?: string };
+			}[] = [
+				{ key: "" },
+				{ key: "a:b:c" },
+				{ key: "フラグ" },
+				{ key: "x", user: { userId: "u" } },
+				{ key: "x", user: { email: "a@b.co" } },
+				{ key: "x", user: { userId: "", email: "only@email.com" } },
+				{ key: "p", user: { userId: "id", email: "e@e" } },
+			];
 
 			for (const c of cases) {
 				const k = SDK.getCacheKey(c.key, c.user);
-				if (c.user?.userId || c.user?.email) {
-					if (!k.includes(":")) {
-						failures.push(`expected colon in key for ${JSON.stringify(c)}`);
-					}
+				if ((c.user?.userId || c.user?.email) && !k.includes(":")) {
+					failures.push(`expected colon in key for ${JSON.stringify(c)}`);
 				}
 			}
 
@@ -173,38 +172,41 @@ test.describe("Fuzz — pure flag helpers (seeded, many iterations)", () => {
 	}) => {
 		const iterations = getFuzzIterations();
 
-		const result = await page.evaluate(({ iterations: n }) => {
-			const failures: string[] = [];
-			const SDK = window.__SDK__;
-			const base = {
-				enabled: true,
-				value: true,
-				payload: null,
-				reason: "MATCH",
-			};
+		const result = await page.evaluate(
+			({ iterations: n }) => {
+				const failures: string[] = [];
+				const SDK = window.__SDK__;
+				const base = {
+					enabled: true,
+					value: true,
+					payload: null,
+					reason: "MATCH",
+				};
 
-			for (let i = 0; i < n; i++) {
-				const ttl = 10_000 + (i % 50_000);
-				const staleTime = Math.floor(ttl / 3);
-				const entry = SDK.createCacheEntry(base, ttl, staleTime);
+				for (let i = 0; i < n; i++) {
+					const ttl = 10_000 + (i % 50_000);
+					const staleTime = Math.floor(ttl / 3);
+					const entry = SDK.createCacheEntry(base, ttl, staleTime);
 
-				if (!SDK.isCacheValid(entry)) {
-					failures.push(`iteration ${i}: fresh entry should be valid`);
+					if (!SDK.isCacheValid(entry)) {
+						failures.push(`iteration ${i}: fresh entry should be valid`);
+					}
+					if (SDK.isCacheStale(entry)) {
+						failures.push(`iteration ${i}: fresh entry should not be stale`);
+					}
+					if (entry.staleAt >= entry.expiresAt) {
+						failures.push(`iteration ${i}: staleAt should be before expiresAt`);
+					}
 				}
-				if (SDK.isCacheStale(entry)) {
-					failures.push(`iteration ${i}: fresh entry should not be stale`);
-				}
-				if (entry.staleAt >= entry.expiresAt) {
-					failures.push(`iteration ${i}: staleAt should be before expiresAt`);
-				}
-			}
 
-			if (SDK.isCacheValid(undefined)) {
-				failures.push("undefined should be invalid");
-			}
+				if (SDK.isCacheValid(undefined)) {
+					failures.push("undefined should be invalid");
+				}
 
-			return { failures };
-		}, { iterations });
+				return { failures };
+			},
+			{ iterations }
+		);
 
 		expect(result.failures, result.failures.join("\n")).toHaveLength(0);
 	});

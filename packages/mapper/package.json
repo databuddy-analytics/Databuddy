@@ -3,9 +3,7 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
-  "scripts": {
-    "test": "bun run src/test.ts"
-  },
+  "scripts": {},
   "devDependencies": {
     "@types/bun": "catalog:"
   },
@@ -13,9 +11,6 @@
     "typescript": "catalog:"
   },
   "dependencies": {
-    "csv-parse": "^6.1.0",
-    "zod": "catalog:",
-    "@databuddy/db": "workspace:*",
-    "drizzle-orm": "catalog:"
+    "@databuddy/db": "workspace:*"
   }
 }

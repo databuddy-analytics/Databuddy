@@ -1,8 +1,8 @@
-import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/app/util/constants";
 import { getPosts } from "@/lib/blog-query";
 import { getAllCompetitorSlugs } from "@/lib/comparison-config";
 import { source } from "@/lib/source";
+import type { MetadataRoute } from "next";
 
 const priorityRules = [
 	{ pattern: "/", priority: 1.0 },
@@ -105,7 +105,6 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 	const entries: MetadataRoute.Sitemap = [];
 
 	try {
-		// Comparison hub + every competitor page first (high-intent landing pages)
 		const competitorSlugs = getAllCompetitorSlugs();
 		entries.push({
 			url: `${SITE_URL}/compare`,

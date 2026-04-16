@@ -1,4 +1,5 @@
-import { and, eq, inArray, insightUserFeedback } from "@databuddy/db";
+import { and, eq, inArray } from "@databuddy/db";
+import { insightUserFeedback } from "@databuddy/db/schema";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";

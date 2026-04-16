@@ -1,15 +1,5 @@
 import dayjs from "@/lib/dayjs";
 
-export function formatCompactNumber(value: number | null | undefined): string {
-	if (value === null || value === undefined || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-}
-
 export function formatDateLabel(
 	dateStr: string,
 	granularity: "hourly" | "daily"

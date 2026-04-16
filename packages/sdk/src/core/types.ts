@@ -14,6 +14,25 @@
  */
 export interface DatabuddyConfig {
 	/**
+	 * Custom API endpoint for event ingestion.
+	 * Default: 'https://basket.databuddy.cc'
+	 */
+	apiUrl?: string;
+
+	/**
+	 * Number of events to batch before sending (default: 10).
+	 * Only used if enableBatching is true.
+	 * Min: 1, Max: 50
+	 */
+	batchSize?: number;
+
+	/**
+	 * Batch timeout in milliseconds (default: 2000).
+	 * Only used if enableBatching is true.
+	 * Min: 100, Max: 30000
+	 */
+	batchTimeout?: number;
+	/**
 	 * Your Databuddy project client ID.
 	 * If not provided, will automatically detect from NEXT_PUBLIC_DATABUDDY_CLIENT_ID environment variable.
 	 * Get this from your Databuddy dashboard.
@@ -28,10 +47,70 @@ export interface DatabuddyConfig {
 	clientSecret?: string;
 
 	/**
-	 * Custom API endpoint for event ingestion.
-	 * Default: 'https://basket.databuddy.cc'
+	 * Enable debug logging (default: false).
 	 */
-	apiUrl?: string;
+	debug?: boolean;
+
+	/**
+	 * Disable all tracking (default: false).
+	 * If true, no events will be sent.
+	 */
+	disabled?: boolean;
+
+	// --- Batching ---
+
+	/**
+	 * Enable event batching (default: true).
+	 */
+	enableBatching?: boolean;
+
+	/**
+	 * Enable retries for failed requests (default: true).
+	 */
+	enableRetries?: boolean;
+
+	/**
+	 * Filter function to conditionally skip events.
+	 * Return false to skip the event, true to send it.
+	 *
+	 * @example
+	 * ```ts
+	 * filter: (event) => {
+	 *   // Skip events from admin pages
+	 *   return !event.path?.includes('/admin');
+	 * }
+	 * ```
+	 */
+	filter?: (event: any) => boolean;
+
+	/**
+	 * Ignore bot detection (default: false).
+	 * If true, bot detection will be disabled and bots will be tracked.
+	 */
+	ignoreBotDetection?: boolean;
+
+	/**
+	 * Initial retry delay in milliseconds (default: 500).
+	 * Only used if enableRetries is true.
+	 */
+	initialRetryDelay?: number;
+
+	/** Array of glob patterns to mask sensitive paths (e.g., ['/users/*']) */
+	maskPatterns?: string[];
+
+	/**
+	 * Maximum number of retries for failed requests (default: 3).
+	 * Only used if enableRetries is true.
+	 */
+	maxRetries?: number;
+
+	// --- Optimization ---
+
+	/**
+	 * Sampling rate for events (0.0 to 1.0, default: 1.0).
+	 * Example: 0.5 = 50% of events sent.
+	 */
+	samplingRate?: number;
 
 	/**
 	 * Custom script URL for the Databuddy browser bundle.
@@ -51,23 +130,8 @@ export interface DatabuddyConfig {
 	 */
 	sdkVersion?: string;
 
-	/**
-	 * Disable all tracking (default: false).
-	 * If true, no events will be sent.
-	 */
-	disabled?: boolean;
-
-	/**
-	 * Enable debug logging (default: false).
-	 */
-	debug?: boolean;
-
-	// --- Core Tracking Features ---
-
-	/**
-	 * Track hash changes in the URL (default: false).
-	 */
-	trackHashChanges?: boolean;
+	/** Array of glob patterns to skip tracking on matching paths (e.g., ['/admin/**']) */
+	skipPatterns?: string[];
 
 	// --- Interaction Tracking ---
 
@@ -77,14 +141,26 @@ export interface DatabuddyConfig {
 	trackAttributes?: boolean;
 
 	/**
-	 * Track clicks on outgoing links (default: false).
+	 * Track JavaScript errors (default: false).
 	 */
-	trackOutgoingLinks?: boolean;
+	trackErrors?: boolean;
+
+	// --- Core Tracking Features ---
+
+	/**
+	 * Track hash changes in the URL (default: false).
+	 */
+	trackHashChanges?: boolean;
 
 	/**
 	 * Track user interactions (default: false).
 	 */
 	trackInteractions?: boolean;
+
+	/**
+	 * Track clicks on outgoing links (default: false).
+	 */
+	trackOutgoingLinks?: boolean;
 
 	// --- Performance Tracking ---
 
@@ -99,87 +175,10 @@ export interface DatabuddyConfig {
 	trackWebVitals?: boolean;
 
 	/**
-	 * Track JavaScript errors (default: false).
-	 */
-	trackErrors?: boolean;
-
-	// --- Optimization ---
-
-	/**
-	 * Sampling rate for events (0.0 to 1.0, default: 1.0).
-	 * Example: 0.5 = 50% of events sent.
-	 */
-	samplingRate?: number;
-
-	/**
-	 * Enable retries for failed requests (default: true).
-	 */
-	enableRetries?: boolean;
-
-	/**
-	 * Maximum number of retries for failed requests (default: 3).
-	 * Only used if enableRetries is true.
-	 */
-	maxRetries?: number;
-
-	/**
-	 * Initial retry delay in milliseconds (default: 500).
-	 * Only used if enableRetries is true.
-	 */
-	initialRetryDelay?: number;
-
-	// --- Batching ---
-
-	/**
-	 * Enable event batching (default: true).
-	 */
-	enableBatching?: boolean;
-
-	/**
-	 * Number of events to batch before sending (default: 10).
-	 * Only used if enableBatching is true.
-	 * Min: 1, Max: 50
-	 */
-	batchSize?: number;
-
-	/**
-	 * Batch timeout in milliseconds (default: 2000).
-	 * Only used if enableBatching is true.
-	 * Min: 100, Max: 30000
-	 */
-	batchTimeout?: number;
-
-	/**
-	 * Ignore bot detection (default: false).
-	 * If true, bot detection will be disabled and bots will be tracked.
-	 */
-	ignoreBotDetection?: boolean;
-
-	/**
 	 * Use pixel tracking instead of script (default: false).
 	 * When enabled, uses a 1x1 pixel image for tracking.
 	 */
 	usePixel?: boolean;
-
-	/**
-	 * Filter function to conditionally skip events.
-	 * Return false to skip the event, true to send it.
-	 *
-	 * @example
-	 * ```ts
-	 * filter: (event) => {
-	 *   // Skip events from admin pages
-	 *   return !event.path?.includes('/admin');
-	 * }
-	 * ```
-	 */
-	filter?: (event: any) => boolean;
-
-	/** Array of glob patterns to skip tracking on matching paths (e.g., ['/admin/**']) */
-	skipPatterns?: string[];
-
-	/** Array of glob patterns to mask sensitive paths (e.g., ['/users/*']) */
-	maskPatterns?: string[];
 }
 
 /**
@@ -188,30 +187,30 @@ export interface DatabuddyConfig {
 export interface BaseEventProperties {
 	/** Page URL */
 	__path?: string;
-	/** Page title */
-	__title?: string;
 	/** Referrer URL */
 	__referrer?: string;
 	/** Event timestamp in milliseconds */
 	__timestamp_ms?: number;
+	/** Page title */
+	__title?: string;
+	/** User language */
+	language?: string;
+	/** Page count in session */
+	page_count?: number;
 	/** Session ID */
 	sessionId?: string;
 	/** Session start time */
 	sessionStartTime?: number;
-	/** Page count in session */
-	page_count?: number;
-	/** Viewport size */
-	viewport_size?: string;
 	/** User timezone */
 	timezone?: string;
-	/** User language */
-	language?: string;
+	utm_campaign?: string;
+	utm_content?: string;
+	utm_medium?: string;
 	/** UTM parameters */
 	utm_source?: string;
-	utm_medium?: string;
-	utm_campaign?: string;
 	utm_term?: string;
-	utm_content?: string;
+	/** Viewport size */
+	viewport_size?: string;
 }
 
 /**
@@ -226,12 +225,35 @@ export interface EventProperties extends BaseEventProperties {
  * Pre-defined event types with their specific properties
  */
 export interface EventTypeMap {
-	// Core events
-	screen_view: {
-		page_count?: number;
-		time_on_page?: number;
-		scroll_depth?: number;
-		interaction_count?: number;
+	// Interaction events
+	button_click: {
+		button_text?: string;
+		button_type?: string;
+		button_id?: string;
+		element_class?: string;
+	};
+
+	// Error events
+	error: {
+		message: string;
+		filename?: string;
+		lineno?: number;
+		colno?: number;
+		stack?: string;
+		error_type?: string;
+	};
+
+	form_submit: {
+		form_id?: string;
+		form_name?: string;
+		form_type?: string;
+		success?: boolean;
+	};
+
+	link_out: {
+		href: string;
+		text?: string;
+		target_domain?: string;
 	};
 
 	page_exit: {
@@ -242,26 +264,12 @@ export interface EventTypeMap {
 		interaction_count: number;
 		page_count: number;
 	};
-
-	// Interaction events
-	button_click: {
-		button_text?: string;
-		button_type?: string;
-		button_id?: string;
-		element_class?: string;
-	};
-
-	link_out: {
-		href: string;
-		text?: string;
-		target_domain?: string;
-	};
-
-	form_submit: {
-		form_id?: string;
-		form_name?: string;
-		form_type?: string;
-		success?: boolean;
+	// Core events
+	screen_view: {
+		page_count?: number;
+		time_on_page?: number;
+		scroll_depth?: number;
+		interaction_count?: number;
 	};
 
 	// Performance events
@@ -275,16 +283,6 @@ export interface EventTypeMap {
 		dom_ready_time?: number;
 		render_time?: number;
 		request_time?: number;
-	};
-
-	// Error events
-	error: {
-		message: string;
-		filename?: string;
-		lineno?: number;
-		colno?: number;
-		stack?: string;
-		error_type?: string;
 	};
 
 	// Custom events (catch-all)
@@ -319,11 +317,21 @@ export type PropertiesForEvent<T extends EventName> =
  */
 export interface DatabuddyTracker {
 	/**
-	 * Track a custom event.
-	 * @param eventName - Name of the event (e.g., "purchase", "signup")
-	 * @param properties - Additional data to attach
+	 * Reset the user session. Generates new anonymous and session IDs.
+	 * Call after logout to ensure clean slate for next user.
 	 */
-	track(eventName: string, properties?: Record<string, unknown>): void;
+	clear(): void;
+
+	/**
+	 * Force send all queued events immediately.
+	 * Call before navigation to external sites.
+	 */
+	flush(): void;
+
+	/**
+	 * Current tracker configuration options.
+	 */
+	options: DatabuddyConfig;
 
 	/**
 	 * Manually track a page view. Called automatically on route changes.
@@ -344,23 +352,12 @@ export interface DatabuddyTracker {
 	 * ```
 	 */
 	setGlobalProperties(properties: Record<string, unknown>): void;
-
 	/**
-	 * Reset the user session. Generates new anonymous and session IDs.
-	 * Call after logout to ensure clean slate for next user.
+	 * Track a custom event.
+	 * @param eventName - Name of the event (e.g., "purchase", "signup")
+	 * @param properties - Additional data to attach
 	 */
-	clear(): void;
-
-	/**
-	 * Force send all queued events immediately.
-	 * Call before navigation to external sites.
-	 */
-	flush(): void;
-
-	/**
-	 * Current tracker configuration options.
-	 */
-	options: DatabuddyConfig;
+	track(eventName: string, properties?: Record<string, unknown>): void;
 }
 
 /**

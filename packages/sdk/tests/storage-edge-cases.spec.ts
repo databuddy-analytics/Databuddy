@@ -23,7 +23,7 @@ test.describe("BrowserFlagStorage — edge cases", () => {
 			const storage = new window.__SDK__.BrowserFlagStorage();
 			const original = Storage.prototype.setItem;
 			let threw = false;
-			Storage.prototype.setItem = function () {
+			Storage.prototype.setItem = () => {
 				throw new DOMException("QuotaExceededError", "QuotaExceededError");
 			};
 			try {
@@ -91,20 +91,23 @@ test.describe("Anonymous id when localStorage is unusable", () => {
 	test("BrowserFlagsManager works when did cannot be persisted", async ({
 		page,
 	}) => {
-		await page.route("**/api.databuddy.cc/public/v1/flags/**", async (route) => {
-			const url = new URL(route.request().url());
-			if (url.pathname.includes("/bulk")) {
-				await route.fulfill({
-					status: 200,
-					contentType: "application/json",
-					body: JSON.stringify({
-						flags: { x: MOCK_FLAG_ENABLED },
-					}),
-				});
-				return;
+		await page.route(
+			"**/api.databuddy.cc/public/v1/flags/**",
+			async (route) => {
+				const url = new URL(route.request().url());
+				if (url.pathname.includes("/bulk")) {
+					await route.fulfill({
+						status: 200,
+						contentType: "application/json",
+						body: JSON.stringify({
+							flags: { x: MOCK_FLAG_ENABLED },
+						}),
+					});
+					return;
+				}
+				await route.fulfill({ status: 200, body: "{}" });
 			}
-			await route.fulfill({ status: 200, body: "{}" });
-		});
+		);
 
 		await page.goto("/test");
 		await waitForSDK(page);
@@ -112,10 +115,8 @@ test.describe("Anonymous id when localStorage is unusable", () => {
 		const result = await page.evaluate(async () => {
 			const originalGet = Storage.prototype.getItem;
 			const originalSet = Storage.prototype.setItem;
-			Storage.prototype.getItem = function () {
-				return null;
-			};
-			Storage.prototype.setItem = function () {
+			Storage.prototype.getItem = () => null;
+			Storage.prototype.setItem = () => {
 				throw new DOMException("QuotaExceededError", "QuotaExceededError");
 			};
 

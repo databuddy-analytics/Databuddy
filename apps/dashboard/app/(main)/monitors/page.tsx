@@ -1,45 +1,45 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	HeartbeatIcon,
-	PlusIcon,
-	UserPlusIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { HeartbeatIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { UserPlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { Suspense, useState } from "react";
 import { PageHeader } from "@/app/(main)/websites/_components/page-header";
-import { List } from "@/components/ui/composables/list";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { FeatureAccessGate } from "@/components/feature-access-gate";
 import { MonitorRow } from "@/components/monitors/monitor-row";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
 import { FeatureInviteDialog } from "@/components/organizations/feature-invite-dialog";
 import { Button } from "@/components/ui/button";
+import { List } from "@/components/ui/composables/list";
 import { useFeatureAccess } from "@/hooks/use-feature-access";
 import type { ListQuerySlice } from "@/lib/list-query-outcome";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 export interface Monitor {
-	id: string;
-	websiteId: string | null;
-	url: string | null;
-	name: string | null;
-	granularity: string;
-	cron: string;
-	isPaused: boolean;
-	isPublic: boolean;
+	cacheBust: boolean;
 	createdAt: Date | string;
+	cron: string;
+	granularity: string;
+	id: string;
+	isPaused: boolean;
+	jsonParsingConfig?: {
+		enabled: boolean;
+	} | null;
+	name: string | null;
+	organizationId: string;
+	timeout: number | null;
 	updatedAt: Date | string;
+	url: string | null;
 	website: {
 		id: string;
 		name: string | null;
 		domain: string;
 	} | null;
-	jsonParsingConfig?: {
-		enabled: boolean;
-	} | null;
+	websiteId: string | null;
 }
 
 export default function MonitorsPage() {
@@ -52,7 +52,8 @@ export default function MonitorsPage() {
 		url: string;
 		name?: string | null;
 		granularity: string;
-		isPublic?: boolean;
+		timeout?: number | null;
+		cacheBust?: boolean;
 		jsonParsingConfig?: {
 			enabled: boolean;
 		} | null;
@@ -74,7 +75,8 @@ export default function MonitorsPage() {
 			url: schedule.url ?? "",
 			name: schedule.name,
 			granularity: schedule.granularity,
-			isPublic: schedule.isPublic,
+			timeout: schedule.timeout,
+			cacheBust: schedule.cacheBust,
 			jsonParsingConfig: schedule.jsonParsingConfig,
 		});
 		setIsSheetOpen(true);

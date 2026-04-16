@@ -2,25 +2,16 @@ import { MapPinIcon } from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { CountryFlag } from "@/components/icon";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
+import { formatNumber } from "@/lib/formatters";
 
 export interface GeoEntry {
-	name: string;
-	visitors: number;
-	pageviews: number;
-	percentage: number;
 	country_code?: string;
 	country_name?: string;
+	name: string;
+	pageviews: number;
+	percentage: number;
+	visitors: number;
 }
-
-const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
 
 interface GeoRowProps {
 	type: "country" | "region" | "city";

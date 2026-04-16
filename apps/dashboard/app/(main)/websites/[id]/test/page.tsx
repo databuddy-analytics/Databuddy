@@ -1,12 +1,10 @@
 "use client";
 
 import type { DateRange } from "@databuddy/shared/types/analytics";
-import {
-	CalendarDotsIcon,
-	FunnelIcon,
-	PencilSimpleIcon,
-	PlusIcon,
-} from "@phosphor-icons/react";
+import { CalendarDotsIcon } from "@phosphor-icons/react";
+import { FunnelIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -224,7 +222,6 @@ export default function TestPage() {
 					</GridLayout>
 				)}
 
-				{/* Add Card Tile - outside grid */}
 				<Card
 					className="group mt-4 flex h-[140px] cursor-pointer flex-col items-center justify-center gap-2 border-dashed bg-transparent py-0 transition-all hover:border-primary hover:bg-accent/50"
 					onClick={handleOpenAddSheet}

@@ -9,11 +9,11 @@ interface GridOffset {
 }
 
 interface SquaresProps {
-	direction?: "diagonal" | "up" | "right" | "down" | "left";
-	speed?: number;
 	borderColor?: CanvasStrokeStyle;
-	squareSize?: number;
+	direction?: "diagonal" | "up" | "right" | "down" | "left";
 	hoverFillColor?: CanvasStrokeStyle;
+	speed?: number;
+	squareSize?: number;
 }
 
 const Squares: React.FC<SquaresProps> = ({

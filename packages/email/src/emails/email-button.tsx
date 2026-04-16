@@ -2,8 +2,8 @@ import { Button } from "@react-email/components";
 import { emailBrand } from "./email-brand";
 
 interface EmailButtonProps {
-	href: string;
 	children: React.ReactNode;
+	href: string;
 }
 
 export const EmailButton = ({ href, children }: EmailButtonProps) => (

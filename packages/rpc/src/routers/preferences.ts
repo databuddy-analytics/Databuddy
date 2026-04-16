@@ -1,4 +1,5 @@
-import { eq, userPreferences } from "@databuddy/db";
+import { eq } from "@databuddy/db";
+import { userPreferences } from "@databuddy/db/schema";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "..";

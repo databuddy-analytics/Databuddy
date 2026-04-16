@@ -5,11 +5,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./client": "./src/client.ts",
-    "./clickhouse": "./clickhouse/index.ts"
-  },
-  "peerDependencies": {
-    "@opentelemetry/api": "^1.9.0"
+    "./schema": "./src/drizzle/schema.ts",
+    "./clickhouse": "./src/clickhouse/index.ts",
+    "./clickhouse/schema": "./src/clickhouse/schema.ts"
   },
   "dependencies": {
     "@clickhouse/client": "^1.14.0",
@@ -17,7 +15,7 @@
     "@faker-js/faker": "^9.9.0",
     "@neondatabase/serverless": "^1.0.2",
     "@types/sqlstring": "^2.3.2",
-    "drizzle-orm": "^0.45.1",
+    "drizzle-orm": "catalog:",
     "ioredis": "^5.8.2",
     "pg": "^8.16.3",
     "sqlstring": "^2.3.3"

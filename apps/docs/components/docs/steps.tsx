@@ -27,8 +27,8 @@ function Steps({ className, children, ...props }: StepsProps) {
 }
 
 interface StepProps extends React.ComponentProps<"div"> {
-	title?: string;
 	stepNumber?: number;
+	title?: string;
 	total?: number;
 }
 

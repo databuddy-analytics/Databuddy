@@ -6,58 +6,46 @@ import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
 const logger = createToolLogger("Annotations Tools");
 
 interface AnnotationRecord {
-	id: string;
-	text: string;
 	annotationType: "point" | "line" | "range";
-	xValue: string;
-	xEndValue?: string | null;
-	yValue?: number | null;
 	color?: string | null;
-	tags?: string[];
-	isPublic?: boolean;
 	createdAt?: string;
+	id: string;
+	isPublic?: boolean;
+	tags?: string[];
+	text: string;
 	updatedAt?: string;
+	xEndValue?: string | null;
+	xValue: string;
+	yValue?: number | null;
 }
 
 const chartContextSchema = z.object({
 	dateRange: z.object({
-		start_date: z.string().describe("Start date in YYYY-MM-DD format"),
-		end_date: z.string().describe("End date in YYYY-MM-DD format"),
-		granularity: z
-			.enum(["hourly", "daily", "weekly", "monthly"])
-			.describe("Time granularity for the chart"),
+		start_date: z.string(),
+		end_date: z.string(),
+		granularity: z.enum(["hourly", "daily", "weekly", "monthly"]),
 	}),
 	filters: z
 		.array(
 			z.object({
-				field: z.string().describe("Filter field name"),
-				operator: z
-					.enum(["eq", "ne", "gt", "lt", "contains"])
-					.describe("Filter operator"),
-				value: z.string().describe("Filter value"),
+				field: z.string(),
+				operator: z.enum(["eq", "ne", "gt", "lt", "contains"]),
+				value: z.string(),
 			})
 		)
-		.optional()
-		.describe("Optional filters to apply to the chart"),
-	metrics: z
-		.array(z.string())
-		.optional()
-		.describe("Optional array of metric names"),
-	tabId: z.string().optional().describe("Optional tab ID for the chart"),
+		.optional(),
+	metrics: z.array(z.string()).optional(),
+	tabId: z.string().optional(),
 });
 
 export function createAnnotationTools() {
 	const listAnnotationsTool = tool({
 		description:
-			"List all annotations for a website and chart context. Returns annotations with their metadata, text, tags, and timing information.",
+			"List annotations for a chart context (metadata, text, tags, timing).",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID to get annotations for"),
-			chartType: z
-				.enum(["metrics"])
-				.describe("The type of chart (currently only 'metrics' is supported)"),
-			chartContext: chartContextSchema.describe(
-				"The chart context including date range, filters, and metrics"
-			),
+			websiteId: z.string(),
+			chartType: z.enum(["metrics"]),
+			chartContext: chartContextSchema,
 		}),
 		execute: async ({ websiteId, chartType, chartContext }, options) => {
 			const context = getAppContext(options);
@@ -85,87 +73,22 @@ export function createAnnotationTools() {
 		},
 	});
 
-	const getAnnotationByIdTool = tool({
-		description:
-			"Get a specific annotation by ID. Returns detailed information including text, tags, color, timing, and chart context.",
-		inputSchema: z.object({
-			id: z.string().describe("The annotation ID"),
-		}),
-		execute: async ({ id }, options) => {
-			const context = getAppContext(options);
-			try {
-				return await callRPCProcedure(
-					"annotations",
-					"getById",
-					{ id },
-					context
-				);
-			} catch (error) {
-				logger.error("Failed to get annotation by ID", { id, error });
-				throw error instanceof Error
-					? error
-					: new Error("Failed to retrieve annotation. Please try again.");
-			}
-		},
-	});
-
 	const createAnnotationTool = tool({
 		description:
-			"Create a new annotation on a chart. Annotations mark important events or periods on charts. REQUIRES EXPLICIT USER CONFIRMATION before creating. Always show a preview first and ask the user to confirm before setting confirmed=true.",
+			"Create a chart annotation. type=point (moment), line (vertical line), range (period — needs xEndValue). Timestamps ISO 8601.",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			chartType: z
-				.enum(["metrics"])
-				.describe("The type of chart (currently only 'metrics' is supported)"),
-			chartContext: chartContextSchema.describe(
-				"The chart context including date range, filters, and metrics"
-			),
-			annotationType: z
-				.enum(["point", "line", "range"])
-				.describe(
-					"Type of annotation: 'point' for a single moment, 'line' for a vertical line, 'range' for a time period"
-				),
-			xValue: z
-				.string()
-				.describe(
-					"X-axis value (timestamp) in ISO 8601 format (e.g., '2024-01-15T10:30:00Z')"
-				),
-			xEndValue: z
-				.string()
-				.optional()
-				.describe(
-					"End X-axis value for range annotations in ISO 8601 format (required for 'range' type)"
-				),
-			yValue: z
-				.number()
-				.optional()
-				.describe("Optional Y-axis value for point annotations"),
-			text: z
-				.string()
-				.min(1)
-				.max(500)
-				.describe("Annotation text (1-500 characters)"),
-			tags: z
-				.array(z.string())
-				.optional()
-				.describe("Optional array of tags for categorizing the annotation"),
-			color: z
-				.string()
-				.optional()
-				.describe(
-					"Optional color in hex format (e.g., '#3B82F6'). Defaults to blue."
-				),
-			isPublic: z
-				.boolean()
-				.optional()
-				.describe(
-					"Whether the annotation is public (visible to all team members). Defaults to false."
-				),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms. When false, returns a preview and asks for confirmation."
-				),
+			websiteId: z.string(),
+			chartType: z.enum(["metrics"]),
+			chartContext: chartContextSchema,
+			annotationType: z.enum(["point", "line", "range"]),
+			xValue: z.string(),
+			xEndValue: z.string().optional(),
+			yValue: z.number().optional(),
+			text: z.string().min(1).max(500),
+			tags: z.array(z.string()).optional(),
+			color: z.string().optional(),
+			isPublic: z.boolean().optional(),
+			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
 		execute: async (
 			{
@@ -186,7 +109,6 @@ export function createAnnotationTools() {
 		) => {
 			const context = getAppContext(options);
 			try {
-				// Validate date format
 				if (!dayjs(xValue).isValid()) {
 					throw new Error(
 						"xValue must be a valid ISO 8601 date string (e.g., '2024-01-15T10:30:00Z')."
@@ -198,14 +120,12 @@ export function createAnnotationTools() {
 					);
 				}
 
-				// Validate range annotations have end value
 				if (annotationType === "range" && !xEndValue) {
 					throw new Error(
 						"Range annotations require an xEndValue to define the end of the time period."
 					);
 				}
 
-				// If not confirmed, return preview and ask for confirmation
 				if (!confirmed) {
 					const dateRangePreview = `${chartContext.dateRange.start_date} to ${chartContext.dateRange.end_date} (${chartContext.dateRange.granularity})`;
 
@@ -231,7 +151,6 @@ export function createAnnotationTools() {
 					};
 				}
 
-				// User confirmed - create the annotation
 				const result = await callRPCProcedure(
 					"annotations",
 					"create",
@@ -271,30 +190,14 @@ export function createAnnotationTools() {
 	});
 
 	const updateAnnotationTool = tool({
-		description:
-			"Update an existing annotation. Can update text, tags, color, and visibility. REQUIRES EXPLICIT USER CONFIRMATION before updating. Always show a preview first and ask the user to confirm before setting confirmed=true.",
+		description: "Update annotation text, tags, color, or visibility.",
 		inputSchema: z.object({
-			id: z.string().describe("The annotation ID to update"),
-			text: z
-				.string()
-				.min(1)
-				.max(500)
-				.optional()
-				.describe("Updated annotation text (1-500 characters)"),
-			tags: z.array(z.string()).optional().describe("Updated array of tags"),
-			color: z
-				.string()
-				.optional()
-				.describe("Updated color in hex format (e.g., '#3B82F6')"),
-			isPublic: z
-				.boolean()
-				.optional()
-				.describe("Updated visibility (public or private)"),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms. When false, returns a preview and asks for confirmation."
-				),
+			id: z.string(),
+			text: z.string().min(1).max(500).optional(),
+			tags: z.array(z.string()).optional(),
+			color: z.string().optional(),
+			isPublic: z.boolean().optional(),
+			confirmed: z.boolean().describe("false=preview, true=apply"),
 		}),
 		execute: async (
 			{ id, text, tags, color, isPublic, confirmed },
@@ -368,7 +271,6 @@ export function createAnnotationTools() {
 					};
 				}
 
-				// User confirmed - update the annotation
 				const updateData: {
 					id: string;
 					text?: string;
@@ -412,15 +314,10 @@ export function createAnnotationTools() {
 	});
 
 	const deleteAnnotationTool = tool({
-		description:
-			"Delete an annotation (soft delete). REQUIRES EXPLICIT USER CONFIRMATION before deleting. Always show a preview first and ask the user to confirm before setting confirmed=true.",
+		description: "Soft-delete an annotation.",
 		inputSchema: z.object({
-			id: z.string().describe("The annotation ID to delete"),
-			confirmed: z
-				.boolean()
-				.describe(
-					"CRITICAL: Must be false initially. Only set to true after user explicitly confirms. When false, returns a preview and asks for confirmation."
-				),
+			id: z.string(),
+			confirmed: z.boolean().describe("false=preview, true=delete"),
 		}),
 		execute: async ({ id, confirmed }, options) => {
 			const context = getAppContext(options);
@@ -448,7 +345,6 @@ export function createAnnotationTools() {
 					};
 				}
 
-				// User confirmed - delete the annotation
 				const result = await callRPCProcedure(
 					"annotations",
 					"delete",
@@ -472,7 +368,6 @@ export function createAnnotationTools() {
 
 	return {
 		list_annotations: listAnnotationsTool,
-		get_annotation_by_id: getAnnotationByIdTool,
 		create_annotation: createAnnotationTool,
 		update_annotation: updateAnnotationTool,
 		delete_annotation: deleteAnnotationTool,

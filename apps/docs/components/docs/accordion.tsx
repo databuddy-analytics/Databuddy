@@ -20,8 +20,8 @@ function Accordion({
 
 // Accordions wrapper component
 interface AccordionsProps extends React.ComponentProps<"div"> {
-	type?: "single" | "multiple";
 	collapsible?: boolean;
+	type?: "single" | "multiple";
 }
 
 function Accordions({

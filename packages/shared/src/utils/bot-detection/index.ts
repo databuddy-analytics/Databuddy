@@ -1,24 +1,3 @@
-/**
- * Bot Detection Module
- *
- * Centralized bot detection system for all Databuddy applications
- *
- * @example
- * ```typescript
- * import { detectBot, BotAction, BotCategory } from '@databuddy/shared/bot-detection';
- *
- * const result = detectBot(userAgent, {
- *   allowAICrawlers: false,
- *   allowedBots: ['GPTBot'],
- *   blockedBots: ['SemrushBot'],
- * });
- *
- * if (result.action === BotAction.BLOCK) {
- *   return new Response('Blocked', { status: 403 });
- * }
- * ```
- */
-
-export * from "./detector";
+export { detectBot } from "./detector";
 export * from "./types";
-export * from "./user-agent";
+export { extractBotName, matchCategory, parseUserAgent } from "./user-agent";

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { cacheable, redis } from "@databuddy/redis";
+import { cacheable } from "@databuddy/redis/cacheable";
+import { redis } from "@databuddy/redis/redis";
 import { captureError, record } from "@lib/tracing";
 import { CryptoHasher } from "bun";
 import { useLogger } from "evlog/elysia";

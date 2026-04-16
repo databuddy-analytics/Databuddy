@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	ArrowRightIcon,
-	ArrowSquareOutIcon,
-	BuildingsIcon,
-	InfoIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { BuildingsIcon } from "@phosphor-icons/react";
+import { InfoIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { Suspense, useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -135,11 +133,9 @@ function TransferPageContent() {
 				title="Transfer Website"
 			/>
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-none">
-				{/* Transfer Overview */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="space-y-4">
 						<div className="flex items-center gap-3">
-							{/* Current Workspace */}
 							<div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-secondary p-3">
 								<BuildingsIcon className="size-5 shrink-0 text-muted-foreground" />
 								<div className="min-w-0 flex-1">
@@ -150,10 +146,8 @@ function TransferPageContent() {
 								</div>
 							</div>
 
-							{/* Arrow */}
 							<ArrowRightIcon className="size-4 shrink-0 text-muted-foreground" />
 
-							{/* Target Organization */}
 							<div className="flex min-w-0 flex-1 items-center gap-3 rounded-lg border bg-secondary p-3">
 								<BuildingsIcon className="size-5 shrink-0 text-muted-foreground" />
 								<div className="min-w-0 flex-1">
@@ -165,7 +159,6 @@ function TransferPageContent() {
 							</div>
 						</div>
 
-						{/* Info Alert */}
 						<NoticeBanner
 							description="This will transfer ownership and all associated data to the selected organization. Members of the new organization will gain access."
 							icon={<InfoIcon />}
@@ -174,7 +167,6 @@ function TransferPageContent() {
 					</div>
 				</section>
 
-				{/* Select Organization */}
 				<section className="border-b px-4 py-5 sm:px-6">
 					<div className="space-y-3">
 						<div className="space-y-2">
@@ -218,7 +210,6 @@ function TransferPageContent() {
 					</div>
 				</section>
 
-				{/* Warning */}
 				{selectedOrgId && (
 					<section className="border-b px-4 py-5 sm:px-6">
 						<Alert className="border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
@@ -237,7 +228,6 @@ function TransferPageContent() {
 					</section>
 				)}
 
-				{/* Actions */}
 				<section className="angled-rectangle-gradient mt-auto flex items-center justify-between gap-3 border-t bg-secondary px-5 py-4">
 					<p className="text-muted-foreground text-sm">
 						{selectedOrgId
@@ -255,7 +245,6 @@ function TransferPageContent() {
 				</section>
 			</div>
 
-			{/* Confirmation Dialog */}
 			<Dialog onOpenChange={setShowConfirmDialog} open={showConfirmDialog}>
 				<DialogContent>
 					<DialogHeader>
@@ -264,7 +253,6 @@ function TransferPageContent() {
 					</DialogHeader>
 
 					<div className="space-y-3">
-						{/* Website being transferred */}
 						<div className="flex items-center gap-2.5 rounded border bg-accent/50 p-2.5">
 							<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
 								<span className="font-semibold text-primary text-xs">
@@ -282,7 +270,6 @@ function TransferPageContent() {
 							</div>
 						</div>
 
-						{/* Transfer flow - stacked layout */}
 						<div className="space-y-2">
 							<div className="flex items-center gap-2.5 rounded border p-2.5">
 								<div className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
@@ -336,7 +323,6 @@ function TransferPageContent() {
 							</div>
 						</div>
 
-						{/* Warning */}
 						<p className="text-muted-foreground text-xs leading-relaxed">
 							All ownership, data, settings, and analytics will be transferred.
 							Members of{" "}

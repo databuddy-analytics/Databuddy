@@ -6,8 +6,8 @@ export interface CommonProps {
 }
 
 export interface TimeProps {
-	time?: number;
 	speed?: number;
+	time?: number;
 }
 
 export interface ControlProps {
@@ -15,8 +15,8 @@ export interface ControlProps {
 }
 
 export interface AuroraProps extends CommonProps, TimeProps, ControlProps {
-	colorStops?: [string, string, string];
 	amplitude?: number;
+	colorStops?: [string, string, string];
 }
 
 const VERT = `#version 300 es

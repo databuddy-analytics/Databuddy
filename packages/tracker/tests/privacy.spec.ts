@@ -1,20 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { hasEvent } from "./test-utils";
+import { expect, hasEvent, test } from "./test-utils";
 
 test.describe("Privacy & Opt-out", () => {
-	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/*", async (route) => {
-			await route.fulfill({
-				status: 200,
-				body: JSON.stringify({ success: true }),
-			});
-		});
-	});
 
 	test("does not track when opted out via function", async ({ page }) => {
 		let requestCount = 0;

@@ -10,7 +10,7 @@ import {
 	flushBatchedUptimeDrain,
 	uptimeLoggerDrain,
 } from "./lib/evlog-uptime";
-import { sendUptimeEvent } from "./lib/producer";
+import { disconnectProducer, sendUptimeEvent } from "./lib/producer";
 import { captureError, mergeWideEvent } from "./lib/tracing";
 import {
 	getPreviousMonitorStatus,
@@ -20,10 +20,7 @@ import {
 initLogger({
 	env: { service: "uptime" },
 	drain: uptimeLoggerDrain,
-	sampling: {
-		// rates: { info: 20, warn: 50, debug: 5 },
-		// keep: [{ status: 400 }, { duration: 1500 }],
-	},
+	sampling: {},
 });
 
 process.on("unhandledRejection", (reason, _promise) => {
@@ -44,27 +41,22 @@ process.on("uncaughtException", (error) => {
 	});
 });
 
-process.on("SIGTERM", async () => {
-	log.info("lifecycle", "SIGTERM received, shutting down gracefully");
-	await flushBatchedUptimeDrain().catch((error) =>
+async function shutdown(signal: string) {
+	log.info("lifecycle", `${signal} received, shutting down gracefully`);
+	await Promise.allSettled([
+		flushBatchedUptimeDrain(),
+		disconnectProducer(),
+	]).catch((error) =>
 		log.error({
-			lifecycle: "drainFlush",
+			lifecycle: "shutdown",
 			error_message: error instanceof Error ? error.message : String(error),
 		})
 	);
 	process.exit(0);
-});
+}
 
-process.on("SIGINT", async () => {
-	log.info("lifecycle", "SIGINT received, shutting down gracefully");
-	await flushBatchedUptimeDrain().catch((error) =>
-		log.error({
-			lifecycle: "drainFlush",
-			error_message: error instanceof Error ? error.message : String(error),
-		})
-	);
-	process.exit(0);
-});
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 const CURRENT_SIGNING_KEY = process.env.QSTASH_CURRENT_SIGNING_KEY;
 const NEXT_SIGNING_KEY = process.env.QSTASH_NEXT_SIGNING_KEY;

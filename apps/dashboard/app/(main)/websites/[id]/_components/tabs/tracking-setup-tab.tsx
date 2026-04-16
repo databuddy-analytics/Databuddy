@@ -1,19 +1,17 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	BookOpenIcon,
-	BugIcon,
-	CaretDownIcon,
-	CheckIcon,
-	ClipboardIcon,
-	CodeIcon,
-	GearIcon,
-	LightningIcon,
-	PackageIcon,
-	PulseIcon,
-	WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { BookOpenIcon } from "@phosphor-icons/react";
+import { BugIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { ClipboardIcon } from "@phosphor-icons/react";
+import { CodeIcon } from "@phosphor-icons/react";
+import { GearIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { PackageIcon } from "@phosphor-icons/react";
+import { PulseIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
@@ -731,7 +729,7 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 		enabled: !!websiteId,
 	});
 
-	const isSetup = trackingSetupData?.tracking_setup ?? false;
+	const isSetup = Boolean(trackingSetupData?.tracking_setup);
 
 	const handleCopyCode = (code: string, blockId: string, message: string) => {
 		navigator.clipboard.writeText(code);
@@ -830,7 +828,6 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 				</Card>
 			</div>
 
-			{/* Help Footer */}
 			<div className="flex flex-wrap items-center justify-between gap-4 rounded border border-dashed bg-background/50 p-3">
 				<span className="text-muted-foreground text-sm">
 					Need help setting up?

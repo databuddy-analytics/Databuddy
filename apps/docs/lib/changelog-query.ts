@@ -15,11 +15,11 @@ export type NotraPost = Omit<ListPostsPost, "recommendations" | "status"> & {
 export type NotraPagination = Pagination;
 
 export interface NotraPostListResponse {
-	posts: NotraPost[];
-	pagination: NotraPagination;
 	metadata?: {
 		status: string[];
 	};
+	pagination: NotraPagination;
+	posts: NotraPost[];
 }
 
 export interface NotraPostResponse {

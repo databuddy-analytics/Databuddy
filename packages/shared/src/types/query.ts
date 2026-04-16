@@ -1,6 +1,6 @@
 export interface ApiResponse {
-	success: boolean;
 	error?: string;
+	success: boolean;
 }
 
 export type QueryFieldType =
@@ -12,12 +12,12 @@ export type QueryFieldType =
 	| "json";
 
 export interface QueryOutputField {
+	description?: string;
+	example?: string | number | boolean | null;
+	label?: string;
 	name: string;
 	type: QueryFieldType;
-	label?: string;
-	description?: string;
 	unit?: string;
-	example?: string | number | boolean | null;
 }
 
 export type VisualizationType =
@@ -30,23 +30,23 @@ export type VisualizationType =
 	| "line";
 
 export interface QueryBuilderMeta {
-	title: string;
-	description: string;
 	category?: string;
-	tags?: string[];
-	output_fields?: QueryOutputField[];
-	output_example?: Record<string, string | number | boolean | null>[];
 	default_visualization?: VisualizationType;
-	supports_granularity?: ("hour" | "day" | "week" | "month")[];
-	version?: string;
 	deprecated?: boolean;
+	description: string;
 	docs_url?: string;
+	output_example?: Record<string, string | number | boolean | null>[];
+	output_fields?: QueryOutputField[];
+	supports_granularity?: ("hour" | "day" | "week" | "month")[];
+	tags?: string[];
+	title: string;
+	version?: string;
 }
 
 export interface QueryBuilderCatalogItem {
-	key: string;
 	allowedFilters: string[];
 	customizable?: boolean;
 	defaultLimit?: number;
+	key: string;
 	meta?: QueryBuilderMeta;
 }

@@ -7,29 +7,29 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 interface TabItem {
-	id: string;
-	label: string;
+	count?: number;
 	href: string;
 	icon?: Icon;
-	count?: number;
+	id: string;
+	label: string;
 }
 
 interface BreadcrumbItem {
-	label: string;
 	href: string;
+	label: string;
 }
 
 interface PageNavigationTabsProps {
-	variant: "tabs";
-	tabs: TabItem[];
 	className?: string;
+	tabs: TabItem[];
+	variant: "tabs";
 }
 
 interface PageNavigationBreadcrumbProps {
-	variant: "breadcrumb";
 	breadcrumb: BreadcrumbItem;
-	currentPage: string;
 	className?: string;
+	currentPage: string;
+	variant: "breadcrumb";
 }
 
 type PageNavigationProps =

@@ -55,20 +55,19 @@ export type BotAction = (typeof BotAction)[keyof typeof BotAction];
  * Result of bot detection
  */
 export interface BotDetectionResult {
-	/** Whether the user agent is identified as a bot */
-	isBot: boolean;
+	/** Action to take for this bot */
+	action: BotAction;
 
 	/** Category of bot if detected */
 	category?: BotCategory;
 
-	/** Specific bot name if identified (e.g., "GPTBot", "ClaudeBot") */
-	name?: string;
-
-	/** Action to take for this bot */
-	action: BotAction;
-
 	/** Confidence level (0-100) */
 	confidence: number;
+	/** Whether the user agent is identified as a bot */
+	isBot: boolean;
+
+	/** Specific bot name if identified (e.g., "GPTBot", "ClaudeBot") */
+	name?: string;
 
 	/** Reason for detection (for logging/debugging) */
 	reason?: string;
@@ -78,14 +77,16 @@ export interface BotDetectionResult {
  * Configuration for bot detection behavior
  */
 export interface BotDetectionConfig {
+	/** Allow AI crawlers to access content */
+	allowAICrawlers?: boolean;
 	/** Explicitly allowed bot names (case-insensitive) */
 	allowedBots?: string[];
 
-	/** Explicitly blocked bot names (case-insensitive) */
-	blockedBots?: string[];
+	/** Allow monitoring services */
+	allowMonitoring?: boolean;
 
-	/** Allow AI crawlers to access content */
-	allowAICrawlers?: boolean;
+	/** Allow SEO/analytics tools */
+	allowSEOTools?: boolean;
 
 	/** Allow search engine bots */
 	allowSearchEngines?: boolean;
@@ -93,17 +94,14 @@ export interface BotDetectionConfig {
 	/** Allow social media preview bots */
 	allowSocialMedia?: boolean;
 
-	/** Allow SEO/analytics tools */
-	allowSEOTools?: boolean;
-
-	/** Allow monitoring services */
-	allowMonitoring?: boolean;
-
-	/** Categories to track but not block (logged separately) */
-	trackOnlyCategories?: BotCategory[];
+	/** Explicitly blocked bot names (case-insensitive) */
+	blockedBots?: string[];
 
 	/** Block requests with missing user agent */
 	blockMissingUserAgent?: boolean;
+
+	/** Categories to track but not block (logged separately) */
+	trackOnlyCategories?: BotCategory[];
 }
 
 /**
@@ -131,20 +129,20 @@ export interface ParsedUserAgent {
 	/** Browser version */
 	browserVersion?: string;
 
-	/** Operating system name */
-	osName?: string;
-
-	/** Operating system version */
-	osVersion?: string;
-
-	/** Device type (mobile, tablet, desktop, etc.) */
-	deviceType?: string;
-
 	/** Device brand/vendor */
 	deviceBrand?: string;
 
 	/** Device model */
 	deviceModel?: string;
+
+	/** Device type (mobile, tablet, desktop, etc.) */
+	deviceType?: string;
+
+	/** Operating system name */
+	osName?: string;
+
+	/** Operating system version */
+	osVersion?: string;
 
 	/** Raw user agent string */
 	raw: string;

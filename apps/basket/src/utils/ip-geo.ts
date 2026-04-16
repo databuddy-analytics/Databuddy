@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { cacheable } from "@databuddy/redis";
+import { cacheable } from "@databuddy/redis/cacheable";
 import { captureError, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
 import {

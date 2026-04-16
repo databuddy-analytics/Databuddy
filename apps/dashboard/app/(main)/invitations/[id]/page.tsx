@@ -1,15 +1,13 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import {
-	ArrowRightIcon,
-	BuildingsIcon,
-	CheckCircleIcon,
-	ClockIcon,
-	SpinnerGapIcon,
-	UserPlusIcon,
-	XCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { BuildingsIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { SpinnerGapIcon } from "@phosphor-icons/react";
+import { UserPlusIcon } from "@phosphor-icons/react";
+import { XCircleIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
@@ -23,16 +21,16 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "../../websites/_components/page-header";
 
 interface InvitationData {
+	email: string;
+	expiresAt: Date;
+	id: string;
+	inviterEmail: string;
+	inviterId: string;
+	organizationId: string;
 	organizationName: string;
 	organizationSlug: string;
-	inviterEmail: string;
-	id: string;
-	email: string;
-	status: "pending" | "accepted" | "rejected" | "canceled";
-	expiresAt: Date;
-	organizationId: string;
 	role: string;
-	inviterId: string;
+	status: "pending" | "accepted" | "rejected" | "canceled";
 	teamId?: string;
 }
 

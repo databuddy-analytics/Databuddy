@@ -13,17 +13,17 @@ import {
 } from "@/components/ui/dialog";
 
 interface DeleteDialogProps {
+	cancelLabel?: string;
+	children?: React.ReactNode;
+	confirmDisabled?: boolean;
+	confirmLabel?: string;
+	description?: string;
+	isDeleting?: boolean;
 	isOpen: boolean;
+	itemName?: string;
 	onClose: () => void;
 	onConfirm: () => void;
 	title?: string;
-	description?: string;
-	itemName?: string;
-	confirmLabel?: string;
-	cancelLabel?: string;
-	isDeleting?: boolean;
-	confirmDisabled?: boolean;
-	children?: React.ReactNode;
 }
 
 export function DeleteDialog({
@@ -96,13 +96,13 @@ export function DeleteDialog({
 					</div>
 				)}
 				<DialogFooter>
-					<Button variant="outline" onClick={onClose} disabled={isDeleting}>
+					<Button disabled={isDeleting} onClick={onClose} variant="outline">
 						{cancelLabel}
 					</Button>
 					<Button
-						variant="destructive"
-						onClick={handleConfirm}
 						disabled={isDeleting || confirmDisabled}
+						onClick={handleConfirm}
+						variant="destructive"
 					>
 						{isDeleting ? "Deleting..." : confirmLabel}
 					</Button>
@@ -111,4 +111,3 @@ export function DeleteDialog({
 		</Dialog>
 	);
 }
-

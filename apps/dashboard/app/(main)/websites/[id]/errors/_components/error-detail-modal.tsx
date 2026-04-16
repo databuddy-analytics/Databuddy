@@ -1,17 +1,15 @@
 "use client";
 
-import {
-	ArrowSquareOutIcon,
-	CheckIcon,
-	ClockIcon,
-	CodeIcon,
-	CopyIcon,
-	GlobeIcon,
-	HashIcon,
-	LinkIcon,
-	StackIcon,
-	UserIcon,
-} from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { CodeIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { HashIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { StackIcon } from "@phosphor-icons/react";
+import { UserIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -38,14 +36,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { fromNow } from "@/lib/time";
+import { formatDateTime, fromNow } from "@/lib/time";
 import { getDeviceIcon, getErrorTypeIcon } from "./error-icons";
 import type { RecentError } from "./types";
-import {
-	formatDateTimeSeconds,
-	getErrorCategory,
-	getSeverityColor,
-} from "./utils";
+import { getErrorCategory, getSeverityColor } from "./utils";
 
 interface ErrorDetailModalProps {
 	error: RecentError;
@@ -151,16 +145,16 @@ Context:
 • URL: ${error.path}
 • Session: ${error.session_id || "Unknown"}
 • User: ${error.anonymous_id}
-• Time: ${formatDateTimeSeconds(error.timestamp)}
+• Time: ${formatDateTime(error.timestamp)}
 • Browser: ${error.browser_name || "Unknown"}
 • OS: ${error.os_name || "Unknown"}
 • Device: ${error.device_type || "Unknown"}
 • Location: ${locationLabel}`;
 
 	interface QuickAction {
+		description: string;
 		key: string;
 		node: ReactNode;
-		description: string;
 	}
 
 	const quickActions: QuickAction[] = [];
@@ -339,7 +333,7 @@ Context:
 								<span>{relativeTimeStr}</span>
 								<span className="text-muted-foreground/50">•</span>
 								<span className="font-mono">
-									{formatDateTimeSeconds(error.timestamp)}
+									{formatDateTime(error.timestamp)}
 								</span>
 							</SheetDescription>
 						</div>

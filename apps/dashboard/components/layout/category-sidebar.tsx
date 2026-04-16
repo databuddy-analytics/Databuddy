@@ -1,12 +1,5 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { useFlags } from "@databuddy/sdk/react";
-import { InfoIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
-import dynamic from "next/dynamic";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
 import { Branding } from "@/components/layout/logo";
 import { useCommandSearchOpenAction } from "@/components/ui/command-search";
 import {
@@ -14,24 +7,17 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useHasMounted } from "@/hooks/use-has-mounted";
-import { useMonitorsLight } from "@/hooks/use-monitors";
-import { useWebsitesLight } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
+import { authClient } from "@databuddy/auth/client";
+import { InfoIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useState } from "react";
 import { Button } from "../ui/button";
-import {
-	categoryConfig,
-	createLoadingMonitorsNavigation,
-	createLoadingWebsitesNavigation,
-	createMonitorsNavigation,
-	createWebsitesNavigation,
-	filterCategoriesByFlags,
-	filterCategoriesForRoute,
-	getContextConfig,
-	getDefaultCategory,
-} from "./navigation/navigation-config";
 import { PendingInvitationsButton } from "./pending-invitations-button";
 import { ProfileButtonClient } from "./profile-button-client";
+import { useSidebarNavigation } from "./sidebar-navigation-provider";
 import { ThemeToggle } from "./theme-toggle";
 
 const HelpDialog = dynamic(
@@ -42,67 +28,13 @@ const HelpDialog = dynamic(
 	}
 );
 
-interface CategorySidebarProps {
-	onCategoryChangeAction?: (categoryId: string) => void;
-	selectedCategory?: string;
-}
-
-export function CategorySidebar({
-	onCategoryChangeAction,
-	selectedCategory,
-}: CategorySidebarProps) {
+export function CategorySidebar() {
 	const { data: session } = authClient.useSession();
 	const user = session?.user ?? null;
 
-	const pathname = usePathname();
-	const { websites, isLoading: isLoadingWebsites } = useWebsitesLight({
-		enabled: user !== null,
-	});
-	const { monitors, isLoading: isLoadingMonitors } = useMonitorsLight({
-		enabled: user !== null,
-	});
+	const { categories, activeCategory, setCategory } = useSidebarNavigation();
 	const [helpOpen, setHelpOpen] = useState(false);
-	const { getFlag } = useFlags();
-	const hasMounted = useHasMounted();
 	const openCommandSearchAction = useCommandSearchOpenAction();
-
-	const { categories, defaultCategory } = useMemo(() => {
-		const baseConfig = getContextConfig(pathname);
-		const config =
-			baseConfig === categoryConfig.main
-				? {
-						...baseConfig,
-						navigationMap: {
-							...baseConfig.navigationMap,
-							home: (!hasMounted || isLoadingWebsites)
-								? createLoadingWebsitesNavigation()
-								: createWebsitesNavigation(websites),
-							monitors: (!hasMounted || isLoadingMonitors)
-								? createLoadingMonitorsNavigation()
-								: createMonitorsNavigation(monitors),
-						},
-					}
-				: baseConfig;
-
-		const defaultCat = getDefaultCategory(pathname);
-		const filteredCategories = filterCategoriesByFlags(
-			filterCategoriesForRoute(config.categories, pathname),
-			hasMounted,
-			getFlag
-		);
-
-		return { categories: filteredCategories, defaultCategory: defaultCat };
-	}, [
-		pathname,
-		websites,
-		isLoadingWebsites,
-		monitors,
-		isLoadingMonitors,
-		hasMounted,
-		getFlag,
-	]);
-
-	const activeCategory = selectedCategory || defaultCategory;
 
 	return (
 		<div className="fixed inset-y-0 left-0 z-40 w-12 border-r bg-transparent">
@@ -162,7 +94,7 @@ export function CategorySidebar({
 										hoverClass,
 										boxClass
 									)}
-									onClick={() => onCategoryChangeAction?.(category.id)}
+									onClick={() => setCategory(category.id)}
 									type="button"
 								>
 									{isActive ? (

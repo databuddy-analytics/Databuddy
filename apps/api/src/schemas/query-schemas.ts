@@ -112,36 +112,36 @@ export interface FilterType {
 }
 
 export interface ParameterWithDatesType {
-	name: string;
-	start_date?: string;
 	end_date?: string;
 	granularity?: "hourly" | "daily" | "hour" | "day";
 	id?: string;
+	name: string;
+	start_date?: string;
 }
 
 export interface DynamicQueryRequestType {
-	id?: string;
-	parameters: (string | ParameterWithDatesType)[];
-	limit?: number;
-	page?: number;
+	endDate?: string;
 	filters?: FilterType[];
 	granularity?: "hourly" | "daily" | "hour" | "day";
 	groupBy?: string | string[];
-	startDate?: string;
-	endDate?: string;
+	id?: string;
+	limit?: number;
+	page?: number;
+	parameters: (string | ParameterWithDatesType)[];
 	preset?: DatePreset;
+	startDate?: string;
 	timeZone?: string;
 }
 
 export interface CompileRequestType {
-	projectId: string;
-	type: keyof typeof QueryBuilders;
-	from: string;
-	to: string;
-	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
 	filters?: FilterType[];
+	from: string;
 	groupBy?: string[];
-	orderBy?: string;
 	limit?: number;
 	offset?: number;
+	orderBy?: string;
+	projectId: string;
+	timeUnit?: "minute" | "hour" | "day" | "week" | "month";
+	to: string;
+	type: keyof typeof QueryBuilders;
 }

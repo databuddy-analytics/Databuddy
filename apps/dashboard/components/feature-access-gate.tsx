@@ -7,12 +7,12 @@ import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { getFeatureDescription, getFeatureLabel } from "@/lib/feature-gates";
 
 interface FeatureAccessGateProps {
-	flagKey: string;
 	children: ReactNode;
+	flagKey: string;
 	loadingFallback?: ReactNode;
 }
 
-function LockedState({ flagKey }: { flagKey: string }) {
+export function FeatureLockedPanel({ flagKey }: { flagKey: string }) {
 	const label = getFeatureLabel(flagKey);
 	const description = getFeatureDescription(flagKey);
 
@@ -54,7 +54,7 @@ export function FeatureAccessGate({
 	}
 
 	if (!hasAccess) {
-		return <LockedState flagKey={flagKey} />;
+		return <FeatureLockedPanel flagKey={flagKey} />;
 	}
 
 	return <>{children}</>;

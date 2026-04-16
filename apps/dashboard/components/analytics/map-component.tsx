@@ -24,9 +24,9 @@ const GeoJSON = dynamic(
 );
 
 interface TooltipContent {
-	name: string;
 	code: string;
 	count: number;
+	name: string;
 	percentage: number;
 }
 
@@ -86,19 +86,14 @@ export function MapComponent({
 	const [mapView] = useState<"countries" | "subdivisions">("countries");
 	const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-	// Theme colors from globals.css (Leaflet needs actual values, not CSS vars)
+	// Leaflet needs concrete oklch strings, not CSS vars.
 	const themeColors = useMemo(() => {
 		const isDark = resolvedTheme === "dark";
 		return {
-			// --chart-1: oklch(0.81 0.1 252)
 			chart1: "oklch(0.81 0.1 252",
-			// --chart-2: oklch(0.62 0.19 260)
 			chart2: "oklch(0.62 0.19 260",
-			// --chart-3: oklch(0.55 0.22 263)
 			chart3: "oklch(0.55 0.22 263",
-			// --muted: light oklch(0.60 0.0079 240) / dark oklch(0.50 0.006 286.033)
 			muted: isDark ? "oklch(0.50 0.006 286.033" : "oklch(0.60 0.0079 240",
-			// --secondary: light oklch(0.93 0.005 240) / dark oklch(0.28 0.006 286.033)
 			secondary: isDark ? "oklch(0.28 0.006 286.033" : "oklch(0.93 0.005 240",
 		};
 	}, [resolvedTheme]);
@@ -158,7 +153,6 @@ export function MapComponent({
 			}
 
 			const dataKey = feature?.properties?.ISO_A2;
-			// Convert GeoJSON code to API code for data lookup
 			const apiCode = mapGeoJsonToApi(dataKey ?? "");
 			const foundData = countryData?.data?.find(
 				({ value }: { value: string }) => value === apiCode
@@ -232,7 +226,6 @@ export function MapComponent({
 					setHoveredId(code);
 
 					const name = feature.properties?.ADMIN;
-					// Convert GeoJSON code to API code for data lookup
 					const apiCode = mapGeoJsonToApi(code ?? "");
 					const foundData = countryData?.data?.find(
 						({ value }) => value === apiCode
@@ -242,7 +235,7 @@ export function MapComponent({
 
 					setTooltipContent({
 						name,
-						code: apiCode, // Use API code for flag display
+						code: apiCode,
 						count,
 						percentage,
 					});

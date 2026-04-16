@@ -31,6 +31,12 @@ export function useCustomEventsData(
 				filters,
 			},
 			{
+				id: "custom_events_trends_by_event",
+				parameters: ["custom_events_trends_by_event"],
+				limit: 5000,
+				filters,
+			},
+			{
 				id: "custom_events_property_classification",
 				parameters: ["custom_events_property_classification"],
 				filters,

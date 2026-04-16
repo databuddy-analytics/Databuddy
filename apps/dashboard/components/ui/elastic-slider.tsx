@@ -1,32 +1,35 @@
-'use client';
+"use client";
 
-import { MinusIcon, PlusIcon } from '@phosphor-icons/react';
+import { MinusIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import {
 	motion,
 	useMotionValue,
 	useMotionValueEvent,
 	useTransform,
-} from 'motion/react';
-import { useCallback, useRef, useState } from 'react';
-import { cn } from '@/lib/utils';
+} from "motion/react";
+import { useCallback, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 const MAX_OVERFLOW = 30;
 
 interface SliderProps {
-	value?: number;
-	onValueChange?: (value: number) => void;
-	min?: number;
-	max?: number;
-	step?: number;
 	className?: string;
+	disabled?: boolean;
 	leftIcon?: React.ReactNode;
+	max?: number;
+	min?: number;
+	onValueChange?: (value: number) => void;
 	rightIcon?: React.ReactNode;
 	showValue?: boolean;
-	disabled?: boolean;
+	step?: number;
+	value?: number;
 }
 
 function decay(value: number, maxValue: number): number {
-	if (maxValue === 0) return 0;
+	if (maxValue === 0) {
+		return 0;
+	}
 	const entry = value / maxValue;
 	const sigmoid = 2 * (1 / (1 + Math.exp(-entry)) - 0.5);
 	return sigmoid * maxValue;
@@ -46,7 +49,7 @@ export function Slider({
 }: SliderProps) {
 	const [internalValue, setInternalValue] = useState(value);
 	const sliderRef = useRef<HTMLDivElement>(null);
-	const [region, setRegion] = useState<'left' | 'middle' | 'right'>('middle');
+	const [region, setRegion] = useState<"left" | "middle" | "right">("middle");
 	const [isDragging, setIsDragging] = useState(false);
 
 	const clientX = useMotionValue(0);
@@ -54,20 +57,22 @@ export function Slider({
 
 	const percentage = ((internalValue - min) / (max - min || 1)) * 100;
 
-	useMotionValueEvent(clientX, 'change', (latest: number) => {
-		if (!sliderRef.current || !isDragging) return;
+	useMotionValueEvent(clientX, "change", (latest: number) => {
+		if (!(sliderRef.current && isDragging)) {
+			return;
+		}
 
 		const { left, right } = sliderRef.current.getBoundingClientRect();
 		let newOverflow = 0;
 
 		if (latest < left) {
-			setRegion('left');
+			setRegion("left");
 			newOverflow = left - latest;
 		} else if (latest > right) {
-			setRegion('right');
+			setRegion("right");
 			newOverflow = latest - right;
 		} else {
-			setRegion('middle');
+			setRegion("middle");
 		}
 
 		overflow.jump(decay(newOverflow, MAX_OVERFLOW));
@@ -75,7 +80,9 @@ export function Slider({
 
 	const updateValue = useCallback(
 		(clientXPos: number) => {
-			if (!sliderRef.current) return;
+			if (!sliderRef.current) {
+				return;
+			}
 
 			const { left, width } = sliderRef.current.getBoundingClientRect();
 			let newValue = min + ((clientXPos - left) / width) * (max - min);
@@ -93,72 +100,80 @@ export function Slider({
 	);
 
 	const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-		if (disabled) return;
+		if (disabled) {
+			return;
+		}
 
 		setIsDragging(true);
 		updateValue(e.clientX);
 		e.currentTarget.setPointerCapture(e.pointerId);
-		document.body.style.cursor = 'grabbing';
+		document.body.style.cursor = "grabbing";
 	};
 
 	const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-		if (!isDragging || disabled) return;
+		if (!isDragging || disabled) {
+			return;
+		}
 		updateValue(e.clientX);
 	};
 
 	const handlePointerUp = () => {
 		setIsDragging(false);
-		setRegion('middle');
+		setRegion("middle");
 		overflow.jump(0);
-		document.body.style.cursor = '';
+		document.body.style.cursor = "";
 	};
 
 	return (
-		<div className={cn('space-y-3', className)}>
+		<div className={cn("space-y-3", className)}>
 			<div
 				className={cn(
-					'flex select-none items-center gap-4',
-					disabled && 'cursor-not-allowed opacity-50'
+					"flex select-none items-center gap-4",
+					disabled && "cursor-not-allowed opacity-50"
 				)}
 			>
 				<motion.div
 					className="shrink-0 text-muted-foreground"
 					style={{
 						x: useTransform(() =>
-							region === 'left' ? -overflow.get() / 2 : 0
+							region === "left" ? -overflow.get() / 2 : 0
 						),
-						scale: region === 'left' ? 1.3 : 1,
+						scale: region === "left" ? 1.3 : 1,
 					}}
 				>
 					{leftIcon}
 				</motion.div>
 
 				<div
-					ref={sliderRef}
 					className={cn(
-						'relative flex-1 touch-none',
-						disabled ? 'cursor-not-allowed' : 'cursor-grab',
-						isDragging && 'cursor-grabbing'
+						"relative flex-1 touch-none",
+						disabled ? "cursor-not-allowed" : "cursor-grab",
+						isDragging && "cursor-grabbing"
 					)}
 					onPointerDown={handlePointerDown}
+					onPointerLeave={handlePointerUp}
 					onPointerMove={handlePointerMove}
 					onPointerUp={handlePointerUp}
-					onPointerLeave={handlePointerUp}
+					ref={sliderRef}
 				>
 					<motion.div
 						className="relative"
 						style={{
 							scaleX: useTransform(() => {
-								if (!sliderRef.current) return 1;
+								if (!sliderRef.current) {
+									return 1;
+								}
 								const { width } = sliderRef.current.getBoundingClientRect();
 								return 1 + overflow.get() / width;
 							}),
 							scaleY: useTransform(overflow, [0, MAX_OVERFLOW], [1, 0.7]),
 							transformOrigin: useTransform(() => {
-								if (!sliderRef.current) return 'center';
+								if (!sliderRef.current) {
+									return "center";
+								}
 								const { left, width } =
 									sliderRef.current.getBoundingClientRect();
-								return clientX.get() < left + width / 2 ? 'right' : 'left';
+								return clientX.get() < left + width / 2 ? "right" : "left";
 							}),
 						}}
 					>
@@ -171,10 +186,10 @@ export function Slider({
 
 						<motion.div
 							className={cn(
-								'-translate-y-1/2 absolute top-1/2 size-4 rounded-full border-2 border-brand-purple bg-background shadow-sm',
-								isDragging ? 'cursor-grabbing' : 'cursor-grab'
+								"absolute top-1/2 size-4 -translate-y-1/2 rounded-full border-2 border-brand-purple bg-background shadow-sm",
+								isDragging ? "cursor-grabbing" : "cursor-grab"
 							)}
-							style={{ left: `${percentage}%`, x: '-50%' }}
+							style={{ left: `${percentage}%`, x: "-50%" }}
 							whileHover={{ scale: 1.1 }}
 							whileTap={{ scale: 0.95 }}
 						/>
@@ -185,9 +200,9 @@ export function Slider({
 					className="shrink-0 text-muted-foreground"
 					style={{
 						x: useTransform(() =>
-							region === 'right' ? overflow.get() / 2 : 0
+							region === "right" ? overflow.get() / 2 : 0
 						),
-						scale: region === 'right' ? 1.3 : 1,
+						scale: region === "right" ? 1.3 : 1,
 					}}
 				>
 					{rightIcon}
@@ -198,7 +213,7 @@ export function Slider({
 				<div className="text-center">
 					<span className="font-medium font-mono text-sm tabular-nums">
 						{Math.round(internalValue)}
-						{max === 100 && '%'}
+						{max === 100 && "%"}
 					</span>
 				</div>
 			)}

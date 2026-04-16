@@ -1,5 +1,5 @@
-import { CheckIcon } from "@phosphor-icons/react/dist/ssr/Check";
-import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
 	Tooltip,

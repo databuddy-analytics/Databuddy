@@ -7,22 +7,13 @@ import {
 } from "@/components/ui/composables/chart";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import dayjs from "@/lib/dayjs";
+import { formatNumber } from "@/lib/formatters";
 
 interface MiniChartProps {
 	data: { date: string; value: number }[];
-	id: string;
 	days?: number;
+	id: string;
 }
-
-const formatNumber = (num: number) => {
-	if (num >= 1_000_000) {
-		return `${(num / 1_000_000).toFixed(1)}M`;
-	}
-	if (num >= 1000) {
-		return `${(num / 1000).toFixed(1)}K`;
-	}
-	return num.toString();
-};
 
 export default function MiniChart({ data, id, days = 7 }: MiniChartProps) {
 	const { chartType, chartStepType } = useChartPreferences("website-list");

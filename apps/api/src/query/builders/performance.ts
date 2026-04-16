@@ -1,10 +1,8 @@
 import { Analytics } from "../../types/tables";
 import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
-// Performance percentile queries with P50, P75, P90, P95, P99 metrics
-// Uses events table (for load times) and web_vitals_spans table (for Core Web Vitals)
-// Web vitals now use EAV format: metric_name + metric_value per row
-
+// Load-time metrics come from events; web vitals live in web_vitals_spans as EAV rows
+// (one row per metric_name/metric_value pair), which is why the vitals queries pivot.
 export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 	slow_pages: {
 		table: Analytics.events,
@@ -144,9 +142,6 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "time",
 		customizable: true,
 	},
-
-	// Web Vitals queries using the new spans-oriented schema (EAV format)
-	// Each metric is stored as a separate row with metric_name and metric_value
 
 	web_vitals_by_page: {
 		customSql: (

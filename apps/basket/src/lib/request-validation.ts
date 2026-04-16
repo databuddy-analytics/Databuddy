@@ -20,19 +20,15 @@ import { useLogger } from "evlog/elysia";
 
 export interface ValidatedRequest {
 	clientId: string;
-	userAgent: string;
 	ip: string;
-	ownerId?: string;
 	organizationId?: string;
-}
-
-interface BillingBlocked {
-	error: Response;
+	ownerId?: string;
+	userAgent: string;
 }
 
 interface WebsiteSecuritySettings {
-	allowedOrigins?: string[];
 	allowedIps?: string[];
+	allowedOrigins?: string[];
 }
 
 export function getWebsiteSecuritySettings(
@@ -63,7 +59,7 @@ export function validateRequest(
 	body: unknown,
 	query: unknown,
 	request: Request
-): Promise<ValidatedRequest | BillingBlocked> {
+): Promise<ValidatedRequest> {
 	return record("validateRequest", async () => {
 		const log = useLogger();
 
@@ -136,23 +132,11 @@ export function validateRequest(
 		log.set({ website: { domain: website.domain, status: website.status } });
 
 		if (website.ownerId) {
-			const billing = await checkAutumnUsage(website.ownerId, "events", {
+			await checkAutumnUsage(website.ownerId, "events", {
 				website_domain: website.domain,
 				website_id: website.id,
 				website_name: website.name,
 			});
-			if ("exceeded" in billing) {
-				logBlockedTraffic(
-					request,
-					body,
-					query,
-					"exceeded_event_limit",
-					"Validation Error",
-					undefined,
-					clientId
-				);
-				return { error: billing.response };
-			}
 		}
 
 		const origin = request.headers.get("origin");

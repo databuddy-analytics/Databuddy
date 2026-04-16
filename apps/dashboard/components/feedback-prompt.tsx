@@ -1,9 +1,10 @@
 "use client";
 
-import { ChatTextIcon, XIcon } from "@phosphor-icons/react";
+import { ChatTextIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const STORAGE_KEY = "databuddy-feedback-prompt";
@@ -34,10 +35,10 @@ const PROMPTS = [
 ] as const;
 
 interface PromptState {
-	firstSeenAt: number;
-	lastDismissedAt: number;
 	dismissCount: number;
+	firstSeenAt: number;
 	hasSubmittedFeedback: boolean;
+	lastDismissedAt: number;
 }
 
 function readState(): PromptState {
@@ -70,17 +71,23 @@ export function markFeedbackSubmitted() {
 }
 
 function isEligible(state: PromptState, pathname: string): boolean {
-	if (pathname.startsWith("/feedback")) return false;
+	if (pathname.startsWith("/feedback")) {
+		return false;
+	}
 
 	const now = Date.now();
 
-	if (now - state.firstSeenAt < GRACE_PERIOD) return false;
+	if (now - state.firstSeenAt < GRACE_PERIOD) {
+		return false;
+	}
 
 	if (state.lastDismissedAt > 0) {
 		const cooldown = state.hasSubmittedFeedback
 			? COOLDOWN_ENGAGED
 			: COOLDOWN_DEFAULT;
-		if (now - state.lastDismissedAt < cooldown) return false;
+		if (now - state.lastDismissedAt < cooldown) {
+			return false;
+		}
 	}
 
 	return true;
@@ -89,13 +96,15 @@ function isEligible(state: PromptState, pathname: string): boolean {
 export function FeedbackPrompt() {
 	const pathname = usePathname();
 	const [visible, setVisible] = useState(false);
-	const stateRef = useRef<PromptState | null>(null);
+	const [dismissCount, setDismissCount] = useState(0);
 
 	useEffect(() => {
 		const state = readState();
-		stateRef.current = state;
+		setDismissCount(state.dismissCount);
 
-		if (!isEligible(state, pathname)) return;
+		if (!isEligible(state, pathname)) {
+			return;
+		}
 
 		const timer = setTimeout(() => setVisible(true), SHOW_DELAY_MS);
 		return () => clearTimeout(timer);
@@ -103,16 +112,19 @@ export function FeedbackPrompt() {
 
 	const handleDismissAction = useCallback(() => {
 		setVisible(false);
+		const newCount = dismissCount + 1;
+		setDismissCount(newCount);
 		writeState({
 			lastDismissedAt: Date.now(),
-			dismissCount: (stateRef.current?.dismissCount ?? 0) + 1,
+			dismissCount: newCount,
 		});
-	}, []);
+	}, [dismissCount]);
 
-	if (!visible) return null;
+	if (!visible) {
+		return null;
+	}
 
-	const prompt =
-		PROMPTS[(stateRef.current?.dismissCount ?? 0) % PROMPTS.length];
+	const prompt = PROMPTS[dismissCount % PROMPTS.length];
 
 	return (
 		<div className="fixed right-4 bottom-4 z-50 w-72 rounded border bg-card p-4 shadow-lg">

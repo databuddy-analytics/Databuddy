@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	CalendarBlankIcon,
-	ClockIcon,
-	LightningIcon,
-	LinkIcon,
-	TagIcon,
-	UserIcon,
-	UsersIcon,
-} from "@phosphor-icons/react";
+import { CalendarBlankIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { TagIcon } from "@phosphor-icons/react";
+import { UserIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useMemo } from "react";
@@ -17,18 +15,9 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { formatNumber } from "@/lib/formatters";
 import { formatTime, fromNow } from "@/lib/time";
 import { useEventDetailData } from "./use-event-detail";
-
-const formatNumber = (value: number | null | undefined): string => {
-	if (value === null || value === undefined || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
 
 export default function EventDetailPage() {
 	const params = useParams();

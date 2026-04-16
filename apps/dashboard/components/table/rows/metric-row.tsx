@@ -1,30 +1,21 @@
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
+import { formatNumber } from "@/lib/formatters";
 
 export interface MetricEntry {
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
-
-const formatNumber = (value: number | null | undefined): string => {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
-};
 
 interface MetricRowProps {
 	includeName?: boolean;
-	nameLabel?: string;
 	includePageviews?: boolean;
-	visitorsLabel?: string;
+	nameLabel?: string;
 	pageviewsLabel?: string;
 	percentageLabel?: string;
+	visitorsLabel?: string;
 }
 
 export function createMetricColumns({

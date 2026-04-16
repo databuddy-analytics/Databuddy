@@ -2,11 +2,9 @@
 
 import type { WebsiteOutput } from "@databuddy/rpc";
 import type { Website } from "@databuddy/shared/types/website";
-import {
-	ArrowRightIcon,
-	ArrowSquareOutIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -34,10 +32,10 @@ function getDicebearUrl(seed: string): string {
 }
 
 interface TransferWebsiteDialogProps {
-	website: Website | WebsiteOutput;
-	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	onTransferSuccess?: () => void;
+	open: boolean;
+	website: Website | WebsiteOutput;
 }
 
 export function TransferWebsiteDialog({
@@ -129,7 +127,6 @@ export function TransferWebsiteDialog({
 					</DialogHeader>
 
 					<div className="space-y-3">
-						{/* Website being transferred */}
 						<div className="flex items-center gap-2.5 rounded border bg-accent/50 p-2.5">
 							<div className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10">
 								<span className="font-semibold text-primary text-xs">
@@ -147,7 +144,6 @@ export function TransferWebsiteDialog({
 							</div>
 						</div>
 
-						{/* Transfer flow - stacked layout */}
 						<div className="space-y-2">
 							<div className="flex items-center gap-2.5 rounded border p-2.5">
 								<img
@@ -191,7 +187,6 @@ export function TransferWebsiteDialog({
 							</div>
 						</div>
 
-						{/* Warning */}
 						<p className="text-muted-foreground text-xs leading-relaxed">
 							All ownership, data, settings, and analytics will be transferred.
 							Members of{" "}
@@ -240,7 +235,6 @@ export function TransferWebsiteDialog({
 				</DialogHeader>
 
 				<div className="space-y-4">
-					{/* Current Organization */}
 					<div className="space-y-2">
 						<Label className="text-muted-foreground text-xs">
 							Current Workspace
@@ -257,7 +251,6 @@ export function TransferWebsiteDialog({
 						</div>
 					</div>
 
-					{/* Target Organization Selector */}
 					<div className="space-y-2">
 						<Label htmlFor="target-org">Transfer to</Label>
 						<Select
@@ -293,7 +286,6 @@ export function TransferWebsiteDialog({
 						</Select>
 					</div>
 
-					{/* No organizations warning */}
 					{!isLoadingOrgs && availableOrgs.length === 0 && (
 						<div className="flex items-start gap-2 rounded border border-orange-200 bg-orange-50 p-3 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
 							<WarningIcon className="mt-0.5 size-4 shrink-0" />
@@ -304,7 +296,6 @@ export function TransferWebsiteDialog({
 						</div>
 					)}
 
-					{/* Warning when org is selected */}
 					{selectedOrgId && (
 						<div className="flex items-start gap-2 rounded border border-orange-200 bg-orange-50 p-3 text-orange-800 dark:border-orange-800 dark:bg-orange-950/20 dark:text-orange-200">
 							<WarningIcon className="mt-0.5 size-4 shrink-0" />

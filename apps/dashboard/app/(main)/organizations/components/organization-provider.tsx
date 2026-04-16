@@ -1,15 +1,13 @@
 "use client";
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
-import {
-	BuildingsIcon,
-	EnvelopeIcon,
-	GearIcon,
-	GlobeIcon,
-	KeyIcon,
-	UsersIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { BuildingsIcon } from "@phosphor-icons/react";
+import { EnvelopeIcon } from "@phosphor-icons/react";
+import { GearIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { KeyIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -25,18 +23,18 @@ import {
 } from "@/stores/jotai/organizationsAtoms";
 
 interface HeaderActionButton {
-	text: string;
-	icon: PhosphorIcon;
 	action: () => void;
 	disabled?: boolean;
+	icon: PhosphorIcon;
+	text: string;
 }
 
 interface PageInfo {
-	title: string;
+	actionButton?: HeaderActionButton;
 	description: string;
 	icon: PhosphorIcon;
 	requiresOrg?: boolean;
-	actionButton?: HeaderActionButton;
+	title: string;
 }
 
 const PAGE_INFO_MAP: Record<string, PageInfo> = {

@@ -1,6 +1,7 @@
 "use client";
 
-import { ChatTextIcon, ShoppingCartIcon } from "@phosphor-icons/react";
+import { ChatTextIcon } from "@phosphor-icons/react";
+import { ShoppingCartIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -88,7 +89,9 @@ export default function FeedbackPage() {
 				<RedeemDialog
 					creditsRequired={REWARD_TIERS[redeemTier].creditsRequired}
 					onOpenChangeAction={(open) => {
-						if (!open) setRedeemTier(null);
+						if (!open) {
+							setRedeemTier(null);
+						}
 					}}
 					open
 					rewardAmount={REWARD_TIERS[redeemTier].rewardAmount}

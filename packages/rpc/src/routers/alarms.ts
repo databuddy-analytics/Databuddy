@@ -1,11 +1,10 @@
+import { db, eq } from "@databuddy/db";
 import {
 	alarmDestinations,
 	alarmDestinationTypeValues,
 	alarms,
 	alarmTriggerTypeValues,
-	db,
-	eq,
-} from "@databuddy/db";
+} from "@databuddy/db/schema";
 import {
 	type NotificationChannel,
 	NotificationClient,
@@ -74,6 +73,7 @@ export const alarmsRouter = {
 				where: eq(alarms.organizationId, orgId),
 				orderBy: (table, { desc }) => [desc(table.createdAt)],
 				with: { destinations: true },
+				limit: 100,
 			});
 		}),
 

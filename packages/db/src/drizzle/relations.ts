@@ -1,21 +1,30 @@
 import { relations } from "drizzle-orm/relations";
 import {
 	account,
+	agentChats,
 	alarmDestinations,
 	alarms,
 	analyticsInsights,
+	annotations,
 	apikey,
 	featureAccessLog,
 	featureInvite,
+	feedback,
+	feedbackRedemptions,
 	flags,
 	flagsToTargetGroups,
 	funnelDefinitions,
+	goals,
+	insightUserFeedback,
 	invitation,
 	links,
 	member,
 	organization,
 	revenueConfig,
 	session,
+	ssoProvider,
+	statusPageMonitors,
+	statusPages,
 	targetGroups,
 	team,
 	twoFactor,
@@ -55,6 +64,7 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 	teams: many(team),
 	alarms: many(alarms),
 	analyticsInsights: many(analyticsInsights),
+	statusPages: many(statusPages),
 }));
 
 export const accountRelations = relations(account, ({ one }) => ({
@@ -202,7 +212,7 @@ export const flagsToTargetGroupsRelations = relations(
 
 export const uptimeSchedulesRelations = relations(
 	uptimeSchedules,
-	({ one }) => ({
+	({ one, many }) => ({
 		website: one(websites, {
 			fields: [uptimeSchedules.websiteId],
 			references: [websites.id],
@@ -210,6 +220,29 @@ export const uptimeSchedulesRelations = relations(
 		organization: one(organization, {
 			fields: [uptimeSchedules.organizationId],
 			references: [organization.id],
+		}),
+		statusPageMonitors: many(statusPageMonitors),
+	})
+);
+
+export const statusPagesRelations = relations(statusPages, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [statusPages.organizationId],
+		references: [organization.id],
+	}),
+	statusPageMonitors: many(statusPageMonitors),
+}));
+
+export const statusPageMonitorsRelations = relations(
+	statusPageMonitors,
+	({ one }) => ({
+		statusPage: one(statusPages, {
+			fields: [statusPageMonitors.statusPageId],
+			references: [statusPages.id],
+		}),
+		uptimeSchedule: one(uptimeSchedules, {
+			fields: [statusPageMonitors.uptimeScheduleId],
+			references: [uptimeSchedules.id],
 		}),
 	})
 );
@@ -276,3 +309,96 @@ export const featureAccessLogRelations = relations(
 		}),
 	})
 );
+
+export const goalsRelations = relations(goals, ({ one }) => ({
+	website: one(websites, {
+		fields: [goals.websiteId],
+		references: [websites.id],
+	}),
+	creator: one(user, {
+		fields: [goals.createdBy],
+		references: [user.id],
+	}),
+}));
+
+export const annotationsRelations = relations(annotations, ({ one }) => ({
+	website: one(websites, {
+		fields: [annotations.websiteId],
+		references: [websites.id],
+	}),
+	creator: one(user, {
+		fields: [annotations.createdBy],
+		references: [user.id],
+	}),
+}));
+
+export const feedbackRelations = relations(feedback, ({ one }) => ({
+	user: one(user, {
+		fields: [feedback.userId],
+		references: [user.id],
+		relationName: "feedbackUser",
+	}),
+	organization: one(organization, {
+		fields: [feedback.organizationId],
+		references: [organization.id],
+	}),
+	reviewer: one(user, {
+		fields: [feedback.reviewedBy],
+		references: [user.id],
+		relationName: "feedbackReviewer",
+	}),
+}));
+
+export const feedbackRedemptionsRelations = relations(
+	feedbackRedemptions,
+	({ one }) => ({
+		user: one(user, {
+			fields: [feedbackRedemptions.userId],
+			references: [user.id],
+		}),
+		organization: one(organization, {
+			fields: [feedbackRedemptions.organizationId],
+			references: [organization.id],
+		}),
+	})
+);
+
+export const insightUserFeedbackRelations = relations(
+	insightUserFeedback,
+	({ one }) => ({
+		user: one(user, {
+			fields: [insightUserFeedback.userId],
+			references: [user.id],
+		}),
+		organization: one(organization, {
+			fields: [insightUserFeedback.organizationId],
+			references: [organization.id],
+		}),
+	})
+);
+
+export const ssoProviderRelations = relations(ssoProvider, ({ one }) => ({
+	user: one(user, {
+		fields: [ssoProvider.userId],
+		references: [user.id],
+	}),
+	organization: one(organization, {
+		fields: [ssoProvider.organizationId],
+		references: [organization.id],
+	}),
+}));
+
+export const agentChatsRelations = relations(agentChats, ({ one }) => ({
+	user: one(user, {
+		fields: [agentChats.userId],
+		references: [user.id],
+	}),
+	website: one(websites, {
+		fields: [agentChats.websiteId],
+		references: [websites.id],
+	}),
+	organization: one(organization, {
+		fields: [agentChats.organizationId],
+		references: [organization.id],
+	}),
+}));

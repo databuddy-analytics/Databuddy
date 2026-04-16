@@ -31,7 +31,9 @@ export function getFeatureLabel(flagKey: string): string {
 }
 
 export function getFeatureDescription(flagKey: string): string {
-	return FLAG_KEY_DESCRIPTIONS[flagKey] ?? "This feature requires an invitation.";
+	return (
+		FLAG_KEY_DESCRIPTIONS[flagKey] ?? "This feature requires an invitation."
+	);
 }
 
 export function getFeatureRoute(flagKey: string): string {

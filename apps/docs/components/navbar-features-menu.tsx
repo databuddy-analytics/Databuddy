@@ -14,10 +14,10 @@ import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface FeatureItem {
-	title: string;
 	description: string;
 	href: string;
 	icon: ComponentType<IconProps>;
+	title: string;
 }
 
 const FEATURE_ITEMS: FeatureItem[] = [

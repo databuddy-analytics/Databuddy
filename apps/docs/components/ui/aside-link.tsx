@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 interface AsideLinkProps {
+	activeClassName?: string;
+	children: ReactNode;
+	className?: string;
 	href: string;
 	startWith?: string;
 	title: string;
-	className?: string;
-	activeClassName?: string;
-	children: ReactNode;
 }
 
 export function AsideLink({
@@ -25,9 +25,11 @@ export function AsideLink({
 	const pathname = usePathname();
 	const isExternal = href.startsWith("http");
 
-	const isActive = !isExternal && (startWith
-		? pathname.startsWith(startWith) && pathname === href
-		: pathname === href);
+	const isActive =
+		!isExternal &&
+		(startWith
+			? pathname.startsWith(startWith) && pathname === href
+			: pathname === href);
 
 	if (isExternal) {
 		return (

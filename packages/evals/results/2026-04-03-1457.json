@@ -1,0 +1,537 @@
+{
+  "timestamp": "2026-04-03T14:57:26.829Z",
+  "model": "anthropic/claude-sonnet-4.6",
+  "apiUrl": "http://localhost:3001",
+  "duration": 580933,
+  "summary": {
+    "total": 23,
+    "passed": 21,
+    "failed": 2,
+    "score": 95
+  },
+  "dimensions": {
+    "tool_routing": 100,
+    "behavioral": 100,
+    "quality": 75,
+    "format": 100,
+    "performance": 99
+  },
+  "cases": [
+    {
+      "id": "traffic-error-cross-reference",
+      "category": "tool-routing",
+      "name": "Cross-reference top pages by traffic with error rates in a single table",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 7,
+        "latencyMs": 89975,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "No results from the join. Let me check if error data exists and what paths are in both tables.The paths in `error_spans` mix full URLs and path-only values. I need to normalize them before joining.The regex is triggering a security filter. Let me use ClickHouse's built-in URL functions instead.Let me inspect the actual normalized values to debug the mismatch.Now I can see it clearly - events store full URLs, errors store path-only. I need to normalize events paths with `pathFull()`.Here are your"
+    },
+    {
+      "id": "session-level-funnel",
+      "category": "tool-routing",
+      "name": "Session-level multi-page funnel with path ordering and comparison",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 8,
+        "latencyMs": 122513,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Here's the full breakdown across all three dimensions.\n\n---\n\n## 1. Sessions covering all three areas\n\nOut of **1,516 total sessions** in the last 7 days, **31 sessions** hit the homepage, any `/docs` page, AND `/pricing` - that's **2.0% of all sessions**.\n\n---\n\n## 2. Visit order breakdown\n\n{\"type\":\"bar-chart\",\"title\":\"Session Visit Order (Home + Docs + Pricing)\",\"series\":[\"sessions\"],\"rows\":[[\"Home → Pricing → Docs\",20],[\"Home → Docs → Pricing\",10],[\"Docs → Home → Pricing\",1]]}\n\nThe dominant pat"
+    },
+    {
+      "id": "visitor-quality-scoring",
+      "category": "tool-routing",
+      "name": "Visitor quality segmentation by intent with source breakdown",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 8,
+        "latencyMs": 199193,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "No results with `event_name = 'page_view'`. Let me check what event names actually exist in the table.Got it - events are `screen_view` (page views) and `page_exit`. Re-running with the correct event names.Everyone is landing in \"other\" - the path patterns or time_on_page values might not match. Let me investigate the actual data distribution.Two key findings: (1) paths are full URLs, not just paths, and (2) `time_on_page` is NULL on screen_view events. Let me check page_exit for time data and f"
+    },
+    {
+      "id": "realtime-anomaly-investigation",
+      "category": "tool-routing",
+      "name": "Real-time anomaly investigation comparing to same-day baseline",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 3,
+        "latencyMs": 92511,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data"],
+      "failures": [],
+      "response": "The batch deduplicated same-type queries. Let me grab the last-week comparison data now.Here's the full picture. Let me walk through each signal.\n\n---\n\n## Site Health Check - Today vs. Last Friday (Mar 27)\n\n### Traffic Volume - DOWN significantly\n\n| Metric | Today (so far) | Last Friday (full day) | Delta |\n|--------|---------------:|----------------------:|-------|\n| Pageviews | 444* | ~500+ (est. from pages data) | Down |\n| Unique Visitors | 221* | 189 on homepage alone | Down |\n| Sessions | 2"
+    },
+    {
+      "id": "utm-campaign-effectiveness",
+      "category": "tool-routing",
+      "name": "UTM campaign effectiveness matrix with quality vs vanity distinction",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 3,
+        "latencyMs": 75524,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Here's the full breakdown. I built composite quality scores (0-100) weighted: bounce rate 40%, pages/session 25%, session duration 25%, pricing visit rate 10%.\n\n---\n\n## UTM Campaign Quality Analysis - Last 30 Days\n\n{\"type\":\"data-table\",\"title\":\"Campaign Quality Ranking (Last 30 Days)\",\"columns\":[\"Rank\",\"Campaign\",\"Source / Medium\",\"Sessions\",\"Bounce %\",\"Pages/Session\",\"Avg Duration\",\"Pricing %\",\"Quality Score\"],\"align\":[\"center\",\"left\",\"left\",\"right\",\"right\",\"right\",\"right\",\"right\",\"right\"],\"row"
+    },
+    {
+      "id": "impossible-revenue-metrics",
+      "category": "behavioral",
+      "name": "Acknowledges revenue/financial data is unavailable and offers alternatives",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 2,
+        "latencyMs": 27296,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data"],
+      "failures": [],
+      "response": "No revenue data is being tracked in Databuddy right now. All revenue metrics return zero - no transactions, no attributed revenue, no customers. Here's what that means for your board deck asks:\n\n**Revenue per visitor by source:** Cannot calculate - requires revenue/transaction events to be instrumented.\n\n**LTV:CAC ratio:** Cannot calculate - requires both revenue (for LTV) and acquisition cost data (for CAC, typically from ad spend integrations).\n\n---\n\nWhat I *can* show is your visitor distribut"
+    },
+    {
+      "id": "contradictory-growth-interpretation",
+      "category": "behavioral",
+      "name": "Identifies pageview inflation vs genuine growth and gives honest assessment",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 3,
+        "latencyMs": 108529,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data"],
+      "failures": [],
+      "response": "Let me pull the prior month for a proper before/after comparison.Here's the honest breakdown.\n\n---\n\n**The short answer: The CEO is overclaiming. The growth is real but it's fragile, and the numbers are significantly distorted by a single event.**\n\n---\n\n### What Actually Drove the 30% Pageview Jump\n\n{\"type\":\"area-chart\",\"title\":\"Daily Pageviews - Last 30 Days\",\"series\":[\"pageviews\",\"visitors\"],\"rows\":[[\"Mar 4\",290,184],[\"Mar 5\",348,217],[\"Mar 6\",273,158],[\"Mar 7\",222,141],[\"Mar 8\",248,152],[\"Mar "
+    },
+    {
+      "id": "statistical-significance-challenge",
+      "category": "behavioral",
+      "name": "Evaluates statistical significance of a small A/B-like change",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 4,
+        "latencyMs": 102713,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Let me pull the actual daily homepage data first so I can run the math on real numbers.Let me run the stats on the actual data before doing the significance test.\n\nThe before-period data (Mar 7-24, 18 days excluding the day-1 partial day):\n\n| Day | Views | Day | Views |\n|-----|------:|-----|------:|\n| Mar 7 | 171 | Mar 16 | 207 |\n| Mar 8 | 224 | Mar 17 | 193 |\n| Mar 9 | 250 | Mar 18 | 238 |\n| Mar 10 | 212 | Mar 19 | 194 |\n| Mar 11 | 167 | Mar 20 | 177 |\n| Mar 12 | 223 | Mar 21 | 201 |\n| Mar 13 |"
+    },
+    {
+      "id": "attribution-model-limitations",
+      "category": "behavioral",
+      "name": "Acknowledges conversion/signup tracking gap and explains possible attribution",
+      "passed": false,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 89
+      },
+      "metrics": {
+        "steps": 5,
+        "latencyMs": 187783,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data", "list_goals", "execute_sql_query"],
+      "failures": ["Latency 187783ms exceeds budget 120000ms"],
+      "response": "Let me pull traffic sources, UTM data, signup events/goals, and revenue data all at once to build the full attribution model.Now let me look for signup-related pages and revenue data to complete the attribution model.Now let me run the actual channel-to-conversion attribution queries.I now have everything needed. Let me build the full model. There are some critical data gaps I need to flag alongside the numbers.\n\n---\n\n## Attribution Model - Last 30 Days\n\n### Critical Data Gaps (Read First)\n\n**Th"
+    },
+    {
+      "id": "ambiguous-engagement-down",
+      "category": "behavioral",
+      "name": "Disambiguates vague 'engagement is down' claim and gives definitive answer",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 4,
+        "latencyMs": 111581,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data"],
+      "failures": [],
+      "response": "Here's the full picture across every engagement metric.\n\n---\n\n**Conclusion: Yes, engagement dropped — but it's already recovered. The drop was real, temporary, and caused by a traffic spike flooding the site with low-intent visitors.**\n\n---\n\n## What happened\n\nAround **March 25-26**, a viral event (Twitter was your #2 traffic source, 950 visitors this month) drove an 86.7% traffic surge — 1,134 pageviews on March 25 alone vs. a baseline of ~200-280/day. That flood of new, low-intent visitors temp"
+    },
+    {
+      "id": "funnel-leak-revenue-impact",
+      "category": "quality",
+      "name": "Funnel leak analysis with quantified opportunity cost",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 75
+      },
+      "metrics": {
+        "steps": 7,
+        "latencyMs": 289578,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Zero results — the referrer format is likely different. Let me inspect how traffic sources are stored first.Found it. Referrer is stored as full URL, utm values are NULL. Let me rerun with correct filters — also including `syndicatedsearch.goog` which is Google's search network.The path column stores full URLs, not slugs. And some \"Google\" sessions have `gclid` (paid ads). Let me redo with correct URL matching and exclude paid ad sessions.Now I have everything. Let me build the complete analysis"
+    },
+    {
+      "id": "content-roi-attribution",
+      "category": "quality",
+      "name": "Blog ROI with pipeline attribution and session-depth comparison",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 79
+      },
+      "metrics": {
+        "steps": 4,
+        "latencyMs": 130610,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Here's the full data-backed analysis.\n\n---\n\n## Blog Performance: Last 30 Days\n\n### 1. Blog Post Views\n\n{\"type\":\"data-table\",\"title\":\"Blog Posts - Last 30 Days\",\"columns\":[\"Post\",\"Views\",\"Unique Visitors\",\"Avg Time (s)\",\"Scroll Depth %\"],\"align\":[\"left\",\"right\",\"right\",\"right\",\"right\"],\"rows\":[[\"/blog/7-privacy-first-google-analytics-alternatives...\",50,31,1346,\"6.9%\"],[\"/blog/10-privacy-focused-alternatives-to-google-analytics...\",15,9,1208,\"0%\"],[\"/blog/10-analytics-tools-for-regions-with-stric"
+    },
+    {
+      "id": "weekend-vs-weekday-deep-dive",
+      "category": "quality",
+      "name": "Weekend vs weekday complete audience comparison with recommendation",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 78
+      },
+      "metrics": {
+        "steps": 5,
+        "latencyMs": 170649,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "All returned empty - the `event_name = 'page_view'` filter might be off. Let me check the actual event names first.Event name is `screen_view`, not `page_view`. Re-running all queries.The source query hit the limit before weekend data appeared. Let me grab that separately.Now I have everything. Let me compile the full picture.\n\n---\n\n## Weekday vs Weekend: Complete Analysis (Last 90 Days)\n\n### 1. Traffic Volume\n\n{\"type\":\"bar-chart\",\"title\":\"Daily Pageviews by Day of Week (90-day avg)\",\"series\":[\""
+    },
+    {
+      "id": "mobile-performance-crisis",
+      "category": "quality",
+      "name": "Mobile CWV crisis assessment with bounce correlation and visitor loss estimate",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 61
+      },
+      "metrics": {
+        "steps": 5,
+        "latencyMs": 153179,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Here's the full breakdown.\n\n---\n\n## Mobile vs Desktop Core Web Vitals (last 30 days)\n\n{\"type\":\"data-table\",\"title\":\"p75 Core Web Vitals: Mobile vs Desktop\",\"columns\":[\"Metric\",\"Mobile p75\",\"Desktop p75\",\"Mobile Penalty\",\"Threshold (Good/Poor)\",\"Mobile Rating\"],\"align\":[\"left\",\"right\",\"right\",\"right\",\"left\",\"left\"],\"rows\":[[\"FCP\",\"1,842ms\",\"1,384ms\",\"+33%\",\"<1800 / >3000ms\",\"Needs Improvement\"],[\"LCP\",\"1,860ms\",\"1,352ms\",\"+38%\",\"<2500 / >4000ms\",\"Good\"],[\"INP\",\"272ms\",\"96ms\",\"+183%\",\"<200 / >500m"
+    },
+    {
+      "id": "geographic-expansion-matrix",
+      "category": "quality",
+      "name": "International expansion priority matrix with composite scoring",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 80
+      },
+      "metrics": {
+        "steps": 3,
+        "latencyMs": 236088,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query", "execute_query_builder"],
+      "failures": [],
+      "response": "Good data across all sources. Note: the raw data stores country entries as both ISO codes and full names (e.g. \"US\" and \"United States\") — I'm merging those before scoring. Let me build the full matrix now.\n\n---\n\n**Data notes before the matrix:**\n- Country deduplication merged 5 split-identity pairs (US/United States, IN/India, DE/Germany, GB/United Kingdom, AE/UAE)\n- UAE growth of +883% (30 → 295 visitors) is flagged — investigate for bot/scraper traffic; session duration of 2m 21s vs 25-70m fo"
+    },
+    {
+      "id": "error-business-impact",
+      "category": "quality",
+      "name": "Error impact quantification with user journey disruption analysis",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 86
+      },
+      "metrics": {
+        "steps": 2,
+        "latencyMs": 120110,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data", "execute_sql_query"],
+      "failures": [],
+      "response": "Here's the full business impact breakdown. Let me lead with the bottom line, then go deep.\n\n---\n\n## Error Business Impact — Last 14 Days\n\n**Site-wide:** 30 errors across 29 sessions, 27 unique users affected. **0.74% of all 3,788 sessions were disrupted.** Of those disrupted sessions, **39.3% (11 sessions) abandoned entirely** — users hit an error and left. 17 sessions continued despite the error.\n\nThe headline number is small, but the *type* of errors and *where* they hit matters enormously. He"
+    },
+    {
+      "id": "competitor-intelligence-synthesis",
+      "category": "quality",
+      "name": "External competitor research cross-referenced with internal behavioral shifts",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 74
+      },
+      "metrics": {
+        "steps": 3,
+        "latencyMs": 70714,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["web_search", "get_data", "execute_sql_query"],
+      "failures": [],
+      "response": "Here's the full synthesis.\n\n---\n\n## Plausible Analytics - What They Shipped\n\nNo single blockbuster 2026 release, but a steady cadence of meaningful improvements:\n\n- **Goals with custom properties** - more precise conversion tracking with up to 3 custom properties per goal\n- **Stats API V2** - OR/AND/NOT filters, regex matching, higher rate limits (big appeal for developers)\n- **Audience segmentation** - \"does not contain\" filters, multi-entry filtering, segments auto-applied to funnels\n- **Plug-"
+    },
+    {
+      "id": "full-stack-acquisition-audit",
+      "category": "quality",
+      "name": "Acquisition audit ranking sources by quality with investment recommendation",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 62
+      },
+      "metrics": {
+        "steps": 2,
+        "latencyMs": 253855,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Let me pull all the data simultaneously — engagement, pricing intent, scroll depth, landing pages, and daily trends by source.Now I have everything. Let me build the full audit with composite scoring.\n\n---\n\n## Acquisition Audit: Last 30 Days\n\n**Three active sources detected:** referral, social, organic. Direct and paid register 0 sessions — either there's no paid spend active, or direct sessions are being absorbed into referral via self-referral chains. Worth investigating separately.\n\n---\n\n## V"
+    },
+    {
+      "id": "page-level-scorecard-priorities",
+      "category": "quality",
+      "name": "Top-20 page scorecard with content vs technical diagnosis and fix priorities",
+      "passed": false,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 94,
+        "quality": 71
+      },
+      "metrics": {
+        "steps": 6,
+        "latencyMs": 390632,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data", "execute_sql_query", "execute_query_builder"],
+      "failures": ["Latency 390632ms exceeds budget 300000ms"],
+      "response": "Now I have everything. Let me compile the full scorecard and analysis.\n\n---\n\n## Top 20 Pages Scorecard — Last 30 Days\n\nThresholds used: Bounce flagged for marketing pages >80%, docs >70%. FCP poor >3,000ms / needs improvement >1,800ms. INP poor >500ms / needs improvement >200ms. Load time poor >3,000ms. LCP (all good, none exceed 2,500ms — not a driver here).\n\n{\"type\":\"data-table\",\"title\":\"Top 20 Pages Scorecard\",\"columns\":[\"Page\",\"Views\",\"Bounce%\",\"Time on Page (s)\",\"LCP (ms)\",\"FCP (ms)\",\"INP ("
+    },
+    {
+      "id": "seasonal-pattern-prediction",
+      "category": "quality",
+      "name": "90-day pattern detection with magnitude quantification and schedule recommendation",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100,
+        "quality": 82
+      },
+      "metrics": {
+        "steps": 4,
+        "latencyMs": 152080,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["execute_sql_query"],
+      "failures": [],
+      "response": "Now let me get the hourly breakdown by day of week for the heatmap pattern:Good, I have all the data needed. Here's the full analysis:\n\n---\n\n## 90-Day Traffic Pattern Analysis\n\n**Total 90-day pageviews: 46,416 across 13 complete weeks**\n\n---\n\n### Pattern 1: Time-of-Day -- 207% Peak-to-Trough Gap (STRONGEST)\n\n{\"type\":\"bar-chart\",\"title\":\"Pageviews by Hour of Day (UTC) -- 90 Days\",\"series\":[\"pageviews\"],\"rows\":[[\"00:00\",1181],[\"01:00\",1173],[\"02:00\",1208],[\"03:00\",1275],[\"04:00\",965],[\"05:00\",1156"
+    },
+    {
+      "id": "executive-dashboard-multi-viz",
+      "category": "format",
+      "name": "Five-component executive dashboard with mixed chart types",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 2,
+        "latencyMs": 137409,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data"],
+      "failures": [],
+      "response": "Here's your executive dashboard for the last 30 days.\n\n---\n\n## Executive Dashboard — databuddy.cc (Mar 4 – Apr 3, 2026)\n\n**Quick summary:** 9,293 total pageviews, 3,727 unique visitors. A major traffic spike on Mar 25 (+679 visitors, 4.5x the daily average) driven by Twitter/X. Overall bounce rate is low at ~10%. Apr 3 is a partial day.\n\n---\n\n### 1. Daily Traffic — Visitors & Pageviews\n\n{\"type\":\"area-chart\",\"title\":\"Daily Traffic (Last 30 Days)\",\"series\":[\"Visitors\",\"Pageviews\"],\"rows\":[[\"Mar 4\""
+    },
+    {
+      "id": "before-after-comparison-overlay",
+      "category": "format",
+      "name": "Week-over-week comparison with overlaid trends and delta table",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 3,
+        "latencyMs": 66096,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data", "execute_query_builder"],
+      "failures": [],
+      "response": "The batch merged duplicate query types. Let me fetch this week's data separately.Here's your week-over-week snapshot. Note: today (Apr 3) is a partial day, so this week's totals will increase.\n\n---\n\n**Traffic Trend Overlay — Day by Day**\n\n{\"type\":\"line-chart\",\"title\":\"Pageviews: This Week vs Last Week (by day)\",\"series\":[\"This Week (Mar 27–Apr 2)\",\"Last Week (Mar 20–26)\"],\"rows\":[[\"Day 1\",444,194],[\"Day 2\",302,217],[\"Day 3\",357,181],[\"Day 4\",403,283],[\"Day 5\",236,248],[\"Day 6\",285,1134],[\"Day 7\""
+    },
+    {
+      "id": "error-report-full-breakdown",
+      "category": "format",
+      "name": "Full error report with trends chart, grouped table, and new error detection",
+      "passed": true,
+      "scores": {
+        "tool_routing": 100,
+        "behavioral": 100,
+        "format": 100,
+        "performance": 100
+      },
+      "metrics": {
+        "steps": 4,
+        "latencyMs": 55159,
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "costUsd": 0
+      },
+      "toolsCalled": ["get_data", "execute_sql_query"],
+      "failures": [],
+      "response": "Here's your full error report for the last 14 days.\n\n---\n\n**Summary: 30 errors, 5 grouped error types, 27 users affected, 0.75% error rate**\n\n---\n\n### Error Trends (Mar 20 - Apr 3)\n\n{\"type\":\"area-chart\",\"title\":\"Daily Errors (Last 14 Days)\",\"series\":[\"errors\",\"affected users\"],\"rows\":[[\"Mar 20\",2,2],[\"Mar 21\",3,3],[\"Mar 22\",0,0],[\"Mar 23\",2,2],[\"Mar 24\",2,2],[\"Mar 25\",3,3],[\"Mar 26\",3,2],[\"Mar 27\",0,0],[\"Mar 28\",2,2],[\"Mar 29\",2,2],[\"Mar 30\",4,3],[\"Mar 31\",2,2],[\"Apr 1\",3,2],[\"Apr 2\",1,1],[\"Apr "
+    }
+  ]
+}

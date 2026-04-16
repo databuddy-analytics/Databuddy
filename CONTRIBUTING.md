@@ -33,8 +33,11 @@ cp .env.example .env
 4. Start Docker services (PostgreSQL, Redis, ClickHouse):
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
+
+> **Note:** This starts the **development** infrastructure only (`docker-compose.yaml`).
+> For self-hosting with all application services, use `docker compose -f docker-compose.selfhost.yml up -d` instead — see the [Self-Hosting section](README.md#-self-hosting) in the README.
 
 5. Set up the database:
 

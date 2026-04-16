@@ -1,7 +1,7 @@
 "use client";
 
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { FlagIcon } from "@phosphor-icons/react/dist/ssr/Flag";
+import { FlagIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
@@ -41,9 +41,12 @@ export default function FlagsPage() {
 				flag.targetGroups.length > 0 &&
 				typeof flag.targetGroups[0] === "object"
 			) {
-				map.set(flag.id, flag.targetGroups as TargetGroup[]);
+				map.set(
+					flag.id as string,
+					flag.targetGroups as unknown as TargetGroup[]
+				);
 			} else {
-				map.set(flag.id, []);
+				map.set(flag.id as string, []);
 			}
 		}
 		return map;
@@ -71,7 +74,7 @@ export default function FlagsPage() {
 	const handleDeleteFlagRequest = (flagId: string) => {
 		const flag = flags?.find((f) => f.id === flagId);
 		if (flag) {
-			setFlagToDelete(flag as Flag);
+			setFlagToDelete(flag as unknown as Flag);
 		}
 	};
 
@@ -109,7 +112,7 @@ export default function FlagsPage() {
 							</div>
 						) : (
 							<FlagsList
-								flags={activeFlags as Flag[]}
+								flags={activeFlags as unknown as Flag[]}
 								groups={groupsMap}
 								onDelete={handleDeleteFlagRequest}
 								onEdit={handleEditFlag}

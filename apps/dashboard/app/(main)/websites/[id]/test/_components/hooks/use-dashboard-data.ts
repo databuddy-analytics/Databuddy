@@ -32,9 +32,11 @@ interface ChartDataPoint {
 }
 
 interface DashboardDataResult {
-	isLoading: boolean;
-	isFetching: boolean;
-	getValue: (cardId: string, queryType: string, field: string) => string;
+	getChartData: (
+		cardId: string,
+		queryType: string,
+		field: string
+	) => ChartDataPoint[];
 	getRawValue: (
 		cardId: string,
 		queryType: string,
@@ -42,19 +44,17 @@ interface DashboardDataResult {
 	) => QueryCell | undefined;
 	getRow: (cardId: string, queryType: string) => QueryRow | undefined;
 	getRows: (cardId: string, queryType: string) => QueryRow[];
-	getChartData: (
-		cardId: string,
-		queryType: string,
-		field: string
-	) => ChartDataPoint[];
+	getValue: (cardId: string, queryType: string, field: string) => string;
 	hasData: (cardId: string, queryType: string) => boolean;
+	isFetching: boolean;
+	isLoading: boolean;
 }
 
 interface WidgetWithSettings extends DashboardWidgetBase {
-	filters?: CardFilter[];
-	dateRangePreset?: DateRangePreset;
-	dataSourceMode?: DataSourceMode;
 	customQuery?: CustomQueryConfig;
+	dataSourceMode?: DataSourceMode;
+	dateRangePreset?: DateRangePreset;
+	filters?: CardFilter[];
 }
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -101,17 +101,12 @@ async function fetchCustomQuery(
 	return data.data || [];
 }
 
-/**
- * Hook for fetching and accessing dashboard widget data.
- * Supports both predefined query types and custom queries.
- */
 export function useDashboardData<T extends WidgetWithSettings>(
 	websiteId: string,
 	globalDateRange: DateRange,
 	widgets: T[],
 	options?: UseDashboardDataOptions
 ): DashboardDataResult {
-	// Split widgets into predefined and custom
 	const { predefinedWidgets, customWidgets } = useMemo(() => {
 		const predefined: T[] = [];
 		const custom: T[] = [];
@@ -127,7 +122,6 @@ export function useDashboardData<T extends WidgetWithSettings>(
 		return { predefinedWidgets: predefined, customWidgets: custom };
 	}, [widgets]);
 
-	// Build queries for predefined widgets
 	const { queries, cardToQueryMap } = useMemo(() => {
 		const filterGroups = new Map<
 			string,
@@ -205,7 +199,6 @@ export function useDashboardData<T extends WidgetWithSettings>(
 		return { queries: batchQueries, cardToQueryMap: cardMap };
 	}, [predefinedWidgets, globalDateRange]);
 
-	// Fetch predefined data
 	const {
 		getDataForQuery,
 		isLoading: predefinedLoading,
@@ -214,7 +207,6 @@ export function useDashboardData<T extends WidgetWithSettings>(
 		enabled: (options?.enabled ?? true) && queries.length > 0,
 	});
 
-	// Build custom query configs
 	const customQueryConfigs = useMemo(() => {
 		return customWidgets
 			.filter((widget) => widget.customQuery)
@@ -236,7 +228,6 @@ export function useDashboardData<T extends WidgetWithSettings>(
 			});
 	}, [customWidgets, globalDateRange]);
 
-	// Fetch custom query data
 	const customQueries = useQueries({
 		queries: customQueryConfigs.map((config) => ({
 			queryKey: ["custom-query", websiteId, config.cardId, config.request],
@@ -246,7 +237,6 @@ export function useDashboardData<T extends WidgetWithSettings>(
 		})),
 	});
 
-	// Build custom data map
 	const customDataMap = useMemo(() => {
 		const dataMap = new Map<string, Record<string, unknown>[]>();
 		for (let i = 0; i < customQueryConfigs.length; i++) {
@@ -268,14 +258,12 @@ export function useDashboardData<T extends WidgetWithSettings>(
 	const getValue = useMemo(
 		() =>
 			(cardId: string, queryType: string, field: string): string => {
-				// Check if it's a custom query card
 				const customData = customDataMap.get(cardId);
 				if (customData) {
 					const firstRow = customData.at(0);
 					if (!firstRow) {
 						return "—";
 					}
-					// For custom queries, try to find the first aggregate result
 					const values = Object.values(firstRow);
 					const firstValue = values.at(0) as QueryCell | undefined;
 					if (firstValue !== undefined && firstValue !== null) {
@@ -284,7 +272,6 @@ export function useDashboardData<T extends WidgetWithSettings>(
 					return "—";
 				}
 
-				// Predefined query
 				const mapping = cardToQueryMap.get(cardId);
 				if (!mapping) {
 					return "—";

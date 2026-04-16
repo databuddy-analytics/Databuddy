@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Evals — Databuddy</title>
+    <style>
+    :root {
+      --bg: #09090b;
+      --surface: #18181b;
+      --border: #27272a;
+      --border-hover: #3f3f46;
+      --text: #fafafa;
+      --muted: #a1a1aa;
+      --dim: #71717a;
+      --green: #22c55e;
+      --green-dim: rgba(34, 197, 94, 0.12);
+      --yellow: #eab308;
+      --yellow-dim: rgba(234, 179, 8, 0.12);
+      --red: #ef4444;
+      --red-dim: rgba(239, 68, 68, 0.12);
+      --blue: #3b82f6;
+      --purple: #a855f7;
+      --orange: #f97316;
+      --radius: 10px;
+      --radius-sm: 6px;
+      --font:
+        -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+      --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      padding: 0;
+      margin: 0;
+    }
+    html {
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    body {
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    /* Layout */
+    .container {
+      max-width: 1280px;
+      padding: 0 24px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      padding: 20px 0;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header-inner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    .header-meta {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .header-meta span {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .header-meta .dot {
+      width: 3px;
+      height: 3px;
+      background: var(--dim);
+      border-radius: 50%;
+    }
+    .run-select {
+      padding: 8px 36px 8px 12px;
+      font-family: var(--font);
+      font-size: 13px;
+      color: var(--text);
+      appearance: none;
+      cursor: pointer;
+      background: var(--surface);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3E%3Cpath stroke='%23a1a1aa' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M3 4.5 6 7.5 9 4.5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: border-color var(--transition);
+    }
+    .run-select:hover {
+      border-color: var(--border-hover);
+    }
+    .run-select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    }
+
+    /* Score cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .card {
+      padding: 16px 18px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition:
+        border-color var(--transition),
+        transform var(--transition);
+    }
+    .card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+    .card.card-overall {
+      grid-column: span 1;
+    }
+    .card-label {
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .card-value {
+      font-size: 28px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+    .card-sub {
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--dim);
+    }
+    .score-green {
+      color: var(--green);
+    }
+    .score-yellow {
+      color: var(--yellow);
+    }
+    .score-red {
+      color: var(--red);
+    }
+
+    /* Chart */
+    .chart-section {
+      padding: 20px;
+      margin-bottom: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .chart-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+    .legend-item {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      font-size: 11px;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .legend-dot {
+      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .chart-area {
+      position: relative;
+      height: 200px;
+    }
+    .chart-area svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+    .chart-tooltip {
+      position: absolute;
+      z-index: 10;
+      padding: 10px 12px;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      background: #27272a;
+      border: 1px solid #3f3f46;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      transition: opacity 100ms ease;
+    }
+    .chart-tooltip.visible {
+      opacity: 1;
+    }
+    .tooltip-date {
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+    .tooltip-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-top: 3px;
+    }
+    .tooltip-color {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+    .tooltip-label {
+      color: var(--muted);
+    }
+    .tooltip-val {
+      padding-left: 12px;
+      margin-left: auto;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Table */
+    .table-section {
+      margin-bottom: 24px;
+      overflow: hidden;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    table {
+      width: 100%;
+      font-size: 13px;
+      border-collapse: collapse;
+    }
+    thead th {
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-align: left;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid var(--border);
+      transition: color var(--transition);
+    }
+    thead th:hover {
+      color: var(--text);
+    }
+    thead th .sort-arrow {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 10px;
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+    thead th.sorted .sort-arrow {
+      opacity: 1;
+    }
+    tbody tr {
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    tbody tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    tbody tr.expanded {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    td {
+      padding: 10px 14px;
+      font-variant-numeric: tabular-nums;
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      border-radius: 9999px;
+    }
+    .badge-pass {
+      color: var(--green);
+      background: var(--green-dim);
+    }
+    .badge-fail {
+      color: var(--red);
+      background: var(--red-dim);
+    }
+    .badge-cat {
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 500;
+      text-transform: capitalize;
+      letter-spacing: 0.03em;
+      border-radius: 9999px;
+    }
+    .cat-tool-routing,
+    .cat-tool_routing {
+      color: var(--blue);
+      background: rgba(59, 130, 246, 0.12);
+    }
+    .cat-behavioral {
+      color: var(--purple);
+      background: rgba(168, 85, 247, 0.12);
+    }
+    .cat-quality {
+      color: var(--green);
+      background: rgba(34, 197, 94, 0.12);
+    }
+    .cat-format {
+      color: var(--orange);
+      background: rgba(249, 115, 22, 0.12);
+    }
+    .cat-performance {
+      color: var(--yellow);
+      background: rgba(234, 179, 8, 0.12);
+    }
+
+    /* Detail panel */
+    .detail-row td {
+      padding: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-panel {
+      display: none;
+      padding: 16px 20px;
+      background: rgba(0, 0, 0, 0.2);
+      animation: slideDown 200ms ease-out;
+    }
+    .detail-panel.open {
+      display: block;
+    }
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .detail-block-title {
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .detail-response {
+      max-height: 300px;
+      padding: 12px;
+      overflow-y: auto;
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--muted);
+      word-break: break-word;
+      white-space: pre-wrap;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .detail-response::-webkit-scrollbar {
+      width: 6px;
+    }
+    .detail-response::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .detail-response::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+    .detail-list {
+      font-size: 12px;
+      color: var(--muted);
+      list-style: none;
+    }
+    .detail-list li {
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+      padding: 3px 0;
+    }
+    .detail-list li::before {
+      flex-shrink: 0;
+      width: 4px;
+      height: 4px;
+      margin-top: 6px;
+      content: "";
+      background: var(--dim);
+      border-radius: 50%;
+    }
+    .detail-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .metric-item {
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+    .metric-label {
+      font-size: 10px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .metric-val {
+      margin-top: 2px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .failure-item {
+      padding: 8px 10px;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #fca5a5;
+      background: var(--red-dim);
+      border-left: 2px solid var(--red);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      padding: 16px 0 32px;
+      font-size: 12px;
+      color: var(--dim);
+      border-top: 1px solid var(--border);
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px;
+      text-align: center;
+    }
+    .empty-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+    }
+    .empty-title {
+      margin-bottom: 6px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .empty-desc {
+      max-width: 320px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .empty-code {
+      padding: 10px 16px;
+      margin-top: 16px;
+      font-family: "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .cards {
+        grid-template-columns: repeat(4, 1fr);
+      }
+      .card.card-overall {
+        grid-column: span 1;
+      }
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 640px) {
+      .container {
+        padding: 0 16px;
+      }
+      .cards {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+      }
+      .header-inner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .table-section {
+        overflow-x: auto;
+      }
+      table {
+        min-width: 700px;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-inner">
+          <div class="header-left">
+            <div class="header-title">Agent Evals</div>
+            <div class="header-meta" id="meta">
+              <span>Loading results...</span>
+            </div>
+          </div>
+          <select
+            class="run-select"
+            id="runSelect"
+            onchange="selectRun(this.value)"
+          ></select>
+        </div>
+      </header>
+
+      <!-- Empty state (hidden by default) -->
+      <div class="empty-state" id="emptyState" style="display:none">
+        <div class="empty-icon">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 20 20"
+            fill="none"
+            role="img"
+            aria-label="Star icon"
+          >
+            <path
+              d="M10 2L12.09 7.26L18 8.27L14 12.14L14.18 18.02L10 15.27L5.82 18.02L6 12.14L2 8.27L7.91 7.26L10 2Z"
+              stroke="#71717a"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+        <div class="empty-title">No eval runs yet</div>
+        <div class="empty-desc">
+          Run an evaluation to see results here. Scores, trends, and detailed
+          breakdowns will appear automatically.
+        </div>
+        <div class="empty-code">bun run eval --save</div>
+      </div>
+
+      <!-- Main content (hidden until data loads) -->
+      <div id="mainContent" style="display:none">
+        <!-- Score cards -->
+        <div class="cards" id="cards"></div>
+
+        <!-- Trend chart -->
+        <div class="chart-section" id="chartSection">
+          <div class="chart-header">
+            <div class="chart-title">Score Trend</div>
+            <div class="chart-legend" id="chartLegend"></div>
+          </div>
+          <div class="chart-area" id="chartArea">
+            <svg id="chartSvg" role="img" aria-label="Score trend chart"></svg>
+            <div class="chart-tooltip" id="chartTooltip"></div>
+          </div>
+        </div>
+
+        <!-- Results table -->
+        <div class="table-section">
+          <table>
+            <thead>
+              <tr id="tableHead"></tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer" id="footer"></footer>
+      </div>
+    </div>
+
+    <script>
+    "use strict";
+    let runs = [],
+      currentRun = null,
+      sortCol = null,
+      sortAsc = true;
+
+    const DIMS = [
+      "tool_routing",
+      "behavioral",
+      "quality",
+      "format",
+      "performance",
+    ];
+    const DIM_LABELS = {
+      tool_routing: "Tool Routing",
+      behavioral: "Behavioral",
+      quality: "Quality",
+      format: "Format",
+      performance: "Performance",
+    };
+    const DIM_COLORS = {
+      overall: "#3b82f6",
+      tool_routing: "#3b82f6",
+      behavioral: "#a855f7",
+      quality: "#22c55e",
+      format: "#f97316",
+      performance: "#eab308",
+    };
+    const CAT_COLORS = {
+      "tool-routing": "cat-tool-routing",
+      tool_routing: "cat-tool_routing",
+      behavioral: "cat-behavioral",
+      quality: "cat-quality",
+      format: "cat-format",
+      performance: "cat-performance",
+    };
+
+    const columns = [
+      { key: "idx", label: "#", sortable: false },
+      { key: "id", label: "Case ID", sortable: true },
+      { key: "category", label: "Category", sortable: true },
+      { key: "status", label: "Status", sortable: true },
+      { key: "tool_routing", label: "Tools", sortable: true },
+      { key: "behavioral", label: "Behav", sortable: true },
+      { key: "quality", label: "Quality", sortable: true },
+      { key: "format", label: "Format", sortable: true },
+      { key: "performance", label: "Perf", sortable: true },
+      { key: "latency", label: "Latency", sortable: true },
+      { key: "steps", label: "Steps", sortable: true },
+    ];
+
+    const UPPERCASE_RE = /([A-Z])/g;
+    const FIRST_CHAR_RE = /^./;
+
+    function scoreClass(v) {
+      if (v === undefined || v === null || v < 0) {
+        return "";
+      }
+      return v >= 80 ? "score-green" : v >= 60 ? "score-yellow" : "score-red";
+    }
+    function scoreDisplay(v) {
+      return v === undefined || v === null || v < 0 ? "--" : v;
+    }
+
+    async function load() {
+      try {
+        const res = await fetch("/api/results");
+        runs = await res.json();
+      } catch (_e) {
+        runs = [];
+      }
+      if (!runs.length) {
+        document.getElementById("emptyState").style.display = "flex";
+        return;
+      }
+      document.getElementById("mainContent").style.display = "block";
+      const select = document.getElementById("runSelect");
+      select.innerHTML = runs
+        .map((r, i) => {
+          const d = new Date(r.timestamp);
+          const label = d.toLocaleString(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          return `<option value="${i}">${label} — ${r.summary.score}%</option>`;
+        })
+        .join("");
+      buildTableHead();
+      selectRun(0);
+      drawChart();
+    }
+
+    function selectRun(idx) {
+      currentRun = runs[idx];
+      const r = currentRun;
+      const d = new Date(r.timestamp);
+      const ts = d.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+      document.getElementById("meta").innerHTML = `
+      <span>${r.model || "unknown model"}</span>
+      <span class="dot"></span>
+      <span>${ts}</span>
+      <span class="dot"></span>
+      <span>${(r.duration / 1000).toFixed(1)}s total</span>
+    `;
+      renderCards(r);
+      renderTable(r);
+      renderFooter(r);
+    }
+
+    function renderCards(r) {
+      const d = r.dimensions;
+      const overall = r.summary.score;
+      const html = `
+      <div class="card card-overall">
+        <div class="card-label">Overall</div>
+        <div class="card-value ${scoreClass(overall)}">${overall}%</div>
+        <div class="card-sub">${r.summary.passed} of ${r.summary.total} passed</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Pass Rate</div>
+        <div class="card-value">${r.summary.total > 0 ? Math.round((r.summary.passed / r.summary.total) * 100) : 0}%</div>
+        <div class="card-sub">${r.summary.passed}/${r.summary.total}</div>
+      </div>
+      ${DIMS.map(
+        (dim) => `
+        <div class="card">
+          <div class="card-label">${DIM_LABELS[dim]}</div>
+          <div class="card-value ${scoreClass(d[dim])}">${scoreDisplay(d[dim])}</div>
+        </div>
+      `
+      ).join("")}
+    `;
+      document.getElementById("cards").innerHTML = html;
+    }
+
+    function buildTableHead() {
+      document.getElementById("tableHead").innerHTML = columns
+        .map(
+          (c) =>
+            `<th data-col="${c.key}" ${c.sortable ? `onclick="sortTable('${c.key}')"` : ""}>
+        ${c.label}${c.sortable ? '<span class="sort-arrow"></span>' : ""}
+      </th>`
+        )
+        .join("");
+    }
+
+    function renderTable(r) {
+      const rows = r.cases.map((c, i) => ({ ...c, _idx: i }));
+      if (sortCol) {
+        rows.sort((a, b) => {
+          let va, vb;
+          if (sortCol === "id") {
+            va = a.id;
+            vb = b.id;
+          } else if (sortCol === "category") {
+            va = a.category || "";
+            vb = b.category || "";
+          } else if (sortCol === "status") {
+            va = a.passed ? 1 : 0;
+            vb = b.passed ? 1 : 0;
+          } else if (sortCol === "latency") {
+            va = a.metrics?.latencyMs || 0;
+            vb = b.metrics?.latencyMs || 0;
+          } else if (sortCol === "steps") {
+            va = a.metrics?.steps || 0;
+            vb = b.metrics?.steps || 0;
+          } else {
+            va = a.scores?.[sortCol] ?? -1;
+            vb = b.scores?.[sortCol] ?? -1;
+          }
+          if (typeof va === "string") {
+            return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+          }
+          return sortAsc ? va - vb : vb - va;
+        });
+      }
+      // Update sort indicators
+      for (const th of document.querySelectorAll("#tableHead th")) {
+        const col = th.dataset.col;
+        th.classList.toggle("sorted", col === sortCol);
+        const arrow = th.querySelector(".sort-arrow");
+        if (arrow) {
+          arrow.textContent =
+            col === sortCol ? (sortAsc ? " \u2191" : " \u2193") : "";
+        }
+      }
+      const tbody = document.getElementById("tbody");
+      tbody.innerHTML = rows
+        .map((c, ri) => {
+          const s = c.scores || {};
+          const cat = c.category || (c.id ? c.id.split("-")[0] : "");
+          const catClass =
+            CAT_COLORS[cat] || CAT_COLORS[cat.replace(/-/g, "_")] || "";
+          const statusBadge = c.passed
+            ? '<span class="badge badge-pass">PASS</span>'
+            : '<span class="badge badge-fail">FAIL</span>';
+          const scoreCells = DIMS.map(
+            (d) => `<td class="${scoreClass(s[d])}">${scoreDisplay(s[d])}</td>`
+          ).join("");
+          const latency = c.metrics?.latencyMs
+            ? `${(c.metrics.latencyMs / 1000).toFixed(1)}s`
+            : "--";
+          const steps = c.metrics?.steps ?? c.toolsCalled?.length ?? "--";
+          const detailHtml = buildDetail(c);
+          return `
+        <tr onclick="toggleDetail('d${ri}')" class="data-row">
+          <td>${ri + 1}</td>
+          <td style="font-weight:500">${c.id}</td>
+          <td><span class="badge-cat ${catClass}">${cat.replace(/_/g, " ")}</span></td>
+          <td>${statusBadge}</td>
+          ${scoreCells}
+          <td>${latency}</td>
+          <td>${steps}</td>
+        </tr>
+        <tr class="detail-row"><td colspan="${columns.length}"><div class="detail-panel" id="d${ri}">${detailHtml}</div></td></tr>
+      `;
+        })
+        .join("");
+    }
+
+    function buildDetail(c) {
+      const s = c.scores || {};
+      const tools = c.toolsCalled || [];
+      const failures = c.failures || [];
+      const resp = (c.response || "")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const metricsHtml = Object.entries(c.metrics || {})
+        .map(
+          ([k, v]) =>
+            `<div class="metric-item"><div class="metric-label">${k.replace(UPPERCASE_RE, " $1").replace(FIRST_CHAR_RE, (s) => s.toUpperCase())}</div><div class="metric-val">${typeof v === "number" ? (v > 1000 ? `${(v / 1000).toFixed(1)}s` : v) : v}</div></div>`
+        )
+        .join("");
+      const scoresHtml = Object.entries(s)
+        .map(
+          ([k, v]) =>
+            `<div class="metric-item"><div class="metric-label">${DIM_LABELS[k] || k}</div><div class="metric-val ${scoreClass(v)}">${scoreDisplay(v)}</div></div>`
+        )
+        .join("");
+      return `
+      <div class="detail-grid">
+        <div>
+          <div class="detail-block-title">Response</div>
+          <div class="detail-response">${resp || "No response captured."}</div>
+        </div>
+        <div>
+          ${failures.length ? `<div class="detail-block-title">Failures</div>${failures.map((f) => `<div class="failure-item">${f.replace(/</g, "&lt;")}</div>`).join("")}` : ""}
+          <div class="detail-block-title" style="margin-top:${failures.length ? 12 : 0}px">Tools Called</div>
+          ${tools.length ? `<ul class="detail-list">${tools.map((t) => `<li>${t}</li>`).join("")}</ul>` : '<div style="font-size:12px;color:var(--dim)">No tools called</div>'}
+          <div class="detail-block-title" style="margin-top:12px">Scores</div>
+          <div class="detail-metrics">${scoresHtml}</div>
+          ${metricsHtml ? `<div class="detail-block-title" style="margin-top:12px">Metrics</div><div class="detail-metrics">${metricsHtml}</div>` : ""}
+        </div>
+      </div>
+    `;
+    }
+
+    function _toggleDetail(id) {
+      const panel = document.getElementById(id);
+      if (!panel) {
+        return;
+      }
+      const isOpen = panel.classList.contains("open");
+      // Close all others
+      for (const p of document.querySelectorAll(".detail-panel.open")) {
+        p.classList.remove("open");
+        p.closest("tr")?.previousElementSibling?.classList.remove("expanded");
+      }
+      if (!isOpen) {
+        panel.classList.add("open");
+        panel.closest("tr")?.previousElementSibling?.classList.add("expanded");
+      }
+    }
+
+    function _sortTable(col) {
+      if (sortCol === col) {
+        sortAsc = !sortAsc;
+      } else {
+        sortCol = col;
+        sortAsc = true;
+      }
+      renderTable(currentRun);
+    }
+
+    function renderFooter(r) {
+      const d = new Date(r.timestamp);
+      document.getElementById("footer").innerHTML = `
+      <span>${r.summary.total} case${r.summary.total === 1 ? "" : "s"} evaluated</span>
+      <span>Duration: ${(r.duration / 1000).toFixed(1)}s</span>
+      <span>${d.toLocaleString()}</span>
+    `;
+    }
+
+    /* Chart */
+    const chartLines = {
+      overall: true,
+      tool_routing: true,
+      behavioral: true,
+      quality: true,
+      format: true,
+      performance: true,
+    };
+
+    function drawChart() {
+      if (runs.length < 2) {
+        document.getElementById("chartSection").style.display = "none";
+        return;
+      }
+      buildLegend();
+      renderChartSvg();
+    }
+
+    function buildLegend() {
+      const legend = document.getElementById("chartLegend");
+      const items = [
+        { key: "overall", label: "Overall", color: DIM_COLORS.overall },
+      ];
+      for (const d of DIMS) {
+        items.push({ key: d, label: DIM_LABELS[d], color: DIM_COLORS[d] });
+      }
+      legend.innerHTML = items
+        .map(
+          (it) =>
+            `<div class="legend-item" onclick="toggleLine('${it.key}')" id="leg-${it.key}">
+        <div class="legend-dot" style="background:${it.color};${chartLines[it.key] ? "" : "opacity:.3"}"></div>
+        <span style="${chartLines[it.key] ? "" : "opacity:.4"}">${it.label}</span>
+      </div>`
+        )
+        .join("");
+    }
+
+    function _toggleLine(key) {
+      chartLines[key] = !chartLines[key];
+      buildLegend();
+      renderChartSvg();
+    }
+
+    function renderChartSvg() {
+      const area = document.getElementById("chartArea");
+      const svg = document.getElementById("chartSvg");
+      const w = area.clientWidth,
+        h = area.clientHeight;
+      const pad = { top: 10, right: 16, bottom: 28, left: 36 };
+      const cw = w - pad.left - pad.right,
+        ch = h - pad.top - pad.bottom;
+      const data = [...runs].reverse();
+      const n = data.length;
+      const stepX = n > 1 ? cw / (n - 1) : cw;
+
+      let svgContent = "";
+      // Grid lines
+      for (let pct = 0; pct <= 100; pct += 25) {
+        const y = pad.top + ch - (pct / 100) * ch;
+        svgContent += `<line x1="${pad.left}" y1="${y}" x2="${w - pad.right}" y2="${y}" stroke="#27272a" stroke-width="1"/>`;
+        svgContent += `<text x="${pad.left - 8}" y="${y + 3}" text-anchor="end" fill="#71717a" font-size="10" font-family="var(--font)">${pct}</text>`;
+      }
+      // X-axis labels
+      const maxLabels = Math.min(n, 8);
+      const labelStep = Math.max(1, Math.floor(n / maxLabels));
+      for (const [i, r] of data.entries()) {
+        if (i % labelStep !== 0 && i !== n - 1) {
+          continue;
+        }
+        const x = pad.left + i * stepX;
+        const d = new Date(r.timestamp);
+        const label = d.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        });
+        svgContent += `<text x="${x}" y="${h - 4}" text-anchor="middle" fill="#71717a" font-size="10" font-family="var(--font)">${label}</text>`;
+      }
+
+      // Lines
+      const allKeys = ["overall", ...DIMS];
+      for (const key of allKeys) {
+        if (!chartLines[key]) {
+          continue;
+        }
+        const color = DIM_COLORS[key];
+        const values = data.map((r) =>
+          key === "overall" ? r.summary.score : (r.dimensions?.[key] ?? -1)
+        );
+        const points = values
+          .map((v, i) => {
+            if (v < 0) {
+              return null;
+            }
+            return {
+              x: pad.left + i * stepX,
+              y: pad.top + ch - (v / 100) * ch,
+            };
+          })
+          .filter(Boolean);
+        if (points.length < 2) {
+          continue;
+        }
+        const pathD = points
+          .map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`)
+          .join(" ");
+        svgContent += `<path d="${pathD}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
+        for (const p of points) {
+          svgContent += `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${color}" stroke="#18181b" stroke-width="2"/>`;
+        }
+      }
+
+      // Hover targets
+      for (const [i] of data.entries()) {
+        const x = pad.left + i * stepX;
+        svgContent += `<rect x="${x - stepX / 2}" y="${pad.top}" width="${stepX}" height="${ch}" fill="transparent" data-idx="${i}" onmouseenter="showTooltip(event,${i})" onmouseleave="hideTooltip()"/>`;
+      }
+
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      svg.innerHTML = svgContent;
+    }
+
+    function _showTooltip(evt, idx) {
+      const data = [...runs].reverse();
+      const r = data[idx];
+      if (!r) {
+        return;
+      }
+      const tip = document.getElementById("chartTooltip");
+      const d = new Date(r.timestamp);
+      const ts = d.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      let html = `<div class="tooltip-date">${ts}</div>`;
+      const items = [
+        { key: "overall", label: "Overall", val: r.summary.score },
+      ];
+      for (const dim of DIMS) {
+        if (chartLines[dim]) {
+          items.push({
+            key: dim,
+            label: DIM_LABELS[dim],
+            val: r.dimensions?.[dim] ?? "--",
+          });
+        }
+      }
+      for (const it of items) {
+        if (!chartLines[it.key]) {
+          continue;
+        }
+        html += `<div class="tooltip-row"><div class="tooltip-color" style="background:${DIM_COLORS[it.key]}"></div><span class="tooltip-label">${it.label}</span><span class="tooltip-val">${it.val}${typeof it.val === "number" ? "%" : ""}</span></div>`;
+      }
+      tip.innerHTML = html;
+      tip.classList.add("visible");
+      const area = document.getElementById("chartArea");
+      const rect = area.getBoundingClientRect();
+      const ex = evt.clientX - rect.left;
+      const tipW = tip.offsetWidth;
+      tip.style.top = "0px";
+      tip.style.left = `${ex + tipW + 20 > rect.width ? ex - tipW - 12 : ex + 12}px`;
+    }
+
+    function _hideTooltip() {
+      document.getElementById("chartTooltip").classList.remove("visible");
+    }
+
+    // Resize handler
+    let resizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (runs.length >= 2) {
+          renderChartSvg();
+        }
+      }, 150);
+    });
+
+    load();
+    </script>
+  </body>
+</html>

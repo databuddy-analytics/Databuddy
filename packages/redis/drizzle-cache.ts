@@ -1,18 +1,18 @@
 import type { redis as redisClient } from "./redis";
 
 export interface CacheConfig {
-	redis: typeof redisClient;
 	namespace?: string;
+	redis: typeof redisClient;
 }
 
 export interface WithCacheArgs<T> {
-	key: string;
-	ttl?: number;
-	tables?: string[];
-	tag?: string;
 	autoInvalidate?: boolean;
 	disabled?: boolean;
+	key: string;
 	queryFn: () => Promise<T>;
+	tables?: string[];
+	tag?: string;
+	ttl?: number;
 }
 
 function debugLog(

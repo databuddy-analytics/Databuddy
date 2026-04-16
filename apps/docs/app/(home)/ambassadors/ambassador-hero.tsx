@@ -53,8 +53,8 @@ export default function AmbassadorHero() {
 					</h1>
 					<p className="mx-auto max-w-3xl text-balance font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base lg:text-lg">
 						Join our exclusive ambassador program and help us revolutionize
-						privacy-first analytics. Enjoy exclusive perks, community recognition,
-						and be part of building the future.
+						privacy-first analytics. Enjoy exclusive perks, community
+						recognition, and be part of building the future.
 					</p>
 				</div>
 

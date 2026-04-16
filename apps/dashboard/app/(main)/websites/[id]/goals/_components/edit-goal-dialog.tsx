@@ -2,9 +2,9 @@
 
 import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { GoalFilter } from "@databuddy/shared/types/api";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
-import { TargetIcon as Target } from "@phosphor-icons/react/dist/ssr/Target";
-import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TargetIcon as Target } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { Button } from "@/components/ui/button";
@@ -38,22 +38,22 @@ const defaultFilter: GoalFilter = {
 } as const;
 
 interface GoalFormData {
-	id?: string;
-	name: string;
 	description: string | null;
-	type: string;
-	target: string;
 	filters: GoalFilter[];
+	id?: string;
 	ignoreHistoricData?: boolean;
+	name: string;
+	target: string;
+	type: string;
 }
 
 interface EditGoalDialogProps {
+	autocompleteData?: AutocompleteData;
+	goal: Goal | null;
 	isOpen: boolean;
+	isSaving: boolean;
 	onClose: () => void;
 	onSave: (data: Goal | Omit<CreateGoalData, "websiteId">) => Promise<void>;
-	goal: Goal | null;
-	isSaving: boolean;
-	autocompleteData?: AutocompleteData;
 }
 
 export function EditGoalDialog({
@@ -228,7 +228,6 @@ export function EditGoalDialog({
 				</SheetHeader>
 
 				<SheetBody className="space-y-6">
-					{/* Basic Info */}
 					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="space-y-2">
 							<Label htmlFor="goal-name">Name</Label>
@@ -250,17 +249,14 @@ export function EditGoalDialog({
 						</div>
 					</div>
 
-					{/* Goal Target Section */}
 					<section className="space-y-3">
 						<Label className="text-muted-foreground text-xs">Goal Target</Label>
 
 						<div className="flex items-center gap-2 rounded border bg-card p-2.5">
-							{/* Step number */}
 							<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground font-semibold text-accent text-xs">
 								1
 							</div>
 
-							{/* Goal fields */}
 							<div className="flex flex-1 gap-2">
 								<Select
 									onValueChange={(value) => updateField("type", value)}
@@ -288,7 +284,6 @@ export function EditGoalDialog({
 						</div>
 					</section>
 
-					{/* Settings Section */}
 					<section className="space-y-3">
 						<Label className="text-muted-foreground text-xs">Settings</Label>
 						<div className="flex items-center justify-between rounded border bg-card p-3">
@@ -315,7 +310,6 @@ export function EditGoalDialog({
 						</div>
 					</section>
 
-					{/* Filters Section */}
 					<section className="space-y-3">
 						<Label className="text-muted-foreground text-xs">
 							Filters (Optional)

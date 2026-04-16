@@ -9,7 +9,7 @@
     "release": "bun run deploy",
     "diff": "bun compare-release.ts",
     "dev": "bun build.ts --watch",
-    "typecheck": "tsc --noEmit",
+    "check-types": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:unit": "bun test tests/unit",
     "serve": "bun --watch --hot test-server.ts"

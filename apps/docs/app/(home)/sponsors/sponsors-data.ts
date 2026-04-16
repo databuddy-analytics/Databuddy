@@ -1,24 +1,24 @@
 export interface Sponsor {
-	id: string;
-	name: string;
-	logo: string;
-	website: string;
-	tier: "platinum" | "gold" | "silver" | "bronze";
 	description?: string;
 	disabled?: boolean;
+	id: string;
+	logo: string;
+	name: string;
+	tier: "platinum" | "gold" | "silver" | "bronze";
+	website: string;
 }
 
 export interface HonorableMention {
-	id: string;
-	name: string;
-	logo: string;
-	website: string;
 	description: string;
+	id: string;
+	logo: string;
+	name: string;
 	supportType:
 		| "Free Plan"
 		| "Open Source"
 		| "Community Support"
 		| "Educational";
+	website: string;
 }
 
 export const sponsors: Sponsor[] = [

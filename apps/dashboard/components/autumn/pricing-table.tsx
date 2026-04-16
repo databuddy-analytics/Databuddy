@@ -9,16 +9,14 @@ import {
 	PLAN_IDS,
 	type PlanId,
 } from "@databuddy/shared/types/features";
-import {
-	ArrowDownIcon,
-	CheckIcon,
-	CircleNotchIcon,
-	CrownIcon,
-	RocketLaunchIcon,
-	SparkleIcon,
-	StarIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { ArrowDownIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { CrownIcon } from "@phosphor-icons/react";
+import { RocketLaunchIcon } from "@phosphor-icons/react";
+import { SparkleIcon } from "@phosphor-icons/react";
+import { StarIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useCustomer, useListPlans } from "autumn-js/react";
 import { createContext, useContext, useState } from "react";
 import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
@@ -431,14 +429,12 @@ function PricingCard({
 			</div>
 
 			<div className="flex-1 p-5">
-				{/* Billing features (usage limits) */}
 				<div className="space-y-2.5">
 					{billingItems.map((item) => (
 						<FeatureItem item={item} key={item.display?.primaryText} />
 					))}
 				</div>
 
-				{/* Gated features new to this plan */}
 				{newGatedFeatures.length > 0 && (
 					<div className="mt-4 space-y-2.5 border-t pt-4">
 						<span className="text-muted-foreground text-xs uppercase">

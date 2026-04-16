@@ -1,11 +1,11 @@
 /** Token usage statistics */
 export interface Usage {
+	cacheCreationInputTokens?: number;
+	cachedInputTokens?: number;
 	inputTokens: number;
 	outputTokens: number;
-	totalTokens: number;
-	cachedInputTokens?: number;
-	cacheCreationInputTokens?: number;
 	reasoningTokens?: number;
+	totalTokens: number;
 	webSearchCount?: number;
 }
 
@@ -18,68 +18,68 @@ export interface Cost {
 
 /** Tool usage information */
 export interface ToolInfo {
-	callCount: number;
-	resultCount: number;
-	calledTools: string[];
 	availableTools?: string[];
+	callCount: number;
+	calledTools: string[];
+	resultCount: number;
 }
 
 /** Error details for failed calls */
 export interface ErrorInfo {
-	name: string;
 	message: string;
+	name: string;
 	stack?: string;
 }
 
 /** Text content in a message */
 export interface TextContent {
-	type: "text";
 	text: string;
+	type: "text";
 }
 
 /** Reasoning/thinking content from models like o1 */
 export interface ReasoningContent {
-	type: "reasoning";
 	text: string;
+	type: "reasoning";
 }
 
 /** Tool/function call content */
 export interface ToolCallContent {
-	type: "tool-call";
-	id: string;
 	function: { name: string; arguments: string };
+	id: string;
+	type: "tool-call";
 }
 
 /** Tool result content */
 export interface ToolResultContent {
-	type: "tool-result";
+	isError?: boolean;
+	output: unknown;
 	toolCallId: string;
 	toolName: string;
-	output: unknown;
-	isError?: boolean;
+	type: "tool-result";
 }
 
 /** File attachment content */
 export interface FileContent {
-	type: "file";
 	file: string;
 	mediaType: string;
+	type: "file";
 }
 
 /** Image attachment content */
 export interface ImageContent {
-	type: "image";
 	image: string;
 	mediaType: string;
+	type: "image";
 }
 
 /** Web search source reference */
 export interface SourceContent {
-	type: "source";
-	sourceType: string;
 	id: string;
-	url: string;
+	sourceType: string;
 	title: string;
+	type: "source";
+	url: string;
 }
 
 /** Union of all possible message content types */
@@ -95,26 +95,26 @@ export type MessageContent =
 
 /** A message in the conversation */
 export interface Message {
-	role: string;
 	content: string | MessageContent[];
+	role: string;
 }
 
 /** Complete LLM call record */
 export interface LLMCall {
+	cost: Cost;
+	durationMs: number;
+	error?: ErrorInfo;
+	finishReason?: string;
+	httpStatus?: number;
+	input: Message[];
+	model: string;
+	output: Message[];
+	provider: string;
 	timestamp: Date;
+	tools: ToolInfo;
 	traceId: string;
 	type: "generate" | "stream" | "embedding";
-	model: string;
-	provider: string;
-	finishReason?: string;
-	input: Message[];
-	output: Message[];
 	usage: Usage;
-	cost: Cost;
-	tools: ToolInfo;
-	error?: ErrorInfo;
-	durationMs: number;
-	httpStatus?: number;
 }
 
 /** Function that sends LLM call data */
@@ -122,22 +122,22 @@ export type Transport = (call: LLMCall) => Promise<void> | void;
 
 /** Base tracker options */
 export interface TrackerOptions {
-	apiUrl?: string;
 	apiKey?: string;
-	transport?: Transport;
+	apiUrl?: string;
 	computeCosts?: boolean;
-	privacyMode?: boolean;
 	maxContentSize?: number;
-	onSuccess?: (call: LLMCall) => void;
 	onError?: (call: LLMCall) => void;
+	onSuccess?: (call: LLMCall) => void;
+	privacyMode?: boolean;
+	transport?: Transport;
 }
 
 /** Per-call tracking options */
 export interface CallOptions {
-	transport?: Transport;
-	traceId?: string;
 	computeCosts?: boolean;
-	privacyMode?: boolean;
-	onSuccess?: (call: LLMCall) => void;
 	onError?: (call: LLMCall) => void;
+	onSuccess?: (call: LLMCall) => void;
+	privacyMode?: boolean;
+	traceId?: string;
+	transport?: Transport;
 }

@@ -57,52 +57,28 @@ import type {
 	TimeSeriesInput,
 } from "./types";
 
-// ============================================
-// Chart Validators
-// ============================================
-
 function isTimeSeriesInput(
 	input: RawComponentInput
 ): input is RawComponentInput & TimeSeriesInput {
-	const data = input.data as Record<string, unknown> | undefined;
-	if (!data || typeof data !== "object") {
+	if (!(Array.isArray(input.series) && Array.isArray(input.rows))) {
 		return false;
 	}
-	if (!Array.isArray(data.x) || data.x.length === 0) {
+	if (input.series.length === 0) {
 		return false;
 	}
-	if (!data.x.every((item) => typeof item === "string")) {
-		return false;
-	}
-	const seriesKeys = Object.keys(data).filter((k) => k !== "x");
-	return seriesKeys.some((key) => {
-		const values = data[key];
-		return Array.isArray(values) && values.every((v) => typeof v === "number");
-	});
+	return (input.series as unknown[]).every(
+		(s: unknown) => typeof s === "string"
+	);
 }
 
 function isDistributionInput(
 	input: RawComponentInput
 ): input is RawComponentInput & DistributionInput {
-	const data = input.data as Record<string, unknown> | undefined;
-	if (!data || typeof data !== "object") {
+	if (!Array.isArray(input.rows)) {
 		return false;
 	}
-	if (!(Array.isArray(data.labels) && Array.isArray(data.values))) {
-		return false;
-	}
-	if (data.labels.length === 0 || data.values.length === 0) {
-		return false;
-	}
-	return (
-		data.labels.every((item) => typeof item === "string") &&
-		data.values.every((item) => typeof item === "number")
-	);
+	return input.rows.length > 0;
 }
-
-// ============================================
-// Links Validators
-// ============================================
 
 function isLinksListInput(
 	input: RawComponentInput
@@ -141,10 +117,6 @@ function isLinkPreviewInput(
 	return typeof link.name === "string" && typeof link.targetUrl === "string";
 }
 
-// ============================================
-// Funnels Validators
-// ============================================
-
 function isFunnelsListInput(
 	input: RawComponentInput
 ): input is RawComponentInput & FunnelsListInput {
@@ -181,10 +153,6 @@ function isFunnelPreviewInput(
 	return typeof funnel.name === "string" && Array.isArray(funnel.steps);
 }
 
-// ============================================
-// Goals Validators
-// ============================================
-
 function isGoalsListInput(
 	input: RawComponentInput
 ): input is RawComponentInput & GoalsListInput {
@@ -220,10 +188,6 @@ function isGoalPreviewInput(
 	}
 	return typeof goal.name === "string" && typeof goal.target === "string";
 }
-
-// ============================================
-// Annotations Validators
-// ============================================
 
 function isAnnotationsListInput(
 	input: RawComponentInput
@@ -263,31 +227,14 @@ function isAnnotationPreviewInput(
 	);
 }
 
-// ============================================
-// Data Table Validators
-// ============================================
-
 function isDataTableInput(
 	input: RawComponentInput
 ): input is RawComponentInput & DataTableInput {
 	if (input.type !== "data-table") {
 		return false;
 	}
-	if (!(Array.isArray(input.columns) && Array.isArray(input.rows))) {
-		return false;
-	}
-	return input.columns.every(
-		(col) =>
-			typeof col === "object" &&
-			col !== null &&
-			typeof (col as Record<string, unknown>).key === "string" &&
-			typeof (col as Record<string, unknown>).header === "string"
-	);
+	return Array.isArray(input.columns) && Array.isArray(input.rows);
 }
-
-// ============================================
-// Referrers List Validators
-// ============================================
 
 function isReferrersListInput(
 	input: RawComponentInput
@@ -307,10 +254,6 @@ function isReferrersListInput(
 	);
 }
 
-// ============================================
-// Mini Map Validators
-// ============================================
-
 function isMiniMapInput(
 	input: RawComponentInput
 ): input is RawComponentInput & MiniMapInput {
@@ -329,45 +272,43 @@ function isMiniMapInput(
 	);
 }
 
-// ============================================
-// Chart Transformers
-// ============================================
-
-function toTimeSeriesProps(variant: "line" | "bar" | "area" | "stacked-bar") {
-	return (input: TimeSeriesInput): TimeSeriesProps => {
-		const series = Object.keys(input.data).filter(
-			(key) => key !== "x" && Array.isArray(input.data[key])
-		);
-
-		const chartData = input.data.x.map((xValue, idx) => {
-			const point: Record<string, string | number> = { x: xValue };
-			for (const key of series) {
-				const values = input.data[key];
-				if (Array.isArray(values)) {
-					point[key] = (values[idx] as number) ?? 0;
-				}
-			}
-			return point;
-		});
-
-		return { variant, title: input.title, data: chartData, series };
+function toTimeSeriesProps(input: TimeSeriesInput): TimeSeriesProps {
+	const series = input.series;
+	const data = input.rows
+		.filter(
+			(row): row is [string, ...number[]] =>
+				Array.isArray(row) && row.length === series.length + 1
+		)
+		.map(([x, ...values]) => ({
+			x: String(x),
+			...Object.fromEntries(
+				series.map((key, i) => [key, Number(values[i]) || 0])
+			),
+		}));
+	const variant = input.type.replace(
+		"-chart",
+		""
+	) as TimeSeriesProps["variant"];
+	return {
+		variant: variant === "stacked-bar" ? "stacked-bar" : variant,
+		title: input.title,
+		data,
+		series,
 	};
 }
 
-function toDistributionProps(variant: "pie" | "donut") {
-	return (input: DistributionInput): DistributionProps => ({
-		variant,
+function toDistributionProps(input: DistributionInput): DistributionProps {
+	const data = input.rows
+		.filter(
+			(row): row is [string, number] => Array.isArray(row) && row.length >= 2
+		)
+		.map(([name, value]) => ({ name: String(name), value: Number(value) }));
+	return {
+		variant: input.type === "donut-chart" ? "donut" : "pie",
 		title: input.title,
-		data: input.data.labels.map((label, idx) => ({
-			name: label,
-			value: input.data.values[idx] ?? 0,
-		})),
-	});
+		data,
+	};
 }
-
-// ============================================
-// Links Transformers
-// ============================================
 
 function toLinksListProps(input: LinksListInput): LinksListProps {
 	return {
@@ -383,10 +324,6 @@ function toLinkPreviewProps(input: LinkPreviewInput): LinkPreviewProps {
 	};
 }
 
-// ============================================
-// Funnels Transformers
-// ============================================
-
 function toFunnelsListProps(input: FunnelsListInput): FunnelsListProps {
 	return {
 		title: input.title,
@@ -401,10 +338,6 @@ function toFunnelPreviewProps(input: FunnelPreviewInput): FunnelPreviewProps {
 	};
 }
 
-// ============================================
-// Goals Transformers
-// ============================================
-
 function toGoalsListProps(input: GoalsListInput): GoalsListProps {
 	return {
 		title: input.title,
@@ -418,10 +351,6 @@ function toGoalPreviewProps(input: GoalPreviewInput): GoalPreviewProps {
 		goal: input.goal,
 	};
 }
-
-// ============================================
-// Annotations Transformers
-// ============================================
 
 function toAnnotationsListProps(
 	input: AnnotationsListInput
@@ -441,23 +370,29 @@ function toAnnotationPreviewProps(
 	};
 }
 
-// ============================================
-// Data Table Transformers
-// ============================================
-
 function toDataTableProps(input: DataTableInput): DataTableProps {
+	const alignArr = input.align ?? [];
+	const columns = input.columns.map((header, i) => ({
+		key: String(i),
+		header: String(header),
+		align: (alignArr[i] ?? "left") as "left" | "center" | "right",
+	}));
+	const rows = input.rows
+		.filter((row) => Array.isArray(row))
+		.map(
+			(row) =>
+				Object.fromEntries(
+					input.columns.map((_, i) => [String(i), row[i] ?? null])
+				) as Record<string, string | number | boolean | null>
+		);
 	return {
 		title: input.title,
 		description: input.description,
-		columns: input.columns,
-		rows: input.rows,
+		columns,
+		rows,
 		footer: input.footer,
 	};
 }
-
-// ============================================
-// Referrers List Transformers
-// ============================================
 
 function toReferrersListProps(input: ReferrersListInput): ReferrersListProps {
 	return {
@@ -466,10 +401,6 @@ function toReferrersListProps(input: ReferrersListInput): ReferrersListProps {
 	};
 }
 
-// ============================================
-// Mini Map Transformers
-// ============================================
-
 function toMiniMapProps(input: MiniMapInput): MiniMapProps {
 	return {
 		title: input.title,
@@ -477,49 +408,43 @@ function toMiniMapProps(input: MiniMapInput): MiniMapProps {
 	};
 }
 
-// ============================================
-// Component Registry
-// ============================================
-
 export const componentRegistry: ComponentRegistry = {
-	// Charts
 	"line-chart": {
 		validate: isTimeSeriesInput,
-		transform: toTimeSeriesProps("line"),
+		transform: toTimeSeriesProps,
 		component: TimeSeriesRenderer,
 	} as ComponentDefinition<TimeSeriesInput, TimeSeriesProps>,
 
 	"bar-chart": {
 		validate: isTimeSeriesInput,
-		transform: toTimeSeriesProps("bar"),
+		transform: toTimeSeriesProps,
 		component: TimeSeriesRenderer,
 	} as ComponentDefinition<TimeSeriesInput, TimeSeriesProps>,
 
 	"area-chart": {
 		validate: isTimeSeriesInput,
-		transform: toTimeSeriesProps("area"),
+		transform: toTimeSeriesProps,
 		component: TimeSeriesRenderer,
 	} as ComponentDefinition<TimeSeriesInput, TimeSeriesProps>,
 
 	"stacked-bar-chart": {
 		validate: isTimeSeriesInput,
-		transform: toTimeSeriesProps("stacked-bar"),
+		transform: toTimeSeriesProps,
 		component: TimeSeriesRenderer,
 	} as ComponentDefinition<TimeSeriesInput, TimeSeriesProps>,
 
 	"pie-chart": {
 		validate: isDistributionInput,
-		transform: toDistributionProps("pie"),
+		transform: toDistributionProps,
 		component: DistributionRenderer,
 	} as ComponentDefinition<DistributionInput, DistributionProps>,
 
 	"donut-chart": {
 		validate: isDistributionInput,
-		transform: toDistributionProps("donut"),
+		transform: toDistributionProps,
 		component: DistributionRenderer,
 	} as ComponentDefinition<DistributionInput, DistributionProps>,
 
-	// Links
 	"links-list": {
 		validate: isLinksListInput,
 		transform: toLinksListProps,
@@ -532,7 +457,6 @@ export const componentRegistry: ComponentRegistry = {
 		component: LinkPreviewRenderer,
 	} as ComponentDefinition<LinkPreviewInput, LinkPreviewProps>,
 
-	// Funnels
 	"funnels-list": {
 		validate: isFunnelsListInput,
 		transform: toFunnelsListProps,
@@ -545,7 +469,6 @@ export const componentRegistry: ComponentRegistry = {
 		component: FunnelPreviewRenderer,
 	} as ComponentDefinition<FunnelPreviewInput, FunnelPreviewProps>,
 
-	// Goals
 	"goals-list": {
 		validate: isGoalsListInput,
 		transform: toGoalsListProps,
@@ -558,7 +481,6 @@ export const componentRegistry: ComponentRegistry = {
 		component: GoalPreviewRenderer,
 	} as ComponentDefinition<GoalPreviewInput, GoalPreviewProps>,
 
-	// Annotations
 	"annotations-list": {
 		validate: isAnnotationsListInput,
 		transform: toAnnotationsListProps,
@@ -571,21 +493,18 @@ export const componentRegistry: ComponentRegistry = {
 		component: AnnotationPreviewRenderer,
 	} as ComponentDefinition<AnnotationPreviewInput, AnnotationPreviewProps>,
 
-	// Data Table
 	"data-table": {
 		validate: isDataTableInput,
 		transform: toDataTableProps,
 		component: DataTableRenderer,
 	} as ComponentDefinition<DataTableInput, DataTableProps>,
 
-	// Referrers List
 	"referrers-list": {
 		validate: isReferrersListInput,
 		transform: toReferrersListProps,
 		component: ReferrersListRenderer,
 	} as ComponentDefinition<ReferrersListInput, ReferrersListProps>,
 
-	// Mini Map
 	"mini-map": {
 		validate: isMiniMapInput,
 		transform: toMiniMapProps,

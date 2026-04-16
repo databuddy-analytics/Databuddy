@@ -18,6 +18,7 @@
     "better-auth": "^1.4.10",
     "better-auth-harmony": "^1.2.5",
     "drizzle-kit": "^0.31.8",
+    "evlog": "catalog:",
     "resend": "^4.8.0",
     "zod": "catalog:"
   }

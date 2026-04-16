@@ -4,11 +4,11 @@ import type React from "react";
 import { cn } from "@/lib/utils";
 
 interface TrendPercentageProps {
-	id?: string;
-	value: number;
-	invertColor?: boolean;
 	className?: string;
 	digits?: number;
+	id?: string;
+	invertColor?: boolean;
+	value: number;
 }
 
 const formatPercentage = (value: number, digits = 1): string => {

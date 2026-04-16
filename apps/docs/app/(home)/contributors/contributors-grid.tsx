@@ -5,13 +5,13 @@ import { SciFiCard } from "@/components/scifi-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Contributor {
-	login: string;
-	id: number;
 	avatar_url: string;
-	html_url: string;
 	contributions: number;
-	rank: number;
+	html_url: string;
+	id: number;
+	login: string;
 	percentage: string;
+	rank: number;
 }
 
 interface ContributorsGridProps {

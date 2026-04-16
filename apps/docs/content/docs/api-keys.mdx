@@ -9,7 +9,7 @@ import { CodeBlock } from "@/components/docs";
 
 - Generate keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
 - Use either `Authorization: Bearer <key>` or `x-api-key: <key>`
-- Scopes: `read:data`, `write:llm`, `track:events`
+- Scopes: `read:data`, `track:events`, `track:llm`, `read:links`, `write:links`, `manage:websites`, `manage:flags`, `manage:config`
 - Access can be global or scoped to a resource like a specific `website`
 - For private websites, include `website_id` and ensure the key has `read:data`
 - Rotate and revoke keys in [Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys); only the prefix/start should be shared/logged
@@ -52,8 +52,13 @@ Notes:
 ### Scopes
 
 - **read:data**: Read access to analytics data and query endpoints
-- **write:llm**: LLM analytics and AI observability tracking
 - **track:events**: Send custom events via the SDK or API
+- **track:llm**: LLM analytics and AI observability tracking
+- **read:links**: Read short links
+- **write:links**: Create, update, and delete short links
+- **manage:websites**: Create, update, and delete websites and their settings
+- **manage:flags**: Create, update, and delete feature flags and targeting rules
+- **manage:config**: Revenue config, integrations, organization settings
 
 Grant only what you need. Prefer resource-scoped access where possible.
 

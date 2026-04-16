@@ -6,10 +6,7 @@ import {
 	BookOpenIcon,
 	BugIcon,
 	BuildingsIcon,
-	CalendarIcon,
 	ChartBarIcon,
-	ChartLineUpIcon,
-	ChartPieIcon,
 	CodeIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
@@ -29,8 +26,6 @@ import {
 	LockIcon,
 	MapPinIcon,
 	PlayIcon,
-	PlugIcon,
-	PlusIcon,
 	ReceiptIcon,
 	RoadHorizonIcon,
 	RobotIcon,
@@ -44,7 +39,7 @@ import {
 	UserIcon,
 	UsersThreeIcon,
 	WarningIcon,
-} from "@phosphor-icons/react";
+} from "@phosphor-icons/react/ssr";
 import type { Category, NavigationEntry, NavigationSection } from "./types";
 
 const createNavItem = (
@@ -102,65 +97,18 @@ export function filterCategoriesByFlags(
 	});
 }
 
-const createDynamicNavigation = <T extends { id: string; name: string | null }>(
-	items: T[],
-	title: string,
-	titleIcon: any,
-	overviewName: string,
-	overviewHref: string,
-	itemIcon: any,
-	itemHrefPrefix: string,
-	emptyText: string,
-	extraProps?: (item: T) => Record<string, any>
-): NavigationSection[] => [
-	createNavSection(title, titleIcon, [
-		createNavItem(overviewName, ChartBarIcon, overviewHref, {
-			highlight: true,
-		}),
-		...(items.length > 0
-			? items.map((item) =>
-					createNavItem(
-						item.name || "",
-						itemIcon,
-						`${itemHrefPrefix}/${item.id}`,
-						{
-							highlight: true,
-							...(extraProps?.(item) || {}),
-						}
-					)
-				)
-			: [
-					createNavItem(emptyText, PlusIcon, overviewHref, {
-						highlight: true,
-						disabled: true,
-					}),
-				]),
-	]),
-];
-
-export const createWebsitesNavigation = (
-	websites: Array<{ id: string; name: string | null; domain: string }>
-): NavigationEntry[] => [
+export const homeNavigation: NavigationEntry[] = [
 	createNavSection("Overview", SquaresFourIcon, [
 		createNavItem("Home", HouseIcon, "/home", {
 			highlight: true,
 		}),
+		createNavItem("Websites", GlobeIcon, "/websites", {
+			highlight: true,
+		}),
 		createNavItem("Insights", SparkleIcon, "/insights", {
 			highlight: true,
-			flag: "insights",
 		}),
 	]),
-	...createDynamicNavigation(
-		websites,
-		"Websites",
-		GlobeSimpleIcon,
-		"Website Overview",
-		"/websites",
-		GlobeIcon,
-		"/websites",
-		"Add Your First Website",
-		(website) => ({ domain: website.domain })
-	),
 	createNavSection("Observability", ActivityIcon, [
 		createNavItem("Links", LinkIcon, "/links", {
 			highlight: true,
@@ -171,37 +119,22 @@ export const createWebsitesNavigation = (
 	]),
 ];
 
-export const personalNavigation: NavigationSection[] = [
-	createNavSection("Personal", UserGearIcon, [
-		createNavItem("Account", IdentificationCardIcon, "/settings/account"),
-		createNavItem("Appearance", EyeIcon, "/settings/appearance"),
-		createNavItem("Privacy & Data", ShieldCheckIcon, "/settings/privacy", {
-			disabled: true,
-			tag: "soon",
-		}),
+export const settingsNavigation: NavigationSection[] = [
+	createNavSection("Workspace", BuildingsIcon, [
+		createNavItem("General", GearIcon, "/organizations/settings"),
+		createNavItem("Members", UserIcon, "/organizations/members"),
+		createNavItem("API Keys", KeyIcon, "/organizations/settings/api-keys"),
+		createNavItem("Danger Zone", WarningIcon, "/organizations/settings/danger"),
 	]),
-	createNavSection("Preferences", GearIcon, [
-		createNavItem(
-			"Analytics Behavior",
-			ChartLineUpIcon,
-			"/settings/analytics",
-			{
-				disabled: true,
-				tag: "soon",
-			}
-		),
-		createNavItem("Feature Access", FlagIcon, "/settings/features", {
-			disabled: true,
-			tag: "soon",
-		}),
-		createNavItem("Integrations", PlugIcon, "/settings/integrations", {
-			disabled: true,
-			tag: "soon",
-		}),
-		createNavItem("Notifications", BellIcon, "/settings/notifications", {
-			disabled: true,
-			tag: "soon",
-		}),
+	createNavSection("Billing", CreditCardIcon, [
+		createNavItem("Overview", ActivityIcon, "/billing"),
+		createNavItem("Plans", CurrencyDollarIcon, "/billing/plans"),
+		createNavItem("Invoices", ReceiptIcon, "/billing/history"),
+	]),
+	createNavSection("Account", UserGearIcon, [
+		createNavItem("Profile", IdentificationCardIcon, "/settings/account"),
+		createNavItem("Appearance", EyeIcon, "/settings/appearance"),
+		createNavItem("Notifications", BellIcon, "/settings/notifications"),
 	]),
 ];
 
@@ -232,78 +165,15 @@ export const resourcesNavigation: NavigationSection[] = [
 	]),
 ];
 
-export const organizationNavigation: NavigationSection[] = [
-	createNavSection("Organizations", BuildingsIcon, [
-		createNavItem("Overview", ChartPieIcon, "/organizations"),
+export const monitorsNavigation: NavigationSection[] = [
+	createNavSection("Monitoring", HeartbeatIcon, [
+		createNavItem("All Monitors", HeartbeatIcon, "/monitors", {
+			highlight: true,
+		}),
+		createNavItem("Status Pages", GlobeSimpleIcon, "/monitors/status-pages", {
+			highlight: true,
+		}),
 	]),
-	createNavSection("Team Management", UsersThreeIcon, [
-		createNavItem("Members", UserIcon, "/organizations/members"),
-		createNavItem("Invitations", CalendarIcon, "/organizations/invitations"),
-	]),
-	createNavSection("Organization Settings", GearIcon, [
-		createNavItem("General", GearIcon, "/organizations/settings"),
-		createNavItem(
-			"Website Access",
-			GlobeSimpleIcon,
-			"/organizations/settings/websites"
-		),
-		createNavItem("API Keys", KeyIcon, "/organizations/settings/api-keys"),
-		createNavItem("Danger Zone", WarningIcon, "/organizations/settings/danger"),
-	]),
-];
-
-export const billingNavigation: NavigationSection[] = [
-	createNavSection("Billing & Usage", CreditCardIcon, [
-		createNavItem("Usage Overview", ActivityIcon, "/billing"),
-		createNavItem("Plans & Pricing", CurrencyDollarIcon, "/billing/plans"),
-		createNavItem("Payment History", ReceiptIcon, "/billing/history"),
-		createNavItem(
-			"Cost Breakdown",
-			ChartLineUpIcon,
-			"/billing/cost-breakdown",
-			{
-				badge: { text: "Experimental", variant: "purple" as const },
-			}
-		),
-		createNavItem("Feedback & Credits", SpeakerHighIcon, "/feedback"),
-	]),
-];
-
-export const createMonitorsNavigation = (
-	monitors: Array<{
-		id: string;
-		name: string | null;
-		url: string | null;
-		websiteId: string | null;
-		website: { id: string; name: string | null; domain: string } | null;
-	}>
-): NavigationSection[] => [
-	...createDynamicNavigation(
-		monitors.map((m) => ({
-			id: m.id,
-			name: m.name || m.website?.name || m.url || "Monitor",
-			domain: m.website?.domain || m.url || "",
-		})),
-		"Monitoring",
-		HeartbeatIcon,
-		"All Monitors",
-		"/monitors",
-		HeartbeatIcon,
-		"/monitors",
-		"Add Your First Monitor",
-		(monitor) => ({ domain: monitor.domain })
-	),
-];
-
-export const createLoadingMonitorsNavigation = (): NavigationSection[] => [
-	...createLoadingNavigation(
-		"Monitoring",
-		HeartbeatIcon,
-		"All Monitors",
-		"/monitors",
-		"Loading monitors...",
-		HeartbeatIcon
-	),
 ];
 
 export const websiteNavigation: NavigationSection[] = [
@@ -361,9 +231,6 @@ export const websiteNavigation: NavigationSection[] = [
 		createNavItem("AI Agent", RobotIcon, "/agent", {
 			alpha: true,
 			rootLevel: false,
-			tag: "WIP",
-			flag: "agent",
-			// gatedFeature: GATED_FEATURES.AI_AGENT,
 		}),
 	]),
 ];
@@ -417,18 +284,6 @@ export const categoryConfig = {
 				flag: "monitors",
 			},
 			{
-				id: "organizations",
-				name: "Organizations",
-				icon: BuildingsIcon,
-				production: true,
-			},
-			{
-				id: "billing",
-				name: "Billing",
-				icon: CreditCardIcon,
-				production: true,
-			},
-			{
 				id: "settings",
 				name: "Settings",
 				icon: GearIcon,
@@ -444,11 +299,9 @@ export const categoryConfig = {
 		],
 		"home",
 		{
-			home: [],
-			monitors: [],
-			organizations: organizationNavigation,
-			billing: billingNavigation,
-			settings: personalNavigation,
+			home: homeNavigation,
+			monitors: monitorsNavigation,
+			settings: settingsNavigation,
 			resources: resourcesNavigation,
 		}
 	),
@@ -482,9 +335,8 @@ const PATH_CONFIG_MAP = [
 
 const CATEGORY_PATH_MAP = [
 	{ pattern: "/monitors", category: "monitors" as const },
-	{ pattern: "/organizations", category: "organizations" as const },
-	{ pattern: "/billing", category: "billing" as const },
-	{ pattern: "/feedback", category: "billing" as const },
+	{ pattern: "/organizations", category: "settings" as const },
+	{ pattern: "/billing", category: "settings" as const },
 	{ pattern: "/settings", category: "settings" as const },
 ] as const;
 
@@ -505,50 +357,3 @@ export const getDefaultCategory = (pathname: string) => {
 	}
 	return getContextConfig(pathname).defaultCategory;
 };
-
-const createLoadingNavigation = (
-	title: string,
-	titleIcon: any,
-	overviewName: string,
-	overviewHref: string,
-	loadingName: string,
-	loadingIcon: any
-): NavigationSection[] => [
-	createNavSection(title, titleIcon, [
-		createNavItem(overviewName, ChartBarIcon, overviewHref, {
-			highlight: true,
-		}),
-		createNavItem(loadingName, loadingIcon, overviewHref, {
-			highlight: true,
-			disabled: true,
-		}),
-	]),
-];
-
-export const createLoadingWebsitesNavigation = (): NavigationEntry[] => [
-	createNavSection("Overview", SquaresFourIcon, [
-		createNavItem("Home", HouseIcon, "/home", {
-			highlight: true,
-		}),
-		createNavItem("Insights", SparkleIcon, "/insights", {
-			highlight: true,
-			flag: "insights",
-		}),
-	]),
-	...createLoadingNavigation(
-		"Websites",
-		GlobeSimpleIcon,
-		"Website Overview",
-		"/websites",
-		"Loading websites...",
-		GlobeIcon
-	),
-	createNavSection("Observability", ActivityIcon, [
-		createNavItem("Links", LinkIcon, "/links", {
-			highlight: true,
-		}),
-		createNavItem("Custom Events", LightningIcon, "/events", {
-			highlight: true,
-		}),
-	]),
-];

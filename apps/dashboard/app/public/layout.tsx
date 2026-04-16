@@ -13,7 +13,7 @@ export default function PublicLayout({
 			backendUrl={process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}
 			includeCredentials
 		>
-			<BillingProvider>
+			<BillingProvider public>
 				<div className="h-dvh overflow-hidden text-foreground">{children}</div>
 			</BillingProvider>
 		</AutumnProvider>

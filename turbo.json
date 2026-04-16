@@ -1,65 +1,69 @@
 {
-  "$schema": "https://turbo.build/schema.json",
+  "$schema": "https://turborepo.dev/schema.v2.json",
+  "futureFlags": {
+    "affectedUsingTaskInputs": true,
+    "watchUsingTaskInputs": true,
+    "filterUsingTasks": true
+  },
   "ui": "tui",
-  "globalEnv": ["DATABASE_URL"],
-  "envMode": "loose",
+  "envMode": "strict",
+  "globalEnv": [
+    "AI_GATEWAY_API_KEY",
+    "AUTUMN_SECRET_KEY",
+    "BETTER_AUTH_SECRET",
+    "BETTER_AUTH_URL",
+    "CLICKHOUSE_URL",
+    "DATABASE_URL",
+    "DATABUDDY_API_KEY",
+    "DATABUDDY_WEBSITE_ID",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "MARBLE_API_URL",
+    "MARBLE_WORKSPACE_KEY",
+    "NEXT_PUBLIC_API_URL",
+    "NODE_ENV",
+    "NOTRA_API_KEY",
+    "OPR_API_KEY",
+    "REDIS_URL",
+    "REDPANDA_BROKER",
+    "REDPANDA_PASSWORD",
+    "REDPANDA_USER",
+    "RESEND_API_KEY",
+    "RESEND_AUDIENCE_ID",
+    "SUPERMEMORY_API_KEY",
+    "TCC_API_KEY",
+    "UPSTASH_QSTASH_TOKEN"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
-      "passThroughEnv": [
-        "BETTER_AUTH_SECRET",
-        "BETTER_AUTH_URL",
-        "CLICKHOUSE_URL",
-        "DATABASE_URL",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "GITHUB_CLIENT_ID",
-        "GITHUB_CLIENT_SECRET",
-        "RECAPTCHA_SECRET_KEY",
-        "RESEND_API_KEY",
-        "AUTUMN_SECRET_KEY",
-        "REDIS_URL",
-        "REDPANDA_BROKER",
-        "REDPANDA_USER",
-        "REDPANDA_PASSWORD",
-        "DATABUDDY_API_KEY",
-        "DATABUDDY_WEBSITE_ID",
-        "NODE_ENV"
-      ]
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "start": {
       "dependsOn": ["^start"],
-      "cache": false,
-      "outputs": ["dist/**"]
+      "cache": false
     },
     "db:push": {
-      "cache": false,
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "persistent": false
+      "cache": false
     },
     "db:migrate": {
-      "cache": false,
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "persistent": false
+      "cache": false
     },
     "db:deploy": {
-      "cache": false,
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "persistent": false
+      "cache": false
     },
     "db:studio": {
       "cache": false,
       "persistent": true
     },
-    "lint": {
-      "dependsOn": ["^lint"],
-      "persistent": false
+    "test": {
+      "dependsOn": ["^build"]
     },
     "check-types": {
-      "dependsOn": ["^check-types"],
-      "persistent": false
+      "dependsOn": ["^build"]
     },
     "clickhouse:init": {
       "cache": false,

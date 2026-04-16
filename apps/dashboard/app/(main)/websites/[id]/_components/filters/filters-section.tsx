@@ -2,9 +2,9 @@
 
 import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { FloppyDiskIcon } from "@phosphor-icons/react/dist/ssr/FloppyDisk";
-import { PencilIcon } from "@phosphor-icons/react/dist/ssr/Pencil";
-import { XIcon } from "@phosphor-icons/react/dist/ssr/X";
+import { FloppyDiskIcon } from "@phosphor-icons/react";
+import { PencilIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";

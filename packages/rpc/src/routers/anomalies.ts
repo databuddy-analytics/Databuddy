@@ -1,4 +1,5 @@
-import { alarms, and, db, eq } from "@databuddy/db";
+import { and, db, eq } from "@databuddy/db";
+import { alarms } from "@databuddy/db/schema";
 import {
 	buildAnomalyNotificationPayload,
 	type NotificationChannel,
@@ -224,9 +225,9 @@ export const anomaliesRouter = {
 };
 
 interface AlarmDest {
-	type: string;
-	identifier: string;
 	config: unknown;
+	identifier: string;
+	type: string;
 }
 
 function buildClientConfig(

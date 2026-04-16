@@ -1,9 +1,9 @@
 "use client";
 
 interface UserAvatarProps {
-	visitorId: string;
-	size?: "sm" | "md" | "lg";
 	className?: string;
+	size?: "sm" | "md" | "lg";
+	visitorId: string;
 }
 
 function hashCode(str: string): number {

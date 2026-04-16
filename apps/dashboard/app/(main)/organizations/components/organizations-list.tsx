@@ -1,12 +1,10 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import {
-	BuildingsIcon,
-	CaretRightIcon,
-	CheckCircleIcon,
-	PlusIcon,
-} from "@phosphor-icons/react";
+import { BuildingsIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -28,8 +26,8 @@ function getDicebearUrl(seed: string): string {
 }
 
 interface OrganizationsListProps {
-	organizations: Organization[] | null | undefined;
 	activeOrganization: Organization | null | undefined;
+	organizations: Organization[] | null | undefined;
 }
 
 function EmptyState() {
@@ -60,10 +58,10 @@ function EmptyState() {
 }
 
 interface OrganizationRowProps {
-	organization: Organization;
 	isActive: boolean;
 	isProcessing: boolean;
 	onClick: () => void;
+	organization: Organization;
 }
 
 function OrganizationRow({
@@ -166,7 +164,6 @@ export function OrganizationsList({
 
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			{/* Organizations List */}
 			<div className="flex flex-col border-b lg:border-b-0">
 				<div className="flex-1 divide-y overflow-y-auto">
 					{organizations.map((org) => (
@@ -181,7 +178,6 @@ export function OrganizationsList({
 				</div>
 			</div>
 
-			{/* Sidebar */}
 			<RightSidebar className="gap-4 p-5">
 				<Button
 					className="w-full"

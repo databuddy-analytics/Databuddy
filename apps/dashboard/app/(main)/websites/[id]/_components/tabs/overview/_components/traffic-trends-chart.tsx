@@ -1,9 +1,12 @@
 "use client";
 
-import { EyeIcon, EyeSlashIcon, NoteIcon, XIcon } from "@phosphor-icons/react";
-import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
-import { WarningIcon } from "@phosphor-icons/react/dist/ssr/Warning";
-import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr/WarningCircle";
+import { EyeIcon } from "@phosphor-icons/react";
+import { EyeSlashIcon } from "@phosphor-icons/react";
+import { NoteIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
+import { ChartLineIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
@@ -73,18 +76,18 @@ const {
 } = Chart.Recharts;
 
 interface TooltipPayloadEntry {
-	dataKey: string;
-	value: number;
 	color: string;
+	dataKey: string;
 	payload: Record<string, unknown>;
+	value: number;
 }
 
 interface TooltipProps {
 	active?: boolean;
-	payload?: TooltipPayloadEntry[];
-	label?: string;
 	isDragging?: boolean;
 	justFinishedDragging?: boolean;
+	label?: string;
+	payload?: TooltipPayloadEntry[];
 }
 
 const CustomTooltip = ({
@@ -194,8 +197,8 @@ const CustomTooltip = ({
 };
 
 interface DateRangeState {
-	startDate: Date;
 	endDate: Date;
+	startDate: Date;
 }
 
 interface CreateAnnotationInput {
@@ -597,7 +600,6 @@ export function TrafficTrendsRechartsPlot({
 							</div>
 						)}
 
-						{/* Drag instruction pill */}
 						{mergedFeatures.rangeSelection &&
 							refAreaLeft !== null &&
 							refAreaRight === null && (
@@ -608,7 +610,6 @@ export function TrafficTrendsRechartsPlot({
 								</div>
 							)}
 
-						{/* Onboarding tip */}
 						{mergedFeatures.annotations &&
 							mergedFeatures.rangeSelection &&
 							!refAreaLeft &&
@@ -1080,7 +1081,6 @@ export function TrafficTrendsRechartsPlot({
 					</div>
 				</div>
 
-				{/* Range Selection Popup */}
 				{mergedFeatures.rangeSelection &&
 					showRangePopup === true &&
 					selectedDateRange !== null && (
@@ -1126,15 +1126,15 @@ export function TrafficTrendsRechartsPlot({
 }
 
 interface TrafficTrendsChartProps {
-	websiteId: string;
-	dateRange: DateRange;
 	chartData: ChartDataRow[];
 	dateDiff: number;
+	dateRange: DateRange;
 	hasRevenueData?: boolean;
 	isError: boolean;
 	isLoading: boolean;
 	isMobile: boolean;
 	onRangeSelect: (range: { startDate: Date; endDate: Date }) => void;
+	websiteId: string;
 }
 
 export function TrafficTrendsChart({

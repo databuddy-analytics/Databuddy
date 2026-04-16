@@ -1,41 +1,30 @@
 "use client";
 
-import {
-	EyeIcon,
-	HeartbeatIcon,
-	LockIcon,
-	MinusIcon,
-	TrendDownIcon,
-	TrendUpIcon,
-	UsersIcon,
-} from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { HeartbeatIcon } from "@phosphor-icons/react";
+import { LockIcon } from "@phosphor-icons/react";
+import { MinusIcon } from "@phosphor-icons/react";
+import { TrendDownIcon } from "@phosphor-icons/react";
+import { TrendUpIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 interface SummaryStatsProps {
-	totalActiveUsers: number;
-	totalViews: number;
-	averageTrend: number;
-	trendDirection: "up" | "down" | "neutral";
-	websiteCount: number;
-	pulseHealthPercentage: number;
-	totalMonitors: number;
 	activeMonitors: number;
+	averageTrend: number;
 	hasPulseAccess: boolean;
 	isLoading?: boolean;
-}
-
-function formatNumber(num: number) {
-	if (num >= 1_000_000) {
-		return `${(num / 1_000_000).toFixed(1)}M`;
-	}
-	if (num >= 1000) {
-		return `${(num / 1000).toFixed(1)}K`;
-	}
-	return num.toString();
+	pulseHealthPercentage: number;
+	totalActiveUsers: number;
+	totalMonitors: number;
+	totalViews: number;
+	trendDirection: "up" | "down" | "neutral";
+	websiteCount: number;
 }
 
 function StatCardSkeleton() {
@@ -99,7 +88,6 @@ export function SummaryStats({
 
 	return (
 		<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-			{/* Active Users */}
 			<Card className="group gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary/60">
 				<CardHeader className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 					<div className="flex h-16 items-center justify-center">
@@ -134,7 +122,6 @@ export function SummaryStats({
 				</CardContent>
 			</Card>
 
-			{/* Total Views */}
 			<Card className="group gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary/60">
 				<CardHeader className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 					<div className="flex h-16 items-center justify-center">
@@ -185,7 +172,6 @@ export function SummaryStats({
 				</CardContent>
 			</Card>
 
-			{/* Websites */}
 			<Link className="group block" href="/websites">
 				<Card className="h-full gap-0 overflow-hidden border bg-card py-0 transition-colors group-hover:border-primary/60">
 					<CardHeader className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
@@ -225,7 +211,6 @@ export function SummaryStats({
 				</Card>
 			</Link>
 
-			{/* Pulse Status */}
 			{hasPulseAccess ? (
 				<Link className="group block" href="/monitors">
 					<Card className="h-full gap-0 overflow-hidden border bg-card py-0 transition-colors group-hover:border-primary/60">

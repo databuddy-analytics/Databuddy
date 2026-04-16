@@ -1,16 +1,14 @@
 "use client";
 
-import {
-	ArrowLeftIcon,
-	CalendarIcon,
-	CircleNotchIcon,
-	CurrencyDollarIcon,
-	GearIcon,
-	LightningIcon,
-	QuestionIcon,
-	SmileyIcon,
-	WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { CalendarIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { CurrencyDollarIcon } from "@phosphor-icons/react";
+import { GearIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { QuestionIcon } from "@phosphor-icons/react";
+import { SmileyIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,12 +24,12 @@ import { Textarea } from "@/components/ui/textarea";
 import dayjs from "@/lib/dayjs";
 
 interface CancelSubscriptionDialogProps {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	onCancel: (immediate: boolean, feedback?: CancelFeedback) => void;
-	planName: string;
 	currentPeriodEnd?: number;
 	isLoading: boolean;
+	onCancel: (immediate: boolean, feedback?: CancelFeedback) => void;
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
+	planName: string;
 }
 
 type CancelOption = "end_of_period" | "immediate" | null;
@@ -46,14 +44,14 @@ type CancelReasonId =
 	| "other";
 
 interface CancelReason {
+	icon: React.ElementType;
 	id: CancelReasonId;
 	label: string;
-	icon: React.ElementType;
 }
 
 export interface CancelFeedback {
-	reason: CancelReasonId;
 	details?: string;
+	reason: CancelReasonId;
 }
 
 const CANCEL_REASONS: CancelReason[] = [
@@ -202,7 +200,6 @@ export function CancelSubscriptionDialog({
 						</DialogHeader>
 
 						<div className="space-y-2">
-							{/* End of period option */}
 							<button
 								className={`w-full rounded border p-4 text-left transition-all ${
 									selected === "end_of_period"
@@ -235,7 +232,6 @@ export function CancelSubscriptionDialog({
 								</div>
 							</button>
 
-							{/* Immediate option */}
 							<button
 								className={`w-full rounded border p-4 text-left transition-all ${
 									selected === "immediate"
@@ -264,7 +260,6 @@ export function CancelSubscriptionDialog({
 							</button>
 						</div>
 
-						{/* Warning for immediate cancellation */}
 						{selected === "immediate" && (
 							<div className="flex items-start gap-2 rounded border border-destructive/20 bg-destructive/5 p-3 text-sm">
 								<WarningCircleIcon

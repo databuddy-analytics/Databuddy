@@ -1,0 +1,14 @@
+{
+  "name": "@databuddy/evals",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/cli.ts",
+  "scripts": {
+    "eval": "bun run src/cli.ts",
+    "eval:ui": "bun run ui/serve.ts"
+  },
+  "dependencies": {
+    "ai": "^6.0.78"
+  }
+}

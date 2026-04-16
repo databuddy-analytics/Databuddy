@@ -140,8 +140,8 @@ export function PlansComparisonTable({ plans }: Props) {
 							))}
 						</tr>
 						<GatedFeaturePricingRows
-							planTdClassName={planComparisonTdClass}
 							plans={plans}
+							planTdClassName={planComparisonTdClass}
 						/>
 						{/* Support row */}
 						<tr className="border-border border-t hover:bg-card/10">
@@ -173,10 +173,7 @@ export function PlansComparisonTable({ plans }: Props) {
 								SSO (SAML/OIDC)
 							</td>
 							{plans.map((p) => (
-								<td
-									className={planComparisonTdClass(p.id)}
-									key={`sso-${p.id}`}
-								>
+								<td className={planComparisonTdClass(p.id)} key={`sso-${p.id}`}>
 									{p.id === "enterprise" ? <FeatureCheck /> : <FeatureX />}
 								</td>
 							))}
@@ -213,10 +210,7 @@ export function PlansComparisonTable({ plans }: Props) {
 						<tr className="border-border border-t">
 							<td className="px-4 py-3 sm:px-5 lg:px-6" />
 							{plans.map((p) => (
-								<td
-									className={planComparisonTdClass(p.id)}
-									key={`cta-${p.id}`}
-								>
+								<td className={planComparisonTdClass(p.id)} key={`cta-${p.id}`}>
 									<SciFiButton asChild>
 										{p.id === "enterprise" ? (
 											<Link href="/contact">CONTACT US</Link>

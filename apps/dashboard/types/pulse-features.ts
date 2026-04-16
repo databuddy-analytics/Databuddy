@@ -1,4 +1,4 @@
-import { PLAN_IDS, type PlanId } from "./features.js";
+import { PLAN_IDS, type PlanId } from "@databuddy/shared/types/features";
 
 /**
  * Pulse plan tiers - ordered from lowest to highest
@@ -105,24 +105,24 @@ export const PULSE_PLAN_FEATURES: Record<
 
 /** Plan limits and configuration */
 export interface PulsePlanLimits {
-	/** Number of monitors included */
-	includedMonitors: number;
 	/** Check frequency in minutes (or seconds for Business) */
 	checkFrequencyMinutes?: number;
 	checkFrequencySeconds?: number;
+	/** Number of check locations for multi-location checks */
+	checkLocations?: number;
 	/** Data retention period */
 	dataRetentionDays?: number;
 	dataRetentionMonths?: number;
-	/** Number of check locations for multi-location checks */
-	checkLocations?: number;
+	/** Number of monitors included */
+	includedMonitors: number;
 }
 
 /** Plan metadata including pricing and target audience */
 export interface PulsePlanMetadata {
+	limits: PulsePlanLimits;
 	name: string;
 	priceUsdMonthly: number;
 	targetUser: string;
-	limits: PulsePlanLimits;
 }
 
 /**
@@ -163,10 +163,10 @@ export const PULSE_PLAN_METADATA: Record<PulsePlanId, PulsePlanMetadata> = {
 };
 
 interface PulseFeatureMeta {
-	name: string;
 	description: string;
-	upgradeMessage: string;
 	minPlan?: PulsePlanId;
+	name: string;
+	upgradeMessage: string;
 }
 
 export const PULSE_FEATURE_METADATA: Record<

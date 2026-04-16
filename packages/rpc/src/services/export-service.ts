@@ -1,4 +1,4 @@
-import { chQuery } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import JSZip from "jszip";
@@ -41,34 +41,34 @@ type WebVital = Record<string, unknown> & {
 };
 
 interface ExportData {
-	events: Event[];
 	errors: ErrorLog[];
+	events: Event[];
 	webVitals: WebVital[];
 }
 
 export interface ExportMetadata {
-	websiteId: string;
-	format: ExportFormat;
-	exportDate: string;
-	dateRange: { start: string; end: string };
 	counts: {
 		events: number;
 		errors: number;
 		webVitals: number;
 	};
-	totalRecords: number;
+	dateRange: { start: string; end: string };
+	exportDate: string;
 	fileSize: number;
+	format: ExportFormat;
+	totalRecords: number;
+	websiteId: string;
 }
 
 export interface GenerateExportResult {
-	filename: string;
 	buffer: Buffer;
+	filename: string;
 	meta: ExportMetadata;
 }
 
 export interface ValidatedExportDates {
-	startDate?: string;
 	endDate?: string;
+	startDate?: string;
 }
 
 export interface ValidateExportDateRangeResult {

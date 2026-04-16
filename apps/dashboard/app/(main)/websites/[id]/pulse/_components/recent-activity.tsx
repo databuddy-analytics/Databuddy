@@ -1,11 +1,9 @@
 "use client";
 
-import {
-	CheckCircleIcon,
-	ClockCounterClockwiseIcon,
-	WarningCircleIcon,
-	XCircleIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
+import { XCircleIcon } from "@phosphor-icons/react";
 import type { RefCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,19 +19,19 @@ import { formatLocalTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 export interface RecentActivityCheck {
-	timestamp: string;
-	status: number; // 1 = up, 0 = down, 2 = pending
-	total_ms: number;
-	http_code: number;
-	probe_region: string;
-	probe_ip?: string;
 	error?: string;
+	http_code: number;
+	probe_ip?: string;
+	probe_region: string;
+	status: number; // 1 = up, 0 = down, 2 = pending
+	timestamp: string;
+	total_ms: number;
 }
 
 interface RecentActivityProps {
 	checks: RecentActivityCheck[];
-	isLoading?: boolean;
 	hasMore?: boolean;
+	isLoading?: boolean;
 	isLoadingMore?: boolean;
 	loadMoreRef?: RefCallback<HTMLTableCellElement | null>;
 }
@@ -92,11 +90,13 @@ function InitialTableSkeleton({ rows }: { rows: number }) {
 					<Skeleton className="h-4 w-16 rounded" />
 				</div>
 			</div>
-			<div>
-				{Array.from({ length: rows }).map((_, i) => (
-					<LoadMoreSkeletonRow key={`sk-${i}`} />
-				))}
-			</div>
+			<Table>
+				<TableBody>
+					{Array.from({ length: rows }).map((_, i) => (
+						<LoadMoreSkeletonRow key={`sk-${i}`} />
+					))}
+				</TableBody>
+			</Table>
 		</div>
 	);
 }
@@ -105,53 +105,14 @@ export function RecentActivityTableSkeleton({ rows = 8 }: { rows?: number }) {
 	return <InitialTableSkeleton rows={rows} />;
 }
 
-const RECENT_ACTIVITY_HEADER_CLASSES =
-	"flex min-h-[4.75rem] flex-col justify-center border-b bg-sidebar px-4 py-3 sm:px-6";
-
 export function RecentActivity({
 	checks,
-	isLoading,
 	hasMore = false,
 	isLoadingMore = false,
 	loadMoreRef,
 }: RecentActivityProps) {
-	const countLabel =
-		checks.length > 0
-			? `${checks.length} check${checks.length === 1 ? "" : "s"}`
-			: null;
-
-	if (isLoading) {
-		return (
-			<section aria-busy="true" aria-label="Loading recent activity">
-				<div className={RECENT_ACTIVITY_HEADER_CLASSES}>
-					<Skeleton className="h-5 w-44 rounded" />
-					<Skeleton className="mt-2 h-3 w-56 max-w-full rounded sm:mt-1.5" />
-				</div>
-				<InitialTableSkeleton rows={8} />
-			</section>
-		);
-	}
-
 	return (
 		<section aria-label="Recent activity">
-			<div className={RECENT_ACTIVITY_HEADER_CLASSES}>
-				<div className="flex flex-wrap items-end justify-between gap-2">
-					<div>
-						<h3 className="text-balance font-semibold text-lg text-sidebar-foreground">
-							Recent activity
-						</h3>
-						{countLabel ? (
-							<p className="mt-0.5 text-pretty text-muted-foreground text-xs">
-								{countLabel} in the selected range
-							</p>
-						) : (
-							<p className="mt-0.5 text-pretty text-muted-foreground text-xs">
-								Per probe, newest first
-							</p>
-						)}
-					</div>
-				</div>
-			</div>
 			<div className="p-0">
 				<Table>
 					<TableHeader className="sticky top-0 z-10 bg-card shadow-[inset_0_-1px_0_0_var(--border)]">

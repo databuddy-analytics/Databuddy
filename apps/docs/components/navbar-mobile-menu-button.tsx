@@ -3,10 +3,10 @@
 import { ListIcon, XIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
-type NavbarMobileMenuButtonProps = {
+interface NavbarMobileMenuButtonProps {
 	isOpen: boolean;
 	onToggleAction: () => void;
-};
+}
 
 const iconBase = "absolute inset-0 size-6 transition-all duration-300 ease-out";
 

@@ -52,7 +52,7 @@ describe("redis", () => {
 
 	describe("retry strategy", () => {
 		const strategy = capturedOptions?.retryStrategy as (
-			times: number,
+			times: number
 		) => number;
 
 		it("returns 100ms on first retry", () => {

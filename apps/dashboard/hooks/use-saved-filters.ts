@@ -6,20 +6,20 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export interface SavedFilter {
+	createdAt: string;
+	filters: DynamicQueryFilter[];
 	id: string;
 	name: string;
-	filters: DynamicQueryFilter[];
-	createdAt: string;
 	updatedAt: string;
 }
 
 export interface SavedFilterError {
+	message: string;
 	type:
 		| "storage_quota"
 		| "invalid_data"
 		| "duplicate_name"
 		| "validation_error";
-	message: string;
 }
 
 const STORAGE_KEY = "databuddy-saved-filters";
@@ -46,7 +46,6 @@ function loadSavedFilters(websiteId: string): SavedFilter[] {
 			return [];
 		}
 
-		// Validate and filter valid saved filters
 		return parsed.filter(
 			(filter: unknown): filter is SavedFilter =>
 				typeof filter === "object" &&
@@ -109,14 +108,12 @@ export function useSavedFilters(websiteId: string) {
 	const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
 	const [isLoading, setIsLoading] = useState(true);
 
-	// Load saved filters on mount
 	useEffect(() => {
 		const filters = loadSavedFilters(websiteId);
 		setSavedFilters(filters);
 		setIsLoading(false);
 	}, [websiteId]);
 
-	// Save filters to localStorage whenever savedFilters changes
 	useEffect(() => {
 		if (!isLoading) {
 			const result = saveSavedFilters(websiteId, savedFilters);
@@ -126,7 +123,6 @@ export function useSavedFilters(websiteId: string) {
 		}
 	}, [websiteId, savedFilters, isLoading]);
 
-	// Clean up invalid filters on load
 	useEffect(() => {
 		if (!isLoading && savedFilters.length > 0) {
 			const validFieldValues = new Set(
@@ -135,23 +131,19 @@ export function useSavedFilters(websiteId: string) {
 
 			const cleanedFilters = savedFilters
 				.map((savedFilter) => {
-					const validFilters = savedFilter.filters.filter((filter) => {
-						// Only keep filters with valid fields
-						return (
+					const validFilters = savedFilter.filters.filter(
+						(filter) =>
 							validFieldValues.has(filter.field) &&
 							filter.operator &&
 							filter.value
-						);
-					});
+					);
 
-					// Only return the saved filter if it has at least one valid filter
 					return validFilters.length > 0
 						? { ...savedFilter, filters: validFilters }
 						: null;
 				})
 				.filter(Boolean) as SavedFilter[];
 
-			// Update if cleaning was needed
 			if (
 				cleanedFilters.length !== savedFilters.length ||
 				cleanedFilters.some(
@@ -167,7 +159,6 @@ export function useSavedFilters(websiteId: string) {
 		}
 	}, [isLoading, savedFilters]);
 
-	// Validation functions
 	const validateFilterName = useCallback(
 		(name: string, excludeId?: string): SavedFilterError | null => {
 			const trimmedName = name.trim();
@@ -190,7 +181,6 @@ export function useSavedFilters(websiteId: string) {
 				};
 			}
 
-			// Check for duplicate names (case-insensitive), excluding the filter being edited
 			const isDuplicate = savedFilters.some(
 				(filter) =>
 					filter.id !== excludeId &&
@@ -218,7 +208,6 @@ export function useSavedFilters(websiteId: string) {
 				};
 			}
 
-			// Validate each filter against current filter options
 			const validFieldValues = new Set(
 				filterOptions.map((option) => option.value as string)
 			);
@@ -249,7 +238,6 @@ export function useSavedFilters(websiteId: string) {
 			name: string,
 			filters: DynamicQueryFilter[]
 		): { success: boolean; data?: SavedFilter; error?: SavedFilterError } => {
-			// Validate inputs
 			const nameError = validateFilterName(name);
 			if (nameError) {
 				return { success: false, error: nameError };
@@ -260,7 +248,6 @@ export function useSavedFilters(websiteId: string) {
 				return { success: false, error: filtersError };
 			}
 
-			// Check limit
 			if (savedFilters.length >= MAX_FILTERS_PER_WEBSITE) {
 				return {
 					success: false,
@@ -274,7 +261,7 @@ export function useSavedFilters(websiteId: string) {
 			const newFilter: SavedFilter = {
 				id: `saved-filter-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
 				name: name.trim(),
-				filters: [...filters], // Create a copy
+				filters: [...filters],
 				createdAt: new Date().toISOString(),
 				updatedAt: new Date().toISOString(),
 			};
@@ -351,7 +338,6 @@ export function useSavedFilters(websiteId: string) {
 				};
 			}
 
-			// Check limit
 			if (savedFilters.length >= MAX_FILTERS_PER_WEBSITE) {
 				return {
 					success: false,
@@ -362,7 +348,6 @@ export function useSavedFilters(websiteId: string) {
 				};
 			}
 
-			// Generate unique copy name
 			let copyName = `${existing.name} (Copy)`;
 			let copyIndex = 2;
 

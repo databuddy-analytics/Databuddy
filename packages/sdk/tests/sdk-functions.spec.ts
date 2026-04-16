@@ -22,11 +22,11 @@ test.describe("SDK Functions", () => {
 		test("returns true when window.databuddy exists", async ({ page }) => {
 			const available = await page.evaluate(() => {
 				(window as any).databuddy = {
-					track: () => { },
-					screenView: () => { },
-					setGlobalProperties: () => { },
-					clear: () => { },
-					flush: () => { },
+					track: () => {},
+					screenView: () => {},
+					setGlobalProperties: () => {},
+					clear: () => {},
+					flush: () => {},
 					options: {},
 				};
 				return window.__SDK__.isTrackerAvailable();
@@ -37,11 +37,11 @@ test.describe("SDK Functions", () => {
 		test("returns true when window.db exists", async ({ page }) => {
 			const available = await page.evaluate(() => {
 				(window as any).db = {
-					track: () => { },
-					screenView: () => { },
-					setGlobalProperties: () => { },
-					clear: () => { },
-					flush: () => { },
+					track: () => {},
+					screenView: () => {},
+					setGlobalProperties: () => {},
+					clear: () => {},
+					flush: () => {},
 				};
 				return window.__SDK__.isTrackerAvailable();
 			});
@@ -58,10 +58,7 @@ test.describe("SDK Functions", () => {
 				let capturedProps: Record<string, unknown> = {};
 
 				(window as any).databuddy = {
-					track: (
-						name: string,
-						props: Record<string, unknown>
-					) => {
+					track: (name: string, props: Record<string, unknown>) => {
 						capturedName = name;
 						capturedProps = props;
 					},
@@ -110,10 +107,7 @@ test.describe("SDK Functions", () => {
 				let capturedProps: Record<string, unknown> = {};
 
 				(window as any).databuddy = {
-					track: (
-						name: string,
-						props: Record<string, unknown>
-					) => {
+					track: (name: string, props: Record<string, unknown>) => {
 						capturedName = name;
 						capturedProps = props;
 					},
@@ -197,9 +191,7 @@ test.describe("SDK Functions", () => {
 
 	test.describe("getAnonymousId", () => {
 		test("returns null when localStorage is empty", async ({ page }) => {
-			const result = await page.evaluate(() =>
-				window.__SDK__.getAnonymousId()
-			);
+			const result = await page.evaluate(() => window.__SDK__.getAnonymousId());
 			expect(result).toBeNull();
 		});
 
@@ -223,9 +215,7 @@ test.describe("SDK Functions", () => {
 
 	test.describe("getSessionId", () => {
 		test("returns null when sessionStorage is empty", async ({ page }) => {
-			const result = await page.evaluate(() =>
-				window.__SDK__.getSessionId()
-			);
+			const result = await page.evaluate(() => window.__SDK__.getSessionId());
 			expect(result).toBeNull();
 		});
 
@@ -259,9 +249,7 @@ test.describe("SDK Functions", () => {
 		});
 
 		test("returns nulls when storage is empty", async ({ page }) => {
-			const result = await page.evaluate(() =>
-				window.__SDK__.getTrackingIds()
-			);
+			const result = await page.evaluate(() => window.__SDK__.getTrackingIds());
 			expect(result.anonId).toBeNull();
 			expect(result.sessionId).toBeNull();
 		});
@@ -286,9 +274,7 @@ test.describe("SDK Functions", () => {
 			expect(result).toBe("");
 		});
 
-		test("returns partial string when only one ID exists", async ({
-			page,
-		}) => {
+		test("returns partial string when only one ID exists", async ({ page }) => {
 			const result = await page.evaluate(() => {
 				localStorage.setItem("did", "anon-only");
 				return window.__SDK__.getTrackingParams();
@@ -307,11 +293,11 @@ test.describe("SDK Functions", () => {
 		test("returns tracker instance when loaded", async ({ page }) => {
 			const result = await page.evaluate(() => {
 				(window as any).databuddy = {
-					track: () => { },
-					screenView: () => { },
-					setGlobalProperties: () => { },
-					clear: () => { },
-					flush: () => { },
+					track: () => {},
+					screenView: () => {},
+					setGlobalProperties: () => {},
+					clear: () => {},
+					flush: () => {},
 					options: { clientId: "test" },
 				};
 				const tracker = window.__SDK__.getTracker();
@@ -415,9 +401,7 @@ test.describe("SDK Functions", () => {
 		test("returns undefined when no client ID is available", async ({
 			page,
 		}) => {
-			const result = await page.evaluate(() =>
-				window.__SDK__.detectClientId()
-			);
+			const result = await page.evaluate(() => window.__SDK__.detectClientId());
 			expect(result).toBeUndefined();
 		});
 	});

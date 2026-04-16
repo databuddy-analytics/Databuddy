@@ -8,10 +8,10 @@ import type {
 import { BaseProvider } from "./base";
 
 export interface TeamsProviderConfig {
-	webhookUrl: string;
-	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
+	timeout?: number;
+	webhookUrl: string;
 }
 
 const PRIORITY_COLORS: Record<NotificationPriority, string> = {

@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	DotsThreeIcon,
-	EyeIcon,
-	MouseMiddleClickIcon,
-	PencilSimpleIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
-import { List } from "@/components/ui/composables/list";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { MouseMiddleClickIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { List } from "@/components/ui/composables/list";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -18,28 +16,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Goal } from "@/hooks/use-goals";
+import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 
 interface GoalItemProps {
-	goal: Goal;
 	analytics?: {
 		total_users_entered: number;
 		total_users_completed: number;
 		overall_conversion_rate: number;
 	} | null;
+	goal: Goal;
 	isLoadingAnalytics?: boolean;
-	onEdit: (goal: Goal) => void;
 	onDelete: (goalId: string) => void;
-}
-
-function formatNumber(num: number): string {
-	if (num >= 1_000_000) {
-		return `${(num / 1_000_000).toFixed(1)}M`;
-	}
-	if (num >= 1000) {
-		return `${(num / 1000).toFixed(1)}K`;
-	}
-	return num.toLocaleString();
+	onEdit: (goal: Goal) => void;
 }
 
 const GOAL_TYPE_CONFIG = {

@@ -1,7 +1,9 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { SignOutIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react";
+import { SignOutIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -98,9 +100,7 @@ export function DangerZoneSettings({
 
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
-			{/* Main Content */}
 			<div className="flex flex-col gap-6 border-b p-5 lg:border-b-0">
-				{/* Transfer Assets Section */}
 				<section>
 					<div className="mb-6">
 						<h3 className="font-semibold">Transfer Assets</h3>
@@ -117,7 +117,6 @@ export function DangerZoneSettings({
 					<TransferAssets organizationId={organization.id} />
 				</section>
 
-				{/* Destructive Action */}
 				<section className="mt-auto rounded border border-destructive/20 bg-destructive/5 p-4">
 					<div className="flex items-center justify-between gap-4">
 						<div>
@@ -164,7 +163,6 @@ export function DangerZoneSettings({
 				</section>
 			</div>
 
-			{/* Sidebar */}
 			<RightSidebar className="gap-4 p-5">
 				<RightSidebar.DocsLink />
 				<RightSidebar.Tip
@@ -173,7 +171,6 @@ export function DangerZoneSettings({
 				/>
 			</RightSidebar>
 
-			{/* Delete Dialog */}
 			<DeleteDialog
 				confirmDisabled={confirmText !== organization.name}
 				confirmLabel="Delete Organization"
@@ -209,7 +206,6 @@ export function DangerZoneSettings({
 				</div>
 			</DeleteDialog>
 
-			{/* Leave Dialog */}
 			<AlertDialog onOpenChange={setShowLeaveDialog} open={showLeaveDialog}>
 				<AlertDialogContent>
 					<AlertDialogHeader>

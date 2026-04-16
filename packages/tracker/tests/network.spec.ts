@@ -1,14 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { findEvent, hasEvent } from "./test-utils";
+import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Network & Batching", () => {
-	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-	});
-
 	test("retries on 500 errors", async ({ page }) => {
 		let attemptCount = 0;
 		await page.route("**/basket.databuddy.cc/*", async (route) => {

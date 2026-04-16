@@ -21,9 +21,9 @@ const isExtensionSource = (candidate?: string | null) => {
 	return extensionSchemes.some((scheme) => normalized.includes(scheme));
 };
 
-export function initErrorTracking(tracker: BaseTracker) {
+export function initErrorTracking(tracker: BaseTracker): () => void {
 	if (tracker.isServer()) {
-		return;
+		return () => {};
 	}
 
 	const trackError = (
@@ -109,4 +109,9 @@ export function initErrorTracking(tracker: BaseTracker) {
 	window.addEventListener("unhandledrejection", rejectionHandler);
 
 	logger.log("Error tracking initialized");
+
+	return () => {
+		window.removeEventListener("error", errorHandler);
+		window.removeEventListener("unhandledrejection", rejectionHandler);
+	};
 }

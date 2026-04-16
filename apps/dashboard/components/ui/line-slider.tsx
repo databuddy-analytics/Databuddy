@@ -1,15 +1,15 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { motion, useMotionValueEvent, useSpring } from "framer-motion";
+import { motion, useMotionValueEvent, useSpring } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface LineSliderProps {
-	value: number;
-	onValueChange: (value: number) => void;
-	min?: number;
-	max?: number;
 	className?: string;
+	max?: number;
+	min?: number;
+	onValueChange: (value: number) => void;
+	value: number;
 }
 
 export function LineSlider({
@@ -47,7 +47,9 @@ export function LineSlider({
 	// Calculate line count based on container width
 	useEffect(() => {
 		const updateLineCount = () => {
-			if (!sliderRef.current) return;
+			if (!sliderRef.current) {
+				return;
+			}
 			const innerWidth = sliderRef.current.clientWidth - 4;
 			const count = Math.floor(innerWidth / (lineWidth + lineGap));
 			setLineCount(count);
@@ -67,7 +69,7 @@ export function LineSlider({
 
 		// Fallback to window resize
 		window.addEventListener("resize", updateLineCount);
-		
+
 		return () => {
 			resizeObserver.disconnect();
 			window.removeEventListener("resize", updateLineCount);
@@ -75,7 +77,9 @@ export function LineSlider({
 	}, []);
 
 	const updateValue = (clientX: number) => {
-		if (!sliderRef.current) return;
+		if (!sliderRef.current) {
+			return;
+		}
 		const rect = sliderRef.current.getBoundingClientRect();
 		const x = clientX - rect.left;
 		const percentage = Math.max(0, Math.min(1, x / rect.width));
@@ -90,7 +94,9 @@ export function LineSlider({
 	};
 
 	const handlePointerMove = (e: React.PointerEvent) => {
-		if (!isDragging) return;
+		if (!isDragging) {
+			return;
+		}
 		updateValue(e.clientX);
 	};
 
@@ -101,27 +107,28 @@ export function LineSlider({
 
 	// Calculate which lines should be "active" based on value
 	const renderValue = isDragging ? value : displayValue;
-	const percentage = Math.max(0, Math.min(1, (renderValue - min) / (max - min)));
+	const percentage = Math.max(
+		0,
+		Math.min(1, (renderValue - min) / (max - min))
+	);
 	const activeLines = Math.floor(percentage * lineCount);
 
 	return (
 		<div
-			ref={sliderRef}
+			className={cn(
+				"flex h-8 w-full cursor-ew-resize touch-none select-none items-stretch justify-center gap-[2px] rounded border px-1 py-1",
+				className
+			)}
+			onLostPointerCapture={handlePointerUp}
 			onPointerDown={handlePointerDown}
 			onPointerMove={handlePointerMove}
 			onPointerUp={handlePointerUp}
-			onLostPointerCapture={handlePointerUp}
-			className={cn(
-				"flex items-stretch justify-center gap-[2px]  border rounded h-8 py-1 px-1 cursor-ew-resize select-none touch-none w-full",
-				className,
-			)}
+			ref={sliderRef}
 		>
 			{Array.from({ length: lineCount }).map((_, index) => {
 				const isActive = index < activeLines;
 				return (
 					<motion.div
-						key={index.toString()}
-						initial={false}
 						animate={{
 							backgroundColor: isActive
 								? "var(--foreground)"
@@ -129,12 +136,14 @@ export function LineSlider({
 							opacity: isActive ? 1 : 0.4,
 							scaleY: isActive ? 1 : 0.7,
 						}}
+						className="h-full w-px rounded-full"
+						initial={false}
+						key={index.toString()}
 						transition={{
 							type: "spring",
 							stiffness: 300,
 							damping: 30,
 						}}
-						className="w-px h-full rounded-full"
 					/>
 				);
 			})}

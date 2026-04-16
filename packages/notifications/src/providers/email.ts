@@ -6,12 +6,12 @@ import type {
 import { BaseProvider } from "./base";
 
 export interface EmailProviderConfig {
-	sendEmailAction: (payload: EmailPayload) => Promise<unknown>;
 	defaultTo?: string | string[];
 	from?: string;
-	timeout?: number;
 	retries?: number;
 	retryDelay?: number;
+	sendEmailAction: (payload: EmailPayload) => Promise<unknown>;
+	timeout?: number;
 }
 
 function escapeHtml(str: string): string {
@@ -76,9 +76,11 @@ export class EmailProvider extends BaseProvider {
 			? Object.entries(payload.metadata).filter(([key]) => key !== "to")
 			: [];
 
+		const sanitize = (s: string) => s.replaceAll(/[\r\n]/g, " ");
+
 		const metadataText =
 			metadataEntries.length > 0
-				? `\n\n${metadataEntries.map(([key, value]) => `${key}: ${String(value)}`).join("\n")}`
+				? `\n\n${metadataEntries.map(([key, value]) => `${sanitize(key)}: ${sanitize(String(value))}`).join("\n")}`
 				: "";
 
 		const text = `${payload.message}${metadataText}`;
@@ -97,7 +99,7 @@ export class EmailProvider extends BaseProvider {
 
 		return {
 			to,
-			subject: payload.title,
+			subject: payload.title.replaceAll(/[\r\n]/g, " "),
 			text,
 			html,
 			...(this.from && { from: this.from }),

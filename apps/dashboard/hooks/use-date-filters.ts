@@ -31,13 +31,11 @@ export function useDateFilters() {
 		parseAsString.withDefault("daily")
 	);
 
-	// Validate granularity
 	const granularity: TimeGranularity =
 		granularityStr === "daily" || granularityStr === "hourly"
 			? granularityStr
 			: "daily";
 
-	// Helper to auto-adjust granularity based on date range
 	const getAutoGranularity = useCallback(
 		(startDate: string, endDate: string): TimeGranularity => {
 			const rangeDays = dayjs(endDate).diff(dayjs(startDate), "day");
@@ -52,7 +50,6 @@ export function useDateFilters() {
 		[granularity]
 	);
 
-	// Date range as Date objects (for backward compatibility)
 	const currentDateRange = useMemo<DateRangeState>(
 		() => ({
 			startDate: dayjs(startDateStr).toDate(),
@@ -61,7 +58,6 @@ export function useDateFilters() {
 		[startDateStr, endDateStr]
 	);
 
-	// Date range as formatted strings
 	const formattedDateRangeState = useMemo(
 		() => ({
 			startDate: startDateStr,
@@ -70,7 +66,6 @@ export function useDateFilters() {
 		[startDateStr, endDateStr]
 	);
 
-	// Date range with granularity (for API calls)
 	const dateRange = useMemo(
 		() => ({
 			start_date: startDateStr,
@@ -80,7 +75,6 @@ export function useDateFilters() {
 		[startDateStr, endDateStr, granularity]
 	);
 
-	// Update date range from Date objects
 	const setCurrentDateRange = useCallback(
 		(range: DateRangeState) => {
 			setStartDateStr(dayjs(range.startDate).format("YYYY-MM-DD"));
@@ -89,7 +83,6 @@ export function useDateFilters() {
 		[setStartDateStr, setEndDateStr]
 	);
 
-	// Update date range with auto-adjust granularity
 	const setDateRangeAction = useCallback(
 		(newRange: DateRangeState) => {
 			const startDate = dayjs(newRange.startDate).format("YYYY-MM-DD");
@@ -113,15 +106,10 @@ export function useDateFilters() {
 	);
 
 	return {
-		// Date range states
 		currentDateRange,
 		formattedDateRangeState,
 		dateRange,
-
-		// Granularity state
 		currentGranularity: granularity,
-
-		// Setters
 		setCurrentDateRange,
 		setCurrentGranularityAtomState: setGranularityStr,
 		setDateRangeAction,

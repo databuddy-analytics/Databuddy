@@ -1,7 +1,7 @@
 "use client";
 
 import type { LocationData } from "@databuddy/shared/types/website";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
+import { GlobeIcon } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
@@ -36,14 +36,14 @@ const MapComponent = dynamic(
 interface CountryData {
 	country: string;
 	country_code?: string;
-	visitors: number;
 	pageviews: number;
+	visitors: number;
 }
 
 interface CountryRowProps {
 	country: CountryData;
-	totalVisitors: number;
 	onCountrySelect: (countryCode: string) => void;
+	totalVisitors: number;
 }
 
 function CountryRow({

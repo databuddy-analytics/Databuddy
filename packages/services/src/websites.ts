@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { Website } from "@databuddy/db";
-import { and, db, eq, type WebsiteInsert, websites } from "@databuddy/db";
+import { and, db, eq, isUniqueViolationFor } from "@databuddy/db";
+import {
+	type WebsiteInsert,
+	type Website,
+	websites,
+} from "@databuddy/db/schema";
 import { WebsiteCache } from "./website-cache";
 
-export type { Website } from "@databuddy/db";
+export type { Website } from "@databuddy/db/schema";
 
 export type CreateWebsiteInput = Omit<
 	WebsiteInsert,
@@ -142,6 +146,7 @@ export class WebsiteService {
 
 			const rows = await this.database.query.websites.findMany({
 				where: eq(websites.organizationId, organizationId),
+				limit: 1000,
 			});
 			await this.cache?.setList(organizationId, rows);
 			return rows;
@@ -153,15 +158,6 @@ export class WebsiteService {
 
 	async create(input: CreateWebsiteInput): Promise<Website> {
 		const normalizedDomain = input.domain.trim().toLowerCase();
-
-		const existing = await this.getByDomain(
-			normalizedDomain,
-			input.organizationId
-		);
-
-		if (existing) {
-			throw new DuplicateDomainError(normalizedDomain);
-		}
 
 		try {
 			const [created] = await this.database
@@ -188,12 +184,8 @@ export class WebsiteService {
 
 			return created;
 		} catch (error) {
-			if (
-				error instanceof DuplicateDomainError ||
-				error instanceof ValidationError ||
-				error instanceof WebsiteNotFoundError
-			) {
-				throw error;
+			if (isUniqueViolationFor(error, "websites_org_domain_unique")) {
+				throw new DuplicateDomainError(normalizedDomain);
 			}
 			console.error("WebsiteService.create failed:", { error: String(error) });
 			throw new Error(
@@ -203,14 +195,9 @@ export class WebsiteService {
 	}
 
 	async updateById(id: string, updates: UpdateWebsiteInput): Promise<Website> {
-		const hasAtLeastOneUpdate = (() => {
-			for (const value of Object.values(updates)) {
-				if (value !== undefined) {
-					return true;
-				}
-			}
-			return false;
-		})();
+		const hasAtLeastOneUpdate = Object.values(updates).some(
+			(v) => v !== undefined
+		);
 
 		if (!hasAtLeastOneUpdate) {
 			const website = await this.getById(id);
@@ -227,20 +214,7 @@ export class WebsiteService {
 
 		const normalizedUpdates = { ...updates };
 		if (updates.domain !== undefined) {
-			const normalizedDomain = updates.domain.trim().toLowerCase();
-
-			if (normalizedDomain !== before.domain.toLowerCase()) {
-				const existing = await this.getByDomain(
-					normalizedDomain,
-					before.organizationId
-				);
-
-				if (existing && existing.id !== id) {
-					throw new DuplicateDomainError(normalizedDomain);
-				}
-			}
-
-			normalizedUpdates.domain = normalizedDomain;
+			normalizedUpdates.domain = updates.domain.trim().toLowerCase();
 		}
 
 		try {
@@ -281,11 +255,10 @@ export class WebsiteService {
 
 			return updated;
 		} catch (error) {
-			if (
-				error instanceof DuplicateDomainError ||
-				error instanceof ValidationError ||
-				error instanceof WebsiteNotFoundError
-			) {
+			if (isUniqueViolationFor(error, "websites_org_domain_unique")) {
+				throw new DuplicateDomainError(normalizedUpdates.domain ?? "");
+			}
+			if (error instanceof WebsiteNotFoundError) {
 				throw error;
 			}
 			console.error("WebsiteService.updateById failed:", {
@@ -298,11 +271,6 @@ export class WebsiteService {
 	}
 
 	async deleteById(id: string): Promise<void> {
-		const before = await this.getByIdFromDb(id);
-		if (!before) {
-			throw new WebsiteNotFoundError();
-		}
-
 		try {
 			const [deleted] = await this.database
 				.delete(websites)
@@ -320,11 +288,7 @@ export class WebsiteService {
 			);
 			await this.cache?.invalidateLists([deleted.organizationId]);
 		} catch (error) {
-			if (
-				error instanceof DuplicateDomainError ||
-				error instanceof ValidationError ||
-				error instanceof WebsiteNotFoundError
-			) {
+			if (error instanceof WebsiteNotFoundError) {
 				throw error;
 			}
 			console.error("WebsiteService.deleteById failed:", {

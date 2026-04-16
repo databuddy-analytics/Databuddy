@@ -29,4 +29,8 @@ export function getRedisCache() {
 	return redisInstance;
 }
 
-export const redis = getRedisCache();
+export const redis = new Proxy({} as Redis, {
+	get(_, prop) {
+		return Reflect.get(getRedisCache(), prop);
+	},
+});

@@ -1,7 +1,6 @@
 import { toast } from "sonner";
 import dayjs from "@/lib/dayjs";
 
-/** Bounce rate must be 0–100%. Clamp invalid values from bad data or miscalculations. */
 export function clampBounceRate(value: number | null | undefined): number {
 	if (value == null || Number.isNaN(value)) {
 		return 0;
@@ -16,12 +15,11 @@ interface DataItem {
 }
 
 interface ChartDataPoint {
+	color?: string;
 	name: string;
 	value: number;
-	color?: string;
 }
 
-// Helper to handle generic data refresh
 export const handleDataRefresh = async (
 	isRefreshing: boolean,
 	refetchFn: () => Promise<any>,
@@ -33,7 +31,6 @@ export const handleDataRefresh = async (
 	}
 
 	try {
-		// Do the actual data refetch
 		const result = await refetchFn();
 		setIsRefreshing(false);
 		return result;
@@ -45,7 +42,6 @@ export const handleDataRefresh = async (
 	}
 };
 
-// Safe date parsing with fallback
 export const safeParseDate = (
 	date: string | Date | null | undefined
 ): dayjs.Dayjs => {
@@ -75,7 +71,6 @@ export const formatDateByGranularity = (
 		: dateObj.format("MMM D");
 };
 
-// Create metric visibility toggles state
 export const createMetricToggles = <T extends string>(
 	initialMetrics: T[]
 ): Record<T, boolean> => {
@@ -86,7 +81,6 @@ export const createMetricToggles = <T extends string>(
 	return initialState;
 };
 
-// Format data for distribution charts
 export const formatDistributionData = <T extends DataItem>(
 	data: T[] | undefined,
 	nameField: keyof T,
@@ -106,7 +100,6 @@ export const formatDistributionData = <T extends DataItem>(
 	}));
 };
 
-// Group browser data by name
 export const groupBrowserData = (
 	browserVersions: Array<{ browser: string; visitors: number }> | undefined
 ): ChartDataPoint[] => {
@@ -134,7 +127,6 @@ export const groupBrowserData = (
 	}));
 };
 
-// Get color variant based on threshold values
 export const getColorVariant = (
 	value: number,
 	dangerThreshold: number,
@@ -152,7 +144,6 @@ export const getColorVariant = (
 const PROTOCOL_REGEX = /^https?:\/\//;
 const SLASH_REGEX = /\//;
 
-// Format domain links
 export const formatDomainLink = (
 	path: string,
 	domain?: string,
@@ -162,13 +153,10 @@ export const formatDomainLink = (
 		path.length > maxLength ? `${path.slice(0, maxLength - 3)}...` : path;
 
 	if (domain) {
-		// Remove protocol if present
 		const cleanDomain = domain
 			.replace(PROTOCOL_REGEX, "")
 			.replace(SLASH_REGEX, "");
-		// Ensure path starts with a single slash
 		let cleanPath = path.startsWith("/") ? path : `/${path}`;
-		// Remove duplicate slashes
 		cleanPath = cleanPath.replace(/\/+/g, "/");
 		const href = `https://${cleanDomain}${cleanPath}`;
 		return {
@@ -184,7 +172,6 @@ export const formatDomainLink = (
 	};
 };
 
-// Format relative time (e.g., "2 hours ago")
 export const formatRelativeTime = (date: string | Date): string => {
 	const dateObj = safeParseDate(date);
 	return dateObj.fromNow();
@@ -215,9 +202,6 @@ export const PERFORMANCE_THRESHOLDS = {
 	cls: { good: 0.1, average: 0.25, unit: "" },
 };
 
-/**
- * Checks if analytics data indicates no tracking is set up (all key metrics are zero)
- */
 export function isTrackingNotSetup(analytics: any): boolean {
 	if (!analytics?.summary) {
 		return true;
@@ -225,21 +209,19 @@ export function isTrackingNotSetup(analytics: any): boolean {
 
 	const { summary, events_by_date, top_pages, top_referrers } = analytics;
 
-	// Check core metrics
 	const hasData =
 		(summary.pageviews || 0) > 0 ||
 		(summary.visitors || summary.unique_visitors || 0) > 0 ||
 		(summary.sessions || 0) > 0;
 
-	// Check events by date
 	const hasEvents = events_by_date?.some(
 		(event: any) =>
 			(event.pageviews || 0) > 0 ||
 			(event.visitors || event.unique_visitors || 0) > 0
 	);
 
-	// Check top pages and referrers
 	const hasPages = top_pages?.some((page: any) => (page.pageviews || 0) > 0);
+
 	const hasReferrers = top_referrers?.some(
 		(ref: any) => (ref.visitors || 0) > 0
 	);

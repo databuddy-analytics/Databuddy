@@ -1,6 +1,7 @@
 /** biome-ignore-all lint/performance/noBarrelFile: we need to export these functions */
 
 export { rpcError } from "./errors";
+export { getAutumn } from "./lib/autumn-client";
 export {
 	createAbortSignalInterceptor,
 	enrichRpcWideEventContext,

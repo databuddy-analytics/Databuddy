@@ -1,32 +1,11 @@
-import type { UIMessage } from "ai";
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import { orpc } from "@/lib/orpc";
 
-export interface ChatRecord {
-	id: string;
-	websiteId: string;
-	title: string;
-	updatedAt: string;
-}
-
-interface ChatListState {
-	chats: ChatRecord[];
-	isLoading: boolean;
-}
-
-const STORAGE_PREFIX = "databunny-chats";
 const LAST_CHAT_PREFIX = "databunny-last-chat";
-const MESSAGES_PREFIX = "databunny-messages";
-
-function storageKey(websiteId: string): string {
-	return `${STORAGE_PREFIX}:${websiteId}`;
-}
 
 function lastChatKey(websiteId: string): string {
 	return `${LAST_CHAT_PREFIX}:${websiteId}`;
-}
-
-function messagesKey(websiteId: string, chatId: string): string {
-	return `${MESSAGES_PREFIX}:${websiteId}:${chatId}`;
 }
 
 function safeGetItem(key: string): string | null {
@@ -59,48 +38,11 @@ function safeRemoveItem(key: string): void {
 	}
 }
 
-function listChats(websiteId: string): ChatRecord[] {
-	const raw = safeGetItem(storageKey(websiteId));
-	if (!raw) {
-		return [];
-	}
-	try {
-		const parsed = JSON.parse(raw) as ChatRecord[];
-		return Array.isArray(parsed)
-			? parsed.sort(
-					(a, b) =>
-						new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-				)
-			: [];
-	} catch {
-		return [];
-	}
-}
-
-function upsertChat(chat: ChatRecord): void {
-	const records = listChats(chat.websiteId);
-	const idx = records.findIndex((r) => r.id === chat.id);
-	const next =
-		idx >= 0
-			? records.map((r, i) => (i === idx ? chat : r))
-			: [...records, chat];
-	safeSetItem(
-		storageKey(chat.websiteId),
-		JSON.stringify(
-			next.sort(
-				(a, b) =>
-					new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-			)
-		)
-	);
-}
-
-function deleteChat(websiteId: string, chatId: string): void {
-	const records = listChats(websiteId).filter((r) => r.id !== chatId);
-	safeSetItem(storageKey(websiteId), JSON.stringify(records));
-	safeRemoveItem(messagesKey(websiteId, chatId));
-}
-
+/**
+ * "Last opened chat" pointer is kept in localStorage so the agent index page
+ * can navigate instantly without waiting on a server round trip. The chat
+ * data itself lives on the server.
+ */
 export function getLastChatId(websiteId: string): string | null {
 	return safeGetItem(lastChatKey(websiteId));
 }
@@ -116,150 +58,53 @@ export function clearLastChatId(websiteId: string): void {
 	safeRemoveItem(lastChatKey(websiteId));
 }
 
-export function getMessagesFromLocal(
-	websiteId: string,
-	chatId: string
-): UIMessage[] {
-	const raw = safeGetItem(messagesKey(websiteId, chatId));
-	if (!raw) {
-		return [];
-	}
-	try {
-		const parsed = JSON.parse(raw) as UIMessage[];
-		return Array.isArray(parsed) ? parsed : [];
-	} catch {
-		return [];
-	}
-}
-
-export function saveMessagesToLocal(
-	websiteId: string,
-	chatId: string,
-	messages: UIMessage[]
-): void {
-	if (!(chatId && Array.isArray(messages))) {
-		return;
-	}
-	try {
-		safeSetItem(messagesKey(websiteId, chatId), JSON.stringify(messages));
-	} catch {
-		// Ignore quota or security errors
-	}
-}
-
-export function clearMessagesFromLocal(
-	websiteId: string,
-	chatId: string
-): void {
-	safeRemoveItem(messagesKey(websiteId, chatId));
-}
-
-const EMPTY_CHAT_LIST_STATE: ChatListState = { chats: [], isLoading: false };
-
-const chatListCache = new Map<string, ChatListState>();
-const chatListSubscribers = new Map<string, Set<() => void>>();
-
-function notifySubscribers(websiteId: string) {
-	const subscribers = chatListSubscribers.get(websiteId);
-	if (subscribers) {
-		for (const callback of subscribers) {
-			callback();
-		}
-	}
-}
-
-function refreshChatList(websiteId: string) {
-	const records = listChats(websiteId);
-	chatListCache.set(websiteId, { chats: records, isLoading: false });
-	notifySubscribers(websiteId);
-}
-
-function subscribeToChatList(websiteId: string, callback: () => void) {
-	let subscribers = chatListSubscribers.get(websiteId);
-	if (!subscribers) {
-		subscribers = new Set();
-		chatListSubscribers.set(websiteId, subscribers);
-		refreshChatList(websiteId);
-	}
-	subscribers.add(callback);
-
-	return () => {
-		subscribers?.delete(callback);
-		if (subscribers?.size === 0) {
-			chatListSubscribers.delete(websiteId);
-		}
-	};
-}
-
-function getChatListSnapshot(websiteId: string): ChatListState {
-	const cached = chatListCache.get(websiteId);
-	if (cached) {
-		return cached;
-	}
-	// First read: sync load from localStorage, no loading state
-	const chats = listChats(websiteId);
-	const state = { chats, isLoading: false };
-	chatListCache.set(websiteId, state);
-	return state;
-}
-
 export function useChatList(websiteId: string) {
-	const subscribe = useCallback(
-		(callback: () => void) => subscribeToChatList(websiteId, callback),
-		[websiteId]
-	);
+	const queryClient = useQueryClient();
 
-	const getSnapshot = useCallback(
-		() => getChatListSnapshot(websiteId),
-		[websiteId]
-	);
+	const { data, isLoading } = useQuery({
+		...orpc.agentChats.list.queryOptions({ input: { websiteId } }),
+	});
 
-	const getServerSnapshot = useCallback(
-		(): ChatListState => EMPTY_CHAT_LIST_STATE,
-		[]
-	);
+	const invalidate = useCallback(() => {
+		queryClient.invalidateQueries({
+			queryKey: orpc.agentChats.list.key({ input: { websiteId } }),
+		});
+	}, [queryClient, websiteId]);
 
-	const state = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+	const deleteMutation = useMutation({
+		...orpc.agentChats.delete.mutationOptions(),
+		onSuccess: invalidate,
+	});
 
-	const refresh = useCallback(() => {
-		refreshChatList(websiteId);
-	}, [websiteId]);
+	const renameMutation = useMutation({
+		...orpc.agentChats.rename.mutationOptions(),
+		onSuccess: (_data, variables) => {
+			invalidate();
+			queryClient.invalidateQueries({
+				queryKey: orpc.agentChats.get.key({ input: { id: variables.id } }),
+			});
+		},
+	});
 
 	const removeChat = useCallback(
-		(chatId: string) => {
-			deleteChat(websiteId, chatId);
-			refreshChatList(websiteId);
-		},
-		[websiteId]
+		(chatId: string) => deleteMutation.mutate({ id: chatId }),
+		[deleteMutation]
 	);
 
-	const saveChat = useCallback(
-		(chat: Omit<ChatRecord, "updatedAt"> & { updatedAt?: string }) => {
-			const id = chat.id && typeof chat.id === "string" ? chat.id : null;
-			if (!id) {
-				return;
-			}
-			const record: ChatRecord = {
-				...chat,
-				id,
-				websiteId,
-				updatedAt: chat.updatedAt ?? new Date().toISOString(),
-			};
-			upsertChat(record);
-			setLastChatId(websiteId, id);
-			refreshChatList(websiteId);
-		},
-		[websiteId]
+	const renameChat = useCallback(
+		(chatId: string, title: string) =>
+			renameMutation.mutate({ id: chatId, title }),
+		[renameMutation]
 	);
 
 	return useMemo(
 		() => ({
-			chats: state.chats,
-			isLoading: state.isLoading,
+			chats: data ?? [],
+			isLoading,
+			refresh: invalidate,
 			removeChat,
-			refresh,
-			saveChat,
+			renameChat,
 		}),
-		[state.chats, state.isLoading, refresh, removeChat, saveChat]
+		[data, isLoading, invalidate, removeChat, renameChat]
 	);
 }

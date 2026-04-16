@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	ClockCountdownIcon,
-	CopyIcon,
-	DotsThreeIcon,
-	LinkIcon,
-	PencilSimpleIcon,
-	PlusIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { ClockCountdownIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
@@ -32,25 +30,25 @@ import type { BaseComponentProps } from "../../types";
 const BASE_URL = "dby.sh";
 
 interface LinkItem {
-	id: string;
-	name: string;
-	slug: string;
-	targetUrl: string;
-	expiresAt?: string | null;
+	androidUrl?: string | null;
 	createdAt?: string;
-	ogTitle?: string | null;
+	expiredRedirectUrl?: string | null;
+	expiresAt?: string | null;
+	id: string;
+	iosUrl?: string | null;
+	name: string;
 	ogDescription?: string | null;
 	ogImageUrl?: string | null;
-	iosUrl?: string | null;
-	androidUrl?: string | null;
-	expiredRedirectUrl?: string | null;
+	ogTitle?: string | null;
 	ogVideoUrl?: string | null;
 	organizationId?: string;
+	slug: string;
+	targetUrl: string;
 }
 
 export interface LinksListProps extends BaseComponentProps {
-	title?: string;
 	links: LinkItem[];
+	title?: string;
 }
 
 function formatUrl(url: string, maxLen = 40): string {

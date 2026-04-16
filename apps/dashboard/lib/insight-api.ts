@@ -7,6 +7,7 @@ export const INSIGHT_QUERY_KEYS = {
 	ai: "ai-insights",
 	history: "insights-history",
 	historyInfinite: "insights-history-infinite",
+	orgNarrative: "insights-org-narrative",
 } as const;
 
 export const INSIGHT_CACHE = {
@@ -16,15 +17,15 @@ export const INSIGHT_CACHE = {
 } as const;
 
 export interface InsightsAiResponse {
-	success: boolean;
 	insights: Insight[];
 	source: "ai" | "fallback";
+	success: boolean;
 }
 
 export interface InsightsHistoryPage {
-	success: boolean;
-	insights: HistoryInsightRow[];
 	hasMore: boolean;
+	insights: HistoryInsightRow[];
+	success: boolean;
 }
 
 export async function fetchInsightsAi(
@@ -77,9 +78,9 @@ export async function fetchInsightsHistoryPage(
 }
 
 export interface ClearInsightsResponse {
-	success: boolean;
 	deleted: number;
 	error?: string;
+	success: boolean;
 }
 
 export async function clearInsightsHistory(
@@ -100,4 +101,33 @@ export async function clearInsightsHistory(
 	}
 
 	return data;
+}
+
+export type OrgNarrativeResponse =
+	| {
+			success: true;
+			narrative: string;
+			generatedAt: string;
+	  }
+	| {
+			success: false;
+			error: string;
+	  };
+
+export async function fetchInsightsOrgNarrative(
+	organizationId: string,
+	range: "7d" | "30d" | "90d"
+): Promise<OrgNarrativeResponse> {
+	const url = new URL(`${API_URL}/v1/insights/org-narrative`);
+	url.searchParams.set("organizationId", organizationId);
+	url.searchParams.set("range", range);
+	const res = await fetch(url.toString(), {
+		method: "GET",
+		credentials: "include",
+		signal: AbortSignal.timeout(30_000),
+	});
+	if (!res.ok) {
+		return { success: false, error: `HTTP ${res.status}` };
+	}
+	return (await res.json()) as OrgNarrativeResponse;
 }

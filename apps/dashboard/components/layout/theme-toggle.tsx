@@ -1,6 +1,8 @@
 "use client";
 
-import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
+import { MonitorIcon } from "@phosphor-icons/react";
+import { MoonIcon } from "@phosphor-icons/react";
+import { SunIcon } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
@@ -85,9 +87,7 @@ export function ThemeToggle({ className, tooltip = false }: ThemeTogglerProps) {
 			<SunIcon
 				className={cn(
 					"size-5 transition-all duration-300",
-					currentTheme === "light"
-						? "rotate-0 scale-100"
-						: "-rotate-90 scale-0"
+					currentTheme === "light" ? "rotate-0 scale-100" : "-rotate-90 scale-0"
 				)}
 				size={32}
 				suppressHydrationWarning
@@ -96,9 +96,7 @@ export function ThemeToggle({ className, tooltip = false }: ThemeTogglerProps) {
 			<MoonIcon
 				className={cn(
 					"absolute size-5 transition-all duration-300",
-					currentTheme === "dark"
-						? "rotate-0 scale-100"
-						: "rotate-90 scale-0"
+					currentTheme === "dark" ? "rotate-0 scale-100" : "rotate-90 scale-0"
 				)}
 				size={32}
 				suppressHydrationWarning
@@ -107,9 +105,7 @@ export function ThemeToggle({ className, tooltip = false }: ThemeTogglerProps) {
 			<MonitorIcon
 				className={cn(
 					"absolute size-5 transition-all duration-300",
-					currentTheme === "system"
-						? "rotate-0 scale-100"
-						: "rotate-90 scale-0"
+					currentTheme === "system" ? "rotate-0 scale-100" : "rotate-90 scale-0"
 				)}
 				size={32}
 				suppressHydrationWarning

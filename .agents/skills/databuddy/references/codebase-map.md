@@ -10,6 +10,7 @@ Use this file when the task spans multiple packages or when the right edit locat
 - Next.js dashboard application
 - Default dev port: `3000`
 - Talks to the backend through oRPC using [`apps/dashboard/lib/orpc.ts`](/Users/iza/Dev/Databuddy/apps/dashboard/lib/orpc.ts)
+- **Status pages:** Public page lives under `app/status/[slug]`; **dashboard** edit surface is `app/(main)/monitors/status-pages/[id]/page.tsx`. For stable chrome (no tab strip pop-in), keep `Tabs` always mounted and gate **content** with `useFeatureAccess` + `FeatureLockedPanel`—do not wrap the whole `Tabs` in `FeatureAccessGate` with a list-only `loadingFallback`. Reserve `PageHeader` `right` with skeletons until `statusPage` loads; use a static `description` and breadcrumb fallback `"Status page"` so the header does not reflow on fetch.
 - Typical work:
   - UI components and pages
   - client hooks
@@ -82,6 +83,7 @@ Use this file when the task spans multiple packages or when the right edit locat
 - Shared oRPC contract layer between dashboard and backend
 - Exposes `appRouter`, `createRPCContext`, auth-aware procedures, workspace guards, billing helpers, and export logic
 - If a dashboard mutation or query changes shape, this package is usually part of the change
+- **Autumn (`autumn-js` ≥1.2.4, workspace catalog)**: Use `getAutumn()` from [`packages/rpc/src/lib/autumn-client.ts`](/Users/iza/Dev/Databuddy/packages/rpc/src/lib/autumn-client.ts) (also re-exported from `@databuddy/rpc`). `check({ customerId, featureId, sendEvent?, properties? })` returns `CheckResponse` with **nested `balance`** (`usage`, `granted`, `remaining`, `unlimited`, `overageAllowed`) — not `{ data, error }` and not snake_case params. `customers.get` is gone; use `customers.getOrCreate({ customerId })`. Active plan: `customer.subscriptions` (not `products`).
 
 ### `packages/auth`
 

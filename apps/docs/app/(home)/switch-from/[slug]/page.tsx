@@ -31,7 +31,10 @@ export async function generateMetadata({
 		return { title: "Not Found | Databuddy" };
 	}
 
-	const { title, description } = getProgrammaticComparisonSeo("switch-from", data);
+	const { title, description } = getProgrammaticComparisonSeo(
+		"switch-from",
+		data
+	);
 	const pageUrl = `${SITE_URL}/switch-from/${slug}`;
 
 	return {
@@ -57,10 +60,13 @@ export default async function SwitchFromPage({ params }: PageProps) {
 	const { competitor, features, hero, faqs, pricingTiers, migrationSection } =
 		data;
 	const featuresWin = features.filter(
-		(f) => f.databuddy && !f.competitor,
+		(f) => f.databuddy && !f.competitor
 	).length;
 
-	const { title, description } = getProgrammaticComparisonSeo("switch-from", data);
+	const { title, description } = getProgrammaticComparisonSeo(
+		"switch-from",
+		data
+	);
 	const pageUrl = `${SITE_URL}/switch-from/${slug}`;
 	const introText = getProgrammaticIntroText("switch-from", data);
 
@@ -76,9 +82,9 @@ export default async function SwitchFromPage({ params }: PageProps) {
 			]}
 			competitor={competitor}
 			faqs={faqs}
+			featureSectionSubtitle={`Leaving ${competitor.name}? Feature and pricing comparison before you switch to Databuddy`}
 			features={features}
 			featuresWin={featuresWin}
-			featureSectionSubtitle={`Leaving ${competitor.name}? Feature and pricing comparison before you switch to Databuddy`}
 			heroCta={hero.cta}
 			heroDescription={hero.description}
 			heroHeading={

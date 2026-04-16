@@ -1,4 +1,5 @@
-import { and, desc, eq, goals, inArray, isNull } from "@databuddy/db";
+import { and, desc, eq, inArray, isNull } from "@databuddy/db";
+import { goals } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { randomUUIDv7 } from "bun";
@@ -42,6 +43,53 @@ const goalOutputSchema = z.object({
 });
 
 const successOutputSchema = z.object({ success: z.literal(true) });
+
+const stepErrorInsightOutputSchema = z.object({
+	message: z.string(),
+	error_type: z.string(),
+	count: z.number(),
+});
+
+const stepAnalyticsOutputSchema = z.object({
+	step_number: z.number(),
+	step_name: z.string(),
+	users: z.number(),
+	total_users: z.number(),
+	conversion_rate: z.number(),
+	dropoffs: z.number(),
+	dropoff_rate: z.number(),
+	avg_time_to_complete: z.number(),
+	error_count: z.number(),
+	error_rate: z.number(),
+	top_errors: z.array(stepErrorInsightOutputSchema),
+});
+
+const timeSeriesPointSchema = z.object({
+	date: z.string(),
+	users: z.number(),
+	conversions: z.number(),
+	conversion_rate: z.number(),
+	dropoffs: z.number(),
+	avg_time: z.number(),
+});
+
+const goalAnalyticsOutputSchema = z.object({
+	overall_conversion_rate: z.number(),
+	total_users_entered: z.number(),
+	total_users_completed: z.number(),
+	avg_completion_time: z.number(),
+	avg_completion_time_formatted: z.string(),
+	biggest_dropoff_step: z.number(),
+	biggest_dropoff_rate: z.number(),
+	steps_analytics: z.array(stepAnalyticsOutputSchema),
+	time_series: z.array(timeSeriesPointSchema).optional(),
+	error_insights: z.object({
+		total_errors: z.number(),
+		sessions_with_errors: z.number(),
+		dropoffs_with_errors: z.number(),
+		error_correlation_rate: z.number(),
+	}),
+});
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
@@ -280,7 +328,7 @@ export const goalsRouter = {
 				endDate: z.string().optional(),
 			})
 		)
-		.output(z.record(z.string(), z.unknown()))
+		.output(goalAnalyticsOutputSchema)
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
 			const { startDate, endDate } =

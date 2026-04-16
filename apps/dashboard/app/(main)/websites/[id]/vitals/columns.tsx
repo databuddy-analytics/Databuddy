@@ -7,23 +7,21 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { BrowserIcon, CountryFlag } from "@/components/icon";
 import { WebVitalsMetricCell } from "../_components/tabs/performance/_components/web-vitals-metric-cell";
-import {
-	formatNumber,
-	formatPerformanceTime,
-} from "../_components/tabs/performance/_utils/performance-utils";
+import { formatNumber } from "@/lib/formatters";
+import { formatPerformanceTime } from "../_components/tabs/performance/_utils/performance-utils";
 
 export interface VitalsBreakdownData {
-	name: string;
-	samples: number;
-	visitors?: number;
-	lcp?: number;
-	fcp?: number;
 	cls?: number;
-	inp?: number;
-	ttfb?: number;
-	fps?: number;
 	country_code?: string;
 	country_name?: string;
+	fcp?: number;
+	fps?: number;
+	inp?: number;
+	lcp?: number;
+	name: string;
+	samples: number;
+	ttfb?: number;
+	visitors?: number;
 }
 
 const createMetricColumns = (): ColumnDef<VitalsBreakdownData>[] => [

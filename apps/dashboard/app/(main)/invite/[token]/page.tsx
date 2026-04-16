@@ -1,19 +1,17 @@
 "use client";
 
 import type { IconProps } from "@phosphor-icons/react";
-import {
-	ArrowRightIcon,
-	CheckCircleIcon,
-	HeartbeatIcon,
-	LightbulbFilamentIcon,
-	LightningIcon,
-	ProhibitIcon,
-	RobotIcon,
-	SpinnerGapIcon,
-	TrendUpIcon,
-	WaveformIcon,
-	XCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { HeartbeatIcon } from "@phosphor-icons/react";
+import { LightbulbFilamentIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { ProhibitIcon } from "@phosphor-icons/react";
+import { RobotIcon } from "@phosphor-icons/react";
+import { SpinnerGapIcon } from "@phosphor-icons/react";
+import { TrendUpIcon } from "@phosphor-icons/react";
+import { WaveformIcon } from "@phosphor-icons/react";
+import { XCircleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import type { ForwardRefExoticComponent, RefAttributes } from "react";

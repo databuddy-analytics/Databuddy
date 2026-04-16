@@ -1,19 +1,20 @@
-'use client';
+"use client";
 
-import { PlusIcon, XCircleIcon } from '@phosphor-icons/react';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { PlusIcon } from "@phosphor-icons/react";
+import { XCircleIcon } from "@phosphor-icons/react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export interface TagsChatProps {
-	values: string[];
+	allowDuplicates?: boolean;
+	className?: string;
+	maxTags?: number;
 	onChange: (next: string[]) => void;
 	placeholder?: string;
 	suggestions?: string[];
-	maxTags?: number;
-	allowDuplicates?: boolean;
-	className?: string;
+	values: string[];
 }
 
 function normalizeTag(raw: string): string {
@@ -23,17 +24,17 @@ function normalizeTag(raw: string): string {
 export function TagsChat({
 	values,
 	onChange,
-	placeholder = 'Type a tag and press Enter…',
+	placeholder = "Type a tag and press Enter…",
 	suggestions,
 	maxTags,
 	allowDuplicates = false,
 	className,
 }: TagsChatProps) {
-	const [draft, setDraft] = useState('');
+	const [draft, setDraft] = useState("");
 	const areaRef = useRef<HTMLDivElement>(null);
 
 	const canAddMore =
-		typeof maxTags === 'number' ? values.length < maxTags : true;
+		typeof maxTags === "number" ? values.length < maxTags : true;
 
 	const addTag = useCallback(
 		(tag: string) => {
@@ -42,19 +43,19 @@ export function TagsChat({
 				return;
 			}
 			if (!allowDuplicates && values.some((t) => t === normalized)) {
-				setDraft('');
+				setDraft("");
 				return;
 			}
 			if (!canAddMore) {
 				return;
 			}
 			onChange([...values, normalized]);
-			setDraft('');
+			setDraft("");
 			// Scroll to bottom like chat
 			queueMicrotask(() => {
 				areaRef.current?.scrollTo({
 					top: areaRef.current.scrollHeight,
-					behavior: 'smooth',
+					behavior: "smooth",
 				});
 			});
 		},
@@ -80,18 +81,18 @@ export function TagsChat({
 	}, [draft, suggestions]);
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-		if (e.key === 'Enter' || e.key === ',') {
+		if (e.key === "Enter" || e.key === ",") {
 			e.preventDefault();
 			addTag(draft);
 		}
-		if (e.key === 'Backspace' && draft.length === 0 && values.length > 0) {
+		if (e.key === "Backspace" && draft.length === 0 && values.length > 0) {
 			e.preventDefault();
 			removeTag(values.length - 1);
 		}
 	};
 
 	return (
-		<div className={cn('rounded border bg-background', className)}>
+		<div className={cn("rounded border bg-background", className)}>
 			<div className="max-h-56 overflow-auto p-3" ref={areaRef}>
 				{values.length === 0 ? (
 					<div className="text-muted-foreground text-sm">

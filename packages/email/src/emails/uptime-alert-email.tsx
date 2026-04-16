@@ -16,18 +16,18 @@ const utcFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export interface UptimeAlertEmailProps {
-	kind?: "down" | "recovered";
-	siteLabel?: string;
-	url?: string;
 	checkedAt?: number;
-	httpCode?: number;
+	dashboardUrl?: string;
 	error?: string;
+	httpCode?: number;
+	kind?: "down" | "recovered";
 	probeRegion?: string;
+	siteLabel?: string;
+	sslExpiryMs?: number;
+	sslValid?: boolean;
 	totalMs?: number;
 	ttfbMs?: number;
-	sslValid?: boolean;
-	sslExpiryMs?: number;
-	dashboardUrl?: string;
+	url?: string;
 }
 
 function fmtMs(ms: number | undefined): string | undefined {

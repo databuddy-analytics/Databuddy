@@ -31,7 +31,10 @@ export async function generateMetadata({
 		return { title: "Not Found | Databuddy" };
 	}
 
-	const { title, description } = getProgrammaticComparisonSeo("alternative", data);
+	const { title, description } = getProgrammaticComparisonSeo(
+		"alternative",
+		data
+	);
 	const pageUrl = `${SITE_URL}/alternatives/${slug}`;
 
 	return {
@@ -57,10 +60,13 @@ export default async function AlternativeToPage({ params }: PageProps) {
 	const { competitor, features, hero, faqs, pricingTiers, migrationSection } =
 		data;
 	const featuresWin = features.filter(
-		(f) => f.databuddy && !f.competitor,
+		(f) => f.databuddy && !f.competitor
 	).length;
 
-	const { title, description } = getProgrammaticComparisonSeo("alternative", data);
+	const { title, description } = getProgrammaticComparisonSeo(
+		"alternative",
+		data
+	);
 	const pageUrl = `${SITE_URL}/alternatives/${slug}`;
 	const introText = getProgrammaticIntroText("alternative", data);
 
@@ -76,9 +82,9 @@ export default async function AlternativeToPage({ params }: PageProps) {
 			]}
 			competitor={competitor}
 			faqs={faqs}
+			featureSectionSubtitle={`Databuddy vs ${competitor.name} — same comparison as our main review, tuned for “alternative to ${competitor.name}” searches`}
 			features={features}
 			featuresWin={featuresWin}
-			featureSectionSubtitle={`Databuddy vs ${competitor.name} — same comparison as our main review, tuned for “alternative to ${competitor.name}” searches`}
 			heroCta={hero.cta}
 			heroDescription={hero.description}
 			heroHeading={

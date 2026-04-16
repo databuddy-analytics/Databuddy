@@ -6,10 +6,10 @@ import { FaviconImage } from "../analytics/favicon-image";
 import { TruncatedText } from "../ui/truncated-text";
 
 export interface ReferrerSourceCellData {
-	name?: string;
-	referrer?: string;
 	domain?: string;
 	id?: string;
+	name?: string;
+	referrer?: string;
 }
 
 type ReferrerSourceCellProps = ReferrerSourceCellData & {

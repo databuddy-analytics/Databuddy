@@ -1,21 +1,19 @@
 "use client";
 
-import {
-	CalendarBlankIcon,
-	CaretDownIcon,
-	ChartBarIcon,
-	ChartLineIcon,
-	ClockIcon,
-	CursorClickIcon,
-	DesktopIcon,
-	FunnelIcon,
-	MoonIcon,
-	PresentationChartIcon,
-	SquaresFourIcon,
-	StackIcon,
-	SunIcon,
-	UsersIcon,
-} from "@phosphor-icons/react";
+import { CalendarBlankIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { ChartBarIcon } from "@phosphor-icons/react";
+import { ChartLineIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { CursorClickIcon } from "@phosphor-icons/react";
+import { DesktopIcon } from "@phosphor-icons/react";
+import { FunnelIcon } from "@phosphor-icons/react";
+import { MoonIcon } from "@phosphor-icons/react";
+import { PresentationChartIcon } from "@phosphor-icons/react";
+import { SquaresFourIcon } from "@phosphor-icons/react";
+import { StackIcon } from "@phosphor-icons/react";
+import { SunIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { StatCard } from "@/components/analytics/stat-card";
@@ -141,7 +139,6 @@ export default function AppearanceSettingsPage() {
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
 			<div className="flex-1 overflow-y-auto">
-				{/* Theme */}
 				<SettingsSection
 					description="Choose your preferred color scheme"
 					title="Theme"
@@ -187,7 +184,6 @@ export default function AppearanceSettingsPage() {
 					</div>
 				</SettingsSection>
 
-				{/* Default date range */}
 				<SettingsSection
 					description="Default time range when opening analytics pages"
 					title="Default date range"
@@ -234,13 +230,11 @@ export default function AppearanceSettingsPage() {
 					</div>
 				</SettingsSection>
 
-				{/* Chart Preferences */}
 				<SettingsSection
 					description="Configure chart styles for different sections of the app"
 					title="Charts"
 				>
 					<div className="space-y-4">
-						{/* Preview */}
 						<div className="rounded border bg-accent/30 p-4">
 							<div className="mb-3 flex items-center justify-between">
 								<span className="font-medium text-sm">Preview</span>
@@ -289,7 +283,6 @@ export default function AppearanceSettingsPage() {
 							</div>
 						</div>
 
-						{/* Global Settings */}
 						<div className="rounded border">
 							<div className="flex items-center justify-between border-b bg-accent/50 px-4 py-2.5">
 								<span className="font-medium text-sm">All Charts</span>
@@ -319,7 +312,6 @@ export default function AppearanceSettingsPage() {
 										}
 										value={globalPrefs.chartStepType}
 									>
-										{/* Tooltip should only be shown if the chart is a bar */}
 										<Tooltip open={isGlobalBar ? undefined : false}>
 											<TooltipTrigger asChild>
 												<SelectTrigger
@@ -347,7 +339,6 @@ export default function AppearanceSettingsPage() {
 								</div>
 							</div>
 
-							{/* Expand/Collapse Button */}
 							<Button
 								className="w-full justify-between rounded-none border-0"
 								onClick={() => setShowGranular(!showGranular)}
@@ -367,7 +358,6 @@ export default function AppearanceSettingsPage() {
 								/>
 							</Button>
 
-							{/* Granular Settings */}
 							{showGranular && (
 								<div className="border-t">
 									<div className="grid grid-cols-[1fr_6.5rem_7.5rem] gap-3 border-b bg-accent/30 px-4 py-2">
@@ -460,7 +450,6 @@ export default function AppearanceSettingsPage() {
 													}
 													value={prefs.chartStepType}
 												>
-													{/* Tooltip should only be shown if the chart is a bar */}
 													<Tooltip open={isBar ? undefined : false}>
 														<TooltipTrigger asChild>
 															<SelectTrigger

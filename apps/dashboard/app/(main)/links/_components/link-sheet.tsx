@@ -1,12 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	CircleNotchIcon,
-	CopyIcon,
-	LinkSimpleIcon,
-	QrCodeIcon,
-} from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { LinkSimpleIcon } from "@phosphor-icons/react";
+import { QrCodeIcon } from "@phosphor-icons/react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -54,10 +52,10 @@ const DEFAULT_OG_DATA: OgData = {
 };
 
 interface LinkSheetProps {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
 	link?: Link | null;
+	onOpenChange: (open: boolean) => void;
 	onSave?: (link: Link) => void;
+	open: boolean;
 }
 
 function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {

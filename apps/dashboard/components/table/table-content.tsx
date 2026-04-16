@@ -1,8 +1,6 @@
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	DatabaseIcon,
-} from "@phosphor-icons/react";
+import { ArrowDownIcon } from "@phosphor-icons/react";
+import { ArrowUpIcon } from "@phosphor-icons/react";
+import { DatabaseIcon } from "@phosphor-icons/react";
 import { flexRender, type Table } from "@tanstack/react-table";
 import type React from "react";
 import { Fragment, memo, useCallback, useState } from "react";
@@ -176,25 +174,25 @@ function getPercentageGradient(percentage: number) {
 }
 
 interface TableContentProps<TData extends { name: string | number }> {
-	table: Table<TData>;
-	title?: string;
-	minHeight?: string | number;
+	activeTab?: string;
+	className?: string;
+	emptyMessage?: string;
 	expandable?: boolean;
 	getSubRows?: (row: TData) => TData[] | undefined;
+	minHeight?: string | number;
+	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
+	onRowAction?: (row: TData) => void;
+	onRowClick?: (field: string, value: string | number) => void;
 	renderSubRow?: (
 		subRow: TData,
 		parentRow: TData,
 		index: number
 	) => React.ReactNode;
-	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
-	onRowAction?: (row: TData) => void;
-	onRowClick?: (field: string, value: string | number) => void;
-	tabs?: any[];
-	activeTab?: string;
-	emptyMessage?: string;
-	className?: string;
 	/** Native tooltip on Share (column id "percentage"). Omit for default visitor-share copy; pass "" to disable. */
 	shareColumnTooltip?: string;
+	table: Table<TData>;
+	tabs?: any[];
+	title?: string;
 }
 
 function TableContentInner<TData extends { name: string | number }>({

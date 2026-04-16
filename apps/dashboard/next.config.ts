@@ -20,7 +20,7 @@ const nextConfig: NextConfig = {
 			},
 			{
 				protocol: "https",
-				hostname: "icons.duckduckgo.com",
+				hostname: "www.google.com",
 			},
 			{
 				protocol: "https",
@@ -79,7 +79,7 @@ const nextConfig: NextConfig = {
 			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.databuddy.cc",
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
-			"img-src 'self' data: blob: https://cdn.databuddy.cc https://icons.duckduckgo.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
+			"img-src 'self' data: blob: https://cdn.databuddy.cc https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
 			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc https://api.microlink.io`.trim(),
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
@@ -91,7 +91,7 @@ const nextConfig: NextConfig = {
 			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.databuddy.cc",
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
-			"img-src 'self' data: blob: https://cdn.databuddy.cc https://icons.duckduckgo.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
+			"img-src 'self' data: blob: https://cdn.databuddy.cc https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
 			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc`.trim(),
 			`frame-ancestors 'self' ${localhostFrameAncestors} https://*.databuddy.cc https://databuddy.cc`.trim(),
 			"base-uri 'self'",

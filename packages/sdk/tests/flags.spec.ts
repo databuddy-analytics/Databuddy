@@ -40,11 +40,11 @@ test.describe("BrowserFlagsManager", () => {
 					const response =
 						requestedKeys.length > 0
 							? Object.fromEntries(
-								requestedKeys.map((k) => [
-									k,
-									allFlags[k] ?? MOCK_FLAG_DISABLED,
-								])
-							)
+									requestedKeys.map((k) => [
+										k,
+										allFlags[k] ?? MOCK_FLAG_DISABLED,
+									])
+								)
 							: allFlags;
 
 					await route.fulfill({
@@ -421,9 +421,7 @@ test.describe("BrowserFlagsManager", () => {
 			expect(capturedUrl).toContain("email=test%40example.com");
 		});
 
-		test("updateUser triggers fresh fetch with new user", async ({
-			page,
-		}) => {
+		test("updateUser triggers fresh fetch with new user", async ({ page }) => {
 			const capturedUrls: string[] = [];
 			await page.route(
 				"**/api.databuddy.cc/public/v1/flags/bulk**",
@@ -551,15 +549,11 @@ test.describe("BrowserFlagsManager", () => {
 					config: { clientId: "test-id", autoFetch: false },
 				});
 				await manager.getFlag("feature-on");
-				const beforeDestroy = Object.keys(
-					manager.getMemoryFlags()
-				).length;
+				const beforeDestroy = Object.keys(manager.getMemoryFlags()).length;
 
 				manager.destroy();
 
-				const afterDestroy = Object.keys(
-					manager.getMemoryFlags()
-				).length;
+				const afterDestroy = Object.keys(manager.getMemoryFlags()).length;
 				return { beforeDestroy, afterDestroy };
 			});
 

@@ -1,16 +1,19 @@
-/**
- * Thin tracing wrapper around @databuddy/api-keys.
- */
 import {
 	type ApiKeyRow,
 	extractSecret,
+	getAccessibleWebsiteIds as _getAccessibleWebsiteIds,
 	getApiKeyFromHeader as resolveApiKey,
+	hasGlobalAccess as _hasGlobalAccess,
+	hasKeyScope as _hasKeyScope,
 } from "@databuddy/api-keys/resolve";
 import { record } from "@lib/tracing";
 import { useLogger } from "evlog/elysia";
 
 export type { ApiKeyRow, ApiScope } from "@databuddy/api-keys/resolve";
-export { hasKeyScope } from "@databuddy/api-keys/resolve";
+
+export const hasKeyScope = _hasKeyScope;
+export const hasGlobalAccess = _hasGlobalAccess;
+export const getAccessibleWebsiteIds = _getAccessibleWebsiteIds;
 
 export function getApiKeyFromHeader(
 	headers: Headers

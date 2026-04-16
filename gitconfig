@@ -1,3 +1,0 @@
-# Include from this repo: git config --local include.path ../gitconfig
-[alias]
-	sync-main = "!git fetch origin main && git merge origin/main --no-edit"

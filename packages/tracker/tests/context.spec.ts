@@ -1,22 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { findEvent, hasEvent } from "./test-utils";
+import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Event Context", () => {
-	test.beforeEach(async ({ page }) => {
-		// Disable sendBeacon for reliable route interception (WebKit issue)
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/*", async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ success: true }),
-				headers: { "Access-Control-Allow-Origin": "*" },
-			});
-		});
-	});
 
 	test.describe("UTM Parameters", () => {
 		test("captures utm_source from URL", async ({ page }) => {
@@ -183,7 +167,9 @@ test.describe("Event Context", () => {
 			expect(parsed.gclid).toBe("persist_test_123");
 		});
 
-		test("restores gclid from localStorage on pages without it in URL", async ({ page }) => {
+		test("restores gclid from localStorage on pages without it in URL", async ({
+			page,
+		}) => {
 			await page.goto("/test?gclid=restored_456");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
@@ -294,8 +280,12 @@ test.describe("Event Context", () => {
 			expect(JSON.parse(stored as string).gclid).toBe("new_click_bbb");
 		});
 
-		test("utm params are transient but click IDs persist across navigation", async ({ page }) => {
-			await page.goto("/test?gclid=persist_click&utm_source=google&utm_medium=cpc");
+		test("utm params are transient but click IDs persist across navigation", async ({
+			page,
+		}) => {
+			await page.goto(
+				"/test?gclid=persist_click&utm_source=google&utm_medium=cpc"
+			);
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
 					clientId: "test-transient",
@@ -337,7 +327,9 @@ test.describe("Event Context", () => {
 			expect(payload?.utm_medium).toBeUndefined();
 		});
 
-		test("multiple click IDs from different platforms at once", async ({ page }) => {
+		test("multiple click IDs from different platforms at once", async ({
+			page,
+		}) => {
 			await page.goto("/test?gclid=google_abc&fbclid=meta_xyz");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
@@ -430,7 +422,9 @@ test.describe("Event Context", () => {
 			expect(stored).toBeNull();
 		});
 
-		test("gclid carries through multiple SPA navigations into track events", async ({ page }) => {
+		test("gclid carries through multiple SPA navigations into track events", async ({
+			page,
+		}) => {
 			await page.goto("/test?gclid=multi_nav_id");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {

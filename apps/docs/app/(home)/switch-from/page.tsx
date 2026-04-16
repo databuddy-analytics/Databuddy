@@ -42,10 +42,7 @@ export default function SwitchFromHubPage() {
 
 			<div className="container mx-auto px-4 pt-8">
 				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<Link
-						className="transition-colors hover:text-foreground"
-						href="/"
-					>
+					<Link className="transition-colors hover:text-foreground" href="/">
 						Home
 					</Link>
 					<span>/</span>
@@ -63,8 +60,8 @@ export default function SwitchFromHubPage() {
 							</h1>
 							<p className="mx-auto max-w-2xl text-balance text-muted-foreground text-sm leading-relaxed sm:text-base">
 								Already planning to leave your current analytics? Choose your
-								tool below for pricing, feature parity, and what changes when you
-								move to Databuddy. You can also browse{" "}
+								tool below for pricing, feature parity, and what changes when
+								you move to Databuddy. You can also browse{" "}
 								<Link
 									className="font-medium text-foreground underline-offset-4 hover:underline"
 									href="/alternatives"
@@ -107,8 +104,8 @@ export default function SwitchFromHubPage() {
 							Start migrating today
 						</h3>
 						<p className="mb-5 text-pretty text-muted-foreground text-sm">
-							Add the script, verify data, and turn off the old tool when you are
-							ready.
+							Add the script, verify data, and turn off the old tool when you
+							are ready.
 						</p>
 						<div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
 							<SciFiButton asChild>

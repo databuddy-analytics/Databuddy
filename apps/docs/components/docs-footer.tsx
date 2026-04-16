@@ -29,7 +29,9 @@ export function DocsFooter() {
 						Ready to get started?
 					</h2>
 					<div>
-						<SciFiButton onClick={handleGetStarted}>GET STARTED</SciFiButton>
+						<SciFiButton onClick={handleGetStarted}>
+							ADD DATABUDDY IN 5 MINUTES
+						</SciFiButton>
 					</div>
 				</div>
 

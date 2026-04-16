@@ -1,14 +1,15 @@
 "use client";
 
-import { ArrowSquareOutIcon, FileTextIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { formatDomainLink } from "@/app/(main)/websites/[id]/_components/utils/analytics-helpers";
 import { cn } from "@/lib/utils";
 
 export interface PageLinkCellData {
+	id?: string;
 	path: string;
 	websiteDomain?: string;
-	id?: string;
 }
 
 type PageLinkCellProps = PageLinkCellData & {

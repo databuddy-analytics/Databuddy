@@ -1,12 +1,12 @@
 "use client";
 
-import { CheckCircleIcon as CheckCircle } from "@phosphor-icons/react/dist/ssr/CheckCircle";
-import { WarningIcon as Warning } from "@phosphor-icons/react/dist/ssr/Warning";
+import { CheckCircleIcon as CheckCircle } from "@phosphor-icons/react";
+import { WarningIcon as Warning } from "@phosphor-icons/react";
 import { formatPerformanceTime } from "../_utils/performance-utils";
 
 interface WebVitalsMetricCellProps {
-	value?: number;
 	metric: "lcp" | "fcp" | "fid" | "inp" | "cls";
+	value?: number;
 }
 
 const getWebVitalsThresholds = (metric: string) => {

@@ -7,64 +7,53 @@ export interface RawComponentInput {
 
 export interface BaseComponentProps {
 	className?: string;
+	streaming?: boolean;
 }
 
 export interface ComponentDefinition<
-	TInput extends Record<string, unknown>,
-	TProps extends BaseComponentProps,
+	TInput = Record<string, unknown>,
+	TProps extends BaseComponentProps = BaseComponentProps,
 > {
-	validate: (input: RawComponentInput) => input is RawComponentInput & TInput;
-	transform: (input: TInput) => TProps;
 	component: ComponentType<TProps>;
+	transform: (input: TInput) => TProps;
+	validate: (input: RawComponentInput) => input is RawComponentInput & TInput;
 }
 
-export type ComponentRegistry = Record<
-	string,
-	ComponentDefinition<Record<string, unknown>, BaseComponentProps>
->;
+export type ComponentRegistry = Record<string, ComponentDefinition<any, any>>;
 
 export interface ParsedContent {
-	text: string;
 	components: RawComponentInput[];
+	text: string;
 }
 
 export type ContentSegment =
 	| { type: "text"; content: string }
-	| { type: "component"; content: RawComponentInput };
+	| { type: "component"; content: RawComponentInput }
+	| { type: "streaming-component"; content: RawComponentInput };
 
 export interface ParsedSegments {
 	segments: ContentSegment[];
 }
-
-// Chart types
 
 export interface ChartComponentProps extends BaseComponentProps {
 	title?: string;
 }
 
 export interface TimeSeriesInput {
-	type: string;
+	rows: unknown[][];
+	series: string[];
 	title?: string;
-	data: {
-		x: string[];
-		[series: string]: string[] | number[];
-	};
+	type: string;
 }
 
 export interface DistributionInput {
-	type: string;
+	rows: unknown[][];
 	title?: string;
-	data: {
-		labels: string[];
-		values: number[];
-	};
+	type: string;
 }
 
-// Links types
-
 export interface LinksListInput {
-	type: "links-list";
-	title?: string;
+	baseUrl?: string;
 	links: Array<{
 		id: string;
 		name: string;
@@ -81,12 +70,11 @@ export interface LinksListInput {
 		expiredRedirectUrl?: string | null;
 		organizationId?: string;
 	}>;
-	baseUrl?: string;
+	title?: string;
+	type: "links-list";
 }
 
 export interface LinkPreviewInput {
-	type: "link-preview";
-	mode: "create" | "update" | "delete";
 	link: {
 		name: string;
 		targetUrl: string;
@@ -98,19 +86,17 @@ export interface LinkPreviewInput {
 		ogImageUrl?: string | null;
 	};
 	message?: string;
+	mode: "create" | "update" | "delete";
+	type: "link-preview";
 }
 
-// Funnels types
-
 export interface FunnelStepInput {
-	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
-	target: string;
 	name: string;
+	target: string;
+	type: "PAGE_VIEW" | "EVENT" | "CUSTOM";
 }
 
 export interface FunnelsListInput {
-	type: "funnels-list";
-	title?: string;
 	funnels: Array<{
 		id: string;
 		name: string;
@@ -119,24 +105,22 @@ export interface FunnelsListInput {
 		isActive: boolean;
 		createdAt?: string;
 	}>;
+	title?: string;
+	type: "funnels-list";
 }
 
 export interface FunnelPreviewInput {
-	type: "funnel-preview";
-	mode: "create" | "update" | "delete";
 	funnel: {
 		name: string;
 		description?: string | null;
 		steps: FunnelStepInput[];
 		ignoreHistoricData?: boolean;
 	};
+	mode: "create" | "update" | "delete";
+	type: "funnel-preview";
 }
 
-// Goals types
-
 export interface GoalsListInput {
-	type: "goals-list";
-	title?: string;
 	goals: Array<{
 		id: string;
 		name: string;
@@ -146,11 +130,11 @@ export interface GoalsListInput {
 		isActive: boolean;
 		createdAt?: string;
 	}>;
+	title?: string;
+	type: "goals-list";
 }
 
 export interface GoalPreviewInput {
-	type: "goal-preview";
-	mode: "create" | "update" | "delete";
 	goal: {
 		name: string;
 		description?: string | null;
@@ -158,13 +142,11 @@ export interface GoalPreviewInput {
 		target: string;
 		ignoreHistoricData?: boolean;
 	};
+	mode: "create" | "update" | "delete";
+	type: "goal-preview";
 }
 
-// Annotations types
-
 export interface AnnotationsListInput {
-	type: "annotations-list";
-	title?: string;
 	annotations: Array<{
 		id: string;
 		text: string;
@@ -176,11 +158,11 @@ export interface AnnotationsListInput {
 		isPublic?: boolean;
 		createdAt?: string;
 	}>;
+	title?: string;
+	type: "annotations-list";
 }
 
 export interface AnnotationPreviewInput {
-	type: "annotation-preview";
-	mode: "create" | "update" | "delete";
 	annotation: {
 		text: string;
 		annotationType: "point" | "line" | "range";
@@ -190,54 +172,45 @@ export interface AnnotationPreviewInput {
 		tags?: string[];
 		isPublic?: boolean;
 	};
-}
-
-// Data Table types
-
-export interface DataTableColumn {
-	key: string;
-	header: string;
-	align?: "left" | "center" | "right";
+	mode: "create" | "update" | "delete";
+	type: "annotation-preview";
 }
 
 export interface DataTableInput {
-	type: "data-table";
-	title?: string;
+	align?: ("left" | "center" | "right")[];
+	columns: string[];
 	description?: string;
-	columns: DataTableColumn[];
-	rows: Record<string, string | number | boolean | null>[];
 	footer?: string;
+	rows: unknown[][];
+	title?: string;
+	type: "data-table";
 }
 
-// Referrers List types
-
 export interface ReferrerItem {
-	name: string;
-	referrer?: string;
 	domain?: string;
-	visitors: number;
+	name: string;
 	pageviews?: number;
 	percentage?: number;
+	referrer?: string;
+	visitors: number;
 }
 
 export interface ReferrersListInput {
-	type: "referrers-list";
-	title?: string;
 	referrers: ReferrerItem[];
+	title?: string;
+	type: "referrers-list";
 }
 
-// Mini Map types
-
 export interface CountryItem {
-	name: string;
 	country_code?: string;
-	visitors: number;
+	name: string;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
 
 export interface MiniMapInput {
-	type: "mini-map";
-	title?: string;
 	countries: CountryItem[];
+	title?: string;
+	type: "mini-map";
 }

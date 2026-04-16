@@ -1,13 +1,11 @@
 export interface PaymentMethodCard {
 	brand?: string;
-	last4?: string;
 	expMonth?: number;
 	expYear?: number;
+	last4?: string;
 }
 
 export interface PaymentMethodBillingDetails {
-	name?: string;
-	email?: string;
 	address?: {
 		city?: string;
 		country?: string;
@@ -16,13 +14,15 @@ export interface PaymentMethodBillingDetails {
 		postalCode?: string;
 		state?: string;
 	};
+	email?: string;
+	name?: string;
 }
 
 export interface PaymentMethod {
+	billingDetails?: PaymentMethodBillingDetails;
+	card?: PaymentMethodCard;
 	id?: string;
 	type?: string;
-	card?: PaymentMethodCard;
-	billingDetails?: PaymentMethodBillingDetails;
 }
 
 export interface CustomerWithPaymentMethod {

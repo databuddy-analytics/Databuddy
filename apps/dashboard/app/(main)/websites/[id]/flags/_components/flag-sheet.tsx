@@ -3,19 +3,17 @@
 import type { FlagWithScheduleForm } from "@databuddy/shared/flags";
 import { flagWithScheduleSchema } from "@databuddy/shared/flags";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	BuildingsIcon,
-	CaretDownIcon,
-	CodeIcon,
-	FlagIcon,
-	GitBranchIcon,
-	SpinnerGapIcon,
-	UserIcon,
-	UsersIcon,
-	UsersThreeIcon,
-} from "@phosphor-icons/react";
+import { BuildingsIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { CodeIcon } from "@phosphor-icons/react";
+import { FlagIcon } from "@phosphor-icons/react";
+import { GitBranchIcon } from "@phosphor-icons/react";
+import { SpinnerGapIcon } from "@phosphor-icons/react";
+import { UserIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
+import { UsersThreeIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -215,17 +213,19 @@ export function FlagSheet({
 	const [expandedSection, setExpandedSection] = useState<ExpandedSection>(null);
 	const queryClient = useQueryClient();
 
-	const { data: flagsList } = useQuery({
+	const { data: flagsListRaw } = useQuery({
 		...orpc.flags.list.queryOptions({
 			input: { websiteId },
 		}),
 	});
+	const flagsList = flagsListRaw as Flag[] | undefined;
 
-	const { data: targetGroups } = useQuery({
+	const { data: targetGroupsRaw } = useQuery({
 		...orpc.targetGroups.list.queryOptions({
 			input: { websiteId },
 		}),
 	});
+	const targetGroups = targetGroupsRaw as TargetGroup[] | undefined;
 
 	const isEditing = Boolean(flag);
 
@@ -478,7 +478,6 @@ export function FlagSheet({
 						})}
 					>
 						<SheetBody className="space-y-6">
-							{/* Basic Info */}
 							<div className="space-y-4">
 								<div className="grid place-items-start gap-4 sm:grid-cols-2">
 									<FormField
@@ -549,10 +548,8 @@ export function FlagSheet({
 								/>
 							</div>
 
-							{/* Separator */}
 							<div className="h-px bg-border" />
 
-							{/* Type & Value */}
 							<div className="space-y-4">
 								<div className="space-y-2">
 									<div className="space-y-0.5">
@@ -807,7 +804,6 @@ export function FlagSheet({
 								</AnimatePresence>
 							</div>
 
-							{/* Status */}
 							<FormField
 								control={form.control}
 								name="flag.status"
@@ -890,10 +886,8 @@ export function FlagSheet({
 								}}
 							/>
 
-							{/* Divider */}
 							<div className="h-px bg-border" />
 
-							{/* Advanced Options */}
 							<div className="space-y-1">
 								<CollapsibleSection
 									badge={form.watch("flag.targetGroupIds")?.length ?? 0}
@@ -907,7 +901,7 @@ export function FlagSheet({
 										name="flag.targetGroupIds"
 										render={({ field }) => (
 											<GroupSelector
-												availableGroups={(targetGroups as TargetGroup[]) ?? []}
+												availableGroups={targetGroups ?? []}
 												onChangeAction={(ids) => field.onChange(ids)}
 												selectedGroups={field.value ?? []}
 											/>
@@ -946,7 +940,7 @@ export function FlagSheet({
 										name="flag.dependencies"
 										render={({ field }) => (
 											<DependencySelector
-												availableFlags={(flagsList as Flag[]) || []}
+												availableFlags={flagsList ?? []}
 												currentFlagKey={flag?.key}
 												onChange={field.onChange}
 												value={field.value || []}

@@ -1,25 +1,22 @@
-import { type LanguageModel, stepCountIs } from "ai";
+import { stepCountIs } from "ai";
 import type { AppContext } from "../config/context";
 import { models } from "../config/models";
+import { cachedSystemPrompt } from "../config/prompt-cache";
 import { buildAnalyticsInstructions } from "../prompts/analytics";
 import { createAnnotationTools } from "../tools/annotations";
-import { executeQueryBuilderTool } from "../tools/execute-query-builder";
 import { executeSqlQueryTool } from "../tools/execute-sql-query";
 import { createFunnelTools } from "../tools/funnels";
 import { getDataTool } from "../tools/get-data";
-import { getTopPagesTool } from "../tools/get-top-pages";
 import { createGoalTools } from "../tools/goals";
 import { createLinksTools } from "../tools/links";
 import { createMemoryTools } from "../tools/memory";
 import { createProfileTools } from "../tools/profiles";
 import { webSearchTool } from "../tools/web-search";
-import type { AgentConfig, AgentContext } from "./types";
+import type { AgentConfig, AgentContext, AgentThinking } from "./types";
 
 function createTools() {
 	return {
-		get_top_pages: getTopPagesTool,
 		get_data: getDataTool,
-		execute_query_builder: executeQueryBuilderTool,
 		execute_sql_query: executeSqlQueryTool,
 		web_search: webSearchTool,
 		...createMemoryTools(),
@@ -33,6 +30,27 @@ function createTools() {
 
 export const maxSteps = 20;
 
+// Anthropic extended thinking budget per effort tier (tokens). Values are
+// conservative — the model may use less but won't exceed this.
+const THINKING_BUDGET: Record<Exclude<AgentThinking, "off">, number> = {
+	low: 2048,
+	medium: 8192,
+	high: 16_384,
+};
+
+function buildProviderOptions(
+	thinking: AgentThinking | undefined
+): AgentConfig["providerOptions"] {
+	if (!thinking || thinking === "off") {
+		return;
+	}
+	return {
+		anthropic: {
+			thinking: { type: "enabled", budgetTokens: THINKING_BUDGET[thinking] },
+		},
+	};
+}
+
 export function createConfig(context: AgentContext): AgentConfig {
 	const appContext: AppContext = {
 		userId: context.userId,
@@ -42,14 +60,16 @@ export function createConfig(context: AgentContext): AgentConfig {
 		currentDateTime: new Date().toISOString(),
 		chatId: context.chatId,
 		requestHeaders: context.requestHeaders,
+		billingCustomerId: context.billingCustomerId,
 	};
 
 	return {
-		model: models.analytics as LanguageModel,
-		system: buildAnalyticsInstructions(appContext),
+		model: models.analytics,
+		system: cachedSystemPrompt(buildAnalyticsInstructions(appContext)),
 		tools: createTools(),
-		stopWhen: stepCountIs(20),
-		temperature: 0.3,
+		stopWhen: stepCountIs(maxSteps),
+		temperature: 0.1,
+		providerOptions: buildProviderOptions(context.thinking),
 		experimental_context: appContext,
 	};
 }

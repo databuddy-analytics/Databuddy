@@ -1,6 +1,6 @@
 "use client";
 
-import type { Link } from "@databuddy/db";
+import type { Link } from "@databuddy/db/schema";
 import type { DateRange } from "@databuddy/shared/types/analytics";
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,22 +8,22 @@ import { useMemo } from "react";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { orpc } from "@/lib/orpc";
 
-export type { Link } from "@databuddy/db";
+export type { Link } from "@databuddy/db/schema";
 
 interface GeoEntry {
-	name: string;
+	clicks: number;
 	country_code: string;
 	country_name: string;
-	clicks: number;
+	name: string;
 	percentage: number;
 }
 
 interface ReferrerEntry {
-	name: string;
-	referrer: string;
 	clicks: number;
-	percentage: number;
 	domain?: string;
+	name: string;
+	percentage: number;
+	referrer: string;
 }
 
 interface TimeSeriesEntry {
@@ -32,21 +32,21 @@ interface TimeSeriesEntry {
 }
 
 interface DeviceEntry {
-	name: string;
 	clicks: number;
+	name: string;
 	percentage: number;
 }
 
 export interface LinkStats {
-	totalClicks: number;
 	clicksByDay: Array<{ date: string; clicks: number }>;
-	referrersByDay: TimeSeriesEntry[];
 	countriesByDay: TimeSeriesEntry[];
-	topReferrers: ReferrerEntry[];
-	topCountries: GeoEntry[];
-	topRegions: GeoEntry[];
+	referrersByDay: TimeSeriesEntry[];
 	topCities: GeoEntry[];
+	topCountries: GeoEntry[];
 	topDevices: DeviceEntry[];
+	topReferrers: ReferrerEntry[];
+	topRegions: GeoEntry[];
+	totalClicks: number;
 }
 
 export const getLinksListKey = (): QueryKey =>

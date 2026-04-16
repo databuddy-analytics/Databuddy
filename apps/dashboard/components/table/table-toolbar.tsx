@@ -4,12 +4,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface TableToolbarProps {
-	title: string;
-	description?: string;
-	showFullScreen?: boolean;
-	onFullScreenToggle?: () => void;
 	borderBottom?: boolean;
+	description?: string;
+	onFullScreenToggle?: () => void;
 	showBrand?: boolean;
+	showFullScreen?: boolean;
+	title: string;
 }
 
 export function TableToolbar({

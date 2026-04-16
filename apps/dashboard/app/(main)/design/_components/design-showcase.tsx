@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	ChartBarIcon,
-	ListIcon,
-	MagnifyingGlassIcon,
-	PlusIcon,
-	UserIcon,
-} from "@phosphor-icons/react";
+import { ChartBarIcon } from "@phosphor-icons/react";
+import { ListIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { UserIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -77,7 +75,6 @@ const BUTTON_VARIANTS = [
 	"outline",
 	"secondary",
 	"ghost",
-	"link",
 ] as const;
 
 const BUTTON_SIZES = ["default", "sm", "lg", "icon"] as const;

@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowsClockwiseIcon, PencilSimpleIcon } from "@phosphor-icons/react";
+import { ArrowsClockwiseIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
 import { nanoid } from "nanoid";
 import { useState } from "react";
 import { toast } from "sonner";

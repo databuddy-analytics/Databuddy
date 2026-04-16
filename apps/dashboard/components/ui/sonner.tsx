@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	CheckCircleIcon,
-	InfoIcon,
-	SpinnerIcon,
-	WarningCircleIcon,
-	XCircleIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { InfoIcon } from "@phosphor-icons/react";
+import { SpinnerIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
+import { XCircleIcon } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
@@ -55,11 +53,12 @@ function Toaster({ ...props }: ToasterProps) {
 				classNames: {
 					toast:
 						"group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border group-[.toaster]:border-border group-[.toaster]:shadow-xl group-[.toaster]:rounded",
-					title: "group-[.toast]:font-semibold group-[.toast]:text-foreground group-[.toast]:text-sm",
+					title:
+						"group-[.toast]:font-semibold group-[.toast]:text-foreground group-[.toast]:text-sm",
 					description:
 						"group-[.toast]:text-muted-foreground group-[.toast]:text-xs",
-				actionButton:
-					"group-[.toast]:bg-brand-purple group-[.toast]:text-white group-[.toast]:rounded group-[.toast]:text-xs group-[.toast]:font-medium",
+					actionButton:
+						"group-[.toast]:bg-brand-purple group-[.toast]:text-white group-[.toast]:rounded group-[.toast]:text-xs group-[.toast]:font-medium",
 					cancelButton:
 						"group-[.toast]:bg-muted group-[.toast]:text-muted-foreground group-[.toast]:rounded group-[.toast]:text-xs",
 					closeButton:

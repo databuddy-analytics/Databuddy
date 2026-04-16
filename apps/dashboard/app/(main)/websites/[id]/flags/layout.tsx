@@ -2,13 +2,11 @@
 
 import { useFlag } from "@databuddy/sdk/react";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import {
-	ArchiveIcon,
-	FlagIcon,
-	InfoIcon,
-	LayoutIcon,
-	UsersThreeIcon,
-} from "@phosphor-icons/react";
+import { ArchiveIcon } from "@phosphor-icons/react";
+import { FlagIcon } from "@phosphor-icons/react";
+import { InfoIcon } from "@phosphor-icons/react";
+import { LayoutIcon } from "@phosphor-icons/react";
+import { UsersThreeIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useParams, usePathname } from "next/navigation";
@@ -192,7 +190,6 @@ export default function FlagsLayout({
 				websiteName={website?.name ?? undefined}
 			/>
 
-			{/* Navigation Tabs */}
 			<PageNavigation
 				tabs={[
 					{
@@ -277,7 +274,6 @@ export default function FlagsLayout({
 				)}
 			</div>
 
-			{/* Page Content */}
 			<div className="min-h-0 flex-1 overflow-hidden">{children}</div>
 		</div>
 	);

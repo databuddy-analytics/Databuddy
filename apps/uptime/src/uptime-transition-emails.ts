@@ -1,4 +1,6 @@
-import { and, chQuery, db, eq, member, user } from "@databuddy/db";
+import { and, db, eq } from "@databuddy/db";
+import { member, user } from "@databuddy/db/schema";
+import { chQuery } from "@databuddy/db/clickhouse";
 import { UptimeAlertEmail } from "@databuddy/email";
 import { Resend } from "resend";
 import type { ScheduleData } from "./actions";

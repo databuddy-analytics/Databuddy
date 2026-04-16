@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	ChartBarIcon,
-	ClockIcon,
-	DatabaseIcon,
-	GiftIcon,
-	LightningIcon,
-	UsersIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { ChartBarIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { DatabaseIcon } from "@phosphor-icons/react";
+import { GiftIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { memo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -218,7 +216,6 @@ function BilledOverageRow({
 
 	return (
 		<div className="border-b p-5">
-			{/* Header */}
 			<div className="mb-4 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<div className="flex size-10 shrink-0 items-center justify-center rounded border bg-background">
@@ -243,7 +240,6 @@ function BilledOverageRow({
 				)}
 			</div>
 
-			{/* Segmented bar */}
 			<div className="mb-3">
 				<div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
 					<div
@@ -290,7 +286,7 @@ function BilledOverageRow({
 					)}
 					<Link
 						className="font-medium text-primary text-xs hover:underline"
-						href="/billing/cost-breakdown"
+						href="#breakdown"
 					>
 						View breakdown
 					</Link>

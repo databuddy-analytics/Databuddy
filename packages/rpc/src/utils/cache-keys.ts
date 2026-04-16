@@ -1,4 +1,5 @@
-import { eq, websites } from "@databuddy/db";
+import { eq } from "@databuddy/db";
+import { websites } from "@databuddy/db/schema";
 import type { Context } from "../orpc";
 
 /**

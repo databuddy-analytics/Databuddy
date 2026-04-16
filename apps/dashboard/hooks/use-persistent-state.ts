@@ -1,17 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-
-/**
- * Hook to detect if we're running on the client side after hydration
- */
-function useIsClient() {
-	const [isClient, setIsClient] = useState(false);
-
-	useEffect(() => {
-		setIsClient(true);
-	}, []);
-
-	return isClient;
-}
+import { useHydrated } from "@/hooks/use-hydrated";
 
 /**
  * Custom hook for persisting state to localStorage with SSR compatibility.
@@ -21,7 +9,7 @@ export function usePersistentState<T>(
 	key: string,
 	defaultValue: T
 ): [T, (value: T | ((prev: T) => T)) => void] {
-	const isClient = useIsClient();
+	const isClient = useHydrated();
 
 	// Initialize state with localStorage value only on client, default on server
 	const [state, setState] = useState<T>(() => {

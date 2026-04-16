@@ -56,10 +56,6 @@ export type BaseEvent = {
 	[key: string]: any;
 };
 
-export type TrackEvent = BaseEvent & {
-	name: string;
-};
-
 export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";
 
 export type WebVitalEvent = {
@@ -106,15 +102,15 @@ export type DatabuddyGlobal = {
 
 declare global {
 	interface Window {
-		databuddy?: DatabuddyGlobal;
-		db?: DatabuddyGlobal;
-		databuddyOptedOut?: boolean;
-		databuddyDisabled?: boolean;
-		databuddyConfig?: TrackerOptions;
-		databuddyOptOut?: () => void;
-		databuddyOptIn?: () => void;
-		callPhantom?: unknown;
 		_phantom?: unknown;
+		callPhantom?: unknown;
+		databuddy?: DatabuddyGlobal;
+		databuddyConfig?: TrackerOptions;
+		databuddyDisabled?: boolean;
+		databuddyOptedOut?: boolean;
+		databuddyOptIn?: () => void;
+		databuddyOptOut?: () => void;
+		db?: DatabuddyGlobal;
 		selenium?: unknown;
 		webdriver?: unknown;
 	}

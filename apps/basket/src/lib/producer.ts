@@ -1,5 +1,5 @@
 import type { ClickHouseClient } from "@clickhouse/client";
-import { clickHouse, TABLE_NAMES } from "@databuddy/db";
+import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { captureError, record } from "@lib/tracing";
 import { Data, Effect, Layer, ManagedRuntime, Ref, Schedule } from "effect";
 import { createError } from "evlog";
@@ -33,39 +33,39 @@ export type ProducerError =
 	| FlushError;
 
 interface BufferedEvent {
-	table: string;
 	event: unknown;
+	table: string;
 }
 
 interface ProducerState {
 	buffer: BufferedEvent[];
-	sent: number;
-	failedCount: number;
 	buffered: number;
-	flushed: number;
-	dropped: number;
-	errors: number;
-	lastErrorTime: number | null;
 	connected: boolean;
 	connectionFailed: boolean;
-	lastRetry: number;
-	shuttingDown: boolean;
+	dropped: number;
+	errors: number;
+	failedCount: number;
+	flushed: number;
 	flushing: boolean;
+	lastErrorTime: number | null;
+	lastRetry: number;
+	sent: number;
+	shuttingDown: boolean;
 }
 
 interface ProducerConfig {
 	broker?: string;
-	username?: string;
-	password?: string;
-	selfHost: boolean;
-	reconnectCooldown: number;
-	kafkaTimeout: number;
-	maxProducerRetries: number;
-	producerRetryDelay: number;
+	bufferHardMax: number;
 	bufferInterval: number;
 	bufferMax: number;
-	bufferHardMax: number;
 	chunkSize: number;
+	kafkaTimeout: number;
+	maxProducerRetries: number;
+	password?: string;
+	producerRetryDelay: number;
+	reconnectCooldown: number;
+	selfHost: boolean;
+	username?: string;
 }
 
 const INITIAL_STATE: ProducerState = {
@@ -105,12 +105,15 @@ function makeProducerEffects(
 			return (yield* Ref.get(ref)).connected;
 		}
 		const s = yield* Ref.get(ref);
-		if (s.connected) return true;
+		if (s.connected) {
+			return true;
+		}
 		if (
 			s.connectionFailed &&
 			Date.now() - s.lastRetry < config.reconnectCooldown
-		)
+		) {
 			return false;
+		}
 
 		return yield* Effect.tryPromise({
 			try: () => kafka.connect(),
@@ -149,7 +152,9 @@ function makeProducerEffects(
 
 	const flush: Effect.Effect<void, FlushError> = Effect.gen(function* () {
 		const pre = yield* Ref.get(ref);
-		if (pre.buffer.length === 0 || pre.flushing) return;
+		if (pre.buffer.length === 0 || pre.flushing) {
+			return;
+		}
 
 		const batchSize = Math.min(pre.buffer.length, config.bufferMax);
 		const items = yield* Ref.modify(ref, (s) => [
@@ -160,8 +165,11 @@ function makeProducerEffects(
 		const grouped = new Map<string, BufferedEvent[]>();
 		for (const item of items) {
 			const list = grouped.get(item.table);
-			if (list) list.push(item);
-			else grouped.set(item.table, [item]);
+			if (list) {
+				list.push(item);
+			} else {
+				grouped.set(item.table, [item]);
+			}
 		}
 
 		yield* Effect.forEach(
@@ -237,10 +245,12 @@ function makeProducerEffects(
 			}
 
 			const result = yield* Ref.modify(ref, (s) => {
-				if (s.shuttingDown)
+				if (s.shuttingDown) {
 					return ["shutdown" as const, { ...s, dropped: s.dropped + 1 }];
-				if (s.buffer.length >= config.bufferHardMax)
+				}
+				if (s.buffer.length >= config.bufferHardMax) {
 					return ["overflow" as const, { ...s, dropped: s.dropped + 1 }];
+				}
 				return [
 					"ok" as const,
 					{
@@ -309,7 +319,9 @@ function makeProducerEffects(
 							)
 						)
 					);
-					if (sent) return;
+					if (sent) {
+						return;
+					}
 				}
 			}
 
@@ -336,7 +348,9 @@ function makeProducerEffects(
 		topic: string,
 		events: unknown[]
 	): Effect.Effect<void, ProducerError> => {
-		if (events.length === 0) return Effect.void;
+		if (events.length === 0) {
+			return Effect.void;
+		}
 		return sendViaKafka(
 			topic,
 			events.map((e) => ({
@@ -354,8 +368,9 @@ function makeProducerEffects(
 		yield* Effect.sleep("1 second");
 		yield* flush.pipe(Effect.catchAll(() => Effect.void));
 		const post = yield* Ref.get(ref);
-		if (post.buffer.length > 0 && !post.flushing)
+		if (post.buffer.length > 0 && !post.flushing) {
 			yield* flush.pipe(Effect.catchAll(() => Effect.void));
+		}
 		if (post.connected && kafka) {
 			yield* Effect.tryPromise({
 				try: () => kafka.disconnect(),
@@ -394,7 +409,9 @@ function makeProducerEffects(
 }
 
 function initializeKafka(config: ProducerConfig): Producer | null {
-	if (config.selfHost || !config.broker) return null;
+	if (config.selfHost || !config.broker) {
+		return null;
+	}
 	if (!(config.username && config.password)) {
 		captureError(
 			createError({
@@ -430,18 +447,18 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 }
 
 export interface ProducerStatsSnapshot {
-	sent: number;
-	failedCount: number;
 	buffered: number;
-	flushed: number;
-	dropped: number;
-	errors: number;
-	lastErrorTime: number | null;
 	bufferSize: number;
 	connected: boolean;
+	dropped: number;
+	errors: number;
 	failed: boolean;
+	failedCount: number;
+	flushed: number;
 	kafkaEnabled: boolean;
+	lastErrorTime: number | null;
 	lastRetry: number;
+	sent: number;
 }
 
 const CONFIG: ProducerConfig = {
@@ -494,7 +511,7 @@ const runtime = ManagedRuntime.make(ProducerLive);
 
 const withFx = <A, E>(
 	fn: (f: NonNullable<typeof fx>) => Effect.Effect<A, E>
-): Effect.Effect<A | void, E> =>
+): Effect.Effect<A | undefined, E> =>
 	Effect.suspend(() => (fx ? fn(fx) : Effect.void));
 
 export const send = (topic: string, event: unknown, key?: string) =>

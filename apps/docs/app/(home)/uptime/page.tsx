@@ -319,8 +319,8 @@ export default function UptimePage() {
 								Be the first to try it
 							</h2>
 							<p className="max-w-lg text-pretty text-muted-foreground text-sm sm:text-base">
-								Uptime monitoring is launching soon. Sign up now and
-								you&apos;ll be first in line when it goes live.
+								Uptime monitoring is launching soon. Sign up now and you&apos;ll
+								be first in line when it goes live.
 							</p>
 							<SciFiButton asChild className="px-6 py-5 text-base sm:px-8">
 								<a href="https://app.databuddy.cc/login">

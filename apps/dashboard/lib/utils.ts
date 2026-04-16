@@ -1,6 +1,6 @@
-import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { getDeviceTypeIcon } from '@/app/(main)/websites/[id]/_components/utils/technology-helpers';
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { getDeviceTypeIcon } from "@/app/(main)/websites/[id]/_components/utils/technology-helpers";
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -8,9 +8,9 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getOrganizationInitials(name: string): string {
 	return name
-		.split(' ')
+		.split(" ")
 		.map((n) => n[0])
-		.join('')
+		.join("")
 		.toUpperCase()
 		.slice(0, 2);
 }
@@ -40,12 +40,15 @@ export function getDefaultDateRange() {
 	const thirtyDaysAgo = new Date(today);
 	thirtyDaysAgo.setDate(today.getDate() - 30);
 	return {
-		start_date: thirtyDaysAgo.toISOString().split('T')[0],
-		end_date: today.toISOString().split('T')[0],
-		granularity: 'daily' as 'hourly' | 'daily',
+		start_date: thirtyDaysAgo.toISOString().split("T")[0],
+		end_date: today.toISOString().split("T")[0],
+		granularity: "daily" as "hourly" | "daily",
 	};
 }
 
-export function getDeviceIcon(device: string | null | undefined, size: 'sm' | 'md' | 'lg' = 'md') {
+export function getDeviceIcon(
+	device: string | null | undefined,
+	size: "sm" | "md" | "lg" = "md"
+) {
 	return getDeviceTypeIcon(device, size);
 }

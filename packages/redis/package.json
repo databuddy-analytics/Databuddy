@@ -3,8 +3,15 @@
   "version": "1.0.0",
   "description": "Redis caching and pub/sub utilities for Databuddy",
   "main": "index.ts",
-  "peerDependencies": {
-    "@opentelemetry/api": "^1.9.0"
+  "exports": {
+    ".": "./index.ts",
+    "./cacheable": "./cacheable.ts",
+    "./rate-limit": "./rate-limit.ts",
+    "./redis": "./redis.ts",
+    "./drizzle-cache": "./drizzle-cache.ts",
+    "./cache-invalidation": "./cache-invalidation.ts",
+    "./links-cache": "./links-cache.ts",
+    "./click-dedup": "./click-dedup.ts"
   },
   "dependencies": {
     "ioredis": "^5.8.2",

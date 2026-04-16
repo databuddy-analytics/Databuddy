@@ -1,10 +1,13 @@
 "use client";
 
-import { BrainIcon } from "@phosphor-icons/react";
+import {
+	ArrowsClockwiseIcon,
+	CheckIcon,
+	CopyIcon,
+} from "@phosphor-icons/react";
 import type { UIMessage } from "ai";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { AIComponent } from "@/components/ai-elements/ai-component";
-import { ToolStep } from "@/components/ai-elements/chain-of-thought";
 import {
 	Message,
 	MessageContent,
@@ -16,12 +19,25 @@ import {
 	ReasoningTrigger,
 } from "@/components/ai-elements/reasoning";
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { useThinkingPhrase } from "@/components/ai-elements/thinking-phrases";
+import {
+	Tool,
+	ToolDetail,
+	ToolInput,
+	ToolOutput,
+	ToolSection,
+	type ToolStatus,
+} from "@/components/ai-elements/tool";
+import {
+	UnicodeSpinner,
+	useRandomThinkingVariant,
+} from "@/components/ai-elements/unicode-spinner";
+import { Button } from "@/components/ui/button";
 import { useChat } from "@/contexts/chat-context";
 import { parseContentSegments } from "@/lib/ai-components";
 import { formatToolLabel } from "@/lib/tool-display";
 import { cn } from "@/lib/utils";
 import { AgentErrorMessage } from "./agent-error-message";
-import { useChatStatus } from "./hooks/use-chat-status";
 
 type MessagePart = UIMessage["parts"][number];
 
@@ -32,68 +48,65 @@ type ToolMessagePart = MessagePart & {
 	state?: string;
 };
 
-function isToolPart(part: MessagePart): part is ToolMessagePart {
-	return part.type?.startsWith("tool-") ?? false;
-}
-
 const TOOL_PREFIX_REGEX = /^tool-/;
+
+function isToolPart(part: MessagePart): part is ToolMessagePart {
+	return part.type.startsWith("tool-");
+}
 
 function getToolName(part: ToolMessagePart): string {
 	return part.type.replace(TOOL_PREFIX_REGEX, "");
 }
 
-function getReasoningText(part: MessagePart): string {
-	const reasoning = part as {
-		text?: string;
-		content?: string;
-	};
+function getMessageText(message: UIMessage): string {
+	return message.parts
+		.flatMap((p) => (p.type === "text" ? [p.text] : []))
+		.join("\n\n")
+		.trim();
+}
 
-	return (
-		reasoning.text ||
-		reasoning.content ||
-		JSON.stringify(part, null, 2) ||
-		"Thinking through the request."
-	);
+function findActiveToolLabel(message: UIMessage | undefined): string | null {
+	if (!message || message.role !== "assistant") {
+		return null;
+	}
+	for (let i = message.parts.length - 1; i >= 0; i--) {
+		const part = message.parts[i];
+		if (!(part && isToolPart(part))) {
+			continue;
+		}
+		if (part.output != null) {
+			return null;
+		}
+		return formatToolLabel(getToolName(part), part.input ?? {});
+	}
+	return null;
 }
 
 function ReasoningMessage({
 	part,
 	isStreaming,
 }: {
-	part: MessagePart;
+	part: Extract<MessagePart, { type: "reasoning" }>;
 	isStreaming: boolean;
 }) {
-	const [hasBeenStreaming, setHasBeenStreaming] = useState(false);
-	useEffect(() => {
-		if (isStreaming) {
-			setHasBeenStreaming(true);
-		}
-	}, [isStreaming]);
-
 	return (
-		<Reasoning
-			defaultOpen={isStreaming || hasBeenStreaming}
-			isStreaming={isStreaming}
-		>
+		<Reasoning defaultOpen={isStreaming} isStreaming={isStreaming}>
 			<ReasoningTrigger />
-			<ReasoningContent>{getReasoningText(part)}</ReasoningContent>
+			<ReasoningContent>{part.text}</ReasoningContent>
 		</Reasoning>
 	);
 }
 
-/** Merge consecutive identical tool UI labels (same model re-calling the tool). */
 function mergeConsecutiveToolStepsForDisplay(
 	tools: ToolMessagePart[]
 ): Array<{ repeatCount: number; tool: ToolMessagePart }> {
 	const merged: Array<{ repeatCount: number; tool: ToolMessagePart }> = [];
 	for (const tool of tools) {
-		const toolName = getToolName(tool);
-		const label = formatToolLabel(toolName, tool.input ?? {});
+		const label = formatToolLabel(getToolName(tool), tool.input ?? {});
 		const last = merged.at(-1);
-		if (
-			last &&
-			formatToolLabel(getToolName(last.tool), last.tool.input ?? {}) === label
-		) {
+		const lastLabel =
+			last && formatToolLabel(getToolName(last.tool), last.tool.input ?? {});
+		if (last && lastLabel === label) {
 			last.repeatCount += 1;
 			last.tool = tool;
 		} else {
@@ -110,13 +123,13 @@ function collectToolGroups(parts: MessagePart[]) {
 	for (const part of parts) {
 		if (isToolPart(part)) {
 			toolBuffer.push(part);
-		} else {
-			if (toolBuffer.length > 0) {
-				result.push(toolBuffer);
-				toolBuffer = [];
-			}
-			result.push(part);
+			continue;
 		}
+		if (toolBuffer.length > 0) {
+			result.push(toolBuffer);
+			toolBuffer = [];
+		}
+		result.push(part);
 	}
 
 	if (toolBuffer.length > 0) {
@@ -124,6 +137,47 @@ function collectToolGroups(parts: MessagePart[]) {
 	}
 
 	return result;
+}
+
+function getToolStatus(tool: ToolMessagePart, isActive: boolean): ToolStatus {
+	if (isActive) {
+		return "running";
+	}
+	if (tool.state === "output-error") {
+		return "error";
+	}
+	return "complete";
+}
+
+function InspectableToolStep({
+	tool,
+	label,
+	repeatCount,
+	status,
+}: {
+	tool: ToolMessagePart;
+	label: string;
+	repeatCount: number;
+	status: ToolStatus;
+}) {
+	const displayLabel = repeatCount > 1 ? `${label} · ${repeatCount}×` : label;
+	const hasOutput = tool.output != null;
+	const isActive = status === "running";
+
+	return (
+		<Tool status={status} title={displayLabel}>
+			<ToolDetail>
+				<ToolSection label="Input">
+					<ToolInput input={tool.input ?? {}} />
+				</ToolSection>
+				{hasOutput || !isActive ? (
+					<ToolSection label="Result">
+						<ToolOutput error={status === "error"} output={tool.output} />
+					</ToolSection>
+				) : null}
+			</ToolDetail>
+		</Tool>
+	);
 }
 
 function renderToolGroup(
@@ -135,23 +189,22 @@ function renderToolGroup(
 	const merged = mergeConsecutiveToolStepsForDisplay(tools);
 
 	return (
-		<div className="space-y-0 py-1" key={key}>
+		<div className="space-y-2 py-1" key={key}>
 			{merged.map((entry, idx) => {
-				const toolName = getToolName(entry.tool);
-				const toolInput = entry.tool.input ?? {};
 				const isLast = idx === merged.length - 1;
 				const isActive =
 					isLastGroup && isStreaming && isLast && !entry.tool.output;
-				const baseLabel = formatToolLabel(toolName, toolInput);
-				const label =
-					entry.repeatCount > 1
-						? `${baseLabel} · ${entry.repeatCount}×`
-						: baseLabel;
+				const baseLabel = formatToolLabel(
+					getToolName(entry.tool),
+					entry.tool.input ?? {}
+				);
 				return (
-					<ToolStep
+					<InspectableToolStep
 						key={`${key}-${idx}`}
-						label={label}
-						status={isActive ? "active" : "complete"}
+						label={baseLabel}
+						repeatCount={entry.repeatCount}
+						status={getToolStatus(entry.tool, isActive)}
+						tool={entry.tool}
 					/>
 				);
 			})}
@@ -187,12 +240,11 @@ function renderMessagePart(
 	}
 
 	if (part.type === "text") {
-		const textPart = part as { text: string };
-		if (!textPart.text?.trim()) {
+		if (!part.text.trim()) {
 			return null;
 		}
 
-		const { segments } = parseContentSegments(textPart.text);
+		const { segments } = parseContentSegments(part.text);
 		if (segments.length === 0) {
 			return null;
 		}
@@ -215,6 +267,7 @@ function renderMessagePart(
 						<AIComponent
 							input={segment.content}
 							key={`${key}-component-${idx}`}
+							streaming={segment.type === "streaming-component"}
 						/>
 					);
 				})}
@@ -223,14 +276,15 @@ function renderMessagePart(
 	}
 
 	if (isToolPart(part)) {
-		const toolName = getToolName(part as ToolMessagePart);
-		const toolInput = (part as ToolMessagePart).input ?? {};
-		const isActive = isCurrentlyStreaming && !(part as ToolMessagePart).output;
+		const isActive = isCurrentlyStreaming && !part.output;
+		const baseLabel = formatToolLabel(getToolName(part), part.input ?? {});
 		return (
 			<div className="py-1" key={key}>
-				<ToolStep
-					label={formatToolLabel(toolName, toolInput)}
-					status={isActive ? "active" : "complete"}
+				<InspectableToolStep
+					label={baseLabel}
+					repeatCount={1}
+					status={getToolStatus(part, isActive)}
+					tool={part}
 				/>
 			</div>
 		);
@@ -239,43 +293,75 @@ function renderMessagePart(
 	return null;
 }
 
-function AgentChatErrorPanel({
-	clearError,
-	error,
-	onRetryAction,
+function AssistantActions({
+	message,
+	isLast,
+	canRegenerate,
+	onRegenerate,
 }: {
-	clearError: () => void;
-	error: Error | undefined;
-	onRetryAction: () => Promise<void>;
+	message: UIMessage;
+	isLast: boolean;
+	canRegenerate: boolean;
+	onRegenerate: () => void;
 }) {
-	return (
-		<AgentErrorMessage
-			error={error}
-			onDismissAction={clearError}
-			onRetryAction={onRetryAction}
-		/>
-	);
-}
+	const [copied, setCopied] = useState(false);
+	const text = getMessageText(message);
 
-function getTextFromUserMessage(message: UIMessage): string {
-	if (!message.parts?.length) {
-		return "";
+	const handleCopy = useCallback(async () => {
+		if (!text) {
+			return;
+		}
+		try {
+			await navigator.clipboard.writeText(text);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1500);
+		} catch {
+			// Clipboard unavailable — silent failure.
+		}
+	}, [text]);
+
+	if (!text) {
+		return null;
 	}
-	return message.parts
-		.filter((p): p is { type: "text"; text: string } => p.type === "text")
-		.map((p) => p.text)
-		.join("");
+
+	return (
+		<div className="-ml-1.5 flex items-center gap-0.5 pt-1 opacity-60 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100">
+			<Button
+				aria-label={copied ? "Copied" : "Copy response"}
+				className="size-7 text-muted-foreground hover:text-foreground"
+				onClick={handleCopy}
+				size="icon"
+				type="button"
+				variant="ghost"
+			>
+				{copied ? (
+					<CheckIcon className="size-3.5" weight="bold" />
+				) : (
+					<CopyIcon className="size-3.5" weight="duotone" />
+				)}
+			</Button>
+			{isLast && canRegenerate ? (
+				<Button
+					aria-label="Regenerate response"
+					className="size-7 text-muted-foreground hover:text-foreground"
+					onClick={onRegenerate}
+					size="icon"
+					type="button"
+					variant="ghost"
+				>
+					<ArrowsClockwiseIcon className="size-3.5" weight="duotone" />
+				</Button>
+			) : null}
+		</div>
+	);
 }
 
 export function AgentMessages() {
 	const { status, messages, error, regenerate, clearError, sendMessage } =
 		useChat();
 	const hasError = status === "error";
-	const chatStatus = useChatStatus(messages, status);
 	const isStreaming = status === "streaming" || status === "submitted";
 	const lastMessage = messages.at(-1);
-	const errorAfterUser =
-		hasError && lastMessage?.role === "user" && messages.length > 0;
 
 	if (messages.length === 0) {
 		return null;
@@ -284,8 +370,8 @@ export function AgentMessages() {
 	const retry = async () => {
 		const last = messages.at(-1);
 		if (last?.role === "user") {
-			const text = getTextFromUserMessage(last);
-			if (text.trim()) {
+			const text = getMessageText(last);
+			if (text) {
 				await sendMessage({ messageId: last.id, text });
 				return;
 			}
@@ -297,34 +383,37 @@ export function AgentMessages() {
 		<>
 			{messages.map((message, index) => {
 				const isLastMessage = index === messages.length - 1;
-				const showError =
-					isLastMessage && hasError && message.role === "assistant";
-
-				const groupedParts = message.parts
-					? collectToolGroups(message.parts)
-					: [];
+				const isAssistant = message.role === "assistant";
+				const showActions = isAssistant && !(isLastMessage && isStreaming);
+				const groupedParts = collectToolGroups(message.parts);
+				const messageKey = message.id || `msg-${index}`;
 
 				return (
-					<Message from={message.role} key={message.id}>
-						<MessageContent
-							className={cn(message.role === "assistant" ? "w-full" : "")}
-						>
+					<Message
+						className="group/message"
+						from={message.role}
+						key={messageKey}
+					>
+						<MessageContent className={cn(isAssistant ? "w-full" : "")}>
 							{groupedParts.map((part, partIndex) =>
 								renderMessagePart(
 									part,
 									partIndex,
-									message.id,
+									messageKey,
 									isLastMessage,
 									isStreaming,
 									message.role
 								)
 							)}
 
-							{showError ? (
-								<AgentChatErrorPanel
-									clearError={clearError}
-									error={error}
-									onRetryAction={retry}
+							{showActions ? (
+								<AssistantActions
+									canRegenerate={!hasError}
+									isLast={isLastMessage}
+									message={message}
+									onRegenerate={() => {
+										regenerate().catch(() => undefined);
+									}}
 								/>
 							) : null}
 						</MessageContent>
@@ -332,39 +421,53 @@ export function AgentMessages() {
 				);
 			})}
 
-			{errorAfterUser ? (
+			{hasError ? (
 				<Message from="assistant">
 					<MessageContent className="w-full">
-						<AgentChatErrorPanel
-							clearError={clearError}
+						<AgentErrorMessage
 							error={error}
+							onDismissAction={clearError}
 							onRetryAction={retry}
 						/>
 					</MessageContent>
 				</Message>
 			) : null}
 
-			{isStreaming &&
-			!chatStatus.hasTextContent &&
-			chatStatus.displayMessage == null ? (
-				<StreamingIndicator />
+			{showTailIndicator(isStreaming, lastMessage) ? (
+				<StreamingIndicator label={findActiveToolLabel(lastMessage)} />
 			) : null}
 		</>
 	);
 }
 
-function StreamingIndicator() {
+function showTailIndicator(
+	isStreaming: boolean,
+	lastMessage: UIMessage | undefined
+): boolean {
+	if (!isStreaming) {
+		return false;
+	}
+	if (!lastMessage || lastMessage.role !== "assistant") {
+		return true;
+	}
+	return lastMessage.parts.length === 0;
+}
+
+function StreamingIndicator({ label }: { label: string | null }) {
+	const phrase = useThinkingPhrase();
+	const variant = useRandomThinkingVariant();
 	return (
 		<div
 			className="fade-in flex w-full animate-in items-center gap-2 duration-200"
 			data-role="assistant"
 		>
-			<BrainIcon
-				className="size-4 shrink-0 text-muted-foreground"
-				weight="duotone"
+			<UnicodeSpinner
+				className="text-muted-foreground text-sm"
+				label="Thinking"
+				variant={variant}
 			/>
 			<Shimmer as="span" className="text-sm" duration={1} spread={4}>
-				Thinking
+				{label ?? phrase}
 			</Shimmer>
 		</div>
 	);

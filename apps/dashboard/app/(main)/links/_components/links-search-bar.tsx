@@ -1,11 +1,9 @@
 "use client";
 
-import {
-	FunnelIcon,
-	MagnifyingGlassIcon,
-	SortAscendingIcon,
-	XIcon,
-} from "@phosphor-icons/react";
+import { FunnelIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
+import { SortAscendingIcon } from "@phosphor-icons/react";
+import { XIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -28,10 +26,10 @@ const SORT_LABELS: Record<SortOption, string> = {
 };
 
 interface LinksSearchBarProps {
-	searchQuery: string;
 	onSearchQueryChangeAction: (query: string) => void;
-	sortBy: SortOption;
 	onSortByChangeAction: (sort: SortOption) => void;
+	searchQuery: string;
+	sortBy: SortOption;
 }
 
 export function LinksSearchBar({

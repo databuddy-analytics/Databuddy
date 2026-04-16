@@ -3,35 +3,18 @@
  * Contains website and user information needed for queries.
  */
 export interface AppContext {
-	userId: string;
-	websiteId: string;
-	websiteDomain: string;
-	timezone: string;
-	currentDateTime: string;
-	chatId: string;
-	requestHeaders?: Headers;
 	/** Available query builder types */
 	availableQueryTypes?: string[];
+	billingCustomerId?: string | null;
+	chatId: string;
+	currentDateTime: string;
+	organizationId?: string | null;
+	requestHeaders?: Headers;
+	timezone: string;
+	userId: string;
+	websiteDomain: string;
+	websiteId: string;
 	[key: string]: unknown;
-}
-
-/**
- * Builds the application context for agent execution.
- */
-export function buildAppContext(
-	userId: string,
-	websiteId: string,
-	websiteDomain: string,
-	timezone: string
-): AppContext {
-	return {
-		userId,
-		websiteId,
-		websiteDomain,
-		chatId: crypto.randomUUID(),
-		timezone,
-		currentDateTime: new Date().toISOString(),
-	};
 }
 
 /**
@@ -48,11 +31,5 @@ export function formatContextForLLM(context: AppContext): string {
 <timezone>${context.timezone}</timezone>
 <website_id>${context.websiteId}</website_id>
 <website_domain>${context.websiteDomain}</website_domain>${queryTypesInfo}
-</website_info>
-
-IMPORTANT CONTEXT VALUES:
-- Use current_date for time-sensitive operations
-- Use website_id value "${context.websiteId}" when filtering by client_id in SQL queries (pass as params.websiteId)
-- Use execute_query_builder tool for pre-built analytics queries (preferred over custom SQL)
-- Use execute_sql_query tool only when you need custom SQL that isn't covered by query builders`;
+</website_info>`;
 }

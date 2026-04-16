@@ -63,9 +63,3 @@ volumes:
     driver: local
   redis_data:
     driver: local
-  redis_queue_data:
-    driver: local
-
-networks:
-  databuddy-network:
-    driver: bridge

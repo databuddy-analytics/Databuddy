@@ -1,4 +1,5 @@
-import { and, desc, eq, isUniqueViolationFor, links } from "@databuddy/db";
+import { and, desc, eq, isUniqueViolationFor } from "@databuddy/db";
+import { links } from "@databuddy/db/schema";
 import {
 	type CachedLink,
 	invalidateLinkCache,

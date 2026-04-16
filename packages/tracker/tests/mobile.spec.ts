@@ -1,27 +1,11 @@
-import { expect, test } from "@playwright/test";
-import { countEvents, findEvent, hasEvent } from "./test-utils";
+import { countEvents, expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Mobile Tracking", () => {
 	// biome-ignore lint/correctness/noEmptyPattern: skip test if not mobile
-	test.beforeEach(({ }, testInfo) => {
+	test.beforeEach(({}, testInfo) => {
 		if (!testInfo.project.name.includes("mobile")) {
 			test.skip();
 		}
-	});
-
-	test.beforeEach(async ({ page }) => {
-		await page.addInitScript(() => {
-			Object.defineProperty(navigator, "sendBeacon", { value: undefined });
-		});
-
-		await page.route("**/basket.databuddy.cc/*", async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: "application/json",
-				body: JSON.stringify({ success: true }),
-				headers: { "Access-Control-Allow-Origin": "*" },
-			});
-		});
 	});
 
 	test("captures correct mobile viewport dimensions", async ({ page }) => {
@@ -118,8 +102,7 @@ test.describe("Mobile Tracking", () => {
 			}
 			rapidEventCount += countEvents(
 				req,
-				(e) =>
-					typeof e.name === "string" && e.name.startsWith("rapid_")
+				(e) => typeof e.name === "string" && e.name.startsWith("rapid_")
 			);
 		});
 

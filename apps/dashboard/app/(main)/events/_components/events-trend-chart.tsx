@@ -1,12 +1,10 @@
 "use client";
 
-import {
-	ArrowCounterClockwiseIcon,
-	ChartBarIcon,
-	ChartLineUpIcon,
-	LightningIcon,
-	ListBulletsIcon,
-} from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
+import { ChartBarIcon } from "@phosphor-icons/react";
+import { ChartLineUpIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { ListBulletsIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
 import { METRIC_COLORS } from "@/components/charts/metrics-constants";
 import { useDynamicDasharray } from "@/components/charts/use-dynamic-dasharray";
@@ -65,10 +63,10 @@ type ChartType = "area" | "bar";
 
 interface EventsTrendChartProps {
 	chartData: Array<{ date: string; events: number; users: number }>;
-	perEventData?: Record<string, string | number>[];
 	eventNames?: string[];
 	isFetching?: boolean;
 	isLoading?: boolean;
+	perEventData?: Record<string, string | number>[];
 }
 
 function formatYTick(value: number): string {

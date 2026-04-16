@@ -1,12 +1,21 @@
 import { tool } from "ai";
 import { z } from "zod";
+import {
+	BUSINESS_INSIGHT_QUERY_TYPES,
+	fetchBusinessMetrics,
+} from "../insights/business-context";
+import {
+	fetchOpsMetrics,
+	OPS_INSIGHT_QUERY_TYPES,
+} from "../insights/ops-context";
+import {
+	fetchProductMetrics,
+	PRODUCT_INSIGHT_QUERY_TYPES,
+} from "../insights/product-context";
+import { getAppContext } from "./utils";
 import { executeQuery } from "../../query";
 import { QueryBuilders } from "../../query/builders";
 import type { QueryRequest } from "../../query/types";
-import {
-	insightsOutputSchema,
-	type ParsedInsight,
-} from "../schemas/smart-insights-output";
 
 const QUERY_FETCH_TIMEOUT_MS = 45_000;
 const MAX_TOOL_RESPONSE_CHARS = 48_000;
@@ -37,6 +46,9 @@ const INSIGHTS_AGENT_QUERY_TYPES = [
 ] as const;
 
 const INSIGHTS_TYPE_LIST = INSIGHTS_AGENT_QUERY_TYPES.join(", ");
+const BUSINESS_INSIGHTS_TYPE_LIST = BUSINESS_INSIGHT_QUERY_TYPES.join(", ");
+const OPS_INSIGHTS_TYPE_LIST = OPS_INSIGHT_QUERY_TYPES.join(", ");
+const PRODUCT_INSIGHTS_TYPE_LIST = PRODUCT_INSIGHT_QUERY_TYPES.join(", ");
 
 function isAllowedQueryType(type: string): boolean {
 	return (
@@ -65,17 +77,15 @@ export interface InsightsAgentPeriodBounds {
 }
 
 export interface CreateInsightsAgentToolsParams {
-	websiteId: string;
 	domain: string;
-	timezone: string;
 	periodBounds: InsightsAgentPeriodBounds;
+	timezone: string;
+	websiteId: string;
 }
 
 export function createInsightsAgentTools(
 	params: CreateInsightsAgentToolsParams
 ) {
-	let submittedInsights: ParsedInsight[] | null = null;
-
 	const singleQuerySchema = z.object({
 		type: z
 			.string()
@@ -91,9 +101,9 @@ export function createInsightsAgentTools(
 			),
 	});
 
-	const insightQueryTool = tool({
+	const webMetricsTool = tool({
 		description:
-			"Fetch analytics data for the **current** or **previous** week-over-week period. Batch multiple query types in one call (up to 8). Use summary_metrics early, then add top_pages, errors, referrers, geo, browsers, vitals, or custom events as needed. Compare both periods before calling submit_insights.",
+			"Fetch analytics data for the current or previous week-over-week period. Batch multiple query types in one call (up to 8). Start with summary_metrics for both periods, then add top_pages, errors, referrers, geo, browsers, vitals, or custom events as needed before producing final insights.",
 		inputSchema: z.object({
 			period: z
 				.enum(["current", "previous"])
@@ -135,9 +145,8 @@ export function createInsightsAgentTools(
 				};
 
 				try {
-					const data = (await runQueryWithTimeout(
-						`insight_query:${q.type}`,
-						() => executeQuery(req, params.domain, params.timezone)
+					const data = (await runQueryWithTimeout(`web_metrics:${q.type}`, () =>
+						executeQuery(req, params.domain, params.timezone)
 					)) as Record<string, unknown>[];
 					results.push({
 						type: q.type,
@@ -170,25 +179,148 @@ export function createInsightsAgentTools(
 		},
 	});
 
-	const submitInsightsTool = tool({
+	const productMetricQuerySchema = z.object({
+		type: z
+			.enum(PRODUCT_INSIGHT_QUERY_TYPES)
+			.describe(
+				`Product context query type. Allowed: ${PRODUCT_INSIGHTS_TYPE_LIST}`
+			),
+		limit: z
+			.number()
+			.min(1)
+			.max(10)
+			.optional()
+			.describe(
+				"Max number of goals, funnels, cohorts, or events to summarize."
+			),
+	});
+
+	const productMetricsTool = tool({
 		description:
-			"Submit your final 1-3 smart insights after you have queried enough data from both weeks. Call exactly once when ready.",
-		inputSchema: insightsOutputSchema,
-		execute: (data) => {
-			submittedInsights = data.insights;
-			return {
-				ok: true,
-				count: data.insights.length,
-				message: "Insights accepted.",
-			};
+			"Fetch product analytics context for the current or previous week-over-week period. Use this for goals, funnels, retention, and custom event summaries when a traffic story needs conversion or behavior context.",
+		inputSchema: z.object({
+			period: z
+				.enum(["current", "previous"])
+				.describe("Which WoW window: current week vs previous week."),
+			queries: z
+				.array(productMetricQuerySchema)
+				.min(1)
+				.max(MAX_QUERIES_PER_CALL),
+		}),
+		execute: async ({ period, queries }, options) => {
+			const appContext = getAppContext(options);
+
+			let payload = JSON.stringify(
+				await fetchProductMetrics(
+					appContext,
+					params.periodBounds,
+					period,
+					queries
+				),
+				null,
+				0
+			);
+
+			if (payload.length > MAX_TOOL_RESPONSE_CHARS) {
+				payload = `${payload.slice(0, MAX_TOOL_RESPONSE_CHARS)}\n…[truncated]`;
+			}
+
+			return payload;
+		},
+	});
+
+	const opsMetricQuerySchema = z.object({
+		type: z
+			.enum(OPS_INSIGHT_QUERY_TYPES)
+			.describe(`Ops context query type. Allowed: ${OPS_INSIGHTS_TYPE_LIST}`),
+		limit: z
+			.number()
+			.min(1)
+			.max(10)
+			.optional()
+			.describe("Max number of pages or anomalies to summarize."),
+	});
+
+	const opsContextTool = tool({
+		description:
+			"Fetch operational context for the current or previous week-over-week period. Use this for errors, page-level error concentration, uptime health, anomaly summaries, and recent flag changes when reliability or rollout activity may explain user behavior.",
+		inputSchema: z.object({
+			period: z
+				.enum(["current", "previous"])
+				.describe("Which WoW window: current week vs previous week."),
+			queries: z.array(opsMetricQuerySchema).min(1).max(MAX_QUERIES_PER_CALL),
+		}),
+		execute: async ({ period, queries }, options) => {
+			const appContext = getAppContext(options);
+
+			let payload = JSON.stringify(
+				await fetchOpsMetrics(appContext, params.periodBounds, period, queries),
+				null,
+				0
+			);
+
+			if (payload.length > MAX_TOOL_RESPONSE_CHARS) {
+				payload = `${payload.slice(0, MAX_TOOL_RESPONSE_CHARS)}\n…[truncated]`;
+			}
+
+			return payload;
+		},
+	});
+
+	const businessMetricQuerySchema = z.object({
+		type: z
+			.enum(BUSINESS_INSIGHT_QUERY_TYPES)
+			.describe(
+				`Business context query type. Allowed: ${BUSINESS_INSIGHTS_TYPE_LIST}`
+			),
+		limit: z
+			.number()
+			.min(1)
+			.max(10)
+			.optional()
+			.describe("Max number of products to summarize."),
+	});
+
+	const businessContextTool = tool({
+		description:
+			"Fetch business context for the current or previous week-over-week period. Use this for revenue totals, attributed vs unattributed revenue, and top products when you need to understand commercial impact.",
+		inputSchema: z.object({
+			period: z
+				.enum(["current", "previous"])
+				.describe("Which WoW window: current week vs previous week."),
+			queries: z
+				.array(businessMetricQuerySchema)
+				.min(1)
+				.max(MAX_QUERIES_PER_CALL),
+		}),
+		execute: async ({ period, queries }, options) => {
+			const appContext = getAppContext(options);
+
+			let payload = JSON.stringify(
+				await fetchBusinessMetrics(
+					appContext,
+					params.periodBounds,
+					period,
+					queries
+				),
+				null,
+				0
+			);
+
+			if (payload.length > MAX_TOOL_RESPONSE_CHARS) {
+				payload = `${payload.slice(0, MAX_TOOL_RESPONSE_CHARS)}\n…[truncated]`;
+			}
+
+			return payload;
 		},
 	});
 
 	return {
 		tools: {
-			insight_query: insightQueryTool,
-			submit_insights: submitInsightsTool,
+			business_context: businessContextTool,
+			ops_context: opsContextTool,
+			product_metrics: productMetricsTool,
+			web_metrics: webMetricsTool,
 		},
-		getSubmittedInsights: (): ParsedInsight[] | null => submittedInsights,
 	};
 }

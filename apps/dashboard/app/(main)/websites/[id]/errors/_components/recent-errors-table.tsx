@@ -1,6 +1,8 @@
 "use client";
 
-import { ClockIcon, CodeIcon, GlobeIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { CodeIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
@@ -10,10 +12,11 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import dayjs from "@/lib/dayjs";
+import { formatDateTime } from "@/lib/time";
 import { ErrorDetailModal } from "./error-detail-modal";
 import { getDeviceIcon, getErrorTypeIcon } from "./error-icons";
 import type { RecentError } from "./types";
-import { formatDateTimeSeconds, getErrorCategory } from "./utils";
+import { getErrorCategory } from "./utils";
 
 interface Props {
 	recentErrors: RecentError[];
@@ -216,7 +219,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				cell: (info: { getValue: () => unknown }) => {
 					const time = info.getValue() as string;
 					const relative = getRelativeTime(time);
-					const full = formatDateTimeSeconds(time);
+					const full = formatDateTime(time);
 
 					return (
 						<Tooltip skipProvider>

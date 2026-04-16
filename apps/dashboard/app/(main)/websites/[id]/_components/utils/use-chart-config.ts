@@ -14,15 +14,15 @@ export type ChartMetric =
 export type MetricColors = Record<ChartMetric, string>;
 
 export interface ChartDataPoint {
-	[key: string]: any;
 	date: string;
+	[key: string]: any;
 }
 
 interface UseChartConfigOptions {
-	data?: ChartDataPoint[];
-	initialVisibleMetrics?: ChartMetric[];
-	granularity?: "daily" | "hourly";
 	colors?: Partial<MetricColors>;
+	data?: ChartDataPoint[];
+	granularity?: "daily" | "hourly";
+	initialVisibleMetrics?: ChartMetric[];
 }
 
 export function useChartConfig({

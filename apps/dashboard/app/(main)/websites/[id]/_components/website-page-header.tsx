@@ -6,13 +6,11 @@ import {
 	isWithinLimit,
 } from "@databuddy/shared/types/features";
 import type { IconProps } from "@phosphor-icons/react";
-import {
-	ArrowClockwiseIcon,
-	ArrowLeftIcon,
-	BookIcon,
-	PlusIcon,
-	WarningIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { BookIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { WarningIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { cloneElement, type ReactNode } from "react";
 import { useBillingContext } from "@/components/providers/billing-provider";
@@ -67,35 +65,34 @@ function WebsitePageHeaderSubtitle({
 }
 
 interface WebsitePageHeaderProps {
-	title: string;
-	description?: string;
-	icon: React.ReactElement<IconProps>;
-
-	websiteId: string;
-	websiteName?: string;
-
-	isLoading?: boolean;
-	isRefreshing?: boolean;
-
-	hasError?: boolean;
-	errorMessage?: string;
-
-	onRefreshAction?: () => void;
-	onCreateAction?: () => void;
-	createActionLabel?: string;
-
-	subtitle?: string | ReactNode;
-
-	showBackButton?: boolean;
-	variant?: "default" | "minimal";
-
 	additionalActions?: ReactNode;
+	createActionLabel?: string;
+	currentUsage?: number;
+	description?: string;
 
 	docsUrl?: string;
+	errorMessage?: string;
 
 	// NEW: Feature usage tracking
 	feature?: GatedFeatureId;
-	currentUsage?: number;
+
+	hasError?: boolean;
+	icon: React.ReactElement<IconProps>;
+
+	isLoading?: boolean;
+	isRefreshing?: boolean;
+	onCreateAction?: () => void;
+
+	onRefreshAction?: () => void;
+
+	showBackButton?: boolean;
+
+	subtitle?: string | ReactNode;
+	title: string;
+	variant?: "default" | "minimal";
+
+	websiteId: string;
+	websiteName?: string;
 }
 
 export function WebsitePageHeader({

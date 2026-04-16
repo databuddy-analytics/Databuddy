@@ -1,6 +1,7 @@
 "use client";
 
-import { type IconProps, PlusIcon } from "@phosphor-icons/react";
+import type { IconProps } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { cloneElement, memo, type ReactElement, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,35 +10,35 @@ import { cn } from "@/lib/utils";
 export interface EmptyStateAction {
 	label: string;
 	onClick: () => void;
-	variant?: "default" | "destructive" | "ghost" | "outline";
 	size?: "default" | "sm" | "lg" | "icon";
+	variant?: "default" | "destructive" | "ghost" | "outline";
 }
 
 export interface EmptyStateProps {
-	/** Main icon to display */
-	icon: ReactElement<IconProps>;
-	/** Main heading */
-	title: string;
-	/** Description text */
-	description?: string | ReactNode;
 	/** Primary action button */
 	action?: EmptyStateAction;
-	/** Secondary action button */
-	secondaryAction?: EmptyStateAction;
-	/** Custom styling variants */
-	variant?: "default" | "simple" | "minimal" | "error";
+	/** Custom aria-label for screen readers */
+	"aria-label"?: string;
 	/** Custom className */
 	className?: string;
-	/** Whether to show the plus badge on the icon */
-	showPlusBadge?: boolean;
+	/** Description text */
+	description?: string | ReactNode;
+	/** Main icon to display */
+	icon: ReactElement<IconProps>;
+	/** Whether this is the main content area */
+	isMainContent?: boolean;
 	/** Custom padding */
 	padding?: "sm" | "md" | "lg";
 	/** Custom role for accessibility (defaults to 'region') */
 	role?: "region" | "complementary" | "main";
-	/** Custom aria-label for screen readers */
-	"aria-label"?: string;
-	/** Whether this is the main content area */
-	isMainContent?: boolean;
+	/** Secondary action button */
+	secondaryAction?: EmptyStateAction;
+	/** Whether to show the plus badge on the icon */
+	showPlusBadge?: boolean;
+	/** Main heading */
+	title: string;
+	/** Custom styling variants */
+	variant?: "default" | "simple" | "minimal" | "error";
 }
 
 export const EmptyState = memo(function EmptyState({

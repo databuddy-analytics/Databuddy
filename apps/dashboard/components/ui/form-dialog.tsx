@@ -21,18 +21,18 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface FormDialogProps {
-	open: boolean;
-	onOpenChange: (open: boolean) => void;
-	title: string;
-	description?: string;
-	children: React.ReactNode;
-	onSubmit: () => void;
-	submitLabel?: string;
 	cancelLabel?: string;
-	isSubmitting?: boolean;
-	submitDisabled?: boolean;
+	children: React.ReactNode;
+	description?: string;
 	icon?: React.ReactNode;
+	isSubmitting?: boolean;
+	onOpenChange: (open: boolean) => void;
+	onSubmit: () => void;
+	open: boolean;
 	size?: "sm" | "md" | "lg";
+	submitDisabled?: boolean;
+	submitLabel?: string;
+	title: string;
 }
 
 export function FormDialog({
@@ -65,7 +65,7 @@ export function FormDialog({
 						{icon}
 					</div>
 					<div className="flex-1">
-						<div className="font-semibold text-foreground text-base leading-none">
+						<div className="font-semibold text-base text-foreground leading-none">
 							{title}
 						</div>
 						{description && (
@@ -163,4 +163,3 @@ export function FormDialog({
 		</Dialog>
 	);
 }
-

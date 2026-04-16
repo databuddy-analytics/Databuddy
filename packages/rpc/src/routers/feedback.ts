@@ -1,12 +1,6 @@
+import { and, desc, eq, sql } from "@databuddy/db";
 import type { db as DbType } from "@databuddy/db";
-import {
-	and,
-	desc,
-	eq,
-	feedback,
-	feedbackRedemptions,
-	sql,
-} from "@databuddy/db";
+import { feedback, feedbackRedemptions } from "@databuddy/db/schema";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";

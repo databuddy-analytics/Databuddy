@@ -5,24 +5,13 @@ import { executeQuery, QueryBuilders } from "../../query";
 import type { QueryRequest } from "../../query/types";
 
 const queryItemSchema = z.object({
-	type: z
-		.string()
-		.describe(
-			`Query builder type. Available: ${Object.keys(QueryBuilders).join(", ")}`
-		),
-	from: z
-		.string()
-		.optional()
-		.describe("Start date ISO (defaults to 7 days ago)"),
-	to: z.string().optional().describe("End date ISO (defaults to today)"),
+	type: z.string(),
+	from: z.string().optional(),
+	to: z.string().optional(),
 	preset: z
 		.enum(["today", "yesterday", "last_7d", "last_14d", "last_30d", "last_90d"])
-		.optional()
-		.describe("Date preset (overrides from/to). e.g. last_7d, last_30d, today"),
-	timeUnit: z
-		.enum(["minute", "hour", "day", "week", "month"])
-		.optional()
-		.describe("Time granularity"),
+		.optional(),
+	timeUnit: z.enum(["minute", "hour", "day", "week", "month"]).optional(),
 	filters: z
 		.array(
 			z.object({
@@ -45,8 +34,7 @@ const queryItemSchema = z.object({
 				having: z.boolean().optional(),
 			})
 		)
-		.optional()
-		.describe("Filters to apply"),
+		.optional(),
 	groupBy: z.array(z.string()).optional(),
 	orderBy: z.string().optional(),
 	limit: z.number().min(1).max(1000).optional(),
@@ -56,11 +44,14 @@ const queryItemSchema = z.object({
 type QueryItem = z.infer<typeof queryItemSchema>;
 
 interface QueryItemResult {
-	type: string;
 	data: unknown[];
-	rowCount: number;
+	error?: string;
 	executionTime: number;
+	rowCount: number;
+	type: string;
 }
+
+const MAX_MODEL_ROWS = 50;
 
 function resolveDates(item: QueryItem): { from: string; to: string } {
 	if (item.from && item.to) {
@@ -98,18 +89,11 @@ function resolveDates(item: QueryItem): { from: string; to: string } {
 
 export const getDataTool = tool({
 	description:
-		"Batch-execute multiple query builder queries in a single call. Use this when you need 2+ different query types at once (e.g. summary_metrics + top_pages + top_referrers). Much more efficient than calling execute_query_builder multiple times sequentially.",
+		"Batch 1-10 analytics query builder queries in parallel. Common types: summary_metrics, today_metrics, traffic, top_pages, top_referrers, sessions_*, device_types, browsers, country, city, errors_*, performance_*, custom_events_*, profile_list, vitals_*, revenue_*. Use preset (last_7d/last_30d/…) or from+to dates. Server returns valid types on unknown input.",
 	inputSchema: z.object({
-		websiteId: z.string().describe("The website ID to query"),
-		queries: z
-			.array(queryItemSchema)
-			.min(1)
-			.max(10)
-			.describe("Array of query builder requests to execute in parallel"),
-		websiteDomain: z
-			.string()
-			.optional()
-			.describe("Website domain (optional, auto-fetched if not provided)"),
+		websiteId: z.string(),
+		queries: z.array(queryItemSchema).min(1).max(10),
+		websiteDomain: z.string().optional(),
 	}),
 	execute: async ({ websiteId, queries, websiteDomain }) => {
 		const batchStart = Date.now();
@@ -125,11 +109,11 @@ export const getDataTool = tool({
 						data: [],
 						rowCount: 0,
 						executionTime: 0,
+						error: `Unknown query type "${item.type}". Valid types: ${Object.keys(QueryBuilders).join(", ")}`,
 					};
 				}
 
 				const { from, to } = resolveDates(item);
-
 				const req: QueryRequest = {
 					projectId: websiteId,
 					type: item.type,
@@ -146,14 +130,12 @@ export const getDataTool = tool({
 				const data = await executeQuery(req, domain, req.timezone);
 				return {
 					type: item.type,
-					data,
+					data: data.slice(0, MAX_MODEL_ROWS),
 					rowCount: data.length,
 					executionTime: Date.now() - queryStart,
 				};
 			})
 		);
-
-		const totalTime = Date.now() - batchStart;
 
 		const resultMap: Record<string, QueryItemResult> = {};
 		for (const r of results) {
@@ -163,7 +145,7 @@ export const getDataTool = tool({
 		return {
 			results: resultMap,
 			queryCount: queries.length,
-			totalExecutionTime: totalTime,
+			totalExecutionTime: Date.now() - batchStart,
 		};
 	},
 });

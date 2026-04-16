@@ -36,9 +36,10 @@ export default function GroupsPage() {
 	const [editingGroup, setEditingGroup] = useState<TargetGroup | null>(null);
 	const queryClient = useQueryClient();
 
-	const { data: groups, isLoading: groupsLoading } = useQuery({
+	const { data: groupsRaw, isLoading: groupsLoading } = useQuery({
 		...orpc.targetGroups.list.queryOptions({ input: { websiteId } }),
 	});
+	const groups = groupsRaw as TargetGroup[] | undefined;
 
 	const deleteGroupMutation = useMutation({
 		...orpc.targetGroups.delete.mutationOptions(),
@@ -74,7 +75,7 @@ export default function GroupsPage() {
 				<div className="h-full overflow-y-auto">
 					<Suspense fallback={<GroupsListSkeleton />}>
 						<GroupsList
-							groups={(groups as TargetGroup[]) ?? []}
+							groups={groups ?? []}
 							isLoading={groupsLoading}
 							onCreateGroupAction={handleCreateGroup}
 							onDeleteGroup={handleDeleteGroup}

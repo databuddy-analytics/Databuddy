@@ -4,20 +4,20 @@
   "devDependencies": {
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/plugin-transform-react-jsx": "^7.28.6",
-    "@biomejs/biome": "^2.4.8",
+    "@biomejs/biome": "2.4.10",
+    "@evilmartians/lefthook": "^2.1.5",
     "@types/bun": "latest",
     "@types/dockerode": "^3.3.47",
-    "@types/node": "^24.12.0",
+    "@types/node": "^24.12.2",
     "chalk": "^5.6.2",
     "culori": "^4.0.2",
-    "dockerode": "^4.0.9",
+    "dockerode": "^4.0.10",
     "dotenv-cli": "^10.0.0",
-    "husky": "^9.1.7",
+    "ipaddr.js": "^2.3.0",
     "knip": "^5.88.1",
-    "lint-staged": "^16.4.0",
-    "turbo": "^2.8.19",
+    "turbo": "^2.9.6",
     "typescript": "^5.9.3",
-    "ultracite": "^6.5.1"
+    "ultracite": "7.4.3"
   },
   "engines": {
     "node": ">=20"
@@ -25,17 +25,17 @@
   "packageManager": "bun@1.3.4",
   "private": true,
   "scripts": {
-    "prepare": "husky",
+    "prepare": "lefthook install",
     "setup": "bun run setup.ts",
     "build": "dotenv -- turbo run build",
     "dev": "dotenv -- turbo run dev",
     "start": "dotenv -- turbo run start",
-    "test": "dotenv -- bun test ./apps",
+    "test": "dotenv -- turbo run test",
     "test:watch": "dotenv -- bun test --watch ./apps",
     "test:coverage": "dotenv -- bun test --coverage ./apps",
-    "lint": "bunx ultracite@latest check",
-    "format": "bunx ultracite@latest fix",
-    "check-types": "tsgo --noEmit --project .",
+    "lint": "bunx ultracite check",
+    "format": "bunx ultracite fix",
+    "check-types": "dotenv -- turbo run check-types",
     "generate-db": "turbo run generate --filter=@databuddy/db",
     "db:studio": "dotenv -- turbo run db:studio",
     "clickhouse:init": "dotenv -- turbo run clickhouse:init",
@@ -46,12 +46,11 @@
     "email:dev": "dotenv -- sh -c 'cd packages/email && bun run dev'",
     "sdk:build": "turbo run build --filter @databuddy/sdk --filter @databuddy/cache",
     "dev:dashboard": "dotenv -- turbo dev --filter @databuddy/dashboard --filter @databuddy/api",
-    "git:setup-aliases": "git config --local include.path ../gitconfig"
-  },
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
-      "bunx ultracite fix"
-    ]
+    "git:setup-aliases": "git config --local include.path ../gitconfig",
+    "eval": "dotenv -- bun run --cwd packages/evals src/cli.ts",
+    "eval:ui": "dotenv -- bun run --cwd packages/evals ui/serve.ts",
+    "check": "ultracite check",
+    "fix": "ultracite fix"
   },
   "type": "module",
   "workspaces": {
@@ -62,11 +61,11 @@
     "catalog": {
       "react": "19.2.4",
       "react-dom": "19.2.4",
-      "next": "16.1.5",
+      "next": "16.2.3",
       "typescript": "^5.9.3",
       "zod": "4.1.12",
       "tailwindcss": "^4.1.4",
-      "autumn-js": "^0.0.101",
+      "autumn-js": "^1.2.8",
       "stripe": "^18.2.1",
       "dayjs": "^1.11.13",
       "elysia": "^1.3.4",
@@ -90,23 +89,17 @@
       "@logtail/edge": "^0.5.4",
       "@logtail/js": "^0.5.5",
       "@logtail/pino": "^0.5.5",
-      "@biomejs/biome": "2.2.2",
+      "@biomejs/biome": "2.4.10",
       "@types/bun": "latest",
       "@types/react": "19.2.3",
       "@types/react-dom": "19.2.3",
       "bun-types": "latest",
-      "ultracite": "5.3.10",
+      "ultracite": "^7.4.3",
       "turbo": "^2.5.2",
-      "drizzle-orm": "^0.42.0",
+      "drizzle-orm": "^0.45.2",
       "nanoid": "^5.1.6",
-      "ua-parser-js": "^2.0.8"
+      "ua-parser-js": "^2.0.8",
+      "evlog": "^2.11.1"
     }
-  },
-  "dependencies": {
-    "@maxmind/geoip2-node": "^6.3.4",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/resources": "^2.6.0",
-    "@opentelemetry/sdk-node": "^0.210.0",
-    "@opentelemetry/semantic-conventions": "^1.40.0"
   }
 }

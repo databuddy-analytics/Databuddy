@@ -1,4 +1,5 @@
-import { chQuery, db, eq, websites } from "@databuddy/db";
+import { db } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	DuplicateDomainError,
 	ValidationError,
@@ -44,8 +45,8 @@ function handleServiceError(error: unknown): never {
 }
 
 interface EventsCheckResult {
-	hasEvents: boolean;
 	error: string | null;
+	hasEvents: boolean;
 }
 
 async function getTrackingEventsStatus(
@@ -87,10 +88,10 @@ const buildStatusMessage = (hasEvents: boolean, eventsError: string | null) => {
 };
 
 interface ChartDataPoint {
-	websiteId: string;
 	date: string;
-	value: number;
 	hasAnyData: number;
+	value: number;
+	websiteId: string;
 }
 
 const calculateAverage = (values: { value: number }[]) =>
@@ -106,6 +107,13 @@ const websiteStatusOutputSchema = z.enum([
 	"PENDING",
 ]);
 
+const websiteSettingsSchema = z
+	.object({
+		allowedOrigins: z.array(z.string()).optional(),
+		allowedIps: z.array(z.string()).optional(),
+	})
+	.nullable();
+
 const websiteOutputSchema = z.object({
 	id: z.string(),
 	domain: z.string(),
@@ -114,10 +122,10 @@ const websiteOutputSchema = z.object({
 	isPublic: z.boolean(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
-	organizationId: z.string().optional(),
+	organizationId: z.string(),
 	deletedAt: z.coerce.date().nullable(),
-	integrations: z.unknown().nullable().optional(),
-	settings: z.unknown().nullable().optional(),
+	integrations: z.record(z.string(), z.unknown()).nullable(),
+	settings: websiteSettingsSchema,
 });
 
 const processedMiniChartDataSchema = z.object({
@@ -178,8 +186,8 @@ const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
 };
 
 interface ActiveUsersRow {
-	websiteId: string;
 	activeUsers: number;
+	websiteId: string;
 }
 
 const fetchActiveUsers = async (
@@ -327,10 +335,11 @@ export const websitesRouter = {
 				permissions: ["read"],
 			});
 
-			return context.db.query.websites.findMany({
-				where: eq(websites.organizationId, workspace.organizationId as string),
-				orderBy: (table, { desc }) => [desc(table.createdAt)],
-			});
+			if (!workspace.organizationId) {
+				throw rpcError.badRequest("Organization ID is required");
+			}
+
+			return websiteService.list(workspace.organizationId);
 		}),
 
 	listWithCharts: protectedProcedure
@@ -350,10 +359,11 @@ export const websitesRouter = {
 				permissions: ["read"],
 			});
 
-			const websitesList = await context.db.query.websites.findMany({
-				where: eq(websites.organizationId, workspace.organizationId as string),
-				orderBy: (table, { desc }) => [desc(table.createdAt)],
-			});
+			if (!workspace.organizationId) {
+				throw rpcError.badRequest("Organization ID is required");
+			}
+
+			const websitesList = await websiteService.list(workspace.organizationId);
 
 			const websiteIds = websitesList.map((site) => site.id);
 			const [chartData, activeUsers] = await Promise.all([
@@ -382,6 +392,7 @@ export const websitesRouter = {
 			});
 
 			const site = workspace.website;
+
 			if (!site) {
 				throw rpcError.notFound("website");
 			}
@@ -396,9 +407,9 @@ export const websitesRouter = {
 					createdAt: site.createdAt,
 					updatedAt: site.updatedAt,
 					organizationId: site.organizationId,
-					deletedAt: site.deletedAt ?? null,
-					integrations: site.integrations ?? null,
-					settings: site.settings ?? null,
+					deletedAt: site.deletedAt,
+					integrations: site.integrations,
+					settings: site.settings,
 				};
 			}
 
@@ -678,11 +689,7 @@ export const websitesRouter = {
 				permissions: ["update"],
 			});
 
-			const currentSettings =
-				(website.settings as {
-					allowedOrigins?: string[];
-					allowedIps?: string[];
-				}) ?? {};
+			const currentSettings = website.settings ?? {};
 
 			const newSettings = {
 				...currentSettings,

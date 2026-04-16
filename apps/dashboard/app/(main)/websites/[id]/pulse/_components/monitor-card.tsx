@@ -1,11 +1,9 @@
 "use client";
 
-import {
-	DotsThreeIcon,
-	HeartbeatIcon,
-	PencilIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { HeartbeatIcon } from "@phosphor-icons/react";
+import { PencilIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -30,6 +28,9 @@ const granularityLabels: Record<string, string> = {
 };
 
 interface MonitorCardProps {
+	onDeleteAction: () => void;
+	onEditAction: () => void;
+	onRefetchAction: () => void;
 	schedule: {
 		id: string;
 		granularity: string;
@@ -38,9 +39,6 @@ interface MonitorCardProps {
 		createdAt: Date | string;
 		updatedAt: Date | string;
 	};
-	onEditAction: () => void;
-	onDeleteAction: () => void;
-	onRefetchAction: () => void;
 }
 
 export function MonitorCard({

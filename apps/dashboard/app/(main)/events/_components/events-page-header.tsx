@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
-import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
-import { LightningIcon } from "@phosphor-icons/react/dist/ssr/Lightning";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
 import { PageHeader } from "@/app/(main)/websites/_components/page-header";
 import { Button } from "@/components/ui/button";
 import {

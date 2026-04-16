@@ -1,4 +1,4 @@
-import { chQuery } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import { mergeWideEvent } from "../lib/tracing";
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
@@ -7,13 +7,13 @@ import { applyPlugins } from "./utils";
 
 type BatchRequest = QueryRequest & { type: string };
 interface BatchResult {
-	type: string;
 	data: Record<string, unknown>[];
 	error?: string;
+	type: string;
 }
 interface BatchOptions {
-	websiteDomain?: string | null;
 	timezone?: string;
+	websiteDomain?: string | null;
 }
 
 function getSchemaSignature(config: SimpleQueryConfig): string | null {

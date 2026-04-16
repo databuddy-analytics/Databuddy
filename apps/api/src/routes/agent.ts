@@ -1,7 +1,11 @@
 import { auth, websitesApi } from "@databuddy/auth";
+import { db, eq } from "@databuddy/db";
+import { agentChats } from "@databuddy/db/schema";
+import { getRateLimitHeaders, rateLimit } from "@databuddy/redis/rate-limit";
 import {
 	convertToModelMessages,
 	generateId,
+	generateText,
 	pruneMessages,
 	safeValidateUIMessages,
 	smoothStream,
@@ -12,8 +16,24 @@ import { Elysia, t } from "elysia";
 import { log, parseError } from "evlog";
 import { useLogger } from "evlog/elysia";
 import type { AgentConfig, AgentType } from "../ai/agents";
+import {
+	ensureAgentCreditsAvailable,
+	resolveAgentBillingCustomerId,
+	trackAgentUsageAndBill,
+} from "../ai/agents/execution";
 import { createAgentConfig } from "../ai/agents";
+import { AGENT_THINKING_LEVELS } from "../ai/agents/types";
+import { enrichAgentContext } from "../ai/config/enrich-context";
+import { modelNames, models } from "../ai/config/models";
+import { ANTHROPIC_CACHE_1H } from "../ai/config/prompt-cache";
 import { AI_MODEL_MAX_RETRIES } from "../ai/config/retry";
+import {
+	getAccessibleWebsiteIds,
+	getApiKeyFromHeader,
+	hasGlobalAccess,
+	hasKeyScope,
+	isApiKeyPresent,
+} from "../lib/api-key";
 import { trackAgentEvent } from "../lib/databuddy";
 import {
 	formatMemoryForPrompt,
@@ -21,6 +41,7 @@ import {
 	isMemoryEnabled,
 	storeConversation,
 } from "../lib/supermemory";
+import { getAILogger } from "../ai/config/ai-logger";
 import { captureError, mergeWideEvent } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
 
@@ -61,22 +82,62 @@ function getLastMessagePreview(
 		.join("");
 }
 
+function getTextFromMessage(message: UIMessage | undefined): string {
+	if (!message?.parts) {
+		return "";
+	}
+	return message.parts
+		.filter((p): p is { type: "text"; text: string } => p.type === "text")
+		.map((p) => p.text)
+		.join(" ");
+}
+
+const TITLE_MAX_LEN = 60;
+
+async function generateChatTitle(
+	messages: UIMessage[]
+): Promise<string | null> {
+	const firstUser = messages.find((m) => m.role === "user");
+	const firstAssistant = messages.find((m) => m.role === "assistant");
+	const userText = getTextFromMessage(firstUser).trim();
+	if (!userText) {
+		return null;
+	}
+	const assistantText = getTextFromMessage(firstAssistant).trim().slice(0, 400);
+
+	try {
+		const result = await generateText({
+			model: getAILogger().wrap(models.triage),
+			temperature: 0.2,
+			maxOutputTokens: 32,
+			system:
+				"You generate concise chat titles. Output 3-6 words, Title Case, no quotes, no trailing punctuation. Describe what the user is trying to learn or do — never echo the question verbatim.",
+			prompt: `User asked: "${userText.slice(0, 300)}"${
+				assistantText ? `\nAssistant began: "${assistantText}"` : ""
+			}\n\nTitle:`,
+		});
+		const title = result.text.trim().replace(/^["']|["']$/g, "");
+		if (!title) {
+			return null;
+		}
+		return title.slice(0, TITLE_MAX_LEN);
+	} catch {
+		return null;
+	}
+}
+
 const MAX_MESSAGES = 100;
 const MAX_PARTS_PER_MESSAGE = 50;
 const MAX_PROPERTIES_PER_PART = 20;
 
 interface AgentExperimentalTelemetry {
-	isEnabled: true;
 	functionId: string;
+	isEnabled: true;
 	metadata?: Record<string, string>;
 }
 
-/**
- * Schema uses t.Any() for message parts because UIMessage parts
- * are polymorphic (text, tool, reasoning, etc.) and validated
- * at the AI SDK level via convertToModelMessages.
- * Limits prevent resource exhaustion from oversized payloads.
- */
+// UIMessage parts are polymorphic (text/tool/reasoning/...) and re-validated
+// by safeValidateUIMessages + convertToModelMessages, so we only cap sizes here.
 const UIMessageSchema = t.Object({
 	id: t.String(),
 	role: t.Union([t.Literal("user"), t.Literal("assistant")]),
@@ -93,43 +154,68 @@ const AgentRequestSchema = t.Object({
 	messages: t.Array(UIMessageSchema, { maxItems: MAX_MESSAGES }),
 	id: t.Optional(t.String()),
 	timezone: t.Optional(t.String()),
-	model: t.Optional(
-		t.Union([t.Literal("basic"), t.Literal("agent"), t.Literal("agent-max")])
+	thinking: t.Optional(
+		t.Union(AGENT_THINKING_LEVELS.map((level) => t.Literal(level)))
 	),
 });
 
-/**
- * Create a ToolLoopAgent from AgentConfig.
- */
+const AGENT_TYPE: AgentType = "analytics";
+
 function createToolLoopAgent(
 	config: AgentConfig,
 	experimentalTelemetry?: AgentExperimentalTelemetry
 ): InstanceType<typeof ToolLoopAgent> {
+	const ai = getAILogger();
+	// Anthropic rejects `temperature` when extended thinking is enabled.
+	const thinkingEnabled = Boolean(config.providerOptions);
 	return new ToolLoopAgent({
-		model: config.model,
+		model: ai.wrap(config.model),
 		instructions: config.system,
 		tools: config.tools,
 		stopWhen: config.stopWhen,
-		temperature: config.temperature,
+		temperature: thinkingEnabled ? undefined : config.temperature,
 		maxRetries: AI_MODEL_MAX_RETRIES,
 		experimental_context: config.experimental_context,
 		experimental_telemetry: experimentalTelemetry,
+		providerOptions: config.providerOptions,
+		prepareStep({ messages }) {
+			if (messages.length === 0) {
+				return { messages };
+			}
+			const last = messages.at(-1);
+			if (last && last.role === "user" && !last.providerOptions) {
+				return {
+					messages: [
+						...messages.slice(0, -1),
+						{ ...last, providerOptions: ANTHROPIC_CACHE_1H },
+					],
+				};
+			}
+			return { messages };
+		},
 	});
 }
 
-const MODEL_TO_AGENT: Record<string, AgentType> = {
-	basic: "triage",
-	agent: "analytics",
-	"agent-max": "reflection-max",
-};
-
 export const agent = new Elysia({ prefix: "/v1/agent" })
 	.derive(async ({ request }) => {
-		const session = await auth.api.getSession({ headers: request.headers });
-		return { user: session?.user ?? null };
+		const hasApiKey = isApiKeyPresent(request.headers);
+		const [apiKey, session] = await Promise.all([
+			hasApiKey ? getApiKeyFromHeader(request.headers) : null,
+			auth.api.getSession({ headers: request.headers }),
+		]);
+
+		const user = session?.user ?? null;
+		const validApiKey =
+			apiKey && hasKeyScope(apiKey, "read:data") ? apiKey : null;
+
+		return {
+			user,
+			apiKey: validApiKey,
+			isAuthenticated: Boolean(user ?? validApiKey),
+		};
 	})
-	.onBeforeHandle(({ user, set }) => {
-		if (!user) {
+	.onBeforeHandle(({ isAuthenticated, set }) => {
+		if (!isAuthenticated) {
 			set.status = 401;
 			return {
 				success: false,
@@ -140,7 +226,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 	})
 	.post(
 		"/chat",
-		function agentChat({ body, user, request }) {
+		function agentChat({ body, user, apiKey, request }) {
 			return (async () => {
 				const chatId = body.id ?? generateId();
 				let organizationId: string | null = null;
@@ -164,15 +250,30 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const { website } = websiteValidation;
 					organizationId = website.organizationId ?? null;
 
-					const hasPermission =
-						website.isPublic ||
-						(website.organizationId &&
+					const hasPermission = await (async () => {
+						if (apiKey) {
+							if (hasGlobalAccess(apiKey)) {
+								return (
+									apiKey.organizationId != null &&
+									apiKey.organizationId === website.organizationId
+								);
+							}
+							return getAccessibleWebsiteIds(apiKey).includes(body.websiteId);
+						}
+
+						return (
+							website.organizationId != null &&
 							(
 								await websitesApi.hasPermission({
 									headers: request.headers,
-									body: { permissions: { website: ["read"] } },
+									body: {
+										organizationId: website.organizationId,
+										permissions: { website: ["read"] },
+									},
 								})
-							).success);
+							).success
+						);
+					})();
 
 					if (!hasPermission) {
 						return jsonError(
@@ -182,21 +283,63 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						);
 					}
 
-					if (!user?.id) {
-						return jsonError(401, "AUTH_REQUIRED", "User ID required");
+					if (!(user || apiKey)) {
+						return jsonError(401, "AUTH_REQUIRED", "Authentication required");
 					}
-					const userId = user.id;
+					const userId = user?.id ?? `apikey:${apiKey?.id}`;
 
-					const model = body.model ?? "agent";
-					const agentType: AgentType = MODEL_TO_AGENT[model] ?? "reflection";
+					const billingCustomerId = await resolveAgentBillingCustomerId({
+						userId: user?.id ?? null,
+						apiKey,
+						organizationId,
+					});
+
+					if (billingCustomerId) {
+						try {
+							if (!(await ensureAgentCreditsAvailable(billingCustomerId))) {
+								mergeWideEvent({ agent_rejected: "out_of_credits" });
+								return jsonError(
+									402,
+									"OUT_OF_CREDITS",
+									"You're out of Databunny credits this month. Upgrade or wait for the monthly reset."
+								);
+							}
+						} catch (creditCheckError) {
+							captureError(creditCheckError, {
+								agent_credit_check_error: true,
+								agent_chat_id: chatId,
+								agent_website_id: body.websiteId,
+							});
+						}
+					}
+
+					const rl = await rateLimit(`agent-chat:${userId}`, 40, 600);
+					if (!rl.success) {
+						mergeWideEvent({ agent_rejected: "rate_limit" });
+						return new Response(
+							JSON.stringify({
+								success: false,
+								error:
+									"Rate limit exceeded. Please wait a moment before sending more messages.",
+								code: "RATE_LIMITED",
+							}),
+							{
+								status: 429,
+								headers: {
+									"Content-Type": "application/json",
+									...getRateLimitHeaders(rl),
+								},
+							}
+						);
+					}
+
 					const timezone = body.timezone ?? "UTC";
 					const domain = website.domain ?? "unknown";
 
 					trackAgentEvent("agent_activity", {
 						action: "chat_started",
 						source: "dashboard",
-						model,
-						agent_type: agentType,
+						agent_type: AGENT_TYPE,
 						website_id: body.websiteId,
 						organization_id: organizationId,
 						user_id: userId,
@@ -204,8 +347,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					useLogger().info("Creating agent", {
 						agent: {
-							type: agentType,
-							model,
+							type: AGENT_TYPE,
 							websiteId: body.websiteId,
 							messageCount: body.messages.length,
 							lastMessage: getLastMessagePreview(body.messages),
@@ -214,25 +356,39 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					const lastMessage = getLastMessagePreview(body.messages);
 
-					const [config, memoryCtx] = await Promise.all([
+					const [config, memoryCtx, enrichment] = await Promise.all([
 						Promise.resolve(
-							createAgentConfig(agentType, {
+							createAgentConfig({
 								userId,
 								websiteId: body.websiteId,
 								websiteDomain: domain,
 								timezone,
 								chatId,
 								requestHeaders: request.headers,
+								thinking: body.thinking,
+								billingCustomerId,
 							})
 						),
 						isMemoryEnabled() && lastMessage
-							? getMemoryContext(lastMessage, userId, null)
+							? getMemoryContext(lastMessage, userId, null, {
+									websiteId: body.websiteId,
+								})
 							: Promise.resolve(null),
+						enrichAgentContext({
+							userId,
+							websiteId: body.websiteId,
+							organizationId,
+						}),
 					]);
 
-					const memoryBlock = memoryCtx ? formatMemoryForPrompt(memoryCtx) : "";
-					if (memoryBlock) {
-						config.system = `${config.system}\n\n${memoryBlock}`;
+					const extras = [
+						memoryCtx ? formatMemoryForPrompt(memoryCtx) : "",
+						enrichment,
+					]
+						.filter(Boolean)
+						.join("\n\n");
+					if (extras) {
+						config.system.content = `${config.system.content}\n\n${extras}`;
 					}
 
 					const validation = await safeValidateUIMessages({
@@ -268,8 +424,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						websiteId: body.websiteId,
 						websiteDomain: domain,
 						chatId,
-						agentType,
-						model,
+						agentType: AGENT_TYPE,
 						timezone,
 						"tcc.sessionId": chatId,
 						"tcc.conversational": "true",
@@ -280,7 +435,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 					const agent = createToolLoopAgent(config, {
 						isEnabled: true,
-						functionId: `databuddy.dashboard.agent.${agentType}`,
+						functionId: `databuddy.dashboard.agent.${AGENT_TYPE}`,
 						metadata: dashboardTelemetryMetadata,
 					});
 
@@ -290,8 +445,12 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							userId,
 							null,
 							{
-								source: "dashboard",
+								metadata: {
+									source: "dashboard",
+								},
 								websiteId: body.websiteId,
+								conversationId: chatId,
+								domain,
 							}
 						);
 					}
@@ -302,8 +461,82 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						options: undefined,
 					});
 
+					const persistedUserId = user?.id;
+					const persistedOrgId = organizationId;
+					const fallbackTitle = lastMessage.slice(0, 60);
+					const isNewChat = validation.data.length <= 1;
+
+					// Force onFinish to run even if the client disconnects mid-stream.
+					result.consumeStream();
+
+					// totalUsage resolves after the stream finishes — don't block the response.
+					Promise.resolve(result.totalUsage)
+						.then(async (usage) => {
+							await trackAgentUsageAndBill({
+								usage,
+								modelId: modelNames.analytics,
+								source: "dashboard",
+								agentType: AGENT_TYPE,
+								websiteId: body.websiteId,
+								organizationId,
+								userId: persistedUserId ?? null,
+								chatId,
+								billingCustomerId,
+							});
+						})
+						.catch((usageError) => {
+							captureError(usageError, {
+								agent_usage_telemetry_error: true,
+								agent_chat_id: chatId,
+								agent_website_id: body.websiteId,
+							});
+						});
+
 					return result.toUIMessageStreamResponse({
 						originalMessages: validation.data,
+						onFinish: async ({ messages }) => {
+							if (!persistedUserId) {
+								return;
+							}
+							try {
+								await db
+									.insert(agentChats)
+									.values({
+										id: chatId,
+										websiteId: body.websiteId,
+										userId: persistedUserId,
+										organizationId: persistedOrgId,
+										title: fallbackTitle,
+										messages,
+										updatedAt: new Date(),
+									})
+									.onConflictDoUpdate({
+										target: agentChats.id,
+										set: {
+											messages,
+											updatedAt: new Date(),
+										},
+									});
+
+								// First-turn title polish runs after the upsert so a slow
+								// or failed LLM call never blocks message persistence.
+								if (isNewChat) {
+									const generatedTitle = await generateChatTitle(messages);
+									if (generatedTitle) {
+										await db
+											.update(agentChats)
+											.set({ title: generatedTitle })
+											.where(eq(agentChats.id, chatId));
+									}
+								}
+							} catch (persistError) {
+								captureError(persistError, {
+									agent_persist_error: true,
+									agent_chat_id: chatId,
+									agent_website_id: body.websiteId,
+								});
+							}
+						},
 					});
 				} catch (error) {
 					const parsed = parseError(error);
@@ -312,7 +545,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						useLogger().error(err, {
 							agent: {
 								chatId,
-								model: body.model ?? "agent",
+								agentType: AGENT_TYPE,
 								phase: "dashboard_chat_stream",
 								userId: user?.id ?? null,
 								websiteId: body.websiteId,
@@ -344,7 +577,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					trackAgentEvent("agent_activity", {
 						action: "chat_error",
 						source: "dashboard",
-						model: body.model ?? "agent",
+						agent_type: AGENT_TYPE,
 						error_type: getErrorName(error),
 						organization_id: organizationId,
 						user_id: user?.id ?? null,
@@ -352,7 +585,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					});
 					captureError(error, {
 						agent_error: true,
-						agent_model_type: body.model ?? "agent",
+						agent_type: AGENT_TYPE,
 						agent_chat_id: chatId,
 						agent_website_id: body.websiteId,
 						agent_user_id: user?.id ?? "unknown",

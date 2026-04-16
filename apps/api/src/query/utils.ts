@@ -3,37 +3,28 @@ import {
 	getCountryName,
 } from "@databuddy/shared/country-codes";
 import { referrers } from "@databuddy/shared/lists/referrers";
-import { mapScreenResolutionToDeviceType } from "./screen-resolution-to-device-type";
 import type { SimpleQueryConfig } from "./types";
 
 interface DataRow {
-	name?: string;
-	pageviews?: number;
-	visitors?: number;
-	revenue?: number;
-	transactions?: number;
-	customers?: number;
-	percentage?: number;
-	referrer?: string;
-	domain?: string;
 	country_code?: string;
 	country_name?: string;
+	customers?: number;
+	domain?: string;
+	name?: string;
+	pageviews?: number;
+	percentage?: number;
+	referrer?: string;
+	revenue?: number;
+	transactions?: number;
+	visitors?: number;
 	[key: string]: unknown;
 }
 
 const toNumber = (v: unknown): number => (typeof v === "number" ? v : 0);
-const toStringFn = (v: unknown): string => (typeof v === "string" ? v : "");
-
-const REFERRER_QUERY_TYPES = ["top_referrers", "referrer", "traffic_sources"];
+const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
 function shouldParseReferrers(config: SimpleQueryConfig): boolean {
-	if (config.plugins?.parseReferrers) {
-		return true;
-	}
-	const name =
-		(config as { type?: string; name?: string }).type ||
-		(config as { type?: string; name?: string }).name;
-	return name ? REFERRER_QUERY_TYPES.includes(name) : false;
+	return config.plugins?.parseReferrers === true;
 }
 
 export function applyPlugins(
@@ -45,7 +36,7 @@ export function applyPlugins(
 
 	if (shouldParseReferrers(config)) {
 		result = result.map((row) => {
-			const url = toStringFn(row.name) || toStringFn(row.referrer);
+			const url = str(row.name) || str(row.referrer);
 			if (!url) {
 				return row;
 			}
@@ -61,7 +52,7 @@ export function applyPlugins(
 
 	if (config.plugins?.normalizeUrls) {
 		result = result.map((row) => {
-			const original = toStringFn(row.name);
+			const original = str(row.name);
 			if (!original) {
 				return row;
 			}
@@ -71,7 +62,7 @@ export function applyPlugins(
 
 	if (config.plugins?.normalizeGeo) {
 		result = result.map((row) => {
-			const name = toStringFn(row.country) || toStringFn(row.name);
+			const name = str(row.country) || str(row.name);
 			if (!name) {
 				return row;
 			}
@@ -81,97 +72,69 @@ export function applyPlugins(
 	}
 
 	if (config.plugins?.deduplicateGeo) {
+		const getKey = (r: DataRow) => r.country_code || str(r.name);
 		const hasRevenue = result.some((r) => toNumber(r.revenue) > 0);
-		result = hasRevenue
-			? aggregateByKeyRevenue(
-					result,
-					(r) => r.country_code || toStringFn(r.name)
-				)
-			: aggregateByKey(result, (r) => r.country_code || toStringFn(r.name));
-	}
-
-	if (config.plugins?.mapDeviceTypes) {
-		result = aggregateByKey(result, (r) =>
-			mapScreenResolutionToDeviceType(toStringFn(r.name))
+		result = aggregateRows(
+			result,
+			hasRevenue
+				? {
+						getKey,
+						getName: (row, key) => str(row.country_name) || key,
+						sumFields: ["revenue", "transactions", "customers"],
+						sortBy: "revenue",
+					}
+				: {
+						getKey,
+						sumFields: ["pageviews", "visitors"],
+						sortBy: "visitors",
+					}
 		);
 	}
 
 	return result;
 }
 
-function aggregateByKey(
-	rows: DataRow[],
-	getKey: (row: DataRow) => string
-): DataRow[] {
-	const grouped = new Map<string, DataRow>();
-
-	for (const row of rows) {
-		const key = getKey(row);
-		if (!key) {
-			continue;
-		}
-
-		const existing = grouped.get(key);
-		if (existing) {
-			existing.pageviews =
-				toNumber(existing.pageviews) + toNumber(row.pageviews);
-			existing.visitors = toNumber(existing.visitors) + toNumber(row.visitors);
-		} else {
-			grouped.set(key, { ...row, name: key });
-		}
-	}
-
-	const result = Array.from(grouped.values());
-	const total = result.reduce((sum, r) => sum + toNumber(r.visitors), 0);
-
-	for (const row of result) {
-		row.percentage =
-			total > 0
-				? Math.round((toNumber(row.visitors) / total) * 10_000) / 100
-				: 0;
-	}
-
-	return result.sort((a, b) => toNumber(b.visitors) - toNumber(a.visitors));
+interface AggregateOptions {
+	getKey: (row: DataRow) => string;
+	getName?: (row: DataRow, key: string) => string;
+	sortBy: keyof DataRow;
+	sumFields: (keyof DataRow)[];
 }
 
-function aggregateByKeyRevenue(
-	rows: DataRow[],
-	getKey: (row: DataRow) => string
-): DataRow[] {
+function aggregateRows(rows: DataRow[], opts: AggregateOptions): DataRow[] {
 	const grouped = new Map<string, DataRow>();
+	const getName = opts.getName || ((_row, key) => key);
 
 	for (const row of rows) {
-		const key = getKey(row);
+		const key = opts.getKey(row);
 		if (!key) {
 			continue;
 		}
 
 		const existing = grouped.get(key);
 		if (existing) {
-			existing.revenue = toNumber(existing.revenue) + toNumber(row.revenue);
-			existing.transactions =
-				toNumber(existing.transactions) + toNumber(row.transactions);
-			existing.customers =
-				toNumber(existing.customers) + toNumber(row.customers);
+			for (const field of opts.sumFields) {
+				(existing as Record<string, unknown>)[field as string] =
+					toNumber(existing[field]) + toNumber(row[field]);
+			}
 		} else {
-			grouped.set(key, {
-				...row,
-				name: toStringFn(row.country_name) || key,
-			});
+			grouped.set(key, { ...row, name: getName(row, key) });
 		}
 	}
 
 	const result = Array.from(grouped.values());
-	const total = result.reduce((sum, r) => sum + toNumber(r.revenue), 0);
+	const total = result.reduce((sum, r) => sum + toNumber(r[opts.sortBy]), 0);
 
 	for (const row of result) {
 		row.percentage =
 			total > 0
-				? Math.round((toNumber(row.revenue) / total) * 10_000) / 100
+				? Math.round((toNumber(row[opts.sortBy]) / total) * 10_000) / 100
 				: 0;
 	}
 
-	return result.sort((a, b) => toNumber(b.revenue) - toNumber(a.revenue));
+	return result.sort(
+		(a, b) => toNumber(b[opts.sortBy]) - toNumber(a[opts.sortBy])
+	);
 }
 
 function parseReferrer(referrerUrl: string, currentDomain?: string | null) {

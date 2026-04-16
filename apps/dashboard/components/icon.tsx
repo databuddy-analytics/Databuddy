@@ -4,77 +4,80 @@ import "flag-icons/css/flag-icons.min.css";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-const BROWSER_ICONS = [
-	"Chrome",
-	"Firefox",
-	"Safari",
-	"Edge",
-	"Opera",
-	"OperaGX",
-	"SamsungInternet",
-	"UCBrowser",
-	"Yandex",
-	"Baidu",
-	"QQ",
-	"WeChat",
-	"Instagram",
-	"Facebook",
-	"IE",
-	"Chromium",
-	"DuckDuckGo",
-	"Avast",
-	"AVG",
-	"Android",
-	"Huawei",
-	"Miui",
-	"Vivo",
-	"Sogou",
-	"CocCoc",
-	"Whale",
-	"WebKit",
-	"Wolvic",
-	"Sleipnir",
-	"Silk",
-	"Quark",
-	"PaleMoon",
-	"Oculus",
-	"Naver",
-	"Line",
-	"Lenovo",
-	"KAKAOTALK",
-	"Iron",
-	"HeyTap",
-	"360",
-	"Brave",
-	"Twitter",
-	"GSA",
-	"LinkedIn",
-] as const;
+// Must match files in public/browsers/. Missing names fall back to a letter.
+const BROWSER_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
+	"360": "png",
+	AVG: "svg",
+	Android: "svg",
+	Avast: "png",
+	Baidu: "svg",
+	Brave: "webp",
+	Chrome: "svg",
+	Chromium: "svg",
+	CocCoc: "svg",
+	DuckDuckGo: "svg",
+	Edge: "svg",
+	Facebook: "svg",
+	Firefox: "svg",
+	HeyTap: "png",
+	Huawei: "svg",
+	IE: "svg",
+	Instagram: "svg",
+	Iron: "png",
+	KAKAOTALK: "svg",
+	Lenovo: "png",
+	Line: "svg",
+	LinkedIn: "svg",
+	Miui: "png",
+	Naver: "webp",
+	Oculus: "svg",
+	Opera: "svg",
+	OperaGX: "svg",
+	PaleMoon: "png",
+	QQ: "webp",
+	Quark: "svg",
+	Safari: "svg",
+	SamsungInternet: "svg",
+	Silk: "png",
+	Sleipnir: "webp",
+	Sogou: "png",
+	Twitter: "svg",
+	UCBrowser: "svg",
+	Vivo: "webp",
+	WeChat: "svg",
+	WebKit: "svg",
+	Whale: "svg",
+	Wolvic: "png",
+	Yandex: "svg",
+};
 
-const OS_ICONS = [
-	"Windows",
-	"macOS",
-	"Android",
-	"Ubuntu",
-	"Tux",
-	"Apple",
-	"Chrome",
-	"HarmonyOS",
-	"OpenHarmony",
-	"Playstation",
-	"Tizen",
-] as const;
+const OS_ICON_EXT: Record<string, "svg" | "png" | "webp"> = {
+	Android: "svg",
+	Apple: "svg",
+	Chrome: "svg",
+	HarmonyOS: "svg",
+	OpenHarmony: "png",
+	Playstation: "svg",
+	Tizen: "png",
+	Tux: "svg",
+	Ubuntu: "svg",
+	Windows: "svg",
+	macOS: "svg",
+};
 
-export type BrowserIconName = (typeof BROWSER_ICONS)[number];
-export type OSIconName = (typeof OS_ICONS)[number];
+const BROWSER_ICONS = Object.keys(BROWSER_ICON_EXT);
+const OS_ICONS = Object.keys(OS_ICON_EXT);
+
+export type BrowserIconName = keyof typeof BROWSER_ICON_EXT;
+export type OSIconName = keyof typeof OS_ICON_EXT;
 export type IconType = "browser" | "os";
 
 interface PublicIconProps {
-	type: IconType;
-	name: string;
-	size?: "sm" | "md" | "lg" | number;
 	className?: string;
 	fallback?: React.ReactNode;
+	name: string;
+	size?: "sm" | "md" | "lg" | number;
+	type: IconType;
 }
 
 const sizeMap = {
@@ -122,10 +125,9 @@ function getOSMappedName(normalizedName: string): string {
 }
 
 function getIconSrc(iconName: string, folder: string): string {
-	if ((iconName === "Brave" || iconName === "QQ") && folder === "browsers") {
-		return `/${folder}/${iconName}.webp`;
-	}
-	return `/${folder}/${iconName}.svg`;
+	const ext =
+		folder === "browsers" ? BROWSER_ICON_EXT[iconName] : OS_ICON_EXT[iconName];
+	return `/${folder}/${iconName}.${ext ?? "svg"}`;
 }
 
 function createFallbackIcon(
@@ -237,10 +239,10 @@ export function OSIcon({
 }
 
 interface CountryFlagProps {
-	country: string;
-	size?: "sm" | "md" | "lg" | number;
 	className?: string;
+	country: string;
 	fallback?: React.ReactNode;
+	size?: "sm" | "md" | "lg" | number;
 }
 
 export function CountryFlag({

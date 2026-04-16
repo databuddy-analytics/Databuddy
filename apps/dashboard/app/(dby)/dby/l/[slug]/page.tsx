@@ -9,16 +9,6 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { APP_URL } from "@/lib/app-url";
 
-const OG_IMAGE_BASE = `${APP_URL}/dby/og`;
-
-function generateOgImageUrl(title: string, description?: string): string {
-	const params = new URLSearchParams({ title });
-	if (description) {
-		params.set("description", description);
-	}
-	return `${OG_IMAGE_BASE}?${params.toString()}`;
-}
-
 async function getLinkBySlug(slug: string): Promise<CachedLink | null> {
 	const cached = await getCachedLink(slug).catch(() => null);
 	if (cached) {
@@ -47,17 +37,10 @@ async function getLinkBySlug(slug: string): Promise<CachedLink | null> {
 		return null;
 	}
 
+	const { expiresAt, ...rest } = dbLink;
 	const link: CachedLink = {
-		id: dbLink.id,
-		targetUrl: dbLink.targetUrl,
-		expiresAt: dbLink.expiresAt?.toISOString() ?? null,
-		expiredRedirectUrl: dbLink.expiredRedirectUrl,
-		ogTitle: dbLink.ogTitle,
-		ogDescription: dbLink.ogDescription,
-		ogImageUrl: dbLink.ogImageUrl,
-		ogVideoUrl: dbLink.ogVideoUrl,
-		iosUrl: dbLink.iosUrl,
-		androidUrl: dbLink.androidUrl,
+		...rest,
+		expiresAt: expiresAt?.toISOString() ?? null,
 	};
 
 	await setCachedLink(slug, link).catch(() => {});
@@ -81,7 +64,11 @@ export async function generateMetadata({
 
 	const title = link.ogTitle ?? "Shared via Databuddy";
 	const description = link.ogDescription ?? undefined;
-	const image = link.ogImageUrl ?? generateOgImageUrl(title, description);
+	const ogParams = new URLSearchParams({
+		title,
+		...(description && { description }),
+	});
+	const image = link.ogImageUrl ?? `${APP_URL}/dby/og?${ogParams}`;
 	const video = link.ogVideoUrl ?? undefined;
 
 	return {

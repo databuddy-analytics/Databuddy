@@ -1,37 +1,37 @@
 export interface CustomEventsSummary {
 	total_events: number;
 	unique_event_types: number;
-	unique_users: number;
-	unique_sessions: number;
 	unique_pages: number;
+	unique_sessions: number;
+	unique_users: number;
 }
 
 export interface CustomEventItem {
-	name: string;
-	total_events: number;
-	unique_users: number;
-	unique_sessions: number;
-	last_occurrence: string;
-	first_occurrence: string;
 	events_with_properties: number;
+	first_occurrence: string;
+	last_occurrence: string;
+	name: string;
 	percentage: number;
+	total_events: number;
+	unique_sessions: number;
+	unique_users: number;
 }
 
 export interface RecentCustomEvent {
-	name: string;
+	anonymous_id: string;
 	event_name: string;
+	name: string;
 	path: string;
 	properties: Record<string, unknown>;
-	anonymous_id: string;
 	session_id: string;
 	timestamp: string;
 }
 
 export interface RawRecentCustomEvent {
+	anonymous_id: string;
 	event_name: string;
 	path: string;
 	properties: string;
-	anonymous_id: string;
 	session_id: string;
 	timestamp: string;
 }
@@ -40,9 +40,9 @@ export interface CustomEventsTrend {
 	date: string;
 	total_events: number;
 	unique_event_types: number;
-	unique_users: number;
-	unique_sessions?: number;
 	unique_pages?: number;
+	unique_sessions?: number;
+	unique_users: number;
 }
 
 export interface CustomEventsTrendByEvent {
@@ -73,51 +73,51 @@ export type PropertyRenderStrategy =
 	| "detail_only"; // Non-aggregatable - only in row view
 
 export interface PropertyClassification {
-	event_name: string;
-	property_key: string;
-	cardinality: number;
-	total_count: number;
-	coverage_ratio: number;
 	avg_length: number;
-	max_length: number;
-	is_numeric: boolean;
+	cardinality: number;
+	coverage_ratio: number;
+	event_name: string;
+	inferred_type: PropertyInferredType;
 	is_boolean: boolean;
 	is_date_like: boolean;
+	is_numeric: boolean;
 	is_url_like: boolean;
-	inferred_type: PropertyInferredType;
+	max_length: number;
+	property_key: string;
 	render_strategy: PropertyRenderStrategy;
 	sample_values: [string, number][];
+	total_count: number;
 }
 
 export interface PropertyTopValue {
+	count: number;
 	event_name: string;
+	percentage: number;
 	property_key: string;
 	property_value: string;
-	count: number;
-	total: number;
-	percentage: number;
 	rank: number;
+	total: number;
 }
 
 export interface PropertyDistribution {
+	cardinality: number;
+	count: number;
 	event_name: string;
+	percentage: number;
 	property_key: string;
 	property_value: string;
-	count: number;
 	total: number;
-	percentage: number;
-	cardinality: number;
 }
 
 export interface ClassifiedProperty {
-	key: string;
 	classification: PropertyClassification;
+	key: string;
 	values: PropertyTopValue[] | PropertyDistribution[];
 }
 
 export interface ClassifiedEvent {
-	name: string;
-	total_events: number;
-	summaryProperties: ClassifiedProperty[];
 	detailProperties: ClassifiedProperty[];
+	name: string;
+	summaryProperties: ClassifiedProperty[];
+	total_events: number;
 }

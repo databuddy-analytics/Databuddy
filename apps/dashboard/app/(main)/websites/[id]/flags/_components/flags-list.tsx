@@ -1,16 +1,14 @@
 "use client";
 
-import {
-	ArchiveIcon,
-	DotsThreeIcon,
-	FlagIcon,
-	FlaskIcon,
-	GaugeIcon,
-	LinkIcon,
-	PencilSimpleIcon,
-	ShareNetworkIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { ArchiveIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { FlagIcon } from "@phosphor-icons/react";
+import { FlaskIcon } from "@phosphor-icons/react";
+import { GaugeIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { ShareNetworkIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -40,8 +38,8 @@ import type { Flag, TargetGroup } from "./types";
 interface FlagsListProps {
 	flags: Flag[];
 	groups: Map<string, TargetGroup[]>;
-	onEdit: (flag: Flag) => void;
 	onDelete: (flagId: string) => void;
+	onEdit: (flag: Flag) => void;
 }
 
 const TYPE_CONFIG = {
@@ -298,14 +296,23 @@ function FlagRow({
 	return (
 		<List.Row
 			asChild
-			className={cn("min-w-full", flag.status === "archived" && "opacity-50")}
+			className={cn(
+				"min-w-full cursor-pointer text-left",
+				flag.status === "archived" && "opacity-50"
+			)}
 		>
-			<button
-				className="cursor-pointer text-left"
+			{/* biome-ignore lint/a11y/useSemanticElements: List.Row asChild replaces this element; a real <button> would nest inside the action-cell buttons */}
+			<div
 				onClick={() => onEdit(flag)}
-				type="button"
+				onKeyDown={(e) => {
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onEdit(flag);
+					}
+				}}
+				role="button"
+				tabIndex={0}
 			>
-				{/* Flag name & key */}
 				<List.Cell
 					className="min-w-0 max-w-[min(320px,100%)] shrink-0"
 					onClick={(e) => e.stopPropagation()}
@@ -336,7 +343,6 @@ function FlagRow({
 					</div>
 				</List.Cell>
 
-				{/* Description */}
 				<List.Cell grow>
 					{flag.description ? (
 						<p className="wrap-break-word text-pretty text-muted-foreground text-xs">
@@ -345,21 +351,18 @@ function FlagRow({
 					) : null}
 				</List.Cell>
 
-				{/* Type */}
 				<List.Cell className="flex w-[100px] shrink-0 justify-center">
 					<Badge className="font-normal" variant="secondary">
 						{typeConfig.label}
 					</Badge>
 				</List.Cell>
 
-				{/* Rollout */}
 				<List.Cell className="flex w-20 shrink-0 justify-center">
 					{flag.type === "rollout" && rollout > 0 && (
 						<RolloutProgress percentage={rollout} />
 					)}
 				</List.Cell>
 
-				{/* Rules & Variants */}
 				<List.Cell className="flex w-[100px] shrink-0 justify-center">
 					{(ruleCount > 0 || variantCount > 0) && (
 						<div className="flex flex-col gap-0.5 text-center text-muted-foreground text-xs">
@@ -375,12 +378,10 @@ function FlagRow({
 					)}
 				</List.Cell>
 
-				{/* Groups */}
 				<List.Cell className="flex w-[100px] shrink-0 justify-center">
 					<GroupsDisplay groups={groups} />
 				</List.Cell>
 
-				{/* Status */}
 				<List.Cell
 					className="flex w-[120px] shrink-0 justify-center"
 					onClick={(e) => e.stopPropagation()}
@@ -399,7 +400,7 @@ function FlagRow({
 				<List.Cell action>
 					<FlagActions flag={flag} onDelete={onDelete} onEdit={onEdit} />
 				</List.Cell>
-			</button>
+			</div>
 		</List.Row>
 	);
 }

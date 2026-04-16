@@ -28,6 +28,8 @@ function fromRecord(record: WebsiteCacheRecord): Website {
 	};
 }
 
+const CACHE_TTL_SECONDS = 300;
+
 export class WebsiteCache {
 	private readonly namespace = "services:websites";
 	private readonly pingIntervalMs = 30_000;
@@ -157,8 +159,9 @@ export class WebsiteCache {
 			if (!redis) {
 				return;
 			}
-			await redis.set(
+			await redis.setex(
 				this.keyWebsiteById(website.id),
+				CACHE_TTL_SECONDS,
 				JSON.stringify(toRecord(website))
 			);
 		} catch (error) {
@@ -230,8 +233,9 @@ export class WebsiteCache {
 			if (!redis) {
 				return;
 			}
-			await redis.set(
+			await redis.setex(
 				this.keyByDomain(domain, organizationId),
+				CACHE_TTL_SECONDS,
 				JSON.stringify(toRecord(website))
 			);
 		} catch (error) {
@@ -297,8 +301,9 @@ export class WebsiteCache {
 			if (!redis) {
 				return;
 			}
-			await redis.set(
+			await redis.setex(
 				this.keyListByOrg(organizationId),
+				CACHE_TTL_SECONDS,
 				JSON.stringify(websites.map(toRecord))
 			);
 		} catch (error) {

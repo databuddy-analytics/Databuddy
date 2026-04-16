@@ -1,16 +1,21 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
-import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TrendUpIcon } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { WebsiteDialog } from "@/components/website-dialog";
 import { useWebsites } from "@/hooks/use-websites";
+
+const WebsiteDialog = dynamic(
+	() => import("@/components/website-dialog").then((mod) => mod.WebsiteDialog),
+	{ ssr: false }
+);
 
 import { cn } from "@/lib/utils";
 import { PageHeader } from "./_components/page-header";
@@ -63,7 +68,6 @@ export default function WebsitesPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			{/* Enhanced header */}
 			<PageHeader
 				description="Track analytics for all your websites"
 				icon={<TrendUpIcon />}
@@ -105,7 +109,6 @@ export default function WebsitesPage() {
 				title="Websites"
 			/>
 
-			{/* Content area */}
 			<div
 				aria-busy={isFetching}
 				className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6"
@@ -126,7 +129,6 @@ export default function WebsitesPage() {
 					/>
 				)}
 
-				{/* Show empty state */}
 				{!(isLoading || isError) && websites && websites.length === 0 && (
 					<EmptyState
 						action={{
@@ -141,7 +143,6 @@ export default function WebsitesPage() {
 					/>
 				)}
 
-				{/* Show website grid */}
 				{!(isLoading || isError) && websites && websites.length > 0 && (
 					<div
 						aria-live="polite"
@@ -160,7 +161,6 @@ export default function WebsitesPage() {
 				)}
 			</div>
 
-			{/* Website Dialog */}
 			<WebsiteDialog onOpenChange={setDialogOpen} open={dialogOpen} />
 		</div>
 	);

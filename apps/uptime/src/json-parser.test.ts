@@ -118,7 +118,9 @@ describe("extractHealth – realistic health check payloads", () => {
 	});
 
 	test("responseTime (camelCase) is recognized", () => {
-		const result = extractHealth({ proxy: { status: true, responseTime: 120 } });
+		const result = extractHealth({
+			proxy: { status: true, responseTime: 120 },
+		});
 		expect(result?.proxy?.latency).toBe(120);
 	});
 

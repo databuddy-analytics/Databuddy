@@ -4,12 +4,12 @@ import { memo, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 
 interface AutocompleteInputProps {
-	value: string;
-	onValueChange: (value: string) => void;
-	suggestions: string[];
-	placeholder?: string;
 	className?: string;
 	inputClassName?: string;
+	onValueChange: (value: string) => void;
+	placeholder?: string;
+	suggestions: string[];
+	value: string;
 }
 
 export const AutocompleteInput = memo(
@@ -99,10 +99,10 @@ export const AutocompleteInput = memo(
 					value={localValue}
 				/>
 				{isOpen && filteredSuggestions.length > 0 && (
-					<div className="absolute z-50 mt-1 min-w-[200px] max-h-48 w-full overflow-y-auto rounded border bg-popover shadow-lg">
+					<div className="absolute z-50 mt-1 max-h-48 w-full min-w-[200px] overflow-y-auto rounded border bg-popover shadow-lg">
 						{filteredSuggestions.map((suggestion) => (
 							<button
-								className="w-full cursor-pointer wrap-break-words border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent hover:text-accent-foreground"
+								className="wrap-break-words w-full cursor-pointer border-b px-3 py-2 text-left text-sm last:border-b-0 hover:bg-accent hover:text-accent-foreground"
 								key={suggestion}
 								onClick={() => handleSelect(suggestion)}
 								type="button"

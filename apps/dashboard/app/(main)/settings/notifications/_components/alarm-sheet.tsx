@@ -1,7 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PlusIcon, TrashIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -75,28 +76,28 @@ const alarmFormSchema = z.object({
 type AlarmFormData = z.infer<typeof alarmFormSchema>;
 
 interface AlarmDestination {
-	id: string;
-	type: string;
-	identifier: string;
 	config: Record<string, unknown>;
+	id: string;
+	identifier: string;
+	type: string;
 }
 
 export interface AlarmData {
+	description?: string | null;
+	destinations?: AlarmDestination[];
+	enabled: boolean;
 	id: string;
 	name: string;
-	description?: string | null;
-	enabled: boolean;
-	websiteId?: string | null;
-	triggerType: string;
 	triggerConditions?: Record<string, unknown>;
-	destinations?: AlarmDestination[];
+	triggerType: string;
+	websiteId?: string | null;
 }
 
 interface AlarmSheetProps {
-	open: boolean;
+	alarm?: AlarmData | null;
 	onCloseAction: (open: boolean) => void;
 	onSaveAction?: () => void;
-	alarm?: AlarmData | null;
+	open: boolean;
 }
 
 const IDENTIFIER_LABELS: Record<string, string> = {
@@ -243,7 +244,6 @@ export function AlarmSheet({
 						onSubmit={form.handleSubmit(handleSubmit)}
 					>
 						<SheetBody className="space-y-6">
-							{/* Basics */}
 							<div className="space-y-4">
 								<FormField
 									control={form.control}
@@ -283,7 +283,6 @@ export function AlarmSheet({
 
 							<div className="h-px bg-border" />
 
-							{/* Configuration */}
 							<div className="space-y-4">
 								<FormField
 									control={form.control}
@@ -341,7 +340,6 @@ export function AlarmSheet({
 
 							<div className="h-px bg-border" />
 
-							{/* Destinations */}
 							<div className="space-y-3">
 								<div className="flex items-center justify-between">
 									<div className="space-y-1">

@@ -1,11 +1,9 @@
 "use client";
 
-import {
-	ArrowRightIcon,
-	ArrowsLeftRightIcon,
-	BuildingsIcon,
-	GlobeIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { ArrowsLeftRightIcon } from "@phosphor-icons/react";
+import { BuildingsIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { FaviconImage } from "@/components/analytics/favicon-image";
@@ -24,9 +22,9 @@ import { cn } from "@/lib/utils";
 import { useWebsiteTransfer } from "./hooks/use-website-transfer";
 
 interface WebsiteItemProps {
-	website: Website;
-	selected: boolean;
 	onClickAction: () => void;
+	selected: boolean;
+	website: Website;
 }
 
 function WebsiteItem({ website, selected, onClickAction }: WebsiteItemProps) {
@@ -131,7 +129,6 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 
 	return (
 		<div className="space-y-4">
-			{/* Websites in current org */}
 			<div className="flex flex-col">
 				<div className="mb-3 flex items-center gap-2">
 					<BuildingsIcon
@@ -160,7 +157,6 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 				</div>
 			</div>
 
-			{/* Target org selector */}
 			{selectedWebsite && (
 				<div className="space-y-2">
 					<label className="font-medium text-sm" htmlFor="target-org">
@@ -190,7 +186,6 @@ export function TransferAssets({ organizationId }: TransferAssetsProps) {
 				</div>
 			)}
 
-			{/* Transfer button */}
 			<Button
 				className="w-full"
 				disabled={!canTransfer || isTransferring}

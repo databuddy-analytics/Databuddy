@@ -9,6 +9,10 @@ export function initOutgoingLinksTracking(tracker: BaseTracker): () => void {
 	const currentOrigin = window.location.origin;
 
 	const handler = (e: MouseEvent) => {
+		if (tracker.options.disabled || tracker.isLikelyBot) {
+			return;
+		}
+
 		const target = e.target as Element | null;
 		if (!target) {
 			return;
@@ -31,14 +35,19 @@ export function initOutgoingLinksTracking(tracker: BaseTracker): () => void {
 			}
 
 			tracker.api.fetch(
-				"/outgoing",
+				"/",
 				{
+					type: "outgoing_link",
 					eventId: generateUUIDv4(),
+					anonymousId: tracker.anonymousId,
+					sessionId: tracker.sessionId,
+					timestamp: Date.now(),
 					href: link.href,
 					text: link.innerText || link.title || "",
 					...tracker.getBaseContext(),
 				},
-				{ keepalive: true }
+				{ keepalive: true },
+				{ client_id: tracker.options.clientId }
 			);
 		} catch {
 			return;

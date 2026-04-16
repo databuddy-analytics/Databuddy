@@ -1,22 +1,14 @@
 /** biome-ignore-all lint/performance/noNamespaceImport: "Required" */
 
-import { drizzle } from "drizzle-orm/node-postgres";
+import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as relations from "./drizzle/relations";
 import * as schema from "./drizzle/schema";
 
 const fullSchema = { ...schema, ...relations };
 
-const databaseUrl = process.env.DATABASE_URL as string;
+type DB = NodePgDatabase<typeof fullSchema>;
 
-if (!databaseUrl) {
-	throw new Error("DATABASE_URL is not set");
-}
-
-/**
- * libpq accepts `sslrootcert=system` (use OS trust store). node-postgres treats
- * `sslrootcert` as a file path and tries to open `system`, causing ENOENT.
- */
 function connectionStringForNodePg(connectionString: string): string {
 	try {
 		const parsed = new URL(connectionString);
@@ -29,10 +21,29 @@ function connectionStringForNodePg(connectionString: string): string {
 	}
 }
 
-const pool = new Pool({
-	connectionString: connectionStringForNodePg(databaseUrl),
-});
+let _db: DB | null = null;
 
-export const db = drizzle(pool, {
-	schema: fullSchema,
+function getDb(): DB {
+	if (!_db) {
+		const databaseUrl = process.env.DATABASE_URL;
+		if (!databaseUrl) {
+			throw new Error("DATABASE_URL is not set");
+		}
+
+		const pool = new Pool({
+			connectionString: connectionStringForNodePg(databaseUrl),
+			max: Number.parseInt(process.env.DB_POOL_MAX ?? "20", 10) || 20,
+			idleTimeoutMillis: 30_000,
+			connectionTimeoutMillis: 5000,
+		});
+
+		_db = drizzle(pool, { schema: fullSchema });
+	}
+	return _db;
+}
+
+export const db = new Proxy({} as DB, {
+	get(_, prop) {
+		return Reflect.get(getDb(), prop);
+	},
 });

@@ -1,9 +1,7 @@
 import { Analytics } from "../../types/tables";
 import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
 
-// ============================================================================
 // Link Shortener Query Builders
-// ============================================================================
 
 export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 	link_total_clicks: {
@@ -418,9 +416,7 @@ export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 	},
 };
 
-// ============================================================================
 // Outbound Links Query Builders (Website Analytics)
-// ============================================================================
 
 export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 	outbound_links: {

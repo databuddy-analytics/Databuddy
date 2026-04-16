@@ -1,10 +1,10 @@
-import type { ManifestoChapter } from "./manifesto-data";
 import { ManifestoBlocks } from "./manifesto-blocks";
+import type { ManifestoChapter as ManifestoChapterData } from "./manifesto-data";
 
 export function ManifestoChapter({
 	chapter,
 }: {
-	chapter: ManifestoChapter;
+	chapter: ManifestoChapterData;
 }) {
 	return (
 		<section

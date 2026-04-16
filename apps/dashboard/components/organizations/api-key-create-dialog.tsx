@@ -2,14 +2,12 @@
 
 import type { ApiScope } from "@databuddy/api-keys/scopes";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	CheckCircleIcon,
-	CheckIcon,
-	CopyIcon,
-	KeyIcon,
-	PlusIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { KeyIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -37,15 +35,15 @@ import {
 import { type ApiKeyAccessEntry, SCOPE_OPTIONS } from "./api-key-types";
 
 interface ApiKeyCreateDialogProps {
-	open: boolean;
 	onOpenChangeAction: (open: boolean) => void;
-	organizationId: string;
 	onSuccessAction: (data: {
 		id: string;
 		secret: string;
 		prefix: string;
 		start: string;
 	}) => void;
+	open: boolean;
+	organizationId: string;
 }
 
 const formSchema = z.object({
@@ -169,7 +167,10 @@ export function ApiKeyCreateDialog({
 			name: values.name,
 			organizationId,
 			scopes: [],
-			resources: Object.keys(resources).length > 0 ? resources : undefined,
+			resources:
+				Object.keys(resources).length > 0
+					? (resources as Parameters<typeof mutation.mutate>[0]["resources"])
+					: undefined,
 		});
 	});
 
@@ -248,7 +249,6 @@ export function ApiKeyCreateDialog({
 					onSubmit={onSubmit}
 				>
 					<SheetBody className="space-y-6">
-						{/* Name Section */}
 						<section className="space-y-3">
 							<Label className="font-medium" htmlFor="name">
 								Key Name
@@ -301,7 +301,6 @@ export function ApiKeyCreateDialog({
 							</div>
 						</section>
 
-						{/* Website-Specific Permissions */}
 						{websites && websites.length > 0 && (
 							<section className="space-y-3">
 								<Label className="font-medium">
@@ -340,7 +339,6 @@ export function ApiKeyCreateDialog({
 									</Button>
 								</div>
 
-								{/* Website Access List */}
 								{websiteAccess.length > 0 && (
 									<div className="space-y-3">
 										{websiteAccess.map((entry) => {

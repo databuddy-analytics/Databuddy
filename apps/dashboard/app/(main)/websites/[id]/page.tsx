@@ -1,6 +1,6 @@
 "use client";
 
-import { WarningIcon } from "@phosphor-icons/react/dist/ssr/Warning";
+import { WarningIcon } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import Link from "next/link";
 import { useParams } from "next/navigation";

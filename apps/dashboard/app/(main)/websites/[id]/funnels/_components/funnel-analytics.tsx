@@ -1,15 +1,13 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	ArrowSquareOutIcon,
-	BugIcon,
-	ClockIcon,
-	TargetIcon,
-	TrendDownIcon,
-	UsersIcon,
-	WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { BugIcon } from "@phosphor-icons/react";
+import { ClockIcon } from "@phosphor-icons/react";
+import { TargetIcon } from "@phosphor-icons/react";
+import { TrendDownIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { StatCard } from "@/components/analytics/stat-card";
@@ -42,19 +40,18 @@ function safePercent(value: number | undefined | null): string {
 }
 
 interface FunnelAnalyticsProps {
-	isLoading: boolean;
-	error: Error | null;
 	data: FunnelAnalyticsData | undefined;
-	onRetry: () => void;
-	selectedReferrer?: string;
-	referrerAnalytics?: FunnelAnalyticsByReferrerResult[];
+	error: Error | null;
 	headerAction?: React.ReactNode;
+	isLoading: boolean;
+	onRetry: () => void;
+	referrerAnalytics?: FunnelAnalyticsByReferrerResult[];
+	selectedReferrer?: string;
 }
 
 function AnalyticsSkeleton() {
 	return (
 		<div className="space-y-6">
-			{/* Stats grid skeleton */}
 			<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
 				<StatCard icon={UsersIcon} isLoading title="Users" value={0} />
 				<StatCard icon={TargetIcon} isLoading title="Conversion" value={0} />
@@ -62,7 +59,6 @@ function AnalyticsSkeleton() {
 				<StatCard icon={ClockIcon} isLoading title="Avg Time" value={0} />
 			</div>
 
-			{/* Steps skeleton */}
 			<div className="space-y-3">
 				{[1, 2, 3].map((i) => (
 					<div

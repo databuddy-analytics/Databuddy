@@ -4,7 +4,7 @@ import type {
 	CustomOutgoingLink,
 	ErrorSpanRow,
 	WebVitalsSpan,
-} from "@databuddy/db";
+} from "@databuddy/db/clickhouse/schema";
 import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
 import { runFork, runPromise, send, sendBatch } from "@lib/producer";
 import { checkDuplicate, getDailySalt, saltAnonymousId } from "@lib/security";
@@ -19,6 +19,104 @@ import {
 } from "@utils/validation";
 import { randomUUIDv7 } from "bun";
 import { useLogger } from "evlog/elysia";
+
+export interface TrackEventContext {
+	anonymousId: string;
+	clientId: string;
+	eventId: string;
+	geo: {
+		anonymizedIP: string;
+		country?: string;
+		region?: string;
+		city?: string;
+	};
+	now: number;
+	ua: {
+		browserName?: string;
+		browserVersion?: string;
+		osName?: string;
+		osVersion?: string;
+		deviceType?: string;
+		deviceBrand?: string;
+		deviceModel?: string;
+	};
+}
+
+export function buildTrackEvent(
+	trackData: any,
+	ctx: TrackEventContext
+): AnalyticsEvent {
+	const timestamp =
+		typeof trackData.timestamp === "number" ? trackData.timestamp : ctx.now;
+	const sessionStartTime =
+		typeof trackData.sessionStartTime === "number"
+			? trackData.sessionStartTime
+			: ctx.now;
+
+	return {
+		id: randomUUIDv7(),
+		client_id: ctx.clientId,
+		event_name: sanitizeString(
+			trackData.name,
+			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		),
+		anonymous_id: ctx.anonymousId,
+		time: timestamp,
+		session_id: validateSessionId(trackData.sessionId),
+		event_type: "track",
+		event_id: ctx.eventId,
+		session_start_time: sessionStartTime,
+		timestamp,
+		referrer: sanitizeString(
+			trackData.referrer,
+			VALIDATION_LIMITS.STRING_MAX_LENGTH
+		),
+		url: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		path: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		title: sanitizeString(trackData.title, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		ip: ctx.geo.anonymizedIP || "",
+		user_agent: "",
+		browser_name: ctx.ua.browserName || "",
+		browser_version: ctx.ua.browserVersion || "",
+		os_name: ctx.ua.osName || "",
+		os_version: ctx.ua.osVersion || "",
+		device_type: ctx.ua.deviceType || "",
+		device_brand: ctx.ua.deviceBrand || "",
+		device_model: ctx.ua.deviceModel || "",
+		country: ctx.geo.country || "",
+		region: ctx.geo.region || "",
+		city: ctx.geo.city || "",
+		screen_resolution: trackData.screen_resolution,
+		viewport_size: trackData.viewport_size,
+		language: trackData.language,
+		timezone: trackData.timezone,
+		connection_type: trackData.connection_type,
+		rtt: trackData.rtt,
+		downlink: trackData.downlink,
+		time_on_page: trackData.time_on_page,
+		scroll_depth: trackData.scroll_depth,
+		interaction_count: trackData.interaction_count,
+		page_count: trackData.page_count || 1,
+		utm_source: trackData.utm_source,
+		utm_medium: trackData.utm_medium,
+		utm_campaign: trackData.utm_campaign,
+		utm_term: trackData.utm_term,
+		utm_content: trackData.utm_content,
+		gclid: trackData.gclid,
+		load_time: validatePerformanceMetric(trackData.load_time),
+		dom_ready_time: validatePerformanceMetric(trackData.dom_ready_time),
+		dom_interactive: validatePerformanceMetric(trackData.dom_interactive),
+		ttfb: validatePerformanceMetric(trackData.ttfb),
+		connection_time: validatePerformanceMetric(trackData.connection_time),
+		render_time: validatePerformanceMetric(trackData.render_time),
+		redirect_time: validatePerformanceMetric(trackData.redirect_time),
+		domain_lookup_time: validatePerformanceMetric(trackData.domain_lookup_time),
+		properties: trackData.properties
+			? JSON.stringify(trackData.properties)
+			: "{}",
+		created_at: ctx.now,
+	};
+}
 
 /**
  * Insert a track event (pageview/analytics event) via Kafka
@@ -36,7 +134,6 @@ export function insertTrackEvent(
 			trackData.eventId,
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 		);
-
 		if (!eventId) {
 			eventId = randomUUIDv7();
 		}
@@ -68,98 +165,17 @@ export function insertTrackEvent(
 			anonymousId = saltAnonymousId(anonymousId, salt);
 		}
 
-		const { anonymizedIP, country, region, city } = geoData;
-		const {
-			browserName,
-			browserVersion,
-			osName,
-			osVersion,
-			deviceType,
-			deviceBrand,
-			deviceModel,
-		} = await parseUserAgent(userAgent);
+		const ua = await parseUserAgent(userAgent);
 		const now = Date.now();
 
-		const trackEvent: AnalyticsEvent = {
-			id: randomUUIDv7(),
-			client_id: clientId,
-			event_name: sanitizeString(
-				trackData.name,
-				VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
-			),
-			anonymous_id: anonymousId,
-			time: typeof trackData.timestamp === "number" ? trackData.timestamp : now,
-			session_id: validateSessionId(trackData.sessionId),
-			event_type: "track",
-			event_id: eventId,
-			session_start_time:
-				typeof trackData.sessionStartTime === "number"
-					? trackData.sessionStartTime
-					: now,
-			timestamp:
-				typeof trackData.timestamp === "number" ? trackData.timestamp : now,
-
-			referrer: sanitizeString(
-				trackData.referrer,
-				VALIDATION_LIMITS.STRING_MAX_LENGTH
-			),
-			url: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-			path: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-			title: sanitizeString(
-				trackData.title,
-				VALIDATION_LIMITS.STRING_MAX_LENGTH
-			),
-
-			ip: anonymizedIP || "",
-			user_agent: "",
-			browser_name: browserName || "",
-			browser_version: browserVersion || "",
-			os_name: osName || "",
-			os_version: osVersion || "",
-			device_type: deviceType || "",
-			device_brand: deviceBrand || "",
-			device_model: deviceModel || "",
-			country: country || "",
-			region: region || "",
-			city: city || "",
-
-			screen_resolution: trackData.screen_resolution,
-			viewport_size: trackData.viewport_size,
-			language: trackData.language,
-			timezone: trackData.timezone,
-
-			connection_type: trackData.connection_type,
-			rtt: trackData.rtt,
-			downlink: trackData.downlink,
-
-			time_on_page: trackData.time_on_page,
-			scroll_depth: trackData.scroll_depth,
-			interaction_count: trackData.interaction_count,
-			page_count: trackData.page_count || 1,
-
-			utm_source: trackData.utm_source,
-			utm_medium: trackData.utm_medium,
-			utm_campaign: trackData.utm_campaign,
-			utm_term: trackData.utm_term,
-			utm_content: trackData.utm_content,
-			gclid: trackData.gclid,
-
-			load_time: validatePerformanceMetric(trackData.load_time),
-			dom_ready_time: validatePerformanceMetric(trackData.dom_ready_time),
-			dom_interactive: validatePerformanceMetric(trackData.dom_interactive),
-			ttfb: validatePerformanceMetric(trackData.ttfb),
-			connection_time: validatePerformanceMetric(trackData.connection_time),
-			render_time: validatePerformanceMetric(trackData.render_time),
-			redirect_time: validatePerformanceMetric(trackData.redirect_time),
-			domain_lookup_time: validatePerformanceMetric(
-				trackData.domain_lookup_time
-			),
-
-			properties: trackData.properties
-				? JSON.stringify(trackData.properties)
-				: "{}",
-			created_at: now,
-		};
+		const trackEvent = buildTrackEvent(trackData, {
+			clientId,
+			eventId,
+			anonymousId,
+			geo: geoData,
+			ua,
+			now,
+		});
 
 		runFork(send("analytics-events", trackEvent));
 	});

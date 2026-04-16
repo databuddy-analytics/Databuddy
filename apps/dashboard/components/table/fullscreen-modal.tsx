@@ -9,34 +9,34 @@ import { TableContent } from "./table-content";
 import { TableTabs } from "./table-tabs";
 
 interface TabConfig<TData> {
+	columns: ColumnDef<TData, unknown>[];
+	data: TData[];
+	getFilter?: (row: TData) => { field: string; value: string };
 	id: string;
 	label: string;
-	data: TData[];
-	columns: ColumnDef<TData, unknown>[];
-	getFilter?: (row: TData) => { field: string; value: string };
 }
 
 interface FullScreenModalProps<TData extends { name: string | number }> {
-	data?: TData[];
-	columns?: ColumnDef<TData, unknown>[];
-	title?: string;
-	description?: string;
-	onClose: () => void;
-	tabs?: TabConfig<TData>[];
 	activeTab?: string;
-	onTabChange?: (tabId: string) => void;
+	columns?: ColumnDef<TData, unknown>[];
+	data?: TData[];
+	description?: string;
 	expandable?: boolean;
 	getSubRows?: (row: TData) => TData[] | undefined;
+	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
+	onClose: () => void;
+	onRowAction?: (row: TData) => void;
+	onRowClick?: (field: string, value: string | number) => void;
+	onTabChange?: (tabId: string) => void;
 	renderSubRow?: (
 		subRow: TData,
 		parentRow: TData,
 		index: number
 	) => React.ReactNode;
-	onAddFilter?: (field: string, value: string, tableTitle?: string) => void;
-	onRowAction?: (row: TData) => void;
-	onRowClick?: (field: string, value: string | number) => void;
 	shareColumnTooltip?: string;
 	showBrand?: boolean;
+	tabs?: TabConfig<TData>[];
+	title?: string;
 }
 
 export function FullScreenModal<TData extends { name: string | number }>({

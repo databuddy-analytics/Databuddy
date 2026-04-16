@@ -1,15 +1,13 @@
 "use client";
 
 import type { Icon } from "@phosphor-icons/react";
-import {
-	CalendarIcon,
-	CheckIcon,
-	CircleNotchIcon,
-	ImageIcon,
-	LinkIcon,
-	PencilSimpleIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { CalendarIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { ImageIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { Button } from "@/components/ui/button";
@@ -20,28 +18,28 @@ import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 
 interface LinkPreviewData {
-	name: string;
-	targetUrl: string;
-	slug?: string;
-	expiresAt?: string | null;
 	expiredRedirectUrl?: string | null;
-	ogTitle?: string | null;
+	expiresAt?: string | null;
+	name: string;
 	ogDescription?: string | null;
 	ogImageUrl?: string | null;
+	ogTitle?: string | null;
+	slug?: string;
+	targetUrl: string;
 }
 
 export interface LinkPreviewProps extends BaseComponentProps {
-	mode: "create" | "update" | "delete";
 	link: LinkPreviewData;
+	mode: "create" | "update" | "delete";
 }
 
 interface ModeConfig {
-	title: string;
+	accent: string;
+	ButtonIcon: Icon;
 	confirmLabel: string;
 	confirmMessage: string;
-	accent: string;
+	title: string;
 	variant: "default" | "destructive";
-	ButtonIcon: Icon;
 }
 
 const MODE_CONFIG: Record<string, ModeConfig> = {

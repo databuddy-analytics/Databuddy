@@ -1,5 +1,3 @@
-const SECONDS_PER_DAY = 86_400;
-
 function formatDurationSeconds(seconds: number): string {
 	if (!Number.isFinite(seconds) || seconds <= 0) {
 		return "0s";
@@ -23,10 +21,11 @@ function formatDurationSeconds(seconds: number): string {
 	return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
 }
 
-export function formatImpliedDailyDowntimeDuration(
-	uptimePercent: number
-): string {
-	const clamped = Math.min(100, Math.max(0, uptimePercent));
-	const downtimeSeconds = ((100 - clamped) / 100) * SECONDS_PER_DAY;
+/**
+ * Formats the measured downtime for a day.
+ * Uses actual `downtimeSeconds` (computed from the gap between
+ * each down-check and the next check) when available.
+ */
+export function formatDailyDowntime(downtimeSeconds: number): string {
 	return formatDurationSeconds(downtimeSeconds);
 }

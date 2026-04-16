@@ -14,7 +14,7 @@
     "@databuddy/shared": "workspace:*",
     "@maxmind/geoip2-node": "^6.3.4",
     "elysia": "^1.4.22",
-    "evlog": "^2.8.0",
+    "evlog": "catalog:",
     "kafkajs": "^2.2.4",
     "lru-cache": "^11.2.7",
     "ua-parser-js": "^2.0.8"

@@ -8,19 +8,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 interface QueryType {
-	name: string;
-	defaultLimit?: number;
-	customizable?: boolean;
 	allowedFilters?: string[];
+	customizable?: boolean;
+	defaultLimit?: number;
+	name: string;
 }
 
 interface QueryTypeSelectorProps {
 	availableTypes: QueryType[];
-	selectedTypes: Set<string>;
 	isLoading: boolean;
-	onTypeToggle: (typeName: string) => void;
 	onClearSelection: () => void;
 	onExecuteQuery: () => void;
+	onTypeToggle: (typeName: string) => void;
+	selectedTypes: Set<string>;
 }
 
 export function QueryTypeSelector({

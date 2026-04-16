@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
-	scrollDepthPercentFromScrollY,
 	scrollableRangePx,
+	scrollDepthPercentFromScrollY,
 	updateMaxScrollDepth,
 } from "../../src/plugins/scroll-depth-math";
 

@@ -1,4 +1,4 @@
-import { chQuery, TABLE_NAMES } from "@databuddy/db";
+import { chQuery, TABLE_NAMES } from "@databuddy/db/clickhouse";
 
 /** ClickHouse `formatDateTime`: use `%i` for minutes. Since v23.4, `%M` is the full month name (MySQL-style). */
 
@@ -7,27 +7,27 @@ export type AnomalyMetric = "pageviews" | "custom_events" | "errors";
 export type AnomalySeverity = "warning" | "critical";
 
 export interface DetectedAnomaly {
-	metric: AnomalyMetric;
-	type: AnomalyType;
-	severity: AnomalySeverity;
-	currentValue: number;
 	baselineMean: number;
 	baselineStdDev: number;
-	zScore: number;
-	percentChange: number;
+	currentValue: number;
 	detectedAt: string;
-	periodStart: string;
-	periodEnd: string;
 	eventName?: string;
+	metric: AnomalyMetric;
+	percentChange: number;
+	periodEnd: string;
+	periodStart: string;
+	severity: AnomalySeverity;
+	type: AnomalyType;
+	zScore: number;
 }
 
 export interface AnomalyDetectionConfig {
-	warningThreshold: number;
-	criticalThreshold: number;
 	baselineDays: number;
+	criticalThreshold: number;
 	minimumBaselineCount: number;
 	/** Percentage change threshold used when stddev is 0 (default 200 = 3x the mean) */
 	percentChangeFallback: number;
+	warningThreshold: number;
 }
 
 const DEFAULT_CONFIG: AnomalyDetectionConfig = {
@@ -39,18 +39,18 @@ const DEFAULT_CONFIG: AnomalyDetectionConfig = {
 };
 
 interface HourlyBaseline {
-	hour_of_day: number;
 	avg_count: number;
-	stddev_count: number;
+	hour_of_day: number;
 	sample_count: number;
+	stddev_count: number;
 	total_count: number;
 }
 
 interface RecentHourRow {
 	event_count: number;
 	hour_of_day: number;
-	period_start: string;
 	period_end: string;
+	period_start: string;
 }
 
 function classifySeverity(

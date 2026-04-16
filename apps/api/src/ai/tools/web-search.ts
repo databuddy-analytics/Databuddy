@@ -1,5 +1,8 @@
+import { getAutumn } from "@databuddy/rpc";
 import { generateText, tool } from "ai";
 import { z } from "zod";
+import { getAILogger } from "../config/ai-logger";
+import { mergeWideEvent } from "../../lib/tracing";
 import type { AppContext } from "../config/context";
 import { models } from "../config/models";
 import { createToolLogger } from "./utils/logger";
@@ -8,19 +11,10 @@ const logger = createToolLogger("Web Search");
 
 export const webSearchTool = tool({
 	description:
-		"Search the web for real-time information. Use this when the user's question requires external context you don't have - e.g. industry benchmarks, best practices for a specific technology, competitor info, marketing advice, SEO tips, or anything beyond the analytics data. Do NOT use this for analytics queries - use the analytics tools instead.",
+		"Search the web for external context: benchmarks, best practices, competitors, industry info. Never for analytics data.",
 	inputSchema: z.object({
-		query: z
-			.string()
-			.describe(
-				"A clear, specific search query. Good: 'average bounce rate for SaaS websites 2025'. Bad: 'bounce rate'."
-			),
-		context: z
-			.string()
-			.optional()
-			.describe(
-				"Brief context about why you're searching, to help refine the answer"
-			),
+		query: z.string(),
+		context: z.string().optional(),
 	}),
 	execute: async ({ query, context }, options) => {
 		const searchStart = Date.now();
@@ -58,7 +52,7 @@ export const webSearchTool = tool({
 			}
 
 			const result = await generateText({
-				model: models.perplexity,
+				model: getAILogger().wrap(models.perplexity),
 				system: systemPrompt,
 				prompt: query,
 				experimental_telemetry: {
@@ -76,8 +70,33 @@ export const webSearchTool = tool({
 				responseLength: result.text.length,
 			});
 
+			if (appContext?.billingCustomerId) {
+				getAutumn()
+					.track({
+						customerId: appContext.billingCustomerId,
+						featureId: "agent_web_search_calls",
+						value: 1,
+					})
+					.catch((trackError) => {
+						mergeWideEvent({ web_search_billing_track_failed: true });
+						logger.error("Failed to track web search usage", {
+							error:
+								trackError instanceof Error
+									? trackError.message
+									: String(trackError),
+						});
+					});
+			}
+
+			// Sanitize web content before returning to the agent to prevent
+			// indirect prompt injection from adversarial web pages.
+			const sanitized = result.text.replace(
+				/<\/?[a-z_][a-z_0-9-]*(?:\s[^>]*)?\s*\/?>/gi,
+				""
+			);
+
 			return {
-				answer: result.text,
+				answer: sanitized,
 				query,
 				executionTime,
 			};

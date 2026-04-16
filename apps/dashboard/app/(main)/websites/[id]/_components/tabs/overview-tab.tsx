@@ -6,15 +6,16 @@ import {
 	CurrencyDollarIcon,
 	TrendUpIcon,
 } from "@phosphor-icons/react";
-import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
-import { CursorIcon } from "@phosphor-icons/react/dist/ssr/Cursor";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { TimerIcon } from "@phosphor-icons/react/dist/ssr/Timer";
-import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
+import { ChartLineIcon } from "@phosphor-icons/react";
+import { CursorIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { TimerIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
 import { useCallback, useMemo } from "react";
+import { formatNumber } from "@/lib/formatters";
 import {
 	DeviceTypeCell,
 	EventLimitIndicator,
@@ -57,25 +58,25 @@ const OutboundLinksSection = dynamic(() =>
 );
 
 interface ChartDataPoint {
-	date: string;
-	rawDate?: string;
-	pageviews?: number;
-	visitors?: number;
-	sessions?: number;
 	bounce_rate?: number;
+	date: string;
 	median_session_duration?: number;
+	pageviews?: number;
+	rawDate?: string;
+	sessions?: number;
+	visitors?: number;
 	revenue?: number;
 	refunds?: number;
 	[key: string]: unknown;
 }
 
 interface TechnologyData {
+	category?: string;
+	icon?: string;
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage: number;
-	icon?: string;
-	category?: string;
+	visitors: number;
 }
 
 interface CellInfo {
@@ -85,17 +86,17 @@ interface CellInfo {
 
 interface PageRowData {
 	name: string;
-	visitors: number;
 	pageviews: number;
 	percentage: number;
+	visitors: number;
 }
 
 interface AnalyticsRowData {
 	name: string;
-	visitors: number;
 	pageviews: number;
 	percentage: number;
 	referrer?: string;
+	visitors: number;
 }
 
 const MIN_PREVIOUS_SESSIONS_FOR_TREND = 5;
@@ -639,19 +640,6 @@ export function WebsiteOverviewTab({
 		);
 	};
 
-	const formatNumber = useCallback(
-		(value: number | null | undefined): string => {
-			if (value === null || value === undefined || Number.isNaN(value)) {
-				return "0";
-			}
-			return Intl.NumberFormat(undefined, {
-				notation: "compact",
-				maximumFractionDigits: 1,
-			}).format(value);
-		},
-		[]
-	);
-
 	const pagesTabs = useMemo(
 		() => [
 			{
@@ -731,7 +719,7 @@ export function WebsiteOverviewTab({
 				cell: createPercentageCell(),
 			},
 		],
-		[formatNumber]
+		[]
 	);
 
 	const browserColumns = useMemo(
@@ -771,7 +759,7 @@ export function WebsiteOverviewTab({
 				cell: createPercentageCell(),
 			},
 		],
-		[formatNumber]
+		[]
 	);
 
 	const osColumns = useMemo(
@@ -811,7 +799,7 @@ export function WebsiteOverviewTab({
 				cell: createPercentageCell(),
 			},
 		],
-		[formatNumber]
+		[]
 	);
 
 	const todayDate = dayjs().format("YYYY-MM-DD");
@@ -1128,7 +1116,6 @@ export function WebsiteOverviewTab({
 				websiteId={websiteId}
 			/>
 
-			{/* Tables */}
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
 				<DataTable
 					description="Referrers and campaign data"
@@ -1157,7 +1144,6 @@ export function WebsiteOverviewTab({
 				onAddFilterAction={onAddFilter}
 			/>
 
-			{/* Technology */}
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
 				<DataTable
 					columns={deviceColumns}

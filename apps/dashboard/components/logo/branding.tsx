@@ -8,14 +8,14 @@ export type BrandVariant =
 	| "secondary-logo";
 
 export interface BrandingProps {
+	className?: string;
+	/** Height of the primary asset in pixels (width follows the SVG viewBox aspect ratio). */
+	heightPx?: number;
+	imageClassName?: string;
+	priority?: boolean;
 	variant: BrandVariant;
 	/** When `variant` is `logomark`, also show the wordmark asset beside the icon. */
 	wordmark?: boolean;
-	className?: string;
-	imageClassName?: string;
-	/** Height of the primary asset in pixels (width follows the SVG viewBox aspect ratio). */
-	heightPx?: number;
-	priority?: boolean;
 }
 
 const VIEWBOX_ASPECT: Record<BrandVariant, number> = {
@@ -33,13 +33,13 @@ const BRAND_PATH: Record<BrandVariant, string> = {
 };
 
 interface ThemeBrandImageProps {
-	basePath: string;
 	/** Primary image alt; the dark-mode twin is decorative. */
 	alt: string;
-	height: number;
-	width: number;
+	basePath: string;
 	className?: string;
+	height: number;
 	priority?: boolean;
+	width: number;
 }
 
 function ThemeBrandImage({

@@ -1,4 +1,5 @@
-import { KeyIcon, PlusIcon } from "@phosphor-icons/react";
+import { KeyIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "@/lib/dayjs";
 import { orpc } from "@/lib/orpc";
@@ -17,9 +18,9 @@ import {
 import type { ApiKeyListItem } from "./api-key-types";
 
 interface ApiKeyListProps {
-	organizationId: string;
 	onCreateNew?: () => void;
 	onSelect?: (apiKey: ApiKeyListItem) => void;
+	organizationId: string;
 }
 
 function ApiKeyListSkeleton() {
@@ -93,10 +94,8 @@ export function ApiKeyList({
 
 	return (
 		<div className="h-full space-y-6">
-			{/* Table Container */}
 			{items.length > 0 && (
 				<div className="overflow-hidden rounded border">
-					{/* Table Header with Create Button */}
 					<div className="flex items-center justify-between border-b bg-accent px-3 py-2">
 						<div>
 							<h1 className="font-medium text-base">API Keys</h1>
@@ -181,7 +180,6 @@ export function ApiKeyList({
 				</div>
 			)}
 
-			{/* Empty State */}
 			{items.length === 0 && (
 				<EmptyState
 					action={{

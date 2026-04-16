@@ -1,14 +1,12 @@
 "use client";
 
-import {
-	BellIcon,
-	CircleNotchIcon,
-	DotsThreeIcon,
-	PencilIcon,
-	PlusIcon,
-	TestTubeIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { BellIcon } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { PencilIcon } from "@phosphor-icons/react";
+import { PlusIcon } from "@phosphor-icons/react";
+import { TestTubeIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -29,20 +27,20 @@ import { orpc } from "@/lib/orpc";
 import { AlarmSheet } from "./_components/alarm-sheet";
 
 interface AlarmDestination {
-	id: string;
-	type: string;
-	identifier: string;
 	config: Record<string, string | boolean | number | null>;
+	id: string;
+	identifier: string;
+	type: string;
 }
 
 interface Alarm {
+	description?: string | null;
+	destinations?: AlarmDestination[];
+	enabled: boolean;
 	id: string;
 	name: string;
-	description?: string | null;
-	enabled: boolean;
 	triggerType: string;
 	websiteId?: string | null;
-	destinations?: AlarmDestination[];
 }
 
 const DEST_LABELS: Record<string, string> = {
@@ -184,7 +182,6 @@ export default function NotificationsSettingsPage() {
 	return (
 		<div className="h-full lg:grid lg:grid-cols-[1fr_18rem]">
 			<div className="flex flex-col overflow-y-auto">
-				{/* Header */}
 				<div className="flex shrink-0 flex-col justify-between gap-3 border-b p-4 sm:flex-row sm:items-center sm:p-5">
 					<div className="flex items-center gap-3">
 						<div className="rounded-lg border bg-secondary p-2.5">
@@ -215,7 +212,6 @@ export default function NotificationsSettingsPage() {
 					</Button>
 				</div>
 
-				{/* Loading */}
 				{isLoading && (
 					<div>
 						{Array.from({ length: 3 }).map((_, i) => (
@@ -239,7 +235,6 @@ export default function NotificationsSettingsPage() {
 					</div>
 				)}
 
-				{/* Empty */}
 				{!isLoading && alarmList.length === 0 && (
 					<div className="flex flex-1 items-center justify-center py-16">
 						<EmptyState
@@ -252,7 +247,6 @@ export default function NotificationsSettingsPage() {
 					</div>
 				)}
 
-				{/* List */}
 				{!isLoading && alarmList.length > 0 && (
 					<div>
 						{alarmList.map((alarm) => {

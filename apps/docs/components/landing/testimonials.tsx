@@ -25,12 +25,6 @@ const testimonials = [
 		social: null,
 	},
 	{
-		name: "Bekacru",
-		profession: "Founder, Better-auth",
-		description: "this looks great!",
-		avatar: "bekacru.jpg",
-	},
-	{
 		name: "John Yeo",
 		profession: "Co-Founder, Autumn",
 		description:
@@ -51,15 +45,6 @@ const testimonials = [
 			"https://pbs.twimg.com/profile_images/1937981565176344576/H-CnDlga_400x400.jpg",
 	},
 	{
-		name: "Max",
-		profession: "Founder, Pantom Studio",
-		description: "won't lie @trydatabuddy is very easy to setup damn",
-		link: "https://x.com/Metagravity0/status/1945592294612017208",
-		social: null,
-		avatar:
-			"https://pbs.twimg.com/profile_images/1929548168317837312/eP97J41s_400x400.jpg",
-	},
-	{
 		name: "Ahmet Kilinc",
 		link: "https://x.com/bruvimtired/status/1938972393357062401",
 		social: null,
@@ -67,22 +52,6 @@ const testimonials = [
 		description:
 			"if you're not using @trydatabuddy then your analytics are going down the drain.",
 		avatar: "ahmet.jpg",
-	},
-	{
-		name: "Maze",
-		profession: "Founder, OpenCut",
-		link: "https://x.com/mazeincoding/status/1943019005339455631",
-		social: null,
-		description: "@trydatabuddy is the only analytics i love.",
-		avatar: "maze.jpg",
-	},
-	{
-		name: "Yassr Atti",
-		profession: "Founder, Call",
-		description: "everything you need for analytics is at @trydatabuddy 🔥",
-		link: "https://x.com/Yassr_Atti/status/1944455392018461107",
-		social: null,
-		avatar: "yassr.jpg",
 	},
 	{
 		name: "Ping Maxwell",
@@ -241,11 +210,11 @@ export default function Testimonials(): ReactElement {
 			{/* Header Section */}
 			<div className="mb-10 px-4 text-center sm:mb-12 sm:px-6 md:px-8 lg:mb-16">
 				<h2 className="mb-4 font-semibold text-2xl leading-tight tracking-tight sm:mb-5 sm:text-3xl md:text-4xl lg:text-5xl">
-					What developers are saying
+					Don't take our word for it
 				</h2>
 				<p className="mx-auto max-w-2xl px-2 text-base text-muted-foreground sm:px-0 sm:text-lg lg:text-xl">
-					Join thousands of developers who trust Databuddy for their analytics
-					needs.
+					From PostHog, GA4, and Framer Analytics — here's what teams found
+					after switching.
 				</p>
 			</div>
 

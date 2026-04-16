@@ -1,13 +1,11 @@
 "use client";
 
-import {
-	CaretRightIcon,
-	DotsThreeIcon,
-	PencilSimpleIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
-import { List } from "@/components/ui/composables/list";
+import { CaretRightIcon } from "@phosphor-icons/react";
+import { DotsThreeIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { List } from "@/components/ui/composables/list";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -16,6 +14,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type {
 	FunnelAnalyticsData,
@@ -24,38 +23,28 @@ import type {
 } from "@/types/funnels";
 
 export interface FunnelItemData {
-	id: string;
-	name: string;
+	createdAt: string | Date;
 	description?: string | null;
-	steps: FunnelStep[];
 	filters?: FunnelFilter[];
+	id: string;
 	ignoreHistoricData?: boolean;
 	isActive: boolean;
-	createdAt: string | Date;
+	name: string;
+	steps: FunnelStep[];
 	updatedAt: string | Date;
 }
 
 interface FunnelItemProps {
-	funnel: FunnelItemData;
 	analytics?: FunnelAnalyticsData | null;
+	children?: React.ReactNode;
+	className?: string;
+	funnel: FunnelItemData;
 	isExpanded: boolean;
 	isLast?: boolean;
 	isLoadingAnalytics?: boolean;
-	onToggle: (funnelId: string) => void;
-	onEdit: (funnel: FunnelItemData) => void;
 	onDelete: (funnelId: string) => void;
-	children?: React.ReactNode;
-	className?: string;
-}
-
-function formatNumber(num: number): string {
-	if (num >= 1_000_000) {
-		return `${(num / 1_000_000).toFixed(1)}M`;
-	}
-	if (num >= 1000) {
-		return `${(num / 1000).toFixed(1)}K`;
-	}
-	return num.toLocaleString();
+	onEdit: (funnel: FunnelItemData) => void;
+	onToggle: (funnelId: string) => void;
 }
 
 function MiniFunnelPreview({
@@ -113,7 +102,7 @@ export function FunnelItem({
 	className,
 	children,
 }: FunnelItemProps) {
-	const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+	const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
 		const target = e.target as HTMLElement;
 		if (
 			target.closest("[data-dropdown-trigger]") ||
@@ -132,17 +121,23 @@ export function FunnelItem({
 		<div className={cn("w-full", className)}>
 			<List.Row
 				asChild
-				className={cn(isExpanded && "bg-accent/30", isLast && "border-b-0")}
+				className={cn(
+					"cursor-pointer",
+					isExpanded && "bg-accent/30",
+					isLast && "border-b-0"
+				)}
 			>
-				<button
+				{/* biome-ignore lint/a11y/useSemanticElements: List.Row asChild replaces this element; a real <button> would nest inside the dropdown-menu trigger */}
+				<div
 					onClick={handleClick}
 					onKeyDown={(e) => {
 						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
 							onToggle(funnel.id);
 						}
 					}}
+					role="button"
 					tabIndex={0}
-					type="button"
 				>
 					<List.Cell>
 						<div
@@ -256,7 +251,7 @@ export function FunnelItem({
 							</DropdownMenuContent>
 						</DropdownMenu>
 					</List.Cell>
-				</button>
+				</div>
 			</List.Row>
 
 			{isExpanded ? (

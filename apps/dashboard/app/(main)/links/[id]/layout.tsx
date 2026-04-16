@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useParams } from "next/navigation";
@@ -19,10 +19,10 @@ import dayjs from "@/lib/dayjs";
 const MAX_HOURLY_DAYS = 7;
 
 interface QuickRange {
-	label: string;
+	days?: number;
 	fullLabel: string;
 	hours?: number;
-	days?: number;
+	label: string;
 }
 
 const QUICK_RANGES: QuickRange[] = [

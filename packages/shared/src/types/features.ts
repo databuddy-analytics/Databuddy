@@ -21,7 +21,7 @@ export const PLAN_HIERARCHY: PlanId[] = [
 /** Usage-based features tracked by Autumn billing */
 export const FEATURE_IDS = {
 	EVENTS: "events",
-	ASSISTANT_MESSAGES: "assistant_message",
+	AGENT_CREDITS: "agent_credits",
 } as const;
 
 export type FeatureId = (typeof FEATURE_IDS)[keyof typeof FEATURE_IDS];
@@ -84,8 +84,8 @@ export const PLAN_FEATURE_LIMITS: Record<
 		[GATED_FEATURES.ERROR_TRACKING]: false, // Hobby+
 		[GATED_FEATURES.GEOGRAPHIC]: "unlimited",
 		[GATED_FEATURES.AI_ASSISTANT]: "unlimited",
-		[GATED_FEATURES.AI_AGENT]: false, // no AI agent
-		[GATED_FEATURES.TEAM_ROLES]: 2, // owner + 1 viewer
+		[GATED_FEATURES.AI_AGENT]: "unlimited", // gated by agent_credits budget, not a hard lock
+		[GATED_FEATURES.TEAM_ROLES]: "unlimited",
 		[GATED_FEATURES.TARGET_GROUPS]: false, // Hobby+
 	},
 	[PLAN_IDS.HOBBY]: {
@@ -98,8 +98,8 @@ export const PLAN_FEATURE_LIMITS: Record<
 		[GATED_FEATURES.ERROR_TRACKING]: "unlimited",
 		[GATED_FEATURES.GEOGRAPHIC]: "unlimited",
 		[GATED_FEATURES.AI_ASSISTANT]: "unlimited",
-		[GATED_FEATURES.AI_AGENT]: false, // no AI agent
-		[GATED_FEATURES.TEAM_ROLES]: 5, // up to 5 team members
+		[GATED_FEATURES.AI_AGENT]: "unlimited", // gated by agent_credits budget, not a hard lock
+		[GATED_FEATURES.TEAM_ROLES]: "unlimited",
 		[GATED_FEATURES.TARGET_GROUPS]: 5, // 5 target groups
 	},
 	[PLAN_IDS.PRO]: {
@@ -113,7 +113,7 @@ export const PLAN_FEATURE_LIMITS: Record<
 		[GATED_FEATURES.GEOGRAPHIC]: "unlimited",
 		[GATED_FEATURES.AI_ASSISTANT]: "unlimited",
 		[GATED_FEATURES.AI_AGENT]: "unlimited",
-		[GATED_FEATURES.TEAM_ROLES]: 25, // up to 25 team members
+		[GATED_FEATURES.TEAM_ROLES]: "unlimited",
 		[GATED_FEATURES.TARGET_GROUPS]: 25, // 25 target groups
 	},
 	[PLAN_IDS.SCALE]: {
@@ -184,9 +184,9 @@ export type PlanAiCapabilities = Record<AiCapabilityId, boolean>;
 
 /** Complete plan capabilities including features and AI capabilities */
 export interface PlanCapabilities {
+	ai: PlanAiCapabilities;
 	features: Record<GatedFeatureId, boolean>;
 	limits: Record<GatedFeatureId, FeatureLimit>;
-	ai: PlanAiCapabilities;
 }
 
 /**
@@ -248,11 +248,11 @@ export const PLAN_CAPABILITIES: Record<PlanId, PlanCapabilities> = {
 };
 
 interface FeatureMeta {
-	name: string;
 	description: string;
-	upgradeMessage: string;
 	minPlan?: PlanId;
+	name: string;
 	unit?: string; // e.g., "funnels", "flags", "exports/month"
+	upgradeMessage: string;
 }
 
 export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
@@ -262,10 +262,12 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			description: "Track pageviews and custom events",
 			upgradeMessage: "Upgrade to track more events",
 		},
-		[FEATURE_IDS.ASSISTANT_MESSAGES]: {
-			name: "AI Messages",
-			description: "Chat with your analytics assistant",
-			upgradeMessage: "Upgrade for more AI messages",
+		[FEATURE_IDS.AGENT_CREDITS]: {
+			name: "Agent Credits",
+			description:
+				"Credits power Databunny conversations. Heavier questions consume more credits.",
+			upgradeMessage: "Upgrade for more agent credits",
+			unit: "credits",
 		},
 		[GATED_FEATURES.FUNNELS]: {
 			name: "Funnels",
@@ -326,13 +328,12 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 		[GATED_FEATURES.AI_AGENT]: {
 			name: "AI Agent",
 			description: "Autonomous AI agent for advanced analytics insights",
-			upgradeMessage: "Upgrade to Pro for AI Agent access",
-			minPlan: PLAN_IDS.PRO,
+			upgradeMessage: "Upgrade for more agent credits",
 		},
 		[GATED_FEATURES.TEAM_ROLES]: {
 			name: "Team Roles",
 			description: "Assign roles and permissions to team members",
-			upgradeMessage: "Upgrade for more team members",
+			upgradeMessage: "Team members are unlimited on all plans",
 			unit: "members",
 		},
 	};

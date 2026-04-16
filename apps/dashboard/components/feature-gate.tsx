@@ -6,14 +6,12 @@ import {
 	getMinimumPlanForFeature,
 	PLAN_IDS,
 } from "@databuddy/shared/types/features";
-import {
-	ArrowRightIcon,
-	CrownIcon,
-	LockSimpleIcon,
-	RocketLaunchIcon,
-	SparkleIcon,
-	StarIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react";
+import { CrownIcon } from "@phosphor-icons/react";
+import { LockSimpleIcon } from "@phosphor-icons/react";
+import { RocketLaunchIcon } from "@phosphor-icons/react";
+import { SparkleIcon } from "@phosphor-icons/react";
+import { StarIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useBillingContext } from "@/components/providers/billing-provider";
@@ -44,11 +42,11 @@ const PLAN_CONFIG: Record<
 };
 
 interface FeatureGateProps {
-	feature: GatedFeatureId;
-	children: ReactNode;
-	title?: string;
-	description?: string;
 	blockWhileLoading?: boolean;
+	children: ReactNode;
+	description?: string;
+	feature: GatedFeatureId;
+	title?: string;
 }
 
 export function FeatureGate({
@@ -101,7 +99,6 @@ export function FeatureGate({
 				</CardHeader>
 
 				<CardContent className="space-y-4 p-4">
-					{/* Required plan */}
 					<div className="flex items-center justify-between rounded border bg-accent/50 px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Required plan</span>
 						<div className="flex items-center gap-1.5">
@@ -115,7 +112,6 @@ export function FeatureGate({
 						</div>
 					</div>
 
-					{/* Current plan */}
 					<div className="flex items-center justify-between rounded border px-3 py-2.5">
 						<span className="text-muted-foreground text-sm">Your plan</span>
 						<div className="flex items-center gap-1.5">
@@ -129,7 +125,6 @@ export function FeatureGate({
 						</div>
 					</div>
 
-					{/* CTA */}
 					{canUserUpgrade ? (
 						<Button asChild className="group w-full gap-2" size="lg">
 							<Link href="/billing/plans">

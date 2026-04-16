@@ -1,19 +1,20 @@
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import type { ReactNode } from "react";
 import { PercentageBadge } from "@/components/ui/percentage-badge";
+import { formatNumber } from "@/lib/formatters";
 
 export interface IconTextEntry {
 	name: string;
-	visitors: number;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
 
 interface IconTextRowProps {
-	header: string;
 	accessorKey?: string;
 	getIcon: (name: string, entry?: IconTextEntry) => ReactNode;
 	getSubtitle?: (entry: IconTextEntry) => string | undefined;
+	header: string;
 	includeMetrics?: boolean;
 }
 
@@ -50,16 +51,6 @@ export function createIconTextColumns({
 	];
 
 	if (includeMetrics) {
-		const formatNumber = (value: number | null | undefined): string => {
-			if (value == null || Number.isNaN(value)) {
-				return "0";
-			}
-			return Intl.NumberFormat(undefined, {
-				notation: "compact",
-				maximumFractionDigits: 1,
-			}).format(value);
-		};
-
 		columns.push(
 			{
 				id: "visitors",

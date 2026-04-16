@@ -1,48 +1,48 @@
 export interface FeatureDisplay {
-	singular: string;
 	plural: string;
+	singular: string;
 }
 export interface RawFeature {
+	display: FeatureDisplay;
 	id: string;
 	name: string;
 	type: "single_use";
-	display: FeatureDisplay;
 }
 export type RawItem =
 	| {
-		type: "price";
-		interval: "month";
-		price: number;
-		feature_id: null;
-		feature: null;
-	}
+			type: "price";
+			interval: "month";
+			price: number;
+			feature_id: null;
+			feature: null;
+	  }
 	| {
-		type: "feature";
-		feature_id: string;
-		feature_type: "single_use";
-		feature: RawFeature;
-		included_usage: number | "inf";
-		interval: "day" | "month" | null;
-	}
+			type: "feature";
+			feature_id: string;
+			feature_type: "single_use";
+			feature: RawFeature;
+			included_usage: number | "inf";
+			interval: "day" | "month" | null;
+	  }
 	| {
-		type: "priced_feature";
-		feature_id: string;
-		feature_type: "single_use";
-		feature: RawFeature;
-		included_usage: number | "inf";
-		interval: "month" | null;
-		price?: number;
-		tiers?: Array<{ to: number | "inf"; amount: number }>;
-		usage_model: "pay_per_use";
-	}
+			type: "priced_feature";
+			feature_id: string;
+			feature_type: "single_use";
+			feature: RawFeature;
+			included_usage: number | "inf";
+			interval: "month" | null;
+			price?: number;
+			tiers?: Array<{ to: number | "inf"; amount: number }>;
+			usage_model: "pay_per_use";
+	  }
 	| {
-		type: "enterprise";
-	};
+			type: "enterprise";
+	  };
 
 export interface RawPlan {
 	id: string;
-	name: string;
 	items: RawItem[];
+	name: string;
 }
 
 export const RAW_PLANS: RawPlan[] = [
@@ -178,7 +178,7 @@ export const RAW_PLANS: RawPlan[] = [
 				},
 				included_usage: 75,
 				interval: "day",
-			}
+			},
 		],
 	},
 	{

@@ -2,39 +2,20 @@ import {
 	AGENT_SQL_VALIDATION_ERROR,
 	requiresTenantFilter,
 	validateAgentSQL,
-} from "@databuddy/db";
+} from "@databuddy/db/clickhouse";
 import { tool } from "ai";
 import { z } from "zod";
 import { executeTimedQuery, type QueryResult } from "./utils";
 
 export const executeSqlQueryTool = tool({
-	description:
-		"Executes a validated, read-only ClickHouse SQL query against analytics data. Only SELECT and WITH statements are allowed for security. IMPORTANT: Use parameterized queries with {paramName:Type} syntax (e.g., {limit:UInt32}). The websiteId is automatically included as a parameter. Never use string interpolation or concatenation.",
-	inputExamples: [
-		{
-			input: {
-				websiteId: "ws_example",
-				sql: "SELECT path, COUNT(*) as views FROM analytics.events WHERE client_id = {websiteId:String} AND event_name = 'screen_view' AND time >= today() - 7 GROUP BY path LIMIT {limit:UInt32}",
-				params: { limit: 10 },
-			},
-		},
-	],
+	description: `Read-only ClickHouse SQL (SELECT/WITH only). Must use {paramName:Type} placeholders (no string interpolation) and filter by client_id = {websiteId:String}. websiteId is auto-added to params.
+
+Tables: analytics.events (client_id, anonymous_id, session_id, time, path, referrer, browser_name, os_name, device_type, country, region, city, utm_*, load_time, time_on_page, scroll_depth, properties), analytics.error_spans (message, filename, lineno, stack, error_type), analytics.web_vitals_spans (metric_name FCP/LCP/CLS/INP/TTFB/FPS, metric_value), analytics.outgoing_links (href, text). Custom events are in analytics.custom_events (keyed by owner_id, not client_id) — use get_data custom_events_* builders instead. Prefer get_data query builders for anything they cover.`,
 	strict: true,
 	inputSchema: z.object({
-		websiteId: z
-			.string()
-			.describe("The website ID to query - automatically added to params"),
-		sql: z
-			.string()
-			.describe(
-				"The SQL query to execute. Must be a SELECT or WITH statement. Use parameterized queries with {paramName:Type} syntax. The websiteId parameter is automatically available. Example: SELECT * FROM analytics.events WHERE client_id = {websiteId:String} LIMIT {limit:UInt32}"
-			),
-		params: z
-			.record(z.string(), z.unknown())
-			.optional()
-			.describe(
-				"Additional query parameters object matching the parameter names in the SQL query. websiteId is automatically included."
-			),
+		websiteId: z.string(),
+		sql: z.string(),
+		params: z.record(z.string(), z.unknown()).optional(),
 	}),
 	execute: async ({ sql, websiteId, params }): Promise<QueryResult> => {
 		const validation = validateAgentSQL(sql);
@@ -52,6 +33,15 @@ export const executeSqlQueryTool = tool({
 			websiteId,
 			...(params ?? {}),
 		});
+
+		// Truncate large results to save context tokens.
+		const MAX_MODEL_ROWS = 50;
+		if (result.data.length > MAX_MODEL_ROWS) {
+			return {
+				...result,
+				data: result.data.slice(0, MAX_MODEL_ROWS),
+			};
+		}
 
 		return result;
 	},

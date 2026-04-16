@@ -1,7 +1,7 @@
 "use client";
 
-import { SpinnerIcon } from "@phosphor-icons/react/dist/ssr/Spinner";
-import { TableIcon } from "@phosphor-icons/react/dist/ssr/Table";
+import { SpinnerIcon } from "@phosphor-icons/react";
+import { TableIcon } from "@phosphor-icons/react";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/empty-state";
 import dayjs from "@/lib/dayjs";

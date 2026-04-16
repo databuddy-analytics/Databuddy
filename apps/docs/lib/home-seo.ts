@@ -9,8 +9,8 @@ export const homePageSeo = {
 } as const;
 
 export interface LandingFaqItem {
-	question: string;
 	answer: string;
+	question: string;
 }
 
 export const homeFaqItems: LandingFaqItem[] = [

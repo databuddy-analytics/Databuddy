@@ -4,10 +4,10 @@ import { EmailButton } from "./email-button";
 import { EmailLayout } from "./email-layout";
 
 interface UsageAlertEmailProps {
+	alertName?: string;
 	featureName?: string;
 	threshold?: number;
 	thresholdType?: "usage" | "usage_percentage_threshold";
-	alertName?: string;
 	userName?: string;
 }
 

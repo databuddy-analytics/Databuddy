@@ -60,6 +60,10 @@ Prioritize files with:
 - repeated `as` assertions, especially double-casts (`as unknown as`)
 - duplicate or near-duplicate functions that differ only in small branches
 - mirrored state (`ref/useState`) that can be derived from existing source state
+- **magic string identity fallbacks** — `userId = x ?? y ?? "api-key"` or `?? "unknown"` or `?? ""` where a real ID is required. If a value must exist, guard and fail; never silently degrade to a shared string that corrupts rate limits, billing, and audit trails
+- **permission checks missing organizationId** — every `hasPermission` call MUST pass `organizationId` explicitly. Omitting it lets Better-Auth fall back to the session's `activeOrganizationId`, enabling cross-org access
+- **`protectedProcedure` on session-only handlers** — if a handler dereferences `context.user.id/.email/.name` without a null check, it must use `sessionProcedure` (API keys have `context.user = undefined`)
+- **org-level-only API key checks** — `apiKey.organizationId === resource.organizationId` without scope enforcement (`hasKeyScope`, `getAccessibleWebsiteIds`, `hasWebsiteScope`) lets any org key access any resource in the org regardless of intended restrictions
 
 ## Core Mode (Default)
 

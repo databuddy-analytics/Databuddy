@@ -1,46 +1,32 @@
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, mergeWideEvent } from "./tracing";
 
-function stringifyEvent(event: unknown): string {
-	return JSON.stringify(event, (_key, value) =>
-		value === undefined ? null : value
-	);
-}
-
-interface ProducerConfig {
-	broker?: string;
-	username?: string;
-	password?: string;
-}
-
 class UptimeProducer {
 	private producer: Producer | null = null;
 	private connected = false;
-	private readonly config: ProducerConfig;
-
-	constructor(config: ProducerConfig) {
-		this.config = config;
-	}
 
 	private async connect(): Promise<boolean> {
 		if (this.connected && this.producer) {
 			return true;
 		}
 
-		if (!this.config.broker) {
+		const broker = process.env.REDPANDA_BROKER;
+		if (!broker) {
 			return false;
 		}
 
 		try {
+			const username = process.env.REDPANDA_USER;
+			const password = process.env.REDPANDA_PASSWORD;
 			const kafka = new Kafka({
-				brokers: [this.config.broker],
+				brokers: [broker],
 				clientId: "uptime-producer",
-				...(this.config.username &&
-					this.config.password && {
+				...(username &&
+					password && {
 						sasl: {
 							mechanism: "scram-sha-256",
-							username: this.config.username,
-							password: this.config.password,
+							username,
+							password,
 						},
 						ssl: false,
 					}),
@@ -73,8 +59,10 @@ class UptimeProducer {
 				topic,
 				messages: [
 					{
-						value: stringifyEvent(event),
-						key: key || (event as { site_id?: string }).site_id,
+						value: JSON.stringify(event, (_k, v) =>
+							v === undefined ? null : v
+						),
+						key,
 					},
 				],
 				compression: CompressionTypes.GZIP,
@@ -98,33 +86,18 @@ class UptimeProducer {
 	}
 }
 
-const defaultConfig: ProducerConfig = {
-	broker: process.env.REDPANDA_BROKER,
-	username: process.env.REDPANDA_USER,
-	password: process.env.REDPANDA_PASSWORD,
+let producer: UptimeProducer | null = null;
+
+export const sendUptimeEvent = (
+	event: unknown,
+	key?: string
+): Promise<void> => {
+	producer ??= new UptimeProducer();
+	return producer.send("analytics-uptime-checks", event, key);
 };
 
-let defaultProducer: UptimeProducer | null = null;
-
-function getDefaultProducer(): UptimeProducer {
-	if (!defaultProducer) {
-		defaultProducer = new UptimeProducer(defaultConfig);
+export async function disconnectProducer(): Promise<void> {
+	if (producer) {
+		await producer.disconnect();
 	}
-	return defaultProducer;
 }
-
-export const sendUptimeEvent = (event: unknown, key?: string): Promise<void> =>
-	getDefaultProducer().send("analytics-uptime-checks", event, key);
-
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-	if (defaultProducer) {
-		await defaultProducer.disconnect();
-	}
-});
-
-process.on("SIGINT", async () => {
-	if (defaultProducer) {
-		await defaultProducer.disconnect();
-	}
-});

@@ -112,9 +112,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 			)}
 
 			{hideToolbar ? (
-				<div className="min-h-0 flex-1 overflow-hidden">
-					{children}
-				</div>
+				<div className="min-h-0 flex-1 overflow-hidden">{children}</div>
 			) : (
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
 					{showTrackingSetup ? (

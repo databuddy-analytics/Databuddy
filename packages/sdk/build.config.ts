@@ -15,6 +15,7 @@ export default defineBuildConfig({
 		emitCJS: false,
 		esbuild: {
 			minify: false,
+			jsx: "automatic",
 		},
 	},
 	declaration: true,

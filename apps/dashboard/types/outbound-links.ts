@@ -1,29 +1,29 @@
-export type OutboundLinkRow = {
-	name: string;
+export interface OutboundLinkRow {
 	href: string;
+	name: string;
+	percentage: number;
 	text: string;
 	total_clicks: number;
-	unique_users: number;
 	unique_sessions: number;
-	percentage: number;
-};
-
-export type OutboundDomainRow = {
-	name: string;
-	domain: string;
-	total_clicks: number;
 	unique_users: number;
-	unique_links: number;
+}
+
+export interface OutboundDomainRow {
+	domain: string;
+	name: string;
 	percentage: number;
-};
+	total_clicks: number;
+	unique_links: number;
+	unique_users: number;
+}
 
-export type OutboundLinksSectionData = {
-	outbound_links: unknown[];
+export interface OutboundLinksSectionData {
 	outbound_domains: unknown[];
-};
+	outbound_links: unknown[];
+}
 
-export type OutboundLinksSectionProps = {
+export interface OutboundLinksSectionProps {
 	data: OutboundLinksSectionData;
 	isLoading: boolean;
 	onAddFilterAction: (field: string, value: string) => void;
-};
+}

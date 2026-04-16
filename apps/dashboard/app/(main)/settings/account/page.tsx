@@ -2,15 +2,13 @@
 
 import { authClient } from "@databuddy/auth/client";
 import type { Icon } from "@phosphor-icons/react";
-import {
-	CircleNotchIcon,
-	GithubLogoIcon,
-	GoogleLogoIcon,
-	KeyIcon,
-	LinkBreakIcon,
-	LinkIcon,
-	ShieldCheckIcon,
-} from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
+import { GithubLogoIcon } from "@phosphor-icons/react";
+import { GoogleLogoIcon } from "@phosphor-icons/react";
+import { KeyIcon } from "@phosphor-icons/react";
+import { LinkBreakIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { ShieldCheckIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -34,17 +32,15 @@ import dayjs from "@/lib/dayjs";
 import { UnsavedChangesFooter } from "../_components/settings-section";
 import { TwoFactorDialog } from "./sections/two-factor-dialog";
 
-// Types
 interface Account {
-	id: string;
-	providerId: string;
 	accountId: string;
 	createdAt: Date;
+	id: string;
+	providerId: string;
 }
 
 type SocialProvider = "google" | "github";
 
-// Constants
 const SOCIAL_PROVIDERS: SocialProvider[] = ["google", "github"];
 
 const PROVIDER_CONFIG: Record<string, { icon: Icon; name: string }> = {
@@ -53,7 +49,6 @@ const PROVIDER_CONFIG: Record<string, { icon: Icon; name: string }> = {
 	credential: { icon: KeyIcon, name: "Password" },
 };
 
-// Helpers
 function getInitials(name: string): string {
 	return name
 		.split(" ")
@@ -189,7 +184,6 @@ export default function AccountSettingsPage() {
 		}
 	}, [user]);
 
-	// Queries
 	const { data: accounts = [], isLoading: isAccountsLoading } = useQuery({
 		queryKey: ["user-accounts"],
 		queryFn: async () => {
@@ -201,7 +195,6 @@ export default function AccountSettingsPage() {
 		},
 	});
 
-	// Mutations
 	const updateProfileMutation = useMutation({
 		mutationFn: async () => {
 			const result = await authClient.updateUser({
@@ -570,7 +563,6 @@ export default function AccountSettingsPage() {
 				</RightSidebar.Section>
 			</RightSidebar>
 
-			{/* Dialogs */}
 			<ChangePasswordDialog
 				onOpenChange={setShowPasswordDialog}
 				open={showPasswordDialog}

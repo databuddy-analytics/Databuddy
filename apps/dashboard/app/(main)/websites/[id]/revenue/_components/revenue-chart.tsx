@@ -35,19 +35,19 @@ const {
 } = Chart.Recharts;
 
 interface RevenueChartDataPoint {
-	date: string;
-	revenue: number;
-	transactions: number;
 	avg_transaction: number;
 	customers: number;
+	date: string;
 	refunds: number;
+	revenue: number;
+	transactions: number;
 }
 
 interface RevenueChartMetric {
-	key: keyof RevenueChartDataPoint;
-	label: string;
 	color: string;
 	formatValue: (value: number) => string;
+	key: keyof RevenueChartDataPoint;
+	label: string;
 }
 
 const REVENUE_METRICS: RevenueChartMetric[] = [
@@ -104,11 +104,10 @@ const REVENUE_METRICS: RevenueChartMetric[] = [
 const CURRENCY_METRICS = ["revenue", "avg_transaction", "refunds"];
 
 interface RevenueChartProps {
-	data: RevenueChartDataPoint[];
-	isLoading: boolean;
-	granularity?: string;
-	height?: number;
 	className?: string;
+	data: RevenueChartDataPoint[];
+	height?: number;
+	isLoading: boolean;
 }
 
 function formatChartDate(value: string, granularity?: string): string {
@@ -159,7 +158,7 @@ export function RevenueChart({
 				<div className="flex items-center justify-center p-8">
 					<div className="flex flex-col items-center py-12 text-center">
 						<div className="relative flex size-12 items-center justify-center rounded bg-accent">
-							<ChartLineIcon className="size-6 text-foreground" />
+							<ChartLineIcon className="size-6" />
 						</div>
 						<p className="mt-6 font-medium text-foreground text-lg">
 							No data available

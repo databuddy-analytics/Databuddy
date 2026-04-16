@@ -1,14 +1,15 @@
 "use client";
 
 import { Tabs as TabsPrimitive } from "radix-ui";
+import type * as React from "react";
 import {
 	createContext,
 	useContext,
+	useEffect,
 	useLayoutEffect,
 	useRef,
 	useState,
 } from "react";
-import type * as React from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,14 @@ function Tabs({
 }) {
 	const [activeValue, setActiveValue] = useState(value ?? defaultValue);
 	const triggersRef = useRef<Map<string, HTMLButtonElement>>(new Map());
+
+	// Sync internal state when parent updates the controlled value prop.
+	// Without this, the indicator/context lags behind URL-driven tab changes.
+	useEffect(() => {
+		if (value !== undefined) {
+			setActiveValue(value);
+		}
+	}, [value]);
 
 	const registerTrigger = (val: string, element: HTMLButtonElement | null) => {
 		if (element) {
@@ -78,8 +87,9 @@ function TabsList({
 			(variant !== "underline" && variant !== "navigation") ||
 			!listRef.current ||
 			!activeValue
-		)
+		) {
 			return;
+		}
 
 		const activeTab = listRef.current.querySelector(
 			`[data-state="active"]`
@@ -117,10 +127,7 @@ function TabsList({
 		return (
 			<div className="relative border-b">
 				<TabsPrimitive.List
-					className={cn(
-						"relative flex h-10 w-full bg-transparent",
-						className
-					)}
+					className={cn("relative flex h-10 w-full bg-transparent", className)}
 					data-slot="tabs-list"
 					ref={listRef}
 					{...props}
@@ -249,7 +256,7 @@ function TabsTrigger({
 		<TabsPrimitive.Trigger
 			className={cn(
 				"inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2 py-1",
-				"font-medium text-muted-foreground data-[state=active]:text-foreground text-sm transition-[color,box-shadow] focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px]",
+				"font-medium text-muted-foreground text-sm transition-[color,box-shadow] focus-visible:border-ring focus-visible:outline-1 focus-visible:outline-ring focus-visible:ring-[3px] data-[state=active]:text-foreground",
 				"focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-accent-foreground/10",
 				"data-[state=active]:bg-secondary-brightest [&_svg:not([class*='size-'])]:size-4 [&_svg]:pointer-events-none [&_svg]:shrink-0",
 				className
@@ -291,9 +298,7 @@ function TabsBadge({
 		<span
 			className={cn(
 				"flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 font-semibold text-xs tabular-nums transition-colors",
-			isActive
-				? "bg-brand-purple text-white"
-				: "bg-muted text-foreground",
+				isActive ? "bg-brand-purple text-white" : "bg-muted text-foreground",
 				className
 			)}
 			data-slot="tabs-badge"
@@ -303,4 +308,4 @@ function TabsBadge({
 	);
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, TabsBadge };
+export { Tabs, TabsBadge, TabsContent, TabsList, TabsTrigger };

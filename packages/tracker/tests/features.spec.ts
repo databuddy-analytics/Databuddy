@@ -1,10 +1,6 @@
-import { expect, test } from "@playwright/test";
-import { findEvent, hasEvent, setupBasketMock } from "./test-utils";
+import { expect, findEvent, hasEvent, test } from "./test-utils";
 
 test.describe("Feature Tracking", () => {
-	test.beforeEach(async ({ page }) => {
-		await setupBasketMock(page);
-	});
 
 	test.describe("maskPatterns", () => {
 		test("masks single path segment with *", async ({ page }) => {
@@ -106,15 +102,14 @@ test.describe("Feature Tracking", () => {
 				.poll(async () => await page.evaluate(() => !!(window as any).db))
 				.toBeTruthy();
 
-			const requestPromise = page.waitForRequest(
-				(req) =>
-					req.url().includes("/outgoing") &&
-					hasEvent(
-						req,
-						(e) =>
-							e.href === "https://external-site.com/page" &&
-							e.text === "External Link"
-					)
+			const requestPromise = page.waitForRequest((req) =>
+				hasEvent(
+					req,
+					(e) =>
+						e.type === "outgoing_link" &&
+						e.href === "https://external-site.com/page" &&
+						e.text === "External Link"
+				)
 			);
 
 			// Click the external link (prevent navigation)
@@ -125,11 +120,12 @@ test.describe("Feature Tracking", () => {
 			await page.click("#external-link");
 
 			const request = await requestPromise;
-			const outgoing = findEvent(request, (e) =>
-				Boolean(
+			const outgoing = findEvent(
+				request,
+				(e) =>
+					e.type === "outgoing_link" &&
 					e.href === "https://external-site.com/page" &&
 					e.text === "External Link"
-				)
 			);
 			expect(outgoing).toBeTruthy();
 			expect(outgoing?.href).toBe("https://external-site.com/page");
@@ -161,7 +157,7 @@ test.describe("Feature Tracking", () => {
 				.toBeTruthy();
 
 			page.on("request", (req) => {
-				if (req.url().includes("/outgoing")) {
+				if (hasEvent(req, (e) => e.type === "outgoing_link")) {
 					outgoingTracked = true;
 				}
 			});

@@ -1,4 +1,5 @@
-import { clickHouseOG, db, sql } from "@databuddy/db";
+import { db, sql } from "@databuddy/db";
+import { clickHouseOG } from "@databuddy/db/clickhouse";
 import { redis } from "@databuddy/redis";
 import { Elysia } from "elysia";
 

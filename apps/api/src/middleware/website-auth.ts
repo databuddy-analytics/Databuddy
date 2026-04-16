@@ -1,5 +1,6 @@
 import { auth } from "@databuddy/auth";
-import { and, db, eq, member } from "@databuddy/db";
+import { and, db, eq } from "@databuddy/db";
+import { member } from "@databuddy/db/schema";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import {

@@ -1,12 +1,12 @@
 "use client";
 
 import type React from "react";
-import { formatMetricNumber } from "@/lib/formatters";
+import { formatNumber } from "@/lib/formatters";
 
 interface FormattedNumberProps {
+	className?: string;
 	id?: string;
 	value: number;
-	className?: string;
 }
 
 export const FormattedNumber: React.FC<FormattedNumberProps> = ({
@@ -15,7 +15,7 @@ export const FormattedNumber: React.FC<FormattedNumberProps> = ({
 	className,
 }) => (
 	<span className={className} id={id}>
-		{formatMetricNumber(value)}
+		{formatNumber(value)}
 	</span>
 );
 

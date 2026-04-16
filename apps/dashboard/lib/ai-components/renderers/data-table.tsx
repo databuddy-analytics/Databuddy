@@ -5,17 +5,17 @@ import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../types";
 
 export interface DataTableColumn {
-	key: string;
-	header: string;
 	align?: "left" | "center" | "right";
+	header: string;
+	key: string;
 }
 
 export interface DataTableProps extends BaseComponentProps {
-	title?: string;
-	description?: string;
 	columns: DataTableColumn[];
-	rows: Record<string, string | number | boolean | null>[];
+	description?: string;
 	footer?: string;
+	rows: Record<string, string | number | boolean | null>[];
+	title?: string;
 }
 
 function formatCellValue(value: string | number | boolean | null): string {
@@ -52,6 +52,7 @@ export function DataTableRenderer({
 	rows,
 	footer,
 	className,
+	streaming,
 }: DataTableProps) {
 	if (rows.length === 0) {
 		return (
@@ -106,7 +107,12 @@ export function DataTableRenderer({
 					<tbody>
 						{rows.map((row, rowIdx) => (
 							<tr
-								className="border-b transition-colors last:border-b-0 hover:bg-muted/50"
+								className={cn(
+									"border-b transition-colors last:border-b-0 hover:bg-muted/50",
+									streaming &&
+										rowIdx === rows.length - 1 &&
+										"fade-in animate-in duration-300"
+								)}
 								key={rowIdx}
 							>
 								{columns.map((column, colIdx) => (

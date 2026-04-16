@@ -1,6 +1,6 @@
 "use client";
 
-import { HeartbeatIcon } from "@phosphor-icons/react/dist/ssr/Heartbeat";
+import { HeartbeatIcon } from "@phosphor-icons/react";
 import { useAtom } from "jotai";
 import { useParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
@@ -30,13 +30,13 @@ import {
 } from "./columns";
 
 interface VitalMetric {
+	avg_value: number;
 	metric_name: string;
 	p50: number;
 	p75: number;
 	p90: number;
 	p95: number;
 	p99: number;
-	avg_value: number;
 	samples: number;
 }
 
@@ -52,13 +52,13 @@ interface VitalTimeSeriesRow {
 }
 
 interface VitalByPageRow {
-	page: string;
 	metric_name: string;
 	p50: number;
 	p75: number;
 	p90: number;
 	p95: number;
 	p99: number;
+	page: string;
 	samples: number;
 }
 

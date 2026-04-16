@@ -1,14 +1,14 @@
 "use client";
 
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { TargetIcon } from "@phosphor-icons/react/dist/ssr/Target";
-import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
+import { TargetIcon } from "@phosphor-icons/react";
+import { TrendDownIcon } from "@phosphor-icons/react";
 import { useAtomValue } from "jotai";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { List } from "@/components/ui/composables/list";
 import { FeatureGate } from "@/components/feature-gate";
 import { Card, CardContent } from "@/components/ui/card";
+import { List } from "@/components/ui/composables/list";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
 import { useDateFilters } from "@/hooks/use-date-filters";

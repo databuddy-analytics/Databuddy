@@ -1,8 +1,9 @@
-FROM oven/bun:1.3.9-slim AS build
+FROM oven/bun:1.3.11-slim AS build
 
 WORKDIR /app
 
 COPY package.json package.json
+COPY bun.lock bun.lock
 COPY apps/basket/package.json ./apps/basket/package.json
 COPY packages/*/package.json ./packages/
 
@@ -27,7 +28,7 @@ RUN bun build \
 	--bytecode \
 	./src/index.ts
 
-FROM gcr.io/distroless/cc
+FROM oven/bun:1.3.11-distroless
 
 WORKDIR /app
 
@@ -35,6 +36,7 @@ COPY --from=build /app/server server
 
 ENV NODE_ENV=production
 
-CMD ["./server"]
-
 EXPOSE 4000
+
+ENTRYPOINT []
+CMD ["./server"]

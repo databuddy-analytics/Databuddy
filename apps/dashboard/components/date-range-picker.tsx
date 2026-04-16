@@ -1,10 +1,8 @@
 "use client";
 
-import {
-	CalendarDotsIcon,
-	CaretRightIcon,
-	CheckIcon,
-} from "@phosphor-icons/react";
+import { CalendarDotsIcon } from "@phosphor-icons/react";
+import { CaretRightIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Button } from "@/components/ui/button";
@@ -16,12 +14,12 @@ import {
 } from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import dayjs from "@/lib/dayjs";
-import { formatMonthDay } from "@/lib/formatters";
+import { formatLocalTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 
 interface PresetRange {
-	label: string;
 	getValue: () => DateRange;
+	label: string;
 }
 
 const PRESET_RANGES: PresetRange[] = [
@@ -85,11 +83,11 @@ const PRESET_RANGES: PresetRange[] = [
 
 interface DateRangePickerProps {
 	className?: string;
-	value?: DateRange;
-	onChange?: (dateRange: DateRange | undefined) => void;
 	disabled?: boolean;
 	maxDate?: Date;
 	minDate?: Date;
+	onChange?: (dateRange: DateRange | undefined) => void;
+	value?: DateRange;
 }
 
 export function DateRangePicker({
@@ -215,7 +213,6 @@ export function DateRangePicker({
 					sideOffset={4}
 				>
 					<div className="flex">
-						{/* Presets sidebar */}
 						<div className="hidden w-40 shrink-0 border-r bg-background sm:block">
 							<div className="p-2">
 								<p className="px-2 py-1.5 font-medium text-[11px] text-muted-foreground uppercase">
@@ -245,16 +242,14 @@ export function DateRangePicker({
 							</div>
 						</div>
 
-						{/* Calendar section */}
 						<div className="flex flex-col">
-							{/* Header showing selection */}
 							<div className="flex items-center justify-between border-b bg-secondary px-4 py-3">
 								<div className="flex items-center gap-2">
 									{tempRange?.from ? (
 										<>
 											<div className="rounded bg-background px-2.5 py-1 shadow-sm">
 												<span className="font-semibold text-foreground text-sm tabular-nums">
-													{formatMonthDay(tempRange.from)}
+													{formatLocalTime(tempRange.from, "MMM D")}
 												</span>
 											</div>
 											<CaretRightIcon
@@ -278,7 +273,7 @@ export function DateRangePicker({
 													)}
 												>
 													{tempRange?.to
-														? formatMonthDay(tempRange.to)
+														? formatLocalTime(tempRange.to, "MMM D")
 														: "End date"}
 												</span>
 											</div>
@@ -296,7 +291,6 @@ export function DateRangePicker({
 								)}
 							</div>
 
-							{/* Mobile presets */}
 							<div className="flex gap-1.5 overflow-x-auto border-b bg-background p-2 sm:hidden">
 								{PRESET_RANGES.slice(0, 5).map((preset) => {
 									const isActive = activePreset?.label === preset.label;
@@ -318,7 +312,6 @@ export function DateRangePicker({
 								})}
 							</div>
 
-							{/* Calendar */}
 							<div className="p-3">
 								<Calendar
 									defaultMonth={tempRange?.from || value?.from || new Date()}
@@ -338,7 +331,6 @@ export function DateRangePicker({
 								/>
 							</div>
 
-							{/* Footer */}
 							<div className="angled-rectangle-gradient flex items-center justify-end gap-2 border-t bg-secondary px-4 py-3">
 								<Button
 									onClick={() => handleOpenChange(false)}

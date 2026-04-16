@@ -1,4 +1,4 @@
-import type { invitation } from "@databuddy/db";
+import type { invitation } from "@databuddy/db/schema";
 import { atom } from "jotai";
 import dayjs from "@/lib/dayjs";
 

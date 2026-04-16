@@ -13,10 +13,10 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 
 interface RevenueAttributionTablesProps {
-	websiteId: string;
 	dateRange: DateRange;
 	isLoading?: boolean;
 	onAddFilter?: (field: string, value: string) => void;
+	websiteId: string;
 }
 
 export function RevenueAttributionTables({

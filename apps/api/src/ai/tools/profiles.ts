@@ -20,21 +20,11 @@ function today(): string {
 export function createProfileTools() {
 	const listProfilesTool = tool({
 		description:
-			"List visitor profiles for a website. Returns recent visitors with their session counts, page views, device info, country, browser, and referrer. Use this when the user asks about visitors, users, or audience segments.",
+			"List recent visitor profiles (sessions, pageviews, device, geo, browser, referrer). Use for visitors/users/audience questions.",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			days: z
-				.number()
-				.min(1)
-				.max(90)
-				.default(7)
-				.describe("Number of days to look back"),
-			limit: z
-				.number()
-				.min(1)
-				.max(50)
-				.default(10)
-				.describe("Max number of profiles"),
+			websiteId: z.string(),
+			days: z.number().min(1).max(90).default(7),
+			limit: z.number().min(1).max(50).default(10),
 			filters: z
 				.array(
 					z.object({
@@ -51,10 +41,7 @@ export function createProfileTools() {
 						value: z.union([z.string(), z.number()]),
 					})
 				)
-				.optional()
-				.describe(
-					"Filters to narrow results (e.g. country, browser_name, device_type, referrer)"
-				),
+				.optional(),
 			websiteDomain: z.string().optional(),
 		}),
 		execute: async ({ websiteId, days, limit, filters, websiteDomain }) => {
@@ -100,18 +87,11 @@ export function createProfileTools() {
 
 	const getProfileTool = tool({
 		description:
-			"Get detailed information about a specific visitor by their anonymous ID. Returns first/last visit, total sessions, pageviews, duration, device, browser, OS, and location.",
+			"Visitor detail by anonymous_id: first/last visit, sessions, pageviews, duration, device, browser, OS, location.",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			visitorId: z
-				.string()
-				.describe("The visitor's anonymous_id (from list_profiles)"),
-			days: z
-				.number()
-				.min(1)
-				.max(365)
-				.default(30)
-				.describe("Number of days to look back"),
+			websiteId: z.string(),
+			visitorId: z.string(),
+			days: z.number().min(1).max(365).default(30),
 			websiteDomain: z.string().optional(),
 		}),
 		execute: async ({ websiteId, visitorId, days, websiteDomain }) => {
@@ -159,24 +139,12 @@ export function createProfileTools() {
 
 	const getProfileSessionsTool = tool({
 		description:
-			"Get session history for a specific visitor. Returns each session with its start/end time, duration, page views, pages visited, device, browser, and location. Use this after list_profiles or get_profile to drill into a visitor's behavior.",
+			"Session history for a visitor (start/end, duration, pages, device, geo). Use after list_profiles/get_profile.",
 		inputSchema: z.object({
-			websiteId: z.string().describe("The website ID"),
-			visitorId: z
-				.string()
-				.describe("The visitor's anonymous_id (from list_profiles)"),
-			days: z
-				.number()
-				.min(1)
-				.max(365)
-				.default(30)
-				.describe("Number of days to look back"),
-			limit: z
-				.number()
-				.min(1)
-				.max(100)
-				.default(20)
-				.describe("Max number of sessions to return"),
+			websiteId: z.string(),
+			visitorId: z.string(),
+			days: z.number().min(1).max(365).default(30),
+			limit: z.number().min(1).max(100).default(20),
 			websiteDomain: z.string().optional(),
 		}),
 		execute: async ({ websiteId, visitorId, days, limit, websiteDomain }) => {

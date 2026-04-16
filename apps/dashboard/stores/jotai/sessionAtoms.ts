@@ -6,24 +6,20 @@ import {
 	timeGranularityAtom,
 } from "./filterAtoms";
 
-// Create a dependency atom that changes when filters/date range change
 const filterDependencyAtom = atom((get) => ({
 	dateRange: get(formattedDateRangeAtom),
 	granularity: get(timeGranularityAtom),
 	filters: get(dynamicQueryFiltersAtom),
 }));
 
-// Session UI state atoms that reset when filters change
 export const expandedSessionIdAtom = atomWithReset<string | null>(null);
 
-// Session pagination atoms (per website) that reset when filters change
 export const sessionPageAtom = atomWithReset<Record<string, number>>({});
 
-// Derived atom to get/set page for specific website
 export const getSessionPageAtom = (websiteId: string) =>
 	atom(
 		(get) => {
-			// This will cause the atom to reset when filters change
+			// Subscribe to filter changes so consumers re-read page 1 when they change.
 			get(filterDependencyAtom);
 			return get(sessionPageAtom)[websiteId] || 1;
 		},
@@ -37,11 +33,9 @@ export const getSessionPageAtom = (websiteId: string) =>
 		}
 	);
 
-// Auto-reset atoms when filters change
 export const autoResetSessionStateAtom = atom(
 	(get) => get(filterDependencyAtom),
 	(_get, set) => {
-		// Reset all session state when filters change
 		set(expandedSessionIdAtom, RESET);
 		set(sessionPageAtom, RESET);
 	}

@@ -6,13 +6,7 @@ import type {
 	SqlExpression,
 } from "./expressions";
 
-// ============================================================================
-// Filter Operators
-// ============================================================================
-
-// Note: Both `contains` and `starts_with` use the LIKE operator.
-// The distinction is handled by value formatting: `contains` wraps values with %...%,
-// while `starts_with` appends % to the value (e.g., "value%").
+// `contains` wraps values as %v%; `starts_with` appends %. Both map to LIKE.
 export const FilterOperators = {
 	eq: "=",
 	ne: "!=",
@@ -34,69 +28,52 @@ export const TimeGranularity = {
 export type FilterOperator = keyof typeof FilterOperators;
 export type TimeUnit = keyof typeof TimeGranularity | "hourly" | "daily";
 
-// ============================================================================
-// Filter Types
-// ============================================================================
-
 export interface Filter {
 	field: string;
-	op: FilterOperator;
-	value: string | number | (string | number)[];
-	/** Target specific CTE or query part (e.g., 'session_attribution', 'main') */
-	target?: string;
-	/** Apply as HAVING clause instead of WHERE */
 	having?: boolean;
+	op: FilterOperator;
+	target?: string;
+	value: string | number | (string | number)[];
 }
 
-// ============================================================================
-// Field Definition Types - Declarative field building
-// ============================================================================
-
-/** Column field - direct column reference */
 export interface ColumnField {
-	type: "column";
-	source: string;
 	alias?: string;
+	source: string;
+	type: "column";
 }
 
-/** Aggregate field - uses aggregate function */
 export interface AggregateField {
-	type: "aggregate";
-	fn: AggregateFn;
-	source?: string;
+	alias: string;
 	condition?: string;
-	alias: string;
-}
-
-/** Expression field - raw SQL expression */
-export interface ExpressionField {
-	type: "expression";
-	expression: string | SqlExpression;
-	alias: string;
-}
-
-/** Window field - aggregate with OVER clause */
-export interface WindowField {
-	type: "window";
 	fn: AggregateFn;
 	source?: string;
+	type: "aggregate";
+}
+
+export interface ExpressionField {
+	alias: string;
+	expression: string | SqlExpression;
+	type: "expression";
+}
+
+export interface WindowField {
+	alias: string;
+	fn: AggregateFn;
 	over: {
 		partitionBy?: string[];
 		orderBy?: string;
 	};
-	alias: string;
+	source?: string;
+	type: "window";
 }
 
-/** Computed field - references pre-built computed metric */
 export interface ComputedField {
-	type: "computed";
-	metric: "bounceRate" | "percentageOfTotal" | "pagesPerSession";
-	/** Fields to use as inputs (depends on metric) */
-	inputs: string[];
 	alias: string;
+	inputs: string[];
+	metric: "bounceRate" | "percentageOfTotal" | "pagesPerSession";
+	type: "computed";
 }
 
-/** Union type for all field definitions */
 export type FieldDefinition =
 	| ColumnField
 	| AggregateField
@@ -104,51 +81,32 @@ export type FieldDefinition =
 	| WindowField
 	| ComputedField;
 
-/** Field that can be used in config - either string or structured */
 export type ConfigField = string | FieldDefinition | AliasedExpression;
 
-// ============================================================================
-// CTE Definition Types
-// ============================================================================
-
 export interface CTEDefinition {
-	name: string;
-	table?: string;
-	from?: string; // Reference another CTE
 	fields: ConfigField[];
-	where?: string[];
+	from?: string;
 	groupBy?: string[];
-	orderBy?: string;
 	limit?: number;
+	name: string;
+	orderBy?: string;
+	table?: string;
+	where?: string[];
 }
-
-// ============================================================================
-// Time Bucket Configuration
-// ============================================================================
 
 export interface TimeBucketConfig {
-	/** Field to bucket (defaults to timeField) */
-	field?: string;
-	/** Granularity (can be overridden by request.timeUnit) */
-	granularity?: Granularity;
-	/** Apply timezone conversion */
-	timezone?: boolean;
-	/** Output column name (default: 'date') */
 	alias?: string;
-	/** Format output as string (for hourly data) */
+	field?: string;
 	format?: boolean;
+	granularity?: Granularity;
+	timezone?: boolean;
 }
 
-// ============================================================================
-// Query Configuration
-// ============================================================================
-
 export interface QueryPlugins {
-	parseReferrers?: boolean;
-	normalizeUrls?: boolean;
-	normalizeGeo?: boolean;
 	deduplicateGeo?: boolean;
-	mapDeviceTypes?: boolean;
+	normalizeGeo?: boolean;
+	normalizeUrls?: boolean;
+	parseReferrers?: boolean;
 	sessionAttribution?: boolean;
 }
 
@@ -172,80 +130,43 @@ export type CustomSqlFn = (
 ) => string | { sql: string; params: Record<string, unknown> };
 
 export interface SimpleQueryConfig {
-	/** Main table to query */
-	table?: string;
-
-	/** Fields to select (legacy string[] or new ConfigField[]) */
-	fields?: ConfigField[];
-
-	/** CTEs to generate (new declarative API) */
-	with?: CTEDefinition[];
-
-	/** Override FROM clause (e.g., to reference a CTE) */
-	from?: string;
-
-	/** Static WHERE conditions */
-	where?: string[];
-
-	/** HAVING conditions for aggregate filtering */
-	having?: string[];
-
-	/** GROUP BY columns */
-	groupBy?: string[];
-
-	/** ORDER BY clause */
-	orderBy?: string;
-
-	/** Result limit */
-	limit?: number;
-
-	/** Time field for date filtering */
-	timeField?: string;
-
-	/** Time bucket configuration (new) */
-	timeBucket?: TimeBucketConfig;
-
-	/** Field used for ID filtering (default: "client_id") */
-	idField?: string;
-
-	/** Allowed filter fields */
 	allowedFilters?: string[];
-
-	/** Whether query supports customization */
-	customizable?: boolean;
-
-	/** Post-processing plugins */
-	plugins?: QueryPlugins;
-
-	/** Custom SQL function (escape hatch) */
-	customSql?: CustomSqlFn;
-
-	/** Append end-of-day time to 'to' date */
 	appendEndOfDayToTo?: boolean;
-
-	/** Skip automatic date filtering */
-	skipDateFilter?: boolean;
-
-	/** Query metadata for documentation */
+	customizable?: boolean;
+	customSql?: CustomSqlFn;
+	fields?: ConfigField[];
+	from?: string;
+	groupBy?: string[];
+	having?: string[];
+	idField?: string;
+	limit?: number;
 	meta?: QueryBuilderMeta;
+	orderBy?: string;
+	plugins?: QueryPlugins;
+	skipDateFilter?: boolean;
+	table?: string;
+	timeBucket?: TimeBucketConfig;
+	timeField?: string;
+	where?: string[];
+	with?: CTEDefinition[];
 }
 
 export interface QueryRequest {
-	projectId: string;
-	type: string;
-	from: string;
-	to: string;
-	timeUnit?: TimeUnit;
 	filters?: Filter[];
+	from: string;
 	groupBy?: string[];
-	orderBy?: string;
 	limit?: number;
 	offset?: number;
-	timezone?: string;
+	orderBy?: string;
 	organizationWebsiteIds?: string[];
+	projectId: string;
+	timeUnit?: TimeUnit;
+	timezone?: string;
+	to: string;
+	type: string;
 }
 
 export interface CompiledQuery {
-	sql: string;
 	params: Record<string, unknown>;
+	sql: string;
 }

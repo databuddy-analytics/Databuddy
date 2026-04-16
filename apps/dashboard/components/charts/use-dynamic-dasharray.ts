@@ -3,10 +3,10 @@
 import { useCallback, useState } from "react";
 
 interface ChartDataPoint {
+	payload?: Record<string, unknown>;
+	value?: number | string;
 	x?: number;
 	y?: number;
-	value?: number | string;
-	payload?: Record<string, unknown>;
 }
 
 interface ChartLineData {
@@ -25,17 +25,13 @@ export interface CustomizedChartProps {
 }
 
 interface LineConfig {
+	curveAdjustment?: number;
+	dashPattern?: number[];
 	name: string;
 	splitIndex?: number;
-	dashPattern?: number[];
-	curveAdjustment?: number;
 }
 
 interface UseDynamicDasharrayProps {
-	lineConfigs?: LineConfig[];
-	splitIndex?: number;
-	defaultDashPattern?: number[];
-	curveAdjustment?: number;
 	chartType?:
 		| "linear"
 		| "monotone"
@@ -43,6 +39,10 @@ interface UseDynamicDasharrayProps {
 		| "step"
 		| "stepBefore"
 		| "stepAfter";
+	curveAdjustment?: number;
+	defaultDashPattern?: number[];
+	lineConfigs?: LineConfig[];
+	splitIndex?: number;
 }
 
 export type LineDasharray = {

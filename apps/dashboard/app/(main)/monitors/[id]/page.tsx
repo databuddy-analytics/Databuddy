@@ -1,15 +1,15 @@
 "use client";
 
-import {
-	ArrowClockwiseIcon,
-	ArrowLeftIcon,
-	GlobeIcon,
-	HeartbeatIcon,
-	PauseIcon,
-	PencilIcon,
-	PlayIcon,
-	TrashIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { HeartbeatIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { PauseIcon } from "@phosphor-icons/react";
+import { PencilIcon } from "@phosphor-icons/react";
+import { PlayIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -21,6 +21,7 @@ import { PageHeader } from "@/app/(main)/websites/_components/page-header";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { EmptyState } from "@/components/empty-state";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
+import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -71,21 +72,24 @@ const granularityLabels: Record<string, string> = {
 };
 
 interface ScheduleData {
-	id: string;
-	websiteId: string | null;
-	url: string;
-	name: string | null;
-	granularity: string;
+	cacheBust: boolean;
 	cron: string;
+	granularity: string;
+	id: string;
 	isPaused: boolean;
 	isPublic: boolean;
-	qstashStatus: string;
 	jsonParsingConfig?: { enabled: boolean } | null;
+	name: string | null;
+	organizationId: string;
+	qstashStatus: string;
+	timeout: number | null;
+	url: string;
 	website?: {
 		id: string;
 		name: string | null;
 		domain: string;
 	} | null;
+	websiteId: string | null;
 }
 
 function resolveStatus(check: RecentActivityCheck | undefined) {
@@ -151,13 +155,15 @@ export default function MonitorDetailsPage() {
 	const router = useRouter();
 	const { dateRange } = useDateFilters();
 
+	const [isTransferOpen, setIsTransferOpen] = useState(false);
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [editingSchedule, setEditingSchedule] = useState<{
 		id: string;
 		url: string;
 		name?: string | null;
 		granularity: string;
-		isPublic?: boolean;
+		timeout?: number | null;
+		cacheBust?: boolean;
 		jsonParsingConfig?: { enabled: boolean } | null;
 	} | null>(null);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -205,11 +211,13 @@ export default function MonitorDetailsPage() {
 	const deleteMutation = useMutation({
 		...orpc.uptime.deleteSchedule.mutationOptions(),
 	});
-	const togglePublicMutation = useMutation({
-		...orpc.statusPage.togglePublicMonitor.mutationOptions(),
+	const manualCheckMutation = useMutation({
+		...orpc.uptime.manualCheck.mutationOptions(),
 	});
 
-	// --- Recent checks (paginated) ---
+	const transferMutation = useMutation({
+		...orpc.uptime.transfer.mutationOptions(),
+	});
 
 	const uptimeQueries = useMemo(
 		() => [
@@ -249,8 +257,6 @@ export default function MonitorDetailsPage() {
 		allRecentChecks.length === 0 &&
 		(isPendingUptimeChecks || isFetchingUptimeChecks);
 
-	// --- Heatmap ---
-
 	const heatmapDateRange = useMemo(
 		() => ({
 			start_date: localDayjs()
@@ -284,8 +290,6 @@ export default function MonitorDetailsPage() {
 
 	const heatmapData =
 		getHeatmapData("uptime-heatmap", "uptime_time_series") || [];
-
-	// --- Latency chart ---
 
 	const latencyDateRange = useMemo(() => {
 		const days = localDayjs(dateRange.end_date).diff(
@@ -323,12 +327,13 @@ export default function MonitorDetailsPage() {
 		"uptime_response_time_trends"
 	);
 
-	// --- Pagination effects ---
-
-	useEffect(() => {
+	const paginationResetKey = `${dateRange.start_date}-${dateRange.end_date}-${scheduleId}`;
+	const [prevResetKey, setPrevResetKey] = useState(paginationResetKey);
+	if (prevResetKey !== paginationResetKey) {
+		setPrevResetKey(paginationResetKey);
 		setRecentChecksPage(1);
 		setAllRecentChecks([]);
-	}, [dateRange, scheduleId]);
+	}
 
 	const recentChecksHasNext =
 		pageRecentChecks.length === RECENT_CHECKS_PAGE_SIZE;
@@ -391,8 +396,6 @@ export default function MonitorDetailsPage() {
 		});
 	}, [pageRecentChecks, recentChecksPage]);
 
-	// --- Handlers ---
-
 	const handleEditMonitor = () => {
 		if (!schedule) {
 			return;
@@ -402,7 +405,8 @@ export default function MonitorDetailsPage() {
 			url: schedule.url,
 			name: schedule.name,
 			granularity: schedule.granularity,
-			isPublic: schedule.isPublic,
+			timeout: schedule.timeout,
+			cacheBust: schedule.cacheBust,
 			jsonParsingConfig: schedule.jsonParsingConfig as {
 				enabled: boolean;
 			} | null,
@@ -470,29 +474,44 @@ export default function MonitorDetailsPage() {
 		setIsRefreshing(false);
 	};
 
-	const handleTogglePublic = async () => {
+	const handleManualCheck = async () => {
 		if (!schedule) {
 			return;
 		}
 		try {
-			const result = await togglePublicMutation.mutateAsync({
-				scheduleId: schedule.id,
-				isPublic: !schedule.isPublic,
-			});
-			await refetchSchedule();
-			toast.success(
-				result.isPublic
-					? "Monitor is now visible on the public status page"
-					: "Monitor removed from the public status page"
-			);
+			await manualCheckMutation.mutateAsync({ scheduleId: schedule.id });
+			toast.success("Check triggered");
+			setTimeout(() => {
+				refetchSchedule();
+				refetchUptimeData();
+				refetchHeatmapData();
+				refetchLatencyData();
+			}, 3000);
 		} catch (error) {
 			const errorMessage =
-				error instanceof Error ? error.message : "Failed to update visibility";
+				error instanceof Error ? error.message : "Failed to trigger check";
 			toast.error(errorMessage);
 		}
 	};
 
-	// --- Render ---
+	const handleTransfer = async (targetOrganizationId: string) => {
+		if (!schedule) {
+			return;
+		}
+		try {
+			await transferMutation.mutateAsync({
+				scheduleId: schedule.id,
+				targetOrganizationId,
+			});
+			toast.success("Monitor transferred successfully");
+			setIsTransferOpen(false);
+			router.push("/monitors");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Failed to transfer monitor";
+			toast.error(errorMessage);
+		}
+	};
 
 	if (isLoadingSchedule) {
 		return <MonitorDetailLoading />;
@@ -569,19 +588,19 @@ export default function MonitorDetailsPage() {
 							/>
 						</Button>
 						<Button
-							disabled={togglePublicMutation.isPending}
-							onClick={handleTogglePublic}
+							aria-label="Trigger manual check"
+							disabled={manualCheckMutation.isPending || schedule.isPaused}
+							onClick={handleManualCheck}
 							size="sm"
 							type="button"
-							variant={schedule.isPublic ? "default" : "outline"}
+							variant="outline"
 						>
-							<GlobeIcon size={16} weight="duotone" />
-							<span className="hidden sm:inline">
-								{schedule.isPublic ? "Public" : "Make public"}
-							</span>
-							<span className="sm:hidden">
-								{schedule.isPublic ? "Listed" : "List"}
-							</span>
+							<LightningIcon
+								className={manualCheckMutation.isPending ? "animate-spin" : ""}
+								size={16}
+								weight="fill"
+							/>
+							Check Now
 						</Button>
 						<Button
 							disabled={
@@ -613,6 +632,16 @@ export default function MonitorDetailsPage() {
 						>
 							<PencilIcon size={16} weight="duotone" />
 							<span className="hidden sm:inline">Configure</span>
+						</Button>
+						<Button
+							aria-label="Transfer monitor"
+							onClick={() => setIsTransferOpen(true)}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<ArrowSquareOutIcon size={16} weight="duotone" />
+							<span className="hidden sm:inline">Transfer</span>
 						</Button>
 						<Button
 							aria-label="Delete monitor"
@@ -725,6 +754,17 @@ export default function MonitorDetailsPage() {
 					websiteId={schedule.websiteId || undefined}
 				/>
 			) : null}
+
+			<TransferToOrgDialog
+				currentOrganizationId={schedule.organizationId}
+				description={`Move "${displayName}" to a different workspace.`}
+				isPending={transferMutation.isPending}
+				onOpenChangeAction={setIsTransferOpen}
+				onTransferAction={handleTransfer}
+				open={isTransferOpen}
+				title="Transfer Monitor"
+				warning="All monitoring data and configuration will be transferred to {orgName}."
+			/>
 
 			<AlertDialog
 				onOpenChange={setIsDeleteDialogOpen}

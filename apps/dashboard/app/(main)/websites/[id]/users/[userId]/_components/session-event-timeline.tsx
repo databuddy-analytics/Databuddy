@@ -1,12 +1,10 @@
 "use client";
 
 import type { SessionEvent } from "@databuddy/shared/types/sessions";
-import {
-	CursorClickIcon,
-	FileTextIcon,
-	LightningIcon,
-	SparkleIcon,
-} from "@phosphor-icons/react";
+import { CursorClickIcon } from "@phosphor-icons/react";
+import { FileTextIcon } from "@phosphor-icons/react";
+import { LightningIcon } from "@phosphor-icons/react";
+import { SparkleIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { formatLocalTime } from "@/lib/time";
 import { cleanUrl, formatPropertyValue, getDisplayPath } from "./session-utils";
@@ -48,20 +46,16 @@ function EventItem({
 
 	return (
 		<div className="grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 px-2 py-1.5 text-sm">
-			{/* Index */}
 			<span className="text-right font-mono text-muted-foreground text-xs tabular-nums">
 				{eventIndex + 1}
 			</span>
 
-			{/* Icon */}
 			<Icon
 				className={`size-4 ${hasProperties ? "text-primary" : "text-muted-foreground"}`}
 			/>
 
-			{/* Event Name */}
 			<span className="truncate font-medium">{event.event_name}</span>
 
-			{/* Path */}
 			<span
 				className="truncate font-mono text-muted-foreground text-xs"
 				title={fullPath}
@@ -69,7 +63,6 @@ function EventItem({
 				{displayPath || "—"}
 			</span>
 
-			{/* Custom Badge */}
 			<div className="w-[52px]">
 				{hasProperties && (
 					<Badge
@@ -81,7 +74,6 @@ function EventItem({
 				)}
 			</div>
 
-			{/* Time */}
 			<span className="text-right text-muted-foreground text-xs tabular-nums">
 				{time}
 			</span>
@@ -127,7 +119,6 @@ export function SessionEventTimeline({ events }: SessionEventTimelineProps) {
 
 	return (
 		<div className="max-h-[280px] overflow-y-auto rounded border bg-background">
-			{/* Header */}
 			<div className="sticky top-0 grid grid-cols-[28px_16px_100px_1fr_auto_70px] items-center gap-2 border-b bg-accent px-2 py-1.5 font-medium text-muted-foreground text-xs">
 				<span className="text-right">#</span>
 				<span />
@@ -136,7 +127,6 @@ export function SessionEventTimeline({ events }: SessionEventTimelineProps) {
 				<span className="w-[52px]" />
 				<span className="text-right">Time</span>
 			</div>
-			{/* Events */}
 			<div className="divide-y divide-border/50">
 				{events.map((event, eventIndex) => (
 					<div key={event.event_id || eventIndex}>

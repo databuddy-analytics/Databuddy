@@ -1,14 +1,15 @@
 import { createHash } from "node:crypto";
 import { connect } from "node:tls";
-import { db, eq, uptimeSchedules } from "@databuddy/db";
+import { db, eq } from "@databuddy/db";
+import { uptimeSchedules } from "@databuddy/db/schema";
+import { validateUrl } from "@databuddy/shared/ssrf-guard";
 import { extractHealth, isHealthExtractionEnabled } from "./json-parser";
-import { captureError, mergeWideEvent, record } from "./lib/tracing";
+import { captureError, mergeWideEvent } from "./lib/tracing";
 import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
-const DEFAULT_TIMEOUT = 30_000;
+const DEFAULT_TIMEOUT = 60_000;
 const MAX_REDIRECTS = 10;
-const MAX_RETRIES = 3;
 
 const CONFIG = {
 	userAgent:
@@ -18,41 +19,36 @@ const CONFIG = {
 	env: process.env.NODE_ENV || "prod",
 } as const;
 
-interface FetchOptions {
-	timeout?: number;
-	cacheBust?: boolean;
-}
-
 interface FetchSuccess {
-	ok: true;
-	statusCode: number;
-	ttfb: number;
-	total: number;
-	redirects: number;
 	bytes: number;
 	content: string;
 	contentType: string | null;
+	ok: true;
 	parsedJson?: unknown;
+	redirects: number;
+	statusCode: number;
+	total: number;
+	ttfb: number;
 }
 
 interface FetchFailure {
+	error: string;
 	ok: false;
 	statusCode: number;
-	ttfb: number;
 	total: number;
-	error: string;
+	ttfb: number;
 }
 
 export interface ScheduleData {
-	id: string;
-	url: string;
-	websiteId: string | null;
-	organizationId: string;
-	name: string | null;
-	website: { name: string | null; domain: string } | null;
-	jsonParsingConfig: unknown;
-	timeout: number | null;
 	cacheBust: boolean;
+	id: string;
+	jsonParsingConfig: unknown;
+	name: string | null;
+	organizationId: string;
+	timeout: number | null;
+	url: string;
+	website: { name: string | null; domain: string } | null;
+	websiteId: string | null;
 }
 
 function mergeUptimeCheckMetrics(data: UptimeData): void {
@@ -68,63 +64,61 @@ function mergeUptimeCheckMetrics(data: UptimeData): void {
 	});
 }
 
-export function lookupSchedule(
+export async function lookupSchedule(
 	id: string
 ): Promise<ActionResult<ScheduleData>> {
-	return record("uptime.lookup_schedule", async () => {
-		try {
-			const schedule = await db.query.uptimeSchedules.findFirst({
-				where: eq(uptimeSchedules.id, id),
-				with: { website: true },
-			});
+	try {
+		const schedule = await db.query.uptimeSchedules.findFirst({
+			where: eq(uptimeSchedules.id, id),
+			with: { website: true },
+		});
 
-			if (!schedule) {
-				return { success: false, error: `Schedule ${id} not found` };
-			}
+		if (!schedule) {
+			return { success: false, error: `Schedule ${id} not found` };
+		}
 
-			if (!schedule.url) {
-				return {
-					success: false,
-					error: `Schedule ${id} has invalid data (missing url)`,
-				};
-			}
-
-			mergeWideEvent({
-				db_schedule_loaded: true,
-				schedule_cache_bust: schedule.cacheBust,
-				schedule_timeout_ms: schedule.timeout ?? 0,
-				json_parsing_enabled: isHealthExtractionEnabled(
-					schedule.jsonParsingConfig
-				),
-			});
-
-			return {
-				success: true,
-				data: {
-					id: schedule.id,
-					url: schedule.url,
-					websiteId: schedule.websiteId,
-					organizationId: schedule.organizationId,
-					name: schedule.name,
-					website: schedule.website
-						? {
-								name: schedule.website.name,
-								domain: schedule.website.domain,
-							}
-						: null,
-					jsonParsingConfig: schedule.jsonParsingConfig,
-					timeout: schedule.timeout,
-					cacheBust: schedule.cacheBust,
-				},
-			};
-		} catch (error) {
-			captureError(error, { error_step: "lookup_schedule" });
+		if (!schedule.url) {
 			return {
 				success: false,
-				error: error instanceof Error ? error.message : "Database error",
+				error: `Schedule ${id} has invalid data (missing url)`,
 			};
 		}
-	});
+
+		mergeWideEvent({
+			db_schedule_loaded: true,
+			schedule_cache_bust: schedule.cacheBust,
+			schedule_timeout_ms: schedule.timeout ?? 0,
+			json_parsing_enabled: isHealthExtractionEnabled(
+				schedule.jsonParsingConfig
+			),
+		});
+
+		return {
+			success: true,
+			data: {
+				id: schedule.id,
+				url: schedule.url,
+				websiteId: schedule.websiteId,
+				organizationId: schedule.organizationId,
+				name: schedule.name,
+				website: schedule.website
+					? {
+							name: schedule.website.name,
+							domain: schedule.website.domain,
+						}
+					: null,
+				jsonParsingConfig: schedule.jsonParsingConfig,
+				timeout: schedule.timeout,
+				cacheBust: schedule.cacheBust,
+			},
+		};
+	} catch (error) {
+		captureError(error, { error_step: "lookup_schedule" });
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Database error",
+		};
+	}
 }
 
 function normalizeUrl(url: string): string {
@@ -174,6 +168,17 @@ async function fetchWithRedirects(
 		let ttfb = 0;
 
 		while (redirects < MAX_REDIRECTS) {
+			const urlCheck = await validateUrl(current);
+			if (!urlCheck.safe) {
+				return {
+					ok: false as const,
+					statusCode: 0,
+					ttfb: 0,
+					total: Math.round(performance.now() - start),
+					error: urlCheck.error ?? "Target resolves to a private address",
+				};
+			}
+
 			const res = await fetch(current, {
 				method: "GET",
 				signal: abort.signal,
@@ -253,246 +258,182 @@ async function fetchWithRedirects(
 	}
 }
 
-function isEncodingFailure(message: string): boolean {
-	return (
-		message.includes("unexpected end") ||
-		message.includes("incorrect header check") ||
-		message.includes("invalid stored block") ||
-		message.includes("incomplete")
-	);
-}
-
-function pingWebsite(
+async function pingWebsite(
 	originalUrl: string,
-	options: FetchOptions = {}
+	options: { cacheBust?: boolean; timeout?: number } = {}
 ): Promise<FetchSuccess | FetchFailure> {
-	return record("uptime.ping_website", async () => {
-		const url = normalizeUrl(originalUrl);
-		const timeout = options.timeout ?? DEFAULT_TIMEOUT;
-		const cacheBust = options.cacheBust ?? false;
+	const url = normalizeUrl(originalUrl);
+	const timeout = options.timeout ?? DEFAULT_TIMEOUT;
+	const cacheBust = options.cacheBust ?? false;
 
-		try {
-			const result = await fetchWithRedirects(
-				url,
-				timeout,
-				"gzip, deflate, br",
-				cacheBust
-			);
-
-			if (!result.ok && isEncodingFailure(result.error)) {
-				return fetchWithRedirects(url, timeout, "gzip, deflate", cacheBust);
-			}
-
-			return result;
-		} catch (error) {
-			if (error instanceof Error && isEncodingFailure(error.message)) {
-				try {
-					return await fetchWithRedirects(
-						url,
-						timeout,
-						"gzip, deflate",
-						cacheBust
-					);
-				} catch {
-					return {
-						ok: false,
-						statusCode: 0,
-						ttfb: 0,
-						total: 0,
-						error: error.message,
-					};
-				}
-			}
-
-			return {
-				ok: false,
-				statusCode: 0,
-				ttfb: 0,
-				total: 0,
-				error: error instanceof Error ? error.message : "Unknown error",
-			};
-		}
-	});
+	try {
+		return await fetchWithRedirects(url, timeout, "gzip, deflate", cacheBust);
+	} catch (error) {
+		return {
+			ok: false as const,
+			statusCode: 0,
+			ttfb: 0,
+			total: 0,
+			error: error instanceof Error ? error.message : "Unknown error",
+		};
+	}
 }
 
 function checkCertificate(url: string): Promise<{
 	valid: boolean;
 	expiry: number;
 }> {
-	return record(
-		"uptime.check_certificate",
-		() =>
-			new Promise((resolve) => {
-				try {
-					const parsed = new URL(url);
+	return new Promise((resolve) => {
+		try {
+			const parsed = new URL(url);
 
-					if (parsed.protocol !== "https:") {
+			if (parsed.protocol !== "https:") {
+				resolve({ valid: false, expiry: 0 });
+				return;
+			}
+
+			const port = parsed.port ? Number.parseInt(parsed.port, 10) : 443;
+			const socket = connect(
+				{
+					host: parsed.hostname,
+					port,
+					servername: parsed.hostname,
+					timeout: 5000,
+				},
+				() => {
+					const cert = socket.getPeerCertificate();
+					socket.destroy();
+
+					if (!cert?.valid_to) {
 						resolve({ valid: false, expiry: 0 });
 						return;
 					}
 
-					const port = parsed.port ? Number.parseInt(parsed.port, 10) : 443;
-					const socket = connect(
-						{
-							host: parsed.hostname,
-							port,
-							servername: parsed.hostname,
-							timeout: 5000,
-						},
-						() => {
-							const cert = socket.getPeerCertificate();
-							socket.destroy();
-
-							if (!cert?.valid_to) {
-								resolve({ valid: false, expiry: 0 });
-								return;
-							}
-
-							const expiry = new Date(cert.valid_to);
-							resolve({
-								valid: expiry > new Date(),
-								expiry: expiry.getTime(),
-							});
-						}
-					);
-
-					socket.on("error", () => {
-						socket.destroy();
-						resolve({ valid: false, expiry: 0 });
+					const expiry = new Date(cert.valid_to);
+					resolve({
+						valid: expiry > new Date(),
+						expiry: expiry.getTime(),
 					});
-
-					socket.on("timeout", () => {
-						socket.destroy();
-						resolve({ valid: false, expiry: 0 });
-					});
-				} catch {
-					resolve({ valid: false, expiry: 0 });
 				}
-			})
-	);
-}
+			);
 
-function getProbeMetadata(): Promise<{ ip: string; region: string }> {
-	return record("uptime.get_probe_metadata", async () => {
-		try {
-			const res = await fetch("https://api.ipify.org?format=json", {
-				signal: AbortSignal.timeout(5000),
+			socket.on("error", () => {
+				socket.destroy();
+				resolve({ valid: false, expiry: 0 });
 			});
 
-			if (res.ok) {
-				const data = (await res.json()) as { ip: string };
-				return { ip: data.ip || "unknown", region: CONFIG.region };
-			}
+			socket.on("timeout", () => {
+				socket.destroy();
+				resolve({ valid: false, expiry: 0 });
+			});
 		} catch {
-			// Failed to get probe IP
+			resolve({ valid: false, expiry: 0 });
 		}
-
-		return { ip: "unknown", region: CONFIG.region };
 	});
+}
+
+async function getProbeMetadata(): Promise<{ ip: string; region: string }> {
+	try {
+		const res = await fetch("https://api.ipify.org?format=json", {
+			signal: AbortSignal.timeout(5000),
+		});
+
+		if (res.ok) {
+			const data = await res.json();
+			return {
+				ip: typeof data?.ip === "string" ? data.ip : "unknown",
+				region: CONFIG.region,
+			};
+		}
+	} catch {
+		// Failed to get probe IP
+	}
+
+	return { ip: "unknown", region: CONFIG.region };
 }
 
 export interface CheckOptions {
-	timeout?: number;
 	cacheBust?: boolean;
 	extractHealth?: boolean;
+	timeout?: number;
 }
 
-export function checkUptime(
+export async function checkUptime(
 	siteId: string,
 	url: string,
 	attempt = 1,
-	_maxRetries: number = MAX_RETRIES,
+	_maxRetries = 3,
 	options: CheckOptions = {}
 ): Promise<ActionResult<UptimeData>> {
-	return record("uptime.check_uptime", async () => {
-		try {
-			const normalizedUrl = normalizeUrl(url);
-			const timestamp = Date.now();
+	try {
+		const normalizedUrl = normalizeUrl(url);
+		const timestamp = Date.now();
 
-			const [pingResult, probe] = await Promise.all([
-				pingWebsite(normalizedUrl, {
-					timeout: options.timeout,
-					cacheBust: options.cacheBust,
-				}),
-				getProbeMetadata(),
-			]);
+		const [pingResult, probe] = await Promise.all([
+			pingWebsite(normalizedUrl, {
+				timeout: options.timeout,
+				cacheBust: options.cacheBust,
+			}),
+			getProbeMetadata(),
+		]);
 
-			const status = pingResult.ok ? MonitorStatus.UP : MonitorStatus.DOWN;
+		const status = pingResult.ok ? MonitorStatus.UP : MonitorStatus.DOWN;
+		const cert = await checkCertificate(normalizedUrl);
 
-			if (!pingResult.ok) {
-				const cert = await checkCertificate(normalizedUrl);
+		let contentHash = "";
+		let responseBytes = 0;
+		let redirectCount = 0;
+		let error = "";
+		let jsonDataStr: string | undefined;
 
-				const data: UptimeData = {
-					site_id: siteId,
-					url: normalizedUrl,
-					timestamp,
-					status,
-					http_code: pingResult.statusCode,
-					ttfb_ms: pingResult.ttfb,
-					total_ms: pingResult.total,
-					attempt,
-					retries: 0,
-					failure_streak: 0,
-					response_bytes: 0,
-					content_hash: "",
-					redirect_count: 0,
-					probe_region: probe.region,
-					probe_ip: probe.ip,
-					ssl_expiry: cert.expiry,
-					ssl_valid: cert.valid ? 1 : 0,
-					env: CONFIG.env,
-					check_type: "http",
-					user_agent: CONFIG.userAgent,
-					error: pingResult.error,
-				};
-				mergeUptimeCheckMetrics(data);
-				return { success: true, data };
+		if (pingResult.ok) {
+			contentHash = createHash("sha256")
+				.update(pingResult.content)
+				.digest("hex");
+			responseBytes = pingResult.bytes;
+			redirectCount = pingResult.redirects;
+			if (options.extractHealth) {
+				const health = extractHealth(
+					pingResult.parsedJson ?? pingResult.content
+				);
+				jsonDataStr = health ? JSON.stringify(health) : undefined;
 			}
-
-			const [cert, contentHash] = await Promise.all([
-				checkCertificate(normalizedUrl),
-				Promise.resolve(
-					createHash("sha256").update(pingResult.content).digest("hex")
-				),
-			]);
-
-			const jsonData = options.extractHealth
-				? extractHealth(pingResult.parsedJson ?? pingResult.content)
-				: null;
-
-			const data: UptimeData = {
-				site_id: siteId,
-				url: normalizedUrl,
-				timestamp,
-				status,
-				http_code: pingResult.statusCode,
-				ttfb_ms: pingResult.ttfb,
-				total_ms: pingResult.total,
-				attempt,
-				retries: 0,
-				failure_streak: 0,
-				response_bytes: pingResult.bytes,
-				content_hash: contentHash,
-				redirect_count: pingResult.redirects,
-				probe_region: probe.region,
-				probe_ip: probe.ip,
-				ssl_expiry: cert.expiry,
-				ssl_valid: cert.valid ? 1 : 0,
-				env: CONFIG.env,
-				check_type: "http",
-				user_agent: CONFIG.userAgent,
-				error: "",
-				json_data: jsonData ? JSON.stringify(jsonData) : undefined,
-			};
-			mergeUptimeCheckMetrics(data);
-			return { success: true, data };
-		} catch (error) {
-			captureError(error, { error_step: "check_uptime" });
-
-			return {
-				success: false,
-				error: error instanceof Error ? error.message : "Uptime check failed",
-			};
+		} else {
+			error = pingResult.error;
 		}
-	});
+
+		const data: UptimeData = {
+			site_id: siteId,
+			url: normalizedUrl,
+			timestamp,
+			status,
+			http_code: pingResult.statusCode,
+			ttfb_ms: pingResult.ttfb,
+			total_ms: pingResult.total,
+			attempt,
+			retries: 0,
+			failure_streak: 0,
+			response_bytes: responseBytes,
+			content_hash: contentHash,
+			redirect_count: redirectCount,
+			probe_region: probe.region,
+			probe_ip: probe.ip,
+			ssl_expiry: cert.expiry,
+			ssl_valid: cert.valid ? 1 : 0,
+			env: CONFIG.env,
+			check_type: "http",
+			user_agent: CONFIG.userAgent,
+			error,
+			json_data: jsonDataStr,
+		};
+		mergeUptimeCheckMetrics(data);
+		return { success: true, data };
+	} catch (error) {
+		captureError(error, { error_step: "check_uptime" });
+
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Uptime check failed",
+		};
+	}
 }

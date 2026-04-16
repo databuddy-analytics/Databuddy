@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const insightSourceSchema = z.enum([
+	"web",
+	"product",
+	"ops",
+	"business",
+]);
+
 export const insightMetricSchema = z.object({
 	label: z
 		.string()
@@ -75,6 +82,34 @@ export const insightSchema = z.object({
 		.optional()
 		.describe(
 			"Signed week-over-week % for the primary metric in this insight: (current−previous)/previous×100. Positive when that metric rose (more visitors, more errors, higher rate), negative when it fell. Must match the headline magnitude; do not flip the sign based on sentiment (e.g. channel-risk stories still use a positive % when traffic grew)."
+		),
+	subjectKey: z
+		.string()
+		.min(1)
+		.max(120)
+		.describe(
+			"Stable identifier for the underlying signal, such as pricing_page, organic_search, signup_goal, checkout_revenue, or signup_errors. Reuse the same subjectKey for the same narrative so downstream dedupe can detect repeats."
+		),
+	sources: z
+		.array(insightSourceSchema)
+		.min(1)
+		.max(4)
+		.describe(
+			"Which evidence domains support this insight. Use only the domains actually used: web, product, ops, business."
+		),
+	confidence: z
+		.number()
+		.min(0)
+		.max(1)
+		.describe(
+			"Confidence from 0 to 1 based on how directly the data supports the conclusion. Higher when multiple signals align or the cause is explicit in the data."
+		),
+	impactSummary: z
+		.string()
+		.max(160)
+		.optional()
+		.describe(
+			"Optional short statement of user or business impact. Use when the impact is clear from the available data."
 		),
 });
 

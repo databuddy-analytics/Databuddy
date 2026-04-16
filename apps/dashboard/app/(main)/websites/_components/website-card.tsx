@@ -3,19 +3,25 @@ import type {
 	ProcessedMiniChartData,
 	Website,
 } from "@databuddy/shared/types/website";
-import { ArrowSquareOutIcon } from "@phosphor-icons/react/dist/ssr/ArrowSquareOut";
-import { ArrowsLeftRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowsLeftRight";
-import { CodeIcon } from "@phosphor-icons/react/dist/ssr/Code";
-import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
-import { EyeIcon } from "@phosphor-icons/react/dist/ssr/Eye";
-import { GearIcon } from "@phosphor-icons/react/dist/ssr/Gear";
-import { MinusIcon } from "@phosphor-icons/react/dist/ssr/Minus";
-import { PencilSimpleIcon } from "@phosphor-icons/react/dist/ssr/PencilSimple";
-import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
-import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
-import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react";
+import { ArrowsLeftRightIcon } from "@phosphor-icons/react";
+import { CodeIcon } from "@phosphor-icons/react";
+import { CopyIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react";
+import { GearIcon } from "@phosphor-icons/react";
+import { MinusIcon } from "@phosphor-icons/react";
+import { PencilSimpleIcon } from "@phosphor-icons/react";
+import { TrashIcon } from "@phosphor-icons/react";
+import { TrendDownIcon } from "@phosphor-icons/react";
+import { TrendUpIcon } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+
+const WebsiteDialog = dynamic(
+	() => import("@/components/website-dialog").then((mod) => mod.WebsiteDialog),
+	{ ssr: false }
+);
 import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { FaviconImage } from "@/components/analytics/favicon-image";
@@ -35,17 +41,17 @@ import {
 } from "@/components/ui/context-menu";
 import { DeleteDialog } from "@/components/ui/delete-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { WebsiteDialog } from "@/components/website-dialog";
 import { useDeleteWebsite } from "@/hooks/use-websites";
+import { formatNumber } from "@/lib/formatters";
 import { TOAST_MESSAGES } from "../[id]/_components/shared/tracking-constants";
 import MiniChart from "./mini-chart";
 import { TransferWebsiteDialog } from "./transfer-website-dialog";
 
 interface WebsiteCardProps {
-	website: Website | WebsiteOutput;
-	chartData?: ProcessedMiniChartData;
 	activeUsers?: number;
+	chartData?: ProcessedMiniChartData;
 	isLoadingChart?: boolean;
+	website: Website | WebsiteOutput;
 }
 
 function TrendStat({
@@ -86,16 +92,6 @@ function TrendStat({
 		</div>
 	);
 }
-
-const formatNumber = (num: number) => {
-	if (num >= 1_000_000) {
-		return `${(num / 1_000_000).toFixed(1)}M`;
-	}
-	if (num >= 1000) {
-		return `${(num / 1000).toFixed(1)}K`;
-	}
-	return num.toString();
-};
 
 export const WebsiteCard = memo(
 	({ website, chartData, activeUsers, isLoadingChart }: WebsiteCardProps) => {

@@ -28,17 +28,17 @@ const COLORS = [
 ];
 
 interface ChartDataItem {
+	color?: string;
 	name: string;
 	value: number;
-	color?: string;
 }
 
 interface DistributionChartProps {
 	data: ChartDataItem[] | undefined;
-	isLoading: boolean;
-	title: string;
 	description?: string;
 	height?: number;
+	isLoading: boolean;
+	title: string;
 }
 
 interface CustomTooltipProps {
@@ -229,17 +229,16 @@ export function DistributionChart({
 							/>
 							<Legend
 								align="center"
-								formatter={(
-									value: string,
-									entry: { payload?: { percent?: number } }
-								) => {
-									const item = entry.payload;
+								formatter={(value, entry) => {
+									const item = entry.payload as
+										| { percent?: number }
+										| undefined;
 									const percentage = item?.percent
 										? ` (${(item.percent * 100).toFixed(0)}%)`
 										: "";
 									return (
 										<span className="text-pretty text-muted-foreground text-xs">
-											{value}
+											{String(value)}
 											{percentage}
 										</span>
 									);

@@ -27,16 +27,16 @@ const MapComponent = dynamic(
 );
 
 export interface CountryItem {
-	name: string;
 	country_code?: string;
-	visitors: number;
+	name: string;
 	pageviews?: number;
 	percentage?: number;
+	visitors: number;
 }
 
 export interface MiniMapProps extends BaseComponentProps {
-	title?: string;
 	countries: CountryItem[];
+	title?: string;
 }
 
 function formatNumber(value: number): string {

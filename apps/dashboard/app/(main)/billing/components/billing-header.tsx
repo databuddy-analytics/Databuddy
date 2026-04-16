@@ -6,22 +6,22 @@ import { PageHeader } from "../../websites/_components/page-header";
 
 const PAGE_TITLES: Record<string, { title: string; description: string }> = {
 	"/billing": {
-		title: "Usage & Metrics",
-		description: "Monitor your usage and billing metrics",
+		title: "Billing Overview",
+		description: "Current plan, usage, and payment method for this workspace",
 	},
 	"/billing/plans": {
-		title: "Plans & Pricing",
-		description: "Manage your subscription and billing plan",
+		title: "Plans",
+		description: "Compare plans and change your subscription",
 	},
 	"/billing/history": {
-		title: "Payment History",
-		description: "View your billing history and invoices",
+		title: "Invoices",
+		description: "Past invoices and payment history",
 	},
 };
 
 const DEFAULT_TITLE = {
-	title: "Billing & Subscription",
-	description: "Manage your subscription, usage, and billing preferences",
+	title: "Billing",
+	description: "Manage this workspace's subscription, usage, and invoices",
 };
 
 export function BillingHeader() {

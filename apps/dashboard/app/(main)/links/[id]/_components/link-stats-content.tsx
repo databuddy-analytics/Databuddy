@@ -1,9 +1,9 @@
 "use client";
 
-import { CursorClickIcon } from "@phosphor-icons/react/dist/ssr/CursorClick";
-import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
-import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
+import { CursorClickIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@phosphor-icons/react";
+import { LinkIcon } from "@phosphor-icons/react";
+import { UsersIcon } from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { StatCard } from "@/components/analytics";
@@ -14,7 +14,7 @@ import { useDateFilters } from "@/hooks/use-date-filters";
 import { useLink, useLinkStats } from "@/hooks/use-links";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import dayjs from "@/lib/dayjs";
-import { formatMetricNumber } from "@/lib/formatters";
+import { formatNumber } from "@/lib/formatters";
 import { type ChartDataPoint, ClicksChart } from "./clicks-chart";
 import {
 	createDeviceColumns,
@@ -27,16 +27,6 @@ import {
 interface MiniChartDataPoint {
 	date: string;
 	value: number;
-}
-
-function formatNumber(value: number): string {
-	if (value == null || Number.isNaN(value)) {
-		return "0";
-	}
-	return Intl.NumberFormat(undefined, {
-		notation: "compact",
-		maximumFractionDigits: 1,
-	}).format(value);
 }
 
 function StatsLoadingSkeleton() {
@@ -251,7 +241,7 @@ export function LinkStatsContent() {
 					isLoading={isLoading}
 					showChart={true}
 					title="Total Clicks"
-					value={formatMetricNumber(stats?.totalClicks ?? 0)}
+					value={formatNumber(stats?.totalClicks ?? 0)}
 				/>
 				<StatCard
 					chartData={referrersChartData}

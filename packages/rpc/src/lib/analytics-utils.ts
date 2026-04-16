@@ -1,66 +1,66 @@
-import { chQuery } from "@databuddy/db";
+import { chQuery } from "@databuddy/db/clickhouse";
 import { referrers } from "@databuddy/shared/lists/referrers";
 
 export interface AnalyticsStep {
-	step_number: number;
 	name: string;
-	type: "PAGE_VIEW" | "EVENT";
+	step_number: number;
 	target: string;
+	type: "PAGE_VIEW" | "EVENT";
 }
 
 export interface StepErrorInsight {
-	message: string;
-	error_type: string;
 	count: number;
+	error_type: string;
+	message: string;
 }
 
 export interface StepAnalytics {
-	step_number: number;
-	step_name: string;
-	users: number;
-	total_users: number;
-	conversion_rate: number;
-	dropoffs: number;
-	dropoff_rate: number;
 	avg_time_to_complete: number;
+	conversion_rate: number;
+	dropoff_rate: number;
+	dropoffs: number;
 	error_count: number;
 	error_rate: number;
+	step_name: string;
+	step_number: number;
 	top_errors: StepErrorInsight[];
+	total_users: number;
+	users: number;
 }
 
 export interface FunnelTimeSeriesPoint {
-	date: string;
-	users: number;
-	conversions: number;
-	conversion_rate: number;
-	dropoffs: number;
 	avg_time: number;
+	conversion_rate: number;
+	conversions: number;
+	date: string;
+	dropoffs: number;
+	users: number;
 }
 
 export interface FunnelAnalytics {
-	overall_conversion_rate: number;
-	total_users_entered: number;
-	total_users_completed: number;
 	avg_completion_time: number;
 	avg_completion_time_formatted: string;
-	biggest_dropoff_step: number;
 	biggest_dropoff_rate: number;
-	steps_analytics: StepAnalytics[];
-	time_series?: FunnelTimeSeriesPoint[];
+	biggest_dropoff_step: number;
 	error_insights: {
 		total_errors: number;
 		sessions_with_errors: number;
 		dropoffs_with_errors: number;
 		error_correlation_rate: number;
 	};
+	overall_conversion_rate: number;
+	steps_analytics: StepAnalytics[];
+	time_series?: FunnelTimeSeriesPoint[];
+	total_users_completed: number;
+	total_users_entered: number;
 }
 
 export interface ReferrerAnalytics {
+	completed_users: number;
+	conversion_rate: number;
 	referrer: string;
 	referrer_parsed: { name: string; type: string; domain: string };
 	total_users: number;
-	completed_users: number;
-	conversion_rate: number;
 }
 
 export type ClickhouseQueryParamValue =
@@ -80,23 +80,23 @@ interface Filter {
 	value: string | readonly string[];
 }
 interface ParsedReferrer {
+	domain: string;
 	name: string;
 	type: string;
-	domain: string;
 }
 
 interface FunnelAggRow {
-	step_num: number;
-	date: string;
-	users: number;
 	avg_time: number;
 	conversions: number;
+	date: string;
+	step_num: number;
+	users: number;
 }
 
 interface ReferrerRow {
-	vid: string;
-	referrer: string;
 	max_step: number;
+	referrer: string;
+	vid: string;
 }
 
 // Helpers
@@ -324,11 +324,11 @@ const buildStepQuery = (
 };
 
 interface ErrorRow {
-	path: string;
-	vid: string;
+	error_count: number;
 	error_type: string;
 	message: string;
-	error_count: number;
+	path: string;
+	vid: string;
 }
 
 const buildStepSubquery = (
