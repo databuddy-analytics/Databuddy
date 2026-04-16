@@ -46,6 +46,7 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
 
   /* Sidebar Colors */
   --color-sidebar: var(--sidebar);
@@ -345,6 +346,7 @@
   --chart-3: #E3A514;
   --chart-4: #2D9CDB;
   --chart-5: #27AE60;
+  --chart-6: #e78468;
 
   --sidebar: #FAFAFB;
   --sidebar-foreground: #27282D;

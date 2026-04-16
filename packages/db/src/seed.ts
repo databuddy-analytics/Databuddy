@@ -4,8 +4,10 @@ import { clickHouse, TABLE_NAMES } from "./clickhouse/client";
 import { db } from "./client";
 import { websites } from "./drizzle/schema";
 
-const clientId = process.argv[2] || faker.string.uuid();
-const eventCount = Number(process.argv[3]) || 10_000;
+const generateRevenue = process.argv.includes("--rev");
+const args = process.argv.filter((arg) => !arg.startsWith("--"));
+const clientId = args[2] || faker.string.uuid();
+const eventCount = Number(args[3]) || 10_000;
 
 const PATHS = [
 	"/",
@@ -147,8 +149,8 @@ function generatePageTitle(path: string): string {
 			downlink: undefined,
 			time_on_page: isPageExit
 				? Math.round(
-						faker.number.float({ min: 5, max: 600, fractionDigits: 1 })
-					)
+					faker.number.float({ min: 5, max: 600, fractionDigits: 1 })
+				)
 				: undefined,
 			scroll_depth: isPageExit
 				? faker.number.float({ min: 10, max: 100, fractionDigits: 1 })
@@ -339,6 +341,53 @@ function generatePageTitle(path: string): string {
 
 	webVitals.sort((a, b) => a.timestamp - b.timestamp);
 
+	const revenueTransactions = generateRevenue
+		? Array.from({ length: Math.floor(eventCount / 50) }, (_, index) => {
+			const sessionIndex = Math.floor(
+				index / (Math.floor(eventCount / 50) / TOTAL_SESSIONS)
+			);
+			const session =
+				SESSION_POOL[Math.min(sessionIndex, SESSION_POOL.length - 1)];
+
+			const maxSessionDuration = 2 * 60 * 60 * 1000;
+			const sessionProgress =
+				(index % Math.ceil(Math.floor(eventCount / 50) / TOTAL_SESSIONS)) /
+				Math.ceil(Math.floor(eventCount / 50) / TOTAL_SESSIONS);
+			const timestamp =
+				session.sessionStartTime + sessionProgress * maxSessionDuration;
+
+			const amount = faker.number.int({ min: 40, max: 50 });
+			const isRefund = faker.helpers.maybe(() => true, { probability: 0.08 });
+			const status = isRefund ? "refunded" : "completed";
+			const type = isRefund
+				? "refund"
+				: faker.helpers.arrayElement(["sale", "subscription"]);
+
+			return {
+				owner_id: clientId,
+				website_id: clientId,
+				transaction_id: `txn_${faker.string.uuid()}`,
+				provider: faker.helpers.arrayElement(["stripe", "paddle"]),
+				type,
+				status,
+				amount,
+				original_amount: amount,
+				original_currency: "USD",
+				currency: "USD",
+				anonymous_id: session.anonymousId,
+				session_id: session.sessionId,
+				customer_id: `cus_${faker.string.uuid()}`,
+				product_id: `prod_${faker.string.uuid()}`,
+				product_name: faker.commerce.productName(),
+				metadata: "{}",
+				created: Math.floor(timestamp / 1000),
+				synced_at: Math.floor(Date.now() / 1000),
+			};
+		})
+		: [];
+
+	revenueTransactions.sort((a, b) => a.created - b.created);
+
 	console.log(
 		`Generating seed data for client: ${clientId} on domain: ${domain}`
 	);
@@ -367,9 +416,21 @@ function generatePageTitle(path: string): string {
 			format: "JSONEachRow",
 			values: webVitals,
 		}),
+		...(generateRevenue && revenueTransactions.length > 0
+			? [
+				clickHouse.insert({
+					table: TABLE_NAMES.revenue,
+					format: "JSONEachRow",
+					values: revenueTransactions,
+				}),
+			]
+			: []),
 	]);
 
 	console.log(
 		`Inserted ${events.length} events, ${outgoingLinks.length} outgoing links, ${errors.length} errors, ${webVitals.length} web vitals for client ${clientId}`
 	);
+	if (generateRevenue) {
+		console.log(`Inserted ${revenueTransactions.length} revenue transactions`);
+	}
 })();

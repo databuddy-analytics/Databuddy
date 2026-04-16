@@ -13,6 +13,7 @@ import { AnnotationsPanel } from "@/components/charts/annotations-panel";
 import {
 	type ChartDataRow,
 	METRICS,
+	REVENUE_METRICS,
 } from "@/components/charts/metrics-constants";
 import { RangeSelectionPopup } from "@/components/charts/range-selection-popup";
 import { useDynamicDasharray } from "@/components/charts/use-dynamic-dasharray";
@@ -54,6 +55,7 @@ import type {
 	CreateAnnotationData,
 } from "@/types/annotations";
 import type { DateRange } from "../../../utils/types";
+import { RevenueBar } from "./revenue-bar";
 
 const {
 	Area,
@@ -67,6 +69,7 @@ const {
 	Tooltip,
 	XAxis,
 	YAxis,
+	Bar,
 } = Chart.Recharts;
 
 interface TooltipPayloadEntry {
@@ -91,6 +94,30 @@ const CustomTooltip = ({
 	isDragging,
 	justFinishedDragging,
 }: TooltipProps) => {
+	const { uniquePayload, refundsValue, hasRefunds, revenueEntry } =
+		useMemo(() => {
+			const map = new Map<string, TooltipPayloadEntry>();
+
+			let refunds: number | undefined;
+
+			for (const entry of payload ?? []) {
+				if (!map.has(entry.dataKey)) {
+					map.set(entry.dataKey, entry);
+
+					if (entry.dataKey === "revenue") {
+						refunds = entry.payload?.refunds as number | undefined;
+					}
+				}
+			}
+
+			return {
+				uniquePayload: Array.from(map.values()),
+				refundsValue: refunds,
+				hasRefunds: !!refunds && refunds > 0,
+				revenueEntry: map.get("revenue"),
+			};
+		}, [payload]);
+
 	// Hide tooltip during or immediately after dragging
 	if (isDragging || justFinishedDragging) {
 		return null;
@@ -107,11 +134,14 @@ const CustomTooltip = ({
 				<p className="font-medium text-foreground text-xs">{label}</p>
 			</div>
 			<div className="space-y-1.5">
-				{payload.map((entry) => {
+				{uniquePayload.map((entry) => {
 					const metric = METRICS.find((m) => m.key === entry.dataKey);
 					if (!metric || entry.value === undefined || entry.value === null) {
 						return null;
 					}
+
+					const indicatorColor =
+						entry.dataKey === "revenue" ? "var(--color-chart-6)" : metric.color;
 
 					const value = metric.formatValue
 						? metric.formatValue(entry.value, entry.payload as ChartDataRow)
@@ -125,7 +155,7 @@ const CustomTooltip = ({
 							<div className="flex items-center gap-2">
 								<div
 									className="size-2.5 rounded-full"
-									style={{ backgroundColor: entry.color }}
+									style={{ backgroundColor: indicatorColor }}
 								/>
 								<span className="text-muted-foreground text-xs">
 									{metric.label}
@@ -137,6 +167,27 @@ const CustomTooltip = ({
 						</div>
 					);
 				})}
+				{/* Show refunds if present in the data */}
+				{hasRefunds && refundsValue && (
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex items-center gap-2">
+							<div
+								className="size-2.5 rounded-full border border-dashed"
+								style={{
+									backgroundColor: "var(--accent)",
+									borderColor: "var(--color-chart-6)",
+								}}
+							/>
+							<span className="text-muted-foreground text-xs">Refunds</span>
+						</div>
+						<span className="font-semibold text-foreground text-sm tabular-nums">
+							{REVENUE_METRICS.find((m) => m.key === "refunds")?.formatValue?.(
+								refundsValue,
+								revenueEntry?.payload as ChartDataRow
+							) ?? formatLocaleNumber(refundsValue)}
+						</span>
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -367,6 +418,7 @@ export function TrafficTrendsRechartsPlot({
 	const [isDragging, setIsDragging] = useState(false);
 	const [suppressTooltip, setSuppressTooltip] = useState(false);
 	const [hasAnimated, setHasAnimated] = useState(false);
+	const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
 	const { chartStepType } = useChartPreferences("overview-main");
 
@@ -398,6 +450,26 @@ export function TrafficTrendsRechartsPlot({
 			}),
 		[rawData]
 	);
+
+	const barSize = useMemo(() => {
+		const dataLength = chartData.length;
+		if (dataLength <= 8) {
+			return 24;
+		}
+		if (dataLength <= 16) {
+			return 10;
+		}
+		if (dataLength <= 30) {
+			return 8;
+		}
+		if (dataLength <= 60) {
+			return 6;
+		}
+		if (dataLength <= 90) {
+			return 5;
+		}
+		return 10;
+	}, [chartData.length, granularity]);
 
 	const [DasharrayCalculator, lineDasharrays] = useDynamicDasharray({
 		splitIndex: chartData.length - 2,
@@ -554,7 +626,11 @@ export function TrafficTrendsRechartsPlot({
 									</button>
 								</div>
 							)}
-						<ResponsiveContainer height="100%" width="100%">
+						<ResponsiveContainer
+							className="cursor-pointer [&_.recharts-area-area]:transition-opacity [&_.recharts-area-area]:duration-200 [&_.recharts-area-area]:ease-out [&_.recharts-area-curve]:transition-opacity [&_.recharts-area-curve]:duration-150 [&_.recharts-area-curve]:ease-out"
+							height="100%"
+							width="100%"
+						>
 							<ComposedChart
 								data={chartData}
 								margin={{
@@ -566,9 +642,17 @@ export function TrafficTrendsRechartsPlot({
 								onMouseDown={
 									mergedFeatures.rangeSelection ? handleMouseDown : undefined
 								}
-								onMouseMove={
-									mergedFeatures.rangeSelection ? handleMouseMove : undefined
-								}
+								onMouseLeave={() => setHoveredIndex(null)}
+								onMouseMove={(state) => {
+									if (state.activeTooltipIndex === undefined) {
+										setHoveredIndex(null);
+									} else {
+										setHoveredIndex(state.activeTooltipIndex);
+									}
+									if (mergedFeatures.rangeSelection) {
+										handleMouseMove(state);
+									}
+								}}
 								onMouseUp={
 									mergedFeatures.rangeSelection ? handleMouseUp : undefined
 								}
@@ -595,6 +679,20 @@ export function TrafficTrendsRechartsPlot({
 											/>
 										</linearGradient>
 									))}
+									<filter
+										height="300%"
+										id="bar-glow"
+										width="300%"
+										x="-100%"
+										y="-100%"
+									>
+										<feGaussianBlur result="blur" stdDeviation="3" />
+										<feColorMatrix in="blur" result="lightBlur" type="matrix" />
+										<feMerge>
+											<feMergeNode in="lightBlur" />
+											<feMergeNode in="SourceGraphic" />
+										</feMerge>
+									</filter>
 								</defs>
 								<CartesianGrid {...chartCartesianGridDefault} />
 								<XAxis
@@ -836,35 +934,146 @@ export function TrafficTrendsRechartsPlot({
 												toggleMetric(metric.key as keyof typeof visibleMetrics);
 											}
 										}}
+										payload={[
+											...metrics.map((metric) => ({
+												value: metric.label,
+												type: "circle" as const,
+												color: hiddenMetrics[metric.key]
+													? "var(--muted-foreground)"
+													: metric.color,
+												dataKey: metric.key,
+											})),
+											{
+												value: "Revenue",
+												type: "circle" as const,
+												color: hiddenMetrics.revenue
+													? "var(--muted-foreground)"
+													: "var(--color-chart-6)",
+												dataKey: "revenue",
+											},
+										]}
 										verticalAlign="bottom"
 										wrapperStyle={chartRechartsLegendInteractiveWrapperStyle}
 									/>
 								)}
-								{metrics.map((metric) => (
-									<Area
-										activeDot={
-											suppressTooltip
-												? false
-												: { r: 4, stroke: metric.color, strokeWidth: 2 }
+								{metrics.map((metric) => {
+									const isHovered = hoveredIndex !== null && !isDragging;
+									return (
+										<Area
+											activeDot={
+												suppressTooltip
+													? false
+													: {
+															r: 4,
+															stroke: metric.color,
+															strokeWidth: 2,
+														}
+											}
+											dataKey={metric.key}
+											fill={`url(#gradient-${metric.gradient})`}
+											hide={hiddenMetrics[metric.key]}
+											isAnimationActive={!hasAnimated}
+											key={metric.key}
+											name={metric.label}
+											onAnimationEnd={() => {
+												setHasAnimated(true);
+											}}
+											stroke={metric.color}
+											strokeDasharray={
+												lineDasharrays.find((line) => line.name === metric.key)
+													?.strokeDasharray || "0 0"
+											}
+											strokeOpacity={isHovered ? 0.3 : 1}
+											strokeWidth={2.5}
+											style={{
+												transition:
+													"stroke-opacity 150ms ease-out, fill-opacity 150ms ease-out",
+											}}
+											type={chartStepType}
+										/>
+									);
+								})}
+								{metrics.map((metric) => {
+									return (
+										<Area
+											activeDot={false}
+											clipPath="url(#highlight-clip)"
+											dataKey={metric.key}
+											fill={`url(#gradient-${metric.gradient})`}
+											hide={hiddenMetrics[metric.key]}
+											isAnimationActive={false}
+											key={`${metric.key}-highlight`}
+											legendType="none"
+											name={`${metric.label}-highlight`}
+											stroke={metric.color}
+											strokeDasharray={
+												lineDasharrays.find((line) => line.name === metric.key)
+													?.strokeDasharray || "0 0"
+											}
+											strokeOpacity={1}
+											strokeWidth={2.5}
+											tooltipType="none"
+											type={chartStepType}
+										/>
+									);
+								})}
+								<Bar
+									barSize={barSize}
+									dataKey="revenue"
+									fill="var(--color-chart-6)"
+									hide={hiddenMetrics.revenue}
+									name="Revenue"
+									shape={(props: any) => (
+										<RevenueBar
+											{...props}
+											barSize={barSize}
+											hoveredIndex={hoveredIndex}
+										/>
+									)}
+									stackId="revenue"
+								/>
+								<Customized
+									component={({ xAxisMap }) => {
+										const xAxis = xAxisMap[0];
+										if (!xAxis || hoveredIndex === null || isDragging) {
+											return null;
 										}
-										dataKey={metric.key}
-										fill={`url(#gradient-${metric.gradient})`}
-										hide={hiddenMetrics[metric.key]}
-										isAnimationActive={!hasAnimated}
-										key={metric.key}
-										name={metric.label}
-										onAnimationEnd={() => {
-											setHasAnimated(true);
-										}}
-										stroke={metric.color}
-										strokeDasharray={
-											lineDasharrays.find((line) => line.name === metric.key)
-												?.strokeDasharray || "0 0"
-										}
-										strokeWidth={2.5}
-										type={chartStepType}
-									/>
-								))}
+										const xPos = xAxis.scale(chartData[hoveredIndex].xKey);
+										const prevX =
+											hoveredIndex > 0
+												? xAxis.scale(chartData[hoveredIndex - 1].xKey)
+												: xPos -
+													(xAxis.scale(chartData[1]?.xKey || xPos) - xPos);
+										const nextX =
+											hoveredIndex < chartData.length - 1
+												? xAxis.scale(chartData[hoveredIndex + 1].xKey)
+												: xPos +
+													(xPos - xAxis.scale(chartData.at(-2)?.xKey || xPos));
+
+										const halfWidth = (xPos - prevX) / 2;
+										const startPos = hoveredIndex === 0 ? 0 : xPos;
+										const endPos =
+											(hoveredIndex === chartData.length - 1
+												? xAxis.scale.range()[1]
+												: xPos + (nextX - xPos) / 2) + halfWidth;
+
+										return (
+											<defs>
+												<clipPath
+													clipPathUnits="userSpaceOnUse"
+													id="highlight-clip"
+												>
+													<rect
+														height="100%"
+														width={endPos - startPos}
+														x={startPos}
+														y={0}
+													/>
+												</clipPath>
+											</defs>
+										);
+									}}
+								/>
 								<Customized component={DasharrayCalculator} />
 							</ComposedChart>
 						</ResponsiveContainer>
@@ -921,6 +1130,7 @@ interface TrafficTrendsChartProps {
 	dateRange: DateRange;
 	chartData: ChartDataRow[];
 	dateDiff: number;
+	hasRevenueData?: boolean;
 	isError: boolean;
 	isLoading: boolean;
 	isMobile: boolean;

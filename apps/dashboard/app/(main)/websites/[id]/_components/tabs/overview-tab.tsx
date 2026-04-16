@@ -1,5 +1,11 @@
 "use client";
 
+import {
+	ArrowsCounterClockwiseIcon,
+	CreditCardIcon,
+	CurrencyDollarIcon,
+	TrendUpIcon,
+} from "@phosphor-icons/react";
 import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
 import { CursorIcon } from "@phosphor-icons/react/dist/ssr/Cursor";
 import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
@@ -58,6 +64,8 @@ interface ChartDataPoint {
 	sessions?: number;
 	bounce_rate?: number;
 	median_session_duration?: number;
+	revenue?: number;
+	refunds?: number;
 	[key: string]: unknown;
 }
 
@@ -212,6 +220,23 @@ export function WebsiteOverviewTab({
 				granularity: dateRange.granularity,
 				filters,
 			},
+			{
+				id: "overview-revenue",
+				parameters: [
+					"revenue_overview",
+					"revenue_time_series",
+					{
+						name: "revenue_overview",
+						start_date: previousPeriodRange.start_date,
+						end_date: previousPeriodRange.end_date,
+						granularity: previousPeriodRange.granularity,
+						id: "previous_revenue_overview",
+					},
+				],
+				limit: QUERY_CONFIG.limit,
+				granularity: dateRange.granularity,
+				filters,
+			},
 		],
 		[dateRange.granularity, filters, previousPeriodRange]
 	);
@@ -252,6 +277,108 @@ export function WebsiteOverviewTab({
 	const geoData = {
 		countries: getDataForQuery("overview-geo", "country") || [],
 	};
+
+	const revenueOverview =
+		getDataForQuery("overview-revenue", "revenue_overview")?.[0] || null;
+	const previousRevenueOverview =
+		getDataForQuery("overview-revenue", "previous_revenue_overview")?.[0] ||
+		null;
+	const revenueTimeSeries =
+		getDataForQuery("overview-revenue", "revenue_time_series") || [];
+
+	const revenueTimeSeriesMap = useMemo(() => {
+		const map = new Map<string, { revenue: number; refunds: number }>();
+		for (const row of revenueTimeSeries) {
+			const key = dayjs(row.date).format("YYYY-MM-DD");
+			map.set(key, {
+				revenue: row.revenue ?? 0,
+				refunds: Math.abs(row.refund_amount ?? 0),
+			});
+		}
+		return map;
+	}, [revenueTimeSeries]);
+
+	const revenueData = useMemo(() => {
+		const totalRevenue = Number(revenueOverview?.total_revenue ?? 0);
+		const totalTransactions = revenueOverview?.total_transactions ?? 0;
+		const refundAmount = Number(revenueOverview?.refund_amount ?? 0);
+		const uniqueCustomers = revenueOverview?.unique_customers ?? 0;
+		const avgTransaction =
+			totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+		const conversionRate = revenueOverview?.total_visitors
+			? ((uniqueCustomers / revenueOverview.total_visitors) * 100).toFixed(2)
+			: "0";
+
+		return {
+			totalRevenue,
+			totalTransactions,
+			refundAmount,
+			uniqueCustomers,
+			avgTransaction,
+			conversionRate,
+		};
+	}, [revenueOverview]);
+
+	const formatCurrency = (amount: number): string => {
+		return new Intl.NumberFormat("en-US", {
+			style: "currency",
+			currency: "USD",
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0,
+		}).format(amount);
+	};
+
+	const hasRevenueData =
+		revenueData.totalTransactions > 0 || revenueData.totalRevenue > 0;
+
+	const calculateRevenueTrends = useMemo(() => {
+		if (!(revenueOverview && previousRevenueOverview)) {
+			return {};
+		}
+
+		const currentRevenue = Number(revenueOverview.total_revenue ?? 0);
+		const previousRevenue = Number(previousRevenueOverview.total_revenue ?? 0);
+		const currentTransactions = revenueOverview.total_transactions ?? 0;
+		const previousTransactions =
+			previousRevenueOverview.total_transactions ?? 0;
+		const currentRefunds = Number(revenueOverview.refund_amount ?? 0);
+		const previousRefunds = Number(previousRevenueOverview.refund_amount ?? 0);
+
+		const currentUniqueCustomers = revenueOverview.unique_customers ?? 0;
+		const previousUniqueCustomers =
+			previousRevenueOverview.unique_customers ?? 0;
+		const currentVisitors = revenueOverview.total_visitors ?? 0;
+		const previousVisitors = previousRevenueOverview.total_visitors ?? 0;
+
+		const currentConversionRate =
+			currentVisitors > 0
+				? (currentUniqueCustomers / currentVisitors) * 100
+				: 0;
+		const previousConversionRate =
+			previousVisitors > 0
+				? (previousUniqueCustomers / previousVisitors) * 100
+				: 0;
+
+		const createTrend = (current: number, previous: number) => {
+			if (previous === 0 && current === 0) {
+				return { change: 0 };
+			}
+			if (previous === 0) {
+				return undefined;
+			}
+			const change = calculatePercentChange(current, previous);
+			return {
+				change: Math.max(-100, Math.min(1000, Math.round(change))),
+			};
+		};
+
+		return {
+			revenue: createTrend(currentRevenue, previousRevenue),
+			transactions: createTrend(currentTransactions, previousTransactions),
+			refunds: createTrend(currentRefunds, previousRefunds),
+			conversion: createTrend(currentConversionRate, previousConversionRate),
+		};
+	}, [revenueOverview, previousRevenueOverview]);
 
 	const createPercentageCell = () => (info: CellInfo) => {
 		const percentage = info.getValue() as number;
@@ -426,8 +553,10 @@ export function WebsiteOverviewTab({
 
 	const chartData = useMemo(
 		() =>
-			processedEventsData.map(
-				(event: MetricPoint): ChartDataPoint => ({
+			processedEventsData.map((event: MetricPoint): ChartDataPoint => {
+				const dateKey = dayjs(event.date).format("YYYY-MM-DD");
+				const revenueEntry = revenueTimeSeriesMap.get(dateKey);
+				return {
 					date: formatDateByGranularity(event.date, dateRange.granularity),
 					rawDate: event.date,
 					...(visibleMetrics.pageviews && {
@@ -448,9 +577,16 @@ export function WebsiteOverviewTab({
 					...(visibleMetrics.median_session_duration && {
 						median_session_duration: event.median_session_duration as number,
 					}),
-				})
-			),
-		[processedEventsData, dateRange.granularity, visibleMetrics]
+					revenue: revenueEntry?.revenue ?? 0,
+					refunds: revenueEntry?.refunds ?? 0,
+				};
+			}),
+		[
+			processedEventsData,
+			dateRange.granularity,
+			visibleMetrics,
+			revenueTimeSeriesMap,
+		]
 	);
 
 	const miniChartData = useMemo(() => {
@@ -938,10 +1074,53 @@ export function WebsiteOverviewTab({
 				))}
 			</div>
 
+			{hasRevenueData && (
+				<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+					<StatCard
+						displayMode="compact"
+						icon={CurrencyDollarIcon}
+						id="total-revenue"
+						isLoading={isLoading}
+						title="Revenue"
+						trend={calculateRevenueTrends.revenue?.change}
+						value={formatCurrency(revenueData.totalRevenue)}
+					/>
+					<StatCard
+						displayMode="compact"
+						icon={CreditCardIcon}
+						id="total-transactions"
+						isLoading={isLoading}
+						title="Transactions"
+						trend={calculateRevenueTrends.transactions?.change}
+						value={revenueData.totalTransactions}
+					/>
+					<StatCard
+						displayMode="compact"
+						icon={ArrowsCounterClockwiseIcon}
+						id="refunds"
+						invertTrend
+						isLoading={isLoading}
+						title="Refunds"
+						trend={calculateRevenueTrends.refunds?.change}
+						value={formatCurrency(Math.abs(revenueData.refundAmount))}
+					/>
+					<StatCard
+						displayMode="compact"
+						icon={TrendUpIcon}
+						id="conversion-rate"
+						isLoading={isLoading}
+						title="Conversion"
+						trend={calculateRevenueTrends.conversion?.change}
+						value={`${revenueData.conversionRate}%`}
+					/>
+				</div>
+			)}
+
 			<TrafficTrendsChart
 				chartData={chartData}
 				dateDiff={dateDiff}
 				dateRange={dateRange}
+				hasRevenueData={hasRevenueData}
 				isError={isError}
 				isLoading={isLoading}
 				isMobile={isMobile}

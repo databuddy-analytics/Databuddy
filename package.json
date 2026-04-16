@@ -42,7 +42,7 @@
     "db:push": "dotenv -- turbo run db:push",
     "db:migrate": "dotenv -- turbo run db:migrate",
     "db:deploy": "dotenv -- turbo run db:deploy",
-    "db:seed": "dotenv -- sh -c 'cd packages/db && bun run db:seed \"$@\"' --",
+    "db:seed": "dotenv -- bun run packages/db/src/seed.ts",
     "email:dev": "dotenv -- sh -c 'cd packages/email && bun run dev'",
     "sdk:build": "turbo run build --filter @databuddy/sdk --filter @databuddy/cache",
     "dev:dashboard": "dotenv -- turbo dev --filter @databuddy/dashboard --filter @databuddy/api",

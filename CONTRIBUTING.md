@@ -58,13 +58,13 @@ bun run dev:dashboard
 8. Seed the database with sample data (optional):
 
 ```bash
-bun run db:seed <WEBSITE_ID> [EVENT_COUNT]
+bun run db:seed <WEBSITE_ID> [EVENT_COUNT] [--revenue]
 ```
 
-**Examples:**
-
+Example:
 ```bash
-bun run db:seed g0zlgMtBaXzIP1EGY2ieG 10000
+bun run db:seed g0zlgMtBaXzIP1EGY2ieG 10000 --revenue
+```
 bun run db:seed d7zlgMtBaSzIL1EGR2ieR 5000
 ```
 
@@ -73,6 +73,7 @@ bun run db:seed d7zlgMtBaSzIL1EGR2ieR 5000
 - Default event count is 10,000 if not specified
 - Seeds events, outgoing links, errors, and web vitals data
 - You can find your website ID in your website overview settings
+- Pass revenu flag to generate revenu
 
 ## 💻 Development
 

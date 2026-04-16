@@ -10,6 +10,7 @@ import {
 	Zap,
 } from "lucide-react";
 import { formatLocaleNumber } from "@/lib/format-locale-number";
+import { formatCurrency } from "@/lib/formatters";
 import { formatDuration } from "@/lib/utils";
 
 const createColorSet = (
@@ -54,6 +55,18 @@ export const METRIC_COLORS = {
 		"#dc2626",
 		"#fee2e2",
 		"from-red-500/20 to-red-600/5"
+	),
+	revenue: createColorSet(
+		"#e78468",
+		"#059669",
+		"#d1fae5",
+		"from-emerald-500/20 to-emerald-600/5"
+	),
+	refunds: createColorSet(
+		"#e78468",
+		"#e11d48",
+		"#ffe4e6",
+		"from-rose-500/20 to-rose-600/5"
 	),
 	// Core Web Vitals
 	avg_fcp: createColorSet(
@@ -159,6 +172,9 @@ export interface ChartDataRow {
 	avg_inp?: number;
 	p50_inp?: number;
 	measurements?: number;
+	// Revenue metrics
+	revenue?: number;
+	refunds?: number;
 	[key: string]: unknown;
 }
 
@@ -363,9 +379,30 @@ export const ERROR_METRICS: MetricConfig[] = [
 	),
 ];
 
+// Revenue metrics
+export const REVENUE_METRICS: MetricConfig[] = [
+	createMetric(
+		"revenue",
+		"Revenue",
+		"revenue",
+		TrendingUp,
+		(value) => formatCurrency(value, "USD"),
+		"analytics"
+	),
+	createMetric(
+		"refunds",
+		"Refunds",
+		"revenue",
+		TrendingUp,
+		(value) => formatCurrency(value, "USD"),
+		"analytics"
+	),
+];
+
 export const METRICS = [
 	...ANALYTICS_METRICS,
 	...PERFORMANCE_METRICS,
 	...CORE_WEB_VITALS_METRICS,
 	...ERROR_METRICS,
+	...REVENUE_METRICS,
 ];
