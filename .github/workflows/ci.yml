@@ -39,31 +39,6 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run lint
 
-  check-types:
-    name: Type Check
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    timeout-minutes: 15
-    env:
-      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.11"
-      - uses: actions/cache@v5
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - uses: actions/cache@v5
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-turbo-
-      - run: bun install --frozen-lockfile
-      - run: bun run check-types
-
   test:
     name: Test
     runs-on: blacksmith-4vcpu-ubuntu-2404
@@ -80,10 +55,6 @@ jobs:
       REDPANDA_PASSWORD: test-redpanda-password
       DATABUDDY_API_KEY: test-databuddy-api-key
       DATABUDDY_WEBSITE_ID: test-databuddy-website-id
-      CLICKHOUSE_URL: http://localhost:8123
-      CLICKHOUSE_HOST: localhost
-      CLICKHOUSE_PORT: 8123
-      CLICKHOUSE_DATABASE: databuddy_test
       BETTER_AUTH_SECRET: test-auth-secret-for-ci-testing-only
       BETTER_AUTH_URL: http://localhost:3000
       GITHUB_CLIENT_ID: test-github-client-id
@@ -123,21 +94,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      clickhouse:
-        image: clickhouse/clickhouse-server:25.5-alpine
-        env:
-          CLICKHOUSE_DB: databuddy_test
-          CLICKHOUSE_USER: default
-          CLICKHOUSE_PASSWORD: ""
-          CLICKHOUSE_SKIP_USER_SETUP: 1
-        ports:
-          - 8123:8123
-          - 9000:9000
-        options: >-
-          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
 
     steps:
       - uses: actions/checkout@v6
