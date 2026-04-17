@@ -59,6 +59,7 @@ import type {
 } from "@/types/annotations";
 import type { DateRange } from "../../../utils/types";
 import { RevenueBar } from "./revenue-bar";
+import type { Payload } from "recharts/types/component/DefaultLegendContent";
 
 const {
 	Area,
@@ -914,7 +915,9 @@ export function TrafficTrendsRechartsPlot({
 											const metric = metrics.find((m) => m.label === label);
 											const isHidden = metric
 												? hiddenMetrics[metric.key]
-												: false;
+												: label === "Revenue"
+													? hiddenMetrics.revenue
+													: false;
 											return (
 												<span
 													className={chartRechartsInteractiveLegendLabelClassName(
@@ -927,12 +930,9 @@ export function TrafficTrendsRechartsPlot({
 										}}
 										iconSize={chartRechartsLegendIconSize}
 										iconType="circle"
-										onClick={(payload: { value?: string | number }) => {
-											const metric = metrics.find(
-												(m) => m.label === payload.value
-											);
-											if (metric) {
-												toggleMetric(metric.key as keyof typeof visibleMetrics);
+										onClick={(payload: Payload) => {
+											if (payload.dataKey) {
+												toggleMetric(payload.dataKey as keyof typeof visibleMetrics);
 											}
 										}}
 										payload={[
