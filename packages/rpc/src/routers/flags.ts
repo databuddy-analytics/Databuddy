@@ -1,8 +1,10 @@
 import {
 	and,
+	asc,
 	desc,
 	eq,
 	inArray,
+	isNotNull,
 	isNull,
 	ne,
 	notDeleted,
@@ -132,6 +134,7 @@ const updateFlagSchema = z
 		dependencies: z.array(z.string()).optional(),
 		environment: z.string().optional(),
 		targetGroupIds: z.array(z.string()).optional(),
+		folder: z.string().max(100).nullable().optional(),
 	})
 	.superRefine((data, ctx) => {
 		if (data.type === "multivariant" && data.variants) {
@@ -684,6 +687,7 @@ export const flagsRouter = {
 						websiteId: input.websiteId || null,
 						organizationId: input.organizationId || null,
 						environment: input.environment || existingFlag?.[0]?.environment,
+						folder: input.folder || null,
 						userId: null,
 						createdBy,
 					})
@@ -916,6 +920,50 @@ export const flagsRouter = {
 				});
 			}
 			return updatedFlag;
+		}),
+
+	listFolders: protectedProcedure
+		.route({
+			description:
+				"Returns distinct folder paths for flags in a website or organization.",
+			method: "POST",
+			path: "/flags/listFolders",
+			summary: "List flag folders",
+			tags: ["Flags"],
+		})
+		.input(
+			z
+				.object({
+					websiteId: z.string().optional(),
+					organizationId: z.string().optional(),
+				})
+				.refine((d) => d.websiteId || d.organizationId, {
+					message: "Either websiteId or organizationId must be provided",
+					path: ["websiteId"],
+				})
+		)
+		.output(z.array(z.string()))
+		.handler(async ({ context, input }) => {
+			await authorizeScope(
+				context,
+				input.websiteId,
+				input.organizationId,
+				"read"
+			);
+
+			const rows = await context.db
+				.selectDistinct({ folder: flags.folder })
+				.from(flags)
+				.where(
+					and(
+						getScopeCondition(input.websiteId, input.organizationId),
+						isNull(flags.deletedAt),
+						isNotNull(flags.folder)
+					)
+				)
+				.orderBy(asc(flags.folder));
+
+			return rows.map((r) => r.folder as string);
 		}),
 
 	delete: protectedProcedure

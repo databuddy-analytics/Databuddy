@@ -757,11 +757,13 @@ export const flags = pgTable(
 		dependencies: text("dependencies").array(),
 		targetGroupIds: text("target_group_ids").array(),
 		environment: text("environment"),
+		folder: text("folder"),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 		updatedAt: timestamp("updated_at").defaultNow().notNull(),
 		deletedAt: timestamp("deleted_at"),
 	},
 	(table) => [
+		index("idx_flags_folder").on(table.websiteId, table.folder),
 		uniqueIndex("flags_key_website_unique")
 			.on(table.key, table.websiteId)
 			.where(isNotNull(table.websiteId)),
