@@ -634,7 +634,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.5",
     "@tanstack/react-query": "^5.82.0",
-    "@tokenlens/models": "^2.0.0-alpha.2",
+    "@tokenlens/models": "1.3.0",
     "@types/bun": "latest",
     "@types/react": "19.2.3",
     "@types/react-dom": "19.2.3",
@@ -1715,7 +1715,7 @@
 
     "@tokenlens/helpers": ["@tokenlens/helpers@2.0.0-alpha.3", "", { "dependencies": { "@tokenlens/core": "2.0.0-alpha.3" } }, "sha512-n9DosGQPkp0uFqR/egt1N0j04zOz/KTRFug15U4mB9atRuttyMaMBJ9oLuqQZEFad092PoAjDcT38yO2mbFoYw=="],
 
-    "@tokenlens/models": ["@tokenlens/models@2.0.0-alpha.2", "", { "dependencies": { "@tokenlens/core": "2.0.0-alpha.2" } }, "sha512-LL58e/MBKQk7BSbWIxZ5gLiM87RkN1JZ58b1Qg9yLTU6T/6rgPlAH4A1P5Kjy6fc8JUQD56ZhNP8CI6Euphd8w=="],
+    "@tokenlens/models": ["@tokenlens/models@1.3.0", "", { "dependencies": { "@tokenlens/core": "1.3.0" } }, "sha512-9mx7ZGeewW4ndXAiD7AT1bbCk4OpJeortbjHHyNkgap+pMPPn1chY6R5zqe1ggXIUzZ2l8VOAKfPqOvpcrisJw=="],
 
     "@tokenlens/tokenizer": ["@tokenlens/tokenizer@2.0.0-alpha.3", "", { "dependencies": { "@anthropic-ai/sdk": "^0.63.1", "@anthropic-ai/tokenizer": "^0.0.4", "@dqbd/tiktoken": "^1.0.22", "@google/genai": "^1.22.0", "@tokenlens/core": "2.0.0-alpha.3", "llama-tokenizer-js": "^1.2.2" } }, "sha512-OVq26Eu7eI+gs2dmVrQ4a/Ok1Be4qNPoVe3cLEcqrbW9ObSC1a4Ev7y6gBtPSp6BWbpa/wi17bsjfpb0GNvDYw=="],
 
@@ -4291,7 +4291,7 @@
 
     "@tailwindcss/postcss/postcss": ["postcss@8.5.8", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg=="],
 
-    "@tokenlens/models/@tokenlens/core": ["@tokenlens/core@2.0.0-alpha.2", "", {}, "sha512-CTyiVUe0iUF8SmqeHQ9PYAz1jIHpwphbBCRi5ZeUWPyPBthrpa/haNhFMiEZ8iNBftLwTWGfGXlZCLLpuuIPNw=="],
+    "@tokenlens/models/@tokenlens/core": ["@tokenlens/core@1.3.0", "", {}, "sha512-d8YNHNC+q10bVpi95fELJwJyPVf1HfvBEI18eFQxRSZTdByXrP+f/ZtlhSzkx0Jl0aEmYVeBA5tPeeYRioLViQ=="],
 
     "@tokenlens/tokenizer/@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.63.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-wMA/Xx5GLO+npV992YKUfsmlI6699XG/jFjCPTf/nsMBfUh3e3KmNiOKuhqSMZibOjoLOlhYc7L4pfLPI8A+RA=="],
 
