@@ -100,7 +100,8 @@
       "nanoid": "^5.1.6",
       "ua-parser-js": "^2.0.8",
       "evlog": "^2.11.1",
-      "tokenlens": "^2.0.0-alpha.3"
+      "tokenlens": "^2.0.0-alpha.3",
+      "@tokenlens/models": "^2.0.0-alpha.2"
     }
   }
 }

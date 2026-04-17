@@ -51,6 +51,7 @@
         "@orpc/openapi": "^1.13.4",
         "@orpc/server": "^1.13.4",
         "@orpc/zod": "^1.13.4",
+        "@tokenlens/models": "catalog:",
         "ai": "^6.0.78",
         "autumn-js": "catalog:",
         "bullmq": "^5.66.5",
@@ -139,6 +140,7 @@
         "@tanstack/react-pacer": "^0.21.1",
         "@tanstack/react-query": "^5.91.2",
         "@tanstack/react-table": "^8.21.3",
+        "@tokenlens/models": "catalog:",
         "@types/d3-scale": "^4.0.9",
         "@types/geojson": "^7946.0.16",
         "@types/leaflet": "^1.9.21",
@@ -583,6 +585,7 @@
         "@databuddy/redis": "workspace:*",
         "@logtail/edge": "catalog:",
         "@openrouter/ai-sdk-provider": "^1.2.2",
+        "@tokenlens/models": "catalog:",
         "dayjs": "catalog:",
         "drizzle-orm": "catalog:",
         "evlog": "catalog:",
@@ -631,6 +634,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.5",
     "@tanstack/react-query": "^5.82.0",
+    "@tokenlens/models": "^2.0.0-alpha.2",
     "@types/bun": "latest",
     "@types/react": "19.2.3",
     "@types/react-dom": "19.2.3",
@@ -1710,6 +1714,8 @@
     "@tokenlens/fetch": ["@tokenlens/fetch@2.0.0-alpha.3", "", { "dependencies": { "@tokenlens/core": "2.0.0-alpha.3" } }, "sha512-/v5QDXjfUCiQz4iu+CjG4R9qAhNkExfIM5H0Yo1+/jPzxrvB7HCu/60i0lZJQltJS44wEqlgA55qrohpZTY3tw=="],
 
     "@tokenlens/helpers": ["@tokenlens/helpers@2.0.0-alpha.3", "", { "dependencies": { "@tokenlens/core": "2.0.0-alpha.3" } }, "sha512-n9DosGQPkp0uFqR/egt1N0j04zOz/KTRFug15U4mB9atRuttyMaMBJ9oLuqQZEFad092PoAjDcT38yO2mbFoYw=="],
+
+    "@tokenlens/models": ["@tokenlens/models@2.0.0-alpha.2", "", { "dependencies": { "@tokenlens/core": "2.0.0-alpha.2" } }, "sha512-LL58e/MBKQk7BSbWIxZ5gLiM87RkN1JZ58b1Qg9yLTU6T/6rgPlAH4A1P5Kjy6fc8JUQD56ZhNP8CI6Euphd8w=="],
 
     "@tokenlens/tokenizer": ["@tokenlens/tokenizer@2.0.0-alpha.3", "", { "dependencies": { "@anthropic-ai/sdk": "^0.63.1", "@anthropic-ai/tokenizer": "^0.0.4", "@dqbd/tiktoken": "^1.0.22", "@google/genai": "^1.22.0", "@tokenlens/core": "2.0.0-alpha.3", "llama-tokenizer-js": "^1.2.2" } }, "sha512-OVq26Eu7eI+gs2dmVrQ4a/Ok1Be4qNPoVe3cLEcqrbW9ObSC1a4Ev7y6gBtPSp6BWbpa/wi17bsjfpb0GNvDYw=="],
 
@@ -4284,6 +4290,8 @@
     "@tailwindcss/oxide-wasm32-wasi/tslib": ["tslib@2.8.1", "", { "bundled": true }, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
     "@tailwindcss/postcss/postcss": ["postcss@8.5.8", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-OW/rX8O/jXnm82Ey1k44pObPtdblfiuWnrd8X7GJ7emImCOstunGbXUpp7HdBrFQX6rJzn3sPT397Wp5aCwCHg=="],
+
+    "@tokenlens/models/@tokenlens/core": ["@tokenlens/core@2.0.0-alpha.2", "", {}, "sha512-CTyiVUe0iUF8SmqeHQ9PYAz1jIHpwphbBCRi5ZeUWPyPBthrpa/haNhFMiEZ8iNBftLwTWGfGXlZCLLpuuIPNw=="],
 
     "@tokenlens/tokenizer/@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.63.1", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-wMA/Xx5GLO+npV992YKUfsmlI6699XG/jFjCPTf/nsMBfUh3e3KmNiOKuhqSMZibOjoLOlhYc7L4pfLPI8A+RA=="],
 

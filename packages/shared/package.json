@@ -53,6 +53,7 @@
     "evlog": "catalog:",
     "nanoid": "catalog:",
     "tokenlens": "catalog:",
+    "@tokenlens/models": "catalog:",
     "ua-parser-js": "catalog:",
     "zod": "catalog:"
   }

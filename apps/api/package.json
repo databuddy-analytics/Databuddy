@@ -54,6 +54,7 @@
     "supermemory": "^4.17.0",
     "svix": "^1.84.1",
     "tokenlens": "catalog:",
+    "@tokenlens/models": "catalog:",
     "zod": "catalog:",
     "zod-to-json-schema": "^3.25.1"
   }
