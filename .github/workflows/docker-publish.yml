@@ -186,7 +186,7 @@ jobs:
 
       - name: Install cosign
         if: always() && steps.build.outcome != 'cancelled'
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4
 
       - name: Sign image
         if: always() && steps.build.outcome != 'cancelled'
@@ -255,7 +255,7 @@ jobs:
           docker buildx imagetools inspect "$IMAGE:$TAG"
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4
 
       - name: Sign manifest
         run: |
