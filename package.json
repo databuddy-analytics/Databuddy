@@ -4,7 +4,7 @@
   "devDependencies": {
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/plugin-transform-react-jsx": "^7.28.6",
-    "@biomejs/biome": "2.4.10",
+    "@biomejs/biome": "2.4.12",
     "@evilmartians/lefthook": "^2.1.6",
     "@types/bun": "latest",
     "@types/dockerode": "^3.3.47",
@@ -17,7 +17,7 @@
     "knip": "^5.88.1",
     "turbo": "^2.9.6",
     "typescript": "^5.9.3",
-    "ultracite": "7.4.3"
+    "ultracite": "7.6.1"
   },
   "engines": {
     "node": ">=20"
