@@ -10,7 +10,7 @@
     "lint:links": "bun ./scripts/validate-links.ts"
   },
   "dependencies": {
-    "@cossistant/react": "^0.0.29",
+    "@cossistant/react": "^0.2.0",
     "@databuddy/sdk": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@hookform/resolvers": "^5.2.2",

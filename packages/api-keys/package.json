@@ -10,7 +10,7 @@
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@databuddy/redis": "workspace:*",
-    "keypal": "^0.1.11"
+    "keypal": "^0.2.0"
   },
   "devDependencies": {
     "typescript": "^5.9.3"
