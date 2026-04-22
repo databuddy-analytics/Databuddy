@@ -209,7 +209,11 @@ export function DateRangePicker({
 					<span className="truncate">{formatDisplayRange(value)}</span>
 				</Popover.Trigger>
 
-				<Popover.Content className="w-auto overflow-hidden p-0" side="bottom">
+				<Popover.Content
+					className="w-auto overflow-hidden p-0"
+					disableAnchorTracking
+					side="bottom"
+				>
 					<div className="flex">
 						<div className="hidden w-36 shrink-0 border-border/60 border-r sm:block">
 							<div className="p-1.5">

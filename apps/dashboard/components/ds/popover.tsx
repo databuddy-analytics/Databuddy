@@ -32,13 +32,20 @@ function Content({
 	className,
 	children,
 	side = "bottom",
+	disableAnchorTracking = false,
 	...rest
 }: ComponentPropsWithoutRef<typeof BasePopover.Popup> & {
 	side?: ComponentPropsWithoutRef<typeof BasePopover.Positioner>["side"];
+	disableAnchorTracking?: boolean;
 }) {
 	return (
 		<BasePopover.Portal>
-			<BasePopover.Positioner className="z-50" side={side} sideOffset={6}>
+			<BasePopover.Positioner
+				className="z-50"
+				disableAnchorTracking={disableAnchorTracking}
+				side={side}
+				sideOffset={6}
+			>
 				<BasePopover.Popup
 					className={cn(
 						"w-72 max-w-[calc(100vw-1rem)] rounded-lg border border-border/60 bg-popover p-4",
