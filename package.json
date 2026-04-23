@@ -4,7 +4,7 @@
   "devDependencies": {
     "@babel/plugin-proposal-optional-chaining": "^7.21.0",
     "@babel/plugin-transform-react-jsx": "^7.28.6",
-    "@biomejs/biome": "2.4.10",
+    "@biomejs/biome": "2.4.13",
     "@changesets/cli": "^2.31.0",
     "@evilmartians/lefthook": "^2.1.6",
     "@types/bun": "latest",

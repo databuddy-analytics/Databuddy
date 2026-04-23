@@ -28,7 +28,7 @@
     "drizzle-orm": "^0.45.2",
     "evlog": "catalog:",
     "jszip": "^3.10.1",
-    "keypal": "^0.1.11",
+    "keypal": "^0.2.0",
     "nanoid": "^5.1.6",
     "pg": "^8.16.3",
     "redis": "^5.10.0",

@@ -23,7 +23,7 @@
     "elysia": "^1.4.19",
     "evlog": "catalog:",
     "kafkajs": "^2.2.4",
-    "keypal": "^0.1.11",
+    "keypal": "^0.2.0",
     "ua-parser-js": "^2.0.7",
     "zod": "catalog:"
   },
