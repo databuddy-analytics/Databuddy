@@ -127,15 +127,16 @@ export const goalsRouter = {
 		.input(z.object({ websiteId: z.string() }))
 		.output(z.array(goalOutputSchema))
 		.use(withWebsiteRead)
-		.handler(async ({ context, input }) => {
-			return await context.db
-				.select()
-				.from(goals)
-				.where(
-					and(eq(goals.websiteId, input.websiteId), isNull(goals.deletedAt))
-				)
-				.orderBy(desc(goals.createdAt));
-		}),
+		.handler(
+			async ({ context, input }) =>
+				await context.db
+					.select()
+					.from(goals)
+					.where(
+						and(eq(goals.websiteId, input.websiteId), isNull(goals.deletedAt))
+					)
+					.orderBy(desc(goals.createdAt))
+		),
 
 	getById: publicProcedure
 		.route({

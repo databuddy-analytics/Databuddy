@@ -86,12 +86,12 @@ const originSchema = z
 		{ message: "Must be a valid domain (e.g., cal.com, *.cal.com) or *" }
 	);
 
-const ipSchema = z.string().refine(
-	(val) => {
-		return ipv4Regex.test(val) || ipv6Regex.test(val) || cidrRegex.test(val);
-	},
-	{ message: "Must be a valid IPv4, IPv6, or CIDR notation" }
-);
+const ipSchema = z
+	.string()
+	.refine(
+		(val) => ipv4Regex.test(val) || ipv6Regex.test(val) || cidrRegex.test(val),
+		{ message: "Must be a valid IPv4, IPv6, or CIDR notation" }
+	);
 
 export const updateWebsiteSettingsSchema = z.object({
 	id: z.string(),

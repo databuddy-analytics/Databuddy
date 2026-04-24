@@ -303,9 +303,7 @@ export function TrafficTrendsRechartsPlot({
 		const promise = createAnnotation.mutateAsync(createData);
 
 		toast.promise(promise, {
-			error: (err) => {
-				return err?.message || "Failed to create annotation";
-			},
+			error: (err) => err?.message || "Failed to create annotation",
 			loading: "Creating annotation...",
 			success: () => {
 				refetchAnnotations();
@@ -324,9 +322,7 @@ export function TrafficTrendsRechartsPlot({
 		const promise = deleteAnnotation.mutateAsync({ id });
 
 		toast.promise(promise, {
-			error: (err) => {
-				return err?.message || "Failed to delete annotation";
-			},
+			error: (err) => err?.message || "Failed to delete annotation",
 			loading: "Deleting annotation...",
 			success: () => {
 				refetchAnnotations();
@@ -344,9 +340,7 @@ export function TrafficTrendsRechartsPlot({
 		const promise = updateAnnotation.mutateAsync({ id, ...updates });
 
 		toast.promise(promise, {
-			error: (err) => {
-				return err?.message || "Failed to update annotation";
-			},
+			error: (err) => err?.message || "Failed to update annotation",
 			loading: "Updating annotation...",
 			success: () => {
 				refetchAnnotations();

@@ -54,7 +54,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 				)}
 			>
 				{prefix && (
-					<span className="flex shrink-0 items-center self-stretch rounded-l-md bg-muted px-3 text-muted-foreground text-xs">
+					<span className="flex shrink-0 items-center self-stretch rounded-l-md bg-muted px-3 text-muted-foreground text-xs dark:bg-accent">
 						{prefix}
 					</span>
 				)}
@@ -67,7 +67,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 					{...rest}
 				/>
 				{suffix && (
-					<span className="flex shrink-0 items-center self-stretch rounded-r-md bg-muted px-3 text-muted-foreground text-xs">
+					<span className="flex shrink-0 items-center self-stretch rounded-r-md bg-muted px-3 text-muted-foreground text-xs dark:bg-accent">
 						{suffix}
 					</span>
 				)}

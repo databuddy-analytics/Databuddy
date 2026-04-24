@@ -224,7 +224,7 @@ function TrackingStatusBanner({
 					variant="outline"
 				>
 					<ArrowClockwiseIcon
-						className={cn("size-3.5", isRefreshing && "animate-spin")}
+						className={cn("size-3.5 shrink-0", isRefreshing && "animate-spin")}
 						weight="bold"
 					/>
 					{isRefreshing ? "Checking…" : "Check Status"}

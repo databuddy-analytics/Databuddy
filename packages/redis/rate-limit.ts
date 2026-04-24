@@ -7,7 +7,7 @@ interface RateLimitResult {
 	success: boolean;
 }
 
-export async function rateLimit(
+export async function ratelimit(
 	identifier: string,
 	limit: number,
 	windowSeconds: number

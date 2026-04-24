@@ -1,227 +1,120 @@
-"use client";
-
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr";
-import { CommandIcon } from "@phosphor-icons/react/dist/ssr";
 import { HouseIcon } from "@phosphor-icons/react/dist/ssr";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/dist/ssr";
-import { Command as CommandPrimitive } from "cmdk";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import {
-	resourcesNavigation,
-	settingsNavigation,
-} from "@/components/layout/navigation/navigation-config";
-import type {
-	NavigationItem,
-	NavigationSection,
-} from "@/components/layout/navigation/types";
+import { Branding } from "@/components/logo/branding";
 import { Button } from "@/components/ds/button";
-import { Dialog } from "@/components/ds/dialog";
-import { cn } from "@/lib/utils";
 
-const ALL_NAVIGATION: NavigationSection[] = [
-	...settingsNavigation,
-	...resourcesNavigation,
-];
-
-interface SearchItem {
-	icon: typeof MagnifyingGlassIcon;
-	name: string;
-	path: string;
-}
-
-function toSearchItem(item: NavigationItem): SearchItem | null {
-	if (item.disabled || item.hideFromDemo || !item.href) {
-		return null;
-	}
-	return {
-		name: item.name,
-		path: item.href,
-		icon: item.icon || MagnifyingGlassIcon,
-	};
-}
-
-function flattenNavigation(sections: NavigationSection[]): SearchItem[] {
-	const items: SearchItem[] = [];
-	for (const section of sections) {
-		for (const item of section.items) {
-			const searchItem = toSearchItem(item);
-			if (searchItem) {
-				items.push(searchItem);
-			}
-		}
-	}
-	return items;
-}
+const PARTICLES = [
+	{
+		className: "left-[20%] top-[15%] animate-[float-a_4s_ease-in-out_infinite]",
+		color: "bg-purple-500",
+	},
+	{
+		className:
+			"right-[18%] top-[25%] animate-[float-b_5s_ease-in-out_infinite]",
+		color: "bg-indigo-500",
+	},
+	{
+		className:
+			"left-[15%] bottom-[30%] animate-[float-a_6s_ease-in-out_infinite_reverse]",
+		color: "bg-purple-400",
+	},
+	{
+		className:
+			"right-[22%] bottom-[20%] animate-[float-b_4.5s_ease-in-out_infinite]",
+		color: "bg-indigo-400",
+	},
+	{
+		className:
+			"left-[10%] top-[40%] animate-[float-a_5.5s_ease-in-out_infinite]",
+		color: "bg-purple-300",
+	},
+	{
+		className:
+			"right-[12%] top-[60%] animate-[float-b_3.5s_ease-in-out_infinite_reverse]",
+		color: "bg-violet-600",
+	},
+] as const;
 
 export default function NotFound() {
-	const router = useRouter();
-	const [open, setOpen] = useState(false);
-	const [search, setSearch] = useState("");
-
-	const searchItems = useMemo(() => {
-		const items = flattenNavigation(ALL_NAVIGATION);
-		if (!search.trim()) {
-			return items;
-		}
-		const query = search.toLowerCase();
-		return items.filter(
-			(item) =>
-				item.name.toLowerCase().includes(query) ||
-				item.path.toLowerCase().includes(query)
-		);
-	}, [search]);
-
-	const handleSelect = (item: SearchItem) => {
-		setOpen(false);
-		setSearch("");
-		router.push(item.path);
-	};
-
-	const canGoBack = typeof window !== "undefined" && window.history.length > 1;
-
 	return (
-		<div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4 sm:p-6">
-			<div className="flex w-full max-w-sm flex-col items-center text-center">
+		<div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-background p-4 sm:p-6">
+			<style
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: static keyframes
+				dangerouslySetInnerHTML={{
+					__html: `
+						@keyframes float-a {
+							0%, 100% { transform: translateY(0) translateX(0); }
+							50% { transform: translateY(-12px) translateX(6px); }
+						}
+						@keyframes float-b {
+							0%, 100% { transform: translateY(0) translateX(0); }
+							50% { transform: translateY(8px) translateX(-8px); }
+						}
+						@keyframes bobble {
+							0%, 100% { transform: translateY(0) rotate(0deg); }
+							25% { transform: translateY(-4px) rotate(5deg); }
+							75% { transform: translateY(-2px) rotate(-3deg); }
+						}
+					`,
+				}}
+			/>
+
+			{PARTICLES.map((p) => (
 				<div
 					aria-hidden="true"
-					className="flex size-12 items-center justify-center rounded bg-accent"
-				>
-					<MagnifyingGlassIcon
-						className="size-6 text-muted-foreground"
-						weight="duotone"
+					className={`absolute size-1.5 rounded-full opacity-30 ${p.color} ${p.className}`}
+					key={p.className}
+				/>
+			))}
+
+			<div
+				aria-hidden="true"
+				className="pointer-events-none absolute select-none font-extrabold text-[120px] text-foreground opacity-[0.04] sm:text-[180px]"
+			>
+				404
+			</div>
+
+			<div className="relative flex w-full max-w-sm flex-col items-center text-center">
+				<div className="relative mb-6">
+					<div
+						aria-hidden="true"
+						className="absolute inset-[-20px] rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.15)_0%,transparent_70%)]"
 					/>
+					<Branding
+						className="relative"
+						heightPx={72}
+						priority
+						variant="logomark"
+					/>
+					<span
+						aria-hidden="true"
+						className="absolute -top-2 -right-3.5 font-bold text-[22px] text-purple-500 opacity-70"
+						style={{ animation: "bobble 2s ease-in-out infinite" }}
+					>
+						?
+					</span>
 				</div>
 
-				<div className="mt-6 space-y-2">
+				<div className="space-y-2">
+					<p className="font-semibold text-[13px] text-purple-500 uppercase tracking-[0.15em] opacity-70">
+						404
+					</p>
 					<h1 className="text-balance font-semibold text-foreground text-lg">
-						Page Not Found
+						Lost in the data stream
 					</h1>
 					<p className="text-pretty text-muted-foreground text-sm leading-relaxed">
-						We&apos;ve lost this page in the data stream.
+						Our bunny wandered off looking for this page, but it doesn&apos;t
+						seem to exist.
 					</p>
 				</div>
 
-				<Button
-					className="mt-6 w-full"
-					onClick={() => setOpen(true)}
-					variant="secondary"
-				>
-					<MagnifyingGlassIcon className="mr-2 size-4" weight="duotone" />
-					Search pages, settings...
-					<kbd className="ml-auto hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
-						<CommandIcon className="size-3" weight="bold" />
-						<span>K</span>
-					</kbd>
-				</Button>
-
-				<div className="mt-3 flex w-full gap-3">
-					{canGoBack && (
-						<Button
-							className="flex-1"
-							onClick={() => router.back()}
-							variant="secondary"
-						>
-							<ArrowLeftIcon className="mr-2 size-4" weight="duotone" />
-							Go Back
-						</Button>
-					)}
-					<Link className="flex-1" href="/websites">
-						<Button className="w-full">
-							<HouseIcon className="mr-2 size-4" weight="duotone" />
-							Back to Websites
-						</Button>
-					</Link>
-				</div>
+				<Link className="mt-6 w-full" href="/websites">
+					<Button className="w-full">
+						<HouseIcon className="mr-2 size-4" weight="duotone" />
+						Back to Websites
+					</Button>
+				</Link>
 			</div>
-
-			<Dialog onOpenChange={setOpen} open={open}>
-				<Dialog.Content className="gap-0 overflow-hidden p-0 sm:max-w-xl">
-					<Dialog.Header className="sr-only">
-						<Dialog.Title>Search</Dialog.Title>
-						<Dialog.Description>
-							Search for pages and settings
-						</Dialog.Description>
-					</Dialog.Header>
-					<Dialog.Body className="p-0">
-						<CommandPrimitive
-							className="flex h-full w-full flex-col"
-							loop
-							onKeyDown={(e) => {
-								if (e.key === "Escape") {
-									setOpen(false);
-								}
-							}}
-						>
-							<div className="dotted-bg flex items-center gap-3 border-b bg-accent px-4 py-3">
-								<div className="flex size-8 shrink-0 items-center justify-center rounded bg-background">
-									<MagnifyingGlassIcon
-										className="size-4 text-muted-foreground"
-										weight="duotone"
-									/>
-								</div>
-								<CommandPrimitive.Input
-									className="h-8 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-									onValueChange={setSearch}
-									placeholder="Search pages, settings..."
-									value={search}
-								/>
-								<kbd className="hidden items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-muted-foreground text-xs sm:flex">
-									<CommandIcon className="size-3" weight="bold" />
-									<span>K</span>
-								</kbd>
-							</div>
-
-							<CommandPrimitive.List className="max-h-80 scroll-py-2 overflow-y-auto p-2">
-								<CommandPrimitive.Empty className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-									<MagnifyingGlassIcon
-										className="size-8 text-muted-foreground/50"
-										weight="duotone"
-									/>
-									<div>
-										<p className="font-medium text-muted-foreground text-sm">
-											No results found
-										</p>
-										<p className="text-muted-foreground/70 text-xs">
-											Try searching for something else
-										</p>
-									</div>
-								</CommandPrimitive.Empty>
-								{searchItems.map((item) => {
-									const ItemIcon = item.icon;
-									return (
-										<CommandPrimitive.Item
-											className={cn(
-												"group relative flex cursor-pointer select-none items-center gap-3 rounded px-2 py-2 outline-none",
-												"data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
-											)}
-											key={item.path}
-											onSelect={() => handleSelect(item)}
-											value={`${item.name} ${item.path}`}
-										>
-											<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent group-data-[selected=true]:bg-background">
-												<ItemIcon
-													className="size-4 text-muted-foreground"
-													weight="duotone"
-												/>
-											</div>
-											<div className="min-w-0 flex-1">
-												<p className="truncate font-medium text-sm leading-tight">
-													{item.name}
-												</p>
-												<p className="truncate text-muted-foreground text-xs">
-													{item.path}
-												</p>
-											</div>
-										</CommandPrimitive.Item>
-									);
-								})}
-							</CommandPrimitive.List>
-						</CommandPrimitive>
-					</Dialog.Body>
-				</Dialog.Content>
-			</Dialog>
 		</div>
 	);
 }

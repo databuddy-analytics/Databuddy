@@ -7,7 +7,7 @@ import { DropdownMenu } from "@/components/ds/dropdown-menu";
 import { Text } from "@/components/ds/text";
 import type { CancelInvitation } from "@/hooks/use-organizations";
 import dayjs from "@/lib/dayjs";
-import type { Invitation } from "@/stores/jotai/organizationAtoms";
+import type { Invitation } from "@/hooks/use-organization-invitations";
 import { DotsThree, Envelope, XCircle } from "@phosphor-icons/react/dist/ssr";
 import { useState } from "react";
 

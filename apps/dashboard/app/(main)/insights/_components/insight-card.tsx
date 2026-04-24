@@ -1,21 +1,22 @@
 "use client";
 
-import { ArrowRightIcon } from "@phosphor-icons/react";
-import { BugIcon } from "@phosphor-icons/react";
-import { CaretDownIcon } from "@phosphor-icons/react";
-import { ChartLineUpIcon } from "@phosphor-icons/react";
-import { CopyIcon } from "@phosphor-icons/react";
-import { DotsThreeIcon } from "@phosphor-icons/react";
-import { GaugeIcon } from "@phosphor-icons/react";
-import { LightningIcon } from "@phosphor-icons/react";
-import { LinkIcon } from "@phosphor-icons/react";
-import { RocketIcon } from "@phosphor-icons/react";
-import { ThumbsDownIcon } from "@phosphor-icons/react";
-import { ThumbsUpIcon } from "@phosphor-icons/react";
-import { TrendDownIcon } from "@phosphor-icons/react";
-import { TrendUpIcon } from "@phosphor-icons/react";
-import { WarningCircleIcon } from "@phosphor-icons/react";
-import { XIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr/ArrowRight";
+import { BugIcon } from "@phosphor-icons/react/dist/ssr/Bug";
+import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
+import { ChartLineUpIcon } from "@phosphor-icons/react/dist/ssr/ChartLineUp";
+import { CopyIcon } from "@phosphor-icons/react/dist/ssr/Copy";
+import { DotsThreeIcon } from "@phosphor-icons/react/dist/ssr/DotsThree";
+import { GaugeIcon } from "@phosphor-icons/react/dist/ssr/Gauge";
+import { LightbulbFilamentIcon } from "@phosphor-icons/react/dist/ssr/LightbulbFilament";
+import { LightningIcon } from "@phosphor-icons/react/dist/ssr/Lightning";
+import { LinkIcon } from "@phosphor-icons/react/dist/ssr/Link";
+import { RocketIcon } from "@phosphor-icons/react/dist/ssr/Rocket";
+import { ThumbsDownIcon } from "@phosphor-icons/react/dist/ssr/ThumbsDown";
+import { ThumbsUpIcon } from "@phosphor-icons/react/dist/ssr/ThumbsUp";
+import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
+import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
+import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr/WarningCircle";
+import { XIcon } from "@phosphor-icons/react/dist/ssr/X";
 import Link from "next/link";
 import { type ReactNode, useMemo } from "react";
 import { toast } from "sonner";
@@ -178,30 +179,25 @@ export function InsightCard({
 	const typeStyle = TYPE_STYLES[insight.type];
 	const sentimentStyle = SENTIMENT_STYLES[insight.sentiment];
 	const freshnessLine = formatInsightFreshness(insight);
-
-	const agentHref = useMemo(() => {
-		if (isCompact) {
-			return "";
-		}
-		const chatId = crypto.randomUUID();
-		const prompt = encodeURIComponent(buildDiagnosticPrompt(insight));
-		return `/websites/${insight.websiteId}/agent/${chatId}?prompt=${prompt}`;
-	}, [isCompact, insight]);
-
-	const pathHint = useMemo(
-		() => (isCompact ? null : extractInsightPathHint(insight)),
+	const comparisonWindow = useMemo(
+		() => (isCompact ? null : formatComparisonWindow(insight)),
 		[isCompact, insight]
 	);
 
+	const agentHref = useMemo(() => {
+		const chatId = crypto.randomUUID();
+		const prompt = encodeURIComponent(buildDiagnosticPrompt(insight));
+		return `/websites/${insight.websiteId}/agent/${chatId}?prompt=${prompt}`;
+	}, [insight]);
+
+	const pathHint = useMemo(() => extractInsightPathHint(insight), [insight]);
+
 	const analyticsHref = useMemo(() => {
-		if (isCompact) {
-			return insight.link;
-		}
 		if (pathHint) {
 			return `/websites/${insight.websiteId}/events/stream?path=${encodeURIComponent(pathHint)}`;
 		}
 		return insight.link;
-	}, [isCompact, insight.websiteId, insight.link, pathHint]);
+	}, [insight.websiteId, insight.link, pathHint]);
 
 	const analyticsLabel = pathHint ? "View events" : "Overview";
 
@@ -224,7 +220,7 @@ export function InsightCard({
 			{/* biome-ignore lint/a11y/useSemanticElements: full-row toggle cannot use <button> because of nested dismiss control */}
 			<div
 				className={cn(
-					"flex cursor-pointer items-start gap-3 px-4",
+					"flex cursor-pointer items-start gap-3 px-5",
 					isCompact ? "py-3" : "py-3.5"
 				)}
 				onClick={onToggleAction}
@@ -307,39 +303,65 @@ export function InsightCard({
 			</div>
 
 			{expanded && (
-				<>
-					{/* biome-ignore lint/a11y/useSemanticElements: expanded panel toggle; nested links/buttons prevent a single <button> wrapper */}
-					<div
-						className="flex flex-col gap-4 px-4 pb-5 pl-14 sm:pl-15"
-						onClick={onToggleAction}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault();
-								onToggleAction();
-							}
-						}}
-						role="button"
-						tabIndex={-1}
-					>
-						{!isCompact && insight.metrics && insight.metrics.length > 0 && (
-							<InsightMetrics metrics={insight.metrics} />
-						)}
+				/* biome-ignore lint/a11y/useSemanticElements: expanded panel toggle; nested links/buttons prevent a single <button> wrapper */
+				<div
+					className="space-y-4 border-border/60 border-t px-5 pt-4 pb-5"
+					onClick={onToggleAction}
+					onKeyDown={(e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							onToggleAction();
+						}
+					}}
+					role="button"
+					tabIndex={-1}
+				>
+					<p className="text-pretty text-[13px] text-foreground/80 leading-relaxed">
+						{insight.description}
+					</p>
 
-						<div className="flex flex-col gap-2.5">
-							<p className="text-pretty text-[13px] text-muted-foreground leading-relaxed">
-								{insight.description}
-							</p>
+					{!isCompact && insight.metrics && insight.metrics.length > 0 && (
+						<InsightMetrics metrics={insight.metrics} />
+					)}
 
-							<p className="text-pretty border-primary/40 border-l-2 pl-3 text-foreground/80 text-xs leading-relaxed">
+					{insight.suggestion && (
+						<div className="flex gap-2.5 rounded-md border border-border/60 bg-accent/50 p-3">
+							<LightbulbFilamentIcon
+								className="mt-0.5 size-4 shrink-0 text-amber-500"
+								weight="duotone"
+							/>
+							<p className="text-pretty text-foreground/80 text-xs leading-relaxed">
 								{insight.suggestion}
 							</p>
 						</div>
+					)}
 
-						{!isCompact && (
+					{isCompact && (
+						<div className="flex items-center gap-2">
+							<Link
+								className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs transition-opacity hover:opacity-90"
+								href={agentHref}
+								onClick={(e) => e.stopPropagation()}
+							>
+								Ask agent
+								<ArrowRightIcon className="size-3" weight="fill" />
+							</Link>
+							<Link
+								className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
+								href={analyticsHref}
+								onClick={(e) => e.stopPropagation()}
+							>
+								{analyticsLabel}
+							</Link>
+						</div>
+					)}
+
+					{!isCompact && (
+						<div className="flex items-center justify-between gap-3">
 							<div className="flex items-center gap-2">
 								<Link
 									aria-label="Open AI agent with this insight as context"
-									className="inline-flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs transition-opacity hover:opacity-90"
+									className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs transition-opacity hover:opacity-90"
 									href={agentHref}
 									onClick={(e) => e.stopPropagation()}
 								>
@@ -352,17 +374,16 @@ export function InsightCard({
 											? `View live events filtered to ${pathHint}`
 											: "Open website overview"
 									}
-									className="inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
+									className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
 									href={analyticsHref}
 									onClick={(e) => e.stopPropagation()}
 								>
 									{analyticsLabel}
 								</Link>
-
 								<DropdownMenu>
 									<DropdownMenu.Trigger
 										aria-label="More actions"
-										className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+										className="flex size-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
 										onClick={(e) => e.stopPropagation()}
 									>
 										<DotsThreeIcon className="size-4" weight="bold" />
@@ -390,58 +411,58 @@ export function InsightCard({
 										</DropdownMenu.Item>
 									</DropdownMenu.Content>
 								</DropdownMenu>
-
-								<div className="ml-auto flex items-center gap-1.5">
-									{freshnessLine && (
-										<span className="text-[11px] text-muted-foreground">
-											{freshnessLine}
-										</span>
-									)}
-									{onFeedbackAction && (
-										<>
-											<button
-												aria-label="Mark as helpful"
-												aria-pressed={feedbackVote === "up"}
-												className={cn(
-													"flex size-7 items-center justify-center rounded border transition-colors",
-													feedbackVote === "up"
-														? "border-primary bg-primary/10 text-primary"
-														: "text-muted-foreground hover:bg-accent hover:text-foreground"
-												)}
-												onClick={(e) => {
-													e.stopPropagation();
-													onFeedbackAction(feedbackVote === "up" ? null : "up");
-												}}
-												type="button"
-											>
-												<ThumbsUpIcon className="size-3.5" weight="duotone" />
-											</button>
-											<button
-												aria-label="Mark as not helpful"
-												aria-pressed={feedbackVote === "down"}
-												className={cn(
-													"flex size-7 items-center justify-center rounded border transition-colors",
-													feedbackVote === "down"
-														? "border-destructive bg-destructive/10 text-destructive"
-														: "text-muted-foreground hover:bg-accent hover:text-foreground"
-												)}
-												onClick={(e) => {
-													e.stopPropagation();
-													onFeedbackAction(
-														feedbackVote === "down" ? null : "down"
-													);
-												}}
-												type="button"
-											>
-												<ThumbsDownIcon className="size-3.5" weight="duotone" />
-											</button>
-										</>
-									)}
-								</div>
 							</div>
-						)}
-					</div>
-				</>
+
+							<div className="flex items-center gap-2">
+								{(freshnessLine || comparisonWindow) && (
+									<span className="hidden text-[11px] text-muted-foreground sm:block">
+										{freshnessLine}
+									</span>
+								)}
+								{onFeedbackAction && (
+									<div className="flex items-center gap-1">
+										<button
+											aria-label="Mark as helpful"
+											aria-pressed={feedbackVote === "up"}
+											className={cn(
+												"flex size-7 items-center justify-center rounded-md border transition-colors",
+												feedbackVote === "up"
+													? "border-primary bg-primary/10 text-primary"
+													: "text-muted-foreground hover:bg-accent hover:text-foreground"
+											)}
+											onClick={(e) => {
+												e.stopPropagation();
+												onFeedbackAction(feedbackVote === "up" ? null : "up");
+											}}
+											type="button"
+										>
+											<ThumbsUpIcon className="size-3.5" weight="duotone" />
+										</button>
+										<button
+											aria-label="Mark as not helpful"
+											aria-pressed={feedbackVote === "down"}
+											className={cn(
+												"flex size-7 items-center justify-center rounded-md border transition-colors",
+												feedbackVote === "down"
+													? "border-destructive bg-destructive/10 text-destructive"
+													: "text-muted-foreground hover:bg-accent hover:text-foreground"
+											)}
+											onClick={(e) => {
+												e.stopPropagation();
+												onFeedbackAction(
+													feedbackVote === "down" ? null : "down"
+												);
+											}}
+											type="button"
+										>
+											<ThumbsDownIcon className="size-3.5" weight="duotone" />
+										</button>
+									</div>
+								)}
+							</div>
+						</div>
+					)}
+				</div>
 			)}
 		</div>
 	);
@@ -449,7 +470,7 @@ export function InsightCard({
 
 export function InsightCardSkeleton() {
 	return (
-		<div className="flex items-start gap-3 border-b px-4 py-3 last:border-b-0">
+		<div className="flex items-start gap-3 border-b px-5 py-3 last:border-b-0">
 			<Skeleton className="mt-0.5 size-7 shrink-0 rounded" />
 			<div className="min-w-0 flex-1 space-y-2">
 				<div className="flex items-start justify-between gap-2">

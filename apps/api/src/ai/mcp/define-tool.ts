@@ -1,4 +1,4 @@
-import { getRateLimitHeaders, rateLimit } from "@databuddy/redis/rate-limit";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import type { ApiKeyRow } from "../../lib/api-key";
@@ -102,7 +102,7 @@ export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
 	 * is an object. Prefer `z.object({...})` or `z.record(...)`.
 	 */
 	outputSchema?: z.ZodType<Record<string, unknown>>;
-	rateLimit?: { limit: number; windowSec: number };
+	ratelimit?: { limit: number; windowSec: number };
 	/**
 	 * Whether the wrapper should resolve and validate a websiteId from the input.
 	 * - true: required; throw not_found if no selector provided
@@ -268,12 +268,12 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 					}
 				}
 
-				if (meta.rateLimit) {
+				if (meta.ratelimit) {
 					const id = rateLimitIdentifier(ctx, meta.name);
-					const result = await rateLimit(
+					const result = await ratelimit(
 						id,
-						meta.rateLimit.limit,
-						meta.rateLimit.windowSec
+						meta.ratelimit.limit,
+						meta.ratelimit.windowSec
 					);
 					if (!result.success) {
 						const headers = getRateLimitHeaders(result);
@@ -283,7 +283,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 							"rate_limited",
 							`Rate limit exceeded for ${meta.name}. Try again in ${retryAfter}s.`,
 							{
-								hint: `Limit: ${meta.rateLimit.limit} requests per ${meta.rateLimit.windowSec}s`,
+								hint: `Limit: ${meta.ratelimit.limit} requests per ${meta.ratelimit.windowSec}s`,
 								details: { retryAfter },
 							}
 						);

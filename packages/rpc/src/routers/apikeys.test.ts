@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { API_SCOPES, type ApiScope } from "@databuddy/api-keys/scopes";
 import {
 	createKeys,
 	hasAllScopes,
@@ -7,11 +8,7 @@ import {
 	isExpired,
 } from "keypal";
 
-// Create a test keys instance (same config as production)
 const keys = createKeys({ prefix: "dbdy_", length: 48 });
-
-// Constants matching the router
-const API_SCOPES = ["read:data", "track:llm", "track:events"] as const;
 
 const RESOURCE_TYPES = [
 	"global",
@@ -65,7 +62,6 @@ function accessToResources(
 	return resources;
 }
 
-// Helper functions matching the router implementation
 function getScopes(
 	keyScopes: string[],
 	metadata: Metadata,
@@ -73,7 +69,6 @@ function getScopes(
 ): string[] {
 	const scopes = new Set<string>(keyScopes);
 	const resources = metadata.resources;
-
 	if (resources) {
 		for (const s of resources.global ?? []) {
 			scopes.add(s);
@@ -84,7 +79,6 @@ function getScopes(
 			}
 		}
 	}
-
 	return [...scopes];
 }
 
@@ -105,378 +99,415 @@ function checkValidity(key: {
 	return { valid: true };
 }
 
-describe("API_SCOPES constants", () => {
-	it("contains read scopes", () => {
-		expect(API_SCOPES).toContain("read:data");
+function mulberry32(seed: number) {
+	let a = seed;
+	return () => {
+		a |= 0;
+		a = (a + 0x6d_2b_79_f5) | 0;
+		let t = Math.imul(a ^ (a >>> 15), 1 | a);
+		t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+		return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+	};
+}
+
+function randomSubset<T>(rng: () => number, items: readonly T[]): T[] {
+	return items.filter(() => rng() < 0.5);
+}
+
+function randomElement<T>(rng: () => number, items: readonly T[]): T {
+	return items[Math.floor(rng() * items.length)] as T;
+}
+
+function powerSet<T>(items: readonly T[]): T[][] {
+	const out: T[][] = [[]];
+	for (const item of items) {
+		const len = out.length;
+		for (let i = 0; i < len; i++) {
+			out.push([...(out[i] as T[]), item]);
+		}
+	}
+	return out;
+}
+
+function pairs<T>(items: readonly T[]): Array<[T, T]> {
+	const out: Array<[T, T]> = [];
+	for (let i = 0; i < items.length; i++) {
+		for (let j = 0; j < items.length; j++) {
+			out.push([items[i] as T, items[j] as T]);
+		}
+	}
+	return out;
+}
+
+const SEED = 0xd1_5e_a5_e;
+const PROPERTY_ITERATIONS = 200;
+const SCOPE_POWER_SET = powerSet(API_SCOPES);
+
+describe("API_SCOPES registry", () => {
+	it("is non-empty", () => {
+		expect(API_SCOPES.length).toBeGreaterThan(0);
 	});
 
-	it("contains write scopes", () => {
-		expect(API_SCOPES).toContain("track:llm");
+	it("has no duplicates", () => {
+		expect(new Set(API_SCOPES).size).toBe(API_SCOPES.length);
 	});
 
-	it("contains track scopes", () => {
-		expect(API_SCOPES).toContain("track:events");
-	});
-});
-
-describe("RESOURCE_TYPES constants", () => {
-	it("contains global", () => {
-		expect(RESOURCE_TYPES).toContain("global");
+	it("every scope is a non-empty string", () => {
+		for (const s of API_SCOPES) {
+			expect(typeof s).toBe("string");
+			expect(s.length).toBeGreaterThan(0);
+		}
 	});
 
-	it("contains website", () => {
-		expect(RESOURCE_TYPES).toContain("website");
-	});
-
-	it("contains experiment types", () => {
-		expect(RESOURCE_TYPES).toContain("ab_experiment");
-		expect(RESOURCE_TYPES).toContain("feature_flag");
-	});
-
-	it("contains data types", () => {
-		expect(RESOURCE_TYPES).toContain("analytics_data");
-		expect(RESOURCE_TYPES).toContain("error_data");
-		expect(RESOURCE_TYPES).toContain("web_vitals");
-		expect(RESOURCE_TYPES).toContain("custom_events");
-		expect(RESOURCE_TYPES).toContain("export_data");
-	});
-});
-
-describe("keys.create", () => {
-	it("generates key with dbdy prefix", async () => {
-		const { key } = await keys.create({ ownerId: "test", name: "test" });
-		expect(key.startsWith("dbdy_")).toBe(true);
-	});
-
-	it("generates key of correct length (prefix + 48 chars)", async () => {
-		const { key } = await keys.create({ ownerId: "test", name: "test" });
-		expect(key.length).toBe(53); // dbdy_ (5) + 48
-	});
-
-	it("generates unique keys", async () => {
-		const { key: key1 } = await keys.create({ ownerId: "test", name: "test1" });
-		const { key: key2 } = await keys.create({ ownerId: "test", name: "test2" });
-		expect(key1).not.toBe(key2);
-	});
-
-	it("returns record with id", async () => {
-		const { record } = await keys.create({ ownerId: "test", name: "test" });
-		expect(record.id).toBeDefined();
-		expect(typeof record.id).toBe("string");
-	});
-
-	it("returns record with keyHash", async () => {
-		const { key, record } = await keys.create({
-			ownerId: "test",
-			name: "test",
-		});
-		expect(record.keyHash).toBeDefined();
-		expect(record.keyHash).toBe(keys.hashKey(key));
-	});
-
-	it("returns record with metadata containing ownerId", async () => {
-		const { record } = await keys.create({ ownerId: "user-123", name: "test" });
-		expect(record.metadata.ownerId).toBe("user-123");
-	});
-
-	it("returns record with metadata containing name", async () => {
-		const { record } = await keys.create({ ownerId: "test", name: "My Key" });
-		expect(record.metadata.name).toBe("My Key");
-	});
-
-	it("returns record with metadata containing scopes", async () => {
-		const { record } = await keys.create({
-			ownerId: "test",
-			name: "test",
-			scopes: ["read:data", "track:llm"],
-		});
-		expect(record.metadata.scopes).toContain("read:data");
-		expect(record.metadata.scopes).toContain("track:llm");
-	});
-
-	it("returns record with metadata containing expiresAt", async () => {
-		const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
-		const { record } = await keys.create({
-			ownerId: "test",
-			name: "test",
-			expiresAt,
-		});
-		expect(record.metadata.expiresAt).toBe(expiresAt);
+	it("every scope matches action:resource format", () => {
+		for (const s of API_SCOPES) {
+			expect(s).toMatch(/^[a-z]+:[a-z_]+$/);
+		}
 	});
 });
 
-describe("keys.hashKey", () => {
-	it("generates consistent hash for same input", () => {
-		const secret = "dbdy_test123abc";
-		const hash1 = keys.hashKey(secret);
-		const hash2 = keys.hashKey(secret);
-		expect(hash1).toBe(hash2);
+describe("keypal hasScope — for every scope", () => {
+	for (const scope of API_SCOPES) {
+		it(`returns true when key has only '${scope}'`, () => {
+			expect(hasScope([scope], scope)).toBe(true);
+		});
+
+		it(`returns false when key is missing '${scope}'`, () => {
+			const without = API_SCOPES.filter((s) => s !== scope);
+			expect(hasScope(without, scope)).toBe(false);
+		});
+	}
+
+	it("returns false for any scope when key list is empty", () => {
+		for (const s of API_SCOPES) {
+			expect(hasScope([], s)).toBe(false);
+		}
 	});
 
-	it("generates different hashes for different inputs", () => {
-		const hash1 = keys.hashKey("dbdy_secret1");
-		const hash2 = keys.hashKey("dbdy_secret2");
-		expect(hash1).not.toBe(hash2);
-	});
-
-	it("returns string hash", () => {
-		const hash = keys.hashKey("dbdy_test");
-		expect(typeof hash).toBe("string");
-		expect(hash.length).toBeGreaterThan(0);
+	it("returns false for any scope when key list is undefined", () => {
+		for (const s of API_SCOPES) {
+			expect(hasScope(undefined, s)).toBe(false);
+		}
 	});
 });
 
-describe("getScopes (router helper)", () => {
-	it("returns base scopes when no resources", () => {
-		const scopes = getScopes(["read:data", "track:llm"], {});
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("track:llm");
-	});
-
-	it("includes global resource scopes", () => {
-		const scopes = getScopes(["read:data"], {
-			resources: { global: ["track:llm"] },
+describe("keypal hasAnyScope — pairwise", () => {
+	const sample = pairs(API_SCOPES);
+	for (const [owned, required] of sample) {
+		it(`owned=[${owned}] required=[${required}] → ${owned === required}`, () => {
+			expect(hasAnyScope([owned], [required])).toBe(owned === required);
 		});
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("track:llm");
+	}
+
+	it("is true when required ⊆ owned (property)", () => {
+		const rng = mulberry32(SEED);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const owned = randomSubset(rng, API_SCOPES);
+			if (owned.length === 0) {
+				continue;
+			}
+			const required = [randomElement(rng, owned)];
+			expect(hasAnyScope(owned, required)).toBe(true);
+		}
 	});
 
-	it("includes resource-specific scopes when resource matches", () => {
-		const scopes = getScopes(
-			["read:data"],
-			{ resources: { "website:site-123": ["track:llm"] } },
-			"website:site-123"
-		);
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("track:llm");
+	it("is false when required ∩ owned = ∅ (property)", () => {
+		const rng = mulberry32(SEED + 1);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const owned = randomSubset(rng, API_SCOPES);
+			const required = API_SCOPES.filter((s) => !owned.includes(s));
+			if (required.length === 0) {
+				continue;
+			}
+			expect(hasAnyScope(owned, required)).toBe(false);
+		}
 	});
 
-	it("excludes resource scopes when resource does not match", () => {
-		const scopes = getScopes(
-			["read:data"],
-			{ resources: { "website:site-123": ["track:llm"] } },
-			"website:site-456"
-		);
-		expect(scopes).toContain("read:data");
-		expect(scopes).not.toContain("track:llm");
-	});
-
-	it("combines global and resource-specific scopes", () => {
-		const scopes = getScopes(
-			["read:data"],
-			{
-				resources: {
-					global: ["track:llm"],
-					"website:site-123": ["track:llm"],
-				},
-			},
-			"website:site-123"
-		);
-		expect(scopes).toContain("read:data");
-		expect(scopes).toContain("track:llm");
-	});
-
-	it("deduplicates scopes", () => {
-		const scopes = getScopes(
-			["read:data", "track:llm"],
-			{
-				resources: {
-					global: ["read:data"],
-					"website:site-123": ["read:data"],
-				},
-			},
-			"website:site-123"
-		);
-		expect(scopes.filter((s) => s === "read:data")).toHaveLength(1);
+	it("returns false for empty required regardless of owned", () => {
+		for (const subset of SCOPE_POWER_SET) {
+			expect(hasAnyScope(subset, [])).toBe(false);
+		}
 	});
 });
 
-describe("checkValidity (router helper)", () => {
-	it("returns valid for enabled key", () => {
-		const result = checkValidity({
-			enabled: true,
-			revokedAt: null,
-			expiresAt: null,
-		});
-		expect(result.valid).toBe(true);
-		expect(result.reason).toBeUndefined();
+describe("keypal hasAllScopes — property invariants", () => {
+	it("is true when required ⊆ owned (power set)", () => {
+		for (const subset of SCOPE_POWER_SET) {
+			expect(hasAllScopes(API_SCOPES as unknown as string[], subset)).toBe(
+				true
+			);
+		}
 	});
 
-	it("returns disabled reason for disabled key", () => {
-		const result = checkValidity({
-			enabled: false,
-			revokedAt: null,
-			expiresAt: null,
-		});
-		expect(result.valid).toBe(false);
-		expect(result.reason).toBe("disabled");
+	it("is false when owned is missing any required scope", () => {
+		const rng = mulberry32(SEED + 2);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const missing = randomElement(rng, API_SCOPES);
+			const owned = API_SCOPES.filter((s) => s !== missing);
+			const required = [...randomSubset(rng, owned), missing];
+			expect(hasAllScopes(owned, required)).toBe(false);
+		}
 	});
 
-	it("returns revoked reason for revoked key", () => {
-		const result = checkValidity({
-			enabled: true,
-			revokedAt: new Date(),
-			expiresAt: null,
-		});
-		expect(result.valid).toBe(false);
-		expect(result.reason).toBe("revoked");
+	it("is permutation-invariant in required", () => {
+		const rng = mulberry32(SEED + 3);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const owned = randomSubset(rng, API_SCOPES);
+			const required = randomSubset(rng, owned);
+			const shuffled = [...required].sort(() => rng() - 0.5);
+			expect(hasAllScopes(owned, required)).toBe(
+				hasAllScopes(owned, shuffled)
+			);
+		}
 	});
 
-	it("returns expired reason for expired key", () => {
-		const result = checkValidity({
-			enabled: true,
-			revokedAt: null,
-			expiresAt: new Date(Date.now() - 1000).toISOString(),
-		});
-		expect(result.valid).toBe(false);
-		expect(result.reason).toBe("expired");
+	it("is true for empty required when owned is non-empty", () => {
+		for (const subset of SCOPE_POWER_SET) {
+			if (subset.length === 0) {
+				continue;
+			}
+			expect(hasAllScopes(subset, [])).toBe(true);
+		}
 	});
 
-	it("returns valid for key with future expiration", () => {
-		const result = checkValidity({
-			enabled: true,
-			revokedAt: null,
-			expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-		});
-		expect(result.valid).toBe(true);
-	});
-
-	it("checks disabled before revoked", () => {
-		const result = checkValidity({
-			enabled: false,
-			revokedAt: new Date(),
-			expiresAt: null,
-		});
-		expect(result.reason).toBe("disabled");
-	});
-
-	it("checks revoked before expired", () => {
-		const result = checkValidity({
-			enabled: true,
-			revokedAt: new Date(),
-			expiresAt: new Date(Date.now() - 1000).toISOString(),
-		});
-		expect(result.reason).toBe("revoked");
-	});
-});
-
-describe("keypal hasScope", () => {
-	it("returns true when scope exists", () => {
-		expect(hasScope(["read:data", "track:llm"], "read:data")).toBe(true);
-	});
-
-	it("returns false when scope does not exist", () => {
-		expect(hasScope(["read:data"], "track:llm")).toBe(false);
-	});
-
-	it("handles undefined scopes", () => {
-		expect(hasScope(undefined, "read:data")).toBe(false);
-	});
-
-	it("handles empty scopes array", () => {
-		expect(hasScope([], "read:data")).toBe(false);
-	});
-});
-
-describe("keypal hasAnyScope", () => {
-	it("returns true when any scope matches", () => {
-		expect(hasAnyScope(["read:data"], ["read:data", "track:llm"])).toBe(true);
-	});
-
-	it("returns true when multiple scopes match", () => {
-		expect(
-			hasAnyScope(["read:data", "track:llm"], ["read:data", "track:llm"])
-		).toBe(true);
-	});
-
-	it("returns false when no scopes match", () => {
-		expect(hasAnyScope(["track:llm"], ["read:data", "track:llm"])).toBe(false);
-	});
-
-	it("handles empty required scopes", () => {
-		expect(hasAnyScope(["read:data"], [])).toBe(false);
-	});
-
-	it("handles undefined scopes", () => {
-		expect(hasAnyScope(undefined, ["read:data"])).toBe(false);
-	});
-});
-
-describe("keypal hasAllScopes", () => {
-	it("returns true when all scopes match", () => {
-		expect(
-			hasAllScopes(["read:data", "track:llm"], ["read:data", "track:llm"])
-		).toBe(true);
-	});
-
-	it("returns false when not all scopes match", () => {
-		expect(hasAllScopes(["read:data"], ["read:data", "track:llm"])).toBe(false);
-	});
-
-	it("returns true for empty required scopes", () => {
-		expect(hasAllScopes(["read:data"], [])).toBe(true);
-	});
-
-	it("handles undefined scopes", () => {
-		expect(hasAllScopes(undefined, ["read:data"])).toBe(false);
-	});
-
-	it("returns true when exact match", () => {
-		expect(
-			hasAllScopes(["read:data", "track:llm"], ["read:data", "track:llm"])
-		).toBe(true);
+	it("is false for empty required when owned is empty or undefined", () => {
+		expect(hasAllScopes([], [])).toBe(false);
+		expect(hasAllScopes(undefined, [])).toBe(false);
 	});
 });
 
 describe("keypal isExpired", () => {
-	it("returns false for null expiration", () => {
+	it("returns false for null/undefined", () => {
 		expect(isExpired(null)).toBe(false);
-	});
-
-	it("returns false for undefined expiration", () => {
 		expect(isExpired(undefined)).toBe(false);
 	});
 
-	it("returns true for past date string", () => {
-		const past = new Date(Date.now() - 1000).toISOString();
-		expect(isExpired(past)).toBe(true);
+	it("returns true for any past timestamp", () => {
+		const rng = mulberry32(SEED + 4);
+		for (let i = 0; i < 50; i++) {
+			const past = new Date(Date.now() - Math.floor(rng() * 1e9) - 1000);
+			expect(isExpired(past.toISOString())).toBe(true);
+		}
 	});
 
-	it("returns false for future date string", () => {
-		const future = new Date(Date.now() + 100_000).toISOString();
-		expect(isExpired(future)).toBe(false);
-	});
-
-	it("handles edge case of exactly now", () => {
-		const now = new Date().toISOString();
-		// Should be expired as it's <= now
-		expect(typeof isExpired(now)).toBe("boolean");
-	});
-});
-
-describe("resource format patterns", () => {
-	it("global resource stores scopes directly", () => {
-		const resources = { global: ["read:data", "track:llm"] };
-		expect(resources.global).toEqual(["read:data", "track:llm"]);
-	});
-
-	it("website resource uses type:id format", () => {
-		const resources = { "website:site-123": ["track:llm"] };
-		expect(resources["website:site-123"]).toContain("track:llm");
-	});
-
-	it("multiple resources can coexist", () => {
-		const resources = {
-			global: ["track:llm"],
-			"website:site-1": ["read:data"],
-			"website:site-2": ["track:llm"],
-		};
-
-		expect(Object.keys(resources)).toHaveLength(4);
+	it("returns false for any future timestamp", () => {
+		const rng = mulberry32(SEED + 5);
+		for (let i = 0; i < 50; i++) {
+			const future = new Date(Date.now() + Math.floor(rng() * 1e9) + 60_000);
+			expect(isExpired(future.toISOString())).toBe(false);
+		}
 	});
 });
 
-describe("checkAccess simulation (matches router logic)", () => {
+describe("keys.create invariants (property)", () => {
+	it("emits keys of length 53 with dbdy_ prefix", async () => {
+		const rng = mulberry32(SEED + 6);
+		for (let i = 0; i < 20; i++) {
+			const scopes = randomSubset(rng, API_SCOPES);
+			const { key, record } = await keys.create({
+				ownerId: `owner-${i}`,
+				name: `name-${i}`,
+				scopes,
+			});
+			expect(key.length).toBe(53);
+			expect(key.startsWith("dbdy_")).toBe(true);
+			expect(record.keyHash).toBe(keys.hashKey(key));
+			expect(record.metadata.scopes).toEqual(scopes);
+		}
+	});
+
+	it("produces unique keys across many invocations", async () => {
+		const seen = new Set<string>();
+		for (let i = 0; i < 50; i++) {
+			const { key } = await keys.create({ ownerId: "o", name: "n" });
+			expect(seen.has(key)).toBe(false);
+			seen.add(key);
+		}
+	});
+
+	it("hashKey is deterministic and injective over random inputs", () => {
+		const rng = mulberry32(SEED + 7);
+		const hashes = new Map<string, string>();
+		for (let i = 0; i < 100; i++) {
+			const secret = `dbdy_${Math.floor(rng() * 1e12).toString(36)}`;
+			const h = keys.hashKey(secret);
+			expect(keys.hashKey(secret)).toBe(h);
+			const prior = hashes.get(secret);
+			if (prior) {
+				expect(prior).toBe(h);
+			}
+			hashes.set(secret, h);
+		}
+		expect(new Set(hashes.values()).size).toBe(hashes.size);
+	});
+});
+
+describe("getScopes (router helper) — property invariants", () => {
+	it("always includes every base scope", () => {
+		const rng = mulberry32(SEED + 8);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const base = randomSubset(rng, API_SCOPES);
+			const globalScopes = randomSubset(rng, API_SCOPES);
+			const scoped = getScopes(base, { resources: { global: globalScopes } });
+			for (const s of base) {
+				expect(scoped).toContain(s);
+			}
+		}
+	});
+
+	it("includes global resource scopes regardless of resource arg", () => {
+		const rng = mulberry32(SEED + 9);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const base = randomSubset(rng, API_SCOPES);
+			const globalScopes = randomSubset(rng, API_SCOPES);
+			const resource = `website:site-${Math.floor(rng() * 100)}`;
+			const scoped = getScopes(
+				base,
+				{ resources: { global: globalScopes } },
+				resource
+			);
+			for (const s of globalScopes) {
+				expect(scoped).toContain(s);
+			}
+		}
+	});
+
+	it("does NOT leak scopes from unrelated resources", () => {
+		const rng = mulberry32(SEED + 10);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const base: ApiScope[] = [];
+			const otherScopes = randomSubset(rng, API_SCOPES);
+			if (otherScopes.length === 0) {
+				continue;
+			}
+			const resources = {
+				"website:site-A": otherScopes as string[],
+			};
+			const scoped = getScopes(base, { resources }, "website:site-B");
+			for (const s of otherScopes) {
+				expect(scoped).not.toContain(s);
+			}
+		}
+	});
+
+	it("unions base, global, and matched resource (no duplicates)", () => {
+		const rng = mulberry32(SEED + 11);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const base = randomSubset(rng, API_SCOPES);
+			const globalScopes = randomSubset(rng, API_SCOPES);
+			const resScopes = randomSubset(rng, API_SCOPES);
+			const scoped = getScopes(
+				base,
+				{
+					resources: {
+						global: globalScopes,
+						"website:site-1": resScopes,
+					},
+				},
+				"website:site-1"
+			);
+			const expected = new Set([...base, ...globalScopes, ...resScopes]);
+			expect(new Set(scoped)).toEqual(expected);
+			expect(scoped.length).toBe(expected.size);
+		}
+	});
+});
+
+describe("checkValidity priority (disabled > revoked > expired)", () => {
+	const states = [
+		{ enabled: false, revoked: false, expired: false, want: "disabled" },
+		{ enabled: false, revoked: true, expired: false, want: "disabled" },
+		{ enabled: false, revoked: false, expired: true, want: "disabled" },
+		{ enabled: false, revoked: true, expired: true, want: "disabled" },
+		{ enabled: true, revoked: true, expired: false, want: "revoked" },
+		{ enabled: true, revoked: true, expired: true, want: "revoked" },
+		{ enabled: true, revoked: false, expired: true, want: "expired" },
+	];
+	for (const s of states) {
+		it(`enabled=${s.enabled} revoked=${s.revoked} expired=${s.expired} → ${s.want}`, () => {
+			const result = checkValidity({
+				enabled: s.enabled,
+				revokedAt: s.revoked ? new Date() : null,
+				expiresAt: s.expired
+					? new Date(Date.now() - 1000).toISOString()
+					: null,
+			});
+			expect(result.valid).toBe(false);
+			expect(result.reason).toBe(s.want);
+		});
+	}
+
+	it("valid when enabled, not revoked, not expired", () => {
+		const result = checkValidity({
+			enabled: true,
+			revokedAt: null,
+			expiresAt: new Date(Date.now() + 1e6).toISOString(),
+		});
+		expect(result.valid).toBe(true);
+	});
+});
+
+describe("RESOURCE_TYPES registry", () => {
+	it("has no duplicates", () => {
+		expect(new Set(RESOURCE_TYPES).size).toBe(RESOURCE_TYPES.length);
+	});
+
+	it("contains 'global' exactly once", () => {
+		expect(RESOURCE_TYPES.filter((r) => r === "global")).toHaveLength(1);
+	});
+
+	it("every type is snake_case", () => {
+		for (const r of RESOURCE_TYPES) {
+			expect(r).toMatch(/^[a-z][a-z_]*$/);
+		}
+	});
+});
+
+describe("access ↔ resources round-trip (property)", () => {
+	it("resources → access → resources is identity for random inputs", () => {
+		const rng = mulberry32(SEED + 12);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const resources: Record<string, string[]> = {};
+			if (rng() < 0.5) {
+				resources.global = randomSubset(rng, API_SCOPES);
+			}
+			const count = Math.floor(rng() * 5);
+			for (let j = 0; j < count; j++) {
+				const resType = randomElement(
+					rng,
+					RESOURCE_TYPES.filter((r) => r !== "global")
+				);
+				const id = `id-${j}-${Math.floor(rng() * 1000)}`;
+				resources[`${resType}:${id}`] = randomSubset(rng, API_SCOPES);
+			}
+			const access = resourcesToAccess(resources);
+			const back = accessToResources(
+				access.map((a) => ({
+					resourceType: a.resourceType,
+					resourceId: a.resourceId ?? undefined,
+					scopes: a.scopes,
+				}))
+			);
+			expect(back).toEqual(resources);
+		}
+	});
+
+	it("every access entry has a unique id", () => {
+		const rng = mulberry32(SEED + 13);
+		for (let i = 0; i < 50; i++) {
+			const entries: Record<string, string[]> = {};
+			const count = 1 + Math.floor(rng() * 8);
+			for (let j = 0; j < count; j++) {
+				entries[`website:site-${j}`] = randomSubset(rng, API_SCOPES);
+			}
+			const access = resourcesToAccess(entries);
+			const ids = access.map((a) => a.id);
+			expect(new Set(ids).size).toBe(ids.length);
+		}
+	});
+});
+
+describe("checkAccess simulation — end-to-end property", () => {
 	const checkAccess = (
 		keyScopes: string[],
 		metadata: Metadata,
@@ -486,330 +517,99 @@ describe("checkAccess simulation (matches router logic)", () => {
 		mode: "any" | "all" = "any"
 	) => {
 		if (!validity.valid) {
-			return {
-				valid: false,
-				reason: validity.reason,
-				hasAccess: false,
-				scopes: [],
-			};
+			return { valid: false, reason: validity.reason, hasAccess: false };
 		}
-
 		const scopes = getScopes(keyScopes, metadata, resource);
-
 		if (!requestedScopes?.length) {
 			return { valid: true, hasAccess: true, scopes };
 		}
-
 		const checkFn = mode === "all" ? hasAllScopes : hasAnyScope;
-		return {
-			valid: true,
-			hasAccess: checkFn(scopes, requestedScopes),
-			scopes,
-			matched: requestedScopes.filter((s) => hasScope(scopes, s)),
-		};
+		return { valid: true, hasAccess: checkFn(scopes, requestedScopes) };
 	};
 
-	it("returns invalid for disabled key", () => {
-		const result = checkAccess(
-			["read:data", "track:llm"],
-			{},
-			{ valid: false, reason: "disabled" }
-		);
-		expect(result.valid).toBe(false);
-		expect(result.reason).toBe("disabled");
+	it("denies invalid keys regardless of requested scopes", () => {
+		const rng = mulberry32(SEED + 14);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const requested = randomSubset(rng, API_SCOPES);
+			const result = checkAccess(
+				API_SCOPES as unknown as string[],
+				{ resources: { global: API_SCOPES as unknown as string[] } },
+				{ valid: false, reason: "disabled" },
+				requested
+			);
+			expect(result.valid).toBe(false);
+			expect(result.hasAccess).toBe(false);
+		}
 	});
 
-	it("returns all scopes when no specific scopes requested", () => {
-		const result = checkAccess(["read:data", "track:llm"], {}, { valid: true });
-		expect(result.valid).toBe(true);
-		expect(result.hasAccess).toBe(true);
-		expect(result.scopes).toContain("read:data");
-		expect(result.scopes).toContain("track:llm");
+	it("'any' mode grants when at least one scope overlaps (property)", () => {
+		const rng = mulberry32(SEED + 15);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const owned = randomSubset(rng, API_SCOPES);
+			if (owned.length === 0) {
+				continue;
+			}
+			const required = [
+				randomElement(rng, owned),
+				...randomSubset(rng, API_SCOPES),
+			];
+			const result = checkAccess(
+				owned as string[],
+				{},
+				{ valid: true },
+				required,
+				undefined,
+				"any"
+			);
+			expect(result.hasAccess).toBe(true);
+		}
 	});
 
-	it("checks any scope by default", () => {
-		const result = checkAccess(["read:data"], {}, { valid: true }, [
-			"read:data",
-			"track:llm",
-		]);
-		expect(result.hasAccess).toBe(true);
-		expect(result.matched).toEqual(["read:data"]);
+	it("'all' mode denies when any required scope is missing (property)", () => {
+		const rng = mulberry32(SEED + 16);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const missing = randomElement(rng, API_SCOPES);
+			const owned = API_SCOPES.filter((s) => s !== missing);
+			const required = [missing, ...randomSubset(rng, owned)];
+			const result = checkAccess(
+				owned as string[],
+				{},
+				{ valid: true },
+				required,
+				undefined,
+				"all"
+			);
+			expect(result.hasAccess).toBe(false);
+		}
 	});
 
-	it("checks all scopes when mode is all", () => {
-		const result = checkAccess(
-			["read:data", "track:llm"],
-			{},
-			{ valid: true },
-			["read:data", "track:llm"],
-			undefined,
-			"all"
-		);
-		expect(result.hasAccess).toBe(false);
-		expect(result.matched).toEqual(["read:data"]);
-	});
-
-	it("includes resource-specific scopes", () => {
-		const result = checkAccess(
-			["read:data", "track:llm"],
-			{ resources: { "website:site-123": ["write:data"] } },
-			{ valid: true },
-			["write:data"],
-			"website:site-123"
-		);
-		expect(result.hasAccess).toBe(true);
-	});
-});
-
-describe("resourcesToAccess (dashboard compatibility)", () => {
-	it("returns empty array for undefined resources", () => {
-		expect(resourcesToAccess(undefined)).toEqual([]);
-	});
-
-	it("returns empty array for empty resources", () => {
-		expect(resourcesToAccess({})).toEqual([]);
-	});
-
-	it("converts global resource correctly", () => {
-		const access = resourcesToAccess({ global: ["read:data", "track:llm"] });
-		expect(access).toHaveLength(1);
-		expect(access[0].resourceType).toBe("global");
-		expect(access[0].resourceId).toBeNull();
-		expect(access[0].scopes).toEqual(["read:data", "track:llm"]);
-	});
-
-	it("converts website resource correctly", () => {
-		const access = resourcesToAccess({
-			"website:site-123": ["track:llm"],
-		});
-		expect(access).toHaveLength(1);
-		expect(access[0].resourceType).toBe("website");
-		expect(access[0].resourceId).toBe("site-123");
-		expect(access[0].scopes).toEqual(["read:analytics"]);
-	});
-
-	it("converts multiple resources", () => {
-		const access = resourcesToAccess({
-			global: ["track:llm"],
-			"website:site-1": ["read:data"],
-			"website:site-2": ["track:llm"],
-		});
-		expect(access).toHaveLength(3);
-	});
-
-	it("generates unique ids for each access entry", () => {
-		const access = resourcesToAccess({
-			global: ["read:data"],
-			"website:site-1": ["write:data"],
-		});
-		const ids = access.map((a) => a.id);
-		expect(new Set(ids).size).toBe(ids.length);
-	});
-});
-
-describe("accessToResources (dashboard compatibility)", () => {
-	it("returns empty object for empty access array", () => {
-		expect(accessToResources([])).toEqual({});
-	});
-
-	it("converts global access entry", () => {
-		const resources = accessToResources([
-			{ resourceType: "global", scopes: ["read:data", "track:llm"] },
-		]);
-		expect(resources).toEqual({ global: ["read:data", "track:llm"] });
-	});
-
-	it("converts website access entry", () => {
-		const resources = accessToResources([
-			{
-				resourceType: "website",
-				resourceId: "site-123",
-				scopes: ["track:llm"],
-			},
-		]);
-		expect(resources).toEqual({ "website:site-123": ["track:llm"] });
-	});
-
-	it("converts multiple access entries", () => {
-		const resources = accessToResources([
-			{ resourceType: "global", scopes: ["track:llm"] },
-			{ resourceType: "website", resourceId: "site-1", scopes: ["read:data"] },
-			{ resourceType: "website", resourceId: "site-2", scopes: ["track:llm"] },
-		]);
-		expect(resources).toEqual({
-			global: ["track:llm"],
-			"website:site-1": ["read:data"],
-			"website:site-2": ["track:llm"],
-		});
-	});
-
-	it("handles undefined resourceId for non-global types", () => {
-		const resources = accessToResources([
-			{
-				resourceType: "website",
-				resourceId: "site-123",
-				scopes: ["track:llm"],
-			},
-		]);
-		expect(resources).toEqual({ "website:site-123": ["track:llm"] });
-	});
-});
-
-describe("round-trip conversion (access <-> resources)", () => {
-	it("maintains data through round-trip (resources -> access -> resources)", () => {
-		const original = {
-			global: ["read:data"],
-			"website:site-123": ["track:llm"],
-		};
-		const access = resourcesToAccess(original);
-		const converted = accessToResources(
-			access.map((a) => ({
-				resourceType: a.resourceType,
-				resourceId: a.resourceId ?? undefined,
-				scopes: a.scopes,
-			}))
-		);
-		expect(converted).toEqual(original);
-	});
-
-	it("maintains data through round-trip (access -> resources -> access)", () => {
-		const original: AccessEntry[] = [
-			{ resourceType: "global", scopes: ["track:llm"] },
-			{ resourceType: "website", resourceId: "site-1", scopes: ["read:data"] },
-		];
-		const resources = accessToResources(original);
-		const access = resourcesToAccess(resources);
-
-		expect(access).toHaveLength(2);
-		expect(access.find((a) => a.resourceType === "global")?.scopes).toEqual([
-			"track:llm",
-		]);
-		expect(
-			access.find(
-				(a) => a.resourceType === "website" && a.resourceId === "site-1"
-			)?.scopes
-		).toEqual(["read:data"]);
-	});
-});
-
-describe("dashboard use case: api-key-list", () => {
-	it("list response has all required fields for ApiKeyListItem", () => {
-		const mockResponse = {
-			id: "key-123",
-			name: "Test Key",
-			prefix: "dbdy",
-			start: "dbdy_abc",
-			type: "user" as const,
-			enabled: true,
-			scopes: ["read:data", "track:llm"],
-			expiresAt: null,
-			revokedAt: null,
-			createdAt: new Date(),
-			updatedAt: new Date(),
-		};
-
-		expect(mockResponse.id).toBeDefined();
-		expect(mockResponse.name).toBeDefined();
-		expect(mockResponse.prefix).toBeDefined();
-		expect(mockResponse.start).toBeDefined();
-		expect(mockResponse.type).toBeDefined();
-		expect(mockResponse.enabled).toBeDefined();
-		expect(mockResponse.createdAt).toBeDefined();
-		expect(mockResponse.updatedAt).toBeDefined();
-	});
-
-	it("correctly shows active status", () => {
-		const isActive = (key: { enabled: boolean; revokedAt: string | null }) =>
-			key.enabled && !key.revokedAt;
-
-		expect(isActive({ enabled: true, revokedAt: null })).toBe(true);
-		expect(isActive({ enabled: false, revokedAt: null })).toBe(false);
-		expect(isActive({ enabled: true, revokedAt: "2024-01-01" })).toBe(false);
-	});
-});
-
-describe("dashboard use case: api-key-detail-dialog", () => {
-	it("detail response has access array for ResourceAccessDisplay", () => {
-		const resources = {
-			global: ["read:data"],
-			"website:site-123": ["track:llm"],
-		};
-		const access = resourcesToAccess(resources);
-
-		expect(access).toHaveLength(2);
-		expect(access[0]).toHaveProperty("id");
-		expect(access[0]).toHaveProperty("resourceType");
-		expect(access[0]).toHaveProperty("scopes");
-	});
-
-	it("access entries have id, resourceType, resourceId, scopes", () => {
-		const access = resourcesToAccess({ "website:site-123": ["read:data"] });
-		const entry = access[0];
-
-		expect(entry.id).toBeDefined();
-		expect(entry.resourceType).toBe("website");
-		expect(entry.resourceId).toBe("site-123");
-		expect(entry.scopes).toEqual(["read:data"]);
-	});
-});
-
-describe("dashboard use case: api-key-create-dialog", () => {
-	it("converts globalScopes and access to resources format", () => {
-		const input = {
-			name: "Test Key",
-			globalScopes: ["read:data", "track:llm"],
-			access: [
-				{
-					resourceType: "website",
-					resourceId: "site-1",
-					scopes: ["track:llm"],
-				},
-				{
-					resourceType: "website",
-					resourceId: "site-2",
-					scopes: ["track:llm"],
-				},
-			],
-		};
-
-		const resources = accessToResources(input.access);
-		expect(resources).toEqual({
-			"website:site-1": ["track:llm"],
-			"website:site-2": ["track:llm"],
-		});
-	});
-
-	it("handles empty access array", () => {
-		const resources = accessToResources([]);
-		expect(resources).toEqual({});
-	});
-
-	it("handles only global scopes (no website restrictions)", () => {
-		const input = {
-			globalScopes: ["read:data", "track:llm"],
-			access: [],
-		};
-		const resources = accessToResources(input.access);
-		expect(resources).toEqual({});
-	});
-});
-
-describe("dashboard use case: effective status calculation", () => {
-	it("returns Enabled for enabled key without revocation", () => {
-		const key = { enabled: true, revokedAt: null };
-		const status = key.enabled && !key.revokedAt ? "Enabled" : "Disabled";
-		expect(status).toBe("Enabled");
-	});
-
-	it("returns Disabled for disabled key", () => {
-		const key = { enabled: false, revokedAt: null };
-		const status = key.enabled && !key.revokedAt ? "Enabled" : "Disabled";
-		expect(status).toBe("Disabled");
-	});
-
-	it("returns Disabled for revoked key", () => {
-		const key = { enabled: true, revokedAt: new Date().toISOString() };
-		const status = key.enabled && !key.revokedAt ? "Enabled" : "Disabled";
-		expect(status).toBe("Disabled");
+	it("resource-specific scope grants access only for matching resource", () => {
+		const rng = mulberry32(SEED + 17);
+		for (let i = 0; i < PROPERTY_ITERATIONS; i++) {
+			const scope = randomElement(rng, API_SCOPES);
+			const resId = `site-${Math.floor(rng() * 1000)}`;
+			const otherId = `site-${Math.floor(rng() * 1000) + 10_000}`;
+			const metadata: Metadata = {
+				resources: { [`website:${resId}`]: [scope] },
+			};
+			const match = checkAccess(
+				[],
+				metadata,
+				{ valid: true },
+				[scope],
+				`website:${resId}`,
+				"all"
+			);
+			const miss = checkAccess(
+				[],
+				metadata,
+				{ valid: true },
+				[scope],
+				`website:${otherId}`,
+				"all"
+			);
+			expect(match.hasAccess).toBe(true);
+			expect(miss.hasAccess).toBe(false);
+		}
 	});
 });

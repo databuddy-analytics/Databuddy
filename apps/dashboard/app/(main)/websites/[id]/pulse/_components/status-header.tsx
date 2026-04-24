@@ -168,14 +168,16 @@ export function StatusHeader({
 						Configure
 					</Button>
 					<DropdownMenu>
-						<DropdownMenu.Trigger>
-							<GhostTriggerButton
-								aria-label="More options"
-								className="size-8 px-0 data-[state=open]:bg-interactive-hover data-[state=open]:text-foreground"
-							>
-								<CircleIcon className="size-4" weight="bold" />
-							</GhostTriggerButton>
-						</DropdownMenu.Trigger>
+						<DropdownMenu.Trigger
+							render={
+								<GhostTriggerButton
+									aria-label="More options"
+									className="size-8 px-0 data-[state=open]:bg-interactive-hover data-[state=open]:text-foreground"
+								>
+									<CircleIcon className="size-4" weight="bold" />
+								</GhostTriggerButton>
+							}
+						/>
 						<DropdownMenu.Content align="end">
 							<DropdownMenu.Item
 								className="text-destructive focus:text-destructive"

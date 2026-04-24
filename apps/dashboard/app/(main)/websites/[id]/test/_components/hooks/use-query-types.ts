@@ -90,19 +90,16 @@ export function useQueryTypes() {
 	/** Get query types filtered by visualization type */
 	const getByVisualization = (
 		viz: QueryBuilderMeta["default_visualization"]
-	): QueryTypeOption[] => {
-		return (query.data || []).filter((t) => t.defaultVisualization === viz);
-	};
+	): QueryTypeOption[] =>
+		(query.data || []).filter((t) => t.defaultVisualization === viz);
 
 	/** Get query types filtered by category */
-	const getByCategory = (category: string): QueryTypeOption[] => {
-		return (query.data || []).filter((t) => t.category === category);
-	};
+	const getByCategory = (category: string): QueryTypeOption[] =>
+		(query.data || []).filter((t) => t.category === category);
 
 	/** Find a query type by key */
-	const getByKey = (key: string): QueryTypeOption | undefined => {
-		return (query.data || []).find((t) => t.key === key);
-	};
+	const getByKey = (key: string): QueryTypeOption | undefined =>
+		(query.data || []).find((t) => t.key === key);
 
 	return {
 		queryTypes: query.data || [],

@@ -93,7 +93,7 @@ export default function ArchivePage() {
 
 	return (
 		<ErrorBoundary>
-			<div className="h-full overflow-y-auto">
+			<div className="flex h-full flex-col overflow-y-auto">
 				<Suspense fallback={<ArchivedFlagsListSkeleton />}>
 					{archivedFlags.length === 0 ? (
 						<div className="flex flex-1 items-center justify-center py-16">

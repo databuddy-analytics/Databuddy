@@ -37,14 +37,14 @@ function formatUtcTimestamp(ms: number): string {
 
 function formatDurationMs(ms: number | undefined): string | undefined {
 	if (ms === undefined || Number.isNaN(ms)) {
-		return undefined;
+		return;
 	}
 	return `${Math.round(ms)} ms`;
 }
 
 function sslLine(input: UptimeNotificationInput): string | undefined {
 	if (input.sslValid === undefined) {
-		return undefined;
+		return;
 	}
 	const status = input.sslValid ? "valid" : "invalid";
 	if (

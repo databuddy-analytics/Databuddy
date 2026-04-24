@@ -5,7 +5,7 @@ import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
 import { ChartLineIcon } from "@phosphor-icons/react/dist/ssr/ChartLine";
 import { CursorIcon } from "@phosphor-icons/react/dist/ssr/Cursor";
 import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
-import { SparkleIcon } from "@phosphor-icons/react/dist/ssr/Sparkle";
+import { LightbulbIcon } from "@phosphor-icons/react/dist/ssr/Lightbulb";
 import { TimerIcon } from "@phosphor-icons/react/dist/ssr/Timer";
 import { TrashIcon } from "@phosphor-icons/react/dist/ssr/Trash";
 import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
@@ -40,7 +40,7 @@ import dayjs from "@/lib/dayjs";
 import { formatNumber } from "@/lib/formatters";
 import {
 	clearInsightsHistory,
-	INSIGHT_QUERY_KEYS,
+	insightQueries,
 	type InsightsAiResponse,
 	type InsightsHistoryPage,
 } from "@/lib/insight-api";
@@ -291,13 +291,13 @@ export function InsightsPageContent() {
 					hasMore: false,
 				};
 				queryClient.setQueryData<InsightsAiResponse>(
-					[INSIGHT_QUERY_KEYS.ai, orgId],
+					insightQueries.ai(orgId).queryKey,
 					emptyAi
 				);
-				queryClient.setQueryData([INSIGHT_QUERY_KEYS.historyInfinite, orgId], {
-					pages: [emptyHistoryPage],
-					pageParams: [0],
-				});
+				queryClient.setQueryData(
+					insightQueries.historyInfinite(orgId).queryKey,
+					{ pages: [emptyHistoryPage], pageParams: [0] }
+				);
 				await queryClient.invalidateQueries({
 					queryKey: orpc.insights.getVotes.key(),
 				});
@@ -327,12 +327,12 @@ export function InsightsPageContent() {
 		<>
 			<div
 				aria-busy={isLoading || cockpitLoading || websitesLoading}
-				className="h-full overflow-y-auto"
+				className="flex h-full flex-col overflow-y-auto"
 			>
 				<PageHeader
 					count={isLoading ? undefined : insights.length}
 					description="Understand your business at a glance"
-					icon={<SparkleIcon weight="duotone" />}
+					icon={<LightbulbIcon weight="duotone" />}
 					right={
 						<div className="flex items-center gap-2">
 							<FocusSitePicker
@@ -374,7 +374,7 @@ export function InsightsPageContent() {
 				{hasNoWebsites ? (
 					<EmptyOrgState />
 				) : (
-					<div className="space-y-3 p-4 sm:space-y-4">
+					<div className="space-y-4 p-4 sm:p-5">
 						<CockpitNarrative />
 
 						<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">

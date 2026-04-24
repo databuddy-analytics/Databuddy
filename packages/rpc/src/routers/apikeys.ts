@@ -2,11 +2,12 @@ import {
 	type ApiKeyRow,
 	collectScopes,
 	keys,
+	markApiKeyUsed,
 } from "@databuddy/api-keys/resolve";
 import { API_SCOPES } from "@databuddy/api-keys/scopes";
 import { websitesApi } from "@databuddy/auth";
-import { desc, eq } from "@databuddy/db";
-import { apikey } from "@databuddy/db/schema";
+import { and, desc, eq } from "@databuddy/db";
+import { apikey, member } from "@databuddy/db/schema";
 import { invalidateCacheableKey } from "@databuddy/redis";
 import {
 	ApiKeyErrorCode,
@@ -18,18 +19,35 @@ import {
 import { z } from "zod";
 import { rpcError } from "../errors";
 import type { Context } from "../orpc";
-import { protectedProcedure, publicProcedure } from "../orpc";
+import { protectedProcedure, publicProcedure, sessionProcedure } from "../orpc";
 
 type ApiKey = ApiKeyRow;
 interface Metadata {
 	description?: string;
-	lastUsedAt?: string;
 	resources?: Record<string, string[]>;
 	tags?: string[];
 }
 
+const MAX_RESOURCE_KEY_LENGTH = 128;
+const MAX_RESOURCE_ENTRIES = 100;
+const MAX_METADATA_BYTES = 16 * 1024;
+
 const scopeEnum = z.enum(API_SCOPES);
-const resourcesSchema = z.record(z.string(), z.array(scopeEnum));
+const resourcesSchema = z
+	.record(z.string().max(MAX_RESOURCE_KEY_LENGTH), z.array(scopeEnum))
+	.refine((r) => Object.keys(r).length <= MAX_RESOURCE_ENTRIES, {
+		message: `Too many resource entries (max ${MAX_RESOURCE_ENTRIES})`,
+	});
+
+function assertMetadataSize(meta: Record<string, unknown>) {
+	const bytes = Buffer.byteLength(JSON.stringify(meta), "utf8");
+	if (bytes > MAX_METADATA_BYTES) {
+		throw rpcError.badRequest(
+			`Metadata too large: ${bytes} bytes exceeds limit of ${MAX_METADATA_BYTES}`
+		);
+	}
+}
+
 const rateLimitSchema = z.object({
 	enabled: z.boolean().optional(),
 	max: z.number().int().positive().nullable().optional(),
@@ -47,7 +65,7 @@ const apiKeyOutputSchema = z.object({
 	tags: z.array(z.string()),
 	expiresAt: z.nullable(z.coerce.date()),
 	revokedAt: z.nullable(z.coerce.date()),
-	lastUsedAt: z.string().nullable(),
+	lastUsedAt: z.nullable(z.coerce.date()),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 });
@@ -55,7 +73,7 @@ const apiKeyOutputSchema = z.object({
 const apiKeyFullOutputSchema = apiKeyOutputSchema.extend({
 	description: z.string().nullable().optional(),
 	resources: z.record(z.string(), z.array(z.string())).optional(),
-	rateLimit: z
+	ratelimit: z
 		.object({
 			enabled: z.boolean(),
 			max: z.number().int().positive().nullable(),
@@ -120,6 +138,29 @@ async function verifyOrganizationAccess(
 	}
 }
 
+async function assertOrgAdminForScopeChange(
+	ctx: Context,
+	organizationId: string
+) {
+	if (!ctx.user) {
+		throw rpcError.forbidden(
+			"API key scopes cannot be changed via an API key — use a user session"
+		);
+	}
+	const callerMember = await ctx.db.query.member.findFirst({
+		where: and(
+			eq(member.organizationId, organizationId),
+			eq(member.userId, ctx.user.id)
+		),
+		columns: { role: true },
+	});
+	if (callerMember?.role !== "owner" && callerMember?.role !== "admin") {
+		throw rpcError.forbidden(
+			"Only organization owners or admins can change API key scopes"
+		);
+	}
+}
+
 async function getKeyWithAuth(ctx: Context, id: string) {
 	const key = await ctx.db.query.apikey.findFirst({ where: eq(apikey.id, id) });
 	if (!key) {
@@ -145,13 +186,13 @@ function mapKey(key: ApiKey, full = false) {
 		tags: meta.tags ?? [],
 		expiresAt: key.expiresAt,
 		revokedAt: key.revokedAt,
-		lastUsedAt: meta.lastUsedAt ?? null,
+		lastUsedAt: key.lastUsedAt,
 		createdAt: key.createdAt,
 		updatedAt: key.updatedAt,
 		...(full && {
 			description: meta.description ?? null,
 			resources: meta.resources ?? {},
-			rateLimit: {
+			ratelimit: {
 				enabled: key.rateLimitEnabled,
 				max: key.rateLimitMax,
 				window: key.rateLimitTimeWindow,
@@ -160,7 +201,38 @@ function mapKey(key: ApiKey, full = false) {
 	};
 }
 
+const myRoleOutputSchema = z.object({
+	role: z.enum(["owner", "admin", "member"]).nullable(),
+	canEditScopes: z.boolean(),
+});
+
 export const apikeysRouter = {
+	getMyRole: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/apikeys/getMyRole",
+			tags: ["API Keys"],
+			summary: "Caller's role in an organization (for scope-edit UX)",
+			description:
+				"Returns the session user's membership role in the given organization so clients can disable scope editing for non-admins.",
+		})
+		.input(z.object({ organizationId: z.string() }))
+		.output(myRoleOutputSchema)
+		.handler(async ({ context, input }) => {
+			const m = await context.db.query.member.findFirst({
+				where: and(
+					eq(member.organizationId, input.organizationId),
+					eq(member.userId, context.user.id)
+				),
+				columns: { role: true },
+			});
+			const role = (m?.role ?? null) as "owner" | "admin" | "member" | null;
+			return {
+				role,
+				canEditScopes: role === "owner" || role === "admin",
+			};
+		}),
+
 	list: protectedProcedure
 		.route({
 			method: "POST",
@@ -168,10 +240,10 @@ export const apikeysRouter = {
 			tags: ["API Keys"],
 			summary: "List API keys",
 			description:
-				"Returns API keys for the organization. Requires website configure permission.",
+				"Returns API keys for the organization with full details. Requires website configure permission.",
 		})
 		.input(z.object({ organizationId: z.string() }))
-		.output(z.array(apiKeyOutputSchema))
+		.output(z.array(apiKeyFullOutputSchema))
 		.handler(async ({ context, input }) => {
 			await verifyOrganizationAccess(context, input.organizationId);
 			const rows = await context.db
@@ -179,7 +251,7 @@ export const apikeysRouter = {
 				.from(apikey)
 				.where(eq(apikey.organizationId, input.organizationId))
 				.orderBy(desc(apikey.createdAt));
-			return rows.map((r) => mapKey(r));
+			return rows.map((r) => mapKey(r, true));
 		}),
 
 	getById: protectedProcedure
@@ -212,16 +284,27 @@ export const apikeysRouter = {
 				description: z.string().max(500).optional(),
 				organizationId: z.string(),
 				type: z.enum(["user", "sdk", "automation"]).default("user"),
-				scopes: z.array(scopeEnum).default(["read:data"]),
+				scopes: z.array(scopeEnum).default([]),
 				resources: resourcesSchema.optional(),
 				tags: z.array(z.string().max(50)).max(10).optional(),
 				expiresAt: z.string().optional(),
-				rateLimit: rateLimitSchema.optional(),
+				ratelimit: rateLimitSchema.optional(),
 			})
 		)
 		.output(apiKeyCreateOutputSchema)
 		.handler(async ({ context, input }) => {
 			await verifyOrganizationAccess(context, input.organizationId);
+
+			if (input.scopes.length > 0) {
+				await assertOrgAdminForScopeChange(context, input.organizationId);
+			}
+
+			const nextMetadata = {
+				resources: input.resources,
+				tags: input.tags,
+				description: input.description,
+			};
+			assertMetadataSize(nextMetadata);
 
 			const { key: secret, record } = await keys.create({
 				ownerId: input.organizationId,
@@ -245,15 +328,11 @@ export const apikeysRouter = {
 					type: input.type,
 					scopes: input.scopes,
 					enabled: true,
-					rateLimitEnabled: input.rateLimit?.enabled ?? true,
-					rateLimitMax: input.rateLimit?.max,
-					rateLimitTimeWindow: input.rateLimit?.window,
+					rateLimitEnabled: input.ratelimit?.enabled ?? true,
+					rateLimitMax: input.ratelimit?.max,
+					rateLimitTimeWindow: input.ratelimit?.window,
 					expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-					metadata: {
-						resources: input.resources,
-						tags: input.tags,
-						description: input.description,
-					},
+					metadata: nextMetadata,
 				})
 				.returning();
 
@@ -284,13 +363,31 @@ export const apikeysRouter = {
 				resources: resourcesSchema.nullable().optional(),
 				tags: z.array(z.string().max(50)).max(10).nullable().optional(),
 				expiresAt: z.string().nullable().optional(),
-				rateLimit: rateLimitSchema.optional(),
+				ratelimit: rateLimitSchema.optional(),
 			})
 		)
 		.output(apiKeyOutputSchema)
 		.handler(async ({ context, input }) => {
 			const key = await getKeyWithAuth(context, input.id);
 			const meta = getMeta(key);
+
+			if (input.scopes !== undefined && key.organizationId) {
+				await assertOrgAdminForScopeChange(context, key.organizationId);
+			}
+
+			const nextMetadata = {
+				...meta,
+				...(input.resources !== undefined && {
+					resources: input.resources ?? undefined,
+				}),
+				...(input.description !== undefined && {
+					description: input.description ?? undefined,
+				}),
+				...(input.tags !== undefined && { tags: input.tags ?? undefined }),
+			};
+			assertMetadataSize(nextMetadata);
+
+			await invalidateCacheableKey("api-key-by-hash", key.keyHash);
 
 			const [updated] = await context.db
 				.update(apikey)
@@ -301,31 +398,21 @@ export const apikeysRouter = {
 					...(input.expiresAt !== undefined && {
 						expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
 					}),
-					...(input.rateLimit?.enabled !== undefined && {
-						rateLimitEnabled: input.rateLimit.enabled,
+					...(input.ratelimit?.enabled !== undefined && {
+						rateLimitEnabled: input.ratelimit.enabled,
 					}),
-					...(input.rateLimit?.max !== undefined && {
-						rateLimitMax: input.rateLimit.max,
+					...(input.ratelimit?.max !== undefined && {
+						rateLimitMax: input.ratelimit.max,
 					}),
-					...(input.rateLimit?.window !== undefined && {
-						rateLimitTimeWindow: input.rateLimit.window,
+					...(input.ratelimit?.window !== undefined && {
+						rateLimitTimeWindow: input.ratelimit.window,
 					}),
-					metadata: {
-						...meta,
-						...(input.resources !== undefined && {
-							resources: input.resources ?? undefined,
-						}),
-						...(input.description !== undefined && {
-							description: input.description ?? undefined,
-						}),
-						...(input.tags !== undefined && { tags: input.tags ?? undefined }),
-					},
+					metadata: nextMetadata,
 					updatedAt: new Date(),
 				})
 				.where(eq(apikey.id, input.id))
 				.returning();
 
-			// Invalidate cache for the API key
 			await invalidateCacheableKey("api-key-by-hash", updated.keyHash);
 
 			return mapKey(updated);
@@ -344,12 +431,14 @@ export const apikeysRouter = {
 		.output(successOutputSchema)
 		.handler(async ({ context, input }) => {
 			const key = await getKeyWithAuth(context, input.id);
+
+			await invalidateCacheableKey("api-key-by-hash", key.keyHash);
+
 			await context.db
 				.update(apikey)
 				.set({ enabled: false, revokedAt: new Date(), updatedAt: new Date() })
 				.where(eq(apikey.id, input.id));
 
-			// Invalidate cache for the revoked API key
 			await invalidateCacheableKey("api-key-by-hash", key.keyHash);
 
 			return { success: true };
@@ -383,6 +472,8 @@ export const apikeysRouter = {
 				expiresAt: key.expiresAt?.toISOString() ?? null,
 			});
 
+			await invalidateCacheableKey("api-key-by-hash", key.keyHash);
+
 			const [updated] = await context.db
 				.update(apikey)
 				.set({
@@ -394,7 +485,6 @@ export const apikeysRouter = {
 				.where(eq(apikey.id, input.id))
 				.returning();
 
-			// Invalidate cache for both old and new key hash
 			await Promise.all([
 				invalidateCacheableKey("api-key-by-hash", key.keyHash),
 				invalidateCacheableKey("api-key-by-hash", updated.keyHash),
@@ -421,9 +511,11 @@ export const apikeysRouter = {
 		.output(successOutputSchema)
 		.handler(async ({ context, input }) => {
 			const key = await getKeyWithAuth(context, input.id);
+
+			await invalidateCacheableKey("api-key-by-hash", key.keyHash);
+
 			await context.db.delete(apikey).where(eq(apikey.id, input.id));
 
-			// Invalidate cache for the deleted API key
 			await invalidateCacheableKey("api-key-by-hash", key.keyHash);
 
 			return { success: true };
@@ -509,12 +601,7 @@ export const apikeysRouter = {
 			}
 
 			if (input.trackUsage) {
-				await context.db
-					.update(apikey)
-					.set({
-						metadata: { ...getMeta(key), lastUsedAt: new Date().toISOString() },
-					})
-					.where(eq(apikey.id, key.id));
+				await markApiKeyUsed(key.id);
 			}
 
 			return {

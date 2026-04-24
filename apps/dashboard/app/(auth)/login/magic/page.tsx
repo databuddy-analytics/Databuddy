@@ -1,18 +1,20 @@
 "use client";
 
-import { authClient } from "@databuddy/auth/client";
-import { ArrowLeftIcon } from "@phosphor-icons/react/dist/ssr";
-import { SparkleIcon } from "@phosphor-icons/react/dist/ssr";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ds/button";
 import { Field } from "@/components/ds/field";
 import { Input } from "@/components/ds/input";
 import { Spinner } from "@/components/ds/spinner";
 import { Text } from "@/components/ds/text";
+import { authClient } from "@databuddy/auth/client";
+import {
+	ArrowLeftIcon,
+	EnvelopeSimpleIcon,
+} from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
+import { Suspense, useState } from "react";
+import { toast } from "sonner";
 
 function MagicLinkPage() {
 	const router = useRouter();
@@ -77,7 +79,10 @@ function MagicLinkPage() {
 					</Field>
 
 					<div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
-						<SparkleIcon className="size-4 shrink-0 text-foreground" />
+						<EnvelopeSimpleIcon
+							className="size-4 shrink-0 text-foreground"
+							weight="duotone"
+						/>
 						<Text tone="muted">
 							We&apos;ll send a secure link to your email that will sign you in
 							instantly — no password needed.
@@ -85,7 +90,7 @@ function MagicLinkPage() {
 					</div>
 
 					<Button className="w-full" loading={isLoading} type="submit">
-						<SparkleIcon className="size-4" />
+						<EnvelopeSimpleIcon className="size-4" weight="duotone" />
 						Send magic link
 					</Button>
 				</form>

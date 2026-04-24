@@ -207,26 +207,28 @@ export function useDashboardData<T extends WidgetWithSettings>(
 		enabled: (options?.enabled ?? true) && queries.length > 0,
 	});
 
-	const customQueryConfigs = useMemo(() => {
-		return customWidgets
-			.filter((widget) => widget.customQuery)
-			.map((widget) => {
-				const resolvedDateRange = resolveDateRange(
-					widget.dateRangePreset || "global",
-					globalDateRange
-				);
-				return {
-					cardId: widget.id,
-					request: {
-						query: widget.customQuery,
-						startDate: resolvedDateRange.start_date,
-						endDate: resolvedDateRange.end_date,
-						timezone: resolvedDateRange.timezone,
-						granularity: resolvedDateRange.granularity,
-					} as CustomQueryRequest,
-				};
-			});
-	}, [customWidgets, globalDateRange]);
+	const customQueryConfigs = useMemo(
+		() =>
+			customWidgets
+				.filter((widget) => widget.customQuery)
+				.map((widget) => {
+					const resolvedDateRange = resolveDateRange(
+						widget.dateRangePreset || "global",
+						globalDateRange
+					);
+					return {
+						cardId: widget.id,
+						request: {
+							query: widget.customQuery,
+							startDate: resolvedDateRange.start_date,
+							endDate: resolvedDateRange.end_date,
+							timezone: resolvedDateRange.timezone,
+							granularity: resolvedDateRange.granularity,
+						} as CustomQueryRequest,
+					};
+				}),
+		[customWidgets, globalDateRange]
+	);
 
 	const customQueries = useQueries({
 		queries: customQueryConfigs.map((config) => ({
@@ -312,7 +314,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 
 				const mapping = cardToQueryMap.get(cardId);
 				if (!mapping) {
-					return undefined;
+					return;
 				}
 
 				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
@@ -321,7 +323,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 				}
 
 				if (!Array.isArray(rows) || rows.length === 0) {
-					return undefined;
+					return;
 				}
 
 				const firstRow = rows.at(0);
@@ -340,7 +342,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 
 				const mapping = cardToQueryMap.get(cardId);
 				if (!mapping) {
-					return undefined;
+					return;
 				}
 
 				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
@@ -349,7 +351,7 @@ export function useDashboardData<T extends WidgetWithSettings>(
 				}
 
 				if (!Array.isArray(rows) || rows.length === 0) {
-					return undefined;
+					return;
 				}
 				return rows.at(0);
 			},

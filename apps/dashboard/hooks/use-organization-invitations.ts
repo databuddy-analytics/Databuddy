@@ -1,142 +1,99 @@
 import { authClient } from "@databuddy/auth/client";
-import { useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
-import { useCallback, useEffect } from "react";
+import type { invitation } from "@databuddy/db/schema";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import type { OrganizationRole } from "@/hooks/use-organizations";
+import dayjs from "@/lib/dayjs";
 import { orpc } from "@/lib/orpc";
-import {
-	acceptedCountAtom,
-	expiredCountAtom,
-	filteredInvitationsAtom,
-	type Invitation,
-	type InvitationTab,
-	invitationsAtom,
-	isCancellingInvitationAtom,
-	isInvitingMemberAtom,
-	isLoadingInvitationsAtom,
-	pendingCountAtom,
-	selectedTabAtom,
-} from "@/stores/jotai/organizationAtoms";
+
+export type Invitation = typeof invitation.$inferSelect;
+
+interface InviteMemberInput {
+	email: string;
+	organizationId?: string;
+	role: OrganizationRole;
+}
+
+const EMPTY_INVITATIONS: Invitation[] = [];
 
 export function useOrganizationInvitations(organizationId: string) {
-	const [invitations, setInvitations] = useAtom(invitationsAtom);
-	const [filteredInvitations] = useAtom(filteredInvitationsAtom);
-	const [isLoading, setIsLoading] = useAtom(isLoadingInvitationsAtom);
-	const [selectedTab, setSelectedTab] = useAtom(selectedTabAtom);
-	const [isInviting, setIsInviting] = useAtom(isInvitingMemberAtom);
-	const [isCancelling, setIsCancelling] = useAtom(isCancellingInvitationAtom);
+	const queryClient = useQueryClient();
 
-	const [pendingCount] = useAtom(pendingCountAtom);
-	const [expiredCount] = useAtom(expiredCountAtom);
-	const [acceptedCount] = useAtom(acceptedCountAtom);
+	const listKey = orpc.organizations.getPendingInvitations.key({
+		input: { organizationId, includeExpired: true },
+	});
 
-	const {
-		data,
-		isLoading: queryLoading,
-		refetch,
-		error,
-	} = useQuery({
+	const query = useQuery({
 		...orpc.organizations.getPendingInvitations.queryOptions({
 			input: { organizationId, includeExpired: true },
 		}),
 		enabled: !!organizationId,
 	});
 
-	useEffect(() => {
-		setIsLoading(queryLoading);
-		if (data) {
-			setInvitations(data as Invitation[]);
-		}
-	}, [data, queryLoading, setInvitations, setIsLoading]);
+	const invitations =
+		(query.data as Invitation[] | undefined) ?? EMPTY_INVITATIONS;
 
-	const fetchInvitations = useCallback(() => {
-		refetch();
-	}, [refetch]);
+	const pendingCount = useMemo(
+		() =>
+			invitations.filter(
+				(inv) =>
+					inv.status === "pending" && dayjs(inv.expiresAt).isAfter(dayjs())
+			).length,
+		[invitations]
+	);
 
-	// Invite member
-	const inviteMember = useCallback(
-		async (inviteData: {
-			email: string;
-			role: OrganizationRole;
-			organizationId?: string;
-		}) => {
-			setIsInviting(true);
-			try {
-				const { error } = await authClient.organization.inviteMember({
-					email: inviteData.email,
-					role: inviteData.role,
-					organizationId: inviteData.organizationId || organizationId,
-				});
-
-				if (error) {
-					throw new Error(error.message);
-				}
-
-				toast.success("Member invited successfully");
-				// Refresh invitations
-				fetchInvitations();
-			} catch (error) {
-				toast.error(
-					error instanceof Error ? error.message : "Failed to invite member"
-				);
-				throw error;
-			} finally {
-				setIsInviting(false);
+	const inviteMutation = useMutation({
+		mutationFn: async (input: InviteMemberInput) => {
+			const { error } = await authClient.organization.inviteMember({
+				email: input.email,
+				role: input.role,
+				organizationId: input.organizationId || organizationId,
+			});
+			if (error) {
+				throw new Error(error.message);
 			}
 		},
-		[organizationId, setIsInviting, fetchInvitations]
-	);
+		onSuccess: () => {
+			toast.success("Member invited successfully");
+			queryClient.invalidateQueries({ queryKey: listKey });
+		},
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to invite member"
+			);
+		},
+	});
 
-	// Cancel invitation
-	const cancelInvitation = useCallback(
-		async (invitationId: string) => {
-			setIsCancelling(true);
-			try {
-				const { error } = await authClient.organization.cancelInvitation({
-					invitationId,
-				});
-
-				if (error) {
-					throw new Error(error.message);
-				}
-
-				toast.success("Invitation cancelled successfully");
-				// Refresh invitations
-				await fetchInvitations();
-			} catch (error) {
-				toast.error(
-					error instanceof Error ? error.message : "Failed to cancel invitation"
-				);
-				throw error;
-			} finally {
-				setIsCancelling(false);
+	const cancelMutation = useMutation({
+		mutationFn: async (invitationId: string) => {
+			const { error } = await authClient.organization.cancelInvitation({
+				invitationId,
+			});
+			if (error) {
+				throw new Error(error.message);
 			}
 		},
-		[setIsCancelling, fetchInvitations]
-	);
-
-	const setTab = useCallback(
-		(tab: InvitationTab | string) => {
-			setSelectedTab(tab as InvitationTab);
+		onSuccess: () => {
+			toast.success("Invitation cancelled successfully");
+			queryClient.invalidateQueries({ queryKey: listKey });
 		},
-		[setSelectedTab]
-	);
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to cancel invitation"
+			);
+		},
+	});
 
 	return {
 		invitations,
-		filteredInvitations,
-		isLoading,
-		error,
-		selectedTab,
-		isInviting,
-		isCancelling,
+		isLoading: query.isLoading,
+		error: query.error,
 		pendingCount,
-		expiredCount,
-		acceptedCount,
-		inviteMember,
-		cancelInvitation,
-		setTab,
-		refetch: fetchInvitations,
+		isInviting: inviteMutation.isPending,
+		isCancelling: cancelMutation.isPending,
+		inviteMember: inviteMutation.mutateAsync,
+		cancelInvitation: cancelMutation.mutateAsync,
+		refetch: query.refetch,
 	};
 }

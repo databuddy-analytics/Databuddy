@@ -16,14 +16,13 @@ export interface RevenueEntry {
 	transactions: number;
 }
 
-const formatCurrency = (amount: number, currency = "USD"): string => {
-	return new Intl.NumberFormat("en-US", {
+const formatCurrency = (amount: number, currency = "USD"): string =>
+	new Intl.NumberFormat("en-US", {
 		style: "currency",
 		currency,
 		minimumFractionDigits: 0,
 		maximumFractionDigits: 0,
 	}).format(amount);
-};
 
 interface RevenueRowProps {
 	nameLabel?: string;

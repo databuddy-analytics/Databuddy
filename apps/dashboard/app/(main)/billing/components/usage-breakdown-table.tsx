@@ -5,7 +5,7 @@ import { BugIcon } from "@phosphor-icons/react/dist/ssr";
 import { ChartBarIcon } from "@phosphor-icons/react/dist/ssr";
 import { LightningIcon } from "@phosphor-icons/react/dist/ssr";
 import { LinkIcon } from "@phosphor-icons/react/dist/ssr";
-import { SparkleIcon } from "@phosphor-icons/react/dist/ssr";
+import { TagIcon } from "@phosphor-icons/react/dist/ssr";
 import { TableIcon } from "@phosphor-icons/react/dist/ssr";
 import { Badge } from "@/components/ds/badge";
 import { Card } from "@/components/ds/card";
@@ -33,7 +33,7 @@ const EVENT_TYPE_CONFIG = {
 	custom_event: {
 		name: "Custom Events",
 		description: "Custom tracking events",
-		icon: SparkleIcon,
+		icon: TagIcon,
 	},
 	outgoing_link: {
 		name: "Outgoing Links",

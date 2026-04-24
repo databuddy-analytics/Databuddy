@@ -1,5 +1,6 @@
+import { resolveApiKey } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
-import { getApiKeyFromHeader, isApiKeyPresent } from "./api-key";
+import { isApiKeyPresent } from "./api-key";
 import { mergeWideEvent } from "./tracing";
 
 /**
@@ -11,9 +12,9 @@ export async function applyAuthWideEvent(headers: Headers): Promise<void> {
 	const fields: Record<string, string | number | boolean> = {};
 
 	const hasKey = isApiKeyPresent(headers);
-	const [session, apiKey] = await Promise.all([
+	const [session, apiKeyResult] = await Promise.all([
 		auth.api.getSession({ headers }).catch(() => null),
-		hasKey ? getApiKeyFromHeader(headers) : null,
+		hasKey ? resolveApiKey(headers) : null,
 	]);
 
 	const user = session?.user as
@@ -23,6 +24,7 @@ export async function applyAuthWideEvent(headers: Headers): Promise<void> {
 		session?.session as { activeOrganizationId?: string | null } | undefined
 	)?.activeOrganizationId;
 
+	const apiKey = apiKeyResult?.key ?? null;
 	const hasUser = Boolean(user);
 	const hasApiKey = Boolean(apiKey);
 
@@ -51,8 +53,19 @@ export async function applyAuthWideEvent(headers: Headers): Promise<void> {
 		fields.api_key_prefix = apiKey.prefix;
 		fields.api_key_type = apiKey.type;
 		fields.api_key_scope_count = apiKey.scopes.length;
-	} else if (hasKey) {
-		fields.api_key_resolved = false;
+	}
+
+	if (apiKeyResult) {
+		fields.api_key_outcome = apiKeyResult.outcome;
+		if (apiKeyResult.prefix) {
+			fields.api_key_attempted_prefix = apiKeyResult.prefix;
+		}
+		if (apiKeyResult.start) {
+			fields.api_key_attempted_start = apiKeyResult.start;
+		}
+		if (apiKeyResult.outcome !== "ok" && apiKeyResult.outcome !== "missing") {
+			fields.api_key_resolved = false;
+		}
 	}
 
 	const orgId = activeOrgId ?? apiKey?.organizationId ?? null;

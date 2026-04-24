@@ -1,27 +1,28 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { GoalFilter } from "@databuddy/shared/types/api";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr";
-import { TargetIcon as Target } from "@phosphor-icons/react/dist/ssr";
-import { TrashIcon } from "@phosphor-icons/react/dist/ssr";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { Accordion } from "@/components/ds/accordion";
 import { Button } from "@/components/ds/button";
+import { Divider } from "@/components/ds/divider";
+import { DropdownMenu } from "@/components/ds/dropdown-menu";
 import { Field } from "@/components/ds/field";
-import { Sheet } from "@/components/ds/sheet";
 import { Input } from "@/components/ds/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Sheet } from "@/components/ds/sheet";
 import { Switch } from "@/components/ds/switch";
+import { Text } from "@/components/ds/text";
+import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { FilterRow } from "@/components/ui/filter-row";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
 import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import type { CreateGoalData, Goal } from "@/hooks/use-goals";
+import { filterOptions } from "@databuddy/shared/lists/filters";
+import type { GoalFilter } from "@databuddy/shared/types/api";
+import {
+	FunnelSimpleIcon,
+	GearIcon,
+	PlusIcon,
+	TargetIcon as Target,
+} from "@phosphor-icons/react/dist/ssr";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const defaultFilter: GoalFilter = {
 	field: "browser_name",
@@ -61,7 +62,6 @@ export function EditGoalDialog({
 
 	useEffect(() => {
 		if (goal) {
-			// Ensure all filters have valid operators (default to "equals" if missing)
 			const sanitizedFilters = ((goal.filters as GoalFilter[]) || []).map(
 				(f) => ({
 					...f,
@@ -89,7 +89,8 @@ export function EditGoalDialog({
 		}
 	}, [goal]);
 
-	const handleSubmit = async () => {
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
 		if (!formData) {
 			return;
 		}
@@ -196,20 +197,17 @@ export function EditGoalDialog({
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
-			<Sheet.Content side="right">
+			<Sheet.Content className="w-full sm:max-w-lg" side="right">
 				<Sheet.Header>
-					<div className="flex items-start gap-4">
-						<div className="flex size-11 items-center justify-center rounded border bg-background">
-							<Target
-								className="size-[22px] text-accent-foreground"
-								weight="fill"
-							/>
+					<div className="flex items-center gap-4">
+						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
+							<Target className="size-5 text-primary" weight="fill" />
 						</div>
-						<div className="min-w-0 flex-1">
-							<Sheet.Title className="truncate text-lg">
+						<div>
+							<Sheet.Title className="text-lg">
 								{isCreateMode ? "New Goal" : formData.name || "Edit Goal"}
 							</Sheet.Title>
-							<Sheet.Description className="text-xs">
+							<Sheet.Description>
 								{isCreateMode
 									? "Track single-step conversions"
 									: "Update goal settings"}
@@ -218,191 +216,172 @@ export function EditGoalDialog({
 					</div>
 				</Sheet.Header>
 
-				<Sheet.Close />
-
-				<Sheet.Body className="space-y-6">
-					<div className="grid gap-4 sm:grid-cols-2">
-						<div className="space-y-2">
-							<Field.Label htmlFor="goal-name">Name</Field.Label>
-							<Input
-								id="goal-name"
-								onChange={(e) => updateField("name", e.target.value)}
-								placeholder="e.g., Newsletter Signup"
-								value={formData.name}
-							/>
-						</div>
-						<div className="space-y-2">
-							<Field.Label htmlFor="goal-description">Description</Field.Label>
-							<Input
-								id="goal-description"
-								onChange={(e) => updateField("description", e.target.value)}
-								placeholder="Optional"
-								value={formData.description || ""}
-							/>
-						</div>
-					</div>
-
-					<section className="space-y-3">
-						<Field.Label className="text-muted-foreground text-xs">
-							Goal Target
-						</Field.Label>
-
-						<div className="flex items-center gap-2 rounded border bg-card p-2.5">
-							<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-foreground font-semibold text-accent text-xs">
-								1
-							</div>
-
-							<div className="flex flex-1 gap-2">
-								<Select
-									onValueChange={(value) => updateField("type", value)}
-									value={formData.type}
-								>
-									<SelectTrigger className="w-28 shrink-0 text-xs" size="sm">
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="PAGE_VIEW">Page View</SelectItem>
-										<SelectItem value="EVENT">Event</SelectItem>
-									</SelectContent>
-								</Select>
-								<AutocompleteInput
-									className="flex-1"
-									inputClassName="h-8 text-xs"
-									onValueChange={(value) => updateField("target", value)}
-									placeholder={
-										formData.type === "PAGE_VIEW" ? "/path" : "event_name"
-									}
-									suggestions={getTargetSuggestions(formData.type)}
-									value={formData.target}
+				<form
+					className="flex flex-1 flex-col overflow-hidden"
+					onSubmit={handleSubmit}
+				>
+					<Sheet.Body className="space-y-5">
+						<div className="grid gap-3 sm:grid-cols-2">
+							<Field>
+								<Field.Label>Name</Field.Label>
+								<Input
+									onChange={(e) => updateField("name", e.target.value)}
+									placeholder="e.g., Newsletter Signup"
+									value={formData.name}
 								/>
-							</div>
-						</div>
-					</section>
-
-					<section className="space-y-3">
-						<Field.Label className="text-muted-foreground text-xs">
-							Settings
-						</Field.Label>
-						<div className="flex items-center justify-between rounded border bg-card p-3">
-							<div className="space-y-0.5">
-								<Field.Label
-									className="font-medium text-sm"
-									htmlFor="ignore-historic"
-								>
-									Ignore historic data
+							</Field>
+							<Field>
+								<Field.Label>
+									Description{" "}
+									<span className="text-muted-foreground">(optional)</span>
 								</Field.Label>
-								<p className="text-muted-foreground text-xs">
-									Only count events after this goal was created
-								</p>
-							</div>
-							<Switch
-								checked={formData.ignoreHistoricData ?? false}
-								id="ignore-historic"
-								onCheckedChange={(checked) =>
-									setFormData((prev) =>
-										prev ? { ...prev, ignoreHistoricData: checked } : prev
-									)
-								}
-							/>
+								<Input
+									onChange={(e) => updateField("description", e.target.value)}
+									placeholder="What this goal tracks"
+									value={formData.description || ""}
+								/>
+							</Field>
 						</div>
-					</section>
 
-					<section className="space-y-3">
-						<Field.Label className="text-muted-foreground text-xs">
-							Filters (Optional)
-						</Field.Label>
+						<Divider />
 
-						{formData.filters.length > 0 && (
-							<div className="space-y-2">
-								{formData.filters.map((filter, index) => (
-									<div
-										className="flex items-center gap-2 rounded border bg-card p-2.5"
-										key={`filter-${index}`}
-									>
-										<Select
-											onValueChange={(value) =>
-												updateFilter(index, "field", value)
-											}
-											value={filter.field}
-										>
-											<SelectTrigger className="h-8 w-28 text-xs">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{filterOptions.map((option) => (
-													<SelectItem key={option.value} value={option.value}>
-														{option.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-
-										<Select
-											onValueChange={(value) =>
-												updateFilter(index, "operator", value)
-											}
-											value={filter.operator || "equals"}
-										>
-											<SelectTrigger className="h-8 w-24 text-xs">
-												<SelectValue placeholder="equals" />
-											</SelectTrigger>
-											<SelectContent>
-												{goalFunnelOperatorOptions.map((option) => (
-													<SelectItem key={option.value} value={option.value}>
-														{option.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-
-										<AutocompleteInput
-											className="h-9 flex-1"
-											inputClassName="text-xs"
-											onValueChange={(value) =>
-												updateFilter(index, "value", value)
-											}
-											placeholder="Value"
-											suggestions={getSuggestions(filter.field)}
-											value={(filter.value as string) || ""}
-										/>
-
-										<Button
-											aria-label="Remove filter"
-											className="size-6 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-											onClick={() => removeFilter(index)}
-											variant="ghost"
-										>
-											<TrashIcon className="size-3.5" />
-										</Button>
-									</div>
-								))}
+						<div className="space-y-2">
+							<Text variant="label">Target</Text>
+							<div className="flex items-center gap-2 rounded-md border border-border/60 p-3">
+								<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-foreground font-semibold text-accent text-xs">
+									1
+								</div>
+								<div className="flex flex-1 gap-2">
+									<DropdownMenu>
+										<DropdownMenu.Trigger className="flex h-8 w-28 shrink-0 cursor-pointer select-none items-center justify-between rounded-md bg-secondary px-3 text-foreground text-xs transition-colors hover:bg-interactive-hover">
+											{formData.type === "PAGE_VIEW" ? "Page View" : "Event"}
+										</DropdownMenu.Trigger>
+										<DropdownMenu.Content align="start" side="bottom">
+											<DropdownMenu.RadioGroup
+												onValueChange={(value) => updateField("type", value)}
+												value={formData.type}
+											>
+												<DropdownMenu.RadioItem value="PAGE_VIEW">
+													Page View
+												</DropdownMenu.RadioItem>
+												<DropdownMenu.RadioItem value="EVENT">
+													Event
+												</DropdownMenu.RadioItem>
+											</DropdownMenu.RadioGroup>
+										</DropdownMenu.Content>
+									</DropdownMenu>
+									<AutocompleteInput
+										className="flex-1"
+										inputClassName="h-8 text-xs"
+										onValueChange={(value) => updateField("target", value)}
+										placeholder={
+											formData.type === "PAGE_VIEW" ? "/path" : "event_name"
+										}
+										suggestions={getTargetSuggestions(formData.type)}
+										value={formData.target}
+									/>
+								</div>
 							</div>
-						)}
+						</div>
 
-						<Button
-							className="w-full"
-							onClick={() => addFilter()}
-							size="sm"
-							variant="secondary"
-						>
-							<PlusIcon className="size-3.5" />
-							Add Filter
+						<Divider />
+
+						<div className="space-y-2">
+							<div className="overflow-hidden rounded-md border border-border/60">
+								<Accordion>
+									<Accordion.Trigger>
+										<GearIcon
+											className="size-4 shrink-0 text-muted-foreground"
+											weight="duotone"
+										/>
+										<Text variant="label">Settings</Text>
+									</Accordion.Trigger>
+									<Accordion.Content>
+										<div className="flex items-center justify-between gap-4">
+											<div>
+												<Text variant="label">Ignore historic data</Text>
+												<Text tone="muted" variant="caption">
+													Only count events after this goal was created
+												</Text>
+											</div>
+											<Switch
+												checked={formData.ignoreHistoricData ?? false}
+												onCheckedChange={(checked) =>
+													setFormData((prev) =>
+														prev
+															? { ...prev, ignoreHistoricData: checked }
+															: prev
+													)
+												}
+											/>
+										</div>
+									</Accordion.Content>
+								</Accordion>
+							</div>
+
+							<div className="overflow-hidden rounded-md border border-border/60">
+								<Accordion>
+									<Accordion.Trigger>
+										<FunnelSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
+										<Text variant="label">Filters</Text>
+										{formData.filters.length > 0 && (
+											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+												{formData.filters.length}
+											</span>
+										)}
+									</Accordion.Trigger>
+									<Accordion.Content>
+										{formData.filters.length > 0 && (
+											<div className="mb-3 space-y-2">
+												{formData.filters.map((filter, index) => (
+													<FilterRow
+														field={filter.field}
+														fieldOptions={filterOptions}
+														key={`filter-${index}`}
+														onFieldChange={(value) =>
+															updateFilter(index, "field", value)
+														}
+														onOperatorChange={(value) =>
+															updateFilter(index, "operator", value)
+														}
+														onRemove={() => removeFilter(index)}
+														onValueChange={(value) =>
+															updateFilter(index, "value", value)
+														}
+														operator={filter.operator || "equals"}
+														operatorOptions={goalFunnelOperatorOptions}
+														suggestions={getSuggestions(filter.field)}
+														value={(filter.value as string) || ""}
+													/>
+												))}
+											</div>
+										)}
+										<Button
+											className="w-full text-muted-foreground"
+											onClick={() => addFilter()}
+											size="sm"
+											type="button"
+											variant="secondary"
+										>
+											<PlusIcon className="size-3.5" />
+											Add Filter
+										</Button>
+									</Accordion.Content>
+								</Accordion>
+							</div>
+						</div>
+					</Sheet.Body>
+
+					<Sheet.Footer>
+						<Button onClick={handleClose} type="button" variant="secondary">
+							Cancel
 						</Button>
-					</section>
-				</Sheet.Body>
-
-				<Sheet.Footer>
-					<Button onClick={handleClose} type="button" variant="secondary">
-						Cancel
-					</Button>
-					<Button
-						disabled={!isFormValid}
-						loading={isSaving}
-						onClick={handleSubmit}
-					>
-						{isCreateMode ? "Create Goal" : "Save Changes"}
-					</Button>
-				</Sheet.Footer>
+						<Button disabled={!isFormValid} loading={isSaving} type="submit">
+							{isCreateMode ? "Create Goal" : "Save Changes"}
+						</Button>
+					</Sheet.Footer>
+				</form>
+				<Sheet.Close />
 			</Sheet.Content>
 		</Sheet>
 	);

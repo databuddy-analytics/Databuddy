@@ -19,6 +19,5 @@ export function useAutocompleteData(websiteId: string, enabled = true) {
 			input: { websiteId },
 		}),
 		enabled: enabled && !!websiteId,
-		staleTime: 1000 * 60 * 5,
 	});
 }

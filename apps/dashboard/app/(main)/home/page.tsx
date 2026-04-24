@@ -1,14 +1,14 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react";
-import { GlobeIcon } from "@phosphor-icons/react";
-import { HouseIcon } from "@phosphor-icons/react";
-import { PlusIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
+import { HouseIcon } from "@phosphor-icons/react/dist/ssr/House";
+import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
 import Link from "next/link";
 import { useState } from "react";
-import { EmptyState } from "@/components/ds/empty-state";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
 import { Skeleton } from "@/components/ds/skeleton";
 import { WebsiteDialog } from "@/components/website-dialog";
 import { useWebsites } from "@/hooks/use-websites";
@@ -121,27 +121,17 @@ export default function HomePage() {
 								aria-hidden
 								className={cn(
 									"size-4",
-									isLoading ||
+									(isLoading ||
 										isFetching ||
 										isPulseFetching ||
-										isInsightsRefreshing
-										? "animate-spin"
-										: ""
+										isInsightsRefreshing) &&
+										"animate-spin"
 								)}
 							/>
 						</Button>
-						<Button
-							className={cn(
-								"gap-2 px-3 py-2 font-medium sm:px-4 sm:py-2",
-								"bg-linear-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary",
-								"group relative overflow-hidden shadow-lg transition-all duration-300 hover:shadow-xl"
-							)}
-							onClick={() => setDialogOpen(true)}
-							size="default"
-						>
-							<div className="absolute inset-0 -translate-x-full bg-linear-to-r from-white/0 via-white/20 to-white/0 transition-transform duration-700 group-hover:translate-x-full" />
-							<PlusIcon className="relative z-10 size-4 transition-transform duration-300 group-hover:rotate-90" />
-							<span className="relative z-10 truncate">New Website</span>
+						<Button onClick={() => setDialogOpen(true)}>
+							<PlusIcon className="size-4" />
+							New Website
 						</Button>
 					</>
 				}
@@ -155,7 +145,7 @@ export default function HomePage() {
 					isInsightsLoading ||
 					isInsightsRefreshing
 				}
-				className="flex-1 space-y-6 overflow-y-auto p-3 sm:p-4 lg:p-6"
+				className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-5"
 			>
 				<SummaryStats
 					activeMonitors={activeMonitors}
@@ -170,7 +160,7 @@ export default function HomePage() {
 					websiteCount={websiteCount}
 				/>
 
-				<div className="grid gap-6 lg:grid-cols-2">
+				<div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
 					<SmartInsightsSection
 						insights={insights}
 						isError={isInsightsError}
@@ -190,10 +180,12 @@ export default function HomePage() {
 
 				<div className="space-y-4">
 					<div className="flex items-center justify-between">
-						<h2 className="font-semibold text-foreground">Your Websites</h2>
+						<h2 className="font-semibold text-foreground text-sm">
+							Your Websites
+						</h2>
 						{websites.length > 0 && (
 							<Link
-								className="text-muted-foreground text-sm hover:text-foreground"
+								className="text-muted-foreground text-xs hover:text-foreground"
 								href="/websites"
 							>
 								View all
@@ -202,7 +194,7 @@ export default function HomePage() {
 					</div>
 
 					{isLoading && (
-						<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+						<div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
 							{[1, 2, 3].map((num) => (
 								<WebsiteCardSkeleton key={`skeleton-${num}`} />
 							))}
@@ -238,7 +230,7 @@ export default function HomePage() {
 					{!(isLoading || isError) && websites.length > 0 && (
 						<div
 							aria-live="polite"
-							className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
+							className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3"
 						>
 							{websites.slice(0, 6).map((website) => (
 								<WebsiteCard

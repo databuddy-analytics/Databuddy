@@ -1,7 +1,17 @@
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { agentChats } from "@databuddy/db/schema";
-import { getRateLimitHeaders, rateLimit } from "@databuddy/redis/rate-limit";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
+import {
+	appendStreamChunk,
+	clearActiveStream,
+	getActiveStream,
+	markStreamDone,
+	readStreamHistory,
+	setActiveStream,
+	streamBufferKey,
+	tailStream,
+} from "@databuddy/redis/stream-buffer";
 import {
 	convertToModelMessages,
 	generateId,
@@ -19,20 +29,10 @@ import { useLogger } from "evlog/elysia";
 import { createConfig as createAgentConfig } from "../ai/agents/analytics";
 import {
 	checkWebsiteReadPermissionCached,
-	ensureAgentCreditsAvailableCached,
 	enrichAgentContextCached,
+	ensureAgentCreditsAvailableCached,
 	getMemoryContextCached,
 } from "../ai/agents/cache";
-import {
-	appendStreamChunk,
-	clearActiveStream,
-	getActiveStream,
-	markStreamDone,
-	readStreamHistory,
-	setActiveStream,
-	streamBufferKey,
-	tailStream,
-} from "@databuddy/redis/stream-buffer";
 import {
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
@@ -46,6 +46,7 @@ import {
 	modelNames,
 	models,
 } from "../ai/config/models";
+import { getAILogger } from "../lib/ai-logger";
 import {
 	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
@@ -59,7 +60,6 @@ import {
 	isMemoryEnabled,
 	storeConversation,
 } from "../lib/supermemory";
-import { getAILogger } from "../lib/ai-logger";
 import { captureError, mergeWideEvent } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
 
@@ -287,11 +287,14 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					if (!(user || apiKey)) {
 						return jsonError(401, "AUTH_REQUIRED", "Authentication required");
 					}
+					const rateLimitKey = user
+						? `agent-chat:user:${user.id}`
+						: `agent-chat:apikey:${apiKey?.id}`;
 					const userId = user?.id ?? `apikey:${apiKey?.id}`;
 
 					const [websiteValidation, rl] = await Promise.all([
 						validateWebsite(body.websiteId),
-						rateLimit(`agent-chat:${userId}`, 40, 600),
+						ratelimit(rateLimitKey, 40, 600),
 					]);
 
 					if (!(websiteValidation.success && websiteValidation.website)) {

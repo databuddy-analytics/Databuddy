@@ -7,6 +7,10 @@ import { parseAsBoolean, useQueryState } from "nuqs";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { WebsiteErrorState } from "@/components/website-error-state";
+import {
+	batchDynamicQueryKeys,
+	dynamicQueryKeys,
+} from "@/hooks/use-dynamic-query";
 import { useWebsite } from "@/hooks/use-websites";
 import {
 	currentFilterWebsiteIdAtom,
@@ -86,9 +90,11 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 				queryClient.invalidateQueries({
 					queryKey: ["websites", "isTrackingSetup", id],
 				}),
-				queryClient.invalidateQueries({ queryKey: ["dynamic-query", id] }),
 				queryClient.invalidateQueries({
-					queryKey: ["batch-dynamic-query", id],
+					queryKey: dynamicQueryKeys.byWebsite(websiteId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: batchDynamicQueryKeys.byWebsite(websiteId),
 				}),
 			]);
 		} catch {

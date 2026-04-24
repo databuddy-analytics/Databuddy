@@ -18,6 +18,7 @@ import type {
 } from "./types";
 
 const ANON_ID_KEY = "did";
+const OVERRIDES_KEY = "databuddy:flag-overrides:v1";
 const DEFAULT_API = "https://api.databuddy.cc";
 
 interface CacheEntry {
@@ -54,6 +55,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	protected readonly storage?: StorageInterface;
 
 	private readonly cache = new Map<string, CacheEntry>();
+	protected readonly overrides = new Map<string, FlagResult>();
 	private batcher: RequestBatcher | null = null;
 	private ready = false;
 	private readonly listeners = new Set<() => void>();
@@ -203,6 +205,10 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	}
 
 	async getFlag(key: string, user?: UserContext): Promise<FlagResult> {
+		const override = this.overrides.get(key);
+		if (override) {
+			return override;
+		}
 		if (this.config.disabled) {
 			return DEFAULT_RESULT;
 		}
@@ -248,11 +254,14 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		}
 	}
 
-	async fetchAllFlags(user?: UserContext): Promise<void> {
-		if (this.config.disabled || this.config.isPending) {
+	async fetchAllFlags(
+		user?: UserContext,
+		options?: { force?: boolean }
+	): Promise<void> {
+		if (!options?.force && (this.config.disabled || this.config.isPending)) {
 			return;
 		}
-		if (this.shouldSkipFetch() && this.cache.size > 0) {
+		if (!options?.force && this.shouldSkipFetch() && this.cache.size > 0) {
 			return;
 		}
 
@@ -287,6 +296,16 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	}
 
 	isEnabled(key: string): FlagState {
+		const override = this.overrides.get(key);
+		if (override) {
+			return {
+				on: override.enabled,
+				status: "ready",
+				loading: false,
+				value: override.value,
+				variant: override.variant,
+			};
+		}
 		const cacheKey = getCacheKey(key, this.config.user);
 		const entry = this.validEntry(cacheKey);
 
@@ -313,6 +332,10 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	}
 
 	getValue<T = boolean | string | number>(key: string, defaultValue?: T): T {
+		const override = this.overrides.get(key);
+		if (override) {
+			return override.value as T;
+		}
 		const cacheKey = getCacheKey(key, this.config.user);
 		const entry = this.validEntry(cacheKey);
 
@@ -338,19 +361,23 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		this.refresh().catch((err) => logger.error("Refresh error:", err));
 	}
 
-	async refresh(forceClear = false): Promise<void> {
+	async refresh(
+		forceClear = false,
+		options?: { force?: boolean }
+	): Promise<void> {
 		if (forceClear) {
 			this.cache.clear();
 			this.storage?.clear();
 			this.emit();
 		}
-		await this.fetchAllFlags();
+		await this.fetchAllFlags(undefined, options);
 	}
 
 	updateConfig(config: FlagsConfig): void {
 		const wasInactive = this.config.disabled || this.config.isPending;
 		this.config = { ...this.config, ...config };
 		this.resetBatcher();
+		this.emit();
 
 		if (wasInactive && !this.config.disabled && !this.config.isPending) {
 			this.fetchAllFlags().catch((err) => logger.error("Fetch error:", err));
@@ -364,7 +391,67 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				flags[key.split(":").at(0) ?? key] = entry.result;
 			}
 		}
+		for (const [key, override] of this.overrides) {
+			flags[key] = override;
+		}
 		return flags;
+	}
+
+	setOverride(key: string, override: FlagResult | null): void {
+		if (override === null) {
+			if (!this.overrides.delete(key)) {
+				return;
+			}
+		} else {
+			this.overrides.set(key, { ...override, reason: "OVERRIDE" });
+		}
+		this.onOverridesChanged();
+		this.emit();
+	}
+
+	protected onOverridesChanged(): void {}
+
+	getDevtoolsConfig(): {
+		apiUrl: string | null;
+		autoFetch: boolean;
+		cacheSize: number;
+		cacheTtl: number | null;
+		clientId: string | null;
+		defaults: Record<string, boolean | string | number>;
+		disabled: boolean;
+		environment: string | null;
+		isPending: boolean;
+		skipStorage: boolean;
+		staleTime: number | null;
+		user: {
+			email: string | null;
+			organizationId: string | null;
+			teamId: string | null;
+			userId: string | null;
+		} | null;
+	} {
+		const user = this.config.user;
+		return {
+			apiUrl: this.config.apiUrl ?? null,
+			autoFetch: this.config.autoFetch ?? true,
+			cacheSize: this.cache.size,
+			cacheTtl: this.config.cacheTtl ?? null,
+			clientId: this.config.clientId ?? null,
+			defaults: this.config.defaults ?? {},
+			disabled: Boolean(this.config.disabled),
+			environment: this.config.environment ?? null,
+			isPending: Boolean(this.config.isPending),
+			skipStorage: Boolean(this.storage === undefined),
+			staleTime: this.config.staleTime ?? null,
+			user: user
+				? {
+						email: user.email ?? null,
+						organizationId: user.organizationId ?? null,
+						teamId: user.teamId ?? null,
+						userId: user.userId ?? null,
+					}
+				: null,
+		};
 	}
 
 	isReady(): boolean {
@@ -423,8 +510,45 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 		super(options);
 		this.config.user = this.enrichUser(this.config.user ?? {});
 		this.config.autoFetch = options.config.autoFetch !== false;
+		this.loadOverrides();
 		this.setupVisibilityListener();
 		this.runInit();
+	}
+
+	protected override onOverridesChanged(): void {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+		try {
+			if (this.overrides.size === 0) {
+				localStorage.removeItem(OVERRIDES_KEY);
+				return;
+			}
+			localStorage.setItem(
+				OVERRIDES_KEY,
+				JSON.stringify(Object.fromEntries(this.overrides))
+			);
+		} catch {
+			// storage blocked
+		}
+	}
+
+	private loadOverrides(): void {
+		if (typeof localStorage === "undefined") {
+			return;
+		}
+		try {
+			const raw = localStorage.getItem(OVERRIDES_KEY);
+			if (!raw) {
+				return;
+			}
+			const stored = JSON.parse(raw) as Record<string, FlagResult>;
+			for (const [k, v] of Object.entries(stored)) {
+				this.overrides.set(k, v);
+			}
+		} catch {
+			// ignore corrupt storage
+		}
 	}
 
 	protected override shouldSkipFetch(): boolean {
@@ -466,6 +590,36 @@ export class BrowserFlagsManager extends BaseFlagsManager {
 			return user;
 		}
 		return { ...user, userId: anonId };
+	}
+
+	override updateConfig(config: FlagsConfig): void {
+		if (!("user" in config)) {
+			super.updateConfig(config);
+			return;
+		}
+		const incoming = config.user;
+		const incomingHasIdentity = Boolean(incoming?.userId || incoming?.email);
+		const isPending = config.isPending ?? this.config.isPending ?? false;
+		const currentIsReal = this.isRealIdentity(this.config.user);
+		let resolvedUser: UserContext;
+		if (incomingHasIdentity) {
+			resolvedUser = this.enrichUser(incoming as UserContext);
+		} else if (isPending && currentIsReal) {
+			resolvedUser = this.config.user as UserContext;
+		} else {
+			resolvedUser = this.enrichUser(incoming ?? {});
+		}
+		super.updateConfig({ ...config, user: resolvedUser });
+	}
+
+	private isRealIdentity(user: UserContext | undefined): boolean {
+		if (!user) {
+			return false;
+		}
+		if (user.email) {
+			return true;
+		}
+		return Boolean(user.userId && !user.userId.startsWith("anon_"));
 	}
 
 	override destroy(): void {

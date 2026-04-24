@@ -8,7 +8,7 @@ import {
 	CodeIcon,
 	PackageIcon,
 	PulseIcon,
-	SparkleIcon,
+	RobotIcon,
 	WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -453,7 +453,7 @@ export function StepInstallTracking({
 			<Tabs className="w-full" defaultValue="ai">
 				<Tabs.List>
 					<Tabs.Tab value="ai">
-						<SparkleIcon className="size-3.5" weight="duotone" />
+						<RobotIcon className="size-3.5" weight="duotone" />
 						Install with AI
 					</Tabs.Tab>
 					<Tabs.Tab value="npm">

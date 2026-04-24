@@ -1,12 +1,13 @@
 "use client";
 
-import { EyeIcon } from "@phosphor-icons/react";
-import { HeartbeatIcon } from "@phosphor-icons/react";
-import { LockIcon } from "@phosphor-icons/react";
-import { MinusIcon } from "@phosphor-icons/react";
-import { TrendDownIcon } from "@phosphor-icons/react";
-import { TrendUpIcon } from "@phosphor-icons/react";
-import { UsersIcon } from "@phosphor-icons/react";
+import { EyeIcon } from "@phosphor-icons/react/dist/ssr/Eye";
+import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
+import { HeartbeatIcon } from "@phosphor-icons/react/dist/ssr/Heartbeat";
+import { LockIcon } from "@phosphor-icons/react/dist/ssr/Lock";
+import { MinusIcon } from "@phosphor-icons/react/dist/ssr/Minus";
+import { TrendDownIcon } from "@phosphor-icons/react/dist/ssr/TrendDown";
+import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
+import { UsersIcon } from "@phosphor-icons/react/dist/ssr/Users";
 import Link from "next/link";
 import { Badge } from "@/components/ds/badge";
 import { Card } from "@/components/ds/card";
@@ -30,11 +31,11 @@ interface SummaryStatsProps {
 
 function StatCardSkeleton() {
 	return (
-		<Card className="gap-0 overflow-hidden border bg-card py-0">
+		<Card className="gap-0 overflow-hidden py-0">
 			<Card.Header className="dotted-bg gap-0! border-b bg-accent px-3 pt-4 pb-0!">
 				<Skeleton className="mx-auto h-16 w-full rounded" />
 			</Card.Header>
-			<Card.Content className="px-4 py-3">
+			<Card.Content className="px-5 py-3">
 				<div className="flex items-center gap-3">
 					<Skeleton className="size-7 shrink-0 rounded" />
 					<div className="flex min-w-0 flex-1 items-center justify-between gap-2">
@@ -71,7 +72,7 @@ export function SummaryStats({
 
 	if (showLoading) {
 		return (
-			<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+			<div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
@@ -88,8 +89,8 @@ export function SummaryStats({
 				: MinusIcon;
 
 	return (
-		<div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-			<Card className="group gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary/60">
+		<div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+			<Card className="group gap-0 overflow-hidden py-0 transition-colors hover:border-primary/60">
 				<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 					<div className="flex h-16 items-center justify-center">
 						<span className="font-bold text-4xl text-foreground tabular-nums">
@@ -97,7 +98,7 @@ export function SummaryStats({
 						</span>
 					</div>
 				</Card.Header>
-				<Card.Content className="px-4 py-3">
+				<Card.Content className="px-5 py-3">
 					<div className="flex items-center gap-3">
 						<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
 							<UsersIcon
@@ -120,7 +121,7 @@ export function SummaryStats({
 				</Card.Content>
 			</Card>
 
-			<Card className="group gap-0 overflow-hidden border bg-card py-0 transition-colors hover:border-primary/60">
+			<Card className="group gap-0 overflow-hidden py-0 transition-colors hover:border-primary/60">
 				<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 					<div className="flex h-16 items-center justify-center">
 						<span className="font-bold text-4xl text-foreground tabular-nums">
@@ -128,7 +129,7 @@ export function SummaryStats({
 						</span>
 					</div>
 				</Card.Header>
-				<Card.Content className="px-4 py-3">
+				<Card.Content className="px-5 py-3">
 					<div className="flex items-center gap-3">
 						<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
 							<EyeIcon
@@ -171,7 +172,7 @@ export function SummaryStats({
 			</Card>
 
 			<Link className="group block" href="/websites">
-				<Card className="h-full gap-0 overflow-hidden border bg-card py-0 transition-colors group-hover:border-primary/60">
+				<Card className="h-full gap-0 overflow-hidden py-0 transition-colors group-hover:border-primary/60">
 					<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 						<div className="flex h-16 items-center justify-center">
 							<span className="font-bold text-4xl text-foreground tabular-nums">
@@ -179,22 +180,13 @@ export function SummaryStats({
 							</span>
 						</div>
 					</Card.Header>
-					<Card.Content className="px-4 py-3">
+					<Card.Content className="px-5 py-3">
 						<div className="flex items-center gap-3">
 							<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
-								<svg
+								<GlobeIcon
 									className="size-4 text-muted-foreground"
-									fill="none"
-									stroke="currentColor"
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth="2"
-									viewBox="0 0 24 24"
-								>
-									<title>Websites</title>
-									<circle cx="12" cy="12" r="10" />
-									<path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-								</svg>
+									weight="duotone"
+								/>
 							</div>
 							<div className="min-w-0 flex-1">
 								<p className="truncate font-medium text-foreground text-sm">
@@ -211,7 +203,7 @@ export function SummaryStats({
 
 			{hasPulseAccess ? (
 				<Link className="group block" href="/monitors">
-					<Card className="h-full gap-0 overflow-hidden border bg-card py-0 transition-colors group-hover:border-primary/60">
+					<Card className="h-full gap-0 overflow-hidden py-0 transition-colors group-hover:border-primary/60">
 						<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 							<div className="flex h-16 items-center justify-center gap-2">
 								{totalMonitors > 0 ? (
@@ -225,7 +217,7 @@ export function SummaryStats({
 								)}
 							</div>
 						</Card.Header>
-						<Card.Content className="px-4 py-3">
+						<Card.Content className="px-5 py-3">
 							<div className="flex items-center gap-3">
 								<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
 									<HeartbeatIcon
@@ -254,7 +246,7 @@ export function SummaryStats({
 					</Card>
 				</Link>
 			) : (
-				<Card className="h-full gap-0 overflow-hidden border bg-card py-0">
+				<Card className="h-full gap-0 overflow-hidden py-0">
 					<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 						<div className="flex h-16 items-center justify-center">
 							<LockIcon
@@ -263,7 +255,7 @@ export function SummaryStats({
 							/>
 						</div>
 					</Card.Header>
-					<Card.Content className="px-4 py-3">
+					<Card.Content className="px-5 py-3">
 						<div className="flex items-center gap-3">
 							<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
 								<HeartbeatIcon

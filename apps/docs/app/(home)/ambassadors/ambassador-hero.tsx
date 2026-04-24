@@ -5,7 +5,7 @@ import {
 	GiftIcon,
 	HeartIcon,
 	RocketLaunchIcon,
-	SparkleIcon,
+	TrophyIcon,
 } from "@phosphor-icons/react";
 import { SciFiCard } from "@/components/scifi-card";
 
@@ -77,7 +77,7 @@ export default function AmbassadorHero() {
 					/>
 					<FeatureCard
 						description="Stand out"
-						icon={SparkleIcon}
+						icon={TrophyIcon}
 						title="Recognition"
 					/>
 				</div>

@@ -120,7 +120,7 @@ function getCloudflareCountry(headers: Headers): string | undefined {
 	if (cfCountry && cfCountry.length === 2) {
 		return cfCountry;
 	}
-	return undefined;
+	return;
 }
 
 function lookupGeoLocation(ip: string): Promise<{

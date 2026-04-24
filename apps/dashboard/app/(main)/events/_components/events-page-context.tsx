@@ -3,10 +3,10 @@
 import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
 import { createContext, useContext, useMemo } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { useCustomEventsData } from "@/hooks/use-custom-events";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import dayjs from "@/lib/dayjs";
-import { useGlobalCustomEventsData } from "./use-global-custom-events";
 
 /**
  * "no-website" = events not tied to any website
@@ -30,7 +30,7 @@ interface EventsPageContextValue {
 	hasQueryId: boolean;
 	isLoadingOrg: boolean;
 	isLoadingWebsites: boolean;
-	query: ReturnType<typeof useGlobalCustomEventsData>;
+	query: ReturnType<typeof useCustomEventsData>;
 	queryOptions: { websiteId?: string; organizationId?: string };
 	selectedWebsite: WebsiteEntry | undefined;
 	setWebsiteFilterMode: (mode: WebsiteFilterMode) => void;
@@ -99,12 +99,10 @@ export function EventsPageProvider({
 		activeOrganizationId
 	);
 
-	const query = useGlobalCustomEventsData(
-		queryOptions,
-		DEFAULT_DATE_RANGE,
-		websiteFilters,
-		{ enabled: hasQueryId }
-	);
+	const query = useCustomEventsData(queryOptions, DEFAULT_DATE_RANGE, {
+		filters: websiteFilters,
+		enabled: hasQueryId,
+	});
 
 	const selectedWebsite = isSpecificWebsite
 		? websites.find((w) => w.id === websiteFilterMode)

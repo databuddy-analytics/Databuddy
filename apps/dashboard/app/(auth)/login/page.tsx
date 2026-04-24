@@ -1,11 +1,9 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react";
 import { EyeIcon } from "@phosphor-icons/react";
 import { EyeSlashIcon } from "@phosphor-icons/react";
-import { GithubLogoIcon } from "@phosphor-icons/react";
-import { GoogleLogoIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
@@ -18,6 +16,7 @@ import { Field } from "@/components/ds/field";
 import { Input } from "@/components/ds/input";
 import { Spinner } from "@/components/ds/spinner";
 import { Text } from "@/components/ds/text";
+import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 
 function LoginPage() {
 	const router = useRouter();
@@ -106,7 +105,7 @@ function LoginPage() {
 						size="lg"
 						variant="outline"
 					>
-						<GithubLogoIcon className="size-4" />
+						<GithubMark className="size-4" />
 						Sign in with GitHub
 						{lastUsed === "github" && (
 							<Badge
@@ -124,7 +123,7 @@ function LoginPage() {
 						size="lg"
 						variant="outline"
 					>
-						<GoogleLogoIcon className="size-4" />
+						<GoogleMark className="size-4" />
 						Sign in with Google
 						{lastUsed === "google" && (
 							<Badge
@@ -144,7 +143,7 @@ function LoginPage() {
 							variant="outline"
 						>
 							<Link href="/login/magic">
-								<SparkleIcon className="size-4" />
+								<EnvelopeSimpleIcon className="size-4" weight="duotone" />
 								Sign in with Magic Link
 							</Link>
 						</Button>

@@ -10,7 +10,7 @@ import { ArrowRightIcon } from "@phosphor-icons/react";
 import { CrownIcon } from "@phosphor-icons/react";
 import { LockSimpleIcon } from "@phosphor-icons/react";
 import { RocketLaunchIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
+import { LeafIcon } from "@phosphor-icons/react";
 import { StarIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -25,7 +25,7 @@ const PLAN_CONFIG: Record<
 > = {
 	[PLAN_IDS.FREE]: {
 		name: "Free",
-		icon: SparkleIcon,
+		icon: LeafIcon,
 		color: "text-muted-foreground",
 	},
 	[PLAN_IDS.HOBBY]: {

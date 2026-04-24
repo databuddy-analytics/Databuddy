@@ -502,18 +502,22 @@ const Source = ({ referrer }: { referrer: string }) => {
 		}
 	};
 
+	const span = (
+		<span className="truncate text-sm" ref={checkTextOverflow}>
+			{referrer}
+		</span>
+	);
+
 	return (
 		<div className="flex min-w-0 max-w-[100px] items-center gap-1.5">
 			<FaviconImage domain={referrer} size={14} />
-			<Tooltip
-				content={referrer}
-				open={isTextTruncated ? undefined : false}
-				side="right"
-			>
-				<span className="truncate text-sm" ref={checkTextOverflow}>
-					{referrer}
-				</span>
-			</Tooltip>
+			{isTextTruncated ? (
+				<Tooltip content={referrer} side="right">
+					{span}
+				</Tooltip>
+			) : (
+				span
+			)}
 		</div>
 	);
 };

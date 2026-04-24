@@ -1,7 +1,7 @@
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
-import { SectionBrandOverlay } from "@/components/logo/section-brand-overlay";
 import { Button } from "@/components/ds/button";
-import { cn } from "@/lib/utils";
+import { Card } from "@/components/ds/card";
+import { SectionBrandOverlay } from "@/components/logo/section-brand-overlay";
 
 interface TableToolbarProps {
 	borderBottom?: boolean;
@@ -17,39 +17,34 @@ export function TableToolbar({
 	description,
 	showFullScreen = true,
 	onFullScreenToggle,
-	borderBottom = false,
 	showBrand = false,
 }: TableToolbarProps) {
 	return (
-		<div className={cn("px-3 pt-3 pb-2", borderBottom && "border-b")}>
-			<div className="flex flex-row items-start justify-between gap-3 sm:items-center">
-				<div className="min-w-0 flex-1">
-					<h3 className="truncate font-semibold text-sidebar-foreground text-sm">
-						{title}
-					</h3>
-					{description && (
-						<p className="mt-0.5 line-clamp-2 text-pretty text-sidebar-foreground/70 text-xs">
-							{description}
-						</p>
-					)}
-				</div>
-				<div className="flex shrink-0 items-center gap-2">
-					{showBrand ? <SectionBrandOverlay layout="inline" /> : null}
-					{showFullScreen && onFullScreenToggle && (
-						<Button
-							aria-label="Full screen"
-							className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
-							onClick={onFullScreenToggle}
-							size="icon"
-							title="Full screen"
-							type="button"
-							variant="ghost"
-						>
-							<ArrowsOutSimpleIcon className="size-4" weight="fill" />
-						</Button>
-					)}
-				</div>
+		<Card.Header className="flex-row items-center justify-between gap-3 py-3">
+			<div className="min-w-0 flex-1">
+				<Card.Title className="truncate text-sm">{title}</Card.Title>
+				{description && (
+					<Card.Description className="line-clamp-2 text-pretty">
+						{description}
+					</Card.Description>
+				)}
 			</div>
-		</div>
+			<div className="flex shrink-0 items-center gap-1">
+				{showBrand ? <SectionBrandOverlay layout="inline" /> : null}
+				{showFullScreen && onFullScreenToggle && (
+					<Button
+						aria-label="Full screen"
+						className="size-7"
+						onClick={onFullScreenToggle}
+						size="icon"
+						title="Full screen"
+						type="button"
+						variant="ghost"
+					>
+						<ArrowsOutSimpleIcon className="size-4" />
+					</Button>
+				)}
+			</div>
+		</Card.Header>
 	);
 }

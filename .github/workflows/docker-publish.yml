@@ -262,3 +262,25 @@ jobs:
           IMAGE="${{ env.IMAGE_PREFIX }}-${{ matrix.service }}"
           TAG="${{ steps.version.outputs.tag }}"
           cosign sign --yes "$IMAGE:$TAG"
+
+  result:
+    name: Docker Publish Result
+    if: always()
+    needs: [detect, build, manifest]
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 1
+    steps:
+      - run: |
+          if [[ "${{ needs.detect.result }}" == "failure" ]]; then
+            echo "Detection failed"
+            exit 1
+          fi
+          if [[ "${{ needs.build.result }}" == "failure" ]]; then
+            echo "Build failed"
+            exit 1
+          fi
+          if [[ "${{ needs.manifest.result }}" == "failure" ]]; then
+            echo "Manifest publish failed"
+            exit 1
+          fi
+          echo "All jobs passed (or were skipped because no services were affected)"

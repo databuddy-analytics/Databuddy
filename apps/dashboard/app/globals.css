@@ -3,6 +3,8 @@
 @import "react-grid-layout/css/styles.css";
 
 @source "../node_modules/streamdown/dist/*.js";
+@source "../../../packages/ui/src/**/*.{ts,tsx}";
+@source "../../../packages/devtools/src/**/*.{ts,tsx}";
 
 /* ==========================================================================
    CSS Custom Properties & Theme Configuration
@@ -545,6 +547,7 @@
 
   html {
     scroll-behavior: smooth;
+    scrollbar-gutter: stable;
     text-size-adjust: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

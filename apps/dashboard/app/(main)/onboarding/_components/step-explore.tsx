@@ -3,10 +3,10 @@
 import {
 	ArrowRightIcon,
 	ChartLineUpIcon,
+	CheckCircleIcon,
 	CursorClickIcon,
 	LightningIcon,
 	RocketLaunchIcon,
-	SparkleIcon,
 	UsersIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
@@ -63,7 +63,7 @@ export function StepExplore({ onComplete, websiteId }: StepExploreProps) {
 
 			<div className="flex items-center gap-2">
 				<Badge size="sm" variant="success">
-					<SparkleIcon className="size-3" weight="duotone" />
+					<CheckCircleIcon className="size-3" weight="duotone" />
 					Setup complete
 				</Badge>
 				<p className="text-muted-foreground text-xs">

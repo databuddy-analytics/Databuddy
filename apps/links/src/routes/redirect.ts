@@ -4,7 +4,7 @@ import {
 	type CachedLink,
 	getCachedLink,
 	getRateLimitHeaders,
-	rateLimit,
+	ratelimit,
 	setCachedLink,
 	setCachedLinkNotFound,
 	shouldRecordClick,
@@ -323,7 +323,7 @@ export const redirectRoute = new Elysia().get(
 		}
 
 		const tRl = performance.now();
-		const rl = await rateLimit(`redirect:${ipHash}`, 100, 60).catch((err) => {
+		const rl = await ratelimit(`redirect:${ipHash}`, 100, 60).catch((err) => {
 			captureError(err, { error_step: "rate_limit" });
 			return DEFAULT_RL;
 		});

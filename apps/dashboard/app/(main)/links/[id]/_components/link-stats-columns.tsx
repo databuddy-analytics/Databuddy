@@ -26,7 +26,7 @@ export interface GeoEntry {
 
 function extractDomain(referrer: string | undefined): string | undefined {
 	if (!referrer || referrer === "Direct" || referrer === "") {
-		return undefined;
+		return;
 	}
 	try {
 		if (referrer.startsWith("http://") || referrer.startsWith("https://")) {
@@ -36,9 +36,9 @@ function extractDomain(referrer: string | undefined): string | undefined {
 		if (cleaned.includes(".")) {
 			return cleaned.split("/")[0];
 		}
-		return undefined;
+		return;
 	} catch {
-		return undefined;
+		return;
 	}
 }
 

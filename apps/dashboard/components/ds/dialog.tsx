@@ -1,6 +1,5 @@
 "use client";
 
-import { resolveComposableRender } from "@/components/ds/composable-render";
 import { cn } from "@/lib/utils";
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import { XIcon } from "@phosphor-icons/react/dist/ssr";
@@ -15,11 +14,9 @@ function Trigger({
 	render,
 	...rest
 }: ComponentPropsWithoutRef<typeof BaseDialog.Trigger>) {
-	const composed = resolveComposableRender(children, render);
-
 	return (
-		<BaseDialog.Trigger render={composed.render} {...rest}>
-			{composed.children}
+		<BaseDialog.Trigger render={render} {...rest}>
+			{children}
 		</BaseDialog.Trigger>
 	);
 }

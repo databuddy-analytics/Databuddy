@@ -38,7 +38,7 @@ function findLatency(
 			}
 		}
 	}
-	return undefined;
+	return;
 }
 
 function isHealthObject(obj: Record<string, unknown>): boolean {

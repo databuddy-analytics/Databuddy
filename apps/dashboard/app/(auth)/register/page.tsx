@@ -5,8 +5,6 @@ import { track } from "@databuddy/sdk";
 import { CaretLeftIcon } from "@phosphor-icons/react";
 import { EyeIcon } from "@phosphor-icons/react";
 import { EyeSlashIcon } from "@phosphor-icons/react";
-import { GithubLogoIcon } from "@phosphor-icons/react";
-import { GoogleLogoIcon } from "@phosphor-icons/react";
 import { InfoIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +19,7 @@ import { Input } from "@/components/ds/input";
 import { Spinner } from "@/components/ds/spinner";
 import { Text } from "@/components/ds/text";
 import { Tooltip } from "@/components/ds/tooltip";
+import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 import VisuallyHidden from "@/components/ui/visuallyhidden";
 
 function RegisterPageContent() {
@@ -159,7 +158,7 @@ function RegisterPageContent() {
 					},
 				},
 			});
-		} catch (_error) {
+		} catch {
 			toast.error("Login failed. Please try again.");
 			setIsLoading(false);
 		}
@@ -248,7 +247,7 @@ function RegisterPageContent() {
 					size="lg"
 					variant="outline"
 				>
-					<GithubLogoIcon className="size-4" />
+					<GithubMark className="size-4" />
 					Sign up with GitHub
 				</Button>
 				<Button
@@ -257,7 +256,7 @@ function RegisterPageContent() {
 					size="lg"
 					variant="outline"
 				>
-					<GoogleLogoIcon className="size-4" />
+					<GoogleMark className="size-4" />
 					Sign up with Google
 				</Button>
 			</div>

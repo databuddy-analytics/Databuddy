@@ -12,6 +12,7 @@ import { StatCard } from "@/components/analytics";
 import { EmptyState } from "@/components/ds/empty-state";
 import { Skeleton } from "@/components/ds/skeleton";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
+import { useCustomEventsData } from "@/hooks/use-custom-events";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import dayjs from "@/lib/dayjs";
 import { formatNumber } from "@/lib/formatters";
@@ -19,7 +20,6 @@ import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
 } from "@/stores/jotai/filterAtoms";
-import { useCustomEventsData } from "../use-custom-events";
 import { classifyEventProperties } from "./classify-properties";
 import { EventsTrendChart } from "./events-trend-chart";
 import { SummaryView } from "./summary-view";

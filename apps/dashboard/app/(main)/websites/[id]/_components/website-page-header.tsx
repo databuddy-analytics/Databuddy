@@ -259,7 +259,7 @@ export function WebsitePageHeader({
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? "animate-spin" : ""}
+								className={`shrink-0 ${isRefreshing ? "animate-spin" : ""}`}
 								size={16}
 							/>
 							<span className="xs:inline hidden">Refresh</span>
@@ -341,7 +341,7 @@ export function WebsitePageHeader({
 							variant="outline"
 						>
 							<ArrowClockwiseIcon
-								className={isRefreshing ? "animate-spin" : ""}
+								className={`shrink-0 ${isRefreshing ? "animate-spin" : ""}`}
 								size={16}
 							/>
 							<span className="sm:hidden">Refresh</span>
@@ -405,7 +405,7 @@ export function WebsitePageHeader({
 										size="sm"
 										variant="outline"
 									>
-										<ArrowClockwiseIcon className="size-4" size={16} />
+										<ArrowClockwiseIcon className="size-4 shrink-0" size={16} />
 										Retry
 									</Button>
 								) : null}

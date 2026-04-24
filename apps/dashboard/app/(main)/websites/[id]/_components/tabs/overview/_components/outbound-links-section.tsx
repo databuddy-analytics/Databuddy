@@ -234,8 +234,8 @@ export function OutboundLinksSection({
 		return raw.filter(isOutboundDomainRecord).map(toOutboundDomainRow);
 	}, [data.outbound_domains]);
 
-	const eventsAndLinksTabs = useMemo((): TabConfig<OutboundLinkRow>[] => {
-		return [
+	const eventsAndLinksTabs = useMemo(
+		(): TabConfig<OutboundLinkRow>[] => [
 			{
 				id: "outbound_links",
 				label: "Outbound Links",
@@ -259,8 +259,9 @@ export function OutboundLinksSection({
 					value: `*${(row as unknown as OutboundDomainRow).domain}*`,
 				}),
 			},
-		];
-	}, [linkRows, domainRows]);
+		],
+		[linkRows, domainRows]
+	);
 
 	return (
 		<DataTable

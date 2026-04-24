@@ -1,25 +1,24 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react";
-import { GlobeIcon } from "@phosphor-icons/react";
-import { PlusIcon } from "@phosphor-icons/react";
-import { TrendUpIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { GlobeIcon } from "@phosphor-icons/react/dist/ssr/Globe";
+import { PlusIcon } from "@phosphor-icons/react/dist/ssr/Plus";
+import { TrendUpIcon } from "@phosphor-icons/react/dist/ssr/TrendUp";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { EmptyState } from "@/components/ds/empty-state";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
 import { Skeleton } from "@/components/ds/skeleton";
 import { useWebsites } from "@/hooks/use-websites";
+import { cn } from "@/lib/utils";
+import { PageHeader } from "./_components/page-header";
+import { WebsiteCard } from "./_components/website-card";
 
 const WebsiteDialog = dynamic(
 	() => import("@/components/website-dialog").then((mod) => mod.WebsiteDialog),
 	{ ssr: false }
 );
-
-import { cn } from "@/lib/utils";
-import { PageHeader } from "./_components/page-header";
-import { WebsiteCard } from "./_components/website-card";
 
 function LoadingSkeleton() {
 	return (

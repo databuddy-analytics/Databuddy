@@ -1,6 +1,6 @@
 import { db, eq, type InferSelectModel } from "@databuddy/db";
 import { apikey } from "@databuddy/db/schema";
-import { cacheable } from "@databuddy/redis";
+import { cacheable, redis } from "@databuddy/redis";
 import {
 	createKeys,
 	hasAllScopes,
@@ -10,7 +10,7 @@ import {
 } from "keypal";
 
 export type ApiKeyRow = InferSelectModel<typeof apikey>;
-export type ApiScope = ApiKeyRow["scopes"][number];
+export type { ApiScope } from "./scopes";
 
 interface KeyMetadata {
 	resources?: Record<string, string[]>;
@@ -18,20 +18,69 @@ interface KeyMetadata {
 
 export const keys = createKeys({ prefix: "dbdy_", length: 48 });
 
+export type ApiKeyResolveOutcome =
+	| "ok"
+	| "missing"
+	| "invalid"
+	| "disabled"
+	| "revoked"
+	| "expired";
+
+type CachedResolveResult =
+	| { outcome: "ok"; key: ApiKeyRow }
+	| {
+			outcome: Exclude<ApiKeyResolveOutcome, "ok" | "missing">;
+			key: null;
+	  };
+
 const getCachedApiKeyByHash = cacheable(
-	async (keyHash: string): Promise<ApiKeyRow | null> => {
+	async (keyHash: string): Promise<CachedResolveResult> => {
 		const key = await db.query.apikey.findFirst({
 			where: eq(apikey.keyHash, keyHash),
 		});
-		return key ?? null;
+		if (!key) {
+			return { outcome: "invalid", key: null };
+		}
+		if (!key.enabled) {
+			return { outcome: "disabled", key: null };
+		}
+		if (key.revokedAt) {
+			return { outcome: "revoked", key: null };
+		}
+		if (isExpired(key.expiresAt?.toISOString() ?? null)) {
+			return { outcome: "expired", key: null };
+		}
+		return { outcome: "ok", key };
 	},
 	{
-		expireInSec: 60,
+		expireInSec: 30,
 		prefix: "api-key-by-hash",
-		staleWhileRevalidate: true,
-		staleTime: 30,
 	}
 );
+
+const LAST_USED_DEBOUNCE_SEC = 300;
+
+export async function markApiKeyUsed(keyId: string): Promise<void> {
+	try {
+		const lockKey = `api-key:last-used-lock:${keyId}`;
+		const acquired = await redis.set(
+			lockKey,
+			"1",
+			"EX",
+			LAST_USED_DEBOUNCE_SEC,
+			"NX"
+		);
+		if (!acquired) {
+			return;
+		}
+		await db
+			.update(apikey)
+			.set({ lastUsedAt: new Date() })
+			.where(eq(apikey.id, keyId));
+	} catch {
+		// best-effort — failure must not break the auth path
+	}
+}
 
 function isValidFormat(token: string): boolean {
 	return token.startsWith("dbdy_") && token.length >= 10 && token.length <= 200;
@@ -60,26 +109,39 @@ export function extractSecret(headers: Headers): string | null {
 	return null;
 }
 
+export interface ResolveApiKeyResult {
+	key: ApiKeyRow | null;
+	outcome: ApiKeyResolveOutcome;
+	prefix?: string;
+	start?: string;
+}
+
+export async function resolveApiKey(
+	headers: Headers
+): Promise<ResolveApiKeyResult> {
+	const secret = extractSecret(headers);
+	if (!secret) {
+		if (isApiKeyPresent(headers)) {
+			return { key: null, outcome: "invalid" };
+		}
+		return { key: null, outcome: "missing" };
+	}
+	const keyHash = keys.hashKey(secret);
+	const result = await getCachedApiKeyByHash(keyHash);
+	const prefix = secret.split("_")[0];
+	const start = secret.slice(0, 8);
+	if (result.outcome === "ok") {
+		markApiKeyUsed(result.key.id).catch(() => undefined);
+		return { key: result.key, outcome: "ok", prefix, start };
+	}
+	return { key: null, outcome: result.outcome, prefix, start };
+}
+
 export async function getApiKeyFromHeader(
 	headers: Headers
 ): Promise<ApiKeyRow | null> {
-	const secret = extractSecret(headers);
-	if (!secret) {
-		return null;
-	}
-
-	const keyHash = keys.hashKey(secret);
-	const key = await getCachedApiKeyByHash(keyHash);
-
-	if (
-		!key?.enabled ||
-		key.revokedAt ||
-		isExpired(key.expiresAt?.toISOString() ?? null)
-	) {
-		return null;
-	}
-
-	return key;
+	const result = await resolveApiKey(headers);
+	return result.key;
 }
 
 // ── Scope helpers ──────────────────────────────────────────────

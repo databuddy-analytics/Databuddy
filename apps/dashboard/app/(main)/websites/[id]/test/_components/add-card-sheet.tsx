@@ -38,13 +38,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { DropdownMenu } from "@/components/ds/dropdown-menu";
 import { Sheet } from "@/components/ds/sheet";
 import { Skeleton } from "@/components/ds/skeleton";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
@@ -876,47 +870,54 @@ export function CardSheet({
 												className="flex items-center gap-2 rounded border bg-card p-2.5"
 												key={`filter-${index}`}
 											>
-												<Select
-													onValueChange={(value) =>
-														handleUpdateFilter(index, "field", value)
-													}
-													value={filter.field}
-												>
-													<SelectTrigger className="h-8 w-28 text-xs">
-														<SelectValue />
-													</SelectTrigger>
-													<SelectContent>
-														{filterOptions.map((option) => (
-															<SelectItem
-																key={option.value}
-																value={option.value}
-															>
-																{option.label}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
+												<DropdownMenu>
+													<DropdownMenu.Trigger className="flex h-8 w-28 cursor-pointer select-none items-center justify-between rounded-md bg-secondary px-3 text-foreground text-xs transition-colors hover:bg-interactive-hover">
+														{filterOptions.find((o) => o.value === filter.field)
+															?.label ?? filter.field}
+													</DropdownMenu.Trigger>
+													<DropdownMenu.Content align="start" side="bottom">
+														<DropdownMenu.RadioGroup
+															onValueChange={(value) =>
+																handleUpdateFilter(index, "field", value)
+															}
+															value={filter.field}
+														>
+															{filterOptions.map((option) => (
+																<DropdownMenu.RadioItem
+																	key={option.value}
+																	value={option.value}
+																>
+																	{option.label}
+																</DropdownMenu.RadioItem>
+															))}
+														</DropdownMenu.RadioGroup>
+													</DropdownMenu.Content>
+												</DropdownMenu>
 
-												<Select
-													onValueChange={(value) =>
-														handleUpdateFilter(index, "operator", value)
-													}
-													value={filter.operator}
-												>
-													<SelectTrigger className="h-8 w-24 text-xs">
-														<SelectValue />
-													</SelectTrigger>
-													<SelectContent>
-														{operatorOptions.map((option) => (
-															<SelectItem
-																key={option.value}
-																value={option.value}
-															>
-																{option.label}
-															</SelectItem>
-														))}
-													</SelectContent>
-												</Select>
+												<DropdownMenu>
+													<DropdownMenu.Trigger className="flex h-8 w-24 cursor-pointer select-none items-center justify-between rounded-md bg-secondary px-3 text-foreground text-xs transition-colors hover:bg-interactive-hover">
+														{operatorOptions.find(
+															(o) => o.value === filter.operator
+														)?.label ?? filter.operator}
+													</DropdownMenu.Trigger>
+													<DropdownMenu.Content align="start" side="bottom">
+														<DropdownMenu.RadioGroup
+															onValueChange={(value) =>
+																handleUpdateFilter(index, "operator", value)
+															}
+															value={filter.operator}
+														>
+															{operatorOptions.map((option) => (
+																<DropdownMenu.RadioItem
+																	key={option.value}
+																	value={option.value}
+																>
+																	{option.label}
+																</DropdownMenu.RadioItem>
+															))}
+														</DropdownMenu.RadioGroup>
+													</DropdownMenu.Content>
+												</DropdownMenu>
 
 												<AutocompleteInput
 													className="flex-1 text-xs"

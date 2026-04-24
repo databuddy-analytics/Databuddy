@@ -49,6 +49,22 @@ export function setRpcProcedureType(
 	}
 }
 
+export function setRpcProcedurePath(path: readonly string[]): void {
+	if (path.length === 0) {
+		return;
+	}
+	const procedure = path.join(".");
+	const fields = {
+		rpc_procedure: procedure,
+		rpc_router: path[0],
+	};
+	try {
+		getRequestLogger().set(fields);
+	} catch {
+		log.info({ service: "rpc", ...fields });
+	}
+}
+
 export function recordORPCError(error: {
 	code?: string;
 	message?: string;

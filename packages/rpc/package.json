@@ -18,7 +18,7 @@
     "@databuddy/services": "workspace:*",
     "@databuddy/shared": "workspace:*",
     "@databuddy/validation": "workspace:*",
-    "@orpc/server": "^1.12.2",
+    "@orpc/server": "^1.14.0",
     "@types/jszip": "^3.4.1",
     "@upstash/qstash": "^2.8.4",
     "ai": "^6.0.0",

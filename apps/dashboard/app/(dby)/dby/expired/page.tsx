@@ -1,4 +1,4 @@
-import { ClockIcon } from "@phosphor-icons/react/ssr";
+import { ClockIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Branding } from "@/components/logo/branding";

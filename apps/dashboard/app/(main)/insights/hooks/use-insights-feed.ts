@@ -1,25 +1,16 @@
 "use client";
 
 import {
-	keepPreviousData,
 	useInfiniteQuery,
 	useQuery,
 	useQueryClient,
 } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import {
-	fetchInsightsAi,
-	fetchInsightsHistoryPage,
-	INSIGHT_CACHE,
-	INSIGHT_QUERY_KEYS,
-	type InsightsHistoryPage,
-} from "@/lib/insight-api";
+import { insightQueries, type InsightsHistoryPage } from "@/lib/insight-api";
 import { collapseInsightsBySignal } from "@/lib/insight-signal-key";
 import type { Insight } from "@/lib/insight-types";
 import { mapHistoryRowToInsight } from "@/lib/insight-types";
-
-const HISTORY_PAGE_SIZE = 50;
 
 function mergeAiWithHistoryPages(
 	ai: Insight[],
@@ -58,42 +49,10 @@ export function useInsightsFeed() {
 
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
-	const historyInfinite = useInfiniteQuery({
-		queryKey: [INSIGHT_QUERY_KEYS.historyInfinite, orgId],
-		queryFn: ({ pageParam }) =>
-			fetchInsightsHistoryPage(
-				orgId ?? "",
-				pageParam as number,
-				HISTORY_PAGE_SIZE
-			),
-		initialPageParam: 0,
-		getNextPageParam: (lastPage, _allPages, lastPageParam) => {
-			if (!lastPage.hasMore) {
-				return undefined;
-			}
-			return (lastPageParam as number) + HISTORY_PAGE_SIZE;
-		},
-		enabled: !!orgId,
-		staleTime: INSIGHT_CACHE.historyStaleTime,
-		gcTime: INSIGHT_CACHE.gcTime,
-		refetchOnWindowFocus: false,
-		placeholderData: keepPreviousData,
-		retry: 2,
-		retryDelay: (attempt) => Math.min(2000 * 2 ** attempt, 15_000),
-	});
-
-	const aiQuery = useQuery({
-		queryKey: [INSIGHT_QUERY_KEYS.ai, orgId],
-		queryFn: () => fetchInsightsAi(orgId ?? ""),
-		enabled: !!orgId,
-		staleTime: INSIGHT_CACHE.staleTime,
-		gcTime: INSIGHT_CACHE.gcTime,
-		refetchInterval: INSIGHT_CACHE.staleTime,
-		refetchOnWindowFocus: false,
-		placeholderData: keepPreviousData,
-		retry: 2,
-		retryDelay: (attempt) => Math.min(2000 * 2 ** attempt, 15_000),
-	});
+	const historyInfinite = useInfiniteQuery(
+		insightQueries.historyInfinite(orgId)
+	);
+	const aiQuery = useQuery(insightQueries.ai(orgId));
 
 	const mergedInsights = useMemo(() => {
 		const fresh = (aiQuery.data?.insights ?? []).map(
@@ -110,10 +69,10 @@ export function useInsightsFeed() {
 	const refetchAll = useCallback(async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
-				queryKey: [INSIGHT_QUERY_KEYS.historyInfinite, orgId],
+				queryKey: insightQueries.historyInfinite(orgId).queryKey,
 			}),
 			queryClient.invalidateQueries({
-				queryKey: [INSIGHT_QUERY_KEYS.ai, orgId],
+				queryKey: insightQueries.ai(orgId).queryKey,
 			}),
 		]);
 	}, [queryClient, orgId]);

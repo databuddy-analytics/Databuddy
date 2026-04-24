@@ -21,12 +21,6 @@ interface DateFormatOptions {
 
 type DateInput = Date | string | number | null;
 
-/**
- * Formats a date according to specified options
- * @param date - Date to format
- * @param options - Formatting options
- * @returns Formatted date string
- */
 export function formatDate(
 	date: DateInput,
 	options?: DateFormatOptions
@@ -49,12 +43,6 @@ export function formatDate(
 	return dayjsDate.format(format);
 }
 
-/**
- * Converts a date to specified timezone
- * @param date - Date to convert
- * @param timezone - Target timezone
- * @returns Date in target timezone
- */
 export function convertToTimezone(
 	date: Exclude<DateInput, null>,
 	timezone = "UTC"
@@ -62,28 +50,14 @@ export function convertToTimezone(
 	return dayjs(date).tz(timezone).toDate();
 }
 
-/**
- * Gets the browser's timezone
- * @returns Browser timezone string
- */
 export function getBrowserTimezone(): string {
 	return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-/**
- * Finds timezone info by region name
- * @param region - Timezone region to find
- * @returns Timezone info or undefined
- */
 export function findTimezoneByRegion(region: string) {
 	return TIMEZONES.find((tz) => tz.region === region);
 }
 
-/**
- * Formats a date as relative time (e.g. "2 hours ago")
- * @param date - Date to format
- * @returns Relative time string
- */
 export function formatRelativeTime(date: DateInput): string {
 	if (!date) {
 		return "";

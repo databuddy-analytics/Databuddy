@@ -1,0 +1,31 @@
+{
+  "mode": "pre",
+  "tag": "beta",
+  "initialVersions": {
+    "@databuddy/api": "1.0.1",
+    "@databuddy/basket": "1.0.50",
+    "@databuddy/dashboard": "0.1.0",
+    "@databuddy/docs": "0.0.0",
+    "@databuddy/links": "1.0.0",
+    "@databuddy/uptime": "1.0.0",
+    "@databuddy/ai": "0.0.1",
+    "@databuddy/api-keys": "1.0.0",
+    "@databuddy/auth": "0.0.1",
+    "@databuddy/cache": "0.0.120",
+    "@databuddy/db": "1.0.0",
+    "@databuddy/devtools": "0.0.0",
+    "@databuddy/email": "0.0.0",
+    "@databuddy/env": "0.1.0",
+    "@databuddy/evals": "0.0.1",
+    "@databuddy/notifications": "0.0.1",
+    "@databuddy/redis": "1.0.0",
+    "@databuddy/rpc": "0.1.0",
+    "@databuddy/sdk": "2.4.0",
+    "@databuddy/services": "1.0.0",
+    "@databuddy/shared": "0.0.1",
+    "@databuddy/tracker": "0.0.1",
+    "@databuddy/ui": "0.0.0",
+    "@databuddy/validation": "0.1.0"
+  },
+  "changesets": ["devtools-initial-beta"]
+}

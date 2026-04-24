@@ -1,12 +1,13 @@
 "use client";
 
+import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import dayjs from "@/lib/dayjs";
+import { orpc } from "@/lib/orpc";
 import type { Link } from "@databuddy/db/schema";
 import type { DateRange } from "@databuddy/shared/types/analytics";
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { orpc } from "@/lib/orpc";
 
 export type { Link } from "@databuddy/db/schema";
 
@@ -48,6 +49,8 @@ export interface LinkStats {
 	topRegions: GeoEntry[];
 	totalClicks: number;
 }
+
+const EMPTY_LINKS: Link[] = [];
 
 export const getLinksListKey = (): QueryKey =>
 	orpc.links.list.queryKey({ input: {} });
@@ -94,7 +97,7 @@ export function useLinks(options?: { enabled?: boolean }) {
 	});
 
 	return {
-		links: query.data ?? [],
+		links: query.data ?? EMPTY_LINKS,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
 		isError: query.isError,
@@ -109,6 +112,26 @@ export function useLink(id: string) {
 		}),
 		enabled: !!id,
 	});
+}
+
+function fillEmptyDays<T extends { date: string }>(
+	data: T[],
+	startDate: string,
+	endDate: string,
+	defaults: Omit<T, "date">
+): T[] {
+	const dataMap = new Map(
+		data.map((d) => [dayjs(d.date).format("YYYY-MM-DD"), d])
+	);
+	const filled: T[] = [];
+	let current = dayjs(startDate);
+	const end = dayjs(endDate);
+	while (current.isBefore(end) || current.isSame(end, "day")) {
+		const key = current.format("YYYY-MM-DD");
+		filled.push(dataMap.get(key) ?? ({ ...defaults, date: key } as T));
+		current = current.add(1, "day");
+	}
+	return filled;
 }
 
 function addPercentages<T extends { clicks: number }>(
@@ -200,16 +223,31 @@ export function useLinkStats(linkId: string, dateRange: DateRange) {
 
 		return {
 			totalClicks: (totalClicksData[0] as { total?: number })?.total ?? 0,
-			clicksByDay: clicksByDayData as Array<{ date: string; clicks: number }>,
-			referrersByDay: referrersByDayData ?? [],
-			countriesByDay: countriesByDayData ?? [],
+			clicksByDay: fillEmptyDays(
+				(clicksByDayData ?? []) as Array<{ date: string; clicks: number }>,
+				dateRange.start_date,
+				dateRange.end_date,
+				{ clicks: 0 }
+			),
+			referrersByDay: fillEmptyDays(
+				(referrersByDayData ?? []) as TimeSeriesEntry[],
+				dateRange.start_date,
+				dateRange.end_date,
+				{ value: 0 }
+			),
+			countriesByDay: fillEmptyDays(
+				(countriesByDayData ?? []) as TimeSeriesEntry[],
+				dateRange.start_date,
+				dateRange.end_date,
+				{ value: 0 }
+			),
 			topReferrers: addPercentages(topReferrersData),
 			topCountries: addPercentages(topCountriesData),
 			topRegions: addPercentages(topRegionsData),
 			topCities: addPercentages(topCitiesData),
 			topDevices: addPercentages(topDevicesData ?? []),
 		};
-	}, [getDataForQuery]);
+	}, [getDataForQuery, dateRange.start_date, dateRange.end_date]);
 
 	return {
 		data: stats,

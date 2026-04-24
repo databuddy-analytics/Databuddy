@@ -30,18 +30,24 @@ export interface ApiKeyAccessEntry {
 
 export interface ApiKeyListItem {
 	createdAt: Date;
+	description?: string | null;
 	enabled: boolean;
-	expiresAt?: string | null;
+	expiresAt?: Date | string | null;
 	id: string;
+	lastUsedAt?: Date | string | null;
 	metadata?: Record<string, unknown>;
 	name: string;
 	prefix: string;
-	rateLimitEnabled?: boolean;
-	rateLimitMax?: number | null;
-	rateLimitTimeWindow?: number | null;
+	ratelimit?: {
+		enabled: boolean;
+		max: number | null;
+		window: number | null;
+	};
+	resources?: Record<string, string[]>;
 	revokedAt?: Date | null;
 	scopes: ApiScope[];
 	start: string;
+	tags?: string[];
 	type: "user" | "sdk" | "automation";
 	updatedAt: Date;
 }

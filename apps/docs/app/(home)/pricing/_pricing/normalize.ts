@@ -33,14 +33,17 @@ export function getEventsInfo(items: RawItem[]): {
 	return { included, tiers };
 }
 
-export function getAssistantMessagesPerDay(items: RawItem[]): number | null {
+export function getAgentCreditsByInterval(
+	items: RawItem[],
+	interval: "day" | "month"
+): number | null {
 	for (const item of items) {
-		const isAssistant =
+		const isAgent =
 			(item.type === "feature" || item.type === "priced_feature") &&
-			item.feature_id === "assistant_message" &&
-			item.interval === "day" &&
+			item.feature_id === "agent_credits" &&
+			item.interval === interval &&
 			typeof item.included_usage === "number";
-		if (isAssistant) {
+		if (isAgent) {
 			return item.included_usage as number;
 		}
 	}
@@ -56,21 +59,24 @@ export function normalizePlans(raw: RawPlan[]): NormalizedPlan[] {
 				priceMonthly: 0,
 				includedEventsMonthly: 0,
 				eventTiers: null,
-				assistantMessagesPerDay: null,
+				agentCreditsMonthly: null,
+				agentCreditsDaily: null,
 			};
 		}
 
 		const priceMonthly = getPriceMonthly(plan.items);
 		const { included: includedEventsMonthly, tiers: eventTiers } =
 			getEventsInfo(plan.items);
-		const assistantMessagesPerDay = getAssistantMessagesPerDay(plan.items);
+		const agentCreditsMonthly = getAgentCreditsByInterval(plan.items, "month");
+		const agentCreditsDaily = getAgentCreditsByInterval(plan.items, "day");
 		return {
 			id: plan.id,
 			name: plan.name,
 			priceMonthly,
 			includedEventsMonthly,
 			eventTiers,
-			assistantMessagesPerDay,
+			agentCreditsMonthly,
+			agentCreditsDaily,
 		};
 	});
 }

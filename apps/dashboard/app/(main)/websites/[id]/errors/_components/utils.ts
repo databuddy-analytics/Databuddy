@@ -1,47 +1,75 @@
 import type { ErrorCategory } from "@databuddy/shared/types/errors";
 
-export const getErrorCategory = (errorMessage: string): ErrorCategory => {
-	if (!errorMessage) {
-		return { type: "Unknown Error", category: "Other", severity: "low" };
-	}
+const UNKNOWN_ERROR: ErrorCategory = {
+	type: "Unknown Error",
+	category: "Other",
+	severity: "low",
+};
 
-	const message = errorMessage.toLowerCase();
-
-	if (message.includes("react error")) {
-		return { type: "React Error", category: "React", severity: "high" };
-	}
-	if (message.includes("script error")) {
-		return { type: "Script Error", category: "JavaScript", severity: "medium" };
-	}
-	if (message.includes("network")) {
-		return { type: "Network Error", category: "Network", severity: "medium" };
-	}
-	if (message.includes("syntax")) {
-		return { type: "Syntax Error", category: "JavaScript", severity: "high" };
-	}
-	if (message.includes("reference")) {
-		return {
+const CATEGORY_RULES: Array<{ match: string; category: ErrorCategory }> = [
+	{
+		match: "react error",
+		category: { type: "React Error", category: "React", severity: "high" },
+	},
+	{
+		match: "script error",
+		category: {
+			type: "Script Error",
+			category: "JavaScript",
+			severity: "medium",
+		},
+	},
+	{
+		match: "network",
+		category: {
+			type: "Network Error",
+			category: "Network",
+			severity: "medium",
+		},
+	},
+	{
+		match: "syntax",
+		category: {
+			type: "Syntax Error",
+			category: "JavaScript",
+			severity: "high",
+		},
+	},
+	{
+		match: "reference",
+		category: {
 			type: "Reference Error",
 			category: "JavaScript",
 			severity: "high",
-		};
-	}
-	if (message.includes("type")) {
-		return { type: "Type Error", category: "JavaScript", severity: "medium" };
-	}
+		},
+	},
+	{
+		match: "type",
+		category: {
+			type: "Type Error",
+			category: "JavaScript",
+			severity: "medium",
+		},
+	},
+];
 
-	return { type: "Unknown Error", category: "Other", severity: "low" };
-};
-
-export const getSeverityColor = (
-	severity: "high" | "medium" | "low"
-): string => {
-	const colors = {
-		high: "bg-primary/10 text-primary border-primary/20",
-		medium: "bg-chart-2/10 text-chart-2 border-chart-2/20",
-		low: "bg-chart-3/10 text-chart-3 border-chart-3/20",
-	};
+export const getErrorCategory = (errorMessage: string): ErrorCategory => {
+	if (!errorMessage) {
+		return UNKNOWN_ERROR;
+	}
+	const message = errorMessage.toLowerCase();
 	return (
-		colors[severity] || "bg-muted/10 text-muted-foreground border-muted/20"
+		CATEGORY_RULES.find((rule) => message.includes(rule.match))?.category ??
+		UNKNOWN_ERROR
 	);
 };
+
+const SEVERITY_COLORS: Record<"high" | "medium" | "low", string> = {
+	high: "bg-destructive/10 text-destructive border-destructive/20",
+	medium:
+		"bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400",
+	low: "bg-muted text-muted-foreground border-border",
+};
+
+export const getSeverityColor = (severity: "high" | "medium" | "low"): string =>
+	SEVERITY_COLORS[severity];

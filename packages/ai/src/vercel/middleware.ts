@@ -79,7 +79,7 @@ function getFinishReason(raw: unknown): string | undefined {
 			return (raw as { type: string }).type;
 		}
 	}
-	return undefined;
+	return;
 }
 
 /**

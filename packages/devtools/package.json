@@ -1,0 +1,72 @@
+{
+  "name": "@databuddy/devtools",
+  "version": "0.0.1-beta.0",
+  "description": "Moveable Databuddy browser devtools overlay",
+  "main": "./dist/core/index.mjs",
+  "types": "./dist/core/index.d.ts",
+  "license": "MIT",
+  "private": false,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "build": "unbuild",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "react": "catalog:",
+    "typescript": "catalog:",
+    "unbuild": "^3.6.1",
+    "vue": "^3.5.33"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "vue": "^3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.mjs"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.mjs"
+    },
+    "./vue": {
+      "types": "./dist/vue/index.d.ts",
+      "import": "./dist/vue/index.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "analytics",
+    "databuddy",
+    "devtools",
+    "preact",
+    "react",
+    "vue"
+  ],
+  "homepage": "https://databuddy.cc",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/databuddy-analytics/databuddy.git"
+  },
+  "bugs": {
+    "type": "git",
+    "url": "https://github.com/databuddy-analytics/databuddy/issues"
+  },
+  "dependencies": {
+    "preact": "^10.29.1"
+  }
+}

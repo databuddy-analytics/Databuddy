@@ -1,10 +1,10 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DateRange as DayPickerRange } from "react-day-picker";
 import { useHotkeys } from "react-hotkeys-hook";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ import { PageNavigation } from "@/components/layout/page-navigation";
 import { Button } from "@/components/ds/button";
 import { Skeleton } from "@/components/ds/skeleton";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { batchDynamicQueryKeys } from "@/hooks/use-dynamic-query";
 import { useLink } from "@/hooks/use-links";
 import dayjs from "@/lib/dayjs";
 
@@ -50,6 +51,8 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 	const linkId = id as string;
 	const queryClient = useQueryClient();
 	const [isRefreshing, setIsRefreshing] = useState(false);
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
 
 	const { data: link, isLoading: isLoadingLink } = useLink(linkId);
 
@@ -87,7 +90,7 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 	const getGranularityButtonClass = (type: "daily" | "hourly") => {
 		const isActive = currentGranularity === type;
 		const baseClass =
-			"h-full w-16 cursor-pointer touch-manipulation rounded-none px-0 text-xs";
+			"h-full w-24 cursor-pointer touch-manipulation rounded-none px-0 text-sm";
 		const activeClass = isActive
 			? "font-medium bg-accent hover:bg-accent! text-accent-foreground"
 			: "text-muted-foreground";
@@ -114,10 +117,10 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
 		try {
+			const batchRoot = batchDynamicQueryKeys.all()[0];
 			await queryClient.invalidateQueries({
 				predicate: (query) =>
-					query.queryKey[0] === "batch-dynamic-query" &&
-					query.queryKey.includes(linkId),
+					query.queryKey[0] === batchRoot && query.queryKey.includes(linkId),
 			});
 		} catch {
 			toast.error("Failed to refresh data");
@@ -141,23 +144,8 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 
 	return (
 		<div className="flex h-full flex-col overflow-hidden">
-			{isLoadingLink ? (
-				<div className="flex h-12 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3">
-					<Skeleton className="h-4 w-12" />
-					<span className="text-muted-foreground/40">/</span>
-					<Skeleton className="h-4 w-32" />
-				</div>
-			) : (
-				<PageNavigation
-					breadcrumb={{ label: "Links", href: "/links" }}
-					className="h-12"
-					currentPage={link?.name ?? "Link Stats"}
-					variant="breadcrumb"
-				/>
-			)}
-
-			<div className="sticky top-0 right-0 left-0 z-50 shrink-0 overscroll-contain bg-background md:top-0 md:left-84">
-				<div className="flex h-10 items-center justify-between border-b pr-4">
+			<div className="shrink-0 bg-background">
+				<div className="flex h-12 items-center justify-between border-b pr-4">
 					<div className="flex h-full items-center">
 						<Button
 							className={clsx(getGranularityButtonClass("daily"), "border-r")}
@@ -180,43 +168,6 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 						>
 							Hourly
 						</Button>
-
-						{QUICK_RANGES.map((range) => {
-							const isActive = isQuickRangeActive(range);
-							return (
-								<Button
-									className={clsx(
-										"h-full w-12 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
-										isActive
-											? "bg-accent text-accent-foreground hover:bg-accent"
-											: "hover:bg-accent!"
-									)}
-									key={range.label}
-									onClick={() => handleQuickRangeSelect(range)}
-									title={range.fullLabel}
-									variant={isActive ? "secondary" : "ghost"}
-								>
-									{range.label}
-								</Button>
-							);
-						})}
-
-						<div className="flex h-full items-center pl-1">
-							<DateRangePicker
-								className="w-auto"
-								maxDate={new Date()}
-								minDate={new Date(2020, 0, 1)}
-								onChange={(range) => {
-									if (range?.from && range?.to) {
-										setDateRangeAction({
-											startDate: range.from,
-											endDate: range.to,
-										});
-									}
-								}}
-								value={selectedRange}
-							/>
-						</div>
 					</div>
 
 					<div className="flex items-center gap-2">
@@ -229,12 +180,74 @@ export default function LinkStatsLayout({ children }: LinkStatsLayoutProps) {
 						>
 							<ArrowClockwiseIcon
 								aria-hidden="true"
-								className={`size-4 ${isRefreshing ? "animate-spin" : ""}`}
+								className={`size-4 shrink-0 ${isRefreshing ? "animate-spin" : ""}`}
 							/>
 						</Button>
 					</div>
 				</div>
+
+				<div className="flex h-10 items-center overflow-x-auto overflow-y-hidden border-b pr-4">
+					{mounted ? (
+						<>
+							{QUICK_RANGES.map((range) => {
+								const isActive = isQuickRangeActive(range);
+								return (
+									<div className="flex h-full items-center" key={range.label}>
+										<Button
+											className={clsx(
+												"h-10 w-12 cursor-pointer touch-manipulation whitespace-nowrap rounded-none border-r px-0 font-medium text-xs",
+												isActive
+													? "bg-accent text-accent-foreground hover:bg-accent"
+													: "hover:bg-accent!"
+											)}
+											onClick={() => handleQuickRangeSelect(range)}
+											title={range.fullLabel}
+											variant={isActive ? "secondary" : "ghost"}
+										>
+											{range.label}
+										</Button>
+									</div>
+								);
+							})}
+
+							<div className="flex h-full items-center pl-1">
+								<DateRangePicker
+									className="w-auto"
+									maxDate={new Date()}
+									minDate={new Date(2020, 0, 1)}
+									onChange={(range) => {
+										if (range?.from && range?.to) {
+											setDateRangeAction({
+												startDate: range.from,
+												endDate: range.to,
+											});
+										}
+									}}
+									value={selectedRange}
+								/>
+							</div>
+						</>
+					) : (
+						<div className="flex items-center gap-2 px-3">
+							<Skeleton className="h-5 w-32" />
+						</div>
+					)}
+				</div>
 			</div>
+
+			{isLoadingLink ? (
+				<div className="flex h-10 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3">
+					<Skeleton className="h-4 w-12" />
+					<span className="text-muted-foreground/40">/</span>
+					<Skeleton className="h-4 w-32" />
+				</div>
+			) : (
+				<PageNavigation
+					breadcrumb={{ label: "Links", href: "/links" }}
+					currentPage={link?.name ?? "Link Stats"}
+					variant="breadcrumb"
+				/>
+			)}
 
 			<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
 				{children}

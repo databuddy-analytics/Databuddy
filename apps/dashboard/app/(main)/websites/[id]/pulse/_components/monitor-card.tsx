@@ -108,11 +108,16 @@ export function MonitorCard({
 					</div>
 
 					<DropdownMenu>
-						<DropdownMenu.Trigger>
-							<GhostTriggerButton aria-label="More options" className="text-sm">
-								<DotsThreeIcon size={20} weight="duotone" />
-							</GhostTriggerButton>
-						</DropdownMenu.Trigger>
+						<DropdownMenu.Trigger
+							render={
+								<GhostTriggerButton
+									aria-label="More options"
+									className="text-sm"
+								>
+									<DotsThreeIcon size={20} weight="duotone" />
+								</GhostTriggerButton>
+							}
+						/>
 						<DropdownMenu.Content align="end">
 							<DropdownMenu.Item onClick={onEditAction}>
 								<PencilIcon size={16} />

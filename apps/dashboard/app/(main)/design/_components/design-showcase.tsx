@@ -573,9 +573,9 @@ export function DesignShowcase() {
 			>
 				<ShowcaseRow>
 					<Dialog>
-						<Dialog.Trigger>
-							<Button variant="secondary">Default dialog</Button>
-						</Dialog.Trigger>
+						<Dialog.Trigger
+							render={<Button variant="secondary">Default dialog</Button>}
+						/>
 						<Dialog.Content>
 							<Dialog.Close />
 							<Dialog.Header>
@@ -603,11 +603,13 @@ export function DesignShowcase() {
 						</Dialog.Content>
 					</Dialog>
 					<Dialog>
-						<Dialog.Trigger>
-							<Button tone="danger" variant="secondary">
-								Destructive dialog
-							</Button>
-						</Dialog.Trigger>
+						<Dialog.Trigger
+							render={
+								<Button tone="danger" variant="secondary">
+									Destructive dialog
+								</Button>
+							}
+						/>
 						<Dialog.Content>
 							<Dialog.Close />
 							<Dialog.Header>
@@ -635,9 +637,9 @@ export function DesignShowcase() {
 			>
 				<ShowcaseRow>
 					<Sheet onOpenChange={setSheetOpen} open={sheetOpen}>
-						<Sheet.Trigger>
-							<Button variant="secondary">Open sheet</Button>
-						</Sheet.Trigger>
+						<Sheet.Trigger
+							render={<Button variant="secondary">Open sheet</Button>}
+						/>
 						<Sheet.Content>
 							<Sheet.Close />
 							<Sheet.Header>
@@ -674,9 +676,9 @@ export function DesignShowcase() {
 			>
 				<ShowcaseRow>
 					<DropdownMenu>
-						<DropdownMenu.Trigger>
-							<Button variant="secondary">Actions</Button>
-						</DropdownMenu.Trigger>
+						<DropdownMenu.Trigger
+							render={<Button variant="secondary">Actions</Button>}
+						/>
 						<DropdownMenu.Content align="start">
 							<DropdownMenu.Group>
 								<DropdownMenu.GroupLabel>Navigate</DropdownMenu.GroupLabel>
@@ -697,12 +699,14 @@ export function DesignShowcase() {
 						</DropdownMenu.Content>
 					</DropdownMenu>
 					<DropdownMenu>
-						<DropdownMenu.Trigger>
-							<Button size="sm" variant="ghost">
-								<Gear className="size-3.5" />
-								Icon trigger
-							</Button>
-						</DropdownMenu.Trigger>
+						<DropdownMenu.Trigger
+							render={
+								<Button size="sm" variant="ghost">
+									<Gear className="size-3.5" />
+									Icon trigger
+								</Button>
+							}
+						/>
 						<DropdownMenu.Content>
 							<DropdownMenu.Item>Option A</DropdownMenu.Item>
 							<DropdownMenu.Item>Option B</DropdownMenu.Item>
@@ -719,9 +723,9 @@ export function DesignShowcase() {
 			>
 				<ShowcaseRow>
 					<Popover>
-						<Popover.Trigger>
-							<Button variant="secondary">Open popover</Button>
-						</Popover.Trigger>
+						<Popover.Trigger
+							render={<Button variant="secondary">Open popover</Button>}
+						/>
 						<Popover.Content>
 							<Popover.Title>Invite teammate</Popover.Title>
 							<Popover.Description className="mt-1">
@@ -1801,12 +1805,14 @@ function TeamMockup() {
 					</Text>
 				</div>
 				<Dialog>
-					<Dialog.Trigger>
-						<Button size="sm">
-							<Plus className="size-3.5" />
-							Invite
-						</Button>
-					</Dialog.Trigger>
+					<Dialog.Trigger
+						render={
+							<Button size="sm">
+								<Plus className="size-3.5" />
+								Invite
+							</Button>
+						}
+					/>
 					<Dialog.Content>
 						<Dialog.Close />
 						<Dialog.Header>
@@ -1927,11 +1933,13 @@ function TeamMockup() {
 						<div className="flex w-10 justify-end">
 							{m.role !== "Owner" && (
 								<DropdownMenu>
-									<DropdownMenu.Trigger>
-										<Button size="sm" variant="ghost">
-											<DotsThree className="size-3.5" />
-										</Button>
-									</DropdownMenu.Trigger>
+									<DropdownMenu.Trigger
+										render={
+											<Button size="sm" variant="ghost">
+												<DotsThree className="size-3.5" />
+											</Button>
+										}
+									/>
 									<DropdownMenu.Content align="end">
 										<DropdownMenu.Item>
 											<Gear className="size-3.5" />

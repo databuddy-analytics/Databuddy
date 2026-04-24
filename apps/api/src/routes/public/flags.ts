@@ -1,10 +1,23 @@
-import { and, db, eq, isNull, or } from "@databuddy/db";
-import { flags } from "@databuddy/db/schema";
+import {
+	type ApiKeyRow,
+	getApiKeyFromHeader,
+	hasKeyScope,
+	hasWebsiteScope,
+	isApiKeyPresent,
+} from "@/lib/api-key";
+import { mergeWideEvent, record } from "@/lib/tracing";
+import { and, db, eq, isNull, or, withTransaction } from "@databuddy/db";
+import {
+	flagChangeEvents,
+	type FlagVariant,
+	flags,
+} from "@databuddy/db/schema";
 import { cacheable } from "@databuddy/redis";
+import { invalidateFlagCache } from "@databuddy/shared/flags/utils";
+import { randomUUIDv7 } from "bun";
 import { Elysia, t } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { LRUCache } from "lru-cache";
-import { mergeWideEvent, record } from "@/lib/tracing";
 
 const memCache = new LRUCache<string, object>({ max: 500, ttl: 5000 });
 
@@ -199,7 +212,12 @@ const getCachedFlagsForClient = cacheable(
 );
 
 const getCachedFlagsForUser = cacheable(
-	async (userId: string, environment?: string) => {
+	async (userId: string, clientId: string, environment?: string) => {
+		const scopeCondition = or(
+			eq(flags.websiteId, clientId),
+			eq(flags.organizationId, clientId)
+		);
+
 		const environmentCondition = environment
 			? eq(flags.environment, environment)
 			: isNull(flags.environment);
@@ -209,7 +227,8 @@ const getCachedFlagsForUser = cacheable(
 				isNull(flags.deletedAt),
 				eq(flags.status, "active"),
 				environmentCondition,
-				eq(flags.userId, userId)
+				eq(flags.userId, userId),
+				scopeCondition
 			),
 			with: {
 				flagsToTargetGroups: {
@@ -263,7 +282,7 @@ export function parseProperties(
 
 	try {
 		return JSON.parse(propertiesJson);
-	} catch (_error) {
+	} catch {
 		return {};
 	}
 }
@@ -331,7 +350,7 @@ function getContextValue(
 	if (rule.field) {
 		return String(context.properties?.[rule.field] ?? "");
 	}
-	return undefined;
+	return;
 }
 
 export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
@@ -517,10 +536,96 @@ export function evaluateFlag(
 const FLAG_CACHE_CONTROL =
 	"public, max-age=15, s-maxage=30, stale-while-revalidate=15";
 
+const PUBLIC_CACHE_PATH_RE = /\/v1\/flags\/(evaluate|bulk)$/;
+
+interface FlagAdminSuccess {
+	apiKey: ApiKeyRow;
+	ok: true;
+}
+
+interface FlagAdminFailure {
+	error: string;
+	ok: false;
+	status: 401 | 403;
+}
+
+async function resolveFlagAdmin(
+	headers: Headers,
+	clientId: string
+): Promise<FlagAdminSuccess | FlagAdminFailure> {
+	if (!isApiKeyPresent(headers)) {
+		return { ok: false, status: 401, error: "API key required" };
+	}
+	const apiKey = await getApiKeyFromHeader(headers);
+	if (!apiKey) {
+		return { ok: false, status: 401, error: "Invalid or expired API key" };
+	}
+	const hasWebsiteAccess = hasWebsiteScope(apiKey, clientId, "manage:flags");
+	const hasOrgAccess =
+		apiKey.organizationId === clientId && hasKeyScope(apiKey, "manage:flags");
+	if (!(hasWebsiteAccess || hasOrgAccess)) {
+		return { ok: false, status: 403, error: "Insufficient permissions" };
+	}
+	return { ok: true, apiKey };
+}
+
+function invalidateMemCacheForClient(clientId: string) {
+	const clientFragment = `:${clientId}:`;
+	for (const key of memCache.keys()) {
+		if (
+			(key.startsWith("fc:") || key.startsWith("f:")) &&
+			key.includes(clientFragment)
+		) {
+			memCache.delete(key);
+		}
+	}
+}
+
+function resolveScope(
+	apiKey: ApiKeyRow,
+	clientId: string
+): { organizationId: string | null; websiteId: string | null } {
+	if (hasWebsiteScope(apiKey, clientId, "manage:flags")) {
+		return { websiteId: clientId, organizationId: null };
+	}
+	if (apiKey.organizationId === clientId) {
+		return { websiteId: null, organizationId: clientId };
+	}
+	return { websiteId: null, organizationId: null };
+}
+
+function buildFlagChangeSnapshot(flag: typeof flags.$inferSelect) {
+	return {
+		key: flag.key,
+		name: flag.name ?? null,
+		description: flag.description ?? null,
+		type: flag.type,
+		status: flag.status,
+		defaultValue: flag.defaultValue,
+		persistAcrossAuth: flag.persistAcrossAuth,
+		rolloutPercentage: flag.rolloutPercentage ?? null,
+		rolloutBy: flag.rolloutBy ?? null,
+		environment: flag.environment ?? null,
+		dependencies: flag.dependencies ?? [],
+		variants: flag.variants ?? [],
+	};
+}
+
+const variantBodySchema = t.Object({
+	key: t.String({ minLength: 1 }),
+	type: t.Union([t.Literal("string"), t.Literal("number"), t.Literal("json")]),
+	value: t.Union([t.String(), t.Number()]),
+	description: t.Optional(t.String()),
+	weight: t.Optional(t.Number()),
+});
+
 export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
-	.onAfterHandle(({ set }) => {
+	.onAfterHandle(({ set, request }) => {
 		if (!set.status || set.status === 200) {
-			set.headers["cache-control"] = FLAG_CACHE_CONTROL;
+			const pathname = new URL(request.url).pathname;
+			set.headers["cache-control"] = PUBLIC_CACHE_PATH_RE.test(pathname)
+				? FLAG_CACHE_CONTROL
+				: "private, no-store";
 		}
 		set.headers.vary = "Origin";
 	})
@@ -565,8 +670,10 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				if (!flag && context.userId) {
 					const uid = context.userId;
 					const userFlags = await record("getCachedFlagsForUser", () =>
-						fromMemory(`fu:${uid}:${query.environment || ""}`, () =>
-							getCachedFlagsForUser(uid, query.environment)
+						fromMemory(
+							`fu:${uid}:${query.clientId}:${query.environment || ""}`,
+							() =>
+								getCachedFlagsForUser(uid, query.clientId, query.environment)
 						)
 					);
 					flag = userFlags.find((f) => f.key === query.key) ?? null;
@@ -659,8 +766,10 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				if (context.userId) {
 					const uid = context.userId;
 					const userFlags = await record("getCachedFlagsForUser", () =>
-						fromMemory(`fu:${uid}:${query.environment || ""}`, () =>
-							getCachedFlagsForUser(uid, query.environment)
+						fromMemory(
+							`fu:${uid}:${query.clientId}:${query.environment || ""}`,
+							() =>
+								getCachedFlagsForUser(uid, query.clientId, query.environment)
 						)
 					);
 					if (userFlags.length > 0) {
@@ -707,10 +816,11 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 	.get(
 		"/definitions",
-		async function getDefinitionsEndpoint({ query, set }) {
+		async function getDefinitionsEndpoint({ query, set, request }) {
 			mergeWideEvent({
 				flag_client_id: query.clientId || "",
 				flag_environment: query.environment || "",
+				flag_definitions: true,
 			});
 
 			try {
@@ -720,25 +830,33 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					return { flags: [], error: "Missing required clientId parameter" };
 				}
 
+				const auth = await resolveFlagAdmin(request.headers, query.clientId);
+				if (!auth.ok) {
+					mergeWideEvent({ flag_error: `auth_${auth.status}` });
+					set.status = auth.status;
+					return { flags: [], error: auth.error };
+				}
+
 				const clientFlags = await fromMemory(
 					`fc:${query.clientId}:${query.environment || ""}`,
 					() => getCachedFlagsForClient(query.clientId, query.environment)
 				);
 
-				const allFlags = clientFlags;
-
-				mergeWideEvent({ flag_total_flags: allFlags.length });
+				mergeWideEvent({ flag_total_flags: clientFlags.length });
 
 				return {
-					flags: allFlags.map((flag) => ({
+					flags: clientFlags.map((flag) => ({
+						id: flag.id,
 						key: flag.key,
 						description: flag.description,
 						type: flag.type,
+						status: flag.status,
+						defaultValue: flag.defaultValue,
 						variants: flag.variants,
 						createdAt: flag.createdAt,
 						updatedAt: flag.updatedAt,
 					})),
-					count: allFlags.length,
+					count: clientFlags.length,
 				};
 			} catch (error) {
 				mergeWideEvent({ flag_error: true });
@@ -755,6 +873,395 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				clientId: t.String(),
 				environment: t.Optional(t.String()),
 			}),
+		}
+	)
+
+	.post(
+		"/",
+		async function createFlagEndpoint({ body, set, request }) {
+			mergeWideEvent({
+				flag_client_id: body.clientId || "",
+				flag_write: "create",
+			});
+
+			try {
+				const auth = await resolveFlagAdmin(request.headers, body.clientId);
+				if (!auth.ok) {
+					set.status = auth.status;
+					return { error: auth.error };
+				}
+
+				if (!auth.apiKey.userId) {
+					set.status = 403;
+					return { error: "API key must be associated with a user" };
+				}
+
+				const scope = resolveScope(auth.apiKey, body.clientId);
+				if (!(scope.websiteId || scope.organizationId)) {
+					set.status = 403;
+					return { error: "Insufficient permissions" };
+				}
+
+				const existingRows = await db
+					.select()
+					.from(flags)
+					.where(
+						and(
+							eq(flags.key, body.key),
+							or(
+								eq(flags.websiteId, scope.websiteId ?? ""),
+								eq(flags.organizationId, scope.organizationId ?? "")
+							)
+						)
+					)
+					.limit(1);
+
+				const existing = existingRows.at(0) ?? null;
+
+				if (existing && !existing.deletedAt) {
+					set.status = 409;
+					return { error: "A flag with this key already exists" };
+				}
+
+				const createdBy = auth.apiKey.userId;
+				const variants = (body.variants ?? []) as FlagVariant[];
+
+				const result = await withTransaction(async (tx) => {
+					if (existing) {
+						const restoredRows = await tx
+							.update(flags)
+							.set({
+								description: body.description ?? null,
+								type: body.type,
+								status: "active",
+								defaultValue: body.defaultValue,
+								variants,
+								environment: body.environment ?? null,
+								deletedAt: null,
+								updatedAt: new Date(),
+							})
+							.where(eq(flags.id, existing.id))
+							.returning();
+
+						const restored = restoredRows.at(0);
+						if (!restored) {
+							throw new Error("Failed to restore flag");
+						}
+
+						await tx.insert(flagChangeEvents).values({
+							id: randomUUIDv7(),
+							flagId: restored.id,
+							websiteId: restored.websiteId,
+							organizationId: restored.organizationId,
+							changeType: "restored",
+							before: buildFlagChangeSnapshot(existing),
+							after: buildFlagChangeSnapshot(restored),
+							changedBy: createdBy,
+						});
+
+						return restored;
+					}
+
+					const id = randomUUIDv7();
+					const createdRows = await tx
+						.insert(flags)
+						.values({
+							id,
+							key: body.key,
+							description: body.description ?? null,
+							type: body.type,
+							status: "active",
+							defaultValue: body.defaultValue,
+							variants,
+							environment: body.environment ?? null,
+							websiteId: scope.websiteId,
+							organizationId: scope.organizationId,
+							createdBy,
+						})
+						.returning();
+
+					const created = createdRows.at(0);
+					if (!created) {
+						throw new Error("Failed to create flag");
+					}
+
+					await tx.insert(flagChangeEvents).values({
+						id: randomUUIDv7(),
+						flagId: created.id,
+						websiteId: created.websiteId,
+						organizationId: created.organizationId,
+						changeType: "created",
+						before: null,
+						after: buildFlagChangeSnapshot(created),
+						changedBy: createdBy,
+					});
+
+					return created;
+				});
+
+				await invalidateFlagCache(
+					result.id,
+					result.websiteId,
+					result.organizationId,
+					result.key
+				);
+				invalidateMemCacheForClient(body.clientId);
+
+				return {
+					flag: {
+						id: result.id,
+						key: result.key,
+						description: result.description,
+						type: result.type,
+						status: result.status,
+						defaultValue: result.defaultValue,
+						variants: result.variants,
+						createdAt: result.createdAt,
+						updatedAt: result.updatedAt,
+					},
+				};
+			} catch (error) {
+				mergeWideEvent({ flag_error: true });
+				useLogger().error(
+					error instanceof Error ? error : new Error(String(error)),
+					{ flags: { create: true, clientId: body.clientId } }
+				);
+				set.status = 500;
+				return { error: "Failed to create flag" };
+			}
+		},
+		{
+			body: t.Object({
+				clientId: t.String({ minLength: 1 }),
+				key: t.String({ minLength: 1, maxLength: 128 }),
+				type: t.Union([t.Literal("boolean"), t.Literal("multivariant")]),
+				defaultValue: t.Boolean(),
+				description: t.Optional(t.String({ maxLength: 500 })),
+				environment: t.Optional(t.String()),
+				variants: t.Optional(t.Array(variantBodySchema, { maxItems: 32 })),
+			}),
+		}
+	)
+
+	.patch(
+		"/:id",
+		async function updateFlagEndpoint({ body, params, set, request }) {
+			mergeWideEvent({
+				flag_client_id: body.clientId || "",
+				flag_write: "update",
+			});
+
+			try {
+				const auth = await resolveFlagAdmin(request.headers, body.clientId);
+				if (!auth.ok) {
+					set.status = auth.status;
+					return { error: auth.error };
+				}
+
+				if (!auth.apiKey.userId) {
+					set.status = 403;
+					return { error: "API key must be associated with a user" };
+				}
+
+				const existing = await db
+					.select()
+					.from(flags)
+					.where(and(eq(flags.id, params.id), isNull(flags.deletedAt)))
+					.limit(1);
+
+				const flag = existing.at(0);
+				if (!flag) {
+					set.status = 404;
+					return { error: "Flag not found" };
+				}
+				if (
+					flag.websiteId !== body.clientId &&
+					flag.organizationId !== body.clientId
+				) {
+					set.status = 403;
+					return { error: "Flag does not belong to this client" };
+				}
+
+				const updates: Partial<typeof flags.$inferInsert> = {
+					updatedAt: new Date(),
+				};
+				if (body.description !== undefined) {
+					updates.description = body.description ?? null;
+				}
+				if (body.defaultValue !== undefined) {
+					updates.defaultValue = body.defaultValue;
+				}
+				if (body.variants !== undefined) {
+					updates.variants = body.variants as FlagVariant[];
+				}
+				if (body.status !== undefined) {
+					updates.status = body.status;
+				}
+
+				const changedBy = auth.apiKey.userId;
+
+				const updated = await withTransaction(async (tx) => {
+					const rows = await tx
+						.update(flags)
+						.set(updates)
+						.where(and(eq(flags.id, params.id), isNull(flags.deletedAt)))
+						.returning();
+
+					const row = rows.at(0);
+					if (!row) {
+						throw new Error("Failed to update flag");
+					}
+
+					await tx.insert(flagChangeEvents).values({
+						id: randomUUIDv7(),
+						flagId: row.id,
+						websiteId: row.websiteId,
+						organizationId: row.organizationId,
+						changeType: "updated",
+						before: buildFlagChangeSnapshot(flag),
+						after: buildFlagChangeSnapshot(row),
+						changedBy,
+					});
+
+					return row;
+				});
+
+				await invalidateFlagCache(
+					updated.id,
+					updated.websiteId,
+					updated.organizationId,
+					updated.key
+				);
+				invalidateMemCacheForClient(body.clientId);
+
+				return {
+					flag: {
+						id: updated.id,
+						key: updated.key,
+						description: updated.description,
+						type: updated.type,
+						status: updated.status,
+						defaultValue: updated.defaultValue,
+						variants: updated.variants,
+						createdAt: updated.createdAt,
+						updatedAt: updated.updatedAt,
+					},
+				};
+			} catch (error) {
+				mergeWideEvent({ flag_error: true });
+				useLogger().error(
+					error instanceof Error ? error : new Error(String(error)),
+					{ flags: { update: true, flagId: params.id } }
+				);
+				set.status = 500;
+				return { error: "Failed to update flag" };
+			}
+		},
+		{
+			params: t.Object({ id: t.String({ minLength: 1 }) }),
+			body: t.Object({
+				clientId: t.String({ minLength: 1 }),
+				description: t.Optional(t.Union([t.String(), t.Null()])),
+				defaultValue: t.Optional(t.Boolean()),
+				variants: t.Optional(t.Array(variantBodySchema, { maxItems: 32 })),
+				status: t.Optional(
+					t.Union([
+						t.Literal("active"),
+						t.Literal("inactive"),
+						t.Literal("archived"),
+					])
+				),
+			}),
+		}
+	)
+
+	.delete(
+		"/:id",
+		async function deleteFlagEndpoint({ params, query, set, request }) {
+			mergeWideEvent({
+				flag_client_id: query.clientId || "",
+				flag_write: "delete",
+			});
+
+			try {
+				const auth = await resolveFlagAdmin(request.headers, query.clientId);
+				if (!auth.ok) {
+					set.status = auth.status;
+					return { error: auth.error };
+				}
+
+				if (!auth.apiKey.userId) {
+					set.status = 403;
+					return { error: "API key must be associated with a user" };
+				}
+
+				const existing = await db
+					.select()
+					.from(flags)
+					.where(and(eq(flags.id, params.id), isNull(flags.deletedAt)))
+					.limit(1);
+
+				const flag = existing.at(0);
+				if (!flag) {
+					set.status = 404;
+					return { error: "Flag not found" };
+				}
+				if (
+					flag.websiteId !== query.clientId &&
+					flag.organizationId !== query.clientId
+				) {
+					set.status = 403;
+					return { error: "Flag does not belong to this client" };
+				}
+
+				const changedBy = auth.apiKey.userId;
+
+				await withTransaction(async (tx) => {
+					const archivedRows = await tx
+						.update(flags)
+						.set({ deletedAt: new Date(), status: "archived" })
+						.where(and(eq(flags.id, params.id), isNull(flags.deletedAt)))
+						.returning();
+
+					const archived = archivedRows.at(0);
+					if (!archived) {
+						throw new Error("Failed to archive flag");
+					}
+
+					await tx.insert(flagChangeEvents).values({
+						id: randomUUIDv7(),
+						flagId: archived.id,
+						websiteId: archived.websiteId,
+						organizationId: archived.organizationId,
+						changeType: "archived",
+						before: buildFlagChangeSnapshot(flag),
+						after: buildFlagChangeSnapshot(archived),
+						changedBy,
+					});
+				});
+
+				await invalidateFlagCache(
+					flag.id,
+					flag.websiteId,
+					flag.organizationId,
+					flag.key
+				);
+				invalidateMemCacheForClient(query.clientId);
+
+				return { success: true };
+			} catch (error) {
+				mergeWideEvent({ flag_error: true });
+				useLogger().error(
+					error instanceof Error ? error : new Error(String(error)),
+					{ flags: { delete: true, flagId: params.id } }
+				);
+				set.status = 500;
+				return { error: "Failed to delete flag" };
+			}
+		},
+		{
+			params: t.Object({ id: t.String({ minLength: 1 }) }),
+			query: t.Object({ clientId: t.String({ minLength: 1 }) }),
 		}
 	)
 

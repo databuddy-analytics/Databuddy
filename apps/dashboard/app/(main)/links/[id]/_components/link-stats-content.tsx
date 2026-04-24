@@ -1,15 +1,16 @@
 "use client";
 
-import { CursorClickIcon } from "@phosphor-icons/react";
-import { GlobeIcon } from "@phosphor-icons/react";
-import { LinkIcon } from "@phosphor-icons/react";
-import { UsersIcon } from "@phosphor-icons/react";
+import {
+	CursorClickIcon,
+	GlobeIcon,
+	LinkIcon,
+	UsersIcon,
+} from "@phosphor-icons/react";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo } from "react";
 import { StatCard } from "@/components/analytics";
 import { EmptyState } from "@/components/ds/empty-state";
 import { DataTable } from "@/components/table/data-table";
-import { Skeleton } from "@/components/ds/skeleton";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useLink, useLinkStats } from "@/hooks/use-links";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -27,62 +28,6 @@ import {
 interface MiniChartDataPoint {
 	date: string;
 	value: number;
-}
-
-function StatsLoadingSkeleton() {
-	return (
-		<div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-				{[1, 2, 3].map((i) => (
-					<div
-						className="overflow-hidden rounded border bg-card"
-						key={`stat-skeleton-${i}`}
-					>
-						<div className="dotted-bg bg-accent pt-0">
-							<Skeleton className="h-26 w-full" />
-						</div>
-						<div className="flex items-center gap-2.5 border-t px-2.5 py-2.5">
-							<Skeleton className="size-7 shrink-0 rounded" />
-							<div className="min-w-0 flex-1 space-y-0.5">
-								<Skeleton className="h-5 w-14" />
-								<Skeleton className="h-3 w-12" />
-							</div>
-							<Skeleton className="h-3.5 w-10 shrink-0" />
-						</div>
-					</div>
-				))}
-			</div>
-
-			<div className="rounded border bg-sidebar">
-				<div className="border-b px-3 py-3 sm:px-4">
-					<Skeleton className="h-5 w-32" />
-					<Skeleton className="mt-1 h-3 w-48" />
-				</div>
-				<div className="p-4">
-					<Skeleton className="h-64 w-full" />
-				</div>
-			</div>
-
-			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
-				{[1, 2].map((i) => (
-					<div className="rounded border bg-card" key={`table-skeleton-${i}`}>
-						<div className="p-3">
-							<Skeleton className="h-5 w-32" />
-							<Skeleton className="mt-1 h-3 w-48" />
-						</div>
-						<div className="space-y-2 px-3 pb-3">
-							{[1, 2, 3, 4, 5].map((j) => (
-								<Skeleton
-									className="h-12 w-full rounded"
-									key={`row-skeleton-${i}-${j}`}
-								/>
-							))}
-						</div>
-					</div>
-				))}
-			</div>
-		</div>
-	);
 }
 
 export function LinkStatsContent() {
@@ -136,49 +81,28 @@ export function LinkStatsContent() {
 		return todayData?.clicks ?? 0;
 	}, [chartData]);
 
-	const referrerData = useMemo<SourceEntry[]>(
-		() => stats?.topReferrers ?? [],
-		[stats?.topReferrers]
-	);
-	const countryData = useMemo<GeoEntry[]>(
-		() => stats?.topCountries ?? [],
-		[stats?.topCountries]
-	);
-	const regionData = useMemo<GeoEntry[]>(
-		() => stats?.topRegions ?? [],
-		[stats?.topRegions]
-	);
-	const cityData = useMemo<GeoEntry[]>(
-		() => stats?.topCities ?? [],
-		[stats?.topCities]
-	);
-	const deviceData = useMemo<SourceEntry[]>(
-		() => stats?.topDevices ?? [],
-		[stats?.topDevices]
-	);
-
-	const referrerColumns = useMemo(() => createReferrerColumns(), []);
-	const countryColumns = useMemo(() => createGeoColumns("country"), []);
-	const regionColumns = useMemo(() => createGeoColumns("region"), []);
-	const cityColumns = useMemo(() => createGeoColumns("city"), []);
-	const deviceColumns = useMemo(() => createDeviceColumns(), []);
+	const referrerColumns = createReferrerColumns();
+	const countryColumns = createGeoColumns("country");
+	const regionColumns = createGeoColumns("region");
+	const cityColumns = createGeoColumns("city");
+	const deviceColumns = createDeviceColumns();
 
 	const sourceTabs = useMemo(
 		() => [
 			{
 				id: "referrers",
 				label: "Referrers",
-				data: referrerData,
+				data: (stats?.topReferrers ?? []) as SourceEntry[],
 				columns: referrerColumns,
 			},
 			{
 				id: "devices",
 				label: "Devices",
-				data: deviceData,
+				data: (stats?.topDevices ?? []) as SourceEntry[],
 				columns: deviceColumns,
 			},
 		],
-		[referrerData, referrerColumns, deviceData, deviceColumns]
+		[stats?.topReferrers, stats?.topDevices, referrerColumns, deviceColumns]
 	);
 
 	const geoTabs = useMemo(
@@ -186,32 +110,33 @@ export function LinkStatsContent() {
 			{
 				id: "countries",
 				label: "Countries",
-				data: countryData,
+				data: (stats?.topCountries ?? []) as GeoEntry[],
 				columns: countryColumns,
 			},
 			{
 				id: "regions",
 				label: "Regions",
-				data: regionData,
+				data: (stats?.topRegions ?? []) as GeoEntry[],
 				columns: regionColumns,
 			},
-			{ id: "cities", label: "Cities", data: cityData, columns: cityColumns },
+			{
+				id: "cities",
+				label: "Cities",
+				data: (stats?.topCities ?? []) as GeoEntry[],
+				columns: cityColumns,
+			},
 		],
 		[
-			countryData,
-			regionData,
-			cityData,
+			stats?.topCountries,
+			stats?.topRegions,
+			stats?.topCities,
 			countryColumns,
 			regionColumns,
 			cityColumns,
 		]
 	);
 
-	if (isLoading) {
-		return <StatsLoadingSkeleton />;
-	}
-
-	if (!link) {
+	if (!(isLoading || link)) {
 		return (
 			<div className="flex h-full items-center justify-center p-6">
 				<EmptyState
@@ -229,71 +154,72 @@ export function LinkStatsContent() {
 	}
 
 	return (
-		<div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-				<StatCard
-					chartData={clicksChartData}
-					chartStepType="monotone"
-					chartType="area"
-					description={`${formatNumber(todayClicks)} today`}
-					icon={CursorClickIcon}
-					id="clicks-chart"
-					isLoading={isLoading}
-					showChart={true}
-					title="Total Clicks"
-					value={formatNumber(stats?.totalClicks ?? 0)}
-				/>
-				<StatCard
-					chartData={referrersChartData}
-					chartStepType="monotone"
-					chartType="area"
-					description="Unique traffic sources"
-					icon={UsersIcon}
-					id="referrers-count"
-					isLoading={isLoading}
-					showChart={true}
-					title="Referrers"
-					value={stats?.topReferrers?.length ?? 0}
-				/>
-				<StatCard
-					chartData={countriesChartData}
-					chartStepType="monotone"
-					chartType="area"
-					description="Geographic reach"
-					icon={GlobeIcon}
-					id="countries-count"
-					isLoading={isLoading}
-					showChart={true}
-					title="Countries"
-					value={stats?.topCountries?.length ?? 0}
-				/>
-			</div>
+		<div className="p-4">
+			<div className="space-y-3 sm:space-y-4">
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+					<StatCard
+						chartData={isLoading ? undefined : clicksChartData}
+						chartStepType="monotone"
+						chartType="area"
+						description={`${formatNumber(todayClicks)} today`}
+						icon={CursorClickIcon}
+						id="clicks-chart"
+						isLoading={isLoading}
+						showChart={true}
+						title="Total Clicks"
+						value={formatNumber(stats?.totalClicks ?? 0)}
+					/>
+					<StatCard
+						chartData={isLoading ? undefined : referrersChartData}
+						chartStepType="monotone"
+						chartType="area"
+						description="Unique traffic sources"
+						icon={UsersIcon}
+						id="referrers-count"
+						isLoading={isLoading}
+						showChart={true}
+						title="Referrers"
+						value={stats?.topReferrers?.length ?? 0}
+					/>
+					<StatCard
+						chartData={isLoading ? undefined : countriesChartData}
+						chartStepType="monotone"
+						chartType="area"
+						description="Geographic reach"
+						icon={GlobeIcon}
+						id="countries-count"
+						isLoading={isLoading}
+						showChart={true}
+						title="Countries"
+						value={stats?.topCountries?.length ?? 0}
+					/>
+				</div>
 
-			<div className="overflow-hidden rounded border bg-card">
 				<ClicksChart
 					data={chartData}
 					height={isMobile ? 280 : 380}
 					isHourly={isHourly}
+					isLoading={isLoading}
 				/>
-			</div>
 
-			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
-				<DataTable
-					description="Where your clicks come from"
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					tabs={sourceTabs}
-					title="Traffic Sources"
-				/>
-				<DataTable
-					description="Geographic distribution"
-					initialPageSize={8}
-					isLoading={isLoading}
-					minHeight={350}
-					tabs={geoTabs}
-					title="Geographic Distribution"
-				/>
+				<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
+					<DataTable
+						description="Where your clicks come from"
+						initialPageSize={8}
+						isLoading={isLoading}
+						minHeight={350}
+						tabs={sourceTabs}
+						title="Traffic Sources"
+					/>
+					<DataTable
+						description="Geographic distribution"
+						initialPageSize={8}
+						isLoading={isLoading}
+						minHeight={350}
+						tabs={geoTabs}
+						title="Geographic Distribution"
+					/>
+				</div>
 			</div>
 		</div>
 	);

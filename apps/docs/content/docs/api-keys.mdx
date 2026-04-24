@@ -51,16 +51,31 @@ Notes:
 
 ### Scopes
 
-- **read:data**: Read access to analytics data and query endpoints
-- **track:events**: Send custom events via the SDK or API
+- **read:data**: Read analytics data. Covers query endpoints (`POST /v1/query`, `POST /v1/query/compile`, `POST /v1/query/custom`) and listing accessible websites (`GET /v1/query/websites`). Required for any dashboard-style data retrieval.
+- **track:events**: Send custom events via the SDK or `/track` endpoint
 - **track:llm**: LLM analytics and AI observability tracking
-- **read:links**: Read short links
+- **read:links**: Read short links and their analytics
 - **write:links**: Create, update, and delete short links
 - **manage:websites**: Create, update, and delete websites and their settings
 - **manage:flags**: Create, update, and delete feature flags and targeting rules
 - **manage:config**: Revenue config, integrations, organization settings
 
 Grant only what you need. Prefer resource-scoped access where possible.
+
+#### What each scope unlocks
+
+| Scope | Endpoints / actions |
+|-------|---------------------|
+| `read:data` | `POST /v1/query`, `POST /v1/query/compile`, `POST /v1/query/custom`, `GET /v1/query/websites`, `websites.list` RPC |
+| `track:events` | `POST /track` (custom events, pageviews, sessions) |
+| `track:llm` | `POST /llm` (LLM request/response telemetry) |
+| `read:links` | `GET /v1/links/*` read endpoints, link analytics queries |
+| `write:links` | `POST /v1/links`, `PATCH /v1/links/:id`, `DELETE /v1/links/:id` |
+| `manage:websites` | Create / update / delete websites, rotate tracking config |
+| `manage:flags` | Feature flag CRUD, targeting rule edits, flag evaluation admin |
+| `manage:config` | Revenue config, integrations, organization-level settings |
+
+Listing websites is intentionally gated by `read:data` (not a separate `read:websites` scope) because the list is only useful for picking a site to query — any key that can list sites can already read their analytics.
 
 ### Resource access
 

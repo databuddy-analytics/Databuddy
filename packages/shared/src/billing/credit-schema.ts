@@ -14,21 +14,23 @@ import { vercelModels } from "tokenlens/providers/vercel";
 
 /**
  * How many credits the user spends per USD of underlying provider cost.
- * Tunes plan-tier runway (free 500 / hobby 2500 / pro 25000). Raising
- * this makes the same dollar of provider usage burn more credits.
+ * 1 credit ≈ $0.10 of retail-priced usage — small, dollar-shaped numbers
+ * that users can reason about directly ("I have 150 credits ≈ $15 of AI").
  */
-export const CREDITS_PER_USD = 200;
+export const CREDITS_PER_USD = 10;
 
-/** Business markup on top of provider cost. 1.20 = 20% margin. */
-export const MARKUP = 1.2;
+/** Business markup on top of provider cost. 2.0 = 100% margin. */
+export const MARKUP = 2.0;
 
 /**
- * Model whose provider rates back the credit schema. If the agent uses
- * multiple models with materially different prices, pick the most
- * expensive as the ceiling — we'd rather slightly over-charge than
- * lose margin on the pricier model.
+ * Model whose provider rates back the credit schema. Pinned to the most
+ * expensive Anthropic model in the tokenlens catalog (Opus 4.1) so that
+ * if the agent ever routes to Opus for heavy queries, per-token credit
+ * deduction keeps up with real COGS. Current production routes to
+ * Sonnet 4.6 (~5× cheaper), so on today's traffic this deliberately
+ * over-deducts — the cushion is intentional per the ceiling principle.
  */
-export const BASELINE_MODEL_ID = "anthropic/claude-4-sonnet" as const;
+export const BASELINE_MODEL_ID = "anthropic/claude-4-1-opus" as const;
 
 /**
  * Anthropic's 1-hour prompt cache write rate (USD per 1M tokens).
@@ -43,11 +45,12 @@ export const BASELINE_MODEL_ID = "anthropic/claude-4-sonnet" as const;
 const CACHE_WRITE_1H_USD_PER_M_TOKENS = 6;
 
 /**
- * Flat credit cost per agent_web_search_calls. 5 credits ≈ $0.025 at
- * CREDITS_PER_USD=200 — priced separately from token burn because the
- * Perplexity call is a fixed-cost API hit regardless of tokens returned.
+ * Flat credit cost per agent_web_search_calls. 1 credit ≈ $0.10 retail
+ * at CREDITS_PER_USD=10 — priced separately from token burn because
+ * the Perplexity call is a fixed-cost API hit regardless of tokens
+ * returned.
  */
-export const WEB_SEARCH_CREDIT_COST = 5;
+export const WEB_SEARCH_CREDIT_COST = 1;
 
 const TOKENS_PER_MILLION = 1_000_000;
 

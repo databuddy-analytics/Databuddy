@@ -1,13 +1,16 @@
 "use client";
 
-import { DeviceMobileIcon } from "@phosphor-icons/react";
-import { DeviceTabletIcon } from "@phosphor-icons/react";
-import { LaptopIcon } from "@phosphor-icons/react";
-import { MonitorIcon } from "@phosphor-icons/react";
+import {
+	DeviceMobileIcon,
+	DeviceTabletIcon,
+	MonitorIcon,
+} from "@phosphor-icons/react";
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { useCallback, useMemo } from "react";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Skeleton } from "@/components/ds/skeleton";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { formatNumber } from "@/lib/formatters";
 import { BrowserIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
 import {
@@ -16,6 +19,7 @@ import {
 	createTimezoneColumns,
 } from "@/components/table/rows";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
+import { formatNumber } from "@/lib/formatters";
 import { PercentageBadge } from "../utils/technology-helpers";
 import type { FullTabProps } from "../utils/types";
 
@@ -35,200 +39,63 @@ interface BrowserEntry {
 	visitors: number;
 }
 
-interface ScreenResolutionEntry {
+interface ViewportEntry {
+	device_type?: string;
 	name: string;
 	pageviews?: number;
 	percentage?: number;
 	visitors: number;
 }
 
-const getGradientConfig = (percentage: number) => {
-	if (percentage >= 40) {
-		return {
-			bg: "linear-gradient(90deg, rgba(34, 197, 94, 0.12) 0%, rgba(34, 197, 94, 0.06) 100%)",
-			border: "rgba(34, 197, 94, 0.2)",
-		};
+function getDeviceIcon(deviceType: string | undefined) {
+	const normalized = (deviceType || "").toLowerCase();
+	if (normalized === "mobile") {
+		return DeviceMobileIcon;
 	}
-	if (percentage >= 25) {
-		return {
-			bg: "linear-gradient(90deg, rgba(59, 130, 246, 0.12) 0%, rgba(59, 130, 246, 0.06) 100%)",
-			border: "rgba(59, 130, 246, 0.2)",
-		};
+	if (normalized === "tablet") {
+		return DeviceTabletIcon;
 	}
-	if (percentage >= 10) {
-		return {
-			bg: "linear-gradient(90deg, rgba(245, 158, 11, 0.12) 0%, rgba(245, 158, 11, 0.06) 100%)",
-			border: "rgba(245, 158, 11, 0.2)",
-		};
-	}
-	return {
-		bg: "linear-gradient(90deg, rgba(107, 114, 128, 0.08) 0%, rgba(107, 114, 128, 0.04) 100%)",
-		border: "rgba(107, 114, 128, 0.15)",
-	};
-};
+	return MonitorIcon;
+}
 
-const getDeviceInfo = (width: number, height: number, isValid: boolean) => {
-	if (!isValid) {
-		return {
-			type: "Unknown",
-			Icon: MonitorIcon,
-			isMobile: false,
-			isTablet: false,
-		};
+function formatDeviceType(deviceType: string | undefined) {
+	if (!deviceType) {
+		return "Desktop";
 	}
-	const longSide = Math.max(width, height);
-	const shortSide = Math.min(width, height);
-	const aspect = longSide / shortSide;
+	return deviceType.charAt(0).toUpperCase() + deviceType.slice(1).toLowerCase();
+}
 
-	if (shortSide <= 480) {
-		return {
-			type: "Mobile",
-			Icon: DeviceMobileIcon,
-			isMobile: true,
-			isTablet: false,
-		};
+function ScreenOutline({ ratio }: { ratio: number }) {
+	const maxW = 80;
+	const maxH = 56;
+	let w = maxW;
+	let h = w / ratio;
+	if (h > maxH) {
+		h = maxH;
+		w = h * ratio;
 	}
-	if (aspect >= 1.5 && longSide >= 1100) {
-		return {
-			type: longSide > 1920 ? "Desktop" : "Laptop",
-			Icon: longSide > 1920 ? MonitorIcon : LaptopIcon,
-			isMobile: false,
-			isTablet: false,
-		};
-	}
-	if (shortSide <= 1024 && aspect < 1.5) {
-		return {
-			type: "Tablet",
-			Icon: DeviceTabletIcon,
-			isMobile: false,
-			isTablet: true,
-		};
-	}
-	if (longSide <= 1920) {
-		return {
-			type: "Laptop",
-			Icon: LaptopIcon,
-			isMobile: false,
-			isTablet: false,
-		};
-	}
-	return {
-		type: "Desktop",
-		Icon: MonitorIcon,
-		isMobile: false,
-		isTablet: false,
-	};
-};
-
-const getDisplayDimensions = (
-	width: number,
-	height: number,
-	isValid: boolean,
-	isMobile: boolean,
-	isTablet: boolean
-) => {
-	if (isMobile) {
-		return { width: 36, height: 72 };
-	}
-	if (isTablet) {
-		return { width: 56, height: 72 };
-	}
-
-	const aspectRatio = isValid ? width / height : 16 / 9;
-	const maxW = 120;
-	const maxH = 72;
-	let displayWidth = maxW;
-	let displayHeight = displayWidth / aspectRatio;
-
-	if (displayHeight > maxH) {
-		displayHeight = maxH;
-		displayWidth = displayHeight * aspectRatio;
-	}
-
-	return { width: displayWidth, height: displayHeight };
-};
-
-function MobileScreen({ width, height }: { width: number; height: number }) {
 	return (
 		<div
-			className="relative overflow-hidden rounded-lg border-2 border-border bg-accent shadow-sm"
-			style={{ width: `${width}px`, height: `${height}px` }}
-		>
-			<div className="absolute top-1 left-1/2 h-1 w-4 -translate-x-1/2 rounded-full bg-border" />
-			<div className="absolute inset-1 top-3 overflow-hidden rounded bg-background/80">
-				<div className="space-y-1 p-1">
-					<div className="h-0.5 w-3/4 rounded-full bg-muted-foreground/15" />
-					<div className="h-0.5 w-1/2 rounded-full bg-muted-foreground/10" />
-					<div className="h-0.5 w-2/3 rounded-full bg-muted-foreground/10" />
+			className="rounded border-2 border-border bg-muted/40"
+			style={{ width: w, height: h }}
+		/>
+	);
+}
+
+function ScreenTileSkeleton() {
+	return (
+		<div className="flex flex-col gap-3 rounded border border-border/60 bg-card p-4">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-2">
+					<Skeleton className="size-4 rounded" />
+					<Skeleton className="h-4 w-20 rounded" />
 				</div>
+				<Skeleton className="h-5 w-10 rounded" />
 			</div>
-			<div className="absolute bottom-1 left-1/2 h-0.5 w-4 -translate-x-1/2 rounded-full bg-border" />
+			<Skeleton className="mx-auto h-14 w-20 rounded" />
+			<Skeleton className="h-3 w-full rounded" />
 		</div>
 	);
-}
-
-function TabletScreen({ width, height }: { width: number; height: number }) {
-	return (
-		<div
-			className="relative overflow-hidden rounded-lg border-2 border-border bg-accent shadow-sm"
-			style={{ width: `${width}px`, height: `${height}px` }}
-		>
-			<div className="absolute top-1 left-1/2 size-1 -translate-x-1/2 rounded-full bg-border" />
-			<div className="absolute inset-1.5 top-3 overflow-hidden rounded bg-background/80">
-				<div className="space-y-1 p-1.5">
-					<div className="h-1 w-3/4 rounded-full bg-muted-foreground/15" />
-					<div className="h-1 w-1/2 rounded-full bg-muted-foreground/10" />
-					<div className="h-1 w-2/3 rounded-full bg-muted-foreground/10" />
-				</div>
-			</div>
-		</div>
-	);
-}
-
-function DesktopScreen({ width, height }: { width: number; height: number }) {
-	return (
-		<>
-			<div
-				className="relative overflow-hidden rounded border-2 border-border bg-accent shadow-sm"
-				style={{ width: `${width}px`, height: `${height}px` }}
-			>
-				<div className="absolute inset-1 overflow-hidden rounded-sm bg-background/80">
-					<div className="flex h-2 items-center gap-0.5 border-border border-b bg-accent/50 px-1">
-						<div className="size-0.5 rounded-full bg-red-400/60" />
-						<div className="size-0.5 rounded-full bg-yellow-400/60" />
-						<div className="size-0.5 rounded-full bg-green-400/60" />
-					</div>
-					<div className="space-y-1 p-1">
-						<div className="h-0.5 w-3/4 rounded-full bg-muted-foreground/15" />
-						<div className="h-0.5 w-1/2 rounded-full bg-muted-foreground/10" />
-						<div className="h-0.5 w-2/3 rounded-full bg-muted-foreground/10" />
-					</div>
-				</div>
-			</div>
-			<div className="h-1.5 w-2 bg-border" />
-			<div className="h-1 w-6 rounded-b bg-border/80" />
-		</>
-	);
-}
-
-function ScreenVisualization({
-	isMobile,
-	isTablet,
-	displayWidth,
-	displayHeight,
-}: {
-	isMobile: boolean;
-	isTablet: boolean;
-	displayWidth: number;
-	displayHeight: number;
-}) {
-	if (isMobile) {
-		return <MobileScreen height={displayHeight} width={displayWidth} />;
-	}
-	if (isTablet) {
-		return <TabletScreen height={displayHeight} width={displayWidth} />;
-	}
-	return <DesktopScreen height={displayHeight} width={displayWidth} />;
 }
 
 export function WebsiteAudienceTab({
@@ -303,6 +170,7 @@ export function WebsiteAudienceTab({
 				cell: (info: CellContext<BrowserEntry, any>) => {
 					const browserName = info.getValue() as string;
 					const row = info.row.original;
+					const versionCount = row.versions?.length || 0;
 					return (
 						<div className="flex items-center gap-3">
 							<BrowserIcon
@@ -315,11 +183,9 @@ export function WebsiteAudienceTab({
 								size="md"
 							/>
 							<div>
-								<div className="font-semibold text-foreground">
-									{browserName}
-								</div>
+								<div className="font-medium text-foreground">{browserName}</div>
 								<div className="text-muted-foreground text-xs">
-									{row.versions?.length || 0} versions
+									{versionCount} {versionCount === 1 ? "version" : "versions"}
 								</div>
 							</div>
 						</div>
@@ -331,9 +197,8 @@ export function WebsiteAudienceTab({
 				accessorKey: "visitors",
 				header: "Visitors",
 				cell: (info: CellContext<BrowserEntry, any>) => (
-					<div>
-						<div className="font-medium">{formatNumber(info.getValue())}</div>
-						<div className="text-muted-foreground text-xs">unique users</div>
+					<div className="font-medium tabular-nums">
+						{formatNumber(info.getValue())}
 					</div>
 				),
 			},
@@ -342,9 +207,8 @@ export function WebsiteAudienceTab({
 				accessorKey: "pageviews",
 				header: "Pageviews",
 				cell: (info: CellContext<BrowserEntry, any>) => (
-					<div>
-						<div className="font-medium">{formatNumber(info.getValue())}</div>
-						<div className="text-muted-foreground text-xs">total views</div>
+					<div className="font-medium tabular-nums">
+						{formatNumber(info.getValue())}
 					</div>
 				),
 			},
@@ -447,12 +311,14 @@ export function WebsiteAudienceTab({
 		[addFilter]
 	);
 
+	const resolutions: ViewportEntry[] = deviceData.screen_resolution || [];
+
 	return (
 		<div className="space-y-4">
 			<DataTable
 				columns={browserColumns}
 				data={processedBrowserData}
-				description="Expandable browser breakdown showing all versions per browser"
+				description="Browsers and their versions"
 				expandable={true}
 				getSubRows={(row: any) => row.versions}
 				isLoading={isLoading}
@@ -462,22 +328,28 @@ export function WebsiteAudienceTab({
 					const percentage = Math.round(
 						((subRow.visitors || 0) / (parentRow.visitors || 1)) * 100
 					);
-					const config = getGradientConfig(percentage);
+					const solidEnd = Math.max(0, percentage - 4);
+					const shareBarStyle =
+						percentage > 0
+							? {
+									backgroundImage: `linear-gradient(to right, color-mix(in oklab, var(--primary) 8%, transparent) 0%, color-mix(in oklab, var(--primary) 8%, transparent) ${solidEnd}%, transparent ${percentage}%)`,
+								}
+							: undefined;
 					return (
 						<div
-							className="grid grid-cols-4 gap-3 border-l-2 px-4 py-1.5 text-sm transition-all duration-200"
-							style={{ background: config.bg, borderLeftColor: config.border }}
+							className="grid grid-cols-4 items-center gap-3 bg-muted/30 px-12 py-2 text-sm"
+							style={shareBarStyle}
 						>
-							<div className="flex items-center gap-1.5">
+							<div className="flex items-center gap-2 text-foreground">
 								<div className="size-1 rounded-full bg-muted-foreground/40" />
 								<span className="font-medium">
 									{subRow.version || "Unknown"}
 								</span>
 							</div>
-							<div className="text-right font-medium">
+							<div className="text-right font-medium text-foreground tabular-nums">
 								{formatNumber(subRow.visitors)}
 							</div>
-							<div className="text-right font-medium">
+							<div className="text-right font-medium text-foreground tabular-nums">
 								{formatNumber(subRow.pageviews)}
 							</div>
 							<div className="text-right">
@@ -503,7 +375,7 @@ export function WebsiteAudienceTab({
 
 			<ErrorBoundary>
 				<DataTable
-					description="Visitors by location, timezone, and language (limit: 100 per category)"
+					description="Visitors by location, timezone, and language"
 					initialPageSize={8}
 					isLoading={isLoading}
 					minHeight={400}
@@ -513,150 +385,85 @@ export function WebsiteAudienceTab({
 				/>
 			</ErrorBoundary>
 
-			<div className="w-full overflow-hidden rounded border bg-card backdrop-blur-sm">
-				<div className="border-b p-4 px-2 pb-2 sm:px-3">
-					<h3 className="truncate font-semibold text-foreground text-sm">
-						Screen Resolutions
-					</h3>
-					<p className="mt-0.5 text-muted-foreground text-xs">
+			<Card>
+				<Card.Header className="py-3">
+					<Card.Title className="text-sm">Screen Resolutions</Card.Title>
+					<Card.Description>
 						Visitors by screen size and device type
-					</p>
-				</div>
-
-				<div className="p-3 sm:p-4">
+					</Card.Description>
+				</Card.Header>
+				<Card.Content>
 					{isLoading ? (
 						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 							{Array.from({ length: 6 }).map((_, i) => (
-								<div
-									className="flex flex-col rounded border bg-accent/20 p-4"
-									key={`skel-${i}`}
-								>
-									<div className="mb-3 flex items-center justify-between">
-										<div className="flex items-center gap-2">
-											<div className="size-5 animate-pulse rounded bg-muted-foreground/20" />
-											<div className="space-y-1">
-												<div className="h-4 w-20 animate-pulse rounded bg-muted-foreground/20" />
-												<div className="h-3 w-12 animate-pulse rounded bg-muted-foreground/20" />
-											</div>
-										</div>
-										<div className="h-5 w-10 animate-pulse rounded bg-muted-foreground/20" />
-									</div>
-									<div className="mb-4 flex h-24 items-center justify-center">
-										<div className="h-16 w-28 animate-pulse rounded border-2 border-muted-foreground/10 bg-muted-foreground/5" />
-									</div>
-									<div className="space-y-2">
-										<div className="h-1.5 w-full animate-pulse rounded-full bg-muted-foreground/10" />
-										<div className="flex justify-between">
-											<div className="h-3 w-20 animate-pulse rounded bg-muted-foreground/20" />
-											<div className="h-3 w-16 animate-pulse rounded bg-muted-foreground/20" />
-										</div>
-									</div>
-								</div>
+								<ScreenTileSkeleton key={`skel-${i}`} />
 							))}
 						</div>
-					) : deviceData.screen_resolution?.length ? (
+					) : resolutions.length ? (
 						<div className="space-y-4">
 							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-								{deviceData.screen_resolution
-									.slice(0, 6)
-									.map((item: ScreenResolutionEntry) => {
-										if (!item.name) {
-											return null;
-										}
-										const [width, height] = item.name.split("x").map(Number);
-										const isValid =
-											Number.isFinite(width) && Number.isFinite(height);
-										const percentage = item.percentage || 0;
-										const { type, Icon, isMobile, isTablet } = getDeviceInfo(
-											width,
-											height,
-											isValid
-										);
-										const display = getDisplayDimensions(
-											width,
-											height,
-											isValid,
-											isMobile,
-											isTablet
-										);
+								{resolutions.slice(0, 6).map((item) => {
+									if (!item.name) {
+										return null;
+									}
+									const [width, height] = item.name.split("x").map(Number);
+									const isValid =
+										Number.isFinite(width) && Number.isFinite(height);
+									const Icon = getDeviceIcon(item.device_type);
+									const type = formatDeviceType(item.device_type);
+									const ratio = isValid && height > 0 ? width / height : 16 / 9;
 
-										return (
-											<div
-												className="group flex flex-col rounded border bg-accent/20 p-4 transition-colors hover:bg-accent/40"
-												key={`${item.name}-${item.visitors}`}
-											>
-												<div className="mb-3 flex items-center justify-between">
-													<div className="flex items-center gap-2">
-														<Icon
-															className="size-4 text-muted-foreground"
-															weight="duotone"
-														/>
-														<div>
-															<div className="font-medium text-foreground text-sm">
-																{item.name}
-															</div>
-															<div className="text-muted-foreground text-xs">
-																{type}
-															</div>
+									return (
+										<div
+											className="flex flex-col gap-3 rounded border border-border/60 bg-card p-4"
+											key={`${item.name}-${item.device_type ?? "x"}-${item.visitors}`}
+										>
+											<div className="flex items-center justify-between gap-2">
+												<div className="flex min-w-0 items-center gap-2">
+													<Icon className="size-4 shrink-0 text-muted-foreground" />
+													<div className="min-w-0">
+														<div className="truncate font-medium text-foreground text-sm">
+															{item.name}
+														</div>
+														<div className="text-muted-foreground text-xs">
+															{type}
 														</div>
 													</div>
-													<PercentageBadge percentage={percentage} />
 												</div>
-
-												<div className="relative mb-4 flex h-24 items-center justify-center">
-													<div className="relative flex flex-col items-center">
-														<ScreenVisualization
-															displayHeight={display.height}
-															displayWidth={display.width}
-															isMobile={isMobile}
-															isTablet={isTablet}
-														/>
-													</div>
-												</div>
-
-												<div className="mt-auto space-y-2">
-													<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/50">
-														<div
-															className="h-full rounded-full bg-primary/60 transition-all duration-500"
-															style={{ width: `${Math.min(percentage, 100)}%` }}
-														/>
-													</div>
-													<div className="flex items-center justify-between text-muted-foreground text-xs">
-														<span className="font-medium text-foreground">
-															{formatNumber(item.visitors)} visitors
-														</span>
-														<span>{formatNumber(item.pageviews)} views</span>
-													</div>
-												</div>
+												<PercentageBadge percentage={item.percentage || 0} />
 											</div>
-										);
-									})}
+
+											<div className="flex h-14 items-center justify-center">
+												<ScreenOutline ratio={ratio} />
+											</div>
+
+											<div className="flex items-center justify-between text-xs">
+												<span className="font-medium text-foreground tabular-nums">
+													{formatNumber(item.visitors)} visitors
+												</span>
+												<span className="text-muted-foreground tabular-nums">
+													{formatNumber(item.pageviews ?? 0)} views
+												</span>
+											</div>
+										</div>
+									);
+								})}
 							</div>
-							{deviceData.screen_resolution.length > 6 && (
-								<p className="pt-1 text-center text-muted-foreground text-xs">
-									Showing top 6 of {deviceData.screen_resolution.length} screen
-									resolutions
+							{resolutions.length > 6 && (
+								<p className="text-center text-muted-foreground text-xs">
+									Showing top 6 of {resolutions.length}
 								</p>
 							)}
 						</div>
 					) : (
-						<div className="flex flex-col items-center justify-center py-12 text-center">
-							<div className="mb-3 flex size-12 items-center justify-center rounded bg-muted">
-								<MonitorIcon
-									className="size-6 text-muted-foreground"
-									weight="duotone"
-								/>
-							</div>
-							<h4 className="mb-1 font-medium text-foreground text-sm">
-								No screen resolution data
-							</h4>
-							<p className="max-w-[240px] text-muted-foreground text-xs">
-								Resolution data will appear when visitors start using your site
-							</p>
-						</div>
+						<EmptyState
+							description="Resolution data will appear when visitors start using your site"
+							icon={<MonitorIcon />}
+							title="No screen resolution data"
+						/>
 					)}
-				</div>
-			</div>
+				</Card.Content>
+			</Card>
 		</div>
 	);
 }

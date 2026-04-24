@@ -93,7 +93,7 @@ export default function FlagsPage() {
 	return (
 		<FeatureGate feature={GATED_FEATURES.FEATURE_FLAGS}>
 			<ErrorBoundary>
-				<div className="h-full overflow-y-auto">
+				<div className="flex h-full flex-col overflow-y-auto">
 					<Suspense fallback={<FlagsListSkeleton />}>
 						{flagsLoading ? (
 							<FlagsListSkeleton />

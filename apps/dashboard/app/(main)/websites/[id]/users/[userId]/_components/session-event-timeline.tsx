@@ -4,7 +4,7 @@ import type { SessionEvent } from "@databuddy/shared/types/sessions";
 import { CursorClickIcon } from "@phosphor-icons/react";
 import { FileTextIcon } from "@phosphor-icons/react";
 import { LightningIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
+import { TagIcon } from "@phosphor-icons/react";
 import { Badge } from "@/components/ds/badge";
 import { formatLocalTime } from "@/lib/time";
 import { cleanUrl, formatPropertyValue, getDisplayPath } from "./session-utils";
@@ -15,7 +15,7 @@ interface SessionEventTimelineProps {
 
 function getEventIcon(eventName: string, hasProperties: boolean) {
 	if (hasProperties) {
-		return SparkleIcon;
+		return TagIcon;
 	}
 	switch (eventName) {
 		case "screen_view":

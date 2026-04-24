@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, SparkleIcon } from "@phosphor-icons/react";
+import { CheckIcon, RobotIcon } from "@phosphor-icons/react";
 import { useCallback, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -46,7 +46,7 @@ export function AddWithAiButton() {
 				{copied ? (
 					<CheckIcon className="size-4 text-primary" weight="bold" />
 				) : (
-					<SparkleIcon className="size-4" weight="duotone" />
+					<RobotIcon className="size-4" weight="duotone" />
 				)}
 				{copied ? "Copied prompt" : "Add with AI"}
 			</button>

@@ -66,11 +66,11 @@ function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
 
 function parseDurationMs(duration: unknown): number | undefined {
 	if (typeof duration !== "string") {
-		return undefined;
+		return;
 	}
 	const match = duration.match(DURATION_MS_REGEX);
 	if (!match?.[1]) {
-		return undefined;
+		return;
 	}
 	return match[2] === "s"
 		? Math.round(Number.parseFloat(match[1]) * 1000)

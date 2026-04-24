@@ -131,7 +131,7 @@ export function findEvent(
 	predicate: (event: Record<string, unknown>) => boolean
 ): Record<string, unknown> | undefined {
 	if (!req.url().includes("basket.databuddy.cc")) {
-		return undefined;
+		return;
 	}
 	try {
 		const data = req.postDataJSON();
@@ -140,7 +140,7 @@ export function findEvent(
 		}
 		return predicate(data) ? data : undefined;
 	} catch {
-		return undefined;
+		return;
 	}
 }
 

@@ -101,22 +101,42 @@ export function PlansComparisonTable({ plans }: Props) {
 								</td>
 							))}
 						</tr>
-						{/* Assistant messages row */}
+						{/* Agent credits per month */}
 						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Assistant messages / day
+								Agent credits / month
 							</td>
 							{plans.map((p) => (
 								<td
 									className={planComparisonTdClass(p.id)}
-									key={`msgs-${p.id}`}
+									key={`credits-month-${p.id}`}
 								>
 									{p.id === "enterprise" ? (
-										"Unlimited"
-									) : p.assistantMessagesPerDay == null ? (
+										"Custom"
+									) : p.agentCreditsMonthly == null ? (
 										<FeatureX />
 									) : (
-										Number(p.assistantMessagesPerDay).toLocaleString()
+										Number(p.agentCreditsMonthly).toLocaleString()
+									)}
+								</td>
+							))}
+						</tr>
+						{/* Daily bonus credits */}
+						<tr className="border-border border-t hover:bg-card/10">
+							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
+								Daily bonus credits
+							</td>
+							{plans.map((p) => (
+								<td
+									className={planComparisonTdClass(p.id)}
+									key={`credits-day-${p.id}`}
+								>
+									{p.id === "enterprise" ? (
+										"Custom"
+									) : p.agentCreditsDaily == null ? (
+										<FeatureX />
+									) : (
+										Number(p.agentCreditsDaily).toLocaleString()
 									)}
 								</td>
 							))}

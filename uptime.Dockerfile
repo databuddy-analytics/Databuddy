@@ -22,9 +22,11 @@ WORKDIR /app/apps/uptime
 
 RUN bun build \
 	--compile \
+	--production \
 	--minify \
 	--sourcemap \
 	--bytecode \
+	--define 'process.env.NODE_ENV="production"' \
 	--outfile /app/server \
 	./src/index.ts
 

@@ -652,32 +652,36 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 	const hasData = overview && overview.total_transactions > 0;
 	const isConfigured = config?.stripeConfigured || config?.paddleConfigured;
 
-	const paddedTimeSeriesData = useMemo(() => {
-		return padTimeSeriesData(
-			timeSeriesData,
-			dateRange.start_date,
-			dateRange.end_date,
-			{
-				revenue: 0,
-				transactions: 0,
-				customers: 0,
-				refund_amount: 0,
-				refund_count: 0,
-			}
-		);
-	}, [timeSeriesData, dateRange.start_date, dateRange.end_date]);
+	const paddedTimeSeriesData = useMemo(
+		() =>
+			padTimeSeriesData(
+				timeSeriesData,
+				dateRange.start_date,
+				dateRange.end_date,
+				{
+					revenue: 0,
+					transactions: 0,
+					customers: 0,
+					refund_amount: 0,
+					refund_count: 0,
+				}
+			),
+		[timeSeriesData, dateRange.start_date, dateRange.end_date]
+	);
 
-	const chartData = useMemo(() => {
-		return paddedTimeSeriesData.map((row) => ({
-			date: row.date,
-			revenue: row.revenue,
-			transactions: row.transactions,
-			avg_transaction:
-				row.transactions > 0 ? row.revenue / row.transactions : 0,
-			customers: row.customers,
-			refunds: Math.abs(row.refund_amount ?? 0),
-		}));
-	}, [paddedTimeSeriesData]);
+	const chartData = useMemo(
+		() =>
+			paddedTimeSeriesData.map((row) => ({
+				date: row.date,
+				revenue: row.revenue,
+				transactions: row.transactions,
+				avg_transaction:
+					row.transactions > 0 ? row.revenue / row.transactions : 0,
+				customers: row.customers,
+				refunds: Math.abs(row.refund_amount ?? 0),
+			})),
+		[paddedTimeSeriesData]
+	);
 
 	const avgTransaction =
 		overview && overview.total_transactions > 0

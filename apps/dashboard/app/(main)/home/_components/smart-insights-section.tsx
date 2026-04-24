@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowClockwiseIcon } from "@phosphor-icons/react";
-import { CheckCircleIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
-import { WarningCircleIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
+import { CheckCircleIcon } from "@phosphor-icons/react/dist/ssr/CheckCircle";
+import { LightbulbIcon } from "@phosphor-icons/react/dist/ssr/Lightbulb";
+import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr/WarningCircle";
 import { useState } from "react";
 import { InsightCard } from "@/app/(main)/insights/_components/insight-card";
+import { Card } from "@/components/ds/card";
 import { Skeleton } from "@/components/ds/skeleton";
 import type { Insight } from "@/lib/insight-types";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,7 @@ function InsightRowWrapper({ insight }: { insight: Insight }) {
 
 function InsightSkeleton({ wide }: { wide?: boolean }) {
 	return (
-		<div className="flex items-start gap-3 px-4 py-3">
+		<div className="flex items-start gap-3 px-5 py-3">
 			<Skeleton className="mt-0.5 size-7 shrink-0 rounded" />
 			<div className="min-w-0 flex-1 space-y-2">
 				<div className="flex items-start justify-between gap-2">
@@ -42,10 +43,10 @@ function InsightSkeleton({ wide }: { wide?: boolean }) {
 
 function AnalyzingState() {
 	return (
-		<div className="space-y-0 divide-y">
-			<div className="flex items-center gap-3 px-4 py-4">
+		<div className="divide-y">
+			<div className="flex items-center gap-3 px-5 py-4">
 				<div className="flex size-7 shrink-0 items-center justify-center rounded bg-primary/10">
-					<SparkleIcon
+					<LightbulbIcon
 						className="size-4 animate-pulse text-primary"
 						weight="duotone"
 					/>
@@ -65,9 +66,9 @@ function AnalyzingState() {
 	);
 }
 
-function EmptyState() {
+function InsightsEmptyState() {
 	return (
-		<div className="flex items-center gap-3 px-4 py-4">
+		<div className="flex items-center gap-3 px-5 py-4">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
 				<CheckCircleIcon className="size-5 text-emerald-500" weight="fill" />
 			</div>
@@ -83,9 +84,9 @@ function EmptyState() {
 	);
 }
 
-function ErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
+function InsightsErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
 	return (
-		<div className="flex items-center gap-3 px-4 py-4">
+		<div className="flex items-center gap-3 px-5 py-4">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
 				<WarningCircleIcon className="size-5 text-red-500" weight="duotone" />
 			</div>
@@ -99,7 +100,7 @@ function ErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
 			</div>
 			{onRetryAction && (
 				<button
-					className="shrink-0 rounded bg-accent px-3 py-1.5 font-medium text-foreground text-xs transition-colors hover:bg-accent/80"
+					className="shrink-0 rounded-md bg-accent px-3 py-1.5 font-medium text-foreground text-xs transition-colors hover:bg-accent/80"
 					onClick={onRetryAction}
 					type="button"
 				>
@@ -117,15 +118,8 @@ interface InsightsSectionProps {
 	isFetchingFresh?: boolean;
 	isLoading?: boolean;
 	onRefreshAction?: () => void;
-	/** `compact` = capped list height (home). `full` = grows with parent flex layout (`/insights`). */
 	variant?: "compact" | "full";
 }
-
-const cardShell = (variant: "compact" | "full") =>
-	cn(
-		"rounded border bg-card",
-		variant === "full" && "flex min-h-0 flex-1 flex-col"
-	);
 
 export function SmartInsightsSection({
 	insights,
@@ -138,31 +132,29 @@ export function SmartInsightsSection({
 }: InsightsSectionProps) {
 	if (isLoading) {
 		return (
-			<div className={cardShell(variant)}>
-				<div className="flex items-center gap-2 border-b px-4 py-3">
-					<SparkleIcon className="size-4 text-primary" weight="duotone" />
-					<h3 className="font-semibold text-foreground text-sm">
-						Actionable Insights
-					</h3>
-				</div>
+			<Card className={variant === "full" ? "min-h-0 flex-1" : ""}>
+				<Card.Header className="flex-row items-center justify-between gap-3">
+					<div className="flex items-center gap-2">
+						<LightbulbIcon className="size-4 text-primary" weight="duotone" />
+						<Card.Title className="text-sm">Actionable Insights</Card.Title>
+					</div>
+				</Card.Header>
 				<AnalyzingState />
-			</div>
+			</Card>
 		);
 	}
 
 	if (isError) {
 		return (
-			<div className={cardShell(variant)}>
-				<div className="flex items-center justify-between border-b px-4 py-3">
+			<Card className={variant === "full" ? "min-h-0 flex-1" : ""}>
+				<Card.Header className="flex-row items-center justify-between gap-3">
 					<div className="flex items-center gap-2">
-						<SparkleIcon className="size-4 text-primary" weight="duotone" />
-						<h3 className="font-semibold text-foreground text-sm">
-							Actionable Insights
-						</h3>
+						<LightbulbIcon className="size-4 text-primary" weight="duotone" />
+						<Card.Title className="text-sm">Actionable Insights</Card.Title>
 					</div>
-				</div>
-				<ErrorState onRetryAction={onRefreshAction} />
-			</div>
+				</Card.Header>
+				<InsightsErrorState onRetryAction={onRefreshAction} />
+			</Card>
 		);
 	}
 
@@ -170,20 +162,18 @@ export function SmartInsightsSection({
 	const showEmpty = insights.length === 0;
 
 	return (
-		<div className={cardShell(variant)}>
-			<div className="flex items-center justify-between border-b px-4 py-3">
-				<div className="flex min-w-0 flex-1 flex-col gap-0.5">
+		<Card className={variant === "full" ? "min-h-0 flex-1" : ""}>
+			<Card.Header className="flex-row items-center justify-between gap-3">
+				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
-						<SparkleIcon
+						<LightbulbIcon
 							className="size-4 shrink-0 text-primary"
 							weight="duotone"
 						/>
-						<h3 className="font-semibold text-foreground text-sm">
-							Actionable Insights
-						</h3>
+						<Card.Title className="text-sm">Actionable Insights</Card.Title>
 					</div>
 					{isFetchingFresh && (
-						<p className="text-muted-foreground text-xs">
+						<p className="mt-1 text-muted-foreground text-xs">
 							Updating with latest analysis…
 						</p>
 					)}
@@ -208,8 +198,8 @@ export function SmartInsightsSection({
 						</button>
 					)}
 				</div>
-			</div>
-			{showEmpty && <EmptyState />}
+			</Card.Header>
+			{showEmpty && <InsightsEmptyState />}
 			{showInsights && (
 				<div
 					className={cn(
@@ -224,6 +214,6 @@ export function SmartInsightsSection({
 					))}
 				</div>
 			)}
-		</div>
+		</Card>
 	);
 }

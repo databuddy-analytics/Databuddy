@@ -713,7 +713,7 @@
       try {
         const res = await fetch("/api/results");
         runs = await res.json();
-      } catch (_e) {
+      } catch {
         runs = [];
       }
       if (!runs.length) {

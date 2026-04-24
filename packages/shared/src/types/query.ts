@@ -1,8 +1,3 @@
-export interface ApiResponse {
-	error?: string;
-	success: boolean;
-}
-
 export type QueryFieldType =
 	| "string"
 	| "number"

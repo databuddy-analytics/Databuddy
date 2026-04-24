@@ -12,6 +12,10 @@ import { FaviconImage } from "@/components/analytics/favicon-image";
 import { Branding } from "@/components/logo/branding";
 import { Skeleton } from "@/components/ds/skeleton";
 import { WebsiteErrorState } from "@/components/website-error-state";
+import {
+	batchDynamicQueryKeys,
+	dynamicQueryKeys,
+} from "@/hooks/use-dynamic-query";
 import { useWebsite } from "@/hooks/use-websites";
 import {
 	currentFilterWebsiteIdAtom,
@@ -53,19 +57,19 @@ export default function PublicWebsiteLayout({
 		setIsRefreshing(true);
 		try {
 			await Promise.all([
-				queryClient.invalidateQueries({ queryKey: ["websites", id] }),
+				queryClient.invalidateQueries({ queryKey: ["websites", websiteId] }),
 				queryClient.invalidateQueries({
-					queryKey: ["dynamic-query", id],
+					queryKey: dynamicQueryKeys.byWebsite(websiteId),
 				}),
 				queryClient.invalidateQueries({
-					queryKey: ["batch-dynamic-query", id],
+					queryKey: batchDynamicQueryKeys.byWebsite(websiteId),
 				}),
 			]);
 		} catch {
 			toast.error("Failed to refresh data");
 		}
 		setIsRefreshing(false);
-	}, [id, queryClient, setIsRefreshing]);
+	}, [websiteId, queryClient, setIsRefreshing]);
 
 	if (!id) {
 		return (

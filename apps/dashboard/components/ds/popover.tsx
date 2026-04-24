@@ -1,6 +1,5 @@
 "use client";
 
-import { resolveComposableRender } from "@/components/ds/composable-render";
 import { cn } from "@/lib/utils";
 import { Popover as BasePopover } from "@base-ui-components/react/popover";
 import type { ComponentPropsWithoutRef } from "react";
@@ -15,15 +14,13 @@ function Trigger({
 	render,
 	...rest
 }: ComponentPropsWithoutRef<typeof BasePopover.Trigger>) {
-	const composed = resolveComposableRender(children, render);
-
 	return (
 		<BasePopover.Trigger
-			className={composed.render ? className : cn("cursor-pointer", className)}
-			render={composed.render}
+			className={render ? className : cn("cursor-pointer", className)}
+			render={render}
 			{...rest}
 		>
-			{composed.children}
+			{children}
 		</BasePopover.Trigger>
 	);
 }

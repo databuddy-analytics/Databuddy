@@ -171,7 +171,7 @@ function extractCustomerId(
 	customer: string | { id: string } | null | undefined
 ): string | undefined {
 	if (!customer) {
-		return undefined;
+		return;
 	}
 	return typeof customer === "string" ? customer : customer.id;
 }

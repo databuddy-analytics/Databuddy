@@ -1,11 +1,13 @@
 "use client";
 
-import { resolveComposableRender } from "@/components/ds/composable-render";
 import { useFieldContext } from "@/components/ds/field";
 import { cn } from "@/lib/utils";
 import { Select as BaseSelect } from "@base-ui-components/react/select";
 import { CaretUpDown, Check } from "@phosphor-icons/react/dist/ssr";
 import {
+	Children,
+	Fragment,
+	isValidElement,
 	createContext,
 	useContext,
 	useLayoutEffect,
@@ -69,8 +71,14 @@ function Trigger({
 	...rest
 }: ComponentPropsWithoutRef<typeof BaseSelect.Trigger>) {
 	const field = useFieldContext();
-	const composed = resolveComposableRender(children, render);
-	const isComposed = composed.render != null;
+	const composedRender =
+		render ||
+		(Children.count(children) === 1 &&
+		isValidElement(children) &&
+		children.type !== Fragment
+			? (children as React.ReactElement<Record<string, unknown>>)
+			: undefined);
+	const isComposed = composedRender != null;
 
 	return (
 		<BaseSelect.Trigger
@@ -97,12 +105,10 @@ function Trigger({
 						)
 			}
 			id={id ?? field?.id}
-			render={composed.render}
+			render={composedRender}
 			{...rest}
 		>
-			{isComposed ? (
-				composed.children
-			) : (
+			{isComposed ? null : (
 				<>
 					{children ?? <Value />}
 					<BaseSelect.Icon>

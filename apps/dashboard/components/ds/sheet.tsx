@@ -1,6 +1,5 @@
 "use client";
 
-import { resolveComposableRender } from "@/components/ds/composable-render";
 import { cn } from "@/lib/utils";
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import { XIcon } from "@phosphor-icons/react/dist/ssr";
@@ -17,11 +16,9 @@ function Trigger({
 	render,
 	...rest
 }: ComponentPropsWithoutRef<typeof BaseDialog.Trigger>) {
-	const composed = resolveComposableRender(children, render);
-
 	return (
-		<BaseDialog.Trigger render={composed.render} {...rest}>
-			{composed.children}
+		<BaseDialog.Trigger render={render} {...rest}>
+			{children}
 		</BaseDialog.Trigger>
 	);
 }
@@ -49,7 +46,7 @@ function Content({
 			/>
 			<BaseDialog.Popup
 				className={cn(
-					"fixed top-2 bottom-2 z-50 flex w-full max-w-sm flex-col overflow-hidden rounded-lg border border-border/60 bg-card shadow-lg",
+					"fixed top-2 bottom-2 z-50 flex w-full max-w-sm flex-col overflow-hidden rounded-lg border border-border/60 bg-card shadow-lg sm:max-w-xl",
 					"data-open:duration-300 data-open:ease-out",
 					"not-data-open:duration-200 not-data-open:ease-in",
 					sideStyles[side],

@@ -70,11 +70,7 @@ export function useOrganizations() {
 		queryClient.invalidateQueries({
 			queryKey: AUTH_QUERY_KEYS.activeOrganization,
 		});
-		queryClient.invalidateQueries({
-			queryKey: orpc.websites.listWithCharts.key(),
-		});
-		queryClient.invalidateQueries({ queryKey: orpc.websites.list.key() });
-		queryClient.invalidateQueries({ queryKey: orpc.websites.getById.key() });
+		queryClient.invalidateQueries({ queryKey: orpc.websites.key() });
 	};
 
 	const createOrganizationMutation = useMutation(

@@ -23,6 +23,8 @@ export const getWebsitesListKey = (): QueryKey =>
 		input: {},
 	});
 
+const EMPTY_WEBSITES: Website[] = [];
+
 export const updateWebsiteInList = (
 	old: WebsitesListData | undefined,
 	updatedWebsite: Website
@@ -94,7 +96,7 @@ export function useWebsites(options?: { enabled?: boolean }) {
 	});
 
 	return {
-		websites: query.data?.websites ?? [],
+		websites: query.data?.websites ?? EMPTY_WEBSITES,
 		chartData: query.data?.chartData,
 		activeUsers: query.data?.activeUsers,
 		isLoading: query.isLoading,
@@ -110,11 +112,10 @@ export function useWebsitesLight(options?: { enabled?: boolean }) {
 			input: {},
 		}),
 		enabled: options?.enabled !== false,
-		staleTime: 5 * 60 * 1000,
 	});
 
 	return {
-		websites: query.data ?? [],
+		websites: query.data ?? EMPTY_WEBSITES,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
 		isError: query.isError,

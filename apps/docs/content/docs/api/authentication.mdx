@@ -44,13 +44,17 @@ Scopes control what actions an API key can perform:
 
 | Scope | Permission |
 |-------|------------|
-| `read:data` | Query analytics data (required for all query endpoints) |
-| `track:events` | Send custom events via `/track` endpoint |
-| `read:websites` | List accessible websites |
-| `manage:websites` | Create and update websites |
+| `read:data` | Query analytics data **and list accessible websites** — covers `POST /v1/query`, `POST /v1/query/compile`, `POST /v1/query/custom`, and `GET /v1/query/websites` |
+| `track:events` | Send custom events via `POST /track` |
+| `track:llm` | Send LLM telemetry via `POST /llm` |
+| `read:links` | Read short links and their analytics |
+| `write:links` | Create, update, and delete short links |
+| `manage:websites` | Create, update, and delete websites |
+| `manage:flags` | Manage feature flags and targeting rules |
+| `manage:config` | Revenue config, integrations, organization settings |
 
 <Callout type="info">
-  Most integrations only need `read:data` scope. Add `track:events` if you need to send events server-side.
+  Most integrations only need `read:data`. Add `track:events` if you also send events server-side.
 </Callout>
 
 ## Access Levels

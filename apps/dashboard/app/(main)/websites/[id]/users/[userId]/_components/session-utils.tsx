@@ -1,7 +1,7 @@
 import { CursorClickIcon } from "@phosphor-icons/react";
 import { FileTextIcon } from "@phosphor-icons/react";
 import { LightningIcon } from "@phosphor-icons/react";
-import { SparkleIcon } from "@phosphor-icons/react";
+import { TagIcon } from "@phosphor-icons/react";
 
 export const getEventIconAndColor = (
 	eventName: string,
@@ -9,7 +9,7 @@ export const getEventIconAndColor = (
 ) => {
 	if (hasProperties) {
 		return {
-			icon: <SparkleIcon className="size-4" />,
+			icon: <TagIcon className="size-4" />,
 			color: "text-accent-foreground",
 			bgColor: "bg-accent/20",
 			borderColor: "border-accent",

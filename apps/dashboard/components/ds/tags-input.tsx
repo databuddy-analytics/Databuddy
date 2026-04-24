@@ -97,7 +97,7 @@ export function TagsInput({
 			>
 				{values.map((val, i) => (
 					<span
-						className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-foreground text-xs"
+						className="inline-flex items-center gap-1 rounded border border-border/60 bg-background px-1.5 py-0.5 text-foreground text-xs shadow-xs"
 						key={`${val}-${i}`}
 					>
 						{val}

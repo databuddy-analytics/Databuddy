@@ -1,12 +1,10 @@
 "use client";
 
-import { ClockIcon } from "@phosphor-icons/react";
-import { CodeIcon } from "@phosphor-icons/react";
-import { GlobeIcon } from "@phosphor-icons/react";
+import { ClockIcon, CodeIcon, GlobeIcon } from "@phosphor-icons/react";
 import { useCallback, useMemo, useState } from "react";
+import { Tooltip } from "@/components/ds/tooltip";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { DataTable } from "@/components/table/data-table";
-import { Tooltip } from "@/components/ds/tooltip";
 import dayjs from "@/lib/dayjs";
 import { formatDateTime } from "@/lib/time";
 import { ErrorDetailModal } from "./error-detail-modal";
@@ -15,33 +13,29 @@ import type { RecentError } from "./types";
 import { getErrorCategory } from "./utils";
 
 interface Props {
+	isLoading?: boolean;
 	recentErrors: RecentError[];
 }
 
-const SeverityDot = ({ severity }: { severity: "high" | "medium" | "low" }) => {
-	const colors = {
-		high: "bg-primary",
-		medium: "bg-chart-2",
-		low: "bg-chart-3",
-	};
-
-	return (
-		<span
-			className={`size-2 shrink-0 rounded-full ${colors[severity]}`}
-			title={`${severity} severity`}
-		/>
-	);
+const SEVERITY_COLORS: Record<"high" | "medium" | "low", string> = {
+	high: "bg-destructive",
+	medium: "bg-amber-500",
+	low: "bg-muted-foreground/50",
 };
+
+const SeverityDot = ({ severity }: { severity: "high" | "medium" | "low" }) => (
+	<span
+		className={`size-2 shrink-0 rounded-full ${SEVERITY_COLORS[severity]}`}
+		title={`${severity} severity`}
+	/>
+);
 
 const getRelativeTime = (timestamp: string): string => {
 	const date = dayjs(timestamp);
-	if (!date.isValid()) {
-		return "";
-	}
-	return date.fromNow();
+	return date.isValid() ? date.fromNow() : "";
 };
 
-export const RecentErrorsTable = ({ recentErrors }: Props) => {
+export const RecentErrorsTable = ({ isLoading, recentErrors }: Props) => {
 	const [selectedError, setSelectedError] = useState<RecentError | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -61,10 +55,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				seen.add(key);
 				return true;
 			})
-			.map((error) => ({
-				...error,
-				name: error.message,
-			}));
+			.map((error) => ({ ...error, name: error.message }));
 	}, [recentErrors]);
 
 	const columns = useMemo(
@@ -98,7 +89,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 						>
 							<div className="flex max-w-md flex-col gap-1.5">
 								<div className="flex items-center gap-2">
-									<div className="flex size-5 shrink-0 items-center justify-center rounded bg-primary/10">
+									<div className="flex size-5 shrink-0 items-center justify-center rounded bg-destructive/10">
 										{getErrorTypeIcon(type)}
 									</div>
 									<span className="font-medium text-sm">{type}</span>
@@ -125,10 +116,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 					return (
 						<Tooltip content={<span className="font-mono">{url}</span>}>
 							<div className="flex max-w-[140px] items-center gap-1.5">
-								<CodeIcon
-									className="size-3.5 shrink-0 text-muted-foreground"
-									weight="duotone"
-								/>
+								<CodeIcon className="size-3.5 shrink-0 text-muted-foreground" />
 								<span className="truncate font-mono text-sm">{pathname}</span>
 							</div>
 						</Tooltip>
@@ -140,10 +128,11 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				accessorKey: "browser_name",
 				header: "Environment",
 				cell: (info: { row: { original: RecentError } }) => {
-					const row = info.row.original;
-					const browser = row.browser_name;
-					const os = row.os_name;
-					const device = row.device_type;
+					const {
+						browser_name: browser,
+						os_name: os,
+						device_type: device,
+					} = info.row.original;
 
 					if (!(browser || os)) {
 						return <span className="text-muted-foreground text-sm">—</span>;
@@ -173,9 +162,12 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				accessorKey: "country",
 				header: "Location",
 				cell: (info: { row: { original: RecentError } }) => {
-					const row = info.row.original;
-					const countryCode = row.country_code;
-					const countryName = row.country_name || row.country;
+					const {
+						country_code: countryCode,
+						country_name,
+						country,
+					} = info.row.original;
+					const countryName = country_name || country;
 
 					if (!(countryCode || countryName)) {
 						return (
@@ -205,16 +197,19 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				header: "Time",
 				cell: (info: { getValue: () => unknown }) => {
 					const time = info.getValue() as string;
-					const relative = getRelativeTime(time);
-					const full = formatDateTime(time);
-
 					return (
 						<Tooltip
-							content={<span className="font-mono text-xs">{full}</span>}
+							content={
+								<span className="font-mono text-xs">
+									{formatDateTime(time)}
+								</span>
+							}
 						>
 							<div className="flex items-center gap-1.5 text-muted-foreground">
-								<ClockIcon className="size-3.5 shrink-0" weight="duotone" />
-								<span className="whitespace-nowrap text-sm">{relative}</span>
+								<ClockIcon className="size-3.5 shrink-0" />
+								<span className="whitespace-nowrap text-sm">
+									{getRelativeTime(time)}
+								</span>
 							</div>
 						</Tooltip>
 					);
@@ -231,6 +226,7 @@ export const RecentErrorsTable = ({ recentErrors }: Props) => {
 				data={tableData}
 				emptyMessage="No errors in this time range"
 				initialPageSize={10}
+				isLoading={isLoading}
 				minHeight={400}
 				onRowAction={(row) => handleViewError(row)}
 				title="Recent Errors"

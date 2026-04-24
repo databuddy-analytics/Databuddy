@@ -1,30 +1,16 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import {
-	DragDropContext,
-	Draggable,
-	Droppable,
-	type DropResult,
-} from "@hello-pangea/dnd";
-import { DotsNineIcon } from "@phosphor-icons/react/dist/ssr";
-import { FunnelIcon } from "@phosphor-icons/react/dist/ssr";
-import { PlusIcon } from "@phosphor-icons/react/dist/ssr";
-import { TrashIcon } from "@phosphor-icons/react/dist/ssr";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { Accordion } from "@/components/ds/accordion";
 import { Button } from "@/components/ds/button";
+import { Divider } from "@/components/ds/divider";
+import { DropdownMenu } from "@/components/ds/dropdown-menu";
 import { Field } from "@/components/ds/field";
-import { Sheet } from "@/components/ds/sheet";
 import { Input } from "@/components/ds/input";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+import { Sheet } from "@/components/ds/sheet";
 import { Switch } from "@/components/ds/switch";
+import { Text } from "@/components/ds/text";
+import { AutocompleteInput } from "@/components/ui/autocomplete-input";
+import { FilterRow } from "@/components/ui/filter-row";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
 import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import { cn } from "@/lib/utils";
@@ -34,6 +20,22 @@ import type {
 	FunnelFilter,
 	FunnelStep,
 } from "@/types/funnels";
+import { filterOptions } from "@databuddy/shared/lists/filters";
+import {
+	DragDropContext,
+	Draggable,
+	Droppable,
+	type DropResult,
+} from "@hello-pangea/dnd";
+import {
+	DotsNineIcon,
+	FunnelIcon,
+	FunnelSimpleIcon,
+	GearIcon,
+	PlusIcon,
+	XIcon,
+} from "@phosphor-icons/react/dist/ssr";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const defaultFilter: FunnelFilter = {
 	field: "browser_name",
@@ -67,7 +69,6 @@ export function EditFunnelDialog({
 
 	useEffect(() => {
 		if (funnel) {
-			// Ensure all filters have valid operators (default to "equals" if missing)
 			const sanitizedFilters = (funnel.filters || []).map((f) => ({
 				...f,
 				operator: f.operator || "equals",
@@ -99,12 +100,12 @@ export function EditFunnelDialog({
 		}
 	}, [funnel]);
 
-	const handleSubmit = async () => {
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
 		if (!formData) {
 			return;
 		}
 
-		// Ensure all filters have valid operators (default to "equals" if missing)
 		const sanitizedFilters = (formData.filters || []).map((f) => ({
 			...f,
 			operator: f.operator || "equals",
@@ -300,20 +301,17 @@ export function EditFunnelDialog({
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
-			<Sheet.Content side="right">
+			<Sheet.Content className="w-full sm:max-w-lg" side="right">
 				<Sheet.Header>
-					<div className="flex items-start gap-4">
-						<div className="flex size-11 items-center justify-center rounded border bg-background">
-							<FunnelIcon
-								className="size-[22px] text-accent-foreground"
-								weight="fill"
-							/>
+					<div className="flex items-center gap-4">
+						<div className="flex size-11 items-center justify-center rounded border bg-secondary">
+							<FunnelIcon className="size-5 text-primary" weight="fill" />
 						</div>
-						<div className="min-w-0 flex-1">
-							<Sheet.Title className="truncate text-lg">
+						<div>
+							<Sheet.Title className="text-lg">
 								{isCreateMode ? "New Funnel" : formData.name || "Edit Funnel"}
 							</Sheet.Title>
-							<Sheet.Description className="text-xs">
+							<Sheet.Description>
 								{isCreateMode
 									? "Track user conversion journeys"
 									: `${formData.steps.length} steps configured`}
@@ -322,111 +320,126 @@ export function EditFunnelDialog({
 					</div>
 				</Sheet.Header>
 
-				<Sheet.Close />
-
-				<Sheet.Body className="space-y-6">
-					<div className="grid gap-4 sm:grid-cols-2">
-						<div className="space-y-2">
-							<Field.Label htmlFor="funnel-name">Name</Field.Label>
-							<Input
-								id="funnel-name"
-								onChange={(e) =>
-									setFormData((prev) =>
-										prev ? { ...prev, name: e.target.value } : prev
-									)
-								}
-								placeholder="e.g., Sign Up Flow"
-								value={formData.name}
-							/>
-						</div>
-						<div className="space-y-2">
-							<Field.Label htmlFor="funnel-description">
-								Description
-							</Field.Label>
-							<Input
-								id="funnel-description"
-								onChange={(e) =>
-									setFormData((prev) =>
-										prev ? { ...prev, description: e.target.value } : prev
-									)
-								}
-								placeholder="Optional"
-								value={formData.description || ""}
-							/>
-						</div>
-					</div>
-
-					<section className="space-y-3">
-						<div className="flex items-center justify-between">
-							<Field.Label className="text-muted-foreground text-xs">
-								Funnel Steps
-							</Field.Label>
-							<span className="text-muted-foreground text-xs">
-								Drag to reorder
-							</span>
+				<form
+					className="flex flex-1 flex-col overflow-hidden"
+					onSubmit={handleSubmit}
+				>
+					<Sheet.Body className="space-y-5">
+						<div className="grid gap-3 sm:grid-cols-2">
+							<Field>
+								<Field.Label>Name</Field.Label>
+								<Input
+									onChange={(e) =>
+										setFormData((prev) =>
+											prev ? { ...prev, name: e.target.value } : prev
+										)
+									}
+									placeholder="e.g., Sign Up Flow"
+									value={formData.name}
+								/>
+							</Field>
+							<Field>
+								<Field.Label>
+									Description{" "}
+									<span className="text-muted-foreground">(optional)</span>
+								</Field.Label>
+								<Input
+									onChange={(e) =>
+										setFormData((prev) =>
+											prev
+												? {
+														...prev,
+														description: e.target.value,
+													}
+												: prev
+										)
+									}
+									placeholder="What this funnel tracks"
+									value={formData.description || ""}
+								/>
+							</Field>
 						</div>
 
-						<DragDropContext onDragEnd={reorderSteps}>
-							<Droppable droppableId="funnel-steps">
-								{(provided, snapshot) => (
-									<div
-										{...provided.droppableProps}
-										className={cn(
-											"space-y-2",
-											snapshot.isDraggingOver && "rounded bg-accent/50 p-2"
-										)}
-										ref={provided.innerRef}
-									>
-										{formData.steps.map((step, index) => (
-											<Draggable
-												draggableId={`step-${index}`}
-												index={index}
-												key={`step-${index}`}
-											>
-												{(provided, snapshot) => (
-													<div
-														ref={provided.innerRef}
-														{...provided.draggableProps}
-														className={cn(
-															"flex items-center gap-2 rounded border bg-card p-2.5 transition-all",
-															snapshot.isDragging &&
-																"border-primary shadow-lg ring-2 ring-primary/20"
-														)}
-													>
+						<Divider />
+
+						<div className="space-y-3">
+							<div className="flex items-center justify-between">
+								<Text variant="label">Steps</Text>
+								<Text tone="muted" variant="caption">
+									Drag to reorder
+								</Text>
+							</div>
+
+							<DragDropContext onDragEnd={reorderSteps}>
+								<Droppable droppableId="funnel-steps">
+									{(provided, snapshot) => (
+										<div
+											{...provided.droppableProps}
+											className={cn(
+												"space-y-2",
+												snapshot.isDraggingOver && "rounded-md bg-accent/50 p-2"
+											)}
+											ref={provided.innerRef}
+										>
+											{formData.steps.map((step, index) => (
+												<Draggable
+													draggableId={`step-${index}`}
+													index={index}
+													key={`step-${index}`}
+												>
+													{(provided, snapshot) => (
 														<div
-															{...provided.dragHandleProps}
-															className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+															ref={provided.innerRef}
+															{...provided.draggableProps}
+															className={cn(
+																"flex items-center gap-2 rounded-md border border-border/60 p-2.5 transition-all",
+																snapshot.isDragging &&
+																	"border-primary shadow-lg ring-2 ring-primary/20"
+															)}
 														>
-															<DotsNineIcon className="size-4" />
-														</div>
-
-														<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-foreground font-semibold text-accent text-xs">
-															{index + 1}
-														</div>
-
-														<div className="grid flex-1 grid-cols-3 gap-2">
-															<Select
-																onValueChange={(value) =>
-																	updateStep(index, "type", value)
-																}
-																value={step.type}
+															<div
+																{...provided.dragHandleProps}
+																className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
 															>
-																<SelectTrigger
-																	className="w-full text-xs"
-																	size="sm"
+																<DotsNineIcon className="size-4" />
+															</div>
+															<div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-accent-foreground font-semibold text-accent text-xs">
+																{index + 1}
+															</div>
+															<Input
+																className="h-8 min-w-0 flex-1 text-xs"
+																onChange={(e) =>
+																	updateStep(index, "name", e.target.value)
+																}
+																placeholder="Step name"
+																value={step.name}
+															/>
+															<DropdownMenu>
+																<DropdownMenu.Trigger className="flex h-8 w-24 shrink-0 cursor-pointer select-none items-center justify-between rounded-md bg-secondary px-3 text-foreground text-xs transition-colors hover:bg-interactive-hover">
+																	{step.type === "PAGE_VIEW" ? "Page" : "Event"}
+																</DropdownMenu.Trigger>
+																<DropdownMenu.Content
+																	align="start"
+																	side="bottom"
 																>
-																	<SelectValue />
-																</SelectTrigger>
-																<SelectContent>
-																	<SelectItem value="PAGE_VIEW">
-																		Page View
-																	</SelectItem>
-																	<SelectItem value="EVENT">Event</SelectItem>
-																</SelectContent>
-															</Select>
+																	<DropdownMenu.RadioGroup
+																		onValueChange={(value) =>
+																			updateStep(index, "type", value)
+																		}
+																		value={step.type}
+																	>
+																		<DropdownMenu.RadioItem value="PAGE_VIEW">
+																			Page View
+																		</DropdownMenu.RadioItem>
+																		<DropdownMenu.RadioItem value="EVENT">
+																			Event
+																		</DropdownMenu.RadioItem>
+																	</DropdownMenu.RadioGroup>
+																</DropdownMenu.Content>
+															</DropdownMenu>
 															<AutocompleteInput
-																className="text-xs"
-																inputClassName="h-8"
+																className="min-w-0 flex-1"
+																inputClassName="h-8 text-xs"
 																onValueChange={(value) =>
 																	updateStep(index, "target", value)
 																}
@@ -438,169 +451,144 @@ export function EditFunnelDialog({
 																suggestions={getStepSuggestions(step.type)}
 																value={step.target || ""}
 															/>
-															<Input
-																className="h-8 text-xs"
-																onChange={(e) =>
-																	updateStep(index, "name", e.target.value)
-																}
-																placeholder="Step name"
-																value={step.name}
-															/>
+															{formData.steps.length > 2 && (
+																<button
+																	aria-label="Remove step"
+																	className="shrink-0 cursor-pointer rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+																	onClick={() => removeStep(index)}
+																	type="button"
+																>
+																	<XIcon className="size-3.5" />
+																</button>
+															)}
 														</div>
+													)}
+												</Draggable>
+											))}
+											{provided.placeholder}
+										</div>
+									)}
+								</Droppable>
+							</DragDropContext>
 
-														{formData.steps.length > 2 && (
-															<Button
-																className="size-6 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-																onClick={() => removeStep(index)}
-																variant="ghost"
-															>
-																<TrashIcon className="size-3.5" />
-															</Button>
-														)}
-													</div>
-												)}
-											</Draggable>
-										))}
-										{provided.placeholder}
-									</div>
-								)}
-							</Droppable>
-						</DragDropContext>
-
-						<Button
-							className="w-full"
-							disabled={formData.steps.length >= 10}
-							onClick={addStep}
-							size="sm"
-							variant="secondary"
-						>
-							<PlusIcon className="size-3.5" />
-							Add Step
-						</Button>
-					</section>
-
-					<section className="space-y-3">
-						<Field.Label className="text-muted-foreground text-xs">
-							Settings
-						</Field.Label>
-						<div className="flex items-center justify-between rounded border bg-card p-3">
-							<div className="space-y-0.5">
-								<Field.Label
-									className="font-medium text-sm"
-									htmlFor="ignore-historic"
-								>
-									Ignore historic data
-								</Field.Label>
-								<p className="text-muted-foreground text-xs">
-									Only count events after this funnel was created
-								</p>
-							</div>
-							<Switch
-								checked={formData.ignoreHistoricData ?? false}
-								id="ignore-historic"
-								onCheckedChange={(checked) =>
-									setFormData((prev) =>
-										prev ? { ...prev, ignoreHistoricData: checked } : prev
-									)
-								}
-							/>
+							<Button
+								className="w-full text-muted-foreground"
+								disabled={formData.steps.length >= 10}
+								onClick={addStep}
+								size="sm"
+								type="button"
+								variant="secondary"
+							>
+								<PlusIcon className="size-3.5" />
+								Add Step
+							</Button>
 						</div>
-					</section>
 
-					<section className="space-y-3">
-						<Field.Label className="text-muted-foreground text-xs">
-							Filters (Optional)
-						</Field.Label>
+						<Divider />
 
-						{formData.filters && formData.filters.length > 0 && (
-							<div className="space-y-2">
-								{formData.filters.map((filter, index) => (
-									<div
-										className="flex items-center gap-2 rounded border bg-card p-2.5"
-										key={`filter-${index}`}
-									>
-										<Select
-											onValueChange={(value) =>
-												updateFilter(index, "field", value)
-											}
-											value={filter.field}
-										>
-											<SelectTrigger className="h-8 w-28 text-xs">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{filterOptions.map((option) => (
-													<SelectItem key={option.value} value={option.value}>
-														{option.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-
-										<Select
-											onValueChange={(value) =>
-												updateFilter(index, "operator", value)
-											}
-											value={filter.operator || "equals"}
-										>
-											<SelectTrigger className="h-8 w-24 text-xs">
-												<SelectValue placeholder="equals" />
-											</SelectTrigger>
-											<SelectContent>
-												{goalFunnelOperatorOptions.map((option) => (
-													<SelectItem key={option.value} value={option.value}>
-														{option.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-
-										<AutocompleteInput
-											className="flex-1 text-xs"
-											onValueChange={(value) =>
-												updateFilter(index, "value", value)
-											}
-											placeholder="Value"
-											suggestions={getSuggestions(filter.field)}
-											value={(filter.value as string) || ""}
+						<div className="space-y-2">
+							<div className="overflow-hidden rounded-md border border-border/60">
+								<Accordion>
+									<Accordion.Trigger>
+										<GearIcon
+											className="size-4 shrink-0 text-muted-foreground"
+											weight="duotone"
 										/>
-
-										<Button
-											className="size-6 shrink-0 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-											onClick={() => removeFilter(index)}
-											variant="ghost"
-										>
-											<TrashIcon className="size-3.5" />
-										</Button>
-									</div>
-								))}
+										<Text variant="label">Settings</Text>
+									</Accordion.Trigger>
+									<Accordion.Content>
+										<div className="flex items-center justify-between gap-4">
+											<div>
+												<Text variant="label">Ignore historic data</Text>
+												<Text tone="muted" variant="caption">
+													Only count events after this funnel was created
+												</Text>
+											</div>
+											<Switch
+												checked={formData.ignoreHistoricData ?? false}
+												onCheckedChange={(checked) =>
+													setFormData((prev) =>
+														prev
+															? {
+																	...prev,
+																	ignoreHistoricData: checked,
+																}
+															: prev
+													)
+												}
+											/>
+										</div>
+									</Accordion.Content>
+								</Accordion>
 							</div>
-						)}
 
-						<Button
-							className="w-full"
-							onClick={() => addFilter()}
-							size="sm"
-							variant="secondary"
-						>
-							<PlusIcon className="size-3.5" />
-							Add Filter
+							<div className="overflow-hidden rounded-md border border-border/60">
+								<Accordion>
+									<Accordion.Trigger>
+										<FunnelSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
+										<Text variant="label">Filters</Text>
+										{formData.filters && formData.filters.length > 0 && (
+											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+												{formData.filters.length}
+											</span>
+										)}
+									</Accordion.Trigger>
+									<Accordion.Content>
+										{formData.filters && formData.filters.length > 0 && (
+											<div className="mb-3 space-y-2">
+												{formData.filters.map((filter, index) => (
+													<FilterRow
+														field={filter.field}
+														fieldOptions={filterOptions}
+														key={`filter-${index}`}
+														onFieldChange={(value) =>
+															updateFilter(index, "field", value)
+														}
+														onOperatorChange={(value) =>
+															updateFilter(index, "operator", value)
+														}
+														onRemove={() => removeFilter(index)}
+														onValueChange={(value) =>
+															updateFilter(index, "value", value)
+														}
+														operator={filter.operator || "equals"}
+														operatorOptions={goalFunnelOperatorOptions}
+														suggestions={getSuggestions(filter.field)}
+														value={(filter.value as string) || ""}
+													/>
+												))}
+											</div>
+										)}
+										<Button
+											className="w-full text-muted-foreground"
+											onClick={() => addFilter()}
+											size="sm"
+											type="button"
+											variant="secondary"
+										>
+											<PlusIcon className="size-3.5" />
+											Add Filter
+										</Button>
+									</Accordion.Content>
+								</Accordion>
+							</div>
+						</div>
+					</Sheet.Body>
+
+					<Sheet.Footer>
+						<Button onClick={handleClose} type="button" variant="secondary">
+							Cancel
 						</Button>
-					</section>
-				</Sheet.Body>
-
-				<Sheet.Footer>
-					<Button onClick={handleClose} variant="secondary">
-						Cancel
-					</Button>
-					<Button
-						disabled={!isFormValid}
-						loading={isCreateMode ? isCreating : isUpdating}
-						onClick={handleSubmit}
-					>
-						{isCreateMode ? "Create Funnel" : "Save Changes"}
-					</Button>
-				</Sheet.Footer>
+						<Button
+							disabled={!isFormValid}
+							loading={isCreateMode ? isCreating : isUpdating}
+							type="submit"
+						>
+							{isCreateMode ? "Create Funnel" : "Save Changes"}
+						</Button>
+					</Sheet.Footer>
+				</form>
+				<Sheet.Close />
 			</Sheet.Content>
 		</Sheet>
 	);

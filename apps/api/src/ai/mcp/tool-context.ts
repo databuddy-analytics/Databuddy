@@ -253,8 +253,8 @@ export function coerceQueriesArray(val: unknown): unknown[] | undefined {
 			const parsed = JSON.parse(val) as unknown;
 			return Array.isArray(parsed) ? parsed : undefined;
 		} catch {
-			return undefined;
+			return;
 		}
 	}
-	return undefined;
+	return;
 }

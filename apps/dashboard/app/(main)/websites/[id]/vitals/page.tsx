@@ -298,14 +298,14 @@ export default function VitalsPage() {
 			const previous = previousOverviewData.find((m) => m.metric_name === name);
 
 			if (!(current && previous)) {
-				return undefined;
+				return;
 			}
 
 			const currentValue = current[selectedPercentile];
 			const previousValue = previous[selectedPercentile];
 
 			if (previousValue === 0 || previousValue === undefined) {
-				return undefined;
+				return;
 			}
 
 			return {

@@ -1,10 +1,10 @@
+import { captureError, mergeWideEvent } from "@/lib/tracing";
 import { db, eq } from "@databuddy/db";
 import { agentInstallTelemetry, websites } from "@databuddy/db/schema";
 import { cacheable } from "@databuddy/redis";
-import { getRateLimitHeaders, rateLimit } from "@databuddy/redis/rate-limit";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { Elysia, t } from "elysia";
-import { captureError, mergeWideEvent } from "@/lib/tracing";
 
 // Cache website existence checks — returns true/false, caches both (negative cache).
 // 5 min TTL, stale-while-revalidate after 2 min.
@@ -53,7 +53,7 @@ export const agentTelemetryRoute = new Elysia({
 		}
 
 		// Rate limit: 10 requests per hour per websiteId
-		const rl = await rateLimit(`agent-telemetry:${body.websiteId}`, 10, 3600);
+		const rl = await ratelimit(`agent-telemetry:${body.websiteId}`, 10, 3600);
 		const rlHeaders = getRateLimitHeaders(rl);
 		for (const [key, value] of Object.entries(rlHeaders)) {
 			set.headers[key] = value;

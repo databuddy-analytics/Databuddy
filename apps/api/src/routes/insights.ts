@@ -8,11 +8,13 @@ import {
 	websites,
 } from "@databuddy/db/schema";
 import { cacheable, getRedisCache } from "@databuddy/redis";
-import { getRateLimitHeaders, rateLimit } from "@databuddy/redis/rate-limit";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { generateText, Output, stepCountIs, ToolLoopAgent } from "ai";
 import dayjs from "dayjs";
 import { Elysia, t } from "elysia";
 import { useLogger } from "evlog/elysia";
+import type { AppContext } from "../ai/config/context";
+import { models } from "../ai/config/models";
 import {
 	fetchInsightDedupeKeyToIdMap,
 	insightDedupeKey,
@@ -27,16 +29,15 @@ import type {
 	InsightMetricRow,
 	WeekOverWeekPeriod,
 } from "../ai/insights/types";
-import type { AppContext } from "../ai/config/context";
-import { models } from "../ai/config/models";
 import type { ParsedInsight } from "../ai/schemas/smart-insights-output";
 import { insightsOutputSchema } from "../ai/schemas/smart-insights-output";
 import { createInsightsAgentTools } from "../ai/tools/insights-agent-tools";
-import { storeAnalyticsSummary } from "../lib/supermemory";
 import { getAILogger } from "../lib/ai-logger";
+import { storeAnalyticsSummary } from "../lib/supermemory";
 import { captureError, mergeWideEvent } from "../lib/tracing";
 
 const CACHE_TTL = 900;
+const NEGATIVE_CACHE_TTL = Math.floor(CACHE_TTL / 3);
 const CACHE_KEY_PREFIX = "ai-insights";
 const TIMEOUT_MS = 60_000;
 const INSIGHTS_AGENT_MAX_STEPS = 24;
@@ -46,6 +47,7 @@ const CONCURRENCY = 3;
 const GENERATION_COOLDOWN_HOURS = 6;
 const RECENT_INSIGHTS_LOOKBACK_DAYS = 14;
 const RECENT_INSIGHTS_PROMPT_LIMIT = 12;
+const TOP_INSIGHTS_LIMIT = 10;
 
 interface WebsiteInsight extends ParsedInsight {
 	id: string;
@@ -64,6 +66,72 @@ interface OrgWebsiteRow {
 	domain: string;
 	id: string;
 	name: string | null;
+}
+
+type DedupeKeyable = Pick<
+	WebsiteInsight,
+	"websiteId" | "type" | "sentiment" | "changePercent" | "subjectKey" | "title"
+>;
+
+function dedupeKeyFor(insight: DedupeKeyable): string {
+	return insightDedupeKey({
+		websiteId: insight.websiteId,
+		type: insight.type,
+		sentiment: insight.sentiment,
+		changePercent: insight.changePercent ?? null,
+		subjectKey: insight.subjectKey,
+		title: insight.title,
+	});
+}
+
+interface RawInsightShape {
+	changePercent: number | null;
+	impactSummary: string | null;
+	metrics: unknown;
+	sentiment: string;
+	severity: string;
+	sources: unknown;
+	type: string;
+}
+
+function parseInsightShape(r: RawInsightShape) {
+	return {
+		severity: r.severity as ParsedInsight["severity"],
+		sentiment: r.sentiment as ParsedInsight["sentiment"],
+		type: r.type as ParsedInsight["type"],
+		sources:
+			(r.sources as Array<"web" | "product" | "ops" | "business"> | null) ?? [],
+		metrics: (r.metrics as InsightMetricRow[] | null) ?? [],
+		changePercent: r.changePercent ?? undefined,
+		impactSummary: r.impactSummary ?? undefined,
+	};
+}
+
+async function userHasOrgAccess(
+	userId: string,
+	organizationId: string
+): Promise<boolean> {
+	const memberships = await db.query.member.findMany({
+		where: eq(member.userId, userId),
+		columns: { organizationId: true },
+	});
+	return memberships.some((m) => m.organizationId === organizationId);
+}
+
+function tryCacheSet(
+	redis: ReturnType<typeof getRedis>,
+	key: string,
+	ttl: number,
+	payload: unknown
+): void {
+	if (!redis) {
+		return;
+	}
+	redis.setex(key, ttl, JSON.stringify(payload)).catch((error: unknown) => {
+		useLogger().info("Insights cache write failed (best-effort)", {
+			insights: { key, error },
+		});
+	});
 }
 
 async function fetchRecentAnnotations(websiteId: string): Promise<string> {
@@ -590,18 +658,10 @@ async function getRecentInsightsFromDb(
 			title: r.title,
 			description: r.description,
 			suggestion: r.suggestion,
-			metrics: (r.metrics as InsightMetricRow[] | null) ?? [],
-			severity: r.severity as ParsedInsight["severity"],
-			sentiment: r.sentiment as ParsedInsight["sentiment"],
-			type: r.type as ParsedInsight["type"],
 			priority: r.priority,
-			changePercent: r.changePercent ?? undefined,
 			subjectKey: r.subjectKey,
-			sources:
-				(r.sources as Array<"web" | "product" | "ops" | "business"> | null) ??
-				[],
 			confidence: r.confidence,
-			impactSummary: r.impactSummary ?? undefined,
+			...parseInsightShape(r),
 		})
 	);
 }
@@ -802,13 +862,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 
 			mergeWideEvent({ insights_history_org_id: organizationId });
 
-			const memberships = await db.query.member.findMany({
-				where: eq(member.userId, userId),
-				columns: { organizationId: true },
-			});
-
-			const orgIds = new Set(memberships.map((m) => m.organizationId));
-			if (!orgIds.has(organizationId)) {
+			if (!(await userHasOrgAccess(userId, organizationId))) {
 				mergeWideEvent({ insights_history_access: "denied" });
 				set.status = 403;
 				return {
@@ -873,18 +927,10 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 				title: r.title,
 				description: r.description,
 				suggestion: r.suggestion,
-				metrics: (r.metrics as InsightMetricRow[] | null) ?? [],
-				severity: r.severity,
-				sentiment: r.sentiment,
-				type: r.type,
 				priority: r.priority,
-				changePercent: r.changePercent ?? undefined,
 				subjectKey: r.subjectKey,
-				sources:
-					(r.sources as Array<"web" | "product" | "ops" | "business"> | null) ??
-					[],
 				confidence: r.confidence,
-				impactSummary: r.impactSummary ?? undefined,
+				...parseInsightShape(r),
 				createdAt: r.createdAt.toISOString(),
 				currentPeriodFrom: r.currentPeriodFrom,
 				currentPeriodTo: r.currentPeriodTo,
@@ -922,19 +968,13 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 				insights_narrative_range: range,
 			});
 
-			const memberships = await db.query.member.findMany({
-				where: eq(member.userId, userId),
-				columns: { organizationId: true },
-			});
-
-			const orgIds = new Set(memberships.map((m) => m.organizationId));
-			if (!orgIds.has(organizationId)) {
+			if (!(await userHasOrgAccess(userId, organizationId))) {
 				mergeWideEvent({ insights_narrative_access: "denied" });
 				set.status = 403;
 				return { success: false, error: "Access denied to this organization" };
 			}
 
-			const rl = await rateLimit(
+			const rl = await ratelimit(
 				`insights:narrative:${organizationId}:${userId}`,
 				NARRATIVE_RATE_LIMIT,
 				NARRATIVE_RATE_WINDOW_SECS
@@ -991,13 +1031,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 			const { organizationId } = body;
 			mergeWideEvent({ insights_clear_org_id: organizationId });
 
-			const memberships = await db.query.member.findMany({
-				where: eq(member.userId, userId),
-				columns: { organizationId: true },
-			});
-
-			const orgIds = new Set(memberships.map((m) => m.organizationId));
-			if (!orgIds.has(organizationId)) {
+			if (!(await userHasOrgAccess(userId, organizationId))) {
 				set.status = 403;
 				return {
 					success: false,
@@ -1076,13 +1110,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 
 			mergeWideEvent({ insights_cache: "miss" });
 
-			const memberships = await db.query.member.findMany({
-				where: eq(member.userId, userId),
-				columns: { organizationId: true },
-			});
-
-			const orgIds = new Set(memberships.map((m) => m.organizationId));
-			if (!orgIds.has(organizationId)) {
+			if (!(await userHasOrgAccess(userId, organizationId))) {
 				mergeWideEvent({ insights_access: "denied" });
 				set.status = 403;
 				return {
@@ -1102,11 +1130,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 					insights: recentInsights,
 					source: "ai",
 				};
-				if (redis) {
-					redis
-						.setex(cacheKey, CACHE_TTL, JSON.stringify(payload))
-						.catch(() => {});
-				}
+				tryCacheSet(redis, cacheKey, CACHE_TTL, payload);
 				return { success: true, ...payload };
 			}
 
@@ -1158,25 +1182,14 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 				const seenInBatch = new Set<string>();
 				const sorted: WebsiteInsight[] = [];
 				for (const insight of merged) {
-					const key = insightDedupeKey({
-						websiteId: insight.websiteId,
-						type: insight.type,
-						sentiment: insight.sentiment,
-						changePercent: insight.changePercent ?? null,
-						subjectKey: insight.subjectKey,
-						title: insight.title,
-					});
+					const key = dedupeKeyFor(insight);
 					if (seenInBatch.has(key)) {
 						continue;
 					}
 					seenInBatch.add(key);
 					const existingId = dedupeKeyToId.get(key);
-					if (existingId) {
-						sorted.push({ ...insight, id: existingId });
-					} else {
-						sorted.push(insight);
-					}
-					if (sorted.length >= 10) {
+					sorted.push(existingId ? { ...insight, id: existingId } : insight);
+					if (sorted.length >= TOP_INSIGHTS_LIMIT) {
 						break;
 					}
 				}
@@ -1184,45 +1197,12 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 				const runId = crypto.randomUUID();
 				let finalInsights: WebsiteInsight[] = sorted;
 				if (sorted.length > 0) {
-					const toInsert: {
-						id: string;
-						organizationId: string;
-						websiteId: string;
-						runId: string;
-						title: string;
-						description: string;
-						suggestion: string;
-						severity: string;
-						sentiment: string;
-						type: string;
-						priority: number;
-						changePercent: number | null;
-						subjectKey: string;
-						sources: Array<"web" | "product" | "ops" | "business">;
-						confidence: number;
-						impactSummary: string | null;
-						metrics: InsightMetricRow[] | null;
-						timezone: string;
-						currentPeriodFrom: string;
-						currentPeriodTo: string;
-						previousPeriodFrom: string;
-						previousPeriodTo: string;
-					}[] = [];
-
-					for (const insight of sorted) {
-						const key = insightDedupeKey({
-							websiteId: insight.websiteId,
-							type: insight.type,
-							sentiment: insight.sentiment,
-							changePercent: insight.changePercent ?? null,
-							subjectKey: insight.subjectKey,
-							title: insight.title,
-						});
-						const existingId = dedupeKeyToId.get(key);
-						if (existingId && insight.id === existingId) {
-							continue;
-						}
-						toInsert.push({
+					const toInsert = sorted
+						.filter((insight) => {
+							const existingId = dedupeKeyToId.get(dedupeKeyFor(insight));
+							return !(existingId && insight.id === existingId);
+						})
+						.map((insight) => ({
 							id: insight.id,
 							organizationId,
 							websiteId: insight.websiteId,
@@ -1245,8 +1225,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 							currentPeriodTo: period.current.to,
 							previousPeriodFrom: period.previous.from,
 							previousPeriodTo: period.previous.to,
-						});
-					}
+						}));
 
 					const updatePayload = {
 						runId,
@@ -1263,15 +1242,7 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 							await db.insert(analyticsInsights).values(toInsert);
 						}
 						const toRefresh = sorted.filter((insight) => {
-							const key = insightDedupeKey({
-								websiteId: insight.websiteId,
-								type: insight.type,
-								sentiment: insight.sentiment,
-								changePercent: insight.changePercent ?? null,
-								subjectKey: insight.subjectKey,
-								title: insight.title,
-							});
-							const existingId = dedupeKeyToId.get(key);
+							const existingId = dedupeKeyToId.get(dedupeKeyFor(insight));
 							return existingId !== undefined && insight.id === existingId;
 						});
 						await Promise.all(
@@ -1335,17 +1306,12 @@ export const insights = new Elysia({ prefix: "/v1/insights" })
 					source: "ai",
 				};
 
-				if (redis && finalInsights.length > 0) {
-					redis
-						.setex(cacheKey, CACHE_TTL, JSON.stringify(payload))
-						.catch(() => {});
-				}
-
-				if (redis && finalInsights.length === 0) {
-					redis
-						.setex(cacheKey, CACHE_TTL / 3, JSON.stringify(payload))
-						.catch(() => {});
-				}
+				tryCacheSet(
+					redis,
+					cacheKey,
+					finalInsights.length > 0 ? CACHE_TTL : NEGATIVE_CACHE_TTL,
+					payload
+				);
 
 				mergeWideEvent({
 					insights_returned: finalInsights.length,

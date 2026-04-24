@@ -4,6 +4,7 @@ import {
 	getCoreRowModel,
 	useReactTable,
 } from "@tanstack/react-table";
+import { Button } from "@/components/ds/button";
 import { SectionBrandOverlay } from "@/components/logo/section-brand-overlay";
 import { TableContent } from "./table-content";
 import { TableTabs } from "./table-tabs";
@@ -74,48 +75,47 @@ export function FullScreenModal<TData extends { name: string | number }>({
 		}
 		onTabChange?.(tabId);
 	};
+
 	return (
-		<div className="relative flex h-full w-full flex-col bg-sidebar">
-			<div className="flex items-start justify-between gap-3 border-sidebar-border border-b bg-sidebar px-3 pt-3 pb-2 sm:items-center">
+		<div className="relative flex h-full w-full flex-col bg-card">
+			<header className="flex items-start justify-between gap-6 border-b px-6 py-4">
 				<div className="min-w-0 flex-1">
 					{title && (
-						<h3 className="truncate font-semibold text-sidebar-foreground text-sm">
+						<h2 className="truncate font-semibold text-base text-foreground tracking-tight">
 							{title}
-						</h3>
+						</h2>
 					)}
 					{description && (
-						<p className="mt-0.5 line-clamp-2 text-pretty text-sidebar-foreground/70 text-xs">
+						<p className="mt-1 line-clamp-2 text-pretty text-muted-foreground text-sm">
 							{description}
 						</p>
 					)}
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
 					{showBrand ? <SectionBrandOverlay layout="inline" /> : null}
-					<button
+					<Button
 						aria-label="Close full screen"
-						className="flex items-center justify-center rounded bg-sidebar-accent/60 p-2 text-sidebar-foreground hover:bg-sidebar-accent"
+						className="size-8"
 						onClick={onClose}
-						style={{ minWidth: 40, minHeight: 40 }}
-						tabIndex={0}
-						title="Close"
+						size="icon"
+						title="Close (Esc)"
 						type="button"
+						variant="ghost"
 					>
-						<XIcon size={20} />
-					</button>
+						<XIcon className="size-4" />
+					</Button>
 				</div>
-			</div>
+			</header>
 
 			{tabs && tabs.length > 1 && (
-				<div className="mt-2">
-					<TableTabs
-						activeTab={activeTab ?? ""}
-						onTabChange={handleTabChange}
-						tabs={tabs}
-					/>
-				</div>
+				<TableTabs
+					activeTab={activeTab ?? ""}
+					onTabChange={handleTabChange}
+					tabs={tabs}
+				/>
 			)}
 
-			<div className="flex-1 overflow-auto px-3 pb-3">
+			<div className="flex-1 overflow-auto">
 				<TableContent
 					activeTab={activeTab}
 					expandable={expandable}

@@ -69,15 +69,19 @@ export function isValidOrigin(
 	originHeader: string,
 	allowedDomain: string
 ): boolean {
-	if (!originHeader?.trim()) {
+	const trimmedOrigin = originHeader?.trim();
+	if (!trimmedOrigin) {
 		return true;
+	}
+	if (trimmedOrigin === "null") {
+		return false;
 	}
 	if (!allowedDomain?.trim()) {
 		return false;
 	}
 	try {
 		const normalizedAllowedDomain = normalizeDomain(allowedDomain);
-		const originUrl = new URL(originHeader.trim());
+		const originUrl = new URL(trimmedOrigin);
 		const normalizedOriginDomain = normalizeDomain(originUrl.hostname);
 
 		return (

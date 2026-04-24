@@ -4,6 +4,7 @@ import { useInsightsFeed } from "@/app/(main)/insights/hooks/use-insights-feed";
 import { useInsightsLocalState } from "@/app/(main)/insights/hooks/use-insights-local-state";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
 import { GhostTriggerButton } from "@/components/ds/control-shell";
 import { DropdownMenu } from "@/components/ds/dropdown-menu";
 import type { Insight, InsightSeverity } from "@/lib/insight-types";
@@ -13,7 +14,7 @@ import { ArrowsDownUpIcon } from "@phosphor-icons/react/dist/ssr/ArrowsDownUp";
 import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr/CaretDown";
 import { CheckCircleIcon } from "@phosphor-icons/react/dist/ssr/CheckCircle";
 import { FunnelIcon } from "@phosphor-icons/react/dist/ssr/Funnel";
-import { SparkleIcon } from "@phosphor-icons/react/dist/ssr/Sparkle";
+import { LightbulbIcon } from "@phosphor-icons/react/dist/ssr/Lightbulb";
 import { WarningCircleIcon } from "@phosphor-icons/react/dist/ssr/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/dist/ssr/X";
 import {
@@ -162,7 +163,6 @@ export function CockpitSignals(): ReactElement {
 	const selectedSortLabel =
 		SORT_OPTIONS.find((o) => o.value === sortMode)?.label ?? "Priority";
 
-	const sectionRef = useRef<HTMLElement>(null);
 	const hasScrolledToHash = useRef(false);
 
 	const scrollToHashInsight = useCallback(() => {
@@ -201,19 +201,15 @@ export function CockpitSignals(): ReactElement {
 	const visibleCount = filteredInsights.length;
 
 	return (
-		<section
-			aria-label="Signals"
-			className="overflow-hidden rounded border bg-card"
-			ref={sectionRef}
-		>
-			<div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+		<Card aria-label="Signals">
+			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<SparkleIcon
+					<LightbulbIcon
 						aria-hidden
 						className="size-4 text-primary"
 						weight="duotone"
 					/>
-					<h3 className="font-semibold text-foreground text-sm">Signals</h3>
+					<Card.Title className="text-sm">Signals</Card.Title>
 				</div>
 				{insights.length > 0 && (
 					<span className="text-muted-foreground text-xs tabular-nums">
@@ -221,10 +217,10 @@ export function CockpitSignals(): ReactElement {
 						{insights.length === 1 ? "signal" : "signals"}
 					</span>
 				)}
-			</div>
+			</Card.Header>
 
 			{showFilterBar && (
-				<div className="flex items-center gap-2 border-b px-4 py-2">
+				<div className="flex items-center gap-2 border-b px-5 py-2">
 					{websites.length > 1 && (
 						<DropdownMenu>
 							<DropdownMenu.Trigger
@@ -286,13 +282,15 @@ export function CockpitSignals(): ReactElement {
 					</DropdownMenu>
 
 					<DropdownMenu>
-						<DropdownMenu.Trigger>
-							<GhostTriggerButton className="[--control-h:--spacing(6)] [--control-px:--spacing(2)]">
-								<ArrowsDownUpIcon className="size-3.5 shrink-0" />
-								{selectedSortLabel}
-								<CaretDownIcon className="size-3 shrink-0" weight="fill" />
-							</GhostTriggerButton>
-						</DropdownMenu.Trigger>
+						<DropdownMenu.Trigger
+							render={
+								<GhostTriggerButton className="[--control-h:--spacing(6)] [--control-px:--spacing(2)]">
+									<ArrowsDownUpIcon className="size-3.5 shrink-0" />
+									{selectedSortLabel}
+									<CaretDownIcon className="size-3 shrink-0" weight="fill" />
+								</GhostTriggerButton>
+							}
+						/>
 						<DropdownMenu.Content align="start">
 							{SORT_OPTIONS.map((opt) => (
 								<DropdownMenu.Item
@@ -418,7 +416,7 @@ export function CockpitSignals(): ReactElement {
 					)}
 				</>
 			)}
-		</section>
+		</Card>
 	);
 }
 
@@ -434,7 +432,7 @@ function InsightsFetchStatusRow({
 	return (
 		<div
 			aria-live="polite"
-			className="flex h-10 shrink-0 items-center gap-2 border-b px-4"
+			className="flex h-10 shrink-0 items-center gap-2 border-b px-5"
 			role="status"
 		>
 			{variant === "refresh" ? (
@@ -443,7 +441,7 @@ function InsightsFetchStatusRow({
 					className="size-4 shrink-0 animate-spin text-primary"
 				/>
 			) : (
-				<SparkleIcon
+				<LightbulbIcon
 					aria-hidden
 					className="size-4 shrink-0 animate-pulse text-primary"
 					weight="duotone"

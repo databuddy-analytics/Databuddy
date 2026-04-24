@@ -27,14 +27,12 @@ export interface UpdateWebsiteData {
 	name: string;
 }
 
-// For components that need minimal website info
 export interface WebsiteBasic {
 	domain: string;
 	id: string;
 	name?: string | null;
 }
 
-// API response types
 export interface WebsiteApiResponse {
 	data?: Website;
 	error?: string;

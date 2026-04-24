@@ -4,8 +4,9 @@ import {
 	ArrowRightIcon,
 	BrainIcon,
 	ChartBarIcon,
+	CoinsIcon,
+	LightbulbIcon,
 	LightningIcon,
-	SparkleIcon,
 	TableIcon,
 } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -214,7 +215,7 @@ function WelcomeState({
 					: prompts.map((item, idx) => {
 							const Icon =
 								item.source === "insight"
-									? SparkleIcon
+									? LightbulbIcon
 									: (FALLBACK_ICONS[idx] ?? FALLBACK_ICONS[0]);
 							return (
 								<button
@@ -287,7 +288,7 @@ function AgentCreditBalance() {
 					onClick={() => router.push("/billing")}
 					type="button"
 				>
-					<SparkleIcon className="size-3" weight="duotone" />
+					<CoinsIcon className="size-3" weight="duotone" />
 					<span className="font-medium tabular-nums">∞ credits</span>
 				</button>
 			</Tooltip>
@@ -315,10 +316,10 @@ function AgentCreditBalance() {
 					!(isEmpty || isLow) &&
 						"border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground"
 				)}
-				onClick={() => router.push("/billing")}
+				onClick={() => router.push(isEmpty ? "/billing#topup" : "/billing")}
 				type="button"
 			>
-				<SparkleIcon className="size-3" weight="duotone" />
+				<CoinsIcon className="size-3" weight="duotone" />
 				<span className="font-medium tabular-nums">
 					{balance.toLocaleString()} / {limit.toLocaleString()}
 				</span>

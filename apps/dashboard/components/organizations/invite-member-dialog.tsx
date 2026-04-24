@@ -83,12 +83,14 @@ export function InviteMemberDialog({
 							{error && <Field.Error>{error}</Field.Error>}
 						</Field>
 						<DropdownMenu>
-							<DropdownMenu.Trigger>
-								<FieldTriggerButton className="w-auto gap-1">
-									{role === "admin" ? "Admin" : "Member"}
-									<CaretUpDown className="size-3 shrink-0 text-muted-foreground" />
-								</FieldTriggerButton>
-							</DropdownMenu.Trigger>
+							<DropdownMenu.Trigger
+								render={
+									<FieldTriggerButton className="w-auto gap-1">
+										{role === "admin" ? "Admin" : "Member"}
+										<CaretUpDown className="size-3 shrink-0 text-muted-foreground" />
+									</FieldTriggerButton>
+								}
+							/>
 							<DropdownMenu.Content align="end" side="bottom">
 								<DropdownMenu.RadioGroup
 									onValueChange={(val) => setRole(val as "member" | "admin")}

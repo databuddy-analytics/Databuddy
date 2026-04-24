@@ -8,9 +8,11 @@ import type {
 } from "@databuddy/shared/types/billing";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { getAutumn } from "../lib/autumn-client";
 import { logger } from "../lib/logger";
-import { protectedProcedure } from "../orpc";
+import { protectedProcedure, sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+import { getBillingOwner } from "../utils/billing";
 
 const DAYS_IN_MONTH = 30;
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -142,7 +144,267 @@ const aggregateUsageData = (
 	};
 };
 
+const AUTO_TOPUP_FEATURE_ID = "agent_credits";
+const EVENTS_FEATURE_ID = "events";
+const SPEND_LIMIT_FEATURE_ID = "agent_credits";
+const MIN_AUTO_TOPUP_THRESHOLD = 10;
+const MAX_AUTO_TOPUP_THRESHOLD = 50_000;
+const MIN_AUTO_TOPUP_QUANTITY = 100;
+const MAX_AUTO_TOPUP_QUANTITY = 100_000;
+const MIN_ALERT_PERCENTAGE = 1;
+const MAX_ALERT_PERCENTAGE = 99;
+const MIN_SPEND_LIMIT_USD = 1;
+const MAX_SPEND_LIMIT_USD = 10_000;
+
+const autoTopupConfigSchema = z
+	.object({
+		enabled: z.boolean(),
+		threshold: z.number().int(),
+		quantity: z.number().int(),
+	})
+	.refine(
+		(v) =>
+			!v.enabled ||
+			(v.threshold >= MIN_AUTO_TOPUP_THRESHOLD &&
+				v.threshold <= MAX_AUTO_TOPUP_THRESHOLD),
+		{
+			message: `threshold must be between ${MIN_AUTO_TOPUP_THRESHOLD} and ${MAX_AUTO_TOPUP_THRESHOLD}`,
+			path: ["threshold"],
+		}
+	)
+	.refine(
+		(v) =>
+			!v.enabled ||
+			(v.quantity >= MIN_AUTO_TOPUP_QUANTITY &&
+				v.quantity <= MAX_AUTO_TOPUP_QUANTITY),
+		{
+			message: `quantity must be between ${MIN_AUTO_TOPUP_QUANTITY} and ${MAX_AUTO_TOPUP_QUANTITY}`,
+			path: ["quantity"],
+		}
+	);
+
+const usageAlertConfigSchema = z
+	.object({
+		enabled: z.boolean(),
+		threshold: z.number().int(),
+	})
+	.refine(
+		(v) =>
+			!v.enabled ||
+			(v.threshold >= MIN_ALERT_PERCENTAGE &&
+				v.threshold <= MAX_ALERT_PERCENTAGE),
+		{
+			message: `threshold must be between ${MIN_ALERT_PERCENTAGE} and ${MAX_ALERT_PERCENTAGE}`,
+			path: ["threshold"],
+		}
+	);
+
+const spendLimitConfigSchema = z
+	.object({
+		enabled: z.boolean(),
+		overageLimit: z.number().int(),
+	})
+	.refine(
+		(v) =>
+			!v.enabled ||
+			(v.overageLimit >= MIN_SPEND_LIMIT_USD &&
+				v.overageLimit <= MAX_SPEND_LIMIT_USD),
+		{
+			message: `overageLimit must be between ${MIN_SPEND_LIMIT_USD} and ${MAX_SPEND_LIMIT_USD}`,
+			path: ["overageLimit"],
+		}
+	);
+
+interface AutoTopupEntry {
+	enabled: boolean;
+	featureId: string;
+	quantity: number;
+	threshold: number;
+}
+
+interface UsageAlertEntry {
+	enabled: boolean;
+	featureId: string;
+	name?: string;
+	threshold: number;
+	thresholdType: "usage_percentage";
+}
+
+interface SpendLimitEntry {
+	enabled: boolean;
+	featureId: string;
+	overageLimit: number;
+}
+
 export const billingRouter = {
+	setAutoTopup: sessionProcedure
+		.route({
+			description:
+				"Configures auto top-up for agent credits on the current billing customer.",
+			method: "POST",
+			path: "/billing/setAutoTopup",
+			summary: "Set auto top-up",
+			tags: ["Billing"],
+		})
+		.input(autoTopupConfigSchema)
+		.output(autoTopupConfigSchema)
+		.handler(async ({ context, input }) => {
+			const { customerId, canUserUpgrade } = await getBillingOwner(
+				context.user.id,
+				context.organizationId
+			);
+			if (!canUserUpgrade) {
+				throw rpcError.forbidden(
+					"Only an organization owner or admin can change billing settings."
+				);
+			}
+
+			try {
+				const autumn = getAutumn();
+				const customer = await autumn.customers.getOrCreate({ customerId });
+				const existing = (customer.billingControls?.autoTopups ??
+					[]) as AutoTopupEntry[];
+				const nextEntry: AutoTopupEntry = {
+					featureId: AUTO_TOPUP_FEATURE_ID,
+					enabled: input.enabled,
+					threshold: input.threshold,
+					quantity: input.quantity,
+				};
+				const merged = [
+					...existing.filter((t) => t.featureId !== AUTO_TOPUP_FEATURE_ID),
+					nextEntry,
+				];
+
+				await autumn.customers.update({
+					customerId,
+					billingControls: { autoTopups: merged },
+				});
+
+				return {
+					enabled: nextEntry.enabled,
+					threshold: nextEntry.threshold,
+					quantity: nextEntry.quantity,
+				};
+			} catch (error) {
+				logger.error(
+					{ error, customerId, userId: context.user.id },
+					"Failed to update auto top-up configuration"
+				);
+				throw rpcError.internal("Failed to update auto top-up settings");
+			}
+		}),
+
+	setUsageAlert: sessionProcedure
+		.route({
+			description:
+				"Configures a usage alert (percentage of included events consumed) for the events feature.",
+			method: "POST",
+			path: "/billing/setUsageAlert",
+			summary: "Set usage alert",
+			tags: ["Billing"],
+		})
+		.input(usageAlertConfigSchema)
+		.output(usageAlertConfigSchema)
+		.handler(async ({ context, input }) => {
+			const { customerId, canUserUpgrade } = await getBillingOwner(
+				context.user.id,
+				context.organizationId
+			);
+			if (!canUserUpgrade) {
+				throw rpcError.forbidden(
+					"Only an organization owner or admin can change billing settings."
+				);
+			}
+
+			try {
+				const autumn = getAutumn();
+				const customer = await autumn.customers.getOrCreate({ customerId });
+				const existing = (customer.billingControls?.usageAlerts ??
+					[]) as UsageAlertEntry[];
+				const nextEntry: UsageAlertEntry = {
+					featureId: EVENTS_FEATURE_ID,
+					enabled: input.enabled,
+					threshold: input.threshold,
+					thresholdType: "usage_percentage",
+				};
+				const merged = [
+					...existing.filter((a) => a.featureId !== EVENTS_FEATURE_ID),
+					nextEntry,
+				];
+
+				await autumn.customers.update({
+					customerId,
+					billingControls: { usageAlerts: merged },
+				});
+
+				return {
+					enabled: nextEntry.enabled,
+					threshold: nextEntry.threshold,
+				};
+			} catch (error) {
+				logger.error(
+					{ error, customerId, userId: context.user.id },
+					"Failed to update usage alert configuration"
+				);
+				throw rpcError.internal("Failed to update usage alert settings");
+			}
+		}),
+
+	setSpendLimit: sessionProcedure
+		.route({
+			description:
+				"Configures a spend limit (maximum overage in USD) for agent credits.",
+			method: "POST",
+			path: "/billing/setSpendLimit",
+			summary: "Set spend limit",
+			tags: ["Billing"],
+		})
+		.input(spendLimitConfigSchema)
+		.output(spendLimitConfigSchema)
+		.handler(async ({ context, input }) => {
+			const { customerId, canUserUpgrade } = await getBillingOwner(
+				context.user.id,
+				context.organizationId
+			);
+			if (!canUserUpgrade) {
+				throw rpcError.forbidden(
+					"Only an organization owner or admin can change billing settings."
+				);
+			}
+
+			try {
+				const autumn = getAutumn();
+				const customer = await autumn.customers.getOrCreate({ customerId });
+				const existing = (customer.billingControls?.spendLimits ??
+					[]) as SpendLimitEntry[];
+				const nextEntry: SpendLimitEntry = {
+					featureId: SPEND_LIMIT_FEATURE_ID,
+					enabled: input.enabled,
+					overageLimit: input.overageLimit,
+				};
+				const merged = [
+					...existing.filter((s) => s.featureId !== SPEND_LIMIT_FEATURE_ID),
+					nextEntry,
+				];
+
+				await autumn.customers.update({
+					customerId,
+					billingControls: { spendLimits: merged },
+				});
+
+				return {
+					enabled: nextEntry.enabled,
+					overageLimit: nextEntry.overageLimit,
+				};
+			} catch (error) {
+				logger.error(
+					{ error, customerId, userId: context.user.id },
+					"Failed to update spend limit configuration"
+				);
+				throw rpcError.internal("Failed to update spend limit settings");
+			}
+		}),
+
 	getUsage: protectedProcedure
 		.route({
 			description: "Returns billing usage for organization or user workspaces.",

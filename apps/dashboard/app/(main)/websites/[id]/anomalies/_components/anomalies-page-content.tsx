@@ -63,7 +63,7 @@ export function AnomaliesPageContent({ params }: AnomaliesPageContentProps) {
 
 	const subtitle = useMemo(() => {
 		if (isLoading) {
-			return undefined;
+			return;
 		}
 		if (items.length === 0) {
 			return "No anomalies detected";

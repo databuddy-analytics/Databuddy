@@ -48,9 +48,15 @@ export function Checkbox({
 	return (
 		// biome-ignore lint/a11y/noLabelWithoutControl: this is a control
 		<label
-			className={cn("group flex cursor-pointer select-none gap-2", className)}
+			className={cn(
+				"group flex cursor-pointer select-none gap-2",
+				description ? "items-start" : "items-center",
+				className
+			)}
 		>
-			<span className="flex h-5 items-center">{control}</span>
+			<span className={cn("flex shrink-0 items-center", description && "h-5")}>
+				{control}
+			</span>
 			<span className="flex min-w-0 flex-1 flex-col gap-0.5">
 				<span className="font-medium text-foreground text-xs" id={labelId}>
 					{label}

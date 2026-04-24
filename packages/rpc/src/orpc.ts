@@ -6,6 +6,7 @@ import { baseErrors } from "./errors";
 import {
 	enrichRpcWideEventContext,
 	recordORPCError,
+	setRpcProcedurePath,
 	setRpcProcedureType,
 } from "./lib/rpc-log-context";
 import {
@@ -69,14 +70,16 @@ export type Context = Awaited<ReturnType<typeof createRPCContext>>;
 
 const os = createOS.$context<Context>().errors(baseErrors);
 
-export const publicProcedure = os.use(({ context, next }) => {
+export const publicProcedure = os.use(({ context, next, path }) => {
 	setRpcProcedureType("public");
+	setRpcProcedurePath(path);
 	enrichRpcWideEventContext(context);
 	return next();
 });
 
-export const protectedProcedure = os.use(({ context, next, errors }) => {
+export const protectedProcedure = os.use(({ context, next, errors, path }) => {
 	setRpcProcedureType("protected");
+	setRpcProcedurePath(path);
 	enrichRpcWideEventContext(context);
 
 	if (!(context.user || context.apiKey)) {

@@ -30,9 +30,9 @@ import {
 	getSchemaDocumentation,
 	getSchemaSummary,
 	MCP_DATE_PRESETS,
-	type McpQueryItem,
 	QUERY_CATEGORY_KEYS,
 	SCHEMA_SECTIONS,
+	type McpQueryItem,
 } from "./mcp-utils";
 import { runMcpAgent } from "./run-agent";
 import {
@@ -125,7 +125,7 @@ const askTool = defineMcpTool(
 			answer: z.string(),
 			conversationId: z.string(),
 		}),
-		rateLimit: { limit: 10, windowSec: 60 },
+		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		if (!isAiGatewayConfigured) {
@@ -199,7 +199,7 @@ const listWebsitesTool = defineMcpTool(
 			websites: z.array(WebsiteSummarySchema),
 			total: z.number(),
 		}),
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (_input, ctx) => {
 		const list = await getCachedAccessibleWebsites(ctx);
@@ -307,7 +307,7 @@ const getDataTool = defineMcpTool(
 			error: z.string().optional(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 30, windowSec: 60 },
+		ratelimit: { limit: 30, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const websiteId = ctx.websiteId as string;
@@ -415,7 +415,7 @@ const getSchemaTool = defineMcpTool(
 			sections: z.array(z.string()),
 			bytes: z.number(),
 		}),
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	(input) => {
 		const schema = getSchemaDocumentation({
@@ -506,7 +506,7 @@ const capabilitiesTool = defineMcpTool(
 			queryTypes: z.record(z.string(), z.unknown()).optional(),
 			hints: z.array(z.string()).optional(),
 		}),
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	(input) => {
 		const selected = new Set<CapabilitySection>(
@@ -567,7 +567,7 @@ const listFunnelsTool = defineMcpTool(
 			hint: z.string().optional(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const result = await callRPCProcedure(
@@ -608,7 +608,7 @@ const getFunnelAnalyticsTool = defineMcpTool(
 		// Passthrough from RPC — shape varies by funnel. Permissive by design.
 		outputSchema: z.record(z.string(), z.unknown()),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		if (input.from && !dayjs(input.from).isValid()) {
@@ -645,7 +645,7 @@ const listGoalsTool = defineMcpTool(
 			hint: z.string().optional(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const result = await callRPCProcedure(
@@ -686,7 +686,7 @@ const getGoalAnalyticsTool = defineMcpTool(
 		// Passthrough from RPC — shape varies by goal. Permissive by design.
 		outputSchema: z.record(z.string(), z.unknown()),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		if (input.from && !dayjs(input.from).isValid()) {
@@ -735,7 +735,7 @@ const listLinksTool = defineMcpTool(
 			hint: z.string().optional(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const orgId = await getOrganizationId(input.websiteId);
@@ -798,7 +798,7 @@ const searchLinksTool = defineMcpTool(
 			count: z.number(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const orgId = await getOrganizationId(input.websiteId);
@@ -863,7 +863,7 @@ const searchMemoryTool = defineMcpTool(
 				.optional(),
 			message: z.string().optional(),
 		}),
-		rateLimit: { limit: 30, windowSec: 60 },
+		ratelimit: { limit: 30, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;
@@ -903,7 +903,7 @@ const saveMemoryTool = defineMcpTool(
 				.describe("Category (default: insight)"),
 		}),
 		outputSchema: z.object({ queued: z.boolean() }),
-		rateLimit: { limit: 30, windowSec: 60 },
+		ratelimit: { limit: 30, windowSec: 60 },
 	},
 	(input, ctx) => {
 		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;
@@ -929,7 +929,7 @@ const forgetMemoryTool = defineMcpTool(
 			forgotten: z.boolean(),
 			message: z.string(),
 		}),
-		rateLimit: { limit: 10, windowSec: 60 },
+		ratelimit: { limit: 10, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;

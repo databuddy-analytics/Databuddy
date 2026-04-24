@@ -1,5 +1,5 @@
-import { ArrowDownIcon } from "@phosphor-icons/react";
-import { ArrowUpIcon } from "@phosphor-icons/react";
+import { ArrowDownIcon } from "@phosphor-icons/react/dist/ssr/ArrowDown";
+import { ArrowUpIcon } from "@phosphor-icons/react/dist/ssr/ArrowUp";
 import { computeMetricChange, formatMetric } from "@/lib/format-insight-metric";
 import type { InsightMetric } from "@/lib/insight-types";
 import { cn } from "@/lib/utils";
@@ -10,12 +10,12 @@ function MetricItem({ metric }: { metric: InsightMetric }) {
 	const hasPrevious = metric.previous !== undefined;
 
 	return (
-		<div className="flex min-w-0 flex-col gap-1.5 rounded border bg-card px-3 py-2">
+		<div className="flex min-w-0 flex-col gap-1 rounded-md border border-border/60 bg-card px-3 py-2.5">
 			<span className="text-[11px] text-muted-foreground leading-none">
 				{metric.label}
 			</span>
 			<div className="flex items-baseline gap-2">
-				<span className="font-semibold text-base text-foreground tabular-nums leading-none">
+				<span className="font-semibold text-foreground text-sm tabular-nums leading-none">
 					{formatted}
 				</span>
 				{hasPrevious && change !== null && change !== 0 && (
@@ -50,7 +50,14 @@ export function InsightMetrics({ metrics }: { metrics: InsightMetric[] }) {
 	}
 
 	return (
-		<div className="flex flex-wrap gap-2">
+		<div
+			className={cn(
+				"grid gap-2",
+				metrics.length === 1 && "grid-cols-1",
+				metrics.length === 2 && "grid-cols-2",
+				metrics.length >= 3 && "grid-cols-2 sm:grid-cols-3"
+			)}
+		>
 			{metrics.map((metric) => (
 				<MetricItem key={metric.label} metric={metric} />
 			))}

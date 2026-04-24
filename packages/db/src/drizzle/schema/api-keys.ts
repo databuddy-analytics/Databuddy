@@ -14,31 +14,6 @@ import { organization, user } from "./auth";
 
 export const apiKeyType = pgEnum("api_key_type", ["user", "sdk", "automation"]);
 
-export const apiScope = pgEnum("api_scope", [
-	"read:data",
-	"write:llm",
-	"write:data",
-	"read:analytics",
-	"write:custom-sql",
-	"read:export",
-	"write:otel",
-	"admin:apikeys",
-	"admin:users",
-	"admin:organizations",
-	"admin:websites",
-	"rate:standard",
-	"rate:premium",
-	"rate:enterprise",
-	"read:experiments",
-	"track:events",
-	"read:links",
-	"write:links",
-	"track:llm",
-	"manage:websites",
-	"manage:flags",
-	"manage:config",
-]);
-
 export const apiResourceType = pgEnum("api_resource_type", [
 	"global",
 	"website",
@@ -58,7 +33,6 @@ export const dbPermissionLevel = pgEnum("db_permission_level", [
 
 export interface ApiKeyMetadata {
 	description?: string;
-	lastUsedAt?: string;
 	resources?: Record<string, string[]>;
 	tags?: string[];
 }
@@ -74,13 +48,14 @@ export const apikey = pgTable(
 		userId: text("user_id"),
 		organizationId: text("organization_id"),
 		type: apiKeyType().notNull().default("user"),
-		scopes: apiScope().array().notNull().default([]),
+		scopes: text().array().notNull().default([]),
 		enabled: boolean().notNull().default(true),
 		revokedAt: timestamp("revoked_at", { precision: 3, withTimezone: true }),
 		rateLimitEnabled: boolean("rate_limit_enabled").notNull().default(true),
 		rateLimitTimeWindow: integer("rate_limit_time_window"),
 		rateLimitMax: integer("rate_limit_max"),
 		expiresAt: timestamp("expires_at", { precision: 3, withTimezone: true }),
+		lastUsedAt: timestamp("last_used_at", { precision: 3, withTimezone: true }),
 		metadata: jsonb().$type<ApiKeyMetadata>().default({}),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.notNull()
@@ -95,6 +70,7 @@ export const apikey = pgTable(
 		index("apikey_organization_id_idx").on(table.organizationId),
 		index("apikey_expires_at_idx").on(table.expiresAt),
 		index("apikey_revoked_at_idx").on(table.revokedAt),
+		index("apikey_last_used_at_idx").on(table.lastUsedAt),
 		uniqueIndex("apikey_key_hash_unique").on(table.keyHash),
 		foreignKey({
 			columns: [table.userId],

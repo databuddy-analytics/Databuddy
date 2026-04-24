@@ -51,7 +51,7 @@ function filterOrganizations<T extends { name: string; slug?: string | null }>(
 }
 
 interface OrganizationSelectorTriggerProps
-	extends React.ComponentPropsWithRef<"div"> {
+	extends React.ComponentPropsWithRef<"button"> {
 	activeOrganization: {
 		id?: string;
 		name: string;
@@ -68,10 +68,11 @@ function OrganizationSelectorTrigger({
 	isSettingActiveOrganization,
 	ref,
 	className,
+	type = "button",
 	...rest
 }: OrganizationSelectorTriggerProps) {
 	return (
-		<div
+		<button
 			className={cn(
 				"flex h-12 w-full items-center overflow-hidden border-b bg-sidebar-accent px-3 py-3",
 				"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
@@ -81,6 +82,7 @@ function OrganizationSelectorTrigger({
 				className
 			)}
 			ref={ref}
+			type={type}
 			{...rest}
 		>
 			<div className="flex w-full min-w-0 items-center gap-2">
@@ -95,9 +97,9 @@ function OrganizationSelectorTrigger({
 					<span className="min-w-0 truncate text-left font-semibold text-sidebar-accent-foreground text-sm">
 						{activeOrganization?.name ?? "Select workspace"}
 					</span>
-					<p className="truncate text-left text-sidebar-accent-foreground/70 text-xs">
+					<span className="truncate text-left text-sidebar-accent-foreground/70 text-xs">
 						{activeOrganization?.slug ?? "No workspace selected"}
-					</p>
+					</span>
 				</div>
 				{isSettingActiveOrganization ? (
 					<SpinnerGapIcon
@@ -114,7 +116,7 @@ function OrganizationSelectorTrigger({
 					/>
 				)}
 			</div>
-		</div>
+		</button>
 	);
 }
 
@@ -198,13 +200,14 @@ export function OrganizationSelector() {
 				<DropdownMenu.Trigger
 					className="w-full text-left focus-visible:outline-none"
 					disabled={isSwitching}
-				>
-					<OrganizationSelectorTrigger
-						activeOrganization={activeOrganization}
-						isOpen={isOpen}
-						isSettingActiveOrganization={isSwitching}
-					/>
-				</DropdownMenu.Trigger>
+					render={
+						<OrganizationSelectorTrigger
+							activeOrganization={activeOrganization}
+							isOpen={isOpen}
+							isSettingActiveOrganization={isSwitching}
+						/>
+					}
+				/>
 				<DropdownMenu.Content
 					align="start"
 					className="w-72 rounded-none border-t-0 border-l-0 bg-sidebar p-0"

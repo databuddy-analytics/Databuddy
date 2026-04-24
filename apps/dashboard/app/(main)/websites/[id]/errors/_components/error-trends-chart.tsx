@@ -1,13 +1,15 @@
 "use client";
 
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/ssr";
-import { BugIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+	ArrowCounterClockwiseIcon,
+	BugIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
-import { METRIC_COLORS, METRICS } from "@/components/charts/metrics-constants";
-import { TableEmptyState } from "@/components/table/table-empty-state";
-import { Badge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
+import { Card } from "@/components/ds/card";
+import { EmptyState } from "@/components/ds/empty-state";
+import { Skeleton } from "@/components/ds/skeleton";
 import { Chart } from "@/components/ui/composables/chart";
 import {
 	chartAxisTickDefault,
@@ -17,10 +19,17 @@ import {
 	chartRechartsLegendStaticLabelClassName,
 	chartRechartsLegendStaticWrapperStyleMerge,
 } from "@/lib/chart-presentation";
-import { ErrorChartTooltip } from "./error-chart-tooltip";
 
 const { Area, CartesianGrid, Legend, ReferenceArea, Tooltip, XAxis, YAxis } =
 	Chart.Recharts;
+
+const ERROR_COLOR = "var(--destructive)";
+const USER_COLOR = "var(--chart-2)";
+
+const TOOLTIP_METRICS = [
+	{ key: "Total Errors", label: "Total Errors", color: ERROR_COLOR },
+	{ key: "Affected Users", label: "Affected Users", color: USER_COLOR },
+];
 
 const ResponsiveContainer = dynamic(
 	() =>
@@ -43,9 +52,13 @@ interface ErrorTrendsChartProps {
 		"Total Errors": number;
 		"Affected Users": number;
 	}>;
+	isLoading?: boolean;
 }
 
-export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
+export const ErrorTrendsChart = ({
+	errorChartData,
+	isLoading,
+}: ErrorTrendsChartProps) => {
 	const [refAreaLeft, setRefAreaLeft] = useState<string | null>(null);
 	const [refAreaRight, setRefAreaRight] = useState<string | null>(null);
 	const [zoomedData, setZoomedData] = useState<Array<{
@@ -86,7 +99,6 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		}
 
 		const rightBoundary = refAreaRight || refAreaLeft;
-
 		const leftIndex = errorChartData.findIndex((d) => d.date === refAreaLeft);
 		const rightIndex = errorChartData.findIndex(
 			(d) => d.date === rightBoundary
@@ -103,9 +115,7 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 				? [leftIndex, rightIndex]
 				: [rightIndex, leftIndex];
 
-		const zoomed = errorChartData.slice(startIndex, endIndex + 1);
-		setZoomedData(zoomed);
-
+		setZoomedData(errorChartData.slice(startIndex, endIndex + 1));
 		setRefAreaLeft(null);
 		setRefAreaRight(null);
 	};
@@ -119,89 +129,72 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 		0
 	);
 
-	if (!errorChartData.length) {
+	if (isLoading) {
 		return (
-			<div className="flex h-full flex-col rounded border bg-card">
-				<div className="flex items-center gap-3 border-b px-3 py-2.5 sm:px-4 sm:py-3">
-					<div className="flex size-8 items-center justify-center rounded bg-accent">
-						<BugIcon
-							className="size-4 text-muted-foreground"
-							weight="duotone"
-						/>
+			<Card className="h-full">
+				<Card.Header className="py-3">
+					<div className="flex items-center gap-2">
+						<BugIcon className="size-4 text-muted-foreground" />
+						<Card.Title className="text-sm">Error Trends</Card.Title>
 					</div>
-					<div className="min-w-0 flex-1">
-						<h2 className="font-semibold text-foreground text-sm sm:text-base">
-							Error Trends
-						</h2>
-						<p className="text-muted-foreground text-xs">No data available</p>
-					</div>
-				</div>
-				<div className="flex-1 p-3 sm:p-4">
-					<TableEmptyState
-						description="Error trends will appear here when your website encounters errors."
-						icon={<BugIcon className="size-6 text-muted-foreground" />}
-						title="No error trend data"
-					/>
-				</div>
-			</div>
+				</Card.Header>
+				<Skeleton className="h-[320px] w-full rounded-none" />
+			</Card>
 		);
 	}
 
-	const totalErrorsMetric = METRICS.find((m) => m.key === "total_errors");
-	const affectedUsersMetric = METRICS.find((m) => m.key === "affected_users");
-
-	const totalErrorsColor =
-		totalErrorsMetric?.color || METRIC_COLORS.bounce_rate.primary;
-	const affectedUsersColor =
-		affectedUsersMetric?.color || METRIC_COLORS.session_duration.primary;
+	if (!errorChartData.length) {
+		return (
+			<Card className="h-full">
+				<Card.Header className="py-3">
+					<div className="flex items-center gap-2">
+						<BugIcon className="size-4 text-muted-foreground" />
+						<Card.Title className="text-sm">Error Trends</Card.Title>
+					</div>
+				</Card.Header>
+				<Card.Content className="flex-1">
+					<EmptyState
+						description="Error trends will appear here when your website encounters errors."
+						icon={<BugIcon />}
+						title="No error trend data"
+					/>
+				</Card.Content>
+			</Card>
+		);
+	}
 
 	return (
-		<div className="flex h-full flex-col rounded border bg-card">
-			<div className="flex flex-col items-start justify-between gap-2 border-b px-3 py-2.5 sm:flex-row sm:items-center sm:px-4 sm:py-3">
-				<div className="flex items-center gap-3">
-					<div className="flex size-8 items-center justify-center rounded bg-destructive/10">
-						<BugIcon className="size-4 text-destructive" weight="duotone" />
-					</div>
-					<div className="min-w-0">
-						<h2 className="font-semibold text-foreground text-sm sm:text-base">
-							Error Trends
-						</h2>
-						<p className="text-muted-foreground text-xs">
-							Error occurrences over time
-						</p>
-					</div>
-				</div>
+		<Card className="h-full">
+			<Card.Header className="flex-row items-center justify-between gap-3 py-3">
 				<div className="flex items-center gap-2">
-					{isZoomed && (
-						<Button
-							className="h-7 gap-1 px-2 text-xs"
-							onClick={resetZoom}
-							size="sm"
-							variant="secondary"
-						>
-							<ArrowCounterClockwiseIcon className="size-3" weight="bold" />
-							Reset
-						</Button>
-					)}
-					<Badge variant="muted">
-						<span className="font-mono text-[10px]">Drag to zoom</span>
-					</Badge>
+					<BugIcon className="size-4 text-destructive" />
+					<div>
+						<Card.Title className="text-sm">Error Trends</Card.Title>
+						<Card.Description>Error occurrences over time</Card.Description>
+					</div>
 				</div>
-			</div>
+				{isZoomed && (
+					<Button
+						className="h-7 gap-1 px-2"
+						onClick={resetZoom}
+						size="sm"
+						variant="secondary"
+					>
+						<ArrowCounterClockwiseIcon className="size-3" weight="bold" />
+						Reset zoom
+					</Button>
+				)}
+			</Card.Header>
 
-			<div className="grid grid-cols-2 gap-3 border-b bg-muted/30 p-3">
-				<div className="space-y-0.5">
-					<p className="font-mono text-[10px] text-muted-foreground uppercase">
-						Total Errors
-					</p>
+			<div className="grid grid-cols-2 gap-3 border-border/60 border-b bg-muted/30 px-5 py-3">
+				<div>
+					<p className="text-muted-foreground text-xs">Total Errors</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">
 						{totalErrors.toLocaleString()}
 					</p>
 				</div>
-				<div className="space-y-0.5">
-					<p className="font-mono text-[10px] text-muted-foreground uppercase">
-						Affected Users
-					</p>
+				<div>
+					<p className="text-muted-foreground text-xs">Affected Users</p>
 					<p className="font-semibold text-foreground text-lg tabular-nums">
 						{totalAffectedUsers.toLocaleString()}
 					</p>
@@ -232,44 +225,6 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 							onMouseMove={handleMouseMove}
 							onMouseUp={handleMouseUp}
 						>
-							<defs>
-								<linearGradient
-									id="colorTotalErrors"
-									x1="0"
-									x2="0"
-									y1="0"
-									y2="1"
-								>
-									<stop
-										offset="5%"
-										stopColor={totalErrorsColor}
-										stopOpacity={0.3}
-									/>
-									<stop
-										offset="95%"
-										stopColor={totalErrorsColor}
-										stopOpacity={0.05}
-									/>
-								</linearGradient>
-								<linearGradient
-									id="colorAffectedUsers"
-									x1="0"
-									x2="0"
-									y1="0"
-									y2="1"
-								>
-									<stop
-										offset="5%"
-										stopColor={affectedUsersColor}
-										stopOpacity={0.3}
-									/>
-									<stop
-										offset="95%"
-										stopColor={affectedUsersColor}
-										stopOpacity={0.05}
-									/>
-								</linearGradient>
-							</defs>
 							<CartesianGrid {...chartCartesianGridDefault} />
 							<XAxis
 								axisLine={false}
@@ -294,7 +249,21 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 								width={chartAxisYWidthCompact}
 							/>
 							<Tooltip
-								content={<ErrorChartTooltip />}
+								content={({ active, label, payload }) => (
+									<Chart.Tooltip
+										active={active}
+										entries={Chart.createTooltipEntries(
+											payload as Array<{
+												dataKey: string;
+												value: number;
+												color: string;
+											}>,
+											TOOLTIP_METRICS
+										)}
+										formatLabelAction={Chart.formatTooltipDate}
+										label={label as string}
+									/>
+								)}
 								wrapperStyle={{ outline: "none" }}
 							/>
 							<Legend
@@ -321,19 +290,19 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 							)}
 							<Area
 								dataKey="Total Errors"
-								fill="url(#colorTotalErrors)"
-								fillOpacity={1}
+								fill={ERROR_COLOR}
+								fillOpacity={0.15}
 								name="Total Errors"
-								stroke={totalErrorsColor}
+								stroke={ERROR_COLOR}
 								strokeWidth={2}
 								type="monotone"
 							/>
 							<Area
 								dataKey="Affected Users"
-								fill="url(#colorAffectedUsers)"
-								fillOpacity={1}
+								fill={USER_COLOR}
+								fillOpacity={0.15}
 								name="Affected Users"
-								stroke={affectedUsersColor}
+								stroke={USER_COLOR}
 								strokeWidth={2}
 								type="monotone"
 							/>
@@ -341,6 +310,6 @@ export const ErrorTrendsChart = ({ errorChartData }: ErrorTrendsChartProps) => {
 					</ResponsiveContainer>
 				</div>
 			</div>
-		</div>
+		</Card>
 	);
 };

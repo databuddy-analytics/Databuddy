@@ -52,6 +52,21 @@ export function FlagsProvider({ children, ...config }: FlagsProviderProps) {
 		return new BrowserFlagsManager({ config, storage });
 	}, [config.clientId]);
 
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const w = window as unknown as {
+			__databuddyFlags?: BrowserFlagsManager;
+		};
+		w.__databuddyFlags = manager;
+		return () => {
+			if (w.__databuddyFlags === manager) {
+				w.__databuddyFlags = undefined;
+			}
+		};
+	}, [manager]);
+
 	const prevConfigRef = useRef(config);
 	useEffect(() => {
 		const prev = prevConfigRef.current;
@@ -78,11 +93,7 @@ export function FlagsProvider({ children, ...config }: FlagsProviderProps) {
 		}
 	}, [manager, config]);
 
-	useEffect(() => {
-		return () => {
-			manager.destroy();
-		};
-	}, [manager]);
+	useEffect(() => () => manager.destroy(), [manager]);
 
 	const store = useSyncExternalStore(
 		manager.subscribe,

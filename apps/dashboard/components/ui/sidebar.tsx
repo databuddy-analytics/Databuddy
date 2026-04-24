@@ -506,13 +506,12 @@ function SidebarMenuButton({
 	const tooltipSide = typeof tooltip === "string" ? "right" : (tooltip.side ?? "right");
 	const isHidden = state !== "collapsed" || isMobile;
 
+	if (isHidden) {
+		return button;
+	}
+
 	return (
-		<Tooltip
-			content={tooltipContent}
-			delay={0}
-			open={isHidden ? false : undefined}
-			side={tooltipSide}
-		>
+		<Tooltip content={tooltipContent} delay={0} side={tooltipSide}>
 			{button}
 		</Tooltip>
 	);

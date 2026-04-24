@@ -11,11 +11,11 @@ import {
 	type RecentCustomEvent,
 } from "@/components/events/events-stream-content";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { useEventsStream } from "@/hooks/use-events-stream";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
 } from "@/stores/jotai/filterAtoms";
-import { useEventsStream } from "./use-events-stream";
 
 export default function EventsStreamPage() {
 	const params = useParams();
@@ -39,9 +39,9 @@ export default function EventsStreamPage() {
 	const { events, pagination, isLoading, isError, error } = useEventsStream(
 		websiteId,
 		dateRange,
+		filters,
 		50,
-		page,
-		filters
+		page
 	);
 
 	const handleAddFilter = useCallback(
@@ -52,30 +52,28 @@ export default function EventsStreamPage() {
 	);
 
 	const renderEventName = useCallback(
-		(event: RecentCustomEvent) => {
-			return (
-				<div className="flex items-center gap-1.5">
-					<Link
-						className="group flex items-center gap-1"
-						href={`/websites/${websiteId}/events/${encodeURIComponent(event.event_name)}`}
-					>
-						<span className="rounded bg-primary/10 px-2 py-1 font-medium text-primary text-xs transition-colors group-hover:bg-primary/20">
-							{event.event_name}
-						</span>
-						<ArrowSquareOutIcon className="size-3 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
-					</Link>
-					<button
-						aria-label={`Filter by ${event.event_name}`}
-						className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/row:opacity-100"
-						onClick={() => handleAddFilter(event.event_name)}
-						title="Filter by this event"
-						type="button"
-					>
-						<FunnelIcon className="size-3.5" weight="duotone" />
-					</button>
-				</div>
-			);
-		},
+		(event: RecentCustomEvent) => (
+			<div className="flex items-center gap-1.5">
+				<Link
+					className="group flex items-center gap-1"
+					href={`/websites/${websiteId}/events/${encodeURIComponent(event.event_name)}`}
+				>
+					<span className="rounded bg-primary/10 px-2 py-1 font-medium text-primary text-xs transition-colors group-hover:bg-primary/20">
+						{event.event_name}
+					</span>
+					<ArrowSquareOutIcon className="size-3 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
+				</Link>
+				<button
+					aria-label={`Filter by ${event.event_name}`}
+					className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus:opacity-100 group-hover/row:opacity-100"
+					onClick={() => handleAddFilter(event.event_name)}
+					title="Filter by this event"
+					type="button"
+				>
+					<FunnelIcon className="size-3.5" weight="duotone" />
+				</button>
+			</div>
+		),
 		[websiteId, handleAddFilter]
 	);
 

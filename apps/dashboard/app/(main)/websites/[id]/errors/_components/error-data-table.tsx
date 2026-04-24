@@ -1,34 +1,13 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import { Skeleton } from "@/components/ds/skeleton";
+import { DataTable } from "@/components/table/data-table";
 import {
 	createErrorTypeColumns,
 	createPageColumn,
 	errorColumns,
 } from "./error-table-columns";
 import type { ErrorByPage, ErrorType } from "./types";
-
-const DataTable = dynamic(
-	() =>
-		import("@/components/table/data-table").then((mod) => ({
-			default: mod.DataTable,
-		})),
-	{
-		ssr: false,
-		loading: () => (
-			<div className="rounded border bg-sidebar">
-				<div className="border-b px-3 py-2.5 sm:px-4 sm:py-3">
-					<Skeleton className="h-5 w-24" />
-				</div>
-				<div className="p-3 sm:p-4">
-					<Skeleton className="h-64 w-full" />
-				</div>
-			</div>
-		),
-	}
-);
 
 interface ErrorDataTableProps {
 	isLoading: boolean;
@@ -79,7 +58,6 @@ export const ErrorDataTable = ({
 			isLoading={isLoading || isRefreshing}
 			minHeight={350}
 			onAddFilter={onAddFilter}
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			tabs={errorTabs as any}
 			title="Error Analysis"
 		/>

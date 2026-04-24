@@ -1,4 +1,4 @@
-import { LifebuoyIcon } from "@phosphor-icons/react/ssr";
+import { LifebuoyIcon } from "@phosphor-icons/react/dist/ssr";
 import Image from "next/image";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 

@@ -1,9 +1,53 @@
+min_version: 2.1.0
+glob_matcher: doublestar
+
+output:
+  - summary
+  - failure
+  - execution_out
+
 pre-commit:
   parallel: true
   commands:
+    no-secrets:
+      glob:
+        - "**/.env"
+        - "**/.env.*"
+        - "**/*.pem"
+        - "**/*.key"
+        - "**/*.p12"
+        - "**/*.pfx"
+        - "**/*.keystore"
+        - "**/id_rsa"
+        - "**/id_ed25519"
+        - "**/credentials.json"
+      run: |
+        echo "Blocked: staged file(s) may contain secrets:" && echo "{staged_files}" | tr ' ' '\n' | sed 's/^/  - /' && exit 1
     format:
-      glob: "*.{js,jsx,ts,tsx,json,jsonc,css,scss}"
+      glob: "**/*.{js,jsx,ts,tsx,json,jsonc,css,scss}"
+      exclude: "bun.lock|*.gen.*"
       stage_fixed: true
       run: bunx ultracite fix {staged_files}
     check-types:
+      glob: "**/*.{ts,tsx}"
       run: bun run check-types
+    lockfile-check:
+      glob:
+        - "**/package.json"
+        - "bun.lock"
+      run: bun install --frozen-lockfile
+      fail_text: "bun.lock is out of sync with package.json. Run: bun install && git add bun.lock"
+
+commit-msg:
+  commands:
+    enforce-format:
+      run: |
+        head -1 {1} | grep -qE '^(feat|fix|refactor|chore|docs|test|style|perf|ci|build|revert)\(.+\): .+' || (echo "Commit message must match: <type>(<scope>): <description>" && exit 1)
+
+pre-push:
+  parallel: true
+  commands:
+    test:
+      glob: "**/*.{ts,tsx}"
+      run: bun run test
+

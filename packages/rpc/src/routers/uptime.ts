@@ -1,6 +1,6 @@
 import { and, db, eq } from "@databuddy/db";
 import { uptimeSchedules } from "@databuddy/db/schema";
-import { rateLimit } from "@databuddy/redis";
+import { ratelimit } from "@databuddy/redis";
 import { Client } from "@upstash/qstash";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -576,7 +576,7 @@ export const uptimeRouter = {
 				throw rpcError.badRequest("Cannot trigger check on a paused monitor");
 			}
 
-			const rl = await rateLimit(`manual-check:${input.scheduleId}`, 5, 60);
+			const rl = await ratelimit(`manual-check:${input.scheduleId}`, 5, 60);
 			if (!rl.success) {
 				throw rpcError.rateLimited(60);
 			}

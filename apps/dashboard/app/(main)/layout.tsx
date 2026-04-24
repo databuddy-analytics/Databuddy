@@ -26,7 +26,7 @@ export default function MainLayout({
 									<Sidebar />
 								</Suspense>
 								<div className="relative flex min-h-0 flex-1 flex-col pl-0 md:pl-76 lg:pl-84">
-									<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-none pt-12 md:pt-0">
+									<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-y-none pt-12 md:pt-0">
 										{children}
 									</div>
 								</div>

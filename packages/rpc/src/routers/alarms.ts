@@ -85,9 +85,9 @@ export const alarmsRouter = {
 		})
 		.input(z.object({ alarmId: z.string() }))
 		.output(alarmOutputSchema)
-		.handler(({ context, input }) => {
-			return getAlarmAndAuthorize(input.alarmId, context);
-		}),
+		.handler(({ context, input }) =>
+			getAlarmAndAuthorize(input.alarmId, context)
+		),
 
 	create: protectedProcedure
 		.route({

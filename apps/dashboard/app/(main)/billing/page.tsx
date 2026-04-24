@@ -1,15 +1,17 @@
 "use client";
 
-import { EmptyState } from "@/components/ds/empty-state";
-import { useBillingContext } from "@/components/providers/billing-provider";
+import AttachDialog from "@/components/autumn/attach-dialog";
 import { Badge } from "@/components/ds/badge";
 import { Button } from "@/components/ds/button";
 import { Card } from "@/components/ds/card";
 import { Divider } from "@/components/ds/divider";
+import { EmptyState } from "@/components/ds/empty-state";
 import { Skeleton } from "@/components/ds/skeleton";
 import { Text } from "@/components/ds/text";
+import { useBillingContext } from "@/components/providers/billing-provider";
 import dayjs from "@/lib/dayjs";
 import { orpc } from "@/lib/orpc";
+import { TOPUP_PRODUCT_ID } from "@databuddy/shared/billing/topup-math";
 import type { UsageResponse } from "@databuddy/shared/types/billing";
 import {
 	ArrowSquareOutIcon,
@@ -22,12 +24,16 @@ import {
 	XIcon,
 } from "@phosphor-icons/react/dist/ssr";
 import { useQuery } from "@tanstack/react-query";
+import type { PreviewAttachResponse } from "autumn-js";
 import { useCustomer } from "autumn-js/react";
 import { useRouter } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { BillingControlsCard } from "./components/billing-controls-card";
 import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog";
 import { ConsumptionChart } from "./components/consumption-chart";
 import { ErrorState } from "./components/empty-states";
+import { TopupCard } from "./components/topup-card";
 import { UsageBreakdownTable } from "./components/usage-breakdown-table";
 import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
@@ -76,6 +82,141 @@ function isSSOPlan(plan: { id: string; name: string }): boolean {
 	return plan.name.toLowerCase().includes("single sign-on");
 }
 
+interface AddOnPriceDisplay {
+	primaryText?: string;
+	secondaryText?: string;
+}
+
+function formatPriceDisplay(display?: AddOnPriceDisplay | null): string | null {
+	if (!display?.primaryText) {
+		return null;
+	}
+	return display.secondaryText
+		? `${display.primaryText} ${display.secondaryText}`
+		: display.primaryText;
+}
+
+interface AddOn {
+	id: string;
+	items: { display?: AddOnPriceDisplay | null }[];
+	name: string;
+	price?: { display?: AddOnPriceDisplay | null } | null;
+}
+
+interface AddOnSubscription {
+	canceledAt?: number | null;
+	currentPeriodEnd?: number | null;
+	status?: string;
+}
+
+interface AddOnRowProps {
+	addOn: AddOn;
+	canUserUpgrade: boolean;
+	isActive: boolean;
+	isCancelled: boolean | null | undefined;
+	onAttach: (planId: string) => Promise<void>;
+	onCancel: () => void;
+	onPreview: (planId: string) => Promise<PreviewAttachResponse>;
+	subscription?: AddOnSubscription;
+}
+
+function AddOnRow({
+	addOn,
+	canUserUpgrade,
+	isActive,
+	isCancelled,
+	onAttach,
+	onCancel,
+	onPreview,
+	subscription,
+}: AddOnRowProps) {
+	const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+	const [preview, setPreview] = useState<PreviewAttachResponse | null>(null);
+	const [dialogOpen, setDialogOpen] = useState(false);
+
+	const priceText = formatPriceDisplay(addOn.price?.display);
+	const benefitText = formatPriceDisplay(addOn.items.at(0)?.display);
+
+	const description =
+		isCancelled && subscription?.currentPeriodEnd
+			? `Access until ${dayjs(subscription.currentPeriodEnd).format("MMM D, YYYY")}`
+			: [priceText, benefitText].filter(Boolean).join(" · ");
+
+	const handleAddClick = async () => {
+		setIsLoadingPreview(true);
+		try {
+			const result = await onPreview(addOn.id);
+			setPreview(result);
+			setDialogOpen(true);
+		} catch (err) {
+			toast.error(
+				err instanceof Error ? err.message : "Failed to load preview."
+			);
+		} finally {
+			setIsLoadingPreview(false);
+		}
+	};
+
+	return (
+		<>
+			<div className="flex items-center justify-between gap-3 px-5 py-3">
+				<div className="min-w-0 flex-1">
+					<Text className="truncate" variant="label">
+						{addOn.name}
+					</Text>
+					{description && (
+						<Text tone="muted" variant="caption">
+							{description}
+						</Text>
+					)}
+				</div>
+				{isCancelled ? (
+					<Badge variant="muted">Cancelled</Badge>
+				) : isActive ? (
+					<div className="flex items-center gap-2">
+						<Badge variant="success">Active</Badge>
+						{canUserUpgrade && (
+							<Button
+								aria-label={`Cancel ${addOn.name}`}
+								onClick={onCancel}
+								size="sm"
+								variant="ghost"
+							>
+								<XIcon size={14} />
+							</Button>
+						)}
+					</div>
+				) : canUserUpgrade ? (
+					<Button
+						disabled={isLoadingPreview}
+						onClick={handleAddClick}
+						size="sm"
+						variant="secondary"
+					>
+						{isLoadingPreview ? (
+							"Loading…"
+						) : (
+							<>
+								<PlusIcon size={14} />
+								Add
+							</>
+						)}
+					</Button>
+				) : null}
+			</div>
+			{preview && (
+				<AttachDialog
+					onConfirm={() => onAttach(addOn.id)}
+					open={dialogOpen}
+					planId={addOn.id}
+					preview={preview}
+					setOpen={setDialogOpen}
+				/>
+			)}
+		</>
+	);
+}
+
 function getAddOnStatus(
 	plan: { customerEligibility?: { status?: string } | null },
 	subscription?: {
@@ -105,7 +246,7 @@ export default function BillingPage() {
 	const { canUserUpgrade } = useBillingContext();
 	const { plans, usage, customer, isLoading, error, refetch } =
 		useBillingData();
-	const { attach } = useCustomer();
+	const { attach, previewAttach } = useCustomer();
 	const [dateRange, setDateRange] = useState(getDefaultDateRange);
 
 	const { data: breakdownUsageRaw, isLoading: isBreakdownLoading } = useQuery({
@@ -145,7 +286,7 @@ export default function BillingPage() {
 
 	const addOns = useMemo(() => {
 		const allAddOns = plans?.filter((p) => p.addOn) ?? [];
-		return allAddOns.filter((p) => !isSSOPlan(p));
+		return allAddOns.filter((p) => !isSSOPlan(p) && p.id !== TOPUP_PRODUCT_ID);
 	}, [plans]);
 
 	const { currentPlan, currentSubscription, usageStats, statusDetails } =
@@ -340,6 +481,9 @@ export default function BillingPage() {
 					</Card.Content>
 				</Card>
 
+				{!isFree && <TopupCard />}
+				{!isFree && <BillingControlsCard />}
+
 				{showAddOns && (
 					<Card>
 						<Card.Header>
@@ -362,61 +506,47 @@ export default function BillingPage() {
 										(s) => s.planId === addOn.id
 									);
 									const { isCancelled, isActive } = getAddOnStatus(addOn, sub);
-									const priceDisplay = addOn.items.at(0)?.display;
 
 									return (
-										<div
-											className="flex items-center justify-between gap-3 px-5 py-3"
+										<AddOnRow
+											addOn={addOn}
+											canUserUpgrade={canUserUpgrade}
+											isActive={isActive}
+											isCancelled={Boolean(isCancelled)}
 											key={addOn.id}
-										>
-											<div className="min-w-0 flex-1">
-												<Text className="truncate" variant="label">
-													{addOn.name}
-												</Text>
-												<Text tone="muted" variant="caption">
-													{isCancelled && sub?.currentPeriodEnd
-														? `Access until ${dayjs(sub.currentPeriodEnd).format("MMM D, YYYY")}`
-														: priceDisplay?.primaryText &&
-															`${priceDisplay.primaryText}${priceDisplay.secondaryText ? ` ${priceDisplay.secondaryText}` : ""}`}
-												</Text>
-											</div>
-											{isCancelled ? (
-												<Badge variant="muted">Cancelled</Badge>
-											) : isActive ? (
-												<div className="flex items-center gap-2">
-													<Badge variant="success">Active</Badge>
-													{canUserUpgrade && (
-														<Button
-															aria-label={`Cancel ${addOn.name}`}
-															onClick={() =>
-																onCancelClick(
-																	addOn.id,
-																	addOn.name,
-																	sub?.currentPeriodEnd ?? undefined
-																)
-															}
-															size="sm"
-															variant="ghost"
-														>
-															<XIcon size={14} />
-														</Button>
-													)}
-												</div>
-											) : canUserUpgrade ? (
-												<Button
-													onClick={() =>
-														attach({
-															planId: addOn.id,
-														})
+											onAttach={async (planId) => {
+												try {
+													const result = await attach({
+														planId,
+														successUrl: `${window.location.origin}/billing`,
+													});
+													if (result?.paymentUrl) {
+														window.location.href = result.paymentUrl;
+														return;
 													}
-													size="sm"
-													variant="secondary"
-												>
-													<PlusIcon size={14} />
-													Add
-												</Button>
-											) : null}
-										</div>
+													refetch();
+													toast.success("Add-on attached");
+												} catch (err) {
+													toast.error(
+														err instanceof Error
+															? err.message
+															: "Failed to attach add-on."
+													);
+												}
+											}}
+											onCancel={() =>
+												onCancelClick(
+													addOn.id,
+													addOn.name,
+													sub?.currentPeriodEnd ?? undefined
+												)
+											}
+											onPreview={async (planId) => {
+												const result = await previewAttach({ planId });
+												return result as unknown as PreviewAttachResponse;
+											}}
+											subscription={sub}
+										/>
 									);
 								})}
 							</div>

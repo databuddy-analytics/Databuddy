@@ -64,12 +64,14 @@ export function SubmitFeedbackDialog() {
 
 	return (
 		<Dialog onOpenChange={setOpen} open={open}>
-			<Dialog.Trigger>
-				<Button size="sm">
-					<PlusIcon className="size-3.5" />
-					New Feedback
-				</Button>
-			</Dialog.Trigger>
+			<Dialog.Trigger
+				render={
+					<Button size="sm">
+						<PlusIcon className="size-3.5" />
+						New Feedback
+					</Button>
+				}
+			/>
 			<Dialog.Content>
 				<Dialog.Header>
 					<Dialog.Title>Submit Feedback</Dialog.Title>
@@ -91,18 +93,20 @@ export function SubmitFeedbackDialog() {
 					<Field>
 						<Field.Label>Category</Field.Label>
 						<DropdownMenu>
-							<DropdownMenu.Trigger>
-								<FieldTriggerButton
-									className={category ? undefined : "text-muted-foreground"}
-								>
-									<span className={category ? "text-foreground" : undefined}>
-										{category
-											? CATEGORIES.find((c) => c.value === category)?.label
-											: "Select a category"}
-									</span>
-									<CaretDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
-								</FieldTriggerButton>
-							</DropdownMenu.Trigger>
+							<DropdownMenu.Trigger
+								render={
+									<FieldTriggerButton
+										className={category ? undefined : "text-muted-foreground"}
+									>
+										<span className={category ? "text-foreground" : undefined}>
+											{category
+												? CATEGORIES.find((c) => c.value === category)?.label
+												: "Select a category"}
+										</span>
+										<CaretDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+									</FieldTriggerButton>
+								}
+							/>
 							<DropdownMenu.Content
 								align="start"
 								className="w-(--anchor-width)"

@@ -43,8 +43,12 @@ export function AnnotationsPanel({
 	return (
 		<>
 			<Sheet onOpenChange={setIsOpen} open={isOpen}>
-				<Sheet.Trigger className="inline-flex size-7 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50">
+				<Sheet.Trigger
+					aria-label="Annotations"
+					className="inline-flex size-7 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50"
+				>
 					<NoteIcon className="size-3.5" weight="duotone" />
+					<span className="sr-only">Annotations</span>
 				</Sheet.Trigger>
 				<Sheet.Content
 					className="m-3 h-[calc(100%-1.5rem)] rounded border p-0 sm:max-w-sm"

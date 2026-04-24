@@ -31,7 +31,7 @@ export interface UptimeAlertEmailProps {
 
 function fmtMs(ms: number | undefined): string | undefined {
 	if (ms === undefined || Number.isNaN(ms)) {
-		return undefined;
+		return;
 	}
 	return `${Math.round(ms)} ms`;
 }
@@ -63,7 +63,7 @@ function sslSummary(
 	expiryMs: number | undefined
 ): string | undefined {
 	if (valid === undefined) {
-		return undefined;
+		return;
 	}
 	const status = valid ? "Valid" : "Invalid";
 	if (expiryMs !== undefined && expiryMs > 0 && Number.isFinite(expiryMs)) {

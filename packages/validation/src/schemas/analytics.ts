@@ -70,6 +70,7 @@ export const analyticsEventSchema = z.object({
 		: z.union([
 				z.url({ protocol: /^https?$/, hostname: z.regexes.domain }),
 				z.literal("direct"),
+				z.literal(""),
 			])
 	)
 		.nullable()

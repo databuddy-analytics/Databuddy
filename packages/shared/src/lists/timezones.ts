@@ -1,10 +1,10 @@
-export interface timezone {
+export interface Timezone {
 	label: string;
 	offset: string;
 	region: string;
 }
 
-export const TIMEZONES: timezone[] = [
+export const TIMEZONES: Timezone[] = [
 	{
 		offset: "UTC-11:00",
 		label: "Midway Island, American Samoa",

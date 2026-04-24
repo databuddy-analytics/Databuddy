@@ -51,18 +51,26 @@ export const TruncatedText = ({
 		};
 	}, []);
 
+	const span = (
+		<span
+			className={className}
+			id={id}
+			ref={(node) => {
+				elementRef.current = node;
+				checkTextOverflow(node);
+			}}
+		>
+			{text}
+		</span>
+	);
+
+	if (!isTextTruncated) {
+		return span;
+	}
+
 	return (
-		<Tooltip content={text} open={isTextTruncated ? undefined : false} side={side}>
-			<span
-				className={className}
-				id={id}
-				ref={(node) => {
-					elementRef.current = node;
-					checkTextOverflow(node);
-				}}
-			>
-				{text}
-			</span>
+		<Tooltip content={text} side={side}>
+			{span}
 		</Tooltip>
 	);
 };

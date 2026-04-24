@@ -45,6 +45,28 @@ export interface RawPlan {
 	name: string;
 }
 
+const AGENT_CREDITS_FEATURE: RawFeature = {
+	id: "agent_credits",
+	name: "Agent Credits",
+	type: "single_use",
+	display: { singular: "agent credit", plural: "agent credits" },
+};
+
+const EVENTS_FEATURE: RawFeature = {
+	id: "events",
+	name: "Events",
+	type: "single_use",
+	display: { singular: "event", plural: "events" },
+};
+
+const EVENT_TIERS = [
+	{ to: 2_000_000, amount: 0.000_035 },
+	{ to: 10_000_000, amount: 0.000_03 },
+	{ to: 50_000_000, amount: 0.000_02 },
+	{ to: 250_000_000, amount: 0.000_015 },
+	{ to: "inf" as const, amount: 0.000_01 },
+];
+
 export const RAW_PLANS: RawPlan[] = [
 	{
 		id: "free",
@@ -52,31 +74,18 @@ export const RAW_PLANS: RawPlan[] = [
 		items: [
 			{
 				type: "feature",
-				feature_id: "assistant_message",
+				feature_id: "events",
 				feature_type: "single_use",
-				feature: {
-					id: "assistant_message",
-					name: "Assistant Message",
-					type: "single_use",
-					display: {
-						singular: "assistant message",
-						plural: "assistant messages",
-					},
-				},
-				included_usage: 5,
-				interval: "day",
+				feature: EVENTS_FEATURE,
+				included_usage: 10_000,
+				interval: "month",
 			},
 			{
 				type: "feature",
-				feature_id: "events",
+				feature_id: "agent_credits",
 				feature_type: "single_use",
-				feature: {
-					id: "events",
-					name: "Events",
-					type: "single_use",
-					display: { singular: "event", plural: "events" },
-				},
-				included_usage: 10_000,
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 10,
 				interval: "month",
 			},
 		],
@@ -88,7 +97,7 @@ export const RAW_PLANS: RawPlan[] = [
 			{
 				type: "price",
 				interval: "month",
-				price: 10,
+				price: 9.99,
 				feature_id: null,
 				feature: null,
 			},
@@ -96,37 +105,26 @@ export const RAW_PLANS: RawPlan[] = [
 				type: "priced_feature",
 				feature_id: "events",
 				feature_type: "single_use",
-				feature: {
-					id: "events",
-					name: "Events",
-					type: "single_use",
-					display: { singular: "event", plural: "events" },
-				},
+				feature: EVENTS_FEATURE,
 				included_usage: 30_000,
 				interval: "month",
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
+				tiers: EVENT_TIERS,
 				usage_model: "pay_per_use",
 			},
 			{
 				type: "feature",
-				feature_id: "assistant_message",
+				feature_id: "agent_credits",
 				feature_type: "single_use",
-				feature: {
-					id: "assistant_message",
-					name: "Assistant Message",
-					type: "single_use",
-					display: {
-						singular: "assistant message",
-						plural: "assistant messages",
-					},
-				},
-				included_usage: 10,
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 20,
+				interval: "month",
+			},
+			{
+				type: "feature",
+				feature_id: "agent_credits",
+				feature_type: "single_use",
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 1,
 				interval: "day",
 			},
 		],
@@ -138,7 +136,7 @@ export const RAW_PLANS: RawPlan[] = [
 			{
 				type: "price",
 				interval: "month",
-				price: 50,
+				price: 49.99,
 				feature_id: null,
 				feature: null,
 			},
@@ -146,37 +144,26 @@ export const RAW_PLANS: RawPlan[] = [
 				type: "priced_feature",
 				feature_id: "events",
 				feature_type: "single_use",
-				feature: {
-					id: "events",
-					name: "Events",
-					type: "single_use",
-					display: { singular: "event", plural: "events" },
-				},
+				feature: EVENTS_FEATURE,
 				included_usage: 1_000_000,
 				interval: "month",
-				tiers: [
-					{ to: 2_000_000, amount: 0.000_035 },
-					{ to: 10_000_000, amount: 0.000_03 },
-					{ to: 50_000_000, amount: 0.000_02 },
-					{ to: 250_000_000, amount: 0.000_015 },
-					{ to: "inf", amount: 0.000_01 },
-				],
+				tiers: EVENT_TIERS,
 				usage_model: "pay_per_use",
 			},
 			{
 				type: "feature",
-				feature_id: "assistant_message",
+				feature_id: "agent_credits",
 				feature_type: "single_use",
-				feature: {
-					id: "assistant_message",
-					name: "Assistant Message",
-					type: "single_use",
-					display: {
-						singular: "assistant message",
-						plural: "assistant messages",
-					},
-				},
-				included_usage: 75,
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 350,
+				interval: "month",
+			},
+			{
+				type: "feature",
+				feature_id: "agent_credits",
+				feature_type: "single_use",
+				feature: AGENT_CREDITS_FEATURE,
+				included_usage: 5,
 				interval: "day",
 			},
 		],

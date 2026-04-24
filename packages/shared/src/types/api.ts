@@ -29,15 +29,13 @@ export interface DynamicQueryFilter {
 	value: string | number | (string | number)[];
 }
 
-export interface DynamicQueryResult {
-	data: Record<string, unknown>[];
-	error?: string;
-	parameter: string;
-	success: boolean;
-}
-
 export interface DynamicQueryResponse {
-	data: DynamicQueryResult[];
+	data: {
+		data: Record<string, unknown>[];
+		error?: string;
+		parameter: string;
+		success: boolean;
+	}[];
 	date_range?: { start: string; end: string };
 	error?: string;
 	meta: {
@@ -64,6 +62,6 @@ export interface BatchQueryResponse {
 		successful_queries: number;
 		failed_queries: number;
 	};
-	results: DynamicQueryResponse[];
+	results: (DynamicQueryResponse & { queryId: string })[];
 	success: boolean;
 }

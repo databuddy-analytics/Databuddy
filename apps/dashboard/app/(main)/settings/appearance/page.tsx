@@ -269,14 +269,15 @@ export default function AppearanceSettingsPage() {
 										}
 										value={globalPrefs.chartStepType}
 									>
-										<Tooltip
-											content="Bar charts do not support style"
-											open={isGlobalBar ? undefined : false}
-										>
-											<Select.Trigger
-												className={cn("h-7 w-28", isGlobalBar && "opacity-50")}
-											/>
-										</Tooltip>
+										{isGlobalBar ? (
+											<Tooltip content="Bar charts do not support style">
+												<Select.Trigger
+													className={cn("h-7 w-28", "opacity-50")}
+												/>
+											</Tooltip>
+										) : (
+											<Select.Trigger className="h-7 w-28" />
+										)}
 										<Select.Content>
 											{STEP_TYPE_OPTIONS.map(({ id, name }) => (
 												<Select.Item key={id} value={id}>
@@ -389,17 +390,15 @@ export default function AppearanceSettingsPage() {
 														}
 														value={prefs.chartStepType}
 													>
-														<Tooltip
-															content="Bar charts do not support style"
-															open={isBar ? undefined : false}
-														>
-															<Select.Trigger
-																className={cn(
-																	"h-7 w-[7.5rem]",
-																	isBar && "opacity-50"
-																)}
-															/>
-														</Tooltip>
+														{isBar ? (
+															<Tooltip content="Bar charts do not support style">
+																<Select.Trigger
+																	className={cn("h-7 w-[7.5rem]", "opacity-50")}
+																/>
+															</Tooltip>
+														) : (
+															<Select.Trigger className="h-7 w-[7.5rem]" />
+														)}
 														<Select.Content>
 															{STEP_TYPE_OPTIONS.map(({ id, name }) => (
 																<Select.Item key={id} value={id}>

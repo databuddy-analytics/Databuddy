@@ -237,7 +237,7 @@ function parseSinceShorthand(since: string): Date | undefined {
 		case "last_90d":
 			return now.subtract(90, "day").toDate();
 		default:
-			return undefined;
+			return;
 	}
 }
 
@@ -496,7 +496,7 @@ const listInsightsTool = defineMcpTool(
 			hint: z.string().optional(),
 		}),
 		resolveWebsite: "optional",
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const orgIds = await resolveOrganizationIds(ctx.websiteId, ctx);
@@ -612,7 +612,7 @@ const summarizeInsightsTool = defineMcpTool(
 			hint: z.string().optional(),
 		}),
 		resolveWebsite: "optional",
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const orgIds = await resolveOrganizationIds(ctx.websiteId, ctx);
@@ -763,7 +763,7 @@ const compareMetricTool = defineMcpTool(
 			websiteDomain: z.string(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const websiteId = ctx.websiteId as string;
@@ -968,7 +968,7 @@ const topMoversTool = defineMcpTool(
 			websiteDomain: z.string(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 60, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const websiteId = ctx.websiteId as string;
@@ -1213,7 +1213,7 @@ const detectAnomaliesTool = defineMcpTool(
 			hint: z.string().optional(),
 		}),
 		resolveWebsite: true,
-		rateLimit: { limit: 30, windowSec: 60 },
+		ratelimit: { limit: 30, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const websiteId = ctx.websiteId as string;

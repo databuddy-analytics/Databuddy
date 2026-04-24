@@ -9,7 +9,7 @@ export const pricingFaqItems = [
 	{
 		question: "Is there a free trial?",
 		answer:
-			"The Free plan is forever free — no trial period, no credit card required. You get 10,000 events per month and 5 AI assistant messages per day. Upgrade any time if you need more.",
+			"The Free plan is forever free — no trial period, no credit card required. You get 10,000 events per month and 10 agent credits to explore the AI assistant. Upgrade any time if you need more, or buy credit top-ups as you go.",
 	},
 	{
 		question: "Can I switch plans?",

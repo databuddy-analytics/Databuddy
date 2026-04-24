@@ -291,9 +291,7 @@ export const feedbackRouter = {
 				})
 			)
 		)
-		.handler(() => {
-			return [...REWARD_TIERS];
-		}),
+		.handler(() => [...REWARD_TIERS]),
 
 	redeemCredits: sessionProcedure
 		.route({

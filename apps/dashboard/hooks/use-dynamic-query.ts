@@ -14,6 +14,16 @@ import { guessTimezone } from "@/lib/dayjs";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+export const dynamicQueryKeys = {
+	all: () => ["dynamic-query"] as const,
+	byWebsite: (websiteId: string) => ["dynamic-query", websiteId] as const,
+};
+
+export const batchDynamicQueryKeys = {
+	all: () => ["batch-dynamic-query"] as const,
+	byWebsite: (websiteId: string) => ["batch-dynamic-query", websiteId] as const,
+};
+
 interface BuildParamsOptions {
 	additionalParams?: Record<string, string | number>;
 	dateRange?: DateRange;

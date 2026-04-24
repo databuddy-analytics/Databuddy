@@ -1,6 +1,5 @@
 "use client";
 
-import { resolveComposableRender } from "@/components/ds/composable-render";
 import { cn } from "@/lib/utils";
 import { Menu as BaseMenu } from "@base-ui-components/react/menu";
 import type { ComponentPropsWithoutRef } from "react";
@@ -14,11 +13,9 @@ function Trigger({
 	render,
 	...rest
 }: ComponentPropsWithoutRef<typeof BaseMenu.Trigger>) {
-	const composed = resolveComposableRender(children, render);
-
 	return (
-		<BaseMenu.Trigger render={composed.render} {...rest}>
-			{composed.children}
+		<BaseMenu.Trigger render={render} {...rest}>
+			{children}
 		</BaseMenu.Trigger>
 	);
 }

@@ -28,7 +28,7 @@ export function parseUserAgent(userAgent: string): ParsedUserAgent {
 
 export function extractBotName(userAgent: string): string | undefined {
 	if (!userAgent) {
-		return undefined;
+		return;
 	}
 
 	const lower = userAgent.toLowerCase();
@@ -42,7 +42,7 @@ export function extractBotName(userAgent: string): string | undefined {
 		const parser = new UAParser(userAgent);
 		return parser.getBrowser().name || undefined;
 	} catch {
-		return undefined;
+		return;
 	}
 }
 

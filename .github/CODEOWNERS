@@ -1,1 +1,12 @@
-/.github/ @izadoesdev
+/.github/                               @izadoesdev
+/.changeset/                            @izadoesdev
+/package.json                           @izadoesdev
+/bun.lock                               @izadoesdev
+
+/packages/devtools/package.json         @izadoesdev
+/packages/devtools/build.config.ts      @izadoesdev
+/packages/devtools/tsconfig.json        @izadoesdev
+
+/packages/sdk/package.json              @izadoesdev
+/packages/sdk/build.config.ts           @izadoesdev
+/packages/sdk/tsconfig.json             @izadoesdev

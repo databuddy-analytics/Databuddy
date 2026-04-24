@@ -1,7 +1,7 @@
 import { and, db, eq, withTransaction } from "@databuddy/db";
 import { member, uptimeSchedules, user } from "@databuddy/db/schema";
 import { chQuery } from "@databuddy/db/clickhouse";
-import { UptimeAlertEmail } from "@databuddy/email";
+import { render, UptimeAlertEmail } from "@databuddy/email";
 import { Resend } from "resend";
 import type { ScheduleData } from "./actions";
 import { captureError } from "./lib/tracing";
@@ -105,7 +105,7 @@ export async function getPreviousMonitorStatus(
 	siteId: string
 ): Promise<number | undefined> {
 	if (!process.env.CLICKHOUSE_URL) {
-		return undefined;
+		return;
 	}
 	try {
 		const rows = await chQuery<{ status: number }>(
@@ -118,12 +118,12 @@ export async function getPreviousMonitorStatus(
 		);
 		const row = rows[0];
 		if (row === undefined) {
-			return undefined;
+			return;
 		}
 		return row.status;
 	} catch (error) {
 		captureError(error, { error_step: "clickhouse_previous_status" });
-		return undefined;
+		return;
 	}
 }
 
@@ -155,14 +155,8 @@ export async function sendUptimeTransitionEmailsIfNeeded(options: {
 		options.data.ssl_expiry > 0 ? options.data.ssl_expiry : undefined;
 
 	try {
-		const result = await resend.emails.send({
-			from: "Databuddy <alerts@databuddy.cc>",
-			to: emails,
-			subject:
-				kind === "down"
-					? `[DOWN] ${siteLabel} is unreachable (HTTP ${options.data.http_code || "timeout"})`
-					: `[Recovered] ${siteLabel} is back up`,
-			react: UptimeAlertEmail({
+		const html = await render(
+			UptimeAlertEmail({
 				kind,
 				siteLabel,
 				url: options.data.url,
@@ -175,7 +169,16 @@ export async function sendUptimeTransitionEmailsIfNeeded(options: {
 				sslValid: options.data.ssl_valid === 1,
 				sslExpiryMs: sslExpiry,
 				dashboardUrl,
-			}),
+			})
+		);
+		const result = await resend.emails.send({
+			from: "Databuddy <alerts@databuddy.cc>",
+			to: emails,
+			subject:
+				kind === "down"
+					? `[DOWN] ${siteLabel} is unreachable (HTTP ${options.data.http_code || "timeout"})`
+					: `[Recovered] ${siteLabel} is back up`,
+			html,
 		});
 		if (result.error) {
 			captureError(new Error(result.error.message), {

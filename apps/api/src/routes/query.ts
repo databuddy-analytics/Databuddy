@@ -1,6 +1,7 @@
 import { auth } from "@databuddy/auth";
 import { and, db, eq, isNull } from "@databuddy/db";
 import { links, member, uptimeSchedules, websites } from "@databuddy/db/schema";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { CustomQueryRequest } from "@databuddy/shared/types/custom-query";
 import { Elysia, t } from "elysia";
@@ -244,6 +245,43 @@ function createAuthFailedResponse(requestId: string): Response {
 	);
 }
 
+async function enforceQueryRateLimit(
+	ctx: AuthContext,
+	endpoint: "compile" | "execute" | "custom",
+	limit: number,
+	requestId: string
+): Promise<Response | null> {
+	const principal = ctx.apiKey
+		? `apikey:${ctx.apiKey.id}`
+		: ctx.user
+			? `user:${ctx.user.id}`
+			: null;
+	if (!principal) {
+		return null;
+	}
+	const rl = await ratelimit(`query:${endpoint}:${principal}`, limit, 60);
+	if (rl.success) {
+		return null;
+	}
+	return new Response(
+		JSON.stringify({
+			success: false,
+			error: "Rate limit exceeded",
+			code: "RATE_LIMITED",
+			requestId,
+		}),
+		{
+			status: 429,
+			headers: {
+				"Content-Type": "application/json",
+				"X-RateLimit-Limit": String(rl.limit),
+				"X-RateLimit-Remaining": String(rl.remaining),
+				"X-RateLimit-Reset": String(rl.reset),
+			},
+		}
+	);
+}
+
 function createErrorResponse(
 	error: string,
 	code: string,
@@ -395,6 +433,7 @@ function verifyScheduleAccess(
 			columns: {
 				id: true,
 				organizationId: true,
+				websiteId: true,
 			},
 		});
 
@@ -428,11 +467,24 @@ function verifyScheduleAccess(
 		}
 
 		if (ctx.apiKey) {
-			const granted =
+			const orgMatch =
 				hasKeyScope(ctx.apiKey, "read:data") &&
 				ctx.apiKey.organizationId === schedule.organizationId;
+			if (!orgMatch) {
+				mergeWideEvent({ access_result: "api_key_denied" });
+				return false;
+			}
+			if (hasGlobalAccess(ctx.apiKey)) {
+				mergeWideEvent({ access_result: "api_key_match" });
+				return true;
+			}
+			const accessible = getAccessibleWebsiteIds(ctx.apiKey);
+			const granted =
+				!!schedule.websiteId && accessible.includes(schedule.websiteId);
 			mergeWideEvent({
-				access_result: granted ? "api_key_match" : "api_key_denied",
+				access_result: granted
+					? "api_key_website_match"
+					: "api_key_website_denied",
 			});
 			return granted;
 		}
@@ -495,7 +547,8 @@ function verifyLinkAccess(ctx: AuthContext, linkId: string): Promise<boolean> {
 		if (ctx.apiKey) {
 			const granted =
 				hasKeyScope(ctx.apiKey, "read:data") &&
-				ctx.apiKey.organizationId === link.organizationId;
+				ctx.apiKey.organizationId === link.organizationId &&
+				hasGlobalAccess(ctx.apiKey);
 			mergeWideEvent({
 				access_result: granted ? "api_key_match" : "api_key_denied",
 			});
@@ -969,6 +1022,15 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			auth: AuthContext;
 		}) => {
 			const requestId = generateRequestId();
+			const rateLimited = await enforceQueryRateLimit(
+				ctx,
+				"compile",
+				300,
+				requestId
+			);
+			if (rateLimited) {
+				return rateLimited;
+			}
 			const accessResult = await resolveProjectAccess(ctx, {
 				websiteId: q.website_id,
 			});
@@ -1023,6 +1085,15 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			(async () => {
 				const requestId = generateRequestId();
 				const timezone = q.timezone || "UTC";
+				const rateLimited = await enforceQueryRateLimit(
+					ctx,
+					"execute",
+					120,
+					requestId
+				);
+				if (rateLimited) {
+					return rateLimited;
+				}
 
 				const accessResult = await resolveProjectAccess(ctx, {
 					websiteId: q.website_id,
@@ -1157,6 +1228,15 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		}) =>
 			(async () => {
 				const requestId = generateRequestId();
+				const rateLimited = await enforceQueryRateLimit(
+					ctx,
+					"custom",
+					60,
+					requestId
+				);
+				if (rateLimited) {
+					return rateLimited;
+				}
 
 				if (!q.website_id) {
 					return createErrorResponse(

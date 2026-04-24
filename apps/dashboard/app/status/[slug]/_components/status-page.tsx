@@ -3,7 +3,7 @@ import {
 	MinusCircleIcon,
 	WarningCircleIcon,
 	XCircleIcon,
-} from "@phosphor-icons/react/ssr";
+} from "@phosphor-icons/react/dist/ssr";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";

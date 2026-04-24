@@ -8,8 +8,6 @@ export function useFeatureAccess(flagKey: string) {
 		...orpc.featureInvite.checkAccess.queryOptions({
 			input: { flagKey },
 		}),
-		staleTime: 5 * 60 * 1000,
-		retry: false,
 	});
 
 	return {

@@ -1,10 +1,11 @@
 "use client";
 
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/dist/ssr/ArrowClockwise";
-import { SparkleIcon } from "@phosphor-icons/react/dist/ssr/Sparkle";
+import { LightbulbIcon } from "@phosphor-icons/react/dist/ssr/Lightbulb";
 import { useAtomValue } from "jotai";
-import dayjs from "@/lib/dayjs";
+import { Card } from "@/components/ds/card";
 import { Skeleton } from "@/components/ds/skeleton";
+import dayjs from "@/lib/dayjs";
 import { cn } from "@/lib/utils";
 import { useOrgNarrative } from "../hooks/use-org-narrative";
 import { insightsRangeAtom } from "../lib/time-range";
@@ -15,20 +16,15 @@ export function CockpitNarrative() {
 		useOrgNarrative(range);
 
 	return (
-		<section
-			aria-label="Weekly summary"
-			className="overflow-hidden rounded border bg-card"
-		>
-			<div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+		<Card>
+			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
-					<SparkleIcon
+					<LightbulbIcon
 						aria-hidden
 						className="size-4 text-primary"
 						weight="duotone"
 					/>
-					<h3 className="font-semibold text-foreground text-sm">
-						This {rangeLabel(range)}
-					</h3>
+					<Card.Title className="text-sm">This {rangeLabel(range)}</Card.Title>
 				</div>
 				{!(isLoading || isError) &&
 					data &&
@@ -38,9 +34,9 @@ export function CockpitNarrative() {
 							Updated {dayjs(data.generatedAt).fromNow(true)} ago
 						</span>
 					)}
-			</div>
+			</Card.Header>
 
-			<div className="min-h-[44px] px-4 py-3">
+			<Card.Content className="min-h-[44px]">
 				{isLoading && (
 					<div className="space-y-2">
 						<Skeleton className="h-4 w-11/12 rounded" />
@@ -78,8 +74,8 @@ export function CockpitNarrative() {
 						Couldn't generate summary
 					</p>
 				)}
-			</div>
-		</section>
+			</Card.Content>
+		</Card>
 	);
 }
 

@@ -173,7 +173,7 @@ export const WebPreviewBody = ({
 	const rawSrc = src ?? url;
 	const safeSrc = (() => {
 		if (!rawSrc) {
-			return undefined;
+			return;
 		}
 		try {
 			const parsed = new URL(rawSrc, window.location.origin);
@@ -181,7 +181,7 @@ export const WebPreviewBody = ({
 				? parsed.toString()
 				: undefined;
 		} catch {
-			return undefined;
+			return;
 		}
 	})();
 

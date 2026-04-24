@@ -92,7 +92,7 @@ export function getTrackerConfig(): TrackerOptions {
 				if (key === "skipPatterns" || key === "maskPatterns") {
 					try {
 						value = JSON.parse(value);
-					} catch (_e) {
+					} catch {
 						value = [];
 					}
 				} else if (value === "true" || value === "") {
@@ -121,7 +121,7 @@ export function getTrackerConfig(): TrackerOptions {
 					(config as any)[key] = value;
 				}
 			});
-		} catch (_e) {
+		} catch {
 			/* ignore */
 		}
 	}

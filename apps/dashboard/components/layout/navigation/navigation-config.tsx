@@ -1,34 +1,40 @@
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import {
-	ActivityIcon,
 	ArrowSquareOutIcon,
 	BellIcon,
 	BookOpenIcon,
 	BugIcon,
 	BuildingsIcon,
 	ChartBarIcon,
+	ChartPieSliceIcon,
+	ChatCircleTextIcon,
 	CodeIcon,
+	CompassIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
 	EyeIcon,
 	FileArrowDownIcon,
 	FlagIcon,
 	FunnelIcon,
+	GaugeIcon,
 	GearIcon,
 	GlobeIcon,
 	GlobeSimpleIcon,
 	HeartbeatIcon,
 	HouseIcon,
+	IdentificationBadgeIcon,
 	IdentificationCardIcon,
+	LightbulbIcon,
 	LightningIcon,
 	LinkIcon,
 	LockIcon,
 	MapPinIcon,
 	PlayIcon,
+	PresentationChartIcon,
+	PulseIcon,
 	ReceiptIcon,
 	RoadHorizonIcon,
 	RobotIcon,
-	SparkleIcon,
 	SpeakerHighIcon,
 	SquaresFourIcon,
 	TargetIcon,
@@ -37,7 +43,8 @@ import {
 	UserIcon,
 	UsersThreeIcon,
 	WarningIcon,
-} from "@phosphor-icons/react/ssr";
+	WaveformIcon,
+} from "@phosphor-icons/react/dist/ssr";
 import type { Category, NavigationEntry, NavigationSection } from "./types";
 
 const createNavItem = (
@@ -103,11 +110,11 @@ export const homeNavigation: NavigationEntry[] = [
 		createNavItem("Websites", GlobeIcon, "/websites", {
 			highlight: true,
 		}),
-		createNavItem("Insights", SparkleIcon, "/insights", {
+		createNavItem("Insights", LightbulbIcon, "/insights", {
 			highlight: true,
 		}),
 	]),
-	createNavSection("Observability", ActivityIcon, [
+	createNavSection("Observability", WaveformIcon, [
 		createNavItem("Links", LinkIcon, "/links", {
 			highlight: true,
 		}),
@@ -123,7 +130,7 @@ export const settingsNavigation: NavigationSection[] = [
 		createNavItem("Members", UserIcon, "/organizations/members"),
 	]),
 	createNavSection("Billing", CreditCardIcon, [
-		createNavItem("Overview", ActivityIcon, "/billing"),
+		createNavItem("Overview", PresentationChartIcon, "/billing"),
 		createNavItem("Plans", CurrencyDollarIcon, "/billing/plans"),
 		createNavItem("Invoices", ReceiptIcon, "/billing/history"),
 	]),
@@ -131,12 +138,12 @@ export const settingsNavigation: NavigationSection[] = [
 		createNavItem("Profile", IdentificationCardIcon, "/settings/account"),
 		createNavItem("Appearance", EyeIcon, "/settings/appearance"),
 		createNavItem("Notifications", BellIcon, "/settings/notifications"),
-		createNavItem("Feedback & Credits", SpeakerHighIcon, "/feedback"),
+		createNavItem("Feedback & Credits", ChatCircleTextIcon, "/feedback"),
 	]),
 ];
 
 export const resourcesNavigation: NavigationSection[] = [
-	createNavSection("Resources", BookOpenIcon, [
+	createNavSection("Resources", CompassIcon, [
 		createNavItem("Documentation", BookOpenIcon, "https://databuddy.cc/docs", {
 			external: true,
 			highlight: true,
@@ -175,11 +182,11 @@ export const monitorsNavigation: NavigationSection[] = [
 
 export const websiteNavigation: NavigationSection[] = [
 	createNavSection("Web Analytics", ChartBarIcon, [
-		createNavItem("Dashboard", EyeIcon, "", { rootLevel: false }),
+		createNavItem("Dashboard", ChartPieSliceIcon, "", { rootLevel: false }),
 		createNavItem("Audience", UsersThreeIcon, "/audience", {
 			rootLevel: false,
 		}),
-		createNavItem("Web Vitals", HeartbeatIcon, "/vitals", {
+		createNavItem("Web Vitals", GaugeIcon, "/vitals", {
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.WEB_VITALS,
 		}),
@@ -196,14 +203,14 @@ export const websiteNavigation: NavigationSection[] = [
 			alpha: true,
 			flag: "anomalies",
 		}),
-		createNavItem("Pulse", HeartbeatIcon, "/pulse", {
+		createNavItem("Pulse", PulseIcon, "/pulse", {
 			rootLevel: false,
 			flag: "pulse",
 			alpha: true,
 		}),
 	]),
 	createNavSection("Product Analytics", TrendUpIcon, [
-		createNavItem("Users", UsersThreeIcon, "/users", {
+		createNavItem("Users", IdentificationBadgeIcon, "/users", {
 			rootLevel: false,
 			gatedFeature: GATED_FEATURES.USERS,
 		}),
@@ -225,7 +232,7 @@ export const websiteNavigation: NavigationSection[] = [
 			rootLevel: false,
 			flag: "revenue",
 		}),
-		createNavItem("AI Agent", RobotIcon, "/agent", {
+		createNavItem("Databunny", RobotIcon, "/agent", {
 			alpha: true,
 			rootLevel: false,
 		}),

@@ -13,7 +13,7 @@ function getTokenCount(value: unknown): number | undefined {
 			return total;
 		}
 	}
-	return undefined;
+	return;
 }
 
 /** Extracts reasoning tokens from v2 or v3 formats */
@@ -35,7 +35,7 @@ function getReasoningTokens(
 			return reasoning;
 		}
 	}
-	return undefined;
+	return;
 }
 
 /** Extracts cached input tokens from v2 or v3 formats */
@@ -55,18 +55,18 @@ function getCachedTokens(usage: Record<string, unknown>): number | undefined {
 			return cacheRead;
 		}
 	}
-	return undefined;
+	return;
 }
 
 /** Extracts cache creation tokens from Anthropic provider metadata */
 function getCacheCreationTokens(metadata: unknown): number | undefined {
 	if (!metadata || typeof metadata !== "object" || !("anthropic" in metadata)) {
-		return undefined;
+		return;
 	}
 
 	const anthropic = (metadata as { anthropic: unknown }).anthropic;
 	if (!anthropic || typeof anthropic !== "object") {
-		return undefined;
+		return;
 	}
 
 	if ("cacheCreationInputTokens" in anthropic) {
@@ -76,7 +76,7 @@ function getCacheCreationTokens(metadata: unknown): number | undefined {
 			return tokens;
 		}
 	}
-	return undefined;
+	return;
 }
 
 /** Extracts web search count from provider metadata */

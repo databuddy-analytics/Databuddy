@@ -1,19 +1,9 @@
 import { AGENT_CREDIT_SCHEMA } from "@databuddy/shared/billing/credit-schema";
+import {
+	TOPUP_MAX_QUANTITY,
+	TOPUP_TIERS,
+} from "@databuddy/shared/billing/topup-math";
 import { feature, item, plan } from "atmn";
-
-/*
- * Features
- *
- * Types:
- * - metered consumable: usage that gets drawn down (events, agent tokens)
- * - metered non-consumable: countable resources (monitors, status pages)
- * - boolean: gated capability, no quantity
- * - credit_system: visible pool that auto-deducts from underlying meters
- *
- * Plan-tier gating for funnels/goals/feature_flags/target_groups/retention/
- * error_tracking/team_roles lives in packages/shared/src/types/features.ts.
- * Autumn only meters what it actually bills.
- */
 
 export const events = feature({
 	id: "events",
@@ -21,45 +11,6 @@ export const events = feature({
 	type: "metered",
 	consumable: true,
 	eventNames: ["Events"],
-});
-
-export const sso = feature({
-	id: "sso",
-	name: "Single Sign On",
-	type: "boolean",
-});
-
-export const monitors = feature({
-	id: "monitors",
-	name: "Uptime Monitors",
-	type: "metered",
-	consumable: false,
-});
-
-// Gates sub-5-minute check intervals. Only Pulse plans unlock 1-min checks.
-export const uptime_minute_checks = feature({
-	id: "uptime_minute_checks",
-	name: "Sub-5-Minute Uptime Checks",
-	type: "boolean",
-});
-
-export const status_pages = feature({
-	id: "status_pages",
-	name: "Status Pages",
-	type: "metered",
-	consumable: false,
-});
-
-export const status_page_custom_branding = feature({
-	id: "status_page_custom_branding",
-	name: "Status Page Custom Branding",
-	type: "boolean",
-});
-
-export const status_page_custom_domain = feature({
-	id: "status_page_custom_domain",
-	name: "Status Page Custom Domain",
-	type: "boolean",
 });
 
 export const agent_input_tokens = feature({
@@ -125,82 +76,6 @@ export const agent_credits = feature({
 	],
 });
 
-export const alarms = feature({
-	id: "alarms",
-	name: "Alarms",
-	type: "metered",
-	consumable: false,
-	archived: true,
-});
-
-export const error_tracking = feature({
-	id: "error_tracking",
-	name: "Error Tracking",
-	type: "boolean",
-	archived: true,
-});
-
-export const goals = feature({
-	id: "goals",
-	name: "Goals",
-	type: "metered",
-	consumable: false,
-	archived: true,
-});
-
-export const feature_flags = feature({
-	id: "feature_flags",
-	name: "Feature Flags",
-	type: "metered",
-	consumable: false,
-	archived: true,
-});
-
-export const funnels = feature({
-	id: "funnels",
-	name: "Funnels",
-	type: "metered",
-	consumable: false,
-	archived: true,
-});
-
-export const rbac = feature({
-	id: "rbac",
-	name: "Role Based Access Control",
-	type: "boolean",
-	archived: true,
-});
-
-export const seats = feature({
-	id: "seats",
-	name: "Seats",
-	type: "metered",
-	consumable: false,
-	archived: true,
-});
-
-export const retention_analytics = feature({
-	id: "retention_analytics",
-	name: "Retention Analytics",
-	type: "boolean",
-	archived: true,
-});
-
-export const target_groups = feature({
-	id: "target_groups",
-	name: "Target Groups",
-	type: "metered",
-	consumable: false,
-	archived: true,
-});
-
-export const webhook_alert_destinations = feature({
-	id: "webhook_alert_destinations",
-	name: "Webhook & Slack Alert Destinations",
-	type: "boolean",
-	archived: true,
-});
-
 export const free = plan({
 	id: "free",
 	name: "Free",
@@ -216,7 +91,7 @@ export const free = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 500,
+			included: 10,
 			reset: {
 				interval: "month",
 			},
@@ -253,9 +128,16 @@ export const hobby = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 2500,
+			included: 20,
 			reset: {
 				interval: "month",
+			},
+		}),
+		item({
+			featureId: agent_credits.id,
+			included: 1,
+			reset: {
+				interval: "day",
 			},
 		}),
 	],
@@ -290,22 +172,16 @@ export const pro = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 25_000,
-			price: {
-				tiers: [
-					{ to: 50_000, amount: 0.0012 },
-					{ to: 250_000, amount: 0.001 },
-					{ to: "inf", amount: 0.0008 },
-				],
-				tierBehaviour: "graduated",
-				billingUnits: 1,
-				billingMethod: "usage_based",
+			included: 350,
+			reset: {
 				interval: "month",
 			},
-			rollover: {
-				max: 25_000,
-				expiryDurationType: "month",
-				expiryDurationLength: 1,
+		}),
+		item({
+			featureId: agent_credits.id,
+			included: 5,
+			reset: {
+				interval: "day",
 			},
 		}),
 	],
@@ -345,26 +221,10 @@ export const scale = plan({
 		}),
 		item({
 			featureId: agent_credits.id,
-			included: 25_000,
+			included: 500,
 			reset: {
 				interval: "month",
 			},
-		}),
-	],
-});
-
-export const sso_plan = plan({
-	id: "sso",
-	name: "SSO",
-	addOn: true,
-	autoEnable: false,
-	price: {
-		amount: 100,
-		interval: "month",
-	},
-	items: [
-		item({
-			featureId: sso.id,
 		}),
 	],
 });
@@ -381,18 +241,11 @@ export const pulse_hobby = plan({
 	},
 	items: [
 		item({
-			featureId: monitors.id,
-			included: 25,
-		}),
-		item({
-			featureId: uptime_minute_checks.id,
-		}),
-		item({
-			featureId: status_pages.id,
-			included: 3,
-		}),
-		item({
-			featureId: status_page_custom_branding.id,
+			featureId: events.id,
+			included: 10_000,
+			reset: {
+				interval: "month",
+			},
 		}),
 	],
 });
@@ -409,21 +262,68 @@ export const pulse_pro = plan({
 	},
 	items: [
 		item({
-			featureId: monitors.id,
-			included: 150,
+			featureId: events.id,
+			included: 100_000,
+			reset: {
+				interval: "month",
+			},
 		}),
+	],
+});
+
+/*
+ * Credit booster. Recurring add-on that grants 200 credits each month
+ * on top of the base plan. Because these credits are paid for, they
+ * roll over up to 400 and never expire until burned — unlike the
+ * plan grants which reset monthly with no rollover.
+ */
+export const credits_booster = plan({
+	id: "credits_booster",
+	name: "Credit Booster",
+	addOn: true,
+	autoEnable: false,
+	price: {
+		amount: 19,
+		interval: "month",
+	},
+	items: [
 		item({
-			featureId: uptime_minute_checks.id,
+			featureId: agent_credits.id,
+			included: 200,
+			reset: {
+				interval: "month",
+			},
+			rollover: {
+				max: 400,
+				expiryDurationType: "forever",
+			},
 		}),
+	],
+});
+
+/*
+ * Agent credit top-up. Prepaid one-off SKU with graduated volume
+ * discounts — user picks any quantity at checkout (e.g. 164 credits).
+ * Purchased credits stack into the shared agent_credits pool and
+ * persist until burned (no reset). Plan grants reset monthly; these
+ * paid credits do not.
+ */
+export const credits_topup = plan({
+	id: "credits_topup",
+	name: "Agent Credits",
+	addOn: true,
+	autoEnable: false,
+	items: [
 		item({
-			featureId: status_pages.id,
-			included: 10,
-		}),
-		item({
-			featureId: status_page_custom_branding.id,
-		}),
-		item({
-			featureId: status_page_custom_domain.id,
+			featureId: agent_credits.id,
+			price: {
+				tiers: TOPUP_TIERS.map((t) => ({ to: t.to, amount: t.amount })),
+				tierBehaviour: "graduated",
+				interval: "one_off",
+				billingMethod: "prepaid",
+				billingUnits: 1,
+				maxPurchase: TOPUP_MAX_QUANTITY,
+			},
 		}),
 	],
 });
