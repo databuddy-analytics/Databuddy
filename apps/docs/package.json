@@ -79,7 +79,7 @@
     "remark-mdx": "^3.1.1",
     "remark-stringify": "^11.0.0",
     "resend": "^6.12.0",
-    "shiki": "^3.23.0",
+    "shiki": "^4.0.2",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
     "use-sound": "^5.0.0",
