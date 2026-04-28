@@ -87,13 +87,18 @@ export default function Hero({
 			<BackgroundFlow />
 			<div className="mx-auto w-full max-w-400 px-4 pt-26 pb-8 sm:px-14 sm:pt-20 lg:px-20 lg:pt-38">
 				<div className="mx-auto flex max-w-360 flex-col items-start space-y-2 text-left">
-					<h1 className="z-10 text-balance font-semibold text-3xl sm:text-5xl md:text-6xl">
-						Privacy-first analytics. One script, no cookies, no consent banners.
+					<h1 className="z-10 font-semibold text-3xl sm:text-5xl md:text-6xl">
+						Stop reading dashboards.
+						<br />
+						<span className="text-muted-foreground">
+							Start asking questions.
+						</span>
 					</h1>
 
 					<p className="z-10 max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
-						Web analytics, error tracking, and feature flags in a single script
-						under 30 KB. GDPR compliant out of the box.
+						Ask questions in plain English. Get charts, reports, and actionable
+						insights - not more tabs to stare at. Privacy-first, under 30 KB, no
+						cookies.
 					</p>
 
 					<div className="flex items-center gap-3 pt-2">
@@ -141,13 +146,21 @@ export default function Hero({
 					</div>
 
 					<div className="relative">
-						<Image
-							alt="bunny"
-							className="pointer-events-none absolute right-0 bottom-full z-30 mb-0 hidden w-40 max-w-[min(100%,10rem)] md:right-0 lg:right-20 lg:block"
-							height={160}
-							src="/brand/bunny/off-black.svg"
-							width={160}
-						/>
+						<a
+							className="group/bunny absolute right-0 bottom-full z-30 mb-0 hidden w-40 max-w-[min(100%,10rem)] md:right-0 lg:right-20 lg:block"
+							href="https://app.databuddy.cc/login"
+						>
+							<Image
+								alt="Databunny"
+								className="transition-transform duration-300 group-hover/bunny:scale-110"
+								height={160}
+								src="/brand/bunny/off-black.svg"
+								width={160}
+							/>
+							<span className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 scale-0 whitespace-nowrap rounded-lg border border-border bg-card px-3 py-1.5 font-mono text-xs text-foreground shadow-lg transition-all duration-200 group-hover/bunny:scale-100">
+								hey, ask me anything :)
+							</span>
+						</a>
 						<div className="group relative rounded-sm border border-border/50 bg-card p-1.5 shadow-2xl backdrop-blur-sm sm:p-2">
 							<div className="relative min-h-[400px] overflow-hidden rounded bg-muted sm:min-h-[500px] lg:min-h-[600px]">
 								{tabs.map((tab, i) => {

@@ -2,9 +2,9 @@ import { SITE_URL } from "@/app/util/constants";
 
 export const homePageSeo = {
 	title:
-		"Privacy-First Web Analytics - Under 30 KB, No Cookies, GDPR Compliant",
+		"AI-Native Analytics - Ask Questions, Get Answers, Not Dashboards",
 	description:
-		"Web analytics, error tracking, and feature flags in one script under 30 KB. No cookies, no consent banners, GDPR compliant by default. Set up in 5 minutes. Open-source Google Analytics alternative.",
+		"Ask your data anything in plain English. AI agent, error tracking, web vitals, and feature flags in one script under 30 KB. No cookies, GDPR compliant. Open-source Google Analytics alternative.",
 	url: SITE_URL,
 } as const;
 
