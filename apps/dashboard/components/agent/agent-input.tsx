@@ -1,7 +1,15 @@
 "use client";
 
-import { useAtom } from "jotai";
-import { useMemo, useState } from "react";
+import { useAtom, useSetAtom } from "jotai";
+import {
+	useCallback,
+	useEffect,
+	memo,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
 	DotMatrixLoader,
 	useRandomDotMatrixLoader,
@@ -9,17 +17,27 @@ import {
 import { useChat, usePendingQueue } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
 import {
+	useBillingContext,
+	useUsageFeature,
+} from "@/components/providers/billing-provider";
+import {
 	AGENT_THINKING_LEVELS,
 	type AgentThinking,
+	agentCreditShakeNonceAtom,
 	agentInputAtom,
 	agentThinkingAtom,
 } from "./agent-atoms";
 import { AgentCommandMenu } from "./agent-command-menu";
 import { type AgentCommand, filterCommands } from "./agent-commands";
+import {
+	AgentTextSwitch,
+	AGENT_INPUT_PLACEHOLDER_PHRASES,
+} from "./agent-text-switch";
 import { useEnterSubmit } from "./hooks/use-enter-submit";
 import {
 	BrainIcon,
 	PaperPlaneRightIcon,
+	PaperclipIcon,
 	StopIcon,
 	XIcon,
 } from "@phosphor-icons/react/dist/ssr";
@@ -31,9 +49,51 @@ export function AgentInput() {
 	const { messages: pendingMessages, removeAction } = usePendingQueue();
 	const isLoading = status === "streaming" || status === "submitted";
 	const [input, setInput] = useAtom(agentInputAtom);
+	const bumpCreditShake = useSetAtom(agentCreditShakeNonceAtom);
+	const { balance, unlimited } = useUsageFeature("agent_credits");
+	const { customer, isLoading: billingLoading } = useBillingContext();
+	const agentCreditsRow = customer?.balances?.agent_credits;
+	const creditsResolvedForUi = agentCreditsRow != null;
+
 	const { formRef, onKeyDown } = useEnterSubmit();
 	const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
 	const [commandsDismissed, setCommandsDismissed] = useState(false);
+	const [placeholderReplayKey, setPlaceholderReplayKey] = useState(0);
+	const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+	const replayFrameRef = useRef<number | null>(null);
+	const inputSyncRef = useRef(input);
+	inputSyncRef.current = input;
+
+	const cancelPlaceholderReplay = useCallback(() => {
+		if (replayFrameRef.current === null) {
+			return;
+		}
+		cancelAnimationFrame(replayFrameRef.current);
+		replayFrameRef.current = null;
+	}, []);
+
+	const schedulePlaceholderReplayIfIdle = useCallback(
+		(assumeEmptyAfterSend: boolean) => {
+			cancelPlaceholderReplay();
+			replayFrameRef.current = requestAnimationFrame(() => {
+				replayFrameRef.current = null;
+				const ta = textareaRef.current;
+				if (ta && document.activeElement === ta) {
+					return;
+				}
+				if (isLoading) {
+					return;
+				}
+				if (!assumeEmptyAfterSend && inputSyncRef.current.length > 0) {
+					return;
+				}
+				setPlaceholderReplayKey((k) => k + 1);
+			});
+		},
+		[cancelPlaceholderReplay, isLoading]
+	);
+
+	useEffect(() => cancelPlaceholderReplay, [cancelPlaceholderReplay]);
 
 	const filteredCommands = useMemo(() => {
 		if (!input.startsWith("/")) {
@@ -55,9 +115,18 @@ export function AgentInput() {
 		if (!input.trim()) {
 			return;
 		}
+		if (
+			!(billingLoading || unlimited) &&
+			creditsResolvedForUi &&
+			balance <= 0
+		) {
+			bumpCreditShake((n) => n + 1);
+			return;
+		}
 		sendMessage({ text: input.trim() });
 		setInput("");
 		setCommandsDismissed(false);
+		schedulePlaceholderReplayIfIdle(true);
 	};
 
 	const selectCommand = (command: AgentCommand) => {
@@ -122,10 +191,9 @@ export function AgentInput() {
 
 	return (
 		<form
-			className="sticky z-10 mt-auto"
+			className="z-10 mt-auto"
 			onSubmit={handleSubmit}
 			ref={formRef}
-			style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
 		>
 			{pendingMessages.length > 0 ? (
 				<PendingPill
@@ -139,30 +207,55 @@ export function AgentInput() {
 				anchor={
 					<div
 						className={cn(
-							"rounded border border-border bg-background shadow-xs transition-colors",
+							"rounded border border-border bg-muted p-1 shadow-xs transition-colors space-y-1.5",
 							"focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
 						)}
 					>
-						<Textarea
-							className={cn(
-								"min-h-0 resize-none border-0 bg-transparent text-sm shadow-none",
-								"focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0",
-								"px-3 pt-3 pb-2"
-							)}
-							maxRows={8}
-							minRows={1}
-							onChange={(e) => handleInputChange(e.target.value)}
-							onKeyDown={handleMessageKeyDown}
-							placeholder="Ask Databunny anything about your analytics…"
-							showFocusIndicator={false}
-							value={input}
-						/>
+						<section className="relative">
+							<div className="pointer-events-none absolute inset-x-3 top-3 max-w-full">
+								<AgentTextSwitch
+									active={input.length === 0 && !isLoading}
+									className="text-muted-foreground/80 text-sm"
+									key={placeholderReplayKey}
+									phrases={AGENT_INPUT_PLACEHOLDER_PHRASES}
+									nostagger
+								/>
+							</div>
+							<Textarea
+								aria-label="Ask Databunny about your analytics, or type slash for commands"
+								className={cn(
+									"relative min-h-0! resize-none border-0 bg-transparent text-sm shadow-none",
+									"focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0",
+									"px-3 pt-3 pb-2"
+								)}
+								maxRows={8}
+								minRows={1}
+								rows={1}
+								onBlur={() => schedulePlaceholderReplayIfIdle(false)}
+								onChange={(e) => handleInputChange(e.target.value)}
+								onKeyDown={handleMessageKeyDown}
+								ref={textareaRef}
+								showFocusIndicator={false}
+								value={input}
+							/>
+						</section>
 
-						<div className="flex items-center justify-between gap-3 rounded-b border-border/60 border-t bg-muted/30 px-3 py-1.5">
+						<div className="flex items-center justify-between gap-3  border-border/60 bg-background px-1.5 py-1.5 rounded">
+							<div className="flex gap-1">
+									<Button
+										variant="secondary"
+										aria-label="Add"
+										className="size-7"
+										size="icon"
+										type="button"
+									>
+										<PaperclipIcon className="size-3.5" />
+									</Button>
+									<ThinkingControl />
+							</div>
+
+							<div className="flex shrink-0 items-center gap-3 ml-auto">
 							<KeyboardHints isLoading={isLoading} />
-
-							<div className="flex shrink-0 items-center gap-1">
-								<ThinkingControl />
 								{isLoading ? (
 									<Button
 										aria-label="Stop generation"
@@ -216,7 +309,12 @@ const THINKING_DESCRIPTIONS: Record<AgentThinking, string> = {
 	high: "Extended reasoning",
 };
 
-function ThinkingControl({
+const THINKING_LABEL_TRANSITION = {
+	duration: 0.15,
+	ease: [0.25, 0.46, 0.45, 0.94] as const,
+};
+
+const ThinkingControl = memo(function ThinkingControl({
 	compact = false,
 	iconOnly = false,
 }: {
@@ -256,26 +354,37 @@ function ThinkingControl({
 					iconOnly ? "border-transparent" : "h-7 gap-1 border px-2 text-xs",
 					!iconOnly && compact && "h-7 px-1.5 text-[11px]",
 					isOn
-						? "border-border bg-accent text-foreground"
-						: "text-muted-foreground hover:bg-accent/40 hover:text-foreground",
+						? "border-0"
+						: "",
 					!(isOn || iconOnly) && "border-transparent hover:border-border/60"
 				)}
 				onClick={cycleThinking}
 				size={iconOnly ? "icon-sm" : "sm"}
-				variant="ghost"
+				variant="secondary"
 			>
 				<BrainIcon className="size-3.5" weight={isOn ? "fill" : "duotone"} />
 				{iconOnly ? null : (
-					<span className="font-medium">{THINKING_LABELS[thinking]}</span>
+					<AnimatePresence initial={false} mode="popLayout">
+						<motion.span
+							key={thinking}
+							animate={{ filter: "blur(0px)", opacity: 1 }}
+							className="font-medium"
+							exit={{ filter: "blur(4px)", opacity: 0 }}
+							initial={{ filter: "blur(4px)", opacity: 0 }}
+							transition={THINKING_LABEL_TRANSITION}
+						>
+							{THINKING_LABELS[thinking]}
+						</motion.span>
+					</AnimatePresence>
 				)}
 			</Button>
 		</Tooltip>
 	);
-}
+});
 
 function Kbd({ children }: { children: React.ReactNode }) {
 	return (
-		<kbd className="rounded border border-border bg-background px-1 font-mono text-[10px] text-muted-foreground">
+		<kbd className="rounded border border-border bg-background px-1 py-px font-mono text-[10px] text-muted-foreground">
 			{children}
 		</kbd>
 	);
@@ -297,20 +406,24 @@ function GeneratingHint() {
 	);
 }
 
-function KeyboardHints({ isLoading }: { isLoading: boolean }) {
+const KeyboardHints = memo(function KeyboardHints({
+	isLoading,
+}: {
+	isLoading: boolean;
+}) {
 	if (isLoading) {
 		return <GeneratingHint />;
 	}
 	return (
-		<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+		<div className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs h-full">
 			<Kbd>Enter</Kbd>
 			<span>send</span>
-			<span className="hidden text-border sm:inline">·</span>
+			<span className="h-4 w-px bg-accent"></span>
 			<Kbd>⇧Enter</Kbd>
 			<span className="hidden sm:inline">newline</span>
 		</div>
 	);
-}
+});
 
 function PendingPill({
 	messages,

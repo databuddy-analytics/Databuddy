@@ -1,6 +1,8 @@
 "use client";
 
 import type { UIMessage } from "ai";
+import { motion } from "motion/react";
+import { type ReactNode } from "react";
 import { AIComponent } from "@/components/ai-elements/ai-component";
 import {
 	Message,
@@ -371,29 +373,46 @@ export function AgentMessages() {
 						from={message.role}
 						key={messageKey}
 					>
-						<MessageContent className={cn(isAssistant && "w-full")}>
-							{groupedParts.map((part, partIndex) =>
-								renderMessagePart(
-									part,
-									partIndex,
-									messageKey,
-									isLastMessage,
-									isStreaming,
-									message.role
-								)
-							)}
+						{message.role === "user" ? (
+							<AnimatedUserBubble>
+								<MessageContent className={cn(isAssistant && "w-full")}>
+									{groupedParts.map((part, partIndex) =>
+										renderMessagePart(
+											part,
+											partIndex,
+											messageKey,
+											isLastMessage,
+											isStreaming,
+											message.role
+										)
+									)}
+								</MessageContent>
+							</AnimatedUserBubble>
+						) : (
+							<MessageContent className={cn(isAssistant && "w-full")}>
+								{groupedParts.map((part, partIndex) =>
+									renderMessagePart(
+										part,
+										partIndex,
+										messageKey,
+										isLastMessage,
+										isStreaming,
+										message.role
+									)
+								)}
 
-							{showActions ? (
-								<AssistantActions
-									canRegenerate={!hasError}
-									isLast={isLastMessage}
-									message={message}
-									onRegenerate={() => {
-										regenerate().catch(() => undefined);
-									}}
-								/>
-							) : null}
-						</MessageContent>
+								{showActions ? (
+									<AssistantActions
+										canRegenerate={!hasError}
+										isLast={isLastMessage}
+										message={message}
+										onRegenerate={() => {
+											regenerate().catch(() => undefined);
+										}}
+									/>
+								) : null}
+							</MessageContent>
+						)}
 					</Message>
 				);
 			})}
@@ -449,5 +468,18 @@ function StreamingIndicator({ label }: { label: string | null }) {
 				{text}
 			</Shimmer>
 		</div>
+	);
+}
+
+function AnimatedUserBubble({ children }: { children: ReactNode }) {
+	return (
+		<motion.div
+			animate={{ filter: "blur(0px)", opacity: 1, scale: 1, y: 0 }}
+			className="origin-bottom-right"
+			initial={{ filter: "blur(6px)", opacity: 0, scale: 0.8, y: 5 }}
+			transition={{ type: "spring", stiffness: 450, damping: 35 }}
+		>
+			{children}
+		</motion.div>
 	);
 }

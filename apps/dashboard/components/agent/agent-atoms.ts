@@ -16,3 +16,5 @@ export const agentThinkingAtom = atomWithStorage<AgentThinking>(
 	"databuddy-agent-thinking",
 	"off"
 );
+
+export const agentCreditShakeNonceAtom = atom(0);

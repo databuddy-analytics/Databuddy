@@ -115,8 +115,8 @@ export function ChatHistory({
 			<Popover onOpenChange={setOpen} open={open}>
 				<Popover.Trigger
 					render={
-						<Button aria-label="Chat history" size="sm" variant="ghost">
-							<ClockCounterClockwiseIcon className="size-4" weight="duotone" />
+						<Button aria-label="Chat history" size="sm" variant="secondary">
+							<ClockCounterClockwiseIcon className="size-4 shrink-0" weight="duotone" />
 						</Button>
 					}
 				/>
