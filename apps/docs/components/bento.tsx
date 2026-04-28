@@ -1,16 +1,16 @@
 "use client";
 
 import {
-	ActivityIcon,
 	ArrowRightIcon,
-	Bug,
-	CursorClick,
-	Flag,
-	Funnel,
-	Gauge,
-	Users,
-	WarningCircle,
-} from "@phosphor-icons/react";
+	BugIcon,
+	ChartActivityIcon,
+	CursorClickIcon,
+	FlagIcon,
+	FunnelIcon,
+	GaugeIcon,
+	UsersIcon,
+	WarningCircleIcon,
+} from "@databuddy/ui/icons";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -40,7 +40,7 @@ const BentoCard = ({
 }: {
 	title: string;
 	description?: string;
-	icon: any;
+	icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 	children: React.ReactNode;
 	className?: string;
 	headerClassName?: string;
@@ -61,7 +61,7 @@ const BentoCard = ({
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex items-center gap-3">
 					<div className="flex size-8 items-center justify-center bg-secondary/40 ring-1 ring-border">
-						<Icon className="size-4 text-muted-foreground" weight="duotone" />
+						<Icon className="size-4 text-muted-foreground" />
 					</div>
 					<div className="flex flex-col gap-0.5">
 						<CardTitle className="font-medium font-mono text-foreground text-sm">
@@ -80,7 +80,7 @@ const BentoCard = ({
 						className="z-30 flex size-10 shrink-0 items-center justify-center rounded border border-border/50 bg-card text-muted-foreground shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-300 hover:border-border hover:text-foreground"
 						href={href}
 					>
-						<ArrowRightIcon className="size-5" weight="fill" />
+						<ArrowRightIcon className="size-5" />
 					</Link>
 				)}
 			</div>
@@ -421,10 +421,7 @@ const ErrorTrackingFeature = () => (
 						animate={{ scale: [1, 1.2, 1] }}
 						transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY }}
 					>
-						<WarningCircle
-							className="size-4 shrink-0 text-destructive"
-							weight="fill"
-						/>
+						<WarningCircleIcon className="size-4 shrink-0 text-destructive" />
 					</motion.div>
 				</div>
 				<div className="min-w-0 flex-1 space-y-2">
@@ -650,7 +647,7 @@ const CustomEventsFeature = () => {
 						>
 							<div className="flex items-center gap-3">
 								<div className="rounded-md border border-border bg-background p-2 text-muted-foreground">
-									<CursorClick className="size-3" weight="fill" />
+									<CursorClickIcon className="size-3" />
 								</div>
 								<span className="font-mono text-muted-foreground">
 									{event.name}
@@ -671,7 +668,7 @@ export default function Bento() {
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-2"
 				description="Track user journeys through your app"
-				icon={Funnel}
+				icon={FunnelIcon}
 				title="Conversion Funnels"
 			>
 				<FunnelsFeature />
@@ -681,7 +678,7 @@ export default function Bento() {
 				className="h-full md:col-span-4 md:row-span-1"
 				contentClassName="px-0 pb-0"
 				description="See who's on your site right now"
-				icon={ActivityIcon}
+				icon={ChartActivityIcon}
 				title="Real-time"
 			>
 				<RealTimeFeature />
@@ -690,7 +687,7 @@ export default function Bento() {
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-2"
 				description="Watch real user sessions"
-				icon={Users}
+				icon={UsersIcon}
 				title="Live Sessions"
 			>
 				<SessionsFeature />
@@ -701,7 +698,7 @@ export default function Bento() {
 				contentClassName="pb-0"
 				description="Monitor core performance metrics"
 				href="/web-vitals"
-				icon={Gauge}
+				icon={GaugeIcon}
 				title="Web Vitals"
 			>
 				<WebVitalsFeature />
@@ -712,7 +709,7 @@ export default function Bento() {
 				contentClassName="pb-0"
 				description="Catch and fix bugs fast"
 				href="/errors"
-				icon={Bug}
+				icon={BugIcon}
 				title="Error Tracking"
 			>
 				<ErrorTrackingFeature />
@@ -722,7 +719,7 @@ export default function Bento() {
 				className="h-full md:col-span-4 md:row-span-1"
 				description="Roll out features safely"
 				href="/feature-flags"
-				icon={Flag}
+				icon={FlagIcon}
 				title="Feature Flags"
 			>
 				<FeatureFlagsFeature />
@@ -731,7 +728,7 @@ export default function Bento() {
 			<BentoCard
 				className="h-full md:col-span-4 md:row-span-1"
 				description="Track what matters to you"
-				icon={CursorClick}
+				icon={CursorClickIcon}
 				title="Events"
 			>
 				<CustomEventsFeature />

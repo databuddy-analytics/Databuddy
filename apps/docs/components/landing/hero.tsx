@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { ArrowsOutSimpleIcon } from "@phosphor-icons/react";
+import { ArrowsOutSimpleIcon } from "@databuddy/ui/icons";
 import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
@@ -218,7 +218,7 @@ export default function Hero({
 								type="button"
 							>
 								<div className="flex cursor-pointer items-center gap-2 rounded border border-border bg-card/90 px-4 py-2 font-medium text-sm shadow-lg backdrop-blur-sm transition-colors duration-200 hover:bg-card">
-									<ArrowsOutSimpleIcon className="size-4" weight="fill" />
+									<ArrowsOutSimpleIcon className="size-4" />
 									<span>Click to view fullscreen</span>
 								</div>
 							</button>

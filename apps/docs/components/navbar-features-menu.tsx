@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@databuddy/ui/icons";
 import {
 	BugIcon,
 	FlagIcon,
@@ -109,7 +109,6 @@ export function NavbarFeaturesMenu({
 						"size-3 transition-transform duration-200",
 						open && "rotate-180"
 					)}
-					weight="bold"
 				/>
 			</button>
 
@@ -192,7 +191,6 @@ export function NavbarFeaturesMobileMenu({
 						"size-3 text-muted-foreground transition-transform duration-200",
 						expanded && "rotate-180"
 					)}
-					weight="bold"
 				/>
 			</button>
 

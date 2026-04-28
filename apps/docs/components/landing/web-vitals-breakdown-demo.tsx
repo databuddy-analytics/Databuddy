@@ -7,7 +7,7 @@ import {
 	SiSafari,
 	SiX,
 } from "@icons-pack/react-simple-icons";
-import { BrowsersIcon } from "@phosphor-icons/react";
+import { GlobeIcon } from "@databuddy/ui/icons";
 import { cn } from "@/lib/utils";
 
 type VitalStatus = "good" | "needs-improvement" | "poor" | "neutral";
@@ -167,7 +167,7 @@ function BrowserGlyph({ kind }: { kind: BrowserGlyphKind }) {
 		case "edge":
 			return (
 				<span aria-hidden className={wrap}>
-					<BrowsersIcon className="size-4 text-blue-400" weight="duotone" />
+					<GlobeIcon className="size-4 text-blue-400" />
 				</span>
 			);
 		default: {

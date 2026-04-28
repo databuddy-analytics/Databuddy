@@ -1,13 +1,13 @@
 "use client";
 
 import {
-	BrainIcon,
 	CodeIcon,
 	LightningIcon,
+	RobotIcon,
 	ShieldCheckIcon,
 	StackIcon,
 	WaveformIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { SectionBullet } from "../icons/section-bullet";
 import { SciFiGridCard } from "./card";
 
@@ -51,7 +51,7 @@ const cards = [
 		title: "GDPR compliant by default",
 		description:
 			"No personal data collected. GDPR, CCPA, and ePrivacy compliant out of the box.",
-		icon: BrainIcon,
+		icon: RobotIcon,
 	},
 ];
 

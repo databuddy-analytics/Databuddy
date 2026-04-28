@@ -1,19 +1,14 @@
 import type React from "react";
 import { cn } from "@/lib/utils";
-import SectionSvg from "./section-svg";
 
 const Section = ({
 	className,
 	id,
-	crosses,
-	crossesOffset,
 	customPaddings,
 	children,
 }: {
 	className?: string;
 	id: string;
-	crosses?: boolean;
-	crossesOffset?: string;
 	customPaddings?: boolean;
 	children: React.ReactNode;
 }) => (
@@ -27,7 +22,6 @@ const Section = ({
 	>
 		<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent opacity-40" />
 		{children}
-		{crosses && <SectionSvg crossesOffset={crossesOffset} />}
 	</div>
 );
 

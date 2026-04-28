@@ -1,10 +1,10 @@
 import { BottomFade, RightFade } from "@/components/landing/demo-primitives";
 import {
-	LightningSlashIcon,
+	BoltLightningIcon,
+	FlaskIcon,
 	RocketLaunchIcon,
-	ScalesIcon,
 	TrendUpIcon,
-} from "@phosphor-icons/react/ssr";
+} from "@databuddy/ui/icons";
 
 const TEMPLATES = [
 	{
@@ -21,7 +21,7 @@ const TEMPLATES = [
 		description: "Split traffic evenly",
 		tag: "experiment",
 		tagClass: "bg-amber-500/10 text-amber-300",
-		Icon: ScalesIcon,
+		Icon: FlaskIcon,
 	},
 	{
 		id: "kill",
@@ -29,7 +29,7 @@ const TEMPLATES = [
 		description: "Disable instantly in production",
 		tag: "killswitch",
 		tagClass: "bg-red-500/10 text-red-300",
-		Icon: LightningSlashIcon,
+		Icon: BoltLightningIcon,
 	},
 	{
 		id: "beta",

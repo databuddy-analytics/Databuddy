@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon } from "@phosphor-icons/react";
+import { CheckIcon } from "@databuddy/ui/icons";
 import { useEffect, useState } from "react";
 import {
 	BottomFade,
@@ -108,7 +108,7 @@ export function FFInstantRolloutsDemo() {
 				style={{ willChange: "opacity" }}
 			>
 				<span className="inline-flex items-center gap-1.5 rounded border border-green-500/20 bg-background/80 px-3 py-1.5 font-mono text-[11px] text-green-500/80 backdrop-blur-sm">
-					<CheckIcon className="size-3.5" weight="bold" />
+					<CheckIcon className="size-3.5" />
 					Flag updated
 				</span>
 			</div>

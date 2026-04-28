@@ -1,12 +1,11 @@
-import type { IconProps } from "@phosphor-icons/react";
-import type { ComponentType } from "react";
+import type { ComponentType, SVGProps } from "react";
 import { SciFiCard } from "@/components/scifi-card";
 import { cn } from "@/lib/utils";
 import { GridPatternBg } from "./grid-pattern";
 
 interface GridCard {
 	description: string;
-	icon: ComponentType<IconProps>;
+	icon: ComponentType<SVGProps<SVGSVGElement>>;
 	title: string;
 }
 
@@ -35,10 +34,7 @@ export const SciFiGridCard = ({
 		<SciFiCard className="h-full border border-border/50 bg-background/50 px-5 backdrop-blur-sm transition-all duration-500 group-hover:border-primary/20 group-hover:bg-background/80 sm:px-6 lg:px-8">
 			<div className="relative flex h-full flex-col items-center justify-center py-6 sm:py-8">
 				<div className="mb-6 rounded border border-border/50 bg-card p-4 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:scale-110 group-hover:border-primary/20 group-hover:shadow-lg group-hover:shadow-primary/10 sm:mb-8 sm:p-5">
-					<Icon
-						className="h-10 w-10 text-muted-foreground duration-500 group-hover:text-primary sm:h-12 sm:w-12"
-						weight="duotone"
-					/>
+					<Icon className="h-10 w-10 text-muted-foreground duration-500 group-hover:text-primary sm:h-12 sm:w-12" />
 				</div>
 
 				<h3 className="px-2 pb-3 text-center font-semibold text-2xl text-foreground duration-300 sm:pb-4 sm:text-3xl">

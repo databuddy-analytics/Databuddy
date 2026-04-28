@@ -1,5 +1,5 @@
 import { BottomFade } from "@/components/landing/demo-primitives";
-import { FlagIcon } from "@phosphor-icons/react/ssr";
+import { FlagIcon } from "@databuddy/ui/icons";
 
 const VARIANT_SEGMENTS = [
 	{ className: "bg-emerald-500", width: 50 },
@@ -42,8 +42,7 @@ export function FFCompactFlagsDashboardDemo() {
 					<div className="flex items-center gap-1.5 rounded bg-white/[0.04] px-2.5 py-1">
 						<FlagIcon
 							className="size-3 text-muted-foreground"
-							weight="duotone"
-						/>
+							/>
 						<span className="font-medium text-[11px] text-muted-foreground">
 							Production
 						</span>
