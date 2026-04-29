@@ -9,6 +9,8 @@ import { type Link, useDeleteLink } from "@/hooks/use-links";
 import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 import {
+	ArrowRightIcon,
+	CheckIcon,
 	ClockCountdownIcon,
 	CopyIcon,
 	DotsThreeIcon,
@@ -91,7 +93,7 @@ function LinkRow({
 		link.expiresAt && localDayjs(link.expiresAt).isBefore(localDayjs());
 	const shortUrl = `${BASE_URL}/${link.slug}`;
 
-	const { copyToClipboard } = useCopyToClipboard({
+	const { copyToClipboard, isCopied } = useCopyToClipboard({
 		onCopy: () => toast.success("Link copied"),
 	});
 
@@ -107,7 +109,7 @@ function LinkRow({
 		// biome-ignore lint/a11y/useSemanticElements: Can't use button - contains nested buttons (dropdown trigger, copy button)
 		<div
 			className={cn(
-				"group flex w-full cursor-pointer items-center gap-3 border-b px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/50",
+				"group/link-row flex w-full cursor-pointer gap-3 rounded-sm bg-muted/30 px-2 py-2.5 text-left transition-colors hover:bg-muted",
 				isExpired && "opacity-60"
 			)}
 			onClick={onNavigate}
@@ -120,7 +122,7 @@ function LinkRow({
 			role="button"
 			tabIndex={0}
 		>
-			<div className="shrink-0 rounded border border-transparent bg-accent p-1.5 text-primary transition-colors group-hover:border-primary/20 group-hover:bg-primary/10">
+			<div className="h-max shrink-0 rounded border border-transparent bg-accent p-1.5 text-primary transition-colors group-hover/link-row:bg-primary/10">
 				<LinkIcon className="size-3.5" weight="duotone" />
 			</div>
 
@@ -129,26 +131,33 @@ function LinkRow({
 					<p className="truncate font-medium text-sm">{link.name}</p>
 					<ExpirationBadge date={link.expiresAt ?? null} />
 				</div>
-				<div className="mt-0.5 flex items-center gap-2">
+				<div className="mt-1 flex items-center gap-2">
 					<button
-						className="flex shrink-0 items-center gap-1 rounded border border-transparent bg-muted px-1.5 py-0.5 font-mono text-[11px] transition-colors hover:border-border hover:bg-background"
+						className="flex shrink-0 items-center gap-1.5 rounded border border-transparent bg-muted px-1.5 py-px font-mono text-[10px] transition-colors hover:border-border group-hover/link-row:bg-primary/10"
 						onClick={handleCopy}
 						type="button"
 					>
 						<span>{shortUrl}</span>
-						<CopyIcon
-							className="size-2.5 text-muted-foreground"
-							weight="duotone"
-						/>
+						{isCopied ? (
+							<CheckIcon aria-hidden className="size-2.5 shrink-0" />
+						) : (
+							<CopyIcon
+								className="size-2.5 shrink-0 text-muted-foreground"
+								weight="duotone"
+							/>
+						)}
 					</button>
-					<span className="truncate text-muted-foreground text-xs">
-						→ {formatUrl(link.targetUrl)}
+					<span className="flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
+						<ArrowRightIcon aria-hidden className="size-3 shrink-0" />
+						<span className="truncate text-ring">
+							{formatUrl(link.targetUrl)}
+						</span>
 					</span>
 				</div>
 			</div>
 
 			{link.createdAt && (
-				<span className="hidden shrink-0 text-muted-foreground text-xs sm:block">
+				<span className="hidden shrink-0 text-[11px] text-muted-foreground sm:block">
 					{fromNow(link.createdAt)}
 				</span>
 			)}
@@ -162,7 +171,7 @@ function LinkRow({
 				<DropdownMenu>
 					<DropdownMenu.Trigger
 						aria-label="Actions"
-						className="inline-flex size-7 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
+						className="inline-flex size-7 items-center justify-center gap-1.5 rounded-md bg-secondary p-0 font-medium text-muted-foreground opacity-70 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 group-hover/link-row:bg-interactive-hover group-hover/link-row:text-foreground data-[state=open]:opacity-100"
 					>
 						<DotsThreeIcon className="size-4" weight="bold" />
 					</DropdownMenu.Trigger>
@@ -230,26 +239,31 @@ export function LinksListRenderer({ title, links, className }: LinksListProps) {
 	if (links.length === 0) {
 		return (
 			<Card
-				className={className ?? "gap-0 overflow-hidden border bg-card py-0"}
+				className={cn(
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
+					className
+				)}
 			>
-				<div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-					<LinkIcon
-						className="size-8 text-muted-foreground/40"
-						weight="duotone"
-					/>
-					<p className="font-medium text-sm">No links found</p>
-					<p className="text-muted-foreground text-xs">
-						Create your first short link
-					</p>
-					<Button
-						className="mt-2"
-						onClick={openCreate}
-						size="sm"
-						variant="secondary"
-					>
-						<PlusIcon className="size-4" />
-						Create Link
-					</Button>
+				<div className="rounded-md bg-background px-3 py-8">
+					<div className="flex flex-col items-center justify-center gap-2 text-center">
+						<LinkIcon
+							className="size-8 text-muted-foreground/40"
+							weight="duotone"
+						/>
+						<p className="font-medium text-sm">No links found</p>
+						<p className="text-muted-foreground text-xs">
+							Create your first short link
+						</p>
+						<Button
+							className="mt-2"
+							onClick={openCreate}
+							size="sm"
+							variant="secondary"
+						>
+							<PlusIcon className="size-4" />
+							Create Link
+						</Button>
+					</div>
 				</div>
 				<LinkSheet
 					link={editingLink as Link | null}
@@ -263,32 +277,41 @@ export function LinksListRenderer({ title, links, className }: LinksListProps) {
 	return (
 		<>
 			<Card
-				className={className ?? "gap-0 overflow-hidden border bg-card py-0"}
-			>
-				{title && (
-					<div className="flex items-center justify-between border-b px-3 py-2">
-						<p className="font-medium text-sm">{title}</p>
-						<Button onClick={openCreate} size="sm" variant="ghost">
-							<PlusIcon className="size-3.5" />
-							New
-						</Button>
-					</div>
+				className={cn(
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
+					className
 				)}
-				<div>
-					{links.map((link) => (
-						<LinkRow
-							key={link.id}
-							link={link}
-							onDelete={() => setDeletingId(link.id)}
-							onEdit={() => openEdit(link)}
-							onNavigate={() => router.push(`/links/${link.id}`)}
-						/>
-					))}
-				</div>
-				<div className="border-t bg-muted/30 px-3 py-1.5">
-					<p className="text-muted-foreground text-xs">
-						{links.length} {links.length === 1 ? "link" : "links"}
-					</p>
+			>
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
+						<div className="flex size-6 items-center justify-center rounded bg-accent">
+							<LinkIcon
+								className="size-3.5 text-muted-foreground"
+								weight="duotone"
+							/>
+						</div>
+						<p className="font-medium text-sm">{title ?? "Links"}</p>
+						<div className="ml-auto flex items-center gap-2">
+							<Button onClick={openCreate} size="sm" variant="primary">
+								<PlusIcon className="size-3.5" />
+								New
+							</Button>
+						</div>
+					</div>
+
+					<div className="rounded-md bg-background px-1 py-1">
+						<div className="space-y-1">
+							{links.map((link) => (
+								<LinkRow
+									key={link.id}
+									link={link}
+									onDelete={() => setDeletingId(link.id)}
+									onEdit={() => openEdit(link)}
+									onNavigate={() => router.push(`/links/${link.id}`)}
+								/>
+							))}
+						</div>
+					</div>
 				</div>
 			</Card>
 

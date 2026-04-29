@@ -124,7 +124,7 @@ export function FunnelPreviewRenderer({
 		<>
 			<Card
 				className={cn(
-					"gap-0 overflow-hidden py-0 border-0 bg-secondary p-1",
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
 					config.accent,
 					className
 				)}
