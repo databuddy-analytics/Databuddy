@@ -204,7 +204,7 @@ export function AgentInput() {
 				anchor={
 					<div
 						className={cn(
-							"rounded-xl border border-border/60 bg-muted p-1 shadow-sm transition-colors space-y-1.5",
+							"rounded-lg border border-border/60 bg-muted p-1 shadow-sm transition-colors space-y-1.5",
 							"focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
 						)}
 					>

@@ -7,6 +7,7 @@ import { ChatHistory } from "@/components/agent/chat-history";
 import { NewChatButton } from "@/components/agent/new-chat-button";
 import { TopBar } from "@/components/layout/top-bar";
 import { orpc } from "@/lib/orpc";
+import { Tooltip } from "@databuddy/ui";
 import { Avatar } from "@databuddy/ui/client";
 
 interface AgentPageContentProps {
@@ -76,7 +77,11 @@ export function AgentPageContent({ chatId, websiteId }: AgentPageContentProps) {
 				<TopBar.Actions>
 					<AgentCreditBalance />
 					<span aria-hidden className="mx-1 h-4 w-px bg-border/60" />
-					<ChatHistory websiteId={websiteId} />
+					<Tooltip content="Chat History">
+						<div className="inline-flex max-w-full">
+							<ChatHistory websiteId={websiteId} />
+						</div>
+					</Tooltip>
 					<NewChatButton websiteId={websiteId} />
 				</TopBar.Actions>
 
