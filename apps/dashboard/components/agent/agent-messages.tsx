@@ -304,7 +304,7 @@ function AssistantActions({
 	}
 
 	return (
-		<div className="-ml-1.5 flex items-center gap-0.5 pt-1 opacity-60 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100">
+		<div className="bg-secondary w-max rounded flex items-center gap-0.5 pt-0 opacity-60 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100">
 			<Button
 				aria-label={isCopied ? "Copied" : "Copy response"}
 				className="size-7 text-muted-foreground hover:text-foreground"
