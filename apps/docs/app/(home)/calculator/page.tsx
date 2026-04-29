@@ -64,7 +64,8 @@ export async function generateMetadata({
 
 export default function CalculatorPage() {
 	return (
-		<div className="px-4 pt-10 sm:px-6 lg:px-8">
+		<>
+		<div className="px-4 pt-20 sm:px-6 sm:pt-24 lg:px-8 lg:pt-32">
 			<div className="mx-auto w-full max-w-7xl">
 				<header className="mb-12 text-center sm:mb-16">
 					<p className="mb-3 font-mono text-muted-foreground text-xs uppercase tracking-widest">
@@ -90,9 +91,10 @@ export default function CalculatorPage() {
 					<CtaSection />
 					<CalculatorSources />
 				</div>
-
-				<Footer />
 			</div>
 		</div>
+
+		<Footer />
+		</>
 	);
 }

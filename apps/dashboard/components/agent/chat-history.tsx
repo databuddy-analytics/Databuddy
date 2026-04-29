@@ -283,12 +283,12 @@ function ChatRow({
 	return (
 		<div
 			className={cn(
-				"group flex w-full items-center gap-1 transition-colors hover:bg-accent/50",
+				"group relative w-full transition-colors hover:bg-accent/50",
 				isActive && "bg-accent"
 			)}
 		>
 			<Button
-				className="h-auto min-w-0 flex-1 justify-start whitespace-normal rounded-none px-3 py-2 text-left focus-visible:bg-accent/40"
+				className="h-auto w-full min-w-0 justify-start whitespace-normal rounded-none px-3 py-2 text-left focus-visible:bg-accent/40"
 				onClick={onSelect}
 				variant="ghost"
 			>
@@ -299,7 +299,7 @@ function ChatRow({
 					</span>
 				</span>
 			</Button>
-			<div className="mr-2 flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+			<div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center rounded bg-popover/90 opacity-0 backdrop-blur-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100">
 				<Button
 					aria-label={`Rename conversation: ${chat.title}`}
 					className="size-7"

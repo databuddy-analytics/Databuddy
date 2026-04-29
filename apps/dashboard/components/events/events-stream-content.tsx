@@ -693,145 +693,141 @@ export function EventsStreamContent({
 	return (
 		<div className="flex h-full flex-col">
 			<div className="shrink-0 space-y-1.5 border-b px-2 py-1.5">
-				<div className="flex flex-wrap items-center gap-1.5">
-					<div className="flex items-center gap-1.5">
-						<LightningIcon
-							className="size-4 text-muted-foreground"
-							weight="duotone"
-						/>
-						<Select
-							onValueChange={setSelectedEventType}
-							value={selectedEventType}
-						>
-							<SelectTrigger
-								className={cn(
-									FILTER_TRIGGER_CLASS,
-									"w-[140px]",
-									selectedEventType !== "all" && FILTER_ACTIVE_CLASS
-								)}
-							>
-								<SelectValue placeholder="Event type" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All events</SelectItem>
-								{eventTypes.map((type) => (
-									<SelectItem key={type} value={type}>
-										{type}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-
-					<div className="h-4 w-px bg-border/60" />
-
-					<div className="flex items-center gap-1.5">
-						<LinkIcon className="size-4 text-muted-foreground" />
-						<Select onValueChange={setSelectedPath} value={selectedPath}>
-							<SelectTrigger
-								className={cn(
-									FILTER_TRIGGER_CLASS,
-									"w-[140px]",
-									selectedPath !== "all" && FILTER_ACTIVE_CLASS
-								)}
-							>
-								<SelectValue placeholder="Page" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All pages</SelectItem>
-								{uniquePaths.map((path) => (
-									<SelectItem key={path} value={path}>
-										<span className="max-w-[200px] truncate">{path}</span>
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-
-					<div className="h-4 w-px bg-border/60" />
-
-					<div className="flex items-center gap-1.5">
-						<TagIcon
-							className="size-4 text-muted-foreground"
-							weight="duotone"
-						/>
-						<Select
-							onValueChange={(v) => setHasProperties(v as HasPropertiesFilter)}
-							value={hasProperties}
-						>
-							<SelectTrigger
-								className={cn(
-									FILTER_TRIGGER_CLASS,
-									"w-[135px]",
-									hasProperties !== "all" && FILTER_ACTIVE_CLASS
-								)}
-							>
-								<SelectValue placeholder="Properties" />
-							</SelectTrigger>
-							<SelectContent>
-								{hasPropertiesOptions.map((opt) => (
-									<SelectItem key={opt.value} value={opt.value}>
-										{opt.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-
-						{uniquePropertyKeys.length > 0 && (
+				<div className="flex flex-wrap items-center gap-2">
+					<div className="flex items-center gap-1 rounded-md bg-secondary p-0.5">
+						<div className="flex items-center gap-1.5 pl-1.5">
+							<LightningIcon
+								className="size-3.5 text-muted-foreground"
+								weight="duotone"
+							/>
 							<Select
-								onValueChange={handlePropertyKeyChange}
-								value={selectedPropertyKey}
+								onValueChange={setSelectedEventType}
+								value={selectedEventType}
 							>
 								<SelectTrigger
 									className={cn(
 										FILTER_TRIGGER_CLASS,
-										"w-[130px]",
-										selectedPropertyKey !== "all" && FILTER_ACTIVE_CLASS
+										"w-[140px]",
+										selectedEventType !== "all" && FILTER_ACTIVE_CLASS
 									)}
 								>
-									<SelectValue placeholder="Key" />
+									<SelectValue placeholder="Event type" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="all">Any key</SelectItem>
-									{uniquePropertyKeys.map((key) => (
-										<SelectItem key={key} value={key}>
-											{key}
+									<SelectItem value="all">All events</SelectItem>
+									{eventTypes.map((type) => (
+										<SelectItem key={type} value={type}>
+											{type}
 										</SelectItem>
 									))}
 								</SelectContent>
 							</Select>
-						)}
+						</div>
 
-						{selectedPropertyKey !== "all" && propertyValues.length > 0 && (
-							<>
-								<span className="text-muted-foreground">=</span>
+						<div className="flex items-center gap-1.5 pl-1.5">
+							<LinkIcon className="size-3.5 text-muted-foreground" />
+							<Select onValueChange={setSelectedPath} value={selectedPath}>
+								<SelectTrigger
+									className={cn(
+										FILTER_TRIGGER_CLASS,
+										"w-[140px]",
+										selectedPath !== "all" && FILTER_ACTIVE_CLASS
+									)}
+								>
+									<SelectValue placeholder="Page" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All pages</SelectItem>
+									{uniquePaths.map((path) => (
+										<SelectItem key={path} value={path}>
+											<span className="max-w-[200px] truncate">{path}</span>
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="flex items-center gap-1.5 pl-1.5">
+							<TagIcon
+								className="size-3.5 text-muted-foreground"
+								weight="duotone"
+							/>
+							<Select
+								onValueChange={(v) => setHasProperties(v as HasPropertiesFilter)}
+								value={hasProperties}
+							>
+								<SelectTrigger
+									className={cn(
+										FILTER_TRIGGER_CLASS,
+										"w-[135px]",
+										hasProperties !== "all" && FILTER_ACTIVE_CLASS
+									)}
+								>
+									<SelectValue placeholder="Properties" />
+								</SelectTrigger>
+								<SelectContent>
+									{hasPropertiesOptions.map((opt) => (
+										<SelectItem key={opt.value} value={opt.value}>
+											{opt.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+
+							{uniquePropertyKeys.length > 0 && (
 								<Select
-									onValueChange={setSelectedPropertyValue}
-									value={selectedPropertyValue}
+									onValueChange={handlePropertyKeyChange}
+									value={selectedPropertyKey}
 								>
 									<SelectTrigger
 										className={cn(
 											FILTER_TRIGGER_CLASS,
-											"w-[120px]",
-											selectedPropertyValue !== "all" && FILTER_ACTIVE_CLASS
+											"w-[130px]",
+											selectedPropertyKey !== "all" && FILTER_ACTIVE_CLASS
 										)}
 									>
-										<SelectValue placeholder="Value" />
+										<SelectValue placeholder="Key" />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="all">Any value</SelectItem>
-										{propertyValues.map((val) => (
-											<SelectItem key={val} value={val}>
-												<span className="max-w-[160px] truncate">{val}</span>
+										<SelectItem value="all">Any key</SelectItem>
+										{uniquePropertyKeys.map((key) => (
+											<SelectItem key={key} value={key}>
+												{key}
 											</SelectItem>
 										))}
 									</SelectContent>
 								</Select>
-							</>
-						)}
-					</div>
+							)}
 
-					<div className="h-4 w-px bg-border/60" />
+							{selectedPropertyKey !== "all" && propertyValues.length > 0 && (
+								<>
+									<span className="text-muted-foreground text-xs">=</span>
+									<Select
+										onValueChange={setSelectedPropertyValue}
+										value={selectedPropertyValue}
+									>
+										<SelectTrigger
+											className={cn(
+												FILTER_TRIGGER_CLASS,
+												"w-[120px]",
+												selectedPropertyValue !== "all" && FILTER_ACTIVE_CLASS
+											)}
+										>
+											<SelectValue placeholder="Value" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="all">Any value</SelectItem>
+											{propertyValues.map((val) => (
+												<SelectItem key={val} value={val}>
+													<span className="max-w-[160px] truncate">{val}</span>
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</>
+							)}
+						</div>
+					</div>
 
 					<div className="relative w-[180px] flex-none">
 						<MagnifyingGlassIcon

@@ -217,15 +217,15 @@ function SlidingTestimonials({
 export default function Testimonials(): ReactElement {
 	return (
 		<div className="relative max-w-full">
-			<div className="mb-10 flex gap-2 px-4 text-start sm:mb-12 sm:px-6 md:px-0 lg:mb-16">
-				<span className="mt-2">
+			<div className="mb-10 flex items-start gap-2 px-4 text-start sm:mb-12 sm:px-6 md:px-0 lg:mb-16">
+				<span className="mt-1.5 hidden sm:block">
 					<SectionBullet color="#714075" />
 				</span>
 				<div>
-					<h2 className="mb-2 font-semibold text-3xl leading-tight tracking-tight sm:mb-2 sm:text-3xl md:text-4xl lg:text-5xl">
+					<h2 className="mb-2 font-semibold text-2xl leading-tight tracking-tight sm:text-3xl md:text-4xl lg:text-5xl">
 						Why developers are switching
 					</h2>
-					<p className="max-w-2xl px-2 text-base text-muted-foreground sm:px-0 sm:text-lg lg:text-xl">
+					<p className="max-w-2xl text-sm text-muted-foreground sm:text-base lg:text-xl">
 						2,000+ developers and 500+ websites already made the move from GA4,
 						PostHog, and Plausible.
 					</p>

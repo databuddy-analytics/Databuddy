@@ -5,7 +5,7 @@ const CRAWL_DISALLOW = [
 	"/api/",
 	"/_next/",
 	"/admin/",
-	"*.json",
+	"/*.json",
 	"/demo/private/",
 	"/contact/thanks",
 ];

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { Prose } from "@/components/prose";
 import { StructuredData } from "@/components/structured-data";
 import type { NotraPost } from "@/lib/changelog-query";
@@ -104,9 +104,7 @@ export default async function ChangelogPage() {
 					url: "https://www.databuddy.cc/changelog",
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			<Section className="overflow-hidden" customPaddings id="changelog-hero">
+			<Section className="overflow-hidden" id="changelog-hero">
 				<section className="relative w-full pt-16 pb-10 sm:pt-20 sm:pb-12 lg:pt-24 lg:pb-14">
 					<div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 						<div className="mb-8 text-center lg:mb-10">
@@ -133,7 +131,6 @@ export default async function ChangelogPage() {
 
 			<Section
 				className="border-border border-t bg-background/50"
-				customPaddings
 				id="changelog-entries"
 			>
 				<div className="relative mx-auto max-w-5xl pt-8 sm:pt-10">

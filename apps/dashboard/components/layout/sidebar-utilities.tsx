@@ -101,7 +101,7 @@ function SupportMenu({ collapsed }: { collapsed: boolean }) {
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item
 					onClick={() =>
-						window.open("https://cal.com/databuddy/demo", "_blank")
+						window.open("https://cal.com/izadoesdev", "_blank")
 					}
 				>
 					<CalendarIcon className="size-4 shrink-0" />

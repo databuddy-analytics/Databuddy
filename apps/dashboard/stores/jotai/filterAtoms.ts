@@ -276,6 +276,42 @@ export const clearDynamicFiltersAtom = atom(null, (_get, set) => {
 	set(dynamicQueryFiltersAtom, []);
 });
 
+export type EditingSavedFilter = {
+	id: string;
+	name: string;
+	originalFilters: DynamicQueryFilter[];
+} | null;
+
+export const editingSavedFilterAtom = atom<EditingSavedFilter>(null);
+
+export interface SavedFilter {
+	createdAt: string;
+	filters: DynamicQueryFilter[];
+	id: string;
+	name: string;
+	updatedAt: string;
+}
+
+const savedFiltersBaseAtom = atom<{
+	websiteId: string | null;
+	filters: SavedFilter[];
+	loaded: boolean;
+}>({ websiteId: null, filters: [], loaded: false });
+
+export const savedFiltersAtom = atom(
+	(get) => {
+		const { filters, loaded } = get(savedFiltersBaseAtom);
+		return { savedFilters: filters, isLoading: !loaded };
+	},
+	(get, set, update: { websiteId: string; filters: SavedFilter[] }) => {
+		set(savedFiltersBaseAtom, {
+			websiteId: update.websiteId,
+			filters: update.filters,
+			loaded: true,
+		});
+	}
+);
+
 export const trackingOptionsAtom = atom<TrackingOptions>(RECOMMENDED_DEFAULTS);
 
 export const setTrackingOptionsAtom = atom(

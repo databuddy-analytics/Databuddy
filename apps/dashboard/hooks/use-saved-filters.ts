@@ -2,16 +2,15 @@
 
 import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { useCallback, useEffect, useState } from "react";
+import { useAtom } from "jotai";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import {
+	type SavedFilter,
+	savedFiltersAtom,
+} from "@/stores/jotai/filterAtoms";
 
-export interface SavedFilter {
-	createdAt: string;
-	filters: DynamicQueryFilter[];
-	id: string;
-	name: string;
-	updatedAt: string;
-}
+export type { SavedFilter };
 
 export interface SavedFilterError {
 	message: string;
@@ -30,7 +29,7 @@ function getStorageKey(websiteId: string): string {
 	return `${STORAGE_KEY}-${websiteId}`;
 }
 
-function loadSavedFilters(websiteId: string): SavedFilter[] {
+function loadFromStorage(websiteId: string): SavedFilter[] {
 	if (typeof window === "undefined") {
 		return [];
 	}
@@ -67,7 +66,7 @@ function loadSavedFilters(websiteId: string): SavedFilter[] {
 	}
 }
 
-function saveSavedFilters(
+function persistToStorage(
 	websiteId: string,
 	savedFilters: SavedFilter[]
 ): { success: boolean; error?: SavedFilterError } {
@@ -105,59 +104,67 @@ function saveSavedFilters(
 }
 
 export function useSavedFilters(websiteId: string) {
-	const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
+	const [{ savedFilters, isLoading }, setAtom] = useAtom(savedFiltersAtom);
+	const initializedRef = useRef<string | null>(null);
 
 	useEffect(() => {
-		const filters = loadSavedFilters(websiteId);
-		setSavedFilters(filters);
-		setIsLoading(false);
-	}, [websiteId]);
+		if (initializedRef.current === websiteId) {
+			return;
+		}
+		initializedRef.current = websiteId;
+		const filters = loadFromStorage(websiteId);
+		setAtom({ websiteId, filters });
+	}, [websiteId, setAtom]);
 
-	useEffect(() => {
-		if (!isLoading) {
-			const result = saveSavedFilters(websiteId, savedFilters);
+	const updateFilters = useCallback(
+		(updater: (prev: SavedFilter[]) => SavedFilter[]) => {
+			const next = updater(savedFilters);
+			setAtom({ websiteId, filters: next });
+			const result = persistToStorage(websiteId, next);
 			if (!result.success && result.error) {
 				toast.error(`Storage Error: ${result.error.message}`);
 			}
-		}
-	}, [websiteId, savedFilters, isLoading]);
+		},
+		[savedFilters, websiteId, setAtom]
+	);
 
 	useEffect(() => {
-		if (!isLoading && savedFilters.length > 0) {
-			const validFieldValues = new Set(
-				filterOptions.map((option) => option.value as string)
-			);
+		if (isLoading || savedFilters.length === 0) {
+			return;
+		}
 
-			const cleanedFilters = savedFilters
-				.map((savedFilter) => {
-					const validFilters = savedFilter.filters.filter(
-						(filter) =>
-							validFieldValues.has(filter.field) &&
-							filter.operator &&
-							filter.value
-					);
+		const validFieldValues = new Set(
+			filterOptions.map((option) => option.value as string)
+		);
 
-					return validFilters.length > 0
-						? { ...savedFilter, filters: validFilters }
-						: null;
-				})
-				.filter(Boolean) as SavedFilter[];
+		const cleanedFilters = savedFilters
+			.map((savedFilter) => {
+				const validFilters = savedFilter.filters.filter(
+					(filter) =>
+						validFieldValues.has(filter.field) &&
+						filter.operator &&
+						filter.value
+				);
 
-			if (
-				cleanedFilters.length !== savedFilters.length ||
-				cleanedFilters.some(
-					(cleaned, index) =>
-						cleaned.filters.length !== savedFilters[index]?.filters.length
-				)
-			) {
-				setSavedFilters(cleanedFilters);
-				if (cleanedFilters.length < savedFilters.length) {
-					toast.info("Some saved filters were removed due to invalid fields");
-				}
+				return validFilters.length > 0
+					? { ...savedFilter, filters: validFilters }
+					: null;
+			})
+			.filter(Boolean) as SavedFilter[];
+
+		if (
+			cleanedFilters.length !== savedFilters.length ||
+			cleanedFilters.some(
+				(cleaned, index) =>
+					cleaned.filters.length !== savedFilters[index]?.filters.length
+			)
+		) {
+			updateFilters(() => cleanedFilters);
+			if (cleanedFilters.length < savedFilters.length) {
+				toast.info("Some saved filters were removed due to invalid fields");
 			}
 		}
-	}, [isLoading, savedFilters]);
+	}, [isLoading, savedFilters, updateFilters]);
 
 	const validateFilterName = useCallback(
 		(name: string, excludeId?: string): SavedFilterError | null => {
@@ -266,11 +273,11 @@ export function useSavedFilters(websiteId: string) {
 				updatedAt: new Date().toISOString(),
 			};
 
-			setSavedFilters((prev) => [...prev, newFilter]);
+			updateFilters((prev) => [...prev, newFilter]);
 			toast.success(`Filter "${newFilter.name}" saved successfully`);
 			return { success: true, data: newFilter };
 		},
-		[savedFilters, validateFilterName, validateFilters]
+		[savedFilters, validateFilterName, validateFilters, updateFilters]
 	);
 
 	const updateFilter = useCallback(
@@ -294,13 +301,13 @@ export function useSavedFilters(websiteId: string) {
 				updatedAt: new Date().toISOString(),
 			};
 
-			setSavedFilters((prev) =>
+			updateFilters((prev) =>
 				prev.map((f) => (f.id === id ? updatedFilter : f))
 			);
 			toast.success(`Filter "${updatedFilter.name}" updated successfully`);
 			return { success: true, data: updatedFilter };
 		},
-		[savedFilters]
+		[savedFilters, updateFilters]
 	);
 
 	const deleteFilter = useCallback(
@@ -313,11 +320,11 @@ export function useSavedFilters(websiteId: string) {
 				};
 			}
 
-			setSavedFilters((prev) => prev.filter((f) => f.id !== id));
+			updateFilters((prev) => prev.filter((f) => f.id !== id));
 			toast.success(`Filter "${filterToDelete.name}" deleted successfully`);
 			return { success: true };
 		},
-		[savedFilters]
+		[savedFilters, updateFilters]
 	);
 
 	const getFilter = useCallback(
@@ -368,17 +375,17 @@ export function useSavedFilters(websiteId: string) {
 				updatedAt: new Date().toISOString(),
 			};
 
-			setSavedFilters((prev) => [...prev, duplicatedFilter]);
+			updateFilters((prev) => [...prev, duplicatedFilter]);
 			toast.success(`Filter duplicated as "${duplicatedFilter.name}"`);
 			return { success: true, data: duplicatedFilter };
 		},
-		[savedFilters]
+		[savedFilters, updateFilters]
 	);
 
 	const deleteAllFilters = useCallback(() => {
-		setSavedFilters([]);
+		updateFilters(() => []);
 		toast.success("All saved filters deleted successfully");
-	}, []);
+	}, [updateFilters]);
 
 	return {
 		savedFilters,

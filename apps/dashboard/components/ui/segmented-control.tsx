@@ -29,7 +29,7 @@ export function SegmentedControl<T extends string>({
 	return (
 		<div
 			className={cn(
-				"relative inline-flex items-center rounded bg-accent/50 p-0.5",
+				"relative inline-flex items-center rounded-md bg-secondary p-0.5",
 				size === "sm" ? "h-8" : "h-9",
 				className
 			)}

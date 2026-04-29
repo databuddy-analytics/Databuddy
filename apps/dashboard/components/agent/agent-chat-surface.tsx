@@ -208,8 +208,8 @@ function WelcomeState({
 							return (
 								<Button
 									className={cn(
-										"group h-auto items-start justify-start gap-3 whitespace-normal rounded border border-border/60 bg-card p-3 text-left",
-										"hover:border-border hover:bg-accent/40"
+										"group h-auto items-start justify-start gap-3 whitespace-normal rounded-lg border border-border/40 bg-card p-3 text-left",
+										"hover:border-border/60 hover:bg-accent/40"
 									)}
 									key={`${item.source}-${item.label}`}
 									onClick={() => onPromptSelect(item.prompt)}
@@ -248,7 +248,7 @@ function SuggestionSkeleton({ widthClass }: { widthClass: string }) {
 	return (
 		<div
 			aria-hidden
-			className="flex items-start gap-3 rounded border border-border/60 bg-card p-3"
+			className="flex items-start gap-3 rounded-lg border border-border/40 bg-card p-3"
 		>
 			<Skeleton className="size-7 shrink-0 rounded" />
 			<div className="min-w-0 flex-1 space-y-1.5">

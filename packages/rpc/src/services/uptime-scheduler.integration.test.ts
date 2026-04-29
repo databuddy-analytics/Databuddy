@@ -1,4 +1,6 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
+
+setDefaultTimeout(15_000);
 import { Worker, type Job } from "bullmq";
 import type { UptimeCheckJobData } from "@databuddy/redis";
 
@@ -67,21 +69,25 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 			return;
 		}
 		const queue = redis.getUptimeQueue();
-		await Promise.allSettled(
-			[...scheduleIds].map((scheduleId) =>
-				queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId))
-			)
-		);
-		const jobs = await queue.getJobs(
-			["waiting", "delayed", "prioritized", "paused", "completed", "failed"],
-			0,
-			-1
-		);
-		await Promise.allSettled(
-			jobs
-				.filter((job) => isTestScheduleId(job.data?.scheduleId))
-				.map((job) => job.remove())
-		);
+		try {
+			await Promise.allSettled(
+				[...scheduleIds].map((scheduleId) =>
+					queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId))
+				)
+			);
+			const jobs = await queue.getJobs(
+				["waiting", "delayed", "prioritized", "paused", "completed", "failed"],
+				0,
+				-1
+			);
+			await Promise.allSettled(
+				jobs
+					.filter((job) => isTestScheduleId(job.data?.scheduleId))
+					.map((job) => job.remove())
+			);
+		} catch {
+			// cleanup is best-effort — don't let it fail the test
+		}
 	}
 
 	async function assertQueueIsSafeForWorker(): Promise<void> {

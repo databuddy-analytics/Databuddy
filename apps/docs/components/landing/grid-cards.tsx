@@ -59,11 +59,11 @@ export const GridCards = () => {
 	return (
 		<div className="w-full">
 			<div className="mb-12 text-start lg:mb-16 lg:text-left">
-				<h2 className="mx-auto flex max-w-4xl gap-2 text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
-					<span className="mt-2">
+				<h2 className="mx-auto flex max-w-4xl items-start gap-2 text-balance font-semibold text-2xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
+					<span className="mt-1.5 hidden sm:block">
 						<SectionBullet color="#B24A7E" />
 					</span>
-					<span className="flex items-center gap-4 text-foreground">
+					<span className="text-foreground">
 						One install. Six tools replaced.
 					</span>
 				</h2>

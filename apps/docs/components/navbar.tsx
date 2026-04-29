@@ -77,7 +77,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 					</a>
 
 					<Button asChild className="hidden md:inline-flex" size="sm">
-						<a href="https://app.databuddy.cc/login">Start free</a>
+						<a href="https://app.databuddy.cc/register">Start free</a>
 					</Button>
 
 					<NavbarMobileMenuButton
@@ -155,7 +155,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 								onClick={() => setIsMobileMenuOpen(false)}
 								size="sm"
 							>
-								<a href="https://app.databuddy.cc/login">Start free</a>
+								<a href="https://app.databuddy.cc/register">Start free</a>
 							</Button>
 						</div>
 					</div>

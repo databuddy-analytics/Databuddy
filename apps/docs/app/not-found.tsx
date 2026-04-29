@@ -2,7 +2,6 @@ import { HouseIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
 import { Navbar } from "@/components/navbar";
 import { NotFoundGoBackButton } from "@/components/not-found-go-back-button";
 
@@ -38,7 +37,6 @@ export default async function NotFound() {
 		<div className="flex min-h-0 flex-1 flex-col bg-background">
 			<Navbar stars={stars} />
 			<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-				<Spotlight transform="translateX(-50%) translateY(-45%)" />
 
 				<Section
 					className="flex flex-1 flex-col"

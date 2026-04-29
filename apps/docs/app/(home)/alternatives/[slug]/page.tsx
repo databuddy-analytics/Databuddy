@@ -72,20 +72,11 @@ export default async function AlternativeToPage({ params }: PageProps) {
 
 	return (
 		<ComparisonPageView
-			breadcrumbTrail={[
-				{ name: "Home", url: `${SITE_URL}/` },
-				{ name: "Alternatives", url: `${SITE_URL}/alternatives` },
-				{
-					name: competitor.name,
-					url: pageUrl,
-				},
-			]}
 			competitor={competitor}
 			faqs={faqs}
 			featureSectionSubtitle={`Databuddy vs ${competitor.name} - same comparison as our main review, tuned for “alternative to ${competitor.name}” searches`}
 			features={features}
 			featuresWin={featuresWin}
-			heroCta={hero.cta}
 			heroDescription={hero.description}
 			heroHeading={
 				<>

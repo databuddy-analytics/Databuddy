@@ -75,6 +75,12 @@ export async function generateMetadata({
 				publishedTime: publishedIso,
 				authors: data.post.authors.map((a: { name: string }) => a.name),
 			},
+			twitter: {
+				card: "summary_large_image",
+				title: data.post.title,
+				description: data.post.description,
+				images: [ogImage],
+			},
 		};
 	} catch {
 		return { title: "Not Found | Databuddy" };

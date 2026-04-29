@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { SciFiCard } from "@/components/scifi-card";
 import { StructuredData } from "@/components/structured-data";
 import { calculateRoadmapStats, roadmapItems } from "./roadmap-data";
@@ -42,10 +42,7 @@ export default function RoadmapPage() {
 					url,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			{/* Hero Section */}
-			<Section className="overflow-hidden" customPaddings id="roadmap-hero">
+			<Section className="overflow-hidden" id="roadmap-hero">
 				<RoadmapHero stats={stats} />
 			</Section>
 

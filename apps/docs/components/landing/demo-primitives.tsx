@@ -129,7 +129,7 @@ export function FeatureHero({
 	title,
 	subtitle,
 	primaryLabel = "Start Free",
-	primaryHref = "https://app.databuddy.cc/login",
+	primaryHref = "https://app.databuddy.cc/register",
 	docsHref = "/docs",
 	badge,
 }: {

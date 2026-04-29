@@ -71,7 +71,7 @@ export function SummaryStats({
 
 	if (showLoading) {
 		return (
-			<div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+			<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
@@ -88,7 +88,7 @@ export function SummaryStats({
 				: MinusIcon;
 
 	return (
-		<div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
 			<Card className="group gap-0 overflow-hidden py-0 transition-colors hover:border-primary/60">
 				<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 					<div className="flex h-16 items-center justify-center">

@@ -74,9 +74,9 @@ export function PlansComparisonTable({ plans }: Props) {
 										"Free"
 									) : p.id === "hobby" ? (
 										<div className="flex flex-col items-center gap-0.5">
-											<span className="font-medium">$2 first month</span>
+											<span className="font-medium">$10/mo</span>
 											<span className="text-muted-foreground text-xs">
-												then $10/mo
+												first month $2
 											</span>
 										</div>
 									) : (
@@ -270,8 +270,18 @@ export function PlansComparisonTable({ plans }: Props) {
 					</div>
 				</div>
 			</div>
-			<div className="mt-3 text-muted-foreground text-xs">
-				Overage is tiered. Lower rates apply as volume increases.
+			<div className="mt-3 space-y-1 text-muted-foreground text-xs">
+				<p>
+					<span className="text-foreground">What counts as an event?</span>{" "}
+					A pageview, custom event, error, or Web Vital measurement. Feature
+					flag evaluations are free and don't count toward your quota.
+				</p>
+				<p>
+					<span className="text-foreground">Agent credits</span> power
+					Databunny, the AI assistant that analyzes your data, answers
+					questions, and surfaces insights automatically.
+				</p>
+				<p>Overage is tiered. Lower rates apply as volume increases.</p>
 			</div>
 		</section>
 	);

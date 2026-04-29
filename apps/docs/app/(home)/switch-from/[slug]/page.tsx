@@ -72,20 +72,11 @@ export default async function SwitchFromPage({ params }: PageProps) {
 
 	return (
 		<ComparisonPageView
-			breadcrumbTrail={[
-				{ name: "Home", url: `${SITE_URL}/` },
-				{ name: "Switch from", url: `${SITE_URL}/switch-from` },
-				{
-					name: competitor.name,
-					url: pageUrl,
-				},
-			]}
 			competitor={competitor}
 			faqs={faqs}
 			featureSectionSubtitle={`Leaving ${competitor.name}? Feature and pricing comparison before you switch to Databuddy`}
 			features={features}
 			featuresWin={featuresWin}
-			heroCta={hero.cta}
 			heroDescription={hero.description}
 			heroHeading={
 				<>

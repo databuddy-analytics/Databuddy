@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { SciFiCard } from "@/components/scifi-card";
 import { StructuredData } from "@/components/structured-data";
 
@@ -28,9 +28,7 @@ export default function ContactThanksPage() {
 					url: "https://www.databuddy.cc/contact/thanks",
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			<Section className="overflow-hidden" customPaddings id="contact-thanks">
+			<Section className="overflow-hidden" id="contact-thanks">
 				<div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-6xl items-center justify-center px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-0">
 					<SciFiCard
 						className="mx-auto max-w-md rounded border border-green-500/50 bg-green-500/5 p-8 backdrop-blur-sm"

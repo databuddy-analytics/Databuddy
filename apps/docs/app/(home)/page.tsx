@@ -7,6 +7,7 @@ import { Description } from "@/components/landing/description";
 import FAQ from "@/components/landing/faq";
 import { GridCards } from "@/components/landing/grid-cards";
 import Hero from "@/components/landing/hero";
+import { MidPageCta } from "@/components/landing/mid-page-cta";
 import Section from "@/components/landing/section";
 import Testimonials from "@/components/landing/testimonials";
 import { TrustedBy } from "@/components/landing/trusted-by";
@@ -73,6 +74,15 @@ export default async function HomePage() {
 				<Section className="border-border border-b py-16 lg:py-24" id="cards">
 					<div className={container}>
 						<GridCards />
+					</div>
+				</Section>
+
+				<Section
+					className="border-border border-b"
+					id="mid-cta"
+				>
+					<div className={container}>
+						<MidPageCta />
 					</div>
 				</Section>
 

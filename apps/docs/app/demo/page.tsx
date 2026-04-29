@@ -39,7 +39,7 @@ export default async function DemoPage() {
 
 					<Link
 						className="group flex items-center gap-2 rounded border border-border bg-primary/90 px-4 py-2 font-medium text-primary-foreground text-sm shadow-lg backdrop-blur-sm hover:bg-primary"
-						href="https://app.databuddy.cc/login"
+						href="https://app.databuddy.cc/register"
 						rel="noopener"
 						target="_blank"
 					>

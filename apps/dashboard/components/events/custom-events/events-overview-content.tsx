@@ -124,23 +124,13 @@ export function EventsOverviewContent({
 						perEventData={overview.perEventChartData.data}
 					/>
 
-					<Card>
-						<Card.Header>
-							<Card.Title>Property Summary</Card.Title>
-							<Card.Description>
-								Aggregatable properties by event type
-							</Card.Description>
-						</Card.Header>
-						<Card.Content>
-							<PropertySummary
-								events={overview.classifiedEvents}
-								getEventHref={getEventHref}
-								isFetching={query.isFetching}
-								isLoading={isPageLoading || query.isPropertiesLoading}
-								onPropertyValueSelect={onPropertyValueSelect}
-							/>
-						</Card.Content>
-					</Card>
+					<PropertySummary
+						events={overview.classifiedEvents}
+						getEventHref={getEventHref}
+						isFetching={query.isFetching}
+						isLoading={isPageLoading || query.isPropertiesLoading}
+						onPropertyValueSelect={onPropertyValueSelect}
+					/>
 				</>
 			)}
 		</div>
@@ -152,13 +142,13 @@ function EventsOverviewSkeleton({ metricCount }: { metricCount: number }) {
 		<div className="space-y-3 sm:space-y-4">
 			<div
 				className={cn(
-					"grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4",
+					"grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2",
 					metricCount >= 5 ? "lg:grid-cols-5" : "lg:grid-cols-4"
 				)}
 			>
 				{Array.from({ length: metricCount }).map((_, index) => (
 					<div
-						className="rounded border border-border/60 bg-card p-3 sm:p-4"
+						className="rounded-lg border border-border/60 bg-card p-3 sm:p-4"
 						key={`stat-${index}`}
 					>
 						<div className="flex items-center justify-between">

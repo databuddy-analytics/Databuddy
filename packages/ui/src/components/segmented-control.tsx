@@ -37,8 +37,8 @@ function SegmentedControl<T extends string>({
 	return (
 		<div
 			className={cn(
-				"inline-flex items-center rounded-md bg-secondary p-1",
-				size === "sm" ? "gap-0.5" : "gap-1",
+				"inline-flex items-center rounded-md bg-secondary",
+				size === "sm" ? "h-8 gap-0.5 p-0.5" : "gap-1 p-1",
 				disabled && "pointer-events-none opacity-50",
 				className
 			)}
@@ -54,7 +54,7 @@ function SegmentedControl<T extends string>({
 							"relative flex min-w-0 cursor-pointer items-center justify-center rounded-md font-medium",
 							"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
 							"focus-within:ring-2 focus-within:ring-ring/60",
-							size === "sm" ? "h-5 px-2 text-[11px]" : "h-6 px-3 text-xs",
+							size === "sm" ? "h-6 px-2 text-[11px]" : "h-6 px-3 text-xs",
 							isSelected
 								? variant === "pill"
 									? "bg-primary text-primary-foreground shadow-sm"

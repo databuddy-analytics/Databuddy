@@ -1,10 +1,9 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { getOperatorLabel } from "@/hooks/use-filters";
+import { getFieldLabel, getOperatorLabel } from "@/hooks/use-filters";
 import type { SavedFilter } from "@/hooks/use-saved-filters";
 import {
 	BookmarkIcon,
@@ -25,10 +24,6 @@ interface SavedFiltersMenuProps {
 	onDuplicateFilter: (id: string) => void;
 	onEditFilter: (id: string) => void;
 	savedFilters: SavedFilter[];
-}
-
-function getFieldLabel(field: string): string {
-	return filterOptions.find((o) => o.value === field)?.label ?? field;
 }
 
 function filtersMatch(

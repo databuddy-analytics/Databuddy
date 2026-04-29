@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { ComponentProps } from "react";
-import { DotMatrixLoader } from "./dotmatrix-loader";
+import { CheckCircleIcon, CircleNotchIcon, XCircleIcon } from "@databuddy/ui/icons";
 
 export type ToolStatus = "running" | "complete" | "error";
 
@@ -50,20 +50,13 @@ export const Tool = ({
 	return (
 		<Collapsible className={cn("group/tool", className)} {...props}>
 			<CollapsibleTrigger className="flex w-full items-center gap-2 py-0.5 text-left text-muted-foreground text-xs hover:text-foreground">
-				<DotMatrixLoader
-					animated={isRunning}
-					className={cn(
-						isRunning && "text-primary",
-						isError && "text-destructive",
-						!(isRunning || isError) && "text-muted-foreground/45"
-					)}
-					decorative={!isRunning}
-					dotSize={2}
-					label={`${title} ${isRunning ? "running" : status}`}
-					seed={title}
-					size={14}
-					speed={1.55}
-				/>
+				{isRunning ? (
+					<CircleNotchIcon className="size-3.5 shrink-0 animate-spin text-primary" />
+				) : isError ? (
+					<XCircleIcon className="size-3.5 shrink-0 text-destructive" />
+				) : (
+					<CheckCircleIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+				)}
 				<span
 					className={cn(
 						"truncate",

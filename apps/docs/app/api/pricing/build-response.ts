@@ -5,7 +5,7 @@ import {
 } from "@databuddy/shared/types/features";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 
-const APP_SIGNUP = "https://app.databuddy.cc/login";
+const APP_SIGNUP = "https://app.databuddy.cc/register";
 
 function toIncludedUsage(usage: number | "inf"): number | "unlimited" {
 	if (usage === "inf") {

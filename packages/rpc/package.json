@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "test": "bun test src/services/uptime-lifecycle.test.ts src/services/uptime-scheduler.test.ts src/services/uptime-scheduler.integration.test.ts"
+    "test": "bun test src/services/uptime-lifecycle.test.ts src/services/uptime-scheduler.test.ts",
+    "test:integration": "bun test src/services/uptime-scheduler.integration.test.ts"
   },
   "exports": {
     ".": "./src/index.ts",

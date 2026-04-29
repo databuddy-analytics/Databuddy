@@ -40,15 +40,16 @@ export default function PricingPage() {
 		(bestPlan ? bestPlan.priceMonthly : 0) + estimatedOverage;
 
 	return (
-		<div className="px-4 pt-10 sm:px-6 lg:px-8">
+		<div className="px-4 pt-20 sm:px-6 sm:pt-24 lg:px-8 lg:pt-32">
 			<div className="mx-auto w-full max-w-7xl">
 				<header className="mb-8 text-center sm:mb-10">
 					<h1 className="mb-2 font-bold text-3xl tracking-tight sm:text-4xl">
-						One price. Every feature.
+						Every feature, every plan.
 					</h1>
 					<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base">
-						Analytics, errors, vitals, and flags - all included. Simple plans,
-						fair tiered overage, and you only pay for what you use.
+						Analytics, errors, vitals, and flags included at every tier. Pick a
+						plan based on volume, not features. Fair tiered overage, and you
+						only pay for what you use.
 					</p>
 				</header>
 
@@ -66,9 +67,9 @@ export default function PricingPage() {
 				/>
 
 				<PricingFaq />
-
-				<Footer />
 			</div>
+
+			<Footer />
 		</div>
 	);
 }

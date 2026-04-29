@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
 import { StructuredData } from "@/components/structured-data";
 import { ManifestoChapter } from "./manifesto-chapter";
 import { manifestoSections } from "./manifesto-data";
@@ -37,7 +36,6 @@ export default function ManifestoPage() {
 					url,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
 
 			<Section className="overflow-hidden" customPaddings id="manifesto-hero">
 				<ManifestoHero />

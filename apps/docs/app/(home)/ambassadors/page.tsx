@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { StructuredData } from "@/components/structured-data";
 import AmbassadorForm from "./ambassador-form";
 import AmbassadorHero from "./ambassador-hero";
@@ -38,10 +38,7 @@ export default function AmbassadorsPage() {
 					url,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			{/* Hero Section */}
-			<Section className="overflow-hidden" customPaddings id="ambassador-hero">
+			<Section className="overflow-hidden" id="ambassador-hero">
 				<AmbassadorHero />
 			</Section>
 

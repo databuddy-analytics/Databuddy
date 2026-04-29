@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
 import { StructuredData } from "@/components/structured-data";
 import OssForm from "./oss-form";
 
@@ -30,9 +29,8 @@ export default function OssPage() {
 	return (
 		<div className="overflow-hidden">
 			<StructuredData page={{ title, description, url }} />
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
 
-			<Section className="overflow-hidden" customPaddings id="oss">
+			<Section className="overflow-hidden" id="oss">
 				<div className="mx-auto w-full max-w-xl px-4 pt-20 pb-16 sm:px-6 sm:pt-24 sm:pb-20">
 					<div className="mb-6 inline-flex items-center gap-2 rounded-full border border-border bg-card/40 px-3 py-1 font-medium text-muted-foreground text-xs backdrop-blur-sm">
 						<span className="size-1.5 rounded-full bg-primary" />

@@ -820,7 +820,7 @@ export function WebsiteOverviewTab({
 	return (
 		<div className="space-y-3 sm:space-y-4">
 			<EventLimitIndicator />
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
+			<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-5">
 				{[
 					{
 						id: "pageviews-chart",

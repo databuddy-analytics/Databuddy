@@ -2,7 +2,6 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
 import { competitors } from "@/lib/comparison-config";
 
 export default function NotFound() {
@@ -10,7 +9,6 @@ export default function NotFound() {
 
 	return (
 		<div className="overflow-hidden">
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
 
 			<Section className="overflow-hidden" customPaddings id="not-found-hero">
 				<section className="relative w-full pt-24 pb-24 sm:pt-32 sm:pb-32">
@@ -55,7 +53,7 @@ export default function NotFound() {
 								</Link>
 								<SciFiButton asChild>
 									<Link
-										href="https://app.databuddy.cc/login"
+										href="https://app.databuddy.cc/register"
 										rel="noopener noreferrer"
 										target="_blank"
 									>

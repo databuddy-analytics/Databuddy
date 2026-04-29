@@ -74,6 +74,6 @@ Custom contracts for volume, compliance, onboarding, and support. Use [databuddy
 
 ## Links
 
-- Sign up: [app.databuddy.cc/login](https://app.databuddy.cc/login)
+- Sign up: [app.databuddy.cc/register](https://app.databuddy.cc/register)
 - Website: [databuddy.cc/pricing](https://www.databuddy.cc/pricing)
 - JSON API: [databuddy.cc/api/pricing](https://www.databuddy.cc/api/pricing)

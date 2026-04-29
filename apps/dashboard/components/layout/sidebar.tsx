@@ -471,7 +471,7 @@ export function Sidebar() {
 			<SidebarPanel>
 				<OrganizationSelector collapsed={collapsed} />
 
-				<ScrollArea className="flex-1" key={navContext}>
+				<ScrollArea className="min-h-0 flex-1" key={navContext}>
 					<div className={cn("flex flex-col", slideClass)}>
 						{topGroups.map((group, i) => (
 							<NavGroup

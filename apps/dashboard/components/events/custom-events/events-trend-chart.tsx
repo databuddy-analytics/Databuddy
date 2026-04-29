@@ -392,35 +392,55 @@ export function EventsTrendChart({
 
 	if (isLoading) {
 		return (
-			<Chart>
-				<Chart.Header description="Loading event trends" title="Events Trend" />
-				<Chart.Plot className="p-3 sm:p-4">
-					<div className="h-[260px] w-full animate-pulse rounded bg-muted" />
-				</Chart.Plot>
-			</Chart>
+			<div className="rounded-xl bg-secondary p-1.5">
+				<Chart className="overflow-hidden rounded-lg">
+					<Chart.Header
+						className="border-sidebar-border/60 bg-sidebar"
+						descriptionClassName="text-sidebar-foreground/70"
+						titleClassName="font-semibold text-base text-sidebar-foreground"
+						description="Loading event trends"
+						title="Events Trend"
+					/>
+					<Chart.Plot className="p-3 sm:p-4">
+						<div className="h-[260px] w-full animate-pulse rounded bg-muted" />
+					</Chart.Plot>
+				</Chart>
+			</div>
 		);
 	}
 
 	if (!chartData.length) {
 		return (
-			<Chart>
-				<Chart.Header description="No data available" title="Events Trend" />
-				<Chart.Plot className="p-4">
-					<TableEmptyState
-						description="Event trends will appear here when events are tracked."
-						icon={<LightningIcon className="size-6 text-muted-foreground" />}
-						title="No event trend data"
+			<div className="rounded-xl bg-secondary p-1.5">
+				<Chart className="overflow-hidden rounded-lg">
+					<Chart.Header
+						className="border-sidebar-border/60 bg-sidebar"
+						descriptionClassName="text-sidebar-foreground/70"
+						titleClassName="font-semibold text-base text-sidebar-foreground"
+						description="No data available"
+						title="Events Trend"
 					/>
-				</Chart.Plot>
-			</Chart>
+					<Chart.Plot className="p-4">
+						<TableEmptyState
+							description="Event trends will appear here when events are tracked."
+							icon={<LightningIcon className="size-6 text-muted-foreground" />}
+							title="No event trend data"
+						/>
+					</Chart.Plot>
+				</Chart>
+			</div>
 		);
 	}
 
 	const useBar = isByEvent && chartType === "bar";
 
 	return (
-		<Chart>
+		<div className="rounded-xl bg-secondary p-1.5">
+		<Chart className="overflow-hidden rounded-lg border-sidebar-border">
 			<Chart.Header
+				className="border-sidebar-border/60 bg-sidebar"
+				descriptionClassName="text-sidebar-foreground/70"
+				titleClassName="font-semibold text-base text-sidebar-foreground"
 				description={
 					isByEvent
 						? "Events broken down by type"
@@ -659,5 +679,6 @@ export function EventsTrendChart({
 				}
 			`}</style>
 		</Chart>
+		</div>
 	);
 }

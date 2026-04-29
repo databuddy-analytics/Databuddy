@@ -16,14 +16,14 @@ import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
 
 export const metadata: Metadata = {
-	title: "Error Tracking | Databuddy",
+	title: "Error Tracking",
 	description:
 		"Catch, group, and fix errors before your users notice. Stack traces, user impact, release tracking, and instant alerts - built into your analytics stack.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/errors",
 	},
 	openGraph: {
-		title: "Error Tracking | Databuddy",
+		title: "Error Tracking",
 		description:
 			"Catch, group, and fix errors before your users notice. Stack traces, user impact, release tracking, and instant alerts - built into your analytics stack.",
 		url: "https://www.databuddy.cc/errors",
@@ -67,7 +67,7 @@ export default function ErrorsPage() {
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Error Tracking | Databuddy",
+					title: "Error Tracking",
 					description:
 						"Catch, group, and fix errors before your users notice. Stack traces, user impact, release tracking, and instant alerts.",
 					url: "https://www.databuddy.cc/errors",
@@ -88,38 +88,38 @@ export default function ErrorsPage() {
 							title="Prioritize by"
 							titleMuted="real impact."
 						/>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Find the one page generating all the errors.
+								</h3>
+								<ErrorPerPageBreakdownDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Know about errors before your users report them.
+								</h3>
+								<ErrorAutoCaptureAlertsStackDemo />
+							</GridCell>
+						</TwoColumnGrid>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									An error hitting 500 users matters more than one hitting 1 user
+									500 times.
+								</h3>
+								<ErrorImpactTableArtifact />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									See when the error stops hitting users.
+								</h3>
+								<ErrorFrequencyChartDemo />
+							</GridCell>
+						</TwoColumnGrid>
 					</div>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Find the one page generating all the errors.
-							</h3>
-							<ErrorPerPageBreakdownDemo />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Know about errors before your users report them.
-							</h3>
-							<ErrorAutoCaptureAlertsStackDemo />
-						</GridCell>
-					</TwoColumnGrid>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								An error hitting 500 users matters more than one hitting 1 user
-								500 times.
-							</h3>
-							<ErrorImpactTableArtifact />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								See when the error stops hitting users.
-							</h3>
-							<ErrorFrequencyChartDemo />
-						</GridCell>
-					</TwoColumnGrid>
 				</Section>
 
 				<Section className="border-border border-b" id="faq">

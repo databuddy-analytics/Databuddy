@@ -64,7 +64,7 @@ export function AiPricingSummary({ plans }: { plans: RawPlan[] }) {
 		"",
 		summary,
 		"",
-		"Sign up: https://app.databuddy.cc/login",
+		"Sign up: https://app.databuddy.cc/register",
 	].join("\n");
 
 	return (

@@ -45,7 +45,7 @@ export function Footer() {
 								className="bg-white text-black hover:bg-white/90"
 								size="sm"
 							>
-								<a href="https://app.databuddy.cc/login">Start free</a>
+								<a href="https://app.databuddy.cc/register">Start free</a>
 							</Button>
 							<Button
 								asChild

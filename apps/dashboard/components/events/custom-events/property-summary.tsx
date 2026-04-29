@@ -109,7 +109,7 @@ export function PropertySummary({
 			</div>
 
 			{activeEvent.summaryProperties.length > 0 ? (
-				<div className="grid min-h-64 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+				<div className="grid min-h-64 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 xl:grid-cols-3">
 					{activeEvent.summaryProperties.map((property) => (
 						<PropertyCard
 							eventName={activeEvent.name}
@@ -174,7 +174,7 @@ function PropertySummarySkeleton() {
 				</div>
 				<div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
 			</div>
-			<div className="grid min-h-64 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+			<div className="grid min-h-64 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 xl:grid-cols-3">
 				{[1, 2, 3].map((item) => (
 					<div
 						className="overflow-hidden rounded-lg border border-border/60 bg-card"

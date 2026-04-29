@@ -6,6 +6,8 @@ import {
 	FlagIcon,
 	GaugeIcon,
 	HeartbeatIcon,
+	LinkIcon,
+	RobotIcon,
 } from "@databuddy/ui/icons";
 import Link from "next/link";
 import type { ComponentType, SVGProps } from "react";
@@ -34,7 +36,7 @@ const FEATURE_ITEMS: FeatureItem[] = [
 	},
 	{
 		title: "Web Vitals",
-		description: "LCP, FID, CLS scoring and monitoring",
+		description: "LCP, INP, CLS scoring and monitoring",
 		href: "/web-vitals",
 		icon: GaugeIcon,
 	},
@@ -43,6 +45,18 @@ const FEATURE_ITEMS: FeatureItem[] = [
 		description: "Safe rollouts with user targeting",
 		href: "/feature-flags",
 		icon: FlagIcon,
+	},
+	{
+		title: "Short Links",
+		description: "Branded links with click analytics",
+		href: "/links",
+		icon: LinkIcon,
+	},
+	{
+		title: "Databunny",
+		description: "AI agent, insights, and anomaly detection",
+		href: "/databunny",
+		icon: RobotIcon,
 	},
 ];
 
@@ -128,8 +142,8 @@ export function NavbarFeaturesMenu({
 				ref={panelRef}
 				role="menu"
 			>
-				<div className="w-[34rem] rounded-xl border border-border bg-secondary p-1.5 shadow-2xl">
-					<div className="grid grid-cols-2 gap-1.5">
+				<div className="w-[42rem] rounded-xl border border-border bg-secondary p-1.5 shadow-2xl">
+					<div className="grid grid-cols-3 gap-1.5">
 						{FEATURE_ITEMS.map((item) => (
 							<Link
 								className="group flex items-start gap-3 rounded-lg bg-background p-3.5 transition-colors hover:bg-muted"
@@ -197,7 +211,7 @@ export function NavbarFeaturesMobileMenu({
 			<div
 				className={cn(
 					"overflow-hidden transition-all duration-200 ease-out",
-					expanded ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+					expanded ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
 				)}
 			>
 				<div className="space-y-0.5 py-1 pl-3">

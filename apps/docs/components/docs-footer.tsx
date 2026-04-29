@@ -14,8 +14,8 @@ export function DocsFooter() {
 
 		const trackingParams = getTrackingParams();
 		const url = trackingParams
-			? `https://app.databuddy.cc/login?${trackingParams}`
-			: "https://app.databuddy.cc/login";
+			? `https://app.databuddy.cc/register?${trackingParams}`
+			: "https://app.databuddy.cc/register";
 
 		window.open(url, "_blank", "noopener,noreferrer");
 	};
@@ -98,7 +98,7 @@ export function DocsFooter() {
 							<li>
 								<Link
 									className="text-muted-foreground hover:text-foreground"
-									href="https://app.databuddy.cc/login"
+									href="https://app.databuddy.cc/register"
 									rel="noopener"
 									target="_blank"
 								>

@@ -103,7 +103,7 @@ export default function Hero({
 
 					<div className="flex items-center gap-3 pt-2">
 						<SciFiButton asChild className="px-6 py-5">
-							<a href="https://app.databuddy.cc/login">
+							<a href="https://app.databuddy.cc/register">
 								See your analytics in 5 minutes
 							</a>
 						</SciFiButton>
@@ -112,17 +112,21 @@ export default function Hero({
 							<Link href="/demo">Live demo</Link>
 						</SciFiButton>
 					</div>
+
+					<p className="z-10 text-muted-foreground/50 text-xs">
+						Free up to 10,000 events/mo. No credit card required.
+					</p>
 				</div>
 
 				<div className="z-10 mt-5 space-y-0">
-					<div className="flex justify-center">
+					<div className="flex justify-center overflow-x-auto">
 						<div className="relative flex items-center gap-0 rounded-t-lg border-border border-b bg-background">
 							{tabs.map((tab) => {
 								const isActive = activeTab === tab.id;
 								return (
 									<button
 										className={cn(
-											"relative cursor-pointer px-4 py-3 font-medium text-sm transition-colors duration-200 sm:px-6 sm:py-3.5 sm:text-base",
+											"relative cursor-pointer whitespace-nowrap px-2.5 py-2.5 font-medium text-xs transition-colors duration-200 sm:px-6 sm:py-3.5 sm:text-base",
 											isActive
 												? "text-foreground"
 												: "text-muted-foreground hover:text-foreground"
@@ -148,7 +152,7 @@ export default function Hero({
 					<div className="relative">
 						<a
 							className="group/bunny absolute right-0 bottom-full z-30 mb-0 hidden w-40 max-w-[min(100%,10rem)] md:right-0 lg:right-20 lg:block"
-							href="https://app.databuddy.cc/login"
+							href="https://app.databuddy.cc/register"
 						>
 							<Image
 								alt="Databunny"

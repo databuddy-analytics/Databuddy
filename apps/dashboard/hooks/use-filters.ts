@@ -1,3 +1,4 @@
+import { filterOptions } from "@databuddy/shared/lists/filters";
 import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
 import { useCallback } from "react";
 
@@ -32,6 +33,14 @@ export const operatorLabels: Record<string, string> = {
 
 export function getOperatorLabel(operator: string): string {
 	return operatorLabels[operator] ?? operator;
+}
+
+export function getFieldLabel(field: string): string {
+	return filterOptions.find((o) => o.value === field)?.label ?? field;
+}
+
+export function formatFilterValue(value: DynamicQueryFilter["value"]): string {
+	return Array.isArray(value) ? value.join(", ") : String(value);
 }
 
 interface BaseFilterType {
