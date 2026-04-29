@@ -12,6 +12,7 @@
     "@databuddy/rpc": "workspace:*",
     "@databuddy/ui": "workspace:*",
     "@orpc/client": "^1.14.0",
+    "@vercel/analytics": "^1.4.1",
     "next": "catalog:",
     "next-themes": "^0.4.6",
     "react": "catalog:",

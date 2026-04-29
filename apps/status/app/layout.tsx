@@ -1,5 +1,6 @@
 import "./globals.css";
 
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { DATABUDDY_UPTIME_URL, STATUS_URL } from "@/lib/status-url";
@@ -107,6 +108,7 @@ export default function RootLayout({
 		>
 			<body className="min-h-dvh bg-background text-foreground antialiased">
 				{children}
+				<Analytics />
 			</body>
 		</html>
 	);
