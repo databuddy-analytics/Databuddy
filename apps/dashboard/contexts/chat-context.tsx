@@ -26,6 +26,7 @@ interface PendingQueueValue {
 interface ChatLoadingValue {
 	isEmpty: boolean;
 	isRestoring: boolean;
+	persistedUserMessageIds: ReadonlySet<string>;
 }
 
 const ChatContext = createContext<ChatApi | null>(null);
@@ -36,6 +37,7 @@ const PendingQueueContext = createContext<PendingQueueValue>({
 const ChatLoadingContext = createContext<ChatLoadingValue>({
 	isRestoring: false,
 	isEmpty: true,
+	persistedUserMessageIds: new Set(),
 });
 
 const isBusy = (c: ChatApi) =>
@@ -70,14 +72,26 @@ export function ChatProvider({
 	chatRef.current = chat;
 
 	const [hasRestored, setHasRestored] = useState(false);
+	const [persistedUserMessageIds, setPersistedUserMessageIds] = useState<
+		ReadonlySet<string>
+	>(() => new Set());
 
 	useEffect(() => {
 		if (hasRestored || !isFetched) {
 			return;
 		}
+
+		const ids = new Set<string>();
 		if (storedChat?.messages && storedChat.messages.length > 0) {
-			chatRef.current.setMessages(storedChat.messages as UIMessage[]);
+			const persisted = storedChat.messages as UIMessage[];
+			for (const [idx, msg] of persisted.entries()) {
+				if (msg.role === "user") {
+					ids.add(msg.id || `msg-${idx}`);
+				}
+			}
+			chatRef.current.setMessages(persisted);
 		}
+		setPersistedUserMessageIds(ids);
 		setHasRestored(true);
 	}, [hasRestored, isFetched, storedChat]);
 
@@ -137,6 +151,9 @@ export function ChatProvider({
 		queryClient.invalidateQueries({
 			queryKey: orpc.agentChats.list.key({ input: { websiteId } }),
 		});
+		queryClient.invalidateQueries({
+			queryKey: orpc.agentChats.get.key({ input: { id: chatId } }),
+		});
 
 		const [next, ...rest] = pendingRef.current;
 		if (next === undefined) {
@@ -163,8 +180,9 @@ export function ChatProvider({
 			isEmpty:
 				isFetched &&
 				(!storedChat?.messages || storedChat.messages.length === 0),
+			persistedUserMessageIds,
 		}),
-		[hasRestored, isFetched, storedChat]
+		[hasRestored, isFetched, storedChat, persistedUserMessageIds]
 	);
 
 	return (

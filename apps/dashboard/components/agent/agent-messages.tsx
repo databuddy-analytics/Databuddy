@@ -2,7 +2,7 @@
 
 import type { UIMessage } from "ai";
 import { motion } from "motion/react";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AIComponent } from "@/components/ai-elements/ai-component";
 import {
 	Message,
@@ -26,7 +26,7 @@ import {
 	ToolOutput,
 	type ToolStatus,
 } from "@/components/ai-elements/tool";
-import { useChat } from "@/contexts/chat-context";
+import { useChat, useChatLoading } from "@/contexts/chat-context";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { parseContentSegments } from "@/lib/ai-components";
 import { formatToolLabel } from "@/lib/tool-display";
@@ -338,6 +338,8 @@ function AssistantActions({
 export function AgentMessages() {
 	const { status, messages, error, regenerate, clearError, sendMessage } =
 		useChat();
+	const { persistedUserMessageIds } = useChatLoading();
+
 	const hasError = status === "error";
 	const isStreaming = status === "streaming" || status === "submitted";
 	const lastMessage = messages.at(-1);
@@ -366,6 +368,8 @@ export function AgentMessages() {
 				const showActions = isAssistant && !(isLastMessage && isStreaming);
 				const groupedParts = collectToolGroups(message.parts);
 				const messageKey = message.id || `msg-${index}`;
+				const shouldAnimateUserBubble =
+					message.role === "user" && !persistedUserMessageIds.has(messageKey);
 
 				return (
 					<Message
@@ -374,7 +378,7 @@ export function AgentMessages() {
 						key={messageKey}
 					>
 						{message.role === "user" ? (
-							<AnimatedUserBubble>
+							<UserMessageBubble animate={shouldAnimateUserBubble}>
 								<MessageContent className={cn(isAssistant && "w-full")}>
 									{groupedParts.map((part, partIndex) =>
 										renderMessagePart(
@@ -387,7 +391,7 @@ export function AgentMessages() {
 										)
 									)}
 								</MessageContent>
-							</AnimatedUserBubble>
+							</UserMessageBubble>
 						) : (
 							<MessageContent className={cn(isAssistant && "w-full")}>
 								{groupedParts.map((part, partIndex) =>
@@ -482,4 +486,18 @@ function AnimatedUserBubble({ children }: { children: ReactNode }) {
 			{children}
 		</motion.div>
 	);
+}
+
+function UserMessageBubble({
+	animate,
+	children,
+}: {
+	animate: boolean;
+	children: ReactNode;
+}) {
+	if (animate) {
+		return <AnimatedUserBubble>{children}</AnimatedUserBubble>;
+	}
+
+	return <div className="origin-bottom-right">{children}</div>;
 }

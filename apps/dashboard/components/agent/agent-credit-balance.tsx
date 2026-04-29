@@ -98,7 +98,7 @@ export function AgentCreditBalance({
 			>
 				<Button
 					className={cn(
-						"gap-1 border px-2 text-xs",
+						"gap-1.5 border px-2 text-xs",
 						variant === "compact" && "px-1.5 text-[11px]",
 						isEmpty &&
 							"border-destructive/40 bg-destructive/5 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive",
