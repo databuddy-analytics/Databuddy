@@ -18,10 +18,13 @@ import {
 	useUsageFeature,
 } from "@/components/providers/billing-provider";
 import {
+	AGENT_TIERS,
 	AGENT_THINKING_LEVELS,
+	type AgentTier,
 	type AgentThinking,
 	agentCreditShakeNonceAtom,
 	agentInputAtom,
+	agentTierAtom,
 	agentThinkingAtom,
 } from "./agent-atoms";
 import { AgentCommandMenu } from "./agent-command-menu";
@@ -33,13 +36,16 @@ import {
 import { useEnterSubmit } from "./hooks/use-enter-submit";
 import {
 	BrainIcon,
+	GaugeIcon,
+	LightningIcon,
 	PaperPlaneRightIcon,
 	PaperclipIcon,
 	StopIcon,
 	XIcon,
 } from "@phosphor-icons/react/dist/ssr";
-import { ClockCountdownIcon } from "@databuddy/ui/icons";
-import { Button, Textarea, Tooltip } from "@databuddy/ui";
+import { CaretDownIcon, ClockCountdownIcon } from "@databuddy/ui/icons";
+import { DropdownMenu } from "@databuddy/ui/client";
+import { Button, Skeleton, Textarea, Tooltip } from "@databuddy/ui";
 
 export function AgentInput() {
 	const { sendMessage, stop, status } = useChat();
@@ -249,6 +255,7 @@ export function AgentInput() {
 										<PaperclipIcon className="size-3.5" />
 									</Button>
 									<ThinkingControl />
+									<TierControl />
 							</div>
 
 							<div className="flex shrink-0 items-center gap-3 ml-auto">
@@ -305,6 +312,34 @@ const THINKING_DESCRIPTIONS: Record<AgentThinking, string> = {
 	medium: "Deeper analysis",
 	high: "Extended reasoning",
 };
+
+const TIER_LABELS: Record<AgentTier, string> = {
+	quick: "Quick",
+	balanced: "Balanced",
+	deep: "Deep",
+};
+
+const TIER_DESCRIPTIONS: Record<AgentTier, string> = {
+	quick: "Faster responses",
+	balanced: "Best default",
+	deep: "Most thorough",
+};
+
+function TierIcon({
+	tier,
+	className,
+}: {
+	tier: AgentTier;
+	className?: string;
+}) {
+	if (tier === "quick") {
+		return <LightningIcon className={className} weight="fill" />;
+	}
+	if (tier === "deep") {
+		return <BrainIcon className={className} weight="duotone" />;
+	}
+	return <GaugeIcon className={className} weight="duotone" />;
+}
 
 const THINKING_LABEL_TRANSITION = {
 	duration: 0.15,
@@ -376,6 +411,77 @@ const ThinkingControl = memo(function ThinkingControl({
 				)}
 			</Button>
 		</Tooltip>
+	);
+});
+
+const TierControl = memo(function TierControl() {
+	const [tier, setTier] = useAtom(agentTierAtom);
+	const [isTierHydrated, setIsTierHydrated] = useState(false);
+	const [tierMenuOpen, setTierMenuOpen] = useState(false);
+
+	useEffect(() => {
+		setIsTierHydrated(true);
+	}, []);
+
+	if (!isTierHydrated) {
+		return <Skeleton className="h-7 w-24 rounded" />;
+	}
+
+	return (
+		<DropdownMenu onOpenChange={setTierMenuOpen} open={tierMenuOpen}>
+			<Tooltip
+				content={
+					<div className="flex flex-col gap-0.5">
+						<span className="font-medium">
+							Model tier · {TIER_LABELS[tier]}
+						</span>
+						<span className="text-muted-foreground">
+							{TIER_DESCRIPTIONS[tier]}
+						</span>
+					</div>
+				}
+				delay={250}
+				disabled={tierMenuOpen}
+				side="top"
+			>
+				<DropdownMenu.Trigger
+					aria-label={`Model tier: ${TIER_LABELS[tier]}`}
+					className="inline-flex h-7 items-center gap-1 rounded border border-transparent bg-secondary px-2 font-medium text-xs text-foreground transition-all hover:border-border/60 hover:bg-interactive-hover"
+				>
+					<TierIcon className="size-3.5" tier={tier} />
+					{TIER_LABELS[tier]}
+					<CaretDownIcon
+						className={cn(
+							"size-3 -mt-px transition-transform duration-150 ease-out motion-reduce:transition-none",
+							tierMenuOpen && "rotate-180"
+						)}
+						weight="fill"
+					/>
+				</DropdownMenu.Trigger>
+			</Tooltip>
+			<DropdownMenu.Content align="start" className="w-52">
+				{AGENT_TIERS.map((optionTier) => (
+					<DropdownMenu.Item
+						key={optionTier}
+						onClick={() => setTier(optionTier)}
+						className="h-10"
+					>
+						<div className="flex min-w-0 items-start  gap-2">
+							<TierIcon className="mt-0.5 size-3.5 shrink-0" tier={optionTier} />
+							<div className="flex min-w-0 flex-col">
+							<span className="font-medium text-xs">
+								{TIER_LABELS[optionTier]}
+								{tier === optionTier ? " (Current)" : ""}
+							</span>
+							<span className="text-muted-foreground text-[11px]">
+								{TIER_DESCRIPTIONS[optionTier]}
+							</span>
+							</div>
+						</div>
+					</DropdownMenu.Item>
+				))}
+			</DropdownMenu.Content>
+		</DropdownMenu>
 	);
 });
 
