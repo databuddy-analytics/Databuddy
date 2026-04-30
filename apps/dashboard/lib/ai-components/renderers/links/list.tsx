@@ -58,7 +58,7 @@ function formatUrl(url: string, maxLen = 40): string {
 	}
 }
 
-function ExpirationBadge({ date }: { date: string | null }) {
+function ExpirationBadge({ date, className }: { date: string | null; className?: string }) {
 	if (!date) {
 		return null;
 	}
@@ -69,7 +69,7 @@ function ExpirationBadge({ date }: { date: string | null }) {
 
 	return (
 		<Badge
-			className="gap-1 text-[10px]"
+			className={cn("gap-1 text-[10px]", className)}
 			variant={isExpired ? "destructive" : isSoon ? "warning" : "muted"}
 		>
 			<ClockCountdownIcon className="size-3" weight="duotone" />
@@ -110,7 +110,7 @@ function LinkRow({
 		<div
 			className={cn(
 				"group/link-row flex w-full cursor-pointer gap-3 rounded-sm bg-muted/30 px-2 py-2.5 text-left transition-colors hover:bg-muted",
-				isExpired && "opacity-60"
+				isExpired && "opacity-60 pointer-events-none"
 			)}
 			onClick={onNavigate}
 			onKeyDown={(e) => {
@@ -129,7 +129,7 @@ function LinkRow({
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
 					<p className="truncate font-medium text-sm">{link.name}</p>
-					<ExpirationBadge date={link.expiresAt ?? null} />
+					<ExpirationBadge date={link.expiresAt ?? null} className="rounded py-px px-1.5" />
 				</div>
 				<div className="mt-1 flex items-center gap-2">
 					<button
