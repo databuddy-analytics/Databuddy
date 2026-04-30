@@ -3,7 +3,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { Chart } from "@/components/ui/composables/chart";
-import { Skeleton } from "@databuddy/ui";
 import {
 	chartAxisTickDefault,
 	chartAxisYWidthCompact,
@@ -13,13 +12,14 @@ import {
 	chartLegendPillLabelClassName,
 	chartLegendPillRowClassName,
 	chartSeriesColorAtIndex,
-	chartSurfaceClassName,
 	chartTooltipSingleShellClassName,
 } from "@/lib/chart-presentation";
 import { dayjs } from "@databuddy/ui";
 import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type { ChartComponentProps } from "../../types";
+import { ChartLineIcon } from "@databuddy/ui/icons";
+import { Badge, Card, Skeleton } from "@databuddy/ui";
 
 const {
 	Area,
@@ -42,6 +42,12 @@ export interface TimeSeriesProps extends ChartComponentProps {
 }
 
 const PLOT_HEIGHT = 200;
+const VARIANT_LABEL: Record<TimeSeriesProps["variant"], string> = {
+	line: "Line",
+	bar: "Bar",
+	area: "Area",
+	"stacked-bar": "Stacked",
+};
 
 const formatDateTick = (value: string) => {
 	const parsed = dayjs(value);
@@ -230,53 +236,58 @@ export function TimeSeriesRenderer({
 	};
 
 	return (
-		<div className={cn(chartSurfaceClassName, className)}>
-			<div className="dotted-bg bg-accent">
-				{isSkeleton ? (
-					<Skeleton className="h-[200px] w-full rounded-none" />
-				) : (
-					<ChartErrorBoundary fallbackClassName={`h-[${PLOT_HEIGHT}px] w-full`}>
-						<ResponsiveContainer height={PLOT_HEIGHT} width="100%">
-							{renderChart()}
-						</ResponsiveContainer>
-					</ChartErrorBoundary>
-				)}
-			</div>
-			<div className="flex items-center gap-2.5 border-t px-3 py-2">
-				{title && (
-					<p className="min-w-0 flex-1 truncate font-medium text-sm">{title}</p>
-				)}
-				<div className={chartLegendPillRowClassName}>
-					{series.map((key) => {
-						const color = chartSeriesColorAtIndex(series.indexOf(key));
-						const hidden = hiddenSeries.has(key);
-						return (
-							<button
-								className={cn(chartLegendPillClassName, hidden && "opacity-40")}
-								key={key}
-								onClick={() => toggleSeries(key)}
-								type="button"
-							>
-								<div
-									className={chartLegendPillDotClassName}
-									style={{
-										backgroundColor: hidden ? "var(--muted-foreground)" : color,
-									}}
-								/>
-								<span className={chartLegendPillLabelClassName}>{key}</span>
-							</button>
-						);
-					})}
+		<Card className={cn("gap-0 overflow-hidden border-0 bg-secondary p-1", className)}>
+			<div className="flex flex-col gap-1">
+				<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
+					<div className="flex size-6 items-center justify-center rounded bg-accent">
+						<ChartLineIcon
+							className="size-3.5 text-muted-foreground"
+							weight="duotone"
+						/>
+					</div>
+					<p className="min-w-0 flex-1 truncate font-medium text-sm">
+						{title ?? "Time Series"}
+					</p>
+					<div className={cn("ml-auto min-w-0 flex-1 flex-wrap", chartLegendPillRowClassName)}>
+							{series.map((key) => {
+								const color = chartSeriesColorAtIndex(series.indexOf(key));
+								const hidden = hiddenSeries.has(key);
+								return (
+									<button
+										className={cn("flex items-center gap-1.5 rounded-md bg-secondary px-2 py-1", hidden && "opacity-40")}
+										key={key}
+										onClick={() => toggleSeries(key)}
+										type="button"
+									>
+										<div
+											className={chartLegendPillDotClassName}
+											style={{
+												backgroundColor: hidden
+													? "var(--muted-foreground)"
+													: color,
+											}}
+										/>
+										<span className={chartLegendPillLabelClassName}>{key}</span>
+									</button>
+								);
+							})}
+						</div>
+				</div>
+
+				<div className="rounded-md bg-background px-3 py-3">
+					<div className="dotted-bg overflow-hidden rounded bg-accent/90">
+						{isSkeleton ? (
+							<Skeleton className="h-[200px] w-full rounded-none" />
+						) : (
+							<ChartErrorBoundary fallbackClassName={`h-[${PLOT_HEIGHT}px] w-full`}>
+								<ResponsiveContainer height={PLOT_HEIGHT} width="100%">
+									{renderChart()}
+								</ResponsiveContainer>
+							</ChartErrorBoundary>
+						)}
+					</div>
 				</div>
 			</div>
-			{streaming && !isSkeleton && (
-				<div className="h-0.5 w-full overflow-hidden">
-					<div
-						className="h-full w-1/3 animate-pulse rounded bg-primary/30"
-						style={{ animation: "pulse 1.5s ease-in-out infinite" }}
-					/>
-				</div>
-			)}
-		</div>
+		</Card>
 	);
 }
