@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
 import { connect } from "node:tls";
 import { db, eq } from "@databuddy/db";
 import { uptimeSchedules } from "@databuddy/db/schema";
 import { validateUrl } from "@databuddy/shared/ssrf-guard";
 import { UPTIME_ENV } from "./lib/env";
-import { extractHealth, isHealthExtractionEnabled } from "./json-parser";
-import { captureError, mergeWideEvent } from "./lib/tracing";
+import { extractHealth } from "./json-parser";
+import { captureError } from "./lib/tracing";
 import type { ActionResult, UptimeData } from "./types";
 import { MonitorStatus } from "./types";
 
@@ -50,19 +49,6 @@ export interface ScheduleData {
 	websiteId: string | null;
 }
 
-function mergeUptimeCheckMetrics(data: UptimeData): void {
-	mergeWideEvent({
-		monitor_status: data.status,
-		http_code: data.http_code,
-		total_ms: data.total_ms,
-		ttfb_ms: data.ttfb_ms,
-		probe_region: data.probe_region,
-		ssl_valid: data.ssl_valid === 1,
-		response_bytes: data.response_bytes,
-		redirect_count: data.redirect_count,
-	});
-}
-
 export async function lookupSchedule(
 	id: string
 ): Promise<ActionResult<ScheduleData>> {
@@ -82,15 +68,6 @@ export async function lookupSchedule(
 				error: `Schedule ${id} has invalid data (missing url)`,
 			};
 		}
-
-		mergeWideEvent({
-			db_schedule_loaded: true,
-			schedule_cache_bust: schedule.cacheBust,
-			schedule_timeout_ms: schedule.timeout ?? 0,
-			json_parsing_enabled: isHealthExtractionEnabled(
-				schedule.jsonParsingConfig
-			),
-		});
 
 		return {
 			success: true,
@@ -128,22 +105,20 @@ function normalizeUrl(url: string): string {
 	return `https://${url}`;
 }
 
-function buildHeaders(acceptEncoding: string): Record<string, string> {
-	return {
-		"User-Agent": USER_AGENT,
-		Accept:
-			"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-		"Accept-Language": "en-US,en;q=0.9",
-		"Accept-Encoding": acceptEncoding,
-		"Cache-Control": "no-cache",
-		DNT: "1",
-		"Sec-Fetch-Dest": "document",
-		"Sec-Fetch-Mode": "navigate",
-		"Sec-Fetch-Site": "none",
-		"Sec-Fetch-User": "?1",
-		"Upgrade-Insecure-Requests": "1",
-	};
-}
+const HEADERS: Record<string, string> = {
+	"User-Agent": USER_AGENT,
+	Accept:
+		"text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+	"Accept-Language": "en-US,en;q=0.9",
+	"Accept-Encoding": "gzip, deflate",
+	"Cache-Control": "no-cache",
+	DNT: "1",
+	"Sec-Fetch-Dest": "document",
+	"Sec-Fetch-Mode": "navigate",
+	"Sec-Fetch-Site": "none",
+	"Sec-Fetch-User": "?1",
+	"Upgrade-Insecure-Requests": "1",
+};
 
 function applyCacheBust(url: string): string {
 	const parsed = new URL(url);
@@ -151,20 +126,18 @@ function applyCacheBust(url: string): string {
 	return parsed.toString();
 }
 
-async function fetchWithRedirects(
-	startUrl: string,
+async function pingWebsite(
+	url: string,
 	timeout: number,
-	acceptEncoding: string,
 	cacheBust: boolean
 ): Promise<FetchSuccess | FetchFailure> {
 	const abort = new AbortController();
 	const timer = setTimeout(() => abort.abort(), timeout);
 	const start = performance.now();
-	const headers = buildHeaders(acceptEncoding);
 
 	try {
 		let redirects = 0;
-		let current = cacheBust ? applyCacheBust(startUrl) : startUrl;
+		let current = cacheBust ? applyCacheBust(url) : url;
 		let ttfb = 0;
 
 		while (redirects < MAX_REDIRECTS) {
@@ -183,7 +156,7 @@ async function fetchWithRedirects(
 				method: "GET",
 				signal: abort.signal,
 				redirect: "manual",
-				headers,
+				headers: HEADERS,
 			});
 
 			if (ttfb === 0) {
@@ -202,16 +175,9 @@ async function fetchWithRedirects(
 
 			const contentType = res.headers.get("content-type");
 			const isJson = contentType?.includes("application/json");
-
-			let content: string;
-			let parsedJson: unknown | undefined;
-
-			if (isJson) {
-				parsedJson = await res.json();
-				content = JSON.stringify(parsedJson);
-			} else {
-				content = await res.text();
-			}
+			const [content, parsedJson]: [string, unknown] = isJson
+				? await res.json().then((j: unknown) => [JSON.stringify(j), j] as [string, unknown])
+				: [await res.text(), undefined];
 
 			const total = performance.now() - start;
 			clearTimeout(timer);
@@ -254,26 +220,11 @@ async function fetchWithRedirects(
 			};
 		}
 
-		throw error;
-	}
-}
-
-async function pingWebsite(
-	originalUrl: string,
-	options: { cacheBust?: boolean; timeout?: number } = {}
-): Promise<FetchSuccess | FetchFailure> {
-	const url = normalizeUrl(originalUrl);
-	const timeout = options.timeout ?? DEFAULT_TIMEOUT;
-	const cacheBust = options.cacheBust ?? false;
-
-	try {
-		return await fetchWithRedirects(url, timeout, "gzip, deflate", cacheBust);
-	} catch (error) {
 		return {
-			ok: false as const,
+			ok: false,
 			statusCode: 0,
 			ttfb: 0,
-			total: 0,
+			total: Math.round(total),
 			error: error instanceof Error ? error.message : "Unknown error",
 		};
 	}
@@ -366,53 +317,36 @@ export async function checkUptime(
 		const normalizedUrl = normalizeUrl(url);
 		const timestamp = Date.now();
 
-		const [pingResult, probe] = await Promise.all([
-			pingWebsite(normalizedUrl, {
-				timeout: options.timeout,
-				cacheBust: options.cacheBust,
-			}),
+		const [pingResult, probe, cert] = await Promise.all([
+			pingWebsite(
+				normalizedUrl,
+				options.timeout ?? DEFAULT_TIMEOUT,
+				options.cacheBust ?? false
+			),
 			getProbeMetadata(),
+			checkCertificate(normalizedUrl),
 		]);
-
-		const status = pingResult.ok ? MonitorStatus.UP : MonitorStatus.DOWN;
-		const cert = await checkCertificate(normalizedUrl);
-
-		let contentHash = "";
-		let responseBytes = 0;
-		let redirectCount = 0;
-		let error = "";
-		let jsonDataStr: string | undefined;
-
-		if (pingResult.ok) {
-			contentHash = createHash("sha256")
-				.update(pingResult.content)
-				.digest("hex");
-			responseBytes = pingResult.bytes;
-			redirectCount = pingResult.redirects;
-			if (options.extractHealth) {
-				const health = extractHealth(
-					pingResult.parsedJson ?? pingResult.content
-				);
-				jsonDataStr = health ? JSON.stringify(health) : undefined;
-			}
-		} else {
-			error = pingResult.error;
-		}
+		const health =
+			pingResult.ok && options.extractHealth
+				? extractHealth(pingResult.parsedJson ?? pingResult.content)
+				: null;
 
 		const data: UptimeData = {
 			site_id: siteId,
 			url: normalizedUrl,
 			timestamp,
-			status,
+			status: pingResult.ok ? MonitorStatus.UP : MonitorStatus.DOWN,
 			http_code: pingResult.statusCode,
 			ttfb_ms: pingResult.ttfb,
 			total_ms: pingResult.total,
 			attempt,
 			retries: 0,
 			failure_streak: 0,
-			response_bytes: responseBytes,
-			content_hash: contentHash,
-			redirect_count: redirectCount,
+			response_bytes: pingResult.ok ? pingResult.bytes : 0,
+			content_hash: pingResult.ok
+				? new Bun.CryptoHasher("sha256").update(pingResult.content).digest("hex")
+				: "",
+			redirect_count: pingResult.ok ? pingResult.redirects : 0,
 			probe_region: probe.region,
 			probe_ip: probe.ip,
 			ssl_expiry: cert.expiry,
@@ -420,10 +354,9 @@ export async function checkUptime(
 			env: UPTIME_ENV.environment,
 			check_type: "http",
 			user_agent: USER_AGENT,
-			error,
-			json_data: jsonDataStr,
+			error: pingResult.ok ? "" : pingResult.error,
+			json_data: health ? JSON.stringify(health) : undefined,
 		};
-		mergeUptimeCheckMetrics(data);
 		return { success: true, data };
 	} catch (error) {
 		captureError(error, { error_step: "check_uptime" });

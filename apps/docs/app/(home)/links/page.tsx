@@ -78,7 +78,7 @@ export default function LinksPage() {
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs/links"
+					docsHref="/docs"
 					subtitle="Branded short links with click analytics, UTM tagging, deep linking, and referrer tracking. Every click lands in your existing dashboard."
 					title="Short links that feed your analytics."
 				/>

@@ -61,27 +61,12 @@ export const RecentErrorsTable = ({ isLoading, recentErrors }: Props) => {
 	const columns = useMemo(
 		() => [
 			{
-				id: "severity",
-				accessorKey: "message",
-				header: "",
-				size: 24,
-				cell: (info: { getValue: () => unknown }) => {
-					const message = info.getValue() as string;
-					const { severity } = getErrorCategory(message);
-					return (
-						<div className="flex items-center justify-center">
-							<SeverityDot severity={severity} />
-						</div>
-					);
-				},
-			},
-			{
 				id: "message",
 				accessorKey: "message",
 				header: "Error",
 				cell: (info: { getValue: () => unknown }) => {
 					const message = info.getValue() as string;
-					const { type } = getErrorCategory(message);
+					const { type, severity } = getErrorCategory(message);
 
 					return (
 						<Tooltip
@@ -93,6 +78,7 @@ export const RecentErrorsTable = ({ isLoading, recentErrors }: Props) => {
 										{getErrorTypeIcon(type)}
 									</div>
 									<span className="font-medium text-sm">{type}</span>
+									<SeverityDot severity={severity} />
 								</div>
 								<p className="line-clamp-2 text-pretty">{message}</p>
 							</div>

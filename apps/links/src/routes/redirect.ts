@@ -15,7 +15,6 @@ import { createHash } from "node:crypto";
 import { UAParser } from "ua-parser-js";
 import {
 	captureError,
-	emitInfoEvent,
 	mergeWideEvent,
 	record,
 } from "../lib/logging";
@@ -250,16 +249,12 @@ async function recordClick(
 ): Promise<void> {
 	const t0 = performance.now();
 	const dedupKey = `${link.id}:${ipHash}`;
-	const baseFields = { link_id: link.id, link_slug: slug };
 
 	if (dedupCache.has(dedupKey)) {
-		const click_ms = ms(t0);
-		emitInfoEvent("link_click", {
-			...baseFields,
+		mergeWideEvent({
 			click_recorded: false,
 			click_reason: "mem_deduplicated",
-			duration_ms: click_ms,
-			"timing.click": click_ms,
+			"timing.click": ms(t0),
 		});
 		return;
 	}
@@ -275,14 +270,11 @@ async function recordClick(
 
 	if (!shouldRecord) {
 		dedupCache.set(dedupKey, true);
-		const click_ms = ms(t0);
-		emitInfoEvent("link_click", {
-			...baseFields,
+		mergeWideEvent({
 			click_recorded: false,
 			click_reason: "deduplicated",
-			duration_ms: click_ms,
-			"timing.dedup": dedup_ms,
-			"timing.click": click_ms,
+			"timing.click.dedup": dedup_ms,
+			"timing.click": ms(t0),
 		});
 		return;
 	}
@@ -313,20 +305,18 @@ async function recordClick(
 		)
 	);
 	const kafka_ms = ms(t3);
-	const click_ms = ms(t0);
 
-	emitInfoEvent("link_click", {
-		...baseFields,
+	mergeWideEvent({
 		click_recorded: true,
-		...(ua.browser ? { browser_name: ua.browser } : {}),
-		...(ua.device ? { device_type: ua.device } : {}),
-		...(geo.country ? { geo_country: geo.country } : {}),
-		...kafkaResult,
-		duration_ms: click_ms,
-		"timing.dedup": dedup_ms,
-		"timing.geo": geo_ms,
-		"timing.kafka": kafka_ms,
-		"timing.click": click_ms,
+		...(ua.browser ? { click_browser: ua.browser } : {}),
+		...(ua.device ? { click_device: ua.device } : {}),
+		...(geo.country ? { click_country: geo.country } : {}),
+		kafka_send_success: kafkaResult.kafka_send_success,
+		kafka_connected: kafkaResult.kafka_connected,
+		"timing.click.dedup": dedup_ms,
+		"timing.click.geo": geo_ms,
+		"timing.click.kafka": kafka_ms,
+		"timing.click": ms(t0),
 	});
 }
 
@@ -386,6 +376,8 @@ export const redirectRoute = new Elysia().get(
 		const userAgent = request.headers.get("user-agent");
 		const targetUrl = getTargetUrl(link, userAgent);
 		const bot = checkBot(userAgent);
+		ev.is_bot = bot.isBot;
+		ev.is_social_bot = bot.isSocial;
 
 		if (bot.isSocial) {
 			emit("og_preview");
@@ -401,8 +393,7 @@ export const redirectRoute = new Elysia().get(
 		if (link.deepLinkApp && isMobile(userAgent)) {
 			const deepUri = resolveDeepLink(link.deepLinkApp, targetUrl);
 			if (deepUri) {
-				ev.click_recording_queued = true;
-				recordClick(link, slug, ipHash, ip, request).catch((err) =>
+				await recordClick(link, slug, ipHash, ip, request).catch((err) =>
 					captureError(err, { error_step: "record_click", link_id: link.id })
 				);
 				emit("deep_link");
@@ -424,8 +415,7 @@ export const redirectRoute = new Elysia().get(
 			return;
 		}
 
-		ev.click_recording_queued = true;
-		recordClick(link, slug, ipHash, ip, request).catch((err) =>
+		await recordClick(link, slug, ipHash, ip, request).catch((err) =>
 			captureError(err, { error_step: "record_click", link_id: link.id })
 		);
 

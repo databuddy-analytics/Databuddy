@@ -108,10 +108,6 @@ export async function record<T>(
 	}
 }
 
-export function emitInfoEvent(event: string, fields: LogFields): void {
-	log.info({ service: "links", event, ...fields });
-}
-
 export function setAttributes(
 	attrs: Record<string, string | number | boolean | null | undefined>
 ): void {

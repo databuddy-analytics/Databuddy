@@ -63,6 +63,7 @@
     "dayjs": "^1.11.20",
     "embla-carousel-react": "^8.6.0",
     "flag-icons": "^7.5.0",
+    "geist": "^1.7.0",
     "input-otp": "^1.4.2",
     "jotai": "^2.18.1",
     "leaflet": "^1.9.4",

@@ -78,7 +78,7 @@ export const ErrorSummaryStats = ({
 }: ErrorSummaryStatsProps) => {
 	if (isLoading) {
 		return (
-			<div className="grid grid-cols-2 gap-2">
+			<div className="grid grid-cols-2 gap-1.5 rounded-xl bg-secondary p-1.5">
 				{Array.from({ length: 4 }).map((_, i) => (
 					<StatSkeleton key={`stat-skel-${i}`} />
 				))}
@@ -87,7 +87,7 @@ export const ErrorSummaryStats = ({
 	}
 
 	return (
-		<div className="grid grid-cols-2 gap-2">
+		<div className="grid grid-cols-2 gap-1.5 rounded-xl bg-secondary p-1.5">
 			<ErrorStatCard
 				icon={WarningCircleIcon}
 				title="Total Errors"

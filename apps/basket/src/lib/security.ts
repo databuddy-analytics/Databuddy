@@ -8,12 +8,6 @@ import { useLogger } from "evlog/elysia";
 const EXIT_EVENT_TTL = 172_800;
 const STANDARD_EVENT_TTL = 86_400;
 
-function mergeWideEvent(context: Record<string, unknown>): void {
-	try {
-		useLogger().set(context);
-	} catch {}
-}
-
 function getCurrentDay(): number {
 	const MS_PER_DAY = 24 * 60 * 60 * 1000;
 	return Math.floor(Date.now() / MS_PER_DAY);
@@ -82,7 +76,7 @@ export function checkDuplicate(
 			const result = await redis.set(key, "1", "EX", ttl, "NX");
 			const isDuplicate = result === null;
 			if (isDuplicate) {
-				mergeWideEvent({ dedup: { duplicate: true, eventType } });
+				useLogger().set({ dedup: { duplicate: true, eventType } });
 			}
 			return isDuplicate;
 		} catch (error) {

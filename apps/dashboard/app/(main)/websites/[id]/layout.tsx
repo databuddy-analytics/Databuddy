@@ -283,6 +283,54 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 						</Button>
 					</TopBar.Actions>
 
+					<div className="flex items-center gap-2 overflow-x-auto border-b p-2 md:hidden">
+						<div className="flex h-8 shrink-0 items-center gap-0.5 rounded-md bg-secondary p-0.5">
+							{QUICK_RANGES.map((range) => {
+								const isActive = isQuickRangeActive(range);
+								return (
+									<Button
+										className={cn(
+											"h-6 px-2 text-[11px]",
+											isActive &&
+												"bg-background text-foreground shadow-xs hover:bg-background"
+										)}
+										disabled={isToolbarDisabled}
+										key={range.label}
+										onClick={() => handleQuickRangeSelect(range)}
+										size="sm"
+										title={range.fullLabel}
+										variant={isActive ? "secondary" : "ghost"}
+									>
+										{range.label}
+									</Button>
+								);
+							})}
+						</div>
+
+						<DateRangePicker
+							className="w-auto shrink-0"
+							disabled={isToolbarDisabled}
+							maxDate={new Date()}
+							minDate={new Date(2020, 0, 1)}
+							onChange={(range) => {
+								if (range?.from && range?.to) {
+									setDateRangeAction({
+										startDate: range.from,
+										endDate: range.to,
+									});
+								}
+							}}
+							value={selectedRange}
+						/>
+
+						<AddFilterForm
+							addFilter={addFilter}
+							buttonText="Filter"
+							className="shrink-0"
+							disabled={isToolbarDisabled}
+						/>
+					</div>
+
 					{!isToolbarDisabled && <FiltersSection />}
 				</>
 			)}

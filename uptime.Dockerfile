@@ -37,6 +37,7 @@ WORKDIR /app
 COPY --from=builder /app/server server
 
 ENV NODE_ENV=production
+ENV BUN_CONFIG_MAX_HTTP_REQUESTS=16384
 
 EXPOSE 4000
 

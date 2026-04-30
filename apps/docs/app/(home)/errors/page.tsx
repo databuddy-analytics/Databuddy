@@ -75,7 +75,7 @@ export default function ErrorsPage() {
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs/error-tracking"
+					docsHref="/docs"
 					primaryLabel="Start Monitoring"
 					subtitle="Every error tied to the session, the page, and the funnel step where it happened."
 					title="Understand what your errors are costing users."

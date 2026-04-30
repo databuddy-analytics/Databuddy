@@ -128,36 +128,35 @@ export async function getPreviousMonitorStatus(
 	}
 }
 
+export interface TransitionResult {
+	emails_sent: number;
+	transition_kind: "down" | "recovered" | null;
+}
+
 export async function sendUptimeTransitionEmailsIfNeeded(options: {
 	schedule: ScheduleData;
 	data: UptimeData;
 	previousStatus?: number;
-}): Promise<void> {
-	if (!UPTIME_ENV.isProduction) {
-		return;
-	}
+}): Promise<TransitionResult> {
+	const none: TransitionResult = { emails_sent: 0, transition_kind: null };
+
+	if (!UPTIME_ENV.isProduction) return none;
 
 	const apiKey = process.env.RESEND_API_KEY;
-	if (!apiKey) {
-		return;
-	}
+	if (!apiKey) return none;
 
 	if (
 		options.previousStatus !== undefined &&
 		resolveTransitionKind(options.previousStatus, options.data.status) === null
 	) {
-		return;
+		return none;
 	}
 
 	const kind = await claimTransition(options.schedule.id, options.data.status);
-	if (kind === null) {
-		return;
-	}
+	if (kind === null) return none;
 
 	const emails = await getOrgOwnerEmails(options.schedule.organizationId);
-	if (emails.length === 0) {
-		return;
-	}
+	if (emails.length === 0) return { emails_sent: 0, transition_kind: kind };
 
 	const siteLabel = buildSiteLabel(options.schedule);
 	const baseUrl = process.env.DASHBOARD_APP_URL ?? "https://app.databuddy.cc";
@@ -167,38 +166,34 @@ export async function sendUptimeTransitionEmailsIfNeeded(options: {
 	const sslExpiry =
 		options.data.ssl_expiry > 0 ? options.data.ssl_expiry : undefined;
 
-	try {
-		const html = await render(
-			UptimeAlertEmail({
-				kind,
-				siteLabel,
-				url: options.data.url,
-				checkedAt: options.data.timestamp,
-				httpCode: options.data.http_code,
-				error: options.data.error ?? "",
-				probeRegion: options.data.probe_region,
-				totalMs: options.data.total_ms,
-				ttfbMs: options.data.ttfb_ms,
-				sslValid: options.data.ssl_valid === 1,
-				sslExpiryMs: sslExpiry,
-				dashboardUrl,
-			})
-		);
-		const result = await resend.emails.send({
-			from: "Databuddy <alerts@databuddy.cc>",
-			to: emails,
-			subject:
-				kind === "down"
-					? `[DOWN] ${siteLabel} is unreachable (HTTP ${options.data.http_code || "timeout"})`
-					: `[Recovered] ${siteLabel} is back up`,
-			html,
-		});
-		if (result.error) {
-			captureError(new Error(result.error.message), {
-				error_step: "transition_email_resend",
-			});
-		}
-	} catch (error) {
-		captureError(error, { error_step: "transition_email" });
+	const html = await render(
+		UptimeAlertEmail({
+			kind,
+			siteLabel,
+			url: options.data.url,
+			checkedAt: options.data.timestamp,
+			httpCode: options.data.http_code,
+			error: options.data.error ?? "",
+			probeRegion: options.data.probe_region,
+			totalMs: options.data.total_ms,
+			ttfbMs: options.data.ttfb_ms,
+			sslValid: options.data.ssl_valid === 1,
+			sslExpiryMs: sslExpiry,
+			dashboardUrl,
+		})
+	);
+	const result = await resend.emails.send({
+		from: "Databuddy <alerts@databuddy.cc>",
+		to: emails,
+		subject:
+			kind === "down"
+				? `[DOWN] ${siteLabel} is unreachable (HTTP ${options.data.http_code || "timeout"})`
+				: `[Recovered] ${siteLabel} is back up`,
+		html,
+	});
+	if (result.error) {
+		throw new Error(result.error.message);
 	}
+
+	return { emails_sent: emails.length, transition_kind: kind };
 }

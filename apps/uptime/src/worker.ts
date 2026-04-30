@@ -6,6 +6,8 @@ import {
 	UPTIME_QUEUE_NAME,
 } from "@databuddy/redis";
 import { Worker } from "bullmq";
+import type { RequestLogger } from "evlog";
+import { createLogger } from "evlog";
 import {
 	type CheckOptions,
 	type ScheduleData,
@@ -14,8 +16,8 @@ import {
 } from "./actions";
 import { isHealthExtractionEnabled } from "./json-parser";
 import { sendUptimeEvent } from "./lib/producer";
-import { captureError, mergeWideEvent } from "./lib/tracing";
-import type { ActionResult, UptimeData } from "./types";
+import { captureError } from "./lib/tracing";
+import { MonitorStatus, type ActionResult, type UptimeData } from "./types";
 import {
 	getPreviousMonitorStatus,
 	sendUptimeTransitionEmailsIfNeeded,
@@ -32,117 +34,174 @@ export interface UptimeWorkerDeps {
 		attempt: number,
 		options: CheckOptions
 	) => Promise<ActionResult<UptimeData>>;
+	createLogger: (
+		fields: Record<string, string | number | boolean>
+	) => RequestLogger;
 	getPreviousMonitorStatus: (monitorId: string) => Promise<number | undefined>;
 	isHealthExtractionEnabled: (config: unknown) => boolean;
 	lookupSchedule: (scheduleId: string) => Promise<ActionResult<ScheduleData>>;
-	mergeWideEvent: (fields: Record<string, string | number | boolean>) => void;
 	sendUptimeEvent: (data: UptimeData, monitorId: string) => Promise<void>;
 	sendUptimeTransitionEmailsIfNeeded: (options: {
 		schedule: ScheduleData;
 		data: UptimeData;
 		previousStatus?: number;
-	}) => Promise<void>;
+	}) => Promise<{ transition_kind: "down" | "recovered" | null; emails_sent: number }>;
 }
 
 const uptimeWorkerDeps: UptimeWorkerDeps = {
 	captureError,
 	checkUptime,
+	createLogger: (fields) => createLogger(fields),
 	getPreviousMonitorStatus,
 	isHealthExtractionEnabled,
 	lookupSchedule,
-	mergeWideEvent,
 	sendUptimeEvent,
 	sendUptimeTransitionEmailsIfNeeded,
 };
 
 export interface UptimeWorkerJob {
+	attemptsMade?: number;
 	data: UptimeCheckJobData;
+	id?: string;
 	name: string;
 }
 
 export async function processUptimeCheck(
 	scheduleId: string,
 	trigger: UptimeCheckJobData["trigger"],
-	deps: UptimeWorkerDeps = uptimeWorkerDeps
+	deps: UptimeWorkerDeps = uptimeWorkerDeps,
+	jobMeta?: { id?: string; attempt?: number }
 ) {
 	const startedAt = performance.now();
-
-	deps.mergeWideEvent({
+	const log = deps.createLogger({
 		schedule_id: scheduleId,
 		uptime_trigger: trigger,
-	});
-
-	const schedule = await deps.lookupSchedule(scheduleId);
-	if (!schedule.success) {
-		deps.captureError(new Error(schedule.error), {
-			error_step: "schedule_not_found",
-			schedule_id: scheduleId,
-		});
-		return;
-	}
-
-	if (schedule.data.isPaused) {
-		deps.mergeWideEvent({
-			organization_id: schedule.data.organizationId,
-			uptime_skipped_paused: true,
-		});
-		return;
-	}
-
-	const monitorId = schedule.data.websiteId || scheduleId;
-
-	deps.mergeWideEvent({
-		monitor_id: monitorId,
-		organization_id: schedule.data.organizationId,
-		check_url: schedule.data.url,
-		...(schedule.data.websiteId ? { website_id: schedule.data.websiteId } : {}),
-	});
-
-	const options: CheckOptions = {
-		timeout: schedule.data.timeout ?? undefined,
-		cacheBust: schedule.data.cacheBust,
-		extractHealth: deps.isHealthExtractionEnabled(
-			schedule.data.jsonParsingConfig
-		),
-	};
-
-	const result = await deps.checkUptime(
-		monitorId,
-		schedule.data.url,
-		1,
-		options
-	);
-
-	if (!result.success) {
-		deps.captureError(new Error(result.error), {
-			error_step: "uptime_check_failed",
-			monitor_id: monitorId,
-			check_url: schedule.data.url,
-		});
-		throw new Error(result.error);
-	}
-
-	const previousStatus = await deps.getPreviousMonitorStatus(monitorId);
-
-	deps.mergeWideEvent({
-		previous_uptime_status: previousStatus === undefined ? -1 : previousStatus,
-		http_code: result.data.http_code,
-		check_duration_ms: Math.round(performance.now() - startedAt),
+		...(jobMeta?.id ? { job_id: jobMeta.id } : {}),
+		...(jobMeta?.attempt ? { job_attempt: jobMeta.attempt } : {}),
 	});
 
 	try {
-		await deps.sendUptimeEvent(result.data, monitorId);
-		await deps.sendUptimeTransitionEmailsIfNeeded({
-			schedule: schedule.data,
-			data: result.data,
-			previousStatus,
+		const t0 = performance.now();
+		const schedule = await deps.lookupSchedule(scheduleId);
+		log.set({ "timing.lookup_schedule": Math.round(performance.now() - t0) });
+
+		if (!schedule.success) {
+			log.set({
+				outcome: "schedule_not_found",
+				error_message: schedule.error,
+			});
+			return;
+		}
+
+		log.set({
+			organization_id: schedule.data.organizationId,
+			schedule_timeout_ms: schedule.data.timeout ?? 0,
+			schedule_cache_bust: schedule.data.cacheBust,
+			schedule_health_extract: deps.isHealthExtractionEnabled(
+				schedule.data.jsonParsingConfig
+			),
 		});
-	} catch (error) {
-		deps.captureError(error, {
-			error_step: "producer_pipeline",
+
+		if (schedule.data.isPaused) {
+			log.set({ outcome: "skipped_paused" });
+			return;
+		}
+
+		const monitorId = schedule.data.websiteId || scheduleId;
+
+		log.set({
 			monitor_id: monitorId,
-			http_code: result.data.http_code,
+			check_url: schedule.data.url,
+			...(schedule.data.websiteId
+				? { website_id: schedule.data.websiteId }
+				: {}),
 		});
+
+		const options: CheckOptions = {
+			timeout: schedule.data.timeout ?? undefined,
+			cacheBust: schedule.data.cacheBust,
+			extractHealth: deps.isHealthExtractionEnabled(
+				schedule.data.jsonParsingConfig
+			),
+		};
+
+		const t1 = performance.now();
+		const result = await deps.checkUptime(
+			monitorId,
+			schedule.data.url,
+			1,
+			options
+		);
+		log.set({ "timing.check_uptime": Math.round(performance.now() - t1) });
+
+		if (!result.success) {
+			log.set({
+				outcome: "check_failed",
+				error_message: result.error,
+			});
+			throw new Error(result.error);
+		}
+
+		const t2 = performance.now();
+		const previousStatus = await deps.getPreviousMonitorStatus(monitorId);
+		log.set({
+			"timing.previous_status": Math.round(performance.now() - t2),
+		});
+
+		log.set({
+			outcome: result.data.status === MonitorStatus.UP ? "up" : "down",
+			previous_uptime_status:
+				previousStatus === undefined ? -1 : previousStatus,
+			monitor_status: result.data.status,
+			http_code: result.data.http_code,
+			total_ms: result.data.total_ms,
+			ttfb_ms: result.data.ttfb_ms,
+			probe_region: result.data.probe_region,
+			ssl_valid: result.data.ssl_valid === 1,
+			ssl_expiry: result.data.ssl_expiry,
+			response_bytes: result.data.response_bytes,
+			redirect_count: result.data.redirect_count,
+			content_changed: result.data.content_hash !== "",
+			has_json_data: result.data.json_data !== undefined,
+			error_message: result.data.error || "",
+		});
+
+		const t3 = performance.now();
+		try {
+			await deps.sendUptimeEvent(result.data, monitorId);
+			log.set({ kafka_sent: true });
+		} catch (error) {
+			log.set({
+				kafka_sent: false,
+				kafka_error: error instanceof Error ? error.message : "unknown",
+			});
+		}
+		log.set({ "timing.kafka": Math.round(performance.now() - t3) });
+
+		const t4 = performance.now();
+		try {
+			const transition = await deps.sendUptimeTransitionEmailsIfNeeded({
+				schedule: schedule.data,
+				data: result.data,
+				previousStatus,
+			});
+			if (transition.transition_kind) {
+				log.set({
+					transition_kind: transition.transition_kind,
+					emails_sent: transition.emails_sent,
+				});
+			}
+		} catch (error) {
+			log.set({
+				email_error: error instanceof Error ? error.message : "unknown",
+			});
+		}
+		log.set({ "timing.transition_email": Math.round(performance.now() - t4) });
+	} finally {
+		log.set({
+			check_duration_ms: Math.round(performance.now() - startedAt),
+		});
+		log.emit();
 	}
 }
 
@@ -153,7 +212,10 @@ export async function processUptimeJob(
 	if (job.name !== UPTIME_CHECK_JOB_NAME) {
 		throw new Error(`Unknown uptime job: ${job.name}`);
 	}
-	await processUptimeCheck(job.data.scheduleId, job.data.trigger, deps);
+	await processUptimeCheck(job.data.scheduleId, job.data.trigger, deps, {
+		id: job.id,
+		attempt: job.attemptsMade,
+	});
 }
 
 export function startUptimeWorker() {
@@ -167,17 +229,6 @@ export function startUptimeWorker() {
 			stalledInterval: UPTIME_JOB_TIMEOUT_MS * 4,
 		}
 	);
-
-	worker.on("completed", (job) => {
-		mergeWideEvent({
-			worker: "uptime",
-			event: "job_completed",
-			job_id: job.id ?? "",
-			schedule_id: job.data.scheduleId,
-			trigger: job.data.trigger,
-			attempts_used: job.attemptsMade,
-		});
-	});
 
 	worker.on("failed", (job, error) => {
 		const attemptsMade = job?.attemptsMade ?? 0;

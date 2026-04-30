@@ -17,7 +17,8 @@ const calls = {
 		extractHealth: boolean | undefined;
 	}>,
 	email: [] as Array<{ schedule: ScheduleData; data: UptimeData }>,
-	merge: [] as Array<Record<string, unknown>>,
+	loggerFields: [] as Array<Record<string, unknown>>,
+	loggerEmitted: [] as Array<boolean>,
 	send: [] as Array<{ data: UptimeData; monitorId: string }>,
 };
 
@@ -87,6 +88,18 @@ function deps(): UptimeWorkerDeps {
 			});
 			return checkResult;
 		},
+		createLogger: (fields) => {
+			calls.loggerFields.push({ ...fields });
+			return {
+				set: (f: Record<string, unknown>) => {
+					calls.loggerFields.push({ ...f });
+				},
+				emit: () => {
+					calls.loggerEmitted.push(true);
+				},
+				error: () => {},
+			} as never;
+		},
 		getPreviousMonitorStatus: async () => previousStatus,
 		isHealthExtractionEnabled: (config) =>
 			typeof config === "object" &&
@@ -94,14 +107,12 @@ function deps(): UptimeWorkerDeps {
 			"enabled" in config &&
 			config.enabled === true,
 		lookupSchedule: async () => lookupResult,
-		mergeWideEvent: (event) => {
-			calls.merge.push(event);
-		},
 		sendUptimeEvent: async (data, monitorId) => {
 			calls.send.push({ data, monitorId });
 		},
 		sendUptimeTransitionEmailsIfNeeded: async (payload) => {
 			calls.email.push(payload);
+			return { transition_kind: null, emails_sent: 0 };
 		},
 	};
 }
@@ -110,7 +121,8 @@ beforeEach(() => {
 	calls.captureError = [];
 	calls.check = [];
 	calls.email = [];
-	calls.merge = [];
+	calls.loggerFields = [];
+	calls.loggerEmitted = [];
 	calls.send = [];
 	lookupResult = { success: true, data: schedule() };
 	checkResult = { success: true, data: uptimeData() };
@@ -142,7 +154,7 @@ describe("processUptimeCheck", () => {
 		);
 
 		expect(calls.check).toHaveLength(1);
-		expect(calls.merge).toContainEqual(
+		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({ uptime_trigger: "manual" })
 		);
 	});
@@ -163,20 +175,33 @@ describe("processUptimeCheck", () => {
 			{ data: uptimeData(), monitorId: "website-1" },
 		]);
 		expect(calls.email).toHaveLength(1);
-		expect(calls.merge).toContainEqual({
-			schedule_id: "schedule-1",
-			uptime_trigger: "scheduled",
-		});
-		expect(calls.merge).toContainEqual(
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({
+				schedule_id: "schedule-1",
+				uptime_trigger: "scheduled",
+			})
+		);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ organization_id: "org-1" })
+		);
+		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({
 				monitor_id: "website-1",
-				organization_id: "org-1",
 				website_id: "website-1",
 			})
 		);
-		expect(calls.merge).toContainEqual(
-			expect.objectContaining({ previous_uptime_status: 0 })
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({
+				outcome: "up",
+				previous_uptime_status: 0,
+				ttfb_ms: 10,
+				total_ms: 30,
+			})
 		);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ kafka_sent: true })
+		);
+		expect(calls.loggerEmitted).toHaveLength(1);
 	});
 
 	it("records -1 when no previous monitor status exists", async () => {
@@ -184,7 +209,7 @@ describe("processUptimeCheck", () => {
 
 		await processUptimeCheck("schedule-1", "scheduled", deps());
 
-		expect(calls.merge).toContainEqual(
+		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({ previous_uptime_status: -1 })
 		);
 	});
@@ -206,15 +231,17 @@ describe("processUptimeCheck", () => {
 				extractHealth: true,
 			},
 		]);
-		expect(calls.merge).toContainEqual({
-			schedule_id: "schedule-only",
-			uptime_trigger: "manual",
-		});
-		expect(calls.merge).toContainEqual(
+		expect(calls.loggerFields).toContainEqual(
 			expect.objectContaining({
-				monitor_id: "schedule-only",
-				organization_id: "org-1",
+				schedule_id: "schedule-only",
+				uptime_trigger: "manual",
 			})
+		);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ monitor_id: "schedule-only" })
+		);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ organization_id: "org-1" })
 		);
 	});
 
@@ -225,16 +252,13 @@ describe("processUptimeCheck", () => {
 
 		expect(calls.check).toEqual([]);
 		expect(calls.send).toEqual([]);
-		expect(calls.merge).toEqual([
-			{
-				schedule_id: "schedule-1",
-				uptime_trigger: "scheduled",
-			},
-			{
-				organization_id: "org-1",
-				uptime_skipped_paused: true,
-			},
-		]);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ organization_id: "org-1" })
+		);
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({ outcome: "skipped_paused" })
+		);
+		expect(calls.loggerEmitted).toHaveLength(1);
 	});
 
 	it("skips missing schedules without throwing", async () => {
@@ -243,11 +267,13 @@ describe("processUptimeCheck", () => {
 		await processUptimeCheck("schedule-1", "scheduled", deps());
 
 		expect(calls.check).toEqual([]);
-		expect(calls.captureError).toHaveLength(1);
-		expect(calls.captureError[0]?.context).toMatchObject({
-			error_step: "schedule_not_found",
-			schedule_id: "schedule-1",
-		});
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({
+				outcome: "schedule_not_found",
+				error_message: "not found",
+			})
+		);
+		expect(calls.loggerEmitted).toHaveLength(1);
 	});
 
 	it("throws failed checks so BullMQ retry/backoff can run", async () => {
@@ -256,14 +282,16 @@ describe("processUptimeCheck", () => {
 		await expect(
 			processUptimeCheck("schedule-1", "scheduled", deps())
 		).rejects.toThrow("timeout");
-		expect(calls.captureError[0]?.context).toMatchObject({
-			error_step: "uptime_check_failed",
-			monitor_id: "website-1",
-			check_url: "https://example.com/health",
-		});
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({
+				outcome: "check_failed",
+				error_message: "timeout",
+			})
+		);
+		expect(calls.loggerEmitted).toHaveLength(1);
 	});
 
-	it("captures producer pipeline errors without failing the BullMQ job", async () => {
+	it("captures producer errors on the wide event without failing the job", async () => {
 		const failingDeps = deps();
 		failingDeps.sendUptimeEvent = async () => {
 			throw new Error("producer unavailable");
@@ -271,10 +299,12 @@ describe("processUptimeCheck", () => {
 
 		await processUptimeCheck("schedule-1", "manual", failingDeps);
 
-		expect(calls.captureError[0]?.context).toMatchObject({
-			error_step: "producer_pipeline",
-			monitor_id: "website-1",
-			http_code: 200,
-		});
+		expect(calls.loggerFields).toContainEqual(
+			expect.objectContaining({
+				kafka_sent: false,
+				kafka_error: "producer unavailable",
+			})
+		);
+		expect(calls.loggerEmitted).toHaveLength(1);
 	});
 });
