@@ -1,5 +1,95 @@
 import { Analytics } from "../../types/tables";
-import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
+import type {
+	Filter,
+	QueryHelpers,
+	SimpleQueryConfig,
+	TimeUnit,
+} from "../types";
+
+const PROFILE_SORT_FIELDS: Record<string, string> = {
+	session_count: "session_count",
+	total_events: "total_events",
+	last_visit: "last_visit",
+	first_visit: "first_visit",
+	unique_pages: "unique_pages",
+};
+
+const AGGREGATE_FILTER_FIELDS = new Set([
+	"session_count",
+	"total_events",
+	"unique_pages",
+]);
+
+const SUBQUERY_FILTER_FIELDS = new Set(["event_name"]);
+
+function resolveProfileSort(orderBy?: string): string {
+	if (!orderBy) {
+		return "last_visit DESC";
+	}
+	const [field, direction] = orderBy.split(" ");
+	const mapped = field ? PROFILE_SORT_FIELDS[field] : undefined;
+	if (!mapped) {
+		return "last_visit DESC";
+	}
+	const dir = direction?.toUpperCase() === "ASC" ? "ASC" : "DESC";
+	return `${mapped} ${dir}`;
+}
+
+interface SeparatedFilters {
+	havingConditions: string[];
+	subqueryFilters: Filter[];
+	whereConditions: string[];
+}
+
+function separateProfileFilters(
+	filters?: Filter[],
+	filterConditions?: string[]
+): SeparatedFilters {
+	const whereConditions: string[] = [];
+	const havingConditions: string[] = [];
+	const subqueryFilters: Filter[] = [];
+
+	for (let i = 0; i < (filterConditions || []).length; i++) {
+		const filter = filters?.[i];
+		const condition = filterConditions?.[i];
+		if (!condition) {
+			continue;
+		}
+		if (filter && SUBQUERY_FILTER_FIELDS.has(filter.field)) {
+			subqueryFilters.push(filter);
+		} else if (filter && AGGREGATE_FILTER_FIELDS.has(filter.field)) {
+			havingConditions.push(condition);
+		} else {
+			whereConditions.push(condition);
+		}
+	}
+
+	return { whereConditions, havingConditions, subqueryFilters };
+}
+
+function buildEventNameSubquery(filters: Filter[]): {
+	clause: string;
+	params: Record<string, string>;
+} {
+	const eventFilter = filters.find((f) => f.field === "event_name");
+	if (!eventFilter) {
+		return { clause: "", params: {} };
+	}
+
+	const value = String(eventFilter.value);
+	return {
+		clause: `AND anonymous_id IN (
+        SELECT DISTINCT anonymous_id
+        FROM ${Analytics.custom_events}
+        WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+          AND event_name = {eventNameFilter:String}
+          AND timestamp >= toDateTime({startDate:String})
+          AND timestamp <= toDateTime({endDate:String})
+          AND anonymous_id IS NOT NULL
+      )`,
+		params: { eventNameFilter: value },
+	};
+}
 
 const PROFILE_ACTIVITY_CTE = `
       profile_activity AS (
@@ -74,11 +164,24 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			offset?: number,
 			_timezone?: string,
 			filterConditions?: string[],
-			filterParams?: Record<string, Filter["value"]>
+			filterParams?: Record<string, Filter["value"]>,
+			_helpers?: QueryHelpers,
+			orderBy?: string
 		) => {
-			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(" AND ")}`
+			const { whereConditions, havingConditions, subqueryFilters } =
+				separateProfileFilters(_filters, filterConditions);
+
+			const combinedWhereClause = whereConditions.length
+				? `AND ${whereConditions.join(" AND ")}`
 				: "";
+
+			const havingClause = havingConditions.length
+				? `HAVING ${havingConditions.join(" AND ")}`
+				: "";
+
+			const eventSubquery = buildEventNameSubquery(subqueryFilters);
+
+			const profileSort = resolveProfileSort(orderBy);
 
 			return {
 				sql: `
@@ -98,14 +201,28 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         any(os_name) as os_name,
         any(referrer) as referrer
       FROM ${Analytics.events}
-      WHERE 
+      WHERE
         client_id = {websiteId:String}
         AND time >= toDateTime({startDate:String})
         AND time <= toDateTime({endDate:String})
 	${combinedWhereClause}
+	${eventSubquery.clause}
       GROUP BY anonymous_id
-      ORDER BY last_visit DESC
+      ${havingClause}
+      ORDER BY ${profileSort}
       LIMIT {limit:Int32} OFFSET {offset:Int32}
+    ),
+    visitor_custom_events AS (
+      SELECT
+        ce.anonymous_id as visitor_id,
+        COUNT(*) as custom_event_count,
+        COUNT(DISTINCT ce.event_name) as unique_event_names
+      FROM ${Analytics.custom_events} ce
+      INNER JOIN visitor_profiles vp ON ce.anonymous_id = vp.visitor_id
+      WHERE (ce.owner_id = {websiteId:String} OR ce.website_id = {websiteId:String})
+        AND ce.timestamp >= toDateTime({startDate:String})
+        AND ce.timestamp <= toDateTime({endDate:String})
+      GROUP BY ce.anonymous_id
     ),
     visitor_sessions AS (
       SELECT
@@ -129,10 +246,10 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
             e.time,
             e.event_name,
             e.path,
-            CASE 
-              WHEN e.event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out') 
-                AND e.properties IS NOT NULL 
-                AND e.properties != '{}' 
+            CASE
+              WHEN e.event_name NOT IN ('screen_view', 'page_exit', 'web_vitals', 'link_out')
+                AND e.properties IS NOT NULL
+                AND e.properties != '{}'
               THEN CAST(e.properties AS String)
               ELSE NULL
             END
@@ -146,19 +263,21 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       ORDER BY vp.visitor_id, session_start DESC
     )
     SELECT
-      vp.visitor_id,
-      vp.first_visit,
-      vp.last_visit,
-      vp.session_count,
-      vp.total_events,
-      vp.unique_pages,
-      vp.user_agent,
-      vp.country,
-      vp.region,
-      vp.device_type,
-      vp.browser_name,
-      vp.os_name,
-      vp.referrer,
+      vp.visitor_id AS visitor_id,
+      vp.first_visit AS first_visit,
+      vp.last_visit AS last_visit,
+      vp.session_count AS session_count,
+      vp.total_events AS total_events,
+      vp.unique_pages AS unique_pages,
+      vp.user_agent AS user_agent,
+      vp.country AS country,
+      vp.region AS region,
+      vp.device_type AS device_type,
+      vp.browser_name AS browser_name,
+      vp.os_name AS os_name,
+      vp.referrer AS referrer,
+      COALESCE(vce.custom_event_count, 0) as custom_event_count,
+      COALESCE(vce.unique_event_names, 0) as unique_event_names,
       COALESCE(vs.session_id, '') as session_id,
       COALESCE(vs.session_start, '') as session_start,
       COALESCE(vs.session_end, '') as session_end,
@@ -174,8 +293,9 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       COALESCE(vs.referrer, '') as session_referrer,
       COALESCE(vs.events, []) as events
     FROM visitor_profiles vp
+    LEFT JOIN visitor_custom_events vce ON vp.visitor_id = vce.visitor_id
     LEFT JOIN visitor_sessions vs ON vp.visitor_id = vs.visitor_id
-    ORDER BY vp.last_visit DESC, vs.session_start DESC
+    ORDER BY vp.${profileSort}, vs.session_start DESC
   `,
 				params: {
 					websiteId,
@@ -184,6 +304,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 					limit: limit || 25,
 					offset: offset || 0,
 					...filterParams,
+					...eventSubquery.params,
 				},
 			};
 		},

@@ -1,7 +1,5 @@
 import { createGateway, generateText } from "ai";
-import type { EvalCase, EvalConfig } from "./types";
-
-const JSON_OBJECT_RE = /\{[^}]+\}/;
+import type { EvalCase, EvalConfig, JudgeScores } from "./types";
 
 const JUDGE_PROMPT = `You are a brutally honest evaluator of an analytics AI agent. You have extremely high standards — you are a senior data analyst who has seen hundreds of reports and dashboards. You score like a tough professor: 90+ is exceptional work that would impress a VP, 70 is acceptable but unremarkable, 50 is mediocre, below 40 is bad.
 
@@ -60,36 +58,34 @@ const gateway = createGateway({
 	},
 });
 
-/**
- * Use an LLM to judge response quality with a harsh, specific rubric.
- * Returns quality score 0-100 (average of 5 sub-scores).
- */
+const JSON_OBJECT_RE = /\{[^}]+\}/;
+
 export async function judgeQuality(
 	evalCase: EvalCase,
 	responseText: string,
 	config: EvalConfig
-): Promise<number> {
+): Promise<JudgeScores | null> {
 	if (config.skipJudge) {
-		return -1;
+		return null;
 	}
 	if (!responseText.trim()) {
-		return -1;
+		return null;
 	}
 
-	const model = config.judgeModel ?? "anthropic/claude-sonnet-4.6";
+	const model = config.judgeModel ?? "zai/glm-5-turbo";
 
 	try {
 		const result = await generateText({
 			model: gateway.chat(model),
 			system: JUDGE_PROMPT,
-			prompt: `**User query:** ${evalCase.query}\n\n**Agent response (may be truncated):**\n${responseText.slice(0, 4000)}`,
-			maxTokens: 300,
+			prompt: `**User query:** ${evalCase.query}\n\n**Agent response:**\n${responseText}`,
+			maxOutputTokens: 300,
 			temperature: 0,
 		});
 
 		const jsonMatch = result.text.match(JSON_OBJECT_RE);
 		if (!jsonMatch) {
-			return -1;
+			return null;
 		}
 
 		const parsed = JSON.parse(jsonMatch[0]) as {
@@ -100,7 +96,7 @@ export async function judgeQuality(
 			communication: number;
 		};
 
-		return Math.round(
+		const average = Math.round(
 			(parsed.data_grounding +
 				parsed.analytical_depth +
 				parsed.actionability +
@@ -108,8 +104,17 @@ export async function judgeQuality(
 				parsed.communication) /
 				5
 		);
+
+		return {
+			dataGrounding: parsed.data_grounding,
+			analyticalDepth: parsed.analytical_depth,
+			actionability: parsed.actionability,
+			completeness: parsed.completeness,
+			communication: parsed.communication,
+			average,
+		};
 	} catch (err) {
 		console.error(`  [judge] ${err instanceof Error ? err.message : err}`);
-		return -1;
+		return null;
 	}
 }

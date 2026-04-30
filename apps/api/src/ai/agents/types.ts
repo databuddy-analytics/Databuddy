@@ -19,6 +19,14 @@ export const AGENT_THINKING_LEVELS: readonly AgentThinking[] = [
 	"high",
 ] as const;
 
+export type AgentTier = "quick" | "balanced" | "deep";
+
+export const AGENT_TIERS: readonly AgentTier[] = [
+	"quick",
+	"balanced",
+	"deep",
+] as const;
+
 export interface AgentContext {
 	billingCustomerId?: string | null;
 	chatId: string;

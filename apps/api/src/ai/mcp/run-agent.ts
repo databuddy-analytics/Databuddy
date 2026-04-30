@@ -130,7 +130,7 @@ export async function runMcpAgent(
 		if (usage) {
 			await trackAgentUsageAndBill({
 				usage,
-				modelId: modelNames.analytics,
+				modelId: modelNames.balanced,
 				source: "mcp",
 				organizationId,
 				userId: mcpUserId,

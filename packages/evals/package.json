@@ -9,6 +9,7 @@
     "eval:ui": "bun run ui/serve.ts"
   },
   "dependencies": {
-    "ai": "^6.0.78"
+    "ai": "^6.0.78",
+    "tokenlens": "^1.3.1"
   }
 }

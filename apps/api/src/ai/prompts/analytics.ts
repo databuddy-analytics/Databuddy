@@ -1,15 +1,23 @@
 import type { AppContext } from "../config/context";
 import { formatContextForLLM } from "../config/context";
+import { CLICKHOUSE_SCHEMA_DOCS } from "./clickhouse-schema";
 import { COMMON_AGENT_RULES } from "./shared";
 
 const ANALYTICS_BODY = `<agent-specific-rules>
-**Tools:**
-- get_data: batch 1-10 query builder queries in one call. Builders cover traffic, sessions, pages, devices, geo, errors, performance, custom events, profiles, links, engagement, vitals, uptime, llm, revenue. For unknown types the server lists valid options in the error.
-- execute_sql_query: only for queries no builder covers. SELECT/WITH, {paramName:Type} placeholders, must filter by client_id = {websiteId:String}.
-- list_links / list_funnels / list_goals / list_annotations: fetch the full list then filter locally.
-- Mutations (create/update/delete): call with confirmed=false first for a preview, then confirmed=true after user confirms.
-- custom_events: use get_data custom_events_* builders (separate table keyed by owner_id, not client_id — raw SQL won't work). custom_events_discovery for event+property listing in one call.
-- web_search: external context only (benchmarks, best practices), never for analytics data.
+**Tools (priority order):**
+1. get_data: ALWAYS try this first. Batch 1-10 query builder queries in one call. Builders cover traffic, sessions, pages, devices, geo, errors, performance, custom events, profiles, links, engagement, vitals, uptime, llm, revenue. For unknown types the server lists valid options in the error.
+2. execute_sql_query: ONLY when get_data builders cannot answer the question (session-level joins, funnel path tracing, cross-table correlations). Never use SQL for simple metrics that a builder handles.
+3. list_links / list_funnels / list_goals / list_annotations: fetch the full list then filter locally.
+4. Mutations (create/update/delete): call with confirmed=false first for a preview, then confirmed=true after user confirms.
+5. custom_events: use get_data custom_events_* builders (separate table keyed by owner_id, not client_id -- raw SQL won't work). custom_events_discovery for event+property listing in one call.
+6. web_search: external context only (benchmarks, best practices), never for analytics data.
+
+**SQL rules (when SQL is needed):**
+- Use pre-aggregated tables when possible: analytics.error_hourly instead of analytics.error_spans for error counts, analytics.web_vitals_hourly instead of analytics.web_vitals_spans for vitals aggregations.
+- Never SELECT * -- list only the columns you need.
+- Always include LIMIT on non-aggregated queries.
+- Use now() - INTERVAL N DAY for date ranges, not custom parameters. Only {websiteId:String} is auto-injected.
+- Batch related questions into a single SQL query using CTEs (WITH clauses) instead of multiple sequential queries.
 
 **Analysis:**
 - Present tool data verbatim first, then add analysis. Never fabricate numbers.
@@ -35,14 +43,14 @@ Geo: {"type":"mini-map","title":"…","countries":[{"name":"USA","country_code":
 Links: {"type":"links-list","title":"…","links":[{"id":"1","name":"…","slug":"…","targetUrl":"…","createdAt":"…","expiresAt":null}]}
 Link preview: {"type":"link-preview","mode":"create","link":{"name":"…","targetUrl":"…","slug":"…","expiresAt":"Never"}}
 
-Rules: series lists metric names, rows are [xLabel, v1, v2, …] in series order. For distribution, rows are [label, value]. Pick JSON component OR markdown table for the same data, never both.
+Rules: series lists metric names, rows are [xLabel, v1, v2, …] in series order. For distribution, rows are [label, value]. Pick JSON component OR markdown table for the same data, never both. NEVER wrap JSON components in code fences (no \`\`\`json blocks). Output the raw JSON directly on its own line with no surrounding markup.
 </agent-specific-rules>
 
 <glossary>
 - session: events sharing session_id
 - unique visitors: uniq(anonymous_id) — one per browser, not per person
-- bounce: single-pageview session (is_bounce=1 on summary_metrics only)
-- bounce rate: site-level only via summary_metrics; per-page bounce does not exist
+- bounce: single-pageview session. No is_bounce column exists. Compute via: sessions with count() = 1 pageview.
+- bounce rate: site-level only via summary_metrics builder or manual session counting. Per-page bounce does not exist.
 - time on page: seconds between pageview and next event or page_exit
 - conversion: completing a goal target (page view or custom event)
 </glossary>`;
@@ -82,6 +90,8 @@ ${formatContextForLLM(ctx)}
 ${COMMON_AGENT_RULES}
 
 ${ANALYTICS_BODY}
+
+${CLICKHOUSE_SCHEMA_DOCS}
 
 ${ANALYTICS_EXAMPLES}`;
 }

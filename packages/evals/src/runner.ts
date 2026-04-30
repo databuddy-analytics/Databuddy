@@ -1,9 +1,5 @@
 import type { EvalCase, EvalConfig, ParsedAgentResponse } from "./types";
 
-/**
- * Execute a single eval case against the live agent API.
- * Streams the response and parses tool calls, text, and chart JSON.
- */
 export async function runCase(
 	evalCase: EvalCase,
 	config: EvalConfig
@@ -18,6 +14,9 @@ export async function runCase(
 	}
 	if (config.apiKey) {
 		headers["x-api-key"] = config.apiKey;
+	}
+	if (config.modelOverride) {
+		headers["x-model-override"] = config.modelOverride;
 	}
 
 	const body = JSON.stringify({
@@ -55,9 +54,6 @@ interface SSEEvent {
 	[key: string]: unknown;
 }
 
-/**
- * Parse the SSE stream into structured data by processing each `data:` line.
- */
 function parseSSE(raw: string, latencyMs: number): ParsedAgentResponse {
 	const lines = raw.split("\n");
 	const events: SSEEvent[] = [];
@@ -72,12 +68,9 @@ function parseSSE(raw: string, latencyMs: number): ParsedAgentResponse {
 		}
 		try {
 			events.push(JSON.parse(payload) as SSEEvent);
-		} catch {
-			// skip unparseable lines
-		}
+		} catch {}
 	}
 
-	// Extract tool calls from tool-input-available events
 	const toolCalls: ParsedAgentResponse["toolCalls"] = [];
 	const toolNames = new Set<string>();
 	for (const evt of events) {
@@ -93,37 +86,49 @@ function parseSSE(raw: string, latencyMs: number): ParsedAgentResponse {
 				output: null,
 			});
 		}
-		// Attach output to matching tool call
 		if (
 			evt.type === "tool-output-available" &&
 			typeof evt.toolCallId === "string"
 		) {
-			const tc = toolCalls.find(
-				(t) => t.output === null // first tool without output
-			);
+			const tc = toolCalls.find((t) => t.output === null);
 			if (tc) {
 				tc.output = evt.output ?? null;
 			}
 		}
 	}
 
-	// Extract text content from text-delta events
 	let textContent = "";
 	for (const evt of events) {
-		if (evt.type === "text-delta" && typeof evt.delta === "string") {
+		if (
+			(evt.type === "text-delta" || evt.type === "content-delta") &&
+			typeof evt.delta === "string"
+		) {
 			textContent += evt.delta;
 		}
 	}
 
-	// Extract chart/component JSONs from assembled text
+	let inputTokens = 0;
+	let outputTokens = 0;
+	for (const evt of events) {
+		if (evt.type === "step-finish" && evt.usage) {
+			const u = evt.usage as Record<string, number>;
+			inputTokens += u.inputTokens ?? u.prompt_tokens ?? 0;
+			outputTokens += u.outputTokens ?? u.completion_tokens ?? 0;
+		}
+		if (evt.type === "finish" && evt.usage) {
+			const u = evt.usage as Record<string, number>;
+			if (inputTokens === 0) {
+				inputTokens = u.inputTokens ?? u.prompt_tokens ?? 0;
+			}
+			if (outputTokens === 0) {
+				outputTokens = u.outputTokens ?? u.completion_tokens ?? 0;
+			}
+		}
+	}
+
 	const chartJSONs: ParsedAgentResponse["chartJSONs"] = [];
 	const rawJSONLeaks: string[] = [];
 
-	// Find JSON objects in the text by matching {"type":"...
-	const _jsonPattern = /\{"type":"[\w-]+"[^.]*?\n/g;
-	let _match: RegExpExecArray | null;
-
-	// Better approach: find all {"type":" starts, then brace-count to close
 	let searchIdx = 0;
 	while (searchIdx < textContent.length) {
 		const start = textContent.indexOf('{"type":"', searchIdx);
@@ -131,7 +136,6 @@ function parseSSE(raw: string, latencyMs: number): ParsedAgentResponse {
 			break;
 		}
 
-		// Brace-count to find closing
 		let depth = 0;
 		let end = -1;
 		for (let i = start; i < textContent.length; i++) {
@@ -154,11 +158,7 @@ function parseSSE(raw: string, latencyMs: number): ParsedAgentResponse {
 		try {
 			const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
 			if (typeof parsed.type === "string") {
-				chartJSONs.push({
-					type: parsed.type,
-					raw: jsonStr,
-					parsed,
-				});
+				chartJSONs.push({ type: parsed.type, raw: jsonStr, parsed });
 			}
 		} catch {
 			rawJSONLeaks.push(jsonStr.slice(0, 100));
@@ -167,7 +167,6 @@ function parseSSE(raw: string, latencyMs: number): ParsedAgentResponse {
 		searchIdx = end + 1;
 	}
 
-	// Count steps from start-step events
 	const steps = events.filter((e) => e.type === "start-step").length;
 
 	return {
@@ -177,5 +176,7 @@ function parseSSE(raw: string, latencyMs: number): ParsedAgentResponse {
 		rawJSONLeaks,
 		steps,
 		latencyMs,
+		inputTokens,
+		outputTokens,
 	};
 }

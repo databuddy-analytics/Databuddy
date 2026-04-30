@@ -397,7 +397,7 @@ async function analyzeWebsiteLegacy(
 	try {
 		const ai = getAILogger();
 		const result = await generateText({
-			model: ai.wrap(models.analytics),
+			model: ai.wrap(models.balanced),
 			output: Output.object({ schema: insightsOutputSchema }),
 			system: INSIGHTS_SYSTEM_PROMPT,
 			prompt,
@@ -498,7 +498,7 @@ ${orgContext}${annotationContext}${recentInsightsBlock}`;
 
 		const ai = getAILogger();
 		const agent = new ToolLoopAgent({
-			model: ai.wrap(models.analytics),
+			model: ai.wrap(models.balanced),
 			instructions: INSIGHTS_SYSTEM_PROMPT,
 			output: Output.object({ schema: insightsOutputSchema }),
 			tools,
@@ -801,7 +801,7 @@ ${insightLines.join("\n")}`;
 		let narrative = "";
 		try {
 			const result = await generateText({
-				model: getAILogger().wrap(models.analytics),
+				model: getAILogger().wrap(models.balanced),
 				prompt,
 				temperature: 0.2,
 				maxOutputTokens: 200,

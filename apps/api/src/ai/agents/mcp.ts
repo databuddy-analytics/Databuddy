@@ -17,7 +17,7 @@ export function createMcpAgentConfig(context: {
 	const chatId = context.chatId ?? crypto.randomUUID();
 
 	return {
-		model: models.analytics,
+		model: models.balanced,
 		system: {
 			role: "system" as const,
 			content: buildAnalyticsInstructionsForMcp({ timezone, currentDateTime }),

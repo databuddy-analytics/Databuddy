@@ -3,6 +3,7 @@ import type { AppContext } from "../config/context";
 import {
 	type AgentModelKey,
 	ANTHROPIC_CACHE_1H,
+	modelNames,
 	models,
 } from "../config/models";
 import {
@@ -40,6 +41,10 @@ const THINKING_BUDGET: Record<Exclude<AgentThinking, "off">, number> = {
 	high: 16_384,
 };
 
+function isAnthropicModel(key: AgentModelKey): boolean {
+	return modelNames[key].startsWith("anthropic/");
+}
+
 function thinkingProviderOptions(
 	thinking: AgentThinking | undefined
 ): AgentConfig["providerOptions"] {
@@ -55,7 +60,7 @@ function thinkingProviderOptions(
 
 export function createConfig(
 	context: AgentContext,
-	modelKey: AgentModelKey = "analytics"
+	modelKey: AgentModelKey = "balanced"
 ): AgentConfig {
 	const appContext: AppContext = {
 		userId: context.userId,
@@ -68,23 +73,25 @@ export function createConfig(
 		billingCustomerId: context.billingCustomerId,
 	};
 
-	const isFast = modelKey === "fast";
+	const isGreeter = modelKey === "greeter";
+	const anthropic = isAnthropicModel(modelKey);
 
 	return {
 		model: models[modelKey],
 		system: {
 			role: "system",
-			content: isFast
+			content: isGreeter
 				? buildFastInstructions(appContext)
 				: buildAnalyticsInstructions(appContext),
-			providerOptions: ANTHROPIC_CACHE_1H,
+			providerOptions: anthropic ? ANTHROPIC_CACHE_1H : undefined,
 		},
-		tools: isFast ? {} : analyticsTools,
-		stopWhen: stepCountIs(isFast ? 1 : maxSteps),
-		temperature: isFast ? 0.3 : 0.1,
-		providerOptions: isFast
-			? undefined
-			: thinkingProviderOptions(context.thinking),
+		tools: isGreeter ? {} : analyticsTools,
+		stopWhen: stepCountIs(isGreeter ? 1 : maxSteps),
+		temperature: isGreeter ? 0.3 : 0.1,
+		providerOptions:
+			isGreeter || !anthropic
+				? undefined
+				: thinkingProviderOptions(context.thinking),
 		experimental_context: appContext,
 	};
 }

@@ -157,22 +157,30 @@ export function scorePerformance(
 	const failures: string[] = [];
 	let score = 100;
 
-	// Latency
-	if (evalCase.expect.maxLatencyMs) {
-		const ratio = response.latencyMs / evalCase.expect.maxLatencyMs;
-		if (ratio > 1) {
-			const penalty = Math.min(40, Math.floor((ratio - 1) * 20));
-			score -= penalty;
-			failures.push(
-				`Latency ${response.latencyMs}ms exceeds budget ${evalCase.expect.maxLatencyMs}ms`
-			);
-		}
+	const ms = response.latencyMs;
+	if (ms < 60_000) {
+		score = 100;
+	} else if (ms < 120_000) {
+		score = 90;
+	} else if (ms < 180_000) {
+		score = 80;
+	} else if (ms < 300_000) {
+		score = 70;
+	} else if (ms < 600_000) {
+		score = 50;
+	} else {
+		score = 0;
 	}
 
-	// Steps
+	if (evalCase.expect.maxLatencyMs && ms > evalCase.expect.maxLatencyMs) {
+		failures.push(
+			`Latency ${ms}ms exceeds budget ${evalCase.expect.maxLatencyMs}ms`
+		);
+	}
+
 	if (evalCase.expect.maxSteps && response.steps > evalCase.expect.maxSteps) {
 		const extra = response.steps - evalCase.expect.maxSteps;
-		score -= extra * 20;
+		score = Math.max(0, score - extra * 20);
 		failures.push(
 			`${response.steps} steps exceeds budget of ${evalCase.expect.maxSteps}`
 		);

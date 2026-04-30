@@ -197,14 +197,23 @@ const ANALYTICS_TABLES: TableDef[] = [
 ];
 
 const GUIDELINES = `## Query Guidelines
-- Use client_id = {websiteId:String} to filter by website
-- For time-based queries, use time or timestamp columns
-- Aggregation tables (*_hourly) are pre-computed for performance
-- Use toStartOfDay(), toStartOfHour() for time grouping
-- Geographic data uses ISO country codes
-- All timestamps are in UTC
-- Use uniqMerge() for unique counts from AggregateFunction columns
-- Properties columns contain JSON strings - use JSONExtract functions to parse`;
+- Use client_id = {websiteId:String} to filter by website. Only websiteId is auto-injected as a parameter. For date ranges use now() - INTERVAL N DAY, not custom parameters like {from:DateTime}.
+- The primary timestamp column on analytics.events is \`time\`. Avoid aliasing columns as \`time\` in CTEs/subqueries — it conflicts with ClickHouse's built-in time() function. Use \`ts\`, \`event_time\`, or \`event_ts\` as aliases instead.
+- Aggregation tables (*_hourly) are pre-computed for performance. Use toStartOfDay(), toStartOfHour() for time grouping.
+- Geographic data (country, region, city) exists only on analytics.events, NOT on web_vitals_spans or error_spans. Join via session_id if needed.
+- All timestamps are in UTC.
+- Use uniqMerge() for unique counts from AggregateFunction columns.
+- Properties columns contain JSON strings — use JSONExtractString(properties, 'key') to parse.
+
+## ClickHouse Pitfalls
+- NO nested aggregates: \`sum(count())\` is illegal. Use a subquery: \`SELECT sum(cnt) FROM (SELECT count() as cnt ... GROUP BY ...)\`
+- NO aggregates in WHERE: use HAVING for post-aggregation filters, not WHERE.
+- \`is_bounce\` is NOT a column. Compute bounces as sessions with exactly 1 pageview: \`SELECT session_id, count() as pv FROM analytics.events ... GROUP BY session_id HAVING pv = 1\`
+- \`event_type\` does NOT exist. The column is \`event_name\`.
+- \`device_type\` is often empty. Always handle: \`NULLIF(device_type, '') as device_type\` or \`if(device_type = '', 'Desktop', device_type)\`
+- For IN filters use tuple syntax: \`path IN ('/pricing', '/docs', '/demo')\`, NOT array syntax \`['/pricing', '/docs']\`
+- formatDateTime does NOT support %A (weekday name). Use \`toDayOfWeek(time)\` (1=Mon, 7=Sun) or \`dateName('weekday', time)\`
+- web_vitals_spans has NO device_type, country, or referrer columns. Join to analytics.events via session_id to get those.`;
 
 const EXAMPLES_BY_SECTION: Record<SchemaSection, string> = {
 	events: `-- Page views over time

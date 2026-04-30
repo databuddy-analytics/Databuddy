@@ -1,44 +1,38 @@
 import { describe, expect, it } from "bun:test";
-import {
-	hasToolHistory,
-	routeMessage,
-	selectModelKeyForRoute,
-} from "./router";
+import { classifyMessage, hasToolHistory } from "./router";
 
-describe("agent route model selection", () => {
-	it("uses the fast model for fresh simple messages", () => {
-		const routeLabel = routeMessage("thanks");
-
-		expect(routeLabel).toBe("simple");
-		expect(
-			selectModelKeyForRoute(routeLabel, [
-				{ parts: [{ type: "text" }] },
-			])
-		).toBe("fast");
+describe("agent tier classification", () => {
+	it("classifies greetings as greeter", async () => {
+		const tier = await classifyMessage("thanks", false);
+		expect(tier).toBe("greeter");
 	});
 
-	it("keeps tool-capable model for simple follow-ups with tool history", () => {
+	it("classifies short acks as greeter", async () => {
+		const tier = await classifyMessage("ok", false);
+		expect(tier).toBe("greeter");
+	});
+
+	it("returns balanced when tool history exists", async () => {
+		const tier = await classifyMessage("ok", true);
+		expect(tier).toBe("balanced");
+	});
+
+	it("returns balanced for empty input", async () => {
+		const tier = await classifyMessage("", false);
+		expect(tier).toBe("balanced");
+	});
+
+	it("detects tool history in messages", () => {
 		const messages = [
 			{ parts: [{ type: "text" }] },
-			{
-				parts: [
-					{ type: "text" },
-					{ type: "tool-get_data" },
-				],
-			},
+			{ parts: [{ type: "text" }, { type: "tool-get_data" }] },
 			{ parts: [{ type: "text" }] },
 		];
-		const routeLabel = routeMessage("ok");
-
-		expect(routeLabel).toBe("simple");
 		expect(hasToolHistory(messages)).toBe(true);
-		expect(selectModelKeyForRoute(routeLabel, messages)).toBe("analytics");
 	});
 
-	it("uses the analytics model for complex messages", () => {
-		const routeLabel = routeMessage("compare traffic this week vs last week");
-
-		expect(routeLabel).toBe("complex");
-		expect(selectModelKeyForRoute(routeLabel, [])).toBe("analytics");
+	it("detects no tool history in text-only messages", () => {
+		const messages = [{ parts: [{ type: "text" }] }];
+		expect(hasToolHistory(messages)).toBe(false);
 	});
 });

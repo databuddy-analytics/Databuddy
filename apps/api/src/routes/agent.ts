@@ -8,7 +8,6 @@ import {
 import { auth } from "@databuddy/auth";
 import { and, db, eq } from "@databuddy/db";
 import { agentChats } from "@databuddy/db/schema";
-import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	appendStreamChunk,
 	clearActiveStream,
@@ -44,8 +43,16 @@ import {
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "../ai/agents/execution";
-import { routeMessage, selectModelKeyForRoute } from "../ai/agents/router";
-import { AGENT_THINKING_LEVELS, type AgentConfig } from "../ai/agents/types";
+import {
+	classifyMessage,
+	hasToolHistory,
+	tierToModelKey,
+} from "../ai/agents/router";
+import {
+	AGENT_THINKING_LEVELS,
+	AGENT_TIERS,
+	type AgentConfig,
+} from "../ai/agents/types";
 import {
 	type AgentModelKey,
 	AI_MODEL_MAX_RETRIES,
@@ -60,6 +67,7 @@ import {
 	isMemoryEnabled,
 	storeConversation,
 } from "../lib/supermemory";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { captureError, mergeWideEvent } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
 
@@ -202,6 +210,7 @@ const AgentRequestSchema = t.Object({
 	thinking: t.Optional(
 		t.Union(AGENT_THINKING_LEVELS.map((level) => t.Literal(level)))
 	),
+	tier: t.Optional(t.Union(AGENT_TIERS.map((tier) => t.Literal(tier)))),
 });
 
 const AGENT_TYPE = "analytics";
@@ -228,7 +237,13 @@ function createToolLoopAgent(
 				return { messages };
 			}
 			const last = messages.at(-1);
-			if (last && last.role === "user" && !last.providerOptions) {
+			const isAnthropic = config.system.providerOptions != null;
+			if (
+				isAnthropic &&
+				last &&
+				last.role === "user" &&
+				!last.providerOptions
+			) {
 				return {
 					messages: [
 						...messages.slice(0, -1),
@@ -292,9 +307,20 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						: `agent-chat:apikey:${apiKey?.id}`;
 					const userId = user?.id ?? `apikey:${apiKey?.id}`;
 
+					const skipRateLimit =
+						process.env.NODE_ENV === "development" &&
+						process.env.DISABLE_RATE_LIMIT === "1";
+
 					const [websiteValidation, rl] = await Promise.all([
 						validateWebsite(body.websiteId),
-						ratelimit(rateLimitKey, 40, 600),
+						skipRateLimit
+							? Promise.resolve({
+									success: true,
+									limit: 999,
+									remaining: 999,
+									reset: 0,
+								} as const)
+							: ratelimit(rateLimitKey, 40, 600),
 					]);
 
 					if (!(websiteValidation.success && websiteValidation.website)) {
@@ -391,16 +417,18 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const timezone = body.timezone ?? "UTC";
 					const domain = website.domain ?? "unknown";
 					const lastMessage = getLastMessagePreview(body.messages);
-					const routeLabel = lastMessage
-						? routeMessage(lastMessage)
-						: "complex";
-					const modelKey: AgentModelKey = selectModelKeyForRoute(
-						routeLabel,
-						body.messages
-					);
+
+					const tier = body.tier
+						? tierToModelKey(body.tier as any)
+						: await classifyMessage(
+								lastMessage,
+								hasToolHistory(body.messages)
+							).then(tierToModelKey);
+
+					const modelKey: AgentModelKey = tier;
 
 					mergeWideEvent({
-						agent_route_label: routeLabel,
+						agent_tier: tier,
 						agent_model_key: modelKey,
 					});
 
@@ -423,7 +451,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					});
 
 					const [memoryCtx, enrichment] =
-						modelKey === "fast"
+						modelKey === "greeter"
 							? [null, ""]
 							: await Promise.all([
 									getMemoryContextCached(lastMessage, userId, body.websiteId),
