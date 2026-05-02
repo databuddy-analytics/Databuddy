@@ -587,10 +587,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					</Sheet.Description>
 				</Sheet.Header>
 
-				<form
-					className="flex flex-1 flex-col overflow-hidden"
-					onSubmit={form.handleSubmit(handleSubmit)}
-				>
+				<Sheet.Form onSubmit={form.handleSubmit(handleSubmit)}>
 					{isEditing && link ? (
 						<Tabs
 							className="flex flex-1 flex-col overflow-hidden"
@@ -633,8 +630,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 									loading={isPending}
 									type="submit"
 								>
-									Save Changes
-								</Button>
+									Save Changes								</Button>
 							</Sheet.Footer>
 						</Tabs>
 					) : (
@@ -653,12 +649,11 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 									loading={isPending}
 									type="submit"
 								>
-									Create Link
-								</Button>
+									Create Link								</Button>
 							</Sheet.Footer>
 						</>
 					)}
-				</form>
+				</Sheet.Form>
 				<Sheet.Close />
 			</Sheet.Content>
 		</Sheet>

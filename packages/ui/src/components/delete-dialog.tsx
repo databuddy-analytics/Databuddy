@@ -51,6 +51,7 @@ export function DeleteDialog({
 	return (
 		<Dialog onOpenChange={onClose} open={isOpen}>
 			<Dialog.Content>
+				<Dialog.Form onSubmit={(e) => { e.preventDefault(); handleConfirm(); }}>
 				<Dialog.Header>
 					<Dialog.Title>{title}</Dialog.Title>
 					<Dialog.Description>
@@ -89,6 +90,7 @@ export function DeleteDialog({
 					<Button
 						disabled={Boolean(isDeleting)}
 						onClick={onClose}
+						type="button"
 						variant="secondary"
 					>
 						{cancelLabel}
@@ -96,12 +98,13 @@ export function DeleteDialog({
 					<Button
 						disabled={confirmDisabled}
 						loading={Boolean(isDeleting)}
-						onClick={handleConfirm}
 						tone="destructive"
+						type="submit"
 					>
 						{confirmLabel}
 					</Button>
 				</Dialog.Footer>
+				</Dialog.Form>
 				<Dialog.Close />
 			</Dialog.Content>
 		</Dialog>

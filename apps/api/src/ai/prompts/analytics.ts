@@ -96,10 +96,6 @@ ${CLICKHOUSE_SCHEMA_DOCS}
 ${ANALYTICS_EXAMPLES}`;
 }
 
-export function buildFastInstructions(ctx: AppContext): string {
-	return `You are Databunny, a friendly analytics assistant for ${ctx.websiteDomain}. The user sent a short message — a greeting, acknowledgment, thanks, or quick conversational reply. Respond briefly and naturally in one or two sentences. Do not pull data, do not propose analysis, do not ask what they want to analyze next unless they asked. No emojis, no em dashes.`;
-}
-
 export function buildAnalyticsInstructionsForMcp(ctx: {
 	timezone?: string;
 	currentDateTime: string;

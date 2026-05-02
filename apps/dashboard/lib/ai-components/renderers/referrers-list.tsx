@@ -33,7 +33,7 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 	const isDirect = displayName === "Direct" || !referrer.domain;
 
 	return (
-		<div className="flex items-center gap-3 border-b px-3 py-2.5 transition-colors last:border-b-0 hover:bg-muted/50">
+		<div className="flex items-center gap-3 rounded-sm bg-muted px-2.5 py-2.5 transition-colors hover:bg-accent">
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				{isDirect ? (
 					<GlobeIcon
@@ -72,7 +72,7 @@ function ReferrerRow({ referrer }: { referrer: ReferrerItem }) {
 					</a>
 				)}
 			</div>
-			<div className="flex shrink-0 items-center gap-3 text-right">
+			<div className="flex shrink-0 items-center gap-3 text-balance text-right">
 				<span className="font-medium text-sm tabular-nums">
 					{formatNumber(referrer.visitors)}
 				</span>
@@ -91,50 +91,79 @@ export function ReferrersListRenderer({
 	referrers,
 	className,
 }: ReferrersListProps) {
+	const resolvedTitle = title ?? "Referrers";
+
 	if (referrers.length === 0) {
 		return (
 			<Card
-				className={className ?? "gap-0 overflow-hidden border bg-card py-0"}
-			>
-				{title && (
-					<div className="border-b px-3 py-2">
-						<p className="font-medium text-sm">{title}</p>
-					</div>
+				className={cn(
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
+					className
 				)}
-				<div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-					<GlobeIcon
-						className="size-8 text-muted-foreground/40"
-						weight="duotone"
-					/>
-					<p className="font-medium text-sm">No referrers found</p>
-					<p className="text-muted-foreground text-xs">
-						Traffic sources will appear once visitors arrive
-					</p>
+			>
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
+						<div className="flex size-6 items-center justify-center rounded bg-accent">
+							<GlobeIcon
+								className="size-3.5 text-muted-foreground"
+								weight="duotone"
+							/>
+						</div>
+						<p className="font-medium text-sm">{resolvedTitle}</p>
+					</div>
+
+					<div className="rounded-md bg-background px-3 py-8">
+						<div className="flex flex-col items-center justify-center gap-2 text-center">
+							<GlobeIcon
+								className="size-8 text-muted-foreground/40"
+								weight="duotone"
+							/>
+							<p className="font-medium text-sm">No referrers found</p>
+							<p className="text-muted-foreground text-xs">
+								Traffic sources will appear once visitors arrive
+							</p>
+						</div>
+					</div>
 				</div>
 			</Card>
 		);
 	}
 
 	return (
-		<Card className={className ?? "gap-0 overflow-hidden border bg-card py-0"}>
-			{title && (
-				<div className="flex items-center justify-between border-b px-3 py-2">
-					<p className="font-medium text-sm">{title}</p>
-					<div className="flex items-center gap-3 text-muted-foreground text-xs">
+		<Card
+			className={cn(
+				"gap-0 overflow-hidden border-0 bg-secondary p-1",
+				className
+			)}
+		>
+			<div className="flex flex-col gap-1">
+				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
+					<div className="flex size-6 items-center justify-center rounded bg-accent">
+						<GlobeIcon
+							className="size-3.5 text-muted-foreground"
+							weight="duotone"
+						/>
+					</div>
+					<p className="font-medium text-sm">{resolvedTitle}</p>
+					<div className="ml-auto flex items-center gap-5 text-muted-foreground text-xs">
 						<span>Visitors</span>
-						<span className="w-12">Share</span>
+						<span className="w-10">Share</span>
 					</div>
 				</div>
-			)}
-			<div className="max-h-80 overflow-y-auto">
-				{referrers.map((referrer, idx) => (
-					<ReferrerRow key={`${referrer.name}-${idx}`} referrer={referrer} />
-				))}
-			</div>
-			<div className="border-t bg-muted/30 px-3 py-1.5">
-				<p className="text-muted-foreground text-xs">
-					{referrers.length} {referrers.length === 1 ? "source" : "sources"}
-				</p>
+
+				<div className="rounded-md bg-background px-1 py-1">
+					<div className="max-h-80 space-y-1 overflow-y-auto">
+						{referrers.map((referrer, idx) => (
+							<ReferrerRow key={`${referrer.name}-${idx}`} referrer={referrer} />
+						))}
+					</div>
+				</div>
+
+				<div className="rounded-md bg-background px-3 py-1.5">
+					<p className="text-muted-foreground text-xs">
+						{referrers.length} {referrers.length === 1 ? "source" : "sources"}
+					</p>
+				</div>
 			</div>
 		</Card>
 	);

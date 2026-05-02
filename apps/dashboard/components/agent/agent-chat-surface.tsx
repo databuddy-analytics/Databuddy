@@ -12,9 +12,9 @@ import { useChat, useChatLoading } from "@/contexts/chat-context";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { BrainIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArrowRightIcon,
+	BrainIcon,
 	ChartBarIcon,
 	LightbulbIcon,
 	LightningIcon,
@@ -95,12 +95,16 @@ export function AgentChatSurface({
 
 	return (
 		<div
-			className={cn("relative flex min-h-0 flex-1 overflow-hidden", className)}
+			className={cn(
+				"relative flex min-h-0 flex-1 flex-col overflow-hidden",
+				className
+			)}
 		>
 			<Conversation className="flex-1 overscroll-none">
 				<ConversationContent
 					className={cn(
-						"mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-4 py-6",
+						"mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6",
+						showWelcome && "min-h-full",
 						contentClassName
 					)}
 					scrollClassName="overscroll-none"
@@ -116,10 +120,12 @@ export function AgentChatSurface({
 							/>
 						</div>
 					) : null}
-					<AgentInput />
 				</ConversationContent>
 				<ConversationScrollButton />
 			</Conversation>
+			<div className="mx-auto w-full max-w-3xl px-4 pb-4">
+				<AgentInput />
+			</div>
 		</div>
 	);
 }

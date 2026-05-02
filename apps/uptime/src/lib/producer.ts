@@ -1,65 +1,122 @@
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
+import { Context, Data, Effect, Layer } from "effect";
 import { captureError } from "./tracing";
 
 const TOPIC = "analytics-uptime-checks";
 
-let producer: Producer | null = null;
-let connected = false;
+class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
+	cause: unknown;
+}> {}
+
+const KafkaProducer = Context.Service<Producer>("KafkaProducer");
+
+const connectProducer = (): Promise<Producer> => {
+	const broker = process.env.REDPANDA_BROKER;
+	if (!broker) return Promise.reject(new Error("REDPANDA_BROKER not set"));
+
+	const username = process.env.REDPANDA_USER;
+	const password = process.env.REDPANDA_PASSWORD;
+	const kafka = new Kafka({
+		brokers: [broker],
+		clientId: "uptime-producer",
+		...(username &&
+			password && {
+				sasl: { mechanism: "scram-sha-256", username, password },
+				ssl: false,
+			}),
+	});
+
+	const producer = kafka.producer({
+		maxInFlightRequests: 1,
+		idempotent: true,
+		transactionTimeout: 30_000,
+	});
+
+	return producer.connect().then(() => producer);
+};
+
+const KafkaProducerLive = Layer.effect(
+	KafkaProducer,
+	Effect.acquireRelease(
+		Effect.tryPromise({
+			try: connectProducer,
+			catch: (cause) => {
+				captureError(cause, { error_step: "kafka_producer_connect" });
+				return cause as Error;
+			},
+		}),
+		(producer) =>
+			Effect.tryPromise({
+				try: () => producer.disconnect(),
+				catch: (cause) => cause,
+			}).pipe(
+				Effect.catch((cause) => {
+					captureError(cause, {
+						error_step: "kafka_producer_disconnect",
+					});
+					return Effect.void;
+				}),
+			),
+	),
+);
+
+const sendEvent = (event: unknown, key?: string) =>
+	Effect.gen(function* () {
+		const producer = yield* KafkaProducer;
+		yield* Effect.tryPromise({
+			try: () =>
+				producer.send({
+					topic: TOPIC,
+					messages: [
+						{
+							value: JSON.stringify(event, (_k, v) =>
+								v === undefined ? null : v,
+							),
+							key,
+						},
+					],
+					compression: CompressionTypes.GZIP,
+				}),
+			catch: (cause) => new KafkaSendError({ cause }),
+		});
+	});
+
+export { KafkaProducer, KafkaProducerLive, KafkaSendError, sendEvent };
+
+let singletonProducer: Producer | null = null;
+let singletonConnected = false;
 
 async function ensureProducer(): Promise<Producer | null> {
-	if (connected && producer) {
-		return producer;
-	}
+	if (singletonConnected && singletonProducer) return singletonProducer;
 
-	const broker = process.env.REDPANDA_BROKER;
-	if (!broker) {
-		return null;
-	}
+	if (!process.env.REDPANDA_BROKER) return null;
 
 	try {
-		const username = process.env.REDPANDA_USER;
-		const password = process.env.REDPANDA_PASSWORD;
-		const kafka = new Kafka({
-			brokers: [broker],
-			clientId: "uptime-producer",
-			...(username &&
-				password && {
-					sasl: { mechanism: "scram-sha-256", username, password },
-					ssl: false,
-				}),
-		});
-
-		producer = kafka.producer({
-			maxInFlightRequests: 1,
-			idempotent: true,
-			transactionTimeout: 30_000,
-		});
-
-		await producer.connect();
-		connected = true;
-		return producer;
+		singletonProducer = await connectProducer();
+		singletonConnected = true;
+		return singletonProducer;
 	} catch (error) {
 		captureError(error, { error_step: "kafka_producer_connect" });
-		connected = false;
+		singletonConnected = false;
 		return null;
 	}
 }
 
 export async function sendUptimeEvent(
 	event: unknown,
-	key?: string
+	key?: string,
 ): Promise<void> {
 	const p = await ensureProducer();
-	if (!p) {
-		return;
-	}
+	if (!p) return;
 
 	try {
 		await p.send({
 			topic: TOPIC,
 			messages: [
 				{
-					value: JSON.stringify(event, (_k, v) => (v === undefined ? null : v)),
+					value: JSON.stringify(event, (_k, v) =>
+						v === undefined ? null : v,
+					),
 					key,
 				},
 			],
@@ -71,14 +128,12 @@ export async function sendUptimeEvent(
 }
 
 export async function disconnectProducer(): Promise<void> {
-	if (!producer) {
-		return;
-	}
+	if (!singletonProducer) return;
 	try {
-		await producer.disconnect();
+		await singletonProducer.disconnect();
 	} catch (error) {
 		captureError(error, { error_step: "kafka_producer_disconnect" });
 	}
-	producer = null;
-	connected = false;
+	singletonProducer = null;
+	singletonConnected = false;
 }

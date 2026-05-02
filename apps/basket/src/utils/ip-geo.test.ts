@@ -116,12 +116,11 @@ describe("getGeo", () => {
 	});
 
 	test("200 random public IPs → valid structure", {
-		timeout: 30_000,
+		timeout: 60_000,
 	}, async () => {
-		// Probe whether GeoIP DB is reachable first
 		const probe = await Promise.race([
 			getGeo("8.8.8.8"),
-			new Promise<null>((r) => setTimeout(() => r(null), 10_000)),
+			new Promise<null>((r) => setTimeout(() => r(null), 30_000)),
 		]);
 		if (!(probe && probe.anonymizedIP)) {
 			console.log("Skipping: GeoIP CDN unreachable");

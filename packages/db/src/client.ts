@@ -71,6 +71,7 @@ function instrumentedPool(pool: Pool): Pool {
 }
 
 let _db: DB | null = null;
+let _pool: Pool | null = null;
 
 function getDb(): DB {
 	if (!_db) {
@@ -79,7 +80,7 @@ function getDb(): DB {
 			throw new Error("DATABASE_URL is not set");
 		}
 
-		const pool = instrumentedPool(
+		_pool = instrumentedPool(
 			new Pool({
 				connectionString: connectionStringForNodePg(databaseUrl),
 				max: Number.parseInt(process.env.DB_POOL_MAX ?? "20", 10) || 20,
@@ -89,9 +90,18 @@ function getDb(): DB {
 			})
 		);
 
-		_db = drizzle(pool, { schema: fullSchema });
+		_db = drizzle(_pool, { schema: fullSchema });
 	}
 	return _db;
+}
+
+export async function warmPool(): Promise<void> {
+	getDb();
+	if (!_pool) {
+		return;
+	}
+	const client = await _pool.connect();
+	client.release();
 }
 
 export const db = new Proxy({} as DB, {

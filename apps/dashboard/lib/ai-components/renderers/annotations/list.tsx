@@ -1,5 +1,8 @@
 "use client";
 
+import { useParams, useRouter } from "next/navigation";
+import { useCallback } from "react";
+import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 import {
 	CalendarIcon,
@@ -36,18 +39,22 @@ function AnnotationTypeLabel({ type }: { type: string }) {
 		range: "Range",
 	};
 	return (
-		<Badge className="text-[10px]" variant="muted">
+		<Badge className="text-[10px] py-0.5! rounded" variant="muted">
+			<span className="mt-px">
 			{labels[type] ?? type}
+			</span>
 		</Badge>
 	);
 }
 
 function AnnotationRow({
 	annotation,
+	onNavigate,
 	onEdit,
 	onDelete,
 }: {
 	annotation: AnnotationItem;
+	onNavigate: () => void;
 	onEdit: () => void;
 	onDelete: () => void;
 }) {
@@ -56,60 +63,48 @@ function AnnotationRow({
 			? `${new Date(annotation.xValue).toLocaleDateString()} - ${new Date(annotation.xEndValue).toLocaleDateString()}`
 			: new Date(annotation.xValue).toLocaleDateString();
 
+	const tagsSuffix =
+		Array.isArray(annotation.tags) && annotation.tags.length > 0
+			? ` · ${annotation.tags.slice(0, 2).join(", ")}${annotation.tags.length > 2 ? ` +${annotation.tags.length - 2}` : ""}`
+			: "";
+
+	const metaLine = `${dateDisplay}${tagsSuffix}${annotation.isPublic ? " · Public" : ""}`;
+
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: Can't use button - contains nested buttons (dropdown trigger)
 		<div
-			className="group flex w-full cursor-default items-start gap-3 border-b px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-muted/50"
-			role="listitem"
+			className="group/annotation-row flex w-full cursor-pointer items-start gap-3 rounded-sm bg-muted/30 px-2 py-2.5 text-left transition-colors hover:bg-muted"
+			onClick={onNavigate}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					onNavigate();
+				}
+			}}
+			role="button"
+			tabIndex={0}
 		>
-			<div
-				className="mt-0.5 shrink-0 rounded border p-1.5"
-				style={{
-					borderColor: annotation.color ?? "var(--border)",
-					backgroundColor: annotation.color
-						? `${annotation.color}10`
-						: "var(--accent)",
-				}}
-			>
-				<NoteIcon
-					className="size-3.5"
-					style={{ color: annotation.color ?? "var(--muted-foreground)" }}
-					weight="duotone"
-				/>
+			<div className="h-max shrink-0 rounded border border-transparent bg-accent p-1.5 text-primary transition-colors group-hover/annotation-row:bg-primary/10">
+				<NoteIcon className="size-3.5" weight="duotone" />
 			</div>
 
 			<div className="min-w-0 flex-1">
-				<p className="text-sm leading-snug">{annotation.text}</p>
-				<div className="mt-1.5 flex flex-wrap items-center gap-2">
-					<AnnotationTypeLabel type={annotation.annotationType} />
-					<span className="flex items-center gap-1 text-muted-foreground text-xs">
-						<CalendarIcon className="size-3" weight="duotone" />
-						{dateDisplay}
-					</span>
-					{Array.isArray(annotation.tags) && annotation.tags.length > 0 && (
-						<div className="flex gap-1">
-							{annotation.tags.slice(0, 3).map((tag) => (
-								<Badge className="text-[10px]" key={tag} variant="default">
-									{tag}
-								</Badge>
-							))}
-							{annotation.tags.length > 3 && (
-								<Badge className="text-[10px]" variant="default">
-									+{annotation.tags.length - 3}
-								</Badge>
-							)}
-						</div>
-					)}
-					{annotation.isPublic && (
-						<Badge className="text-[10px]" variant="muted">
-							Public
-						</Badge>
-					)}
+				<div className="flex items-center gap-2">
+					<p className="truncate font-medium text-sm">{annotation.text}</p>
 				</div>
+				<p className="mt-1 truncate text-muted-foreground text-xs">
+					<span className="inline-flex items-center gap-1">
+						<CalendarIcon className="size-3 shrink-0" weight="duotone" />
+						{metaLine}
+						<span className="pl-1">
+						<AnnotationTypeLabel type={annotation.annotationType} />
+						</span>
+					</span>
+				</p>
 			</div>
 
 			{annotation.createdAt && (
-				<span className="hidden shrink-0 text-muted-foreground text-xs lg:block">
+				<span className="hidden shrink-0 text-[11px] text-muted-foreground sm:block pt-0.5">
 					{fromNow(annotation.createdAt)}
 				</span>
 			)}
@@ -123,7 +118,7 @@ function AnnotationRow({
 				<DropdownMenu>
 					<DropdownMenu.Trigger
 						aria-label="Actions"
-						className="inline-flex size-7 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
+						className="inline-flex size-7 items-center justify-center gap-1.5 rounded-md bg-secondary p-0 font-medium text-muted-foreground opacity-70 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 group-hover/annotation-row:bg-interactive-hover group-hover/annotation-row:text-foreground data-[state=open]:opacity-100"
 					>
 						<DotsThreeIcon className="size-4" weight="bold" />
 					</DropdownMenu.Trigger>
@@ -153,61 +148,84 @@ export function AnnotationsListRenderer({
 	annotations,
 	className,
 }: AnnotationsListProps) {
-	// Note: Full CRUD operations would require the chart context which is complex
-	// For now, display-only with action hints
-	const handleEdit = (id: string) => {
-		console.log("Edit annotation:", id);
-	};
+	const router = useRouter();
+	const params = useParams();
+	const websiteId = params.id as string;
 
-	const handleDelete = (id: string) => {
-		console.log("Delete annotation:", id);
-	};
+	const goToWebsiteOverview = useCallback(() => {
+		router.push(`/websites/${websiteId}`);
+	}, [router, websiteId]);
 
 	if (annotations.length === 0) {
 		return (
 			<Card
-				className={className ?? "gap-0 overflow-hidden border bg-card py-0"}
+				className={cn(
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
+					className
+				)}
 			>
-				<div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-					<NoteIcon
-						className="size-8 text-muted-foreground/40"
-						weight="duotone"
-					/>
-					<p className="font-medium text-sm">No annotations found</p>
-					<p className="text-muted-foreground text-xs">
-						Add annotations to mark important events on charts
-					</p>
-					<Button className="mt-2" size="sm" variant="secondary">
-						<PlusIcon className="size-4" />
-						Create Annotation
-					</Button>
+				<div className="rounded-md bg-background px-3 py-8">
+					<div className="flex flex-col items-center justify-center gap-2 text-center">
+						<NoteIcon
+							className="size-8 text-muted-foreground/40"
+							weight="duotone"
+						/>
+						<p className="font-medium text-sm">No annotations found</p>
+						<p className="text-muted-foreground text-xs">
+							Add annotations to mark important events on charts
+						</p>
+						<Button
+							className="mt-2"
+							onClick={goToWebsiteOverview}
+							size="sm"
+							variant="secondary"
+						>
+							<PlusIcon className="size-4" />
+							Create Annotation
+						</Button>
+					</div>
 				</div>
 			</Card>
 		);
 	}
 
 	return (
-		<Card className={className ?? "gap-0 overflow-hidden border bg-card py-0"}>
-			{title && (
-				<div className="flex items-center justify-between border-b px-3 py-2">
-					<p className="font-medium text-sm">{title}</p>
-				</div>
+		<Card
+			className={cn(
+				"gap-0 overflow-hidden border-0 bg-secondary p-1",
+				className
 			)}
-			<ul>
-				{annotations.map((annotation) => (
-					<AnnotationRow
-						annotation={annotation}
-						key={annotation.id}
-						onDelete={() => handleDelete(annotation.id)}
-						onEdit={() => handleEdit(annotation.id)}
-					/>
-				))}
-			</ul>
-			<div className="border-t bg-muted/30 px-3 py-1.5">
-				<p className="text-muted-foreground text-xs">
-					{annotations.length}{" "}
-					{annotations.length === 1 ? "annotation" : "annotations"}
-				</p>
+		>
+			<div className="flex flex-col gap-1">
+				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
+					<div className="flex size-6 items-center justify-center rounded bg-accent">
+						<NoteIcon
+							className="size-3.5 text-muted-foreground"
+							weight="duotone"
+						/>
+					</div>
+					<p className="font-medium text-sm">{title ?? "Annotations"}</p>
+					<div className="ml-auto flex items-center gap-2">
+						<Button onClick={goToWebsiteOverview} size="sm" variant="primary">
+							<PlusIcon className="size-3.5" />
+							New
+						</Button>
+					</div>
+				</div>
+
+				<div className="rounded-md bg-background px-1 py-1">
+					<div className="space-y-1">
+						{annotations.map((annotation) => (
+							<AnnotationRow
+								annotation={annotation}
+								key={annotation.id}
+								onDelete={goToWebsiteOverview}
+								onEdit={goToWebsiteOverview}
+								onNavigate={goToWebsiteOverview}
+							/>
+						))}
+					</div>
+				</div>
 			</div>
 		</Card>
 	);

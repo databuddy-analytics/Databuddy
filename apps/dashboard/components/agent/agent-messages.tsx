@@ -1,6 +1,8 @@
 "use client";
 
 import type { UIMessage } from "ai";
+import { motion } from "motion/react";
+import type { ReactNode } from "react";
 import { AIComponent } from "@/components/ai-elements/ai-component";
 import {
 	Message,
@@ -24,7 +26,7 @@ import {
 	ToolOutput,
 	type ToolStatus,
 } from "@/components/ai-elements/tool";
-import { useChat } from "@/contexts/chat-context";
+import { useChat, useChatLoading } from "@/contexts/chat-context";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { parseContentSegments } from "@/lib/ai-components";
 import { formatToolLabel } from "@/lib/tool-display";
@@ -302,7 +304,7 @@ function AssistantActions({
 	}
 
 	return (
-		<div className="-ml-1.5 flex items-center gap-0.5 pt-1 opacity-60 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100">
+		<div className="bg-secondary w-max rounded flex items-center gap-0.5 pt-0 opacity-60 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100">
 			<Button
 				aria-label={isCopied ? "Copied" : "Copy response"}
 				className="size-7 text-muted-foreground hover:text-foreground"
@@ -336,6 +338,8 @@ function AssistantActions({
 export function AgentMessages() {
 	const { status, messages, error, regenerate, clearError, sendMessage } =
 		useChat();
+	const { persistedUserMessageIds } = useChatLoading();
+
 	const hasError = status === "error";
 	const isStreaming = status === "streaming" || status === "submitted";
 	const lastMessage = messages.at(-1);
@@ -364,6 +368,8 @@ export function AgentMessages() {
 				const showActions = isAssistant && !(isLastMessage && isStreaming);
 				const groupedParts = collectToolGroups(message.parts);
 				const messageKey = message.id || `msg-${index}`;
+				const shouldAnimateUserBubble =
+					message.role === "user" && !persistedUserMessageIds.has(messageKey);
 
 				return (
 					<Message
@@ -371,29 +377,46 @@ export function AgentMessages() {
 						from={message.role}
 						key={messageKey}
 					>
-						<MessageContent className={cn(isAssistant && "w-full")}>
-							{groupedParts.map((part, partIndex) =>
-								renderMessagePart(
-									part,
-									partIndex,
-									messageKey,
-									isLastMessage,
-									isStreaming,
-									message.role
-								)
-							)}
+						{message.role === "user" ? (
+							<UserMessageBubble animate={shouldAnimateUserBubble}>
+								<MessageContent className={cn(isAssistant && "w-full")}>
+									{groupedParts.map((part, partIndex) =>
+										renderMessagePart(
+											part,
+											partIndex,
+											messageKey,
+											isLastMessage,
+											isStreaming,
+											message.role
+										)
+									)}
+								</MessageContent>
+							</UserMessageBubble>
+						) : (
+							<MessageContent className={cn(isAssistant && "w-full")}>
+								{groupedParts.map((part, partIndex) =>
+									renderMessagePart(
+										part,
+										partIndex,
+										messageKey,
+										isLastMessage,
+										isStreaming,
+										message.role
+									)
+								)}
 
-							{showActions ? (
-								<AssistantActions
-									canRegenerate={!hasError}
-									isLast={isLastMessage}
-									message={message}
-									onRegenerate={() => {
-										regenerate().catch(() => undefined);
-									}}
-								/>
-							) : null}
-						</MessageContent>
+								{showActions ? (
+									<AssistantActions
+										canRegenerate={!hasError}
+										isLast={isLastMessage}
+										message={message}
+										onRegenerate={() => {
+											regenerate().catch(() => undefined);
+										}}
+									/>
+								) : null}
+							</MessageContent>
+						)}
 					</Message>
 				);
 			})}
@@ -450,4 +473,31 @@ function StreamingIndicator({ label }: { label: string | null }) {
 			</Shimmer>
 		</div>
 	);
+}
+
+function AnimatedUserBubble({ children }: { children: ReactNode }) {
+	return (
+		<motion.div
+			animate={{ filter: "blur(0px)", opacity: 1, scale: 1, y: 0 }}
+			className="origin-bottom-right"
+			initial={{ filter: "blur(6px)", opacity: 0, scale: 0.8, y: 5 }}
+			transition={{ type: "spring", stiffness: 450, damping: 35 }}
+		>
+			{children}
+		</motion.div>
+	);
+}
+
+function UserMessageBubble({
+	animate,
+	children,
+}: {
+	animate: boolean;
+	children: ReactNode;
+}) {
+	if (animate) {
+		return <AnimatedUserBubble>{children}</AnimatedUserBubble>;
+	}
+
+	return <div className="origin-bottom-right">{children}</div>;
 }

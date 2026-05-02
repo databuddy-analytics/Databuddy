@@ -3,8 +3,18 @@
 import { cn } from "../lib/utils";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { type ButtonHTMLAttributes, useEffect, useRef, useState } from "react";
+import {
+	createContext,
+	useContext,
+	type ButtonHTMLAttributes,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { Spinner } from "./spinner";
+
+const SubmitHintContext = createContext(false);
+export const SubmitHintProvider = SubmitHintContext.Provider;
 
 const button = cva(
   [
@@ -159,6 +169,8 @@ export function Button({
   const ref = useRef<HTMLButtonElement>(null);
   const [lockedWidth, setLockedWidth] = useState<number>();
   const isClickDisabled = disabled || loading;
+  const hasSubmitHint = useContext(SubmitHintContext);
+  const showSubmitHint = hasSubmitHint && type === "submit" && !keyboard;
 
   useEffect(() => {
     if (loading && ref.current && !lockedWidth) {
@@ -216,6 +228,9 @@ export function Button({
             <kbd className="ml-1 rounded border bg-black/5 px-1.5 py-0.5 font-mono text-[10px] dark:bg-white/10">
               {keyboard.display}
             </kbd>
+          )}
+          {showSubmitHint && (
+            <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1 py-px font-mono text-[10px] sm:inline">⌘↵</kbd>
           )}
         </>
       )}

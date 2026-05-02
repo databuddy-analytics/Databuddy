@@ -114,8 +114,6 @@ export const alarmTriggerTypeValues = [
 	"uptime",
 	"traffic_spike",
 	"error_rate",
-	"goal",
-	"custom",
 ] as const;
 export type AlarmTriggerTypeValue = (typeof alarmTriggerTypeValues)[number];
 
@@ -126,3 +124,12 @@ export const alarmDestinationTypeValues = [
 ] as const;
 export type AlarmDestinationTypeValue =
 	(typeof alarmDestinationTypeValues)[number];
+
+export type UptimeTriggerConditions = { monitorIds: string[] };
+export type TrafficSpikeTriggerConditions = Record<string, unknown>;
+export type ErrorRateTriggerConditions = Record<string, unknown>;
+
+export type AlarmTriggerConditions =
+	| UptimeTriggerConditions
+	| TrafficSpikeTriggerConditions
+	| ErrorRateTriggerConditions;

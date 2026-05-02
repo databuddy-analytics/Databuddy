@@ -40,9 +40,9 @@ export function NewChatButton({
 			className={cn(className)}
 			onClick={handleNewChat}
 			size="sm"
-			variant="ghost"
 		>
-			<PlusIcon className="size-4" />
+			<PlusIcon className="size-4 shrink-0" />
+			New chat
 		</Button>
 	);
 }

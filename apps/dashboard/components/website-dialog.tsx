@@ -160,71 +160,74 @@ export function WebsiteDialog({
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<Dialog.Content>
-				<Dialog.Header>
-					<Dialog.Title>
-						{isEditing ? "Edit Website" : "Create a new website"}
-					</Dialog.Title>
-					<Dialog.Description>
-						{isEditing
-							? "Update the details of your existing website."
-							: "A new website to start tracking analytics."}
-					</Dialog.Description>
-				</Dialog.Header>
-				<Dialog.Body>
-					<fieldset className="space-y-4" disabled={isPending}>
-						<Field error={!!nameError}>
-							<Field.Label>Name</Field.Label>
-							<Input
-								placeholder="Your website's name"
-								{...form.register("name")}
-							/>
-							{nameError && <Field.Error>{nameError}</Field.Error>}
-						</Field>
+				<Dialog.Form onSubmit={form.handleSubmit(handleSubmit)}>
+					<Dialog.Header>
+						<Dialog.Title>
+							{isEditing ? "Edit Website" : "Create a new website"}
+						</Dialog.Title>
+						<Dialog.Description>
+							{isEditing
+								? "Update the details of your existing website."
+								: "A new website to start tracking analytics."}
+						</Dialog.Description>
+					</Dialog.Header>
+					<Dialog.Body>
+						<fieldset className="space-y-4" disabled={isPending}>
+							<Field error={!!nameError}>
+								<Field.Label>Name</Field.Label>
+								<Input
+									placeholder="Your website's name"
+									{...form.register("name")}
+								/>
+								{nameError && <Field.Error>{nameError}</Field.Error>}
+							</Field>
 
-						<Field error={!!domainError}>
-							<Field.Label>Domain</Field.Label>
-							<Input
-								placeholder="your-company.com"
-								prefix="https://"
-								{...form.register("domain", {
-									onChange: (e) => {
-										let domain = e.target.value.trim();
-										if (
-											domain.startsWith("http://") ||
-											domain.startsWith("https://")
-										) {
-											try {
-												domain = new URL(domain).hostname;
-											} catch {
-												// Do nothing
+							<Field error={!!domainError}>
+								<Field.Label>Domain</Field.Label>
+								<Input
+									placeholder="your-company.com"
+									prefix="https://"
+									{...form.register("domain", {
+										onChange: (e) => {
+											let domain = e.target.value.trim();
+											if (
+												domain.startsWith("http://") ||
+												domain.startsWith("https://")
+											) {
+												try {
+													domain = new URL(domain).hostname;
+												} catch {
+													// Do nothing
+												}
 											}
-										}
-										form.setValue("domain", domain.replace(wwwRegex, ""), {
-											shouldValidate: true,
-										});
-									},
-								})}
-							/>
-							{domainError && <Field.Error>{domainError}</Field.Error>}
-						</Field>
-					</fieldset>
-				</Dialog.Body>
-				<Dialog.Footer>
-					<Button
-						disabled={isPending}
-						onClick={() => onOpenChange(false)}
-						variant="secondary"
-					>
-						Cancel
-					</Button>
-					<Button
-						disabled={isSubmitDisabled}
-						loading={isPending}
-						onClick={form.handleSubmit(handleSubmit)}
-					>
-						{isEditing ? "Save changes" : "Create website"}
-					</Button>
-				</Dialog.Footer>
+											form.setValue("domain", domain.replace(wwwRegex, ""), {
+												shouldValidate: true,
+											});
+										},
+									})}
+								/>
+								{domainError && <Field.Error>{domainError}</Field.Error>}
+							</Field>
+						</fieldset>
+					</Dialog.Body>
+					<Dialog.Footer>
+						<Button
+							disabled={isPending}
+							onClick={() => onOpenChange(false)}
+							type="button"
+							variant="secondary"
+						>
+							Cancel
+						</Button>
+						<Button
+							disabled={isSubmitDisabled}
+							loading={isPending}
+							type="submit"
+						>
+							{isEditing ? "Save changes" : "Create website"}
+						</Button>
+					</Dialog.Footer>
+				</Dialog.Form>
 				<Dialog.Close />
 			</Dialog.Content>
 		</Dialog>

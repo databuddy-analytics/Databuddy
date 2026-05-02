@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MonitorStatus } from "./types";
-import { resolveTransitionKind } from "./uptime-transition-emails";
+import { resolveTransitionKind } from "./uptime-transition-alerts";
 
 const { UP, DOWN, PENDING, MAINTENANCE } = MonitorStatus;
 

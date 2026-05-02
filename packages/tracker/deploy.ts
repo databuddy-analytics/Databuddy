@@ -1,8 +1,9 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { file, hash, spawn } from "bun";
+import { file, spawn } from "bun";
 import chalk from "chalk";
 import { Command } from "commander";
+import { db, desc, eq, trackerVersions } from "@databuddy/db";
 
 const program = new Command();
 
@@ -56,8 +57,41 @@ const BASE_URL = REGION
 
 const DIST_DIR = join(import.meta.dir, "dist");
 
-function getHash(content: string): string {
-	return hash(content).toString();
+import {
+	PRODUCTION_SCRIPTS,
+	generateSriHash,
+	getContentHash,
+	versionedName,
+} from "./deploy-utils";
+
+async function getNextVersion(): Promise<number> {
+	const [latest] = await db
+		.select({ version: trackerVersions.version })
+		.from(trackerVersions)
+		.orderBy(desc(trackerVersions.version))
+		.limit(1);
+
+	return (latest?.version ?? 0) + 1;
+}
+
+async function insertVersionRow(
+	version: number,
+	filename: string,
+	sriHash: string,
+	sizeBytes: number
+) {
+	await db
+		.update(trackerVersions)
+		.set({ isCurrent: false })
+		.where(eq(trackerVersions.filename, filename));
+
+	await db.insert(trackerVersions).values({
+		version,
+		filename,
+		sriHash,
+		sizeBytes,
+		isCurrent: true,
+	});
 }
 
 async function runTests() {
@@ -104,7 +138,7 @@ async function fetchRemoteHash(filename: string): Promise<string | null> {
 			return null;
 		}
 		const text = await response.text();
-		return getHash(text);
+		return getContentHash(text);
 	} catch {
 		return null;
 	}
@@ -124,9 +158,9 @@ async function checkFileStatus(filename: string): Promise<{
 	}
 
 	const content = await fileContent.text();
-	const localHash = getHash(content);
+	const localHash = getContentHash(content);
 	const remoteHash = await fetchRemoteHash(filename);
-	const size = (await fileContent.size) / 1024; // KB
+	const size = (await fileContent.size) / 1024;
 
 	if (!remoteHash) {
 		return { filename, status: "new", size, content };
@@ -191,6 +225,8 @@ async function uploadFile(
 
 async function sendDiscordNotification(
 	uploadedFiles: { filename: string; size: number }[],
+	version: number,
+	sriHashes: Map<string, string>,
 	message?: string
 ) {
 	if (!DISCORD_WEBHOOK_URL) {
@@ -203,12 +239,16 @@ async function sendDiscordNotification(
 			.map((f) => `- **${f.filename}** (${f.size.toFixed(2)} KB)`)
 			.join("\n");
 
+		const sriList = [...sriHashes.entries()]
+			.map(([name, hash]) => `- \`${name}\`: \`${hash.slice(0, 30)}...\``)
+			.join("\n");
+
 		const embed = {
-			title: "Tracker Scripts Deployed",
+			title: `Tracker Scripts Deployed (v${version})`,
 			description: message
 				? `> ${message}`
 				: "A new version of the tracker scripts has been deployed to the CDN.",
-			color: 5_763_719, // Green
+			color: 5_763_719,
 			fields: [
 				{
 					name: "Updated Files",
@@ -216,8 +256,13 @@ async function sendDiscordNotification(
 					inline: false,
 				},
 				{
+					name: "SRI Hashes",
+					value: sriList,
+					inline: false,
+				},
+				{
 					name: "Deployment Stats",
-					value: `**Total Size:** ${totalSize.toFixed(2)} KB\n**Files:** ${uploadedFiles.length}\n**Environment:** Production`,
+					value: `**Version:** v${version}\n**Total Size:** ${totalSize.toFixed(2)} KB\n**Files:** ${uploadedFiles.length}\n**Environment:** Production`,
 					inline: false,
 				},
 			],
@@ -307,7 +352,6 @@ async function deploy() {
 			console.log(chalk.dim(`Files: ${jsFiles.join(", ")}`));
 		}
 
-		// Check file statuses first
 		console.log(chalk.dim("Checking for changes..."));
 		const fileStatuses = await Promise.all(jsFiles.map(checkFileStatus));
 
@@ -322,19 +366,33 @@ async function deploy() {
 			return;
 		}
 
+		const version = await getNextVersion();
+
 		console.log(
 			chalk.bold(
-				`\n📦 Found ${changedFiles.length} files to update in ${chalk.cyan(STORAGE_ZONE_NAME)}:`
+				`\n📦 Version ${chalk.cyan(`v${version}`)} — ${changedFiles.length} files to update in ${chalk.cyan(STORAGE_ZONE_NAME)}:`
 			)
 		);
 
-		for (const file of changedFiles) {
-			const icon = file.status === "new" ? "🆕" : "🔄";
-			console.log(
-				` ${icon} ${chalk.white(file.filename)} ${chalk.dim(
-					`(${file.size.toFixed(2)} KB)`
-				)}`
-			);
+		const sriHashes = new Map<string, string>();
+
+		for (const f of changedFiles) {
+			const icon = f.status === "new" ? "🆕" : "🔄";
+			const isProduction = PRODUCTION_SCRIPTS.includes(f.filename);
+
+			if (isProduction && f.content) {
+				const sri = await generateSriHash(f.content);
+				sriHashes.set(f.filename, sri);
+				console.log(
+					` ${icon} ${chalk.white(f.filename)} ${chalk.dim(`(${f.size.toFixed(2)} KB)`)}` +
+						chalk.dim(` → also uploading ${versionedName(f.filename, version)}`)
+				);
+				console.log(chalk.dim(`    SRI: ${sri}`));
+			} else {
+				console.log(
+					` ${icon} ${chalk.white(f.filename)} ${chalk.dim(`(${f.size.toFixed(2)} KB)`)}`
+				);
+			}
 		}
 
 		const skipConfirmation = options.yes || options.dryRun;
@@ -352,44 +410,88 @@ async function deploy() {
 			}
 		}
 
-		const uploadPromises = changedFiles.map((f) => {
-			if (!f.content) {
-				// Should not happen given checkFileStatus logic for changed/new
-				return Promise.resolve({
-					filename: f.filename,
-					status: "error" as const,
-					size: 0,
-				});
-			}
-			return uploadFile(f.filename, f.content, f.size);
-		});
+		const uploadResults: {
+			filename: string;
+			status: "uploaded" | "dry-run" | "error";
+			size: number;
+		}[] = [];
 
-		const results = await Promise.all(uploadPromises);
-		const uploaded = results.filter((r) => r.status === "uploaded");
+		for (const f of changedFiles) {
+			if (!f.content) continue;
+
+			const result = await uploadFile(f.filename, f.content, f.size);
+			uploadResults.push(result);
+
+			if (
+				PRODUCTION_SCRIPTS.includes(f.filename) &&
+				result.status !== "error"
+			) {
+				const versioned = versionedName(f.filename, version);
+				const versionedResult = await uploadFile(
+					versioned,
+					f.content,
+					f.size
+				);
+				uploadResults.push(versionedResult);
+			}
+		}
+
+		const uploaded = uploadResults.filter((r) => r.status === "uploaded");
 
 		if (options.dryRun) {
 			console.log(
 				chalk.cyan("\n✨ Dry run completed. No files were uploaded.")
 			);
-		} else {
 			console.log(
-				chalk.green(
-					`\n✨ Deployment process completed! (${uploaded.length} files updated)`
+				chalk.cyan(
+					`Would have recorded version v${version} with ${sriHashes.size} SRI hashes in database.`
 				)
 			);
-
+		} else {
 			if (uploaded.length > 0) {
+				for (const [filename, sri] of sriHashes) {
+					const f = changedFiles.find((cf) => cf.filename === filename);
+					if (!f?.content) continue;
+					await insertVersionRow(
+						version,
+						filename,
+						sri,
+						Buffer.byteLength(f.content, "utf-8")
+					);
+				}
+
+				if (sriHashes.size > 0) {
+					console.log(
+						chalk.green(
+							`\n📝 Recorded v${version} in database (${sriHashes.size} scripts)`
+						)
+					);
+				}
+
 				console.log(chalk.dim("\n🧹 Purging Pull Zone cache..."));
 				await purgePullZoneCache();
 
 				if (options.skipNotification) {
 					console.log(
-						chalk.gray("🔕 Skipping Discord notification (--skip-notification)")
+						chalk.gray(
+							"🔕 Skipping Discord notification (--skip-notification)"
+						)
 					);
 				} else {
-					await sendDiscordNotification(uploaded, options.message);
+					await sendDiscordNotification(
+						uploaded,
+						version,
+						sriHashes,
+						options.message
+					);
 				}
 			}
+
+			console.log(
+				chalk.green(
+					`\n✨ Deployment complete! v${version} (${uploaded.length} files updated)`
+				)
+			);
 		}
 	} catch (error) {
 		console.error(chalk.red("❌ Deployment failed:"), error);

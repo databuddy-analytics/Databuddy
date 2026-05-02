@@ -4,6 +4,7 @@ import { atomWithStorage } from "jotai/utils";
 export const agentInputAtom = atom("");
 
 export type AgentThinking = "off" | "low" | "medium" | "high";
+export type AgentTier = "quick" | "balanced" | "deep";
 
 export const AGENT_THINKING_LEVELS: readonly AgentThinking[] = [
 	"off",
@@ -12,7 +13,26 @@ export const AGENT_THINKING_LEVELS: readonly AgentThinking[] = [
 	"high",
 ] as const;
 
+export const AGENT_TIERS: readonly AgentTier[] = [
+	"quick",
+	"balanced",
+	"deep",
+] as const;
+
 export const agentThinkingAtom = atomWithStorage<AgentThinking>(
 	"databuddy-agent-thinking",
 	"off"
 );
+
+export const agentTierAtom = atomWithStorage<AgentTier>(
+	"databuddy-agent-tier",
+	"balanced"
+);
+
+export const TIER_SUPPORTS_THINKING: Record<AgentTier, boolean> = {
+	quick: false,
+	balanced: true,
+	deep: false,
+};
+
+export const agentCreditShakeNonceAtom = atom(0);

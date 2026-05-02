@@ -18,6 +18,7 @@ import { preferencesRouter } from "./routers/preferences";
 import { revenueRouter } from "./routers/revenue";
 import { statusPageRouter } from "./routers/status-page";
 import { targetGroupsRouter } from "./routers/target-groups";
+import { trackerRouter } from "./routers/tracker";
 import { uptimeRouter } from "./routers/uptime";
 import { websitesRouter } from "./routers/websites";
 
@@ -44,6 +45,7 @@ export const appRouter = {
 	linkFolders: linkFoldersRouter,
 	links: linksRouter,
 	revenue: revenueRouter,
+	tracker: trackerRouter,
 };
 
 export type AppRouter = typeof appRouter;

@@ -43,11 +43,7 @@ import {
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "../ai/agents/execution";
-import {
-	classifyMessage,
-	hasToolHistory,
-	tierToModelKey,
-} from "../ai/agents/router";
+import { type AgentTier, tierToModelKey } from "../ai/agents/router";
 import {
 	AGENT_THINKING_LEVELS,
 	AGENT_TIERS,
@@ -67,6 +63,7 @@ import {
 	isMemoryEnabled,
 	storeConversation,
 } from "../lib/supermemory";
+import { getResolvedAuth } from "../lib/auth-wide-event";
 import { captureError, mergeWideEvent } from "../lib/tracing";
 import { validateWebsite } from "../lib/website-utils";
 
@@ -257,13 +254,20 @@ function createToolLoopAgent(
 
 export const agent = new Elysia({ prefix: "/v1/agent" })
 	.derive(async ({ request }) => {
-		const hasApiKey = isApiKeyPresent(request.headers);
-		const [apiKey, session] = await Promise.all([
-			hasApiKey ? getApiKeyFromHeader(request.headers) : null,
-			auth.api.getSession({ headers: request.headers }),
-		]);
+		const preResolved = getResolvedAuth(request.headers);
+		let user = preResolved?.session?.user ?? null;
+		let apiKey = preResolved?.apiKeyResult?.key ?? null;
 
-		const user = session?.user ?? null;
+		if (!preResolved) {
+			const hasApiKey = isApiKeyPresent(request.headers);
+			const [resolvedApiKey, session] = await Promise.all([
+				hasApiKey ? getApiKeyFromHeader(request.headers) : null,
+				auth.api.getSession({ headers: request.headers }),
+			]);
+			user = session?.user ?? null;
+			apiKey = resolvedApiKey;
+		}
+
 		const validApiKey =
 			apiKey && hasKeyScope(apiKey, "read:data") ? apiKey : null;
 
@@ -356,42 +360,16 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						);
 					}
 
-					if (billingCustomerId) {
-						try {
-							if (
-								!(await ensureAgentCreditsAvailableCached(billingCustomerId))
-							) {
-								mergeWideEvent({ agent_rejected: "out_of_credits" });
-								return jsonError(
-									402,
-									"OUT_OF_CREDITS",
-									"You're out of Databunny credits this month. Upgrade or wait for the monthly reset."
-								);
-							}
-						} catch (creditCheckError) {
-							captureError(creditCheckError, {
-								agent_credit_check_error: true,
-								agent_chat_id: chatId,
-								agent_website_id: body.websiteId,
-							});
-						}
-					}
-
 					const timezone = body.timezone ?? "UTC";
 					const domain = website.domain ?? "unknown";
 					const lastMessage = getLastMessagePreview(body.messages);
 
-					const tier = body.tier
-						? tierToModelKey(body.tier as any)
-						: await classifyMessage(
-								lastMessage,
-								hasToolHistory(body.messages)
-							).then(tierToModelKey);
-
-					const modelKey: AgentModelKey = tier;
+					const modelKey: AgentModelKey = tierToModelKey(
+						(body.tier as AgentTier) ?? "balanced"
+					);
 
 					mergeWideEvent({
-						agent_tier: tier,
+						agent_tier: modelKey,
 						agent_model_key: modelKey,
 					});
 
@@ -413,17 +391,37 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						},
 					});
 
-					const [memoryCtx, enrichment] =
-						modelKey === "greeter"
-							? [null, ""]
-							: await Promise.all([
-									getMemoryContextCached(lastMessage, userId, body.websiteId),
-									enrichAgentContextCached(
-										userId,
-										body.websiteId,
-										organizationId
-									),
-								]);
+					const creditsCheck = billingCustomerId
+						? ensureAgentCreditsAvailableCached(billingCustomerId).catch(
+								(err) => {
+									captureError(err, {
+										agent_credit_check_error: true,
+										agent_chat_id: chatId,
+										agent_website_id: body.websiteId,
+									});
+									return true;
+								}
+							)
+						: Promise.resolve(true);
+
+					const [hasCredits, memoryCtx, enrichment] = await Promise.all([
+						creditsCheck,
+						getMemoryContextCached(lastMessage, userId, body.websiteId),
+						enrichAgentContextCached(
+							userId,
+							body.websiteId,
+							organizationId
+						),
+					]);
+
+					if (!hasCredits) {
+						mergeWideEvent({ agent_rejected: "out_of_credits" });
+						return jsonError(
+							402,
+							"OUT_OF_CREDITS",
+							"You're out of Databunny credits this month. Upgrade or wait for the monthly reset."
+						);
+					}
 
 					const modelOverride =
 						process.env.NODE_ENV === "development"

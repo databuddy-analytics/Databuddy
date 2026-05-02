@@ -124,12 +124,13 @@ export function FunnelPreviewRenderer({
 		<>
 			<Card
 				className={cn(
-					"gap-0 overflow-hidden border py-0",
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
 					config.accent,
 					className
 				)}
 			>
-				<div className="flex items-center gap-2.5 border-b px-3 py-2">
+				<div className="flex flex-col gap-1">
+				<div className="flex items-center gap-2.5 px-2 py-2 bg-background rounded-md">
 					<div className="flex size-6 items-center justify-center rounded bg-accent">
 						<FunnelIcon
 							className="size-3.5 text-muted-foreground"
@@ -137,12 +138,12 @@ export function FunnelPreviewRenderer({
 						/>
 					</div>
 					<p className="font-medium text-sm">{config.title}</p>
-					<Badge className="ml-auto text-[10px]" variant="muted">
+					<Badge className="ml-auto rounded text-[10px]" variant="muted">
 						{funnel.steps.length} steps
 					</Badge>
 				</div>
 
-				<div className="px-3 py-3">
+				<div className="px-3 py-3 bg-background rounded-md">
 					<div className="space-y-2">
 						<div>
 							<p className="text-muted-foreground text-xs">Name</p>
@@ -159,7 +160,7 @@ export function FunnelPreviewRenderer({
 							<div className="space-y-1">
 								{funnel.steps.map((step, idx) => (
 									<div
-										className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1.5"
+										className="flex items-center gap-2 rounded bg-muted hover:bg-interactive-hover px-2 py-1.5"
 										key={idx}
 									>
 										<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-xs">
@@ -183,7 +184,8 @@ export function FunnelPreviewRenderer({
 					</div>
 				</div>
 
-				<div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-3 py-2">
+				<div className="bg-background rounded-md">
+				<div className="flex items-center justify-end gap-2 bg-muted/30 px-2 py-2">
 					<Button
 						disabled={isLoading || isConfirming}
 						onClick={() => setIsDialogOpen(true)}
@@ -203,6 +205,8 @@ export function FunnelPreviewRenderer({
 						<config.ButtonIcon className="size-3.5" weight="bold" />
 						{config.confirmLabel}
 					</Button>
+				</div>
+				</div>
 				</div>
 			</Card>
 

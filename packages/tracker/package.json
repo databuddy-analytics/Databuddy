@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "bun build.ts",
-    "deploy": "bun deploy.ts",
+    "deploy": "dotenv -e ../../.env -- bun deploy.ts",
     "release": "bun run deploy",
     "diff": "bun compare-release.ts",
     "dev": "bun build.ts --watch",
@@ -15,6 +15,7 @@
     "serve": "bun --watch --hot test-server.ts"
   },
   "devDependencies": {
+    "@databuddy/db": "workspace:*",
     "@inquirer/prompts": "^8.0.1",
     "@playwright/test": "^1.56.1",
     "@types/bun": "latest",

@@ -63,17 +63,13 @@ const MODE_CONFIG: Record<string, ModeConfig> = {
 	},
 };
 
-function AnnotationTypeLabel({ type }: { type: string }) {
+function annotationTypeLabel(type: string) {
 	const labels: Record<string, string> = {
 		point: "Point",
 		line: "Line",
 		range: "Range",
 	};
-	return (
-		<Badge className="text-[10px]" variant="muted">
-			{labels[type] ?? type}
-		</Badge>
-	);
+	return labels[type] ?? type;
 }
 
 export function AnnotationPreviewRenderer({
@@ -101,98 +97,116 @@ export function AnnotationPreviewRenderer({
 	return (
 		<Card
 			className={cn(
-				"gap-0 overflow-hidden border py-0",
+				"gap-0 overflow-hidden border-0 bg-secondary p-1",
 				config.accent,
 				className
 			)}
 		>
-			<div className="flex items-center gap-2.5 border-b px-3 py-2">
-				<div
-					className="flex size-6 items-center justify-center rounded"
-					style={{
-						backgroundColor: annotation.color
-							? `${annotation.color}20`
-							: "var(--accent)",
-					}}
-				>
-					<NoteIcon
-						className="size-3.5"
-						style={{ color: annotation.color ?? "var(--muted-foreground)" }}
-						weight="duotone"
-					/>
+			<div className="flex flex-col gap-1">
+				<div className="flex items-center gap-2.5 rounded bg-background px-2 py-2">
+					<div
+						className={cn(
+							"flex size-6 items-center justify-center rounded",
+							annotation.color ? "" : "bg-accent"
+						)}
+						style={
+							annotation.color
+								? { backgroundColor: `${annotation.color}20` }
+								: undefined
+						}
+					>
+						<NoteIcon
+							className={cn(
+								"size-3.5",
+								annotation.color ? "" : "text-muted-foreground"
+							)}
+							style={annotation.color ? { color: annotation.color } : undefined}
+							weight="duotone"
+						/>
+					</div>
+					<p className="font-medium text-sm">{config.title}</p>
+					<Badge className="ml-auto rounded text-[10px]" variant="muted">
+						{annotationTypeLabel(annotation.annotationType)}
+					</Badge>
 				</div>
-				<p className="font-medium text-sm">{config.title}</p>
-				<AnnotationTypeLabel type={annotation.annotationType} />
-			</div>
 
-			<div className="px-3 py-3">
-				<div className="space-y-2">
-					<div>
-						<p className="text-muted-foreground text-xs">Text</p>
-						<p className="text-sm">{annotation.text}</p>
-					</div>
-					<div>
-						<p className="mb-1 text-muted-foreground text-xs">Date</p>
-						<div className="flex items-center gap-2">
-							<CalendarIcon
-								className="size-4 text-muted-foreground"
-								weight="duotone"
-							/>
-							<span className="text-sm">{dateDisplay}</span>
-						</div>
-					</div>
-					{Array.isArray(annotation.tags) && annotation.tags.length > 0 && (
+				<div className="rounded bg-background px-3 py-3">
+					<div className="space-y-2.5">
 						<div>
-							<p className="mb-1 text-muted-foreground text-xs">Tags</p>
-							<div className="flex flex-wrap gap-1">
-								{annotation.tags.map((tag) => (
-									<Badge className="text-[10px]" key={tag} variant="default">
-										{tag}
-									</Badge>
-								))}
+							<p className="text-muted-foreground text-xs">Text</p>
+							<p className="text-sm">{annotation.text}</p>
+						</div>
+						<div>
+							<p className="mb-1.5 text-muted-foreground text-xs">Date</p>
+							<div className="flex items-center gap-2 rounded bg-muted px-2 py-1.5 hover:bg-interactive-hover">
+								<CalendarIcon
+									className="size-4 shrink-0 text-muted-foreground"
+									weight="duotone"
+								/>
+								<span className="min-w-0 flex-1 text-sm">{dateDisplay}</span>
 							</div>
 						</div>
-					)}
-					{annotation.color && (
-						<div className="flex items-center gap-2">
-							<p className="text-muted-foreground text-xs">Color</p>
-							<div
-								className="size-4 rounded border"
-								style={{ backgroundColor: annotation.color }}
-							/>
-						</div>
-					)}
-					{annotation.isPublic && (
-						<p className="text-muted-foreground text-xs">
-							Visible to everyone who can view this chart
-						</p>
-					)}
+						{Array.isArray(annotation.tags) && annotation.tags.length > 0 && (
+							<div>
+								<p className="mb-1.5 text-muted-foreground text-xs">Tags</p>
+								<div className="flex items-center flex-wrap gap-1">
+									{annotation.tags.map((tag) => (
+										<div
+											className="flex items-center gap-2 rounded-md bg-muted px-2 py-1.5 hover:bg-interactive-hover"
+											key={tag}
+										>
+											<span className="min-w-0 flex-1 truncate text-xs">
+												{tag}
+											</span>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+						{annotation.color && (
+							<div className="flex flex-col gap-2">
+								<p className="text-muted-foreground text-xs">Color</p>
+								<div
+									className="size-8 rounded border"
+									style={{ backgroundColor: annotation.color }}
+								/>
+							</div>
+						)}
+						{annotation.isPublic && (
+							<p className="text-muted-foreground text-xs">
+								Visible to everyone who can view this chart
+							</p>
+						)}
+					</div>
 				</div>
-			</div>
 
-			<div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-3 py-2">
-				<Button
-					disabled={isLoading || isConfirming}
-					onClick={() => {
-						// Annotation editing requires chart context, so just confirm
-						console.log("Edit annotation");
-					}}
-					size="sm"
-					variant="ghost"
-				>
-					<PencilSimpleIcon className="size-3.5" />
-					Edit
-				</Button>
-				<Button
-					disabled={isLoading}
-					loading={isConfirming}
-					onClick={handleConfirm}
-					size="sm"
-					tone={config.tone}
-				>
-					<config.ButtonIcon className="size-3.5" weight="bold" />
-					{config.confirmLabel}
-				</Button>
+				<div className="rounded bg-background">
+					<div className="flex items-center justify-end gap-2 bg-muted/30 px-2 py-2">
+						<Button
+							disabled={isLoading || isConfirming}
+							onClick={() => {
+								// Annotation editing requires chart context
+							}}
+							size="sm"
+							type="button"
+							variant="ghost"
+						>
+							<PencilSimpleIcon className="size-3.5" />
+							Edit
+						</Button>
+						<Button
+							disabled={isLoading}
+							loading={isConfirming}
+							onClick={handleConfirm}
+							size="sm"
+							tone={config.tone}
+							type="button"
+						>
+							<config.ButtonIcon className="size-3.5" weight="bold" />
+							{config.confirmLabel}
+						</Button>
+					</div>
+				</div>
 			</div>
 		</Card>
 	);

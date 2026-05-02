@@ -16,7 +16,6 @@ import { orpc } from "@/lib/orpc";
 import { LatencyChartChunkPlaceholder } from "@databuddy/ui/uptime";
 import { UptimeHeatmap } from "@/lib/uptime/uptime-heatmap";
 import { cn } from "@/lib/utils";
-import { MonitorAlerts } from "../_components/monitor-alerts";
 import {
 	RecentActivity,
 	type RecentActivityCheck,
@@ -681,10 +680,6 @@ export default function MonitorDetailsPage() {
 							</span>
 						</span>
 					)}
-				</div>
-
-				<div className="shrink-0 border-b py-2.5">
-					<MonitorAlerts scheduleId={schedule.id} />
 				</div>
 
 				<div className="shrink-0 bg-sidebar">

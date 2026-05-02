@@ -2,8 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
-import { XIcon } from "@phosphor-icons/react/dist/ssr";
-import { ArrowClockwiseIcon, WarningIcon } from "@databuddy/ui/icons";
+import { ArrowClockwiseIcon, WarningIcon, XMarkIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
 
 function displayMessageForError(error: Error | undefined): string {
@@ -100,7 +99,7 @@ export function AgentErrorMessage({
 				title="Dismiss"
 				variant="ghost"
 			>
-				<XIcon className="size-3" weight="bold" />
+				<XMarkIcon className="size-3" />
 			</Button>
 		</div>
 	);

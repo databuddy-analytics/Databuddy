@@ -6,6 +6,7 @@ import {
 	UPTIME_JOB_OPTIONS,
 	uptimeSchedulerId,
 } from "@databuddy/redis";
+import { Data, Effect, Ref } from "effect";
 import { log } from "evlog";
 
 const CRON_GRANULARITIES: Record<string, string> = {
@@ -19,66 +20,113 @@ const CRON_GRANULARITIES: Record<string, string> = {
 	day: "0 0 * * *",
 };
 
-export async function syncSchedulers(): Promise<void> {
+class UnknownGranularity extends Data.TaggedError("UnknownGranularity")<{
+	scheduleId: string;
+	granularity: string;
+}> {}
+
+const syncMonitor = (
+	monitor: { id: string; granularity: string },
+	queue: ReturnType<typeof getUptimeQueue>,
+) =>
+	Effect.gen(function* () {
+		const schedulerId = uptimeSchedulerId(monitor.id);
+
+		const existing = yield* Effect.tryPromise({
+			try: () => queue.getJobScheduler(schedulerId),
+			catch: (cause) => cause,
+		});
+		if (existing) return "skipped" as const;
+
+		const pattern = CRON_GRANULARITIES[monitor.granularity];
+		if (!pattern) {
+			return yield* Effect.fail(
+				new UnknownGranularity({
+					scheduleId: monitor.id,
+					granularity: monitor.granularity,
+				}),
+			);
+		}
+
+		yield* Effect.tryPromise({
+			try: () =>
+				queue.upsertJobScheduler(
+					schedulerId,
+					{ pattern },
+					{
+						name: UPTIME_CHECK_JOB_NAME,
+						data: {
+							scheduleId: monitor.id,
+							trigger: "scheduled" as const,
+						},
+						opts: UPTIME_JOB_OPTIONS,
+					},
+				),
+			catch: (cause) => cause,
+		});
+
+		return "created" as const;
+	});
+
+const syncAll = Effect.gen(function* () {
 	const queue = getUptimeQueue();
 
-	const monitors = await db
-		.select({
-			id: uptimeSchedules.id,
-			granularity: uptimeSchedules.granularity,
-		})
-		.from(uptimeSchedules)
-		.where(eq(uptimeSchedules.isPaused, false));
+	const monitors = yield* Effect.tryPromise({
+		try: () =>
+			db
+				.select({
+					id: uptimeSchedules.id,
+					granularity: uptimeSchedules.granularity,
+				})
+				.from(uptimeSchedules)
+				.where(eq(uptimeSchedules.isPaused, false)),
+		catch: (cause) => cause,
+	});
 
-	let created = 0;
-	let skipped = 0;
-	let failed = 0;
+	const created = yield* Ref.make(0);
+	const skipped = yield* Ref.make(0);
+	const failed = yield* Ref.make(0);
 
 	for (const monitor of monitors) {
-		try {
-			const schedulerId = uptimeSchedulerId(monitor.id);
-			const existing = await queue.getJobScheduler(schedulerId);
-			if (existing) {
-				skipped++;
-				continue;
-			}
-
-			const pattern = CRON_GRANULARITIES[monitor.granularity];
-			if (!pattern) {
-				failed++;
+		yield* syncMonitor(monitor, queue).pipe(
+			Effect.tap((result) =>
+				result === "created" ? Ref.update(created, (n) => n + 1) : Ref.update(skipped, (n) => n + 1),
+			),
+			Effect.catchTag("UnknownGranularity", (e) => {
+				log.error({
+					sync: "scheduler",
+					schedule_id: e.scheduleId,
+					error_message: `Unknown granularity: ${e.granularity}`,
+				});
+				return Ref.update(failed, (n) => n + 1);
+			}),
+			Effect.catch((error) => {
 				log.error({
 					sync: "scheduler",
 					schedule_id: monitor.id,
-					error_message: `Unknown granularity: ${monitor.granularity}`,
+					error_message:
+						error instanceof Error ? error.message : String(error),
 				});
-				continue;
-			}
-
-			await queue.upsertJobScheduler(
-				schedulerId,
-				{ pattern },
-				{
-					name: UPTIME_CHECK_JOB_NAME,
-					data: { scheduleId: monitor.id, trigger: "scheduled" as const },
-					opts: UPTIME_JOB_OPTIONS,
-				}
-			);
-			created++;
-		} catch (error) {
-			failed++;
-			log.error({
-				sync: "scheduler",
-				schedule_id: monitor.id,
-				error_message: error instanceof Error ? error.message : String(error),
-			});
-		}
+				return Ref.update(failed, (n) => n + 1);
+			}),
+		);
 	}
+
+	const [c, s, f] = yield* Effect.all([
+		Ref.get(created),
+		Ref.get(skipped),
+		Ref.get(failed),
+	]);
 
 	log.info({
 		sync: "scheduler",
 		total: monitors.length,
-		created,
-		skipped,
-		failed,
+		created: c,
+		skipped: s,
+		failed: f,
 	});
+});
+
+export async function syncSchedulers(): Promise<void> {
+	await Effect.runPromise(syncAll);
 }

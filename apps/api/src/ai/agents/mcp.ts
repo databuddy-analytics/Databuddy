@@ -2,7 +2,7 @@ import { stepCountIs } from "ai";
 import { ANTHROPIC_CACHE_1H, models } from "../config/models";
 import { createMcpAgentTools } from "../mcp/agent-tools";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
-import { maxSteps } from "./analytics";
+import { TIER_CONFIG } from "../config/tiers";
 
 export function createMcpAgentConfig(context: {
 	billingCustomerId?: string | null;
@@ -24,7 +24,7 @@ export function createMcpAgentConfig(context: {
 			providerOptions: ANTHROPIC_CACHE_1H,
 		},
 		tools: createMcpAgentTools(),
-		stopWhen: stepCountIs(maxSteps),
+		stopWhen: stepCountIs(TIER_CONFIG.balanced.maxSteps),
 		temperature: 0.1,
 		experimental_context: {
 			apiKey: context.apiKey,

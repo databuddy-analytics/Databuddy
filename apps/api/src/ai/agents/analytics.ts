@@ -4,13 +4,10 @@ import {
 	type AgentModelKey,
 	ANTHROPIC_CACHE_1H,
 	createModelFromId,
-	modelNames,
 	models,
 } from "../config/models";
-import {
-	buildAnalyticsInstructions,
-	buildFastInstructions,
-} from "../prompts/analytics";
+import { TIER_CONFIG } from "../config/tiers";
+import { buildAnalyticsInstructions } from "../prompts/analytics";
 import { createAnnotationTools } from "../tools/annotations";
 import { executeSqlQueryTool } from "../tools/execute-sql-query";
 import { createFunnelTools } from "../tools/funnels";
@@ -34,27 +31,21 @@ const analyticsTools = {
 	...createLinksTools(),
 };
 
-export const maxSteps = 20;
-
-const THINKING_BUDGET: Record<Exclude<AgentThinking, "off">, number> = {
-	low: 2048,
-	medium: 8192,
-	high: 16_384,
-};
-
-function isAnthropicModel(key: AgentModelKey): boolean {
-	return modelNames[key].startsWith("anthropic/");
-}
-
 function thinkingProviderOptions(
-	thinking: AgentThinking | undefined
+	thinking: AgentThinking | undefined,
+	modelKey: AgentModelKey
 ): AgentConfig["providerOptions"] {
-	if (!thinking || thinking === "off") {
+	const tier = TIER_CONFIG[modelKey];
+	if (!tier.supportsThinking || !thinking || thinking === "off") {
+		return;
+	}
+	const budget = tier.thinkingBudgets?.[thinking];
+	if (!budget) {
 		return;
 	}
 	return {
 		anthropic: {
-			thinking: { type: "enabled", budgetTokens: THINKING_BUDGET[thinking] },
+			thinking: { type: "enabled", budgetTokens: budget },
 		},
 	};
 }
@@ -64,6 +55,8 @@ export function createConfig(
 	modelKey: AgentModelKey = "balanced",
 	modelOverride?: string | null
 ): AgentConfig {
+	const tier = TIER_CONFIG[modelKey];
+
 	const appContext: AppContext = {
 		userId: context.userId,
 		websiteId: context.websiteId,
@@ -75,27 +68,19 @@ export function createConfig(
 		billingCustomerId: context.billingCustomerId,
 	};
 
-	const isGreeter = modelKey === "greeter";
-	const anthropic = modelOverride
-		? modelOverride.startsWith("anthropic/")
-		: isAnthropicModel(modelKey);
+	const useOverride = modelOverride != null;
 
 	return {
-		model: modelOverride ? createModelFromId(modelOverride) : models[modelKey],
+		model: useOverride ? createModelFromId(modelOverride) : models[modelKey],
 		system: {
 			role: "system",
-			content: isGreeter
-				? buildFastInstructions(appContext)
-				: buildAnalyticsInstructions(appContext),
-			providerOptions: anthropic ? ANTHROPIC_CACHE_1H : undefined,
+			content: buildAnalyticsInstructions(appContext),
+			providerOptions: tier.promptCaching ? ANTHROPIC_CACHE_1H : undefined,
 		},
-		tools: isGreeter ? {} : analyticsTools,
-		stopWhen: stepCountIs(isGreeter ? 1 : maxSteps),
-		temperature: isGreeter ? 0.3 : 0.1,
-		providerOptions:
-			isGreeter || !anthropic
-				? undefined
-				: thinkingProviderOptions(context.thinking),
+		tools: analyticsTools,
+		stopWhen: stepCountIs(tier.maxSteps),
+		temperature: tier.temperature,
+		providerOptions: thinkingProviderOptions(context.thinking, modelKey),
 		experimental_context: appContext,
 	};
 }

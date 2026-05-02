@@ -2,6 +2,7 @@ import { connect } from "node:tls";
 import { db, eq } from "@databuddy/db";
 import { uptimeSchedules } from "@databuddy/db/schema";
 import { validateUrl } from "@databuddy/shared/ssrf-guard";
+import { Data, Effect } from "effect";
 import { UPTIME_ENV } from "./lib/env";
 import { extractHealth } from "./json-parser";
 import { captureError } from "./lib/tracing";
@@ -49,59 +50,22 @@ export interface ScheduleData {
 	websiteId: string | null;
 }
 
-export async function lookupSchedule(
-	id: string
-): Promise<ActionResult<ScheduleData>> {
-	try {
-		const schedule = await db.query.uptimeSchedules.findFirst({
-			where: eq(uptimeSchedules.id, id),
-			with: { website: true },
-		});
-
-		if (!schedule) {
-			return { success: false, error: `Schedule ${id} not found` };
-		}
-
-		if (!schedule.url) {
-			return {
-				success: false,
-				error: `Schedule ${id} has invalid data (missing url)`,
-			};
-		}
-
-		return {
-			success: true,
-			data: {
-				id: schedule.id,
-				url: schedule.url,
-				websiteId: schedule.websiteId,
-				organizationId: schedule.organizationId,
-				name: schedule.name,
-				isPaused: schedule.isPaused,
-				website: schedule.website
-					? {
-							name: schedule.website.name,
-							domain: schedule.website.domain,
-						}
-					: null,
-				jsonParsingConfig: schedule.jsonParsingConfig,
-				timeout: schedule.timeout,
-				cacheBust: schedule.cacheBust,
-			},
-		};
-	} catch (error) {
-		captureError(error, { error_step: "lookup_schedule" });
-		return {
-			success: false,
-			error: error instanceof Error ? error.message : "Database error",
-		};
-	}
+export interface CheckOptions {
+	cacheBust?: boolean;
+	extractHealth?: boolean;
+	timeout?: number;
 }
 
+class ScheduleLookupError extends Data.TaggedError("ScheduleLookupError")<{
+	message: string;
+}> {}
+
+class UptimeCheckError extends Data.TaggedError("UptimeCheckError")<{
+	message: string;
+}> {}
+
 function normalizeUrl(url: string): string {
-	if (url.startsWith("http://") || url.startsWith("https://")) {
-		return url;
-	}
+	if (url.startsWith("http://") || url.startsWith("https://")) return url;
 	return `https://${url}`;
 }
 
@@ -129,7 +93,7 @@ function applyCacheBust(url: string): string {
 async function pingWebsite(
 	url: string,
 	timeout: number,
-	cacheBust: boolean
+	cacheBust: boolean,
 ): Promise<FetchSuccess | FetchFailure> {
 	const abort = new AbortController();
 	const timer = setTimeout(() => abort.abort(), timeout);
@@ -165,9 +129,7 @@ async function pingWebsite(
 
 			if (res.status >= 300 && res.status < 400) {
 				const location = res.headers.get("location");
-				if (!location) {
-					break;
-				}
+				if (!location) break;
 				redirects += 1;
 				current = new URL(location, current).toString();
 				continue;
@@ -178,7 +140,9 @@ async function pingWebsite(
 			const [content, parsedJson]: [string, unknown] = isJson
 				? await res
 						.json()
-						.then((j: unknown) => [JSON.stringify(j), j] as [string, unknown])
+						.then(
+							(j: unknown) => [JSON.stringify(j), j] as [string, unknown],
+						)
 				: [await res.text(), undefined];
 
 			const total = performance.now() - start;
@@ -232,16 +196,13 @@ async function pingWebsite(
 	}
 }
 
-function checkCertificate(url: string): Promise<{
-	valid: boolean;
-	expiry: number;
-}> {
-	return new Promise((resolve) => {
+const checkCertificate = (url: string) =>
+	Effect.async<{ valid: boolean; expiry: number }>((resume) => {
 		try {
 			const parsed = new URL(url);
 
 			if (parsed.protocol !== "https:") {
-				resolve({ valid: false, expiry: 0 });
+				resume(Effect.succeed({ valid: false, expiry: 0 }));
 				return;
 			}
 
@@ -258,82 +219,134 @@ function checkCertificate(url: string): Promise<{
 					socket.destroy();
 
 					if (!cert?.valid_to) {
-						resolve({ valid: false, expiry: 0 });
+						resume(Effect.succeed({ valid: false, expiry: 0 }));
 						return;
 					}
 
 					const expiry = new Date(cert.valid_to);
-					resolve({
-						valid: expiry > new Date(),
-						expiry: expiry.getTime(),
-					});
-				}
+					resume(
+						Effect.succeed({
+							valid: expiry > new Date(),
+							expiry: expiry.getTime(),
+						}),
+					);
+				},
 			);
 
 			socket.on("error", () => {
 				socket.destroy();
-				resolve({ valid: false, expiry: 0 });
+				resume(Effect.succeed({ valid: false, expiry: 0 }));
 			});
 
 			socket.on("timeout", () => {
 				socket.destroy();
-				resolve({ valid: false, expiry: 0 });
+				resume(Effect.succeed({ valid: false, expiry: 0 }));
 			});
 		} catch {
-			resolve({ valid: false, expiry: 0 });
+			resume(Effect.succeed({ valid: false, expiry: 0 }));
 		}
 	});
-}
 
 let cachedProbeIp: string | null = null;
 
-async function getProbeMetadata(): Promise<{ ip: string; region: string }> {
-	if (!cachedProbeIp) {
-		try {
-			const res = await fetch("https://api.ipify.org?format=json", {
-				signal: AbortSignal.timeout(5000),
-			});
-			if (res.ok) {
-				const data = await res.json();
-				cachedProbeIp = typeof data?.ip === "string" ? data.ip : "unknown";
+const getProbeMetadata = Effect.tryPromise({
+	try: async () => {
+		if (!cachedProbeIp) {
+			try {
+				const res = await fetch("https://api.ipify.org?format=json", {
+					signal: AbortSignal.timeout(5000),
+				});
+				if (res.ok) {
+					const data = await res.json();
+					cachedProbeIp =
+						typeof data?.ip === "string" ? data.ip : "unknown";
+				}
+			} catch {}
+			cachedProbeIp ??= "unknown";
+		}
+		return { ip: cachedProbeIp, region: PROBE_REGION };
+	},
+	catch: () => ({ ip: "unknown", region: PROBE_REGION }),
+});
+
+const resolveSchedule = (id: string) =>
+	Effect.tryPromise({
+		try: () =>
+			db.query.uptimeSchedules.findFirst({
+				where: eq(uptimeSchedules.id, id),
+				with: { website: true },
+			}),
+		catch: (cause) => new ScheduleLookupError({ message: String(cause) }),
+	}).pipe(
+		Effect.flatMap((schedule) => {
+			if (!schedule) {
+				return Effect.fail(
+					new ScheduleLookupError({
+						message: `Schedule ${id} not found`,
+					}),
+				);
 			}
-		} catch {}
-		cachedProbeIp ??= "unknown";
-	}
-	return { ip: cachedProbeIp, region: PROBE_REGION };
-}
+			if (!schedule.url) {
+				return Effect.fail(
+					new ScheduleLookupError({
+						message: `Schedule ${id} has invalid data (missing url)`,
+					}),
+				);
+			}
+			return Effect.succeed({
+				id: schedule.id,
+				url: schedule.url,
+				websiteId: schedule.websiteId,
+				organizationId: schedule.organizationId,
+				name: schedule.name,
+				isPaused: schedule.isPaused,
+				website: schedule.website
+					? {
+							name: schedule.website.name,
+							domain: schedule.website.domain,
+						}
+					: null,
+				jsonParsingConfig: schedule.jsonParsingConfig,
+				timeout: schedule.timeout,
+				cacheBust: schedule.cacheBust,
+			} satisfies ScheduleData);
+		}),
+	);
 
-export interface CheckOptions {
-	cacheBust?: boolean;
-	extractHealth?: boolean;
-	timeout?: number;
-}
-
-export async function checkUptime(
+const runUptimeCheck = (
 	siteId: string,
 	url: string,
-	attempt = 1,
-	options: CheckOptions = {}
-): Promise<ActionResult<UptimeData>> {
-	try {
+	attempt: number,
+	options: CheckOptions,
+) =>
+	Effect.gen(function* () {
 		const normalizedUrl = normalizeUrl(url);
 		const timestamp = Date.now();
 
-		const [pingResult, probe, cert] = await Promise.all([
-			pingWebsite(
-				normalizedUrl,
-				options.timeout ?? DEFAULT_TIMEOUT,
-				options.cacheBust ?? false
-			),
-			getProbeMetadata(),
-			checkCertificate(normalizedUrl),
-		]);
+		const [pingResult, probe, cert] = yield* Effect.all(
+			[
+				Effect.tryPromise({
+					try: () =>
+						pingWebsite(
+							normalizedUrl,
+							options.timeout ?? DEFAULT_TIMEOUT,
+							options.cacheBust ?? false,
+						),
+					catch: (cause) =>
+						new UptimeCheckError({ message: String(cause) }),
+				}),
+				getProbeMetadata,
+				checkCertificate(normalizedUrl),
+			],
+			{ concurrency: "unbounded" },
+		);
+
 		const health =
 			pingResult.ok && options.extractHealth
 				? extractHealth(pingResult.parsedJson ?? pingResult.content)
 				: null;
 
-		const data: UptimeData = {
+		return {
 			site_id: siteId,
 			url: normalizedUrl,
 			timestamp,
@@ -360,11 +373,45 @@ export async function checkUptime(
 			user_agent: USER_AGENT,
 			error: pingResult.ok ? "" : pingResult.error,
 			json_data: health ? JSON.stringify(health) : undefined,
+		} satisfies UptimeData;
+	});
+
+export {
+	ScheduleLookupError,
+	UptimeCheckError,
+	checkCertificate,
+	resolveSchedule,
+	runUptimeCheck,
+};
+
+export async function lookupSchedule(
+	id: string,
+): Promise<ActionResult<ScheduleData>> {
+	try {
+		const data = await Effect.runPromise(resolveSchedule(id));
+		return { success: true, data };
+	} catch (error) {
+		captureError(error, { error_step: "lookup_schedule" });
+		return {
+			success: false,
+			error: error instanceof Error ? error.message : "Database error",
 		};
+	}
+}
+
+export async function checkUptime(
+	siteId: string,
+	url: string,
+	attempt = 1,
+	options: CheckOptions = {},
+): Promise<ActionResult<UptimeData>> {
+	try {
+		const data = await Effect.runPromise(
+			runUptimeCheck(siteId, url, attempt, options),
+		);
 		return { success: true, data };
 	} catch (error) {
 		captureError(error, { error_step: "check_uptime" });
-
 		return {
 			success: false,
 			error: error instanceof Error ? error.message : "Uptime check failed",

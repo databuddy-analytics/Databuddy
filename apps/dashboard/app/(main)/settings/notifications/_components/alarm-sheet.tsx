@@ -239,9 +239,7 @@ export function AlarmSheet({
 					triggerType: alarm.triggerType as
 						| "uptime"
 						| "traffic_spike"
-						| "error_rate"
-						| "goal"
-						| "custom",
+						| "error_rate",
 					destinations: data.destinations,
 				});
 				toast.success("Alert updated");

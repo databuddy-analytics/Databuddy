@@ -18,18 +18,16 @@ const gateway = createGateway({
 
 export const modelNames = {
 	tiny: "openai/gpt-oss-120b",
-	greeter: "anthropic/claude-haiku-4.5",
 	quick: "xai/grok-4.20-non-reasoning-beta",
 	balanced: "anthropic/claude-sonnet-4.6",
 	deep: "openai/gpt-5.5",
 	perplexity: "perplexity/sonar-pro",
 } as const;
 
-export type AgentModelKey = "greeter" | "quick" | "balanced" | "deep";
+export type AgentModelKey = "quick" | "balanced" | "deep";
 
 export const models = {
 	tiny: gateway.chat(modelNames.tiny),
-	greeter: gateway.chat(modelNames.greeter),
 	quick: gateway.chat(modelNames.quick),
 	balanced: gateway.chat(modelNames.balanced),
 	deep: gateway.chat(modelNames.deep),

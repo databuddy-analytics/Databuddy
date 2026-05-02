@@ -311,10 +311,7 @@ export function EditFunnelDialog({
 					</div>
 				</Sheet.Header>
 
-				<form
-					className="flex flex-1 flex-col overflow-hidden"
-					onSubmit={handleSubmit}
-				>
+				<Sheet.Form onSubmit={handleSubmit}>
 					<Sheet.Body className="space-y-5">
 						<div className="grid gap-3 sm:grid-cols-2">
 							<Field>
@@ -578,7 +575,7 @@ export function EditFunnelDialog({
 							{isCreateMode ? "Create Funnel" : "Save Changes"}
 						</Button>
 					</Sheet.Footer>
-				</form>
+				</Sheet.Form>
 				<Sheet.Close />
 			</Sheet.Content>
 		</Sheet>

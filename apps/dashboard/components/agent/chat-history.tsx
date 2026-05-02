@@ -5,13 +5,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useChatSafe } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
 import { clearLastChatId, useChatList } from "./hooks/use-chat-db";
-import { ChatCircleDotsIcon, XIcon } from "@phosphor-icons/react/dist/ssr";
 import {
+	ChatTextIcon,
 	CheckIcon,
 	ClockCounterClockwiseIcon,
 	MagnifyingGlassIcon,
 	PencilSimpleIcon,
 	TrashIcon,
+	XMarkIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog, Popover } from "@databuddy/ui/client";
 import { Button, Input, dayjs } from "@databuddy/ui";
@@ -115,8 +116,8 @@ export function ChatHistory({
 			<Popover onOpenChange={setOpen} open={open}>
 				<Popover.Trigger
 					render={
-						<Button aria-label="Chat history" size="sm" variant="ghost">
-							<ClockCounterClockwiseIcon className="size-4" weight="duotone" />
+						<Button aria-label="Chat history" size="sm" variant="secondary">
+							<ClockCounterClockwiseIcon className="size-4 shrink-0" weight="duotone" />
 						</Button>
 					}
 				/>
@@ -154,9 +155,8 @@ export function ChatHistory({
 							if (chats.length === 0) {
 								return (
 									<div className="flex flex-col items-center gap-2 p-6">
-										<ChatCircleDotsIcon
+										<ChatTextIcon
 											className="size-8 text-muted-foreground/40"
-											weight="duotone"
 										/>
 										<p className="text-muted-foreground text-xs">
 											No conversations yet
@@ -274,7 +274,7 @@ function ChatRow({
 					size="icon-sm"
 					variant="ghost"
 				>
-					<XIcon className="size-3.5" />
+					<XMarkIcon className="size-3.5" />
 				</Button>
 			</div>
 		);
