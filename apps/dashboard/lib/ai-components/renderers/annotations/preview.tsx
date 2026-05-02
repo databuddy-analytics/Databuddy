@@ -103,7 +103,7 @@ export function AnnotationPreviewRenderer({
 			)}
 		>
 			<div className="flex flex-col gap-1">
-				<div className="flex items-center gap-2.5 rounded bg-background px-2.5 py-2">
+				<div className="flex items-center gap-2.5 rounded bg-background px-2 py-2">
 					<div
 						className={cn(
 							"flex size-6 items-center justify-center rounded",
@@ -125,13 +125,13 @@ export function AnnotationPreviewRenderer({
 						/>
 					</div>
 					<p className="font-medium text-sm">{config.title}</p>
-					<Badge className="ml-auto text-[10px]" variant="muted">
+					<Badge className="ml-auto rounded text-[10px]" variant="muted">
 						{annotationTypeLabel(annotation.annotationType)}
 					</Badge>
 				</div>
 
 				<div className="rounded bg-background px-3 py-3">
-					<div className="space-y-2">
+					<div className="space-y-2.5">
 						<div>
 							<p className="text-muted-foreground text-xs">Text</p>
 							<p className="text-sm">{annotation.text}</p>
@@ -164,10 +164,10 @@ export function AnnotationPreviewRenderer({
 							</div>
 						)}
 						{annotation.color && (
-							<div className="flex items-center gap-2">
+							<div className="flex flex-col gap-2">
 								<p className="text-muted-foreground text-xs">Color</p>
 								<div
-									className="size-4 rounded border"
+									className="size-8 rounded border"
 									style={{ backgroundColor: annotation.color }}
 								/>
 							</div>
@@ -181,7 +181,7 @@ export function AnnotationPreviewRenderer({
 				</div>
 
 				<div className="rounded bg-background">
-					<div className="flex items-center justify-end gap-2 bg-muted/30 px-3 py-2">
+					<div className="flex items-center justify-end gap-2 bg-muted/30 px-2 py-2">
 						<Button
 							disabled={isLoading || isConfirming}
 							onClick={() => {

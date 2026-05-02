@@ -63,8 +63,8 @@ function DataTableHeaderBlock({
 	}
 	const rowLabel = rowCount === 1 ? "1 row" : `${rowCount} rows`;
 	return (
-		<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
-			<div className="flex size-6 shrink-0 items-center justify-center rounded bg-accent">
+		<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
+			<div className="flex size-6 shrink-0 items-center justify-center rounded bg-accent mb-auto">
 				<FunnelIcon
 					className="size-3.5 text-muted-foreground"
 					weight="duotone"
@@ -80,7 +80,7 @@ function DataTableHeaderBlock({
 					</p>
 				) : null}
 			</div>
-			<Badge className="shrink-0 self-start text-[10px]" variant="muted">
+			<Badge className="shrink-0 rounded text-[10px]" variant="muted">
 				{rowLabel}
 			</Badge>
 		</div>
@@ -172,7 +172,7 @@ export function DataTableRenderer({
 				</div>
 				{footer ? (
 					<div className="rounded-md bg-background">
-						<div className="bg-muted/30 px-3 py-2">
+						<div className="px-2.5 py-2">
 							<p className="text-pretty text-muted-foreground text-xs">
 								{footer}
 							</p>

@@ -136,7 +136,7 @@ export function GoalPreviewRenderer({
 				)}
 			>
 				<div className="flex flex-col gap-1">
-					<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
+					<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 						<div className="flex size-6 items-center justify-center rounded bg-accent">
 							<TargetIcon
 								className="size-3.5 text-muted-foreground"
@@ -144,7 +144,7 @@ export function GoalPreviewRenderer({
 							/>
 						</div>
 						<p className="font-medium text-sm">{config.title}</p>
-						<Badge className="ml-auto text-[10px]" variant="muted">
+						<Badge className="ml-auto rounded text-[10px]" variant="muted">
 							{goalTypeBadge}
 						</Badge>
 					</div>
@@ -181,7 +181,7 @@ export function GoalPreviewRenderer({
 					</div>
 
 					<div className="rounded-md bg-background">
-						<div className="flex items-center justify-end gap-2 bg-muted/30 px-3 py-2">
+						<div className="flex items-center justify-end gap-2 bg-muted/30 px-2 py-2">
 							<Button
 								disabled={isLoading || isConfirming}
 								onClick={() => setIsDialogOpen(true)}

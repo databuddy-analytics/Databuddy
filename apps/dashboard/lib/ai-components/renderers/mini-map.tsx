@@ -131,7 +131,7 @@ export function MiniMapRenderer({ title, countries, className }: MiniMapProps) {
 			)}
 		>
 			<div className="flex flex-col gap-1">
-				<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
+				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 					<div className="flex size-6 items-center justify-center rounded bg-accent">
 						<GlobeIcon
 							className="size-3.5 text-muted-foreground"

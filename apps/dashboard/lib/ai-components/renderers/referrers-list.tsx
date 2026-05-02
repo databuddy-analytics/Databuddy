@@ -137,7 +137,7 @@ export function ReferrersListRenderer({
 			)}
 		>
 			<div className="flex flex-col gap-1">
-				<div className="flex items-center gap-2.5 rounded-md bg-background px-2.5 py-2">
+				<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
 					<div className="flex size-6 items-center justify-center rounded bg-accent">
 						<GlobeIcon
 							className="size-3.5 text-muted-foreground"
@@ -145,9 +145,9 @@ export function ReferrersListRenderer({
 						/>
 					</div>
 					<p className="font-medium text-sm">{resolvedTitle}</p>
-					<div className="ml-auto flex items-center gap-3 text-muted-foreground text-xs">
+					<div className="ml-auto flex items-center gap-5 text-muted-foreground text-xs">
 						<span>Visitors</span>
-						<span className="w-12">Share</span>
+						<span className="w-10">Share</span>
 					</div>
 				</div>
 
