@@ -123,6 +123,10 @@ export const contents: SidebarSection[] = [
 						title: "Bubble.io",
 						href: "/docs/Integrations/bubble",
 					},
+					{
+						title: "Mintlify",
+						href: "/docs/Integrations/mintlify",
+					},
 				],
 			},
 			{

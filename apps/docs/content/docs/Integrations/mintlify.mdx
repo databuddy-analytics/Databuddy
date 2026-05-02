@@ -1,0 +1,180 @@
+---
+title: Mintlify
+description: Add privacy-first analytics to your Mintlify documentation site
+---
+
+import { Steps, Step } from "@/components/docs";
+import { Callout } from "@/components/docs";
+import { CodeBlock } from "@/components/docs";
+import { Card, Cards } from "@/components/docs";
+
+Add Databuddy's privacy-first analytics to your [Mintlify](https://mintlify.com) documentation site by dropping a small `databuddy.js` file next to your `docs.json`. Mintlify auto-loads any `.js` file in your content directory on every page, so the tracker becomes available across all of your docs with zero per-page wiring.
+
+<Callout type="info">
+  There is no official Databuddy integration for Mintlify *yet*. The setup below is the recommended manual approach used by docs sites today, including [Notra](https://github.com/usenotra/notra/blob/main/apps/docs/databuddy.js).
+</Callout>
+
+## How to Add Databuddy to Mintlify
+
+<Steps>
+  <Step title="Get Your Client ID">
+    Open your [Databuddy dashboard](https://app.databuddy.cc/websites), select the website that represents your docs, and copy the **Client ID** from the tracking setup screen.
+  </Step>
+
+  <Step title="Create databuddy.js">
+    In your Mintlify project, create a new file named `databuddy.js` in the same directory as your `docs.json`.
+
+    <CodeBlock
+      language="javascript"
+      filename="databuddy.js"
+      code={`(() => {
+  const script = document.createElement("script");
+  script.src = "https://cdn.databuddy.cc/databuddy.js";
+  script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
+  script.crossOrigin = "anonymous";
+  script.async = true;
+  document.head.appendChild(script);
+})();`}
+    />
+
+    Replace `YOUR_CLIENT_ID` with the Client ID you copied from your dashboard.
+  </Step>
+
+  <Step title="Deploy Your Docs">
+    Commit and push the new file to your repository:
+
+    <CodeBlock
+      language="bash"
+      code={`git add databuddy.js
+git commit -m "feat(docs): add databuddy analytics"
+git push`}
+    />
+
+    Mintlify rebuilds your docs on push and includes any `.js` file in your content directory on every page automatically. No extra changes to `docs.json` are required.
+  </Step>
+
+  <Step title="Verify Tracking">
+    Open your published Mintlify site, then:
+
+    1. Open your browser's DevTools and switch to the **Network** tab.
+    2. Reload the page and confirm a request to `cdn.databuddy.cc/databuddy.js` returns `200`.
+    3. Visit your [Databuddy dashboard](https://app.databuddy.cc) and watch real-time visitors appear.
+  </Step>
+</Steps>
+
+## Alternative: customScripts in docs.json
+
+If you prefer to be explicit about which scripts ship with your docs, or you want to keep `databuddy.js` outside the auto-load behavior, add it to the `customScripts` array in `docs.json`.
+
+<Steps>
+  <Step title="Place databuddy.js at the Project Root">
+    Keep the same `databuddy.js` file from above. Make sure it lives at the root of your Mintlify project (the same directory as `docs.json`).
+  </Step>
+
+  <Step title="Reference It in docs.json">
+    Add the file path to `settings.customScripts`. The path must start with `/`.
+
+    <CodeBlock
+      language="json"
+      filename="docs.json"
+      code={`{
+  "settings": {
+    "customScripts": ["/databuddy.js"]
+  }
+}`}
+    />
+
+    If you already have a `settings` block, just append `"/databuddy.js"` to the existing `customScripts` array.
+  </Step>
+</Steps>
+
+## Configuration Options
+
+Enable extra tracking features by adding more `data-*` attributes when you create the script element.
+
+<CodeBlock
+  language="javascript"
+  filename="databuddy.js"
+  code={`(() => {
+  const script = document.createElement("script");
+  script.src = "https://cdn.databuddy.cc/databuddy.js";
+  script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
+  script.setAttribute("data-track-attributes", "true");
+  script.setAttribute("data-track-outgoing-links", "true");
+  script.setAttribute("data-track-interactions", "true");
+  script.setAttribute("data-track-performance", "true");
+  script.setAttribute("data-track-web-vitals", "true");
+  script.setAttribute("data-track-errors", "true");
+  script.crossOrigin = "anonymous";
+  script.async = true;
+  document.head.appendChild(script);
+})();`}
+/>
+
+See the full list of options in the [SDK reference](/docs/sdk).
+
+## Custom Event Tracking
+
+Mintlify renders MDX, so you can drop tracked elements directly into any `.mdx` page.
+
+### Using Data Attributes
+
+<CodeBlock
+  language="html"
+  code={`<button data-track="cta_click" data-button-type="primary">
+  Get Started
+</button>
+
+<a href="/pricing" data-track="pricing_link_click" data-link-location="docs-header">
+  View Pricing
+</a>`}
+/>
+
+### Programmatic Events
+
+Once the script has loaded, `window.databuddy` is available globally. You can call it from any inline `<script>` block in an MDX page or from your own custom script.
+
+<CodeBlock
+  language="javascript"
+  code={`if (window.databuddy) {
+  window.databuddy.track("docs_search", {
+    query: "getting started",
+    page_path: window.location.pathname,
+  });
+}`}
+/>
+
+## Troubleshooting
+
+<Callout type="warning">
+**Script not loading**
+
+1. Confirm `databuddy.js` is at the project root, next to `docs.json`.
+2. If you went the `customScripts` route, double check the path starts with `/`.
+3. Make sure your changes are deployed. Mintlify only includes the script on the published site, not the local preview.
+4. Check the browser console and Network tab for blocked requests or 404s.
+</Callout>
+
+<Callout type="info">
+**No data showing up**
+
+1. Wait a minute or two for ingestion.
+2. Verify the domain on your Databuddy site matches the deployed Mintlify domain.
+3. Test in an incognito window to rule out ad blockers and previous opt-outs.
+</Callout>
+
+## Related Integrations
+
+<Cards>
+  <Card title="Webflow" href="/docs/Integrations/webflow">
+    Visual builder integration for Webflow sites with custom code embedding.
+  </Card>
+  <Card title="Framer" href="/docs/Integrations/framer">
+    No-code integration for Framer websites with visual setup guide.
+  </Card>
+  <Card title="WordPress" href="/docs/Integrations/wordpress">
+    Plugin or manual setup for WordPress sites.
+  </Card>
+</Cards>
+
+Need help with your Mintlify integration? Contact us at [help@databuddy.cc](mailto:help@databuddy.cc).
