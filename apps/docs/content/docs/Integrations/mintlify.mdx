@@ -62,32 +62,6 @@ git push`}
   </Step>
 </Steps>
 
-## Alternative: customScripts in docs.json
-
-If you prefer to be explicit about which scripts ship with your docs, or you want to keep `databuddy.js` outside the auto-load behavior, add it to the `customScripts` array in `docs.json`.
-
-<Steps>
-  <Step title="Place databuddy.js at the Project Root">
-    Keep the same `databuddy.js` file from above. Make sure it lives at the root of your Mintlify project (the same directory as `docs.json`).
-  </Step>
-
-  <Step title="Reference It in docs.json">
-    Add the file path to `settings.customScripts`. The path must start with `/`.
-
-    <CodeBlock
-      language="json"
-      filename="docs.json"
-      code={`{
-  "settings": {
-    "customScripts": ["/databuddy.js"]
-  }
-}`}
-    />
-
-    If you already have a `settings` block, just append `"/databuddy.js"` to the existing `customScripts` array.
-  </Step>
-</Steps>
-
 ## Configuration Options
 
 Enable extra tracking features by adding more `data-*` attributes when you create the script element.
@@ -150,9 +124,8 @@ Once the script has loaded, `window.databuddy` is available globally. You can ca
 **Script not loading**
 
 1. Confirm `databuddy.js` is at the project root, next to `docs.json`.
-2. If you went the `customScripts` route, double check the path starts with `/`.
-3. Make sure your changes are deployed. Mintlify only includes the script on the published site, not the local preview.
-4. Check the browser console and Network tab for blocked requests or 404s.
+2. Make sure your changes are deployed. Mintlify only includes the script on the published site, not the local preview.
+3. Check the browser console and Network tab for blocked requests or 404s.
 </Callout>
 
 <Callout type="info">
