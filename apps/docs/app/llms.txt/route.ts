@@ -1,87 +1,15 @@
-import fg from "fast-glob";
-import matter from "gray-matter";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { buildLlmsTxt } from "@/lib/agent-docs";
 
 export const revalidate = false;
 
-const BASE_URL = "https://www.databuddy.cc/docs";
-
-const HEADER = `# Databuddy Documentation
-
-> Privacy-first web analytics. 65x faster than Google Analytics, GDPR compliant, no cookies required.
-> For the full documentation corpus, see [llms-full.txt](https://www.databuddy.cc/llms-full.txt).
-
-`;
-
-const SECTION_ORDER = [
-	"root",
-	"api",
-	"Integrations",
-	"hooks",
-	"features",
-	"performance",
-	"privacy",
-	"compliance",
-];
-const SECTION_LABELS: Record<string, string> = {
-	root: "Core",
-	api: "API Reference",
-	Integrations: "Integrations",
-	hooks: "React Hooks",
-	features: "Features",
-	performance: "Performance",
-	privacy: "Privacy",
-	compliance: "Compliance",
-};
-
-export async function GET() {
-	const files = await fg(["./content/docs/**/*.mdx"]);
-
-	const entries = await Promise.all(
-		files.map(async (file) => {
-			const content = await fs.readFile(file);
-			const { data } = matter(content.toString());
-			const relativePath = file
-				.replace("./content/docs/", "")
-				.replace(".mdx", "");
-			const section = path.dirname(relativePath);
-
-			return {
-				section: section === "." ? "root" : section,
-				title: data.title || path.basename(file, ".mdx"),
-				description: data.description || "",
-				url: `${BASE_URL}/${relativePath}.md`,
-			};
-		})
-	);
-
-	const grouped = entries.reduce<Record<string, typeof entries>>(
-		(acc, entry) => {
-			acc[entry.section] = acc[entry.section] || [];
-			acc[entry.section].push(entry);
-			return acc;
-		},
-		{}
-	);
-
-	const sections = SECTION_ORDER.filter((s) => grouped[s])
-		.map((section) => {
-			const label = SECTION_LABELS[section] || section;
-			const items = grouped[section]
-				.map((i) => `- [${i.title}](${i.url}): ${i.description}`)
-				.join("\n");
-			return `## ${label}\n${items}`;
-		})
-		.join("\n\n");
-
-	const body = HEADER + sections;
+export async function GET(request: Request) {
+	const body = await buildLlmsTxt(new URL(request.url).origin);
 
 	return new Response(body, {
 		headers: {
 			"Content-Type": "text/plain; charset=utf-8",
 			"Cache-Control": "public, max-age=3600, must-revalidate",
-			ETag: `"${Buffer.from(body).length.toString(36)}-${Date.now().toString(36)}"`,
+			ETag: `"${Buffer.from(body).length.toString(36)}"`,
 		},
 	});
 }

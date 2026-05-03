@@ -4,17 +4,36 @@ import { NextResponse } from "next/server";
 
 export function proxy(request: NextRequest) {
 	const path = request.nextUrl.pathname;
-	if (path !== "/pricing" && path !== "/pricing/") {
-		return NextResponse.next();
+	const wantsMarkdown = acceptMarkdownOverHtml(
+		request.headers.get("accept") ?? ""
+	);
+
+	if (path === "/pricing" || path === "/pricing/") {
+		if (wantsMarkdown) {
+			return NextResponse.rewrite(new URL("/api/pricing", request.nextUrl));
+		}
+		const res = NextResponse.next();
+		res.headers.set("Vary", "Accept");
+		return res;
 	}
-	if (acceptMarkdownOverHtml(request.headers.get("accept") ?? "")) {
-		return NextResponse.rewrite(new URL("/api/pricing", request.nextUrl));
+
+	if (path === "/docs" || path.startsWith("/docs/")) {
+		if (wantsMarkdown) {
+			const slug = path === "/docs" ? "" : path.slice("/docs/".length);
+			return NextResponse.rewrite(
+				new URL(`/api/docs/raw/${slug}`, request.nextUrl)
+			);
+		}
+		const res = NextResponse.next();
+		res.headers.set("Vary", "Accept");
+		return res;
 	}
+
 	const res = NextResponse.next();
 	res.headers.set("Vary", "Accept");
 	return res;
 }
 
 export const config = {
-	matcher: ["/pricing", "/pricing/"],
+	matcher: ["/pricing", "/pricing/", "/docs", "/docs/:path*"],
 };

@@ -1,4 +1,3 @@
-import type { DocData, DocMethods } from "fumadocs-mdx/runtime/types";
 import { DocsBody, DocsPage, DocsTitle } from "fumadocs-ui/page";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -7,17 +6,11 @@ import { Feedback } from "@/components/feedback";
 import { StructuredData } from "@/components/structured-data";
 import { getDocsPageSeo } from "@/lib/docs-page-seo";
 import { onRateDocs } from "@/lib/feedback-action";
-import { source } from "@/lib/source";
+import { type AsyncPageData, source } from "@/lib/source";
 import { getMDXComponents } from "@/mdx-components";
 
-export type AsyncPageData = DocMethods & {
-	title?: string;
-	description?: string;
-	load: () => Promise<DocData>;
-};
-
 export default async function Page(props: {
-	params: Promise<{ slug?: string[] }>;
+	params: Promise<{ slug: string[] }>;
 }) {
 	const params = await props.params;
 	const page = source.getPage(params.slug);
@@ -85,11 +78,13 @@ export default async function Page(props: {
 }
 
 export function generateStaticParams() {
-	return source.generateParams();
+	return source
+		.generateParams()
+		.filter((params) => params.slug && params.slug.length > 0);
 }
 
 export async function generateMetadata(props: {
-	params: Promise<{ slug?: string[] }>;
+	params: Promise<{ slug: string[] }>;
 }): Promise<Metadata> {
 	const params = await props.params;
 	const page = source.getPage(params.slug);

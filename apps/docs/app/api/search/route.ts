@@ -4,8 +4,7 @@ import {
 	createSearchAPI,
 } from "fumadocs-core/search/server";
 import remarkMdx from "remark-mdx";
-import type { AsyncPageData } from "@/app/docs/[[...slug]]/page";
-import { source } from "@/lib/source";
+import { type AsyncPageData, source } from "@/lib/source";
 
 export const dynamic = "force-dynamic";
 

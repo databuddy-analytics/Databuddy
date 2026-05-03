@@ -1,5 +1,6 @@
 import { docs } from "fumadocs-mdx:collections/server";
 import { type InferPageType, loader } from "fumadocs-core/source";
+import type { DocData, DocMethods } from "fumadocs-mdx/runtime/types";
 
 export const source = loader({
 	baseUrl: "/docs",
@@ -7,6 +8,12 @@ export const source = loader({
 });
 
 export type DocPage = InferPageType<typeof source>;
+
+export type AsyncPageData = DocMethods & {
+	title?: string;
+	description?: string;
+	load: () => Promise<DocData>;
+};
 
 export function getPageImage(page: DocPage) {
 	const segments = [...page.slugs, "image.png"];

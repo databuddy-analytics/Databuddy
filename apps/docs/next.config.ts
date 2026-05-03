@@ -42,6 +42,10 @@ const config: NextConfig = {
 						key: "Cache-Control",
 						value: "public, max-age=3600, must-revalidate",
 					},
+					{
+						key: "Vary",
+						value: "Accept",
+					},
 				],
 			},
 		];
@@ -50,19 +54,12 @@ const config: NextConfig = {
 	rewrites: async () => ({
 		beforeFiles: [
 			{
-				source: "/docs/:path*.md",
-				destination: "/api/docs/raw/:path*",
+				source: "/docs.md",
+				destination: "/api/docs/raw",
 			},
 			{
-				source: "/docs/:path*",
+				source: "/docs/:path*.md",
 				destination: "/api/docs/raw/:path*",
-				has: [
-					{
-						type: "header",
-						key: "Accept",
-						value: ".*text/markdown.*",
-					},
-				],
 			},
 		],
 		afterFiles: [],
