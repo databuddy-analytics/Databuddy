@@ -101,7 +101,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.13",
+    "@biomejs/biome": "2.4.14",
     "@orpc/server": "^1.14.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query-devtools": "^5.99.2",
