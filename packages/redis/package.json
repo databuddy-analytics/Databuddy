@@ -29,7 +29,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^20.11.19",
+    "@types/node": "^25.6.0",
     "typescript": "catalog:"
   },
   "description": "Redis caching and pub/sub utilities for Databuddy"

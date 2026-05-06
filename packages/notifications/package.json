@@ -23,7 +23,7 @@
     "resend": "^4.0.1"
   },
   "devDependencies": {
-    "@types/node": "^24.10.4",
+    "@types/node": "^25.6.0",
     "typescript": "catalog:"
   }
 }
