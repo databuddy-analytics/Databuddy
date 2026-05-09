@@ -29,7 +29,7 @@
     "@elysiajs/server-timing": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@opentelemetry/resources": "^2.4.0",
-    "@opentelemetry/sdk-node": "0.215.0",
+    "@opentelemetry/sdk-node": "0.217.0",
     "@opentelemetry/semantic-conventions": "^1.29.0",
     "@orpc/openapi": "^1.14.0",
     "@orpc/server": "^1.14.0",
