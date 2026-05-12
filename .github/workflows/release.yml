@@ -42,7 +42,7 @@ jobs:
 
       - run: bun install --frozen-lockfile --ignore-scripts
 
-      - uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1
+      - uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1
         id: changesets
         with:
           version: bun run version-packages
