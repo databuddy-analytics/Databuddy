@@ -96,6 +96,7 @@ const SEGMENT_TOP_MOVERS = 3;
 const SEGMENT_FETCH_LIMIT = 100;
 const ERROR_MIN_DELTA_PERCENT = 20;
 const ERROR_TOP_LIMIT = 5;
+const ERROR_WORD_SPLIT_RE = /[\s:()]+/;
 
 function computeWindow(
 	signal: DetectedSignal,
@@ -114,7 +115,7 @@ function computeWindow(
 		};
 	}
 
-	const windowDays = Math.max(3, Math.floor(lookbackDays / 2));
+	const windowDays = Math.max(3, lookbackDays);
 	return {
 		currentFrom: detectedDay
 			.subtract(windowDays - 1, "day")
@@ -373,24 +374,23 @@ async function enrichAnnotations(
 	return await annotationQueryFn(websiteId, from, to);
 }
 
-const LEADING_SLASH_RE = /^\//;
-const WORD_SPLIT_RE = /[\s:()]+/;
-
 function extractSignalKeywords(signals: EnrichedSignal[]): string[] {
 	const keywords = new Set<string>();
 	for (const s of signals) {
 		keywords.add(s.metric);
 		for (const seg of s.segments) {
 			for (const m of seg.topMovers) {
-				const path = m.name.replace(LEADING_SLASH_RE, "").split("/")[0];
-				if (path && path.length > 2) {
-					keywords.add(path.toLowerCase());
+				const segment = m.name.split("/").find((p) => p.length > 2);
+				if (segment) {
+					keywords.add(segment.toLowerCase());
 				}
 			}
 		}
 		if (s.errorContext) {
 			for (const err of s.errorContext.topNewErrors) {
-				const words = err.split(WORD_SPLIT_RE).filter((w) => w.length > 3);
+				const words = err
+					.split(ERROR_WORD_SPLIT_RE)
+					.filter((w) => w.length > 3);
 				for (const w of words.slice(0, 3)) {
 					keywords.add(w.toLowerCase());
 				}
@@ -426,16 +426,16 @@ async function enrichGitHub(
 		}
 
 		interface GHCommit {
-			sha?: string;
 			commit?: {
 				message?: string;
 				author?: { name?: string; date?: string };
 			};
+			sha?: string;
 		}
 		interface GHPR {
+			merged_at?: string | null;
 			number?: number;
 			title?: string;
-			merged_at?: string | null;
 			user?: { login?: string };
 		}
 
@@ -467,9 +467,8 @@ async function enrichGitHub(
 				if (!detail || typeof detail !== "object" || "error" in detail) {
 					return null;
 				}
-				const files = (
-					(detail as { files?: Array<{ filename: string }> }).files ?? []
-				);
+				const files =
+					(detail as { files?: Array<{ filename: string }> }).files ?? [];
 				const changedFiles = files.map((f) => f.filename);
 				const relevant = signalKeywords.some(
 					(kw) =>

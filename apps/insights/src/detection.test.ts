@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import dayjs from "dayjs";
 import {
 	type DetectSignalsParams,
@@ -59,24 +59,27 @@ const BASE_PARAMS: DetectSignalsParams = {
 function createMockQueryFn(
 	dailyRows: Record<string, unknown>[],
 	summaryCurrentRow?: Record<string, unknown>,
-	summaryPreviousRow?: Record<string, unknown>
+	summaryPreviousRow?: Record<string, unknown>,
+	extras?: Record<string, [Record<string, unknown>?, Record<string, unknown>?]>
 ): QueryFn {
-	let summaryCallIndex = 0;
-	return mock(
-		(request: { type: string }) => {
-			if (request.type === "events_by_date") {
-				return Promise.resolve(dailyRows);
-			}
-			if (request.type === "summary_metrics") {
-				summaryCallIndex++;
-				if (summaryCallIndex === 1) {
-					return Promise.resolve([summaryCurrentRow ?? {}]);
-				}
-				return Promise.resolve([summaryPreviousRow ?? {}]);
-			}
-			return Promise.resolve([]);
+	const callCounts = new Map<string, number>();
+	return async (request: { type: string }) => {
+		if (request.type === "events_by_date") {
+			return dailyRows;
 		}
-	) as unknown as QueryFn;
+		const count = (callCounts.get(request.type) ?? 0) + 1;
+		callCounts.set(request.type, count);
+		if (request.type === "summary_metrics") {
+			return [
+				count === 1 ? (summaryCurrentRow ?? {}) : (summaryPreviousRow ?? {}),
+			];
+		}
+		const extra = extras?.[request.type];
+		if (extra) {
+			return [count === 1 ? (extra[0] ?? {}) : (extra[1] ?? {})];
+		}
+		return [];
+	};
 }
 
 describe("median", () => {
@@ -685,6 +688,63 @@ describe("detectSignals", () => {
 			if (visitorSignal) {
 				expect(visitorSignal.direction).toBe("up");
 			}
+		});
+	});
+
+	describe("error detection", () => {
+		it("flags error count spike above 40%", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				error_summary: [{ totalErrors: 50 }, { totalErrors: 20 }],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const errorSignal = signals.find((s) => s.metric === "error_count");
+			expect(errorSignal).toBeDefined();
+			expect(errorSignal!.direction).toBe("up");
+			expect(errorSignal!.deltaPercent).toBe(150);
+		});
+
+		it("skips errors below absolute threshold", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				error_summary: [{ totalErrors: 3 }, { totalErrors: 1 }],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
+		});
+	});
+
+	describe("revenue detection", () => {
+		it("flags new revenue appearing", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [{ total_revenue: 100 }, { total_revenue: 0 }],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const revSignal = signals.find((s) => s.metric === "revenue");
+			expect(revSignal).toBeDefined();
+			expect(revSignal!.direction).toBe("up");
+		});
+
+		it("flags revenue drop above 30%", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [{ total_revenue: 50 }, { total_revenue: 100 }],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const revSignal = signals.find((s) => s.metric === "revenue");
+			expect(revSignal).toBeDefined();
+			expect(revSignal!.direction).toBe("down");
+			expect(revSignal!.deltaPercent).toBe(-50);
+		});
+
+		it("skips small revenue changes", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [{ total_revenue: 110 }, { total_revenue: 100 }],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "revenue")).toBeUndefined();
 		});
 	});
 

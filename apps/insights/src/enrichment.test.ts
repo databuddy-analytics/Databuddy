@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import type { DetectedSignal, QueryFn } from "./detection";
 import {
 	type AnnotationContext,
@@ -32,18 +32,18 @@ const BASE_PARAMS = {
 function createMockQueryFn(
 	responses: Record<string, Record<string, unknown[]>>
 ): QueryFn {
-	return mock((request: { type: string; from: string; to: string }) => {
+	return async (request: { type: string; from: string; to: string }) => {
 		const byType = responses[request.type];
-		if (!byType) return Promise.resolve([]);
+		if (!byType) return [];
 		const key = `${request.from}:${request.to}`;
-		return Promise.resolve(byType[key] ?? byType["*"] ?? []);
-	}) as unknown as QueryFn;
+		return byType[key] ?? byType["*"] ?? [];
+	};
 }
 
 function createMockAnnotationFn(
 	result: AnnotationContext[] = []
 ): AnnotationQueryFn {
-	return mock(() => Promise.resolve(result)) as unknown as AnnotationQueryFn;
+	return async () => result;
 }
 
 describe("enrichSignals", () => {
@@ -358,16 +358,18 @@ describe("enrichSignals", () => {
 			const signal = makeSignal({ method: "zscore", detectedAt: "2026-05-20" });
 			const calls: { type: string; from: string; to: string }[] = [];
 
-			const queryFn = mock(
-				(request: { type: string; from: string; to: string }) => {
-					calls.push({
-						type: request.type,
-						from: request.from,
-						to: request.to,
-					});
-					return Promise.resolve([]);
-				}
-			) as unknown as QueryFn;
+			const queryFn: QueryFn = async (request: {
+				type: string;
+				from: string;
+				to: string;
+			}) => {
+				calls.push({
+					type: request.type,
+					from: request.from,
+					to: request.to,
+				});
+				return [];
+			};
 
 			await enrichSignals(
 				[signal],
@@ -383,20 +385,22 @@ describe("enrichSignals", () => {
 			expect(pagesCurrent!.to).toBe("2026-05-20");
 		});
 
-		it("uses half-lookback windows for wow signals", async () => {
+		it("uses full-lookback windows for wow signals", async () => {
 			const signal = makeSignal({ method: "wow", detectedAt: "2026-05-20" });
 			const calls: { type: string; from: string; to: string }[] = [];
 
-			const queryFn = mock(
-				(request: { type: string; from: string; to: string }) => {
-					calls.push({
-						type: request.type,
-						from: request.from,
-						to: request.to,
-					});
-					return Promise.resolve([]);
-				}
-			) as unknown as QueryFn;
+			const queryFn: QueryFn = async (request: {
+				type: string;
+				from: string;
+				to: string;
+			}) => {
+				calls.push({
+					type: request.type,
+					from: request.from,
+					to: request.to,
+				});
+				return [];
+			};
 
 			await enrichSignals(
 				[signal],
@@ -410,11 +414,11 @@ describe("enrichSignals", () => {
 
 			const currentCall = pagesCalls.find((c) => c.to === "2026-05-20");
 			expect(currentCall).toBeDefined();
-			expect(currentCall!.from).toBe("2026-05-14");
+			expect(currentCall!.from).toBe("2026-05-07");
 
 			const previousCall = pagesCalls.find((c) => c.to !== "2026-05-20");
 			expect(previousCall).toBeDefined();
-			expect(previousCall!.to).toBe("2026-05-13");
+			expect(previousCall!.to).toBe("2026-05-06");
 		});
 	});
 });

@@ -13,30 +13,46 @@ function cacheKey(domain: string, path: string): string {
 	return `scrape:${domain}:${path}`;
 }
 
+let _redis: typeof import("@databuddy/redis").redis | null = null;
+async function getRedis() {
+	if (!_redis) {
+		try {
+			_redis = (await import("@databuddy/redis")).redis;
+		} catch {
+			return null;
+		}
+	}
+	return _redis;
+}
+
 async function getCached(key: string): Promise<string | null> {
+	const r = await getRedis();
+	if (!r) {
+		return null;
+	}
 	try {
-		const { redis } = await import("@databuddy/redis");
-		return await redis.get(key);
+		return await r.get(key);
 	} catch {
 		return null;
 	}
 }
 
 async function setCache(key: string, value: string): Promise<void> {
-	try {
-		const { redis } = await import("@databuddy/redis");
-		await redis.set(key, value, "EX", CACHE_TTL_SECONDS);
-	} catch {}
+	const r = await getRedis();
+	if (!r) {
+		return;
+	}
+	r.set(key, value, "EX", CACHE_TTL_SECONDS).catch(() => {});
 }
 
 interface ScrapeResult {
-	url: string;
-	title: string | null;
-	description: string | null;
-	statusCode: number | null;
-	content: string;
-	internalLinks: string[];
 	cached?: boolean;
+	content: string;
+	description: string | null;
+	internalLinks: string[];
+	statusCode: number | null;
+	title: string | null;
+	url: string;
 }
 
 async function scrapePage(
@@ -55,7 +71,9 @@ async function scrapePage(
 	if (cached) {
 		try {
 			return { ...(JSON.parse(cached) as ScrapeResult), cached: true };
-		} catch {}
+		} catch {
+			// Ignore corrupt cache entries and fetch a fresh copy.
+		}
 	}
 
 	const url = `https://${domain}${cleanPath}`;
@@ -71,7 +89,7 @@ async function scrapePage(
 				url,
 				formats: ["markdown", "links"],
 				onlyMainContent: true,
-				timeout: 15000,
+				timeout: 15_000,
 			}),
 			signal: AbortSignal.timeout(20_000),
 		});
@@ -96,31 +114,41 @@ async function scrapePage(
 			};
 		};
 
-		if (!data.success || !data.data?.markdown) {
+		if (!(data.success && data.data?.markdown)) {
 			return { error: "Page returned no content" };
 		}
 
 		const markdown = data.data.markdown;
 		const meta = data.data.metadata;
 		const allLinks = data.data.links ?? [];
-		const internalLinks = allLinks
-			.filter((l) => {
-				try {
-					const u = new URL(l);
-					return u.hostname === domain || u.hostname === `www.${domain}`;
-				} catch {
-					return l.startsWith("/");
+		const seen = new Set<string>();
+		const internalLinks: string[] = [];
+		for (const l of allLinks) {
+			let hostname: string;
+			let pathname: string;
+			try {
+				const u = new URL(l);
+				hostname = u.hostname;
+				pathname = u.pathname;
+			} catch {
+				if (!l.startsWith("/")) {
+					continue;
 				}
-			})
-			.map((l) => {
-				try {
-					return new URL(l).pathname;
-				} catch {
-					return l;
-				}
-			})
-			.filter((p, i, arr) => arr.indexOf(p) === i)
-			.slice(0, 30);
+				hostname = domain;
+				pathname = l;
+			}
+			if (hostname !== domain && hostname !== `www.${domain}`) {
+				continue;
+			}
+			if (seen.has(pathname)) {
+				continue;
+			}
+			seen.add(pathname);
+			internalLinks.push(pathname);
+			if (internalLinks.length >= 30) {
+				break;
+			}
+		}
 
 		const result: ScrapeResult = {
 			url,
@@ -141,6 +169,36 @@ async function scrapePage(
 		return {
 			error: `Scrape failed: ${(err as Error).message?.slice(0, 200)}`,
 		};
+	}
+}
+
+export async function getCachedSiteContext(
+	domain: string
+): Promise<string | null> {
+	const key = cacheKey(domain, "/");
+	const cached = await getCached(key);
+	if (!cached) {
+		return null;
+	}
+	try {
+		const data = JSON.parse(cached) as ScrapeResult;
+		const parts = [`Site: ${domain}`];
+		if (data.title) {
+			parts.push(`Title: ${data.title}`);
+		}
+		if (data.description) {
+			parts.push(`Description: ${data.description}`);
+		}
+		if (data.content) {
+			const truncated =
+				data.content.length > 2000
+					? `${data.content.slice(0, 2000)}...`
+					: data.content;
+			parts.push(`Content:\n${truncated}`);
+		}
+		return parts.join("\n");
+	} catch {
+		return null;
 	}
 }
 

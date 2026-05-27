@@ -60,15 +60,6 @@ const ANOMALY_METRICS: AnomalyMetric[] = [
 	},
 ];
 
-interface DailyRow {
-	bounce_rate?: unknown;
-	date?: unknown;
-	median_session_duration?: unknown;
-	pageviews?: unknown;
-	sessions?: unknown;
-	visitors?: unknown;
-}
-
 export function median(values: number[]): number {
 	if (values.length === 0) {
 		return 0;
@@ -90,6 +81,28 @@ export function mad(values: number[]): number {
 }
 
 const MAD_SCALE = 1.4826;
+const ZSCORE_THRESHOLD = 2.5;
+const ZSCORE_MIN_BASELINE = 6;
+const WOW_TRAFFIC_THRESHOLD = 40;
+const WOW_ERROR_THRESHOLD = 40;
+const WOW_REVENUE_THRESHOLD = 30;
+const WOW_VITALS_THRESHOLD = 30;
+const WOW_CUSTOM_EVENT_THRESHOLD = 40;
+const FILTER_SESSION_DURATION_MIN_DELTA = 60;
+const FILTER_SESSION_DURATION_MIN_PEAK = 20;
+const FILTER_BOUNCE_MIN_DELTA = 10;
+const FILTER_ERROR_MIN_DELTA = 5;
+const FILTER_ERROR_MIN_PEAK = 10;
+const FILTER_TRAFFIC_MIN_PEAK = 80;
+const FILTER_TRAFFIC_MIN_DELTA = 50;
+const CUSTOM_EVENT_MIN_COUNT = 5;
+const CUSTOM_EVENT_NEW_THRESHOLD = 10;
+const CUSTOM_EVENT_DISAPPEARED_THRESHOLD = 10;
+
+const VITALS_METRICS: Record<string, string> = {
+	LCP: "Page load time (LCP)",
+	INP: "Interaction speed (INP)",
+};
 
 export function safeDeltaPercent(current: number, previous: number): number {
 	if (previous === 0) {
@@ -101,6 +114,36 @@ export function safeDeltaPercent(current: number, previous: number): number {
 function isWeekend(dateStr: string): boolean {
 	const day = dayjs(dateStr).day();
 	return day === 0 || day === 6;
+}
+
+function numberField(
+	row: Record<string, unknown> | undefined,
+	key: string
+): number {
+	const value = Number(row?.[key] ?? 0);
+	return Number.isFinite(value) ? value : 0;
+}
+
+function stringField(
+	row: Record<string, unknown> | undefined,
+	key: string
+): string | null {
+	const value = row?.[key];
+	return typeof value === "string" && value ? value : null;
+}
+
+function mapRowsByStringField(
+	rows: Record<string, unknown>[],
+	key: string
+): Map<string, Record<string, unknown>> {
+	const mapped = new Map<string, Record<string, unknown>>();
+	for (const row of rows) {
+		const value = stringField(row, key);
+		if (value) {
+			mapped.set(value, row);
+		}
+	}
+	return mapped;
 }
 
 export function assignSeverity(
@@ -132,7 +175,7 @@ export async function detectSignals(
 		.format("YYYY-MM-DD");
 	const dailyTo = today.format("YYYY-MM-DD");
 
-	const rows = (await queryFn(
+	const rows = await queryFn(
 		{
 			projectId: websiteId,
 			type: "events_by_date",
@@ -144,7 +187,7 @@ export async function detectSignals(
 		},
 		undefined,
 		timezone
-	)) as DailyRow[];
+	);
 
 	const sorted = [...rows].sort((a, b) =>
 		String(a.date ?? "").localeCompare(String(b.date ?? ""))
@@ -176,16 +219,35 @@ export async function detectSignals(
 	const filtered = [...byMetric.values()].filter((signal) => {
 		const absDelta = Math.abs(signal.current - signal.baseline);
 		if (signal.metric === "session_duration") {
-			return absDelta >= 60 && Math.max(signal.current, signal.baseline) >= 20;
+			return (
+				absDelta >= FILTER_SESSION_DURATION_MIN_DELTA &&
+				Math.max(signal.current, signal.baseline) >=
+					FILTER_SESSION_DURATION_MIN_PEAK
+			);
 		}
 		if (signal.metric === "bounce_rate") {
-			return absDelta >= 10;
+			return absDelta >= FILTER_BOUNCE_MIN_DELTA;
+		}
+		if (signal.metric === "error_count") {
+			return (
+				absDelta >= FILTER_ERROR_MIN_DELTA &&
+				Math.max(signal.current, signal.baseline) >= FILTER_ERROR_MIN_PEAK
+			);
+		}
+		if (signal.metric === "revenue") {
+			return true;
+		}
+		if (signal.metric === "lcp" || signal.metric === "inp") {
+			return true;
+		}
+		if (signal.metric.startsWith("custom_event:")) {
+			return true;
 		}
 		const peak = Math.max(signal.current, signal.baseline);
-		if (peak < 80) {
+		if (peak < FILTER_TRAFFIC_MIN_PEAK) {
 			return false;
 		}
-		return absDelta >= 50;
+		return absDelta >= FILTER_TRAFFIC_MIN_DELTA;
 	});
 
 	const collapsed = collapseCorrelated(filtered);
@@ -218,7 +280,7 @@ function collapseCorrelated(signals: DetectedSignal[]): DetectedSignal[] {
 	return [...collapsedUp, ...collapsedDown];
 }
 
-function detectZscore(sorted: DailyRow[]): DetectedSignal[] {
+function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 	if (sorted.length < 7) {
 		return [];
 	}
@@ -237,7 +299,7 @@ function detectZscore(sorted: DailyRow[]): DetectedSignal[] {
 		return latestIsWeekend === rowIsWeekend;
 	});
 
-	if (baseline.length < 6) {
+	if (baseline.length < ZSCORE_MIN_BASELINE) {
 		return [];
 	}
 
@@ -245,10 +307,10 @@ function detectZscore(sorted: DailyRow[]): DetectedSignal[] {
 
 	for (const metric of ANOMALY_METRICS) {
 		const baselineValues = baseline
-			.map((r) => Number(r[metric.dailyField as keyof DailyRow] ?? 0))
+			.map((row) => numberField(row, metric.dailyField))
 			.filter((v) => Number.isFinite(v));
 
-		if (baselineValues.length < 6) {
+		if (baselineValues.length < ZSCORE_MIN_BASELINE) {
 			continue;
 		}
 
@@ -259,11 +321,9 @@ function detectZscore(sorted: DailyRow[]): DetectedSignal[] {
 			continue;
 		}
 
-		const currentValue = Number(
-			latest[metric.dailyField as keyof DailyRow] ?? 0
-		);
+		const currentValue = numberField(latest, metric.dailyField);
 		const zScore = (currentValue - baselineMedian) / scaledMad;
-		if (Math.abs(zScore) < 2.5) {
+		if (Math.abs(zScore) < ZSCORE_THRESHOLD) {
 			continue;
 		}
 
@@ -305,60 +365,217 @@ async function detectWow(
 		.format("YYYY-MM-DD");
 	const previousTo = today.subtract(windowDays, "day").format("YYYY-MM-DD");
 
-	const [currentRows, previousRows] = await Promise.all([
-		queryFn(
-			{
-				projectId: websiteId,
-				type: "summary_metrics",
-				from: currentFrom,
-				to: currentTo,
-				timezone,
-			},
+	function query(type: string, from: string, to: string) {
+		return queryFn(
+			{ projectId: websiteId, type, from, to, timezone },
 			undefined,
 			timezone
-		),
-		queryFn(
-			{
-				projectId: websiteId,
-				type: "summary_metrics",
-				from: previousFrom,
-				to: previousTo,
-				timezone,
-			},
-			undefined,
-			timezone
-		),
+		);
+	}
+
+	const [
+		currentSummary,
+		previousSummary,
+		currentErrors,
+		previousErrors,
+		currentRevenue,
+		previousRevenue,
+		currentVitals,
+		previousVitals,
+		currentCustom,
+		previousCustom,
+	] = await Promise.all([
+		query("summary_metrics", currentFrom, currentTo),
+		query("summary_metrics", previousFrom, previousTo),
+		query("error_summary", currentFrom, currentTo),
+		query("error_summary", previousFrom, previousTo),
+		query("revenue_overview", currentFrom, currentTo),
+		query("revenue_overview", previousFrom, previousTo),
+		query("vitals_overview", currentFrom, currentTo),
+		query("vitals_overview", previousFrom, previousTo),
+		query("custom_events_discovery", currentFrom, currentTo),
+		query("custom_events_discovery", previousFrom, previousTo),
 	]);
 
-	const currentRow = (currentRows[0] ?? {}) as Record<string, unknown>;
-	const previousRow = (previousRows[0] ?? {}) as Record<string, unknown>;
 	const signals: DetectedSignal[] = [];
 
 	for (const metric of ANOMALY_METRICS) {
-		const currentValue = Number(currentRow[metric.summaryField] ?? 0);
-		const previousValue = Number(previousRow[metric.summaryField] ?? 0);
+		const currentValue = numberField(currentSummary[0], metric.summaryField);
+		const previousValue = numberField(previousSummary[0], metric.summaryField);
 
 		if (previousValue === 0 || currentValue === 0) {
 			continue;
 		}
 
 		const pct = safeDeltaPercent(currentValue, previousValue);
-		if (Math.abs(pct) < 40) {
+		if (Math.abs(pct) < WOW_TRAFFIC_THRESHOLD) {
 			continue;
 		}
-
-		const direction: "up" | "down" =
-			currentValue > previousValue ? "up" : "down";
 
 		signals.push({
 			metric: metric.key,
 			label: metric.label,
 			method: "wow",
-			direction,
+			direction: currentValue > previousValue ? "up" : "down",
 			current: currentValue,
 			baseline: previousValue,
 			deltaPercent: Number(pct.toFixed(2)),
 			severity: assignSeverity(undefined, pct),
+			detectedAt: currentTo,
+		});
+	}
+
+	const errNow = numberField(currentErrors[0], "totalErrors");
+	const errPrev = numberField(previousErrors[0], "totalErrors");
+	if (
+		errNow > 0 &&
+		errPrev > 0 &&
+		Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD
+	) {
+		const pct = safeDeltaPercent(errNow, errPrev);
+		signals.push({
+			metric: "error_count",
+			label: "Errors",
+			method: "wow",
+			direction: errNow > errPrev ? "up" : "down",
+			current: errNow,
+			baseline: errPrev,
+			deltaPercent: Number(pct.toFixed(2)),
+			severity: assignSeverity(undefined, pct),
+			detectedAt: currentTo,
+		});
+	}
+
+	const revNow = numberField(currentRevenue[0], "total_revenue");
+	const revPrev = numberField(previousRevenue[0], "total_revenue");
+	if ((revNow > 0 || revPrev > 0) && Math.abs(revNow - revPrev) > 0) {
+		const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
+		if (
+			Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
+			(revPrev === 0 && revNow > 0)
+		) {
+			signals.push({
+				metric: "revenue",
+				label: "Revenue",
+				method: "wow",
+				direction: revNow > revPrev ? "up" : "down",
+				current: revNow,
+				baseline: revPrev,
+				deltaPercent: Number(pct.toFixed(2)),
+				severity: assignSeverity(undefined, pct),
+				detectedAt: currentTo,
+			});
+		}
+	}
+
+	const vitalsCurrentMap = mapRowsByStringField(currentVitals, "metric_name");
+	const vitalsPreviousMap = mapRowsByStringField(previousVitals, "metric_name");
+
+	for (const [metricName, label] of Object.entries(VITALS_METRICS)) {
+		const cur = vitalsCurrentMap.get(metricName);
+		const prev = vitalsPreviousMap.get(metricName);
+		const curVal = numberField(cur, "p75");
+		const prevVal = numberField(prev, "p75");
+		const curSamples = numberField(cur, "samples");
+
+		if (curSamples < 10 || prevVal === 0 || curVal === 0) {
+			continue;
+		}
+
+		const pct = safeDeltaPercent(curVal, prevVal);
+		if (Math.abs(pct) < WOW_VITALS_THRESHOLD) {
+			continue;
+		}
+
+		signals.push({
+			metric: metricName.toLowerCase(),
+			label,
+			method: "wow",
+			direction: curVal > prevVal ? "up" : "down",
+			current: curVal,
+			baseline: prevVal,
+			deltaPercent: Number(pct.toFixed(2)),
+			severity: assignSeverity(undefined, pct),
+			detectedAt: currentTo,
+		});
+	}
+
+	const prevEventsMap = new Map<string, number>();
+	for (const row of previousCustom) {
+		const name = stringField(row, "event_name");
+		if (name) {
+			prevEventsMap.set(name, numberField(row, "total_events"));
+		}
+	}
+
+	const curEventNames = new Set<string>();
+	for (const row of currentCustom) {
+		const name = stringField(row, "event_name");
+		const curCount = numberField(row, "total_events");
+		if (!name) {
+			continue;
+		}
+		curEventNames.add(name);
+		if (curCount < CUSTOM_EVENT_MIN_COUNT) {
+			continue;
+		}
+
+		const prevCount = prevEventsMap.get(name) ?? 0;
+		if (prevCount === 0 && curCount >= CUSTOM_EVENT_NEW_THRESHOLD) {
+			signals.push({
+				metric: `custom_event:${name}`,
+				label: `Custom event "${name}"`,
+				method: "wow",
+				direction: "up",
+				current: curCount,
+				baseline: 0,
+				deltaPercent: 100,
+				severity: "info",
+				detectedAt: currentTo,
+			});
+			continue;
+		}
+		if (prevCount === 0) {
+			continue;
+		}
+
+		const pct = safeDeltaPercent(curCount, prevCount);
+		if (Math.abs(pct) < WOW_CUSTOM_EVENT_THRESHOLD) {
+			continue;
+		}
+		if (Math.abs(curCount - prevCount) < CUSTOM_EVENT_MIN_COUNT) {
+			continue;
+		}
+
+		signals.push({
+			metric: `custom_event:${name}`,
+			label: `Custom event "${name}"`,
+			method: "wow",
+			direction: curCount > prevCount ? "up" : "down",
+			current: curCount,
+			baseline: prevCount,
+			deltaPercent: Number(pct.toFixed(2)),
+			severity: assignSeverity(undefined, pct),
+			detectedAt: currentTo,
+		});
+	}
+
+	for (const [name, prevCount] of prevEventsMap) {
+		if (prevCount < CUSTOM_EVENT_DISAPPEARED_THRESHOLD) {
+			continue;
+		}
+		if (curEventNames.has(name)) {
+			continue;
+		}
+		signals.push({
+			metric: `custom_event:${name}`,
+			label: `Custom event "${name}"`,
+			method: "wow",
+			direction: "down",
+			current: 0,
+			baseline: prevCount,
+			deltaPercent: -100,
+			severity: "warning",
 			detectedAt: currentTo,
 		});
 	}

@@ -22,12 +22,12 @@ export const insightSchema = z.object({
 	description: z
 		.string()
 		.describe(
-			"1-3 concise sentences in plain English explaining what changed and why it matters. Translate technical metrics into user/product outcomes; keep raw metric names in the metrics array. Do NOT restate numbers already in metrics. Keep under 480 characters."
+			"1-2 sentences: what changed and why it matters. Do NOT restate numbers from the title or metrics array. Add NEW context only. Under 300 characters."
 		),
 	suggestion: z
 		.string()
 		.describe(
-			"One specific next action in plain English tied to this product's data. Name the surface to inspect (page, funnel step, referrer segment, error class, sessions, flag rollout). Do not give generic monitoring advice. Keep under 400 characters."
+			"One specific action. Name the exact page, button, query, or tool to use. Under 300 characters."
 		),
 	metrics: z
 		.array(insightMetricSchema)
@@ -47,7 +47,7 @@ export const insightSchema = z.object({
 		.min(1)
 		.max(10)
 		.describe(
-			"1-10 from actionability × business impact, NOT raw % magnitude. User-facing errors, conversion/session drops, or reliability issues outrank vanity traffic spikes. A 5% drop in a meaningful engagement metric can score higher than a 70% visitor increase with no conversion context. Reserve 8-10 for issues that hurt users or revenue signals in the data."
+			"1-10 from actionability x business impact, NOT raw % magnitude. User-facing errors, conversion/session drops, or reliability issues outrank vanity traffic spikes. A 5% drop in a meaningful engagement metric can score higher than a 70% visitor increase with no conversion context. Reserve 8-10 for issues that hurt users or revenue signals in the data."
 		),
 	type: z.enum([
 		"error_spike",
@@ -111,7 +111,9 @@ export const insightSchema = z.object({
 	rootCause: z
 		.string()
 		.optional()
-		.describe("Root cause hypothesis with evidence citation."),
+		.describe(
+			"WHY it happened (the mechanism). Must add info beyond the description. Skip if unknown."
+		),
 	evidence: z
 		.array(
 			z.object({
@@ -121,20 +123,13 @@ export const insightSchema = z.object({
 		)
 		.max(5)
 		.optional()
-		.describe("Supporting evidence for the root cause"),
+		.describe(
+			"Data points NOT already in description or rootCause. Each bullet must be a different fact."
+		),
 	investigationDepth: z
 		.enum(["surface", "investigated", "deep"])
 		.optional()
 		.describe("How deeply this signal was investigated"),
-});
-
-export const insightsOutputSchema = z.object({
-	insights: z
-		.array(insightSchema)
-		.max(10)
-		.describe(
-			"Insight cards ranked by actionability x business impact. Default runs usually request 1-3 cards, but configured deep runs may request more. When the period is mostly positive, at least one insight MUST still call out a material risk or watch (e.g. session duration down, bounce up, single-channel dependency, volatile referrer, error count up in absolute terms) if those signals appear in the data. Skip repeating a narrative already listed under recently reported insights unless the change is materially new."
-		),
 });
 
 export type ParsedInsight = z.infer<typeof insightSchema>;
