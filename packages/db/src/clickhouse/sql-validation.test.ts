@@ -190,19 +190,35 @@ describe("validateAgentSQL", () => {
 		expect(result.reason).toContain("Multiple statements");
 	});
 
-	it("rejects common analytics.events schema footguns", () => {
-		for (const [badColumn, replacement] of [
-			["website_id", "client_id"],
-			["created_at", "time"],
-			["page_path", "path"],
-			["event_type", "event_name"],
-		] as const) {
-			const result = validateAgentSQL(
-				`SELECT count() FROM analytics.events WHERE client_id = {websiteId:String} AND ${badColumn} != ''`
-			);
-			expect(result.valid).toBe(false);
-			expect(result.reason).toContain(replacement);
-		}
+	it("rejects qualified columns that don't exist on the aliased table", () => {
+		const result = validateAgentSQL(
+			"SELECT es.browser_name FROM analytics.error_spans es WHERE es.client_id = {websiteId:String}"
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("browser_name");
+		expect(result.reason).toContain("does not exist");
+	});
+
+	it("allows valid qualified columns", () => {
+		const result = validateAgentSQL(
+			"SELECT es.message, es.path FROM analytics.error_spans es WHERE es.client_id = {websiteId:String}"
+		);
+		expect(result).toEqual({ valid: true, reason: null });
+	});
+
+	it("allows columns from the correct table in a JOIN", () => {
+		const result = validateAgentSQL(
+			"SELECT e.browser_name, es.message FROM analytics.events e JOIN analytics.error_spans es ON e.session_id = es.session_id WHERE e.client_id = {websiteId:String} AND es.client_id = {websiteId:String}"
+		);
+		expect(result).toEqual({ valid: true, reason: null });
+	});
+
+	it("rejects cross-table column misuse in a JOIN", () => {
+		const result = validateAgentSQL(
+			"SELECT es.browser_name FROM analytics.events e JOIN analytics.error_spans es ON e.session_id = es.session_id WHERE e.client_id = {websiteId:String} AND es.client_id = {websiteId:String}"
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("browser_name");
 	});
 
 	it("rejects the nonexistent pageview event name", () => {

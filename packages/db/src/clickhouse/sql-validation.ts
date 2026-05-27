@@ -18,6 +18,99 @@ export const AGENT_TENANT_COLUMN_BY_TABLE: Readonly<Record<string, string>> = {
 	"analytics.link_visits": "client_id",
 };
 
+export const AGENT_TABLE_COLUMNS: Readonly<Record<string, ReadonlySet<string>>> =
+	{
+		"analytics.events": new Set([
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"time",
+			"path",
+			"referrer",
+			"browser_name",
+			"os_name",
+			"device_type",
+			"country",
+			"region",
+			"city",
+			"utm_source",
+			"utm_medium",
+			"utm_campaign",
+			"utm_term",
+			"utm_content",
+			"load_time",
+			"time_on_page",
+			"scroll_depth",
+			"properties",
+			"event_name",
+		]),
+		"analytics.error_spans": new Set([
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"timestamp",
+			"path",
+			"message",
+			"filename",
+			"lineno",
+			"colno",
+			"stack",
+			"error_type",
+		]),
+		"analytics.web_vitals_spans": new Set([
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"timestamp",
+			"path",
+			"metric_name",
+			"metric_value",
+		]),
+		"analytics.outgoing_links": new Set([
+			"client_id",
+			"anonymous_id",
+			"session_id",
+			"timestamp",
+			"path",
+			"href",
+			"text",
+		]),
+		"analytics.custom_events": new Set([
+			"owner_id",
+			"anonymous_id",
+			"session_id",
+			"timestamp",
+			"event_name",
+			"properties",
+		]),
+		"analytics.revenue": new Set([
+			"owner_id",
+			"transaction_id",
+			"amount",
+			"currency",
+			"provider",
+			"type",
+			"customer_id",
+			"created",
+		]),
+		"analytics.blocked_traffic": new Set([
+			"client_id",
+			"timestamp",
+			"block_reason",
+			"bot_name",
+			"path",
+		]),
+		"analytics.link_visits": new Set([
+			"client_id",
+			"timestamp",
+			"link_id",
+			"referrer",
+			"country",
+			"device_type",
+			"browser_name",
+		]),
+	};
+
 /**
  * Builds the `additional_table_filters` ClickHouse session-setting value
  * scoped to `websiteId` for the supplied tables. The returned string is the
@@ -60,12 +153,6 @@ const TOP_LEVEL_OR_PATTERN = /\bOR\b/i;
 const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
 const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
-const BAD_EVENTS_COLUMN_REPLACEMENTS: Record<string, string> = {
-	created_at: "time",
-	event_type: "event_name",
-	page_path: "path",
-	website_id: "client_id",
-};
 
 function maskCommentsAndStrings(sql: string): string {
 	let result = "";
@@ -320,17 +407,6 @@ export function validateAgentSQL(sql: string): {
 		};
 	}
 
-	for (const [badColumn, replacement] of Object.entries(
-		BAD_EVENTS_COLUMN_REPLACEMENTS
-	)) {
-		if (new RegExp(`\\b${badColumn}\\b`, "i").test(sanitized)) {
-			return {
-				valid: false,
-				reason: `Invalid analytics.events column "${badColumn}". Use "${replacement}" instead.`,
-			};
-		}
-	}
-
 	const cteNames = extractCteNames(sanitized);
 	const refs = extractRelationReferences(sanitized);
 
@@ -369,6 +445,33 @@ export function validateAgentSQL(sql: string): {
 				reason: `Table "${ref.raw}" is not in the agent allowlist. Allowed analytics tables: ${Object.keys(AGENT_TENANT_COLUMN_BY_TABLE).join(", ")}.`,
 			};
 		}
+	}
+
+	const aliasToTable = new Map<string, string>();
+	for (const ref of refs) {
+		if (!cteNames.has(ref.name) && ref.name in AGENT_TABLE_COLUMNS) {
+			aliasToTable.set(ref.alias, ref.name);
+		}
+	}
+
+	const QUALIFIED_COLUMN =
+		/\b([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\b/g;
+	QUALIFIED_COLUMN.lastIndex = 0;
+	let qm = QUALIFIED_COLUMN.exec(sanitized);
+	while (qm) {
+		const alias = qm[1].toLowerCase();
+		const col = qm[2].toLowerCase();
+		const table = aliasToTable.get(alias);
+		if (table) {
+			const validCols = AGENT_TABLE_COLUMNS[table];
+			if (validCols && !validCols.has(col)) {
+				return {
+					valid: false,
+					reason: `Column "${qm[2]}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
+				};
+			}
+		}
+		qm = QUALIFIED_COLUMN.exec(sanitized);
 	}
 
 	const selectCount = sanitized.match(SELECT_KEYWORD_PATTERN)?.length ?? 0;
