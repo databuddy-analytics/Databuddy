@@ -60,7 +60,7 @@
     "@types/leaflet": "^1.9.21",
     "@types/react-grid-layout": "^2.1.0",
     "@xyflow/react": "^12.10.1",
-    "ai": "^6.0.116",
+    "ai": "^6.0.188",
     "atmn": "^1.1.8",
     "autumn-js": "catalog:",
     "babel-plugin-react-compiler": "^19.1.0-rc.1-rc-af1b7da-20250421",
