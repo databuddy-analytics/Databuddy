@@ -175,7 +175,8 @@ RULES:
 - Low traffic (<50 sessions/week): no percentage claims on <10 absolute values.
 - Tools: batch queries in web_metrics (up to 8). search_console for keywords. summary_metrics for headline numbers.
 - Confidence > 0.7 requires segment isolation or temporal correlation.
-- Actions: include when fixable (fix_goal, add_custom_event, create_annotation, create_funnel, add_tracking, investigate_further).
+- Actions: include when fixable (fix_goal, add_custom_event, create_annotation, create_funnel, add_tracking, investigate_further, code_fix).
+- code_fix: when you find a bug with a clear fix, emit a code_fix action with params {prompt, file_hint, error_message}. The prompt should be paste-ready for Cursor or Claude Code — include the exact file to change, what to change, and why.
 - You have mutation tools: call create_annotation directly to mark deploys or incidents on the timeline. Call update_goal to fix goal target mismatches. Use confirmed=true to execute.${
 		options?.investigationMode
 			? "\n- Investigate detected signals using tools. Call emit_insight for each finding. Drop noise."

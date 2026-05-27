@@ -81,7 +81,8 @@ export interface AnalyticsInsightAction {
 		| "create_annotation"
 		| "update_config"
 		| "add_tracking"
-		| "investigate_further";
+		| "investigate_further"
+		| "code_fix";
 }
 
 export const funnelDefinitions = pgTable(

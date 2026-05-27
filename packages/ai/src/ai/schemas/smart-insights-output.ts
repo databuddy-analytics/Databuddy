@@ -141,11 +141,14 @@ export const insightSchema = z.object({
 					"update_config",
 					"add_tracking",
 					"investigate_further",
+					"code_fix",
 				]),
 				label: z.string().describe("Button label (e.g. 'Fix goal target')"),
 				params: z
 					.record(z.string(), z.string())
-					.describe("Action-specific parameters"),
+					.describe(
+						"Action-specific parameters. code_fix: {prompt, file_hint, error_message} — generates a cursor/claude-code-ready prompt."
+					),
 			})
 		)
 		.max(3)

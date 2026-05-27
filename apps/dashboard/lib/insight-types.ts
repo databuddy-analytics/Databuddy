@@ -58,7 +58,8 @@ export type InsightActionType =
 	| "create_annotation"
 	| "update_config"
 	| "add_tracking"
-	| "investigate_further";
+	| "investigate_further"
+	| "code_fix";
 
 export interface InsightAction {
 	label: string;

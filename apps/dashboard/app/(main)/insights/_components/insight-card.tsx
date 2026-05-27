@@ -385,15 +385,28 @@ const ACTION_ICONS: Record<InsightAction["type"], ReactNode> = {
 	update_config: <GaugeIcon className="size-3" weight="duotone" />,
 	add_tracking: <LightningIcon className="size-3" weight="fill" />,
 	investigate_further: <ArrowRightIcon className="size-3" weight="fill" />,
+	code_fix: <RocketIcon className="size-3" weight="duotone" />,
 };
 
 function InsightActionPill({ action }: { action: InsightAction }) {
+	const handleClick = () => {
+		if (action.type === "code_fix" && action.params.prompt) {
+			navigator.clipboard.writeText(action.params.prompt);
+			toast.success("Copied to clipboard — paste in Cursor or Claude Code");
+			return;
+		}
+		if (action.type === "investigate_further" && action.params.prompt) {
+			navigator.clipboard.writeText(action.params.prompt);
+			toast.success("Copied investigation prompt");
+			return;
+		}
+		toast.info(`${action.label}`);
+	};
+
 	return (
 		<button
 			className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background px-2 py-1 text-foreground/80 text-xs transition-colors hover:bg-accent hover:text-foreground"
-			onClick={() => {
-				toast.info(`Action: ${action.label} (${action.type})`);
-			}}
+			onClick={handleClick}
 			type="button"
 		>
 			{ACTION_ICONS[action.type]}
