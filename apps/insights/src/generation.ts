@@ -15,35 +15,19 @@ import { storeAnalyticsSummary } from "@databuddy/ai/lib/supermemory";
 import type { ParsedInsight } from "@databuddy/ai/schemas/smart-insights-output";
 import { insightSchema } from "@databuddy/ai/schemas/smart-insights-output";
 import { createInsightsAgentTools } from "@databuddy/ai/tools/insights-agent-tools";
-import {
-	and,
-	db,
-	desc,
-	eq,
-	gte,
-	inArray,
-	isNotNull,
-	isNull,
-	sql,
-} from "@databuddy/db";
+import { and, db, desc, eq, gte, inArray, isNotNull, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
-	annotations,
 	type InsightGenerationConfigSnapshot,
 	type InsightGenerationTool,
-	insightUserFeedback,
 	websites,
 } from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
-import { createGitHubTools } from "@databuddy/ai/tools/github-tools";
-import {
-	createScrapeTools,
-	getCachedSiteContext,
-} from "@databuddy/ai/tools/scrape-page";
-import { createSearchConsoleTools } from "@databuddy/ai/tools/search-console";
+import { createInvestigationTools } from "@databuddy/ai/tools/investigation-tools";
+import { getCachedSiteContext } from "@databuddy/ai/tools/scrape-page";
 import { getOAuthToken } from "@databuddy/ai/tools/utils/oauth-token";
 import { stepCountIs, tool, ToolLoopAgent } from "ai";
 import { randomUUIDv7 } from "bun";
@@ -51,12 +35,20 @@ import dayjs from "dayjs";
 import { detectSignals } from "./detection";
 import { enrichSignals, type EnrichedSignal } from "./enrichment";
 import {
+	buildInvestigationPrompt,
+	buildSystemPrompt,
+	fetchDismissedPatterns,
+	fetchRecentAnnotations,
+	fetchRecentInsightsForPrompt,
+	formatOrgWebsitesContext,
+	type OrgWebsiteRow,
+} from "./prompts";
+import {
 	captureInsightsError,
 	emitInsightsEvent,
 	setInsightsLog,
 } from "./lib/evlog-insights";
 
-const RECENT_INSIGHTS_PROMPT_LIMIT = 12;
 const DEFAULT_MAX_INSIGHTS = 2;
 const TOOL_NAMES = [
 	"web_metrics",
@@ -70,12 +62,6 @@ const ALWAYS_ON_TOOLS = new Set([
 	"scrape_page",
 	"search_console",
 ]);
-
-interface OrgWebsiteRow {
-	domain: string;
-	id: string;
-	name: string | null;
-}
 
 interface GeneratedWebsiteInsight extends ParsedInsight {
 	id: string;
@@ -105,10 +91,6 @@ function maxInsights(config: InsightGenerationConfigSnapshot): number {
 		1,
 		Math.min(10, config.maxInsightsPerWebsite || DEFAULT_MAX_INSIGHTS)
 	);
-}
-
-function promptLookbackDays(config: InsightGenerationConfigSnapshot): number {
-	return Math.max(14, Math.min(180, config.lookbackDays * 2));
 }
 
 function getComparisonPeriod(lookbackDays: number): WeekOverWeekPeriod {
@@ -209,250 +191,6 @@ async function fetchInsightDedupeKeyToIdMap(
 		}
 	}
 	return map;
-}
-
-async function fetchRecentAnnotations(
-	websiteId: string,
-	config: InsightGenerationConfigSnapshot
-): Promise<string> {
-	const since = dayjs().subtract(promptLookbackDays(config), "day").toDate();
-	const rows = await db
-		.select({
-			text: annotations.text,
-			xValue: annotations.xValue,
-			tags: annotations.tags,
-		})
-		.from(annotations)
-		.where(
-			and(
-				eq(annotations.websiteId, websiteId),
-				gte(annotations.xValue, since),
-				isNull(annotations.deletedAt)
-			)
-		)
-		.orderBy(annotations.xValue)
-		.limit(20);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const lines = rows.map((row) => {
-		const date = dayjs(row.xValue).format("YYYY-MM-DD");
-		const tags = row.tags?.length ? ` [${row.tags.join(", ")}]` : "";
-		return `- ${date}: ${row.text}${tags}`;
-	});
-
-	return `\n\nUser annotations (known events that may explain changes):\n${lines.join("\n")}`;
-}
-
-async function fetchDismissedPatterns(
-	organizationId: string,
-	websiteId: string
-): Promise<string> {
-	const since = dayjs().subtract(30, "day").toDate();
-	const rows = await db
-		.select({
-			title: analyticsInsights.title,
-			type: analyticsInsights.type,
-		})
-		.from(insightUserFeedback)
-		.innerJoin(
-			analyticsInsights,
-			eq(insightUserFeedback.insightId, analyticsInsights.id)
-		)
-		.where(
-			and(
-				eq(insightUserFeedback.organizationId, organizationId),
-				eq(analyticsInsights.websiteId, websiteId),
-				eq(insightUserFeedback.vote, "down"),
-				gte(insightUserFeedback.createdAt, since)
-			)
-		)
-		.limit(10);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const lines = rows.map((r) => `- [${r.type}] ${r.title}`);
-	return `\n\nInsights users marked as NOT helpful (avoid similar narratives):\n${lines.join("\n")}`;
-}
-
-async function fetchRecentInsightsForPrompt(
-	organizationId: string,
-	websiteId: string,
-	config: InsightGenerationConfigSnapshot
-): Promise<string> {
-	const since = dayjs().subtract(promptLookbackDays(config), "day").toDate();
-	const rows = await db
-		.select({
-			title: analyticsInsights.title,
-			type: analyticsInsights.type,
-			createdAt: analyticsInsights.createdAt,
-		})
-		.from(analyticsInsights)
-		.where(
-			and(
-				eq(analyticsInsights.organizationId, organizationId),
-				eq(analyticsInsights.websiteId, websiteId),
-				gte(analyticsInsights.createdAt, since)
-			)
-		)
-		.orderBy(desc(analyticsInsights.createdAt))
-		.limit(RECENT_INSIGHTS_PROMPT_LIMIT);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const lines = rows.map(
-		(row) =>
-			`- [${row.type}] ${row.title} (${dayjs(row.createdAt).format("YYYY-MM-DD")})`
-	);
-
-	return `\n\n## Recently reported insights for this website (avoid repeating the same narrative unless something materially changed)\n${lines.join("\n")}`;
-}
-
-function formatOrgWebsitesContext(
-	orgSites: OrgWebsiteRow[],
-	currentWebsiteId: string
-): string {
-	if (orgSites.length <= 1) {
-		return "";
-	}
-	const sorted = [...orgSites].sort((a, b) =>
-		a.domain.localeCompare(b.domain, "en")
-	);
-	const lines = sorted.map((site) => {
-		const label = site.name?.trim() ? site.name.trim() : site.domain;
-		const marker =
-			site.id === currentWebsiteId
-				? " - metrics below are for this site only"
-				: "";
-		return `- ${label} (${site.domain})${marker}`;
-	});
-	return `## Organization websites (same account, separate analytics)
-Each row is a different tracked property (e.g. marketing site vs app vs docs). The period metrics in this message apply only to the site marked "metrics below". Do not blend numbers across rows. If referrers include another domain from this list, treat it as cross-property traffic and name both sides clearly.
-
-${lines.join("\n")}
-
-`;
-}
-
-function buildSystemPrompt(
-	config: InsightGenerationConfigSnapshot,
-	options?: { investigationMode?: boolean }
-): string {
-	const targetCount = maxInsights(config);
-	const depthInstruction =
-		config.depth === "light"
-			? "Use the smallest useful tool set. Prefer 1-2 high-confidence insights and skip speculative cross-domain analysis."
-			: config.depth === "deep"
-				? "Actively cross-check web, product, ops, and business context when those tools are enabled. Prefer a fuller ranked set, but only when signals are distinct and data-backed."
-				: "Explore enough context to produce concise, distinct, high-confidence insights without over-querying.";
-
-	return `You are an analytics investigator. Return up to ${targetCount} insights ranked by business impact. ${depthInstruction}
-
-RULES:
-- Titles: outcome-first, plain language, ≤80 chars. No hedging (concerning, slightly), no jargon (INP, LCP, TTFB, CLS, p75). Say "page load time" not "LCP".
-- Title direction MUST match the primary metric. Up metric = "rose/surged/jumped". Down = "fell/dropped/declined". Mismatches are rejected.
-- Only report signals that change what someone does today. Silence > noise.
-- Suggestions: name the exact page, button, or query. Never say "monitor" or "watch".
-- ZERO REPETITION: title = what changed. description = so what (new context only, ≤300 chars). rootCause = why (skip if unknown). evidence = different supporting facts only. suggestion = one specific action (≤300 chars).
-- Metrics: only verified numbers. Label segment-specific values clearly.
-- Low traffic (<50 sessions/week): no percentage claims on <10 absolute values. Focus on structural issues.
-- Tools: batch multiple queries in one web_metrics call (up to 8). scrape_page for specific pages. search_console for keyword/ranking changes (compare both periods). github tools for code correlation. summary_metrics as canonical source for headline numbers.
-- Confidence > 0.7 requires segment isolation or temporal correlation.${
-		options?.investigationMode
-			? "\n- Investigate detected signals using tools. Call emit_insight for each real finding. Drop noise."
-			: ""
-	}`;
-}
-
-function formatSignalBlock(signal: EnrichedSignal, index: number): string {
-	const dir = signal.direction === "up" ? "+" : "-";
-	const scope =
-		signal.method === "zscore"
-			? `z=${signal.zScore}, latest day vs baseline mean`
-			: "WoW period total";
-	const parts = [
-		`${index + 1}. ${signal.label} ${dir}${Math.abs(signal.deltaPercent).toFixed(0)}% (${scope}, ${signal.severity}) — ${signal.current.toLocaleString()} vs ${signal.baseline.toLocaleString()}`,
-	];
-
-	for (const seg of signal.segments) {
-		parts.push(
-			`  ${seg.dimension}: ${seg.topMovers.map((m) => `${m.name} ${m.deltaPercent > 0 ? "+" : ""}${m.deltaPercent}%`).join(", ")}`
-		);
-	}
-
-	if (signal.errorContext) {
-		const ec = signal.errorContext;
-		parts.push(
-			`  errors: ${ec.totalErrorsPrevious}->${ec.totalErrorsCurrent} (${ec.deltaPercent > 0 ? "+" : ""}${ec.deltaPercent}%)`
-		);
-		if (ec.topNewErrors.length > 0) {
-			parts.push(`  new: ${ec.topNewErrors.join(", ")}`);
-		}
-	}
-
-	for (const a of signal.annotations) {
-		parts.push(`  [${a.date}] ${a.title}`);
-	}
-
-	if (signal.githubContext) {
-		const gc = signal.githubContext;
-		for (const c of gc.commits.slice(0, 3)) {
-			parts.push(`  ${c.sha} ${c.message} (${c.date?.slice(0, 10)})`);
-		}
-		for (const pr of gc.recentPRs.slice(0, 3)) {
-			parts.push(
-				`  PR#${pr.number} ${pr.title} (${pr.mergedAt?.slice(0, 10)})`
-			);
-		}
-	}
-
-	return parts.join("\n");
-}
-
-function buildInvestigationPrompt(
-	enrichedSignals: EnrichedSignal[],
-	params: {
-		annotationContext: string;
-		config: InsightGenerationConfigSnapshot;
-		dismissedBlock: string;
-		domain: string;
-		githubRepo?: { owner: string; repo: string };
-		orgContext: string;
-		period: WeekOverWeekPeriod;
-		recentInsightsBlock: string;
-		siteContext: string;
-		timezone: string;
-	}
-): string {
-	const { domain, period, timezone } = params;
-	const signalBlocks = enrichedSignals
-		.map((signal, i) => formatSignalBlock(signal, i))
-		.join("\n\n");
-
-	const githubInstruction = params.githubRepo
-		? `2. Call github_commits for ${params.githubRepo.owner}/${params.githubRepo.repo} with since/until dates matching the anomaly window.`
-		: "2. If GitHub tools are available, call github_repos first, then github_commits with since/until dates.";
-
-	return `Investigating ${enrichedSignals.length} anomalies on ${domain}.
-Period: ${period.current.from} to ${period.current.to} vs ${period.previous.from} to ${period.previous.to} (${timezone})
-${params.siteContext}
-
-SIGNALS:
-
-${signalBlocks}
-
-1. Use web_metrics (period="both") and execute_sql to investigate. Scrape specific pages if a signal involves a path.
-${githubInstruction}
-3. Use search_console to compare keyword impressions/clicks between periods.
-
-Use summary_metrics as the canonical source for headline numbers.
-${params.orgContext}${params.annotationContext}${params.recentInsightsBlock}${params.dismissedBlock}`;
 }
 
 function validateCollectedInsights(
@@ -568,7 +306,6 @@ async function analyzeWebsite(params: {
 				domain: params.domain,
 				githubRepo: params.githubRepo,
 				period: params.period,
-				config: params.config,
 				timezone: params.config.timezone,
 				recentInsightsBlock,
 				annotationContext,
@@ -585,31 +322,18 @@ ${orgContext}${annotationContext}${recentInsightsBlock}${dismissedBlock}`;
 		timezone: params.config.timezone,
 		periodBounds: { current: currentRange, previous: previousRange },
 	});
-	const githubTools = investigationMode
-		? createGitHubTools({
-				organizationId: params.organizationId,
-				userId: params.userId,
-			})
-		: {};
-	const scrapeTools = createScrapeTools(params.domain);
-	const gscTools = createSearchConsoleTools({
+	const investigationTools = createInvestigationTools({
 		domain: params.domain,
 		organizationId: params.organizationId,
 		userId: params.userId,
 	});
-	const allTools = {
-		...analyticsTools,
-		...githubTools,
-		...scrapeTools,
-		...gscTools,
-	};
+	const allTools = { ...analyticsTools, ...investigationTools };
+	const isEnabled = (name: string) =>
+		allowedTools.includes(name as InsightGenerationTool) ||
+		name.startsWith("github_") ||
+		ALWAYS_ON_TOOLS.has(name);
 	const availableTools = Object.fromEntries(
-		Object.entries(allTools).filter(
-			([name]) =>
-				allowedTools.includes(name as InsightGenerationTool) ||
-				name.startsWith("github_") ||
-				ALWAYS_ON_TOOLS.has(name)
-		)
+		Object.entries(allTools).filter(([name]) => isEnabled(name))
 	) as typeof allTools;
 
 	try {
@@ -657,7 +381,18 @@ ${orgContext}${annotationContext}${recentInsightsBlock}${dismissedBlock}`;
 				providerOptions: ANTHROPIC_CACHE_1H,
 			},
 			tools: allToolsWithEmit,
-			stopWhen: stepCountIs(params.config.maxSteps),
+			stopWhen: (event) => {
+				if (stepCountIs(params.config.maxSteps)(event)) return true;
+				if (
+					collected.length >= maxInsights(params.config) &&
+					event.steps.at(-1)?.toolCalls.some(
+						(tc) => tc?.toolName === "emit_insight"
+					)
+				) {
+					return true;
+				}
+				return false;
+			},
 			onStepFinish: ({ usage, finishReason, toolCalls }) => {
 				toolCallCount += toolCalls.length;
 				emitInsightsEvent("info", "generation.agent.step_finished", {
@@ -799,6 +534,7 @@ async function persistWebsiteInsights(params: {
 			rootCause: insight.rootCause ?? null,
 			evidence: insight.evidence ?? null,
 			investigationDepth: insight.investigationDepth ?? null,
+			actions: insight.actions ?? null,
 			metrics:
 				insight.metrics.length > 0
 					? (insight.metrics as InsightMetricRow[])
@@ -859,6 +595,7 @@ async function persistWebsiteInsights(params: {
 					rootCause: sql.raw("excluded.root_cause"),
 					evidence: sql.raw("excluded.evidence"),
 					investigationDepth: sql.raw("excluded.investigation_depth"),
+					actions: sql.raw("excluded.actions"),
 					metrics: sql.raw("excluded.metrics"),
 				},
 			});

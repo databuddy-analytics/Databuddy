@@ -104,6 +104,53 @@ const VITALS_METRICS: Record<string, string> = {
 	INP: "Interaction speed (INP)",
 };
 
+type SignalFilter = (signal: DetectedSignal) => boolean;
+
+const METRIC_FILTERS: Record<string, SignalFilter> = {
+	session_duration: (s) =>
+		Math.abs(s.current - s.baseline) >= FILTER_SESSION_DURATION_MIN_DELTA &&
+		Math.max(s.current, s.baseline) >= FILTER_SESSION_DURATION_MIN_PEAK,
+	bounce_rate: (s) =>
+		Math.abs(s.current - s.baseline) >= FILTER_BOUNCE_MIN_DELTA,
+	error_count: (s) =>
+		Math.abs(s.current - s.baseline) >= FILTER_ERROR_MIN_DELTA &&
+		Math.max(s.current, s.baseline) >= FILTER_ERROR_MIN_PEAK,
+	revenue: () => true,
+	lcp: () => true,
+	inp: () => true,
+};
+
+const DEFAULT_TRAFFIC_FILTER: SignalFilter = (s) =>
+	Math.max(s.current, s.baseline) >= FILTER_TRAFFIC_MIN_PEAK &&
+	Math.abs(s.current - s.baseline) >= FILTER_TRAFFIC_MIN_DELTA;
+
+function makeWowSignal(
+	metric: string,
+	label: string,
+	current: number,
+	baseline: number,
+	detectedAt: string
+): DetectedSignal {
+	const pct = baseline === 0 ? 100 : safeDeltaPercent(current, baseline);
+	return {
+		metric,
+		label,
+		method: "wow",
+		direction: current > baseline ? "up" : "down",
+		current,
+		baseline,
+		deltaPercent: Number(pct.toFixed(2)),
+		severity: assignSeverity(undefined, pct),
+		detectedAt,
+	};
+}
+
+function passesImpactFilter(signal: DetectedSignal): boolean {
+	if (signal.metric.startsWith("custom_event:")) return true;
+	const filter = METRIC_FILTERS[signal.metric];
+	return filter ? filter(signal) : DEFAULT_TRAFFIC_FILTER(signal);
+}
+
 export function safeDeltaPercent(current: number, previous: number): number {
 	if (previous === 0) {
 		return current === 0 ? 0 : 100;
@@ -216,39 +263,7 @@ export async function detectSignals(
 		}
 	}
 
-	const filtered = [...byMetric.values()].filter((signal) => {
-		const absDelta = Math.abs(signal.current - signal.baseline);
-		if (signal.metric === "session_duration") {
-			return (
-				absDelta >= FILTER_SESSION_DURATION_MIN_DELTA &&
-				Math.max(signal.current, signal.baseline) >=
-					FILTER_SESSION_DURATION_MIN_PEAK
-			);
-		}
-		if (signal.metric === "bounce_rate") {
-			return absDelta >= FILTER_BOUNCE_MIN_DELTA;
-		}
-		if (signal.metric === "error_count") {
-			return (
-				absDelta >= FILTER_ERROR_MIN_DELTA &&
-				Math.max(signal.current, signal.baseline) >= FILTER_ERROR_MIN_PEAK
-			);
-		}
-		if (signal.metric === "revenue") {
-			return true;
-		}
-		if (signal.metric === "lcp" || signal.metric === "inp") {
-			return true;
-		}
-		if (signal.metric.startsWith("custom_event:")) {
-			return true;
-		}
-		const peak = Math.max(signal.current, signal.baseline);
-		if (peak < FILTER_TRAFFIC_MIN_PEAK) {
-			return false;
-		}
-		return absDelta >= FILTER_TRAFFIC_MIN_DELTA;
-	});
+	const filtered = [...byMetric.values()].filter(passesImpactFilter);
 
 	const collapsed = collapseCorrelated(filtered);
 
@@ -407,64 +422,24 @@ async function detectWow(
 			continue;
 		}
 
-		const pct = safeDeltaPercent(currentValue, previousValue);
-		if (Math.abs(pct) < WOW_TRAFFIC_THRESHOLD) {
+		if (Math.abs(safeDeltaPercent(currentValue, previousValue)) < WOW_TRAFFIC_THRESHOLD) {
 			continue;
 		}
-
-		signals.push({
-			metric: metric.key,
-			label: metric.label,
-			method: "wow",
-			direction: currentValue > previousValue ? "up" : "down",
-			current: currentValue,
-			baseline: previousValue,
-			deltaPercent: Number(pct.toFixed(2)),
-			severity: assignSeverity(undefined, pct),
-			detectedAt: currentTo,
-		});
+		signals.push(makeWowSignal(metric.key, metric.label, currentValue, previousValue, currentTo));
 	}
 
 	const errNow = numberField(currentErrors[0], "totalErrors");
 	const errPrev = numberField(previousErrors[0], "totalErrors");
-	if (
-		errNow > 0 &&
-		errPrev > 0 &&
-		Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD
-	) {
-		const pct = safeDeltaPercent(errNow, errPrev);
-		signals.push({
-			metric: "error_count",
-			label: "Errors",
-			method: "wow",
-			direction: errNow > errPrev ? "up" : "down",
-			current: errNow,
-			baseline: errPrev,
-			deltaPercent: Number(pct.toFixed(2)),
-			severity: assignSeverity(undefined, pct),
-			detectedAt: currentTo,
-		});
+	if (errNow > 0 && errPrev > 0 && Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD) {
+		signals.push(makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo));
 	}
 
 	const revNow = numberField(currentRevenue[0], "total_revenue");
 	const revPrev = numberField(previousRevenue[0], "total_revenue");
 	if ((revNow > 0 || revPrev > 0) && Math.abs(revNow - revPrev) > 0) {
 		const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
-		if (
-			Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
-			(revPrev === 0 && revNow > 0)
-		) {
-			signals.push({
-				metric: "revenue",
-				label: "Revenue",
-				method: "wow",
-				direction: revNow > revPrev ? "up" : "down",
-				current: revNow,
-				baseline: revPrev,
-				deltaPercent: Number(pct.toFixed(2)),
-				severity: assignSeverity(undefined, pct),
-				detectedAt: currentTo,
-			});
+		if (Math.abs(pct) >= WOW_REVENUE_THRESHOLD || (revPrev === 0 && revNow > 0)) {
+			signals.push(makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo));
 		}
 	}
 
@@ -487,17 +462,7 @@ async function detectWow(
 			continue;
 		}
 
-		signals.push({
-			metric: metricName.toLowerCase(),
-			label,
-			method: "wow",
-			direction: curVal > prevVal ? "up" : "down",
-			current: curVal,
-			baseline: prevVal,
-			deltaPercent: Number(pct.toFixed(2)),
-			severity: assignSeverity(undefined, pct),
-			detectedAt: currentTo,
-		});
+		signals.push(makeWowSignal(metricName.toLowerCase(), label, curVal, prevVal, currentTo));
 	}
 
 	const prevEventsMap = new Map<string, number>();
@@ -522,59 +487,20 @@ async function detectWow(
 
 		const prevCount = prevEventsMap.get(name) ?? 0;
 		if (prevCount === 0 && curCount >= CUSTOM_EVENT_NEW_THRESHOLD) {
-			signals.push({
-				metric: `custom_event:${name}`,
-				label: `Custom event "${name}"`,
-				method: "wow",
-				direction: "up",
-				current: curCount,
-				baseline: 0,
-				deltaPercent: 100,
-				severity: "info",
-				detectedAt: currentTo,
-			});
+			signals.push(makeWowSignal(`custom_event:${name}`, `Custom event "${name}"`, curCount, 0, currentTo));
 			continue;
 		}
-		if (prevCount === 0) {
-			continue;
-		}
-
-		const pct = safeDeltaPercent(curCount, prevCount);
-		if (Math.abs(pct) < WOW_CUSTOM_EVENT_THRESHOLD) {
-			continue;
-		}
-		if (Math.abs(curCount - prevCount) < CUSTOM_EVENT_MIN_COUNT) {
-			continue;
-		}
-
-		signals.push({
-			metric: `custom_event:${name}`,
-			label: `Custom event "${name}"`,
-			method: "wow",
-			direction: curCount > prevCount ? "up" : "down",
-			current: curCount,
-			baseline: prevCount,
-			deltaPercent: Number(pct.toFixed(2)),
-			severity: assignSeverity(undefined, pct),
-			detectedAt: currentTo,
-		});
+		if (prevCount === 0) continue;
+		if (Math.abs(safeDeltaPercent(curCount, prevCount)) < WOW_CUSTOM_EVENT_THRESHOLD) continue;
+		if (Math.abs(curCount - prevCount) < CUSTOM_EVENT_MIN_COUNT) continue;
+		signals.push(makeWowSignal(`custom_event:${name}`, `Custom event "${name}"`, curCount, prevCount, currentTo));
 	}
 
 	for (const [name, prevCount] of prevEventsMap) {
-		if (prevCount < CUSTOM_EVENT_DISAPPEARED_THRESHOLD) {
-			continue;
-		}
-		if (curEventNames.has(name)) {
-			continue;
-		}
+		if (prevCount < CUSTOM_EVENT_DISAPPEARED_THRESHOLD) continue;
+		if (curEventNames.has(name)) continue;
 		signals.push({
-			metric: `custom_event:${name}`,
-			label: `Custom event "${name}"`,
-			method: "wow",
-			direction: "down",
-			current: 0,
-			baseline: prevCount,
-			deltaPercent: -100,
+			...makeWowSignal(`custom_event:${name}`, `Custom event "${name}"`, 0, prevCount, currentTo),
 			severity: "warning",
 			detectedAt: currentTo,
 		});

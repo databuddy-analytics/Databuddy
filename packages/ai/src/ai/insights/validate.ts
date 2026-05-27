@@ -93,16 +93,18 @@ function sentimentForPrimaryMetric(
 	return improved ? "positive" : "negative";
 }
 
+const SENTIMENT_DIVERGENCE_TYPES = new Set([
+	"conversion_leak",
+	"funnel_regression",
+	"channel_concentration",
+	"quality_shift",
+	"cross_property_dependency",
+	"referrer_change",
+	"engagement_change",
+]);
+
 function allowsSentimentDivergence(insight: ParsedInsight): boolean {
-	return [
-		"conversion_leak",
-		"funnel_regression",
-		"channel_concentration",
-		"quality_shift",
-		"cross_property_dependency",
-		"referrer_change",
-		"engagement_change",
-	].includes(insight.type);
+	return SENTIMENT_DIVERGENCE_TYPES.has(insight.type);
 }
 
 function typeForDirection(
