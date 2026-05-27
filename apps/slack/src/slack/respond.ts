@@ -62,7 +62,13 @@ export async function streamAgentToSlack({
 	say,
 }: StreamAgentToSlackOptions): Promise<StreamAgentToSlackResult> {
 	if (abortSignal?.aborted) {
-		return { aborted: true, answerChars: 0, chunks: 0, ok: false, streamed: false };
+		return {
+			aborted: true,
+			answerChars: 0,
+			chunks: 0,
+			ok: false,
+			streamed: false,
+		};
 	}
 
 	const startedAt = performance.now();
@@ -82,7 +88,9 @@ export async function streamAgentToSlack({
 	let thinkingResolved = false;
 
 	const flush = async (force = false) => {
-		if (!pending || !streamTs) return;
+		if (!(pending && streamTs)) {
+			return;
+		}
 		if (
 			!force &&
 			pending.length < STREAM_FLUSH_CHARS &&
@@ -218,7 +226,7 @@ async function startThinkingStream(
 	client: Pick<SlackAgentClient, "chat">,
 	run: SlackAgentRun,
 	logger: LoggerLike,
-	threadTs: string,
+	threadTs: string
 ): Promise<string | null> {
 	try {
 		const result = await client.chat.startStream({
@@ -242,7 +250,7 @@ async function startThinkingStream(
 			"Slack streaming unavailable",
 			isRecord(result) && typeof result.error === "string"
 				? result.error
-				: undefined,
+				: undefined
 		);
 		return null;
 	} catch (error) {
@@ -255,7 +263,7 @@ async function resolveThinking(
 	client: Pick<SlackAgentClient, "chat">,
 	channelId: string,
 	streamTs: string,
-	status: "complete" | "error",
+	status: "complete" | "error"
 ): Promise<void> {
 	try {
 		await client.chat.appendStream({
@@ -286,16 +294,14 @@ function logSuccess(
 		finalText,
 		startedAt,
 	}: SuccessLogOptions,
-	extra: Record<string, unknown>,
+	extra: Record<string, unknown>
 ) {
 	setSlackLog(eventLog, {
 		slack_answer_chars: finalText.length,
 		slack_components_converted: convertedComponents,
 		slack_components_dropped: droppedComponents,
 		slack_stream_chunks: chunkCount,
-		"timing.slack_agent_response_ms": Math.round(
-			performance.now() - startedAt,
-		),
+		"timing.slack_agent_response_ms": Math.round(performance.now() - startedAt),
 		...extra,
 	});
 }
@@ -305,7 +311,7 @@ async function finishStreamedResponse(
 		client: Pick<SlackAgentClient, "chat">;
 		run: SlackAgentRun;
 		streamTs: string;
-	},
+	}
 ): Promise<StreamAgentToSlackResult> {
 	await options.client.chat.stopStream({
 		channel: options.run.channelId,
@@ -323,7 +329,7 @@ async function finishStreamedResponse(
 }
 
 async function sendFinalMessage(
-	options: SuccessLogOptions & { run: SlackAgentRun; say: SayFn },
+	options: SuccessLogOptions & { run: SlackAgentRun; say: SayFn }
 ): Promise<StreamAgentToSlackResult> {
 	const response = await options.say({
 		text: options.finalText || SLACK_COPY.noAnswer,
@@ -349,7 +355,7 @@ async function flushAndStop(
 	streamTs: string,
 	pending: string,
 	logger: LoggerLike,
-	stopText?: string,
+	stopText?: string
 ): Promise<void> {
 	if (pending.trim()) {
 		await client.chat
@@ -358,9 +364,7 @@ async function flushAndStop(
 				markdown_text: pending.slice(0, STREAM_APPEND_LIMIT_CHARS),
 				ts: streamTs,
 			})
-			.catch((e) =>
-				logger.warn("Failed to flush partial Slack stream", e),
-			);
+			.catch((e) => logger.warn("Failed to flush partial Slack stream", e));
 	}
 	await client.chat
 		.stopStream({
@@ -399,7 +403,7 @@ async function recoverFromError({
 			streamTs,
 			pending,
 			logger,
-			partialText ? undefined : failureText,
+			partialText ? undefined : failureText
 		);
 		return {
 			answerChars: partialText.length,
@@ -426,7 +430,7 @@ async function recoverFromError({
 function logStreamError(
 	error: unknown,
 	eventLog: RequestLogger | undefined,
-	logger: LoggerLike,
+	logger: LoggerLike
 ): void {
 	const userFacingError = isDatabuddyAgentUserError(error) ? error : null;
 	const err = toError(error);
@@ -461,7 +465,7 @@ function logStreamError(
 function abortedResult(
 	safeMarkdown: string,
 	chunkCount: number,
-	streamTs: string | null,
+	streamTs: string | null
 ): StreamAgentToSlackResult {
 	return {
 		aborted: true,

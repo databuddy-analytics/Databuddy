@@ -287,8 +287,11 @@ export const integrationsRouter = {
 				permissions: ["update"],
 			});
 
-			const integrations = { ...(website.integrations ?? {}) };
-			delete integrations.github;
+			const integrations: WebsiteIntegrations = Object.fromEntries(
+				Object.entries(website.integrations ?? {}).filter(
+					([key]) => key !== "github"
+				)
+			);
 
 			await context.db
 				.update(websites)

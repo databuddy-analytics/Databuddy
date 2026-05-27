@@ -426,7 +426,11 @@ function GSCIntegrationRow() {
 	});
 
 	const hasGscAccess = gscCheck.data?.hasAccess === true;
-	const connect = useOAuthConnect("google", GSC_SCOPES, "Google Search Console");
+	const connect = useOAuthConnect(
+		"google",
+		GSC_SCOPES,
+		"Google Search Console"
+	);
 
 	let action: React.ReactNode;
 	if (accounts.isLoading || gscCheck.isLoading) {
