@@ -128,6 +128,41 @@ function computeWindow(
 	};
 }
 
+function queryPeriodPair(
+	websiteId: string,
+	timezone: string,
+	window: SignalWindow,
+	queryFn: QueryFn
+) {
+	return (type: string, limit?: number) =>
+		Promise.all([
+			queryFn(
+				{
+					projectId: websiteId,
+					type,
+					from: window.currentFrom,
+					to: window.currentTo,
+					timezone,
+					...(limit ? { limit } : {}),
+				},
+				undefined,
+				timezone
+			),
+			queryFn(
+				{
+					projectId: websiteId,
+					type,
+					from: window.previousFrom,
+					to: window.previousTo,
+					timezone,
+					...(limit ? { limit } : {}),
+				},
+				undefined,
+				timezone
+			),
+		]);
+}
+
 function computeSegmentMovers(
 	currentRows: DimensionRow[],
 	previousRows: DimensionRow[]
@@ -178,44 +213,20 @@ async function enrichSegments(
 	window: SignalWindow,
 	queryFn: QueryFn
 ): Promise<SegmentBreakdown[]> {
+	const query = queryPeriodPair(websiteId, timezone, window, queryFn);
 	const results = await Promise.all(
 		DIMENSION_CONFIGS.map(async ({ dimension, queryType }) => {
-			const [currentRows, previousRows] = await Promise.all([
-				queryFn(
-					{
-						projectId: websiteId,
-						type: queryType,
-						from: window.currentFrom,
-						to: window.currentTo,
-						timezone,
-						limit: SEGMENT_FETCH_LIMIT,
-					},
-					undefined,
-					timezone
-				),
-				queryFn(
-					{
-						projectId: websiteId,
-						type: queryType,
-						from: window.previousFrom,
-						to: window.previousTo,
-						timezone,
-						limit: SEGMENT_FETCH_LIMIT,
-					},
-					undefined,
-					timezone
-				),
-			]);
-
+			const [currentRows, previousRows] = await query(
+				queryType,
+				SEGMENT_FETCH_LIMIT
+			);
 			const topMovers = computeSegmentMovers(
 				currentRows as DimensionRow[],
 				previousRows as DimensionRow[]
 			);
-
 			return { dimension, topMovers };
 		})
 	);
-
 	return results.filter((r) => r.topMovers.length > 0);
 }
 
@@ -225,54 +236,11 @@ async function enrichErrors(
 	window: SignalWindow,
 	queryFn: QueryFn
 ): Promise<ErrorContext | undefined> {
-	const [currentSummary, previousSummary, currentTypes, previousTypes] =
+	const query = queryPeriodPair(websiteId, timezone, window, queryFn);
+	const [[currentSummary, previousSummary], [currentTypes, previousTypes]] =
 		await Promise.all([
-			queryFn(
-				{
-					projectId: websiteId,
-					type: "error_summary",
-					from: window.currentFrom,
-					to: window.currentTo,
-					timezone,
-				},
-				undefined,
-				timezone
-			),
-			queryFn(
-				{
-					projectId: websiteId,
-					type: "error_summary",
-					from: window.previousFrom,
-					to: window.previousTo,
-					timezone,
-				},
-				undefined,
-				timezone
-			),
-			queryFn(
-				{
-					projectId: websiteId,
-					type: "error_types",
-					from: window.currentFrom,
-					to: window.currentTo,
-					timezone,
-					limit: SEGMENT_FETCH_LIMIT,
-				},
-				undefined,
-				timezone
-			),
-			queryFn(
-				{
-					projectId: websiteId,
-					type: "error_types",
-					from: window.previousFrom,
-					to: window.previousTo,
-					timezone,
-					limit: SEGMENT_FETCH_LIMIT,
-				},
-				undefined,
-				timezone
-			),
+			query("error_summary"),
+			query("error_types", SEGMENT_FETCH_LIMIT),
 		]);
 
 	const currentRow = (currentSummary[0] ?? {}) as ErrorSummaryRow;
