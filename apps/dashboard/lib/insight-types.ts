@@ -44,19 +44,29 @@ export interface InsightMetric {
 	previous?: number;
 }
 
+export interface InsightEvidence {
+	description: string;
+	type: string;
+}
+
+export type InvestigationDepth = "surface" | "investigated" | "deep";
+
 export interface Insight {
 	changePercent?: number;
 	createdAt?: string;
 	currentPeriodFrom?: string | null;
 	currentPeriodTo?: string | null;
 	description: string;
+	evidence?: InsightEvidence[] | null;
 	id: string;
 	insightSource?: InsightSource;
+	investigationDepth?: InvestigationDepth | null;
 	link: string;
 	metrics?: InsightMetric[];
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
 	priority: number;
+	rootCause?: string | null;
 	sentiment: InsightSentiment;
 	severity: InsightSeverity;
 	suggestion: string;
@@ -74,18 +84,21 @@ export interface HistoryInsightRow {
 	currentPeriodFrom?: string | null;
 	currentPeriodTo?: string | null;
 	description: string;
+	evidence?: InsightEvidence[] | null;
 	id: string;
+	investigationDepth?: InvestigationDepth | null;
 	link: string;
 	metrics?: InsightMetric[];
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
 	priority: number;
-	sentiment: string;
-	severity: string;
+	rootCause?: string | null;
+	sentiment: InsightSentiment;
+	severity: InsightSeverity;
 	suggestion: string;
 	timezone?: string | null;
 	title: string;
-	type: string;
+	type: InsightType;
 	websiteDomain: string;
 	websiteId: string;
 	websiteName: string | null;
@@ -94,9 +107,9 @@ export interface HistoryInsightRow {
 export function mapHistoryRowToInsight(row: HistoryInsightRow): Insight {
 	return {
 		id: row.id,
-		type: row.type as InsightType,
-		severity: row.severity as InsightSeverity,
-		sentiment: row.sentiment as InsightSentiment,
+		type: row.type,
+		severity: row.severity,
+		sentiment: row.sentiment,
 		priority: row.priority,
 		websiteId: row.websiteId,
 		websiteName: row.websiteName,
@@ -106,6 +119,9 @@ export function mapHistoryRowToInsight(row: HistoryInsightRow): Insight {
 		suggestion: row.suggestion,
 		metrics: row.metrics ?? [],
 		changePercent: row.changePercent ?? undefined,
+		rootCause: row.rootCause,
+		evidence: row.evidence,
+		investigationDepth: row.investigationDepth,
 		link: row.link,
 		insightSource: "history",
 		createdAt: row.createdAt ?? undefined,

@@ -387,6 +387,38 @@ function InsightCopy({ view }: { view: InsightCardViewModel }) {
 				</p>
 			</section>
 
+			{view.rootCause && (
+				<section className="space-y-1.5">
+					<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+						Root cause
+					</p>
+					<p className="text-pretty text-[13px] text-foreground/85 leading-relaxed">
+						{view.rootCause}
+					</p>
+				</section>
+			)}
+
+			{view.investigationEvidence.length > 0 && (
+				<section className="space-y-1.5">
+					<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+						Evidence
+					</p>
+					<ul className="space-y-1">
+						{view.investigationEvidence.map((e, i) => (
+							<li
+								className="flex gap-2 text-[13px] text-muted-foreground leading-relaxed"
+								key={`ev-${i}`}
+							>
+								<span className="shrink-0 text-muted-foreground/50">
+									&bull;
+								</span>
+								<span>{e.description}</span>
+							</li>
+						))}
+					</ul>
+				</section>
+			)}
+
 			{view.nextStep && (
 				<section className="space-y-1.5 rounded-lg border border-border/60 bg-accent/40 p-3">
 					<div className="flex items-center gap-2">
@@ -407,17 +439,17 @@ function InsightCopy({ view }: { view: InsightCardViewModel }) {
 	);
 }
 
-function InsightEvidence({ view }: { view: InsightCardViewModel }) {
-	if (view.evidence.length === 0) {
+function InsightMetricsSection({ view }: { view: InsightCardViewModel }) {
+	if (view.metrics.length === 0) {
 		return null;
 	}
 
 	return (
 		<section className="space-y-2">
 			<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-				Evidence
+				Metrics
 			</p>
-			<InsightMetrics metrics={view.evidence} />
+			<InsightMetrics metrics={view.metrics} />
 		</section>
 	);
 }
@@ -645,7 +677,7 @@ export function InsightCard({
 
 			<InsightCardPanel expanded={expanded}>
 				<InsightCopy view={view} />
-				{!isCompact && <InsightEvidence view={view} />}
+				{!isCompact && <InsightMetricsSection view={view} />}
 				<InsightCardActions
 					comparisonWindow={comparisonWindow}
 					feedbackVote={feedbackVote}

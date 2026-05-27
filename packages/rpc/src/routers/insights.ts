@@ -45,15 +45,25 @@ const insightMetricSchema = z.object({
 	previous: z.number().optional(),
 });
 
+const insightEvidenceSchema = z.object({
+	description: z.string(),
+	type: z.string(),
+});
+
+const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
+
 const websiteInsightSchema = z.object({
 	changePercent: z.number().optional(),
 	confidence: z.number(),
 	description: z.string(),
+	evidence: z.array(insightEvidenceSchema).nullable().optional(),
 	id: z.string(),
 	impactSummary: z.string().optional(),
+	investigationDepth: investigationDepthSchema.nullable().optional(),
 	link: z.string(),
 	metrics: z.array(insightMetricSchema),
 	priority: z.number(),
+	rootCause: z.string().nullable().optional(),
 	sentiment: z.string(),
 	severity: z.string(),
 	sources: z.array(z.enum(["web", "product", "ops", "business"])),
@@ -192,6 +202,9 @@ async function getInsightsFromDb(options: {
 			sources: analyticsInsights.sources,
 			confidence: analyticsInsights.confidence,
 			impactSummary: analyticsInsights.impactSummary,
+			rootCause: analyticsInsights.rootCause,
+			evidence: analyticsInsights.evidence,
+			investigationDepth: analyticsInsights.investigationDepth,
 			metrics: analyticsInsights.metrics,
 			createdAt: analyticsInsights.createdAt,
 		})
@@ -216,6 +229,9 @@ async function getInsightsFromDb(options: {
 		priority: row.priority,
 		subjectKey: row.subjectKey,
 		confidence: row.confidence,
+		rootCause: row.rootCause,
+		evidence: row.evidence ?? null,
+		investigationDepth: row.investigationDepth ?? null,
 		...parseInsightShape(row),
 	}));
 }
@@ -486,6 +502,9 @@ export const insightsRouter = {
 					sources: analyticsInsights.sources,
 					confidence: analyticsInsights.confidence,
 					impactSummary: analyticsInsights.impactSummary,
+					rootCause: analyticsInsights.rootCause,
+					evidence: analyticsInsights.evidence,
+					investigationDepth: analyticsInsights.investigationDepth,
 					metrics: analyticsInsights.metrics,
 					createdAt: analyticsInsights.createdAt,
 					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
@@ -514,6 +533,9 @@ export const insightsRouter = {
 				priority: row.priority,
 				subjectKey: row.subjectKey,
 				confidence: row.confidence,
+				rootCause: row.rootCause,
+				evidence: row.evidence ?? null,
+				investigationDepth: row.investigationDepth ?? null,
 				...parseInsightShape(row),
 				createdAt: row.createdAt.toISOString(),
 				currentPeriodFrom: row.currentPeriodFrom,
