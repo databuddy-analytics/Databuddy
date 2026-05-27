@@ -1,43 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { db, eq, and } from "@databuddy/db";
-import { account, member } from "@databuddy/db/schema";
+import { createCachedTokenFn } from "./utils/oauth-token";
 
 const GITHUB_API = "https://api.github.com";
 const MAX_RESULTS = 10;
-
-async function getGitHubToken(
-	organizationId: string,
-	preferUserId?: string
-): Promise<string | null> {
-	if (preferUserId) {
-		const [ghAccount] = await db
-			.select({ accessToken: account.accessToken })
-			.from(account)
-			.where(
-				and(eq(account.userId, preferUserId), eq(account.providerId, "github"))
-			)
-			.limit(1);
-
-		if (ghAccount?.accessToken) {
-			return ghAccount.accessToken;
-		}
-	}
-
-	const [fallback] = await db
-		.select({ accessToken: account.accessToken })
-		.from(account)
-		.innerJoin(member, eq(member.userId, account.userId))
-		.where(
-			and(
-				eq(member.organizationId, organizationId),
-				eq(account.providerId, "github")
-			)
-		)
-		.limit(1);
-
-	return fallback?.accessToken ?? null;
-}
 
 export async function githubFetch(
 	path: string,
@@ -65,15 +31,11 @@ export interface GitHubToolsParams {
 }
 
 export function createGitHubTools(params: GitHubToolsParams) {
-	let cachedToken: string | null | undefined;
-
-	async function getToken(): Promise<string | null> {
-		if (cachedToken !== undefined) {
-			return cachedToken;
-		}
-		cachedToken = await getGitHubToken(params.organizationId, params.userId);
-		return cachedToken;
-	}
+	const getToken = createCachedTokenFn(
+		"github",
+		params.organizationId,
+		params.userId
+	);
 
 	const getRecentDeploysTool = tool({
 		description:

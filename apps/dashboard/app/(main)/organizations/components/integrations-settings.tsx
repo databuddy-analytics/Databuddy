@@ -55,6 +55,8 @@ const SIMPLE_ICONS = {
 		"M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z",
 	cloudflare:
 		"M16.5088 16.8447c.1475-.5068.0908-.9707-.1553-1.3154-.2246-.3164-.6045-.499-1.0615-.5205l-8.6592-.1123a.1559.1559 0 0 1-.1333-.0713c-.0283-.042-.0351-.0986-.021-.1553.0278-.084.1123-.1484.2036-.1562l8.7359-.1123c1.0351-.0489 2.1601-.8868 2.5537-1.9136l.499-1.3013c.0215-.0561.0293-.1128.0147-.168-.5625-2.5463-2.835-4.4453-5.5499-4.4453-2.5039 0-4.6284 1.6177-5.3876 3.8614-.4927-.3658-1.1187-.5625-1.794-.499-1.2026.119-2.1665 1.083-2.2861 2.2856-.0283.31-.0069.6128.0635.894C1.5683 13.171 0 14.7754 0 16.752c0 .1748.0142.3515.0352.5273.0141.083.0844.1475.1689.1475h15.9814c.0909 0 .1758-.0645.2032-.1553l.12-.4268zm2.7568-5.5634c-.0771 0-.1611 0-.2383.0112-.0566 0-.1054.0415-.127.0976l-.3378 1.1744c-.1475.5068-.0918.9707.1543 1.3164.2256.3164.6055.498 1.0625.5195l1.8437.1133c.0557 0 .1055.0263.1329.0703.0283.043.0351.1074.0214.1562-.0283.084-.1132.1485-.204.1553l-1.921.1123c-1.041.0488-2.1582.8867-2.5527 1.914l-.1406.3585c-.0283.0713.0215.1416.0986.1416h6.5977c.0771 0 .1474-.0489.169-.126.1122-.4082.1757-.837.1757-1.2803 0-2.6025-2.125-4.727-4.7344-4.727",
+	googlesearchconsole:
+		"M8.548 1.156L6.832 2.872v1.682h1.716zm0 3.398v.035H6.832v-.035H3.386L0 7.844v3.577h2.826V8.94c0-.525.429-.954.954-.954h16.476c.525 0 .954.43.954.954v2.48h2.754V7.844l-3.386-3.29H17.3v.035h-1.717v-.035zm7.035 0H17.3V2.872l-1.717-1.716zM8.679 1.188V2.84h6.773V1.188zm11.471 7.07a.834.834 0 00-.132.01l-.543.002c-5.216.014-10.432-.008-15.648.01-.435-.063-.794.436-.716.883v2.264h17.812c-.016-.888.045-1.782-.034-2.666-.104-.342-.427-.502-.739-.502zm-15.422.634a.689.698 0 01.689.698.689.698 0 01-.689.697.689.698 0 01-.688-.697.689.698 0 01.688-.698zm2.134 0a.689.698 0 01.689.698.689.698 0 01-.689.697.689.698 0 01-.688-.697.689.698 0 01.688-.698zM.036 11.645v9.156c0 1.05.858 1.908 1.907 1.908h.883V11.645zm21.174 0v11.064h.882c1.05 0 1.908-.858 1.908-1.908v-9.156zM4.057 13.133v6.85h6.137v-6.85zm13.243.021v3.777l-1.708.977-1.708-.977v-3.758a4.006 4.006 0 000 7.23v2.441h3.457v-2.442a4.006 4.006 0 00-.041-7.248zm-13.243 8.26v1.43h7.925v-1.43z",
 	googleAnalytics:
 		"M22.84 2.9982v17.9987c.0086 1.6473-1.3197 2.9897-2.967 2.9984a2.9808 2.9808 0 01-.3677-.0208c-1.528-.226-2.6477-1.5558-2.6105-3.1V3.1204c-.0369-1.5458 1.0856-2.8762 2.6157-3.1 1.6361-.1915 3.1178.9796 3.3093 2.6158.014.1201.0208.241.0202.3619zM4.1326 18.0548c-1.6417 0-2.9726 1.331-2.9726 2.9726C1.16 22.6691 2.4909 24 4.1326 24s2.9726-1.3309 2.9726-2.9726-1.331-2.9726-2.9726-2.9726zm7.8728-9.0098c-.0171 0-.0342 0-.0513.0003-1.6495.0904-2.9293 1.474-2.891 3.1256v7.9846c0 2.167.9535 3.4825 2.3505 3.763 1.6118.3266 3.1832-.7152 3.5098-2.327.04-.1974.06-.3983.0593-.5998v-8.9585c.003-1.6474-1.33-2.9852-2.9773-2.9882z",
 	notion:
@@ -89,6 +91,18 @@ const GITHUB_ITEM: IntegrationCatalogItem = {
 };
 
 const GITHUB_SCOPES = ["repo:status", "read:org"];
+
+const GSC_ITEM: IntegrationCatalogItem = {
+	accent: "#4285F4",
+	category: "Intelligence",
+	description:
+		"Surface keyword ranking changes, impression drops, and CTR shifts in investigations.",
+	iconPath: SIMPLE_ICONS.googlesearchconsole,
+	id: "google-search-console",
+	name: "Google Search Console",
+};
+
+const GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"];
 
 const COMING_SOON_INTEGRATIONS: IntegrationCatalogItem[] = [
 	{
@@ -191,6 +205,25 @@ function useLinkedAccounts() {
 		queryFn: async () => {
 			const result = await authClient.listAccounts();
 			return result.data ?? [];
+		},
+	});
+}
+
+function useOAuthConnect(provider: string, scopes: string[], label: string) {
+	return useMutation({
+		mutationFn: async () => {
+			const result = await authClient.linkSocial({
+				provider,
+				scopes,
+				callbackURL: window.location.href,
+			});
+			if (result.error) {
+				throw new Error(result.error.message);
+			}
+			return result;
+		},
+		onError: (err) => {
+			toast.error(err.message || `Could not connect ${label}`);
 		},
 	});
 }
@@ -337,6 +370,8 @@ export function IntegrationsSettings({
 
 							<GitHubIntegrationRow organizationId={organization.id} />
 
+							<GSCIntegrationRow />
+
 							{COMING_SOON_INTEGRATIONS.map((item) => (
 								<IntegrationListRow
 									action={
@@ -379,6 +414,59 @@ export function IntegrationsSettings({
 	);
 }
 
+function GSCIntegrationRow() {
+	const accounts = useLinkedAccounts();
+	const googleAccount = accounts.data?.find((a) => a.providerId === "google");
+
+	const gscCheck = useQuery({
+		...orpc.integrations.checkSearchConsoleAccess.queryOptions({
+			input: {},
+		}),
+		enabled: Boolean(googleAccount),
+	});
+
+	const hasGscAccess = gscCheck.data?.hasAccess === true;
+	const connect = useOAuthConnect("google", GSC_SCOPES, "Google Search Console");
+
+	let action: React.ReactNode;
+	if (accounts.isLoading || gscCheck.isLoading) {
+		action = <LoadingButton />;
+	} else if (hasGscAccess) {
+		action = (
+			<Button disabled size="sm" variant="secondary">
+				<CheckCircleIcon className="size-4" />
+				Connected
+			</Button>
+		);
+	} else {
+		action = (
+			<Button
+				disabled={connect.isPending}
+				loading={connect.isPending}
+				onClick={() => connect.mutate()}
+				size="sm"
+				variant="secondary"
+			>
+				<PlugIcon className="size-4" />
+				{googleAccount ? "Grant access" : "Connect"}
+			</Button>
+		);
+	}
+
+	return (
+		<IntegrationListRow
+			action={action}
+			badge={
+				<ConnectionBadge
+					connected={hasGscAccess}
+					loading={accounts.isLoading || gscCheck.isLoading}
+				/>
+			}
+			item={GSC_ITEM}
+		/>
+	);
+}
+
 function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 	const queryClient = useQueryClient();
 	const accounts = useLinkedAccounts();
@@ -392,22 +480,7 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 		enabled: Boolean(githubAccount),
 	});
 
-	const connect = useMutation({
-		mutationFn: async () => {
-			const result = await authClient.linkSocial({
-				provider: "github",
-				scopes: GITHUB_SCOPES,
-				callbackURL: window.location.href,
-			});
-			if (result.error) {
-				throw new Error(result.error.message);
-			}
-			return result;
-		},
-		onError: (err) => {
-			toast.error(err.message || "Could not connect GitHub");
-		},
-	});
+	const connect = useOAuthConnect("github", GITHUB_SCOPES, "GitHub");
 
 	const disconnect = useMutation({
 		mutationFn: async () => {

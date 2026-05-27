@@ -9,12 +9,26 @@ import type { WebsiteIntegrations } from "@databuddy/db/schema";
 import { invalidateSlackIntegrationCache } from "@databuddy/redis";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import type { Context } from "../orpc";
 import {
 	protectedProcedure,
 	sessionProcedure,
 	trackedProcedure,
 } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+
+async function getUserProviderToken(
+	database: Context["db"],
+	userId: string,
+	providerId: string
+): Promise<string | null> {
+	const [row] = await database
+		.select({ accessToken: account.accessToken })
+		.from(account)
+		.where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
+		.limit(1);
+	return row?.accessToken ?? null;
+}
 
 const slackChannelBindingOutputSchema = z.object({
 	id: z.string(),
@@ -284,6 +298,41 @@ export const integrationsRouter = {
 			return { success: true };
 		}),
 
+	checkSearchConsoleAccess: sessionProcedure
+		.route({
+			description:
+				"Checks whether the current user has Google Search Console access.",
+			method: "POST",
+			path: "/integrations/checkSearchConsoleAccess",
+			summary: "Check Search Console access",
+			tags: ["Integrations"],
+		})
+		.input(z.object({}))
+		.output(z.object({ hasAccess: z.boolean() }))
+		.handler(async ({ context }) => {
+			const token = await getUserProviderToken(
+				context.db,
+				context.user.id,
+				"google"
+			);
+			if (!token) {
+				return { hasAccess: false };
+			}
+
+			try {
+				const res = await fetch(
+					"https://www.googleapis.com/webmasters/v3/sites",
+					{
+						headers: { Authorization: `Bearer ${token}` },
+						signal: AbortSignal.timeout(5000),
+					}
+				);
+				return { hasAccess: res.ok };
+			} catch {
+				return { hasAccess: false };
+			}
+		}),
+
 	listGitHubRepos: sessionProcedure
 		.route({
 			description: "Lists GitHub repos accessible to the current user.",
@@ -305,18 +354,12 @@ export const integrationsRouter = {
 			})
 		)
 		.handler(async ({ context }) => {
-			const [ghAccount] = await context.db
-				.select({ accessToken: account.accessToken })
-				.from(account)
-				.where(
-					and(
-						eq(account.userId, context.user.id),
-						eq(account.providerId, "github")
-					)
-				)
-				.limit(1);
-
-			if (!ghAccount?.accessToken) {
+			const token = await getUserProviderToken(
+				context.db,
+				context.user.id,
+				"github"
+			);
+			if (!token) {
 				return { repos: [] };
 			}
 
@@ -324,7 +367,7 @@ export const integrationsRouter = {
 				"https://api.github.com/user/repos?sort=pushed&direction=desc&per_page=50",
 				{
 					headers: {
-						Authorization: `Bearer ${ghAccount.accessToken}`,
+						Authorization: `Bearer ${token}`,
 						Accept: "application/vnd.github+json",
 						"X-GitHub-Api-Version": "2022-11-28",
 					},
