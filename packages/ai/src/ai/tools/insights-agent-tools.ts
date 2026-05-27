@@ -79,7 +79,7 @@ export function createInsightsAgentTools(
 	const periodSchema = z.enum(["current", "previous", "both"]);
 
 	const webMetricsTool = tool({
-		description: `Query analytics data. ${ALL_QUERY_TYPES.length} query types. Use period="both" to compare. Key types: summary_metrics, top_pages, entry_pages, exit_pages, recent_errors, errors_by_page, error_types, session_flow, sessions_by_device, sessions_by_browser, web_vitals_by_page, web_vitals_by_browser, revenue_overview, revenue_by_referrer, custom_events_discovery, custom_events_trends, country, region, city, utm_campaigns, device_types. Filter by: path, country, device_type, browser_name, os_name, referrer, utm_source, utm_medium, utm_campaign.`,
+		description: `Query analytics data. ${ALL_QUERY_TYPES.length} query types. Use period="both" to compare. Key types: summary_metrics, top_pages, entry_pages, exit_pages, recent_errors, errors_by_page, error_types, session_flow, session_pages, interesting_sessions, session_list, sessions_by_device, sessions_by_browser, web_vitals_by_page, web_vitals_by_browser, revenue_overview, revenue_by_referrer, custom_events_discovery, custom_events_trends, country, region, city, utm_campaigns, device_types. Filter by: path, country, device_type, browser_name, os_name, referrer, utm_source, utm_medium, utm_campaign.`,
 		inputSchema: z.object({
 			period: periodSchema,
 			queries: z.array(querySchema).min(1).max(MAX_QUERIES),
