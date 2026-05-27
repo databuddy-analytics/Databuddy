@@ -379,7 +379,12 @@ async function enrichVitals(
 		const prev = previousMap.get(name);
 		const curVal = cur?.p75 ?? 0;
 		const prevVal = prev?.p75 ?? 0;
-		if (curVal === 0 || prevVal === 0 || (cur?.samples ?? 0) < 5) {
+		if (
+			curVal === 0 ||
+			prevVal === 0 ||
+			(cur?.samples ?? 0) < 5 ||
+			(prev?.samples ?? 0) < 5
+		) {
 			continue;
 		}
 		const pct = safeDeltaPercent(curVal, prevVal);

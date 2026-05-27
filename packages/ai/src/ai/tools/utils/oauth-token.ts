@@ -49,17 +49,18 @@ export function createCachedTokenFn(
 	organizationId: string,
 	preferUserId?: string
 ): () => Promise<string | null> {
-	let cached: string | undefined;
+	let cached: string | null | undefined;
 	let cachedAt = 0;
+	const NEGATIVE_TTL_MS = 5 * 60 * 1000;
 	return async () => {
-		if (cached !== undefined && Date.now() - cachedAt < TOKEN_TTL_MS) {
+		const age = Date.now() - cachedAt;
+		const ttl = cached ? TOKEN_TTL_MS : NEGATIVE_TTL_MS;
+		if (cached !== undefined && age < ttl) {
 			return cached;
 		}
 		const token = await getOAuthToken(providerId, organizationId, preferUserId);
-		if (token) {
-			cached = token;
-			cachedAt = Date.now();
-		}
+		cached = token;
+		cachedAt = Date.now();
 		return token;
 	};
 }
