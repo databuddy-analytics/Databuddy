@@ -1,5 +1,6 @@
 import type {
 	Insight,
+	InsightAction,
 	InsightEvidence,
 	InsightMetric,
 	InsightType,
@@ -30,6 +31,7 @@ const PRIMARY_ACTION_LABELS: Partial<Record<InsightType, string>> = {
 };
 
 export interface InsightCardViewModel {
+	actions: InsightAction[];
 	headline: string;
 	investigationEvidence: InsightEvidence[];
 	metaLabel: string;
@@ -42,6 +44,7 @@ export interface InsightCardViewModel {
 
 export function toInsightCardViewModel(insight: Insight): InsightCardViewModel {
 	return {
+		actions: insight.actions ?? [],
 		headline: insight.title,
 		investigationEvidence: insight.evidence ?? [],
 		metaLabel: insight.websiteName ?? insight.websiteDomain,

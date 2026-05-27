@@ -51,7 +51,23 @@ export interface InsightEvidence {
 
 export type InvestigationDepth = "surface" | "investigated" | "deep";
 
+export type InsightActionType =
+	| "fix_goal"
+	| "create_funnel"
+	| "add_custom_event"
+	| "create_annotation"
+	| "update_config"
+	| "add_tracking"
+	| "investigate_further";
+
+export interface InsightAction {
+	label: string;
+	params: Record<string, string>;
+	type: InsightActionType;
+}
+
 export interface Insight {
+	actions?: InsightAction[] | null;
 	changePercent?: number;
 	createdAt?: string;
 	currentPeriodFrom?: string | null;
@@ -79,6 +95,7 @@ export interface Insight {
 }
 
 export interface HistoryInsightRow {
+	actions?: InsightAction[] | null;
 	changePercent?: number | null;
 	createdAt?: string;
 	currentPeriodFrom?: string | null;
@@ -122,6 +139,7 @@ export function mapHistoryRowToInsight(row: HistoryInsightRow): Insight {
 		rootCause: row.rootCause,
 		evidence: row.evidence,
 		investigationDepth: row.investigationDepth,
+		actions: row.actions,
 		link: row.link,
 		insightSource: "history",
 		createdAt: row.createdAt ?? undefined,

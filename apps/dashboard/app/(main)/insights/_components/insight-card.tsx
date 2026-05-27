@@ -22,7 +22,7 @@ import {
 	changePercentChipClassName,
 	formatSignedChangePercent,
 } from "@/lib/insight-signal-key";
-import type { Insight, InsightType } from "@/lib/insight-types";
+import type { Insight, InsightAction, InsightType } from "@/lib/insight-types";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRightIcon,
@@ -375,6 +375,31 @@ function InsightCardPanel({
 	);
 }
 
+const ACTION_ICONS: Record<InsightAction["type"], ReactNode> = {
+	fix_goal: <BugIcon className="size-3" weight="duotone" />,
+	create_funnel: <ChartLineUpIcon className="size-3" weight="duotone" />,
+	add_custom_event: <LightningIcon className="size-3" weight="fill" />,
+	create_annotation: <LightbulbFilamentIcon className="size-3" weight="duotone" />,
+	update_config: <GaugeIcon className="size-3" weight="duotone" />,
+	add_tracking: <LightningIcon className="size-3" weight="fill" />,
+	investigate_further: <ArrowRightIcon className="size-3" weight="fill" />,
+};
+
+function InsightActionPill({ action }: { action: InsightAction }) {
+	return (
+		<button
+			className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background px-2 py-1 text-foreground/80 text-xs transition-colors hover:bg-accent hover:text-foreground"
+			onClick={() => {
+				toast.info(`Action: ${action.label} (${action.type})`);
+			}}
+			type="button"
+		>
+			{ACTION_ICONS[action.type]}
+			{action.label}
+		</button>
+	);
+}
+
 function InsightCopy({ view }: { view: InsightCardViewModel }) {
 	return (
 		<>
@@ -433,6 +458,13 @@ function InsightCopy({ view }: { view: InsightCardViewModel }) {
 					<p className="text-pretty pl-6 text-foreground/85 text-xs leading-relaxed">
 						{view.nextStep}
 					</p>
+					{view.actions.length > 0 && (
+						<div className="flex flex-wrap gap-1.5 pl-6 pt-1.5">
+							{view.actions.map((action, i) => (
+								<InsightActionPill action={action} key={`action-${i}`} />
+							))}
+						</div>
+					)}
 				</section>
 			)}
 		</>
