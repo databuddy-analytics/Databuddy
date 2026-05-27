@@ -5,7 +5,7 @@ import { SLACK_COPY } from "@/slack/messages";
 import { streamAgentToSlack } from "@/slack/respond";
 import type { SlackAgentClient } from "@/slack/types";
 
-function createStreamClient(startTs = "stream_ts") {
+function createStreamClient(startTs: string | null = "stream_ts") {
 	const calls: Array<{ method: string; options: unknown }> = [];
 	const client: Pick<SlackAgentClient, "chat"> = {
 		chat: {
@@ -15,6 +15,7 @@ function createStreamClient(startTs = "stream_ts") {
 			},
 			startStream: async (options) => {
 				calls.push({ method: "chat.startStream", options });
+				if (startTs === null) return { ok: false, error: "not_allowed" };
 				return { ok: true, ts: startTs };
 			},
 			stopStream: async (options) => {
@@ -23,14 +24,25 @@ function createStreamClient(startTs = "stream_ts") {
 			},
 		},
 	};
+	return { calls, client };
+}
+
+const silentLogger = { error: () => {}, warn: () => {} };
+
+function baseRun() {
 	return {
-		calls,
-		client,
+		channelId: "C123",
+		messageTs: "171234.567",
+		teamId: "T123",
+		text: "What changed?",
+		threadTs: "171234.567",
+		trigger: "app_mention" as const,
+		userId: "U123",
 	};
 }
 
 describe("Databuddy Slack response streaming", () => {
-	it("starts streams with answer text, not a loading placeholder", async () => {
+	it("shows a thinking indicator then streams the answer", async () => {
 		const originalDateNow = Date.now;
 		let now = 0;
 		const { calls, client } = createStreamClient();
@@ -47,19 +59,8 @@ describe("Databuddy Slack response streaming", () => {
 			result = await streamAgentToSlack({
 				agent,
 				client,
-				logger: {
-					error: () => {},
-					warn: () => {},
-				},
-				run: {
-					channelId: "C123",
-					messageTs: "171234.567",
-					teamId: "T123",
-					text: "What changed?",
-					threadTs: "171234.567",
-					trigger: "app_mention",
-					userId: "U123",
-				},
+				logger: silentLogger,
+				run: baseRun(),
 				say: async () => {},
 			});
 		} finally {
@@ -71,17 +72,36 @@ describe("Databuddy Slack response streaming", () => {
 			responseTs: "stream_ts",
 			streamed: true,
 		});
+
 		expect(calls[0]).toEqual({
 			method: "chat.startStream",
 			options: expect.objectContaining({
-				markdown_text: "Traffic is up 12%.",
+				chunks: [
+					expect.objectContaining({
+						type: "task_update",
+						status: "in_progress",
+					}),
+				],
+				task_display_mode: "plan",
 			}),
 		});
-		expect(calls[0]?.options).not.toEqual(
-			expect.objectContaining({ markdown_text: SLACK_COPY.streamOpening })
-		);
-		expect(calls.map((call) => call.method)).toEqual([
+
+		expect(calls[1]).toEqual({
+			method: "chat.appendStream",
+			options: expect.objectContaining({
+				markdown_text: "Traffic is up 12%.",
+				chunks: [
+					expect.objectContaining({
+						type: "task_update",
+						status: "complete",
+					}),
+				],
+			}),
+		});
+
+		expect(calls.map((c) => c.method)).toEqual([
 			"chat.startStream",
+			"chat.appendStream",
 			"chat.stopStream",
 		]);
 	});
@@ -98,34 +118,20 @@ describe("Databuddy Slack response streaming", () => {
 		const result = await streamAgentToSlack({
 			agent,
 			client,
-			logger: {
-				error: () => {},
-				warn: () => {},
-			},
-			run: {
-				channelId: "C123",
-				messageTs: "171234.567",
-				teamId: "T123",
-				text: "say something nice",
-				threadTs: "171234.567",
-				trigger: "app_mention",
-				userId: "U123",
-			},
+			logger: silentLogger,
+			run: baseRun(),
 			say: async () => {},
 		});
 
 		expect(result).toMatchObject({ ok: false, streamed: true });
-		expect(calls.map((call) => call.method)).toEqual([
-			"chat.startStream",
-			"chat.stopStream",
-		]);
-		expect(calls.at(-1)?.options).not.toHaveProperty("markdown_text");
+
+		const stopCall = calls.find((c) => c.method === "chat.stopStream");
+		expect(stopCall?.options).not.toHaveProperty("markdown_text");
 		expect(JSON.stringify(calls)).not.toContain(SLACK_COPY.agentFailure);
 	});
 
-	it("surfaces user-facing agent errors instead of the generic failure copy", async () => {
+	it("surfaces user-facing agent errors in the stream", async () => {
 		const { calls, client } = createStreamClient();
-		const sayCalls: Array<{ text: string; thread_ts?: string }> = [];
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
 				throw new DatabuddyAgentUserError({
@@ -139,19 +145,47 @@ describe("Databuddy Slack response streaming", () => {
 		const result = await streamAgentToSlack({
 			agent,
 			client,
-			logger: {
-				error: () => {},
-				warn: () => {},
+			logger: silentLogger,
+			run: baseRun(),
+			say: async () => {},
+		});
+
+		expect(result).toMatchObject({
+			ok: false,
+			responseTs: "stream_ts",
+			streamed: true,
+		});
+
+		const thinkingResolve = calls.find(
+			(c) =>
+				c.method === "chat.appendStream" &&
+				JSON.stringify(c.options).includes('"error"'),
+		);
+		expect(thinkingResolve).toBeDefined();
+
+		const stopCall = calls.find((c) => c.method === "chat.stopStream");
+		expect(getStringOption(stopCall?.options, "markdown_text")).toBe(
+			"You're out of Databunny credits this month. Upgrade or wait for the monthly reset.",
+		);
+	});
+
+	it("falls back to say when streaming is unavailable", async () => {
+		const { client } = createStreamClient(null);
+		const sayCalls: Array<{ text: string; thread_ts?: string }> = [];
+		const agent: Pick<DatabuddyAgentClient, "stream"> = {
+			async *stream() {
+				throw new DatabuddyAgentUserError({
+					code: "agent_credits_exhausted",
+					message: "No credits left.",
+				});
 			},
-			run: {
-				channelId: "C123",
-				messageTs: "171234.567",
-				teamId: "T123",
-				text: "top pages",
-				threadTs: "171234.567",
-				trigger: "app_mention",
-				userId: "U123",
-			},
+		};
+
+		const result = await streamAgentToSlack({
+			agent,
+			client,
+			logger: silentLogger,
+			run: baseRun(),
 			say: async (message) => {
 				sayCalls.push(message);
 				return { ok: true, ts: "say_ts" };
@@ -163,14 +197,7 @@ describe("Databuddy Slack response streaming", () => {
 			responseTs: "say_ts",
 			streamed: false,
 		});
-		expect(calls).toEqual([]);
-		expect(sayCalls).toEqual([
-			{
-				text: "You're out of Databunny credits this month. Upgrade or wait for the monthly reset.",
-				thread_ts: "171234.567",
-			},
-		]);
-		expect(sayCalls[0]?.text).not.toBe(SLACK_COPY.agentFailure);
+		expect(sayCalls[0]?.text).toBe("No credits left.");
 	});
 
 	it("does not start a new Slack response when the run is already aborted", async () => {
@@ -193,19 +220,8 @@ describe("Databuddy Slack response streaming", () => {
 			abortSignal: controller.signal,
 			agent,
 			client,
-			logger: {
-				error: () => {},
-				warn: () => {},
-			},
-			run: {
-				channelId: "C123",
-				messageTs: "171234.567",
-				teamId: "T123",
-				text: "say something nice",
-				threadTs: "171234.567",
-				trigger: "app_mention",
-				userId: "U123",
-			},
+			logger: silentLogger,
+			run: baseRun(),
 			say: async (message) => {
 				sayCalls.push(message);
 			},
@@ -233,19 +249,8 @@ describe("Databuddy Slack response streaming", () => {
 		await streamAgentToSlack({
 			agent,
 			client,
-			logger: {
-				error: () => {},
-				warn: () => {},
-			},
-			run: {
-				channelId: "C123",
-				messageTs: "171234.567",
-				teamId: "T123",
-				text: "top pages",
-				threadTs: "171234.567",
-				trigger: "app_mention",
-				userId: "U123",
-			},
+			logger: silentLogger,
+			run: baseRun(),
 			say: async () => {},
 		});
 
