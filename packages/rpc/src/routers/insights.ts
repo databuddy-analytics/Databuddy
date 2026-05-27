@@ -205,6 +205,7 @@ async function getInsightsFromDb(options: {
 			rootCause: analyticsInsights.rootCause,
 			evidence: analyticsInsights.evidence,
 			investigationDepth: analyticsInsights.investigationDepth,
+			actions: analyticsInsights.actions,
 			metrics: analyticsInsights.metrics,
 			createdAt: analyticsInsights.createdAt,
 		})

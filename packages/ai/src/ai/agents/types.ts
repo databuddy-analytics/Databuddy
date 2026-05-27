@@ -30,6 +30,7 @@ export const AGENT_TIERS: readonly AgentTier[] = [
 export interface AgentContext {
 	billingCustomerId?: string | null;
 	chatId: string;
+	organizationId?: string;
 	requestHeaders?: Headers;
 	thinking?: AgentThinking;
 	timezone: string;

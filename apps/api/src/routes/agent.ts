@@ -804,6 +804,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const config = createAgentConfig(
 						{
 							userId,
+							organizationId: organizationId ?? undefined,
 							websiteId: body.websiteId,
 							websiteDomain: domain,
 							timezone,

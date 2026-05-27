@@ -18,7 +18,7 @@ import { createGoalTools } from "../tools/goals";
 import { createLinksTools } from "../tools/links";
 import { createMemoryTools } from "../tools/memory";
 import { createProfileTools } from "../tools/profiles";
-import { createScrapeTools } from "../tools/scrape-page";
+import { createInvestigationTools } from "../tools/investigation-tools";
 import type { AgentConfig, AgentContext, AgentThinking } from "./types";
 
 const analyticsTools = {
@@ -82,8 +82,12 @@ export function createConfig(
 		},
 		tools: {
 			...analyticsTools,
-			...(context.websiteDomain
-				? createScrapeTools(context.websiteDomain)
+			...(context.websiteDomain && context.organizationId
+				? createInvestigationTools({
+						domain: context.websiteDomain,
+						organizationId: context.organizationId,
+						userId: context.userId,
+					})
 				: {}),
 		},
 		stopWhen: stepCountIs(tier.maxSteps),

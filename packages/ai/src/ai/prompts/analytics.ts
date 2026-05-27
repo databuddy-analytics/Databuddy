@@ -31,6 +31,11 @@ const ANALYTICS_BODY = `<agent-specific-rules>
 - Use now() - INTERVAL N DAY for date ranges, not custom parameters. Only {websiteId:String} is auto-injected.
 - Batch related questions into a single SQL query using CTEs (WITH clauses) instead of multiple sequential queries.
 
+**Investigation tools (when available):**
+9. scrape_page: Scrape a page on the website to see its content, CTAs, and structure. Use when investigating page-specific issues (bounce rate, errors, conversion drops) or to understand what the product does.
+10. search_console: Query Google Search Console for keyword rankings, impressions, clicks, CTR. Use when investigating traffic changes to find which search queries drove them.
+11. github_commits / github_commit_diff / github_search_code / github_read_file: Correlate code changes with metric anomalies. Use when a deploy or code change may have caused an issue.
+
 **Analysis:**
 - Before answering analytics questions, classify each requested metric as directly supported by tool output, available only as a proxy, or missing/not answerable.
 - Every number in the final answer must come from tool output or simple arithmetic using tool-output numbers. Never fabricate numbers or unsupported breakdowns.

@@ -130,7 +130,31 @@ export const insightSchema = z.object({
 		.enum(["surface", "investigated", "deep"])
 		.optional()
 		.describe("How deeply this signal was investigated"),
+	actions: z
+		.array(
+			z.object({
+				type: z.enum([
+					"fix_goal",
+					"create_funnel",
+					"add_custom_event",
+					"create_annotation",
+					"update_config",
+					"add_tracking",
+					"investigate_further",
+				]),
+				label: z.string().describe("Button label (e.g. 'Fix goal target')"),
+				params: z
+					.record(z.string(), z.string())
+					.describe("Action-specific parameters"),
+			})
+		)
+		.max(3)
+		.optional()
+		.describe(
+			"Machine-readable actions the user can take. fix_goal: {goalName, from, to}. create_funnel: {name, steps}. add_custom_event: {eventName, element, page}. create_annotation: {text, date}. add_tracking: {page, element, snippet}. investigate_further: {prompt}."
+		),
 });
 
 export type ParsedInsight = z.infer<typeof insightSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
+export type InsightAction = NonNullable<ParsedInsight["actions"]>[number];
