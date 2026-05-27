@@ -39,7 +39,9 @@ export async function fetchRecentAnnotations(
 		.orderBy(annotations.xValue)
 		.limit(20);
 
-	if (rows.length === 0) return "";
+	if (rows.length === 0) {
+		return "";
+	}
 
 	const lines = rows.map((row) => {
 		const date = dayjs(row.xValue).format("YYYY-MM-DD");
@@ -75,7 +77,9 @@ export async function fetchDismissedPatterns(
 		)
 		.limit(10);
 
-	if (rows.length === 0) return "";
+	if (rows.length === 0) {
+		return "";
+	}
 
 	const lines = rows.map((r) => `- [${r.type}] ${r.title}`);
 	return `\n\nInsights users marked as NOT helpful (avoid similar narratives):\n${lines.join("\n")}`;
@@ -104,7 +108,9 @@ export async function fetchRecentInsightsForPrompt(
 		.orderBy(desc(analyticsInsights.createdAt))
 		.limit(RECENT_INSIGHTS_PROMPT_LIMIT);
 
-	if (rows.length === 0) return "";
+	if (rows.length === 0) {
+		return "";
+	}
 
 	const lines = rows.map(
 		(row) =>
@@ -124,7 +130,9 @@ export function formatOrgWebsitesContext(
 	orgSites: OrgWebsiteRow[],
 	currentWebsiteId: string
 ): string {
-	if (orgSites.length <= 1) return "";
+	if (orgSites.length <= 1) {
+		return "";
+	}
 
 	const sorted = [...orgSites].sort((a, b) =>
 		a.domain.localeCompare(b.domain, "en")

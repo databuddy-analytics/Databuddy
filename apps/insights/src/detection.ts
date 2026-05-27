@@ -146,7 +146,9 @@ function makeWowSignal(
 }
 
 function passesImpactFilter(signal: DetectedSignal): boolean {
-	if (signal.metric.startsWith("custom_event:")) return true;
+	if (signal.metric.startsWith("custom_event:")) {
+		return true;
+	}
 	const filter = METRIC_FILTERS[signal.metric];
 	return filter ? filter(signal) : DEFAULT_TRAFFIC_FILTER(signal);
 }
@@ -422,24 +424,46 @@ async function detectWow(
 			continue;
 		}
 
-		if (Math.abs(safeDeltaPercent(currentValue, previousValue)) < WOW_TRAFFIC_THRESHOLD) {
+		if (
+			Math.abs(safeDeltaPercent(currentValue, previousValue)) <
+			WOW_TRAFFIC_THRESHOLD
+		) {
 			continue;
 		}
-		signals.push(makeWowSignal(metric.key, metric.label, currentValue, previousValue, currentTo));
+		signals.push(
+			makeWowSignal(
+				metric.key,
+				metric.label,
+				currentValue,
+				previousValue,
+				currentTo
+			)
+		);
 	}
 
 	const errNow = numberField(currentErrors[0], "totalErrors");
 	const errPrev = numberField(previousErrors[0], "totalErrors");
-	if (errNow > 0 && errPrev > 0 && Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD) {
-		signals.push(makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo));
+	if (
+		errNow > 0 &&
+		errPrev > 0 &&
+		Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD
+	) {
+		signals.push(
+			makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo)
+		);
 	}
 
 	const revNow = numberField(currentRevenue[0], "total_revenue");
 	const revPrev = numberField(previousRevenue[0], "total_revenue");
 	if ((revNow > 0 || revPrev > 0) && Math.abs(revNow - revPrev) > 0) {
 		const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
-		if (Math.abs(pct) >= WOW_REVENUE_THRESHOLD || (revPrev === 0 && revNow > 0)) {
-			signals.push(makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo));
+		if (
+			Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
+			(revPrev === 0 && revNow > 0)
+		) {
+			signals.push(
+				makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo)
+			);
 		}
 	}
 
@@ -462,7 +486,9 @@ async function detectWow(
 			continue;
 		}
 
-		signals.push(makeWowSignal(metricName.toLowerCase(), label, curVal, prevVal, currentTo));
+		signals.push(
+			makeWowSignal(metricName.toLowerCase(), label, curVal, prevVal, currentTo)
+		);
 	}
 
 	const prevEventsMap = new Map<string, number>();
@@ -487,20 +513,55 @@ async function detectWow(
 
 		const prevCount = prevEventsMap.get(name) ?? 0;
 		if (prevCount === 0 && curCount >= CUSTOM_EVENT_NEW_THRESHOLD) {
-			signals.push(makeWowSignal(`custom_event:${name}`, `Custom event "${name}"`, curCount, 0, currentTo));
+			signals.push(
+				makeWowSignal(
+					`custom_event:${name}`,
+					`Custom event "${name}"`,
+					curCount,
+					0,
+					currentTo
+				)
+			);
 			continue;
 		}
-		if (prevCount === 0) continue;
-		if (Math.abs(safeDeltaPercent(curCount, prevCount)) < WOW_CUSTOM_EVENT_THRESHOLD) continue;
-		if (Math.abs(curCount - prevCount) < CUSTOM_EVENT_MIN_COUNT) continue;
-		signals.push(makeWowSignal(`custom_event:${name}`, `Custom event "${name}"`, curCount, prevCount, currentTo));
+		if (prevCount === 0) {
+			continue;
+		}
+		if (
+			Math.abs(safeDeltaPercent(curCount, prevCount)) <
+			WOW_CUSTOM_EVENT_THRESHOLD
+		) {
+			continue;
+		}
+		if (Math.abs(curCount - prevCount) < CUSTOM_EVENT_MIN_COUNT) {
+			continue;
+		}
+		signals.push(
+			makeWowSignal(
+				`custom_event:${name}`,
+				`Custom event "${name}"`,
+				curCount,
+				prevCount,
+				currentTo
+			)
+		);
 	}
 
 	for (const [name, prevCount] of prevEventsMap) {
-		if (prevCount < CUSTOM_EVENT_DISAPPEARED_THRESHOLD) continue;
-		if (curEventNames.has(name)) continue;
+		if (prevCount < CUSTOM_EVENT_DISAPPEARED_THRESHOLD) {
+			continue;
+		}
+		if (curEventNames.has(name)) {
+			continue;
+		}
 		signals.push({
-			...makeWowSignal(`custom_event:${name}`, `Custom event "${name}"`, 0, prevCount, currentTo),
+			...makeWowSignal(
+				`custom_event:${name}`,
+				`Custom event "${name}"`,
+				0,
+				prevCount,
+				currentTo
+			),
 			severity: "warning",
 			detectedAt: currentTo,
 		});

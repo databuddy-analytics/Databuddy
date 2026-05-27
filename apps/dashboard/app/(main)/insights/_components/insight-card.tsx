@@ -379,7 +379,9 @@ const ACTION_ICONS: Record<InsightAction["type"], ReactNode> = {
 	fix_goal: <BugIcon className="size-3" weight="duotone" />,
 	create_funnel: <ChartLineUpIcon className="size-3" weight="duotone" />,
 	add_custom_event: <LightningIcon className="size-3" weight="fill" />,
-	create_annotation: <LightbulbFilamentIcon className="size-3" weight="duotone" />,
+	create_annotation: (
+		<LightbulbFilamentIcon className="size-3" weight="duotone" />
+	),
 	update_config: <GaugeIcon className="size-3" weight="duotone" />,
 	add_tracking: <LightningIcon className="size-3" weight="fill" />,
 	investigate_further: <ArrowRightIcon className="size-3" weight="fill" />,
@@ -459,7 +461,7 @@ function InsightCopy({ view }: { view: InsightCardViewModel }) {
 						{view.nextStep}
 					</p>
 					{view.actions.length > 0 && (
-						<div className="flex flex-wrap gap-1.5 pl-6 pt-1.5">
+						<div className="flex flex-wrap gap-1.5 pt-1.5 pl-6">
 							{view.actions.map((action, i) => (
 								<InsightActionPill action={action} key={`action-${i}`} />
 							))}

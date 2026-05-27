@@ -14,8 +14,19 @@ import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import { storeAnalyticsSummary } from "@databuddy/ai/lib/supermemory";
 import type { ParsedInsight } from "@databuddy/ai/schemas/smart-insights-output";
 import { insightSchema } from "@databuddy/ai/schemas/smart-insights-output";
+import { createToolkit } from "@databuddy/ai/tools/toolkit";
 import { createInsightsAgentTools } from "@databuddy/ai/tools/insights-agent-tools";
-import { and, db, desc, eq, gte, inArray, isNotNull, isNull, sql } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNotNull,
+	isNull,
+	sql,
+} from "@databuddy/db";
 import {
 	analyticsInsights,
 	type InsightGenerationConfigSnapshot,
@@ -26,7 +37,6 @@ import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
-import { createInvestigationTools } from "@databuddy/ai/tools/investigation-tools";
 import { getCachedSiteContext } from "@databuddy/ai/tools/scrape-page";
 import { getOAuthToken } from "@databuddy/ai/tools/utils/oauth-token";
 import { stepCountIs, tool, ToolLoopAgent } from "ai";
@@ -61,6 +71,10 @@ const ALWAYS_ON_TOOLS = new Set([
 	"execute_sql",
 	"scrape_page",
 	"search_console",
+	"create_annotation",
+	"update_goal",
+	"create_funnel",
+	"create_goal",
 ]);
 
 interface GeneratedWebsiteInsight extends ParsedInsight {
@@ -322,7 +336,8 @@ ${orgContext}${annotationContext}${recentInsightsBlock}${dismissedBlock}`;
 		timezone: params.config.timezone,
 		periodBounds: { current: currentRange, previous: previousRange },
 	});
-	const investigationTools = createInvestigationTools({
+	const investigationTools = createToolkit({
+		capabilities: ["investigation", "mutations"],
 		domain: params.domain,
 		organizationId: params.organizationId,
 		userId: params.userId,
@@ -382,12 +397,14 @@ ${orgContext}${annotationContext}${recentInsightsBlock}${dismissedBlock}`;
 			},
 			tools: allToolsWithEmit,
 			stopWhen: (event) => {
-				if (stepCountIs(params.config.maxSteps)(event)) return true;
+				if (stepCountIs(params.config.maxSteps)(event)) {
+					return true;
+				}
 				if (
 					collected.length >= maxInsights(params.config) &&
-					event.steps.at(-1)?.toolCalls.some(
-						(tc) => tc?.toolName === "emit_insight"
-					)
+					event.steps
+						.at(-1)
+						?.toolCalls.some((tc) => tc?.toolName === "emit_insight")
 				) {
 					return true;
 				}

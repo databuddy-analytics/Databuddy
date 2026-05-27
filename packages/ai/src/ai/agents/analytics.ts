@@ -8,31 +8,8 @@ import {
 } from "../config/models";
 import { TIER_CONFIG } from "../config/tiers";
 import { buildAnalyticsInstructions } from "../prompts/analytics";
-import { createAnnotationTools } from "../tools/annotations";
-import { dashboardActionsTool } from "../tools/dashboard-actions";
-import { executeSqlQueryTool } from "../tools/execute-sql-query";
-import { createFlagTools } from "../tools/flags";
-import { createFunnelTools } from "../tools/funnels";
-import { getDataTool } from "../tools/get-data";
-import { createGoalTools } from "../tools/goals";
-import { createLinksTools } from "../tools/links";
-import { createMemoryTools } from "../tools/memory";
-import { createProfileTools } from "../tools/profiles";
-import { createInvestigationTools } from "../tools/investigation-tools";
+import { createToolkit } from "../tools/toolkit";
 import type { AgentConfig, AgentContext, AgentThinking } from "./types";
-
-const analyticsTools = {
-	get_data: getDataTool,
-	execute_sql_query: executeSqlQueryTool,
-	dashboard_actions: dashboardActionsTool,
-	...createMemoryTools(),
-	...createProfileTools(),
-	...createFlagTools(),
-	...createFunnelTools(),
-	...createGoalTools(),
-	...createAnnotationTools(),
-	...createLinksTools(),
-};
 
 function thinkingProviderOptions(
 	thinking: AgentThinking | undefined,
@@ -80,16 +57,18 @@ export function createConfig(
 			content: buildAnalyticsInstructions(appContext),
 			providerOptions: tier.promptCaching ? ANTHROPIC_CACHE_1H : undefined,
 		},
-		tools: {
-			...analyticsTools,
-			...(context.websiteDomain && context.organizationId
-				? createInvestigationTools({
-						domain: context.websiteDomain,
-						organizationId: context.organizationId,
-						userId: context.userId,
-					})
-				: {}),
-		},
+		tools: createToolkit({
+			capabilities: [
+				"analytics",
+				"investigation",
+				"mutations",
+				"memory",
+				"dashboard",
+			],
+			domain: context.websiteDomain,
+			organizationId: context.organizationId,
+			userId: context.userId,
+		}),
 		stopWhen: stepCountIs(tier.maxSteps),
 		temperature: tier.temperature,
 		providerOptions: thinkingProviderOptions(context.thinking, modelKey),
