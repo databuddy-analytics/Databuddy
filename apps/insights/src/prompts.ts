@@ -75,6 +75,7 @@ export async function fetchDismissedPatterns(
 				gte(insightUserFeedback.createdAt, since)
 			)
 		)
+		.orderBy(desc(insightUserFeedback.createdAt))
 		.limit(10);
 
 	if (rows.length === 0) {
@@ -154,7 +155,7 @@ export function buildSystemPrompt(
 ): string {
 	const targetCount = Math.max(
 		1,
-		Math.min(10, config.maxInsightsPerWebsite || 2)
+		Math.min(10, config.maxInsightsPerWebsite ?? 2)
 	);
 	const depthInstruction =
 		config.depth === "light"
@@ -211,6 +212,16 @@ export function formatSignalBlock(
 		if (ec.topNewErrors.length > 0) {
 			parts.push(`  new: ${ec.topNewErrors.join(", ")}`);
 		}
+	}
+
+	if (signal.vitalsContext) {
+		const vitals = signal.vitalsContext.metrics
+			.map(
+				(m) =>
+					`${m.name} p75: ${m.previousP75}→${m.currentP75} (${m.deltaPercent > 0 ? "+" : ""}${m.deltaPercent}%)`
+			)
+			.join(", ");
+		parts.push(`  vitals: ${vitals}`);
 	}
 
 	for (const a of signal.annotations) {

@@ -63,7 +63,7 @@ function truncateAtSentence(text: string, maxLength: number): string {
 	if (cut > maxLength * 0.5) {
 		return text.slice(0, cut + 1).trim();
 	}
-	return `${truncated.trim()}...`;
+	return text.slice(0, maxLength - 1).trim();
 }
 
 function roundPercent(value: number): number {

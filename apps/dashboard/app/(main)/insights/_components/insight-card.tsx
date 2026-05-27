@@ -389,15 +389,21 @@ const ACTION_ICONS: Record<InsightAction["type"], ReactNode> = {
 };
 
 function InsightActionPill({ action }: { action: InsightAction }) {
-	const handleClick = () => {
-		if (action.type === "code_fix" && action.params.prompt) {
-			navigator.clipboard.writeText(action.params.prompt);
-			toast.success("Copied to clipboard — paste in Cursor or Claude Code");
-			return;
-		}
-		if (action.type === "investigate_further" && action.params.prompt) {
-			navigator.clipboard.writeText(action.params.prompt);
-			toast.success("Copied investigation prompt");
+	const handleClick = async () => {
+		if (
+			(action.type === "code_fix" || action.type === "investigate_further") &&
+			action.params.prompt
+		) {
+			try {
+				await navigator.clipboard.writeText(action.params.prompt);
+				toast.success(
+					action.type === "code_fix"
+						? "Copied to clipboard -- paste in Cursor or Claude Code"
+						: "Copied investigation prompt"
+				);
+			} catch {
+				toast.error("Could not copy to clipboard");
+			}
 			return;
 		}
 		toast.info(`${action.label}`);

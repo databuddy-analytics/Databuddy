@@ -443,7 +443,9 @@ async function detectWow(
 
 	const errNow = numberField(currentErrors[0], "totalErrors");
 	const errPrev = numberField(previousErrors[0], "totalErrors");
-	if (
+	if (errPrev === 0 && errNow >= FILTER_ERROR_MIN_PEAK) {
+		signals.push(makeWowSignal("error_count", "Errors", errNow, 0, currentTo));
+	} else if (
 		errNow > 0 &&
 		errPrev > 0 &&
 		Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD

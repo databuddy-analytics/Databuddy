@@ -2,6 +2,7 @@ import { db, eq, and, sql } from "@databuddy/db";
 import { account, member } from "@databuddy/db/schema";
 
 const ROLE_PRIORITY = sql`CASE ${member.role} WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END`;
+const TOKEN_TTL_MS = 45 * 60 * 1000;
 
 export async function getOAuthToken(
 	providerId: string,
@@ -12,10 +13,12 @@ export async function getOAuthToken(
 		const [preferred] = await db
 			.select({ accessToken: account.accessToken })
 			.from(account)
+			.innerJoin(member, eq(member.userId, account.userId))
 			.where(
 				and(
 					eq(account.userId, preferUserId),
-					eq(account.providerId, providerId)
+					eq(account.providerId, providerId),
+					eq(member.organizationId, organizationId)
 				)
 			)
 			.limit(1);
@@ -47,13 +50,15 @@ export function createCachedTokenFn(
 	preferUserId?: string
 ): () => Promise<string | null> {
 	let cached: string | undefined;
+	let cachedAt = 0;
 	return async () => {
-		if (cached !== undefined) {
+		if (cached !== undefined && Date.now() - cachedAt < TOKEN_TTL_MS) {
 			return cached;
 		}
 		const token = await getOAuthToken(providerId, organizationId, preferUserId);
 		if (token) {
 			cached = token;
+			cachedAt = Date.now();
 		}
 		return token;
 	};

@@ -45,11 +45,21 @@ export interface GitHubContext {
 	repo: string;
 }
 
+export interface VitalsContext {
+	metrics: Array<{
+		name: string;
+		currentP75: number;
+		previousP75: number;
+		deltaPercent: number;
+	}>;
+}
+
 export interface EnrichedSignal extends DetectedSignal {
 	annotations: AnnotationContext[];
 	errorContext?: ErrorContext;
 	githubContext?: GitHubContext;
 	segments: SegmentBreakdown[];
+	vitalsContext?: VitalsContext;
 }
 
 export interface EnrichSignalsParams {
@@ -342,6 +352,50 @@ async function enrichAnnotations(
 	return await annotationQueryFn(websiteId, from, to);
 }
 
+async function enrichVitals(
+	websiteId: string,
+	timezone: string,
+	window: SignalWindow,
+	queryFn: QueryFn
+): Promise<VitalsContext | undefined> {
+	const query = queryPeriodPair(websiteId, timezone, window, queryFn);
+	const [currentVitals, previousVitals] = await query("vitals_overview");
+
+	interface VitalsRow {
+		metric_name?: string;
+		p75?: number;
+		samples?: number;
+	}
+	const currentMap = new Map(
+		(currentVitals as VitalsRow[]).map((r) => [r.metric_name, r])
+	);
+	const previousMap = new Map(
+		(previousVitals as VitalsRow[]).map((r) => [r.metric_name, r])
+	);
+
+	const metrics: VitalsContext["metrics"] = [];
+	for (const name of ["LCP", "INP", "CLS", "FCP", "TTFB"]) {
+		const cur = currentMap.get(name);
+		const prev = previousMap.get(name);
+		const curVal = cur?.p75 ?? 0;
+		const prevVal = prev?.p75 ?? 0;
+		if (curVal === 0 || prevVal === 0 || (cur?.samples ?? 0) < 5) {
+			continue;
+		}
+		const pct = safeDeltaPercent(curVal, prevVal);
+		if (Math.abs(pct) >= 15) {
+			metrics.push({
+				name,
+				currentP75: curVal,
+				previousP75: prevVal,
+				deltaPercent: Number(pct.toFixed(1)),
+			});
+		}
+	}
+
+	return metrics.length > 0 ? { metrics } : undefined;
+}
+
 function extractSignalKeywords(signals: EnrichedSignal[]): string[] {
 	const keywords = new Set<string>();
 	for (const s of signals) {
@@ -481,16 +535,19 @@ export async function enrichSignals(
 		signals.map(async (signal) => {
 			const window = computeWindow(signal, lookbackDays);
 
-			const [segments, errorContext, signalAnnotations] = await Promise.all([
-				enrichSegments(websiteId, timezone, window, queryFn),
-				enrichErrors(websiteId, timezone, window, queryFn),
-				enrichAnnotations(websiteId, window, annotationQueryFn),
-			]);
+			const [segments, errorContext, vitalsContext, signalAnnotations] =
+				await Promise.all([
+					enrichSegments(websiteId, timezone, window, queryFn),
+					enrichErrors(websiteId, timezone, window, queryFn),
+					enrichVitals(websiteId, timezone, window, queryFn),
+					enrichAnnotations(websiteId, window, annotationQueryFn),
+				]);
 
 			return {
 				...signal,
 				segments,
 				errorContext,
+				vitalsContext,
 				annotations: signalAnnotations,
 			} as EnrichedSignal;
 		})
