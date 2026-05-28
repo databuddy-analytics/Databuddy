@@ -49,7 +49,7 @@ import {
 	buildSystemPrompt,
 	fetchDismissedPatterns,
 	fetchRecentAnnotations,
-	fetchRecentInsightsForPrompt,
+	fetchInsightHistory,
 	formatOrgWebsitesContext,
 	type OrgWebsiteRow,
 } from "./prompts";
@@ -295,10 +295,10 @@ async function analyzeWebsite(params: {
 
 	const investigationMode = enrichedSignals.length > 0;
 
-	const [annotationContext, recentInsightsBlock, siteContext, dismissedBlock] =
+	const [annotationContext, historyBlock, siteContext, dismissedBlock] =
 		await Promise.all([
 			fetchRecentAnnotations(params.websiteId, params.config),
-			fetchRecentInsightsForPrompt(
+			fetchInsightHistory(
 				params.organizationId,
 				params.websiteId,
 				params.config
@@ -321,14 +321,14 @@ async function analyzeWebsite(params: {
 				githubRepo: params.githubRepo,
 				period: params.period,
 				timezone: params.config.timezone,
-				recentInsightsBlock,
+				historyBlock,
 				annotationContext,
 				dismissedBlock,
 				orgContext,
 				siteContext: siteBlock,
 			})
 		: `Analyze ${params.domain} (${currentRange.from} to ${currentRange.to} vs ${previousRange.from} to ${previousRange.to}, ${params.config.timezone}). Use web_metrics with period="both" to compare periods efficiently.${siteBlock}
-${orgContext}${annotationContext}${recentInsightsBlock}${dismissedBlock}`;
+${orgContext}${annotationContext}${historyBlock}${dismissedBlock}`;
 
 	const { tools: analyticsTools } = createInsightsAgentTools({
 		websiteId: params.websiteId,

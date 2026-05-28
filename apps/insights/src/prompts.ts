@@ -86,7 +86,7 @@ export async function fetchDismissedPatterns(
 	return `\n\nInsights users marked as NOT helpful (avoid similar narratives):\n${lines.join("\n")}`;
 }
 
-export async function fetchRecentInsightsForPrompt(
+export async function fetchInsightHistory(
 	organizationId: string,
 	websiteId: string,
 	config: InsightGenerationConfigSnapshot
@@ -95,8 +95,14 @@ export async function fetchRecentInsightsForPrompt(
 	const rows = await db
 		.select({
 			title: analyticsInsights.title,
+			description: analyticsInsights.description,
 			type: analyticsInsights.type,
+			severity: analyticsInsights.severity,
+			rootCause: analyticsInsights.rootCause,
+			changePercent: analyticsInsights.changePercent,
+			subjectKey: analyticsInsights.subjectKey,
 			createdAt: analyticsInsights.createdAt,
+			runId: analyticsInsights.runId,
 		})
 		.from(analyticsInsights)
 		.where(
@@ -113,12 +119,43 @@ export async function fetchRecentInsightsForPrompt(
 		return "";
 	}
 
-	const lines = rows.map(
-		(row) =>
-			`- [${row.type}] ${row.title} (${dayjs(row.createdAt).format("YYYY-MM-DD")})`
-	);
+	const subjectCounts = new Map<string, number>();
+	for (const row of rows) {
+		subjectCounts.set(
+			row.subjectKey,
+			(subjectCounts.get(row.subjectKey) ?? 0) + 1
+		);
+	}
 
-	return `\n\nRecently reported (avoid repeating unless materially changed):\n${lines.join("\n")}`;
+	const seen = new Set<string>();
+	const lines: string[] = [];
+	for (const row of rows) {
+		if (seen.has(row.subjectKey)) {
+			continue;
+		}
+		seen.add(row.subjectKey);
+
+		const date = dayjs(row.createdAt).format("YYYY-MM-DD");
+		const recurrence = subjectCounts.get(row.subjectKey) ?? 1;
+		const recurring = recurrence > 1 ? ` (reported ${recurrence}x)` : "";
+		const change =
+			row.changePercent === null
+				? ""
+				: ` ${row.changePercent > 0 ? "+" : ""}${Math.round(row.changePercent)}%`;
+
+		lines.push(
+			`- [${row.severity}] ${row.title}${change}${recurring} (${date})`
+		);
+		if (row.description) {
+			lines.push(`  ${row.description.slice(0, 150)}`);
+		}
+		if (row.rootCause) {
+			lines.push(`  Cause: ${row.rootCause.slice(0, 100)}`);
+		}
+	}
+
+	return `\n\nPrevious findings for this site (compare against current data — note what resolved, worsened, or persists):
+${lines.join("\n")}`;
 }
 
 export interface OrgWebsiteRow {
@@ -252,7 +289,7 @@ export function buildInvestigationPrompt(
 		githubRepo?: { owner: string; repo: string };
 		orgContext: string;
 		period: WeekOverWeekPeriod;
-		recentInsightsBlock: string;
+		historyBlock: string;
 		siteContext: string;
 		timezone: string;
 	}
@@ -285,5 +322,5 @@ ${githubInstruction}
 8. Emit findings via emit_insight as you go.
 
 summary_metrics is the canonical source for headline numbers.
-${params.orgContext}${params.annotationContext}${params.recentInsightsBlock}${params.dismissedBlock}`;
+${params.orgContext}${params.annotationContext}${params.historyBlock}${params.dismissedBlock}`;
 }
