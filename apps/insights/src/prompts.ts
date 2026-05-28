@@ -96,13 +96,11 @@ export async function fetchInsightHistory(
 		.select({
 			title: analyticsInsights.title,
 			description: analyticsInsights.description,
-			type: analyticsInsights.type,
 			severity: analyticsInsights.severity,
 			rootCause: analyticsInsights.rootCause,
 			changePercent: analyticsInsights.changePercent,
 			subjectKey: analyticsInsights.subjectKey,
 			createdAt: analyticsInsights.createdAt,
-			runId: analyticsInsights.runId,
 		})
 		.from(analyticsInsights)
 		.where(
@@ -113,7 +111,7 @@ export async function fetchInsightHistory(
 			)
 		)
 		.orderBy(desc(analyticsInsights.createdAt))
-		.limit(RECENT_INSIGHTS_PROMPT_LIMIT);
+		.limit(50);
 
 	if (rows.length === 0) {
 		return "";
@@ -121,22 +119,24 @@ export async function fetchInsightHistory(
 
 	const subjectCounts = new Map<string, number>();
 	for (const row of rows) {
-		subjectCounts.set(
-			row.subjectKey,
-			(subjectCounts.get(row.subjectKey) ?? 0) + 1
-		);
+		const key = row.subjectKey || row.title;
+		subjectCounts.set(key, (subjectCounts.get(key) ?? 0) + 1);
 	}
 
 	const seen = new Set<string>();
 	const lines: string[] = [];
 	for (const row of rows) {
-		if (seen.has(row.subjectKey)) {
+		if (lines.length >= RECENT_INSIGHTS_PROMPT_LIMIT) {
+			break;
+		}
+		const key = row.subjectKey || row.title;
+		if (seen.has(key)) {
 			continue;
 		}
-		seen.add(row.subjectKey);
+		seen.add(key);
 
 		const date = dayjs(row.createdAt).format("YYYY-MM-DD");
-		const recurrence = subjectCounts.get(row.subjectKey) ?? 1;
+		const recurrence = subjectCounts.get(key) ?? 1;
 		const recurring = recurrence > 1 ? ` (reported ${recurrence}x)` : "";
 		const change =
 			row.changePercent === null
