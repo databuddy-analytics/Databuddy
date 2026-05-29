@@ -6,6 +6,7 @@ import {
 	safeDeltaPercent,
 	type DetectedSignal,
 	type QueryFn,
+	wowWindow,
 } from "./detection";
 
 export interface SegmentMover {
@@ -125,17 +126,7 @@ function computeWindow(
 		};
 	}
 
-	const windowDays = Math.max(3, lookbackDays);
-	return {
-		currentFrom: detectedDay
-			.subtract(windowDays - 1, "day")
-			.format("YYYY-MM-DD"),
-		currentTo: detectedDay.format("YYYY-MM-DD"),
-		previousFrom: detectedDay
-			.subtract(windowDays * 2 - 1, "day")
-			.format("YYYY-MM-DD"),
-		previousTo: detectedDay.subtract(windowDays, "day").format("YYYY-MM-DD"),
-	};
+	return wowWindow(detectedDay, lookbackDays);
 }
 
 function queryPeriodPair(

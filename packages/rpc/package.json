@@ -12,6 +12,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./analytics-utils": "./src/lib/analytics-utils.ts",
     "./autumn": "./src/lib/autumn-client.ts",
     "./billing": "./src/utils/billing.ts",
     "./flags": "./src/utils/flags.ts",

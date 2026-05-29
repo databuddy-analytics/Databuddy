@@ -104,6 +104,29 @@ const VITALS_METRICS: Record<string, string> = {
 	INP: "Interaction speed (INP)",
 };
 
+export interface WowWindow {
+	currentFrom: string;
+	currentTo: string;
+	previousFrom: string;
+	previousTo: string;
+}
+
+export function wowWindow(today: dayjs.Dayjs, lookbackDays: number): WowWindow {
+	const windowDays = Math.max(3, lookbackDays);
+	return {
+		currentFrom: today.subtract(windowDays - 1, "day").format("YYYY-MM-DD"),
+		currentTo: today.format("YYYY-MM-DD"),
+		previousFrom: today
+			.subtract(windowDays * 2 - 1, "day")
+			.format("YYYY-MM-DD"),
+		previousTo: today.subtract(windowDays, "day").format("YYYY-MM-DD"),
+	};
+}
+
+function round2(value: number): number {
+	return Number(value.toFixed(2));
+}
+
 type SignalFilter = (signal: DetectedSignal) => boolean;
 
 const METRIC_FILTERS: Record<string, SignalFilter> = {
@@ -124,12 +147,13 @@ const DEFAULT_TRAFFIC_FILTER: SignalFilter = (s) =>
 	Math.max(s.current, s.baseline) >= FILTER_TRAFFIC_MIN_PEAK &&
 	Math.abs(s.current - s.baseline) >= FILTER_TRAFFIC_MIN_DELTA;
 
-function makeWowSignal(
+export function makeWowSignal(
 	metric: string,
 	label: string,
 	current: number,
 	baseline: number,
-	detectedAt: string
+	detectedAt: string,
+	round = false
 ): DetectedSignal {
 	const pct = baseline === 0 ? 100 : safeDeltaPercent(current, baseline);
 	return {
@@ -137,9 +161,9 @@ function makeWowSignal(
 		label,
 		method: "wow",
 		direction: current > baseline ? "up" : "down",
-		current,
-		baseline,
-		deltaPercent: Number(pct.toFixed(2)),
+		current: round ? round2(current) : current,
+		baseline: round ? round2(baseline) : baseline,
+		deltaPercent: round2(pct),
 		severity: assignSeverity(undefined, pct),
 		detectedAt,
 	};
@@ -371,16 +395,10 @@ async function detectWow(
 	queryFn: QueryFn
 ): Promise<DetectedSignal[]> {
 	const { websiteId, lookbackDays, timezone } = params;
-	const windowDays = Math.max(3, lookbackDays);
-
-	const currentFrom = today
-		.subtract(windowDays - 1, "day")
-		.format("YYYY-MM-DD");
-	const currentTo = today.format("YYYY-MM-DD");
-	const previousFrom = today
-		.subtract(windowDays * 2 - 1, "day")
-		.format("YYYY-MM-DD");
-	const previousTo = today.subtract(windowDays, "day").format("YYYY-MM-DD");
+	const { currentFrom, currentTo, previousFrom, previousTo } = wowWindow(
+		today,
+		lookbackDays
+	);
 
 	function query(type: string, from: string, to: string) {
 		return queryFn(
