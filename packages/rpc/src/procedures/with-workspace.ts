@@ -10,7 +10,7 @@ import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import type { PlanId } from "@databuddy/shared/types/features";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { logger, record } from "../lib/logger";
+import { record } from "../lib/logger";
 import { type Context, os } from "../orpc";
 
 type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
@@ -42,14 +42,9 @@ const getWebsiteById = cacheable(
 		if (!id) {
 			return null;
 		}
-		try {
-			return await db.query.websites.findFirst({
-				where: { id },
-			});
-		} catch (error) {
-			logger.error({ error, id }, "Error fetching website by ID");
-			return null;
-		}
+		return await db.query.websites.findFirst({
+			where: { id },
+		});
 	},
 	{
 		expireInSec: 600,
@@ -63,16 +58,11 @@ const _getOrganizationRole = async (
 	userId: string,
 	organizationId: string
 ): Promise<string | null> => {
-	try {
-		const membership = await db.query.member.findFirst({
-			where: { userId, organizationId },
-			columns: { role: true },
-		});
-		return membership?.role ?? null;
-	} catch (error) {
-		logger.error({ error, userId, organizationId }, "Error fetching org role");
-		return null;
-	}
+	const membership = await db.query.member.findFirst({
+		where: { userId, organizationId },
+		columns: { role: true },
+	});
+	return membership?.role ?? null;
 };
 
 const getOrganizationRole = cacheable(_getOrganizationRole, {
