@@ -16,16 +16,11 @@ const _getOrganizationOwnerId = async (
 	if (!organizationId) {
 		return null;
 	}
-	try {
-		const orgMember = await db.query.member.findFirst({
-			where: { organizationId, role: "owner" },
-			columns: { userId: true },
-		});
-		return orgMember?.userId ?? null;
-	} catch (error) {
-		logger.error({ error }, "Error resolving organization owner");
-		return null;
-	}
+	const orgMember = await db.query.member.findFirst({
+		where: { organizationId, role: "owner" },
+		columns: { userId: true },
+	});
+	return orgMember?.userId ?? null;
 };
 
 export const getOrganizationOwnerId = cacheable(_getOrganizationOwnerId, {
