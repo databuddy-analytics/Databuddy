@@ -48,8 +48,9 @@ import {
 	buildInvestigationPrompt,
 	buildSystemPrompt,
 	fetchDismissedPatterns,
-	fetchRecentAnnotations,
 	fetchInsightHistory,
+	fetchRecentAnnotations,
+	fetchSiteCapabilities,
 	formatOrgWebsitesContext,
 	type OrgWebsiteRow,
 } from "./prompts";
@@ -295,17 +296,24 @@ async function analyzeWebsite(params: {
 
 	const investigationMode = enrichedSignals.length > 0;
 
-	const [annotationContext, historyBlock, siteContext, dismissedBlock] =
-		await Promise.all([
-			fetchRecentAnnotations(params.websiteId, params.config),
-			fetchInsightHistory(
-				params.organizationId,
-				params.websiteId,
-				params.config
-			),
-			getCachedSiteContext(params.domain),
-			fetchDismissedPatterns(params.organizationId, params.websiteId),
-		]);
+	const [
+		annotationContext,
+		historyBlock,
+		siteContext,
+		dismissedBlock,
+		capabilitiesBlock,
+	] = await Promise.all([
+		fetchRecentAnnotations(params.websiteId, params.config),
+		fetchInsightHistory(params.organizationId, params.websiteId, params.config),
+		getCachedSiteContext(params.domain),
+		fetchDismissedPatterns(params.organizationId, params.websiteId),
+		fetchSiteCapabilities(
+			params.websiteId,
+			params.config.timezone,
+			currentRange.from,
+			currentRange.to
+		),
+	]);
 
 	const allowedTools = normalizeAllowedTools(params.config.allowedTools);
 	const orgContext = formatOrgWebsitesContext(
@@ -324,10 +332,11 @@ async function analyzeWebsite(params: {
 				historyBlock,
 				annotationContext,
 				dismissedBlock,
+				capabilitiesBlock,
 				orgContext,
 				siteContext: siteBlock,
 			})
-		: `Analyze ${params.domain} (${currentRange.from} to ${currentRange.to} vs ${previousRange.from} to ${previousRange.to}, ${params.config.timezone}). Use web_metrics with period="both" to compare periods efficiently.${siteBlock}
+		: `Analyze ${params.domain} (${currentRange.from} to ${currentRange.to} vs ${previousRange.from} to ${previousRange.to}, ${params.config.timezone}). Use web_metrics with period="both" to compare periods efficiently.${siteBlock}${capabilitiesBlock}
 ${orgContext}${annotationContext}${historyBlock}${dismissedBlock}`;
 
 	const { tools: analyticsTools } = createInsightsAgentTools({

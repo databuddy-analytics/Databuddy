@@ -794,16 +794,16 @@
       const id = escapeHtml(c.id);
       const cost = (c.metrics?.costUsd || 0) + (c.metrics?.judgeCostUsd || 0);
       return `<tr>
-                                                                                        <td><div class="case-id" title="${id}">${id}</div></td>
-                                                                                        <td><span class="pill cat">${escapeHtml(c.category || "case")}</span></td>
-                                                                                        <td><span class="pill ${c.passed ? "pass" : "fail"}">${c.passed ? "Pass" : "Fail"}</span></td>
-                                                                                        <td class="num ${scoreTone(c.scores?.tool_routing ?? 0)}">${c.scores?.tool_routing ?? "--"}</td>
-                                                                                        <td class="num ${scoreTone(c.scores?.quality ?? 0)}">${c.scores?.quality ?? "--"}</td>
-                                                                                        <td class="num">${((c.metrics?.latencyMs || 0) / 1000).toFixed(1)}s</td>
-                                                                                        <td class="num">${c.metrics?.steps ?? "--"}</td>
-                                                                                        <td class="num">${money(cost)}</td>
-                                                                                        <td><button class="row-action" data-open-case="${id}" type="button">Inspect</button></td>
-                                                                                      </tr><tr><td colspan="9"><div class="detail ${openId === c.id ? "open" : ""}" id="detail-${id}">${detail(c)}</div></td></tr>`;
+                                                                                            <td><div class="case-id" title="${id}">${id}</div></td>
+                                                                                            <td><span class="pill cat">${escapeHtml(c.category || "case")}</span></td>
+                                                                                            <td><span class="pill ${c.passed ? "pass" : "fail"}">${c.passed ? "Pass" : "Fail"}</span></td>
+                                                                                            <td class="num ${scoreTone(c.scores?.tool_routing ?? 0)}">${c.scores?.tool_routing ?? "--"}</td>
+                                                                                            <td class="num ${scoreTone(c.scores?.quality ?? 0)}">${c.scores?.quality ?? "--"}</td>
+                                                                                            <td class="num">${((c.metrics?.latencyMs || 0) / 1000).toFixed(1)}s</td>
+                                                                                            <td class="num">${c.metrics?.steps ?? "--"}</td>
+                                                                                            <td class="num">${money(cost)}</td>
+                                                                                            <td><button class="row-action" data-open-case="${id}" type="button">Inspect</button></td>
+                                                                                          </tr><tr><td colspan="9"><div class="detail ${openId === c.id ? "open" : ""}" id="detail-${id}">${detail(c)}</div></td></tr>`;
     }
 
     function detail(c) {
@@ -815,7 +815,7 @@
           .map((t) => `<span class="pill cat">${escapeHtml(t)}</span>`)
           .join("") || '<span class="sub">No tools called</span>';
       return `<div class="box"><h3>Response</h3><pre>${escapeHtml(c.response || "No response captured.")}</pre></div>
-                                                                                        <div class="box"><h3>Failures</h3><ul class="fail-list">${failures}</ul><h3 style="margin-top:14px">Tools</h3><div class="tools">${tools}</div></div>`;
+                                                                                            <div class="box"><h3>Failures</h3><ul class="fail-list">${failures}</ul><h3 style="margin-top:14px">Tools</h3><div class="tools">${tools}</div></div>`;
     }
 
     function toggle(id) {

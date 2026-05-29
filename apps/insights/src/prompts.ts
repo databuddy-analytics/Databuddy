@@ -1,8 +1,11 @@
 import type { WeekOverWeekPeriod } from "@databuddy/ai/insights/types";
+import { executeQuery } from "@databuddy/ai/query";
 import { and, db, desc, eq, gte, isNull } from "@databuddy/db";
 import {
 	analyticsInsights,
 	annotations,
+	funnelDefinitions,
+	goals,
 	type InsightGenerationConfigSnapshot,
 	insightUserFeedback,
 } from "@databuddy/db/schema";
@@ -10,6 +13,130 @@ import dayjs from "dayjs";
 import type { EnrichedSignal } from "./enrichment";
 
 const RECENT_INSIGHTS_PROMPT_LIMIT = 12;
+
+export async function fetchSiteCapabilities(
+	websiteId: string,
+	timezone: string,
+	from: string,
+	to: string
+): Promise<string> {
+	const [customEventRows, errorSummaryRows, vitalRows, funnelRows, goalRows] =
+		await Promise.all([
+			executeQuery(
+				{
+					projectId: websiteId,
+					type: "custom_events_discovery",
+					from,
+					to,
+					timezone,
+					limit: 50,
+				},
+				undefined,
+				timezone
+			),
+			executeQuery(
+				{
+					projectId: websiteId,
+					type: "error_summary",
+					from,
+					to,
+					timezone,
+				},
+				undefined,
+				timezone
+			),
+			executeQuery(
+				{
+					projectId: websiteId,
+					type: "vitals_overview",
+					from,
+					to,
+					timezone,
+				},
+				undefined,
+				timezone
+			),
+			db
+				.select({ name: funnelDefinitions.name })
+				.from(funnelDefinitions)
+				.where(
+					and(
+						eq(funnelDefinitions.websiteId, websiteId),
+						eq(funnelDefinitions.isActive, true),
+						isNull(funnelDefinitions.deletedAt)
+					)
+				)
+				.limit(20),
+			db
+				.select({ name: goals.name, type: goals.type, target: goals.target })
+				.from(goals)
+				.where(
+					and(
+						eq(goals.websiteId, websiteId),
+						eq(goals.isActive, true),
+						isNull(goals.deletedAt)
+					)
+				)
+				.limit(20),
+		]);
+
+	const parts: string[] = [];
+
+	const eventNames = [
+		...new Set(
+			(
+				customEventRows as Array<{
+					event_name?: string;
+					total_events?: number;
+				}>
+			)
+				.filter((r) => r.event_name && (r.total_events ?? 0) > 0)
+				.map((r) => r.event_name as string)
+		),
+	];
+	if (eventNames.length > 0) {
+		parts.push(
+			`Custom events (${eventNames.length}): ${eventNames.join(", ")}`
+		);
+	} else {
+		parts.push("Custom events: none configured");
+	}
+
+	const errors = errorSummaryRows[0] as { totalErrors?: number } | undefined;
+	const errorCount = Number(errors?.totalErrors ?? 0);
+	parts.push(
+		errorCount > 0
+			? `Errors: ${errorCount} in current period`
+			: "Errors: none recorded"
+	);
+
+	const vitals = (vitalRows as Array<{ metric_name?: string }>).map(
+		(r) => r.metric_name
+	);
+	if (vitals.length > 0) {
+		parts.push(`Vitals: ${vitals.join(", ")}`);
+	} else {
+		parts.push("Vitals: no data");
+	}
+
+	if (funnelRows.length > 0) {
+		parts.push(
+			`Funnels (${funnelRows.length}): ${funnelRows.map((f) => f.name).join(", ")}`
+		);
+	} else {
+		parts.push("Funnels: none configured");
+	}
+
+	if (goalRows.length > 0) {
+		parts.push(
+			`Goals (${goalRows.length}): ${goalRows.map((g) => `${g.name} (${g.type}: ${g.target})`).join(", ")}`
+		);
+	} else {
+		parts.push("Goals: none configured");
+	}
+
+	return `\nSite capabilities:\n${parts.join("\n")}`;
+}
 
 export function promptLookbackDays(
 	config: InsightGenerationConfigSnapshot
@@ -284,6 +411,7 @@ export function buildInvestigationPrompt(
 	enrichedSignals: EnrichedSignal[],
 	params: {
 		annotationContext: string;
+		capabilitiesBlock: string;
 		dismissedBlock: string;
 		domain: string;
 		githubRepo?: { owner: string; repo: string };
@@ -305,7 +433,7 @@ export function buildInvestigationPrompt(
 
 	return `Investigating ${enrichedSignals.length} anomalies on ${domain}.
 Period: ${period.current.from} to ${period.current.to} vs ${period.previous.from} to ${period.previous.to} (${timezone})
-${params.siteContext}
+${params.siteContext}${params.capabilitiesBlock}
 
 SIGNALS:
 
