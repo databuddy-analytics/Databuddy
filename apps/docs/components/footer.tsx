@@ -1,13 +1,12 @@
 "use client";
 
-import { SiDiscord, SiX } from "@icons-pack/react-simple-icons";
 import { Button } from "@databuddy/ui";
 import { EnvelopeIcon } from "@databuddy/ui/icons";
+import { SiDiscord, SiX } from "@icons-pack/react-simple-icons";
 import Image from "next/image";
 import Link from "next/link";
 import { CCPAIcon } from "./icons/ccpa";
 import { GDPRIcon } from "./icons/gdpr";
-import { Wordmark } from "./landing/wordmark";
 import { LogoContent } from "./logo";
 import { NavLink } from "./nav-link";
 import { NewsletterForm } from "./newsletter-form";
@@ -281,7 +280,6 @@ export function Footer() {
 				<FooterNav />
 				<ComplianceLinks />
 				<FooterBottom />
-				<Wordmark />
 			</div>
 		</footer>
 	);
