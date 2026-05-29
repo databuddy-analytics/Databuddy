@@ -193,7 +193,34 @@ async function invalidateMemberCaches(member: {
 	}
 }
 
+type AuthLogLevel = "info" | "warn" | "error" | "debug";
+
+function forwardAuthLog(
+	level: AuthLogLevel,
+	message: string,
+	...args: unknown[]
+): void {
+	const cause = args.find((arg): arg is Error => arg instanceof Error);
+	const fields = {
+		service: "auth",
+		auth_logger: message,
+		...(cause && { error: cause.message, error_stack: cause.stack }),
+	};
+	if (level === "error") {
+		log.error(fields);
+		return;
+	}
+	if (level === "warn") {
+		log.warn(fields);
+		return;
+	}
+	log.info(fields);
+}
+
 export const auth = betterAuth({
+	logger: {
+		log: forwardAuthLog,
+	},
 	database: drizzleAdapter(db, {
 		provider: "pg",
 		schema,
