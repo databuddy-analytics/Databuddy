@@ -225,25 +225,65 @@ const spendLimitConfigSchema = z
 		}
 	);
 
-interface AutoTopupEntry {
-	enabled: boolean;
-	featureId: string;
-	quantity: number;
-	threshold: number;
+interface BillingControlEntries {
+	autoTopups: {
+		enabled: boolean;
+		featureId: string;
+		quantity: number;
+		threshold: number;
+	};
+	spendLimits: {
+		enabled: boolean;
+		featureId: string;
+		overageLimit: number;
+	};
+	usageAlerts: {
+		enabled: boolean;
+		featureId: string;
+		threshold: number;
+		thresholdType: "usage_percentage";
+	};
 }
 
-interface UsageAlertEntry {
-	enabled: boolean;
-	featureId: string;
-	name?: string;
-	threshold: number;
-	thresholdType: "usage_percentage";
-}
+async function upsertBillingControl<
+	K extends keyof BillingControlEntries,
+>(args: {
+	context: { user: { id: string }; organizationId?: string | null };
+	key: K;
+	entry: BillingControlEntries[K];
+	operation: string;
+}): Promise<void> {
+	const { customerId, canUserUpgrade } = await getBillingOwner(
+		args.context.user.id,
+		args.context.organizationId
+	);
+	if (!canUserUpgrade) {
+		throw rpcError.forbidden(
+			"Only an organization owner or admin can change billing settings."
+		);
+	}
 
-interface SpendLimitEntry {
-	enabled: boolean;
-	featureId: string;
-	overageLimit: number;
+	try {
+		const autumn = getAutumn();
+		const customer = await autumn.customers.getOrCreate({ customerId });
+		const existing = (customer.billingControls?.[args.key] ?? []) as Array<{
+			featureId: string;
+		}>;
+		const merged = [
+			...existing.filter((e) => e.featureId !== args.entry.featureId),
+			args.entry,
+		];
+		await autumn.customers.update({
+			customerId,
+			billingControls: { [args.key]: merged } as Record<K, typeof merged>,
+		});
+	} catch (error) {
+		logger.error(
+			{ error, customerId, userId: args.context.user.id },
+			`Failed to update ${args.operation} configuration`
+		);
+		throw rpcError.internal(`Failed to update ${args.operation} settings`);
+	}
 }
 
 export const billingRouter = {
@@ -260,49 +300,18 @@ export const billingRouter = {
 		.output(autoTopupConfigSchema)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ enabled: input.enabled });
-			const { customerId, canUserUpgrade } = await getBillingOwner(
-				context.user.id,
-				context.organizationId
-			);
-			if (!canUserUpgrade) {
-				throw rpcError.forbidden(
-					"Only an organization owner or admin can change billing settings."
-				);
-			}
-
-			try {
-				const autumn = getAutumn();
-				const customer = await autumn.customers.getOrCreate({ customerId });
-				const existing = (customer.billingControls?.autoTopups ??
-					[]) as AutoTopupEntry[];
-				const nextEntry: AutoTopupEntry = {
+			await upsertBillingControl({
+				context,
+				key: "autoTopups",
+				entry: {
 					featureId: AUTO_TOPUP_FEATURE_ID,
 					enabled: input.enabled,
 					threshold: input.threshold,
 					quantity: input.quantity,
-				};
-				const merged = [
-					...existing.filter((t) => t.featureId !== AUTO_TOPUP_FEATURE_ID),
-					nextEntry,
-				];
-
-				await autumn.customers.update({
-					customerId,
-					billingControls: { autoTopups: merged },
-				});
-
-				return {
-					enabled: nextEntry.enabled,
-					threshold: nextEntry.threshold,
-					quantity: nextEntry.quantity,
-				};
-			} catch (error) {
-				logger.error(
-					{ error, customerId, userId: context.user.id },
-					"Failed to update auto top-up configuration"
-				);
-				throw rpcError.internal("Failed to update auto top-up settings");
-			}
+				},
+				operation: "auto top-up",
+			});
+			return input;
 		}),
 
 	setUsageAlert: trackedSessionProcedure
@@ -318,48 +327,18 @@ export const billingRouter = {
 		.output(usageAlertConfigSchema)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ enabled: input.enabled });
-			const { customerId, canUserUpgrade } = await getBillingOwner(
-				context.user.id,
-				context.organizationId
-			);
-			if (!canUserUpgrade) {
-				throw rpcError.forbidden(
-					"Only an organization owner or admin can change billing settings."
-				);
-			}
-
-			try {
-				const autumn = getAutumn();
-				const customer = await autumn.customers.getOrCreate({ customerId });
-				const existing = (customer.billingControls?.usageAlerts ??
-					[]) as UsageAlertEntry[];
-				const nextEntry: UsageAlertEntry = {
+			await upsertBillingControl({
+				context,
+				key: "usageAlerts",
+				entry: {
 					featureId: EVENTS_FEATURE_ID,
 					enabled: input.enabled,
 					threshold: input.threshold,
-					thresholdType: "usage_percentage",
-				};
-				const merged = [
-					...existing.filter((a) => a.featureId !== EVENTS_FEATURE_ID),
-					nextEntry,
-				];
-
-				await autumn.customers.update({
-					customerId,
-					billingControls: { usageAlerts: merged },
-				});
-
-				return {
-					enabled: nextEntry.enabled,
-					threshold: nextEntry.threshold,
-				};
-			} catch (error) {
-				logger.error(
-					{ error, customerId, userId: context.user.id },
-					"Failed to update usage alert configuration"
-				);
-				throw rpcError.internal("Failed to update usage alert settings");
-			}
+					thresholdType: "usage_percentage" as const,
+				},
+				operation: "usage alert",
+			});
+			return input;
 		}),
 
 	setSpendLimit: trackedSessionProcedure
@@ -375,47 +354,17 @@ export const billingRouter = {
 		.output(spendLimitConfigSchema)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ enabled: input.enabled });
-			const { customerId, canUserUpgrade } = await getBillingOwner(
-				context.user.id,
-				context.organizationId
-			);
-			if (!canUserUpgrade) {
-				throw rpcError.forbidden(
-					"Only an organization owner or admin can change billing settings."
-				);
-			}
-
-			try {
-				const autumn = getAutumn();
-				const customer = await autumn.customers.getOrCreate({ customerId });
-				const existing = (customer.billingControls?.spendLimits ??
-					[]) as SpendLimitEntry[];
-				const nextEntry: SpendLimitEntry = {
+			await upsertBillingControl({
+				context,
+				key: "spendLimits",
+				entry: {
 					featureId: SPEND_LIMIT_FEATURE_ID,
 					enabled: input.enabled,
 					overageLimit: input.overageLimit,
-				};
-				const merged = [
-					...existing.filter((s) => s.featureId !== SPEND_LIMIT_FEATURE_ID),
-					nextEntry,
-				];
-
-				await autumn.customers.update({
-					customerId,
-					billingControls: { spendLimits: merged },
-				});
-
-				return {
-					enabled: nextEntry.enabled,
-					overageLimit: nextEntry.overageLimit,
-				};
-			} catch (error) {
-				logger.error(
-					{ error, customerId, userId: context.user.id },
-					"Failed to update spend limit configuration"
-				);
-				throw rpcError.internal("Failed to update spend limit settings");
-			}
+				},
+				operation: "spend limit",
+			});
+			return input;
 		}),
 
 	getUsage: protectedProcedure
