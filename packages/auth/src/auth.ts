@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
-import { db } from "@databuddy/db";
+import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
 import {
 	member as memberTable,
 	organization as organizationTable,
+	verification as verificationTable,
 } from "@databuddy/db/schema";
 import {
 	DeleteAccountEmail,
@@ -155,6 +156,26 @@ function notifySignUpSlackAction(input: {
 	});
 }
 
+async function purgeOutstandingResetTokens(userId: string): Promise<void> {
+	try {
+		await db
+			.delete(verificationTable)
+			.where(
+				and(
+					like(verificationTable.identifier, "reset-password:%"),
+					eq(verificationTable.value, userId)
+				)
+			);
+	} catch (error) {
+		log.error({
+			service: "auth",
+			auth_hook: "purge_reset_tokens",
+			auth_user_id: userId,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
 async function invalidateMemberCaches(member: {
 	organizationId: string;
 	userId: string;
@@ -217,6 +238,16 @@ export const auth = betterAuth({
 		},
 	},
 	databaseHooks: {
+		account: {
+			update: {
+				after: async (account) => {
+					if (account.providerId !== "credential" || !account.userId) {
+						return;
+					}
+					await purgeOutstandingResetTokens(account.userId);
+				},
+			},
+		},
 		user: {
 			create: {
 				after: async (createdUser) => {
@@ -368,6 +399,10 @@ export const auth = betterAuth({
 		maxPasswordLength: 128,
 		autoSignIn: false,
 		requireEmailVerification: shouldRequireEmailVerification(),
+		revokeSessionsOnPasswordReset: true,
+		onPasswordReset: async ({ user }: { user: { id: string } }) => {
+			await purgeOutstandingResetTokens(user.id);
+		},
 		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
 			const { success } = await ratelimit(`reset:${user.email}`, 3, 3600);
 			if (!success) {
