@@ -21,6 +21,7 @@ import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { Resend } from "resend";
 import { Webhook } from "svix";
+import { z } from "zod";
 import { mergeWideEvent } from "../../lib/tracing";
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -32,43 +33,52 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const svix = SVIX_SECRET ? new Webhook(SVIX_SECRET) : null;
 const slack = SLACK_URL ? new SlackProvider({ webhookUrl: SLACK_URL }) : null;
 
-interface LimitReachedData {
-	customer_id: string;
-	feature_id: string;
-	limit_type: "included" | "max_purchase" | "spend_limit";
-}
+const limitReachedSchema = z.object({
+	customer_id: z.string(),
+	feature_id: z.string(),
+	limit_type: z.enum(["included", "max_purchase", "spend_limit"]),
+});
 
-interface UsageAlertData {
-	customer_id: string;
-	feature_id: string;
-	usage_alert: {
-		name?: string;
-		threshold: number;
-		threshold_type: string;
-	};
-}
+const usageAlertSchema = z.object({
+	customer_id: z.string(),
+	feature_id: z.string(),
+	usage_alert: z.object({
+		name: z.string().optional(),
+		threshold: z.number(),
+		threshold_type: z.string(),
+	}),
+});
 
-type ProductScenario =
-	| "new"
-	| "upgrade"
-	| "downgrade"
-	| "renew"
-	| "cancel"
-	| "expired"
-	| "past_due"
-	| "scheduled";
+const productScenarioSchema = z.enum([
+	"new",
+	"upgrade",
+	"downgrade",
+	"renew",
+	"cancel",
+	"expired",
+	"past_due",
+	"scheduled",
+]);
 
-interface ProductsUpdatedData {
-	customer: {
-		id: string | null;
-		name: string | null;
-		email: string | null;
-		env: string;
-		products: Array<{ id: string; name: string; status: string }>;
-	};
-	scenario: ProductScenario;
-	updated_product: { id: string; name: string | null };
-}
+type ProductScenario = z.infer<typeof productScenarioSchema>;
+
+const productsUpdatedSchema = z.object({
+	customer: z.object({
+		id: z.string().nullable(),
+		name: z.string().nullable(),
+		email: z.string().nullable(),
+		env: z.string(),
+		products: z.array(
+			z.object({ id: z.string(), name: z.string(), status: z.string() })
+		),
+	}),
+	scenario: productScenarioSchema,
+	updated_product: z.object({ id: z.string(), name: z.string().nullable() }),
+});
+
+type LimitReachedData = z.infer<typeof limitReachedSchema>;
+type UsageAlertData = z.infer<typeof usageAlertSchema>;
+type ProductsUpdatedData = z.infer<typeof productsUpdatedSchema>;
 
 interface RawAutumnEvent {
 	data: unknown;
@@ -386,11 +396,11 @@ function dispatch(
 ): Promise<WebhookResult> | WebhookResult {
 	switch (event.type) {
 		case "balances.limit_reached":
-			return handleLimitReached(event.data as LimitReachedData);
+			return handleLimitReached(limitReachedSchema.parse(event.data));
 		case "balances.usage_alert_triggered":
-			return handleUsageAlert(event.data as UsageAlertData);
+			return handleUsageAlert(usageAlertSchema.parse(event.data));
 		case "customer.products.updated":
-			return handleProductsUpdated(event.data as ProductsUpdatedData);
+			return handleProductsUpdated(productsUpdatedSchema.parse(event.data));
 		default:
 			useLogger().warn("Unknown webhook type", {
 				autumn: { type: event.type },
@@ -446,7 +456,18 @@ export const autumnWebhook = new Elysia().post(
 		});
 		log.info("Autumn webhook", { autumn: { type: event.type } });
 
-		return dispatch(event);
+		try {
+			return await dispatch(event);
+		} catch (error) {
+			if (error instanceof z.ZodError) {
+				log.error(new Error("Invalid Autumn webhook payload"), {
+					autumn: { type: event.type, issues: error.issues },
+				});
+				set.status = 400;
+				return { success: false, message: "Invalid event payload" };
+			}
+			throw error;
+		}
 	},
 	{ parse: "none" }
 );
