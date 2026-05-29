@@ -9,7 +9,8 @@ import {
 	PLAN_IDS,
 	type PlanId,
 } from "@databuddy/shared/types/features";
-import { XMarkIcon as XIcon } from "@databuddy/ui/icons";
+import { CheckIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /** Docs pricing column ids → shared plan ids (enterprise maps to Scale limits). */
@@ -30,16 +31,30 @@ function isUnlimitedOnAllPlans(featureId: GatedFeatureId): boolean {
 	return true;
 }
 
-function pricingVisibleGatedFeatures(): GatedFeatureId[] {
+function featuresWithLimits(): GatedFeatureId[] {
 	return (Object.values(GATED_FEATURES) as GatedFeatureId[])
 		.filter((id) => !HIDDEN_PRICING_FEATURES.includes(id))
 		.filter((id) => !isUnlimitedOnAllPlans(id));
+}
+
+function featuresUnlimitedOnAll(): GatedFeatureId[] {
+	return (Object.values(GATED_FEATURES) as GatedFeatureId[])
+		.filter((id) => !HIDDEN_PRICING_FEATURES.includes(id))
+		.filter((id) => isUnlimitedOnAllPlans(id));
 }
 
 function FeatureX() {
 	return (
 		<span className="inline-flex items-center justify-center">
 			<XIcon className="size-4 text-muted-foreground" weight="bold" />
+		</span>
+	);
+}
+
+function FeatureCheck() {
+	return (
+		<span className="inline-flex items-center justify-center">
+			<CheckIcon className="size-4 text-primary" weight="bold" />
 		</span>
 	);
 }
@@ -52,7 +67,7 @@ function formatLimitCell(
 		return <FeatureX />;
 	}
 	if (limit === "unlimited") {
-		return <span>Unlimited</span>;
+		return <FeatureCheck />;
 	}
 	const meta = FEATURE_METADATA[featureId];
 	const unit = meta.unit;
@@ -86,52 +101,162 @@ interface GatedFeaturePricingRowsProps {
 	planTdClassName: (planId: string) => string;
 }
 
+const GATED_FEATURE_LINKS: Partial<Record<GatedFeatureId, string>> = {
+	[GATED_FEATURES.FEATURE_FLAGS]: "/feature-flags",
+	[GATED_FEATURES.WEB_VITALS]: "/web-vitals",
+	[GATED_FEATURES.ERROR_TRACKING]: "/errors",
+};
+
+interface PlatformFeature {
+	name: string;
+	description: string;
+	href?: string;
+}
+
+const PLATFORM_FEATURES: PlatformFeature[] = [
+	{ name: "Uptime Monitoring", description: "Endpoint checks, alerts, and status pages", href: "/uptime" },
+	{ name: "Short Links", description: "Branded links with click analytics and deep linking", href: "/links" },
+	{ name: "Revenue Tracking", description: "Stripe and Paddle revenue attribution" },
+	{ name: "Alerts & Notifications", description: "Traffic, error, and anomaly alerts" },
+	{ name: "Team Members", description: "Unlimited seats on all plans" },
+	{ name: "Websites", description: "Unlimited websites on all plans" },
+	{ name: "API Access", description: "REST API with scoped API keys" },
+	{ name: "Slack Integration", description: "Alerts and digests in Slack" },
+	{ name: "SDKs", description: "JavaScript, React, Vue, Swift" },
+];
+
+function FeatureLabel({
+	name,
+	description,
+	href,
+}: {
+	name: string;
+	description: string;
+	href?: string;
+}) {
+	if (href) {
+		return (
+			<Link
+				className="underline decoration-border underline-offset-2 transition-colors hover:text-foreground hover:decoration-foreground"
+				href={href}
+				title={description}
+			>
+				{name}
+			</Link>
+		);
+	}
+	return <span title={description}>{name}</span>;
+}
+
+function AllPlansCheckRow({
+	name,
+	description,
+	href,
+	plans,
+	planTdClassName,
+}: {
+	name: string;
+	description: string;
+	href?: string;
+	plans: Array<{ id: string }>;
+	planTdClassName: (planId: string) => string;
+}) {
+	return (
+		<tr className="border-border border-t hover:bg-card/10">
+			<th
+				className="px-4 py-3 text-left font-normal text-muted-foreground text-sm sm:px-5 lg:px-6"
+				scope="row"
+			>
+				<FeatureLabel name={name} description={description} href={href} />
+			</th>
+			{plans.map((p) => (
+				<td className={planTdClassName(p.id)} key={`${name}-${p.id}`}>
+					<FeatureCheck />
+				</td>
+			))}
+		</tr>
+	);
+}
+
 export function GatedFeaturePricingRows({
 	plans,
 	planTdClassName,
 }: GatedFeaturePricingRowsProps) {
-	const features = pricingVisibleGatedFeatures();
-	if (features.length === 0) {
-		return null;
-	}
-
+	const limited = featuresWithLimits();
+	const unlimited = featuresUnlimitedOnAll();
 	const colSpan = 1 + plans.length;
 
 	return (
 		<>
+			{limited.length > 0 && (
+				<>
+					<tr className="border-border border-t bg-muted/20">
+						<td
+							className="px-4 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wide sm:px-5 lg:px-6"
+							colSpan={colSpan}
+						>
+							Analytics features
+						</td>
+					</tr>
+					{limited.map((featureId) => {
+						const meta = FEATURE_METADATA[featureId];
+						const href = GATED_FEATURE_LINKS[featureId];
+						return (
+							<tr
+								className="border-border border-t hover:bg-card/10"
+								key={featureId}
+							>
+								<th
+									className="px-4 py-3 text-left font-normal text-muted-foreground text-sm sm:px-5 lg:px-6"
+									scope="row"
+								>
+									<FeatureLabel name={meta.name} description={meta.description} href={href} />
+								</th>
+								{plans.map((p) => (
+									<td
+										className={planTdClassName(p.id)}
+										key={`${featureId}-${p.id}`}
+									>
+										<GatedLimitCell featureId={featureId} tablePlanId={p.id} />
+									</td>
+								))}
+							</tr>
+						);
+					})}
+					{unlimited.map((featureId) => {
+						const meta = FEATURE_METADATA[featureId];
+						const href = GATED_FEATURE_LINKS[featureId];
+						return (
+							<AllPlansCheckRow
+								key={featureId}
+								name={meta.name}
+								description={meta.description}
+								href={href}
+								plans={plans}
+								planTdClassName={planTdClassName}
+							/>
+						);
+					})}
+				</>
+			)}
 			<tr className="border-border border-t bg-muted/20">
 				<td
 					className="px-4 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wide sm:px-5 lg:px-6"
 					colSpan={colSpan}
 				>
-					Product features
+					Platform
 				</td>
 			</tr>
-			{features.map((featureId) => {
-				const meta = FEATURE_METADATA[featureId];
-				return (
-					<tr
-						className="border-border border-t hover:bg-card/10"
-						key={featureId}
-					>
-						<th
-							className="px-4 py-3 text-left font-normal text-muted-foreground text-sm sm:px-5 lg:px-6"
-							scope="row"
-							title={meta.description}
-						>
-							{meta.name}
-						</th>
-						{plans.map((p) => (
-							<td
-								className={planTdClassName(p.id)}
-								key={`${featureId}-${p.id}`}
-							>
-								<GatedLimitCell featureId={featureId} tablePlanId={p.id} />
-							</td>
-						))}
-					</tr>
-				);
-			})}
+			{PLATFORM_FEATURES.map((feat) => (
+				<AllPlansCheckRow
+					key={feat.name}
+					name={feat.name}
+					description={feat.description}
+					href={feat.href}
+					plans={plans}
+					planTdClassName={planTdClassName}
+				/>
+			))}
 		</>
 	);
 }

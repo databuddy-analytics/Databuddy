@@ -47,9 +47,9 @@ export default function PricingPage() {
 						Every feature, every plan.
 					</h1>
 					<p className="mx-auto max-w-2xl text-muted-foreground text-sm sm:text-base">
-						Analytics, errors, vitals, and flags included at every tier. Pick a
-						plan based on volume, not features. Fair tiered overage, and you
-						only pay for what you use.
+						Analytics, uptime monitoring, link management, error tracking, web
+						vitals, feature flags, and more included at every tier. Pick a plan
+						based on volume, not features.
 					</p>
 				</header>
 
