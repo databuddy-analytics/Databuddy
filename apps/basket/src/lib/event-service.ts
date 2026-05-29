@@ -117,9 +117,6 @@ export function buildTrackEvent(
 	};
 }
 
-/**
- * Insert a track event (pageview/analytics event) via Kafka
- */
 export function insertTrackEvent(
 	trackData: any,
 	clientId: string,
@@ -180,9 +177,6 @@ export function insertTrackEvent(
 	});
 }
 
-/**
- * Insert an outgoing link click event into the database
- */
 export function insertOutgoingLink(
 	linkData: any,
 	clientId: string,
@@ -246,9 +240,6 @@ export function insertTrackEventsBatch(
 	});
 }
 
-/**
- * Insert lean error spans (v2.x format)
- */
 export function insertErrorSpans(
 	errors: ErrorSpan[],
 	clientId: string
@@ -294,10 +285,6 @@ export function insertErrorSpans(
 	});
 }
 
-/**
- * Insert individual vital metrics (v2.x format) as spans
- * Each metric is stored as a separate row - no aggregation
- */
 export function insertIndividualVitals(
 	vitals: IndividualVital[],
 	clientId: string
@@ -341,13 +328,6 @@ export function insertOutgoingLinksBatch(
 	});
 }
 
-/**
- * Insert organization-scoped custom events
- * owner_id: The org or user ID that owns this data (from API key)
- * website_id: Optional website scope
- * namespace: Optional logical grouping (e.g., 'billing', 'auth', 'api')
- * source: Optional origin identifier (e.g., 'backend', 'webhook', 'cli')
- */
 export function insertCustomEvents(
 	events: Array<{
 		owner_id: string;

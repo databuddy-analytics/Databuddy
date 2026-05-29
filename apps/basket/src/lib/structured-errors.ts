@@ -1,11 +1,6 @@
 import { createError, EvlogError, parseError } from "evlog";
 import type { z } from "zod";
 
-/**
- * Structured errors for the basket API (evlog EvlogError).
- * Prefer throwing these over ad-hoc Response bodies so the global handler can
- * emit consistent JSON and wide-event context.
- */
 export const basketErrors = {
 	trackPayloadTooLarge: () =>
 		createError({
@@ -194,9 +189,6 @@ export function isIngestSchemaValidationError(
 	);
 }
 
-/**
- * Re-throw EvlogErrors; wrap anything else as a 500 and log it.
- */
 export function rethrowOrWrap(
 	error: unknown,
 	log?: { error: (err: Error) => void }

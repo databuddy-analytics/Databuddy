@@ -202,3 +202,5 @@ export const analyticsEventSchema = z.object({
 		.optional()
 		.nullable(),
 });
+
+export type AnalyticsEventInput = z.infer<typeof analyticsEventSchema>;

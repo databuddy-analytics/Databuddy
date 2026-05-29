@@ -50,10 +50,6 @@ export function getWebsiteSecuritySettings(
 	};
 }
 
-/**
- * Validate incoming request for analytics events.
- * Throws basket ingest EvlogErrors on failure; returns `{ error: billing.response }` when quota is exceeded.
- */
 export function validateRequest(
 	body: unknown,
 	query: unknown,
@@ -242,12 +238,6 @@ export function validateRequest(
 	});
 }
 
-/**
- * Check if request is from a bot
- * - ALLOW: Process normally (search engines, social media)
- * - TRACK_ONLY: Log to ai_traffic_spans but don't count as pageview (AI crawlers)
- * - BLOCK: Reject and log to blocked_traffic (scrapers, malicious bots)
- */
 export function checkForBot(
 	request: Request,
 	body: unknown,

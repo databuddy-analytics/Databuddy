@@ -58,3 +58,5 @@ export const outgoingLinkSchema = z.object({
 	text: z.string().max(VALIDATION_LIMITS.TEXT_MAX_LENGTH).nullable().optional(),
 	properties: boundedPropertiesJson.optional().nullable(),
 });
+
+export type OutgoingLinkInput = z.infer<typeof outgoingLinkSchema>;

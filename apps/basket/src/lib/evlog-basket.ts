@@ -18,9 +18,6 @@ const pipeline = createDrainPipeline<DrainContext>({
 
 const axiomDrain = createAxiomDrain();
 
-/**
- * Batched Axiom drain; call {@link flushBatchedAxiomDrain} on shutdown.
- */
 const batchedAxiomDrain = pipeline(axiomDrain);
 
 const devFsLogsDir = join(
@@ -40,9 +37,6 @@ const devFsDrain = useLocalEvlogFiles
 
 const DURATION_MS_REGEX = /^([\d.]+)(ms|s)$/;
 
-/**
- * Before Axiom: fix `error` string vs object collision; downgrade 4xx to warn.
- */
 function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
 	if (typeof event.error === "string") {
 		event.error_message = event.error;
@@ -78,10 +72,6 @@ function parseDurationMs(duration: unknown): number | undefined {
 		: Math.round(Number.parseFloat(match[1]));
 }
 
-/**
- * In development, writes NDJSON wide events to `apps/basket/.evlog/logs/` (analyze-logs skill)
- * and still sends to Axiom via the batched pipeline. Production: Axiom only.
- */
 export async function basketLoggerDrain(ctx: DrainContext): Promise<void> {
 	if (ctx.event.method === "OPTIONS") {
 		return;
