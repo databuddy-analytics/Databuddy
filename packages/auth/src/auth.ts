@@ -213,6 +213,7 @@ export const auth = betterAuth({
 			enabled: true,
 			trustedProviders: ["google", "github"],
 			allowDifferentEmails: true,
+			requireLocalEmailVerified: true,
 		},
 	},
 	databaseHooks: {
@@ -364,7 +365,7 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		minPasswordLength: 8,
-		maxPasswordLength: 32,
+		maxPasswordLength: 128,
 		autoSignIn: false,
 		requireEmailVerification: shouldRequireEmailVerification(),
 		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
