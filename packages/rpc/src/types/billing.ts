@@ -13,31 +13,13 @@ import {
 } from "@databuddy/shared/types/features";
 import { ORPCError } from "@orpc/server";
 
-/**
- * Billing context included in the RPC context
- * This is automatically populated when a user is authenticated
- */
 export interface BillingContext {
-	/** Whether the current user can upgrade the plan */
 	canUserUpgrade: boolean;
-	/** The customer ID for billing (user ID or org owner ID) */
 	customerId: string;
-	/** Whether the billing is based on an organization */
 	isOrganization: boolean;
-	/** The current plan ID (e.g., 'free', 'hobby', 'pro', 'scale') */
 	planId: string;
 }
 
-/**
- * Helper to check if a user has a specific plan or higher
- *
- * @example
- * ```ts
- * if (hasPlan((await context.getBilling())?.planId, PLAN_IDS.PRO)) {
- *   // User has pro or higher
- * }
- * ```
- */
 export function hasPlan(
 	currentPlan: string | undefined,
 	requiredPlan: PlanId
@@ -56,31 +38,10 @@ export function hasPlan(
 	return currentIndex >= requiredIndex;
 }
 
-/**
- * Helper to check if a user is on the free plan
- *
- * @example
- * ```ts
- * if (isFreePlan((await context.getBilling())?.planId)) {
- *   throw errors.FEATURE_UNAVAILABLE({ data: { feature: "export" } });
- * }
- * ```
- */
 export function isFreePlan(planId: string | undefined): boolean {
 	return !planId || planId.toLowerCase() === PLAN_IDS.FREE;
 }
 
-/**
- * Get the feature limit for the user's plan
- *
- * @example
- * ```ts
- * const limit = getFeatureLimit((await context.getBilling())?.planId, GATED_FEATURES.FUNNELS);
- * if (limit === false) {
- *   throw errors.FEATURE_UNAVAILABLE({ data: { feature: "funnels" } });
- * }
- * ```
- */
 export function getFeatureLimit(
 	planId: string | undefined,
 	feature: GatedFeatureId
@@ -88,17 +49,6 @@ export function getFeatureLimit(
 	return getPlanFeatureLimit(planId ?? null, feature);
 }
 
-/**
- * Check if current usage is within the plan's limit for a feature
- *
- * @example
- * ```ts
- * const funnelCount = await getFunnelCount(websiteId);
- * if (!isUsageWithinLimit((await context.getBilling())?.planId, GATED_FEATURES.FUNNELS, funnelCount)) {
- *   throw errors.PLAN_LIMIT_EXCEEDED({ data: { limit: 5, current: funnelCount } });
- * }
- * ```
- */
 export function isUsageWithinLimit(
 	planId: string | undefined,
 	feature: GatedFeatureId,
@@ -107,16 +57,6 @@ export function isUsageWithinLimit(
 	return isWithinLimit(planId ?? null, feature, currentUsage);
 }
 
-/**
- * Throws an error if the feature is not available on the user's plan.
- * Uses FEATURE_UNAVAILABLE error code for type-safe client handling.
- *
- * @example
- * ```ts
- * requireFeature((await context.getBilling())?.planId, GATED_FEATURES.FUNNELS);
- * // Throws if user doesn't have access
- * ```
- */
 export function requireFeature(
 	planId: string | undefined,
 	feature: GatedFeatureId
@@ -132,16 +72,6 @@ export function requireFeature(
 	}
 }
 
-/**
- * Checks feature availability AND usage limit in one call.
- * Throws FEATURE_UNAVAILABLE if the feature isn't on the plan,
- * or PLAN_LIMIT_EXCEEDED if the usage limit is reached.
- *
- * @example
- * ```ts
- * requireFeatureWithLimit(workspace.plan, GATED_FEATURES.FUNNELS, existingCount);
- * ```
- */
 export function requireFeatureWithLimit(
 	planId: string | undefined,
 	feature: GatedFeatureId,
@@ -151,16 +81,6 @@ export function requireFeatureWithLimit(
 	requireUsageWithinLimit(planId, feature, currentUsage);
 }
 
-/**
- * Throws an error if current usage exceeds the plan's limit.
- * Uses PLAN_LIMIT_EXCEEDED error code for type-safe client handling.
- *
- * @example
- * ```ts
- * const funnelCount = await db.query.funnels.findMany({ where: eq(funnels.websiteId, websiteId) }).length;
- * requireUsageWithinLimit(workspace.plan, GATED_FEATURES.FUNNELS, funnelCount);
- * ```
- */
 export function requireUsageWithinLimit(
 	planId: string | undefined,
 	feature: GatedFeatureId,
