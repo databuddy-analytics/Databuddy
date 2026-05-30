@@ -3,6 +3,7 @@ import {
 	ANTHROPIC_CACHE_1H,
 	createModelFromId,
 } from "@databuddy/ai/config/models";
+import { trackAgentUsageAndBill } from "@databuddy/ai/agents/execution";
 import { hasWebInsightData } from "@databuddy/ai/insights/fetch-context";
 import type { WeekOverWeekPeriod } from "@databuddy/ai/insights/types";
 import { validateInsights } from "@databuddy/ai/insights/validate";
@@ -23,7 +24,8 @@ import { getOAuthToken } from "@databuddy/ai/tools/utils/oauth-token";
 import { stepCountIs, tool, ToolLoopAgent } from "ai";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
-import { detectSignals } from "./detection";
+import { resolveInsightsBilling } from "./billing";
+import { detectSignals, wowWindow } from "./detection";
 import { detectFunnelGoalSignals } from "./funnel-detection";
 import { enrichSignals, type EnrichedSignal } from "./enrichment";
 import {
@@ -81,40 +83,41 @@ export interface GenerateWebsiteInsightsResult {
 }
 
 function getComparisonPeriod(lookbackDays: number): WeekOverWeekPeriod {
-	const days = Math.max(1, Math.min(90, lookbackDays));
-	const now = dayjs();
+	const window = wowWindow(dayjs(), lookbackDays);
 	return {
-		current: {
-			from: now.subtract(days, "day").format("YYYY-MM-DD"),
-			to: now.format("YYYY-MM-DD"),
-		},
-		previous: {
-			from: now.subtract(days * 2, "day").format("YYYY-MM-DD"),
-			to: now.subtract(days, "day").format("YYYY-MM-DD"),
-		},
+		current: { from: window.currentFrom, to: window.currentTo },
+		previous: { from: window.previousFrom, to: window.previousTo },
 	};
 }
 
+const INSIGHTS_MODEL_IDS = {
+	fast: "openai/gpt-5.4-mini",
+	balanced: "anthropic/claude-sonnet-4.6",
+	deep: "anthropic/claude-opus-4.7",
+} as const;
+
 const INSIGHTS_MODELS = {
-	quick: createModelFromId("openai/gpt-5.4-mini"),
-	balanced: createModelFromId("anthropic/claude-sonnet-4.6"),
-	deep: createModelFromId("anthropic/claude-opus-4.7"),
+	fast: createModelFromId(INSIGHTS_MODEL_IDS.fast),
+	balanced: createModelFromId(INSIGHTS_MODEL_IDS.balanced),
+	deep: createModelFromId(INSIGHTS_MODEL_IDS.deep),
 };
 
-function modelForTier(
+type InsightsModelKey = keyof typeof INSIGHTS_MODELS;
+
+function modelKeyForTier(
 	tier: InsightGenerationConfigSnapshot["modelTier"],
 	hasCriticalSignals?: boolean
-) {
+): InsightsModelKey {
 	if (tier === "fast") {
-		return INSIGHTS_MODELS.quick;
+		return "fast";
 	}
 	if (tier === "deep") {
-		return INSIGHTS_MODELS.deep;
+		return "deep";
 	}
 	if (tier === "balanced" && hasCriticalSignals) {
-		return INSIGHTS_MODELS.deep;
+		return "deep";
 	}
-	return INSIGHTS_MODELS.balanced;
+	return "balanced";
 }
 
 function normalizeAllowedTools(
@@ -152,6 +155,7 @@ function validateCollectedInsights(
 }
 
 async function analyzeWebsite(params: {
+	billingCustomerId: string | null;
 	config: InsightGenerationConfigSnapshot;
 	domain: string;
 	githubRepo?: { owner: string; repo: string };
@@ -320,13 +324,12 @@ ${orgContext}${annotationContext}${historyBlock}${dismissedBlock}`;
 			...availableTools,
 			emit_insight: emitInsightTool,
 		};
+		const modelKey = modelKeyForTier(
+			params.config.modelTier,
+			enrichedSignals.some((s) => s.severity === "critical")
+		);
 		const agent = new ToolLoopAgent({
-			model: ai.wrap(
-				modelForTier(
-					params.config.modelTier,
-					enrichedSignals.some((s) => s.severity === "critical")
-				)
-			),
+			model: ai.wrap(INSIGHTS_MODELS[modelKey]),
 			instructions: {
 				role: "system",
 				content: buildSystemPrompt(params.config, { investigationMode }),
@@ -379,8 +382,19 @@ ${orgContext}${annotationContext}${historyBlock}${dismissedBlock}`;
 			},
 		});
 
-		await agent.generate({
+		const result = await agent.generate({
 			messages: [{ role: "user", content: userPrompt }],
+		});
+
+		await trackAgentUsageAndBill({
+			usage: result.totalUsage,
+			modelId: INSIGHTS_MODEL_IDS[modelKey],
+			source: "insights",
+			organizationId: params.organizationId,
+			userId: params.userId ?? null,
+			chatId: appContext.chatId,
+			billingCustomerId: params.billingCustomerId,
+			websiteId: params.websiteId,
 		});
 
 		if (collected.length > 0) {
@@ -506,6 +520,26 @@ export async function generateWebsiteInsights(
 		organization_site_count: orgSites.length,
 	});
 
+	const { allowed, billingCustomerId } = await resolveInsightsBilling({
+		organizationId: input.organizationId,
+		userId: input.requestedByUserId,
+	});
+	if (!allowed) {
+		emitInsightsEvent("info", "generation.website.skipped_no_credits", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			run_id: input.runId,
+			billing_customer_id: billingCustomerId,
+			duration_ms: Math.round(performance.now() - startedAt),
+		});
+		return {
+			status: "skipped",
+			resultCount: 0,
+			insightIds: [],
+			message: "Insufficient agent credits",
+		};
+	}
+
 	const period = getComparisonPeriod(input.config.lookbackDays);
 	const userId = input.requestedByUserId ?? undefined;
 	const ghIntegration = site.integrations?.github as
@@ -513,6 +547,7 @@ export async function generateWebsiteInsights(
 		| undefined;
 
 	const insights = await analyzeWebsite({
+		billingCustomerId,
 		config: input.config,
 		domain: site.domain,
 		githubRepo: ghIntegration,
