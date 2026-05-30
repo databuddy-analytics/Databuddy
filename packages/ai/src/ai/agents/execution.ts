@@ -19,7 +19,7 @@ interface AgentUsageTrackingInput {
 	chatId?: string;
 	modelId: string;
 	organizationId?: string | null;
-	source: "dashboard" | "mcp" | "slack";
+	source: "dashboard" | "mcp" | "slack" | "insights";
 	usage: LanguageModelUsage;
 	userId?: string | null;
 	websiteId?: string;
