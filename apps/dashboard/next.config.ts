@@ -94,6 +94,7 @@ const nextConfig: NextConfig = {
 			"'self'",
 			"'unsafe-inline'",
 			isDev && "'unsafe-eval'",
+			"'wasm-unsafe-eval'",
 			"https://cdn.databuddy.cc"
 		);
 
