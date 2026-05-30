@@ -7,6 +7,7 @@ import { getDataTool } from "./get-data";
 import { createGoalTools } from "./goals";
 import { createInvestigationTools } from "./investigation-tools";
 import { createLinksTools } from "./links";
+import { listWebsitesTool } from "./list-websites";
 import { createMemoryTools } from "./memory";
 import { createProfileTools } from "./profiles";
 import { dashboardActionsTool } from "./dashboard-actions";
@@ -26,6 +27,7 @@ export interface ToolkitParams {
 }
 
 const ANALYTICS_TOOLS: ToolSet = {
+	list_websites: listWebsitesTool,
 	get_data: getDataTool,
 	execute_sql_query: executeSqlQueryTool,
 };
@@ -55,7 +57,7 @@ export function createToolkit(params: ToolkitParams): ToolSet {
 		Object.assign(tools, ANALYTICS_TOOLS);
 	}
 
-	if (caps.has("investigation") && params.domain && params.organizationId) {
+	if (caps.has("investigation") && params.organizationId) {
 		Object.assign(
 			tools,
 			createInvestigationTools({

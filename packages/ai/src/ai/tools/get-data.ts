@@ -3,10 +3,16 @@ import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
 import { executeQuery, QueryBuilders } from "../../query";
 import type { QueryRequest } from "../../query/types";
-import { getAppContext } from "./utils";
+import { getAppContext, resolveToolWebsite } from "./utils";
 
 const queryItemSchema = z.object({
 	type: z.string(),
+	websiteId: z
+		.string()
+		.optional()
+		.describe(
+			"Target website id. Omit to use the workspace default. Required when comparing or querying a specific site in a multi-website workspace; get ids from list_websites."
+		),
 	from: z.string().optional(),
 	to: z.string().optional(),
 	preset: z
@@ -50,6 +56,7 @@ interface QueryItemResult {
 	executionTime: number;
 	rowCount: number;
 	type: string;
+	websiteId?: string;
 }
 
 const MAX_MODEL_ROWS = 50;
@@ -108,7 +115,7 @@ const BUILDER_CATEGORIES = `Builder types by category:
 - Revenue: revenue_overview, revenue_time_series, revenue_by_provider, revenue_by_product, revenue_attribution_overview, revenue_by_country, revenue_by_region, revenue_by_city, revenue_by_browser, revenue_by_device, revenue_by_os, revenue_by_referrer, revenue_by_utm_source, revenue_by_utm_medium, revenue_by_utm_campaign, revenue_by_entry_page, recent_transactions`;
 
 export const getDataTool = tool({
-	description: `Run analytics query builders only when the latest user message explicitly asks for website analytics data, metrics, reports, comparisons, breakdowns, trends, revenue, sessions, pages, events, errors, vitals, uptime, LLM usage, links, profiles, or similar quantitative analysis. Do not use for greetings, thanks, acknowledgments, short reactions, clarification-only replies, frustration, or meta-conversation about the assistant/chat. Batch 1-10 queries in parallel. Use preset (last_7d/last_30d/...) or from+to dates. The current website is bound server-side from the authorized chat session.\n\n${BUILDER_CATEGORIES}`,
+	description: `Run analytics query builders only when the latest user message explicitly asks for website analytics data, metrics, reports, comparisons, breakdowns, trends, revenue, sessions, pages, events, errors, vitals, uptime, LLM usage, links, profiles, or similar quantitative analysis. Do not use for greetings, thanks, acknowledgments, short reactions, clarification-only replies, frustration, or meta-conversation about the assistant/chat. Batch 1-10 queries in parallel. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via its websiteId; omit it to use the workspace default. To compare websites, send one query per website with different websiteId values.\n\n${BUILDER_CATEGORIES}`,
 	inputSchema: z.object({
 		queries: z
 			.array(queryItemSchema)
@@ -120,9 +127,7 @@ export const getDataTool = tool({
 	}),
 	execute: async ({ queries }, options) => {
 		const ctx = getAppContext(options);
-		const websiteId = ctx.websiteId;
 		const batchStart = Date.now();
-		const domain = ctx.websiteDomain || (await getWebsiteDomain(websiteId));
 
 		const results = await Promise.all(
 			queries.map(async (item): Promise<QueryItemResult> => {
@@ -138,6 +143,25 @@ export const getDataTool = tool({
 					};
 				}
 
+				let websiteId: string;
+				let resolvedDomain: string | undefined;
+				try {
+					const resolved = resolveToolWebsite(ctx, item.websiteId);
+					websiteId = resolved.websiteId;
+					resolvedDomain = resolved.domain;
+				} catch (error) {
+					return {
+						type: item.type,
+						websiteId: item.websiteId,
+						data: [],
+						rowCount: 0,
+						executionTime: 0,
+						error:
+							error instanceof Error ? error.message : "Website not resolved",
+					};
+				}
+
+				const domain = resolvedDomain || (await getWebsiteDomain(websiteId));
 				const { from, to } = resolveDates(item);
 				const req: QueryRequest = {
 					projectId: websiteId,
@@ -155,6 +179,7 @@ export const getDataTool = tool({
 				const data = await executeQuery(req, domain, req.timezone);
 				return {
 					type: item.type,
+					websiteId,
 					data: data.slice(0, MAX_MODEL_ROWS),
 					rowCount: data.length,
 					executionTime: Date.now() - queryStart,
@@ -164,7 +189,9 @@ export const getDataTool = tool({
 
 		const resultMap: Record<string, QueryItemResult> = {};
 		for (const r of results) {
-			resultMap[r.type] = r;
+			const key =
+				r.websiteId && resultMap[r.type] ? `${r.type}@${r.websiteId}` : r.type;
+			resultMap[key] = r;
 		}
 
 		return {

@@ -1,5 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { getWebsiteDomain } from "../../lib/website-utils";
+import { getAppContext, resolveToolWebsite } from "./utils";
 
 const FIRECRAWL_API = "https://api.firecrawl.dev/v1";
 const MAX_CONTENT_CHARS = 12_000;
@@ -202,17 +204,33 @@ export async function getCachedSiteContext(
 	}
 }
 
-export function createScrapeTools(domain: string) {
+export function createScrapeTools() {
 	const scrapeTool = tool({
-		description: `Scrape a page from ${domain} and return its content as markdown plus internal links. Use to understand the product: what the site does, key pages, pricing, CTAs. Also use when investigating page-level anomalies. Scrape "/" first for product context, then specific pages as needed. Results are cached for 24h.`,
+		description:
+			'Scrape a page from one of the workspace websites and return its content as markdown plus internal links. Use to understand the product: what the site does, key pages, pricing, CTAs. Also use when investigating page-level anomalies. Scrape "/" first for product context, then specific pages as needed. Pass websiteId to target a specific site; omit to use the workspace default. Results are cached for 24h.',
 		inputSchema: z.object({
+			websiteId: z
+				.string()
+				.optional()
+				.describe(
+					"Target website id. Omit to use the workspace default. Get ids from list_websites."
+				),
 			path: z
 				.string()
 				.describe(
-					"Page path to scrape (e.g. '/', '/pricing', '/docs'). Must be a path on the current website."
+					"Page path to scrape (e.g. '/', '/pricing', '/docs'). Must be a path on the target website."
 				),
 		}),
-		execute: ({ path }) => scrapePage(domain, path),
+		execute: async ({ websiteId, path }, options) => {
+			const ctx = getAppContext(options);
+			const resolved = resolveToolWebsite(ctx, websiteId);
+			const domain =
+				resolved.domain || (await getWebsiteDomain(resolved.websiteId));
+			if (!domain) {
+				return { error: "Could not resolve a domain for the target website" };
+			}
+			return scrapePage(domain, path);
+		},
 	});
 
 	return { scrape_page: scrapeTool };

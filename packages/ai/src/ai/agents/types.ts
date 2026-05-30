@@ -5,6 +5,7 @@ import type {
 	ToolLoopAgent,
 	ToolSet,
 } from "ai";
+import type { WebsiteSummary } from "../../lib/accessible-websites";
 
 type ProviderOptions = NonNullable<
 	ConstructorParameters<typeof ToolLoopAgent>[0]["providerOptions"]
@@ -28,15 +29,17 @@ export const AGENT_TIERS: readonly AgentTier[] = [
 ] as const;
 
 export interface AgentContext {
+	accessibleWebsites?: WebsiteSummary[];
 	billingCustomerId?: string | null;
 	chatId: string;
+	defaultWebsiteId?: string | null;
 	organizationId?: string;
 	requestHeaders?: Headers;
 	thinking?: AgentThinking;
 	timezone: string;
 	userId: string;
-	websiteDomain: string;
-	websiteId: string;
+	websiteDomain?: string;
+	websiteId?: string;
 }
 
 export interface AgentConfig {

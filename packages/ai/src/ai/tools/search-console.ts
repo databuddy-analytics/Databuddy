@@ -1,5 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { getWebsiteDomain } from "../../lib/website-utils";
+import { getAppContext, resolveToolWebsite } from "./utils";
 import { createCachedTokenFn } from "./utils/oauth-token";
 
 const GSC_API = "https://www.googleapis.com/webmasters/v3";
@@ -8,6 +10,12 @@ const MAX_ROWS = 25;
 const dimensionEnum = z.enum(["query", "page", "country", "device", "date"]);
 
 const searchAnalyticsInput = z.object({
+	websiteId: z
+		.string()
+		.optional()
+		.describe(
+			"Target website id. Omit to use the workspace default. Get ids from list_websites."
+		),
 	startDate: z.string().describe("Start date YYYY-MM-DD"),
 	endDate: z.string().describe("End date YYYY-MM-DD"),
 	dimensions: dimensionEnum
@@ -86,7 +94,7 @@ export async function querySearchAnalytics(
 }
 
 export function createSearchConsoleTools(params: {
-	domain: string;
+	domain?: string;
 	organizationId: string;
 	userId?: string;
 }) {
@@ -95,13 +103,29 @@ export function createSearchConsoleTools(params: {
 		params.organizationId,
 		params.userId
 	);
-	const siteUrl = `sc-domain:${params.domain}`;
 
 	return {
 		search_console: tool({
-			description: `Query Google Search Console for ${params.domain}. Returns search queries, pages, countries, or devices with clicks, impressions, CTR, and average position. Use to find which keywords lost rankings, which pages dropped in impressions, or where traffic is coming from in Google search.`,
+			description:
+				"Query Google Search Console for a workspace website. Returns search queries, pages, countries, or devices with clicks, impressions, CTR, and average position. Use to find which keywords lost rankings, which pages dropped in impressions, or where traffic is coming from in Google search. Pass websiteId to target a specific site; omit to use the workspace default.",
 			inputSchema: searchAnalyticsInput,
-			execute: async (input) => {
+			execute: async (input, options) => {
+				const ctx = getAppContext(options);
+				let domain = params.domain;
+				if (!domain) {
+					const resolved = resolveToolWebsite(ctx, input.websiteId);
+					domain =
+						resolved.domain ||
+						(await getWebsiteDomain(resolved.websiteId)) ||
+						undefined;
+				}
+				if (!domain) {
+					return {
+						error: "Could not resolve a domain for the target website",
+					};
+				}
+				const siteUrl = `sc-domain:${domain}`;
+
 				const token = await getToken();
 				if (!token) {
 					return {

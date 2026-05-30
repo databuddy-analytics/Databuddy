@@ -3,8 +3,15 @@ import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
 import { executeQuery } from "../../query";
 import type { QueryRequest } from "../../query/types";
-import { getAppContext } from "./utils";
+import { getAppContext, resolveToolWebsite } from "./utils";
 import { createToolLogger } from "./utils/logger";
+
+const websiteIdInput = z
+	.string()
+	.optional()
+	.describe(
+		"Target website id. Omit to use the workspace default. Get ids from list_websites."
+	);
 
 const logger = createToolLogger("Profiles");
 
@@ -21,8 +28,9 @@ function today(): string {
 export function createProfileTools() {
 	const listProfilesTool = tool({
 		description:
-			"List recent visitor profiles (sessions, pageviews, device, geo, browser, referrer). Use for visitors/users/audience questions. The current website is bound server-side from the authorized chat session.",
+			"List recent visitor profiles (sessions, pageviews, device, geo, browser, referrer). Use for visitors/users/audience questions. Pass websiteId to target a specific site; omit to use the workspace default.",
 		inputSchema: z.object({
+			websiteId: websiteIdInput,
 			days: z.number().min(1).max(90).default(7),
 			limit: z.number().min(1).max(50).default(10),
 			filters: z
@@ -43,11 +51,15 @@ export function createProfileTools() {
 				)
 				.optional(),
 		}),
-		execute: async ({ days, limit, filters }, options) => {
+		execute: async (
+			{ websiteId: inputWebsiteId, days, limit, filters },
+			options
+		) => {
 			const ctx = getAppContext(options);
-			const websiteId = ctx.websiteId;
+			const resolved = resolveToolWebsite(ctx, inputWebsiteId);
+			const websiteId = resolved.websiteId;
 			try {
-				const domain = ctx.websiteDomain || (await getWebsiteDomain(websiteId));
+				const domain = resolved.domain || (await getWebsiteDomain(websiteId));
 				const from = daysAgo(days);
 				const to = today();
 
@@ -88,16 +100,21 @@ export function createProfileTools() {
 
 	const getProfileTool = tool({
 		description:
-			"Visitor detail by anonymous_id: first/last activity, sessions across analytics/custom/error/vital/link events, pageviews, duration, device, browser, OS, location. The current website is bound server-side.",
+			"Visitor detail by anonymous_id: first/last activity, sessions across analytics/custom/error/vital/link events, pageviews, duration, device, browser, OS, location. Pass websiteId to target a specific site; omit to use the workspace default.",
 		inputSchema: z.object({
+			websiteId: websiteIdInput,
 			visitorId: z.string(),
 			days: z.number().min(1).max(365).default(30),
 		}),
-		execute: async ({ visitorId, days }, options) => {
+		execute: async (
+			{ websiteId: inputWebsiteId, visitorId, days },
+			options
+		) => {
 			const ctx = getAppContext(options);
-			const websiteId = ctx.websiteId;
+			const resolved = resolveToolWebsite(ctx, inputWebsiteId);
+			const websiteId = resolved.websiteId;
 			try {
-				const domain = ctx.websiteDomain || (await getWebsiteDomain(websiteId));
+				const domain = resolved.domain || (await getWebsiteDomain(websiteId));
 				const from = daysAgo(days);
 				const to = today();
 
@@ -140,17 +157,22 @@ export function createProfileTools() {
 
 	const getProfileSessionsTool = tool({
 		description:
-			"Session history for a visitor, including analytics events, custom events, errors, outgoing links, and separate web vitals context. Use after list_profiles/get_profile. The current website is bound server-side.",
+			"Session history for a visitor, including analytics events, custom events, errors, outgoing links, and separate web vitals context. Use after list_profiles/get_profile. Pass websiteId to target a specific site; omit to use the workspace default.",
 		inputSchema: z.object({
+			websiteId: websiteIdInput,
 			visitorId: z.string(),
 			days: z.number().min(1).max(365).default(30),
 			limit: z.number().min(1).max(100).default(20),
 		}),
-		execute: async ({ visitorId, days, limit }, options) => {
+		execute: async (
+			{ websiteId: inputWebsiteId, visitorId, days, limit },
+			options
+		) => {
 			const ctx = getAppContext(options);
-			const websiteId = ctx.websiteId;
+			const resolved = resolveToolWebsite(ctx, inputWebsiteId);
+			const websiteId = resolved.websiteId;
 			try {
-				const domain = ctx.websiteDomain || (await getWebsiteDomain(websiteId));
+				const domain = resolved.domain || (await getWebsiteDomain(websiteId));
 				const from = daysAgo(days);
 				const to = today();
 

@@ -1,3 +1,5 @@
+import type { WebsiteSummary } from "../../lib/accessible-websites";
+
 export type AppMutationMode = "allow" | "dry-run";
 
 export interface ServiceAuth {
@@ -6,25 +8,61 @@ export interface ServiceAuth {
 }
 
 export interface AppContext {
+	accessibleWebsites?: WebsiteSummary[];
 	billingCustomerId?: string | null;
 	chatId: string;
 	currentDateTime: string;
+	defaultWebsiteId?: string | null;
 	mutationMode?: AppMutationMode;
 	organizationId?: string | null;
 	requestHeaders?: Headers;
 	serviceAuth?: ServiceAuth;
 	timezone: string;
 	userId: string;
-	websiteDomain: string;
-	websiteId: string;
+	websiteDomain?: string;
+	websiteId?: string;
 	[key: string]: unknown;
 }
 
+export function requireWebsiteId(context: AppContext): string {
+	const websiteId = context.defaultWebsiteId ?? context.websiteId;
+	if (!websiteId) {
+		throw new Error("This operation requires a website in context.");
+	}
+	return websiteId;
+}
+
+function escapeAttr(value: string): string {
+	return value.replace(/"/g, "&quot;");
+}
+
 export function formatContextForLLM(context: AppContext): string {
-	return `<website_info>
-<current_date>${context.currentDateTime}</current_date>
-<timezone>${context.timezone}</timezone>
-<website_id>${context.websiteId}</website_id>
-<website_domain>${context.websiteDomain}</website_domain>
-</website_info>`;
+	const lines = [
+		`<current_date>${context.currentDateTime}</current_date>`,
+		`<timezone>${context.timezone}</timezone>`,
+	];
+
+	const websites = context.accessibleWebsites ?? [];
+	if (websites.length > 0) {
+		const rows = websites
+			.map((w) => {
+				const domain = w.domain ? ` domain="${escapeAttr(w.domain)}"` : "";
+				const name = w.name ? ` name="${escapeAttr(w.name)}"` : "";
+				return `  <website id="${w.id}"${domain}${name} />`;
+			})
+			.join("\n");
+		lines.push(`<accessible_websites>\n${rows}\n</accessible_websites>`);
+	}
+
+	const defaultId = context.defaultWebsiteId ?? context.websiteId;
+	if (defaultId) {
+		lines.push(`<default_website_id>${defaultId}</default_website_id>`);
+		if (context.websiteDomain) {
+			lines.push(
+				`<default_website_domain>${context.websiteDomain}</default_website_domain>`
+			);
+		}
+	}
+
+	return `<website_info>\n${lines.join("\n")}\n</website_info>`;
 }

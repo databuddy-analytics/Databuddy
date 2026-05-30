@@ -11,3 +11,44 @@ export function getAppContext(options: {
 	}
 	return ctx as AppContext;
 }
+
+export interface ResolvedWebsite {
+	domain?: string;
+	websiteId: string;
+}
+
+export function resolveToolWebsite(
+	ctx: AppContext,
+	inputWebsiteId?: string | null
+): ResolvedWebsite {
+	const accessible = ctx.accessibleWebsites ?? [];
+	const domainFor = (id: string): string | undefined =>
+		accessible.find((w) => w.id === id)?.domain ??
+		(id === ctx.websiteId ? ctx.websiteDomain : undefined);
+
+	if (inputWebsiteId) {
+		if (
+			accessible.length > 0 &&
+			!accessible.some((w) => w.id === inputWebsiteId)
+		) {
+			throw new Error(
+				`Website "${inputWebsiteId}" is not in this workspace. Call list_websites to see available websites.`
+			);
+		}
+		return { websiteId: inputWebsiteId, domain: domainFor(inputWebsiteId) };
+	}
+
+	const fallbackId = ctx.defaultWebsiteId ?? ctx.websiteId;
+	if (fallbackId) {
+		return { websiteId: fallbackId, domain: domainFor(fallbackId) };
+	}
+
+	const [only] = accessible;
+	if (accessible.length === 1 && only) {
+		return { websiteId: only.id, domain: only.domain ?? undefined };
+	}
+
+	throw new Error(
+		"No website specified. This workspace has multiple websites — pass a websiteId for this query. Call list_websites to see the options."
+	);
+}

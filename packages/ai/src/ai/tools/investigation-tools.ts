@@ -4,7 +4,7 @@ import { createScrapeTools } from "./scrape-page";
 import { createSearchConsoleTools } from "./search-console";
 
 export interface InvestigationToolsParams {
-	domain: string;
+	domain?: string;
 	organizationId: string;
 	userId?: string;
 }
@@ -13,7 +13,7 @@ export function createInvestigationTools(
 	params: InvestigationToolsParams
 ): ToolSet {
 	return {
-		...createScrapeTools(params.domain),
+		...createScrapeTools(),
 		...createSearchConsoleTools({
 			domain: params.domain,
 			organizationId: params.organizationId,

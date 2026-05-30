@@ -181,12 +181,41 @@ Slack rules:
 Examples: "which first?" with thread metrics => read thread and pick one. "nah that's wrong" => ask for correction.
 </slack-output>`;
 
+function buildWebsiteScopeGuidance(ctx: AppContext): string {
+	const websites = ctx.accessibleWebsites ?? [];
+	const defaultId = ctx.defaultWebsiteId ?? ctx.websiteId;
+
+	if (defaultId) {
+		const defaultDomain = ctx.websiteDomain ? ` (${ctx.websiteDomain})` : "";
+		return `A default website is selected for this chat: websiteId "${defaultId}"${defaultDomain}. Omit websiteId on tools to use it. The user can mention other websites; when they name or @-mention a different site, pass that website's id explicitly. Use list_websites if you need to look up an id.`;
+	}
+
+	const only = websites[0];
+	if (websites.length === 1 && only) {
+		return `This workspace has one website: websiteId "${only.id}"${only.domain ? ` (${only.domain})` : ""}. Use it for analytics tools; you do not need to call list_websites.`;
+	}
+
+	if (websites.length > 1) {
+		return "No single website is selected. The accessible websites are listed in <background-data>. For analytics tools, pass the websiteId that matches the user's request; if the request is ambiguous about which site, ask which one. Use list_websites if you need the full list. To compare sites, query each with its own websiteId.";
+	}
+
+	return "No website is selected yet. Call list_websites first to discover available websites, then pass the chosen websiteId to analytics tools.";
+}
+
 export function buildAnalyticsInstructions(ctx: AppContext): string {
-	return `You are Databunny, an analytics assistant for ${ctx.websiteDomain}.
+	const intro = ctx.websiteDomain
+		? `You are Databunny, an analytics assistant for ${ctx.websiteDomain}.`
+		: "You are Databunny, an analytics assistant for this workspace.";
+
+	return `${intro}
 
 <background-data>
 ${formatContextForLLM(ctx)}
 </background-data>
+
+<website-scope>
+${buildWebsiteScopeGuidance(ctx)}
+</website-scope>
 
 ${COMMON_AGENT_RULES}
 

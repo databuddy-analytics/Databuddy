@@ -6,7 +6,12 @@ import {
 } from "@databuddy/db/clickhouse";
 import { tool } from "ai";
 import { z } from "zod";
-import { executeTimedQuery, getAppContext, type QueryResult } from "./utils";
+import {
+	executeTimedQuery,
+	getAppContext,
+	type QueryResult,
+	resolveToolWebsite,
+} from "./utils";
 
 const MAX_MODEL_ROWS = 50;
 
@@ -90,6 +95,12 @@ Gotchas: timestamp column is "time" in events, "timestamp" elsewhere. Pageviews 
 			.describe(
 				"Read-only ClickHouse SELECT/WITH query for an explicit analytics request. Must include client_id = {websiteId:String} AND-ed at the top level of every SELECT's WHERE."
 			),
+		websiteId: z
+			.string()
+			.optional()
+			.describe(
+				"Target website id. Omit to use the workspace default. Get ids from list_websites. The {websiteId:String} placeholder is bound to this site server-side."
+			),
 		params: z
 			.record(z.string(), z.unknown())
 			.optional()
@@ -97,11 +108,12 @@ Gotchas: timestamp column is "time" in events, "timestamp" elsewhere. Pageviews 
 				"Optional typed placeholder values. websiteId and websiteDomain are bound by the server and cannot be overridden."
 			),
 	}),
-	execute: ({ sql, params }, options): Promise<QueryResult> => {
+	execute: ({ sql, websiteId, params }, options): Promise<QueryResult> => {
 		const ctx = getAppContext(options);
+		const resolved = resolveToolWebsite(ctx, websiteId);
 		return executeAgentSqlForWebsite({
-			websiteId: ctx.websiteId,
-			websiteDomain: ctx.websiteDomain,
+			websiteId: resolved.websiteId,
+			websiteDomain: resolved.domain,
 			sql,
 			params,
 		});
