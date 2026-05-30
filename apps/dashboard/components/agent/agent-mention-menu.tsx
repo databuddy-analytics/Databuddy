@@ -4,6 +4,7 @@ import { FaviconImage } from "@/components/analytics/favicon-image";
 import type { Website } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import { Button } from "@databuddy/ui";
+import { memo, useEffect, useRef } from "react";
 
 interface AgentMentionMenuProps {
 	anchor: React.ReactNode;
@@ -13,6 +14,57 @@ interface AgentMentionMenuProps {
 	selectedIndex: number;
 	websites: Website[];
 }
+
+const MentionRow = memo(function MentionRow({
+	index,
+	isSelected,
+	onHover,
+	onSelect,
+	website,
+}: {
+	index: number;
+	isSelected: boolean;
+	onHover: (index: number) => void;
+	onSelect: (website: Website) => void;
+	website: Website;
+}) {
+	const ref = useRef<HTMLLIElement | null>(null);
+
+	useEffect(() => {
+		if (isSelected) {
+			ref.current?.scrollIntoView({ block: "nearest" });
+		}
+	}, [isSelected]);
+
+	const domain = website.domain ?? "";
+
+	return (
+		<li ref={ref}>
+			<Button
+				className={cn(
+					"h-auto w-full justify-start whitespace-normal rounded-none px-2 py-1.5 text-left",
+					isSelected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"
+				)}
+				onClick={() => onSelect(website)}
+				onMouseDown={(e) => e.preventDefault()}
+				onMouseMove={() => onHover(index)}
+				variant="ghost"
+			>
+				<span className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
+					<FaviconImage domain={domain} size={16} />
+				</span>
+				<span className="min-w-0 flex-1">
+					<span className="block truncate font-medium text-sm leading-tight">
+						{website.name ?? domain}
+					</span>
+					<span className="block truncate text-foreground/50 text-xs leading-snug">
+						{domain}
+					</span>
+				</span>
+			</Button>
+		</li>
+	);
+});
 
 export function AgentMentionMenu({
 	anchor,
@@ -36,37 +88,16 @@ export function AgentMentionMenu({
 						Mention a website
 					</div>
 					<ul className="max-h-72 overflow-y-auto py-1">
-						{websites.map((website, idx) => {
-							const isSelected = idx === selectedIndex;
-							return (
-								<li key={website.id}>
-									<Button
-										className={cn(
-											"h-auto w-full justify-start whitespace-normal rounded-none px-2 py-1.5 text-left",
-											isSelected
-												? "bg-accent text-accent-foreground"
-												: "hover:bg-accent/50"
-										)}
-										onClick={() => onSelect(website)}
-										onMouseDown={(e) => e.preventDefault()}
-										onMouseEnter={() => onHover(idx)}
-										variant="ghost"
-									>
-										<span className="flex size-8 shrink-0 items-center justify-center rounded border bg-background">
-											<FaviconImage domain={website.domain} size={16} />
-										</span>
-										<span className="min-w-0 flex-1">
-											<span className="block truncate font-medium text-sm leading-tight">
-												{website.name ?? website.domain}
-											</span>
-											<span className="block truncate text-foreground/50 text-xs leading-snug">
-												{website.domain}
-											</span>
-										</span>
-									</Button>
-								</li>
-							);
-						})}
+						{websites.map((website, idx) => (
+							<MentionRow
+								index={idx}
+								isSelected={idx === selectedIndex}
+								key={website.id}
+								onHover={onHover}
+								onSelect={onSelect}
+								website={website}
+							/>
+						))}
 					</ul>
 				</div>
 			) : null}

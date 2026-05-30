@@ -173,23 +173,26 @@ export function AgentInput() {
 		setCommandsDismissed(true);
 	};
 
-	const selectMention = (website: Website) => {
-		setMentions((prev) =>
-			prev.some((m) => m.id === website.id)
-				? prev
-				: [
-						...prev,
-						{
-							id: website.id,
-							label: website.name ?? website.domain,
-							domain: website.domain,
-						},
-					]
-		);
-		setInput(stripMentionQuery(inputSyncRef.current));
-		setSelectedMentionIndex(0);
-		requestAnimationFrame(() => textareaRef.current?.focus());
-	};
+	const selectMention = useCallback(
+		(website: Website) => {
+			setMentions((prev) =>
+				prev.some((m) => m.id === website.id)
+					? prev
+					: [
+							...prev,
+							{
+								id: website.id,
+								label: website.name ?? website.domain,
+								domain: website.domain,
+							},
+						]
+			);
+			setInput(stripMentionQuery(inputSyncRef.current));
+			setSelectedMentionIndex(0);
+			requestAnimationFrame(() => textareaRef.current?.focus());
+		},
+		[setMentions, setInput]
+	);
 
 	const removeMention = (id: string) => {
 		setMentions((prev) => prev.filter((m) => m.id !== id));
@@ -283,6 +286,50 @@ export function AgentInput() {
 		setSelectedMentionIndex(0);
 	};
 
+	const inputSurface = (
+		<div
+			className={cn(
+				"space-y-1.5 rounded-lg border border-border/60 bg-muted p-1 shadow-sm transition-colors",
+				"focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
+			)}
+		>
+			<section className="relative">
+				<div className="pointer-events-none absolute inset-x-3 top-3 max-w-full">
+					<AgentTextSwitch
+						active={input.length === 0 && !isLoading}
+						className="text-muted-foreground/80 text-sm"
+						key={placeholderReplayKey}
+						nostagger
+						phrases={AGENT_INPUT_PLACEHOLDER_PHRASES}
+					/>
+				</div>
+				<Textarea
+					aria-label="Ask Databunny about your analytics, or type slash for commands"
+					className={cn(
+						"relative min-h-0! resize-none border-0 bg-transparent text-sm shadow-none",
+						"focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0",
+						"px-3 pt-3 pb-2"
+					)}
+					maxRows={8}
+					minRows={1}
+					onBlur={() => schedulePlaceholderReplayIfIdle(false)}
+					onChange={(e) => handleInputChange(e.target.value)}
+					onKeyDown={handleMessageKeyDown}
+					ref={textareaRef}
+					rows={1}
+					showFocusIndicator={false}
+					value={input}
+				/>
+			</section>
+
+			<InputToolbar
+				canSend={Boolean(input.trim())}
+				isLoading={isLoading}
+				onStop={stop}
+			/>
+		</div>
+	);
+
 	return (
 		<form className="z-10 mt-auto" onSubmit={handleSubmit} ref={formRef}>
 			{pendingMessages.length > 0 ? (
@@ -300,88 +347,7 @@ export function AgentInput() {
 			<AgentCommandMenu
 				anchor={
 					<AgentMentionMenu
-						anchor={
-							<div
-								className={cn(
-									"space-y-1.5 rounded-lg border border-border/60 bg-muted p-1 shadow-sm transition-colors",
-									"focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50"
-								)}
-							>
-								<section className="relative">
-									<div className="pointer-events-none absolute inset-x-3 top-3 max-w-full">
-										<AgentTextSwitch
-											active={input.length === 0 && !isLoading}
-											className="text-muted-foreground/80 text-sm"
-											key={placeholderReplayKey}
-											nostagger
-											phrases={AGENT_INPUT_PLACEHOLDER_PHRASES}
-										/>
-									</div>
-									<Textarea
-										aria-label="Ask Databunny about your analytics, or type slash for commands"
-										className={cn(
-											"relative min-h-0! resize-none border-0 bg-transparent text-sm shadow-none",
-											"focus-visible:border-0 focus-visible:bg-transparent focus-visible:shadow-none focus-visible:ring-0",
-											"px-3 pt-3 pb-2"
-										)}
-										maxRows={8}
-										minRows={1}
-										onBlur={() => schedulePlaceholderReplayIfIdle(false)}
-										onChange={(e) => handleInputChange(e.target.value)}
-										onKeyDown={handleMessageKeyDown}
-										ref={textareaRef}
-										rows={1}
-										showFocusIndicator={false}
-										value={input}
-									/>
-								</section>
-
-								<div className="flex items-center justify-between gap-3 rounded border-border/60 bg-background px-1.5 py-1.5">
-									<div className="flex gap-1">
-										<Tooltip content="Attach file (coming soon)" side="top">
-											<Button
-												aria-label="Attach file"
-												className="size-7"
-												disabled
-												size="icon"
-												type="button"
-												variant="secondary"
-											>
-												<PaperclipIcon className="size-3.5" />
-											</Button>
-										</Tooltip>
-										<TierControl />
-										<ThinkingControl />
-									</div>
-
-									<div className="ml-auto flex shrink-0 items-center gap-3">
-										<KeyboardHints isLoading={isLoading} />
-										{isLoading ? (
-											<Button
-												aria-label="Stop generation"
-												className="size-7"
-												onClick={stop}
-												size="icon"
-												type="button"
-												variant="default"
-											>
-												<MediaStopIcon className="size-3.5" />
-											</Button>
-										) : (
-											<Button
-												aria-label="Send message"
-												className="size-7"
-												disabled={!input.trim()}
-												size="icon"
-												type="submit"
-											>
-												<PaperPlaneIcon className="size-3.5" />
-											</Button>
-										)}
-									</div>
-								</div>
-							</div>
-						}
+						anchor={inputSurface}
 						onHover={setSelectedMentionIndex}
 						onSelect={selectMention}
 						open={showMentions}
@@ -398,6 +364,63 @@ export function AgentInput() {
 		</form>
 	);
 }
+
+const InputToolbar = memo(function InputToolbar({
+	canSend,
+	isLoading,
+	onStop,
+}: {
+	canSend: boolean;
+	isLoading: boolean;
+	onStop: () => void;
+}) {
+	return (
+		<div className="flex items-center justify-between gap-3 rounded border-border/60 bg-background px-1.5 py-1.5">
+			<div className="flex gap-1">
+				<Tooltip content="Attach file (coming soon)" side="top">
+					<Button
+						aria-label="Attach file"
+						className="size-7"
+						disabled
+						size="icon"
+						type="button"
+						variant="secondary"
+					>
+						<PaperclipIcon className="size-3.5" />
+					</Button>
+				</Tooltip>
+				<TierControl />
+				<ThinkingControl />
+			</div>
+
+			<div className="ml-auto flex shrink-0 items-center gap-3">
+				<KeyboardHints isLoading={isLoading} />
+				{isLoading ? (
+					<Button
+						aria-label="Stop generation"
+						className="size-7"
+						onClick={onStop}
+						size="icon"
+						type="button"
+						variant="default"
+					>
+						<MediaStopIcon className="size-3.5" />
+					</Button>
+				) : (
+					<Button
+						aria-label="Send message"
+						className="size-7"
+						disabled={!canSend}
+						size="icon"
+						type="submit"
+					>
+						<PaperPlaneIcon className="size-3.5" />
+					</Button>
+				)}
+			</div>
+		</div>
+	);
+});
 
 const THINKING_LABELS: Record<AgentThinking, string> = {
 	off: "Off",
