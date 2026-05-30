@@ -3,27 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useGlobalAgent } from "@/components/agent/global-agent-provider";
-import { Skeleton } from "@databuddy/ui";
-import { AgentNoWebsites } from "./agent-no-websites";
+import { AgentGatePlaceholder, useAgentGate } from "./agent-gate";
 
 export function GlobalAgentRedirect() {
 	const router = useRouter();
-	const { chatId, organizationId, hasWebsites, isLoading } = useGlobalAgent();
+	const { chatId } = useGlobalAgent();
+	const gate = useAgentGate();
+	const ready = gate.status === "ready";
 
 	useEffect(() => {
-		if (chatId) {
+		if (ready && chatId) {
 			router.replace(`/agent/${chatId}`);
 		}
-	}, [chatId, router]);
+	}, [ready, chatId, router]);
 
-	if (organizationId && !(isLoading || hasWebsites)) {
-		return <AgentNoWebsites />;
-	}
-
-	return (
-		<div className="flex h-full flex-col gap-3 p-4">
-			<Skeleton className="h-8 w-48 rounded" />
-			<Skeleton className="h-full w-full rounded" />
-		</div>
-	);
+	return <AgentGatePlaceholder status={ready ? "loading" : gate.status} />;
 }

@@ -2,28 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { AgentWorkspace } from "@/components/agent/agent-workspace";
-import { useGlobalAgent } from "@/components/agent/global-agent-provider";
 import { clearLastChatId } from "@/components/agent/hooks/use-chat-db";
 import { ChatProvider } from "@/contexts/chat-context";
-import { Skeleton } from "@databuddy/ui";
-import { AgentNoWebsites } from "./agent-no-websites";
+import { AgentGatePlaceholder, useAgentGate } from "./agent-gate";
 
 export function GlobalAgentPage({ chatId }: { chatId: string }) {
 	const router = useRouter();
-	const { organizationId, hasWebsites, isLoading } = useGlobalAgent();
+	const gate = useAgentGate();
 
-	if (organizationId && !(isLoading || hasWebsites)) {
-		return <AgentNoWebsites />;
+	if (gate.status !== "ready") {
+		return <AgentGatePlaceholder status={gate.status} />;
 	}
 
-	if (isLoading || !organizationId) {
-		return (
-			<div className="flex h-full flex-col gap-3 p-4">
-				<Skeleton className="h-8 w-48 rounded" />
-				<Skeleton className="h-full w-full rounded" />
-			</div>
-		);
-	}
+	const { organizationId } = gate;
 
 	return (
 		<ChatProvider chatId={chatId} organizationId={organizationId}>
