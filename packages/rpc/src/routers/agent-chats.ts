@@ -4,11 +4,14 @@ import { getActiveStream } from "@databuddy/redis/stream-buffer";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { sessionProcedure, trackedSessionProcedure } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import {
+	withWorkspace,
+	workspaceInputSchema,
+} from "../procedures/with-workspace";
 
 const chatListItemSchema = z.object({
 	id: z.string(),
-	websiteId: z.string(),
+	websiteId: z.string().nullable(),
 	title: z.string(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
@@ -58,14 +61,14 @@ export const agentChatsRouter = {
 		.route({
 			method: "POST",
 			path: "/agent-chats/list",
-			summary: "List agent chats for the current user and website",
+			summary: "List agent chats for the current user and organization",
 			tags: ["AgentChats"],
 		})
-		.input(z.object({ websiteId: z.string() }))
+		.input(workspaceInputSchema)
 		.output(z.array(chatListItemSchema))
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
+			const workspace = await withWorkspace(context, {
+				organizationId: input.organizationId,
 				permissions: ["read"],
 			});
 
@@ -81,7 +84,7 @@ export const agentChatsRouter = {
 				.where(
 					and(
 						eq(agentChats.userId, context.user.id),
-						eq(agentChats.websiteId, input.websiteId)
+						eq(agentChats.organizationId, workspace.organizationId)
 					)
 				)
 				.orderBy(desc(agentChats.updatedAt))
@@ -108,12 +111,14 @@ export const agentChatsRouter = {
 				return null;
 			}
 
-			await withWorkspace(context, {
-				websiteId: row.websiteId,
-				permissions: ["read"],
-			});
+			if (row.organizationId) {
+				await withWorkspace(context, {
+					organizationId: row.organizationId,
+					permissions: ["read"],
+				});
+			}
 
-			const activeStreamId = await getActiveStream(row.websiteId, row.id);
+			const activeStreamId = await getActiveStream(row.userId, row.id);
 
 			return {
 				id: row.id,
@@ -143,17 +148,19 @@ export const agentChatsRouter = {
 		.handler(async ({ context, input }) => {
 			const row = await context.db.query.agentChats.findFirst({
 				where: { id: input.id, userId: context.user.id },
-				columns: { id: true, websiteId: true },
+				columns: { id: true, organizationId: true },
 			});
 
 			if (!row) {
 				throw rpcError.notFound("agent chat", input.id);
 			}
 
-			await withWorkspace(context, {
-				websiteId: row.websiteId,
-				permissions: ["update"],
-			});
+			if (row.organizationId) {
+				await withWorkspace(context, {
+					organizationId: row.organizationId,
+					permissions: ["read"],
+				});
+			}
 
 			await context.db
 				.update(agentChats)
@@ -175,17 +182,19 @@ export const agentChatsRouter = {
 		.handler(async ({ context, input }) => {
 			const row = await context.db.query.agentChats.findFirst({
 				where: { id: input.id, userId: context.user.id },
-				columns: { id: true, websiteId: true },
+				columns: { id: true, organizationId: true },
 			});
 
 			if (!row) {
 				throw rpcError.notFound("agent chat", input.id);
 			}
 
-			await withWorkspace(context, {
-				websiteId: row.websiteId,
-				permissions: ["delete"],
-			});
+			if (row.organizationId) {
+				await withWorkspace(context, {
+					organizationId: row.organizationId,
+					permissions: ["read"],
+				});
+			}
 
 			await context.db.delete(agentChats).where(eq(agentChats.id, input.id));
 
