@@ -21,7 +21,8 @@ import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { Resend } from "resend";
 import { Webhook } from "svix";
-import { z } from "zod";
+// biome-ignore lint/performance/noNamespaceImport: vitest+bun fails to bind zod's named `z` export; namespace import is the reliable form
+import * as z from "zod";
 import { mergeWideEvent } from "../../lib/tracing";
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
