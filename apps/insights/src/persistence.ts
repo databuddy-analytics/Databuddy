@@ -240,7 +240,10 @@ export async function persistWebsiteInsights(params: {
 	}
 	await Promise.all(
 		toRefresh.map(({ id, row }) =>
-			db.update(analyticsInsights).set(row).where(eq(analyticsInsights.id, id))
+			db
+				.update(analyticsInsights)
+				.set({ ...row, createdAt: new Date() })
+				.where(eq(analyticsInsights.id, id))
 		)
 	);
 
