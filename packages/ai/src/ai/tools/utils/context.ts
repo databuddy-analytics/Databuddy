@@ -27,10 +27,10 @@ export function resolveToolWebsite(
 		(id === ctx.websiteId ? ctx.websiteDomain : undefined);
 
 	if (inputWebsiteId) {
-		if (
-			accessible.length > 0 &&
-			!accessible.some((w) => w.id === inputWebsiteId)
-		) {
+		const isAccessible =
+			accessible.some((w) => w.id === inputWebsiteId) ||
+			inputWebsiteId === ctx.websiteId;
+		if (!isAccessible) {
 			throw new Error(
 				`Website "${inputWebsiteId}" is not in this workspace. Call list_websites to see available websites.`
 			);
