@@ -14,9 +14,9 @@ import { NewChatButton } from "./new-chat-button";
 interface AgentWorkspaceProps {
 	chatId: string;
 	defaultWebsiteId?: string;
-	onCurrentChatDeleted?: (nextChatId: string | null) => void;
-	onNewChat?: (chatId: string) => void;
-	onSelectChat?: (chatId: string) => void;
+	onCurrentChatDeleted: (nextChatId: string | null) => void;
+	onNewChat: (chatId: string) => void;
+	onSelectChat: (chatId: string) => void;
 	organizationId: string | null;
 	titleSlot?: ReactNode;
 }

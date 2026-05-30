@@ -1,6 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { AgentWorkspace } from "@/components/agent/agent-workspace";
+import { clearLastChatId } from "@/components/agent/hooks/use-chat-db";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { ChatProvider } from "@/contexts/chat-context";
 
@@ -10,7 +12,9 @@ interface AgentPageClientProps {
 }
 
 export function AgentPageClient({ chatId, websiteId }: AgentPageClientProps) {
+	const router = useRouter();
 	const { activeOrganizationId } = useOrganizationsContext();
+	const basePath = `/websites/${websiteId}/agent`;
 
 	return (
 		<ChatProvider
@@ -21,6 +25,16 @@ export function AgentPageClient({ chatId, websiteId }: AgentPageClientProps) {
 			<AgentWorkspace
 				chatId={chatId}
 				defaultWebsiteId={websiteId}
+				onCurrentChatDeleted={(nextChatId) => {
+					if (nextChatId) {
+						router.push(`${basePath}/${nextChatId}`);
+					} else {
+						clearLastChatId(websiteId);
+						router.push(basePath);
+					}
+				}}
+				onNewChat={(newChatId) => router.push(`${basePath}/${newChatId}`)}
+				onSelectChat={(nextChatId) => router.push(`${basePath}/${nextChatId}`)}
 				organizationId={activeOrganizationId}
 			/>
 		</ChatProvider>

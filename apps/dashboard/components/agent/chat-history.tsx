@@ -1,10 +1,9 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChatSafe } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
-import { clearLastChatId, useChatList } from "./hooks/use-chat-db";
+import { useChatList } from "./hooks/use-chat-db";
 import {
 	ChatTextIcon,
 	CheckIcon,
@@ -20,8 +19,8 @@ import { Button, Input, dayjs } from "@databuddy/ui";
 type Chat = ReturnType<typeof useChatList>["chats"][number];
 
 interface ChatHistoryProps {
-	onCurrentChatDeleted?: (nextChatId: string | null) => void;
-	onSelectChat?: (chatId: string) => void;
+	onCurrentChatDeleted: (nextChatId: string | null) => void;
+	onSelectChat: (chatId: string) => void;
 	organizationId?: string | null;
 }
 
@@ -29,7 +28,7 @@ export function ChatHistory({
 	onCurrentChatDeleted,
 	onSelectChat,
 	organizationId,
-}: ChatHistoryProps = {}) {
+}: ChatHistoryProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,9 +36,6 @@ export function ChatHistory({
 		id: string;
 		title: string;
 	} | null>(null);
-	const params = useParams();
-	const router = useRouter();
-	const routeWebsiteId = typeof params.id === "string" ? params.id : null;
 	const currentChatId = useChatSafe()?.id ?? null;
 	const { chats, isLoading, removeChat, renameChat } =
 		useChatList(organizationId);
@@ -61,13 +57,7 @@ export function ChatHistory({
 
 	const handleSelectChat = (chatId: string) => {
 		setOpen(false);
-		if (onSelectChat) {
-			onSelectChat(chatId);
-			return;
-		}
-		if (routeWebsiteId) {
-			router.push(`/websites/${routeWebsiteId}/agent/${chatId}`);
-		}
+		onSelectChat(chatId);
 	};
 
 	const handleConfirmDelete = () => {
@@ -83,22 +73,7 @@ export function ChatHistory({
 		}
 
 		const nextChat = chats.find((c) => c.id !== chatId);
-		const nextChatId = nextChat?.id ?? null;
-
-		if (onCurrentChatDeleted) {
-			onCurrentChatDeleted(nextChatId);
-			return;
-		}
-
-		if (!routeWebsiteId) {
-			return;
-		}
-		if (nextChatId) {
-			router.push(`/websites/${routeWebsiteId}/agent/${nextChatId}`);
-		} else {
-			clearLastChatId(routeWebsiteId);
-			router.push(`/websites/${routeWebsiteId}/agent`);
-		}
+		onCurrentChatDeleted(nextChat?.id ?? null);
 	};
 
 	const handleRename = (id: string, title: string) => {
