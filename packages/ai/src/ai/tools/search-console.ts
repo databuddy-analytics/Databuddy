@@ -112,7 +112,7 @@ export function createSearchConsoleTools(params: {
 			execute: async (input, options) => {
 				const ctx = getAppContext(options);
 				let domain = params.domain;
-				if (!domain) {
+				if (input.websiteId || !domain) {
 					const resolved = resolveToolWebsite(ctx, input.websiteId);
 					domain =
 						resolved.domain ||

@@ -189,8 +189,12 @@ export const getDataTool = tool({
 
 		const resultMap: Record<string, QueryItemResult> = {};
 		for (const r of results) {
-			const key =
-				r.websiteId && resultMap[r.type] ? `${r.type}@${r.websiteId}` : r.type;
+			const base = r.websiteId ? `${r.type}@${r.websiteId}` : r.type;
+			let key = resultMap[r.type] ? base : r.type;
+			let n = 2;
+			while (resultMap[key]) {
+				key = `${base}#${n++}`;
+			}
 			resultMap[key] = r;
 		}
 

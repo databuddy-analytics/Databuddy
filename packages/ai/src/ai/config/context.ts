@@ -33,7 +33,11 @@ export function requireWebsiteId(context: AppContext): string {
 }
 
 function escapeAttr(value: string): string {
-	return value.replace(/"/g, "&quot;");
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;");
 }
 
 export function formatContextForLLM(context: AppContext): string {
@@ -48,7 +52,7 @@ export function formatContextForLLM(context: AppContext): string {
 			.map((w) => {
 				const domain = w.domain ? ` domain="${escapeAttr(w.domain)}"` : "";
 				const name = w.name ? ` name="${escapeAttr(w.name)}"` : "";
-				return `  <website id="${w.id}"${domain}${name} />`;
+				return `  <website id="${escapeAttr(w.id)}"${domain}${name} />`;
 			})
 			.join("\n");
 		lines.push(`<accessible_websites>\n${rows}\n</accessible_websites>`);
