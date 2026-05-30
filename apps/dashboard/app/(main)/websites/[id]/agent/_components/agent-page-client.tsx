@@ -1,6 +1,8 @@
 "use client";
 
-import { AgentPageContent } from "./agent-page-content";
+import { AgentWorkspace } from "@/components/agent/agent-workspace";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { ChatProvider } from "@/contexts/chat-context";
 
 interface AgentPageClientProps {
 	chatId: string;
@@ -8,9 +10,19 @@ interface AgentPageClientProps {
 }
 
 export function AgentPageClient({ chatId, websiteId }: AgentPageClientProps) {
+	const { activeOrganizationId } = useOrganizationsContext();
+
 	return (
-		<div className="relative flex h-full flex-col">
-			<AgentPageContent chatId={chatId} websiteId={websiteId} />
-		</div>
+		<ChatProvider
+			chatId={chatId}
+			defaultWebsiteId={websiteId}
+			organizationId={activeOrganizationId}
+		>
+			<AgentWorkspace
+				chatId={chatId}
+				defaultWebsiteId={websiteId}
+				organizationId={activeOrganizationId}
+			/>
+		</ChatProvider>
 	);
 }

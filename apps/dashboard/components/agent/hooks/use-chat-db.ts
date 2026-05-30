@@ -4,8 +4,8 @@ import { orpc } from "@/lib/orpc";
 
 const LAST_CHAT_PREFIX = "databunny-last-chat";
 
-function lastChatKey(websiteId: string): string {
-	return `${LAST_CHAT_PREFIX}:${websiteId}`;
+function lastChatKey(scopeKey: string): string {
+	return `${LAST_CHAT_PREFIX}:${scopeKey}`;
 }
 
 function safeGetItem(key: string): string | null {
@@ -34,40 +34,39 @@ function safeRemoveItem(key: string): void {
 	} catch {}
 }
 
-export function getLastChatId(websiteId: string): string | null {
-	return safeGetItem(lastChatKey(websiteId));
+export function getLastChatId(scopeKey: string): string | null {
+	return safeGetItem(lastChatKey(scopeKey));
 }
 
-export function setLastChatId(websiteId: string, chatId: string): void {
+export function setLastChatId(scopeKey: string, chatId: string): void {
 	if (!chatId || typeof chatId !== "string" || chatId.trim() === "") {
 		return;
 	}
-	safeSetItem(lastChatKey(websiteId), chatId);
+	safeSetItem(lastChatKey(scopeKey), chatId);
 }
 
-export function clearLastChatId(websiteId: string): void {
-	safeRemoveItem(lastChatKey(websiteId));
+export function clearLastChatId(scopeKey: string): void {
+	safeRemoveItem(lastChatKey(scopeKey));
 }
 
-export function useChatList(websiteId: string | null | undefined) {
+export function useChatList(organizationId: string | null | undefined) {
 	const queryClient = useQueryClient();
-	const queryWebsiteId = websiteId ?? "";
 
 	const { data, isLoading } = useQuery({
 		...orpc.agentChats.list.queryOptions({
-			input: { websiteId: queryWebsiteId },
+			input: { organizationId },
 		}),
-		enabled: Boolean(websiteId),
+		enabled: Boolean(organizationId),
 	});
 
 	const invalidate = useCallback(() => {
-		if (!websiteId) {
+		if (!organizationId) {
 			return;
 		}
 		queryClient.invalidateQueries({
-			queryKey: orpc.agentChats.list.key({ input: { websiteId } }),
+			queryKey: orpc.agentChats.list.key({ input: { organizationId } }),
 		});
-	}, [queryClient, websiteId]);
+	}, [queryClient, organizationId]);
 
 	const deleteMutation = useMutation({
 		...orpc.agentChats.delete.mutationOptions(),

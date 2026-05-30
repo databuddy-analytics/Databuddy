@@ -59,6 +59,10 @@ export const mainNavigation: NavigationGroup[] = [
 			createNavItem("Home", HouseIcon, "/home"),
 			createNavItem("Websites", GlobeIcon, "/websites"),
 			createNavItem("Insights", LightbulbIcon, "/insights"),
+			createNavItem("Databunny", RobotIcon, "/agent", {
+				activeMatch: "prefix",
+				alpha: true,
+			}),
 		],
 	},
 	{

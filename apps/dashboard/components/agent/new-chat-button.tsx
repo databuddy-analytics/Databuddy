@@ -21,7 +21,7 @@ export function NewChatButton({
 	const { id } = useParams();
 	const resolvedWebsiteId = websiteId ?? (typeof id === "string" ? id : null);
 
-	if (!resolvedWebsiteId) {
+	if (!(onNewChat || resolvedWebsiteId)) {
 		return null;
 	}
 
@@ -31,7 +31,9 @@ export function NewChatButton({
 			onNewChat(newChatId);
 			return;
 		}
-		router.push(`/websites/${resolvedWebsiteId}/agent/${newChatId}`);
+		if (resolvedWebsiteId) {
+			router.push(`/websites/${resolvedWebsiteId}/agent/${newChatId}`);
+		}
 	};
 
 	return (
