@@ -108,16 +108,30 @@ const GATED_FEATURE_LINKS: Partial<Record<GatedFeatureId, string>> = {
 };
 
 interface PlatformFeature {
-	name: string;
 	description: string;
 	href?: string;
+	name: string;
 }
 
 const PLATFORM_FEATURES: PlatformFeature[] = [
-	{ name: "Uptime Monitoring", description: "Endpoint checks, alerts, and status pages", href: "/uptime" },
-	{ name: "Short Links", description: "Branded links with click analytics and deep linking", href: "/links" },
-	{ name: "Revenue Tracking", description: "Stripe and Paddle revenue attribution" },
-	{ name: "Alerts & Notifications", description: "Traffic, error, and anomaly alerts" },
+	{
+		name: "Uptime Monitoring",
+		description: "Endpoint checks, alerts, and status pages",
+		href: "/uptime",
+	},
+	{
+		name: "Short Links",
+		description: "Branded links with click analytics and deep linking",
+		href: "/links",
+	},
+	{
+		name: "Revenue Tracking",
+		description: "Stripe and Paddle revenue attribution",
+	},
+	{
+		name: "Alerts & Notifications",
+		description: "Traffic, error, and anomaly alerts",
+	},
 	{ name: "Team Members", description: "Unlimited seats on all plans" },
 	{ name: "Websites", description: "Unlimited websites on all plans" },
 	{ name: "API Access", description: "REST API with scoped API keys" },
@@ -167,7 +181,7 @@ function AllPlansCheckRow({
 				className="px-4 py-3 text-left font-normal text-muted-foreground text-sm sm:px-5 lg:px-6"
 				scope="row"
 			>
-				<FeatureLabel name={name} description={description} href={href} />
+				<FeatureLabel description={description} href={href} name={name} />
 			</th>
 			{plans.map((p) => (
 				<td className={planTdClassName(p.id)} key={`${name}-${p.id}`}>
@@ -210,7 +224,11 @@ export function GatedFeaturePricingRows({
 									className="px-4 py-3 text-left font-normal text-muted-foreground text-sm sm:px-5 lg:px-6"
 									scope="row"
 								>
-									<FeatureLabel name={meta.name} description={meta.description} href={href} />
+									<FeatureLabel
+										description={meta.description}
+										href={href}
+										name={meta.name}
+									/>
 								</th>
 								{plans.map((p) => (
 									<td
@@ -228,10 +246,10 @@ export function GatedFeaturePricingRows({
 						const href = GATED_FEATURE_LINKS[featureId];
 						return (
 							<AllPlansCheckRow
-								key={featureId}
-								name={meta.name}
 								description={meta.description}
 								href={href}
+								key={featureId}
+								name={meta.name}
 								plans={plans}
 								planTdClassName={planTdClassName}
 							/>
@@ -249,10 +267,10 @@ export function GatedFeaturePricingRows({
 			</tr>
 			{PLATFORM_FEATURES.map((feat) => (
 				<AllPlansCheckRow
-					key={feat.name}
-					name={feat.name}
 					description={feat.description}
 					href={feat.href}
+					key={feat.name}
+					name={feat.name}
 					plans={plans}
 					planTdClassName={planTdClassName}
 				/>

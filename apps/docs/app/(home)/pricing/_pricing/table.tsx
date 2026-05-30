@@ -300,9 +300,9 @@ export function PlansComparisonTable({ plans }: Props) {
 					questions, and surfaces insights automatically.
 				</p>
 				<p>
-					<span className="text-foreground">Unlimited seats & sites.</span>{" "}
-					Team members, websites, and API access are unlimited on every plan.
-					Overage is tiered with lower rates as volume increases.
+					<span className="text-foreground">Unlimited seats & sites.</span> Team
+					members, websites, and API access are unlimited on every plan. Overage
+					is tiered with lower rates as volume increases.
 				</p>
 			</div>
 		</section>
