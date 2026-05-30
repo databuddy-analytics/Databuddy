@@ -492,11 +492,8 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 
 		const user = session?.user ?? null;
 		const activeOrganizationId =
-			(
-				session?.session as
-					| { activeOrganizationId?: string | null }
-					| undefined
-			)?.activeOrganizationId ?? null;
+			(session?.session as { activeOrganizationId?: string | null } | undefined)
+				?.activeOrganizationId ?? null;
 
 		const validApiKey =
 			apiKey && hasKeyScope(apiKey, "read:data") ? apiKey : null;
