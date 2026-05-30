@@ -1,7 +1,5 @@
 import {
-	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
-	hasGlobalAccess,
 	hasKeyScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
@@ -60,7 +58,7 @@ import { Elysia, t } from "elysia";
 import { log, parseError } from "evlog";
 import { useLogger } from "evlog/elysia";
 import {
-	checkWebsiteReadPermissionCached,
+	type AgentContextSnapshotResult,
 	getAgentContextSnapshot,
 	getMemoryContextCached,
 	shouldLoadMemoryContext,
@@ -69,7 +67,7 @@ import { getAILogger } from "../lib/ai-logger";
 import { trackAgentEvent } from "../lib/databuddy";
 import { getResolvedAuth } from "../lib/auth-wide-event";
 import { captureError, mergeWideEvent } from "../lib/tracing";
-import { validateWebsite } from "../lib/website-utils";
+import { getAccessibleWebsites } from "../lib/accessible-websites";
 
 function jsonError(status: number, code: string, message: string): Response {
 	return new Response(
@@ -228,8 +226,12 @@ const UIMessageSchema = t.Object({
 	),
 });
 
+const MAX_MENTIONS = 20;
+
 const AgentRequestSchema = t.Object({
-	websiteId: t.String(),
+	organizationId: t.Optional(t.String()),
+	websiteId: t.Optional(t.String()),
+	mentions: t.Optional(t.Array(t.String(), { maxItems: MAX_MENTIONS })),
 	messages: t.Array(UIMessageSchema, { maxItems: MAX_MESSAGES }),
 	id: t.Optional(t.String()),
 	timezone: t.Optional(t.String()),
@@ -475,18 +477,26 @@ function createPlainTextStreamResponse(
 export const agent = new Elysia({ prefix: "/v1/agent" })
 	.derive(async ({ request }) => {
 		const preResolved = getResolvedAuth(request.headers);
-		let user = preResolved?.session?.user ?? null;
+		let session = preResolved?.session ?? null;
 		let apiKey = preResolved?.apiKeyResult?.key ?? null;
 
 		if (!preResolved) {
 			const hasApiKey = isApiKeyPresent(request.headers);
-			const [resolvedApiKey, session] = await Promise.all([
+			const [resolvedApiKey, freshSession] = await Promise.all([
 				hasApiKey ? getApiKeyFromHeader(request.headers) : null,
 				auth.api.getSession({ headers: request.headers }),
 			]);
-			user = session?.user ?? null;
+			session = freshSession;
 			apiKey = resolvedApiKey;
 		}
+
+		const user = session?.user ?? null;
+		const activeOrganizationId =
+			(
+				session?.session as
+					| { activeOrganizationId?: string | null }
+					| undefined
+			)?.activeOrganizationId ?? null;
 
 		const validApiKey =
 			apiKey && hasKeyScope(apiKey, "read:data") ? apiKey : null;
@@ -494,6 +504,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 		return {
 			user,
 			apiKey: validApiKey,
+			activeOrganizationId,
 			isAuthenticated: Boolean(user ?? validApiKey),
 		};
 	})
@@ -591,14 +602,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 	)
 	.post(
 		"/chat",
-		function agentChat({ body, user, apiKey, request }) {
+		function agentChat({ body, user, apiKey, activeOrganizationId, request }) {
 			return (async () => {
 				const chatId = body.id ?? generateId();
 				const t0 = performance.now();
 				let organizationId: string | null = null;
 
 				mergeWideEvent({
-					agent_website_id: body.websiteId,
 					agent_user_id: user?.id ?? "unknown",
 					agent_chat_id: chatId,
 				});
@@ -609,8 +619,27 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					}
 					const userId = user?.id ?? `apikey:${apiKey?.id}`;
 
+					organizationId =
+						body.organizationId ??
+						activeOrganizationId ??
+						apiKey?.organizationId ??
+						null;
+
+					if (!organizationId) {
+						return jsonError(
+							400,
+							"WORKSPACE_REQUIRED",
+							"No active workspace. Select an organization and try again."
+						);
+					}
+
+					mergeWideEvent({
+						organization_id: organizationId,
+						...(body.websiteId ? { agent_website_id: body.websiteId } : {}),
+					});
+
 					const rl = await ratelimit(
-						`agent:chat:${userId}:${body.websiteId}`,
+						`agent:chat:${userId}:${organizationId}`,
 						30,
 						60
 					);
@@ -622,50 +651,15 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						);
 					}
 
-					const websiteValidation = await timeAgentPhase(
-						"validate_website",
-						validateWebsite(body.websiteId)
-					);
-
-					if (!(websiteValidation.success && websiteValidation.website)) {
-						return jsonError(
-							404,
-							"WEBSITE_NOT_FOUND",
-							websiteValidation.error ?? "Website not found"
-						);
-					}
-
-					const { website } = websiteValidation;
-					organizationId = website.organizationId ?? null;
-
-					const resolvePermission = (): Promise<boolean> => {
-						if (apiKey) {
-							if (hasGlobalAccess(apiKey)) {
-								return Promise.resolve(
-									apiKey.organizationId != null &&
-										apiKey.organizationId === website.organizationId
-								);
-							}
-							return Promise.resolve(
-								getAccessibleWebsiteIds(apiKey).includes(body.websiteId)
-							);
-						}
-						if (!(user && website.organizationId)) {
-							return Promise.resolve(false);
-						}
-						return checkWebsiteReadPermissionCached(
-							user.id,
-							website.organizationId,
-							request.headers
-						);
-					};
-					const permissionCheck = timeAgentPhase(
-						"permission_check",
-						resolvePermission()
-					);
-
-					const [hasPermission, billingCustomerId] = await Promise.all([
-						permissionCheck,
+					const [accessibleWebsites, billingCustomerId] = await Promise.all([
+						timeAgentPhase(
+							"accessible_websites",
+							getAccessibleWebsites({
+								user: user ? { id: user.id } : null,
+								apiKey,
+								organizationId,
+							})
+						),
 						timeAgentPhase(
 							"resolve_billing",
 							resolveAgentBillingCustomerId({
@@ -676,30 +670,53 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						),
 					]);
 
-					if (!hasPermission) {
+					if (accessibleWebsites.length === 0) {
 						return jsonError(
 							403,
 							"ACCESS_DENIED",
-							"Access denied to this website"
+							"No accessible websites in this workspace"
 						);
 					}
+
+					let defaultWebsiteId: string | null = null;
+					let defaultDomain: string | undefined;
+					if (body.websiteId) {
+						const match = accessibleWebsites.find(
+							(w) => w.id === body.websiteId
+						);
+						if (!match) {
+							return jsonError(
+								403,
+								"ACCESS_DENIED",
+								"Access denied to this website"
+							);
+						}
+						defaultWebsiteId = match.id;
+						defaultDomain = match.domain ?? undefined;
+					}
+
+					const mentionedWebsites = (body.mentions ?? [])
+						.map((id) => accessibleWebsites.find((w) => w.id === id))
+						.filter((w): w is (typeof accessibleWebsites)[number] =>
+							Boolean(w)
+						);
 
 					if (body.id) {
 						const existingChat = await db.query.agentChats.findFirst({
 							where: { id: chatId },
-							columns: { userId: true, websiteId: true },
+							columns: { userId: true, organizationId: true },
 						});
 						if (
 							existingChat &&
 							(existingChat.userId !== userId ||
-								existingChat.websiteId !== body.websiteId)
+								(existingChat.organizationId != null &&
+									existingChat.organizationId !== organizationId))
 						) {
 							return jsonError(403, "ACCESS_DENIED", "Access denied to chat");
 						}
 					}
 
 					const timezone = body.timezone ?? "UTC";
-					const domain = website.domain ?? "unknown";
 					const lastMessage = getLastMessagePreview(body.messages);
 
 					const agentTier: AgentTier = body.tier ?? "balanced";
@@ -714,7 +731,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						action: "chat_started",
 						source: "dashboard",
 						agent_type: AGENT_TYPE,
-						website_id: body.websiteId,
+						website_id: defaultWebsiteId,
 						organization_id: organizationId,
 						user_id: userId,
 					});
@@ -722,7 +739,8 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					useLogger().info("Creating agent", {
 						agent: {
 							type: AGENT_TYPE,
-							websiteId: body.websiteId,
+							websiteId: defaultWebsiteId,
+							accessibleWebsiteCount: accessibleWebsites.length,
 							messageCount: body.messages.length,
 							lastMessage,
 						},
@@ -735,7 +753,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 									captureError(err, {
 										agent_credit_check_error: true,
 										agent_chat_id: chatId,
-										agent_website_id: body.websiteId,
+										...(defaultWebsiteId
+											? { agent_website_id: defaultWebsiteId }
+											: {}),
 									});
 									return true;
 								})
@@ -759,28 +779,41 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						"memory_enrich",
 						Promise.all([
 							creditsCheck,
-							loadMemoryContext
+							loadMemoryContext && defaultWebsiteId
 								? optionalAgentContext(
 										"memory",
-										getMemoryContextCached(lastMessage, userId, body.websiteId),
+										getMemoryContextCached(
+											lastMessage,
+											userId,
+											defaultWebsiteId
+										),
 										EMPTY_MEMORY_CONTEXT,
 										AGENT_MEMORY_CONTEXT_TIMEOUT_MS,
 										{
 											agent_chat_id: chatId,
-											agent_website_id: body.websiteId,
+											agent_website_id: defaultWebsiteId,
 										}
 									)
 								: Promise.resolve(EMPTY_MEMORY_CONTEXT),
-							optionalAgentContext(
-								"enrichment",
-								getAgentContextSnapshot(userId, body.websiteId, organizationId),
-								{ context: "", source: "error" },
-								AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
-								{
-									agent_chat_id: chatId,
-									agent_website_id: body.websiteId,
-								}
-							),
+							defaultWebsiteId
+								? optionalAgentContext(
+										"enrichment",
+										getAgentContextSnapshot(
+											userId,
+											defaultWebsiteId,
+											organizationId
+										),
+										{ context: "", source: "error" },
+										AGENT_ENRICHMENT_CONTEXT_TIMEOUT_MS,
+										{
+											agent_chat_id: chatId,
+											agent_website_id: defaultWebsiteId,
+										}
+									)
+								: Promise.resolve<AgentContextSnapshotResult>({
+										context: "",
+										source: "miss",
+									}),
 						])
 					);
 					mergeWideEvent({
@@ -805,8 +838,10 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						{
 							userId,
 							organizationId: organizationId ?? undefined,
-							websiteId: body.websiteId,
-							websiteDomain: domain,
+							websiteId: defaultWebsiteId ?? undefined,
+							websiteDomain: defaultDomain,
+							defaultWebsiteId,
+							accessibleWebsites,
 							timezone,
 							chatId,
 							requestHeaders: request.headers,
@@ -817,9 +852,20 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						modelOverride
 					);
 
+					const mentionContext =
+						mentionedWebsites.length > 0
+							? `<mentioned-websites>\nThe user referenced these websites in their message. Prioritize them when choosing which website(s) to query:\n${mentionedWebsites
+									.map(
+										(w) =>
+											`- ${w.name ?? w.domain ?? w.id} (id: ${w.id}${w.domain ? `, domain: ${w.domain}` : ""})`
+									)
+									.join("\n")}\n</mentioned-websites>`
+							: "";
+
 					const extras = [
 						memoryCtx ? formatMemoryForPrompt(memoryCtx) : "",
 						enrichment.context,
+						mentionContext,
 					]
 						.filter(Boolean)
 						.join("\n\n");
@@ -863,14 +909,18 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					const dashboardTelemetryMetadata: Record<string, string> = {
 						source: "dashboard",
 						userId,
-						websiteId: body.websiteId,
-						websiteDomain: domain,
 						chatId,
 						agentType: AGENT_TYPE,
 						timezone,
 						"tcc.sessionId": chatId,
 						"tcc.conversational": "true",
 					};
+					if (defaultWebsiteId) {
+						dashboardTelemetryMetadata.websiteId = defaultWebsiteId;
+					}
+					if (defaultDomain) {
+						dashboardTelemetryMetadata.websiteDomain = defaultDomain;
+					}
 					if (organizationId) {
 						dashboardTelemetryMetadata.organizationId = organizationId;
 					}
@@ -881,7 +931,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						metadata: dashboardTelemetryMetadata,
 					});
 
-					if (isMemoryEnabled() && lastMessage) {
+					if (isMemoryEnabled() && lastMessage && defaultWebsiteId) {
 						storeConversation(
 							[{ role: "user", content: lastMessage }],
 							userId,
@@ -890,9 +940,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								metadata: {
 									source: "dashboard",
 								},
-								websiteId: body.websiteId,
+								websiteId: defaultWebsiteId,
 								conversationId: chatId,
-								domain,
+								domain: defaultDomain ?? "unknown",
 							}
 						);
 					}
@@ -941,7 +991,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								modelId: modelNames[modelKey],
 								source: "dashboard",
 								agentType: AGENT_TYPE,
-								websiteId: body.websiteId,
+								websiteId: defaultWebsiteId ?? undefined,
 								organizationId,
 								userId: persistedUserId ?? null,
 								chatId,
@@ -952,14 +1002,17 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							captureError(usageError, {
 								agent_usage_telemetry_error: true,
 								agent_chat_id: chatId,
-								agent_website_id: body.websiteId,
+								...(defaultWebsiteId
+									? { agent_website_id: defaultWebsiteId }
+									: {}),
 							});
 						});
 
+					const streamScope = userId;
 					const streamId = generateId();
-					const streamKey = streamBufferKey(body.websiteId, chatId, streamId);
+					const streamKey = streamBufferKey(streamScope, chatId, streamId);
 					await timeAgentPhase("stream_setup", () =>
-						setActiveStream(body.websiteId, chatId, streamId)
+						setActiveStream(streamScope, chatId, streamId)
 					);
 
 					if (persistedUserId) {
@@ -969,7 +1022,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 									.insert(agentChats)
 									.values({
 										id: chatId,
-										websiteId: body.websiteId,
+										websiteId: defaultWebsiteId,
 										userId: persistedUserId,
 										organizationId: persistedOrgId,
 										title: fallbackTitle,
@@ -988,7 +1041,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							captureError(persistError, {
 								agent_user_message_persist_error: true,
 								agent_chat_id: chatId,
-								agent_website_id: body.websiteId,
+								...(defaultWebsiteId
+									? { agent_website_id: defaultWebsiteId }
+									: {}),
 							});
 						}
 					}
@@ -998,7 +1053,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						originalMessages: validation.data,
 						onFinish: async ({ messages }) => {
 							try {
-								await clearActiveStream(body.websiteId, chatId, streamId);
+								await clearActiveStream(streamScope, chatId, streamId);
 							} catch {}
 							if (!persistedUserId) {
 								return;
@@ -1008,7 +1063,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 									.insert(agentChats)
 									.values({
 										id: chatId,
-										websiteId: body.websiteId,
+										websiteId: defaultWebsiteId,
 										userId: persistedUserId,
 										organizationId: persistedOrgId,
 										title: fallbackTitle,
@@ -1036,7 +1091,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								captureError(persistError, {
 									agent_persist_error: true,
 									agent_chat_id: chatId,
-									agent_website_id: body.websiteId,
+									...(defaultWebsiteId
+										? { agent_website_id: defaultWebsiteId }
+										: {}),
 								});
 							}
 						},
@@ -1069,7 +1126,9 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							captureError(storageError, {
 								agent_stream_persist_error: true,
 								agent_chat_id: chatId,
-								agent_website_id: body.websiteId,
+								...(defaultWebsiteId
+									? { agent_website_id: defaultWebsiteId }
+									: {}),
 							});
 						});
 						return new Response(forClient, {
@@ -1088,7 +1147,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								agentType: AGENT_TYPE,
 								phase: "dashboard_chat_stream",
 								userId: user?.id ?? null,
-								websiteId: body.websiteId,
+								websiteId: body.websiteId ?? null,
 							},
 							...(parsed.fix !== "" && parsed.fix != null
 								? { fix: parsed.fix }
@@ -1104,7 +1163,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							error_message: err.message,
 							error_name: err.name,
 							service: "api",
-							websiteId: body.websiteId,
+							websiteId: body.websiteId ?? null,
 							...(parsed.fix !== "" && parsed.fix != null
 								? { fix: parsed.fix }
 								: {}),
@@ -1121,13 +1180,13 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						error_type: getErrorName(error),
 						organization_id: organizationId,
 						user_id: user?.id ?? null,
-						website_id: body.websiteId,
+						website_id: body.websiteId ?? null,
 					});
 					captureError(error, {
 						agent_error: true,
 						agent_type: AGENT_TYPE,
 						agent_chat_id: chatId,
-						agent_website_id: body.websiteId,
+						...(body.websiteId ? { agent_website_id: body.websiteId } : {}),
 						agent_user_id: user?.id ?? "unknown",
 						error_type: getErrorName(error),
 					});
@@ -1143,16 +1202,16 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 		}
 		const chat = await db.query.agentChats.findFirst({
 			where: { id: params.chatId, userId: user.id },
-			columns: { id: true, websiteId: true },
+			columns: { id: true },
 		});
 		if (!chat) {
 			return new Response(null, { status: 204 });
 		}
-		const streamId = await getActiveStream(chat.websiteId, chat.id);
+		const streamId = await getActiveStream(user.id, chat.id);
 		if (!streamId) {
 			return new Response(null, { status: 204 });
 		}
-		const key = streamBufferKey(chat.websiteId, chat.id, streamId);
+		const key = streamBufferKey(user.id, chat.id, streamId);
 
 		const abortController = new AbortController();
 		request.signal?.addEventListener("abort", () => {
