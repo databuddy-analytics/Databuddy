@@ -72,7 +72,7 @@ export interface FunnelGoalDeps {
 function toAnalyticsSteps(steps: FunnelStep[]): AnalyticsStep[] {
 	return steps.map((step, index) => ({
 		step_number: index + 1,
-		type: step.type as "PAGE_VIEW" | "EVENT",
+		type: step.type === "PAGE_VIEW" ? "PAGE_VIEW" : "EVENT",
 		target: step.target,
 		name: step.name,
 	}));
@@ -97,6 +97,7 @@ export function defaultFunnelGoalDeps(websiteId: string): FunnelGoalDeps {
 						sql`jsonb_array_length(${funnelDefinitions.steps}) > 1`
 					)
 				)
+				.orderBy(funnelDefinitions.createdAt)
 				.limit(MAX_DEFINITIONS),
 		fetchGoals: () =>
 			db
@@ -115,6 +116,7 @@ export function defaultFunnelGoalDeps(websiteId: string): FunnelGoalDeps {
 						isNull(goals.deletedAt)
 					)
 				)
+				.orderBy(goals.createdAt)
 				.limit(MAX_DEFINITIONS),
 		funnelConversion: async (funnel, range) => {
 			const analytics = await processFunnelAnalytics(
@@ -135,7 +137,7 @@ export function defaultFunnelGoalDeps(websiteId: string): FunnelGoalDeps {
 			const steps: AnalyticsStep[] = [
 				{
 					step_number: 1,
-					type: goal.type as "PAGE_VIEW" | "EVENT",
+					type: goal.type === "PAGE_VIEW" ? "PAGE_VIEW" : "EVENT",
 					target: goal.target,
 					name: goal.name,
 				},
