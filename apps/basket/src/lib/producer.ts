@@ -351,6 +351,8 @@ function makeProducerEffects(
 							Ref.update(ref, (st) => ({
 								...st,
 								connectionFailed: true,
+								connected: false,
+								lastRetry: Date.now(),
 								failedCount: st.failedCount + messages.length,
 							})).pipe(
 								Effect.tap(() =>
