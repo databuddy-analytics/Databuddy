@@ -179,7 +179,12 @@ async function getTrackingEventsStatus(
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Unknown error checking events";
-		logger.error({ websiteId }, `Error checking tracking events: ${message}`);
+		const isTimeout = message === "ClickHouse query timeout";
+		if (isTimeout) {
+			logger.warn({ websiteId }, `Slow ClickHouse query checking tracking events: ${message}`);
+		} else {
+			logger.error({ websiteId }, `Error checking tracking events: ${message}`);
+		}
 		return { hasEvents: false, recentEvents: 0, error: message };
 	}
 }
@@ -254,7 +259,12 @@ async function getRecentBlockedTrackingIssue(
 			error instanceof Error
 				? error.message
 				: "Unknown error checking blocked traffic";
-		logger.error({ websiteId }, `Error checking blocked traffic: ${message}`);
+		const isTimeout = message === "ClickHouse query timeout";
+		if (isTimeout) {
+			logger.warn({ websiteId }, `Slow ClickHouse query checking blocked traffic: ${message}`);
+		} else {
+			logger.error({ websiteId }, `Error checking blocked traffic: ${message}`);
+		}
 		return null;
 	}
 }
