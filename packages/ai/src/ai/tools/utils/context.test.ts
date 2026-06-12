@@ -86,4 +86,46 @@ describe("resolveToolWebsite", () => {
 
 		expect(() => resolveToolWebsite(ctx)).toThrow(/multiple websites/);
 	});
+
+	it("resolves a domain name matching ctx.websiteDomain to the context websiteId", () => {
+		// Insights agent passes domain names (e.g. "databuddy.cc") because LLM confuses
+		// domain with websiteId after seeing domain-keyed SQL queries.
+		const ctx = makeCtx({
+			websiteId: "internal-id-xyz",
+			websiteDomain: "databuddy.cc",
+		});
+
+		expect(resolveToolWebsite(ctx, "databuddy.cc")).toEqual({
+			websiteId: "internal-id-xyz",
+			domain: "databuddy.cc",
+		});
+	});
+
+	it("resolves a domain name matching an accessible website's domain", () => {
+		const ctx = makeCtx({
+			accessibleWebsites: [
+				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
+				{ id: "web_b", domain: "b.com", name: null, isPublic: null, createdAt: null },
+			],
+		});
+
+		expect(resolveToolWebsite(ctx, "b.com")).toEqual({
+			websiteId: "web_b",
+			domain: "b.com",
+		});
+	});
+
+	it("still rejects a domain that is not ctx.websiteDomain and not in accessible list", () => {
+		const ctx = makeCtx({
+			websiteId: "internal-id-xyz",
+			websiteDomain: "databuddy.cc",
+			accessibleWebsites: [
+				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
+			],
+		});
+
+		expect(() => resolveToolWebsite(ctx, "unknown.com")).toThrow(
+			/not in this workspace/
+		);
+	});
 });

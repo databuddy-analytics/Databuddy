@@ -27,15 +27,29 @@ export function resolveToolWebsite(
 		(id === ctx.websiteId ? ctx.websiteDomain : undefined);
 
 	if (inputWebsiteId) {
-		const isAccessible =
+		// Try exact ID match
+		const isAccessibleById =
 			accessible.some((w) => w.id === inputWebsiteId) ||
 			inputWebsiteId === ctx.websiteId;
-		if (!isAccessible) {
-			throw new Error(
-				`Website "${inputWebsiteId}" is not in this workspace. Call list_websites to see available websites.`
-			);
+		if (isAccessibleById) {
+			return { websiteId: inputWebsiteId, domain: domainFor(inputWebsiteId) };
 		}
-		return { websiteId: inputWebsiteId, domain: domainFor(inputWebsiteId) };
+
+		// Try domain name match (model may pass a domain instead of an ID)
+		const byDomain = accessible.find((w) => w.domain === inputWebsiteId);
+		if (byDomain) {
+			return { websiteId: byDomain.id, domain: byDomain.domain ?? undefined };
+		}
+		if (ctx.websiteDomain === inputWebsiteId) {
+			const fallbackId = ctx.defaultWebsiteId ?? ctx.websiteId;
+			if (fallbackId) {
+				return { websiteId: fallbackId, domain: ctx.websiteDomain };
+			}
+		}
+
+		throw new Error(
+			`Website "${inputWebsiteId}" is not in this workspace. Call list_websites to see available websites.`
+		);
 	}
 
 	const fallbackId = ctx.defaultWebsiteId ?? ctx.websiteId;
