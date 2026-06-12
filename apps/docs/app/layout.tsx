@@ -11,12 +11,12 @@ import { SITE_URL } from "./util/constants";
 
 const ltSuperior = localFont({
 	src: [
-		{ path: "../fonts/lt-superior/light.otf", weight: "300" },
-		{ path: "../fonts/lt-superior/regular.otf", weight: "400" },
-		{ path: "../fonts/lt-superior/medium.otf", weight: "500" },
-		{ path: "../fonts/lt-superior/semibold.otf", weight: "600" },
-		{ path: "../fonts/lt-superior/bold.otf", weight: "700" },
-		{ path: "../fonts/lt-superior/extrabold.otf", weight: "800" },
+		{ path: "../fonts/lt-superior/light.woff2", weight: "300" },
+		{ path: "../fonts/lt-superior/regular.woff2", weight: "400" },
+		{ path: "../fonts/lt-superior/medium.woff2", weight: "500" },
+		{ path: "../fonts/lt-superior/semibold.woff2", weight: "600" },
+		{ path: "../fonts/lt-superior/bold.woff2", weight: "700" },
+		{ path: "../fonts/lt-superior/extrabold.woff2", weight: "800" },
 	],
 	variable: "--font-lt-superior",
 	display: "swap",
@@ -24,13 +24,14 @@ const ltSuperior = localFont({
 
 const ltSuperiorMono = localFont({
 	src: [
-		{ path: "../fonts/lt-superior-mono/regular.otf", weight: "400" },
-		{ path: "../fonts/lt-superior-mono/medium.otf", weight: "500" },
-		{ path: "../fonts/lt-superior-mono/semibold.otf", weight: "600" },
-		{ path: "../fonts/lt-superior-mono/bold.otf", weight: "700" },
+		{ path: "../fonts/lt-superior-mono/regular.woff2", weight: "400" },
+		{ path: "../fonts/lt-superior-mono/medium.woff2", weight: "500" },
+		{ path: "../fonts/lt-superior-mono/semibold.woff2", weight: "600" },
+		{ path: "../fonts/lt-superior-mono/bold.woff2", weight: "700" },
 	],
 	variable: "--font-lt-superior-mono",
 	display: "swap",
+	preload: false,
 });
 
 export const metadata: Metadata = {
