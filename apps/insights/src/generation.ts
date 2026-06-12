@@ -314,7 +314,7 @@ async function runInsightsAgent(params: {
 			chatId: `insights:${params.organizationId}:${params.websiteId}`,
 			serviceAuth: {
 				organizationId: params.organizationId,
-				scopes: ["read:data"],
+				scopes: ["read:data", "manage:websites"],
 			},
 		};
 
