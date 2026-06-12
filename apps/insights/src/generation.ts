@@ -314,7 +314,10 @@ async function runInsightsAgent(params: {
 			chatId: `insights:${params.organizationId}:${params.websiteId}`,
 			serviceAuth: {
 				organizationId: params.organizationId,
-				scopes: ["read:data"],
+				// read:data for analytics queries; manage:config for annotation
+				// create/update/delete (which use scopeResource="organization" →
+				// "organization"+"update" maps to manage:config).
+				scopes: ["read:data", "manage:config"],
 			},
 		};
 

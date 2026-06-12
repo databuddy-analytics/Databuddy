@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import dayjs from "dayjs";
 import { z } from "zod";
+import type { AppContext } from "../config/context";
 import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
 
 const logger = createToolLogger("Annotations Tools");
@@ -87,6 +88,32 @@ const deleteAnnotationInputSchema = z.object({
 	confirmed: z.boolean().describe("false=preview, true=delete"),
 });
 
+/**
+ * The insights agent receives the website domain (e.g. "example.com") as its
+ * primary identifier, so LLMs routinely pass a domain name where the backend
+ * expects a UUID.  This helper maps a domain name back to the UUID that the RPC
+ * layer understands, using the app context that is injected at agent run time.
+ */
+function resolveWebsiteId(ctx: AppContext, inputId: string): string {
+	// Direct match against context UUID — already correct.
+	if (inputId === ctx.websiteId || inputId === ctx.defaultWebsiteId) {
+		return inputId;
+	}
+	// Input is the context domain → return the context UUID.
+	if (ctx.websiteDomain && inputId === ctx.websiteDomain && ctx.websiteId) {
+		return ctx.websiteId;
+	}
+	// Input matches an accessible website's domain → return its UUID.
+	const byDomain = (ctx.accessibleWebsites ?? []).find(
+		(w) => w.domain === inputId
+	);
+	if (byDomain) {
+		return byDomain.id;
+	}
+	// Pass through — might already be a valid UUID or will fail at the RPC layer.
+	return inputId;
+}
+
 export function createAnnotationTools() {
 	const listAnnotationsTool = tool({
 		description:
@@ -94,11 +121,12 @@ export function createAnnotationTools() {
 		inputSchema: listAnnotationsInputSchema,
 		execute: async ({ websiteId, chartType, chartContext }, options) => {
 			const context = getAppContext(options);
+			const resolvedWebsiteId = resolveWebsiteId(context, websiteId);
 			try {
 				const result = await callRPCProcedure(
 					"annotations",
 					"list",
-					{ websiteId, chartType, chartContext },
+					{ websiteId: resolvedWebsiteId, chartType, chartContext },
 					context
 				);
 				return {
@@ -107,7 +135,7 @@ export function createAnnotationTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to list annotations", {
-					websiteId,
+					websiteId: resolvedWebsiteId,
 					chartType,
 					error,
 				});
@@ -140,6 +168,7 @@ export function createAnnotationTools() {
 			options
 		) => {
 			const context = getAppContext(options);
+			const resolvedWebsiteId = resolveWebsiteId(context, websiteId);
 			try {
 				if (!confirmed) {
 					const dateRangePreview = `${chartContext.dateRange.start_date} to ${chartContext.dateRange.end_date} (${chartContext.dateRange.granularity})`;
@@ -149,7 +178,7 @@ export function createAnnotationTools() {
 						message:
 							"Please review the annotation details below and confirm if you want to create it:",
 						annotation: {
-							websiteId,
+							websiteId: resolvedWebsiteId,
 							chartType,
 							dateRange: dateRangePreview,
 							annotationType,
@@ -170,7 +199,7 @@ export function createAnnotationTools() {
 					"annotations",
 					"create",
 					{
-						websiteId,
+						websiteId: resolvedWebsiteId,
 						chartType,
 						chartContext,
 						annotationType,
@@ -192,7 +221,7 @@ export function createAnnotationTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to create annotation", {
-					websiteId,
+					websiteId: resolvedWebsiteId,
 					chartType,
 					text,
 					error,

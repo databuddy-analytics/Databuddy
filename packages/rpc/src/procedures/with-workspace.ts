@@ -33,6 +33,18 @@ export interface WithWorkspaceOptions<R extends ResourceType = "organization"> {
 	permissions?: PermissionFor<R>[];
 	requiredPlans?: PlanId[];
 	resource?: R;
+	/**
+	 * Override the resource type used for API-key scope resolution only.
+	 * When provided, scope checks use this resource instead of the automatically
+	 * derived `effectiveResource` (which is always "website" when `websiteId` is
+	 * given).  Role-based user permission checks are unaffected.
+	 *
+	 * Use this when the logical permission granularity for an endpoint differs
+	 * from "website management".  For example, annotation CRUD is semantically a
+	 * config-level operation (`manage:config`) even though it operates on a
+	 * website-scoped entity.
+	 */
+	scopeResource?: string;
 	websiteId?: string;
 }
 
@@ -278,11 +290,15 @@ export async function withWorkspace<R extends ResourceType = "organization">(
 	if (context.apiKey) {
 		const plan = await planPromise;
 		requirePlan(plan, requiredPlans);
+		// Use scopeResource (when provided) for API-key scope resolution so that
+		// endpoints like annotation CRUD can require manage:config rather than
+		// the manage:websites scope that effectiveResource="website" would imply.
+		const apiKeyScopeResource = options.scopeResource ?? effectiveResource;
 		const ws = resolveApiKeyWorkspace(
 			context,
 			organizationId,
 			plan,
-			effectiveResource,
+			apiKeyScopeResource,
 			effectivePermissions
 		);
 		return { ...ws, website, getCreatedBy };

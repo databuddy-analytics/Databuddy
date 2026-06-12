@@ -254,6 +254,10 @@ export const annotationsRouter = {
 			const workspace = await withWorkspace(context, {
 				websiteId: input.websiteId,
 				permissions: ["update"],
+				// Annotation CRUD is a config-level operation; API keys need
+				// manage:config rather than manage:websites (the default scope
+				// for effectiveResource="website"+"update").
+				scopeResource: "organization",
 			});
 
 			const createdBy = await workspace.getCreatedBy();
@@ -321,6 +325,7 @@ export const annotationsRouter = {
 			await withWorkspace(context, {
 				websiteId: annotation.websiteId,
 				permissions: ["update"],
+				scopeResource: "organization",
 			});
 
 			const updateData: {
@@ -384,6 +389,7 @@ export const annotationsRouter = {
 			await withWorkspace(context, {
 				websiteId: annotation.websiteId,
 				permissions: ["delete"],
+				scopeResource: "organization",
 			});
 
 			await context.db
