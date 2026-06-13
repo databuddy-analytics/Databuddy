@@ -156,8 +156,8 @@ export function storeAnalyticsSummary(
 
 	return client
 		.add({
-			content: summary,
-			containerTags: [`website:${websiteId}`],
+			content: sanitizeMemoryContent(summary),
+			containerTag: `website_${websiteId}`,
 			metadata: {
 				source: "databuddy",
 				type: "analytics_summary",
