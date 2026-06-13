@@ -86,4 +86,43 @@ describe("resolveToolWebsite", () => {
 
 		expect(() => resolveToolWebsite(ctx)).toThrow(/multiple websites/);
 	});
+
+	it("resolves a domain name to the matching website id in the accessible set", () => {
+		const ctx = makeCtx({
+			accessibleWebsites: [
+				{ id: "web_a", domain: "app.example.com", name: null, isPublic: null, createdAt: null },
+			],
+		});
+
+		expect(resolveToolWebsite(ctx, "app.example.com")).toEqual({
+			websiteId: "web_a",
+			domain: "app.example.com",
+		});
+	});
+
+	it("resolves a domain name to the context websiteId when accessibleWebsites is absent", () => {
+		const ctx = makeCtx({
+			websiteId: "web_ctx",
+			websiteDomain: "ctx.com",
+		});
+
+		expect(resolveToolWebsite(ctx, "ctx.com")).toEqual({
+			websiteId: "web_ctx",
+			domain: "ctx.com",
+		});
+	});
+
+	it("still rejects a domain name that does not match any accessible website or the context domain", () => {
+		const ctx = makeCtx({
+			accessibleWebsites: [
+				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
+			],
+			websiteId: "web_ctx",
+			websiteDomain: "ctx.com",
+		});
+
+		expect(() => resolveToolWebsite(ctx, "unknown.com")).toThrow(
+			/not in this workspace/
+		);
+	});
 });

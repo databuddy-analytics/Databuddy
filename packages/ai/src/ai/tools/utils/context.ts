@@ -27,15 +27,29 @@ export function resolveToolWebsite(
 		(id === ctx.websiteId ? ctx.websiteDomain : undefined);
 
 	if (inputWebsiteId) {
-		const isAccessible =
+		// Fast path: exact UUID match in the accessible set or the context default
+		const isAccessibleById =
 			accessible.some((w) => w.id === inputWebsiteId) ||
 			inputWebsiteId === ctx.websiteId;
-		if (!isAccessible) {
-			throw new Error(
-				`Website "${inputWebsiteId}" is not in this workspace. Call list_websites to see available websites.`
-			);
+		if (isAccessibleById) {
+			return { websiteId: inputWebsiteId, domain: domainFor(inputWebsiteId) };
 		}
-		return { websiteId: inputWebsiteId, domain: domainFor(inputWebsiteId) };
+
+		// Slow path: the model may have passed a domain name instead of an id.
+		// Check the accessible list first, then the single-site context default.
+		const byDomain = accessible.find(
+			(w) => w.domain != null && w.domain === inputWebsiteId
+		);
+		if (byDomain) {
+			return { websiteId: byDomain.id, domain: byDomain.domain ?? undefined };
+		}
+		if (inputWebsiteId === ctx.websiteDomain && ctx.websiteId) {
+			return { websiteId: ctx.websiteId, domain: ctx.websiteDomain };
+		}
+
+		throw new Error(
+			`Website "${inputWebsiteId}" is not in this workspace. Call list_websites to see available websites.`
+		);
 	}
 
 	const fallbackId = ctx.defaultWebsiteId ?? ctx.websiteId;
