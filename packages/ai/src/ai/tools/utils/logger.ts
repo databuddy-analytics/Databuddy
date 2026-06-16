@@ -19,10 +19,14 @@ export function createToolLogger(toolName: string) {
 			log.info({ service: "api", aiTool: toolName, message, ...context });
 		},
 		error: (message: string, context?: Record<string, unknown>) => {
-			const err = new Error(message);
 			const requestLogger = getActiveAiRequestLogger();
 			if (requestLogger) {
-				requestLogger.error(err, {
+				// Use warn so that recoverable tool errors (e.g. a failed SQL
+				// query or annotation creation that the AI model handles) do
+				// not escalate the job-level wide event to ERROR when the job
+				// ultimately succeeds. Genuine job failures are logged at ERROR
+				// by the job runner itself (jobs.ts logger.error(err)).
+				requestLogger.warn(message, {
 					aiTool: { name: toolName },
 					...context,
 				});
