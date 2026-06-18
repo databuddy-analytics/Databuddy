@@ -43,6 +43,13 @@ interface CacheOptions<
 	staleTime?: number;
 	staleWhileRevalidate?: boolean;
 	tags?: CacheTagger<T>;
+	/**
+	 * Maximum milliseconds to wait for the underlying function (e.g. a DB
+	 * query) before rejecting with a "Query timeout" error.  When unset the
+	 * function may hang indefinitely.  Background stale-while-revalidate
+	 * fetches are also bounded by this value.
+	 */
+	queryTimeoutMs?: number;
 }
 
 export type CacheableFunction<
@@ -86,12 +93,16 @@ function markRedisUnhealthy() {
 	lastRedisCheck = Date.now();
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(
+	promise: Promise<T>,
+	ms: number,
+	message = "Redis timeout"
+): Promise<T> {
 	let timer: ReturnType<typeof setTimeout>;
 	return Promise.race([
 		promise,
 		new Promise<never>((_, reject) => {
-			timer = setTimeout(() => reject(new Error("Redis timeout")), ms);
+			timer = setTimeout(() => reject(new Error(message)), ms);
 		}),
 	]).finally(() => clearTimeout(timer));
 }
@@ -192,7 +203,8 @@ function triggerBackgroundRevalidation<
 	expireInSec: number,
 	staleTime: number,
 	prefix: string,
-	tags?: CacheTagger<T>
+	tags?: CacheTagger<T>,
+	queryTimeoutMs?: number
 ) {
 	if (activeRevalidations.has(key)) {
 		return;
@@ -208,7 +220,9 @@ function triggerBackgroundRevalidation<
 			return;
 		}
 
-		const fresh = await fn();
+		const fresh = await (queryTimeoutMs != null
+			? withTimeout(fn(), queryTimeoutMs, "Query timeout")
+			: fn());
 		if (fresh != null && redisAvailable) {
 			try {
 				const serialized = JSON.stringify(fresh);
@@ -241,6 +255,7 @@ export function cacheable<
 		staleWhileRevalidate = false,
 		staleTime = 0,
 		tags,
+		queryTimeoutMs,
 	} = typeof options === "number" ? { expireInSec: options } : options;
 
 	const cachePrefix = `cacheable:${prefix}`;
@@ -251,7 +266,9 @@ export function cacheable<
 		...args: Parameters<T>
 	): Promise<Awaited<ReturnType<T>>> => {
 		if (shouldSkipRedis()) {
-			return fn(...args);
+			return queryTimeoutMs != null
+				? withTimeout(fn(...args), queryTimeoutMs, "Query timeout")
+				: fn(...args);
 		}
 
 		const key = getKey(...args);
@@ -270,7 +287,9 @@ export function cacheable<
 				durationMs: performance.now() - lookupStartedAt,
 				hit: false,
 			});
-			return fn(...args);
+			return queryTimeoutMs != null
+				? withTimeout(fn(...args), queryTimeoutMs, "Query timeout")
+				: fn(...args);
 		}
 
 		timingFn?.({
@@ -287,7 +306,8 @@ export function cacheable<
 					expireInSec,
 					staleTime,
 					prefix,
-					tags
+					tags,
+					queryTimeoutMs
 				);
 			}
 
@@ -302,7 +322,11 @@ export function cacheable<
 			return (await inflightRequests.get(key)) as Awaited<ReturnType<T>>;
 		}
 
-		const promise = fn(...args);
+		const rawPromise = fn(...args);
+		const promise =
+			queryTimeoutMs != null
+				? withTimeout(rawPromise, queryTimeoutMs, "Query timeout")
+				: rawPromise;
 		inflightRequests.set(key, promise);
 
 		try {

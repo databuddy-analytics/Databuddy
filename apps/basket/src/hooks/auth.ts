@@ -208,6 +208,7 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 		prefix: cacheNamespaces.websiteWithOwner,
 		staleWhileRevalidate: true,
 		staleTime: 120,
+		queryTimeoutMs: 10_000,
 	}
 );
 
