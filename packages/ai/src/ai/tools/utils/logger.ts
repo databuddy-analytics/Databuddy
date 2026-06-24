@@ -22,8 +22,13 @@ export function createToolLogger(toolName: string) {
 			const err = new Error(message);
 			const requestLogger = getActiveAiRequestLogger();
 			if (requestLogger) {
-				requestLogger.error(err, {
+				// Use warn() rather than error() so that a recoverable tool-call
+				// failure does not escalate the overall job/request wide-event to
+				// ERROR level.  The job may still succeed; real fatal failures are
+				// recorded separately via captureInsightsError / the job catch block.
+				requestLogger.warn(message, {
 					aiTool: { name: toolName },
+					error: { name: err.name, message: err.message, stack: err.stack },
 					...context,
 				});
 				return;
