@@ -103,7 +103,11 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 	} catch (error) {
 		const executionTime = Date.now() - queryStart;
 
-		logger.error("Query failed", {
+		// Log at WARN, not ERROR: the error is re-thrown so the caller decides
+		// severity. Fatal callers (job-level) will log ERROR when it propagates;
+		// recoverable callers (e.g. multi-query sqlTool) catch and continue, and
+		// should not escalate the job-wide log to ERROR.
+		logger.warn("Query failed", {
 			...logContext,
 			executionTime: `${executionTime}ms`,
 			error: error instanceof Error ? error.message : "Unknown error",
