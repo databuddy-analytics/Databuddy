@@ -7,16 +7,21 @@ import { toast } from "sonner";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import {
+	getWebsiteByIdKey,
+	getWebsitesListKey,
 	updateWebsiteCache,
 	useDeleteWebsite,
 	useUpdateWebsite,
 	useWebsite,
 	type Website,
+	type WebsitesListData,
 } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { publicConfig } from "@databuddy/env/public";
 import { TOAST_MESSAGES } from "../../_components/constants/settings-constants";
 import {
 	ArrowRightIcon,
+	ArrowSquareOutIcon,
 	CheckIcon,
 	ClipboardIcon,
 	GlobeIcon,
@@ -71,6 +76,45 @@ export default function GeneralSettingsPage() {
 
 	const toggleMutation = useMutation({
 		...orpc.websites.togglePublic.mutationOptions(),
+		onMutate: async ({ id, isPublic: nextIsPublic }) => {
+			const getByIdKey = getWebsiteByIdKey(id);
+			const listKey = getWebsitesListKey();
+
+			await Promise.all([
+				queryClient.cancelQueries({ queryKey: getByIdKey }),
+				queryClient.cancelQueries({ queryKey: listKey }),
+			]);
+
+			const previousWebsite = queryClient.getQueryData<Website>(getByIdKey);
+			const previousList = queryClient.getQueryData<WebsitesListData>(listKey);
+			const withPublicState = (website: Website): Website => ({
+				...website,
+				isPublic: nextIsPublic,
+			});
+
+			queryClient.setQueryData<Website>(getByIdKey, (current) =>
+				current ? withPublicState(current) : current
+			);
+			queryClient.setQueryData<WebsitesListData>(listKey, (current) =>
+				current
+					? {
+							...current,
+							websites: current.websites.map((website) =>
+								website.id === id ? withPublicState(website) : website
+							),
+						}
+					: current
+			);
+
+			return { getByIdKey, listKey, previousList, previousWebsite };
+		},
+		onError: (_error, _variables, context) => {
+			if (!context) {
+				return;
+			}
+			queryClient.setQueryData(context.getByIdKey, context.previousWebsite);
+			queryClient.setQueryData(context.listKey, context.previousList);
+		},
 		onSuccess: (updatedWebsite: Website) => {
 			updateWebsiteCache(queryClient, updatedWebsite);
 			queryClient.invalidateQueries({
@@ -95,13 +139,14 @@ export default function GeneralSettingsPage() {
 			onCopy: () => toast.success("Public link copied to clipboard"),
 		});
 
-	const isPublic = websiteData?.isPublic ?? false;
-	const shareableLink = useMemo(() => {
-		if (!(websiteData && typeof window !== "undefined")) {
-			return "";
-		}
-		return `${window.location.origin}/public/${websiteId}`;
-	}, [websiteData, websiteId]);
+	const isPublic =
+		(toggleMutation.isPending
+			? toggleMutation.variables?.isPublic
+			: websiteData?.isPublic) ?? false;
+	const shareableLink = useMemo(
+		() => `${publicConfig.urls.dashboard}/public/${websiteId}`,
+		[websiteId]
+	);
 
 	const hasChanges =
 		!!websiteData &&
@@ -172,6 +217,10 @@ export default function GeneralSettingsPage() {
 		},
 		[websiteData, websiteId, toggleMutation]
 	);
+
+	const handleOpenPublicPage = useCallback(() => {
+		window.open(shareableLink, "_blank", "noopener,noreferrer");
+	}, [shareableLink]);
 
 	if (!websiteData) {
 		return <GeneralSettingsSkeleton />;
@@ -271,11 +320,11 @@ export default function GeneralSettingsPage() {
 							</div>
 							<div className="flex items-center gap-2">
 								<code className="min-w-0 flex-1 overflow-x-auto break-all rounded border bg-secondary px-3 py-2 font-mono text-xs">
-									{shareableLink || `/public/${websiteId}`}
+									{shareableLink}
 								</code>
 								<Button
 									aria-label="Copy public overview link"
-									disabled={!(isPublic && shareableLink)}
+									disabled={!isPublic}
 									onClick={() => copyLink(shareableLink)}
 									size="sm"
 									variant="ghost"
@@ -285,6 +334,15 @@ export default function GeneralSettingsPage() {
 									) : (
 										<ClipboardIcon className="size-4" />
 									)}
+								</Button>
+								<Button
+									aria-label="Open public overview"
+									disabled={!isPublic}
+									onClick={handleOpenPublicPage}
+									size="sm"
+									variant="ghost"
+								>
+									<ArrowSquareOutIcon className="size-4" />
 								</Button>
 							</div>
 							<NoticeBanner
