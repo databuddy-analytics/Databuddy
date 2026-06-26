@@ -631,6 +631,7 @@ export async function generateWebsiteInsights(
 				organizationId: input.organizationId,
 				websiteId: site.id,
 				websiteDomain: site.domain,
+				websiteName: site.name,
 				insights: freshInsights,
 				chains: chainAssignments,
 			});
