@@ -19,10 +19,13 @@ export function createToolLogger(toolName: string) {
 			log.info({ service: "api", aiTool: toolName, message, ...context });
 		},
 		error: (message: string, context?: Record<string, unknown>) => {
-			const err = new Error(message);
 			const requestLogger = getActiveAiRequestLogger();
 			if (requestLogger) {
-				requestLogger.error(err, {
+				// Tool errors are handled by the AI agent framework (returned as
+				// tool-call results). Use warn so a recoverable tool failure does not
+				// elevate the job-level wide event to ERROR when the overall job
+				// succeeds. The error details are still captured in `context`.
+				requestLogger.warn(message, {
 					aiTool: { name: toolName },
 					...context,
 				});
