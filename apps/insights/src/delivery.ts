@@ -44,6 +44,13 @@ function escapeMrkdwn(value: string): string {
 
 const FULL_UUID_PATTERN =
 	/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+const IMPLEMENTATION_DETAIL_MARKERS = [
+	"document.",
+	"navigator.",
+	"execcommand",
+	"writetext",
+	"try/catch",
+] as const;
 const TRUNCATED_UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-\.\.\./gi;
 
 function userVisibleCopy(value: string): string {
@@ -60,6 +67,15 @@ function formatWebsiteLabel(
 	return name && name !== websiteDomain
 		? `${name} (${websiteDomain})`
 		: websiteDomain;
+}
+
+export function buildFallbackText(
+	websiteName: string | null | undefined,
+	websiteDomain: string
+): string {
+	return escapeMrkdwn(
+		`Insights for ${formatWebsiteLabel(websiteName, websiteDomain)}`
+	);
 }
 
 async function resolveDeliveries(
@@ -198,11 +214,31 @@ function fallbackNextAction(insight: DigestInsight): string {
 	}
 }
 
+function visibleSuggestion(value: string): string | null {
+	const copy = userVisibleCopy(value).trim();
+	if (!copy) {
+		return null;
+	}
+
+	const lowerCopy = copy.toLowerCase();
+	if (
+		IMPLEMENTATION_DETAIL_MARKERS.some((marker) => lowerCopy.includes(marker))
+	) {
+		return null;
+	}
+
+	return copy;
+}
+
 function nextAction(insight: DigestInsight): string {
 	const label = (insight.actions ?? [])
 		.map((action) => action.label.trim())
 		.find(Boolean);
-	return label ?? fallbackNextAction(insight);
+	return (
+		label ??
+		visibleSuggestion(insight.suggestion) ??
+		fallbackNextAction(insight)
+	);
 }
 
 export function buildBlocks(
@@ -222,9 +258,8 @@ export function buildBlocks(
 		},
 	];
 	for (const insight of insights.slice(0, MAX_DIGEST_INSIGHTS)) {
-		const whyItMatters = insight.impactSummary?.trim()
-			? insight.impactSummary
-			: fallbackWhyItMatters(insight);
+		const whyItMatters =
+			insight.impactSummary?.trim() || fallbackWhyItMatters(insight);
 		const lines = [
 			`*${escapeMrkdwn(digestLabel(insight))}*`,
 			`*${escapeMrkdwn(userVisibleCopy(insight.title))}*`,
@@ -312,7 +347,7 @@ export async function deliverInsightDigests(params: {
 		params.insights,
 		params.chains ?? []
 	);
-	const text = `Insights for ${formatWebsiteLabel(params.websiteName, params.websiteDomain)}`;
+	const text = buildFallbackText(params.websiteName, params.websiteDomain);
 	for (const channelId of slackChannelIds) {
 		try {
 			await postToSlack(token, channelId, blocks, text);
