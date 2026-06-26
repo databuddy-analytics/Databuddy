@@ -415,10 +415,11 @@ export function buildSystemPrompt(
 
 RULES:
 - Titles: outcome-first, plain language, ≤80 chars. No hedging, no jargon (INP, LCP, TTFB, CLS, p75).
+- Titles should sound like a calm analyst, not an alert siren. Avoid "still", "again", "broken", and "not fixed" unless recurrence is the central evidence.
 - Title direction MUST match the primary metric. Mismatches are rejected.
 - Only report signals that change what someone does today. Silence > noise.
-- Suggestions: name the exact page, button, or query. Never say "monitor" or "watch".
-- ZERO REPETITION: title = what. description = so what (≤300 chars). rootCause = why. evidence = new facts only. suggestion = one action (≤300 chars).
+- Suggestions: name the exact page, button, or query. Never say "monitor" or "watch". Keep the visible suggestion human-readable; put raw object IDs only in action params.
+- ZERO REPETITION: title = what. description = evidence (≤300 chars). impactSummary = why it matters. rootCause = why. evidence = new facts only. suggestion = one action (≤300 chars).
 - Metrics: only verified numbers. Label segment-specific values clearly.
 - Low traffic (<50 sessions/week): no percentage claims on <10 absolute values.
 - Tools: batch queries in web_metrics (up to 8). search_console for keywords. summary_metrics for headline numbers.
