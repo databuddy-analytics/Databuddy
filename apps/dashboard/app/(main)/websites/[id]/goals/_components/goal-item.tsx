@@ -7,9 +7,8 @@ import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import {
 	DotsThreeIcon,
-	EyeIcon,
-	MouseMiddleClickIcon,
 	PencilSimpleIcon,
+	TargetIcon,
 	TrashIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
@@ -23,30 +22,49 @@ interface GoalItemProps {
 	onEdit: (goal: Goal) => void;
 }
 
-const GOAL_TYPE_CONFIG = {
-	PAGE_VIEW: {
-		icon: EyeIcon,
-		bg: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-	},
-	EVENT: {
-		icon: MouseMiddleClickIcon,
-		bg: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
-	},
-	CUSTOM: {
-		icon: MouseMiddleClickIcon,
-		bg: "bg-muted text-muted-foreground",
-	},
-} as const;
-
 function GoalProgress({ rate }: { rate: number }) {
 	const clampedRate = Math.max(0, Math.min(100, rate));
 	return (
-		<div className="h-2 w-32 overflow-hidden rounded-full bg-muted lg:w-44">
+		<span className="block h-5 w-32 overflow-hidden rounded bg-muted lg:w-44">
 			<div
-				className="h-full rounded-full bg-chart-1 transition-[width]"
+				className="h-full rounded bg-chart-1 transition-[width]"
 				style={{ width: `${clampedRate}%` }}
 			/>
-		</div>
+		</span>
+	);
+}
+
+function formatGoalType(type: Goal["type"]) {
+	if (type === "PAGE_VIEW") {
+		return "Page View";
+	}
+	if (type === "EVENT") {
+		return "Event";
+	}
+	return "Custom";
+}
+
+function GoalMetadata({ goal }: { goal: Goal }) {
+	return (
+		<p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-muted-foreground text-xs">
+			<span className="shrink-0">{formatGoalType(goal.type)}</span>
+			<span aria-hidden="true" className="shrink-0">
+				·
+			</span>
+			<span className="min-w-0 max-w-full truncate font-mono">
+				{goal.target}
+			</span>
+			{goal.description ? (
+				<>
+					<span aria-hidden="true" className="shrink-0">
+						·
+					</span>
+					<span className="min-w-0 max-w-full truncate">
+						{goal.description}
+					</span>
+				</>
+			) : null}
+		</p>
 	);
 }
 
@@ -61,36 +79,25 @@ export function GoalItem({
 	const analyticsError = analytics && !analytics.ok ? analytics.error : null;
 	const rate = analyticsData?.overall_conversion_rate ?? 0;
 	const users = analyticsData?.total_users_completed ?? 0;
-	const eligibleUsers = analyticsData?.total_users_entered ?? 0;
-	const config = GOAL_TYPE_CONFIG[goal.type] ?? GOAL_TYPE_CONFIG.PAGE_VIEW;
-	const TypeIcon = config.icon;
 
 	return (
-		<List.Row align="start" className={cn(!goal.isActive && "opacity-50")}>
-			<List.Cell className="pt-0.5">
-				<div
-					className={cn(
-						"flex size-8 items-center justify-center rounded",
-						config.bg
-					)}
-				>
-					<TypeIcon className="size-4" weight="duotone" />
+		<List.Row className={cn(!goal.isActive && "opacity-50")}>
+			<List.Cell>
+				<div className="flex size-8 shrink-0 items-center justify-center rounded border border-transparent bg-muted text-muted-foreground">
+					<TargetIcon className="size-4" weight="duotone" />
 				</div>
 			</List.Cell>
 
-			<List.Cell className="w-40 min-w-0 lg:w-52">
-				<p className="wrap-break-word text-pretty font-medium text-foreground text-sm">
-					{goal.name}
-				</p>
-			</List.Cell>
-
 			<List.Cell grow>
-				<p className="wrap-break-word text-pretty text-muted-foreground text-xs">
-					{goal.target}
-				</p>
+				<div className="min-w-0 flex-1 text-start">
+					<p className="truncate font-medium text-foreground text-sm">
+						{goal.name}
+					</p>
+					<GoalMetadata goal={goal} />
+				</div>
 			</List.Cell>
 
-			<List.Cell className="hidden items-start gap-3 pt-0.5 lg:flex">
+			<List.Cell className="hidden items-center gap-3 lg:flex">
 				{isLoadingAnalytics ? (
 					<>
 						<Skeleton className="h-5 w-32 rounded lg:w-44" />
@@ -115,13 +122,7 @@ export function GoalItem({
 							<span className="font-semibold text-sm tabular-nums">
 								{formatNumber(users)}
 							</span>
-							<span className="text-muted-foreground text-xs">Completed</span>
-						</div>
-						<div className="flex w-20 flex-col items-end">
-							<span className="font-semibold text-sm tabular-nums">
-								{formatNumber(eligibleUsers)}
-							</span>
-							<span className="text-muted-foreground text-xs">Eligible</span>
+							<span className="text-muted-foreground text-xs">Completions</span>
 						</div>
 						<div className="flex w-16 flex-col items-end">
 							<span className="font-semibold text-sm text-success tabular-nums">
@@ -133,7 +134,7 @@ export function GoalItem({
 				)}
 			</List.Cell>
 
-			<List.Cell className="w-14 pt-0.5 text-right lg:hidden">
+			<List.Cell className="w-14 text-right lg:hidden">
 				{isLoadingAnalytics ? (
 					<Skeleton className="ms-auto h-4 w-12 rounded" />
 				) : analyticsError ? (
@@ -148,7 +149,7 @@ export function GoalItem({
 				)}
 			</List.Cell>
 
-			<List.Cell action className="pt-0.5">
+			<List.Cell action>
 				<DropdownMenu>
 					<DropdownMenu.Trigger
 						aria-label="Goal actions"
@@ -180,19 +181,19 @@ export function GoalItem({
 
 export function GoalItemSkeleton() {
 	return (
-		<div className="flex h-15 items-center gap-4 border-border/80 border-b px-4 last:border-b-0">
-			<Skeleton className="size-8 rounded" />
+		<div className="flex h-15 items-center gap-4 border-border/80 border-b px-4 py-3 last:border-b-0">
+			<Skeleton className="size-8 shrink-0 rounded" />
 			<div className="min-w-0 flex-1 space-y-1.5">
-				<Skeleton className="h-4 w-36" />
+				<Skeleton className="h-4 w-36 max-w-full" />
 				<Skeleton className="h-3 w-48 max-w-full" />
 			</div>
-			<div className="hidden items-center gap-3 lg:flex">
+			<div className="hidden shrink-0 items-center gap-3 lg:flex">
 				<Skeleton className="h-5 w-32 rounded lg:w-44" />
 				<Skeleton className="h-4 w-10 rounded" />
 				<Skeleton className="h-4 w-10 rounded" />
 			</div>
-			<Skeleton className="ms-auto h-4 w-12 rounded lg:hidden" />
-			<Skeleton className="size-8 rounded" />
+			<Skeleton className="ms-auto h-4 w-12 shrink-0 rounded lg:hidden" />
+			<Skeleton className="size-8 shrink-0 rounded" />
 		</div>
 	);
 }

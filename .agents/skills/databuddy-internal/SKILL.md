@@ -104,6 +104,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - For dashboard navigation audits, check all route surfaces: `components/layout/navigation/navigation-config.tsx`, `components/ui/command-search.tsx`, and local `PageNavigation` layouts under `app/**/layout.tsx` before calling a page orphaned.
 - When fixing broken dashboard links to moved sections, update the real docs/search/navigation links and section anchors directly; do not add compatibility redirect pages unless explicitly requested.
 - Custom events UI is shared in `apps/dashboard/components/events/custom-events`; keep many-series legends outside the Recharts plot, use compact controls for property-summary event selection, and avoid separate event-count chip/list sections.
+- Goals and Funnels are sibling conversion surfaces; keep Goals list-first and visually aligned with `app/(main)/websites/[id]/funnels` instead of adding separate summary-card chrome.
 - Insights merged feed (`use-insights-feed`) collapses history + AI by `insightSignalDedupeKey` in `apps/dashboard/lib/insight-signal-key.ts` so the list is one row per signal (latest wins).
 - Insights page (`app/(main)/insights`) should stay focused on the brief + signal queue; do not add generic global analytics KPI cards or top pages/referrers/countries tables there.
 - Theme: `apps/dashboard/app/globals.css`. **`--border` is intentionally subtle**; do not crank it darker for “contrast” unless **iza** asks—prefer text tokens or layout for readability.

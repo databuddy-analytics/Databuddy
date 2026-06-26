@@ -10,7 +10,6 @@ import { useDateFilters } from "@/hooks/use-date-filters";
 import {
 	type CreateGoalData,
 	type Goal,
-	type GoalAnalyticsRecord,
 	useBulkGoalAnalytics,
 	useGoals,
 } from "@/hooks/use-goals";
@@ -20,16 +19,9 @@ import type { DynamicQueryFilter, GoalFilter } from "@/types/api";
 import { EditGoalDialog } from "./_components/edit-goal-dialog";
 import { GoalItemSkeleton } from "./_components/goal-item";
 import { GoalsList } from "./_components/goals-list";
-import {
-	ArrowClockwiseIcon,
-	CheckCircleIcon,
-	PlusIcon,
-	TargetIcon,
-	TrendUpIcon,
-} from "@databuddy/ui/icons";
-import { Button, Card } from "@databuddy/ui";
+import { ArrowClockwiseIcon, PlusIcon, TargetIcon } from "@databuddy/ui/icons";
+import { Button } from "@databuddy/ui";
 import { DeleteDialog } from "@databuddy/ui/client";
-import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { useAtomValue } from "jotai";
 
@@ -61,71 +53,6 @@ function toGoalFilters(filters: DynamicQueryFilter[]): GoalFilter[] {
 			? filter.value.map(String)
 			: String(filter.value),
 	}));
-}
-
-function GoalsSummary({
-	analytics,
-	goals,
-	isLoading,
-}: {
-	analytics?: GoalAnalyticsRecord;
-	goals: Goal[];
-	isLoading: boolean;
-}) {
-	const results = Object.values(analytics ?? {}).filter((result) => result.ok);
-	const completions = results.reduce(
-		(total, result) => total + result.data.total_users_completed,
-		0
-	);
-	const averageConversion =
-		results.length > 0
-			? results.reduce(
-					(total, result) => total + result.data.overall_conversion_rate,
-					0
-				) / results.length
-			: 0;
-
-	const cards = [
-		{
-			icon: TargetIcon,
-			label: "Active goals",
-			value: formatNumber(goals.filter((goal) => goal.isActive).length),
-		},
-		{
-			icon: CheckCircleIcon,
-			label: "Completions",
-			value: formatNumber(completions),
-		},
-		{
-			icon: TrendUpIcon,
-			label: "Avg. conversion",
-			value: `${averageConversion.toFixed(1)}%`,
-		},
-	];
-
-	return (
-		<div className="grid gap-3 md:grid-cols-3">
-			{cards.map(({ icon: Icon, label, value }) => (
-				<Card className="rounded" key={label}>
-					<Card.Content className="flex items-center gap-3 p-4">
-						<div className="flex size-9 shrink-0 items-center justify-center rounded bg-secondary text-muted-foreground">
-							<Icon className="size-4" weight="duotone" />
-						</div>
-						<div className="min-w-0">
-							<p className="text-muted-foreground text-xs">{label}</p>
-							{isLoading ? (
-								<div className="mt-1 h-5 w-16 animate-pulse rounded bg-muted" />
-							) : (
-								<p className="font-semibold text-foreground text-lg tabular-nums">
-									{value}
-								</p>
-							)}
-						</div>
-					</Card.Content>
-				</Card>
-			))}
-		</div>
-	);
 }
 
 export default function GoalsPage() {
@@ -242,53 +169,44 @@ export default function GoalsPage() {
 				</TopBar.Actions>
 
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
-					<div className="space-y-4 p-4 sm:p-5">
-						<List.Content
-							emptyProps={{
-								action: {
-									label: "Create a goal",
-									onClick: () => {
-										setEditingGoal(null);
-										setIsDialogOpen(true);
-									},
+					<List.Content
+						emptyProps={{
+							action: {
+								label: "Create a goal",
+								onClick: () => {
+									setEditingGoal(null);
+									setIsDialogOpen(true);
 								},
-								description:
-									"Track single-step conversions like signups, purchases, or activation events.",
-								icon: <TargetIcon className="size-6" weight="duotone" />,
-								title: "No goals yet",
-							}}
-							errorProps={{
-								action: { label: "Retry", onClick: () => refreshAction() },
-								description:
-									error?.message ??
-									"Something went wrong while loading goal data.",
-								icon: <TargetIcon className="size-6" weight="duotone" />,
-								title: "Failed to load goals",
-							}}
-							loading={<GoalsListSkeleton />}
-							outcome={listOutcome}
-						>
-							{(items) => (
-								<>
-									<GoalsSummary
-										analytics={goalAnalytics}
-										goals={items}
-										isLoading={analyticsLoading}
-									/>
-									<GoalsList
-										analyticsLoading={analyticsLoading}
-										goalAnalytics={goalAnalytics}
-										goals={items}
-										onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
-										onEditGoal={(goal) => {
-											setEditingGoal(goal);
-											setIsDialogOpen(true);
-										}}
-									/>
-								</>
-							)}
-						</List.Content>
-					</div>
+							},
+							description:
+								"Track single-step conversions like signups, purchases, or activation events.",
+							icon: <TargetIcon className="size-6" weight="duotone" />,
+							title: "No goals yet",
+						}}
+						errorProps={{
+							action: { label: "Retry", onClick: () => refreshAction() },
+							description:
+								error?.message ??
+								"Something went wrong while loading goal data.",
+							icon: <TargetIcon className="size-6" weight="duotone" />,
+							title: "Failed to load goals",
+						}}
+						loading={<GoalsListSkeleton />}
+						outcome={listOutcome}
+					>
+						{(items) => (
+							<GoalsList
+								analyticsLoading={analyticsLoading}
+								goalAnalytics={goalAnalytics}
+								goals={items}
+								onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
+								onEditGoal={(goal) => {
+									setEditingGoal(goal);
+									setIsDialogOpen(true);
+								}}
+							/>
+						)}
+					</List.Content>
 				</div>
 
 				{isDialogOpen && (
