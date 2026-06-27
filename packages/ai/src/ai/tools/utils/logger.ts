@@ -19,10 +19,12 @@ export function createToolLogger(toolName: string) {
 			log.info({ service: "api", aiTool: toolName, message, ...context });
 		},
 		error: (message: string, context?: Record<string, unknown>) => {
-			const err = new Error(message);
 			const requestLogger = getActiveAiRequestLogger();
 			if (requestLogger) {
-				requestLogger.error(err, {
+				// Use warn so individual tool failures don't escalate the job-level
+				// log to ERROR when the overall job still succeeds. Fatal job errors
+				// are logged directly via logger.error() in the job's own catch block.
+				requestLogger.warn(message, {
 					aiTool: { name: toolName },
 					...context,
 				});
