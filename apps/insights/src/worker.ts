@@ -1,8 +1,12 @@
 import {
 	getBullMQWorkerConnectionOptions,
+	INSIGHTS_DISPATCH_JOB_NAME,
+	INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
 	INSIGHTS_JOB_TIMEOUT_MS,
+	INSIGHTS_MAINTENANCE_JOB_NAME,
 	INSIGHTS_QUEUE_ENV_PREFIX,
 	INSIGHTS_QUEUE_NAME,
+	INSIGHTS_ROLLUP_JOB_NAME,
 	type InsightsQueueJobData,
 } from "@databuddy/redis";
 import { Worker } from "bullmq";
@@ -10,6 +14,14 @@ import { processInsightsJob } from "./jobs";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 5;
+
+function inferJobNameFromId(jobId: string): string {
+	if (jobId.startsWith("insights-website-")) return INSIGHTS_GENERATE_WEBSITE_JOB_NAME;
+	if (jobId.startsWith("insights-rollup-")) return INSIGHTS_ROLLUP_JOB_NAME;
+	if (jobId.startsWith("repeat:insights-dispatch:")) return INSIGHTS_DISPATCH_JOB_NAME;
+	if (jobId.startsWith("repeat:insights-maintenance:")) return INSIGHTS_MAINTENANCE_JOB_NAME;
+	return "unknown";
+}
 
 export function getInsightsWorkerConcurrency(
 	value = process.env.INSIGHTS_WORKER_CONCURRENCY
@@ -71,8 +83,13 @@ export function startInsightsWorker() {
 	});
 
 	worker.on("stalled", (jobId) => {
-		emitInsightsEvent("error", "worker.job_stalled", {
+		// Stalled jobs are part of BullMQ's normal recovery path: the lock expired
+		// (typically during a worker restart/deploy) and the job is moved back to
+		// "waiting" for retry. Log at warn, not error — terminal failures are already
+		// captured by the "failed" handler above.
+		emitInsightsEvent("warn", "worker.job_stalled", {
 			job_id: jobId,
+			job_name: inferJobNameFromId(jobId),
 		});
 	});
 
