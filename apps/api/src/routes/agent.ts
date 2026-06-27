@@ -1044,7 +1044,12 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							try {
 								await clearActiveStream(streamScope, chatId, streamId);
 							} catch (cleanupError) {
-								captureError(cleanupError, {
+								log.warn({
+									service: "api",
+									error_message:
+										cleanupError instanceof Error
+											? cleanupError.message
+											: String(cleanupError),
 									agent_stream_cleanup_error: true,
 									agent_chat_id: chatId,
 								});
@@ -1115,14 +1120,24 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								try {
 									await markStreamDone(streamKey);
 								} catch (cleanupError) {
-									captureError(cleanupError, {
+									log.warn({
+										service: "api",
+										error_message:
+											cleanupError instanceof Error
+												? cleanupError.message
+												: String(cleanupError),
 										agent_stream_cleanup_error: true,
 										agent_chat_id: chatId,
 									});
 								}
 							}
 						})().catch((storageError) => {
-							captureError(storageError, {
+							log.warn({
+								service: "api",
+								error_message:
+									storageError instanceof Error
+										? storageError.message
+										: String(storageError),
 								agent_stream_persist_error: true,
 								agent_chat_id: chatId,
 								...(defaultWebsiteId
