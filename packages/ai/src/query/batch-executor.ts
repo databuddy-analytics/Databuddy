@@ -1,5 +1,5 @@
 import { chQuery } from "@databuddy/db/clickhouse";
-import { captureError, mergeWideEvent } from "../lib/tracing";
+import { captureError, captureWarning, mergeWideEvent } from "../lib/tracing";
 import { QueryBuilders, suggestQueryTypes } from "./builders";
 import {
 	getClickHouseQuerySettings,
@@ -447,7 +447,7 @@ export async function executeBatch(
 			}
 			return { unionCount: 1, singleCount: 0 };
 		} catch (error) {
-			captureError(error, {
+			captureWarning(error, {
 				operation: "batch_union",
 				batch_types: compiledItems.map((g) => g.req.type).join(","),
 				batch_size: compiledItems.length,

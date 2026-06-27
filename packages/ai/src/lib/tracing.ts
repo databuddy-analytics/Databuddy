@@ -13,6 +13,28 @@ export function mergeWideEvent<Fields extends object = Record<string, unknown>>(
 	log.info({ service: "api", ...payload });
 }
 
+export function captureWarning<Fields extends object = Record<string, unknown>>(
+	error: unknown,
+	fields?: Partial<Fields>
+): void {
+	const err = error instanceof Error ? error : new Error(String(error));
+	const payload = fields as Record<string, unknown> | undefined;
+	const requestLog = getActiveAiRequestLogger();
+	if (requestLog) {
+		if (payload) {
+			requestLog.warn(err.message, payload);
+		} else {
+			requestLog.warn(err.message);
+		}
+		return;
+	}
+	log.warn({
+		service: "api",
+		error_message: err.message,
+		...(payload ?? {}),
+	});
+}
+
 export function captureError<Fields extends object = Record<string, unknown>>(
 	error: unknown,
 	fields?: Partial<Fields>
