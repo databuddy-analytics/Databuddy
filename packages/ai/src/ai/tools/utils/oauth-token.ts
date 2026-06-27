@@ -1,8 +1,8 @@
 import { auth } from "@databuddy/auth";
-import { and, db, eq, sql } from "@databuddy/db";
+import { and, db, eq } from "@databuddy/db";
 import { account, member } from "@databuddy/db/schema";
+import { getOAuthTokenOrderBy } from "./oauth-token-ordering";
 
-const ROLE_PRIORITY = sql`CASE ${member.role} WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END`;
 const TOKEN_TTL_MS = 45 * 60 * 1000;
 const NEGATIVE_TTL_MS = 5 * 60 * 1000;
 const EXPIRY_SKEW_MS = 60 * 1000;
@@ -68,9 +68,7 @@ async function resolveOAuthToken(
 	preferUserId?: string,
 	requiredScope?: string
 ): Promise<ResolvedToken | null> {
-	const preference = preferUserId
-		? sql`CASE WHEN ${account.userId} = ${preferUserId} THEN 0 ELSE 1 END`
-		: sql`0`;
+	const orderBy = getOAuthTokenOrderBy(preferUserId);
 
 	const candidates: TokenCandidate[] = await db
 		.select({
@@ -89,7 +87,7 @@ async function resolveOAuthToken(
 				eq(account.providerId, providerId)
 			)
 		)
-		.orderBy(preference, ROLE_PRIORITY)
+		.orderBy(...orderBy)
 		.limit(MAX_CANDIDATES);
 
 	for (const candidate of candidates) {
