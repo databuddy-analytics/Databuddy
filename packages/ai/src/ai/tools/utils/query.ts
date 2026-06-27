@@ -103,7 +103,7 @@ export async function executeTimedQuery<T extends Record<string, unknown>>(
 	} catch (error) {
 		const executionTime = Date.now() - queryStart;
 
-		logger.error("Query failed", {
+		logger.warn("Query failed", {
 			...logContext,
 			executionTime: `${executionTime}ms`,
 			error: error instanceof Error ? error.message : "Unknown error",
