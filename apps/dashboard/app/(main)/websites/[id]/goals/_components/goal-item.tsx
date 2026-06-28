@@ -20,6 +20,7 @@ interface GoalItemProps {
 	isLoadingAnalytics?: boolean;
 	onDelete: (goalId: string) => void;
 	onEdit: (goal: Goal) => void;
+	readOnly?: boolean;
 }
 
 function GoalProgress({ rate }: { rate: number }) {
@@ -74,6 +75,7 @@ export function GoalItem({
 	isLoadingAnalytics,
 	onEdit,
 	onDelete,
+	readOnly = false,
 }: GoalItemProps) {
 	const analyticsData = analytics?.ok ? analytics.data : null;
 	const analyticsError = analytics && !analytics.ok ? analytics.error : null;
@@ -149,32 +151,37 @@ export function GoalItem({
 				)}
 			</List.Cell>
 
-			<List.Cell action>
-				<DropdownMenu>
-					<DropdownMenu.Trigger
-						aria-label="Goal actions"
-						className="inline-flex size-8 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
-						data-dropdown-trigger
-					>
-						<DotsThreeIcon className="size-5" weight="bold" />
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content align="end" className="w-40">
-						<DropdownMenu.Item className="gap-2" onClick={() => onEdit(goal)}>
-							<PencilSimpleIcon className="size-4" weight="duotone" />
-							Edit
-						</DropdownMenu.Item>
-						<DropdownMenu.Separator />
-						<DropdownMenu.Item
-							className="gap-2 text-destructive focus:text-destructive"
-							onClick={() => onDelete(goal.id)}
-							variant="destructive"
+			{!readOnly && (
+				<List.Cell action>
+					<DropdownMenu>
+						<DropdownMenu.Trigger
+							aria-label="Goal actions"
+							className="inline-flex size-8 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
+							data-dropdown-trigger
 						>
-							<TrashIcon className="size-4 fill-destructive" weight="duotone" />
-							Delete
-						</DropdownMenu.Item>
-					</DropdownMenu.Content>
-				</DropdownMenu>
-			</List.Cell>
+							<DotsThreeIcon className="size-5" weight="bold" />
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Content align="end" className="w-40">
+							<DropdownMenu.Item className="gap-2" onClick={() => onEdit(goal)}>
+								<PencilSimpleIcon className="size-4" weight="duotone" />
+								Edit
+							</DropdownMenu.Item>
+							<DropdownMenu.Separator />
+							<DropdownMenu.Item
+								className="gap-2 text-destructive focus:text-destructive"
+								onClick={() => onDelete(goal.id)}
+								variant="destructive"
+							>
+								<TrashIcon
+									className="size-4 fill-destructive"
+									weight="duotone"
+								/>
+								Delete
+							</DropdownMenu.Item>
+						</DropdownMenu.Content>
+					</DropdownMenu>
+				</List.Cell>
+			)}
 		</List.Row>
 	);
 }

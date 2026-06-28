@@ -89,6 +89,14 @@ function authorizeFlagRead(
 	});
 }
 
+function requireAuthedFlagRead(workspace: Workspace) {
+	if (workspace.tier === "demo") {
+		throw rpcError.unauthorized(
+			"Feature flag definitions require authenticated workspace access"
+		);
+	}
+}
+
 const listFlagsSchema = z
 	.object({
 		...flagScopeFields,
@@ -224,32 +232,6 @@ const checkCircularDependency = async (
 	}
 };
 
-interface FlagWithTargetGroups {
-	createdBy?: unknown;
-	rules?: unknown;
-	targetGroups?: Array<{
-		rules?: unknown;
-		createdBy?: unknown;
-		[key: string]: unknown;
-	}>;
-	userId?: unknown;
-	[key: string]: unknown;
-}
-
-function sanitizeFlagForDemo<T extends FlagWithTargetGroups>(flag: T): T {
-	return {
-		...flag,
-		rules: Array.isArray(flag.rules) ? [] : flag.rules,
-		createdBy: "",
-		userId: null,
-		targetGroups: flag.targetGroups?.map((group) => ({
-			...group,
-			rules: Array.isArray(group.rules) ? [] : group.rules,
-			createdBy: "",
-		})),
-	};
-}
-
 interface FlagRelation {
 	flagsToTargetGroups: Array<{
 		targetGroup: { deletedAt: Date | null; [key: string]: unknown } | null;
@@ -262,11 +244,6 @@ function flattenTargetGroups<T extends FlagRelation>(flag: T) {
 		.map((ftg) => ftg.targetGroup)
 		.filter((tg): tg is NonNullable<typeof tg> => !!tg && !tg.deletedAt);
 	return { ...rest, targetGroups };
-}
-
-function projectForViewer<T extends FlagRelation>(flag: T, sanitize: boolean) {
-	const mapped = flattenTargetGroups(flag);
-	return sanitize ? sanitizeFlagForDemo(mapped) : mapped;
 }
 
 function buildFlagChangeSnapshot(flag: {
@@ -323,16 +300,15 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(async ({ context, input }) => {
 			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const sanitize = workspace.tier === "demo";
 
 			return flagsCache.withCache({
 				key: scopedCacheKey(
 					"list",
 					workspace,
 					scope,
-					`status:${input.status || "all"}`,
-					`sanitize:${sanitize}`
+					`status:${input.status || "all"}`
 				),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
@@ -360,7 +336,7 @@ export const flagsRouter = {
 						with: { flagsToTargetGroups: { with: { targetGroup: true } } },
 					});
 
-					return flagsList.map((flag) => projectForViewer(flag, sanitize));
+					return flagsList.map(flattenTargetGroups);
 				},
 			});
 		}),
@@ -378,17 +354,11 @@ export const flagsRouter = {
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
 			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const sanitize = workspace.tier === "demo";
 
 			return flagsCache.withCache({
-				key: scopedCacheKey(
-					"byId",
-					workspace,
-					scope,
-					`id:${input.id}`,
-					`sanitize:${sanitize}`
-				),
+				key: scopedCacheKey("byId", workspace, scope, `id:${input.id}`),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
 				queryFn: async () => {
@@ -414,7 +384,7 @@ export const flagsRouter = {
 					if (!flag) {
 						throw rpcError.notFound("Flag", input.id);
 					}
-					return projectForViewer(flag, sanitize);
+					return flattenTargetGroups(flag);
 				},
 			});
 		}),
@@ -432,17 +402,11 @@ export const flagsRouter = {
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
 			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const sanitize = workspace.tier === "demo";
 
 			return flagsCache.withCache({
-				key: scopedCacheKey(
-					"byKey",
-					workspace,
-					scope,
-					`key:${input.key}`,
-					`sanitize:${sanitize}`
-				),
+				key: scopedCacheKey("byKey", workspace, scope, `key:${input.key}`),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
 				queryFn: async () => {
@@ -469,7 +433,7 @@ export const flagsRouter = {
 					if (!flag) {
 						throw rpcError.notFound("Flag");
 					}
-					return projectForViewer(flag, sanitize);
+					return flattenTargetGroups(flag);
 				},
 			});
 		}),

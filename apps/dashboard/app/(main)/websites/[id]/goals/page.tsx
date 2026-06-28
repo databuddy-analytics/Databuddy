@@ -1,7 +1,7 @@
 "use client";
 
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { FeatureGate } from "@/components/feature-gate";
 import { List } from "@/components/ui/composables/list";
@@ -58,6 +58,8 @@ function toGoalFilters(filters: DynamicQueryFilter[]): GoalFilter[] {
 export default function GoalsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
+	const pathname = usePathname();
+	const isDemoRoute = pathname.startsWith("/demo/");
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 	const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
@@ -156,28 +158,32 @@ export default function GoalsPage() {
 							className={cn("size-4 shrink-0", isFetching && "animate-spin")}
 						/>
 					</Button>
-					<Button
-						onClick={() => {
-							setEditingGoal(null);
-							setIsDialogOpen(true);
-						}}
-						size="sm"
-					>
-						<PlusIcon className="size-4 shrink-0" />
-						Create Goal
-					</Button>
+					{!isDemoRoute && (
+						<Button
+							onClick={() => {
+								setEditingGoal(null);
+								setIsDialogOpen(true);
+							}}
+							size="sm"
+						>
+							<PlusIcon className="size-4 shrink-0" />
+							Create Goal
+						</Button>
+					)}
 				</TopBar.Actions>
 
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
 					<List.Content
 						emptyProps={{
-							action: {
-								label: "Create a goal",
-								onClick: () => {
-									setEditingGoal(null);
-									setIsDialogOpen(true);
-								},
-							},
+							action: isDemoRoute
+								? undefined
+								: {
+										label: "Create a goal",
+										onClick: () => {
+											setEditingGoal(null);
+											setIsDialogOpen(true);
+										},
+									},
 							description:
 								"Track single-step conversions like signups, purchases, or activation events.",
 							icon: <TargetIcon className="size-6" weight="duotone" />,
@@ -204,12 +210,13 @@ export default function GoalsPage() {
 									setEditingGoal(goal);
 									setIsDialogOpen(true);
 								}}
+								readOnly={isDemoRoute}
 							/>
 						)}
 					</List.Content>
 				</div>
 
-				{isDialogOpen && (
+				{!isDemoRoute && isDialogOpen && (
 					<EditGoalDialog
 						autocompleteData={autocompleteQuery.data}
 						goal={editingGoal}
@@ -223,7 +230,7 @@ export default function GoalsPage() {
 					/>
 				)}
 
-				{deletingGoalId && (
+				{!isDemoRoute && deletingGoalId && (
 					<DeleteDialog
 						confirmLabel="Delete Goal"
 						description="Are you sure you want to delete this goal? This action cannot be undone and will permanently remove all associated analytics data."

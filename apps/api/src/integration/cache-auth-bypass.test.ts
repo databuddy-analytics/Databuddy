@@ -106,7 +106,7 @@ describe("cache-bypass auth: target-groups.list", () => {
 		);
 	});
 
-	iit("demo caller gets sanitized rules even when authed cache exists", async () => {
+	iit("demo caller cannot read target groups even when authed cache exists", async () => {
 		const { user, org, site } = await setupOwnedSite({ isPublic: true });
 		await seedTargetGroup(site.id, user.id);
 
@@ -116,12 +116,10 @@ describe("cache-bypass auth: target-groups.list", () => {
 		)({ websiteId: site.id });
 		expect((authed[0] as { rules: unknown[] }).rules).toHaveLength(1);
 
-		const demo = await call(
-			appRouter.targetGroups.list,
-			context()
-		)({ websiteId: site.id });
-		expect(demo).toHaveLength(1);
-		expect((demo[0] as { rules: unknown[] }).rules).toEqual([]);
+		await expectCode(
+			call(appRouter.targetGroups.list, context())({ websiteId: site.id }),
+			"UNAUTHORIZED"
+		);
 	});
 
 	iit("cross-org API key cannot read a website it does not own", async () => {
@@ -174,6 +172,15 @@ describe("cache-bypass auth: flags.list", () => {
 				userContext(b.user, b.org.id)
 			)({ websiteId: a.site.id }),
 			"FORBIDDEN"
+		);
+	});
+
+	iit("demo caller cannot read public-site flag definitions", async () => {
+		const { site } = await setupOwnedSite({ isPublic: true });
+
+		await expectCode(
+			call(appRouter.flags.list, context())({ websiteId: site.id }),
+			"UNAUTHORIZED"
 		);
 	});
 });

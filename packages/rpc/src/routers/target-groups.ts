@@ -60,18 +60,12 @@ const targetGroupOutputSchema = z.record(z.string(), z.unknown());
 
 const successOutputSchema = z.object({ success: z.literal(true) });
 
-interface TargetGroupWithRules {
-	createdBy?: unknown;
-	rules?: unknown;
-	[key: string]: unknown;
-}
-
-function sanitizeGroupForDemo<T extends TargetGroupWithRules>(group: T): T {
-	return {
-		...group,
-		rules: Array.isArray(group.rules) ? [] : group.rules,
-		createdBy: "",
-	};
+function requireAuthedTargetGroupRead(workspace: { tier: "authed" | "demo" }) {
+	if (workspace.tier === "demo") {
+		throw rpcError.unauthorized(
+			"Target group definitions require authenticated workspace access"
+		);
+	}
 }
 
 export const targetGroupsRouter = {
@@ -92,15 +86,10 @@ export const targetGroupsRouter = {
 				permissions: ["read"],
 			});
 
-			const sanitize = workspace.tier === "demo";
+			requireAuthedTargetGroupRead(workspace);
 
 			return targetGroupsCache.withCache({
-				key: scopedCacheKey(
-					"list",
-					workspace,
-					`website:${input.websiteId}`,
-					`sanitize:${sanitize}`
-				),
+				key: scopedCacheKey("list", workspace, `website:${input.websiteId}`),
 				ttl: CACHE_DURATION,
 				tables: ["target_groups"],
 				queryFn: async () => {
@@ -115,7 +104,7 @@ export const targetGroupsRouter = {
 						)
 						.orderBy(desc(targetGroups.createdAt));
 
-					return sanitize ? groupsList.map(sanitizeGroupForDemo) : groupsList;
+					return groupsList;
 				},
 			});
 		}),
@@ -134,15 +123,14 @@ export const targetGroupsRouter = {
 		.use(withWebsiteRead)
 		.handler(async ({ context, input }) => {
 			const { workspace } = context;
-			const sanitize = workspace.tier === "demo";
+			requireAuthedTargetGroupRead(workspace);
 
 			return await targetGroupsCache.withCache({
 				key: scopedCacheKey(
 					"byId",
 					workspace,
 					`website:${input.websiteId}`,
-					`id:${input.id}`,
-					`sanitize:${sanitize}`
+					`id:${input.id}`
 				),
 				ttl: CACHE_DURATION,
 				tables: ["target_groups"],
@@ -157,7 +145,7 @@ export const targetGroupsRouter = {
 					if (!row) {
 						throw rpcError.notFound("Target group", input.id);
 					}
-					return sanitize ? sanitizeGroupForDemo(row) : row;
+					return row;
 				},
 			});
 		}),

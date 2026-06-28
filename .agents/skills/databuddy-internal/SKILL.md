@@ -105,6 +105,9 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - When fixing broken dashboard links to moved sections, update the real docs/search/navigation links and section anchors directly; do not add compatibility redirect pages unless explicitly requested.
 - Custom events UI is shared in `apps/dashboard/components/events/custom-events`; keep many-series legends outside the Recharts plot, use compact controls for property-summary event selection, and avoid separate event-count chip/list sections.
 - Goals and Funnels are sibling conversion surfaces; keep Goals list-first and visually aligned with `app/(main)/websites/[id]/funnels` instead of adding separate summary-card chrome.
+- Funnel rows keep the action menu outside the main toggle button; put row padding on the sibling `Button`, not only on `List.Row`, so the visible row surface is clickable without nesting buttons.
+- Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, Anomalies, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
+- Dashboard definitions for feature flags and target groups are admin surfaces; do not expose even sanitized rows to demo-tier/public website access.
 - Insights merged feed (`use-insights-feed`) collapses history + AI by `insightSignalDedupeKey` in `apps/dashboard/lib/insight-signal-key.ts` so the list is one row per signal (latest wins).
 - Insights page (`app/(main)/insights`) should stay focused on the brief + signal queue; do not add generic global analytics KPI cards or top pages/referrers/countries tables there.
 - Theme: `apps/dashboard/app/globals.css`. **`--border` is intentionally subtle**; do not crank it darker for “contrast” unless **iza** asks—prefer text tokens or layout for readability.
