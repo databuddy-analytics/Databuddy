@@ -51,6 +51,21 @@ async function mapWithConcurrency<T, R>(
 	return results;
 }
 
+const TRANSIENT_CH_ERROR_PATTERNS = [
+	"socket connection was closed",
+	"econnreset",
+	"econnrefused",
+	"network error",
+	"connection reset",
+];
+
+function isTransientChError(e: unknown): boolean {
+	if (!(e instanceof Error)) return false;
+	if (e.name === "AbortError") return false;
+	const msg = e.message.toLowerCase();
+	return TRANSIENT_CH_ERROR_PATTERNS.some((p) => msg.includes(p));
+}
+
 const ALIAS_REGEX = /\s+as\s+([\w]+)\s*$/i;
 const TAIL_SPLIT_REGEX = /[\s.]/;
 const QUOTE_STRIP_REGEX = /[`"']/g;
@@ -247,27 +262,35 @@ async function runSingle(
 		};
 	}
 
-	try {
-		const builder = new SimpleQueryBuilder(
-			config,
-			{ ...req, timezone: opts?.timezone ?? req.timezone },
-			opts?.websiteDomain
-		);
-		const data = await builder.execute(opts?.abortSignal);
+	for (let attempt = 0; attempt < 2; attempt++) {
+		try {
+			const builder = new SimpleQueryBuilder(
+				config,
+				{ ...req, timezone: opts?.timezone ?? req.timezone },
+				opts?.websiteDomain
+			);
+			const data = await builder.execute(opts?.abortSignal);
 
-		mergeWideEvent({
-			query_type: req.type,
-			query_from: req.from,
-			query_to: req.to,
-			query_rows: data.length,
-		});
+			mergeWideEvent({
+				query_type: req.type,
+				query_from: req.from,
+				query_to: req.to,
+				query_rows: data.length,
+			});
 
-		return { type: req.type, data };
-	} catch (e) {
-		const error = e instanceof Error ? e.message : "Query failed";
-		mergeWideEvent({ query_error: error });
-		return { type: req.type, data: [], error };
+			return { type: req.type, data };
+		} catch (e) {
+			if (attempt === 0 && isTransientChError(e)) {
+				continue;
+			}
+			const error = e instanceof Error ? e.message : "Query failed";
+			mergeWideEvent({ query_error: error });
+			return { type: req.type, data: [], error };
+		}
 	}
+
+	// Unreachable: all loop paths return above, but TypeScript needs this.
+	return { type: req.type, data: [], error: "Query failed" };
 }
 
 function groupBySchema(
