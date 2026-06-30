@@ -27,7 +27,7 @@ export const describeSchemaTool = tool({
 		table: z
 			.enum([TABLE_NAMES[0] ?? "analytics.events", ...TABLE_NAMES.slice(1)] as [
 				string,
-				...string[]
+				...string[],
 			])
 			.optional()
 			.describe(

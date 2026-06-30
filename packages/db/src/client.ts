@@ -15,6 +15,31 @@ export function setPgErrorFn(fn: (error: Error) => void) {
 	_pgErrorFn = fn;
 }
 
+let _pgTimingFn: ((durationMs: number) => void) | null = null;
+
+export function setPgTimingFn(fn: (durationMs: number) => void) {
+	_pgTimingFn = fn;
+}
+
+function timePoolQueries(pool: Pool): void {
+	const originalQuery = pool.query.bind(pool) as (
+		...args: unknown[]
+	) => unknown;
+	pool.query = ((...args: unknown[]) => {
+		const timingFn = _pgTimingFn;
+		if (!timingFn) {
+			return originalQuery(...args);
+		}
+		const startedAt = performance.now();
+		const result = originalQuery(...args);
+		if (result instanceof Promise) {
+			const record = () => timingFn(performance.now() - startedAt);
+			result.then(record, record);
+		}
+		return result;
+	}) as Pool["query"];
+}
+
 function connectionStringForNodePg(connectionString: string): string {
 	try {
 		const parsed = new URL(connectionString);
@@ -55,6 +80,7 @@ function getDb(): DB {
 			),
 			application_name: process.env.SERVICE_NAME || "databuddy",
 		});
+		timePoolQueries(_pool);
 		_pool.on("error", (error) => {
 			if (_pgErrorFn) {
 				_pgErrorFn(error);

@@ -121,6 +121,7 @@ export function normalizeDomain(domain: string): string {
 
 		if (!isValidDomainFormat(finalDomain)) {
 			throw createError({
+				code: "basket.INVALID_DOMAIN",
 				message: `Invalid domain format after normalization: ${finalDomain}`,
 				status: 400,
 				why: "The domain failed format validation after extracting the hostname.",
@@ -135,6 +136,7 @@ export function normalizeDomain(domain: string): string {
 		}
 		const cause = error instanceof Error ? error : new Error(String(error));
 		throw createError({
+			code: "basket.INVALID_DOMAIN",
 			message: `Invalid domain format: ${domain}`,
 			status: 400,
 			why: cause.message,
@@ -208,6 +210,7 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 		prefix: cacheNamespaces.websiteWithOwner,
 		staleWhileRevalidate: true,
 		staleTime: 120,
+		queryTimeoutMs: 10_000,
 	}
 );
 

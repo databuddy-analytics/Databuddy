@@ -8,7 +8,10 @@ const FREQUENCY_VALUES: ReadonlySet<DigestFrequency> = new Set([
 ]);
 
 function asDigestFrequency(value: unknown): DigestFrequency {
-	if (typeof value === "string" && FREQUENCY_VALUES.has(value as DigestFrequency)) {
+	if (
+		typeof value === "string" &&
+		FREQUENCY_VALUES.has(value as DigestFrequency)
+	) {
 		return value as DigestFrequency;
 	}
 	return "weekly";

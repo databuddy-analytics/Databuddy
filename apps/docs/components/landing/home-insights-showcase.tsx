@@ -10,7 +10,7 @@ export function HomeInsightsShowcase() {
 				aria-hidden
 				className="absolute inset-0 bg-center bg-cover opacity-45 saturate-110"
 				style={{
-					backgroundImage: "url('/brand/gradients/gradient-bg-1.jpg')",
+					backgroundImage: "url('/brand/gradients/gradient-bg-1.webp')",
 				}}
 			/>
 			<div

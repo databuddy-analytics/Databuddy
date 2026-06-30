@@ -18,6 +18,7 @@
     "db:push": "dotenv -- drizzle-kit push",
     "db:studio": "dotenv -- drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
+    "email:segments": "dotenv -- bun src/scripts/export-user-email-segments.ts",
     "clickhouse:init": "tsx src/clickhouse/setup.ts",
     "test": "bun test src",
     "e2e:db:create": "bun ./scripts/e2e-db-lifecycle.ts create",

@@ -20,6 +20,9 @@ const logger = createToolLogger("Insight Digest Tools");
 
 const SLACK_CHANNEL_ID_RE = /^[CGD][A-Z0-9]{8,}$/i;
 
+const CONFIRM_INSTRUCTION =
+	"Wait for the user to explicitly confirm before calling this tool again with confirmed=true.";
+
 const digestFrequencySchema = z.enum(["hourly", "daily", "weekly", "custom"]);
 
 const manageDigestInputSchema = z.object({
@@ -60,9 +63,7 @@ const manageDigestInputSchema = z.object({
 	websiteId: z
 		.string()
 		.optional()
-		.describe(
-			"Scope to one website. Omit to apply to the whole organization."
-		),
+		.describe("Scope to one website. Omit to apply to the whole organization."),
 	confirmed: z
 		.boolean()
 		.describe(
@@ -320,15 +321,16 @@ async function handleReschedule(
 		);
 	}
 
-	const proposedNextRunAt = getNextInsightRunAt(
-		{
-			cron: proposal.cron,
-			enabled: true,
-			frequency: proposal.frequency,
-			timezone: proposal.timezone,
-		},
-		new Date()
-	)?.toISOString() ?? null;
+	const proposedNextRunAt =
+		getNextInsightRunAt(
+			{
+				cron: proposal.cron,
+				enabled: true,
+				frequency: proposal.frequency,
+				timezone: proposal.timezone,
+			},
+			new Date()
+		)?.toISOString() ?? null;
 
 	if (!confirmed) {
 		return {
@@ -348,8 +350,7 @@ async function handleReschedule(
 				nextRunAtWas: existing.nextRunAt,
 			},
 			message: `Reschedule digest for ${scope}: ${proposal.changes.join(", ")}. ${proposedNextRunAt ? `Next run would be ${proposedNextRunAt}.` : "Next run cannot be computed for the proposed schedule — double-check cron/frequency."} Reply to confirm.`,
-			instruction:
-				"Wait for the user to explicitly confirm before calling this tool again with confirmed=true.",
+			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
 
@@ -357,7 +358,10 @@ async function handleReschedule(
 		const config = await callRPCProcedure(
 			"insightGeneration",
 			"upsertConfig",
-			{ ...scopeInput, ...computeReschedulePatch({ cron, frequency, timezone }) },
+			{
+				...scopeInput,
+				...computeReschedulePatch({ cron, frequency, timezone }),
+			},
 			context
 		);
 		const summary = summarizeDigestConfig(config);
@@ -427,8 +431,7 @@ async function handleTest(
 				cadence: existing.frequency,
 			},
 			message: `Trigger a one-off test digest run for ${scope}. The pipeline will run the full investigation and ${deliveryDescription}. This costs LLM tokens and bypasses cooldown. Reply to confirm.`,
-			instruction:
-				"Wait for the user to explicitly confirm before calling this tool again with confirmed=true.",
+			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
 
@@ -528,8 +531,7 @@ async function handleRoute(
 				cadenceWas,
 			},
 			message: `Route insight digests for ${scope} to ${channelMention(id)}${frequency ? ` on a ${frequency} cadence` : ""}.${cadenceLine} Reply to confirm.`,
-			instruction:
-				"Wait for the user to explicitly confirm before calling this tool again with confirmed=true.",
+			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
 
@@ -551,8 +553,7 @@ async function handleRoute(
 				channelId: id,
 				cadence: summary.frequency,
 				cadenceWas,
-				cadenceChanged:
-					cadenceWas !== null && cadenceWas !== summary.frequency,
+				cadenceChanged: cadenceWas !== null && cadenceWas !== summary.frequency,
 				nextRunAt: summary.nextRunAt,
 			},
 			message: `Routed insight digests to ${channelMention(id)} on a ${summary.frequency} cadence.`,
@@ -589,8 +590,7 @@ async function handleUnroute(
 				channelId: id,
 			},
 			message: `Stop routing insight digests for ${scope} to ${channelMention(id)}. Reply to confirm.`,
-			instruction:
-				"Wait for the user to explicitly confirm before calling this tool again with confirmed=true.",
+			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
 
@@ -652,17 +652,19 @@ export function createInsightDigestTools() {
 
 			switch (args.action) {
 				case "status":
-					return handleStatus(actionContext);
+					return await handleStatus(actionContext);
 				case "preview":
-					return handlePreview(actionContext);
+					return await handlePreview(actionContext);
 				case "reschedule":
-					return handleReschedule(actionContext, args);
+					return await handleReschedule(actionContext, args);
 				case "test":
-					return handleTest(actionContext, args);
+					return await handleTest(actionContext, args);
 				case "route":
-					return handleRoute(actionContext, args);
+					return await handleRoute(actionContext, args);
 				case "unroute":
-					return handleUnroute(actionContext, args);
+					return await handleUnroute(actionContext, args);
+				default:
+					return fail("UNKNOWN_ACTION", "Unsupported digest action.");
 			}
 		},
 	});

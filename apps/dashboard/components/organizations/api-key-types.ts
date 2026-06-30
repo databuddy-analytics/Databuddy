@@ -5,6 +5,10 @@ export const SCOPE_OPTIONS: { value: ApiScope; label: string }[] = [
 	{ value: "track:events", label: "Event Tracking" },
 	{ value: "read:links", label: "Read Links" },
 	{ value: "write:links", label: "Write Links" },
+	{ value: "read:monitors", label: "Read Monitors" },
+	{ value: "write:monitors", label: "Write Monitors" },
+	{ value: "read:status_pages", label: "Read Status Pages" },
+	{ value: "write:status_pages", label: "Write Status Pages" },
 	{ value: "manage:websites", label: "Manage Websites" },
 	{ value: "manage:flags", label: "Manage Flags" },
 	{ value: "manage:config", label: "Manage Config" },
@@ -14,6 +18,11 @@ export const SCOPE_PRESETS: { label: string; scopes: readonly ApiScope[] }[] = [
 	{ label: "Analytics", scopes: ["read:data"] },
 	{ label: "Tracking", scopes: ["track:events"] },
 	{ label: "Links", scopes: ["read:links", "write:links"] },
+	{ label: "Monitors", scopes: ["read:monitors", "write:monitors"] },
+	{
+		label: "Status Pages",
+		scopes: ["read:status_pages", "write:status_pages"],
+	},
 	{
 		label: "Config",
 		scopes: ["manage:websites", "manage:flags", "manage:config"],

@@ -2,9 +2,7 @@ import { db } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis";
 import {
-	ACTIONABLE_TRACKING_BLOCK_REASONS,
 	getTrackingBlockOriginHost,
-	isActionableTrackingBlockReason,
 	isIgnoredTrackingBlockOrigin,
 	matchesTrackingBlockAllowedOrigin,
 	matchesTrackingBlockIgnoredOrigin,
@@ -30,7 +28,11 @@ import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
 import { setTrackProperties } from "../middleware/track-mutation";
-import { withWorkspace } from "../procedures/with-workspace";
+import { authorizeTransfer } from "../procedures/with-resource";
+import {
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 import {
 	generateExport,
 	validateExportDateRange,
@@ -59,9 +61,12 @@ function handleServiceError(error: unknown): never {
 
 const TRACKING_HEALTH_WINDOW_HOURS = 24;
 const TRACKING_ISSUE_MIN_BLOCKS = 3;
-const TRACKING_ISSUE_TYPES = ACTIONABLE_TRACKING_BLOCK_REASONS;
+const TRACKING_ISSUE_TYPES = [
+	"origin_not_authorized",
+	"ip_not_authorized",
+] as const satisfies readonly ActionableTrackingBlockReason[];
 
-type TrackingIssueType = ActionableTrackingBlockReason;
+type TrackingIssueType = (typeof TRACKING_ISSUE_TYPES)[number];
 type TrackingIssueSeverity = "critical" | "warning";
 
 interface EventsCheckResult {
@@ -94,7 +99,7 @@ function buildTrackingIssue(
 	websiteDomain: string | null,
 	recentEvents: number
 ): TrackingIssue | null {
-	if (!isActionableTrackingBlockReason(row.issueType)) {
+	if (!isDashboardTrackingIssueType(row.issueType)) {
 		return null;
 	}
 
@@ -123,21 +128,6 @@ function buildTrackingIssue(
 		};
 	}
 
-	if (row.issueType === "origin_missing") {
-		return {
-			count: row.count,
-			expectedDomain,
-			fix: "Browser requests must include an allowed Origin. For server-side events, use the /track API with an API key instead of the browser ingest endpoint.",
-			lastSeen: row.lastSeen,
-			message:
-				"Recent tracking requests are missing an Origin header and are blocked by the website origin allowlist.",
-			origin: null,
-			originHost: null,
-			severity,
-			type: row.issueType,
-		};
-	}
-
 	return {
 		count: row.count,
 		expectedDomain,
@@ -150,6 +140,12 @@ function buildTrackingIssue(
 		severity,
 		type: row.issueType,
 	};
+}
+
+function isDashboardTrackingIssueType(
+	issueType: string
+): issueType is TrackingIssueType {
+	return (TRACKING_ISSUE_TYPES as readonly string[]).includes(issueType);
 }
 
 async function getTrackingEventsStatus(
@@ -563,10 +559,9 @@ export const websitesRouter = {
 		.input(z.object({ id: z.string() }))
 		.output(publicWebsiteSummarySchema)
 		.handler(async ({ context, input }) => {
-			const workspace = await withWorkspace(context, {
+			const workspace = await withPublicWorkspace(context, {
 				websiteId: input.id,
 				permissions: ["read"],
-				allowPublicAccess: true,
 			});
 
 			const site = workspace.website;
@@ -754,19 +749,14 @@ export const websitesRouter = {
 		.input(transferWebsiteSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["update"],
-			});
-
 			if (!input.organizationId) {
 				throw rpcError.badRequest("Website must be transferred to a workspace");
 			}
 
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
+			await authorizeTransfer(context, {
 				resource: "website",
-				permissions: ["create"],
+				id: input.websiteId,
+				targetOrganizationId: input.organizationId,
 			});
 
 			try {
@@ -789,15 +779,10 @@ export const websitesRouter = {
 		.input(transferWebsiteToOrgSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["update"],
-			});
-
-			await withWorkspace(context, {
-				organizationId: input.targetOrganizationId,
+			await authorizeTransfer(context, {
 				resource: "website",
-				permissions: ["create"],
+				id: input.websiteId,
+				targetOrganizationId: input.targetOrganizationId,
 			});
 
 			try {

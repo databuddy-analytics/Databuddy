@@ -6,7 +6,10 @@ const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
 	keyof typeof QueryBuilders
 >;
 
-export { DatePresets, type DatePreset };
+export {
+	DatePresets,
+	type DatePreset,
+} from "@databuddy/ai/lib/date-presets";
 
 export const DatePresetSchema = t.Enum(DatePresets);
 

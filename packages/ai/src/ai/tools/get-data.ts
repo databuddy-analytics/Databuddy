@@ -116,7 +116,8 @@ function resolveDates(
 }
 
 export const getDataTool = tool({
-	description: `Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. Call discover_query_types to browse available types.`,
+	description:
+		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. Call discover_query_types to browse available types.",
 	inputSchema: z.object({
 		queries: z
 			.array(queryItemSchema)

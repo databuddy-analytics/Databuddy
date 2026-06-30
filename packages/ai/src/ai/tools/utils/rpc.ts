@@ -1,6 +1,5 @@
 import { ORPCError } from "@orpc/server";
 import type { PreResolvedAuth } from "@databuddy/rpc";
-import { createServiceAuth } from "@databuddy/rpc";
 import { getServerRPCClient } from "../../../lib/orpc-server";
 import type { AppContext } from "../../config/context";
 import { createToolLogger } from "./logger";
@@ -95,14 +94,5 @@ function isMutationMethod(method: string): boolean {
 function resolvePreResolvedAuth(
 	context: AppContext
 ): PreResolvedAuth | undefined {
-	if (context.serviceAuth) {
-		return createServiceAuth(
-			context.serviceAuth.organizationId,
-			context.serviceAuth.scopes
-		);
-	}
-	if (context.apiKey) {
-		return { apiKey: context.apiKey, session: null };
-	}
-	return undefined;
+	return context.serviceAuth;
 }

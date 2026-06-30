@@ -193,8 +193,7 @@ export const toolRoutingCases: EvalCase[] = [
 				{
 					description:
 						"must not invent a popularity score number out of thin air",
-					pattern:
-						"\\bpopularity[ _-]?score\\b[\\s\\S]*?\\b\\d+(\\.\\d+)?\\b",
+					pattern: "\\bpopularity[ _-]?score\\b[\\s\\S]*?\\b\\d+(\\.\\d+)?\\b",
 					flags: "i",
 				},
 			],

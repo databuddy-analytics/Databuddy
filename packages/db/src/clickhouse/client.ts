@@ -45,6 +45,25 @@ const baseClient = createClient({
 	...CLICKHOUSE_OPTIONS,
 });
 
+let _chTimingFn: ((durationMs: number) => void) | null = null;
+
+export function setChTimingFn(fn: (durationMs: number) => void) {
+	_chTimingFn = fn;
+}
+
+async function withChTiming<T>(operation: () => Promise<T>): Promise<T> {
+	const timingFn = _chTimingFn;
+	if (!timingFn) {
+		return operation();
+	}
+	const startedAt = performance.now();
+	try {
+		return await operation();
+	} finally {
+		timingFn(performance.now() - startedAt);
+	}
+}
+
 const RETRIABLE_ERROR_CODES = new Set([
 	// undici (Node's HTTP client used by @clickhouse/client)
 	"UND_ERR_CONNECT_TIMEOUT",
@@ -113,13 +132,22 @@ export const clickHouse: ClickHouseClient = Object.assign(
 		insert: (
 			...args: Parameters<ClickHouseClient["insert"]>
 		): ReturnType<ClickHouseClient["insert"]> =>
-			withInsertRetry(() => baseClient.insert(...args)) as ReturnType<
-				ClickHouseClient["insert"]
-			>,
+			withChTiming(() =>
+				withInsertRetry(() => baseClient.insert(...args))
+			) as ReturnType<ClickHouseClient["insert"]>,
+		query: (
+			...args: Parameters<ClickHouseClient["query"]>
+		): ReturnType<ClickHouseClient["query"]> =>
+			withChTiming(() => baseClient.query(...args)),
+		command: (
+			...args: Parameters<ClickHouseClient["command"]>
+		): ReturnType<ClickHouseClient["command"]> =>
+			withChTiming(() => baseClient.command(...args)),
 	}
 );
 
 export interface ChQueryOptions {
+	abort_signal?: AbortSignal;
 	clickhouse_settings?: Record<string, string | number>;
 	readonly?: boolean;
 }
@@ -136,6 +164,7 @@ async function chQueryWithMeta<T>(
 	const res = await clickHouse.query({
 		query,
 		query_params: params,
+		...(options?.abort_signal && { abort_signal: options.abort_signal }),
 		...(Object.keys(settings).length > 0 && {
 			clickhouse_settings: settings,
 		}),

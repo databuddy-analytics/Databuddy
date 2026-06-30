@@ -1,8 +1,8 @@
 import cors from "@elysiajs/cors";
 import { serverTiming } from "@elysiajs/server-timing";
 import { Elysia } from "elysia";
-import { parseError } from "evlog";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
+import { handleAppError } from "@/http/errors";
 import { agentTelemetryRoute } from "./agent-telemetry";
 import { flagsRoute } from "./flags";
 
@@ -28,7 +28,7 @@ export const publicApi = new Elysia({ prefix: "/public" })
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(agentTelemetryRoute)
 	.use(flagsRoute)
-	.onError(function handlePublicError({ error, code, set }) {
+	.onError(function handlePublicError({ error, code }) {
 		const isNotFound = code === "NOT_FOUND";
 		mergeWideEvent({
 			public_api: true,
@@ -38,26 +38,5 @@ export const publicApi = new Elysia({ prefix: "/public" })
 			captureError(error, { public_api: true });
 		}
 
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const isDevelopment = process.env.NODE_ENV === "development";
-		const parsed = parseError(error);
-		const exposeStructured =
-			isDevelopment || (parsed.status >= 400 && parsed.status < 500);
-
-		set.status = isNotFound ? 404 : 500;
-
-		return {
-			success: false,
-			error: isDevelopment ? errorMessage : "An internal server error occurred",
-			code: code ?? "INTERNAL_SERVER_ERROR",
-			...(exposeStructured && parsed.why != null && parsed.why !== ""
-				? { why: parsed.why }
-				: {}),
-			...(exposeStructured && parsed.fix != null && parsed.fix !== ""
-				? { fix: parsed.fix }
-				: {}),
-			...(exposeStructured && parsed.link != null && parsed.link !== ""
-				? { link: parsed.link }
-				: {}),
-		};
+		return handleAppError({ code, error });
 	});

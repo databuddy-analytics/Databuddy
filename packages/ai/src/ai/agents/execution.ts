@@ -1,10 +1,8 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { MIN_AGENT_CREDIT_CHECK_BALANCE } from "@databuddy/shared/agent-credits";
 import { getAutumn } from "@databuddy/rpc/autumn";
-import {
-	getBillingCustomerId,
-	getOrganizationOwnerId,
-} from "@databuddy/rpc/billing";
+import { getBillingCustomerId } from "@databuddy/rpc/billing";
+import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import type { LanguageModelUsage } from "ai";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";

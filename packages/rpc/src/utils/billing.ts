@@ -1,7 +1,7 @@
-import { db } from "@databuddy/db";
 import { cacheNamespaces, cacheTags, cacheable } from "@databuddy/redis";
 import { getAutumn } from "../lib/autumn-client";
 import { logger } from "../lib/logger";
+import { getMemberRole, getOrganizationOwnerId } from "./organization";
 
 export interface BillingOwner {
 	canUserUpgrade: boolean;
@@ -9,26 +9,6 @@ export interface BillingOwner {
 	isOrganization: boolean;
 	planId: string;
 }
-
-const _getOrganizationOwnerId = async (
-	organizationId: string
-): Promise<string | null> => {
-	if (!organizationId) {
-		return null;
-	}
-	const orgMember = await db.query.member.findFirst({
-		where: { organizationId, role: "owner" },
-		columns: { userId: true },
-	});
-	return orgMember?.userId ?? null;
-};
-
-export const getOrganizationOwnerId = cacheable(_getOrganizationOwnerId, {
-	expireInSec: 300,
-	prefix: cacheNamespaces.organizationOwner,
-	staleWhileRevalidate: true,
-	staleTime: 60,
-});
 
 export async function getBillingCustomerId(
 	userId: string,
@@ -40,22 +20,6 @@ export async function getBillingCustomerId(
 	const orgOwnerId = await getOrganizationOwnerId(organizationId);
 	return orgOwnerId ?? userId;
 }
-
-export const getMemberRole = cacheable(
-	async (userId: string, organizationId: string): Promise<string | null> => {
-		const row = await db.query.member.findFirst({
-			where: { organizationId, userId },
-			columns: { role: true },
-		});
-		return row?.role ?? null;
-	},
-	{
-		expireInSec: 300,
-		prefix: cacheNamespaces.memberRole,
-		staleWhileRevalidate: true,
-		staleTime: 60,
-	}
-);
 
 export async function resolveBillingOwner(
 	userId: string,

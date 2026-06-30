@@ -24,7 +24,7 @@
     "test": "bun test --max-concurrency=1 *.test.ts"
   },
   "dependencies": {
-    "bullmq": "^5.66.5",
+    "bullmq": "^5.78.0",
     "ioredis": "^5.8.2"
   },
   "devDependencies": {

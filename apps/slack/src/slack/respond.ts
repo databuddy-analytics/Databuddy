@@ -1,7 +1,4 @@
-import {
-	repairSlackReply,
-	validateSlackReply,
-} from "@databuddy/ai/agent";
+import { repairSlackReply, validateSlackReply } from "@databuddy/ai/agent";
 import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";

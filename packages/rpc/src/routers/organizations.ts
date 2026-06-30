@@ -24,7 +24,10 @@ import {
 	sessionProcedure,
 	trackedProcedure,
 } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import {
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 
 const updateAvatarSeedSchema = z.object({
 	organizationId: z.string().min(1, "Organization ID is required"),
@@ -414,10 +417,9 @@ export const organizationsRouter = {
 			let activeOrgId: string | null | undefined;
 
 			if (input?.websiteId) {
-				await withWorkspace(context, {
+				await withPublicWorkspace(context, {
 					websiteId: input.websiteId,
 					permissions: ["read"],
-					allowPublicAccess: true,
 				});
 				const billing = await context.getBilling();
 				if (billing) {
@@ -459,7 +461,9 @@ export const organizationsRouter = {
 			}
 
 			try {
-				const customer = await getAutumn().customers.getOrCreate({ customerId });
+				const customer = await getAutumn().customers.getOrCreate({
+					customerId,
+				});
 
 				const subs = customer.subscriptions;
 				const activeSub =

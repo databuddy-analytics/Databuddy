@@ -19,7 +19,9 @@ export interface RescheduleProposal {
 	timezone: string;
 }
 
-export function computeReschedulePatch(input: RescheduleInput): ReschedulePatch {
+export function computeReschedulePatch(
+	input: RescheduleInput
+): ReschedulePatch {
 	const { cron, timezone, frequency } = input;
 	const patch: ReschedulePatch = {};
 
@@ -48,7 +50,7 @@ export function computeRescheduleProposal(
 ): RescheduleProposal {
 	const proposedFrequency: DigestFrequency =
 		input.frequency ??
-		(input.cron !== undefined ? "custom" : existing.frequency);
+		(input.cron === undefined ? existing.frequency : "custom");
 
 	let proposedCron: string | null;
 	if (
@@ -57,10 +59,10 @@ export function computeRescheduleProposal(
 		input.cron === undefined
 	) {
 		proposedCron = null;
-	} else if (input.cron !== undefined) {
-		proposedCron = input.cron;
-	} else {
+	} else if (input.cron === undefined) {
 		proposedCron = existing.cron;
+	} else {
+		proposedCron = input.cron;
 	}
 
 	const proposedTimezone = input.timezone ?? existing.timezone;

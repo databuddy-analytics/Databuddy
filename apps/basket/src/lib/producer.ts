@@ -281,6 +281,7 @@ function makeProducerEffects(
 				yield* Effect.sync(() =>
 					captureError(
 						createError({
+							code: "basket.UNKNOWN_KAFKA_TOPIC",
 							message: "Unknown Kafka topic",
 							status: 500,
 							why: `Topic "${topic}" is not mapped to a ClickHouse table.`,
@@ -474,6 +475,7 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 	if (!(config.username && config.password)) {
 		captureError(
 			createError({
+				code: "basket.KAFKA_CREDENTIALS_MISSING",
 				message: "Kafka producer disabled: credentials missing",
 				status: 500,
 				why: "REDPANDA_BROKER was set without username and password.",
@@ -493,6 +495,7 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 			username: config.username,
 			password: config.password,
 		},
+		ssl: process.env.REDPANDA_SSL === "true",
 	}).producer({
 		allowAutoTopicCreation: true,
 		retry: {

@@ -1,4 +1,4 @@
-import { parseError } from "evlog";
+import { EvlogError, parseError } from "evlog";
 
 interface AppErrorContext {
 	code?: string | number;
@@ -30,15 +30,21 @@ export function handleAppError({ error, code }: AppErrorContext) {
 		error,
 		parsedStatus: parsed.status,
 	});
-	const errorCode = code == null ? "INTERNAL_SERVER_ERROR" : String(code);
+	const errorCode = getErrorCode({
+		explicitCode: code,
+		parsedCode: parsed.code,
+	});
 	const isDevelopment = process.env.NODE_ENV === "development";
 	const isClientError = statusCode >= 400 && statusCode < 500;
-	const errorMessage = error instanceof Error ? error.message : String(error);
-	const safeClientError =
-		isDevelopment || isClientError
-			? errorMessage
-			: "An internal server error occurred";
-	const exposeStructured = isDevelopment || isClientError;
+	const exposeStructured =
+		isDevelopment || (isClientError && isStructuredError(error));
+	const safeClientError = getSafeErrorMessage({
+		code: errorCode,
+		error,
+		isDevelopment,
+		isClientError,
+		statusCode,
+	});
 
 	return new Response(
 		JSON.stringify({
@@ -53,6 +59,96 @@ export function handleAppError({ error, code }: AppErrorContext) {
 		}),
 		{ status: statusCode, headers: { "Content-Type": "application/json" } }
 	);
+}
+
+function getErrorCode({
+	explicitCode,
+	parsedCode,
+}: {
+	explicitCode?: string | number;
+	parsedCode: unknown;
+}): string {
+	if (typeof parsedCode === "string" && parsedCode !== "") {
+		return parsedCode;
+	}
+	return explicitCode == null ? "INTERNAL_SERVER_ERROR" : String(explicitCode);
+}
+
+function getSafeErrorMessage({
+	code,
+	error,
+	isClientError,
+	isDevelopment,
+	statusCode,
+}: {
+	code: string;
+	error: unknown;
+	isClientError: boolean;
+	isDevelopment: boolean;
+	statusCode: number;
+}): string {
+	if (isDevelopment) {
+		return error instanceof Error ? error.message : String(error);
+	}
+
+	if (isClientError && isStructuredError(error) && error instanceof Error) {
+		return error.message;
+	}
+
+	return SAFE_MESSAGE_BY_ERROR_CODE[code] ?? getSafeStatusMessage(statusCode);
+}
+
+function isStructuredError(error: unknown): error is EvlogError {
+	return error instanceof EvlogError;
+}
+
+const SAFE_MESSAGE_BY_ERROR_CODE: Record<string, string> = {
+	AUTH_REQUIRED: "Authentication required",
+	BAD_REQUEST: "Invalid request",
+	CONFLICT: "Conflict",
+	FEATURE_UNAVAILABLE: "Feature unavailable",
+	FORBIDDEN: "Forbidden",
+	INTERNAL_SERVER_ERROR: "An internal server error occurred",
+	INVALID_COOKIE_SIGNATURE: "Invalid request",
+	NOT_FOUND: "Not found",
+	PARSE: "Invalid request body",
+	PLAN_LIMIT_EXCEEDED: "Plan limit exceeded",
+	RATE_LIMITED: "Rate limit exceeded",
+	TOO_MANY_REQUESTS: "Rate limit exceeded",
+	UNAUTHORIZED: "Authentication required",
+	UNKNOWN: "An internal server error occurred",
+	VALIDATION: "Invalid request",
+};
+
+function getSafeStatusMessage(statusCode: number): string {
+	if (statusCode === 401) {
+		return "Authentication required";
+	}
+	if (statusCode === 403) {
+		return "Forbidden";
+	}
+	if (statusCode === 404) {
+		return "Not found";
+	}
+	if (statusCode === 409) {
+		return "Conflict";
+	}
+	if (statusCode === 413) {
+		return "Payload too large";
+	}
+	if (statusCode === 422) {
+		return "Invalid request";
+	}
+	if (statusCode === 429) {
+		return "Rate limit exceeded";
+	}
+	if (statusCode === 503) {
+		return "Service temporarily unavailable";
+	}
+	if (statusCode >= 400 && statusCode < 500) {
+		return "Invalid request";
+	}
+	return "An internal server error occurred";
 }
 
 function getStatusCode({

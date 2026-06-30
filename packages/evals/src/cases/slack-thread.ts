@@ -1037,7 +1037,8 @@ function insightDigestCases(): EvalCase[] {
 			id: "digest-reschedule-friday-morning-berlin",
 			category: "tool-routing",
 			name: "Reschedules the digest to Friday 8 AM Europe/Berlin on natural-language ask",
-			query: "can you set the digest to fire every Friday morning at 8 AM Berlin time?",
+			query:
+				"can you set the digest to fire every Friday morning at 8 AM Berlin time?",
 			slack: thread({
 				currentUserId: ISSA,
 				messages: [
@@ -1189,9 +1190,7 @@ function insightDigestCases(): EvalCase[] {
 			query: "what's the digest schedule right now",
 			slack: thread({
 				currentUserId: ISSA,
-				messages: [
-					human(ISSA, "I forget when this thing fires"),
-				],
+				messages: [human(ISSA, "I forget when this thing fires")],
 			}),
 			surfaces: ["slack"],
 			tags: ["slack", "digest", "status"],
@@ -1293,9 +1292,7 @@ function realWorldDerivedCases(): EvalCase[] {
 						"Weekly digest is routed to <#C0EVALTHRD>, next run at 2026-06-12T06:00:00.000Z."
 					),
 					human(ISSA, "when is that"),
-					bot(
-						"2026-06-12 at 06:00 UTC -- that's next Friday morning."
-					),
+					bot("2026-06-12 at 06:00 UTC -- that's next Friday morning."),
 				],
 			}),
 			surfaces: ["slack"],
@@ -1391,9 +1388,7 @@ function adversarialDigestCases(): EvalCase[] {
 			query: "make the digest fire every Friday morning",
 			slack: thread({
 				currentUserId: ISSA,
-				messages: [
-					human(ISSA, "the cadence is fine but the time is weird"),
-				],
+				messages: [human(ISSA, "the cadence is fine but the time is weird")],
 			}),
 			surfaces: ["slack"],
 			tags: ["slack", "digest", "adversarial", "reschedule"],
@@ -1625,7 +1620,8 @@ function adversarialDigestCases(): EvalCase[] {
 				],
 				responseMatches: [
 					{
-						description: "agent should describe sequencing reschedule before test",
+						description:
+							"agent should describe sequencing reschedule before test",
 						pattern:
 							"\\b(first|step (1|one)|then|after that|once (it'?s |that'?s )?(confirmed|updated|applied)|and (i'?ll|then) (apply|run|trigger|kick off)|after .* confirm)\\b",
 						flags: "i",

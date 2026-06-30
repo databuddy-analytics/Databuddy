@@ -165,9 +165,7 @@ export interface ReplyValidationResult {
 	valid: boolean;
 }
 
-export declare function validateSlackReply(
-	text: string
-): ReplyValidationResult;
+export declare function validateSlackReply(text: string): ReplyValidationResult;
 
 export declare function repairSlackReply(options: {
 	abortSignal?: AbortSignal;

@@ -17,17 +17,17 @@ export const insightSchema = z.object({
 	title: z
 		.string()
 		.describe(
-			"Brief plain-English headline under 80 chars for a founder/operator. Avoid raw metric jargon like INP, LCP, FCP, TTFB, CLS, p75 in titles; translate to outcomes such as 'Interactions got slower' or 'Pages feel slower'. Never paste opaque URL slugs."
+			"Brief plain-English headline under 80 chars for a founder/operator. Avoid raw metric jargon like INP, LCP, FCP, TTFB, CLS, p75 in titles; translate to outcomes such as 'Interactions got slower' or 'Pages feel slower'. Never paste opaque IDs or URL slugs. Use calm recurrence wording; avoid 'again'/'still' unless recurrence is the main finding."
 		),
 	description: z
 		.string()
 		.describe(
-			"1-2 sentences: what changed and why it matters. Do NOT restate numbers from the title or metrics array. Add NEW context only. Under 300 characters."
+			"1-2 sentences: evidence for what changed. Do NOT restate numbers from the title or metrics array unless they are essential. Add NEW context only. Under 300 characters. Use object names, not raw IDs."
 		),
 	suggestion: z
 		.string()
 		.describe(
-			"One specific action. Name the exact page, button, query, or tool to use. Under 300 characters."
+			"One specific action in plain English. Name the exact page, button, query, or tool to use. Under 300 characters. Do not expose raw internal IDs; put IDs only in action params."
 		),
 	metrics: z
 		.array(insightMetricSchema)
@@ -106,7 +106,7 @@ export const insightSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"Optional short statement of user or business impact. Use when the impact is clear from the available data. Keep to a single sentence."
+			"Optional short statement of why this matters to the operator. Use when the impact is clear from the available data. Keep to a single sentence."
 		),
 	rootCause: z
 		.string()

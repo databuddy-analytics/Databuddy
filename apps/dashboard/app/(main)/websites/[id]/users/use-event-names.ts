@@ -9,18 +9,23 @@ interface EventNameRow {
 }
 
 export function useEventNames(websiteId: string, dateRange: DateRange) {
-	const queryResult = useDynamicQuery(websiteId, dateRange, {
-		id: "event-names",
-		parameters: ["custom_events"],
-		limit: 100,
-	});
+	const queryResult = useDynamicQuery<{ custom_events?: EventNameRow[] }>(
+		websiteId,
+		dateRange,
+		{
+			id: "event-names",
+			parameters: ["custom_events"],
+			limit: 100,
+		}
+	);
 
-	const eventNames = useMemo(() => {
-		const raw = (queryResult.data as any)?.custom_events || [];
-		return (raw as EventNameRow[])
-			.map((e) => e.name)
-			.filter((name) => name && name !== "");
-	}, [queryResult.data]);
+	const eventNames = useMemo(
+		() =>
+			(queryResult.data.custom_events ?? [])
+				.map((event) => event.name)
+				.filter((name) => name && name !== ""),
+		[queryResult.data]
+	);
 
 	return {
 		eventNames,

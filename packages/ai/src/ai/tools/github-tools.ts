@@ -4,6 +4,19 @@ import { createCachedTokenFn } from "./utils/oauth-token";
 
 const GITHUB_API = "https://api.github.com";
 const MAX_RESULTS = 10;
+const DEPLOY_FETCH_SIZE = 50;
+const MAX_DEPLOY_PAGES = 5;
+const MAX_COMMITS = 50;
+
+interface GitHubDeploy {
+	created_at: string;
+	creator: { login: string } | null;
+	description: string | null;
+	environment: string;
+	id: number;
+	ref: string;
+	sha: string;
+}
 
 export async function githubFetch(
 	path: string,
@@ -39,14 +52,16 @@ export function createGitHubTools(params: GitHubToolsParams) {
 
 	const getRecentDeploysTool = tool({
 		description:
-			"Get recent GitHub deployments for a repo. Use when a metric changed and you want to check if a deploy happened in the same time window. Returns SHA, environment, timestamp, and author.",
+			"Get recent GitHub deployments for a repo. Use when a metric changed and you want to check if a deploy happened in the same time window. Returns SHA, environment, timestamp, and author. Environment names vary by platform (e.g. 'Databuddy / production', 'api - preview'), so the environment filter matches as a case-insensitive substring; check availableEnvironments in the response if a filter returns nothing.",
 		inputSchema: z.object({
 			owner: z.string().describe("GitHub repo owner (user or org)"),
 			repo: z.string().describe("GitHub repo name"),
 			environment: z
 				.string()
 				.optional()
-				.describe("Filter by environment (e.g. production, staging)"),
+				.describe(
+					"Case-insensitive substring filter on the environment name (e.g. 'production', 'preview')"
+				),
 			limit: z
 				.number()
 				.min(1)
@@ -61,32 +76,41 @@ export function createGitHubTools(params: GitHubToolsParams) {
 				return { error: "No GitHub account connected for this organization" };
 			}
 
-			const envFilter = environment
-				? `&environment=${encodeURIComponent(environment)}`
-				: "";
-			const data = await githubFetch(
-				`/repos/${owner}/${repo}/deployments?per_page=${limit}${envFilter}`,
-				token
-			);
+			const envNeedle = environment?.toLowerCase();
+			const seenEnvironments = new Set<string>();
+			const matched: GitHubDeploy[] = [];
+			const maxPages = envNeedle ? MAX_DEPLOY_PAGES : 1;
 
-			if (data && typeof data === "object" && "error" in data) {
-				return data;
+			for (let page = 1; page <= maxPages; page++) {
+				const data = await githubFetch(
+					`/repos/${owner}/${repo}/deployments?per_page=${DEPLOY_FETCH_SIZE}&page=${page}`,
+					token
+				);
+
+				if (data && typeof data === "object" && "error" in data) {
+					return data;
+				}
+
+				const pageDeploys = data as GitHubDeploy[];
+				for (const d of pageDeploys) {
+					seenEnvironments.add(d.environment);
+					if (!envNeedle || d.environment.toLowerCase().includes(envNeedle)) {
+						matched.push(d);
+					}
+				}
+
+				if (pageDeploys.length < DEPLOY_FETCH_SIZE || matched.length >= limit) {
+					break;
+				}
 			}
 
-			const deploys = data as Array<{
-				id: number;
-				sha: string;
-				ref: string;
-				environment: string;
-				created_at: string;
-				description: string | null;
-				creator: { login: string } | null;
-			}>;
+			const availableEnvironments = [...seenEnvironments];
 
 			return {
 				repo: `${owner}/${repo}`,
-				count: deploys.length,
-				deploys: deploys.map((d) => ({
+				count: matched.length,
+				availableEnvironments,
+				deploys: matched.slice(0, limit).map((d) => ({
 					sha: d.sha.slice(0, 7),
 					ref: d.ref,
 					environment: d.environment,
@@ -100,7 +124,7 @@ export function createGitHubTools(params: GitHubToolsParams) {
 
 	const getRecentCommitsTool = tool({
 		description:
-			"Get recent commits from a GitHub repo, optionally filtered by date range. Use when investigating what code changes happened around a metric anomaly. Returns commit message, author, and date.",
+			"Get recent commits from a GitHub repo, optionally filtered by date range. Use when investigating what code changes happened around a metric anomaly. Returns commit message, author, and date, newest first. When correlating a multi-day window, set limit high enough to cover the whole window or pass until to page backwards; otherwise you only see the newest commits.",
 		inputSchema: z.object({
 			owner: z.string().describe("GitHub repo owner"),
 			repo: z.string().describe("GitHub repo name"),
@@ -117,9 +141,9 @@ export function createGitHubTools(params: GitHubToolsParams) {
 			limit: z
 				.number()
 				.min(1)
-				.max(MAX_RESULTS)
+				.max(MAX_COMMITS)
 				.optional()
-				.default(5)
+				.default(30)
 				.describe("Number of commits to return"),
 		}),
 		execute: async ({ owner, repo, since, until, limit }) => {

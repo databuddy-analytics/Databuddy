@@ -1,6 +1,6 @@
 import { chQuery } from "@databuddy/db/clickhouse";
 import { captureError, mergeWideEvent } from "../lib/tracing";
-import { QueryBuilders } from "./builders";
+import { QueryBuilders, suggestQueryTypes } from "./builders";
 import {
 	getClickHouseQuerySettings,
 	SimpleQueryBuilder,
@@ -15,6 +15,7 @@ interface BatchResult {
 	type: string;
 }
 interface BatchOptions {
+	abortSignal?: AbortSignal;
 	timezone?: string;
 	websiteDomain?: string | null;
 }
@@ -194,7 +195,7 @@ export function extractOuterSelectColumns(sql: string): string[] {
 
 const signatureCache = new Map<string, string | null>();
 
-function probeSignature(
+function getSchemaSignature(
 	type: string,
 	config: SimpleQueryConfig
 ): string | null {
@@ -226,11 +227,11 @@ function probeSignature(
 	return signature;
 }
 
-function getSchemaSignature(
-	type: string,
-	config: SimpleQueryConfig
-): string | null {
-	return probeSignature(type, config);
+function unknownTypeError(type: string): string {
+	const suggestions = suggestQueryTypes(type);
+	return suggestions.length
+		? `Unknown query type: ${type}. Did you mean: ${suggestions.join(", ")}?`
+		: `Unknown query type: ${type}`;
 }
 
 async function runSingle(
@@ -242,7 +243,7 @@ async function runSingle(
 		return {
 			type: req.type,
 			data: [],
-			error: `Unknown query type: ${req.type}`,
+			error: unknownTypeError(req.type),
 		};
 	}
 
@@ -252,7 +253,7 @@ async function runSingle(
 			{ ...req, timezone: opts?.timezone ?? req.timezone },
 			opts?.websiteDomain
 		);
-		const data = await builder.execute();
+		const data = await builder.execute(opts?.abortSignal);
 
 		mergeWideEvent({
 			query_type: req.type,
@@ -301,32 +302,46 @@ export function buildUnionQuery(
 	const queries: string[] = [];
 	const params: Record<string, unknown> = {};
 	const indices: number[] = [];
+	const failures: { index: number; type: string; error: string }[] = [];
 
 	for (const { index, req } of items) {
 		const config = QueryBuilders[req.type];
 		if (!config) {
+			failures.push({
+				index,
+				type: req.type,
+				error: unknownTypeError(req.type),
+			});
 			continue;
 		}
 
-		const builder = new SimpleQueryBuilder(
-			config,
-			{ ...req, timezone: opts?.timezone ?? req.timezone },
-			opts?.websiteDomain
-		);
+		try {
+			const builder = new SimpleQueryBuilder(
+				config,
+				{ ...req, timezone: opts?.timezone ?? req.timezone },
+				opts?.websiteDomain
+			);
 
-		let { sql, params: queryParams } = builder.compile();
+			let { sql, params: queryParams } = builder.compile();
 
-		for (const [key, value] of Object.entries(queryParams)) {
-			const prefixedKey = `q${index}_${key}`;
-			params[prefixedKey] = value;
-			sql = sql.replaceAll(`{${key}:`, `{${prefixedKey}:`);
+			for (const [key, value] of Object.entries(queryParams)) {
+				const prefixedKey = `q${index}_${key}`;
+				params[prefixedKey] = value;
+				sql = sql.replaceAll(`{${key}:`, `{${prefixedKey}:`);
+			}
+
+			indices.push(index);
+			queries.push(`SELECT ${index} as __query_idx, * FROM (${sql})`);
+		} catch (error) {
+			failures.push({
+				index,
+				type: req.type,
+				error: error instanceof Error ? error.message : "Query failed",
+			});
 		}
-
-		indices.push(index);
-		queries.push(`SELECT ${index} as __query_idx, * FROM (${sql})`);
 	}
 
-	return { sql: queries.join("\nUNION ALL\n"), params, indices };
+	return { sql: queries.join("\nUNION ALL\n"), params, indices, failures };
 }
 
 function splitResults(
@@ -377,12 +392,38 @@ export async function executeBatch(
 			return { unionCount: 0, singleCount: 1 };
 		}
 
+		const { sql, params, indices, failures } = buildUnionQuery(
+			groupItems,
+			opts
+		);
+		for (const failure of failures) {
+			mergeWideEvent({ query_error: failure.error });
+			results[failure.index] = {
+				type: failure.type,
+				data: [],
+				error: failure.error,
+			};
+		}
+
+		const compiledIndices = new Set(indices);
+		const compiledItems = groupItems.filter(({ index }) =>
+			compiledIndices.has(index)
+		);
+		if (compiledItems.length === 0) {
+			return { unionCount: 0, singleCount: 0 };
+		}
+		if (compiledItems.length === 1 && compiledItems[0]) {
+			const { index, req } = compiledItems[0];
+			results[index] = await runSingle(req, opts);
+			return { unionCount: 0, singleCount: 1 };
+		}
+
 		try {
-			const { sql, params, indices } = buildUnionQuery(groupItems, opts);
-			const groupNoCache = groupItems.some(
+			const groupNoCache = compiledItems.some(
 				({ req }) => QueryBuilders[req.type]?.noCache
 			);
 			const rawRows = await chQuery(sql, params, {
+				abort_signal: opts?.abortSignal,
 				clickhouse_settings: getClickHouseQuerySettings(groupNoCache),
 			});
 
@@ -396,7 +437,7 @@ export async function executeBatch(
 				indices
 			);
 
-			for (const { index, req } of groupItems) {
+			for (const { index, req } of compiledItems) {
 				const config = QueryBuilders[req.type];
 				const raw = split.get(index) || [];
 				results[index] = {
@@ -408,18 +449,18 @@ export async function executeBatch(
 		} catch (error) {
 			captureError(error, {
 				operation: "batch_union",
-				batch_types: groupItems.map((g) => g.req.type).join(","),
-				batch_size: groupItems.length,
+				batch_types: compiledItems.map((g) => g.req.type).join(","),
+				batch_size: compiledItems.length,
 			});
 			mergeWideEvent({
 				batch_union_fallback: 1,
 				batch_union_error:
 					error instanceof Error ? error.message : "Union query failed",
 			});
-			for (const { index, req } of groupItems) {
+			for (const { index, req } of compiledItems) {
 				results[index] = await runSingle(req, opts);
 			}
-			return { unionCount: 0, singleCount: groupItems.length };
+			return { unionCount: 0, singleCount: compiledItems.length };
 		}
 	}
 

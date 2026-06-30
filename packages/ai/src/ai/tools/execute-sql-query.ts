@@ -32,12 +32,14 @@ export async function executeAgentSqlForWebsite({
 	sql,
 	params,
 	toolName = "Execute SQL Tool",
+	abortSignal,
 }: {
 	websiteId: string;
 	websiteDomain?: string;
 	sql: string;
 	params?: Record<string, unknown>;
 	toolName?: string;
+	abortSignal?: AbortSignal;
 }): Promise<QueryResult> {
 	const validation = validateAgentSQL(sql);
 	if (!validation.valid) {
@@ -66,7 +68,8 @@ export async function executeAgentSqlForWebsite({
 			max_result_bytes: 50_000_000,
 			result_overflow_mode: "break",
 			use_query_cache: 0,
-		}
+		},
+		abortSignal
 	);
 
 	return result.data.length > MAX_MODEL_ROWS
@@ -104,6 +107,7 @@ export const executeSqlQueryTool = tool({
 			websiteDomain: resolved.domain,
 			sql,
 			params,
+			abortSignal: options.abortSignal,
 		});
 	},
 });

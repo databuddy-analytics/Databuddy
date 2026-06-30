@@ -10,6 +10,12 @@ function inclusiveEndDate(endDate: string): string {
 
 export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	session_metrics: {
+		meta: {
+			description:
+				"Aggregate session statistics including total sessions, avg duration, and pages per session.",
+			category: "Sessions",
+			tags: ["sessions", "metrics", "overview"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
@@ -44,6 +50,11 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	session_duration_distribution: {
+		meta: {
+			description: "Distribution of sessions by duration buckets.",
+			category: "Sessions",
+			tags: ["sessions", "duration", "distribution"],
+		},
 		table: Analytics.events,
 		fields: [
 			"CASE " +
@@ -65,6 +76,11 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	sessions_by_device: {
+		meta: {
+			description: "Session counts grouped by device type.",
+			category: "Sessions",
+			tags: ["sessions", "devices"],
+		},
 		table: Analytics.events,
 		fields: [
 			"device_type as name",
@@ -80,6 +96,11 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	sessions_by_browser: {
+		meta: {
+			description: "Session counts grouped by browser.",
+			category: "Sessions",
+			tags: ["sessions", "browsers"],
+		},
 		table: Analytics.events,
 		fields: [
 			"browser_name as name",
@@ -96,6 +117,11 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	sessions_time_series: {
+		meta: {
+			description: "Session counts plotted over time.",
+			category: "Sessions",
+			tags: ["sessions", "time-series"],
+		},
 		table: Analytics.events,
 		fields: [
 			"toDate(time) as date",
@@ -111,6 +137,12 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	session_flow: {
+		meta: {
+			description:
+				"Page-to-page transitions within sessions (from_path → to_path), ranked by transition count.",
+			category: "Sessions",
+			tags: ["sessions", "flow", "paths", "transitions"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
@@ -153,6 +185,12 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	session_pages: {
+		meta: {
+			description:
+				"Pages ranked by how many sessions and visitors viewed them; useful for product usage hotspots, not path transitions.",
+			category: "Sessions",
+			tags: ["sessions", "pages", "usage"],
+		},
 		table: Analytics.events,
 		fields: [
 			"path as name",
@@ -168,6 +206,12 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	interesting_sessions: {
+		meta: {
+			description:
+				"Ranked individual sessions worth inspecting, scored by page depth, unique pages, custom events, errors, and duration. Use first for 'dig into sessions' or 'how people use the product'.",
+			category: "Sessions",
+			tags: ["sessions", "investigation", "product-usage"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			const limit = ctx.limit ?? 10;
@@ -309,6 +353,12 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	} satisfies SimpleQueryConfig,
 
 	session_list: {
+		meta: {
+			description:
+				"List of recent individual sessions with metadata and chronological events.",
+			category: "Sessions",
+			tags: ["sessions", "list", "recent"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, filterConditions, filterParams } =
 				ctx;
@@ -430,6 +480,11 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	session_events: {
+		meta: {
+			description: "Events within a specific session in chronological order.",
+			category: "Sessions",
+			tags: ["sessions", "events", "timeline"],
+		},
 		table: Analytics.events,
 		fields: [
 			"session_id",

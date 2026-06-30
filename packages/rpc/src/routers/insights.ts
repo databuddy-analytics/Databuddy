@@ -1,4 +1,4 @@
-import { and, db, desc, eq, gte, inArray, isNull } from "@databuddy/db";
+import { and, db, desc, eq, gte, inArray, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
 	type AnalyticsInsightMetric,
@@ -26,6 +26,8 @@ import { queueInsightGenerationRun } from "./insight-generation";
 
 const voteSchema = z.enum(["up", "down"]);
 const rangeSchema = z.enum(["7d", "30d", "90d"]);
+const insightStatusSchema = z.enum(["open", "resolved"]);
+const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
 
 const CACHE_TTL = 900;
 const NEGATIVE_CACHE_TTL = Math.floor(CACHE_TTL / 3);
@@ -50,9 +52,17 @@ const insightEvidenceSchema = z.object({
 	type: z.string(),
 });
 
+const insightActionSchema = z.object({
+	label: z.string(),
+	params: z.record(z.string(), z.string()),
+	type: z.string(),
+});
+
 const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
 
 const websiteInsightSchema = z.object({
+	actions: z.array(insightActionSchema).nullable().optional(),
+	chainId: z.string().nullable().optional(),
 	changePercent: z.number().optional(),
 	confidence: z.number(),
 	description: z.string(),
@@ -82,7 +92,10 @@ const historyInsightSchema = websiteInsightSchema.extend({
 	currentPeriodTo: z.string().nullable(),
 	previousPeriodFrom: z.string().nullable(),
 	previousPeriodTo: z.string().nullable(),
+	resolvedAt: z.string().nullable(),
+	resolvedReason: insightResolvedReasonSchema.nullable(),
 	runId: z.string(),
+	status: insightStatusSchema,
 	timezone: z.string().nullable(),
 });
 
@@ -208,6 +221,7 @@ async function getInsightsFromDb(options: {
 			evidence: analyticsInsights.evidence,
 			investigationDepth: analyticsInsights.investigationDepth,
 			actions: analyticsInsights.actions,
+			chainId: analyticsInsights.chainId,
 			metrics: analyticsInsights.metrics,
 			createdAt: analyticsInsights.createdAt,
 		})
@@ -235,6 +249,8 @@ async function getInsightsFromDb(options: {
 		rootCause: row.rootCause,
 		evidence: row.evidence ?? null,
 		investigationDepth: row.investigationDepth ?? null,
+		actions: row.actions ?? null,
+		chainId: row.chainId ?? null,
 		...parseInsightShape(row),
 	}));
 }
@@ -509,8 +525,13 @@ export const insightsRouter = {
 					rootCause: analyticsInsights.rootCause,
 					evidence: analyticsInsights.evidence,
 					investigationDepth: analyticsInsights.investigationDepth,
+					actions: analyticsInsights.actions,
+					chainId: analyticsInsights.chainId,
 					metrics: analyticsInsights.metrics,
 					createdAt: analyticsInsights.createdAt,
+					status: analyticsInsights.status,
+					resolvedAt: analyticsInsights.resolvedAt,
+					resolvedReason: analyticsInsights.resolvedReason,
 					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
 					currentPeriodTo: analyticsInsights.currentPeriodTo,
 					previousPeriodFrom: analyticsInsights.previousPeriodFrom,
@@ -520,7 +541,11 @@ export const insightsRouter = {
 				.from(analyticsInsights)
 				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 				.where(whereClause)
-				.orderBy(desc(analyticsInsights.createdAt))
+				.orderBy(
+					desc(
+						sql`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`
+					)
+				)
 				.limit(input.limit)
 				.offset(input.offset);
 
@@ -540,8 +565,13 @@ export const insightsRouter = {
 				rootCause: row.rootCause,
 				evidence: row.evidence ?? null,
 				investigationDepth: row.investigationDepth ?? null,
+				actions: row.actions ?? null,
+				chainId: row.chainId ?? null,
 				...parseInsightShape(row),
 				createdAt: row.createdAt.toISOString(),
+				status: row.status,
+				resolvedAt: row.resolvedAt?.toISOString() ?? null,
+				resolvedReason: row.resolvedReason ?? null,
 				currentPeriodFrom: row.currentPeriodFrom,
 				currentPeriodTo: row.currentPeriodTo,
 				previousPeriodFrom: row.previousPeriodFrom,

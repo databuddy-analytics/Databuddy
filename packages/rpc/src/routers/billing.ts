@@ -400,7 +400,7 @@ export const billingRouter = {
 
 			await withWorkspace(context, {
 				organizationId: resolvedOrgId,
-				resource: "website",
+				resource: "subscription",
 				permissions: ["read"],
 			});
 

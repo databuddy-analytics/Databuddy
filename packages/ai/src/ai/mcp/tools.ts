@@ -38,6 +38,7 @@ import {
 	type RegisteredMcpTool,
 } from "./define-tool";
 import { INSIGHT_TOOL_FACTORIES } from "./insights-tools";
+import { investigateTool } from "./investigate";
 import {
 	buildBatchQueryRequests,
 	FilterSchema,
@@ -555,20 +556,9 @@ const CAPABILITY_DEFAULTS: readonly CapabilitySection[] = [
 ];
 
 const HINTS: readonly string[] = [
-	"For a deeper reference (workflow + footguns), read the databuddy://guide MCP resource",
-	"Every tool that takes a website accepts websiteId, websiteName, or websiteDomain — pass one. No need to call list_websites first if you already know the name or domain.",
-	"get_data batch: pass queries array (2-10 items, each with type + preset or from/to). Single: type + preset OR from+to. Defaults to last_7d.",
-	"capabilities is filterable: include=['hints'] for just hints, category='errors' to filter queryTypes, detail='full' for allowedFilters",
-	"get_schema is sectionable: sections=['events'] + includeExamples=false for the smallest useful payload",
-	"Errors: errors_by_type groups by JS class (TypeError, …); error_types groups by error message. Both return count + users. Use errors_by_type for triage.",
-	"summarize_insights with no websiteId returns ORG-WIDE counts + per-site breakdown. Set includeDetail=true for description/suggestion on top priorities.",
-	"compare_metric accepts 'metrics' (array) to batch multiple metrics in a single pair of DB queries",
-	"detect_anomalies runs BOTH z-score (spikes) and week-over-week (gradual drops) by default; use method='wow' for trend-only",
-	"top_movers supports minDeltaPercent to drop small changes, and direction='up'|'down'|'both'",
-	"compare_around_event diffs metrics, errors_by_type, and top_pages across a date boundary (e.g. deploy day). Pass eventDate=YYYY-MM-DD; surfaces new error classes that only appeared after.",
-	"list_insights supports 'ids' for direct drill-down and 'fields' to slim the response",
-	"Workspace mutations use confirmed=false for preview and confirmed=true only after explicit user approval.",
-	"Custom events discovery: get_data type=custom_events lists event names with counts. Then filter [{field:'event_name',op:'eq',value:'…'}] or [{field:'property_key',op:'eq',value:'…'}].",
+	"For a deeper reference (workflow + footguns), read the databuddy://guide MCP resource.",
+	"capabilities is filterable: include=['queryTypes'] to fetch the heavy catalog, category='Errors' or contains='vital' to narrow, detail='full' for allowedFilters.",
+	"get_schema is sectionable: sections=['events'] + includeExamples=false for the smallest useful payload.",
 ];
 
 const capabilitiesTool = defineMcpTool(
@@ -1776,7 +1766,7 @@ const forgetMemoryTool = defineMcpTool(
 );
 
 const TOOL_REGISTRY = createToolRegistry([
-	...(isAiGatewayConfigured ? [askTool] : []),
+	...(isAiGatewayConfigured ? [askTool, investigateTool] : []),
 	listWebsitesTool,
 	getDataTool,
 	getSchemaTool,

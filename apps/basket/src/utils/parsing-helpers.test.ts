@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import type { z } from "zod";
 import {
 	batchBotIgnoredItem,
 	batchSchemaItemFailure,
@@ -86,13 +87,18 @@ describe("parseEventId", () => {
 
 describe("batchSchemaItemFailure", () => {
 	test("returns structured error with issues", () => {
-		const issues = [{ message: "bad", path: ["x"], code: "custom" as const }];
-		const result = batchSchemaItemFailure(issues as any, "track", "evt_1");
-		expect(result.status).toBe("error");
-		expect(result.message).toBe("Invalid event schema");
-		expect(result.errors).toBe(issues);
-		expect(result.eventType).toBe("track");
-		expect(result.eventId).toBe("evt_1");
+		const issues = [
+			{ message: "bad", path: ["x"], code: "custom" as const },
+		] as z.core.$ZodIssue[];
+		const result = batchSchemaItemFailure(issues, "track", "evt_1");
+		expect(result).toEqual({
+			status: "error",
+			message: "Invalid event schema",
+			code: "INVALID_EVENT_SCHEMA",
+			errors: [{ code: "custom", field: "x", message: "bad" }],
+			eventType: "track",
+			eventId: "evt_1",
+		});
 	});
 });
 

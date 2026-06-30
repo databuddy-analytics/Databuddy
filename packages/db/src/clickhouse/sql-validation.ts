@@ -15,7 +15,6 @@ export const AGENT_TENANT_COLUMN_BY_TABLE: Readonly<Record<string, string>> = {
 	"analytics.custom_events": "owner_id",
 	"analytics.revenue": "owner_id",
 	"analytics.blocked_traffic": "client_id",
-	"analytics.link_visits": "client_id",
 };
 
 export const AGENT_TABLE_COLUMNS: Readonly<
@@ -39,10 +38,8 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"utm_campaign",
 		"utm_term",
 		"utm_content",
-		"load_time",
 		"time_on_page",
 		"scroll_depth",
-		"properties",
 		"event_name",
 	]),
 	"analytics.error_spans": new Set([
@@ -100,15 +97,6 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"block_reason",
 		"bot_name",
 		"path",
-	]),
-	"analytics.link_visits": new Set([
-		"client_id",
-		"timestamp",
-		"link_id",
-		"referrer",
-		"country",
-		"device_type",
-		"browser_name",
 	]),
 };
 
@@ -567,9 +555,7 @@ export function validateAgentSQL(sql: string): {
 				columnsByAlias.get(ref.alias.toLowerCase()) ?? new Set<string>();
 			const seenColumns = new Set([...aliasColumns, ...unaliasedColumns]);
 			if (!seenColumns.has(requiredColumn)) {
-				const aliasPrefix = requirePerAliasTenantFilter
-					? `${ref.alias}.`
-					: "";
+				const aliasPrefix = requirePerAliasTenantFilter ? `${ref.alias}.` : "";
 				return {
 					valid: false,
 					reason: `Table ${ref.raw} requires tenant filter \`${aliasPrefix}${requiredColumn} = {websiteId:String}\`. Using ${requiredColumn === "owner_id" ? "client_id" : "owner_id"} silently returns zero rows because the server-side filter is on ${requiredColumn}.`,

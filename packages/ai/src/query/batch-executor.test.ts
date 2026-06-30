@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	areQueriesCompatible,
+	buildUnionQuery,
 	extractOuterSelectColumns,
 	getCompatibleQueries,
 	getSchemaGroups,
@@ -80,6 +81,45 @@ describe("batch-executor schema signatures", () => {
 		for (const type of realtimeTypes) {
 			expect(QueryBuilders[type]?.noCache).toBe(true);
 		}
+	});
+});
+
+describe("buildUnionQuery compile isolation", () => {
+	const baseRequest = {
+		projectId: "test-website",
+		from: "2026-04-01",
+		to: "2026-04-11",
+	};
+
+	it("excludes queries that fail to compile and reports them as failures", () => {
+		const { indices, failures, sql } = buildUnionQuery([
+			{ index: 0, req: { ...baseRequest, type: "top_pages" } },
+			{
+				index: 1,
+				req: {
+					...baseRequest,
+					type: "top_pages",
+					orderBy: "pageviews; DROP TABLE analytics.events",
+				},
+			},
+			{ index: 2, req: { ...baseRequest, type: "nope_not_real" } },
+		]);
+
+		expect(indices).toEqual([0]);
+		expect(sql).toContain("SELECT 0 as __query_idx");
+		expect(failures).toHaveLength(2);
+		expect(failures[0]?.error).toContain("not permitted");
+		expect(failures[1]?.error).toContain("Unknown query type");
+	});
+
+	it("returns no failures when every query compiles", () => {
+		const { indices, failures } = buildUnionQuery([
+			{ index: 0, req: { ...baseRequest, type: "top_pages" } },
+			{ index: 1, req: { ...baseRequest, type: "top_pages" } },
+		]);
+
+		expect(indices).toEqual([0, 1]);
+		expect(failures).toEqual([]);
 	});
 });
 

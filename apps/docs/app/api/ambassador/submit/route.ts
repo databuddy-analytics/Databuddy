@@ -212,15 +212,14 @@ async function sendToSlack(
 	const timeoutId = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
 
 	try {
-		await fetch(SLACK_WEBHOOK_URL, {
+		const response = await fetch(SLACK_WEBHOOK_URL, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ blocks }),
 			signal: controller.signal,
 		});
-	} catch (fetchError) {
-		if (fetchError instanceof Error && fetchError.name !== "AbortError") {
-			throw fetchError;
+		if (!response.ok) {
+			throw new Error(`Slack webhook failed with status ${response.status}`);
 		}
 	} finally {
 		clearTimeout(timeoutId);
@@ -272,10 +271,11 @@ export async function POST(request: NextRequest) {
 			success: true,
 			message: "Ambassador application submitted successfully",
 		});
-	} catch {
+	} catch (error) {
+		console.error("ambassador/submit failed", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
+			{ error: "Unable to submit ambassador application" },
+			{ status: 502 }
 		);
 	}
 }

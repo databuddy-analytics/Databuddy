@@ -21,6 +21,7 @@ const handler = {
 	create: appRouter.websites.create["~orpc"].handler,
 	list: appRouter.websites.list["~orpc"].handler,
 	getById: appRouter.websites.getById["~orpc"].handler,
+	getPublicSummary: appRouter.websites.getPublicSummary["~orpc"].handler,
 	updateSettings: appRouter.websites.updateSettings["~orpc"].handler,
 };
 
@@ -187,7 +188,7 @@ describe("websites.getById", () => {
 		expect(result.domain).toBe(site.domain);
 	});
 
-	iit("returns public website for unauthenticated user", async () => {
+	iit("rejects public website for unauthenticated user", async () => {
 		const org = await insertOrganization();
 		const owner = await signUp();
 		await addToOrganization(owner.id, org.id, "owner");
@@ -196,12 +197,20 @@ describe("websites.getById", () => {
 			isPublic: true,
 		});
 
-		const result = await handler.getById({
+		await expectCode(
+			handler.getById({
+				context: context(),
+				input: { id: site.id },
+			}),
+			"UNAUTHORIZED"
+		);
+
+		const summary = await handler.getPublicSummary({
 			context: context(),
 			input: { id: site.id },
 		});
-
-		expect(result.id).toBe(site.id);
+		expect(summary.id).toBe(site.id);
+		expect(summary).not.toHaveProperty("organizationId");
 	});
 
 	iit("rejects private website for unauthenticated user", async () => {

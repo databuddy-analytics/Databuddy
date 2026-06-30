@@ -89,13 +89,15 @@ const REPAIR_MAX_OUTPUT_TOKENS = 512;
 const REPAIR_TEMPERATURE = 0;
 
 export interface RepairOptions {
+	abortSignal?: AbortSignal;
 	draft: string;
 	issues: ReplyValidationIssue[];
 	modelId?: string;
-	abortSignal?: AbortSignal;
 }
 
-export async function repairSlackReply(options: RepairOptions): Promise<string> {
+export async function repairSlackReply(
+	options: RepairOptions
+): Promise<string> {
 	const violations = options.issues
 		.map((issue) => `- ${issue.detail}`)
 		.join("\n");

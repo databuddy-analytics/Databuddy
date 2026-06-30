@@ -1,3 +1,5 @@
+import type { DataFilter } from "@databuddy/db/schema";
+
 export interface ParameterWithDates {
 	end_date?: string;
 	granularity?: "hourly" | "daily";
@@ -51,11 +53,7 @@ export interface DynamicQueryResponse {
 	success: boolean;
 }
 
-export interface GoalFilter {
-	field: string;
-	operator: "equals" | "contains" | "not_equals" | "in" | "not_in";
-	value: string | string[];
-}
+export type GoalFilter = DataFilter;
 
 export interface BatchQueryResponse {
 	batch: true;

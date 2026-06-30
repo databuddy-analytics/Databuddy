@@ -21,13 +21,21 @@ export function getRedisCache() {
 		return redisInstance;
 	}
 
-	redisInstance = new Redis(getRedisUrl(), createRedisConnectionOptions());
+	const instance = new Redis(getRedisUrl(), createRedisConnectionOptions());
+	redisInstance = instance;
 
-	redisInstance.on("error", () => {});
+	instance.on("error", (error) => {
+		console.error("[redis] client error:", error);
+	});
+	instance.on("end", () => {
+		if (redisInstance === instance) {
+			redisInstance = null;
+		}
+	});
 	process.on("SIGTERM", shutdownRedis);
 	process.on("SIGINT", shutdownRedis);
 
-	return redisInstance;
+	return instance;
 }
 
 export const redis = new Proxy({} as Redis, {

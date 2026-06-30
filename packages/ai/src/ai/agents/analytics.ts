@@ -8,7 +8,7 @@ import {
 import { TIER_CONFIG } from "../config/tiers";
 import { buildAnalyticsInstructions } from "../prompts/analytics";
 import { createToolkit } from "../tools/toolkit";
-import { NEVER_STOP } from "./stop-conditions";
+import { stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig, AgentContext, AgentThinking } from "./types";
 
 function thinkingProviderOptions(
@@ -72,7 +72,7 @@ export function createConfig(
 			organizationId: context.organizationId,
 			userId: context.userId,
 		}),
-		stopWhen: NEVER_STOP,
+		stopWhen: stopAtMaxSteps,
 		temperature: tier.temperature,
 		providerOptions: thinkingProviderOptions(context.thinking, modelKey),
 		experimental_context: appContext,

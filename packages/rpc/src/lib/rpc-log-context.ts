@@ -1,3 +1,7 @@
+import type {
+	RpcProcedureType,
+	RpcWideEventFields,
+} from "@databuddy/shared/evlog-fields";
 import { log, type RequestLogger } from "evlog";
 
 type RequestLoggerProvider = () => RequestLogger;
@@ -24,13 +28,14 @@ function getActiveRpcRequestLogger(): RequestLogger | null {
 	}
 }
 
-function setOrLog(fields: Record<string, unknown>): void {
+function setOrLog(fields: Partial<RpcWideEventFields>): void {
 	const requestLogger = getActiveRpcRequestLogger();
+	const payload = fields as Record<string, unknown>;
 	if (requestLogger) {
-		requestLogger.set(fields);
+		requestLogger.set(payload);
 		return;
 	}
-	log.info({ service: "rpc", ...fields });
+	log.info({ service: "rpc", ...payload });
 }
 
 export function enrichRpcWideEventContext(
@@ -40,7 +45,7 @@ export function enrichRpcWideEventContext(
 		return;
 	}
 
-	const fields: Record<string, unknown> = {};
+	const fields: Partial<RpcWideEventFields> = {};
 
 	const clientId = context.headers.get("databuddy-client-id");
 	if (clientId) {
@@ -64,9 +69,7 @@ export function enrichRpcWideEventContext(
 	setOrLog(fields);
 }
 
-export function setRpcProcedureType(
-	procedureType: "public" | "protected" | "admin" | "website"
-): void {
+export function setRpcProcedureType(procedureType: RpcProcedureType): void {
 	setOrLog({ rpc_procedure_type: procedureType });
 }
 
@@ -88,17 +91,19 @@ export function recordORPCError(error: {
 	const err = new Error(message);
 	const requestLogger = getActiveRpcRequestLogger();
 	if (requestLogger) {
-		requestLogger.error(err, {
+		const fields = {
 			rpc_error_code: error.code,
 			rpc_error_message: error.message,
-		});
+		} satisfies Partial<RpcWideEventFields>;
+		requestLogger.error(err, fields);
 		return;
 	}
-	log.error({
+	const fields = {
 		service: "rpc",
 		rpc_error_code: error.code,
 		rpc_error_message: error.message,
-	});
+	} satisfies Partial<RpcWideEventFields> & { service: "rpc" };
+	log.error(fields);
 }
 
 export function createAbortSignalInterceptor<T = unknown>() {

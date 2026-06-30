@@ -1,7 +1,9 @@
 import {
+	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
 	hasWebsiteScope,
 	isApiKeyPresent,
+	type ApiKeyRow,
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
 import { db } from "@databuddy/db";
@@ -150,7 +152,7 @@ async function deriveWithApiKey(request: Request) {
 
 	const key = await getApiKeyFromHeader(request.headers);
 	if (!key) {
-		throw jsonError(401, "Invalid or expired API key", "AUTH_REQUIRED");
+		throw jsonError(401, "Authentication required", "AUTH_REQUIRED");
 	}
 
 	if (!siteId) {
@@ -173,14 +175,21 @@ async function deriveWithApiKey(request: Request) {
 
 	const canRead = await hasWebsiteScope(key, siteId, "read:data");
 	if (!canRead) {
-		throw jsonError(
-			403,
-			"API key missing read:data scope for this website",
-			"FORBIDDEN"
-		);
+		if (isKnownWebsiteForKey(key, site)) {
+			throw jsonError(403, "Insufficient permissions", "FORBIDDEN");
+		}
+		throw jsonError(404, "Website not found", "NOT_FOUND");
 	}
 
 	return { user: null, session: null, website: site, timezone } as const;
+}
+
+function isKnownWebsiteForKey(key: ApiKeyRow, site: Website): boolean {
+	return (
+		(key.organizationId != null &&
+			key.organizationId === site.organizationId) ||
+		getAccessibleWebsiteIds(key).includes(site.id)
+	);
 }
 
 async function deriveWithSession(request: Request) {

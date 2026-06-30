@@ -3,9 +3,9 @@ import { z } from "zod";
 import { QueryBuilders } from "../../query/builders";
 
 interface DiscoveredType {
-	name: string;
 	category: string;
 	description: string;
+	name: string;
 	tags: string[];
 }
 
@@ -27,7 +27,7 @@ export const discoverQueryTypesTool = tool({
 		category: z
 			.enum([CATEGORIES[0] ?? "Summary", ...CATEGORIES.slice(1)] as [
 				string,
-				...string[]
+				...string[],
 			])
 			.optional()
 			.describe(

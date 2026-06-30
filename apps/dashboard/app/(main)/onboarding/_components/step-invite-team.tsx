@@ -1,6 +1,5 @@
 "use client";
 
-import { track } from "@databuddy/sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useController, useForm } from "react-hook-form";
@@ -8,6 +7,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useOrganizationInvitations } from "@/hooks/use-organization-invitations";
+import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
 import {
 	CaretUpDownIcon as CaretUpDown,
 	EnvelopeSimpleIcon,
@@ -73,12 +73,10 @@ export function StepInviteTeam() {
 				{ email: values.email, role: values.role },
 			]);
 			form.reset();
-			try {
-				track("onboarding_invite_sent", {
-					role: values.role,
-					invite_count: sentInvites.length + 1,
-				});
-			} catch {}
+			trackAppEvent(APP_EVENTS.onboardingInviteSent, {
+				role: values.role,
+				invite_count: sentInvites.length + 1,
+			});
 		} catch {
 			// Error handled by the hook's toast
 		}

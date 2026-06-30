@@ -118,6 +118,11 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	timezone: {
+		meta: {
+			description: "Visitor distribution by timezone.",
+			category: "Geography",
+			tags: ["timezone", "geography", "audience"],
+		},
 		table: Analytics.events,
 		fields: [
 			"timezone as name",
@@ -134,6 +139,11 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	language: {
+		meta: {
+			description: "Visitor distribution by browser language setting.",
+			category: "Audience",
+			tags: ["language", "audience", "demographics"],
+		},
 		table: Analytics.events,
 		fields: [
 			"language as name",

@@ -293,6 +293,12 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	browsers: {
+		meta: {
+			description:
+				"Detailed browser usage breakdown including specific browser names.",
+			category: "Technology",
+			tags: ["browsers", "technology", "devices"],
+		},
 		table: Analytics.events,
 		fields: [
 			"browser_name as name",
@@ -309,6 +315,11 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	browser_versions: {
+		meta: {
+			description: "Browser usage broken down by specific version numbers.",
+			category: "Technology",
+			tags: ["browsers", "versions", "compatibility"],
+		},
 		table: Analytics.events,
 		fields: [
 			"browser_name",
@@ -330,6 +341,11 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	operating_systems: {
+		meta: {
+			description: "OS usage breakdown by operating system name.",
+			category: "Technology",
+			tags: ["operating systems", "technology", "devices"],
+		},
 		table: Analytics.events,
 		fields: [
 			"os_name as name",
@@ -346,6 +362,11 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	os_versions: {
+		meta: {
+			description: "OS usage broken down by specific version numbers.",
+			category: "Technology",
+			tags: ["operating systems", "versions", "compatibility"],
+		},
 		table: Analytics.events,
 		fields: [
 			"CONCAT(os_name, ' ', os_version) as name",
@@ -361,6 +382,11 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	screen_resolutions: {
+		meta: {
+			description: "Distribution of screen resolutions across visitors.",
+			category: "Technology",
+			tags: ["screen", "display", "devices"],
+		},
 		table: Analytics.events,
 		fields: [
 			"viewport_size as name",
