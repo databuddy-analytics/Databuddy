@@ -1159,7 +1159,11 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				return {
 					success: true,
 					requestId,
-					...compileQuery(body as QueryRequest, domain, validateTimezone(q.timezone) || "UTC"),
+					...compileQuery(
+						body as QueryRequest,
+						domain,
+						validateTimezone(q.timezone) || "UTC"
+					),
 				};
 			} catch (e) {
 				return createErrorResponse(
