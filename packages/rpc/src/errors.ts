@@ -79,12 +79,14 @@ export const rpcError = {
 	badRequest: (message?: string) => new ORPCError("BAD_REQUEST", { message }),
 	featureUnavailable: (feature: string, requiredPlan?: string) =>
 		new ORPCError("FEATURE_UNAVAILABLE", {
+			status: 403,
 			message: "This feature is not available on your current plan",
 			data: { feature, requiredPlan },
 		}),
 	conflict: (message?: string) => new ORPCError("CONFLICT", { message }),
 	rateLimited: (retryAfter = 60) =>
 		new ORPCError("RATE_LIMITED", {
+			status: 429,
 			message: "Too many requests, please try again later",
 			data: { retryAfter: normalizeRetryAfterSeconds(retryAfter) },
 		}),
@@ -95,6 +97,7 @@ export const rpcError = {
 		message?: string
 	) =>
 		new ORPCError("PLAN_LIMIT_EXCEEDED", {
+			status: 402,
 			message: message ?? "You have reached the limit for your current plan",
 			data: { limit, current, nextPlan },
 		}),
