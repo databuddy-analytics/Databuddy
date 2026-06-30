@@ -57,6 +57,23 @@ export function getAIComponentInputFromPart(
 	return data as RawComponentInput;
 }
 
+export function getAIComponentInputFromToolOutput(
+	part: unknown
+): RawComponentInput | null {
+	if (!(isRecord(part) && typeof part.type === "string")) {
+		return null;
+	}
+	if (!(part.type.startsWith("tool-") && "output" in part)) {
+		return null;
+	}
+
+	const validation = validateComponentJSON(part.output);
+	if (!validation.valid) {
+		return null;
+	}
+	return part.output as RawComponentInput;
+}
+
 function createAIComponentDataPart(
 	input: RawComponentInput
 ): AIComponentDataPart {

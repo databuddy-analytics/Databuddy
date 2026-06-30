@@ -5,6 +5,14 @@ function joinCspSources(...sources: (string | false)[]): string {
 	return sources.filter(Boolean).join(" ");
 }
 
+const demoFrameAncestorSources = [
+	"https://www.databuddy.cc",
+	"https://databuddy.cc",
+	"https://app.databuddy.cc",
+	"https://preview.databuddy.cc",
+	"https://staging.databuddy.cc",
+] as const;
+
 const nextConfig: NextConfig = {
 	outputFileTracingRoot: path.join(process.cwd(), "../.."),
 	serverExternalPackages: ["pg"],
@@ -70,6 +78,9 @@ const nextConfig: NextConfig = {
 		const localhostSources = isDev
 			? "http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*"
 			: false;
+		const localFrameAncestorSources = isDev
+			? "http://localhost:* http://127.0.0.1:*"
+			: false;
 		const connectSources = joinCspSources(
 			"'self'",
 			localhostSources,
@@ -83,6 +94,7 @@ const nextConfig: NextConfig = {
 			"'self'",
 			"'unsafe-inline'",
 			isDev && "'unsafe-eval'",
+			"'wasm-unsafe-eval'",
 			"https://cdn.databuddy.cc"
 		);
 
@@ -105,26 +117,16 @@ const nextConfig: NextConfig = {
 			"font-src 'self' https://fonts.gstatic.com",
 			"img-src 'self' data: blob: https://cdn.databuddy.cc https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
 			`connect-src ${connectSources}`,
-			`frame-ancestors ${joinCspSources("'self'", localhostSources)}`,
+			`frame-ancestors ${joinCspSources(
+				"'self'",
+				...demoFrameAncestorSources,
+				localFrameAncestorSources
+			)}`,
 			"base-uri 'self'",
 			"form-action 'self'",
 		];
 
 		return [
-			{
-				source: "/status/:path*",
-				headers: [
-					...securityHeaders,
-					{
-						key: "Cache-Control",
-						value: "public, s-maxage=60, stale-while-revalidate=300",
-					},
-					{
-						key: "Content-Security-Policy",
-						value: cspDirectives.join("; "),
-					},
-				],
-			},
 			{
 				source: "/demo/:path*",
 				headers: [

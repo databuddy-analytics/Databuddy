@@ -1,6 +1,8 @@
 "use client";
 
 import { ListIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
+import { docsNavIconButton } from "@/components/docs-nav-styles";
+import { cn } from "@/lib/utils";
 
 interface NavbarMobileMenuButtonProps {
 	className?: string;
@@ -16,7 +18,7 @@ export function NavbarMobileMenuButton({
 	return (
 		<button
 			aria-label="Toggle mobile menu"
-			className={className}
+			className={cn(docsNavIconButton, className)}
 			onClick={onToggleAction}
 			type="button"
 		>

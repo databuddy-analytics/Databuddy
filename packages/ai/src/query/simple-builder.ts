@@ -1,11 +1,14 @@
 import { chQuery } from "@databuddy/db/clickhouse";
 import { domainSchema } from "@databuddy/validation";
-import { normalizeClickHouseDateTime } from "./date-utils";
-import type { Granularity } from "./expressions";
+import {
+	normalizeClickHouseDateTime,
+	padToClickHouseDateTime,
+} from "./date-utils";
 import {
 	compileConfigField,
 	Expressions,
 	normalizeGranularity,
+	SESSION_ATTRIBUTION_FIELDS,
 	sessionAttribution,
 	time,
 } from "./expressions";
@@ -14,6 +17,7 @@ import type {
 	ConfigField,
 	CTEDefinition,
 	Filter,
+	Granularity,
 	QueryRequest,
 	SimpleQueryConfig,
 	TimeBucketConfig,
@@ -21,8 +25,23 @@ import type {
 import { FilterOperators } from "./types";
 import { applyPlugins } from "./utils";
 
+export function getClickHouseQuerySettings(
+	noCache?: boolean
+): Record<string, string | number> {
+	if (noCache) {
+		return { use_query_cache: 0 };
+	}
+	return {
+		use_query_cache: 1,
+		query_cache_nondeterministic_function_handling: "ignore",
+	};
+}
+
+const FIELD_ALIAS_PATTERN = /\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/i;
+const SIMPLE_FIELD_PATTERN = /^[A-Za-z_][A-Za-z0-9_.]*$/;
+
 // Filters that are always allowed regardless of per-builder allowedFilters
-const GLOBAL_ALLOWED_FILTERS = [
+const GLOBAL_ALLOWED_FILTERS = new Set([
 	"path",
 	"query_string",
 	"country",
@@ -37,7 +56,23 @@ const GLOBAL_ALLOWED_FILTERS = [
 	"utm_source",
 	"utm_medium",
 	"utm_campaign",
-] as const;
+]);
+
+export function isFilterFieldAllowed(
+	config: SimpleQueryConfig,
+	field: string
+): boolean {
+	return (
+		GLOBAL_ALLOWED_FILTERS.has(field) ||
+		(config.allowedFilters?.includes(field) ?? false)
+	);
+}
+
+export function allowedFilterFields(config: SimpleQueryConfig): string[] {
+	return [
+		...new Set([...GLOBAL_ALLOWED_FILTERS, ...(config.allowedFilters ?? [])]),
+	];
+}
 
 const ALLOWED_GROUPBY_FIELDS = new Set([
 	"country",
@@ -77,7 +112,6 @@ const ALLOWED_ORDERBY_FIELDS = new Set([
 	"date",
 	"time",
 	"errors",
-	"p50_load_time",
 	"avg_scroll_depth",
 	"uptime_percentage",
 	"revenue",
@@ -120,11 +154,42 @@ const REFERRER_MAPPINGS: Record<string, string> = {
 const DATE_PARAM_NAMES = new Set(["from", "to", "startDate", "endDate"]);
 const DATE_PARAM_PATTERN = "from|to|startDate|endDate";
 
-function parseDateExpression(paramName: string, withTimezone = false): string {
-	const param = `{${paramName}:String}`;
-	return withTimezone
-		? `parseDateTimeBestEffort(${param}, {timezone:String})`
-		: `parseDateTimeBestEffort(${param})`;
+const END_OF_DAY_WITH_TZ_REGEX = new RegExp(
+	`parseDateTimeBestEffort\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\), \\{timezone:String\\}\\)`,
+	"g"
+);
+const END_OF_DAY_REGEX = new RegExp(
+	`toDateTime\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\)\\)`,
+	"g"
+);
+const TO_DATE_TIME_REGEX = new RegExp(
+	`toDateTime\\(\\{(${DATE_PARAM_PATTERN}):String\\}\\)`,
+	"g"
+);
+
+const ORG_SCOPE_ID_FIELDS = ["client_id", "website_id", "owner_id"] as const;
+const orgScopeRegexCache = new Map<string, RegExp>();
+function orgScopeRegex(field: string): RegExp {
+	let regex = orgScopeRegexCache.get(field);
+	if (!regex) {
+		const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		regex = new RegExp(
+			`((?:\\b\\w+\\.)?${escaped})\\s*=\\s*\\{websiteId:String\\}`,
+			"g"
+		);
+		orgScopeRegexCache.set(field, regex);
+	}
+	return regex;
+}
+
+function dateBindingExpression(
+	paramName: string,
+	withTimezone = false
+): string {
+	if (withTimezone) {
+		return `parseDateTimeBestEffort({${paramName}:String}, {timezone:String})`;
+	}
+	return `{${paramName}:DateTime}`;
 }
 
 function normalizeReferrerValue(value: string, forLikeSearch = false): string {
@@ -148,6 +213,10 @@ export function escapeLikePattern(value: string): string {
 	return value.replace(/\\/g, "\\\\").replace(/[%_]/g, "\\$&");
 }
 
+export function appendFilterClause(conditions: string[] | undefined): string {
+	return conditions?.length ? `AND ${conditions.join(" AND ")}` : "";
+}
+
 function listAllowed(values: Iterable<string>): string {
 	return Array.from(values).sort().join(", ");
 }
@@ -160,16 +229,18 @@ function validateGroupByField(field: string): void {
 	}
 }
 
-const ORDER_BY_REGEX = /^(\w+)\s+(ASC|DESC)$/i;
+const ORDER_BY_REGEX = /^(\w+)(?:\s+(ASC|DESC))?$/i;
 
-function validateOrderByField(orderBy: string): void {
-	const match = orderBy.match(ORDER_BY_REGEX);
+function normalizeOrderBy(orderBy: string): string {
+	const match = orderBy.trim().match(ORDER_BY_REGEX);
 	const field = match?.[1];
-	if (!(field && ALLOWED_ORDERBY_FIELDS.has(field))) {
+	if (!(match && field && ALLOWED_ORDERBY_FIELDS.has(field))) {
 		throw new Error(
-			`Ordering by '${orderBy}' is not permitted. Use '<field> ASC|DESC' where field is one of: ${listAllowed(ALLOWED_ORDERBY_FIELDS)}.`
+			`Ordering by '${orderBy}' is not permitted. Use '<field>' or '<field> ASC|DESC' where field is one of: ${listAllowed(ALLOWED_ORDERBY_FIELDS)}.`
 		);
 	}
+	const direction = match[2]?.toUpperCase() ?? "DESC";
+	return `${field} ${direction}`;
 }
 
 function buildDeviceTypeSQL(
@@ -191,6 +262,14 @@ function buildDeviceTypeSQL(
 			: `lower(device_type) = {${key}:String}`,
 		params: { [key]: lower },
 	};
+}
+
+function isSessionAttributionField(
+	field: string
+): field is (typeof SESSION_ATTRIBUTION_FIELDS)[number] {
+	return SESSION_ATTRIBUTION_FIELDS.includes(
+		field as (typeof SESSION_ATTRIBUTION_FIELDS)[number]
+	);
 }
 
 interface FilterResult {
@@ -258,24 +337,29 @@ export class SimpleQueryBuilder {
 			: null;
 	}
 
-	private buildFilter(filter: Filter, index: number): FilterResult {
-		const isGloballyAllowed = GLOBAL_ALLOWED_FILTERS.includes(
-			filter.field as (typeof GLOBAL_ALLOWED_FILTERS)[number]
-		);
-		if (
-			!(isGloballyAllowed || this.config.allowedFilters?.includes(filter.field))
-		) {
-			const allowed = new Set<string>(GLOBAL_ALLOWED_FILTERS);
-			for (const f of this.config.allowedFilters ?? []) {
-				allowed.add(f);
-			}
+	private buildFilter(
+		filter: Filter,
+		index: number,
+		options?: { sessionAttributionAlias?: string }
+	): FilterResult {
+		if (!isFilterFieldAllowed(this.config, filter.field)) {
 			throw new Error(
-				`Filter on field '${filter.field}' is not permitted. Allowed fields for this query: ${listAllowed(allowed)}.`
+				`Filter on field '${filter.field}' is not permitted. Allowed fields for this query: ${listAllowed(allowedFilterFields(this.config))}.`
 			);
 		}
 
 		const key = `f${index}`;
 		const operator = FilterOperators[filter.op];
+		const sessionAttributionAlias = options?.sessionAttributionAlias;
+
+		if (sessionAttributionAlias && isSessionAttributionField(filter.field)) {
+			return this.buildSessionAttributionFilter(
+				filter,
+				key,
+				operator,
+				sessionAttributionAlias
+			);
+		}
 
 		if (filter.field === "path") {
 			return buildGenericFilter(
@@ -331,6 +415,59 @@ export class SimpleQueryBuilder {
 		return buildGenericFilter(filter, key, operator, filter.field);
 	}
 
+	private buildSessionAttributionFilter(
+		filter: Filter,
+		key: string,
+		operator: string,
+		alias: string
+	): FilterResult {
+		if (filter.field === "referrer") {
+			return buildGenericFilter(
+				filter,
+				key,
+				operator,
+				String(SQL_EXPRESSIONS.normalizedReferrer).replace(
+					/\breferrer\b/g,
+					`${alias}.session_referrer`
+				),
+				(v) =>
+					normalizeReferrerValue(
+						v,
+						filter.op === "contains" || filter.op === "not_contains"
+					)
+			);
+		}
+
+		if (filter.field === "device_type" && typeof filter.value === "string") {
+			const fieldExpr = `${alias}.session_device_type`;
+			const isNegative =
+				filter.op === "ne" ||
+				filter.op === "not_in" ||
+				filter.op === "not_contains";
+			const lower = filter.value.toLowerCase();
+			if (lower === "desktop") {
+				const clause = `(${fieldExpr} = '' OR lower(${fieldExpr}) = {${key}:String})`;
+				return {
+					clause: isNegative ? `NOT ${clause}` : clause,
+					params: { [key]: "desktop" },
+				};
+			}
+			return {
+				clause: isNegative
+					? `lower(${fieldExpr}) != {${key}:String}`
+					: `lower(${fieldExpr}) = {${key}:String}`,
+				params: { [key]: lower },
+			};
+		}
+
+		return buildGenericFilter(
+			filter,
+			key,
+			operator,
+			`${alias}.session_${filter.field}`
+		);
+	}
+
 	private getIdField(): string {
 		return this.config.idField || "client_id";
 	}
@@ -368,6 +505,37 @@ export class SimpleQueryBuilder {
 		}
 	}
 
+	private needsSessionAttribution(): boolean {
+		if (!this.config.plugins?.sessionAttribution) {
+			return false;
+		}
+
+		if (
+			this.request.filters?.some((filter) =>
+				isSessionAttributionField(filter.field)
+			)
+		) {
+			return true;
+		}
+
+		if (
+			this.request.groupBy?.some((field) => isSessionAttributionField(field))
+		) {
+			return true;
+		}
+
+		const parts = [
+			...(this.config.fields ?? []).map((field) => compileConfigField(field)),
+			...(this.config.groupBy ?? []),
+			...(this.config.where ?? []),
+		];
+		return parts.some((part) =>
+			SESSION_ATTRIBUTION_FIELDS.some((field) =>
+				new RegExp(`\\b${field}\\b`).test(part)
+			)
+		);
+	}
+
 	private generateSessionAttributionCTE(
 		timeField: string,
 		table: string,
@@ -396,20 +564,14 @@ export class SimpleQueryBuilder {
 		if (!this.websiteDomain) {
 			return sql
 				.replace(/domain\(referrer\) != '\{websiteDomain\}'/g, "1=1")
-				.replace(/NOT domain\(referrer\) ILIKE '%.{websiteDomain}'/g, "1=1")
+				.replace(/NOT domain\(referrer\) ILIKE '%\.\{websiteDomain\}'/g, "1=1")
 				.replace(
 					/domain\(referrer\) NOT IN \('localhost', '127\.0\.0\.1'\)/g,
 					"1=1"
 				)
 				.replace(/\{websiteDomain\}/g, "__databuddy_no_domain__");
 		}
-		return sql
-			.replace(/\{websiteDomain\}/g, this.websiteDomain)
-			.replace(/%.{websiteDomain}/g, `%.${this.websiteDomain}`);
-	}
-
-	private formatDateTime(dateStr: string): string {
-		return normalizeClickHouseDateTime(dateStr);
+		return sql.replace(/\{websiteDomain\}/g, this.websiteDomain);
 	}
 
 	private finalizeCompiledQuery(
@@ -424,41 +586,30 @@ export class SimpleQueryBuilder {
 			}
 		}
 
+		const promoteToEndOfDay = (paramName: string): void => {
+			const value = finalParams[paramName];
+			if (typeof value === "string") {
+				finalParams[paramName] = normalizeClickHouseDateTime(value, {
+					endOfDay: true,
+				});
+			}
+		};
+
 		let finalSql = sql.replace(
-			new RegExp(
-				`parseDateTimeBestEffort\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\), \\{timezone:String\\}\\)`,
-				"g"
-			),
-			(_match, paramName: string) => {
-				const value = finalParams[paramName];
-				if (typeof value === "string") {
-					finalParams[paramName] = normalizeClickHouseDateTime(value, {
-						endOfDay: true,
-					});
-				}
-				return parseDateExpression(paramName, true);
+			END_OF_DAY_WITH_TZ_REGEX,
+			(_match, paramName) => {
+				promoteToEndOfDay(paramName);
+				return dateBindingExpression(paramName, true);
 			}
 		);
 
-		finalSql = finalSql.replace(
-			new RegExp(
-				`toDateTime\\(concat\\(\\{(${DATE_PARAM_PATTERN}):String\\}, ' 23:59:59'\\)\\)`,
-				"g"
-			),
-			(_match, paramName: string) => {
-				const value = finalParams[paramName];
-				if (typeof value === "string") {
-					finalParams[paramName] = normalizeClickHouseDateTime(value, {
-						endOfDay: true,
-					});
-				}
-				return parseDateExpression(paramName);
-			}
-		);
+		finalSql = finalSql.replace(END_OF_DAY_REGEX, (_match, paramName) => {
+			promoteToEndOfDay(paramName);
+			return dateBindingExpression(paramName);
+		});
 
-		finalSql = finalSql.replace(
-			new RegExp(`toDateTime\\(\\{(${DATE_PARAM_PATTERN}):String\\}\\)`, "g"),
-			(_match, paramName: string) => parseDateExpression(paramName)
+		finalSql = finalSql.replace(TO_DATE_TIME_REGEX, (_match, paramName) =>
+			dateBindingExpression(paramName)
 		);
 
 		if (finalSql.includes("{timezone:String}") && !finalParams.timezone) {
@@ -467,21 +618,20 @@ export class SimpleQueryBuilder {
 
 		if (this.isOrganizationScope()) {
 			finalParams.websiteIds = this.request.organizationWebsiteIds ?? [];
-			const idFields = new Set([
-				"client_id",
-				"website_id",
-				"owner_id",
-				this.getIdField(),
-			]);
+			const idFields = new Set<string>(ORG_SCOPE_ID_FIELDS);
+			idFields.add(this.getIdField());
 			for (const field of idFields) {
-				const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 				finalSql = finalSql.replace(
-					new RegExp(
-						`((?:\\b\\w+\\.)?${escaped})\\s*=\\s*\\{websiteId:String\\}`,
-						"g"
-					),
+					orgScopeRegex(field),
 					"$1 IN {websiteIds:Array(String)}"
 				);
+			}
+		}
+
+		for (const key of DATE_PARAM_NAMES) {
+			const value = finalParams[key];
+			if (typeof value === "string") {
+				finalParams[key] = padToClickHouseDateTime(value);
 			}
 		}
 
@@ -493,13 +643,17 @@ export class SimpleQueryBuilder {
 
 		if (this.config.customSql) {
 			const whereClauseParams: Record<string, Filter["value"]> = {};
-			const whereClause = this.buildWhereClauseFromFilters(whereClauseParams);
+			const needsAttribution = this.needsSessionAttribution();
+			const whereClause = this.buildWhereClauseFromFilters(
+				whereClauseParams,
+				needsAttribution ? { sessionAttributionAlias: "sa" } : undefined
+			);
 
 			if (this.request.organizationWebsiteIds) {
 				whereClauseParams.__orgLevel = "true";
 			}
 
-			const helpers = this.config.plugins?.sessionAttribution
+			const helpers = needsAttribution
 				? {
 						sessionAttributionCTE: (timeField = "time") =>
 							this.generateSessionAttributionCTE(
@@ -513,20 +667,20 @@ export class SimpleQueryBuilder {
 					}
 				: undefined;
 
-			const result = this.config.customSql(
-				this.request.projectId,
-				this.formatDateTime(this.request.from),
-				this.formatDateTime(this.request.to),
-				this.request.filters,
-				this.request.timeUnit,
-				this.request.limit,
-				this.request.offset,
-				this.request.timezone,
-				whereClause,
-				whereClauseParams,
+			const result = this.config.customSql({
+				websiteId: this.request.projectId,
+				startDate: normalizeClickHouseDateTime(this.request.from),
+				endDate: normalizeClickHouseDateTime(this.request.to),
+				filters: this.request.filters,
+				granularity: this.request.timeUnit,
+				limit: this.request.limit,
+				offset: this.request.offset,
+				timezone: this.request.timezone,
+				filterConditions: whereClause,
+				filterParams: whereClauseParams,
 				helpers,
-				this.request.orderBy
-			);
+				orderBy: this.request.orderBy,
+			});
 
 			if (typeof result === "string") {
 				return this.finalizeCompiledQuery(result, {});
@@ -543,18 +697,18 @@ export class SimpleQueryBuilder {
 	private buildStandardQuery(): CompiledQuery {
 		const params: Record<string, Filter["value"]> = {
 			websiteId: this.request.projectId,
-			from: this.formatDateTime(this.request.from),
-			to: this.formatDateTime(this.request.to),
+			from: normalizeClickHouseDateTime(this.request.from),
+			to: normalizeClickHouseDateTime(this.request.to),
 		};
 
 		if (this.config.timeBucket?.timezone && this.request.timezone) {
 			params.timezone = this.request.timezone as string;
 		}
 
-		const hasCTEs =
-			this.config.with?.length || this.config.plugins?.sessionAttribution;
+		const needsAttribution = this.needsSessionAttribution();
+		const hasCTEs = this.config.with?.length || needsAttribution;
 
-		if (this.config.plugins?.sessionAttribution && !this.config.with?.length) {
+		if (needsAttribution && !this.config.with?.length) {
 			return this.buildSessionAttributionQuery(params);
 		}
 
@@ -568,24 +722,83 @@ export class SimpleQueryBuilder {
 		const ctesStr = hasCTEs ? this.compileCTEs(params) : "";
 		const fromSource = this.config.from || this.config.table;
 
-		let sql = ctesStr ? `${ctesStr}\n` : "";
-		sql += `SELECT ${fieldsStr} FROM ${fromSource}`;
+		let body = `SELECT ${fieldsStr} FROM ${fromSource}`;
 
 		if (!this.config.from) {
 			const whereClause = this.buildWhereClause(params);
-			sql += ` WHERE ${whereClause.join(" AND ")}`;
+			body += ` WHERE ${whereClause.join(" AND ")}`;
 		} else if (this.config.where?.length) {
-			sql += ` WHERE ${this.config.where.join(" AND ")}`;
+			body += ` WHERE ${this.config.where.join(" AND ")}`;
 		}
 
-		sql = this.replaceDomainPlaceholders(sql);
-		sql += this.buildGroupByClause();
-		sql += this.buildHavingClause(params);
+		body = this.replaceDomainPlaceholders(body);
+		body += this.buildGroupByClause();
+		body += this.buildHavingClause(params);
+
+		const ctePrefix = ctesStr ? `${ctesStr}\n` : "";
+		let sql = ctePrefix + this.wrapPercentage(body);
 		sql += this.buildOrderByClause();
 		sql += this.buildLimitClause();
 		sql += this.buildOffsetClause();
 
 		return this.finalizeCompiledQuery(sql, params);
+	}
+
+	private wrapPercentage(innerSql: string): string {
+		const pct = this.config.percentageOf;
+		if (!pct) {
+			return innerSql;
+		}
+		const alias = pct.as ?? "percentage";
+		const projection = this.getPercentageProjection(alias);
+		return `SELECT ${projection}, ROUND(${pct.of} / sum(${pct.of}) OVER () * 100, 2) AS ${alias} FROM (${innerSql})`;
+	}
+
+	private getPercentageProjection(percentageAlias: string): string {
+		const outputFields = this.config.meta?.output_fields
+			?.map((field) => field.name)
+			.filter((name) => name !== percentageAlias);
+
+		if (outputFields?.length) {
+			const timeBucketAlias = this.getTimeBucketAlias();
+			if (timeBucketAlias && !outputFields.includes(timeBucketAlias)) {
+				return [timeBucketAlias, ...outputFields].join(", ");
+			}
+			return outputFields.join(", ");
+		}
+
+		const aliases: string[] = [];
+		const timeBucketAlias = this.getTimeBucketAlias();
+		if (timeBucketAlias) {
+			aliases.push(timeBucketAlias);
+		}
+
+		for (const field of this.config.fields ?? []) {
+			const alias = this.getFieldAlias(field);
+			if (alias && alias !== percentageAlias) {
+				aliases.push(alias);
+			}
+		}
+
+		return aliases.length ? aliases.join(", ") : "*";
+	}
+
+	private getFieldAlias(field: ConfigField): string | null {
+		if (typeof field !== "string") {
+			return field.alias;
+		}
+
+		const aliasMatch = field.match(FIELD_ALIAS_PATTERN);
+		if (aliasMatch?.[1]) {
+			return aliasMatch[1];
+		}
+
+		const trimmed = field.trim();
+		if (SIMPLE_FIELD_PATTERN.test(trimmed)) {
+			return trimmed.split(".").at(-1) ?? trimmed;
+		}
+
+		return null;
 	}
 
 	private compileFields(fields?: ConfigField[]): string {
@@ -665,7 +878,8 @@ export class SimpleQueryBuilder {
 	private compileCTEs(params: Record<string, Filter["value"]>): string {
 		const ctes: string[] = [];
 
-		if (this.config.plugins?.sessionAttribution) {
+		const needsAttribution = this.needsSessionAttribution();
+		if (needsAttribution) {
 			const timeField = this.config.timeField || "time";
 			const table = this.config.table || "analytics.events";
 			ctes.push(
@@ -749,7 +963,9 @@ export class SimpleQueryBuilder {
 	): CompiledQuery {
 		const timeField = this.config.timeField || "time";
 		const table = this.config.table || "analytics.events";
-		const filterClauses = this.buildWhereClauseFromFilters(params);
+		const filterClauses = this.buildWhereClauseFromFilters(params, {
+			sessionAttributionAlias: "sa",
+		});
 
 		const mainFields = this.compileFields(this.config.fields).replace(
 			/, /g,
@@ -762,10 +978,10 @@ export class SimpleQueryBuilder {
 			filterClauses.length > 0 ? filterClauses.join(" AND ") : "1=1";
 
 		const idField = this.getIdField();
-		let sql = `
+		let body = `
 		WITH ${this.generateSessionAttributionCTE(timeField, table, "from", "to")},
 		attributed_events AS (
-			SELECT 
+			SELECT
 				e.* REPLACE(
 					${sessionAttribution.joinSelectFields("sa").join(",\n\t\t\t\t\t")}
 				)
@@ -780,8 +996,10 @@ export class SimpleQueryBuilder {
 		SELECT ${mainFields}
 		FROM attributed_events`;
 
-		sql = this.replaceDomainPlaceholders(sql);
-		sql += this.buildGroupByClause();
+		body = this.replaceDomainPlaceholders(body);
+		body += this.buildGroupByClause();
+
+		let sql = this.wrapPercentage(body);
 		sql += this.buildOrderByClause();
 		sql += this.buildLimitClause();
 		sql += this.buildOffsetClause();
@@ -819,17 +1037,29 @@ export class SimpleQueryBuilder {
 	}
 
 	private buildWhereClauseFromFilters(
-		params: Record<string, Filter["value"]>
+		params: Record<string, Filter["value"]>,
+		options?: { sessionAttributionAlias?: string }
 	): string[] {
 		const whereClause: string[] = [];
 
 		if (this.request.filters) {
 			for (let i = 0; i < this.request.filters.length; i++) {
 				const filter = this.request.filters[i];
-				if (!filter) {
+				if (!filter || filter.target || filter.having) {
 					continue;
 				}
-				const { clause, params: filterParams } = this.buildFilter(filter, i);
+				// Skip filters for fields not supported by this query type rather
+				// than throwing — in a multi-query batch, a dimension specific to
+				// one query type (e.g. "href" for outbound_links) should simply be
+				// ignored by query types that don't know about it.
+				if (!isFilterFieldAllowed(this.config, filter.field)) {
+					continue;
+				}
+				const { clause, params: filterParams } = this.buildFilter(
+					filter,
+					i,
+					options
+				);
 				whereClause.push(clause);
 				Object.assign(params, filterParams);
 			}
@@ -864,8 +1094,7 @@ export class SimpleQueryBuilder {
 
 	private buildOrderByClause(): string {
 		if (this.request.orderBy) {
-			validateOrderByField(this.request.orderBy);
-			return ` ORDER BY ${this.request.orderBy}`;
+			return ` ORDER BY ${normalizeOrderBy(this.request.orderBy)}`;
 		}
 		if (this.config.orderBy) {
 			return ` ORDER BY ${this.config.orderBy}`;
@@ -882,9 +1111,12 @@ export class SimpleQueryBuilder {
 		return this.request.offset ? ` OFFSET ${this.request.offset}` : "";
 	}
 
-	async execute(): Promise<Record<string, unknown>[]> {
+	async execute(abortSignal?: AbortSignal): Promise<Record<string, unknown>[]> {
 		const { sql, params } = this.compile();
-		const rawData = await chQuery(sql, params);
+		const rawData = await chQuery<Record<string, unknown>>(sql, params, {
+			abort_signal: abortSignal,
+			clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
+		});
 		return applyPlugins(rawData, this.config, this.websiteDomain);
 	}
 }

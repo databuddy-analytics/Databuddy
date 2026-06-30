@@ -42,6 +42,11 @@ export function db(): DB {
 }
 
 const TABLES = [
+	"insight_rollups",
+	"analytics_insights",
+	"insight_run_items",
+	"insight_runs",
+	"insight_generation_configs",
 	"apikey",
 	"websites",
 	"member",

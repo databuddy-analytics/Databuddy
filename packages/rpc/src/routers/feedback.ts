@@ -8,6 +8,10 @@ import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { sessionProcedure, trackedSessionProcedure } from "../orpc";
+import {
+	isDefinitiveAutumnBalanceFailure,
+	updateAutumnBalance,
+} from "../utils/autumn-balance";
 import { getBillingCustomerId } from "../utils/billing";
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
@@ -406,36 +410,26 @@ export const feedbackRouter = {
 				tier.rewardType === "agent-credits" ? "agent-credits" : "events";
 
 			try {
-				const response = await fetch(
-					"https://api.useautumn.com/v1/balances.update",
-					{
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							Authorization: `Bearer ${process.env.AUTUMN_SECRET_KEY}`,
-						},
-						body: JSON.stringify({
-							customer_id: customerId,
-							feature_id: featureId,
-							add_to_balance: tier.rewardAmount,
-						}),
-					}
-				);
-
-				if (!response.ok) {
-					const body = await response.text();
-					throw new Error(`Autumn API ${response.status}: ${body}`);
-				}
+				await updateAutumnBalance({
+					amount: tier.rewardAmount,
+					customerId,
+					featureId,
+					redemptionId,
+				});
 			} catch (error) {
-				await context.db
-					.delete(feedbackRedemptions)
-					.where(eq(feedbackRedemptions.id, redemptionId))
-					.catch((deleteError) => {
-						logger.error(
-							{ deleteError, redemptionId, userId },
-							"Failed to roll back redemption after Autumn failure"
-						);
-					});
+				const definitiveFailure = isDefinitiveAutumnBalanceFailure(error);
+
+				if (definitiveFailure) {
+					await context.db
+						.delete(feedbackRedemptions)
+						.where(eq(feedbackRedemptions.id, redemptionId))
+						.catch((deleteError) => {
+							logger.error(
+								{ deleteError, redemptionId, userId },
+								"Failed to roll back redemption after definitive Autumn failure"
+							);
+						});
+				}
 
 				const errorMessage =
 					error instanceof Error ? error.message : String(error);
@@ -446,11 +440,14 @@ export const feedbackRouter = {
 						customerId,
 						tier,
 						redemptionId,
+						ambiguousAutumnUpdate: !definitiveFailure,
 					},
 					"Failed to update Autumn balance for credit redemption"
 				);
 				throw rpcError.internal(
-					"Failed to add events to your balance. Please try again."
+					definitiveFailure
+						? "Failed to add events to your balance. Please try again."
+						: "Your redemption was recorded, but we could not confirm the balance update. Please contact support before retrying."
 				);
 			}
 

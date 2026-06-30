@@ -294,7 +294,7 @@ export default function BrandingContent() {
 							alt="Databuddy gradient background 1"
 							className="aspect-video w-full object-cover"
 							height={360}
-							src="/brand/gradients/gradient-bg-1.jpg"
+							src="/brand/gradients/gradient-bg-1.webp"
 							width={640}
 						/>
 					</div>
@@ -303,7 +303,7 @@ export default function BrandingContent() {
 							alt="Databuddy gradient background 2"
 							className="aspect-video w-full object-cover"
 							height={360}
-							src="/brand/gradients/gradient-bg-2.jpg"
+							src="/brand/gradients/gradient-bg-2.webp"
 							width={640}
 						/>
 					</div>

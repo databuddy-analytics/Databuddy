@@ -282,43 +282,41 @@ export function MapComponent({
 				</div>
 			)}
 
-			{Boolean(countriesGeoData) && (
-				<MapContainer
-					attributionControl={false}
-					center={[20, 10]}
-					className={resolvedTheme === "dark" ? "map-dark" : "map-light"}
-					maxBounds={[
-						[-90, -200],
-						[90, 200],
-					]}
-					maxBoundsViscosity={0.5}
-					maxZoom={12}
-					minZoom={1.0}
-					preferCanvas
-					ref={mapRef}
-					style={{
-						height: "100%",
-						backgroundColor: "hsl(var(--background))",
-						cursor: "default",
-						outline: "none",
-						zIndex: "1",
-					}}
-					wheelPxPerZoomLevel={120}
-					zoom={zoom}
-					zoomControl={false}
-					zoomDelta={0.5}
-					zoomSnap={0.25}
-				>
-					{mapView === "countries" && countriesGeoData && (
-						<GeoJSON
-							data={countriesGeoData as GeoJsonObject}
-							key={`countries-${locationData?.countries?.length || 0}`}
-							onEachFeature={handleEachFeature}
-							style={handleStyle}
-						/>
-					)}
-				</MapContainer>
-			)}
+			<MapContainer
+				attributionControl={false}
+				center={[20, 10]}
+				className={resolvedTheme === "dark" ? "map-dark" : "map-light"}
+				maxBounds={[
+					[-90, -200],
+					[90, 200],
+				]}
+				maxBoundsViscosity={0.5}
+				maxZoom={12}
+				minZoom={1.0}
+				preferCanvas
+				ref={mapRef}
+				style={{
+					height: "100%",
+					backgroundColor: "hsl(var(--background))",
+					cursor: "default",
+					outline: "none",
+					zIndex: "1",
+				}}
+				wheelPxPerZoomLevel={120}
+				zoom={zoom}
+				zoomControl={false}
+				zoomDelta={0.5}
+				zoomSnap={0.25}
+			>
+				{mapView === "countries" && countriesGeoData && (
+					<GeoJSON
+						data={countriesGeoData as GeoJsonObject}
+						key={`countries-${locationData?.countries?.length || 0}`}
+						onEachFeature={handleEachFeature}
+						style={handleStyle}
+					/>
+				)}
+			</MapContainer>
 
 			{!passedIsLoading &&
 				(!locationData?.countries || locationData.countries.length === 0) && (

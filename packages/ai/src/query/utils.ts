@@ -211,13 +211,3 @@ function normalizeUrl(original: string): string {
 		return original;
 	}
 }
-
-const UNSAFE_SQL = /;|--|\/\*|\*\//;
-
-export function buildWhereClause(conditions?: string[]): string {
-	if (!conditions?.length) {
-		return "";
-	}
-	const safe = conditions.filter((c) => !UNSAFE_SQL.test(c));
-	return `WHERE (${safe.join(" AND ")})`;
-}

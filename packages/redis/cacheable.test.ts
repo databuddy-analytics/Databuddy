@@ -83,6 +83,7 @@ beforeEach(async () => {
 
 afterAll(() => {
 	Date.now = realDateNow;
+	mock.restore();
 });
 
 describe("cacheable", () => {
@@ -856,6 +857,27 @@ describe("cacheable", () => {
 			await expect(cached()).rejects.toThrow("Database error");
 		});
 
+		it("does not cache failed function results", async () => {
+			let attempt = 0;
+			const original = mock(async () => {
+				attempt += 1;
+				if (attempt === 1) {
+					throw new Error("temporary failure");
+				}
+				return { planId: "pro" };
+			});
+			const cached = cacheable(original, {
+				expireInSec: 60,
+				prefix: "fn-err-retry",
+			});
+
+			await expect(cached()).rejects.toThrow("temporary failure");
+			await expect(cached()).resolves.toEqual({ planId: "pro" });
+
+			expect(original).toHaveBeenCalledTimes(2);
+			expect(mockSetex).toHaveBeenCalledTimes(1);
+		});
+
 		it("propagates errors when redis is unavailable (fn called directly)", async () => {
 			// First: break redis
 			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
@@ -971,6 +993,106 @@ describe("cacheable", () => {
 			await cached();
 			expect(mockGet).toHaveBeenCalled();
 		});
+	});
+
+	describe("query timeout", () => {
+		it("rejects when the underlying function exceeds queryTimeoutMs", async () => {
+			const cached = cacheable(
+				(): Promise<string> =>
+					new Promise((resolve) => setTimeout(() => resolve("late"), 5000)),
+				{
+					expireInSec: 60,
+					prefix: "qtimeout-basic",
+					queryTimeoutMs: 50,
+				}
+			);
+
+			await expect(cached()).rejects.toThrow("Query timeout");
+		}, 5000);
+
+		it("cleans up inflightRequests after a timeout so the next call retries", async () => {
+			let callCount = 0;
+			const original = mock((): Promise<string> => {
+				callCount += 1;
+				if (callCount === 1) {
+					return new Promise((resolve) =>
+						setTimeout(() => resolve("late"), 5000)
+					);
+				}
+				return Promise.resolve("fast");
+			});
+
+			const cached = cacheable(original, {
+				expireInSec: 60,
+				prefix: "qtimeout-retry",
+				queryTimeoutMs: 50,
+			});
+
+			await expect(cached()).rejects.toThrow("Query timeout");
+
+			const result = await cached();
+			expect(result).toBe("fast");
+			expect(original).toHaveBeenCalledTimes(2);
+		}, 5000);
+
+		it("all concurrent callers fail when the shared inflight promise times out", async () => {
+			const cached = cacheable(
+				(): Promise<string> =>
+					new Promise((resolve) => setTimeout(() => resolve("late"), 5000)),
+				{
+					expireInSec: 60,
+					prefix: "qtimeout-concurrent",
+					queryTimeoutMs: 50,
+				}
+			);
+
+			const results = await Promise.allSettled([
+				cached(),
+				cached(),
+				cached(),
+			]);
+
+			for (const result of results) {
+				expect(result.status).toBe("rejected");
+				if (result.status === "rejected") {
+					expect(result.reason.message).toBe("Query timeout");
+				}
+			}
+		}, 5000);
+
+		it("does not time out fast functions", async () => {
+			const cached = cacheable(async () => "quick", {
+				expireInSec: 60,
+				prefix: "qtimeout-fast",
+				queryTimeoutMs: 1000,
+			});
+
+			const result = await cached();
+			expect(result).toBe("quick");
+		});
+
+		it("applies timeout even when Redis is unavailable (circuit-breaker path)", async () => {
+			// First break Redis so we go to the direct-call path
+			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
+			const setup = cacheable(async () => "x", {
+				expireInSec: 1,
+				prefix: "qtimeout-setup",
+			});
+			await setup();
+
+			// Now use a slow function with a short timeout on the bypass path
+			const cached = cacheable(
+				(): Promise<string> =>
+					new Promise((resolve) => setTimeout(() => resolve("late"), 5000)),
+				{
+					expireInSec: 60,
+					prefix: "qtimeout-no-redis",
+					queryTimeoutMs: 50,
+				}
+			);
+
+			await expect(cached()).rejects.toThrow("Query timeout");
+		}, 5000);
 	});
 
 	describe("edge cases", () => {

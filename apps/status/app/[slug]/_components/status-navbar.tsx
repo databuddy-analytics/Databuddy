@@ -3,43 +3,49 @@ import { LifebuoyIcon } from "@databuddy/ui/icons";
 
 interface StatusNavbarProps {
 	logoUrl?: string | null;
+	name: string;
 	supportUrl?: string | null;
 	websiteUrl?: string | null;
 }
 
 export function StatusNavbar({
 	logoUrl,
+	name,
 	websiteUrl,
 	supportUrl,
 }: StatusNavbarProps) {
 	const logo = logoUrl ? (
 		<Avatar alt="" className="rounded" size="sm" src={logoUrl} />
 	) : null;
+	const brand = (
+		<span className="flex min-w-0 items-center gap-2">
+			{logo}
+			<span className="truncate font-medium text-[13px] text-foreground">
+				{name}
+			</span>
+		</span>
+	);
 
 	return (
-		<div className="sticky top-0 z-30 border-border/60 border-b bg-background/80 backdrop-blur-lg">
-			<nav className="mx-auto flex h-12 max-w-2xl items-center justify-between px-4 sm:px-6">
-				{logo ? (
-					websiteUrl ? (
-						<a
-							className="transition-opacity hover:opacity-70"
-							href={websiteUrl}
-							rel="noopener noreferrer"
-							target="_blank"
-						>
-							{logo}
-						</a>
-					) : (
-						logo
-					)
+		<div className="sticky top-0 z-30 bg-background/90 backdrop-blur-lg">
+			<nav className="mx-auto flex h-14 max-w-[822px] items-center justify-between px-4 sm:px-6">
+				{websiteUrl ? (
+					<a
+						className="min-w-0 transition-opacity hover:opacity-70"
+						href={websiteUrl}
+						rel="noopener noreferrer"
+						target="_blank"
+					>
+						{brand}
+					</a>
 				) : (
-					<div />
+					brand
 				)}
 
 				<div className="flex items-center gap-1.5">
 					{supportUrl ? (
 						<a
-							className="flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground"
+							className="flex h-8 items-center gap-1.5 rounded-md border border-border/60 bg-secondary/40 px-2.5 text-muted-foreground text-xs transition-colors hover:bg-secondary hover:text-foreground"
 							href={supportUrl}
 							rel="noopener noreferrer"
 							target="_blank"
@@ -51,6 +57,9 @@ export function StatusNavbar({
 					<ThemeToggle className="flex" />
 				</div>
 			</nav>
+			<div className="mx-auto max-w-[822px] px-4 sm:px-6">
+				<div className="h-px rounded-full bg-border" />
+			</div>
 		</div>
 	);
 }

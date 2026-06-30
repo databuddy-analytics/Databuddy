@@ -4,14 +4,17 @@ import {
 	alarms,
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
-import { NotificationClient } from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { toNotificationConfig } from "../lib/alarm-notifications";
+import {
+	sendNotificationTarget,
+	toNotificationTargets,
+} from "../lib/alarm-notifications";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
+import { withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 
 const SLACK_WEBHOOK_PATTERN =
@@ -139,29 +142,6 @@ async function callerCanReadSecrets(
 	}
 }
 
-async function getAlarmAndAuthorize(
-	alarmId: string,
-	context: Context,
-	permissions: ("read" | "update" | "delete")[] = ["read"]
-) {
-	const alarm = await db.query.alarms.findFirst({
-		where: { id: alarmId },
-		with: { destinations: true },
-	});
-
-	if (!alarm) {
-		throw rpcError.notFound("Alarm", alarmId);
-	}
-
-	await withWorkspace(context, {
-		organizationId: alarm.organizationId,
-		resource: "organization",
-		permissions,
-	});
-
-	return alarm;
-}
-
 export const alarmsRouter = {
 	list: protectedProcedure
 		.route({
@@ -209,7 +189,11 @@ export const alarmsRouter = {
 		.input(z.object({ alarmId: z.string() }))
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
-			const alarm = await getAlarmAndAuthorize(input.alarmId, context);
+			const alarm = await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["read"],
+			});
 			if (await callerCanReadSecrets(context, alarm.organizationId)) {
 				return alarm;
 			}
@@ -282,7 +266,11 @@ export const alarmsRouter = {
 				}
 			});
 
-			return getAlarmAndAuthorize(alarmId, context);
+			return await withResource(context, {
+				resource: "alarm",
+				id: alarmId,
+				permissions: ["read"],
+			});
 		}),
 
 	update: trackedProcedure
@@ -307,7 +295,11 @@ export const alarmsRouter = {
 		)
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
-			await getAlarmAndAuthorize(input.alarmId, context, ["update"]);
+			await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["update"],
+			});
 			const now = new Date();
 
 			const { alarmId, destinations, ...fields } = input;
@@ -342,7 +334,11 @@ export const alarmsRouter = {
 				}
 			});
 
-			return getAlarmAndAuthorize(input.alarmId, context);
+			return await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["read"],
+			});
 		}),
 
 	delete: trackedProcedure
@@ -356,7 +352,11 @@ export const alarmsRouter = {
 		.input(z.object({ alarmId: z.string() }))
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
-			await getAlarmAndAuthorize(input.alarmId, context, ["delete"]);
+			await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["delete"],
+			});
 			await db.delete(alarms).where(eq(alarms.id, input.alarmId));
 			return { success: true };
 		}),
@@ -382,9 +382,11 @@ export const alarmsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const alarm = await getAlarmAndAuthorize(input.alarmId, context, [
-				"update",
-			]);
+			const alarm = await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["update"],
+			});
 
 			const principal = context.user
 				? `user:${context.user.id}`
@@ -406,24 +408,22 @@ export const alarmsRouter = {
 				throw rpcError.badRequest("Alarm has no destinations configured");
 			}
 
-			const { clientConfig, channels } = toNotificationConfig(
-				alarm.destinations
-			);
-			const client = new NotificationClient(clientConfig);
-
-			const raw = await client.send(
-				{
-					title: `Test: ${alarm.name}`,
-					message: `This is a test notification from your "${alarm.name}" alarm. If you're reading this, the channel is working.`,
-					priority: "normal",
-					metadata: {
-						template: "test",
-						alarmId: alarm.id,
-						alarmName: alarm.name,
-					},
+			const targets = toNotificationTargets(alarm.destinations);
+			const payload = {
+				title: `Test: ${alarm.name}`,
+				message: `This is a test notification from your "${alarm.name}" alarm. If you're reading this, the channel is working.`,
+				priority: "normal" as const,
+				metadata: {
+					template: "test",
+					alarmId: alarm.id,
+					alarmName: alarm.name,
 				},
-				{ channels }
-			);
+			};
+			const raw = (
+				await Promise.all(
+					targets.map((target) => sendNotificationTarget(target, payload))
+				)
+			).flat();
 
 			return {
 				results: raw.map((r) => ({

@@ -58,7 +58,7 @@ export const agentChats = pgTable(
 	"agent_chats",
 	{
 		id: text().primaryKey(),
-		websiteId: text("website_id").notNull(),
+		websiteId: text("website_id"),
 		userId: text("user_id").notNull(),
 		organizationId: text("organization_id"),
 		title: text().notNull().default(""),
@@ -72,8 +72,8 @@ export const agentChats = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		index("agent_chats_website_user_updated_idx").on(
-			table.websiteId,
+		index("agent_chats_org_user_updated_idx").on(
+			table.organizationId,
 			table.userId,
 			table.updatedAt.desc()
 		),
@@ -85,7 +85,7 @@ export const agentChats = pgTable(
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],
 			name: "agent_chats_website_id_fkey",
-		}).onDelete("cascade"),
+		}).onDelete("set null"),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],

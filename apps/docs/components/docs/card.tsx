@@ -2,6 +2,10 @@ import { ArrowRightIcon } from "@databuddy/ui/icons";
 import { Card as UICard, cn } from "@databuddy/ui";
 import Link from "next/link";
 import type * as React from "react";
+import {
+	docsIconWell,
+	docsSurfaceInteractive,
+} from "@/components/docs/docs-styles";
 
 interface CardProps extends React.ComponentProps<"div"> {
 	description?: string;
@@ -22,37 +26,32 @@ function Card({
 	const content = (
 		<UICard
 			className={cn(
-				"not-prose group h-full flex-row items-start gap-3 rounded-lg border-border/60 bg-card p-4 transition-[background-color,border-color]",
-				href &&
-					"cursor-pointer hover:border-border hover:bg-accent-brighter/60",
+				"not-prose group h-full flex-row items-start gap-3 rounded border-sidebar-border/60 bg-sidebar p-4 text-sidebar-foreground transition-[background-color,border-color]",
+				href && cn("cursor-pointer", docsSurfaceInteractive),
 				className
 			)}
 			{...props}
 		>
-			{icon && (
-				<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground [&_svg]:size-4">
-					{icon}
-				</div>
-			)}
+			{icon && <div className={cn(docsIconWell, "[&_svg]:size-4")}>{icon}</div>}
 			<div className="min-w-0 flex-1 pt-0.5">
 				{title && (
-					<span className="font-medium text-[13px] text-foreground">
+					<span className="font-medium text-[13px] text-sidebar-foreground">
 						{title}
 					</span>
 				)}
 				{description && (
-					<p className="mt-0.5 text-muted-foreground text-xs leading-5">
+					<p className="mt-0.5 text-sidebar-foreground/55 text-xs leading-5">
 						{description}
 					</p>
 				)}
 				{children && (
-					<div className="mt-2 text-muted-foreground text-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_li]:my-0.5 [&_ul]:my-0 [&_ul]:ml-4">
+					<div className="mt-2 text-sidebar-foreground/65 text-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_li]:my-0.5 [&_ul]:my-0 [&_ul]:ml-4">
 						{children}
 					</div>
 				)}
 			</div>
 			{href && (
-				<ArrowRightIcon className="mt-1 size-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+				<ArrowRightIcon className="mt-1 size-3.5 shrink-0 text-sidebar-foreground/35 transition-transform group-hover:translate-x-0.5 group-hover:text-sidebar-foreground/60" />
 			)}
 		</UICard>
 	);

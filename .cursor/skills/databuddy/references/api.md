@@ -29,7 +29,7 @@ curl -H "Authorization: Bearer dbdy_your_api_key" \
 
 ### Getting an API Key
 
-1. Go to [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
+1. Go to [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys)
 2. Click **Create API Key**
 3. Select required scopes
 4. Optionally restrict to specific websites

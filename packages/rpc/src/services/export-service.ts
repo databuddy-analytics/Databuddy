@@ -86,6 +86,7 @@ const EXPORT_CLICKHOUSE_SETTINGS = {
 	max_rows_to_read: 200_000_000,
 	max_bytes_to_read: 20_000_000_000,
 	read_overflow_mode: "throw",
+	use_query_cache: 0,
 } as const;
 
 function parseDate(

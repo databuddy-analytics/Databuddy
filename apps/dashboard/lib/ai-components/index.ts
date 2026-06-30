@@ -8,6 +8,7 @@ export {
 	AI_COMPONENT_DATA_PART_NAME,
 	AI_COMPONENT_DATA_PART_TYPE,
 	getAIComponentInputFromPart,
+	getAIComponentInputFromToolOutput,
 	normalizeAIComponentMessageParts,
 	normalizeAIComponentMessages,
 } from "./message-parts";

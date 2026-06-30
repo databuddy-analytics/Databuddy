@@ -66,16 +66,21 @@ const isBusy = (c: ChatApi) =>
 
 export function ChatProvider({
 	chatId,
-	websiteId,
+	organizationId,
+	defaultWebsiteId,
 	children,
 }: {
 	chatId: string;
-	websiteId: string;
+	organizationId: string | null;
+	defaultWebsiteId?: string;
 	children: React.ReactNode;
 }) {
-	const transport = useAgentChatTransport(chatId, websiteId);
+	const transport = useAgentChatTransport(
+		chatId,
+		organizationId,
+		defaultWebsiteId
+	);
 	const queryClient = useQueryClient();
-	const chatRef = useRef<ChatApi>(null as unknown as ChatApi);
 
 	const { data: storedChat, isFetched } = useQuery({
 		...orpc.agentChats.get.queryOptions({ input: { id: chatId } }),
@@ -90,6 +95,7 @@ export function ChatProvider({
 		resume: Boolean(storedChat?.activeStreamId),
 	});
 
+	const chatRef = useRef(chat);
 	chatRef.current = chat;
 
 	const [hasRestored, setHasRestored] = useState(false);
@@ -183,7 +189,7 @@ export function ChatProvider({
 		}
 
 		queryClient.invalidateQueries({
-			queryKey: orpc.agentChats.list.key({ input: { websiteId } }),
+			queryKey: orpc.agentChats.list.key({ input: { organizationId } }),
 		});
 		queryClient.invalidateQueries({
 			queryKey: orpc.agentChats.get.key({ input: { id: chatId } }),
@@ -196,7 +202,7 @@ export function ChatProvider({
 		pendingRef.current = rest;
 		syncQueue();
 		chat.sendMessage({ text: next }).catch(() => undefined);
-	}, [chat.status, chat, syncQueue, queryClient, websiteId]);
+	}, [chat.status, chat, syncQueue, queryClient, organizationId]);
 
 	const chatValue = useMemo(
 		(): ChatApi => ({ ...chat, sendMessage, stop }),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
 	AI_COMPONENT_DATA_PART_TYPE,
 	getAIComponentInputFromPart,
+	getAIComponentInputFromToolOutput,
 	normalizeAIComponentMessages,
 } from "./message-parts";
 
@@ -35,6 +36,24 @@ describe("AI component message parts", () => {
 			getAIComponentInputFromPart({
 				type: AI_COMPONENT_DATA_PART_TYPE,
 				data: { type: "dashboard-actions", actions: [] },
+			})
+		).toBeNull();
+	});
+
+	it("reads valid component tool outputs", () => {
+		expect(
+			getAIComponentInputFromToolOutput({
+				type: "tool-dashboard_actions",
+				output: actionComponent,
+			})
+		).toEqual(actionComponent);
+	});
+
+	it("rejects non-component tool outputs", () => {
+		expect(
+			getAIComponentInputFromToolOutput({
+				type: "tool-get_data",
+				output: { results: {} },
 			})
 		).toBeNull();
 	});

@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
@@ -28,6 +29,17 @@ import {
 } from "../_components/use-filtered-status-pages";
 
 export default function StatusPagesListPage() {
+	return (
+		<Suspense fallback={null}>
+			<StatusPagesListPageContent />
+		</Suspense>
+	);
+}
+
+function StatusPagesListPageContent() {
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 	const { activeOrganizationId, activeOrganization } =
 		useOrganizationsContext();
 	const queryClient = useQueryClient();
@@ -61,10 +73,19 @@ export default function StatusPagesListPage() {
 		},
 	});
 
-	const handleCreate = () => {
+	const clearCommandParam = useCallback(() => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
+
+	const handleCreate = useCallback(() => {
 		setEditingStatusPage(null);
 		setIsSheetOpen(true);
-	};
+	}, []);
 
 	const handleEdit = (statusPage: StatusPage) => {
 		setEditingStatusPage(statusPage);
@@ -82,6 +103,14 @@ export default function StatusPagesListPage() {
 		setIsSheetOpen(false);
 		setEditingStatusPage(null);
 	};
+
+	useEffect(() => {
+		if (searchParams.get("command") !== "create-status-page") {
+			return;
+		}
+		handleCreate();
+		clearCommandParam();
+	}, [clearCommandParam, handleCreate, searchParams]);
 
 	const statusPages = statusPagesQuery.data ?? [];
 	const filtered = useFilteredStatusPages(

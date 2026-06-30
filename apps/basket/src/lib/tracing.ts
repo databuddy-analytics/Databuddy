@@ -1,11 +1,6 @@
 import { EvlogError, log } from "evlog";
 import { useLogger } from "evlog/elysia";
 
-/**
- * Merge fields into the active request wide event, falling back to a
- * global structured log line if there is no active request context
- * (background workers, startup, async callbacks, etc.).
- */
 export function mergeWideEvent(fields: Record<string, unknown>): void {
 	try {
 		useLogger().set(fields);
@@ -14,11 +9,6 @@ export function mergeWideEvent(fields: Record<string, unknown>): void {
 	}
 }
 
-/**
- * Run a named operation and attach its duration (ms) to the active wide event
- * as `timing.<name>`. Nested calls accumulate — the wide event ends up with one
- * `timing.*` field per `record()` call in the request.
- */
 export async function record<T>(
 	name: string,
 	fn: () => Promise<T> | T
@@ -34,10 +24,6 @@ export async function record<T>(
 	}
 }
 
-/**
- * Attach an error to the active request wide event when inside the evlog
- * middleware; otherwise emit a global structured log line.
- */
 export function captureError(
 	error: unknown,
 	attributes?: Record<string, string | number | boolean>

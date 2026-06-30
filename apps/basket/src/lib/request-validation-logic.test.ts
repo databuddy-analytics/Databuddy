@@ -3,8 +3,7 @@ import { EvlogError } from "evlog";
 
 const {
 	mockGetWebsiteByIdV2,
-	mockIsValidOrigin,
-	mockIsValidOriginFromSettings,
+	mockIsOriginAllowed,
 	mockIsValidIpFromSettings,
 	mockCheckAutumnUsage,
 	mockLogBlockedTraffic,
@@ -26,8 +25,7 @@ const {
 			settings: null,
 		})
 	),
-	mockIsValidOrigin: vi.fn(() => true),
-	mockIsValidOriginFromSettings: vi.fn(() => true),
+	mockIsOriginAllowed: vi.fn(() => true),
 	mockIsValidIpFromSettings: vi.fn(() => true),
 	mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
 	mockLogBlockedTraffic: vi.fn(() => {}),
@@ -41,8 +39,7 @@ const {
 
 vi.mock("@hooks/auth", () => ({
 	getWebsiteByIdV2: mockGetWebsiteByIdV2,
-	isValidOrigin: mockIsValidOrigin,
-	isValidOriginFromSettings: mockIsValidOriginFromSettings,
+	isOriginAllowed: mockIsOriginAllowed,
 	isValidIpFromSettings: mockIsValidIpFromSettings,
 }));
 
@@ -107,8 +104,7 @@ describe("validateRequest", () => {
 	beforeEach(() => {
 		mockGetWebsiteByIdV2.mockReset();
 		mockCheckAutumnUsage.mockReset();
-		mockIsValidOrigin.mockReset();
-		mockIsValidOriginFromSettings.mockReset();
+		mockIsOriginAllowed.mockReset();
 		mockIsValidIpFromSettings.mockReset();
 		mockLogBlockedTraffic.mockReset();
 		mockLoggerSet.mockReset();
@@ -124,8 +120,7 @@ describe("validateRequest", () => {
 			settings: null,
 		} as any);
 		mockCheckAutumnUsage.mockResolvedValue({ allowed: true });
-		mockIsValidOrigin.mockReturnValue(true);
-		mockIsValidOriginFromSettings.mockReturnValue(true);
+		mockIsOriginAllowed.mockReturnValue(true);
 		mockIsValidIpFromSettings.mockReturnValue(true);
 	});
 
@@ -232,7 +227,7 @@ describe("validateRequest", () => {
 	});
 
 	test("origin mismatch (no settings) → throws 403", async () => {
-		mockIsValidOrigin.mockReturnValue(false);
+		mockIsOriginAllowed.mockReturnValue(false);
 		try {
 			await validateRequest(
 				{},
@@ -246,7 +241,7 @@ describe("validateRequest", () => {
 		}
 	});
 
-	test("origin mismatch (with settings) → throws 403", async () => {
+	test("isOriginAllowed gets called with website.domain and allowedOrigins", async () => {
 		mockGetWebsiteByIdV2.mockResolvedValue({
 			id: "ws_1",
 			domain: "example.com",
@@ -256,17 +251,35 @@ describe("validateRequest", () => {
 			organizationId: "org_1",
 			settings: { allowedOrigins: ["trusted.com"] },
 		} as any);
-		mockIsValidOriginFromSettings.mockReturnValue(false);
+		await validateRequest(
+			{},
+			{ client_id: "ws_1" },
+			makeReq("https://example.com", { origin: "https://www.example.com" })
+		);
+		expect(mockIsOriginAllowed).toHaveBeenCalledWith(
+			"https://www.example.com",
+			"example.com",
+			["trusted.com"]
+		);
+	});
+
+	test("missing origin with allowedOrigins set → throws 403 without calling isOriginAllowed", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValue({
+			id: "ws_1",
+			domain: "example.com",
+			name: "Example",
+			status: "ACTIVE",
+			ownerId: "user_1",
+			organizationId: "org_1",
+			settings: { allowedOrigins: ["trusted.com"] },
+		} as any);
 		try {
-			await validateRequest(
-				{},
-				{ client_id: "ws_1" },
-				makeReq("https://example.com", { origin: "https://evil.com" })
-			);
+			await validateRequest({}, { client_id: "ws_1" }, makeReq());
 			expect.unreachable("should have thrown");
 		} catch (e) {
 			expect(e).toBeInstanceOf(EvlogError);
 			expect((e as EvlogError).status).toBe(403);
+			expect(mockIsOriginAllowed).not.toHaveBeenCalled();
 		}
 	});
 

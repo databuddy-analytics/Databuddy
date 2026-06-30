@@ -21,7 +21,6 @@ import {
 import { openApiHandler } from "@/rpc/openapi";
 import { agent } from "./routes/agent";
 import { health } from "./routes/health";
-import { insights } from "./routes/insights";
 import { integrations } from "./routes/integrations";
 import { mcp } from "./routes/mcp";
 import { publicApi } from "./routes/public";
@@ -90,7 +89,6 @@ const app = new Elysia({ precompile: true })
 	.use(query)
 	.use(agent)
 	.use(integrations)
-	.use(insights)
 	.use(mcp)
 	.all("/rpc/*", handleRpcEndpoint, { parse: "none" })
 	.all("/", handleOpenApiReference, { parse: "none" })

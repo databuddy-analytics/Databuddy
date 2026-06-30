@@ -1,5 +1,10 @@
 import { vi, beforeEach, describe, expect, test } from "vitest";
-import { checkDuplicate, saltAnonymousId } from "./security";
+import {
+	checkDuplicate,
+	applyVisitorIdPrivacy,
+	saltAnonymousId,
+	shouldAnonymizeVisitorIds,
+} from "./security";
 
 // ── saltAnonymousId (pure — no mocks needed) ──
 
@@ -47,6 +52,65 @@ describe("saltAnonymousId", () => {
 		const longId = "a".repeat(10_000);
 		const result = saltAnonymousId(longId, salt);
 		expect(result).toMatch(/^[a-f0-9]{64}$/);
+	});
+});
+
+describe("visitor ID anonymization helpers", () => {
+	test("anonymizes visitor IDs by default", () => {
+		expect(shouldAnonymizeVisitorIds(undefined)).toBe(true);
+		expect(shouldAnonymizeVisitorIds("anything-else")).toBe(true);
+		expect(shouldAnonymizeVisitorIds(true)).toBe(true);
+	});
+
+	test("recognizes false as anonymization disabled", () => {
+		expect(shouldAnonymizeVisitorIds(false)).toBe(false);
+		expect(shouldAnonymizeVisitorIds("false")).toBe(true);
+		expect(shouldAnonymizeVisitorIds("raw")).toBe(true);
+	});
+
+	test("auto mode stores raw visitor IDs only for allowlisted countries", () => {
+		expect(shouldAnonymizeVisitorIds("auto", "US")).toBe(false);
+		expect(shouldAnonymizeVisitorIds("auto", " usa ")).toBe(false);
+		expect(shouldAnonymizeVisitorIds("auto", "United States")).toBe(false);
+		expect(shouldAnonymizeVisitorIds("auto", "United States of America")).toBe(
+			false
+		);
+		expect(shouldAnonymizeVisitorIds("auto", "Germany")).toBe(true);
+		expect(shouldAnonymizeVisitorIds("auto", "DE")).toBe(true);
+		expect(shouldAnonymizeVisitorIds("auto")).toBe(true);
+	});
+
+	test("keeps raw visitor ID when requested", () => {
+		expect(applyVisitorIdPrivacy("anon_123", false, "salt")).toBe("anon_123");
+	});
+
+	test("keeps raw visitor ID for auto mode in allowlisted countries", () => {
+		expect(
+			applyVisitorIdPrivacy(
+				"anon_123",
+				shouldAnonymizeVisitorIds("auto", "US"),
+				"salt"
+			)
+		).toBe("anon_123");
+		expect(
+			applyVisitorIdPrivacy(
+				"anon_123",
+				shouldAnonymizeVisitorIds("auto", "Germany"),
+				"salt"
+			)
+		).toBe(saltAnonymousId("anon_123", "salt"));
+	});
+
+	test("salts visitor ID by default", () => {
+		expect(applyVisitorIdPrivacy("anon_123", true, "salt")).toBe(
+			saltAnonymousId("anon_123", "salt")
+		);
+	});
+
+	test("keeps missing visitor IDs empty instead of salting them", () => {
+		expect(applyVisitorIdPrivacy(undefined, true, "salt")).toBe("");
+		expect(applyVisitorIdPrivacy(null, true, "salt")).toBe("");
+		expect(applyVisitorIdPrivacy("", true, "salt")).toBe("");
 	});
 });
 

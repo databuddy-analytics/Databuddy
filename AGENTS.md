@@ -128,7 +128,7 @@ For picker controls, use the component that matches the interaction:
 
 ### Tech Stack
 
-- **Runtime**: Bun 1.3.4+
+- **Runtime**: Bun 1.3.14+
 - **Frontend**: Next.js 16, React 19, TailwindCSS 4, Radix UI, Recharts
 - **Backend**: Elysia.js (Bun-native HTTP framework)
 - **API layer**: ORPC (type-safe RPC with OpenAPI generation)

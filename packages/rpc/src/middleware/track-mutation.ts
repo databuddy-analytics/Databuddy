@@ -56,6 +56,8 @@ const NAME_OVERRIDES: Record<string, string> = {
 	"apikeys.rotate": "api_key_rotated",
 	"apikeys.delete": "api_key_deleted",
 	"organizations.updateAvatarSeed": "org_avatar_updated",
+	"organizations.updateEmailNotificationSettings":
+		"email_notifications_updated",
 	"organizations.clearExpiredInvitations": "expired_invitations_cleared",
 	"preferences.updateUserPreferences": "preferences_updated",
 	"billing.setAutoTopup": "auto_topup_set",

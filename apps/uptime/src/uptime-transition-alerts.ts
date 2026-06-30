@@ -1,10 +1,15 @@
-import { db, eq, withTransaction } from "@databuddy/db";
+import {
+	db,
+	eq,
+	normalizeEmailNotificationSettings,
+	withTransaction,
+} from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { uptimeSchedules } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
 import {
 	NotificationClient,
-	buildAlarmNotificationConfig,
+	buildAlarmNotificationTargets,
 } from "@databuddy/notifications";
 import { Cache, Context, Data, Duration, Effect, Layer, Option } from "effect";
 import type { ScheduleData } from "./actions";
@@ -22,6 +27,7 @@ class AlarmLookupError extends Data.TaggedError("AlarmLookupError")<{
 
 class NotificationSendError extends Data.TaggedError("NotificationSendError")<{
 	alarmId: string;
+	channel: string;
 	cause: unknown;
 }> {}
 
@@ -154,23 +160,85 @@ const claimTransition = (scheduleId: string, currentStatus: number) =>
 		catch: (cause) => new TransitionClaimError({ cause }),
 	});
 
+async function getOrganizationEmailSettings(organizationId: string) {
+	const row = await db.query.organization.findFirst({
+		where: { id: organizationId },
+		columns: { emailNotifications: true },
+	});
+	return normalizeEmailNotificationSettings(row?.emailNotifications);
+}
+
+function filterUptimeEmailDestinations(
+	alarm: LinkedAlarm,
+	emailsEnabled: boolean
+): LinkedAlarm {
+	if (emailsEnabled) {
+		return alarm;
+	}
+	return {
+		...alarm,
+		destinations: alarm.destinations.filter((dest) => dest.type !== "email"),
+	};
+}
+
 const sendToAlarm = (
 	alarm: LinkedAlarm,
 	payload: Parameters<NotificationClient["send"]>[0]
 ) => {
-	const { clientConfig, channels } = buildAlarmNotificationConfig(
-		alarm.destinations
-	);
-	if (channels.length === 0) {
-		return Effect.succeed(false);
+	const targets = buildAlarmNotificationTargets(alarm.destinations);
+	if (targets.length === 0) {
+		return Effect.succeed(0);
 	}
 
-	return Effect.tryPromise({
-		try: () =>
-			new NotificationClient(clientConfig)
-				.send(payload, { channels })
-				.then(() => true),
-		catch: (cause) => new NotificationSendError({ alarmId: alarm.id, cause }),
+	return Effect.gen(function* () {
+		const results = yield* Effect.all(
+			targets.map((target) =>
+				Effect.tryPromise({
+					try: () =>
+						new NotificationClient(target.clientConfig).send(payload, {
+							channels: [target.channel],
+						}),
+					catch: (cause) =>
+						new NotificationSendError({
+							alarmId: alarm.id,
+							channel: target.channel,
+							cause,
+						}),
+				}).pipe(
+					Effect.map((deliveryResults) => {
+						let successes = 0;
+						for (const result of deliveryResults) {
+							if (result.success) {
+								successes += 1;
+							} else {
+								captureError(
+									new Error(
+										result.error ??
+											`Notification delivery failed for ${result.channel}`
+									),
+									{
+										error_step: "alarm_notification_result",
+										alarm_id: alarm.id,
+										channel: result.channel,
+									}
+								);
+							}
+						}
+						return successes;
+					}),
+					Effect.catchTag("NotificationSendError", (e) => {
+						captureError(e.cause, {
+							error_step: "alarm_notification",
+							alarm_id: e.alarmId,
+							channel: e.channel,
+						});
+						return Effect.succeed(0);
+					})
+				)
+			),
+			{ concurrency: "unbounded" }
+		);
+		return results.reduce((total, count) => total + count, 0);
 	});
 };
 
@@ -241,6 +309,16 @@ const handleTransition = (options: {
 			return { alarms_fired: 0, transition_kind: kind };
 		}
 
+		const emailSettings = yield* Effect.tryPromise(() =>
+			getOrganizationEmailSettings(options.schedule.organizationId)
+		).pipe(
+			Effect.orElseSucceed(() => normalizeEmailNotificationSettings(null))
+		);
+		const emailsEnabled =
+			kind === "down"
+				? emailSettings.uptime.downEmails
+				: emailSettings.uptime.recoveryEmails;
+
 		const siteLabel = buildSiteLabel(options.schedule);
 		const dashboardUrl = `${config.urls.dashboard}/monitors/${options.schedule.id}`;
 
@@ -270,24 +348,16 @@ const handleTransition = (options: {
 			},
 		};
 
-		const sendable = linkedAlarms.filter((a) => a.destinations.length > 0);
+		const sendable = linkedAlarms
+			.map((alarm) => filterUptimeEmailDestinations(alarm, emailsEnabled))
+			.filter((alarm) => alarm.destinations.length > 0);
 
 		const results = yield* Effect.all(
-			sendable.map((alarm) =>
-				sendToAlarm(alarm, payload).pipe(
-					Effect.catchTag("NotificationSendError", (e) => {
-						captureError(e.cause, {
-							error_step: "alarm_notification",
-							alarm_id: e.alarmId,
-						});
-						return Effect.succeed(false);
-					})
-				)
-			),
+			sendable.map((alarm) => sendToAlarm(alarm, payload)),
 			{ concurrency: "unbounded" }
 		);
 
-		const fired = results.filter(Boolean).length;
+		const fired = results.reduce((total, count) => total + count, 0);
 		return { alarms_fired: fired, transition_kind: kind };
 	});
 

@@ -212,8 +212,7 @@ function getAttribution(ctx: McpRequestContext): {
 }
 
 function rateLimitIdentifier(ctx: McpRequestContext, toolName: string): string {
-	const apiKeyId = (ctx.apiKey as { id?: string } | null)?.id;
-	const principal = apiKeyId ?? ctx.userId ?? "anon";
+	const principal = ctx.apiKey?.id ?? ctx.userId ?? "anon";
 	return `mcp:tool:${toolName}:${principal}`;
 }
 

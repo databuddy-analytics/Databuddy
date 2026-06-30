@@ -154,3 +154,22 @@ export declare function streamDatabuddyAgent(
 export declare function classifySlackThreadReplyRelevance(
 	input: SlackThreadReplyRelevanceInput
 ): Promise<SlackThreadReplyRelevance | null>;
+
+export interface ReplyValidationIssue {
+	code: "banned_opening" | "raw_channel_id";
+	detail: string;
+}
+
+export interface ReplyValidationResult {
+	issues: ReplyValidationIssue[];
+	valid: boolean;
+}
+
+export declare function validateSlackReply(text: string): ReplyValidationResult;
+
+export declare function repairSlackReply(options: {
+	abortSignal?: AbortSignal;
+	draft: string;
+	issues: ReplyValidationIssue[];
+	modelId?: string;
+}): Promise<string>;

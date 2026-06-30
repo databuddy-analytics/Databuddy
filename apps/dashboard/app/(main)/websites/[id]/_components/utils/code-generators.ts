@@ -98,6 +98,27 @@ function AppLayout({ children }) {
 }`;
 }
 
+export function generateNodeCode(websiteId: string): string {
+	return `import { Databuddy } from '@databuddy/sdk/node';
+
+const analytics = new Databuddy({
+  apiKey: process.env.DATABUDDY_API_KEY!,
+  websiteId: '${websiteId}',
+  enableBatching: true,
+});
+
+await analytics.track({
+  name: 'user_signup',
+  properties: {
+    plan: 'pro',
+    source: 'api',
+  },
+});
+
+// Important in serverless/background jobs
+await analytics.flush();`;
+}
+
 export function generateVueCode(
 	websiteId: string,
 	trackingOptions: TrackingOptions

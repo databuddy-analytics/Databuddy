@@ -60,6 +60,13 @@ vi.mock("@databuddy/redis", () => ({
 	UPTIME_JOB_OPTIONS: {},
 	UPTIME_JOB_TIMEOUT_MS: 60_000,
 	UPTIME_QUEUE_NAME: "uptime-checks",
+	INSIGHTS_DISPATCH_JOB_NAME: "insights-dispatch",
+	INSIGHTS_GENERATE_WEBSITE_JOB_NAME: "insights-generate-website",
+	INSIGHTS_JOB_OPTIONS: {},
+	INSIGHTS_JOB_TIMEOUT_MS: 120_000,
+	INSIGHTS_QUEUE_ENV_PREFIX: "INSIGHTS",
+	INSIGHTS_QUEUE_NAME: "insights-generation",
+	INSIGHTS_ROLLUP_JOB_NAME: "insights-rollup",
 	activeStreamKey: (id: string) => `active:${id}`,
 	appendStreamChunk: vi.fn(async () => undefined),
 	cacheNamespaces: {
@@ -98,6 +105,7 @@ vi.mock("@databuddy/redis", () => ({
 	},
 	cacheable: passthroughCacheable,
 	clearActiveStream: vi.fn(async () => undefined),
+	closeInsightsQueue: vi.fn(async () => undefined),
 	closeUptimeQueue: vi.fn(async () => undefined),
 	createDrizzleCache: () => ({}),
 	getActiveStream: vi.fn(async () => null),
@@ -110,6 +118,7 @@ vi.mock("@databuddy/redis", () => ({
 	),
 	getLinkCacheKey: vi.fn((slug: string) => `link:${slug}`),
 	getRateLimitHeaders: vi.fn(() => ({})),
+	getInsightsQueue: vi.fn(() => ({})),
 	getRedisCache: () => mockRedisClient,
 	getUptimeQueue: vi.fn(() => ({})),
 	invalidateAgentContextSnapshot: vi.fn(async () => 0),
@@ -144,13 +153,15 @@ vi.mock("@databuddy/redis", () => ({
 		attempted: 0,
 		failed: 0,
 	})),
+	insightsRollupJobId: (runId: string) => `insights-rollup-${runId}`,
+	insightsWebsiteJobId: (runId: string, websiteId: string) =>
+		`insights-website-${runId}-${websiteId}`,
 	isClickRecorded: vi.fn(async () => false),
 	markStreamDone: vi.fn(async () => undefined),
 	ratelimit: vi.fn(async () => ({ success: true })),
 	readStreamHistory: vi.fn(async () => []),
 	redis: mockRedisClient,
 	setActiveStream: vi.fn(async () => undefined),
-	setCacheTraceFn: vi.fn(() => undefined),
 	setCachedLink: vi.fn(async () => undefined),
 	setCachedLinkNotFound: vi.fn(async () => undefined),
 	shouldRecordClick: vi.fn(async () => true),
@@ -175,7 +186,6 @@ vi.mock("../../lib/supermemory", () => ({
 vi.mock("../../lib/tracing", () => ({
 	captureError: mockCaptureError,
 	mergeWideEvent: vi.fn(() => {}),
-	record: vi.fn(async (_name: string, fn: () => unknown) => fn()),
 }));
 
 vi.mock("../config/enrich-context", () => ({

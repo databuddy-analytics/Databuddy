@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import {
@@ -11,8 +11,15 @@ import {
 	type Website,
 } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { Button, Card, Input } from "@databuddy/ui";
+import { Switch } from "@databuddy/ui/client";
 import { LockIcon, PlusIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
-import { Badge, Button, Card, Input } from "@databuddy/ui";
+import {
+	areSecuritySettingsEqual,
+	createSecuritySettingsPayload,
+	normalizeSecurityTag,
+	readSecuritySettings,
+} from "./security-settings";
 
 const ipv4Regex =
 	/^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
@@ -28,12 +35,25 @@ function validateOrigin(value: string): { success: boolean; error?: string } {
 		return { success: true };
 	}
 	if (trimmed.startsWith("*.")) {
-		if (domainRegex.test(trimmed.slice(2))) {
+		const domain = trimmed.slice(2);
+		if (domain.startsWith("www.")) {
+			return {
+				success: false,
+				error: "Use the apex domain instead of a www-prefixed domain",
+			};
+		}
+		if (domainRegex.test(domain)) {
 			return { success: true };
 		}
 		return {
 			success: false,
 			error: "Invalid wildcard domain format (e.g., *.cal.com)",
+		};
+	}
+	if (trimmed.startsWith("www.")) {
+		return {
+			success: false,
+			error: "Use the apex domain instead of a www-prefixed domain",
 		};
 	}
 	if (domainRegex.test(trimmed)) {
@@ -42,6 +62,35 @@ function validateOrigin(value: string): { success: boolean; error?: string } {
 	return {
 		success: false,
 		error: "Must be a valid domain (e.g., cal.com, *.cal.com) or *",
+	};
+}
+
+function validateIgnoredTrackingOrigin(value: string): {
+	success: boolean;
+	error?: string;
+} {
+	const trimmed = value.trim();
+	if (trimmed === "*") {
+		return {
+			success: false,
+			error: "Use the warning toggle to hide every tracking warning",
+		};
+	}
+	if (trimmed.startsWith("*.")) {
+		if (domainRegex.test(trimmed.slice(2))) {
+			return { success: true };
+		}
+		return {
+			success: false,
+			error: "Invalid wildcard domain format (e.g., *.preview.example.com)",
+		};
+	}
+	if (domainRegex.test(trimmed)) {
+		return { success: true };
+	}
+	return {
+		success: false,
+		error: "Must be a valid domain (e.g., staging.example.com)",
 	};
 }
 
@@ -83,15 +132,18 @@ function TagList({
 	return (
 		<div className="flex flex-wrap gap-2">
 			{values.map((value) => (
-				<Badge
-					className="cursor-pointer gap-1 px-2 py-0.5 text-xs hover:bg-destructive hover:text-destructive-foreground"
+				<Button
+					aria-label={`Remove ${value}`}
+					className="h-6 gap-1 rounded-full px-2 text-xs hover:bg-destructive hover:text-destructive-foreground"
 					key={value}
 					onClick={() => onRemove(value)}
-					variant="muted"
+					size="sm"
+					type="button"
+					variant="secondary"
 				>
 					{value}
-					<XIcon className="size-2.5" />
-				</Badge>
+					<XIcon aria-hidden="true" className="size-2.5" />
+				</Button>
 			))}
 		</div>
 	);
@@ -116,25 +168,25 @@ function TagInput({
 	const [error, setError] = useState<string | null>(null);
 
 	const handleAdd = () => {
-		const trimmed = draft.trim();
-		if (!trimmed) {
+		const value = normalizeSecurityTag(draft);
+		if (!value) {
 			return;
 		}
 
-		if (values.includes(trimmed)) {
+		if (values.some((item) => normalizeSecurityTag(item) === value)) {
 			setError("This value already exists");
 			return;
 		}
 
 		if (validate) {
-			const result = validate(trimmed);
+			const result = validate(value);
 			if (!result.success) {
 				setError(result.error ?? "Invalid value");
 				return;
 			}
 		}
 
-		onAdd(trimmed);
+		onAdd(value);
 		setDraft("");
 		setError(null);
 	};
@@ -152,6 +204,7 @@ function TagInput({
 			<div className="flex gap-2">
 				<Input
 					aria-invalid={error ? "true" : "false"}
+					aria-label={`New ${label}`}
 					className="h-8 text-sm"
 					onChange={(e) => {
 						setDraft(e.target.value);
@@ -164,16 +217,21 @@ function TagInput({
 					value={draft}
 				/>
 				<Button
+					aria-label={`Add ${label}`}
 					className="size-8 p-0"
 					disabled={!draft.trim()}
 					onClick={handleAdd}
 					type="button"
 					variant="secondary"
 				>
-					<PlusIcon className="size-4" />
+					<PlusIcon aria-hidden="true" className="size-4" />
 				</Button>
 			</div>
-			{error && <p className="text-destructive text-xs">{error}</p>}
+			{error && (
+				<p className="text-destructive text-xs" role="alert">
+					{error}
+				</p>
+			)}
 		</div>
 	);
 }
@@ -186,31 +244,49 @@ export default function SecurityPage() {
 
 	const [allowedOrigins, setAllowedOrigins] = useState<string[]>([]);
 	const [allowedIps, setAllowedIps] = useState<string[]>([]);
-	const [hasChanges, setHasChanges] = useState(false);
+	const [ignoredTrackingOrigins, setIgnoredTrackingOrigins] = useState<
+		string[]
+	>([]);
+	const [trackingIssueWarningsDisabled, setTrackingIssueWarningsDisabled] =
+		useState(false);
+	const [settingsHydrated, setSettingsHydrated] = useState(false);
+	const savedSettings = useMemo(
+		() => readSecuritySettings(websiteData?.settings),
+		[websiteData?.settings]
+	);
+	const draftSettings = useMemo(
+		() => ({
+			allowedIps,
+			allowedOrigins,
+			ignoredTrackingOrigins,
+			trackingIssueWarningsDisabled,
+		}),
+		[
+			allowedIps,
+			allowedOrigins,
+			ignoredTrackingOrigins,
+			trackingIssueWarningsDisabled,
+		]
+	);
+	const hasChanges =
+		settingsHydrated && !areSecuritySettingsEqual(savedSettings, draftSettings);
 
 	const updateMutation = useMutation({
 		...orpc.websites.updateSettings.mutationOptions(),
 		onSuccess: (updatedWebsite: Website) => {
 			updateWebsiteCache(queryClient, updatedWebsite);
-			setHasChanges(false);
 		},
 	});
 
 	const initializeSettings = useCallback(() => {
-		const website = websiteData as Website & { settings?: unknown };
-		if (website?.settings) {
-			const settings = website.settings as {
-				allowedOrigins?: string[];
-				allowedIps?: string[];
-			};
-			setAllowedOrigins(settings.allowedOrigins ?? []);
-			setAllowedIps(settings.allowedIps ?? []);
-		} else {
-			setAllowedOrigins([]);
-			setAllowedIps([]);
-		}
-		setHasChanges(false);
-	}, [websiteData]);
+		setAllowedOrigins(savedSettings.allowedOrigins);
+		setAllowedIps(savedSettings.allowedIps);
+		setIgnoredTrackingOrigins(savedSettings.ignoredTrackingOrigins);
+		setTrackingIssueWarningsDisabled(
+			savedSettings.trackingIssueWarningsDisabled
+		);
+		setSettingsHydrated(true);
+	}, [savedSettings]);
 
 	useEffect(() => {
 		if (websiteData) {
@@ -219,61 +295,57 @@ export default function SecurityPage() {
 	}, [websiteData, initializeSettings]);
 
 	const handleSave = useCallback(() => {
-		if (!websiteData) {
+		if (!(websiteData && settingsHydrated)) {
 			return;
 		}
 
-		const website = websiteData as Website & { settings?: unknown };
-		const currentSettings =
-			(website?.settings as {
-				allowedOrigins?: string[];
-				allowedIps?: string[];
-			}) ?? {};
-
-		const newSettings = {
-			allowedOrigins: allowedOrigins.length > 0 ? allowedOrigins : undefined,
-			allowedIps: allowedIps.length > 0 ? allowedIps : undefined,
-		};
-
-		const originsChanged =
-			JSON.stringify(currentSettings.allowedOrigins ?? []) !==
-			JSON.stringify(allowedOrigins);
-		const ipsChanged =
-			JSON.stringify(currentSettings.allowedIps ?? []) !==
-			JSON.stringify(allowedIps);
-
-		if (originsChanged || ipsChanged) {
-			toast.promise(
-				updateMutation.mutateAsync({ id: websiteId, settings: newSettings }),
-				{
-					loading: "Updating security settings...",
-					success: "Security settings updated",
-					error: "Failed to update security settings",
-				}
-			);
-		} else {
+		if (!hasChanges) {
 			toast.info("No changes to save");
+			return;
 		}
-	}, [websiteData, websiteId, allowedOrigins, allowedIps, updateMutation]);
+
+		toast.promise(
+			updateMutation.mutateAsync({
+				id: websiteId,
+				settings: createSecuritySettingsPayload(draftSettings),
+			}),
+			{
+				loading: "Updating security settings...",
+				success: "Security settings updated",
+				error: "Failed to update security settings",
+			}
+		);
+	}, [
+		websiteData,
+		settingsHydrated,
+		websiteId,
+		draftSettings,
+		hasChanges,
+		updateMutation,
+	]);
 
 	const handleOriginAdd = useCallback((value: string) => {
 		setAllowedOrigins((prev) => [...prev, value]);
-		setHasChanges(true);
 	}, []);
 
 	const handleOriginRemove = useCallback((value: string) => {
 		setAllowedOrigins((prev) => prev.filter((v) => v !== value));
-		setHasChanges(true);
 	}, []);
 
 	const handleIpAdd = useCallback((value: string) => {
 		setAllowedIps((prev) => [...prev, value]);
-		setHasChanges(true);
 	}, []);
 
 	const handleIpRemove = useCallback((value: string) => {
 		setAllowedIps((prev) => prev.filter((v) => v !== value));
-		setHasChanges(true);
+	}, []);
+
+	const handleIgnoredOriginAdd = useCallback((value: string) => {
+		setIgnoredTrackingOrigins((prev) => [...prev, value]);
+	}, []);
+
+	const handleIgnoredOriginRemove = useCallback((value: string) => {
+		setIgnoredTrackingOrigins((prev) => prev.filter((v) => v !== value));
 	}, []);
 
 	if (!websiteData) {
@@ -339,6 +411,36 @@ export default function SecurityPage() {
 								placeholder="192.168.1.1 or 192.168.1.0/24"
 								validate={validateIp}
 								values={allowedIps}
+							/>
+						</Card.Content>
+					</Card>
+
+					<Card>
+						<Card.Header className="flex-row items-start justify-between gap-4">
+							<div className="space-y-1.5">
+								<Card.Title>Tracking Warnings</Card.Title>
+								<Card.Description>
+									Hide dashboard warnings for known noisy origins without
+									allowing those origins to send analytics.
+								</Card.Description>
+							</div>
+							<Switch
+								aria-label="Show tracking warnings"
+								checked={!trackingIssueWarningsDisabled}
+								disabled={!settingsHydrated}
+								onCheckedChange={(checked) =>
+									setTrackingIssueWarningsDisabled(!checked)
+								}
+							/>
+						</Card.Header>
+						<Card.Content>
+							<TagInput
+								label="ignored tracking origins"
+								onAdd={handleIgnoredOriginAdd}
+								onRemove={handleIgnoredOriginRemove}
+								placeholder="staging.example.com or *.preview.example.com"
+								validate={validateIgnoredTrackingOrigin}
+								values={ignoredTrackingOrigins}
 							/>
 						</Card.Content>
 					</Card>

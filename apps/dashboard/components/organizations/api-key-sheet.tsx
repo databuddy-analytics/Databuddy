@@ -164,6 +164,7 @@ export function ApiKeySheet({
 	const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
 	const [tags, setTags] = useState<string[]>([]);
 	const [websiteAccess, setWebsiteAccess] = useState<WebsiteAccess[]>([]);
+	const [expiryOpen, setExpiryOpen] = useState(isCreate);
 
 	const { data: roleInfo } = useQuery({
 		...orpc.apikeys.getMyRole.queryOptions({ input: { organizationId } }),
@@ -201,6 +202,7 @@ export function ApiKeySheet({
 			return;
 		}
 		lastResetKeyId.current = resetKey;
+		setExpiryOpen(!apiKey);
 
 		if (!apiKey) {
 			form.reset({
@@ -672,7 +674,7 @@ export function ApiKeySheet({
 
 							<div className="space-y-2">
 								<SectionCard>
-									<Accordion defaultOpen={isCreate}>
+									<Accordion onOpenChange={setExpiryOpen} open={expiryOpen}>
 										<Accordion.Trigger>
 											<ClockIcon
 												className="size-4 shrink-0 text-muted-foreground"

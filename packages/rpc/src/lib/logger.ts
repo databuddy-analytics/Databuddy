@@ -4,13 +4,6 @@ const base = { service: "rpc" as const };
 
 type Fields = Record<string, unknown>;
 
-type RecordFn = <T>(name: string, fn: () => Promise<T> | T) => Promise<T>;
-let _recordFn: RecordFn | null = null;
-
-export function setRpcRecordFn(fn: RecordFn) {
-	_recordFn = fn;
-}
-
 function emit(
 	level: "error" | "info" | "warn",
 	fieldsOrMessage: Fields | string,
@@ -33,10 +26,3 @@ export const logger = {
 	warn: (fieldsOrMessage: Fields | string, message?: string) =>
 		emit("warn", fieldsOrMessage, message),
 };
-
-export function record<T>(
-	name: string,
-	fn: () => Promise<T> | T
-): Promise<T> | T {
-	return _recordFn ? _recordFn(name, fn) : fn();
-}

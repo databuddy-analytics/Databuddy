@@ -1,28 +1,47 @@
 /** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
 import { z } from "zod";
-import { QueryBuilders } from "./builders";
+import { QueryBuilders, suggestQueryTypes } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
-import type { QueryRequest } from "./types";
+import type { FilterOperators, QueryRequest, TimeGranularity } from "./types";
+
+const FILTER_OPS = [
+	"eq",
+	"ne",
+	"contains",
+	"not_contains",
+	"starts_with",
+	"in",
+	"not_in",
+] as const satisfies readonly (keyof typeof FilterOperators)[];
+
+const TIME_UNITS = [
+	"minute",
+	"hour",
+	"day",
+	"week",
+	"month",
+	"hourly",
+	"daily",
+] as const satisfies readonly (
+	| keyof typeof TimeGranularity
+	| "hourly"
+	| "daily"
+)[];
+
+const filterOpEnum = z.enum(FILTER_OPS);
+const timeUnitEnum = z.enum(TIME_UNITS);
 
 const QuerySchema = z.object({
 	projectId: z.string(),
 	type: z.string(),
 	from: z.string(),
 	to: z.string(),
-	timeUnit: z.enum(["minute", "hour", "day", "week", "month"]).default("day"),
+	timeUnit: timeUnitEnum.default("day"),
 	filters: z
 		.array(
 			z.object({
 				field: z.string(),
-				op: z.enum([
-					"eq",
-					"ne",
-					"contains",
-					"not_contains",
-					"starts_with",
-					"in",
-					"not_in",
-				]),
+				op: filterOpEnum,
 				value: z.union([
 					z.string(),
 					z.number(),
@@ -39,16 +58,6 @@ const QuerySchema = z.object({
 	offset: z.number().min(0).optional(),
 	timezone: z.string().optional(),
 });
-
-export function suggestQueryTypes(input: string, limit = 5): string[] {
-	const lower = input.toLowerCase();
-	const all = Object.keys(QueryBuilders);
-	const prefixMatches = all.filter((t) => t.toLowerCase().startsWith(lower));
-	const substringMatches = all.filter(
-		(t) => !prefixMatches.includes(t) && t.toLowerCase().includes(lower)
-	);
-	return [...prefixMatches, ...substringMatches].slice(0, limit);
-}
 
 function createBuilder(
 	request: QueryRequest,
@@ -74,8 +83,9 @@ function createBuilder(
 export const executeQuery = async (
 	request: QueryRequest,
 	websiteDomain?: string | null,
-	timezone?: string
-) => createBuilder(request, websiteDomain, timezone).execute();
+	timezone?: string,
+	abortSignal?: AbortSignal
+) => createBuilder(request, websiteDomain, timezone).execute(abortSignal);
 
 export const compileQuery = (
 	request: QueryRequest,
@@ -91,4 +101,5 @@ export {
 } from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";
+export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 export * from "./types";

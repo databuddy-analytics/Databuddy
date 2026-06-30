@@ -4,6 +4,10 @@ import { getRedisCache } from "./redis";
  * Stringifies arguments in the same way as cacheable function
  * to generate consistent cache keys.
  */
+function escapeRedisPattern(value: string): string {
+	return value.replace(/[\\*?[\]]/g, "\\$&");
+}
+
 function stringify(obj: unknown): string {
 	if (obj === null) {
 		return "null";
@@ -57,7 +61,6 @@ export const cacheNamespaces = {
 	mcpInsights: "mcp:insights",
 	memberRole: "rpc:member_role",
 	organizationOwner: "rpc:org_owner",
-	organizationRole: "rpc:org_role",
 	slackChannelBinding: "slack-channel-binding",
 	slackIntegrationByTeam: "slack-integration-by-team",
 	statusPage: "status-page",
@@ -100,6 +103,8 @@ const USER_PREFERENCES_CACHE_PREFIX = cacheNamespaces.userPreferences;
 const STATUS_PAGE_CACHE_PREFIX = cacheNamespaces.statusPage;
 const SLACK_INTEGRATION_CACHE_PREFIX = cacheNamespaces.slackIntegrationByTeam;
 const SLACK_CHANNEL_BINDING_CACHE_PREFIX = cacheNamespaces.slackChannelBinding;
+// Keep in sync with CACHE_KEY_PREFIX in packages/rpc/src/routers/insights.ts.
+const LEGACY_INSIGHTS_API_CACHE_PREFIX = "ai-insights";
 
 export interface CacheInvalidationResult {
 	attempted: number;
@@ -128,6 +133,39 @@ export function getAgentContextSnapshotKey(
 	return `${AGENT_CONTEXT_SNAPSHOT_PREFIX}:${ownerId}:${websiteId}`;
 }
 
+async function updateSnapshotIfCurrent(
+	key: string,
+	cached: string,
+	next: string | null
+): Promise<number> {
+	const redis = getRedisCache();
+	const result = (await redis.eval(
+		`local current = redis.call("GET", KEYS[1])
+if current == false then
+	return 0
+end
+if current ~= ARGV[1] then
+	return 0
+end
+if ARGV[2] == "" then
+	redis.call("DEL", KEYS[1])
+	return 1
+end
+local ttl = redis.call("TTL", KEYS[1])
+if ttl > 0 then
+	redis.call("SET", KEYS[1], ARGV[2], "EX", ttl)
+else
+	redis.call("SET", KEYS[1], ARGV[2])
+end
+return 1`,
+		1,
+		key,
+		cached,
+		next ?? ""
+	)) as number;
+	return result;
+}
+
 async function markAgentContextSnapshotStale(key: string): Promise<number> {
 	const redis = getRedisCache();
 	const cached = await redis.get(key);
@@ -138,31 +176,19 @@ async function markAgentContextSnapshotStale(key: string): Promise<number> {
 	try {
 		const parsed = JSON.parse(cached) as unknown;
 		if (!(parsed && typeof parsed === "object")) {
-			await redis.del(key);
-			return 1;
+			return updateSnapshotIfCurrent(key, cached, null);
 		}
 		const snapshot = parsed as Record<string, unknown>;
 		if (typeof snapshot.context !== "string") {
-			await redis.del(key);
-			return 1;
-		}
-		const ttl = await redis.ttl(key);
-		if (ttl === -2) {
-			return 0;
+			return updateSnapshotIfCurrent(key, cached, null);
 		}
 		const stale = JSON.stringify({
 			...snapshot,
 			refreshedAt: AGENT_CONTEXT_SNAPSHOT_STALE_AT,
 		});
-		if (ttl > 0) {
-			await redis.setex(key, ttl, stale);
-			return 1;
-		}
-		await redis.set(key, stale);
-		return 1;
+		return updateSnapshotIfCurrent(key, cached, stale);
 	} catch {
-		await redis.del(key);
-		return 1;
+		return updateSnapshotIfCurrent(key, cached, null);
 	}
 }
 
@@ -333,27 +359,30 @@ export async function invalidateCacheableWithArgs(
 	const redis = getRedisCache();
 	let deletedCount = 0;
 
-	// Generate patterns for exact match and with trailing args
-	const patterns: string[] = [];
-
 	// Exact match: cacheable:prefix:[arg1,arg2]
-	patterns.push(`cacheable:${prefix}:${stringify(knownArgs)}`);
+	const exactKey = `cacheable:${prefix}:${stringify(knownArgs)}`;
 
 	// With undefined trailing arg: cacheable:prefix:[arg1,arg2,undefined]
-	patterns.push(`cacheable:${prefix}:${stringify([...knownArgs, undefined])}`);
+	const undefinedTrailingKey = `cacheable:${prefix}:${stringify([
+		...knownArgs,
+		undefined,
+	])}`;
 
-	// With any trailing args: cacheable:prefix:[arg1,arg2,*
-	patterns.push(`cacheable:${prefix}:${stringify(knownArgs).slice(0, -1)}*`);
+	// With any trailing args: cacheable:prefix:[arg1,arg2,*]
+	const serializedArgs = stringify(knownArgs);
+	const wildcardPattern =
+		knownArgs.length === 0
+			? `${escapeRedisPattern(`cacheable:${prefix}:`)}*`
+			: `${escapeRedisPattern(
+					`cacheable:${prefix}:${serializedArgs.slice(0, -1)}`
+				)},*\\]`;
 
-	// Delete exact matches directly
-	const exactKeys = patterns.slice(0, 2);
-	for (const key of exactKeys) {
+	for (const key of [exactKey, undefinedTrailingKey]) {
 		const result = await redis.del(key);
 		deletedCount += result;
 	}
 
 	// Use SCAN for wildcard pattern
-	const wildcardPattern = patterns[2];
 	let cursor = "0";
 	do {
 		const [nextCursor, keys] = (await redis.scan(
@@ -509,6 +538,9 @@ export function invalidateInsightsCachesForOrganization(
 ): Promise<CacheInvalidationResult> {
 	const organizationTag = cacheTags.organization(organizationId);
 	return settleInvalidations([
+		invalidateCacheablePattern(
+			`${LEGACY_INSIGHTS_API_CACHE_PREFIX}:${organizationId}:*`
+		),
 		invalidateCacheableTag(cacheNamespaces.insightsNarrative, organizationTag, {
 			fallbackPattern: `cacheable:${cacheNamespaces.insightsNarrative}:*${organizationId}*`,
 		}),
@@ -523,11 +555,6 @@ export function invalidateOrganizationMembershipCaches(input: {
 	userId: string;
 }): Promise<CacheInvalidationResult> {
 	return settleInvalidations([
-		invalidateCacheableKey(
-			cacheNamespaces.organizationRole,
-			input.userId,
-			input.organizationId
-		),
 		invalidateCacheableKey(
 			cacheNamespaces.memberRole,
 			input.userId,

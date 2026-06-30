@@ -1,24 +1,20 @@
 import { Analytics } from "../../types/tables";
-import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
+import { appendFilterClause } from "../simple-builder";
+import type { SimpleQueryConfig } from "../types";
 
 export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	recent_errors: {
-		customSql: (
-			websiteId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-			_offset?: number,
-			_timezone?: string,
-			filterConditions?: string[],
-			filterParams?: Record<string, Filter["value"]>
-		) => {
-			const limit = _limit ?? 50;
-			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(" AND ")}`
-				: "";
+		meta: {
+			description:
+				"Recent JS errors with full context: message, stack (capped at 1500 chars), path, error_type, browser, OS, device, country. For aggregates use error_summary / errors_by_type / errors_by_page.",
+			category: "Errors",
+			tags: ["errors", "recent", "debugging"],
+		},
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const limit = ctx.limit ?? 50;
+			const filterClause = appendFilterClause(filterConditions);
 
 			return {
 				sql: `
@@ -64,7 +60,7 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 						AND es.timestamp >= toDateTime({startDate:String})
 						AND es.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND es.message != ''
-						${combinedWhereClause}
+						${filterClause}
 					ORDER BY es.timestamp DESC
 					LIMIT {limit:UInt32}
 				`,
@@ -94,6 +90,12 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	error_types: {
+		meta: {
+			description:
+				"Top error MESSAGES with count, affected users, and last_seen. Group key is the message string. For grouping by JS class (TypeError, ReferenceError, …) use errors_by_type.",
+			category: "Errors",
+			tags: ["errors", "messages", "triage"],
+		},
 		table: Analytics.error_spans,
 		fields: [
 			"message as name",
@@ -111,6 +113,11 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	error_trends: {
+		meta: {
+			description: "Error counts over time to identify spikes and trends.",
+			category: "Errors",
+			tags: ["errors", "trends", "time-series"],
+		},
 		table: Analytics.error_spans,
 		fields: [
 			"toDate(timestamp) as date",
@@ -125,6 +132,11 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	errors_by_page: {
+		meta: {
+			description: "Error counts grouped by the page where they occurred.",
+			category: "Errors",
+			tags: ["errors", "pages"],
+		},
 		table: Analytics.error_spans,
 		fields: [
 			"CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as name",
@@ -143,6 +155,11 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	error_frequency: {
+		meta: {
+			description: "Error frequency and recurrence patterns.",
+			category: "Errors",
+			tags: ["errors", "frequency"],
+		},
 		table: Analytics.error_spans,
 		fields: ["toDate(timestamp) as date", "COUNT(*) as count"],
 		where: ["message != ''"],
@@ -156,64 +173,45 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		meta: {
 			title: "Error Summary",
 			description: "Overview of errors with calculated error rate",
+			category: "Errors",
+			tags: ["errors", "summary", "overview"],
 			version: "1.0",
 		},
-		customSql: (
-			websiteId: string,
-			startDate: string,
-			endDate: string,
-			_filters?: Filter[],
-			_granularity?: TimeUnit,
-			_limit?: number,
-			_offset?: number,
-			_timezone?: string,
-			filterConditions?: string[],
-			filterParams?: Record<string, Filter["value"]>
-		) => {
-			const combinedWhereClause = filterConditions?.length
-				? `AND ${filterConditions.join(" AND ")}`
-				: "";
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const filterClause = appendFilterClause(filterConditions);
 
 			return {
 				sql: `
 					WITH total_sessions AS (
-						SELECT uniq(session_id) as total 
+						SELECT uniq(session_id) as total
 						FROM ${Analytics.events}
-						WHERE client_id = {websiteId:String} 
+						WHERE client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
 						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 					),
-					error_sessions AS (
-						SELECT uniq(session_id) as error_count 
-						FROM ${Analytics.error_spans}
-						WHERE client_id = {websiteId:String} 
-						AND timestamp >= toDateTime({startDate:String})
-						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND message != ''
-						${combinedWhereClause}
-					),
 					error_stats AS (
-						SELECT 
-							COUNT(*) as totalErrors,
+						SELECT
+							count() as totalErrors,
 							uniq(message) as uniqueErrorTypes,
 							uniq(anonymous_id) as affectedUsers,
 							uniq(session_id) as affectedSessions
 						FROM ${Analytics.error_spans}
-						WHERE client_id = {websiteId:String} 
+						WHERE client_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND message != ''
-						${combinedWhereClause}
+						${filterClause}
 					)
-					SELECT 
+					SELECT
 						es.totalErrors,
 						es.uniqueErrorTypes,
 						es.affectedUsers,
 						es.affectedSessions,
-						ROUND((err.error_count / ts.total) * 100, 2) as errorRate
+						ROUND((es.affectedSessions / ts.total) * 100, 2) as errorRate
 					FROM error_stats es
 					CROSS JOIN total_sessions ts
-					CROSS JOIN error_sessions err
 				`,
 				params: {
 					websiteId,
@@ -229,6 +227,11 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	error_chart_data: {
+		meta: {
+			description: "Error counts formatted for time-series chart display.",
+			category: "Errors",
+			tags: ["errors", "chart", "time-series"],
+		},
 		table: Analytics.error_spans,
 		fields: [
 			"toDate(timestamp) as date",
@@ -243,6 +246,12 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	errors_by_type: {
+		meta: {
+			description:
+				"Errors grouped by JS error class (TypeError, ReferenceError, …) with count, affected users, and sessions. For grouping by error message use error_types.",
+			category: "Errors",
+			tags: ["errors", "class", "triage"],
+		},
 		table: Analytics.error_spans,
 		fields: [
 			"error_type as name",

@@ -136,28 +136,33 @@ export function FiltersSection() {
 
 			<div className="flex flex-wrap items-center gap-2 px-4 py-3">
 				<div className="flex flex-wrap items-center gap-1 rounded-lg bg-secondary p-1">
-					{filters.map((filter, index) => (
-						<div
-							className="group flex items-center gap-1.5 rounded-md bg-background py-1 pr-1 pl-2.5 text-xs shadow-xs"
-							key={`${filter.field}-${filter.operator}-${formatFilterValue(filter.value)}-${index.toString()}`}
-						>
-							<span className="font-medium">{getFieldLabel(filter.field)}</span>
-							<span className="text-muted-foreground">
-								{getOperatorLabel(filter.operator)}
-							</span>
-							<span className="max-w-32 truncate font-mono">
-								{formatFilterValue(filter.value)}
-							</span>
-							<button
-								aria-label={`Remove ${getFieldLabel(filter.field)} filter`}
-								className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
-								onClick={() => handleRemoveFilter(index)}
-								type="button"
+					{filters.map((filter, index) => {
+						const fieldLabel = getFieldLabel(filter.field);
+						const operatorLabel = getOperatorLabel(filter.operator);
+						const valueLabel = formatFilterValue(filter.value);
+
+						return (
+							<fieldset
+								aria-label={`${fieldLabel} ${operatorLabel} ${valueLabel} filter`}
+								className="group m-0 flex min-w-0 items-center gap-1.5 rounded-md border-0 bg-background py-1 pr-1 pl-2.5 text-xs shadow-xs"
+								key={`${filter.field}-${filter.operator}-${valueLabel}-${index.toString()}`}
 							>
-								<XIcon className="size-3" weight="bold" />
-							</button>
-						</div>
-					))}
+								<span className="font-medium">{fieldLabel}</span>
+								<span className="text-muted-foreground">{operatorLabel}</span>
+								<span className="max-w-32 truncate font-mono">
+									{valueLabel}
+								</span>
+								<button
+									aria-label={`Remove ${fieldLabel} filter`}
+									className="ml-0.5 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-secondary hover:text-foreground"
+									onClick={() => handleRemoveFilter(index)}
+									type="button"
+								>
+									<XIcon className="size-3" weight="bold" />
+								</button>
+							</fieldset>
+						);
+					})}
 				</div>
 
 				<div className="ml-auto flex items-center gap-1.5">

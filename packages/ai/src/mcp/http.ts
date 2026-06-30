@@ -11,6 +11,7 @@ import type {
 } from "../ai/mcp/define-tool";
 import { createMcpTools } from "../ai/mcp/tools";
 import { GUIDE_MARKDOWN, GUIDE_URI, MCP_INSTRUCTIONS } from "./guide";
+import { registerDatabuddyPrompts } from "./prompts";
 
 const DEFAULT_MCP_SERVER_NAME = "databuddy";
 const DEFAULT_MCP_SERVER_VERSION = "1.0.0";
@@ -77,12 +78,13 @@ export async function handleDatabuddyMcpRequest(
 			version: options.serverVersion ?? DEFAULT_MCP_SERVER_VERSION,
 		},
 		{
-			capabilities: { tools: {}, resources: {} },
+			capabilities: { tools: {}, resources: {}, prompts: {} },
 			instructions: MCP_INSTRUCTIONS,
 		}
 	);
 
 	registerGuideResource(server);
+	registerDatabuddyPrompts(server);
 
 	for (const tool of createMcpTools(options)) {
 		if (apiKeyCanCallTool(options.apiKey, tool)) {
@@ -125,6 +127,7 @@ function registerTool(server: McpServer, tool: RegisteredMcpTool): void {
 	server.registerTool(
 		tool.name,
 		{
+			title: titleFromName(tool.name),
 			description: tool.description,
 			inputSchema: toMcpSchema(tool.inputSchema),
 			...(tool.outputSchema && {
@@ -134,6 +137,13 @@ function registerTool(server: McpServer, tool: RegisteredMcpTool): void {
 		},
 		tool.handler
 	);
+}
+
+function titleFromName(name: string): string {
+	// MCP tool names are validated against /^[a-z][a-z0-9_]*$/ in defineMcpTool,
+	// so split always returns at least one non-empty leading-alpha word.
+	const [head, ...rest] = name.split("_");
+	return [head.charAt(0).toUpperCase() + head.slice(1), ...rest].join(" ");
 }
 
 function deriveAnnotations(metadata: McpToolMetadata): ToolAnnotations {

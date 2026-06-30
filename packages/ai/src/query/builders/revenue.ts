@@ -1,6 +1,6 @@
 import { Analytics } from "../../types/tables";
 import { escapeLikePattern } from "../simple-builder";
-import type { Filter, SimpleQueryConfig, TimeUnit } from "../types";
+import type { CustomSqlFn, Filter, SimpleQueryConfig } from "../types";
 
 const REVENUE_FILTER_COLUMNS: Record<string, string> = {
 	country: "country",
@@ -144,6 +144,13 @@ function buildAttributionCte(
 				AND r.session_id IS NOT NULL AND r.session_id != ''
 			GROUP BY r.customer_id
 		),
+		attributed_sessions AS (
+			SELECT r_session_id AS session_id FROM revenue_base
+			WHERE r_session_id IS NOT NULL AND r_session_id != ''
+			UNION DISTINCT
+			SELECT mapped_session_id AS session_id FROM customer_session_map
+			WHERE mapped_session_id IS NOT NULL AND mapped_session_id != ''
+		),
 		first_touch_by_session AS (
 			SELECT
 				session_id,
@@ -160,7 +167,7 @@ function buildAttributionCte(
 				argMin(path, time) as first_path
 			FROM ${Analytics.events}
 			WHERE client_id = {websiteId:String}
-				AND session_id != ''
+				AND session_id IN (SELECT session_id FROM attributed_sessions)
 				AND time >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 				AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 			GROUP BY session_id
@@ -271,44 +278,20 @@ function buildRevenueQuery(
 	};
 }
 
-type RevenueCustomSql = (
-	websiteId: string,
-	startDate: string,
-	endDate: string,
-	filters?: Filter[],
-	_granularity?: TimeUnit,
-	_limit?: number,
-	_offset?: number,
-	_timezone?: string,
-	_filterConditions?: string[],
-	customSqlParams?: Record<string, Filter["value"]>
-) => { sql: string; params: Record<string, Filter["value"]> };
-
 function makeRevenueBuilder(
 	configFn: (limit: number | undefined) => RevenueQueryConfig,
 	defaultLimit?: number
-): RevenueCustomSql {
-	return (
-		websiteId,
-		startDate,
-		endDate,
-		filters,
-		_granularity,
-		_limit,
-		_offset,
-		_timezone,
-		_filterConditions,
-		customSqlParams
-	) =>
+): CustomSqlFn {
+	return ({ websiteId, startDate, endDate, filters, limit, filterParams }) =>
 		buildRevenueQuery(
 			configFn(
-				defaultLimit === undefined ? undefined : (_limit ?? defaultLimit)
+				defaultLimit === undefined ? undefined : (limit ?? defaultLimit)
 			),
 			websiteId,
 			startDate,
 			endDate,
 			filters,
-			customSqlParams
+			filterParams
 		);
 }
 
@@ -334,8 +317,67 @@ function recentTransactionDimension(
 	return `CASE WHEN is_attributed = 0 THEN 'Unattributed' ELSE coalesce(nullIf(${column}, ''), '${fallback}') END as ${alias}`;
 }
 
+const REVENUE_BREAKDOWN_FIELDS = [
+	{ name: "name", type: "string" as const, label: "Name" },
+	{ name: "revenue", type: "number" as const, label: "Revenue" },
+	{ name: "transactions", type: "number" as const, label: "Transactions" },
+	{ name: "customers", type: "number" as const, label: "Customers" },
+	{ name: "percentage", type: "number" as const, label: "Share", unit: "%" },
+];
+
+const REVENUE_GEO_BREAKDOWN_FIELDS = [
+	{ name: "name", type: "string" as const, label: "Name" },
+	{ name: "country", type: "string" as const, label: "Country" },
+	{ name: "revenue", type: "number" as const, label: "Revenue" },
+	{ name: "transactions", type: "number" as const, label: "Transactions" },
+	{ name: "customers", type: "number" as const, label: "Customers" },
+	{ name: "percentage", type: "number" as const, label: "Share", unit: "%" },
+];
+
 export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	revenue_overview: {
+		meta: {
+			title: "Revenue Overview",
+			description:
+				"Aggregate revenue, refund, subscription, and attribution totals.",
+			category: "Revenue",
+			tags: ["revenue", "overview", "summary"],
+			output_fields: [
+				{ name: "total_revenue", type: "number", label: "Total Revenue" },
+				{
+					name: "total_transactions",
+					type: "number",
+					label: "Total Transactions",
+				},
+				{ name: "refund_amount", type: "number", label: "Refund Amount" },
+				{ name: "refund_count", type: "number", label: "Refund Count" },
+				{
+					name: "subscription_revenue",
+					type: "number",
+					label: "Subscription Revenue",
+				},
+				{
+					name: "subscription_count",
+					type: "number",
+					label: "Subscription Count",
+				},
+				{ name: "sale_revenue", type: "number", label: "Sale Revenue" },
+				{ name: "sale_count", type: "number", label: "Sale Count" },
+				{ name: "unique_customers", type: "number", label: "Unique Customers" },
+				{
+					name: "attributed_transactions",
+					type: "number",
+					label: "Attributed Transactions",
+				},
+				{
+					name: "attributed_revenue",
+					type: "number",
+					label: "Attributed Revenue",
+				},
+			],
+			default_visualization: "metric",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
 				sumIf(amount, type != 'refund') as total_revenue,
@@ -355,6 +397,34 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_time_series: {
+		meta: {
+			title: "Revenue Time Series",
+			description:
+				"Daily revenue, transactions, customers, refunds, and attribution.",
+			category: "Revenue",
+			tags: ["revenue", "time-series", "trends"],
+			output_fields: [
+				{ name: "date", type: "string", label: "Date" },
+				{ name: "revenue", type: "number", label: "Revenue" },
+				{ name: "transactions", type: "number", label: "Transactions" },
+				{ name: "customers", type: "number", label: "Customers" },
+				{ name: "refund_amount", type: "number", label: "Refund Amount" },
+				{ name: "refund_count", type: "number", label: "Refund Count" },
+				{
+					name: "attributed_revenue",
+					type: "number",
+					label: "Attributed Revenue",
+				},
+				{
+					name: "attributed_transactions",
+					type: "number",
+					label: "Attributed Transactions",
+				},
+			],
+			default_visualization: "timeseries",
+			supports_granularity: ["hour", "day"],
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
 				toDate(created) as date,
@@ -373,6 +443,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_provider: {
+		meta: {
+			title: "Revenue by Provider",
+			description: "Revenue breakdown by payment provider.",
+			category: "Revenue",
+			tags: ["revenue", "provider"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
 				provider as name,${REVENUE_METRICS}`,
@@ -384,6 +463,22 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_product: {
+		meta: {
+			title: "Revenue by Product",
+			description: "Revenue breakdown by product.",
+			category: "Revenue",
+			tags: ["revenue", "product"],
+			output_fields: [
+				{ name: "name", type: "string", label: "Product" },
+				{ name: "product_id", type: "string", label: "Product ID" },
+				{ name: "revenue", type: "number", label: "Revenue" },
+				{ name: "transactions", type: "number", label: "Transactions" },
+				{ name: "customers", type: "number", label: "Customers" },
+				{ name: "percentage", type: "number", label: "Share", unit: "%" },
+			],
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -400,6 +495,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_attribution_overview: {
+		meta: {
+			title: "Revenue Attribution Overview",
+			description: "Attributed vs unattributed revenue split.",
+			category: "Revenue",
+			tags: ["revenue", "attribution"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(() => ({
 			select: `SELECT
 				CASE WHEN is_attributed = 1 THEN 'Attributed' ELSE 'Unattributed' END as name,${REVENUE_METRICS}`,
@@ -411,6 +515,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_country: {
+		meta: {
+			title: "Revenue by Country",
+			description: "Attributed revenue breakdown by country.",
+			category: "Revenue",
+			tags: ["revenue", "country", "geo"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -427,6 +540,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_region: {
+		meta: {
+			title: "Revenue by Region",
+			description: "Attributed revenue breakdown by region/state.",
+			category: "Revenue",
+			tags: ["revenue", "region", "geo"],
+			output_fields: REVENUE_GEO_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -444,6 +566,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_city: {
+		meta: {
+			title: "Revenue by City",
+			description: "Attributed revenue breakdown by city.",
+			category: "Revenue",
+			tags: ["revenue", "city", "geo"],
+			output_fields: REVENUE_GEO_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -461,6 +592,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_browser: {
+		meta: {
+			title: "Revenue by Browser",
+			description: "Attributed revenue breakdown by browser.",
+			category: "Revenue",
+			tags: ["revenue", "browser"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -476,6 +616,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_device: {
+		meta: {
+			title: "Revenue by Device",
+			description: "Attributed revenue breakdown by device type.",
+			category: "Revenue",
+			tags: ["revenue", "device"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -491,6 +640,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_os: {
+		meta: {
+			title: "Revenue by OS",
+			description: "Attributed revenue breakdown by operating system.",
+			category: "Revenue",
+			tags: ["revenue", "os"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -506,6 +664,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_referrer: {
+		meta: {
+			title: "Revenue by Referrer",
+			description: "Attributed revenue breakdown by referrer domain.",
+			category: "Revenue",
+			tags: ["revenue", "referrer"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -532,6 +699,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_source: {
+		meta: {
+			title: "Revenue by UTM Source",
+			description: "Attributed revenue breakdown by UTM source.",
+			category: "Revenue",
+			tags: ["revenue", "utm", "source"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -547,6 +723,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_medium: {
+		meta: {
+			title: "Revenue by UTM Medium",
+			description: "Attributed revenue breakdown by UTM medium.",
+			category: "Revenue",
+			tags: ["revenue", "utm", "medium"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -562,6 +747,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_utm_campaign: {
+		meta: {
+			title: "Revenue by UTM Campaign",
+			description: "Attributed revenue breakdown by UTM campaign.",
+			category: "Revenue",
+			tags: ["revenue", "utm", "campaign"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -577,6 +771,15 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	revenue_by_entry_page: {
+		meta: {
+			title: "Revenue by Entry Page",
+			description: "Attributed revenue breakdown by entry page path.",
+			category: "Revenue",
+			tags: ["revenue", "entry", "page"],
+			output_fields: REVENUE_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT
@@ -592,6 +795,31 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	recent_transactions: {
+		meta: {
+			title: "Recent Transactions",
+			description:
+				"Most recent non-refund transactions with attribution context.",
+			category: "Revenue",
+			tags: ["revenue", "transactions", "recent"],
+			output_fields: [
+				{ name: "transaction_id", type: "string", label: "Transaction ID" },
+				{ name: "provider", type: "string", label: "Provider" },
+				{ name: "type", type: "string", label: "Type" },
+				{ name: "amount", type: "number", label: "Amount" },
+				{ name: "anonymous_id", type: "string", label: "Anonymous ID" },
+				{ name: "product_name", type: "string", label: "Product" },
+				{ name: "created", type: "datetime", label: "Created" },
+				{ name: "is_attributed", type: "number", label: "Attributed" },
+				{ name: "country", type: "string", label: "Country" },
+				{ name: "browser_name", type: "string", label: "Browser" },
+				{ name: "device_type", type: "string", label: "Device" },
+				{ name: "referrer", type: "string", label: "Referrer" },
+				{ name: "utm_source", type: "string", label: "UTM Source" },
+				{ name: "utm_campaign", type: "string", label: "UTM Campaign" },
+			],
+			default_visualization: "table",
+			version: "1.0",
+		},
 		customSql: makeRevenueBuilder(
 			(limit) => ({
 				select: `SELECT

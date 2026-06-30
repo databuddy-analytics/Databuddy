@@ -83,7 +83,22 @@ function aggregateToSQL(aggregate: AggregateFunction, field: string): string {
 	}
 }
 
+function chParamTypeForColumn(
+	tableName: string,
+	field: string
+): "Float64" | "DateTime" | "String" {
+	const column = getColumnDefinition(tableName, field);
+	if (column?.type === "number") {
+		return "Float64";
+	}
+	if (column?.type === "datetime") {
+		return "DateTime";
+	}
+	return "String";
+}
+
 function operatorToSQL(
+	tableName: string,
 	field: string,
 	operator: CustomQueryOperator,
 	paramName: string
@@ -93,14 +108,22 @@ function operatorToSQL(
 			return `${field} = {${paramName}:String}`;
 		case "ne":
 			return `${field} != {${paramName}:String}`;
-		case "gt":
-			return `${field} > {${paramName}:Float64}`;
-		case "lt":
-			return `${field} < {${paramName}:Float64}`;
-		case "gte":
-			return `${field} >= {${paramName}:Float64}`;
-		case "lte":
-			return `${field} <= {${paramName}:Float64}`;
+		case "gt": {
+			const type = chParamTypeForColumn(tableName, field);
+			return `${field} > {${paramName}:${type}}`;
+		}
+		case "lt": {
+			const type = chParamTypeForColumn(tableName, field);
+			return `${field} < {${paramName}:${type}}`;
+		}
+		case "gte": {
+			const type = chParamTypeForColumn(tableName, field);
+			return `${field} >= {${paramName}:${type}}`;
+		}
+		case "lte": {
+			const type = chParamTypeForColumn(tableName, field);
+			return `${field} <= {${paramName}:${type}}`;
+		}
 		case "contains":
 			return `${field} LIKE {${paramName}:String}`;
 		case "not_contains":
@@ -269,9 +292,9 @@ function buildSQL(
 		end_date: endDate,
 	};
 
+	const usedAliases = new Set<string>();
 	const selectExpressions = config.selects.map((select: CustomQuerySelect) => {
 		const sqlExpr = aggregateToSQL(select.aggregate, select.field);
-
 		const autoAlias = `${select.aggregate}_${select.field === "*" ? "all" : select.field}`;
 
 		let alias = autoAlias;
@@ -285,14 +308,14 @@ function buildSQL(
 			alias = select.alias;
 		}
 
+		usedAliases.add(alias);
 		return `${sqlExpr} AS ${alias}`;
 	});
 
-	if (config.groupBy && config.groupBy.length > 0) {
-		for (const field of config.groupBy) {
-			if (!selectExpressions.some((expr: string) => expr.includes(field))) {
-				selectExpressions.unshift(field);
-			}
+	for (const field of config.groupBy ?? []) {
+		if (!usedAliases.has(field)) {
+			selectExpressions.unshift(field);
+			usedAliases.add(field);
 		}
 	}
 
@@ -307,7 +330,7 @@ function buildSQL(
 		for (const [index, filter] of config.filters.entries()) {
 			const paramName = `filter_${index}`;
 			whereConditions.push(
-				operatorToSQL(filter.field, filter.operator, paramName)
+				operatorToSQL(config.table, filter.field, filter.operator, paramName)
 			);
 			params[paramName] = prepareFilterValue(filter.operator, filter.value);
 		}

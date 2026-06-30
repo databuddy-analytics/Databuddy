@@ -8,6 +8,7 @@ on:
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
+      - "apps/insights/**"
       - "packages/**"
       - "bun.lock"
       - "package.json"
@@ -20,6 +21,7 @@ on:
       - ".dockerignore"
       - "apps/api/**"
       - "apps/basket/**"
+      - "apps/insights/**"
       - "packages/**"
       - "bun.lock"
       - "package.json"
@@ -267,3 +269,115 @@ jobs:
           fi
 
           echo "Basket health check passed!"
+
+  insights-health-check:
+    name: Insights Health Check
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: databuddy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d databuddy_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Mount Docker build cache
+        uses: useblacksmith/stickydisk@41873b1513bb679f9c115504cbd13d3660432504 # v1
+        with:
+          key: ${{ github.repository }}-docker-build-cache
+          path: /tmp/docker-build-cache
+
+      - name: Set up Docker Builder
+        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
+
+      - name: Build Insights Docker image
+        uses: useblacksmith/build-push-action@cbd1f60d194a98cb3be5523b15134501eaf0fbf3 # v2
+        with:
+          context: .
+          file: ./insights.Dockerfile
+          push: false
+          load: true
+          tags: insights:test
+
+      - name: Run Insights health check
+        run: |
+          set -euo pipefail
+          trap 'docker rm -f insights-health-check >/dev/null 2>&1 || true' EXIT
+
+          docker run -d \
+            --name insights-health-check \
+            --network host \
+            -e NODE_ENV=test \
+            -e PORT=4002 \
+            -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
+            -e REDIS_URL=redis://localhost:6379 \
+            -e BULLMQ_REDIS_URL=redis://localhost:6379/4 \
+            -e INSIGHTS_BULLMQ_REDIS_URL= \
+            -e INSIGHTS_DISPATCH_INTERVAL_MS=60000 \
+            -e INSIGHTS_MAINTENANCE_INTERVAL_MS=60000 \
+            -e INSIGHTS_STALE_ITEM_MS=300000 \
+            -e INSIGHTS_WORKER_CONCURRENCY=1 \
+            -e INSIGHTS_WORKER_ENABLED=true \
+            -e BETTER_AUTH_SECRET=test-better-auth-secret-for-health-checks \
+            -e AI_GATEWAY_API_KEY=test-ai-gateway-key \
+            -e SUPERMEMORY_API_KEY= \
+            insights:test
+
+          echo "Waiting for Insights to start..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:4002/health > /dev/null 2>&1; then
+              echo "Insights is responding!"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "Insights failed to start within 30 seconds"
+              docker logs insights-health-check
+              exit 1
+            fi
+            sleep 1
+          done
+
+          STATUS_BODY=$(curl -sS http://localhost:4002/health/status)
+          echo "Insights /health/status: $STATUS_BODY"
+          if echo "$STATUS_BODY" | jq -e '.status == "ok"' > /dev/null; then
+            echo "Insights dependency health is valid"
+          else
+            echo "Insights dependency health is not ok"
+            docker logs insights-health-check
+            exit 1
+          fi
+
+          RESPONSE=$(curl -sf http://localhost:4002/health || echo '{}')
+          echo "Insights /health: $RESPONSE"
+
+          if echo "$RESPONSE" | jq -e '.workerEnabled == true' > /dev/null; then
+            echo "Insights health endpoint structure is valid"
+          else
+            echo "Insights health endpoint response missing expected workerEnabled=true"
+            docker logs insights-health-check
+            exit 1
+          fi
+
+          echo "Insights health check passed!"

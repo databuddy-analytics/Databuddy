@@ -11,6 +11,7 @@ export default defineConfig({
 		"./src/drizzle/schema/billing.ts",
 		"./src/drizzle/schema/feedback.ts",
 		"./src/drizzle/schema/flags.ts",
+		"./src/drizzle/schema/insights.ts",
 		"./src/drizzle/schema/integrations.ts",
 		"./src/drizzle/schema/links.ts",
 		"./src/drizzle/schema/tracker.ts",

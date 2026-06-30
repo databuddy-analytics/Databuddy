@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 interface RedisEntry {
 	ttl: number;
@@ -9,12 +9,33 @@ const redisStore = new Map<string, RedisEntry>();
 const redisSets = new Map<string, Set<string>>();
 let failGet = false;
 
+function escapeRegex(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function matchesRedisPattern(pattern: string, key: string): boolean {
-	const escaped = pattern
-		.split("*")
-		.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-		.join(".*");
-	return new RegExp(`^${escaped}$`).test(key);
+	let source = "^";
+	for (let i = 0; i < pattern.length; i++) {
+		const char = pattern[i];
+		if (char === "\\") {
+			const next = pattern[i + 1];
+			if (next) {
+				source += escapeRegex(next);
+				i += 1;
+			}
+			continue;
+		}
+		if (char === "*") {
+			source += ".*";
+			continue;
+		}
+		if (char === "?") {
+			source += ".";
+			continue;
+		}
+		source += escapeRegex(char ?? "");
+	}
+	return new RegExp(`${source}$`).test(key);
 }
 
 const mockRedisClient = {
@@ -30,6 +51,26 @@ const mockRedisClient = {
 		}
 		return count;
 	}),
+	eval: mock(
+		async (
+			_script: string,
+			_numKeys: number,
+			key: string,
+			cached: string,
+			next: string
+		) => {
+			const entry = redisStore.get(key);
+			if (!(entry && entry.value === cached)) {
+				return 0;
+			}
+			if (next === "") {
+				redisStore.delete(key);
+				return 1;
+			}
+			redisStore.set(key, { value: next, ttl: entry.ttl });
+			return 1;
+		}
+	),
 	expire: mock(async () => 1),
 	get: mock(async (key: string) => {
 		if (failGet) {
@@ -82,6 +123,7 @@ const {
 	invalidateAgentContextSnapshotsForOwner,
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateCacheableTag,
+	invalidateCacheableWithArgs,
 	invalidateFlagReadCaches,
 	invalidateOrganizationMembershipCaches,
 	invalidateWebsiteReadCaches,
@@ -99,11 +141,16 @@ const readSnapshot = (key: string) =>
 		refreshedAt?: string;
 	};
 
+afterAll(() => {
+	mock.restore();
+});
+
 beforeEach(() => {
 	redisStore.clear();
 	redisSets.clear();
 	failGet = false;
 	mockRedisClient.del.mockClear();
+	mockRedisClient.eval.mockClear();
 	mockRedisClient.expire.mockClear();
 	mockRedisClient.get.mockClear();
 	mockRedisClient.sadd.mockClear();
@@ -222,6 +269,36 @@ describe("tagged cache invalidation", () => {
 	});
 });
 
+describe("argument-based cache invalidation", () => {
+	it("matches trailing arguments without deleting prefix-colliding keys", async () => {
+		redisStore.set("cacheable:status-page:[site]", { value: "{}", ttl: 100 });
+		redisStore.set("cacheable:status-page:[site,undefined]", {
+			value: "{}",
+			ttl: 100,
+		});
+		redisStore.set("cacheable:status-page:[site,draft]", {
+			value: "{}",
+			ttl: 100,
+		});
+		redisStore.set("cacheable:status-page:[site-2,draft]", {
+			value: "{}",
+			ttl: 100,
+		});
+
+		const deletedCount = await invalidateCacheableWithArgs("status-page", [
+			"site",
+		]);
+
+		expect(deletedCount).toBe(3);
+		expect(redisStore.has("cacheable:status-page:[site]")).toBe(false);
+		expect(redisStore.has("cacheable:status-page:[site,undefined]")).toBe(
+			false
+		);
+		expect(redisStore.has("cacheable:status-page:[site,draft]")).toBe(false);
+		expect(redisStore.has("cacheable:status-page:[site-2,draft]")).toBe(true);
+	});
+});
+
 describe("flag read cache invalidation", () => {
 	it("invalidates exact tagged flag caches and args-based fallbacks", async () => {
 		redisStore.set("cacheable:flag:[homepage,site-1]", {
@@ -277,10 +354,6 @@ describe("flag read cache invalidation", () => {
 
 describe("organization membership cache invalidation", () => {
 	it("invalidates role, owner, and billing caches for a member", async () => {
-		redisStore.set("cacheable:rpc:org_role:[user-1,org-1]", {
-			value: "member",
-			ttl: 100,
-		});
 		redisStore.set("cacheable:rpc:member_role:[user-1,org-1]", {
 			value: "member",
 			ttl: 100,
@@ -311,10 +384,7 @@ describe("organization membership cache invalidation", () => {
 			userId: "user-1",
 		});
 
-		expect(result).toEqual({ attempted: 6, failed: 0 });
-		expect(redisStore.has("cacheable:rpc:org_role:[user-1,org-1]")).toBe(
-			false
-		);
+		expect(result).toEqual({ attempted: 5, failed: 0 });
 		expect(redisStore.has("cacheable:rpc:member_role:[user-1,org-1]")).toBe(
 			false
 		);
@@ -389,6 +459,25 @@ describe("agent context snapshot invalidation", () => {
 		expect(readSnapshot(otherOwnerKey).refreshedAt).toBe(
 			"2026-05-03T10:00:00.000Z"
 		);
+	});
+
+	it("does not clobber a snapshot replaced during invalidation", async () => {
+		const key = getAgentContextSnapshotKey("user-1", "site-1", "org-1");
+		const oldSnapshot = freshSnapshot("old context");
+		const newSnapshot = freshSnapshot("new context");
+		redisStore.set(key, { value: oldSnapshot, ttl: 100 });
+		mockRedisClient.get.mockImplementationOnce(async () => {
+			redisStore.set(key, { value: newSnapshot, ttl: 99 });
+			return oldSnapshot;
+		});
+
+		await invalidateAgentContextSnapshot("user-1", "site-1", "org-1");
+
+		expect(readSnapshot(key)).toEqual({
+			context: "new context",
+			refreshedAt: "2026-05-03T10:00:00.000Z",
+		});
+		expect(redisStore.get(key)?.ttl).toBe(99);
 	});
 
 	it("deletes corrupt snapshots instead of preserving invalid payloads", async () => {

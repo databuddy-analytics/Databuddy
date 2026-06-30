@@ -203,6 +203,17 @@
   background-color: var(--accent-foreground);
 }
 
+button,
+[type="button"],
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
 /* Angled Rectangle Gradient - Modal footer */
 @utility angled-rectangle-gradient {
   position: relative;
@@ -621,9 +632,14 @@ body {
 }
 
 @media (min-width: 768px) {
+  main#nd-docs-layout {
+    padding-top: 1rem;
+  }
+
   #nd-docs-layout main,
   #nd-docs-layout [role="main"],
   #nd-docs-layout > div > main {
+    padding-top: 1rem;
     padding-left: 268px;
   }
 }

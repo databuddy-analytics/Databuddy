@@ -1,4 +1,5 @@
 import { describe, expect, test } from "vitest";
+import { isOriginAllowed } from "@hooks/auth";
 import {
 	isValidIpFromSettings,
 	isValidOriginFromSettings,
@@ -32,6 +33,30 @@ describe("isValidOriginFromSettings", () => {
 		test(label, () =>
 			expect(isValidOriginFromSettings(origin, allowed)).toBe(expected)
 		);
+	}
+});
+
+describe("isOriginAllowed (domain + allowedOrigins additive)", () => {
+	const cases: [string, string, string[] | undefined, boolean][] = [
+		["https://example.com", "example.com", undefined, true],
+		["https://www.example.com", "example.com", undefined, true],
+		["https://app.example.com", "example.com", undefined, true],
+		["https://example.com", "example.com", ["trusted.com"], true],
+		["https://www.example.com", "example.com", ["trusted.com"], true],
+		["https://trusted.com", "example.com", ["trusted.com"], true],
+		["https://*.trusted.com", "example.com", ["*.trusted.com"], false],
+		["https://sub.trusted.com", "example.com", ["*.trusted.com"], true],
+
+		["https://evil.com", "example.com", undefined, false],
+		["https://evil.com", "example.com", ["trusted.com"], false],
+		["null", "example.com", ["trusted.com"], false],
+	];
+
+	for (const [origin, domain, allowed, expected] of cases) {
+		const label = `${origin} vs domain=${domain} allowed=${
+			allowed?.join(",") ?? "—"
+		} → ${expected}`;
+		test(label, () => expect(isOriginAllowed(origin, domain, allowed)).toBe(expected));
 	}
 });
 

@@ -43,6 +43,10 @@
     "./slack": {
       "types": "./src/slack.ts",
       "default": "./src/slack.ts"
+    },
+    "./insights": {
+      "types": "./src/insights.ts",
+      "default": "./src/insights.ts"
     }
   },
   "files": [

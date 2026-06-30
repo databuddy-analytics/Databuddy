@@ -1,8 +1,5 @@
 import type { ComponentType } from "react";
-import type {
-	DashboardActionParams,
-	DashboardActionTarget,
-} from "@/lib/dashboard-navigation-actions";
+import type { DashboardActionParams } from "@/lib/dashboard-navigation-actions";
 
 export interface RawComponentInput {
 	type: string;
@@ -143,7 +140,7 @@ export interface DashboardActionInput {
 	label: string;
 	params?: DashboardActionParams;
 	preserveAnalyticsContext?: boolean;
-	target?: DashboardActionTarget;
+	target?: string;
 	websiteId?: string;
 }
 

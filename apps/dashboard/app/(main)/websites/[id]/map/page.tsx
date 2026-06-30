@@ -38,7 +38,7 @@ function WebsiteMapPage() {
 	);
 
 	const countriesFromQuery = getDataForQuery("map-countries", "country");
-	const regionsFromQuery = getDataForQuery("map-regions", "region");
+	const regionsFromQuery = getDataForQuery("map-regions-cities", "region");
 
 	const locationData = useMemo<LocationData>(() => {
 		const countries = (countriesFromQuery || []).map(

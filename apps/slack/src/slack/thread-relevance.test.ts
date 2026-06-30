@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import * as agentModule from "@databuddy/ai/agent";
 import type {
 	SlackThreadReplyMessage,
 	SlackThreadReplyRelevance,
@@ -10,6 +11,7 @@ let capturedModelInput: SlackThreadReplyRelevanceInput | null = null;
 let modelDecision: SlackThreadReplyRelevance | null = null;
 
 mock.module("@databuddy/ai/agent", () => ({
+	...agentModule,
 	classifySlackThreadReplyRelevance: async (
 		input: SlackThreadReplyRelevanceInput
 	) => {
@@ -101,6 +103,59 @@ describe("Slack thread reply relevance", () => {
 		expect(capturedModelInput?.threadMessages).toHaveLength(2);
 	});
 
+	it("lets the model answer relay requests to another human after Databuddy spoke", async () => {
+		modelDecision = {
+			confidence: 0.9,
+			reason: "direct_request",
+			shouldReply: true,
+		};
+
+		await expect(
+			decideWithThread("lol ok then, but can you tell <@UQAIS> that?", [
+				{
+					authorName: "Databuddy",
+					text: "Nah, I'm contractually obligated to adore you.",
+				},
+			])
+		).resolves.toMatchObject({
+			reason: "direct_request",
+			shouldReply: true,
+			source: "model",
+		});
+		expect(capturedModelInput).toMatchObject({
+			currentUserId: "U123",
+			text: "lol ok then, but can you tell <@UQAIS> that?",
+		});
+		expect(capturedModelInput?.threadMessages).toHaveLength(1);
+	});
+
+	it("still lets the model block questions addressed to another human", async () => {
+		modelDecision = {
+			confidence: 0.88,
+			reason: "human_to_human",
+			shouldReply: false,
+		};
+
+		await expect(
+			decideWithThread(
+				"what do you think <@UQAIS>, anything we should change?",
+				[
+					{
+						text: "I can keep digging if useful.",
+						userId: "UBOT",
+					},
+				]
+			)
+		).resolves.toMatchObject({
+			reason: "human_to_human",
+			shouldReply: false,
+			source: "model",
+		});
+		expect(capturedModelInput?.text).toBe(
+			"what do you think <@UQAIS>, anything we should change?"
+		);
+	});
+
 	it("lets the model block side chatter", async () => {
 		modelDecision = {
 			confidence: 0.94,
@@ -128,6 +183,21 @@ describe("Slack thread reply relevance", () => {
 			decideWithThread("both", [
 				{
 					text: "Which website should I use?",
+					userId: "UBOT",
+				},
+			])
+		).resolves.toMatchObject({
+			reason: "ambiguous",
+			shouldReply: false,
+			source: "fallback",
+		});
+	});
+
+	it("falls back conservatively for longer unmentioned replies when the model is unavailable", async () => {
+		await expect(
+			decideWithThread("databuddy is gonna make qais mad", [
+				{
+					text: "I can explain the metric if someone asks.",
 					userId: "UBOT",
 				},
 			])

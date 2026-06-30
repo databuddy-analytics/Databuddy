@@ -5,8 +5,7 @@ import {
 } from "@databuddy/ai/agent";
 import type { SlackAgentRun } from "@/agent/agent-client";
 
-const MODEL_TIMEOUT_MS = 2500;
-const MAX_NORMALIZED_WORDS = 3;
+const MODEL_TIMEOUT_MS = 6000;
 
 export type SlackThreadReplyDecisionSource = "fallback" | "model";
 
@@ -74,7 +73,7 @@ function getFallbackDecision(
 	}
 
 	if (getRecentBotMessage(threadMessages, botUserId)) {
-		return decision(!isVeryShort(normalized), "ambiguous", 0.5);
+		return decision(false, "ambiguous", 0.5);
 	}
 
 	return decision(false, "ambiguous", 0.5);
@@ -138,8 +137,4 @@ function getRecentBotMessage(
 		}
 	}
 	return null;
-}
-
-function isVeryShort(text: string): boolean {
-	return text.split(" ").filter(Boolean).length <= MAX_NORMALIZED_WORDS;
 }

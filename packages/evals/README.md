@@ -4,7 +4,7 @@ Run agent benchmarks from the repo root so `.env` is loaded:
 
 ```bash
 bun run eval -- --model deepseek/deepseek-v4-flash
-bun run eval -- --model google/gemini-3.1-flash-lite --concurrency 5
+bun run eval -- --model google/gemini-2.5-flash-lite --concurrency 5
 bun run eval -- --model anthropic/claude-sonnet-4.6 --limit 5 --concurrency 5
 ```
 
@@ -19,7 +19,7 @@ The UI shows all historical runs, trend lines per model, latest-model leaderboar
 Compare saved runs:
 
 ```bash
-bun run eval -- compare --model deepseek/deepseek-v4-flash,deepseek/deepseek-v4-pro,google/gemini-3.1-flash-lite --diff
+bun run eval -- compare --model deepseek/deepseek-v4-flash,deepseek/deepseek-v4-pro,google/gemini-2.5-flash-lite --diff
 bun run eval -- compare --filter budget
 ```
 
@@ -46,7 +46,7 @@ Agent cost is calculated from `src/costs.ts`. If a model has no pricing entry, t
 For one-off models, set exact per-million token prices without editing code:
 
 ```bash
-EVAL_PRICE_GOOGLE_GEMINI_3_1_FLASH_LITE_INPUT_PER_MTOKEN=0.10 \
-EVAL_PRICE_GOOGLE_GEMINI_3_1_FLASH_LITE_OUTPUT_PER_MTOKEN=0.40 \
-bun run eval -- --model google/gemini-3.1-flash-lite
+EVAL_PRICE_GOOGLE_GEMINI_2_5_FLASH_LITE_INPUT_PER_MTOKEN=0.10 \
+EVAL_PRICE_GOOGLE_GEMINI_2_5_FLASH_LITE_OUTPUT_PER_MTOKEN=0.40 \
+bun run eval -- --model google/gemini-2.5-flash-lite
 ```

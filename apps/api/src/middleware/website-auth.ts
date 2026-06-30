@@ -7,8 +7,7 @@ import { auth } from "@databuddy/auth";
 import { db } from "@databuddy/db";
 import { Elysia } from "elysia";
 import { getResolvedAuth } from "../lib/auth-wide-event";
-import { record } from "../lib/tracing";
-import { getCachedWebsite, getTimezone } from "../lib/website-utils";
+import { getCachedWebsite, getTimezone } from "@databuddy/ai/lib/website-utils";
 
 interface SessionUser {
 	email: string;
@@ -67,22 +66,16 @@ export function websiteAuth() {
 				sessionUser = getSessionUser(session);
 				apiKey = preResolved.apiKeyResult?.key ?? null;
 			} else {
-				const [resolvedApiKey, resolvedSession] = await record(
-					"getAuthContext",
-					() =>
-						Promise.all([
-							apiKeyPresent ? getApiKeyFromHeader(request.headers) : null,
-							auth.api.getSession({ headers: request.headers }),
-						])
-				);
+				const [resolvedApiKey, resolvedSession] = await Promise.all([
+					apiKeyPresent ? getApiKeyFromHeader(request.headers) : null,
+					auth.api.getSession({ headers: request.headers }),
+				]);
 				session = resolvedSession;
 				sessionUser = getSessionUser(session);
 				apiKey = resolvedApiKey;
 			}
 
-			const website = websiteId
-				? await record("getCachedWebsite", () => getCachedWebsite(websiteId))
-				: undefined;
+			const website = websiteId ? await getCachedWebsite(websiteId) : undefined;
 
 			const timezone = session?.user
 				? await getTimezone(request, session)

@@ -1,5 +1,6 @@
 import type * as React from "react";
 import { cn } from "@databuddy/ui";
+import { docsSurface } from "@/components/docs/docs-styles";
 
 function Heading1({
 	children,
@@ -9,7 +10,7 @@ function Heading1({
 	return (
 		<h1
 			className={cn(
-				"mt-8 mb-4 font-semibold text-3xl text-foreground tracking-tight sm:text-4xl",
+				"mt-8 mb-4 font-semibold text-3xl text-foreground tracking-tight",
 				className
 			)}
 			{...props}
@@ -27,7 +28,7 @@ function Heading2({
 	return (
 		<h2
 			className={cn(
-				"mt-8 mb-3 font-semibold text-2xl text-foreground tracking-tight sm:text-3xl",
+				"mt-8 mb-3 font-semibold text-2xl text-foreground tracking-tight",
 				className
 			)}
 			{...props}
@@ -45,7 +46,7 @@ function Heading3({
 	return (
 		<h3
 			className={cn(
-				"mt-6 mb-2 font-semibold text-foreground text-xl tracking-tight sm:text-2xl",
+				"mt-6 mb-2 font-semibold text-foreground text-xl tracking-tight",
 				className
 			)}
 			{...props}
@@ -63,7 +64,8 @@ function Blockquote({
 	return (
 		<blockquote
 			className={cn(
-				"my-4 border-border border-l-2 pl-4 text-muted-foreground [&_p]:m-0 [&_p]:leading-7",
+				docsSurface,
+				"border-l-2 border-l-sidebar-primary/60 p-3.5 text-sidebar-foreground/65 [&_p]:m-0 [&_p]:leading-7",
 				className
 			)}
 			{...props}
@@ -77,7 +79,7 @@ function Anchor({ children, className, ...props }: React.ComponentProps<"a">) {
 	return (
 		<a
 			className={cn(
-				"cursor-pointer font-medium text-primary underline underline-offset-4",
+				"font-medium text-primary underline underline-offset-4 transition-colors hover:text-foreground",
 				className
 			)}
 			{...props}
@@ -89,7 +91,10 @@ function Anchor({ children, className, ...props }: React.ComponentProps<"a">) {
 
 function HorizontalRule({ className, ...props }: React.ComponentProps<"hr">) {
 	return (
-		<hr className={cn("my-8 border-border border-t", className)} {...props} />
+		<hr
+			className={cn("my-8 border-sidebar-border/60 border-t", className)}
+			{...props}
+		/>
 	);
 }
 
@@ -101,7 +106,7 @@ function UnorderedList({
 	return (
 		<ul
 			className={cn(
-				"my-4 ml-6 list-disc space-y-2 text-foreground/90",
+				"my-4 ml-6 list-disc space-y-2 text-sidebar-foreground/80",
 				className
 			)}
 			{...props}
@@ -119,7 +124,7 @@ function OrderedList({
 	return (
 		<ol
 			className={cn(
-				"my-4 ml-6 list-decimal space-y-2 text-foreground/90",
+				"my-4 ml-6 list-decimal space-y-2 text-sidebar-foreground/80",
 				className
 			)}
 			{...props}
@@ -135,7 +140,13 @@ function ListItem({
 	...props
 }: React.ComponentProps<"li">) {
 	return (
-		<li className={cn("leading-relaxed", className)} {...props}>
+		<li
+			className={cn(
+				"leading-relaxed marker:text-sidebar-foreground/35",
+				className
+			)}
+			{...props}
+		>
 			{children}
 		</li>
 	);

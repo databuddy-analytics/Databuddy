@@ -1,6 +1,6 @@
 import {
 	getWebsiteByIdV2,
-	isValidOrigin,
+	isOriginAllowed,
 	resolveApiKeyOwnerId,
 } from "@hooks/auth";
 import {
@@ -21,11 +21,11 @@ import {
 	rethrowOrWrap,
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { extractTrustedClientIp } from "@utils/ip-geo";
 import {
-	isValidIpFromSettings,
-	isValidOriginFromSettings,
-} from "@utils/origin-ip-validation";
+	extractTrustedClientIp,
+	getVisitorCountryForAutoMode,
+} from "@utils/ip-geo";
+import { isValidIpFromSettings } from "@utils/origin-ip-validation";
 import { VALIDATION_LIMITS, validatePayloadSize } from "@utils/validation";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
@@ -96,17 +96,28 @@ async function enforceWebsiteSecurity(
 	const allowedOrigins = settings?.allowedOrigins;
 	const allowedIps = settings?.allowedIps;
 
-	if (allowedOrigins && allowedOrigins.length > 0) {
-		if (!origin) {
-			log.set({ auth: { ok: false, reason: "origin_missing" } });
-			throw basketErrors.ingestOriginNotAuthorized();
-		}
-		if (!(await isValidOriginFromSettings(origin, allowedOrigins))) {
-			log.set({ auth: { ok: false, reason: "origin_not_authorized", origin } });
-			throw basketErrors.ingestOriginNotAuthorized();
-		}
-	} else if (origin && !(await isValidOrigin(origin, website.domain))) {
-		log.set({ auth: { ok: false, reason: "origin_not_authorized", origin } });
+	if (allowedOrigins?.length && !origin) {
+		log.set({
+			auth: {
+				ok: false,
+				reason: "origin_missing",
+				expectedDomain: website.domain,
+				allowedOrigins,
+			},
+		});
+		throw basketErrors.ingestOriginNotAuthorized();
+	}
+
+	if (origin && !isOriginAllowed(origin, website.domain, allowedOrigins)) {
+		log.set({
+			auth: {
+				ok: false,
+				reason: "origin_not_authorized",
+				origin,
+				expectedDomain: website.domain,
+				allowedOrigins,
+			},
+		});
 		throw basketErrors.ingestOriginNotAuthorized();
 	}
 
@@ -313,11 +324,13 @@ export const trackRoute = new Elysia().post(
 				namespace: event.namespace,
 				properties: event.properties,
 				anonymous_id: event.anonymousId,
+				anonymizeVisitorIds: event.anonymizeVisitorIds,
 				session_id: event.sessionId,
 				source: event.source,
 			}));
 
-			await insertCustomEvents(spans);
+			const visitorCountry = await getVisitorCountryForAutoMode(spans, request);
+			await insertCustomEvents(spans, visitorCountry);
 
 			return json(
 				{ status: "success", type: "custom_event", count: spans.length },

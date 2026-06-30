@@ -29,7 +29,7 @@ export function normalizeClickHouseDateTime(
 	const value = input.trim();
 	const doubleTime = value.match(DOUBLE_TIME_END_RE);
 	if (doubleTime?.[1]) {
-		return normalizeClickHouseDateTime(doubleTime[1]);
+		return normalizeClickHouseDateTime(doubleTime[1], options);
 	}
 
 	if (DATE_ONLY_RE.test(value)) {
@@ -60,4 +60,30 @@ export function normalizeClickHouseDateTime(
 	}
 
 	return value.replace("T", " ");
+}
+
+export function padToClickHouseDateTime(value: string): string {
+	return DATE_ONLY_RE.test(value) ? `${value} 00:00:00` : value;
+}
+
+export function todayInTimeZone(
+	timeZone: string,
+	now: Date = new Date()
+): string {
+	try {
+		return new Intl.DateTimeFormat("en-CA", {
+			timeZone,
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+		}).format(now);
+	} catch {
+		return now.toISOString().slice(0, 10);
+	}
+}
+
+export function shiftDate(date: string, deltaDays: number): string {
+	const d = new Date(`${date}T00:00:00Z`);
+	d.setUTCDate(d.getUTCDate() + deltaDays);
+	return d.toISOString().slice(0, 10);
 }

@@ -1,11 +1,18 @@
-import { and, asc, eq, isNull, isUniqueViolationFor } from "@databuddy/db";
+import {
+	and,
+	asc,
+	eq,
+	isNull,
+	isUniqueViolationFor,
+	withTransaction,
+} from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
 import { randomUUIDv7 } from "bun";
 import { customAlphabet } from "nanoid";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
-import { withLinksAccess } from "../procedures/with-workspace";
+import { withWorkspace } from "../procedures/with-workspace";
 
 const generateFolderSuffix = customAlphabet(
 	"0123456789abcdefghijklmnopqrstuvwxyz",
@@ -100,9 +107,10 @@ export const linkFoldersRouter = {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			await withLinksAccess(context, {
+			await withWorkspace(context, {
 				organizationId,
-				permission: "read",
+				resource: "link",
+				permissions: ["read"],
 			});
 
 			return context.db
@@ -136,9 +144,10 @@ export const linkFoldersRouter = {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			const workspace = await withLinksAccess(context, {
+			const workspace = await withWorkspace(context, {
 				organizationId,
-				permission: "create",
+				resource: "link",
+				permissions: ["create"],
 			});
 			const createdBy = await workspace.getCreatedBy();
 			const baseSlug = (input.slug ?? slugifyFolderName(input.name)).slice(
@@ -195,9 +204,10 @@ export const linkFoldersRouter = {
 		.output(linkFolderOutputSchema)
 		.handler(async ({ context, input }) => {
 			const folder = await getFolderOrThrow(context, input.id);
-			await withLinksAccess(context, {
+			await withWorkspace(context, {
 				organizationId: folder.organizationId,
-				permission: "update",
+				resource: "link",
+				permissions: ["update"],
 			});
 
 			try {
@@ -234,16 +244,19 @@ export const linkFoldersRouter = {
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
 			const folder = await getFolderOrThrow(context, input.id);
-			await withLinksAccess(context, {
+			await withWorkspace(context, {
 				organizationId: folder.organizationId,
-				permission: "delete",
+				resource: "link",
+				permissions: ["delete"],
 			});
 
-			await context.db
-				.update(links)
-				.set({ folderId: null, updatedAt: new Date() })
-				.where(eq(links.folderId, input.id));
-			await context.db.delete(linkFolders).where(eq(linkFolders.id, input.id));
+			await withTransaction(async (tx) => {
+				await tx
+					.update(links)
+					.set({ folderId: null, updatedAt: new Date() })
+					.where(eq(links.folderId, input.id));
+				await tx.delete(linkFolders).where(eq(linkFolders.id, input.id));
+			});
 
 			return { success: true };
 		}),

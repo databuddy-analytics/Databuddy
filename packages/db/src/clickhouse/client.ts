@@ -1,75 +1,5 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-
-let _record:
-	| (<T>(name: string, fn: () => Promise<T> | T) => Promise<T>)
-	| null = null;
-
-export function setChRecordFn(
-	fn: <T>(name: string, fn: () => Promise<T> | T) => Promise<T>
-) {
-	_record = fn;
-}
-
-function traced<T>(name: string, fn: () => Promise<T>): Promise<T> {
-	return _record ? _record(name, fn) : fn();
-}
-
-export interface ChQueryMetrics {
-	elapsed_ms: number;
-	memory_usage_bytes?: number;
-	query_id: string;
-	read_bytes: number;
-	read_rows: number;
-	result_rows: number;
-	served_by?: string;
-	written_bytes: number;
-	written_rows: number;
-}
-
-let _metricsFn: ((m: ChQueryMetrics) => void) | null = null;
-
-export function setChMetricsFn(fn: (m: ChQueryMetrics) => void) {
-	_metricsFn = fn;
-}
-
-function headerValue(
-	headers: Record<string, string | string[] | undefined>,
-	name: string
-): string | undefined {
-	const v = headers[name];
-	return Array.isArray(v) ? v[0] : v;
-}
-
-function reportChMetrics(
-	headers: Record<string, string | string[] | undefined>,
-	queryId: string
-): void {
-	if (!_metricsFn) {
-		return;
-	}
-	const summary = headerValue(headers, "x-clickhouse-summary");
-	if (!summary) {
-		return;
-	}
-	try {
-		const s = JSON.parse(summary) as Record<string, string>;
-		const num = (k: string) => Number(s[k] ?? 0) || 0;
-		_metricsFn({
-			read_rows: num("read_rows"),
-			read_bytes: num("read_bytes"),
-			result_rows: num("result_rows"),
-			written_rows: num("written_rows"),
-			written_bytes: num("written_bytes"),
-			elapsed_ms: num("elapsed_ns") / 1_000_000,
-			memory_usage_bytes: s.memory_usage ? num("memory_usage") : undefined,
-			served_by: headerValue(headers, "x-clickhouse-server-display-name"),
-			query_id: queryId,
-		});
-	} catch {
-		// instrumentation must never break the query path
-	}
-}
 /**
  * ClickHouse table names used throughout the application
  */
@@ -85,7 +15,7 @@ export const TABLE_NAMES = {
 };
 
 export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
-	max_open_connections: 30,
+	max_open_connections: 64,
 	request_timeout: 30_000,
 	keep_alive: {
 		enabled: true,
@@ -97,10 +27,42 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	},
 };
 
+function assertCacheCompatibleSettings(
+	settings: Record<string, string | number>
+): void {
+	const cacheOn =
+		settings.use_query_cache !== undefined &&
+		String(settings.use_query_cache) !== "0";
+	if (cacheOn && settings.result_overflow_mode === "break") {
+		throw new Error(
+			"ClickHouse settings conflict: use_query_cache=1 is incompatible with result_overflow_mode='break'. Drop result_overflow_mode or pass use_query_cache=0."
+		);
+	}
+}
+
 const baseClient = createClient({
 	url: process.env.CLICKHOUSE_URL,
 	...CLICKHOUSE_OPTIONS,
 });
+
+let _chTimingFn: ((durationMs: number) => void) | null = null;
+
+export function setChTimingFn(fn: (durationMs: number) => void) {
+	_chTimingFn = fn;
+}
+
+async function withChTiming<T>(operation: () => Promise<T>): Promise<T> {
+	const timingFn = _chTimingFn;
+	if (!timingFn) {
+		return operation();
+	}
+	const startedAt = performance.now();
+	try {
+		return await operation();
+	} finally {
+		timingFn(performance.now() - startedAt);
+	}
+}
 
 const RETRIABLE_ERROR_CODES = new Set([
 	// undici (Node's HTTP client used by @clickhouse/client)
@@ -170,38 +132,44 @@ export const clickHouse: ClickHouseClient = Object.assign(
 		insert: (
 			...args: Parameters<ClickHouseClient["insert"]>
 		): ReturnType<ClickHouseClient["insert"]> =>
-			withInsertRetry(() => baseClient.insert(...args)) as ReturnType<
-				ClickHouseClient["insert"]
-			>,
+			withChTiming(() =>
+				withInsertRetry(() => baseClient.insert(...args))
+			) as ReturnType<ClickHouseClient["insert"]>,
+		query: (
+			...args: Parameters<ClickHouseClient["query"]>
+		): ReturnType<ClickHouseClient["query"]> =>
+			withChTiming(() => baseClient.query(...args)),
+		command: (
+			...args: Parameters<ClickHouseClient["command"]>
+		): ReturnType<ClickHouseClient["command"]> =>
+			withChTiming(() => baseClient.command(...args)),
 	}
 );
 
 export interface ChQueryOptions {
+	abort_signal?: AbortSignal;
 	clickhouse_settings?: Record<string, string | number>;
 	readonly?: boolean;
 }
 
-async function chQueryWithMeta<T extends Record<string, any>>(
+async function chQueryWithMeta<T>(
 	query: string,
 	params?: Record<string, unknown>,
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
-	const json = await traced("ch.query", async () => {
-		const settings: Record<string, string | number> = {
-			...(options?.readonly && { readonly: "1" }),
-			...options?.clickhouse_settings,
-		};
-		const res = await clickHouse.query({
-			query,
-			query_params: params,
-			...(Object.keys(settings).length > 0 && {
-				clickhouse_settings: settings,
-			}),
-		});
-		const data = await res.json<T>();
-		reportChMetrics(res.response_headers, res.query_id);
-		return data;
+	const settings: Record<string, string | number> = options?.readonly
+		? { ...(options.clickhouse_settings ?? {}), readonly: "2" }
+		: (options?.clickhouse_settings ?? {});
+	assertCacheCompatibleSettings(settings);
+	const res = await clickHouse.query({
+		query,
+		query_params: params,
+		...(options?.abort_signal && { abort_signal: options.abort_signal }),
+		...(Object.keys(settings).length > 0 && {
+			clickhouse_settings: settings,
+		}),
 	});
+	const json = await res.json<T>();
 
 	const intColumns = new Set(
 		(json.meta ?? []).filter((m) => m.type.includes("Int")).map((m) => m.name)
@@ -213,7 +181,7 @@ async function chQueryWithMeta<T extends Record<string, any>>(
 	return {
 		...json,
 		data: json.data.map((item) => {
-			const out: Record<string, unknown> = { ...item };
+			const out = { ...item } as Record<string, unknown>;
 			for (const key of intColumns) {
 				const v = out[key];
 				if (v !== null && v !== undefined && v !== "") {
@@ -225,7 +193,7 @@ async function chQueryWithMeta<T extends Record<string, any>>(
 	};
 }
 
-export function chQuery<T extends Record<string, any>>(
+export function chQuery<T>(
 	query: string,
 	params?: Record<string, unknown>,
 	options?: ChQueryOptions
@@ -237,12 +205,9 @@ export async function chCommand(
 	query: string,
 	params?: Record<string, unknown>
 ): Promise<void> {
-	await traced("ch.command", async () => {
-		const res = await clickHouse.command({
-			query,
-			query_params: params,
-			clickhouse_settings: { wait_end_of_query: 1 },
-		});
-		reportChMetrics(res.response_headers, res.query_id);
+	await clickHouse.command({
+		query,
+		query_params: params,
+		clickhouse_settings: { wait_end_of_query: 1 },
 	});
 }

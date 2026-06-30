@@ -102,6 +102,7 @@ export function createDrizzleCache({
 			);
 		} catch (error) {
 			debugLog("error", `Invalidation tracking failed for key ${key}`, error);
+			throw error;
 		}
 	}
 
@@ -144,10 +145,14 @@ export function createDrizzleCache({
 
 			const promise = (async () => {
 				const result = await queryFn();
-				await setCacheWithTtl(cacheKey, result, ttl);
 
-				if (autoInvalidate) {
-					await setupInvalidationTracking(key, tables, tag);
+				try {
+					if (autoInvalidate) {
+						await setupInvalidationTracking(key, tables, tag);
+					}
+					await setCacheWithTtl(cacheKey, result, ttl);
+				} catch (error) {
+					debugLog("error", `Cache write skipped for ${cacheKey}`, error);
 				}
 
 				const duration = Date.now() - missStart;

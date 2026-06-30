@@ -58,7 +58,7 @@ A comprehensive analytics and data management platform built with Next.js, TypeS
 
 ### Prerequisites
 
-- Bun 1.3.4+
+- Bun 1.3.14+
 - Node.js 20+
 
 ## 🏠 Self-Hosting

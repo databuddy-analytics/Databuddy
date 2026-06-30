@@ -3,6 +3,7 @@ import { Expressions } from "../expressions";
 import type { SimpleQueryConfig } from "../types";
 
 export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
+	// SQL output only; parseReferrers plugin adds referrer/source/domain/referrer_type/parsed_referrer at runtime.
 	top_referrers: {
 		meta: {
 			title: "Top Referrers",
@@ -16,30 +17,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 					type: "string",
 					label: "Referrer Domain",
 					description: "The referring domain or website",
-				},
-				{
-					name: "referrer",
-					type: "string",
-					label: "Referrer",
-					description: "Canonical raw referrer value",
-				},
-				{
-					name: "source",
-					type: "string",
-					label: "Source",
-					description: "Alias for the canonical raw referrer value",
-				},
-				{
-					name: "domain",
-					type: "string",
-					label: "Domain",
-					description: "Parsed referring domain",
-				},
-				{
-					name: "referrer_type",
-					type: "string",
-					label: "Referrer Type",
-					description: "Parsed source category",
 				},
 				{
 					name: "pageviews",
@@ -69,9 +46,9 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			`${Expressions.referrer.normalized} as name`,
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: [
 			"referrer != ''",
 			"referrer IS NOT NULL",
@@ -146,9 +123,9 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"utm_source as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["utm_source != ''", "event_name = 'screen_view'"],
 		groupBy: ["utm_source"],
 		orderBy: "visitors DESC",
@@ -173,13 +150,19 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	utm_mediums: {
+		meta: {
+			description:
+				"Traffic breakdown by UTM medium parameters (e.g. cpc, email, social).",
+			category: "Acquisition",
+			tags: ["utm", "medium", "acquisition"],
+		},
 		table: Analytics.events,
 		fields: [
 			"utm_medium as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["utm_medium != ''", "event_name = 'screen_view'"],
 		groupBy: ["utm_medium"],
 		orderBy: "visitors DESC",
@@ -245,9 +228,9 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"utm_campaign as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["utm_campaign != ''", "event_name = 'screen_view'"],
 		groupBy: ["utm_campaign"],
 		orderBy: "visitors DESC",
@@ -313,9 +296,9 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"utm_term as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: [
 			"utm_term != ''",
 			"utm_term IS NOT NULL",
@@ -383,9 +366,9 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"utm_content as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: [
 			"utm_content != ''",
 			"utm_content IS NOT NULL",
@@ -411,6 +394,7 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 	},
 
+	// SQL output only; parseReferrers plugin adds referrer/source/domain/referrer_type/parsed_referrer at runtime.
 	traffic_sources: {
 		meta: {
 			title: "Traffic Sources",
@@ -424,30 +408,6 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 					type: "string",
 					label: "Source",
 					description: "The traffic source name or referrer domain",
-				},
-				{
-					name: "referrer",
-					type: "string",
-					label: "Referrer",
-					description: "Canonical raw referrer value",
-				},
-				{
-					name: "source",
-					type: "string",
-					label: "Source",
-					description: "Alias for the canonical raw referrer value",
-				},
-				{
-					name: "domain",
-					type: "string",
-					label: "Domain",
-					description: "Parsed referring domain",
-				},
-				{
-					name: "referrer_type",
-					type: "string",
-					label: "Referrer Type",
-					description: "Parsed source category",
 				},
 				{
 					name: "pageviews",
@@ -477,9 +437,9 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			`${Expressions.referrer.sourceWithDirect()} as name`,
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["event_name = 'screen_view'"],
 		groupBy: ["name"],
 		orderBy: "visitors DESC",

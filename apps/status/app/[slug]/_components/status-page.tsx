@@ -2,22 +2,18 @@ import type { ReactNode } from "react";
 import type { AppRouter } from "@databuddy/rpc";
 import type { RouterClient } from "@orpc/server";
 import { Badge, cn, StatusDot } from "@databuddy/ui";
-import { Avatar } from "@databuddy/ui/client";
 import {
 	BoltLightningIcon,
+	CaretDownIcon,
 	CheckCircleIcon,
 	CircleInfoIcon,
 	ClockRotateIcon,
-	ShieldCheckIcon,
-	WarningCircleIcon,
-	XCircleIcon,
 } from "@databuddy/ui/icons";
-import { MonitorRowInteractive } from "./monitor-row-interactive";
+import { MonitorCardInteractive } from "./monitor-card-interactive";
 
 type StatusPageData = NonNullable<
 	Awaited<ReturnType<RouterClient<AppRouter>["statusPage"]["getBySlug"]>>
 >;
-type Monitor = StatusPageData["monitors"][number];
 type Incident = StatusPageData["incidents"][number];
 
 function StatusRoot({
@@ -28,7 +24,7 @@ function StatusRoot({
 	className?: string;
 }) {
 	return (
-		<div className={cn("space-y-10", className)} data-slot="status-page">
+		<div className={cn("space-y-12", className)} data-slot="status-page">
 			{children}
 		</div>
 	);
@@ -36,85 +32,102 @@ function StatusRoot({
 
 const STATUS_CONFIG = {
 	operational: {
-		label: "All Systems Operational",
-		className: "text-emerald-600 dark:text-emerald-400",
-		Icon: ShieldCheckIcon,
-		pulse: true,
+		title: "We're Fully Operational",
+		shortLabel: "Operational",
+		description: "We're not aware of any issues affecting these services.",
+		sectionClass:
+			"border-[#00cc414d] bg-[#e5fbeb] dark:border-[#3f8f55] dark:bg-[#17291d]",
+		headerClass:
+			"bg-[#00bd3c] text-white dark:bg-[#1f5f33] dark:text-[#d7ffe4]",
+		lineClass: "bg-[#28e163] dark:bg-[#4da868]",
+		textClass: "text-[#5b8368] dark:text-[#8bcf9d]",
 	},
 	degraded: {
-		label: "Partial System Outage",
-		className: "text-amber-600 dark:text-amber-400",
-		Icon: WarningCircleIcon,
-		pulse: false,
+		title: "Some Systems Degraded",
+		shortLabel: "Degraded",
+		description:
+			"One or more services are degraded. We're tracking the impact.",
+		sectionClass:
+			"border-[#cc99004d] bg-[#fff9e7] dark:border-[#a8822e] dark:bg-[#2f2918]",
+		headerClass:
+			"bg-[#ffbe3d] text-[#332600] dark:bg-[#4f3d17] dark:text-[#ffe7ad]",
+		lineClass: "bg-[#ffbe3d] dark:bg-[#f0ba4d]",
+		textClass: "text-[#7f725e] dark:text-[#f0cf7a]",
 	},
 	outage: {
-		label: "Major System Outage",
-		className: "text-red-600 dark:text-red-400",
-		Icon: XCircleIcon,
-		pulse: false,
+		title: "Service Disruption",
+		shortLabel: "Outage",
+		description: "An outage is affecting one or more services.",
+		sectionClass:
+			"border-[#cc00034d] bg-[#ffe8e8] dark:border-[#b85563] dark:bg-[#321c20]",
+		headerClass:
+			"bg-[#e1282a] text-white dark:bg-[#622630] dark:text-[#ffe1e5]",
+		lineClass: "bg-[#e1282a] dark:bg-[#cf6675]",
+		textClass: "text-[#915a5a] dark:text-[#ee9b9b]",
 	},
 } as const;
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+	return `${count} ${count === 1 ? singular : plural}`;
+}
+
 interface StatusHeaderProps {
-	children?: ReactNode;
+	activeIncidentCount: number;
 	className?: string;
 	description?: string;
-	logoUrl?: string | null;
-	name: string;
 	status: "operational" | "degraded" | "outage";
-	websiteUrl?: string | null;
 }
 
 function StatusHeader({
-	name,
+	activeIncidentCount,
 	description,
-	logoUrl,
-	websiteUrl,
 	status,
-	children,
 	className,
 }: StatusHeaderProps) {
 	const config = STATUS_CONFIG[status];
-	const heading = (
-		<h1 className="font-semibold text-[22px] tracking-tight">{name}</h1>
-	);
+	const message =
+		activeIncidentCount > 0
+			? `${pluralize(activeIncidentCount, "active incident")} currently need${activeIncidentCount === 1 ? "s" : ""} attention.`
+			: description?.trim() || config.description;
 
 	return (
-		<div className={cn("space-y-4", className)} data-slot="status-header">
-			<div className="flex items-center gap-3.5">
-				{logoUrl ? (
-					<Avatar alt={name} className="rounded" size="lg" src={logoUrl} />
-				) : null}
-				<div className="min-w-0 flex-1">
-					{websiteUrl ? (
-						<a
-							className="transition-opacity hover:opacity-80"
-							href={websiteUrl}
-							rel="noopener noreferrer"
-							target="_blank"
-						>
-							{heading}
-						</a>
-					) : (
-						heading
+		<div className={className} data-slot="status-header">
+			<div
+				className={cn("overflow-hidden rounded-xl border", config.sectionClass)}
+				data-slot="status-section"
+			>
+				<div
+					className={cn(
+						"relative z-[1] flex w-full select-none items-start gap-2 overflow-hidden rounded-t-xl rounded-b-none p-3 sm:p-4",
+						config.headerClass
 					)}
-					{description && (
-						<p className="mt-0.5 text-[13px] text-muted-foreground">
-							{description}
-						</p>
-					)}
+				>
+					<div className="shrink-0 p-1">
+						<CaretDownIcon className="size-3" />
+					</div>
+					<div className="flex min-w-0 flex-1 items-baseline gap-3">
+						<span className="min-w-0 flex-1 truncate font-semibold text-sm leading-[1.2] sm:text-base">
+							{config.title}
+						</span>
+						<span className="shrink-0 pr-1 font-medium text-xs leading-[1.2] opacity-85 sm:text-sm">
+							{config.shortLabel}
+						</span>
+					</div>
 				</div>
-				{children}
-			</div>
 
-			<div className={cn("flex items-center gap-2.5", config.className)}>
-				<div className="relative flex shrink-0 items-center justify-center">
-					{config.pulse ? (
-						<span className="absolute size-6 animate-ping rounded-full bg-success opacity-20" />
-					) : null}
-					<config.Icon className="relative size-6 shrink-0" />
+				<div className="flex gap-3 px-4 py-3 sm:py-5 sm:pl-[25px]">
+					<div className="flex shrink-0 items-stretch">
+						<div className={cn("w-0.5 rounded-full", config.lineClass)} />
+					</div>
+					<div
+						className={cn(
+							"py-1 font-medium text-sm leading-[1.2] sm:text-base",
+							config.textClass
+						)}
+					>
+						{message}
+					</div>
 				</div>
-				<span className="font-medium text-[15px]">{config.label}</span>
 			</div>
 		</div>
 	);
@@ -128,83 +141,11 @@ function StatusMonitorList({
 	className?: string;
 }) {
 	return (
-		<div className={cn("space-y-6", className)} data-slot="status-monitors">
+		<div
+			className={cn("flex flex-col gap-5", className)}
+			data-slot="status-monitors"
+		>
 			{children}
-		</div>
-	);
-}
-
-const MONITOR_DOT_COLOR = {
-	up: "success",
-	degraded: "warning",
-	down: "destructive",
-	unknown: "muted",
-} as const;
-
-function uptimeColor(pct: number): string {
-	if (pct >= 99.9) {
-		return "text-emerald-600 dark:text-emerald-400";
-	}
-	if (pct >= 99) {
-		return "text-amber-600 dark:text-amber-400";
-	}
-	return "text-red-600 dark:text-red-400";
-}
-
-function StatusMonitorCard({
-	id,
-	anchorId,
-	name,
-	domain,
-	currentStatus,
-	uptimePercentage,
-	dailyData,
-	days,
-}: {
-	anchorId: string;
-	currentStatus: Monitor["currentStatus"];
-	dailyData: Monitor["dailyData"];
-	days: number;
-	domain?: string;
-	id: string;
-	name: string;
-	uptimePercentage?: number;
-}) {
-	const hasLatencyData = dailyData.some(
-		(d) => d.avg_response_time != null || d.p95_response_time != null
-	);
-
-	return (
-		<div className="scroll-mt-20" id={anchorId}>
-			<div className="flex items-center justify-between pb-2.5">
-				<div className="flex items-center gap-2.5 overflow-hidden">
-					<StatusDot color={MONITOR_DOT_COLOR[currentStatus]} size="md" />
-					<span className="truncate font-medium text-[15px]">{name}</span>
-					{domain && (
-						<span className="hidden truncate text-[13px] text-muted-foreground sm:inline">
-							{domain}
-						</span>
-					)}
-				</div>
-				{uptimePercentage !== undefined && (
-					<span
-						className={cn(
-							"shrink-0 font-mono font-semibold text-[15px] tabular-nums",
-							uptimeColor(uptimePercentage)
-						)}
-					>
-						{uptimePercentage.toFixed(2)}%
-					</span>
-				)}
-			</div>
-
-			<MonitorRowInteractive
-				dailyData={dailyData}
-				days={days}
-				hasLatencyData={hasLatencyData}
-				hasUptimeData={uptimePercentage !== undefined}
-				id={id}
-			/>
 		</div>
 	);
 }
@@ -388,12 +329,12 @@ export const Status: typeof StatusRoot & {
 	Footer: typeof StatusFooter;
 	Header: typeof StatusHeader;
 	IncidentList: typeof StatusIncidentList;
-	MonitorCard: typeof StatusMonitorCard;
+	MonitorCard: typeof MonitorCardInteractive;
 	MonitorList: typeof StatusMonitorList;
 } = Object.assign(StatusRoot, {
 	Footer: StatusFooter,
 	Header: StatusHeader,
 	IncidentList: StatusIncidentList,
-	MonitorCard: StatusMonitorCard,
+	MonitorCard: MonitorCardInteractive,
 	MonitorList: StatusMonitorList,
 });

@@ -1,4 +1,13 @@
-import { and, db, desc, eq, gt, lt, or } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	gt,
+	lt,
+	normalizeEmailNotificationSettings,
+	or,
+} from "@databuddy/db";
 import { invitation, organization } from "@databuddy/db/schema";
 import {
 	clearExpiredInvitationsSchema,
@@ -7,14 +16,18 @@ import {
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { getAutumn } from "../lib/autumn-client";
-import { logger, record } from "../lib/logger";
+import { logger } from "../lib/logger";
+import { setTrackProperties } from "../middleware/track-mutation";
 import {
 	protectedProcedure,
 	publicProcedure,
 	sessionProcedure,
 	trackedProcedure,
 } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import {
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 
 const updateAvatarSeedSchema = z.object({
 	organizationId: z.string().min(1, "Organization ID is required"),
@@ -22,6 +35,50 @@ const updateAvatarSeedSchema = z.object({
 });
 
 const orgOutputSchema = z.record(z.string(), z.unknown());
+
+const emailAlertModeSchema = z.enum([
+	"off",
+	"critical_only",
+	"warnings_and_critical",
+]);
+const trackingAlertBlockReasonSchema = z.enum([
+	"origin_not_authorized",
+	"origin_missing",
+	"ip_not_authorized",
+]);
+const broadWildcardOriginRegex = /^\*\.?[^.]+$/;
+const ignoredOriginSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(255)
+	.transform((value) => value.toLowerCase())
+	.refine((value) => value !== "*" && !broadWildcardOriginRegex.test(value), {
+		message: "Use a specific host or wildcard like *.example.com.",
+	});
+
+const emailNotificationSettingsSchema = z.object({
+	anomalies: z.object({
+		customEventEmails: z.boolean(),
+		errorEmails: z.boolean(),
+		trafficEmails: z.boolean(),
+	}),
+	billing: z.object({ usageWarnings: z.boolean() }),
+	trackingHealth: z.object({
+		cooldownMinutes: z
+			.number()
+			.int()
+			.min(15)
+			.max(7 * 24 * 60),
+		ignoredOrigins: z.array(ignoredOriginSchema).max(100),
+		ignoredReasons: z.array(trackingAlertBlockReasonSchema).max(10),
+		mode: emailAlertModeSchema,
+	}),
+	uptime: z.object({
+		downEmails: z.boolean(),
+		recoveryEmails: z.boolean(),
+	}),
+});
 
 export const organizationsRouter = {
 	updateAvatarSeed: trackedProcedure
@@ -59,6 +116,88 @@ export const organizationsRouter = {
 				.returning();
 
 			return { organization: updatedOrganization };
+		}),
+
+	getEmailNotificationSettings: protectedProcedure
+		.route({
+			description: "Returns email notification settings for an organization.",
+			method: "POST",
+			path: "/organizations/getEmailNotificationSettings",
+			summary: "Get email notification settings",
+			tags: ["Organizations"],
+		})
+		.input(z.object({ organizationId: z.string().optional() }).default({}))
+		.output(emailNotificationSettingsSchema)
+		.handler(async ({ input, context }) => {
+			const organizationId = input.organizationId ?? context.organizationId;
+			if (!organizationId) {
+				throw rpcError.badRequest("Organization ID is required");
+			}
+
+			await withWorkspace(context, {
+				organizationId,
+				resource: "organization",
+				permissions: ["read"],
+			});
+
+			const row = await db.query.organization.findFirst({
+				where: { id: organizationId },
+				columns: { emailNotifications: true },
+			});
+
+			if (!row) {
+				throw rpcError.notFound("Organization", organizationId);
+			}
+
+			return normalizeEmailNotificationSettings(row.emailNotifications);
+		}),
+
+	updateEmailNotificationSettings: trackedProcedure
+		.route({
+			description:
+				"Updates email notification settings for an organization. Requires org update permission.",
+			method: "POST",
+			path: "/organizations/updateEmailNotificationSettings",
+			summary: "Update email notification settings",
+			tags: ["Organizations"],
+		})
+		.input(
+			z.object({
+				organizationId: z.string().optional(),
+				settings: emailNotificationSettingsSchema,
+			})
+		)
+		.output(emailNotificationSettingsSchema)
+		.handler(async ({ input, context }) => {
+			const organizationId = input.organizationId ?? context.organizationId;
+			if (!organizationId) {
+				throw rpcError.badRequest("Organization ID is required");
+			}
+
+			await withWorkspace(context, {
+				organizationId,
+				resource: "organization",
+				permissions: ["update"],
+			});
+
+			setTrackProperties({
+				tracking_health_mode: input.settings.trackingHealth.mode,
+				ignored_origin_count:
+					input.settings.trackingHealth.ignoredOrigins.length,
+			});
+
+			const settings = emailNotificationSettingsSchema.parse(input.settings);
+			const [row] = await db
+				.update(organization)
+				.set({ emailNotifications: settings })
+				.where(eq(organization.id, organizationId))
+				.returning({ emailNotifications: organization.emailNotifications });
+
+			if (!row) {
+				throw rpcError.notFound("Organization", organizationId);
+			}
+
+			return normalizeEmailNotificationSettings(row.emailNotifications);
 		}),
 
 	getPendingInvitations: protectedProcedure
@@ -223,9 +362,10 @@ export const organizationsRouter = {
 			const canUserUpgrade = billing?.canUserUpgrade ?? true;
 
 			try {
-				const response = await record("autumn.check", () =>
-					getAutumn().check({ customerId, featureId: "events" })
-				);
+				const response = await getAutumn().check({
+					customerId,
+					featureId: "events",
+				});
 
 				const b = response.balance;
 				const unlimited = b?.unlimited ?? false;
@@ -277,10 +417,9 @@ export const organizationsRouter = {
 			let activeOrgId: string | null | undefined;
 
 			if (input?.websiteId) {
-				await withWorkspace(context, {
+				await withPublicWorkspace(context, {
 					websiteId: input.websiteId,
 					permissions: ["read"],
-					allowPublicAccess: true,
 				});
 				const billing = await context.getBilling();
 				if (billing) {
@@ -322,9 +461,9 @@ export const organizationsRouter = {
 			}
 
 			try {
-				const customer = await record("autumn.getOrCreate", () =>
-					getAutumn().customers.getOrCreate({ customerId })
-				);
+				const customer = await getAutumn().customers.getOrCreate({
+					customerId,
+				});
 
 				const subs = customer.subscriptions;
 				const activeSub =

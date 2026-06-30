@@ -1,4 +1,6 @@
 export interface DatabuddyConfig {
+	/** Whether Databuddy anonymizes visitor IDs before storage. Default: true. */
+	anonymizeVisitorIds?: boolean | "auto";
 	/** Event ingestion endpoint. Default: `'https://basket.databuddy.cc'` */
 	apiUrl?: string;
 	/** Events per batch before sending (default: 10, max: 50). Only used when `enableBatching` is true. */

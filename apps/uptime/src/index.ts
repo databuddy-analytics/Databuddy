@@ -1,6 +1,7 @@
 import { shutdownPostgres } from "@databuddy/db";
 import { closeUptimeQueue } from "@databuddy/redis";
-import { resolveKafkaSsl } from "@databuddy/shared/kafka-tls";
+import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
+import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import { Elysia } from "elysia";
 import { Effect } from "effect";
 import { initLogger, log } from "evlog";
@@ -20,9 +21,10 @@ initLogger({
 	env: {
 		service: "uptime",
 		environment: UPTIME_ENV.environment,
-		region: process.env.UNKEY_REGION,
-		commitHash: process.env.UNKEY_GIT_COMMIT_SHA,
+		region: process.env.RAILWAY_REPLICA_REGION,
+		commitHash: process.env.RAILWAY_GIT_COMMIT_SHA,
 	},
+	redact: databuddyEvlogRedaction,
 	drain: uptimeLoggerDrain,
 	sampling: {},
 });
@@ -104,7 +106,7 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 type ProbeResult =
 	| { status: "ok"; latency_ms: number }
-	| { status: "error"; latency_ms: number; error: string };
+	| { status: "error"; latency_ms: number; code: "UNAVAILABLE" };
 
 const probe = (_name: string, fn: () => Promise<void>) =>
 	Effect.gen(function* () {
@@ -121,10 +123,16 @@ const probe = (_name: string, fn: () => Promise<void>) =>
 			),
 			Effect.catch(
 				(err): Effect.Effect<ProbeResult> =>
-					Effect.succeed({
-						status: "error",
-						latency_ms: Math.round(performance.now() - start),
-						error: err instanceof Error ? err.message : "unknown",
+					Effect.sync(() => {
+						log.error({
+							health_probe: _name,
+							error_message: err instanceof Error ? err.message : String(err),
+						});
+						return {
+							status: "error",
+							latency_ms: Math.round(performance.now() - start),
+							code: "UNAVAILABLE",
+						};
 					})
 			)
 		);
@@ -142,29 +150,26 @@ const healthCheck = Effect.gen(function* () {
 		[
 			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
 			probe("bullmqRedis", async () => {
-				const client = await getUptimeQueue().client;
-				await client.ping();
+				await getUptimeQueue().count();
 			}),
 			probe("redpanda", async () => {
 				const broker = process.env.REDPANDA_BROKER;
 				if (!broker) {
 					throw new Error("not configured");
 				}
-				const hasCreds = Boolean(
-					process.env.REDPANDA_USER && process.env.REDPANDA_PASSWORD
-				);
 				const kafka = new Kafka({
 					clientId: "health",
 					brokers: [broker],
 					connectionTimeout: 5000,
-					...(hasCreds && {
-						sasl: {
-							mechanism: "scram-sha-256",
-							username: process.env.REDPANDA_USER as string,
-							password: process.env.REDPANDA_PASSWORD as string,
-						},
-						ssl: resolveKafkaSsl(true),
-					}),
+					...(process.env.REDPANDA_USER &&
+						process.env.REDPANDA_PASSWORD && {
+							sasl: {
+								mechanism: "scram-sha-256",
+								username: process.env.REDPANDA_USER,
+								password: process.env.REDPANDA_PASSWORD,
+							},
+							ssl: process.env.REDPANDA_SSL === "true",
+						}),
 				});
 				const admin = kafka.admin();
 				try {
@@ -191,10 +196,23 @@ const app = new Elysia()
 		})
 	)
 	.onError(function handleError({ error, code }) {
-		captureError(error, {
+		const { payload, status } = buildHttpErrorResponse({ code, error });
+		const event: Record<string, string | number | boolean> = {
 			error_step: "elysia",
-			elysia_code: String(code),
-		});
+			status,
+		};
+		if (code != null) {
+			event.elysia_code = String(code);
+		}
+		if (status >= 500) {
+			captureError(error, event);
+		} else {
+			log.warn({
+				...event,
+				error_message: error instanceof Error ? error.message : String(error),
+			});
+		}
+		return Response.json(payload, { status });
 	})
 	.get("/health/status", async () => {
 		const result = await Effect.runPromise(healthCheck);

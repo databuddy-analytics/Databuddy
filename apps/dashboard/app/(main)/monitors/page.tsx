@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { MonitorRow } from "@/components/monitors/monitor-row";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
@@ -23,6 +24,17 @@ import {
 } from "./_components/use-filtered-monitors";
 
 export default function MonitorsPage() {
+	return (
+		<Suspense fallback={null}>
+			<MonitorsPageContent />
+		</Suspense>
+	);
+}
+
+function MonitorsPageContent() {
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const [sort, setSort] = useState<SortOption>("newest");
@@ -43,10 +55,19 @@ export default function MonitorsPage() {
 		...orpc.uptime.listSchedules.queryOptions({ input: {} }),
 	});
 
-	const handleCreate = () => {
+	const clearCommandParam = useCallback(() => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
+
+	const handleCreate = useCallback(() => {
 		setEditingSchedule(null);
 		setIsSheetOpen(true);
-	};
+	}, []);
 
 	const handleEdit = (schedule: Monitor) => {
 		setEditingSchedule({
@@ -69,6 +90,14 @@ export default function MonitorsPage() {
 		setIsSheetOpen(false);
 		setEditingSchedule(null);
 	};
+
+	useEffect(() => {
+		if (searchParams.get("command") !== "create-monitor") {
+			return;
+		}
+		handleCreate();
+		clearCommandParam();
+	}, [clearCommandParam, handleCreate, searchParams]);
 
 	const monitors = (schedulesQuery.data ?? []) as Monitor[];
 	const filtered = useFilteredMonitors(monitors, search, sort, statusFilter);

@@ -6,7 +6,12 @@ import {
 } from "@databuddy/db/clickhouse";
 import { tool } from "ai";
 import { z } from "zod";
-import { executeTimedQuery, getAppContext, type QueryResult } from "./utils";
+import {
+	executeTimedQuery,
+	getAppContext,
+	type QueryResult,
+	resolveToolWebsite,
+} from "./utils";
 
 const MAX_MODEL_ROWS = 50;
 
@@ -27,12 +32,14 @@ export async function executeAgentSqlForWebsite({
 	sql,
 	params,
 	toolName = "Execute SQL Tool",
+	abortSignal,
 }: {
 	websiteId: string;
 	websiteDomain?: string;
 	sql: string;
 	params?: Record<string, unknown>;
 	toolName?: string;
+	abortSignal?: AbortSignal;
 }): Promise<QueryResult> {
 	const validation = validateAgentSQL(sql);
 	if (!validation.valid) {
@@ -60,7 +67,9 @@ export async function executeAgentSqlForWebsite({
 			max_result_rows: 100_000,
 			max_result_bytes: 50_000_000,
 			result_overflow_mode: "break",
-		}
+			use_query_cache: 0,
+		},
+		abortSignal
 	);
 
 	return result.data.length > MAX_MODEL_ROWS
@@ -69,21 +78,19 @@ export async function executeAgentSqlForWebsite({
 }
 
 export const executeSqlQueryTool = tool({
-	description: `Use only for explicit analytics questions that cannot be answered by get_data query builders, such as session-level joins, ordered path analysis, or cross-table correlations. Do not use for greetings, thanks, acknowledgments, short reactions, clarification-only replies, frustration, or meta-conversation about the assistant/chat. Read-only ClickHouse SQL (SELECT/WITH only). Must use {paramName:Type} placeholders (no string interpolation) and filter by client_id = {websiteId:String} AND-ed at the top level of every WHERE clause. The current website is bound server-side; tool arguments named websiteId or websiteDomain are ignored. UNION, INTERSECT, EXCEPT, subqueries, and comma-joins are not allowed — use CTEs (WITH ... AS (...)) instead.
-
-Canonical analytics.events schema: client_id, anonymous_id, session_id, time, path, referrer, browser_name, os_name, device_type, country, region, city, utm_source, utm_medium, utm_campaign, utm_term, utm_content, load_time, time_on_page, scroll_depth, properties, event_name.
-
-Critical schema footguns: website id column is client_id (not website_id); timestamp is time (not created_at); page URL path is path (not page_path); event discriminator is event_name (not event_type); pageviews are event_name = 'screen_view' (never 'pageview').
-
-Other tables: analytics.error_spans (client_id, session_id, timestamp, path, message, filename, lineno, stack, error_type), analytics.web_vitals_spans (client_id, timestamp, path, metric_name FCP/LCP/CLS/INP/TTFB/FPS, metric_value), analytics.outgoing_links (client_id, timestamp, path, href, text). Custom events are in analytics.custom_events and are easy to query incorrectly — use get_data custom_events_* builders instead. Prefer get_data query builders for anything they cover.
-
-Aggregate function preferences: use quantileTDigest(p)(col) not quantile(p)(col) — the default quantile uses reservoir sampling and is ~10% off at p99. Use uniqCombined64(col) instead of uniqExact(col) for visitor/session/path distinct counts (same ~0.3% error as default uniq, ~6× less memory than uniqExact). Reserve uniqExact for cases where an exact count is required.`,
+	description: `Read-only ClickHouse SQL for session-level joins, path analysis, or cross-table correlations the get_data builders can't express. SELECT/WITH only; use CTEs instead of subqueries/UNION; {paramName:Type} placeholders only. Every WHERE needs the per-table tenant filter on the correct column — call describe_schema when in doubt; the validator rejects wrong-column queries (it does not silently return zero rows). Footguns the validator can't catch for you: analytics.events uses "time" as its timestamp column ("timestamp" elsewhere); pageviews are event_name = 'screen_view' (never 'pageview'); use uniq() not COUNT(DISTINCT); quantileTDigest on a Decimal column needs toFloat64() cast.`,
 	strict: true,
 	inputSchema: z.object({
 		sql: z
 			.string()
 			.describe(
 				"Read-only ClickHouse SELECT/WITH query for an explicit analytics request. Must include client_id = {websiteId:String} AND-ed at the top level of every SELECT's WHERE."
+			),
+		websiteId: z
+			.string()
+			.optional()
+			.describe(
+				"Target website id. Omit to use the workspace default. Get ids from list_websites. The {websiteId:String} placeholder is bound to this site server-side."
 			),
 		params: z
 			.record(z.string(), z.unknown())
@@ -92,13 +99,15 @@ Aggregate function preferences: use quantileTDigest(p)(col) not quantile(p)(col)
 				"Optional typed placeholder values. websiteId and websiteDomain are bound by the server and cannot be overridden."
 			),
 	}),
-	execute: ({ sql, params }, options): Promise<QueryResult> => {
+	execute: ({ sql, websiteId, params }, options): Promise<QueryResult> => {
 		const ctx = getAppContext(options);
+		const resolved = resolveToolWebsite(ctx, websiteId);
 		return executeAgentSqlForWebsite({
-			websiteId: ctx.websiteId,
-			websiteDomain: ctx.websiteDomain,
+			websiteId: resolved.websiteId,
+			websiteDomain: resolved.domain,
 			sql,
 			params,
+			abortSignal: options.abortSignal,
 		});
 	},
 });

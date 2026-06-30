@@ -66,7 +66,17 @@ const MODELS: Record<string, ModelEntry> = {
 		outputPerMToken: 4.4,
 		tags: ["mid", "openai", "reasoning"],
 	},
+	"openai/gpt-oss-120b": {
+		inputPerMToken: 0.1,
+		outputPerMToken: 0.5,
+		tags: ["budget", "openai", "open-weight"],
+	},
 
+	"google/gemini-2.5-flash-lite": {
+		inputPerMToken: 0.1,
+		outputPerMToken: 0.4,
+		tags: ["budget", "google"],
+	},
 	"google/gemini-3.1-pro-preview": {
 		inputPerMToken: 2.0,
 		outputPerMToken: 12.0,

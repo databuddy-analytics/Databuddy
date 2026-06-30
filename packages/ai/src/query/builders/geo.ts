@@ -44,9 +44,9 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"country as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["country != ''", "event_name = 'screen_view'"],
 		groupBy: ["country"],
 		orderBy: "visitors DESC",
@@ -69,6 +69,12 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 					type: "string",
 					label: "Region/State",
 					description: "Region or state name",
+				},
+				{
+					name: "country",
+					type: "string",
+					label: "Country",
+					description: "Country containing this region",
 				},
 				{
 					name: "pageviews",
@@ -99,9 +105,9 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 			"region as name",
 			"country",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["region != ''", "event_name = 'screen_view'"],
 		groupBy: ["region", "country"],
 		orderBy: "visitors DESC",
@@ -112,13 +118,18 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	timezone: {
+		meta: {
+			description: "Visitor distribution by timezone.",
+			category: "Geography",
+			tags: ["timezone", "geography", "audience"],
+		},
 		table: Analytics.events,
 		fields: [
 			"timezone as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["timezone != ''", "event_name = 'screen_view'"],
 		groupBy: ["timezone"],
 		orderBy: "visitors DESC",
@@ -128,13 +139,18 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	language: {
+		meta: {
+			description: "Visitor distribution by browser language setting.",
+			category: "Audience",
+			tags: ["language", "audience", "demographics"],
+		},
 		table: Analytics.events,
 		fields: [
 			"language as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["language != ''", "event_name = 'screen_view'"],
 		groupBy: ["language"],
 		orderBy: "visitors DESC",
@@ -156,6 +172,12 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 					type: "string",
 					label: "City",
 					description: "City name",
+				},
+				{
+					name: "country",
+					type: "string",
+					label: "Country",
+					description: "Country containing this city",
 				},
 				{
 					name: "pageviews",
@@ -186,9 +208,9 @@ export const GeoBuilders: Record<string, SimpleQueryConfig> = {
 			"city as name",
 			"country",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["city != ''", "event_name = 'screen_view'"],
 		groupBy: ["city", "country"],
 		orderBy: "visitors DESC",

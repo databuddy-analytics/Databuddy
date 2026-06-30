@@ -11,6 +11,11 @@ import {
 } from "@databuddy/ui/icons";
 import type { ComponentType, SVGProps } from "react";
 import { useCallback, useRef, useState } from "react";
+import {
+	docsNavControl,
+	docsNavMobileItem,
+	docsNavTopLink,
+} from "@/components/docs-nav-styles";
 import { cn } from "@/lib/utils";
 import { NavLink } from "./nav-link";
 
@@ -109,9 +114,10 @@ export function NavbarFeaturesMenu({
 				aria-expanded={open}
 				aria-haspopup="true"
 				className={cn(
-					"flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+					docsNavTopLink,
+					"gap-1.5",
 					open
-						? "text-foreground"
+						? "bg-secondary text-foreground"
 						: "text-muted-foreground hover:text-foreground"
 				)}
 				onClick={() => setOpen((prev) => !prev)}
@@ -199,7 +205,9 @@ export function NavbarFeaturesMobileMenu({
 		<div>
 			<button
 				className={cn(
-					"flex w-full items-center justify-between rounded-md px-3 py-2 font-medium text-sm transition-all duration-200 hover:bg-muted",
+					docsNavControl,
+					"h-9 w-full justify-between px-3 font-medium text-sidebar-foreground/70 transition-all duration-200 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+					expanded && "bg-sidebar-accent/60 text-sidebar-foreground",
 					isMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
 				)}
 				onClick={() => setExpanded((prev) => !prev)}
@@ -226,7 +234,7 @@ export function NavbarFeaturesMobileMenu({
 				<div className="space-y-0.5 py-1 pl-3">
 					{FEATURE_ITEMS.map((item) => (
 						<NavLink
-							className="block rounded-md px-3 py-2 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+							className={cn(docsNavMobileItem, "text-sidebar-foreground/60")}
 							href={item.href}
 							key={item.href}
 							navItem={item.trackId}

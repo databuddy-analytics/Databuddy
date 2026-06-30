@@ -1,0 +1,55 @@
+{
+  "name": "@databuddy/nuxt",
+  "version": "2.4.20",
+  "description": "Official Databuddy Nuxt module",
+  "type": "module",
+  "license": "MIT",
+  "private": false,
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/module.d.mts",
+      "import": "./dist/module.mjs"
+    }
+  },
+  "main": "./dist/module.mjs",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "nuxt-module-build build",
+    "dev": "nuxt dev playground",
+    "stub": "nuxt-module-build build --stub",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@databuddy/sdk": "^2.4.20",
+    "@nuxt/kit": "^4.4.5",
+    "@nuxt/schema": "^4.4.5"
+  },
+  "devDependencies": {
+    "@nuxt/module-builder": "^1.0.2",
+    "nuxt": "^4.4.5",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "nuxt": ">=3",
+    "vue": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "nuxt",
+    "nuxt-module",
+    "analytics",
+    "databuddy"
+  ],
+  "homepage": "https://databuddy.cc",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/databuddy-analytics/databuddy.git"
+  }
+}

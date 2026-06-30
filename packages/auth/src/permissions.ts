@@ -24,7 +24,13 @@ export const statement = {
 	// Add new resources here - they'll be automatically available in withWorkspace
 	link: ["create", "read", "update", "delete", "view_analytics"],
 
+	flag: ["create", "read", "update", "delete"],
+
 	llm: ["read", "view_analytics", "manage"],
+
+	monitor: ["create", "read", "update", "delete"],
+
+	status_page: ["create", "read", "update", "delete"],
 } as const;
 
 /**
@@ -42,7 +48,10 @@ const viewer = ac.newRole({
 	organization: ["read"],
 	subscription: ["read"],
 	link: ["read", "view_analytics"],
+	flag: ["read"],
 	llm: ["read", "view_analytics"],
+	monitor: ["read"],
+	status_page: ["read"],
 });
 
 const member = ac.newRole({
@@ -52,7 +61,10 @@ const member = ac.newRole({
 	member: memberAc.statements.member,
 	invitation: memberAc.statements.invitation,
 	link: ["create", "read", "update", "view_analytics"],
+	flag: ["create", "read", "update"],
 	llm: ["read", "view_analytics"],
+	monitor: ["read", "update"],
+	status_page: ["read", "update"],
 });
 
 const admin = ac.newRole({
@@ -62,7 +74,10 @@ const admin = ac.newRole({
 	member: adminAc.statements.member,
 	invitation: adminAc.statements.invitation,
 	link: ["create", "read", "update", "delete", "view_analytics"],
+	flag: ["create", "read", "update", "delete"],
 	llm: ["read", "view_analytics", "manage"],
+	monitor: ["create", "read", "update", "delete"],
+	status_page: ["create", "read", "update", "delete"],
 });
 
 const owner = ac.newRole({
@@ -72,7 +87,32 @@ const owner = ac.newRole({
 	member: ownerAc.statements.member,
 	invitation: ownerAc.statements.invitation,
 	link: ["create", "read", "update", "delete", "view_analytics"],
+	flag: ["create", "read", "update", "delete"],
 	llm: ["read", "view_analytics", "manage"],
+	monitor: ["create", "read", "update", "delete"],
+	status_page: ["create", "read", "update", "delete"],
 });
+
+const orgRoles = { viewer, member, admin, owner } as const;
+
+export type OrgRole = keyof typeof orgRoles;
+
+export function roleHasPermission(
+	role: string,
+	resource: string,
+	permissions: readonly string[]
+): boolean {
+	const definition = orgRoles[role as OrgRole];
+	if (!definition) {
+		return false;
+	}
+	const allowed = definition.statements[
+		resource as keyof typeof definition.statements
+	] as readonly string[] | undefined;
+	if (!allowed) {
+		return false;
+	}
+	return permissions.every((permission) => allowed.includes(permission));
+}
 
 export { ac, admin, member, owner, viewer };

@@ -34,6 +34,23 @@ describe("dashboard navigation actions", () => {
 		).toBeNull();
 	});
 
+	it("ignores unknown targets and falls back to safe hrefs", () => {
+		expect(
+			buildDashboardActionHref({
+				currentWebsiteId: "site_123",
+				target: "website.settings",
+			})
+		).toBeNull();
+
+		expect(
+			buildDashboardActionHref({
+				currentWebsiteId: "site_123",
+				href: "/websites/{websiteId}/settings",
+				target: "website.settings",
+			})
+		).toBe("/websites/site_123/settings");
+	});
+
 	it("rejects external and unsafe hrefs", () => {
 		expect(
 			buildDashboardActionHref({ href: "https://example.com/websites" })
@@ -101,6 +118,21 @@ describe("dashboard navigation actions", () => {
 								value: "signup_completed",
 							},
 						],
+					},
+				],
+			}).success
+		).toBe(true);
+	});
+
+	it("accepts generated string targets at the component boundary", () => {
+		expect(
+			dashboardActionsSchema.safeParse({
+				type: "dashboard-actions",
+				websiteId: "site_123",
+				actions: [
+					{
+						label: "Settings",
+						target: "website.settings",
 					},
 				],
 			}).success

@@ -1,11 +1,11 @@
 ---
 title: SDK Overview
-description: Complete SDK documentation for tracking analytics across all platforms
+description: SDK documentation for tracking analytics across web and server runtimes
 ---
 
 import { Card, Cards, Callout, CodeBlock } from "@/components/docs";
 
-The Databuddy SDK provides framework-specific components, helper functions, native Swift support, and a vanilla JavaScript library for tracking analytics events. Choose your preferred integration method.
+The Databuddy SDK provides framework-specific components, helper functions, server-side tracking, and a vanilla JavaScript library for tracking analytics events. Choose your preferred integration method.
 
 <Callout type="info">
   **SDK Version**: 2.0.0+ | **Package**: `@databuddy/sdk` | **CDN**: cdn.databuddy.cc
@@ -29,6 +29,9 @@ For vanilla JavaScript, no installation needed - load directly from CDN.
   <Card title="React / Next.js" href="/docs/sdk/react">
     Component and hooks for React applications
   </Card>
+  <Card title="Nuxt" href="/docs/sdk/nuxt">
+    First-class Nuxt module for script injection, SPA navigation, and optional error tracking
+  </Card>
   <Card title="Vue" href="/docs/sdk/vue">
     Component and composables for Vue applications
   </Card>
@@ -37,9 +40,6 @@ For vanilla JavaScript, no installation needed - load directly from CDN.
   </Card>
   <Card title="Node.js / Server" href="/docs/sdk/node">
     Server-side tracking for APIs, webhooks, and background jobs
-  </Card>
-  <Card title="Swift" href="/docs/sdk/swift">
-    Native analytics for iOS, macOS, tvOS, and watchOS apps
   </Card>
 </Cards>
 
@@ -72,8 +72,8 @@ The SDK is organized into submodules for tree-shaking:
 | `@databuddy/sdk` | Core tracker helpers (track, flush, etc.) |
 | `@databuddy/sdk/react` | React component and hooks |
 | `@databuddy/sdk/vue` | Vue component and composables |
+| `@databuddy/nuxt` | Nuxt module for Databuddy tracking |
 | `@databuddy/sdk/node` | Node.js server-side SDK |
-| `Databuddy` | Swift Package Manager product for Apple apps |
 
 ## Example: React/Next.js
 

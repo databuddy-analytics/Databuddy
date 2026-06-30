@@ -10,7 +10,13 @@ import type { Website } from "@databuddy/db/schema";
 import { cacheNamespaces } from "@databuddy/redis/cache-invalidation";
 import { cacheable } from "@databuddy/redis/cacheable";
 import { captureError, record } from "@lib/tracing";
+import { isValidOriginFromSettings } from "@utils/origin-ip-validation";
 import { createError, EvlogError } from "evlog";
+
+export {
+	isValidIpFromSettings,
+	isValidOriginFromSettings,
+} from "@utils/origin-ip-validation";
 
 type WebsiteWithOwner = Website & {
 	ownerId: string | null;
@@ -115,6 +121,7 @@ export function normalizeDomain(domain: string): string {
 
 		if (!isValidDomainFormat(finalDomain)) {
 			throw createError({
+				code: "basket.INVALID_DOMAIN",
 				message: `Invalid domain format after normalization: ${finalDomain}`,
 				status: 400,
 				why: "The domain failed format validation after extracting the hostname.",
@@ -129,6 +136,7 @@ export function normalizeDomain(domain: string): string {
 		}
 		const cause = error instanceof Error ? error : new Error(String(error));
 		throw createError({
+			code: "basket.INVALID_DOMAIN",
 			message: `Invalid domain format: ${domain}`,
 			status: 400,
 			why: cause.message,
@@ -202,13 +210,23 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 		prefix: cacheNamespaces.websiteWithOwner,
 		staleWhileRevalidate: true,
 		staleTime: 120,
+		queryTimeoutMs: 10_000,
 	}
 );
 
-export {
-	isValidOriginFromSettings,
-	isValidIpFromSettings,
-} from "@utils/origin-ip-validation";
+export function isOriginAllowed(
+	origin: string,
+	websiteDomain: string,
+	allowedOrigins?: string[]
+): boolean {
+	if (isValidOrigin(origin, websiteDomain)) {
+		return true;
+	}
+	if (allowedOrigins?.length) {
+		return isValidOriginFromSettings(origin, allowedOrigins);
+	}
+	return false;
+}
 
 export function getWebsiteByIdV2(id: string): Promise<WebsiteWithOwner | null> {
 	return record("getWebsiteByIdV2", async () => {

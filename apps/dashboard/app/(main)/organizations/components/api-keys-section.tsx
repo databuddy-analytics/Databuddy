@@ -133,7 +133,7 @@ export function ApiKeysSection({
 		query.trim() !== "" || statusFilter !== "all" || typeFilter !== "all";
 
 	return (
-		<Card>
+		<Card id="api-keys">
 			<Card.Header className="flex-row items-start justify-between gap-4">
 				<div>
 					<Card.Title>API Keys</Card.Title>

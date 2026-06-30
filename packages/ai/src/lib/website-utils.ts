@@ -1,14 +1,15 @@
 import {
+	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
 	hasWebsiteScope,
 	isApiKeyPresent,
+	type ApiKeyRow,
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
 import { db } from "@databuddy/db";
 import { cacheNamespaces, cacheTags, cacheable } from "@databuddy/redis";
 import type { Website } from "@databuddy/db/schema";
 import { validateTimezone } from "@databuddy/validation";
-import { record } from "./tracing";
 
 export interface WebsiteContext {
 	session: unknown;
@@ -149,11 +150,9 @@ async function deriveWithApiKey(request: Request) {
 	const url = new URL(request.url);
 	const siteId = url.searchParams.get("website_id");
 
-	const key = await record("getApiKeyFromHeader", () =>
-		getApiKeyFromHeader(request.headers)
-	);
+	const key = await getApiKeyFromHeader(request.headers);
 	if (!key) {
-		throw jsonError(401, "Invalid or expired API key", "AUTH_REQUIRED");
+		throw jsonError(401, "Authentication required", "AUTH_REQUIRED");
 	}
 
 	if (!siteId) {
@@ -162,7 +161,7 @@ async function deriveWithApiKey(request: Request) {
 	}
 
 	const [site, timezone] = await Promise.all([
-		record("getCachedWebsite", () => getCachedWebsite(siteId)),
+		getCachedWebsite(siteId),
 		getTimezone(request, null),
 	]);
 
@@ -176,22 +175,27 @@ async function deriveWithApiKey(request: Request) {
 
 	const canRead = await hasWebsiteScope(key, siteId, "read:data");
 	if (!canRead) {
-		throw jsonError(
-			403,
-			"API key missing read:data scope for this website",
-			"FORBIDDEN"
-		);
+		if (isKnownWebsiteForKey(key, site)) {
+			throw jsonError(403, "Insufficient permissions", "FORBIDDEN");
+		}
+		throw jsonError(404, "Website not found", "NOT_FOUND");
 	}
 
 	return { user: null, session: null, website: site, timezone } as const;
 }
 
+function isKnownWebsiteForKey(key: ApiKeyRow, site: Website): boolean {
+	return (
+		(key.organizationId != null &&
+			key.organizationId === site.organizationId) ||
+		getAccessibleWebsiteIds(key).includes(site.id)
+	);
+}
+
 async function deriveWithSession(request: Request) {
 	const url = new URL(request.url);
 	const websiteId = url.searchParams.get("website_id");
-	const session = await record("getSession", () =>
-		auth.api.getSession({ headers: request.headers })
-	);
+	const session = await auth.api.getSession({ headers: request.headers });
 
 	if (!websiteId) {
 		if (!session?.user) {

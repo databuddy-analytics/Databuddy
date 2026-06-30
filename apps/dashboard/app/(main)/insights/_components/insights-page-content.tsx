@@ -17,6 +17,7 @@ import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { CockpitNarrative } from "./cockpit-narrative";
 import { CockpitSignals } from "./cockpit-signals";
+import { InsightGenerationSettings } from "./insight-generation-settings";
 import { TimeRangeSelector } from "./time-range-selector";
 import { ArrowClockwiseIcon, GlobeIcon, TrashIcon } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
@@ -126,12 +127,16 @@ export function InsightsPageContent() {
 						<TrashIcon className="size-4 shrink-0" weight="duotone" />
 						Clear all
 					</Button>
+					<InsightGenerationSettings
+						organizationId={orgId}
+						websites={websites}
+					/>
 				</TopBar.Actions>
 
 				{hasNoWebsites ? (
 					<EmptyOrgState />
 				) : (
-					<div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 sm:p-5">
+					<div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-5">
 						<CockpitNarrative />
 						<CockpitSignals />
 					</div>

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { DASHBOARD_ACTION_TARGETS } from "@/lib/dashboard-navigation-actions";
 
 export const timeSeriesSchema = z
 	.object({
@@ -185,8 +184,6 @@ const dashboardActionFilterSchema = z.object({
 	]),
 });
 
-const dashboardActionTargetSchema = z.enum(DASHBOARD_ACTION_TARGETS);
-
 export const dashboardActionsSchema = z
 	.object({
 		type: z.literal("dashboard-actions"),
@@ -198,7 +195,7 @@ export const dashboardActionsSchema = z
 					.object({
 						label: z.string().min(1).max(80),
 						description: z.string().max(160).optional(),
-						target: dashboardActionTargetSchema.optional(),
+						target: z.string().min(1).max(120).optional(),
 						href: z.string().min(1).optional(),
 						websiteId: z.string().optional(),
 						eventName: z.string().optional(),

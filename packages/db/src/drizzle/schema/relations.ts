@@ -24,6 +24,12 @@ import { alarmDestinations, alarms, usageAlertLog } from "./billing";
 import { feedback, feedbackRedemptions, insightUserFeedback } from "./feedback";
 import { flags, flagsToTargetGroups, targetGroups } from "./flags";
 import { slackChannelBindings, slackIntegrations } from "./integrations";
+import {
+	insightGenerationConfigs,
+	insightRunItems,
+	insightRollups,
+	insightRuns,
+} from "./insights";
 import { linkFolders, links } from "./links";
 import {
 	incidentAffectedMonitors,
@@ -69,6 +75,10 @@ const schema = {
 	feedback,
 	feedbackRedemptions,
 	insightUserFeedback,
+	insightGenerationConfigs,
+	insightRuns,
+	insightRunItems,
+	insightRollups,
 	ssoProvider,
 	agentChats,
 	slackIntegrations,
@@ -111,6 +121,9 @@ export const relations = defineRelations(schema, (r) => ({
 		linkFolders: r.many.linkFolders(),
 		links: r.many.links(),
 		slackIntegrations: r.many.slackIntegrations(),
+		insightGenerationConfigs: r.many.insightGenerationConfigs(),
+		insightRuns: r.many.insightRuns(),
+		insightRollups: r.many.insightRollups(),
 	},
 
 	account: {
@@ -180,6 +193,8 @@ export const relations = defineRelations(schema, (r) => ({
 		funnelDefinitions: r.many.funnelDefinitions(),
 		alarms: r.many.alarms(),
 		analyticsInsights: r.many.analyticsInsights(),
+		insightGenerationConfigs: r.many.insightGenerationConfigs(),
+		insightRunItems: r.many.insightRunItems(),
 	},
 
 	analyticsInsights: {
@@ -192,6 +207,62 @@ export const relations = defineRelations(schema, (r) => ({
 			from: r.analyticsInsights.websiteId,
 			to: r.websites.id,
 			optional: false,
+		}),
+	},
+
+	insightGenerationConfigs: {
+		organization: r.one.organization({
+			from: r.insightGenerationConfigs.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.insightGenerationConfigs.websiteId,
+			to: r.websites.id,
+		}),
+	},
+
+	insightRuns: {
+		organization: r.one.organization({
+			from: r.insightRuns.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		requestedByUser: r.one.user({
+			from: r.insightRuns.requestedByUserId,
+			to: r.user.id,
+		}),
+		items: r.many.insightRunItems(),
+		rollups: r.many.insightRollups(),
+	},
+
+	insightRunItems: {
+		run: r.one.insightRuns({
+			from: r.insightRunItems.runId,
+			to: r.insightRuns.id,
+			optional: false,
+		}),
+		organization: r.one.organization({
+			from: r.insightRunItems.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.insightRunItems.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+	},
+
+	insightRollups: {
+		organization: r.one.organization({
+			from: r.insightRollups.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		run: r.one.insightRuns({
+			from: r.insightRollups.runId,
+			to: r.insightRuns.id,
 		}),
 	},
 

@@ -3,6 +3,7 @@
 import type * as React from "react";
 import { cn } from "@databuddy/ui";
 import { Accordion as DSAccordion } from "@databuddy/ui/client";
+import { docsSurface } from "@/components/docs/docs-styles";
 
 function Accordion({
 	className,
@@ -23,7 +24,10 @@ function AccordionItem({
 }: React.ComponentProps<"div"> & { value: string }) {
 	return (
 		<DSAccordion
-			className={cn("border-border/60 border-b last:border-b-0", className)}
+			className={cn(
+				"border-sidebar-border/50 border-b last:border-b-0",
+				className
+			)}
 			{...props}
 		>
 			{children}
@@ -39,7 +43,7 @@ function AccordionTrigger({
 	return (
 		<DSAccordion.Trigger
 			className={cn(
-				"min-h-10 cursor-pointer px-4 py-2.5 font-medium text-foreground text-sm hover:bg-accent-brighter/60",
+				"min-h-10 px-4 py-2.5 font-medium text-sidebar-foreground text-sm hover:bg-sidebar-accent/55",
 				className
 			)}
 			{...props}
@@ -56,7 +60,7 @@ function AccordionContent({
 	return (
 		<DSAccordion.Content
 			className={cn(
-				"px-4 pt-0 pb-4 text-muted-foreground text-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
+				"px-4 pt-0 pb-4 text-sidebar-foreground/65 text-sm leading-6 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0",
 				className
 			)}
 		>
@@ -72,13 +76,7 @@ interface AccordionsProps extends React.ComponentProps<"div"> {
 
 function Accordions({ className, children, ...props }: AccordionsProps) {
 	return (
-		<div
-			className={cn(
-				"not-prose my-4 overflow-hidden rounded-lg border border-border/60 bg-card",
-				className
-			)}
-			{...props}
-		>
+		<div className={cn(docsSurface, className)} {...props}>
 			{children}
 		</div>
 	);

@@ -10,7 +10,8 @@ import {
 	useLinks,
 } from "@/hooks/use-links";
 import { useFlags } from "@databuddy/sdk/react";
-import { useCallback, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DeepLinkSheet } from "./_components/deep-link-sheet";
 import { LinkFolderSheet } from "./_components/link-folder-sheet";
@@ -40,6 +41,17 @@ import { Badge, Button, Card, EmptyState } from "@databuddy/ui";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
 
 export default function LinksPage() {
+	return (
+		<Suspense fallback={null}>
+			<LinksPageContent />
+		</Suspense>
+	);
+}
+
+function LinksPageContent() {
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 	const [sheetLink, setSheetLink] = useState<Link | null>(null);
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -77,6 +89,15 @@ export default function LinksPage() {
 		setIsSheetOpen(true);
 	}, []);
 
+	const clearCommandParam = useCallback(() => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
+
 	const openEdit = useCallback((link: Link) => {
 		setSheetLink(link);
 		setIsSheetOpen(true);
@@ -86,6 +107,23 @@ export default function LinksPage() {
 		setIsSheetOpen(false);
 		setSheetLink(null);
 	}, []);
+
+	useEffect(() => {
+		if (isSwitchingOrganization) {
+			return;
+		}
+
+		const command = searchParams.get("command");
+		if (command === "create-link") {
+			openCreate();
+			clearCommandParam();
+			return;
+		}
+		if (command === "create-folder") {
+			setIsFolderSheetOpen(true);
+			clearCommandParam();
+		}
+	}, [clearCommandParam, isSwitchingOrganization, openCreate, searchParams]);
 
 	const handleDelete = async (id: string) => {
 		try {

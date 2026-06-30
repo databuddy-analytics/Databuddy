@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { QueryBuilders } from "./builders";
-import { SimpleQueryBuilder } from "./simple-builder";
+import {
+	getClickHouseQuerySettings,
+	SimpleQueryBuilder,
+} from "./simple-builder";
 import type { Filter, QueryRequest, SimpleQueryConfig } from "./types";
 import { applyPlugins } from "./utils";
 
@@ -62,6 +65,12 @@ const GLOBAL_FILTER_FIELDS = [
 	"utm_campaign",
 ] as const;
 
+const NUMERIC_PROFILE_FILTER_FIELDS = new Set([
+	"session_count",
+	"total_events",
+	"unique_pages",
+]);
+
 const QUERY_BUILDER_ENTRIES = Object.entries(QueryBuilders);
 const FILTERABLE_BUILDER_CASES = QUERY_BUILDER_ENTRIES.flatMap(
 	([type, config]) =>
@@ -72,7 +81,11 @@ const FILTERABLE_BUILDER_CASES = QUERY_BUILDER_ENTRIES.flatMap(
 		)
 );
 
-function filterValueForOperator(op: Filter["op"]): Filter["value"] {
+function filterValueForOperator(field: string, op: Filter["op"]): Filter["value"] {
+	if (NUMERIC_PROFILE_FILTER_FIELDS.has(field)) {
+		return op === "in" || op === "not_in" ? [1, 2] : 1;
+	}
+
 	return op === "in" || op === "not_in"
 		? ["dynamic-value-a", "dynamic-value-b"]
 		: "dynamic-value";
@@ -89,6 +102,12 @@ function makeRequiredFilters(config: SimpleQueryConfig): Filter[] {
 function isSensibleFilterOperator(field: string, op: Filter["op"]): boolean {
 	// These builders fetch a single entity from a scalar id read directly by customSql.
 	if ((field === "anonymous_id" || field === "session_id") && op !== "eq") {
+		return false;
+	}
+	if (
+		NUMERIC_PROFILE_FILTER_FIELDS.has(field) &&
+		(op === "contains" || op === "not_contains" || op === "starts_with")
+	) {
 		return false;
 	}
 	return true;
@@ -163,7 +182,7 @@ describe("SimpleQueryBuilder.compile", () => {
 		)
 	)("allows global filter $field with $op", ({ field, op }) => {
 		const filters: Filter[] = [
-			{ field, op, value: filterValueForOperator(op) },
+			{ field, op, value: filterValueForOperator(field, op) },
 		];
 
 		expect(() => compile({}, { filters })).not.toThrow();
@@ -174,7 +193,7 @@ describe("SimpleQueryBuilder.compile", () => {
 		({ config, field, op, type }) => {
 			const filters: Filter[] = [
 				...makeRequiredFilters(config),
-				{ field, op, value: filterValueForOperator(op) },
+				{ field, op, value: filterValueForOperator(field, op) },
 			];
 
 			const { sql } = compileBuilder(type, config, { filters });
@@ -343,23 +362,28 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("mobile");
 	});
 
-	it("throws on disallowed filter field", () => {
+	it("silently skips disallowed filter fields rather than throwing", () => {
 		const filters: Filter[] = [
 			{ field: "secret_col", op: "eq", value: "x" },
 		];
-		expect(() =>
-			compile({ allowedFilters: ["country"] }, { filters })
-		).toThrow("not permitted");
+		// Unsupported filter fields are skipped so that a multi-query batch
+		// (e.g. an "href" filter valid for outbound_links but not for "country")
+		// does not break unrelated queries.
+		const { sql } = compile({ allowedFilters: ["country"] }, { filters });
+		expect(sql).not.toContain("secret_col");
 	});
 
-	it("rejects unknown filter fields when allowedFilters is not configured", () => {
+	it("silently skips unknown filter fields when allowedFilters is not configured", () => {
 		const filters: Filter[] = [
-			{ field: "1=1) OR (1", op: "eq", value: "x" },
+			{ field: "unknown_field", op: "eq", value: "x" },
 		];
-		expect(() => compile({}, { filters })).toThrow("not permitted");
+		const { sql } = compile({}, { filters });
+		expect(sql).not.toContain("unknown_field");
 	});
 
-	it("rejects SQL injection attempts in filter field names", () => {
+	it("silently skips SQL injection attempts in filter field names", () => {
+		// Injection field names are not in the allowed set so they are skipped,
+		// meaning no unsafe SQL ever reaches ClickHouse.
 		const injectionAttempts = [
 			"'; DROP TABLE analytics.events; --",
 			"country UNION SELECT * FROM system.tables--",
@@ -368,7 +392,8 @@ describe("SimpleQueryBuilder.compile", () => {
 		];
 		for (const field of injectionAttempts) {
 			const filters: Filter[] = [{ field, op: "eq", value: "x" }];
-			expect(() => compile({}, { filters })).toThrow("not permitted");
+			const { sql } = compile({}, { filters });
+			expect(sql).not.toContain(field);
 		}
 	});
 
@@ -396,6 +421,59 @@ describe("SimpleQueryBuilder.compile", () => {
 		);
 	});
 
+	it("skips 'href' filter on a query type that does not allow it (regression: outbound filter in mixed batch)", () => {
+		// When a user has an href filter active on the outbound links view, all
+		// batch queries receive that filter. Queries that don't declare "href" in
+		// allowedFilters (e.g. country, top_pages) should compile without error
+		// and simply omit the href condition from their WHERE clause.
+		const filters: Filter[] = [
+			{ field: "href", op: "eq", value: "https://example.com" },
+			{ field: "country", op: "eq", value: "US" },
+		];
+		const { sql } = compile({}, { filters });
+		expect(sql).not.toContain("href");
+		expect(sql).toContain("country");
+	});
+
+	function whereClauseOf(sql: string): string {
+		const whereIdx = sql.indexOf("WHERE");
+		expect(whereIdx).toBeGreaterThanOrEqual(0);
+		const groupIdx = sql.indexOf("GROUP BY", whereIdx);
+		const orderIdx = sql.indexOf("ORDER BY", whereIdx);
+		const limitIdx = sql.indexOf("LIMIT", whereIdx);
+		const candidates = [groupIdx, orderIdx, limitIdx].filter((i) => i >= 0);
+		const endIdx = candidates.length ? Math.min(...candidates) : sql.length;
+		return sql.slice(whereIdx, endIdx);
+	}
+
+	it("skips having filters from the outer WHERE clause", () => {
+		const filters: Filter[] = [
+			{ field: "country", op: "eq", value: "US" },
+			{ field: "path", op: "eq", value: "/checkout", having: true },
+		];
+
+		const { sql, params } = compile({}, { filters });
+
+		const whereClause = whereClauseOf(sql);
+		expect(whereClause).toContain("country = {f0:String}");
+		expect(whereClause).not.toMatch(/\bpath\b/);
+		expect(sql).toMatch(/HAVING[\s\S]*path[\s\S]*\{f\d+:String\}/);
+		expect(params.f0).toBe("US");
+	});
+
+	it("skips target-scoped filters from the outer WHERE clause", () => {
+		const filters: Filter[] = [
+			{ field: "country", op: "eq", value: "US" },
+			{ field: "path", op: "eq", value: "/checkout", target: "my_cte" },
+		];
+
+		const { sql } = compile({}, { filters });
+
+		const whereClause = whereClauseOf(sql);
+		expect(whereClause).toContain("country = {f0:String}");
+		expect(whereClause).not.toMatch(/\bpath\b/);
+	});
+
 	it("allows a configured required filter when present", () => {
 		const filters: Filter[] = [
 			{ field: "session_id", op: "eq", value: "session-1" },
@@ -411,6 +489,83 @@ describe("SimpleQueryBuilder.compile", () => {
 
 		expect(sql).toContain("session_id = {f0:String}");
 		expect(params.f0).toBe("session-1");
+	});
+
+	it("applies profile_list event_name filters through a custom-events visitor subquery", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [{ field: "event_name", op: "eq", value: "signup" }],
+				type: "profile_list",
+			})
+		).compile();
+
+		expect(sql).toContain("AND anonymous_id IN (");
+		expect(sql).toContain("FROM analytics.custom_events");
+		expect(sql).toContain("AND event_name = {f0:String}");
+		expect(sql).not.toContain("eventNameFilter");
+		expect(params.f0).toBe("signup");
+	});
+
+	it("keeps profile_list event_name operator semantics in the custom-events subquery", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [{ field: "event_name", op: "contains", value: "signup" }],
+				type: "profile_list",
+			})
+		).compile();
+
+		expect(sql).toContain("AND event_name LIKE {f0:String}");
+		expect(params.f0).toBe("%signup%");
+	});
+
+	it("applies profile_list aggregate filters in HAVING with numeric params", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [{ field: "session_count", op: "not_in", value: [1, 2] }],
+				type: "profile_list",
+			})
+		).compile();
+
+		expect(sql).toContain("HAVING session_count NOT IN {f0:Array(Float64)}");
+		expect(sql).not.toContain("session_count NOT IN {f0:Array(String)}");
+		expect(params.f0).toEqual([1, 2]);
+	});
+
+	it("rejects text operators for profile_list aggregate filters", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		expect(() =>
+			new SimpleQueryBuilder(
+				config,
+				makeRequest({
+					filters: [
+						{ field: "session_count", op: "contains", value: "1" },
+					],
+					type: "profile_list",
+				})
+			).compile()
+		).toThrow("supports only eq, ne, in, and not_in operators");
 	});
 
 	it("allows anonymous_id for the profile_detail builder", () => {
@@ -493,6 +648,22 @@ describe("SimpleQueryBuilder.compile", () => {
 		).toThrow("not permitted");
 	});
 
+	it("defaults bare orderBy field to DESC", () => {
+		const { sql } = compile({}, { orderBy: "visitors" });
+		expect(sql).toContain("ORDER BY visitors DESC");
+	});
+
+	it("normalizes lowercase orderBy direction", () => {
+		const { sql } = compile({}, { orderBy: "visitors asc" });
+		expect(sql).toContain("ORDER BY visitors ASC");
+	});
+
+	it("throws on unknown bare orderBy field", () => {
+		expect(() => compile({}, { orderBy: "evil_field" })).toThrow(
+			"not permitted"
+		);
+	});
+
 	it("normalizes referrer filter values", () => {
 		const filters: Filter[] = [
 			{ field: "referrer", op: "eq", value: "google" },
@@ -535,8 +706,8 @@ describe("SimpleQueryBuilder.compile", () => {
 			}
 		);
 
-		expect(sql).toContain("parseDateTimeBestEffort({from:String}");
-		expect(sql).toContain("parseDateTimeBestEffort({to:String}");
+		expect(sql).toContain("{from:DateTime}");
+		expect(sql).toContain("{to:DateTime}");
 		expect(sql).not.toContain("concat({to:String}, ' 23:59:59')");
 		expect(params.from).toBe("2026-04-27 12:00:00");
 		expect(params.to).toBe("2026-04-27 13:28:59");
@@ -547,14 +718,14 @@ describe("SimpleQueryBuilder.compile", () => {
 		const { sql, params } = compile();
 
 		expect(sql).not.toContain("concat({to:String}, ' 23:59:59')");
-		expect(params.from).toBe("2026-04-01");
+		expect(params.from).toBe("2026-04-01 00:00:00");
 		expect(params.to).toBe("2026-04-11 23:59:59");
 	});
 
 	it("cleans date ranges returned by custom SQL builders", () => {
 		const { sql, params } = compile(
 			{
-				customSql: (_websiteId, startDate, endDate) => ({
+				customSql: ({ startDate, endDate }) => ({
 					sql: `
 						SELECT count() as total
 						FROM analytics.events
@@ -573,8 +744,8 @@ describe("SimpleQueryBuilder.compile", () => {
 			}
 		);
 
-		expect(sql).toContain("parseDateTimeBestEffort({startDate:String}");
-		expect(sql).toContain("parseDateTimeBestEffort({endDate:String}");
+		expect(sql).toContain("{startDate:DateTime}");
+		expect(sql).toContain("{endDate:DateTime}");
 		expect(params.startDate).toBe("2026-04-27 12:00:00");
 		expect(params.endDate).toBe("2026-04-27 13:28:59");
 	});
@@ -591,6 +762,7 @@ describe("SimpleQueryBuilder.compile", () => {
 				type: "summary_metrics",
 				from: "2026-04-27 12:00:00Z",
 				to: "2026-04-27 13:28:59Z",
+				filters: [{ field: "referrer", op: "eq", value: "google.com" }],
 			})
 		);
 
@@ -603,6 +775,28 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.endDate).toBe("2026-04-27 13:28:59");
 	});
 
+	it("uses session attribution columns for custom SQL filters", () => {
+		const config = QueryBuilders.entry_pages;
+		if (!config) {
+			throw new Error("entry_pages builder is missing");
+		}
+
+		const builder = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				type: "entry_pages",
+				filters: [{ field: "country", op: "eq", value: "US" }],
+			})
+		);
+
+		const { sql, params } = builder.compile();
+
+		expect(sql).toContain("session_attribution AS");
+		expect(sql).toContain("sa.session_country = {f0:String}");
+		expect(sql).not.toContain("\n                    AND country = {f0:String}");
+		expect(params.f0).toBe("US");
+	});
+
 	it("normalizes standard session attribution queries", () => {
 		const { sql, params } = compile(
 			{
@@ -612,6 +806,7 @@ describe("SimpleQueryBuilder.compile", () => {
 			},
 			{
 				from: "2026-04-27 12:00:00Z",
+				filters: [{ field: "utm_source", op: "eq", value: "newsletter" }],
 				to: "2026-04-27 13:28:59Z",
 			}
 		);
@@ -631,7 +826,10 @@ describe("SimpleQueryBuilder.compile", () => {
 
 		const builder = new SimpleQueryBuilder(
 			config,
-			makeRequest({ type: "traffic_sources" }),
+			makeRequest({
+				type: "traffic_sources",
+				filters: [{ field: "referrer", op: "eq", value: "google.com" }],
+			}),
 			"example.com"
 		);
 
@@ -645,7 +843,7 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).toContain("domain(referrer) LIKE 'x.com%'");
 		expect(sql).toContain("https://linkedin.com");
 		expect(sql).toContain("as name");
-		expect(sql).toContain("as percentage");
+		expect(sql).toMatch(/\bas percentage\b/i);
 		expect(sql).not.toContain("referrer != ''");
 	});
 
@@ -800,5 +998,20 @@ describe("SimpleQueryBuilder.compile", () => {
 	it("applies offset", () => {
 		const { sql } = compile({}, { offset: 50 });
 		expect(sql).toContain("OFFSET 50");
+	});
+});
+
+describe("getClickHouseQuerySettings", () => {
+	it("ignores nondeterministic functions when query cache is enabled", () => {
+		expect(getClickHouseQuerySettings()).toEqual({
+			query_cache_nondeterministic_function_handling: "ignore",
+			use_query_cache: 1,
+		});
+	});
+
+	it("does not set nondeterministic cache handling when cache is disabled", () => {
+		expect(getClickHouseQuerySettings(true)).toEqual({
+			use_query_cache: 0,
+		});
 	});
 });

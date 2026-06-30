@@ -70,10 +70,10 @@ export function UptimeHeatmap({
 
 			<div className="p-4">
 				{isLoading ? (
-					<div className="flex h-16 w-full gap-[2px] sm:gap-1">
+					<div className="grid h-1.5 w-full gap-x-px sm:gap-x-[2px]">
 						{Array.from({ length: days }).map((_, i) => (
 							<div
-								className="h-full flex-1 animate-pulse rounded-sm bg-secondary"
+								className="h-full animate-pulse rounded-full bg-secondary"
 								key={i}
 							/>
 						))}
@@ -85,7 +85,6 @@ export function UptimeHeatmap({
 						getDateLabel={(d) => dayjs(d).format("MMM D, YYYY")}
 						interactive
 						isActive
-						stripClassName="flex h-16 w-full gap-[2px] sm:gap-1"
 					/>
 				)}
 			</div>

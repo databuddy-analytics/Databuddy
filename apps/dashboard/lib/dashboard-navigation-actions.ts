@@ -39,6 +39,8 @@ export const DASHBOARD_ACTION_TARGETS = [
 
 export type DashboardActionTarget = (typeof DASHBOARD_ACTION_TARGETS)[number];
 
+const DASHBOARD_ACTION_TARGET_SET = new Set<string>(DASHBOARD_ACTION_TARGETS);
+
 interface SearchParamsLike {
 	get: (name: string) => string | null;
 	has: (name: string) => boolean;
@@ -118,6 +120,12 @@ function isGlobalTarget(
 	return Object.hasOwn(GLOBAL_TARGET_PATHS, target);
 }
 
+function isDashboardActionTarget(
+	value: string
+): value is DashboardActionTarget {
+	return DASHBOARD_ACTION_TARGET_SET.has(value);
+}
+
 function hasControlCharacter(value: string) {
 	for (const char of value) {
 		const code = char.charCodeAt(0);
@@ -146,10 +154,13 @@ function resolveDashboardTargetHref({
 	websiteId,
 }: {
 	eventName?: string;
-	target?: DashboardActionTarget;
+	target?: string;
 	websiteId?: string | null;
 }): string | null {
 	if (!target) {
+		return null;
+	}
+	if (!isDashboardActionTarget(target)) {
 		return null;
 	}
 
@@ -284,7 +295,7 @@ export function buildDashboardActionHref({
 	href?: string;
 	params?: DashboardActionParams;
 	preserveAnalyticsContext?: boolean;
-	target?: DashboardActionTarget;
+	target?: string;
 	websiteId?: string;
 }): string | null {
 	const resolvedHref =

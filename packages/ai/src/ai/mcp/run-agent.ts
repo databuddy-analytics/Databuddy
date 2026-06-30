@@ -5,7 +5,7 @@ import {
 	storeConversation,
 } from "../../lib/supermemory";
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
-import type { LanguageModelUsage } from "ai";
+import type { LanguageModelUsage, StepResult, ToolSet } from "ai";
 import { ToolLoopAgent } from "ai";
 import { DatabuddyAgentUserError } from "../../agent/errors";
 import { getAILogger } from "../../lib/ai-logger";
@@ -55,6 +55,7 @@ export interface RunMcpAgentTraceResult {
 	answer: string;
 	steps: number;
 	toolCalls: McpAgentToolTrace[];
+	truncated?: boolean;
 	usage: LanguageModelUsage;
 }
 
@@ -99,7 +100,11 @@ export async function runMcpAgentWithTrace(
 		});
 
 		await trackPreparedUsage(prepared, result.totalUsage);
-		const answer = result.text ?? "No response generated.";
+		const stepCount = result.steps.length;
+		const rawAnswer = (result.text ?? "").trim();
+		const answer =
+			rawAnswer ||
+			`I ran ${stepCount} step${stepCount === 1 ? "" : "s"} but couldn't fit a summary into this turn. The question is wide enough that I exhausted the step budget gathering data. Ask me a narrower slice (one metric, one segment, one time range) and I'll give you a focused answer.`;
 		if (options.storeMemory !== false) {
 			storePreparedConversation(prepared, options.question, answer);
 		}
@@ -110,9 +115,71 @@ export async function runMcpAgentWithTrace(
 			toolCalls: collectToolTrace(result.steps),
 			usage: result.totalUsage,
 		};
+	} catch (err) {
+		if (isInternalTimeoutAbort(err, options.abortSignal)) {
+			return await buildTruncatedTrace(prepared);
+		}
+		throw err;
 	} finally {
 		abort.cleanup();
 	}
+}
+
+function isInternalTimeoutAbort(
+	err: unknown,
+	externalSignal: AbortSignal | undefined
+): boolean {
+	return (
+		err instanceof Error &&
+		err.name === "AbortError" &&
+		!externalSignal?.aborted
+	);
+}
+
+async function buildTruncatedTrace(
+	prepared: Awaited<ReturnType<typeof prepareMcpAgentRun>>
+): Promise<RunMcpAgentTraceResult> {
+	const steps = prepared.capturedSteps;
+	const usage = aggregateStepUsage(steps);
+	await trackPreparedUsage(prepared, usage);
+	const stepCount = steps.length;
+	return {
+		answer: `The investigation reached its time budget after ${stepCount} step${stepCount === 1 ? "" : "s"} and was stopped before composing a final summary. The partial tool trace is the only evidence gathered.`,
+		steps: stepCount,
+		toolCalls: collectToolTrace(steps),
+		truncated: true,
+		usage,
+	};
+}
+
+function aggregateStepUsage(
+	steps: ReadonlyArray<{ usage: LanguageModelUsage }>
+): LanguageModelUsage {
+	let inputTokens = 0;
+	let outputTokens = 0;
+	let totalTokens = 0;
+	let noCacheTokens = 0;
+	let cacheReadTokens = 0;
+	let cacheWriteTokens = 0;
+	let textTokens = 0;
+	let reasoningTokens = 0;
+	for (const { usage } of steps) {
+		inputTokens += usage.inputTokens ?? 0;
+		outputTokens += usage.outputTokens ?? 0;
+		totalTokens += usage.totalTokens ?? 0;
+		noCacheTokens += usage.inputTokenDetails?.noCacheTokens ?? 0;
+		cacheReadTokens += usage.inputTokenDetails?.cacheReadTokens ?? 0;
+		cacheWriteTokens += usage.inputTokenDetails?.cacheWriteTokens ?? 0;
+		textTokens += usage.outputTokenDetails?.textTokens ?? 0;
+		reasoningTokens += usage.outputTokenDetails?.reasoningTokens ?? 0;
+	}
+	return {
+		inputTokens,
+		outputTokens,
+		totalTokens,
+		inputTokenDetails: { noCacheTokens, cacheReadTokens, cacheWriteTokens },
+		outputTokenDetails: { textTokens, reasoningTokens },
+	};
 }
 
 export async function* streamMcpAgentText(
@@ -139,7 +206,8 @@ export async function* streamMcpAgentText(
 			storePreparedConversation(
 				prepared,
 				options.question,
-				answer.trim() || "No response generated."
+				answer.trim() ||
+					"I exhausted the step budget gathering data without composing a summary. Try a narrower question."
 			);
 		}
 	} finally {
@@ -184,12 +252,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	const selectedModelId =
 		options.modelOverride ?? getDefaultAgentModelId(source);
 
-	const apiKeyId =
-		options.apiKey &&
-		typeof options.apiKey === "object" &&
-		"id" in options.apiKey
-			? (options.apiKey as { id: string }).id
-			: null;
+	const apiKeyId = options.apiKey?.id ?? null;
 
 	const billingCustomerId =
 		options.billingMode === "skip"
@@ -238,7 +301,9 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			})
 		),
 		isMemoryEnabled()
-			? getMemoryContext(options.question, memoryUserId, apiKeyId)
+			? getMemoryContext(options.question, memoryUserId, apiKeyId, {
+					websiteId: options.websiteId ?? undefined,
+				})
 			: Promise.resolve(null),
 	]);
 
@@ -260,6 +325,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 	mcpTelemetryMetadata["tcc.sessionId"] = sessionId;
 
 	const ai = getAILogger();
+	const capturedSteps: StepResult<ToolSet>[] = [];
 	const agent = new ToolLoopAgent({
 		model: ai.wrap(config.model),
 		instructions,
@@ -268,6 +334,9 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		stopWhen: config.stopWhen,
 		temperature: config.temperature,
 		experimental_context: config.experimental_context,
+		onStepFinish: (step) => {
+			capturedSteps.push(step);
+		},
 		experimental_telemetry: {
 			isEnabled: true,
 			functionId: `databuddy.${source}.ask`,
@@ -291,6 +360,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		agent,
 		apiKeyId,
 		billingCustomerId,
+		capturedSteps,
 		memoryUserId,
 		mcpUserId,
 		messages,
@@ -322,8 +392,12 @@ const NO_TOOL_CHAT_PATTERN =
 	/\b(hi|hello|hey|thanks|thank you|lol|nice|cool|ok|okay|nah that's wrong|that's wrong|nope|shut up)\b|^\s*(damn|lol|nice|thanks)[.!?\s]*$/i;
 const THREAD_REFERENCE_PATTERN =
 	/\b(above|that|this thread|which one|what first|where do we .*first|poke first|prioriti[sz]e|what'?s the call|do you agree|who said|who asked|recap|from earlier|from above)\b/i;
-const FRESH_ANALYTICS_PATTERN =
-	/\b(fresh|current|latest|live|now|metrics?|analytics|top pages?|last \d+|last week|last month|pull|rerun|check)\b/i;
+const ANALYTICS_REQUEST_PATTERN =
+	/\b(analytics?|metrics?|traffic|visitors?|sessions?|page\s*views?|pageviews?|top pages?|pages?|referrers?|sources?|campaigns?|conversions?|events?|errors?|vitals?|performance|uptime|revenue|transactions?|llm|latency|bounce|countries|country|regions?|cities|devices?|browsers?|operating systems?|utm|fresh|current|latest|live|rerun|last \d+|last week|last month|today|yesterday)\b/i;
+const NON_ANALYTICS_TOOL_PATTERN =
+	/\b(remember|memory|forget|profile|profiles|flag|flags|feature flag|feature flags|funnel|funnels|goal|goals|annotation|annotations|link|links|short link|short links|digest|digests|subscribe|unsubscribe|create|update|delete|archive|enable|disable|rollout|target|folder|folders|navigate|open|go to|take me)\b/i;
+const INVESTIGATION_REQUEST_PATTERN =
+	/\b(why|what caused|root cause|because|reason|investigate|investigation|diagnose|debug|deploy|deployed|deployment|commit|commits|merged|pull request|pr|branch|release|rollback|regression|search console|google search|keyword|seo|impressions|ranking|scrape|crawl)\b/i;
 const COPY_ONLY_PATTERN = /\b(exact copy|copy only)\b/i;
 const SLACK_FOLLOW_UP_OPEN_TAG = "<slack_follow_up";
 const SLACK_FOLLOW_UP_CLOSE_TAG = "</slack_follow_up>";
@@ -434,7 +508,7 @@ function getSlackBlockText(block: string): string | undefined {
 		: undefined;
 }
 
-function selectActiveToolsForQuestion(options: {
+export function selectActiveToolsForQuestion(options: {
 	question: string;
 	source: "dashboard" | "mcp" | "slack";
 }): string[] | undefined {
@@ -443,8 +517,14 @@ function selectActiveToolsForQuestion(options: {
 			? latestSlackText(options.question)
 			: options.question
 	).toLowerCase();
+	const hasAnalyticsRequest = ANALYTICS_REQUEST_PATTERN.test(text);
+	const hasNonAnalyticsToolRequest = NON_ANALYTICS_TOOL_PATTERN.test(text);
+	const hasInvestigationRequest = INVESTIGATION_REQUEST_PATTERN.test(text);
+	if (hasInvestigationRequest) {
+		return;
+	}
 	if (options.source === "slack") {
-		if (FRESH_ANALYTICS_PATTERN.test(text)) {
+		if (hasAnalyticsRequest && !hasNonAnalyticsToolRequest) {
 			return THREAD_REFERENCE_PATTERN.test(text)
 				? ["slack_read_current_thread", ...ANALYTICS_ACTIVE_TOOLS]
 				: ANALYTICS_ACTIVE_TOOLS;
@@ -460,10 +540,14 @@ function selectActiveToolsForQuestion(options: {
 		}
 	}
 
-	if (NO_TOOL_CHAT_PATTERN.test(text) && !FRESH_ANALYTICS_PATTERN.test(text)) {
+	if (
+		NO_TOOL_CHAT_PATTERN.test(text) &&
+		!hasAnalyticsRequest &&
+		!hasNonAnalyticsToolRequest
+	) {
 		return [];
 	}
-	if (FRESH_ANALYTICS_PATTERN.test(text)) {
+	if (hasAnalyticsRequest && !hasNonAnalyticsToolRequest) {
 		return ANALYTICS_ACTIVE_TOOLS;
 	}
 

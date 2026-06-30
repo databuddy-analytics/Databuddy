@@ -42,7 +42,7 @@ export default async function Layout({ children }: { children: ReactNode }) {
 			}}
 			nav={{
 				enabled: true,
-				component: <Navbar stars={stars} />,
+				component: <Navbar stars={stars} variant="solid" />,
 			}}
 			sidebar={{
 				enabled: true,

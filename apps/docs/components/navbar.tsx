@@ -2,6 +2,10 @@
 
 import { Button } from "@databuddy/ui";
 import { useEffect, useState } from "react";
+import {
+	docsNavIconButton,
+	docsNavTopLink,
+} from "@/components/docs-nav-styles";
 import { cn } from "@/lib/utils";
 import { BrandContextMenu } from "@/components/brand-context-menu";
 import { Logo } from "./logo";
@@ -13,19 +17,19 @@ import {
 import { GithubNavMark, githubRepoUrl } from "./github-nav-mark";
 import { NavbarMobileMenuButton } from "./navbar-mobile-menu-button";
 
-const navLink =
-	"rounded-md px-3 py-1.5 font-medium text-muted-foreground text-sm transition-colors hover:text-foreground";
+const navLink = docsNavTopLink;
 
-const iconBtn =
-	"inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground";
+const iconBtn = docsNavIconButton;
 
 export interface NavbarProps {
 	stars?: number | null;
+	variant?: "default" | "solid";
 }
 
-export const Navbar = ({ stars }: NavbarProps) => {
+export const Navbar = ({ stars, variant = "default" }: NavbarProps) => {
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 	const [isScrolled, setIsScrolled] = useState(false);
+	const isSolid = variant === "solid" || isScrolled;
 
 	useEffect(() => {
 		const onScroll = () => setIsScrolled(window.scrollY > 8);
@@ -38,7 +42,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 		<header
 			className={cn(
 				"fixed inset-x-0 top-0 z-40 pt-[env(safe-area-inset-top,0px)] transition-[background-color,border-color,backdrop-filter] duration-200",
-				isScrolled
+				isSolid
 					? "border-border border-b bg-background backdrop-blur-xl"
 					: "bg-transparent"
 			)}
@@ -68,7 +72,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 
 				<div className="ml-auto flex items-center gap-1 md:ml-0">
 					<NavLink
-						className="hidden h-8 items-center gap-1.5 rounded-md px-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground md:inline-flex"
+						className={cn(docsNavTopLink, "hidden gap-1.5 px-2 md:inline-flex")}
 						external
 						href={githubRepoUrl}
 						navItem="github"
@@ -116,7 +120,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 						{navMenu.map((menu, i) => (
 							<NavLink
 								className={cn(
-									"block rounded-md px-3 py-2 font-medium text-sm transition-all duration-200 hover:bg-muted",
+									"block rounded px-3 py-2 font-medium text-sm transition-all duration-200 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
 									isMobileMenuOpen
 										? "translate-x-0 opacity-100"
 										: "-translate-x-4 opacity-0"
@@ -138,7 +142,7 @@ export const Navbar = ({ stars }: NavbarProps) => {
 
 						<NavLink
 							className={cn(
-								"flex items-center gap-2 rounded-md px-3 py-2 font-medium text-sm transition-all duration-200 hover:bg-muted",
+								"flex items-center gap-2 rounded px-3 py-2 font-medium text-sm transition-all duration-200 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
 								isMobileMenuOpen
 									? "translate-x-0 opacity-100"
 									: "-translate-x-4 opacity-0"

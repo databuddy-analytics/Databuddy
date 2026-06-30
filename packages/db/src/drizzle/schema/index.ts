@@ -6,6 +6,7 @@ export * from "./billing";
 export * from "./feedback";
 export * from "./flags";
 export * from "./integrations";
+export * from "./insights";
 export * from "./links";
 export * from "./uptime";
 export * from "./tracker";

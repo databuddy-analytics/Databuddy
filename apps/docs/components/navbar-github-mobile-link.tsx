@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { docsNavMobileItem } from "@/components/docs-nav-styles";
 import { cn } from "@/lib/utils";
 import {
 	GithubNavMark,
@@ -27,7 +28,8 @@ export function NavbarGithubMobileLink({
 	return (
 		<Link
 			className={cn(
-				"group flex transform items-center gap-3 rounded border border-border/30 font-medium transition-all duration-200 hover:translate-x-1 hover:border-border/50 hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/20 active:bg-muted/70",
+				docsNavMobileItem,
+				"group flex transform items-center gap-3 border border-sidebar-border/30 bg-sidebar-accent/20 text-sidebar-foreground/70 transition-all duration-200 hover:translate-x-1",
 				densityClass,
 				isMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
 			)}

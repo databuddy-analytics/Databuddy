@@ -1,30 +1,13 @@
 "use client";
 
 import type { LocationData } from "@/types/website";
-import dynamic from "next/dynamic";
 import { useMemo } from "react";
+import { ChartErrorBoundary } from "@/components/chart-error-boundary";
 import { CountryFlag } from "@/components/icon";
+import { MapComponent } from "@/components/analytics/map-component";
 import { formatNumber } from "@/lib/formatters";
 import { GlobeIcon } from "@databuddy/ui/icons";
 import { Card, Skeleton } from "@databuddy/ui";
-
-const MapComponent = dynamic(
-	() =>
-		import("@/components/analytics/map-component").then((mod) => ({
-			default: mod.MapComponent,
-		})),
-	{
-		loading: () => (
-			<div className="flex h-full items-center justify-center bg-accent">
-				<div className="flex flex-col items-center gap-2">
-					<div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-					<span className="text-muted-foreground text-xs">Loading map…</span>
-				</div>
-			</div>
-		),
-		ssr: false,
-	}
-);
 
 interface CountryDataItem {
 	country_code?: string;
@@ -90,11 +73,13 @@ export function GeoMapSection({ countries, isLoading }: GeoMapSectionProps) {
 				style={{ minHeight: 350 }}
 			>
 				<div className="relative flex-1 max-lg:aspect-video lg:min-h-0 [&>div]:rounded-none [&>div]:border-0">
-					<MapComponent
-						height="100%"
-						isLoading={false}
-						locationData={locationData}
-					/>
+					<ChartErrorBoundary fallbackClassName="h-full w-full">
+						<MapComponent
+							height="100%"
+							isLoading={false}
+							locationData={locationData}
+						/>
+					</ChartErrorBoundary>
 				</div>
 
 				<div className="absolute right-2 bottom-2 z-1 w-44 overflow-hidden rounded border border-border/60 bg-card shadow-sm">

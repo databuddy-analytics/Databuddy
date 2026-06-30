@@ -28,6 +28,7 @@ import {
 	type VitalsBreakdownData,
 } from "./columns";
 import { HeartbeatIcon } from "@databuddy/ui/icons";
+import { calculatePercentChange } from "../_components/utils/analytics-helpers";
 
 interface VitalMetric {
 	avg_value: number;
@@ -101,13 +102,6 @@ function calculatePreviousPeriod(dateRange: {
 	};
 }
 
-function calculatePercentChange(current: number, previous: number): number {
-	if (previous === 0) {
-		return current > 0 ? 100 : 0;
-	}
-	return ((current - previous) / previous) * 100;
-}
-
 export default function VitalsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
@@ -134,12 +128,8 @@ export default function VitalsPage() {
 	const queries = [
 		{
 			id: "vitals-overview",
-			parameters: ["vitals_overview"],
-			filters,
-		},
-		{
-			id: "vitals-previous",
 			parameters: [
+				"vitals_overview",
 				{
 					name: "vitals_overview",
 					start_date: previousPeriodRange.start_date,
@@ -161,23 +151,13 @@ export default function VitalsPage() {
 			filters,
 		},
 		{
-			id: "vitals-by-country",
-			parameters: ["vitals_by_country"],
-			filters,
-		},
-		{
-			id: "vitals-by-browser",
-			parameters: ["vitals_by_browser"],
-			filters,
-		},
-		{
-			id: "vitals-by-region",
-			parameters: ["vitals_by_region"],
-			filters,
-		},
-		{
-			id: "vitals-by-city",
-			parameters: ["vitals_by_city"],
+			id: "vitals-dimensions",
+			parameters: [
+				"vitals_by_country",
+				"vitals_by_browser",
+				"vitals_by_region",
+				"vitals_by_city",
+			],
 			filters,
 		},
 	];
@@ -194,7 +174,7 @@ export default function VitalsPage() {
 
 	const previousOverviewData =
 		(getDataForQuery(
-			"vitals-previous",
+			"vitals-overview",
 			"previous_vitals_overview"
 		) as VitalMetric[]) ?? [];
 
@@ -209,25 +189,25 @@ export default function VitalsPage() {
 		[];
 
 	const countryBreakdownData =
-		(getDataForQuery("vitals-by-country", "vitals_by_country") as Record<
+		(getDataForQuery("vitals-dimensions", "vitals_by_country") as Record<
 			string,
 			unknown
 		>[]) ?? [];
 
 	const browserBreakdownData =
-		(getDataForQuery("vitals-by-browser", "vitals_by_browser") as Record<
+		(getDataForQuery("vitals-dimensions", "vitals_by_browser") as Record<
 			string,
 			unknown
 		>[]) ?? [];
 
 	const regionBreakdownData =
-		(getDataForQuery("vitals-by-region", "vitals_by_region") as Record<
+		(getDataForQuery("vitals-dimensions", "vitals_by_region") as Record<
 			string,
 			unknown
 		>[]) ?? [];
 
 	const cityBreakdownData =
-		(getDataForQuery("vitals-by-city", "vitals_by_city") as Record<
+		(getDataForQuery("vitals-dimensions", "vitals_by_city") as Record<
 			string,
 			unknown
 		>[]) ?? [];

@@ -40,7 +40,7 @@ const dashboardActionSchema = z
 			.max(500)
 			.optional()
 			.describe(
-				"Relative dashboard path. Use /websites/{websiteId}/... for website pages that do not have a semantic target."
+				"Preferred navigation destination. Use a safe relative dashboard path such as /websites/{websiteId}/errors."
 			),
 		label: z
 			.string()
@@ -60,7 +60,7 @@ const dashboardActionSchema = z
 			.max(120)
 			.optional()
 			.describe(
-				"Optional semantic dashboard target from the system prompt. Use href for pages outside that list."
+				"Optional semantic dashboard shortcut from the system prompt. Prefer href for normal navigation."
 			),
 		websiteId: z.string().trim().min(1).max(200).optional(),
 	})
@@ -70,7 +70,7 @@ const dashboardActionSchema = z
 
 export const dashboardActionsTool = tool({
 	description:
-		"Create clickable dashboard navigation actions. Use this when the user asks to go, open, navigate, or take them to a Databuddy dashboard page, or when an answer should include a clear next dashboard surface to inspect. The model writes the action label and description in natural language. This tool does not fetch analytics data.",
+		"Create clickable dashboard navigation actions. Use this when the user asks to go, open, navigate, or take them to a Databuddy dashboard page, or when an answer should include a clear next dashboard surface to inspect. Prefer safe relative hrefs; use semantic targets only as shortcuts. The model writes the action label and description in natural language. This tool does not fetch analytics data.",
 	inputSchema: z.object({
 		actions: z
 			.array(dashboardActionSchema)
@@ -84,23 +84,20 @@ export const dashboardActionsTool = tool({
 	}),
 	execute: ({ actions, title, websiteId }, options) => {
 		const context = getAppContext(options);
-		const resolvedWebsiteId = websiteId ?? context.websiteId;
+		const resolvedWebsiteId =
+			websiteId ?? context.defaultWebsiteId ?? context.websiteId;
 
 		return {
 			type: "dashboard-actions",
 			title: title ?? "Open in dashboard",
 			websiteId: resolvedWebsiteId,
-			actions: actions.map((action) => ({
-				description: action.description,
-				eventName: action.eventName,
-				filters: action.filters,
-				href: action.href,
-				label: action.label ?? action.eventName ?? "Open",
-				params: action.params,
-				preserveAnalyticsContext: action.preserveAnalyticsContext,
-				target: action.target,
-				websiteId: action.websiteId ?? resolvedWebsiteId,
-			})),
+			actions: actions.map(
+				({ label, websiteId: actionWebsiteId, ...action }) => ({
+					...action,
+					label: label ?? action.eventName ?? "Open",
+					websiteId: actionWebsiteId ?? resolvedWebsiteId,
+				})
+			),
 		};
 	},
 });

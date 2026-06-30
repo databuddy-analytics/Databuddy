@@ -54,7 +54,7 @@ export function deriveInsightSubjectKey(input: {
 	return input.type;
 }
 
-function directionKeyFromParts(
+export function directionKeyFromParts(
 	changePercent: number | null | undefined,
 	sentiment: ParsedInsight["sentiment"]
 ): "down" | "flat" | "up" {

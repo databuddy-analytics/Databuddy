@@ -32,12 +32,51 @@ describe("validateAgentSQL", () => {
 		expect(result.reason).toContain("alias");
 	});
 
-	it("rejects analytics tables outside the agent allowlist", () => {
+	it("accepts custom_events with owner_id tenant filter", () => {
 		const result = validateAgentSQL(
-			`SELECT event_name, count() FROM analytics.custom_events ${TENANT}`
+			"SELECT event_name, count() FROM analytics.custom_events WHERE owner_id = {websiteId:String} GROUP BY event_name"
+		);
+		expect(result.valid).toBe(true);
+	});
+
+	it("rejects analytics.revenue filtered with client_id (silent-empty footgun)", () => {
+		const result = validateAgentSQL(
+			"SELECT provider, sum(amount) FROM analytics.revenue WHERE client_id = {websiteId:String} GROUP BY provider"
 		);
 		expect(result.valid).toBe(false);
-		expect(result.reason).toContain("not in the agent allowlist");
+		expect(result.reason).toContain("owner_id");
+		expect(result.reason).toContain("zero rows");
+	});
+
+	it("rejects analytics.custom_events filtered with client_id", () => {
+		const result = validateAgentSQL(
+			"SELECT event_name, count() FROM analytics.custom_events WHERE client_id = {websiteId:String} GROUP BY event_name"
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("owner_id");
+	});
+
+	it("rejects analytics.events filtered with owner_id (wrong direction)", () => {
+		const result = validateAgentSQL(
+			"SELECT count() FROM analytics.events WHERE owner_id = {websiteId:String}"
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("client_id");
+	});
+
+	it("accepts mixed-table JOIN when each alias uses its required tenant column", () => {
+		const result = validateAgentSQL(
+			"SELECT r.provider, count() FROM analytics.revenue r JOIN analytics.events e ON r.transaction_id = e.session_id WHERE r.owner_id = {websiteId:String} AND e.client_id = {websiteId:String} GROUP BY r.provider"
+		);
+		expect(result.valid).toBe(true);
+	});
+
+	it("rejects mixed-table JOIN when revenue alias uses client_id", () => {
+		const result = validateAgentSQL(
+			"SELECT r.provider, count() FROM analytics.revenue r JOIN analytics.events e ON r.transaction_id = e.session_id WHERE r.client_id = {websiteId:String} AND e.client_id = {websiteId:String} GROUP BY r.provider"
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("owner_id");
 	});
 
 	it("rejects inline SETTINGS that could override server-side tenant filter", () => {
@@ -72,12 +111,14 @@ describe("validateAgentSQL", () => {
 		expect(out).toBe("{'analytics.events':'client_id=''O''''Brien'''}");
 	});
 
-	it("buildAdditionalTableFilters drops tables not in the allowlist", () => {
+	it("buildAdditionalTableFilters maps correct tenant columns and drops unknown tables", () => {
 		const out = buildAdditionalTableFilters(
 			["analytics.events", "analytics.custom_events", "analytics.unknown"],
 			"abc"
 		);
-		expect(out).toBe("{'analytics.events':'client_id=''abc'''}");
+		expect(out).toBe(
+			"{'analytics.events':'client_id=''abc''','analytics.custom_events':'owner_id=''abc'''}"
+		);
 	});
 
 	it("extractAllowlistedTables returns only allowlisted analytics tables", () => {
@@ -91,13 +132,14 @@ describe("validateAgentSQL", () => {
 	});
 
 	it("AGENT_TENANT_COLUMN_BY_TABLE only covers vetted tables", () => {
-		// Only client_id-based core tables should be in scope; custom_events and
-		// revenue go through query builders, not free-form agent SQL.
 		expect(AGENT_TENANT_COLUMN_BY_TABLE).toEqual({
 			"analytics.events": "client_id",
 			"analytics.error_spans": "client_id",
 			"analytics.web_vitals_spans": "client_id",
 			"analytics.outgoing_links": "client_id",
+			"analytics.custom_events": "owner_id",
+			"analytics.revenue": "owner_id",
+			"analytics.blocked_traffic": "client_id",
 		});
 	});
 
@@ -185,19 +227,35 @@ describe("validateAgentSQL", () => {
 		expect(result.reason).toContain("Multiple statements");
 	});
 
-	it("rejects common analytics.events schema footguns", () => {
-		for (const [badColumn, replacement] of [
-			["website_id", "client_id"],
-			["created_at", "time"],
-			["page_path", "path"],
-			["event_type", "event_name"],
-		] as const) {
-			const result = validateAgentSQL(
-				`SELECT count() FROM analytics.events WHERE client_id = {websiteId:String} AND ${badColumn} != ''`
-			);
-			expect(result.valid).toBe(false);
-			expect(result.reason).toContain(replacement);
-		}
+	it("rejects qualified columns that don't exist on the aliased table", () => {
+		const result = validateAgentSQL(
+			"SELECT es.browser_name FROM analytics.error_spans es WHERE es.client_id = {websiteId:String}"
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("browser_name");
+		expect(result.reason).toContain("does not exist");
+	});
+
+	it("allows valid qualified columns", () => {
+		const result = validateAgentSQL(
+			"SELECT es.message, es.path FROM analytics.error_spans es WHERE es.client_id = {websiteId:String}"
+		);
+		expect(result).toEqual({ valid: true, reason: null });
+	});
+
+	it("allows columns from the correct table in a JOIN", () => {
+		const result = validateAgentSQL(
+			"SELECT e.browser_name, es.message FROM analytics.events e JOIN analytics.error_spans es ON e.session_id = es.session_id WHERE e.client_id = {websiteId:String} AND es.client_id = {websiteId:String}"
+		);
+		expect(result).toEqual({ valid: true, reason: null });
+	});
+
+	it("rejects cross-table column misuse in a JOIN", () => {
+		const result = validateAgentSQL(
+			"SELECT es.browser_name FROM analytics.events e JOIN analytics.error_spans es ON e.session_id = es.session_id WHERE e.client_id = {websiteId:String} AND es.client_id = {websiteId:String}"
+		);
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain("browser_name");
 	});
 
 	it("rejects the nonexistent pageview event name", () => {

@@ -22,10 +22,8 @@ import { DropdownMenu, Switch } from "@databuddy/ui/client";
 
 export interface StatusPage {
 	createdAt: Date | string;
-	customCss?: string | null;
 	description: string | null;
 	faviconUrl?: string | null;
-	hideBranding?: boolean;
 	id: string;
 	logoUrl?: string | null;
 	monitorCount: number;

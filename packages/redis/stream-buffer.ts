@@ -145,8 +145,18 @@ export async function getActiveStream(
 
 export async function clearActiveStream(
 	websiteId: string,
-	chatId: string
+	chatId: string,
+	streamId: string
 ): Promise<void> {
 	const redis = getRedisCache();
-	await redis.del(activeStreamKey(websiteId, chatId));
+	const key = activeStreamKey(websiteId, chatId);
+	await redis.eval(
+		`if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+end
+return 0`,
+		1,
+		key,
+		streamId
+	);
 }

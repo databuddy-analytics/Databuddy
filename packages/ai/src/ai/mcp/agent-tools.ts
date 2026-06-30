@@ -5,15 +5,21 @@ import { z } from "zod";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { getWebsiteDomain } from "../../lib/website-utils";
 import { executeBatch, executeQuery } from "../../query";
-import type { Filter, QueryRequest } from "../../query/types";
+import type { QueryRequest } from "../../query/types";
 import { createAnnotationTools } from "../tools/annotations";
 import { createFlagTools } from "../tools/flags";
 import { createFunnelTools } from "../tools/funnels";
 import { createGoalTools } from "../tools/goals";
+import { createInsightDigestTools } from "../tools/insight-digest";
+import { createInvestigationTools } from "../tools/investigation-tools";
 import { createLinksTools } from "../tools/links";
 import { createMemoryTools } from "../tools/memory";
 import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
-import { buildBatchQueryRequests, MCP_DATE_PRESETS } from "./mcp-utils";
+import {
+	buildBatchQueryRequests,
+	FilterSchema,
+	MCP_DATE_PRESETS,
+} from "./mcp-utils";
 import { createMcpProfileTools } from "./profile-tools";
 import {
 	createSlackConversationTools,
@@ -27,26 +33,6 @@ export interface McpAgentContext {
 	requestHeaders: Headers;
 	userId: string | null;
 }
-
-const FilterSchema = z.object({
-	field: z.string(),
-	op: z.enum([
-		"eq",
-		"ne",
-		"contains",
-		"not_contains",
-		"starts_with",
-		"in",
-		"not_in",
-	]),
-	value: z.union([
-		z.string(),
-		z.number(),
-		z.array(z.union([z.string(), z.number()])),
-	]),
-	target: z.string().optional(),
-	having: z.boolean().optional(),
-}) satisfies z.ZodType<Filter>;
 
 function getContext(ctx: unknown): McpAgentContext {
 	if (!ctx || typeof ctx !== "object" || !("requestHeaders" in ctx)) {
@@ -64,8 +50,20 @@ function getToolContext(options: unknown): McpAgentContext {
 }
 
 export function createMcpAgentTools(
-	options: { slackContext?: DatabuddyAgentSlackContext | null } = {}
+	options: {
+		slackContext?: DatabuddyAgentSlackContext | null;
+		organizationId?: string | null;
+		userId?: string | null;
+		websiteDomain?: string | null;
+	} = {}
 ): ToolSet {
+	const investigationTools = options.organizationId
+		? createInvestigationTools({
+				organizationId: options.organizationId,
+				userId: options.userId ?? undefined,
+				domain: options.websiteDomain ?? undefined,
+			})
+		: {};
 	return {
 		list_websites: tool({
 			description:
@@ -149,7 +147,8 @@ export function createMcpAgentTools(
 				const data = await executeQuery(
 					queryRequest,
 					websiteDomain,
-					queryRequest.timezone
+					queryRequest.timezone,
+					options.abortSignal
 				);
 				return { data, rowCount: data.length, type: args.type };
 			},
@@ -157,7 +156,7 @@ export function createMcpAgentTools(
 		execute_sql_query: tool({
 			description: `Custom read-only ClickHouse SQL. SELECT/WITH only. Use {paramName:Type} for parameters. websiteId and websiteDomain are bound server-side from the verified website argument; tool args of those names in params are ignored. UNION, INTERSECT, EXCEPT, subqueries, and comma-joins are not allowed — use CTEs instead. Every WHERE must AND \`client_id = {websiteId:String}\` at top level. Use only when get_data/query builders cannot answer.
 
-Canonical analytics.events schema: client_id, anonymous_id, session_id, time, path, referrer, browser_name, os_name, device_type, country, region, city, utm_source, utm_medium, utm_campaign, utm_term, utm_content, load_time, time_on_page, scroll_depth, properties, event_name.
+Canonical analytics.events schema: client_id, anonymous_id, session_id, time, path, referrer, browser_name, os_name, device_type, country, region, city, utm_source, utm_medium, utm_campaign, utm_term, utm_content, time_on_page, scroll_depth, event_name.
 
 Critical schema footguns: website id column is client_id (not website_id); timestamp is time (not created_at); page URL path is path (not page_path); event discriminator is event_name (not event_type); pageviews are event_name = 'screen_view' (never 'pageview'). Custom events are easy to query incorrectly; use get_data custom_events_* builders instead.`,
 			strict: true,
@@ -184,6 +183,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 					sql: args.sql,
 					params: args.params,
 					toolName: "MCP Agent SQL",
+					abortSignal: options.abortSignal,
 				});
 			},
 		}),
@@ -225,28 +225,34 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
-				const buildResult = buildBatchQueryRequests(
+				const { requests, invalid } = buildBatchQueryRequests(
 					args.queries,
 					args.websiteId,
 					args.timezone ?? "UTC"
 				);
-				if ("error" in buildResult) {
-					throw new Error(buildResult.error);
-				}
 				const websiteDomain =
 					(await getWebsiteDomain(args.websiteId)) ?? "unknown";
-				const results = await executeBatch(buildResult.requests, {
+				const results = await executeBatch(requests, {
 					websiteDomain,
 					timezone: args.timezone ?? "UTC",
+					abortSignal: options.abortSignal,
 				});
 				return {
 					batch: true,
-					results: results.map((r) => ({
-						type: r.type,
-						data: r.data,
-						rowCount: r.data.length,
-						...(r.error && { error: "Query failed" }),
-					})),
+					results: [
+						...results.map((r) => ({
+							type: r.type,
+							data: r.data,
+							rowCount: r.data.length,
+							...(r.error && { error: "Query failed" }),
+						})),
+						...invalid.map((q) => ({
+							type: q.type,
+							data: [] as unknown[],
+							rowCount: 0,
+							error: q.error,
+						})),
+					],
 				};
 			},
 		}),
@@ -257,6 +263,8 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		...createGoalTools(),
 		...createAnnotationTools(),
 		...createLinksTools(),
+		...createInsightDigestTools(),
 		...createSlackConversationTools(options.slackContext),
+		...investigationTools,
 	};
 }

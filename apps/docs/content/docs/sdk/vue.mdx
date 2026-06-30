@@ -5,7 +5,11 @@ description: Vue component and composables for tracking analytics in Vue applica
 
 import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
 
-The Databuddy Vue SDK provides a component for script injection and composables for feature flags. Works with Vue 3 and Nuxt 3.
+The Databuddy Vue SDK provides a component for script injection and composables for feature flags. Works with Vue 3.
+
+<Callout type="info">
+  Using Nuxt? The dedicated **[`@databuddy/nuxt`](/docs/sdk/nuxt)** module is a better fit — zero config, auto-imports, and no `app.vue` changes needed.
+</Callout>
 
 <Callout type="info">
   **Package**: `@databuddy/sdk` | **Import**: `@databuddy/sdk/vue`
@@ -135,44 +139,6 @@ function handleClick() {
   {`VITE_DATABUDDY_CLIENT_ID=your-client-id-here`}
 </CodeBlock>
 
-## Nuxt 3
-
-For Nuxt 3, create a plugin:
-
-<CodeBlock language="tsx" filename="plugins/databuddy.client.ts">
-  {`import { Databuddy } from "@databuddy/sdk/vue";
-
-export default defineNuxtPlugin((nuxtApp) => {
-  nuxtApp.vueApp.component("Databuddy", Databuddy);
-});`}
-</CodeBlock>
-
-Then use in your app.vue:
-
-<CodeBlock language="html" filename="app.vue">
-  {`<template>
-  <Databuddy
-    :client-id="runtimeConfig.public.databuddyClientId"
-    track-web-vitals
-  />
-  <NuxtPage />
-</template>
-
-<script setup>
-const runtimeConfig = useRuntimeConfig();
-</script>`}
-</CodeBlock>
-
-<CodeBlock language="tsx" filename="nuxt.config.ts">
-  {`export default defineNuxtConfig({
-  runtimeConfig: {
-    public: {
-      databuddyClientId: process.env.NUXT_PUBLIC_DATABUDDY_CLIENT_ID
-    }
-  }
-});`}
-</CodeBlock>
-
 ## Feature Flags
 
 Vue has built-in feature flag support:
@@ -221,6 +187,9 @@ See [Feature Flags](/docs/sdk/feature-flags) for complete Vue flag documentation
 ## Related
 
 <Cards>
+  <Card title="Nuxt Module" href="/docs/sdk/nuxt">
+    Zero-config Nuxt integration with auto-imports and no app.vue changes
+  </Card>
   <Card title="Tracker Helpers" href="/docs/sdk/tracker">
     track, flush, getAnonymousId, and more helper functions
   </Card>

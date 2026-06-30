@@ -2,7 +2,7 @@ import {
 	type ApiKeyRow,
 	getApiKeyFromHeader,
 } from "@databuddy/api-keys/resolve";
-import { auth, type User } from "@databuddy/auth";
+import { auth } from "@databuddy/auth";
 import { db } from "@databuddy/db";
 import { os as createOS } from "@orpc/server";
 import { baseErrors } from "./errors";
@@ -13,15 +13,63 @@ import {
 	setRpcProcedureType,
 } from "./lib/rpc-log-context";
 import { runTracked } from "./middleware/track-mutation";
-import {
-	type BillingOwner,
-	getBillingOwner,
-	getOrganizationOwnerId,
-} from "./utils/billing";
+import { type BillingOwner, getBillingOwner } from "./utils/billing";
+import { getOrganizationOwnerId } from "./utils/organization";
 
-interface PreResolvedAuth {
+export interface PreResolvedAuth {
 	apiKey: ApiKeyRow | null;
 	session: Awaited<ReturnType<typeof auth.api.getSession>> | null;
+}
+
+export interface InternalPrincipalInit {
+	createdAt?: Date;
+	id?: string;
+	keyHash?: string;
+	metadata?: Record<string, unknown>;
+	name?: string;
+	organizationId: string;
+	prefix?: string;
+	rateLimitEnabled?: boolean;
+	scopes: string[];
+	start?: string;
+	updatedAt?: Date;
+	userId?: string | null;
+}
+
+export function createInternalPrincipal(
+	init: InternalPrincipalInit
+): PreResolvedAuth {
+	const now = new Date();
+	const id = init.id ?? `svc:${init.organizationId}`;
+	const apiKey: ApiKeyRow = {
+		createdAt: init.createdAt ?? now,
+		enabled: true,
+		expiresAt: null,
+		id,
+		keyHash: init.keyHash ?? id,
+		lastUsedAt: null,
+		metadata: init.metadata ?? {},
+		name: init.name ?? "Internal Service",
+		organizationId: init.organizationId,
+		prefix: init.prefix ?? "svc",
+		rateLimitEnabled: init.rateLimitEnabled ?? false,
+		rateLimitMax: null,
+		rateLimitTimeWindow: null,
+		revokedAt: null,
+		scopes: init.scopes,
+		start: init.start ?? "svc_int_",
+		type: "automation",
+		updatedAt: init.updatedAt ?? now,
+		userId: init.userId ?? null,
+	};
+	return { apiKey, session: null };
+}
+
+export function createServiceAuth(
+	organizationId: string,
+	scopes: string[]
+): PreResolvedAuth {
+	return createInternalPrincipal({ organizationId, scopes });
 }
 
 export const createRPCContext = async (
@@ -35,13 +83,10 @@ export const createRPCContext = async (
 				getApiKeyFromHeader(opts.headers),
 			]);
 
-	const user = session?.user as User | undefined;
+	const user = session?.user;
 
 	const organizationId =
-		apiKey?.organizationId ??
-		(session?.session as { activeOrganizationId?: string | null })
-			?.activeOrganizationId ??
-		null;
+		apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null;
 
 	let billingCache: BillingOwner | undefined;
 	let billingResolved = false;

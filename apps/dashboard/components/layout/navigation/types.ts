@@ -27,8 +27,20 @@ export interface NavigationItem {
 	name: string;
 	production?: boolean;
 	rootLevel?: boolean;
+	searchItems?: NavigationSearchItem[];
+	searchTags?: string[];
 	showOnlyOnDemo?: boolean;
 	tag?: string;
+}
+
+export interface NavigationSearchItem {
+	disabled?: boolean;
+	external?: boolean;
+	href?: string;
+	icon?: NavIcon;
+	name: string;
+	rootLevel?: boolean;
+	searchTags?: string[];
 }
 
 export interface NavigationSection {

@@ -7,9 +7,9 @@ import {
 } from "@lib/evlog-basket";
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
-import { resolveKafkaSsl } from "@databuddy/shared/kafka-tls";
 import { disconnect, disposeRuntime, runPromise } from "@lib/producer";
 import { Kafka } from "kafkajs";
+import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import {
 	handleUncaughtException,
 	handleUnhandledRejection,
@@ -27,6 +27,7 @@ import { evlog } from "evlog/elysia";
 
 initLogger({
 	env: { service: "basket" },
+	redact: databuddyEvlogRedaction,
 	drain: basketLoggerDrain,
 	sampling: {
 		rates: { info: 20, warn: 50, debug: 5 },
@@ -108,7 +109,7 @@ const app = new Elysia()
 	.use(stripeWebhook)
 	.use(paddleWebhook)
 	.get("/health/status", async function basketHealthStatus() {
-		async function ping(probe: () => Promise<void>) {
+		async function ping(name: string, probe: () => Promise<void>) {
 			const start = performance.now();
 			try {
 				await probe();
@@ -117,41 +118,43 @@ const app = new Elysia()
 					latency_ms: Math.round(performance.now() - start),
 				};
 			} catch (err) {
+				log.error({
+					health_probe: name,
+					error_message: err instanceof Error ? err.message : String(err),
+				});
 				return {
 					status: "error" as const,
 					latency_ms: Math.round(performance.now() - start),
-					error: err instanceof Error ? err.message : "unknown",
+					code: "UNAVAILABLE",
 				};
 			}
 		}
 
 		const [clickhouse, redpanda] = await Promise.all([
-			ping(async () => {
+			ping("clickhouse", async () => {
 				const { success } = await clickHouse.ping();
 				if (!success) {
 					throw new Error("ping failed");
 				}
 			}),
-			ping(async () => {
+			ping("redpanda", async () => {
 				const broker = process.env.REDPANDA_BROKER;
 				if (!broker) {
 					throw new Error("not configured");
 				}
-				const hasCreds = Boolean(
-					process.env.REDPANDA_USER && process.env.REDPANDA_PASSWORD
-				);
 				const kafka = new Kafka({
 					clientId: "health",
 					brokers: [broker],
 					connectionTimeout: 5000,
-					...(hasCreds && {
-						sasl: {
-							mechanism: "scram-sha-256",
-							username: process.env.REDPANDA_USER as string,
-							password: process.env.REDPANDA_PASSWORD as string,
-						},
-						ssl: resolveKafkaSsl(true),
-					}),
+					...(process.env.REDPANDA_USER &&
+						process.env.REDPANDA_PASSWORD && {
+							sasl: {
+								mechanism: "scram-sha-256",
+								username: process.env.REDPANDA_USER,
+								password: process.env.REDPANDA_PASSWORD,
+							},
+							ssl: false,
+						}),
 				});
 				const admin = kafka.admin();
 				try {

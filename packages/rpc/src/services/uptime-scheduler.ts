@@ -4,7 +4,7 @@ import {
 	UPTIME_JOB_OPTIONS,
 	uptimeImmediateJobId,
 	uptimeSchedulerId,
-} from "@databuddy/redis";
+} from "@databuddy/redis/uptime-queue";
 import { logger } from "../lib/logger";
 
 export const CRON_GRANULARITIES = {

@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.11-slim AS pruner
+FROM oven/bun:1.3.14-slim AS pruner
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ COPY . .
 
 RUN bunx turbo prune @databuddy/slack --docker
 
-FROM oven/bun:1.3.11-slim AS builder
+FROM oven/bun:1.3.14-slim AS builder
 
 WORKDIR /app
 
@@ -15,6 +15,7 @@ RUN bun install --ignore-scripts
 
 COPY --from=pruner /app/out/full/ .
 COPY turbo.json turbo.json
+COPY tsconfig tsconfig
 
 ENV NODE_ENV=production
 
@@ -32,7 +33,7 @@ RUN bun build \
 	--outfile /app/server \
 	./src/index.ts
 
-FROM oven/bun:1.3.11-distroless
+FROM oven/bun:1.3.14-distroless
 
 WORKDIR /app
 

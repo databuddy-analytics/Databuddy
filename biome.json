@@ -31,6 +31,21 @@
           }
         }
       }
+    },
+    {
+      "includes": ["packages/nuxt/playground/**/*.vue"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUndeclaredVariables": "off",
+            "noUnusedVariables": "off",
+            "useHookAtTopLevel": "off"
+          },
+          "suspicious": {
+            "noEmptySource": "off"
+          }
+        }
+      }
     }
   ],
   "assist": {

@@ -88,3 +88,9 @@ export interface FlagsManager {
 	updateConfig(config: FlagsConfig): void;
 	updateUser(user: UserContext): void;
 }
+
+declare global {
+	interface Window {
+		__databuddyFlags?: FlagsManager;
+	}
+}

@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 import { AlarmSheet } from "./_components/alarm-sheet";
+import { EmailPreferencesCard } from "./_components/email-preferences-card";
 import { Dialog, DropdownMenu, Switch } from "@databuddy/ui/client";
 import {
 	Badge,
@@ -210,6 +211,8 @@ export default function NotificationsSettingsPage() {
 	return (
 		<div className="flex-1 overflow-y-auto">
 			<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<EmailPreferencesCard />
+
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>

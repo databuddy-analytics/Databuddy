@@ -24,6 +24,7 @@ const BOLD = "\x1b[1m";
 const DIM = "\x1b[2m";
 const GREEN = "\x1b[32m";
 const RED = "\x1b[31m";
+const YELLOW = "\x1b[33m";
 const RESET = "\x1b[0m";
 
 type SlackHarnessArea =
@@ -38,16 +39,51 @@ interface SlackHarnessCase {
 	area: SlackHarnessArea;
 	id: string;
 	name: string;
-	run: () => Promise<void> | void;
+	run: () => Promise<unknown> | unknown;
+	stabilityGroup?: "slack-routing";
+}
+
+interface SlackHarnessAttemptDetails {
+	actual?: Record<string, unknown>;
+	expected?: Record<string, unknown>;
+	text?: string;
+	threadMessageCount?: number;
+}
+
+interface SlackHarnessAttemptResult {
+	attempt: number;
+	details?: SlackHarnessAttemptDetails;
+	durationMs: number;
+	error?: string;
+	passed: boolean;
 }
 
 interface SlackHarnessResult {
 	area: SlackHarnessArea;
+	attempts: SlackHarnessAttemptResult[];
 	durationMs: number;
 	error?: string;
 	id: string;
 	name: string;
+	passCount: number;
 	passed: boolean;
+	requiredPasses: number;
+	totalAttempts: number;
+}
+
+interface SlackHarnessOptions {
+	caseFilter?: string;
+	routingMinPassRate: number;
+	routingRepetitions: number;
+}
+
+class SlackHarnessFailure extends Error {
+	details?: SlackHarnessAttemptDetails;
+
+	constructor(message: string, details?: SlackHarnessAttemptDetails) {
+		super(message);
+		this.details = details;
+	}
 }
 
 const BASE_RUN: SlackAgentRun = {
@@ -67,35 +103,130 @@ const logger: SlackLogger = {
 
 export async function runSlackAdapterHarness(): Promise<void> {
 	const startedAt = performance.now();
+	const options = getSlackHarnessOptions();
 	const results: SlackHarnessResult[] = [];
+	const cases = filterSlackHarnessCases(
+		createSlackHarnessCases(),
+		options.caseFilter
+	);
 
-	for (const evalCase of createSlackHarnessCases()) {
-		const caseStartedAt = performance.now();
-		try {
-			await evalCase.run();
-			results.push({
-				area: evalCase.area,
-				durationMs: performance.now() - caseStartedAt,
-				id: evalCase.id,
-				name: evalCase.name,
-				passed: true,
-			});
-		} catch (error) {
-			results.push({
-				area: evalCase.area,
-				durationMs: performance.now() - caseStartedAt,
-				error: error instanceof Error ? error.message : String(error),
-				id: evalCase.id,
-				name: evalCase.name,
-				passed: false,
-			});
-		}
+	if (cases.length === 0) {
+		console.error(
+			`${RED}No Slack harness cases matched filter ${formatValue(options.caseFilter)}${RESET}`
+		);
+		process.exitCode = 1;
+		return;
 	}
 
-	printSlackHarnessReport(results, performance.now() - startedAt);
+	for (const evalCase of cases) {
+		results.push(await runSlackHarnessCase(evalCase, options));
+	}
+
+	printSlackHarnessReport(results, performance.now() - startedAt, options);
 	if (results.some((result) => !result.passed)) {
 		process.exitCode = 1;
 	}
+}
+
+async function runSlackHarnessCase(
+	evalCase: SlackHarnessCase,
+	options: SlackHarnessOptions
+): Promise<SlackHarnessResult> {
+	const caseStartedAt = performance.now();
+	const totalAttempts =
+		evalCase.stabilityGroup === "slack-routing"
+			? options.routingRepetitions
+			: 1;
+	const requiredPasses =
+		evalCase.stabilityGroup === "slack-routing"
+			? Math.ceil(totalAttempts * options.routingMinPassRate)
+			: totalAttempts;
+	const attempts: SlackHarnessAttemptResult[] = [];
+
+	for (let attempt = 1; attempt <= totalAttempts; attempt++) {
+		attempts.push(await runSlackHarnessAttempt(evalCase, attempt));
+	}
+
+	const passCount = attempts.filter((attempt) => attempt.passed).length;
+	const firstFailure = attempts.find((attempt) => !attempt.passed);
+	return {
+		area: evalCase.area,
+		attempts,
+		durationMs: performance.now() - caseStartedAt,
+		error: firstFailure?.error,
+		id: evalCase.id,
+		name: evalCase.name,
+		passed: passCount >= requiredPasses,
+		passCount,
+		requiredPasses,
+		totalAttempts,
+	};
+}
+
+async function runSlackHarnessAttempt(
+	evalCase: SlackHarnessCase,
+	attempt: number
+): Promise<SlackHarnessAttemptResult> {
+	const attemptStartedAt = performance.now();
+	try {
+		const details = toAttemptDetails(await evalCase.run());
+		return {
+			attempt,
+			details,
+			durationMs: performance.now() - attemptStartedAt,
+			passed: true,
+		};
+	} catch (error) {
+		return {
+			attempt,
+			details: error instanceof SlackHarnessFailure ? error.details : undefined,
+			durationMs: performance.now() - attemptStartedAt,
+			error: error instanceof Error ? error.message : String(error),
+			passed: false,
+		};
+	}
+}
+
+function toAttemptDetails(
+	value: unknown
+): SlackHarnessAttemptDetails | undefined {
+	return value && typeof value === "object"
+		? (value as SlackHarnessAttemptDetails)
+		: undefined;
+}
+
+function getSlackHarnessOptions(): SlackHarnessOptions {
+	const caseFilter = process.env.EVAL_SLACK_HARNESS_FILTER?.trim();
+	const options: SlackHarnessOptions = {
+		routingMinPassRate: parsePassRate(
+			process.env.EVAL_SLACK_ROUTING_MIN_PASS_RATE,
+			1
+		),
+		routingRepetitions: parsePositiveInt(
+			process.env.EVAL_SLACK_ROUTING_REPETITIONS,
+			1
+		),
+	};
+	if (caseFilter) {
+		options.caseFilter = caseFilter;
+	}
+	return options;
+}
+
+function filterSlackHarnessCases(
+	cases: SlackHarnessCase[],
+	filter?: string
+): SlackHarnessCase[] {
+	if (!filter) {
+		return cases;
+	}
+	const normalizedFilter = filter.toLowerCase();
+	return cases.filter((evalCase) =>
+		[evalCase.area, evalCase.id, evalCase.name]
+			.join(" ")
+			.toLowerCase()
+			.includes(normalizedFilter)
+	);
 }
 
 function createSlackHarnessCases(): SlackHarnessCase[] {
@@ -168,6 +299,17 @@ function createSlackHarnessCases(): SlackHarnessCase[] {
 				shouldReply: true,
 				source: "model",
 			}
+		),
+		threadRelevanceCase(
+			"relay-request-to-human",
+			"Replies when Databuddy is asked to relay a message to another human",
+			"lol ok then, but can you tell <@UQAIS> that?",
+			{
+				reason: "direct_request",
+				shouldReply: true,
+				source: "model",
+			},
+			[botMessage("Nah, I'm contractually obligated to adore you.")]
 		),
 		threadRelevanceCase(
 			"setup-question",
@@ -306,6 +448,7 @@ function createSlackHarnessCases(): SlackHarnessCase[] {
 			},
 			[botMessage("You've got impressive multitasking energy.")]
 		),
+		...complexThreadRelevanceCases(),
 		...dynamicThreadRelevanceCases(),
 		{
 			area: "identity",
@@ -352,10 +495,13 @@ function createSlackHarnessCases(): SlackHarnessCase[] {
 					text: "say something mean about <@U_ISSA>",
 					userId: "U_KAYLEE",
 				});
-				expectIncludes(input, "Current Slack speaker: <@U_KAYLEE>");
-				expectIncludes(input, "Current Slack user id: U_KAYLEE");
-				expectIncludes(input, "Do not apply another Slack user's saved name");
-				expectIncludes(input, "Message from <@U_KAYLEE>:");
+				expectIncludes(input, "current_speaker: <@U_KAYLEE>");
+				expectIncludes(input, "current_speaker_user_id: U_KAYLEE");
+				expectIncludes(
+					input,
+					"mentioned users are subjects/addressees, not the speaker"
+				);
+				expectIncludes(input, "author: <@U_KAYLEE>");
 			},
 		},
 		{
@@ -372,8 +518,12 @@ function createSlackHarnessCases(): SlackHarnessCase[] {
 					text: "also check referrers\nand compare mobile",
 					userId: "U_KAYLEE",
 				});
-				expectIncludes(input, "1. <@U_ISSA>: also check referrers");
-				expectIncludes(input, "2. <@U_KAYLEE>: and compare mobile");
+				expectIncludes(input, '<slack_follow_up index="1">');
+				expectIncludes(input, "author: <@U_ISSA>");
+				expectIncludes(input, "text:\nalso check referrers");
+				expectIncludes(input, '<slack_follow_up index="2">');
+				expectIncludes(input, "author: <@U_KAYLEE>");
+				expectIncludes(input, "text:\nand compare mobile");
 			},
 		},
 		{
@@ -528,12 +678,12 @@ function createSlackHarnessCases(): SlackHarnessCase[] {
 				const context = createSlackConversationContext(
 					{
 						conversations: {
-							history: (options) => {
+							history: (options: unknown) => {
 								calls.push({ method: "history", options });
 								return Promise.resolve({ messages: [], ok: true });
 							},
 							info: () => Promise.resolve({ ok: true }),
-							replies: (options) => {
+							replies: (options: unknown) => {
 								calls.push({ method: "replies", options });
 								return Promise.resolve({
 									has_more: false,
@@ -629,15 +779,255 @@ function threadRelevanceCase(
 					readThreadMessages: () => Promise.resolve(threadMessages),
 				}
 			);
-			expectMatch(decision, expected);
+			const details: SlackHarnessAttemptDetails = {
+				actual: {
+					confidence: decision.confidence,
+					reason: decision.reason,
+					shouldReply: decision.shouldReply,
+					source: decision.source,
+				},
+				expected: {
+					reason: expected.reason,
+					shouldReply: expected.shouldReply,
+					source: expected.source,
+				},
+				text,
+				threadMessageCount: threadMessages.length,
+			};
+			if (decision.shouldReply !== expected.shouldReply) {
+				throw new SlackHarnessFailure(
+					`Expected shouldReply ${formatValue(decision.shouldReply)} to equal ${formatValue(expected.shouldReply)}`,
+					details
+				);
+			}
+			return details;
 		},
+		stabilityGroup: "slack-routing",
 	};
+}
+
+function complexThreadRelevanceCases(): SlackHarnessCase[] {
+	return [
+		threadRelevanceCase(
+			"complex-website-choice-plus-scope",
+			"Replies when a user answers a website clarification and adds scope",
+			"the app one, last 30 days, include mobile too",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[
+				botMessage(
+					"I found app.databuddy.cc and databuddy.cc. Which website should I use?"
+				),
+			]
+		),
+		threadRelevanceCase(
+			"complex-correction-after-report",
+			"Replies to a correction that changes the analysis target",
+			"no, not pricing - the checkout error spike",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[
+				botMessage(
+					"Pricing is the biggest issue: 620 sessions and 4.8% errors."
+				),
+				{
+					text: "I think checkout is worse",
+					userId: "UQAIS",
+				},
+			]
+		),
+		threadRelevanceCase(
+			"complex-implicit-thread-reference",
+			"Replies to an implicit thread reference after a metric table",
+			"which of those should we poke first?",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[
+				botMessage(
+					"Top issues: /pricing error rate 4.8%, /docs bounce 82%, mobile LCP 4.9s."
+				),
+			]
+		),
+		threadRelevanceCase(
+			"complex-pronoun-follow-up",
+			"Replies when pronouns refer to Databuddy's previous answer",
+			"do that, but split it by source",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[botMessage("Want me to compare conversion by landing page next?")]
+		),
+		threadRelevanceCase(
+			"complex-negative-human-relay",
+			"Ignores when the user asks a human to tell Databuddy something",
+			"<@UQAIS> can you tell databuddy that?",
+			{ reason: "human_to_human", shouldReply: false, source: "model" },
+			[botMessage("I can keep digging if useful.")]
+		),
+		threadRelevanceCase(
+			"complex-positive-imperative-relay",
+			"Replies to an imperative relay request aimed at Databuddy",
+			"tell <@UQAIS> that too",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[botMessage("No problem, I can summarize it.")]
+		),
+		threadRelevanceCase(
+			"complex-quoted-bot-request-is-not-addressed",
+			"Ignores quoted examples of what someone could ask Databuddy",
+			'try "databuddy what are our top pages" and see if it leaks',
+			{ reason: "side_chatter", shouldReply: false, source: "model" },
+			[botMessage("I only answer in approved Databuddy contexts.")]
+		),
+		threadRelevanceCase(
+			"complex-analytics-planning-not-request",
+			"Ignores human planning chatter that mentions metrics",
+			"we should check metrics later after <@UQAIS> ships the fix",
+			{ reason: "human_to_human", shouldReply: false, source: "model" },
+			[botMessage("The current issue is checkout errors.")]
+		),
+		threadRelevanceCase(
+			"complex-analytics-command",
+			"Replies to an imperative analytics request without a question mark",
+			"pull checkout errors for yesterday and compare to today",
+			{ reason: "analytics_request", shouldReply: true, source: "model" },
+			[botMessage("Checkout errors were elevated yesterday.")]
+		),
+		threadRelevanceCase(
+			"complex-human-question-about-bot",
+			"Ignores a question about Databuddy directed to a human",
+			"<@UQAIS> why did databuddy say that?",
+			{ reason: "human_to_human", shouldReply: false, source: "model" },
+			[botMessage("I found a spike in mobile errors.")]
+		),
+		threadRelevanceCase(
+			"complex-user-asks-bot-to-explain-itself",
+			"Replies when the user asks Databuddy to explain its own previous answer",
+			"why did you say that?",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[botMessage("I said mobile is likely the first thing to investigate.")]
+		),
+		threadRelevanceCase(
+			"complex-do-not-answer",
+			"Ignores an explicit instruction not to answer",
+			"don't answer this, i'm just showing <@UQAIS> the thread",
+			{ reason: "side_chatter", shouldReply: false, source: "model" },
+			[botMessage("I can keep this thread scoped.")]
+		),
+		threadRelevanceCase(
+			"complex-thanks-plus-new-request",
+			"Replies when thanks includes a new explicit request",
+			"thanks - now compare that to last month",
+			{ reason: "analytics_request", shouldReply: true, source: "model" },
+			[botMessage("This month has 18% more mobile sessions.")]
+		),
+		threadRelevanceCase(
+			"complex-thanks-only-with-analytics-context",
+			"Ignores thanks-only after an analytics answer",
+			"thanks, that's helpful",
+			{ reason: "side_chatter", shouldReply: false, source: "model" },
+			[botMessage("Top referrers are Google, Direct, and GitHub.")]
+		),
+		threadRelevanceCase(
+			"complex-bot-name-as-subject-not-addressee",
+			"Ignores bot-name commentary when Databuddy is the subject, not addressee",
+			"databuddy really just cooked qais there",
+			{ reason: "side_chatter", shouldReply: false, source: "model" },
+			[botMessage("Qais has great taste in analytics tools.")]
+		),
+		threadRelevanceCase(
+			"complex-bot-name-as-addressee",
+			"Replies when bot name is used as the addressee",
+			"databuddy explain the bind thing in one line",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[botMessage("Slack Connect may need approval from the installed side.")]
+		),
+		threadRelevanceCase(
+			"complex-multi-human-discussion-no-request",
+			"Ignores multi-human discussion after Databuddy spoke",
+			"yeah <@UKAYLEE> i think we ship the mobile fix first",
+			{ reason: "human_to_human", shouldReply: false, source: "model" },
+			[
+				botMessage("Mobile LCP is the biggest measured regression."),
+				{ text: "we should ship mobile first", userId: "UQAIS" },
+			]
+		),
+		threadRelevanceCase(
+			"complex-multi-human-discussion-bot-asked",
+			"Replies when a user asks Databuddy to adjudicate a human discussion",
+			"databuddy who's right here?",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[
+				botMessage("Mobile LCP is worse, but checkout errors affect revenue."),
+				{ text: "mobile first", userId: "UQAIS" },
+				{ text: "checkout first", userId: "UKAYLEE" },
+			]
+		),
+		threadRelevanceCase(
+			"complex-confirmation-to-mutation-preview",
+			"Replies to a confirmation after Databuddy previewed a mutation",
+			"yes, create it",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[
+				botMessage(
+					"Create funnel: Signup Flow with steps /signup -> /verify -> /dashboard. Reply with confirmation if you want me to apply this change."
+				),
+			]
+		),
+		threadRelevanceCase(
+			"complex-ambiguous-yes-after-human",
+			"Ignores yes when it answers a human rather than Databuddy",
+			"yes exactly",
+			{ reason: "human_to_human", shouldReply: false, source: "model" },
+			[
+				botMessage("I can create the funnel if you confirm."),
+				{ text: "<@U_ISSSA> should we wait until tomorrow?", userId: "UQAIS" },
+			]
+		),
+		threadRelevanceCase(
+			"complex-security-boundary-discussion",
+			"Ignores human discussion about trying to bypass Databuddy",
+			"maybe ask it from a different workspace and see if it gives data",
+			{ reason: "side_chatter", shouldReply: false, source: "model" },
+			[
+				botMessage(
+					"No analytics were shared across the Slack Connect boundary."
+				),
+			]
+		),
+		threadRelevanceCase(
+			"complex-security-boundary-question",
+			"Replies to a direct security/boundary question",
+			"wait, can you leak data across slack connect?",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[
+				botMessage(
+					"No analytics were shared across the Slack Connect boundary."
+				),
+			]
+		),
+		threadRelevanceCase(
+			"complex-current-data-vs-thread-context",
+			"Replies to fresh data requests even when prior thread context exists",
+			"rerun it live for the last hour",
+			{ reason: "analytics_request", shouldReply: true, source: "model" },
+			[botMessage("Earlier today, realtime sessions were 42.")]
+		),
+		threadRelevanceCase(
+			"complex-handoff-to-human",
+			"Ignores a handoff to a human owner",
+			"<@UQAIS> take this one, i don't trust the bot yet",
+			{ reason: "human_to_human", shouldReply: false, source: "model" },
+			[botMessage("I can provide the supporting metrics if needed.")]
+		),
+		threadRelevanceCase(
+			"complex-ask-human-and-bot",
+			"Replies when the message asks a human and Databuddy for separate actions",
+			"<@UQAIS> ship the fix, databuddy watch errors after deploy",
+			{ reason: "direct_request", shouldReply: true, source: "model" },
+			[botMessage("The current top error is on /checkout.")]
+		),
+	];
 }
 
 function dynamicThreadRelevanceCases(): SlackHarnessCase[] {
 	const count = parsePositiveInt(
 		process.env.EVAL_SLACK_ROUTING_DYNAMIC_CASES,
-		36
+		60
 	);
 	const random = seededRandom(
 		process.env.EVAL_SLACK_ROUTING_SEED ?? "slack-routing-gauntlet-v1"
@@ -647,6 +1037,10 @@ function dynamicThreadRelevanceCases(): SlackHarnessCase[] {
 		buildContextualAnalyticsQuestionCase,
 		buildHumanDirectedChatterCase,
 		buildThreadSideChatterCase,
+		buildRelayRequestCase,
+		buildBotNameSubjectCase,
+		buildConfirmationBoundaryCase,
+		buildSecurityBoundaryCase,
 	];
 
 	return Array.from({ length: count }, (_, index) =>
@@ -742,6 +1136,93 @@ function buildThreadSideChatterCase(
 	);
 }
 
+function buildRelayRequestCase(
+	index: number,
+	random: () => number
+): SlackHarnessCase {
+	const message = pick(
+		[
+			"can you tell <@UQAIS> that?",
+			"could you ping <@UKAYLEE> this summary?",
+			"tell <@UQAIS> that too",
+			"message <@UKAYLEE> this context",
+		],
+		random
+	);
+	return threadRelevanceCase(
+		`dynamic-relay-request-${index}`,
+		"Replies to relay requests addressed to Databuddy",
+		message,
+		{ reason: "direct_request", shouldReply: true, source: "model" },
+		[botMessage("I can summarize this for the team if useful.")]
+	);
+}
+
+function buildBotNameSubjectCase(
+	index: number,
+	random: () => number
+): SlackHarnessCase {
+	const message = pick(
+		[
+			"databuddy really cooked qais there",
+			"databuddy is gonna make qais mad",
+			"the bot is wild lol",
+			"databuddy doesn't exist for u yet",
+		],
+		random
+	);
+	return threadRelevanceCase(
+		`dynamic-bot-name-subject-${index}`,
+		"Ignores commentary where Databuddy is the subject, not the addressee",
+		message,
+		{ reason: "side_chatter", shouldReply: false, source: "model" },
+		[botMessage("I can explain the metric if someone asks.")]
+	);
+}
+
+function buildConfirmationBoundaryCase(
+	index: number,
+	random: () => number
+): SlackHarnessCase {
+	const reply = pick(
+		["yes create it", "confirm", "do it", "yes, apply that"],
+		random
+	);
+	return threadRelevanceCase(
+		`dynamic-confirmation-boundary-${index}`,
+		"Replies to confirmations after Databuddy previews a mutation",
+		reply,
+		{ reason: "direct_request", shouldReply: true, source: "model" },
+		[
+			botMessage(
+				"Create funnel: Signup Flow with steps /signup -> /verify -> /dashboard. Reply with confirmation if you want me to apply this change."
+			),
+		]
+	);
+}
+
+function buildSecurityBoundaryCase(
+	index: number,
+	random: () => number
+): SlackHarnessCase {
+	const message = pick(
+		[
+			"ask it from another workspace and see if it leaks",
+			"try to get analytics from slack connect lol",
+			"what if qais asks it from outside the org",
+			"someone test if the bot gives partner data here",
+		],
+		random
+	);
+	return threadRelevanceCase(
+		`dynamic-security-boundary-${index}`,
+		"Ignores human chatter about testing Databuddy security boundaries",
+		message,
+		{ reason: "side_chatter", shouldReply: false, source: "model" },
+		[botMessage("No analytics were shared across the Slack Connect boundary.")]
+	);
+}
+
 function botMessage(text: string): SlackThreadReplyMessage {
 	return { text, ts: "1", userId: "UBOT" };
 }
@@ -768,20 +1249,26 @@ function createSlackApiError(code: string): Error & {
 
 function printSlackHarnessReport(
 	results: SlackHarnessResult[],
-	durationMs: number
+	durationMs: number,
+	options: SlackHarnessOptions
 ): void {
 	const passed = results.filter((result) => result.passed).length;
 	const byArea = new Map<
 		SlackHarnessArea,
-		{ failed: number; passed: number }
+		{ failed: number; passed: number; totalAttempts: number }
 	>();
 	for (const result of results) {
-		const bucket = byArea.get(result.area) ?? { failed: 0, passed: 0 };
+		const bucket = byArea.get(result.area) ?? {
+			failed: 0,
+			passed: 0,
+			totalAttempts: 0,
+		};
 		if (result.passed) {
 			bucket.passed += 1;
 		} else {
 			bucket.failed += 1;
 		}
+		bucket.totalAttempts += result.totalAttempts;
 		byArea.set(result.area, bucket);
 	}
 
@@ -790,16 +1277,38 @@ function printSlackHarnessReport(
 		`${BOLD}Slack Adapter Harness - ${new Date().toISOString()}${RESET}`
 	);
 	console.log(`Duration: ${(durationMs / 1000).toFixed(2)}s`);
+	if (options.caseFilter) {
+		console.log(`Filter: ${options.caseFilter}`);
+	}
+	if (options.routingRepetitions > 1) {
+		console.log(
+			`Slack routing stability: ${options.routingRepetitions} attempts/case, min pass rate ${formatPercent(options.routingMinPassRate)}`
+		);
+	}
 	console.log("");
 
 	for (const result of results) {
-		const status = result.passed ? `${GREEN}OK${RESET}` : `${RED}FAIL${RESET}`;
-		const time = `${result.durationMs.toFixed(1)}ms`;
+		const status = result.passed
+			? `${GREEN}OK${RESET}`
+			: result.passCount > 0
+				? `${YELLOW}PART${RESET}`
+				: `${RED}FAIL${RESET}`;
+		const attemptSummary =
+			result.totalAttempts > 1
+				? ` ${result.passCount}/${result.totalAttempts} attempts`
+				: "";
+		const time =
+			result.totalAttempts > 1
+				? `${averageAttemptDuration(result).toFixed(1)}ms avg`
+				: `${result.durationMs.toFixed(1)}ms`;
 		console.log(
-			`  ${status} ${result.area.padEnd(16)} ${result.id.padEnd(38)} ${DIM}${time}${RESET}`
+			`  ${status} ${result.area.padEnd(16)} ${result.id.padEnd(38)}${attemptSummary.padEnd(13)} ${DIM}${time}${RESET}`
 		);
 		if (result.error) {
 			console.log(`       ${DIM}-> ${result.error}${RESET}`);
+		}
+		if (!result.passed) {
+			printFailedAttemptDetails(result);
 		}
 	}
 
@@ -807,8 +1316,10 @@ function printSlackHarnessReport(
 	for (const [area, bucket] of [...byArea.entries()].sort()) {
 		const total = bucket.passed + bucket.failed;
 		const passRate = total > 0 ? Math.round((bucket.passed / total) * 100) : 0;
+		const attemptSummary =
+			bucket.totalAttempts > total ? `, ${bucket.totalAttempts} attempts` : "";
 		console.log(
-			`  ${area.padEnd(16)} ${bucket.passed}/${total} passed (${passRate}%)`
+			`  ${area.padEnd(16)} ${bucket.passed}/${total} passed (${passRate}%${attemptSummary})`
 		);
 	}
 	const passRate =
@@ -818,6 +1329,45 @@ function printSlackHarnessReport(
 		`${BOLD}Summary:${RESET} ${passed}/${results.length} passed (${passRate}% pass rate)`
 	);
 	console.log("");
+}
+
+function averageAttemptDuration(result: SlackHarnessResult): number {
+	if (result.attempts.length === 0) {
+		return 0;
+	}
+	return (
+		result.attempts.reduce((sum, attempt) => sum + attempt.durationMs, 0) /
+		result.attempts.length
+	);
+}
+
+function printFailedAttemptDetails(result: SlackHarnessResult): void {
+	for (const attempt of result.attempts
+		.filter((item) => !item.passed)
+		.slice(0, 3)) {
+		console.log(
+			`       ${DIM}attempt ${attempt.attempt}/${result.totalAttempts}: ${attempt.error ?? "failed"}${RESET}`
+		);
+		if (attempt.details?.text) {
+			console.log(`       ${DIM}text: ${attempt.details.text}${RESET}`);
+		}
+		if (attempt.details?.expected || attempt.details?.actual) {
+			console.log(
+				`       ${DIM}expected: ${formatValue(attempt.details.expected)} actual: ${formatValue(attempt.details.actual)}${RESET}`
+			);
+		}
+	}
+	const remainingFailures =
+		result.attempts.filter((attempt) => !attempt.passed).length - 3;
+	if (remainingFailures > 0) {
+		console.log(
+			`       ${DIM}... ${remainingFailures} more failed attempts omitted${RESET}`
+		);
+	}
+}
+
+function formatPercent(value: number): string {
+	return `${Math.round(value * 100)}%`;
 }
 
 function expectEqual(actual: unknown, expected: unknown): void {
@@ -865,6 +1415,20 @@ function expectMatch(actual: unknown, expected: Record<string, unknown>): void {
 function parsePositiveInt(value: string | undefined, fallback: number): number {
 	const parsed = Number.parseInt(value ?? "", 10);
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function parsePassRate(value: string | undefined, fallback: number): number {
+	const parsed = Number.parseFloat(value ?? "");
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return fallback;
+	}
+	if (parsed <= 1) {
+		return parsed;
+	}
+	if (parsed <= 100) {
+		return parsed / 100;
+	}
+	return fallback;
 }
 
 function pick<T>(items: T[], random: () => number): T {

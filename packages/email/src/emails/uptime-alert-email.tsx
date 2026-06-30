@@ -207,7 +207,7 @@ export const UptimeAlertEmail = ({
 
 UptimeAlertEmail.PreviewProps = {
 	checkedAt: Date.now(),
-	dashboardUrl: "https://app.databuddy.cc/uptime",
+	dashboardUrl: "https://app.databuddy.cc/monitors",
 	error: "connect ETIMEDOUT 10.0.0.1:443",
 	httpCode: 0,
 	kind: "down",

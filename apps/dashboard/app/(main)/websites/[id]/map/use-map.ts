@@ -20,14 +20,8 @@ export function useMapLocationData(
 				filters,
 			},
 			{
-				id: "map-regions",
-				parameters: ["region"],
-				limit: 200,
-				filters,
-			},
-			{
-				id: "map-cities",
-				parameters: ["city"],
+				id: "map-regions-cities",
+				parameters: ["region", "city"],
 				limit: 200,
 				filters,
 			},

@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig/base.json",
+  "compilerOptions": {
+    "lib": ["dom", "esnext"],
+    "moduleResolution": "bundler",
+    "types": ["@nuxt/schema"],
+    "paths": {
+      "#app": ["./node_modules/nuxt/dist/app/index.d.ts"],
+      "#imports": ["./node_modules/nuxt/dist/app/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "playground"]
+}
