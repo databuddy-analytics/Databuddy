@@ -1048,6 +1048,13 @@ export class SimpleQueryBuilder {
 				if (!filter || filter.target || filter.having) {
 					continue;
 				}
+				// Skip filters for fields not supported by this query type rather
+				// than throwing — in a multi-query batch, a dimension specific to
+				// one query type (e.g. "href" for outbound_links) should simply be
+				// ignored by query types that don't know about it.
+				if (!isFilterFieldAllowed(this.config, filter.field)) {
+					continue;
+				}
 				const { clause, params: filterParams } = this.buildFilter(
 					filter,
 					i,
