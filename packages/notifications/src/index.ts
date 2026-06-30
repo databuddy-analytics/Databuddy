@@ -5,4 +5,7 @@ export * from "./providers";
 export * from "./templates/anomaly";
 export * from "./templates/uptime";
 export * from "./types";
-export { buildAlarmNotificationConfig } from "./alarm-config";
+export {
+	buildAlarmNotificationConfig,
+	buildAlarmNotificationTargets,
+} from "./alarm-config";
