@@ -1,5 +1,7 @@
 import { chQuery } from "@databuddy/db/clickhouse";
+import type { RequestLogger } from "evlog";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setAiRequestLoggerProvider } from "../lib/request-logger";
 import {
 	areQueriesCompatible,
 	buildUnionQuery,
@@ -55,6 +57,7 @@ function transientClickHouseError(): Error {
 
 beforeEach(() => {
 	mockChQuery.mockReset();
+	setAiRequestLoggerProvider(null);
 });
 
 describe("batch-executor schema signatures", () => {
@@ -179,6 +182,47 @@ describe("executeBatch single query retry", () => {
 			data: [],
 			error: "The operation was aborted",
 		});
+	});
+});
+
+describe("executeBatch union fallback logging", () => {
+	it("logs batch union fallback as a warning when single queries recover", async () => {
+		const mockLogger = {
+			error: vi.fn(),
+			set: vi.fn(),
+			warn: vi.fn(),
+		} as unknown as RequestLogger;
+		setAiRequestLoggerProvider(() => mockLogger);
+		mockChQuery
+			.mockRejectedValueOnce(new Error("Union query failed"))
+			.mockResolvedValueOnce([{ name: "/", pageviews: 2, visitors: 1 }])
+			.mockResolvedValueOnce([{ name: "/pricing", pageviews: 1, visitors: 1 }]);
+
+		const results = await executeBatch([
+			{ ...singleQueryRequest, type: "top_pages" },
+			{ ...singleQueryRequest, type: "top_pages" },
+		]);
+
+		expect(chQuery).toHaveBeenCalledTimes(3);
+		expect(mockLogger.warn).toHaveBeenCalledWith(
+			"Union query failed",
+			expect.objectContaining({
+				batch_size: 2,
+				batch_types: "top_pages,top_pages",
+				operation: "batch_union",
+			})
+		);
+		expect(mockLogger.error).not.toHaveBeenCalled();
+		expect(results).toEqual([
+			{
+				type: "top_pages",
+				data: [{ name: "/", pageviews: 2, visitors: 1 }],
+			},
+			{
+				type: "top_pages",
+				data: [{ name: "/pricing", pageviews: 1, visitors: 1 }],
+			},
+		]);
 	});
 });
 

@@ -1,5 +1,5 @@
 import { chQuery } from "@databuddy/db/clickhouse";
-import { captureError, mergeWideEvent } from "../lib/tracing";
+import { captureWarning, mergeWideEvent } from "../lib/tracing";
 import { QueryBuilders, suggestQueryTypes } from "./builders";
 import {
 	getClickHouseQuerySettings,
@@ -529,15 +529,18 @@ export async function executeBatch(
 			}
 			return { unionCount: 1, singleCount: 0 };
 		} catch (error) {
-			captureError(error, {
+			const batchUnionError =
+				error instanceof Error ? error.message : "Union query failed";
+			captureWarning(error, {
 				operation: "batch_union",
 				batch_types: compiledItems.map((g) => g.req.type).join(","),
 				batch_size: compiledItems.length,
+				batch_union_fallback: 1,
+				batch_union_error: batchUnionError,
 			});
 			mergeWideEvent({
 				batch_union_fallback: 1,
-				batch_union_error:
-					error instanceof Error ? error.message : "Union query failed",
+				batch_union_error: batchUnionError,
 			});
 			for (const { index, req } of compiledItems) {
 				results[index] = await runSingle(req, opts);
