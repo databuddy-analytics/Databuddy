@@ -243,7 +243,9 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 			})
 		),
 		isMemoryEnabled()
-			? getMemoryContext(options.question, memoryUserId, apiKeyId)
+			? getMemoryContext(options.question, memoryUserId, apiKeyId, {
+					websiteId: options.websiteId ?? undefined,
+				})
 			: Promise.resolve(null),
 	]);
 
