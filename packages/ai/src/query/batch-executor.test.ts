@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { chQuery } from "@databuddy/db/clickhouse";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	areQueriesCompatible,
 	buildUnionQuery,
+	executeBatch,
 	extractOuterSelectColumns,
 	getCompatibleQueries,
 	getSchemaGroups,
@@ -9,6 +11,17 @@ import {
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 
+vi.mock("@databuddy/db/clickhouse", () => ({
+	chQuery: vi.fn(),
+}));
+
+type MockChQuery = {
+	mockRejectedValueOnce: (value: unknown) => MockChQuery;
+	mockReset: () => void;
+	mockResolvedValueOnce: (value: Record<string, unknown>[]) => MockChQuery;
+};
+
+const mockChQuery = chQuery as unknown as MockChQuery;
 const lastSelectColumns = extractOuterSelectColumns;
 
 function compileSql(type: string): string {
@@ -23,6 +36,26 @@ function compileSql(type: string): string {
 		to: "2026-04-11",
 	}).compile().sql;
 }
+
+const singleQueryRequest = {
+	projectId: "test-website",
+	type: "top_pages",
+	from: "2026-04-01",
+	to: "2026-04-11",
+};
+
+function transientClickHouseError(): Error {
+	const cause = Object.assign(new Error("socket connection was closed"), {
+		code: "ECONNRESET",
+	});
+	const error = new Error("ClickHouse query failed");
+	(error as Error & { cause: unknown }).cause = cause;
+	return error;
+}
+
+beforeEach(() => {
+	mockChQuery.mockReset();
+});
 
 describe("batch-executor schema signatures", () => {
 	const builderEntries = Object.entries(QueryBuilders);
@@ -81,6 +114,71 @@ describe("batch-executor schema signatures", () => {
 		for (const type of realtimeTypes) {
 			expect(QueryBuilders[type]?.noCache).toBe(true);
 		}
+	});
+});
+
+describe("executeBatch single query retry", () => {
+	it("retries a transient ClickHouse connection drop once and returns data", async () => {
+		mockChQuery
+			.mockRejectedValueOnce(transientClickHouseError())
+			.mockResolvedValueOnce([{ name: "/", pageviews: 2, visitors: 1 }]);
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(2);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [{ name: "/", pageviews: 2, visitors: 1 }],
+		});
+	});
+
+	it("reports the final transient error after the single retry also fails", async () => {
+		mockChQuery
+			.mockRejectedValueOnce(transientClickHouseError())
+			.mockRejectedValueOnce(
+				Object.assign(new Error("read ECONNRESET"), {
+					code: "ECONNRESET",
+				})
+			);
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(2);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [],
+			error: "read ECONNRESET",
+		});
+	});
+
+	it("does not retry non-transient query errors", async () => {
+		mockChQuery.mockRejectedValueOnce(new Error("Syntax error near SELECT"));
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [],
+			error: "Syntax error near SELECT",
+		});
+	});
+
+	it("does not retry AbortError", async () => {
+		mockChQuery.mockRejectedValueOnce(
+			Object.assign(new Error("The operation was aborted"), {
+				name: "AbortError",
+			})
+		);
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [],
+			error: "The operation was aborted",
+		});
 	});
 });
 
