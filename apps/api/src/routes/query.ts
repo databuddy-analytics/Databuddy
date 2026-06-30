@@ -8,6 +8,7 @@ import {
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { db } from "@databuddy/db";
+import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
@@ -1172,7 +1173,11 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				return {
 					success: true,
 					requestId,
-					...compileQuery(body as QueryRequest, domain, q.timezone || "UTC"),
+					...compileQuery(
+						body as QueryRequest,
+						domain,
+						validateTimezone(q.timezone) || "UTC"
+					),
 				};
 			} catch (e) {
 				return createErrorResponse(
@@ -1207,7 +1212,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		}) =>
 			(async () => {
 				const requestId = generateRequestId();
-				const timezone = q.timezone || "UTC";
+				const timezone = validateTimezone(q.timezone) || "UTC";
 				const rateLimited = await enforceQueryRateLimit(
 					ctx,
 					"execute",
