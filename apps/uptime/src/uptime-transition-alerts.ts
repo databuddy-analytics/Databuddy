@@ -9,7 +9,7 @@ import { uptimeSchedules } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
 import {
 	NotificationClient,
-	buildAlarmNotificationConfig,
+	buildAlarmNotificationTargets,
 } from "@databuddy/notifications";
 import { Cache, Context, Data, Duration, Effect, Layer, Option } from "effect";
 import type { ScheduleData } from "./actions";
@@ -27,6 +27,7 @@ class AlarmLookupError extends Data.TaggedError("AlarmLookupError")<{
 
 class NotificationSendError extends Data.TaggedError("NotificationSendError")<{
 	alarmId: string;
+	channel: string;
 	cause: unknown;
 }> {}
 
@@ -184,19 +185,57 @@ const sendToAlarm = (
 	alarm: LinkedAlarm,
 	payload: Parameters<NotificationClient["send"]>[0]
 ) => {
-	const { clientConfig, channels } = buildAlarmNotificationConfig(
-		alarm.destinations
-	);
-	if (channels.length === 0) {
+	const targets = buildAlarmNotificationTargets(alarm.destinations);
+	if (targets.length === 0) {
 		return Effect.succeed(false);
 	}
 
-	return Effect.tryPromise({
-		try: () =>
-			new NotificationClient(clientConfig)
-				.send(payload, { channels })
-				.then(() => true),
-		catch: (cause) => new NotificationSendError({ alarmId: alarm.id, cause }),
+	return Effect.gen(function* () {
+		const results = yield* Effect.all(
+			targets.map((target) =>
+				Effect.tryPromise({
+					try: () =>
+						new NotificationClient(target.clientConfig).send(payload, {
+							channels: [target.channel],
+						}),
+					catch: (cause) =>
+						new NotificationSendError({
+							alarmId: alarm.id,
+							channel: target.channel,
+							cause,
+						}),
+				}).pipe(
+					Effect.map((deliveryResults) => {
+						for (const result of deliveryResults) {
+							if (!result.success) {
+								captureError(
+									new Error(
+										result.error ??
+											`Notification delivery failed for ${result.channel}`
+									),
+									{
+										error_step: "alarm_notification_result",
+										alarm_id: alarm.id,
+										channel: result.channel,
+									}
+								);
+							}
+						}
+						return deliveryResults.some((result) => result.success);
+					}),
+					Effect.catchTag("NotificationSendError", (e) => {
+						captureError(e.cause, {
+							error_step: "alarm_notification",
+							alarm_id: e.alarmId,
+							channel: e.channel,
+						});
+						return Effect.succeed(false);
+					})
+				)
+			),
+			{ concurrency: "unbounded" }
+		);
+		return results.some(Boolean);
 	});
 };
 
@@ -311,17 +350,7 @@ const handleTransition = (options: {
 			.filter((alarm) => alarm.destinations.length > 0);
 
 		const results = yield* Effect.all(
-			sendable.map((alarm) =>
-				sendToAlarm(alarm, payload).pipe(
-					Effect.catchTag("NotificationSendError", (e) => {
-						captureError(e.cause, {
-							error_step: "alarm_notification",
-							alarm_id: e.alarmId,
-						});
-						return Effect.succeed(false);
-					})
-				)
-			),
+			sendable.map((alarm) => sendToAlarm(alarm, payload)),
 			{ concurrency: "unbounded" }
 		);
 

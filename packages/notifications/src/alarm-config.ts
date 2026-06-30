@@ -1,9 +1,15 @@
+import type { NotificationClientConfig } from "./client";
 import type { NotificationChannel } from "./types";
 
 interface AlarmDestination {
 	config: unknown;
 	identifier: string;
 	type: string;
+}
+
+export interface AlarmNotificationTarget {
+	channel: NotificationChannel;
+	clientConfig: NotificationClientConfig;
 }
 
 const FORBIDDEN_WEBHOOK_HEADERS = new Set([
@@ -57,8 +63,21 @@ function sanitizeWebhookHeaders(
 }
 
 export function buildAlarmNotificationConfig(destinations: AlarmDestination[]) {
-	const clientConfig: Record<string, Record<string, unknown>> = {};
+	const clientConfig: NotificationClientConfig = {};
 	const channels: NotificationChannel[] = [];
+
+	for (const target of buildAlarmNotificationTargets(destinations)) {
+		Object.assign(clientConfig, target.clientConfig);
+		channels.push(target.channel);
+	}
+
+	return { clientConfig, channels };
+}
+
+export function buildAlarmNotificationTargets(
+	destinations: AlarmDestination[]
+): AlarmNotificationTarget[] {
+	const targets: AlarmNotificationTarget[] = [];
 
 	for (const dest of destinations) {
 		const cfg = (dest.config ?? {}) as Record<string, unknown>;
@@ -67,42 +86,55 @@ export function buildAlarmNotificationConfig(destinations: AlarmDestination[]) {
 			if (!isAllowedSlackWebhook(dest.identifier)) {
 				continue;
 			}
-			clientConfig.slack = { webhookUrl: dest.identifier };
-			channels.push("slack");
+			targets.push({
+				channel: "slack",
+				clientConfig: { slack: { webhookUrl: dest.identifier } },
+			});
 		} else if (dest.type === "webhook") {
-			clientConfig.webhook = {
-				url: dest.identifier,
-				headers: sanitizeWebhookHeaders(cfg.headers),
-			};
-			channels.push("webhook");
-		} else if (dest.type === "email") {
-			clientConfig.email = {
-				defaultTo: dest.identifier,
-				from: (cfg.from as string) || "Databuddy <alerts@databuddy.cc>",
-				sendEmailAction: async (payload: {
-					to: string | string[];
-					subject: string;
-					html?: string;
-					text?: string;
-					from?: string;
-				}) => {
-					const { Resend } = await import("resend");
-					const apiKey = process.env.RESEND_API_KEY;
-					if (!apiKey) {
-						return;
-					}
-					const resend = new Resend(apiKey);
-					await resend.emails.send({
-						from: payload.from || "Databuddy <alerts@databuddy.cc>",
-						to: Array.isArray(payload.to) ? payload.to : [payload.to],
-						subject: payload.subject,
-						html: payload.html || payload.text || "",
-					});
+			targets.push({
+				channel: "webhook",
+				clientConfig: {
+					webhook: {
+						url: dest.identifier,
+						headers: sanitizeWebhookHeaders(cfg.headers),
+					},
 				},
-			};
-			channels.push("email");
+			});
+		} else if (dest.type === "email") {
+			targets.push({
+				channel: "email",
+				clientConfig: {
+					email: {
+						defaultTo: dest.identifier,
+						from:
+							typeof cfg.from === "string"
+								? cfg.from
+								: "Databuddy <alerts@databuddy.cc>",
+						sendEmailAction: async (payload: {
+							to: string | string[];
+							subject: string;
+							html?: string;
+							text?: string;
+							from?: string;
+						}) => {
+							const { Resend } = await import("resend");
+							const apiKey = process.env.RESEND_API_KEY;
+							if (!apiKey) {
+								return;
+							}
+							const resend = new Resend(apiKey);
+							await resend.emails.send({
+								from: payload.from || "Databuddy <alerts@databuddy.cc>",
+								to: Array.isArray(payload.to) ? payload.to : [payload.to],
+								subject: payload.subject,
+								html: payload.html || payload.text || "",
+							});
+						},
+					},
+				},
+			});
 		}
 	}
 
-	return { clientConfig, channels };
+	return targets;
 }

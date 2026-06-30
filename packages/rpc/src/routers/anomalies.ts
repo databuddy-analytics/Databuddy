@@ -11,7 +11,7 @@ import { redis } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { toNotificationConfig } from "../lib/alarm-notifications";
+import { toNotificationTargets } from "../lib/alarm-notifications";
 import {
 	detectAnomalies,
 	fetchAnomalyTimeSeries,
@@ -240,13 +240,20 @@ export const anomaliesRouter = {
 					const destinations = emailEnabled
 						? alarm.destinations
 						: alarm.destinations.filter((dest) => dest.type !== "email");
-					const { clientConfig, channels } = toNotificationConfig(destinations);
-					if (channels.length === 0) {
+					const targets = toNotificationTargets(destinations);
+					if (targets.length === 0) {
 						continue;
 					}
 
-					const client = new NotificationClient(clientConfig);
-					const results = await client.send(payload, { channels });
+					const results = (
+						await Promise.all(
+							targets.map((target) =>
+								new NotificationClient(target.clientConfig).send(payload, {
+									channels: [target.channel],
+								})
+							)
+						)
+					).flat();
 					notificationsSent += results.filter((r) => r.success).length;
 				}
 			}

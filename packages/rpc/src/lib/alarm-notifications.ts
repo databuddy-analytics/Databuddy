@@ -1,1 +1,4 @@
-export { buildAlarmNotificationConfig as toNotificationConfig } from "@databuddy/notifications";
+export {
+	buildAlarmNotificationConfig as toNotificationConfig,
+	buildAlarmNotificationTargets as toNotificationTargets,
+} from "@databuddy/notifications";

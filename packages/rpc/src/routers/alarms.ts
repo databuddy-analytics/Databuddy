@@ -9,7 +9,7 @@ import { ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { toNotificationConfig } from "../lib/alarm-notifications";
+import { toNotificationTargets } from "../lib/alarm-notifications";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
@@ -406,24 +406,26 @@ export const alarmsRouter = {
 				throw rpcError.badRequest("Alarm has no destinations configured");
 			}
 
-			const { clientConfig, channels } = toNotificationConfig(
-				alarm.destinations
-			);
-			const client = new NotificationClient(clientConfig);
-
-			const raw = await client.send(
-				{
-					title: `Test: ${alarm.name}`,
-					message: `This is a test notification from your "${alarm.name}" alarm. If you're reading this, the channel is working.`,
-					priority: "normal",
-					metadata: {
-						template: "test",
-						alarmId: alarm.id,
-						alarmName: alarm.name,
-					},
+			const targets = toNotificationTargets(alarm.destinations);
+			const payload = {
+				title: `Test: ${alarm.name}`,
+				message: `This is a test notification from your "${alarm.name}" alarm. If you're reading this, the channel is working.`,
+				priority: "normal" as const,
+				metadata: {
+					template: "test",
+					alarmId: alarm.id,
+					alarmName: alarm.name,
 				},
-				{ channels }
-			);
+			};
+			const raw = (
+				await Promise.all(
+					targets.map((target) =>
+						new NotificationClient(target.clientConfig).send(payload, {
+							channels: [target.channel],
+						})
+					)
+				)
+			).flat();
 
 			return {
 				results: raw.map((r) => ({
