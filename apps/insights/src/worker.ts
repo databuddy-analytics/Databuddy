@@ -8,6 +8,7 @@ import {
 import { Worker } from "bullmq";
 import { processInsightsJob } from "./jobs";
 import { emitInsightsEvent } from "./lib/evlog-insights";
+import { getInsightsWorkerErrorLevel } from "./worker-errors";
 
 const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 5;
 
@@ -77,7 +78,8 @@ export function startInsightsWorker() {
 	});
 
 	worker.on("error", (error) => {
-		emitInsightsEvent("error", "worker.error", {
+		const level = getInsightsWorkerErrorLevel(error);
+		emitInsightsEvent(level, "worker.error", {
 			error_message: error.message,
 			error_stack: error.stack,
 		});
