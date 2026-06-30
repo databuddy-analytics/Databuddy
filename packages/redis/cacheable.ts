@@ -40,9 +40,6 @@ interface CacheOptions<
 > {
 	expireInSec: number;
 	prefix?: string;
-	staleTime?: number;
-	staleWhileRevalidate?: boolean;
-	tags?: CacheTagger<T>;
 	/**
 	 * Maximum milliseconds to wait for the underlying function (e.g. a DB
 	 * query) before rejecting with a "Query timeout" error.  When unset the
@@ -50,6 +47,9 @@ interface CacheOptions<
 	 * fetches are also bounded by this value.
 	 */
 	queryTimeoutMs?: number;
+	staleTime?: number;
+	staleWhileRevalidate?: boolean;
+	tags?: CacheTagger<T>;
 }
 
 export type CacheableFunction<
@@ -220,9 +220,9 @@ function triggerBackgroundRevalidation<
 			return;
 		}
 
-		const fresh = await (queryTimeoutMs != null
-			? withTimeout(fn(), queryTimeoutMs, "Query timeout")
-			: fn());
+		const fresh = await (queryTimeoutMs == null
+			? fn()
+			: withTimeout(fn(), queryTimeoutMs, "Query timeout"));
 		if (fresh != null && redisAvailable) {
 			try {
 				const serialized = JSON.stringify(fresh);
@@ -266,9 +266,9 @@ export function cacheable<
 		...args: Parameters<T>
 	): Promise<Awaited<ReturnType<T>>> => {
 		if (shouldSkipRedis()) {
-			return queryTimeoutMs != null
-				? withTimeout(fn(...args), queryTimeoutMs, "Query timeout")
-				: fn(...args);
+			return queryTimeoutMs == null
+				? fn(...args)
+				: withTimeout(fn(...args), queryTimeoutMs, "Query timeout");
 		}
 
 		const key = getKey(...args);
@@ -287,9 +287,9 @@ export function cacheable<
 				durationMs: performance.now() - lookupStartedAt,
 				hit: false,
 			});
-			return queryTimeoutMs != null
-				? withTimeout(fn(...args), queryTimeoutMs, "Query timeout")
-				: fn(...args);
+			return queryTimeoutMs == null
+				? fn(...args)
+				: withTimeout(fn(...args), queryTimeoutMs, "Query timeout");
 		}
 
 		timingFn?.({
@@ -324,9 +324,9 @@ export function cacheable<
 
 		const rawPromise = fn(...args);
 		const promise =
-			queryTimeoutMs != null
-				? withTimeout(rawPromise, queryTimeoutMs, "Query timeout")
-				: rawPromise;
+			queryTimeoutMs == null
+				? rawPromise
+				: withTimeout(rawPromise, queryTimeoutMs, "Query timeout");
 		inflightRequests.set(key, promise);
 
 		try {
