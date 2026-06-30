@@ -66,7 +66,7 @@ export class Databuddy extends BaseTracker {
 			window.databuddy = api;
 			window.db = window.databuddy;
 			if (isDebugMode()) {
-				(window as any).__tracker = this;
+				window.__tracker = this;
 			}
 		}
 	}
@@ -239,6 +239,7 @@ export class Databuddy extends BaseTracker {
 				eventId: generateUUIDv4(),
 				name: "page_exit",
 				anonymousId: this.anonymousId,
+				anonymizeVisitorIds: this.options.anonymizeVisitorIds,
 				sessionId: this.sessionId,
 				timestamp: now,
 				...this.getBaseContext(),
@@ -322,6 +323,7 @@ export class Databuddy extends BaseTracker {
 			eventId: generateUUIDv4(),
 			name,
 			anonymousId: this.anonymousId,
+			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
 			sessionId: this.sessionId,
 			timestamp: Date.now(),
 			...this.getBaseContext(),

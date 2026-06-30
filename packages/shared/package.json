@@ -15,9 +15,13 @@
     "./json-ld": "./src/json-ld.ts",
     "./ssrf-guard": "./src/ssrf-guard.ts",
     "./constants/deep-link-apps": "./src/constants/deep-link-apps.ts",
+    "./custom-events": "./src/custom-events.ts",
     "./analytics-filters": "./src/analytics-filters.ts",
     "./agent-credits": "./src/agent-credits.ts",
     "./tracking-blocks": "./src/tracking-blocks.ts",
+    "./http-error-response": "./src/http-error-response.ts",
+    "./evlog-fields": "./src/evlog-fields.ts",
+    "./evlog-redaction": "./src/evlog-redaction.ts",
     "./evlog-superlog": "./src/evlog-superlog.ts"
   },
   "scripts": {

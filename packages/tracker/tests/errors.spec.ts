@@ -156,4 +156,43 @@ test.describe("Error Tracking", () => {
 		);
 		expect(error?.errorType).toBe("UnhandledRejection");
 	});
+
+	test("ignores browser runtime object-not-found rejection noise", async ({
+		page,
+	}) => {
+		await page.goto("/test");
+		await page.evaluate(() => {
+			(window as any).databuddyConfig = {
+				clientId: "test-client-id",
+				trackErrors: true,
+				ignoreBotDetection: true,
+				batchTimeout: 100,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/errors-debug.js" });
+
+		const requestPromise = page.waitForRequest(
+			(req) =>
+				req.url().includes("/basket.databuddy.cc/errors") &&
+				req.method() === "POST"
+		);
+
+		await page.evaluate(() => {
+			Promise.reject(
+				"Object Not Found Matching Id:3, MethodName:update, ParamCount:4"
+			);
+			Promise.reject("Sentinel After Noise");
+		});
+
+		const request = await requestPromise;
+		const noise = findError(request, (e) =>
+			typeof e.message === "string" &&
+			e.message.includes("Object Not Found Matching Id")
+		);
+		const sentinel = findError(request, (e) =>
+			typeof e.message === "string" && e.message.includes("Sentinel After Noise")
+		);
+		expect(sentinel).toBeTruthy();
+		expect(noise).toBeUndefined();
+	});
 });

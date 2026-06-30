@@ -1,6 +1,7 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { closeInsightsQueue, getInsightsQueue } from "@databuddy/redis";
+import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
 import {
@@ -30,6 +31,7 @@ initLogger({
 		region: process.env.RAILWAY_REPLICA_REGION,
 		commitHash: process.env.RAILWAY_GIT_COMMIT_SHA,
 	},
+	redact: databuddyEvlogRedaction,
 	drain: insightsLoggerDrain,
 	sampling: {},
 });
@@ -151,18 +153,24 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 type ProbeResult =
 	| { status: "ok"; latency_ms: number }
-	| { status: "error"; latency_ms: number; error: string };
+	| { status: "error"; latency_ms: number; code: "UNAVAILABLE" };
 
-async function probe(fn: () => Promise<void>): Promise<ProbeResult> {
+async function probe(
+	name: string,
+	fn: () => Promise<void>
+): Promise<ProbeResult> {
 	const start = performance.now();
 	try {
 		await fn();
 		return { status: "ok", latency_ms: Math.round(performance.now() - start) };
 	} catch (error) {
+		captureInsightsError(error, "health.probe_failed", {
+			health_probe: name,
+		});
 		return {
 			status: "error",
 			latency_ms: Math.round(performance.now() - start),
-			error: error instanceof Error ? error.message : "unknown",
+			code: "UNAVAILABLE",
 		};
 	}
 }
@@ -172,11 +180,19 @@ const app = new Elysia()
 		captureInsightsError(error, "http.error", {
 			elysia_code: String(code),
 		});
+		return Response.json(
+			{
+				success: false,
+				error: "Internal server error",
+				code: "INTERNAL_SERVER_ERROR",
+			},
+			{ status: 500 }
+		);
 	})
 	.get("/health/status", async () => {
 		const [postgres, bullmqRedis] = await Promise.all([
-			probe(() => db.execute(sql`SELECT 1`).then(() => {})),
-			probe(async () => {
+			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
+			probe("bullmqRedis", async () => {
 				await getInsightsQueue().count();
 			}),
 		]);

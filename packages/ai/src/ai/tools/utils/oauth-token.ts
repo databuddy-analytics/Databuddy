@@ -24,12 +24,20 @@ function isExpired(candidate: TokenCandidate): boolean {
 	);
 }
 
+interface ResolvedToken {
+	expiresAt: Date | null;
+	token: string;
+}
+
 async function resolveCandidateToken(
 	providerId: string,
 	candidate: TokenCandidate
-): Promise<string | null> {
+): Promise<ResolvedToken | null> {
 	if (candidate.accessToken && !isExpired(candidate)) {
-		return candidate.accessToken;
+		return {
+			token: candidate.accessToken,
+			expiresAt: candidate.accessTokenExpiresAt,
+		};
 	}
 	if (!candidate.refreshToken) {
 		return null;
@@ -42,18 +50,24 @@ async function resolveCandidateToken(
 				userId: candidate.userId,
 			},
 		});
-		return refreshed.accessToken ?? null;
+		if (!refreshed.accessToken) {
+			return null;
+		}
+		return {
+			token: refreshed.accessToken,
+			expiresAt: refreshed.accessTokenExpiresAt ?? null,
+		};
 	} catch {
 		return null;
 	}
 }
 
-export async function getOAuthToken(
+async function resolveOAuthToken(
 	providerId: string,
 	organizationId: string,
 	preferUserId?: string,
 	requiredScope?: string
-): Promise<string | null> {
+): Promise<ResolvedToken | null> {
 	const preference = preferUserId
 		? sql`CASE WHEN ${account.userId} = ${preferUserId} THEN 0 ELSE 1 END`
 		: sql`0`;
@@ -82,13 +96,28 @@ export async function getOAuthToken(
 		if (requiredScope && !candidate.scope?.includes(requiredScope)) {
 			continue;
 		}
-		const token = await resolveCandidateToken(providerId, candidate);
-		if (token) {
-			return token;
+		const resolved = await resolveCandidateToken(providerId, candidate);
+		if (resolved) {
+			return resolved;
 		}
 	}
 
 	return null;
+}
+
+export async function getOAuthToken(
+	providerId: string,
+	organizationId: string,
+	preferUserId?: string,
+	requiredScope?: string
+): Promise<string | null> {
+	const resolved = await resolveOAuthToken(
+		providerId,
+		organizationId,
+		preferUserId,
+		requiredScope
+	);
+	return resolved?.token ?? null;
 }
 
 export function createCachedTokenFn(
@@ -98,21 +127,28 @@ export function createCachedTokenFn(
 	requiredScope?: string
 ): () => Promise<string | null> {
 	let cached: string | null | undefined;
-	let cachedAt = 0;
+	let expiresAt = 0;
 	return async () => {
-		const age = Date.now() - cachedAt;
-		const ttl = cached ? TOKEN_TTL_MS : NEGATIVE_TTL_MS;
-		if (cached !== undefined && age < ttl) {
+		if (cached !== undefined && Date.now() < expiresAt) {
 			return cached;
 		}
-		const token = await getOAuthToken(
+		const resolved = await resolveOAuthToken(
 			providerId,
 			organizationId,
 			preferUserId,
 			requiredScope
 		);
-		cached = token;
-		cachedAt = Date.now();
-		return token;
+		const now = Date.now();
+		if (resolved) {
+			const tokenLifetime = resolved.expiresAt
+				? resolved.expiresAt.getTime() - now - EXPIRY_SKEW_MS
+				: TOKEN_TTL_MS;
+			cached = resolved.token;
+			expiresAt = now + Math.max(0, Math.min(TOKEN_TTL_MS, tokenLifetime));
+		} else {
+			cached = null;
+			expiresAt = now + NEGATIVE_TTL_MS;
+		}
+		return cached;
 	};
 }

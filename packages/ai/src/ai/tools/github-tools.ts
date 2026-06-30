@@ -5,7 +5,18 @@ import { createCachedTokenFn } from "./utils/oauth-token";
 const GITHUB_API = "https://api.github.com";
 const MAX_RESULTS = 10;
 const DEPLOY_FETCH_SIZE = 50;
+const MAX_DEPLOY_PAGES = 5;
 const MAX_COMMITS = 50;
+
+interface GitHubDeploy {
+	created_at: string;
+	creator: { login: string } | null;
+	description: string | null;
+	environment: string;
+	id: number;
+	ref: string;
+	sha: string;
+}
 
 export async function githubFetch(
 	path: string,
@@ -65,32 +76,35 @@ export function createGitHubTools(params: GitHubToolsParams) {
 				return { error: "No GitHub account connected for this organization" };
 			}
 
-			const data = await githubFetch(
-				`/repos/${owner}/${repo}/deployments?per_page=${DEPLOY_FETCH_SIZE}`,
-				token
-			);
+			const envNeedle = environment?.toLowerCase();
+			const seenEnvironments = new Set<string>();
+			const matched: GitHubDeploy[] = [];
+			const maxPages = envNeedle ? MAX_DEPLOY_PAGES : 1;
 
-			if (data && typeof data === "object" && "error" in data) {
-				return data;
+			for (let page = 1; page <= maxPages; page++) {
+				const data = await githubFetch(
+					`/repos/${owner}/${repo}/deployments?per_page=${DEPLOY_FETCH_SIZE}&page=${page}`,
+					token
+				);
+
+				if (data && typeof data === "object" && "error" in data) {
+					return data;
+				}
+
+				const pageDeploys = data as GitHubDeploy[];
+				for (const d of pageDeploys) {
+					seenEnvironments.add(d.environment);
+					if (!envNeedle || d.environment.toLowerCase().includes(envNeedle)) {
+						matched.push(d);
+					}
+				}
+
+				if (pageDeploys.length < DEPLOY_FETCH_SIZE || matched.length >= limit) {
+					break;
+				}
 			}
 
-			const deploys = data as Array<{
-				id: number;
-				sha: string;
-				ref: string;
-				environment: string;
-				created_at: string;
-				description: string | null;
-				creator: { login: string } | null;
-			}>;
-
-			const availableEnvironments = [
-				...new Set(deploys.map((d) => d.environment)),
-			];
-			const envNeedle = environment?.toLowerCase();
-			const matched = envNeedle
-				? deploys.filter((d) => d.environment.toLowerCase().includes(envNeedle))
-				: deploys;
+			const availableEnvironments = [...seenEnvironments];
 
 			return {
 				repo: `${owner}/${repo}`,

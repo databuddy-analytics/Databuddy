@@ -3,6 +3,10 @@ export const API_SCOPES = [
 	"track:events",
 	"read:links",
 	"write:links",
+	"read:monitors",
+	"write:monitors",
+	"read:status_pages",
+	"write:status_pages",
 	"manage:websites",
 	"manage:flags",
 	"manage:config",
@@ -50,14 +54,18 @@ const RESOURCE_SCOPE_OVERRIDES: Partial<
 		delete: "manage:flags",
 	},
 	monitor: {
-		create: "manage:websites",
-		update: "manage:websites",
-		delete: "manage:websites",
+		read: "read:monitors",
+		view_analytics: "read:monitors",
+		create: "write:monitors",
+		update: "write:monitors",
+		delete: "write:monitors",
 	},
 	status_page: {
-		create: "manage:websites",
-		update: "manage:websites",
-		delete: "manage:websites",
+		read: "read:status_pages",
+		view_analytics: "read:status_pages",
+		create: "write:status_pages",
+		update: "write:status_pages",
+		delete: "write:status_pages",
 	},
 	organization: {
 		update: "manage:config",
@@ -67,7 +75,7 @@ const RESOURCE_SCOPE_OVERRIDES: Partial<
 
 export function requiredScopesForResource(
 	resource: string,
-	permissions: string[]
+	permissions: readonly string[]
 ): ApiScope[] {
 	const scopes = new Set<ApiScope>();
 	const overrides = RESOURCE_SCOPE_OVERRIDES[resource];

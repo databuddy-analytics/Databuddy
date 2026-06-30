@@ -1,8 +1,8 @@
-import type { PermissionFor, ResourceType } from "@databuddy/auth";
+import type { ResourceType } from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
 import { rpcError } from "../errors";
 import type { Context } from "../orpc";
-import { withWorkspace } from "./with-workspace";
+import { type Permissions, withWorkspace } from "./with-workspace";
 
 const registry = {
 	monitor: {
@@ -52,7 +52,7 @@ type AuthResourceOf<K extends RegisteredResource> = Registry[K]["authResource"];
 
 export interface WithResourceOptions<K extends RegisteredResource> {
 	id: string;
-	permissions?: PermissionFor<AuthResourceOf<K>>[];
+	permissions: Permissions<AuthResourceOf<K>>;
 	resource: K;
 }
 

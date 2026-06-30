@@ -14,7 +14,10 @@ export {
 	type InternalPrincipalInit,
 	type PreResolvedAuth,
 } from "./orpc";
-export { withWorkspace } from "./procedures/with-workspace";
+export {
+	withPublicWorkspace,
+	withWorkspace,
+} from "./procedures/with-workspace";
 export { type AppRouter, appRouter } from "./root";
 export type { SlackIntegrationOutput } from "./routers/integrations";
 export type { WebsiteOutput } from "./routers/websites";

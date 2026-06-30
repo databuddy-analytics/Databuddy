@@ -1048,6 +1048,13 @@ export class SimpleQueryBuilder {
 				if (!filter || filter.target || filter.having) {
 					continue;
 				}
+				// Skip filters for fields not supported by this query type rather
+				// than throwing — in a multi-query batch, a dimension specific to
+				// one query type (e.g. "href" for outbound_links) should simply be
+				// ignored by query types that don't know about it.
+				if (!isFilterFieldAllowed(this.config, filter.field)) {
+					continue;
+				}
 				const { clause, params: filterParams } = this.buildFilter(
 					filter,
 					i,
@@ -1104,9 +1111,10 @@ export class SimpleQueryBuilder {
 		return this.request.offset ? ` OFFSET ${this.request.offset}` : "";
 	}
 
-	async execute(): Promise<Record<string, unknown>[]> {
+	async execute(abortSignal?: AbortSignal): Promise<Record<string, unknown>[]> {
 		const { sql, params } = this.compile();
 		const rawData = await chQuery<Record<string, unknown>>(sql, params, {
+			abort_signal: abortSignal,
 			clickhouse_settings: getClickHouseQuerySettings(this.config.noCache),
 		});
 		return applyPlugins(rawData, this.config, this.websiteDomain);

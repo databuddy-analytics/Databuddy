@@ -81,12 +81,15 @@ export const revenueRouter = {
 		)
 		.output(revenueOutputSchema)
 		.handler(async ({ context, input }) => {
-			const workspace = await withWorkspace(context, {
-				...(input.websiteId
-					? { websiteId: input.websiteId }
-					: { resource: "website" as const }),
-				permissions: ["update"],
-			});
+			const workspace = input.websiteId
+				? await withWorkspace(context, {
+						websiteId: input.websiteId,
+						permissions: ["update"],
+					})
+				: await withWorkspace(context, {
+						resource: "website",
+						permissions: ["update"],
+					});
 
 			const ownerId = workspace.organizationId;
 
@@ -154,12 +157,15 @@ export const revenueRouter = {
 		.input(z.object({ websiteId: z.string().optional() }))
 		.output(z.object({ webhookHash: z.string() }))
 		.handler(async ({ context, input }) => {
-			const workspace = await withWorkspace(context, {
-				...(input.websiteId
-					? { websiteId: input.websiteId }
-					: { resource: "website" as const }),
-				permissions: ["update"],
-			});
+			const workspace = input.websiteId
+				? await withWorkspace(context, {
+						websiteId: input.websiteId,
+						permissions: ["update"],
+					})
+				: await withWorkspace(context, {
+						resource: "website",
+						permissions: ["update"],
+					});
 
 			const ownerId = workspace.organizationId;
 
@@ -194,12 +200,15 @@ export const revenueRouter = {
 		.input(z.object({ websiteId: z.string().optional() }))
 		.output(z.object({ deleted: z.literal(true) }))
 		.handler(async ({ context, input }) => {
-			const workspace = await withWorkspace(context, {
-				...(input.websiteId
-					? { websiteId: input.websiteId }
-					: { resource: "website" as const }),
-				permissions: ["update"],
-			});
+			const workspace = input.websiteId
+				? await withWorkspace(context, {
+						websiteId: input.websiteId,
+						permissions: ["update"],
+					})
+				: await withWorkspace(context, {
+						resource: "website",
+						permissions: ["update"],
+					});
 
 			const ownerId = workspace.organizationId;
 

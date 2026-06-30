@@ -128,11 +128,13 @@ export function buildInvestigationBrief(params: {
 		`Window (UTC dates, inclusive): ${window.from} to ${window.to}. For half-over-half comparisons use exactly: ${window.halves}. Note the final day is partial.`,
 		focus,
 		"",
+		"Round-trip discipline (this is the difference between finishing and timing out): each phase is one turn, not one query. Issue every independent query in a phase together in that single turn. get_data takes up to 10 builders in one call — never call it once per builder. When a phase spans different tools (github, search console, annotations), emit all of those tool calls in the same turn so they run in parallel. Only wait for a phase's results before the next turn when the next phase actually depends on them (enrichment depends on which moves the sweep flagged; correlation depends on the inflection date).",
+		"",
 		"Protocol — work through every phase, in order:",
-		`1. Sweep: pull daily trends (events_by_date) for the full ${params.lookbackDays}-day window plus summary_metrics for each half as defined above. In the same sweep, check whether the site records revenue and custom events; if it does, pull their daily trends and half-over-half deltas too. Flag the largest moves.`,
-		"2. Baseline health: if the site has a conversion funnel (payments, checkouts, signups), compute the standing failure rate for the full window (e.g. payment_failed vs payment_succeeded). A high failure rate that is flat across both halves is still a primary finding; unchanged does not mean fine. Denominate it in blocked revenue or lost conversions and rank it against the largest moves from the sweep.",
-		"3. Enrich: for each flagged move, break it down by page, referrer, country, and device. Pull recent errors if anything degraded. Find WHERE the change is concentrated.",
-		"4. Correlate: check deploys, commits, and PRs around the inflection date. Check annotations. If the change looks search-driven, check search console. Find WHEN the cause landed relative to the effect.",
+		`1. Sweep (one get_data call): batch events_by_date for the full ${params.lookbackDays}-day window, summary_metrics for each half, and — if the site records them — revenue and custom-event daily trends, all in a single call. Flag the largest moves.`,
+		"2. Baseline health: if the site has a conversion funnel (payments, checkouts, signups), compute the standing failure rate for the full window (e.g. payment_failed vs payment_succeeded) — fold these builders into the sweep call when you already suspect a funnel. A high failure rate that is flat across both halves is still a primary finding; unchanged does not mean fine. Denominate it in blocked revenue or lost conversions and rank it against the largest moves from the sweep.",
+		"3. Enrich (one get_data call): for the flagged moves, batch the page, referrer, country, and device breakdowns plus any error builders into a single call. Find WHERE the change is concentrated.",
+		"4. Correlate (one turn, parallel tools): emit the deploy, commit, and PR checks around the inflection date, the annotations lookup, and — if the change looks search-driven — the search console query together in the same turn. Find WHEN the cause landed relative to the effect.",
 		"5. Conclude: state the causal chain with evidence for every link.",
 		"",
 		"Rules:",
@@ -221,6 +223,29 @@ export function renderMemoMarkdown(
 	return sections.join("\n");
 }
 
+export function buildFallbackMemo(answer: string): InvestigationMemo {
+	const narrative =
+		answer.trim() ||
+		"The investigation finished gathering data but produced no written findings.";
+	return {
+		headline: "Investigation completed; structured memo unavailable.",
+		narrative,
+		causalChain: [],
+		deadEnds: [],
+		confidence: {
+			level: "low",
+			reason:
+				"The synthesis step failed, so this memo is the agent's raw findings without structured verification. Re-run to get a graded verdict.",
+		},
+		verdict: {
+			type: "watch",
+			reason:
+				"Findings were gathered but not synthesized into a graded verdict.",
+		},
+		actions: [],
+	};
+}
+
 function compactTrace(toolCalls: McpAgentToolTrace[]): string {
 	return toolCalls
 		.map((call) => {
@@ -290,8 +315,10 @@ export async function runInvestigation(
 
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), SYNTHESIS_TIMEOUT_MS);
+
+	let memo: InvestigationMemo;
 	try {
-		const { object: memo } = await generateObject({
+		const result = await generateObject({
 			abortSignal: controller.signal,
 			model: models.balanced,
 			schema: investigationMemoSchema,
@@ -302,17 +329,26 @@ export async function runInvestigation(
 				"",
 				"Tool trace (what was actually queried and returned):",
 				compactTrace(trace.toolCalls),
+				...(trace.truncated
+					? [
+							"",
+							"NOTE: This investigation was stopped by a time limit before the agent finished gathering data. Base your memo only on the partial tool trace above. State in the verdict reason that the run was time-limited, and set confidence to 'low' unless the partial evidence is unambiguous.",
+						]
+					: []),
 			].join("\n"),
 		});
-
-		return {
-			memo,
-			receipts,
-			markdown: renderMemoMarkdown(memo, receipts),
-		};
+		memo = result.object;
+	} catch {
+		memo = buildFallbackMemo(trace.answer);
 	} finally {
 		clearTimeout(timeout);
 	}
+
+	return {
+		memo,
+		receipts,
+		markdown: renderMemoMarkdown(memo, receipts),
+	};
 }
 
 export const investigateTool = defineMcpTool(

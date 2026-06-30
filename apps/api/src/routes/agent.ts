@@ -79,12 +79,8 @@ function jsonError(status: number, code: string, message: string): Response {
 	);
 }
 
-function getErrorMessage(error: unknown, fallback = "Unknown error"): string {
-	if (error instanceof Error) {
-		return error.message;
-	}
-	return fallback;
-}
+const INTERNAL_AGENT_ERROR_MESSAGE =
+	"Agent request failed. Please try again shortly.";
 
 function getErrorName(error: unknown, fallback = "UnknownError"): string {
 	if (error instanceof Error) {
@@ -592,7 +588,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					error_type: getErrorName(error),
 					source: "slack",
 				});
-				return jsonError(500, "INTERNAL_ERROR", getErrorMessage(error));
+				return jsonError(500, "INTERNAL_ERROR", INTERNAL_AGENT_ERROR_MESSAGE);
 			}
 		},
 		{ body: AgentAskRequestSchema, idleTimeout: 60_000 }
@@ -877,11 +873,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 					);
 
 					if (!validation.success) {
-						return jsonError(
-							400,
-							"INVALID_MESSAGES",
-							getErrorMessage(validation.error, "Invalid message format")
-						);
+						return jsonError(400, "INVALID_MESSAGES", "Invalid message format");
 					}
 
 					const modelMessages = await timeAgentPhase(
@@ -1197,7 +1189,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						...(user?.id ? { agent_user_id: user.id } : {}),
 						error_type: getErrorName(error),
 					});
-					return jsonError(500, "INTERNAL_ERROR", getErrorMessage(error));
+					return jsonError(500, "INTERNAL_ERROR", INTERNAL_AGENT_ERROR_MESSAGE);
 				}
 			})();
 		},

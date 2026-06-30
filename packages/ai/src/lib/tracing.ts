@@ -1,20 +1,24 @@
 import { EvlogError, log } from "evlog";
 import { getActiveAiRequestLogger } from "./request-logger";
 
-export function mergeWideEvent(fields: Record<string, unknown>): void {
+export function mergeWideEvent<Fields extends object = Record<string, unknown>>(
+	fields: Partial<Fields>
+): void {
+	const payload = fields as Record<string, unknown>;
 	const requestLogger = getActiveAiRequestLogger();
 	if (requestLogger) {
-		requestLogger.set(fields);
+		requestLogger.set(payload);
 		return;
 	}
-	log.info({ service: "api", ...fields });
+	log.info({ service: "api", ...payload });
 }
 
-export function captureError(
+export function captureError<Fields extends object = Record<string, unknown>>(
 	error: unknown,
-	fields?: Record<string, unknown>
+	fields?: Partial<Fields>
 ): void {
 	const err = error instanceof Error ? error : new Error(String(error));
+	const payload = fields as Record<string, unknown> | undefined;
 	const requestLog = getActiveAiRequestLogger();
 	if (
 		requestLog &&
@@ -27,16 +31,16 @@ export function captureError(
 			http_status: err.status,
 			error_message: err.message,
 		});
-		if (fields) {
-			requestLog.warn(err.message, fields);
+		if (payload) {
+			requestLog.warn(err.message, payload);
 		} else {
 			requestLog.warn(err.message);
 		}
 		return;
 	}
 	if (requestLog) {
-		if (fields) {
-			requestLog.error(err, fields);
+		if (payload) {
+			requestLog.error(err, payload);
 		} else {
 			requestLog.error(err);
 		}
@@ -45,6 +49,6 @@ export function captureError(
 	log.error({
 		service: "api",
 		error_message: err.message,
-		...(fields ?? {}),
+		...(payload ?? {}),
 	});
 }

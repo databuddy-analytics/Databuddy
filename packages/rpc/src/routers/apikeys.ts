@@ -143,7 +143,11 @@ async function assertOrgAdmin(
 			`${action} cannot be performed via an API key — use a user session`
 		);
 	}
-	const workspace = await withWorkspace(ctx, { organizationId });
+	const workspace = await withWorkspace(ctx, {
+		organizationId,
+		resource: "organization",
+		permissions: ["read"],
+	});
 	if (workspace.role !== "owner" && workspace.role !== "admin") {
 		throw rpcError.forbidden(
 			`Only organization owners or admins can ${action.toLowerCase()}`

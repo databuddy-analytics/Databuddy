@@ -108,18 +108,20 @@ const listScheduleItemSchema = getScheduleOutputSchema
 export const uptimeRouter = {
 	getScheduleByWebsiteId: protectedProcedure
 		.route({
-			description: "Returns uptime schedule for a website.",
+			description:
+				"Returns uptime schedule for a website. Requires read:monitors scope.",
 			method: "POST",
 			path: "/uptime/getScheduleByWebsiteId",
 			summary: "Get schedule by website",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["read:monitors"] as const }),
 		})
 		.input(z.object({ websiteId: z.string() }))
 		.output(scheduleOutputSchema.nullable())
 		.handler(async ({ context, input }) => {
 			await withWorkspace(context, {
 				websiteId: input.websiteId,
-				resource: "website",
+				resource: "monitor",
 				permissions: ["read"],
 			});
 
@@ -134,11 +136,12 @@ export const uptimeRouter = {
 	listSchedules: protectedProcedure
 		.route({
 			description:
-				"Returns uptime schedules for organization or all user workspaces.",
+				"Returns uptime schedules for organization or all user workspaces. Requires read:monitors scope.",
 			method: "POST",
 			path: "/uptime/listSchedules",
 			summary: "List schedules",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["read:monitors"] as const }),
 		})
 		.input(
 			z
@@ -171,11 +174,13 @@ export const uptimeRouter = {
 
 	getSchedule: protectedProcedure
 		.route({
-			description: "Returns schedule with BullMQ scheduler status.",
+			description:
+				"Returns schedule with BullMQ scheduler status. Requires read:monitors scope.",
 			method: "POST",
 			path: "/uptime/getSchedule",
 			summary: "Get schedule",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["read:monitors"] as const }),
 		})
 		.input(z.object({ scheduleId: z.string() }))
 		.output(getScheduleOutputSchema)
@@ -206,12 +211,12 @@ export const uptimeRouter = {
 
 	createSchedule: trackedProcedure
 		.route({
-			description:
-				"Creates an uptime monitor. Requires workspace update permission.",
+			description: "Creates an uptime monitor. Requires write:monitors scope.",
 			method: "POST",
 			path: "/uptime/createSchedule",
 			summary: "Create schedule",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(
 			z.object({
@@ -288,11 +293,12 @@ export const uptimeRouter = {
 
 	updateSchedule: trackedProcedure
 		.route({
-			description: "Updates an uptime schedule. Requires update permission.",
+			description: "Updates an uptime schedule. Requires write:monitors scope.",
 			method: "POST",
 			path: "/uptime/updateSchedule",
 			summary: "Update schedule",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(
 			z.object({
@@ -366,11 +372,12 @@ export const uptimeRouter = {
 
 	deleteSchedule: trackedProcedure
 		.route({
-			description: "Deletes an uptime schedule. Requires update permission.",
+			description: "Deletes an uptime schedule. Requires write:monitors scope.",
 			method: "POST",
 			path: "/uptime/deleteSchedule",
 			summary: "Delete schedule",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true) }))
@@ -390,11 +397,13 @@ export const uptimeRouter = {
 
 	togglePause: trackedProcedure
 		.route({
-			description: "Pauses or resumes an uptime schedule.",
+			description:
+				"Pauses or resumes an uptime schedule. Requires write:monitors scope.",
 			method: "POST",
 			path: "/uptime/togglePause",
 			summary: "Toggle pause",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(z.object({ scheduleId: z.string(), pause: z.boolean() }))
 		.output(z.object({ success: z.literal(true), isPaused: z.boolean() }))
@@ -441,11 +450,13 @@ export const uptimeRouter = {
 
 	pauseSchedule: trackedProcedure
 		.route({
-			description: "Pauses an uptime schedule. Legacy compatibility.",
+			description:
+				"Pauses an uptime schedule. Legacy compatibility. Requires write:monitors scope.",
 			method: "POST",
 			path: "/uptime/pauseSchedule",
 			summary: "Pause schedule",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true), isPaused: z.literal(true) }))
@@ -479,11 +490,12 @@ export const uptimeRouter = {
 	transfer: trackedProcedure
 		.route({
 			description:
-				"Transfers an uptime monitor to another organization. Requires update permission on source and create on target.",
+				"Transfers an uptime monitor to another organization. Requires write:monitors scope on source and target.",
 			method: "POST",
 			path: "/uptime/transfer",
 			summary: "Transfer monitor",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(
 			z.object({
@@ -523,11 +535,12 @@ export const uptimeRouter = {
 	manualCheck: trackedProcedure
 		.route({
 			description:
-				"Triggers an immediate uptime check for a monitor. Monitor must not be paused.",
+				"Triggers an immediate uptime check for a monitor. Monitor must not be paused. Requires write:monitors scope.",
 			method: "POST",
 			path: "/uptime/manualCheck",
 			summary: "Manual check",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true) }))
@@ -547,11 +560,13 @@ export const uptimeRouter = {
 
 	resumeSchedule: trackedProcedure
 		.route({
-			description: "Resumes an uptime schedule. Legacy compatibility.",
+			description:
+				"Resumes an uptime schedule. Legacy compatibility. Requires write:monitors scope.",
 			method: "POST",
 			path: "/uptime/resumeSchedule",
 			summary: "Resume schedule",
 			tags: ["Uptime"],
+			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
 		})
 		.input(z.object({ scheduleId: z.string() }))
 		.output(z.object({ success: z.literal(true), isPaused: z.literal(false) }))

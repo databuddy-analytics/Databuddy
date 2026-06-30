@@ -108,6 +108,14 @@ const escapeClickhouseString = (value: string): string =>
 		.replace(ESCAPE_BACKSLASH_REGEX, "\\\\")
 		.replace(ESCAPE_LIKE_WILDCARDS_REGEX, "\\$&");
 
+const trimTrailingSlashes = (value: string): string => {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) {
+		end--;
+	}
+	return value.slice(0, end);
+};
+
 const formatDuration = (seconds: number): string => {
 	if (!seconds || seconds <= 0) {
 		return "—";
@@ -169,14 +177,21 @@ const buildFilterSQL = (
 		}
 
 		const key = `f${i}`;
+		const sqlField = field === "path" ? normalizedPathExpression(field) : field;
+		const normalizeExactPathValue =
+			field === "path" &&
+			(operator === "equals" ||
+				operator === "not_equals" ||
+				operator === "in" ||
+				operator === "not_in");
 
 		if (operator === "is_null") {
-			parts.push(`${field} IS NULL`);
+			parts.push(`${sqlField} IS NULL`);
 			continue;
 		}
 
 		if (operator === "is_not_null") {
-			parts.push(`${field} IS NOT NULL`);
+			parts.push(`${sqlField} IS NOT NULL`);
 			continue;
 		}
 
@@ -185,8 +200,12 @@ const buildFilterSQL = (
 				continue;
 			}
 			const negate = operator === "not_in" || operator === "not_equals";
-			params[key] = value;
-			parts.push(`${field} ${negate ? "NOT IN" : "IN"} {${key}:Array(String)}`);
+			params[key] = normalizeExactPathValue
+				? value.map(normalizeGoalPathTarget)
+				: value;
+			parts.push(
+				`${sqlField} ${negate ? "NOT IN" : "IN"} {${key}:Array(String)}`
+			);
 			continue;
 		}
 
@@ -197,26 +216,28 @@ const buildFilterSQL = (
 		if (operator === "contains" || operator === "not_contains") {
 			params[key] = `%${escapeClickhouseString(value)}%`;
 			parts.push(
-				`${field} ${operator === "contains" ? "LIKE" : "NOT LIKE"} {${key}:String}`
+				`${sqlField} ${operator === "contains" ? "LIKE" : "NOT LIKE"} {${key}:String}`
 			);
 			continue;
 		}
 
 		if (operator === "starts_with") {
 			params[key] = `${escapeClickhouseString(value)}%`;
-			parts.push(`${field} LIKE {${key}:String}`);
+			parts.push(`${sqlField} LIKE {${key}:String}`);
 			continue;
 		}
 
 		if (operator === "ends_with") {
 			params[key] = `%${escapeClickhouseString(value)}`;
-			parts.push(`${field} LIKE {${key}:String}`);
+			parts.push(`${sqlField} LIKE {${key}:String}`);
 			continue;
 		}
 
 		const isNegative = operator === "not_equals" || operator === "not_in";
-		params[key] = value;
-		parts.push(`${field} ${isNegative ? "!=" : "="} {${key}:String}`);
+		params[key] = normalizeExactPathValue
+			? normalizeGoalPathTarget(value)
+			: value;
+		parts.push(`${sqlField} ${isNegative ? "!=" : "="} {${key}:String}`);
 	}
 
 	return parts.length > 0 ? ` AND ${parts.join(" AND ")}` : "";
@@ -232,6 +253,34 @@ const buildBaseWhere = (
 ) => `client_id = {websiteId:String}
 		AND ${buildTimeRangeWhere(timeColumn)}`;
 
+const pathOnlyExpression = (field = "path") =>
+	`if(startsWith(${field}, 'http://') OR startsWith(${field}, 'https://'), path(${field}), ${field})`;
+
+const normalizedPathExpression = (field = "path") => {
+	const pathOnly = pathOnlyExpression(field);
+	return `CASE WHEN trimRight(${pathOnly}, '/') = '' THEN '/' ELSE trimRight(${pathOnly}, '/') END`;
+};
+
+const normalizeGoalPathTarget = (target: string): string => {
+	const trimmed = target.trim();
+	if (!trimmed) {
+		return "/";
+	}
+	let pathOnly = trimmed;
+	if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+		try {
+			pathOnly = new URL(trimmed).pathname;
+		} catch {
+			pathOnly = trimmed;
+		}
+	}
+	if (!pathOnly.startsWith("/")) {
+		pathOnly = `/${pathOnly}`;
+	}
+	const withoutTrailingSlash = trimTrailingSlashes(pathOnly);
+	return withoutTrailingSlash || "/";
+};
+
 const buildStepQuery = (
 	step: AnalyticsStep,
 	idx: number,
@@ -246,12 +295,11 @@ const buildStepQuery = (
 	const base = buildBaseWhere("time");
 
 	if (step.type === "PAGE_VIEW") {
-		const escapedTarget = escapeClickhouseString(step.target);
-		params[`t${idx}l`] = `%${escapedTarget}%`;
+		params[`t${idx}`] = normalizeGoalPathTarget(step.target);
 		return `SELECT ${idx + 1} as step, {n${idx}:String} as name, anonymous_id as vid, MIN(time) as ts${refCol}
 			FROM analytics.events
 			WHERE ${base} AND event_name = 'screen_view'
-				AND (path = {t${idx}:String} OR path LIKE {t${idx}l:String})${filterSQL}
+				AND ${normalizedPathExpression("path")} = {t${idx}:String}${filterSQL}
 			GROUP BY vid`;
 	}
 
@@ -293,12 +341,13 @@ const buildStepSubquery = (
 ): string => {
 	params[paramKey] = step.target;
 	if (step.type === "PAGE_VIEW") {
+		params[paramKey] = normalizeGoalPathTarget(step.target);
 		return `SELECT DISTINCT anonymous_id FROM analytics.events
 			WHERE client_id = {websiteId:String}
 			AND time >= parseDateTimeBestEffort({startDate:String})
 			AND time <= parseDateTimeBestEffort({endDate:String})
 			AND event_name = 'screen_view'
-			AND path = {${paramKey}:String}`;
+			AND ${normalizedPathExpression("path")} = {${paramKey}:String}`;
 	}
 	return `(SELECT DISTINCT anonymous_id FROM analytics.events
 		WHERE client_id = {websiteId:String}
@@ -387,7 +436,7 @@ const queryFunnelErrors = async (
 	for (const row of errorRows) {
 		const count = toFiniteNumber(row.error_count, 0);
 		const normalized: ErrorRow = {
-			path: String(row.path ?? ""),
+			path: normalizeGoalPathTarget(String(row.path ?? "")),
 			vid: String(row.vid ?? ""),
 			error_type: String(row.error_type ?? ""),
 			message: String(row.message ?? ""),
@@ -436,7 +485,7 @@ const buildStepErrorInsights = (
 	usersWithErrors: number;
 	topErrors: StepErrorInsight[];
 } => {
-	const stepErrors = errorsByPath.get(target) ?? [];
+	const stepErrors = errorsByPath.get(normalizeGoalPathTarget(target)) ?? [];
 	const stepErrorCount = stepErrors.reduce(
 		(sum, e) => sum + toFiniteNumber(e.error_count, 0),
 		0
@@ -747,15 +796,25 @@ HAVING max_step >= 1`;
 export const getTotalWebsiteUsers = async (
 	websiteId: string,
 	startDate: string,
-	endDate: string
+	endDate: string,
+	filters: Filter[] = []
 ): Promise<number> => {
+	const params: ClickhouseQueryParams = {
+		websiteId,
+		startDate,
+		endDate: `${endDate} 23:59:59`,
+	};
+	const denominatorFilters = filters.filter(
+		(filter) => filter.field !== "event_name"
+	);
+	const filterSQL = buildFilterSQL(denominatorFilters, params);
 	const [result] = await chQuery<{ count: number }>(
 		`SELECT COUNT(DISTINCT anonymous_id) as count FROM analytics.events
 		 WHERE client_id = {websiteId:String}
 			AND time >= parseDateTimeBestEffort({startDate:String})
 			AND time <= parseDateTimeBestEffort({endDate:String})
-			AND event_name = 'screen_view'`,
-		{ websiteId, startDate, endDate: `${endDate} 23:59:59` }
+			AND event_name = 'screen_view'${filterSQL}`,
+		params
 	);
 	return result?.count ?? 0;
 };

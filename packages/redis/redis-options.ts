@@ -17,12 +17,7 @@ export function createRedisConnectionOptions(): RedisConnectionOptions {
 	return {
 		connectTimeout: 10_000,
 		commandTimeout: 5000,
-		retryStrategy: (times) => {
-			if (times > 20) {
-				return null;
-			}
-			return Math.min(times * 100, 3000);
-		},
+		retryStrategy: (times) => Math.min(times * 100, 3000),
 		maxRetriesPerRequest: 3,
 	};
 }

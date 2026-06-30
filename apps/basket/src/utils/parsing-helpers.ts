@@ -51,10 +51,19 @@ export function batchSchemaItemFailure(
 	return {
 		status: "error" as const,
 		message: "Invalid event schema",
-		errors: issues,
+		code: "INVALID_EVENT_SCHEMA",
+		errors: sanitizeValidationIssues(issues),
 		eventType,
 		eventId,
 	};
+}
+
+function sanitizeValidationIssues(issues: z.core.$ZodIssue[]) {
+	return issues.map((issue) => ({
+		code: issue.code,
+		field: issue.path.join("."),
+		message: issue.message,
+	}));
 }
 
 export function batchBotIgnoredItem(eventType: string) {

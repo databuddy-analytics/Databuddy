@@ -59,9 +59,12 @@ interface SlackBotIdentity {
 }
 
 class SlackInstallError extends Error {
-	constructor(message: string) {
+	readonly publicMessage: string;
+
+	constructor(message: string, publicMessage = message) {
 		super(message);
 		this.name = "SlackInstallError";
+		this.publicMessage = publicMessage;
 	}
 }
 
@@ -103,7 +106,10 @@ function requireConfig(_request: Request): SlackOAuthConfig {
 		missing.length > 0 ||
 		!(authSecret && clientId && clientSecret && encryptionKey)
 	) {
-		throw new SlackInstallError(`Slack OAuth is missing ${missing.join(", ")}`);
+		throw new SlackInstallError(
+			`Slack OAuth is missing ${missing.join(", ")}`,
+			"Slack install is not configured"
+		);
 	}
 
 	return {
@@ -212,7 +218,8 @@ async function exchangeSlackCode(
 	const body = await readSlackJson(response, slackAccessSchema);
 	if (!body.ok) {
 		throw new SlackInstallError(
-			`Slack OAuth failed: ${body.error ?? "unknown_error"}`
+			`Slack OAuth failed: ${body.error ?? "unknown_error"}`,
+			"Slack authorization failed"
 		);
 	}
 
@@ -241,7 +248,8 @@ async function readSlackBotIdentity(token: string): Promise<SlackBotIdentity> {
 	const body = await readSlackJson(response, slackAuthTestSchema);
 	if (!body.ok) {
 		throw new SlackInstallError(
-			`Slack token verification failed: ${body.error ?? "unknown_error"}`
+			`Slack token verification failed: ${body.error ?? "unknown_error"}`,
+			"Could not verify Slack installation"
 		);
 	}
 
@@ -416,7 +424,7 @@ export const integrations = new Elysia({ prefix: "/v1/integrations" })
 				);
 				const message =
 					error instanceof SlackInstallError
-						? error.message
+						? error.publicMessage
 						: "Could not start Slack install";
 				return integrationsRedirect("error", message);
 			}
@@ -435,7 +443,11 @@ export const integrations = new Elysia({ prefix: "/v1/integrations" })
 				return throttled;
 			}
 			if (query.error) {
-				return integrationsRedirect("error", `Slack returned ${query.error}`);
+				useLogger().warn("Slack OAuth provider returned an error", {
+					slack_oauth: "callback",
+					provider_error: query.error,
+				});
+				return integrationsRedirect("error", "Slack authorization failed");
 			}
 			try {
 				if (!(query.code && query.state)) {
@@ -466,7 +478,7 @@ export const integrations = new Elysia({ prefix: "/v1/integrations" })
 				);
 				const message =
 					error instanceof SlackInstallError
-						? error.message
+						? error.publicMessage
 						: "Could not finish Slack install";
 				return integrationsRedirect("error", message);
 			}

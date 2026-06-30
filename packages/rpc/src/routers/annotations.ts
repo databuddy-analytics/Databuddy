@@ -10,7 +10,11 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, publicProcedure, trackedProcedure } from "../orpc";
-import { type Workspace, withWorkspace } from "../procedures/with-workspace";
+import {
+	type Workspace,
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 import { scopedCacheKey } from "../utils/scoped-cache-key";
 
 function annotationViewerSlot(workspace: Workspace, context: Context): string {
@@ -79,6 +83,15 @@ const annotationOutputSchema = z.object({
 
 const successOutputSchema = z.object({ success: z.literal(true) });
 
+interface AnnotationWithCreator {
+	createdBy?: unknown;
+	[key: string]: unknown;
+}
+
+function sanitizeAnnotationForDemo<T extends AnnotationWithCreator>(row: T): T {
+	return { ...row, createdBy: "" };
+}
+
 export const annotationsRouter = {
 	list: publicProcedure
 		.route({
@@ -98,10 +111,9 @@ export const annotationsRouter = {
 		)
 		.output(z.array(annotationOutputSchema))
 		.handler(async ({ context, input }) => {
-			const workspace = await withWorkspace(context, {
+			const workspace = await withPublicWorkspace(context, {
 				websiteId: input.websiteId,
 				permissions: ["read"],
-				allowPublicAccess: true,
 			});
 
 			const viewerSlot = annotationViewerSlot(workspace, context);
@@ -116,7 +128,7 @@ export const annotationsRouter = {
 				),
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
-				queryFn: () => {
+				queryFn: async () => {
 					const baseConditions = [
 						eq(annotations.websiteId, input.websiteId),
 						eq(annotations.chartType, input.chartType),
@@ -137,11 +149,20 @@ export const annotationsRouter = {
 						? and(...baseConditions, visibilityCondition)
 						: and(...baseConditions);
 
-					return context.db
+					const rows = await context.db
 						.select()
 						.from(annotations)
 						.where(whereCondition)
 						.orderBy(desc(annotations.createdAt));
+
+					if (workspace.tier !== "demo") {
+						return rows;
+					}
+					return rows.map((row) =>
+						context.user?.id === row.createdBy
+							? row
+							: sanitizeAnnotationForDemo(row)
+					);
 				},
 			});
 		}),
@@ -174,10 +195,9 @@ export const annotationsRouter = {
 				});
 			}
 
-			const workspace = await withWorkspace(context, {
+			const workspace = await withPublicWorkspace(context, {
 				websiteId: annotationRow.websiteId,
 				permissions: ["read"],
-				allowPublicAccess: true,
 			});
 
 			if (workspace.tier === "demo") {
@@ -190,7 +210,7 @@ export const annotationsRouter = {
 				}
 			}
 
-			return annotationsCache.withCache({
+			const row = await annotationsCache.withCache({
 				key: scopedCacheKey(
 					"byId",
 					workspace,
@@ -200,18 +220,23 @@ export const annotationsRouter = {
 				ttl: CACHE_TTL,
 				tables: ["annotations"],
 				queryFn: async () => {
-					const row = await context.db.query.annotations.findFirst({
+					const r = await context.db.query.annotations.findFirst({
 						where: { id: input.id, deletedAt: { isNull: true } },
 					});
-					if (!row) {
+					if (!r) {
 						throw errors.NOT_FOUND({
 							message: "Annotation not found",
 							data: { resourceType: "annotation", resourceId: input.id },
 						});
 					}
-					return row;
+					return r;
 				},
 			});
+
+			if (workspace.tier === "demo" && context.user?.id !== row.createdBy) {
+				return sanitizeAnnotationForDemo(row);
+			}
+			return row;
 		}),
 
 	create: trackedProcedure

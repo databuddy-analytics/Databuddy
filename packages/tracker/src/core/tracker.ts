@@ -518,6 +518,7 @@ export class BaseTracker {
 			timestamp: Date.now(),
 			properties,
 			anonymousId: this.anonymousId,
+			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
 			sessionId: this.sessionId,
 			websiteId: this.options.clientId,
 			source: "browser",

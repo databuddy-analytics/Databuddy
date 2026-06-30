@@ -147,6 +147,7 @@ export const clickHouse: ClickHouseClient = Object.assign(
 );
 
 export interface ChQueryOptions {
+	abort_signal?: AbortSignal;
 	clickhouse_settings?: Record<string, string | number>;
 	readonly?: boolean;
 }
@@ -163,6 +164,7 @@ async function chQueryWithMeta<T>(
 	const res = await clickHouse.query({
 		query,
 		query_params: params,
+		...(options?.abort_signal && { abort_signal: options.abort_signal }),
 		...(Object.keys(settings).length > 0 && {
 			clickhouse_settings: settings,
 		}),

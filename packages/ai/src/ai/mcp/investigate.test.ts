@@ -3,6 +3,7 @@ import "./tools.test-env";
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import {
+	buildFallbackMemo,
 	buildInvestigationBrief,
 	buildInvestigationWindow,
 	buildReceipts,
@@ -214,6 +215,24 @@ describe("renderMemoMarkdown", () => {
 		};
 		const markdown = renderMemoMarkdown(allClearMemo, buildReceipts(2, []));
 		expect(markdown).not.toContain("Monitor:");
+	});
+});
+
+describe("buildFallbackMemo", () => {
+	test("preserves the agent answer as a valid low-confidence memo", () => {
+		const memo = buildFallbackMemo("Pageviews fell 30% on /pricing after June 8.");
+		expect(investigationMemoSchema.safeParse(memo).success).toBe(true);
+		expect(memo.narrative).toContain("/pricing");
+		expect(memo.confidence.level).toBe("low");
+		expect(memo.verdict.type).toBe("watch");
+	});
+
+	test("stays valid and renders when the answer is empty", () => {
+		const memo = buildFallbackMemo("   ");
+		expect(investigationMemoSchema.safeParse(memo).success).toBe(true);
+		const markdown = renderMemoMarkdown(memo, buildReceipts(7, sampleTrace));
+		expect(markdown).toContain("## Confidence: low");
+		expect(markdown).toContain("7 agent steps, 3 tool calls");
 	});
 });
 

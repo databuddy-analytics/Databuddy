@@ -8,7 +8,7 @@ import { createMcpAgentTools } from "../mcp/agent-tools";
 import type { DatabuddyAgentSlackContext } from "../mcp/slack-context";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
 import type { AppMutationMode, ServiceAuth } from "../config/context";
-import { NEVER_STOP } from "./stop-conditions";
+import { stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig } from "./types";
 
 export function createMcpAgentConfig(context: {
@@ -66,7 +66,7 @@ export function createMcpAgentConfig(context: {
 			websiteDomain: context.websiteDomain,
 		}),
 		activeTools: context.activeTools,
-		stopWhen: NEVER_STOP,
+		stopWhen: stopAtMaxSteps,
 		temperature: 0.1,
 		experimental_context: {
 			apiKey,

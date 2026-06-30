@@ -30,6 +30,8 @@ export type InsightSeverity = "critical" | "warning" | "info";
 export type InsightSentiment = "positive" | "neutral" | "negative";
 
 export type InsightSource = "ai" | "history";
+export type InsightStatus = "open" | "resolved";
+export type InsightResolvedReason = "recovered" | "stale";
 
 export type InsightMetricFormat =
 	| "number"
@@ -84,9 +86,12 @@ export interface Insight {
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
 	priority: number;
+	resolvedAt?: string | null;
+	resolvedReason?: InsightResolvedReason | null;
 	rootCause?: string | null;
 	sentiment: InsightSentiment;
 	severity: InsightSeverity;
+	status?: InsightStatus;
 	suggestion: string;
 	timezone?: string | null;
 	title: string;
@@ -112,9 +117,12 @@ export interface HistoryInsightRow {
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
 	priority: number;
+	resolvedAt?: string | null;
+	resolvedReason?: InsightResolvedReason | null;
 	rootCause?: string | null;
 	sentiment: InsightSentiment;
 	severity: InsightSeverity;
+	status: InsightStatus;
 	suggestion: string;
 	timezone?: string | null;
 	title: string;
@@ -131,6 +139,9 @@ export function mapHistoryRowToInsight(row: HistoryInsightRow): Insight {
 		severity: row.severity,
 		sentiment: row.sentiment,
 		priority: row.priority,
+		status: row.status,
+		resolvedAt: row.resolvedAt,
+		resolvedReason: row.resolvedReason,
 		websiteId: row.websiteId,
 		websiteName: row.websiteName,
 		websiteDomain: row.websiteDomain,

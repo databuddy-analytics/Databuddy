@@ -70,3 +70,41 @@ describe("link resource scopes", () => {
 		).toEqual(["write:links"]);
 	});
 });
+
+describe("monitor resource scopes", () => {
+	test("read and view_analytics require read:monitors", () => {
+		expect(requiredScopesForResource("monitor", ["read"])).toEqual([
+			"read:monitors",
+		]);
+		expect(requiredScopesForResource("monitor", ["view_analytics"])).toEqual([
+			"read:monitors",
+		]);
+	});
+
+	test("create, update, delete require write:monitors", () => {
+		expect(
+			requiredScopesForResource("monitor", ["create", "update", "delete"])
+		).toEqual(["write:monitors"]);
+	});
+});
+
+describe("status page resource scopes", () => {
+	test("read and view_analytics require read:status_pages", () => {
+		expect(requiredScopesForResource("status_page", ["read"])).toEqual([
+			"read:status_pages",
+		]);
+		expect(
+			requiredScopesForResource("status_page", ["view_analytics"])
+		).toEqual(["read:status_pages"]);
+	});
+
+	test("create, update, delete require write:status_pages", () => {
+		expect(
+			requiredScopesForResource("status_page", [
+				"create",
+				"update",
+				"delete",
+			])
+		).toEqual(["write:status_pages"]);
+	});
+});

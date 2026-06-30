@@ -9,6 +9,7 @@ import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { disconnect, disposeRuntime, runPromise } from "@lib/producer";
 import { Kafka } from "kafkajs";
+import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import {
 	handleUncaughtException,
 	handleUnhandledRejection,
@@ -26,6 +27,7 @@ import { evlog } from "evlog/elysia";
 
 initLogger({
 	env: { service: "basket" },
+	redact: databuddyEvlogRedaction,
 	drain: basketLoggerDrain,
 	sampling: {
 		rates: { info: 20, warn: 50, debug: 5 },
@@ -107,7 +109,7 @@ const app = new Elysia()
 	.use(stripeWebhook)
 	.use(paddleWebhook)
 	.get("/health/status", async function basketHealthStatus() {
-		async function ping(probe: () => Promise<void>) {
+		async function ping(name: string, probe: () => Promise<void>) {
 			const start = performance.now();
 			try {
 				await probe();
@@ -116,22 +118,26 @@ const app = new Elysia()
 					latency_ms: Math.round(performance.now() - start),
 				};
 			} catch (err) {
+				log.error({
+					health_probe: name,
+					error_message: err instanceof Error ? err.message : String(err),
+				});
 				return {
 					status: "error" as const,
 					latency_ms: Math.round(performance.now() - start),
-					error: err instanceof Error ? err.message : "unknown",
+					code: "UNAVAILABLE",
 				};
 			}
 		}
 
 		const [clickhouse, redpanda] = await Promise.all([
-			ping(async () => {
+			ping("clickhouse", async () => {
 				const { success } = await clickHouse.ping();
 				if (!success) {
 					throw new Error("ping failed");
 				}
 			}),
-			ping(async () => {
+			ping("redpanda", async () => {
 				const broker = process.env.REDPANDA_BROKER;
 				if (!broker) {
 					throw new Error("not configured");

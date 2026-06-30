@@ -6,6 +6,7 @@ import localFont from "next/font/local";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactNode } from "react";
+import { RegisterAttribution } from "@/components/register-attribution";
 import { Toaster } from "@/components/ui/sonner";
 import { SITE_URL } from "./util/constants";
 
@@ -98,6 +99,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 				<ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
 					<NuqsAdapter>
 						<RootProvider>
+							<RegisterAttribution />
 							<div className="flex min-h-dvh flex-col">{children}</div>
 							<Toaster
 								closeButton

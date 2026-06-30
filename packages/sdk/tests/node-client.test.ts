@@ -90,6 +90,58 @@ describe("Databuddy Node client", () => {
 		expect(client.getDeduplicationCacheSize()).toBe(1);
 	});
 
+	it("includes configured visitor anonymization in event payloads", async () => {
+		const calls = mockFetch(() =>
+			jsonResponse({ status: "success", eventId: "evt_1" })
+		);
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			anonymizeVisitorIds: false,
+			enableBatching: false,
+		});
+
+		const result = await client.track({
+			name: "signup",
+			anonymousId: "anon_123",
+			websiteId: "site_1",
+		});
+
+		expect(result.success).toBe(true);
+		expect(calls[0]?.body).toEqual(
+			expect.objectContaining({
+				name: "signup",
+				anonymousId: "anon_123",
+				anonymizeVisitorIds: false,
+			})
+		);
+	});
+
+	it("passes auto visitor anonymization mode through event payloads", async () => {
+		const calls = mockFetch(() =>
+			jsonResponse({ status: "success", eventId: "evt_1" })
+		);
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			anonymizeVisitorIds: "auto",
+			enableBatching: false,
+		});
+
+		const result = await client.track({
+			name: "signup",
+			anonymousId: "anon_123",
+			websiteId: "site_1",
+		});
+
+		expect(result.success).toBe(true);
+		expect(calls[0]?.body).toEqual(
+			expect.objectContaining({
+				name: "signup",
+				anonymousId: "anon_123",
+				anonymizeVisitorIds: "auto",
+			})
+		);
+	});
+
 	it("deduplicates queued events before a successful flush", async () => {
 		const calls = mockFetch(() => jsonResponse({ status: "success", count: 1 }));
 		const client = new Databuddy({ apiKey: "dbdy_test", batchSize: 10 });

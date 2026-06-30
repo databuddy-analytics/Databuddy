@@ -147,7 +147,8 @@ export function createMcpAgentTools(
 				const data = await executeQuery(
 					queryRequest,
 					websiteDomain,
-					queryRequest.timezone
+					queryRequest.timezone,
+					options.abortSignal
 				);
 				return { data, rowCount: data.length, type: args.type };
 			},
@@ -182,6 +183,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 					sql: args.sql,
 					params: args.params,
 					toolName: "MCP Agent SQL",
+					abortSignal: options.abortSignal,
 				});
 			},
 		}),
@@ -233,6 +235,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				const results = await executeBatch(requests, {
 					websiteDomain,
 					timezone: args.timezone ?? "UTC",
+					abortSignal: options.abortSignal,
 				});
 				return {
 					batch: true,

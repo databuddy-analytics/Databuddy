@@ -48,7 +48,7 @@ const queue = {
 	},
 };
 
-mock.module("@databuddy/redis", () => ({
+mock.module("@databuddy/redis/uptime-queue", () => ({
 	getUptimeQueue: () => queue,
 	UPTIME_CHECK_JOB_NAME,
 	UPTIME_JOB_OPTIONS,

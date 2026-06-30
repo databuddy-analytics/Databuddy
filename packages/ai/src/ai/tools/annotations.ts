@@ -1,7 +1,12 @@
 import { tool } from "ai";
 import dayjs from "dayjs";
 import { z } from "zod";
-import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
+import {
+	callRPCProcedure,
+	createToolLogger,
+	getAppContext,
+	resolveToolWebsite,
+} from "./utils";
 
 const logger = createToolLogger("Annotations Tools");
 
@@ -94,11 +99,12 @@ export function createAnnotationTools() {
 		inputSchema: listAnnotationsInputSchema,
 		execute: async ({ websiteId, chartType, chartContext }, options) => {
 			const context = getAppContext(options);
+			const resolved = resolveToolWebsite(context, websiteId);
 			try {
 				const result = await callRPCProcedure(
 					"annotations",
 					"list",
-					{ websiteId, chartType, chartContext },
+					{ websiteId: resolved.websiteId, chartType, chartContext },
 					context
 				);
 				return {
@@ -140,6 +146,7 @@ export function createAnnotationTools() {
 			options
 		) => {
 			const context = getAppContext(options);
+			const resolved = resolveToolWebsite(context, websiteId);
 			try {
 				if (!confirmed) {
 					const dateRangePreview = `${chartContext.dateRange.start_date} to ${chartContext.dateRange.end_date} (${chartContext.dateRange.granularity})`;
@@ -149,7 +156,7 @@ export function createAnnotationTools() {
 						message:
 							"Please review the annotation details below and confirm if you want to create it:",
 						annotation: {
-							websiteId,
+							websiteId: resolved.websiteId,
 							chartType,
 							dateRange: dateRangePreview,
 							annotationType,
@@ -170,7 +177,7 @@ export function createAnnotationTools() {
 					"annotations",
 					"create",
 					{
-						websiteId,
+						websiteId: resolved.websiteId,
 						chartType,
 						chartContext,
 						annotationType,
@@ -192,7 +199,7 @@ export function createAnnotationTools() {
 				};
 			} catch (error) {
 				logger.error("Failed to create annotation", {
-					websiteId,
+					websiteId: resolved.websiteId,
 					chartType,
 					text,
 					error,

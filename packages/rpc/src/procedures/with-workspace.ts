@@ -1,11 +1,11 @@
 import { hasKeyScope } from "@databuddy/api-keys/resolve";
 import { requiredScopesForResource } from "@databuddy/api-keys/scopes";
+import type { User } from "@databuddy/auth";
 import {
 	type PermissionFor,
 	type ResourceType,
 	roleHasPermission,
-	type User,
-} from "@databuddy/auth";
+} from "@databuddy/auth/permissions";
 import { db } from "@databuddy/db";
 import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import type { PlanId } from "@databuddy/shared/types/features";
@@ -18,25 +18,61 @@ type Website = NonNullable<Awaited<ReturnType<typeof getWebsiteById>>>;
 
 export type WorkspaceTier = "authed" | "demo";
 
-export interface Workspace {
+export type Permissions<R extends ResourceType> = readonly [
+	PermissionFor<R>,
+	...PermissionFor<R>[],
+];
+
+interface BaseOptions {
+	allowCrossOrg?: boolean;
+	requiredPlans?: PlanId[];
+}
+
+interface WebsiteImplicitOptions extends BaseOptions {
+	organizationId?: string | null;
+	permissions: Permissions<"website">;
+	resource?: undefined;
+	websiteId: string;
+}
+
+interface WebsiteExplicitOptions<R extends ResourceType> extends BaseOptions {
+	organizationId?: string | null;
+	permissions: Permissions<R>;
+	resource: R;
+	websiteId: string;
+}
+
+interface OrgScopeOptions<R extends ResourceType> extends BaseOptions {
+	organizationId?: string | null;
+	permissions: Permissions<R>;
+	resource: R;
+	websiteId?: undefined;
+}
+
+export interface AuthedWorkspace {
 	getCreatedBy: () => Promise<string>;
 	organizationId: string;
 	plan: PlanId;
 	role: string | null;
-	tier: WorkspaceTier;
+	tier: "authed";
 	user: User | null;
 	website: Website | null;
 }
 
-export interface WithWorkspaceOptions<R extends ResourceType = "organization"> {
-	allowCrossOrg?: boolean;
-	allowPublicAccess?: boolean;
-	organizationId?: string | null;
-	permissions?: PermissionFor<R>[];
-	requiredPlans?: PlanId[];
-	resource?: R;
-	websiteId?: string;
+export interface DemoWorkspace {
+	organizationId: string;
+	plan: PlanId;
+	role: null;
+	tier: "demo";
+	user: null;
+	website: Website;
 }
+
+export type Workspace = AuthedWorkspace | DemoWorkspace;
+
+export type PublicWorkspace =
+	| (AuthedWorkspace & { website: Website })
+	| DemoWorkspace;
 
 const getWebsiteById = cacheable(
 	async (id: string) => {
@@ -79,7 +115,7 @@ async function requireWebsite(websiteId: string): Promise<Website> {
 
 const READ_ONLY_PERMISSIONS = new Set(["read", "view_analytics"]);
 
-function isReadOnly(permissions: string[]): boolean {
+function isReadOnly(permissions: readonly string[]): boolean {
 	return permissions.every((p) => READ_ONLY_PERMISSIONS.has(p));
 }
 
@@ -93,7 +129,7 @@ async function resolveGrant(
 	input: {
 		organizationId: string;
 		resource: string;
-		permissions: string[];
+		permissions: readonly string[];
 		allowCrossOrg: boolean;
 	}
 ): Promise<Grant> {
@@ -121,10 +157,7 @@ async function resolveGrant(
 			};
 		}
 
-		if (
-			permissions.length > 0 &&
-			!roleHasPermission(role, resource, permissions)
-		) {
+		if (!roleHasPermission(role, resource, permissions)) {
 			return {
 				granted: false,
 				denied: rpcError.forbidden(
@@ -163,87 +196,162 @@ async function resolveGrant(
 	return { granted: false, denied: rpcError.unauthorized() };
 }
 
-export const workspaceInputSchema = z.object({
-	organizationId: z.string().nullish(),
-});
+interface ResolveInput {
+	allowCrossOrg: boolean;
+	organizationId?: string | null;
+	permissions: readonly string[];
+	requiredPlans: PlanId[] | undefined;
+	resource?: string;
+	websiteId?: string;
+}
 
-export async function withWorkspace<R extends ResourceType = "organization">(
-	context: Context,
-	options: WithWorkspaceOptions<R> & { websiteId: string }
-): Promise<Workspace & { website: Website }>;
-export async function withWorkspace<R extends ResourceType = "organization">(
-	context: Context,
-	options?: WithWorkspaceOptions<R>
-): Promise<Workspace>;
-export async function withWorkspace<R extends ResourceType = "organization">(
-	context: Context,
-	options: WithWorkspaceOptions<R> = {} as WithWorkspaceOptions<R>
-): Promise<Workspace> {
-	const {
-		websiteId,
-		resource,
-		permissions = [],
-		requiredPlans,
-		allowPublicAccess = false,
-		allowCrossOrg = false,
-	} = options;
+interface ResolvedAuthed {
+	kind: "authed";
+	workspace: AuthedWorkspace;
+}
 
+interface ResolvedDenied {
+	denied: Error;
+	kind: "denied";
+	organizationId: string;
+	permissions: readonly string[];
+	plan: PlanId;
+	website: Website | null;
+}
+
+async function resolveWorkspace(
+	context: Context,
+	input: ResolveInput
+): Promise<ResolvedAuthed | ResolvedDenied> {
 	const planPromise = getPlanId(context);
-	const website = websiteId ? await requireWebsite(websiteId) : null;
+	const website = input.websiteId
+		? await requireWebsite(input.websiteId)
+		: null;
 
 	const organizationId =
-		options.organizationId ?? website?.organizationId ?? context.organizationId;
+		input.organizationId ?? website?.organizationId ?? context.organizationId;
 
 	if (!organizationId) {
 		throw rpcError.badRequest("Workspace is required");
 	}
 
 	const effectiveResource =
-		(resource as string | undefined) ??
-		(websiteId ? "website" : "organization");
-	const effectivePermissions = permissions as string[];
+		input.resource ?? (input.websiteId ? "website" : "organization");
 	const getCreatedBy = () => resolveCreatedBy(context, organizationId);
 
 	const [grant, plan] = await Promise.all([
 		resolveGrant(context, {
 			organizationId,
 			resource: effectiveResource,
-			permissions: effectivePermissions,
-			allowCrossOrg,
+			permissions: input.permissions,
+			allowCrossOrg: input.allowCrossOrg,
 		}),
 		planPromise,
 	]);
 
 	if (!grant.granted) {
-		if (
-			allowPublicAccess &&
-			website?.isPublic &&
-			isReadOnly(effectivePermissions)
-		) {
-			return {
-				organizationId,
-				user: context.user ?? null,
-				role: null,
-				plan,
-				tier: "demo",
-				website,
-				getCreatedBy,
-			};
-		}
-		throw grant.denied;
+		return {
+			kind: "denied",
+			denied: grant.denied,
+			website,
+			organizationId,
+			plan,
+			permissions: input.permissions,
+		};
 	}
 
-	requirePlan(plan, requiredPlans);
+	requirePlan(plan, input.requiredPlans);
 
 	return {
-		organizationId,
-		user: grant.user,
-		role: grant.role,
-		plan,
-		tier: "authed",
-		website,
-		getCreatedBy,
+		kind: "authed",
+		workspace: {
+			tier: "authed",
+			organizationId,
+			user: grant.user,
+			role: grant.role,
+			plan,
+			website,
+			getCreatedBy,
+		},
 	};
+}
+
+export const workspaceInputSchema = z.object({
+	organizationId: z.string().nullish(),
+});
+
+export function withWorkspace<R extends ResourceType>(
+	context: Context,
+	options: WebsiteExplicitOptions<R>
+): Promise<AuthedWorkspace & { website: Website }>;
+export function withWorkspace(
+	context: Context,
+	options: WebsiteImplicitOptions
+): Promise<AuthedWorkspace & { website: Website }>;
+export function withWorkspace<R extends ResourceType>(
+	context: Context,
+	options: OrgScopeOptions<R>
+): Promise<AuthedWorkspace>;
+export async function withWorkspace(
+	context: Context,
+	options:
+		| WebsiteImplicitOptions
+		| WebsiteExplicitOptions<ResourceType>
+		| OrgScopeOptions<ResourceType>
+): Promise<AuthedWorkspace> {
+	const resolved = await resolveWorkspace(context, {
+		websiteId: options.websiteId,
+		organizationId: options.organizationId,
+		resource: options.resource,
+		permissions: options.permissions,
+		allowCrossOrg: options.allowCrossOrg ?? false,
+		requiredPlans: options.requiredPlans,
+	});
+
+	if (resolved.kind === "denied") {
+		throw resolved.denied;
+	}
+
+	return resolved.workspace;
+}
+
+export function withPublicWorkspace<R extends ResourceType>(
+	context: Context,
+	options: WebsiteExplicitOptions<R>
+): Promise<PublicWorkspace>;
+export function withPublicWorkspace(
+	context: Context,
+	options: WebsiteImplicitOptions
+): Promise<PublicWorkspace>;
+export async function withPublicWorkspace(
+	context: Context,
+	options: WebsiteImplicitOptions | WebsiteExplicitOptions<ResourceType>
+): Promise<PublicWorkspace> {
+	const resolved = await resolveWorkspace(context, {
+		websiteId: options.websiteId,
+		organizationId: options.organizationId,
+		resource: options.resource,
+		permissions: options.permissions,
+		allowCrossOrg: options.allowCrossOrg ?? false,
+		requiredPlans: options.requiredPlans,
+	});
+
+	if (resolved.kind === "authed") {
+		return resolved.workspace as PublicWorkspace;
+	}
+
+	if (resolved.website?.isPublic && isReadOnly(resolved.permissions)) {
+		return {
+			tier: "demo",
+			organizationId: resolved.organizationId,
+			user: null,
+			role: null,
+			plan: resolved.plan,
+			website: resolved.website,
+		};
+	}
+
+	throw resolved.denied;
 }
 
 async function resolveCreatedBy(
@@ -269,10 +377,9 @@ async function resolveCreatedBy(
 
 export const withWebsiteRead = os.middleware(
 	async ({ context, next }, input: { websiteId: string }) => {
-		const workspace = await withWorkspace<"website">(context, {
+		const workspace = await withPublicWorkspace(context, {
 			websiteId: input.websiteId,
 			permissions: ["read"],
-			allowPublicAccess: true,
 		});
 		return next({ context: { workspace } });
 	}

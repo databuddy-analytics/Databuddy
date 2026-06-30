@@ -5,6 +5,7 @@ import {
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
 import { mergeWideEvent } from "@databuddy/ai/lib/tracing";
+import type { ApiAuthWideEventFields } from "@databuddy/shared/evlog-fields";
 
 export interface ResolvedAuth {
 	apiKeyResult: ResolveApiKeyResult | null;
@@ -18,7 +19,7 @@ export function getResolvedAuth(headers: Headers): ResolvedAuth | undefined {
 }
 
 export async function applyAuthWideEvent(headers: Headers): Promise<void> {
-	const fields: Record<string, string | number | boolean> = {};
+	const fields: Partial<ApiAuthWideEventFields> = {};
 
 	const hasKey = isApiKeyPresent(headers);
 	const [session, apiKeyResult] = await Promise.all([
@@ -72,5 +73,5 @@ export async function applyAuthWideEvent(headers: Headers): Promise<void> {
 		fields.organization_id = orgId;
 	}
 
-	mergeWideEvent(fields);
+	mergeWideEvent<ApiAuthWideEventFields>(fields);
 }

@@ -31,7 +31,11 @@ import { rpcError } from "../errors";
 import type { Context } from "../orpc";
 import { publicProcedure, trackedProcedure } from "../orpc";
 import { setTrackProperties } from "../middleware/track-mutation";
-import { type Workspace, withWorkspace } from "../procedures/with-workspace";
+import {
+	type Workspace,
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 import {
 	requireFeatureWithLimit,
 	requireUsageWithinLimit,
@@ -69,11 +73,10 @@ function authorizeFlagRead(
 	scope: { websiteId?: string; organizationId?: string }
 ): Promise<Workspace> {
 	if (scope.websiteId) {
-		return withWorkspace(context, {
+		return withPublicWorkspace(context, {
 			websiteId: scope.websiteId,
 			resource: "flag",
 			permissions: ["read"],
-			allowPublicAccess: true,
 		});
 	}
 	if (!scope.organizationId) {
@@ -84,6 +87,14 @@ function authorizeFlagRead(
 		resource: "flag",
 		permissions: ["read"],
 	});
+}
+
+function requireAuthedFlagRead(workspace: Workspace) {
+	if (workspace.tier === "demo") {
+		throw rpcError.unauthorized(
+			"Feature flag definitions require authenticated workspace access"
+		);
+	}
 }
 
 const listFlagsSchema = z
@@ -221,26 +232,6 @@ const checkCircularDependency = async (
 	}
 };
 
-interface FlagWithTargetGroups {
-	rules?: unknown;
-	targetGroups?: Array<{
-		rules?: unknown;
-		[key: string]: unknown;
-	}>;
-	[key: string]: unknown;
-}
-
-function sanitizeFlagForDemo<T extends FlagWithTargetGroups>(flag: T): T {
-	return {
-		...flag,
-		rules: Array.isArray(flag.rules) ? [] : flag.rules,
-		targetGroups: flag.targetGroups?.map((group) => ({
-			...group,
-			rules: Array.isArray(group.rules) ? [] : group.rules,
-		})),
-	};
-}
-
 interface FlagRelation {
 	flagsToTargetGroups: Array<{
 		targetGroup: { deletedAt: Date | null; [key: string]: unknown } | null;
@@ -253,11 +244,6 @@ function flattenTargetGroups<T extends FlagRelation>(flag: T) {
 		.map((ftg) => ftg.targetGroup)
 		.filter((tg): tg is NonNullable<typeof tg> => !!tg && !tg.deletedAt);
 	return { ...rest, targetGroups };
-}
-
-function projectForViewer<T extends FlagRelation>(flag: T, sanitize: boolean) {
-	const mapped = flattenTargetGroups(flag);
-	return sanitize ? sanitizeFlagForDemo(mapped) : mapped;
 }
 
 function buildFlagChangeSnapshot(flag: {
@@ -314,16 +300,15 @@ export const flagsRouter = {
 		.output(z.array(flagOutputSchema))
 		.handler(async ({ context, input }) => {
 			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const sanitize = workspace.tier === "demo";
 
 			return flagsCache.withCache({
 				key: scopedCacheKey(
 					"list",
 					workspace,
 					scope,
-					`status:${input.status || "all"}`,
-					`sanitize:${sanitize}`
+					`status:${input.status || "all"}`
 				),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
@@ -351,7 +336,7 @@ export const flagsRouter = {
 						with: { flagsToTargetGroups: { with: { targetGroup: true } } },
 					});
 
-					return flagsList.map((flag) => projectForViewer(flag, sanitize));
+					return flagsList.map(flattenTargetGroups);
 				},
 			});
 		}),
@@ -369,17 +354,11 @@ export const flagsRouter = {
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
 			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const sanitize = workspace.tier === "demo";
 
 			return flagsCache.withCache({
-				key: scopedCacheKey(
-					"byId",
-					workspace,
-					scope,
-					`id:${input.id}`,
-					`sanitize:${sanitize}`
-				),
+				key: scopedCacheKey("byId", workspace, scope, `id:${input.id}`),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
 				queryFn: async () => {
@@ -405,7 +384,7 @@ export const flagsRouter = {
 					if (!flag) {
 						throw rpcError.notFound("Flag", input.id);
 					}
-					return projectForViewer(flag, sanitize);
+					return flattenTargetGroups(flag);
 				},
 			});
 		}),
@@ -423,17 +402,11 @@ export const flagsRouter = {
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
 			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const sanitize = workspace.tier === "demo";
 
 			return flagsCache.withCache({
-				key: scopedCacheKey(
-					"byKey",
-					workspace,
-					scope,
-					`key:${input.key}`,
-					`sanitize:${sanitize}`
-				),
+				key: scopedCacheKey("byKey", workspace, scope, `key:${input.key}`),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
 				queryFn: async () => {
@@ -460,7 +433,7 @@ export const flagsRouter = {
 					if (!flag) {
 						throw rpcError.notFound("Flag");
 					}
-					return projectForViewer(flag, sanitize);
+					return flattenTargetGroups(flag);
 				},
 			});
 		}),

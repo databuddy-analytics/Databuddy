@@ -658,11 +658,11 @@ async function resolveFlagAdmin(
 	clientId: string
 ): Promise<FlagAdminSuccess | FlagAdminFailure> {
 	if (!isApiKeyPresent(headers)) {
-		return { ok: false, status: 401, error: "API key required" };
+		return { ok: false, status: 401, error: "Authentication required" };
 	}
 	const apiKey = await getApiKeyFromHeader(headers);
 	if (!apiKey) {
-		return { ok: false, status: 401, error: "Invalid or expired API key" };
+		return { ok: false, status: 401, error: "Authentication required" };
 	}
 	const hasOrgAccess =
 		apiKey.organizationId === clientId && hasKeyScope(apiKey, "manage:flags");
@@ -681,7 +681,7 @@ async function resolveFlagAdmin(
 		hasWebsiteAccess = Boolean(website);
 	}
 	if (!(hasWebsiteAccess || hasOrgAccess)) {
-		return { ok: false, status: 403, error: "Insufficient permissions" };
+		return { ok: false, status: 403, error: "Forbidden" };
 	}
 	return { ok: true, apiKey };
 }
@@ -1030,7 +1030,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				if (!auth.apiKey.userId) {
 					set.status = 403;
-					return { error: "API key must be associated with a user" };
+					return { error: "Forbidden" };
 				}
 
 				const scope = resolveScope(auth.apiKey, body.clientId);
@@ -1242,7 +1242,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				if (!auth.apiKey.userId) {
 					set.status = 403;
-					return { error: "API key must be associated with a user" };
+					return { error: "Forbidden" };
 				}
 
 				const existing = await db
@@ -1260,8 +1260,8 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flag.websiteId !== body.clientId &&
 					flag.organizationId !== body.clientId
 				) {
-					set.status = 403;
-					return { error: "Flag does not belong to this client" };
+					set.status = 404;
+					return { error: "Flag not found" };
 				}
 
 				const updates: Partial<typeof flags.$inferInsert> = {
@@ -1374,7 +1374,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				if (!auth.apiKey.userId) {
 					set.status = 403;
-					return { error: "API key must be associated with a user" };
+					return { error: "Forbidden" };
 				}
 
 				const existing = await db
@@ -1392,8 +1392,8 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flag.websiteId !== query.clientId &&
 					flag.organizationId !== query.clientId
 				) {
-					set.status = 403;
-					return { error: "Flag does not belong to this client" };
+					set.status = 404;
+					return { error: "Flag not found" };
 				}
 
 				const changedBy = auth.apiKey.userId;

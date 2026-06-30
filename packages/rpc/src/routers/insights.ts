@@ -1,4 +1,4 @@
-import { and, db, desc, eq, gte, inArray, isNull } from "@databuddy/db";
+import { and, db, desc, eq, gte, inArray, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
 	type AnalyticsInsightMetric,
@@ -26,6 +26,8 @@ import { queueInsightGenerationRun } from "./insight-generation";
 
 const voteSchema = z.enum(["up", "down"]);
 const rangeSchema = z.enum(["7d", "30d", "90d"]);
+const insightStatusSchema = z.enum(["open", "resolved"]);
+const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
 
 const CACHE_TTL = 900;
 const NEGATIVE_CACHE_TTL = Math.floor(CACHE_TTL / 3);
@@ -90,7 +92,10 @@ const historyInsightSchema = websiteInsightSchema.extend({
 	currentPeriodTo: z.string().nullable(),
 	previousPeriodFrom: z.string().nullable(),
 	previousPeriodTo: z.string().nullable(),
+	resolvedAt: z.string().nullable(),
+	resolvedReason: insightResolvedReasonSchema.nullable(),
 	runId: z.string(),
+	status: insightStatusSchema,
 	timezone: z.string().nullable(),
 });
 
@@ -524,6 +529,9 @@ export const insightsRouter = {
 					chainId: analyticsInsights.chainId,
 					metrics: analyticsInsights.metrics,
 					createdAt: analyticsInsights.createdAt,
+					status: analyticsInsights.status,
+					resolvedAt: analyticsInsights.resolvedAt,
+					resolvedReason: analyticsInsights.resolvedReason,
 					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
 					currentPeriodTo: analyticsInsights.currentPeriodTo,
 					previousPeriodFrom: analyticsInsights.previousPeriodFrom,
@@ -533,7 +541,11 @@ export const insightsRouter = {
 				.from(analyticsInsights)
 				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 				.where(whereClause)
-				.orderBy(desc(analyticsInsights.createdAt))
+				.orderBy(
+					desc(
+						sql`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`
+					)
+				)
 				.limit(input.limit)
 				.offset(input.offset);
 
@@ -557,6 +569,9 @@ export const insightsRouter = {
 				chainId: row.chainId ?? null,
 				...parseInsightShape(row),
 				createdAt: row.createdAt.toISOString(),
+				status: row.status,
+				resolvedAt: row.resolvedAt?.toISOString() ?? null,
+				resolvedReason: row.resolvedReason ?? null,
 				currentPeriodFrom: row.currentPeriodFrom,
 				currentPeriodTo: row.currentPeriodTo,
 				previousPeriodFrom: row.previousPeriodFrom,

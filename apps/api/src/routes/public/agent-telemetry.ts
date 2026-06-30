@@ -125,7 +125,7 @@ export const agentTelemetryRoute = new Elysia({
 			set.status = 401;
 			return {
 				success: false,
-				error: "Invalid websiteId.",
+				error: "Invalid telemetry credentials",
 			};
 		}
 

@@ -21,6 +21,17 @@ const isExtensionSource = (candidate?: string | null) => {
 	return extensionSchemes.some((scheme) => normalized.includes(scheme));
 };
 
+const browserRuntimeNoisePatterns = [
+	/^Object Not Found Matching Id:\d+, MethodName:[A-Za-z_$][\w$]*, ParamCount:\d+$/,
+] as const;
+
+const isBrowserRuntimeNoise = (message?: string | null) => {
+	if (!message) {
+		return false;
+	}
+	return browserRuntimeNoisePatterns.some((pattern) => pattern.test(message));
+};
+
 export function initErrorTracking(tracker: BaseTracker): () => void {
 	if (tracker.isServer()) {
 		return () => {};
@@ -39,6 +50,7 @@ export function initErrorTracking(tracker: BaseTracker): () => void {
 			anonymousId: tracker.anonymousId,
 			sessionId: tracker.sessionId,
 			...error,
+			anonymizeVisitorIds: tracker.options.anonymizeVisitorIds,
 		};
 
 		logger.log("Queueing error", errorSpan);
@@ -54,6 +66,10 @@ export function initErrorTracking(tracker: BaseTracker): () => void {
 		}
 
 		if (event.error === null && event.message === "Script error.") {
+			return;
+		}
+
+		if (isBrowserRuntimeNoise(event.message)) {
 			return;
 		}
 
@@ -84,23 +100,34 @@ export function initErrorTracking(tracker: BaseTracker): () => void {
 		}
 
 		let message = String(reason);
+		let stack: string | undefined;
 		if (typeof reason === "object" && reason !== null) {
-			if ("message" in reason && typeof (reason as any).message === "string") {
-				message = (reason as any).message;
-			} else {
+			if ("message" in reason && typeof reason.message === "string") {
+				message = reason.message;
+			}
+			if ("stack" in reason && typeof reason.stack === "string") {
+				stack = reason.stack;
+			}
+			if (!("message" in reason) || typeof reason.message !== "string") {
 				try {
 					message = JSON.stringify(reason);
-				} catch {}
+				} catch {
+					// Some rejection reasons are circular; fall back to String(reason).
+				}
 			}
 		}
 
-		if (isExtensionSource(message) || isExtensionSource(reason?.stack)) {
+		if (isExtensionSource(message) || isExtensionSource(stack)) {
+			return;
+		}
+
+		if (isBrowserRuntimeNoise(message)) {
 			return;
 		}
 
 		trackError({
 			message,
-			stack: reason?.stack,
+			stack,
 			errorType: "UnhandledRejection",
 		});
 	};

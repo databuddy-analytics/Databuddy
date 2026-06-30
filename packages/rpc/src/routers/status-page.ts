@@ -606,10 +606,16 @@ export const statusPageRouter = {
 
 	list: protectedProcedure
 		.route({
+			description:
+				"Lists status pages for an organization. Requires read:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/list",
 			summary: "List status pages for organization",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["read:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -642,10 +648,16 @@ export const statusPageRouter = {
 
 	get: protectedProcedure
 		.route({
+			description:
+				"Returns status page details including monitors. Requires read:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/get",
 			summary: "Get status page details including monitors",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["read:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -692,10 +704,15 @@ export const statusPageRouter = {
 
 	create: trackedProcedure
 		.route({
+			description: "Creates a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/create",
 			summary: "Create status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -748,10 +765,16 @@ export const statusPageRouter = {
 
 	update: trackedProcedure
 		.route({
+			description:
+				"Updates status page details. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/update",
 			summary: "Update status page details",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -818,10 +841,15 @@ export const statusPageRouter = {
 
 	delete: trackedProcedure
 		.route({
+			description: "Deletes a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/delete",
 			summary: "Delete status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -846,10 +874,16 @@ export const statusPageRouter = {
 
 	transfer: trackedProcedure
 		.route({
+			description:
+				"Transfers a status page to another organization. Requires write:status_pages scope on source and target.",
 			method: "POST",
 			path: "/statusPage/transfer",
 			summary: "Transfer status page to another organization",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -902,10 +936,16 @@ export const statusPageRouter = {
 
 	addMonitor: trackedProcedure
 		.route({
+			description:
+				"Adds a monitor to a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/addMonitor",
 			summary: "Add a monitor to a status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -963,10 +1003,16 @@ export const statusPageRouter = {
 
 	removeMonitor: trackedProcedure
 		.route({
+			description:
+				"Removes a monitor from a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/removeMonitor",
 			summary: "Remove a monitor from a status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -997,10 +1043,16 @@ export const statusPageRouter = {
 
 	updateMonitorSettings: trackedProcedure
 		.route({
+			description:
+				"Updates visibility settings for a status page monitor. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/updateMonitorSettings",
 			summary: "Update visibility settings for a status page monitor",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -1057,10 +1109,16 @@ export const statusPageRouter = {
 
 	createIncident: trackedProcedure
 		.route({
+			description:
+				"Creates a new status page incident. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/createIncident",
 			summary: "Create a new incident",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -1146,10 +1204,16 @@ export const statusPageRouter = {
 
 	updateIncident: trackedProcedure
 		.route({
+			description:
+				"Posts an update to a status page incident. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/updateIncident",
 			summary: "Post an update to an incident",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -1202,10 +1266,16 @@ export const statusPageRouter = {
 
 	deleteIncident: trackedProcedure
 		.route({
+			description:
+				"Deletes a status page incident. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/deleteIncident",
 			summary: "Delete an incident",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(z.object({ incidentId: z.string() }))
 		.handler(async ({ context, input }) => {
@@ -1233,10 +1303,16 @@ export const statusPageRouter = {
 
 	listIncidents: protectedProcedure
 		.route({
+			description:
+				"Lists incidents for a status page. Requires read:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/listIncidents",
 			summary: "List incidents for a status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["read:status_pages"] as const,
+			}),
 		})
 		.input(z.object({ statusPageId: z.string() }))
 		.handler(async ({ context, input }) => {

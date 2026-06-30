@@ -28,6 +28,17 @@ export function formatComparisonWindow(insight: Insight): string | null {
 
 /** Short line for source + recency. */
 export function formatInsightFreshness(insight: Insight): string {
+	if (insight.status === "resolved") {
+		const resolvedLabel =
+			insight.resolvedReason === "stale" ? "Archived" : "Recovered";
+		if (insight.resolvedAt) {
+			const d = dayjs(insight.resolvedAt);
+			if (d.isValid()) {
+				return `${resolvedLabel} · ${d.fromNow()}`;
+			}
+		}
+		return resolvedLabel;
+	}
 	if (insight.insightSource === "ai") {
 		return "Latest analysis";
 	}
@@ -38,6 +49,25 @@ export function formatInsightFreshness(insight: Insight): string {
 		}
 	}
 	return "From history";
+}
+
+export function formatInsightResolutionLabel(insight: Insight): string | null {
+	if (insight.status !== "resolved") {
+		return null;
+	}
+	return insight.resolvedReason === "stale" ? "Archived" : "Recovered";
+}
+
+export function formatInsightResolutionDescription(
+	insight: Insight
+): string | null {
+	if (insight.status !== "resolved") {
+		return null;
+	}
+	if (insight.resolvedReason === "stale") {
+		return "This signal aged out of the active queue.";
+	}
+	return "This signal stopped firing in a later analysis run.";
 }
 
 export function buildInsightShareUrl(insightId: string): string {

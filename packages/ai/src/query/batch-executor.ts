@@ -15,6 +15,7 @@ interface BatchResult {
 	type: string;
 }
 interface BatchOptions {
+	abortSignal?: AbortSignal;
 	timezone?: string;
 	websiteDomain?: string | null;
 }
@@ -194,7 +195,7 @@ export function extractOuterSelectColumns(sql: string): string[] {
 
 const signatureCache = new Map<string, string | null>();
 
-function probeSignature(
+function getSchemaSignature(
 	type: string,
 	config: SimpleQueryConfig
 ): string | null {
@@ -226,13 +227,6 @@ function probeSignature(
 	return signature;
 }
 
-function getSchemaSignature(
-	type: string,
-	config: SimpleQueryConfig
-): string | null {
-	return probeSignature(type, config);
-}
-
 function unknownTypeError(type: string): string {
 	const suggestions = suggestQueryTypes(type);
 	return suggestions.length
@@ -259,7 +253,7 @@ async function runSingle(
 			{ ...req, timezone: opts?.timezone ?? req.timezone },
 			opts?.websiteDomain
 		);
-		const data = await builder.execute();
+		const data = await builder.execute(opts?.abortSignal);
 
 		mergeWideEvent({
 			query_type: req.type,
@@ -429,6 +423,7 @@ export async function executeBatch(
 				({ req }) => QueryBuilders[req.type]?.noCache
 			);
 			const rawRows = await chQuery(sql, params, {
+				abort_signal: opts?.abortSignal,
 				clickhouse_settings: getClickHouseQuerySettings(groupNoCache),
 			});
 

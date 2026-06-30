@@ -47,6 +47,7 @@ Read [troubleshooting.md](./references/troubleshooting.md) for CSP, blockers, wr
 - API auth accepts `x-api-key: dbdy_...` or `Authorization: Bearer dbdy_...`; prefer `x-api-key` for examples unless docs for that endpoint use Bearer.
 - `websiteId` in event tracking means the public website client id, the same kind of value used by `data-client-id`; it is not necessarily an internal UUID.
 - For server-side attribution, collect `{ anonId, sessionId }` in the browser with `getTrackingIds()`, pass them to your backend, then map them to Node SDK fields `anonymousId` and `sessionId`.
+- Visitor ID privacy is configured with `anonymizeVisitorIds` (`true`/omitted = anonymized, `false` = keeps raw IDs, `"auto"` = raw only in Databuddy's conservative country allowlist); avoid internal wording like storage or hashing in public examples.
 - Do not invent a Databuddy `identify()` helper or endpoint. If an app has an identify route, treat it as the user's own backend code carrying Databuddy tracking IDs.
 - Feature flag evaluation uses the main API host, not basket. It needs a website `clientId`, not API-key-only auth.
 - Feature flag management uses `manage:flags` with `x-api-key`; do not expose that key in browser source. DevTools accepts it at runtime for local/preview flag management.

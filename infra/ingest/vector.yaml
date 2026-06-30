@@ -19,15 +19,10 @@ sources:
       mechanism: SCRAM-SHA-256
       username: "${VECTOR_KAFKA_USER}"
       password: "${VECTOR_KAFKA_PASSWORD}"
+    tls:
+      enabled: true
     decoding:
       codec: json
-
-  redpanda_metrics:
-    type: prometheus_scrape
-    endpoints:
-      - "${REDPANDA_METRICS_ENDPOINT}"
-    scrape_interval_secs: 15
-    scrape_timeout_secs: 5
 
 transforms:
   route_analytics:
@@ -46,14 +41,6 @@ transforms:
       blocked_traffic: '.topic == "analytics-blocked-traffic"'
       uptime_checks: '.topic == "analytics-uptime-checks"'
       link_visits: '.topic == "analytics-link-visits"'
-
-  redpanda_metrics_transform:
-    type: remap
-    inputs:
-      - redpanda_metrics
-    source: |
-      .tags.cluster = "${REDPANDA_CLUSTER_NAME}"
-      .tags.env = "${ENVIRONMENT}"
 
 sinks:
   clickhouse_events:
@@ -283,11 +270,3 @@ sinks:
     path: /var/log/vector/dead_letters.log
     encoding:
       codec: json
-
-  axiom_redpanda_metrics:
-    type: axiom
-    inputs:
-      - redpanda_metrics_transform
-    dataset: "${AXIOM_DATASET}"
-    token: "${AXIOM_TOKEN}"
-    compression: gzip

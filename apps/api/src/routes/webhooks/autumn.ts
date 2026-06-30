@@ -136,7 +136,7 @@ export async function sendAlertEmail(opts: {
 		log.warn("No email for customer", {
 			autumn: { customerId, cooldownKey },
 		});
-		return { success: false, message: "No email found" };
+		return { success: true, message: "No notification recipient found" };
 	}
 
 	return withTransaction(async (tx) => {
@@ -176,7 +176,7 @@ export async function sendAlertEmail(opts: {
 			log.error(new Error(result.error.message), {
 				autumn: { customerId, resend: result.error },
 			});
-			return { success: false, message: result.error.message };
+			return { success: false, message: "Alert email delivery failed" };
 		}
 
 		await tx.insert(usageAlertLog).values({
@@ -428,7 +428,7 @@ export const autumnWebhook = new Elysia().post(
 					autumn: { step: "verify", reason: verify.reason },
 				});
 				set.status = 503;
-				return { success: false, message: "Webhook secret not configured" };
+				return { success: false, message: "Webhook temporarily unavailable" };
 			}
 			log.error(new Error(`Svix verification failed: ${verify.reason}`), {
 				autumn: { step: "verify", reason: verify.reason },
@@ -458,7 +458,11 @@ export const autumnWebhook = new Elysia().post(
 		log.info("Autumn webhook", { autumn: { type: event.type } });
 
 		try {
-			return await dispatch(event);
+			const result = await dispatch(event);
+			if (!result.success) {
+				set.status = 502;
+			}
+			return result;
 		} catch (error) {
 			if (error instanceof z.ZodError) {
 				log.error(new Error("Invalid Autumn webhook payload"), {

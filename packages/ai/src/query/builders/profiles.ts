@@ -1,5 +1,5 @@
 import { Analytics } from "../../types/tables";
-import type { Filter, SimpleQueryConfig } from "../types";
+import { FilterOperators, type Filter, type SimpleQueryConfig } from "../types";
 
 const PROFILE_SORT_FIELDS: Record<string, string> = {
 	session_count: "session_count",
@@ -9,10 +9,21 @@ const PROFILE_SORT_FIELDS: Record<string, string> = {
 	unique_pages: "unique_pages",
 };
 
-const AGGREGATE_FILTER_FIELDS = new Set([
+const PROFILE_AGGREGATE_FILTER_FIELDS = [
 	"session_count",
 	"total_events",
 	"unique_pages",
+] as const;
+
+const AGGREGATE_FILTER_FIELDS = new Set<string>(
+	PROFILE_AGGREGATE_FILTER_FIELDS
+);
+
+const PROFILE_AGGREGATE_FILTER_OPERATORS = new Set<Filter["op"]>([
+	"eq",
+	"ne",
+	"in",
+	"not_in",
 ]);
 
 const SUBQUERY_FILTER_FIELDS = new Set(["event_name"]);
@@ -31,58 +42,105 @@ function resolveProfileSort(orderBy?: string): string {
 }
 
 interface SeparatedFilters {
+	filterParams: Record<string, Filter["value"]>;
 	havingConditions: string[];
-	subqueryFilters: Filter[];
+	subqueryConditions: string[];
 	whereConditions: string[];
 }
 
 function separateProfileFilters(
 	filters?: Filter[],
-	filterConditions?: string[]
+	filterConditions?: string[],
+	filterParams?: Record<string, Filter["value"]>
 ): SeparatedFilters {
 	const whereConditions: string[] = [];
 	const havingConditions: string[] = [];
-	const subqueryFilters: Filter[] = [];
+	const subqueryConditions: string[] = [];
+	const params = { ...filterParams };
+	const filtersForConditions = (filters ?? [])
+		.map((filter, index) => ({ filter, index }))
+		.filter(({ filter }) => !(filter.target || filter.having));
 
 	for (let i = 0; i < (filterConditions || []).length; i++) {
-		const filter = filters?.[i];
+		const matchedFilter = filtersForConditions[i];
+		const filter = matchedFilter?.filter;
 		const condition = filterConditions?.[i];
 		if (!condition) {
 			continue;
 		}
 		if (filter && SUBQUERY_FILTER_FIELDS.has(filter.field)) {
-			subqueryFilters.push(filter);
+			subqueryConditions.push(condition);
 		} else if (filter && AGGREGATE_FILTER_FIELDS.has(filter.field)) {
-			havingConditions.push(condition);
+			const key = `f${matchedFilter.index}`;
+			const aggregateFilter = buildProfileAggregateFilter(filter, key);
+			havingConditions.push(aggregateFilter.clause);
+			Object.assign(params, aggregateFilter.params);
 		} else {
 			whereConditions.push(condition);
 		}
 	}
 
-	return { whereConditions, havingConditions, subqueryFilters };
+	return {
+		filterParams: params,
+		havingConditions,
+		subqueryConditions,
+		whereConditions,
+	};
 }
 
-function buildEventNameSubquery(filters: Filter[]): {
-	clause: string;
-	params: Record<string, string>;
-} {
-	const eventFilter = filters.find((f) => f.field === "event_name");
-	if (!eventFilter) {
-		return { clause: "", params: {} };
+function profileAggregateNumber(field: string, value: Filter["value"]): number {
+	if (Array.isArray(value)) {
+		throw new Error(`${field} filter expects a single numeric value.`);
 	}
 
-	const value = String(eventFilter.value);
+	if (typeof value === "string" && value.trim() === "") {
+		throw new Error(`${field} filter expects a numeric value.`);
+	}
+
+	const numberValue = Number(value);
+	if (!Number.isFinite(numberValue)) {
+		throw new Error(`${field} filter expects a numeric value.`);
+	}
+	return numberValue;
+}
+
+function profileAggregateNumberArray(
+	field: string,
+	value: Filter["value"]
+): number[] {
+	const values = Array.isArray(value) ? value : [value];
+	const numbers = values.map((item) => profileAggregateNumber(field, item));
+	if (numbers.length === 0) {
+		throw new Error(`${field} filter expects at least one numeric value.`);
+	}
+	return numbers;
+}
+
+function buildProfileAggregateFilter(
+	filter: Filter,
+	key: string
+): { clause: string; params: Record<string, Filter["value"]> } {
+	if (!PROFILE_AGGREGATE_FILTER_OPERATORS.has(filter.op)) {
+		throw new Error(
+			`${filter.field} filter supports only eq, ne, in, and not_in operators.`
+		);
+	}
+
+	const operator = FilterOperators[filter.op];
+	if (filter.op === "in" || filter.op === "not_in") {
+		return {
+			clause: `${filter.field} ${operator} {${key}:Array(Float64)}`,
+			params: {
+				[key]: profileAggregateNumberArray(filter.field, filter.value),
+			},
+		};
+	}
+
 	return {
-		clause: `AND anonymous_id IN (
-        SELECT DISTINCT anonymous_id
-        FROM ${Analytics.custom_events}
-        WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-          AND event_name = {eventNameFilter:String}
-          AND timestamp >= toDateTime({startDate:String})
-          AND timestamp <= toDateTime({endDate:String})
-          AND anonymous_id IS NOT NULL
-      )`,
-		params: { eventNameFilter: value },
+		clause: `${filter.field} ${operator} {${key}:Float64}`,
+		params: {
+			[key]: profileAggregateNumber(filter.field, filter.value),
+		},
 	};
 }
 
@@ -155,6 +213,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			category: "Profiles",
 			tags: ["profiles", "users", "identified"],
 		},
+		allowedFilters: [...PROFILE_AGGREGATE_FILTER_FIELDS, "event_name"],
 		customSql: (ctx) => {
 			const {
 				websiteId,
@@ -167,8 +226,12 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			} = ctx;
 			const limit = ctx.limit;
 			const offset = ctx.offset;
-			const { whereConditions, havingConditions, subqueryFilters } =
-				separateProfileFilters(filters, filterConditions);
+			const {
+				filterParams: profileFilterParams,
+				havingConditions,
+				subqueryConditions,
+				whereConditions,
+			} = separateProfileFilters(filters, filterConditions, filterParams);
 
 			const combinedWhereClause = whereConditions.length
 				? `AND ${whereConditions.join(" AND ")}`
@@ -178,7 +241,17 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 				? `HAVING ${havingConditions.join(" AND ")}`
 				: "";
 
-			const eventSubquery = buildEventNameSubquery(subqueryFilters);
+			const eventSubqueryClause = subqueryConditions.length
+				? `AND anonymous_id IN (
+        SELECT DISTINCT anonymous_id
+        FROM ${Analytics.custom_events}
+        WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+          AND ${subqueryConditions.join(" AND ")}
+          AND timestamp >= toDateTime({startDate:String})
+          AND timestamp <= toDateTime({endDate:String})
+          AND anonymous_id IS NOT NULL
+      )`
+				: "";
 
 			const profileSort = resolveProfileSort(orderBy);
 
@@ -205,7 +278,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         AND time >= toDateTime({startDate:String})
         AND time <= toDateTime({endDate:String})
 	${combinedWhereClause}
-	${eventSubquery.clause}
+	${eventSubqueryClause}
       GROUP BY anonymous_id
       ${havingClause}
       ORDER BY ${profileSort}
@@ -304,8 +377,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 					endDate: `${endDate} 23:59:59`,
 					limit: limit || 25,
 					offset: offset || 0,
-					...filterParams,
-					...eventSubquery.params,
+					...profileFilterParams,
 				},
 			};
 		},
