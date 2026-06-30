@@ -1052,15 +1052,7 @@ export class SimpleQueryBuilder {
 				// than throwing — in a multi-query batch, a dimension specific to
 				// one query type (e.g. "href" for outbound_links) should simply be
 				// ignored by query types that don't know about it.
-				const isGloballyAllowed = GLOBAL_ALLOWED_FILTERS.includes(
-					filter.field as (typeof GLOBAL_ALLOWED_FILTERS)[number]
-				);
-				if (
-					!(
-						isGloballyAllowed ||
-						this.config.allowedFilters?.includes(filter.field)
-					)
-				) {
+				if (!isFilterFieldAllowed(this.config, filter.field)) {
 					continue;
 				}
 				const { clause, params: filterParams } = this.buildFilter(
