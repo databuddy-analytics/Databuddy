@@ -35,9 +35,10 @@ export async function POST(request: NextRequest) {
 		const audienceId = process.env.RESEND_AUDIENCE_ID;
 
 		if (!(apiKey && audienceId)) {
+			console.error("newsletter/subscribe is not configured");
 			return NextResponse.json(
-				{ error: "Newsletter is not configured" },
-				{ status: 500 }
+				{ error: "Newsletter signup is temporarily unavailable" },
+				{ status: 503 }
 			);
 		}
 

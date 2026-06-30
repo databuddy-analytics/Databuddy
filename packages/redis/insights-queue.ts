@@ -5,12 +5,13 @@ export const INSIGHTS_QUEUE_ENV_PREFIX = "INSIGHTS";
 export const INSIGHTS_QUEUE_NAME = "insights-generation";
 export const INSIGHTS_DISPATCH_JOB_NAME = "insights-dispatch";
 export const INSIGHTS_GENERATE_WEBSITE_JOB_NAME = "insights-generate-website";
+export const INSIGHTS_MAINTENANCE_JOB_NAME = "insights-maintenance";
 export const INSIGHTS_ROLLUP_JOB_NAME = "insights-rollup";
 
 export const INSIGHTS_JOB_TIMEOUT_MS = 120_000;
 
 export const INSIGHTS_JOB_OPTIONS = {
-	attempts: 2,
+	attempts: 3,
 	backoff: {
 		type: "exponential",
 		delay: 5000,
@@ -57,6 +58,11 @@ export interface InsightsDispatchJobData {
 	triggeredAt: string;
 }
 
+export interface InsightsMaintenanceJobData {
+	reason: "maintenance";
+	triggeredAt: string;
+}
+
 export interface InsightsGenerateWebsiteJobData {
 	config: InsightGenerationConfigSnapshot;
 	itemId: string;
@@ -77,6 +83,7 @@ export interface InsightsRollupJobData {
 export type InsightsQueueJobData =
 	| InsightsDispatchJobData
 	| InsightsGenerateWebsiteJobData
+	| InsightsMaintenanceJobData
 	| InsightsRollupJobData;
 
 let insightsQueue: Queue<InsightsQueueJobData> | null = null;
@@ -107,8 +114,4 @@ export function insightsWebsiteJobId(runId: string, websiteId: string): string {
 
 export function insightsRollupJobId(runId: string): string {
 	return `insights-rollup-${runId}`;
-}
-
-export function insightsDispatchJobId(triggeredAt: string): string {
-	return `insights-dispatch-${triggeredAt.slice(0, 16)}`;
 }

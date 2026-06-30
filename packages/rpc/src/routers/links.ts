@@ -13,7 +13,7 @@ import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
-import { withLinksAccess } from "../procedures/with-workspace";
+import { withWorkspace } from "../procedures/with-workspace";
 
 const generateSlug = customAlphabet(
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
@@ -239,9 +239,10 @@ export const linksRouter = {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			await withLinksAccess(context, {
+			await withWorkspace(context, {
 				organizationId,
-				permission: "read",
+				resource: "link",
+				permissions: ["read"],
 			});
 
 			const conditions = [eq(links.organizationId, organizationId)];
@@ -303,9 +304,10 @@ export const linksRouter = {
 			if (!linkRow) {
 				throw rpcError.notFound("link", input.id);
 			}
-			await withLinksAccess(context, {
+			await withWorkspace(context, {
 				organizationId: linkRow.organizationId,
-				permission: "read",
+				resource: "link",
+				permissions: ["read"],
 			});
 
 			return linkRow;
@@ -333,9 +335,10 @@ export const linksRouter = {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			const workspace = await withLinksAccess(context, {
+			const workspace = await withWorkspace(context, {
 				organizationId,
-				permission: "create",
+				resource: "link",
+				permissions: ["create"],
 			});
 
 			validateHttpUrl(input.targetUrl);
@@ -389,13 +392,18 @@ export const linksRouter = {
 						throw rpcError.internal("Failed to create link");
 					}
 
-					await setCachedLink(slug, toCachedLink(newLink)).catch((err) =>
+					setCachedLink(slug, toCachedLink(newLink)).catch((err) =>
 						logger.error(
 							{ slug, linkId: newLink.id, error: String(err) },
 							"Failed to cache link after create"
 						)
 					);
-					await invalidateAgentContextSnapshotsForOwner(organizationId);
+					invalidateAgentContextSnapshotsForOwner(organizationId).catch((err) =>
+						logger.error(
+							{ organizationId, error: String(err) },
+							"Failed to invalidate agent context snapshots after link create"
+						)
+					);
 
 					return newLink;
 				} catch (error) {
@@ -437,9 +445,10 @@ export const linksRouter = {
 			if (!link) {
 				throw rpcError.notFound("link", input.id);
 			}
-			await withLinksAccess(context, {
+			await withWorkspace(context, {
 				organizationId: link.organizationId,
-				permission: "update",
+				resource: "link",
+				permissions: ["update"],
 			});
 
 			if (input.targetUrl) {
@@ -511,7 +520,7 @@ export const linksRouter = {
 					throw rpcError.notFound("link", input.id);
 				}
 
-				await Promise.all([
+				Promise.all([
 					oldSlug === updatedLink.slug
 						? Promise.resolve()
 						: invalidateLinkCache(oldSlug),
@@ -568,9 +577,10 @@ export const linksRouter = {
 				throw rpcError.notFound("link", input.id);
 			}
 
-			await withLinksAccess(context, {
+			await withWorkspace(context, {
 				organizationId: link.organizationId,
-				permission: "delete",
+				resource: "link",
+				permissions: ["delete"],
 			});
 
 			try {
@@ -585,9 +595,14 @@ export const linksRouter = {
 				);
 			}
 
-			// Hard delete the link
 			await context.db.delete(links).where(eq(links.id, input.id));
-			await invalidateAgentContextSnapshotsForOwner(link.organizationId);
+			invalidateAgentContextSnapshotsForOwner(link.organizationId).catch(
+				(err) =>
+					logger.error(
+						{ organizationId: link.organizationId, error: String(err) },
+						"Failed to invalidate agent context snapshots after link delete"
+					)
+			);
 
 			return { success: true };
 		}),

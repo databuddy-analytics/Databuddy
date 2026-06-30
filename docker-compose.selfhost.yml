@@ -161,6 +161,8 @@ services:
       BULLMQ_REDIS_URL: ${BULLMQ_REDIS_URL:?Set BULLMQ_REDIS_URL in your environment}
       INSIGHTS_BULLMQ_REDIS_URL: ${INSIGHTS_BULLMQ_REDIS_URL:-}
       INSIGHTS_DISPATCH_INTERVAL_MS: ${INSIGHTS_DISPATCH_INTERVAL_MS:-300000}
+      INSIGHTS_MAINTENANCE_INTERVAL_MS: ${INSIGHTS_MAINTENANCE_INTERVAL_MS:-300000}
+      INSIGHTS_STALE_ITEM_MS: ${INSIGHTS_STALE_ITEM_MS:-900000}
       INSIGHTS_WORKER_CONCURRENCY: ${INSIGHTS_WORKER_CONCURRENCY:-5}
       INSIGHTS_WORKER_ENABLED: ${INSIGHTS_WORKER_ENABLED:-true}
       CLICKHOUSE_URL: ${CLICKHOUSE_URL:?Set CLICKHOUSE_URL in your environment}
@@ -168,7 +170,7 @@ services:
       OPR_API_KEY: ${OPR_API_KEY:-}
       SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}
     healthcheck:
-      test: [ "CMD", "bun", "-e", "fetch('http://localhost:4002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
+      test: [ "CMD", "bun", "-e", "fetch('http://localhost:4002/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]
       interval: 30s
       timeout: 3s
       start_period: 10s

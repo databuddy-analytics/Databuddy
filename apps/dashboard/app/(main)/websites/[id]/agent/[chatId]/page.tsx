@@ -1,4 +1,3 @@
-import { ChatProvider } from "@/contexts/chat-context";
 import { AgentPageClient } from "../_components/agent-page-client";
 
 interface Props {
@@ -8,9 +7,5 @@ interface Props {
 export default async function AgentPage(props: Props) {
 	const { id, chatId } = await props.params;
 
-	return (
-		<ChatProvider chatId={chatId} websiteId={id}>
-			<AgentPageClient chatId={chatId} websiteId={id} />
-		</ChatProvider>
-	);
+	return <AgentPageClient chatId={chatId} websiteId={id} />;
 }

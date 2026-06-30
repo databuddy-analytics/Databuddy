@@ -28,7 +28,7 @@ describe("insight card view model", () => {
 		expect(view.headline).toBe("Interactions got slower");
 		expect(view.metaLabel).toBe("Marketing");
 		expect(view.primaryActionLabel).toBe("Review speed");
-		expect(view.evidence[0]?.label).toBe("Interaction delay");
+		expect(view.metrics[0]?.label).toBe("Interaction delay");
 	});
 
 	it("falls back to domain and default action when needed", () => {
@@ -40,5 +40,29 @@ describe("insight card view model", () => {
 
 		expect(view.metaLabel).toBe("databuddy.cc");
 		expect(view.primaryActionLabel).toBe("Open analytics");
+	});
+
+	it("keeps investigation evidence separate from metric evidence", () => {
+		const view = toInsightCardViewModel({
+			...baseInsight,
+			rootCause: "The homepage script bundle delayed hydration.",
+			evidence: [
+				{
+					description: "LCP moved after the new checkout banner shipped.",
+					type: "deploy_correlation",
+				},
+			],
+		});
+
+		expect(view.rootCause).toBe(
+			"The homepage script bundle delayed hydration."
+		);
+		expect(view.investigationEvidence).toEqual([
+			{
+				description: "LCP moved after the new checkout banner shipped.",
+				type: "deploy_correlation",
+			},
+		]);
+		expect(view.metrics[0]?.label).toBe("Interaction delay");
 	});
 });

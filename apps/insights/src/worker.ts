@@ -6,8 +6,10 @@ import {
 	type InsightsQueueJobData,
 } from "@databuddy/redis";
 import { Worker } from "bullmq";
-import { log } from "evlog";
 import { processInsightsJob } from "./jobs";
+import { emitInsightsEvent } from "./lib/evlog-insights";
+import { getInsightsWorkerErrorLevel } from "./worker-errors";
+import { buildInsightsStalledJobEvent } from "./worker-events";
 
 const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 5;
 
@@ -27,6 +29,14 @@ export function getInsightsWorkerConcurrency(
 }
 
 export function startInsightsWorker() {
+	const concurrency = getInsightsWorkerConcurrency();
+	emitInsightsEvent("info", "worker.starting", {
+		queue_name: INSIGHTS_QUEUE_NAME,
+		concurrency,
+		lock_duration_ms: INSIGHTS_JOB_TIMEOUT_MS * 2,
+		stalled_interval_ms: INSIGHTS_JOB_TIMEOUT_MS * 3,
+	});
+
 	const worker = new Worker<InsightsQueueJobData>(
 		INSIGHTS_QUEUE_NAME,
 		async (job) => await processInsightsJob(job),
@@ -34,33 +44,45 @@ export function startInsightsWorker() {
 			connection: getBullMQWorkerConnectionOptions({
 				envPrefix: INSIGHTS_QUEUE_ENV_PREFIX,
 			}),
-			concurrency: getInsightsWorkerConcurrency(),
+			concurrency,
 			lockDuration: INSIGHTS_JOB_TIMEOUT_MS * 2,
 			stalledInterval: INSIGHTS_JOB_TIMEOUT_MS * 3,
 		}
 	);
 
 	worker.on("failed", (job, error) => {
-		log.error({
-			insights_worker: "job_failed",
+		emitInsightsEvent("error", "worker.job_failed", {
 			error_message: error.message,
+			error_stack: error.stack,
 			job_id: job?.id,
 			job_name: job?.name,
 			attempts_made: job?.attemptsMade ?? 0,
 		});
 	});
 
+	worker.on("completed", (job) => {
+		emitInsightsEvent("info", "worker.job_completed", {
+			job_id: job.id,
+			job_name: job.name,
+			attempts_made: job.attemptsMade,
+			duration_ms:
+				job.finishedOn && job.processedOn
+					? job.finishedOn - job.processedOn
+					: undefined,
+		});
+	});
+
 	worker.on("stalled", (jobId) => {
-		log.error({
-			insights_worker: "job_stalled",
-			job_id: jobId,
+		emitInsightsEvent("warn", "worker.job_stalled", {
+			...buildInsightsStalledJobEvent(jobId),
 		});
 	});
 
 	worker.on("error", (error) => {
-		log.error({
-			insights_worker: "worker_error",
+		const level = getInsightsWorkerErrorLevel(error);
+		emitInsightsEvent(level, "worker.error", {
 			error_message: error.message,
+			error_stack: error.stack,
 		});
 	});
 

@@ -82,6 +82,12 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	entry_pages: {
+		meta: {
+			description:
+				"First pages visitors land on when entering your site, ranked by entry frequency.",
+			category: "Pages",
+			tags: ["pages", "entry", "landing"],
+		},
 		allowedFilters: [
 			"path",
 			"query_string",
@@ -189,6 +195,12 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	exit_pages: {
+		meta: {
+			description:
+				"Last pages visitors view before leaving your site, ranked by exit frequency.",
+			category: "Pages",
+			tags: ["pages", "exit", "drop-off"],
+		},
 		allowedFilters: [
 			"path",
 			"query_string",
@@ -293,6 +305,12 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	page_performance: {
+		meta: {
+			description:
+				"Page load performance metrics (load time, TTFB, DOM ready) broken down by page.",
+			category: "Performance",
+			tags: ["pages", "performance", "load time"],
+		},
 		table: Analytics.events,
 		fields: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",

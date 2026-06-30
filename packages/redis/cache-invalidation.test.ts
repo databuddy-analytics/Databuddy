@@ -354,10 +354,6 @@ describe("flag read cache invalidation", () => {
 
 describe("organization membership cache invalidation", () => {
 	it("invalidates role, owner, and billing caches for a member", async () => {
-		redisStore.set("cacheable:rpc:org_role:[user-1,org-1]", {
-			value: "member",
-			ttl: 100,
-		});
 		redisStore.set("cacheable:rpc:member_role:[user-1,org-1]", {
 			value: "member",
 			ttl: 100,
@@ -388,10 +384,7 @@ describe("organization membership cache invalidation", () => {
 			userId: "user-1",
 		});
 
-		expect(result).toEqual({ attempted: 6, failed: 0 });
-		expect(redisStore.has("cacheable:rpc:org_role:[user-1,org-1]")).toBe(
-			false
-		);
+		expect(result).toEqual({ attempted: 5, failed: 0 });
 		expect(redisStore.has("cacheable:rpc:member_role:[user-1,org-1]")).toBe(
 			false
 		);

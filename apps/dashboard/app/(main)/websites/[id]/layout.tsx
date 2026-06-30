@@ -5,7 +5,7 @@ import { useAtom, useSetAtom } from "jotai";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { parseAsBoolean, parseAsString, useQueryState } from "nuqs";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { NoticeBanner } from "@/app/(main)/websites/_components/notice-banner";
 import { LiveUserIndicator } from "@/components/analytics";
@@ -115,13 +115,11 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		parseAsString
 	);
 	const [, addFilter] = useAtom(addDynamicFilterAtom);
-	const serializedDynamicFilters = useMemo(
-		() =>
-			dynamicFilters.length > 0
-				? serializeDashboardFilters(dynamicFilters)
-				: null,
-		[dynamicFilters]
-	);
+	const skipNextFilterUrlSync = useRef(false);
+	const serializedDynamicFilters =
+		dynamicFilters.length > 0
+			? serializeDashboardFilters(dynamicFilters)
+			: null;
 
 	useEffect(() => {
 		setCurrentFilterWebsiteId(websiteId);
@@ -131,23 +129,22 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		const parsedFilters = parseDashboardFiltersParam(filtersParam);
 		if (parsedFilters === null) {
 			if (filtersParam === null) {
+				skipNextFilterUrlSync.current = true;
 				setDynamicFilters([]);
 			}
 			return;
 		}
 
-		const serializedParsedFilters =
-			parsedFilters.length > 0
-				? serializeDashboardFilters(parsedFilters)
-				: null;
-		if (serializedParsedFilters === serializedDynamicFilters) {
+		skipNextFilterUrlSync.current = true;
+		setDynamicFilters(parsedFilters);
+	}, [filtersParam, setDynamicFilters]);
+
+	useEffect(() => {
+		if (skipNextFilterUrlSync.current) {
+			skipNextFilterUrlSync.current = false;
 			return;
 		}
 
-		setDynamicFilters(parsedFilters);
-	}, [filtersParam, serializedDynamicFilters, setDynamicFilters]);
-
-	useEffect(() => {
 		if (serializedDynamicFilters === filtersParam) {
 			return;
 		}

@@ -22,13 +22,10 @@ export function createFlagsPlugin(options: FlagsConfig) {
 			});
 
 			if (typeof window !== "undefined") {
-				const w = window as unknown as {
-					__databuddyFlags?: BrowserFlagsManager;
-				};
-				w.__databuddyFlags = currentManager;
+				window.__databuddyFlags = currentManager;
 				app.onUnmount(() => {
-					if (w.__databuddyFlags === currentManager) {
-						w.__databuddyFlags = undefined;
+					if (window.__databuddyFlags === currentManager) {
+						window.__databuddyFlags = undefined;
 					}
 				});
 			}

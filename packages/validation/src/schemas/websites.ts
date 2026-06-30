@@ -99,9 +99,10 @@ const ignoredTrackingOriginSchema = z
 				return false;
 			}
 			if (val.startsWith("*.")) {
-				return DOMAIN_REGEX.test(val.slice(2));
+				const domain = val.slice(2);
+				return !domain.startsWith("www.") && DOMAIN_REGEX.test(domain);
 			}
-			return DOMAIN_REGEX.test(val);
+			return !val.startsWith("www.") && DOMAIN_REGEX.test(val);
 		},
 		{
 			message:

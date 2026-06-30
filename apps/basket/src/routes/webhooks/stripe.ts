@@ -405,12 +405,8 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 
 		if ("error" in result) {
 			log.set({ configError: result.error });
-			if (result.error === "not_found") {
-				set.status = 404;
-				return { error: "Webhook endpoint not found" };
-			}
-			set.status = 400;
-			return { error: "Stripe webhook not configured for this account" };
+			set.status = 404;
+			return { error: "Webhook endpoint not found" };
 		}
 
 		log.set({ ownerId: result.ownerId, websiteId: result.websiteId });

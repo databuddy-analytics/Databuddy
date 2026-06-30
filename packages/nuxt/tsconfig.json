@@ -5,8 +5,8 @@
     "moduleResolution": "bundler",
     "types": ["@nuxt/schema"],
     "paths": {
-      "#app": ["../../node_modules/nuxt/dist/app/index.d.ts"],
-      "#imports": ["../../node_modules/nuxt/dist/app/index.d.ts"]
+      "#app": ["./node_modules/nuxt/dist/app/index.d.ts"],
+      "#imports": ["./node_modules/nuxt/dist/app/index.d.ts"]
     }
   },
   "include": ["src/**/*"],

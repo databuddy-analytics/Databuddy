@@ -172,14 +172,6 @@ export default async function StatusPage({ params }: StatusPageProps) {
 							type="application/ld+json"
 						/>
 
-						{page.customCss ? (
-							<style
-								dangerouslySetInnerHTML={{
-									__html: page.customCss.replaceAll(/<\/style/gi, "<\\/style"),
-								}}
-							/>
-						) : null}
-
 						<Status>
 							<Status.Header
 								activeIncidentCount={activeIncidentCount}
@@ -212,23 +204,21 @@ export default async function StatusPage({ params }: StatusPageProps) {
 					</div>
 				</main>
 
-				{page.hideBranding ? null : (
-					<footer className="shrink-0 border-border/50 border-t bg-background">
-						<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-4 sm:px-6">
-							<p className="text-[11px] text-muted-foreground/50 tracking-wide">
-								Powered by{" "}
-								<a
-									className="text-muted-foreground/70 transition-colors hover:text-foreground"
-									href="https://www.databuddy.cc"
-									rel="noopener noreferrer dofollow"
-									target="_blank"
-								>
-									Databuddy
-								</a>
-							</p>
-						</div>
-					</footer>
-				)}
+				<footer className="shrink-0 border-border/50 border-t bg-background">
+					<div className="mx-auto flex max-w-[822px] items-center justify-center px-4 py-4 sm:px-6">
+						<p className="text-[11px] text-muted-foreground/50 tracking-wide">
+							Powered by{" "}
+							<a
+								className="text-muted-foreground/70 transition-colors hover:text-foreground"
+								href="https://www.databuddy.cc"
+								rel="noopener noreferrer dofollow"
+								target="_blank"
+							>
+								Databuddy
+							</a>
+						</p>
+					</div>
+				</footer>
 			</div>
 		</ThemeProvider>
 	);

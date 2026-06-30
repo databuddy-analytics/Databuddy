@@ -1,6 +1,7 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { shutdownPostgres } from "@databuddy/db";
 import { setRpcRequestLoggerProvider } from "@databuddy/rpc/log-context";
+import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import { App } from "@slack/bolt";
 import { initLogger, log } from "evlog";
 import { DatabuddyAgentClient } from "@/agent/agent-client";
@@ -19,6 +20,7 @@ import { registerSlackListeners } from "@/slack/listeners";
 
 initLogger({
 	env: { service: "slack" },
+	redact: databuddyEvlogRedaction,
 	drain: slackLoggerDrain,
 	sampling: {},
 });

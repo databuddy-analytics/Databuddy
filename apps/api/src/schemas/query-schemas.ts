@@ -1,25 +1,15 @@
 import { t } from "elysia";
 import { QueryBuilders } from "@databuddy/ai/query/builders";
+import { DatePresets, type DatePreset } from "@databuddy/ai/lib/date-presets";
 
 const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
 	keyof typeof QueryBuilders
 >;
 
-export const DatePresets = {
-	today: "today",
-	yesterday: "yesterday",
-	last_7d: "last_7d",
-	last_14d: "last_14d",
-	last_30d: "last_30d",
-	last_90d: "last_90d",
-	this_week: "this_week",
-	last_week: "last_week",
-	this_month: "this_month",
-	last_month: "last_month",
-	this_year: "this_year",
-} as const;
-
-export type DatePreset = keyof typeof DatePresets;
+export {
+	DatePresets,
+	type DatePreset,
+} from "@databuddy/ai/lib/date-presets";
 
 export const DatePresetSchema = t.Enum(DatePresets);
 

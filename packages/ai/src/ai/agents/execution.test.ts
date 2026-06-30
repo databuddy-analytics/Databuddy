@@ -36,6 +36,9 @@ mock.module("@databuddy/rpc/billing", () => ({
 			planId: "free",
 		})
 	),
+}));
+
+mock.module("@databuddy/rpc/organization", () => ({
 	getMemberRole: mock(async () => "owner"),
 	getOrganizationOwnerId: mockGetOrganizationOwnerId,
 }));

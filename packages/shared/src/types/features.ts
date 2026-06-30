@@ -34,9 +34,7 @@ export const GATED_FEATURES = {
 export type GatedFeatureId =
 	(typeof GATED_FEATURES)[keyof typeof GATED_FEATURES];
 
-export const HIDDEN_PRICING_FEATURES: GatedFeatureId[] = [
-	GATED_FEATURES.ERROR_TRACKING,
-];
+export const HIDDEN_PRICING_FEATURES: GatedFeatureId[] = [];
 
 export type FeatureLimit = number | "unlimited" | false;
 

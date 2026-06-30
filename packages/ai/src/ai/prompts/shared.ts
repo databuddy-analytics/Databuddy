@@ -5,4 +5,5 @@ export const COMMON_AGENT_RULES = `<behavior_rules>
 - Data integrity: never fabricate numbers. Analytics numbers must come from tool output or simple arithmetic on tool output. Label proxies, missing data, and unsupported asks.
 - SQL, when available, is SELECT/WITH only with typed placeholders such as {websiteId:String}.
 - Response: lead with the answer, be concise, use markdown cleanly, and never indent prose with 4+ spaces or use ASCII-art tables.
+- Never use emojis in any response, heading, label, chart title, or card. Use plain text only.
 </behavior_rules>`;

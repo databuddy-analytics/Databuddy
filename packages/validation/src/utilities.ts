@@ -83,6 +83,12 @@ export function validateTimezone(timezone: unknown): string {
 		return "";
 	}
 
+	try {
+		new Intl.DateTimeFormat("en", { timeZone: sanitized });
+	} catch {
+		return "";
+	}
+
 	return sanitized;
 }
 

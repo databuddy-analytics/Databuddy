@@ -43,7 +43,7 @@ export interface QueryBuilderMeta {
 	output_fields?: QueryOutputField[];
 	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	tags?: string[];
-	title: string;
+	title?: string;
 	version?: string;
 }
 
@@ -132,8 +132,8 @@ export type CustomSqlFn = (
 ) => string | { sql: string; params: Record<string, unknown> };
 
 export interface PercentageOf {
-	of: string;
 	as?: string;
+	of: string;
 }
 
 export interface SimpleQueryConfig {

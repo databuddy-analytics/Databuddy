@@ -2,6 +2,7 @@
 export type TrackerOptions = {
 	clientId: string;
 	disabled?: boolean;
+	anonymizeVisitorIds?: boolean | "auto";
 	apiUrl?: string;
 	sdk?: string;
 	sdkVersion?: string;
@@ -49,6 +50,7 @@ export type BaseEvent = {
 	eventId: string;
 	name?: string;
 	anonymousId?: string;
+	anonymizeVisitorIds?: boolean | "auto";
 	sessionId?: string;
 	sessionStartTime?: number;
 	timestamp: number;
@@ -64,6 +66,7 @@ export type WebVitalEvent = {
 	metricName: WebVitalMetricName;
 	metricValue: number;
 	anonymousId?: string;
+	anonymizeVisitorIds?: boolean | "auto";
 	sessionId?: string;
 };
 
@@ -77,6 +80,7 @@ export type ErrorSpan = {
 	stack?: string;
 	errorType: string;
 	anonymousId?: string;
+	anonymizeVisitorIds?: boolean | "auto";
 	sessionId?: string;
 };
 
@@ -85,6 +89,7 @@ export type TrackEventPayload = {
 	timestamp: number;
 	properties?: Record<string, unknown>;
 	anonymousId?: string;
+	anonymizeVisitorIds?: boolean | "auto";
 	sessionId?: string;
 	websiteId: string;
 	source: "browser";
@@ -102,6 +107,7 @@ export type DatabuddyGlobal = {
 
 declare global {
 	interface Window {
+		__tracker?: unknown;
 		_phantom?: unknown;
 		callPhantom?: unknown;
 		databuddy?: DatabuddyGlobal;

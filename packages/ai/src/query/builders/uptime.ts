@@ -21,11 +21,17 @@ const UPTIME_TABLE = "uptime.uptime_monitor";
 
 export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	uptime_overview: {
+		meta: {
+			description:
+				"Uptime monitoring overview with availability percentage and response times.",
+			category: "Uptime",
+			tags: ["uptime", "overview", "monitoring"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
 				sql: `
-				SELECT 
+				SELECT
 					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,
 					quantileTDigest(0.50)(total_ms) as p50_response_time,
@@ -51,6 +57,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	uptime_time_series: {
+		meta: {
+			description: "Uptime check results plotted over time.",
+			category: "Uptime",
+			tags: ["uptime", "time-series"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate, timezone } = ctx;
 			const granularity = ctx.granularity ?? "hour";
@@ -131,11 +142,16 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	uptime_status_breakdown: {
+		meta: {
+			description: "Distribution of uptime check results by status code.",
+			category: "Uptime",
+			tags: ["uptime", "status", "distribution"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
 				sql: `
-				SELECT 
+				SELECT
 					status,
 					http_code,
 					COUNT(*) as count,
@@ -156,13 +172,18 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	uptime_recent_checks: {
+		meta: {
+			description: "Most recent uptime check results.",
+			category: "Uptime",
+			tags: ["uptime", "recent", "checks"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			const limit = ctx.limit ?? 50;
 			const offset = ctx.offset ?? 0;
 			return {
 				sql: `
-					SELECT 
+					SELECT
 						timestamp,
 						url,
 						status,
@@ -190,6 +211,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	uptime_response_time_trends: {
+		meta: {
+			description: "Response time trends from uptime monitoring.",
+			category: "Uptime",
+			tags: ["uptime", "response-time", "trends"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			const granularity = ctx.granularity ?? "hour";
@@ -232,11 +258,16 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	uptime_ssl_status: {
+		meta: {
+			description: "SSL certificate status and expiry information.",
+			category: "Uptime",
+			tags: ["uptime", "ssl", "certificate"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
 				sql: `
-				SELECT 
+				SELECT
 					latest_ssl_expiry as ssl_expiry,
 					latest_ssl_valid as ssl_valid,
 					invalid_ssl_checks
@@ -261,11 +292,17 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	uptime_by_region: {
+		meta: {
+			description:
+				"Uptime and response times broken down by monitoring region.",
+			category: "Uptime",
+			tags: ["uptime", "regions", "geography"],
+		},
 		customSql: (ctx) => {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
 				sql: `
-				SELECT 
+				SELECT
 					probe_region as region,
 					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,

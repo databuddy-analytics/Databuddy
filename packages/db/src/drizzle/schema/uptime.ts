@@ -71,8 +71,6 @@ export const statusPages = pgTable(
 		websiteUrl: text("website_url"),
 		supportUrl: text("support_url"),
 		theme: text().$type<"system" | "light" | "dark">().default("system"),
-		hideBranding: boolean("hide_branding").default(false).notNull(),
-		customCss: text("custom_css"),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
 			.notNull(),

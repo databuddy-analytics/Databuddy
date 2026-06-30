@@ -11,36 +11,34 @@ import {
 // ── basketErrors factories ──
 
 describe("basketErrors", () => {
-	const errorTable: [string, keyof typeof basketErrors, number][] = [
-		["trackPayloadTooLarge", "trackPayloadTooLarge", 413],
-		["trackInvalidBody", "trackInvalidBody", 400],
-		["trackMissingScope", "trackMissingScope", 403],
-		["trackMissingOwner", "trackMissingOwner", 400],
-		["trackMissingCredentials", "trackMissingCredentials", 401],
-		["trackWebsiteNotFound", "trackWebsiteNotFound", 404],
-		["trackWebsiteNoOrganization", "trackWebsiteNoOrganization", 400],
-		["trackWebsiteScopeMismatch", "trackWebsiteScopeMismatch", 403],
-		["ingestPayloadTooLarge", "ingestPayloadTooLarge", 413],
-		["ingestMissingClientId", "ingestMissingClientId", 400],
-		["ingestInvalidClientId", "ingestInvalidClientId", 400],
-		["ingestOriginNotAuthorized", "ingestOriginNotAuthorized", 403],
-		["ingestIpNotAuthorized", "ingestIpNotAuthorized", 403],
-		[
-			"ingestWebsiteMissingOrganization",
-			"ingestWebsiteMissingOrganization",
-			400,
-		],
-		["ingestUnknownEventType", "ingestUnknownEventType", 400],
-		["ingestBatchNotArray", "ingestBatchNotArray", 400],
-		["ingestBatchTooLarge", "ingestBatchTooLarge", 400],
-		["billingLimitExceeded", "billingLimitExceeded", 402],
-		["billingCheckUnavailable", "billingCheckUnavailable", 503],
+	const errorTable: [keyof typeof basketErrors, number][] = [
+		["trackPayloadTooLarge", 413],
+		["trackInvalidBody", 400],
+		["trackMissingScope", 403],
+		["trackMissingOwner", 400],
+		["trackMissingCredentials", 401],
+		["trackWebsiteNotFound", 404],
+		["trackWebsiteNoOrganization", 400],
+		["trackWebsiteScopeMismatch", 403],
+		["trackRateLimited", 429],
+		["ingestPayloadTooLarge", 413],
+		["ingestMissingClientId", 400],
+		["ingestInvalidClientId", 400],
+		["ingestOriginNotAuthorized", 403],
+		["ingestIpNotAuthorized", 403],
+		["ingestWebsiteMissingOrganization", 400],
+		["ingestUnknownEventType", 400],
+		["ingestBatchNotArray", 400],
+		["ingestBatchTooLarge", 400],
+		["billingLimitExceeded", 402],
+		["billingCheckUnavailable", 503],
 	];
 
-	for (const [label, key, expectedStatus] of errorTable) {
-		test(`${label} → EvlogError with status ${expectedStatus}`, () => {
+	for (const [key, expectedStatus] of errorTable) {
+		test(`${key} → EvlogError with status ${expectedStatus}`, () => {
 			const err = basketErrors[key]();
 			expect(err).toBeInstanceOf(EvlogError);
+			expect(err.code).toBe(basketErrors[key].code);
 			expect(err.status).toBe(expectedStatus);
 			expect(err.message).toBeTruthy();
 		});
@@ -190,7 +188,9 @@ describe("buildBasketErrorPayload", () => {
 		const issues = [{ message: "bad", path: ["x"], code: "custom" }];
 		const err = createIngestSchemaValidationError(issues as any);
 		const { payload } = buildBasketErrorPayload(err);
-		expect(payload.errors).toBe(issues);
+		expect(payload.errors).toEqual([
+			{ code: "custom", field: "x", message: "bad" },
+		]);
 	});
 
 	test("respects elysiaCode option", () => {

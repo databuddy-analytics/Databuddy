@@ -28,6 +28,7 @@ import {
 	type VitalsBreakdownData,
 } from "./columns";
 import { HeartbeatIcon } from "@databuddy/ui/icons";
+import { calculatePercentChange } from "../_components/utils/analytics-helpers";
 
 interface VitalMetric {
 	avg_value: number;
@@ -99,13 +100,6 @@ function calculatePreviousPeriod(dateRange: {
 		end_date: startDate.subtract(1, "day").format("YYYY-MM-DD"),
 		granularity: dateRange.granularity as "daily" | "hourly",
 	};
-}
-
-function calculatePercentChange(current: number, previous: number): number {
-	if (previous === 0) {
-		return current > 0 ? 100 : 0;
-	}
-	return ((current - previous) / previous) * 100;
 }
 
 export default function VitalsPage() {

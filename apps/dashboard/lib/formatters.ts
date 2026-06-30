@@ -4,7 +4,7 @@ export const formatNumber = (value: number | null | undefined): string => {
 	if (value == null || Number.isNaN(value)) {
 		return "0";
 	}
-	return Intl.NumberFormat(undefined, {
+	return Intl.NumberFormat("en-US", {
 		notation: "compact",
 		maximumFractionDigits: 1,
 	}).format(value);

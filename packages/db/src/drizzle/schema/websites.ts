@@ -25,7 +25,13 @@ export interface WebsiteSettings {
 	trackingIssueWarningsDisabled?: boolean;
 }
 
+export interface GitHubIntegration {
+	owner: string;
+	repo: string;
+}
+
 export interface WebsiteIntegrations {
+	github?: GitHubIntegration;
 	[key: string]: unknown;
 }
 
@@ -54,6 +60,7 @@ export const websites = pgTable(
 			table.organizationId,
 			table.domain
 		),
+		uniqueIndex("websites_org_id_unique").on(table.organizationId, table.id),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],

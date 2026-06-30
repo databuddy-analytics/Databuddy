@@ -6,6 +6,10 @@ import {
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 
 const APP_SIGNUP = "https://app.databuddy.cc/register";
+const PUBLIC_DOCS_ORIGIN =
+	process.env.NEXT_PUBLIC_SITE_URL ||
+	process.env.SITE_URL ||
+	"https://www.databuddy.cc";
 
 function toIncludedUsage(usage: number | "inf"): number | "unlimited" {
 	if (usage === "inf") {
@@ -92,7 +96,6 @@ function buildEntitlements(): Record<
 
 export function buildPricingApiPayload(request: Request) {
 	const url = new URL(request.url);
-	const origin = url.origin;
 
 	return {
 		schemaVersion: 1 as const,
@@ -101,9 +104,9 @@ export function buildPricingApiPayload(request: Request) {
 			currency: "USD" as const,
 		},
 		links: {
-			self: `${origin}${url.pathname}`,
-			pricingPage: `${origin}/pricing`,
-			pricingMarkdown: `${origin}/pricing.md`,
+			self: `${PUBLIC_DOCS_ORIGIN}${url.pathname}`,
+			pricingPage: `${PUBLIC_DOCS_ORIGIN}/pricing`,
+			pricingMarkdown: `${PUBLIC_DOCS_ORIGIN}/pricing.md`,
 			signUp: APP_SIGNUP,
 		},
 		plans: mapRawPlans(),
@@ -112,7 +115,7 @@ export function buildPricingApiPayload(request: Request) {
 			enterpriseCheckoutUsesEntitlementsPlanId: "scale" as const,
 		},
 		signUpUrl: APP_SIGNUP,
-		pricingPageUrl: `${origin}/pricing`,
+		pricingPageUrl: `${PUBLIC_DOCS_ORIGIN}/pricing`,
 		currency: "USD" as const,
 	};
 }

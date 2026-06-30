@@ -33,6 +33,7 @@ export class Databuddy {
 	private readonly websiteId?: string;
 	private readonly namespace?: string;
 	private readonly source?: string;
+	private readonly anonymizeVisitorIds?: boolean | "auto";
 	private readonly apiUrl: string;
 	private readonly logger: Logger;
 	private readonly enableBatching: boolean;
@@ -58,6 +59,7 @@ export class Databuddy {
 		this.websiteId = config.websiteId?.trim();
 		this.namespace = config.namespace?.trim();
 		this.source = config.source?.trim();
+		this.anonymizeVisitorIds = config.anonymizeVisitorIds;
 		this.apiUrl = config.apiUrl?.trim() || DEFAULT_API_URL;
 		this.enableBatching = config.enableBatching !== false;
 		this.batchSize = Math.min(
@@ -116,6 +118,8 @@ export class Databuddy {
 			name: event.name,
 			eventId: event.eventId,
 			anonymousId: event.anonymousId,
+			anonymizeVisitorIds:
+				event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
 			sessionId: event.sessionId,
 			timestamp: event.timestamp,
 			properties: {
@@ -174,6 +178,7 @@ export class Databuddy {
 			timestamp,
 			properties: event.properties ?? undefined,
 			anonymousId: event.anonymousId ?? undefined,
+			anonymizeVisitorIds: event.anonymizeVisitorIds ?? undefined,
 			sessionId: event.sessionId ?? undefined,
 			websiteId: event.websiteId ?? undefined,
 			source: event.source ?? undefined,
@@ -299,6 +304,8 @@ export class Databuddy {
 				...this.globalProperties,
 				...(event.properties || {}),
 			},
+			anonymizeVisitorIds:
+				event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
 			websiteId: event.websiteId ?? this.websiteId,
 			namespace: event.namespace ?? this.namespace,
 			source: event.source ?? this.source,

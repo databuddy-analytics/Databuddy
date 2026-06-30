@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
 	forgetMemory,
 	isMemoryEnabled,
+	primaryContainerTag,
 	sanitizeMemoryContent,
 	saveCuratedMemory,
 	searchMemories,
@@ -110,7 +111,7 @@ export function createMemoryTools(): Record<string, Tool> {
 				query: z.string().describe("Search query to find the memory to forget"),
 			}),
 			execute: async (args, options) => {
-				const { apiKeyId, memoryUserId, mutationMode } =
+				const { apiKeyId, memoryUserId, mutationMode, websiteId } =
 					getAgentContext(options);
 				if (mutationMode === "dry-run") {
 					return {
@@ -126,6 +127,7 @@ export function createMemoryTools(): Record<string, Tool> {
 					{
 						limit: 1,
 						threshold: 0.3,
+						websiteId: websiteId ?? undefined,
 					}
 				);
 				if (results.length === 0 || !results[0]) {
@@ -134,11 +136,9 @@ export function createMemoryTools(): Record<string, Tool> {
 						message: "No matching memory found to forget.",
 					};
 				}
-				const containerTag = memoryUserId
-					? `user:${memoryUserId}`
-					: apiKeyId
-						? `apikey:${apiKeyId}`
-						: "anonymous";
+				const containerTag =
+					results[0].containerTag ??
+					primaryContainerTag(memoryUserId, apiKeyId);
 				const result = await forgetMemory(containerTag, results[0].memory);
 				return {
 					forgotten: result.success,

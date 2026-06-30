@@ -18,7 +18,6 @@ import { cn } from "@/lib/utils";
 import { CockpitNarrative } from "./cockpit-narrative";
 import { CockpitSignals } from "./cockpit-signals";
 import { InsightGenerationSettings } from "./insight-generation-settings";
-import { InsightGenerationStatus } from "./insight-generation-status";
 import { TimeRangeSelector } from "./time-range-selector";
 import { ArrowClockwiseIcon, GlobeIcon, TrashIcon } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
@@ -30,8 +29,7 @@ export function InsightsPageContent() {
 		useOrganizationsContext();
 	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
-	const { insights, generation, isLoading, isRefreshing, refetch } =
-		useInsightsFeed();
+	const { insights, isLoading, isRefreshing, refetch } = useInsightsFeed();
 
 	const { websites, isLoading: websitesLoading } = useWebsitesLight();
 
@@ -129,22 +127,16 @@ export function InsightsPageContent() {
 						<TrashIcon className="size-4 shrink-0" weight="duotone" />
 						Clear all
 					</Button>
+					<InsightGenerationSettings
+						organizationId={orgId}
+						websites={websites}
+					/>
 				</TopBar.Actions>
 
 				{hasNoWebsites ? (
 					<EmptyOrgState />
 				) : (
-					<div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4 sm:p-5">
-						<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-							<InsightGenerationSettings
-								organizationId={orgId}
-								websites={websites}
-							/>
-							<InsightGenerationStatus
-								generation={generation}
-								organizationId={orgId}
-							/>
-						</div>
+					<div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-5">
 						<CockpitNarrative />
 						<CockpitSignals />
 					</div>

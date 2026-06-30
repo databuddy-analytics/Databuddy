@@ -1,10 +1,9 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChatSafe } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
-import { clearLastChatId, useChatList } from "./hooks/use-chat-db";
+import { useChatList } from "./hooks/use-chat-db";
 import {
 	ChatTextIcon,
 	CheckIcon,
@@ -20,16 +19,16 @@ import { Button, Input, dayjs } from "@databuddy/ui";
 type Chat = ReturnType<typeof useChatList>["chats"][number];
 
 interface ChatHistoryProps {
-	onCurrentChatDeleted?: (nextChatId: string | null) => void;
-	onSelectChat?: (chatId: string) => void;
-	websiteId?: string | null;
+	onCurrentChatDeleted: (nextChatId: string | null) => void;
+	onSelectChat: (chatId: string) => void;
+	organizationId?: string | null;
 }
 
 export function ChatHistory({
 	onCurrentChatDeleted,
 	onSelectChat,
-	websiteId,
-}: ChatHistoryProps = {}) {
+	organizationId,
+}: ChatHistoryProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -37,13 +36,9 @@ export function ChatHistory({
 		id: string;
 		title: string;
 	} | null>(null);
-	const params = useParams();
-	const router = useRouter();
-	const routeWebsiteId = typeof params.id === "string" ? params.id : null;
-	const resolvedWebsiteId = websiteId ?? routeWebsiteId;
 	const currentChatId = useChatSafe()?.id ?? null;
 	const { chats, isLoading, removeChat, renameChat } =
-		useChatList(resolvedWebsiteId);
+		useChatList(organizationId);
 
 	const filtered = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -62,45 +57,23 @@ export function ChatHistory({
 
 	const handleSelectChat = (chatId: string) => {
 		setOpen(false);
-		if (onSelectChat) {
-			onSelectChat(chatId);
-			return;
-		}
-		if (resolvedWebsiteId) {
-			router.push(`/websites/${resolvedWebsiteId}/agent/${chatId}`);
-		}
+		onSelectChat(chatId);
 	};
 
 	const handleConfirmDelete = () => {
 		if (!pendingDelete) {
 			return;
 		}
-		if (!resolvedWebsiteId) {
-			setPendingDelete(null);
-			return;
-		}
 		const chatId = pendingDelete.id;
 		removeChat(chatId);
 		setPendingDelete(null);
 
-		if (chatId === currentChatId) {
-			const nextChat = chats.find((c) => c.id !== chatId);
-			const nextChatId = nextChat?.id ?? null;
-			if (nextChatId) {
-				if (onCurrentChatDeleted) {
-					onCurrentChatDeleted(nextChatId);
-				} else {
-					router.push(`/websites/${resolvedWebsiteId}/agent/${nextChatId}`);
-				}
-			} else {
-				clearLastChatId(resolvedWebsiteId);
-				if (onCurrentChatDeleted) {
-					onCurrentChatDeleted(null);
-				} else {
-					router.push(`/websites/${resolvedWebsiteId}/agent`);
-				}
-			}
+		if (chatId !== currentChatId) {
+			return;
 		}
+
+		const nextChat = chats.find((c) => c.id !== chatId);
+		onCurrentChatDeleted(nextChat?.id ?? null);
 	};
 
 	const handleRename = (id: string, title: string) => {
@@ -141,10 +114,10 @@ export function ChatHistory({
 					</div>
 					<div className="max-h-72 overflow-y-auto">
 						{(() => {
-							if (!resolvedWebsiteId) {
+							if (!organizationId) {
 								return (
 									<div className="p-4 text-center text-muted-foreground text-xs">
-										Open a website to view chats
+										No active workspace
 									</div>
 								);
 							}

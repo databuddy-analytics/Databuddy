@@ -150,6 +150,12 @@ export const TrafficBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	utm_mediums: {
+		meta: {
+			description:
+				"Traffic breakdown by UTM medium parameters (e.g. cpc, email, social).",
+			category: "Acquisition",
+			tags: ["utm", "medium", "acquisition"],
+		},
 		table: Analytics.events,
 		fields: [
 			"utm_medium as name",

@@ -24,35 +24,44 @@ const retrySchema = z.object({
 export const baseErrors = {
 	UNAUTHORIZED: {
 		message: "Authentication is required for this action",
+		status: 401,
 	},
 	FORBIDDEN: {
 		message: "You do not have permission to perform this action",
+		status: 403,
 	},
 	NOT_FOUND: {
 		message: "The requested resource was not found",
+		status: 404,
 		data: resourceSchema.optional(),
 	},
 	CONFLICT: {
 		message: "A resource with this identifier already exists",
+		status: 409,
 		data: resourceSchema.optional(),
 	},
 	BAD_REQUEST: {
 		message: "Invalid request parameters",
+		status: 400,
 	},
 	RATE_LIMITED: {
 		message: "Too many requests, please try again later",
+		status: 429,
 		data: retrySchema,
 	},
 	PLAN_LIMIT_EXCEEDED: {
 		message: "You have reached the limit for your current plan",
+		status: 402,
 		data: limitSchema,
 	},
 	FEATURE_UNAVAILABLE: {
 		message: "This feature is not available on your current plan",
+		status: 403,
 		data: featureSchema,
 	},
 	INTERNAL_SERVER_ERROR: {
 		message: "An unexpected error occurred",
+		status: 500,
 	},
 } as const;
 
@@ -70,15 +79,37 @@ export const rpcError = {
 	badRequest: (message?: string) => new ORPCError("BAD_REQUEST", { message }),
 	featureUnavailable: (feature: string, requiredPlan?: string) =>
 		new ORPCError("FEATURE_UNAVAILABLE", {
+			status: 403,
 			message: "This feature is not available on your current plan",
 			data: { feature, requiredPlan },
 		}),
 	conflict: (message?: string) => new ORPCError("CONFLICT", { message }),
 	rateLimited: (retryAfter = 60) =>
 		new ORPCError("RATE_LIMITED", {
+			status: 429,
 			message: "Too many requests, please try again later",
-			data: { retryAfter },
+			data: { retryAfter: normalizeRetryAfterSeconds(retryAfter) },
 		}),
-	internal: (message?: string) =>
-		new ORPCError("INTERNAL_SERVER_ERROR", { message }),
+	planLimitExceeded: (
+		limit: number,
+		current: number,
+		nextPlan?: string,
+		message?: string
+	) =>
+		new ORPCError("PLAN_LIMIT_EXCEEDED", {
+			status: 402,
+			message: message ?? "You have reached the limit for your current plan",
+			data: { limit, current, nextPlan },
+		}),
+	internal: (_message?: string) => new ORPCError("INTERNAL_SERVER_ERROR"),
 };
+
+function normalizeRetryAfterSeconds(value: number): number {
+	if (!Number.isFinite(value)) {
+		return 60;
+	}
+	if (value > 1_000_000_000) {
+		return Math.max(1, Math.ceil((value - Date.now()) / 1000));
+	}
+	return Math.max(1, Math.ceil(value));
+}

@@ -8,18 +8,23 @@ import {
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { db } from "@databuddy/db";
+import { validateTimezone } from "@databuddy/validation";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { ratelimit } from "@databuddy/redis/rate-limit";
-import {
-	getBillingOwner,
-	getOrganizationOwnerId,
-} from "@databuddy/rpc/billing";
+import { getBillingOwner } from "@databuddy/rpc/billing";
+import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import {
 	type GatedFeatureId,
 	GATED_FEATURES,
 	isFeatureAvailable,
 } from "@databuddy/shared/types/features";
 import type { CustomQueryRequest } from "@databuddy/ai/query/custom-query-types";
-import { compileQuery, executeBatch } from "@databuddy/ai/query";
+import {
+	allowedFilterFields,
+	compileQuery,
+	executeBatch,
+	isFilterFieldAllowed,
+} from "@databuddy/ai/query";
 import {
 	canReadQueryTypesPublicly,
 	QueryBuilders,
@@ -31,10 +36,13 @@ import {
 } from "@databuddy/ai/query/date-utils";
 import type { Filter, QueryRequest } from "@databuddy/ai/query/types";
 import { Elysia, t } from "elysia";
-import { getAccessibleWebsites } from "../lib/accessible-websites";
-import { resolveDatePreset } from "../lib/date-presets";
-import { mergeWideEvent } from "../lib/tracing";
-import { getCachedWebsiteDomain, getWebsiteDomain } from "../lib/website-utils";
+import { getAccessibleWebsites } from "@databuddy/ai/lib/accessible-websites";
+import {
+	getCachedWebsiteDomain,
+	getWebsiteDomain,
+} from "@databuddy/ai/lib/website-utils";
+import { resolveDatePreset } from "@databuddy/ai/lib/date-presets";
+import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import {
 	CompileRequestSchema,
 	type CompileRequestType,
@@ -43,30 +51,47 @@ import {
 	type DynamicQueryRequestType,
 } from "../schemas/query-schemas";
 
-const DEFAULT_ALLOWED_FILTERS = [
-	"path",
-	"query_string",
-	"referrer",
-	"country",
-	"region",
-	"city",
-	"timezone",
-	"language",
-	"device_type",
-	"browser_name",
-	"os_name",
-	"utm_source",
-	"utm_medium",
-	"utm_campaign",
-	"provider",
-	"model",
-	"type",
-	"finish_reason",
-	"error_name",
-	"http_status",
-	"user_id",
-	"trace_id",
-] as const;
+const parsedPerWebsiteQueryConcurrency = Number(
+	process.env.PER_WEBSITE_QUERY_CONCURRENCY ?? 8
+);
+const PER_WEBSITE_QUERY_CONCURRENCY = Number.isFinite(
+	parsedPerWebsiteQueryConcurrency
+)
+	? Math.max(1, parsedPerWebsiteQueryConcurrency)
+	: 8;
+
+interface KeyedSemaphore {
+	active: number;
+	queue: Array<() => void>;
+}
+
+const websiteSemaphores = new Map<string, KeyedSemaphore>();
+
+async function runPerWebsite<T>(key: string, fn: () => Promise<T>): Promise<T> {
+	let sem = websiteSemaphores.get(key);
+	if (!sem) {
+		sem = { active: 0, queue: [] };
+		websiteSemaphores.set(key, sem);
+	}
+	while (sem.active >= PER_WEBSITE_QUERY_CONCURRENCY) {
+		await new Promise<void>((resolve) => {
+			(sem as KeyedSemaphore).queue.push(resolve);
+		});
+	}
+	sem.active++;
+	try {
+		return await fn();
+	} finally {
+		sem.active--;
+		const next = sem.queue.shift();
+		if (next) {
+			next();
+		} else if (sem.active === 0 && sem.queue.length === 0) {
+			websiteSemaphores.delete(key);
+		}
+	}
+}
+
 const MAX_HOURLY_DAYS = 30;
 const MS_PER_DAY = 86_400_000;
 
@@ -79,6 +104,8 @@ interface ValidationError {
 	message: string;
 	suggestion?: string;
 }
+
+const QUERY_EXECUTION_ERROR_MESSAGE = "Query execution failed";
 
 interface ResolvedDateRange {
 	endDate?: string;
@@ -330,6 +357,10 @@ async function enforceQueryRateLimit(
 	requestId: string,
 	request: Request
 ): Promise<Response | null> {
+	if (readBooleanEnv("DATABUDDY_E2E_MODE")) {
+		return null;
+	}
+
 	const principal = ctx.apiKey
 		? `apikey:${ctx.apiKey.id}`
 		: ctx.user
@@ -565,7 +596,7 @@ async function verifyScheduleAccess(
 
 	if (ctx.apiKey) {
 		const orgMatch =
-			hasKeyScope(ctx.apiKey, "read:data") &&
+			hasKeyScope(ctx.apiKey, "read:monitors") &&
 			ctx.apiKey.organizationId === schedule.organizationId;
 		if (!orgMatch) {
 			mergeWideEvent({ access_result: "api_key_denied" });
@@ -882,7 +913,8 @@ async function executeDynamicQuery(
 		const paramFrom = start ? normalizeDate(start) : from;
 		const paramTo = end ? normalizeDate(end) : to;
 
-		if (!QueryBuilders[name]) {
+		const config = QueryBuilders[name];
+		if (!config) {
 			return { id, error: `Unknown query type: ${name}` };
 		}
 
@@ -918,7 +950,9 @@ async function executeDynamicQuery(
 					paramFrom,
 					paramTo
 				),
-				filters: (request.filters || []) as Filter[],
+				filters: ((request.filters || []) as Filter[]).filter((f) =>
+					isFilterFieldAllowed(config, f.field)
+				),
 				limit: request.limit || 100,
 				offset: request.page ? (request.page - 1) * (request.limit || 100) : 0,
 				timezone,
@@ -950,20 +984,29 @@ async function executeDynamicQuery(
 	}
 
 	if (validParameters.length > 0) {
-		const results = await executeBatch(
-			validParameters.map((v) => v.request),
-			{ websiteDomain: domain, timezone }
+		const results = await runPerWebsite(projectId, () =>
+			executeBatch(
+				validParameters.map((v) => v.request),
+				{ websiteDomain: domain, timezone }
+			)
 		);
 
 		for (let i = 0; i < validParameters.length; i++) {
 			const param = validParameters[i];
 			const result = results[i];
 			if (param) {
+				if (result?.error) {
+					captureError(new Error(result.error), {
+						query_type: param.request.type,
+						route: "v1/query",
+						step: "execute_batch",
+					});
+				}
 				resultMap.set(param.id, {
 					parameter: param.id,
 					success: !result?.error,
 					data: result?.data || [],
-					error: result?.error,
+					error: result?.error ? QUERY_EXECUTION_ERROR_MESSAGE : undefined,
 				});
 			}
 		}
@@ -1013,7 +1056,12 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		]);
 		const user = session?.user ?? null;
 
-		if (apiKey && !hasKeyScope(apiKey, "read:data")) {
+		if (
+			apiKey &&
+			!(
+				hasKeyScope(apiKey, "read:data") || hasKeyScope(apiKey, "read:monitors")
+			)
+		) {
 			return {
 				auth: {
 					apiKey: null,
@@ -1063,7 +1111,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			Object.entries(QueryBuilders).map(([key, cfg]) => [
 				key,
 				{
-					allowedFilters: cfg.allowedFilters ?? DEFAULT_ALLOWED_FILTERS,
+					allowedFilters: allowedFilterFields(cfg),
 					customizable: cfg.customizable,
 					defaultLimit: cfg.limit,
 					publicAccess: cfg.publicAccess === true,
@@ -1125,7 +1173,11 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				return {
 					success: true,
 					requestId,
-					...compileQuery(body as QueryRequest, domain, q.timezone || "UTC"),
+					...compileQuery(
+						body as QueryRequest,
+						domain,
+						validateTimezone(q.timezone) || "UTC"
+					),
 				};
 			} catch (e) {
 				return createErrorResponse(
@@ -1160,7 +1212,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		}) =>
 			(async () => {
 				const requestId = generateRequestId();
-				const timezone = q.timezone || "UTC";
+				const timezone = validateTimezone(q.timezone) || "UTC";
 				const rateLimited = await enforceQueryRateLimit(
 					ctx,
 					"execute",
@@ -1274,24 +1326,31 @@ export const query = new Elysia({ prefix: "/v1/query" })
 								timezone,
 								cache,
 								organizationScope
-							).catch((e) => ({
-								queryId: req.id,
-								data: [
-									{
-										parameter: req.parameters[0] as string,
-										success: false,
-										error: e instanceof Error ? e.message : "Query failed",
-										data: [],
+							).catch((error) => {
+								captureError(error, {
+									query_id: req.id,
+									route: "v1/query",
+									step: "execute_dynamic_query",
+								});
+								return {
+									queryId: req.id,
+									data: [
+										{
+											parameter: req.parameters[0] as string,
+											success: false,
+											error: QUERY_EXECUTION_ERROR_MESSAGE,
+											data: [],
+										},
+									],
+									meta: {
+										parameters: req.parameters,
+										total_parameters: req.parameters.length,
+										page: req.page || 1,
+										limit: req.limit || 100,
+										filters_applied: req.filters?.length || 0,
 									},
-								],
-								meta: {
-									parameters: req.parameters,
-									total_parameters: req.parameters.length,
-									page: req.page || 1,
-									limit: req.limit || 100,
-									filters_applied: req.filters?.length || 0,
-								},
-							}));
+								};
+							});
 						})
 					);
 					return { success: true, requestId, batch: true, results };

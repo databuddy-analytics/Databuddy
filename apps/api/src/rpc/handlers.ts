@@ -8,7 +8,6 @@ import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { useLogger } from "evlog/elysia";
 import { getResolvedAuth } from "@/lib/auth-wide-event";
-import { record } from "@/lib/tracing";
 import { logOrpcHandlerError } from "./interceptors";
 
 export type OrpcContext = Awaited<ReturnType<typeof createRPCContext>>;
@@ -26,15 +25,11 @@ export const rpcHandler = new RPCHandler(appRouter, {
 
 export function createAuthenticatedOrpcContext(request: Request) {
 	const preResolvedAuth = getPreResolvedAuth(request.headers);
-	return record("rpc.context", () =>
-		createRPCContext({ headers: request.headers }, preResolvedAuth)
-	);
+	return createRPCContext({ headers: request.headers }, preResolvedAuth);
 }
 
 export function createAnonymousOrpcContext(request: Request) {
-	return record("rpc.context", () =>
-		createRPCContext({ headers: request.headers }, ANONYMOUS_AUTH)
-	);
+	return createRPCContext({ headers: request.headers }, ANONYMOUS_AUTH);
 }
 
 export function handleAuthenticatedOrpcRequest(

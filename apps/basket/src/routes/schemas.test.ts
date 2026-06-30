@@ -34,6 +34,7 @@ schemaTable(
 		["single event, websiteId", { name: "ev", websiteId: "ws_123" }],
 		["array of events", [{ name: "a" }, { name: "b" }]],
 		["array, single element", [{ name: "a" }]],
+		["auto visitor ID anonymization", { name: "ev", anonymizeVisitorIds: "auto" }],
 		["timestamp as string", { name: "ev", timestamp: "2024-01-01T00:00:00Z" }],
 		["timestamp as Date", { name: "ev", timestamp: new Date() }],
 	],
@@ -76,6 +77,7 @@ schemaTable(
 			{
 				...validAnalyticsEvent,
 				anonymousId: "anon_1",
+				anonymizeVisitorIds: "auto",
 				sessionId: "sess_1",
 				timestamp: now,
 				sessionStartTime: now,

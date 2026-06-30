@@ -14,7 +14,6 @@ import { MonitorCardInteractive } from "./monitor-card-interactive";
 type StatusPageData = NonNullable<
 	Awaited<ReturnType<RouterClient<AppRouter>["statusPage"]["getBySlug"]>>
 >;
-type Monitor = StatusPageData["monitors"][number];
 type Incident = StatusPageData["incidents"][number];
 
 function StatusRoot({
@@ -37,11 +36,11 @@ const STATUS_CONFIG = {
 		shortLabel: "Operational",
 		description: "We're not aware of any issues affecting these services.",
 		sectionClass:
-			"border-[#00cc414d] bg-[#e5fbeb] dark:border-[#28442f] dark:bg-[#19251c]",
+			"border-[#00cc414d] bg-[#e5fbeb] dark:border-[#3f8f55] dark:bg-[#17291d]",
 		headerClass:
-			"bg-[#00bd3c] text-white dark:bg-[#1d3f26] dark:text-foreground/75",
-		lineClass: "bg-[#28e163]",
-		textClass: "text-[#5b8368] dark:text-[#5b8368]",
+			"bg-[#00bd3c] text-white dark:bg-[#1f5f33] dark:text-[#d7ffe4]",
+		lineClass: "bg-[#28e163] dark:bg-[#4da868]",
+		textClass: "text-[#5b8368] dark:text-[#8bcf9d]",
 	},
 	degraded: {
 		title: "Some Systems Degraded",
@@ -49,22 +48,22 @@ const STATUS_CONFIG = {
 		description:
 			"One or more services are degraded. We're tracking the impact.",
 		sectionClass:
-			"border-[#cc99004d] bg-[#fff9e7] dark:border-[#383523] dark:bg-[#252319]",
+			"border-[#cc99004d] bg-[#fff9e7] dark:border-[#a8822e] dark:bg-[#2f2918]",
 		headerClass:
-			"bg-[#ffbe3d] text-[#332600] dark:bg-[#3d381c] dark:text-foreground/75",
-		lineClass: "bg-[#ffbe3d]",
-		textClass: "text-[#7f725e] dark:text-[#7c7252]",
+			"bg-[#ffbe3d] text-[#332600] dark:bg-[#4f3d17] dark:text-[#ffe7ad]",
+		lineClass: "bg-[#ffbe3d] dark:bg-[#f0ba4d]",
+		textClass: "text-[#7f725e] dark:text-[#f0cf7a]",
 	},
 	outage: {
 		title: "Service Disruption",
 		shortLabel: "Outage",
 		description: "An outage is affecting one or more services.",
 		sectionClass:
-			"border-[#cc00034d] bg-[#ffe8e8] dark:border-[#382327] dark:bg-[#25191b]",
+			"border-[#cc00034d] bg-[#ffe8e8] dark:border-[#b85563] dark:bg-[#321c20]",
 		headerClass:
-			"bg-[#e1282a] text-white dark:bg-[#291519] dark:text-foreground/75",
-		lineClass: "bg-[#e1282a]",
-		textClass: "text-[#915a5a] dark:text-[#915a5a]",
+			"bg-[#e1282a] text-white dark:bg-[#622630] dark:text-[#ffe1e5]",
+		lineClass: "bg-[#e1282a] dark:bg-[#cf6675]",
+		textClass: "text-[#915a5a] dark:text-[#ee9b9b]",
 	},
 } as const;
 
@@ -74,7 +73,6 @@ function pluralize(count: number, singular: string, plural = `${singular}s`) {
 
 interface StatusHeaderProps {
 	activeIncidentCount: number;
-	children?: ReactNode;
 	className?: string;
 	description?: string;
 	status: "operational" | "degraded" | "outage";
@@ -84,7 +82,6 @@ function StatusHeader({
 	activeIncidentCount,
 	description,
 	status,
-	children,
 	className,
 }: StatusHeaderProps) {
 	const config = STATUS_CONFIG[status];
@@ -116,7 +113,6 @@ function StatusHeader({
 							{config.shortLabel}
 						</span>
 					</div>
-					{children}
 				</div>
 
 				<div className="flex gap-3 px-4 py-3 sm:py-5 sm:pl-[25px]">
@@ -151,36 +147,6 @@ function StatusMonitorList({
 		>
 			{children}
 		</div>
-	);
-}
-
-function StatusMonitorCard({
-	id,
-	anchorId,
-	name,
-	domain,
-	uptimePercentage,
-	dailyData,
-	days,
-}: {
-	anchorId: string;
-	dailyData: Monitor["dailyData"];
-	days: number;
-	domain?: string;
-	id: string;
-	name: string;
-	uptimePercentage?: number;
-}) {
-	return (
-		<MonitorCardInteractive
-			anchorId={anchorId}
-			dailyData={dailyData}
-			days={days}
-			domain={domain}
-			id={id}
-			name={name}
-			uptimePercentage={uptimePercentage}
-		/>
 	);
 }
 
@@ -363,12 +329,12 @@ export const Status: typeof StatusRoot & {
 	Footer: typeof StatusFooter;
 	Header: typeof StatusHeader;
 	IncidentList: typeof StatusIncidentList;
-	MonitorCard: typeof StatusMonitorCard;
+	MonitorCard: typeof MonitorCardInteractive;
 	MonitorList: typeof StatusMonitorList;
 } = Object.assign(StatusRoot, {
 	Footer: StatusFooter,
 	Header: StatusHeader,
 	IncidentList: StatusIncidentList,
-	MonitorCard: StatusMonitorCard,
+	MonitorCard: MonitorCardInteractive,
 	MonitorList: StatusMonitorList,
 });

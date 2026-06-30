@@ -76,6 +76,11 @@ vi.mock("@databuddy/redis", () => ({
 	closeUptimeQueue: vi.fn(async () => undefined),
 	createDrizzleCache: () => ({}),
 	getActiveStream: vi.fn(async () => null),
+	getAgentContextSnapshotKey: (
+		userId: string,
+		websiteId: string,
+		organizationId?: string | null
+	) => `agent:context-snapshot:${organizationId ?? userId}:${websiteId}`,
 	getBullMQConnectionOptions: vi.fn(() => ({})),
 	getBullMQWorkerConnectionOptions: vi.fn(() => ({})),
 	getCachedLink: vi.fn(async () => null),
@@ -124,8 +129,6 @@ vi.mock("@databuddy/redis", () => ({
 		attempted: 0,
 		failed: 0,
 	})),
-	insightsDispatchJobId: (triggeredAt: string) =>
-		`insights-dispatch-${triggeredAt}`,
 	insightsRollupJobId: (runId: string) => `insights-rollup-${runId}`,
 	insightsWebsiteJobId: (runId: string, websiteId: string) =>
 		`insights-website-${runId}-${websiteId}`,
@@ -135,7 +138,6 @@ vi.mock("@databuddy/redis", () => ({
 	readStreamHistory: vi.fn(async () => []),
 	redis: mockRedisClient,
 	setActiveStream: vi.fn(async () => undefined),
-	setCacheTraceFn: vi.fn(() => undefined),
 	setCachedLink: vi.fn(async () => undefined),
 	setCachedLinkNotFound: vi.fn(async () => undefined),
 	shouldRecordClick: vi.fn(async () => true),

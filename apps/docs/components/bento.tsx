@@ -14,15 +14,6 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import {
-	Area,
-	AreaChart,
-	FunnelChart,
-	Funnel as FunnelRecharts,
-	LabelList,
-	ResponsiveContainer,
-	Tooltip,
-} from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -91,6 +82,26 @@ const BentoCard = ({
 	</motion.div>
 );
 
+const buildSmoothPath = (values: number[], width: number, height: number) => {
+	const pts = values.map((v, i) => ({
+		x: (i / (values.length - 1)) * width,
+		y: height - (v / 100) * height,
+	}));
+	let d = `M ${pts[0].x} ${pts[0].y}`;
+	for (let i = 0; i < pts.length - 1; i++) {
+		const p0 = pts[Math.max(0, i - 1)];
+		const p1 = pts[i];
+		const p2 = pts[i + 1];
+		const p3 = pts[Math.min(pts.length - 1, i + 2)];
+		const c1x = p1.x + (p2.x - p0.x) / 6;
+		const c1y = p1.y + (p2.y - p0.y) / 6;
+		const c2x = p2.x - (p3.x - p1.x) / 6;
+		const c2y = p2.y - (p3.y - p1.y) / 6;
+		d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p2.x} ${p2.y}`;
+	}
+	return d;
+};
+
 const FunnelsFeature = () => {
 	const data = [
 		{
@@ -139,43 +150,40 @@ const FunnelsFeature = () => {
 				<Badge variant="gray">+2.4%</Badge>
 			</div>
 			<div
-				className="h-[320px] w-full"
+				className="flex h-[320px] w-full flex-col gap-1"
 				style={{
 					maskImage: "linear-gradient(to bottom, black 20%, transparent 100%)",
 				}}
 			>
-				<ResponsiveContainer height="100%" width="100%">
-					<FunnelChart>
-						<Tooltip
-							contentStyle={{
-								borderRadius: "4px",
-								border: "1px solid var(--border)",
-								backgroundColor: "var(--popover)",
-								backdropFilter: "blur(8px)",
-								fontSize: "12px",
-								color: "var(--popover-foreground)",
-								boxShadow: "0 4px 20px rgba(0,0,0,0.5)",
-								fontFamily: "var(--font-mono)",
-							}}
-							cursor={{ fill: "transparent" }}
-							itemStyle={{ color: "var(--popover-foreground)" }}
-						/>
-						<FunnelRecharts
-							data={data}
-							dataKey="value"
-							isAnimationActive
-							lastShapeType="rectangle"
-						>
-							<LabelList
-								className="fill-muted-foreground font-medium font-mono text-xs"
-								dataKey="name"
-								offset={20}
-								position="right"
-								stroke="none"
-							/>
-						</FunnelRecharts>
-					</FunnelChart>
-				</ResponsiveContainer>
+				{data.map((stage, i) => {
+					const top = stage.value * 0.5;
+					const bottom = (data[i + 1]?.value ?? stage.value) * 0.5;
+					const points = `${(100 - top) / 2},0 ${(100 + top) / 2},0 ${(100 + bottom) / 2},80 ${(100 - bottom) / 2},80`;
+					return (
+						<div className="relative min-h-0 flex-1 py-1" key={stage.name}>
+							<svg
+								aria-hidden="true"
+								className="h-full w-full"
+								preserveAspectRatio="none"
+								viewBox="0 0 100 80"
+							>
+								<motion.polygon
+									animate={{ opacity: 1, scale: 1 }}
+									fill={stage.fill}
+									initial={{ opacity: 0, scale: 0.8 }}
+									points={points}
+									transition={{ duration: 0.4, delay: i * 0.15 }}
+								/>
+							</svg>
+							<span
+								className="absolute top-1/2 -translate-y-1/2 font-medium font-mono text-muted-foreground text-xs"
+								style={{ left: `calc(${(100 + top) / 2}% + 12px)` }}
+							>
+								{stage.name}
+							</span>
+						</div>
+					);
+				})}
 			</div>
 		</div>
 	);
@@ -212,6 +220,12 @@ const RealTimeFeature = () => {
 		return () => clearInterval(interval);
 	}, []);
 
+	const linePath = buildSmoothPath(
+		data.map((d) => d.value),
+		300,
+		120
+	);
+
 	return (
 		<div className="relative flex h-full flex-col">
 			<div className="relative z-10 space-y-1 px-6">
@@ -244,39 +258,35 @@ const RealTimeFeature = () => {
 				</motion.div>
 			</div>
 			<div className="mt-auto h-[120px] w-full">
-				<ResponsiveContainer height="100%" width="100%">
-					<AreaChart
-						data={data}
-						margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-					>
-						<defs>
-							<linearGradient id="colorRealTime" x1="0" x2="0" y1="0" y2="1">
-								<stop
-									offset="0%"
-									stopColor="var(--primary)"
-									stopOpacity={0.3}
-								/>
-								<stop
-									offset="100%"
-									stopColor="var(--primary)"
-									stopOpacity={0}
-								/>
-							</linearGradient>
-						</defs>
-						<Area
-							animationDuration={1000}
-							dataKey="value"
-							fill="url(#colorRealTime)"
-							isAnimationActive={true}
-							stroke="var(--primary)"
-							strokeWidth={2}
-							style={{
-								filter: "drop-shadow(0 0 5px var(--primary))",
-							}}
-							type="monotone"
-						/>
-					</AreaChart>
-				</ResponsiveContainer>
+				<svg
+					aria-hidden="true"
+					className="h-full w-full"
+					preserveAspectRatio="none"
+					viewBox="0 0 300 120"
+				>
+					<defs>
+						<linearGradient id="colorRealTime" x1="0" x2="0" y1="0" y2="1">
+							<stop offset="0%" stopColor="var(--primary)" stopOpacity={0.3} />
+							<stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
+						</linearGradient>
+					</defs>
+					<motion.path
+						animate={{ d: `${linePath} L 300 120 L 0 120 Z` }}
+						fill="url(#colorRealTime)"
+						initial={false}
+						transition={{ duration: 0.8, ease: "easeOut" }}
+					/>
+					<motion.path
+						animate={{ d: linePath }}
+						fill="none"
+						initial={false}
+						stroke="var(--primary)"
+						strokeWidth={2}
+						style={{ filter: "drop-shadow(0 0 5px var(--primary))" }}
+						transition={{ duration: 0.8, ease: "easeOut" }}
+						vectorEffect="non-scaling-stroke"
+					/>
+				</svg>
 			</div>
 		</div>
 	);

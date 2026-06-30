@@ -271,6 +271,11 @@ export const contents: SidebarSection[] = [
 						href: "/docs/api/authentication",
 					},
 					{
+						title: "MCP Server",
+						href: "/docs/api/mcp",
+						isNew: true,
+					},
+					{
 						title: "API Keys",
 						href: "/docs/api-keys",
 					},

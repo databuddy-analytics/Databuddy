@@ -12,13 +12,17 @@
   "dependencies": {
     "@databuddy/ai": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/encryption": "workspace:*",
+    "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
-    "ai": "^6.0.154",
-    "bullmq": "^5.66.5",
+    "@databuddy/shared": "workspace:*",
+    "ai": "^6.0.188",
+    "bullmq": "^5.78.0",
     "dayjs": "^1.11.19",
     "elysia": "catalog:",
-    "evlog": "catalog:"
+    "evlog": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@databuddy/test": "workspace:*"

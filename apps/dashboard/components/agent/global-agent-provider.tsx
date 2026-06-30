@@ -1,7 +1,6 @@
 "use client";
 
 import { generateId } from "ai";
-import { usePathname } from "next/navigation";
 import {
 	createContext,
 	type ReactNode,
@@ -11,164 +10,71 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { type Website, useWebsitesLight } from "@/hooks/use-websites";
 import { getLastChatId, setLastChatId } from "./hooks/use-chat-db";
 
-const GLOBAL_AGENT_WEBSITE_KEY = "databuddy-global-agent-website";
-const WEBSITE_PATH_REGEX = /^\/websites\/([^/]+)/;
-const AGENT_PATH_REGEX = /^\/websites\/[^/]+\/agent(?:\/|$)/;
-
 interface GlobalAgentContextValue {
 	chatId: string | null;
-	isAgentRoute: boolean;
-	isAvailable: boolean;
-	isLoadingWebsites: boolean;
+	hasWebsites: boolean;
+	isLoading: boolean;
 	loadChat: (chatId: string) => void;
 	newChat: () => void;
-	selectWebsite: (websiteId: string) => void;
-	websiteId: string | null;
+	organizationId: string | null;
 	websites: Website[];
 }
 
 const GlobalAgentContext = createContext<GlobalAgentContextValue | null>(null);
 
-function getWebsiteIdFromPathname(pathname: string): string | null {
-	const match = pathname.match(WEBSITE_PATH_REGEX);
-	if (!match?.[1]) {
-		return null;
-	}
-
-	try {
-		return decodeURIComponent(match[1]);
-	} catch {
-		return match[1];
-	}
-}
-
-function getStoredWebsiteId(): string | null {
-	try {
-		return window.localStorage.getItem(GLOBAL_AGENT_WEBSITE_KEY);
-	} catch {
-		return null;
-	}
-}
-
-function storeWebsiteId(websiteId: string) {
-	try {
-		window.localStorage.setItem(GLOBAL_AGENT_WEBSITE_KEY, websiteId);
-	} catch {}
-}
-
 export function GlobalAgentProvider({ children }: { children: ReactNode }) {
-	const pathname = usePathname();
-	const routeWebsiteId = getWebsiteIdFromPathname(pathname);
-	const isAgentRoute = AGENT_PATH_REGEX.test(pathname);
-	const isAvailable = !isAgentRoute;
-	const { websites, isLoading: isLoadingWebsites } = useWebsitesLight({
-		enabled: isAvailable,
-	});
+	const { activeOrganizationId, isLoading: isLoadingOrg } =
+		useOrganizationsContext();
+	const { websites, isLoading: isLoadingWebsites } = useWebsitesLight();
 	const [chatId, setChatId] = useState<string | null>(null);
-	const [storedWebsiteId, setStoredWebsiteId] = useState<string | null>(null);
-
-	const storedWebsiteIsValid = storedWebsiteId
-		? websites.length === 0 ||
-			websites.some((site) => site.id === storedWebsiteId)
-		: false;
-	const websiteId =
-		routeWebsiteId ??
-		(storedWebsiteIsValid ? storedWebsiteId : null) ??
-		websites[0]?.id ??
-		null;
 
 	useEffect(() => {
-		setStoredWebsiteId(getStoredWebsiteId());
-	}, []);
-
-	useEffect(() => {
-		if (routeWebsiteId) {
-			setStoredWebsiteId(routeWebsiteId);
-			storeWebsiteId(routeWebsiteId);
-		}
-	}, [routeWebsiteId]);
-
-	useEffect(() => {
-		if (routeWebsiteId || isLoadingWebsites || websites.length === 0) {
-			return;
-		}
-		if (
-			storedWebsiteId &&
-			websites.some((site) => site.id === storedWebsiteId)
-		) {
-			return;
-		}
-		const fallbackWebsiteId = websites[0]?.id;
-		if (!fallbackWebsiteId) {
-			return;
-		}
-		setStoredWebsiteId(fallbackWebsiteId);
-		storeWebsiteId(fallbackWebsiteId);
-	}, [isLoadingWebsites, routeWebsiteId, storedWebsiteId, websites]);
-
-	useEffect(() => {
-		if (!websiteId) {
+		if (!activeOrganizationId) {
 			setChatId(null);
 			return;
 		}
-
-		const nextChatId = getLastChatId(websiteId) ?? generateId();
-		setLastChatId(websiteId, nextChatId);
+		const nextChatId = getLastChatId(activeOrganizationId) ?? generateId();
+		setLastChatId(activeOrganizationId, nextChatId);
 		setChatId(nextChatId);
-	}, [websiteId]);
-
-	const selectWebsite = useCallback((nextWebsiteId: string) => {
-		setStoredWebsiteId(nextWebsiteId);
-		storeWebsiteId(nextWebsiteId);
-
-		const nextChatId = getLastChatId(nextWebsiteId) ?? generateId();
-		setLastChatId(nextWebsiteId, nextChatId);
-		setChatId(nextChatId);
-	}, []);
+	}, [activeOrganizationId]);
 
 	const loadChat = useCallback(
 		(nextChatId: string) => {
-			if (!websiteId) {
+			if (!activeOrganizationId) {
 				return;
 			}
-			setLastChatId(websiteId, nextChatId);
+			setLastChatId(activeOrganizationId, nextChatId);
 			setChatId(nextChatId);
 		},
-		[websiteId]
+		[activeOrganizationId]
 	);
 
 	const newChat = useCallback(() => {
-		if (!websiteId) {
-			return;
-		}
 		loadChat(generateId());
-	}, [loadChat, websiteId]);
+	}, [loadChat]);
 
 	const value = useMemo(
 		(): GlobalAgentContextValue => ({
 			chatId,
-			isAgentRoute,
-			isAvailable,
-			isLoadingWebsites,
+			hasWebsites: websites.length > 0,
+			isLoading: isLoadingOrg || isLoadingWebsites,
 			loadChat,
 			newChat,
-			selectWebsite,
-			websiteId,
+			organizationId: activeOrganizationId,
 			websites,
 		}),
 		[
 			chatId,
-			isAgentRoute,
-			isAvailable,
+			websites,
+			isLoadingOrg,
 			isLoadingWebsites,
 			loadChat,
 			newChat,
-			selectWebsite,
-			websiteId,
-			websites,
+			activeOrganizationId,
 		]
 	);
 
