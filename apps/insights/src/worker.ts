@@ -9,6 +9,7 @@ import { Worker } from "bullmq";
 import { processInsightsJob } from "./jobs";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 import { getInsightsWorkerErrorLevel } from "./worker-errors";
+import { buildInsightsStalledJobEvent } from "./worker-events";
 
 const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 5;
 
@@ -72,8 +73,8 @@ export function startInsightsWorker() {
 	});
 
 	worker.on("stalled", (jobId) => {
-		emitInsightsEvent("error", "worker.job_stalled", {
-			job_id: jobId,
+		emitInsightsEvent("warn", "worker.job_stalled", {
+			...buildInsightsStalledJobEvent(jobId),
 		});
 	});
 
