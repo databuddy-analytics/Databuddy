@@ -68,6 +68,7 @@ import { trackAgentEvent } from "@databuddy/ai/lib/databuddy";
 import { getResolvedAuth } from "../lib/auth-wide-event";
 import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { getAccessibleWebsites } from "@databuddy/ai/lib/accessible-websites";
+import { warnAgentStreamRedisSideEffect } from "./agent-stream-errors";
 
 function jsonError(status: number, code: string, message: string): Response {
 	return new Response(
@@ -1044,10 +1045,14 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 							try {
 								await clearActiveStream(streamScope, chatId, streamId);
 							} catch (cleanupError) {
-								captureError(cleanupError, {
-									agent_stream_cleanup_error: true,
-									agent_chat_id: chatId,
-								});
+								warnAgentStreamRedisSideEffect(
+									cleanupError,
+									"clear_active_stream",
+									{
+										chatId,
+										websiteId: defaultWebsiteId,
+									}
+								);
 							}
 							if (!persistedUserId) {
 								return;
@@ -1100,6 +1105,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						const [forClient, forStorage] = injectedStream.tee();
 						(async () => {
 							const reader = forStorage.getReader();
+							let streamBufferWriteFailed = false;
 							try {
 								while (true) {
 									const { done, value } = await reader.read();
@@ -1107,18 +1113,37 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 										break;
 									}
 									if (value && value.byteLength > 0) {
-										await appendStreamChunk(streamKey, value);
+										try {
+											await appendStreamChunk(streamKey, value);
+										} catch (persistError) {
+											streamBufferWriteFailed = true;
+											warnAgentStreamRedisSideEffect(
+												persistError,
+												"append_stream_chunk",
+												{
+													chatId,
+													websiteId: defaultWebsiteId,
+												}
+											);
+											break;
+										}
 									}
 								}
 							} finally {
 								reader.releaseLock();
-								try {
-									await markStreamDone(streamKey);
-								} catch (cleanupError) {
-									captureError(cleanupError, {
-										agent_stream_cleanup_error: true,
-										agent_chat_id: chatId,
-									});
+								if (!streamBufferWriteFailed) {
+									try {
+										await markStreamDone(streamKey);
+									} catch (cleanupError) {
+										warnAgentStreamRedisSideEffect(
+											cleanupError,
+											"mark_stream_done",
+											{
+												chatId,
+												websiteId: defaultWebsiteId,
+											}
+										);
+									}
 								}
 							}
 						})().catch((storageError) => {
