@@ -3,15 +3,15 @@ import {
 	normalizeEmailNotificationSettings,
 	type OrganizationEmailNotificationSettings,
 } from "@databuddy/db";
-import {
-	buildAnomalyNotificationPayload,
-	NotificationClient,
-} from "@databuddy/notifications";
+import { buildAnomalyNotificationPayload } from "@databuddy/notifications";
 import { redis } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { toNotificationTargets } from "../lib/alarm-notifications";
+import {
+	sendNotificationTarget,
+	toNotificationTargets,
+} from "../lib/alarm-notifications";
 import {
 	detectAnomalies,
 	fetchAnomalyTimeSeries,
@@ -247,11 +247,7 @@ export const anomaliesRouter = {
 
 					const results = (
 						await Promise.all(
-							targets.map((target) =>
-								new NotificationClient(target.clientConfig).send(payload, {
-									channels: [target.channel],
-								})
-							)
+							targets.map((target) => sendNotificationTarget(target, payload))
 						)
 					).flat();
 					notificationsSent += results.filter((r) => r.success).length;

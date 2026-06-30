@@ -187,7 +187,7 @@ const sendToAlarm = (
 ) => {
 	const targets = buildAlarmNotificationTargets(alarm.destinations);
 	if (targets.length === 0) {
-		return Effect.succeed(false);
+		return Effect.succeed(0);
 	}
 
 	return Effect.gen(function* () {
@@ -206,8 +206,11 @@ const sendToAlarm = (
 						}),
 				}).pipe(
 					Effect.map((deliveryResults) => {
+						let successes = 0;
 						for (const result of deliveryResults) {
-							if (!result.success) {
+							if (result.success) {
+								successes += 1;
+							} else {
 								captureError(
 									new Error(
 										result.error ??
@@ -221,7 +224,7 @@ const sendToAlarm = (
 								);
 							}
 						}
-						return deliveryResults.some((result) => result.success);
+						return successes;
 					}),
 					Effect.catchTag("NotificationSendError", (e) => {
 						captureError(e.cause, {
@@ -229,13 +232,13 @@ const sendToAlarm = (
 							alarm_id: e.alarmId,
 							channel: e.channel,
 						});
-						return Effect.succeed(false);
+						return Effect.succeed(0);
 					})
 				)
 			),
 			{ concurrency: "unbounded" }
 		);
-		return results.some(Boolean);
+		return results.reduce((total, count) => total + count, 0);
 	});
 };
 
@@ -354,7 +357,7 @@ const handleTransition = (options: {
 			{ concurrency: "unbounded" }
 		);
 
-		const fired = results.filter(Boolean).length;
+		const fired = results.reduce((total, count) => total + count, 0);
 		return { alarms_fired: fired, transition_kind: kind };
 	});
 

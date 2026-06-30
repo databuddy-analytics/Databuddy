@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { buildAlarmNotificationTargets } from "../alarm-config";
+import {
+	buildAlarmNotificationConfig,
+	buildAlarmNotificationTargets,
+} from "../alarm-config";
 
 describe("buildAlarmNotificationTargets", () => {
 	test("keeps same-channel destinations as separate delivery targets", () => {
@@ -35,5 +38,26 @@ describe("buildAlarmNotificationTargets", () => {
 			url: "https://example.com/alarm",
 			headers: { "X-Alarm": "keep-me" },
 		});
+	});
+});
+
+describe("buildAlarmNotificationConfig", () => {
+	test("keeps legacy channels unique when duplicate destination types are provided", () => {
+		const firstSlack = "https://hooks.slack.com/services/T000/B000/first";
+		const secondSlack = "https://hooks.slack.com/services/T000/B000/second";
+
+		const config = buildAlarmNotificationConfig([
+			{ type: "slack", identifier: firstSlack, config: {} },
+			{ type: "slack", identifier: secondSlack, config: {} },
+			{
+				type: "webhook",
+				identifier: "https://example.com/alarm",
+				config: {},
+			},
+		]);
+
+		expect(config.channels).toEqual(["slack", "webhook"]);
+		expect(config.clientConfig.slack?.webhookUrl).toBe(firstSlack);
+		expect(config.clientConfig.webhook?.url).toBe("https://example.com/alarm");
 	});
 });

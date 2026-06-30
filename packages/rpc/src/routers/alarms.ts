@@ -4,12 +4,14 @@ import {
 	alarms,
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
-import { NotificationClient } from "@databuddy/notifications";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { toNotificationTargets } from "../lib/alarm-notifications";
+import {
+	sendNotificationTarget,
+	toNotificationTargets,
+} from "../lib/alarm-notifications";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withResource } from "../procedures/with-resource";
@@ -419,11 +421,7 @@ export const alarmsRouter = {
 			};
 			const raw = (
 				await Promise.all(
-					targets.map((target) =>
-						new NotificationClient(target.clientConfig).send(payload, {
-							channels: [target.channel],
-						})
-					)
+					targets.map((target) => sendNotificationTarget(target, payload))
 				)
 			).flat();
 

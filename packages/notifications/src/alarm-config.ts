@@ -62,16 +62,23 @@ function sanitizeWebhookHeaders(
 	return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/**
+ * Legacy adapter for callers that can only represent one provider per channel.
+ * Use buildAlarmNotificationTargets for per-destination fanout.
+ */
 export function buildAlarmNotificationConfig(destinations: AlarmDestination[]) {
 	const clientConfig: NotificationClientConfig = {};
-	const channels: NotificationChannel[] = [];
+	const channels = new Set<NotificationChannel>();
 
 	for (const target of buildAlarmNotificationTargets(destinations)) {
+		if (channels.has(target.channel)) {
+			continue;
+		}
 		Object.assign(clientConfig, target.clientConfig);
-		channels.push(target.channel);
+		channels.add(target.channel);
 	}
 
-	return { clientConfig, channels };
+	return { clientConfig, channels: Array.from(channels) };
 }
 
 export function buildAlarmNotificationTargets(
