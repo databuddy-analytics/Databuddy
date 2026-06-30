@@ -23,8 +23,11 @@ const EXPIRED_URL = `${config.urls.dashboard}/dby/expired`;
 const NOT_FOUND_URL = `${config.urls.dashboard}/dby/not-found`;
 const OG_PROXY_URL = `${config.urls.dashboard}/dby/l`;
 
-const NULL_SENTINEL = Object.freeze({ __null: true }) as unknown as CachedLink;
-const linkCache = new LRUCache<string, CachedLink>({ max: 1000, ttl: 5000 });
+const NULL_SENTINEL = Symbol("null");
+const linkCache = new LRUCache<string, CachedLink | typeof NULL_SENTINEL>({
+	max: 1000,
+	ttl: 5000,
+});
 const etagCache = new LRUCache<string, string>({ max: 1000, ttl: 60_000 });
 const dedupCache = new LRUCache<string, true>({ max: 10_000, ttl: 300_000 });
 const botCache = new LRUCache<string, { isBot: boolean; isSocial: boolean }>({
