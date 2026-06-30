@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useMemo, useState } from "react";
@@ -8,13 +9,9 @@ import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import bash from "shiki/langs/bash.mjs";
 import html from "shiki/langs/html.mjs";
 import tsx from "shiki/langs/tsx.mjs";
+import vue from "shiki/langs/vue.mjs";
 import vesper from "shiki/themes/vesper.mjs";
 import { toast } from "sonner";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
@@ -25,21 +22,26 @@ import {
 	ADVANCED_TRACKING_OPTIONS,
 	BASIC_TRACKING_OPTIONS,
 	COPY_SUCCESS_TIMEOUT,
-} from "../shared/tracking-constants";
-import { generateNpmCode, generateScriptTag } from "../utils/code-generators";
-import type { TrackingOptionConfig, TrackingOptions } from "../utils/types";
+} from "../constants/settings-constants";
+import {
+	generateNodeCode,
+	generateNpmCode,
+	generateScriptTag,
+	generateVueCode,
+	type VersionedScript,
+} from "../utils/code-generators";
+import type { TrackingOptionConfig } from "../utils/types";
 import {
 	ArrowClockwiseIcon,
 	BookOpenIcon,
-	BugIcon,
 	CaretDownIcon,
 	CheckIcon,
 	ClipboardIcon,
 	CodeIcon,
-	GearIcon,
 	LightningIcon,
 	PackageIcon,
 	PulseIcon,
+	ShieldCheckIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { Badge, Button, Card } from "@databuddy/ui";
@@ -51,11 +53,13 @@ interface TrackingSetupTabProps {
 
 const highlighter = createHighlighterCoreSync({
 	themes: [vesper],
-	langs: [tsx, html, bash],
+	langs: [tsx, html, bash, vue],
 	engine: createJavaScriptRegexEngine(),
 });
 
-function getLanguage(code: string): "bash" | "html" | "tsx" {
+type Lang = "bash" | "html" | "tsx" | "vue";
+
+function getLanguage(code: string): Lang {
 	if (
 		code.includes("npm install") ||
 		code.includes("yarn add") ||
@@ -64,24 +68,25 @@ function getLanguage(code: string): "bash" | "html" | "tsx" {
 	) {
 		return "bash";
 	}
+	if (code.includes("<script setup>")) {
+		return "vue";
+	}
 	if (code.includes("<script")) {
 		return "html";
 	}
 	return "tsx";
 }
 
-function CodeSnippet({
+function CodeBlock({
 	code,
-	label,
 	copied,
 	onCopy,
 }: {
 	code: string;
-	label?: string;
 	copied: boolean;
 	onCopy: () => void;
 }) {
-	const highlightedCode = useMemo(
+	const highlighted = useMemo(
 		() =>
 			highlighter.codeToHtml(code, {
 				lang: getLanguage(code),
@@ -91,280 +96,29 @@ function CodeSnippet({
 	);
 
 	return (
-		<div className="group relative">
-			{label && (
-				<div className="mb-2 text-muted-foreground text-xs">{label}</div>
-			)}
-			<div className="relative overflow-hidden rounded border border-white/10 bg-[#101010]">
-				<div
-					className={cn(
-						"overflow-x-auto font-mono text-[13px] leading-relaxed",
-						"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
-						"[&>pre>code]:block [&>pre>code]:w-full",
-						"[&_.line]:min-h-5"
-					)}
-					dangerouslySetInnerHTML={{ __html: highlightedCode }}
-				/>
-				<Button
-					className="absolute top-2 right-2 size-7 bg-white/10 opacity-0 backdrop-blur-sm transition-opacity hover:bg-white/20 group-hover:opacity-100"
-					onClick={onCopy}
-					size="icon"
-					variant="ghost"
-				>
-					{copied ? (
-						<CheckIcon className="size-3.5 text-emerald-400" weight="bold" />
-					) : (
-						<ClipboardIcon
-							className="size-3.5 text-white/70"
-							weight="duotone"
-						/>
-					)}
-				</Button>
-			</div>
-		</div>
-	);
-}
-
-function StepIndicator({
-	step,
-	title,
-	description,
-	isComplete,
-	isActive,
-}: {
-	step: number;
-	title: string;
-	description: string;
-	isComplete?: boolean;
-	isActive?: boolean;
-}) {
-	return (
-		<div className="flex items-start gap-3">
+		<div className="group relative overflow-hidden rounded-lg border border-white/10 bg-[#101010]">
 			<div
 				className={cn(
-					"flex size-8 shrink-0 items-center justify-center rounded border font-semibold text-sm",
-					isComplete
-						? "border-success/30 bg-success/10 text-success"
-						: isActive
-							? "border-primary bg-primary/10 text-primary"
-							: "border-accent-foreground/20 bg-accent text-muted-foreground"
+					"overflow-x-auto font-mono text-[13px] leading-relaxed",
+					"[&>pre]:m-0 [&>pre]:overflow-visible [&>pre]:p-4 [&>pre]:leading-relaxed",
+					"[&>pre>code]:block [&>pre>code]:w-full",
+					"[&_.line]:min-h-5"
 				)}
+				dangerouslySetInnerHTML={{ __html: highlighted }}
+			/>
+			<Button
+				aria-label="Copy code"
+				className="absolute top-2 right-2 size-7 bg-white/10 opacity-0 backdrop-blur-sm transition-opacity hover:bg-white/20 group-hover:opacity-100"
+				onClick={onCopy}
+				size="icon"
+				variant="ghost"
 			>
-				{isComplete ? (
-					<CheckIcon className="size-4" weight="bold" />
+				{copied ? (
+					<CheckIcon className="size-3.5 text-emerald-400" weight="bold" />
 				) : (
-					<span>{step}</span>
+					<ClipboardIcon className="size-3.5 text-white/70" weight="duotone" />
 				)}
-			</div>
-			<div className="min-w-0 flex-1">
-				<h3 className="font-semibold text-sm">{title}</h3>
-				<p className="text-muted-foreground text-xs">{description}</p>
-			</div>
-		</div>
-	);
-}
-
-function TrackingStatusBanner({
-	isSetup,
-	onRefresh,
-	isRefreshing,
-}: {
-	isSetup: boolean;
-	onRefresh: () => void;
-	isRefreshing: boolean;
-}) {
-	return (
-		<Card
-			className={cn(
-				"gap-0 overflow-hidden py-0",
-				isSetup
-					? "border-success/30 bg-success/5"
-					: "border-amber-500/30 bg-amber-500/5"
-			)}
-		>
-			<Card.Content className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
-				<div className="flex items-center gap-3">
-					<div
-						className={cn(
-							"flex size-10 items-center justify-center rounded",
-							isSetup ? "bg-success/10" : "bg-amber-500/10"
-						)}
-					>
-						{isSetup ? (
-							<PulseIcon className="size-5 text-success" weight="duotone" />
-						) : (
-							<WarningCircleIcon
-								className="size-5 text-amber-500"
-								weight="duotone"
-							/>
-						)}
-					</div>
-					<div>
-						<div className="flex items-center gap-2">
-							<h3 className="font-semibold text-sm">
-								{isSetup ? "Tracking Active" : "Awaiting Installation"}
-							</h3>
-							<Badge variant={isSetup ? "success" : "warning"}>
-								{isSetup ? "Live" : "Pending"}
-							</Badge>
-						</div>
-						<p className="text-muted-foreground text-xs">
-							{isSetup
-								? "Data is being collected successfully"
-								: "Complete the setup steps below to start tracking"}
-						</p>
-					</div>
-				</div>
-				<Button
-					className="shrink-0"
-					disabled={isRefreshing}
-					onClick={onRefresh}
-					size="sm"
-					variant="outline"
-				>
-					<ArrowClockwiseIcon
-						className={cn("size-3.5 shrink-0", isRefreshing && "animate-spin")}
-						weight="bold"
-					/>
-					{isRefreshing ? "Checking…" : "Check Status"}
-				</Button>
-			</Card.Content>
-		</Card>
-	);
-}
-
-function InstallationStep({
-	websiteId,
-	trackingCode,
-	npmCode,
-	copiedBlockId,
-	onCopyCode,
-}: {
-	websiteId: string;
-	trackingCode: string;
-	npmCode: string;
-	copiedBlockId: string | null;
-	onCopyCode: (code: string, blockId: string, message: string) => void;
-}) {
-	const installCommands = {
-		bun: "bun add @databuddy/sdk",
-		npm: "npm install @databuddy/sdk",
-		yarn: "yarn add @databuddy/sdk",
-		pnpm: "pnpm add @databuddy/sdk",
-	};
-
-	return (
-		<div className="space-y-4">
-			<Tabs className="w-full" defaultValue="script">
-				<Tabs.List>
-					<Tabs.Tab value="script">
-						<CodeIcon className="size-3.5" weight="duotone" />
-						Script Tag
-					</Tabs.Tab>
-					<Tabs.Tab value="npm">
-						<PackageIcon className="size-3.5" weight="duotone" />
-						SDK Package
-					</Tabs.Tab>
-				</Tabs.List>
-
-				<Tabs.Panel className="mt-4 space-y-3" value="script">
-					<p className="text-muted-foreground text-sm">
-						Add this script to the{" "}
-						<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
-							{"<head>"}
-						</code>{" "}
-						section of your website:
-					</p>
-					<CodeSnippet
-						code={trackingCode}
-						copied={copiedBlockId === "script-tag"}
-						onCopy={() =>
-							onCopyCode(
-								trackingCode,
-								"script-tag",
-								"Script tag copied to clipboard!"
-							)
-						}
-					/>
-					<div className="flex items-start gap-2 rounded border border-dashed bg-background/50 p-3">
-						<LightningIcon
-							className="mt-0.5 size-4 shrink-0 text-amber-500"
-							weight="duotone"
-						/>
-						<p className="text-muted-foreground text-xs leading-relaxed">
-							The script loads asynchronously and won't block your page
-							rendering. Data typically appears within 2-3 minutes after
-							installation.
-						</p>
-					</div>
-				</Tabs.Panel>
-
-				<Tabs.Panel className="mt-4 space-y-4" value="npm">
-					<div className="space-y-3">
-						<p className="text-muted-foreground text-sm">
-							Install the package using your preferred package manager:
-						</p>
-						<Tabs className="w-full" defaultValue="bun">
-							<Tabs.List>
-								{Object.keys(installCommands).map((manager) => (
-									<Tabs.Tab className="text-xs" key={manager} value={manager}>
-										{manager}
-									</Tabs.Tab>
-								))}
-							</Tabs.List>
-							{Object.entries(installCommands).map(([manager, command]) => (
-								<Tabs.Panel className="mt-3" key={manager} value={manager}>
-									<CodeSnippet
-										code={command}
-										copied={copiedBlockId === `${manager}-install`}
-										onCopy={() =>
-											onCopyCode(
-												command,
-												`${manager}-install`,
-												"Command copied!"
-											)
-										}
-									/>
-								</Tabs.Panel>
-							))}
-						</Tabs>
-					</div>
-
-					<div className="space-y-3">
-						<p className="text-muted-foreground text-sm">
-							Then add the component to your app layout:
-						</p>
-						<CodeSnippet
-							code={npmCode}
-							copied={copiedBlockId === "npm-code"}
-							onCopy={() =>
-								onCopyCode(npmCode, "npm-code", "Code copied to clipboard!")
-							}
-						/>
-					</div>
-				</Tabs.Panel>
-			</Tabs>
-
-			<div className="flex items-center gap-2 pt-2">
-				<span className="text-muted-foreground text-xs">Client ID:</span>
-				<button
-					className="group flex items-center gap-1.5 rounded bg-accent px-2 py-1 font-mono text-xs hover:bg-accent-brighter"
-					onClick={() =>
-						onCopyCode(websiteId, "client-id", "Client ID copied!")
-					}
-					type="button"
-				>
-					<span className="truncate">{websiteId}</span>
-					{copiedBlockId === "client-id" ? (
-						<CheckIcon className="size-3 text-success" weight="bold" />
-					) : (
-						<ClipboardIcon
-							className="size-3 opacity-50 transition-opacity group-hover:opacity-100"
-							weight="duotone"
-						/>
-					)}
-				</button>
-			</div>
+			</Button>
 		</div>
 	);
 }
@@ -384,8 +138,8 @@ function OptionToggle({
 	return (
 		<label
 			className={cn(
-				"group flex w-full cursor-pointer items-center gap-3 rounded border p-3 text-left transition-all",
-				"hover:border-primary/50 hover:bg-accent/50",
+				"flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
+				"hover:border-primary/40 hover:bg-accent/50",
 				isEnabled && "border-primary/30 bg-primary/5"
 			)}
 			htmlFor={switchId}
@@ -396,7 +150,7 @@ function OptionToggle({
 				id={switchId}
 				onCheckedChange={onToggle}
 			/>
-			<div className="min-w-0 flex-1">
+			<div className="min-w-0">
 				<span className="font-medium text-sm">{option.title}</span>
 				<p className="text-muted-foreground text-xs">{option.description}</p>
 			</div>
@@ -404,320 +158,137 @@ function OptionToggle({
 	);
 }
 
-function ConfigurationStep({
-	trackingOptions,
-	onToggleOption,
+const INSTALL_COMMANDS = {
+	bun: "bun add @databuddy/sdk",
+	npm: "npm install @databuddy/sdk",
+	yarn: "yarn add @databuddy/sdk",
+	pnpm: "pnpm add @databuddy/sdk",
+};
+
+function PackageInstallTabs({
+	copiedBlockId,
+	onCopy,
+	prefix,
 }: {
-	trackingOptions: TrackingOptions;
-	onToggleOption: (option: keyof TrackingOptions) => void;
+	copiedBlockId: string | null;
+	onCopy: (code: string, blockId: string, message: string) => void;
+	prefix: string;
 }) {
-	const [basicOpen, setBasicOpen] = useState(true);
-	const [advancedOpen, setAdvancedOpen] = useState(false);
-
-	const enabledBasicCount = BASIC_TRACKING_OPTIONS.filter((opt) => {
-		const value = trackingOptions[opt.key] as boolean;
-		return opt.inverted ? !value : value;
-	}).length;
-
-	const enabledAdvancedCount = ADVANCED_TRACKING_OPTIONS.filter(
-		(opt) => trackingOptions[opt.key] as boolean
-	).length;
-
 	return (
-		<div className="space-y-3">
-			<p className="text-muted-foreground text-sm">
-				Customize what data to collect. Most defaults work great for standard
-				analytics.
-			</p>
-
-			<Collapsible onOpenChange={setBasicOpen} open={basicOpen}>
-				<CollapsibleTrigger asChild>
-					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
-						type="button"
-					>
-						<div className="flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded bg-accent">
-								<GearIcon
-									className="size-4 text-muted-foreground"
-									weight="duotone"
-								/>
-							</div>
-							<div className="text-left">
-								<h4 className="font-medium text-sm">Core Tracking</h4>
-								<p className="text-muted-foreground text-xs">
-									{enabledBasicCount}/{BASIC_TRACKING_OPTIONS.length} enabled
-								</p>
-							</div>
-						</div>
-						<CaretDownIcon
-							className={cn(
-								"size-4 text-muted-foreground transition-transform",
-								basicOpen && "rotate-180"
-							)}
-							weight="bold"
-						/>
-					</button>
-				</CollapsibleTrigger>
-				<CollapsibleContent className="pt-3">
-					<div className="grid gap-2 sm:grid-cols-2">
-						{BASIC_TRACKING_OPTIONS.map((option) => (
-							<OptionToggle
-								enabled={trackingOptions[option.key] as boolean}
-								key={option.key}
-								onToggle={() => onToggleOption(option.key)}
-								option={option}
-							/>
-						))}
-					</div>
-				</CollapsibleContent>
-			</Collapsible>
-
-			<Collapsible onOpenChange={setAdvancedOpen} open={advancedOpen}>
-				<CollapsibleTrigger asChild>
-					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
-						type="button"
-					>
-						<div className="flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded bg-accent">
-								<LightningIcon
-									className="size-4 text-muted-foreground"
-									weight="duotone"
-								/>
-							</div>
-							<div className="text-left">
-								<h4 className="font-medium text-sm">Advanced Features</h4>
-								<p className="text-muted-foreground text-xs">
-									{enabledAdvancedCount}/{ADVANCED_TRACKING_OPTIONS.length}{" "}
-									enabled
-								</p>
-							</div>
-						</div>
-						<CaretDownIcon
-							className={cn(
-								"size-4 text-muted-foreground transition-transform",
-								advancedOpen && "rotate-180"
-							)}
-							weight="bold"
-						/>
-					</button>
-				</CollapsibleTrigger>
-				<CollapsibleContent className="pt-3">
-					<div className="grid gap-2 sm:grid-cols-2">
-						{ADVANCED_TRACKING_OPTIONS.map((option) => (
-							<OptionToggle
-								enabled={trackingOptions[option.key] as boolean}
-								key={option.key}
-								onToggle={() => onToggleOption(option.key)}
-								option={option}
-							/>
-						))}
-					</div>
-				</CollapsibleContent>
-			</Collapsible>
-		</div>
+		<Tabs className="w-full" defaultValue="bun">
+			<Tabs.List className="max-w-full overflow-x-auto">
+				{Object.keys(INSTALL_COMMANDS).map((manager) => (
+					<Tabs.Tab className="text-xs" key={manager} value={manager}>
+						{manager}
+					</Tabs.Tab>
+				))}
+			</Tabs.List>
+			{Object.entries(INSTALL_COMMANDS).map(([manager, command]) => (
+				<Tabs.Panel className="mt-3" key={manager} value={manager}>
+					<CodeBlock
+						code={command}
+						copied={copiedBlockId === `${prefix}-${manager}-install`}
+						onCopy={() =>
+							onCopy(command, `${prefix}-${manager}-install`, "Command copied!")
+						}
+					/>
+				</Tabs.Panel>
+			))}
+		</Tabs>
 	);
 }
 
-function DiagnosticsStep() {
-	const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+const TROUBLESHOOTING_ITEMS = [
+	{
+		title: "Localhost events are disabled",
+		description: "Events from localhost are disabled by default.",
+	},
+	{
+		title: "Origin mismatch",
+		description:
+			"Events must come from the same domain configured for your website. Verify your website URL matches in settings.",
+	},
+	{
+		title: "Script not loading",
+		description:
+			"Check Developer Tools (F12) Network tab for the databuddy.js request. Verify the script is in <head> and your Client ID is correct.",
+	},
+	{
+		title: "Ad blockers",
+		description:
+			"Browser extensions like uBlock Origin may block analytics scripts. Test with extensions disabled.",
+	},
+	{
+		title: "Content Security Policy",
+		description:
+			"If your site has strict CSP headers, whitelist the tracking domain. Check the browser console for CSP errors.",
+	},
+];
 
+function VueLogo({ className }: { className?: string }) {
 	return (
-		<div className="space-y-3">
-			<Collapsible onOpenChange={setDiagnosticsOpen} open={diagnosticsOpen}>
-				<CollapsibleTrigger asChild>
-					<button
-						className="flex w-full items-center justify-between rounded border bg-card p-3 hover:bg-accent"
-						type="button"
-					>
-						<div className="flex items-center gap-3">
-							<div className="flex size-8 items-center justify-center rounded bg-accent">
-								<BugIcon
-									className="size-4 text-muted-foreground"
-									weight="duotone"
-								/>
-							</div>
-							<div className="text-left">
-								<h4 className="font-medium text-sm">Troubleshooting Guide</h4>
-								<p className="text-muted-foreground text-xs">
-									Common issues and how to fix them
-								</p>
-							</div>
-						</div>
-						<CaretDownIcon
-							className={cn(
-								"size-4 text-muted-foreground transition-transform",
-								diagnosticsOpen && "rotate-180"
-							)}
-							weight="bold"
-						/>
-					</button>
-				</CollapsibleTrigger>
-				<CollapsibleContent className="pt-3">
-					<div className="space-y-3">
-						<div className="space-y-3 rounded border bg-background/50 p-4">
-							<div className="space-y-2">
-								<div className="flex items-start gap-2">
-									<WarningCircleIcon
-										className="mt-0.5 size-4 shrink-0 text-amber-500"
-										weight="duotone"
-									/>
-									<div className="min-w-0 flex-1">
-										<h5 className="font-semibold text-sm">
-											Localhost events are disabled
-										</h5>
-										<p className="text-muted-foreground text-xs">
-											Events from localhost are disabled by default.
-										</p>
-									</div>
-								</div>
-							</div>
-
-							<div className="space-y-2">
-								<div className="flex items-start gap-2">
-									<WarningCircleIcon
-										className="mt-0.5 size-4 shrink-0 text-amber-500"
-										weight="duotone"
-									/>
-									<div className="min-w-0 flex-1">
-										<h5 className="font-semibold text-sm">Origin mismatch</h5>
-										<p className="text-muted-foreground text-xs">
-											Events must be sent from the same domain configured for
-											your website. Cross-origin requests are blocked for
-											security. Verify your website URL matches the domain in
-											website settings.
-										</p>
-									</div>
-								</div>
-							</div>
-
-							<div className="space-y-2">
-								<div className="flex items-start gap-2">
-									<WarningCircleIcon
-										className="mt-0.5 size-4 shrink-0 text-amber-500"
-										weight="duotone"
-									/>
-									<div className="min-w-0 flex-1">
-										<h5 className="font-semibold text-sm">
-											Script not loading
-										</h5>
-										<p className="text-muted-foreground text-xs">
-											Open your browser's Developer Tools (F12) → Network tab
-											and reload your page. Look for a request to{" "}
-											<code className="rounded bg-accent px-1 py-0.5 font-mono">
-												databuddy.js
-											</code>{" "}
-											or similar. If it fails, verify the script tag is in the{" "}
-											<code className="rounded bg-accent px-1 py-0.5 font-mono">
-												{"<head>"}
-											</code>{" "}
-											section and your Client ID is correct.
-										</p>
-									</div>
-								</div>
-							</div>
-
-							<div className="space-y-2">
-								<div className="flex items-start gap-2">
-									<WarningCircleIcon
-										className="mt-0.5 size-4 shrink-0 text-amber-500"
-										weight="duotone"
-									/>
-									<div className="min-w-0 flex-1">
-										<h5 className="font-semibold text-sm">
-											Ad blockers & privacy tools
-										</h5>
-										<p className="text-muted-foreground text-xs">
-											Browser extensions like uBlock Origin, Privacy Badger, or
-											strict browser privacy settings may block analytics
-											scripts. Test with extensions disabled or use a custom
-											tracking domain (contact support for setup).
-										</p>
-									</div>
-								</div>
-							</div>
-
-							<div className="space-y-2">
-								<div className="flex items-start gap-2">
-									<LightningIcon
-										className="mt-0.5 size-4 shrink-0 text-blue-500"
-										weight="duotone"
-									/>
-									<div className="min-w-0 flex-1">
-										<h5 className="font-semibold text-sm">
-											Data appears delayed
-										</h5>
-										<p className="text-muted-foreground text-xs">
-											Analytics data typically appears within 10-20 seconds
-											after events are sent.
-										</p>
-									</div>
-								</div>
-							</div>
-
-							<div className="space-y-2">
-								<div className="flex items-start gap-2">
-									<WarningCircleIcon
-										className="mt-0.5 size-4 shrink-0 text-amber-500"
-										weight="duotone"
-									/>
-									<div className="min-w-0 flex-1">
-										<h5 className="font-semibold text-sm">
-											Content Security Policy (CSP)
-										</h5>
-										<p className="text-muted-foreground text-xs">
-											If your site has strict CSP headers, you may need to
-											whitelist our tracking domain. Check browser console for
-											CSP errors and add the appropriate directives to your CSP
-											configuration.
-										</p>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<div className="rounded border border-blue-500/30 bg-blue-500/5 p-4">
-							<div className="flex items-start gap-2">
-								<BookOpenIcon
-									className="mt-0.5 size-4 shrink-0 text-blue-500"
-									weight="duotone"
-								/>
-								<div className="min-w-0 flex-1">
-									<h5 className="font-semibold text-sm">
-										Still having issues?
-									</h5>
-									<p className="mt-1 text-muted-foreground text-xs">
-										Check our{" "}
-										<a
-											className="text-primary underline-offset-4 hover:underline"
-											href="https://www.databuddy.cc/docs/troubleshooting"
-											rel="noopener noreferrer"
-											target="_blank"
-										>
-											troubleshooting documentation
-										</a>{" "}
-										for detailed debugging steps, or contact support with your
-										Client ID for personalized help.
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</CollapsibleContent>
-			</Collapsible>
-		</div>
+		<svg
+			aria-hidden="true"
+			className={className}
+			fill="currentColor"
+			viewBox="0 0 256 221"
+			xmlns="http://www.w3.org/2000/svg"
+		>
+			<path
+				d="M204.8 0H256L128 220.8L0 0h97.92L128 51.2L157.44 0h47.36Z"
+				opacity="0.5"
+			/>
+			<path
+				d="m0 0 128 220.8L256 0h-51.2L128 132.48 51.2 0H0Z"
+				opacity="0.25"
+			/>
+			<path d="M50.56 0 128 133.12 204.8 0h-47.36L128 51.2 97.92 0H50.56Z" />
+		</svg>
 	);
 }
 
 export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
+	const [usePinnedVersion, setUsePinnedVersion] = useState(false);
+	const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
 	const [trackingOptions] = useAtom(trackingOptionsAtom);
 	const [, toggleTrackingOptionAction] = useAtom(toggleTrackingOptionAtom);
+	const [troubleshootingOpen, setTroubleshootingOpen] = useState(false);
+
+	const { data: trackerVersionsData } = useQuery(
+		orpc.tracker.listVersions.queryOptions({
+			input: { filename: "databuddy.js" },
+		})
+	);
+
+	const availableVersions = trackerVersionsData ?? [];
+
+	const activeVersionedScript = useMemo((): VersionedScript | undefined => {
+		if (!(usePinnedVersion && selectedVersion)) {
+			return;
+		}
+		const match = availableVersions.find((v) => v.version === selectedVersion);
+		if (!match) {
+			return;
+		}
+		return {
+			version: match.version,
+			filename: `databuddy.v${match.version}.js`,
+			sriHash: match.sriHash,
+		};
+	}, [usePinnedVersion, selectedVersion, availableVersions]);
 
 	const trackingCode = generateScriptTag(websiteId, trackingOptions);
+	const pinnedTrackingCode = activeVersionedScript
+		? generateScriptTag(websiteId, trackingOptions, activeVersionedScript)
+		: null;
 	const npmCode = generateNpmCode(websiteId, trackingOptions);
+	const nodeCode = generateNodeCode(websiteId);
+	const vueCode = generateVueCode(websiteId, trackingOptions);
+
+	const activeCode =
+		usePinnedVersion && pinnedTrackingCode ? pinnedTrackingCode : trackingCode;
 
 	const { data: trackingSetupData, refetch: refetchTrackingSetup } = useQuery({
 		...orpc.websites.isTrackingSetup.queryOptions({ input: { websiteId } }),
@@ -725,26 +296,33 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	});
 
 	const isSetup = Boolean(trackingSetupData?.tracking_setup);
+	const trackingIssue = trackingSetupData?.tracking_issue ?? null;
+	const statusIsHealthy = isSetup && !trackingIssue;
+	const statusTitle = trackingIssue
+		? "Tracking Issue Detected"
+		: isSetup
+			? "Tracking Active"
+			: "Awaiting Installation";
+	const statusDescription =
+		trackingIssue?.message ?? trackingSetupData?.status_message;
 
-	const handleCopyCode = (code: string, blockId: string, message: string) => {
+	const handleCopy = (code: string, blockId: string, message: string) => {
 		navigator.clipboard.writeText(code);
 		setCopiedBlockId(blockId);
 		toast.success(message);
 		setTimeout(() => setCopiedBlockId(null), COPY_SUCCESS_TIMEOUT);
 	};
 
-	const handleToggleOption = (option: keyof TrackingOptions) => {
-		toggleTrackingOptionAction(option);
-	};
-
 	const handleRefresh = async () => {
 		setIsRefreshing(true);
 		try {
 			const result = await refetchTrackingSetup();
-			if (result.data?.tracking_setup) {
+			if (result.data?.tracking_issue) {
+				toast.warning(result.data.tracking_issue.message);
+			} else if (result.data?.tracking_setup) {
 				toast.success("Tracking verified! Data is flowing.");
 			} else {
-				toast.error("No tracking detected yet. Check your installation.");
+				toast.info("No tracking detected yet. Check your installation.");
 			}
 		} catch {
 			toast.error("Couldn't verify tracking. Try again shortly.");
@@ -754,90 +332,415 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	};
 
 	return (
-		<>
-			<TrackingStatusBanner
-				isRefreshing={isRefreshing}
-				isSetup={isSetup}
-				onRefresh={handleRefresh}
-			/>
-
-			<div className="space-y-6">
-				{/* Step 1: Install */}
-				<Card className="gap-0 py-0">
-					<Card.Content className="p-0">
-						<div className="border-b p-4">
-							<StepIndicator
-								description="Add the tracking script to your website"
-								isActive={!isSetup}
-								isComplete={isSetup}
-								step={1}
-								title="Install Tracking Code"
-							/>
+		<div className="space-y-6">
+			<div
+				className={cn(
+					"flex items-center justify-between gap-3 rounded-lg border p-3",
+					statusIsHealthy
+						? "border-success/30 bg-success/5"
+						: "border-amber-500/30 bg-amber-500/5"
+				)}
+			>
+				<div className="flex min-w-0 items-start gap-2.5">
+					{statusIsHealthy ? (
+						<PulseIcon
+							className="mt-0.5 size-4 text-success"
+							weight="duotone"
+						/>
+					) : (
+						<WarningCircleIcon
+							className="mt-0.5 size-4 text-amber-500"
+							weight="duotone"
+						/>
+					)}
+					<div className="min-w-0 space-y-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<span className="font-medium text-sm">{statusTitle}</span>
+							<Badge variant={statusIsHealthy ? "success" : "warning"}>
+								{statusIsHealthy
+									? "Live"
+									: trackingIssue
+										? "Blocked"
+										: "Pending"}
+							</Badge>
 						</div>
-						<div className="p-4">
-							<InstallationStep
-								copiedBlockId={copiedBlockId}
-								npmCode={npmCode}
-								onCopyCode={handleCopyCode}
-								trackingCode={trackingCode}
-								websiteId={websiteId}
-							/>
-						</div>
-					</Card.Content>
-				</Card>
-
-				{/* Step 2: Configure */}
-				<Card className="gap-0 py-0">
-					<Card.Content className="p-0">
-						<div className="border-b p-4">
-							<StepIndicator
-								description="Choose what data to collect"
-								isActive={isSetup}
-								step={2}
-								title="Configure Options"
-							/>
-						</div>
-						<div className="p-4">
-							<ConfigurationStep
-								onToggleOption={handleToggleOption}
-								trackingOptions={trackingOptions}
-							/>
-						</div>
-					</Card.Content>
-				</Card>
-
-				{/* Step 3: Diagnostics */}
-				<Card className="gap-0 py-0">
-					<Card.Content className="p-0">
-						<div className="border-b p-4">
-							<StepIndicator
-								description="Test your setup and troubleshoot issues"
-								step={3}
-								title="Verify & Troubleshoot"
-							/>
-						</div>
-						<div className="p-4">
-							<DiagnosticsStep />
-						</div>
-					</Card.Content>
-				</Card>
-			</div>
-
-			<div className="flex flex-wrap items-center justify-between gap-4 rounded border border-dashed bg-background/50 p-3">
-				<span className="text-muted-foreground text-sm">
-					Need help setting up?
-				</span>
-				<Button asChild size="sm" variant="outline">
-					<a
-						href="https://www.databuddy.cc/docs"
-						rel="noopener noreferrer"
-						target="_blank"
-					>
-						<BookOpenIcon className="size-4" weight="duotone" />
-						Documentation
-					</a>
+						{statusDescription ? (
+							<p className="text-muted-foreground text-xs leading-relaxed">
+								{statusDescription}
+							</p>
+						) : null}
+					</div>
+				</div>
+				<Button
+					disabled={isRefreshing}
+					onClick={handleRefresh}
+					size="sm"
+					variant="ghost"
+				>
+					<ArrowClockwiseIcon
+						className={cn("size-3.5", isRefreshing && "animate-spin")}
+						weight="bold"
+					/>
+					{isRefreshing ? "Checking..." : "Check Status"}
 				</Button>
 			</div>
-		</>
+
+			<Card className="gap-0 py-0">
+				<Card.Content className="p-5">
+					<Tabs className="w-full" defaultValue="script">
+						<div className="flex items-center justify-between gap-4">
+							<Tabs.List className="max-w-full overflow-x-auto">
+								<Tabs.Tab value="script">
+									<CodeIcon className="size-3.5" weight="duotone" />
+									Script Tag
+								</Tabs.Tab>
+								<Tabs.Tab value="react">
+									<PackageIcon className="size-3.5" weight="duotone" />
+									React
+								</Tabs.Tab>
+								<Tabs.Tab value="vue">
+									<VueLogo className="size-3.5" />
+									Vue
+								</Tabs.Tab>
+								<Tabs.Tab value="node">
+									<PackageIcon className="size-3.5" weight="duotone" />
+									Node.js
+								</Tabs.Tab>
+							</Tabs.List>
+
+							<button
+								className="group flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 font-mono text-xs transition-colors hover:bg-accent-brighter"
+								onClick={() =>
+									handleCopy(websiteId, "client-id", "Client ID copied!")
+								}
+								type="button"
+							>
+								<span className="text-muted-foreground">ID:</span>
+								<span className="max-w-32 truncate">{websiteId}</span>
+								{copiedBlockId === "client-id" ? (
+									<CheckIcon className="size-3 text-success" weight="bold" />
+								) : (
+									<ClipboardIcon
+										className="size-3 opacity-50 transition-opacity group-hover:opacity-100"
+										weight="duotone"
+									/>
+								)}
+							</button>
+						</div>
+
+						<Tabs.Panel className="mt-4 space-y-3" value="script">
+							<p className="text-pretty text-muted-foreground text-sm">
+								Add this to the{" "}
+								<code className="rounded bg-accent px-1.5 py-0.5 font-mono text-xs">
+									{"<head>"}
+								</code>{" "}
+								of your website:
+							</p>
+
+							<CodeBlock
+								code={activeCode}
+								copied={copiedBlockId === "script-tag"}
+								onCopy={() =>
+									handleCopy(activeCode, "script-tag", "Script tag copied!")
+								}
+							/>
+
+							{availableVersions.length > 0 && (
+								<div className="space-y-2.5">
+									<label
+										className={cn(
+											"flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors",
+											"hover:border-primary/40 hover:bg-accent/50",
+											usePinnedVersion && "border-primary/30 bg-primary/5"
+										)}
+										htmlFor="switch-pinned-version"
+									>
+										<Switch
+											checked={usePinnedVersion}
+											className="shrink-0"
+											id="switch-pinned-version"
+											onCheckedChange={() => {
+												setUsePinnedVersion((prev) => !prev);
+												if (!selectedVersion && availableVersions.length > 0) {
+													setSelectedVersion(availableVersions[0].version);
+												}
+											}}
+										/>
+										<ShieldCheckIcon
+											className="size-4 shrink-0 text-muted-foreground"
+											weight="duotone"
+										/>
+										<div className="min-w-0">
+											<span className="font-medium text-sm">
+												Pin version with SRI
+											</span>
+											<p className="text-muted-foreground text-xs">
+												Lock to a specific version with subresource integrity
+											</p>
+										</div>
+									</label>
+
+									{usePinnedVersion && (
+										<div className="flex flex-wrap items-center gap-2 pl-1">
+											<span className="text-muted-foreground text-xs">
+												Version:
+											</span>
+											{availableVersions.map((v) => (
+												<button
+													className={cn(
+														"rounded-md border px-2.5 py-1 font-mono text-xs transition-colors",
+														selectedVersion === v.version
+															? "border-primary bg-primary/10 text-primary"
+															: "border-accent bg-accent hover:bg-accent-brighter"
+													)}
+													key={v.version}
+													onClick={() => setSelectedVersion(v.version)}
+													type="button"
+												>
+													v{v.version}
+												</button>
+											))}
+										</div>
+									)}
+								</div>
+							)}
+
+							<div className="flex items-start gap-2 rounded-lg bg-accent/50 p-3">
+								<LightningIcon
+									className="mt-0.5 size-3.5 shrink-0 text-amber-500"
+									weight="duotone"
+								/>
+								<p className="text-muted-foreground text-xs leading-relaxed">
+									{usePinnedVersion
+										? "Pinned and verified with SRI. The browser will reject the script if contents change. Update the version manually for new features."
+										: "Loads asynchronously without blocking page rendering. Data appears within minutes."}
+								</p>
+							</div>
+						</Tabs.Panel>
+
+						<Tabs.Panel className="mt-4 space-y-4" value="react">
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Install the SDK:
+								</p>
+								<PackageInstallTabs
+									copiedBlockId={copiedBlockId}
+									onCopy={handleCopy}
+									prefix="react"
+								/>
+							</div>
+
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Add the component to your layout:
+								</p>
+								<CodeBlock
+									code={npmCode}
+									copied={copiedBlockId === "react-code"}
+									onCopy={() =>
+										handleCopy(npmCode, "react-code", "Code copied!")
+									}
+								/>
+							</div>
+						</Tabs.Panel>
+
+						<Tabs.Panel className="mt-4 space-y-4" value="vue">
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Install the SDK:
+								</p>
+								<PackageInstallTabs
+									copiedBlockId={copiedBlockId}
+									onCopy={handleCopy}
+									prefix="vue"
+								/>
+							</div>
+
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Add the component to your root layout:
+								</p>
+								<CodeBlock
+									code={vueCode}
+									copied={copiedBlockId === "vue-code"}
+									onCopy={() => handleCopy(vueCode, "vue-code", "Code copied!")}
+								/>
+							</div>
+						</Tabs.Panel>
+
+						<Tabs.Panel className="mt-4 space-y-4" value="node">
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Install the SDK in your backend:
+								</p>
+								<PackageInstallTabs
+									copiedBlockId={copiedBlockId}
+									onCopy={handleCopy}
+									prefix="node"
+								/>
+							</div>
+
+							<div className="rounded-lg border border-border/60 bg-accent/40 p-3 text-muted-foreground text-sm">
+								Use a Databuddy API key for server-side events. Create one in{" "}
+								<Link
+									className="font-medium text-foreground underline underline-offset-4"
+									href="/organizations/settings#api-keys"
+								>
+									Organization Settings → API Keys
+								</Link>
+								, then set it as{" "}
+								<code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs">
+									DATABUDDY_API_KEY
+								</code>
+								.
+							</div>
+
+							<div className="space-y-3">
+								<p className="text-muted-foreground text-sm">
+									Track server-side events:
+								</p>
+								<CodeBlock
+									code={nodeCode}
+									copied={copiedBlockId === "node-code"}
+									onCopy={() =>
+										handleCopy(nodeCode, "node-code", "Code copied!")
+									}
+								/>
+							</div>
+
+							<a
+								className="inline-flex items-center gap-1.5 text-muted-foreground text-sm transition-colors hover:text-foreground"
+								href="https://www.databuddy.cc/docs/sdk/node"
+								rel="noreferrer"
+								target="_blank"
+							>
+								<BookOpenIcon className="size-3.5" weight="duotone" />
+								Read the Node SDK docs
+							</a>
+						</Tabs.Panel>
+					</Tabs>
+				</Card.Content>
+			</Card>
+
+			<Card className="gap-0 py-0">
+				<Card.Content className="p-5">
+					<div className="mb-4 flex items-center justify-between">
+						<h3 className="font-semibold text-sm">Tracking Options</h3>
+						<p className="text-muted-foreground text-xs tabular-nums">
+							{
+								[
+									...BASIC_TRACKING_OPTIONS,
+									...ADVANCED_TRACKING_OPTIONS,
+								].filter((opt) => {
+									const value = trackingOptions[opt.key] as boolean;
+									return opt.inverted ? !value : value;
+								}).length
+							}
+							/
+							{BASIC_TRACKING_OPTIONS.length + ADVANCED_TRACKING_OPTIONS.length}{" "}
+							enabled
+						</p>
+					</div>
+
+					<div className="space-y-4">
+						<div>
+							<p className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+								Core
+							</p>
+							<div className="grid gap-2 sm:grid-cols-2">
+								{BASIC_TRACKING_OPTIONS.map((option) => (
+									<OptionToggle
+										enabled={trackingOptions[option.key] as boolean}
+										key={option.key}
+										onToggle={() => toggleTrackingOptionAction(option.key)}
+										option={option}
+									/>
+								))}
+							</div>
+						</div>
+
+						<div>
+							<p className="mb-2 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+								Advanced
+							</p>
+							<div className="grid gap-2 sm:grid-cols-2">
+								{ADVANCED_TRACKING_OPTIONS.map((option) => (
+									<OptionToggle
+										enabled={trackingOptions[option.key] as boolean}
+										key={option.key}
+										onToggle={() => toggleTrackingOptionAction(option.key)}
+										option={option}
+									/>
+								))}
+							</div>
+						</div>
+					</div>
+				</Card.Content>
+			</Card>
+
+			<Card className="gap-0 py-0">
+				<Card.Content className="p-0">
+					<button
+						className="flex w-full items-center justify-between p-4 text-left transition-colors hover:bg-accent/50"
+						onClick={() => setTroubleshootingOpen((prev) => !prev)}
+						type="button"
+					>
+						<div className="flex items-center gap-2.5">
+							<WarningCircleIcon
+								className="size-4 text-muted-foreground"
+								weight="duotone"
+							/>
+							<span className="font-medium text-sm">Troubleshooting</span>
+						</div>
+						<CaretDownIcon
+							className={cn(
+								"size-4 text-muted-foreground transition-transform",
+								troubleshootingOpen && "rotate-180"
+							)}
+							weight="bold"
+						/>
+					</button>
+
+					{troubleshootingOpen && (
+						<div className="border-t px-4 pt-3 pb-4">
+							<div className="space-y-3">
+								{TROUBLESHOOTING_ITEMS.map((item) => (
+									<div className="flex items-start gap-2.5" key={item.title}>
+										<WarningCircleIcon
+											className="mt-0.5 size-3.5 shrink-0 text-amber-500"
+											weight="duotone"
+										/>
+										<div className="min-w-0">
+											<p className="font-medium text-sm">{item.title}</p>
+											<p className="text-pretty text-muted-foreground text-xs leading-relaxed">
+												{item.description}
+											</p>
+										</div>
+									</div>
+								))}
+							</div>
+
+							<div className="mt-4 flex items-center gap-2 rounded-lg bg-accent/50 p-3">
+								<BookOpenIcon
+									className="size-4 shrink-0 text-muted-foreground"
+									weight="duotone"
+								/>
+								<p className="text-muted-foreground text-xs">
+									Still stuck?{" "}
+									<a
+										className="text-primary underline-offset-4 hover:underline"
+										href="https://www.databuddy.cc/docs/troubleshooting"
+										rel="noopener noreferrer"
+										target="_blank"
+									>
+										View full troubleshooting docs
+									</a>
+								</p>
+							</div>
+						</div>
+					)}
+				</Card.Content>
+			</Card>
+		</div>
 	);
 }

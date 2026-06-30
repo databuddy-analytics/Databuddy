@@ -12,7 +12,6 @@ import {
 const betterAdminEnvSchema = z.object({
 	...commonEnvSchema,
 	...authEnvSchema,
-	NEXT_PUBLIC_API_URL: z.string().optional(),
 });
 
 /**

@@ -1,10 +1,6 @@
 "use client";
 
-import {
-	ChevronDownIcon,
-	ChevronLeftIcon,
-	ChevronRightIcon,
-} from "lucide-react";
+import { CaretDownIcon as ChevronDownIcon, CaretLeftIcon as ChevronLeftIcon, CaretRightIcon as ChevronRightIcon } from "@databuddy/ui/icons";
 import { useEffect, useRef } from "react";
 import {
 	type DayButton,

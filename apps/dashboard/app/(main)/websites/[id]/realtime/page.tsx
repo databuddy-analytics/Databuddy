@@ -5,9 +5,7 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
 import { Skeleton } from "@databuddy/ui";
-import { Silkscreen } from "next/font/google";
-
-const pixel = Silkscreen({ weight: ["400", "700"], subsets: ["latin"] });
+import { GeistPixelSquare } from "geist/font/pixel";
 
 const RealtimeMap = dynamic(
 	() =>
@@ -21,7 +19,7 @@ const RealtimeMap = dynamic(
 			</div>
 		),
 		ssr: false,
-	},
+	}
 );
 
 export default function RealtimePage() {
@@ -44,7 +42,7 @@ export default function RealtimePage() {
 			id: "realtime-all",
 			parameters: ["realtime_countries", "active_stats", "realtime_velocity"],
 		},
-		{ refetchInterval: 5000, staleTime: 0, gcTime: 10_000 },
+		{ refetchInterval: 5000, staleTime: 0, gcTime: 10_000 }
 	);
 
 	const countries = ((data as any)?.realtime_countries || []) as Array<{
@@ -66,51 +64,57 @@ export default function RealtimePage() {
 	const eventsPerMin = lastMinute?.events || 0;
 
 	return (
-		<div className={`${pixel.className} flex h-full flex-col`}>
+		<div className={`${GeistPixelSquare.className} flex h-full flex-col`}>
 			<div className="relative min-h-0 flex-1">
 				<RealtimeMap countries={countries} />
 
-				<div className="pointer-events-none absolute top-4 left-4 flex items-center gap-2">
-					<span className="relative flex size-2">
+				<div className="pointer-events-none absolute top-4 left-4 flex items-center gap-2.5 rounded-lg bg-background/80 px-3 py-2 backdrop-blur-sm">
+					<span className="relative flex size-2.5">
 						<span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--chart-4)]/60" />
-						<span className="relative inline-flex size-2 rounded-full bg-[var(--chart-4)]" />
+						<span className="relative inline-flex size-2.5 rounded-full bg-[var(--chart-4)]" />
 					</span>
-					<span className="text-[10px] uppercase tracking-widest text-foreground/60">
+					<span className="text-foreground text-xs uppercase tracking-widest">
 						Realtime
 					</span>
 				</div>
 
-				<div className="pointer-events-none absolute top-4 right-4 flex items-baseline gap-6">
-					<div className="text-right">
-						<span className="font-bold text-3xl text-foreground tabular-nums">
+				<div className="pointer-events-none absolute top-4 right-4 flex items-stretch gap-2">
+					<div className="rounded-lg bg-background/80 px-4 py-2.5 text-right backdrop-blur-sm">
+						<span className="font-bold text-4xl text-foreground tabular-nums">
 							{activeUsers}
 						</span>
-						<span className="ml-1 text-[10px] text-foreground/50">users</span>
+						<span className="ml-1.5 text-muted-foreground text-xs">users</span>
 					</div>
-					<div className="text-right">
-						<span className="font-bold text-foreground text-xl tabular-nums">
+					<div className="rounded-lg bg-background/80 px-3 py-2.5 text-right backdrop-blur-sm">
+						<span className="font-bold text-2xl text-foreground tabular-nums">
 							{viewsPerMin}
 						</span>
-						<span className="ml-1 text-[10px] text-foreground/50">views/m</span>
+						<span className="ml-1.5 text-muted-foreground text-xs">
+							views/m
+						</span>
 					</div>
-					<div className="text-right">
-						<span className="font-bold text-foreground text-xl tabular-nums">
+					<div className="rounded-lg bg-background/80 px-3 py-2.5 text-right backdrop-blur-sm">
+						<span className="font-bold text-2xl text-foreground tabular-nums">
 							{eventsPerMin}
 						</span>
-						<span className="ml-1 text-[10px] text-foreground/50">events/m</span>
+						<span className="ml-1.5 text-muted-foreground text-xs">
+							events/m
+						</span>
 					</div>
 				</div>
 
 				{countries.length > 0 && (
-					<div className="pointer-events-none absolute right-4 bottom-4 left-4 flex flex-wrap justify-end gap-x-3 gap-y-1">
+					<div className="pointer-events-none absolute right-4 bottom-4 left-4 flex flex-wrap justify-end gap-1.5">
 						{countries.slice(0, 6).map((c) => (
 							<span
-								className="flex items-center gap-1.5 text-[10px] text-foreground/50"
+								className="flex items-center gap-2 rounded-md bg-background/80 px-2.5 py-1.5 text-xs backdrop-blur-sm"
 								key={c.country_code}
 							>
-								<span className="size-1.5 bg-[var(--chart-4)]" />
-								{c.country_name || c.country_code}
-								<span className="text-foreground/80 tabular-nums">
+								<span className="size-2 rounded-sm bg-[var(--chart-4)]" />
+								<span className="text-muted-foreground">
+									{c.country_name || c.country_code}
+								</span>
+								<span className="font-bold text-foreground tabular-nums">
 									{c.visitors}
 								</span>
 							</span>

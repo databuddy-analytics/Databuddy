@@ -6,12 +6,12 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { XIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	CheckIcon,
 	HeartbeatIcon,
 	PencilSimpleIcon,
 	TrashIcon,
+	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
 import { Badge, Button, Field, Input } from "@databuddy/ui";
 import { Switch } from "@databuddy/ui/client";

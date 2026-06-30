@@ -1,6 +1,7 @@
 "use client";
 
 import { ErrorBoundary } from "@/components/error-boundary";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	type Link,
 	useCreateLinkFolder,
@@ -9,7 +10,8 @@ import {
 	useLinks,
 } from "@/hooks/use-links";
 import { useFlags } from "@databuddy/sdk/react";
-import { useCallback, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { DeepLinkSheet } from "./_components/deep-link-sheet";
 import { LinkFolderSheet } from "./_components/link-folder-sheet";
@@ -27,18 +29,29 @@ import {
 	type TypeFilter,
 	useFilteredLinks,
 } from "./_components/use-filtered-links";
-import { LinkSimpleIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArchiveIcon,
+	LinkIcon as LinkSimpleIcon,
 	LinkIcon,
 	MagnifyingGlassIcon,
 	PlusIcon,
 	RocketIcon,
 } from "@databuddy/ui/icons";
-import { Button, Card, EmptyState } from "@databuddy/ui";
+import { Badge, Button, Card, EmptyState } from "@databuddy/ui";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
 
 export default function LinksPage() {
+	return (
+		<Suspense fallback={null}>
+			<LinksPageContent />
+		</Suspense>
+	);
+}
+
+function LinksPageContent() {
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 	const [sheetLink, setSheetLink] = useState<Link | null>(null);
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
 	const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -48,6 +61,9 @@ export default function LinksPage() {
 	const [search, setSearch] = useState("");
 	const [sort, setSort] = useState<SortOption>("newest");
 	const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+	const { activeOrganization, isSwitchingOrganization } =
+		useOrganizationsContext();
+	const workspaceName = activeOrganization?.name ?? "this workspace";
 
 	const { isOn } = useFlags();
 	const deepLinksEnabled = isOn("deeplinks");
@@ -62,15 +78,25 @@ export default function LinksPage() {
 	);
 	const hasDeepLinks = links.some((l) => !!l.deepLinkApp);
 
-	const busy = isLoading || isFetching;
+	const busy = isLoading || isFetching || isSwitchingOrganization;
 	const hasLinks = links.length > 0;
 	const hasFolders = folders.length > 0;
 	const noResults = !busy && hasLinks && filtered.length === 0;
+	const canMutateWorkspace = !isSwitchingOrganization;
 
 	const openCreate = useCallback(() => {
 		setSheetLink(null);
 		setIsSheetOpen(true);
 	}, []);
+
+	const clearCommandParam = useCallback(() => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
 
 	const openEdit = useCallback((link: Link) => {
 		setSheetLink(link);
@@ -81,6 +107,23 @@ export default function LinksPage() {
 		setIsSheetOpen(false);
 		setSheetLink(null);
 	}, []);
+
+	useEffect(() => {
+		if (isSwitchingOrganization) {
+			return;
+		}
+
+		const command = searchParams.get("command");
+		if (command === "create-link") {
+			openCreate();
+			clearCommandParam();
+			return;
+		}
+		if (command === "create-folder") {
+			setIsFolderSheetOpen(true);
+			clearCommandParam();
+		}
+	}, [clearCommandParam, isSwitchingOrganization, openCreate, searchParams]);
 
 	const handleDelete = async (id: string) => {
 		try {
@@ -112,15 +155,21 @@ export default function LinksPage() {
 					<Card>
 						<Card.Header className="flex-row items-start justify-between gap-4">
 							<div>
-								<Card.Title>Links</Card.Title>
+								<div className="flex items-center gap-2">
+									<Card.Title>Links</Card.Title>
+									<Badge variant="muted">Beta</Badge>
+								</div>
 								<Card.Description>
-									{hasLinks
-										? `${links.length} link${links.length === 1 ? "" : "s"}`
-										: "Create and manage short links with analytics"}
+									{isSwitchingOrganization
+										? "Switching workspace…"
+										: hasLinks
+											? `${links.length} link${links.length === 1 ? "" : "s"} in ${workspaceName} · Free while in beta`
+											: `${workspaceName} does not have any links yet. Create short links with workspace-scoped analytics.`}
 								</Card.Description>
 							</div>
 							<div className="flex shrink-0 items-center gap-2">
 								<Button
+									disabled={!canMutateWorkspace}
 									onClick={() => setIsFolderSheetOpen(true)}
 									size="sm"
 									variant="secondary"
@@ -130,7 +179,10 @@ export default function LinksPage() {
 								</Button>
 								{deepLinksEnabled ? (
 									<DropdownMenu>
-										<DropdownMenu.Trigger className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90">
+										<DropdownMenu.Trigger
+											className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-primary px-3 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+											disabled={!canMutateWorkspace}
+										>
 											<PlusIcon size={14} />
 											New Link
 										</DropdownMenu.Trigger>
@@ -149,7 +201,11 @@ export default function LinksPage() {
 										</DropdownMenu.Content>
 									</DropdownMenu>
 								) : (
-									<Button onClick={openCreate} size="sm">
+									<Button
+										disabled={!canMutateWorkspace}
+										onClick={openCreate}
+										size="sm"
+									>
 										<PlusIcon size={14} />
 										New Link
 									</Button>
@@ -159,6 +215,11 @@ export default function LinksPage() {
 						<Card.Content className="p-0">
 							{busy ? (
 								<>
+									{isSwitchingOrganization && (
+										<p className="sr-only" role="status">
+											Switching workspace…
+										</p>
+									)}
 									<LinksSearchBarSkeleton />
 									<LinksListSkeleton />
 								</>
@@ -229,19 +290,19 @@ export default function LinksPage() {
 			<LinkSheet
 				link={sheetLink}
 				onOpenChange={(open) => (open ? setIsSheetOpen(true) : closeSheet())}
-				open={isSheetOpen}
+				open={isSheetOpen && canMutateWorkspace}
 			/>
 
 			<DeepLinkSheet
 				onOpenChange={setIsDeepLinkSheetOpen}
-				open={isDeepLinkSheetOpen}
+				open={isDeepLinkSheetOpen && canMutateWorkspace}
 			/>
 
 			<LinkFolderSheet
 				isCreating={createFolder.isPending}
 				onCreate={handleCreateFolder}
 				onOpenChange={setIsFolderSheetOpen}
-				open={isFolderSheetOpen}
+				open={isFolderSheetOpen && canMutateWorkspace}
 			/>
 
 			<QrCodeDialog

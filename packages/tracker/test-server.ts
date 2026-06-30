@@ -3,16 +3,9 @@ import { file as BunFile, serve } from "bun";
 
 const PORT = 3033;
 const BASE_DIR = import.meta.dir;
+const HTML_HEADERS = { "Content-Type": "text/html" };
 
-serve({
-	port: PORT,
-	async fetch(req) {
-		const url = new URL(req.url);
-		console.log(`[Test Server] Request: ${req.method} ${url.pathname}`);
-
-		if (url.pathname === "/test") {
-			return new Response(
-				`<!DOCTYPE html>
+const TEST_PAGE_HTML = `<!DOCTYPE html>
                 <html lang="en">
                 <head>
                     <meta charset="UTF-8">
@@ -23,16 +16,9 @@ serve({
                     <h1>Test Page</h1>
                     <p>Some content to trigger vitals</p>
                 </body>
-                </html>`,
-				{
-					headers: { "Content-Type": "text/html" },
-				}
-			);
-		}
+                </html>`;
 
-		if (url.pathname === "/") {
-			return new Response(
-				`
+const TRACKER_TEST_HTML = `
         <!DOCTYPE html>
         <html lang="en">
           <head>
@@ -239,26 +225,43 @@ serve({
             </script>
           </body>
         </html>
-      `,
-				{
-					headers: { "Content-Type": "text/html" },
-				}
-			);
-		}
+      `;
 
-		if (url.pathname.startsWith("/dist/")) {
-			const filePath = join(BASE_DIR, url.pathname);
-			console.log(`[Test Server] Serving file: ${filePath}`);
-			const file = BunFile(filePath);
-			if (await file.exists()) {
-				return new Response(file);
-			}
-			console.error(`[Test Server] File not found: ${filePath}`);
-			return new Response(`File not found: ${filePath}`, { status: 404 });
-		}
+async function serveDistFile(pathname: string): Promise<Response> {
+	const filePath = join(BASE_DIR, pathname);
+	console.log(`[Test Server] Serving file: ${filePath}`);
 
-		return new Response("Not Found", { status: 404 });
-	},
+	const file = BunFile(filePath);
+	if (await file.exists()) {
+		return new Response(file);
+	}
+
+	console.error(`[Test Server] File not found: ${filePath}`);
+	return new Response(`File not found: ${filePath}`, { status: 404 });
+}
+
+function handleRequest(req: Request): Response | Promise<Response> {
+	const url = new URL(req.url);
+	console.log(`[Test Server] Request: ${req.method} ${url.pathname}`);
+
+	if (url.pathname === "/test") {
+		return new Response(TEST_PAGE_HTML, { headers: HTML_HEADERS });
+	}
+
+	if (url.pathname === "/") {
+		return new Response(TRACKER_TEST_HTML, { headers: HTML_HEADERS });
+	}
+
+	if (url.pathname.startsWith("/dist/")) {
+		return serveDistFile(url.pathname);
+	}
+
+	return new Response("Not Found", { status: 404 });
+}
+
+serve({
+	port: PORT,
+	fetch: handleRequest,
 });
 
 console.log(`Test server running on http://localhost:${PORT}`);

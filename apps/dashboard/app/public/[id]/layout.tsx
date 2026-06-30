@@ -9,7 +9,7 @@ import { FaviconImage } from "@/components/analytics/favicon-image";
 import { Branding } from "@/components/logo/branding";
 import { Skeleton } from "@databuddy/ui";
 import { WebsiteErrorState } from "@/components/website-error-state";
-import { useWebsite } from "@/hooks/use-websites";
+import { usePublicWebsiteSummary } from "@/hooks/use-websites";
 import { currentFilterWebsiteIdAtom } from "@/stores/jotai/filterAtoms";
 import { PlanetIcon } from "@databuddy/ui/icons";
 
@@ -40,7 +40,7 @@ export default function PublicWebsiteLayout({
 		isLoading: isWebsiteLoading,
 		isError: isWebsiteError,
 		error: websiteError,
-	} = useWebsite(websiteId);
+	} = usePublicWebsiteSummary(websiteId);
 
 	if (!id) {
 		return (

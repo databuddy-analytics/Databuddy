@@ -1,87 +1,91 @@
 {
   "name": "@databuddy/ai",
-  "version": "0.0.1",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/databuddy-analytics/databuddy.git"
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./agent": {
+      "types": "./src/public-types/agent.d.ts",
+      "default": "./src/agent/index.ts"
+    },
+    "./agent/errors": "./src/agent/errors.ts",
+    "./agent/feedback": "./src/agent/feedback.ts",
+    "./agents/analytics": "./src/ai/agents/analytics.ts",
+    "./agents/cache": "./src/ai/agents/cache.ts",
+    "./agents/execution": "./src/ai/agents/execution.ts",
+    "./agents/router": "./src/ai/agents/router.ts",
+    "./agents/types": "./src/ai/agents/types.ts",
+    "./config/context": "./src/ai/config/context.ts",
+    "./config/models": "./src/ai/config/models.ts",
+    "./insights/dedupe": "./src/ai/insights/dedupe.ts",
+    "./insights/fetch-context": "./src/ai/insights/fetch-context.ts",
+    "./insights/normalize": "./src/ai/insights/normalize.ts",
+    "./insights/types": "./src/ai/insights/types.ts",
+    "./insights/validate": "./src/ai/insights/validate.ts",
+    "./lib/accessible-websites": "./src/lib/accessible-websites.ts",
+    "./lib/ai-logger": "./src/lib/ai-logger.ts",
+    "./lib/databuddy": "./src/lib/databuddy.ts",
+    "./lib/date-presets": "./src/lib/date-presets.ts",
+    "./lib/supermemory": "./src/lib/supermemory.ts",
+    "./lib/request-logger": "./src/lib/request-logger.ts",
+    "./lib/tracing": "./src/lib/tracing.ts",
+    "./lib/website-utils": "./src/lib/website-utils.ts",
+    "./mcp/http": "./src/mcp/http.ts",
+    "./mcp/tools": "./src/ai/mcp/tools.ts",
+    "./schemas/smart-insights-output": "./src/ai/schemas/smart-insights-output.ts",
+    "./tools/github-tools": "./src/ai/tools/github-tools.ts",
+    "./tools/insights-agent-tools": "./src/ai/tools/insights-agent-tools.ts",
+    "./tools/investigation-tools": "./src/ai/tools/investigation-tools.ts",
+    "./tools/toolkit": "./src/ai/tools/toolkit.ts",
+    "./tools/scrape-page": "./src/ai/tools/scrape-page.ts",
+    "./tools/search-console": "./src/ai/tools/search-console.ts",
+    "./tools/utils/oauth-token": "./src/ai/tools/utils/oauth-token.ts",
+    "./tools/workspace": "./src/ai/tools/workspace.ts",
+    "./query": "./src/query/index.ts",
+    "./query/analytics-tables": "./src/query/analytics-tables.ts",
+    "./query/builders": "./src/query/builders/index.ts",
+    "./query/custom-query-builder": "./src/query/custom-query-builder.ts",
+    "./query/custom-query-types": "./src/query/custom-query-types.ts",
+    "./query/date-utils": "./src/query/date-utils.ts",
+    "./query/types": "./src/query/types.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "^3.0.5",
+    "@databuddy/api-keys": "workspace:*",
+    "@databuddy/auth": "workspace:*",
+    "@databuddy/db": "workspace:*",
+    "@databuddy/redis": "workspace:*",
+    "@databuddy/rpc": "workspace:*",
+    "@databuddy/sdk": "workspace:*",
+    "@databuddy/shared": "workspace:*",
+    "@databuddy/validation": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "@orpc/server": "^1.14.0",
+    "@tokenlens/models": "catalog:",
+    "ai": "^6.0.188",
+    "autumn-js": "catalog:",
+    "dayjs": "^1.11.19",
+    "drizzle-orm": "catalog:",
+    "evlog": "catalog:",
+    "supermemory": "^4.17.0",
+    "tokenlens": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@ai-sdk/provider": "^3.0.5",
-    "@anthropic-ai/sdk": "0.90.0",
-    "@types/node": "^20.0.0",
-    "ai": "^6.0.0",
-    "openai": "^4.77.0",
-    "tokenlens": "catalog:",
+    "@types/bun": "catalog:",
+    "@types/node": "^24.12.2",
     "typescript": "catalog:",
-    "unbuild": "^3.6.1"
+    "vitest": "^4.1.5"
   },
   "peerDependencies": {
-    "@ai-sdk/provider": "^3.0.5",
-    "@anthropic-ai/sdk": "^0.30.0",
-    "ai": "^6.0.0",
-    "openai": "^4.0.0",
-    "tokenlens": "^2.0.0-alpha.3"
-  },
-  "exports": {
-    "./vercel": {
-      "types": "./dist/vercel/index.d.ts",
-      "import": "./dist/vercel/index.mjs"
-    },
-    "./openai": {
-      "types": "./dist/openai/index.d.ts",
-      "import": "./dist/openai/index.mjs"
-    },
-    "./anthropic": {
-      "types": "./dist/anthropic/index.d.ts",
-      "import": "./dist/anthropic/index.mjs"
-    }
-  },
-  "bugs": {
-    "type": "git",
-    "url": "https://github.com/databuddy-analytics/databuddy/issues"
-  },
-  "description": "Databuddy LLM Observability SDK",
-  "files": [
-    "dist"
-  ],
-  "homepage": "https://databuddy.cc",
-  "keywords": [
-    "analytics",
-    "llm",
-    "observability",
-    "databuddy",
-    "vercel",
-    "ai-sdk",
-    "openai",
-    "anthropic"
-  ],
-  "license": "MIT",
-  "peerDependenciesMeta": {
-    "@ai-sdk/provider": {
-      "optional": true
-    },
-    "@anthropic-ai/sdk": {
-      "optional": true
-    },
-    "ai": {
-      "optional": true
-    },
-    "openai": {
-      "optional": true
-    },
-    "tokenlens": {
-      "optional": true
-    }
-  },
-  "private": false,
-  "scripts": {
-    "build": "unbuild",
-    "test": "bun test",
-    "vscode:prepublish": "bun run build"
-  },
-  "sideEffects": false,
-  "type": "module",
-  "dependencies": {
-    "uuid": "^14.0.0"
+    "typescript": "^5.9.3"
   }
 }

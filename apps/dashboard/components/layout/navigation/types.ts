@@ -7,6 +7,8 @@ export type NavIcon = React.ComponentType<{
 }>;
 
 export interface NavigationItem {
+	activeMatch?: "exact" | "prefix";
+	activePathExclusions?: string[];
 	alpha?: boolean;
 	badge?: {
 		text: string;
@@ -18,14 +20,27 @@ export interface NavigationItem {
 	flag?: string;
 	gatedFeature?: GatedFeatureId;
 	hideFromDemo?: boolean;
+	hideFromSidebar?: boolean;
 	highlight?: boolean;
 	href: string;
 	icon: NavIcon;
 	name: string;
 	production?: boolean;
 	rootLevel?: boolean;
+	searchItems?: NavigationSearchItem[];
+	searchTags?: string[];
 	showOnlyOnDemo?: boolean;
 	tag?: string;
+}
+
+export interface NavigationSearchItem {
+	disabled?: boolean;
+	external?: boolean;
+	href?: string;
+	icon?: NavIcon;
+	name: string;
+	rootLevel?: boolean;
+	searchTags?: string[];
 }
 
 export interface NavigationSection {

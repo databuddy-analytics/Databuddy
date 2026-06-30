@@ -1,4 +1,4 @@
-FROM oven/bun:1.3.11-slim AS pruner
+FROM oven/bun:1.3.14-slim AS pruner
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ COPY . .
 
 RUN bunx turbo prune @databuddy/uptime --docker
 
-FROM oven/bun:1.3.11-slim AS builder
+FROM oven/bun:1.3.14-slim AS builder
 
 WORKDIR /app
 
@@ -30,13 +30,14 @@ RUN bun build \
 	--outfile /app/server \
 	./src/index.ts
 
-FROM oven/bun:1.3.11-distroless
+FROM oven/bun:1.3.14-distroless
 
 WORKDIR /app
 
 COPY --from=builder /app/server server
 
 ENV NODE_ENV=production
+ENV BUN_CONFIG_MAX_HTTP_REQUESTS=16384
 
 EXPOSE 4000
 

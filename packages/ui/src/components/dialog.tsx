@@ -2,8 +2,9 @@
 
 import { cn } from "../lib/utils";
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
+import { SubmitHintProvider } from "./button";
 import { XMarkIcon } from "./icons";
-import type { ComponentPropsWithoutRef } from "react";
+import { useCallback, type ComponentPropsWithoutRef } from "react";
 
 function Root(props: ComponentPropsWithoutRef<typeof BaseDialog.Root>) {
 	return <BaseDialog.Root {...props} />;
@@ -49,6 +50,35 @@ function Content({
 				{children}
 			</BaseDialog.Popup>
 		</BaseDialog.Portal>
+	);
+}
+
+function Form({
+	className,
+	children,
+	...rest
+}: React.FormHTMLAttributes<HTMLFormElement>) {
+	const handleKeyDown = useCallback(
+		(e: React.KeyboardEvent<HTMLFormElement>) => {
+			if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+				e.preventDefault();
+				e.currentTarget.requestSubmit();
+			}
+			rest.onKeyDown?.(e);
+		},
+		[rest.onKeyDown]
+	);
+
+	return (
+		<SubmitHintProvider value>
+			<form
+				className={className}
+				{...rest}
+				onKeyDown={handleKeyDown}
+			>
+				{children}
+			</form>
+		</SubmitHintProvider>
 	);
 }
 
@@ -134,6 +164,7 @@ function Close({
 export const Dialog = Object.assign(Root, {
 	Trigger,
 	Content,
+	Form,
 	Header,
 	Body,
 	Footer,

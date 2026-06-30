@@ -5,7 +5,7 @@ import {
 	CopyIcon,
 	DownloadSimpleIcon,
 	ImageIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { type ReactNode, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";

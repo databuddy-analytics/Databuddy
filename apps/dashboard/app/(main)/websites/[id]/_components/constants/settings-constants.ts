@@ -1,3 +1,5 @@
+import type { TrackingOptionConfig } from "../utils/types";
+
 export const COPY_SUCCESS_TIMEOUT = 2000;
 export const BATCH_SIZE_LIMITS = { min: 1, max: 10 } as const;
 export const RETRY_LIMITS = { min: 1, max: 10 } as const;
@@ -60,6 +62,64 @@ export const BADGE_STATUS = {
 	CUSTOM: "Custom",
 	DEFAULT: "Default",
 } as const;
+
+export const BASIC_TRACKING_OPTIONS: TrackingOptionConfig[] = [
+	{
+		key: "disabled",
+		title: "Enable Tracking",
+		description: "Master switch for all tracking functionality",
+		inverted: true,
+		data: [
+			"Controls whether any tracking occurs",
+			"When disabled, no data is collected",
+		],
+	},
+	{
+		key: "trackHashChanges",
+		title: "Hash Changes",
+		description: "Track URL hash changes for SPA routing",
+		data: ["Hash fragment changes", "Useful for single-page applications"],
+	},
+	{
+		key: "trackAttributes",
+		title: "Data Attributes",
+		description: "Auto-track via data-track HTML attributes",
+		data: ["Elements with data-track", "Auto camelCase conversion"],
+	},
+	{
+		key: "trackOutgoingLinks",
+		title: "Outbound Links",
+		description: "Track clicks to external sites",
+		data: ["Target URL", "Link text"],
+	},
+	{
+		key: "trackInteractions",
+		title: "Interactions",
+		description: "Track button clicks and form submissions",
+		data: ["Element clicked", "Form submissions"],
+	},
+];
+
+export const ADVANCED_TRACKING_OPTIONS: TrackingOptionConfig[] = [
+	{
+		key: "trackPerformance",
+		title: "Performance",
+		description: "Track page load and runtime performance",
+		data: ["Page load time", "DOM ready", "First paint"],
+	},
+	{
+		key: "trackWebVitals",
+		title: "Web Vitals",
+		description: "Track Core Web Vitals (LCP, FID, CLS, INP)",
+		data: ["LCP", "FID", "CLS", "INP", "TTFB"],
+	},
+	{
+		key: "trackErrors",
+		title: "Error Tracking",
+		description: "Capture JavaScript errors and exceptions",
+		data: ["Error message", "Stack trace", "File location"],
+	},
+];
 
 export const WARNING_MESSAGES = {
 	PAGE_VIEWS_REQUIRED:

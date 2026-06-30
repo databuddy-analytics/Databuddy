@@ -136,7 +136,7 @@ function MiniChart({
 }) {
 	if (!data.some((d) => d.value !== data[0].value)) {
 		return (
-			<div className="flex h-24 items-center pt-2">
+			<div className="flex h-[102px] items-center">
 				<div className="h-px w-full bg-chart-1 opacity-30" />
 			</div>
 		);
@@ -235,17 +235,23 @@ export function StatCard({
 			)}
 			id={id}
 		>
-			{hasValidChartData && (
+			{resolvedDisplayMode === "chart" && (
 				<Chart.Plot className="pt-2">
-					<MiniChart
-						chartStepType={chartStepType}
-						chartType={chartType}
-						data={chartData}
-						formatChartValue={formatChartValue}
-						id={id || `chart-${title.toLowerCase().replace(/\s/g, "-")}`}
-						partialLastSegment={partialLastSegment}
-						title={title}
-					/>
+					{hasValidChartData ? (
+						<MiniChart
+							chartStepType={chartStepType}
+							chartType={chartType}
+							data={chartData}
+							formatChartValue={formatChartValue}
+							id={id || `chart-${title.toLowerCase().replace(/\s/g, "-")}`}
+							partialLastSegment={partialLastSegment}
+							title={title}
+						/>
+					) : (
+						<div className="flex h-[102px] items-center">
+							<div className="h-px w-full bg-chart-1 opacity-30" />
+						</div>
+					)}
 				</Chart.Plot>
 			)}
 			{resolvedDisplayMode === "text" && (

@@ -1,11 +1,12 @@
 "use client";
 
-import type { IconWeight } from "@phosphor-icons/react";
+type IconWeight = "regular" | "bold" | "fill" | "duotone";
+
 import {
 	EnvelopeSimpleIcon,
-	GithubLogoIcon,
+	GitBranchIcon,
 	StarIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiCard } from "@/components/scifi-card";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -21,7 +22,7 @@ interface Path {
 
 const paths: Path[] = [
 	{
-		icon: GithubLogoIcon,
+		icon: GitBranchIcon,
 		title: "Contribute on GitHub",
 		tagline: "The fastest way in",
 		description:

@@ -1,12 +1,13 @@
 "use client";
 
 import { getCountryCode } from "@databuddy/shared/country-codes";
-import type { ProfileSession, Session } from "@databuddy/shared/types/sessions";
+import type { ProfileSession, Session } from "@/types/sessions";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { type ElementType, type ReactNode, useCallback, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { useDateFilters } from "@/hooks/use-date-filters";
-import { cn, getDeviceIcon } from "@/lib/utils";
+import { getDeviceIcon } from "@/components/device-icon";
+import { cn } from "@/lib/utils";
 import { generateProfileName } from "./_components/generate-profile-name";
 import { SessionRow } from "./_components/session-row";
 import { useUserProfile } from "./use-user-profile";

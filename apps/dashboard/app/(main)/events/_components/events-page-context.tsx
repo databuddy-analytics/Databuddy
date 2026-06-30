@@ -1,9 +1,14 @@
 "use client";
 
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
-import { createContext, useContext, useMemo } from "react";
+import type { DynamicQueryFilter } from "@/types/api";
+import { useSearchParams } from "next/navigation";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useCustomEventsData } from "@/hooks/use-custom-events";
+import {
+	DASHBOARD_FILTERS_QUERY_PARAM,
+	parseDashboardFiltersParam,
+} from "@/lib/dashboard-navigation-actions";
 import { usePersistentState } from "@databuddy/ui";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import { dayjs } from "@databuddy/ui";
@@ -52,6 +57,7 @@ export function EventsPageProvider({
 }: {
 	children: React.ReactNode;
 }) {
+	const searchParams = useSearchParams();
 	const {
 		activeOrganization,
 		activeOrganizationId,
@@ -72,9 +78,46 @@ export function EventsPageProvider({
 		"events-page-website-filter-mode",
 		"all"
 	);
+	const websiteParam = searchParams.get("website");
+	const startDateParam = searchParams.get("startDate");
+	const endDateParam = searchParams.get("endDate");
+	const granularityParam = searchParams.get("granularity");
+	const filtersParam = searchParams.get(DASHBOARD_FILTERS_QUERY_PARAM);
+	const dashboardFilters = useMemo(
+		() => parseDashboardFiltersParam(filtersParam) ?? [],
+		[filtersParam]
+	);
+
+	useEffect(() => {
+		if (!websiteParam) {
+			return;
+		}
+		if (
+			websiteParam === "all" ||
+			websiteParam === "no-website" ||
+			websites.some((website) => website.id === websiteParam)
+		) {
+			setWebsiteFilterMode(websiteParam);
+		}
+	}, [setWebsiteFilterMode, websiteParam, websites]);
 
 	const isSpecificWebsite =
 		websiteFilterMode !== "no-website" && websiteFilterMode !== "all";
+
+	const dateRange = useMemo<EventsPageContextValue["dateRange"]>(
+		() => ({
+			start_date:
+				startDateParam && dayjs(startDateParam).isValid()
+					? startDateParam
+					: DEFAULT_DATE_RANGE.start_date,
+			end_date:
+				endDateParam && dayjs(endDateParam).isValid()
+					? endDateParam
+					: DEFAULT_DATE_RANGE.end_date,
+			granularity: granularityParam === "hourly" ? "hourly" : "daily",
+		}),
+		[endDateParam, granularityParam, startDateParam]
+	);
 
 	const queryOptions = useMemo(() => {
 		if (isSpecificWebsite) {
@@ -92,6 +135,10 @@ export function EventsPageProvider({
 		}
 		return [];
 	}, [websiteFilterMode]);
+	const activeFilters = useMemo(
+		() => [...websiteFilters, ...dashboardFilters],
+		[dashboardFilters, websiteFilters]
+	);
 
 	const hasQueryId = !!(
 		isSpecificWebsite ||
@@ -99,8 +146,8 @@ export function EventsPageProvider({
 		activeOrganizationId
 	);
 
-	const query = useCustomEventsData(queryOptions, DEFAULT_DATE_RANGE, {
-		filters: websiteFilters,
+	const query = useCustomEventsData(queryOptions, dateRange, {
+		filters: activeFilters,
 		enabled: hasQueryId,
 	});
 
@@ -116,9 +163,9 @@ export function EventsPageProvider({
 			websites,
 			isLoadingWebsites,
 			queryOptions,
-			websiteFilters,
+			websiteFilters: activeFilters,
 			hasQueryId,
-			dateRange: DEFAULT_DATE_RANGE,
+			dateRange,
 			isLoadingOrg,
 			query,
 		}),
@@ -128,8 +175,9 @@ export function EventsPageProvider({
 			websites,
 			isLoadingWebsites,
 			queryOptions,
-			websiteFilters,
+			activeFilters,
 			hasQueryId,
+			dateRange,
 			isLoadingOrg,
 			query,
 		]

@@ -5,6 +5,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
+      semver-minor-days: 5
+      semver-major-days: 7
     groups:
       minor-and-patch:
         update-types:
@@ -17,4 +21,6 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 3
     target-branch: staging

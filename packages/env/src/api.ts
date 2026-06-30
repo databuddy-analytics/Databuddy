@@ -13,6 +13,7 @@ const apiEnvSchema = z.object({
 	...commonEnvSchema,
 	...authEnvSchema,
 	AI_API_KEY: z.string(),
+	API_CORS_ORIGINS: z.string().optional(),
 	BULLMQ_REDIS_URL: z.string(),
 	PORT: z.string().default("3001"),
 	CLICKHOUSE_URL: z.string(),
@@ -23,6 +24,10 @@ const apiEnvSchema = z.object({
 	S3_SECRET_ACCESS_KEY: z.string().optional(),
 	S3_ENDPOINT: z.string().optional(),
 	AUTUMN_WEBHOOK_SECRET: z.string().optional(),
+	DATABUDDY_ENCRYPTION_KEY: z.string().optional(),
+	SLACK_CLIENT_ID: z.string().optional(),
+	SLACK_CLIENT_SECRET: z.string().optional(),
+	SLACK_REDIRECT_URI: z.string().optional(),
 });
 
 /**

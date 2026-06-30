@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
+import { TrackOnMount } from "@/components/track-on-mount";
 import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
@@ -17,16 +18,16 @@ import { WebVitalsTrendsSparklinesDemo } from "@/components/landing/web-vitals-t
 import { StructuredData } from "@/components/structured-data";
 
 export const metadata: Metadata = {
-	title: "Core Web Vitals Monitoring | Databuddy",
+	title: "Core Web Vitals Monitoring - Real User Performance Analytics",
 	description:
-		"Monitor LCP, CLS, FID, INP, and TTFB from real users in production. Percentile breakdowns, page-level analysis, and device segmentation - built into your analytics.",
+		"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, device, and country. Field data, not lab simulations. Built into your analytics.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/web-vitals",
 	},
 	openGraph: {
-		title: "Core Web Vitals Monitoring | Databuddy",
+		title: "Core Web Vitals Monitoring - Real User Performance Analytics",
 		description:
-			"Monitor LCP, CLS, FID, INP, and TTFB from real users in production. Percentile breakdowns, page-level analysis, and device segmentation - built into your analytics.",
+			"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, device, and country. Field data, not lab simulations. Built into your analytics.",
 		url: "https://www.databuddy.cc/web-vitals",
 		images: ["/og-image.png"],
 	},
@@ -65,90 +66,94 @@ const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 export default function WebVitalsPage() {
 	return (
 		<>
+			<TrackOnMount
+				event="feature_landing_viewed"
+				properties={{ feature: "vitals" }}
+			/>
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Core Web Vitals Monitoring | Databuddy",
+					title: "Core Web Vitals Monitoring - Real User Performance Analytics",
 					description:
-						"Monitor LCP, CLS, FID, INP, and TTFB from real users in production. Percentile breakdowns, page-level analysis, and device segmentation.",
+						"Monitor LCP, CLS, INP, FCP, and TTFB from real users in production. Percentile breakdowns by page, device, and country.",
 					url: "https://www.databuddy.cc/web-vitals",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs/performance/core-web-vitals-guide"
-					subtitle="See exactly how your site performs for real users, not simulated tests. LCP, INP, CLS, FCP, and TTFB sliced by page, device, and country."
-					title="Slow pages hide in averages."
+					subtitle="LCP, INP, CLS, FCP, and TTFB from real users in production. Sliced by page, device, and country. No lab simulations."
+					title="Core Web Vitals, tracked from real users."
 				/>
 
 				<Section className="border-border border-b" id="breakdown">
 					<div className={container}>
 						<SectionHeader
 							subtitle="Every vital, sliced by page, device, and percentile, so you fix the right thing, not just the average."
-							title="Performance,"
-							titleMuted="broken down."
+							title="Every vital,"
+							titleMuted="by page and device."
 						/>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Every vital, measured from real users.
+								</h3>
+								<WebVitalsGraphsDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Find out which environments are making users wait.
+								</h3>
+								<WebVitalsBreakdownDemo compact variant="browser" />
+							</GridCell>
+						</TwoColumnGrid>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Pinpoint the pages hurting your score before users notice.
+								</h3>
+								<WebVitalsBreakdownDemo compact />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Optimize for the threshold Google actually uses to rank you.
+								</h3>
+								<WebVitalsPercentileCycleDemo />
+							</GridCell>
+						</TwoColumnGrid>
 					</div>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Every vital, measured from real users.
-							</h3>
-							<WebVitalsGraphsDemo />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Find out which environments are making users wait.
-							</h3>
-							<WebVitalsBreakdownDemo compact variant="browser" />
-						</GridCell>
-					</TwoColumnGrid>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Pinpoint the pages hurting your score before users notice.
-							</h3>
-							<WebVitalsBreakdownDemo compact />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Optimize for the threshold Google actually uses to rank you.
-							</h3>
-							<WebVitalsPercentileCycleDemo />
-						</GridCell>
-					</TwoColumnGrid>
 				</Section>
 
 				<Section className="border-border border-b" id="monitoring">
 					<div className={container}>
 						<SectionHeader
 							subtitle="Get alerted when a vital degrades. Track frequency over time to confirm your fix actually held."
-							title="Signal,"
-							titleMuted="not noise."
+							title="Alerts when"
+							titleMuted="a metric degrades."
 						/>
-					</div>
 
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Know the moment something breaks.
-							</h3>
-							<WebVitalsAlertCycleDemo />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Confirm the fix actually held.
-							</h3>
-							<WebVitalsTrendsSparklinesDemo />
-						</GridCell>
-					</TwoColumnGrid>
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Know the moment something breaks.
+								</h3>
+								<WebVitalsAlertCycleDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Confirm the fix actually held.
+								</h3>
+								<WebVitalsTrendsSparklinesDemo />
+							</GridCell>
+						</TwoColumnGrid>
+					</div>
 				</Section>
 
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
-						<FaqSection eyebrow="FAQ" items={[...FAQ_ITEMS]} />
+						<FaqSection items={[...FAQ_ITEMS]} />
 					</div>
 				</Section>
 

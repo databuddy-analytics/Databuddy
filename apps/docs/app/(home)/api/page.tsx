@@ -58,7 +58,7 @@ export default async function ApiPlaygroundPage() {
 					url: apiPlaygroundSeo.url,
 				}}
 			/>
-			<div className="px-4 pt-10 sm:px-6 lg:px-8">
+			<div className="px-4 pt-20 sm:px-6 sm:pt-24 lg:px-8 lg:pt-32">
 				<div className="mx-auto w-full max-w-7xl">
 					<div className="mb-8">
 						<h1 className="font-semibold text-2xl">Databuddy Query API</h1>
@@ -206,12 +206,10 @@ export default async function ApiPlaygroundPage() {
 							</div>
 						</CardContent>
 					</Card>
-
-					<div className="mt-10">
-						<Footer />
-					</div>
 				</div>
 			</div>
+
+			<Footer />
 		</>
 	);
 }

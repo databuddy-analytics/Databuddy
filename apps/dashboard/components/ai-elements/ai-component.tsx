@@ -22,6 +22,7 @@ const SKELETON_LABELS: Record<string, string> = {
 	"link-preview": "Loading preview...",
 	"funnels-list": "Loading funnels...",
 	"funnel-preview": "Loading preview...",
+	"dashboard-actions": "Loading actions...",
 	"goals-list": "Loading goals...",
 	"goal-preview": "Loading preview...",
 	"annotations-list": "Loading annotations...",
@@ -30,6 +31,16 @@ const SKELETON_LABELS: Record<string, string> = {
 
 function ComponentSkeleton({ type, title }: { type: string; title?: string }) {
 	const label = SKELETON_LABELS[type] ?? "Loading...";
+
+	if (type === "dashboard-actions") {
+		return (
+			<div className="inline-flex max-w-full items-center gap-1 rounded-md border border-border/50 bg-background/70 p-1 shadow-xs">
+				<Skeleton className="h-7 w-28 rounded-md" />
+				<Skeleton className="h-7 w-20 rounded-md" />
+			</div>
+		);
+	}
+
 	return (
 		<div className={chartSurfaceClassName}>
 			<div className="dotted-bg bg-accent">

@@ -10,7 +10,7 @@ import type {
 	DatabuddyTrackerSnapshot,
 	DiagnosticItem,
 	FlagCatalogState,
-} from "../../core";
+} from "../../core/types";
 import {
 	CheckIcon,
 	ChevronIcon,
@@ -503,6 +503,7 @@ function FlagManageControls({
 	onDelete: PanelProps["onDeleteFlag"];
 }) {
 	const [pending, setPending] = useState<"save" | "delete" | null>(null);
+	const [confirmDelete, setConfirmDelete] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [draftDefault, setDraftDefault] = useState(entry.defaultValue);
 	const [draftDesc, setDraftDesc] = useState(entry.description ?? "");
@@ -530,13 +531,19 @@ function FlagManageControls({
 	};
 
 	const remove = async () => {
+		if (!confirmDelete) {
+			setConfirmDelete(true);
+			return;
+		}
 		setError(null);
 		setPending("delete");
 		const result = await onDelete(entry.id);
 		setPending(null);
 		if (!result.ok) {
 			setError(result.error ?? "Failed to delete.");
+			return;
 		}
+		setConfirmDelete(false);
 	};
 
 	const addVariant = () => {
@@ -643,7 +650,11 @@ function FlagManageControls({
 					onClick={remove}
 					type="button"
 				>
-					{pending === "delete" ? "Deleting…" : "Delete"}
+					{pending === "delete"
+						? "Deleting…"
+						: confirmDelete
+							? "Confirm delete"
+							: "Delete"}
 				</button>
 			</div>
 		</div>
@@ -658,7 +669,12 @@ function UnavailableFlagRow({
 	onDelete: PanelProps["onDeleteFlag"];
 }) {
 	const [pending, setPending] = useState(false);
+	const [confirmDelete, setConfirmDelete] = useState(false);
 	const remove = async () => {
+		if (!confirmDelete) {
+			setConfirmDelete(true);
+			return;
+		}
 		setPending(true);
 		await onDelete(entry.id);
 		setPending(false);
@@ -676,10 +692,11 @@ function UnavailableFlagRow({
 				</span>
 			</span>
 			<button
-				aria-label="Delete flag"
+				aria-label={confirmDelete ? "Confirm delete flag" : "Delete flag"}
 				className="icon-btn"
 				disabled={pending}
 				onClick={remove}
+				title={confirmDelete ? "Click again to delete" : "Delete flag"}
 				type="button"
 			>
 				<TrashIcon />

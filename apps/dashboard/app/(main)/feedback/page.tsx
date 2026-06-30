@@ -35,17 +35,17 @@ export default function FeedbackPage() {
 	return (
 		<div className="flex h-full flex-col">
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">Feedback & Credits</h1>
+				<h1 className="font-semibold text-sm">Feedback</h1>
 			</TopBar.Title>
 			<TopBar.Actions>
 				<SubmitFeedbackDialog />
 			</TopBar.Actions>
 
 			<div className="flex-1 overflow-y-auto">
-				<div className="mx-auto grid max-w-5xl gap-5 p-5 lg:grid-cols-[1fr_320px]">
+				<div className="mx-auto grid max-w-6xl gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-5">
 					<FeedbackList />
 
-					<div className="space-y-5 lg:sticky lg:top-0 lg:self-start">
+					<div className="lg:sticky lg:top-4 lg:self-start">
 						<CreditsPanel
 							agentTiers={AGENT_TIERS}
 							available={balance?.available ?? 0}

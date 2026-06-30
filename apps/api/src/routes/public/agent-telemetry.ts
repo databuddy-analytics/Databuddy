@@ -1,24 +1,58 @@
-import { captureError, mergeWideEvent } from "@/lib/tracing";
-import { db, eq } from "@databuddy/db";
-import { agentInstallTelemetry, websites } from "@databuddy/db/schema";
-import { cacheable } from "@databuddy/redis";
+import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
+import { db } from "@databuddy/db";
+import {
+	type AgentInstallIssue,
+	type AgentInstallStep,
+	agentInstallTelemetry,
+} from "@databuddy/db/schema";
+import { cacheNamespaces, cacheable } from "@databuddy/redis";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { Elysia, t } from "elysia";
+
+interface ReportedInstallIssue {
+	detail?: string;
+	resolved?: boolean;
+	type: string;
+}
+
+function toCompletedInstallSteps(
+	steps: string[] | undefined
+): AgentInstallStep[] | null {
+	if (!steps?.length) {
+		return null;
+	}
+
+	return steps.map((name) => ({ name, status: "completed" }));
+}
+
+function toInstallIssues(
+	issues: ReportedInstallIssue[] | undefined
+): AgentInstallIssue[] | null {
+	if (!issues?.length) {
+		return null;
+	}
+
+	return issues.map((issue) => ({
+		code: issue.type,
+		message: issue.detail ?? issue.type,
+		severity: issue.resolved ? "info" : "warning",
+	}));
+}
 
 // Cache website existence checks — returns true/false, caches both (negative cache).
 // 5 min TTL, stale-while-revalidate after 2 min.
 const checkWebsiteExists = cacheable(
 	async function checkWebsiteExists(websiteId: string): Promise<boolean> {
 		const row = await db.query.websites.findFirst({
-			where: eq(websites.id, websiteId),
+			where: { id: websiteId },
 			columns: { id: true },
 		});
 		return !!row;
 	},
 	{
 		expireInSec: 300,
-		prefix: "agent-telemetry:website-exists",
+		prefix: cacheNamespaces.agentTelemetryWebsiteExists,
 		staleWhileRevalidate: true,
 		staleTime: 120,
 	}
@@ -28,7 +62,7 @@ export const agentTelemetryRoute = new Elysia({
 	prefix: "/v1/agent-telemetry",
 }).post(
 	"/",
-	async function reportAgentInstall({ body, set }) {
+	async function reportAgentInstall({ body, set, request }) {
 		mergeWideEvent({
 			agent_telemetry: true,
 			agent_telemetry_website_id: body.websiteId,
@@ -52,7 +86,24 @@ export const agentTelemetryRoute = new Elysia({
 			mergeWideEvent({ agent_telemetry_duration_ms: body.durationMs });
 		}
 
-		// Rate limit: 10 requests per hour per websiteId
+		const clientIp =
+			request.headers.get("cf-connecting-ip") ||
+			request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+			request.headers.get("x-real-ip") ||
+			"unknown";
+		const ipRl = await ratelimit(`agent-telemetry:ip:${clientIp}`, 30, 3600);
+		if (!ipRl.success) {
+			mergeWideEvent({ agent_telemetry_rejected: "rate_limit_ip" });
+			set.status = 429;
+			for (const [key, value] of Object.entries(getRateLimitHeaders(ipRl))) {
+				set.headers[key] = value;
+			}
+			return {
+				success: false,
+				error: "Rate limit exceeded. Try again later.",
+			};
+		}
+
 		const rl = await ratelimit(`agent-telemetry:${body.websiteId}`, 10, 3600);
 		const rlHeaders = getRateLimitHeaders(rl);
 		for (const [key, value] of Object.entries(rlHeaders)) {
@@ -74,8 +125,16 @@ export const agentTelemetryRoute = new Elysia({
 			set.status = 401;
 			return {
 				success: false,
-				error: "Invalid websiteId.",
+				error: "Invalid telemetry credentials",
 			};
+		}
+
+		if (body.metadata) {
+			const serialized = JSON.stringify(body.metadata);
+			if (Buffer.byteLength(serialized, "utf8") > 4096) {
+				set.status = 413;
+				return { success: false, error: "metadata exceeds 4096 bytes" };
+			}
 		}
 
 		try {
@@ -89,8 +148,8 @@ export const agentTelemetryRoute = new Elysia({
 					framework: body.framework ?? null,
 					installMethod: body.installMethod ?? null,
 					durationMs: body.durationMs ?? null,
-					stepsCompleted: body.stepsCompleted ?? null,
-					issues: body.issues ?? null,
+					stepsCompleted: toCompletedInstallSteps(body.stepsCompleted),
+					issues: toInstallIssues(body.issues),
 					errorMessage: body.errorMessage ?? null,
 					metadata: body.metadata ?? null,
 				})
@@ -161,11 +220,15 @@ export const agentTelemetryRoute = new Elysia({
 				)
 			),
 			errorMessage: t.Optional(
-				t.String({ description: "Final error if status is failed" })
+				t.String({
+					maxLength: 2048,
+					description: "Final error if status is failed",
+				})
 			),
 			metadata: t.Optional(
-				t.Record(t.String(), t.Unknown(), {
+				t.Record(t.String({ maxLength: 64 }), t.Unknown(), {
 					description: "Any extra context",
+					maxProperties: 32,
 				})
 			),
 		}),

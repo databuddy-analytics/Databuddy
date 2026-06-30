@@ -1,5 +1,7 @@
 import { checkBotId } from "botid/server";
 import { type NextRequest, NextResponse } from "next/server";
+import { enforceFormRateLimit } from "@/lib/rate-limit";
+import { escapeMrkdwn } from "@/lib/slack-format";
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || "";
 const SLACK_TIMEOUT_MS = 10_000;
@@ -142,7 +144,7 @@ function validateFormData(data: unknown): ValidationResult {
 function createSlackField(label: string, value: string) {
 	return {
 		type: "mrkdwn" as const,
-		text: `*${label}:*\n${value}`,
+		text: `*${label}:*\n${escapeMrkdwn(value)}`,
 	};
 }
 
@@ -190,7 +192,7 @@ function buildSlackBlocks(data: AmbassadorFormData, ip: string): unknown[] {
 		type: "section",
 		text: {
 			type: "mrkdwn",
-			text: `*Why Ambassador:*\n${data.whyAmbassador}`,
+			text: `*Why Ambassador:*\n${escapeMrkdwn(data.whyAmbassador)}`,
 		},
 	});
 
@@ -210,15 +212,14 @@ async function sendToSlack(
 	const timeoutId = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
 
 	try {
-		await fetch(SLACK_WEBHOOK_URL, {
+		const response = await fetch(SLACK_WEBHOOK_URL, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ blocks }),
 			signal: controller.signal,
 		});
-	} catch (fetchError) {
-		if (fetchError instanceof Error && fetchError.name !== "AbortError") {
-			throw fetchError;
+		if (!response.ok) {
+			throw new Error(`Slack webhook failed with status ${response.status}`);
 		}
 	} finally {
 		clearTimeout(timeoutId);
@@ -229,6 +230,15 @@ export async function POST(request: NextRequest) {
 	const verification = await checkBotId();
 	if (verification.isBot) {
 		return NextResponse.json({ error: "Access denied" }, { status: 403 });
+	}
+
+	const rateLimited = await enforceFormRateLimit(request, {
+		key: "ambassador",
+		max: 3,
+		windowSec: 600,
+	});
+	if (rateLimited) {
+		return rateLimited;
 	}
 
 	const clientIP = getClientIP(request);
@@ -261,10 +271,11 @@ export async function POST(request: NextRequest) {
 			success: true,
 			message: "Ambassador application submitted successfully",
 		});
-	} catch {
+	} catch (error) {
+		console.error("ambassador/submit failed", error);
 		return NextResponse.json(
-			{ error: "Internal server error" },
-			{ status: 500 }
+			{ error: "Unable to submit ambassador application" },
+			{ status: 502 }
 		);
 	}
 }

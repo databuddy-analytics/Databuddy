@@ -13,7 +13,7 @@ export function NavbarGithubDesktopLink({
 	stars,
 }: NavbarGithubDesktopLinkProps) {
 	return (
-		<Button asChild size="sm" variant="ghost">
+		<Button asChild className="text-white" size="sm" variant="ghost">
 			<a href={githubRepoUrl} rel="noopener noreferrer" target="_blank">
 				<GithubNavMark />
 				{typeof stars === "number" && <GithubStarsBadge stars={stars} />}

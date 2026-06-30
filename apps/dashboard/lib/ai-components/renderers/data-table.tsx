@@ -2,7 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../types";
-import { Card } from "@databuddy/ui";
+import { TableIcon } from "@databuddy/ui/icons";
+import { Badge, Card } from "@databuddy/ui";
 
 export interface DataTableColumn {
 	align?: "left" | "center" | "right";
@@ -39,10 +40,48 @@ function getAlignmentClass(align?: "left" | "center" | "right"): string {
 		case "center":
 			return "text-center";
 		case "right":
-			return "text-right";
+			return "text-right text-balance";
 		default:
 			return "text-left";
 	}
+}
+
+const DATA_TABLE_CARD_CLASS =
+	"gap-0 overflow-hidden py-0 border-0 bg-secondary p-1";
+
+function DataTableHeaderBlock({
+	title,
+	description,
+	rowCount,
+}: {
+	description?: string;
+	rowCount: number;
+	title?: string;
+}) {
+	if (!(title || description)) {
+		return null;
+	}
+	const rowLabel = rowCount === 1 ? "1 row" : `${rowCount} rows`;
+	return (
+		<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
+			<div className="mb-auto flex size-6 shrink-0 items-center justify-center rounded bg-accent">
+				<TableIcon className="size-3.5 text-muted-foreground" />
+			</div>
+			<div className="min-w-0 flex-1">
+				{title ? (
+					<p className="text-pretty font-medium text-sm">{title}</p>
+				) : null}
+				{description ? (
+					<p className="mt-0.5 text-pretty text-muted-foreground text-xs">
+						{description}
+					</p>
+				) : null}
+			</div>
+			<Badge className="shrink-0 rounded text-[10px]" variant="muted">
+				{rowLabel}
+			</Badge>
+		</div>
+	);
 }
 
 export function DataTableRenderer({
@@ -56,87 +95,88 @@ export function DataTableRenderer({
 }: DataTableProps) {
 	if (rows.length === 0) {
 		return (
-			<Card
-				className={className ?? "gap-0 overflow-hidden border bg-card py-0"}
-			>
-				{title && (
-					<div className="border-b px-3 py-2">
-						<p className="font-medium text-sm">{title}</p>
-						{description && (
-							<p className="text-muted-foreground text-xs">{description}</p>
-						)}
+			<Card className={cn(DATA_TABLE_CARD_CLASS, className)}>
+				<div className="flex flex-col gap-1">
+					<DataTableHeaderBlock
+						description={description}
+						rowCount={0}
+						title={title}
+					/>
+					<div className="rounded-md bg-background px-3 py-8 text-center">
+						<p className="text-pretty font-medium text-sm">No data available</p>
+						<p className="text-pretty text-muted-foreground text-xs">
+							Data will appear once there is activity
+						</p>
 					</div>
-				)}
-				<div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-					<p className="font-medium text-sm">No data available</p>
-					<p className="text-muted-foreground text-xs">
-						Data will appear once there is activity
-					</p>
 				</div>
 			</Card>
 		);
 	}
 
 	return (
-		<Card className={className ?? "gap-0 overflow-hidden border bg-card py-0"}>
-			{title && (
-				<div className="border-b px-3 py-2">
-					<p className="font-medium text-sm">{title}</p>
-					{description && (
-						<p className="text-muted-foreground text-xs">{description}</p>
-					)}
-				</div>
-			)}
-			<div className="overflow-x-auto">
-				<table className="w-full text-sm">
-					<thead>
-						<tr className="border-b bg-muted/30">
-							{columns.map((column) => (
-								<th
-									className={cn(
-										"px-3 py-2 font-medium text-muted-foreground text-xs",
-										getAlignmentClass(column.align)
-									)}
-									key={column.key}
-								>
-									{column.header}
-								</th>
-							))}
-						</tr>
-					</thead>
-					<tbody>
-						{rows.map((row, rowIdx) => (
-							<tr
-								className={cn(
-									"border-b transition-colors last:border-b-0 hover:bg-muted/50",
-									streaming &&
-										rowIdx === rows.length - 1 &&
-										"fade-in animate-in duration-300"
-								)}
-								key={rowIdx}
-							>
-								{columns.map((column, colIdx) => (
-									<td
+		<Card className={cn(DATA_TABLE_CARD_CLASS, className)}>
+			<div className="flex flex-col gap-1">
+				<DataTableHeaderBlock
+					description={description}
+					rowCount={rows.length}
+					title={title}
+				/>
+				<div className="overflow-x-auto rounded-md bg-background p-1">
+					<table className="w-full text-sm">
+						<thead>
+							<tr className="">
+								{columns.map((column) => (
+									<th
 										className={cn(
-											"px-3 py-2",
-											getAlignmentClass(column.align),
-											colIdx === 0 ? "font-medium" : "tabular-nums"
+											"px-3 py-2 font-medium text-muted-foreground text-xs",
+											getAlignmentClass(column.align)
 										)}
 										key={column.key}
+										scope="col"
 									>
-										{formatCellValue(row[column.key])}
-									</td>
+										{column.header}
+									</th>
 								))}
 							</tr>
-						))}
-					</tbody>
-				</table>
-			</div>
-			{footer && (
-				<div className="border-t bg-muted/30 px-3 py-1.5">
-					<p className="text-muted-foreground text-xs">{footer}</p>
+						</thead>
+						<tbody>
+							{rows.map((row, rowIdx) => (
+								<tr
+									className={cn(
+										"border-background border-b-2 transition-colors last:border-b-0 hover:bg-muted/50",
+										streaming &&
+											rowIdx === rows.length - 1 &&
+											"fade-in animate-in duration-200"
+									)}
+									key={rowIdx}
+								>
+									{columns.map((column, colIdx) => (
+										<td
+											className={cn(
+												"text-pretty bg-muted/30 px-3 py-2 first:rounded-l-sm last:rounded-r-sm",
+												getAlignmentClass(column.align),
+												colIdx === 0 ? "font-medium" : "tabular-nums"
+											)}
+											key={column.key}
+										>
+											{formatCellValue(row[column.key])}
+										</td>
+									))}
+								</tr>
+							))}
+						</tbody>
+					</table>
 				</div>
-			)}
+				{footer ? (
+					<div className="rounded-md bg-background">
+						<div className="px-2.5 py-2">
+							<p className="text-pretty text-muted-foreground text-xs">
+								{footer}
+							</p>
+						</div>
+					</div>
+				) : null}
+			</div>
 		</Card>
 	);
 }

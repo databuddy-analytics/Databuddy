@@ -1,8 +1,10 @@
 "use client";
 
 import { useOrganizationInvitations } from "@/hooks/use-organization-invitations";
-import { CaretUpDown } from "@phosphor-icons/react/dist/ssr";
-import { UserPlusIcon } from "@databuddy/ui/icons";
+import {
+	CaretUpDownIcon as CaretUpDown,
+	UserPlusIcon,
+} from "@databuddy/ui/icons";
 import { useState } from "react";
 import { Button, Field, FieldTriggerButton, Input } from "@databuddy/ui";
 import { Dialog, DropdownMenu } from "@databuddy/ui/client";

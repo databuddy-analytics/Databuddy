@@ -9,7 +9,20 @@ export function isNavItemActive(
 	currentWebsiteId?: string | null
 ): boolean {
 	if (item.rootLevel) {
-		return pathname === item.href;
+		if (pathname === item.href) {
+			return true;
+		}
+		if (item.activeMatch !== "prefix") {
+			return false;
+		}
+		if (
+			item.activePathExclusions?.some(
+				(path) => pathname === path || pathname.startsWith(`${path}/`)
+			)
+		) {
+			return false;
+		}
+		return pathname.startsWith(`${item.href}/`);
 	}
 
 	const fullPath = (() => {

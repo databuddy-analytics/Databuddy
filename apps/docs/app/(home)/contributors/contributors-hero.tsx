@@ -1,12 +1,13 @@
 "use client";
 
-import type { IconWeight } from "@phosphor-icons/react";
+type IconWeight = "regular" | "bold" | "fill" | "duotone";
+
 import {
-	GitForkIcon,
+	GitBranchIcon as GitForkIcon,
 	StarIcon,
 	UsersIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 
 interface ContributorsHeroProps {
 	contributors: number;

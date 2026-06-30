@@ -3,7 +3,7 @@
  * Maps country names to ISO 3166-1 alpha-2 codes
  */
 
-export const COUNTRY_NAME_TO_CODE: Record<string, string> = {
+const COUNTRY_NAME_TO_CODE: Record<string, string> = {
 	Afghanistan: "AF",
 	"Åland Islands": "AX",
 	Albania: "AL",

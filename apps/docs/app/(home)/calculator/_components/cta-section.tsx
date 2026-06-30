@@ -40,7 +40,7 @@ export function CtaSection() {
 					<div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
 						<SciFiButton asChild>
 							<a
-								href="https://app.databuddy.cc/login"
+								href="https://app.databuddy.cc/register"
 								rel="noopener noreferrer"
 								target="_blank"
 							>

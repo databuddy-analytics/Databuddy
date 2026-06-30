@@ -1,4 +1,4 @@
-import type { CustomQueryConfig } from "@databuddy/shared/types/custom-query";
+import type { CustomQueryConfig } from "../types/custom-query";
 import type { StatCardDisplayMode } from "@/components/analytics/stat-card";
 
 /** Filter operator types */

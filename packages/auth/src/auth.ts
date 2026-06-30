@@ -1,9 +1,13 @@
+import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
-import { db, eq } from "@databuddy/db";
+import { and, db, eq, like } from "@databuddy/db";
+// biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
+import * as schema from "@databuddy/db/schema";
 import {
 	member as memberTable,
 	organization as organizationTable,
+	verification as verificationTable,
 } from "@databuddy/db/schema";
 import {
 	DeleteAccountEmail,
@@ -14,9 +18,14 @@ import {
 	ResetPasswordEmail,
 	VerificationEmail,
 } from "@databuddy/email";
+import { config } from "@databuddy/env/app";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { SlackProvider } from "@databuddy/notifications";
-import { getRedisCache, ratelimit } from "@databuddy/redis";
-import { createId } from "@databuddy/shared/utils/ids";
+import {
+	getRedisCache,
+	invalidateOrganizationMembershipCaches,
+	ratelimit,
+} from "@databuddy/redis";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
 import {
@@ -38,8 +47,49 @@ function generateOrgSlug(name: string): string {
 		.replace(/\s+/g, "-")
 		.replace(/-+/g, "-")
 		.slice(0, 48);
-	const suffix = createId().slice(0, 6);
+	const suffix = randomUUID().replace(/-/g, "").slice(0, 16);
 	return `${base}-${suffix}`;
+}
+
+const ORG_SLUG_MAX_ATTEMPTS = 5;
+const SLUG_COLLISION_PATTERN = /organizations_slug_unique/;
+
+async function provisionDefaultOrg(input: {
+	userId: string;
+	name: string;
+	email: string;
+}): Promise<string> {
+	const orgName = getOrgNameFromUser(input.name, input.email);
+	const orgId = randomUUID();
+
+	for (let attempt = 1; attempt <= ORG_SLUG_MAX_ATTEMPTS; attempt++) {
+		try {
+			await db.transaction(async (tx) => {
+				await tx.insert(organizationTable).values({
+					id: orgId,
+					name: orgName,
+					slug: generateOrgSlug(orgName),
+					createdAt: new Date(),
+				});
+				await tx.insert(memberTable).values({
+					id: randomUUID(),
+					organizationId: orgId,
+					userId: input.userId,
+					role: "owner",
+					createdAt: new Date(),
+				});
+			});
+			return orgId;
+		} catch (error) {
+			const isSlugCollision =
+				error instanceof Error && SLUG_COLLISION_PATTERN.test(error.message);
+			if (!isSlugCollision || attempt === ORG_SLUG_MAX_ATTEMPTS) {
+				throw error;
+			}
+		}
+	}
+
+	throw new Error("Failed to provision organization after slug retries");
 }
 
 function getOrgNameFromUser(userName: string, email: string): string {
@@ -52,6 +102,17 @@ function getOrgNameFromUser(userName: string, email: string): string {
 
 function isProduction() {
 	return process.env.NODE_ENV === "production";
+}
+
+function isSelfHosted() {
+	return readBooleanEnv("SELFHOST");
+}
+
+function shouldRequireEmailVerification() {
+	if (process.env.REQUIRE_EMAIL_VERIFICATION != null) {
+		return readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
+	}
+	return isProduction() && !isSelfHosted();
 }
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
@@ -95,9 +156,74 @@ function notifySignUpSlackAction(input: {
 	});
 }
 
+async function purgeOutstandingResetTokens(userId: string): Promise<void> {
+	try {
+		await db
+			.delete(verificationTable)
+			.where(
+				and(
+					like(verificationTable.identifier, "reset-password:%"),
+					eq(verificationTable.value, userId)
+				)
+			);
+	} catch (error) {
+		log.error({
+			service: "auth",
+			auth_hook: "purge_reset_tokens",
+			auth_user_id: userId,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
+async function invalidateMemberCaches(member: {
+	organizationId: string;
+	userId: string;
+}): Promise<void> {
+	const result = await invalidateOrganizationMembershipCaches(member);
+	if (result.failed > 0) {
+		log.warn({
+			service: "auth",
+			auth_hook: "organization.member.cache_invalidation",
+			auth_user_id: member.userId,
+			auth_org_id: member.organizationId,
+			cache_invalidations_failed: result.failed,
+			cache_invalidations_attempted: result.attempted,
+		});
+	}
+}
+
+type AuthLogLevel = "info" | "warn" | "error" | "debug";
+
+function forwardAuthLog(
+	level: AuthLogLevel,
+	message: string,
+	...args: unknown[]
+): void {
+	const cause = args.find((arg): arg is Error => arg instanceof Error);
+	const fields = {
+		service: "auth",
+		auth_logger: message,
+		...(cause && { error: cause.message, error_stack: cause.stack }),
+	};
+	if (level === "error") {
+		log.error(fields);
+		return;
+	}
+	if (level === "warn") {
+		log.warn(fields);
+		return;
+	}
+	log.info(fields);
+}
+
 export const auth = betterAuth({
+	logger: {
+		log: forwardAuthLog,
+	},
 	database: drizzleAdapter(db, {
 		provider: "pg",
+		schema,
 	}),
 	secondaryStorage: redisStorage({
 		client: getRedisCache(),
@@ -135,41 +261,35 @@ export const auth = betterAuth({
 			enabled: true,
 			trustedProviders: ["google", "github"],
 			allowDifferentEmails: true,
+			requireLocalEmailVerified: true,
 		},
 	},
 	databaseHooks: {
+		account: {
+			update: {
+				after: async (account) => {
+					if (account.providerId !== "credential" || !account.userId) {
+						return;
+					}
+					await purgeOutstandingResetTokens(account.userId);
+				},
+			},
+		},
 		user: {
 			create: {
 				after: async (createdUser) => {
-					const orgId = createId();
-					const orgName = getOrgNameFromUser(
-						createdUser.name,
-						createdUser.email
-					);
-
+					let orgId: string;
 					try {
-						await db.transaction(async (tx) => {
-							await tx.insert(organizationTable).values({
-								id: orgId,
-								name: orgName,
-								slug: generateOrgSlug(orgName),
-								createdAt: new Date(),
-							});
-
-							await tx.insert(memberTable).values({
-								id: createId(),
-								organizationId: orgId,
-								userId: createdUser.id,
-								role: "owner",
-								createdAt: new Date(),
-							});
+						orgId = await provisionDefaultOrg({
+							userId: createdUser.id,
+							name: createdUser.name,
+							email: createdUser.email,
 						});
 					} catch (error) {
 						log.error({
 							service: "auth",
 							auth_hook: "user.create.after",
 							auth_user_id: createdUser.id,
-							auth_org_id: orgId,
 							error: error instanceof Error ? error.message : String(error),
 						});
 						return;
@@ -193,7 +313,7 @@ export const auth = betterAuth({
 
 					try {
 						const userOrg = await db.query.member.findFirst({
-							where: eq(memberTable.userId, sessionData.userId),
+							where: { userId: sessionData.userId },
 							columns: { organizationId: true },
 						});
 
@@ -205,6 +325,30 @@ export const auth = betterAuth({
 								},
 							};
 						}
+
+						const user = await db.query.user.findFirst({
+							where: { id: sessionData.userId },
+							columns: { id: true, name: true, email: true },
+						});
+						if (!user) {
+							return { data: sessionData };
+						}
+
+						const orgId = await provisionDefaultOrg({
+							userId: user.id,
+							name: user.name,
+							email: user.email,
+						});
+						log.info({
+							service: "auth",
+							auth_hook: "session.create.before",
+							auth_user_id: sessionData.userId,
+							auth_org_id: orgId,
+							message: "Provisioned default org for orphaned account",
+						});
+						return {
+							data: { ...sessionData, activeOrganizationId: orgId },
+						};
 					} catch (error) {
 						log.error({
 							service: "auth",
@@ -225,7 +369,7 @@ export const auth = betterAuth({
 			sendDeleteAccountVerification: async ({ user: targetUser, url }) => {
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: "no-reply@databuddy.cc",
+					from: config.email.from,
 					to: targetUser.email,
 					subject: "[Action required] Confirm account deletion",
 					html: await render(DeleteAccountEmail({ url })),
@@ -255,21 +399,23 @@ export const auth = betterAuth({
 	},
 	advanced: {
 		crossSubDomainCookies: {
-			enabled: isProduction(),
-			domain: ".databuddy.cc",
+			enabled: isProduction() && !isSelfHosted(),
+			domain: process.env.BETTER_AUTH_COOKIE_DOMAIN ?? ".databuddy.cc",
 		},
 		cookiePrefix: isProduction() ? "databuddy" : "databuddy-dev",
 		useSecureCookies: isProduction(),
 	},
 	trustedOrigins: [
 		"https://databuddy.cc",
-		"https://app.databuddy.cc",
-		"https://api.databuddy.cc",
+		config.urls.dashboard,
+		config.urls.api,
 	],
 	socialProviders: {
 		google: {
 			clientId: process.env.GOOGLE_CLIENT_ID as string,
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+			accessType: "offline",
+			prompt: "select_account consent",
 		},
 		github: {
 			clientId: process.env.GITHUB_CLIENT_ID as string,
@@ -279,9 +425,13 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		minPasswordLength: 8,
-		maxPasswordLength: 32,
+		maxPasswordLength: 128,
 		autoSignIn: false,
-		requireEmailVerification: process.env.NODE_ENV === "production",
+		requireEmailVerification: shouldRequireEmailVerification(),
+		revokeSessionsOnPasswordReset: true,
+		onPasswordReset: async ({ user }: { user: { id: string } }) => {
+			await purgeOutstandingResetTokens(user.id);
+		},
 		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
 			const { success } = await ratelimit(`reset:${user.email}`, 3, 3600);
 			if (!success) {
@@ -296,7 +446,7 @@ export const auth = betterAuth({
 
 			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
-				from: "no-reply@databuddy.cc",
+				from: config.email.from,
 				to: user.email,
 				subject: "[Action required] Reset your password",
 				html: await render(ResetPasswordEmail({ url })),
@@ -327,7 +477,7 @@ export const auth = betterAuth({
 
 			const resend = new Resend(process.env.RESEND_API_KEY as string);
 			await resend.emails.send({
-				from: "no-reply@databuddy.cc",
+				from: config.email.from,
 				to: user.email,
 				subject: "[Action required] Verify your email to get started",
 				html: await render(VerificationEmail({ url })),
@@ -377,7 +527,7 @@ export const auth = betterAuth({
 				const otpHtml = await render(OtpEmail({ otp }));
 				resend.emails
 					.send({
-						from: "no-reply@databuddy.cc",
+						from: config.email.from,
 						to: email,
 						subject,
 						html: otpHtml,
@@ -402,7 +552,7 @@ export const auth = betterAuth({
 
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				resend.emails.send({
-					from: "no-reply@databuddy.cc",
+					from: config.email.from,
 					to: email,
 					subject: "Your sign-in link for Databuddy",
 					html: await render(MagicLinkEmail({ url })),
@@ -428,6 +578,12 @@ export const auth = betterAuth({
 				member,
 				viewer,
 			},
+			organizationHooks: {
+				afterAddMember: ({ member }) => invalidateMemberCaches(member),
+				afterCreateOrganization: ({ member }) => invalidateMemberCaches(member),
+				afterRemoveMember: ({ member }) => invalidateMemberCaches(member),
+				afterUpdateMemberRole: ({ member }) => invalidateMemberCaches(member),
+			},
 			sendInvitationEmail: async ({
 				email,
 				inviter,
@@ -449,10 +605,10 @@ export const auth = betterAuth({
 					return;
 				}
 
-				const invitationLink = `https://app.databuddy.cc/invitations/${invitation.id}`;
+				const invitationLink = `${config.urls.dashboard}/invitations/${invitation.id}`;
 				const resend = new Resend(process.env.RESEND_API_KEY as string);
 				await resend.emails.send({
-					from: "no-reply@databuddy.cc",
+					from: config.email.from,
 					to: email,
 					subject: `${inviter.user.name ?? "Someone"} invited you to join ${organization.name}`,
 					html: await render(

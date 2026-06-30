@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { StructuredData } from "@/components/structured-data";
 import HonorableMentions from "./honorable-mentions";
 import { honorableMentions, sponsorStats, sponsors } from "./sponsors-data";
@@ -39,10 +39,7 @@ export default function SponsorsPage() {
 					url,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			{/* Hero Section */}
-			<Section className="overflow-hidden" customPaddings id="sponsors-hero">
+			<Section className="overflow-hidden" id="sponsors-hero">
 				<SponsorsHero
 					featuredSponsors={sponsorStats.featuredSponsors}
 					totalSponsors={sponsorStats.totalSponsors}

@@ -58,7 +58,7 @@ export interface FlagVariant {
 	description?: string;
 	key: string;
 	type: "string" | "number" | "json";
-	value: string | number;
+	value: unknown;
 	weight?: number;
 }
 

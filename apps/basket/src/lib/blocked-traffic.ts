@@ -1,4 +1,8 @@
 import type { BlockedTraffic } from "@databuddy/db/clickhouse/schema";
+import {
+	queueBlockedTrafficAlert,
+	type BlockedTrafficAlertContext,
+} from "@lib/blocked-traffic-alerts";
 import { runFork, send } from "@lib/producer";
 import { captureError } from "@lib/tracing";
 import { extractIpFromRequest, getGeo } from "@utils/ip-geo";
@@ -13,7 +17,8 @@ async function _logBlockedTrafficAsync(
 	blockReason: string,
 	blockCategory: string,
 	botName?: string,
-	clientId?: string
+	clientId?: string,
+	context?: BlockedTrafficAlertContext
 ): Promise<void> {
 	try {
 		const ip = extractIpFromRequest(request);
@@ -84,6 +89,7 @@ async function _logBlockedTrafficAsync(
 		};
 
 		runFork(send("analytics-blocked-traffic", blockedEvent));
+		queueBlockedTrafficAlert(blockedEvent, context);
 	} catch (error) {
 		captureError(error, { message: "Failed to log blocked traffic" });
 	}
@@ -99,7 +105,8 @@ export function logBlockedTraffic(
 	blockReason: string,
 	blockCategory: string,
 	botName?: string,
-	clientId?: string
+	clientId?: string,
+	context?: BlockedTrafficAlertContext
 ): void {
 	_logBlockedTrafficAsync(
 		request,
@@ -108,7 +115,8 @@ export function logBlockedTraffic(
 		blockReason,
 		blockCategory,
 		botName,
-		clientId
+		clientId,
+		context
 	).catch((error) => {
 		captureError(error, { message: "Failed to log blocked traffic" });
 	});

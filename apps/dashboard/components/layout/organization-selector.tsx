@@ -2,6 +2,7 @@
 
 import { authClient } from "@databuddy/auth/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -19,9 +20,11 @@ import {
 	AUTH_QUERY_KEYS,
 	useOrganizationsContext,
 } from "@/components/providers/organizations-provider";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
-import { Badge, Skeleton, Tooltip } from "@databuddy/ui";
+import { Badge, Skeleton, Tooltip, useHydrated } from "@databuddy/ui";
 
 const getDicebearUrl = (seed: string | undefined) =>
 	`https://api.dicebear.com/9.x/glass/svg?seed=${encodeURIComponent(seed || "")}`;
@@ -118,13 +121,20 @@ export function OrganizationSelector({
 }) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
-	const { organizations, activeOrganization, isLoading } =
-		useOrganizationsContext();
+	const {
+		organizations,
+		activeOrganization,
+		isLoading,
+		isSwitchingOrganization,
+	} = useOrganizationsContext();
 	const { currentPlanId } = useBillingContext();
+	const hydrated = useHydrated();
 	const [isOpen, setIsOpen] = useState(false);
 	const [showCreateDialog, setShowCreateDialog] = useState(false);
 	const [query, setQuery] = useState("");
-	const [isSwitching, setIsSwitching] = useState(false);
+	const setPendingActiveOrganizationId = useSetAtom(
+		pendingActiveOrganizationIdAtom
+	);
 
 	const planLabel = currentPlanId
 		? currentPlanId.charAt(0).toUpperCase() + currentPlanId.slice(1)
@@ -140,7 +150,7 @@ export function OrganizationSelector({
 			return;
 		}
 
-		setIsSwitching(true);
+		setPendingActiveOrganizationId(organizationId);
 		setIsOpen(false);
 
 		const { error } = await authClient.organization.setActive({
@@ -149,21 +159,30 @@ export function OrganizationSelector({
 
 		if (error) {
 			toast.error(error.message || "Failed to switch organization");
-			setIsSwitching(false);
+			setPendingActiveOrganizationId(null);
 			return;
 		}
+
+		queryClient.removeQueries({ queryKey: orpc.websites.key() });
+		queryClient.removeQueries({ queryKey: orpc.links.list.key() });
+		queryClient.removeQueries({ queryKey: orpc.linkFolders.list.key() });
+		queryClient.removeQueries({ queryKey: orpc.apikeys.list.key() });
 
 		await queryClient.invalidateQueries({
 			queryKey: AUTH_QUERY_KEYS.activeOrganization,
 		});
 		queryClient.invalidateQueries();
 
-		setIsSwitching(false);
 		toast.success("Organization updated");
 	};
 
 	const filteredOrganizations = filterOrganizations(organizations, query);
 
+	const isSwitching = isSwitchingOrganization;
+	const activeOrganizationName = activeOrganization?.name ?? "Organization";
+	const organizationTriggerLabel = isSwitching
+		? `Switching workspace from ${activeOrganizationName}`
+		: `Organization: ${activeOrganizationName}`;
 	const avatarUrl = getDicebearUrl(
 		activeOrganization?.logo || activeOrganization?.id
 	);
@@ -182,7 +201,7 @@ export function OrganizationSelector({
 		/>
 	);
 
-	if (isLoading) {
+	if (!hydrated || isLoading) {
 		return (
 			<div className={cn("px-2 py-2", collapsed && "px-1.5")}>
 				<div
@@ -216,6 +235,7 @@ export function OrganizationSelector({
 							side="right"
 						>
 							<DropdownMenu.Trigger
+								aria-label={organizationTriggerLabel}
 								className="flex size-9 items-center justify-center rounded bg-sidebar-accent/50 hover:bg-sidebar-accent"
 								disabled={isSwitching}
 								render={<button type="button" />}
@@ -258,6 +278,7 @@ export function OrganizationSelector({
 					open={isOpen}
 				>
 					<DropdownMenu.Trigger
+						aria-label={organizationTriggerLabel}
 						className={cn(
 							"flex h-9 w-full items-center gap-2.5 rounded bg-sidebar-accent/50 px-2.5",
 							"hover:bg-sidebar-accent",
@@ -273,7 +294,9 @@ export function OrganizationSelector({
 							src={avatarUrl}
 						/>
 						<span className="min-w-0 flex-1 truncate text-left font-semibold text-sidebar-foreground text-sm">
-							{activeOrganization?.name ?? "Select organization"}
+							{isSwitching
+								? "Switching workspace…"
+								: (activeOrganization?.name ?? "Select organization")}
 						</span>
 						{isSwitching ? (
 							<SpinnerGapIcon className="size-3.5 shrink-0 animate-spin text-sidebar-foreground/30" />

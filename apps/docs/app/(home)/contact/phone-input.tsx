@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretDownIcon } from "@phosphor-icons/react";
+import { CaretDownIcon } from "@databuddy/ui/icons";
 import { useMemo, useRef, useState } from "react";
 import type { Country } from "react-phone-number-input";
 import { getCountries, getCountryCallingCode } from "react-phone-number-input";

@@ -1,5 +1,6 @@
+import { publicConfig } from "@databuddy/env/public";
 import { FeedbackPrompt } from "@/components/feedback-prompt";
-import { GlobalAgentProvider } from "@/components/agent/global-agent-provider";
+import { isDashboardE2E } from "@/lib/e2e-mode";
 import { Sidebar } from "@/components/layout/sidebar";
 import {
 	SidebarInset,
@@ -39,37 +40,40 @@ export default function MainLayout({
 }: {
 	children: React.ReactNode;
 }) {
-	return (
-		<AutumnProvider
-			backendUrl={process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}
-			includeCredentials
-		>
-			<BillingProvider>
-				<CommandSearchProvider>
-					<SidebarNavigationProvider>
-						<SessionGuard>
-							<SidebarLayout>
-								<TopBarProvider>
-									<GlobalAgentProvider>
-										<div className="flex min-h-0 flex-1 flex-col overflow-hidden text-foreground">
-											<Suspense fallback={<SidebarFallback />}>
-												<Sidebar />
-											</Suspense>
-											<SidebarInset>
-												<TopBar />
-												<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-y-none pt-12 md:pt-0">
-													{children}
-												</div>
-											</SidebarInset>
-											<FeedbackPrompt />
+	const content = (
+		<BillingProvider>
+			<CommandSearchProvider>
+				<SidebarNavigationProvider>
+					<SessionGuard>
+						<SidebarLayout>
+							<TopBarProvider>
+								<div className="flex min-h-0 flex-1 flex-col overflow-hidden text-foreground">
+									<Suspense fallback={<SidebarFallback />}>
+										<Sidebar />
+									</Suspense>
+									<SidebarInset>
+										<TopBar />
+										<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-y-none pt-12 md:pt-0">
+											{children}
 										</div>
-									</GlobalAgentProvider>
-								</TopBarProvider>
-							</SidebarLayout>
-						</SessionGuard>
-					</SidebarNavigationProvider>
-				</CommandSearchProvider>
-			</BillingProvider>
+									</SidebarInset>
+									<FeedbackPrompt />
+								</div>
+							</TopBarProvider>
+						</SidebarLayout>
+					</SessionGuard>
+				</SidebarNavigationProvider>
+			</CommandSearchProvider>
+		</BillingProvider>
+	);
+
+	if (isDashboardE2E) {
+		return content;
+	}
+
+	return (
+		<AutumnProvider backendUrl={publicConfig.urls.api} includeCredentials>
+			{content}
 		</AutumnProvider>
 	);
 }

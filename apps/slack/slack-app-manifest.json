@@ -1,0 +1,94 @@
+{
+  "display_information": {
+    "name": "Databuddy",
+    "description": "Ask Databuddy for analytics answers in Slack."
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": false,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "assistant_view": {
+      "assistant_description": "Ask Databuddy about traffic, conversions, campaigns, pages, referrers, and product usage.",
+      "suggested_prompts": [
+        {
+          "title": "Weekly changes",
+          "message": "What changed in traffic, conversions, and top pages over the last 7 days?"
+        },
+        {
+          "title": "Find anomalies",
+          "message": "What looks unusual in our analytics today?"
+        },
+        {
+          "title": "Channel performance",
+          "message": "Which referrers and campaigns are driving the best traffic this week?"
+        }
+      ]
+    },
+    "bot_user": {
+      "display_name": "Databuddy",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/bind",
+        "description": "Approve this channel for Databuddy answers.",
+        "usage_hint": "Use when automatic channel approval is unavailable.",
+        "should_escape": true
+      },
+      {
+        "command": "/databuddy-help",
+        "description": "Show how to use Databuddy in Slack.",
+        "should_escape": false
+      },
+      {
+        "command": "/databuddy-status",
+        "description": "Check whether Databuddy is connected and ready here.",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "http://localhost:3001/v1/integrations/slack/callback",
+      "https://api.databuddy.cc/v1/integrations/slack/callback"
+    ],
+    "scopes": {
+      "bot": [
+        "assistant:write",
+        "app_mentions:read",
+        "channels:history",
+        "channels:read",
+        "chat:write",
+        "commands",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "reactions:read",
+        "reactions:write"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_mention",
+        "assistant_thread_context_changed",
+        "assistant_thread_started",
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "reaction_added",
+        "reaction_removed"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false,
+    "is_hosted": false
+  }
+}

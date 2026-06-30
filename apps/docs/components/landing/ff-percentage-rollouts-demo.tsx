@@ -99,8 +99,9 @@ export function FFPercentageRolloutsDemo() {
 					onPointerMove={onPointerMove}
 					onPointerUp={onPointerUp}
 					ref={trackRef}
-					role="slider" tabIndex={0}
+					role="slider"
 					style={{ height: `${BAR_H}px` }}
+					tabIndex={0}
 				>
 					{/* Inactive ticks — full width, short, dim */}
 					<div

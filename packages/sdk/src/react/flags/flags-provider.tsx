@@ -56,13 +56,10 @@ export function FlagsProvider({ children, ...config }: FlagsProviderProps) {
 		if (typeof window === "undefined") {
 			return;
 		}
-		const w = window as unknown as {
-			__databuddyFlags?: BrowserFlagsManager;
-		};
-		w.__databuddyFlags = manager;
+		window.__databuddyFlags = manager;
 		return () => {
-			if (w.__databuddyFlags === manager) {
-				w.__databuddyFlags = undefined;
+			if (window.__databuddyFlags === manager) {
+				window.__databuddyFlags = undefined;
 			}
 		};
 	}, [manager]);
@@ -121,10 +118,7 @@ export function FlagsProvider({ children, ...config }: FlagsProviderProps) {
 				return manager.isEnabled(key).on;
 			},
 
-			getValue: <T extends boolean | string | number>(
-				key: string,
-				defaultValue?: T
-			): T => {
+			getValue: <T,>(key: string, defaultValue?: T): T => {
 				const result = store.flags[key];
 				if (result) {
 					return result.value as T;
@@ -155,10 +149,8 @@ export function useFlags(): FlagsContext {
 		return {
 			getFlag: () => toFlagState(undefined, false, false),
 			isOn: () => false,
-			getValue: <T extends boolean | string | number = boolean>(
-				_key: string,
-				defaultValue?: T
-			) => (defaultValue ?? false) as T,
+			getValue: <T = boolean>(_key: string, defaultValue?: T) =>
+				(defaultValue ?? false) as T,
 			fetchFlag: async () => ({
 				enabled: false,
 				value: false,

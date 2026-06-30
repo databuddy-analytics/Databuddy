@@ -1,6 +1,6 @@
 "use client";
 
-import { ClockIcon, MapPinIcon, RocketLaunchIcon } from "@phosphor-icons/react";
+import { ClockIcon, MapPinIcon, RocketLaunchIcon } from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 import type { RoadmapStats } from "./roadmap-types";
 

@@ -19,6 +19,8 @@ interface AnnotationsPanelProps {
 	isDeleting?: boolean;
 	onDelete: (id: string) => Promise<void>;
 	onEdit: (annotation: Annotation) => void;
+	onOpenChange?: (open: boolean) => void;
+	open?: boolean;
 }
 
 export function AnnotationsPanel({
@@ -27,9 +29,13 @@ export function AnnotationsPanel({
 	onDelete,
 	isDeleting = false,
 	granularity = "daily",
+	open,
+	onOpenChange,
 }: AnnotationsPanelProps) {
 	const [deleteId, setDeleteId] = useState<string | null>(null);
-	const [isOpen, setIsOpen] = useState(false);
+	const [internalOpen, setInternalOpen] = useState(false);
+	const isOpen = open ?? internalOpen;
+	const setIsOpen = onOpenChange ?? setInternalOpen;
 
 	const handleDelete = async () => {
 		if (deleteId) {

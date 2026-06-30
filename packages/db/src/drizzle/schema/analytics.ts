@@ -1,3 +1,4 @@
+import { isNotNull, sql } from "drizzle-orm";
 import {
 	boolean,
 	doublePrecision,
@@ -30,7 +31,15 @@ export const chartType = pgEnum("chart_type", ["metrics"]);
 
 export interface DataFilter {
 	field: string;
-	operator: "equals" | "contains" | "not_equals" | "in" | "not_in";
+	operator:
+		| "contains"
+		| "ends_with"
+		| "equals"
+		| "in"
+		| "not_contains"
+		| "not_equals"
+		| "not_in"
+		| "starts_with";
 	value: string | string[];
 }
 
@@ -63,7 +72,26 @@ export interface AnalyticsInsightMetric {
 	previous?: number;
 }
 
+export interface AnalyticsInsightEvidence {
+	description: string;
+	type: "segment" | "error" | "annotation" | "temporal" | "metric";
+}
+
 export type AnalyticsInsightSource = "web" | "product" | "ops" | "business";
+
+export interface AnalyticsInsightAction {
+	label: string;
+	params: Record<string, string>;
+	type:
+		| "fix_goal"
+		| "create_funnel"
+		| "add_custom_event"
+		| "create_annotation"
+		| "update_config"
+		| "add_tracking"
+		| "investigate_further"
+		| "code_fix";
+}
 
 export const funnelDefinitions = pgTable(
 	"funnel_definitions",
@@ -205,16 +233,30 @@ export const analyticsInsights = pgTable(
 		type: text().notNull(),
 		priority: integer().notNull(),
 		changePercent: doublePrecision("change_percent"),
+		dedupeKey: text("dedupe_key"),
 		subjectKey: text("subject_key").notNull().default(""),
 		sources: jsonb().$type<AnalyticsInsightSource[]>().notNull().default([]),
 		confidence: doublePrecision().notNull().default(0),
 		impactSummary: text("impact_summary"),
 		metrics: jsonb().$type<AnalyticsInsightMetric[]>(),
+		rootCause: text("root_cause"),
+		evidence: jsonb("evidence").$type<AnalyticsInsightEvidence[]>(),
+		investigationDepth: text("investigation_depth").$type<
+			"surface" | "investigated" | "deep"
+		>(),
+		actions: jsonb().$type<AnalyticsInsightAction[]>(),
+		chainId: text("chain_id"),
 		timezone: text().notNull().default("UTC"),
 		currentPeriodFrom: text("current_period_from").notNull(),
 		currentPeriodTo: text("current_period_to").notNull(),
 		previousPeriodFrom: text("previous_period_from").notNull(),
 		previousPeriodTo: text("previous_period_to").notNull(),
+		status: text().$type<"open" | "resolved">().notNull().default("open"),
+		resolvedAt: timestamp("resolved_at", {
+			precision: 3,
+			withTimezone: true,
+		}),
+		resolvedReason: text("resolved_reason").$type<"recovered" | "stale">(),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
 			.notNull(),
@@ -222,6 +264,11 @@ export const analyticsInsights = pgTable(
 	(table) => [
 		index("analytics_insights_org_created_idx").on(
 			table.organizationId,
+			table.createdAt.desc()
+		),
+		index("analytics_insights_status_idx").on(
+			table.websiteId,
+			table.status,
 			table.createdAt.desc()
 		),
 		index("analytics_insights_website_created_idx").on(
@@ -234,10 +281,32 @@ export const analyticsInsights = pgTable(
 			table.subjectKey,
 			table.createdAt.desc()
 		),
+		index("analytics_insights_chain_id_idx").on(
+			table.organizationId,
+			table.chainId,
+			table.createdAt.desc()
+		),
+		index("analytics_insights_org_resolved_sort_idx").on(
+			table.organizationId,
+			sql`coalesce(${table.resolvedAt}, ${table.createdAt}) desc`
+		),
+		index("analytics_insights_website_resolved_sort_idx").on(
+			table.organizationId,
+			table.websiteId,
+			sql`coalesce(${table.resolvedAt}, ${table.createdAt}) desc`
+		),
+		uniqueIndex("analytics_insights_org_dedupe_key_uidx")
+			.on(table.organizationId, table.dedupeKey)
+			.where(isNotNull(table.dedupeKey)),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
 			name: "analytics_insights_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId, table.websiteId],
+			foreignColumns: [websites.organizationId, websites.id],
+			name: "analytics_insights_org_website_fkey",
 		}).onDelete("cascade"),
 		foreignKey({
 			columns: [table.websiteId],

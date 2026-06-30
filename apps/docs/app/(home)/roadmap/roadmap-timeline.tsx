@@ -1,16 +1,16 @@
 "use client";
 
 import {
-	ArrowUpRightIcon,
+	OpenExternalIcon as ArrowUpRightIcon,
 	CalendarIcon,
 	CheckCircleIcon,
 	ClockIcon,
 	GitBranchIcon,
-	PauseCircleIcon,
+	CircleIcon as PauseCircleIcon,
 	TagIcon,
 	UsersIcon,
 	XCircleIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { useMemo } from "react";
 import { SciFiCard } from "@/components/scifi-card";
 import type {

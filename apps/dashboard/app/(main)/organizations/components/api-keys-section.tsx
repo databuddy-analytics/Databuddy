@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ApiKeySheet } from "@/components/organizations/api-key-sheet";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
 import type { Organization } from "@/hooks/use-organizations";
 import { orpc } from "@/lib/orpc";
@@ -82,6 +83,7 @@ export function ApiKeysSection({
 	const [query, setQuery] = useState("");
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 	const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+	const { isSwitchingOrganization } = useOrganizationsContext();
 
 	const openCreate = () => {
 		setSelectedKey(null);
@@ -100,7 +102,10 @@ export function ApiKeysSection({
 		staleTime: 0,
 	});
 
-	const items = (data ?? []) as ApiKeyListItem[];
+	const isBusy = isLoading || isSwitchingOrganization;
+	const items = isSwitchingOrganization
+		? []
+		: ((data ?? []) as ApiKeyListItem[]);
 	const activeCount = items.filter((k) => k.enabled && !k.revokedAt).length;
 	const isEmpty = items.length === 0;
 
@@ -128,30 +133,37 @@ export function ApiKeysSection({
 		query.trim() !== "" || statusFilter !== "all" || typeFilter !== "all";
 
 	return (
-		<Card>
+		<Card id="api-keys">
 			<Card.Header className="flex-row items-start justify-between gap-4">
 				<div>
 					<Card.Title>API Keys</Card.Title>
 					<Card.Description>
-						{isEmpty
-							? "Create keys for programmatic access to your organization"
-							: `${activeCount} active of ${items.length} key${items.length === 1 ? "" : "s"}`}
+						{isSwitchingOrganization
+							? "Switching workspace…"
+							: isEmpty
+								? `Create keys for programmatic access to ${organization.name}`
+								: `${activeCount} active of ${items.length} key${items.length === 1 ? "" : "s"} for ${organization.name}`}
 					</Card.Description>
 				</div>
-				<Button onClick={openCreate} size="sm" variant="secondary">
+				<Button
+					disabled={isSwitchingOrganization}
+					onClick={openCreate}
+					size="sm"
+					variant="secondary"
+				>
 					<PlusIcon size={14} />
 					Create Key
 				</Button>
 			</Card.Header>
 
-			{!(isEmpty || isLoading) && (
+			{!(isEmpty || isBusy) && (
 				<div className="flex items-center gap-2 border-border/60 border-b px-5 py-2">
 					<div className="flex min-w-0 flex-1 items-center gap-2">
 						<MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
 						<input
 							className="w-full bg-transparent text-foreground text-xs outline-none placeholder:text-muted-foreground"
 							onChange={(e) => setQuery(e.target.value)}
-							placeholder="Search name or tag…"
+							placeholder="Search name, key start, or tag…"
 							value={query}
 						/>
 					</div>
@@ -204,8 +216,15 @@ export function ApiKeysSection({
 			)}
 
 			<Card.Content className="p-0">
-				{isLoading ? (
-					<ApiKeysSkeleton />
+				{isBusy ? (
+					<>
+						{isSwitchingOrganization && (
+							<p className="sr-only" role="status">
+								Switching workspace…
+							</p>
+						)}
+						<ApiKeysSkeleton />
+					</>
 				) : isEmpty ? (
 					<div className="px-5 py-8">
 						<EmptyState
@@ -215,9 +234,9 @@ export function ApiKeysSection({
 									Create your first key
 								</Button>
 							}
-							description="API keys authenticate requests to the Databuddy API. Keys are shown once at creation."
+							description={`API keys created here only authenticate requests for ${organization.name}. Keys are shown once at creation.`}
 							icon={<LockSimpleIcon />}
-							title="No API keys"
+							title="No API keys in this workspace"
 						/>
 					</div>
 				) : filtered.length === 0 ? (
@@ -257,7 +276,7 @@ export function ApiKeysSection({
 			<ApiKeySheet
 				apiKey={selectedKey}
 				onOpenChangeAction={setSheetOpen}
-				open={sheetOpen}
+				open={sheetOpen && !isSwitchingOrganization}
 				organizationId={organization.id}
 			/>
 		</Card>

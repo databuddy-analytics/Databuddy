@@ -1,6 +1,6 @@
 "use client";
 
-import { RocketIcon, TagIcon } from "@phosphor-icons/react";
+import { RocketIcon, TagIcon } from "@databuddy/ui/icons";
 import { useMemo } from "react";
 import { SciFiCard } from "@/components/scifi-card";
 

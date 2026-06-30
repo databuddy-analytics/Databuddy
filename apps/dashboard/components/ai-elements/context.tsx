@@ -13,12 +13,11 @@ import { computeTokenCostsForModel } from "tokenlens/helpers";
 import { vercelModels } from "tokenlens/providers/vercel";
 import { Button, Progress } from "@databuddy/ui";
 
-type VercelModelId = keyof typeof vercelModels.models;
-
 const lookupModel = (modelId: string): SourceModel | undefined => {
-	const model = vercelModels.models[modelId as VercelModelId];
+	const model =
+		vercelModels.models[modelId as keyof typeof vercelModels.models];
 	return model
-		? ({ canonical_id: model.id, ...model } as unknown as SourceModel)
+		? ({ canonical_id: model.id, ...model } satisfies SourceModel)
 		: undefined;
 };
 

@@ -1,5 +1,6 @@
 import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { captureError, record } from "@lib/tracing";
 import { Data, Effect, Layer, ManagedRuntime, Ref, Schedule } from "effect";
 import { createError } from "evlog";
@@ -49,6 +50,7 @@ interface ProducerState {
 	flushing: boolean;
 	lastErrorTime: number | null;
 	lastRetry: number;
+	producerInitialized: boolean;
 	sent: number;
 	shuttingDown: boolean;
 }
@@ -80,12 +82,85 @@ const INITIAL_STATE: ProducerState = {
 	connected: false,
 	connectionFailed: false,
 	lastRetry: 0,
+	producerInitialized: false,
 	shuttingDown: false,
 	flushing: false,
 };
 
 function toError(err: unknown): Error {
 	return err instanceof Error ? err : new Error(String(err));
+}
+
+function groupBufferedEvents(
+	items: BufferedEvent[]
+): Map<string, BufferedEvent[]> {
+	const grouped = new Map<string, BufferedEvent[]>();
+	for (const item of items) {
+		const tableEvents = grouped.get(item.table);
+		if (tableEvents) {
+			tableEvents.push(item);
+			continue;
+		}
+		grouped.set(item.table, [item]);
+	}
+	return grouped;
+}
+
+async function insertClickHouseChunks(
+	ch: ClickHouseClient,
+	table: string,
+	events: unknown[],
+	chunkSize: number
+) {
+	for (let i = 0; i < events.length; i += chunkSize) {
+		await ch.insert({
+			table,
+			values: events.slice(i, i + chunkSize),
+			format: "JSONEachRow",
+		});
+	}
+}
+
+function rebufferOrDropEvents({
+	bufferHardMax,
+	events,
+	inc,
+	ref,
+	table,
+	error,
+}: {
+	bufferHardMax: number;
+	error: FlushError;
+	events: unknown[];
+	inc: (field: keyof ProducerState, n?: number) => Effect.Effect<void>;
+	ref: Ref.Ref<ProducerState>;
+	table: string;
+}) {
+	return Ref.get(ref).pipe(
+		Effect.flatMap((state) => {
+			if (state.buffer.length + events.length <= bufferHardMax) {
+				return Ref.update(ref, (current) => ({
+					...current,
+					buffer: [
+						...current.buffer,
+						...events.map((event) => ({ table, event })),
+					],
+					errors: current.errors + 1,
+				}));
+			}
+
+			return inc("dropped", events.length).pipe(
+				Effect.tap(() => inc("errors", 1)),
+				Effect.tap(() =>
+					Effect.sync(() =>
+						captureError(error.cause, {
+							message: `Dropped ${String(events.length)} events - buffer full`,
+						})
+					)
+				)
+			);
+		})
+	);
 }
 
 function makeProducerEffects(
@@ -125,6 +200,7 @@ function makeProducerEffects(
 					connected: true,
 					connectionFailed: false,
 					lastRetry: 0,
+					producerInitialized: true,
 				}))
 			),
 			Effect.as(true),
@@ -162,58 +238,29 @@ function makeProducerEffects(
 			{ ...s, buffer: s.buffer.slice(batchSize), flushing: true },
 		]);
 
-		const grouped = new Map<string, BufferedEvent[]>();
-		for (const item of items) {
-			const list = grouped.get(item.table);
-			if (list) {
-				list.push(item);
-			} else {
-				grouped.set(item.table, [item]);
-			}
-		}
+		const grouped = groupBufferedEvents(items);
 
 		yield* Effect.forEach(
 			grouped.entries(),
 			([table, entries]: [string, BufferedEvent[]]) => {
-				const events = entries.map((e: BufferedEvent) => e.event);
+				const events = entries.map((entry) => entry.event);
 				return Effect.tryPromise({
 					try: () =>
-						record("clickhouseFallbackInsert", async () => {
-							for (let i = 0; i < events.length; i += config.chunkSize) {
-								await ch.insert({
-									table,
-									values: events.slice(i, i + config.chunkSize),
-									format: "JSONEachRow",
-								});
-							}
-						}),
+						record("clickhouseFallbackInsert", () =>
+							insertClickHouseChunks(ch, table, events, config.chunkSize)
+						),
 					catch: (e) => new FlushError({ table, cause: toError(e) }),
 				}).pipe(
 					Effect.tap(() => inc("flushed", events.length)),
-					Effect.catchTag("FlushError", (err) =>
-						Ref.get(ref).pipe(
-							Effect.flatMap((s) =>
-								s.buffer.length + events.length <= config.bufferHardMax
-									? Ref.update(ref, (st) => ({
-											...st,
-											buffer: [
-												...st.buffer,
-												...events.map((event: unknown) => ({ table, event })),
-											],
-											errors: st.errors + 1,
-										}))
-									: inc("dropped", events.length).pipe(
-											Effect.tap(() => inc("errors", 1)),
-											Effect.tap(() =>
-												Effect.sync(() =>
-													captureError(err.cause, {
-														message: `Dropped ${String(events.length)} events - buffer full`,
-													})
-												)
-											)
-										)
-							)
-						)
+					Effect.catchTag("FlushError", (error) =>
+						rebufferOrDropEvents({
+							bufferHardMax: config.bufferHardMax,
+							error,
+							events,
+							inc,
+							ref,
+							table,
+						})
 					)
 				);
 			},
@@ -234,11 +281,13 @@ function makeProducerEffects(
 				yield* Effect.sync(() =>
 					captureError(
 						createError({
+							code: "basket.UNKNOWN_KAFKA_TOPIC",
 							message: "Unknown Kafka topic",
 							status: 500,
 							why: `Topic "${topic}" is not mapped to a ClickHouse table.`,
 							fix: "Check topicMap configuration.",
-						})
+						}),
+						{ topic }
 					)
 				);
 				return;
@@ -306,12 +355,16 @@ function makeProducerEffects(
 							Ref.update(ref, (st) => ({
 								...st,
 								connectionFailed: true,
+								connected: false,
+								lastRetry: Date.now(),
 								failedCount: st.failedCount + messages.length,
 							})).pipe(
 								Effect.tap(() =>
 									Effect.sync(() =>
 										captureError(err.cause, {
 											message: "Redpanda send failed, buffering to ClickHouse",
+											message_count: messages.length,
+											topic,
 										})
 									)
 								),
@@ -371,12 +424,18 @@ function makeProducerEffects(
 		if (post.buffer.length > 0 && !post.flushing) {
 			yield* flush.pipe(Effect.catchAll(() => Effect.void));
 		}
-		if (post.connected && kafka) {
+		if (post.producerInitialized && kafka) {
 			yield* Effect.tryPromise({
 				try: () => kafka.disconnect(),
 				catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
 			}).pipe(
-				Effect.ensuring(Ref.update(ref, (s) => ({ ...s, connected: false }))),
+				Effect.ensuring(
+					Ref.update(ref, (s) => ({
+						...s,
+						connected: false,
+						producerInitialized: false,
+					}))
+				),
 				Effect.catchAll((err) =>
 					Effect.sync(() =>
 						captureError(err.cause, {
@@ -395,6 +454,7 @@ function makeProducerEffects(
 				flushing: _f,
 				shuttingDown: _s,
 				connectionFailed,
+				producerInitialized: _p,
 				...rest
 			}) => ({
 				...rest,
@@ -415,6 +475,7 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 	if (!(config.username && config.password)) {
 		captureError(
 			createError({
+				code: "basket.KAFKA_CREDENTIALS_MISSING",
 				message: "Kafka producer disabled: credentials missing",
 				status: 500,
 				why: "REDPANDA_BROKER was set without username and password.",
@@ -434,6 +495,7 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 			username: config.username,
 			password: config.password,
 		},
+		ssl: process.env.REDPANDA_SSL === "true",
 	}).producer({
 		allowAutoTopicCreation: true,
 		retry: {
@@ -465,7 +527,7 @@ const CONFIG: ProducerConfig = {
 	broker: process.env.REDPANDA_BROKER,
 	username: process.env.REDPANDA_USER,
 	password: process.env.REDPANDA_PASSWORD,
-	selfHost: process.env.SELFHOST === "true",
+	selfHost: readBooleanEnv("SELFHOST"),
 	reconnectCooldown: 60_000,
 	kafkaTimeout: 10_000,
 	maxProducerRetries: 3,
@@ -479,11 +541,12 @@ const CONFIG: ProducerConfig = {
 const TOPIC_MAP: Record<string, string> = {
 	"analytics-events": TABLE_NAMES.events,
 	"analytics-outgoing-links": TABLE_NAMES.outgoing_links,
+	"analytics-blocked-traffic": TABLE_NAMES.blocked_traffic,
 	"analytics-error-spans": TABLE_NAMES.error_spans,
 	"analytics-vitals-spans": TABLE_NAMES.web_vitals_spans,
 	"analytics-custom-events": TABLE_NAMES.custom_events,
-	"analytics-ai-call-spans": TABLE_NAMES.ai_call_spans,
 	"analytics-ai-traffic-spans": TABLE_NAMES.ai_traffic_spans,
+	"analytics-link-visits": TABLE_NAMES.link_visits,
 };
 
 let fx: ReturnType<typeof makeProducerEffects> | null = null;
@@ -512,7 +575,7 @@ const runtime = ManagedRuntime.make(ProducerLive);
 const withFx = <A, E>(
 	fn: (f: NonNullable<typeof fx>) => Effect.Effect<A, E>
 ): Effect.Effect<A | undefined, E> =>
-	Effect.suspend(() => (fx ? fn(fx) : Effect.void));
+	Effect.suspend(() => (fx ? fn(fx) : Effect.succeed(undefined)));
 
 export const send = (topic: string, event: unknown, key?: string) =>
 	withFx((f) => f.sendOne(topic, event, key));

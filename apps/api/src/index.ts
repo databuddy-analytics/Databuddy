@@ -1,291 +1,65 @@
 import "./polyfills/compression";
-import { auth } from "@databuddy/auth";
-import { setPgTraceFn } from "@databuddy/db";
-import { setChRecordFn } from "@databuddy/db/clickhouse";
-import { setCacheTraceFn } from "@databuddy/redis";
-import {
-	appRouter,
-	createAbortSignalInterceptor,
-	createRPCContext,
-	getBillingCustomerId,
-	recordORPCError,
-	setRpcRecordFn,
-} from "@databuddy/rpc";
 import cors from "@elysiajs/cors";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { ORPCError, onError } from "@orpc/server";
-import { RPCHandler } from "@orpc/server/fetch";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { autumnHandler } from "autumn-js/fetch";
 import { Elysia } from "elysia";
-import { initLogger, log, parseError } from "evlog";
-import { evlog, useLogger } from "evlog/elysia";
-import { applyAuthWideEvent, getResolvedAuth } from "@/lib/auth-wide-event";
-import { AUTUMN_API_PREFIX, withAutumnApiPath } from "@/lib/autumn-mount";
+import { evlog } from "evlog/elysia";
+import { handleAutumnRequest } from "@/billing/autumn";
+import { configureApiInstrumentation } from "@/bootstrap/instrumentation";
+import { configureApiLogger } from "@/bootstrap/logger";
+import { registerProcessErrorHandlers } from "@/bootstrap/process-errors";
+import { registerShutdownHooks, warmPostgresPool } from "@/bootstrap/shutdown";
+import { isAllowedApiOrigin } from "@/http/cors";
+import { handleAppError } from "@/http/errors";
+import { AUTUMN_API_PREFIX } from "@/lib/autumn-mount";
+import { enrichApiWideEvent } from "@/lib/evlog-api";
+import { enrichRequestAuthWideEvent } from "@/middleware/auth-wide-event";
 import {
-	apiLoggerDrain,
-	enrichApiWideEvent,
-	flushBatchedApiDrain,
-} from "@/lib/evlog-api";
-import { initTccTracing, shutdownTccTracing } from "@/lib/tcc-otel";
-import { captureError, record } from "@/lib/tracing";
+	handleAnonymousOrpcRequest,
+	handleAuthenticatedOrpcRequest,
+	type OrpcContext,
+	rpcHandler,
+} from "@/rpc/handlers";
+import { openApiHandler } from "@/rpc/openapi";
 import { agent } from "./routes/agent";
 import { health } from "./routes/health";
-import { insights } from "./routes/insights";
+import { integrations } from "./routes/integrations";
 import { mcp } from "./routes/mcp";
 import { publicApi } from "./routes/public";
 import { query } from "./routes/query";
 import { webhooks } from "./routes/webhooks/index";
 
-initLogger({
-	env: { service: "api" },
-	drain: apiLoggerDrain,
-	sampling: {
-		rates: { info: 20, warn: 50, debug: 5 },
-		keep: [{ status: 400 }, { duration: 1500 }],
-	},
-});
+configureApiLogger();
+configureApiInstrumentation();
+registerProcessErrorHandlers();
 
-setChRecordFn(record);
-setRpcRecordFn(record);
-const pgAcc = new WeakMap<
-	object,
-	[count: number, totalMs: number, maxMs: number]
->();
-setPgTraceFn((ms) => {
-	try {
-		const log = useLogger();
-		const prev = pgAcc.get(log) ?? [0, 0, 0];
-		const next: [number, number, number] = [
-			prev[0] + 1,
-			prev[1] + ms,
-			Math.max(prev[2], ms),
-		];
-		pgAcc.set(log, next);
-		log.set({
-			"pg.query_count": next[0],
-			"pg.total_ms": Math.round(next[1] * 100) / 100,
-			"pg.max_ms": next[2],
-		});
-	} catch {}
-});
-setCacheTraceFn((fields) => {
-	try {
-		useLogger().set(fields);
-	} catch {}
-});
+const BUN_IDLE_TIMEOUT_SECONDS = 255;
 
-try {
-	initTccTracing();
-} catch (error) {
-	log.warn({
-		service: "api",
-		component: "tcc_otel",
-		message: "TCC tracing disabled (init failed)",
-		error_message: error instanceof Error ? error.message : String(error),
-	});
+interface RequestContext {
+	request: Request;
 }
 
-process.on("unhandledRejection", (reason, _promise) => {
-	captureError(reason);
-	log.error({
-		process: "unhandledRejection",
-		error_message: reason instanceof Error ? reason.message : String(reason),
-		error_stack: reason instanceof Error ? reason.stack : undefined,
-		error_source: "process",
-	});
-});
-
-process.on("uncaughtException", (error) => {
-	captureError(error);
-	log.error({
-		process: "uncaughtException",
-		error_message: error instanceof Error ? error.message : String(error),
-		error_stack: error instanceof Error ? error.stack : undefined,
-		error_source: "process",
-	});
-});
-
-async function handleRpcRoute(
-	ctx: { request: Request },
-	handle: (
-		request: Request,
-		rpcContext: Awaited<ReturnType<typeof createRPCContext>>
-	) => Promise<{ matched: boolean; response?: Response }>
-) {
-	const { request } = ctx;
-	try {
-		const resolved = getResolvedAuth(request.headers);
-		const preResolved = resolved
-			? {
-					session: resolved.session,
-					apiKey: resolved.apiKeyResult?.key ?? null,
-				}
-			: undefined;
-		const rpcContext = await record("rpc.context", () =>
-			createRPCContext({ headers: request.headers }, preResolved)
-		);
-		const run = async () => {
-			const result = await handle(request, rpcContext);
-			return result.response ?? new Response("Not Found", { status: 404 });
-		};
-		return run();
-	} catch (error) {
-		if (error instanceof ORPCError) {
-			recordORPCError({ code: error.code, message: error.message });
-		}
-		useLogger().error(
-			error instanceof Error ? error : new Error(String(error)),
-			{ rpc: "handler" }
-		);
-		return new Response("Internal Server Error", { status: 500 });
-	}
+function handleRpcEndpoint({ request }: RequestContext) {
+	return handleAuthenticatedOrpcRequest(request, (orpcRequest, context) =>
+		rpcHandler.handle(orpcRequest, {
+			prefix: "/rpc",
+			context,
+		})
+	);
 }
 
-const rpcHandler = new RPCHandler(appRouter, {
-	interceptors: [
-		createAbortSignalInterceptor(),
-		onError((error) => {
-			useLogger().error(
-				error instanceof Error ? error : new Error(String(error))
-			);
-		}),
-	],
-});
+function handleOpenApiReference({ request }: RequestContext) {
+	return handleAnonymousOrpcRequest(request, handleOpenApiRequest);
+}
 
-const HIDDEN_FROM_DOCS = ["revenue", "uptime", "billing"] as const;
-const docsRouter = Object.fromEntries(
-	Object.entries(appRouter).filter(
-		([key]: [string, unknown]) =>
-			!HIDDEN_FROM_DOCS.includes(key as (typeof HIDDEN_FROM_DOCS)[number])
-	)
-) as Omit<typeof appRouter, (typeof HIDDEN_FROM_DOCS)[number]>;
+function handleOpenApiEndpoint({ request }: RequestContext) {
+	return handleAuthenticatedOrpcRequest(request, handleOpenApiRequest);
+}
 
-const openApiHandler = new OpenAPIHandler(docsRouter, {
-	plugins: [
-		new OpenAPIReferencePlugin({
-			schemaConverters: [new ZodToJsonSchemaConverter()],
-			specPath: "/spec.json",
-			docsPath: "/",
-			docsTitle: "Databuddy API",
-			docsConfig: { theme: "deepSpace" },
-			specGenerateOptions: {
-				servers: [{ url: "https://api.databuddy.cc" }],
-				info: {
-					title: "Databuddy API",
-					version: "1.0.0",
-					description: `REST API for Databuddy analytics, link management, and feature flags.
-
-**Authentication:** Endpoints accept either session cookies (browser) or an API key. For programmatic access, use an API key.
-
-**API Key usage:**
-- Send in the \`x-api-key\` header, or
-- Send as a Bearer token in the \`Authorization\` header: \`Authorization: Bearer <your-api-key>\`
-- API keys must be scoped to an organization. Create keys in the dashboard under Organization → API Keys.
-
-**Scope requirements:** Some endpoints require specific API key scopes. The Links endpoints require \`read:links\` for list/get and \`write:links\` for create/update/delete. Check each operation's \`x-required-scopes\` for requirements. Session authentication does not use scopes; access is determined by organization membership and role.`,
-				},
-				tags: [
-					{
-						name: "Alarms",
-						description:
-							"Alert rules and notifications for metrics and conditions across your workspace.",
-					},
-					{
-						name: "Annotations",
-						description:
-							"Timeline annotations for marking events on charts. Create, update, and delete annotations tied to specific time ranges and chart contexts.",
-					},
-					{
-						name: "API Keys",
-						description:
-							"Create, list, update, revoke, and verify API keys. Requires organization membership with website configure permission. API keys cannot be used to manage other API keys.",
-					},
-					{
-						name: "Autocomplete",
-						description:
-							"Autocomplete suggestions for analytics filters: page paths, custom events, browsers, countries, UTM params, and more. Used to power filter dropdowns and search.",
-					},
-					{
-						name: "Feedback",
-						description:
-							"Submit and manage product feedback tied to your workspace.",
-					},
-					{
-						name: "Flags",
-						description:
-							"Feature flags for gradual rollouts and A/B testing. Create, update, and evaluate flags scoped to websites or organizations.",
-					},
-					{
-						name: "Funnels",
-						description:
-							"Funnel conversion analysis. Define multi-step funnels, track conversions, and analyze funnel performance by referrer.",
-					},
-					{
-						name: "Goals",
-						description:
-							"Conversion goals and analytics. Define goals (custom events, page views, etc.), track conversions, and retrieve goal analytics.",
-					},
-					{
-						name: "Links",
-						description:
-							"Short link creation and management. Create, list, update, and delete short links with custom slugs. API keys require read:links or write:links scope.",
-					},
-					{
-						name: "Organizations",
-						description:
-							"Workspace and organization management: avatar, invitations, billing context, and usage.",
-					},
-					{
-						name: "Preferences",
-						description:
-							"User preferences for date and time formatting. Stored per-user, not per-organization.",
-					},
-					{
-						name: "Target Groups",
-						description:
-							"Audience targeting for feature flags. Define target groups by rules (country, referrer, etc.) and use them to target flag rollouts.",
-					},
-					{
-						name: "Websites",
-						description:
-							"Website management: create, list, update, delete websites; transfer between workspaces; configure settings, tracking, and data export.",
-					},
-				],
-				security: [{ apiKey: [] }],
-				components: {
-					securitySchemes: {
-						apiKey: {
-							type: "apiKey",
-							in: "header",
-							name: "x-api-key",
-							description: `API key for programmatic access. Use instead of session cookies when calling from servers, scripts, or external integrations.
-
-**How to send:**
-- \`x-api-key: <your-api-key>\` header (preferred), or
-- \`Authorization: Bearer <your-api-key>\` header
-
-**Scope requirements:** Session auth uses organization membership and roles; no scopes. API key auth may require scopes. The Links router enforces scopes: \`read:links\` for list/get, \`write:links\` for create/update/delete. Operations that require scopes include \`x-required-scopes\` in their schema.
-
-**Available scopes:** read:data | track:events | track:llm | read:links | write:links | manage:websites | manage:flags | manage:config
-
-**Creating keys:** Keys are created in the dashboard (Organization → API Keys) and must be scoped to an organization. Store the secret securely; it is shown only once.`,
-						},
-					},
-				},
-			},
-		}),
-	],
-	interceptors: [
-		createAbortSignalInterceptor(),
-		onError((error) => {
-			useLogger().error(
-				error instanceof Error ? error : new Error(String(error))
-			);
-		}),
-	],
-});
+function handleOpenApiRequest(orpcRequest: Request, context: OrpcContext) {
+	return openApiHandler.handle(orpcRequest, {
+		prefix: "/",
+		context,
+	});
+}
 
 const app = new Elysia({ precompile: true })
 	.use(
@@ -293,21 +67,11 @@ const app = new Elysia({ precompile: true })
 			enrich: enrichApiWideEvent,
 		})
 	)
-	.onBeforeHandle(async ({ request }) => {
-		if (request.url.includes("/public/v1/flags")) {
-			return;
-		}
-		await applyAuthWideEvent(request.headers);
-	})
+	.onBeforeHandle(({ request }) => enrichRequestAuthWideEvent(request))
 	.use(
 		cors({
 			credentials: true,
-			origin: [
-				/(?:^|\.)databuddy\.cc$/,
-				...(process.env.NODE_ENV === "development"
-					? ["http://localhost:3000"]
-					: []),
-			],
+			origin: isAllowedApiOrigin,
 		})
 	)
 	.use(publicApi)
@@ -321,134 +85,22 @@ const app = new Elysia({ precompile: true })
 			})
 	)
 	.use(webhooks)
-	.mount(AUTUMN_API_PREFIX, (request) =>
-		autumnHandler({
-			identify: async (request) => {
-				try {
-					const session = await auth.api.getSession({
-						headers: request.headers,
-					});
-
-					if (!session?.user) {
-						return null;
-					}
-
-					const activeOrgId = (
-						session.session as { activeOrganizationId?: string | null }
-					)?.activeOrganizationId;
-					const customerId = await getBillingCustomerId(
-						session.user.id,
-						activeOrgId
-					);
-
-					return {
-						customerId,
-						customerData: {
-							name: session.user.name,
-							email: session.user.email,
-						},
-					};
-				} catch (error) {
-					useLogger().error(
-						error instanceof Error ? error : new Error(String(error)),
-						{ autumn: "identify" }
-					);
-					return null;
-				}
-			},
-		})(withAutumnApiPath(request))
-	)
+	.mount(AUTUMN_API_PREFIX, handleAutumnRequest)
 	.use(query)
 	.use(agent)
-	.use(insights)
+	.use(integrations)
 	.use(mcp)
-	.all(
-		"/rpc/*",
-		(ctx) =>
-			handleRpcRoute(ctx, (request, rpcContext) =>
-				rpcHandler.handle(request, {
-					prefix: "/rpc",
-					context: rpcContext,
-				})
-			),
-		{ parse: "none" }
-	)
-	.all(
-		"/*",
-		(ctx) =>
-			handleRpcRoute(ctx, (request, rpcContext) =>
-				openApiHandler.handle(request, {
-					prefix: "/",
-					context: rpcContext,
-				})
-			),
-		{ parse: "none" }
-	)
-	.onError(function handleError({ error, code }) {
-		const statusCode = code === "NOT_FOUND" ? 404 : 500;
+	.all("/rpc/*", handleRpcEndpoint, { parse: "none" })
+	.all("/", handleOpenApiReference, { parse: "none" })
+	.all("/spec.json", handleOpenApiReference, { parse: "none" })
+	.all("/*", handleOpenApiEndpoint, { parse: "none" })
+	.onError(handleAppError);
 
-		const parsed = parseError(error);
-		const isDevelopment = process.env.NODE_ENV === "development";
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const safeClientError =
-			isDevelopment || statusCode === 404
-				? errorMessage
-				: "An internal server error occurred";
-		const exposeStructured =
-			isDevelopment || (parsed.status >= 400 && parsed.status < 500);
-
-		return new Response(
-			JSON.stringify({
-				success: false,
-				error: safeClientError,
-				code: code ?? "INTERNAL_SERVER_ERROR",
-				...(exposeStructured && parsed.why != null && parsed.why !== ""
-					? { why: parsed.why }
-					: {}),
-				...(exposeStructured && parsed.fix != null && parsed.fix !== ""
-					? { fix: parsed.fix }
-					: {}),
-				...(exposeStructured && parsed.link != null && parsed.link !== ""
-					? { link: parsed.link }
-					: {}),
-			}),
-			{ status: statusCode, headers: { "Content-Type": "application/json" } }
-		);
-	});
-
-const BUN_IDLE_TIMEOUT_SECONDS = 255;
+warmPostgresPool();
+registerShutdownHooks();
 
 export default {
 	fetch: app.fetch,
 	port: Number.parseInt(process.env.PORT ?? "3001", 10),
 	idleTimeout: BUN_IDLE_TIMEOUT_SECONDS,
 };
-
-async function shutdown(signal: string) {
-	log.info("lifecycle", `${signal} received, shutting down gracefully`);
-	const { shutdownRedis } = await import("@databuddy/redis");
-	await Promise.all([
-		shutdownRedis().catch((error) =>
-			log.error({
-				lifecycle: "redisShutdown",
-				error_message: error instanceof Error ? error.message : String(error),
-			})
-		),
-		flushBatchedApiDrain().catch((error) =>
-			log.error({
-				lifecycle: "drainFlush",
-				error_message: error instanceof Error ? error.message : String(error),
-			})
-		),
-		shutdownTccTracing().catch((error) =>
-			log.error({
-				lifecycle: "tccOtelShutdown",
-				error_message: error instanceof Error ? error.message : String(error),
-			})
-		),
-	]);
-	process.exit(0);
-}
-
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));

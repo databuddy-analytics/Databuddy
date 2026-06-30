@@ -1,6 +1,6 @@
 "use client";
 
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import type { DynamicQueryFilter } from "@/types/api";
 import { useAtom, useAtomValue } from "jotai";
 import { useParams } from "next/navigation";
 import { useCallback } from "react";

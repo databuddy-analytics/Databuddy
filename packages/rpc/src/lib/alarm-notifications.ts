@@ -1,29 +1,37 @@
-import type { NotificationChannel } from "@databuddy/notifications";
+import {
+	NotificationClient,
+	buildAlarmNotificationConfig,
+	buildAlarmNotificationTargets,
+	type NotificationPayload,
+	type NotificationResult,
+} from "@databuddy/notifications";
 
-interface AlarmDest {
-	config: unknown;
-	identifier: string;
-	type: string;
+export const toNotificationConfig = buildAlarmNotificationConfig;
+export const toNotificationTargets = buildAlarmNotificationTargets;
+
+type NotificationTarget = ReturnType<
+	typeof buildAlarmNotificationTargets
+>[number];
+
+function getErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
 }
 
-export function toNotificationConfig(destinations: AlarmDest[]) {
-	const clientConfig: Record<string, Record<string, unknown>> = {};
-	const channels: NotificationChannel[] = [];
-
-	for (const dest of destinations) {
-		const cfg = (dest.config ?? {}) as Record<string, unknown>;
-
-		if (dest.type === "slack") {
-			clientConfig.slack = { webhookUrl: dest.identifier };
-			channels.push("slack");
-		} else if (dest.type === "webhook") {
-			clientConfig.webhook = {
-				url: dest.identifier,
-				headers: cfg.headers as Record<string, string> | undefined,
-			};
-			channels.push("webhook");
-		}
+export async function sendNotificationTarget(
+	target: NotificationTarget,
+	payload: NotificationPayload
+): Promise<NotificationResult[]> {
+	try {
+		return await new NotificationClient(target.clientConfig).send(payload, {
+			channels: [target.channel],
+		});
+	} catch (error) {
+		return [
+			{
+				success: false,
+				channel: target.channel,
+				error: getErrorMessage(error),
+			},
+		];
 	}
-
-	return { clientConfig, channels };
 }

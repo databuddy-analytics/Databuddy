@@ -336,7 +336,7 @@ function TableContentInner<TData extends { name: string | number }>({
 										return (
 											<TableCell
 												className={cn(
-													"h-9 px-3 py-1.5 text-sm text-foreground leading-5 transition-colors first:pl-3 last:pr-3",
+													"h-9 px-3 py-1.5 text-foreground text-sm leading-5 transition-colors first:pl-3 last:pr-3",
 													cellIndex === 0 && "font-medium",
 													isCompactColumn && "px-3 text-right tabular-nums",
 													(cell.column.columnDef.meta as any)?.className

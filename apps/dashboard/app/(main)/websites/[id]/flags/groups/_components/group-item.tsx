@@ -11,6 +11,7 @@ import {
 	UsersThreeIcon,
 	WrenchIcon,
 } from "@databuddy/ui/icons";
+import { Button } from "@databuddy/ui";
 import { DropdownMenu } from "@databuddy/ui/client";
 
 export interface GroupItemProps {
@@ -160,52 +161,49 @@ export function GroupItem({
 }: GroupItemProps) {
 	const summary = buildRuleSummary(group);
 
+	const handleActivate = () => {
+		if (onSelect) {
+			onSelect();
+		} else {
+			onEdit(group);
+		}
+	};
+
 	return (
-		<button
+		<div
 			className={cn(
-				"group flex h-15 w-full items-center gap-3 border-b px-4 text-left transition-colors hover:bg-accent/50",
+				"group flex h-15 w-full items-center gap-3 border-b px-4 transition-colors hover:bg-accent/50",
 				isSelected && "bg-accent/30"
 			)}
-			onClick={() => {
-				if (onSelect) {
-					onSelect();
-				} else {
-					onEdit(group);
-				}
-			}}
-			type="button"
 		>
-			<div
-				className="shrink-0 rounded p-1.5"
-				style={{ backgroundColor: `${group.color}20` }}
+			<Button
+				className="h-full min-w-0 flex-1 justify-start gap-3 rounded-none bg-transparent p-0 text-left font-normal text-foreground hover:bg-transparent active:scale-100"
+				onClick={handleActivate}
+				variant="ghost"
 			>
-				<UsersThreeIcon
-					className="size-4"
-					style={{ color: group.color }}
-					weight="duotone"
-				/>
-			</div>
-
-			{/* Name + indicators + description */}
-			<div className="flex min-w-0 flex-1 items-center gap-2">
-				<span className="max-w-48 truncate font-medium text-sm">
-					{group.name}
+				<span
+					className="shrink-0 rounded p-1.5"
+					style={{ backgroundColor: `${group.color}20` }}
+				>
+					<UsersThreeIcon
+						className="size-4"
+						style={{ color: group.color }}
+						weight="duotone"
+					/>
 				</span>
-				<RuleIndicators group={group} />
-				<span className="truncate text-muted-foreground text-xs">
-					{group.description ?? summary}
-				</span>
-			</div>
 
-			{/* Actions — always at the end */}
-			<div
-				className="shrink-0"
-				onClick={(e) => e.stopPropagation()}
-				onKeyDown={(e) => e.stopPropagation()}
-				role="presentation"
-			>
-				<GroupActions group={group} onDelete={onDelete} onEdit={onEdit} />
-			</div>
-		</button>
+				<span className="flex min-w-0 flex-1 items-center gap-2">
+					<span className="max-w-48 truncate font-medium text-sm">
+						{group.name}
+					</span>
+					<RuleIndicators group={group} />
+					<span className="truncate text-muted-foreground text-xs">
+						{group.description ?? summary}
+					</span>
+				</span>
+			</Button>
+
+			<GroupActions group={group} onDelete={onDelete} onEdit={onEdit} />
+		</div>
 	);
 }

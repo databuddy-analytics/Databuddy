@@ -1,8 +1,5 @@
-import {
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	MoreHorizontalIcon,
-} from "lucide-react";
+import { CaretLeftIcon as ChevronLeftIcon, CaretRightIcon as ChevronRightIcon } from "@databuddy/ui/icons";
+import { DotsThreeIcon as MoreHorizontalIcon } from "@databuddy/ui/icons";
 import type * as React from "react";
 import { type Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

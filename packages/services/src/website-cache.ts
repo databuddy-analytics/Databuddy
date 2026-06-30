@@ -1,5 +1,5 @@
 import { RedisClient } from "bun";
-import type { Website } from "./websites";
+import type { Website } from "@databuddy/db/schema";
 
 type WebsiteCacheRecord = Omit<
 	Website,

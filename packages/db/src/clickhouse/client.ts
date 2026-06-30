@@ -1,21 +1,5 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-
-import SqlString from "sqlstring";
-
-let _record:
-	| (<T>(name: string, fn: () => Promise<T> | T) => Promise<T>)
-	| null = null;
-
-export function setChRecordFn(
-	fn: <T>(name: string, fn: () => Promise<T> | T) => Promise<T>
-) {
-	_record = fn;
-}
-
-function traced<T>(name: string, fn: () => Promise<T>): Promise<T> {
-	return _record ? _record(name, fn) : fn();
-}
 /**
  * ClickHouse table names used throughout the application
  */
@@ -23,18 +7,15 @@ export const TABLE_NAMES = {
 	events: "analytics.events",
 	outgoing_links: "analytics.outgoing_links",
 	blocked_traffic: "analytics.blocked_traffic",
-	email_events: "analytics.email_events",
 	error_spans: "analytics.error_spans",
 	web_vitals_spans: "analytics.web_vitals_spans",
 	custom_events: "analytics.custom_events",
-	ai_call_spans: "observability.ai_call_spans",
 	ai_traffic_spans: "analytics.ai_traffic_spans",
+	link_visits: "analytics.link_visits",
 };
 
-const logger = console;
-
 export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
-	max_open_connections: 30,
+	max_open_connections: 64,
 	request_timeout: 30_000,
 	keep_alive: {
 		enabled: true,
@@ -46,103 +27,173 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	},
 };
 
-export const clickHouseOG = createClient({
+function assertCacheCompatibleSettings(
+	settings: Record<string, string | number>
+): void {
+	const cacheOn =
+		settings.use_query_cache !== undefined &&
+		String(settings.use_query_cache) !== "0";
+	if (cacheOn && settings.result_overflow_mode === "break") {
+		throw new Error(
+			"ClickHouse settings conflict: use_query_cache=1 is incompatible with result_overflow_mode='break'. Drop result_overflow_mode or pass use_query_cache=0."
+		);
+	}
+}
+
+const baseClient = createClient({
 	url: process.env.CLICKHOUSE_URL,
 	...CLICKHOUSE_OPTIONS,
 });
 
-async function withRetry<T>(
+let _chTimingFn: ((durationMs: number) => void) | null = null;
+
+export function setChTimingFn(fn: (durationMs: number) => void) {
+	_chTimingFn = fn;
+}
+
+async function withChTiming<T>(operation: () => Promise<T>): Promise<T> {
+	const timingFn = _chTimingFn;
+	if (!timingFn) {
+		return operation();
+	}
+	const startedAt = performance.now();
+	try {
+		return await operation();
+	} finally {
+		timingFn(performance.now() - startedAt);
+	}
+}
+
+const RETRIABLE_ERROR_CODES = new Set([
+	// undici (Node's HTTP client used by @clickhouse/client)
+	"UND_ERR_CONNECT_TIMEOUT",
+	"UND_ERR_HEADERS_TIMEOUT",
+	"UND_ERR_BODY_TIMEOUT",
+	"UND_ERR_SOCKET",
+	"UND_ERR_CLOSED",
+	// node net / dns
+	"ECONNREFUSED",
+	"ECONNRESET",
+	"ETIMEDOUT",
+	"EPIPE",
+	"EAI_AGAIN",
+]);
+
+const RETRIABLE_MESSAGE_FRAGMENTS = ["socket hang up", "Timeout error"];
+
+const MAX_CAUSE_DEPTH = 4;
+
+function isRetriableInsertError(err: unknown, depth = 0): boolean {
+	if (depth >= MAX_CAUSE_DEPTH || err === null || typeof err !== "object") {
+		return false;
+	}
+	const code = (err as { code?: unknown }).code;
+	if (typeof code === "string" && RETRIABLE_ERROR_CODES.has(code)) {
+		return true;
+	}
+	if (err instanceof Error) {
+		const m = err.message;
+		if (RETRIABLE_MESSAGE_FRAGMENTS.some((p) => m.includes(p))) {
+			return true;
+		}
+	}
+	const cause = (err as { cause?: unknown }).cause;
+	return cause ? isRetriableInsertError(cause, depth + 1) : false;
+}
+
+async function withInsertRetry<T>(
 	operation: () => Promise<T>,
 	maxRetries = 3,
 	baseDelay = 500
 ): Promise<T> {
-	let lastError: Error | undefined;
-
+	let lastError: unknown;
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 		try {
-			const res = await operation();
-			if (attempt > 0) {
-				logger.info("Retry operation succeeded", { attempt });
-			}
-			return res;
-		} catch (error: any) {
+			return await operation();
+		} catch (error) {
 			lastError = error;
-
-			if (
-				error.message.includes("Connect") ||
-				error.message.includes("socket hang up") ||
-				error.message.includes("Timeout error")
-			) {
-				const delay = baseDelay * 2 ** attempt;
-				logger.warn(
-					`Attempt ${attempt + 1}/${maxRetries} failed, retrying in ${delay}ms`,
-					{
-						error: error.message,
-					}
-				);
-				await new Promise((resolve) => setTimeout(resolve, delay));
-				continue;
+			if (attempt === maxRetries - 1 || !isRetriableInsertError(error)) {
+				throw error;
 			}
-
-			throw error; // Non-retriable error
+			await new Promise((resolve) =>
+				setTimeout(resolve, baseDelay * 2 ** attempt)
+			);
 		}
 	}
-
 	throw lastError;
 }
 
-export const clickHouse = new Proxy(clickHouseOG, {
-	get(target, property, receiver) {
-		const value = Reflect.get(target, property, receiver);
+type ClickHouseClient = typeof baseClient;
 
-		if (property === "insert") {
-			return (...args: any[]) => withRetry(() => value.apply(target, args));
-		}
-
-		return value;
-	},
-});
+export const clickHouse: ClickHouseClient = Object.assign(
+	Object.create(Object.getPrototypeOf(baseClient)),
+	baseClient,
+	{
+		insert: (
+			...args: Parameters<ClickHouseClient["insert"]>
+		): ReturnType<ClickHouseClient["insert"]> =>
+			withChTiming(() =>
+				withInsertRetry(() => baseClient.insert(...args))
+			) as ReturnType<ClickHouseClient["insert"]>,
+		query: (
+			...args: Parameters<ClickHouseClient["query"]>
+		): ReturnType<ClickHouseClient["query"]> =>
+			withChTiming(() => baseClient.query(...args)),
+		command: (
+			...args: Parameters<ClickHouseClient["command"]>
+		): ReturnType<ClickHouseClient["command"]> =>
+			withChTiming(() => baseClient.command(...args)),
+	}
+);
 
 export interface ChQueryOptions {
+	abort_signal?: AbortSignal;
+	clickhouse_settings?: Record<string, string | number>;
 	readonly?: boolean;
 }
 
-export async function chQueryWithMeta<T extends Record<string, any>>(
+async function chQueryWithMeta<T>(
 	query: string,
 	params?: Record<string, unknown>,
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
-	const json = await traced("ch.query", async () => {
-		const res = await clickHouse.query({
-			query,
-			query_params: params,
-			...(options?.readonly && {
-				clickhouse_settings: { readonly: "1" },
-			}),
-		});
-		return res.json<T>();
+	const settings: Record<string, string | number> = options?.readonly
+		? { ...(options.clickhouse_settings ?? {}), readonly: "2" }
+		: (options?.clickhouse_settings ?? {});
+	assertCacheCompatibleSettings(settings);
+	const res = await clickHouse.query({
+		query,
+		query_params: params,
+		...(options?.abort_signal && { abort_signal: options.abort_signal }),
+		...(Object.keys(settings).length > 0 && {
+			clickhouse_settings: settings,
+		}),
 	});
-	const keys = Object.keys(json.data[0] || {});
+	const json = await res.json<T>();
+
+	const intColumns = new Set(
+		(json.meta ?? []).filter((m) => m.type.includes("Int")).map((m) => m.name)
+	);
+	if (intColumns.size === 0) {
+		return json;
+	}
 
 	return {
 		...json,
-		data: json.data.map((item) =>
-			keys.reduce(
-				(acc, key) => {
-					const meta = json.meta?.find((m) => m.name === key);
-					acc[key] =
-						item[key] && meta?.type.includes("Int")
-							? Number.parseFloat(item[key] as string)
-							: item[key];
-					return acc;
-				},
-				{} as Record<string, any>
-			)
-		),
-	} as ResponseJSON<T>;
+		data: json.data.map((item) => {
+			const out = { ...item } as Record<string, unknown>;
+			for (const key of intColumns) {
+				const v = out[key];
+				if (v !== null && v !== undefined && v !== "") {
+					out[key] = Number.parseFloat(v as string);
+				}
+			}
+			return out as T;
+		}),
+	};
 }
 
-export function chQuery<T extends Record<string, any>>(
+export function chQuery<T>(
 	query: string,
 	params?: Record<string, unknown>,
 	options?: ChQueryOptions
@@ -154,44 +205,9 @@ export async function chCommand(
 	query: string,
 	params?: Record<string, unknown>
 ): Promise<void> {
-	await traced("ch.command", () =>
-		clickHouse.command({
-			query,
-			query_params: params,
-			clickhouse_settings: { wait_end_of_query: 1 },
-		})
-	);
-}
-
-const Z_REGEX = /Z+$/;
-const DATE_REGEX = /\d{4}-\d{2}-\d{2}/;
-
-export function formatClickhouseDate(
-	date: Date | string,
-	skipTime = false
-): string {
-	if (skipTime) {
-		return new Date(date).toISOString().split("T")[0] ?? "";
-	}
-	return new Date(date).toISOString().replace("T", " ").replace(Z_REGEX, "");
-}
-
-export function toDate(str: string, interval?: string) {
-	if (!interval || interval === "minute" || interval === "hour") {
-		if (DATE_REGEX.test(str)) {
-			return SqlString.escape(str);
-		}
-
-		return str;
-	}
-
-	if (DATE_REGEX.test(str)) {
-		return `toDate(${SqlString.escape(str.split(" ")[0])})`;
-	}
-
-	return `toDate(${SqlString.escape(str)})`;
-}
-
-export function convertClickhouseDateToJs(date: string) {
-	return new Date(`${date.replace(" ", "T")}Z`);
+	await clickHouse.command({
+		query,
+		query_params: params,
+		clickhouse_settings: { wait_end_of_query: 1 },
+	});
 }

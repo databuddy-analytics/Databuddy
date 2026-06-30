@@ -1,6 +1,6 @@
 "use client";
 
-import type { UsageResponse } from "@databuddy/shared/types/billing";
+import type { UsageResponse } from "@/types/billing";
 import { calculateOverageCost, type OverageInfo } from "../utils/billing-utils";
 import {
 	BugIcon,

@@ -1,4 +1,5 @@
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import { filterOptions } from "@/lib/filter-options";
+import type { DynamicQueryFilter } from "@/types/api";
 import { useCallback } from "react";
 
 export const operatorOptions = [
@@ -9,13 +10,10 @@ export const operatorOptions = [
 	{ value: "starts_with", label: "starts with" },
 ] as const;
 
-// Operator options for GoalFilter and FunnelFilter
 export const goalFunnelOperatorOptions = [
 	{ value: "equals", label: "equals" },
 	{ value: "not_equals", label: "does not equal" },
 	{ value: "contains", label: "contains" },
-	{ value: "in", label: "in" },
-	{ value: "not_in", label: "not in" },
 ] as const;
 
 export const operatorLabels: Record<string, string> = {
@@ -32,6 +30,14 @@ export const operatorLabels: Record<string, string> = {
 
 export function getOperatorLabel(operator: string): string {
 	return operatorLabels[operator] ?? operator;
+}
+
+export function getFieldLabel(field: string): string {
+	return filterOptions.find((o) => o.value === field)?.label ?? field;
+}
+
+export function formatFilterValue(value: DynamicQueryFilter["value"]): string {
+	return Array.isArray(value) ? value.join(", ") : String(value);
 }
 
 interface BaseFilterType {

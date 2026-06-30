@@ -1,5 +1,7 @@
 "use client";
 
+import { publicConfig } from "@databuddy/env/public";
+
 import { AutumnProvider } from "autumn-js/react";
 import { parseAsBoolean, useQueryState } from "nuqs";
 import { Suspense } from "react";
@@ -59,10 +61,7 @@ export default function DemoLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<AutumnProvider
-			backendUrl={process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}
-			includeCredentials
-		>
+		<AutumnProvider backendUrl={publicConfig.urls.api} includeCredentials>
 			<BillingProvider public>
 				<DemoLayoutContent>{children}</DemoLayoutContent>
 			</BillingProvider>

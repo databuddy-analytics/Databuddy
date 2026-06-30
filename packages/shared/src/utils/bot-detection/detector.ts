@@ -1,4 +1,4 @@
-import { isAIAssistant, isAICrawler, isBot } from "ua-parser-js/bot-detection";
+import { isAIBot, isBot } from "ua-parser-js/helpers";
 import {
 	BotAction,
 	BotCategory,
@@ -135,7 +135,7 @@ function detect(
 		};
 	}
 
-	if (isAICrawler(userAgent)) {
+	if (isAIBot(userAgent)) {
 		return {
 			isBot: true,
 			category: BotCategory.AI_CRAWLER,
@@ -143,17 +143,6 @@ function detect(
 			action: getAction(BotCategory.AI_CRAWLER, config),
 			confidence: 90,
 			reason: "ai_crawler_pattern",
-		};
-	}
-
-	if (isAIAssistant(userAgent)) {
-		return {
-			isBot: true,
-			category: BotCategory.AI_ASSISTANT,
-			name,
-			action: getAction(BotCategory.AI_ASSISTANT, config),
-			confidence: 90,
-			reason: "ai_assistant_pattern",
 		};
 	}
 
@@ -181,11 +170,8 @@ function resolveCategory(userAgent: string): BotCategory {
 	if (patternCat) {
 		return CATEGORY_MAP[patternCat] ?? BotCategory.UNKNOWN_BOT;
 	}
-	if (isAICrawler(userAgent)) {
+	if (isAIBot(userAgent)) {
 		return BotCategory.AI_CRAWLER;
-	}
-	if (isAIAssistant(userAgent)) {
-		return BotCategory.AI_ASSISTANT;
 	}
 	return BotCategory.UNKNOWN_BOT;
 }

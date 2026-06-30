@@ -4,230 +4,126 @@ import { CaretDownIcon, MagnifyingGlassIcon } from "@databuddy/ui/icons";
 import { useSearchContext } from "fumadocs-ui/provider";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { usePathname } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import {
+	docsNavActiveItem,
+	docsNavBadge,
+	docsNavControl,
+	docsNavItem,
+} from "@/components/docs-nav-styles";
 import { AsideLink } from "@/components/ui/aside-link";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { contents } from "./sidebar-content";
+import {
+	contents,
+	type SidebarItem,
+	type SidebarSection,
+} from "./sidebar-content";
+
+function itemMatchesPath(item: SidebarItem, pathname: string) {
+	if (item.href === pathname) {
+		return true;
+	}
+	return item.children?.some((child) => child.href === pathname) ?? false;
+}
+
+function getDefaultOpenState(pathname: string) {
+	const defaultOpen = contents.findIndex((section) =>
+		section.list.some((item) => itemMatchesPath(item, pathname))
+	);
+	const defaultNestedOpen = new Set<string>();
+
+	for (const section of contents) {
+		for (const item of section.list) {
+			if (item.children?.some((child) => child.href === pathname)) {
+				defaultNestedOpen.add(item.title);
+			}
+		}
+	}
+
+	return {
+		defaultOpen: defaultOpen === -1 ? 0 : defaultOpen,
+		defaultNestedOpen,
+	};
+}
 
 export default function CustomSidebar() {
 	const pathname = usePathname();
 	const { setOpenSearch } = useSearchContext();
 
-	const { defaultOpen, defaultNestedOpen } = useMemo(() => {
-		const idx = contents.findIndex((item) =>
-			item.list.some((listItem) => {
-				if (listItem.href === pathname) {
-					return true;
-				}
-				if (listItem.children) {
-					return listItem.children.some((child) => child.href === pathname);
-				}
-				return false;
-			})
-		);
-		const openNested = new Set<string>();
-		for (const section of contents) {
-			for (const item of section.list) {
-				if (item.children) {
-					const hasActiveChild = item.children.some(
-						(child) => child.href === pathname
-					);
-					if (hasActiveChild) {
-						openNested.add(item.title);
-					}
-				}
-			}
-		}
-		return { defaultOpen: idx === -1 ? 0 : idx, defaultNestedOpen: openNested };
-	}, [pathname]);
+	return (
+		<CustomSidebarContent
+			key={pathname}
+			onSearchAction={() => setOpenSearch(true)}
+			pathname={pathname}
+		/>
+	);
+}
 
-	const [prevPathname, setPrevPathname] = useState(pathname);
+function CustomSidebarContent({
+	onSearchAction,
+	pathname,
+}: {
+	onSearchAction: () => void;
+	pathname: string;
+}) {
+	const { defaultOpen, defaultNestedOpen } = useMemo(
+		() => getDefaultOpenState(pathname),
+		[pathname]
+	);
+
 	const [currentOpen, setCurrentOpen] = useState<number>(defaultOpen);
 	const [nestedOpen, setNestedOpen] = useState<Set<string>>(defaultNestedOpen);
 
-	if (prevPathname !== pathname) {
-		setPrevPathname(pathname);
-		setCurrentOpen(defaultOpen);
-		setNestedOpen(defaultNestedOpen);
-	}
-
-	const handleSearch = () => {
-		setOpenSearch(true);
+	const toggleNested = (title: string) => {
+		setNestedOpen((openItems) => {
+			const next = new Set(openItems);
+			if (next.has(title)) {
+				next.delete(title);
+			} else {
+				next.add(title);
+			}
+			return next;
+		});
 	};
 
 	return (
-		<div className="fixed top-[calc(4rem+env(safe-area-inset-top,0px))] left-0 z-30 hidden h-[calc(100dvh-4rem-env(safe-area-inset-top,0px))] md:block">
-			<aside className="flex h-full w-[268px] flex-col overflow-y-auto border-border border-t border-r bg-background lg:w-[286px]">
+		<div className="fixed top-[calc(3.5rem+env(safe-area-inset-top,0px))] left-0 z-30 hidden h-[calc(100dvh-3.5rem-env(safe-area-inset-top,0px))] md:block">
+			<aside className="flex h-full w-[268px] flex-col overflow-y-auto border-sidebar-border/50 border-t border-r bg-sidebar text-sidebar-foreground lg:w-[286px]">
 				<div className="flex h-full flex-col">
-					<button
-						className="flex w-full items-center justify-start gap-3 border-border border-b px-5 py-3 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-						onClick={handleSearch}
-						type="button"
-					>
-						<MagnifyingGlassIcon className="size-4 shrink-0" weight="duotone" />
-						<span className="text-sm">Search documentation...</span>
-					</button>
+					<div className="border-sidebar-border/30 border-b p-2">
+						<button
+							className={cn(
+								docsNavControl,
+								"h-9 w-full gap-2.5 bg-sidebar-accent/50 px-2.5 text-left text-sidebar-foreground/55 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+							)}
+							onClick={onSearchAction}
+							type="button"
+						>
+							<MagnifyingGlassIcon
+								className="size-4 shrink-0"
+								weight="duotone"
+							/>
+							<span className="min-w-0 flex-1 truncate">
+								Search documentation&hellip;
+							</span>
+						</button>
+					</div>
 
 					<MotionConfig
-						transition={{ duration: 0.4, type: "spring", bounce: 0 }}
+						transition={{ duration: 0.26, type: "spring", bounce: 0 }}
 					>
-						<div className="flex flex-col">
+						<div className="flex flex-col gap-1 p-2">
 							{contents.map((item, index) => (
-								<div key={item.title}>
-									<button
-										className="flex w-full items-center gap-3 border-border border-b px-5 py-2.5 text-left font-medium text-foreground text-sm hover:bg-muted/50"
-										onClick={() => {
-											if (currentOpen === index) {
-												setCurrentOpen(-1);
-											} else {
-												setCurrentOpen(index);
-											}
-										}}
-										type="button"
-									>
-										<item.Icon
-											className="size-5 shrink-0 text-foreground"
-											weight="fill"
-										/>
-										<span className="flex-1 text-sm">{item.title}</span>
-										{item.isNew ? <NewBadge /> : null}
-										<motion.div
-											animate={{ rotate: currentOpen === index ? 180 : 0 }}
-											className="shrink-0"
-										>
-											<CaretDownIcon
-												className="size-4 text-muted-foreground"
-												weight="duotone"
-											/>
-										</motion.div>
-									</button>
-									<AnimatePresence initial={false}>
-										{currentOpen === index ? (
-											<motion.div
-												animate={{ opacity: 1, height: "auto" }}
-												className="relative overflow-hidden"
-												exit={{ opacity: 0, height: 0 }}
-												initial={{ opacity: 0, height: 0 }}
-											>
-												<motion.div className="text-sm">
-													{item.list.map((listItem) => (
-														<div key={listItem.title}>
-															<Suspense fallback={<>Loading...</>}>
-																{listItem.group ? (
-																	<div className="mx-5 my-1 flex flex-row items-center gap-2">
-																		<p className="bg-gradient-to-tr from-gray-900 to-stone-900 bg-clip-text text-sm text-transparent dark:from-gray-100 dark:to-stone-200">
-																			{listItem.title}
-																		</p>
-																		<div className="h-px flex-grow bg-linear-to-r from-stone-800/90 to-stone-800/60" />
-																	</div>
-																) : listItem.children ? (
-																	<div>
-																		<button
-																			className="flex w-full items-center gap-3 px-6 py-2 text-left text-muted-foreground text-sm hover:bg-muted/50 hover:text-foreground"
-																			onClick={() => {
-																				const newOpen = new Set(nestedOpen);
-																				if (newOpen.has(listItem.title)) {
-																					newOpen.delete(listItem.title);
-																				} else {
-																					newOpen.add(listItem.title);
-																				}
-																				setNestedOpen(newOpen);
-																			}}
-																			type="button"
-																		>
-																			{listItem.icon ? (
-																				<listItem.icon
-																					className="size-5 shrink-0"
-																					weight="duotone"
-																				/>
-																			) : null}
-																			<span className="flex-1">
-																				{listItem.title}
-																			</span>
-																			{listItem.isNew ? <NewBadge /> : null}
-																			<motion.div
-																				animate={{
-																					rotate: nestedOpen.has(listItem.title)
-																						? 90
-																						: 0,
-																				}}
-																				className="shrink-0"
-																			>
-																				<CaretDownIcon
-																					className="size-3 text-muted-foreground"
-																					weight="duotone"
-																				/>
-																			</motion.div>
-																		</button>
-																		<AnimatePresence initial={false}>
-																			{nestedOpen.has(listItem.title) && (
-																				<motion.div
-																					animate={{
-																						opacity: 1,
-																						height: "auto",
-																					}}
-																					className="relative overflow-hidden"
-																					exit={{ opacity: 0, height: 0 }}
-																					initial={{ opacity: 0, height: 0 }}
-																				>
-																					<div className="ml-4 border-border border-l pl-2">
-																						{listItem.children.map((child) => (
-																							<AsideLink
-																								activeClassName="!bg-muted !text-foreground font-medium"
-																								className="flex items-center gap-3 px-6 py-2 text-muted-foreground text-sm hover:bg-muted/50 hover:text-foreground"
-																								href={child.href || "#"}
-																								key={child.title}
-																								startWith="/docs"
-																								title={child.title}
-																							>
-																								{child.icon ? (
-																									<child.icon
-																										className="size-4 shrink-0"
-																										weight="duotone"
-																									/>
-																								) : null}
-																								<span className="flex-1">
-																									{child.title}
-																								</span>
-																								{child.isNew ? (
-																									<NewBadge />
-																								) : null}
-																							</AsideLink>
-																						))}
-																					</div>
-																				</motion.div>
-																			)}
-																		</AnimatePresence>
-																	</div>
-																) : (
-																	<AsideLink
-																		activeClassName="!bg-muted !text-foreground font-medium"
-																		className="flex items-center gap-3 px-6 py-2 text-muted-foreground text-sm hover:bg-muted/50 hover:text-foreground"
-																		href={listItem.href || "#"}
-																		startWith="/docs"
-																		title={listItem.title}
-																	>
-																		{listItem.icon ? (
-																			<listItem.icon
-																				className="size-5 shrink-0"
-																				weight="duotone"
-																			/>
-																		) : null}
-																		<span className="flex-1">
-																			{listItem.title}
-																		</span>
-																		{listItem.isNew ? <NewBadge /> : null}
-																	</AsideLink>
-																)}
-															</Suspense>
-														</div>
-													))}
-												</motion.div>
-											</motion.div>
-										) : null}
-									</AnimatePresence>
-								</div>
+								<SidebarSectionBlock
+									isOpen={currentOpen === index}
+									key={item.title}
+									nestedOpen={nestedOpen}
+									onNestedToggle={toggleNested}
+									onToggle={() =>
+										setCurrentOpen(currentOpen === index ? -1 : index)
+									}
+									section={item}
+								/>
 							))}
 						</div>
 					</MotionConfig>
@@ -237,18 +133,179 @@ export default function CustomSidebar() {
 	);
 }
 
+function SidebarSectionBlock({
+	isOpen,
+	nestedOpen,
+	onNestedToggle,
+	onToggle,
+	section,
+}: {
+	isOpen: boolean;
+	nestedOpen: Set<string>;
+	onNestedToggle: (title: string) => void;
+	onToggle: () => void;
+	section: SidebarSection;
+}) {
+	const Icon = section.Icon;
+
+	return (
+		<div>
+			<button
+				aria-expanded={isOpen}
+				className={cn(
+					docsNavControl,
+					"h-8 w-full gap-2.5 px-2.5 text-left font-medium",
+					isOpen
+						? "bg-sidebar-accent/70 text-sidebar-foreground"
+						: "text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+				)}
+				onClick={onToggle}
+				type="button"
+			>
+				<Icon className="size-4 shrink-0" weight="duotone" />
+				<span className="min-w-0 flex-1 truncate">{section.title}</span>
+				{section.isNew ? <NewBadge /> : null}
+				<motion.div animate={{ rotate: isOpen ? 180 : 0 }} className="shrink-0">
+					<CaretDownIcon
+						className="size-3.5 text-sidebar-foreground/35"
+						weight="duotone"
+					/>
+				</motion.div>
+			</button>
+
+			<AnimatePresence initial={false}>
+				{isOpen ? (
+					<motion.div
+						animate={{ opacity: 1, height: "auto" }}
+						className="relative overflow-hidden"
+						exit={{ opacity: 0, height: 0 }}
+						initial={{ opacity: 0, height: 0 }}
+					>
+						<motion.div className="my-1 rounded bg-sidebar-accent/20 py-1 ring-1 ring-sidebar-border/25">
+							{section.list.map((item) => (
+								<DocSidebarItem
+									item={item}
+									key={item.title}
+									nestedOpen={nestedOpen}
+									onNestedToggle={onNestedToggle}
+								/>
+							))}
+						</motion.div>
+					</motion.div>
+				) : null}
+			</AnimatePresence>
+		</div>
+	);
+}
+
+function DocSidebarItem({
+	item,
+	nestedOpen,
+	onNestedToggle,
+}: {
+	item: SidebarItem;
+	nestedOpen: Set<string>;
+	onNestedToggle: (title: string) => void;
+}) {
+	if (item.group) {
+		return (
+			<div className="px-2.5 pt-2 pb-1">
+				<p className="font-semibold text-[11px] text-sidebar-foreground/35 uppercase">
+					{item.title}
+				</p>
+			</div>
+		);
+	}
+
+	if (item.children) {
+		const isOpen = nestedOpen.has(item.title);
+		const Icon = item.icon;
+
+		return (
+			<div>
+				<button
+					aria-expanded={isOpen}
+					className={cn(docsNavControl, docsNavItem, "w-full text-left")}
+					onClick={() => onNestedToggle(item.title)}
+					type="button"
+				>
+					{Icon ? <Icon className="size-4 shrink-0" weight="duotone" /> : null}
+					<span className="min-w-0 flex-1 truncate">{item.title}</span>
+					{item.isNew ? <NewBadge /> : null}
+					<motion.div
+						animate={{ rotate: isOpen ? 90 : 0 }}
+						className="shrink-0"
+					>
+						<CaretDownIcon
+							className="size-3 text-sidebar-foreground/35"
+							weight="duotone"
+						/>
+					</motion.div>
+				</button>
+
+				<AnimatePresence initial={false}>
+					{isOpen ? (
+						<motion.div
+							animate={{ opacity: 1, height: "auto" }}
+							className="relative overflow-hidden"
+							exit={{ opacity: 0, height: 0 }}
+							initial={{ opacity: 0, height: 0 }}
+						>
+							<div className="mx-2 mb-1 ml-5 border-sidebar-border/40 border-l pl-2">
+								{item.children.map((child) => (
+									<SidebarLink item={child} key={child.title} nested />
+								))}
+							</div>
+						</motion.div>
+					) : null}
+				</AnimatePresence>
+			</div>
+		);
+	}
+
+	return <SidebarLink item={item} />;
+}
+
+function SidebarLink({
+	item,
+	nested = false,
+}: {
+	item: SidebarItem;
+	nested?: boolean;
+}) {
+	const Icon = item.icon;
+
+	return (
+		<AsideLink
+			activeClassName={docsNavActiveItem}
+			className={cn(
+				docsNavControl,
+				nested
+					? "h-8 gap-2 px-2 text-sidebar-foreground/55 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground"
+					: docsNavItem
+			)}
+			href={item.href || "#"}
+			startWith="/docs"
+			title={item.title}
+		>
+			{Icon ? <Icon className="size-4 shrink-0" weight="duotone" /> : null}
+			<span className="min-w-0 flex-1 truncate">{item.title}</span>
+			{item.isNew ? <NewBadge /> : null}
+		</AsideLink>
+	);
+}
+
 function NewBadge({ isSelected }: { isSelected?: boolean }) {
 	return (
-		<div className="flex items-center justify-end">
-			<Badge
+		<div className="flex shrink-0 items-center justify-end">
+			<span
 				className={cn(
-					"!no-underline !decoration-transparent pointer-events-none border-dashed",
-					isSelected ? "!border-solid" : ""
+					docsNavBadge,
+					isSelected && "bg-sidebar-primary/15 text-sidebar-primary"
 				)}
-				variant={isSelected ? "default" : "outline"}
 			>
 				New
-			</Badge>
+			</span>
 		</div>
 	);
 }

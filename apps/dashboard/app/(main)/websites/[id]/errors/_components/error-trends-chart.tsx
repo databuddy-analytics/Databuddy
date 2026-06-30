@@ -160,11 +160,23 @@ export const ErrorTrendsChart = ({
 	return (
 		<Card className="h-full">
 			<Card.Header className="flex-row items-center justify-between gap-3 py-3">
-				<div className="flex items-center gap-2">
-					<BugIcon className="size-4 text-destructive" />
-					<div>
-						<Card.Title className="text-sm">Error Trends</Card.Title>
-						<Card.Description>Error occurrences over time</Card.Description>
+				<div className="flex items-center gap-3">
+					<div className="flex size-7 shrink-0 items-center justify-center rounded bg-destructive/10">
+						<BugIcon className="size-4 text-destructive" />
+					</div>
+					<div className="flex items-baseline gap-4">
+						<div>
+							<p className="font-semibold text-foreground text-lg tabular-nums leading-tight">
+								{totalErrors.toLocaleString()}
+							</p>
+							<p className="text-muted-foreground text-xs">errors</p>
+						</div>
+						<div>
+							<p className="font-semibold text-foreground text-lg tabular-nums leading-tight">
+								{totalAffectedUsers.toLocaleString()}
+							</p>
+							<p className="text-muted-foreground text-xs">affected users</p>
+						</div>
 					</div>
 				</div>
 				{isZoomed && (
@@ -175,25 +187,10 @@ export const ErrorTrendsChart = ({
 						variant="secondary"
 					>
 						<ArrowCounterClockwiseIcon className="size-3" weight="bold" />
-						Reset zoom
+						Reset
 					</Button>
 				)}
 			</Card.Header>
-
-			<div className="grid grid-cols-2 gap-3 border-border/60 border-b bg-muted/30 px-5 py-3">
-				<div>
-					<p className="text-muted-foreground text-xs">Total Errors</p>
-					<p className="font-semibold text-foreground text-lg tabular-nums">
-						{totalErrors.toLocaleString()}
-					</p>
-				</div>
-				<div>
-					<p className="text-muted-foreground text-xs">Affected Users</p>
-					<p className="font-semibold text-foreground text-lg tabular-nums">
-						{totalAffectedUsers.toLocaleString()}
-					</p>
-				</div>
-			</div>
 
 			<div className="flex-1 overflow-x-auto p-2">
 				<div

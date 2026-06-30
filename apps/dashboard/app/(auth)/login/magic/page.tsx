@@ -33,7 +33,8 @@ function MagicLinkPage() {
 				onSuccess: () => {
 					setIsLoading(false);
 					toast.success("Magic link sent! Please check your email.");
-					router.push(`/login/magic-sent?email=${encodeURIComponent(email)}`);
+					sessionStorage.setItem("databuddy:magic-email", email);
+					router.push("/login/magic-sent");
 				},
 				onError: () => {
 					setIsLoading(false);

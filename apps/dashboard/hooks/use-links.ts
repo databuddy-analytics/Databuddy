@@ -4,7 +4,7 @@ import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
 import type { Link, LinkFolder } from "@databuddy/db/schema";
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from "@/types/analytics";
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -35,6 +35,8 @@ interface ReferrerEntry {
 	name: string;
 	percentage: number;
 	referrer: string;
+	referrer_type?: string;
+	source?: string;
 }
 
 interface TimeSeriesEntry {
@@ -100,6 +102,19 @@ const removeLinkFromList = (
 		return old;
 	}
 	return old.filter((l) => l.id !== linkId);
+};
+
+const addFolderToList = (
+	old: LinkFolder[] | undefined,
+	newFolder: LinkFolder
+): LinkFolder[] => {
+	if (!old) {
+		return [newFolder];
+	}
+	if (old.some((folder) => folder.id === newFolder.id)) {
+		return old;
+	}
+	return [...old, newFolder].sort((a, b) => a.name.localeCompare(b.name));
 };
 
 export function useLinks(options?: {
@@ -222,7 +237,14 @@ export function useLinkStats(linkId: string, dateRange: DateRange) {
 		const topReferrersData = getDataForQuery(
 			"link-stats",
 			"link_top_referrers"
-		) as Array<{ name: string; referrer: string; clicks: number }>;
+		) as Array<{
+			name: string;
+			referrer: string;
+			domain?: string;
+			referrer_type?: string;
+			source?: string;
+			clicks: number;
+		}>;
 		const topCountriesData = getDataForQuery(
 			"link-stats",
 			"link_top_countries"
@@ -355,7 +377,10 @@ export function useCreateLinkFolder() {
 
 	return useMutation({
 		...orpc.linkFolders.create.mutationOptions(),
-		onSuccess: () => {
+		onSuccess: (newFolder: LinkFolder) => {
+			queryClient.setQueryData<LinkFolder[]>(getLinkFoldersListKey(), (old) =>
+				addFolderToList(old, newFolder)
+			);
 			queryClient.invalidateQueries({
 				queryKey: orpc.linkFolders.list.key(),
 			});

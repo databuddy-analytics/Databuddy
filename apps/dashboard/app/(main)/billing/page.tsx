@@ -3,8 +3,8 @@
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { orpc } from "@/lib/orpc";
-import { TOPUP_PRODUCT_ID } from "@databuddy/shared/billing/topup-math";
-import type { UsageResponse } from "@databuddy/shared/types/billing";
+import { TOPUP_PRODUCT_ID } from "@/lib/topup-math";
+import type { UsageResponse } from "@/types/billing";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
 import { useCustomer } from "autumn-js/react";
@@ -21,14 +21,15 @@ import { UsageRow } from "./components/usage-row";
 import { useBilling, useBillingData } from "./hooks/use-billing";
 import type { CustomerWithPaymentMethod } from "./types/billing";
 import type { OverageInfo } from "./utils/billing-utils";
-import { PuzzlePieceIcon, XIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArrowSquareOutIcon,
 	CalendarIcon,
+	CommandIcon as PuzzlePieceIcon,
 	CreditCardIcon,
 	CrownIcon,
 	PlusIcon,
 	TrendUpIcon,
+	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
 import {
 	Badge,

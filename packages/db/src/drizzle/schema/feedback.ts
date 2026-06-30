@@ -28,6 +28,7 @@ export const feedbackStatus = pgEnum("feedback_status", [
 export const insightFeedbackVoteEnum = pgEnum("insight_feedback_vote", [
 	"up",
 	"down",
+	"dismissed",
 ]);
 
 export const feedback = pgTable(
@@ -57,7 +58,6 @@ export const feedback = pgTable(
 	},
 	(table) => [
 		index("feedback_user_id_idx").on(table.userId),
-		index("feedback_organization_id_idx").on(table.organizationId),
 		index("feedback_org_status_idx").on(table.organizationId, table.status),
 		foreignKey({
 			columns: [table.userId],

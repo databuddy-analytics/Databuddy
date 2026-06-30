@@ -1,13 +1,14 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import { publicConfig } from "@databuddy/env/public";
+import type { DateRange } from "@/types/analytics";
 import type {
 	DynamicQueryFilter,
 	DynamicQueryRequest,
 	ParameterWithDates,
-} from "@databuddy/shared/types/api";
+} from "@/types/api";
 import type {
 	CustomQueryConfig,
 	CustomQueryRequest,
-} from "@databuddy/shared/types/custom-query";
+} from "../types/custom-query";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
@@ -57,7 +58,10 @@ interface WidgetWithSettings extends DashboardWidgetBase {
 	filters?: CardFilter[];
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+type CardQueryMap = Map<string, { queryId: string; paramId: string }>;
+type QueryDataGetter = (queryId: string, paramId: string) => QueryRow[];
+
+const API_BASE_URL = publicConfig.urls.api;
 
 function toQueryFilters(filters?: CardFilter[]): DynamicQueryFilter[] {
 	if (!filters || filters.length === 0) {
@@ -99,6 +103,74 @@ async function fetchCustomQuery(
 		throw new Error(data.error || "Custom query failed");
 	}
 	return data.data || [];
+}
+
+function getPredefinedRows(
+	cardId: string,
+	queryType: string,
+	cardToQueryMap: CardQueryMap,
+	getDataForQuery: QueryDataGetter
+): QueryRow[] {
+	const mapping = cardToQueryMap.get(cardId);
+	if (!mapping) {
+		return [];
+	}
+
+	const rowsByParam = getDataForQuery(mapping.queryId, mapping.paramId);
+	if (Array.isArray(rowsByParam) && rowsByParam.length > 0) {
+		return rowsByParam;
+	}
+
+	const rowsByType = getDataForQuery(mapping.queryId, queryType);
+	return Array.isArray(rowsByType) ? rowsByType : [];
+}
+
+function createDashboardDataAccessors(
+	customDataMap: Map<string, Record<string, unknown>[]>,
+	cardToQueryMap: CardQueryMap,
+	getDataForQuery: QueryDataGetter
+): Omit<DashboardDataResult, "isFetching" | "isLoading"> {
+	const getRows = (cardId: string, queryType: string): QueryRow[] => {
+		const customData = customDataMap.get(cardId);
+		return customData
+			? (customData as QueryRow[])
+			: getPredefinedRows(cardId, queryType, cardToQueryMap, getDataForQuery);
+	};
+
+	const getRow = (cardId: string, queryType: string) =>
+		getRows(cardId, queryType).at(0);
+
+	return {
+		getRows,
+		getRow,
+		getRawValue: (cardId, queryType, field) => {
+			const customData = customDataMap.get(cardId);
+			if (customData) {
+				return Object.values(customData.at(0) || {}).at(0) as
+					| QueryCell
+					| undefined;
+			}
+			return getRow(cardId, queryType)?.[field];
+		},
+		getValue: (cardId, queryType, field) => {
+			const value = customDataMap.has(cardId)
+				? (Object.values(customDataMap.get(cardId)?.at(0) || {}).at(0) as
+						| QueryCell
+						| undefined)
+				: getRow(cardId, queryType)?.[field];
+			return value === undefined || value === null
+				? "—"
+				: formatWidgetValue(value, field);
+		},
+		getChartData: (cardId, queryType, field) =>
+			getRows(cardId, queryType)
+				.map((row) => ({
+					date: row.date ? String(row.date) : "",
+					value: parseNumericValue(row[field]),
+				}))
+				.filter((point) => point.date),
+		hasData: (cardId, queryType) => getRows(cardId, queryType).length > 0,
+	};
 }
 
 export function useDashboardData<T extends WidgetWithSettings>(
@@ -257,211 +329,19 @@ export function useDashboardData<T extends WidgetWithSettings>(
 	const isLoading = predefinedLoading || customLoading;
 	const isFetching = predefinedFetching || customFetching;
 
-	const getValue = useMemo(
+	const dataAccessors = useMemo(
 		() =>
-			(cardId: string, queryType: string, field: string): string => {
-				const customData = customDataMap.get(cardId);
-				if (customData) {
-					const firstRow = customData.at(0);
-					if (!firstRow) {
-						return "—";
-					}
-					const values = Object.values(firstRow);
-					const firstValue = values.at(0) as QueryCell | undefined;
-					if (firstValue !== undefined && firstValue !== null) {
-						return formatWidgetValue(firstValue, field);
-					}
-					return "—";
-				}
-
-				const mapping = cardToQueryMap.get(cardId);
-				if (!mapping) {
-					return "—";
-				}
-
-				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
-				if (!Array.isArray(rows) || rows.length === 0) {
-					rows = getDataForQuery(mapping.queryId, queryType);
-				}
-
-				if (!Array.isArray(rows) || rows.length === 0) {
-					return "—";
-				}
-
-				const firstRow = rows.at(0);
-				if (!firstRow) {
-					return "—";
-				}
-
-				return formatWidgetValue(firstRow[field], field);
-			},
-		[getDataForQuery, cardToQueryMap, customDataMap]
-	);
-
-	const getRawValue = useMemo(
-		() =>
-			(
-				cardId: string,
-				queryType: string,
-				field: string
-			): QueryCell | undefined => {
-				const customData = customDataMap.get(cardId);
-				if (customData) {
-					const firstRow = customData.at(0);
-					const values = Object.values(firstRow || {});
-					return values.at(0) as QueryCell | undefined;
-				}
-
-				const mapping = cardToQueryMap.get(cardId);
-				if (!mapping) {
-					return;
-				}
-
-				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
-				if (!Array.isArray(rows) || rows.length === 0) {
-					rows = getDataForQuery(mapping.queryId, queryType);
-				}
-
-				if (!Array.isArray(rows) || rows.length === 0) {
-					return;
-				}
-
-				const firstRow = rows.at(0);
-				return firstRow?.[field];
-			},
-		[getDataForQuery, cardToQueryMap, customDataMap]
-	);
-
-	const getRow = useMemo(
-		() =>
-			(cardId: string, queryType: string): QueryRow | undefined => {
-				const customData = customDataMap.get(cardId);
-				if (customData) {
-					return customData.at(0) as QueryRow | undefined;
-				}
-
-				const mapping = cardToQueryMap.get(cardId);
-				if (!mapping) {
-					return;
-				}
-
-				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
-				if (!Array.isArray(rows) || rows.length === 0) {
-					rows = getDataForQuery(mapping.queryId, queryType);
-				}
-
-				if (!Array.isArray(rows) || rows.length === 0) {
-					return;
-				}
-				return rows.at(0);
-			},
-		[getDataForQuery, cardToQueryMap, customDataMap]
-	);
-
-	const getRows = useMemo(
-		() =>
-			(cardId: string, queryType: string): QueryRow[] => {
-				const customData = customDataMap.get(cardId);
-				if (customData) {
-					return customData as QueryRow[];
-				}
-
-				const mapping = cardToQueryMap.get(cardId);
-				if (!mapping) {
-					return [];
-				}
-
-				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
-				if (!Array.isArray(rows) || rows.length === 0) {
-					rows = getDataForQuery(mapping.queryId, queryType);
-				}
-
-				if (!Array.isArray(rows)) {
-					return [];
-				}
-				return rows;
-			},
-		[getDataForQuery, cardToQueryMap, customDataMap]
-	);
-
-	const getChartData = useMemo(
-		() =>
-			(cardId: string, queryType: string, field: string): ChartDataPoint[] => {
-				const customData = customDataMap.get(cardId);
-				if (customData) {
-					return customData
-						.map((row) => {
-							const rawDate = row.date;
-							const rawValue = (row[field] ?? Object.values(row).at(0)) as
-								| QueryCell
-								| undefined;
-							return {
-								date: rawDate ? String(rawDate) : "",
-								value: parseNumericValue(rawValue),
-							};
-						})
-						.filter((d) => d.date);
-				}
-
-				const mapping = cardToQueryMap.get(cardId);
-				if (!mapping) {
-					return [];
-				}
-
-				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
-				if (!Array.isArray(rows) || rows.length === 0) {
-					rows = getDataForQuery(mapping.queryId, queryType);
-				}
-
-				if (!Array.isArray(rows)) {
-					return [];
-				}
-
-				return rows
-					.map((row) => {
-						const rawDate = row.date;
-						const rawValue = row[field];
-						return {
-							date: rawDate ? String(rawDate) : "",
-							value: parseNumericValue(rawValue),
-						};
-					})
-					.filter((d) => d.date);
-			},
-		[getDataForQuery, cardToQueryMap, customDataMap]
-	);
-
-	const hasData = useMemo(
-		() =>
-			(cardId: string, queryType: string): boolean => {
-				const customData = customDataMap.get(cardId);
-				if (customData) {
-					return customData.length > 0;
-				}
-
-				const mapping = cardToQueryMap.get(cardId);
-				if (!mapping) {
-					return false;
-				}
-
-				let rows = getDataForQuery(mapping.queryId, mapping.paramId);
-				if (!Array.isArray(rows) || rows.length === 0) {
-					rows = getDataForQuery(mapping.queryId, queryType);
-				}
-
-				return Array.isArray(rows) && rows.length > 0;
-			},
+			createDashboardDataAccessors(
+				customDataMap,
+				cardToQueryMap,
+				getDataForQuery
+			),
 		[getDataForQuery, cardToQueryMap, customDataMap]
 	);
 
 	return {
 		isLoading,
 		isFetching,
-		getValue,
-		getRawValue,
-		getRow,
-		getRows,
-		getChartData,
-		hasData,
+		...dataAccessors,
 	};
 }

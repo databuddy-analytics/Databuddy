@@ -117,7 +117,7 @@ export function GeneralSettings({
 						</Card.Content>
 					</Card>
 
-					<Card>
+					<Card id="details">
 						<Card.Header>
 							<Card.Title>Details</Card.Title>
 							<Card.Description>

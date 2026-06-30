@@ -1,4 +1,7 @@
+import { dayjs, guessTimezone } from "@databuddy/ui";
 import { atom } from "jotai";
+import type { DynamicQueryFilter } from "./filter-types";
+export type { DynamicQueryFilter } from "./filter-types";
 import { RECOMMENDED_DEFAULTS } from "../../app/(main)/websites/[id]/_components/utils/tracking-defaults";
 import {
 	enableAllAdvancedTracking,
@@ -6,20 +9,6 @@ import {
 	enableAllOptimization,
 } from "../../app/(main)/websites/[id]/_components/utils/tracking-helpers";
 import type { TrackingOptions } from "../../app/(main)/websites/[id]/_components/utils/types";
-import { dayjs, guessTimezone } from "@databuddy/ui";
-
-export interface DynamicQueryFilter {
-	field: string;
-	operator:
-		| "eq"
-		| "ne"
-		| "contains"
-		| "not_contains"
-		| "starts_with"
-		| "in"
-		| "not_in";
-	value: string | number | (string | number)[];
-}
 
 export interface DateRangeState {
 	endDate: Date;
@@ -275,6 +264,42 @@ export const removeDynamicFilterAtom = atom(
 export const clearDynamicFiltersAtom = atom(null, (_get, set) => {
 	set(dynamicQueryFiltersAtom, []);
 });
+
+export type EditingSavedFilter = {
+	id: string;
+	name: string;
+	originalFilters: DynamicQueryFilter[];
+} | null;
+
+export const editingSavedFilterAtom = atom<EditingSavedFilter>(null);
+
+export interface SavedFilter {
+	createdAt: string;
+	filters: DynamicQueryFilter[];
+	id: string;
+	name: string;
+	updatedAt: string;
+}
+
+const savedFiltersBaseAtom = atom<{
+	websiteId: string | null;
+	filters: SavedFilter[];
+	loaded: boolean;
+}>({ websiteId: null, filters: [], loaded: false });
+
+export const savedFiltersAtom = atom(
+	(get) => {
+		const { filters, loaded } = get(savedFiltersBaseAtom);
+		return { savedFilters: filters, isLoading: !loaded };
+	},
+	(_get, set, update: { websiteId: string; filters: SavedFilter[] }) => {
+		set(savedFiltersBaseAtom, {
+			websiteId: update.websiteId,
+			filters: update.filters,
+			loaded: true,
+		});
+	}
+);
 
 export const trackingOptionsAtom = atom<TrackingOptions>(RECOMMENDED_DEFAULTS);
 

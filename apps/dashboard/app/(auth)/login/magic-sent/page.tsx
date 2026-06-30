@@ -2,15 +2,37 @@
 
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon, EnvelopeIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
 
+const MAGIC_EMAIL_KEY = "databuddy:magic-email";
+
 function MagicSentPage() {
-	const [email] = useQueryState("email", parseAsString.withDefault(""));
+	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
+
+	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		const fromQuery = params.get("email");
+		if (fromQuery) {
+			sessionStorage.setItem(MAGIC_EMAIL_KEY, fromQuery);
+			setEmail(fromQuery);
+			params.delete("email");
+			const next = params.toString();
+			window.history.replaceState(
+				null,
+				"",
+				`${window.location.pathname}${next ? `?${next}` : ""}`
+			);
+			return;
+		}
+		const stored = sessionStorage.getItem(MAGIC_EMAIL_KEY);
+		if (stored) {
+			setEmail(stored);
+		}
+	}, []);
 
 	const handleResend = async (e: React.MouseEvent) => {
 		e.preventDefault();

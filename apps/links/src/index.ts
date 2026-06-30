@@ -1,12 +1,18 @@
+import { db, shutdownPostgres, sql } from "@databuddy/db";
+import { redis } from "@databuddy/redis";
+import { buildHttpErrorResponse } from "@databuddy/shared/http-error-response";
+import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import { Elysia, redirect } from "elysia";
 import { initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
 import { drain, enrich, flushDrain } from "./lib/logging";
 import { disconnectProducer } from "./lib/producer";
 import { redirectRoute } from "./routes/redirect";
+import { preloadGeoDatabase } from "./utils/geo";
 
 initLogger({
 	env: { service: "links" },
+	redact: databuddyEvlogRedaction,
 	drain,
 	sampling: {
 		rates: { info: 20, warn: 50, debug: 5 },
@@ -14,15 +20,33 @@ initLogger({
 	},
 });
 
+const rootRedirectUrl =
+	process.env.LINKS_ROOT_REDIRECT_URL || "https://databuddy.cc";
+preloadGeoDatabase();
+
 const app = new Elysia()
 	.use(evlog({ enrich }))
-	.get("/", () => redirect("https://databuddy.cc", 302))
+	.get("/", () => redirect(rootRedirectUrl, 302))
 	.get("/health", () => Response.json({ status: "ok" }))
+	.onError(({ code, error }) => {
+		const { payload, status } = buildHttpErrorResponse({ code, error });
+		const event: Record<string, string | number> = {
+			error_message: error instanceof Error ? error.message : String(error),
+			error_step: "elysia",
+			status,
+		};
+		if (code != null) {
+			event.elysia_code = String(code);
+		}
+		if (status >= 500) {
+			log.error(event);
+		} else {
+			log.warn(event);
+		}
+		return Response.json(payload, { status });
+	})
 	.get("/health/status", async () => {
-		const { db, sql } = await import("@databuddy/db");
-		const { redis } = await import("@databuddy/redis");
-
-		async function ping(probe: () => Promise<void>) {
+		async function ping(name: string, probe: () => Promise<void>) {
 			const start = performance.now();
 			try {
 				await probe();
@@ -31,17 +55,21 @@ const app = new Elysia()
 					latency_ms: Math.round(performance.now() - start),
 				};
 			} catch (err) {
+				log.error({
+					health_probe: name,
+					error_message: err instanceof Error ? err.message : String(err),
+				});
 				return {
 					status: "error" as const,
 					latency_ms: Math.round(performance.now() - start),
-					error: err instanceof Error ? err.message : "unknown",
+					code: "UNAVAILABLE",
 				};
 			}
 		}
 
 		const [postgres, cache] = await Promise.all([
-			ping(() => db.execute(sql`SELECT 1`).then(() => {})),
-			ping(() => redis.ping().then(() => {})),
+			ping("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
+			ping("redis", () => redis.ping().then(() => {})),
 		]);
 
 		const services = { postgres, redis: cache };
@@ -60,6 +88,12 @@ async function shutdown(signal: string) {
 		shutdownRedis().catch((error) =>
 			log.error({
 				lifecycle: "redisShutdown",
+				error_message: error instanceof Error ? error.message : String(error),
+			})
+		),
+		shutdownPostgres().catch((error) =>
+			log.error({
+				lifecycle: "postgresShutdown",
 				error_message: error instanceof Error ? error.message : String(error),
 			})
 		),

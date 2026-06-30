@@ -5,7 +5,11 @@ import {
 } from "@databuddy/shared/types/features";
 import { RAW_PLANS } from "@/app/(home)/pricing/data";
 
-const APP_SIGNUP = "https://app.databuddy.cc/login";
+const APP_SIGNUP = "https://app.databuddy.cc/register";
+const PUBLIC_DOCS_ORIGIN =
+	process.env.NEXT_PUBLIC_SITE_URL ||
+	process.env.SITE_URL ||
+	"https://www.databuddy.cc";
 
 function toIncludedUsage(usage: number | "inf"): number | "unlimited" {
 	if (usage === "inf") {
@@ -72,32 +76,26 @@ function buildEntitlements(): Record<
 	PlanId,
 	{
 		limits: (typeof PLAN_CAPABILITIES)[PlanId]["limits"];
-		ai: (typeof PLAN_CAPABILITIES)[PlanId]["ai"];
 	}
 > {
 	return {
 		[PLAN_IDS.FREE]: {
 			limits: PLAN_CAPABILITIES[PLAN_IDS.FREE].limits,
-			ai: PLAN_CAPABILITIES[PLAN_IDS.FREE].ai,
 		},
 		[PLAN_IDS.HOBBY]: {
 			limits: PLAN_CAPABILITIES[PLAN_IDS.HOBBY].limits,
-			ai: PLAN_CAPABILITIES[PLAN_IDS.HOBBY].ai,
 		},
 		[PLAN_IDS.PRO]: {
 			limits: PLAN_CAPABILITIES[PLAN_IDS.PRO].limits,
-			ai: PLAN_CAPABILITIES[PLAN_IDS.PRO].ai,
 		},
 		[PLAN_IDS.SCALE]: {
 			limits: PLAN_CAPABILITIES[PLAN_IDS.SCALE].limits,
-			ai: PLAN_CAPABILITIES[PLAN_IDS.SCALE].ai,
 		},
 	};
 }
 
 export function buildPricingApiPayload(request: Request) {
 	const url = new URL(request.url);
-	const origin = url.origin;
 
 	return {
 		schemaVersion: 1 as const,
@@ -106,9 +104,9 @@ export function buildPricingApiPayload(request: Request) {
 			currency: "USD" as const,
 		},
 		links: {
-			self: `${origin}${url.pathname}`,
-			pricingPage: `${origin}/pricing`,
-			pricingMarkdown: `${origin}/pricing.md`,
+			self: `${PUBLIC_DOCS_ORIGIN}${url.pathname}`,
+			pricingPage: `${PUBLIC_DOCS_ORIGIN}/pricing`,
+			pricingMarkdown: `${PUBLIC_DOCS_ORIGIN}/pricing.md`,
 			signUp: APP_SIGNUP,
 		},
 		plans: mapRawPlans(),
@@ -117,7 +115,7 @@ export function buildPricingApiPayload(request: Request) {
 			enterpriseCheckoutUsesEntitlementsPlanId: "scale" as const,
 		},
 		signUpUrl: APP_SIGNUP,
-		pricingPageUrl: `${origin}/pricing`,
+		pricingPageUrl: `${PUBLIC_DOCS_ORIGIN}/pricing`,
 		currency: "USD" as const,
 	};
 }

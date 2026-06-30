@@ -1,4 +1,4 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from "@/types/analytics";
 import { useMemo } from "react";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { classifyEventProperties } from "@/components/events/custom-events";

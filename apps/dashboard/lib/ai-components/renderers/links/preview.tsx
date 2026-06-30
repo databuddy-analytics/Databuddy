@@ -1,21 +1,22 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
-import { useState } from "react";
+import { type ComponentType, type SVGProps, useState } from "react";
 import { LinkSheet } from "@/app/(main)/links/_components/link-sheet";
 import { useChat } from "@/contexts/chat-context";
 import type { Link } from "@/hooks/use-links";
 import { cn } from "@/lib/utils";
 import type { BaseComponentProps } from "../../types";
 import {
-	CalendarIcon,
 	CheckIcon,
-	ImageIcon,
 	LinkIcon,
 	PencilSimpleIcon,
 	TrashIcon,
 } from "@databuddy/ui/icons";
-import { Button, Card } from "@databuddy/ui";
+import { Badge, Button, Card } from "@databuddy/ui";
+
+type IconComponent = ComponentType<
+	SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+>;
 
 interface LinkPreviewData {
 	expiredRedirectUrl?: string | null;
@@ -35,7 +36,7 @@ export interface LinkPreviewProps extends BaseComponentProps {
 
 interface ModeConfig {
 	accent: string;
-	ButtonIcon: Icon;
+	ButtonIcon: IconComponent;
 	confirmLabel: string;
 	confirmMessage: string;
 	title: string;
@@ -66,31 +67,6 @@ const MODE_CONFIG: Record<string, ModeConfig> = {
 		ButtonIcon: TrashIcon,
 	},
 };
-
-function Row({
-	label,
-	value,
-	icon: IconComponent,
-}: {
-	label: string;
-	value: string;
-	icon?: Icon;
-}) {
-	return (
-		<div className="flex items-start gap-2.5 py-2">
-			{IconComponent && (
-				<IconComponent
-					className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-					weight="duotone"
-				/>
-			)}
-			<div className="min-w-0 flex-1">
-				<p className="text-muted-foreground text-xs">{label}</p>
-				<p className="truncate text-sm">{value}</p>
-			</div>
-		</div>
-	);
-}
 
 export function LinkPreviewRenderer({
 	mode,
@@ -127,68 +103,100 @@ export function LinkPreviewRenderer({
 		<>
 			<Card
 				className={cn(
-					"gap-0 overflow-hidden border py-0",
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
 					config.accent,
 					className
 				)}
 			>
-				<div className="flex items-center gap-2.5 border-b px-3 py-2">
-					<div className="flex size-6 items-center justify-center rounded bg-accent">
-						<LinkIcon
-							className="size-3.5 text-muted-foreground"
-							weight="duotone"
-						/>
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
+						<div className="flex size-6 items-center justify-center rounded bg-accent">
+							<LinkIcon
+								className="size-3.5 text-muted-foreground"
+								weight="duotone"
+							/>
+						</div>
+						<p className="font-medium text-sm">{config.title}</p>
+						<Badge className="ml-auto rounded text-[10px]" variant="muted">
+							{link.slug === "(auto-generated)" ? "Auto slug" : "Custom slug"}
+						</Badge>
 					</div>
-					<p className="font-medium text-sm">{config.title}</p>
-				</div>
 
-				<div className="divide-y px-3">
-					<Row label="Name" value={link.name} />
-					<Row label="Target URL" value={link.targetUrl} />
-					<Row
-						label="Short URL"
-						value={
-							link.slug === "(auto-generated)"
-								? "Will be auto-generated"
-								: `dby.sh/${link.slug}`
-						}
-					/>
-					{hasExpiration && (
-						<Row
-							icon={CalendarIcon}
-							label="Expires"
-							value={link.expiresAt ?? "Never"}
-						/>
-					)}
-					{hasOgData && (
-						<Row
-							icon={ImageIcon}
-							label="Social Preview"
-							value={link.ogTitle ?? "Custom OG data set"}
-						/>
-					)}
-				</div>
+					<div className="rounded-md bg-background px-3 py-3">
+						<div className="space-y-2">
+							<div>
+								<p className="text-muted-foreground text-xs">Name</p>
+								<p className="text-sm">{link.name}</p>
+							</div>
+							<div>
+								<p className="text-muted-foreground text-xs">Target URL</p>
+								<pre className="mt-1 overflow-x-auto text-pretty break-all rounded bg-muted p-1.5 px-2 font-mono text-xs">
+									<code className="font-semibold text-ring">
+										{link.targetUrl}
+									</code>
+								</pre>
+							</div>
+							<div>
+								<p className="text-muted-foreground text-xs">Short URL</p>
+								<pre className="mt-1 overflow-x-auto rounded bg-muted p-1.5 px-2 font-mono text-ring text-xs">
+									<code className="font-semibold text-ring">
+										{link.slug === "(auto-generated)"
+											? "Will be auto-generated"
+											: `dby.sh/${link.slug}`}
+									</code>
+								</pre>
+							</div>
+							<div className="mt-3 flex gap-2">
+								{hasExpiration && (
+									<div className="w-full max-w-1/2 rounded-md bg-muted/30 px-2 py-1.5">
+										<p className="text-muted-foreground text-xs">Expires</p>
+										<p className="mt-0.5 text-sm">
+											{link.expiresAt ?? "Never"}
+										</p>
+									</div>
+								)}
+								{hasOgData && (
+									<div
+										className={cn(
+											hasExpiration ? "" : "",
+											"w-full max-w-1/2 rounded-md bg-muted/30 px-2 py-1.5"
+										)}
+									>
+										<p className="text-muted-foreground text-xs">
+											Social Preview
+										</p>
+										<p className="mt-0.5 text-sm">
+											{link.ogTitle ?? "Custom OG data set"}
+										</p>
+									</div>
+								)}
+							</div>
+						</div>
+					</div>
 
-				<div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-3 py-2">
-					<Button
-						disabled={isLoading || isConfirming}
-						onClick={() => setIsSheetOpen(true)}
-						size="sm"
-						variant="ghost"
-					>
-						<PencilSimpleIcon className="size-3.5" />
-						Edit
-					</Button>
-					<Button
-						disabled={isLoading}
-						loading={isConfirming}
-						onClick={handleConfirm}
-						size="sm"
-						tone={config.tone}
-					>
-						<config.ButtonIcon className="size-3.5" weight="bold" />
-						{config.confirmLabel}
-					</Button>
+					<div className="rounded-md bg-background">
+						<div className="flex items-center justify-end gap-2 bg-muted/30 px-2 py-2">
+							<Button
+								disabled={isLoading || isConfirming}
+								onClick={() => setIsSheetOpen(true)}
+								size="sm"
+								variant="ghost"
+							>
+								<PencilSimpleIcon className="size-3.5" />
+								Edit
+							</Button>
+							<Button
+								disabled={isLoading}
+								loading={isConfirming}
+								onClick={handleConfirm}
+								size="sm"
+								tone={config.tone}
+							>
+								<config.ButtonIcon className="size-3.5" weight="bold" />
+								{config.confirmLabel}
+							</Button>
+						</div>
+					</div>
 				</div>
 			</Card>
 

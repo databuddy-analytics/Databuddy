@@ -13,6 +13,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 import { AlarmSheet } from "./_components/alarm-sheet";
+import { EmailPreferencesCard } from "./_components/email-preferences-card";
 import { Dialog, DropdownMenu, Switch } from "@databuddy/ui/client";
 import {
 	Badge,
@@ -37,6 +38,7 @@ interface Alarm {
 	enabled: boolean;
 	id: string;
 	name: string;
+	triggerConditions?: Record<string, unknown>;
 	triggerType: string;
 	websiteId?: string | null;
 }
@@ -85,6 +87,10 @@ function parseAlarms(rows: readonly Record<string, unknown>[]): Alarm[] {
 			name: row.name,
 			enabled: row.enabled,
 			triggerType: row.triggerType,
+			triggerConditions:
+				typeof row.triggerConditions === "object" && row.triggerConditions
+					? (row.triggerConditions as Record<string, unknown>)
+					: undefined,
 			description: typeof row.description === "string" ? row.description : null,
 			websiteId: typeof row.websiteId === "string" ? row.websiteId : null,
 			destinations,
@@ -205,6 +211,8 @@ export default function NotificationsSettingsPage() {
 	return (
 		<div className="flex-1 overflow-y-auto">
 			<div className="mx-auto max-w-2xl space-y-6 p-5">
+				<EmailPreferencesCard />
+
 				<Card>
 					<Card.Header className="flex-row items-start justify-between gap-4">
 						<div>
@@ -264,6 +272,11 @@ export default function NotificationsSettingsPage() {
 								{alarmList.map((alarm) => {
 									const isTesting = testingAlarmId === alarm.id;
 									const destCount = alarm.destinations?.length ?? 0;
+									const monitorCount = Array.isArray(
+										alarm.triggerConditions?.monitorIds
+									)
+										? (alarm.triggerConditions.monitorIds as string[]).length
+										: 0;
 									return (
 										<div
 											className="group flex items-center hover:bg-interactive-hover"
@@ -307,6 +320,17 @@ export default function NotificationsSettingsPage() {
 															<Text tone="muted" variant="caption">
 																No destinations
 															</Text>
+														)}
+														{monitorCount > 0 && (
+															<>
+																<Text tone="muted" variant="caption">
+																	·
+																</Text>
+																<Text tone="muted" variant="caption">
+																	{monitorCount} monitor
+																	{monitorCount === 1 ? "" : "s"}
+																</Text>
+															</>
 														)}
 														{alarm.description && (
 															<>

@@ -132,25 +132,17 @@ export default function EventDetailPage() {
 					/>
 
 					{properties.length > 0 && (
-						<Card>
-							<Card.Header>
-								<Card.Title>Properties</Card.Title>
-								<Card.Description>
-									Value distribution for each property
-								</Card.Description>
-							</Card.Header>
-							<Card.Content className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-								{properties.map((property) => (
-									<PropertyValueCard
-										key={property.key}
-										maxVisibleValues={10}
-										title={property.key}
-										uniqueCount={property.classification.cardinality}
-										values={property.values}
-									/>
-								))}
-							</Card.Content>
-						</Card>
+						<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 xl:grid-cols-3">
+							{properties.map((property) => (
+								<PropertyValueCard
+									key={property.key}
+									maxVisibleValues={10}
+									title={property.key}
+									uniqueCount={property.classification.cardinality}
+									values={property.values}
+								/>
+							))}
+						</div>
 					)}
 
 					<Card>

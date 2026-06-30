@@ -1,7 +1,12 @@
 "use client";
 
-import type { IconProps } from "@phosphor-icons/react";
-import { cloneElement, memo, type ReactElement, type ReactNode } from "react";
+import {
+	cloneElement,
+	memo,
+	type ReactElement,
+	type ReactNode,
+	type SVGProps,
+} from "react";
 import { cn } from "@/lib/utils";
 import { PlusIcon } from "@databuddy/ui/icons";
 import { Button, Card } from "@databuddy/ui";
@@ -24,7 +29,9 @@ export interface EmptyStateProps {
 	/** Description text */
 	description?: string | ReactNode;
 	/** Main icon to display */
-	icon: ReactElement<IconProps>;
+	icon: ReactElement<
+		SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+	>;
 	/** Whether this is the main content area */
 	isMainContent?: boolean;
 	/** Custom padding */
@@ -271,7 +278,9 @@ export function FeatureEmptyState({
 	actionLabel,
 	onAction,
 }: {
-	icon: ReactElement<IconProps>;
+	icon: ReactElement<
+		SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+	>;
 	title: string;
 	description: string;
 	actionLabel: string;

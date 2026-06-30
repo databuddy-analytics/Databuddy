@@ -1,14 +1,18 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
 import { useParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import {
+	type ComponentType,
+	type SVGProps,
+	useCallback,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { EditFunnelDialog } from "@/app/(main)/websites/[id]/funnels/_components/edit-funnel-dialog";
 import { useChat } from "@/contexts/chat-context";
 import { useFunnels } from "@/hooks/use-funnels";
 import { cn } from "@/lib/utils";
-import type { CreateFunnelData, Funnel } from "@/types/funnels";
+import type { CreateFunnelData } from "@/types/funnels";
 import type { BaseComponentProps, FunnelStepInput } from "../../types";
 import {
 	CheckIcon,
@@ -17,6 +21,10 @@ import {
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { Badge, Button, Card } from "@databuddy/ui";
+
+type IconComponent = ComponentType<
+	SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+>;
 
 interface FunnelPreviewData {
 	description?: string | null;
@@ -32,7 +40,7 @@ export interface FunnelPreviewProps extends BaseComponentProps {
 
 interface ModeConfig {
 	accent: string;
-	ButtonIcon: Icon;
+	ButtonIcon: IconComponent;
 	confirmLabel: string;
 	confirmMessage: string;
 	title: string;
@@ -80,19 +88,7 @@ export function FunnelPreviewRenderer({
 
 	const config = MODE_CONFIG[mode];
 	const isLoading = status === "streaming" || status === "submitted";
-
-	// Convert to Funnel type for the dialog
-	const funnelForDialog: Funnel = {
-		id: "",
-		name: funnel.name,
-		description: funnel.description,
-		steps: funnel.steps,
-		filters: [],
-		ignoreHistoricData: funnel.ignoreHistoricData ?? false,
-		isActive: true,
-		createdAt: "",
-		updatedAt: "",
-	};
+	const canEditInline = mode === "create";
 
 	const handleConfirm = () => {
 		setIsConfirming(true);
@@ -112,109 +108,109 @@ export function FunnelPreviewRenderer({
 		[createAction]
 	);
 
-	const handleUpdateFromDialog = useCallback(
-		(_funnel: Funnel): Promise<void> => {
-			setIsDialogOpen(false);
-			return Promise.resolve();
-		},
-		[]
-	);
-
 	return (
 		<>
 			<Card
 				className={cn(
-					"gap-0 overflow-hidden border py-0",
+					"gap-0 overflow-hidden border-0 bg-secondary p-1",
 					config.accent,
 					className
 				)}
 			>
-				<div className="flex items-center gap-2.5 border-b px-3 py-2">
-					<div className="flex size-6 items-center justify-center rounded bg-accent">
-						<FunnelIcon
-							className="size-3.5 text-muted-foreground"
-							weight="duotone"
-						/>
-					</div>
-					<p className="font-medium text-sm">{config.title}</p>
-					<Badge className="ml-auto text-[10px]" variant="muted">
-						{funnel.steps.length} steps
-					</Badge>
-				</div>
-
-				<div className="px-3 py-3">
-					<div className="space-y-2">
-						<div>
-							<p className="text-muted-foreground text-xs">Name</p>
-							<p className="text-sm">{funnel.name}</p>
+				<div className="flex flex-col gap-1">
+					<div className="flex items-center gap-2.5 rounded-md bg-background px-2 py-2">
+						<div className="flex size-6 items-center justify-center rounded bg-accent">
+							<FunnelIcon
+								className="size-3.5 text-muted-foreground"
+								weight="duotone"
+							/>
 						</div>
-						{funnel.description && (
+						<p className="font-medium text-sm">{config.title}</p>
+						<Badge className="ml-auto rounded text-[10px]" variant="muted">
+							{funnel.steps.length} steps
+						</Badge>
+					</div>
+
+					<div className="rounded-md bg-background px-3 py-3">
+						<div className="space-y-2">
 							<div>
-								<p className="text-muted-foreground text-xs">Description</p>
-								<p className="text-sm">{funnel.description}</p>
+								<p className="text-muted-foreground text-xs">Name</p>
+								<p className="text-sm">{funnel.name}</p>
 							</div>
-						)}
-						<div>
-							<p className="mb-1.5 text-muted-foreground text-xs">Steps</p>
-							<div className="space-y-1">
-								{funnel.steps.map((step, idx) => (
-									<div
-										className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1.5"
-										key={idx}
-									>
-										<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-xs">
-											{idx + 1}
+							{funnel.description && (
+								<div>
+									<p className="text-muted-foreground text-xs">Description</p>
+									<p className="text-sm">{funnel.description}</p>
+								</div>
+							)}
+							<div>
+								<p className="mb-1.5 text-muted-foreground text-xs">Steps</p>
+								<div className="space-y-1">
+									{funnel.steps.map((step, idx) => (
+										<div
+											className="flex items-center gap-2 rounded bg-muted px-2 py-1.5 hover:bg-interactive-hover"
+											key={idx}
+										>
+											<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-medium text-primary text-xs">
+												{idx + 1}
+											</div>
+											<span className="min-w-0 flex-1 truncate text-xs">
+												{step.name}
+											</span>
+											<Badge className="shrink-0 text-[10px]" variant="default">
+												{step.type === "PAGE_VIEW" ? "Page" : "Event"}
+											</Badge>
 										</div>
-										<span className="min-w-0 flex-1 truncate text-xs">
-											{step.name}
-										</span>
-										<Badge className="shrink-0 text-[10px]" variant="default">
-											{step.type === "PAGE_VIEW" ? "Page" : "Event"}
-										</Badge>
-									</div>
-								))}
+									))}
+								</div>
 							</div>
+							{funnel.ignoreHistoricData && (
+								<p className="text-muted-foreground text-xs">
+									Historic data will be ignored
+								</p>
+							)}
 						</div>
-						{funnel.ignoreHistoricData && (
-							<p className="text-muted-foreground text-xs">
-								Historic data will be ignored
-							</p>
-						)}
 					</div>
-				</div>
 
-				<div className="flex items-center justify-end gap-2 border-t bg-muted/30 px-3 py-2">
-					<Button
-						disabled={isLoading || isConfirming}
-						onClick={() => setIsDialogOpen(true)}
-						size="sm"
-						variant="ghost"
-					>
-						<PencilSimpleIcon className="size-3.5" />
-						Edit
-					</Button>
-					<Button
-						disabled={isLoading}
-						loading={isConfirming}
-						onClick={handleConfirm}
-						size="sm"
-						tone={config.tone}
-					>
-						<config.ButtonIcon className="size-3.5" weight="bold" />
-						{config.confirmLabel}
-					</Button>
+					<div className="rounded-md bg-background">
+						<div className="flex items-center justify-end gap-2 bg-muted/30 px-2 py-2">
+							{canEditInline && (
+								<Button
+									disabled={isLoading || isConfirming}
+									onClick={() => setIsDialogOpen(true)}
+									size="sm"
+									variant="ghost"
+								>
+									<PencilSimpleIcon className="size-3.5" />
+									Edit
+								</Button>
+							)}
+							<Button
+								disabled={isLoading}
+								loading={isConfirming}
+								onClick={handleConfirm}
+								size="sm"
+								tone={config.tone}
+							>
+								<config.ButtonIcon className="size-3.5" weight="bold" />
+								{config.confirmLabel}
+							</Button>
+						</div>
+					</div>
 				</div>
 			</Card>
 
-			<EditFunnelDialog
-				funnel={mode === "create" ? null : funnelForDialog}
-				isCreating={isCreating}
-				isOpen={isDialogOpen}
-				isUpdating={false}
-				onClose={() => setIsDialogOpen(false)}
-				onCreate={handleCreateFromDialog}
-				onSubmit={handleUpdateFromDialog}
-			/>
+			{canEditInline && (
+				<EditFunnelDialog
+					funnel={null}
+					isCreating={isCreating}
+					isOpen={isDialogOpen}
+					isUpdating={false}
+					onClose={() => setIsDialogOpen(false)}
+					onCreate={handleCreateFromDialog}
+					onSubmit={() => Promise.resolve()}
+				/>
+			)}
 		</>
 	);
 }

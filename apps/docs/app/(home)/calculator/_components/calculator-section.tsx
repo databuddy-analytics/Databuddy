@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { track } from "@databuddy/sdk";
+import { useEffect, useRef, useState } from "react";
 import { SciFiCard } from "@/components/scifi-card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -21,6 +22,19 @@ const DEFAULT_VISITOR_DATA_LOSS_RATE = 0.55;
 const DEFAULT_VISITOR_TO_PAID = 0.015;
 const DEFAULT_REVENUE_PER_CONVERSION = 50;
 
+function bucketVisitors(visitors: number): string {
+	if (visitors < 10_000) {
+		return "<10k";
+	}
+	if (visitors < 100_000) {
+		return "10k_100k";
+	}
+	if (visitors < 1_000_000) {
+		return "100k_1m";
+	}
+	return ">1m";
+}
+
 function percentToSlider(value: number): number {
 	return Math.round(value * 1000);
 }
@@ -40,6 +54,13 @@ export function CalculatorSection() {
 	const [revenuePerConversion, setRevenuePerConversion] = useState(
 		DEFAULT_REVENUE_PER_CONVERSION
 	);
+	const fired = useRef(false);
+	const initial = useRef({
+		monthlyVisitors: DEFAULT_VISITORS,
+		visitorDataLossRate: DEFAULT_VISITOR_DATA_LOSS_RATE,
+		visitorToPaidRate: DEFAULT_VISITOR_TO_PAID,
+		revenuePerConversion: DEFAULT_REVENUE_PER_CONVERSION,
+	});
 
 	const results = calculateCookieBannerCost({
 		monthlyVisitors,
@@ -47,6 +68,35 @@ export function CalculatorSection() {
 		visitorToPaidRate,
 		revenuePerConversion,
 	});
+
+	useEffect(() => {
+		if (fired.current) {
+			return;
+		}
+		const changed =
+			monthlyVisitors !== initial.current.monthlyVisitors ||
+			visitorDataLossRate !== initial.current.visitorDataLossRate ||
+			visitorToPaidRate !== initial.current.visitorToPaidRate ||
+			revenuePerConversion !== initial.current.revenuePerConversion;
+		if (!changed) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			if (fired.current) {
+				return;
+			}
+			fired.current = true;
+			track("calculator_used", {
+				visitors_bucket: bucketVisitors(monthlyVisitors),
+			});
+		}, 1500);
+		return () => clearTimeout(timer);
+	}, [
+		monthlyVisitors,
+		visitorDataLossRate,
+		visitorToPaidRate,
+		revenuePerConversion,
+	]);
 
 	return (
 		<section className="mx-auto w-full max-w-5xl" id="calculator">

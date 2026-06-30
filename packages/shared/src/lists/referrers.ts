@@ -2698,5 +2698,36 @@ export const referrers: Record<string, { type: string; name: string }> = {
 	"sketch.com": { type: "unknown", name: "Sketch" },
 	"www.sketch.com": { type: "unknown", name: "Sketch" },
 	"checkout.stripe.com": { type: "unknown", name: "Stripe Checkout" },
+	"billing.stripe.com": { type: "unknown", name: "Stripe Billing" },
+
+	"chatgpt.com": { type: "ai", name: "ChatGPT" },
+	"chat.openai.com": { type: "ai", name: "ChatGPT" },
+	"copilot.microsoft.com": { type: "ai", name: "Microsoft Copilot" },
+	"gemini.google.com": { type: "ai", name: "Google Gemini" },
+	"claude.ai": { type: "ai", name: "Claude" },
+	"perplexity.ai": { type: "ai", name: "Perplexity" },
+	"poe.com": { type: "ai", name: "Poe" },
+	"you.com": { type: "ai", name: "You.com" },
+	"phind.com": { type: "ai", name: "Phind" },
+	"www.doubao.com": { type: "ai", name: "Doubao" },
+
+	"cn.bing.com": { type: "search", name: "Bing" },
+	"search.brave.com": { type: "search", name: "Brave Search" },
+
+	"discord.com": { type: "social", name: "Discord" },
+	"old.reddit.com": { type: "social", name: "Reddit" },
+	"www.reddit.com": { type: "social", name: "Reddit" },
+	"accounts.youtube.com": { type: "social", name: "YouTube" },
+	"www.youtube.com": { type: "social", name: "YouTube" },
+	"www.facebook.com": { type: "social", name: "Facebook" },
+	"www.linkedin.com": { type: "social", name: "LinkedIn" },
+	"top.gg": { type: "social", name: "Top.gg" },
+	"modrinth.com": { type: "social", name: "Modrinth" },
+	"openalternative.co": { type: "social", name: "OpenAlternative" },
+	"toolfolio.io": { type: "social", name: "Toolfolio" },
+	"tattle.life": { type: "social", name: "Tattle Life" },
+
+	"statics.teams.cdn.office.net": { type: "unknown", name: "Microsoft Teams" },
+	"appleid.apple.com": { type: "unknown", name: "Apple ID" },
 } as const;
 export default referrers;

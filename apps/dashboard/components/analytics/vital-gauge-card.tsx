@@ -6,18 +6,13 @@ import { InfoIcon, TrendDownIcon, TrendUpIcon } from "@databuddy/ui/icons";
 import { Card, Skeleton, Tooltip } from "@databuddy/ui";
 
 interface VitalConfig {
-	/** Color for the chart line */
 	color: string;
 	description: string;
-	/** Detailed explanation for users who don't know what this metric means */
 	explanation: string;
 	goodThreshold: number;
-	/** What users should do to improve this metric */
 	improvementTips: string[];
 	label: string;
-	/** If true, lower is better (most metrics). If false, higher is better (FPS) */
 	lowerIsBetter?: boolean;
-	/** Max value for the gauge (determines 100% fill) */
 	maxValue: number;
 	name: string;
 	poorThreshold: number;
@@ -151,7 +146,6 @@ function getRating(value: number, config: VitalConfig): GaugeRating {
 		}
 		return "poor";
 	}
-	// Higher is better (FPS)
 	if (value >= config.goodThreshold) {
 		return "good";
 	}
@@ -175,14 +169,11 @@ interface TrendData {
 
 interface VitalGaugeCardProps {
 	className?: string;
-	/** Whether this metric is selected/active for the chart */
 	isActive?: boolean;
 	isLoading?: boolean;
 	metricName: keyof typeof VITAL_CONFIGS;
-	/** Callback when the card is clicked to toggle */
 	onToggleAction?: () => void;
 	samples?: number;
-	/** Trend data comparing to previous period */
 	trend?: TrendData;
 	value: number | null;
 }
@@ -235,24 +226,21 @@ export function VitalGaugeCard({
 		return Math.round(v).toLocaleString();
 	};
 
-	// Calculate trend direction and whether it's positive
-	// For most metrics, lower is better (negative change = improvement)
-	// For FPS, higher is better (positive change = improvement)
 	const trendChange = trend?.change ?? null;
 	const hasTrend = trendChange !== null && hasValue;
 
-	let trendIsPositive = false;
-	let trendIsNegative = false;
-
-	if (hasTrend && trendChange !== null) {
-		if (config.lowerIsBetter === false) {
-			trendIsPositive = trendChange > 0;
-			trendIsNegative = trendChange < 0;
-		} else {
-			trendIsPositive = trendChange < 0;
-			trendIsNegative = trendChange > 0;
-		}
-	}
+	const isImprovement =
+		hasTrend && trendChange !== null
+			? config.lowerIsBetter === false
+				? trendChange > 0
+				: trendChange < 0
+			: false;
+	const isRegression =
+		hasTrend && trendChange !== null
+			? config.lowerIsBetter === false
+				? trendChange < 0
+				: trendChange > 0
+			: false;
 
 	return (
 		<Card
@@ -352,17 +340,16 @@ export function VitalGaugeCard({
 					<div
 						className={cn(
 							"absolute bottom-2 left-2 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium text-xs",
-							trendIsPositive && "bg-success/10 text-success",
-							trendIsNegative && "bg-destructive/10 text-destructive",
-							!(trendIsPositive || trendIsNegative) &&
+							isImprovement && "bg-success/10 text-success",
+							isRegression && "bg-destructive/10 text-destructive",
+							!(isImprovement || isRegression) &&
 								"bg-muted text-muted-foreground"
 						)}
 					>
-						{trendIsPositive && (
-							<TrendDownIcon className="size-3" weight="bold" />
-						)}
-						{trendIsNegative && (
+						{trendChange > 0 ? (
 							<TrendUpIcon className="size-3" weight="bold" />
+						) : (
+							<TrendDownIcon className="size-3" weight="bold" />
 						)}
 						<span>{Math.abs(Math.round(trendChange))}%</span>
 					</div>

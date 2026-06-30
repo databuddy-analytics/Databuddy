@@ -3,6 +3,8 @@ import {
 	batchedCustomEventSpansSchema,
 	batchedErrorsSchema,
 	batchedVitalsSchema,
+	MAX_FUTURE_MS,
+	MIN_TIMESTAMP,
 	outgoingLinkSchema,
 } from "@databuddy/validation";
 import { schemaTable } from "../test-helpers";
@@ -32,6 +34,7 @@ schemaTable(
 		["single event, websiteId", { name: "ev", websiteId: "ws_123" }],
 		["array of events", [{ name: "a" }, { name: "b" }]],
 		["array, single element", [{ name: "a" }]],
+		["auto visitor ID anonymization", { name: "ev", anonymizeVisitorIds: "auto" }],
 		["timestamp as string", { name: "ev", timestamp: "2024-01-01T00:00:00Z" }],
 		["timestamp as Date", { name: "ev", timestamp: new Date() }],
 	],
@@ -40,6 +43,12 @@ schemaTable(
 		["empty name", { name: "" }],
 		["name too long (257)", { name: "a".repeat(257) }],
 		["namespace too long (65)", { name: "ev", namespace: "a".repeat(65) }],
+		["invalid timestamp string", { name: "ev", timestamp: "not-a-date" }],
+		["timestamp before minimum", { name: "ev", timestamp: MIN_TIMESTAMP - 1 }],
+		[
+			"timestamp too far in future",
+			{ name: "ev", timestamp: Date.now() + MAX_FUTURE_MS + 1000 },
+		],
 		[
 			"array too large (101)",
 			Array.from({ length: 101 }, () => ({ name: "x" })),
@@ -68,6 +77,7 @@ schemaTable(
 			{
 				...validAnalyticsEvent,
 				anonymousId: "anon_1",
+				anonymizeVisitorIds: "auto",
 				sessionId: "sess_1",
 				timestamp: now,
 				sessionStartTime: now,

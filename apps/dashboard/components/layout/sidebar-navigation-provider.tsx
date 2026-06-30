@@ -1,7 +1,6 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { useFlags } from "@databuddy/sdk/react";
 import { usePathname } from "next/navigation";
 import {
 	createContext,
@@ -12,7 +11,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useHydrated } from "@databuddy/ui";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	getNavContext,
@@ -60,8 +58,6 @@ export function SidebarNavigationProvider({
 	const user = session?.user ?? null;
 
 	const pathname = usePathname();
-	const { getFlag } = useFlags();
-	const isHydrated = useHydrated();
 
 	const isDemo = pathname.startsWith("/demo");
 	const isWebsite = pathname.startsWith("/websites/");
@@ -96,25 +92,7 @@ export function SidebarNavigationProvider({
 		}
 	}, [navContext]);
 
-	const navigation = useMemo(() => {
-		const groups = getNavigation(pathname);
-
-		const isFlagOn = (flag: string) => {
-			if (!isHydrated) {
-				return false;
-			}
-			const flagState = getFlag(flag);
-			return flagState.status === "ready" && flagState.on;
-		};
-
-		return groups
-			.filter((group) => !group.flag || isFlagOn(group.flag))
-			.map((group) => ({
-				...group,
-				items: group.items.filter((item) => !item.flag || isFlagOn(item.flag)),
-			}))
-			.filter((group) => group.items.length > 0);
-	}, [pathname, getFlag, isHydrated]);
+	const navigation = useMemo(() => getNavigation(pathname), [pathname]);
 
 	const currentWebsiteId = isWebsite || isDemo ? websiteId : undefined;
 

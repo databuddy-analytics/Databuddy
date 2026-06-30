@@ -1,26 +1,15 @@
 {
+  "extends": "../../tsconfig/default.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
     "lib": ["dom", "dom.iterable", "ES2022"],
     "allowJs": true,
-    "skipLibCheck": true,
     "types": [],
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": true,
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
     "preserveSymlinks": false,
-    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    },
-    "noEmit": true
+    }
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
-  "references": [{ "path": "../db" }]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

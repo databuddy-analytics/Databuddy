@@ -84,12 +84,11 @@ export const qualityCases: EvalCase[] = [
 	{
 		id: "competitor-intelligence-synthesis",
 		category: "quality",
-		name: "External competitor research cross-referenced with internal behavioral shifts",
+		name: "Competitor concern assessed from internal behavioral shifts",
 		query:
-			"Our competitor (Plausible Analytics) just shipped a major update. Search for recent news about it. Then analyze our own data: has our traffic pattern changed in the last 2 weeks? Any shift in direct vs organic vs referral? Any change in visitor behavior (are people spending less time, viewing fewer pages)? I need both the external context AND our internal data synthesized into a single assessment: should we be worried?",
+			"Our competitor (Plausible Analytics) just shipped a major update. We cannot browse external news here, so analyze our own data: has our traffic pattern changed in the last 2 weeks? Any shift in direct vs organic vs referral? Any change in visitor behavior (are people spending less time, viewing fewer pages)? Give me a single assessment: should we be worried?",
 		websiteId: WS,
 		expect: {
-			toolsCalled: ["web_search"],
 			maxSteps: 20,
 			maxLatencyMs: 300_000,
 		},

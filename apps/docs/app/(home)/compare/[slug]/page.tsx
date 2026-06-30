@@ -67,19 +67,10 @@ export default async function ComparisonPage({ params }: PageProps) {
 
 	return (
 		<ComparisonPageView
-			breadcrumbTrail={[
-				{ name: "Home", url: `${SITE_URL}/` },
-				{ name: "Compare", url: `${SITE_URL}/compare` },
-				{
-					name: `vs ${competitor.name}`,
-					url: pageUrl,
-				},
-			]}
 			competitor={competitor}
 			faqs={faqs}
 			features={features}
 			featuresWin={featuresWin}
-			heroCta={hero.cta}
 			heroDescription={hero.description}
 			heroHeading={
 				<>
@@ -88,6 +79,7 @@ export default async function ComparisonPage({ params }: PageProps) {
 				</>
 			}
 			migrationSection={migrationSection}
+			pageType="compare"
 			pageUrl={pageUrl}
 			pricingTiers={pricingTiers}
 			structuredDescription={seo.description}

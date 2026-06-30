@@ -1,4 +1,8 @@
-import { computeMetricChange, formatMetric } from "@/lib/format-insight-metric";
+import {
+	computeMetricChange,
+	formatMetric,
+	metricChangeTone,
+} from "@/lib/format-insight-metric";
 import type { InsightMetric } from "@/lib/insight-types";
 import { cn } from "@/lib/utils";
 import { ArrowDownIcon, ArrowUpIcon } from "@databuddy/ui/icons";
@@ -7,36 +11,37 @@ function MetricItem({ metric }: { metric: InsightMetric }) {
 	const change = computeMetricChange(metric);
 	const formatted = formatMetric(metric.current, metric.format);
 	const hasPrevious = metric.previous !== undefined;
+	const tone = metricChangeTone(metric);
 
 	return (
-		<div className="flex min-w-0 flex-col gap-1 rounded-md border border-border/60 bg-card px-3 py-2.5">
-			<span className="text-[11px] text-muted-foreground leading-none">
-				{metric.label}
+		<div
+			className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-border/60 bg-background px-2.5 py-1.5 text-xs"
+			title={metric.label}
+		>
+			<span className="truncate text-muted-foreground">{metric.label}</span>
+			<span className="font-medium text-foreground tabular-nums">
+				{formatted}
 			</span>
-			<div className="flex items-baseline gap-2">
-				<span className="font-semibold text-foreground text-sm tabular-nums leading-none">
-					{formatted}
-				</span>
-				{hasPrevious && change !== null && change !== 0 && (
-					<span
-						className={cn(
-							"inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[11px] tabular-nums leading-none",
-							change > 0 && "bg-emerald-500/10 text-emerald-600",
-							change < 0 && "bg-red-500/10 text-red-500"
-						)}
-					>
-						{change > 0 ? (
-							<ArrowUpIcon className="size-2.5" weight="fill" />
-						) : (
-							<ArrowDownIcon className="size-2.5" weight="fill" />
-						)}
-						{Math.abs(Math.round(change))}%
-					</span>
-				)}
-			</div>
-			{hasPrevious && (
-				<span className="text-[10px] text-muted-foreground/70 tabular-nums leading-none">
-					was {formatMetric(metric.previous ?? 0, metric.format)}
+			{hasPrevious && change !== null && change !== 0 && (
+				<span
+					className={cn(
+						"inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] tabular-nums leading-none",
+						tone === "positive" && "bg-emerald-500/10 text-emerald-600",
+						tone === "negative" && "bg-red-500/10 text-red-500",
+						tone === "neutral" && "bg-muted text-muted-foreground"
+					)}
+					title={
+						hasPrevious
+							? `Was ${formatMetric(metric.previous ?? 0, metric.format)}`
+							: undefined
+					}
+				>
+					{change > 0 ? (
+						<ArrowUpIcon className="size-2.5" weight="fill" />
+					) : (
+						<ArrowDownIcon className="size-2.5" weight="fill" />
+					)}
+					{Math.abs(Math.round(change))}%
 				</span>
 			)}
 		</div>
@@ -49,14 +54,7 @@ export function InsightMetrics({ metrics }: { metrics: InsightMetric[] }) {
 	}
 
 	return (
-		<div
-			className={cn(
-				"grid gap-2",
-				metrics.length === 1 && "grid-cols-1",
-				metrics.length === 2 && "grid-cols-2",
-				metrics.length >= 3 && "grid-cols-2 sm:grid-cols-3"
-			)}
-		>
+		<div className="flex flex-wrap gap-1.5">
 			{metrics.map((metric) => (
 				<MetricItem key={metric.label} metric={metric} />
 			))}

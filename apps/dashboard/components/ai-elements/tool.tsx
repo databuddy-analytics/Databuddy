@@ -7,7 +7,11 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import type { ComponentProps } from "react";
-import { DotMatrixLoader } from "./dotmatrix-loader";
+import {
+	CheckCircleIcon,
+	CircleNotchIcon,
+	XCircleIcon,
+} from "@databuddy/ui/icons";
 
 export type ToolStatus = "running" | "complete" | "error";
 
@@ -50,20 +54,13 @@ export const Tool = ({
 	return (
 		<Collapsible className={cn("group/tool", className)} {...props}>
 			<CollapsibleTrigger className="flex w-full items-center gap-2 py-0.5 text-left text-muted-foreground text-xs hover:text-foreground">
-				<DotMatrixLoader
-					animated={isRunning}
-					className={cn(
-						isRunning && "text-primary",
-						isError && "text-destructive",
-						!(isRunning || isError) && "text-muted-foreground/45"
-					)}
-					decorative={!isRunning}
-					dotSize={2}
-					label={`${title} ${isRunning ? "running" : status}`}
-					seed={title}
-					size={14}
-					speed={1.55}
-				/>
+				{isRunning ? (
+					<CircleNotchIcon className="size-3.5 shrink-0 animate-spin text-primary" />
+				) : isError ? (
+					<XCircleIcon className="size-3.5 shrink-0 text-destructive" />
+				) : (
+					<CheckCircleIcon className="size-3.5 shrink-0 text-muted-foreground/50" />
+				)}
 				<span
 					className={cn(
 						"truncate",
@@ -74,7 +71,7 @@ export const Tool = ({
 					{title}
 				</span>
 			</CollapsibleTrigger>
-			<CollapsibleContent className="data-[state=open]:fade-in-0 data-[state=open]:animate-in">
+			<CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down motion-reduce:data-[state=closed]:animate-none motion-reduce:data-[state=open]:animate-none">
 				{children}
 			</CollapsibleContent>
 		</Collapsible>
@@ -84,7 +81,13 @@ export const Tool = ({
 export type ToolDetailProps = ComponentProps<"div">;
 
 export const ToolDetail = ({ className, ...props }: ToolDetailProps) => (
-	<div className={cn("space-y-1 pt-1 pb-1 pl-3.5", className)} {...props} />
+	<div
+		className={cn(
+			"mt-1 w-full min-w-0 space-y-3 text-pretty rounded bg-muted/30 p-3 text-left",
+			className
+		)}
+		{...props}
+	/>
 );
 
 export interface ToolInputProps {
@@ -100,14 +103,14 @@ export const ToolInput = ({ className, input }: ToolInputProps) => {
 	return (
 		<dl
 			className={cn(
-				"grid grid-cols-[auto_1fr] gap-x-3 font-mono text-muted-foreground/70 text-xs",
+				"grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-muted-foreground/80 text-xs",
 				className
 			)}
 		>
 			{entries.map(([key, value]) => (
 				<div className="contents" key={key}>
-					<dt className="text-muted-foreground/50">{key}</dt>
-					<dd className="truncate">{truncateValue(value)}</dd>
+					<dt className="shrink-0 text-muted-foreground/55">{key}</dt>
+					<dd className="min-w-0 break-all">{truncateValue(value)}</dd>
 				</div>
 			))}
 		</dl>
@@ -141,8 +144,13 @@ export const ToolOutput = ({ className, output, error }: ToolOutputProps) => {
 				new Set(preview.flatMap((row) => Object.keys(row)))
 			).slice(0, 5);
 			return (
-				<div className={cn("font-mono text-xs", className)}>
-					<table className="w-full text-muted-foreground/70">
+				<div
+					className={cn(
+						"overflow-x-auto font-mono text-muted-foreground/80 text-xs",
+						className
+					)}
+				>
+					<table className="w-full min-w-0">
 						<tbody>
 							{preview.map((row, rowIdx) => (
 								<tr key={`row-${rowIdx}`}>
@@ -167,7 +175,7 @@ export const ToolOutput = ({ className, output, error }: ToolOutputProps) => {
 		return (
 			<pre
 				className={cn(
-					"whitespace-pre-wrap font-mono text-muted-foreground/70 text-xs",
+					"overflow-x-auto whitespace-pre-wrap break-all font-mono text-muted-foreground/80 text-xs",
 					error && "text-destructive/70",
 					className
 				)}
@@ -184,7 +192,7 @@ export const ToolOutput = ({ className, output, error }: ToolOutputProps) => {
 	return (
 		<p
 			className={cn(
-				"truncate font-mono text-muted-foreground/70 text-xs",
+				"break-all font-mono text-muted-foreground/80 text-xs",
 				error && "text-destructive/70",
 				className
 			)}

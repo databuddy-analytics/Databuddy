@@ -2,18 +2,16 @@
 
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { DeviceTypeCell } from "@/components/analytics";
-import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
 import { CountryFlag } from "@/components/icon";
+import type { ReferrerEntry } from "@/components/table/rows/referrer-row";
 import { formatNumber } from "@/lib/formatters";
 import { MapPinIcon } from "@databuddy/ui/icons";
 import { PercentageBadge } from "@databuddy/ui";
 
-export interface SourceEntry {
+export interface SourceEntry extends ReferrerEntry {
 	clicks: number;
-	domain?: string;
 	name: string;
 	percentage: number;
-	referrer?: string;
 }
 
 export interface GeoEntry {
@@ -22,65 +20,6 @@ export interface GeoEntry {
 	country_name: string;
 	name: string;
 	percentage: number;
-}
-
-function extractDomain(referrer: string | undefined): string | undefined {
-	if (!referrer || referrer === "Direct" || referrer === "") {
-		return;
-	}
-	try {
-		if (referrer.startsWith("http://") || referrer.startsWith("https://")) {
-			return new URL(referrer).hostname;
-		}
-		const cleaned = referrer.replace(/^\/+|\/+$/g, "");
-		if (cleaned.includes(".")) {
-			return cleaned.split("/")[0];
-		}
-		return;
-	} catch {
-		return;
-	}
-}
-
-export function createReferrerColumns(): ColumnDef<SourceEntry>[] {
-	return [
-		{
-			id: "name",
-			accessorKey: "name",
-			header: "Source",
-			cell: ({ row }: CellContext<SourceEntry, unknown>) => {
-				const entry = row.original;
-				const domain =
-					entry.domain || extractDomain(entry.referrer || entry.name);
-				return (
-					<ReferrerSourceCell
-						domain={domain}
-						name={entry.name}
-						referrer={entry.referrer}
-					/>
-				);
-			},
-		},
-		{
-			id: "clicks",
-			accessorKey: "clicks",
-			header: "Clicks",
-			cell: ({ getValue }: CellContext<SourceEntry, unknown>) => (
-				<span className="font-medium text-foreground tabular-nums">
-					{formatNumber(getValue() as number)}
-				</span>
-			),
-		},
-		{
-			id: "percentage",
-			accessorKey: "percentage",
-			header: "Share",
-			cell: ({ getValue }: CellContext<SourceEntry, unknown>) => {
-				const percentage = getValue() as number;
-				return <PercentageBadge percentage={percentage} />;
-			},
-		},
-	];
 }
 
 export function createGeoColumns(

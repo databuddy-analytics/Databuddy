@@ -1,17 +1,47 @@
-import { and, db, eq } from "@databuddy/db";
-import { alarms } from "@databuddy/db/schema";
 import {
-	buildAnomalyNotificationPayload,
-	NotificationClient,
-} from "@databuddy/notifications";
+	db,
+	normalizeEmailNotificationSettings,
+	type OrganizationEmailNotificationSettings,
+} from "@databuddy/db";
+import { buildAnomalyNotificationPayload } from "@databuddy/notifications";
+import { redis } from "@databuddy/redis";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { z } from "zod";
-import { toNotificationConfig } from "../lib/alarm-notifications";
+import { rpcError } from "../errors";
+import {
+	sendNotificationTarget,
+	toNotificationTargets,
+} from "../lib/alarm-notifications";
 import {
 	detectAnomalies,
 	fetchAnomalyTimeSeries,
 } from "../lib/anomaly-detection";
-import { protectedProcedure } from "../orpc";
+import { type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+
+async function throttleAnomalyAction(
+	context: Context,
+	action: string,
+	websiteId: string,
+	max: number
+): Promise<void> {
+	const principal = context.user
+		? `user:${context.user.id}`
+		: context.apiKey
+			? `apikey:${context.apiKey.id}`
+			: null;
+	if (!principal) {
+		return;
+	}
+	const rl = await ratelimit(
+		`anomalies:${action}:${principal}:${websiteId}`,
+		max,
+		60
+	);
+	if (!rl.success) {
+		throw rpcError.rateLimited(rl.reset);
+	}
+}
 
 const anomalySchema = z.object({
 	metric: z.enum(["pageviews", "custom_events", "errors"]),
@@ -32,6 +62,20 @@ const timeSeriesPointSchema = z.object({
 	hour: z.string(),
 	count: z.number(),
 });
+
+function anomalyEmailEnabled(
+	metric: string,
+	organizationSettings: OrganizationEmailNotificationSettings | null | undefined
+): boolean {
+	const settings = normalizeEmailNotificationSettings(organizationSettings);
+	if (metric === "errors") {
+		return settings.anomalies.errorEmails;
+	}
+	if (metric === "custom_events") {
+		return settings.anomalies.customEventEmails;
+	}
+	return settings.anomalies.trafficEmails;
+}
 
 export const anomaliesRouter = {
 	detect: protectedProcedure
@@ -63,6 +107,7 @@ export const anomaliesRouter = {
 				websiteId: input.websiteId,
 				permissions: ["read"],
 			});
+			await throttleAnomalyAction(context, "detect", workspace.website.id, 12);
 
 			return detectAnomalies(workspace.website.id, input.config ?? {});
 		}),
@@ -89,6 +134,12 @@ export const anomaliesRouter = {
 				websiteId: input.websiteId,
 				permissions: ["read"],
 			});
+			await throttleAnomalyAction(
+				context,
+				"timeSeries",
+				workspace.website.id,
+				30
+			);
 
 			return fetchAnomalyTimeSeries(
 				workspace.website.id,
@@ -120,11 +171,17 @@ export const anomaliesRouter = {
 		.handler(async ({ context, input }) => {
 			const workspace = await withWorkspace(context, {
 				websiteId: input.websiteId,
-				permissions: ["read"],
+				permissions: ["update"],
 			});
+			await throttleAnomalyAction(context, "notify", workspace.website.id, 3);
 
 			const clientId = workspace.website.id;
 			const orgId = workspace.organizationId;
+
+			const org = await db.query.organization.findFirst({
+				where: { id: orgId },
+				columns: { emailNotifications: true },
+			});
 
 			const detected = await detectAnomalies(clientId);
 
@@ -133,7 +190,7 @@ export const anomaliesRouter = {
 			}
 
 			const matchingAlarms = await db.query.alarms.findMany({
-				where: and(eq(alarms.organizationId, orgId), eq(alarms.enabled, true)),
+				where: { organizationId: orgId, enabled: true },
 				with: { destinations: true },
 			});
 
@@ -156,6 +213,12 @@ export const anomaliesRouter = {
 				);
 
 				for (const anomaly of relevantAnomalies) {
+					const dedupKey = `anomalies:notified:${alarm.id}:${anomaly.metric}:${anomaly.type}:${anomaly.eventName ?? ""}`;
+					const reserved = await redis.set(dedupKey, "1", "EX", 300, "NX");
+					if (reserved !== "OK") {
+						continue;
+					}
+
 					const payload = buildAnomalyNotificationPayload({
 						kind: anomaly.type,
 						metric: anomaly.metric,
@@ -170,15 +233,23 @@ export const anomaliesRouter = {
 						eventName: anomaly.eventName,
 					});
 
-					const { clientConfig, channels } = toNotificationConfig(
-						alarm.destinations
+					const emailEnabled = anomalyEmailEnabled(
+						anomaly.metric,
+						org?.emailNotifications
 					);
-					if (channels.length === 0) {
+					const destinations = emailEnabled
+						? alarm.destinations
+						: alarm.destinations.filter((dest) => dest.type !== "email");
+					const targets = toNotificationTargets(destinations);
+					if (targets.length === 0) {
 						continue;
 					}
 
-					const client = new NotificationClient(clientConfig);
-					const results = await client.send(payload, { channels });
+					const results = (
+						await Promise.all(
+							targets.map((target) => sendNotificationTarget(target, payload))
+						)
+					).flat();
 					notificationsSent += results.filter((r) => r.success).length;
 				}
 			}

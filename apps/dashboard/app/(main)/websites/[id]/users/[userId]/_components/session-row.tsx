@@ -6,7 +6,7 @@ import type {
 	SessionEvent,
 	SessionReferrer,
 	SessionRowProps,
-} from "@databuddy/shared/types/sessions";
+} from "@/types/sessions";
 import React, { useCallback } from "react";
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
@@ -16,7 +16,8 @@ import {
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { fromNow } from "@databuddy/ui";
-import { cn, getDeviceIcon } from "@/lib/utils";
+import { getDeviceIcon } from "@/components/device-icon";
+import { cn } from "@/lib/utils";
 import { generateSessionName } from "./generate-session-name";
 import { SessionEventTimeline } from "./session-event-timeline";
 import {

@@ -1,4 +1,4 @@
-import { CheckIcon } from "@phosphor-icons/react/ssr";
+import { CheckIcon } from "@databuddy/ui/icons";
 import type { PricingTier } from "@/lib/comparison-config";
 
 export function PricingSection({

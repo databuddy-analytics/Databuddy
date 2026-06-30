@@ -1,7 +1,7 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import { filterOptions } from "@/lib/filter-options";
+import type { DynamicQueryFilter } from "@/types/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";

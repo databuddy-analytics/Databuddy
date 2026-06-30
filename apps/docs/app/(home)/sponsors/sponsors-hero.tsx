@@ -1,7 +1,8 @@
 "use client";
 
-import type { IconWeight } from "@phosphor-icons/react";
-import { HeartIcon, StarIcon } from "@phosphor-icons/react";
+type IconWeight = "regular" | "bold" | "fill" | "duotone";
+
+import { StarIcon as HeartIcon, StarIcon } from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 
 interface SponsorsHeroProps {

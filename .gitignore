@@ -26,6 +26,8 @@ coverage
 .vercel
 
 # Build Outputs
+.build/
+.swiftpm/
 .next/
 out/
 build
@@ -67,3 +69,14 @@ tmp
 .next-docs/
 .gstack/
 .superpowers/
+.warden/
+
+# Local Sentrux baseline/rules/GUI state
+.sentrux/
+
+# Local deepsec security audit workspace (scans, findings, env)
+.deepsec/
+
+# Local reference repositories
+tigerbeetle/
+*.rdb

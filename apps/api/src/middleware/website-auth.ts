@@ -4,12 +4,16 @@ import {
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { auth } from "@databuddy/auth";
-import { and, db, eq } from "@databuddy/db";
-import { member } from "@databuddy/db/schema";
+import { db } from "@databuddy/db";
 import { Elysia } from "elysia";
-import { useLogger } from "evlog/elysia";
-import { record } from "../lib/tracing";
-import { getCachedWebsite, getTimezone } from "../lib/website-utils";
+import { getResolvedAuth } from "../lib/auth-wide-event";
+import { getCachedWebsite, getTimezone } from "@databuddy/ai/lib/website-utils";
+
+interface SessionUser {
+	email: string;
+	id: string;
+	name: string;
+}
 
 function json(status: number, body: unknown) {
 	return new Response(JSON.stringify(body), {
@@ -18,58 +22,101 @@ function json(status: number, body: unknown) {
 	});
 }
 
+function getSessionUser(
+	session: Awaited<ReturnType<typeof auth.api.getSession>> | null
+): SessionUser | null {
+	if (!session?.user) {
+		return null;
+	}
+
+	return {
+		email: session.user.email,
+		id: session.user.id,
+		name: session.user.name,
+	};
+}
+
 export function websiteAuth() {
 	return new Elysia()
-		.onBeforeHandle(async ({ request }) => {
+		.derive(async ({ request }) => {
+			if (isPreflight(request)) {
+				return {
+					user: null,
+					session: null,
+					website: undefined,
+					timezone: "UTC",
+					_apiKey: null,
+					_apiKeyPresent: false,
+					_authChecked: true,
+				} as const;
+			}
+
+			const url = new URL(request.url);
+			const websiteId = url.searchParams.get("website_id");
+
+			const preResolved = getResolvedAuth(request.headers);
+			let sessionUser: SessionUser | null = null;
+			let session: Awaited<ReturnType<typeof auth.api.getSession>> | null =
+				null;
+			let apiKey: Awaited<ReturnType<typeof getApiKeyFromHeader>> | null = null;
+			const apiKeyPresent = isApiKeyPresent(request.headers);
+
+			if (preResolved) {
+				session = preResolved.session;
+				sessionUser = getSessionUser(session);
+				apiKey = preResolved.apiKeyResult?.key ?? null;
+			} else {
+				const [resolvedApiKey, resolvedSession] = await Promise.all([
+					apiKeyPresent ? getApiKeyFromHeader(request.headers) : null,
+					auth.api.getSession({ headers: request.headers }),
+				]);
+				session = resolvedSession;
+				sessionUser = getSessionUser(session);
+				apiKey = resolvedApiKey;
+			}
+
+			const website = websiteId ? await getCachedWebsite(websiteId) : undefined;
+
+			const timezone = session?.user
+				? await getTimezone(request, session)
+				: await getTimezone(request, null);
+
+			return {
+				user: sessionUser,
+				session,
+				website,
+				timezone,
+				_apiKey: apiKey,
+				_apiKeyPresent: apiKeyPresent,
+				_authChecked: true,
+			} as const;
+		})
+		.onBeforeHandle(({ user, website, _apiKey, _apiKeyPresent, request }) => {
 			if (isPreflight(request)) {
 				return;
 			}
 
-			const debug = shouldDebug();
-			const rid = Math.random().toString(36).slice(2, 8);
-			const authStarted = debug ? Date.now() : 0;
-
 			const url = new URL(request.url);
 			const websiteId = url.searchParams.get("website_id");
-			const { sessionUser, apiKey, apiKeyPresent } = await record(
-				"getAuthContext",
-				() => getAuthContext(request)
-			);
 
-			const outcome = websiteId
-				? await record("checkWebsiteAuth", () =>
-						checkWebsiteAuth(websiteId, sessionUser, apiKey, apiKeyPresent)
-					)
-				: checkNoWebsiteAuth(sessionUser, apiKey);
-
-			if (debug) {
-				useLogger().set({
-					websiteAuth: { rid, durationMs: Date.now() - authStarted },
+			if (!websiteId) {
+				if (user || _apiKey) {
+					return null;
+				}
+				return json(401, {
+					success: false,
+					error: "Authentication required",
+					code: "AUTH_REQUIRED",
 				});
 			}
-			return outcome;
-		})
-		.derive(async ({ request }) => {
-			const url = new URL(request.url);
-			const websiteId = url.searchParams.get("website_id");
-			const apiKeyPresent = isApiKeyPresent(request.headers);
-			const session = apiKeyPresent
-				? null
-				: await record("getSession", () =>
-						auth.api.getSession({ headers: request.headers })
-					);
-			const timezone = session?.user
-				? await getTimezone(request, session)
-				: await getTimezone(request, null);
-			const website = websiteId
-				? await record("getCachedWebsite", () => getCachedWebsite(websiteId))
-				: undefined;
-			return {
-				user: session?.user ?? null,
-				session,
-				website,
-				timezone,
-			} as const;
+
+			return checkWebsiteAuth(
+				websiteId,
+				user,
+				website ?? null,
+				_apiKey,
+				_apiKeyPresent
+			);
 		});
 }
 
@@ -77,41 +124,13 @@ function isPreflight(request: Request): boolean {
 	return request.method === "OPTIONS" || request.method === "HEAD";
 }
 
-function shouldDebug(): boolean {
-	return process.env.NODE_ENV === "development";
-}
-
-async function getAuthContext(request: Request) {
-	const apiKeyPresent = request.headers.get("x-api-key") != null;
-	const apiKey = apiKeyPresent
-		? await getApiKeyFromHeader(request.headers)
-		: null;
-	const session = await auth.api.getSession({ headers: request.headers });
-	const sessionUser = session?.user ?? null;
-	return { sessionUser, apiKey, apiKeyPresent } as const;
-}
-
-function checkNoWebsiteAuth(
-	sessionUser: unknown,
-	apiKey: unknown
-): Response | null {
-	if (sessionUser || apiKey) {
-		return null;
-	}
-	return json(401, {
-		success: false,
-		error: "Authentication required",
-		code: "AUTH_REQUIRED",
-	});
-}
-
 async function checkWebsiteAuth(
 	websiteId: string,
-	sessionUser: { id: string; name: string; email: string } | unknown,
-	apiKey: Parameters<typeof hasWebsiteScope>[0] | null,
+	sessionUser: SessionUser | null,
+	website: Awaited<ReturnType<typeof getCachedWebsite>> | null,
+	apiKey: Awaited<ReturnType<typeof getApiKeyFromHeader>> | null,
 	apiKeyPresent: boolean
 ): Promise<Response | null> {
-	const website = await getCachedWebsite(websiteId);
 	if (!website) {
 		return json(404, {
 			success: false,
@@ -123,12 +142,7 @@ async function checkWebsiteAuth(
 		return null;
 	}
 
-	// Check session-based authentication
-	if (sessionUser && typeof sessionUser === "object" && "id" in sessionUser) {
-		const userObj = sessionUser as { id: string };
-
-		const userId = userObj.id;
-
+	if (sessionUser) {
 		if (!website.organizationId) {
 			return json(403, {
 				success: false,
@@ -137,12 +151,8 @@ async function checkWebsiteAuth(
 			});
 		}
 
-		// Check if user has access through workspace membership
 		const membership = await db.query.member.findFirst({
-			where: and(
-				eq(member.userId, userId),
-				eq(member.organizationId, website.organizationId)
-			),
+			where: { userId: sessionUser.id, organizationId: website.organizationId },
 			columns: {
 				id: true,
 			},
@@ -152,7 +162,6 @@ async function checkWebsiteAuth(
 			return null;
 		}
 
-		// User is authenticated but doesn't have access to this website
 		return json(403, {
 			success: false,
 			error: "Access denied to this website",
@@ -160,7 +169,6 @@ async function checkWebsiteAuth(
 		});
 	}
 
-	// No session user, check API key
 	if (!apiKeyPresent) {
 		return json(401, {
 			success: false,

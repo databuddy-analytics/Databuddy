@@ -1,6 +1,6 @@
 'use client';
 
-import { PlusIcon } from '@phosphor-icons/react';
+import { PlusIcon } from "@databuddy/ui/icons";
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { motion } from 'motion/react';
 import type * as React from 'react';

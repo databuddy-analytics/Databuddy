@@ -5,12 +5,15 @@ export interface DynamicQueryFilter {
 }
 
 export interface DynamicQueryRequest {
+	endDate?: string;
 	filters?: DynamicQueryFilter[];
 	granularity?: string;
 	id: string;
 	limit?: number;
 	page?: number;
 	parameters: string[];
+	startDate?: string;
+	timeZone?: string;
 }
 
 export interface ParameterResult {

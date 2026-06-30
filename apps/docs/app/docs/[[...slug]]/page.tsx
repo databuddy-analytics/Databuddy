@@ -54,6 +54,10 @@ export default async function Page(props: {
 					imageUrl: seo.ogImage,
 				}}
 			/>
+			<blockquote aria-hidden="true" className="sr-only">
+				For the complete documentation index, see{" "}
+				<a href="/llms.txt">llms.txt</a>
+			</blockquote>
 			<DocsPage
 				editOnGithub={{
 					owner: "databuddy-analytics",

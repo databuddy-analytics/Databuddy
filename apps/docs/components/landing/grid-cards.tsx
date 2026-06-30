@@ -55,35 +55,33 @@ const cards = [
 	},
 ];
 
-export const GridCards = () => {
-	return (
-		<div className="w-full">
-			<div className="mb-12 text-start lg:mb-16 lg:text-left">
-				<h2 className="mx-auto flex max-w-4xl gap-2 text-balance font-semibold text-3xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
-					<span className="mt-2">
-						<SectionBullet color="#B24A7E" />
-					</span>
-					<span className="flex items-center gap-4 text-foreground">
-						One install. Six tools replaced.
-					</span>
-				</h2>
-				<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-					Analytics, errors, vitals, funnels, and feature flags. Add one script,
-					skip the integration marathon.
-				</p>
-			</div>
-
-			<div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 lg:grid-cols-3 lg:gap-10 xl:gap-12">
-				{cards.map((card) => (
-					<div className="flex" key={card.id}>
-						<SciFiGridCard
-							description={card.description}
-							icon={card.icon}
-							title={card.title}
-						/>
-					</div>
-				))}
-			</div>
+export const GridCards = () => (
+	<div className="w-full">
+		<div className="mb-12 text-start lg:mb-16 lg:text-left">
+			<h2 className="mx-auto flex max-w-4xl items-start gap-2 text-balance font-semibold text-2xl leading-tight sm:text-4xl lg:mx-0 lg:text-5xl">
+				<span className="mt-1.5 hidden sm:block">
+					<SectionBullet color="#B24A7E" />
+				</span>
+				<span className="text-foreground">
+					One install. Six tools replaced.
+				</span>
+			</h2>
+			<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
+				Analytics, errors, vitals, funnels, and feature flags. Add one script,
+				skip the integration marathon.
+			</p>
 		</div>
-	);
-};
+
+		<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 lg:gap-6">
+			{cards.map((card) => (
+				<div className="flex" key={card.id}>
+					<SciFiGridCard
+						description={card.description}
+						icon={card.icon}
+						title={card.title}
+					/>
+				</div>
+			))}
+		</div>
+	</div>
+);

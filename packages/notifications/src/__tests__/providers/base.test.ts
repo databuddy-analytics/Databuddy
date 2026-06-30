@@ -1,6 +1,17 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { BaseProvider } from "../../providers/base";
+import type { SafeFetchInit } from "@databuddy/shared/ssrf-guard";
 import type { NotificationPayload, NotificationResult } from "../../types";
+
+const safeFetchMock = mock(
+	(_url: string, _init?: SafeFetchInit) =>
+		Promise.resolve(new Response("ok", { status: 200 }))
+);
+
+mock.module("@databuddy/shared/ssrf-guard", () => ({
+	safeFetch: safeFetchMock,
+}));
+
+const { BaseProvider } = await import("../../providers/base");
 
 class TestProvider extends BaseProvider {
 	async send(_payload: NotificationPayload): Promise<NotificationResult> {
@@ -24,10 +35,11 @@ class TestProvider extends BaseProvider {
 }
 
 describe("BaseProvider", () => {
-	const originalFetch = globalThis.fetch;
-
 	afterEach(() => {
-		globalThis.fetch = originalFetch;
+		safeFetchMock.mockClear();
+		safeFetchMock.mockImplementation((_url: string, _init?: SafeFetchInit) =>
+			Promise.resolve(new Response("ok", { status: 200 }))
+		);
 	});
 
 	describe("constructor defaults", () => {
@@ -104,31 +116,19 @@ describe("BaseProvider", () => {
 
 	describe("fetchWithTimeout", () => {
 		test("returns response on success", async () => {
-			globalThis.fetch = mock(() =>
-				Promise.resolve(new Response("ok", { status: 200 }))
-			) as typeof fetch;
-
 			const provider = new TestProvider({ timeout: 5000 });
 			const res = await provider.testFetchWithTimeout("http://example.com");
+
 			expect(res.status).toBe(200);
+			expect(safeFetchMock).toHaveBeenCalledWith("http://example.com", {
+				timeoutMs: 5000,
+			});
 		});
 
 		test("throws timeout error when request exceeds timeout", async () => {
-			globalThis.fetch = mock(
-				(_url: string, init?: RequestInit) =>
-					new Promise((_resolve, reject) => {
-						const id = setTimeout(
-							() => reject(new Error("should not reach")),
-							10_000
-						);
-						init?.signal?.addEventListener("abort", () => {
-							clearTimeout(id);
-							const abortError = new Error("The operation was aborted.");
-							abortError.name = "AbortError";
-							reject(abortError);
-						});
-					})
-			) as typeof fetch;
+			safeFetchMock.mockImplementationOnce(() =>
+				Promise.reject(new Error("Request timed out after 10ms"))
+			);
 
 			const provider = new TestProvider({ timeout: 10 });
 			await expect(
@@ -137,9 +137,9 @@ describe("BaseProvider", () => {
 		});
 
 		test("propagates non-abort errors as-is", async () => {
-			globalThis.fetch = mock(() =>
+			safeFetchMock.mockImplementationOnce(() =>
 				Promise.reject(new Error("network failure"))
-			) as typeof fetch;
+			);
 
 			const provider = new TestProvider({ timeout: 5000 });
 			await expect(

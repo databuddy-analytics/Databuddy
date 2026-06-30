@@ -1,4 +1,4 @@
-import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { CheckIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import type { ComparisonFeature } from "@/lib/comparison-config";
 
 export function FeatureRow({

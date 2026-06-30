@@ -78,9 +78,44 @@ export interface ValidateExportDateRangeResult {
 
 const MAX_HISTORY_DAYS = 365 * 2;
 const MAX_RANGE_DAYS = 365;
+const DEFAULT_RANGE_DAYS = 30;
+const MAX_ROWS_PER_TABLE = 1_000_000;
+const EXPORT_CLICKHOUSE_SETTINGS = {
+	max_execution_time: 60,
+	max_memory_usage: 2_000_000_000,
+	max_rows_to_read: 200_000_000,
+	max_bytes_to_read: 20_000_000_000,
+	read_overflow_mode: "throw",
+	use_query_cache: 0,
+} as const;
+
+function parseDate(
+	value: string,
+	now: dayjs.Dayjs,
+	label: "Start" | "End"
+):
+	| { date: dayjs.Dayjs; error?: undefined }
+	| { date?: undefined; error: string } {
+	const parsed = dayjs.utc(value, "YYYY-MM-DD", true);
+	if (!parsed.isValid()) {
+		return {
+			error: `Invalid ${label.toLowerCase()} date format. Use YYYY-MM-DD.`,
+		};
+	}
+	if (parsed.isAfter(now)) {
+		return { error: `${label} date cannot be in the future.` };
+	}
+	if (parsed.isBefore(now.subtract(MAX_HISTORY_DAYS, "day"))) {
+		return {
+			error: `${label} date cannot be more than ${MAX_HISTORY_DAYS} days ago.`,
+		};
+	}
+	return { date: parsed };
+}
 
 /**
- * Validates and sanitizes export date inputs.
+ * Validates and sanitizes export date inputs. When dates are missing the
+ * range defaults to the last DEFAULT_RANGE_DAYS days to bound the export.
  */
 export function validateExportDateRange(
 	startDate?: string,
@@ -89,79 +124,41 @@ export function validateExportDateRange(
 	const now = dayjs.utc();
 
 	if (!(startDate || endDate)) {
-		return { dates: {} };
+		return {
+			dates: {
+				startDate: now.subtract(DEFAULT_RANGE_DAYS, "day").format("YYYY-MM-DD"),
+				endDate: now.format("YYYY-MM-DD"),
+			},
+		};
 	}
 
-	let normalizedStart: string | undefined;
-	let normalizedEnd: string | undefined;
+	let parsedStart: dayjs.Dayjs | undefined;
+	let parsedEnd: dayjs.Dayjs | undefined;
 
 	if (startDate) {
-		const parsedStart = dayjs.utc(startDate, "YYYY-MM-DD", true);
-
-		if (!parsedStart.isValid()) {
-			return {
-				dates: {},
-				error: "Invalid start date format. Use YYYY-MM-DD.",
-			};
+		const result = parseDate(startDate, now, "Start");
+		if (result.error) {
+			return { dates: {}, error: result.error };
 		}
-
-		if (parsedStart.isAfter(now)) {
-			return {
-				dates: {},
-				error: "Start date cannot be in the future.",
-			};
-		}
-
-		if (parsedStart.isBefore(now.subtract(MAX_HISTORY_DAYS, "day"))) {
-			return {
-				dates: {},
-				error: `Start date cannot be more than ${MAX_HISTORY_DAYS} days ago.`,
-			};
-		}
-
-		normalizedStart = parsedStart.format("YYYY-MM-DD");
+		parsedStart = result.date;
 	}
 
 	if (endDate) {
-		const parsedEnd = dayjs.utc(endDate, "YYYY-MM-DD", true);
-
-		if (!parsedEnd.isValid()) {
-			return {
-				dates: {},
-				error: "Invalid end date format. Use YYYY-MM-DD.",
-			};
+		const result = parseDate(endDate, now, "End");
+		if (result.error) {
+			return { dates: {}, error: result.error };
 		}
-
-		if (parsedEnd.isAfter(now)) {
-			return {
-				dates: {},
-				error: "End date cannot be in the future.",
-			};
-		}
-
-		if (parsedEnd.isBefore(now.subtract(MAX_HISTORY_DAYS, "day"))) {
-			return {
-				dates: {},
-				error: `End date cannot be more than ${MAX_HISTORY_DAYS} days ago.`,
-			};
-		}
-
-		normalizedEnd = parsedEnd.format("YYYY-MM-DD");
+		parsedEnd = result.date;
 	}
 
-	if (normalizedStart && normalizedEnd) {
-		const start = dayjs.utc(normalizedStart);
-		const end = dayjs.utc(normalizedEnd);
-
-		if (start.isAfter(end)) {
+	if (parsedStart && parsedEnd) {
+		if (parsedStart.isAfter(parsedEnd)) {
 			return {
 				dates: {},
 				error: "Start date must be before or equal to end date.",
 			};
 		}
-
-		const rangeDays = end.diff(start, "day");
-		if (rangeDays > MAX_RANGE_DAYS) {
+		if (parsedEnd.diff(parsedStart, "day") > MAX_RANGE_DAYS) {
 			return {
 				dates: {},
 				error: `Date range cannot exceed ${MAX_RANGE_DAYS} days.`,
@@ -171,8 +168,8 @@ export function validateExportDateRange(
 
 	return {
 		dates: {
-			startDate: normalizedStart,
-			endDate: normalizedEnd,
+			startDate: parsedStart?.format("YYYY-MM-DD"),
+			endDate: parsedEnd?.format("YYYY-MM-DD"),
 		},
 	};
 }
@@ -256,10 +253,19 @@ async function fetchExportData(
 
 	const queryParams = { websiteId, ...eventsFilter.params };
 
+	const chOptions = { clickhouse_settings: EXPORT_CLICKHOUSE_SETTINGS };
 	const [events, errors, webVitals] = await Promise.all([
-		chQuery<Event>(getEventsQuery(eventsFilter.filter), queryParams),
-		chQuery<ErrorLog>(getErrorsQuery(errorsFilter.filter), queryParams),
-		chQuery<WebVital>(getWebVitalsQuery(webVitalsFilter.filter), queryParams),
+		chQuery<Event>(getEventsQuery(eventsFilter.filter), queryParams, chOptions),
+		chQuery<ErrorLog>(
+			getErrorsQuery(errorsFilter.filter),
+			queryParams,
+			chOptions
+		),
+		chQuery<WebVital>(
+			getWebVitalsQuery(webVitalsFilter.filter),
+			queryParams,
+			chOptions
+		),
 	]);
 
 	return {
@@ -302,15 +308,16 @@ function buildDateFilter(
 function getEventsQuery(dateFilter: string): string {
 	return `
 		SELECT * EXCEPT(ip, user_agent)
-		FROM analytics.events 
+		FROM analytics.events
 		WHERE client_id = {websiteId:String} ${dateFilter}
 		ORDER BY time DESC
+		LIMIT ${MAX_ROWS_PER_TABLE}
 	`;
 }
 
 function getErrorsQuery(dateFilter: string): string {
 	return `
-		SELECT 
+		SELECT
 			client_id,
 			anonymous_id,
 			session_id,
@@ -322,15 +329,16 @@ function getErrorsQuery(dateFilter: string): string {
 			colno,
 			stack,
 			error_type
-		FROM analytics.error_spans 
+		FROM analytics.error_spans
 		WHERE client_id = {websiteId:String} ${dateFilter}
 		ORDER BY timestamp DESC
+		LIMIT ${MAX_ROWS_PER_TABLE}
 	`;
 }
 
 function getWebVitalsQuery(dateFilter: string): string {
 	return `
-		SELECT 
+		SELECT
 			client_id,
 			anonymous_id,
 			session_id,
@@ -338,9 +346,10 @@ function getWebVitalsQuery(dateFilter: string): string {
 			path,
 			metric_name,
 			metric_value
-		FROM analytics.web_vitals_spans 
+		FROM analytics.web_vitals_spans
 		WHERE client_id = {websiteId:String} ${dateFilter}
 		ORDER BY timestamp DESC
+		LIMIT ${MAX_ROWS_PER_TABLE}
 	`;
 }
 
@@ -380,6 +389,12 @@ function formatData<T extends Record<string, unknown>>(
 	}
 }
 
+const FORMULA_PREFIX_PATTERN = /^[\s ]*[=+\-@\t\r]/;
+
+function neutralizeFormula(str: string): string {
+	return FORMULA_PREFIX_PATTERN.test(str) ? `'${str}` : str;
+}
+
 function convertToCSV<T extends Record<string, unknown>>(data: T[]): string {
 	const headers = Object.keys(data[0] || {}).join(",");
 	const rows = data
@@ -389,7 +404,7 @@ function convertToCSV<T extends Record<string, unknown>>(data: T[]): string {
 					if (value === null || value === undefined) {
 						return "";
 					}
-					const str = String(value);
+					const str = neutralizeFormula(String(value));
 					if (str.includes(",") || str.includes('"') || str.includes("\n")) {
 						return `"${str.replace(/"/g, '""')}"`;
 					}
@@ -406,7 +421,11 @@ function convertToTXT<T extends Record<string, unknown>>(data: T[]): string {
 	const rows = data
 		.map((row) =>
 			Object.values(row)
-				.map((v) => (v == null ? "" : String(v).replace(/[\t\n\r]/g, " ")))
+				.map((v) =>
+					v == null
+						? ""
+						: neutralizeFormula(String(v).replace(/[\t\n\r]/g, " "))
+				)
 				.join("\t")
 		)
 		.join("\n");

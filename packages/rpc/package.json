@@ -6,11 +6,20 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "test": "bun test src/services/uptime-lifecycle.test.ts src/services/uptime-scheduler.test.ts src/services/uptime-scheduler.integration.test.ts"
+    "check-types": "tsc --noEmit",
+    "test": "bun test src/routers src/services/insight-schedule.test.ts src/services/uptime-lifecycle.test.ts src/services/uptime-scheduler.test.ts src/utils/*.test.ts",
+    "test:integration": "bun test src/services/uptime-scheduler.integration.test.ts"
   },
   "exports": {
     ".": "./src/index.ts",
-    "./autumn": "./src/lib/autumn-client.ts"
+    "./analytics-utils": "./src/lib/analytics-utils.ts",
+    "./autumn": "./src/lib/autumn-client.ts",
+    "./billing": "./src/utils/billing.ts",
+    "./flags": "./src/utils/flags.ts",
+    "./insight-generation": "./src/routers/insight-generation.ts",
+    "./insight-schedule": "./src/services/insight-schedule.ts",
+    "./log-context": "./src/lib/rpc-log-context.ts",
+    "./organization": "./src/utils/organization.ts"
   },
   "dependencies": {
     "@databuddy/api-keys": "workspace:*",
@@ -23,22 +32,16 @@
     "@databuddy/validation": "workspace:*",
     "@orpc/server": "^1.14.0",
     "@types/jszip": "^3.4.1",
-    "ai": "^6.0.0",
     "autumn-js": "catalog:",
     "dayjs": "^1.11.19",
-    "drizzle-orm": "^0.45.2",
     "evlog": "catalog:",
     "jszip": "^3.10.1",
     "keypal": "0.2.0",
     "nanoid": "^5.1.6",
-    "pg": "^8.16.3",
-    "redis": "^5.10.0",
-    "superjson": "^2.2.6",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/pg": "^8.16.0",
-    "bullmq": "^5.66.5",
+    "bullmq": "^5.78.0",
     "typescript": "^5.9.3"
   }
 }

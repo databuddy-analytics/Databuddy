@@ -1,6 +1,5 @@
 import {
 	and,
-	desc,
 	eq,
 	inArray,
 	isNull,
@@ -12,7 +11,6 @@ import {
 	flagChangeEvents,
 	flags,
 	flagsToTargetGroups,
-	targetGroups,
 } from "@databuddy/db/schema";
 import { createDrizzleCache, redis } from "@databuddy/redis";
 import {
@@ -25,95 +23,109 @@ import {
 	getScopeCondition,
 	handleFlagUpdateDependencyCascading,
 	invalidateFlagCache,
-} from "@databuddy/shared/flags/utils";
+} from "../utils/flags";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import type { Context } from "../orpc";
-import { protectedProcedure, publicProcedure } from "../orpc";
+import { publicProcedure, trackedProcedure } from "../orpc";
+import { setTrackProperties } from "../middleware/track-mutation";
 import {
-	isFullyAuthorized,
 	type Workspace,
+	withPublicWorkspace,
 	withWorkspace,
 } from "../procedures/with-workspace";
 import {
 	requireFeatureWithLimit,
 	requireUsageWithinLimit,
 } from "../types/billing";
-import { getCacheAuthContext } from "../utils/cache-keys";
+import { scopedCacheKey } from "../utils/scoped-cache-key";
 
 const flagsCache = createDrizzleCache({ redis, namespace: "flags" });
 const CACHE_DURATION = 60;
 
-const authorizeScope = async (
+function requireCondition(condition: ReturnType<typeof and>) {
+	if (!condition) {
+		throw new Error("Expected flag filter conditions");
+	}
+	return condition;
+}
+
+const flagScopeFields = {
+	websiteId: z.string().optional(),
+	organizationId: z.string().optional(),
+};
+
+const SCOPE_REQUIRED_ERROR =
+	"Either websiteId or organizationId must be provided";
+
+const requireScope = <
+	T extends { websiteId?: string; organizationId?: string },
+>(
+	data: T
+) => Boolean(data.websiteId || data.organizationId);
+
+const scopeRefinement = { message: SCOPE_REQUIRED_ERROR, path: ["websiteId"] };
+
+function authorizeFlagRead(
 	context: Context,
-	websiteId?: string,
-	organizationId?: string,
-	permission: "read" | "update" | "delete" = "read",
-	allowPublicAccess = false
-) => {
-	if (websiteId) {
-		await withWorkspace(context, {
-			websiteId,
-			permissions: [permission],
-			allowPublicAccess,
-		});
-	} else if (organizationId) {
-		const perm = permission === "read" ? "read" : "create";
-		await withWorkspace(context, {
-			organizationId,
-			resource: "website",
-			permissions: [perm],
+	scope: { websiteId?: string; organizationId?: string }
+): Promise<Workspace> {
+	if (scope.websiteId) {
+		return withPublicWorkspace(context, {
+			websiteId: scope.websiteId,
+			resource: "flag",
+			permissions: ["read"],
 		});
 	}
-};
+	if (!scope.organizationId) {
+		throw rpcError.badRequest(SCOPE_REQUIRED_ERROR);
+	}
+	return withWorkspace(context, {
+		organizationId: scope.organizationId,
+		resource: "flag",
+		permissions: ["read"],
+	});
+}
+
+function requireAuthedFlagRead(workspace: Workspace) {
+	if (workspace.tier === "demo") {
+		throw rpcError.unauthorized(
+			"Feature flag definitions require authenticated workspace access"
+		);
+	}
+}
 
 const listFlagsSchema = z
 	.object({
-		websiteId: z.string().optional(),
-		organizationId: z.string().optional(),
+		...flagScopeFields,
 		status: z.enum(["active", "inactive", "archived"]).optional(),
 	})
-	.refine((data) => data.websiteId || data.organizationId, {
-		message: "Either websiteId or organizationId must be provided",
-		path: ["websiteId"],
-	});
+	.refine(requireScope, scopeRefinement);
 
 const getFlagSchema = z
-	.object({
-		id: z.string(),
-		websiteId: z.string().optional(),
-		organizationId: z.string().optional(),
-	})
-	.refine((data) => data.websiteId || data.organizationId, {
-		message: "Either websiteId or organizationId must be provided",
-		path: ["websiteId"],
-	});
+	.object({ id: z.string(), ...flagScopeFields })
+	.refine(requireScope, scopeRefinement);
 
 const getFlagByKeySchema = z
-	.object({
-		key: z.string(),
-		websiteId: z.string().optional(),
-		organizationId: z.string().optional(),
-	})
-	.refine((data) => data.websiteId || data.organizationId, {
-		message: "Either websiteId or organizationId must be provided",
-		path: ["websiteId"],
-	});
+	.object({ key: z.string(), ...flagScopeFields })
+	.refine(requireScope, scopeRefinement);
 
 const createFlagSchema = z
 	.object({
-		websiteId: z.string().optional(),
-		organizationId: z.string().optional(),
-		payload: z.any().optional(),
+		...flagScopeFields,
+		payload: z
+			.record(z.string(), z.unknown())
+			.refine(
+				(obj) => JSON.stringify(obj).length <= 32_768,
+				"Payload too large (max 32KB)"
+			)
+			.optional(),
 		persistAcrossAuth: z.boolean().optional(),
 		...flagFormShape,
 	})
-	.refine((data) => data.websiteId || data.organizationId, {
-		message: "Either websiteId or organizationId must be provided",
-		path: ["websiteId"],
-	});
+	.refine(requireScope, scopeRefinement);
 
 const updateFlagSchema = z
 	.object({
@@ -123,7 +135,13 @@ const updateFlagSchema = z
 		type: z.enum(["boolean", "rollout", "multivariant"]).optional(),
 		status: z.enum(["active", "inactive", "archived"]).optional(),
 		defaultValue: z.boolean().optional(),
-		payload: z.any().optional(),
+		payload: z
+			.record(z.string(), z.unknown())
+			.refine(
+				(obj) => JSON.stringify(obj).length <= 32_768,
+				"Payload too large (max 32KB)"
+			)
+			.optional(),
 		rules: z.array(userRuleSchema).optional(),
 		persistAcrossAuth: z.boolean().optional(),
 		rolloutPercentage: z.number().min(0).max(100).optional(),
@@ -214,33 +232,18 @@ const checkCircularDependency = async (
 	}
 };
 
-interface FlagWithTargetGroups {
-	rules?: unknown;
-	targetGroups?: Array<{
-		rules?: unknown;
-		[key: string]: unknown;
+interface FlagRelation {
+	flagsToTargetGroups: Array<{
+		targetGroup: { deletedAt: Date | null; [key: string]: unknown } | null;
 	}>;
-	[key: string]: unknown;
 }
 
-/**
- * Sanitizes flag data for unauthorized/demo users by removing sensitive targeting information.
- * Only keeps aggregate numbers like rule count and group count.
- */
-function sanitizeFlagForDemo<T extends FlagWithTargetGroups>(flag: T): T {
-	return {
-		...flag,
-		rules: Array.isArray(flag.rules) && flag.rules.length > 0 ? [] : flag.rules,
-		targetGroups: flag.targetGroups?.map(
-			(group: { rules?: unknown; [key: string]: unknown }) => ({
-				...group,
-				rules:
-					Array.isArray(group.rules) && group.rules.length > 0
-						? []
-						: group.rules,
-			})
-		),
-	};
+function flattenTargetGroups<T extends FlagRelation>(flag: T) {
+	const { flagsToTargetGroups, ...rest } = flag;
+	const targetGroups = flagsToTargetGroups
+		.map((ftg) => ftg.targetGroup)
+		.filter((tg): tg is NonNullable<typeof tg> => !!tg && !tg.deletedAt);
+	return { ...rest, targetGroups };
 }
 
 function buildFlagChangeSnapshot(flag: {
@@ -259,7 +262,7 @@ function buildFlagChangeSnapshot(flag: {
 		description?: string;
 		key: string;
 		type: "string" | "number" | "json";
-		value: string | number;
+		value: unknown;
 		weight?: number;
 	}> | null;
 }) {
@@ -295,64 +298,45 @@ export const flagsRouter = {
 		})
 		.input(listFlagsSchema)
 		.output(z.array(flagOutputSchema))
-		.handler(({ context, input }) => {
+		.handler(async ({ context, input }) => {
+			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const cacheKey = `list:${scope}:${input.status || "all"}`;
 
 			return flagsCache.withCache({
-				key: cacheKey,
+				key: scopedCacheKey(
+					"list",
+					workspace,
+					scope,
+					`status:${input.status || "all"}`
+				),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
 				queryFn: async () => {
-					await authorizeScope(
-						context,
-						input.websiteId,
-						input.organizationId,
-						"read",
-						true
-					);
-
-					const conditions = [
-						isNull(flags.deletedAt),
-						getScopeCondition(input.websiteId, input.organizationId),
-					];
-
-					if (input.status) {
-						conditions.push(eq(flags.status, input.status));
-					}
-
 					const flagsList = await context.db.query.flags.findMany({
-						where: and(...conditions),
-						orderBy: desc(flags.createdAt),
-						limit: 200,
-						with: {
-							flagsToTargetGroups: {
-								with: {
-									targetGroup: true,
-								},
+						where: {
+							RAW: (t) => {
+								const conditions = [
+									isNull(t.deletedAt),
+									getScopeCondition(
+										input.websiteId,
+										input.organizationId,
+										undefined,
+										t
+									),
+								];
+								if (input.status) {
+									conditions.push(eq(t.status, input.status));
+								}
+								return requireCondition(and(...conditions));
 							},
 						},
+						orderBy: { createdAt: "desc" },
+						limit: 200,
+						with: { flagsToTargetGroups: { with: { targetGroup: true } } },
 					});
 
-					// Map the nested relations to flat targetGroups array
-					const mappedFlags = flagsList.map((flag) => ({
-						...flag,
-						targetGroups: flag.flagsToTargetGroups
-							.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
-							.map((ftg) => ftg.targetGroup),
-					}));
-
-					// Check if user is fully authorized
-					const isAuthorized = input.websiteId
-						? await isFullyAuthorized(context, input.websiteId)
-						: Boolean(context.user);
-
-					// Sanitize data for unauthorized/demo users
-					if (!isAuthorized) {
-						return mappedFlags.map((flag) => sanitizeFlagForDemo(flag));
-					}
-
-					return mappedFlags;
+					return flagsList.map(flattenTargetGroups);
 				},
 			});
 		}),
@@ -369,64 +353,38 @@ export const flagsRouter = {
 		.input(getFlagSchema)
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
+			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const authContext = await getCacheAuthContext(context, {
-				websiteId: input.websiteId,
-				organizationId: input.organizationId,
-			});
-
-			const cacheKey = `byId:${input.id}:${scope}:${authContext}`;
 
 			return flagsCache.withCache({
-				key: cacheKey,
+				key: scopedCacheKey("byId", workspace, scope, `id:${input.id}`),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
 				queryFn: async () => {
-					await authorizeScope(
-						context,
-						input.websiteId,
-						input.organizationId,
-						"read",
-						true
-					);
-
 					const flag = await context.db.query.flags.findFirst({
-						where: and(
-							eq(flags.id, input.id),
-							getScopeCondition(input.websiteId, input.organizationId),
-							isNull(flags.deletedAt)
-						),
-						with: {
-							flagsToTargetGroups: {
-								with: {
-									targetGroup: true,
-								},
-							},
+						where: {
+							RAW: (t) =>
+								requireCondition(
+									and(
+										eq(t.id, input.id),
+										getScopeCondition(
+											input.websiteId,
+											input.organizationId,
+											undefined,
+											t
+										),
+										isNull(t.deletedAt)
+									)
+								),
 						},
+						with: { flagsToTargetGroups: { with: { targetGroup: true } } },
 					});
 
 					if (!flag) {
 						throw rpcError.notFound("Flag", input.id);
 					}
-
-					const mappedFlag = {
-						...flag,
-						targetGroups: flag.flagsToTargetGroups
-							.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
-							.map((ftg) => ftg.targetGroup),
-					};
-
-					// Check if user is fully authorized
-					const isAuthorized = input.websiteId
-						? await isFullyAuthorized(context, input.websiteId)
-						: Boolean(context.user);
-
-					// Sanitize data for unauthorized/demo users
-					if (!isAuthorized) {
-						return sanitizeFlagForDemo(mappedFlag);
-					}
-
-					return mappedFlag;
+					return flattenTargetGroups(flag);
 				},
 			});
 		}),
@@ -443,70 +401,44 @@ export const flagsRouter = {
 		.input(getFlagByKeySchema)
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
+			const workspace = await authorizeFlagRead(context, input);
+			requireAuthedFlagRead(workspace);
 			const scope = getScope(input.websiteId, input.organizationId);
-			const authContext = await getCacheAuthContext(context, {
-				websiteId: input.websiteId,
-				organizationId: input.organizationId,
-			});
-
-			const cacheKey = `byKey:${input.key}:${scope}:${authContext}`;
 
 			return flagsCache.withCache({
-				key: cacheKey,
+				key: scopedCacheKey("byKey", workspace, scope, `key:${input.key}`),
 				ttl: CACHE_DURATION,
 				tables: ["flags", "flags_to_target_groups", "target_groups"],
 				queryFn: async () => {
-					await authorizeScope(
-						context,
-						input.websiteId,
-						input.organizationId,
-						"read",
-						true
-					);
-
 					const flag = await context.db.query.flags.findFirst({
-						where: and(
-							eq(flags.key, input.key),
-							getScopeCondition(input.websiteId, input.organizationId),
-							eq(flags.status, "active"),
-							isNull(flags.deletedAt)
-						),
-						with: {
-							flagsToTargetGroups: {
-								with: {
-									targetGroup: true,
-								},
-							},
+						where: {
+							RAW: (t) =>
+								requireCondition(
+									and(
+										eq(t.key, input.key),
+										getScopeCondition(
+											input.websiteId,
+											input.organizationId,
+											undefined,
+											t
+										),
+										eq(t.status, "active"),
+										isNull(t.deletedAt)
+									)
+								),
 						},
+						with: { flagsToTargetGroups: { with: { targetGroup: true } } },
 					});
 
 					if (!flag) {
 						throw rpcError.notFound("Flag");
 					}
-
-					const mappedFlag = {
-						...flag,
-						targetGroups: flag.flagsToTargetGroups
-							.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
-							.map((ftg) => ftg.targetGroup),
-					};
-
-					// Check if user is fully authorized
-					const isAuthorized = input.websiteId
-						? await isFullyAuthorized(context, input.websiteId)
-						: Boolean(context.user);
-
-					// Sanitize data for unauthorized/demo users
-					if (!isAuthorized) {
-						return sanitizeFlagForDemo(mappedFlag);
-					}
-
-					return mappedFlag;
+					return flattenTargetGroups(flag);
 				},
 			});
 		}),
 
-	create: protectedProcedure
+	create: trackedProcedure
 		.route({
 			description:
 				"Creates a new feature flag. Requires feature flags plan and scope update permission.",
@@ -518,17 +450,19 @@ export const flagsRouter = {
 		.input(createFlagSchema)
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
+			setTrackProperties({ type: input.type });
 			const wsId = input.websiteId;
 			const orgId = input.organizationId;
 
 			const workspace = wsId
 				? await withWorkspace(context, {
 						websiteId: wsId,
-						permissions: ["update"],
+						resource: "flag",
+						permissions: ["create"],
 					})
 				: await withWorkspace(context, {
 						organizationId: orgId,
-						resource: "website",
+						resource: "flag",
 						permissions: ["create"],
 					});
 
@@ -561,16 +495,25 @@ export const flagsRouter = {
 				);
 			}
 
-			const dependencyFlags = await context.db
-				.select()
-				.from(flags)
-				.where(
-					and(
-						inArray(flags.key, input.dependencies || []),
-						getScopeCondition(input.websiteId, input.organizationId),
-						isNull(flags.deletedAt)
-					)
+			const dependencyKeys = input.dependencies ?? [];
+			const dependencyFlags = dependencyKeys.length
+				? await context.db
+						.select()
+						.from(flags)
+						.where(
+							and(
+								inArray(flags.key, dependencyKeys),
+								getScopeCondition(input.websiteId, input.organizationId),
+								isNull(flags.deletedAt)
+							)
+						)
+				: [];
+
+			if (dependencyFlags.length !== dependencyKeys.length) {
+				throw rpcError.badRequest(
+					"One or more dependency flags were not found in this scope"
 				);
+			}
 
 			const existingFlag = await context.db
 				.select()
@@ -691,13 +634,18 @@ export const flagsRouter = {
 
 				// Insert target group associations within the same transaction
 				if (input.targetGroupIds && input.targetGroupIds.length > 0) {
-					// Validate that all target groups exist and belong to the same website
+					const ids = input.targetGroupIds;
 					const validGroups = await tx.query.targetGroups.findMany({
-						where: and(
-							inArray(targetGroups.id, input.targetGroupIds),
-							eq(targetGroups.websiteId, input.websiteId || ""),
-							notDeleted(targetGroups)
-						),
+						where: {
+							RAW: (t) =>
+								requireCondition(
+									and(
+										inArray(t.id, ids),
+										eq(t.websiteId, input.websiteId || ""),
+										isNull(t.deletedAt)
+									)
+								),
+						},
 					});
 
 					if (validGroups.length !== input.targetGroupIds.length) {
@@ -738,7 +686,7 @@ export const flagsRouter = {
 			return newFlag;
 		}),
 
-	update: protectedProcedure
+	update: trackedProcedure
 		.route({
 			description:
 				"Updates an existing flag. Requires scope update permission.",
@@ -750,6 +698,12 @@ export const flagsRouter = {
 		.input(updateFlagSchema)
 		.output(flagOutputSchema)
 		.handler(async ({ context, input }) => {
+			if (input.type || input.status) {
+				setTrackProperties({
+					...(input.type && { type: input.type }),
+					...(input.status && { status: input.status }),
+				});
+			}
 			const existingFlag = await context.db
 				.select()
 				.from(flags)
@@ -766,13 +720,14 @@ export const flagsRouter = {
 			if (flag.websiteId) {
 				workspace = await withWorkspace(context, {
 					websiteId: flag.websiteId,
+					resource: "flag",
 					permissions: ["update"],
 				});
 			} else if (flag.organizationId) {
 				workspace = await withWorkspace(context, {
 					organizationId: flag.organizationId,
-					resource: "website",
-					permissions: ["create"],
+					resource: "flag",
+					permissions: ["update"],
 				});
 			} else {
 				throw rpcError.forbidden(
@@ -819,22 +774,30 @@ export const flagsRouter = {
 				);
 			}
 
-			const dependencyFlags = await context.db
-				.select()
-				.from(flags)
-				.where(
-					and(
-						inArray(flags.key, input.dependencies || []),
-						getScopeCondition(
-							flag.websiteId || undefined,
-							flag.organizationId || undefined
-						),
-						isNull(flags.deletedAt)
-					)
-				);
-
 			const nextDependencies =
 				input.dependencies ?? (flag.dependencies as string[]) ?? [];
+
+			const dependencyFlags = nextDependencies.length
+				? await context.db
+						.select()
+						.from(flags)
+						.where(
+							and(
+								inArray(flags.key, nextDependencies),
+								getScopeCondition(
+									flag.websiteId || undefined,
+									flag.organizationId || undefined
+								),
+								isNull(flags.deletedAt)
+							)
+						)
+				: [];
+
+			if (dependencyFlags.length !== nextDependencies.length) {
+				throw rpcError.badRequest(
+					"One or more dependency flags were not found in this scope"
+				);
+			}
 
 			if (nextDependencies.length > 0 && input.status === "active") {
 				const hasInactiveDependency = dependencyFlags.some(
@@ -864,11 +827,16 @@ export const flagsRouter = {
 					// Validate that all target groups exist and belong to the same website
 					if (targetGroupIds.length > 0) {
 						const validGroups = await tx.query.targetGroups.findMany({
-							where: and(
-								inArray(targetGroups.id, targetGroupIds),
-								eq(targetGroups.websiteId, flag.websiteId || ""),
-								notDeleted(targetGroups)
-							),
+							where: {
+								RAW: (t) =>
+									requireCondition(
+										and(
+											inArray(t.id, targetGroupIds),
+											eq(t.websiteId, flag.websiteId || ""),
+											isNull(t.deletedAt)
+										)
+									),
+							},
 						});
 
 						if (validGroups.length !== targetGroupIds.length) {
@@ -918,7 +886,7 @@ export const flagsRouter = {
 			return updatedFlag;
 		}),
 
-	delete: protectedProcedure
+	delete: trackedProcedure
 		.route({
 			description:
 				"Soft-deletes a flag (archives it). Requires scope delete permission.",
@@ -946,13 +914,14 @@ export const flagsRouter = {
 			if (flag.websiteId) {
 				workspace = await withWorkspace(context, {
 					websiteId: flag.websiteId,
+					resource: "flag",
 					permissions: ["delete"],
 				});
 			} else if (flag.organizationId) {
 				workspace = await withWorkspace(context, {
 					organizationId: flag.organizationId,
-					resource: "website",
-					permissions: ["create"],
+					resource: "flag",
+					permissions: ["delete"],
 				});
 			} else {
 				throw rpcError.forbidden(

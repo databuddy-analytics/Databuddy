@@ -1,5 +1,7 @@
 import { getAutumn } from "@databuddy/rpc/autumn";
+import { basketErrors } from "@lib/structured-errors";
 import { captureError, record } from "@lib/tracing";
+import { EvlogError } from "evlog";
 import { useLogger } from "evlog/elysia";
 
 interface BillingResult {
@@ -9,7 +11,8 @@ interface BillingResult {
 export function checkAutumnUsage(
 	customerId: string,
 	featureId: string,
-	properties?: Record<string, unknown>
+	properties?: Record<string, unknown>,
+	quantity = 1
 ): Promise<BillingResult> {
 	return record("checkAutumnUsage", async (): Promise<BillingResult> => {
 		const log = useLogger();
@@ -20,6 +23,7 @@ export function checkAutumnUsage(
 					customerId,
 					featureId,
 					sendEvent: true,
+					requiredBalance: quantity,
 					properties,
 				})
 			);
@@ -34,13 +38,31 @@ export function checkAutumnUsage(
 				},
 			});
 
+			if (!response.allowed) {
+				log.warn("Event quota exceeded", {
+					customerId,
+					featureId,
+					properties,
+					billing: {
+						usage: b?.usage,
+						granted: b?.granted,
+						unlimited: b?.unlimited,
+					},
+				});
+				throw basketErrors.billingLimitExceeded();
+			}
+
 			return { allowed: true };
 		} catch (error) {
-			log.set({ billing: { allowed: true, checkFailed: true } });
+			if (error instanceof EvlogError) {
+				throw error;
+			}
+
+			log.set({ billing: { allowed: false, checkFailed: true } });
 			captureError(error, {
-				message: "Autumn check failed, allowing event through",
+				message: "Autumn check failed, rejecting event",
 			});
-			return { allowed: true };
+			throw basketErrors.billingCheckUnavailable();
 		}
 	});
 }

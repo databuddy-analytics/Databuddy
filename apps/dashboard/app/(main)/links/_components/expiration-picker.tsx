@@ -7,12 +7,12 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { XIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	CalendarIcon,
 	CheckIcon,
 	ClockIcon,
 	InfinityIcon,
+	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
 import { Calendar } from "@databuddy/ui/client";
 import { Button, dayjs } from "@databuddy/ui";

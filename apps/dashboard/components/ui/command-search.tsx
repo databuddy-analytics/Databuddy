@@ -5,6 +5,7 @@ import {
 	type GatedFeatureId,
 } from "@databuddy/shared/types/features";
 import { useDebouncedCallback } from "@tanstack/react-pacer";
+import { useQuery } from "@tanstack/react-query";
 import { Command as CommandPrimitive } from "cmdk";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -18,6 +19,7 @@ import {
 import { useHotkeys } from "react-hotkeys-hook";
 import {
 	mainNavigation,
+	settingsNavigation,
 	websiteNavigation,
 } from "@/components/layout/navigation/navigation-config";
 import type {
@@ -25,35 +27,75 @@ import type {
 	NavigationGroup,
 	NavigationItem,
 } from "@/components/layout/navigation/types";
+import {
+	formatMaskedApiKey,
+	type ApiKeyListItem,
+} from "@/components/organizations/api-key-types";
+import { ApiKeySheet } from "@/components/organizations/api-key-sheet";
 import { useBillingContext } from "@/components/providers/billing-provider";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useWebsites } from "@/hooks/use-websites";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
 	ArrowSquareOutIcon,
 	CommandIcon,
 	GlobeIcon,
+	HeartbeatIcon,
+	KeyIcon,
+	LinkIcon,
 	LockSimpleIcon,
 	MagnifyingGlassIcon,
+	OpenExternalIcon,
+	PlusIcon,
 } from "@databuddy/ui/icons";
 import { Badge } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 
 interface SearchItem {
+	action?: () => void;
 	alpha?: boolean;
 	badge?: { text: string };
 	disabled?: boolean;
 	external?: boolean;
 	gatedFeature?: GatedFeatureId;
 	icon: NavIcon;
+	id?: string;
 	lockedPlanName?: string | null;
 	name: string;
-	path: string;
+	parentName?: string;
+	path?: string;
+	searchTags?: string[];
+	subtitle?: string;
 	tag?: string;
 }
 
 interface SearchGroup {
 	category: string;
 	items: SearchItem[];
+}
+
+function resolveNavigationPath({
+	href,
+	parentPath,
+	pathPrefix,
+	rootLevel,
+}: {
+	href: string;
+	parentPath?: string;
+	pathPrefix: string;
+	rootLevel?: boolean;
+}) {
+	if (href.startsWith("#") || href.startsWith("?")) {
+		return `${parentPath ?? pathPrefix}${href}`;
+	}
+	if (href.startsWith("http")) {
+		return href;
+	}
+	if (href === "") {
+		return parentPath ?? (rootLevel ? href : pathPrefix);
+	}
+	return rootLevel ? href : `${pathPrefix}${href}`;
 }
 
 function toSearchItem(
@@ -64,7 +106,11 @@ function toSearchItem(
 		isFeatureEnabled: (feature: GatedFeatureId) => boolean;
 	}
 ): SearchItem {
-	const path = item.rootLevel ? item.href : `${pathPrefix}${item.href}`;
+	const path = resolveNavigationPath({
+		href: item.href,
+		pathPrefix,
+		rootLevel: item.rootLevel,
+	});
 	const locked =
 		access != null &&
 		!access.isBillingLoading &&
@@ -77,6 +123,7 @@ function toSearchItem(
 		icon: item.icon,
 		disabled: item.disabled || locked,
 		tag: item.tag,
+		searchTags: item.searchTags,
 		external: item.external,
 		alpha: item.alpha,
 		badge: item.badge,
@@ -88,22 +135,85 @@ function toSearchItem(
 	};
 }
 
-function groupsToSearchGroups(
-	groups: NavigationGroup[],
+function toSearchItems(
+	item: NavigationItem,
 	pathPrefix = "",
 	access?: {
 		isBillingLoading: boolean;
 		isFeatureEnabled: (feature: GatedFeatureId) => boolean;
 	}
+): SearchItem[] {
+	const parent = toSearchItem(item, pathPrefix, access);
+	const sectionItems =
+		item.searchItems?.map((section) => {
+			const path = resolveNavigationPath({
+				href: section.href ?? "",
+				parentPath: parent.path,
+				pathPrefix,
+				rootLevel: section.rootLevel ?? item.rootLevel,
+			});
+
+			return {
+				name: section.name,
+				path,
+				icon: section.icon ?? item.icon,
+				disabled: parent.disabled || section.disabled,
+				external: section.external ?? path.startsWith("http"),
+				gatedFeature: parent.gatedFeature,
+				lockedPlanName: parent.lockedPlanName,
+				parentName: item.name,
+				searchTags: [
+					item.name,
+					...(item.searchTags ?? []),
+					...(section.searchTags ?? []),
+				],
+			};
+		}) ?? [];
+
+	return [parent, ...sectionItems];
+}
+
+function groupsToSearchGroups(
+	groups: NavigationGroup[],
+	pathPrefix = "",
+	isDemoPath = false,
+	access?: {
+		isBillingLoading: boolean;
+		isFeatureEnabled: (feature: GatedFeatureId) => boolean;
+	}
 ): SearchGroup[] {
-	return groups
-		.filter((g) => g.items.length > 0)
-		.map((g) => ({
-			category: g.label || "Quick Access",
-			items: g.items
-				.filter((item) => !item.hideFromDemo)
-				.map((item) => toSearchItem(item, pathPrefix, access)),
-		}));
+	const searchGroups: SearchGroup[] = [];
+
+	for (const group of groups) {
+		if (group.items.length === 0) {
+			continue;
+		}
+
+		const items: SearchItem[] = [];
+		for (const item of group.items) {
+			if (item.production === false && process.env.NODE_ENV === "production") {
+				continue;
+			}
+			if (item.hideFromDemo && isDemoPath) {
+				continue;
+			}
+			if (item.showOnlyOnDemo && !isDemoPath) {
+				continue;
+			}
+			items.push(...toSearchItems(item, pathPrefix, access));
+		}
+
+		if (items.length === 0) {
+			continue;
+		}
+
+		searchGroups.push({
+			category: group.label || "Quick Access",
+			items,
+		});
+	}
+
+	return searchGroups;
 }
 
 function mergeGroups(groups: SearchGroup[]): SearchGroup[] {
@@ -111,15 +221,60 @@ function mergeGroups(groups: SearchGroup[]): SearchGroup[] {
 
 	for (const group of groups) {
 		const existing = merged.get(group.category) ?? [];
-		const existingPaths = new Set(existing.map((i) => i.path));
-		const newItems = group.items.filter((i) => !existingPaths.has(i.path));
-		merged.set(group.category, [...existing, ...newItems]);
+		const existingKeys = new Set(existing.map(getSearchItemKey));
+		const nextItems = [...existing];
+
+		for (const item of group.items) {
+			const key = getSearchItemKey(item);
+			if (!existingKeys.has(key)) {
+				existingKeys.add(key);
+				nextItems.push(item);
+			}
+		}
+
+		merged.set(group.category, nextItems);
 	}
 
 	return [...merged.entries()].map(([category, items]) => ({
 		category,
 		items,
 	}));
+}
+
+function getSearchItemKey(item: SearchItem) {
+	return item.id ?? item.path ?? `${item.name}:${item.subtitle ?? ""}`;
+}
+
+function getSearchValue(item: SearchItem) {
+	return [
+		item.name,
+		item.parentName,
+		item.path,
+		item.subtitle,
+		item.tag,
+		item.badge?.text,
+		item.alpha ? "alpha" : undefined,
+		...(item.searchTags ?? []),
+	]
+		.filter(Boolean)
+		.join(" ");
+}
+
+function matchesSearchItem(item: SearchItem, rawQuery: string) {
+	const query = rawQuery.trim().toLowerCase();
+	if (!query) {
+		return true;
+	}
+
+	const searchable = getSearchValue(item).toLowerCase();
+	if (searchable.includes(query)) {
+		return true;
+	}
+
+	return query
+		.split(/\s+/)
+		.filter(Boolean)
+		.every((term) => searchable.includes(term));
 }
 
 type CommandSearchContextValue = {
@@ -142,14 +297,32 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const [debouncedSearch, setDebouncedSearch] = useState("");
-	const router = useRouter();
+	const [apiKeySheetOpen, setApiKeySheetOpen] = useState(false);
+	const [selectedApiKey, setSelectedApiKey] = useState<ApiKeyListItem | null>(
+		null
+	);
+	const { push } = useRouter();
 	const pathname = usePathname();
 	const { websites } = useWebsites({ enabled: open });
 	const { isFeatureEnabled, isLoading: isBillingLoading } = useBillingContext();
+	const { activeOrganization, activeOrganizationId, isSwitchingOrganization } =
+		useOrganizationsContext();
+	const organizationId = activeOrganization?.id ?? activeOrganizationId ?? null;
 
+	const { data: apiKeys } = useQuery({
+		...orpc.apikeys.list.queryOptions({
+			input: { organizationId: organizationId ?? "" },
+		}),
+		enabled: open && !!organizationId && !isSwitchingOrganization,
+		staleTime: 30_000,
+	});
+
+	const isDemoPath = pathname.startsWith("/demo/");
 	const currentWebsiteId = pathname.startsWith("/websites/")
 		? pathname.split("/")[2]
-		: undefined;
+		: isDemoPath
+			? pathname.split("/")[2]
+			: undefined;
 
 	useHotkeys(
 		["mod+k", "/"],
@@ -173,28 +346,126 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		[handleSearchChange]
 	);
 
+	const openCreateApiKey = useCallback(() => {
+		if (!organizationId) {
+			return;
+		}
+		setSelectedApiKey(null);
+		setApiKeySheetOpen(true);
+	}, [organizationId]);
+
+	const openApiKey = useCallback((apiKey: ApiKeyListItem) => {
+		setSelectedApiKey(apiKey);
+		setApiKeySheetOpen(true);
+	}, []);
+
 	const groups = useMemo(() => {
 		const result: SearchGroup[] = [];
 		const websitePrefix = currentWebsiteId
-			? `/websites/${currentWebsiteId}`
+			? `${isDemoPath ? "/demo" : "/websites"}/${currentWebsiteId}`
 			: "";
 
-		result.push(...groupsToSearchGroups(mainNavigation));
+		if (!isDemoPath) {
+			result.push({
+				category: "Actions",
+				items: [
+					{
+						id: "action:create-api-key",
+						name: "Create API Key",
+						subtitle: activeOrganization
+							? `Create a key for ${activeOrganization.name}`
+							: "Create a workspace API key",
+						icon: KeyIcon,
+						action: openCreateApiKey,
+						disabled: !(organizationId && !isSwitchingOrganization),
+						searchTags: [
+							"new api key",
+							"api token",
+							"access token",
+							"node sdk",
+							"server sdk",
+							"automation key",
+						],
+					},
+					{
+						id: "action:create-link",
+						name: "Create Short Link",
+						subtitle: "Open the new link sheet",
+						path: "/links?command=create-link",
+						icon: LinkIcon,
+						searchTags: ["new link", "short link", "tracking link"],
+					},
+					{
+						id: "action:create-link-folder",
+						name: "Create Link Folder",
+						subtitle: "Organize links in a folder",
+						path: "/links?command=create-folder",
+						icon: LinkIcon,
+						searchTags: ["new folder", "link folder"],
+					},
+					{
+						id: "action:create-monitor",
+						name: "Create Monitor",
+						subtitle: "Add an uptime monitor",
+						path: "/monitors?command=create-monitor",
+						icon: HeartbeatIcon,
+						searchTags: ["new monitor", "uptime", "availability"],
+					},
+					{
+						id: "action:create-status-page",
+						name: "Create Status Page",
+						subtitle: "Set up a public status page",
+						path: "/monitors/status-pages?command=create-status-page",
+						icon: OpenExternalIcon,
+						searchTags: ["new status page", "incident page", "uptime page"],
+					},
+				],
+			});
 
-		if (websites.length > 0) {
+			result.push(...groupsToSearchGroups(mainNavigation));
+			result.push(...groupsToSearchGroups(settingsNavigation));
+		}
+
+		if (!isDemoPath && websites.length > 0) {
 			result.push({
 				category: "Websites",
 				items: websites.map((w) => ({
 					name: w.name || w.domain,
 					path: `/websites/${w.id}`,
 					icon: GlobeIcon,
+					searchTags: [w.domain],
+				})),
+			});
+		}
+
+		if (!isDemoPath && apiKeys && apiKeys.length > 0) {
+			result.push({
+				category: "API Keys",
+				items: (apiKeys as ApiKeyListItem[]).map((apiKey) => ({
+					id: `api-key:${apiKey.id}`,
+					name: apiKey.name,
+					subtitle: `${formatMaskedApiKey(apiKey)} · ${apiKey.type} · ${
+						apiKey.scopes.length
+					} scope${apiKey.scopes.length === 1 ? "" : "s"}`,
+					path: "/organizations/settings#api-keys",
+					icon: KeyIcon,
+					action: () => openApiKey(apiKey),
+					searchTags: [
+						"api key",
+						"api token",
+						apiKey.type,
+						apiKey.prefix,
+						apiKey.start,
+						...apiKey.scopes,
+						...(apiKey.tags ?? []),
+					],
 				})),
 			});
 		}
 
 		if (currentWebsiteId) {
 			result.push(
-				...groupsToSearchGroups(websiteNavigation, websitePrefix, {
+				...groupsToSearchGroups(websiteNavigation, websitePrefix, isDemoPath, {
 					isBillingLoading,
 					isFeatureEnabled,
 				})
@@ -203,10 +474,17 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 
 		return mergeGroups(result);
 	}, [
+		activeOrganization,
+		apiKeys,
 		websites,
 		currentWebsiteId,
+		isDemoPath,
 		isBillingLoading,
 		isFeatureEnabled,
+		isSwitchingOrganization,
+		openApiKey,
+		openCreateApiKey,
+		organizationId,
 	]);
 
 	const filteredGroups = useMemo(() => {
@@ -215,16 +493,16 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 		}
 
 		const query = debouncedSearch.toLowerCase();
-		return groups
-			.map((group) => ({
-				...group,
-				items: group.items.filter(
-					(item) =>
-						item.name.toLowerCase().includes(query) ||
-						item.path.toLowerCase().includes(query)
-				),
-			}))
-			.filter((group) => group.items.length > 0);
+		const nextGroups: SearchGroup[] = [];
+
+		for (const group of groups) {
+			const items = group.items.filter((item) => matchesSearchItem(item, query));
+			if (items.length > 0) {
+				nextGroups.push({ ...group, items });
+			}
+		}
+
+		return nextGroups;
 	}, [groups, debouncedSearch]);
 
 	const handleSelect = useCallback(
@@ -235,13 +513,20 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 			setOpen(false);
 			setSearch("");
 			setDebouncedSearch("");
+			if (item.action) {
+				item.action();
+				return;
+			}
+			if (!item.path) {
+				return;
+			}
 			if (item.external || item.path.startsWith("http")) {
 				window.open(item.path, "_blank", "noopener,noreferrer");
 			} else {
-				router.push(item.path);
+				push(item.path);
 			}
 		},
-		[router]
+		[push]
 	);
 
 	const totalResults = filteredGroups.reduce(
@@ -335,7 +620,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 										{group.items.map((item) => (
 											<SearchResultItem
 												item={item}
-												key={`${group.category}-${item.path}`}
+												key={`${group.category}-${getSearchItemKey(item)}`}
 												onSelect={handleSelect}
 											/>
 										))}
@@ -372,6 +657,19 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 					</Dialog.Body>
 				</Dialog.Content>
 			</Dialog>
+			{organizationId && (
+				<ApiKeySheet
+					apiKey={selectedApiKey}
+					onOpenChangeAction={(nextOpen) => {
+						setApiKeySheetOpen(nextOpen);
+						if (!nextOpen) {
+							setSelectedApiKey(null);
+						}
+					}}
+					open={apiKeySheetOpen && !isSwitchingOrganization}
+					organizationId={organizationId}
+				/>
+			)}
 		</CommandSearchContext.Provider>
 	);
 }
@@ -384,6 +682,13 @@ function SearchResultItem({
 	onSelect: (item: SearchItem) => void;
 }) {
 	const ItemIcon = item.icon;
+	const subtitle =
+		item.subtitle ??
+		(item.path
+			? item.path.startsWith("http")
+				? "External link"
+				: item.path
+			: "Run command");
 
 	return (
 		<CommandPrimitive.Item
@@ -394,7 +699,7 @@ function SearchResultItem({
 			)}
 			disabled={item.disabled}
 			onSelect={() => onSelect(item)}
-			value={`${item.name} ${item.path}`}
+			value={getSearchValue(item)}
 		>
 			<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent group-data-[selected=true]:bg-background">
 				<ItemIcon className="size-4 text-muted-foreground" />
@@ -404,9 +709,7 @@ function SearchResultItem({
 				<p className="truncate font-medium text-sm leading-tight">
 					{item.name}
 				</p>
-				<p className="truncate text-muted-foreground text-xs">
-					{item.path.startsWith("http") ? "External link" : item.path}
-				</p>
+				<p className="truncate text-muted-foreground text-xs">{subtitle}</p>
 			</div>
 
 			<div className="flex shrink-0 items-center gap-1.5">

@@ -2,7 +2,7 @@
 
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
-import type { LocationData } from "@databuddy/shared/types/website";
+import type { LocationData } from "@/types/website";
 import { Skeleton } from "@databuddy/ui";
 import { useAtom } from "jotai";
 import dynamic from "next/dynamic";
@@ -38,7 +38,7 @@ function WebsiteMapPage() {
 	);
 
 	const countriesFromQuery = getDataForQuery("map-countries", "country");
-	const regionsFromQuery = getDataForQuery("map-regions", "region");
+	const regionsFromQuery = getDataForQuery("map-regions-cities", "region");
 
 	const locationData = useMemo<LocationData>(() => {
 		const countries = (countriesFromQuery || []).map(

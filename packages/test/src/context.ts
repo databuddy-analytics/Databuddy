@@ -58,6 +58,8 @@ export function context(overrides: ContextOverrides = {}): Context {
 		getBilling: async () => undefined,
 		organizationId: overrides.organizationId ?? null,
 		headers: overrides.headers ?? new Headers(),
+		anonymousId: null,
+		sessionId: null,
 	};
 }
 

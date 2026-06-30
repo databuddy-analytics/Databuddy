@@ -19,7 +19,9 @@ interface GeoResult {
 	region: string | null;
 }
 
-const CDN_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
+const DEFAULT_GEOIP_DB_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
+const GEOIP_DB_URL = process.env.GEOIP_DB_URL || DEFAULT_GEOIP_DB_URL;
+const GEOIP_FETCH_TIMEOUT_MS = 5000;
 const EMPTY_GEO: GeoResult = { country: null, region: null, city: null };
 
 let reader: GeoIPReader | null = null;
@@ -39,8 +41,15 @@ function loadDatabase(): Promise<void> {
 	}
 
 	loadPromise = (async () => {
+		const controller = new AbortController();
+		const timeout = setTimeout(
+			() => controller.abort(),
+			GEOIP_FETCH_TIMEOUT_MS
+		);
 		try {
-			const response = await fetch(CDN_URL);
+			const response = await fetch(GEOIP_DB_URL, {
+				signal: controller.signal,
+			});
 			if (!response.ok) {
 				throw new Error(`GeoIP fetch failed: ${response.status}`);
 			}
@@ -58,6 +67,7 @@ function loadDatabase(): Promise<void> {
 			captureError(err, { operation: "geo_load_database" });
 			reader = null;
 		} finally {
+			clearTimeout(timeout);
 			loadPromise = null;
 		}
 	})();
@@ -113,12 +123,26 @@ const cachedGeoLookup = cacheable(lookupGeo, {
 	staleTime: 86_400,
 });
 
+function getCloudflareGeo(request?: Request): GeoResult | null {
+	const cf = request?.headers.get("cf-ipcountry");
+	if (cf && cf.length === 2 && cf !== "XX") {
+		return { country: cf, region: null, city: null };
+	}
+	return null;
+}
+
+export function preloadGeoDatabase(): void {
+	loadDatabase().catch((err) =>
+		captureError(err, { operation: "geo_preload_database" })
+	);
+}
+
 export async function getGeo(
 	ip: string,
 	request?: Request
 ): Promise<GeoResult> {
 	if (!ip || IGNORED_IPS.has(ip) || !isValidIp(ip)) {
-		return EMPTY_GEO;
+		return getCloudflareGeo(request) ?? EMPTY_GEO;
 	}
 
 	const memHit = geoMemCache.get(ip);
@@ -126,15 +150,30 @@ export async function getGeo(
 		return memHit;
 	}
 
+	if (!reader) {
+		const cfGeo = getCloudflareGeo(request);
+		if (cfGeo) {
+			geoMemCache.set(ip, cfGeo);
+			setAttributes({
+				geo_fallback: "cloudflare",
+				geo_country: cfGeo.country ?? "",
+			});
+			preloadGeoDatabase();
+			return cfGeo;
+		}
+	}
+
 	const geo = await record("geo.lookup", () => cachedGeoLookup(ip));
 
-	if (!geo.country && request?.headers) {
-		const cf = request.headers.get("cf-ipcountry");
-		if (cf && cf.length === 2) {
-			const result: GeoResult = { country: cf, region: null, city: null };
-			geoMemCache.set(ip, result);
-			setAttributes({ geo_fallback: "cloudflare", geo_country: cf });
-			return result;
+	if (!geo.country) {
+		const cfGeo = getCloudflareGeo(request);
+		if (cfGeo) {
+			geoMemCache.set(ip, cfGeo);
+			setAttributes({
+				geo_fallback: "cloudflare",
+				geo_country: cfGeo.country ?? "",
+			});
+			return cfGeo;
 		}
 	}
 
@@ -144,22 +183,21 @@ export async function getGeo(
 	return geo;
 }
 
+const TRUSTED_IP_HEADER = (
+	process.env.TRUSTED_IP_HEADER ?? "cf-connecting-ip"
+).toLowerCase();
+
 export function extractIp(request: Request): string {
-	const cfIp = request.headers.get("cf-connecting-ip");
-	if (cfIp) {
-		return cfIp.trim();
+	const raw = request.headers.get(TRUSTED_IP_HEADER);
+	if (!raw) {
+		return "unknown";
 	}
-
-	const forwardedFor = request.headers.get("x-forwarded-for");
-	const firstIp = forwardedFor?.split(",")[0]?.trim();
-	if (firstIp) {
-		return firstIp;
+	const candidate =
+		TRUSTED_IP_HEADER === "x-forwarded-for"
+			? raw.split(",")[0]?.trim()
+			: raw.trim();
+	if (!(candidate && isValidIp(candidate))) {
+		return "unknown";
 	}
-
-	const realIp = request.headers.get("x-real-ip");
-	if (realIp) {
-		return realIp.trim();
-	}
-
-	return "unknown";
+	return candidate;
 }

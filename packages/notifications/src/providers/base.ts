@@ -1,3 +1,4 @@
+import { safeFetch, type SafeFetchInit } from "@databuddy/shared/ssrf-guard";
 import type { NotificationPayload, NotificationResult } from "../types";
 
 export interface NotificationProvider {
@@ -36,23 +37,9 @@ export abstract class BaseProvider implements NotificationProvider {
 
 	protected fetchWithTimeout(
 		url: string,
-		init?: RequestInit
+		init?: Omit<SafeFetchInit, "timeoutMs">
 	): Promise<Response> {
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-		return fetch(url, { ...init, signal: controller.signal })
-			.then((res) => {
-				clearTimeout(timeoutId);
-				return res;
-			})
-			.catch((error) => {
-				clearTimeout(timeoutId);
-				if (error instanceof Error && error.name === "AbortError") {
-					throw new Error(`Request timed out after ${this.timeout}ms`);
-				}
-				throw error;
-			});
+		return safeFetch(url, { ...init, timeoutMs: this.timeout });
 	}
 
 	protected delay(ms: number): Promise<void> {

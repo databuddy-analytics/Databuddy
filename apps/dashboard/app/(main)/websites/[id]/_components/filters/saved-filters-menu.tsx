@@ -1,10 +1,9 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DynamicQueryFilter } from "@databuddy/shared/types/api";
+import type { DynamicQueryFilter } from "@/types/api";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { getOperatorLabel } from "@/hooks/use-filters";
+import { getFieldLabel, getOperatorLabel } from "@/hooks/use-filters";
 import type { SavedFilter } from "@/hooks/use-saved-filters";
 import {
 	BookmarkIcon,
@@ -25,10 +24,6 @@ interface SavedFiltersMenuProps {
 	onDuplicateFilter: (id: string) => void;
 	onEditFilter: (id: string) => void;
 	savedFilters: SavedFilter[];
-}
-
-function getFieldLabel(field: string): string {
-	return filterOptions.find((o) => o.value === field)?.label ?? field;
 }
 
 function filtersMatch(
@@ -109,59 +104,62 @@ export function SavedFiltersMenu({
 						const isActive = filtersMatch(currentFilters, saved.filters);
 
 						return (
-							<DropdownMenu.Item
-								className="group flex cursor-pointer flex-col items-start gap-1 p-2"
+							<div
+								className="group flex flex-col items-start gap-1 p-2"
 								key={saved.id}
-								onClick={() => {
-									onApplyFilter(saved.filters);
-									setOpen(false);
-								}}
 							>
-								<div className="flex w-full items-center justify-between">
-									<div className="flex items-center gap-1.5">
-										<span className="font-medium text-sm">{saved.name}</span>
+								<div className="flex w-full items-center justify-between gap-2">
+									<Button
+										className="min-w-0 flex-1 justify-start gap-1.5 px-1 text-left"
+										onClick={() => {
+											onApplyFilter(saved.filters);
+											setOpen(false);
+										}}
+										size="sm"
+										variant="ghost"
+									>
+										<span className="truncate font-medium text-sm">
+											{saved.name}
+										</span>
 										{isActive && (
 											<CheckIcon
 												className="size-3.5 text-green-600"
 												weight="bold"
 											/>
 										)}
-									</div>
+									</Button>
 									<div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-										<button
+										<Button
 											aria-label="Edit"
-											className="rounded p-1 hover:bg-accent"
-											onClick={(e) => {
-												e.stopPropagation();
+											className="size-6 p-0"
+											onClick={() => {
 												onEditFilter(saved.id);
 												setOpen(false);
 											}}
-											type="button"
+											size="sm"
+											variant="ghost"
 										>
 											<PencilIcon className="size-3" />
-										</button>
-										<button
+										</Button>
+										<Button
 											aria-label="Duplicate"
-											className="rounded p-1 hover:bg-accent"
-											onClick={(e) => {
-												e.stopPropagation();
-												onDuplicateFilter(saved.id);
-											}}
-											type="button"
+											className="size-6 p-0"
+											onClick={() => onDuplicateFilter(saved.id)}
+											size="sm"
+											variant="ghost"
 										>
 											<CopyIcon className="size-3" />
-										</button>
-										<button
+										</Button>
+										<Button
 											aria-label="Delete"
-											className="rounded p-1 text-destructive hover:bg-destructive/10"
-											onClick={(e) => {
-												e.stopPropagation();
-												onDeleteFilter(saved.id);
-											}}
-											type="button"
+											className="size-6 p-0"
+											onClick={() => onDeleteFilter(saved.id)}
+											size="sm"
+											tone="destructive"
+											variant="ghost"
 										>
 											<TrashIcon className="size-3" />
-										</button>
+										</Button>
 									</div>
 								</div>
 
@@ -186,7 +184,7 @@ export function SavedFiltersMenu({
 										</span>
 									)}
 								</div>
-							</DropdownMenu.Item>
+							</div>
 						);
 					})}
 				</div>

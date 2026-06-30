@@ -2,7 +2,7 @@ export interface FlagResult {
 	enabled: boolean;
 	payload: Record<string, unknown> | null;
 	reason: string;
-	value: boolean | string | number;
+	value: unknown;
 	variant?: string;
 }
 
@@ -23,7 +23,7 @@ export interface FlagsConfig {
 	clientId: string;
 	debug?: boolean;
 	/** Default values by flag key */
-	defaults?: Record<string, boolean | string | number>;
+	defaults?: Record<string, unknown>;
 	disabled?: boolean;
 	environment?: string;
 	/** Defer evaluation until session resolves */
@@ -43,7 +43,7 @@ export interface FlagState {
 	loading: boolean;
 	on: boolean;
 	status: FlagStatus;
-	value?: boolean | string | number;
+	value?: unknown;
 	variant?: string;
 }
 
@@ -51,10 +51,7 @@ export interface FlagsContext {
 	fetchAllFlags: () => Promise<void>;
 	fetchFlag: (key: string) => Promise<FlagResult>;
 	getFlag: (key: string) => FlagState;
-	getValue: <T extends boolean | string | number = boolean>(
-		key: string,
-		defaultValue?: T
-	) => T;
+	getValue: <T = boolean>(key: string, defaultValue?: T) => T;
 	isOn: (key: string) => boolean;
 	isReady: boolean;
 	refresh: (forceClear?: boolean) => Promise<void>;
@@ -83,11 +80,17 @@ export interface FlagsManager {
 	getFlag(key: string, user?: UserContext): Promise<FlagResult>;
 	getMemoryFlags(): Record<string, FlagResult>;
 	getSnapshot(): FlagsSnapshot;
-	getValue<T = boolean | string | number>(key: string, defaultValue?: T): T;
+	getValue<T = boolean>(key: string, defaultValue?: T): T;
 	isEnabled(key: string): FlagState;
 	isReady(): boolean;
 	refresh(forceClear?: boolean): Promise<void>;
 	subscribe(callback: () => void): () => void;
 	updateConfig(config: FlagsConfig): void;
 	updateUser(user: UserContext): void;
+}
+
+declare global {
+	interface Window {
+		__databuddyFlags?: FlagsManager;
+	}
 }

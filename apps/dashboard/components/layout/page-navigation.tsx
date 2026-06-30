@@ -1,15 +1,20 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
+import type { ComponentType, SVGProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getActivePageNavigationTabId } from "./page-navigation-active";
 import { cn } from "@/lib/utils";
 import { ArrowLeftIcon } from "@databuddy/ui/icons";
+
+type IconComponent = ComponentType<
+	SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+>;
 
 interface TabItem {
 	count?: number;
 	href: string;
-	icon?: Icon;
+	icon?: IconComponent;
 	id: string;
 	label: string;
 }
@@ -64,6 +69,8 @@ export function PageNavigation(props: PageNavigationProps) {
 		);
 	}
 
+	const activeTabId = getActivePageNavigationTabId(props.tabs, pathname);
+
 	return (
 		<div
 			className={cn(
@@ -72,7 +79,7 @@ export function PageNavigation(props: PageNavigationProps) {
 			)}
 		>
 			{props.tabs.map((tab) => {
-				const isActive = pathname === tab.href;
+				const isActive = activeTabId === tab.id;
 				const IconComponent = tab.icon;
 
 				return (

@@ -49,35 +49,19 @@ export function FormDialog({
 		lg: "w-[95vw] max-w-lg sm:w-full",
 	};
 
-	const headerContent = (
-		<>
-			{icon && (
-				<div className="flex items-center gap-3">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded border bg-secondary">
-						{icon}
-					</div>
-					<div className="flex-1">
-						<div className="font-semibold text-base text-foreground leading-none">
-							{title}
-						</div>
-						{description && (
-							<div className="mt-1.5 text-muted-foreground text-sm">
-								{description}
-							</div>
-						)}
-					</div>
-				</div>
-			)}
-			{!icon && (
-				<>
-					<div className="font-semibold text-foreground">{title}</div>
-					{description && (
-						<div className="text-muted-foreground text-sm">{description}</div>
-					)}
-				</>
-			)}
-		</>
-	);
+	const drawerHeaderContent = icon ? (
+		<div className="flex items-center gap-2">
+			<div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
+				{icon}
+			</div>
+			<div>
+				<DrawerTitle>{title}</DrawerTitle>
+				{description && (
+					<DrawerDescription>{description}</DrawerDescription>
+				)}
+			</div>
+		</div>
+	) : null;
 
 	const formContent = (
 		<fieldset className="space-y-4" disabled={isSubmitting}>
@@ -111,7 +95,7 @@ export function FormDialog({
 			<Drawer onOpenChange={onOpenChange} open={open}>
 				<DrawerContent>
 					{icon ? (
-						<DrawerHeader>{headerContent}</DrawerHeader>
+						<DrawerHeader>{drawerHeaderContent}</DrawerHeader>
 					) : (
 						<DrawerHeader>
 							<DrawerTitle>{title}</DrawerTitle>
@@ -132,16 +116,28 @@ export function FormDialog({
 	return (
 		<Dialog onOpenChange={onOpenChange} open={open}>
 			<Dialog.Content className={sizeClasses[size]}>
-				{icon ? (
-					<div className="mb-4">{headerContent}</div>
-				) : (
-					<Dialog.Header>
-						<Dialog.Title>{title}</Dialog.Title>
-						{description && (
-							<Dialog.Description>{description}</Dialog.Description>
-						)}
-					</Dialog.Header>
-				)}
+				<Dialog.Header>
+					{icon ? (
+						<div className="flex items-center gap-2">
+							<div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
+								{icon}
+							</div>
+							<div>
+								<Dialog.Title>{title}</Dialog.Title>
+								{description && (
+									<Dialog.Description>{description}</Dialog.Description>
+								)}
+							</div>
+						</div>
+					) : (
+						<>
+							<Dialog.Title>{title}</Dialog.Title>
+							{description && (
+								<Dialog.Description>{description}</Dialog.Description>
+							)}
+						</>
+					)}
+				</Dialog.Header>
 				<Dialog.Body>{formContent}</Dialog.Body>
 				<Dialog.Footer className="gap-2">{footerContent}</Dialog.Footer>
 				<Dialog.Close />

@@ -21,29 +21,34 @@ export const SciFiGridCard = ({
 }: SciFiGridCardProps) => (
 	<div
 		className={cn(
-			"group relative min-h-[340px] w-full overflow-hidden rounded-none transition-all duration-500 hover:shadow-2xl hover:shadow-primary/5 sm:min-h-[380px] lg:min-h-[420px]",
+			"group relative min-h-[240px] w-full overflow-hidden transition-transform duration-300 hover:-translate-y-0.5 sm:min-h-[260px]",
 			className
 		)}
 	>
-		<div className="absolute inset-0 opacity-40 transition-opacity duration-500 group-hover:opacity-100">
+		<div className="absolute inset-0 opacity-20">
 			<GridPatternBg />
 		</div>
 
-		<div className="absolute inset-0 bg-linear-to-b from-transparent via-transparent to-primary/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+		<div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-foreground/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-		<SciFiCard className="h-full border border-border/50 bg-background/50 px-5 backdrop-blur-sm transition-all duration-500 group-hover:border-primary/20 group-hover:bg-background/80 sm:px-6 lg:px-8">
-			<div className="relative flex h-full flex-col items-center justify-center py-6 sm:py-8">
-				<div className="mb-6 rounded border border-border/50 bg-card p-4 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-all duration-500 group-hover:scale-110 group-hover:border-primary/20 group-hover:shadow-lg group-hover:shadow-primary/10 sm:mb-8 sm:p-5">
-					<Icon className="h-10 w-10 text-muted-foreground duration-500 group-hover:text-primary sm:h-12 sm:w-12" />
+		<SciFiCard
+			className="h-full border border-border/60 bg-card/45 px-5 backdrop-blur-sm transition-colors duration-300 group-hover:border-foreground/15 group-hover:bg-card/65 sm:px-6"
+			cornerOpacity="opacity-35"
+		>
+			<div className="relative flex h-full flex-col items-start justify-between py-5 sm:py-6">
+				<div className="mb-8 flex size-11 items-center justify-center rounded-sm border border-border/60 bg-background/60 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] transition-colors duration-300 group-hover:border-foreground/15 group-hover:text-foreground sm:size-12">
+					<Icon className="size-5 sm:size-6" />
 				</div>
 
-				<h3 className="px-2 pb-3 text-center font-semibold text-2xl text-foreground duration-300 sm:pb-4 sm:text-3xl">
-					{title}
-				</h3>
+				<div>
+					<h3 className="mb-2 font-semibold text-foreground text-xl leading-tight tracking-tight sm:text-2xl">
+						{title}
+					</h3>
 
-				<p className="max-w-[280px] px-2 text-center text-base text-muted-foreground leading-relaxed duration-300 group-hover:text-foreground/80 sm:max-w-none sm:text-lg">
-					{description}
-				</p>
+					<p className="max-w-sm text-muted-foreground text-sm leading-relaxed sm:text-base">
+						{description}
+					</p>
+				</div>
 			</div>
 		</SciFiCard>
 	</div>

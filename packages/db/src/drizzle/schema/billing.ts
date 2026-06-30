@@ -57,7 +57,6 @@ export const alarms = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		index("alarms_organization_id_idx").on(table.organizationId),
 		index("alarms_website_id_idx").on(table.websiteId),
 		index("alarms_org_enabled_idx").on(table.organizationId, table.enabled),
 		foreignKey({
@@ -115,8 +114,6 @@ export const alarmTriggerTypeValues = [
 	"uptime",
 	"traffic_spike",
 	"error_rate",
-	"goal",
-	"custom",
 ] as const;
 export type AlarmTriggerTypeValue = (typeof alarmTriggerTypeValues)[number];
 
@@ -127,3 +124,14 @@ export const alarmDestinationTypeValues = [
 ] as const;
 export type AlarmDestinationTypeValue =
 	(typeof alarmDestinationTypeValues)[number];
+
+export interface UptimeTriggerConditions {
+	monitorIds: string[];
+}
+export type TrafficSpikeTriggerConditions = Record<string, unknown>;
+export type ErrorRateTriggerConditions = Record<string, unknown>;
+
+export type AlarmTriggerConditions =
+	| UptimeTriggerConditions
+	| TrafficSpikeTriggerConditions
+	| ErrorRateTriggerConditions;

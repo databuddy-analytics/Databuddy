@@ -1,11 +1,8 @@
-export const APP_URL =
-	process.env.NEXT_PUBLIC_APP_URL || "https://app.databuddy.cc";
+import { publicConfig } from "@databuddy/env/public";
 
-const TRAILING_SLASHES_PATTERN = /\/+$/;
+export const APP_URL = publicConfig.urls.dashboard;
 
-export const STATUS_URL = (
-	process.env.NEXT_PUBLIC_STATUS_URL || "https://status.databuddy.cc"
-).replace(TRAILING_SLASHES_PATTERN, "");
+export const STATUS_URL = publicConfig.urls.status;
 
 export function getStatusPageUrl(slug: string): string {
 	return `${STATUS_URL}/${slug}`;

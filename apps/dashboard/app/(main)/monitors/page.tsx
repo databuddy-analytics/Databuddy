@@ -1,51 +1,44 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { FeatureLockedPanel } from "@/components/feature-access-gate";
 import { MonitorRow } from "@/components/monitors/monitor-row";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
-import { FeatureInviteDialog } from "@/components/organizations/feature-invite-dialog";
-import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
 	ArrowClockwiseIcon,
 	HeartbeatIcon,
+	MagnifyingGlassIcon,
 	PlusIcon,
-	UserPlusIcon,
 } from "@databuddy/ui/icons";
 import { Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
-
-export interface Monitor {
-	cacheBust: boolean;
-	createdAt: Date | string;
-	cron: string;
-	granularity: string;
-	id: string;
-	isPaused: boolean;
-	jsonParsingConfig?: {
-		enabled: boolean;
-	} | null;
-	name: string | null;
-	organizationId: string;
-	timeout: number | null;
-	updatedAt: Date | string;
-	url: string | null;
-	website: {
-		id: string;
-		name: string | null;
-		domain: string;
-	} | null;
-	websiteId: string | null;
-}
+import { MonitorsSearchBar } from "./_components/monitors-search-bar";
+import type { Monitor } from "./_components/types";
+import {
+	type SortOption,
+	type StatusFilter,
+	useFilteredMonitors,
+} from "./_components/use-filtered-monitors";
 
 export default function MonitorsPage() {
-	const { hasAccess, isLoading: isAccessLoading } =
-		useFeatureAccess("monitors");
+	return (
+		<Suspense fallback={null}>
+			<MonitorsPageContent />
+		</Suspense>
+	);
+}
+
+function MonitorsPageContent() {
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 	const [isSheetOpen, setIsSheetOpen] = useState(false);
-	const [showInviteDialog, setShowInviteDialog] = useState(false);
+	const [search, setSearch] = useState("");
+	const [sort, setSort] = useState<SortOption>("newest");
+	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 	const [editingSchedule, setEditingSchedule] = useState<{
 		id: string;
 		url: string;
@@ -60,13 +53,21 @@ export default function MonitorsPage() {
 
 	const schedulesQuery = useQuery({
 		...orpc.uptime.listSchedules.queryOptions({ input: {} }),
-		enabled: hasAccess,
 	});
 
-	const handleCreate = () => {
+	const clearCommandParam = useCallback(() => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [pathname, router, searchParams]);
+
+	const handleCreate = useCallback(() => {
 		setEditingSchedule(null);
 		setIsSheetOpen(true);
-	};
+	}, []);
 
 	const handleEdit = (schedule: Monitor) => {
 		setEditingSchedule({
@@ -90,121 +91,142 @@ export default function MonitorsPage() {
 		setEditingSchedule(null);
 	};
 
+	useEffect(() => {
+		if (searchParams.get("command") !== "create-monitor") {
+			return;
+		}
+		handleCreate();
+		clearCommandParam();
+	}, [clearCommandParam, handleCreate, searchParams]);
+
 	const monitors = (schedulesQuery.data ?? []) as Monitor[];
-	const isLoading = isAccessLoading || (hasAccess && schedulesQuery.isLoading);
+	const filtered = useFilteredMonitors(monitors, search, sort, statusFilter);
+	const isLoading = schedulesQuery.isLoading;
+	const hasPaused = monitors.some((m) => m.isPaused);
+	const hasMonitors = monitors.length > 0;
+	const noResults = !isLoading && hasMonitors && filtered.length === 0;
 
 	return (
 		<ErrorBoundary>
 			<div className="flex-1 overflow-y-auto">
-				{isAccessLoading || hasAccess ? (
-					<div className="mx-auto max-w-2xl space-y-6 p-5">
-						<Card>
-							<Card.Header className="flex-row items-start justify-between gap-4">
-								<div>
-									<Card.Title>Monitors</Card.Title>
-									<Card.Description>
-										{isLoading
-											? "Loading monitors…"
-											: monitors.length === 0
-												? "Track availability and receive alerts"
-												: `${monitors.length} monitor${monitors.length === 1 ? "" : "s"}`}
-									</Card.Description>
-								</div>
-								{hasAccess && (
-									<div className="flex items-center gap-2">
-										<Button
-											onClick={() => setShowInviteDialog(true)}
-											size="sm"
-											variant="secondary"
+				<div className="mx-auto max-w-2xl space-y-6 p-5">
+					<Card>
+						<Card.Header className="flex-row items-start justify-between gap-4">
+							<div>
+								<Card.Title>Monitors</Card.Title>
+								<Card.Description>
+									{isLoading
+										? "Loading monitors\u2026"
+										: monitors.length === 0
+											? "Track availability and receive alerts"
+											: `${monitors.length} monitor${monitors.length === 1 ? "" : "s"}`}
+								</Card.Description>
+							</div>
+							<div className="flex items-center gap-2">
+								<Button
+									aria-label="Refresh monitors"
+									disabled={
+										schedulesQuery.isLoading || schedulesQuery.isFetching
+									}
+									onClick={() => schedulesQuery.refetch()}
+									size="sm"
+									variant="ghost"
+								>
+									<ArrowClockwiseIcon
+										className={cn(
+											"size-3.5",
+											(schedulesQuery.isLoading || schedulesQuery.isFetching) &&
+												"animate-spin"
+										)}
+									/>
+								</Button>
+								<Button onClick={handleCreate} size="sm">
+									<PlusIcon className="size-3.5" />
+									Create Monitor
+								</Button>
+							</div>
+						</Card.Header>
+						<Card.Content className="p-0">
+							{isLoading && (
+								<div className="divide-y">
+									{Array.from({ length: 3 }).map((_, i) => (
+										<div
+											className="flex items-center gap-4 px-5 py-3"
+											key={`skel-${i + 1}`}
 										>
-											<UserPlusIcon className="size-3.5" weight="duotone" />
-											Invite
-										</Button>
-										<Button
-											aria-label="Refresh monitors"
-											disabled={
-												schedulesQuery.isLoading || schedulesQuery.isFetching
-											}
-											onClick={() => schedulesQuery.refetch()}
-											size="sm"
-											variant="ghost"
-										>
-											<ArrowClockwiseIcon
-												className={cn(
-													"size-3.5",
-													(schedulesQuery.isLoading ||
-														schedulesQuery.isFetching) &&
-														"animate-spin"
-												)}
-											/>
-										</Button>
-										<Button onClick={handleCreate} size="sm">
-											<PlusIcon className="size-3.5" />
-											Create Monitor
-										</Button>
-									</div>
-								)}
-							</Card.Header>
-							<Card.Content className="p-0">
-								{isLoading && (
-									<div className="divide-y">
-										{Array.from({ length: 3 }).map((_, i) => (
-											<div
-												className="flex items-center gap-4 px-5 py-3"
-												key={`skel-${i + 1}`}
-											>
-												<Skeleton className="size-10 shrink-0 rounded-lg" />
-												<div className="min-w-0 flex-1 space-y-2">
-													<div className="flex items-center gap-2">
-														<Skeleton className="h-4 w-40" />
-														<Skeleton className="h-4 w-16 rounded-full" />
-													</div>
-													<Skeleton className="h-3.5 w-56" />
+											<Skeleton className="size-10 shrink-0 rounded-lg" />
+											<div className="min-w-0 flex-1 space-y-2">
+												<div className="flex items-center gap-2">
+													<Skeleton className="h-4 w-40" />
+													<Skeleton className="h-4 w-16 rounded-full" />
 												</div>
+												<Skeleton className="h-3.5 w-56" />
 											</div>
-										))}
-									</div>
-								)}
+										</div>
+									))}
+								</div>
+							)}
 
-								{!isLoading && monitors.length === 0 && (
-									<div className="px-5 py-12">
-										<EmptyState
-											action={
-												<Button
-													onClick={handleCreate}
-													size="sm"
-													variant="secondary"
-												>
-													<PlusIcon className="size-3.5" />
-													Create Monitor
-												</Button>
-											}
-											description="Create your first uptime monitor to start tracking availability and receive alerts when services go down."
-											icon={<HeartbeatIcon weight="duotone" />}
-											title="No monitors yet"
+							{!(isLoading || hasMonitors) && (
+								<div className="px-5 py-12">
+									<EmptyState
+										action={
+											<Button
+												onClick={handleCreate}
+												size="sm"
+												variant="secondary"
+											>
+												<PlusIcon className="size-3.5" />
+												Create Monitor
+											</Button>
+										}
+										description="Create your first uptime monitor to start tracking availability and receive alerts when services go down."
+										icon={<HeartbeatIcon weight="duotone" />}
+										title="No monitors yet"
+									/>
+								</div>
+							)}
+
+							{!isLoading && hasMonitors && (
+								<>
+									<div className="border-b px-4 py-2">
+										<MonitorsSearchBar
+											hasPaused={hasPaused}
+											onSearchQueryChangeAction={setSearch}
+											onSortByChangeAction={setSort}
+											onStatusFilterChangeAction={setStatusFilter}
+											searchQuery={search}
+											sortBy={sort}
+											statusFilter={statusFilter}
 										/>
 									</div>
-								)}
-
-								{!isLoading && monitors.length > 0 && (
-									<div className="divide-y">
-										{monitors.map((monitor) => (
-											<MonitorRow
-												key={monitor.id}
-												onDeleteAction={handleDelete}
-												onEditAction={() => handleEdit(monitor)}
-												onRefetchAction={schedulesQuery.refetch}
-												schedule={monitor}
+									{noResults ? (
+										<div className="px-5 py-12">
+											<EmptyState
+												description={`No monitors match \u201c${search}\u201d`}
+												icon={<MagnifyingGlassIcon weight="duotone" />}
+												title="No results"
+												variant="minimal"
 											/>
-										))}
-									</div>
-								)}
-							</Card.Content>
-						</Card>
-					</div>
-				) : (
-					<FeatureLockedPanel flagKey="monitors" />
-				)}
+										</div>
+									) : (
+										<div className="divide-y">
+											{filtered.map((monitor) => (
+												<MonitorRow
+													key={monitor.id}
+													onDeleteAction={handleDelete}
+													onEditAction={() => handleEdit(monitor)}
+													onRefetchAction={schedulesQuery.refetch}
+													schedule={monitor}
+												/>
+											))}
+										</div>
+									)}
+								</>
+							)}
+						</Card.Content>
+					</Card>
+				</div>
 
 				{isSheetOpen && (
 					<Suspense fallback={null}>
@@ -215,13 +237,6 @@ export default function MonitorsPage() {
 							schedule={editingSchedule}
 						/>
 					</Suspense>
-				)}
-				{showInviteDialog && (
-					<FeatureInviteDialog
-						flagKey="monitors"
-						onOpenChangeAction={setShowInviteDialog}
-						open={showInviteDialog}
-					/>
 				)}
 			</div>
 		</ErrorBoundary>

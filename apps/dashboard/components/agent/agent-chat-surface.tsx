@@ -12,16 +12,19 @@ import { useChat, useChatLoading } from "@/contexts/chat-context";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { BrainIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArrowRightIcon,
+	BrainIcon,
 	ChartBarIcon,
 	LightbulbIcon,
 	LightningIcon,
 	TableIcon,
 } from "@databuddy/ui/icons";
+import { useSetAtom } from "jotai";
+import { agentMentionsAtom } from "./agent-atoms";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
+import { AGENT_COMMANDS } from "./agent-commands";
 import { setLastChatId } from "./hooks/use-chat-db";
 import { Avatar } from "@databuddy/ui/client";
 import { Button, Skeleton } from "@databuddy/ui";
@@ -31,7 +34,8 @@ interface AgentChatSurfaceProps {
 	chatId: string;
 	className?: string;
 	contentClassName?: string;
-	websiteId: string;
+	defaultWebsiteId?: string;
+	organizationId: string | null;
 }
 
 const FALLBACK_ICONS = [
@@ -43,20 +47,40 @@ const FALLBACK_ICONS = [
 
 const LOADING_DELAY_MS = 250;
 
+const DEFAULT_PROMPTS = AGENT_COMMANDS.filter(
+	(command) => command.action !== "clear"
+)
+	.slice(0, 4)
+	.map((command) => ({
+		label: command.title,
+		prompt: command.prompt,
+		source: "default" as const,
+	}));
+
 export function AgentChatSurface({
 	autoSendPromptFromUrl = false,
 	chatId,
 	className,
 	contentClassName,
-	websiteId,
+	defaultWebsiteId,
+	organizationId,
 }: AgentChatSurfaceProps) {
+	const lastChatScope = defaultWebsiteId ?? organizationId;
+	const setMentions = useSetAtom(agentMentionsAtom);
+
 	useEffect(() => {
-		setLastChatId(websiteId, chatId);
-	}, [websiteId, chatId]);
+		if (lastChatScope) {
+			setLastChatId(lastChatScope, chatId);
+		}
+	}, [lastChatScope, chatId]);
+
+	useEffect(() => {
+		setMentions([]);
+	}, [chatId, setMentions]);
 
 	const { messages, sendMessage } = useChat();
 	const { isRestoring, isEmpty } = useChatLoading();
-	const { data: website } = useWebsite(websiteId);
+	const { data: website } = useWebsite(defaultWebsiteId ?? "");
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const pathname = usePathname();
@@ -95,12 +119,16 @@ export function AgentChatSurface({
 
 	return (
 		<div
-			className={cn("relative flex min-h-0 flex-1 overflow-hidden", className)}
+			className={cn(
+				"relative flex min-h-0 flex-1 flex-col overflow-hidden",
+				className
+			)}
 		>
 			<Conversation className="flex-1 overscroll-none">
 				<ConversationContent
 					className={cn(
-						"mx-auto flex min-h-full w-full max-w-3xl flex-col gap-6 px-4 py-6",
+						"mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-6",
+						showWelcome && "min-h-full",
 						contentClassName
 					)}
 					scrollClassName="overscroll-none"
@@ -112,14 +140,16 @@ export function AgentChatSurface({
 							<WelcomeState
 								domain={domain}
 								onPromptSelect={launchPrompt}
-								websiteId={websiteId}
+								websiteId={defaultWebsiteId}
 							/>
 						</div>
 					) : null}
-					<AgentInput />
 				</ConversationContent>
 				<ConversationScrollButton />
 			</Conversation>
+			<div className="mx-auto w-full max-w-3xl px-4 pb-4">
+				<AgentInput />
+			</div>
 		</div>
 	);
 }
@@ -158,14 +188,17 @@ function WelcomeState({
 }: {
 	domain: string | null;
 	onPromptSelect: (text: string) => void;
-	websiteId: string;
+	websiteId?: string;
 }) {
-	const { data: prompts, isLoading } = useQuery({
+	const { data: fetchedPrompts, isLoading } = useQuery({
 		...orpc.agentChats.suggestedPrompts.queryOptions({
-			input: { websiteId },
+			input: { websiteId: websiteId ?? "" },
 		}),
+		enabled: Boolean(websiteId),
 		staleTime: 5 * 60 * 1000,
 	});
+
+	const prompts = websiteId ? fetchedPrompts : DEFAULT_PROMPTS;
 
 	return (
 		<div className="w-full space-y-6">
@@ -180,11 +213,15 @@ function WelcomeState({
 				<div className="space-y-1 text-center">
 					<h3 className="text-balance font-semibold text-lg">Meet Databunny</h3>
 					<p className="text-pretty text-muted-foreground text-sm">
-						Ask anything about{" "}
-						<span className="font-medium text-foreground">
-							{domain ?? "your"}
-						</span>
-						's analytics.
+						{domain ? (
+							<>
+								Ask anything about{" "}
+								<span className="font-medium text-foreground">{domain}</span>'s
+								analytics.
+							</>
+						) : (
+							"Ask anything about your analytics. Mention a site with @."
+						)}
 					</p>
 				</div>
 			</div>
@@ -202,8 +239,8 @@ function WelcomeState({
 							return (
 								<Button
 									className={cn(
-										"group h-auto items-start justify-start gap-3 whitespace-normal rounded border border-border/60 bg-card p-3 text-left",
-										"hover:border-border hover:bg-accent/40"
+										"group h-auto items-start justify-start gap-3 whitespace-normal rounded-lg border border-border/40 bg-card p-3 text-left",
+										"hover:border-border/60 hover:bg-accent/40"
 									)}
 									key={`${item.source}-${item.label}`}
 									onClick={() => onPromptSelect(item.prompt)}
@@ -242,7 +279,7 @@ function SuggestionSkeleton({ widthClass }: { widthClass: string }) {
 	return (
 		<div
 			aria-hidden
-			className="flex items-start gap-3 rounded border border-border/60 bg-card p-3"
+			className="flex items-start gap-3 rounded-lg border border-border/40 bg-card p-3"
 		>
 			<Skeleton className="size-7 shrink-0 rounded" />
 			<div className="min-w-0 flex-1 space-y-1.5">

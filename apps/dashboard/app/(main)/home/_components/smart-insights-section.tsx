@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { InsightCard } from "@/app/(main)/insights/_components/insight-card";
 import type { Insight } from "@/lib/insight-types";
@@ -10,7 +11,7 @@ import {
 	LightbulbIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { Card, Skeleton } from "@databuddy/ui";
+import { Button, Card, Skeleton } from "@databuddy/ui";
 
 function InsightRowWrapper({ insight }: { insight: Insight }) {
 	const [expanded, setExpanded] = useState(false);
@@ -100,13 +101,14 @@ function InsightsErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
 				</p>
 			</div>
 			{onRetryAction && (
-				<button
-					className="shrink-0 rounded-md bg-accent px-3 py-1.5 font-medium text-foreground text-xs transition-colors hover:bg-accent/80"
+				<Button
+					className="shrink-0"
 					onClick={onRetryAction}
-					type="button"
+					size="sm"
+					variant="secondary"
 				>
 					Retry
-				</button>
+				</Button>
 			)}
 		</div>
 	);
@@ -185,18 +187,25 @@ export function SmartInsightsSection({
 							{insights.length} {insights.length === 1 ? "insight" : "insights"}
 						</span>
 					)}
+					<Link
+						className="text-muted-foreground text-xs hover:text-foreground"
+						href="/insights"
+					>
+						View all
+					</Link>
 					{onRefreshAction && (
-						<button
+						<Button
 							aria-label="Refresh insights"
-							className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+							className="size-6 text-muted-foreground"
 							disabled={isFetching}
 							onClick={onRefreshAction}
-							type="button"
+							size="icon-sm"
+							variant="ghost"
 						>
 							<ArrowClockwiseIcon
 								className={cn("size-3.5", isFetching && "animate-spin")}
 							/>
-						</button>
+						</Button>
 					)}
 				</div>
 			</Card.Header>

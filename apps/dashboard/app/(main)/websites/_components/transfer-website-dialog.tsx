@@ -1,7 +1,7 @@
 "use client";
 
 import type { WebsiteOutput } from "@databuddy/rpc";
-import type { Website } from "@databuddy/shared/types/website";
+import type { Website } from "@databuddy/db/schema";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { type Organization, useOrganizations } from "@/hooks/use-organizations";

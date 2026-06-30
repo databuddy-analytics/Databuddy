@@ -1,7 +1,8 @@
-import type { QueryBuilderMeta } from "@databuddy/shared/types/query";
+import { publicConfig } from "@databuddy/env/public";
+import type { QueryBuilderMeta } from "../types/query";
 import { useQuery } from "@tanstack/react-query";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_BASE_URL = publicConfig.urls.api;
 
 interface QueryTypesResponse {
 	configs: Record<

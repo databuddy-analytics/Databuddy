@@ -158,6 +158,62 @@ export const funnelPreviewSchema = z
 	})
 	.passthrough();
 
+const dashboardActionParamValueSchema = z.union([
+	z.string(),
+	z.number(),
+	z.boolean(),
+	z.null(),
+	z.array(z.union([z.string(), z.number(), z.boolean()])),
+]);
+
+const dashboardActionFilterSchema = z.object({
+	field: z.string().min(1),
+	operator: z.enum([
+		"eq",
+		"ne",
+		"contains",
+		"not_contains",
+		"starts_with",
+		"in",
+		"not_in",
+	]),
+	value: z.union([
+		z.string(),
+		z.number(),
+		z.array(z.union([z.string(), z.number()])),
+	]),
+});
+
+export const dashboardActionsSchema = z
+	.object({
+		type: z.literal("dashboard-actions"),
+		title: z.string().optional(),
+		websiteId: z.string().optional(),
+		actions: z
+			.array(
+				z
+					.object({
+						label: z.string().min(1).max(80),
+						description: z.string().max(160).optional(),
+						target: z.string().min(1).max(120).optional(),
+						href: z.string().min(1).optional(),
+						websiteId: z.string().optional(),
+						eventName: z.string().optional(),
+						params: z
+							.record(z.string(), dashboardActionParamValueSchema)
+							.optional(),
+						filters: z.array(dashboardActionFilterSchema).max(12).optional(),
+						preserveAnalyticsContext: z.boolean().optional(),
+					})
+					.refine((action) => Boolean(action.target ?? action.href), {
+						message: "Dashboard actions require target or href",
+					})
+			)
+			.min(1)
+			.max(4),
+	})
+	.passthrough();
+
 const goalItemSchema = z
 	.object({
 		id: z.string(),
@@ -248,6 +304,7 @@ export const componentSchemaMap: Record<string, z.ZodTypeAny> = {
 	"link-preview": linkPreviewSchema,
 	"funnels-list": funnelsListSchema,
 	"funnel-preview": funnelPreviewSchema,
+	"dashboard-actions": dashboardActionsSchema,
 	"goals-list": goalsListSchema,
 	"goal-preview": goalPreviewSchema,
 	"annotations-list": annotationsListSchema,

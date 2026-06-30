@@ -1,6 +1,6 @@
 "use server";
 
-import type { QueryBuilderMeta } from "@databuddy/shared/types/query";
+import type { QueryBuilderMeta } from "./types-query-builder";
 
 interface QueryConfig {
 	allowedFilters: string[];

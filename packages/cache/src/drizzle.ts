@@ -143,8 +143,6 @@ export class RedisDrizzleCache extends Cache {
 	private readonly defaultTtl: number;
 	private readonly namespace: string;
 	private readonly _strategy: "explicit" | "all";
-	// Track which query keys were used for specific tables for invalidation
-	private readonly usedTablesPerKey: Record<string, string[]> = {};
 
 	/**
 	 * Creates a new RedisDrizzleCache instance.
@@ -287,23 +285,24 @@ export class RedisDrizzleCache extends Cache {
 		const ttl = this.calculateTtl(config);
 
 		try {
-			// Store the response in Redis with TTL
-			// Handle keepTtl option - preserves existing TTL if key exists
 			if (config?.keepTtl) {
 				await this.redis.set(cacheKey, JSON.stringify(response), "KEEPTTL");
 			} else {
 				await this.redis.setex(cacheKey, ttl, JSON.stringify(response));
 			}
 
-			// Track which tables this key is associated with for invalidation
-			for (const table of tables) {
-				const keys = this.usedTablesPerKey[table];
-				if (keys === undefined) {
-					this.usedTablesPerKey[table] = [key];
-				} else if (!keys.includes(key)) {
-					keys.push(key);
-				}
+			if (tables.length === 0) {
+				return;
 			}
+
+			const depTtl = Math.max(ttl, this.defaultTtl) * 2;
+			await Promise.all(
+				tables.map(async (table) => {
+					const depKey = this.formatDepKey(table);
+					await this.redis.sadd(depKey, key);
+					await this.redis.expire(depKey, depTtl);
+				})
+			);
 		} catch (error) {
 			console.error(
 				`[RedisDrizzleCache] PUT failed for key ${cacheKey}:`,
@@ -375,59 +374,46 @@ export class RedisDrizzleCache extends Cache {
 				: [params.tables]
 			: [];
 
-		const keysToDelete = new Set<string>();
+		const depKeys = tablesArray.map((table) =>
+			this.formatDepKey(
+				is(table, Table) ? getTableName(table) : (table as string)
+			)
+		);
 
-		// Collect all keys associated with affected tables
-		for (const table of tablesArray) {
-			const tableName = is(table, Table)
-				? getTableName(table)
-				: (table as string);
-			const keys = this.usedTablesPerKey[tableName] ?? [];
-			for (const key of keys) {
-				keysToDelete.add(key);
-			}
+		const keysFromDeps = await Promise.all(
+			depKeys.map((depKey) =>
+				this.redis.smembers(depKey).catch(() => [] as string[])
+			)
+		);
+		const keysToDelete = new Set<string>(keysFromDeps.flat());
+
+		if (keysToDelete.size === 0 && tagsArray.length === 0) {
+			return;
 		}
 
-		// Delete cache entries and clean up tracking
-		if (keysToDelete.size > 0 || tagsArray.length > 0) {
-			const deletePromises: Promise<unknown>[] = [];
+		const deletePromises: Promise<unknown>[] = [];
 
-			// Delete by tags
-			for (const tag of tagsArray) {
-				const tagKey = this.formatKey(`tag:${tag}`);
-				deletePromises.push(
-					this.redis.unlink(tagKey).catch(() => this.redis.del(tagKey))
-				);
-			}
-
-			// Delete cache entries
-			for (const key of keysToDelete) {
-				const cacheKey = this.formatKey(key);
-				deletePromises.push(
-					this.redis.unlink(cacheKey).catch(() => this.redis.del(cacheKey))
-				);
-			}
-
-			await Promise.all(deletePromises);
-
-			// Clean up tracking for affected tables (after deletion completes)
-			const affectedTableNames = new Set<string>();
-			for (const table of tablesArray) {
-				const tableName = is(table, Table)
-					? getTableName(table)
-					: (table as string);
-				affectedTableNames.add(tableName);
-			}
-
-			// Remove deleted keys from tracking
-			for (const tableName of affectedTableNames) {
-				const keys = this.usedTablesPerKey[tableName] ?? [];
-				// Filter out keys that were deleted
-				this.usedTablesPerKey[tableName] = keys.filter(
-					(k) => !keysToDelete.has(k)
-				);
-			}
+		for (const tag of tagsArray) {
+			const tagKey = this.formatKey(`tag:${tag}`);
+			deletePromises.push(
+				this.redis.unlink(tagKey).catch(() => this.redis.del(tagKey))
+			);
 		}
+
+		for (const key of keysToDelete) {
+			const cacheKey = this.formatKey(key);
+			deletePromises.push(
+				this.redis.unlink(cacheKey).catch(() => this.redis.del(cacheKey))
+			);
+		}
+
+		for (const depKey of depKeys) {
+			deletePromises.push(
+				this.redis.unlink(depKey).catch(() => this.redis.del(depKey))
+			);
+		}
+
+		await Promise.all(deletePromises);
 	}
 
 	/**
@@ -446,6 +432,10 @@ export class RedisDrizzleCache extends Cache {
 	 */
 	private formatKey(key: string): string {
 		return `${this.namespace}:${key}`;
+	}
+
+	private formatDepKey(table: string): string {
+		return `${this.namespace}:dep:${table}`;
 	}
 
 	/**

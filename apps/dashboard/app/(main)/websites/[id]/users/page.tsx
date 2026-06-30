@@ -12,14 +12,21 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDateFilters } from "@/hooks/use-date-filters";
-import { getDeviceIcon } from "@/lib/utils";
+import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
+import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
 import {
 	getCountryCode,
 	getCountryName,
 } from "@databuddy/shared/country-codes";
-import type { ProfileData } from "@databuddy/shared/types/analytics";
-import { GlobeIcon, UsersIcon } from "@databuddy/ui/icons";
+import type { ProfileData } from "@/types/analytics";
+import {
+	ArrowDownIcon,
+	ArrowUpIcon,
+	GlobeIcon,
+	LightningIcon,
+	UsersIcon,
+} from "@databuddy/ui/icons";
 import {
 	type ColumnDef,
 	flexRender,
@@ -29,12 +36,82 @@ import {
 import { useAtomValue } from "jotai";
 import Image from "next/image";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { generateProfileName } from "./[userId]/_components/generate-profile-name";
-import { useProfilesData } from "./use-users";
+import { type ProfileSort, useProfilesData } from "./use-users";
+import { useEventNames } from "./use-event-names";
 import { Badge, EmptyState, Skeleton, Tooltip, dayjs } from "@databuddy/ui";
+import { DropdownMenu } from "@databuddy/ui/client";
 
 const wwwRegex = /^www\./;
+
+type SortField =
+	| "session_count"
+	| "total_events"
+	| "last_visit"
+	| "first_visit";
+
+interface SortState {
+	field: SortField;
+	order: "asc" | "desc";
+}
+
+type PresetKey = "all" | "power" | "new" | "returning";
+
+interface PresetConfig {
+	filters: DynamicQueryFilter[];
+	label: string;
+	sort?: { field: SortField; order: "asc" | "desc" };
+}
+
+const PRESETS: Record<PresetKey, PresetConfig> = {
+	all: { label: "All", filters: [] },
+	power: {
+		label: "Power users",
+		filters: [{ field: "session_count", operator: "not_in", value: [1, 2] }],
+		sort: { field: "session_count", order: "desc" },
+	},
+	new: {
+		label: "New",
+		filters: [{ field: "session_count", operator: "eq", value: 1 }],
+	},
+	returning: {
+		label: "Returning",
+		filters: [{ field: "session_count", operator: "ne", value: 1 }],
+	},
+};
+
+function SortableHeader({
+	label,
+	field,
+	sort,
+	onSort,
+}: {
+	label: string;
+	field: SortField;
+	sort: SortState;
+	onSort: (field: SortField) => void;
+}) {
+	const isActive = sort.field === field;
+	return (
+		<button
+			className="flex items-center gap-1 transition-colors hover:text-foreground"
+			onClick={() => onSort(field)}
+			type="button"
+		>
+			{label}
+			{isActive ? (
+				sort.order === "desc" ? (
+					<ArrowDownIcon className="size-3" />
+				) : (
+					<ArrowUpIcon className="size-3" />
+				)
+			) : (
+				<ArrowDownIcon className="size-3 opacity-0 group-hover/th:opacity-30" />
+			)}
+		</button>
+	);
+}
 
 function SkeletonRow() {
 	return (
@@ -71,6 +148,9 @@ function SkeletonRow() {
 				<Skeleton className="h-4 w-6" />
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
+				<Skeleton className="h-4 w-6" />
+			</TableCell>
+			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-5 w-12 rounded-full" />
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
@@ -90,10 +170,17 @@ export default function UsersPage() {
 
 	const router = useRouter();
 	const { dateRange } = useDateFilters();
-	const filters = useAtomValue(dynamicQueryFiltersAtom);
+	const globalFilters = useAtomValue(dynamicQueryFiltersAtom);
 
+	const [activePreset, setActivePreset] = useState<PresetKey>("all");
+	const [sort, setSort] = useState<SortState>({
+		field: "last_visit",
+		order: "desc",
+	});
+	const [eventFilter, setEventFilter] = useState<string | null>(null);
 	const [page, setPage] = useState(1);
 	const [allUsers, setAllUsers] = useState<ProfileData[]>([]);
+	const [isReplacing, setIsReplacing] = useState(false);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLTableCellElement | null>(
 		null
 	);
@@ -101,19 +188,70 @@ export default function UsersPage() {
 		useState<HTMLDivElement | null>(null);
 	const [isInitialLoad, setIsInitialLoad] = useState(true);
 
+	const { eventNames } = useEventNames(websiteId, dateRange);
+
+	const mergedFilters = useMemo(() => {
+		const preset = PRESETS[activePreset];
+		const filters: DynamicQueryFilter[] = [
+			...globalFilters,
+			...(preset?.filters || []),
+		];
+		if (eventFilter) {
+			filters.push({
+				field: "event_name",
+				operator: "eq",
+				value: eventFilter,
+			});
+		}
+		return filters;
+	}, [globalFilters, activePreset, eventFilter]);
+
+	const profileSort: ProfileSort = useMemo(
+		() => ({ field: sort.field, order: sort.order }),
+		[sort.field, sort.order]
+	);
+
 	const { profiles, pagination, isLoading, isError, error } = useProfilesData(
 		websiteId,
 		dateRange,
 		50,
 		page,
-		filters
+		mergedFilters,
+		undefined,
+		profileSort
 	);
+
+	const hasUsersRef = useRef(false);
+	hasUsersRef.current = allUsers.length > 0;
 
 	useEffect(() => {
 		setPage(1);
-		setAllUsers([]);
-		setIsInitialLoad(true);
-	}, [dateRange, filters]);
+		if (hasUsersRef.current) {
+			setIsReplacing(true);
+		} else {
+			setIsInitialLoad(true);
+		}
+	}, [dateRange, mergedFilters, sort]);
+
+	const handleSort = useCallback((field: SortField) => {
+		setSort((prev) => {
+			if (prev.field === field) {
+				return { field, order: prev.order === "desc" ? "asc" : "desc" };
+			}
+			return { field, order: "desc" };
+		});
+	}, []);
+
+	const handlePreset = useCallback((key: PresetKey) => {
+		const preset = PRESETS[key];
+		if (!preset) {
+			return;
+		}
+		setActivePreset(key);
+		if (preset.sort) {
+			setSort(preset.sort);
+		}
+	}, []);
 
 	const handleIntersection = useCallback(
 		(entries: IntersectionObserverEntry[]) => {
@@ -145,6 +283,17 @@ export default function UsersPage() {
 
 	useEffect(() => {
 		if (!profiles?.length) {
+			if (!isLoading && isReplacing) {
+				setAllUsers([]);
+				setIsReplacing(false);
+			}
+			return;
+		}
+
+		if (isReplacing) {
+			setAllUsers(profiles);
+			setIsReplacing(false);
+			setIsInitialLoad(false);
 			return;
 		}
 
@@ -166,7 +315,7 @@ export default function UsersPage() {
 			return prev;
 		});
 		setIsInitialLoad(false);
-	}, [profiles]);
+	}, [profiles, isLoading, isReplacing]);
 
 	const columns = useMemo<ColumnDef<ProfileData>[]>(
 		() => [
@@ -264,23 +413,59 @@ export default function UsersPage() {
 			},
 			{
 				id: "sessions",
-				header: "Sessions",
+				header: () => (
+					<SortableHeader
+						field="session_count"
+						label="Sessions"
+						onSort={handleSort}
+						sort={sort}
+					/>
+				),
 				cell: ({ row }) => (
 					<span className="font-medium tabular-nums">
 						{row.original.session_count ?? 0}
 					</span>
 				),
-				size: 70,
+				size: 90,
 			},
 			{
 				id: "pages",
-				header: "Pages",
+				header: () => (
+					<SortableHeader
+						field="total_events"
+						label="Pages"
+						onSort={handleSort}
+						sort={sort}
+					/>
+				),
 				cell: ({ row }) => (
 					<span className="font-medium tabular-nums">
 						{row.original.total_events ?? 0}
 					</span>
 				),
-				size: 60,
+				size: 80,
+			},
+			{
+				id: "events",
+				header: "Events",
+				cell: ({ row }) => {
+					const count = row.original.custom_event_count ?? 0;
+					if (count === 0) {
+						return <span className="text-muted-foreground text-sm">0</span>;
+					}
+					return (
+						<Tooltip
+							content={`${row.original.unique_event_names ?? 0} unique event types`}
+							side="top"
+						>
+							<span className="flex items-center gap-1 font-medium tabular-nums">
+								<LightningIcon className="size-3 text-amber-500" />
+								{count}
+							</span>
+						</Tooltip>
+					);
+				},
+				size: 70,
 			},
 			{
 				id: "type",
@@ -298,7 +483,14 @@ export default function UsersPage() {
 			},
 			{
 				id: "last_visit",
-				header: "Last seen",
+				header: () => (
+					<SortableHeader
+						field="last_visit"
+						label="Last seen"
+						onSort={handleSort}
+						sort={sort}
+					/>
+				),
 				accessorKey: "last_visit",
 				cell: ({ row }) => (
 					<span className="text-muted-foreground text-sm">
@@ -307,10 +499,10 @@ export default function UsersPage() {
 							: "—"}
 					</span>
 				),
-				size: 90,
+				size: 100,
 			},
 		],
-		[]
+		[sort, handleSort]
 	);
 
 	const table = useReactTable({
@@ -320,12 +512,79 @@ export default function UsersPage() {
 		getRowId: (row) => row.visitor_id,
 	});
 
+	const presetBar = (
+		<div className="flex items-center gap-1 border-border border-b px-3 py-1.5">
+			{(Object.keys(PRESETS) as PresetKey[]).map((key) => (
+				<button
+					className={`rounded-md px-2.5 py-1 font-medium text-xs transition-colors ${
+						activePreset === key
+							? "bg-secondary text-foreground"
+							: "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+					}`}
+					key={key}
+					onClick={() => handlePreset(key)}
+					type="button"
+				>
+					{PRESETS[key]?.label}
+				</button>
+			))}
+
+			{eventNames.length > 0 && (
+				<>
+					<div className="mx-1 h-4 w-px bg-border" />
+					{eventFilter ? (
+						<button
+							className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary text-xs transition-colors hover:bg-primary/15"
+							onClick={() => setEventFilter(null)}
+							type="button"
+						>
+							<LightningIcon className="size-3" />
+							{eventFilter}
+							<span className="text-[10px] leading-none">✕</span>
+						</button>
+					) : (
+						<DropdownMenu>
+							<DropdownMenu.Trigger
+								render={
+									<button
+										className="flex items-center gap-1 rounded-md px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:bg-secondary/50 hover:text-foreground"
+										type="button"
+									>
+										<LightningIcon className="size-3" />
+										Event filter
+									</button>
+								}
+							/>
+							<DropdownMenu.Content align="start" side="bottom">
+								<DropdownMenu.Group>
+									<DropdownMenu.GroupLabel>
+										Filter by custom event
+									</DropdownMenu.GroupLabel>
+									{eventNames.map((name) => (
+										<DropdownMenu.Item
+											key={name}
+											onClick={() => setEventFilter(name)}
+										>
+											{name}
+										</DropdownMenu.Item>
+									))}
+								</DropdownMenu.Group>
+							</DropdownMenu.Content>
+						</DropdownMenu>
+					)}
+				</>
+			)}
+		</div>
+	);
+
 	if (isLoading && isInitialLoad) {
 		return (
 			<div className="flex h-full flex-col">
 				<TopBar.Title>
 					<h1 className="font-semibold text-sm">Users</h1>
 				</TopBar.Title>
+
+				{presetBar}
 
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div className="overflow-auto">
@@ -373,12 +632,14 @@ export default function UsersPage() {
 		);
 	}
 
-	if (!allUsers || allUsers.length === 0) {
+	if (!(isReplacing || isInitialLoad) && (!allUsers || allUsers.length === 0)) {
 		return (
 			<div className="flex h-full flex-col">
 				<TopBar.Title>
 					<h1 className="font-semibold text-sm">Users</h1>
 				</TopBar.Title>
+
+				{presetBar}
 
 				<EmptyState
 					description="Users appear here once visitors arrive."
@@ -396,8 +657,13 @@ export default function UsersPage() {
 				<h1 className="font-semibold text-sm">Users</h1>
 			</TopBar.Title>
 
+			{presetBar}
+
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-				<div className="h-full overflow-auto" ref={setScrollContainerRef}>
+				<div
+					className={`h-full overflow-auto transition-opacity duration-150 ${isReplacing ? "pointer-events-none opacity-50" : ""}`}
+					ref={setScrollContainerRef}
+				>
 					<Table>
 						<TableHeader className="sticky top-0 z-10 bg-accent backdrop-blur-sm">
 							{table.getHeaderGroups().map((headerGroup) => (
@@ -407,7 +673,7 @@ export default function UsersPage() {
 								>
 									{headerGroup.headers.map((header) => (
 										<TableHead
-											className="h-[39px]"
+											className="group/th h-[39px]"
 											key={header.id}
 											style={{
 												width: header.getSize(),

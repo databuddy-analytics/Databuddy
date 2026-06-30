@@ -17,8 +17,12 @@ import {
 } from "@/components/ai-elements/markdown-table";
 import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
 import { cn } from "@/lib/utils";
-import { PaperclipIcon, XIcon } from "@phosphor-icons/react/dist/ssr";
-import { CaretLeftIcon, CaretRightIcon } from "@databuddy/ui/icons";
+import {
+	CaretLeftIcon,
+	CaretRightIcon,
+	PaperclipIcon,
+	XMarkIcon as XIcon,
+} from "@databuddy/ui/icons";
 import { Button, Tooltip } from "@databuddy/ui";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
@@ -45,9 +49,9 @@ export const MessageContent = ({
 }: MessageContentProps) => (
 	<div
 		className={cn(
-			"flex w-fit flex-col gap-2 overflow-hidden text-sm",
-			"group-[.is-user]:ml-auto group-[.is-user]:rounded group-[.is-user]:border group-[.is-user]:border-border/60 group-[.is-user]:bg-muted/40 group-[.is-user]:px-3.5 group-[.is-user]:py-2.5 group-[.is-user]:text-foreground",
-			"group-[.is-assistant]:text-foreground",
+			"flex w-fit flex-col gap-2 overflow-hidden font-medium text-sm leading-relaxed",
+			"group-[.is-user]:ml-auto group-[.is-user]:rounded-lg group-[.is-user]:border group-[.is-user]:border-border/40 group-[.is-user]:bg-muted/30 group-[.is-user]:px-3 group-[.is-user]:py-2 group-[.is-user]:text-foreground",
+			"group-[.is-assistant]:text-muted-foreground",
 			className
 		)}
 		{...props}

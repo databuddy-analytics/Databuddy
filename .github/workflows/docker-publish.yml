@@ -37,19 +37,19 @@ jobs:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: "1.3.11"
+          bun-version: "1.3.14"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile --ignore-scripts
       - id: detect
         env:
           EVENT_NAME: ${{ github.event_name }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
-          ALL='["api","basket","links","uptime"]'
+          ALL='["api","basket","dashboard","insights","links","uptime"]'
           if [[ "$EVENT_NAME" != "push" ]]; then
             echo "services=$ALL" >> "$GITHUB_OUTPUT"
             exit 0
@@ -61,7 +61,7 @@ jobs:
           export TURBO_SCM_BASE="$BEFORE_SHA"
           export TURBO_SCM_HEAD="HEAD"
           affected=()
-          for svc in api basket links uptime; do
+          for svc in api basket dashboard insights links uptime; do
             count=$(bunx turbo ls --affected --filter="@databuddy/$svc" --output=json | jq -r '.packages.count')
             if [[ "$count" != "0" ]]; then
               affected+=("\"$svc\"")
@@ -101,6 +101,10 @@ jobs:
             description: "Databuddy API service - analytics backend"
           - service: basket
             description: "Databuddy Basket service - event ingestion"
+          - service: dashboard
+            description: "Databuddy Dashboard service - web analytics UI"
+          - service: insights
+            description: "Databuddy Insights service - queued insight generation"
           - service: links
             description: "Databuddy Links service - URL shortening and tracking"
           - service: uptime
@@ -194,7 +198,12 @@ jobs:
 
       - name: Sign image
         if: always() && steps.build.outcome != 'cancelled'
-        run: cosign sign --yes ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ steps.version.outputs.tag }}-${{ matrix.platform.arch }}
+        env:
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+          SERVICE: ${{ matrix.service }}
+          TAG: ${{ steps.version.outputs.tag }}
+          ARCH: ${{ matrix.platform.arch }}
+        run: cosign sign --yes "${IMAGE_PREFIX}-${SERVICE}:${TAG}-${ARCH}"
 
   manifest:
     name: Publish ${{ matrix.service }} manifest
@@ -232,11 +241,15 @@ jobs:
           fi
 
       - name: Create multi-arch manifest
+        env:
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+          SERVICE: ${{ matrix.service }}
+          TAG: ${{ steps.version.outputs.tag }}
+          IS_RELEASE: ${{ steps.version.outputs.is_release }}
+          COMMIT_SHA: ${{ github.sha }}
         run: |
-          IMAGE="${{ env.IMAGE_PREFIX }}-${{ matrix.service }}"
-          TAG="${{ steps.version.outputs.tag }}"
-          SHA_SHORT="${{ github.sha }}"
-          SHA_SHORT="${SHA_SHORT:0:7}"
+          IMAGE="${IMAGE_PREFIX}-${SERVICE}"
+          SHA_SHORT="${COMMIT_SHA:0:7}"
 
           docker buildx imagetools create \
             --tag "$IMAGE:$TAG" \
@@ -244,7 +257,7 @@ jobs:
             "$IMAGE:$TAG-amd64" \
             "$IMAGE:$TAG-arm64"
 
-          if [[ "${{ steps.version.outputs.is_release }}" == "true" ]]; then
+          if [[ "$IS_RELEASE" == "true" ]]; then
             docker buildx imagetools create \
               --tag "$IMAGE:latest" \
               "$IMAGE:$TAG-amd64" \
@@ -252,9 +265,12 @@ jobs:
           fi
 
       - name: Verify manifest
+        env:
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+          SERVICE: ${{ matrix.service }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          IMAGE="${{ env.IMAGE_PREFIX }}-${{ matrix.service }}"
-          TAG="${{ steps.version.outputs.tag }}"
+          IMAGE="${IMAGE_PREFIX}-${SERVICE}"
           echo "Inspecting $IMAGE:$TAG"
           docker buildx imagetools inspect "$IMAGE:$TAG"
 
@@ -262,9 +278,12 @@ jobs:
         uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4
 
       - name: Sign manifest
+        env:
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+          SERVICE: ${{ matrix.service }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          IMAGE="${{ env.IMAGE_PREFIX }}-${{ matrix.service }}"
-          TAG="${{ steps.version.outputs.tag }}"
+          IMAGE="${IMAGE_PREFIX}-${SERVICE}"
           cosign sign --yes "$IMAGE:$TAG"
 
   result:

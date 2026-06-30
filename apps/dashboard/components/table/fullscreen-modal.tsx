@@ -1,4 +1,4 @@
-import { XIcon } from "@phosphor-icons/react";
+import { XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import {
 	type ColumnDef,
 	getCoreRowModel,

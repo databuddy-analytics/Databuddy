@@ -1,7 +1,7 @@
 "use client";
 
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { XIcon } from "lucide-react";
+import { XMarkIcon as XIcon } from "@databuddy/ui/icons";
 
 import { cn } from "@/lib/utils";
 

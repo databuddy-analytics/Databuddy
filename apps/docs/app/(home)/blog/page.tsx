@@ -3,19 +3,18 @@ import {
 	ClockIcon,
 	TagIcon,
 	UserIcon,
-} from "@phosphor-icons/react/ssr";
-import type { Post } from "@usemarble/core";
+} from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { SciFiCard } from "@/components/scifi-card";
 import { StructuredData } from "@/components/structured-data";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getPosts } from "@/lib/blog-query";
+import { getPosts, isPublished, type Post } from "@/lib/blog-query";
 
 export const revalidate = 3600;
 
@@ -40,7 +39,7 @@ export const metadata: Metadata = {
 };
 
 function BlogPostCard({ post }: { post: Post }) {
-	const formatDate = (date: Date) =>
+	const formatDate = (date: Date | string) =>
 		new Date(date).toLocaleDateString("en-US", {
 			year: "numeric",
 			month: "short",
@@ -166,10 +165,12 @@ function BlogPostCard({ post }: { post: Post }) {
 export default async function BlogPage() {
 	const result = await getPosts();
 	const posts = "error" in result ? [] : result.posts;
-	const sortedPosts = [...posts].sort(
-		(a, b) =>
-			new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-	);
+	const sortedPosts = [...posts]
+		.filter(isPublished)
+		.sort(
+			(a, b) =>
+				new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+		);
 
 	return (
 		<div className="overflow-hidden">
@@ -180,10 +181,7 @@ export default async function BlogPage() {
 					url: blogUrl,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			{/* Hero Section */}
-			<Section className="overflow-hidden" customPaddings id="blog-hero">
+			<Section className="overflow-hidden" id="blog-hero">
 				<section className="relative w-full pt-16 pb-10 sm:pt-20 sm:pb-12 lg:pt-24 lg:pb-14">
 					<div className="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
 						{/* Header */}

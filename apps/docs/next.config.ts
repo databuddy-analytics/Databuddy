@@ -28,6 +28,11 @@ const config: NextConfig = {
 						key: "Referrer-Policy",
 						value: "strict-origin-when-cross-origin",
 					},
+					{
+						key: "X-Robots-Tag",
+						value:
+							"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+					},
 				],
 			},
 			{
@@ -35,12 +40,7 @@ const config: NextConfig = {
 				headers: [
 					{
 						key: "Cache-Control",
-						value: "public, max-age=3600, stale-while-revalidate=86400",
-					},
-					{
-						key: "X-Robots-Tag",
-						value:
-							"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+						value: "public, max-age=3600, must-revalidate",
 					},
 				],
 			},
@@ -86,6 +86,21 @@ const config: NextConfig = {
 				destination: "/docs/:path*",
 				permanent: true,
 			},
+			{
+				source: "/twitter",
+				destination: "https://x.com/trydatabuddy",
+				permanent: true,
+			},
+			{
+				source: "/x",
+				destination: "https://x.com/trydatabuddy",
+				permanent: true,
+			},
+			{
+				source: "/discord",
+				destination: "https://discord.gg/JTk7a38tCZ",
+				permanent: true,
+			},
 		];
 	},
 
@@ -127,8 +142,6 @@ const config: NextConfig = {
 		optimizePackageImports: [
 			"@databuddy/ui/icons",
 			"fumadocs-ui",
-			"lucide-react",
-			"@phosphor-icons/react",
 			"@databuddy/ui",
 		],
 	},

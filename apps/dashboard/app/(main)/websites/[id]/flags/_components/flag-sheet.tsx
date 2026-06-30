@@ -1,7 +1,7 @@
 "use client";
 
-import type { FlagWithScheduleForm } from "@databuddy/shared/flags";
-import { flagWithScheduleSchema } from "@databuddy/shared/flags";
+import type { TFlag } from "@databuddy/shared/flags";
+import { flagFormSchema } from "@databuddy/shared/flags";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
@@ -188,25 +188,22 @@ export function FlagSheet({
 
 	const isEditing = Boolean(flag);
 
-	const form = useForm<FlagWithScheduleForm>({
-		resolver: zodResolver(flagWithScheduleSchema),
+	const form = useForm<TFlag>({
+		resolver: zodResolver(flagFormSchema),
 		defaultValues: {
-			flag: {
-				key: "",
-				name: "",
-				description: "",
-				type: "boolean",
-				status: "active",
-				defaultValue: false,
-				rolloutPercentage: 0,
-				rolloutBy: undefined,
-				rules: [],
-				variants: [],
-				dependencies: [],
-				environment: undefined,
-				targetGroupIds: [],
-			},
-			schedule: undefined,
+			key: "",
+			name: "",
+			description: "",
+			type: "boolean",
+			status: "active",
+			defaultValue: false,
+			rolloutPercentage: 0,
+			rolloutBy: undefined,
+			rules: [],
+			variants: [],
+			dependencies: [],
+			environment: undefined,
+			targetGroupIds: [],
 		},
 	});
 
@@ -232,61 +229,52 @@ export function FlagSheet({
 			};
 
 			form.reset({
-				flag: {
-					key: flag.key,
-					name: flag.name || "",
-					description: flag.description || "",
-					type: flag.type,
-					status: flag.status,
-					defaultValue: Boolean(flag.defaultValue),
-					rolloutPercentage: flag.rolloutPercentage ?? 0,
-					rolloutBy: flag.rolloutBy || undefined,
-					rules: flag.rules ?? [],
-					variants: flag.variants ?? [],
-					dependencies: flag.dependencies ?? [],
-					environment: flag.environment || undefined,
-					targetGroupIds: extractTargetGroupIds(),
-				},
-				schedule: undefined,
+				key: flag.key,
+				name: flag.name || "",
+				description: flag.description || "",
+				type: flag.type,
+				status: flag.status,
+				defaultValue: Boolean(flag.defaultValue),
+				rolloutPercentage: flag.rolloutPercentage ?? 0,
+				rolloutBy: flag.rolloutBy || undefined,
+				rules: flag.rules ?? [],
+				variants: flag.variants ?? [],
+				dependencies: flag.dependencies ?? [],
+				environment: flag.environment || undefined,
+				targetGroupIds: extractTargetGroupIds(),
 			});
 		} else if (template) {
 			form.reset({
-				flag: {
-					key: template.id,
-					name: template.name,
-					description: template.description,
-					type: template.type,
-					status: "active",
-					defaultValue: template.defaultValue,
-					rolloutPercentage:
-						template.type === "rollout" || template.type === "boolean"
-							? (template.rolloutPercentage ?? 0)
-							: 0,
-					rolloutBy: undefined,
-					rules: template.rules ?? [],
-					variants: template.type === "multivariant" ? template.variants : [],
-					dependencies: [],
-					targetGroupIds: [],
-				},
-				schedule: undefined,
+				key: template.id,
+				name: template.name,
+				description: template.description,
+				type: template.type,
+				status: "active",
+				defaultValue: template.defaultValue,
+				rolloutPercentage:
+					template.type === "rollout" || template.type === "boolean"
+						? (template.rolloutPercentage ?? 0)
+						: 0,
+				rolloutBy: undefined,
+				rules: template.rules ?? [],
+				variants: template.type === "multivariant" ? template.variants : [],
+				dependencies: [],
+				targetGroupIds: [],
 			});
 		} else {
 			form.reset({
-				flag: {
-					key: "",
-					name: "",
-					description: "",
-					type: "boolean",
-					status: "active",
-					defaultValue: false,
-					rolloutPercentage: 0,
-					rolloutBy: undefined,
-					rules: [],
-					variants: [],
-					dependencies: [],
-					targetGroupIds: [],
-				},
-				schedule: undefined,
+				key: "",
+				name: "",
+				description: "",
+				type: "boolean",
+				status: "active",
+				defaultValue: false,
+				rolloutPercentage: 0,
+				rolloutBy: undefined,
+				rules: [],
+				variants: [],
+				dependencies: [],
+				targetGroupIds: [],
 			});
 		}
 		setKeyManuallyEdited(false);
@@ -304,12 +292,12 @@ export function FlagSheet({
 		}
 	}, [flag?.id, template?.id, isOpen]);
 
-	const watchedType = form.watch("flag.type");
-	const watchedRules = form.watch("flag.rules") || [];
-	const watchedDependencies = form.watch("flag.dependencies") || [];
+	const watchedType = form.watch("type");
+	const watchedRules = form.watch("rules") || [];
+	const watchedDependencies = form.watch("dependencies") || [];
 
 	const handleNameChange = (value: string) => {
-		form.setValue("flag.name", value);
+		form.setValue("name", value);
 
 		const canAutoGenerate = !(isEditing || keyManuallyEdited) && value;
 		if (canAutoGenerate) {
@@ -320,14 +308,12 @@ export function FlagSheet({
 				.replace(/-+/g, "-")
 				.replace(/^-+|-+$/g, "")
 				.slice(0, 50);
-			form.setValue("flag.key", key);
+			form.setValue("key", key);
 		}
 	};
 
-	const onSubmit = async (formData: FlagWithScheduleForm) => {
+	const onSubmit = async (data: TFlag) => {
 		try {
-			const data = formData.flag;
-
 			if (isEditing && flag) {
 				await updateMutation.mutateAsync({
 					id: flag.id,
@@ -423,7 +409,7 @@ export function FlagSheet({
 						<div className="grid gap-3 sm:grid-cols-2">
 							<Controller
 								control={form.control}
-								name="flag.name"
+								name="name"
 								render={({ field, fieldState }) => (
 									<Field error={!!fieldState.error}>
 										<Field.Label>Name</Field.Label>
@@ -441,7 +427,7 @@ export function FlagSheet({
 
 							<Controller
 								control={form.control}
-								name="flag.key"
+								name="key"
 								render={({ field, fieldState }) => (
 									<Field error={!!fieldState.error}>
 										<Field.Label>
@@ -470,7 +456,7 @@ export function FlagSheet({
 
 						<Controller
 							control={form.control}
-							name="flag.description"
+							name="description"
 							render={({ field, fieldState }) => (
 								<Field error={!!fieldState.error}>
 									<Field.Label className="text-muted-foreground">
@@ -506,7 +492,7 @@ export function FlagSheet({
 											}
 											key={type}
 											label={type}
-											onClick={() => form.setValue("flag.type", type)}
+											onClick={() => form.setValue("type", type)}
 											selected={watchedType === type}
 										/>
 									)
@@ -527,7 +513,7 @@ export function FlagSheet({
 								>
 									<Controller
 										control={form.control}
-										name="flag.rolloutPercentage"
+										name="rolloutPercentage"
 										render={({ field }) => (
 											<div className="space-y-2">
 												<div className="flex items-baseline justify-between">
@@ -566,7 +552,7 @@ export function FlagSheet({
 
 									<Controller
 										control={form.control}
-										name="flag.rolloutBy"
+										name="rolloutBy"
 										render={({ field }) => {
 											const rolloutByValue = field.value || "user";
 											const options = [
@@ -638,7 +624,7 @@ export function FlagSheet({
 								>
 									<Controller
 										control={form.control}
-										name="flag.variants"
+										name="variants"
 										render={({ field }) => (
 											<VariantEditor
 												onChangeAction={field.onChange}
@@ -659,7 +645,7 @@ export function FlagSheet({
 										<Field.Label>Default value</Field.Label>
 										<Controller
 											control={form.control}
-											name="flag.defaultValue"
+											name="defaultValue"
 											render={({ field }) => (
 												<div className="flex items-center gap-2">
 													<span
@@ -697,7 +683,7 @@ export function FlagSheet({
 						{/* Status */}
 						<Controller
 							control={form.control}
-							name="flag.status"
+							name="status"
 							render={({ field }) => {
 								const inactiveDeps = (flagsList || []).filter(
 									(f) =>
@@ -765,16 +751,16 @@ export function FlagSheet({
 											weight="duotone"
 										/>
 										<Text variant="label">Target Groups</Text>
-										{(form.watch("flag.targetGroupIds")?.length ?? 0) > 0 && (
+										{(form.watch("targetGroupIds")?.length ?? 0) > 0 && (
 											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
-												{form.watch("flag.targetGroupIds")?.length ?? 0}
+												{form.watch("targetGroupIds")?.length ?? 0}
 											</span>
 										)}
 									</Accordion.Trigger>
 									<Accordion.Content>
 										<Controller
 											control={form.control}
-											name="flag.targetGroupIds"
+											name="targetGroupIds"
 											render={({ field }) => (
 												<GroupSelector
 													availableGroups={targetGroups ?? []}
@@ -804,7 +790,7 @@ export function FlagSheet({
 									<Accordion.Content>
 										<Controller
 											control={form.control}
-											name="flag.rules"
+											name="rules"
 											render={({ field }) => (
 												<UserRulesBuilder
 													onChange={field.onChange}
@@ -833,7 +819,7 @@ export function FlagSheet({
 									<Accordion.Content>
 										<Controller
 											control={form.control}
-											name="flag.dependencies"
+											name="dependencies"
 											render={({ field }) => (
 												<DependencySelector
 													availableFlags={flagsList ?? []}
@@ -858,7 +844,7 @@ export function FlagSheet({
 									</Accordion.Trigger>
 									<Accordion.Content>
 										<ImplementationExamples
-											flagKey={form.watch("flag.key") || "my-feature"}
+											flagKey={form.watch("key") || "my-feature"}
 											flagType={watchedType}
 										/>
 									</Accordion.Content>

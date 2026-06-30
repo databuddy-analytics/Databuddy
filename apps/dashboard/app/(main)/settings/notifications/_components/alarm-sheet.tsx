@@ -8,8 +8,8 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
-import { SlackLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import {
+	BellIcon as SlackLogoIcon,
 	EnvelopeSimpleIcon,
 	GlobeSimpleIcon,
 	PlusIcon,
@@ -239,9 +239,7 @@ export function AlarmSheet({
 					triggerType: alarm.triggerType as
 						| "uptime"
 						| "traffic_spike"
-						| "error_rate"
-						| "goal"
-						| "custom",
+						| "error_rate",
 					destinations: data.destinations,
 				});
 				toast.success("Alert updated");
@@ -278,7 +276,7 @@ export function AlarmSheet({
 					<Sheet.Description>
 						{isEditing
 							? "Update this alert's destinations and settings."
-							: "Configure where notifications are sent. Attach this alert to monitors and rules later."}
+							: "Configure where notifications are sent. Attach this alert to monitors later."}
 					</Sheet.Description>
 				</Sheet.Header>
 

@@ -21,7 +21,7 @@ const companies = [
 		name: "Autumn",
 		badge: "YC S25",
 		url: "https://useautumn.com",
-		logo: "/social/autumn.svg",
+		logo: "/social/autumn.webp",
 	},
 	{
 		name: "Better Auth",
@@ -63,7 +63,7 @@ const companies = [
 		name: "Orchid",
 		badge: "YC S25",
 		url: "https://orchid.ai",
-		logo: "/social/orchid.png",
+		logo: "/social/orchid.webp",
 	},
 ];
 
@@ -134,7 +134,9 @@ function useRotatingGrid() {
 	const [nextCompanyIdx, setNextCompanyIdx] = useState(VISIBLE);
 
 	useEffect(() => {
-		if (companies.length <= VISIBLE) return;
+		if (companies.length <= VISIBLE) {
+			return;
+		}
 
 		const id = setInterval(() => {
 			const slotToSwap = Math.floor(Math.random() * VISIBLE);
@@ -209,7 +211,9 @@ export function TrustedBy() {
 						<img
 							alt={team.name}
 							className="size-4 rounded-sm opacity-50 invert sm:size-5"
+							height={20}
 							src={team.icon}
+							width={20}
 						/>
 						<span className="font-medium text-xs sm:text-sm">{team.name}</span>
 					</div>

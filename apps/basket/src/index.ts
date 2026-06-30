@@ -5,11 +5,18 @@ import {
 	enrichBasketWideEvent,
 	flushBatchedAxiomDrain,
 } from "@lib/evlog-basket";
+import { shutdownPostgres } from "@databuddy/db";
+import { clickHouse } from "@databuddy/db/clickhouse";
 import { disconnect, disposeRuntime, runPromise } from "@lib/producer";
+import { Kafka } from "kafkajs";
+import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import {
+	handleUncaughtException,
+	handleUnhandledRejection,
+} from "@lib/process-errors";
 import { buildBasketErrorPayload } from "@lib/structured-errors";
 import { captureError } from "@lib/tracing";
 import basketRouter from "@routes/basket";
-import llmRouter from "@routes/llm";
 import { trackRoute } from "@routes/track";
 import { paddleWebhook } from "@routes/webhooks/paddle";
 import { stripeWebhook } from "@routes/webhooks/stripe";
@@ -20,6 +27,7 @@ import { evlog } from "evlog/elysia";
 
 initLogger({
 	env: { service: "basket" },
+	redact: databuddyEvlogRedaction,
 	drain: basketLoggerDrain,
 	sampling: {
 		rates: { info: 20, warn: 50, debug: 5 },
@@ -27,27 +35,13 @@ initLogger({
 	},
 });
 
-process.on("unhandledRejection", (reason, _promise) => {
-	captureError(reason);
-	log.error({
-		process: "unhandledRejection",
-		error_message: reason instanceof Error ? reason.message : String(reason),
-		error_stack: reason instanceof Error ? reason.stack : undefined,
-		error_source: "process",
-	});
-});
+let shutdownStarted = false;
 
-process.on("uncaughtException", (error) => {
-	captureError(error);
-	log.error({
-		process: "uncaughtException",
-		error_message: error instanceof Error ? error.message : String(error),
-		error_stack: error instanceof Error ? error.stack : undefined,
-		error_source: "process",
-	});
-});
-
-async function gracefulShutdown(signal: string) {
+async function gracefulShutdown(signal: string, exitCode = 0) {
+	if (shutdownStarted) {
+		return;
+	}
+	shutdownStarted = true;
 	log.info("lifecycle", `${signal} received, shutting down gracefully`);
 	const logErr = (lifecycle: string) => (error: unknown) =>
 		log.error({
@@ -57,14 +51,21 @@ async function gracefulShutdown(signal: string) {
 	const { shutdownRedis } = await import("@databuddy/redis");
 	await Promise.all([
 		shutdownRedis().catch(logErr("redisShutdown")),
+		shutdownPostgres().catch(logErr("postgresShutdown")),
 		flushBatchedAxiomDrain().catch(logErr("drainFlush")),
 		runPromise(disconnect).catch(logErr("shutdown")),
 		disposeRuntime().catch(logErr("runtimeDispose")),
 	]);
 	closeGeoIPReader();
-	process.exit(0);
+	process.exit(exitCode);
 }
 
+process.on("unhandledRejection", (reason) => {
+	handleUnhandledRejection(reason, gracefulShutdown);
+});
+process.on("uncaughtException", (error) => {
+	handleUncaughtException(error, gracefulShutdown);
+});
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
@@ -104,15 +105,11 @@ const app = new Elysia()
 	})
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(basketRouter)
-	.use(llmRouter)
 	.use(trackRoute)
 	.use(stripeWebhook)
 	.use(paddleWebhook)
 	.get("/health/status", async function basketHealthStatus() {
-		const { clickHouseOG } = await import("@databuddy/db");
-		const { Kafka } = await import("kafkajs");
-
-		async function ping(probe: () => Promise<void>) {
+		async function ping(name: string, probe: () => Promise<void>) {
 			const start = performance.now();
 			try {
 				await probe();
@@ -121,22 +118,26 @@ const app = new Elysia()
 					latency_ms: Math.round(performance.now() - start),
 				};
 			} catch (err) {
+				log.error({
+					health_probe: name,
+					error_message: err instanceof Error ? err.message : String(err),
+				});
 				return {
 					status: "error" as const,
 					latency_ms: Math.round(performance.now() - start),
-					error: err instanceof Error ? err.message : "unknown",
+					code: "UNAVAILABLE",
 				};
 			}
 		}
 
 		const [clickhouse, redpanda] = await Promise.all([
-			ping(async () => {
-				const { success } = await clickHouseOG.ping();
+			ping("clickhouse", async () => {
+				const { success } = await clickHouse.ping();
 				if (!success) {
 					throw new Error("ping failed");
 				}
 			}),
-			ping(async () => {
+			ping("redpanda", async () => {
 				const broker = process.env.REDPANDA_BROKER;
 				if (!broker) {
 					throw new Error("not configured");
@@ -180,4 +181,5 @@ const port = process.env.PORT || 4000;
 export default {
 	fetch: app.fetch,
 	port,
+	maxRequestBodySize: 2 * 1024 * 1024,
 };

@@ -31,7 +31,6 @@ import {
 	SquaresFourIcon,
 	StackIcon,
 	SunIcon,
-	UsersIcon,
 } from "@databuddy/ui/icons";
 import { Select } from "@databuddy/ui/client";
 import { Card, Text, Tooltip } from "@databuddy/ui";
@@ -82,7 +81,6 @@ const LOCATION_ICONS: Record<ChartLocation, typeof ChartLineIcon> = {
 	"overview-stats": SquaresFourIcon,
 	"overview-main": PresentationChartIcon,
 	funnels: FunnelIcon,
-	retention: UsersIcon,
 	"website-list": ChartLineIcon,
 	events: CursorClickIcon,
 };

@@ -2,7 +2,7 @@
 
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { PanelLeftIcon } from "lucide-react";
+import { SidebarLeftIcon as PanelLeftIcon } from "@databuddy/ui/icons";
 import {
 	type ComponentProps,
 	type CSSProperties,

@@ -11,7 +11,7 @@ import type {
 	FunnelFilter,
 	FunnelStep,
 } from "@/types/funnels";
-import { filterOptions } from "@databuddy/shared/lists/filters";
+import { goalFunnelFilterOptions } from "@/lib/filter-options";
 import {
 	DragDropContext,
 	Draggable,
@@ -21,10 +21,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	DotsNineIcon,
-	FunnelSimpleIcon,
-	XIcon,
-} from "@phosphor-icons/react/dist/ssr";
-import { FunnelIcon, GearIcon, PlusIcon } from "@databuddy/ui/icons";
+	FunnelIcon as FunnelSimpleIcon,
+	FunnelIcon,
+	GearIcon,
+	PlusIcon,
+	XMarkIcon as XIcon,
+} from "@databuddy/ui/icons";
 import { Button, Divider, Field, Input, Text } from "@databuddy/ui";
 import { Accordion, DropdownMenu, Sheet, Switch } from "@databuddy/ui/client";
 
@@ -311,10 +313,7 @@ export function EditFunnelDialog({
 					</div>
 				</Sheet.Header>
 
-				<form
-					className="flex flex-1 flex-col overflow-hidden"
-					onSubmit={handleSubmit}
-				>
+				<Sheet.Form onSubmit={handleSubmit}>
 					<Sheet.Body className="space-y-5">
 						<div className="grid gap-3 sm:grid-cols-2">
 							<Field>
@@ -530,7 +529,7 @@ export function EditFunnelDialog({
 												{formData.filters.map((filter, index) => (
 													<FilterRow
 														field={filter.field}
-														fieldOptions={filterOptions}
+														fieldOptions={goalFunnelFilterOptions}
 														key={`filter-${index}`}
 														onFieldChange={(value) =>
 															updateFilter(index, "field", value)
@@ -545,7 +544,11 @@ export function EditFunnelDialog({
 														operator={filter.operator || "equals"}
 														operatorOptions={goalFunnelOperatorOptions}
 														suggestions={getSuggestions(filter.field)}
-														value={(filter.value as string) || ""}
+														value={
+															Array.isArray(filter.value)
+																? filter.value.join(", ")
+																: (filter.value ?? "")
+														}
 													/>
 												))}
 											</div>
@@ -578,7 +581,7 @@ export function EditFunnelDialog({
 							{isCreateMode ? "Create Funnel" : "Save Changes"}
 						</Button>
 					</Sheet.Footer>
-				</form>
+				</Sheet.Form>
 				<Sheet.Close />
 			</Sheet.Content>
 		</Sheet>

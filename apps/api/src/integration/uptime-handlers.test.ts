@@ -1,7 +1,7 @@
 import "@databuddy/test/env";
 
-import { eq } from "@databuddy/db";
 import { flags, uptimeSchedules } from "@databuddy/db/schema";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import {
 	closeUptimeQueue,
 	getUptimeQueue,
@@ -24,14 +24,14 @@ import {
 	userContext,
 } from "@databuddy/test";
 import { createProcedureClient, type AnyProcedure } from "@orpc/server";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { randomUUIDv7 } from "bun";
 import type { Job } from "bullmq";
 
 const canRun =
 	hasTestDb &&
 	Boolean(process.env.BULLMQ_REDIS_URL) &&
-	process.env.UPTIME_ROUTER_INTEGRATION === "true";
+	readBooleanEnv("UPTIME_ROUTER_INTEGRATION");
 const iit = canRun ? it : it.skip;
 const scheduleIds = new Set<string>();
 
@@ -110,7 +110,7 @@ async function createSchedule(values: {
 
 async function scheduleRow(scheduleId: string) {
 	return db().query.uptimeSchedules.findFirst({
-		where: eq(uptimeSchedules.id, scheduleId),
+		where: { id: scheduleId },
 	});
 }
 

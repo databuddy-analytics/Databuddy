@@ -9,11 +9,9 @@ import {
 	getOrganizationBySlugAtom,
 	isLoadingOrganizationsAtom,
 	organizationsAtom,
+	pendingActiveOrganizationIdAtom,
 } from "@/stores/jotai/organizationsAtoms";
-
-export type Organization = NonNullable<
-	ReturnType<typeof authClient.useListOrganizations>["data"]
->[number];
+export type { Organization } from "@/stores/jotai/organization-types";
 
 export const AUTH_QUERY_KEYS = {
 	organizations: ["auth", "organizations"] as const,
@@ -23,6 +21,9 @@ export const AUTH_QUERY_KEYS = {
 export function OrganizationsProvider({ children }: { children: ReactNode }) {
 	const setOrganizations = useSetAtom(organizationsAtom);
 	const setActiveOrganization = useSetAtom(activeOrganizationAtom);
+	const [pendingActiveOrganizationId, setPendingActiveOrganizationId] = useAtom(
+		pendingActiveOrganizationIdAtom
+	);
 	const setIsLoading = useSetAtom(isLoadingOrganizationsAtom);
 
 	const { data: session, isPending: isLoadingSession } = useSession();
@@ -55,7 +56,15 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 
 	useEffect(() => {
 		setActiveOrganization(activeOrganization);
-	}, [activeOrganization, setActiveOrganization]);
+		if (activeOrganization?.id === pendingActiveOrganizationId) {
+			setPendingActiveOrganizationId(null);
+		}
+	}, [
+		activeOrganization,
+		pendingActiveOrganizationId,
+		setActiveOrganization,
+		setPendingActiveOrganizationId,
+	]);
 
 	useEffect(() => {
 		setIsLoading(isLoadingSession || isLoadingOrgs);
@@ -67,6 +76,9 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 export function useOrganizationsContext() {
 	const organizations = useAtomValue(organizationsAtom);
 	const activeOrganization = useAtomValue(activeOrganizationAtom);
+	const pendingActiveOrganizationId = useAtomValue(
+		pendingActiveOrganizationIdAtom
+	);
 	const isLoading = useAtomValue(isLoadingOrganizationsAtom);
 	const [getOrganizationBySlug] = useAtom(getOrganizationBySlugAtom);
 
@@ -84,6 +96,7 @@ export function useOrganizationsContext() {
 		activeOrganization,
 		activeOrganizationId,
 		isLoading,
+		isSwitchingOrganization: pendingActiveOrganizationId !== null,
 		getOrganization: getOrganizationBySlug,
 	};
 }

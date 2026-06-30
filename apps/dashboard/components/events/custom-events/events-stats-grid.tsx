@@ -68,7 +68,7 @@ export function EventsStatsGrid({
 	return (
 		<div
 			className={cn(
-				"grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4",
+				"grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2",
 				metricKeys.length >= 5 ? "lg:grid-cols-5" : "lg:grid-cols-4",
 				className
 			)}

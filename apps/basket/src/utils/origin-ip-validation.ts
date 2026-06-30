@@ -32,6 +32,9 @@ export function isValidOriginFromSettings(
 
 	try {
 		const originUrl = new URL(originHeader.trim());
+		if (originUrl.hostname.includes("*")) {
+			return false;
+		}
 		const originDomain = normalizeDomain(originUrl.hostname);
 
 		for (const allowed of allowedOrigins) {

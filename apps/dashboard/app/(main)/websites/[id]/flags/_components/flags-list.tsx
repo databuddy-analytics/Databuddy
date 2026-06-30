@@ -1,11 +1,10 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type SyntheticEvent, useMemo } from "react";
+import { useMemo } from "react";
 import { List } from "@/components/ui/composables/list";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { FlagKey } from "./flag-key";
 import { FlagVariants } from "./flag-variants";
 import { RolloutProgress } from "./rollout-progress";
 import type { Flag, TargetGroup } from "./types";
@@ -21,7 +20,7 @@ import {
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { DropdownMenu, Switch } from "@databuddy/ui/client";
-import { Badge, Skeleton, Tooltip } from "@databuddy/ui";
+import { Badge, Button, Skeleton, Tooltip } from "@databuddy/ui";
 
 interface FlagsListProps {
 	flags: Flag[];
@@ -39,19 +38,6 @@ const TYPE_CONFIG = {
 		color: "text-pink-500",
 	},
 } as const;
-
-const ROW_INTERACTIVE_SELECTOR = '[data-row-interactive="true"]';
-
-function stopRowInteraction(event: SyntheticEvent) {
-	event.stopPropagation();
-}
-
-function shouldIgnoreRowClick(target: EventTarget | null) {
-	return (
-		target instanceof Element &&
-		target.closest(ROW_INTERACTIVE_SELECTOR) !== null
-	);
-}
 
 function GroupsDisplay({ groups }: { groups: TargetGroup[] }) {
 	if (groups.length === 0) {
@@ -102,13 +88,7 @@ function StatusToggle({ flag }: { flag: Flag }) {
 	};
 
 	return (
-		<div
-			className="flex items-center gap-2"
-			data-row-interactive="true"
-			onClick={stopRowInteraction}
-			onKeyDown={stopRowInteraction}
-			role="presentation"
-		>
+		<div className="flex items-center gap-2">
 			<Switch
 				aria-label={isActive ? "Disable flag" : "Enable flag"}
 				checked={isActive}
@@ -162,12 +142,7 @@ function FlagActions({
 	};
 
 	return (
-		<div
-			data-row-interactive="true"
-			onClick={stopRowInteraction}
-			onKeyDown={stopRowInteraction}
-			role="presentation"
-		>
+		<div>
 			<DropdownMenu>
 				<DropdownMenu.Trigger
 					aria-label="Flag actions"
@@ -311,81 +286,62 @@ function FlagRow({
 
 	return (
 		<List.Row
-			asChild
 			className={cn(
-				"min-w-full cursor-pointer text-left",
+				"min-w-full text-left",
 				flag.status === "archived" && "opacity-50"
 			)}
 		>
-			{/* biome-ignore lint/a11y/useSemanticElements: List.Row asChild replaces this element; a real <button> would nest inside the action-cell buttons */}
-			<div
-				onClick={(event) => {
-					if (shouldIgnoreRowClick(event.target)) {
-						return;
-					}
-					onEdit(flag);
-				}}
-				onKeyDown={(e) => {
-					if (e.target !== e.currentTarget) {
-						return;
-					}
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						onEdit(flag);
-					}
-				}}
-				role="button"
-				tabIndex={0}
+			<Button
+				className="min-w-0 flex-1 justify-start gap-4 rounded-none bg-transparent p-0 text-left font-normal text-foreground hover:bg-transparent active:scale-100"
+				onClick={() => onEdit(flag)}
+				variant="ghost"
 			>
-				<List.Cell className="min-w-0 max-w-[min(320px,100%)] shrink-0">
-					<div className="flex min-w-0 items-center gap-3">
-						<div
-							className={cn(
-								"shrink-0 rounded bg-accent p-1.5",
-								typeConfig.color
-							)}
-						>
-							<TypeIconComponent className="size-4" weight="duotone" />
-						</div>
-						<div className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-							<div className="flex min-w-0 flex-wrap items-center gap-2">
-								<p className="wrap-break-word text-pretty text-start font-medium text-foreground text-sm">
-									{flag.name ?? flag.key}
-								</p>
-								<DependencyBadges
-									dependencies={dependencies}
-									dependents={dependents}
-									flagMap={flagMap}
-								/>
-							</div>
-							<FlagKey className="-ms-1.5 max-w-full" flag={flag} />
-						</div>
-					</div>
-				</List.Cell>
+				<span className="flex min-w-0 max-w-[min(320px,100%)] shrink-0 items-center gap-3">
+					<span
+						className={cn("shrink-0 rounded bg-accent p-1.5", typeConfig.color)}
+					>
+						<TypeIconComponent className="size-4" weight="duotone" />
+					</span>
+					<span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+						<span className="flex min-w-0 flex-wrap items-center gap-2">
+							<span className="wrap-break-word text-pretty text-start font-medium text-foreground text-sm">
+								{flag.name ?? flag.key}
+							</span>
+							<DependencyBadges
+								dependencies={dependencies}
+								dependents={dependents}
+								flagMap={flagMap}
+							/>
+						</span>
+						<span className="max-w-full truncate rounded px-1.5 font-mono text-muted-foreground text-xs">
+							{flag.key}
+						</span>
+					</span>
+				</span>
 
-				<List.Cell grow>
+				<span className="flex min-w-0 flex-1 items-center">
 					{flag.description ? (
-						<p className="wrap-break-word text-pretty text-muted-foreground text-xs">
+						<span className="wrap-break-word text-pretty text-muted-foreground text-xs">
 							{flag.description}
-						</p>
+						</span>
 					) : null}
-				</List.Cell>
+				</span>
 
-				<List.Cell className="flex w-[100px] shrink-0 justify-center">
+				<span className="flex w-[100px] shrink-0 justify-center">
 					<Badge className="font-normal" variant="muted">
 						{typeConfig.label}
 					</Badge>
-				</List.Cell>
+				</span>
 
-				<List.Cell className="flex w-20 shrink-0 justify-center">
+				<span className="flex w-20 shrink-0 justify-center">
 					{flag.type === "rollout" && rollout > 0 && (
 						<RolloutProgress percentage={rollout} />
 					)}
-				</List.Cell>
+				</span>
 
-				<List.Cell className="flex w-[100px] shrink-0 justify-center">
+				<span className="flex w-[100px] shrink-0 justify-center">
 					{(ruleCount > 0 || variantCount > 0) && (
-						<div className="flex flex-col gap-0.5 text-center text-muted-foreground text-xs">
+						<span className="flex flex-col gap-0.5 text-center text-muted-foreground text-xs">
 							{ruleCount > 0 && (
 								<span>
 									{ruleCount} {ruleCount === 1 ? "rule" : "rules"}
@@ -394,29 +350,29 @@ function FlagRow({
 							{variantCount > 0 && (
 								<FlagVariants variants={flag.variants ?? []} />
 							)}
-						</div>
+						</span>
 					)}
-				</List.Cell>
+				</span>
 
-				<List.Cell className="flex w-[100px] shrink-0 justify-center">
+				<span className="flex w-[100px] shrink-0 justify-center">
 					<GroupsDisplay groups={groups} />
-				</List.Cell>
+				</span>
+			</Button>
 
-				<List.Cell className="flex w-[120px] shrink-0 justify-center">
-					{flag.status === "archived" ? (
-						<Badge className="gap-1" variant="warning">
-							<ArchiveIcon className="size-3" weight="duotone" />
-							Archived
-						</Badge>
-					) : (
-						<StatusToggle flag={flag} />
-					)}
-				</List.Cell>
+			<List.Cell className="flex w-[120px] shrink-0 justify-center">
+				{flag.status === "archived" ? (
+					<Badge className="gap-1" variant="warning">
+						<ArchiveIcon className="size-3" weight="duotone" />
+						Archived
+					</Badge>
+				) : (
+					<StatusToggle flag={flag} />
+				)}
+			</List.Cell>
 
-				<List.Cell action>
-					<FlagActions flag={flag} onDelete={onDelete} onEdit={onEdit} />
-				</List.Cell>
-			</div>
+			<List.Cell action>
+				<FlagActions flag={flag} onDelete={onDelete} onEdit={onEdit} />
+			</List.Cell>
 		</List.Row>
 	);
 }

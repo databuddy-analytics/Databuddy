@@ -1,14 +1,11 @@
 "use client";
 
 import {
-	type AiCapabilityId,
 	FEATURE_METADATA,
 	type FeatureId,
 	type GatedFeatureId,
-	getMinimumPlanForAiCapability,
 	getMinimumPlanForFeature,
 	getPlanCapabilities as getPlanCapabilitiesForPlan,
-	isPlanAiCapabilityEnabled,
 	isPlanFeatureEnabled,
 	PLAN_IDS,
 	type PlanCapabilities,
@@ -18,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCustomer, useListPlans } from "autumn-js/react";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { isDashboardE2E } from "@/lib/e2e-mode";
 import { orpc } from "@/lib/orpc";
 
 type HookCustomer = NonNullable<ReturnType<typeof useCustomer>["data"]>;
@@ -51,7 +49,6 @@ export interface BillingContextValue {
 	) => string | null;
 	getUsage: (featureId: FeatureId | string) => FeatureAccess;
 	hasActiveSubscription: boolean;
-	isAiCapabilityEnabled: (capability: AiCapabilityId) => boolean;
 	isFeatureEnabled: (feature: GatedFeatureId) => boolean;
 	isFree: boolean;
 	isLoading: boolean;
@@ -93,7 +90,6 @@ const DEMO_BILLING_VALUE: BillingContextValue = {
 		upgradeMessage: null,
 	}),
 	getUpgradeMessage: () => null,
-	isAiCapabilityEnabled: () => true,
 	getPlanCapabilities: () => getPlanCapabilitiesForPlan(PLAN_IDS.SCALE),
 	refetch: () => {},
 };
@@ -111,7 +107,7 @@ export function BillingProvider({
 	public: isPublic,
 	websiteId,
 }: BillingProviderProps) {
-	if (isPublic) {
+	if (isPublic || isDashboardE2E) {
 		return <PublicBillingProvider>{children}</PublicBillingProvider>;
 	}
 	return (
@@ -256,9 +252,6 @@ function AuthenticatedBillingProvider({
 			FEATURE_METADATA[id as FeatureId | GatedFeatureId]?.upgradeMessage ??
 			null;
 
-		const isAiCapabilityEnabled = (capability: AiCapabilityId): boolean =>
-			isPlanAiCapabilityEnabled(currentPlanId, capability);
-
 		const getPlanCapabilities = (): PlanCapabilities =>
 			getPlanCapabilitiesForPlan(currentPlanId);
 
@@ -283,7 +276,6 @@ function AuthenticatedBillingProvider({
 			isFeatureEnabled,
 			getGatedFeatureAccess,
 			getUpgradeMessage,
-			isAiCapabilityEnabled,
 			getPlanCapabilities,
 			refetch,
 		};
@@ -319,31 +311,5 @@ export function useUsageFeature(featureId: FeatureId) {
 		canUse: canUse(featureId),
 		upgradeMessage: getUpgradeMessage(featureId),
 		isFree,
-	};
-}
-
-export function useGatedFeature(feature: GatedFeatureId) {
-	const { isFeatureEnabled, getGatedFeatureAccess, currentPlanId, isFree } =
-		useBillingContext();
-	return {
-		...getGatedFeatureAccess(feature),
-		isEnabled: isFeatureEnabled(feature),
-		currentPlanId,
-		isFree,
-	};
-}
-
-export function useAiCapability(capability: AiCapabilityId) {
-	const { isAiCapabilityEnabled, currentPlanId, isFree, canUserUpgrade } =
-		useBillingContext();
-	const isEnabled = isAiCapabilityEnabled(capability);
-	const minPlan = getMinimumPlanForAiCapability(capability);
-
-	return {
-		isEnabled,
-		currentPlanId,
-		isFree,
-		minPlan,
-		canUserUpgrade,
 	};
 }

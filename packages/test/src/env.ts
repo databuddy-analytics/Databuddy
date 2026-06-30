@@ -1,4 +1,6 @@
-const useCiUrls = process.env.CI === "true";
+import { readBooleanEnv } from "@databuddy/env/boolean";
+
+const useCiUrls = readBooleanEnv("CI");
 const defaultDatabaseUrl =
 	"postgres://databuddy:databuddy_dev_password@localhost:5432/databuddy_test";
 const defaultRedisUrl = "redis://localhost:6379/1";

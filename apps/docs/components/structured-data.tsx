@@ -1,3 +1,4 @@
+import { serializeJsonLd } from "@databuddy/shared/json-ld";
 import Script from "next/script";
 import type { RawItem, RawPlan } from "@/app/(home)/pricing/data";
 
@@ -345,7 +346,7 @@ export function StructuredData({
 
 	return (
 		<Script
-			dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+			dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
 			id="structured-data-page"
 			type="application/ld+json"
 		/>

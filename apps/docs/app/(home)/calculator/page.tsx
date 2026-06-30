@@ -64,35 +64,37 @@ export async function generateMetadata({
 
 export default function CalculatorPage() {
 	return (
-		<div className="px-4 pt-10 sm:px-6 lg:px-8">
-			<div className="mx-auto w-full max-w-7xl">
-				<header className="mb-12 text-center sm:mb-16">
-					<p className="mb-3 font-mono text-muted-foreground text-xs uppercase tracking-widest">
-						Free Tool
-					</p>
-					<h1 className="mb-3 text-balance font-bold text-3xl tracking-tight sm:text-4xl lg:text-5xl">
-						Cookie Banner Cost Calculator
-					</h1>
-					<p className="mx-auto max-w-2xl text-balance text-pretty text-muted-foreground text-sm sm:text-base">
-						Without consent, visits often do not show up in cookie-based
-						analytics - a measurement gap, not people abandoning your site. The
-						model estimates unattributed revenue if conversions scale with
-						traffic the same way across measured and unmeasured visits (default
-						55% unmeasured; 40–70% band on the yearly figure). Popular scripts
-						can still be blocked: think cookie + consent + adblock vs cookieless
-						+ adblock, not recovering every dollar.
-					</p>
-				</header>
+		<>
+			<div className="px-4 pt-20 sm:px-6 sm:pt-24 lg:px-8 lg:pt-32">
+				<div className="mx-auto w-full max-w-7xl">
+					<header className="mb-12 text-center sm:mb-16">
+						<p className="mb-3 font-mono text-muted-foreground text-xs uppercase tracking-widest">
+							Free Tool
+						</p>
+						<h1 className="mb-3 text-balance font-bold text-3xl tracking-tight sm:text-4xl lg:text-5xl">
+							Cookie Banner Cost Calculator
+						</h1>
+						<p className="mx-auto max-w-2xl text-balance text-pretty text-muted-foreground text-sm sm:text-base">
+							Without consent, visits often do not show up in cookie-based
+							analytics - a measurement gap, not people abandoning your site.
+							The model estimates unattributed revenue if conversions scale with
+							traffic the same way across measured and unmeasured visits
+							(default 55% unmeasured; 40–70% band on the yearly figure).
+							Popular scripts can still be blocked: think cookie + consent +
+							adblock vs cookieless + adblock, not recovering every dollar.
+						</p>
+					</header>
 
-				<div className="space-y-16 sm:space-y-24">
-					<CalculatorSection />
-					<ScenariosSection />
-					<CtaSection />
-					<CalculatorSources />
+					<div className="space-y-16 sm:space-y-24">
+						<CalculatorSection />
+						<ScenariosSection />
+						<CtaSection />
+						<CalculatorSources />
+					</div>
 				</div>
-
-				<Footer />
 			</div>
-		</div>
+
+			<Footer />
+		</>
 	);
 }

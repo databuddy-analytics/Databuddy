@@ -1,7 +1,10 @@
 "use client";
 
-import type { Icon } from "@phosphor-icons/react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode, SVGProps } from "react";
+
+type IconComponent = ComponentType<
+	SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+>;
 
 interface EmptyStateProps {
 	action?: ReactNode;
@@ -9,7 +12,7 @@ interface EmptyStateProps {
 	features?: Array<{
 		label: string;
 	}>;
-	icon: Icon;
+	icon: IconComponent;
 	title: string;
 	variant?: "default" | "success" | "warning" | "destructive";
 }

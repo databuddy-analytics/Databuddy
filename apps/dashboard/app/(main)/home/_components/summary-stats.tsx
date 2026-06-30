@@ -7,18 +7,16 @@ import {
 	EyeIcon,
 	GlobeIcon,
 	HeartbeatIcon,
-	LockIcon,
 	MinusIcon,
 	TrendDownIcon,
 	TrendUpIcon,
 	UsersIcon,
 } from "@databuddy/ui/icons";
-import { Badge, Card, Skeleton, StatusDot } from "@databuddy/ui";
+import { Card, Skeleton, StatusDot } from "@databuddy/ui";
 
 interface SummaryStatsProps {
 	activeMonitors: number;
 	averageTrend: number;
-	hasPulseAccess: boolean;
 	isLoading?: boolean;
 	pulseHealthPercentage: number;
 	totalActiveUsers: number;
@@ -59,19 +57,11 @@ export function SummaryStats({
 	pulseHealthPercentage,
 	totalMonitors,
 	activeMonitors,
-	hasPulseAccess,
 	isLoading,
 }: SummaryStatsProps) {
-	const showLoading =
-		isLoading ||
-		(websiteCount === 0 &&
-			totalMonitors === 0 &&
-			totalActiveUsers === 0 &&
-			totalViews === 0);
-
-	if (showLoading) {
+	if (isLoading) {
 		return (
-			<div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+			<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
 				<StatCardSkeleton />
 				<StatCardSkeleton />
 				<StatCardSkeleton />
@@ -88,7 +78,7 @@ export function SummaryStats({
 				: MinusIcon;
 
 	return (
-		<div className="grid gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
+		<div className="grid gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-4">
 			<Card className="group gap-0 overflow-hidden py-0 transition-colors hover:border-primary/60">
 				<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
 					<div className="flex h-16 items-center justify-center">
@@ -200,58 +190,19 @@ export function SummaryStats({
 				</Card>
 			</Link>
 
-			{hasPulseAccess ? (
-				<Link className="group block" href="/monitors">
-					<Card className="h-full gap-0 overflow-hidden py-0 transition-colors group-hover:border-primary/60">
-						<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
-							<div className="flex h-16 items-center justify-center gap-2">
-								{totalMonitors > 0 ? (
-									<span className="font-bold text-4xl text-foreground tabular-nums">
-										{activeMonitors}/{totalMonitors}
-									</span>
-								) : (
-									<span className="text-muted-foreground text-sm">
-										No monitors
-									</span>
-								)}
-							</div>
-						</Card.Header>
-						<Card.Content className="px-5 py-3">
-							<div className="flex items-center gap-3">
-								<div className="flex size-7 shrink-0 items-center justify-center rounded bg-accent">
-									<HeartbeatIcon
-										className="size-4 text-muted-foreground"
-										weight="duotone"
-									/>
-								</div>
-								<div className="min-w-0 flex-1">
-									<p className="truncate font-medium text-foreground text-sm">
-										Pulse
-									</p>
-									<p className="truncate text-muted-foreground text-xs">
-										{totalMonitors > 0
-											? `${(pulseHealthPercentage == null || Number.isNaN(pulseHealthPercentage) ? 0 : pulseHealthPercentage).toFixed(0)}% healthy`
-											: "uptime monitoring"}
-									</p>
-								</div>
-								{totalMonitors > 0 && pulseHealthPercentage === 100 && (
-									<StatusDot color="success" size="md" />
-								)}
-								{totalMonitors > 0 && pulseHealthPercentage < 100 && (
-									<StatusDot color="warning" size="md" />
-								)}
-							</div>
-						</Card.Content>
-					</Card>
-				</Link>
-			) : (
-				<Card className="h-full gap-0 overflow-hidden py-0">
+			<Link className="group block" href="/monitors">
+				<Card className="h-full gap-0 overflow-hidden py-0 transition-colors group-hover:border-primary/60">
 					<Card.Header className="dotted-bg relative gap-0! border-b bg-accent px-0 pt-4 pb-0!">
-						<div className="flex h-16 items-center justify-center">
-							<LockIcon
-								className="size-6 text-muted-foreground"
-								weight="duotone"
-							/>
+						<div className="flex h-16 items-center justify-center gap-2">
+							{totalMonitors > 0 ? (
+								<span className="font-bold text-4xl text-foreground tabular-nums">
+									{activeMonitors}/{totalMonitors}
+								</span>
+							) : (
+								<span className="text-muted-foreground text-sm">
+									No monitors
+								</span>
+							)}
 						</div>
 					</Card.Header>
 					<Card.Content className="px-5 py-3">
@@ -267,14 +218,21 @@ export function SummaryStats({
 									Pulse
 								</p>
 								<p className="truncate text-muted-foreground text-xs">
-									Coming soon
+									{totalMonitors > 0
+										? `${(pulseHealthPercentage == null || Number.isNaN(pulseHealthPercentage) ? 0 : pulseHealthPercentage).toFixed(0)}% healthy`
+										: "uptime monitoring"}
 								</p>
 							</div>
-							<Badge variant="muted">Invite-only</Badge>
+							{totalMonitors > 0 && pulseHealthPercentage === 100 && (
+								<StatusDot color="success" size="md" />
+							)}
+							{totalMonitors > 0 && pulseHealthPercentage < 100 && (
+								<StatusDot color="warning" size="md" />
+							)}
 						</div>
 					</Card.Content>
 				</Card>
-			)}
+			</Link>
 		</div>
 	);
 }

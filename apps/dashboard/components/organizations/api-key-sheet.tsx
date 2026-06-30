@@ -11,13 +11,12 @@ import { ExpirationPicker } from "@/app/(main)/links/_components/expiration-pick
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { type ApiKeyListItem, SCOPE_OPTIONS } from "./api-key-types";
 import {
-	KeyIcon,
-	LockKeyIcon,
-	ShieldCheckIcon,
-	WarningDiamondIcon,
-} from "@phosphor-icons/react/dist/ssr";
+	formatMaskedApiKey,
+	type ApiKeyListItem,
+	SCOPE_OPTIONS,
+	SCOPE_PRESETS,
+} from "./api-key-types";
 import {
 	ArrowsClockwiseIcon,
 	CheckCircleIcon,
@@ -25,8 +24,12 @@ import {
 	CopyIcon,
 	GaugeIcon,
 	GlobeIcon,
+	KeyIcon,
+	LockSimpleIcon,
 	ProhibitIcon,
+	ShieldCheckIcon,
 	TrashIcon,
+	TriangleWarningIcon,
 } from "@databuddy/ui/icons";
 import {
 	Accordion,
@@ -161,6 +164,7 @@ export function ApiKeySheet({
 	const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
 	const [tags, setTags] = useState<string[]>([]);
 	const [websiteAccess, setWebsiteAccess] = useState<WebsiteAccess[]>([]);
+	const [expiryOpen, setExpiryOpen] = useState(isCreate);
 
 	const { data: roleInfo } = useQuery({
 		...orpc.apikeys.getMyRole.queryOptions({ input: { organizationId } }),
@@ -168,7 +172,7 @@ export function ApiKeySheet({
 	});
 	const canEditScopes = roleInfo?.canEditScopes ?? false;
 
-	const { data: websites } = useQuery({
+	const { data: websites, isLoading: isLoadingWebsites } = useQuery({
 		...orpc.websites.list.queryOptions({ input: { organizationId } }),
 		enabled: open && !!organizationId,
 	});
@@ -198,6 +202,7 @@ export function ApiKeySheet({
 			return;
 		}
 		lastResetKeyId.current = resetKey;
+		setExpiryOpen(!apiKey);
 
 		if (!apiKey) {
 			form.reset({
@@ -242,6 +247,9 @@ export function ApiKeySheet({
 	}, [apiKey, open, form]);
 
 	const handleClose = () => {
+		setShowDeleteConfirm(false);
+		setShowRotateConfirm(false);
+		setShowRevokeConfirm(false);
 		onOpenChangeAction(false);
 		setTimeout(() => {
 			lastResetKeyId.current = null;
@@ -254,6 +262,13 @@ export function ApiKeySheet({
 
 	const invalidateQueries = () => {
 		queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
+	};
+
+	const setGlobalScopes = (scopes: readonly ApiScope[]) => {
+		if (!canEditScopes) {
+			return;
+		}
+		form.setValue("scopes", [...scopes], { shouldDirty: true });
 	};
 
 	const toggleScope = (scope: string) => {
@@ -284,13 +299,53 @@ export function ApiKeySheet({
 		);
 	};
 
+	const setWebsiteScopes = (resourceId: string, scopes: ApiScope[]) => {
+		if (!canEditScopes) {
+			return;
+		}
+		setWebsiteAccess((prev) =>
+			prev.map((entry) =>
+				entry.resourceId === resourceId ? { ...entry, scopes } : entry
+			)
+		);
+	};
+
+	const getDefaultWebsiteScopes = () =>
+		selectedGlobalScopes.length > 0
+			? selectedGlobalScopes
+			: (["read:data"] as ApiScope[]);
+
 	const toggleWebsite = (resourceId: string) => {
+		if (!canEditScopes) {
+			return;
+		}
 		setWebsiteAccess((prev) => {
 			if (prev.some((e) => e.resourceId === resourceId)) {
 				return prev.filter((e) => e.resourceId !== resourceId);
 			}
-			return [...prev, { resourceId, scopes: [] }];
+			return [...prev, { resourceId, scopes: getDefaultWebsiteScopes() }];
 		});
+	};
+
+	const selectAllWebsites = () => {
+		if (!(canEditScopes && websites)) {
+			return;
+		}
+		setWebsiteAccess((prev) => {
+			const existing = new Map(prev.map((entry) => [entry.resourceId, entry]));
+			const scopes = getDefaultWebsiteScopes();
+			return websites.map(
+				(website) =>
+					existing.get(website.id) ?? { resourceId: website.id, scopes }
+			);
+		});
+	};
+
+	const clearWebsiteAccess = () => {
+		if (!canEditScopes) {
+			return;
+		}
+		setWebsiteAccess([]);
 	};
 
 	const createMutation = useMutation({
@@ -345,6 +400,7 @@ export function ApiKeySheet({
 		onSuccess: () => {
 			invalidateQueries();
 			toast.success("API key deleted");
+			setShowDeleteConfirm(false);
 			handleClose();
 		},
 		onError: (err: Error) => {
@@ -441,7 +497,13 @@ export function ApiKeySheet({
 		: null;
 	const isActive = !!apiKey && apiKey.enabled && !apiKey.revokedAt;
 
-	const scopeCount = form.watch("scopes").length;
+	const selectedGlobalScopes = form.watch("scopes") as ApiScope[];
+	const scopeCount = selectedGlobalScopes.length;
+	const websiteScopeCount = websiteAccess.reduce(
+		(total, entry) => total + entry.scopes.length,
+		0
+	);
+	const hasNoPermissions = scopeCount === 0 && websiteScopeCount === 0;
 	const rateLimitEnabled = form.watch("rateLimitEnabled");
 	const submitPending = isCreate
 		? createMutation.isPending
@@ -474,7 +536,7 @@ export function ApiKeySheet({
 								</div>
 								{apiKey ? (
 									<Sheet.Description className="font-mono">
-										{apiKey.prefix}_{apiKey.start}••••
+										{formatMaskedApiKey(apiKey)}
 									</Sheet.Description>
 								) : (
 									<Sheet.Description>
@@ -507,10 +569,15 @@ export function ApiKeySheet({
 											<code className="block break-all pr-8 font-mono text-[11px] text-foreground leading-relaxed">
 												{newSecret}
 											</code>
-											<button
-												className="absolute top-2 right-2 inline-flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground"
+											<Button
+												aria-label={
+													isCopied ? "Secret copied" : "Copy secret key"
+												}
+												className="absolute top-2 right-2 size-6 p-0"
 												onClick={() => copyToClipboard(newSecret)}
+												size="sm"
 												type="button"
+												variant="ghost"
 											>
 												{isCopied ? (
 													<CheckCircleIcon
@@ -521,7 +588,7 @@ export function ApiKeySheet({
 												) : (
 													<CopyIcon size={13} />
 												)}
-											</button>
+											</Button>
 										</div>
 									</div>
 									<Text className="mt-2" tone="muted" variant="caption">
@@ -607,7 +674,7 @@ export function ApiKeySheet({
 
 							<div className="space-y-2">
 								<SectionCard>
-									<Accordion defaultOpen={isCreate}>
+									<Accordion onOpenChange={setExpiryOpen} open={expiryOpen}>
 										<Accordion.Trigger>
 											<ClockIcon
 												className="size-4 shrink-0 text-muted-foreground"
@@ -672,15 +739,75 @@ export function ApiKeySheet({
 												weight="duotone"
 											/>
 											<Text variant="label">Permissions</Text>
-											<Badge className="ml-auto" size="sm" variant="muted">
-												{scopeCount} selected
+											<Badge
+												className="ml-auto"
+												size="sm"
+												variant={hasNoPermissions ? "warning" : "muted"}
+											>
+												{scopeCount} global
+												{websiteScopeCount > 0
+													? ` · ${websiteScopeCount} scoped`
+													: ""}
 											</Badge>
 										</Accordion.Trigger>
 										<Accordion.Content>
-											{canEditScopes ? null : (
+											{canEditScopes ? (
+												<div className="mb-3 space-y-2">
+													<div className="flex flex-wrap items-center gap-1.5">
+														{SCOPE_PRESETS.map((preset) => (
+															<Button
+																key={preset.label}
+																onClick={() => setGlobalScopes(preset.scopes)}
+																size="sm"
+																type="button"
+																variant="secondary"
+															>
+																{preset.label}
+															</Button>
+														))}
+														<Button
+															onClick={() =>
+																setGlobalScopes(
+																	SCOPE_OPTIONS.map((scope) => scope.value)
+																)
+															}
+															size="sm"
+															type="button"
+															variant="secondary"
+														>
+															All
+														</Button>
+														<Button
+															onClick={() => setGlobalScopes([])}
+															size="sm"
+															type="button"
+															variant="ghost"
+														>
+															None
+														</Button>
+													</div>
+													<Text tone="muted" variant="caption">
+														Presets replace the current global permissions.
+														Website-specific permissions can still override
+														below.
+													</Text>
+												</div>
+											) : (
 												<Text className="mb-2" tone="muted" variant="caption">
 													Only organization owners or admins can change scopes.
 												</Text>
+											)}
+											{hasNoPermissions && (
+												<div className="mb-3 flex gap-2 rounded-md border border-warning/30 bg-warning/5 px-3 py-2">
+													<TriangleWarningIcon
+														className="mt-0.5 size-4 shrink-0 text-warning"
+														weight="duotone"
+													/>
+													<Text tone="muted" variant="caption">
+														This key has no permissions selected and will not be
+														able to access API resources.
+													</Text>
+												</div>
 											)}
 											<div className="divide-y divide-border/60">
 												{SCOPE_OPTIONS.map((scope) => {
@@ -720,22 +847,53 @@ export function ApiKeySheet({
 												weight="duotone"
 											/>
 											<Text variant="label">Website access</Text>
-											{websiteAccess.length > 0 && (
-												<Badge className="ml-auto" size="sm" variant="muted">
-													{websiteAccess.length} website
-													{websiteAccess.length === 1 ? "" : "s"}
-												</Badge>
-											)}
+											<Badge className="ml-auto" size="sm" variant="muted">
+												{websiteAccess.length > 0
+													? `${websiteAccess.length} website${websiteAccess.length === 1 ? "" : "s"}`
+													: "Organization-wide"}
+											</Badge>
 										</Accordion.Trigger>
 										<Accordion.Content>
 											<div className="space-y-3">
-												<Text tone="muted" variant="caption">
-													Select websites to scope this key. Leaving all
-													unselected grants organization-wide access using the
-													permissions above.
-												</Text>
+												<div className="space-y-2">
+													<Text tone="muted" variant="caption">
+														Select websites to scope this key. Leaving all
+														unselected grants organization-wide access using the
+														permissions above.
+													</Text>
+													{websites && websites.length > 0 && canEditScopes && (
+														<div className="flex flex-wrap items-center gap-1.5">
+															<Button
+																onClick={selectAllWebsites}
+																size="sm"
+																type="button"
+																variant="secondary"
+															>
+																All websites
+															</Button>
+															<Button
+																onClick={clearWebsiteAccess}
+																size="sm"
+																type="button"
+																variant="ghost"
+															>
+																None
+															</Button>
+														</div>
+													)}
+												</div>
 
-												{websites && websites.length > 0 ? (
+												{isLoadingWebsites ? (
+													<div className="flex items-center gap-2 rounded-md border border-border/60 border-dashed px-3 py-3">
+														<GlobeIcon
+															className="size-4 shrink-0 animate-pulse text-muted-foreground"
+															weight="duotone"
+														/>
+														<Text tone="muted" variant="caption">
+															Loading websites…
+														</Text>
+													</div>
+												) : websites && websites.length > 0 ? (
 													<div className="divide-y divide-border/60 overflow-hidden rounded-md border border-border/60">
 														{websites.map((w) => {
 															const entry = websiteAccess.find(
@@ -764,38 +922,75 @@ export function ApiKeySheet({
 																				toggleWebsite(w.id)
 																			}
 																		/>
-																		{isSelected && entry.scopes.length > 0 && (
+																		{isSelected && (
 																			<Badge
 																				className="ml-auto"
 																				size="sm"
-																				variant="muted"
+																				variant={
+																					entry.scopes.length > 0
+																						? "muted"
+																						: "warning"
+																				}
 																			>
-																				{entry.scopes.length}{" "}
-																				{entry.scopes.length === 1
-																					? "scope"
-																					: "scopes"}
+																				{entry.scopes.length > 0
+																					? `${entry.scopes.length} scope${entry.scopes.length === 1 ? "" : "s"}`
+																					: "No permissions"}
 																			</Badge>
 																		)}
 																	</div>
 																	{isSelected && (
-																		<div className="grid grid-cols-2 gap-x-3 border-border/60 border-t bg-secondary/40 px-3 py-2 pl-8">
-																			{SCOPE_OPTIONS.map((scope) => (
-																				<div className="py-1" key={scope.value}>
-																					<Checkbox
-																						checked={entry.scopes.includes(
-																							scope.value
-																						)}
-																						disabled={!canEditScopes}
-																						label={scope.label}
-																						onCheckedChange={() =>
-																							toggleWebsiteScope(
+																		<div className="border-border/60 border-t bg-secondary/40 px-3 py-2 pl-8">
+																			{canEditScopes && (
+																				<div className="mb-1 flex items-center gap-1.5">
+																					<Button
+																						onClick={() =>
+																							setWebsiteScopes(
 																								w.id,
-																								scope.value
+																								SCOPE_OPTIONS.map(
+																									(scope) => scope.value
+																								)
 																							)
 																						}
-																					/>
+																						size="sm"
+																						type="button"
+																						variant="secondary"
+																					>
+																						All permissions
+																					</Button>
+																					<Button
+																						onClick={() =>
+																							setWebsiteScopes(w.id, [])
+																						}
+																						size="sm"
+																						type="button"
+																						variant="ghost"
+																					>
+																						None
+																					</Button>
 																				</div>
-																			))}
+																			)}
+																			<div className="grid grid-cols-2 gap-x-3">
+																				{SCOPE_OPTIONS.map((scope) => (
+																					<div
+																						className="py-1"
+																						key={scope.value}
+																					>
+																						<Checkbox
+																							checked={entry.scopes.includes(
+																								scope.value
+																							)}
+																							disabled={!canEditScopes}
+																							label={scope.label}
+																							onCheckedChange={() =>
+																								toggleWebsiteScope(
+																									w.id,
+																									scope.value
+																								)
+																							}
+																						/>
+																					</div>
+																				))}
+																			</div>
 																		</div>
 																	)}
 																</div>
@@ -804,7 +999,7 @@ export function ApiKeySheet({
 													</div>
 												) : (
 													<div className="flex items-center gap-2 rounded-md border border-border/60 border-dashed px-3 py-3">
-														<LockKeyIcon
+														<LockSimpleIcon
 															className="size-4 shrink-0 text-muted-foreground"
 															weight="duotone"
 														/>
@@ -890,7 +1085,7 @@ export function ApiKeySheet({
 									<SectionCard tone="destructive">
 										<Accordion>
 											<Accordion.Trigger className="bg-destructive/5 hover:bg-destructive/10">
-												<WarningDiamondIcon
+												<TriangleWarningIcon
 													className="size-4 shrink-0 text-destructive"
 													weight="duotone"
 												/>

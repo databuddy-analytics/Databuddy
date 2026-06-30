@@ -1,13 +1,5 @@
 {
-  "compilerOptions": {
-    "paths": {
-      "@/*": ["./*"]
-    },
-    "esModuleInterop": true,
-    "strictNullChecks": true
-  },
-  "include": ["go-fuck-yourself-typescript.ts"],
-  "skipLibCheck": true,
-  "noResolve": true,
-  "noImplicitAny": false
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig/base.json",
+  "files": []
 }

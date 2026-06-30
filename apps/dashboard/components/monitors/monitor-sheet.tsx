@@ -1,19 +1,22 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
-import { InfoIcon } from "@databuddy/ui/icons";
-import { Sheet, Switch } from "@databuddy/ui/client";
+import { BellIcon, GearIcon, InfoIcon } from "@databuddy/ui/icons";
+import { Accordion, Sheet, Switch } from "@databuddy/ui/client";
 import {
+	Badge,
 	Button,
 	Divider,
 	Field,
 	Input,
 	SegmentedControl,
+	Text,
 	Tooltip,
 } from "@databuddy/ui";
 
@@ -33,6 +36,12 @@ const granularityOptions: { label: string; value: GranularityValue }[] = [
 	{ value: "hour", label: "1h" },
 	{ value: "six_hours", label: "6h" },
 ];
+
+const DEST_LABELS: Record<string, string> = {
+	slack: "Slack",
+	email: "Email",
+	webhook: "Webhook",
+};
 
 interface MonitorSheetProps {
 	onCloseAction: (open: boolean) => void;
@@ -84,6 +93,37 @@ function isValidUrl(value: string): boolean {
 	}
 }
 
+interface ParsedAlarm {
+	destinations: Array<{ id: string; type: string }>;
+	enabled: boolean;
+	id: string;
+	linkedIds: string[];
+	name: string;
+	triggerConditions: Record<string, unknown>;
+}
+
+function parseAlarms(rows: readonly Record<string, unknown>[]): ParsedAlarm[] {
+	return rows.map((row) => {
+		const r = row as Record<string, unknown>;
+		const tc =
+			typeof r.triggerConditions === "object" && r.triggerConditions
+				? (r.triggerConditions as Record<string, unknown>)
+				: {};
+		return {
+			id: r.id as string,
+			name: r.name as string,
+			enabled: r.enabled as boolean,
+			triggerConditions: tc,
+			linkedIds: Array.isArray(tc.monitorIds)
+				? (tc.monitorIds as string[])
+				: [],
+			destinations: Array.isArray(r.destinations)
+				? (r.destinations as Array<{ id: string; type: string }>)
+				: [],
+		};
+	});
+}
+
 export function MonitorSheet({
 	open,
 	onCloseAction,
@@ -96,6 +136,7 @@ export function MonitorSheet({
 	const { data: website } = useWebsite(websiteId || "");
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
+	const queryClient = useQueryClient();
 
 	const [name, setName] = useState("");
 	const [url, setUrl] = useState("");
@@ -112,6 +153,44 @@ export function MonitorSheet({
 	const updateMutation = useMutation({
 		...orpc.uptime.updateSchedule.mutationOptions(),
 	});
+	const alarmUpdateMutation = useMutation({
+		...orpc.alarms.update.mutationOptions(),
+	});
+
+	const { data: rawAlarms } = useQuery({
+		...orpc.alarms.list.queryOptions({ input: {} }),
+		enabled: open && isEditing,
+	});
+
+	const alarms = parseAlarms(
+		(rawAlarms ?? []) as readonly Record<string, unknown>[]
+	);
+
+	const linkedAlarmCount = alarms.filter((a) =>
+		a.linkedIds.includes(schedule?.id ?? "")
+	).length;
+
+	const toggleAlarm = async (alarm: ParsedAlarm) => {
+		const scheduleId = schedule?.id ?? "";
+		const isLinked = alarm.linkedIds.includes(scheduleId);
+		const nextIds = isLinked
+			? alarm.linkedIds.filter((id) => id !== scheduleId)
+			: [...alarm.linkedIds, scheduleId];
+		try {
+			await alarmUpdateMutation.mutateAsync({
+				alarmId: alarm.id,
+				triggerConditions: {
+					...alarm.triggerConditions,
+					monitorIds: nextIds,
+				},
+			});
+			await queryClient.invalidateQueries({
+				queryKey: orpc.alarms.list.key(),
+			});
+		} catch {
+			toast.error("Failed to update alert");
+		}
+	};
 
 	useEffect(() => {
 		if (!open) {
@@ -200,10 +279,11 @@ export function MonitorSheet({
 			}
 			onSaveAction?.();
 			onCloseAction(false);
-		} catch {
-			// Error handled by global MutationCache
-		}
+		} catch {}
 	};
+
+	const advancedCount =
+		(timeoutMs ? 1 : 0) + (cacheBust ? 1 : 0) + (jsonParsingEnabled ? 0 : 1);
 
 	return (
 		<Sheet onOpenChange={onCloseAction} open={open}>
@@ -283,46 +363,129 @@ export function MonitorSheet({
 
 						<Divider />
 
-						<div className="space-y-4">
-							<SettingsRow
-								description="Max wait time before timing out"
-								label="Timeout"
-							>
-								<Input
-									className="w-24"
-									max={120}
-									min={1}
-									onChange={(e) => {
-										const val = e.target.value;
-										setTimeoutMs(val ? Number(val) * 1000 : null);
-									}}
-									placeholder="30"
-									suffix="sec"
-									type="number"
-									value={timeoutMs ? timeoutMs / 1000 : ""}
-								/>
-							</SettingsRow>
+						<div className="space-y-2">
+							<div className="overflow-hidden rounded-md border border-border/60">
+								<Accordion>
+									<Accordion.Trigger>
+										<GearIcon
+											className="size-4 shrink-0 text-muted-foreground"
+											weight="duotone"
+										/>
+										<Text variant="label">Advanced Settings</Text>
+										{advancedCount > 0 && (
+											<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+												{advancedCount}
+											</span>
+										)}
+									</Accordion.Trigger>
+									<Accordion.Content>
+										<div className="space-y-4">
+											<SettingsRow
+												description="Max wait time before timing out"
+												label="Timeout"
+											>
+												<Input
+													className="w-24"
+													max={120}
+													min={1}
+													onChange={(e) => {
+														const val = e.target.value;
+														setTimeoutMs(val ? Number(val) * 1000 : null);
+													}}
+													placeholder="30"
+													suffix="sec"
+													type="number"
+													value={timeoutMs ? timeoutMs / 1000 : ""}
+												/>
+											</SettingsRow>
 
-							<Divider />
+											<SettingsRow
+												description="Bypass CDN caches with a random query parameter"
+												label="Cache busting"
+											>
+												<Switch
+													checked={cacheBust}
+													onCheckedChange={setCacheBust}
+												/>
+											</SettingsRow>
 
-							<SettingsRow
-								description="Bypass CDN caches with a random query parameter"
-								label="Cache busting"
-							>
-								<Switch checked={cacheBust} onCheckedChange={setCacheBust} />
-							</SettingsRow>
+											<SettingsRow
+												description="Parse JSON responses for status and latency"
+												label="Capture service latency"
+											>
+												<Switch
+													checked={jsonParsingEnabled}
+													onCheckedChange={setJsonParsingEnabled}
+												/>
+											</SettingsRow>
+										</div>
+									</Accordion.Content>
+								</Accordion>
+							</div>
 
-							<Divider />
+							{isEditing && (
+								<div className="overflow-hidden rounded-md border border-border/60">
+									<Accordion>
+										<Accordion.Trigger>
+											<BellIcon
+												className="size-4 shrink-0 text-muted-foreground"
+												weight="duotone"
+											/>
+											<Text variant="label">Alerts</Text>
+											{linkedAlarmCount > 0 && (
+												<span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary font-medium text-primary-foreground text-xs">
+													{linkedAlarmCount}
+												</span>
+											)}
+										</Accordion.Trigger>
+										<Accordion.Content>
+											{alarms.length === 0 ? (
+												<Text tone="muted" variant="caption">
+													No alerts configured.{" "}
+													<Link
+														className="text-primary hover:underline"
+														href="/settings/notifications"
+													>
+														Create one
+													</Link>
+												</Text>
+											) : (
+												<div className="space-y-4">
+													{alarms.map((alarm) => {
+														const isLinked = alarm.linkedIds.includes(
+															schedule?.id ?? ""
+														);
+														const destSummary = alarm.destinations
+															.map((d) => DEST_LABELS[d.type] ?? d.type)
+															.join(", ");
 
-							<SettingsRow
-								description="Parse JSON responses for status and latency"
-								label="Capture service latency"
-							>
-								<Switch
-									checked={jsonParsingEnabled}
-									onCheckedChange={setJsonParsingEnabled}
-								/>
-							</SettingsRow>
+														return (
+															<SettingsRow
+																description={destSummary}
+																key={alarm.id}
+																label={alarm.name}
+															>
+																<div className="flex items-center gap-2">
+																	{!alarm.enabled && (
+																		<Badge size="sm" variant="muted">
+																			Paused
+																		</Badge>
+																	)}
+																	<Switch
+																		checked={isLinked}
+																		disabled={alarmUpdateMutation.isPending}
+																		onCheckedChange={() => toggleAlarm(alarm)}
+																	/>
+																</div>
+															</SettingsRow>
+														);
+													})}
+												</div>
+											)}
+										</Accordion.Content>
+									</Accordion>
+								</div>
+							)}
 						</div>
 					</Sheet.Body>
 

@@ -5,9 +5,9 @@ import {
 	ChartBarIcon,
 	CheckCircleIcon,
 	ClockIcon,
-	PauseCircleIcon,
+	CircleIcon as PauseCircleIcon,
 	TrendUpIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { useMemo } from "react";
 import { SciFiCard } from "@/components/scifi-card";
 import type { RoadmapItem, RoadmapStats } from "./roadmap-types";

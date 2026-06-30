@@ -4,8 +4,8 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import { publicProcedure } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
-import { getCacheAuthContext } from "../utils/cache-keys";
+import { withPublicWorkspace } from "../procedures/with-workspace";
+import { scopedCacheKey } from "../utils/scoped-cache-key";
 
 const drizzleCache = createDrizzleCache({ redis, namespace: "autocomplete" });
 
@@ -13,7 +13,7 @@ const CACHE_TTL = 1800;
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+	const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 		.toISOString()
 		.split("T")[0];
 	return { startDate, endDate };
@@ -163,25 +163,27 @@ export const autocompleteRouter = {
 		)
 		.output(autocompleteOutputSchema)
 		.handler(async ({ context, input }) => {
+			const workspace = await withPublicWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+
 			const { startDate, endDate } =
 				input.startDate && input.endDate
 					? { startDate: input.startDate, endDate: input.endDate }
 					: getDefaultDateRange();
 
-			const authContext = await getCacheAuthContext(context, {
-				websiteId: input.websiteId,
-			});
-
 			return drizzleCache.withCache({
-				key: `autocomplete:${input.websiteId}:${startDate}:${endDate}:${authContext}`,
+				key: scopedCacheKey(
+					"get",
+					workspace,
+					`website:${input.websiteId}`,
+					`start:${startDate}`,
+					`end:${endDate}`
+				),
 				ttl: CACHE_TTL,
 				tables: ["websites"],
 				queryFn: async () => {
-					await withWorkspace(context, {
-						websiteId: input.websiteId,
-						permissions: ["read"],
-						allowPublicAccess: true,
-					});
 					const params = { websiteId: input.websiteId, startDate, endDate };
 
 					try {

@@ -283,22 +283,6 @@ TTL toDateTime(timestamp) + INTERVAL 6 MONTH
 SETTINGS index_granularity = 8192
 `;
 
-const CREATE_EMAIL_EVENTS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.email_events (
-    event_id UUID DEFAULT generateUUIDv4(),
-    email_hash String,
-    domain String,
-    labels Array(LowCardinality(String)),
-    event_time DateTime,
-    received_at DateTime,
-    ingestion_time DateTime DEFAULT now(),
-    metadata_json JSON
-) ENGINE = MergeTree()
-PARTITION BY toYYYYMM(event_time)
-ORDER BY (domain, event_time)
-SETTINGS index_granularity = 8192
-`;
-
 /**
  * Daily aggregated pageviews for mini-charts
  */
@@ -401,55 +385,6 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.ai_traffic_spans (
 ) ENGINE = MergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (client_id, bot_type, timestamp)
-SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
-`;
-
-/**
- * Lean AI call spans table - stores individual AI model calls
- * owner_id: The org or user ID that owns this data (from API key)
- */
-const CREATE_AI_CALL_SPANS_TABLE = `
-CREATE TABLE IF NOT EXISTS ${DATABASES.OBSERVABILITY}.ai_call_spans (
-  owner_id String CODEC(ZSTD(1)),
-  
-  timestamp DateTime64(3, 'UTC') CODEC(Delta(8), ZSTD(1)),
-  
-  type LowCardinality(String) CODEC(ZSTD(1)),
-  model String CODEC(ZSTD(1)),
-  provider LowCardinality(String) CODEC(ZSTD(1)),
-  finish_reason LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
-  
-  input_tokens UInt32 CODEC(ZSTD(1)),
-  output_tokens UInt32 CODEC(ZSTD(1)),
-  total_tokens UInt32 CODEC(ZSTD(1)),
-  cached_input_tokens Nullable(UInt32) CODEC(ZSTD(1)),
-  cache_creation_input_tokens Nullable(UInt32) CODEC(ZSTD(1)),
-  reasoning_tokens Nullable(UInt32) CODEC(ZSTD(1)),
-  web_search_count Nullable(UInt16) CODEC(ZSTD(1)),
-  
-  input_token_cost_usd Nullable(Float64) CODEC(Gorilla, ZSTD(1)),
-  output_token_cost_usd Nullable(Float64) CODEC(Gorilla, ZSTD(1)),
-  total_token_cost_usd Nullable(Float64) CODEC(Gorilla, ZSTD(1)),
-  
-  tool_call_count UInt16 CODEC(ZSTD(1)),
-  tool_result_count UInt16 CODEC(ZSTD(1)),
-  tool_call_names Array(String) CODEC(ZSTD(1)),
-  
-  duration_ms UInt32 CODEC(ZSTD(1)),
-  trace_id Nullable(String) CODEC(ZSTD(1)),
-  http_status Nullable(UInt16) CODEC(ZSTD(1)),
-  
-  error_name LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
-  error_message Nullable(String) CODEC(ZSTD(1)),
-  error_stack Nullable(String) CODEC(ZSTD(1)),
-  
-  INDEX idx_owner_id owner_id TYPE bloom_filter(0.01) GRANULARITY 1,
-  INDEX idx_model model TYPE bloom_filter(0.01) GRANULARITY 1,
-  INDEX idx_provider provider TYPE bloom_filter(0.01) GRANULARITY 1,
-  INDEX idx_error_name error_name TYPE bloom_filter(0.01) GRANULARITY 1
-) ENGINE = MergeTree
-PARTITION BY toDate(timestamp)
-ORDER BY (owner_id, provider, model, timestamp)
 SETTINGS index_granularity = 8192, ttl_only_drop_parts = 1
 `;
 
@@ -625,17 +560,6 @@ export interface BlockedTraffic {
 	user_agent?: string;
 }
 
-export interface EmailEvent {
-	domain: string;
-	email_hash: string;
-	event_id: string;
-	event_time: number;
-	ingestion_time: number;
-	labels: string[];
-	metadata_json: string;
-	received_at: number;
-}
-
 /**
  * Organization-scoped custom event
  * owner_id: org ID from API key (required)
@@ -737,38 +661,6 @@ export interface RevenueTransaction {
 	transaction_id: string;
 	type: "sale" | "refund" | "subscription" | "subscription_event";
 	website_id?: string;
-}
-
-/**
- * AI call span type
- * owner_id: The org or user ID that owns this data (from API key)
- */
-export interface AICallSpan {
-	cache_creation_input_tokens?: number;
-	cached_input_tokens?: number;
-	duration_ms: number;
-	error_message?: string;
-	error_name?: string;
-	error_stack?: string;
-	finish_reason?: string;
-	http_status?: number;
-	input_token_cost_usd?: number;
-	input_tokens: number;
-	model: string;
-	output_token_cost_usd?: number;
-	output_tokens: number;
-	owner_id: string;
-	provider: string;
-	reasoning_tokens?: number;
-	timestamp: number;
-	tool_call_count: number;
-	tool_call_names: string[];
-	tool_result_count: number;
-	total_token_cost_usd?: number;
-	total_tokens: number;
-	trace_id?: string;
-	type: "generate" | "stream";
-	web_search_count?: number;
 }
 
 export interface LinkVisit {
@@ -874,9 +766,7 @@ export async function initClickHouseSchema() {
 			{ name: "web_vitals_hourly", query: CREATE_WEB_VITALS_HOURLY_TABLE },
 			{ name: "daily_pageviews", query: CREATE_DAILY_PAGEVIEWS_TABLE },
 			{ name: "blocked_traffic", query: CREATE_BLOCKED_TRAFFIC_TABLE },
-			{ name: "email_events", query: CREATE_EMAIL_EVENTS_TABLE },
 			{ name: "outgoing_links", query: CREATE_CUSTOM_OUTGOING_LINKS_TABLE },
-			{ name: "ai_call_spans", query: CREATE_AI_CALL_SPANS_TABLE },
 			{ name: "custom_events", query: CREATE_CUSTOM_EVENTS_TABLE },
 			{ name: "link_visits", query: CREATE_LINK_VISITS_TABLE },
 			{ name: "ai_traffic_spans", query: CREATE_AI_TRAFFIC_SPANS_TABLE },

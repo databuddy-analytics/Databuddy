@@ -26,7 +26,6 @@ export const linkFolders = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		index("link_folders_organization_id_idx").on(table.organizationId),
 		index("link_folders_created_by_idx").on(table.createdBy),
 		uniqueIndex("link_folders_org_slug_unique").on(
 			table.organizationId,
@@ -79,7 +78,6 @@ export const links = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		index("links_organization_id_idx").on(table.organizationId),
 		index("links_folder_id_idx").on(table.folderId),
 		index("links_org_folder_idx").on(table.organizationId, table.folderId),
 		index("links_created_by_idx").on(table.createdBy),

@@ -1,14 +1,15 @@
 "use client";
 
-import type { IconWeight } from "@phosphor-icons/react";
+type IconWeight = "regular" | "bold" | "fill" | "duotone";
+
 import {
 	CrownIcon,
-	DiamondIcon,
-	GiftIcon,
+	StarIcon as DiamondIcon,
+	StarIcon as GiftIcon,
 	StarIcon,
-	TrophyIcon,
+	CrownIcon as TrophyIcon,
 	UsersIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 import { cn } from "@/lib/utils";
 

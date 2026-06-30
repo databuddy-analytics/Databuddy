@@ -1,0 +1,23 @@
+{
+  "name": "@databuddy/migrate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "databuddy-migrate": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/transform.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

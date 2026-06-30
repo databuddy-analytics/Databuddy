@@ -1,10 +1,28 @@
 import type { RedisOptions } from "ioredis";
 
-function parseBullMQConnectionUrl(): RedisOptions {
-	const redisUrl = process.env.BULLMQ_REDIS_URL;
+export interface BullMQConnectionConfig {
+	envPrefix?: string;
+}
+
+function resolveBullMQRedisUrl(config: BullMQConnectionConfig = {}): string {
+	const prefixedName = config.envPrefix
+		? `${config.envPrefix}_BULLMQ_REDIS_URL`
+		: null;
+	const prefixedUrl = prefixedName ? process.env[prefixedName]?.trim() : "";
+	const fallbackUrl = process.env.BULLMQ_REDIS_URL?.trim();
+	const redisUrl = prefixedUrl || fallbackUrl;
 	if (!redisUrl) {
-		throw new Error("BULLMQ_REDIS_URL environment variable is required");
+		throw new Error(
+			`${prefixedName ? `${prefixedName} or ` : ""}BULLMQ_REDIS_URL environment variable is required`
+		);
 	}
+	return redisUrl;
+}
+
+function parseBullMQConnectionUrl(
+	config: BullMQConnectionConfig = {}
+): RedisOptions {
+	const redisUrl = resolveBullMQRedisUrl(config);
 
 	const url = new URL(redisUrl);
 
@@ -18,16 +36,20 @@ function parseBullMQConnectionUrl(): RedisOptions {
 	};
 }
 
-export function getBullMQConnectionOptions(): RedisOptions {
+export function getBullMQConnectionOptions(
+	config: BullMQConnectionConfig = {}
+): RedisOptions {
 	return {
-		...parseBullMQConnectionUrl(),
+		...parseBullMQConnectionUrl(config),
 		maxRetriesPerRequest: 1,
 	};
 }
 
-export function getBullMQWorkerConnectionOptions(): RedisOptions {
+export function getBullMQWorkerConnectionOptions(
+	config: BullMQConnectionConfig = {}
+): RedisOptions {
 	return {
-		...parseBullMQConnectionUrl(),
+		...parseBullMQConnectionUrl(config),
 		maxRetriesPerRequest: null,
 	};
 }

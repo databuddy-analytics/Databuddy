@@ -13,6 +13,7 @@ import {
 	useState,
 } from "react";
 import { useAgentChatTransport } from "@/components/agent/hooks/use-agent-chat";
+import { normalizeAIComponentMessages } from "@/lib/ai-components/message-parts";
 import { orpc } from "@/lib/orpc";
 
 type ChatApi = ReturnType<typeof useAiSdkChat<UIMessage>>;
@@ -26,6 +27,7 @@ interface PendingQueueValue {
 interface ChatLoadingValue {
 	isEmpty: boolean;
 	isRestoring: boolean;
+	persistedUserMessageIds: ReadonlySet<string>;
 }
 
 const ChatContext = createContext<ChatApi | null>(null);
@@ -36,23 +38,49 @@ const PendingQueueContext = createContext<PendingQueueValue>({
 const ChatLoadingContext = createContext<ChatLoadingValue>({
 	isRestoring: false,
 	isEmpty: true,
+	persistedUserMessageIds: new Set(),
 });
+
+const UI_MESSAGE_ROLES = new Set(["assistant", "system", "user"]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function isUIMessageArray(value: unknown): value is UIMessage[] {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			(message) =>
+				isRecord(message) &&
+				(!("id" in message) || typeof message.id === "string") &&
+				typeof message.role === "string" &&
+				UI_MESSAGE_ROLES.has(message.role) &&
+				Array.isArray(message.parts)
+		)
+	);
+}
 
 const isBusy = (c: ChatApi) =>
 	c.status === "submitted" || c.status === "streaming";
 
 export function ChatProvider({
 	chatId,
-	websiteId,
+	organizationId,
+	defaultWebsiteId,
 	children,
 }: {
 	chatId: string;
-	websiteId: string;
+	organizationId: string | null;
+	defaultWebsiteId?: string;
 	children: React.ReactNode;
 }) {
-	const transport = useAgentChatTransport(chatId, websiteId);
+	const transport = useAgentChatTransport(
+		chatId,
+		organizationId,
+		defaultWebsiteId
+	);
 	const queryClient = useQueryClient();
-	const chatRef = useRef<ChatApi>(null as unknown as ChatApi);
 
 	const { data: storedChat, isFetched } = useQuery({
 		...orpc.agentChats.get.queryOptions({ input: { id: chatId } }),
@@ -67,19 +95,45 @@ export function ChatProvider({
 		resume: Boolean(storedChat?.activeStreamId),
 	});
 
+	const chatRef = useRef(chat);
 	chatRef.current = chat;
 
 	const [hasRestored, setHasRestored] = useState(false);
+	const [persistedUserMessageIds, setPersistedUserMessageIds] = useState<
+		ReadonlySet<string>
+	>(() => new Set());
 
 	useEffect(() => {
 		if (hasRestored || !isFetched) {
 			return;
 		}
-		if (storedChat?.messages && storedChat.messages.length > 0) {
-			chatRef.current.setMessages(storedChat.messages as UIMessage[]);
+
+		const ids = new Set<string>();
+		if (
+			isUIMessageArray(storedChat?.messages) &&
+			storedChat.messages.length > 0
+		) {
+			const persisted = normalizeAIComponentMessages(storedChat.messages);
+			for (const [idx, msg] of persisted.entries()) {
+				if (msg.role === "user") {
+					ids.add(msg.id || `msg-${idx}`);
+				}
+			}
+			chatRef.current.setMessages(persisted);
 		}
+		setPersistedUserMessageIds(ids);
 		setHasRestored(true);
 	}, [hasRestored, isFetched, storedChat]);
+
+	useEffect(() => {
+		if (chat.status !== "ready") {
+			return;
+		}
+		const normalized = normalizeAIComponentMessages(chat.messages);
+		if (normalized !== chat.messages) {
+			chat.setMessages(normalized);
+		}
+	}, [chat.status, chat.messages, chat.setMessages]);
 
 	const pendingRef = useRef<string[]>([]);
 	const [pendingTexts, setPendingTexts] = useState<string[]>([]);
@@ -135,7 +189,10 @@ export function ChatProvider({
 		}
 
 		queryClient.invalidateQueries({
-			queryKey: orpc.agentChats.list.key({ input: { websiteId } }),
+			queryKey: orpc.agentChats.list.key({ input: { organizationId } }),
+		});
+		queryClient.invalidateQueries({
+			queryKey: orpc.agentChats.get.key({ input: { id: chatId } }),
 		});
 
 		const [next, ...rest] = pendingRef.current;
@@ -145,7 +202,7 @@ export function ChatProvider({
 		pendingRef.current = rest;
 		syncQueue();
 		chat.sendMessage({ text: next }).catch(() => undefined);
-	}, [chat.status, chat, syncQueue, queryClient, websiteId]);
+	}, [chat.status, chat, syncQueue, queryClient, organizationId]);
 
 	const chatValue = useMemo(
 		(): ChatApi => ({ ...chat, sendMessage, stop }),
@@ -163,8 +220,9 @@ export function ChatProvider({
 			isEmpty:
 				isFetched &&
 				(!storedChat?.messages || storedChat.messages.length === 0),
+			persistedUserMessageIds,
 		}),
-		[hasRestored, isFetched, storedChat]
+		[hasRestored, isFetched, storedChat, persistedUserMessageIds]
 	);
 
 	return (

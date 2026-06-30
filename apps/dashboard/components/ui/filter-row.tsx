@@ -1,4 +1,4 @@
-import { XIcon } from "@phosphor-icons/react/dist/ssr";
+import { XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { DropdownMenu } from "@databuddy/ui/client";
 

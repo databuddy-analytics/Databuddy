@@ -1,11 +1,13 @@
 import { authClient } from "@databuddy/auth/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import { toast } from "sonner";
 import {
 	AUTH_QUERY_KEYS,
 	useOrganizationsContext,
 } from "@/components/providers/organizations-provider";
 import { orpc } from "@/lib/orpc";
+import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 
 export type OrganizationRole = "owner" | "admin" | "member";
 
@@ -61,9 +63,23 @@ const createMutation = <TData, TVariables>(
 });
 
 export function useOrganizations() {
-	const { organizations, activeOrganization, isLoading } =
-		useOrganizationsContext();
+	const {
+		organizations,
+		activeOrganization,
+		isLoading,
+		isSwitchingOrganization,
+	} = useOrganizationsContext();
 	const queryClient = useQueryClient();
+	const setPendingActiveOrganizationId = useSetAtom(
+		pendingActiveOrganizationIdAtom
+	);
+
+	const clearWorkspaceResourceQueries = () => {
+		queryClient.removeQueries({ queryKey: orpc.websites.key() });
+		queryClient.removeQueries({ queryKey: orpc.links.list.key() });
+		queryClient.removeQueries({ queryKey: orpc.linkFolders.list.key() });
+		queryClient.removeQueries({ queryKey: orpc.apikeys.list.key() });
+	};
 
 	const invalidateOrganizationQueries = () => {
 		queryClient.invalidateQueries({ queryKey: AUTH_QUERY_KEYS.organizations });
@@ -155,6 +171,9 @@ export function useOrganizations() {
 	);
 
 	const setActiveOrganizationMutation = useMutation({
+		onMutate: (organizationId: string | null) => {
+			setPendingActiveOrganizationId(organizationId);
+		},
 		mutationFn: async (organizationId: string | null) => {
 			if (organizationId === null) {
 				const { data: setActiveData, error: apiError } =
@@ -180,8 +199,15 @@ export function useOrganizations() {
 			return setActiveData2;
 		},
 		onSuccess: () => {
+			clearWorkspaceResourceQueries();
 			invalidateOrganizationQueries();
+			queryClient.invalidateQueries({ queryKey: orpc.links.list.key() });
+			queryClient.invalidateQueries({ queryKey: orpc.linkFolders.list.key() });
+			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
 			toast.success("Workspace updated");
+		},
+		onError: () => {
+			setPendingActiveOrganizationId(null);
 		},
 	});
 
@@ -207,6 +233,7 @@ export function useOrganizations() {
 		organizations,
 		activeOrganization,
 		isLoading,
+		isSwitchingOrganization,
 
 		createOrganization: createOrganizationMutation.mutate,
 		updateOrganization: updateOrganizationMutation.mutate,

@@ -1,4 +1,5 @@
 export interface AgentCommand {
+	action?: "clear";
 	command: string;
 	description: string;
 	id: string;
@@ -79,6 +80,15 @@ export const AGENT_COMMANDS: readonly AgentCommand[] = [
 		prompt:
 			"Generate a concise weekly analytics report: top-line metrics, biggest wins, biggest concerns, and recommended actions for next week.",
 		keywords: ["report", "weekly", "summary", "executive", "overview"],
+	},
+	{
+		id: "clear",
+		command: "/clear",
+		title: "Clear chat",
+		description: "Erase chat history and start fresh",
+		action: "clear",
+		prompt: "",
+		keywords: ["clear", "reset", "erase", "new", "fresh"],
 	},
 ] as const;
 

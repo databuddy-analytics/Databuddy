@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
+import { TrackOnMount } from "@/components/track-on-mount";
 import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
@@ -18,14 +19,14 @@ import {
 import { StructuredData } from "@/components/structured-data";
 
 export const metadata: Metadata = {
-	title: "Uptime Monitoring (coming Q3 2026) | Databuddy",
+	title: "Uptime Monitoring (coming Q3 2026)",
 	description:
 		"1-minute checks from six regions, instant alerts, and public status pages - included with Databuddy. Launching Q3 2026. Join the waitlist for early access.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/uptime",
 	},
 	openGraph: {
-		title: "Uptime Monitoring (coming Q3 2026) | Databuddy",
+		title: "Uptime Monitoring (coming Q3 2026)",
 		description:
 			"1-minute checks from six regions, instant alerts, and public status pages - included with Databuddy. Launching Q3 2026.",
 		url: "https://www.databuddy.cc/uptime",
@@ -66,10 +67,14 @@ const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 export default function UptimePage() {
 	return (
 		<>
+			<TrackOnMount
+				event="feature_landing_viewed"
+				properties={{ feature: "uptime" }}
+			/>
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Uptime Monitoring | Databuddy",
+					title: "Uptime Monitoring",
 					description:
 						"1-minute checks, status pages, and instant alerts - coming to Databuddy Q3 2026.",
 					url: "https://www.databuddy.cc/uptime",
@@ -88,7 +93,7 @@ export default function UptimePage() {
 							</span>
 						</span>
 					}
-					docsHref="/roadmap"
+					docsHref="/docs"
 					primaryLabel="Join Waitlist"
 					subtitle="Status pages, 1-minute checks, and instant alerts so you find out before your users tweet about it."
 					title="Be the first to know when your site goes down."
@@ -101,42 +106,42 @@ export default function UptimePage() {
 							title="Catch issues"
 							titleMuted="before your users do."
 						/>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									HTTP monitoring every 60 seconds, from 6 regions.
+								</h3>
+								<UptimeRegionsHubDiagram />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Slack, email, or webhook in under 30 seconds.
+								</h3>
+								<UptimeAlertsStackVisual />
+							</GridCell>
+						</TwoColumnGrid>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Share a status page transparently with your users.
+								</h3>
+								<UptimeStatusPageMiniVisual />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Every incident, documented automatically.
+								</h3>
+								<UptimeIncidentTimelineVisual />
+							</GridCell>
+						</TwoColumnGrid>
 					</div>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								HTTP monitoring every 60 seconds, from 6 regions.
-							</h3>
-							<UptimeRegionsHubDiagram />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Slack, email, or webhook in under 30 seconds.
-							</h3>
-							<UptimeAlertsStackVisual />
-						</GridCell>
-					</TwoColumnGrid>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Share a status page transparently with your users.
-							</h3>
-							<UptimeStatusPageMiniVisual />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Every incident, documented automatically.
-							</h3>
-							<UptimeIncidentTimelineVisual />
-						</GridCell>
-					</TwoColumnGrid>
 				</Section>
 
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
-						<FaqSection eyebrow="FAQ" items={[...FAQ_ITEMS]} />
+						<FaqSection items={[...FAQ_ITEMS]} />
 					</div>
 				</Section>
 

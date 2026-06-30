@@ -1,17 +1,17 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChatSafe } from "@/contexts/chat-context";
 import { cn } from "@/lib/utils";
-import { clearLastChatId, useChatList } from "./hooks/use-chat-db";
-import { ChatCircleDotsIcon, XIcon } from "@phosphor-icons/react/dist/ssr";
+import { useChatList } from "./hooks/use-chat-db";
 import {
+	ChatTextIcon,
 	CheckIcon,
 	ClockCounterClockwiseIcon,
 	MagnifyingGlassIcon,
 	PencilSimpleIcon,
 	TrashIcon,
+	XMarkIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog, Popover } from "@databuddy/ui/client";
 import { Button, Input, dayjs } from "@databuddy/ui";
@@ -19,16 +19,16 @@ import { Button, Input, dayjs } from "@databuddy/ui";
 type Chat = ReturnType<typeof useChatList>["chats"][number];
 
 interface ChatHistoryProps {
-	onCurrentChatDeleted?: (nextChatId: string | null) => void;
-	onSelectChat?: (chatId: string) => void;
-	websiteId?: string | null;
+	onCurrentChatDeleted: (nextChatId: string | null) => void;
+	onSelectChat: (chatId: string) => void;
+	organizationId?: string | null;
 }
 
 export function ChatHistory({
 	onCurrentChatDeleted,
 	onSelectChat,
-	websiteId,
-}: ChatHistoryProps = {}) {
+	organizationId,
+}: ChatHistoryProps) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -36,13 +36,9 @@ export function ChatHistory({
 		id: string;
 		title: string;
 	} | null>(null);
-	const params = useParams();
-	const router = useRouter();
-	const routeWebsiteId = typeof params.id === "string" ? params.id : null;
-	const resolvedWebsiteId = websiteId ?? routeWebsiteId;
 	const currentChatId = useChatSafe()?.id ?? null;
 	const { chats, isLoading, removeChat, renameChat } =
-		useChatList(resolvedWebsiteId);
+		useChatList(organizationId);
 
 	const filtered = useMemo(() => {
 		const q = query.trim().toLowerCase();
@@ -61,45 +57,23 @@ export function ChatHistory({
 
 	const handleSelectChat = (chatId: string) => {
 		setOpen(false);
-		if (onSelectChat) {
-			onSelectChat(chatId);
-			return;
-		}
-		if (resolvedWebsiteId) {
-			router.push(`/websites/${resolvedWebsiteId}/agent/${chatId}`);
-		}
+		onSelectChat(chatId);
 	};
 
 	const handleConfirmDelete = () => {
 		if (!pendingDelete) {
 			return;
 		}
-		if (!resolvedWebsiteId) {
-			setPendingDelete(null);
-			return;
-		}
 		const chatId = pendingDelete.id;
 		removeChat(chatId);
 		setPendingDelete(null);
 
-		if (chatId === currentChatId) {
-			const nextChat = chats.find((c) => c.id !== chatId);
-			const nextChatId = nextChat?.id ?? null;
-			if (nextChatId) {
-				if (onCurrentChatDeleted) {
-					onCurrentChatDeleted(nextChatId);
-				} else {
-					router.push(`/websites/${resolvedWebsiteId}/agent/${nextChatId}`);
-				}
-			} else {
-				clearLastChatId(resolvedWebsiteId);
-				if (onCurrentChatDeleted) {
-					onCurrentChatDeleted(null);
-				} else {
-					router.push(`/websites/${resolvedWebsiteId}/agent`);
-				}
-			}
+		if (chatId !== currentChatId) {
+			return;
 		}
+
+		const nextChat = chats.find((c) => c.id !== chatId);
+		onCurrentChatDeleted(nextChat?.id ?? null);
 	};
 
 	const handleRename = (id: string, title: string) => {
@@ -115,8 +89,11 @@ export function ChatHistory({
 			<Popover onOpenChange={setOpen} open={open}>
 				<Popover.Trigger
 					render={
-						<Button aria-label="Chat history" size="sm" variant="ghost">
-							<ClockCounterClockwiseIcon className="size-4" weight="duotone" />
+						<Button aria-label="Chat history" size="sm" variant="secondary">
+							<ClockCounterClockwiseIcon
+								className="size-4 shrink-0"
+								weight="duotone"
+							/>
 						</Button>
 					}
 				/>
@@ -137,10 +114,10 @@ export function ChatHistory({
 					</div>
 					<div className="max-h-72 overflow-y-auto">
 						{(() => {
-							if (!resolvedWebsiteId) {
+							if (!organizationId) {
 								return (
 									<div className="p-4 text-center text-muted-foreground text-xs">
-										Open a website to view chats
+										No active workspace
 									</div>
 								);
 							}
@@ -154,10 +131,7 @@ export function ChatHistory({
 							if (chats.length === 0) {
 								return (
 									<div className="flex flex-col items-center gap-2 p-6">
-										<ChatCircleDotsIcon
-											className="size-8 text-muted-foreground/40"
-											weight="duotone"
-										/>
+										<ChatTextIcon className="size-8 text-muted-foreground/40" />
 										<p className="text-muted-foreground text-xs">
 											No conversations yet
 										</p>
@@ -274,7 +248,7 @@ function ChatRow({
 					size="icon-sm"
 					variant="ghost"
 				>
-					<XIcon className="size-3.5" />
+					<XMarkIcon className="size-3.5" />
 				</Button>
 			</div>
 		);
@@ -283,12 +257,12 @@ function ChatRow({
 	return (
 		<div
 			className={cn(
-				"group flex w-full items-center gap-1 transition-colors hover:bg-accent/50",
+				"group relative w-full transition-colors hover:bg-accent/50",
 				isActive && "bg-accent"
 			)}
 		>
 			<Button
-				className="h-auto min-w-0 flex-1 justify-start whitespace-normal rounded-none px-3 py-2 text-left focus-visible:bg-accent/40"
+				className="h-auto w-full min-w-0 justify-start whitespace-normal rounded-none px-3 py-2 text-left focus-visible:bg-accent/40"
 				onClick={onSelect}
 				variant="ghost"
 			>
@@ -299,7 +273,7 @@ function ChatRow({
 					</span>
 				</span>
 			</Button>
-			<div className="mr-2 flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+			<div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center rounded bg-popover/90 opacity-0 backdrop-blur-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100">
 				<Button
 					aria-label={`Rename conversation: ${chat.title}`}
 					className="size-7"

@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { authClient } from "@databuddy/auth/client";
-import { Skeleton, Tooltip } from "@databuddy/ui";
+import { Skeleton, Tooltip, useHydrated } from "@databuddy/ui";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
 import {
 	BugIcon,
@@ -100,9 +100,7 @@ function SupportMenu({ collapsed }: { collapsed: boolean }) {
 				</DropdownMenu.Item>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Item
-					onClick={() =>
-						window.open("https://cal.com/databuddy/demo", "_blank")
-					}
+					onClick={() => window.open("https://cal.com/izadoesdev", "_blank")}
 				>
 					<CalendarIcon className="size-4 shrink-0" />
 					Book a meeting
@@ -113,8 +111,12 @@ function SupportMenu({ collapsed }: { collapsed: boolean }) {
 }
 
 function ThemeCycleButton({ collapsed }: { collapsed: boolean }) {
+	const isHydrated = useHydrated();
 	const { theme, setTheme } = useTheme();
-	const currentIndex = THEMES.findIndex((t) => t.value === (theme ?? "light"));
+	const renderedTheme = isHydrated ? theme : "light";
+	const currentIndex = THEMES.findIndex(
+		(t) => t.value === (renderedTheme ?? "light")
+	);
 	const nextIndex = (currentIndex + 1) % THEMES.length;
 	const current = THEMES[currentIndex === -1 ? 0 : currentIndex];
 	const CurrentIcon = current.icon;
@@ -138,11 +140,12 @@ function ThemeCycleButton({ collapsed }: { collapsed: boolean }) {
 }
 
 function AccountMenu({ collapsed }: { collapsed: boolean }) {
+	const isHydrated = useHydrated();
 	const { data: session, isPending } = authClient.useSession();
 	const user = session?.user ?? null;
 	const [isOpen, setIsOpen] = useState(false);
 
-	if (isPending) {
+	if (!isHydrated || isPending) {
 		return (
 			<div className={cn("px-2", collapsed && "px-1.5")}>
 				<Skeleton

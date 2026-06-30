@@ -1,3 +1,3 @@
 "use client";
 
-export { default } from "../../../(main)/websites/[id]/events/error";
+export { default } from "@/app/(main)/websites/[id]/events/error";

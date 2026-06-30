@@ -1,6 +1,6 @@
 "use client";
 
-import { FaRedditAlien, FaXTwitter } from "react-icons/fa6";
+import { SiReddit, SiX } from "@icons-pack/react-simple-icons";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { formatCurrencyFull } from "./calculator-engine";
 
@@ -79,13 +79,13 @@ export function ShareButtons({
 			<div className="flex flex-wrap gap-2">
 				<SciFiButton asChild>
 					<a href={twitterUrl} rel="noopener noreferrer" target="_blank">
-						<FaXTwitter className="size-3.5" />
+						<SiX className="size-3.5" />
 						<span>Share on X</span>
 					</a>
 				</SciFiButton>
 				<SciFiButton asChild>
 					<a href={redditUrl} rel="noopener noreferrer" target="_blank">
-						<FaRedditAlien className="size-3.5" />
+						<SiReddit className="size-3.5" />
 						<span>Share on Reddit</span>
 					</a>
 				</SciFiButton>

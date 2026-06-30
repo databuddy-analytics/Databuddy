@@ -1,11 +1,17 @@
 {
   "name": "@databuddy/services",
+  "private": true,
   "version": "1.0.0",
+  "type": "module",
   "exports": {
     "./websites": "./src/websites.ts"
   },
+  "scripts": {
+    "check-types": "tsc --noEmit"
+  },
   "dependencies": {
-    "@databuddy/db": "workspace:*"
+    "@databuddy/db": "workspace:*",
+    "@databuddy/redis": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

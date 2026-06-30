@@ -35,7 +35,8 @@ function isValidHost(host: string): boolean {
 		host !== "direct" &&
 		host !== "unknown" &&
 		!host.includes("localhost") &&
-		!host.includes("127.0.0.1")
+		!host.includes("127.0.0.1") &&
+		!host.endsWith(".local")
 	);
 }
 

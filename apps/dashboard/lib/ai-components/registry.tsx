@@ -1,3 +1,4 @@
+import { DASHBOARD_ACTION_TARGETS } from "@/lib/dashboard-navigation-actions";
 import {
 	type AnnotationsListProps,
 	AnnotationsListRenderer,
@@ -10,6 +11,10 @@ import {
 	type DistributionProps,
 	DistributionRenderer,
 } from "./renderers/charts/distribution";
+import {
+	type DashboardActionsProps,
+	DashboardActionsRenderer,
+} from "./renderers/dashboard-actions";
 import {
 	type TimeSeriesProps,
 	TimeSeriesRenderer,
@@ -43,6 +48,7 @@ import type {
 	AnnotationsListInput,
 	ComponentDefinition,
 	ComponentRegistry,
+	DashboardActionsInput,
 	DataTableInput,
 	DistributionInput,
 	FunnelPreviewInput,
@@ -151,6 +157,40 @@ function isFunnelPreviewInput(
 		return false;
 	}
 	return typeof funnel.name === "string" && Array.isArray(funnel.steps);
+}
+
+const DASHBOARD_ACTION_TARGET_SET = new Set<string>(DASHBOARD_ACTION_TARGETS);
+
+function hasValidDashboardActionTarget(
+	record: Record<string, unknown>
+): boolean {
+	const target = record.target;
+	return (
+		typeof target === "string" &&
+		DASHBOARD_ACTION_TARGET_SET.has(target) &&
+		(target !== "website.event" || typeof record.eventName === "string")
+	);
+}
+
+function isDashboardActionsInput(
+	input: RawComponentInput
+): input is RawComponentInput & DashboardActionsInput {
+	if (input.type !== "dashboard-actions") {
+		return false;
+	}
+	if (!Array.isArray(input.actions) || input.actions.length === 0) {
+		return false;
+	}
+	return input.actions.every((action) => {
+		if (typeof action !== "object" || action === null) {
+			return false;
+		}
+		const record = action as Record<string, unknown>;
+		return (
+			typeof record.label === "string" &&
+			(typeof record.href === "string" || hasValidDashboardActionTarget(record))
+		);
+	});
 }
 
 function isGoalsListInput(
@@ -338,6 +378,16 @@ function toFunnelPreviewProps(input: FunnelPreviewInput): FunnelPreviewProps {
 	};
 }
 
+function toDashboardActionsProps(
+	input: DashboardActionsInput
+): DashboardActionsProps {
+	return {
+		title: input.title,
+		actions: input.actions,
+		websiteId: input.websiteId,
+	};
+}
+
 function toGoalsListProps(input: GoalsListInput): GoalsListProps {
 	return {
 		title: input.title,
@@ -468,6 +518,12 @@ export const componentRegistry: ComponentRegistry = {
 		transform: toFunnelPreviewProps,
 		component: FunnelPreviewRenderer,
 	} as ComponentDefinition<FunnelPreviewInput, FunnelPreviewProps>,
+
+	"dashboard-actions": {
+		validate: isDashboardActionsInput,
+		transform: toDashboardActionsProps,
+		component: DashboardActionsRenderer,
+	} as ComponentDefinition<DashboardActionsInput, DashboardActionsProps>,
 
 	"goals-list": {
 		validate: isGoalsListInput,

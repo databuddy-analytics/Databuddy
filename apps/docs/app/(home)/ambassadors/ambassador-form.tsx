@@ -1,6 +1,7 @@
 "use client";
 
-import { CheckIcon, PaperPlaneIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { track } from "@databuddy/sdk";
+import { CheckIcon, PaperPlaneIcon, SpinnerIcon } from "@databuddy/ui/icons";
 import { useState } from "react";
 import { toast } from "sonner";
 import { SciFiButton } from "@/components/landing/scifi-btn";
@@ -180,6 +181,7 @@ export default function AmbassadorForm() {
 				);
 			}
 
+			track("ambassador_submitted");
 			toast.success("Application submitted successfully!", {
 				description:
 					"We'll review your application and get back to you within 3-5 business days.",

@@ -12,12 +12,11 @@ import {
 	TOPUP_MIN_QUANTITY,
 	TOPUP_PRODUCT_ID,
 	TOPUP_TIERS,
-} from "@databuddy/shared/billing/topup-math";
+} from "@/lib/topup-math";
 import { useCustomer } from "autumn-js/react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CoinsIcon } from "@phosphor-icons/react/dist/ssr";
-import { CaretDownIcon, TrendDownIcon } from "@databuddy/ui/icons";
+import { CaretDownIcon, CoinsIcon, TrendDownIcon } from "@databuddy/ui/icons";
 import { Badge, Button, Card, Divider, Text } from "@databuddy/ui";
 
 const PRESET_QUANTITIES = [100, 500, 2500, 10_000];

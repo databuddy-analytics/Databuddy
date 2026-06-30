@@ -148,7 +148,9 @@ export function RealtimeMap({ countries }: RealtimeMapProps) {
 		let last = performance.now();
 
 		function applyTransform() {
-			if (!canvas) return;
+			if (!canvas) {
+				return;
+			}
 			const { scale, x, y } = viewRef.current;
 			canvas.style.transform = `scale(${scale}) translate(${x}px, ${y}px)`;
 			canvas.style.imageRendering = scale > 1.5 ? "pixelated" : "auto";

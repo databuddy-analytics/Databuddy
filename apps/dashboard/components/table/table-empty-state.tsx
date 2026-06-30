@@ -1,10 +1,11 @@
-import type { IconProps } from "@phosphor-icons/react";
-import type { ReactElement } from "react";
+import type { ReactElement, SVGProps } from "react";
 import { EmptyState } from "@databuddy/ui";
 
 interface TableEmptyStateProps {
 	description: string;
-	icon: ReactElement<IconProps>;
+	icon: ReactElement<
+		SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+	>;
 	title: string;
 }
 

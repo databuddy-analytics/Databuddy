@@ -113,25 +113,7 @@ export function FunnelAnalytics({
 				avg_completion_time_formatted: "0s",
 				biggest_dropoff_step: 1,
 				biggest_dropoff_rate: 100 - selectedReferrerData.conversion_rate,
-				steps_analytics:
-					data?.steps_analytics?.map((step, index) => ({
-						...step,
-						users:
-							index === 0
-								? selectedReferrerData.total_users
-								: selectedReferrerData.completed_users,
-						total_users: selectedReferrerData.total_users,
-						conversion_rate:
-							index === 0 ? 100 : selectedReferrerData.conversion_rate,
-						dropoffs:
-							index === 0
-								? 0
-								: selectedReferrerData.total_users -
-									selectedReferrerData.completed_users,
-						dropoff_rate:
-							index === 0 ? 0 : 100 - selectedReferrerData.conversion_rate,
-						avg_time_to_complete: 0,
-					})) ?? [],
+				steps_analytics: [],
 			}
 		: data;
 
@@ -266,7 +248,13 @@ export function FunnelAnalytics({
 				</div>
 			)}
 
-			<FunnelFlow steps={displayData.steps_analytics} />
+			{selectedReferrerData ? (
+				<div className="rounded border border-border/60 bg-muted/30 p-4 text-muted-foreground text-sm">
+					Per-step breakdown is not available when filtered by referrer.
+				</div>
+			) : (
+				<FunnelFlow steps={displayData.steps_analytics} />
+			)}
 		</div>
 	);
 }

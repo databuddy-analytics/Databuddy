@@ -8,7 +8,8 @@ export interface MountOptions {
 }
 
 interface MountHandle {
-	unmount: () => void;
+	count: number;
+	destroy: () => void;
 }
 
 let active: MountHandle | null = null;
@@ -19,7 +20,17 @@ export function mountDevtools(options: MountOptions = {}): () => void {
 	}
 
 	if (active) {
-		return active.unmount;
+		const handle = active;
+		handle.count += 1;
+		return () => {
+			if (active !== handle) {
+				return;
+			}
+			handle.count -= 1;
+			if (handle.count === 0) {
+				handle.destroy();
+			}
+		};
 	}
 
 	const host = document.createElement("div");
@@ -56,7 +67,7 @@ export function mountDevtools(options: MountOptions = {}): () => void {
 	};
 	window.addEventListener("keydown", onKeyDown);
 
-	const unmount = () => {
+	const destroy = () => {
 		if (!active) {
 			return;
 		}
@@ -66,6 +77,15 @@ export function mountDevtools(options: MountOptions = {}): () => void {
 		host.remove();
 	};
 
-	active = { unmount };
-	return unmount;
+	const handle = { count: 1, destroy };
+	active = handle;
+	return () => {
+		if (active !== handle) {
+			return;
+		}
+		handle.count -= 1;
+		if (handle.count === 0) {
+			destroy();
+		}
+	};
 }

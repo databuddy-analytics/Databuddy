@@ -13,6 +13,7 @@ interface FunnelsListProps {
 	onDeleteFunnel: (funnelId: string) => void;
 	onEditFunnel: (funnel: FunnelItemData) => void;
 	onToggleFunnel: (funnelId: string) => void;
+	readOnly?: boolean;
 }
 
 export function FunnelsList({
@@ -23,6 +24,7 @@ export function FunnelsList({
 	onToggleFunnel,
 	onEditFunnel,
 	onDeleteFunnel,
+	readOnly = false,
 	children,
 }: FunnelsListProps) {
 	return (
@@ -38,6 +40,7 @@ export function FunnelsList({
 					onDelete={onDeleteFunnel}
 					onEdit={onEditFunnel}
 					onToggle={onToggleFunnel}
+					readOnly={readOnly}
 				>
 					{children?.(funnel)}
 				</FunnelItem>

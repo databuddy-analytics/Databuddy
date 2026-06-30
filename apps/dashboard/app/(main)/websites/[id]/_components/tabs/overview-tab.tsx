@@ -18,6 +18,7 @@ import {
 	createPageColumns,
 	createPageTimeColumns,
 	createReferrerColumns,
+	getReferrerFilterValue,
 } from "@/components/table/rows";
 import { useChartPreferences } from "@/hooks/use-chart-preferences";
 import { useDateFilters } from "@/hooks/use-date-filters";
@@ -30,6 +31,7 @@ import {
 	formatDateByGranularity,
 } from "../utils/analytics-helpers";
 import type { FullTabProps, MetricPoint } from "../utils/types";
+import { AITrafficSection } from "./overview/_components/ai-traffic-section";
 import { TrafficTrendsChart } from "./overview/_components/traffic-trends-chart";
 import {
 	ChartLineIcon,
@@ -89,6 +91,8 @@ interface AnalyticsRowData {
 	pageviews: number;
 	percentage: number;
 	referrer?: string;
+	referrer_type?: string;
+	source?: string;
 	visitors: number;
 }
 
@@ -108,6 +112,7 @@ const QUERY_CONFIG = {
 			"page_time_analysis",
 		] as string[],
 		traffic: [
+			"traffic_sources",
 			"top_referrers",
 			"utm_sources",
 			"utm_mediums",
@@ -119,12 +124,17 @@ const QUERY_CONFIG = {
 	},
 } as const;
 
+type WebsiteOverviewTabProps = Pick<
+	FullTabProps,
+	"addFilter" | "dateRange" | "filters" | "websiteId"
+>;
+
 export function WebsiteOverviewTab({
 	websiteId,
 	dateRange,
 	filters,
 	addFilter,
-}: Omit<FullTabProps, "isRefreshing" | "setIsRefreshing">) {
+}: WebsiteOverviewTabProps) {
 	const { chartType, chartStepType } = useChartPreferences("overview-stats");
 	const isMobile = useMediaQuery("(max-width: 640px)");
 	const calculatePreviousPeriod = useCallback(
@@ -234,6 +244,8 @@ export function WebsiteOverviewTab({
 		exit_pages: getDataForQuery("overview-pages", "exit_pages") || [],
 		page_time_analysis:
 			getDataForQuery("overview-pages", "page_time_analysis") || [],
+		traffic_sources:
+			getDataForQuery("overview-traffic", "traffic_sources") || [],
 		top_referrers: getDataForQuery("overview-traffic", "top_referrers") || [],
 		utm_sources: getDataForQuery("overview-traffic", "utm_sources") || [],
 		utm_mediums: getDataForQuery("overview-traffic", "utm_mediums") || [],
@@ -263,6 +275,19 @@ export function WebsiteOverviewTab({
 	const referrerTabs = useMemo(
 		() => [
 			{
+				id: "sources",
+				label: "Sources",
+				data: analytics.traffic_sources || [],
+				columns: createReferrerColumns() as ColumnDef<
+					AnalyticsRowData,
+					unknown
+				>[],
+				getFilter: (row: AnalyticsRowData) => ({
+					field: "referrer",
+					value: getReferrerFilterValue(row),
+				}),
+			},
+			{
 				id: "referrers",
 				label: "Referrers",
 				data: analytics.top_referrers || [],
@@ -272,7 +297,7 @@ export function WebsiteOverviewTab({
 				>[],
 				getFilter: (row: AnalyticsRowData) => ({
 					field: "referrer",
-					value: row.referrer || "",
+					value: getReferrerFilterValue(row),
 				}),
 			},
 			{
@@ -322,6 +347,7 @@ export function WebsiteOverviewTab({
 			},
 		],
 		[
+			analytics.traffic_sources,
 			analytics.top_referrers,
 			analytics.utm_sources,
 			analytics.utm_mediums,
@@ -820,7 +846,7 @@ export function WebsiteOverviewTab({
 	return (
 		<div className="space-y-3 sm:space-y-4">
 			<EventLimitIndicator />
-			<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-5">
+			<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-5">
 				{[
 					{
 						id: "pageviews-chart",
@@ -936,6 +962,11 @@ export function WebsiteOverviewTab({
 				isMobile={isMobile}
 				onRangeSelect={setDateRangeAction}
 				websiteId={websiteId}
+			/>
+
+			<AITrafficSection
+				isLoading={isLoading}
+				referrers={analytics.top_referrers || []}
 			/>
 
 			<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">

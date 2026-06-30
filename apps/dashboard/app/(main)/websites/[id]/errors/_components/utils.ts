@@ -1,4 +1,8 @@
-import type { ErrorCategory } from "@databuddy/shared/types/errors";
+interface ErrorCategory {
+	category: string;
+	severity: "high" | "medium" | "low";
+	type: string;
+}
 
 const UNKNOWN_ERROR: ErrorCategory = {
 	type: "Unknown Error",

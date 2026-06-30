@@ -1,4 +1,6 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, it, setDefaultTimeout } from "bun:test";
+
+setDefaultTimeout(15_000);
 import { Worker, type Job } from "bullmq";
 import type { UptimeCheckJobData } from "@databuddy/redis";
 
@@ -17,17 +19,21 @@ async function waitFor(
 	throw new Error(message);
 }
 
+const TEST_SCHEDULE_PREFIX = "bullmq-integration-";
+const TEST_SCHEDULER_KEY_PREFIX = `uptime-${TEST_SCHEDULE_PREFIX}`;
+
 const describeIntegration = process.env.BULLMQ_REDIS_URL ? describe : describe.skip;
 
 describeIntegration("uptime scheduler BullMQ integration", () => {
 	let redis: typeof import("@databuddy/redis") | undefined;
 	let service: typeof import("./uptime-scheduler") | undefined;
 	const scheduleIds = new Set<string>();
-	const testRunId = `bullmq-integration-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+	const testRunId = `${TEST_SCHEDULE_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
 	beforeAll(async () => {
 		redis = await import("@databuddy/redis");
 		service = await import("./uptime-scheduler");
+		await sweepLeakedTestSchedulers();
 	});
 
 	afterEach(async () => {
@@ -49,6 +55,19 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 		return typeof scheduleId === "string" && scheduleId.startsWith(testRunId);
 	}
 
+	function isAnyTestSchedulerKey(key: unknown): key is string {
+		return (
+			typeof key === "string" && key.startsWith(TEST_SCHEDULER_KEY_PREFIX)
+		);
+	}
+
+	function isThisRunSchedulerKey(key: unknown): key is string {
+		return (
+			typeof key === "string" &&
+			key.startsWith(`${TEST_SCHEDULER_KEY_PREFIX}${testRunId.slice(TEST_SCHEDULE_PREFIX.length)}`)
+		);
+	}
+
 	async function jobsForSchedule(scheduleId: string): Promise<Job[]> {
 		const queue = redis?.getUptimeQueue();
 		if (!queue) {
@@ -62,26 +81,62 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 		return jobs.filter((job) => job.data?.scheduleId === scheduleId);
 	}
 
+	async function sweepLeakedTestSchedulers(): Promise<void> {
+		if (!redis) {
+			return;
+		}
+		const queue = redis.getUptimeQueue();
+		try {
+			const all = await queue.getJobSchedulers(0, -1, true);
+			const leaked = all.filter((s) =>
+				isAnyTestSchedulerKey((s as { key?: string }).key)
+			);
+			if (leaked.length === 0) {
+				return;
+			}
+			await Promise.allSettled(
+				leaked.map((s) =>
+					queue.removeJobScheduler((s as { key: string }).key)
+				)
+			);
+		} catch {
+			// best-effort: a failed sweep should not block test startup
+		}
+	}
+
 	async function cleanupTestState(): Promise<void> {
 		if (!redis) {
 			return;
 		}
 		const queue = redis.getUptimeQueue();
-		await Promise.allSettled(
-			[...scheduleIds].map((scheduleId) =>
-				queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId))
-			)
-		);
-		const jobs = await queue.getJobs(
-			["waiting", "delayed", "prioritized", "paused", "completed", "failed"],
-			0,
-			-1
-		);
-		await Promise.allSettled(
-			jobs
-				.filter((job) => isTestScheduleId(job.data?.scheduleId))
-				.map((job) => job.remove())
-		);
+		try {
+			await Promise.allSettled(
+				[...scheduleIds].map((scheduleId) =>
+					queue.removeJobScheduler(redis.uptimeSchedulerId(scheduleId))
+				)
+			);
+			const all = await queue.getJobSchedulers(0, -1, true);
+			const orphans = all.filter((s) =>
+				isThisRunSchedulerKey((s as { key?: string }).key)
+			);
+			await Promise.allSettled(
+				orphans.map((s) =>
+					queue.removeJobScheduler((s as { key: string }).key)
+				)
+			);
+			const jobs = await queue.getJobs(
+				["waiting", "delayed", "prioritized", "paused", "completed", "failed"],
+				0,
+				-1
+			);
+			await Promise.allSettled(
+				jobs
+					.filter((job) => isTestScheduleId(job.data?.scheduleId))
+					.map((job) => job.remove())
+			);
+		} catch {
+			// cleanup is best-effort — don't let it fail the test
+		}
 	}
 
 	async function assertQueueIsSafeForWorker(): Promise<void> {
@@ -97,12 +152,21 @@ describeIntegration("uptime scheduler BullMQ integration", () => {
 		const foreignJob = jobs.find(
 			(job) => !isTestScheduleId(job.data?.scheduleId)
 		);
-		if (!foreignJob) {
-			return;
+		if (foreignJob) {
+			throw new Error(
+				`BULLMQ_REDIS_URL must point to an isolated test Redis queue. Found non-test job ${foreignJob.id ?? "unknown"} in ${redis.UPTIME_QUEUE_NAME}.`
+			);
 		}
-		throw new Error(
-			`BULLMQ_REDIS_URL must point to an isolated test Redis queue. Found non-test job ${foreignJob.id ?? "unknown"} in ${redis.UPTIME_QUEUE_NAME}.`
-		);
+		const schedulers = await queue.getJobSchedulers(0, -1, true);
+		const foreignScheduler = schedulers.find((s) => {
+			const key = (s as { key?: string }).key;
+			return typeof key === "string" && !isAnyTestSchedulerKey(key);
+		});
+		if (foreignScheduler) {
+			throw new Error(
+				`BULLMQ_REDIS_URL must point to an isolated test Redis queue. Found non-test scheduler ${(foreignScheduler as { key?: string }).key ?? "unknown"} in ${redis.UPTIME_QUEUE_NAME}.`
+			);
+		}
 	}
 
 	async function withWorker(

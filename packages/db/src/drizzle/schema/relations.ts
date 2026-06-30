@@ -1,5 +1,4 @@
-import { relations } from "drizzle-orm/relations";
-import { featureAccessLog, featureInvite } from "./admin";
+import { defineRelations } from "drizzle-orm";
 import { agentChats } from "./agent";
 import {
 	analyticsInsights,
@@ -24,6 +23,13 @@ import {
 import { alarmDestinations, alarms, usageAlertLog } from "./billing";
 import { feedback, feedbackRedemptions, insightUserFeedback } from "./feedback";
 import { flags, flagsToTargetGroups, targetGroups } from "./flags";
+import { slackChannelBindings, slackIntegrations } from "./integrations";
+import {
+	insightGenerationConfigs,
+	insightRunItems,
+	insightRollups,
+	insightRuns,
+} from "./insights";
 import { linkFolders, links } from "./links";
 import {
 	incidentAffectedMonitors,
@@ -35,425 +41,538 @@ import {
 } from "./uptime";
 import { websites } from "./websites";
 
-export const userRelations = relations(user, ({ many }) => ({
-	accounts: many(account),
-	sessions: many(session),
-	invitations: many(invitation),
-	members: many(member),
-	twoFactors: many(twoFactor),
-	userPreferences: many(userPreferences),
-	websites: many(websites),
-	funnelDefinitions: many(funnelDefinitions),
-	apikeys: many(apikey),
-	usageAlertLogs: many(usageAlertLog),
-	linkFolders: many(linkFolders),
-	links: many(links),
-}));
-
-export const usageAlertLogRelations = relations(usageAlertLog, ({ one }) => ({
-	user: one(user, {
-		fields: [usageAlertLog.userId],
-		references: [user.id],
-	}),
-}));
-
-export const organizationRelations = relations(organization, ({ many }) => ({
-	invitations: many(invitation),
-	members: many(member),
-	websites_organizationId: many(websites, {
-		relationName: "websites_organizationId_organization_id",
-	}),
-	teams: many(team),
-	alarms: many(alarms),
-	analyticsInsights: many(analyticsInsights),
-	statusPages: many(statusPages),
-	linkFolders: many(linkFolders),
-	links: many(links),
-}));
-
-export const accountRelations = relations(account, ({ one }) => ({
-	user: one(user, {
-		fields: [account.userId],
-		references: [user.id],
-	}),
-}));
-
-export const sessionRelations = relations(session, ({ one }) => ({
-	user: one(user, {
-		fields: [session.userId],
-		references: [user.id],
-	}),
-}));
-
-export const invitationRelations = relations(invitation, ({ one }) => ({
-	organization: one(organization, {
-		fields: [invitation.organizationId],
-		references: [organization.id],
-	}),
-	user: one(user, {
-		fields: [invitation.inviterId],
-		references: [user.id],
-	}),
-}));
-
-export const memberRelations = relations(member, ({ one }) => ({
-	organization: one(organization, {
-		fields: [member.organizationId],
-		references: [organization.id],
-	}),
-	user: one(user, {
-		fields: [member.userId],
-		references: [user.id],
-	}),
-}));
-
-export const twoFactorRelations = relations(twoFactor, ({ one }) => ({
-	user: one(user, {
-		fields: [twoFactor.userId],
-		references: [user.id],
-	}),
-}));
-
-export const userPreferencesRelations = relations(
+const schema = {
+	user,
+	account,
+	session,
+	invitation,
+	member,
+	organization,
+	twoFactor,
 	userPreferences,
-	({ one }) => ({
-		user: one(user, {
-			fields: [userPreferences.userId],
-			references: [user.id],
-		}),
-	})
-);
-
-export const websitesRelations = relations(websites, ({ one, many }) => ({
-	organization_organizationId: one(organization, {
-		fields: [websites.organizationId],
-		references: [organization.id],
-		relationName: "websites_organizationId_organization_id",
-	}),
-	funnelDefinitions: many(funnelDefinitions),
-	alarms: many(alarms),
-	analyticsInsights: many(analyticsInsights),
-}));
-
-export const analyticsInsightsRelations = relations(
+	team,
+	websites,
 	analyticsInsights,
-	({ one }) => ({
-		organization: one(organization, {
-			fields: [analyticsInsights.organizationId],
-			references: [organization.id],
-		}),
-		website: one(websites, {
-			fields: [analyticsInsights.websiteId],
-			references: [websites.id],
-		}),
-	})
-);
-
-export const funnelDefinitionsRelations = relations(
 	funnelDefinitions,
-	({ one }) => ({
-		website: one(websites, {
-			fields: [funnelDefinitions.websiteId],
-			references: [websites.id],
-		}),
-		user: one(user, {
-			fields: [funnelDefinitions.createdBy],
-			references: [user.id],
-		}),
-	})
-);
-
-export const teamRelations = relations(team, ({ one }) => ({
-	organization: one(organization, {
-		fields: [team.organizationId],
-		references: [organization.id],
-	}),
-}));
-
-export const apikeyRelations = relations(apikey, ({ one }) => ({
-	user: one(user, {
-		fields: [apikey.userId],
-		references: [user.id],
-	}),
-	organization: one(organization, {
-		fields: [apikey.organizationId],
-		references: [organization.id],
-	}),
-}));
-
-export const flagsRelations = relations(flags, ({ one, many }) => ({
-	website: one(websites, {
-		fields: [flags.websiteId],
-		references: [websites.id],
-	}),
-	flagsToTargetGroups: many(flagsToTargetGroups),
-}));
-
-export const targetGroupsRelations = relations(
+	apikey,
+	flags,
 	targetGroups,
-	({ one, many }) => ({
-		website: one(websites, {
-			fields: [targetGroups.websiteId],
-			references: [websites.id],
-		}),
-		flagsToTargetGroups: many(flagsToTargetGroups),
-	})
-);
-
-export const flagsToTargetGroupsRelations = relations(
 	flagsToTargetGroups,
-	({ one }) => ({
-		flag: one(flags, {
-			fields: [flagsToTargetGroups.flagId],
-			references: [flags.id],
-		}),
-		targetGroup: one(targetGroups, {
-			fields: [flagsToTargetGroups.targetGroupId],
-			references: [targetGroups.id],
-		}),
-	})
-);
-
-export const uptimeSchedulesRelations = relations(
 	uptimeSchedules,
-	({ one, many }) => ({
-		website: one(websites, {
-			fields: [uptimeSchedules.websiteId],
-			references: [websites.id],
-		}),
-		organization: one(organization, {
-			fields: [uptimeSchedules.organizationId],
-			references: [organization.id],
-		}),
-		statusPageMonitors: many(statusPageMonitors),
-	})
-);
-
-export const statusPagesRelations = relations(statusPages, ({ one, many }) => ({
-	organization: one(organization, {
-		fields: [statusPages.organizationId],
-		references: [organization.id],
-	}),
-	statusPageMonitors: many(statusPageMonitors),
-	incidents: many(incidents),
-}));
-
-export const incidentsRelations = relations(incidents, ({ one, many }) => ({
-	statusPage: one(statusPages, {
-		fields: [incidents.statusPageId],
-		references: [statusPages.id],
-	}),
-	updates: many(incidentUpdates),
-	affectedMonitors: many(incidentAffectedMonitors),
-}));
-
-export const incidentAffectedMonitorsRelations = relations(
-	incidentAffectedMonitors,
-	({ one }) => ({
-		incident: one(incidents, {
-			fields: [incidentAffectedMonitors.incidentId],
-			references: [incidents.id],
-		}),
-		statusPageMonitor: one(statusPageMonitors, {
-			fields: [incidentAffectedMonitors.statusPageMonitorId],
-			references: [statusPageMonitors.id],
-		}),
-	})
-);
-
-export const incidentUpdatesRelations = relations(
-	incidentUpdates,
-	({ one }) => ({
-		incident: one(incidents, {
-			fields: [incidentUpdates.incidentId],
-			references: [incidents.id],
-		}),
-	})
-);
-
-export const statusPageMonitorsRelations = relations(
+	statusPages,
 	statusPageMonitors,
-	({ one, many }) => ({
-		statusPage: one(statusPages, {
-			fields: [statusPageMonitors.statusPageId],
-			references: [statusPages.id],
-		}),
-		uptimeSchedule: one(uptimeSchedules, {
-			fields: [statusPageMonitors.uptimeScheduleId],
-			references: [uptimeSchedules.id],
-		}),
-		incidentAffectedMonitors: many(incidentAffectedMonitors),
-	})
-);
-
-export const linksRelations = relations(links, ({ one }) => ({
-	organization: one(organization, {
-		fields: [links.organizationId],
-		references: [organization.id],
-	}),
-	creator: one(user, {
-		fields: [links.createdBy],
-		references: [user.id],
-	}),
-	folder: one(linkFolders, {
-		fields: [links.folderId],
-		references: [linkFolders.id],
-	}),
-}));
-
-export const linkFoldersRelations = relations(linkFolders, ({ one, many }) => ({
-	organization: one(organization, {
-		fields: [linkFolders.organizationId],
-		references: [organization.id],
-	}),
-	creator: one(user, {
-		fields: [linkFolders.createdBy],
-		references: [user.id],
-	}),
-	links: many(links),
-}));
-
-export const revenueConfigRelations = relations(revenueConfig, ({ one }) => ({
-	website: one(websites, {
-		fields: [revenueConfig.websiteId],
-		references: [websites.id],
-	}),
-}));
-
-export const alarmsRelations = relations(alarms, ({ one, many }) => ({
-	organization: one(organization, {
-		fields: [alarms.organizationId],
-		references: [organization.id],
-	}),
-	website: one(websites, {
-		fields: [alarms.websiteId],
-		references: [websites.id],
-	}),
-	destinations: many(alarmDestinations),
-}));
-
-export const alarmDestinationsRelations = relations(
+	incidents,
+	incidentUpdates,
+	incidentAffectedMonitors,
+	links,
+	linkFolders,
+	revenueConfig,
+	alarms,
 	alarmDestinations,
-	({ one }) => ({
-		alarm: one(alarms, {
-			fields: [alarmDestinations.alarmId],
-			references: [alarms.id],
-		}),
-	})
-);
-
-export const featureInviteRelations = relations(featureInvite, ({ one }) => ({
-	inviter: one(user, {
-		fields: [featureInvite.invitedById],
-		references: [user.id],
-		relationName: "inviter",
-	}),
-	redeemer: one(user, {
-		fields: [featureInvite.redeemedById],
-		references: [user.id],
-		relationName: "redeemer",
-	}),
-}));
-
-export const featureAccessLogRelations = relations(
-	featureAccessLog,
-	({ one }) => ({
-		organization: one(organization, {
-			fields: [featureAccessLog.organizationId],
-			references: [organization.id],
-		}),
-	})
-);
-
-export const goalsRelations = relations(goals, ({ one }) => ({
-	website: one(websites, {
-		fields: [goals.websiteId],
-		references: [websites.id],
-	}),
-	creator: one(user, {
-		fields: [goals.createdBy],
-		references: [user.id],
-	}),
-}));
-
-export const annotationsRelations = relations(annotations, ({ one }) => ({
-	website: one(websites, {
-		fields: [annotations.websiteId],
-		references: [websites.id],
-	}),
-	creator: one(user, {
-		fields: [annotations.createdBy],
-		references: [user.id],
-	}),
-}));
-
-export const feedbackRelations = relations(feedback, ({ one }) => ({
-	user: one(user, {
-		fields: [feedback.userId],
-		references: [user.id],
-		relationName: "feedbackUser",
-	}),
-	organization: one(organization, {
-		fields: [feedback.organizationId],
-		references: [organization.id],
-	}),
-	reviewer: one(user, {
-		fields: [feedback.reviewedBy],
-		references: [user.id],
-		relationName: "feedbackReviewer",
-	}),
-}));
-
-export const feedbackRedemptionsRelations = relations(
+	usageAlertLog,
+	goals,
+	annotations,
+	feedback,
 	feedbackRedemptions,
-	({ one }) => ({
-		user: one(user, {
-			fields: [feedbackRedemptions.userId],
-			references: [user.id],
-		}),
-		organization: one(organization, {
-			fields: [feedbackRedemptions.organizationId],
-			references: [organization.id],
-		}),
-	})
-);
-
-export const insightUserFeedbackRelations = relations(
 	insightUserFeedback,
-	({ one }) => ({
-		user: one(user, {
-			fields: [insightUserFeedback.userId],
-			references: [user.id],
-		}),
-		organization: one(organization, {
-			fields: [insightUserFeedback.organizationId],
-			references: [organization.id],
-		}),
-	})
-);
+	insightGenerationConfigs,
+	insightRuns,
+	insightRunItems,
+	insightRollups,
+	ssoProvider,
+	agentChats,
+	slackIntegrations,
+	slackChannelBindings,
+};
 
-export const ssoProviderRelations = relations(ssoProvider, ({ one }) => ({
-	user: one(user, {
-		fields: [ssoProvider.userId],
-		references: [user.id],
-	}),
-	organization: one(organization, {
-		fields: [ssoProvider.organizationId],
-		references: [organization.id],
-	}),
-}));
+export const relations = defineRelations(schema, (r) => ({
+	user: {
+		accounts: r.many.account(),
+		sessions: r.many.session(),
+		invitations: r.many.invitation({
+			from: r.user.id,
+			to: r.invitation.inviterId,
+		}),
+		members: r.many.member(),
+		twoFactors: r.many.twoFactor(),
+		userPreferences: r.many.userPreferences(),
+		apikeys: r.many.apikey(),
+		usageAlertLogs: r.many.usageAlertLog(),
+	},
 
-export const agentChatsRelations = relations(agentChats, ({ one }) => ({
-	user: one(user, {
-		fields: [agentChats.userId],
-		references: [user.id],
-	}),
-	website: one(websites, {
-		fields: [agentChats.websiteId],
-		references: [websites.id],
-	}),
-	organization: one(organization, {
-		fields: [agentChats.organizationId],
-		references: [organization.id],
-	}),
+	usageAlertLog: {
+		user: r.one.user({
+			from: r.usageAlertLog.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	organization: {
+		invitations: r.many.invitation(),
+		members: r.many.member(),
+		websites_organizationId: r.many.websites({
+			alias: "websites_organizationId_organization_id",
+		}),
+		teams: r.many.team(),
+		alarms: r.many.alarms(),
+		analyticsInsights: r.many.analyticsInsights(),
+		statusPages: r.many.statusPages(),
+		linkFolders: r.many.linkFolders(),
+		links: r.many.links(),
+		slackIntegrations: r.many.slackIntegrations(),
+		insightGenerationConfigs: r.many.insightGenerationConfigs(),
+		insightRuns: r.many.insightRuns(),
+		insightRollups: r.many.insightRollups(),
+	},
+
+	account: {
+		user: r.one.user({
+			from: r.account.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	session: {
+		user: r.one.user({
+			from: r.session.userId,
+			to: r.user.id,
+		}),
+	},
+
+	invitation: {
+		organization: r.one.organization({
+			from: r.invitation.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		user: r.one.user({
+			from: r.invitation.inviterId,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	member: {
+		organization: r.one.organization({
+			from: r.member.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		user: r.one.user({
+			from: r.member.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	twoFactor: {
+		user: r.one.user({
+			from: r.twoFactor.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	userPreferences: {
+		user: r.one.user({
+			from: r.userPreferences.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	websites: {
+		organization_organizationId: r.one.organization({
+			from: r.websites.organizationId,
+			to: r.organization.id,
+			alias: "websites_organizationId_organization_id",
+			optional: false,
+		}),
+		funnelDefinitions: r.many.funnelDefinitions(),
+		alarms: r.many.alarms(),
+		analyticsInsights: r.many.analyticsInsights(),
+		insightGenerationConfigs: r.many.insightGenerationConfigs(),
+		insightRunItems: r.many.insightRunItems(),
+	},
+
+	analyticsInsights: {
+		organization: r.one.organization({
+			from: r.analyticsInsights.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.analyticsInsights.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+	},
+
+	insightGenerationConfigs: {
+		organization: r.one.organization({
+			from: r.insightGenerationConfigs.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.insightGenerationConfigs.websiteId,
+			to: r.websites.id,
+		}),
+	},
+
+	insightRuns: {
+		organization: r.one.organization({
+			from: r.insightRuns.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		requestedByUser: r.one.user({
+			from: r.insightRuns.requestedByUserId,
+			to: r.user.id,
+		}),
+		items: r.many.insightRunItems(),
+		rollups: r.many.insightRollups(),
+	},
+
+	insightRunItems: {
+		run: r.one.insightRuns({
+			from: r.insightRunItems.runId,
+			to: r.insightRuns.id,
+			optional: false,
+		}),
+		organization: r.one.organization({
+			from: r.insightRunItems.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.insightRunItems.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+	},
+
+	insightRollups: {
+		organization: r.one.organization({
+			from: r.insightRollups.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		run: r.one.insightRuns({
+			from: r.insightRollups.runId,
+			to: r.insightRuns.id,
+		}),
+	},
+
+	funnelDefinitions: {
+		website: r.one.websites({
+			from: r.funnelDefinitions.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+		user: r.one.user({
+			from: r.funnelDefinitions.createdBy,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	team: {
+		organization: r.one.organization({
+			from: r.team.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+	},
+
+	apikey: {
+		user: r.one.user({
+			from: r.apikey.userId,
+			to: r.user.id,
+		}),
+		organization: r.one.organization({
+			from: r.apikey.organizationId,
+			to: r.organization.id,
+		}),
+	},
+
+	slackIntegrations: {
+		organization: r.one.organization({
+			from: r.slackIntegrations.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		installedByUser: r.one.user({
+			from: r.slackIntegrations.installedByUserId,
+			to: r.user.id,
+		}),
+		channelBindings: r.many.slackChannelBindings(),
+	},
+
+	slackChannelBindings: {
+		integration: r.one.slackIntegrations({
+			from: r.slackChannelBindings.integrationId,
+			to: r.slackIntegrations.id,
+			optional: false,
+		}),
+	},
+
+	flags: {
+		website: r.one.websites({
+			from: r.flags.websiteId,
+			to: r.websites.id,
+		}),
+		flagsToTargetGroups: r.many.flagsToTargetGroups(),
+	},
+
+	targetGroups: {
+		website: r.one.websites({
+			from: r.targetGroups.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+		flagsToTargetGroups: r.many.flagsToTargetGroups(),
+	},
+
+	flagsToTargetGroups: {
+		flag: r.one.flags({
+			from: r.flagsToTargetGroups.flagId,
+			to: r.flags.id,
+			optional: false,
+		}),
+		targetGroup: r.one.targetGroups({
+			from: r.flagsToTargetGroups.targetGroupId,
+			to: r.targetGroups.id,
+			optional: false,
+		}),
+	},
+
+	uptimeSchedules: {
+		website: r.one.websites({
+			from: r.uptimeSchedules.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+		organization: r.one.organization({
+			from: r.uptimeSchedules.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		statusPageMonitors: r.many.statusPageMonitors(),
+	},
+
+	statusPages: {
+		organization: r.one.organization({
+			from: r.statusPages.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		statusPageMonitors: r.many.statusPageMonitors(),
+		incidents: r.many.incidents(),
+	},
+
+	incidents: {
+		statusPage: r.one.statusPages({
+			from: r.incidents.statusPageId,
+			to: r.statusPages.id,
+			optional: false,
+		}),
+		updates: r.many.incidentUpdates(),
+		affectedMonitors: r.many.incidentAffectedMonitors(),
+	},
+
+	incidentAffectedMonitors: {
+		incident: r.one.incidents({
+			from: r.incidentAffectedMonitors.incidentId,
+			to: r.incidents.id,
+			optional: false,
+		}),
+		statusPageMonitor: r.one.statusPageMonitors({
+			from: r.incidentAffectedMonitors.statusPageMonitorId,
+			to: r.statusPageMonitors.id,
+			optional: false,
+		}),
+	},
+
+	incidentUpdates: {
+		incident: r.one.incidents({
+			from: r.incidentUpdates.incidentId,
+			to: r.incidents.id,
+			optional: false,
+		}),
+	},
+
+	statusPageMonitors: {
+		statusPage: r.one.statusPages({
+			from: r.statusPageMonitors.statusPageId,
+			to: r.statusPages.id,
+			optional: false,
+		}),
+		uptimeSchedule: r.one.uptimeSchedules({
+			from: r.statusPageMonitors.uptimeScheduleId,
+			to: r.uptimeSchedules.id,
+			optional: false,
+		}),
+		incidentAffectedMonitors: r.many.incidentAffectedMonitors(),
+	},
+
+	links: {
+		organization: r.one.organization({
+			from: r.links.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		creator: r.one.user({
+			from: r.links.createdBy,
+			to: r.user.id,
+			optional: false,
+		}),
+		folder: r.one.linkFolders({
+			from: r.links.folderId,
+			to: r.linkFolders.id,
+		}),
+	},
+
+	linkFolders: {
+		organization: r.one.organization({
+			from: r.linkFolders.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		creator: r.one.user({
+			from: r.linkFolders.createdBy,
+			to: r.user.id,
+			optional: false,
+		}),
+		links: r.many.links(),
+	},
+
+	revenueConfig: {
+		website: r.one.websites({
+			from: r.revenueConfig.websiteId,
+			to: r.websites.id,
+		}),
+	},
+
+	alarms: {
+		organization: r.one.organization({
+			from: r.alarms.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.alarms.websiteId,
+			to: r.websites.id,
+		}),
+		destinations: r.many.alarmDestinations(),
+	},
+
+	alarmDestinations: {
+		alarm: r.one.alarms({
+			from: r.alarmDestinations.alarmId,
+			to: r.alarms.id,
+			optional: false,
+		}),
+	},
+
+	goals: {
+		website: r.one.websites({
+			from: r.goals.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+		creator: r.one.user({
+			from: r.goals.createdBy,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	annotations: {
+		website: r.one.websites({
+			from: r.annotations.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+		creator: r.one.user({
+			from: r.annotations.createdBy,
+			to: r.user.id,
+			optional: false,
+		}),
+	},
+
+	feedback: {
+		user: r.one.user({
+			from: r.feedback.userId,
+			to: r.user.id,
+			alias: "feedbackUser",
+			optional: false,
+		}),
+		organization: r.one.organization({
+			from: r.feedback.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		reviewer: r.one.user({
+			from: r.feedback.reviewedBy,
+			to: r.user.id,
+			alias: "feedbackReviewer",
+		}),
+	},
+
+	feedbackRedemptions: {
+		user: r.one.user({
+			from: r.feedbackRedemptions.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+		organization: r.one.organization({
+			from: r.feedbackRedemptions.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+	},
+
+	insightUserFeedback: {
+		user: r.one.user({
+			from: r.insightUserFeedback.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+		organization: r.one.organization({
+			from: r.insightUserFeedback.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+	},
+
+	ssoProvider: {
+		user: r.one.user({
+			from: r.ssoProvider.userId,
+			to: r.user.id,
+		}),
+		organization: r.one.organization({
+			from: r.ssoProvider.organizationId,
+			to: r.organization.id,
+		}),
+	},
+
+	agentChats: {
+		user: r.one.user({
+			from: r.agentChats.userId,
+			to: r.user.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.agentChats.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+		organization: r.one.organization({
+			from: r.agentChats.organizationId,
+			to: r.organization.id,
+		}),
+	},
 }));

@@ -8,13 +8,13 @@ import NextLink from "next/link";
 import { toast } from "sonner";
 import { DeepLinkAppIcon } from "./deep-link-icons";
 import { LINKS_BASE_URL, LINKS_FULL_URL } from "./link-constants";
-import { QrCodeIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ClockCountdownIcon,
 	CopyIcon,
 	DotsThreeIcon,
 	LinkIcon,
 	PencilSimpleIcon,
+	QrCodeIcon,
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { DropdownMenu } from "@databuddy/ui/client";
@@ -150,7 +150,10 @@ export function LinkRow({
 
 			<div className="flex shrink-0 items-center pr-4">
 				<DropdownMenu>
-					<DropdownMenu.Trigger className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100">
+					<DropdownMenu.Trigger
+						aria-label={`Actions for ${link.name}`}
+						className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-interactive-hover hover:text-foreground group-hover:opacity-100 data-[state=open]:opacity-100"
+					>
 						<DotsThreeIcon className="size-4" weight="bold" />
 					</DropdownMenu.Trigger>
 					<DropdownMenu.Content align="end" className="w-40">

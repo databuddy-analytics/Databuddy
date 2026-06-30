@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { StructuredData } from "@/components/structured-data";
 import CareersHero from "./careers-hero";
 import CareersPaths from "./careers-paths";
@@ -36,9 +36,7 @@ export default function CareersPage() {
 					url,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			<Section className="overflow-hidden" customPaddings id="careers-hero">
+			<Section className="overflow-hidden" id="careers-hero">
 				<CareersHero />
 			</Section>
 

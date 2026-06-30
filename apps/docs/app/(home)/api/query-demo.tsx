@@ -39,18 +39,12 @@ export function QueryDemo() {
 				},
 			];
 
-			const websiteId = "OXmNQsViBT-FOS_wZCTHc";
 			const endDate = new Date().toISOString().split("T")[0];
 			const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 				.toISOString()
 				.split("T")[0];
 
-			const response = await executeBatchQueries(
-				websiteId,
-				startDate,
-				endDate,
-				queries
-			);
+			const response = await executeBatchQueries(startDate, endDate, queries);
 
 			setResult(response);
 		} catch {

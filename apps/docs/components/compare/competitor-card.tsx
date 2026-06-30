@@ -1,4 +1,4 @@
-import { ArrowRightIcon, CheckIcon } from "@phosphor-icons/react/ssr";
+import { ArrowRightIcon, CheckIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { CompetitorBrandAvatar } from "@/components/compare/competitor-brand-avatar";
 import type { ComparisonData } from "@/lib/comparison-config";

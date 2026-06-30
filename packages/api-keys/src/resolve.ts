@@ -1,6 +1,6 @@
 import { db, eq, type InferSelectModel } from "@databuddy/db";
 import { apikey } from "@databuddy/db/schema";
-import { cacheable, redis } from "@databuddy/redis";
+import { cacheNamespaces, cacheable, redis } from "@databuddy/redis";
 import {
 	createKeys,
 	hasAllScopes,
@@ -36,7 +36,7 @@ type CachedResolveResult =
 const getCachedApiKeyByHash = cacheable(
 	async (keyHash: string): Promise<CachedResolveResult> => {
 		const key = await db.query.apikey.findFirst({
-			where: eq(apikey.keyHash, keyHash),
+			where: { keyHash },
 		});
 		if (!key) {
 			return { outcome: "invalid", key: null };
@@ -54,9 +54,31 @@ const getCachedApiKeyByHash = cacheable(
 	},
 	{
 		expireInSec: 30,
-		prefix: "api-key-by-hash",
+		prefix: cacheNamespaces.apiKeyByHash,
 	}
 );
+
+export function invalidateApiKeyByHash(keyHash: string): Promise<void> {
+	return getCachedApiKeyByHash.invalidate(keyHash);
+}
+
+function uniqueHashes(hashes: (string | null | undefined)[]): string[] {
+	return [...new Set(hashes.filter((hash): hash is string => Boolean(hash)))];
+}
+
+export async function withApiKeyCacheInvalidation<T>(
+	hashes: (string | null | undefined)[],
+	operation: () => Promise<T>,
+	getResultHashes: (result: T) => (string | null | undefined)[] = () => []
+): Promise<T> {
+	const before = uniqueHashes(hashes);
+	await Promise.allSettled(before.map(invalidateApiKeyByHash));
+
+	const result = await operation();
+	const after = uniqueHashes([...before, ...getResultHashes(result)]);
+	await Promise.allSettled(after.map(invalidateApiKeyByHash));
+	return result;
+}
 
 const LAST_USED_DEBOUNCE_SEC = 300;
 
@@ -116,6 +138,24 @@ export interface ResolveApiKeyResult {
 	start?: string;
 }
 
+export async function resolveApiKeySecret(
+	secret: string
+): Promise<ResolveApiKeyResult> {
+	const normalizedSecret = secret.trim();
+	if (!isValidFormat(normalizedSecret)) {
+		return { key: null, outcome: "invalid" };
+	}
+	const keyHash = keys.hashKey(normalizedSecret);
+	const result = await getCachedApiKeyByHash(keyHash);
+	const prefix = normalizedSecret.split("_")[0];
+	const start = normalizedSecret.slice(0, 8);
+	if (result.outcome === "ok") {
+		markApiKeyUsed(result.key.id).catch(() => undefined);
+		return { key: result.key, outcome: "ok", prefix, start };
+	}
+	return { key: null, outcome: result.outcome, prefix, start };
+}
+
 export async function resolveApiKey(
 	headers: Headers
 ): Promise<ResolveApiKeyResult> {
@@ -126,15 +166,7 @@ export async function resolveApiKey(
 		}
 		return { key: null, outcome: "missing" };
 	}
-	const keyHash = keys.hashKey(secret);
-	const result = await getCachedApiKeyByHash(keyHash);
-	const prefix = secret.split("_")[0];
-	const start = secret.slice(0, 8);
-	if (result.outcome === "ok") {
-		markApiKeyUsed(result.key.id).catch(() => undefined);
-		return { key: result.key, outcome: "ok", prefix, start };
-	}
-	return { key: null, outcome: result.outcome, prefix, start };
+	return await resolveApiKeySecret(secret);
 }
 
 export async function getApiKeyFromHeader(

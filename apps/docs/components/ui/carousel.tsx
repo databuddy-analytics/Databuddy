@@ -3,7 +3,7 @@
 import useEmblaCarousel, {
 	type UseEmblaCarouselType,
 } from "embla-carousel-react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeftIcon as ArrowLeft, ArrowRightIcon as ArrowRight } from "@databuddy/ui/icons";
 import {
 	type ComponentProps,
 	createContext,

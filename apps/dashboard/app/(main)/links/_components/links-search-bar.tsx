@@ -1,8 +1,12 @@
 "use client";
 
 import type { SortOption, TypeFilter } from "./use-filtered-links";
-import { SortAscendingIcon, XIcon } from "@phosphor-icons/react/dist/ssr";
-import { FunnelIcon, MagnifyingGlassIcon } from "@databuddy/ui/icons";
+import {
+	ArrowsDownUpIcon as SortAscendingIcon,
+	FunnelIcon,
+	MagnifyingGlassIcon,
+	XMarkIcon as XIcon,
+} from "@databuddy/ui/icons";
 import { Input } from "@databuddy/ui";
 import { DropdownMenu } from "@databuddy/ui/client";
 

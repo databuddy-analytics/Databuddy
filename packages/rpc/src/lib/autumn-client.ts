@@ -10,7 +10,7 @@ function createClient(): Autumn {
 	if (!secretKey) {
 		throw new Error("AUTUMN_SECRET_KEY is not set");
 	}
-	return new Autumn({ secretKey });
+	return new Autumn({ secretKey, timeoutMs: 3000 });
 }
 
 let instance: Autumn | null = null;

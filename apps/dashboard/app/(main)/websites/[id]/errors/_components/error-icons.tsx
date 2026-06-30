@@ -1,13 +1,11 @@
 import {
-	FileCodeIcon,
-	NetworkIcon,
-	PhoneIcon,
-	TerminalIcon,
-} from "@phosphor-icons/react/dist/ssr";
-import {
 	BugIcon,
+	CodeIcon as TerminalIcon,
 	CodeIcon,
+	DeviceMobileIcon as PhoneIcon,
 	DeviceTabletIcon,
+	FileTextIcon as FileCodeIcon,
+	GlobeIcon as NetworkIcon,
 	LaptopIcon,
 	MonitorIcon,
 } from "@databuddy/ui/icons";

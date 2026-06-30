@@ -1,7 +1,3 @@
-# Dual-write: add a second ClickHouse sink per stream with the same `inputs` as the
-# primary sink (Vector fans out one event to every downstream component). See:
-# https://vector.dev/docs/reference/configuration/sinks/clickhouse/
-# https://vector.dev/docs/architecture/end-to-end-acknowledgements/
 sources:
   redpanda:
     type: kafka
@@ -12,10 +8,8 @@ sources:
       - analytics-error-spans
       - analytics-vitals-spans
       - analytics-custom-events
-      - analytics-ai-call-spans
       - analytics-ai-traffic-spans
       - analytics-outgoing-links
-      - analytics-email-events
       - analytics-blocked-traffic
       - analytics-uptime-checks
       - analytics-link-visits
@@ -25,15 +19,10 @@ sources:
       mechanism: SCRAM-SHA-256
       username: "${VECTOR_KAFKA_USER}"
       password: "${VECTOR_KAFKA_PASSWORD}"
+    tls:
+      enabled: true
     decoding:
       codec: json
-
-  redpanda_metrics:
-    type: prometheus_scrape
-    endpoints:
-      - "${REDPANDA_METRICS_ENDPOINT}"
-    scrape_interval_secs: 15
-    scrape_timeout_secs: 5
 
 transforms:
   route_analytics:
@@ -47,21 +36,11 @@ transforms:
       web_vitals: '.topic == "analytics-web-vitals"'
       vitals_spans: '.topic == "analytics-vitals-spans"'
       custom_events: '.topic == "analytics-custom-events"'
-      ai_call_spans: '.topic == "analytics-ai-call-spans"'
       ai_traffic_spans: '.topic == "analytics-ai-traffic-spans"'
       outgoing_links: '.topic == "analytics-outgoing-links"'
-      email_events: '.topic == "analytics-email-events"'
       blocked_traffic: '.topic == "analytics-blocked-traffic"'
       uptime_checks: '.topic == "analytics-uptime-checks"'
       link_visits: '.topic == "analytics-link-visits"'
-
-  redpanda_metrics_transform:
-    type: remap
-    inputs:
-      - redpanda_metrics
-    source: |
-      .tags.cluster = "${REDPANDA_CLUSTER_NAME}"
-      .tags.env = "${ENVIRONMENT}"
 
 sinks:
   clickhouse_events:
@@ -184,26 +163,6 @@ sinks:
     encoding:
       timestamp_format: unix_ms
 
-  clickhouse_ai_call_spans:
-    type: clickhouse
-    inputs:
-      - route_analytics.ai_call_spans
-    endpoint: "${CLICKHOUSE_URL}"
-    database: observability
-    table: ai_call_spans
-    auth: 
-      strategy: basic
-      user: "${CLICKHOUSE_USER}"
-      password: "${CLICKHOUSE_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
   clickhouse_ai_traffic_spans:
     type: clickhouse
     inputs:
@@ -231,26 +190,6 @@ sinks:
     endpoint: "${CLICKHOUSE_URL}"
     database: analytics
     table: outgoing_links
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_USER}"
-      password: "${CLICKHOUSE_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_email_events:
-    type: clickhouse
-    inputs:
-      - route_analytics.email_events
-    endpoint: "${CLICKHOUSE_URL}"
-    database: analytics
-    table: email_events
     auth:
       strategy: basic
       user: "${CLICKHOUSE_USER}"
@@ -324,266 +263,6 @@ sinks:
     encoding:
       timestamp_format: unix_ms
 
-  clickhouse_events_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.events
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: events
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_errors_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.errors
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: errors
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_error_spans_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.error_spans
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: error_spans
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_web_vitals_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.web_vitals
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: web_vitals
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_vitals_spans_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.vitals_spans
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: web_vitals_spans
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_custom_events_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.custom_events
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: custom_events
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_ai_call_spans_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.ai_call_spans
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: observability
-    table: ai_call_spans
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_ai_traffic_spans_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.ai_traffic_spans
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: ai_traffic_spans
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_outgoing_links_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.outgoing_links
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: outgoing_links
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_email_events_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.email_events
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: email_events
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_blocked_traffic_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.blocked_traffic
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: blocked_traffic
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 50000
-      max_bytes: 5000000
-      timeout_secs: 60
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_uptime_checks_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.uptime_checks
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: uptime
-    table: uptime_monitor
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
-  clickhouse_link_visits_replica:
-    type: clickhouse
-    inputs:
-      - route_analytics.link_visits
-    endpoint: "${CLICKHOUSE_REPLICA_URL}"
-    database: analytics
-    table: link_visits
-    auth:
-      strategy: basic
-      user: "${CLICKHOUSE_REPLICA_USER}"
-      password: "${CLICKHOUSE_REPLICA_PASSWORD}"
-    batch:
-      max_events: 5000
-      max_bytes: 5000000
-      timeout_secs: 5
-    date_time_best_effort: true
-    skip_unknown_fields: true
-    encoding:
-      timestamp_format: unix_ms
-
   dead_letters:
     type: file
     inputs:
@@ -591,11 +270,3 @@ sinks:
     path: /var/log/vector/dead_letters.log
     encoding:
       codec: json
-
-  axiom_redpanda_metrics:
-    type: axiom
-    inputs:
-      - redpanda_metrics_transform
-    dataset: "${AXIOM_DATASET}"
-    token: "${AXIOM_TOKEN}"
-    compression: gzip

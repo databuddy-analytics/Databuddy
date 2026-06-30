@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+
 import { StructuredData } from "@/components/structured-data";
 import ContactForm from "./contact-form";
 import ContactHero from "./contact-hero";
@@ -31,9 +31,7 @@ export default function ContactPage() {
 	return (
 		<div className="overflow-hidden">
 			<StructuredData page={{ title, description, url }} />
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
-			<Section className="overflow-hidden" customPaddings id="contact">
+			<Section className="overflow-hidden" id="contact">
 				<div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-6xl items-center px-4 py-10 sm:px-6 sm:py-16 lg:px-8 lg:py-0">
 					<div className="grid w-full grid-cols-1 gap-8 lg:grid-cols-5 lg:gap-12">
 						<div className="lg:col-span-3">

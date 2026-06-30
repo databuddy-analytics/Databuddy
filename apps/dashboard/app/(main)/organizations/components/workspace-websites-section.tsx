@@ -85,7 +85,7 @@ export function WorkspaceWebsitesSection({
 	const websites = data ?? [];
 
 	return (
-		<Card>
+		<Card id="websites">
 			<Card.Header className="flex-row items-start justify-between gap-4">
 				<div>
 					<Card.Title>Websites</Card.Title>

@@ -108,10 +108,10 @@ It uses:
 - `PATCH /public/v1/flags/{id}`
 - `DELETE /public/v1/flags/{id}`
 
-The default API host is `https://api.databuddy.cc`. You can override it in the overlay for local or preview environments.
+The default API host is the active flag manager API URL, falling back to `https://api.databuddy.cc`. You can override it in the overlay for local or preview environments.
 
 <Callout type="warning">
-  Do not hard-code flag management API keys in source. Paste scoped keys into DevTools only when you need runtime flag management.
+  Do not hard-code flag management API keys in source. Paste scoped keys into DevTools only when you need runtime flag management. DevTools keeps the key in session storage and clears any older local-storage copy when you disconnect.
 </Callout>
 
 ## Related

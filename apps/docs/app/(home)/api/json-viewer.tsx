@@ -1,6 +1,6 @@
 "use client";
 
-import { CaretDownIcon, CaretRightIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CaretRightIcon } from "@databuddy/ui/icons";
 import { useMemo, useState } from "react";
 
 export interface JsonNodeProps {

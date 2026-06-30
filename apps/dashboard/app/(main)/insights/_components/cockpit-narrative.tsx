@@ -1,11 +1,12 @@
 "use client";
 
 import { useAtomValue } from "jotai";
+import { Streamdown } from "streamdown";
 import { cn } from "@/lib/utils";
 import { useOrgNarrative } from "../hooks/use-org-narrative";
 import { insightsRangeAtom } from "../lib/time-range";
 import { ArrowClockwiseIcon, LightbulbIcon } from "@databuddy/ui/icons";
-import { Card, Skeleton, dayjs } from "@databuddy/ui";
+import { Badge, Button, Card, Skeleton, dayjs } from "@databuddy/ui";
 
 export function CockpitNarrative() {
 	const range = useAtomValue(insightsRangeAtom);
@@ -15,25 +16,30 @@ export function CockpitNarrative() {
 	return (
 		<Card>
 			<Card.Header className="flex-row items-center justify-between gap-3">
-				<div className="flex items-center gap-2">
-					<LightbulbIcon
-						aria-hidden
-						className="size-4 text-primary"
-						weight="duotone"
-					/>
-					<Card.Title className="text-sm">This {rangeLabel(range)}</Card.Title>
+				<div className="min-w-0 space-y-1">
+					<div className="flex items-center gap-2">
+						<LightbulbIcon
+							aria-hidden
+							className="size-4 text-primary"
+							weight="duotone"
+						/>
+						<Card.Title className="text-sm">Brief</Card.Title>
+					</div>
+					<Card.Description>
+						Organization-wide signals · {rangeLabel(range)}
+					</Card.Description>
 				</div>
 				{!(isLoading || isError) &&
 					data &&
 					data.success &&
 					data.generatedAt && (
-						<span className="text-[11px] text-muted-foreground tabular-nums">
+						<Badge className="tabular-nums" variant="muted">
 							Updated {dayjs(data.generatedAt).fromNow(true)} ago
-						</span>
+						</Badge>
 					)}
 			</Card.Header>
 
-			<Card.Content className="min-h-[44px]">
+			<Card.Content className="min-h-[72px]">
 				{isLoading && (
 					<div className="space-y-2">
 						<Skeleton className="h-4 w-11/12 rounded" />
@@ -46,24 +52,25 @@ export function CockpitNarrative() {
 						<p className="text-muted-foreground text-sm">
 							Couldn't generate summary
 						</p>
-						<button
-							className="inline-flex items-center gap-1 rounded text-primary text-xs transition-colors hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+						<Button
 							onClick={() => refetch()}
+							size="sm"
 							type="button"
+							variant="secondary"
 						>
 							<ArrowClockwiseIcon
 								aria-hidden
-								className={cn("size-3", isFetching && "animate-spin")}
+								className={cn("size-4", isFetching && "animate-spin")}
 							/>
 							Retry
-						</button>
+						</Button>
 					</div>
 				)}
 
 				{!(isLoading || isError) && data && data.success && (
-					<p className="text-pretty text-[14px] text-foreground leading-relaxed">
+					<Streamdown className="max-w-4xl text-[14px] text-foreground leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
 						{data.narrative}
-					</p>
+					</Streamdown>
 				)}
 
 				{!(isLoading || isError) && data && !data.success && (
@@ -78,10 +85,10 @@ export function CockpitNarrative() {
 
 function rangeLabel(range: "7d" | "30d" | "90d"): string {
 	if (range === "7d") {
-		return "week";
+		return "Last 7 days";
 	}
 	if (range === "30d") {
-		return "month";
+		return "Last 30 days";
 	}
-	return "quarter";
+	return "Last 90 days";
 }

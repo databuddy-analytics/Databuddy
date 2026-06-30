@@ -1,7 +1,7 @@
 "use client";
 
 import { List } from "@/components/ui/composables/list";
-import { Skeleton } from "@databuddy/ui";
+import { Button, Skeleton } from "@databuddy/ui";
 import { formatNumber } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type {
@@ -40,6 +40,7 @@ interface FunnelItemProps {
 	onDelete: (funnelId: string) => void;
 	onEdit: (funnel: FunnelItemData) => void;
 	onToggle: (funnelId: string) => void;
+	readOnly?: boolean;
 }
 
 function MiniFunnelPreview({
@@ -51,27 +52,27 @@ function MiniFunnelPreview({
 }) {
 	if (steps.length === 0 || totalUsers === 0) {
 		return (
-			<div className="flex h-5 w-32 items-end gap-[1.5px] lg:w-44">
+			<span className="flex h-5 w-32 items-end gap-[1.5px] lg:w-44">
 				{[100, 70, 45, 25].map((w, i) => (
-					<div
+					<span
 						className="h-full flex-1 rounded-sm bg-muted"
 						key={`placeholder-${i + 1}`}
 						style={{ width: `${w * 0.3}px` }}
 					/>
 				))}
-			</div>
+			</span>
 		);
 	}
 
 	return (
-		<div className="flex h-5 w-32 items-end gap-[1.5px] lg:w-44">
+		<span className="flex h-5 w-32 items-end gap-[1.5px] lg:w-44">
 			{steps.slice(0, 5).map((step, index) => {
 				const percentage = (step.users / totalUsers) * 100;
 				const width = Math.max(4, percentage * 0.3);
 				const opacity = 1 - index * 0.15;
 
 				return (
-					<div
+					<span
 						className="h-full rounded-sm bg-chart-1"
 						key={`step-${index + 1}`}
 						style={{
@@ -81,7 +82,7 @@ function MiniFunnelPreview({
 					/>
 				);
 			})}
-		</div>
+		</span>
 	);
 }
 
@@ -94,20 +95,10 @@ export function FunnelItem({
 	onToggle,
 	onEdit,
 	onDelete,
+	readOnly = false,
 	className,
 	children,
 }: FunnelItemProps) {
-	const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-		const target = e.target as HTMLElement;
-		if (
-			target.closest("[data-dropdown-trigger]") ||
-			target.closest("[data-radix-popper-content-wrapper]")
-		) {
-			return;
-		}
-		onToggle(funnel.id);
-	};
-
 	const conversionRate = analytics?.overall_conversion_rate ?? 0;
 	const totalUsers = analytics?.total_users_entered ?? 0;
 	const stepsData = analytics?.steps_analytics ?? [];
@@ -115,27 +106,19 @@ export function FunnelItem({
 	return (
 		<div className={cn("w-full", className)}>
 			<List.Row
-				asChild
 				className={cn(
-					"cursor-pointer",
+					"gap-0 px-0 py-0",
 					isExpanded && "bg-accent/30",
 					isLast && "border-b-0"
 				)}
 			>
-				{/* biome-ignore lint/a11y/useSemanticElements: List.Row asChild replaces this element; a real <button> would nest inside the dropdown-menu trigger */}
-				<div
-					onClick={handleClick}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							onToggle(funnel.id);
-						}
-					}}
-					role="button"
-					tabIndex={0}
+				<Button
+					className="min-h-15 min-w-0 flex-1 justify-start gap-4 rounded-none bg-transparent px-4 py-3 text-left font-normal text-foreground hover:bg-transparent active:scale-100"
+					onClick={() => onToggle(funnel.id)}
+					variant="ghost"
 				>
-					<List.Cell>
-						<div
+					<span className="flex shrink-0 items-center">
+						<span
 							className={cn(
 								"flex size-8 shrink-0 items-center justify-center rounded border transition-colors",
 								isExpanded
@@ -150,57 +133,57 @@ export function FunnelItem({
 								)}
 								weight="fill"
 							/>
-						</div>
-					</List.Cell>
+						</span>
+					</span>
 
-					<List.Cell className="min-w-0" grow>
-						<div className="w-full text-start">
-							<p className="wrap-break-word text-pretty font-medium text-foreground text-sm">
+					<span className="flex min-w-0 flex-1 items-center">
+						<span className="w-full text-start">
+							<span className="wrap-break-word block text-pretty font-medium text-foreground text-sm">
 								{funnel.name}
-							</p>
+							</span>
 							{funnel.description ? (
-								<p className="wrap-break-word mt-1 text-pretty text-muted-foreground text-xs">
+								<span className="wrap-break-word mt-1 block text-pretty text-muted-foreground text-xs">
 									{funnel.description}
-								</p>
+								</span>
 							) : null}
-						</div>
-					</List.Cell>
+						</span>
+					</span>
 
-					<List.Cell className="hidden items-center gap-3 lg:flex">
+					<span className="hidden items-center gap-3 lg:flex">
 						{isLoadingAnalytics ? (
 							<>
 								<Skeleton className="h-5 w-32 rounded lg:w-44" />
-								<div className="flex flex-col items-end gap-0.5">
+								<span className="flex flex-col items-end gap-0.5">
 									<Skeleton className="h-4 w-10 rounded" />
 									<Skeleton className="h-3 w-8 rounded" />
-								</div>
-								<div className="flex flex-col items-end gap-0.5">
+								</span>
+								<span className="flex flex-col items-end gap-0.5">
 									<Skeleton className="h-4 w-10 rounded" />
 									<Skeleton className="h-3 w-8 rounded" />
-								</div>
+								</span>
 							</>
 						) : (
 							<>
 								<MiniFunnelPreview steps={stepsData} totalUsers={totalUsers} />
-								<div className="flex w-16 flex-col items-end">
+								<span className="flex w-16 flex-col items-end">
 									<span className="font-semibold text-sm tabular-nums">
 										{formatNumber(totalUsers)}
 									</span>
 									<span className="text-muted-foreground text-xs">Users</span>
-								</div>
-								<div className="flex w-16 flex-col items-end">
+								</span>
+								<span className="flex w-16 flex-col items-end">
 									<span className="font-semibold text-sm text-success tabular-nums">
 										{conversionRate.toFixed(1)}%
 									</span>
 									<span className="text-muted-foreground text-xs">
 										Conversion
 									</span>
-								</div>
+								</span>
 							</>
 						)}
-					</List.Cell>
+					</span>
 
-					<List.Cell className="w-14 text-right lg:hidden">
+					<span className="w-14 text-right lg:hidden">
 						{isLoadingAnalytics ? (
 							<Skeleton className="ms-auto h-4 w-12 rounded" />
 						) : (
@@ -208,9 +191,11 @@ export function FunnelItem({
 								{conversionRate.toFixed(1)}%
 							</span>
 						)}
-					</List.Cell>
+					</span>
+				</Button>
 
-					<List.Cell action>
+				{!readOnly && (
+					<List.Cell action className="flex items-center pr-4">
 						<DropdownMenu>
 							<DropdownMenu.Trigger
 								aria-label="Funnel actions"
@@ -242,7 +227,7 @@ export function FunnelItem({
 							</DropdownMenu.Content>
 						</DropdownMenu>
 					</List.Cell>
-				</div>
+				)}
 			</List.Row>
 
 			{isExpanded ? (

@@ -47,6 +47,7 @@ export function FolderDropdown({
 						: undefined
 				}
 				aria-invalid={field?.error || undefined}
+				aria-label={`Folder: ${selectedLabel}`}
 				className={cn(
 					"flex h-8 w-full cursor-pointer select-none items-center justify-between rounded-md bg-secondary px-3 text-foreground text-xs",
 					"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",

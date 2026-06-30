@@ -18,7 +18,8 @@
   ],
   "scripts": {
     "build": "rm -rf dist && unbuild",
-    "vscode:prepublish": "bun run build"
+    "vscode:prepublish": "bun run build",
+    "check-types": "tsc --noEmit"
   },
   "keywords": [
     "cache",
@@ -42,7 +43,7 @@
     "url": "https://github.com/databuddy-analytics/databuddy/issues"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

@@ -5,11 +5,18 @@
  * client IDs and origins against registered websites.
  */
 
-import { and, db, eq } from "@databuddy/db";
-import { member, type Website, websites } from "@databuddy/db/schema";
+import { db } from "@databuddy/db";
+import type { Website } from "@databuddy/db/schema";
+import { cacheNamespaces } from "@databuddy/redis/cache-invalidation";
 import { cacheable } from "@databuddy/redis/cacheable";
 import { captureError, record } from "@lib/tracing";
+import { isValidOriginFromSettings } from "@utils/origin-ip-validation";
 import { createError, EvlogError } from "evlog";
+
+export {
+	isValidIpFromSettings,
+	isValidOriginFromSettings,
+} from "@utils/origin-ip-validation";
 
 type WebsiteWithOwner = Website & {
 	ownerId: string | null;
@@ -28,10 +35,7 @@ function _resolveOwnerId(
 
 		try {
 			const orgMember = await db.query.member.findFirst({
-				where: and(
-					eq(member.organizationId, organizationId),
-					eq(member.role, "owner")
-				),
+				where: { organizationId, role: "owner" },
 				columns: {
 					userId: true,
 				},
@@ -56,7 +60,7 @@ export const resolveApiKeyOwnerId = cacheable(
 		_resolveOwnerId(organizationId),
 	{
 		expireInSec: 300,
-		prefix: "api_key_owner_id",
+		prefix: cacheNamespaces.apiKeyOwnerId,
 		staleWhileRevalidate: true,
 		staleTime: 60,
 	}
@@ -117,6 +121,7 @@ export function normalizeDomain(domain: string): string {
 
 		if (!isValidDomainFormat(finalDomain)) {
 			throw createError({
+				code: "basket.INVALID_DOMAIN",
 				message: `Invalid domain format after normalization: ${finalDomain}`,
 				status: 400,
 				why: "The domain failed format validation after extracting the hostname.",
@@ -131,6 +136,7 @@ export function normalizeDomain(domain: string): string {
 		}
 		const cause = error instanceof Error ? error : new Error(String(error));
 		throw createError({
+			code: "basket.INVALID_DOMAIN",
 			message: `Invalid domain format: ${domain}`,
 			status: 400,
 			why: cause.message,
@@ -182,7 +188,7 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 	async (id: string): Promise<WebsiteWithOwner | null> => {
 		try {
 			const website = await db.query.websites.findFirst({
-				where: eq(websites.id, id),
+				where: { id },
 			});
 
 			if (!website) {
@@ -201,16 +207,26 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 	},
 	{
 		expireInSec: 600,
-		prefix: "website_with_owner_v2",
+		prefix: cacheNamespaces.websiteWithOwner,
 		staleWhileRevalidate: true,
 		staleTime: 120,
+		queryTimeoutMs: 10_000,
 	}
 );
 
-export {
-	isValidOriginFromSettings,
-	isValidIpFromSettings,
-} from "@utils/origin-ip-validation";
+export function isOriginAllowed(
+	origin: string,
+	websiteDomain: string,
+	allowedOrigins?: string[]
+): boolean {
+	if (isValidOrigin(origin, websiteDomain)) {
+		return true;
+	}
+	if (allowedOrigins?.length) {
+		return isValidOriginFromSettings(origin, allowedOrigins);
+	}
+	return false;
+}
 
 export function getWebsiteByIdV2(id: string): Promise<WebsiteWithOwner | null> {
 	return record("getWebsiteByIdV2", async () => {

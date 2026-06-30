@@ -1,4 +1,4 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from "@/types/analytics";
 import {
 	useMutation,
 	useQueries,
@@ -57,10 +57,7 @@ export function useFunnels(
 		const map = new Map<string, FunnelAnalyticsData | null>();
 		for (const [index, result] of analyticsResults.entries()) {
 			if (result.data && funnels[index]) {
-				map.set(
-					funnels[index].id,
-					result.data as unknown as FunnelAnalyticsData
-				);
+				map.set(funnels[index].id, result.data);
 			}
 		}
 		return map;

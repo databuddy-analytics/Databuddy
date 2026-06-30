@@ -5,11 +5,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { type ComponentPropsWithoutRef, useState } from "react";
 import { toast } from "sonner";
-import { SignOutIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	CaretRightIcon,
 	GearIcon,
 	PlusIcon,
+	SignOutIcon,
 	SpinnerGapIcon,
 } from "@databuddy/ui/icons";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";

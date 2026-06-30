@@ -4,8 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 import { KeyboardShortcuts } from "@/components/ui/keyboard-shortcuts";
 import { cn } from "@/lib/utils";
-import { ChatCircleIcon, KeyboardIcon } from "@phosphor-icons/react/dist/ssr";
-import { BookOpenIcon, PlayIcon } from "@databuddy/ui/icons";
+import {
+	BookOpenIcon,
+	ChatTextIcon as ChatCircleIcon,
+	CommandIcon as KeyboardIcon,
+	PlayIcon,
+} from "@databuddy/ui/icons";
 import { Button, Text } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 

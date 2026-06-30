@@ -1,4 +1,4 @@
-import { validateUrl } from "@databuddy/shared/ssrf-guard";
+import { type SafeFetchInit, SsrfError } from "@databuddy/shared/ssrf-guard";
 import type { NotificationPayload, NotificationResult } from "../types";
 import { BaseProvider } from "./base";
 
@@ -41,21 +41,12 @@ export class WebhookProvider extends BaseProvider {
 			};
 		}
 
-		const urlCheck = await validateUrl(this.url);
-		if (!urlCheck.safe) {
-			return {
-				success: false,
-				channel: "webhook",
-				error: `Webhook URL blocked: ${urlCheck.error}`,
-			};
-		}
-
 		try {
 			const body = this.transformPayloadAction
 				? this.transformPayloadAction(payload)
 				: payload;
 
-			const init: RequestInit = {
+			const init: SafeFetchInit = {
 				method: this.method,
 				headers: {
 					"Content-Type": "application/json",
@@ -92,10 +83,16 @@ export class WebhookProvider extends BaseProvider {
 				},
 			};
 		} catch (error) {
+			const message =
+				error instanceof SsrfError
+					? `Webhook URL blocked: ${error.message}`
+					: error instanceof Error
+						? error.message
+						: String(error);
 			return {
 				success: false,
 				channel: "webhook",
-				error: error instanceof Error ? error.message : String(error),
+				error: message,
 			};
 		}
 	}

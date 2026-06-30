@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { mainNavigation } from "@/components/layout/navigation/navigation-config";
+import { ResourceUnavailableState } from "@/components/resource-unavailable-state";
 import type {
 	NavigationGroup,
 	NavigationItem,
@@ -225,6 +226,16 @@ export function WebsiteErrorState({
 	};
 
 	const canGoBack = typeof window !== "undefined" && window.history.length > 1;
+
+	if (!isDemoRoute && (type === "not_found" || type === "forbidden")) {
+		return (
+			<ResourceUnavailableState
+				backHref="/websites"
+				backLabel="Back to Websites"
+				className="min-h-full p-4 sm:p-6 lg:p-8"
+			/>
+		);
+	}
 
 	const renderActions = () => {
 		if (type === "not_found") {

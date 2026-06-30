@@ -1,47 +1,145 @@
 import { db, eq, withTransaction } from "@databuddy/db";
 import {
 	alarmDestinations,
-	alarmDestinationTypeValues,
 	alarms,
 	alarmTriggerTypeValues,
 } from "@databuddy/db/schema";
-import { NotificationClient } from "@databuddy/notifications";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { toNotificationConfig } from "../lib/alarm-notifications";
-import { protectedProcedure } from "../orpc";
+import {
+	sendNotificationTarget,
+	toNotificationTargets,
+} from "../lib/alarm-notifications";
+import { setTrackProperties } from "../middleware/track-mutation";
+import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
+import { withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const destinationSchema = z.object({
-	type: z.enum(alarmDestinationTypeValues),
-	identifier: z.string().default(""),
+const SLACK_WEBHOOK_PATTERN =
+	/^https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[A-Za-z0-9]+$/;
+const FORBIDDEN_HEADER_NAMES = new Set([
+	"authorization",
+	"cookie",
+	"host",
+	"connection",
+	"content-length",
+	"transfer-encoding",
+	"x-forwarded-for",
+	"x-forwarded-host",
+	"x-real-ip",
+]);
+
+const webhookHeadersSchema = z
+	.record(
+		z
+			.string()
+			.min(1)
+			.max(128)
+			.refine((name) => !FORBIDDEN_HEADER_NAMES.has(name.toLowerCase()), {
+				message: "Header name is not allowed.",
+			}),
+		z.string().max(2048)
+	)
+	.refine((rec) => Object.keys(rec).length <= 20, {
+		message: "At most 20 custom webhook headers are allowed.",
+	});
+
+const slackDestinationSchema = z.object({
+	type: z.literal("slack"),
+	identifier: z
+		.string()
+		.regex(
+			SLACK_WEBHOOK_PATTERN,
+			"Slack destination must be a hooks.slack.com webhook URL"
+		),
 	config: z.record(z.string(), z.unknown()).default({}),
 });
 
+const webhookDestinationSchema = z.object({
+	type: z.literal("webhook"),
+	identifier: z
+		.string()
+		.url("Webhook destination must be a valid URL")
+		.refine(
+			(url) => url.startsWith("http://") || url.startsWith("https://"),
+			"Webhook destination must use http(s)"
+		),
+	config: z
+		.object({
+			headers: webhookHeadersSchema.optional(),
+			method: z.enum(["GET", "POST", "PUT", "PATCH"]).optional(),
+		})
+		.passthrough()
+		.default({}),
+});
+
+const emailDestinationSchema = z.object({
+	type: z.literal("email"),
+	identifier: z.string().email(),
+	config: z.record(z.string(), z.unknown()).default({}),
+});
+
+const destinationSchema = z.discriminatedUnion("type", [
+	slackDestinationSchema,
+	webhookDestinationSchema,
+	emailDestinationSchema,
+]);
+
 const alarmOutputSchema = z.record(z.string(), z.unknown());
 
-async function getAlarmAndAuthorize(
-	alarmId: string,
-	context: Parameters<typeof withWorkspace>[0],
-	permissions: ("read" | "update" | "delete")[] = ["read"]
-) {
-	const alarm = await db.query.alarms.findFirst({
-		where: eq(alarms.id, alarmId),
-		with: { destinations: true },
-	});
-
-	if (!alarm) {
-		throw rpcError.notFound("Alarm", alarmId);
+function maskTail(value: string, keep = 4): string {
+	if (value.length <= keep) {
+		return "•".repeat(value.length);
 	}
+	return `${"•".repeat(value.length - keep)}${value.slice(-keep)}`;
+}
 
-	await withWorkspace(context, {
-		organizationId: alarm.organizationId,
-		resource: "organization",
-		permissions,
-	});
+interface RedactableDestination {
+	config: unknown;
+	identifier: string;
+	type: string;
+}
 
-	return alarm;
+function redactDestination<T extends RedactableDestination>(d: T): T {
+	const cfg = (d.config ?? {}) as Record<string, unknown>;
+	const headers = cfg.headers as Record<string, string> | undefined;
+	const redactedHeaders = headers
+		? Object.fromEntries(
+				Object.entries(headers).map(([name, value]) => [name, maskTail(value)])
+			)
+		: headers;
+	return {
+		...d,
+		identifier: d.type === "email" ? d.identifier : maskTail(d.identifier),
+		config: redactedHeaders ? { ...cfg, headers: redactedHeaders } : cfg,
+	};
+}
+
+function redactAlarm<T extends { destinations?: RedactableDestination[] }>(
+	alarm: T
+): T {
+	if (!alarm.destinations) {
+		return alarm;
+	}
+	return { ...alarm, destinations: alarm.destinations.map(redactDestination) };
+}
+
+async function callerCanReadSecrets(
+	context: Context,
+	organizationId: string
+): Promise<boolean> {
+	try {
+		await withWorkspace(context, {
+			organizationId,
+			resource: "organization",
+			permissions: ["update"],
+		});
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 export const alarmsRouter = {
@@ -67,12 +165,17 @@ export const alarmsRouter = {
 				permissions: ["read"],
 			});
 
-			return db.query.alarms.findMany({
-				where: eq(alarms.organizationId, orgId),
-				orderBy: (table, { desc }) => [desc(table.createdAt)],
+			const rows = await db.query.alarms.findMany({
+				where: { organizationId: orgId },
+				orderBy: { createdAt: "desc" },
 				with: { destinations: true },
 				limit: 100,
 			});
+
+			if (await callerCanReadSecrets(context, orgId)) {
+				return rows;
+			}
+			return rows.map(redactAlarm);
 		}),
 
 	get: protectedProcedure
@@ -85,11 +188,19 @@ export const alarmsRouter = {
 		})
 		.input(z.object({ alarmId: z.string() }))
 		.output(alarmOutputSchema)
-		.handler(({ context, input }) =>
-			getAlarmAndAuthorize(input.alarmId, context)
-		),
+		.handler(async ({ context, input }) => {
+			const alarm = await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["read"],
+			});
+			if (await callerCanReadSecrets(context, alarm.organizationId)) {
+				return alarm;
+			}
+			return redactAlarm(alarm);
+		}),
 
-	create: protectedProcedure
+	create: trackedProcedure
 		.route({
 			method: "POST",
 			path: "/alarms/create",
@@ -113,6 +224,10 @@ export const alarmsRouter = {
 		)
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
+			setTrackProperties({
+				trigger_type: input.triggerType,
+				destination_count: input.destinations.length,
+			});
 			await withWorkspace(context, {
 				organizationId: input.organizationId,
 				resource: "organization",
@@ -151,10 +266,14 @@ export const alarmsRouter = {
 				}
 			});
 
-			return getAlarmAndAuthorize(alarmId, context);
+			return await withResource(context, {
+				resource: "alarm",
+				id: alarmId,
+				permissions: ["read"],
+			});
 		}),
 
-	update: protectedProcedure
+	update: trackedProcedure
 		.route({
 			method: "POST",
 			path: "/alarms/update",
@@ -176,7 +295,11 @@ export const alarmsRouter = {
 		)
 		.output(alarmOutputSchema)
 		.handler(async ({ context, input }) => {
-			await getAlarmAndAuthorize(input.alarmId, context, ["update"]);
+			await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["update"],
+			});
 			const now = new Date();
 
 			const { alarmId, destinations, ...fields } = input;
@@ -211,10 +334,14 @@ export const alarmsRouter = {
 				}
 			});
 
-			return getAlarmAndAuthorize(input.alarmId, context);
+			return await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["read"],
+			});
 		}),
 
-	delete: protectedProcedure
+	delete: trackedProcedure
 		.route({
 			method: "POST",
 			path: "/alarms/delete",
@@ -225,12 +352,16 @@ export const alarmsRouter = {
 		.input(z.object({ alarmId: z.string() }))
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
-			await getAlarmAndAuthorize(input.alarmId, context, ["delete"]);
+			await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["delete"],
+			});
 			await db.delete(alarms).where(eq(alarms.id, input.alarmId));
 			return { success: true };
 		}),
 
-	test: protectedProcedure
+	test: trackedProcedure
 		.route({
 			method: "POST",
 			path: "/alarms/test",
@@ -251,30 +382,48 @@ export const alarmsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const alarm = await getAlarmAndAuthorize(input.alarmId, context);
+			const alarm = await withResource(context, {
+				resource: "alarm",
+				id: input.alarmId,
+				permissions: ["update"],
+			});
+
+			const principal = context.user
+				? `user:${context.user.id}`
+				: context.apiKey
+					? `apikey:${context.apiKey.id}`
+					: null;
+			if (principal) {
+				const rl = await ratelimit(
+					`alarms:test:${principal}:${input.alarmId}`,
+					5,
+					60
+				);
+				if (!rl.success) {
+					throw rpcError.rateLimited(rl.reset);
+				}
+			}
 
 			if (!alarm.destinations || alarm.destinations.length === 0) {
 				throw rpcError.badRequest("Alarm has no destinations configured");
 			}
 
-			const { clientConfig, channels } = toNotificationConfig(
-				alarm.destinations
-			);
-			const client = new NotificationClient(clientConfig);
-
-			const raw = await client.send(
-				{
-					title: `Test: ${alarm.name}`,
-					message: `This is a test notification from your "${alarm.name}" alarm. If you're reading this, the channel is working.`,
-					priority: "normal",
-					metadata: {
-						template: "test",
-						alarmId: alarm.id,
-						alarmName: alarm.name,
-					},
+			const targets = toNotificationTargets(alarm.destinations);
+			const payload = {
+				title: `Test: ${alarm.name}`,
+				message: `This is a test notification from your "${alarm.name}" alarm. If you're reading this, the channel is working.`,
+				priority: "normal" as const,
+				metadata: {
+					template: "test",
+					alarmId: alarm.id,
+					alarmName: alarm.name,
 				},
-				{ channels }
-			);
+			};
+			const raw = (
+				await Promise.all(
+					targets.map((target) => sendNotificationTarget(target, payload))
+				)
+			).flat();
 
 			return {
 				results: raw.map((r) => ({

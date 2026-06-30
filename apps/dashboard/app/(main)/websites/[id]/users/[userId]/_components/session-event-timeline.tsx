@@ -1,6 +1,6 @@
 "use client";
 
-import type { SessionEvent } from "@databuddy/shared/types/sessions";
+import type { SessionEvent } from "@/types/sessions";
 import { cleanUrl, formatPropertyValue, getDisplayPath } from "./session-utils";
 import {
 	CursorClickIcon,

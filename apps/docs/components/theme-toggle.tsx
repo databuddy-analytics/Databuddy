@@ -1,6 +1,6 @@
 "use client";
 
-import { MoonIcon, SunIcon } from "@phosphor-icons/react";
+import { MoonIcon, SunIcon } from "@databuddy/ui/icons";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 

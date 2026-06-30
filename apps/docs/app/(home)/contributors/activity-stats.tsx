@@ -1,12 +1,13 @@
 "use client";
 
-import type { IconWeight } from "@phosphor-icons/react";
+type IconWeight = "regular" | "bold" | "fill" | "duotone";
+
 import {
 	CodeIcon,
-	GitMergeIcon,
-	GitPullRequestIcon,
-	XIcon,
-} from "@phosphor-icons/react";
+	GitBranchIcon as GitMergeIcon,
+	GitBranchIcon as GitPullRequestIcon,
+	XMarkIcon as XIcon,
+} from "@databuddy/ui/icons";
 
 interface Language {
 	bytes: number;

@@ -49,7 +49,9 @@ export function createMetricColumns({
 		accessorKey: "visitors",
 		header: visitorsLabel,
 		cell: (info: CellContext<MetricEntry, any>) => (
-			<span className="font-medium">{formatNumber(info.getValue() as number)}</span>
+			<span className="font-medium">
+				{formatNumber(info.getValue() as number)}
+			</span>
 		),
 	});
 
@@ -59,7 +61,9 @@ export function createMetricColumns({
 			accessorKey: "pageviews",
 			header: pageviewsLabel,
 			cell: (info: CellContext<MetricEntry, any>) => (
-				<span className="font-medium">{formatNumber(info.getValue() as number)}</span>
+				<span className="font-medium">
+					{formatNumber(info.getValue() as number)}
+				</span>
 			),
 		});
 	}

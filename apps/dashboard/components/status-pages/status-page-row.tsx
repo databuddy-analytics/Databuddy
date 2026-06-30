@@ -9,11 +9,11 @@ import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { getStatusPageUrl } from "@/lib/app-url";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { BrowserIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArrowSquareOutIcon,
 	CopyIcon,
 	DotsThreeIcon,
+	OpenExternalIcon as BrowserIcon,
 	PencilSimpleIcon,
 	TrashIcon,
 } from "@databuddy/ui/icons";
@@ -22,10 +22,8 @@ import { DropdownMenu, Switch } from "@databuddy/ui/client";
 
 export interface StatusPage {
 	createdAt: Date | string;
-	customCss?: string | null;
 	description: string | null;
 	faviconUrl?: string | null;
-	hideBranding?: boolean;
 	id: string;
 	logoUrl?: string | null;
 	monitorCount: number;

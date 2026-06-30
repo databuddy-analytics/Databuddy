@@ -1,10 +1,10 @@
 import {
-	CookieIcon,
+	CircleIcon as CookieIcon,
 	EnvelopeIcon,
 	ShieldCheckIcon,
-	ShieldIcon,
+	ShieldCheckIcon as ShieldIcon,
 	UserIcon,
-} from "@phosphor-icons/react/ssr";
+} from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";

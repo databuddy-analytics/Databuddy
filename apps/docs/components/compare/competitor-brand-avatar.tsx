@@ -7,7 +7,7 @@ import {
 	SiPosthog,
 	SiUmami,
 } from "@icons-pack/react-simple-icons";
-import { ChartLineIcon } from "@phosphor-icons/react/ssr";
+import { ChartLineIcon } from "@databuddy/ui/icons";
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { AmplitudeMarkIcon } from "@/components/compare/amplitude-mark-icon";

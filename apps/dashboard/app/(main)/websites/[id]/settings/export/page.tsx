@@ -10,8 +10,13 @@ import { DateRangePicker } from "@/components/date-range-picker";
 import { useWebsite } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
-import { DownloadIcon, FileCodeIcon } from "@phosphor-icons/react/dist/ssr";
-import { CheckIcon, FileTextIcon, TableIcon } from "@databuddy/ui/icons";
+import {
+	CheckIcon,
+	FileDownloadIcon as DownloadIcon,
+	FileTextIcon as FileCodeIcon,
+	FileTextIcon,
+	TableIcon,
+} from "@databuddy/ui/icons";
 import { Switch } from "@databuddy/ui/client";
 import { Badge, Button, Card, dayjs } from "@databuddy/ui";
 

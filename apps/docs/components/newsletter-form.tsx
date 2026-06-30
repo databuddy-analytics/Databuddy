@@ -1,15 +1,19 @@
 "use client";
 
 import { Button, Input } from "@databuddy/ui";
-import {
-	CheckIcon,
-	EnvelopeSimpleIcon,
-} from "@databuddy/ui/icons";
+import { CheckIcon, EnvelopeSimpleIcon } from "@databuddy/ui/icons";
+import { track } from "@databuddy/sdk";
 import { useRef, useState } from "react";
 
 type FormStatus = "idle" | "loading" | "success" | "error";
 
-export function NewsletterForm() {
+export type NewsletterSource = "footer" | "blog" | "pricing" | "inline";
+
+export function NewsletterForm({
+	source = "footer",
+}: {
+	source?: NewsletterSource;
+}) {
 	const [status, setStatus] = useState<FormStatus>("idle");
 	const [errorMessage, setErrorMessage] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +42,7 @@ export function NewsletterForm() {
 			}
 
 			setStatus("success");
+			track("newsletter_subscribed", { source });
 			if (inputRef.current) {
 				inputRef.current.value = "";
 			}

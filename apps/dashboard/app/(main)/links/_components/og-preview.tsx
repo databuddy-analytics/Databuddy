@@ -7,7 +7,6 @@ import {
 	useImageValidation,
 	useOgMetadata,
 } from "./use-og-metadata";
-import { XIcon as CloseIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArrowCounterClockwiseIcon,
 	ArrowsClockwiseIcon,
@@ -16,6 +15,7 @@ import {
 	ImageIcon,
 	VideoIcon,
 	WarningCircleIcon,
+	XMarkIcon as CloseIcon,
 } from "@databuddy/ui/icons";
 import { Button, Field, Input, Textarea } from "@databuddy/ui";
 import { Switch } from "@databuddy/ui/client";

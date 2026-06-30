@@ -322,7 +322,7 @@ function MiniHeatmap({
 				getDateLabel={(d) => formatDateOnly(d)}
 				interactive={false}
 				isActive={isActive}
-				stripClassName="flex h-5 w-32 items-end gap-[1.5px] lg:w-44"
+				stripClassName="grid h-1.5 w-32 gap-x-px lg:w-44"
 			/>
 			<span
 				className={cn(

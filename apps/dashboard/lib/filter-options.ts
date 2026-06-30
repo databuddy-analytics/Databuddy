@@ -1,0 +1,26 @@
+export { goalFunnelFilterFields as goalFunnelFilterOptions } from "@databuddy/shared/analytics-filters";
+
+export const filterOptions = [
+	{ value: "path", label: "Page Path" },
+	{ value: "query_string", label: "Query String" },
+	{ value: "referrer", label: "Referrer" },
+	{ value: "country", label: "Country" },
+	{ value: "region", label: "Region/State" },
+	{ value: "city", label: "City" },
+	{ value: "timezone", label: "Timezone" },
+	{ value: "language", label: "Language" },
+	{ value: "device_type", label: "Device Type" },
+	{ value: "browser_name", label: "Browser" },
+	{ value: "os_name", label: "Operating System" },
+	{ value: "utm_source", label: "UTM Source" },
+	{ value: "utm_medium", label: "UTM Medium" },
+	{ value: "utm_campaign", label: "UTM Campaign" },
+	{ value: "provider", label: "Provider" },
+	{ value: "model", label: "Model" },
+	{ value: "type", label: "Call Type" },
+	{ value: "finish_reason", label: "Finish Reason" },
+	{ value: "error_name", label: "Error Name" },
+	{ value: "http_status", label: "HTTP Status" },
+	{ value: "user_id", label: "User ID" },
+	{ value: "trace_id", label: "Trace ID" },
+] as const;

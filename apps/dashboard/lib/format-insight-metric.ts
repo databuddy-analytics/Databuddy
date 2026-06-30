@@ -49,3 +49,37 @@ export function computeMetricChange(metric: InsightMetric): number | null {
 	}
 	return ((metric.current - metric.previous) / metric.previous) * 100;
 }
+
+export type MetricChangeTone = "positive" | "negative" | "neutral";
+
+const LOWER_IS_BETTER_PATTERNS = [
+	/error/,
+	/errors/,
+	/affected users/,
+	/bounce/,
+	/drop[ -]?off/,
+	/latency/,
+	/inp/,
+	/lcp/,
+	/fcp/,
+	/ttfb/,
+	/cls/,
+	/load time/,
+	/response time/,
+	/duration.*p75/,
+];
+
+function isLowerBetterMetric(label: string): boolean {
+	const normalized = label.toLowerCase();
+	return LOWER_IS_BETTER_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+export function metricChangeTone(metric: InsightMetric): MetricChangeTone {
+	const change = computeMetricChange(metric);
+	if (change === null || change === 0) {
+		return "neutral";
+	}
+
+	const improved = isLowerBetterMetric(metric.label) ? change < 0 : change > 0;
+	return improved ? "positive" : "negative";
+}

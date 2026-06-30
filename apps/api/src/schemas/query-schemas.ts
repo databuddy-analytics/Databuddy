@@ -1,25 +1,15 @@
 import { t } from "elysia";
-import { QueryBuilders } from "../query/builders";
+import { QueryBuilders } from "@databuddy/ai/query/builders";
+import { DatePresets, type DatePreset } from "@databuddy/ai/lib/date-presets";
 
 const QUERY_BUILDER_TYPES = Object.keys(QueryBuilders) as Array<
 	keyof typeof QueryBuilders
 >;
 
-export const DatePresets = {
-	today: "today",
-	yesterday: "yesterday",
-	last_7d: "last_7d",
-	last_14d: "last_14d",
-	last_30d: "last_30d",
-	last_90d: "last_90d",
-	this_week: "this_week",
-	last_week: "last_week",
-	this_month: "this_month",
-	last_month: "last_month",
-	this_year: "this_year",
-} as const;
-
-export type DatePreset = keyof typeof DatePresets;
+export {
+	DatePresets,
+	type DatePreset,
+} from "@databuddy/ai/lib/date-presets";
 
 export const DatePresetSchema = t.Enum(DatePresets);
 
@@ -75,6 +65,8 @@ export const DynamicQueryRequestSchema = t.Object({
 	endDate: t.Optional(t.String()),
 	preset: t.Optional(DatePresetSchema),
 	timeZone: t.Optional(t.String()),
+	sortBy: t.Optional(t.String()),
+	sortOrder: t.Optional(t.Union([t.Literal("asc"), t.Literal("desc")])),
 });
 
 export const CompileRequestSchema = t.Object({
@@ -129,6 +121,8 @@ export interface DynamicQueryRequestType {
 	page?: number;
 	parameters: (string | ParameterWithDatesType)[];
 	preset?: DatePreset;
+	sortBy?: string;
+	sortOrder?: "asc" | "desc";
 	startDate?: string;
 	timeZone?: string;
 }

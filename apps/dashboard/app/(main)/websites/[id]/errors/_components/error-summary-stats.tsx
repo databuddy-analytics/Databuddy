@@ -1,8 +1,12 @@
 import { cn } from "@/lib/utils";
 import type { ErrorSummary } from "./types";
-import { ActivityIcon } from "@phosphor-icons/react/dist/ssr";
+import {
+	ChartActivityIcon as ActivityIcon,
+	TrendUpIcon,
+	UsersIcon,
+	WarningCircleIcon,
+} from "@databuddy/ui/icons";
 import type { NavIcon } from "@/components/layout/navigation/types";
-import { TrendUpIcon, UsersIcon, WarningCircleIcon } from "@databuddy/ui/icons";
 import { Card, Skeleton } from "@databuddy/ui";
 
 type StatVariant = "default" | "destructive" | "warning";
@@ -78,7 +82,7 @@ export const ErrorSummaryStats = ({
 }: ErrorSummaryStatsProps) => {
 	if (isLoading) {
 		return (
-			<div className="grid grid-cols-2 gap-2">
+			<div className="grid grid-cols-2 gap-1.5 rounded-xl bg-secondary p-1.5">
 				{Array.from({ length: 4 }).map((_, i) => (
 					<StatSkeleton key={`stat-skel-${i}`} />
 				))}
@@ -87,7 +91,7 @@ export const ErrorSummaryStats = ({
 	}
 
 	return (
-		<div className="grid grid-cols-2 gap-2">
+		<div className="grid grid-cols-2 gap-1.5 rounded-xl bg-secondary p-1.5">
 			<ErrorStatCard
 				icon={WarningCircleIcon}
 				title="Total Errors"

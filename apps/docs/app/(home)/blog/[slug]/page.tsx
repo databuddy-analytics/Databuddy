@@ -1,12 +1,10 @@
-import { formatDate } from "@databuddy/shared/utils/date-utils";
 import {
 	ArrowLeftIcon,
 	CalendarIcon,
 	ClockIcon,
 	UserIcon,
 	WarningCircleIcon,
-} from "@phosphor-icons/react/ssr";
-import type { Post } from "@usemarble/core";
+} from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -17,10 +15,23 @@ import { Prose } from "@/components/prose";
 import { SciFiCard } from "@/components/scifi-card";
 import { StructuredData } from "@/components/structured-data";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getPosts, getSinglePost } from "@/lib/blog-query";
+import {
+	getPosts,
+	getSinglePost,
+	isPublished,
+	type Post,
+} from "@/lib/blog-query";
 
 const STRIP_HTML_REGEX = /<[^>]+>/g;
 const WORD_SPLIT_REGEX = /\s+/;
+
+function formatDate(date: Date | string): string {
+	return new Intl.DateTimeFormat("en", {
+		day: "numeric",
+		month: "short",
+		year: "numeric",
+	}).format(new Date(date));
+}
 
 export const revalidate = 300;
 
@@ -30,7 +41,7 @@ export async function generateStaticParams() {
 		if ("error" in result) {
 			return [];
 		}
-		return result.posts.map((post) => ({
+		return result.posts.filter(isPublished).map((post) => ({
 			slug: post.slug,
 		}));
 	} catch {
@@ -75,6 +86,12 @@ export async function generateMetadata({
 				publishedTime: publishedIso,
 				authors: data.post.authors.map((a: { name: string }) => a.name),
 			},
+			twitter: {
+				card: "summary_large_image",
+				title: data.post.title,
+				description: data.post.description,
+				images: [ogImage],
+			},
 		};
 	} catch {
 		return { title: "Not Found | Databuddy" };
@@ -93,7 +110,7 @@ export default async function PostPage({
 		status?: number;
 		statusText?: string;
 	};
-	if (!result?.post) {
+	if (!(result?.post && isPublished(result.post))) {
 		return (
 			<>
 				<div className="relative flex min-h-[60vh] w-full items-center justify-center overflow-hidden px-4 pt-10 sm:px-6 sm:pt-12 lg:px-8">

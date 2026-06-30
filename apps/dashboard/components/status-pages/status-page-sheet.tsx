@@ -15,7 +15,7 @@ import {
 	SegmentedControl,
 	Textarea,
 } from "@databuddy/ui";
-import { Sheet, Switch } from "@databuddy/ui/client";
+import { Sheet } from "@databuddy/ui/client";
 
 const URL_REGEX = /^https?:\/\/.+/;
 
@@ -42,8 +42,6 @@ const statusPageFormSchema = z.object({
 		.string()
 		.refine((v) => v === "" || URL_REGEX.test(v), "Must be a valid URL"),
 	theme: z.enum(["system", "light", "dark"]),
-	hideBranding: z.boolean(),
-	customCss: z.string().optional(),
 });
 
 type StatusPageFormData = z.infer<typeof statusPageFormSchema>;
@@ -59,10 +57,8 @@ interface StatusPageSheetProps {
 	onSaveAction?: () => void;
 	open: boolean;
 	statusPage?: {
-		customCss?: string | null;
 		description?: string | null;
 		faviconUrl?: string | null;
-		hideBranding?: boolean;
 		id: string;
 		logoUrl?: string | null;
 		name: string;
@@ -71,28 +67,6 @@ interface StatusPageSheetProps {
 		theme?: string | null;
 		websiteUrl?: string | null;
 	} | null;
-}
-
-function SettingsRow({
-	label,
-	description,
-	children,
-}: {
-	children: React.ReactNode;
-	description?: string;
-	label: string;
-}) {
-	return (
-		<div className="flex items-center justify-between gap-4">
-			<div className="min-w-0 flex-1">
-				<p className="font-medium text-sm">{label}</p>
-				{description && (
-					<p className="text-muted-foreground text-xs">{description}</p>
-				)}
-			</div>
-			<div className="shrink-0">{children}</div>
-		</div>
-	);
 }
 
 export function StatusPageSheet({
@@ -134,8 +108,6 @@ export function StatusPageSheet({
 					websiteUrl: urlOrNull(data.websiteUrl),
 					supportUrl: urlOrNull(data.supportUrl),
 					theme: data.theme,
-					hideBranding: data.hideBranding,
-					customCss: data.customCss?.trim() || null,
 				});
 				toast.success("Status page updated");
 			} else {
@@ -157,8 +129,6 @@ export function StatusPageSheet({
 					websiteUrl: urlOrNull(data.websiteUrl),
 					supportUrl: urlOrNull(data.supportUrl),
 					theme: data.theme,
-					hideBranding: data.hideBranding,
-					customCss: data.customCss?.trim() || null,
 				});
 				toast.success("Status page created");
 			}
@@ -331,7 +301,7 @@ export function StatusPageSheet({
 							<div className="space-y-0.5">
 								<p className="font-medium text-sm">Appearance</p>
 								<p className="text-muted-foreground text-xs">
-									Theme, branding, and custom styles
+									Choose how the public page follows visitor preferences
 								</p>
 							</div>
 
@@ -347,39 +317,6 @@ export function StatusPageSheet({
 											options={themeOptions}
 											value={field.value}
 										/>
-									</Field>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="hideBranding"
-								render={({ field }) => (
-									<SettingsRow label='Hide "Powered by Databuddy"'>
-										<Switch
-											checked={field.value}
-											onCheckedChange={field.onChange}
-										/>
-									</SettingsRow>
-								)}
-							/>
-
-							<Controller
-								control={form.control}
-								name="customCss"
-								render={({ field }) => (
-									<Field>
-										<Field.Label>Custom CSS</Field.Label>
-										<Textarea
-											className="font-mono text-xs"
-											placeholder={":root {\n  --primary: #3b82f6;\n}"}
-											rows={4}
-											{...field}
-										/>
-										<Field.Description>
-											Injected into the public status page. Use CSS variables
-											for colors and fonts.
-										</Field.Description>
 									</Field>
 								)}
 							/>
@@ -421,7 +358,5 @@ function buildDefaults(
 		websiteUrl: sp?.websiteUrl ?? "",
 		supportUrl: sp?.supportUrl ?? "",
 		theme: (sp?.theme as "system" | "light" | "dark") ?? "system",
-		hideBranding: sp?.hideBranding ?? false,
-		customCss: sp?.customCss ?? "",
 	};
 }

@@ -1,28 +1,31 @@
 {
   "name": "@databuddy/tracker",
+  "private": true,
   "version": "0.0.1",
-  "description": "Databuddy Analytics Tracker Scripts",
   "type": "module",
   "scripts": {
     "build": "bun build.ts",
-    "deploy": "bun deploy.ts",
+    "deploy": "dotenv -e ../../.env -- bun deploy.ts",
     "release": "bun run deploy",
     "diff": "bun compare-release.ts",
     "dev": "bun build.ts --watch",
     "check-types": "tsc --noEmit",
     "test:e2e": "playwright test",
     "test:unit": "bun test tests/unit",
-    "serve": "bun --watch --hot test-server.ts"
+    "serve": "bun --watch --hot test-server.ts",
+    "test": "bun run test:unit"
+  },
+  "dependencies": {
+    "web-vitals": "^5.1.0"
   },
   "devDependencies": {
+    "@databuddy/db": "workspace:*",
     "@inquirer/prompts": "^8.0.1",
     "@playwright/test": "^1.56.1",
-    "@types/bun": "latest",
+    "@types/bun": "catalog:",
     "chalk": "^5.6.2",
     "commander": "^14.0.2",
     "typescript": "^5.9.3"
   },
-  "dependencies": {
-    "web-vitals": "^5.1.0"
-  }
+  "description": "Databuddy Analytics Tracker Scripts"
 }

@@ -1,11 +1,11 @@
 "use client";
 
 import {
-	ChatCircleIcon,
+	ChatTextIcon as ChatCircleIcon,
 	ClockIcon,
 	EnvelopeIcon,
 	ShieldCheckIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 
 const features = [

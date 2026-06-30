@@ -1,4 +1,4 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from "@/types/analytics";
 import { dayjs } from "@databuddy/ui";
 import type { DateRangePreset } from "./types";
 

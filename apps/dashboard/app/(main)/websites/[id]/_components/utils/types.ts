@@ -1,5 +1,5 @@
 import type { useWebsite } from "@/hooks/use-websites";
-import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
+import type { DynamicQueryFilter } from "@/stores/jotai/filter-types";
 
 export interface DateRange {
 	end_date: string;

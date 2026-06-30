@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import type { DashboardActionParams } from "@/lib/dashboard-navigation-actions";
 
 export interface RawComponentInput {
 	type: string;
@@ -118,6 +119,36 @@ export interface FunnelPreviewInput {
 	};
 	mode: "create" | "update" | "delete";
 	type: "funnel-preview";
+}
+
+export interface DashboardActionInput {
+	description?: string;
+	eventName?: string;
+	filters?: Array<{
+		field: string;
+		operator:
+			| "contains"
+			| "eq"
+			| "in"
+			| "ne"
+			| "not_contains"
+			| "not_in"
+			| "starts_with";
+		value: number | string | Array<number | string>;
+	}>;
+	href?: string;
+	label: string;
+	params?: DashboardActionParams;
+	preserveAnalyticsContext?: boolean;
+	target?: string;
+	websiteId?: string;
+}
+
+export interface DashboardActionsInput {
+	actions: DashboardActionInput[];
+	title?: string;
+	type: "dashboard-actions";
+	websiteId?: string;
 }
 
 export interface GoalsListInput {

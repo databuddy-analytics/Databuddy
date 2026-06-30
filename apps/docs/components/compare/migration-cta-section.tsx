@@ -1,4 +1,4 @@
-import { ArrowRightIcon } from "@phosphor-icons/react/ssr";
+import { ArrowRightIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 
 export interface MigrationCtaSectionProps {

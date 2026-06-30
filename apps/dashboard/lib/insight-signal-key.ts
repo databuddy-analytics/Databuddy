@@ -26,7 +26,7 @@ function directionFromParts(
 	return "flat";
 }
 
-/** Matches server `insightDedupeKey` in apps/api/src/routes/insights.ts */
+/** Matches server `insightDedupeKey` in @databuddy/ai/insights/dedupe. */
 export function insightSignalDedupeKey(insight: {
 	websiteId: string;
 	type: InsightType;
@@ -72,7 +72,16 @@ export function formatSignedChangePercent(changePercent: number): string {
 	return `${sign}${changePercent}%`;
 }
 
-export function changePercentChipClassName(changePercent: number): string {
+export function changePercentChipClassName(
+	changePercent: number,
+	sentiment?: InsightSentiment
+): string {
+	if (sentiment === "positive") {
+		return "text-emerald-600";
+	}
+	if (sentiment === "negative") {
+		return "text-red-500";
+	}
 	if (changePercent > 0) {
 		return "text-emerald-600";
 	}

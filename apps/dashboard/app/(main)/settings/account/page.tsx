@@ -1,8 +1,8 @@
 "use client";
 
 import { authClient } from "@databuddy/auth/client";
-import { GithubLogo, GoogleLogo } from "@phosphor-icons/react/dist/ssr";
 import {
+	GlobeIcon,
 	KeyIcon,
 	LinkBreakIcon,
 	LinkIcon,
@@ -47,8 +47,8 @@ type IconComponent = React.ComponentType<
 >;
 
 const PROVIDER_CONFIG: Record<string, { icon: IconComponent; name: string }> = {
-	google: { icon: GoogleLogo, name: "Google" },
-	github: { icon: GithubLogo, name: "GitHub" },
+	google: { icon: GlobeIcon, name: "Google" },
+	github: { icon: GlobeIcon, name: "GitHub" },
 	credential: { icon: KeyIcon, name: "Password" },
 };
 
@@ -343,6 +343,7 @@ export default function AccountSettingsPage() {
 
 	const [name, setName] = useState("");
 	const [imageUrl, setImageUrl] = useState("");
+	const [isProfileInitialized, setIsProfileInitialized] = useState(false);
 	const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 	const [showTwoFactorDialog, setShowTwoFactorDialog] = useState(false);
 	const [unlinkProvider, setUnlinkProvider] = useState<SocialProvider | null>(
@@ -354,6 +355,7 @@ export default function AccountSettingsPage() {
 		if (user) {
 			setName(user.name ?? "");
 			setImageUrl(user.image ?? "");
+			setIsProfileInitialized(true);
 		}
 	}, [user]);
 
@@ -416,7 +418,8 @@ export default function AccountSettingsPage() {
 		(acc) => acc.providerId === "credential"
 	);
 	const hasChanges =
-		name !== (user?.name ?? "") || imageUrl !== (user?.image ?? "");
+		isProfileInitialized &&
+		(name !== (user?.name ?? "") || imageUrl !== (user?.image ?? ""));
 
 	const isLoading = isSessionLoading || isAccountsLoading;
 

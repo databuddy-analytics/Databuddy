@@ -73,6 +73,7 @@ export function initWebVitalsTracking(tracker: BaseTracker) {
 			metricName: name,
 			metricValue: value,
 			anonymousId: tracker.anonymousId,
+			anonymizeVisitorIds: tracker.options.anonymizeVisitorIds,
 			sessionId: tracker.sessionId,
 		});
 	};

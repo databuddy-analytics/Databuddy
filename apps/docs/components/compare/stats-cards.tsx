@@ -50,7 +50,7 @@ export function StatsCards({
 
 				<SciFiButton asChild className="w-full">
 					<Link
-						href="https://app.databuddy.cc/login"
+						href="https://app.databuddy.cc/register"
 						rel="noopener noreferrer"
 						target="_blank"
 					>

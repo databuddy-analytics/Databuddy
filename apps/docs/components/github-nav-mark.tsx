@@ -28,7 +28,7 @@ export interface GithubStarsBadgeProps {
 
 export function GithubStarsBadge({ stars }: GithubStarsBadgeProps) {
 	return (
-		<span className="font-medium text-foreground text-xs" title="GitHub stars">
+		<span className="font-medium text-white text-xs" title="GitHub stars">
 			{stars.toLocaleString()} ★
 		</span>
 	);

@@ -4,12 +4,12 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { DependencySelectorProps, Flag } from "./types";
-import { XIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	CheckCircleIcon,
 	CircleIcon,
 	GitBranchIcon,
 	PlusIcon,
+	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
 import { Button, Input } from "@databuddy/ui";
 import { Popover } from "@databuddy/ui/client";

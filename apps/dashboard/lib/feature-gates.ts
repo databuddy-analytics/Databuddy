@@ -1,5 +1,4 @@
 export const FLAG_KEY_LABELS: Record<string, string> = {
-	monitors: "Uptime Monitoring",
 	insights: "AI Insights",
 	revenue: "Revenue Analytics",
 	anomalies: "Anomaly Detection",
@@ -8,8 +7,6 @@ export const FLAG_KEY_LABELS: Record<string, string> = {
 };
 
 export const FLAG_KEY_DESCRIPTIONS: Record<string, string> = {
-	monitors:
-		"Track uptime, latency, and receive alerts when your services go down.",
 	insights: "Get AI-powered analytics insights across your websites.",
 	revenue: "Track revenue attribution and conversion analytics.",
 	anomalies: "Detect unusual traffic patterns and performance anomalies.",
@@ -18,7 +15,6 @@ export const FLAG_KEY_DESCRIPTIONS: Record<string, string> = {
 };
 
 export const FLAG_KEY_ROUTES: Record<string, string> = {
-	monitors: "/monitors",
 	insights: "/insights",
 	revenue: "/websites",
 	anomalies: "/websites",

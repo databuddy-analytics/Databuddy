@@ -1,5 +1,7 @@
 "use client";
 
+import { publicConfig } from "@databuddy/env/public";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { AnimatePresence, motion } from "motion/react";
@@ -19,15 +21,14 @@ import {
 import { TopBar } from "@/components/layout/top-bar";
 import { RevenueAttributionTables } from "./revenue-attribution-tables";
 import { RevenueChart } from "./revenue-chart";
-import { StripeLogoIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
-	ArrowsCounterClockwiseIcon,
 	CaretDownIcon,
 	CheckCircleIcon,
 	CheckIcon,
 	ClipboardIcon,
+	CreditCardIcon as StripeLogoIcon,
 	CreditCardIcon,
 	CurrencyDollarIcon,
 	EyeIcon,
@@ -40,7 +41,7 @@ import {
 	UsersIcon,
 } from "@databuddy/ui/icons";
 import { Sheet } from "@databuddy/ui/client";
-import { Button, EmptyState, Input, dayjs } from "@databuddy/ui";
+import { Button, Card, EmptyState, Input, dayjs } from "@databuddy/ui";
 
 interface RevenueContentProps {
 	websiteId: string;
@@ -69,21 +70,16 @@ interface RevenueTimeSeries {
 	transactions: number;
 }
 
-const BASKET_URL =
-	process.env.NEXT_PUBLIC_BASKET_URL || "https://basket.databuddy.cc";
+const BASKET_URL = publicConfig.urls.basket;
 
 const STRIPE_EVENTS = {
 	required: ["payment_intent.succeeded", "charge.refunded"],
-	optional: [
-		"payment_intent.payment_failed",
-		"payment_intent.canceled",
-		"invoice.payment_succeeded",
-	],
+	optional: ["payment_intent.payment_failed", "payment_intent.canceled"],
 };
 
 const PADDLE_EVENTS = {
 	required: ["transaction.completed"],
-	optional: ["transaction.billed"],
+	optional: [],
 };
 
 function formatCurrency(amount: number, currency = "USD"): string {
@@ -704,8 +700,16 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 			</TopBar.Actions>
 
 			{isLoading || hasData ? (
-				<div className="space-y-3 p-4">
-					<div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+				<div className="space-y-3 p-4 sm:space-y-4">
+					<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-5">
+						<StatCard
+							displayMode="text"
+							icon={CurrencyDollarIcon}
+							id="total-revenue"
+							isLoading={isLoading}
+							title="Revenue"
+							value={formatCurrency(overview?.total_revenue ?? 0)}
+						/>
 						<StatCard
 							displayMode="text"
 							icon={ReceiptIcon}
@@ -723,19 +727,6 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							value={formatCurrency(avgTransaction)}
 						/>
 						<StatCard
-							description={
-								overview?.refund_count
-									? `${overview.refund_count} refunds`
-									: undefined
-							}
-							displayMode="text"
-							icon={ArrowsCounterClockwiseIcon}
-							id="refunds"
-							isLoading={isLoading}
-							title="Refunds"
-							value={formatCurrency(Math.abs(overview?.refund_amount ?? 0))}
-						/>
-						<StatCard
 							displayMode="text"
 							icon={UsersIcon}
 							id="unique-customers"
@@ -746,14 +737,14 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 						<StatCard
 							description={
 								overview?.attributed_transactions
-									? `${overview.attributed_transactions} of ${overview.total_transactions} transactions`
+									? `${overview.attributed_transactions} of ${overview.total_transactions} attributed`
 									: undefined
 							}
 							displayMode="text"
 							icon={TrendUpIcon}
 							id="attribution-rate"
 							isLoading={isLoading}
-							title="Attribution Rate"
+							title="Attribution"
 							value={
 								overview?.total_transactions
 									? `${Math.round((overview.attributed_transactions / overview.total_transactions) * 100)}%`
@@ -761,26 +752,26 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							}
 						/>
 					</div>
-					<div className="rounded border bg-sidebar">
-						<div className="flex flex-col items-start justify-between gap-3 border-b px-3 py-2.5 sm:flex-row sm:px-4 sm:py-3">
+
+					<Card>
+						<Card.Header className="flex-row items-center justify-between gap-3 py-3">
 							<div className="min-w-0 flex-1">
-								<h2 className="font-semibold text-base text-sidebar-foreground sm:text-lg">
+								<Card.Title className="truncate text-sm">
 									Revenue Trends
-								</h2>
-								<p className="text-sidebar-foreground/70 text-xs sm:text-sm">
+								</Card.Title>
+								<Card.Description className="line-clamp-2 text-pretty">
 									Revenue, transactions, customers, and refunds over time
-								</p>
+								</Card.Description>
 							</div>
-						</div>
+						</Card.Header>
 						<div className="overflow-x-auto">
 							<RevenueChart
-								className="rounded border-0"
 								data={chartData}
 								height={isMobile ? 250 : 350}
 								isLoading={isLoading}
 							/>
 						</div>
-					</div>
+					</Card>
 
 					<RevenueAttributionTables
 						dateRange={dateRange}
@@ -792,17 +783,21 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 			) : (
 				<EmptyState
 					action={{
-						label: "Configure webhooks",
+						label: isConfigured
+							? "Check webhook settings"
+							: "Configure webhooks",
 						onClick: () => setSettingsOpen(true),
 					}}
 					description={
 						isConfigured
-							? "Revenue appears here once webhooks process transactions."
-							: "Connect Stripe or Paddle to track revenue."
+							? "Revenue will appear here once your payment provider sends webhook events."
+							: "Connect Stripe or Paddle to start tracking revenue and attribution."
 					}
 					icon={<CurrencyDollarIcon />}
 					title={
-						isConfigured ? "No revenue data yet" : "Set up revenue tracking"
+						isConfigured
+							? "Waiting for transactions"
+							: "Set up revenue tracking"
 					}
 				/>
 			)}

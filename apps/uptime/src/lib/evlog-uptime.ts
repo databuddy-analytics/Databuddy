@@ -1,5 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, EnrichContext } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
 import {
@@ -10,14 +12,12 @@ import {
 import { createFsDrain } from "evlog/fs";
 import { createDrainPipeline } from "evlog/pipeline";
 
-const pipeline = createDrainPipeline<DrainContext>({
+const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 	batch: { size: 50, intervalMs: 5000 },
 	maxBufferSize: 2000,
-});
+})(createAxiomDrain());
 
-const axiomDrain = createAxiomDrain();
-
-const batchedAxiomDrain = pipeline(axiomDrain);
+const batchedSuperlogDrain = createBatchedSuperlogDrain();
 
 const devFsLogsDir = join(
 	dirname(fileURLToPath(import.meta.url)),
@@ -28,7 +28,7 @@ const devFsLogsDir = join(
 );
 
 const useLocalEvlogFiles =
-	process.env.NODE_ENV === "development" || process.env.UPTIME_EVLOG_FS === "1";
+	process.env.NODE_ENV === "development" || readBooleanEnv("UPTIME_EVLOG_FS");
 
 const devFsDrain = useLocalEvlogFiles
 	? createFsDrain({ dir: devFsLogsDir, pretty: false })
@@ -83,6 +83,7 @@ export async function uptimeLoggerDrain(ctx: DrainContext): Promise<void> {
 		await devFsDrain(ctx);
 	}
 	batchedAxiomDrain(ctx);
+	batchedSuperlogDrain?.(ctx);
 }
 
 const enrichers = [
@@ -92,11 +93,11 @@ const enrichers = [
 ] as const;
 
 const deploymentMeta: Record<string, string> = {};
-if (process.env.UNKEY_INSTANCE_ID) {
-	deploymentMeta.instance_id = process.env.UNKEY_INSTANCE_ID;
+if (process.env.RAILWAY_REPLICA_ID) {
+	deploymentMeta.instance_id = process.env.RAILWAY_REPLICA_ID;
 }
-if (process.env.UNKEY_DEPLOYMENT_ID) {
-	deploymentMeta.deployment_id = process.env.UNKEY_DEPLOYMENT_ID;
+if (process.env.RAILWAY_DEPLOYMENT_ID) {
+	deploymentMeta.deployment_id = process.env.RAILWAY_DEPLOYMENT_ID;
 }
 
 export function enrichUptimeWideEvent(ctx: EnrichContext): void {
@@ -107,5 +108,5 @@ export function enrichUptimeWideEvent(ctx: EnrichContext): void {
 }
 
 export async function flushBatchedUptimeDrain(): Promise<void> {
-	await batchedAxiomDrain.flush();
+	await Promise.all([batchedAxiomDrain.flush(), batchedSuperlogDrain?.flush()]);
 }

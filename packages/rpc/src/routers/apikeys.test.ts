@@ -270,8 +270,11 @@ describe("keypal hasAllScopes — property invariants", () => {
 		}
 	});
 
-	it("is false for empty required when owned is empty or undefined", () => {
-		expect(hasAllScopes([], [])).toBe(false);
+	it("is true for empty required when owned is empty", () => {
+		expect(hasAllScopes([], [])).toBe(true);
+	});
+
+	it("is false when owned is undefined", () => {
 		expect(hasAllScopes(undefined, [])).toBe(false);
 	});
 });
@@ -312,7 +315,7 @@ describe("keys.create invariants (property)", () => {
 			expect(key.length).toBe(53);
 			expect(key.startsWith("dbdy_")).toBe(true);
 			expect(record.keyHash).toBe(keys.hashKey(key));
-			expect(record.metadata.scopes).toEqual(scopes);
+			expect(record.scopes).toEqual(scopes);
 		}
 	});
 

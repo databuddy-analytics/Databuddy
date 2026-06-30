@@ -3,11 +3,11 @@
 import {
 	ANALYTICS_TABLES,
 	getTableDefinition,
-} from "@databuddy/shared/schema/analytics-tables";
+} from "./schema/analytics-tables";
 import type {
 	AggregateFunction,
 	CustomQueryConfig,
-} from "@databuddy/shared/types/custom-query";
+} from "./types/custom-query";
 import { useMemo } from "react";
 import {
 	Select,

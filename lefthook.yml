@@ -22,7 +22,8 @@ pre-commit:
         - "**/id_ed25519"
         - "**/credentials.json"
       run: |
-        echo "Blocked: staged file(s) may contain secrets:" && echo "{staged_files}" | tr ' ' '\n' | sed 's/^/  - /' && exit 1
+        blocked_files="$(echo "{staged_files}" | tr ' ' '\n' | grep -vE '(^|/)\.env\.example$' || true)"
+        [ -z "$blocked_files" ] || (echo "Blocked: staged file(s) may contain secrets:" && echo "$blocked_files" | sed 's/^/  - /' && exit 1)
     check-types:
       glob: "**/*.{ts,tsx}"
       run: bun run check-types
@@ -45,4 +46,3 @@ pre-push:
     test:
       glob: "**/*.{ts,tsx}"
       run: bun run test
-

@@ -1,16 +1,33 @@
 "use client";
 
-import { DefaultChatTransport } from "ai";
+import { publicConfig } from "@databuddy/env/public";
+
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { useAtomValue } from "jotai";
 import { useMemo, useRef } from "react";
-import { agentThinkingAtom } from "../agent-atoms";
+import { normalizeAIComponentMessages } from "@/lib/ai-components/message-parts";
+import {
+	agentMentionsAtom,
+	agentThinkingAtom,
+	agentTierAtom,
+} from "../agent-atoms";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = publicConfig.urls.api;
 
-export function useAgentChatTransport(chatId: string, websiteId: string) {
+export function useAgentChatTransport(
+	chatId: string,
+	organizationId: string | null,
+	defaultWebsiteId?: string
+) {
 	const thinking = useAtomValue(agentThinkingAtom);
+	const tier = useAtomValue(agentTierAtom);
+	const mentions = useAtomValue(agentMentionsAtom);
 	const thinkingRef = useRef(thinking);
+	const tierRef = useRef(tier);
+	const mentionsRef = useRef(mentions);
 	thinkingRef.current = thinking;
+	tierRef.current = tier;
+	mentionsRef.current = mentions;
 
 	return useMemo(
 		() =>
@@ -18,13 +35,19 @@ export function useAgentChatTransport(chatId: string, websiteId: string) {
 				api: `${API_URL}/v1/agent/chat`,
 				credentials: "include",
 				prepareSendMessagesRequest({ messages }) {
+					const normalizedMessages = normalizeAIComponentMessages(
+						messages as UIMessage[]
+					);
 					return {
 						body: {
 							id: chatId,
-							websiteId,
-							messages,
+							organizationId,
+							websiteId: defaultWebsiteId,
+							mentions: mentionsRef.current.map((m) => m.id),
+							messages: normalizedMessages,
 							timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 							thinking: thinkingRef.current,
+							tier: tierRef.current,
 						},
 					};
 				},
@@ -35,6 +58,6 @@ export function useAgentChatTransport(chatId: string, websiteId: string) {
 					};
 				},
 			}),
-		[chatId, websiteId]
+		[chatId, organizationId, defaultWebsiteId]
 	);
 }

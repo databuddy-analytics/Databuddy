@@ -8,10 +8,12 @@ const nextConfig: NextConfig = {
 	images: {
 		remotePatterns: [
 			{ protocol: "https", hostname: "cdn.databuddy.cc" },
-			{ protocol: "http", hostname: "localhost" },
 			{ protocol: "https", hostname: "api.dicebear.com" },
 			{ protocol: "https", hostname: "avatars.githubusercontent.com" },
 			{ protocol: "https", hostname: "lh3.googleusercontent.com" },
+			...(process.env.NODE_ENV === "production"
+				? []
+				: [{ protocol: "http" as const, hostname: "localhost" }]),
 		],
 	},
 	output: "standalone",

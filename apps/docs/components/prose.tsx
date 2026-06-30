@@ -1,3 +1,4 @@
+import DOMPurify from "isomorphic-dompurify";
 import type { ComponentPropsWithoutRef } from "react";
 import { cn } from "@/lib/utils";
 
@@ -5,7 +6,13 @@ interface ProseProps extends ComponentPropsWithoutRef<"article"> {
 	html: string;
 }
 
+const SANITIZE_CONFIG = {
+	FORBID_TAGS: ["iframe", "object", "embed", "form", "input", "script"],
+	FORBID_ATTR: ["style"],
+};
+
 export function Prose({ children, html, className }: ProseProps) {
+	const sanitized = html ? DOMPurify.sanitize(html, SANITIZE_CONFIG) : "";
 	return (
 		<article
 			className={cn(
@@ -40,7 +47,11 @@ export function Prose({ children, html, className }: ProseProps) {
 				className
 			)}
 		>
-			{html ? <div dangerouslySetInnerHTML={{ __html: html }} /> : children}
+			{sanitized ? (
+				<div dangerouslySetInnerHTML={{ __html: sanitized }} />
+			) : (
+				children
+			)}
 		</article>
 	);
 }

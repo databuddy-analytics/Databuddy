@@ -1,6 +1,6 @@
 "use client";
 
-import type { DateRange } from "@databuddy/shared/types/analytics";
+import type { DateRange } from "@/types/analytics";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useAtom } from "jotai";
 import { useMemo } from "react";
@@ -28,6 +28,11 @@ export function RevenueAttributionTables({
 
 	const queries = useMemo(
 		() => [
+			{
+				id: "revenue-products",
+				parameters: ["revenue_by_product"],
+				filters,
+			},
 			{
 				id: "revenue-traffic",
 				parameters: [
@@ -68,6 +73,15 @@ export function RevenueAttributionTables({
 	);
 
 	const isLoading = queryLoading;
+
+	const productData = useMemo(
+		() =>
+			(getDataForQuery(
+				"revenue-products",
+				"revenue_by_product"
+			) as RevenueEntry[]) || [],
+		[getDataForQuery]
+	);
 
 	const trafficData = useMemo(
 		() => ({
@@ -138,6 +152,10 @@ export function RevenueAttributionTables({
 		[getDataForQuery]
 	);
 
+	const productColumns = useMemo(
+		() => createRevenueColumns({ type: "default", nameLabel: "Product" }),
+		[]
+	);
 	const referrerColumns = useMemo(
 		() => createRevenueColumns({ type: "referrer" }),
 		[]
@@ -298,35 +316,55 @@ export function RevenueAttributionTables({
 	);
 
 	return (
-		<div className="space-y-3">
-			<div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-				<DataTable
-					description="Revenue by traffic source with attribution"
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					tabs={trafficTabs}
-					title="Traffic Sources"
-				/>
-
-				<DataTable
-					description="Revenue by geographic location"
-					isLoading={isLoading}
-					minHeight={350}
-					onAddFilter={onAddFilter}
-					tabs={geoTabs}
-					title="Geographic"
-				/>
-			</div>
+		<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
+			<DataTable
+				description="Revenue by traffic source with attribution"
+				isLoading={isLoading}
+				minHeight={350}
+				onAddFilter={onAddFilter}
+				showBrandInHeader
+				tabs={trafficTabs}
+				title="Traffic Sources"
+			/>
 
 			<DataTable
-				description="Revenue by device and browser with attribution"
+				description="Revenue breakdown by product"
+				initialPageSize={8}
 				isLoading={isLoading}
-				minHeight={300}
+				minHeight={350}
 				onAddFilter={onAddFilter}
-				tabs={techTabs}
-				title="Technology"
+				tabs={[
+					{
+						id: "products",
+						label: "Products",
+						data: productData,
+						columns: productColumns as ColumnDef<RevenueEntry, unknown>[],
+					},
+				]}
+				title="Products"
 			/>
+
+			<DataTable
+				description="Revenue by geographic location"
+				isLoading={isLoading}
+				minHeight={350}
+				onAddFilter={onAddFilter}
+				tabs={geoTabs}
+				title="Geographic"
+			/>
+
+			{techTabs.map((tab) => (
+				<DataTable
+					description={`Revenue by ${tab.label.toLowerCase()}`}
+					initialPageSize={8}
+					isLoading={isLoading}
+					key={tab.id}
+					minHeight={350}
+					onAddFilter={onAddFilter}
+					tabs={[tab]}
+					title={tab.label}
+				/>
+			))}
 		</div>
 	);
 }

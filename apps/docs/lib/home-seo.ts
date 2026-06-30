@@ -2,9 +2,9 @@ import { SITE_URL } from "@/app/util/constants";
 
 export const homePageSeo = {
 	title:
-		"AI-Native Analytics - Ask Questions, Get Answers, Not Dashboards",
+		"Lightweight Analytics for Developers - One Script, Six Tools, Under 30 KB",
 	description:
-		"Ask your data anything in plain English. AI agent, error tracking, web vitals, and feature flags in one script under 30 KB. No cookies, GDPR compliant. Open-source Google Analytics alternative.",
+		"Analytics, error tracking, web vitals, feature flags, and AI insights in one script under 30 KB. No cookies, GDPR compliant. Free for small projects. Open-source Google Analytics alternative for developers.",
 	url: SITE_URL,
 } as const;
 
@@ -15,9 +15,9 @@ export interface LandingFaqItem {
 
 export const homeFaqItems: LandingFaqItem[] = [
 	{
-		question: "What do you mean by one layer?",
+		question: "What do you mean by six tools in one script?",
 		answer:
-			"Most teams pay for separate analytics, error tracking, feature flag, and performance monitoring tools. Databuddy combines all four into one connected system - one script, one dashboard, one bill. You see the full picture without switching tabs.",
+			"Most teams pay for separate analytics, error tracking, web vitals monitoring, feature flags, link shortening, and AI insight tools. Databuddy combines all six into one connected system - one script, one dashboard, one bill. You see the full picture without switching tabs.",
 	},
 	{
 		question: "How is Databuddy different from Google Analytics?",

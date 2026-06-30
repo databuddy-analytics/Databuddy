@@ -1,14 +1,15 @@
 "use client";
 
-import type { IconWeight } from "@phosphor-icons/react";
+type IconWeight = "regular" | "bold" | "fill" | "duotone";
+
 import {
-	ChatCircleTextIcon,
+	ChatTextIcon as ChatCircleTextIcon,
 	ClockCounterClockwiseIcon,
 	GitBranchIcon,
 	GlobeIcon,
 	ShieldCheckIcon,
 	StackIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 
 interface Principle {

@@ -1,8 +1,6 @@
 import { faker } from "@faker-js/faker";
-import { eq } from "drizzle-orm";
 import { clickHouse, TABLE_NAMES } from "./clickhouse/client";
 import { db } from "./client";
-import { websites } from "./drizzle/schema";
 
 const clientId = process.argv[2] || faker.string.uuid();
 const eventCount = Number(process.argv[3]) || 10_000;
@@ -78,7 +76,7 @@ function generatePageTitle(path: string): string {
 
 (async () => {
 	const website = await db.query.websites.findFirst({
-		where: eq(websites.id, clientId),
+		where: { id: clientId },
 		columns: { domain: true },
 	});
 

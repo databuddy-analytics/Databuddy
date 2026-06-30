@@ -1,6 +1,6 @@
 import { db, eq } from "@databuddy/db";
 import { uptimeSchedules } from "@databuddy/db/schema";
-import { ratelimit } from "@databuddy/redis";
+import { ratelimit } from "@databuddy/redis/rate-limit";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import {

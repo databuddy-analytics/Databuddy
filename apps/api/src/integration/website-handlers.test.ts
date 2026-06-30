@@ -1,6 +1,6 @@
 import "@databuddy/test/env";
 
-import { describe, it, expect, beforeEach, afterAll } from "bun:test";
+import { describe, it, expect, beforeEach, afterAll } from "vitest";
 import { appRouter } from "@databuddy/rpc";
 import {
 	reset,
@@ -21,6 +21,8 @@ const handler = {
 	create: appRouter.websites.create["~orpc"].handler,
 	list: appRouter.websites.list["~orpc"].handler,
 	getById: appRouter.websites.getById["~orpc"].handler,
+	getPublicSummary: appRouter.websites.getPublicSummary["~orpc"].handler,
+	updateSettings: appRouter.websites.updateSettings["~orpc"].handler,
 };
 
 beforeEach(() => reset());
@@ -186,7 +188,7 @@ describe("websites.getById", () => {
 		expect(result.domain).toBe(site.domain);
 	});
 
-	iit("returns public website for unauthenticated user", async () => {
+	iit("rejects public website for unauthenticated user", async () => {
 		const org = await insertOrganization();
 		const owner = await signUp();
 		await addToOrganization(owner.id, org.id, "owner");
@@ -195,12 +197,20 @@ describe("websites.getById", () => {
 			isPublic: true,
 		});
 
-		const result = await handler.getById({
+		await expectCode(
+			handler.getById({
+				context: context(),
+				input: { id: site.id },
+			}),
+			"UNAUTHORIZED"
+		);
+
+		const summary = await handler.getPublicSummary({
 			context: context(),
 			input: { id: site.id },
 		});
-
-		expect(result.id).toBe(site.id);
+		expect(summary.id).toBe(site.id);
+		expect(summary).not.toHaveProperty("organizationId");
 	});
 
 	iit("rejects private website for unauthenticated user", async () => {
@@ -230,6 +240,148 @@ describe("websites.getById", () => {
 				input: { id: "nonexistent" },
 			}),
 			"NOT_FOUND",
+		);
+	});
+});
+
+describe("websites.updateSettings", () => {
+	iit("preserves allowedIps when only allowedOrigins is updated", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "admin");
+		const site = await insertWebsite({
+			organizationId: org.id,
+			settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["old.example.com"] },
+		});
+
+		const result = await handler.updateSettings({
+			context: userContext(user, org.id),
+			input: {
+				id: site.id,
+				settings: { allowedOrigins: ["new.example.com"] },
+			},
+		});
+
+		expect(result.settings).toEqual({
+			allowedIps: ["10.0.0.1"],
+			allowedOrigins: ["new.example.com"],
+		});
+	});
+
+	iit("preserves allowedOrigins when only allowedIps is updated", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "admin");
+		const site = await insertWebsite({
+			organizationId: org.id,
+			settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] },
+		});
+
+		const result = await handler.updateSettings({
+			context: userContext(user, org.id),
+			input: { id: site.id, settings: { allowedIps: ["10.0.0.2"] } },
+		});
+
+		expect(result.settings).toEqual({
+			allowedIps: ["10.0.0.2"],
+			allowedOrigins: ["cal.com"],
+		});
+	});
+
+	iit("treats an empty settings patch as a no-op", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "admin");
+		const initial = {
+			allowedIps: ["10.0.0.1"],
+			allowedOrigins: ["cal.com"],
+		};
+		const site = await insertWebsite({
+			organizationId: org.id,
+			settings: initial,
+		});
+
+		const result = await handler.updateSettings({
+			context: userContext(user, org.id),
+			input: { id: site.id, settings: {} },
+		});
+
+		expect(result.settings).toEqual(initial);
+	});
+
+	iit("treats a missing settings field as a no-op", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "admin");
+		const initial = {
+			allowedIps: ["10.0.0.1"],
+			allowedOrigins: ["cal.com"],
+		};
+		const site = await insertWebsite({
+			organizationId: org.id,
+			settings: initial,
+		});
+
+		const result = await handler.updateSettings({
+			context: userContext(user, org.id),
+			input: { id: site.id },
+		});
+
+		expect(result.settings).toEqual(initial);
+	});
+
+	iit("clears a single list via an empty array without touching the other", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "admin");
+		const site = await insertWebsite({
+			organizationId: org.id,
+			settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] },
+		});
+
+		const result = await handler.updateSettings({
+			context: userContext(user, org.id),
+			input: { id: site.id, settings: { allowedOrigins: [] } },
+		});
+
+		expect(result.settings).toEqual({ allowedIps: ["10.0.0.1"] });
+	});
+
+	iit("clears all settings when both lists are emptied", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "admin");
+		const site = await insertWebsite({
+			organizationId: org.id,
+			settings: { allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] },
+		});
+
+		const result = await handler.updateSettings({
+			context: userContext(user, org.id),
+			input: {
+				id: site.id,
+				settings: { allowedIps: [], allowedOrigins: [] },
+			},
+		});
+
+		expect(result.settings).toBeNull();
+	});
+
+	iit("rejects viewer role from updating settings", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "viewer");
+		const site = await insertWebsite({ organizationId: org.id });
+
+		await expectCode(
+			handler.updateSettings({
+				context: userContext(user, org.id),
+				input: {
+					id: site.id,
+					settings: { allowedOrigins: ["cal.com"] },
+				},
+			}),
+			"FORBIDDEN",
 		);
 	});
 });

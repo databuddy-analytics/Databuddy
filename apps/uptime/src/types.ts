@@ -30,6 +30,8 @@ export interface UptimeData {
 	user_agent: string;
 }
 
+export type ScheduleLookupReason = "not_found" | "malformed" | "transient";
+
 export type ActionResult<T> =
 	| { success: true; data: T }
-	| { success: false; error: string };
+	| { success: false; error: string; reason?: ScheduleLookupReason };

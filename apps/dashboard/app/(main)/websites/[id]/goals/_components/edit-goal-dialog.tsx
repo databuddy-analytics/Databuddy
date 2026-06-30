@@ -5,11 +5,15 @@ import { FilterRow } from "@/components/ui/filter-row";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
 import { goalFunnelOperatorOptions, useFilters } from "@/hooks/use-filters";
 import type { CreateGoalData, Goal } from "@/hooks/use-goals";
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { GoalFilter } from "@databuddy/shared/types/api";
+import { goalFunnelFilterOptions } from "@/lib/filter-options";
+import type { GoalFilter } from "@/types/api";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FunnelSimpleIcon } from "@phosphor-icons/react/dist/ssr";
-import { GearIcon, PlusIcon, TargetIcon as Target } from "@databuddy/ui/icons";
+import {
+	FunnelIcon as FunnelSimpleIcon,
+	GearIcon,
+	PlusIcon,
+	TargetIcon as Target,
+} from "@databuddy/ui/icons";
 import { Button, Divider, Field, Input, Text } from "@databuddy/ui";
 import { Accordion, DropdownMenu, Sheet, Switch } from "@databuddy/ui/client";
 
@@ -205,10 +209,7 @@ export function EditGoalDialog({
 					</div>
 				</Sheet.Header>
 
-				<form
-					className="flex flex-1 flex-col overflow-hidden"
-					onSubmit={handleSubmit}
-				>
+				<Sheet.Form onSubmit={handleSubmit}>
 					<Sheet.Body className="space-y-5">
 						<div className="grid gap-3 sm:grid-cols-2">
 							<Field>
@@ -325,7 +326,7 @@ export function EditGoalDialog({
 												{formData.filters.map((filter, index) => (
 													<FilterRow
 														field={filter.field}
-														fieldOptions={filterOptions}
+														fieldOptions={goalFunnelFilterOptions}
 														key={`filter-${index}`}
 														onFieldChange={(value) =>
 															updateFilter(index, "field", value)
@@ -340,7 +341,11 @@ export function EditGoalDialog({
 														operator={filter.operator || "equals"}
 														operatorOptions={goalFunnelOperatorOptions}
 														suggestions={getSuggestions(filter.field)}
-														value={(filter.value as string) || ""}
+														value={
+															Array.isArray(filter.value)
+																? filter.value.join(", ")
+																: (filter.value ?? "")
+														}
 													/>
 												))}
 											</div>
@@ -369,7 +374,7 @@ export function EditGoalDialog({
 							{isCreateMode ? "Create Goal" : "Save Changes"}
 						</Button>
 					</Sheet.Footer>
-				</form>
+				</Sheet.Form>
 				<Sheet.Close />
 			</Sheet.Content>
 		</Sheet>

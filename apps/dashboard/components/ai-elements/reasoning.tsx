@@ -10,7 +10,10 @@ import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import type { ComponentProps, ReactNode } from "react";
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Streamdown } from "streamdown";
-import { DotMatrixLoader, useRandomDotMatrixLoader } from "./dotmatrix-loader";
+import {
+	DotMatrixLoader,
+	useRandomDotMatrixLoader,
+} from "@/components/ui/dotmatrix";
 import { Shimmer } from "./shimmer";
 import { useThinkingPhrase } from "./thinking-phrases";
 import { CaretDownIcon } from "@databuddy/ui/icons";

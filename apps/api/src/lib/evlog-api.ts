@@ -1,5 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readBooleanEnv } from "@databuddy/env/boolean";
+import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, EnrichContext } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
 import {
@@ -10,14 +12,12 @@ import {
 import { createFsDrain } from "evlog/fs";
 import { createDrainPipeline } from "evlog/pipeline";
 
-const pipeline = createDrainPipeline<DrainContext>({
+const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 	batch: { size: 50, intervalMs: 5000 },
 	maxBufferSize: 2000,
-});
+})(createAxiomDrain());
 
-const axiomDrain = createAxiomDrain();
-
-const batchedAxiomDrain = pipeline(axiomDrain);
+const batchedSuperlogDrain = createBatchedSuperlogDrain();
 
 const devFsLogsDir = join(
 	dirname(fileURLToPath(import.meta.url)),
@@ -28,7 +28,7 @@ const devFsLogsDir = join(
 );
 
 const useLocalEvlogFiles =
-	process.env.NODE_ENV === "development" || process.env.API_EVLOG_FS === "1";
+	process.env.NODE_ENV === "development" || readBooleanEnv("API_EVLOG_FS");
 
 const devFsDrain = useLocalEvlogFiles
 	? createFsDrain({ dir: devFsLogsDir, pretty: false })
@@ -36,20 +36,28 @@ const devFsDrain = useLocalEvlogFiles
 
 const DURATION_REGEX = /^([\d.]+)(ms|s)$/;
 
-/**
- * Before Axiom: fix `error` string vs object collision; downgrade 4xx to warn.
- */
+function stripErrorCauseData(err: Record<string, unknown>): void {
+	const cause = err.cause;
+	if (cause && typeof cause === "object" && !Array.isArray(cause)) {
+		(cause as Record<string, unknown>).data = undefined;
+	}
+}
+
 function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
 	if (typeof event.error === "string") {
 		event.error_message = event.error;
 		event.error = undefined;
 	}
 
+	const err = event.error;
+	if (err && typeof err === "object" && !Array.isArray(err)) {
+		stripErrorCauseData(err as Record<string, unknown>);
+	}
+
 	if (event.level !== "error") {
 		return;
 	}
 
-	const err = event.error;
 	if (!err || typeof err !== "object" || Array.isArray(err)) {
 		return;
 	}
@@ -74,10 +82,6 @@ function parseDurationMs(duration: unknown): number | undefined {
 		: Math.round(Number.parseFloat(match[1]));
 }
 
-/**
- * In development, writes NDJSON wide events to `apps/api/.evlog/logs/` (analyze-logs skill)
- * and still sends to Axiom via the batched pipeline. Production: Axiom only.
- */
 export async function apiLoggerDrain(ctx: DrainContext): Promise<void> {
 	normalizeWideEventForAxiom(ctx.event as Record<string, unknown>);
 
@@ -90,6 +94,7 @@ export async function apiLoggerDrain(ctx: DrainContext): Promise<void> {
 		await devFsDrain(ctx);
 	}
 	batchedAxiomDrain(ctx);
+	batchedSuperlogDrain?.(ctx);
 }
 
 const enrichers = [
@@ -105,5 +110,5 @@ export function enrichApiWideEvent(ctx: EnrichContext): void {
 }
 
 export async function flushBatchedApiDrain(): Promise<void> {
-	await batchedAxiomDrain.flush();
+	await Promise.all([batchedAxiomDrain.flush(), batchedSuperlogDrain?.flush()]);
 }

@@ -5,15 +5,26 @@ import {
 	hasWebsiteScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
-import { mergeWideEvent, record } from "@/lib/tracing";
-import { and, db, eq, isNull, or, withTransaction } from "@databuddy/db";
+import { mergeWideEvent } from "@databuddy/ai/lib/tracing";
+import {
+	and,
+	db,
+	eq,
+	inArray,
+	isNull,
+	or,
+	withTransaction,
+} from "@databuddy/db";
 import {
 	flagChangeEvents,
+	type FlagUserRule,
 	type FlagVariant,
 	flags,
+	websites,
 } from "@databuddy/db/schema";
-import { cacheable } from "@databuddy/redis";
-import { invalidateFlagCache } from "@databuddy/shared/flags/utils";
+import { cacheNamespaces, cacheTags, cacheable } from "@databuddy/redis";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
+import { invalidateFlagCache } from "@databuddy/rpc/flags";
 import { randomUUIDv7 } from "bun";
 import { Elysia, t } from "elysia";
 import { useLogger } from "evlog/elysia";
@@ -42,31 +53,18 @@ interface UserContext {
 	userId?: string;
 }
 
-interface FlagRule {
-	batch: boolean;
-	batchValues?: string[];
-	enabled: boolean;
-	field?: string;
+type FlagRule = Omit<FlagUserRule, "operator" | "value" | "values"> & {
 	operator: string;
-	type: "user_id" | "email" | "property";
 	value?: unknown;
 	values?: unknown[];
-}
+};
 
 interface FlagResult {
 	enabled: boolean;
 	payload: unknown;
 	reason: string;
-	value: boolean | string | number | unknown;
+	value: unknown;
 	variant?: string;
-}
-
-interface Variant {
-	description?: string;
-	key: string;
-	type: "string" | "number";
-	value: string | number;
-	weight?: number;
 }
 
 interface TargetGroupData {
@@ -75,17 +73,17 @@ interface TargetGroupData {
 }
 
 interface EvaluableFlag {
-	defaultValue: string | number | boolean | unknown;
+	defaultValue: boolean;
+	dependencies?: string[] | null;
 	key: string;
 	payload?: unknown;
 	resolvedTargetGroups?: TargetGroupData[];
 	rolloutBy?: string | null;
 	rolloutPercentage: number | null;
-	rules?: FlagRule[] | unknown;
+	rules?: FlagRule[] | null;
 	status: "active" | "inactive" | "archived";
-	targetGroupIds?: string[];
 	type: "boolean" | "rollout" | "multivariant";
-	variants?: Variant[];
+	variants?: FlagVariant[] | null;
 }
 
 const flagQuerySchema = t.Object({
@@ -112,23 +110,20 @@ const bulkFlagQuerySchema = t.Object({
 
 const getCachedFlag = cacheable(
 	async (key: string, clientId: string, environment?: string) => {
-		const scopeCondition = or(
-			eq(flags.websiteId, clientId),
-			eq(flags.organizationId, clientId)
-		);
-
-		const environmentCondition = environment
-			? eq(flags.environment, environment)
-			: isNull(flags.environment);
-
 		const flag = await db.query.flags.findFirst({
-			where: and(
-				eq(flags.key, key),
-				environmentCondition,
-				isNull(flags.deletedAt),
-				eq(flags.status, "active"),
-				scopeCondition
-			),
+			where: {
+				RAW: (t) =>
+					and(
+						eq(t.key, key),
+						environment
+							? eq(t.environment, environment)
+							: isNull(t.environment),
+						isNull(t.deletedAt),
+						eq(t.status, "active"),
+						isNull(t.userId),
+						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
+					),
+			},
 			with: {
 				flagsToTargetGroups: {
 					with: {
@@ -146,7 +141,7 @@ const getCachedFlag = cacheable(
 			.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
 			.map((ftg) => ({
 				id: ftg.targetGroup.id,
-				rules: (ftg.targetGroup.rules as FlagRule[]) || [],
+				rules: ftg.targetGroup.rules,
 			}));
 
 		return {
@@ -156,30 +151,31 @@ const getCachedFlag = cacheable(
 	},
 	{
 		expireInSec: 30,
-		prefix: "flag",
+		prefix: cacheNamespaces.flag,
 		staleWhileRevalidate: true,
 		staleTime: 15,
+		tags: (_result, key, clientId) => [
+			cacheTags.flagClient(clientId),
+			cacheTags.flagKey(clientId, key),
+		],
 	}
 );
 
 const getCachedFlagsForClient = cacheable(
 	async (clientId: string, environment?: string) => {
-		const scopeCondition = or(
-			eq(flags.websiteId, clientId),
-			eq(flags.organizationId, clientId)
-		);
-
-		const environmentCondition = environment
-			? eq(flags.environment, environment)
-			: isNull(flags.environment);
-
 		const flagsList = await db.query.flags.findMany({
-			where: and(
-				isNull(flags.deletedAt),
-				eq(flags.status, "active"),
-				environmentCondition,
-				scopeCondition
-			),
+			where: {
+				RAW: (t) =>
+					and(
+						isNull(t.deletedAt),
+						eq(t.status, "active"),
+						isNull(t.userId),
+						environment
+							? eq(t.environment, environment)
+							: isNull(t.environment),
+						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
+					),
+			},
 			with: {
 				flagsToTargetGroups: {
 					with: {
@@ -194,7 +190,7 @@ const getCachedFlagsForClient = cacheable(
 				.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
 				.map((ftg) => ({
 					id: ftg.targetGroup.id,
-					rules: (ftg.targetGroup.rules as FlagRule[]) || [],
+					rules: ftg.targetGroup.rules,
 				}));
 
 			return {
@@ -205,31 +201,56 @@ const getCachedFlagsForClient = cacheable(
 	},
 	{
 		expireInSec: 30,
-		prefix: "flags-client",
+		prefix: cacheNamespaces.flagsClient,
 		staleWhileRevalidate: true,
 		staleTime: 15,
+		tags: (_result, clientId) => [cacheTags.flagClient(clientId)],
+	}
+);
+
+const getCachedFlagDefinitionsForClient = cacheable(
+	async (clientId: string, environment?: string) => {
+		const flagsList = await db.query.flags.findMany({
+			where: {
+				RAW: (t) =>
+					and(
+						isNull(t.deletedAt),
+						isNull(t.userId),
+						environment
+							? eq(t.environment, environment)
+							: isNull(t.environment),
+						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
+					),
+			},
+			orderBy: { createdAt: "desc" },
+		});
+
+		return flagsList;
+	},
+	{
+		expireInSec: 30,
+		prefix: cacheNamespaces.flagsDefinitions,
+		staleWhileRevalidate: true,
+		staleTime: 15,
+		tags: (_result, clientId) => [cacheTags.flagClient(clientId)],
 	}
 );
 
 const getCachedFlagsForUser = cacheable(
 	async (userId: string, clientId: string, environment?: string) => {
-		const scopeCondition = or(
-			eq(flags.websiteId, clientId),
-			eq(flags.organizationId, clientId)
-		);
-
-		const environmentCondition = environment
-			? eq(flags.environment, environment)
-			: isNull(flags.environment);
-
 		const flagsList = await db.query.flags.findMany({
-			where: and(
-				isNull(flags.deletedAt),
-				eq(flags.status, "active"),
-				environmentCondition,
-				eq(flags.userId, userId),
-				scopeCondition
-			),
+			where: {
+				RAW: (t) =>
+					and(
+						isNull(t.deletedAt),
+						eq(t.status, "active"),
+						environment
+							? eq(t.environment, environment)
+							: isNull(t.environment),
+						eq(t.userId, userId),
+						or(eq(t.websiteId, clientId), eq(t.organizationId, clientId))
+					),
+			},
 			with: {
 				flagsToTargetGroups: {
 					with: {
@@ -244,7 +265,7 @@ const getCachedFlagsForUser = cacheable(
 				.filter((ftg) => ftg.targetGroup && !ftg.targetGroup.deletedAt)
 				.map((ftg) => ({
 					id: ftg.targetGroup.id,
-					rules: (ftg.targetGroup.rules as FlagRule[]) || [],
+					rules: ftg.targetGroup.rules,
 				}));
 
 			return {
@@ -255,9 +276,13 @@ const getCachedFlagsForUser = cacheable(
 	},
 	{
 		expireInSec: 30,
-		prefix: "flags-user",
+		prefix: cacheNamespaces.flagsUser,
 		staleWhileRevalidate: true,
 		staleTime: 15,
+		tags: (_result, userId, clientId) => [
+			cacheTags.flagClient(clientId),
+			cacheTags.flagUser(clientId, userId),
+		],
 	}
 );
 
@@ -408,7 +433,7 @@ export function evaluateRule(rule: FlagRule, context: UserContext): boolean {
 export function selectVariant(
 	flag: EvaluableFlag,
 	context: UserContext
-): { value: string | number | boolean | unknown; variant: string } {
+): { value: unknown; variant: string } {
 	if (!flag.variants || flag.variants.length === 0) {
 		return { value: flag.defaultValue, variant: "default" };
 	}
@@ -417,9 +442,7 @@ export function selectVariant(
 	const hash = hashString(`${flag.key}:variant:${identifier}`);
 	const percentage = hash % 100;
 
-	const hasAnyWeight = flag.variants.some(
-		(v: Variant) => typeof v?.weight === "number"
-	);
+	const hasAnyWeight = flag.variants.some((v) => typeof v?.weight === "number");
 
 	if (!hasAnyWeight) {
 		const idx = hash % flag.variants.length;
@@ -445,12 +468,61 @@ export function selectVariant(
 	return { value: lastVariant.value, variant: lastVariant.key };
 }
 
+function dependencyFailure(): FlagResult {
+	return {
+		enabled: false,
+		value: false,
+		payload: null,
+		reason: "DEPENDENCY_NOT_SATISFIED",
+	};
+}
+
+function dependenciesSatisfiedFromList(
+	flag: EvaluableFlag,
+	flagsList: EvaluableFlag[]
+): boolean {
+	const dependencies = flag.dependencies ?? [];
+	if (dependencies.length === 0) {
+		return true;
+	}
+	const byKey = new Map(flagsList.map((item) => [item.key, item]));
+	return dependencies.every((key) => byKey.get(key)?.status === "active");
+}
+
+async function dependenciesSatisfied(
+	flag: EvaluableFlag,
+	clientId: string,
+	environment?: string
+): Promise<boolean> {
+	const dependencies = flag.dependencies ?? [];
+	if (dependencies.length === 0) {
+		return true;
+	}
+
+	const rows = await db
+		.select({ key: flags.key })
+		.from(flags)
+		.where(
+			and(
+				isNull(flags.deletedAt),
+				eq(flags.status, "active"),
+				environment
+					? eq(flags.environment, environment)
+					: isNull(flags.environment),
+				inArray(flags.key, dependencies),
+				or(eq(flags.websiteId, clientId), eq(flags.organizationId, clientId))
+			)
+		);
+
+	return rows.length === new Set(dependencies).size;
+}
+
 export function evaluateFlag(
 	flag: EvaluableFlag,
 	context: UserContext
 ): FlagResult {
-	if (flag.rules && Array.isArray(flag.rules) && flag.rules.length > 0) {
-		for (const rule of flag.rules as FlagRule[]) {
+	if (flag.rules?.length) {
+		for (const rule of flag.rules) {
 			if (evaluateRule(rule, context)) {
 				return {
 					enabled: rule.enabled,
@@ -462,19 +534,15 @@ export function evaluateFlag(
 		}
 	}
 
-	if (flag.resolvedTargetGroups && flag.resolvedTargetGroups.length > 0) {
-		for (const group of flag.resolvedTargetGroups) {
-			if (group.rules && Array.isArray(group.rules)) {
-				for (const rule of group.rules) {
-					if (evaluateRule(rule, context)) {
-						return {
-							enabled: rule.enabled,
-							value: rule.enabled,
-							payload: rule.enabled ? flag.payload : null,
-							reason: "TARGET_GROUP_MATCH",
-						};
-					}
-				}
+	for (const group of flag.resolvedTargetGroups ?? []) {
+		for (const rule of group.rules) {
+			if (evaluateRule(rule, context)) {
+				return {
+					enabled: rule.enabled,
+					value: rule.enabled,
+					payload: rule.enabled ? flag.payload : null,
+					reason: "TARGET_GROUP_MATCH",
+				};
 			}
 		}
 	}
@@ -533,6 +601,42 @@ export function evaluateFlag(
 	};
 }
 
+const PUBLIC_EVAL_RATE_PER_MINUTE = 600;
+
+function clientIpForFlags(request: Request): string {
+	return (
+		request.headers.get("cf-connecting-ip") ||
+		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+		request.headers.get("x-real-ip") ||
+		"unknown"
+	);
+}
+
+interface ElysiaSet {
+	headers: Record<string, unknown>;
+	status?: unknown;
+}
+
+async function enforcePublicFlagRateLimit(
+	request: Request,
+	clientId: string | undefined,
+	set: ElysiaSet
+): Promise<boolean> {
+	const ip = clientIpForFlags(request);
+	const key = clientId
+		? `flags:eval:${clientId}:${ip}`
+		: `flags:eval:anon:${ip}`;
+	const rl = await ratelimit(key, PUBLIC_EVAL_RATE_PER_MINUTE, 60);
+	if (rl.success) {
+		return true;
+	}
+	for (const [name, value] of Object.entries(getRateLimitHeaders(rl))) {
+		set.headers[name] = value;
+	}
+	set.status = 429;
+	return false;
+}
+
 const FLAG_CACHE_CONTROL =
 	"public, max-age=15, s-maxage=30, stale-while-revalidate=15";
 
@@ -554,17 +658,30 @@ async function resolveFlagAdmin(
 	clientId: string
 ): Promise<FlagAdminSuccess | FlagAdminFailure> {
 	if (!isApiKeyPresent(headers)) {
-		return { ok: false, status: 401, error: "API key required" };
+		return { ok: false, status: 401, error: "Authentication required" };
 	}
 	const apiKey = await getApiKeyFromHeader(headers);
 	if (!apiKey) {
-		return { ok: false, status: 401, error: "Invalid or expired API key" };
+		return { ok: false, status: 401, error: "Authentication required" };
 	}
-	const hasWebsiteAccess = hasWebsiteScope(apiKey, clientId, "manage:flags");
 	const hasOrgAccess =
 		apiKey.organizationId === clientId && hasKeyScope(apiKey, "manage:flags");
+	let hasWebsiteAccess = false;
+	if (hasWebsiteScope(apiKey, clientId, "manage:flags")) {
+		const [website] = await db
+			.select({ id: websites.id })
+			.from(websites)
+			.where(
+				and(
+					eq(websites.id, clientId),
+					eq(websites.organizationId, apiKey.organizationId ?? "")
+				)
+			)
+			.limit(1);
+		hasWebsiteAccess = Boolean(website);
+	}
 	if (!(hasWebsiteAccess || hasOrgAccess)) {
-		return { ok: false, status: 403, error: "Insufficient permissions" };
+		return { ok: false, status: 403, error: "Forbidden" };
 	}
 	return { ok: true, apiKey };
 }
@@ -573,7 +690,10 @@ function invalidateMemCacheForClient(clientId: string) {
 	const clientFragment = `:${clientId}:`;
 	for (const key of memCache.keys()) {
 		if (
-			(key.startsWith("fc:") || key.startsWith("f:")) &&
+			(key.startsWith("fc:") ||
+				key.startsWith("fd:") ||
+				key.startsWith("f:") ||
+				key.startsWith("fu:")) &&
 			key.includes(clientFragment)
 		) {
 			memCache.delete(key);
@@ -614,7 +734,7 @@ function buildFlagChangeSnapshot(flag: typeof flags.$inferSelect) {
 const variantBodySchema = t.Object({
 	key: t.String({ minLength: 1 }),
 	type: t.Union([t.Literal("string"), t.Literal("number"), t.Literal("json")]),
-	value: t.Union([t.String(), t.Number()]),
+	value: t.Any(),
 	description: t.Optional(t.String()),
 	weight: t.Optional(t.Number()),
 });
@@ -631,7 +751,16 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	})
 	.get(
 		"/evaluate",
-		async function evaluateFlagEndpoint({ query, set }) {
+		async function evaluateFlagEndpoint({ query, set, request }) {
+			if (!(await enforcePublicFlagRateLimit(request, query.clientId, set))) {
+				return {
+					enabled: false,
+					value: false,
+					payload: null,
+					reason: "RATE_LIMITED",
+				};
+			}
+
 			mergeWideEvent({
 				flag_key: query.key || "",
 				flag_client_id: query.clientId || "",
@@ -660,21 +789,16 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					properties: parseProperties(query.properties),
 				};
 
-				let flag = await record("getCachedFlag", () =>
-					fromMemory(
-						`f:${query.key}:${query.clientId}:${query.environment || ""}`,
-						() => getCachedFlag(query.key, query.clientId, query.environment)
-					)
+				let flag = await fromMemory(
+					`f:${query.key}:${query.clientId}:${query.environment || ""}`,
+					() => getCachedFlag(query.key, query.clientId, query.environment)
 				);
 
 				if (!flag && context.userId) {
 					const uid = context.userId;
-					const userFlags = await record("getCachedFlagsForUser", () =>
-						fromMemory(
-							`fu:${uid}:${query.clientId}:${query.environment || ""}`,
-							() =>
-								getCachedFlagsForUser(uid, query.clientId, query.environment)
-						)
+					const userFlags = await fromMemory(
+						`fu:${uid}:${query.clientId}:${query.environment || ""}`,
+						() => getCachedFlagsForUser(uid, query.clientId, query.environment)
 					);
 					flag = userFlags.find((f) => f.key === query.key) ?? null;
 				}
@@ -689,7 +813,13 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					};
 				}
 
-				const result = evaluateFlag(flag as unknown as EvaluableFlag, context);
+				const result = (await dependenciesSatisfied(
+					flag,
+					query.clientId,
+					query.environment
+				))
+					? evaluateFlag(flag, context)
+					: dependencyFailure();
 				mergeWideEvent({
 					flag_found: true,
 					flag_type: flag.type,
@@ -718,7 +848,11 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 	.get(
 		"/bulk",
-		async function bulkEvaluateFlags({ query, set }) {
+		async function bulkEvaluateFlags({ query, set, request }) {
+			if (!(await enforcePublicFlagRateLimit(request, query.clientId, set))) {
+				return { flags: [], reason: "RATE_LIMITED" };
+			}
+
 			mergeWideEvent({
 				flag_bulk: true,
 				flag_client_id: query.clientId || "",
@@ -755,22 +889,18 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						)
 					: null;
 
-				const clientFlags = await record("getCachedFlagsForClient", () =>
-					fromMemory(`fc:${query.clientId}:${query.environment || ""}`, () =>
-						getCachedFlagsForClient(query.clientId, query.environment)
-					)
+				const clientFlags = await fromMemory(
+					`fc:${query.clientId}:${query.environment || ""}`,
+					() => getCachedFlagsForClient(query.clientId, query.environment)
 				);
 
 				let allFlags = clientFlags;
 
 				if (context.userId) {
 					const uid = context.userId;
-					const userFlags = await record("getCachedFlagsForUser", () =>
-						fromMemory(
-							`fu:${uid}:${query.clientId}:${query.environment || ""}`,
-							() =>
-								getCachedFlagsForUser(uid, query.clientId, query.environment)
-						)
+					const userFlags = await fromMemory(
+						`fu:${uid}:${query.clientId}:${query.environment || ""}`,
+						() => getCachedFlagsForUser(uid, query.clientId, query.environment)
 					);
 					if (userFlags.length > 0) {
 						const clientKeys = new Set(clientFlags.map((f) => f.key));
@@ -787,10 +917,9 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				const results: Record<string, FlagResult> = {};
 				for (const flag of flagsToEvaluate) {
-					results[flag.key] = evaluateFlag(
-						flag as unknown as EvaluableFlag,
-						context
-					);
+					results[flag.key] = dependenciesSatisfiedFromList(flag, allFlags)
+						? evaluateFlag(flag, context)
+						: dependencyFailure();
 				}
 
 				const count = Object.keys(results).length;
@@ -838,8 +967,9 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				}
 
 				const clientFlags = await fromMemory(
-					`fc:${query.clientId}:${query.environment || ""}`,
-					() => getCachedFlagsForClient(query.clientId, query.environment)
+					`fd:${query.clientId}:${query.environment || ""}`,
+					() =>
+						getCachedFlagDefinitionsForClient(query.clientId, query.environment)
 				);
 
 				mergeWideEvent({ flag_total_flags: clientFlags.length });
@@ -848,10 +978,17 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flags: clientFlags.map((flag) => ({
 						id: flag.id,
 						key: flag.key,
+						name: flag.name,
 						description: flag.description,
 						type: flag.type,
 						status: flag.status,
 						defaultValue: flag.defaultValue,
+						payload: flag.payload,
+						rules: flag.rules,
+						rolloutPercentage: flag.rolloutPercentage,
+						rolloutBy: flag.rolloutBy,
+						dependencies: flag.dependencies,
+						environment: flag.environment,
 						variants: flag.variants,
 						createdAt: flag.createdAt,
 						updatedAt: flag.updatedAt,
@@ -893,7 +1030,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				if (!auth.apiKey.userId) {
 					set.status = 403;
-					return { error: "API key must be associated with a user" };
+					return { error: "Forbidden" };
 				}
 
 				const scope = resolveScope(auth.apiKey, body.clientId);
@@ -924,17 +1061,43 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 				}
 
 				const createdBy = auth.apiKey.userId;
-				const variants = (body.variants ?? []) as FlagVariant[];
+				const variants: FlagVariant[] = body.variants ?? [];
+				const dependencies = body.dependencies ?? [];
+				if (dependencies.length > 0) {
+					const dependencyRows = await db
+						.select({ key: flags.key })
+						.from(flags)
+						.where(
+							and(
+								inArray(flags.key, dependencies),
+								isNull(flags.deletedAt),
+								or(
+									eq(flags.websiteId, scope.websiteId ?? ""),
+									eq(flags.organizationId, scope.organizationId ?? "")
+								)
+							)
+						);
+					if (dependencyRows.length !== dependencies.length) {
+						set.status = 400;
+						return { error: "One or more dependency flags were not found" };
+					}
+				}
 
 				const result = await withTransaction(async (tx) => {
 					if (existing) {
 						const restoredRows = await tx
 							.update(flags)
 							.set({
+								name: body.name ?? null,
 								description: body.description ?? null,
 								type: body.type,
-								status: "active",
+								status: body.status ?? "active",
 								defaultValue: body.defaultValue,
+								payload: body.payload ?? null,
+								rules: body.rules ?? [],
+								rolloutPercentage: body.rolloutPercentage ?? 0,
+								rolloutBy: body.rolloutBy ?? null,
+								dependencies,
 								variants,
 								environment: body.environment ?? null,
 								deletedAt: null,
@@ -968,10 +1131,16 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 						.values({
 							id,
 							key: body.key,
+							name: body.name ?? null,
 							description: body.description ?? null,
 							type: body.type,
-							status: "active",
+							status: body.status ?? "active",
 							defaultValue: body.defaultValue,
+							payload: body.payload ?? null,
+							rules: body.rules ?? [],
+							rolloutPercentage: body.rolloutPercentage ?? 0,
+							rolloutBy: body.rolloutBy ?? null,
+							dependencies,
 							variants,
 							environment: body.environment ?? null,
 							websiteId: scope.websiteId,
@@ -1034,9 +1203,22 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 			body: t.Object({
 				clientId: t.String({ minLength: 1 }),
 				key: t.String({ minLength: 1, maxLength: 128 }),
-				type: t.Union([t.Literal("boolean"), t.Literal("multivariant")]),
+				name: t.Optional(t.String({ maxLength: 100 })),
+				type: t.Union([
+					t.Literal("boolean"),
+					t.Literal("rollout"),
+					t.Literal("multivariant"),
+				]),
+				status: t.Optional(
+					t.Union([t.Literal("active"), t.Literal("inactive")])
+				),
 				defaultValue: t.Boolean(),
 				description: t.Optional(t.String({ maxLength: 500 })),
+				payload: t.Optional(t.Record(t.String(), t.Unknown())),
+				rules: t.Optional(t.Array(t.Any())),
+				rolloutPercentage: t.Optional(t.Number({ minimum: 0, maximum: 100 })),
+				rolloutBy: t.Optional(t.String()),
+				dependencies: t.Optional(t.Array(t.String())),
 				environment: t.Optional(t.String()),
 				variants: t.Optional(t.Array(variantBodySchema, { maxItems: 32 })),
 			}),
@@ -1060,7 +1242,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				if (!auth.apiKey.userId) {
 					set.status = 403;
-					return { error: "API key must be associated with a user" };
+					return { error: "Forbidden" };
 				}
 
 				const existing = await db
@@ -1078,8 +1260,8 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flag.websiteId !== body.clientId &&
 					flag.organizationId !== body.clientId
 				) {
-					set.status = 403;
-					return { error: "Flag does not belong to this client" };
+					set.status = 404;
+					return { error: "Flag not found" };
 				}
 
 				const updates: Partial<typeof flags.$inferInsert> = {
@@ -1092,7 +1274,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					updates.defaultValue = body.defaultValue;
 				}
 				if (body.variants !== undefined) {
-					updates.variants = body.variants as FlagVariant[];
+					updates.variants = body.variants;
 				}
 				if (body.status !== undefined) {
 					updates.status = body.status;
@@ -1192,7 +1374,7 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 				if (!auth.apiKey.userId) {
 					set.status = 403;
-					return { error: "API key must be associated with a user" };
+					return { error: "Forbidden" };
 				}
 
 				const existing = await db
@@ -1210,8 +1392,8 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 					flag.websiteId !== query.clientId &&
 					flag.organizationId !== query.clientId
 				) {
-					set.status = 403;
-					return { error: "Flag does not belong to this client" };
+					set.status = 404;
+					return { error: "Flag not found" };
 				}
 
 				const changedBy = auth.apiKey.userId;

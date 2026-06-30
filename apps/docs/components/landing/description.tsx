@@ -84,7 +84,7 @@ export const Description = () => {
 
 	return (
 		<div className="w-full">
-<div className="block lg:hidden">
+			<div className="block lg:hidden">
 				<div className="mb-8 text-center">
 					<h2 className="mb-8 font-medium text-2xl leading-tight sm:text-3xl">
 						Most Analytics Tools are

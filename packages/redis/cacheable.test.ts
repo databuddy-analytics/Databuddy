@@ -5,10 +5,35 @@ const mockSetex = mock((_key: string, _seconds: number, _value: string) =>
 	Promise.resolve("OK" as string)
 );
 const mockTtl = mock((_key: string) => Promise.resolve(100 as number));
+const mockDel = mock((..._keys: string[]) => Promise.resolve(1 as number));
+const mockExpire = mock((_key: string, _seconds: number) =>
+	Promise.resolve(1 as number)
+);
+const mockSadd = mock((_key: string, ..._members: string[]) =>
+	Promise.resolve(1 as number)
+);
+const mockScan = mock(
+	(
+		_cursor: string,
+		_match: "MATCH",
+		_pattern: string,
+		_count: "COUNT",
+		_limit: number
+	) => Promise.resolve(["0", []] as [string, string[]])
+);
+
+const mockSmembers = mock((_key: string) =>
+	Promise.resolve([] as string[])
+);
 
 const mockRedisClient = {
+	del: mockDel,
+	expire: mockExpire,
 	get: mockGet,
+	sadd: mockSadd,
+	scan: mockScan,
 	setex: mockSetex,
+	smembers: mockSmembers,
 	ttl: mockTtl,
 };
 
@@ -40,14 +65,25 @@ beforeEach(async () => {
 	mockGet.mockClear();
 	mockSetex.mockClear();
 	mockTtl.mockClear();
+	mockDel.mockClear();
+	mockExpire.mockClear();
+	mockSadd.mockClear();
+	mockScan.mockClear();
+	mockSmembers.mockClear();
 
 	mockGet.mockImplementation(() => Promise.resolve(null));
 	mockSetex.mockImplementation(() => Promise.resolve("OK"));
 	mockTtl.mockImplementation(() => Promise.resolve(100));
+	mockDel.mockImplementation(() => Promise.resolve(1));
+	mockExpire.mockImplementation(() => Promise.resolve(1));
+	mockSadd.mockImplementation(() => Promise.resolve(1));
+	mockScan.mockImplementation(() => Promise.resolve(["0", []]));
+	mockSmembers.mockImplementation(() => Promise.resolve([]));
 });
 
 afterAll(() => {
 	Date.now = realDateNow;
+	mock.restore();
 });
 
 describe("cacheable", () => {
@@ -821,6 +857,27 @@ describe("cacheable", () => {
 			await expect(cached()).rejects.toThrow("Database error");
 		});
 
+		it("does not cache failed function results", async () => {
+			let attempt = 0;
+			const original = mock(async () => {
+				attempt += 1;
+				if (attempt === 1) {
+					throw new Error("temporary failure");
+				}
+				return { planId: "pro" };
+			});
+			const cached = cacheable(original, {
+				expireInSec: 60,
+				prefix: "fn-err-retry",
+			});
+
+			await expect(cached()).rejects.toThrow("temporary failure");
+			await expect(cached()).resolves.toEqual({ planId: "pro" });
+
+			expect(original).toHaveBeenCalledTimes(2);
+			expect(mockSetex).toHaveBeenCalledTimes(1);
+		});
+
 		it("propagates errors when redis is unavailable (fn called directly)", async () => {
 			// First: break redis
 			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
@@ -938,6 +995,106 @@ describe("cacheable", () => {
 		});
 	});
 
+	describe("query timeout", () => {
+		it("rejects when the underlying function exceeds queryTimeoutMs", async () => {
+			const cached = cacheable(
+				(): Promise<string> =>
+					new Promise((resolve) => setTimeout(() => resolve("late"), 5000)),
+				{
+					expireInSec: 60,
+					prefix: "qtimeout-basic",
+					queryTimeoutMs: 50,
+				}
+			);
+
+			await expect(cached()).rejects.toThrow("Query timeout");
+		}, 5000);
+
+		it("cleans up inflightRequests after a timeout so the next call retries", async () => {
+			let callCount = 0;
+			const original = mock((): Promise<string> => {
+				callCount += 1;
+				if (callCount === 1) {
+					return new Promise((resolve) =>
+						setTimeout(() => resolve("late"), 5000)
+					);
+				}
+				return Promise.resolve("fast");
+			});
+
+			const cached = cacheable(original, {
+				expireInSec: 60,
+				prefix: "qtimeout-retry",
+				queryTimeoutMs: 50,
+			});
+
+			await expect(cached()).rejects.toThrow("Query timeout");
+
+			const result = await cached();
+			expect(result).toBe("fast");
+			expect(original).toHaveBeenCalledTimes(2);
+		}, 5000);
+
+		it("all concurrent callers fail when the shared inflight promise times out", async () => {
+			const cached = cacheable(
+				(): Promise<string> =>
+					new Promise((resolve) => setTimeout(() => resolve("late"), 5000)),
+				{
+					expireInSec: 60,
+					prefix: "qtimeout-concurrent",
+					queryTimeoutMs: 50,
+				}
+			);
+
+			const results = await Promise.allSettled([
+				cached(),
+				cached(),
+				cached(),
+			]);
+
+			for (const result of results) {
+				expect(result.status).toBe("rejected");
+				if (result.status === "rejected") {
+					expect(result.reason.message).toBe("Query timeout");
+				}
+			}
+		}, 5000);
+
+		it("does not time out fast functions", async () => {
+			const cached = cacheable(async () => "quick", {
+				expireInSec: 60,
+				prefix: "qtimeout-fast",
+				queryTimeoutMs: 1000,
+			});
+
+			const result = await cached();
+			expect(result).toBe("quick");
+		});
+
+		it("applies timeout even when Redis is unavailable (circuit-breaker path)", async () => {
+			// First break Redis so we go to the direct-call path
+			mockGet.mockImplementation(() => Promise.reject(new Error("down")));
+			const setup = cacheable(async () => "x", {
+				expireInSec: 1,
+				prefix: "qtimeout-setup",
+			});
+			await setup();
+
+			// Now use a slow function with a short timeout on the bypass path
+			const cached = cacheable(
+				(): Promise<string> =>
+					new Promise((resolve) => setTimeout(() => resolve("late"), 5000)),
+				{
+					expireInSec: 60,
+					prefix: "qtimeout-no-redis",
+					queryTimeoutMs: 50,
+				}
+			);
+
+			await expect(cached()).rejects.toThrow("Query timeout");
+		}, 5000);
+	});
+
 	describe("edge cases", () => {
 		it("works with no arguments", async () => {
 			const cached = cacheable(async () => "no-args", {
@@ -986,14 +1143,68 @@ describe("cacheable", () => {
 			expect(result.items).toHaveLength(1000);
 		});
 
-		it("exposes getKey method on the returned function", () => {
-			const cached = cacheable(async () => "v", {
+		it("exposes cache utility methods on the returned function", async () => {
+			const cached = cacheable(async (id: string) => id, {
 				expireInSec: 60,
 				prefix: "getkey",
 			});
 
 			expect(typeof cached.getKey).toBe("function");
-			expect(typeof cached.getKey()).toBe("string");
+			expect(typeof cached.getKey("abc")).toBe("string");
+			expect(typeof cached.invalidate).toBe("function");
+			expect(typeof cached.invalidatePrefix).toBe("function");
+			expect(typeof cached.invalidateTag).toBe("function");
+			expect(typeof cached.invalidateTags).toBe("function");
+			expect(typeof cached.invalidateWithArgs).toBe("function");
+
+			await cached.invalidate("abc");
+			expect(mockDel).toHaveBeenCalledWith(cached.getKey("abc"));
+		});
+
+		it("indexes cached keys by tag", async () => {
+			const cached = cacheable(async (ids: string[]) => ({ ids }), {
+				expireInSec: 60,
+				prefix: "tagged",
+				tags: (_result, ids) => ids.map((id) => `website:${id}`),
+			});
+
+			await cached(["a", "b"]);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			const key = cached.getKey(["a", "b"]);
+			expect(mockSadd).toHaveBeenCalledWith(
+				"cacheable-index:tagged:website:a",
+				key
+			);
+			expect(mockSadd).toHaveBeenCalledWith(
+				"cacheable-index:tagged:website:b",
+				key
+			);
+			expect(mockExpire).toHaveBeenCalledWith(
+				"cacheable-index:tagged:website:a",
+				60
+			);
+		});
+
+		it("invalidates tagged keys without scanning", async () => {
+			const cached = cacheable(async (id: string) => id, {
+				expireInSec: 60,
+				prefix: "tagged-delete",
+			});
+			const keys = [cached.getKey("a"), cached.getKey("b")];
+			mockSmembers.mockImplementation(() => Promise.resolve(keys));
+			mockDel.mockImplementation((...deletedKeys: string[]) =>
+				Promise.resolve(deletedKeys.length)
+			);
+
+			const deletedCount = await cached.invalidateTag("website:a");
+
+			expect(deletedCount).toBe(2);
+			expect(mockDel).toHaveBeenCalledWith(...keys);
+			expect(mockDel).toHaveBeenCalledWith(
+				"cacheable-index:tagged-delete:website:a"
+			);
+			expect(mockScan).not.toHaveBeenCalled();
 		});
 
 		it("calls redis on every invocation", async () => {

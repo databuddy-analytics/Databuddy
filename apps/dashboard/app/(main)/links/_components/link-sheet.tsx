@@ -31,16 +31,12 @@ import {
 	stripUtmFromUrl,
 } from "./utm-builder";
 import {
-	AndroidLogoIcon,
-	AppleLogoIcon,
-	LinkSimpleIcon,
-	QrCodeIcon,
-} from "@phosphor-icons/react/dist/ssr";
-import {
 	CalendarIcon,
 	CopyIcon,
 	DeviceMobileIcon,
 	ImageIcon,
+	LinkIcon as LinkSimpleIcon,
+	QrCodeIcon,
 } from "@databuddy/ui/icons";
 import { FolderDropdown } from "./folder-dropdown";
 import { Accordion, Sheet, Tabs } from "@databuddy/ui/client";
@@ -472,7 +468,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 										render={({ field, fieldState }) => (
 											<Field error={!!fieldState.error}>
 												<Field.Label className="flex items-center gap-1.5">
-													<AppleLogoIcon size={14} weight="fill" />
+													<DeviceMobileIcon size={14} weight="fill" />
 													iOS URL
 												</Field.Label>
 												<Input
@@ -497,7 +493,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 										render={({ field, fieldState }) => (
 											<Field error={!!fieldState.error}>
 												<Field.Label className="flex items-center gap-1.5">
-													<AndroidLogoIcon size={14} weight="fill" />
+													<DeviceMobileIcon size={14} weight="fill" />
 													Android URL
 												</Field.Label>
 												<Input
@@ -587,10 +583,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 					</Sheet.Description>
 				</Sheet.Header>
 
-				<form
-					className="flex flex-1 flex-col overflow-hidden"
-					onSubmit={form.handleSubmit(handleSubmit)}
-				>
+				<Sheet.Form onSubmit={form.handleSubmit(handleSubmit)}>
 					{isEditing && link ? (
 						<Tabs
 							className="flex flex-1 flex-col overflow-hidden"
@@ -633,7 +626,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 									loading={isPending}
 									type="submit"
 								>
-									Save Changes
+									Save Changes{" "}
 								</Button>
 							</Sheet.Footer>
 						</Tabs>
@@ -653,12 +646,12 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 									loading={isPending}
 									type="submit"
 								>
-									Create Link
+									Create Link{" "}
 								</Button>
 							</Sheet.Footer>
 						</>
 					)}
-				</form>
+				</Sheet.Form>
 				<Sheet.Close />
 			</Sheet.Content>
 		</Sheet>

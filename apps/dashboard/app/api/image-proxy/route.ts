@@ -1,4 +1,5 @@
-import { validateUrl } from "@databuddy/shared/ssrf-guard";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
+import { safeFetch, SsrfError } from "@databuddy/shared/ssrf-guard";
 import { type NextRequest, NextResponse } from "next/server";
 
 const ALLOWED_CONTENT_TYPES = [
@@ -9,9 +10,28 @@ const ALLOWED_CONTENT_TYPES = [
 	"image/avif",
 ];
 
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+const TIMEOUT_MESSAGE_PATTERN = /timed out/;
+
+function getClientIp(request: NextRequest): string {
+	return (
+		request.headers.get("cf-connecting-ip") ||
+		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+		request.headers.get("x-real-ip") ||
+		"unknown"
+	);
+}
 
 export async function GET(request: NextRequest) {
+	const ip = getClientIp(request);
+	const rl = await ratelimit(`image-proxy:${ip}`, 30, 60);
+	if (!rl.success) {
+		return NextResponse.json(
+			{ error: "Too many requests" },
+			{ status: 429, headers: getRateLimitHeaders(rl) }
+		);
+	}
+
 	const url = request.nextUrl.searchParams.get("url");
 
 	if (!url) {
@@ -21,33 +41,20 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	const check = await validateUrl(url);
-	if (!check.safe) {
-		return NextResponse.json(
-			{ error: check.error ?? "URL not allowed" },
-			{ status: 400 }
-		);
-	}
-
 	try {
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 10_000);
-
-		const response = await fetch(url, {
-			signal: controller.signal,
-			redirect: "error",
+		const response = await safeFetch(url, {
+			timeoutMs: 10_000,
+			maxRedirects: 0,
 			headers: {
 				"User-Agent": "Databuddy Image Proxy/1.0",
 				Accept: "image/*",
 			},
 		});
 
-		clearTimeout(timeoutId);
-
 		if (!response.ok) {
 			return NextResponse.json(
-				{ error: `Failed to fetch image: ${response.status}` },
-				{ status: response.status }
+				{ error: "Failed to fetch image" },
+				{ status: 502 }
 			);
 		}
 
@@ -81,7 +88,10 @@ export async function GET(request: NextRequest) {
 			},
 		});
 	} catch (error) {
-		if (error instanceof Error && error.name === "AbortError") {
+		if (error instanceof SsrfError) {
+			return NextResponse.json({ error: "URL not allowed" }, { status: 400 });
+		}
+		if (error instanceof Error && TIMEOUT_MESSAGE_PATTERN.test(error.message)) {
 			return NextResponse.json({ error: "Request timeout" }, { status: 504 });
 		}
 		return NextResponse.json(

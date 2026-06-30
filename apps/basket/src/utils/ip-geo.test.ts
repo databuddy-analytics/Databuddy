@@ -49,24 +49,17 @@ describe("extractIpFromRequest", () => {
 	const table: [string, Record<string, string>, string][] = [
 		["cf-connecting-ip", { "cf-connecting-ip": "1.2.3.4" }, "1.2.3.4"],
 		[
-			"x-forwarded-for first",
+			"x-forwarded-for alone is not trusted by default",
 			{ "x-forwarded-for": "5.6.7.8, 9.10.11.12" },
-			"5.6.7.8",
+			"",
 		],
-		["x-real-ip", { "x-real-ip": "13.14.15.16" }, "13.14.15.16"],
 		[
-			"cf > xff > real",
+			"cf > xff priority",
 			{
 				"cf-connecting-ip": "1.1.1.1",
 				"x-forwarded-for": "2.2.2.2",
-				"x-real-ip": "3.3.3.3",
 			},
 			"1.1.1.1",
-		],
-		[
-			"xff > real",
-			{ "x-forwarded-for": "2.2.2.2", "x-real-ip": "3.3.3.3" },
-			"2.2.2.2",
 		],
 		["trims whitespace", { "cf-connecting-ip": "  1.2.3.4  " }, "1.2.3.4"],
 		["no headers → empty", {}, ""],
@@ -77,6 +70,14 @@ describe("extractIpFromRequest", () => {
 			expect(extractIpFromRequest(req("https://x.com", headers))).toBe(expected)
 		);
 	}
+
+	test("x-forwarded-for is honored only when configured as trusted header", () => {
+		const request = req("https://x.com", {
+			"x-forwarded-for": "5.6.7.8, 9.10.11.12",
+		});
+
+		expect(extractIpFromRequest(request, "x-forwarded-for")).toBe("5.6.7.8");
+	});
 
 	test("100 random IPs round-trip", () => {
 		for (let i = 0; i < 100; i++) {
@@ -116,12 +117,11 @@ describe("getGeo", () => {
 	});
 
 	test("200 random public IPs → valid structure", {
-		timeout: 30_000,
+		timeout: 60_000,
 	}, async () => {
-		// Probe whether GeoIP DB is reachable first
 		const probe = await Promise.race([
 			getGeo("8.8.8.8"),
-			new Promise<null>((r) => setTimeout(() => r(null), 10_000)),
+			new Promise<null>((r) => setTimeout(() => r(null), 30_000)),
 		]);
 		if (!(probe && probe.anonymizedIP)) {
 			console.log("Skipping: GeoIP CDN unreachable");

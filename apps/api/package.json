@@ -1,21 +1,13 @@
 {
   "name": "@databuddy/api",
-  "version": "1.0.1",
-  "module": "index.ts",
-  "type": "module",
   "private": true,
+  "version": "1.0.1",
+  "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development dotenv -- bun --hot src/index.ts --port 3001",
-    "test": "bun test",
-    "test:watch": "bun test --watch"
-  },
-  "devDependencies": {
-    "@databuddy/test": "workspace:*",
-    "@types/bun": "^1.3.6",
-    "mitata": "^1.0.34"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.3"
+    "test": "TZ=UTC bunx --bun vitest run",
+    "test:integration": "TZ=UTC bunx --bun vitest run --config vitest.integration.config.ts",
+    "test:watch": "TZ=UTC bunx --bun vitest"
   },
   "dependencies": {
     "@ai-sdk/provider": "^3.0.5",
@@ -25,24 +17,26 @@
     "@databuddy/auth": "workspace:*",
     "@databuddy/db": "workspace:*",
     "@databuddy/email": "workspace:*",
+    "@databuddy/encryption": "workspace:*",
+    "@databuddy/env": "workspace:*",
     "@databuddy/notifications": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/sdk": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "@databuddy/validation": "workspace:*",
     "@elysiajs/cors": "^1.4.1",
     "@elysiajs/server-timing": "^1.4.0",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@opentelemetry/resources": "^2.4.0",
-    "@opentelemetry/sdk-node": "0.215.0",
+    "@opentelemetry/sdk-node": "0.217.0",
     "@opentelemetry/semantic-conventions": "^1.29.0",
     "@orpc/openapi": "^1.14.0",
     "@orpc/server": "^1.14.0",
     "@orpc/zod": "^1.14.0",
-    "@tokenlens/models": "catalog:",
-    "ai": "^6.0.154",
+    "ai": "^6.0.188",
     "autumn-js": "catalog:",
-    "bullmq": "^5.66.5",
+    "bullmq": "^5.78.0",
     "dayjs": "^1.11.19",
     "elysia": "catalog:",
     "evlog": "catalog:",
@@ -52,7 +46,15 @@
     "resend": "^4.0.1",
     "supermemory": "^4.17.0",
     "svix": "^1.84.1",
-    "tokenlens": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@databuddy/test": "workspace:*",
+    "@types/bun": "catalog:",
+    "mitata": "^1.0.34",
+    "vitest": "^4.1.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
   }
 }

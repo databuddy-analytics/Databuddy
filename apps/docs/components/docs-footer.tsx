@@ -1,25 +1,11 @@
 "use client";
 
-import { getTrackingParams } from "@databuddy/sdk";
 import Link from "next/link";
-import { FaDiscord, FaGithub, FaXTwitter } from "react-icons/fa6";
-import { IoMdMail } from "react-icons/io";
+import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
+import { EnvelopeIcon } from "@databuddy/ui/icons";
 import { SciFiButton } from "./landing/scifi-btn";
 
 export function DocsFooter() {
-	const handleGetStarted = () => {
-		if (typeof window === "undefined") {
-			return;
-		}
-
-		const trackingParams = getTrackingParams();
-		const url = trackingParams
-			? `https://app.databuddy.cc/login?${trackingParams}`
-			: "https://app.databuddy.cc/login";
-
-		window.open(url, "_blank", "noopener,noreferrer");
-	};
-
 	return (
 		<footer className="border-border border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 			<div className="mx-auto max-w-6xl px-4 pt-8 pb-8 sm:px-6 lg:px-8">
@@ -29,8 +15,14 @@ export function DocsFooter() {
 						Ready to get started?
 					</h2>
 					<div>
-						<SciFiButton onClick={handleGetStarted}>
-							ADD DATABUDDY IN 5 MINUTES
+						<SciFiButton asChild>
+							<a
+								href="https://app.databuddy.cc/register"
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								ADD DATABUDDY IN 5 MINUTES
+							</a>
 						</SciFiButton>
 					</div>
 				</div>
@@ -98,7 +90,7 @@ export function DocsFooter() {
 							<li>
 								<Link
 									className="text-muted-foreground hover:text-foreground"
-									href="https://app.databuddy.cc/login"
+									href="https://app.databuddy.cc/register"
 									rel="noopener"
 									target="_blank"
 								>
@@ -156,7 +148,7 @@ export function DocsFooter() {
 									className="group flex items-center gap-3 text-muted-foreground hover:text-foreground"
 									href="mailto:support@databuddy.cc"
 								>
-									<IoMdMail className="size-5 shrink-0" />
+									<EnvelopeIcon className="size-5 shrink-0" />
 									support@databuddy.cc
 								</Link>
 							</li>
@@ -167,7 +159,7 @@ export function DocsFooter() {
 									rel="noopener"
 									target="_blank"
 								>
-									<FaDiscord className="size-5" />
+									<SiDiscord className="size-5" />
 									Discord
 								</Link>
 							</li>
@@ -178,7 +170,7 @@ export function DocsFooter() {
 									rel="noopener"
 									target="_blank"
 								>
-									<FaGithub className="size-5" />
+									<SiGithub className="size-5" />
 									GitHub
 								</Link>
 							</li>
@@ -189,7 +181,7 @@ export function DocsFooter() {
 									rel="noopener"
 									target="_blank"
 								>
-									<FaXTwitter className="size-5" />X
+									<SiX className="size-5" />X
 								</Link>
 							</li>
 						</ul>

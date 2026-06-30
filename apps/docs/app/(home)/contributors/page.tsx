@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { Footer } from "@/components/footer";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
 import { StructuredData } from "@/components/structured-data";
 import ActivityStats from "./activity-stats";
 import AppreciationFlipCards from "./appreciation-flip-cards";
@@ -476,7 +475,6 @@ export default async function ContributorsPage() {
 					url,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
 
 			{/* Hero Section */}
 			<Section

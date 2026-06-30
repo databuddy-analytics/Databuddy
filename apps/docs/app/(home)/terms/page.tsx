@@ -2,10 +2,10 @@ import {
 	CreditCardIcon,
 	FileTextIcon,
 	QuestionIcon,
-	ScalesIcon,
-	ShieldIcon,
+	ShieldCheckIcon as ScalesIcon,
+	ShieldCheckIcon as ShieldIcon,
 	WarningIcon,
-} from "@phosphor-icons/react/ssr";
+} from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";

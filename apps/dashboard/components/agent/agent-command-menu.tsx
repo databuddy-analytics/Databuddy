@@ -2,15 +2,16 @@
 
 import { cn } from "@/lib/utils";
 import type { AgentCommand } from "./agent-commands";
-import { ClipboardTextIcon } from "@phosphor-icons/react/dist/ssr";
 import type { NavIcon } from "@/components/layout/navigation/types";
 import {
 	ChartBarIcon,
+	ClipboardIcon,
 	CompassIcon,
 	FileTextIcon,
 	FunnelIcon,
 	LightningIcon,
 	MagnifyingGlassIcon,
+	TrashIcon,
 	WarningIcon,
 } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
@@ -23,7 +24,8 @@ const COMMAND_ICONS: Record<string, NavIcon> = {
 	"/live": LightningIcon,
 	"/anomalies": WarningIcon,
 	"/compare": ChartBarIcon,
-	"/report": ClipboardTextIcon,
+	"/report": ClipboardIcon,
+	"/clear": TrashIcon,
 };
 
 function getCommandIcon(command: string) {

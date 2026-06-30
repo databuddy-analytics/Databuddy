@@ -1,3 +1,11 @@
+import {
+	getCacheableTagIndexKey,
+	invalidateCacheablePattern,
+	invalidateCacheableTag,
+	invalidateCacheableTags,
+	invalidateCacheableWithArgs,
+	type CacheInvalidationResult,
+} from "./cache-invalidation";
 import { getRedisCache } from "./redis";
 
 const activeRevalidations = new Map<string, Promise<void>>();
@@ -9,28 +17,51 @@ const REDIS_TIMEOUT_MS = 2000;
 let redisAvailable = true;
 let lastRedisCheck = 0;
 
-type TraceFn = (fields: Record<string, unknown>) => void;
-let _traceFn: TraceFn | null = null;
-
-export function setCacheTraceFn(fn: TraceFn) {
-	_traceFn = fn;
+export interface CacheLookupEvent {
+	durationMs: number;
+	hit: boolean;
 }
 
-function traceCache(prefix: string, hit: boolean, ms: number) {
-	if (_traceFn) {
-		_traceFn({
-			[`cache.${prefix}`]: hit ? "hit" : "miss",
-			[`cache.${prefix}.ms`]: ms,
-		});
-	}
+let _cacheTimingFn: ((event: CacheLookupEvent) => void) | null = null;
+
+export function setCacheTimingFn(fn: (event: CacheLookupEvent) => void) {
+	_cacheTimingFn = fn;
 }
 
-interface CacheOptions {
+type CacheTagger<
+	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
+> = (
+	result: Awaited<ReturnType<T>>,
+	...args: Parameters<T>
+) => Promise<string[]> | string[];
+
+interface CacheOptions<
+	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
+> {
 	expireInSec: number;
 	prefix?: string;
+	/**
+	 * Maximum milliseconds to wait for the underlying function (e.g. a DB
+	 * query) before rejecting with a "Query timeout" error.  When unset the
+	 * function may hang indefinitely.  Background stale-while-revalidate
+	 * fetches are also bounded by this value.
+	 */
+	queryTimeoutMs?: number;
 	staleTime?: number;
 	staleWhileRevalidate?: boolean;
+	tags?: CacheTagger<T>;
 }
+
+export type CacheableFunction<
+	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
+> = ((...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>) & {
+	getKey: (...args: Parameters<T>) => string;
+	invalidate: (...args: Parameters<T>) => Promise<void>;
+	invalidatePrefix: () => Promise<number>;
+	invalidateTag: (tag: string) => Promise<number>;
+	invalidateTags: (tags: string[]) => Promise<CacheInvalidationResult>;
+	invalidateWithArgs: (knownArgs: unknown[]) => Promise<number>;
+};
 
 function deserialize(data: string): unknown {
 	return JSON.parse(data, (_, value) => {
@@ -62,12 +93,16 @@ function markRedisUnhealthy() {
 	lastRedisCheck = Date.now();
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-	let timer: Timer;
+function withTimeout<T>(
+	promise: Promise<T>,
+	ms: number,
+	message = "Redis timeout"
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout>;
 	return Promise.race([
 		promise,
 		new Promise<never>((_, reject) => {
-			timer = setTimeout(() => reject(new Error("Redis timeout")), ms);
+			timer = setTimeout(() => reject(new Error(message)), ms);
 		}),
 	]).finally(() => clearTimeout(timer));
 }
@@ -100,11 +135,76 @@ function stringify(obj: unknown): string {
 	return String(obj);
 }
 
-function triggerBackgroundRevalidation<T>(
+async function resolveCacheTags<
+	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
+>(
+	tag: CacheTagger<T> | undefined,
+	result: Awaited<ReturnType<T>>,
+	args: Parameters<T>
+): Promise<string[]> {
+	if (!tag) {
+		return [];
+	}
+	const tags = await tag(result, ...args);
+	return [...new Set(tags.filter(Boolean))];
+}
+
+async function indexCacheKey(
+	prefix: string,
 	key: string,
-	fn: () => Promise<T>,
+	tags: string[],
+	expireInSec: number
+): Promise<void> {
+	if (tags.length === 0) {
+		return;
+	}
+	const redis = getRedisCache();
+	await Promise.all(
+		tags.map(async (tag) => {
+			const indexKey = getCacheableTagIndexKey(prefix, tag);
+			await withTimeout(redis.sadd(indexKey, key), REDIS_TIMEOUT_MS);
+			await withTimeout(redis.expire(indexKey, expireInSec), REDIS_TIMEOUT_MS);
+		})
+	);
+}
+
+async function writeCacheEntry<
+	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
+>(
+	prefix: string,
+	key: string,
+	serialized: string,
+	result: Awaited<ReturnType<T>>,
+	args: Parameters<T>,
 	expireInSec: number,
-	staleTime: number
+	tags?: CacheTagger<T>
+): Promise<void> {
+	const resolvedTags = await resolveCacheTags(tags, result, args);
+	await withTimeout(
+		getRedisCache().setex(key, expireInSec, serialized),
+		REDIS_TIMEOUT_MS
+	);
+	try {
+		await indexCacheKey(prefix, key, resolvedTags, expireInSec);
+	} catch (error) {
+		await getRedisCache()
+			.del(key)
+			.catch(() => {});
+		throw error;
+	}
+}
+
+function triggerBackgroundRevalidation<
+	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
+>(
+	key: string,
+	args: Parameters<T>,
+	fn: () => Promise<Awaited<ReturnType<T>>>,
+	expireInSec: number,
+	staleTime: number,
+	prefix: string,
+	tags?: CacheTagger<T>,
+	queryTimeoutMs?: number
 ) {
 	if (activeRevalidations.has(key)) {
 		return;
@@ -120,13 +220,24 @@ function triggerBackgroundRevalidation<T>(
 			return;
 		}
 
-		const fresh = await fn();
+		const fresh = await (queryTimeoutMs == null
+			? fn()
+			: withTimeout(fn(), queryTimeoutMs, "Query timeout"));
 		if (fresh != null && redisAvailable) {
-			const serialized = JSON.stringify(fresh);
-			await withTimeout(
-				redis.setex(key, expireInSec, serialized),
-				REDIS_TIMEOUT_MS
-			).catch(() => {});
+			try {
+				const serialized = JSON.stringify(fresh);
+				await writeCacheEntry(
+					prefix,
+					key,
+					serialized,
+					fresh,
+					args,
+					expireInSec,
+					tags
+				).catch(() => {});
+			} catch {
+				// JSON.stringify failed
+			}
 		}
 	})()
 		.catch(() => {})
@@ -137,12 +248,14 @@ function triggerBackgroundRevalidation<T>(
 
 export function cacheable<
 	T extends (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>,
->(fn: T, options: CacheOptions | number) {
+>(fn: T, options: CacheOptions<T> | number): CacheableFunction<T> {
 	const {
 		expireInSec,
 		prefix = fn.name,
 		staleWhileRevalidate = false,
 		staleTime = 0,
+		tags,
+		queryTimeoutMs,
 	} = typeof options === "number" ? { expireInSec: options } : options;
 
 	const cachePrefix = `cacheable:${prefix}`;
@@ -152,14 +265,16 @@ export function cacheable<
 	const cachedFn = async (
 		...args: Parameters<T>
 	): Promise<Awaited<ReturnType<T>>> => {
-		const cacheStart = performance.now();
-
 		if (shouldSkipRedis()) {
-			traceCache(prefix, false, 0);
-			return fn(...args);
+			return queryTimeoutMs == null
+				? fn(...args)
+				: withTimeout(fn(...args), queryTimeoutMs, "Query timeout");
 		}
 
 		const key = getKey(...args);
+
+		const timingFn = _cacheTimingFn;
+		const lookupStartedAt = timingFn ? performance.now() : 0;
 
 		let cached: string | null = null;
 		try {
@@ -168,27 +283,31 @@ export function cacheable<
 			markRedisHealthy();
 		} catch {
 			markRedisUnhealthy();
-			traceCache(
-				prefix,
-				false,
-				Math.round((performance.now() - cacheStart) * 100) / 100
-			);
-			return fn(...args);
+			timingFn?.({
+				durationMs: performance.now() - lookupStartedAt,
+				hit: false,
+			});
+			return queryTimeoutMs == null
+				? fn(...args)
+				: withTimeout(fn(...args), queryTimeoutMs, "Query timeout");
 		}
 
-		if (cached) {
-			traceCache(
-				prefix,
-				true,
-				Math.round((performance.now() - cacheStart) * 100) / 100
-			);
+		timingFn?.({
+			durationMs: performance.now() - lookupStartedAt,
+			hit: Boolean(cached),
+		});
 
+		if (cached) {
 			if (staleWhileRevalidate && staleTime > 0) {
 				triggerBackgroundRevalidation(
 					key,
+					args,
 					() => fn(...args),
 					expireInSec,
-					staleTime
+					staleTime,
+					prefix,
+					tags,
+					queryTimeoutMs
 				);
 			}
 
@@ -203,7 +322,11 @@ export function cacheable<
 			return (await inflightRequests.get(key)) as Awaited<ReturnType<T>>;
 		}
 
-		const promise = fn(...args);
+		const rawPromise = fn(...args);
+		const promise =
+			queryTimeoutMs == null
+				? rawPromise
+				: withTimeout(rawPromise, queryTimeoutMs, "Query timeout");
 		inflightRequests.set(key, promise);
 
 		try {
@@ -212,21 +335,20 @@ export function cacheable<
 			if (result != null && redisAvailable) {
 				try {
 					const serialized = JSON.stringify(result);
-					const redis = getRedisCache();
-					withTimeout(
-						redis.setex(key, expireInSec, serialized),
-						REDIS_TIMEOUT_MS
+					writeCacheEntry(
+						prefix,
+						key,
+						serialized,
+						result,
+						args,
+						expireInSec,
+						tags
 					).catch(() => markRedisUnhealthy());
 				} catch {
 					// JSON.stringify failed
 				}
 			}
 
-			traceCache(
-				prefix,
-				false,
-				Math.round((performance.now() - cacheStart) * 100) / 100
-			);
 			return result;
 		} finally {
 			inflightRequests.delete(key);
@@ -234,5 +356,15 @@ export function cacheable<
 	};
 
 	cachedFn.getKey = getKey;
+	cachedFn.invalidate = async (...args: Parameters<T>) => {
+		await getRedisCache().del(getKey(...args));
+	};
+	cachedFn.invalidatePrefix = () =>
+		invalidateCacheablePattern(`${cachePrefix}:*`);
+	cachedFn.invalidateTag = (tag: string) => invalidateCacheableTag(prefix, tag);
+	cachedFn.invalidateTags = (cacheTags: string[]) =>
+		invalidateCacheableTags(prefix, cacheTags);
+	cachedFn.invalidateWithArgs = (knownArgs: unknown[]) =>
+		invalidateCacheableWithArgs(prefix, knownArgs);
 	return cachedFn;
 }

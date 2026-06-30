@@ -1,5 +1,5 @@
 const backgroundFlow = () => (
-	<div className="pointer-events-none absolute -top-20 right-0 bottom-0 left-0">
+	<div className="pointer-events-none absolute -top-20 right-0 bottom-0 left-0 overflow-hidden lg:top-0 lg:bottom-8 lg:rounded-3xl">
 		<svg
 			className="h-full w-full"
 			fill="none"
@@ -7,6 +7,7 @@ const backgroundFlow = () => (
 			viewBox="200 0 2215 1865"
 			xmlns="http://www.w3.org/2000/svg"
 		>
+			<title>Background Flow</title>
 			<g filter="url(#filter0_f_163_6)">
 				<path
 					d="M2209.09 140.6C2186.01 292.573 2037.51 644.522 1746.1 748.229C1381.83 877.863 228.596 931.229 250.096 2230.23"

@@ -190,8 +190,8 @@ export function VariantEditor({
 									placeholder="Value"
 									value={
 										typeof variant.value === "object"
-											? JSON.stringify(variant.value)
-											: variant.value
+											? JSON.stringify(variant.value ?? "")
+											: String(variant.value ?? "")
 									}
 								/>
 							</div>

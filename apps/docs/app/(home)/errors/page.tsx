@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
+import { TrackOnMount } from "@/components/track-on-mount";
 import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
@@ -16,16 +17,16 @@ import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
 
 export const metadata: Metadata = {
-	title: "Error Tracking | Databuddy",
+	title: "JavaScript Error Tracking - Built Into Your Analytics",
 	description:
-		"Catch, group, and fix errors before your users notice. Stack traces, user impact, release tracking, and instant alerts - built into your analytics stack.",
+		"Catch, group, and fix JavaScript errors before your users notice. Stack traces, session context, user impact, and instant alerts. No second tool, no extra script.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/errors",
 	},
 	openGraph: {
-		title: "Error Tracking | Databuddy",
+		title: "JavaScript Error Tracking - Built Into Your Analytics",
 		description:
-			"Catch, group, and fix errors before your users notice. Stack traces, user impact, release tracking, and instant alerts - built into your analytics stack.",
+			"Catch, group, and fix JavaScript errors before your users notice. Stack traces, session context, user impact, and instant alerts. No second tool, no extra script.",
 		url: "https://www.databuddy.cc/errors",
 		images: ["/og-image.png"],
 	},
@@ -64,21 +65,25 @@ const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 export default function ErrorsPage() {
 	return (
 		<>
+			<TrackOnMount
+				event="feature_landing_viewed"
+				properties={{ feature: "errors" }}
+			/>
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Error Tracking | Databuddy",
+					title: "JavaScript Error Tracking - Built Into Your Analytics",
 					description:
-						"Catch, group, and fix errors before your users notice. Stack traces, user impact, release tracking, and instant alerts.",
+						"Catch, group, and fix JavaScript errors before your users notice. Stack traces, session context, user impact, and instant alerts.",
 					url: "https://www.databuddy.cc/errors",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
-					docsHref="/docs/error-tracking"
+					docsHref="/docs"
 					primaryLabel="Start Monitoring"
-					subtitle="Every error tied to the session, the page, and the funnel step where it happened."
-					title="Understand what your errors are costing users."
+					subtitle="Every JavaScript error tied to the session, the page, and the funnel step where it happened. Stack traces, user impact, and alerts without a second tool."
+					title="Error tracking built into your analytics."
 				/>
 
 				<Section className="border-border border-b" id="impact">
@@ -88,43 +93,43 @@ export default function ErrorsPage() {
 							title="Prioritize by"
 							titleMuted="real impact."
 						/>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Find the one page generating all the errors.
+								</h3>
+								<ErrorPerPageBreakdownDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Know about errors before your users report them.
+								</h3>
+								<ErrorAutoCaptureAlertsStackDemo />
+							</GridCell>
+						</TwoColumnGrid>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									An error hitting 500 users matters more than one hitting 1
+									user 500 times.
+								</h3>
+								<ErrorImpactTableArtifact />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									See when the error stops hitting users.
+								</h3>
+								<ErrorFrequencyChartDemo />
+							</GridCell>
+						</TwoColumnGrid>
 					</div>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Find the one page generating all the errors.
-							</h3>
-							<ErrorPerPageBreakdownDemo />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Know about errors before your users report them.
-							</h3>
-							<ErrorAutoCaptureAlertsStackDemo />
-						</GridCell>
-					</TwoColumnGrid>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								An error hitting 500 users matters more than one hitting 1 user
-								500 times.
-							</h3>
-							<ErrorImpactTableArtifact />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								See when the error stops hitting users.
-							</h3>
-							<ErrorFrequencyChartDemo />
-						</GridCell>
-					</TwoColumnGrid>
 				</Section>
 
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
-						<FaqSection eyebrow="FAQ" items={[...FAQ_ITEMS]} />
+						<FaqSection items={[...FAQ_ITEMS]} />
 					</div>
 				</Section>
 

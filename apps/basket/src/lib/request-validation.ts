@@ -1,15 +1,14 @@
 import {
 	getWebsiteByIdV2,
+	isOriginAllowed,
 	isValidIpFromSettings,
-	isValidOrigin,
-	isValidOriginFromSettings,
 } from "@hooks/auth";
 import { checkAutumnUsage } from "@lib/billing";
 import { logBlockedTraffic } from "@lib/blocked-traffic";
 import { runFork, send } from "@lib/producer";
 import { basketErrors } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { extractIpFromRequest } from "@utils/ip-geo";
+import { extractIpFromRequest, extractTrustedClientIp } from "@utils/ip-geo";
 import { detectBot } from "@utils/user-agent";
 import {
 	sanitizeString,
@@ -51,10 +50,6 @@ export function getWebsiteSecuritySettings(
 	};
 }
 
-/**
- * Validate incoming request for analytics events.
- * Throws basket ingest EvlogErrors on failure; returns `{ error: billing.response }` when quota is exceeded.
- */
 export function validateRequest(
 	body: unknown,
 	query: unknown,
@@ -151,33 +146,36 @@ export function validateRequest(
 		const securitySettings = getWebsiteSecuritySettings(website.settings);
 		const allowedOrigins = securitySettings?.allowedOrigins;
 		const allowedIps = securitySettings?.allowedIps;
+		const blockedAlertContext = {
+			organizationId: website.organizationId,
+			ownerId: website.ownerId,
+			websiteDomain: website.domain,
+			websiteName: website.name,
+		};
 
-		if (origin && allowedOrigins && allowedOrigins.length > 0) {
-			if (
-				!(await record("isValidOriginFromSettings", () =>
-					isValidOriginFromSettings(origin, allowedOrigins)
-				))
-			) {
-				logBlockedTraffic(
-					request,
-					body,
-					query,
-					"origin_not_authorized",
-					"Security Check",
-					undefined,
-					clientId
-				);
-				log.set({
-					validation: { failed: true, reason: "origin_not_authorized", origin },
-				});
-				throw basketErrors.ingestOriginNotAuthorized();
-			}
-		} else if (
-			origin &&
-			!(await record("isValidOrigin", () =>
-				isValidOrigin(origin, website.domain)
-			))
-		) {
+		if (allowedOrigins?.length && !origin) {
+			logBlockedTraffic(
+				request,
+				body,
+				query,
+				"origin_missing",
+				"Security Check",
+				undefined,
+				clientId,
+				blockedAlertContext
+			);
+			log.set({
+				validation: {
+					failed: true,
+					reason: "origin_missing",
+					expectedDomain: website.domain,
+					allowedOrigins,
+				},
+			});
+			throw basketErrors.ingestOriginNotAuthorized();
+		}
+
+		if (origin && !isOriginAllowed(origin, website.domain, allowedOrigins)) {
 			logBlockedTraffic(
 				request,
 				body,
@@ -185,33 +183,43 @@ export function validateRequest(
 				"origin_not_authorized",
 				"Security Check",
 				undefined,
-				clientId
+				clientId,
+				blockedAlertContext
 			);
 			log.set({
-				validation: { failed: true, reason: "origin_not_authorized", origin },
+				validation: {
+					failed: true,
+					reason: "origin_not_authorized",
+					origin,
+					expectedDomain: website.domain,
+					allowedOrigins,
+				},
 			});
 			throw basketErrors.ingestOriginNotAuthorized();
 		}
 
-		if (
-			ip &&
-			allowedIps &&
-			allowedIps.length > 0 &&
-			!(await record("isValidIpFromSettings", () =>
-				isValidIpFromSettings(ip, allowedIps)
-			))
-		) {
-			logBlockedTraffic(
-				request,
-				body,
-				query,
-				"ip_not_authorized",
-				"Security Check",
-				undefined,
-				clientId
-			);
-			log.set({ validation: { failed: true, reason: "ip_not_authorized" } });
-			throw basketErrors.ingestIpNotAuthorized();
+		if (allowedIps && allowedIps.length > 0) {
+			const trustedIp = extractTrustedClientIp(request);
+			const isAllowed =
+				trustedIp &&
+				(await record("isValidIpFromSettings", () =>
+					isValidIpFromSettings(trustedIp, allowedIps)
+				));
+
+			if (!isAllowed) {
+				logBlockedTraffic(
+					request,
+					body,
+					query,
+					"ip_not_authorized",
+					"Security Check",
+					undefined,
+					clientId,
+					blockedAlertContext
+				);
+				log.set({ validation: { failed: true, reason: "ip_not_authorized" } });
+				throw basketErrors.ingestIpNotAuthorized();
+			}
 		}
 
 		const userAgent =
@@ -230,12 +238,6 @@ export function validateRequest(
 	});
 }
 
-/**
- * Check if request is from a bot
- * - ALLOW: Process normally (search engines, social media)
- * - TRACK_ONLY: Log to ai_traffic_spans but don't count as pageview (AI crawlers)
- * - BLOCK: Reject and log to blocked_traffic (scrapers, malicious bots)
- */
 export function checkForBot(
 	request: Request,
 	body: unknown,

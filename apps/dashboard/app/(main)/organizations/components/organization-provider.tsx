@@ -15,6 +15,7 @@ import {
 	EnvelopeIcon,
 	GearIcon,
 	GlobeIcon,
+	PlugIcon,
 	UsersIcon,
 } from "@databuddy/ui/icons";
 import { Button, EmptyState, Skeleton } from "@databuddy/ui";
@@ -60,6 +61,12 @@ const PAGE_INFO_MAP: Record<string, PageInfo> = {
 		title: "General Settings",
 		description: "Manage organization name, slug, and basic settings",
 		icon: GearIcon,
+		requiresOrg: true,
+	},
+	"/organizations/settings/integrations": {
+		title: "Integrations",
+		description: "Connect external tools to this organization",
+		icon: PlugIcon,
 		requiresOrg: true,
 	},
 	"/organizations/settings/websites": {

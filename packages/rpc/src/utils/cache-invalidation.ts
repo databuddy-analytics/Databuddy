@@ -1,4 +1,8 @@
-import { createDrizzleCache, getRedisCache, redis } from "@databuddy/redis";
+import {
+	createDrizzleCache,
+	invalidateWebsiteReadCaches,
+	redis,
+} from "@databuddy/redis";
 import { logger } from "../lib/logger";
 
 /**
@@ -26,8 +30,6 @@ export const invalidateWebsiteCaches = async (
 	userId: string
 ): Promise<void> => {
 	try {
-		const redisCache = getRedisCache();
-
 		await Promise.all([
 			// Website caches
 			createDrizzleCache({ redis, namespace: "websites" }).invalidateByTables([
@@ -36,13 +38,7 @@ export const invalidateWebsiteCaches = async (
 			createDrizzleCache({ redis, namespace: "websites" }).invalidateByKey(
 				`getById:${websiteId}`
 			),
-
-			// Invalidate the cacheable function cache used by authorizeWebsiteAccess
-			// The cacheable function creates keys with format: "cacheable:{prefix}:{args}"
-			redisCache.del(`cacheable:website_by_id:${websiteId}`),
-
-			redisCache.del(`cacheable:website-cache:${websiteId}`),
-			redisCache.del(`cacheable:website-domain:${websiteId}`),
+			invalidateWebsiteReadCaches(websiteId),
 
 			createDrizzleCache({ redis, namespace: "auth" }).invalidateByKey(
 				`auth:${userId}:${websiteId}`

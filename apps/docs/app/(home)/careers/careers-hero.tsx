@@ -1,12 +1,13 @@
 "use client";
 
-import type { IconWeight } from "@phosphor-icons/react";
+type IconWeight = "regular" | "bold" | "fill" | "duotone";
+
 import {
 	CodeIcon,
 	CompassIcon,
-	HeartIcon,
+	StarIcon as HeartIcon,
 	LightningIcon,
-} from "@phosphor-icons/react";
+} from "@databuddy/ui/icons";
 import { SciFiCard } from "@/components/scifi-card";
 
 function ValueCard({

@@ -80,6 +80,17 @@ describe("validateTimezone", () => {
 	it("rejects invalid formats", () => {
 		expect(validateTimezone("foo bar!@#")).toBe("");
 	});
+
+	it("rejects unrecognized IANA timezone names", () => {
+		expect(validateTimezone("Etc/Unknown")).toBe("");
+		expect(validateTimezone("America/Fakecity")).toBe("");
+	});
+
+	it("rejects SQL injection attempts", () => {
+		expect(validateTimezone("UTC') UNION ALL SELECT 1--")).toBe("");
+		expect(validateTimezone("UTC'; DROP TABLE events;--")).toBe("");
+		expect(validateTimezone("' OR 1=1--")).toBe("");
+	});
 });
 
 describe("validateTimezoneOffset", () => {

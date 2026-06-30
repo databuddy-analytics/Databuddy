@@ -1,5 +1,6 @@
 import { chQuery } from "@databuddy/db/clickhouse";
-import { referrers } from "@databuddy/shared/lists/referrers";
+import { goalFunnelFilterFieldSet } from "@databuddy/shared/analytics-filters";
+import { parseReferrer } from "@databuddy/shared/utils/referrer";
 
 export interface AnalyticsStep {
 	name: string;
@@ -102,12 +103,18 @@ interface ReferrerRow {
 // Helpers
 const ESCAPE_BACKSLASH_REGEX = /\\/g;
 const ESCAPE_LIKE_WILDCARDS_REGEX = /[%_]/g;
-const WWW_PREFIX_REGEX = /^www\./;
-
 const escapeClickhouseString = (value: string): string =>
 	value
 		.replace(ESCAPE_BACKSLASH_REGEX, "\\\\")
 		.replace(ESCAPE_LIKE_WILDCARDS_REGEX, "\\$&");
+
+const trimTrailingSlashes = (value: string): string => {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) {
+		end--;
+	}
+	return value.slice(0, end);
+};
 
 const formatDuration = (seconds: number): string => {
 	if (!seconds || seconds <= 0) {
@@ -142,43 +149,7 @@ function toFiniteNumber(value: unknown, fallback = 0): number {
 	return Number.isFinite(n) ? n : fallback;
 }
 
-const parseReferrer = (ref: string): ParsedReferrer => {
-	if (!ref || ref === "Direct" || ref.toLowerCase() === "(direct)") {
-		return { name: "Direct", type: "direct", domain: "" };
-	}
-
-	try {
-		const url = new URL(ref.includes("://") ? ref : `https://${ref}`);
-		const host = url.hostname.replace(WWW_PREFIX_REGEX, "").toLowerCase();
-		const known = referrers[url.hostname] || referrers[host];
-
-		return known
-			? { name: known.name, type: known.type, domain: host }
-			: { name: host, type: "referrer", domain: host };
-	} catch {
-		return { name: ref, type: "referrer", domain: "" };
-	}
-};
-
-// Filter building
-const FIELDS = new Set([
-	"event_name",
-	"path",
-	"referrer",
-	"user_agent",
-	"country",
-	"city",
-	"device_type",
-	"browser_name",
-	"os_name",
-	"screen_resolution",
-	"language",
-	"utm_source",
-	"utm_medium",
-	"utm_campaign",
-	"utm_term",
-	"utm_content",
-]);
+const FIELDS = goalFunnelFilterFieldSet;
 
 const OPS = new Set([
 	"equals",
@@ -206,23 +177,34 @@ const buildFilterSQL = (
 		}
 
 		const key = `f${i}`;
+		const sqlField = field === "path" ? normalizedPathExpression(field) : field;
+		const normalizeExactPathValue =
+			field === "path" &&
+			(operator === "equals" ||
+				operator === "not_equals" ||
+				operator === "in" ||
+				operator === "not_in");
 
 		if (operator === "is_null") {
-			parts.push(`${field} IS NULL`);
+			parts.push(`${sqlField} IS NULL`);
 			continue;
 		}
 
 		if (operator === "is_not_null") {
-			parts.push(`${field} IS NOT NULL`);
+			parts.push(`${sqlField} IS NOT NULL`);
 			continue;
 		}
 
-		// Preserve historical behavior: if value is an array, treat it as IN/NOT IN.
-		// (Even if the operator isn't "in", the old code defaulted to NOT IN.)
 		if (Array.isArray(value)) {
-			params[key] = value;
+			if (value.length === 0) {
+				continue;
+			}
+			const negate = operator === "not_in" || operator === "not_equals";
+			params[key] = normalizeExactPathValue
+				? value.map(normalizeGoalPathTarget)
+				: value;
 			parts.push(
-				`${field} ${operator === "in" ? "IN" : "NOT IN"} {${key}:Array(String)}`
+				`${sqlField} ${negate ? "NOT IN" : "IN"} {${key}:Array(String)}`
 			);
 			continue;
 		}
@@ -231,37 +213,31 @@ const buildFilterSQL = (
 			continue;
 		}
 
-		switch (operator) {
-			default: {
-				const escaped = escapeClickhouseString(value);
-
-				if (operator === "contains" || operator === "not_contains") {
-					params[key] = `%${escaped}%`;
-					parts.push(
-						`${field} ${operator === "contains" ? "LIKE" : "NOT LIKE"} {${key}:String}`
-					);
-					break;
-				}
-
-				if (operator === "starts_with") {
-					params[key] = `${escaped}%`;
-					parts.push(`${field} LIKE {${key}:String}`);
-					break;
-				}
-
-				if (operator === "ends_with") {
-					params[key] = `%${escaped}`;
-					parts.push(`${field} LIKE {${key}:String}`);
-					break;
-				}
-
-				params[key] = escaped;
-				parts.push(
-					`${field} ${operator === "equals" ? "=" : "!="} {${key}:String}`
-				);
-				break;
-			}
+		if (operator === "contains" || operator === "not_contains") {
+			params[key] = `%${escapeClickhouseString(value)}%`;
+			parts.push(
+				`${sqlField} ${operator === "contains" ? "LIKE" : "NOT LIKE"} {${key}:String}`
+			);
+			continue;
 		}
+
+		if (operator === "starts_with") {
+			params[key] = `${escapeClickhouseString(value)}%`;
+			parts.push(`${sqlField} LIKE {${key}:String}`);
+			continue;
+		}
+
+		if (operator === "ends_with") {
+			params[key] = `%${escapeClickhouseString(value)}`;
+			parts.push(`${sqlField} LIKE {${key}:String}`);
+			continue;
+		}
+
+		const isNegative = operator === "not_equals" || operator === "not_in";
+		params[key] = normalizeExactPathValue
+			? normalizeGoalPathTarget(value)
+			: value;
+		parts.push(`${sqlField} ${isNegative ? "!=" : "="} {${key}:String}`);
 	}
 
 	return parts.length > 0 ? ` AND ${parts.join(" AND ")}` : "";
@@ -277,6 +253,34 @@ const buildBaseWhere = (
 ) => `client_id = {websiteId:String}
 		AND ${buildTimeRangeWhere(timeColumn)}`;
 
+const pathOnlyExpression = (field = "path") =>
+	`if(startsWith(${field}, 'http://') OR startsWith(${field}, 'https://'), path(${field}), ${field})`;
+
+const normalizedPathExpression = (field = "path") => {
+	const pathOnly = pathOnlyExpression(field);
+	return `CASE WHEN trimRight(${pathOnly}, '/') = '' THEN '/' ELSE trimRight(${pathOnly}, '/') END`;
+};
+
+const normalizeGoalPathTarget = (target: string): string => {
+	const trimmed = target.trim();
+	if (!trimmed) {
+		return "/";
+	}
+	let pathOnly = trimmed;
+	if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+		try {
+			pathOnly = new URL(trimmed).pathname;
+		} catch {
+			pathOnly = trimmed;
+		}
+	}
+	if (!pathOnly.startsWith("/")) {
+		pathOnly = `/${pathOnly}`;
+	}
+	const withoutTrailingSlash = trimTrailingSlashes(pathOnly);
+	return withoutTrailingSlash || "/";
+};
+
 const buildStepQuery = (
 	step: AnalyticsStep,
 	idx: number,
@@ -291,12 +295,11 @@ const buildStepQuery = (
 	const base = buildBaseWhere("time");
 
 	if (step.type === "PAGE_VIEW") {
-		const escapedTarget = escapeClickhouseString(step.target);
-		params[`t${idx}l`] = `%${escapedTarget}%`;
+		params[`t${idx}`] = normalizeGoalPathTarget(step.target);
 		return `SELECT ${idx + 1} as step, {n${idx}:String} as name, anonymous_id as vid, MIN(time) as ts${refCol}
 			FROM analytics.events
 			WHERE ${base} AND event_name = 'screen_view'
-				AND (path = {t${idx}:String} OR path LIKE {t${idx}l:String})${filterSQL}
+				AND ${normalizedPathExpression("path")} = {t${idx}:String}${filterSQL}
 			GROUP BY vid`;
 	}
 
@@ -338,12 +341,13 @@ const buildStepSubquery = (
 ): string => {
 	params[paramKey] = step.target;
 	if (step.type === "PAGE_VIEW") {
+		params[paramKey] = normalizeGoalPathTarget(step.target);
 		return `SELECT DISTINCT anonymous_id FROM analytics.events
 			WHERE client_id = {websiteId:String}
 			AND time >= parseDateTimeBestEffort({startDate:String})
 			AND time <= parseDateTimeBestEffort({endDate:String})
 			AND event_name = 'screen_view'
-			AND path = {${paramKey}:String}`;
+			AND ${normalizedPathExpression("path")} = {${paramKey}:String}`;
 	}
 	return `(SELECT DISTINCT anonymous_id FROM analytics.events
 		WHERE client_id = {websiteId:String}
@@ -432,7 +436,7 @@ const queryFunnelErrors = async (
 	for (const row of errorRows) {
 		const count = toFiniteNumber(row.error_count, 0);
 		const normalized: ErrorRow = {
-			path: String(row.path ?? ""),
+			path: normalizeGoalPathTarget(String(row.path ?? "")),
 			vid: String(row.vid ?? ""),
 			error_type: String(row.error_type ?? ""),
 			message: String(row.message ?? ""),
@@ -472,58 +476,6 @@ export const queryLinkVisitorIds = async (
 };
 
 // Build chained step CTEs + visitor summary for ClickHouse-side funnel computation
-const buildFunnelSQL = (
-	stepQueries: string[],
-	totalSteps: number,
-	opts: {
-		visitorFilterClause?: string;
-		includeReferrer?: boolean;
-	} = {}
-): {
-	cteSql: string;
-	maxStepExpr: string;
-	timeCols: string[];
-	joinClause: string;
-} => {
-	const stepCTEs = [
-		`s1 AS (
-		SELECT vid, MIN(ts) as ts${opts.includeReferrer ? ", any(ref) as ref" : ""}
-		FROM step_events WHERE step = 1${opts.visitorFilterClause ?? ""} GROUP BY vid
-	)`,
-	];
-	for (let i = 2; i <= totalSteps; i++) {
-		stepCTEs.push(`s${i} AS (
-		SELECT se.vid, MIN(se.ts) as ts FROM step_events se
-		INNER JOIN s${i - 1} ON se.vid = s${i - 1}.vid
-		WHERE se.step = ${i} AND se.ts >= s${i - 1}.ts GROUP BY se.vid
-	)`);
-	}
-
-	const joins: string[] = [];
-	const maxStepParts = ["toUInt8(1)"];
-	const timeCols = ["toFloat64(toUnixTimestamp(s1.ts)) as t1"];
-	for (let i = 2; i <= totalSteps; i++) {
-		joins.push(`LEFT JOIN s${i} ON s1.vid = s${i}.vid`);
-		maxStepParts.push(`if(s${i}.vid != '', toUInt8(1), toUInt8(0))`);
-		timeCols.push(`toFloat64(toUnixTimestamp(s${i}.ts)) as t${i}`);
-	}
-
-	const eventsCols = opts.includeReferrer
-		? "SELECT DISTINCT step, vid, ts, ref FROM events"
-		: "SELECT DISTINCT step, vid, ts FROM events";
-
-	const cteSql = `WITH events AS (${stepQueries.join("\nUNION ALL\n")}),
-step_events AS (${eventsCols}),
-${stepCTEs.join(",\n")}`;
-
-	return {
-		cteSql,
-		maxStepExpr: maxStepParts.join(" + "),
-		timeCols,
-		joinClause: joins.join(" "),
-	};
-};
-
 // Aggregate per-step error insights from the error query results
 const buildStepErrorInsights = (
 	errorsByPath: Map<string, ErrorRow[]>,
@@ -533,7 +485,7 @@ const buildStepErrorInsights = (
 	usersWithErrors: number;
 	topErrors: StepErrorInsight[];
 } => {
-	const stepErrors = errorsByPath.get(target) ?? [];
+	const stepErrors = errorsByPath.get(normalizeGoalPathTarget(target)) ?? [];
 	const stepErrorCount = stepErrors.reduce(
 		(sum, e) => sum + toFiniteNumber(e.error_count, 0),
 		0
@@ -589,42 +541,32 @@ export const processFunnelAnalytics = async (
 		visitorFilterClause = " AND vid IN {visitorFilterIds:Array(String)}";
 	}
 
-	const { cteSql, maxStepExpr, timeCols, joinClause } = buildFunnelSQL(
-		stepQueries,
-		totalSteps,
-		{ visitorFilterClause }
-	);
+	const stepConditions = steps.map((_, i) => `step = ${i + 1}`).join(", ");
 
-	// Per-step metrics
-	const stepMetrics = [
-		"SELECT toUInt8(1) as step_num, '' as date, count() as users, toFloat64(0) as avg_time, toUInt64(0) as conversions FROM visitor_summary",
-	];
-	for (let i = 2; i <= totalSteps; i++) {
-		stepMetrics.push(
-			`SELECT toUInt8(${i}), '', countIf(max_step >= ${i}), avgIf(t${i} - t${i - 1}, max_step >= ${i} AND t${i} - t${i - 1} < 86400), toUInt64(0) FROM visitor_summary`
-		);
-	}
-
-	// Overall avg completion time (sentinel row)
-	const sentinelStep = totalSteps + 1;
-	stepMetrics.push(
-		`SELECT toUInt8(${sentinelStep}), '', toUInt64(0), avgIf(t${totalSteps} - t1, max_step >= ${totalSteps} AND t${totalSteps} - t1 < 86400), toUInt64(0) FROM visitor_summary`
-	);
-
-	// Time series bucketed by step-1 entry date
-	const tsQuery = `SELECT toUInt8(0), toString(entry_date), count(), avgIf(t${totalSteps} - t1, max_step >= ${totalSteps} AND t${totalSteps} - t1 < 86400), countIf(max_step >= ${totalSteps}) FROM visitor_summary GROUP BY entry_date`;
-
-	const fullQuery = `${cteSql},
-visitor_summary AS (
-	SELECT s1.vid, toDate(s1.ts) as entry_date,
-		${maxStepExpr} as max_step,
-		${timeCols.join(", ")}
-	FROM s1 ${joinClause}
+	const fullQuery = `WITH events AS (${stepQueries.join("\nUNION ALL\n")}),
+step_events AS (SELECT DISTINCT step, vid, ts FROM events${visitorFilterClause ? ` WHERE 1=1${visitorFilterClause}` : ""}),
+visitor_funnel AS (
+	SELECT
+		vid,
+		windowFunnel(86400)(toDateTime(ts), ${stepConditions}) as max_step,
+		min(ts) as first_ts
+	FROM step_events
+	GROUP BY vid
+	HAVING max_step >= 1
 )
-${stepMetrics.join("\nUNION ALL\n")}
-UNION ALL
-${tsQuery}
+SELECT step_num, date, users, avg_time, conversions FROM (
+	${Array.from({ length: totalSteps }, (_, i) => {
+		const stepNum = i + 1;
+		return `SELECT toUInt8(${stepNum}) as step_num, '' as date, countIf(max_step >= ${stepNum}) as users, toFloat64(0) as avg_time, toUInt64(0) as conversions FROM visitor_funnel`;
+	}).join("\nUNION ALL\n")}
+	UNION ALL
+	SELECT toUInt8(${totalSteps + 1}), '', toUInt64(0), toFloat64(0), toUInt64(0) FROM visitor_funnel
+	UNION ALL
+	SELECT toUInt8(0), toString(toDate(first_ts)), count(), toFloat64(0), countIf(max_step >= ${totalSteps}) FROM visitor_funnel GROUP BY toDate(first_ts)
+)
 ORDER BY 1, 2`;
+
+	const sentinelStep = totalSteps + 1;
 
 	const [aggRows, errorData] = await Promise.all([
 		chQuery<FunnelAggRow>(fullQuery, params),
@@ -795,16 +737,17 @@ export const processFunnelAnalyticsByReferrer = async (
 		buildStepQuery(s, i, filterSQL, params, true)
 	);
 
-	const { cteSql, maxStepExpr, joinClause } = buildFunnelSQL(
-		stepQueries,
-		totalSteps,
-		{ includeReferrer: true }
-	);
+	const stepConditions = steps.map((_, i) => `step = ${i + 1}`).join(", ");
 
-	const fullQuery = `${cteSql}
-SELECT s1.vid, s1.ref as referrer,
-	${maxStepExpr} as max_step
-FROM s1 ${joinClause}`;
+	const fullQuery = `WITH events AS (${stepQueries.join("\nUNION ALL\n")}),
+step_events AS (SELECT DISTINCT step, vid, ts, ref FROM events)
+SELECT
+	vid,
+	windowFunnel(86400)(toDateTime(ts), ${stepConditions}) as max_step,
+	any(ref) as referrer
+FROM step_events
+GROUP BY vid
+HAVING max_step >= 1`;
 
 	const rows = await chQuery<ReferrerRow>(fullQuery, params);
 
@@ -853,25 +796,25 @@ FROM s1 ${joinClause}`;
 export const getTotalWebsiteUsers = async (
 	websiteId: string,
 	startDate: string,
-	endDate: string
+	endDate: string,
+	filters: Filter[] = []
 ): Promise<number> => {
+	const params: ClickhouseQueryParams = {
+		websiteId,
+		startDate,
+		endDate: `${endDate} 23:59:59`,
+	};
+	const denominatorFilters = filters.filter(
+		(filter) => filter.field !== "event_name"
+	);
+	const filterSQL = buildFilterSQL(denominatorFilters, params);
 	const [result] = await chQuery<{ count: number }>(
 		`SELECT COUNT(DISTINCT anonymous_id) as count FROM analytics.events
 		 WHERE client_id = {websiteId:String}
 			AND time >= parseDateTimeBestEffort({startDate:String})
 			AND time <= parseDateTimeBestEffort({endDate:String})
-			AND event_name = 'screen_view'`,
-		{ websiteId, startDate, endDate: `${endDate} 23:59:59` }
+			AND event_name = 'screen_view'${filterSQL}`,
+		params
 	);
 	return result?.count ?? 0;
 };
-
-// Re-export for backwards compatibility
-export const buildFilterConditions = (
-	filters: Filter[],
-	_prefix: string,
-	params: ClickhouseQueryParams
-): { conditions: string; errors: string[] } => ({
-	conditions: buildFilterSQL(filters, params),
-	errors: [],
-});

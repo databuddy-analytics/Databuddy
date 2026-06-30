@@ -388,7 +388,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		return { on: false, status: "loading", loading: true };
 	}
 
-	getValue<T = boolean | string | number>(key: string, defaultValue?: T): T {
+	getValue<T = boolean>(key: string, defaultValue?: T): T {
 		const override = this.overrides.get(key);
 		if (override) {
 			return override.value as T;
@@ -478,7 +478,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		cacheSize: number;
 		cacheTtl: number | null;
 		clientId: string | null;
-		defaults: Record<string, boolean | string | number>;
+		defaults: Record<string, unknown>;
 		disabled: boolean;
 		environment: string | null;
 		isPending: boolean;

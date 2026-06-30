@@ -1,22 +1,30 @@
 "use client";
 
-import { CaretDownIcon } from "@databuddy/ui/icons";
 import {
 	BugIcon,
+	CaretDownIcon,
 	FlagIcon,
 	GaugeIcon,
 	HeartbeatIcon,
+	LinkIcon,
+	RobotIcon,
 } from "@databuddy/ui/icons";
-import Link from "next/link";
 import type { ComponentType, SVGProps } from "react";
 import { useCallback, useRef, useState } from "react";
+import {
+	docsNavControl,
+	docsNavMobileItem,
+	docsNavTopLink,
+} from "@/components/docs-nav-styles";
 import { cn } from "@/lib/utils";
+import { NavLink } from "./nav-link";
 
 interface FeatureItem {
 	description: string;
 	href: string;
 	icon: ComponentType<SVGProps<SVGSVGElement>>;
 	title: string;
+	trackId: string;
 }
 
 const FEATURE_ITEMS: FeatureItem[] = [
@@ -25,24 +33,42 @@ const FEATURE_ITEMS: FeatureItem[] = [
 		description: "Status pages, 1-minute checks, and alerts",
 		href: "/uptime",
 		icon: HeartbeatIcon,
+		trackId: "uptime",
 	},
 	{
 		title: "Error Tracking",
 		description: "Stack traces, context, and real-time alerts",
 		href: "/errors",
 		icon: BugIcon,
+		trackId: "errors",
 	},
 	{
 		title: "Web Vitals",
-		description: "LCP, FID, CLS scoring and monitoring",
+		description: "LCP, INP, CLS scoring and monitoring",
 		href: "/web-vitals",
 		icon: GaugeIcon,
+		trackId: "vitals",
 	},
 	{
 		title: "Feature Flags",
 		description: "Safe rollouts with user targeting",
 		href: "/feature-flags",
 		icon: FlagIcon,
+		trackId: "flags",
+	},
+	{
+		title: "Short Links",
+		description: "Branded links with click analytics",
+		href: "/links",
+		icon: LinkIcon,
+		trackId: "links",
+	},
+	{
+		title: "Databunny",
+		description: "AI agent, insights, and anomaly detection",
+		href: "/databunny",
+		icon: RobotIcon,
+		trackId: "databunny",
 	},
 ];
 
@@ -88,9 +114,10 @@ export function NavbarFeaturesMenu({
 				aria-expanded={open}
 				aria-haspopup="true"
 				className={cn(
-					"flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+					docsNavTopLink,
+					"gap-1.5",
 					open
-						? "text-foreground"
+						? "bg-secondary text-foreground"
 						: "text-muted-foreground hover:text-foreground"
 				)}
 				onClick={() => setOpen((prev) => !prev)}
@@ -128,15 +155,17 @@ export function NavbarFeaturesMenu({
 				ref={panelRef}
 				role="menu"
 			>
-				<div className="w-[34rem] rounded-xl border border-border bg-secondary p-1.5 shadow-2xl">
-					<div className="grid grid-cols-2 gap-1.5">
+				<div className="w-[42rem] rounded-xl border border-border bg-secondary p-1.5 shadow-2xl">
+					<div className="grid grid-cols-3 gap-1.5">
 						{FEATURE_ITEMS.map((item) => (
-							<Link
+							<NavLink
 								className="group flex items-start gap-3 rounded-lg bg-background p-3.5 transition-colors hover:bg-muted"
 								href={item.href}
 								key={item.href}
+								navItem={item.trackId}
 								onClick={handleItemClick}
 								role="menuitem"
+								section="navbar_features"
 							>
 								<div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary transition-colors group-hover:bg-background">
 									<item.icon
@@ -152,7 +181,7 @@ export function NavbarFeaturesMenu({
 										{item.description}
 									</p>
 								</div>
-							</Link>
+							</NavLink>
 						))}
 					</div>
 				</div>
@@ -176,7 +205,9 @@ export function NavbarFeaturesMobileMenu({
 		<div>
 			<button
 				className={cn(
-					"flex w-full items-center justify-between rounded-md px-3 py-2 font-medium text-sm transition-all duration-200 hover:bg-muted",
+					docsNavControl,
+					"h-9 w-full justify-between px-3 font-medium text-sidebar-foreground/70 transition-all duration-200 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+					expanded && "bg-sidebar-accent/60 text-sidebar-foreground",
 					isMenuOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0"
 				)}
 				onClick={() => setExpanded((prev) => !prev)}
@@ -197,19 +228,21 @@ export function NavbarFeaturesMobileMenu({
 			<div
 				className={cn(
 					"overflow-hidden transition-all duration-200 ease-out",
-					expanded ? "max-h-64 opacity-100" : "max-h-0 opacity-0"
+					expanded ? "max-h-80 opacity-100" : "max-h-0 opacity-0"
 				)}
 			>
 				<div className="space-y-0.5 py-1 pl-3">
 					{FEATURE_ITEMS.map((item) => (
-						<Link
-							className="block rounded-md px-3 py-2 text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+						<NavLink
+							className={cn(docsNavMobileItem, "text-sidebar-foreground/60")}
 							href={item.href}
 							key={item.href}
+							navItem={item.trackId}
 							onClick={onCloseAction}
+							section="navbar_features"
 						>
 							{item.title}
-						</Link>
+						</NavLink>
 					))}
 				</div>
 			</div>

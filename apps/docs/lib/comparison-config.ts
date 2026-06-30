@@ -1522,6 +1522,202 @@ export const competitors: Record<string, ComparisonData> = {
 			},
 		],
 	},
+	"vercel-analytics": {
+		competitor: {
+			name: "Vercel Analytics",
+			slug: "vercel-analytics",
+			description: "Built-in analytics for Vercel deployments",
+			website: "https://vercel.com/analytics",
+			tagline: "First-party analytics for Vercel-hosted sites",
+			color: "#000000",
+			pricing: {
+				starting: "Free",
+				note: "Included with Vercel, paid tiers for higher volume",
+			},
+		},
+		hero: {
+			title: "Databuddy vs Vercel Analytics",
+			description:
+				"Vercel Analytics is built for Vercel. Databuddy is built for your stack. Same framework-native feel, but with error tracking, feature flags, AI insights, and a free tier that works on any host.",
+			cta: "Full analytics on any platform",
+		},
+		seo: {
+			title:
+				"Databuddy vs Vercel Analytics: Next.js Analytics Alternative 2026",
+			description:
+				"Compare Databuddy and Vercel Analytics for Next.js and React apps. Databuddy adds error tracking, feature flags, AI insights, and works on any hosting provider.",
+		},
+		features: [
+			{
+				name: "AI insights (Databunny NLP)",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Ask questions about your traffic in plain English, get instant answers",
+				category: "features",
+			},
+			{
+				name: "Error tracking",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"JavaScript error tracking with stack traces and user impact built in",
+				category: "features",
+			},
+			{
+				name: "Feature flags",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Boolean toggles, percentage rollouts, and A/B experiments from your dashboard",
+				category: "features",
+			},
+			{
+				name: "Works on any host",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Not locked to Vercel. Works on Netlify, Cloudflare, AWS, self-hosted, anywhere",
+				category: "technical",
+			},
+			{
+				name: "Custom event tracking",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Track signups, purchases, and any custom interaction with properties",
+				category: "features",
+			},
+			{
+				name: "Conversion funnels",
+				databuddy: true,
+				competitor: false,
+				benefit: "Track user journeys from landing to conversion",
+				category: "features",
+			},
+			{
+				name: "Short links with analytics",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Branded short links with click tracking built into your dashboard",
+				category: "features",
+			},
+			{
+				name: "Open source (AGPL-3.0)",
+				databuddy: true,
+				competitor: false,
+				benefit:
+					"Inspect the code, self-host, contribute. Vercel Analytics is closed-source",
+				category: "technical",
+			},
+			{
+				name: "Self-hosting option",
+				databuddy: true,
+				competitor: false,
+				benefit: "Full data sovereignty on your own infrastructure",
+				category: "technical",
+			},
+			{
+				name: "Cookie-free tracking",
+				databuddy: true,
+				competitor: true,
+				benefit: "No consent banners needed, higher data accuracy",
+				category: "privacy",
+			},
+			{
+				name: "GDPR compliant by default",
+				databuddy: true,
+				competitor: true,
+				benefit: "Both are privacy-first with no personal data collection",
+				category: "privacy",
+			},
+			{
+				name: "Core Web Vitals",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Both track real user vitals. Databuddy adds per-page and per-device breakdowns",
+				category: "performance",
+			},
+			{
+				name: "Real-time analytics",
+				databuddy: true,
+				competitor: true,
+				benefit: "Both show live visitor activity",
+				category: "features",
+			},
+			{
+				name: "Next.js integration",
+				databuddy: true,
+				competitor: true,
+				benefit:
+					"Both have first-class Next.js support with App Router and Pages Router",
+				category: "technical",
+			},
+			{
+				name: "Lightweight script",
+				databuddy: true,
+				competitor: true,
+				benefit: "Both are lightweight. Databuddy: 3KB, Vercel Analytics: ~1KB",
+				category: "performance",
+			},
+		],
+		faqs: [
+			{
+				question: "Does Vercel Analytics work outside of Vercel?",
+				answer:
+					"No. Vercel Analytics only works on Vercel-hosted deployments. Databuddy works on any hosting provider, any framework, any platform.",
+			},
+			{
+				question: "Is Vercel Analytics free?",
+				answer:
+					"Vercel includes basic analytics on all plans, but the free tier is limited. Higher volume and features require Vercel Pro ($20/mo per user) or Enterprise. Databuddy is free for up to 10K pageviews with all features, on any host.",
+			},
+			{
+				question: "Can I use Databuddy with Next.js?",
+				answer:
+					"Yes. Databuddy has a first-class Next.js SDK with automatic route tracking for both App Router and Pages Router. Install the package and add one component.",
+			},
+			{
+				question: "Does Vercel Analytics have error tracking?",
+				answer:
+					"No. Vercel Analytics tracks pageviews and Web Vitals only. For error tracking you need a separate tool. Databuddy includes error tracking, feature flags, and AI insights in the same script.",
+			},
+			{
+				question: "Why choose Databuddy over Vercel Analytics?",
+				answer:
+					"If you only need basic pageview counts on Vercel, Vercel Analytics is fine. If you want error tracking, feature flags, AI-powered insights, custom events, funnels, and the freedom to host anywhere, Databuddy is the better choice.",
+			},
+		],
+		pricingTiers: [
+			{
+				pageviews: "Basic analytics",
+				competitor: "Included with Vercel plan",
+				databuddy: "Free (10K pageviews, all features)",
+			},
+			{
+				pageviews: "Vercel Pro (required for teams)",
+				competitor: "$20/user/mo",
+				databuddy: "Free or paid plans",
+			},
+			{
+				pageviews: "Error tracking",
+				competitor: "Not available",
+				databuddy: "Included",
+			},
+			{
+				pageviews: "Feature flags",
+				competitor: "Separate product (Edge Config)",
+				databuddy: "Included",
+			},
+			{
+				pageviews: "AI insights",
+				competitor: "Not available",
+				databuddy: "Included",
+			},
+		],
+	},
 	matomo: {
 		competitor: {
 			name: "Matomo",

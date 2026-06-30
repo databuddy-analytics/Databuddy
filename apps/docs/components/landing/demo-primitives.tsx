@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import Section from "@/components/landing/section";
 import { Button } from "@databuddy/ui";
-import { EASE } from "@/components/landing/demo-constants";
 import { cn } from "@/lib/utils";
 
 export {
@@ -129,7 +128,7 @@ export function FeatureHero({
 	title,
 	subtitle,
 	primaryLabel = "Start Free",
-	primaryHref = "https://app.databuddy.cc/login",
+	primaryHref = "https://app.databuddy.cc/register",
 	docsHref = "/docs",
 	badge,
 }: {

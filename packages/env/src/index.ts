@@ -12,6 +12,7 @@
 
 export type { ApiEnv } from "./api";
 export * from "./base";
+export * from "./boolean";
 export type { BasketEnv } from "./basket";
 export type { BetterAdminEnv } from "./better-admin";
 // Re-export types for convenience

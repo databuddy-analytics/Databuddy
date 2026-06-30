@@ -1,6 +1,8 @@
 "use client";
 
 import type { UIMessage } from "ai";
+import { motion } from "motion/react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { AIComponent } from "@/components/ai-elements/ai-component";
 import {
 	Message,
@@ -10,7 +12,7 @@ import {
 import {
 	DotMatrixLoader,
 	useRandomDotMatrixLoader,
-} from "@/components/ai-elements/dotmatrix-loader";
+} from "@/components/ui/dotmatrix";
 import {
 	Reasoning,
 	ReasoningContent,
@@ -24,11 +26,15 @@ import {
 	ToolOutput,
 	type ToolStatus,
 } from "@/components/ai-elements/tool";
-import { useChat } from "@/contexts/chat-context";
+import { useChat, useChatLoading } from "@/contexts/chat-context";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { parseContentSegments } from "@/lib/ai-components";
+import {
+	getAIComponentInputFromPart,
+	getAIComponentInputFromToolOutput,
+} from "@/lib/ai-components/message-parts";
+import { isAbortError } from "@/lib/is-abort-error";
 import { formatToolLabel } from "@/lib/tool-display";
-import { cn } from "@/lib/utils";
 import { AgentErrorMessage } from "./agent-error-message";
 import { ArrowsClockwiseIcon, CheckIcon, CopyIcon } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
@@ -69,7 +75,7 @@ function findActiveToolLabel(message: UIMessage | undefined): string | null {
 			continue;
 		}
 		if (part.output != null) {
-			return null;
+			return "Thinking";
 		}
 		return formatToolLabel(getToolName(part), part.input ?? {});
 	}
@@ -188,6 +194,16 @@ function renderToolGroup(
 					getToolName(entry.tool),
 					entry.tool.input ?? {}
 				);
+				const componentInput = getAIComponentInputFromToolOutput(entry.tool);
+				if (componentInput) {
+					return (
+						<AIComponent
+							input={componentInput}
+							key={`${key}-${idx}`}
+							streaming={false}
+						/>
+					);
+				}
 				return (
 					<InspectableToolStep
 						key={`${key}-${idx}`}
@@ -195,6 +211,49 @@ function renderToolGroup(
 						repeatCount={entry.repeatCount}
 						status={getToolStatus(entry.tool, isActive)}
 						tool={entry.tool}
+					/>
+				);
+			})}
+		</div>
+	);
+}
+
+function TextMessagePart({
+	baseKey,
+	isCurrentlyStreaming,
+	mode,
+	text,
+}: {
+	baseKey: string;
+	isCurrentlyStreaming: boolean;
+	mode: "static" | "streaming";
+	text: string;
+}) {
+	const segments = useMemo(() => parseContentSegments(text).segments, [text]);
+
+	if (!text.trim() || segments.length === 0) {
+		return null;
+	}
+
+	return (
+		<div className="space-y-4">
+			{segments.map((segment, idx) => {
+				if (segment.type === "text") {
+					return (
+						<MessageResponse
+							isAnimating={isCurrentlyStreaming}
+							key={`${baseKey}-text-${idx}`}
+							mode={mode}
+						>
+							{segment.content}
+						</MessageResponse>
+					);
+				}
+				return (
+					<AIComponent
+						input={segment.content}
+						key={`${baseKey}-component-${idx}`}
+						streaming={segment.type === "streaming-component"}
 					/>
 				);
 			})}
@@ -219,6 +278,15 @@ function renderMessagePart(
 		return renderToolGroup(part, key, isLastMessage, isCurrentlyStreaming);
 	}
 
+	const componentInput = getAIComponentInputFromPart(part);
+	if (componentInput) {
+		return (
+			<div className="py-1" key={key}>
+				<AIComponent input={componentInput} streaming={isCurrentlyStreaming} />
+			</div>
+		);
+	}
+
 	if (part.type === "reasoning") {
 		return (
 			<ReasoningMessage
@@ -230,44 +298,28 @@ function renderMessagePart(
 	}
 
 	if (part.type === "text") {
-		if (!part.text.trim()) {
-			return null;
-		}
-
-		const { segments } = parseContentSegments(part.text);
-		if (segments.length === 0) {
-			return null;
-		}
-
 		return (
-			<div className="space-y-4" key={key}>
-				{segments.map((segment, idx) => {
-					if (segment.type === "text") {
-						return (
-							<MessageResponse
-								isAnimating={isCurrentlyStreaming}
-								key={`${key}-text-${idx}`}
-								mode={mode}
-							>
-								{segment.content}
-							</MessageResponse>
-						);
-					}
-					return (
-						<AIComponent
-							input={segment.content}
-							key={`${key}-component-${idx}`}
-							streaming={segment.type === "streaming-component"}
-						/>
-					);
-				})}
-			</div>
+			<TextMessagePart
+				baseKey={key}
+				isCurrentlyStreaming={isCurrentlyStreaming}
+				key={key}
+				mode={mode}
+				text={part.text}
+			/>
 		);
 	}
 
 	if (isToolPart(part)) {
 		const isActive = isCurrentlyStreaming && !part.output;
 		const baseLabel = formatToolLabel(getToolName(part), part.input ?? {});
+		const toolComponentInput = getAIComponentInputFromToolOutput(part);
+		if (toolComponentInput) {
+			return (
+				<div className="py-1" key={key}>
+					<AIComponent input={toolComponentInput} streaming={false} />
+				</div>
+			);
+		}
 		return (
 			<div className="py-1" key={key}>
 				<InspectableToolStep
@@ -296,28 +348,32 @@ function AssistantActions({
 }) {
 	const text = getMessageText(message);
 	const { isCopied, copyToClipboard } = useCopyToClipboard();
+	const hasText = text.length > 0;
+	const showRegenerate = isLast && canRegenerate;
 
-	if (!text) {
+	if (!(hasText || showRegenerate)) {
 		return null;
 	}
 
 	return (
-		<div className="-ml-1.5 flex items-center gap-0.5 pt-1 opacity-60 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100">
-			<Button
-				aria-label={isCopied ? "Copied" : "Copy response"}
-				className="size-7 text-muted-foreground hover:text-foreground"
-				onClick={() => copyToClipboard(text)}
-				size="icon"
-				type="button"
-				variant="ghost"
-			>
-				{isCopied ? (
-					<CheckIcon className="size-3.5" weight="bold" />
-				) : (
-					<CopyIcon className="size-3.5" weight="duotone" />
-				)}
-			</Button>
-			{isLast && canRegenerate ? (
+		<div className="flex w-max items-center gap-0.5 rounded bg-secondary pt-0 opacity-60 transition-opacity focus-within:opacity-100 group-hover/message:opacity-100">
+			{hasText ? (
+				<Button
+					aria-label={isCopied ? "Copied" : "Copy response"}
+					className="size-7 text-muted-foreground hover:text-foreground"
+					onClick={() => copyToClipboard(text)}
+					size="icon"
+					type="button"
+					variant="ghost"
+				>
+					{isCopied ? (
+						<CheckIcon className="size-3.5" weight="bold" />
+					) : (
+						<CopyIcon className="size-3.5" weight="duotone" />
+					)}
+				</Button>
+			) : null}
+			{showRegenerate ? (
 				<Button
 					aria-label="Regenerate response"
 					className="size-7 text-muted-foreground hover:text-foreground"
@@ -336,9 +392,18 @@ function AssistantActions({
 export function AgentMessages() {
 	const { status, messages, error, regenerate, clearError, sendMessage } =
 		useChat();
-	const hasError = status === "error";
+	const { persistedUserMessageIds } = useChatLoading();
+
+	const isExpectedAbort = isAbortError(error);
+	const hasError = status === "error" && !isExpectedAbort;
 	const isStreaming = status === "streaming" || status === "submitted";
 	const lastMessage = messages.at(-1);
+
+	useEffect(() => {
+		if (status === "error" && isExpectedAbort) {
+			clearError();
+		}
+	}, [clearError, isExpectedAbort, status]);
 
 	if (messages.length === 0) {
 		return null;
@@ -364,6 +429,33 @@ export function AgentMessages() {
 				const showActions = isAssistant && !(isLastMessage && isStreaming);
 				const groupedParts = collectToolGroups(message.parts);
 				const messageKey = message.id || `msg-${index}`;
+				const shouldAnimateUserBubble =
+					message.role === "user" && !persistedUserMessageIds.has(messageKey);
+				const content = (
+					<MessageContent className={isAssistant ? "w-full" : undefined}>
+						{groupedParts.map((part, partIndex) =>
+							renderMessagePart(
+								part,
+								partIndex,
+								messageKey,
+								isLastMessage,
+								isStreaming,
+								message.role
+							)
+						)}
+
+						{showActions ? (
+							<AssistantActions
+								canRegenerate={!hasError}
+								isLast={isLastMessage}
+								message={message}
+								onRegenerate={() => {
+									regenerate().catch(() => undefined);
+								}}
+							/>
+						) : null}
+					</MessageContent>
+				);
 
 				return (
 					<Message
@@ -371,29 +463,13 @@ export function AgentMessages() {
 						from={message.role}
 						key={messageKey}
 					>
-						<MessageContent className={cn(isAssistant && "w-full")}>
-							{groupedParts.map((part, partIndex) =>
-								renderMessagePart(
-									part,
-									partIndex,
-									messageKey,
-									isLastMessage,
-									isStreaming,
-									message.role
-								)
-							)}
-
-							{showActions ? (
-								<AssistantActions
-									canRegenerate={!hasError}
-									isLast={isLastMessage}
-									message={message}
-									onRegenerate={() => {
-										regenerate().catch(() => undefined);
-									}}
-								/>
-							) : null}
-						</MessageContent>
+						{message.role === "user" ? (
+							<UserMessageBubble animate={shouldAnimateUserBubble}>
+								{content}
+							</UserMessageBubble>
+						) : (
+							content
+						)}
 					</Message>
 				);
 			})}
@@ -427,7 +503,14 @@ function showTailIndicator(
 	if (!lastMessage || lastMessage.role !== "assistant") {
 		return true;
 	}
-	return lastMessage.parts.length === 0;
+	if (lastMessage.parts.length === 0) {
+		return true;
+	}
+	const lastPart = lastMessage.parts.at(-1);
+	if (lastPart && isToolPart(lastPart) && lastPart.output != null) {
+		return true;
+	}
+	return false;
 }
 
 function StreamingIndicator({ label }: { label: string | null }) {
@@ -450,4 +533,31 @@ function StreamingIndicator({ label }: { label: string | null }) {
 			</Shimmer>
 		</div>
 	);
+}
+
+function AnimatedUserBubble({ children }: { children: ReactNode }) {
+	return (
+		<motion.div
+			animate={{ filter: "blur(0px)", opacity: 1, scale: 1, y: 0 }}
+			className="origin-bottom-right"
+			initial={{ filter: "blur(6px)", opacity: 0, scale: 0.8, y: 5 }}
+			transition={{ type: "spring", stiffness: 450, damping: 35 }}
+		>
+			{children}
+		</motion.div>
+	);
+}
+
+function UserMessageBubble({
+	animate,
+	children,
+}: {
+	animate: boolean;
+	children: ReactNode;
+}) {
+	if (animate) {
+		return <AnimatedUserBubble>{children}</AnimatedUserBubble>;
+	}
+
+	return <div className="origin-bottom-right">{children}</div>;
 }

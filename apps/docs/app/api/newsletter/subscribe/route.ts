@@ -35,9 +35,10 @@ export async function POST(request: NextRequest) {
 		const audienceId = process.env.RESEND_AUDIENCE_ID;
 
 		if (!(apiKey && audienceId)) {
+			console.error("newsletter/subscribe is not configured");
 			return NextResponse.json(
-				{ error: "Newsletter is not configured" },
-				{ status: 500 }
+				{ error: "Newsletter signup is temporarily unavailable" },
+				{ status: 503 }
 			);
 		}
 
@@ -56,6 +57,10 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json({ success: true });
 		}
 
-		return NextResponse.json({ error: message }, { status: 500 });
+		console.error("newsletter/subscribe failed", error);
+		return NextResponse.json(
+			{ error: "Internal server error" },
+			{ status: 500 }
+		);
 	}
 }

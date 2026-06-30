@@ -1,6 +1,9 @@
 "use client";
 
-import { HeartIcon, PaletteIcon } from "@phosphor-icons/react";
+import {
+	StarIcon as HeartIcon,
+	GearIcon as PaletteIcon,
+} from "@databuddy/ui/icons";
 import { motion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";

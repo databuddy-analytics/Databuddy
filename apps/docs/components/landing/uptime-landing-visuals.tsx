@@ -3,7 +3,8 @@
 import { EASE } from "@/components/landing/demo-primitives";
 import { type GeoPermissibleObjects, geoNaturalEarth1, geoPath } from "d3-geo";
 import { useCallback, useEffect, useRef, useState } from "react";
-import * as topojson from "topojson-client";
+import { feature } from "topojson-client";
+import type { GeometryCollection, Topology } from "topojson-specification";
 import worldTopo from "world-atlas/countries-110m.json";
 
 // ---------------------------------------------------------------------------
@@ -46,7 +47,7 @@ export function UptimeRegionsHubDiagram() {
 
 		let destroyed = false;
 
-		async function init() {
+		function init() {
 			if (!(canvas && ctx) || destroyed) {
 				return;
 			}
@@ -73,13 +74,10 @@ export function UptimeRegionsHubDiagram() {
 				return;
 			}
 
-			// biome-ignore lint/suspicious/noExplicitAny: topojson types
-			const features = (
-				topojson.feature(
-					worldTopo as any,
-					(worldTopo as any).objects.countries
-				) as any
-			).features;
+			const topology = worldTopo as unknown as Topology<{
+				countries: GeometryCollection;
+			}>;
+			const features = feature(topology, topology.objects.countries).features;
 
 			// Base map — drawn once onto an offscreen canvas
 			const baseC = document.createElement("canvas");
@@ -395,9 +393,7 @@ export function UptimeAlertsStackVisual() {
 				style={{
 					gap: GAP,
 					transform: `translateY(${translateY}px)`,
-					transition: noTransition
-						? "none"
-						: `transform ${DUR_MS}ms ${EASE}`,
+					transition: noTransition ? "none" : `transform ${DUR_MS}ms ${EASE}`,
 				}}
 			>
 				{ALERT_ITEMS.map((row, i) => {
@@ -406,8 +402,7 @@ export function UptimeAlertsStackVisual() {
 					return (
 						<div
 							className={`flex items-center justify-between gap-4 rounded border px-3 font-mono text-muted-foreground text-sm ${s.border} ${s.bg}`}
-							// biome-ignore lint/suspicious/noArrayIndexKey: static list
-							key={i}
+							key={`${row.time}-${row.text}`}
 							style={{
 								minHeight: ROW_H,
 								opacity: s.opacity,

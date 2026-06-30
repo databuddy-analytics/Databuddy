@@ -1,5 +1,4 @@
-import type { IconProps } from "@phosphor-icons/react";
-import type { ComponentType } from "react";
+import type { ComponentType, SVGProps } from "react";
 import { Tip } from "@/components/ui/tip";
 import { cn } from "@/lib/utils";
 import { BookOpenIcon } from "@databuddy/ui/icons";
@@ -75,7 +74,9 @@ interface InfoCardProps {
 	};
 	className?: string;
 	description?: string;
-	icon: ComponentType<IconProps>;
+	icon: ComponentType<
+		SVGProps<SVGSVGElement> & { size?: number | string; weight?: string }
+	>;
 	title: string;
 }
 

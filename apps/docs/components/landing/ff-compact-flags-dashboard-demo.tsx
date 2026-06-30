@@ -40,9 +40,7 @@ export function FFCompactFlagsDashboardDemo() {
 						Feature Flags
 					</p>
 					<div className="flex items-center gap-1.5 rounded bg-white/[0.04] px-2.5 py-1">
-						<FlagIcon
-							className="size-3 text-muted-foreground"
-							/>
+						<FlagIcon className="size-3 text-muted-foreground" />
 						<span className="font-medium text-[11px] text-muted-foreground">
 							Production
 						</span>

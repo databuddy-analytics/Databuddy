@@ -1,17 +1,51 @@
-import { log } from "evlog";
-import { useLogger as getRequestLogger } from "evlog/elysia";
-import type { Context } from "../orpc";
+import type {
+	RpcProcedureType,
+	RpcWideEventFields,
+} from "@databuddy/shared/evlog-fields";
+import { log, type RequestLogger } from "evlog";
 
-/**
- * Merge RPC-specific fields into the active request wide event.
- * Auth and API key context is handled globally by applyAuthWideEvent.
- */
-export function enrichRpcWideEventContext(context: Context): void {
+type RequestLoggerProvider = () => RequestLogger;
+interface RpcContextWithHeaders {
+	headers?: Headers | null;
+}
+
+let requestLoggerProvider: RequestLoggerProvider | null = null;
+
+export function setRpcRequestLoggerProvider(
+	provider: RequestLoggerProvider | null
+): void {
+	requestLoggerProvider = provider;
+}
+
+function getActiveRpcRequestLogger(): RequestLogger | null {
+	if (!requestLoggerProvider) {
+		return null;
+	}
+	try {
+		return requestLoggerProvider();
+	} catch {
+		return null;
+	}
+}
+
+function setOrLog(fields: Partial<RpcWideEventFields>): void {
+	const requestLogger = getActiveRpcRequestLogger();
+	const payload = fields as Record<string, unknown>;
+	if (requestLogger) {
+		requestLogger.set(payload);
+		return;
+	}
+	log.info({ service: "rpc", ...payload });
+}
+
+export function enrichRpcWideEventContext(
+	context: RpcContextWithHeaders
+): void {
 	if (!context.headers) {
 		return;
 	}
 
-	const fields: Record<string, string> = {};
+	const fields: Partial<RpcWideEventFields> = {};
 
 	const clientId = context.headers.get("databuddy-client-id");
 	if (clientId) {
@@ -32,37 +66,21 @@ export function enrichRpcWideEventContext(context: Context): void {
 		return;
 	}
 
-	try {
-		getRequestLogger().set(fields as Record<string, unknown>);
-	} catch {
-		log.info({ service: "rpc", ...fields });
-	}
+	setOrLog(fields);
 }
 
-export function setRpcProcedureType(
-	procedureType: "public" | "protected" | "admin" | "website"
-): void {
-	try {
-		getRequestLogger().set({ rpc_procedure_type: procedureType });
-	} catch {
-		log.info({ service: "rpc", rpc_procedure_type: procedureType });
-	}
+export function setRpcProcedureType(procedureType: RpcProcedureType): void {
+	setOrLog({ rpc_procedure_type: procedureType });
 }
 
 export function setRpcProcedurePath(path: readonly string[]): void {
 	if (path.length === 0) {
 		return;
 	}
-	const procedure = path.join(".");
-	const fields = {
-		rpc_procedure: procedure,
+	setOrLog({
+		rpc_procedure: path.join("."),
 		rpc_router: path[0],
-	};
-	try {
-		getRequestLogger().set(fields);
-	} catch {
-		log.info({ service: "rpc", ...fields });
-	}
+	});
 }
 
 export function recordORPCError(error: {
@@ -71,18 +89,21 @@ export function recordORPCError(error: {
 }): void {
 	const message = error.message ?? error.code ?? "Unknown error";
 	const err = new Error(message);
-	try {
-		getRequestLogger().error(err, {
+	const requestLogger = getActiveRpcRequestLogger();
+	if (requestLogger) {
+		const fields = {
 			rpc_error_code: error.code,
 			rpc_error_message: error.message,
-		});
-	} catch {
-		log.error({
-			service: "rpc",
-			rpc_error_code: error.code,
-			rpc_error_message: error.message,
-		});
+		} satisfies Partial<RpcWideEventFields>;
+		requestLogger.error(err, fields);
+		return;
 	}
+	const fields = {
+		service: "rpc",
+		rpc_error_code: error.code,
+		rpc_error_message: error.message,
+	} satisfies Partial<RpcWideEventFields> & { service: "rpc" };
+	log.error(fields);
 }
 
 export function createAbortSignalInterceptor<T = unknown>() {
@@ -94,18 +115,10 @@ export function createAbortSignalInterceptor<T = unknown>() {
 		next: () => T;
 	}) => {
 		request.signal?.addEventListener("abort", () => {
-			try {
-				getRequestLogger().set({
-					rpc_request_aborted: true,
-					rpc_abort_reason: String(request.signal?.reason),
-				});
-			} catch {
-				log.info({
-					service: "rpc",
-					rpc_request_aborted: true,
-					rpc_abort_reason: String(request.signal?.reason),
-				});
-			}
+			setOrLog({
+				rpc_request_aborted: true,
+				rpc_abort_reason: String(request.signal?.reason),
+			});
 		});
 
 		return next();

@@ -1,5 +1,6 @@
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
+import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
 import { formatNumber } from "@/lib/formatters";
 import {
 	CurrencyDollarIcon,
@@ -58,6 +59,23 @@ export function createRevenueColumns({
 				referrer: "Referrer",
 				utm: "Source",
 			}[type];
+
+		if (type === "referrer") {
+			return {
+				id: "name",
+				accessorKey: "name",
+				header,
+				cell: (info: CellContext<RevenueEntry, any>) => {
+					const name = (info.getValue() as string) || "";
+					if (name === "Unattributed" || name === "Direct") {
+						return (
+							<span className="font-medium text-muted-foreground">{name}</span>
+						);
+					}
+					return <ReferrerSourceCell name={name} referrer={name} />;
+				},
+			};
+		}
 
 		return {
 			id: "name",

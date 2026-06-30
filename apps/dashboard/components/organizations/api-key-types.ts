@@ -3,13 +3,41 @@ import type { API_SCOPES, ApiScope } from "@databuddy/api-keys/scopes";
 export const SCOPE_OPTIONS: { value: ApiScope; label: string }[] = [
 	{ value: "read:data", label: "Read Data" },
 	{ value: "track:events", label: "Event Tracking" },
-	{ value: "track:llm", label: "LLM Tracking" },
 	{ value: "read:links", label: "Read Links" },
 	{ value: "write:links", label: "Write Links" },
+	{ value: "read:monitors", label: "Read Monitors" },
+	{ value: "write:monitors", label: "Write Monitors" },
+	{ value: "read:status_pages", label: "Read Status Pages" },
+	{ value: "write:status_pages", label: "Write Status Pages" },
 	{ value: "manage:websites", label: "Manage Websites" },
 	{ value: "manage:flags", label: "Manage Flags" },
 	{ value: "manage:config", label: "Manage Config" },
 ] as const satisfies { value: (typeof API_SCOPES)[number]; label: string }[];
+
+export const SCOPE_PRESETS: { label: string; scopes: readonly ApiScope[] }[] = [
+	{ label: "Analytics", scopes: ["read:data"] },
+	{ label: "Tracking", scopes: ["track:events"] },
+	{ label: "Links", scopes: ["read:links", "write:links"] },
+	{ label: "Monitors", scopes: ["read:monitors", "write:monitors"] },
+	{
+		label: "Status Pages",
+		scopes: ["read:status_pages", "write:status_pages"],
+	},
+	{
+		label: "Config",
+		scopes: ["manage:websites", "manage:flags", "manage:config"],
+	},
+] as const satisfies { label: string; scopes: readonly ApiScope[] }[];
+
+export function formatMaskedApiKey({
+	prefix,
+	start,
+}: Pick<ApiKeyListItem, "prefix" | "start">) {
+	const cleanPrefix = prefix.endsWith("_") ? prefix.slice(0, -1) : prefix;
+	const startIncludesPrefix =
+		start === cleanPrefix || start.startsWith(`${cleanPrefix}_`);
+	return `${startIncludesPrefix ? start : `${cleanPrefix}_${start}`}••••`;
+}
 
 export type ApiResourceType =
 	| "global"

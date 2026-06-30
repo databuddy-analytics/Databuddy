@@ -1,5 +1,6 @@
 "use server";
 
+import { publicConfig } from "@databuddy/env/public";
 import { createServerFlagsManager } from "@databuddy/sdk/node";
 
 export interface ExamplesDisplayStrategy {
@@ -25,7 +26,7 @@ export async function getExamplesDisplayStrategy(
 ): Promise<ExamplesDisplayStrategy> {
 	const flagsManager = createServerFlagsManager({
 		clientId: websiteId,
-		apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
+		apiUrl: publicConfig.urls.api,
 		user: { userId },
 		debug: process.env.NODE_ENV === "development",
 		environment,
@@ -71,7 +72,7 @@ export const getShouldShowExamples = async (
 ) => {
 	const flagsManager = createServerFlagsManager({
 		clientId: websiteId,
-		apiUrl: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
+		apiUrl: publicConfig.urls.api,
 		user: { userId },
 		debug: process.env.NODE_ENV === "development",
 		environment,

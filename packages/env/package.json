@@ -4,6 +4,18 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./app": {
+      "types": "./src/app.ts",
+      "default": "./src/app.ts"
+    },
+    "./boolean": {
+      "types": "./src/boolean.ts",
+      "default": "./src/boolean.ts"
+    },
+    "./public": {
+      "types": "./src/public.ts",
+      "default": "./src/public.ts"
+    },
     "./dashboard": {
       "types": "./src/dashboard.ts",
       "default": "./src/dashboard.ts"
@@ -27,13 +39,22 @@
     "./docs": {
       "types": "./src/docs.ts",
       "default": "./src/docs.ts"
+    },
+    "./slack": {
+      "types": "./src/slack.ts",
+      "default": "./src/slack.ts"
+    },
+    "./insights": {
+      "types": "./src/insights.ts",
+      "default": "./src/insights.ts"
     }
   },
   "files": [
     "src"
   ],
   "scripts": {
-    "check-types": "tsc --build"
+    "check-types": "tsc --noEmit",
+    "test": "bun test src"
   },
   "dependencies": {
     "zod": "catalog:"

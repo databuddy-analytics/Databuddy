@@ -1,5 +1,10 @@
 import type * as React from "react";
 import { cn } from "@databuddy/ui";
+import {
+	docsMutedLabel,
+	docsSurface,
+	docsSurfaceHeader,
+} from "@/components/docs/docs-styles";
 
 function Table({
 	children,
@@ -7,11 +12,11 @@ function Table({
 	...props
 }: React.ComponentProps<"table">) {
 	return (
-		<div className="not-prose my-4 w-full overflow-hidden rounded-lg border border-border/60 bg-card">
+		<div className={cn("w-full", docsSurface)}>
 			<div className="w-full overflow-x-auto">
 				<table
 					className={cn(
-						"w-full border-collapse bg-card text-card-foreground text-sm",
+						"w-full border-collapse text-sidebar-foreground text-sm",
 						className
 					)}
 					{...props}
@@ -29,7 +34,7 @@ function TableHeader({
 	...props
 }: React.ComponentProps<"thead">) {
 	return (
-		<thead className={cn("bg-secondary/50", className)} {...props}>
+		<thead className={cn(docsSurfaceHeader, className)} {...props}>
 			{children}
 		</thead>
 	);
@@ -54,7 +59,10 @@ function TableRow({
 }: React.ComponentProps<"tr">) {
 	return (
 		<tr
-			className={cn("border-border/60 border-b last:border-b-0", className)}
+			className={cn(
+				"border-sidebar-border/50 border-b transition-colors last:border-b-0 hover:bg-sidebar-accent/25",
+				className
+			)}
 			{...props}
 		>
 			{children}
@@ -69,10 +77,7 @@ function TableHead({
 }: React.ComponentProps<"th">) {
 	return (
 		<th
-			className={cn(
-				"h-10 px-4 text-left font-medium text-muted-foreground text-xs",
-				className
-			)}
+			className={cn("h-10 px-4 text-left", docsMutedLabel, className)}
 			{...props}
 		>
 			{children}
@@ -87,7 +92,10 @@ function TableCell({
 }: React.ComponentProps<"td">) {
 	return (
 		<td
-			className={cn("px-4 py-3 text-foreground text-sm leading-5", className)}
+			className={cn(
+				"px-4 py-3 text-sidebar-foreground/75 text-sm leading-5",
+				className
+			)}
 			{...props}
 		>
 			{children}

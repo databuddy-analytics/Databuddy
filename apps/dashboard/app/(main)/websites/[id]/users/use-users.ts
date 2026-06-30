@@ -1,21 +1,12 @@
-import type { DateRange, ProfileData } from "@databuddy/shared/types/analytics";
-import type {
-	DynamicQueryFilter,
-	DynamicQueryResponse,
-} from "@databuddy/shared/types/api";
+import type { DateRange, ProfileData } from "@/types/analytics";
+import type { DynamicQueryFilter, DynamicQueryResponse } from "@/types/api";
 import type { UseQueryOptions } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useDynamicQuery } from "@/hooks/use-dynamic-query";
 
-function dedupeProfiles(profiles: ProfileData[]): ProfileData[] {
-	const seen = new Set<string>();
-	return profiles.filter((p) => {
-		if (seen.has(p.visitor_id)) {
-			return false;
-		}
-		seen.add(p.visitor_id);
-		return true;
-	});
+export interface ProfileSort {
+	field: string;
+	order: "asc" | "desc";
 }
 
 export function useProfilesData(
@@ -24,9 +15,10 @@ export function useProfilesData(
 	limit = 50,
 	page = 1,
 	filters?: DynamicQueryFilter[],
-	options?: Partial<UseQueryOptions<DynamicQueryResponse>>
+	options?: Partial<UseQueryOptions<DynamicQueryResponse>>,
+	sort?: ProfileSort
 ) {
-	const queryResult = useDynamicQuery(
+	const queryResult = useDynamicQuery<{ profile_list?: ProfileData[] }>(
 		websiteId,
 		dateRange,
 		{
@@ -35,6 +27,8 @@ export function useProfilesData(
 			limit,
 			page,
 			filters,
+			sortBy: sort?.field,
+			sortOrder: sort?.order,
 		},
 		{
 			...options,
@@ -44,16 +38,16 @@ export function useProfilesData(
 	);
 
 	const profiles = useMemo(() => {
-		const rawProfiles = (queryResult.data as any)?.profile_list || [];
-		return dedupeProfiles(rawProfiles);
+		const rows = queryResult.data.profile_list ?? [];
+		const seen = new Set<string>();
+		return rows.filter((p) => {
+			if (!p.visitor_id || seen.has(p.visitor_id)) {
+				return false;
+			}
+			seen.add(p.visitor_id);
+			return true;
+		});
 	}, [queryResult.data]);
-
-	const hasNextPage = useMemo(
-		() => profiles.length === limit,
-		[profiles.length, limit]
-	);
-
-	const hasPrevPage = useMemo(() => page > 1, [page]);
 
 	return {
 		...queryResult,
@@ -61,8 +55,8 @@ export function useProfilesData(
 		pagination: {
 			page,
 			limit,
-			hasNext: hasNextPage,
-			hasPrev: hasPrevPage,
+			hasNext: profiles.length === limit,
+			hasPrev: page > 1,
 		},
 	};
 }

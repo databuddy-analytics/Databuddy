@@ -1,7 +1,7 @@
 "use client";
 
 import { OTPInput, OTPInputContext } from "input-otp";
-import { MinusIcon } from "lucide-react";
+import { MinusIcon } from "@databuddy/ui/icons";
 import { useContext } from "react";
 
 import { cn } from "@/lib/utils";

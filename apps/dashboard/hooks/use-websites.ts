@@ -1,10 +1,11 @@
 "use client";
 
 import type { Website } from "@databuddy/db/schema";
-import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
+import type { ProcessedMiniChartData } from "@/types/website";
 
 import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 import { orpc } from "@/lib/orpc";
 
 export type { Website } from "@databuddy/db/schema";
@@ -58,6 +59,7 @@ const addWebsiteToList = (
 				data: [],
 				totalViews: 0,
 				hasAnyData: false,
+				hasHistoricalData: false,
 				trend: null,
 			},
 		},
@@ -124,8 +126,32 @@ export function useWebsitesLight(options?: { enabled?: boolean }) {
 }
 
 export function useWebsite(id: string) {
-	return useQuery({
+	const pathname = usePathname();
+	const usePublicMetadata =
+		pathname?.startsWith("/demo/") || pathname?.startsWith("/public/");
+
+	const privateQuery = useQuery({
 		...orpc.websites.getById.queryOptions({
+			input: { id },
+		}),
+		enabled: !!id && !usePublicMetadata,
+	});
+
+	const publicQuery = useQuery({
+		...orpc.websites.getPublicSummary.queryOptions({
+			input: { id },
+		}),
+		enabled: !!id && usePublicMetadata,
+	});
+
+	return usePublicMetadata
+		? (publicQuery as typeof privateQuery)
+		: privateQuery;
+}
+
+export function usePublicWebsiteSummary(id: string) {
+	return useQuery({
+		...orpc.websites.getPublicSummary.queryOptions({
 			input: { id },
 		}),
 		enabled: !!id,
@@ -138,6 +164,9 @@ export function useCreateWebsite() {
 	return useMutation({
 		...orpc.websites.create.mutationOptions(),
 		meta: { suppressGlobalErrorToast: true },
+		onMutate: async () => {
+			await queryClient.cancelQueries({ queryKey: getWebsitesListKey() });
+		},
 		onSuccess: (data) => {
 			const newWebsite = data as Website;
 			const listKey = getWebsitesListKey();
@@ -179,9 +208,6 @@ export function useDeleteWebsite() {
 	return useMutation({
 		...orpc.websites.delete.mutationOptions(),
 		onMutate: async ({ id }) => {
-			const getByIdKey = getWebsiteByIdKey(id);
-			const _previousWebsite = queryClient.getQueryData<Website>(getByIdKey);
-
 			const listKey = getWebsitesListKey();
 
 			await queryClient.cancelQueries({ queryKey: listKey });

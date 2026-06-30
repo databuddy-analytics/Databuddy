@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fg from "fast-glob";
 import matter from "gray-matter";
 import fs from "node:fs/promises";
@@ -10,6 +11,7 @@ const BASE_URL = "https://www.databuddy.cc/docs";
 const HEADER = `# Databuddy Documentation
 
 > Privacy-first web analytics. 65x faster than Google Analytics, GDPR compliant, no cookies required.
+> For the full documentation corpus, see [llms-full.txt](https://www.databuddy.cc/llms-full.txt).
 
 `;
 
@@ -74,7 +76,13 @@ export async function GET() {
 		})
 		.join("\n\n");
 
-	return new Response(HEADER + sections, {
-		headers: { "Content-Type": "text/plain; charset=utf-8" },
+	const body = HEADER + sections;
+
+	return new Response(body, {
+		headers: {
+			"Content-Type": "text/plain; charset=utf-8",
+			"Cache-Control": "public, max-age=3600, must-revalidate",
+			ETag: `"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`,
+		},
 	});
 }

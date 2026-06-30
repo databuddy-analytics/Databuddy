@@ -6,10 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { FeatureLockedPanel } from "@/components/feature-access-gate";
 import { PageNavigation } from "@/components/layout/page-navigation";
 import { TransferToOrgDialog } from "@/components/transfer-to-org-dialog";
-import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { getStatusPageUrl } from "@/lib/app-url";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -19,11 +17,11 @@ import {
 	type StatusPageMonitor,
 	StatusPageMonitorRow,
 } from "./_components/status-page-monitor-row";
-import { BrowserIcon } from "@phosphor-icons/react/dist/ssr";
 import {
 	ArrowClockwiseIcon,
 	ArrowSquareOutIcon,
 	HeartbeatIcon,
+	OpenExternalIcon as BrowserIcon,
 	PlusIcon,
 	SirenIcon,
 } from "@databuddy/ui/icons";
@@ -71,9 +69,6 @@ export default function StatusPageDetailsPage() {
 
 	const statusPage = statusPageQuery.data;
 
-	const { hasAccess, isLoading: isFeatureAccessLoading } =
-		useFeatureAccess("monitors");
-
 	const monitorToRemoveData = statusPage?.monitors.find(
 		(m: StatusPageMonitor) => m.id === monitorToRemove
 	);
@@ -113,12 +108,10 @@ export default function StatusPageDetailsPage() {
 		});
 	};
 
-	const isLoading = isFeatureAccessLoading || statusPageQuery.isLoading;
+	const isLoading = statusPageQuery.isLoading;
 
 	let monitorsContent: ReactNode;
-	if (!(hasAccess || isFeatureAccessLoading)) {
-		monitorsContent = <FeatureLockedPanel flagKey="monitors" />;
-	} else if (isLoading) {
+	if (isLoading) {
 		monitorsContent = (
 			<div className="divide-y">
 				{Array.from({ length: 3 }).map((_, i) => (

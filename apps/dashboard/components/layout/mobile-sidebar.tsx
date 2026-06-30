@@ -211,6 +211,9 @@ function MobileNavGroup({
 		if (item.production === false && process.env.NODE_ENV === "production") {
 			return false;
 		}
+		if (item.hideFromSidebar) {
+			return false;
+		}
 		if (item.hideFromDemo && isDemo) {
 			return false;
 		}
@@ -319,7 +322,7 @@ export function MobileSidebar() {
 						</Button>
 						<Link
 							className="flex min-w-0 select-none items-center gap-2 hover:opacity-80"
-							href="/websites"
+							href="/home"
 						>
 							<Branding heightPx={22} priority variant="primary-logo" />
 						</Link>
@@ -340,7 +343,7 @@ export function MobileSidebar() {
 					<div className="flex h-12 shrink-0 items-center border-b px-4">
 						<Link
 							className="flex select-none items-center gap-2 hover:opacity-80"
-							href="/websites"
+							href="/home"
 							onClick={() => setIsOpen(false)}
 						>
 							<Branding heightPx={22} priority variant="primary-logo" />

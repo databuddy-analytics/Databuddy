@@ -1,5 +1,6 @@
 "use client";
 
+import { publicConfig } from "@databuddy/env/public";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useState } from "react";
@@ -32,8 +33,6 @@ import {
 	SelectValue,
 } from "../ui/select";
 import { Separator } from "../ui/separator";
-import { XIcon } from "@phosphor-icons/react/dist/ssr";
-import type { NavIcon } from "@/components/layout/navigation/types";
 import {
 	BugIcon,
 	CaretDownIcon,
@@ -56,9 +55,10 @@ import {
 	StackIcon,
 	SunIcon,
 	TrashIcon,
-	UsersIcon,
 	WarningCircleIcon,
+	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
+import type { NavIcon } from "@/components/layout/navigation/types";
 
 function InfoSection({
 	title,
@@ -103,7 +103,7 @@ function ActionButton({
 }
 
 function EnvironmentInfo() {
-	const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+	const apiUrl = publicConfig.urls.api;
 	const env = process.env.NODE_ENV || "development";
 
 	return (
@@ -722,7 +722,6 @@ const LOCATION_ICONS: Record<ChartLocation, NavIcon> = {
 	"overview-stats": SquaresFourIcon,
 	"overview-main": PresentationChartIcon,
 	funnels: FunnelIcon,
-	retention: UsersIcon,
 	"website-list": ChartLineIcon,
 	events: ChartBarIcon,
 };

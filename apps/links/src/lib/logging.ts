@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import type { DrainContext, EnrichContext } from "evlog";
 import { log } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
@@ -21,7 +22,7 @@ const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 })(createAxiomDrain());
 
 const fsDrain =
-	process.env.NODE_ENV === "development" || process.env.LINKS_EVLOG_FS === "1"
+	process.env.NODE_ENV === "development" || readBooleanEnv("LINKS_EVLOG_FS")
 		? createFsDrain({
 				dir: join(
 					dirname(fileURLToPath(import.meta.url)),
@@ -106,10 +107,6 @@ export async function record<T>(
 		const durationMs = Math.round((performance.now() - start) * 100) / 100;
 		mergeWideEvent({ [`timing.${name}`]: durationMs });
 	}
-}
-
-export function emitInfoEvent(event: string, fields: LogFields): void {
-	log.info({ service: "links", event, ...fields });
 }
 
 export function setAttributes(

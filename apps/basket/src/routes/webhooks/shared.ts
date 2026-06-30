@@ -1,5 +1,4 @@
-import { db, eq } from "@databuddy/db";
-import { revenueConfig, websites } from "@databuddy/db/schema";
+import { db } from "@databuddy/db";
 
 const DATE_REGEX = /\.\d{3}Z$/;
 
@@ -16,7 +15,7 @@ export async function getWebhookConfig<K extends string>(
 	| { error: string }
 > {
 	const config = await db.query.revenueConfig.findFirst({
-		where: eq(revenueConfig.webhookHash, hash),
+		where: { webhookHash: hash },
 		columns: {
 			ownerId: true,
 			websiteId: true,
@@ -51,7 +50,7 @@ export async function resolveWebsiteId(
 	}
 
 	const site = await db.query.websites.findFirst({
-		where: eq(websites.id, metadataWebsiteId),
+		where: { id: metadataWebsiteId },
 		columns: { organizationId: true },
 	});
 

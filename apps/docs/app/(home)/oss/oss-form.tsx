@@ -1,7 +1,8 @@
 "use client";
 
+import { track } from "@databuddy/sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckIcon, PaperPlaneIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { CheckIcon, PaperPlaneIcon, SpinnerIcon } from "@databuddy/ui/icons";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -153,6 +154,7 @@ export default function OssForm() {
 				throw new Error(String(responseData.error || "Submission failed."));
 			}
 
+			track("oss_submitted");
 			setIsSubmitted(true);
 		} catch (error) {
 			if (error instanceof Error) {

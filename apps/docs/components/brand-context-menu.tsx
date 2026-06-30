@@ -4,8 +4,8 @@ import {
 	CheckIcon,
 	CopyIcon,
 	ImageIcon,
-	PaletteIcon,
-} from "@phosphor-icons/react";
+	GearIcon as PaletteIcon,
+} from "@databuddy/ui/icons";
 import Link from "next/link";
 import { type ReactNode, useCallback, useState } from "react";
 import { toast } from "sonner";

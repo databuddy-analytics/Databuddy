@@ -14,8 +14,12 @@ import {
 } from "@/lib/annotation-utils";
 import { cn } from "@/lib/utils";
 import type { Annotation, AnnotationFormData } from "@/types/annotations";
-import { XIcon } from "@phosphor-icons/react/dist/ssr";
-import { EyeIcon, EyeSlashIcon, PlusIcon } from "@databuddy/ui/icons";
+import {
+	EyeIcon,
+	EyeSlashIcon,
+	PlusIcon,
+	XMarkIcon as XIcon,
+} from "@databuddy/ui/icons";
 import { Badge, Button, Input, Textarea } from "@databuddy/ui";
 import { Dialog, Switch } from "@databuddy/ui/client";
 

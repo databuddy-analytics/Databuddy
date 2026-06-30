@@ -44,6 +44,12 @@ const connectionTypeSchema = z
 	.nullable()
 	.optional();
 
+const anonymizeVisitorIds = z
+	.union([z.boolean(), z.literal("auto")])
+	.nullable()
+	.optional()
+	.transform((value) => value ?? undefined);
+
 const timestampSchema = z
 	.number()
 	.int()
@@ -62,17 +68,16 @@ export const analyticsEventSchema = z.object({
 	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH),
 	name: z.string().min(1).max(VALIDATION_LIMITS.NAME_MAX_LENGTH),
 	anonymousId: z.string().nullable().optional(),
+	anonymizeVisitorIds,
 	sessionId: z.string().nullable().optional(),
 	timestamp: timestampSchema,
 	sessionStartTime: timestampSchema,
-	referrer: (process.env.NODE_ENV === "development"
-		? z.any()
-		: z.union([
-				z.url({ protocol: /^https?$/, hostname: z.regexes.domain }),
-				z.literal("direct"),
-				z.literal(""),
-			])
-	)
+	referrer: z
+		.union([
+			z.url({ protocol: /^https?$/, hostname: z.regexes.domain }),
+			z.literal("direct"),
+			z.literal(""),
+		])
 		.nullable()
 		.optional(),
 	path: z.union([
@@ -186,5 +191,23 @@ export const analyticsEventSchema = z.object({
 		.max(VALIDATION_LIMITS.VALUE_MAX_LENGTH)
 		.nullable()
 		.optional(),
-	properties: z.record(z.any(), z.any()).optional().nullable(),
+	properties: z
+		.record(
+			z.string().max(VALIDATION_LIMITS.PROPERTY_KEY_MAX_LENGTH),
+			z.unknown()
+		)
+		.refine(
+			(obj) => Object.keys(obj).length <= VALIDATION_LIMITS.PROPERTIES_MAX_KEYS,
+			`Too many properties (max ${VALIDATION_LIMITS.PROPERTIES_MAX_KEYS})`
+		)
+		.refine(
+			(obj) =>
+				JSON.stringify(obj).length <=
+				VALIDATION_LIMITS.PROPERTIES_MAX_SERIALIZED,
+			`Properties too large (max ${VALIDATION_LIMITS.PROPERTIES_MAX_SERIALIZED} bytes)`
+		)
+		.optional()
+		.nullable(),
 });
+
+export type AnalyticsEventInput = z.infer<typeof analyticsEventSchema>;

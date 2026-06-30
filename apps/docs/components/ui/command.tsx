@@ -1,7 +1,7 @@
 "use client";
 
 import { Command as CommandPrimitive } from "cmdk";
-import { SearchIcon } from "lucide-react";
+import { MagnifyingGlassIcon as SearchIcon } from "@databuddy/ui/icons";
 import type * as React from "react";
 import {
 	Dialog,

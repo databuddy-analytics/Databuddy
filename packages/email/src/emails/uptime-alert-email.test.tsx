@@ -419,16 +419,11 @@ describe("UptimeAlertEmail — SSL row", () => {
 });
 
 describe("UptimeAlertEmail — preview text", () => {
-	test("down preview mentions 'unreachable' with fallback label", async () => {
-		const html = await render({ kind: "down", url: "https://example.com" });
-		expect(html).toContain("is unreachable");
-	});
-
-	test("recovered preview mentions 'back online'", async () => {
-		const html = await render({
-			kind: "recovered",
-			url: "https://example.com",
-		});
-		expect(html).toContain("is back online");
+	test.each([
+		["down", "failed health check — HTTP timeout"],
+		["recovered", "is responding normally again"],
+	] as const)("%s preview matches current copy", async (kind, copy) => {
+		const html = await render({ kind, url: "https://example.com" });
+		expect(html).toContain(copy);
 	});
 });

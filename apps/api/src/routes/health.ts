@@ -1,12 +1,16 @@
 import { db, sql } from "@databuddy/db";
 import { redis } from "@databuddy/redis";
 import { Elysia } from "elysia";
+import { useLogger } from "evlog/elysia";
 
 type PingResult =
 	| { status: "ok"; latency_ms: number }
-	| { status: "error"; latency_ms: number; error: string };
+	| { status: "error"; latency_ms: number; code: "UNAVAILABLE" };
 
-async function ping(probe: () => Promise<unknown>): Promise<PingResult> {
+export async function ping(
+	name: string,
+	probe: () => Promise<unknown>
+): Promise<PingResult> {
 	const start = performance.now();
 	try {
 		await probe();
@@ -15,10 +19,14 @@ async function ping(probe: () => Promise<unknown>): Promise<PingResult> {
 			latency_ms: Math.round(performance.now() - start),
 		};
 	} catch (err) {
+		useLogger().warn("Health probe unavailable", {
+			error_message: err instanceof Error ? err.message : String(err),
+			health_probe: name,
+		});
 		return {
 			status: "error",
 			latency_ms: Math.round(performance.now() - start),
-			error: err instanceof Error ? err.message : "unknown",
+			code: "UNAVAILABLE",
 		};
 	}
 }
@@ -26,8 +34,8 @@ async function ping(probe: () => Promise<unknown>): Promise<PingResult> {
 export const health = new Elysia()
 	.get("/health/status", async () => {
 		const [postgres, cache] = await Promise.all([
-			ping(() => db.execute(sql`SELECT 1`)),
-			ping(() => redis.ping()),
+			ping("postgres", () => db.execute(sql`SELECT 1`)),
+			ping("redis", () => redis.ping()),
 		]);
 
 		const services = { postgres, redis: cache };

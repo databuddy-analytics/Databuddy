@@ -1,21 +1,8 @@
 {
+  "extends": "../../tsconfig/default.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
     "lib": ["dom", "dom.iterable", "ES2022"],
-    "moduleResolution": "bundler",
-    "strict": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "baseUrl": "./",
-    "composite": true,
-    "declaration": true,
-    "declarationMap": true,
-    "outDir": "./dist",
-    "rootDir": "./src"
+    "baseUrl": "./"
   },
   "include": ["src/**/*.tsx", "src/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]

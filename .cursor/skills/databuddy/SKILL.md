@@ -198,7 +198,7 @@ curl -H "x-api-key: dbdy_your_api_key" \
   https://api.databuddy.cc/v1/query/websites
 ```
 
-Get API keys from: [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings/api-keys)
+Get API keys from: [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys)
 
 ### Query Analytics Data
 

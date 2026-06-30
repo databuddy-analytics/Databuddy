@@ -2,16 +2,42 @@
 
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
-import * as schema from "./drizzle/schema";
+import { relations } from "./drizzle/schema/relations";
 
-const fullSchema = schema;
+type DB = NodePgDatabase<typeof relations>;
 
-type DB = NodePgDatabase<typeof fullSchema>;
+const DEFAULT_POOL_MAX = 30;
+const DEFAULT_CONNECTION_TIMEOUT_MS = 2000;
 
-let _pgTraceFn: ((durationMs: number) => void) | null = null;
+let _pgErrorFn: ((error: Error) => void) | null = null;
 
-export function setPgTraceFn(fn: (durationMs: number) => void) {
-	_pgTraceFn = fn;
+export function setPgErrorFn(fn: (error: Error) => void) {
+	_pgErrorFn = fn;
+}
+
+let _pgTimingFn: ((durationMs: number) => void) | null = null;
+
+export function setPgTimingFn(fn: (durationMs: number) => void) {
+	_pgTimingFn = fn;
+}
+
+function timePoolQueries(pool: Pool): void {
+	const originalQuery = pool.query.bind(pool) as (
+		...args: unknown[]
+	) => unknown;
+	pool.query = ((...args: unknown[]) => {
+		const timingFn = _pgTimingFn;
+		if (!timingFn) {
+			return originalQuery(...args);
+		}
+		const startedAt = performance.now();
+		const result = originalQuery(...args);
+		if (result instanceof Promise) {
+			const record = () => timingFn(performance.now() - startedAt);
+			result.then(record, record);
+		}
+		return result;
+	}) as Pool["query"];
 }
 
 function connectionStringForNodePg(connectionString: string): string {
@@ -26,51 +52,16 @@ function connectionStringForNodePg(connectionString: string): string {
 	}
 }
 
-function wrapQuery(obj: { query: (...args: any[]) => any }): void {
-	const original = obj.query.bind(obj);
-	obj.query = (...args: unknown[]) => {
-		if (!_pgTraceFn) {
-			return original(...args);
-		}
-		const start = performance.now();
-		const result = original(...args);
-		if (result?.then) {
-			return result.then((res: unknown) => {
-				_pgTraceFn?.(Math.round((performance.now() - start) * 100) / 100);
-				return res;
-			});
-		}
-		return result;
-	};
-}
-
-function instrumentedPool(pool: Pool): Pool {
-	const originalConnect = pool.connect.bind(pool);
-	(pool as any).connect = (...args: unknown[]) => {
-		const callback = args[0] as
-			| ((err: Error | undefined, client: unknown, release: unknown) => void)
-			| undefined;
-		if (callback) {
-			return originalConnect(
-				(err: Error | undefined, client: unknown, release: unknown) => {
-					if (client && !err) {
-						wrapQuery(client as Parameters<typeof wrapQuery>[0]);
-					}
-					callback(err, client, release);
-				}
-			);
-		}
-		return (originalConnect as () => Promise<unknown>)().then((client) => {
-			wrapQuery(client as Parameters<typeof wrapQuery>[0]);
-			return client;
-		});
-	};
-
-	wrapQuery(pool);
-	return pool;
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+	const parsed = Number.parseInt(value ?? "", 10);
+	if (Number.isFinite(parsed) && parsed > 0) {
+		return parsed;
+	}
+	return fallback;
 }
 
 let _db: DB | null = null;
+let _pool: Pool | null = null;
 
 function getDb(): DB {
 	if (!_db) {
@@ -79,19 +70,47 @@ function getDb(): DB {
 			throw new Error("DATABASE_URL is not set");
 		}
 
-		const pool = instrumentedPool(
-			new Pool({
-				connectionString: connectionStringForNodePg(databaseUrl),
-				max: Number.parseInt(process.env.DB_POOL_MAX ?? "20", 10) || 20,
-				idleTimeoutMillis: 30_000,
-				connectionTimeoutMillis: 5000,
-				application_name: process.env.SERVICE_NAME || "databuddy",
-			})
-		);
+		_pool = new Pool({
+			connectionString: connectionStringForNodePg(databaseUrl),
+			max: parsePositiveInt(process.env.DB_POOL_MAX, DEFAULT_POOL_MAX),
+			idleTimeoutMillis: 30_000,
+			connectionTimeoutMillis: parsePositiveInt(
+				process.env.DB_CONNECTION_TIMEOUT_MS,
+				DEFAULT_CONNECTION_TIMEOUT_MS
+			),
+			application_name: process.env.SERVICE_NAME || "databuddy",
+		});
+		timePoolQueries(_pool);
+		_pool.on("error", (error) => {
+			if (_pgErrorFn) {
+				_pgErrorFn(error);
+				return;
+			}
+			console.error("[db] postgres pool error", error);
+		});
 
-		_db = drizzle(pool, { schema: fullSchema });
+		_db = drizzle({ client: _pool, relations, jit: true });
 	}
 	return _db;
+}
+
+export async function warmPool(): Promise<void> {
+	getDb();
+	if (!_pool) {
+		return;
+	}
+	const client = await _pool.connect();
+	client.release();
+}
+
+export async function shutdownPostgres(): Promise<void> {
+	const pool = _pool;
+	_db = null;
+	_pool = null;
+	if (!pool) {
+		return;
+	}
+	await pool.end();
 }
 
 export const db = new Proxy({} as DB, {

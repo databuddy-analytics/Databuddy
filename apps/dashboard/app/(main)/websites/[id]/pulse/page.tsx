@@ -4,11 +4,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FeatureAccessGate } from "@/components/feature-access-gate";
 import { MonitorSheet } from "@/components/monitors/monitor-sheet";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { useFeatureAccess } from "@/hooks/use-feature-access";
 import { orpc } from "@/lib/orpc";
 import { UptimeHeatmap } from "@/lib/uptime/uptime-heatmap";
 import { TopBar } from "@/components/layout/top-bar";
@@ -23,7 +21,7 @@ import {
 	TrashIcon,
 } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
-import { Button, EmptyState, Skeleton, localDayjs } from "@databuddy/ui";
+import { Button, EmptyState, localDayjs } from "@databuddy/ui";
 
 interface Schedule {
 	granularity: string;
@@ -52,7 +50,6 @@ export default function PulsePage() {
 	} | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const { hasAccess } = useFeatureAccess("monitors");
 
 	const {
 		data: rawSchedule,
@@ -62,7 +59,7 @@ export default function PulsePage() {
 		...orpc.uptime.getScheduleByWebsiteId.queryOptions({
 			input: { websiteId: websiteId as string },
 		}),
-		enabled: !!websiteId && hasAccess,
+		enabled: !!websiteId,
 	});
 
 	const schedule = rawSchedule as Schedule | null | undefined;
@@ -80,7 +77,6 @@ export default function PulsePage() {
 	const [isPausing, setIsPausing] = useState(false);
 	const hasMonitor = !!schedule;
 
-	// Fetch uptime analytics data
 	const uptimeQueries = useMemo(
 		() => [
 			{
@@ -221,7 +217,6 @@ export default function PulsePage() {
 		}
 	};
 
-	// Build header actions
 	const headerActions = schedule ? (
 		<>
 			<Button
@@ -279,56 +274,46 @@ export default function PulsePage() {
 				</Button>
 				{headerActions}
 			</TopBar.Actions>
-			<FeatureAccessGate
-				flagKey="monitors"
-				loadingFallback={
-					<div className="flex-1 space-y-4 overflow-y-auto p-4">
-						<Skeleton className="h-32 w-full rounded" />
-						<Skeleton className="h-64 w-full rounded" />
-					</div>
-				}
-			>
-				<div className="flex-1 overflow-y-auto">
-					{isLoadingSchedule ? (
-						<div className="flex h-full items-center justify-center p-4">
-							<div className="text-muted-foreground text-sm">
-								Loading monitor...
-							</div>
+			<div className="flex-1 overflow-y-auto">
+				{isLoadingSchedule ? (
+					<div className="flex h-full items-center justify-center p-4">
+						<div className="text-muted-foreground text-sm">
+							Loading monitor...
 						</div>
-					) : schedule ? (
-						<>
-							<div className="border-b bg-sidebar">
-								<UptimeHeatmap
-									data={heatmapData}
-									days={90}
-									isLoading={isLoadingHeatmap}
-								/>
-							</div>
-
-							<div className="bg-sidebar">
-								<RecentActivity
-									checks={recentChecks}
-									isLoading={isLoadingUptime}
-								/>
-							</div>
-						</>
-					) : (
-						<div className="flex h-full items-center justify-center p-4">
-							<EmptyState
-								action={{
-									label: "Create a monitor",
-									onClick: handleCreateMonitor,
-								}}
-								className="h-full py-0"
-								description="Track availability and get alerts when the site goes down."
-								icon={<HeartbeatIcon weight="duotone" />}
-								title="No monitor yet"
-								variant="minimal"
+					</div>
+				) : schedule ? (
+					<>
+						<div className="border-b bg-sidebar">
+							<UptimeHeatmap
+								data={heatmapData}
+								days={90}
+								isLoading={isLoadingHeatmap}
 							/>
 						</div>
-					)}
-				</div>
-			</FeatureAccessGate>
+
+						<div className="bg-sidebar">
+							<RecentActivity
+								checks={recentChecks}
+								isLoading={isLoadingUptime}
+							/>
+						</div>
+					</>
+				) : (
+					<div className="flex h-full items-center justify-center p-4">
+						<EmptyState
+							action={{
+								label: "Create a monitor",
+								onClick: handleCreateMonitor,
+							}}
+							className="h-full py-0"
+							description="Track availability and get alerts when the site goes down."
+							icon={<HeartbeatIcon weight="duotone" />}
+							title="No monitor yet"
+							variant="minimal"
+						/>
+					</div>
+				)}
+			</div>
 
 			<MonitorSheet
 				onCloseAction={setIsDialogOpen}

@@ -61,10 +61,12 @@ const ROWS: TrendRow[] = [
 function Sparkline({ row }: { row: TrendRow }) {
 	return (
 		<svg
-			aria-hidden role="img"
+			aria-label={`${row.label} trend`}
 			className="h-6 w-20 shrink-0 overflow-visible sm:w-24"
+			role="img"
 			viewBox="0 0 80 24"
 		>
+			<title>{`${row.label} trend`}</title>
 			<polyline
 				className={cn(
 					"fill-none",

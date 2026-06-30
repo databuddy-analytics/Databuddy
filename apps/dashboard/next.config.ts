@@ -1,13 +1,21 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
+function joinCspSources(...sources: (string | false)[]): string {
+	return sources.filter(Boolean).join(" ");
+}
+
+const demoFrameAncestorSources = [
+	"https://www.databuddy.cc",
+	"https://databuddy.cc",
+	"https://app.databuddy.cc",
+	"https://preview.databuddy.cc",
+	"https://staging.databuddy.cc",
+] as const;
+
 const nextConfig: NextConfig = {
-	experimental: {
-		optimizePackageImports: ["@phosphor-icons/react"],
-	},
+	outputFileTracingRoot: path.join(process.cwd(), "../.."),
 	serverExternalPackages: ["pg"],
-	typescript: {
-		ignoreBuildErrors: true,
-	},
 	images: {
 		remotePatterns: [
 			{
@@ -67,20 +75,36 @@ const nextConfig: NextConfig = {
 		];
 
 		const isDev = process.env.NODE_ENV === "development";
-		const localhostConnectSrc = isDev
+		const localhostSources = isDev
+			? "http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*"
+			: false;
+		const localFrameAncestorSources = isDev
 			? "http://localhost:* http://127.0.0.1:*"
-			: "";
-		const localhostFrameAncestors = isDev
-			? "http://localhost:* http://127.0.0.1:*"
-			: "";
+			: false;
+		const connectSources = joinCspSources(
+			"'self'",
+			localhostSources,
+			"https://*.databuddy.cc",
+			"https://*.useautumn.com",
+			"https://api.openai.com",
+			"https://hooks.slack.com",
+			"wss://*.databuddy.cc"
+		);
+		const scriptSources = joinCspSources(
+			"'self'",
+			"'unsafe-inline'",
+			isDev && "'unsafe-eval'",
+			"'wasm-unsafe-eval'",
+			"https://cdn.databuddy.cc"
+		);
 
 		const cspDirectives = [
 			"default-src 'self'",
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.databuddy.cc",
+			`script-src ${scriptSources}`,
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
 			"img-src 'self' data: blob: https://cdn.databuddy.cc https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
-			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc https://api.microlink.io`.trim(),
+			`connect-src ${connectSources}`,
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
 			"form-action 'self'",
@@ -88,31 +112,21 @@ const nextConfig: NextConfig = {
 
 		const demoCspDirectives = [
 			"default-src 'self'",
-			"script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.databuddy.cc",
+			`script-src ${scriptSources}`,
 			"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
 			"font-src 'self' https://fonts.gstatic.com",
 			"img-src 'self' data: blob: https://cdn.databuddy.cc https://www.google.com https://flagcdn.com https://api.dicebear.com https://avatars.githubusercontent.com https://lh3.googleusercontent.com",
-			`connect-src 'self' ${localhostConnectSrc} https://cdn.databuddy.cc https://*.databuddy.cc wss://*.databuddy.cc`.trim(),
-			`frame-ancestors 'self' ${localhostFrameAncestors} https://*.databuddy.cc https://databuddy.cc`.trim(),
+			`connect-src ${connectSources}`,
+			`frame-ancestors ${joinCspSources(
+				"'self'",
+				...demoFrameAncestorSources,
+				localFrameAncestorSources
+			)}`,
 			"base-uri 'self'",
 			"form-action 'self'",
 		];
 
 		return [
-			{
-				source: "/status/:path*",
-				headers: [
-					...securityHeaders,
-					{
-						key: "Cache-Control",
-						value: "public, s-maxage=60, stale-while-revalidate=300",
-					},
-					{
-						key: "Content-Security-Policy",
-						value: cspDirectives.join("; "),
-					},
-				],
-			},
 			{
 				source: "/demo/:path*",
 				headers: [

@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "@phosphor-icons/react";
+import { XMarkIcon as X } from "@databuddy/ui/icons";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import type * as React from "react";
 

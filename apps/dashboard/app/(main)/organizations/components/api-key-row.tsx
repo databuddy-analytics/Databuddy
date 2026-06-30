@@ -1,6 +1,9 @@
 "use client";
 
-import type { ApiKeyListItem } from "@/components/organizations/api-key-types";
+import {
+	formatMaskedApiKey,
+	type ApiKeyListItem,
+} from "@/components/organizations/api-key-types";
 import { cn } from "@/lib/utils";
 import { CaretRightIcon, LockSimpleIcon } from "@databuddy/ui/icons";
 import { Badge, Text, dayjs } from "@databuddy/ui";
@@ -58,6 +61,7 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 	const status = resolveStatus(apiKey);
 	const badge = STATUS_BADGE[status];
 	const scopeCount = apiKey.scopes?.length ?? 0;
+	const maskedKey = formatMaskedApiKey(apiKey);
 
 	const lastUsedLabel = apiKey.lastUsedAt
 		? `Used ${dayjs(apiKey.lastUsedAt).fromNow()}`
@@ -128,18 +132,22 @@ export function ApiKeyRow({ apiKey, onSelect }: ApiKeyRowProps) {
 						</Text>
 					)}
 				</div>
-				<Text
-					as="span"
-					className={cn(
-						"mt-0.5 block",
-						lastUsedTone === "warning" && "text-warning",
-						lastUsedTone === "muted" && "italic"
-					)}
-					tone={lastUsedTone === "default" ? "muted" : undefined}
-					variant="caption"
-				>
-					{lastUsedLabel}
-				</Text>
+				<div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+					<Text as="span" className="font-mono" tone="muted" variant="caption">
+						{maskedKey}
+					</Text>
+					<Text
+						as="span"
+						className={cn(
+							lastUsedTone === "warning" && "text-warning",
+							lastUsedTone === "muted" && "italic"
+						)}
+						tone={lastUsedTone === "default" ? "muted" : undefined}
+						variant="caption"
+					>
+						{lastUsedLabel}
+					</Text>
+				</div>
 			</div>
 
 			<div className="flex items-center gap-3">

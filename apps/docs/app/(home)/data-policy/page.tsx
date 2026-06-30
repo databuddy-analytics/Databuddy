@@ -2,13 +2,13 @@ import {
 	ClockIcon,
 	DatabaseIcon,
 	EnvelopeIcon,
-	FlowArrowIcon,
+	ArrowsDownUpIcon as FlowArrowIcon,
 	GlobeIcon,
-	HashIcon,
-	LockKeyIcon,
+	CodeIcon as HashIcon,
+	LockSimpleIcon as LockKeyIcon,
 	ShieldCheckIcon,
-	ShieldIcon,
-} from "@phosphor-icons/react/ssr";
+	ShieldCheckIcon as ShieldIcon,
+} from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
 import { StructuredData } from "@/components/structured-data";

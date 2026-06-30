@@ -8,6 +8,7 @@ import {
 	useEffect,
 	useState,
 } from "react";
+import { SidebarLeftIcon } from "@databuddy/ui/icons";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "sidebar-open";
@@ -84,7 +85,7 @@ export function SidebarPanel({
 	return (
 		<nav
 			className={cn(
-				"fixed inset-y-0 left-0 z-50 hidden flex-col border-sidebar-border/50 border-r bg-sidebar md:flex",
+				"fixed inset-y-0 left-0 z-50 hidden flex-col overflow-hidden border-sidebar-border/50 border-r bg-sidebar md:flex",
 				open ? "w-64" : "w-12",
 				className
 			)}
@@ -129,20 +130,7 @@ export function SidebarTrigger({ className }: { className?: string }) {
 			onClick={toggle}
 			type="button"
 		>
-			<svg
-				aria-hidden
-				className="size-4"
-				fill="none"
-				stroke="currentColor"
-				strokeLinecap="round"
-				strokeLinejoin="round"
-				strokeWidth="1.5"
-				viewBox="0 0 18 18"
-			>
-				<title>Toggle sidebar</title>
-				<rect height="14" rx="2" width="14" x="2" y="2" />
-				<path d="M7 2v14" />
-			</svg>
+			<SidebarLeftIcon aria-hidden className="size-4" />
 		</button>
 	);
 }

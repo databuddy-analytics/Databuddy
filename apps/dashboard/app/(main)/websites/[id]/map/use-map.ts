@@ -1,8 +1,5 @@
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type {
-	BatchQueryResponse,
-	DynamicQueryFilter,
-} from "@databuddy/shared/types/api";
+import type { DateRange } from "@/types/analytics";
+import type { BatchQueryResponse, DynamicQueryFilter } from "@/types/api";
 import type { UseQueryOptions } from "@tanstack/react-query";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 
@@ -23,14 +20,8 @@ export function useMapLocationData(
 				filters,
 			},
 			{
-				id: "map-regions",
-				parameters: ["region"],
-				limit: 200,
-				filters,
-			},
-			{
-				id: "map-cities",
-				parameters: ["city"],
+				id: "map-regions-cities",
+				parameters: ["region", "city"],
 				limit: 200,
 				filters,
 			},

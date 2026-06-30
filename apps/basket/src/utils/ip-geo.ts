@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { cacheable } from "@databuddy/redis/cacheable";
-import { captureError, record } from "@lib/tracing";
+import { captureError, mergeWideEvent, record } from "@lib/tracing";
 import type { City } from "@maxmind/geoip2-node";
 import {
 	AddressNotFoundError,
@@ -8,18 +8,15 @@ import {
 	Reader,
 } from "@maxmind/geoip2-node";
 import { createError, EvlogError, log } from "evlog";
-import { useLogger } from "evlog/elysia";
+
+if (!process.env.IP_HASH_SALT && process.env.NODE_ENV === "production") {
+	throw new Error(
+		"IP_HASH_SALT must be set in production. The fallback salt is public in the open-source repo, so leaving it unset lets anyone reverse 'anonymized' IPs via a precomputed table."
+	);
+}
 
 interface GeoIPReader extends Reader {
 	city(ip: string): City;
-}
-
-function mergeGeoWideEvent(context: Record<string, unknown>): void {
-	try {
-		useLogger().set({ geo: context });
-	} catch {
-		log.info({ geo: context });
-	}
 }
 
 const CDN_URL = "https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb";
@@ -36,10 +33,15 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 			const response = await fetch(CDN_URL);
 			if (!response.ok) {
 				throw createError({
-					message: `Failed to fetch database from CDN: ${response.status} ${response.statusText}`,
+					code: "basket.GEOIP_DOWNLOAD_FAILED",
+					message: "Failed to load GeoIP database",
 					status: 502,
 					why: "The GeoIP database CDN returned a non-success response.",
 					fix: "Retry later or verify CDN availability.",
+					internal: {
+						status: response.status,
+						statusText: response.statusText,
+					},
 				});
 			}
 
@@ -48,10 +50,12 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 
 			if (buf.length < 1_000_000) {
 				throw createError({
-					message: `Database file seems too small: ${buf.length} bytes`,
+					code: "basket.GEOIP_DATABASE_INVALID",
+					message: "Failed to load GeoIP database",
 					status: 502,
 					why: "The downloaded file is below the expected minimum size.",
 					fix: "Verify the CDN artifact is the full GeoLite2-City database.",
+					internal: { byteLength: buf.length },
 				});
 			}
 
@@ -63,9 +67,10 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 			}
 			const cause = error instanceof Error ? error : new Error(String(error));
 			throw createError({
+				code: "basket.GEOIP_LOAD_FAILED",
 				message: "Failed to load GeoIP database from CDN",
 				status: 500,
-				why: cause.message,
+				why: "The GeoIP database could not be downloaded or initialized.",
 				fix: "Ensure the CDN is reachable and the database file is valid.",
 				cause,
 			});
@@ -164,12 +169,29 @@ function lookupGeoLocation(ip: string): Promise<{
 	});
 }
 
-const getGeoLocation = cacheable(lookupGeoLocation, {
+function coarsenIpForCache(ip: string): string {
+	if (ip.includes(":")) {
+		const groups = ip.split(":");
+		const head = groups.slice(0, 4).join(":");
+		return `${head}::`;
+	}
+	const octets = ip.split(".");
+	if (octets.length === 4) {
+		return `${octets[0]}.${octets[1]}.${octets[2]}.0`;
+	}
+	return ip;
+}
+
+const getCachedGeoLocation = cacheable(lookupGeoLocation, {
 	expireInSec: 86_400 * 7,
 	prefix: "geoip_location",
 	staleWhileRevalidate: true,
 	staleTime: 86_400,
 });
+
+function getGeoLocation(ip: string) {
+	return getCachedGeoLocation(coarsenIpForCache(ip));
+}
 
 export function anonymizeIp(ip: string): string {
 	if (!ip) {
@@ -185,7 +207,9 @@ export function anonymizeIp(ip: string): string {
 export function getGeo(ip: string, request?: Request) {
 	return record("getGeo", async () => {
 		if (!ip || ignore.includes(ip) || !isValidIp(ip)) {
-			mergeGeoWideEvent({ skipped: true, reason: "invalid_or_local_ip" });
+			mergeWideEvent({
+				geo: { skipped: true, reason: "invalid_or_local_ip" },
+			});
 			return {
 				anonymizedIP: anonymizeIp(ip),
 				country: undefined,
@@ -199,9 +223,11 @@ export function getGeo(ip: string, request?: Request) {
 		if (!geo.country && request?.headers) {
 			const cfCountry = getCloudflareCountry(request.headers);
 			if (cfCountry) {
-				mergeGeoWideEvent({
-					source: "cloudflare_header",
-					country: cfCountry,
+				mergeWideEvent({
+					geo: {
+						source: "cloudflare_header",
+						country: cfCountry,
+					},
 				});
 				return {
 					anonymizedIP: anonymizeIp(ip),
@@ -221,24 +247,57 @@ export function getGeo(ip: string, request?: Request) {
 	});
 }
 
-export function extractIpFromRequest(request: Request): string {
-	const cfIp = request.headers.get("cf-connecting-ip");
-	if (cfIp) {
-		return cfIp.trim();
-	}
+const TRUSTED_IP_HEADER = process.env.TRUSTED_IP_HEADER || "cf-connecting-ip";
+const IP_HEADER_VERIFIED =
+	process.env.IP_HEADER_VERIFIED?.toLowerCase() === "true";
 
-	const forwardedFor = request.headers.get("x-forwarded-for");
-	const firstIp = forwardedFor?.split(",")[0]?.trim();
-	if (firstIp) {
-		return firstIp;
-	}
+if (!process.env.IP_HEADER_VERIFIED && process.env.NODE_ENV === "production") {
+	log.warn({
+		message:
+			"IP_HEADER_VERIFIED is not set — client-supplied IP headers are spoofable. Set IP_HEADER_VERIFIED=true only when traffic is forced through a trusted proxy that overwrites this header.",
+	});
+}
 
-	const realIp = request.headers.get("x-real-ip");
-	if (realIp) {
-		return realIp.trim();
+export function extractIpFromRequest(
+	request: Request,
+	trustedHeader = TRUSTED_IP_HEADER
+): string {
+	const headerName = trustedHeader.toLowerCase();
+	const trusted = request.headers.get(headerName);
+	if (trusted) {
+		const ip =
+			headerName === "x-forwarded-for"
+				? trusted.split(",")[0]?.trim()
+				: trusted.trim();
+		if (ip) {
+			return ip;
+		}
 	}
 
 	return "";
+}
+
+export function extractTrustedClientIp(request: Request): string | null {
+	if (!IP_HEADER_VERIFIED) {
+		return null;
+	}
+	return extractIpFromRequest(request) || null;
+}
+
+export async function getVisitorCountryForAutoMode(
+	events: Array<{ anonymizeVisitorIds?: unknown }>,
+	request: Request
+): Promise<string | undefined> {
+	if (!events.some((event) => event.anonymizeVisitorIds === "auto")) {
+		return;
+	}
+
+	const trustedIp = extractTrustedClientIp(request);
+	if (!trustedIp) {
+		return;
+	}
+
+	return (await getGeo(trustedIp, request)).country;
 }
 
 export function closeGeoIPReader(): void {

@@ -1,5 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { CaretRightIcon as ChevronRight, DotsThreeIcon as MoreHorizontal } from "@databuddy/ui/icons";
 import type * as React from "react";
 
 import { cn } from "@/lib/utils";

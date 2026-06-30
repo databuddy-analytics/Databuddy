@@ -3,16 +3,16 @@
 // Credits to better-auth for the inspiration
 
 import {
-	AlertTriangle,
-	BarChart3,
-	Code,
-	Globe2Icon,
-	Package,
-	Plus,
-	Shield,
-	TrendingUp,
-	Users,
-} from "lucide-react";
+	TriangleWarningIcon as AlertTriangle,
+	ChartBarIcon as BarChart3,
+	CodeIcon as Code,
+	GlobeIcon as Globe2Icon,
+	PackageIcon as Package,
+	PlusIcon as Plus,
+	ShieldCheckIcon as Shield,
+	TrendUpIcon as TrendingUp,
+	UsersIcon as Users,
+} from "@databuddy/ui/icons";
 
 import { cn } from "@/lib/utils";
 import Testimonials from "./landing/testimonials";

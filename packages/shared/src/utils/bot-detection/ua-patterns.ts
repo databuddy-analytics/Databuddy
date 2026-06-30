@@ -105,6 +105,7 @@ export const UA_PATTERNS: Record<string, string[]> = {
 		"apifywebsitecontentcrawler",
 		"chatgpt-user",
 		"cohere-ai",
+		"claude-user",
 		"gemini-deep-research",
 		"novaact",
 		"perplexity-user",

@@ -1,8 +1,9 @@
 "use client";
 
+import { track } from "@databuddy/sdk";
 import { getTrackingIds } from "@databuddy/sdk/react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PaperPlaneIcon, SpinnerIcon } from "@phosphor-icons/react";
+import { PaperPlaneIcon, SpinnerIcon } from "@databuddy/ui/icons";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -166,6 +167,7 @@ export default function ContactForm() {
 				);
 			}
 
+			track("contact_submitted");
 			toast.success("Message sent!", {
 				description: "We'll get back to you as soon as possible.",
 				duration: 5000,

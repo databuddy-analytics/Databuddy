@@ -1,11 +1,14 @@
 import { EvlogError, log } from "evlog";
 import { useLogger } from "evlog/elysia";
 
-/**
- * Run a named operation and attach its duration (ms) to the active wide event
- * as `timing.<name>`. Nested calls accumulate — the wide event ends up with one
- * `timing.*` field per `record()` call in the request.
- */
+export function mergeWideEvent(fields: Record<string, unknown>): void {
+	try {
+		useLogger().set(fields);
+	} catch {
+		log.info(fields);
+	}
+}
+
 export async function record<T>(
 	name: string,
 	fn: () => Promise<T> | T
@@ -21,10 +24,6 @@ export async function record<T>(
 	}
 }
 
-/**
- * Attach an error to the active request wide event when inside the evlog
- * middleware; otherwise emit a global structured log line.
- */
 export function captureError(
 	error: unknown,
 	attributes?: Record<string, string | number | boolean>

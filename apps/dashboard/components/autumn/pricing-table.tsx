@@ -19,16 +19,14 @@ import AttachDialog from "@/components/autumn/attach-dialog";
 import { formatLocaleNumber } from "@/lib/format-locale-number";
 import { cn } from "@/lib/utils";
 import {
-	LockKeyIcon,
-	ShieldCheckIcon,
-	TreeIcon,
-} from "@phosphor-icons/react/dist/ssr";
-import {
+	ArrowsDownUpIcon as TreeIcon,
 	CheckIcon,
 	CrownIcon,
 	LeafIcon,
+	LockSimpleIcon as LockKeyIcon,
 	ReceiptIcon,
 	RocketLaunchIcon,
+	ShieldCheckIcon,
 	StarIcon,
 	WarningIcon,
 } from "@databuddy/ui/icons";

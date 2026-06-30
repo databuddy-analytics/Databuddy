@@ -2,8 +2,7 @@
 
 import { type ReactNode, useMemo } from "react";
 import type { Link, LinkFolder } from "@/hooks/use-links";
-import { ArchiveIcon, LinkIcon } from "@databuddy/ui/icons";
-import { FolderSimpleIcon } from "@phosphor-icons/react/dist/ssr";
+import { ArchiveIcon, FolderSimpleIcon, LinkIcon } from "@databuddy/ui/icons";
 import { LinksList } from "./link-item";
 import { EmptyState } from "@databuddy/ui";
 import { Accordion } from "@databuddy/ui/client";

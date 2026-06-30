@@ -6,7 +6,11 @@ import { GeneralSettings } from "../components/general-settings";
 import { GeneralSettingsSkeleton } from "../components/settings-skeletons";
 
 export default function SettingsPage() {
-	const { activeOrganization } = useOrganizations();
+	const { activeOrganization, isSwitchingOrganization } = useOrganizations();
+
+	if (isSwitchingOrganization) {
+		return <GeneralSettingsSkeleton />;
+	}
 
 	if (!activeOrganization) {
 		return <GeneralSettingsSkeleton />;

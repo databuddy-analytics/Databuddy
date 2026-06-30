@@ -1,9 +1,8 @@
-import { eq } from "@databuddy/db";
 import { userPreferences } from "@databuddy/db/schema";
+import { invalidateUserPreferencesCache } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
-import { rpcError } from "..";
-import { protectedProcedure } from "../orpc";
+import { sessionProcedure, trackedSessionProcedure } from "../orpc";
 
 const defaultPreferences = {
 	timezone: "auto",
@@ -14,7 +13,7 @@ const defaultPreferences = {
 const preferencesOutputSchema = z.record(z.string(), z.unknown());
 
 export const preferencesRouter = {
-	getUserPreferences: protectedProcedure
+	getUserPreferences: sessionProcedure
 		.route({
 			description: "Returns user preferences.",
 			method: "POST",
@@ -24,11 +23,8 @@ export const preferencesRouter = {
 		})
 		.output(preferencesOutputSchema)
 		.handler(async ({ context }) => {
-			if (!context.user) {
-				throw rpcError.unauthorized("User not authenticated");
-			}
 			let preferences = await context.db.query.userPreferences.findFirst({
-				where: eq(userPreferences.userId, context.user.id),
+				where: { userId: context.user.id },
 			});
 
 			if (!preferences) {
@@ -46,7 +42,7 @@ export const preferencesRouter = {
 			return preferences;
 		}),
 
-	updateUserPreferences: protectedProcedure
+	updateUserPreferences: trackedSessionProcedure
 		.route({
 			description: "Updates user preferences.",
 			method: "POST",
@@ -63,9 +59,6 @@ export const preferencesRouter = {
 		)
 		.output(preferencesOutputSchema)
 		.handler(async ({ context, input }) => {
-			if (!context.user) {
-				throw rpcError.unauthorized("User not authenticated");
-			}
 			const now = new Date();
 
 			const result = await context.db
@@ -88,6 +81,10 @@ export const preferencesRouter = {
 					},
 				})
 				.returning();
+
+			await invalidateUserPreferencesCache(context.user.id).catch(() => {
+				// Preferences cache is best-effort; the database write succeeded.
+			});
 
 			return result[0];
 		}),

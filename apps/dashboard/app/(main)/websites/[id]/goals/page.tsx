@@ -1,7 +1,7 @@
 "use client";
 
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { FeatureGate } from "@/components/feature-gate";
 import { List } from "@/components/ui/composables/list";
@@ -14,12 +14,16 @@ import {
 	useGoals,
 } from "@/hooks/use-goals";
 import { TopBar } from "@/components/layout/top-bar";
+import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
+import type { DynamicQueryFilter, GoalFilter } from "@/types/api";
 import { EditGoalDialog } from "./_components/edit-goal-dialog";
 import { GoalItemSkeleton } from "./_components/goal-item";
 import { GoalsList } from "./_components/goals-list";
-import { PlusIcon, TrendDownIcon } from "@databuddy/ui/icons";
-import { Button, Card } from "@databuddy/ui";
+import { ArrowClockwiseIcon, PlusIcon, TargetIcon } from "@databuddy/ui/icons";
+import { Button } from "@databuddy/ui";
 import { DeleteDialog } from "@databuddy/ui/client";
+import { cn } from "@/lib/utils";
+import { useAtomValue } from "jotai";
 
 function GoalsListSkeleton() {
 	return (
@@ -31,19 +35,48 @@ function GoalsListSkeleton() {
 	);
 }
 
+const filterOperatorMap = {
+	contains: "contains",
+	eq: "equals",
+	in: "in",
+	ne: "not_equals",
+	not_contains: "not_contains",
+	not_in: "not_in",
+	starts_with: "starts_with",
+} satisfies Record<DynamicQueryFilter["operator"], GoalFilter["operator"]>;
+
+function toGoalFilters(filters: DynamicQueryFilter[]): GoalFilter[] {
+	return filters.map((filter) => ({
+		field: filter.field,
+		operator: filterOperatorMap[filter.operator],
+		value: Array.isArray(filter.value)
+			? filter.value.map(String)
+			: String(filter.value),
+	}));
+}
+
 export default function GoalsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
+	const pathname = usePathname();
+	const isDemoRoute = pathname.startsWith("/demo/");
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
 	const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
 
 	const { dateRange } = useDateFilters();
+	const globalFilters = useAtomValue(dynamicQueryFiltersAtom);
+	const goalFilters = useMemo(
+		() => toGoalFilters(globalFilters),
+		[globalFilters]
+	);
 
 	const {
 		data: goals,
-		isLoading: goalsLoading,
-		error: goalsError,
+		listOutcome,
+		isFetching,
+		error,
+		refreshAction,
 		createGoal,
 		updateGoal,
 		deleteGoal,
@@ -54,7 +87,9 @@ export default function GoalsPage() {
 	const goalIds = useMemo(() => goals.map((goal) => goal.id), [goals]);
 
 	const { data: goalAnalytics, isLoading: analyticsLoading } =
-		useBulkGoalAnalytics(websiteId, goalIds, dateRange);
+		useBulkGoalAnalytics(websiteId, goalIds, dateRange, goalFilters, {
+			enabled: goalIds.length > 0,
+		});
 
 	const autocompleteQuery = useAutocompleteData(websiteId);
 
@@ -105,29 +140,6 @@ export default function GoalsPage() {
 		}
 	};
 
-	if (goalsError) {
-		return (
-			<div className="p-4">
-				<Card className="border-destructive/20 bg-destructive/5">
-					<Card.Content className="pt-6">
-						<div className="flex items-center gap-2">
-							<TrendDownIcon
-								className="size-5 text-destructive"
-								weight="duotone"
-							/>
-							<p className="font-medium text-destructive">
-								Error loading goal data
-							</p>
-						</div>
-						<p className="mt-2 text-destructive/80 text-sm">
-							{goalsError.message}
-						</p>
-					</Card.Content>
-				</Card>
-			</div>
-		);
-	}
-
 	return (
 		<FeatureGate feature={GATED_FEATURES.GOALS}>
 			<div className="relative flex h-full flex-col">
@@ -136,40 +148,75 @@ export default function GoalsPage() {
 				</TopBar.Title>
 				<TopBar.Actions>
 					<Button
-						onClick={() => {
-							setEditingGoal(null);
-							setIsDialogOpen(true);
-						}}
+						aria-label="Refresh"
+						disabled={isFetching}
+						onClick={refreshAction}
 						size="sm"
+						variant="secondary"
 					>
-						<PlusIcon className="size-4 shrink-0" />
-						Create Goal
+						<ArrowClockwiseIcon
+							className={cn("size-4 shrink-0", isFetching && "animate-spin")}
+						/>
 					</Button>
-				</TopBar.Actions>
-
-				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
-					{goalsLoading ? (
-						<GoalsListSkeleton />
-					) : (
-						<GoalsList
-							analyticsLoading={analyticsLoading}
-							goalAnalytics={goalAnalytics}
-							goals={goals}
-							isLoading={goalsLoading}
-							onCreateGoal={() => {
+					{!isDemoRoute && (
+						<Button
+							onClick={() => {
 								setEditingGoal(null);
 								setIsDialogOpen(true);
 							}}
-							onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
-							onEditGoal={(goal) => {
-								setEditingGoal(goal);
-								setIsDialogOpen(true);
-							}}
-						/>
+							size="sm"
+						>
+							<PlusIcon className="size-4 shrink-0" />
+							Create Goal
+						</Button>
 					)}
+				</TopBar.Actions>
+
+				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
+					<List.Content
+						emptyProps={{
+							action: isDemoRoute
+								? undefined
+								: {
+										label: "Create a goal",
+										onClick: () => {
+											setEditingGoal(null);
+											setIsDialogOpen(true);
+										},
+									},
+							description:
+								"Track single-step conversions like signups, purchases, or activation events.",
+							icon: <TargetIcon className="size-6" weight="duotone" />,
+							title: "No goals yet",
+						}}
+						errorProps={{
+							action: { label: "Retry", onClick: () => refreshAction() },
+							description:
+								error?.message ??
+								"Something went wrong while loading goal data.",
+							icon: <TargetIcon className="size-6" weight="duotone" />,
+							title: "Failed to load goals",
+						}}
+						loading={<GoalsListSkeleton />}
+						outcome={listOutcome}
+					>
+						{(items) => (
+							<GoalsList
+								analyticsLoading={analyticsLoading}
+								goalAnalytics={goalAnalytics}
+								goals={items}
+								onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
+								onEditGoal={(goal) => {
+									setEditingGoal(goal);
+									setIsDialogOpen(true);
+								}}
+								readOnly={isDemoRoute}
+							/>
+						)}
+					</List.Content>
 				</div>
 
-				{isDialogOpen && (
+				{!isDemoRoute && isDialogOpen && (
 					<EditGoalDialog
 						autocompleteData={autocompleteQuery.data}
 						goal={editingGoal}
@@ -183,7 +230,7 @@ export default function GoalsPage() {
 					/>
 				)}
 
-				{deletingGoalId && (
+				{!isDemoRoute && deletingGoalId && (
 					<DeleteDialog
 						confirmLabel="Delete Goal"
 						description="Are you sure you want to delete this goal? This action cannot be undone and will permanently remove all associated analytics data."

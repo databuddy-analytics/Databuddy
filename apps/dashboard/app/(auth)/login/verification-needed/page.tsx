@@ -2,15 +2,39 @@
 
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { parseAsString, useQueryState } from "nuqs";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon, WarningIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
+import {
+	readVerificationEmail,
+	storeVerificationEmail,
+} from "../verification-email-storage";
 
 function VerificationNeededPage() {
-	const [email] = useQueryState("email", parseAsString.withDefault(""));
+	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
+
+	useEffect(() => {
+		const params = new URLSearchParams(window.location.search);
+		const fromQuery = params.get("email");
+		if (fromQuery) {
+			storeVerificationEmail(fromQuery);
+			setEmail(fromQuery);
+			params.delete("email");
+			const next = params.toString();
+			window.history.replaceState(
+				null,
+				"",
+				`${window.location.pathname}${next ? `?${next}` : ""}`
+			);
+			return;
+		}
+		const stored = readVerificationEmail();
+		if (stored) {
+			setEmail(stored);
+		}
+	}, []);
 
 	const sendVerificationEmail = async () => {
 		setIsLoading(true);
@@ -58,6 +82,7 @@ function VerificationNeededPage() {
 				</div>
 				<Button
 					className="w-full"
+					disabled={!email}
 					loading={isLoading}
 					onClick={sendVerificationEmail}
 				>

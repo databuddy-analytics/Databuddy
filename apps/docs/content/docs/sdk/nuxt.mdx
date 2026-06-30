@@ -1,0 +1,204 @@
+---
+title: Nuxt
+description: Zero-config Nuxt module with auto-imports, SPA tracking, and TypeScript support
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+`@databuddy/nuxt` is a first-class Nuxt module. Add it to `nuxt.config.ts` once and you're done — pageviews and SPA navigation work automatically with no `app.vue` changes. Enable `trackErrors` to also capture JavaScript and Vue component errors.
+
+## Install
+
+Run this in your project root. It installs the package **and** adds it to your `nuxt.config.ts` automatically:
+
+<CodeBlock language="bash">
+  {`npx nuxi module add @databuddy/nuxt`}
+</CodeBlock>
+
+Or install manually:
+
+<CodeBlock language="bash">
+  {`bun add @databuddy/nuxt
+# npm install @databuddy/nuxt
+# yarn add @databuddy/nuxt
+# pnpm add @databuddy/nuxt`}
+</CodeBlock>
+
+## Setup
+
+Add your client ID to `nuxt.config.ts`:
+
+<CodeBlock language="ts" filename="nuxt.config.ts">
+  {`export default defineNuxtConfig({
+  modules: ["@databuddy/nuxt"],
+  databuddy: {
+    clientId: process.env.NUXT_PUBLIC_DATABUDDY_CLIENT_ID,
+  },
+})`}
+</CodeBlock>
+
+<CodeBlock language="bash" filename=".env">
+  {`NUXT_PUBLIC_DATABUDDY_CLIENT_ID=your-client-id`}
+</CodeBlock>
+
+That's it. Pageviews and SPA route changes are tracked automatically. No `app.vue` edits, no plugins to register, no components to place.
+
+<Callout type="info">
+  Nuxt automatically maps the `NUXT_PUBLIC_DATABUDDY_CLIENT_ID` environment variable to `runtimeConfig.public.databuddy.clientId` — no extra configuration needed.
+</Callout>
+
+## Tracking Events
+
+`useDatabuddy` is auto-imported in every component:
+
+<CodeBlock language="html" filename="pages/index.vue">
+  {`<script setup>
+const { track } = useDatabuddy()
+
+function handleSignup() {
+  track("signup_clicked", {
+    source: "hero",
+    plan: "pro",
+  })
+}
+</script>
+
+<template>
+  <button @click="handleSignup">Get started</button>
+</template>`}
+</CodeBlock>
+
+### Full composable API
+
+All functions are available from `useDatabuddy()`:
+
+| Function | Description |
+|----------|-------------|
+| `track(name, properties?)` | Track a custom event |
+| `trackError(message, properties?)` | Track an error |
+| `screenView(properties?)` | Manually trigger a pageview |
+| `setGlobalProperties(properties)` | Attach properties to all future events |
+| `clear()` | Reset anonymous and session IDs (call after logout) |
+| `flush()` | Force-send all queued events immediately |
+| `getAnonymousId()` | Get the current anonymous user ID |
+| `getSessionId()` | Get the current session ID |
+| `getTrackingIds()` | Get both IDs at once |
+| `getTrackingParams()` | Get IDs as a URL query string for cross-domain tracking |
+
+## Options API and templates
+
+`$databuddy` is available directly in templates and Options API components — no import needed:
+
+<CodeBlock language="html">
+  {`<template>
+  <button @click="$databuddy.track('cta_clicked')">Sign up</button>
+</template>`}
+</CodeBlock>
+
+<CodeBlock language="ts">
+  {`export default defineComponent({
+  methods: {
+    handleClick() {
+      this.$databuddy.track("cta_clicked")
+    },
+  },
+})`}
+</CodeBlock>
+
+## Feature Flags
+
+Add the `flags` config to enable the flag composables:
+
+<CodeBlock language="ts" filename="nuxt.config.ts">
+  {`export default defineNuxtConfig({
+  modules: ["@databuddy/nuxt"],
+  databuddy: {
+    clientId: process.env.NUXT_PUBLIC_DATABUDDY_CLIENT_ID,
+    flags: {}, // clientId is inherited automatically
+  },
+})`}
+</CodeBlock>
+
+Then use `useFlag` and `useFlags` — auto-imported everywhere:
+
+<CodeBlock language="html">
+  {`<script setup>
+const { on: isNewCheckout, loading } = useFlag("new-checkout")
+</script>
+
+<template>
+  <template v-if="loading">
+    <CheckoutSkeleton />
+  </template>
+  <template v-else-if="isNewCheckout">
+    <NewCheckout />
+  </template>
+  <template v-else>
+    <LegacyCheckout />
+  </template>
+</template>`}
+</CodeBlock>
+
+## Module options
+
+All options are passed under the `databuddy` key in `nuxt.config.ts`:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `clientId` | `string` | — | Your Databuddy client ID |
+| `disabled` | `boolean` | `false` | Disable all tracking |
+| `debug` | `boolean` | `false` | Enable verbose logging |
+| `trackWebVitals` | `boolean` | `false` | Core Web Vitals (LCP, CLS, TTFB) |
+| `trackErrors` | `boolean` | `false` | JS errors + Vue component errors |
+| `trackOutgoingLinks` | `boolean` | `false` | Clicks on external links |
+| `trackInteractions` | `boolean` | `false` | Button clicks and form submissions |
+| `trackAttributes` | `boolean` | `false` | Elements with `data-track` attribute |
+| `trackPerformance` | `boolean` | `true` | Page load timing |
+| `maskPatterns` | `string[]` | `[]` | Glob patterns to anonymise paths |
+| `skipPatterns` | `string[]` | `[]` | Glob patterns to skip entirely |
+| `samplingRate` | `number` | `1.0` | Event sampling rate (0.0–1.0) |
+| `flags` | `FlagsConfig` | — | Feature flag configuration |
+
+## Privacy
+
+<CodeBlock language="ts" filename="nuxt.config.ts">
+  {`export default defineNuxtConfig({
+  modules: ["@databuddy/nuxt"],
+  databuddy: {
+    clientId: process.env.NUXT_PUBLIC_DATABUDDY_CLIENT_ID,
+    // Never track admin or internal routes
+    skipPatterns: ["/admin/**", "/internal/*"],
+    // Anonymise user IDs in paths
+    maskPatterns: ["/users/*", "/orders/**"],
+  },
+})`}
+</CodeBlock>
+
+## Disable in development
+
+<CodeBlock language="ts" filename="nuxt.config.ts">
+  {`export default defineNuxtConfig({
+  modules: ["@databuddy/nuxt"],
+  databuddy: {
+    clientId: process.env.NUXT_PUBLIC_DATABUDDY_CLIENT_ID,
+    disabled: process.env.NODE_ENV !== "production",
+  },
+})`}
+</CodeBlock>
+
+## Related
+
+<Cards>
+  <Card title="Vue SDK" href="/docs/sdk/vue">
+    Component-based integration for plain Vue 3 apps
+  </Card>
+  <Card title="Feature Flags" href="/docs/sdk/feature-flags">
+    Complete feature flag documentation
+  </Card>
+  <Card title="Tracker Helpers" href="/docs/sdk/tracker">
+    track, flush, getAnonymousId, and more
+  </Card>
+  <Card title="Configuration" href="/docs/sdk/configuration">
+    Full configuration reference
+  </Card>
+</Cards>

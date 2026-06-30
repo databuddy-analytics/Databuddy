@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { EvlogError } from "evlog";
 
 const { mockCheck, mockLoggerSet } = vi.hoisted(() => ({
 	mockCheck: vi.fn(() =>
@@ -36,7 +37,7 @@ describe("checkAutumnUsage", () => {
 		mockLoggerSet.mockReset();
 	});
 
-	// ── Always allows (no enforcement yet, just metering) ──
+	// ── Enforcement ──
 
 	test("allowed response → allowed", async () => {
 		mockCheck.mockResolvedValue({
@@ -48,20 +49,26 @@ describe("checkAutumnUsage", () => {
 		expect(result).toEqual({ allowed: true });
 	});
 
-	test("denied response → still allowed (no enforcement)", async () => {
+	test("denied response → quota error", async () => {
 		mockCheck.mockResolvedValue({
 			allowed: false,
 			customerId: "cust_1",
 			balance: { usage: 10_001, granted: 10_000, unlimited: false },
 		});
-		const result = await checkAutumnUsage("cust_1", "events");
-		expect(result).toEqual({ allowed: true });
+		await expect(checkAutumnUsage("cust_1", "events")).rejects.toMatchObject({
+			status: 402,
+			message: "Event quota exceeded",
+		});
 	});
 
-	test("API error → fail-open (allowed)", async () => {
+	test("API error → billing unavailable error", async () => {
 		mockCheck.mockRejectedValue(new Error("Autumn API down"));
-		const result = await checkAutumnUsage("cust_1", "events");
-		expect(result).toEqual({ allowed: true });
+		const promise = checkAutumnUsage("cust_1", "events");
+		await expect(promise).rejects.toBeInstanceOf(EvlogError);
+		await expect(promise).rejects.toMatchObject({
+			status: 503,
+			message: "Billing check unavailable",
+		});
 	});
 
 	// ── Still calls Autumn (metering for paying customers) ──
@@ -77,7 +84,24 @@ describe("checkAutumnUsage", () => {
 			customerId: "cust_1",
 			featureId: "events",
 			sendEvent: true,
+			requiredBalance: 1,
 			properties: { website_id: "ws_1" },
+		});
+	});
+
+	test("passes batch quantity through requiredBalance", async () => {
+		mockCheck.mockResolvedValue({
+			allowed: true,
+			customerId: "c",
+			balance: { usage: 0, granted: 0, unlimited: false },
+		});
+		await checkAutumnUsage("cust_1", "events", undefined, 25);
+		expect(mockCheck).toHaveBeenCalledWith({
+			customerId: "cust_1",
+			featureId: "events",
+			sendEvent: true,
+			requiredBalance: 25,
+			properties: undefined,
 		});
 	});
 
@@ -103,10 +127,15 @@ describe("checkAutumnUsage", () => {
 
 	test("logs checkFailed on API error", async () => {
 		mockCheck.mockRejectedValue(new Error("timeout"));
-		await checkAutumnUsage("cust_1", "events");
+		await expect(checkAutumnUsage("cust_1", "events")).rejects.toThrow(
+			"Billing check unavailable"
+		);
 		expect(mockLoggerSet).toHaveBeenCalledWith(
 			expect.objectContaining({
-				billing: expect.objectContaining({ checkFailed: true }),
+				billing: expect.objectContaining({
+					allowed: false,
+					checkFailed: true,
+				}),
 			})
 		);
 	});

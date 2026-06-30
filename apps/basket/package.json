@@ -1,17 +1,21 @@
 {
   "name": "@databuddy/basket",
+  "private": true,
   "version": "1.0.50",
-  "packageManager": "bun@1.3.0",
+  "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development bun --watch run src/index.ts",
     "start": "bun run src/index.ts",
-    "test": "bun vitest run",
-    "test:watch": "bun vitest"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@clickhouse/client": "^1.14.0",
     "@databuddy/api-keys": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/email": "workspace:*",
+    "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/shared": "workspace:*",
@@ -28,8 +32,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "bun-types": "^1.3.4",
+    "bun-types": "catalog:",
     "vitest": "^4.1.4"
   },
-  "module": "src/index.js"
+  "packageManager": "bun@1.3.14"
 }

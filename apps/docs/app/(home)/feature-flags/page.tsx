@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Footer } from "@/components/footer";
+import { TrackOnMount } from "@/components/track-on-mount";
 import { CELL_TITLE_CLASS } from "@/components/landing/demo-constants";
 import {
 	FeatureHero,
@@ -18,16 +19,16 @@ import Section from "@/components/landing/section";
 import { StructuredData } from "@/components/structured-data";
 
 export const metadata: Metadata = {
-	title: "Feature Flags & A/B Testing | Databuddy",
+	title: "Feature Flags & A/B Testing - Built Into Your Analytics",
 	description:
-		"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed - control everything from your dashboard.",
+		"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/feature-flags",
 	},
 	openGraph: {
-		title: "Feature Flags & A/B Testing | Databuddy",
+		title: "Feature Flags & A/B Testing - Built Into Your Analytics",
 		description:
-			"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed - control everything from your dashboard.",
+			"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting. No deploys needed. Built into your analytics dashboard.",
 		url: "https://www.databuddy.cc/feature-flags",
 		images: ["/og-image.png"],
 	},
@@ -66,10 +67,14 @@ const container = "mx-auto w-full max-w-400 px-4 sm:px-14 lg:px-20";
 export default function FeatureFlagsPage() {
 	return (
 		<>
+			<TrackOnMount
+				event="feature_landing_viewed"
+				properties={{ feature: "flags" }}
+			/>
 			<StructuredData
 				elements={[{ type: "faq", items: [...FAQ_ITEMS] }]}
 				page={{
-					title: "Feature Flags & A/B Testing | Databuddy",
+					title: "Feature Flags & A/B Testing",
 					description:
 						"Ship features safely with instant rollouts, percentage-based releases, A/B testing, and user targeting.",
 					url: "https://www.databuddy.cc/feature-flags",
@@ -89,20 +94,20 @@ export default function FeatureFlagsPage() {
 							title="One dashboard,"
 							titleMuted="zero deploys."
 						/>
-					</div>
 
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>Every flag, one place.</h3>
-							<FFCompactFlagsDashboardDemo />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Start from a template or build from scratch.
-							</h3>
-							<FFTemplatesMiniGridDemo />
-						</GridCell>
-					</TwoColumnGrid>
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>Every flag, one place.</h3>
+								<FFCompactFlagsDashboardDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Start from a template or build from scratch.
+								</h3>
+								<FFTemplatesMiniGridDemo />
+							</GridCell>
+						</TwoColumnGrid>
+					</div>
 				</Section>
 
 				<Section className="border-border border-b" id="capabilities">
@@ -112,42 +117,42 @@ export default function FeatureFlagsPage() {
 							title="Deploy once,"
 							titleMuted="control everything."
 						/>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Toggle any feature on or off without deploying.
+								</h3>
+								<FFInstantRolloutsDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Ramp up gradually. Roll back instantly.
+								</h3>
+								<FFPercentageRolloutsDemo />
+							</GridCell>
+						</TwoColumnGrid>
+
+						<TwoColumnGrid>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Run experiments with consistent assignments.
+								</h3>
+								<FFAbTestingDemo />
+							</GridCell>
+							<GridCell>
+								<h3 className={CELL_TITLE_CLASS}>
+									Target by user, team, plan, or any property.
+								</h3>
+								<FFUserTargetingDemo />
+							</GridCell>
+						</TwoColumnGrid>
 					</div>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Toggle any feature on or off without deploying.
-							</h3>
-							<FFInstantRolloutsDemo />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Ramp up gradually. Roll back instantly.
-							</h3>
-							<FFPercentageRolloutsDemo />
-						</GridCell>
-					</TwoColumnGrid>
-
-					<TwoColumnGrid>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Run experiments with consistent assignments.
-							</h3>
-							<FFAbTestingDemo />
-						</GridCell>
-						<GridCell>
-							<h3 className={CELL_TITLE_CLASS}>
-								Target by user, team, plan, or any property.
-							</h3>
-							<FFUserTargetingDemo />
-						</GridCell>
-					</TwoColumnGrid>
 				</Section>
 
 				<Section className="border-border border-b" id="faq">
 					<div className={container}>
-						<FaqSection eyebrow="FAQ" items={[...FAQ_ITEMS]} />
+						<FaqSection items={[...FAQ_ITEMS]} />
 					</div>
 				</Section>
 

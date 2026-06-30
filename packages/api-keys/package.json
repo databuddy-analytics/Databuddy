@@ -7,6 +7,10 @@
     "./scopes": "./src/scopes.ts",
     "./resolve": "./src/resolve.ts"
   },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "bun test src"
+  },
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@databuddy/redis": "workspace:*",

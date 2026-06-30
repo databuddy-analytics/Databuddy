@@ -189,7 +189,11 @@ export function TopBar() {
 
 	return (
 		<header className="sticky top-0 z-40 hidden h-12 shrink-0 border-sidebar-border/60 border-b bg-sidebar/95 backdrop-blur supports-[backdrop-filter]:bg-sidebar/85 md:block">
-			<div className="grid h-full w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center">
+			<div
+				aria-label="Dashboard top bar"
+				className="grid h-full w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center"
+				role="toolbar"
+			>
 				<div className="flex h-full items-center justify-center border-sidebar-border/50 border-r">
 					<SidebarTrigger />
 				</div>

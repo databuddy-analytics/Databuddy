@@ -8,46 +8,45 @@ import {
 import { cn } from "@databuddy/ui";
 import { cva, type VariantProps } from "class-variance-authority";
 import type * as React from "react";
+import {
+	docsIconWell,
+	docsSurface,
+	docsSurfaceBody,
+} from "@/components/docs/docs-styles";
 
-const calloutVariants = cva(
-	"not-prose my-4 flex gap-3 rounded-lg border border-border/60 bg-card p-3.5 text-card-foreground",
-	{
-		variants: {
-			type: {
-				info: "",
-				success: "",
-				warn: "",
-				error: "border-destructive/30",
-				tip: "",
-				note: "",
-			},
+const calloutVariants = cva(`${docsSurface} flex gap-3 p-3.5`, {
+	variants: {
+		type: {
+			info: "border-l-2 border-l-sidebar-primary/60",
+			success: "border-l-2 border-l-emerald-500/70",
+			warn: "border-l-2 border-l-amber-500/70",
+			error: "border-destructive/30 border-l-2 border-l-destructive",
+			tip: "border-l-2 border-l-brand-purple",
+			note: "border-l-2 border-l-sidebar-border",
 		},
-		defaultVariants: {
-			type: "info",
-		},
-	}
-);
+	},
+	defaultVariants: {
+		type: "info",
+	},
+});
 
-const iconShellVariants = cva(
-	"flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary text-muted-foreground",
-	{
-		variants: {
-			type: {
-				info: "",
-				success: "text-success",
-				warn: "text-warning",
-				error: "bg-destructive/10 text-destructive",
-				tip: "text-brand-purple",
-				note: "",
-			},
+const iconShellVariants = cva(docsIconWell, {
+	variants: {
+		type: {
+			info: "",
+			success: "text-emerald-500",
+			warn: "text-amber-500",
+			error: "bg-destructive/10 text-destructive",
+			tip: "text-brand-purple",
+			note: "",
 		},
-		defaultVariants: {
-			type: "info",
-		},
-	}
-);
+	},
+	defaultVariants: {
+		type: "info",
+	},
+});
 
-const titleVariants = cva("font-medium text-foreground text-sm", {
+const titleVariants = cva("font-medium text-sidebar-foreground text-sm", {
 	variants: {
 		type: {
 			info: "",
@@ -95,7 +94,7 @@ function Callout({
 				hasTitle ? "items-start" : "items-center",
 				className
 			)}
-			role="alert"
+			role={type === "error" || type === "warn" ? "alert" : "note"}
 			{...props}
 		>
 			<div className={cn(iconShellVariants({ type }))}>
@@ -105,7 +104,8 @@ function Callout({
 				{title && <div className={cn(titleVariants({ type }))}>{title}</div>}
 				<div
 					className={cn(
-						"text-muted-foreground text-sm leading-6 [&_p:not(:first-child)]:mt-2 [&_p]:m-0",
+						docsSurfaceBody,
+						"[&_p:not(:first-child)]:mt-2 [&_p]:m-0",
 						!hasTitle && "flex min-h-8 items-center"
 					)}
 				>

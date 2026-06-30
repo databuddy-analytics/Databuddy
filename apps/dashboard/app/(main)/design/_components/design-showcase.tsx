@@ -1,12 +1,6 @@
 "use client";
 
 import {
-	Key,
-	Palette,
-	PaperPlaneTilt,
-	ShieldCheck,
-} from "@phosphor-icons/react/dist/ssr";
-import {
 	ArrowRightIcon,
 	ArrowUpIcon,
 	BellIcon,
@@ -18,13 +12,16 @@ import {
 	DotsThreeIcon,
 	EnvelopeSimpleIcon,
 	GearIcon,
+	KeyIcon,
 	GlobeIcon,
 	LightningIcon,
 	LockIcon,
 	MagnifyingGlassIcon,
 	MoonIcon,
+	PaperPlaneIcon,
 	PlusIcon,
 	RocketIcon,
+	ShieldCheckIcon,
 	SunIcon,
 	TrashIcon,
 	TrendUpIcon,
@@ -271,7 +268,7 @@ export function DesignShowcase() {
 							<div className="flex min-w-0 flex-1 flex-col">
 								<Text variant="label">Iza</Text>
 								<Text tone="muted" variant="caption">
-									iza@databuddy.cc
+									user@example.com
 								</Text>
 							</div>
 							<Badge size="sm" variant="primary">
@@ -312,7 +309,7 @@ export function DesignShowcase() {
 						<Field.Label>With suffix</Field.Label>
 						<Input
 							defaultValue="sk_live_..."
-							suffix={<Key className="size-3.5" />}
+							suffix={<KeyIcon className="size-3.5" />}
 						/>
 					</Field>
 					<Field error>
@@ -1158,7 +1155,7 @@ export function DesignShowcase() {
 					>
 						<div className="flex items-center gap-3 rounded-md bg-secondary p-3">
 							<div className="flex size-8 items-center justify-center rounded-md bg-muted">
-								<Key className="size-3.5 text-muted-foreground" />
+								<KeyIcon className="size-3.5 text-muted-foreground" />
 							</div>
 							<div className="flex flex-col">
 								<Text variant="caption">Production key</Text>
@@ -1217,8 +1214,8 @@ export function DesignShowcase() {
 const NAV_ITEMS = [
 	{ id: "general", label: "General", icon: UserIcon },
 	{ id: "notifications", label: "Notifications", icon: BellIcon },
-	{ id: "appearance", label: "Appearance", icon: Palette },
-	{ id: "security", label: "Security", icon: ShieldCheck },
+	{ id: "appearance", label: "Appearance", icon: GearIcon },
+	{ id: "security", label: "Security", icon: ShieldCheckIcon },
 ] as const;
 
 type SettingsSection = (typeof NAV_ITEMS)[number]["id"];
@@ -1263,7 +1260,7 @@ function SettingsMockup() {
 								<div className="flex flex-col gap-1">
 									<Text variant="label">Iza Nassiri</Text>
 									<Text tone="muted" variant="caption">
-										iza@databuddy.cc
+										user@example.com
 									</Text>
 								</div>
 								<Button className="ml-auto" size="sm" variant="secondary">
@@ -1278,7 +1275,7 @@ function SettingsMockup() {
 								<Field>
 									<Field.Label>Email</Field.Label>
 									<Input
-										defaultValue="iza@databuddy.cc"
+										defaultValue="user@example.com"
 										prefix={<GlobeIcon className="size-3.5" />}
 									/>
 								</Field>
@@ -1382,7 +1379,7 @@ function SettingsMockup() {
 							<Field>
 								<Field.Label>Notification email</Field.Label>
 								<Input
-									defaultValue="iza@databuddy.cc"
+									defaultValue="user@example.com"
 									prefix={<BellIcon className="size-3.5" />}
 								/>
 								<Field.Description>
@@ -1498,7 +1495,7 @@ function SettingsMockup() {
 									<Field.Label>New password</Field.Label>
 									<Input
 										placeholder="••••••••"
-										suffix={<Key className="size-3.5" />}
+										suffix={<KeyIcon className="size-3.5" />}
 										type="password"
 									/>
 								</Field>
@@ -1506,7 +1503,7 @@ function SettingsMockup() {
 									<Field.Label>Confirm password</Field.Label>
 									<Input
 										placeholder="••••••••"
-										suffix={<Key className="size-3.5" />}
+										suffix={<KeyIcon className="size-3.5" />}
 										type="password"
 									/>
 								</Field>
@@ -1521,7 +1518,7 @@ function SettingsMockup() {
 							<div className="flex items-center justify-between rounded-lg border border-border/60 p-4">
 								<div className="flex items-center gap-3">
 									<div className="flex size-10 items-center justify-center rounded-lg bg-secondary">
-										<ShieldCheck className="size-5 text-muted-foreground" />
+										<ShieldCheckIcon className="size-5 text-muted-foreground" />
 									</div>
 									<div className="flex flex-col gap-0.5">
 										<Text variant="label">Authenticator app</Text>
@@ -1771,19 +1768,19 @@ function AnalyticsMockup() {
 const MEMBERS = [
 	{
 		name: "Iza Nassiri",
-		email: "iza@databuddy.cc",
+		email: "user@example.com",
 		role: "Owner",
 		status: "active" as const,
 	},
 	{
 		name: "Sarah Chen",
-		email: "sarah@databuddy.cc",
+		email: "sarah@example.com",
 		role: "Admin",
 		status: "active" as const,
 	},
 	{
 		name: "Alex Rivera",
-		email: "alex@databuddy.cc",
+		email: "alex@example.com",
 		role: "Member",
 		status: "active" as const,
 	},
@@ -1857,7 +1854,7 @@ function TeamMockup() {
 								<Button variant="secondary">Cancel</Button>
 							</Dialog.Close>
 							<Button>
-								<PaperPlaneTilt className="size-3.5" />
+								<PaperPlaneIcon className="size-3.5" />
 								Send invite
 							</Button>
 						</Dialog.Footer>
@@ -1954,7 +1951,7 @@ function TeamMockup() {
 										</DropdownMenu.Item>
 										{m.status === "pending" && (
 											<DropdownMenu.Item>
-												<PaperPlaneTilt className="size-3.5" />
+												<PaperPlaneIcon className="size-3.5" />
 												Resend invite
 											</DropdownMenu.Item>
 										)}

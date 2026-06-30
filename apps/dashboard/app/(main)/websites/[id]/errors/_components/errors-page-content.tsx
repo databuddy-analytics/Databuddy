@@ -100,7 +100,7 @@ export const ErrorsPageContent = ({ params }: ErrorsPageContentProps) => {
 	return (
 		<FeatureGate feature={GATED_FEATURES.ERROR_TRACKING}>
 			<div className="space-y-3 p-3 sm:space-y-4 sm:p-4">
-				<div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
+				<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 lg:grid-cols-3">
 					<div className="lg:col-span-2">
 						<ErrorTrendsChart
 							errorChartData={processedChartData}

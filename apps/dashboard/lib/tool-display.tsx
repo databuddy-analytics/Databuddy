@@ -52,6 +52,7 @@ function crudLabel(
 }
 
 const TOOL_LABELS: Record<string, (input: Input) => string> = {
+	dashboard_actions: () => "Preparing dashboard action",
 	execute_sql_query: () => "Running custom query",
 	get_data: (input) => {
 		const queries = input.queries as { type: string }[] | undefined;
@@ -91,11 +92,6 @@ const TOOL_LABELS: Record<string, (input: Input) => string> = {
 	list_profiles: () => "Listing visitors",
 	get_profile: () => "Getting visitor profile",
 	get_profile_sessions: () => "Loading visitor sessions",
-
-	web_search: (input) => {
-		const query = input.query as string | undefined;
-		return query ? `Searching: ${query.slice(0, 40)}` : "Searching the web";
-	},
 
 	competitor_analysis: () => "Analyzing competitors",
 

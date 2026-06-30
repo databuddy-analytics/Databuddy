@@ -1,9 +1,4 @@
-import type {
-	FlagType,
-	FlagWithScheduleForm,
-	Variant,
-} from "@databuddy/shared/flags";
-import type { UseFormReturn } from "react-hook-form";
+import type { FlagType, Variant } from "@databuddy/shared/flags";
 
 export interface Flag {
 	createdAt: Date;
@@ -77,11 +72,6 @@ export interface FlagSheetProps {
 export interface VariantEditorProps {
 	onChangeAction: (variants: Variant[]) => void;
 	variants: Variant[];
-}
-
-export interface ScheduleManagerProps {
-	flagId?: string;
-	form: UseFormReturn<FlagWithScheduleForm>;
 }
 
 export interface DependencySelectorProps {

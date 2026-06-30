@@ -6,7 +6,6 @@ import { commonEnvSchema, createEnv, shouldSkipValidation } from "./base";
  */
 const databaseEnvSchema = z.object({
 	...commonEnvSchema,
-	NEXT_PUBLIC_API_URL: z.string().optional(),
 });
 
 /**

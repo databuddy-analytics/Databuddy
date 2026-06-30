@@ -1,6 +1,6 @@
 {
   "name": "@databuddy/sdk",
-  "version": "2.4.11",
+  "version": "2.4.20",
   "description": "Official Databuddy Analytics SDK",
   "main": "./dist/core/index.mjs",
   "types": "./dist/core/index.d.ts",
@@ -17,7 +17,8 @@
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:e2e:install": "playwright install",
     "serve": "bun test-server.ts",
-    "vscode:prepublish": "bun run build"
+    "vscode:prepublish": "bun run build",
+    "check-types": "tsc --noEmit"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

@@ -1,9 +1,9 @@
 "use client";
 
-import { filterOptions } from "@databuddy/shared/lists/filters";
-import type { DateRange } from "@databuddy/shared/types/analytics";
-import type { CustomQueryConfig } from "@databuddy/shared/types/custom-query";
-import type { QueryOutputField } from "@databuddy/shared/types/query";
+import { filterOptions } from "@/lib/filter-options";
+import type { DateRange } from "@/types/analytics";
+import type { CustomQueryConfig } from "./types/custom-query";
+import type { QueryOutputField } from "./types/query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { StatCardDisplayMode } from "@/components/analytics/stat-card";
 import { StatCard } from "@/components/analytics/stat-card";

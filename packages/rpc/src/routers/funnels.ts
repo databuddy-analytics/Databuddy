@@ -1,6 +1,10 @@
 import { and, desc, eq, isNull, sql } from "@databuddy/db";
 import { funnelDefinitions } from "@databuddy/db/schema";
-import { createDrizzleCache, redis } from "@databuddy/redis";
+import {
+	createDrizzleCache,
+	invalidateAgentContextSnapshotsForWebsite,
+	redis,
+} from "@databuddy/redis";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
@@ -11,8 +15,13 @@ import {
 	processFunnelAnalyticsByReferrer,
 	queryLinkVisitorIds,
 } from "../lib/analytics-utils";
-import { protectedProcedure, publicProcedure } from "../orpc";
-import { withWebsiteRead, withWorkspace } from "../procedures/with-workspace";
+import { setTrackProperties } from "../middleware/track-mutation";
+import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
+import {
+	withPublicWorkspace,
+	withWebsiteRead,
+	withWorkspace,
+} from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
 
 const cache = createDrizzleCache({ redis, namespace: "funnels" });
@@ -38,7 +47,7 @@ type Filter = z.infer<typeof filterSchema>;
 
 const getDefaultDateRange = () => {
 	const endDate = new Date().toISOString().split("T")[0];
-	const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+	const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 		.toISOString()
 		.split("T")[0];
 	return { startDate, endDate };
@@ -64,12 +73,13 @@ const invalidateFunnelsCache = async (websiteId: string, funnelId?: string) => {
 	if (funnelId) {
 		keys.push(`byId:${funnelId}:${websiteId}`);
 	}
-	const operations: Promise<void>[] = keys.map((key) =>
+	const operations: Promise<unknown>[] = keys.map((key) =>
 		cache.invalidateByKey(key)
 	);
 	if (funnelId) {
 		operations.push(cache.invalidateByTags([`funnel:${funnelId}`]));
 	}
+	operations.push(invalidateAgentContextSnapshotsForWebsite(websiteId));
 	await Promise.all(operations);
 };
 
@@ -185,19 +195,19 @@ export const funnelsRouter = {
 		})
 		.input(z.object({ websiteId: z.string() }))
 		.output(z.array(funnelListOutputSchema))
-		.handler(({ context, input }) =>
-			cache.withCache({
+		.handler(async ({ context, input }) => {
+			await withPublicWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+
+			return cache.withCache({
 				key: `list:${input.websiteId}`,
 				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
-				queryFn: async () => {
-					await withWorkspace(context, {
-						websiteId: input.websiteId,
-						permissions: ["read"],
-						allowPublicAccess: true,
-					});
-					return context.db
+				queryFn: () =>
+					context.db
 						.select({
 							id: funnelDefinitions.id,
 							name: funnelDefinitions.name,
@@ -217,10 +227,9 @@ export const funnelsRouter = {
 								sql`jsonb_array_length(${funnelDefinitions.steps}) > 1`
 							)
 						)
-						.orderBy(desc(funnelDefinitions.createdAt));
-				},
-			})
-		),
+						.orderBy(desc(funnelDefinitions.createdAt)),
+			});
+		}),
 
 	getById: protectedProcedure
 		.route({
@@ -265,7 +274,7 @@ export const funnelsRouter = {
 			})
 		),
 
-	create: protectedProcedure
+	create: trackedProcedure
 		.route({
 			description:
 				"Creates a new funnel. Requires funnels feature and website update permission.",
@@ -286,6 +295,7 @@ export const funnelsRouter = {
 		)
 		.output(funnelOutputSchema)
 		.handler(async ({ context, input }) => {
+			setTrackProperties({ step_count: input.steps.length });
 			const workspace = await withWorkspace(context, {
 				websiteId: input.websiteId,
 				permissions: ["update"],
@@ -327,7 +337,7 @@ export const funnelsRouter = {
 			return newFunnel;
 		}),
 
-	update: protectedProcedure
+	update: trackedProcedure
 		.route({
 			description:
 				"Updates an existing funnel. Requires website update permission.",
@@ -382,7 +392,7 @@ export const funnelsRouter = {
 			return updatedFunnel;
 		}),
 
-	delete: protectedProcedure
+	delete: trackedProcedure
 		.route({
 			description: "Soft-deletes a funnel. Requires website delete permission.",
 			method: "POST",

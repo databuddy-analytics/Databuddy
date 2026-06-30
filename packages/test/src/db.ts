@@ -1,5 +1,4 @@
-// biome-ignore lint/performance/noNamespaceImport: drizzle requires schema object
-import * as schema from "@databuddy/db/schema";
+import { relations } from "@databuddy/db/schema/relations";
 import { sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
@@ -11,7 +10,7 @@ function databaseUrl(): string {
 	return process.env.DATABASE_URL ?? DEFAULT_DATABASE_URL;
 }
 
-export type DB = NodePgDatabase<typeof schema>;
+export type DB = NodePgDatabase<typeof relations>;
 
 let pool: Pool | null = null;
 let instance: DB | null = null;
@@ -37,12 +36,17 @@ export function db(): DB {
 			idleTimeoutMillis: 10_000,
 			connectionTimeoutMillis: 5000,
 		});
-		instance = drizzle(pool, { schema });
+		instance = drizzle({ client: pool, relations });
 	}
 	return instance;
 }
 
 const TABLES = [
+	"insight_rollups",
+	"analytics_insights",
+	"insight_run_items",
+	"insight_runs",
+	"insight_generation_configs",
 	"apikey",
 	"websites",
 	"member",

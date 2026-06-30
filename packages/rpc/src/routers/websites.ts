@@ -2,13 +2,19 @@ import { db } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis";
 import {
+	getTrackingBlockOriginHost,
+	isIgnoredTrackingBlockOrigin,
+	matchesTrackingBlockAllowedOrigin,
+	matchesTrackingBlockIgnoredOrigin,
+	type ActionableTrackingBlockReason,
+} from "@databuddy/shared/tracking-blocks";
+import {
 	DuplicateDomainError,
 	ValidationError,
 	type Website,
 	WebsiteNotFoundError,
 	WebsiteService,
 } from "@databuddy/services/websites";
-import type { ProcessedMiniChartData } from "@databuddy/shared/types/website";
 import {
 	createWebsiteSchema,
 	togglePublicWebsiteSchema,
@@ -19,16 +25,30 @@ import {
 } from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { logger, record } from "../lib/logger";
-import { protectedProcedure, publicProcedure } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import { logger } from "../lib/logger";
+import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
+import { setTrackProperties } from "../middleware/track-mutation";
+import { authorizeTransfer } from "../procedures/with-resource";
+import {
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 import {
 	generateExport,
 	validateExportDateRange,
 } from "../services/export-service";
+import { mergeWebsiteSecuritySettings } from "./website-settings";
+import {
+	CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE,
+	getTrackingHealthErrorLogLevel,
+} from "./tracking-health-errors";
+import {
+	type ChartDataRow,
+	type ProcessedMiniChartData,
+	processChartData,
+} from "./websites-chart";
 
 const websiteService = new WebsiteService(db);
-const TREND_THRESHOLD = 5;
 
 function handleServiceError(error: unknown): never {
 	if (error instanceof ValidationError) {
@@ -43,9 +63,93 @@ function handleServiceError(error: unknown): never {
 	throw rpcError.internal("Website operation failed");
 }
 
+const TRACKING_HEALTH_WINDOW_HOURS = 24;
+const TRACKING_ISSUE_MIN_BLOCKS = 3;
+const TRACKING_ISSUE_TYPES = [
+	"origin_not_authorized",
+	"ip_not_authorized",
+] as const satisfies readonly ActionableTrackingBlockReason[];
+
+type TrackingIssueType = (typeof TRACKING_ISSUE_TYPES)[number];
+type TrackingIssueSeverity = "critical" | "warning";
+
 interface EventsCheckResult {
 	error: string | null;
 	hasEvents: boolean;
+	recentEvents: number;
+}
+
+interface BlockedTrackingIssueRow {
+	count: number;
+	issueType: string;
+	lastSeen: string | null;
+	origin: string | null;
+}
+
+interface TrackingIssue {
+	count: number;
+	expectedDomain: string | null;
+	fix: string;
+	lastSeen: string | null;
+	message: string;
+	origin: string | null;
+	originHost: string | null;
+	severity: TrackingIssueSeverity;
+	type: TrackingIssueType;
+}
+
+function buildTrackingIssue(
+	row: BlockedTrackingIssueRow,
+	websiteDomain: string | null,
+	recentEvents: number
+): TrackingIssue | null {
+	if (!isDashboardTrackingIssueType(row.issueType)) {
+		return null;
+	}
+
+	const severity: TrackingIssueSeverity =
+		recentEvents === 0 ? "critical" : "warning";
+	const originHost = getTrackingBlockOriginHost(row.origin);
+	const expectedDomain = websiteDomain || null;
+
+	if (row.issueType === "origin_not_authorized") {
+		const source = originHost ? ` from ${originHost}` : "";
+		const expected = expectedDomain ? ` (${expectedDomain})` : "";
+		const fix = originHost
+			? `Update the website domain to ${originHost}, or add ${originHost} under Security → Allowed Origins if this is an additional trusted domain.`
+			: "Update the website domain or add the trusted origin under Security → Allowed Origins.";
+
+		return {
+			count: row.count,
+			expectedDomain,
+			fix,
+			lastSeen: row.lastSeen,
+			message: `Recent tracking requests${source} are being blocked because they do not match the configured domain${expected}.`,
+			origin: row.origin || null,
+			originHost,
+			severity,
+			type: row.issueType,
+		};
+	}
+
+	return {
+		count: row.count,
+		expectedDomain,
+		fix: "Update the website IP allowlist or remove the restriction if browser traffic should be accepted from dynamic client IPs.",
+		lastSeen: row.lastSeen,
+		message:
+			"Recent tracking requests are being blocked by this website's IP allowlist.",
+		origin: row.origin || null,
+		originHost,
+		severity,
+		type: row.issueType,
+	};
+}
+
+function isDashboardTrackingIssueType(
+	issueType: string
+): issueType is TrackingIssueType {
+	return (TRACKING_ISSUE_TYPES as readonly string[]).includes(issueType);
 }
 
 async function getTrackingEventsStatus(
@@ -53,50 +157,138 @@ async function getTrackingEventsStatus(
 ): Promise<EventsCheckResult> {
 	try {
 		const trackingCheckResult = await Promise.race([
-			chQuery<{ count: number }>(
-				`SELECT COUNT(*) as count FROM analytics.events WHERE client_id = {websiteId:String} AND event_name = 'screen_view' LIMIT 1`,
+			chQuery<{ count: number; recentCount: number }>(
+				`SELECT
+					countIf(event_name = 'screen_view') AS count,
+					countIf(event_name = 'screen_view' AND time >= now() - INTERVAL ${TRACKING_HEALTH_WINDOW_HOURS} HOUR) AS recentCount
+				FROM analytics.events
+				PREWHERE client_id = {websiteId:String}`,
 				{ websiteId }
 			),
 			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error("ClickHouse query timeout")), 10_000)
+				setTimeout(
+					() => reject(new Error(CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE)),
+					10_000
+				)
 			),
 		]);
 
+		const row = trackingCheckResult[0];
 		return {
-			hasEvents: (trackingCheckResult[0]?.count ?? 0) > 0,
+			hasEvents: (row?.count ?? 0) > 0,
+			recentEvents: row?.recentCount ?? 0,
 			error: null,
 		};
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Unknown error checking events";
-		logger.error({ websiteId }, `Error checking tracking events: ${message}`);
-		return { hasEvents: false, error: message };
+		const level = getTrackingHealthErrorLogLevel(error);
+		logger[level]({ websiteId }, `Error checking tracking events: ${message}`);
+		return { hasEvents: false, recentEvents: 0, error: message };
 	}
 }
 
-const buildStatusMessage = (hasEvents: boolean, eventsError: string | null) => {
-	if (hasEvents) {
+function shouldSkipBlockedTrackingIssueRow(
+	row: BlockedTrackingIssueRow,
+	options: {
+		allowedOrigins: string[];
+		ignoredOrigins: string[];
+		websiteDomain: string | null;
+	}
+): boolean {
+	if (isIgnoredTrackingBlockOrigin(row.origin)) {
+		return true;
+	}
+
+	if (matchesTrackingBlockIgnoredOrigin(row.origin, options.ignoredOrigins)) {
+		return true;
+	}
+
+	return (
+		row.issueType === "origin_not_authorized" &&
+		matchesTrackingBlockAllowedOrigin(
+			row.origin,
+			options.websiteDomain,
+			options.allowedOrigins
+		)
+	);
+}
+
+async function getRecentBlockedTrackingIssue(
+	websiteId: string,
+	options: {
+		allowedOrigins: string[];
+		ignoredOrigins: string[];
+		websiteDomain: string | null;
+	}
+): Promise<BlockedTrackingIssueRow | null> {
+	try {
+		const rows = await Promise.race([
+			chQuery<BlockedTrackingIssueRow>(
+				`SELECT
+					block_reason AS issueType,
+					ifNull(origin, '') AS origin,
+					count() AS count,
+					toString(max(timestamp)) AS lastSeen
+				FROM analytics.blocked_traffic
+				PREWHERE timestamp >= now() - INTERVAL ${TRACKING_HEALTH_WINDOW_HOURS} HOUR
+				WHERE client_id = {websiteId:String}
+					AND block_reason IN {issueTypes:Array(String)}
+				GROUP BY issueType, origin
+				HAVING count >= {minBlocks:UInt32}
+				ORDER BY count DESC, lastSeen DESC
+				LIMIT 100`,
+				{
+					issueTypes: [...TRACKING_ISSUE_TYPES],
+					minBlocks: TRACKING_ISSUE_MIN_BLOCKS,
+					websiteId,
+				}
+			),
+			new Promise<never>((_, reject) =>
+				setTimeout(
+					() => reject(new Error(CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE)),
+					10_000
+				)
+			),
+		]);
+
+		return (
+			rows.find((row) => !shouldSkipBlockedTrackingIssueRow(row, options)) ??
+			null
+		);
+	} catch (error) {
+		const message =
+			error instanceof Error
+				? error.message
+				: "Unknown error checking blocked traffic";
+		const level = getTrackingHealthErrorLogLevel(error);
+		logger[level]({ websiteId }, `Error checking blocked traffic: ${message}`);
+		return null;
+	}
+}
+
+const buildStatusMessage = (
+	status: EventsCheckResult,
+	issue: TrackingIssue | null
+) => {
+	if (issue?.severity === "critical") {
+		return issue.message;
+	}
+
+	if (status.hasEvents && issue) {
+		return "Tracking is receiving events, but some recent requests are blocked by security settings.";
+	}
+
+	if (status.hasEvents) {
 		return "Tracking is active and receiving events.";
 	}
 
-	if (eventsError) {
-		return `Unable to check events: ${eventsError}`;
+	if (status.error) {
+		return "Unable to check events. Try again shortly.";
 	}
 
 	return "Tracking not set up. Please install the script tag.";
 };
-
-interface ChartDataRow {
-	date: string;
-	hasAnyData: number;
-	value: number;
-	websiteId: string;
-}
-
-const calculateAverage = (values: { value: number }[]) =>
-	values.length > 0
-		? values.reduce((sum, item) => sum + item.value, 0) / values.length
-		: 0;
 
 const websiteStatusOutputSchema = z.enum([
 	"ACTIVE",
@@ -110,6 +302,8 @@ const websiteSettingsSchema = z
 	.object({
 		allowedOrigins: z.array(z.string()).optional(),
 		allowedIps: z.array(z.string()).optional(),
+		ignoredTrackingOrigins: z.array(z.string()).optional(),
+		trackingIssueWarningsDisabled: z.boolean().optional(),
 	})
 	.nullable();
 
@@ -127,6 +321,16 @@ const websiteOutputSchema = z.object({
 	settings: websiteSettingsSchema,
 });
 
+const publicWebsiteSummarySchema = z.object({
+	id: z.string(),
+	domain: z.string(),
+	name: z.string().nullable(),
+	status: websiteStatusOutputSchema,
+	isPublic: z.boolean(),
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
+});
+
 const processedMiniChartDataSchema = z.object({
 	data: z.array(
 		z.object({
@@ -136,6 +340,7 @@ const processedMiniChartDataSchema = z.object({
 	),
 	totalViews: z.number(),
 	hasAnyData: z.boolean(),
+	hasHistoricalData: z.boolean(),
 	trend: z
 		.object({
 			type: z.enum(["up", "down", "neutral"]),
@@ -152,37 +357,28 @@ const listWithChartsOutputSchema = z.object({
 
 const successOutputSchema = z.object({ success: z.literal(true) });
 
+const trackingIssueOutputSchema = z.object({
+	count: z.number(),
+	expectedDomain: z.string().nullable(),
+	fix: z.string(),
+	lastSeen: z.string().nullable(),
+	message: z.string(),
+	origin: z.string().nullable(),
+	originHost: z.string().nullable(),
+	severity: z.enum(["critical", "warning"]),
+	type: z.enum(TRACKING_ISSUE_TYPES),
+});
+
+const trackingSetupOutputSchema = z.object({
+	tracking_setup: z.boolean(),
+	integration_type: z.string().nullable(),
+	has_events: z.boolean(),
+	recent_events: z.number(),
+	status_message: z.string(),
+	tracking_issue: trackingIssueOutputSchema.nullable(),
+});
+
 export type WebsiteOutput = z.infer<typeof websiteOutputSchema>;
-
-const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
-	if (!dataPoints?.length || dataPoints.length < 4) {
-		return null;
-	}
-
-	const midPoint = Math.floor(dataPoints.length / 2);
-	const firstHalf = dataPoints.slice(0, midPoint);
-	const secondHalf = dataPoints.slice(midPoint);
-
-	const previousAverage = calculateAverage(firstHalf);
-	const currentAverage = calculateAverage(secondHalf);
-
-	if (previousAverage === 0) {
-		return currentAverage > 0
-			? { type: "up" as const, value: 100 }
-			: { type: "neutral" as const, value: 0 };
-	}
-
-	const percentageChange =
-		((currentAverage - previousAverage) / previousAverage) * 100;
-
-	if (percentageChange > TREND_THRESHOLD) {
-		return { type: "up" as const, value: Math.abs(percentageChange) };
-	}
-	if (percentageChange < -TREND_THRESHOLD) {
-		return { type: "down" as const, value: Math.abs(percentageChange) };
-	}
-	return { type: "neutral" as const, value: Math.abs(percentageChange) };
-};
 
 interface ActiveUsersRow {
 	activeUsers: number;
@@ -233,76 +429,47 @@ const _fetchChartData = async (
 		return {};
 	}
 
-	const queryResults = await chQuery<ChartDataRow>(
-		`WITH
-			date_range AS (
-				SELECT arrayJoin(arrayMap(d -> toDate(today()) - d, range(7))) AS date
-			),
-			aggregated AS (
-				SELECT
-					client_id,
-					date,
-					sum(pageviews) AS pageviews,
-					1 AS hasData
-				FROM analytics.daily_pageviews
-				WHERE client_id IN {websiteIds:Array(String)}
-					AND date >= (today() - 6)
-				GROUP BY client_id, date
-			)
-		SELECT
-			all_websites.website_id AS websiteId,
-			toString(date_range.date) AS date,
-			COALESCE(aggregated.pageviews, 0) AS value,
-			COALESCE(aggregated.hasData, 0) AS hasAnyData
-		FROM
-			(SELECT arrayJoin({websiteIds:Array(String)}) AS website_id) AS all_websites
-		CROSS JOIN date_range
-		LEFT JOIN aggregated
-			ON all_websites.website_id = aggregated.client_id
-			AND date_range.date = aggregated.date
-		WHERE date_range.date >= (today() - 6)
-		ORDER BY websiteId, date ASC`,
-		{ websiteIds }
-	);
+	const [queryResults, historicalRows] = await Promise.all([
+		chQuery<ChartDataRow>(
+			`WITH
+				date_range AS (
+					SELECT arrayJoin(arrayMap(d -> toDate(today()) - d, range(7))) AS date
+				),
+				aggregated AS (
+					SELECT
+						client_id,
+						date,
+						sum(pageviews) AS pageviews,
+						1 AS hasData
+					FROM analytics.daily_pageviews
+					WHERE client_id IN {websiteIds:Array(String)}
+						AND date >= (today() - 6)
+					GROUP BY client_id, date
+				)
+			SELECT
+				all_websites.website_id AS websiteId,
+				toString(date_range.date) AS date,
+				COALESCE(aggregated.pageviews, 0) AS value,
+				COALESCE(aggregated.hasData, 0) AS hasAnyData
+			FROM
+				(SELECT arrayJoin({websiteIds:Array(String)}) AS website_id) AS all_websites
+			CROSS JOIN date_range
+			LEFT JOIN aggregated
+				ON all_websites.website_id = aggregated.client_id
+				AND date_range.date = aggregated.date
+			WHERE date_range.date >= (today() - 6)
+			ORDER BY websiteId, date ASC`,
+			{ websiteIds }
+		),
+		chQuery<{ websiteId: string }>(
+			`SELECT DISTINCT client_id AS websiteId
+			FROM analytics.daily_pageviews
+			WHERE client_id IN {websiteIds:Array(String)}`,
+			{ websiteIds }
+		),
+	]);
 
-	const groupedData = websiteIds.reduce(
-		(acc, id) => {
-			acc[id] = { points: [], hasAnyData: false };
-			return acc;
-		},
-		{} as Record<
-			string,
-			{ points: { date: string; value: number }[]; hasAnyData: boolean }
-		>
-	);
-
-	for (const row of queryResults) {
-		if (groupedData[row.websiteId]) {
-			groupedData[row.websiteId].points.push({
-				date: row.date,
-				value: row.value,
-			});
-			if (row.hasAnyData === 1) {
-				groupedData[row.websiteId].hasAnyData = true;
-			}
-		}
-	}
-
-	const processedData: Record<string, ProcessedMiniChartData> = {};
-
-	for (const websiteId of websiteIds) {
-		const { points, hasAnyData } = groupedData[websiteId];
-		const totalViews = points.reduce((sum, point) => sum + point.value, 0);
-
-		processedData[websiteId] = {
-			data: points,
-			totalViews,
-			hasAnyData,
-			trend: calculateTrend(points),
-		};
-	}
-
-	return processedData;
+	return processChartData(websiteIds, queryResults, historicalRows);
 };
 
 const fetchChartData = cacheable(_fetchChartData, {
@@ -348,38 +515,30 @@ export const websitesRouter = {
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
 		.output(listWithChartsOutputSchema)
 		.handler(async ({ context, input }) => {
-			const workspace = await record("withWorkspace", () =>
-				withWorkspace(context, {
-					organizationId: input.organizationId,
-					resource: "website",
-					permissions: ["read"],
-				})
-			);
+			const workspace = await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "website",
+				permissions: ["read"],
+			});
 
 			if (!workspace.organizationId) {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			const websitesList = await record("websiteService.list", () =>
-				websiteService.list(workspace.organizationId)
-			);
+			const websitesList = await websiteService.list(workspace.organizationId);
 
 			const websiteIds = websitesList.map((site) => site.id);
-			const [chartData, activeUsers] = await record(
-				"fetchChartsAndActiveUsers",
-				() =>
-					Promise.all([
-						fetchChartData(websiteIds),
-						fetchActiveUsers(websiteIds),
-					])
-			);
+			const [chartData, activeUsers] = await Promise.all([
+				fetchChartData(websiteIds),
+				fetchActiveUsers(websiteIds),
+			]);
 
 			return { websites: websitesList, chartData, activeUsers };
 		}),
 
-	getById: publicProcedure
+	getById: protectedProcedure
 		.route({
-			description: "Returns a website by id. Supports public access.",
+			description: "Returns a website by id. Requires website read permission.",
 			method: "POST",
 			path: "/websites/getById",
 			summary: "Get website",
@@ -391,35 +550,48 @@ export const websitesRouter = {
 			const workspace = await withWorkspace(context, {
 				websiteId: input.id,
 				permissions: ["read"],
-				allowPublicAccess: true,
 			});
 
 			const site = workspace.website;
-
 			if (!site) {
 				throw rpcError.notFound("website");
 			}
-
-			if (workspace.isPublicAccess) {
-				return {
-					id: site.id,
-					domain: site.domain,
-					name: site.name,
-					status: site.status,
-					isPublic: site.isPublic,
-					createdAt: site.createdAt,
-					updatedAt: site.updatedAt,
-					organizationId: site.organizationId,
-					deletedAt: site.deletedAt,
-					integrations: site.integrations,
-					settings: site.settings,
-				};
-			}
-
 			return site;
 		}),
 
-	create: protectedProcedure
+	getPublicSummary: publicProcedure
+		.route({
+			description:
+				"Returns minimal public-overview metadata for a website (id, domain, name, status). Public websites only.",
+			method: "POST",
+			path: "/websites/getPublicSummary",
+			summary: "Get public website summary",
+			tags: ["Websites"],
+		})
+		.input(z.object({ id: z.string() }))
+		.output(publicWebsiteSummarySchema)
+		.handler(async ({ context, input }) => {
+			const workspace = await withPublicWorkspace(context, {
+				websiteId: input.id,
+				permissions: ["read"],
+			});
+
+			const site = workspace.website;
+			if (!site) {
+				throw rpcError.notFound("website");
+			}
+			return {
+				id: site.id,
+				domain: site.domain,
+				name: site.name,
+				status: site.status,
+				isPublic: site.isPublic,
+				createdAt: site.createdAt,
+				updatedAt: site.updatedAt,
+			};
+		}),
+
+	create: trackedProcedure
 		.route({
 			description: "Creates a website. Requires workspace create permission.",
 			method: "POST",
@@ -430,11 +602,7 @@ export const websitesRouter = {
 		.input(createWebsiteSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
-			if (!input.organizationId) {
-				throw rpcError.badRequest("Website must belong to a workspace");
-			}
-
-			await withWorkspace(context, {
+			const workspace = await withWorkspace(context, {
 				organizationId: input.organizationId,
 				resource: "website",
 				permissions: ["create"],
@@ -444,7 +612,7 @@ export const websitesRouter = {
 				return await websiteService.create({
 					name: input.name,
 					domain: input.domain,
-					organizationId: input.organizationId,
+					organizationId: workspace.organizationId,
 					status: "ACTIVE" as const,
 				});
 			} catch (error) {
@@ -452,7 +620,7 @@ export const websitesRouter = {
 			}
 		}),
 
-	update: protectedProcedure
+	update: trackedProcedure
 		.route({
 			description: "Updates a website. Requires update permission.",
 			method: "POST",
@@ -506,7 +674,7 @@ export const websitesRouter = {
 			return updatedWebsite;
 		}),
 
-	togglePublic: protectedProcedure
+	togglePublic: trackedProcedure
 		.route({
 			description:
 				"Toggles website public/private. Requires update permission.",
@@ -518,6 +686,7 @@ export const websitesRouter = {
 		.input(togglePublicWebsiteSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
+			setTrackProperties({ is_public: input.isPublic });
 			const { website } = await withWorkspace(context, {
 				websiteId: input.id,
 				permissions: ["update"],
@@ -545,7 +714,7 @@ export const websitesRouter = {
 			return updatedWebsite;
 		}),
 
-	delete: protectedProcedure
+	delete: trackedProcedure
 		.route({
 			description: "Deletes a website. Requires delete permission.",
 			method: "POST",
@@ -581,7 +750,7 @@ export const websitesRouter = {
 			return { success: true };
 		}),
 
-	transfer: protectedProcedure
+	transfer: trackedProcedure
 		.route({
 			description: "Transfers website to another workspace.",
 			method: "POST",
@@ -592,19 +761,14 @@ export const websitesRouter = {
 		.input(transferWebsiteSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["update"],
-			});
-
 			if (!input.organizationId) {
 				throw rpcError.badRequest("Website must be transferred to a workspace");
 			}
 
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
+			await authorizeTransfer(context, {
 				resource: "website",
-				permissions: ["create"],
+				id: input.websiteId,
+				targetOrganizationId: input.organizationId,
 			});
 
 			try {
@@ -616,7 +780,7 @@ export const websitesRouter = {
 			}
 		}),
 
-	transferToOrganization: protectedProcedure
+	transferToOrganization: trackedProcedure
 		.route({
 			description: "Transfers website to target organization.",
 			method: "POST",
@@ -627,15 +791,10 @@ export const websitesRouter = {
 		.input(transferWebsiteToOrgSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["update"],
-			});
-
-			await withWorkspace(context, {
-				organizationId: input.targetOrganizationId,
+			await authorizeTransfer(context, {
 				resource: "website",
-				permissions: ["create"],
+				id: input.websiteId,
+				targetOrganizationId: input.targetOrganizationId,
 			});
 
 			try {
@@ -647,36 +806,55 @@ export const websitesRouter = {
 			}
 		}),
 
-	isTrackingSetup: publicProcedure
+	isTrackingSetup: protectedProcedure
 		.route({
-			description: "Checks if tracking is set up for a website.",
+			description:
+				"Checks if tracking is set up for a website. Requires website read permission.",
 			method: "POST",
 			path: "/websites/isTrackingSetup",
 			summary: "Check tracking setup",
 			tags: ["Websites"],
 		})
 		.input(z.object({ websiteId: z.string() }))
-		.output(z.record(z.string(), z.unknown()))
+		.output(trackingSetupOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
+			const { website } = await withWorkspace(context, {
 				websiteId: input.websiteId,
 				permissions: ["read"],
-				allowPublicAccess: true,
 			});
+			const websiteSettings = website?.settings ?? null;
+			const trackingIssueWarningsDisabled =
+				websiteSettings?.trackingIssueWarningsDisabled === true;
 
-			const { hasEvents, error: eventsError } = await getTrackingEventsStatus(
-				input.websiteId
-			);
+			const [eventsStatus, blockedIssueRow] = await Promise.all([
+				getTrackingEventsStatus(input.websiteId),
+				trackingIssueWarningsDisabled
+					? Promise.resolve(null)
+					: getRecentBlockedTrackingIssue(input.websiteId, {
+							allowedOrigins: websiteSettings?.allowedOrigins ?? [],
+							ignoredOrigins: websiteSettings?.ignoredTrackingOrigins ?? [],
+							websiteDomain: website?.domain ?? null,
+						}),
+			]);
+			const trackingIssue = blockedIssueRow
+				? buildTrackingIssue(
+						blockedIssueRow,
+						website?.domain ?? null,
+						eventsStatus.recentEvents
+					)
+				: null;
 
 			return {
-				tracking_setup: hasEvents,
-				integration_type: hasEvents ? "manual" : null,
-				has_events: hasEvents,
-				status_message: buildStatusMessage(hasEvents, eventsError),
+				tracking_setup: eventsStatus.hasEvents,
+				integration_type: eventsStatus.hasEvents ? "manual" : null,
+				has_events: eventsStatus.hasEvents,
+				recent_events: eventsStatus.recentEvents,
+				status_message: buildStatusMessage(eventsStatus, trackingIssue),
+				tracking_issue: trackingIssue,
 			};
 		}),
 
-	updateSettings: protectedProcedure
+	updateSettings: trackedProcedure
 		.route({
 			description: "Updates website settings. Requires update permission.",
 			method: "POST",
@@ -692,33 +870,19 @@ export const websitesRouter = {
 				permissions: ["update"],
 			});
 
-			const currentSettings = website.settings ?? {};
+			if (input.settings === undefined) {
+				return website;
+			}
 
-			const newSettings = {
-				...currentSettings,
-				...(input.settings?.allowedOrigins !== undefined && {
-					allowedOrigins:
-						input.settings.allowedOrigins.length > 0
-							? input.settings.allowedOrigins
-							: undefined,
-				}),
-				...(input.settings?.allowedIps !== undefined && {
-					allowedIps:
-						input.settings.allowedIps.length > 0
-							? input.settings.allowedIps
-							: undefined,
-				}),
-			};
-
-			const cleanedSettings = Object.fromEntries(
-				Object.entries(newSettings).filter(([_, v]) => v !== undefined)
+			const nextSettings = mergeWebsiteSecuritySettings(
+				website.settings,
+				input.settings
 			);
 
 			let updatedWebsite: Website;
 			try {
 				updatedWebsite = await websiteService.updateById(input.id, {
-					settings:
-						Object.keys(cleanedSettings).length > 0 ? cleanedSettings : null,
+					settings: nextSettings,
 				});
 			} catch (error) {
 				handleServiceError(error);

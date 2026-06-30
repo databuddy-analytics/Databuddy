@@ -1,11 +1,12 @@
-import { ArrowRightIcon } from "@phosphor-icons/react/ssr";
+import { ArrowRightIcon } from "@databuddy/ui/icons";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE_URL } from "@/app/util/constants";
 import { CompetitorCard } from "@/components/compare/competitor-card";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import Section from "@/components/landing/section";
-import { Spotlight } from "@/components/landing/spotlight";
+import { Footer } from "@/components/footer";
+
 import { StructuredData } from "@/components/structured-data";
 import { competitors } from "@/lib/comparison-config";
 
@@ -38,8 +39,6 @@ export default function AlternativesHubPage() {
 					url: alternativesUrl,
 				}}
 			/>
-			<Spotlight transform="translateX(-60%) translateY(-50%)" />
-
 			<div className="container mx-auto px-4 pt-8">
 				<div className="flex items-center gap-2 text-muted-foreground text-sm">
 					<Link className="transition-colors hover:text-foreground" href="/">
@@ -50,11 +49,7 @@ export default function AlternativesHubPage() {
 				</div>
 			</div>
 
-			<Section
-				className="overflow-hidden"
-				customPaddings
-				id="alternatives-hero"
-			>
+			<Section className="overflow-hidden" id="alternatives-hero">
 				<section className="relative w-full pt-12 pb-12 sm:pt-16 sm:pb-16 lg:pt-20 lg:pb-20">
 					<div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
 						<div className="text-center">
@@ -112,7 +107,7 @@ export default function AlternativesHubPage() {
 						<div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
 							<SciFiButton asChild>
 								<Link
-									href="https://app.databuddy.cc/login"
+									href="https://app.databuddy.cc/register"
 									rel="noopener noreferrer"
 									target="_blank"
 								>
@@ -133,6 +128,8 @@ export default function AlternativesHubPage() {
 					</div>
 				</div>
 			</Section>
+
+			<Footer />
 		</div>
 	);
 }

@@ -9,7 +9,7 @@ import {
 	TOPUP_MIN_QUANTITY,
 	type TopupTier,
 	TOPUP_TIERS,
-} from "@databuddy/shared/billing/topup-math";
+} from "@/lib/topup-math";
 import { motion, useSpring, useTransform } from "motion/react";
 import {
 	type KeyboardEvent as ReactKeyboardEvent,

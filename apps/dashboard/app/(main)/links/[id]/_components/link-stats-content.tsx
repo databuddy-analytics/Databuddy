@@ -1,9 +1,11 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { StatCard } from "@/components/analytics";
+import { ResourceUnavailableState } from "@/components/resource-unavailable-state";
 import { DataTable } from "@/components/table/data-table";
+import { createReferrerColumns as createReferrerSourceColumns } from "@/components/table/rows/referrer-row";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useLink, useLinkStats } from "@/hooks/use-links";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -12,17 +14,11 @@ import { type ChartDataPoint, ClicksChart } from "./clicks-chart";
 import {
 	createDeviceColumns,
 	createGeoColumns,
-	createReferrerColumns,
 	type GeoEntry,
 	type SourceEntry,
 } from "./link-stats-columns";
-import {
-	CursorClickIcon,
-	GlobeIcon,
-	LinkIcon,
-	UsersIcon,
-} from "@databuddy/ui/icons";
-import { EmptyState, dayjs } from "@databuddy/ui";
+import { CursorClickIcon, GlobeIcon, UsersIcon } from "@databuddy/ui/icons";
+import { dayjs } from "@databuddy/ui";
 
 interface MiniChartDataPoint {
 	date: string;
@@ -31,7 +27,6 @@ interface MiniChartDataPoint {
 
 export function LinkStatsContent() {
 	const params = useParams();
-	const router = useRouter();
 	const linkId = params.id as string;
 	const { dateRange, currentGranularity } = useDateFilters();
 
@@ -80,11 +75,17 @@ export function LinkStatsContent() {
 		return todayData?.clicks ?? 0;
 	}, [chartData]);
 
-	const referrerColumns = createReferrerColumns();
-	const countryColumns = createGeoColumns("country");
-	const regionColumns = createGeoColumns("region");
-	const cityColumns = createGeoColumns("city");
-	const deviceColumns = createDeviceColumns();
+	const referrerColumns = useMemo(
+		() =>
+			createReferrerSourceColumns<SourceEntry>({
+				metrics: [{ id: "clicks", header: "Clicks" }],
+			}),
+		[]
+	);
+	const countryColumns = useMemo(() => createGeoColumns("country"), []);
+	const regionColumns = useMemo(() => createGeoColumns("region"), []);
+	const cityColumns = useMemo(() => createGeoColumns("city"), []);
+	const deviceColumns = useMemo(() => createDeviceColumns(), []);
 
 	const sourceTabs = useMemo(
 		() => [
@@ -137,18 +138,11 @@ export function LinkStatsContent() {
 
 	if (!(isLoading || link)) {
 		return (
-			<div className="flex h-full items-center justify-center p-6">
-				<EmptyState
-					action={{
-						label: "Back to Links",
-						onClick: () => router.push("/links"),
-					}}
-					description="The link you're looking for doesn't exist or has been deleted."
-					icon={<LinkIcon />}
-					title="Link not found"
-					variant="error"
-				/>
-			</div>
+			<ResourceUnavailableState
+				backHref="/links"
+				backLabel="Back to Links"
+				className="h-full p-6"
+			/>
 		);
 	}
 
