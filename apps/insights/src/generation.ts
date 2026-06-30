@@ -1,4 +1,5 @@
 import type { AppContext } from "@databuddy/ai/config/context";
+import { createServiceAuth } from "@databuddy/rpc";
 import {
 	ANTHROPIC_CACHE_1H,
 	createModelFromId,
@@ -25,6 +26,7 @@ import { stepCountIs, tool, ToolLoopAgent, type ToolSet } from "ai";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
 import { resolveInsightsBilling } from "./billing";
+import { type ChainAssignment, detectAndAssignChains } from "./chain-detection";
 import { deliverInsightDigests } from "./delivery";
 import { type DetectedSignal, detectSignals, wowWindow } from "./detection";
 import { detectFunnelGoalSignals } from "./funnel-detection";
@@ -312,10 +314,7 @@ async function runInsightsAgent(params: {
 			timezone: params.config.timezone,
 			currentDateTime: new Date().toISOString(),
 			chatId: `insights:${params.organizationId}:${params.websiteId}`,
-			serviceAuth: {
-				organizationId: params.organizationId,
-				scopes: ["read:data"],
-			},
+			serviceAuth: createServiceAuth(params.organizationId, ["read:data"]),
 		};
 
 		const collected: ParsedInsight[] = [];
@@ -592,6 +591,21 @@ export async function generateWebsiteInsights(
 		runId: input.runId,
 	});
 
+	let chainAssignments: ChainAssignment[] = [];
+	if (saved.length > 0) {
+		try {
+			chainAssignments = await detectAndAssignChains({
+				organizationId: input.organizationId,
+			});
+		} catch (error) {
+			captureInsightsError(error, "generation.chain_detection.failed", {
+				organization_id: input.organizationId,
+				website_id: site.id,
+				run_id: input.runId,
+			});
+		}
+	}
+
 	try {
 		await resolveInsightsForWebsite({
 			organizationId: input.organizationId,
@@ -610,13 +624,16 @@ export async function generateWebsiteInsights(
 
 	storeWebsiteSummary(site, saved);
 
-	if (saved.length > 0) {
+	const freshInsights = saved.filter((insight) => insight.isNew);
+	if (freshInsights.length > 0) {
 		try {
 			await deliverInsightDigests({
 				organizationId: input.organizationId,
 				websiteId: site.id,
 				websiteDomain: site.domain,
-				insights: saved,
+				websiteName: site.name,
+				insights: freshInsights,
+				chains: chainAssignments,
 			});
 		} catch (error) {
 			captureInsightsError(error, "generation.delivery.failed", {

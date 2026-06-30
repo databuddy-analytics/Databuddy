@@ -36,20 +36,28 @@ const devFsDrain = useLocalEvlogFiles
 
 const DURATION_REGEX = /^([\d.]+)(ms|s)$/;
 
-/**
- * Before Axiom: fix `error` string vs object collision; downgrade 4xx to warn.
- */
+function stripErrorCauseData(err: Record<string, unknown>): void {
+	const cause = err.cause;
+	if (cause && typeof cause === "object" && !Array.isArray(cause)) {
+		(cause as Record<string, unknown>).data = undefined;
+	}
+}
+
 function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
 	if (typeof event.error === "string") {
 		event.error_message = event.error;
 		event.error = undefined;
 	}
 
+	const err = event.error;
+	if (err && typeof err === "object" && !Array.isArray(err)) {
+		stripErrorCauseData(err as Record<string, unknown>);
+	}
+
 	if (event.level !== "error") {
 		return;
 	}
 
-	const err = event.error;
 	if (!err || typeof err !== "object" || Array.isArray(err)) {
 		return;
 	}

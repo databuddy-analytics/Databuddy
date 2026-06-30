@@ -184,7 +184,7 @@ cd packages/db && DATABASE_URL="postgres://databuddy:databuddy_dev_password@loca
 - **Type test objects against their source type.** Fake API keys must be typed as `Context["apiKey"]`, fake users as `User`, etc. If the schema adds a required field, the test must fail to compile — not silently pass with a partial object.
 - **Never hand-write dependency versions.** Use `bun add <pkg>` to add dependencies. Hand-written version ranges drift from lockfile reality and cause phantom resolution bugs.
 - **Shared test helpers over local copies.** `expectCode`, `userContext`, `apiKeyContext`, env setup — these live in `@databuddy/test`. If you're about to define a helper that already exists there, import it instead.
-- **Scope maps must match.** If `RESOURCE_SCOPE_OVERRIDES` or `LINKS_SCOPE_MAP` changes in `packages/api-keys/src/scopes.ts`, the integration tests in `link-handlers.test.ts` and `with-workspace.test.ts` must be updated to match. The link resource currently uses the default scope map (`read:data` for read, `manage:config` for write) — `LINKS_SCOPE_MAP` is only enforced by `withLinksAccess()` as a pre-check layer.
+- **Scope maps must match.** If `RESOURCE_SCOPE_OVERRIDES` changes in `packages/api-keys/src/scopes.ts`, the integration tests in `link-handlers.test.ts` and `with-workspace.test.ts` must be updated to match. The link resource is mapped there (`read:links` for read, `write:links` for create/update/delete), as is the flag resource (`manage:flags` for create/update/delete). Both are enforced solely by `withWorkspace`; there are no separate pre-check layers. New resources also need role grants in `packages/auth/src/permissions.ts` (statement plus each role).
 
 ## AI Policy Note
 

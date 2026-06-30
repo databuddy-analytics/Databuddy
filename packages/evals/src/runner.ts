@@ -148,7 +148,7 @@ async function preparePackageCase(evalCase: EvalCase, config: EvalConfig) {
 	const threadTs = slack.threadTs ?? "1778005033.664559";
 	const messageTs = slack.messageTs ?? nextSlackTs(threadTs, 99);
 	const run = {
-		channelId: slack.channelId ?? "C_EVAL_THREAD",
+		channelId: slack.channelId ?? "C0EVALTHRD",
 		followUpMessages: slack.followUpMessages,
 		messageTs,
 		teamId: slack.teamId ?? "T_EVAL",

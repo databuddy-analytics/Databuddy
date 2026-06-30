@@ -43,7 +43,7 @@ export interface QueryBuilderMeta {
 	output_fields?: QueryOutputField[];
 	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	tags?: string[];
-	title: string;
+	title?: string;
 	version?: string;
 }
 

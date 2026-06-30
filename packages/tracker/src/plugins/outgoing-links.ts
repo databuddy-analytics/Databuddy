@@ -40,6 +40,7 @@ export function initOutgoingLinksTracking(tracker: BaseTracker): () => void {
 					type: "outgoing_link",
 					eventId: generateUUIDv4(),
 					anonymousId: tracker.anonymousId,
+					anonymizeVisitorIds: tracker.options.anonymizeVisitorIds,
 					sessionId: tracker.sessionId,
 					timestamp: Date.now(),
 					href: link.href,

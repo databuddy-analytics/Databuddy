@@ -88,4 +88,32 @@ describe("resolveInsightsBilling", () => {
 			{ organizationId: "org_7", userId: null },
 		]);
 	});
+
+	it("fails open when customer resolution throws", async () => {
+		const { deps } = makeDeps({
+			resolveBillingCustomerId: () =>
+				Promise.reject(new Error("AUTUMN_SECRET_KEY is not set")),
+		});
+
+		const decision = await resolveInsightsBilling(
+			{ organizationId: "org_1", userId: "user_1" },
+			deps
+		);
+
+		expect(decision).toEqual({ allowed: true, billingCustomerId: null });
+	});
+
+	it("fails open when the credit check throws", async () => {
+		const { deps } = makeDeps({
+			ensureCreditsAvailable: () =>
+				Promise.reject(new Error("Command timed out")),
+		});
+
+		const decision = await resolveInsightsBilling(
+			{ organizationId: "org_1", userId: "user_1" },
+			deps
+		);
+
+		expect(decision).toEqual({ allowed: true, billingCustomerId: null });
+	});
 });

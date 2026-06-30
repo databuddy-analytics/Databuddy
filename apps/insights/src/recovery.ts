@@ -146,11 +146,41 @@ async function staleRunIds(cutoff: Date): Promise<string[]> {
 	return rows.map((row) => row.id);
 }
 
+export function summarizeItemErrors(
+	items: Pick<InsightRunItem, "errorMessage" | "status">[]
+): string | null {
+	const counts = new Map<string, number>();
+	for (const item of items) {
+		if (item.status === "failed" && item.errorMessage) {
+			counts.set(item.errorMessage, (counts.get(item.errorMessage) ?? 0) + 1);
+		}
+	}
+
+	let topMessage: string | null = null;
+	let topCount = 0;
+	for (const [message, count] of counts) {
+		if (count > topCount) {
+			topMessage = message;
+			topCount = count;
+		}
+	}
+	if (!topMessage) {
+		return null;
+	}
+
+	const otherTypes = counts.size - 1;
+	const suffix = otherTypes > 0 ? ` (+${otherTypes} other error types)` : "";
+	return `${topCount} item${topCount === 1 ? "" : "s"}: ${topMessage}${suffix}`;
+}
+
 export async function syncRunStatus(runId: string): Promise<RunStatusSummary> {
 	const [run, items] = await Promise.all([
 		db.query.insightRuns.findFirst({ where: { id: runId } }),
 		db
-			.select({ status: insightRunItems.status })
+			.select({
+				errorMessage: insightRunItems.errorMessage,
+				status: insightRunItems.status,
+			})
 			.from(insightRunItems)
 			.where(eq(insightRunItems.runId, runId)),
 	]);
@@ -192,6 +222,9 @@ export async function syncRunStatus(runId: string): Promise<RunStatusSummary> {
 			status,
 			updatedAt: now,
 			...(settled ? { finishedAt: now } : {}),
+			...(settled && failedItems > 0
+				? { errorMessage: summarizeItemErrors(items) }
+				: {}),
 		})
 		.where(eq(insightRuns.id, runId));
 

@@ -27,6 +27,7 @@ import {
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { logger } from "../lib/logger";
 import { type Context, protectedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 import { getNextInsightRunAt } from "../services/insight-schedule";
@@ -53,6 +54,8 @@ const CONFIG_UNIQUE_CONSTRAINTS = [
 	"insight_generation_configs_org_default_uidx",
 	"insight_generation_configs_org_website_uidx",
 ];
+const QUEUE_INSIGHT_GENERATION_ERROR =
+	"Failed to queue insight generation. Please try again shortly.";
 
 type SlackDelivery = z.infer<typeof deliverySchema>;
 type ConfigExecutor =
@@ -655,12 +658,15 @@ export async function queueInsightGenerationRun(
 			)
 		);
 	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
+		logger.error(
+			{ error, organizationId: input.organizationId, runId },
+			"Failed to queue insight generation"
+		);
 		await Promise.all([
 			db
 				.update(insightRuns)
 				.set({
-					errorMessage: message,
+					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
 					failedItems: queueItems.length,
 					finishedAt: new Date(),
 					status: "failed",
@@ -669,7 +675,7 @@ export async function queueInsightGenerationRun(
 			db
 				.update(insightRunItems)
 				.set({
-					errorMessage: message,
+					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
 					finishedAt: new Date(),
 					status: "failed",
 				})

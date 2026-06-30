@@ -32,12 +32,14 @@ export async function executeAgentSqlForWebsite({
 	sql,
 	params,
 	toolName = "Execute SQL Tool",
+	abortSignal,
 }: {
 	websiteId: string;
 	websiteDomain?: string;
 	sql: string;
 	params?: Record<string, unknown>;
 	toolName?: string;
+	abortSignal?: AbortSignal;
 }): Promise<QueryResult> {
 	const validation = validateAgentSQL(sql);
 	if (!validation.valid) {
@@ -66,7 +68,8 @@ export async function executeAgentSqlForWebsite({
 			max_result_bytes: 50_000_000,
 			result_overflow_mode: "break",
 			use_query_cache: 0,
-		}
+		},
+		abortSignal
 	);
 
 	return result.data.length > MAX_MODEL_ROWS
@@ -75,19 +78,7 @@ export async function executeAgentSqlForWebsite({
 }
 
 export const executeSqlQueryTool = tool({
-	description: `Read-only ClickHouse SQL for session-level joins, path analysis, or cross-table correlations. Prefer get_data query builders for anything they cover. SELECT/WITH only, CTEs instead of subqueries/UNION.
-
-Tenant filter: every WHERE needs client_id = {websiteId:String} (for events, error_spans, vitals, blocked_traffic) or owner_id = {websiteId:String} (for custom_events, revenue). Use {paramName:Type} placeholders only.
-
-Tables:
-- analytics.events: session_id, time, path, referrer, browser_name, os_name, device_type, country, region, city, utm_source, utm_medium, utm_campaign, time_on_page, scroll_depth, event_name
-- analytics.error_spans: session_id, timestamp, path, message, filename, lineno, stack, error_type
-- analytics.web_vitals_spans: timestamp, path, metric_name (FCP/LCP/CLS/INP/TTFB/FPS), metric_value
-- analytics.custom_events: event_name, timestamp, properties (JSON), session_id
-- analytics.revenue: transaction_id, amount Decimal(18,4), currency, provider, type, customer_id, created
-- analytics.outgoing_links: timestamp, path, href, text
-
-Gotchas: timestamp column is "time" in events, "timestamp" elsewhere. Pageviews = event_name = 'screen_view'. Use uniq() not COUNT(DISTINCT). quantileTDigest on Decimal needs toFloat64() cast.`,
+	description: `Read-only ClickHouse SQL for session-level joins, path analysis, or cross-table correlations the get_data builders can't express. SELECT/WITH only; use CTEs instead of subqueries/UNION; {paramName:Type} placeholders only. Every WHERE needs the per-table tenant filter on the correct column — call describe_schema when in doubt; the validator rejects wrong-column queries (it does not silently return zero rows). Footguns the validator can't catch for you: analytics.events uses "time" as its timestamp column ("timestamp" elsewhere); pageviews are event_name = 'screen_view' (never 'pageview'); use uniq() not COUNT(DISTINCT); quantileTDigest on a Decimal column needs toFloat64() cast.`,
 	strict: true,
 	inputSchema: z.object({
 		sql: z
@@ -116,6 +107,7 @@ Gotchas: timestamp column is "time" in events, "timestamp" elsewhere. Pageviews 
 			websiteDomain: resolved.domain,
 			sql,
 			params,
+			abortSignal: options.abortSignal,
 		});
 	},
 });

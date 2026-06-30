@@ -17,7 +17,11 @@ import {
 } from "../lib/analytics-utils";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
-import { withWebsiteRead, withWorkspace } from "../procedures/with-workspace";
+import {
+	withPublicWorkspace,
+	withWebsiteRead,
+	withWorkspace,
+} from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
 
 const cache = createDrizzleCache({ redis, namespace: "funnels" });
@@ -191,19 +195,19 @@ export const funnelsRouter = {
 		})
 		.input(z.object({ websiteId: z.string() }))
 		.output(z.array(funnelListOutputSchema))
-		.handler(({ context, input }) =>
-			cache.withCache({
+		.handler(async ({ context, input }) => {
+			await withPublicWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+
+			return cache.withCache({
 				key: `list:${input.websiteId}`,
 				disabled: true, // TODO: Remove this once we have a way to invalidate the cache
 				ttl: CACHE_TTL,
 				tables: ["funnelDefinitions"],
-				queryFn: async () => {
-					await withWorkspace(context, {
-						websiteId: input.websiteId,
-						permissions: ["read"],
-						allowPublicAccess: true,
-					});
-					return context.db
+				queryFn: () =>
+					context.db
 						.select({
 							id: funnelDefinitions.id,
 							name: funnelDefinitions.name,
@@ -223,10 +227,9 @@ export const funnelsRouter = {
 								sql`jsonb_array_length(${funnelDefinitions.steps}) > 1`
 							)
 						)
-						.orderBy(desc(funnelDefinitions.createdAt));
-				},
-			})
-		),
+						.orderBy(desc(funnelDefinitions.createdAt)),
+			});
+		}),
 
 	getById: protectedProcedure
 		.route({

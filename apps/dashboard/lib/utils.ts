@@ -1,9 +1,4 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-	return twMerge(clsx(inputs));
-}
+export { cn } from "cnfast";
 
 export function getOrganizationInitials(name: string): string {
 	return name

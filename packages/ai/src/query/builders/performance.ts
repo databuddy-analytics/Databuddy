@@ -9,7 +9,8 @@ const WEB_VITALS_SESSION_DIMENSIONS_CTE = `
 			argMinIf(browser_name, time, ifNull(browser_name, '') != '') as browser_name,
 			argMinIf(country, time, ifNull(country, '') != '') as country,
 			argMinIf(region, time, ifNull(region, '') != '') as region,
-			argMinIf(os_name, time, ifNull(os_name, '') != '') as os_name
+			argMinIf(os_name, time, ifNull(os_name, '') != '') as os_name,
+			argMinIf(device_type, time, ifNull(device_type, '') != '') as device_type
 		FROM ${Analytics.events}
 		WHERE
 			client_id = {websiteId:String}
@@ -34,21 +35,6 @@ const WEB_VITALS_METRICS = `
 	COUNT(*) as measurements
 `;
 
-const PERFORMANCE_BREAKDOWN_FIELDS = [
-	{ name: "name", type: "string" as const, label: "Name" },
-	{ name: "visitors", type: "number" as const, label: "Visitors" },
-	{ name: "avg_load_time", type: "number" as const, label: "Avg Load Time" },
-	{ name: "p50_load_time", type: "number" as const, label: "p50 Load Time" },
-	{ name: "avg_ttfb", type: "number" as const, label: "Avg TTFB" },
-	{
-		name: "avg_dom_ready_time",
-		type: "number" as const,
-		label: "Avg DOM Ready",
-	},
-	{ name: "avg_render_time", type: "number" as const, label: "Avg Render" },
-	{ name: "pageviews", type: "number" as const, label: "Pageviews" },
-];
-
 const WEB_VITALS_BREAKDOWN_FIELDS = [
 	{ name: "name", type: "string" as const, label: "Name" },
 	{ name: "visitors", type: "number" as const, label: "Visitors" },
@@ -63,226 +49,7 @@ const WEB_VITALS_BREAKDOWN_FIELDS = [
 	{ name: "measurements", type: "number" as const, label: "Measurements" },
 ];
 
-// Load-time metrics come from events; web vitals live in web_vitals_spans as EAV rows
-// (one row per metric_name/metric_value pair), which is why the vitals queries pivot.
 export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
-	slow_pages: {
-		meta: {
-			title: "Slow Pages",
-			description: "Pages ranked by p50 load time.",
-			category: "Performance",
-			tags: ["performance", "page", "load-time"],
-			output_fields: PERFORMANCE_BREAKDOWN_FIELDS,
-			default_visualization: "table",
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
-			"uniq(anonymous_id) as visitors",
-			"AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time",
-			"quantileTDigest(0.50)(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as p50_load_time",
-			"AVG(CASE WHEN ttfb > 0 THEN ttfb ELSE NULL END) as avg_ttfb",
-			"AVG(CASE WHEN dom_ready_time > 0 THEN dom_ready_time ELSE NULL END) as avg_dom_ready_time",
-			"AVG(CASE WHEN render_time > 0 THEN render_time ELSE NULL END) as avg_render_time",
-			"COUNT(*) as pageviews",
-		],
-		where: ["event_name = 'screen_view'", "path != ''", "load_time > 0"],
-		groupBy: [
-			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END)",
-		],
-		orderBy: "p50_load_time DESC",
-		limit: 100,
-		timeField: "time",
-		customizable: true,
-	},
-	performance_by_browser: {
-		meta: {
-			title: "Performance by Browser",
-			description: "Load-time performance broken down by browser.",
-			category: "Performance",
-			tags: ["performance", "browser"],
-			output_fields: PERFORMANCE_BREAKDOWN_FIELDS,
-			default_visualization: "table",
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"browser_name as name",
-			"uniq(anonymous_id) as visitors",
-			"AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time",
-			"quantileTDigest(0.50)(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as p50_load_time",
-			"AVG(CASE WHEN ttfb > 0 THEN ttfb ELSE NULL END) as avg_ttfb",
-			"AVG(CASE WHEN dom_ready_time > 0 THEN dom_ready_time ELSE NULL END) as avg_dom_ready_time",
-			"AVG(CASE WHEN render_time > 0 THEN render_time ELSE NULL END) as avg_render_time",
-			"COUNT(*) as pageviews",
-		],
-		where: [
-			"event_name = 'screen_view'",
-			"browser_name != ''",
-			"load_time > 0",
-		],
-		groupBy: ["browser_name"],
-		orderBy: "p50_load_time DESC",
-		limit: 100,
-		timeField: "time",
-		customizable: true,
-	},
-
-	performance_by_country: {
-		meta: {
-			title: "Performance by Country",
-			description: "Load-time performance broken down by country.",
-			category: "Performance",
-			tags: ["performance", "country", "geo"],
-			output_fields: PERFORMANCE_BREAKDOWN_FIELDS,
-			default_visualization: "table",
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"country as name",
-			"uniq(anonymous_id) as visitors",
-			"AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time",
-			"quantileTDigest(0.50)(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as p50_load_time",
-			"AVG(CASE WHEN ttfb > 0 THEN ttfb ELSE NULL END) as avg_ttfb",
-			"AVG(CASE WHEN dom_ready_time > 0 THEN dom_ready_time ELSE NULL END) as avg_dom_ready_time",
-			"AVG(CASE WHEN render_time > 0 THEN render_time ELSE NULL END) as avg_render_time",
-			"COUNT(*) as pageviews",
-		],
-		where: ["event_name = 'screen_view'", "country != ''", "load_time > 0"],
-		groupBy: ["country"],
-		orderBy: "p50_load_time DESC",
-		limit: 100,
-		timeField: "time",
-		customizable: true,
-		plugins: { normalizeGeo: true, deduplicateGeo: true },
-	},
-
-	performance_by_os: {
-		meta: {
-			title: "Performance by OS",
-			description: "Load-time performance broken down by operating system.",
-			category: "Performance",
-			tags: ["performance", "os"],
-			output_fields: PERFORMANCE_BREAKDOWN_FIELDS,
-			default_visualization: "table",
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"os_name as name",
-			"uniq(anonymous_id) as visitors",
-			"AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time",
-			"quantileTDigest(0.50)(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as p50_load_time",
-			"AVG(CASE WHEN ttfb > 0 THEN ttfb ELSE NULL END) as avg_ttfb",
-			"AVG(CASE WHEN dom_ready_time > 0 THEN dom_ready_time ELSE NULL END) as avg_dom_ready_time",
-			"AVG(CASE WHEN render_time > 0 THEN render_time ELSE NULL END) as avg_render_time",
-			"COUNT(*) as pageviews",
-		],
-		where: ["event_name = 'screen_view'", "os_name != ''", "load_time > 0"],
-		groupBy: ["os_name"],
-		orderBy: "p50_load_time DESC",
-		limit: 100,
-		timeField: "time",
-		customizable: true,
-	},
-
-	performance_by_region: {
-		meta: {
-			title: "Performance by Region",
-			description: "Load-time performance broken down by region.",
-			category: "Performance",
-			tags: ["performance", "region", "geo"],
-			output_fields: PERFORMANCE_BREAKDOWN_FIELDS,
-			default_visualization: "table",
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"CONCAT(region, ', ', country) as name",
-			"uniq(anonymous_id) as visitors",
-			"AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time",
-			"quantileTDigest(0.50)(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as p50_load_time",
-			"AVG(CASE WHEN ttfb > 0 THEN ttfb ELSE NULL END) as avg_ttfb",
-			"AVG(CASE WHEN dom_ready_time > 0 THEN dom_ready_time ELSE NULL END) as avg_dom_ready_time",
-			"AVG(CASE WHEN render_time > 0 THEN render_time ELSE NULL END) as avg_render_time",
-			"COUNT(*) as pageviews",
-		],
-		where: ["event_name = 'screen_view'", "region != ''", "load_time > 0"],
-		groupBy: ["region", "country"],
-		orderBy: "p50_load_time DESC",
-		limit: 100,
-		timeField: "time",
-		customizable: true,
-	},
-
-	performance_time_series: {
-		meta: {
-			title: "Performance Time Series",
-			description: "Daily load-time performance trends.",
-			category: "Performance",
-			tags: ["performance", "time-series"],
-			output_fields: [
-				{ name: "date", type: "string", label: "Date" },
-				{ name: "avg_load_time", type: "number", label: "Avg Load Time" },
-				{ name: "p50_load_time", type: "number", label: "p50 Load Time" },
-				{ name: "avg_ttfb", type: "number", label: "Avg TTFB" },
-				{ name: "avg_dom_ready_time", type: "number", label: "Avg DOM Ready" },
-				{ name: "avg_render_time", type: "number", label: "Avg Render" },
-				{ name: "pageviews", type: "number", label: "Pageviews" },
-			],
-			default_visualization: "timeseries",
-			supports_granularity: ["hour", "day"],
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"toDate(time) as date",
-			"AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time",
-			"quantileTDigest(0.50)(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as p50_load_time",
-			"AVG(CASE WHEN ttfb > 0 THEN ttfb ELSE NULL END) as avg_ttfb",
-			"AVG(CASE WHEN dom_ready_time > 0 THEN dom_ready_time ELSE NULL END) as avg_dom_ready_time",
-			"AVG(CASE WHEN render_time > 0 THEN render_time ELSE NULL END) as avg_render_time",
-			"COUNT(*) as pageviews",
-		],
-		where: ["event_name = 'screen_view'"],
-		groupBy: ["toDate(time)"],
-		orderBy: "date ASC",
-		timeField: "time",
-		customizable: true,
-	},
-
-	load_time_performance: {
-		meta: {
-			title: "Load Time Performance",
-			description: "Daily average and p50 load times.",
-			category: "Performance",
-			tags: ["performance", "load-time", "time-series"],
-			output_fields: [
-				{ name: "date", type: "string", label: "Date" },
-				{ name: "avg_load_time", type: "number", label: "Avg Load Time" },
-				{ name: "p50_load_time", type: "number", label: "p50 Load Time" },
-				{ name: "pageviews", type: "number", label: "Pageviews" },
-			],
-			default_visualization: "timeseries",
-			supports_granularity: ["hour", "day"],
-			version: "1.0",
-		},
-		table: Analytics.events,
-		fields: [
-			"toDate(time) as date",
-			"AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time",
-			"quantileTDigest(0.50)(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as p50_load_time",
-			"COUNT(*) as pageviews",
-		],
-		where: ["event_name = 'screen_view'", "load_time > 0"],
-		groupBy: ["toDate(time)"],
-		orderBy: "date ASC",
-		timeField: "time",
-		customizable: true,
-	},
-
 	web_vitals_by_page: {
 		meta: {
 			title: "Web Vitals by Page",
@@ -429,6 +196,44 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 						AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND ifNull(sd.os_name, '') != ''
 					GROUP BY sd.os_name
+					ORDER BY p50_lcp DESC
+					LIMIT {limit:UInt32}
+				`,
+				params: { websiteId, startDate, endDate, limit },
+			};
+		},
+		timeField: "timestamp",
+		customizable: true,
+	},
+
+	web_vitals_by_device: {
+		meta: {
+			title: "Web Vitals by Device Type",
+			description:
+				"Average and p50 Core Web Vitals split by mobile / desktop / tablet — the right builder for mobile-vs-desktop comparisons.",
+			category: "Performance",
+			tags: ["vitals", "performance", "device", "mobile", "desktop"],
+			output_fields: WEB_VITALS_BREAKDOWN_FIELDS,
+			default_visualization: "table",
+			version: "1.0",
+		},
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate } = ctx;
+			const limit = ctx.limit ?? 100;
+			return {
+				sql: `
+					WITH ${WEB_VITALS_SESSION_DIMENSIONS_CTE}
+					SELECT
+						sd.device_type as name,
+						${WEB_VITALS_METRICS}
+					FROM ${Analytics.web_vitals_spans} wv
+					INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
+					WHERE
+						wv.client_id = {websiteId:String}
+						AND wv.timestamp >= toDateTime({startDate:String})
+						AND wv.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						AND ifNull(sd.device_type, '') != ''
+					GROUP BY sd.device_type
 					ORDER BY p50_lcp DESC
 					LIMIT {limit:UInt32}
 				`,

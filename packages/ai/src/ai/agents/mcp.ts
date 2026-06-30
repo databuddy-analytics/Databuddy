@@ -1,4 +1,4 @@
-import { stepCountIs } from "ai";
+import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import {
 	ANTHROPIC_CACHE_1H,
 	createModelFromId,
@@ -7,8 +7,8 @@ import {
 import { createMcpAgentTools } from "../mcp/agent-tools";
 import type { DatabuddyAgentSlackContext } from "../mcp/slack-context";
 import { buildAnalyticsInstructionsForMcp } from "../prompts/analytics";
-import { TIER_CONFIG } from "../config/tiers";
-import type { AppMutationMode } from "../config/context";
+import type { AppMutationMode, ServiceAuth } from "../config/context";
+import { stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig } from "./types";
 
 export function createMcpAgentConfig(context: {
@@ -38,6 +38,14 @@ export function createMcpAgentConfig(context: {
 
 	const useAnthropicPromptCache = selectedModelId.startsWith("anthropic/");
 
+	const apiKey =
+		context.apiKey && typeof context.apiKey === "object"
+			? (context.apiKey as ApiKeyRow)
+			: null;
+	const serviceAuth: ServiceAuth | undefined = apiKey
+		? { apiKey, session: null }
+		: undefined;
+
 	return {
 		model: createModelFromId(selectedModelId),
 		system: {
@@ -51,12 +59,17 @@ export function createMcpAgentConfig(context: {
 			}),
 			providerOptions: useAnthropicPromptCache ? ANTHROPIC_CACHE_1H : undefined,
 		},
-		tools: createMcpAgentTools({ slackContext: context.slackContext }),
+		tools: createMcpAgentTools({
+			slackContext: context.slackContext,
+			organizationId: context.organizationId,
+			userId: context.userId,
+			websiteDomain: context.websiteDomain,
+		}),
 		activeTools: context.activeTools,
-		stopWhen: stepCountIs(TIER_CONFIG.balanced.maxSteps),
+		stopWhen: stopAtMaxSteps,
 		temperature: 0.1,
 		experimental_context: {
-			apiKey: context.apiKey,
+			apiKey,
 			billingCustomerId: context.billingCustomerId,
 			chatId,
 			currentDateTime,
@@ -64,6 +77,7 @@ export function createMcpAgentConfig(context: {
 			mutationMode: context.mutationMode ?? "allow",
 			organizationId: context.organizationId ?? null,
 			requestHeaders: context.requestHeaders,
+			serviceAuth,
 			timezone,
 			userId: context.userId ?? "",
 			websiteId,

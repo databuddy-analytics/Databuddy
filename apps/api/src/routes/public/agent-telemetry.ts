@@ -1,4 +1,4 @@
-import { captureError, mergeWideEvent } from "@/lib/tracing";
+import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { db } from "@databuddy/db";
 import {
 	type AgentInstallIssue,
@@ -125,7 +125,7 @@ export const agentTelemetryRoute = new Elysia({
 			set.status = 401;
 			return {
 				success: false,
-				error: "Invalid websiteId.",
+				error: "Invalid telemetry credentials",
 			};
 		}
 

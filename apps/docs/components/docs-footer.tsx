@@ -1,25 +1,11 @@
 "use client";
 
-import { getTrackingParams } from "@databuddy/sdk";
 import Link from "next/link";
 import { SiDiscord, SiGithub, SiX } from "@icons-pack/react-simple-icons";
 import { EnvelopeIcon } from "@databuddy/ui/icons";
 import { SciFiButton } from "./landing/scifi-btn";
 
 export function DocsFooter() {
-	const handleGetStarted = () => {
-		if (typeof window === "undefined") {
-			return;
-		}
-
-		const trackingParams = getTrackingParams();
-		const url = trackingParams
-			? `https://app.databuddy.cc/register?${trackingParams}`
-			: "https://app.databuddy.cc/register";
-
-		window.open(url, "_blank", "noopener,noreferrer");
-	};
-
 	return (
 		<footer className="border-border border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 			<div className="mx-auto max-w-6xl px-4 pt-8 pb-8 sm:px-6 lg:px-8">
@@ -29,8 +15,14 @@ export function DocsFooter() {
 						Ready to get started?
 					</h2>
 					<div>
-						<SciFiButton onClick={handleGetStarted}>
-							ADD DATABUDDY IN 5 MINUTES
+						<SciFiButton asChild>
+							<a
+								href="https://app.databuddy.cc/register"
+								rel="noopener noreferrer"
+								target="_blank"
+							>
+								ADD DATABUDDY IN 5 MINUTES
+							</a>
 						</SciFiButton>
 					</div>
 				</div>

@@ -3,6 +3,7 @@ import dayjs from "dayjs";
 import {
 	type DetectSignalsParams,
 	type QueryFn,
+	adaptiveWowThreshold,
 	assignSeverity,
 	detectSignals,
 	mad,
@@ -134,6 +135,30 @@ describe("assignSeverity", () => {
 
 	it("assigns info when z-score is undefined and delta is moderate", () => {
 		expect(assignSeverity(undefined, 45)).toBe("info");
+	});
+});
+
+describe("adaptiveWowThreshold", () => {
+	it("returns the base threshold for short series", () => {
+		expect(adaptiveWowThreshold([100, 110, 90], 40)).toBe(40);
+	});
+
+	it("returns the base threshold for a zero mean", () => {
+		expect(adaptiveWowThreshold([0, 0, 0, 0, 0, 0, 0], 40)).toBe(40);
+	});
+
+	it("returns the base threshold for stable series", () => {
+		expect(
+			adaptiveWowThreshold([100, 102, 98, 101, 99, 100, 103, 97], 40)
+		).toBe(40);
+	});
+
+	it("raises the threshold proportionally to volatility", () => {
+		const volatile = Array.from({ length: 20 }, (_, i) =>
+			i % 2 === 0 ? 40 : 200
+		);
+		const threshold = adaptiveWowThreshold(volatile, 40);
+		expect(threshold).toBeGreaterThan(100);
 	});
 });
 
@@ -336,6 +361,41 @@ describe("detectSignals", () => {
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			const wowSignals = signals.filter((s) => s.method === "wow");
 			expect(wowSignals.length).toBe(0);
+		});
+
+		it("suppresses WoW changes within a volatile site's normal range", async () => {
+			const start = dayjs().subtract(27, "day");
+			const volatileDays = Array.from({ length: 28 }, (_, i) => ({
+				date: start.add(i, "day").format("YYYY-MM-DD"),
+				visitors: i % 2 === 0 ? 40 : 200,
+				sessions: 100,
+				pageviews: 100,
+				bounce_rate: 40,
+				median_session_duration: 60,
+			}));
+			const queryFn = createMockQueryFn(
+				makeDailyRows(volatileDays),
+				{
+					unique_visitors: 200,
+					sessions: 100,
+					pageviews: 100,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				{
+					unique_visitors: 100,
+					sessions: 100,
+					pageviews: 100,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const visitorWow = signals.filter(
+				(s) => s.method === "wow" && s.metric === "visitors"
+			);
+			expect(visitorWow.length).toBe(0);
 		});
 	});
 
@@ -648,17 +708,13 @@ describe("detectSignals", () => {
 	describe("z-score vs WoW conflict resolution", () => {
 		it("drops z-score signal when WoW shows the opposite direction", async () => {
 			const start = dayjs().subtract(27, "day");
-			const normal = generateStableDays(24, {
+			const normal = generateStableDays(27, {
 				visitors: 100,
 				sessions: 120,
 				pageviews: 200,
 				bounce_rate: 40,
 				median_session_duration: 60,
 			}, start);
-
-			normal[20].visitors = 400;
-			normal[21].visitors = 350;
-			normal[22].visitors = 300;
 
 			const latestDay = {
 				date: start.add(27, "day").format("YYYY-MM-DD"),
@@ -669,13 +725,7 @@ describe("detectSignals", () => {
 				median_session_duration: 60,
 			};
 
-			const rows = makeDailyRows([...normal, ...generateStableDays(3, {
-				visitors: 100,
-				sessions: 120,
-				pageviews: 200,
-				bounce_rate: 40,
-				median_session_duration: 60,
-			}, start.add(24, "day")), latestDay]);
+			const rows = makeDailyRows([...normal, latestDay]);
 
 			const queryFn = createMockQueryFn(
 				rows,

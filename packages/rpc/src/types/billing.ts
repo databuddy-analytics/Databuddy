@@ -11,7 +11,7 @@ import {
 	PLAN_HIERARCHY,
 	PLAN_IDS,
 } from "@databuddy/shared/types/features";
-import { ORPCError } from "@orpc/server";
+import { rpcError } from "../errors";
 
 export interface BillingContext {
 	canUserUpgrade: boolean;
@@ -63,12 +63,7 @@ export function requireFeature(
 ): void {
 	if (!isFeatureAvailable(planId ?? null, feature)) {
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);
-		throw new ORPCError("FEATURE_UNAVAILABLE", {
-			message: nextPlan
-				? `This feature requires ${nextPlan} plan or higher`
-				: "This feature is not available on your current plan",
-			data: { feature, requiredPlan: nextPlan ?? undefined },
-		});
+		throw rpcError.featureUnavailable(feature, nextPlan ?? undefined);
 	}
 }
 
@@ -91,19 +86,19 @@ export function requireUsageWithinLimit(
 		const nextPlan = getNextPlanForFeature(planId ?? null, feature);
 
 		if (limit === false) {
-			throw new ORPCError("FEATURE_UNAVAILABLE", {
-				message: nextPlan
-					? `This feature requires ${nextPlan} plan or higher`
-					: "This feature is not available on your current plan",
-				data: { feature, requiredPlan: nextPlan ?? undefined },
-			});
+			throw rpcError.featureUnavailable(feature, nextPlan ?? undefined);
+		}
+		if (limit === "unlimited") {
+			return;
 		}
 
-		throw new ORPCError("PLAN_LIMIT_EXCEEDED", {
-			message: nextPlan
+		throw rpcError.planLimitExceeded(
+			limit,
+			currentUsage,
+			nextPlan ?? undefined,
+			nextPlan
 				? `Limit of ${limit} reached. Upgrade to ${nextPlan} for more.`
-				: `Limit of ${limit} reached`,
-			data: { limit, current: currentUsage, nextPlan: nextPlan ?? undefined },
-		});
+				: `Limit of ${limit} reached`
+		);
 	}
 }

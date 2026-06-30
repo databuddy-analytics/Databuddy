@@ -218,7 +218,7 @@ export async function persistWebsiteInsights(params: {
 	organizationId: string;
 	period: WeekOverWeekPeriod;
 	runId: string;
-}): Promise<GeneratedWebsiteInsight[]> {
+}): Promise<(GeneratedWebsiteInsight & { isNew: boolean })[]> {
 	const startedAt = performance.now();
 	const [dedupeKeyToId, dismissedBaselines] = await Promise.all([
 		fetchInsightDedupeKeyToIdMap(
@@ -371,9 +371,16 @@ export async function persistWebsiteInsights(params: {
 			row.dedupeKey ? [[row.dedupeKey, row.id] as const] : []
 		)
 	);
+	const refreshedKeys = new Set(
+		insightsWithKeys.filter((i) => i.isRefresh).map((i) => i.key)
+	);
 	const persistedInsights = finalInsights.map((insight) => {
-		const persistedId = persistedIdByDedupeKey.get(dedupeKeyFor(insight));
-		return persistedId ? { ...insight, id: persistedId } : insight;
+		const key = dedupeKeyFor(insight);
+		return {
+			...insight,
+			id: persistedIdByDedupeKey.get(key) ?? insight.id,
+			isNew: !refreshedKeys.has(key),
+		};
 	});
 
 	const websiteInvalidations = [

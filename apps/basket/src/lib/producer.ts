@@ -50,6 +50,7 @@ interface ProducerState {
 	flushing: boolean;
 	lastErrorTime: number | null;
 	lastRetry: number;
+	producerInitialized: boolean;
 	sent: number;
 	shuttingDown: boolean;
 }
@@ -81,6 +82,7 @@ const INITIAL_STATE: ProducerState = {
 	connected: false,
 	connectionFailed: false,
 	lastRetry: 0,
+	producerInitialized: false,
 	shuttingDown: false,
 	flushing: false,
 };
@@ -198,6 +200,7 @@ function makeProducerEffects(
 					connected: true,
 					connectionFailed: false,
 					lastRetry: 0,
+					producerInitialized: true,
 				}))
 			),
 			Effect.as(true),
@@ -278,6 +281,7 @@ function makeProducerEffects(
 				yield* Effect.sync(() =>
 					captureError(
 						createError({
+							code: "basket.UNKNOWN_KAFKA_TOPIC",
 							message: "Unknown Kafka topic",
 							status: 500,
 							why: `Topic "${topic}" is not mapped to a ClickHouse table.`,
@@ -351,6 +355,8 @@ function makeProducerEffects(
 							Ref.update(ref, (st) => ({
 								...st,
 								connectionFailed: true,
+								connected: false,
+								lastRetry: Date.now(),
 								failedCount: st.failedCount + messages.length,
 							})).pipe(
 								Effect.tap(() =>
@@ -418,12 +424,18 @@ function makeProducerEffects(
 		if (post.buffer.length > 0 && !post.flushing) {
 			yield* flush.pipe(Effect.catchAll(() => Effect.void));
 		}
-		if (post.connected && kafka) {
+		if (post.producerInitialized && kafka) {
 			yield* Effect.tryPromise({
 				try: () => kafka.disconnect(),
 				catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
 			}).pipe(
-				Effect.ensuring(Ref.update(ref, (s) => ({ ...s, connected: false }))),
+				Effect.ensuring(
+					Ref.update(ref, (s) => ({
+						...s,
+						connected: false,
+						producerInitialized: false,
+					}))
+				),
 				Effect.catchAll((err) =>
 					Effect.sync(() =>
 						captureError(err.cause, {
@@ -442,6 +454,7 @@ function makeProducerEffects(
 				flushing: _f,
 				shuttingDown: _s,
 				connectionFailed,
+				producerInitialized: _p,
 				...rest
 			}) => ({
 				...rest,
@@ -462,6 +475,7 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 	if (!(config.username && config.password)) {
 		captureError(
 			createError({
+				code: "basket.KAFKA_CREDENTIALS_MISSING",
 				message: "Kafka producer disabled: credentials missing",
 				status: 500,
 				why: "REDPANDA_BROKER was set without username and password.",
@@ -481,6 +495,7 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 			username: config.username,
 			password: config.password,
 		},
+		ssl: process.env.REDPANDA_SSL === "true",
 	}).producer({
 		allowAutoTopicCreation: true,
 		retry: {

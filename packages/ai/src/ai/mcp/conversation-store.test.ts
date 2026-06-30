@@ -138,7 +138,6 @@ vi.mock("@databuddy/redis", () => ({
 	readStreamHistory: vi.fn(async () => []),
 	redis: mockRedisClient,
 	setActiveStream: vi.fn(async () => undefined),
-	setCacheTraceFn: vi.fn(() => undefined),
 	setCachedLink: vi.fn(async () => undefined),
 	setCachedLinkNotFound: vi.fn(async () => undefined),
 	shouldRecordClick: vi.fn(async () => true),

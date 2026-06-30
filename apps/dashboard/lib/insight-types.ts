@@ -30,6 +30,8 @@ export type InsightSeverity = "critical" | "warning" | "info";
 export type InsightSentiment = "positive" | "neutral" | "negative";
 
 export type InsightSource = "ai" | "history";
+export type InsightStatus = "open" | "resolved";
+export type InsightResolvedReason = "recovered" | "stale";
 
 export type InsightMetricFormat =
 	| "number"
@@ -69,6 +71,7 @@ export interface InsightAction {
 
 export interface Insight {
 	actions?: InsightAction[] | null;
+	chainId?: string | null;
 	changePercent?: number;
 	createdAt?: string;
 	currentPeriodFrom?: string | null;
@@ -83,9 +86,12 @@ export interface Insight {
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
 	priority: number;
+	resolvedAt?: string | null;
+	resolvedReason?: InsightResolvedReason | null;
 	rootCause?: string | null;
 	sentiment: InsightSentiment;
 	severity: InsightSeverity;
+	status?: InsightStatus;
 	suggestion: string;
 	timezone?: string | null;
 	title: string;
@@ -97,6 +103,7 @@ export interface Insight {
 
 export interface HistoryInsightRow {
 	actions?: InsightAction[] | null;
+	chainId?: string | null;
 	changePercent?: number | null;
 	createdAt?: string;
 	currentPeriodFrom?: string | null;
@@ -110,9 +117,12 @@ export interface HistoryInsightRow {
 	previousPeriodFrom?: string | null;
 	previousPeriodTo?: string | null;
 	priority: number;
+	resolvedAt?: string | null;
+	resolvedReason?: InsightResolvedReason | null;
 	rootCause?: string | null;
 	sentiment: InsightSentiment;
 	severity: InsightSeverity;
+	status: InsightStatus;
 	suggestion: string;
 	timezone?: string | null;
 	title: string;
@@ -129,6 +139,9 @@ export function mapHistoryRowToInsight(row: HistoryInsightRow): Insight {
 		severity: row.severity,
 		sentiment: row.sentiment,
 		priority: row.priority,
+		status: row.status,
+		resolvedAt: row.resolvedAt,
+		resolvedReason: row.resolvedReason,
 		websiteId: row.websiteId,
 		websiteName: row.websiteName,
 		websiteDomain: row.websiteDomain,
@@ -141,6 +154,7 @@ export function mapHistoryRowToInsight(row: HistoryInsightRow): Insight {
 		evidence: row.evidence,
 		investigationDepth: row.investigationDepth,
 		actions: row.actions,
+		chainId: row.chainId,
 		link: row.link,
 		insightSource: "history",
 		createdAt: row.createdAt ?? undefined,

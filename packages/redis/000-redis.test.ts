@@ -1,10 +1,12 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import {
 	createRedisConnectionOptions,
 	getRedisUrl,
 } from "./redis-options";
 
 process.env.REDIS_URL = "redis://test-host:6379";
+
+const { getRedisCache, shutdownRedis } = await import("./redis");
 
 describe("redis", () => {
 	describe("connection options", () => {
@@ -40,9 +42,26 @@ describe("redis", () => {
 			expect(retryStrategy(20)).toBe(2000);
 		});
 
-		it("returns null after 20 attempts", () => {
-			expect(retryStrategy(21)).toBeNull();
-			expect(retryStrategy(50)).toBeNull();
+		it("never returns null so ioredis keeps reconnecting", () => {
+			expect(retryStrategy(21)).toBe(2100);
+			expect(retryStrategy(30)).toBe(3000);
+			expect(retryStrategy(1000)).toBe(3000);
+		});
+	});
+
+	describe("singleton lifecycle", () => {
+		afterAll(async () => {
+			await shutdownRedis();
+		});
+
+		it("rebuilds the singleton after the connection ends", async () => {
+			const first = getRedisCache();
+			first.disconnect();
+			first.emit("end");
+
+			const second = getRedisCache();
+			expect(second).not.toBe(first);
+			second.disconnect();
 		});
 	});
 });

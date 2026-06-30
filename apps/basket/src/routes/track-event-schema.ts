@@ -37,12 +37,17 @@ const timestampSchema = z.union([
 	}, "Invalid timestamp"),
 ]);
 
+const anonymizeVisitorIds = z
+	.union([z.boolean(), z.literal("auto")])
+	.optional();
+
 const trackEventObject = z.object({
 	name: z.string().min(1).max(256),
 	namespace: z.string().max(64).optional(),
 	timestamp: timestampSchema.optional(),
 	properties: boundedProperties.optional(),
 	anonymousId: z.string().max(256).optional(),
+	anonymizeVisitorIds,
 	sessionId: z.string().max(256).optional(),
 	websiteId: z
 		.string()

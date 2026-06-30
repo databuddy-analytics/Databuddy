@@ -53,7 +53,7 @@ function FooterHero() {
 	return (
 		<div
 			className="relative flex h-70 w-full items-start overflow-hidden rounded-lg bg-center bg-cover md:h-80"
-			style={{ backgroundImage: "url('/brand/gradients/cta-bg.png')" }}
+			style={{ backgroundImage: "url('/brand/gradients/cta-bg.webp')" }}
 		>
 			<div className="absolute inset-0 bg-black/40" />
 			<Image

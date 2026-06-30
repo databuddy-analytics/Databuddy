@@ -16,7 +16,7 @@ import {
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { getAutumn } from "../lib/autumn-client";
-import { logger, record } from "../lib/logger";
+import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import {
 	protectedProcedure,
@@ -24,7 +24,10 @@ import {
 	sessionProcedure,
 	trackedProcedure,
 } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import {
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 
 const updateAvatarSeedSchema = z.object({
 	organizationId: z.string().min(1, "Organization ID is required"),
@@ -359,9 +362,10 @@ export const organizationsRouter = {
 			const canUserUpgrade = billing?.canUserUpgrade ?? true;
 
 			try {
-				const response = await record("autumn.check", () =>
-					getAutumn().check({ customerId, featureId: "events" })
-				);
+				const response = await getAutumn().check({
+					customerId,
+					featureId: "events",
+				});
 
 				const b = response.balance;
 				const unlimited = b?.unlimited ?? false;
@@ -413,10 +417,9 @@ export const organizationsRouter = {
 			let activeOrgId: string | null | undefined;
 
 			if (input?.websiteId) {
-				await withWorkspace(context, {
+				await withPublicWorkspace(context, {
 					websiteId: input.websiteId,
 					permissions: ["read"],
-					allowPublicAccess: true,
 				});
 				const billing = await context.getBilling();
 				if (billing) {
@@ -458,9 +461,9 @@ export const organizationsRouter = {
 			}
 
 			try {
-				const customer = await record("autumn.getOrCreate", () =>
-					getAutumn().customers.getOrCreate({ customerId })
-				);
+				const customer = await getAutumn().customers.getOrCreate({
+					customerId,
+				});
 
 				const subs = customer.subscriptions;
 				const activeSub =

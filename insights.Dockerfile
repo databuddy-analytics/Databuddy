@@ -14,9 +14,12 @@ COPY --from=pruner /app/out/json/ .
 RUN bun install --ignore-scripts
 
 COPY --from=pruner /app/out/full/ .
+COPY tsconfig tsconfig
 COPY turbo.json turbo.json
 
 ENV NODE_ENV=production
+
+RUN bunx turbo run build --filter=@databuddy/insights...
 
 WORKDIR /app/apps/insights
 

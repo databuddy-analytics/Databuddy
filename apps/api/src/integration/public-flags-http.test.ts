@@ -137,7 +137,7 @@ describe("public flags HTTP integration", () => {
 				createdBy: user.id,
 				defaultValue: true,
 				key: "user-only",
-				userId: "customer-1",
+				userId: user.id,
 				websiteId: website.id,
 			});
 			const targetFlag = await insertFlag({
@@ -216,7 +216,7 @@ describe("public flags HTTP integration", () => {
 			await expect(
 				json(
 					await get(
-						`/v1/flags/evaluate?clientId=${website.id}&key=user-only&userId=customer-1`
+						`/v1/flags/evaluate?clientId=${website.id}&key=user-only&userId=${user.id}`
 					)
 				)
 			).resolves.toMatchObject({ enabled: true });
@@ -251,12 +251,12 @@ describe("public flags HTTP integration", () => {
 				createdBy: user.id,
 				defaultValue: true,
 				key: "personal-c",
-				userId: "customer-2",
+				userId: user.id,
 				websiteId: website.id,
 			});
 
 			const response = await get(
-				`/v1/flags/bulk?clientId=${website.id}&userId=customer-2&keys=global-a,personal-c,missing`
+				`/v1/flags/bulk?clientId=${website.id}&userId=${user.id}&keys=global-a,personal-c,missing`
 			);
 			expect(response.status).toBe(200);
 			expect(response.headers.get("cache-control")).toContain("public");

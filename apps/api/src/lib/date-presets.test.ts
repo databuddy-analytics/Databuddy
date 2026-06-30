@@ -31,7 +31,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("today returns current date for both from and to", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset("today", "UTC");
 			expect(result.from).toBe("2026-04-11");
@@ -42,7 +42,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("yesterday returns the day before", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset("yesterday", "UTC");
 			expect(result.from).toBe("2026-04-10");
@@ -51,7 +51,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("last_7d includes today and 6 prior days", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset("last_7d", "UTC");
 			expect(result.from).toBe("2026-04-05");
@@ -60,7 +60,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("last_14d spans 14 days", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset("last_14d", "UTC");
 			expect(result.from).toBe("2026-03-29");
@@ -69,7 +69,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("last_30d spans 30 days", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset("last_30d", "UTC");
 			expect(result.from).toBe("2026-03-13");
@@ -78,7 +78,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("last_90d spans 90 days", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset("last_90d", "UTC");
 			expect(result.from).toBe("2026-01-12");
@@ -87,7 +87,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("this_week starts on Sunday", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-08", () => {
 			const result = resolveDatePreset("this_week", "UTC");
 			expect(result.from).toBe("2026-04-05");
@@ -96,7 +96,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("last_week returns full Sun-Sat of previous week", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-08", () => {
 			const result = resolveDatePreset("last_week", "UTC");
 			expect(result.from).toBe("2026-03-29");
@@ -105,7 +105,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("this_month starts on the 1st", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-15", () => {
 			const result = resolveDatePreset("this_month", "UTC");
 			expect(result.from).toBe("2026-04-01");
@@ -114,7 +114,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("last_month returns full previous month", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-15", () => {
 			const result = resolveDatePreset("last_month", "UTC");
 			expect(result.from).toBe("2026-03-01");
@@ -123,7 +123,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("last_month handles February", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-03-15", () => {
 			const result = resolveDatePreset("last_month", "UTC");
 			expect(result.from).toBe("2026-02-01");
@@ -132,7 +132,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("this_year starts Jan 1", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset("this_year", "UTC");
 			expect(result.from).toBe("2026-01-01");
@@ -141,7 +141,7 @@ describe("resolveDatePreset", () => {
 	});
 
 	it("unknown preset falls back to today", async () => {
-		const { resolveDatePreset } = await import("./date-presets");
+		const { resolveDatePreset } = await import("@databuddy/ai/lib/date-presets");
 		withFakeDate("2026-04-11", () => {
 			const result = resolveDatePreset(
 				"nonexistent" as DatePreset,

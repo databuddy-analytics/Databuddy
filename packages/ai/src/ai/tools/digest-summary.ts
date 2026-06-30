@@ -1,9 +1,30 @@
+export type DigestFrequency = "hourly" | "daily" | "weekly" | "custom";
+
+const FREQUENCY_VALUES: ReadonlySet<DigestFrequency> = new Set([
+	"hourly",
+	"daily",
+	"weekly",
+	"custom",
+]);
+
+function asDigestFrequency(value: unknown): DigestFrequency {
+	if (
+		typeof value === "string" &&
+		FREQUENCY_VALUES.has(value as DigestFrequency)
+	) {
+		return value as DigestFrequency;
+	}
+	return "weekly";
+}
+
 export interface DigestConfigSummary {
 	channels: string[];
+	cron: string | null;
 	enabled: boolean;
-	frequency: string;
+	frequency: DigestFrequency;
 	nextRunAt: string | null;
 	scope: string;
+	timezone: string;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -23,11 +44,19 @@ export function summarizeDigestConfig(config: unknown): DigestConfigSummary {
 		)
 		.map((delivery) => delivery.channelId as string);
 	const nextRunAt = record.nextRunAt;
+	const cron =
+		typeof record.cron === "string" && record.cron.length > 0
+			? record.cron
+			: null;
+	const timezone =
+		typeof record.timezone === "string" && record.timezone.length > 0
+			? record.timezone
+			: "UTC";
 	return {
 		channels,
+		cron,
 		enabled: record.enabled !== false,
-		frequency:
-			typeof record.frequency === "string" ? record.frequency : "weekly",
+		frequency: asDigestFrequency(record.frequency),
 		nextRunAt:
 			nextRunAt instanceof Date
 				? nextRunAt.toISOString()
@@ -35,5 +64,6 @@ export function summarizeDigestConfig(config: unknown): DigestConfigSummary {
 					? nextRunAt
 					: null,
 		scope: typeof record.source === "string" ? record.source : "default",
+		timezone,
 	};
 }

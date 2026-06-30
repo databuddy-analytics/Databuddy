@@ -101,7 +101,8 @@ export function createSearchConsoleTools(params: {
 	const getToken = createCachedTokenFn(
 		"google",
 		params.organizationId,
-		params.userId
+		params.userId,
+		"auth/webmasters"
 	);
 
 	return {

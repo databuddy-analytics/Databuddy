@@ -176,6 +176,7 @@ function toSearchItems(
 function groupsToSearchGroups(
 	groups: NavigationGroup[],
 	pathPrefix = "",
+	isDemoPath = false,
 	access?: {
 		isBillingLoading: boolean;
 		isFeatureEnabled: (feature: GatedFeatureId) => boolean;
@@ -190,9 +191,20 @@ function groupsToSearchGroups(
 
 		const items: SearchItem[] = [];
 		for (const item of group.items) {
-			if (!item.hideFromDemo) {
-				items.push(...toSearchItems(item, pathPrefix, access));
+			if (item.production === false && process.env.NODE_ENV === "production") {
+				continue;
 			}
+			if (item.hideFromDemo && isDemoPath) {
+				continue;
+			}
+			if (item.showOnlyOnDemo && !isDemoPath) {
+				continue;
+			}
+			items.push(...toSearchItems(item, pathPrefix, access));
+		}
+
+		if (items.length === 0) {
+			continue;
 		}
 
 		searchGroups.push({
@@ -353,66 +365,68 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 			? `${isDemoPath ? "/demo" : "/websites"}/${currentWebsiteId}`
 			: "";
 
-		result.push({
-			category: "Actions",
-			items: [
-				{
-					id: "action:create-api-key",
-					name: "Create API Key",
-					subtitle: activeOrganization
-						? `Create a key for ${activeOrganization.name}`
-						: "Create a workspace API key",
-					icon: KeyIcon,
-					action: openCreateApiKey,
-					disabled: !(organizationId && !isSwitchingOrganization),
-					searchTags: [
-						"new api key",
-						"api token",
-						"access token",
-						"node sdk",
-						"server sdk",
-						"automation key",
-					],
-				},
-				{
-					id: "action:create-link",
-					name: "Create Short Link",
-					subtitle: "Open the new link sheet",
-					path: "/links?command=create-link",
-					icon: LinkIcon,
-					searchTags: ["new link", "short link", "tracking link"],
-				},
-				{
-					id: "action:create-link-folder",
-					name: "Create Link Folder",
-					subtitle: "Organize links in a folder",
-					path: "/links?command=create-folder",
-					icon: LinkIcon,
-					searchTags: ["new folder", "link folder"],
-				},
-				{
-					id: "action:create-monitor",
-					name: "Create Monitor",
-					subtitle: "Add an uptime monitor",
-					path: "/monitors?command=create-monitor",
-					icon: HeartbeatIcon,
-					searchTags: ["new monitor", "uptime", "availability"],
-				},
-				{
-					id: "action:create-status-page",
-					name: "Create Status Page",
-					subtitle: "Set up a public status page",
-					path: "/monitors/status-pages?command=create-status-page",
-					icon: OpenExternalIcon,
-					searchTags: ["new status page", "incident page", "uptime page"],
-				},
-			],
-		});
+		if (!isDemoPath) {
+			result.push({
+				category: "Actions",
+				items: [
+					{
+						id: "action:create-api-key",
+						name: "Create API Key",
+						subtitle: activeOrganization
+							? `Create a key for ${activeOrganization.name}`
+							: "Create a workspace API key",
+						icon: KeyIcon,
+						action: openCreateApiKey,
+						disabled: !(organizationId && !isSwitchingOrganization),
+						searchTags: [
+							"new api key",
+							"api token",
+							"access token",
+							"node sdk",
+							"server sdk",
+							"automation key",
+						],
+					},
+					{
+						id: "action:create-link",
+						name: "Create Short Link",
+						subtitle: "Open the new link sheet",
+						path: "/links?command=create-link",
+						icon: LinkIcon,
+						searchTags: ["new link", "short link", "tracking link"],
+					},
+					{
+						id: "action:create-link-folder",
+						name: "Create Link Folder",
+						subtitle: "Organize links in a folder",
+						path: "/links?command=create-folder",
+						icon: LinkIcon,
+						searchTags: ["new folder", "link folder"],
+					},
+					{
+						id: "action:create-monitor",
+						name: "Create Monitor",
+						subtitle: "Add an uptime monitor",
+						path: "/monitors?command=create-monitor",
+						icon: HeartbeatIcon,
+						searchTags: ["new monitor", "uptime", "availability"],
+					},
+					{
+						id: "action:create-status-page",
+						name: "Create Status Page",
+						subtitle: "Set up a public status page",
+						path: "/monitors/status-pages?command=create-status-page",
+						icon: OpenExternalIcon,
+						searchTags: ["new status page", "incident page", "uptime page"],
+					},
+				],
+			});
 
-		result.push(...groupsToSearchGroups(mainNavigation));
-		result.push(...groupsToSearchGroups(settingsNavigation));
+			result.push(...groupsToSearchGroups(mainNavigation));
+			result.push(...groupsToSearchGroups(settingsNavigation));
+		}
 
-		if (websites.length > 0) {
+		if (!isDemoPath && websites.length > 0) {
 			result.push({
 				category: "Websites",
 				items: websites.map((w) => ({
@@ -424,7 +438,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 			});
 		}
 
-		if (apiKeys && apiKeys.length > 0) {
+		if (!isDemoPath && apiKeys && apiKeys.length > 0) {
 			result.push({
 				category: "API Keys",
 				items: (apiKeys as ApiKeyListItem[]).map((apiKey) => ({
@@ -451,7 +465,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 
 		if (currentWebsiteId) {
 			result.push(
-				...groupsToSearchGroups(websiteNavigation, websitePrefix, {
+				...groupsToSearchGroups(websiteNavigation, websitePrefix, isDemoPath, {
 					isBillingLoading,
 					isFeatureEnabled,
 				})

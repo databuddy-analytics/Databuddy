@@ -1,12 +1,12 @@
 "use client";
 
-import { track } from "@databuddy/sdk";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useController, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useCreateWebsite } from "@/hooks/use-websites";
+import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
 import { GlobeIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input } from "@databuddy/ui";
 
@@ -62,9 +62,7 @@ export function StepCreateWebsite({ onComplete }: StepCreateWebsiteProps) {
 				organizationId: activeOrganization?.id,
 			});
 			toast.success("Website created!");
-			try {
-				track("onboarding_website_created");
-			} catch {}
+			trackAppEvent(APP_EVENTS.onboardingWebsiteCreated);
 			onComplete(result.id);
 		} catch (error: unknown) {
 			const rpcError = error as {

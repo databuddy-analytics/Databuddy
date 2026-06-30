@@ -95,6 +95,7 @@ const FILTER_ERROR_MIN_DELTA = 5;
 const FILTER_ERROR_MIN_PEAK = 10;
 const FILTER_TRAFFIC_MIN_PEAK = 80;
 const FILTER_TRAFFIC_MIN_DELTA = 50;
+const ADAPTIVE_CV_SCALE = 200;
 const CUSTOM_EVENT_MIN_COUNT = 5;
 const CUSTOM_EVENT_NEW_THRESHOLD = 10;
 const CUSTOM_EVENT_DISAPPEARED_THRESHOLD = 10;
@@ -125,6 +126,24 @@ export function wowWindow(today: dayjs.Dayjs, lookbackDays: number): WowWindow {
 
 function round2(value: number): number {
 	return Number(value.toFixed(2));
+}
+
+export function adaptiveWowThreshold(
+	dailyValues: number[],
+	base: number
+): number {
+	if (dailyValues.length < ZSCORE_MIN_BASELINE) {
+		return base;
+	}
+	const mean = dailyValues.reduce((sum, v) => sum + v, 0) / dailyValues.length;
+	if (mean <= 0) {
+		return base;
+	}
+	const variance =
+		dailyValues.reduce((sum, v) => sum + (v - mean) ** 2, 0) /
+		dailyValues.length;
+	const cv = Math.sqrt(variance) / mean;
+	return Math.max(base, round2(cv * ADAPTIVE_CV_SCALE));
 }
 
 type SignalFilter = (signal: DetectedSignal) => boolean;
@@ -268,7 +287,19 @@ export async function detectSignals(
 
 	const zscoreSignals = detectZscore(sorted);
 
-	const wowSignals = await detectWow(params, today, queryFn);
+	const baselineRows = sorted.slice(0, -1);
+	const wowThresholds = new Map<string, number>();
+	for (const metric of ANOMALY_METRICS) {
+		const dailyValues = baselineRows.map((row) =>
+			numberField(row, metric.dailyField)
+		);
+		wowThresholds.set(
+			metric.key,
+			adaptiveWowThreshold(dailyValues, WOW_TRAFFIC_THRESHOLD)
+		);
+	}
+
+	const wowSignals = await detectWow(params, today, queryFn, wowThresholds);
 
 	const wowDirection = new Map<string, "up" | "down">();
 	for (const s of wowSignals) {
@@ -392,7 +423,8 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 async function detectWow(
 	params: DetectSignalsParams,
 	today: dayjs.Dayjs,
-	queryFn: QueryFn
+	queryFn: QueryFn,
+	wowThresholds: Map<string, number>
 ): Promise<DetectedSignal[]> {
 	const { websiteId, lookbackDays, timezone } = params;
 	const { currentFrom, currentTo, previousFrom, previousTo } = wowWindow(
@@ -442,10 +474,8 @@ async function detectWow(
 			continue;
 		}
 
-		if (
-			Math.abs(safeDeltaPercent(currentValue, previousValue)) <
-			WOW_TRAFFIC_THRESHOLD
-		) {
+		const threshold = wowThresholds.get(metric.key) ?? WOW_TRAFFIC_THRESHOLD;
+		if (Math.abs(safeDeltaPercent(currentValue, previousValue)) < threshold) {
 			continue;
 		}
 		signals.push(

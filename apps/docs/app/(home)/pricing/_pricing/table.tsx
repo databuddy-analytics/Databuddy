@@ -2,6 +2,7 @@ import { CheckIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { GatedFeaturePricingRows } from "./gated-feature-rows";
+import { trackPricingPlanClick } from "./track-pricing";
 import type { NormalizedPlan } from "./types";
 
 interface Props {
@@ -244,16 +245,26 @@ export function PlansComparisonTable({ plans }: Props) {
 										{p.id === "enterprise" ? (
 											<Link
 												data-plan={p.id}
-												data-track="pricing_plan_clicked"
 												href="/contact"
+												onClick={() =>
+													trackPricingPlanClick(
+														p.id,
+														"pricing_comparison_table"
+													)
+												}
 											>
 												CONTACT US
 											</Link>
 										) : (
 											<Link
 												data-plan={p.id}
-												data-track="pricing_plan_clicked"
 												href={`https://app.databuddy.cc/register?plan=${p.id}`}
+												onClick={() =>
+													trackPricingPlanClick(
+														p.id,
+														"pricing_comparison_table"
+													)
+												}
 												rel="noopener noreferrer"
 												target="_blank"
 											>

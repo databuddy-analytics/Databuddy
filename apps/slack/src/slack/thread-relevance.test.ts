@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import * as agentModule from "@databuddy/ai/agent";
 import type {
 	SlackThreadReplyMessage,
 	SlackThreadReplyRelevance,
@@ -10,6 +11,7 @@ let capturedModelInput: SlackThreadReplyRelevanceInput | null = null;
 let modelDecision: SlackThreadReplyRelevance | null = null;
 
 mock.module("@databuddy/ai/agent", () => ({
+	...agentModule,
 	classifySlackThreadReplyRelevance: async (
 		input: SlackThreadReplyRelevanceInput
 	) => {

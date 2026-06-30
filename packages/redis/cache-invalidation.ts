@@ -61,7 +61,6 @@ export const cacheNamespaces = {
 	mcpInsights: "mcp:insights",
 	memberRole: "rpc:member_role",
 	organizationOwner: "rpc:org_owner",
-	organizationRole: "rpc:org_role",
 	slackChannelBinding: "slack-channel-binding",
 	slackIntegrationByTeam: "slack-integration-by-team",
 	statusPage: "status-page",
@@ -556,11 +555,6 @@ export function invalidateOrganizationMembershipCaches(input: {
 	userId: string;
 }): Promise<CacheInvalidationResult> {
 	return settleInvalidations([
-		invalidateCacheableKey(
-			cacheNamespaces.organizationRole,
-			input.userId,
-			input.organizationId
-		),
 		invalidateCacheableKey(
 			cacheNamespaces.memberRole,
 			input.userId,

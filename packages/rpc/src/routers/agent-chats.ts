@@ -69,6 +69,7 @@ export const agentChatsRouter = {
 		.handler(async ({ context, input }) => {
 			const workspace = await withWorkspace(context, {
 				organizationId: input.organizationId,
+				resource: "organization",
 				permissions: ["read"],
 			});
 
@@ -114,6 +115,7 @@ export const agentChatsRouter = {
 			if (row.organizationId) {
 				await withWorkspace(context, {
 					organizationId: row.organizationId,
+					resource: "organization",
 					permissions: ["read"],
 				});
 			}
@@ -158,6 +160,7 @@ export const agentChatsRouter = {
 			if (row.organizationId) {
 				await withWorkspace(context, {
 					organizationId: row.organizationId,
+					resource: "organization",
 					permissions: ["read"],
 				});
 			}
@@ -192,6 +195,7 @@ export const agentChatsRouter = {
 			if (row.organizationId) {
 				await withWorkspace(context, {
 					organizationId: row.organizationId,
+					resource: "organization",
 					permissions: ["read"],
 				});
 			}

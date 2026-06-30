@@ -24,6 +24,12 @@ export {
 	type SlackThreadReplyRelevance,
 	type SlackThreadReplyRelevanceInput,
 } from "./slack-relevance";
+export {
+	repairSlackReply,
+	type ReplyValidationIssue,
+	type ReplyValidationResult,
+	validateSlackReply,
+} from "../ai/mcp/reply-validator";
 export type {
 	DatabuddyAgentSlackChannelHistoryResult,
 	DatabuddyAgentSlackContext,

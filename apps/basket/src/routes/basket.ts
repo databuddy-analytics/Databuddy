@@ -31,7 +31,11 @@ import {
 	type ValidatedRequest,
 	validateRequest,
 } from "@lib/request-validation";
-import { getDailySalt, saltAnonymousId } from "@lib/security";
+import {
+	getDailySalt,
+	applyVisitorIdPrivacy,
+	shouldAnonymizeVisitorIds,
+} from "@lib/security";
 import {
 	basketErrors,
 	buildBasketErrorPayload,
@@ -39,7 +43,11 @@ import {
 	rethrowOrWrap,
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { getGeo } from "@utils/ip-geo";
+import {
+	extractTrustedClientIp,
+	getGeo,
+	getVisitorCountryForAutoMode,
+} from "@utils/ip-geo";
 import {
 	batchBotIgnoredItem,
 	batchSchemaItemFailure,
@@ -65,22 +73,29 @@ function processTrackEventData(
 	clientId: string,
 	userAgent: string,
 	ip: string,
-	request?: Request
+	request: Request
 ) {
 	return record("processTrackEventData", async () => {
 		const eventId = parseEventId(trackData.eventId, () => randomUUIDv7());
 
-		const [geoData, ua, salt] = await Promise.all([
+		const [geoData, ua] = await Promise.all([
 			getGeo(ip, request),
 			parseUserAgent(userAgent),
-			getDailySalt(),
 		]);
-
-		let anonymousId = sanitizeString(
-			trackData.anonymousId,
-			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+		const trustedCountry = extractTrustedClientIp(request)
+			? geoData.country
+			: undefined;
+		const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
+			trackData.anonymizeVisitorIds,
+			trustedCountry
 		);
-		anonymousId = saltAnonymousId(anonymousId, salt);
+		const salt = anonymizeVisitorIds ? await getDailySalt() : undefined;
+
+		const anonymousId = applyVisitorIdPrivacy(
+			trackData.anonymousId,
+			anonymizeVisitorIds,
+			salt
+		);
 
 		return buildTrackEvent(trackData, {
 			clientId,
@@ -95,18 +110,21 @@ function processTrackEventData(
 
 async function processOutgoingLinkData(
 	linkData: OutgoingLinkInput,
-	clientId: string
+	clientId: string,
+	visitorCountry?: unknown
 ): Promise<CustomOutgoingLink> {
 	const timestamp = parseTimestamp(linkData.timestamp);
-	const salt = await getDailySalt();
-
-	let anonymousId = sanitizeString(
-		linkData.anonymousId,
-		VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+	const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
+		linkData.anonymizeVisitorIds,
+		visitorCountry
 	);
-	if (anonymousId) {
-		anonymousId = saltAnonymousId(anonymousId, salt);
-	}
+	const salt = anonymizeVisitorIds ? await getDailySalt() : undefined;
+
+	const anonymousId = applyVisitorIdPrivacy(
+		linkData.anonymousId,
+		anonymizeVisitorIds,
+		salt
+	);
 
 	return {
 		id: randomUUIDv7(),
@@ -153,21 +171,29 @@ const app = new Elysia()
 			if (eventType === "track") {
 				insertTrackEvent(eventData, clientId, userAgent, ip, request);
 			} else if (eventType === "outgoing_link") {
-				insertOutgoingLink(eventData, clientId, userAgent, ip);
+				insertOutgoingLink(eventData, clientId, request);
 			} else if (eventType === "web_vitals") {
 				const vitalParse = individualVitalSchema.safeParse(eventData);
 				if (!vitalParse.success) {
 					log.set({ rejected: "schema" });
 					return createPixelResponse();
 				}
-				insertIndividualVitals([vitalParse.data], clientId);
+				const visitorCountry = await getVisitorCountryForAutoMode(
+					[vitalParse.data],
+					request
+				);
+				insertIndividualVitals([vitalParse.data], clientId, visitorCountry);
 			} else if (eventType === "error") {
 				const errorParse = errorSpanSchema.safeParse(eventData);
 				if (!errorParse.success) {
 					log.set({ rejected: "schema" });
 					return createPixelResponse();
 				}
-				insertErrorSpans([errorParse.data], clientId);
+				const visitorCountry = await getVisitorCountryForAutoMode(
+					[errorParse.data],
+					request
+				);
+				insertErrorSpans([errorParse.data], clientId, visitorCountry);
 			}
 
 			return createPixelResponse();
@@ -211,7 +237,11 @@ const app = new Elysia()
 				return botError.error;
 			}
 
-			await insertIndividualVitals(parseResult.data, clientId);
+			const visitorCountry = await getVisitorCountryForAutoMode(
+				parseResult.data,
+				request
+			);
+			await insertIndividualVitals(parseResult.data, clientId, visitorCountry);
 
 			return Response.json({
 				status: "success",
@@ -254,7 +284,11 @@ const app = new Elysia()
 				return botError.error;
 			}
 
-			await insertErrorSpans(parseResult.data, clientId);
+			const visitorCountry = await getVisitorCountryForAutoMode(
+				parseResult.data,
+				request
+			);
+			await insertErrorSpans(parseResult.data, clientId, visitorCountry);
 
 			return Response.json({
 				status: "success",
@@ -319,10 +353,15 @@ const app = new Elysia()
 				path: event.path,
 				properties: event.properties as Record<string, unknown> | undefined,
 				anonymous_id: event.anonymousId ?? undefined,
+				anonymizeVisitorIds: event.anonymizeVisitorIds,
 				session_id: event.sessionId ?? undefined,
 			}));
 
-			await insertCustomEvents(events);
+			const visitorCountry = await getVisitorCountryForAutoMode(
+				events,
+				request
+			);
+			await insertCustomEvents(events, visitorCountry);
 
 			return Response.json({
 				status: "success",
@@ -395,7 +434,7 @@ const app = new Elysia()
 					throw createIngestSchemaValidationError(parseResult.error.issues);
 				}
 
-				insertOutgoingLink(parseResult.data, clientId, userAgent, ip);
+				insertOutgoingLink(parseResult.data, clientId, request);
 				return Response.json({ status: "success", type: "outgoing_link" });
 			}
 
@@ -441,6 +480,18 @@ const app = new Elysia()
 			const trackEvents: AnalyticsEvent[] = [];
 			const outgoingLinkEvents: CustomOutgoingLink[] = [];
 			const results: Record<string, unknown>[] = [];
+			let batchVisitorCountry: string | undefined;
+			let hasResolvedBatchVisitorCountry = false;
+			const getBatchVisitorCountry = async () => {
+				if (!hasResolvedBatchVisitorCountry) {
+					const trustedIp = extractTrustedClientIp(request);
+					batchVisitorCountry = trustedIp
+						? (await getGeo(trustedIp, request)).country
+						: undefined;
+					hasResolvedBatchVisitorCountry = true;
+				}
+				return batchVisitorCountry;
+			};
 
 			for (const event of body) {
 				const eventType = event.type || "track";
@@ -523,9 +574,14 @@ const app = new Elysia()
 							continue;
 						}
 
+						const visitorCountry =
+							parseResult.data.anonymizeVisitorIds === "auto"
+								? await getBatchVisitorCountry()
+								: undefined;
 						const linkEvent = await processOutgoingLinkData(
 							parseResult.data,
-							clientId
+							clientId,
+							visitorCountry
 						);
 						outgoingLinkEvents.push(linkEvent);
 						results.push({
@@ -541,11 +597,12 @@ const app = new Elysia()
 						});
 					}
 				} catch (error) {
+					log.error(error instanceof Error ? error : new Error(String(error)));
 					results.push({
 						status: "error",
 						message: "Processing failed",
+						code: "EVENT_PROCESSING_FAILED",
 						eventType,
-						error: String(error),
 					});
 				}
 			}
@@ -563,8 +620,22 @@ const app = new Elysia()
 				},
 			});
 
+			const failedCount = results.filter(
+				(result) =>
+					typeof result === "object" &&
+					result !== null &&
+					"status" in result &&
+					result.status === "error"
+			).length;
+			const responseStatus =
+				failedCount === 0
+					? "success"
+					: failedCount === results.length
+						? "error"
+						: "partial";
+
 			return Response.json({
-				status: "success",
+				status: responseStatus,
 				batch: true,
 				processed: results.length,
 				batched: {

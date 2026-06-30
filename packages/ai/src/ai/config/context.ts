@@ -1,14 +1,14 @@
+import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { PreResolvedAuth } from "@databuddy/rpc";
 import type { WebsiteSummary } from "../../lib/accessible-websites";
 
 export type AppMutationMode = "allow" | "dry-run";
 
-export interface ServiceAuth {
-	organizationId: string;
-	scopes: string[];
-}
+export type ServiceAuth = PreResolvedAuth;
 
 export interface AppContext {
 	accessibleWebsites?: WebsiteSummary[];
+	apiKey?: ApiKeyRow | null;
 	billingCustomerId?: string | null;
 	chatId: string;
 	currentDateTime: string;

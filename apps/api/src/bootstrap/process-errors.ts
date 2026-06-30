@@ -1,5 +1,5 @@
 import { log } from "evlog";
-import { captureError } from "@/lib/tracing";
+import { captureError } from "@databuddy/ai/lib/tracing";
 
 export function registerProcessErrorHandlers() {
 	process.on("unhandledRejection", (reason) => {

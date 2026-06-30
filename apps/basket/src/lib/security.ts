@@ -2,11 +2,19 @@ import crypto from "node:crypto";
 import { cacheable } from "@databuddy/redis/cacheable";
 import { redis } from "@databuddy/redis/redis";
 import { captureError, record } from "@lib/tracing";
+import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import { CryptoHasher } from "bun";
 import { useLogger } from "evlog/elysia";
 
 const EXIT_EVENT_TTL = 172_800;
 const STANDARD_EVENT_TTL = 86_400;
+
+const RAW_VISITOR_ID_COUNTRIES = ["US"];
+const COUNTRY_CODES: Record<string, string> = {
+	USA: "US",
+	"UNITED STATES": "US",
+	"UNITED STATES OF AMERICA": "US",
+};
 
 function getCurrentDay(): number {
 	const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -60,6 +68,54 @@ export function saltAnonymousId(anonymousId: string, salt: string): string {
 		fallbackHasher.update(anonymousId);
 		return fallbackHasher.digest("hex");
 	}
+}
+
+export function shouldAnonymizeVisitorIds(
+	anonymizeVisitorIds: unknown,
+	visitorCountry?: unknown
+): boolean {
+	if (anonymizeVisitorIds === false) {
+		return false;
+	}
+
+	if (anonymizeVisitorIds !== "auto") {
+		return true;
+	}
+
+	const country =
+		typeof visitorCountry === "string"
+			? visitorCountry.trim().toUpperCase()
+			: "";
+	const code = country.length === 2 ? country : COUNTRY_CODES[country];
+	return !RAW_VISITOR_ID_COUNTRIES.includes(code ?? "");
+}
+
+export function applyVisitorIdPrivacy(
+	anonymousId: unknown,
+	anonymizeVisitorIds: boolean,
+	salt?: string
+): string {
+	const sanitized = sanitizeString(
+		anonymousId,
+		VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
+	);
+	if (!sanitized) {
+		// Required ClickHouse String columns use "" for missing IDs; do not
+		// hash an empty value into a fake day-stable visitor.
+		return "";
+	}
+
+	if (!anonymizeVisitorIds) {
+		return sanitized;
+	}
+
+	if (!salt) {
+		throw new Error(
+			"applyVisitorIdPrivacy requires a salt when anonymizeVisitorIds is true"
+		);
+	}
+
+	return saltAnonymousId(sanitized, salt);
 }
 
 export function checkDuplicate(
