@@ -8,23 +8,7 @@ import {
 import { Worker } from "bullmq";
 import { processInsightsJob } from "./jobs";
 import { emitInsightsEvent } from "./lib/evlog-insights";
-
-// These Redis errors are transient — they occur during failover or server
-// upgrade and the BullMQ worker reconnects automatically (maxRetriesPerRequest:
-// null). Logging them at WARN prevents false-positive ERROR incidents.
-const TRANSIENT_REDIS_ERROR_PATTERNS = [
-	/^READONLY /,
-	/^ERR caller gone/,
-	/ECONNRESET/,
-	/Connection is closed/,
-	/Socket closed unexpectedly/,
-];
-
-function isTransientRedisError(error: Error): boolean {
-	return TRANSIENT_REDIS_ERROR_PATTERNS.some((pattern) =>
-		pattern.test(error.message)
-	);
-}
+import { getInsightsWorkerErrorLevel } from "./worker-errors";
 
 const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 5;
 
@@ -94,7 +78,7 @@ export function startInsightsWorker() {
 	});
 
 	worker.on("error", (error) => {
-		const level = isTransientRedisError(error) ? "warn" : "error";
+		const level = getInsightsWorkerErrorLevel(error);
 		emitInsightsEvent(level, "worker.error", {
 			error_message: error.message,
 			error_stack: error.stack,
