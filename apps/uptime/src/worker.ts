@@ -9,7 +9,7 @@ import {
 } from "@databuddy/redis";
 import { Worker } from "bullmq";
 import type { RequestLogger } from "evlog";
-import { createLogger } from "evlog";
+import { createLogger, log } from "evlog";
 import { Cause, Data, Effect, Exit } from "effect";
 import {
 	type CheckOptions,
@@ -415,8 +415,10 @@ export function startUptimeWorker() {
 	});
 
 	worker.on("stalled", (jobId) => {
-		captureError(new Error("BullMQ job stalled"), {
+		log.warn({
+			service: "uptime",
 			error_step: "uptime_worker_job_stalled",
+			error_message: "BullMQ job stalled",
 			job_id: jobId,
 		});
 	});

@@ -9,19 +9,10 @@ import type { SourceModel } from "tokenlens";
 import { computeTokenCostsForModel } from "tokenlens/helpers";
 import { vercelModels } from "tokenlens/providers/vercel";
 
-type VercelModelId = keyof typeof vercelModels.models;
-
 interface CostModel {
 	fallback: boolean;
 	id: string;
 	model: SourceModel;
-}
-
-function createSourceModel(
-	id: string,
-	cost: AgentModelCostUsdPerMillion
-): SourceModel {
-	return { canonical_id: id, cost, id } as unknown as SourceModel;
 }
 
 function createCostModel(
@@ -29,28 +20,33 @@ function createCostModel(
 	cost: AgentModelCostUsdPerMillion,
 	fallback = false
 ): CostModel {
-	return { fallback, id, model: createSourceModel(id, cost) };
-}
-
-function lookupConfiguredModel(modelId: string): CostModel | null {
-	const resolved = lookupAgentModelCost(modelId);
-	return resolved ? createCostModel(resolved.id, resolved.cost) : null;
+	return {
+		fallback,
+		id,
+		model: { canonical_id: id, cost, id, name: id } satisfies SourceModel,
+	};
 }
 
 function lookupTokenlensModel(modelId: string): CostModel | null {
-	const model = vercelModels.models[modelId as VercelModelId];
+	const model =
+		vercelModels.models[modelId as keyof typeof vercelModels.models];
 	if (!model?.cost) {
 		return null;
 	}
 	return {
 		fallback: false,
 		id: model.id,
-		model: { canonical_id: model.id, ...model } as unknown as SourceModel,
+		model: { canonical_id: model.id, ...model } satisfies SourceModel,
 	};
 }
 
 function resolveCostModel(modelId: string): CostModel {
-	const model = lookupConfiguredModel(modelId) ?? lookupTokenlensModel(modelId);
+	const configured = lookupAgentModelCost(modelId);
+	if (configured) {
+		return createCostModel(configured.id, configured.cost);
+	}
+
+	const model = lookupTokenlensModel(modelId);
 	if (model) {
 		return model;
 	}

@@ -122,6 +122,7 @@ export const websiteNavigation: NavigationGroup[] = [
 				rootLevel: false,
 				flag: "realtime",
 				alpha: true,
+				hideFromDemo: true,
 			}),
 			createNavItem("Audience", UsersThreeIcon, "/audience", {
 				rootLevel: false,
@@ -147,6 +148,7 @@ export const websiteNavigation: NavigationGroup[] = [
 				rootLevel: false,
 				alpha: true,
 				flag: "anomalies",
+				hideFromDemo: true,
 			}),
 			createNavItem("Pulse", PulseIcon, "/pulse", {
 				rootLevel: false,
@@ -179,6 +181,7 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Users", IdentificationBadgeIcon, "/users", {
 				rootLevel: false,
 				gatedFeature: GATED_FEATURES.USERS,
+				hideFromDemo: true,
 			}),
 			createNavItem("Funnels", FunnelIcon, "/funnels", {
 				rootLevel: false,
@@ -192,11 +195,13 @@ export const websiteNavigation: NavigationGroup[] = [
 				alpha: true,
 				rootLevel: false,
 				gatedFeature: GATED_FEATURES.FEATURE_FLAGS,
+				hideFromDemo: true,
 			}),
 			createNavItem("Revenue", CurrencyDollarIcon, "/revenue", {
 				alpha: true,
 				rootLevel: false,
 				flag: "revenue",
+				hideFromDemo: true,
 			}),
 		],
 	},
@@ -206,6 +211,7 @@ export const websiteNavigation: NavigationGroup[] = [
 			createNavItem("Databunny", RobotIcon, "/agent", {
 				alpha: true,
 				rootLevel: false,
+				hideFromDemo: true,
 			}),
 		],
 	},
@@ -215,18 +221,23 @@ export const websiteNavigation: NavigationGroup[] = [
 		items: [
 			createNavItem("General", GearIcon, "/settings/general", {
 				rootLevel: false,
+				hideFromDemo: true,
 			}),
 			createNavItem("Security", LockIcon, "/settings/security", {
 				rootLevel: false,
+				hideFromDemo: true,
 			}),
 			createNavItem("Transfer", ArrowSquareOutIcon, "/settings/transfer", {
 				rootLevel: false,
+				hideFromDemo: true,
 			}),
 			createNavItem("Data Export", FileArrowDownIcon, "/settings/export", {
 				rootLevel: false,
+				hideFromDemo: true,
 			}),
 			createNavItem("Setup", CodeIcon, "/settings/tracking", {
 				rootLevel: false,
+				hideFromDemo: true,
 				searchTags: [
 					"tracking setup",
 					"install script",

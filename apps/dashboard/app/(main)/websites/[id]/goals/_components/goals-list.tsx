@@ -10,6 +10,7 @@ interface GoalsListProps {
 	goals: Goal[];
 	onDeleteGoal: (goalId: string) => void;
 	onEditGoal: (goal: Goal) => void;
+	readOnly?: boolean;
 }
 
 const EMPTY_GOAL_ANALYTICS: GoalAnalyticsRecord = {};
@@ -20,6 +21,7 @@ export function GoalsList({
 	onDeleteGoal,
 	goalAnalytics = EMPTY_GOAL_ANALYTICS,
 	analyticsLoading = false,
+	readOnly = false,
 }: GoalsListProps) {
 	return (
 		<List className="rounded bg-card">
@@ -34,6 +36,7 @@ export function GoalsList({
 						key={goal.id}
 						onDelete={onDeleteGoal}
 						onEdit={onEditGoal}
+						readOnly={readOnly}
 					/>
 				);
 			})}

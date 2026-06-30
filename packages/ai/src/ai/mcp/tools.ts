@@ -4,6 +4,7 @@ import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
 import {
 	forgetMemory,
 	isMemoryEnabled,
+	primaryContainerTag,
 	sanitizeMemoryContent,
 	saveCuratedMemory,
 	searchMemories,
@@ -1677,6 +1678,7 @@ const searchMemoryTool = defineMcpTool(
 		const results = await searchMemories(input.query, ctx.userId, apiKeyId, {
 			limit: input.limit ?? 5,
 			threshold: 0.4,
+			websiteId: ctx.websiteId,
 		});
 		if (results.length === 0) {
 			return { found: false, message: "No relevant memories found." };
@@ -1716,6 +1718,7 @@ const saveMemoryTool = defineMcpTool(
 		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;
 		saveCuratedMemory(input.content, ctx.userId, apiKeyId, {
 			category: input.category ?? "insight",
+			websiteId: ctx.websiteId,
 		});
 		return { queued: true };
 	}
@@ -1743,6 +1746,7 @@ const forgetMemoryTool = defineMcpTool(
 		const results = await searchMemories(input.query, ctx.userId, apiKeyId, {
 			limit: 1,
 			threshold: 0.3,
+			websiteId: ctx.websiteId,
 		});
 		if (results.length === 0 || !results[0]) {
 			return {
@@ -1750,11 +1754,8 @@ const forgetMemoryTool = defineMcpTool(
 				message: "No matching memory found to forget.",
 			};
 		}
-		const containerTag = ctx.userId
-			? `user:${ctx.userId}`
-			: apiKeyId
-				? `apikey:${apiKeyId}`
-				: "anonymous";
+		const containerTag =
+			results[0].containerTag ?? primaryContainerTag(ctx.userId, apiKeyId);
 		const result = await forgetMemory(containerTag, results[0].memory);
 		return {
 			forgotten: result.success,

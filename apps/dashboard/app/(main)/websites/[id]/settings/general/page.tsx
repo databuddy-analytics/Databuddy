@@ -108,12 +108,35 @@ export default function GeneralSettingsPage() {
 
 			return { getByIdKey, listKey, previousList, previousWebsite };
 		},
-		onError: (_error, _variables, context) => {
+		onError: (_error, variables, context) => {
 			if (!context) {
 				return;
 			}
-			queryClient.setQueryData(context.getByIdKey, context.previousWebsite);
-			queryClient.setQueryData(context.listKey, context.previousList);
+			const previousIsPublic =
+				context.previousWebsite?.isPublic ??
+				context.previousList?.websites.find(
+					(website) => website.id === variables.id
+				)?.isPublic;
+			queryClient.setQueryData<Website>(context.getByIdKey, (current) => {
+				if (!current) {
+					return context.previousWebsite;
+				}
+				return previousIsPublic === undefined
+					? current
+					: { ...current, isPublic: previousIsPublic };
+			});
+			queryClient.setQueryData<WebsitesListData>(context.listKey, (current) =>
+				current
+					? {
+							...current,
+							websites: current.websites.map((website) =>
+								website.id === variables.id && previousIsPublic !== undefined
+									? { ...website, isPublic: previousIsPublic }
+									: website
+							),
+						}
+					: context.previousList
+			);
 		},
 		onSuccess: (updatedWebsite: Website) => {
 			updateWebsiteCache(queryClient, updatedWebsite);

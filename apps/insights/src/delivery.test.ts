@@ -130,6 +130,76 @@ describe("Slack insight digest markdown", () => {
 		expect(text).not.toContain("Delete funnel");
 	});
 
+	it("filters code-heavy action labels before choosing the next action", () => {
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			[
+				{
+					actions: [{ label: "Run document.execCommand('copy')" }],
+					description: "Clipboard errors increased on onboarding.",
+					id: "clipboard-action",
+					severity: "warning",
+					sentiment: "negative",
+					suggestion: "Review the onboarding clipboard flow.",
+					title: "Clipboard errors increased",
+					type: "persistent_error_hotspot",
+				},
+			],
+			[]
+		);
+
+		const text = sectionText(blocks, 1);
+		expect(text).toContain("Next: Review the onboarding clipboard flow.");
+		expect(text).not.toContain("document.execCommand");
+	});
+
+	it("keeps human-readable error handling suggestions", () => {
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			[
+				{
+					actions: [],
+					description: "Form submissions failed during a network blip.",
+					id: "network-errors",
+					severity: "warning",
+					sentiment: "negative",
+					suggestion:
+						"Wrap the form submission in a try/catch block to handle network errors.",
+					title: "Signup form errors increased",
+					type: "error_spike",
+				},
+			],
+			[]
+		);
+
+		expect(sectionText(blocks, 1)).toContain(
+			"Next: Wrap the form submission in a try/catch block"
+		);
+	});
+
+	it("handles legacy insight rows without type or sentiment fields", () => {
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			[
+				{
+					description: "A historical insight row was missing newer metadata.",
+					id: "legacy-insight",
+					severity: "warning",
+					suggestion: "Review this legacy insight.",
+					title: "Legacy insight still renders",
+				},
+			],
+			[]
+		);
+
+		const text = sectionText(blocks, 1);
+		expect(text).toContain("*Fix · Priority signal*");
+		expect(text).toContain("Next: Review this legacy insight.");
+	});
+
 	it("falls back to the domain when no website name exists", () => {
 		const blocks = buildBlocks(
 			null,

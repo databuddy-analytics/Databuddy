@@ -1,5 +1,5 @@
 import { chQuery } from "@databuddy/db/clickhouse";
-import { captureError, mergeWideEvent } from "../lib/tracing";
+import { captureWarning, mergeWideEvent } from "../lib/tracing";
 import { QueryBuilders, suggestQueryTypes } from "./builders";
 import {
 	getClickHouseQuerySettings,
@@ -49,6 +49,80 @@ async function mapWithConcurrency<T, R>(
 	);
 	await Promise.all(workers);
 	return results;
+}
+
+const TRANSIENT_CLICKHOUSE_ERROR_CODES = new Set([
+	"ECONNRESET",
+	"ECONNREFUSED",
+	"EPIPE",
+	"ETIMEDOUT",
+	"UND_ERR_CONNECT_TIMEOUT",
+	"UND_ERR_SOCKET",
+]);
+const TRANSIENT_CLICKHOUSE_ERROR_MESSAGES = [
+	"socket connection was closed",
+	"socket closed unexpectedly",
+	"connection refused",
+	"connection reset",
+	"econnrefused",
+	"econnreset",
+	"etimedout",
+	"network error",
+];
+const MAX_ERROR_CAUSE_DEPTH = 5;
+
+function getErrorField(
+	error: unknown,
+	field: "cause" | "code" | "message" | "name"
+) {
+	if (typeof error !== "object" || error === null || !(field in error)) {
+		return;
+	}
+	return (error as Record<string, unknown>)[field];
+}
+
+function hasAbortError(error: unknown): boolean {
+	let current: unknown = error;
+	for (let depth = 0; depth < MAX_ERROR_CAUSE_DEPTH && current; depth++) {
+		if (
+			getErrorField(current, "name") === "AbortError" ||
+			getErrorField(current, "code") === "ABORT_ERR"
+		) {
+			return true;
+		}
+		current = getErrorField(current, "cause");
+	}
+	return false;
+}
+
+function isTransientClickHouseError(error: unknown): boolean {
+	if (hasAbortError(error)) {
+		return false;
+	}
+
+	let current: unknown = error;
+	for (let depth = 0; depth < MAX_ERROR_CAUSE_DEPTH && current; depth++) {
+		const code = getErrorField(current, "code");
+		if (
+			typeof code === "string" &&
+			TRANSIENT_CLICKHOUSE_ERROR_CODES.has(code.toUpperCase())
+		) {
+			return true;
+		}
+
+		const message = getErrorField(current, "message");
+		if (
+			typeof message === "string" &&
+			TRANSIENT_CLICKHOUSE_ERROR_MESSAGES.some((pattern) =>
+				message.toLowerCase().includes(pattern)
+			)
+		) {
+			return true;
+		}
+
+		current = getErrorField(current, "cause");
+	}
+	return false;
 }
 
 const ALIAS_REGEX = /\s+as\s+([\w]+)\s*$/i;
@@ -247,27 +321,35 @@ async function runSingle(
 		};
 	}
 
-	try {
-		const builder = new SimpleQueryBuilder(
-			config,
-			{ ...req, timezone: opts?.timezone ?? req.timezone },
-			opts?.websiteDomain
-		);
-		const data = await builder.execute(opts?.abortSignal);
+	for (let attempt = 0; attempt < 2; attempt++) {
+		try {
+			const builder = new SimpleQueryBuilder(
+				config,
+				{ ...req, timezone: opts?.timezone ?? req.timezone },
+				opts?.websiteDomain
+			);
+			const data = await builder.execute(opts?.abortSignal);
 
-		mergeWideEvent({
-			query_type: req.type,
-			query_from: req.from,
-			query_to: req.to,
-			query_rows: data.length,
-		});
+			mergeWideEvent({
+				query_type: req.type,
+				query_from: req.from,
+				query_to: req.to,
+				query_rows: data.length,
+			});
 
-		return { type: req.type, data };
-	} catch (e) {
-		const error = e instanceof Error ? e.message : "Query failed";
-		mergeWideEvent({ query_error: error });
-		return { type: req.type, data: [], error };
+			return { type: req.type, data };
+		} catch (e) {
+			if (attempt === 0 && isTransientClickHouseError(e)) {
+				continue;
+			}
+
+			const error = e instanceof Error ? e.message : "Query failed";
+			mergeWideEvent({ query_error: error });
+			return { type: req.type, data: [], error };
+		}
 	}
+
+	return { type: req.type, data: [], error: "Query failed" };
 }
 
 function groupBySchema(
@@ -447,15 +529,18 @@ export async function executeBatch(
 			}
 			return { unionCount: 1, singleCount: 0 };
 		} catch (error) {
-			captureError(error, {
+			const batchUnionError =
+				error instanceof Error ? error.message : "Union query failed";
+			captureWarning(error, {
 				operation: "batch_union",
 				batch_types: compiledItems.map((g) => g.req.type).join(","),
 				batch_size: compiledItems.length,
+				batch_union_fallback: 1,
+				batch_union_error: batchUnionError,
 			});
 			mergeWideEvent({
 				batch_union_fallback: 1,
-				batch_union_error:
-					error instanceof Error ? error.message : "Union query failed",
+				batch_union_error: batchUnionError,
 			});
 			for (const { index, req } of compiledItems) {
 				results[index] = await runSingle(req, opts);

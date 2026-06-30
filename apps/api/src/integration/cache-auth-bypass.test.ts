@@ -1,6 +1,6 @@
 import "@databuddy/test/env";
 
-import { targetGroups } from "@databuddy/db/schema";
+import { flags, targetGroups } from "@databuddy/db/schema";
 import { appRouter, type Context } from "@databuddy/rpc";
 import {
 	addToOrganization,
@@ -45,6 +45,22 @@ async function seedTargetGroup(websiteId: string, createdBy: string) {
 			websiteId,
 			name: "Secret Targeting",
 			color: "#FF0000",
+			rules: [{ field: "country", operator: "equals", value: "US" }],
+			createdBy,
+		});
+}
+
+async function seedFlag(websiteId: string, createdBy: string) {
+	await db()
+		.insert(flags)
+		.values({
+			id: randomUUIDv7(),
+			websiteId,
+			key: "secret-rollout",
+			name: "Secret Rollout",
+			description: "Internal rollout definition",
+			defaultValue: true,
+			status: "active",
 			rules: [{ field: "country", operator: "equals", value: "US" }],
 			createdBy,
 		});
@@ -106,7 +122,7 @@ describe("cache-bypass auth: target-groups.list", () => {
 		);
 	});
 
-	iit("demo caller gets sanitized rules even when authed cache exists", async () => {
+	iit("demo caller cannot read target groups even when authed cache exists", async () => {
 		const { user, org, site } = await setupOwnedSite({ isPublic: true });
 		await seedTargetGroup(site.id, user.id);
 
@@ -116,12 +132,10 @@ describe("cache-bypass auth: target-groups.list", () => {
 		)({ websiteId: site.id });
 		expect((authed[0] as { rules: unknown[] }).rules).toHaveLength(1);
 
-		const demo = await call(
-			appRouter.targetGroups.list,
-			context()
-		)({ websiteId: site.id });
-		expect(demo).toHaveLength(1);
-		expect((demo[0] as { rules: unknown[] }).rules).toEqual([]);
+		await expectCode(
+			call(appRouter.targetGroups.list, context())({ websiteId: site.id }),
+			"UNAUTHORIZED"
+		);
 	});
 
 	iit("cross-org API key cannot read a website it does not own", async () => {
@@ -147,6 +161,7 @@ describe("cache-bypass auth: target-groups.list", () => {
 describe("cache-bypass auth: flags.list", () => {
 	iit("anon caller cannot read flags after authed prime", async () => {
 		const { user, org, site } = await setupOwnedSite();
+		await seedFlag(site.id, user.id);
 
 		await call(
 			appRouter.flags.list,
@@ -162,6 +177,7 @@ describe("cache-bypass auth: flags.list", () => {
 	iit("cross-org user is rejected after authed prime", async () => {
 		const a = await setupOwnedSite();
 		const b = await setupOwnedSite();
+		await seedFlag(a.site.id, a.user.id);
 
 		await call(
 			appRouter.flags.list,
@@ -174,6 +190,41 @@ describe("cache-bypass auth: flags.list", () => {
 				userContext(b.user, b.org.id)
 			)({ websiteId: a.site.id }),
 			"FORBIDDEN"
+		);
+	});
+
+	iit("demo caller cannot read public-site flag definitions", async () => {
+		const { user, org, site } = await setupOwnedSite({ isPublic: true });
+		await seedFlag(site.id, user.id);
+
+		const authed = await call(
+			appRouter.flags.list,
+			userContext(user, org.id)
+		)({ websiteId: site.id });
+		expect(authed).toHaveLength(1);
+
+		await expectCode(
+			call(appRouter.flags.list, context())({ websiteId: site.id }),
+			"UNAUTHORIZED"
+		);
+	});
+
+	iit("demo caller cannot read public-site flag definitions by key", async () => {
+		const { user, org, site } = await setupOwnedSite({ isPublic: true });
+		await seedFlag(site.id, user.id);
+
+		const authed = await call(
+			appRouter.flags.getByKey,
+			userContext(user, org.id)
+		)({ websiteId: site.id, key: "secret-rollout" });
+		expect(authed).toMatchObject({ key: "secret-rollout" });
+
+		await expectCode(
+			call(appRouter.flags.getByKey, context())({
+				websiteId: site.id,
+				key: "secret-rollout",
+			}),
+			"UNAUTHORIZED"
 		);
 	});
 });

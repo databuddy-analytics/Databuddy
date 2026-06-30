@@ -23,11 +23,11 @@ interface DigestInsight {
 	description: string;
 	id: string;
 	impactSummary?: string | null;
-	sentiment: string;
+	sentiment?: string | null;
 	severity: string;
 	suggestion: string;
 	title: string;
-	type: string;
+	type?: string | null;
 }
 
 interface SlackBlock {
@@ -49,7 +49,7 @@ const IMPLEMENTATION_DETAIL_MARKERS = [
 	"navigator.",
 	"execcommand",
 	"writetext",
-	"try/catch",
+	".catch(",
 ] as const;
 const TRUNCATED_UUID_PATTERN = /\b[0-9a-f]{8}-[0-9a-f]{4}-\.\.\./gi;
 
@@ -232,8 +232,8 @@ function visibleSuggestion(value: string): string | null {
 
 function nextAction(insight: DigestInsight): string {
 	const label = (insight.actions ?? [])
-		.map((action) => action.label.trim())
-		.find(Boolean);
+		.map((action) => visibleSuggestion(action.label))
+		.find((value): value is string => Boolean(value));
 	return (
 		label ??
 		visibleSuggestion(insight.suggestion) ??
