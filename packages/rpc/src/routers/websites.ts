@@ -2,9 +2,7 @@ import { db } from "@databuddy/db";
 import { chQuery } from "@databuddy/db/clickhouse";
 import { cacheable } from "@databuddy/redis";
 import {
-	ACTIONABLE_TRACKING_BLOCK_REASONS,
 	getTrackingBlockOriginHost,
-	isActionableTrackingBlockReason,
 	isIgnoredTrackingBlockOrigin,
 	matchesTrackingBlockAllowedOrigin,
 	matchesTrackingBlockIgnoredOrigin,
@@ -27,33 +25,30 @@ import {
 } from "@databuddy/validation";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { logger, record } from "../lib/logger";
+import { logger } from "../lib/logger";
 import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
 import { setTrackProperties } from "../middleware/track-mutation";
-import { withWorkspace } from "../procedures/with-workspace";
+import { authorizeTransfer } from "../procedures/with-resource";
+import {
+	withPublicWorkspace,
+	withWorkspace,
+} from "../procedures/with-workspace";
 import {
 	generateExport,
 	validateExportDateRange,
 } from "../services/export-service";
 import { mergeWebsiteSecuritySettings } from "./website-settings";
-
-interface MiniChartDataPoint {
-	date: string;
-	value: number;
-}
-
-interface ProcessedMiniChartData {
-	data: MiniChartDataPoint[];
-	hasAnyData: boolean;
-	totalViews: number;
-	trend: {
-		type: "up" | "down" | "neutral";
-		value: number;
-	} | null;
-}
+import {
+	CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE,
+	getTrackingHealthErrorLogLevel,
+} from "./tracking-health-errors";
+import {
+	type ChartDataRow,
+	type ProcessedMiniChartData,
+	processChartData,
+} from "./websites-chart";
 
 const websiteService = new WebsiteService(db);
-const TREND_THRESHOLD = 5;
 
 function handleServiceError(error: unknown): never {
 	if (error instanceof ValidationError) {
@@ -70,9 +65,12 @@ function handleServiceError(error: unknown): never {
 
 const TRACKING_HEALTH_WINDOW_HOURS = 24;
 const TRACKING_ISSUE_MIN_BLOCKS = 3;
-const TRACKING_ISSUE_TYPES = ACTIONABLE_TRACKING_BLOCK_REASONS;
+const TRACKING_ISSUE_TYPES = [
+	"origin_not_authorized",
+	"ip_not_authorized",
+] as const satisfies readonly ActionableTrackingBlockReason[];
 
-type TrackingIssueType = ActionableTrackingBlockReason;
+type TrackingIssueType = (typeof TRACKING_ISSUE_TYPES)[number];
 type TrackingIssueSeverity = "critical" | "warning";
 
 interface EventsCheckResult {
@@ -105,7 +103,7 @@ function buildTrackingIssue(
 	websiteDomain: string | null,
 	recentEvents: number
 ): TrackingIssue | null {
-	if (!isActionableTrackingBlockReason(row.issueType)) {
+	if (!isDashboardTrackingIssueType(row.issueType)) {
 		return null;
 	}
 
@@ -134,21 +132,6 @@ function buildTrackingIssue(
 		};
 	}
 
-	if (row.issueType === "origin_missing") {
-		return {
-			count: row.count,
-			expectedDomain,
-			fix: "Browser requests must include an allowed Origin. For server-side events, use the /track API with an API key instead of the browser ingest endpoint.",
-			lastSeen: row.lastSeen,
-			message:
-				"Recent tracking requests are missing an Origin header and are blocked by the website origin allowlist.",
-			origin: null,
-			originHost: null,
-			severity,
-			type: row.issueType,
-		};
-	}
-
 	return {
 		count: row.count,
 		expectedDomain,
@@ -161,6 +144,12 @@ function buildTrackingIssue(
 		severity,
 		type: row.issueType,
 	};
+}
+
+function isDashboardTrackingIssueType(
+	issueType: string
+): issueType is TrackingIssueType {
+	return (TRACKING_ISSUE_TYPES as readonly string[]).includes(issueType);
 }
 
 async function getTrackingEventsStatus(
@@ -177,7 +166,10 @@ async function getTrackingEventsStatus(
 				{ websiteId }
 			),
 			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error("ClickHouse query timeout")), 10_000)
+				setTimeout(
+					() => reject(new Error(CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE)),
+					10_000
+				)
 			),
 		]);
 
@@ -190,7 +182,8 @@ async function getTrackingEventsStatus(
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Unknown error checking events";
-		logger.error({ websiteId }, `Error checking tracking events: ${message}`);
+		const level = getTrackingHealthErrorLogLevel(error);
+		logger[level]({ websiteId }, `Error checking tracking events: ${message}`);
 		return { hasEvents: false, recentEvents: 0, error: message };
 	}
 }
@@ -244,7 +237,7 @@ async function getRecentBlockedTrackingIssue(
 				GROUP BY issueType, origin
 				HAVING count >= {minBlocks:UInt32}
 				ORDER BY count DESC, lastSeen DESC
-				LIMIT 20`,
+				LIMIT 100`,
 				{
 					issueTypes: [...TRACKING_ISSUE_TYPES],
 					minBlocks: TRACKING_ISSUE_MIN_BLOCKS,
@@ -252,7 +245,10 @@ async function getRecentBlockedTrackingIssue(
 				}
 			),
 			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error("ClickHouse query timeout")), 10_000)
+				setTimeout(
+					() => reject(new Error(CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE)),
+					10_000
+				)
 			),
 		]);
 
@@ -265,7 +261,8 @@ async function getRecentBlockedTrackingIssue(
 			error instanceof Error
 				? error.message
 				: "Unknown error checking blocked traffic";
-		logger.error({ websiteId }, `Error checking blocked traffic: ${message}`);
+		const level = getTrackingHealthErrorLogLevel(error);
+		logger[level]({ websiteId }, `Error checking blocked traffic: ${message}`);
 		return null;
 	}
 }
@@ -292,18 +289,6 @@ const buildStatusMessage = (
 
 	return "Tracking not set up. Please install the script tag.";
 };
-
-interface ChartDataRow {
-	date: string;
-	hasAnyData: number;
-	value: number;
-	websiteId: string;
-}
-
-const calculateAverage = (values: { value: number }[]) =>
-	values.length > 0
-		? values.reduce((sum, item) => sum + item.value, 0) / values.length
-		: 0;
 
 const websiteStatusOutputSchema = z.enum([
 	"ACTIVE",
@@ -355,6 +340,7 @@ const processedMiniChartDataSchema = z.object({
 	),
 	totalViews: z.number(),
 	hasAnyData: z.boolean(),
+	hasHistoricalData: z.boolean(),
 	trend: z
 		.object({
 			type: z.enum(["up", "down", "neutral"]),
@@ -393,36 +379,6 @@ const trackingSetupOutputSchema = z.object({
 });
 
 export type WebsiteOutput = z.infer<typeof websiteOutputSchema>;
-
-const calculateTrend = (dataPoints: { date: string; value: number }[]) => {
-	if (!dataPoints?.length || dataPoints.length < 4) {
-		return null;
-	}
-
-	const midPoint = Math.floor(dataPoints.length / 2);
-	const firstHalf = dataPoints.slice(0, midPoint);
-	const secondHalf = dataPoints.slice(midPoint);
-
-	const previousAverage = calculateAverage(firstHalf);
-	const currentAverage = calculateAverage(secondHalf);
-
-	if (previousAverage === 0) {
-		return currentAverage > 0
-			? { type: "up" as const, value: 100 }
-			: { type: "neutral" as const, value: 0 };
-	}
-
-	const percentageChange =
-		((currentAverage - previousAverage) / previousAverage) * 100;
-
-	if (percentageChange > TREND_THRESHOLD) {
-		return { type: "up" as const, value: Math.abs(percentageChange) };
-	}
-	if (percentageChange < -TREND_THRESHOLD) {
-		return { type: "down" as const, value: Math.abs(percentageChange) };
-	}
-	return { type: "neutral" as const, value: Math.abs(percentageChange) };
-};
 
 interface ActiveUsersRow {
 	activeUsers: number;
@@ -473,76 +429,47 @@ const _fetchChartData = async (
 		return {};
 	}
 
-	const queryResults = await chQuery<ChartDataRow>(
-		`WITH
-			date_range AS (
-				SELECT arrayJoin(arrayMap(d -> toDate(today()) - d, range(7))) AS date
-			),
-			aggregated AS (
-				SELECT
-					client_id,
-					date,
-					sum(pageviews) AS pageviews,
-					1 AS hasData
-				FROM analytics.daily_pageviews
-				WHERE client_id IN {websiteIds:Array(String)}
-					AND date >= (today() - 6)
-				GROUP BY client_id, date
-			)
-		SELECT
-			all_websites.website_id AS websiteId,
-			toString(date_range.date) AS date,
-			COALESCE(aggregated.pageviews, 0) AS value,
-			COALESCE(aggregated.hasData, 0) AS hasAnyData
-		FROM
-			(SELECT arrayJoin({websiteIds:Array(String)}) AS website_id) AS all_websites
-		CROSS JOIN date_range
-		LEFT JOIN aggregated
-			ON all_websites.website_id = aggregated.client_id
-			AND date_range.date = aggregated.date
-		WHERE date_range.date >= (today() - 6)
-		ORDER BY websiteId, date ASC`,
-		{ websiteIds }
-	);
+	const [queryResults, historicalRows] = await Promise.all([
+		chQuery<ChartDataRow>(
+			`WITH
+				date_range AS (
+					SELECT arrayJoin(arrayMap(d -> toDate(today()) - d, range(7))) AS date
+				),
+				aggregated AS (
+					SELECT
+						client_id,
+						date,
+						sum(pageviews) AS pageviews,
+						1 AS hasData
+					FROM analytics.daily_pageviews
+					WHERE client_id IN {websiteIds:Array(String)}
+						AND date >= (today() - 6)
+					GROUP BY client_id, date
+				)
+			SELECT
+				all_websites.website_id AS websiteId,
+				toString(date_range.date) AS date,
+				COALESCE(aggregated.pageviews, 0) AS value,
+				COALESCE(aggregated.hasData, 0) AS hasAnyData
+			FROM
+				(SELECT arrayJoin({websiteIds:Array(String)}) AS website_id) AS all_websites
+			CROSS JOIN date_range
+			LEFT JOIN aggregated
+				ON all_websites.website_id = aggregated.client_id
+				AND date_range.date = aggregated.date
+			WHERE date_range.date >= (today() - 6)
+			ORDER BY websiteId, date ASC`,
+			{ websiteIds }
+		),
+		chQuery<{ websiteId: string }>(
+			`SELECT DISTINCT client_id AS websiteId
+			FROM analytics.daily_pageviews
+			WHERE client_id IN {websiteIds:Array(String)}`,
+			{ websiteIds }
+		),
+	]);
 
-	const groupedData = websiteIds.reduce(
-		(acc, id) => {
-			acc[id] = { points: [], hasAnyData: false };
-			return acc;
-		},
-		{} as Record<
-			string,
-			{ points: { date: string; value: number }[]; hasAnyData: boolean }
-		>
-	);
-
-	for (const row of queryResults) {
-		if (groupedData[row.websiteId]) {
-			groupedData[row.websiteId].points.push({
-				date: row.date,
-				value: row.value,
-			});
-			if (row.hasAnyData === 1) {
-				groupedData[row.websiteId].hasAnyData = true;
-			}
-		}
-	}
-
-	const processedData: Record<string, ProcessedMiniChartData> = {};
-
-	for (const websiteId of websiteIds) {
-		const { points, hasAnyData } = groupedData[websiteId];
-		const totalViews = points.reduce((sum, point) => sum + point.value, 0);
-
-		processedData[websiteId] = {
-			data: points,
-			totalViews,
-			hasAnyData,
-			trend: calculateTrend(points),
-		};
-	}
-
-	return processedData;
+	return processChartData(websiteIds, queryResults, historicalRows);
 };
 
 const fetchChartData = cacheable(_fetchChartData, {
@@ -588,31 +515,23 @@ export const websitesRouter = {
 		.input(z.object({ organizationId: z.string().optional() }).default({}))
 		.output(listWithChartsOutputSchema)
 		.handler(async ({ context, input }) => {
-			const workspace = await record("withWorkspace", () =>
-				withWorkspace(context, {
-					organizationId: input.organizationId,
-					resource: "website",
-					permissions: ["read"],
-				})
-			);
+			const workspace = await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "website",
+				permissions: ["read"],
+			});
 
 			if (!workspace.organizationId) {
 				throw rpcError.badRequest("Organization ID is required");
 			}
 
-			const websitesList = await record("websiteService.list", () =>
-				websiteService.list(workspace.organizationId)
-			);
+			const websitesList = await websiteService.list(workspace.organizationId);
 
 			const websiteIds = websitesList.map((site) => site.id);
-			const [chartData, activeUsers] = await record(
-				"fetchChartsAndActiveUsers",
-				() =>
-					Promise.all([
-						fetchChartData(websiteIds),
-						fetchActiveUsers(websiteIds),
-					])
-			);
+			const [chartData, activeUsers] = await Promise.all([
+				fetchChartData(websiteIds),
+				fetchActiveUsers(websiteIds),
+			]);
 
 			return { websites: websitesList, chartData, activeUsers };
 		}),
@@ -652,10 +571,9 @@ export const websitesRouter = {
 		.input(z.object({ id: z.string() }))
 		.output(publicWebsiteSummarySchema)
 		.handler(async ({ context, input }) => {
-			const workspace = await withWorkspace(context, {
+			const workspace = await withPublicWorkspace(context, {
 				websiteId: input.id,
 				permissions: ["read"],
-				allowPublicAccess: true,
 			});
 
 			const site = workspace.website;
@@ -843,19 +761,14 @@ export const websitesRouter = {
 		.input(transferWebsiteSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["update"],
-			});
-
 			if (!input.organizationId) {
 				throw rpcError.badRequest("Website must be transferred to a workspace");
 			}
 
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
+			await authorizeTransfer(context, {
 				resource: "website",
-				permissions: ["create"],
+				id: input.websiteId,
+				targetOrganizationId: input.organizationId,
 			});
 
 			try {
@@ -878,15 +791,10 @@ export const websitesRouter = {
 		.input(transferWebsiteToOrgSchema)
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["update"],
-			});
-
-			await withWorkspace(context, {
-				organizationId: input.targetOrganizationId,
+			await authorizeTransfer(context, {
 				resource: "website",
-				permissions: ["create"],
+				id: input.websiteId,
+				targetOrganizationId: input.targetOrganizationId,
 			});
 
 			try {

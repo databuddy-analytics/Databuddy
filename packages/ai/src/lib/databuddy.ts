@@ -1,51 +1,30 @@
+import { Databuddy } from "@databuddy/sdk/node";
+
 const apiKey = process.env.DATABUDDY_API_KEY;
 const websiteId = process.env.DATABUDDY_WEBSITE_ID;
-const apiUrl =
-	process.env.DATABUDDY_TRACKING_URL ?? "https://basket.databuddy.cc";
 
-interface TrackingEvent {
-	anonymousId?: string;
-	name: string;
-	namespace?: string;
-	properties?: Record<string, unknown>;
-	sessionId?: string;
-	source: string;
-	websiteId: string;
-}
-
-async function sendTrackingEvent(event: TrackingEvent): Promise<void> {
+function createClient(source: string, namespace?: string) {
 	if (!(apiKey && websiteId)) {
-		return;
+		return null;
 	}
-
-	try {
-		await fetch(`${apiUrl}/track`, {
-			body: JSON.stringify(event),
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				"Content-Type": "application/json",
-			},
-			method: "POST",
-		});
-	} catch {
-		// best-effort analytics must never affect agent execution
-	}
+	return new Databuddy({
+		apiKey,
+		websiteId,
+		source,
+		namespace,
+		enableBatching: true,
+		debug: process.env.NODE_ENV === "development",
+	});
 }
+
+const agentClient = createClient("api", "agent");
+const mutationClient = createClient("dashboard");
 
 export function trackAgentEvent(
 	name: string,
 	properties?: Record<string, unknown>
 ): void {
-	if (!websiteId) {
-		return;
-	}
-	sendTrackingEvent({
-		name,
-		namespace: "agent",
-		properties,
-		source: "api",
-		websiteId,
-	});
+	agentClient?.track({ name, properties }).catch(() => {});
 }
 
 export function trackMutationEvent(
@@ -57,16 +36,13 @@ export function trackMutationEvent(
 		properties?: Record<string, unknown>;
 	}
 ): void {
-	if (!websiteId) {
-		return;
-	}
-	sendTrackingEvent({
-		anonymousId: opts.anonymousId ?? undefined,
-		name,
-		namespace: opts.namespace,
-		properties: opts.properties,
-		sessionId: opts.sessionId ?? undefined,
-		source: "dashboard",
-		websiteId,
-	});
+	mutationClient
+		?.track({
+			name,
+			namespace: opts.namespace,
+			sessionId: opts.sessionId ?? undefined,
+			anonymousId: opts.anonymousId ?? undefined,
+			properties: opts.properties,
+		})
+		.catch(() => {});
 }

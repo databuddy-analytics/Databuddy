@@ -12,12 +12,14 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./analytics-utils": "./src/lib/analytics-utils.ts",
     "./autumn": "./src/lib/autumn-client.ts",
     "./billing": "./src/utils/billing.ts",
     "./flags": "./src/utils/flags.ts",
     "./insight-generation": "./src/routers/insight-generation.ts",
     "./insight-schedule": "./src/services/insight-schedule.ts",
-    "./log-context": "./src/lib/rpc-log-context.ts"
+    "./log-context": "./src/lib/rpc-log-context.ts",
+    "./organization": "./src/utils/organization.ts"
   },
   "dependencies": {
     "@databuddy/api-keys": "workspace:*",
@@ -39,7 +41,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "bullmq": "^5.66.5",
+    "bullmq": "^5.78.0",
     "typescript": "^5.9.3"
   }
 }

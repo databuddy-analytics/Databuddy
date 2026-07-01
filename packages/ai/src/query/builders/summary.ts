@@ -109,19 +109,25 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					FROM base_events
 					GROUP BY session_id
 				),
+				session_summary AS (
+					SELECT
+						countIf(page_count >= 1) as sessions,
+						countIf(page_count = 1 AND duration < 10 AND engagement_count = 0) as bounces,
+						quantileTDigestIf(0.5)(duration, page_count >= 1 AND duration >= 0) as median_duration
+					FROM session_agg
+				),
 				event_agg AS (
 					SELECT count() as total_events,
 						countIf(event_name = 'screen_view') as pageviews,
 						uniq(if(event_name = 'screen_view', anonymous_id, null)) as unique_visitors
 					FROM base_events
 				)
-				SELECT ea.pageviews, ea.unique_visitors, countIf(sa.page_count >= 1) as sessions,
-					least(100, round(countIf(sa.page_count = 1 AND sa.duration < 10 AND sa.engagement_count = 0) * 100.0 / nullIf(countIf(sa.page_count >= 1), 0), 2)) as bounce_rate,
-					round(medianIf(sa.duration, sa.page_count >= 1 AND sa.duration >= 0), 2) as median_session_duration,
+				SELECT ea.pageviews, ea.unique_visitors, ss.sessions,
+					least(100, round(ss.bounces * 100.0 / nullIf(ss.sessions, 0), 2)) as bounce_rate,
+					round(ss.median_duration, 2) as median_session_duration,
 					ea.total_events
-				FROM session_agg sa
-				CROSS JOIN event_agg ea
-				GROUP BY ea.pageviews, ea.unique_visitors, ea.total_events`,
+				FROM event_agg ea
+				CROSS JOIN session_summary ss`,
 				params: {
 					websiteId,
 					startDate,
@@ -296,6 +302,14 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					FROM base_events
 					GROUP BY session_id
 				),
+				session_by_bucket AS (
+					SELECT time_bucket,
+						count() as sessions,
+						countIf(page_count = 1 AND duration < 10 AND engagement_count = 0) as bounces,
+						quantileTDigestIf(0.5)(duration, duration >= 0) as median_duration_raw
+					FROM session_agg
+					GROUP BY time_bucket
+				),
 				event_agg AS (
 					SELECT ${timeBucketFn}(normalized_time) as time_bucket,
 						countIf(event_name = 'screen_view') as pageviews,
@@ -304,13 +318,12 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 					GROUP BY time_bucket
 				)
 				SELECT ${dateFormat} as date, ea.pageviews, ea.visitors,
-					count(sa.session_id) as sessions,
-					least(100, round(countIf(sa.page_count = 1 AND sa.duration < 10 AND sa.engagement_count = 0) * 100.0 / nullIf(count(sa.session_id), 0), 2)) as bounce_rate,
-					round(medianIf(sa.duration, sa.duration >= 0), 2) as median_session_duration,
-					round(ea.pageviews * 1.0 / nullIf(count(sa.session_id), 0), 2) as pages_per_session
+					ifNull(sb.sessions, 0) as sessions,
+					least(100, round(ifNull(sb.bounces, 0) * 100.0 / nullIf(sb.sessions, 0), 2)) as bounce_rate,
+					round(ifNull(sb.median_duration_raw, 0), 2) as median_session_duration,
+					round(ea.pageviews * 1.0 / nullIf(sb.sessions, 0), 2) as pages_per_session
 				FROM event_agg ea
-				LEFT JOIN session_agg sa ON ea.time_bucket = sa.time_bucket
-				GROUP BY ea.time_bucket, ea.pageviews, ea.visitors
+				LEFT JOIN session_by_bucket sb ON ea.time_bucket = sb.time_bucket
 				ORDER BY ea.time_bucket ASC`,
 				params: {
 					websiteId,

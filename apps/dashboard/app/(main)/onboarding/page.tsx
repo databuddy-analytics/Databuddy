@@ -1,9 +1,13 @@
 "use client";
 
-import { track } from "@databuddy/sdk";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWebsitesLight } from "@/hooks/use-websites";
+import {
+	APP_EVENTS,
+	consumePendingSocialSignup,
+	trackAppEvent,
+} from "@/lib/app-events";
 import { OnboardingStepIndicator } from "./_components/onboarding-step-indicator";
 import { StepCreateWebsite } from "./_components/step-create-website";
 import { StepExplore } from "./_components/step-explore";
@@ -35,16 +39,7 @@ const STEPS = [
 	},
 ] as const;
 
-function trackOnboarding(
-	event: string,
-	properties?: Record<string, string | number | boolean>
-) {
-	try {
-		track(`onboarding_${event}`, properties);
-	} catch {
-		// SDK not loaded yet
-	}
-}
+type StepId = (typeof STEPS)[number]["id"];
 
 export default function OnboardingPage() {
 	const router = useRouter();
@@ -65,7 +60,7 @@ export default function OnboardingPage() {
 
 		if (trackedStepRef.current !== currentStep) {
 			trackedStepRef.current = currentStep;
-			trackOnboarding("step_viewed", {
+			trackAppEvent(APP_EVENTS.onboardingStepViewed, {
 				step: stepId,
 				step_number: currentStep + 1,
 			});
@@ -83,10 +78,16 @@ export default function OnboardingPage() {
 
 	// Track onboarding start once
 	useEffect(() => {
-		trackOnboarding("started");
+		const signupProperties = consumePendingSocialSignup();
+		if (signupProperties) {
+			trackAppEvent(APP_EVENTS.signupCompleted, signupProperties, {
+				flush: true,
+			});
+		}
+		trackAppEvent(APP_EVENTS.onboardingStarted);
 	}, []);
 
-	const markComplete = useCallback((stepId: string) => {
+	const markComplete = useCallback((stepId: StepId) => {
 		setCompletedSteps((prev) => new Set([...prev, stepId]));
 	}, []);
 
@@ -102,7 +103,7 @@ export default function OnboardingPage() {
 		(id: string) => {
 			setCreatedWebsiteId(id);
 			markComplete("website");
-			trackOnboarding("step_completed", { step: "website" });
+			trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "website" });
 			goNext();
 		},
 		[markComplete, goNext]
@@ -110,7 +111,7 @@ export default function OnboardingPage() {
 
 	const handleTrackingComplete = useCallback(() => {
 		markComplete("tracking");
-		trackOnboarding("step_completed", {
+		trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
 			step: "tracking",
 			verified: true,
 		});
@@ -119,13 +120,13 @@ export default function OnboardingPage() {
 
 	const handleTeamComplete = useCallback(() => {
 		markComplete("team");
-		trackOnboarding("step_completed", { step: "team" });
+		trackAppEvent(APP_EVENTS.onboardingStepCompleted, { step: "team" });
 		goNext();
 	}, [markComplete, goNext]);
 
 	const handleExploreComplete = useCallback(() => {
 		markComplete("explore");
-		trackOnboarding("completed");
+		trackAppEvent(APP_EVENTS.onboardingCompleted);
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
@@ -136,7 +137,7 @@ export default function OnboardingPage() {
 	}, [markComplete, router, websiteId]);
 
 	const handleSkipOnboarding = useCallback(() => {
-		trackOnboarding("skipped", {
+		trackAppEvent(APP_EVENTS.onboardingSkipped, {
 			skipped_at_step: STEPS[currentStep].id,
 			step_number: currentStep + 1,
 		});
@@ -172,7 +173,7 @@ export default function OnboardingPage() {
 		if (step.id === "tracking") {
 			if (!completedSteps.has("tracking")) {
 				markComplete("tracking");
-				trackOnboarding("step_completed", {
+				trackAppEvent(APP_EVENTS.onboardingStepCompleted, {
 					step: "tracking",
 					verified: false,
 				});

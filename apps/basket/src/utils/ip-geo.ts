@@ -33,10 +33,15 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 			const response = await fetch(CDN_URL);
 			if (!response.ok) {
 				throw createError({
-					message: `Failed to fetch database from CDN: ${response.status} ${response.statusText}`,
+					code: "basket.GEOIP_DOWNLOAD_FAILED",
+					message: "Failed to load GeoIP database",
 					status: 502,
 					why: "The GeoIP database CDN returned a non-success response.",
 					fix: "Retry later or verify CDN availability.",
+					internal: {
+						status: response.status,
+						statusText: response.statusText,
+					},
 				});
 			}
 
@@ -45,10 +50,12 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 
 			if (buf.length < 1_000_000) {
 				throw createError({
-					message: `Database file seems too small: ${buf.length} bytes`,
+					code: "basket.GEOIP_DATABASE_INVALID",
+					message: "Failed to load GeoIP database",
 					status: 502,
 					why: "The downloaded file is below the expected minimum size.",
 					fix: "Verify the CDN artifact is the full GeoLite2-City database.",
+					internal: { byteLength: buf.length },
 				});
 			}
 
@@ -60,9 +67,10 @@ function loadDatabaseFromCdn(): Promise<Buffer> {
 			}
 			const cause = error instanceof Error ? error : new Error(String(error));
 			throw createError({
+				code: "basket.GEOIP_LOAD_FAILED",
 				message: "Failed to load GeoIP database from CDN",
 				status: 500,
-				why: cause.message,
+				why: "The GeoIP database could not be downloaded or initialized.",
 				fix: "Ensure the CDN is reachable and the database file is valid.",
 				cause,
 			});
@@ -274,6 +282,22 @@ export function extractTrustedClientIp(request: Request): string | null {
 		return null;
 	}
 	return extractIpFromRequest(request) || null;
+}
+
+export async function getVisitorCountryForAutoMode(
+	events: Array<{ anonymizeVisitorIds?: unknown }>,
+	request: Request
+): Promise<string | undefined> {
+	if (!events.some((event) => event.anonymizeVisitorIds === "auto")) {
+		return;
+	}
+
+	const trustedIp = extractTrustedClientIp(request);
+	if (!trustedIp) {
+		return;
+	}
+
+	return (await getGeo(trustedIp, request)).country;
 }
 
 export function closeGeoIPReader(): void {

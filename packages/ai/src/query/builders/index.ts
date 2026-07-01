@@ -94,7 +94,6 @@ export const PUBLIC_QUERY_TYPES = new Set<string>([
 	"vitals_by_browser",
 	"vitals_by_region",
 	"vitals_by_city",
-	"performance_overview",
 ] as const);
 
 export const QueryBuilders = Object.fromEntries(
@@ -103,6 +102,39 @@ export const QueryBuilders = Object.fromEntries(
 		PUBLIC_QUERY_TYPES.has(type) ? { ...config, publicAccess: true } : config,
 	])
 ) as typeof BASE_QUERY_BUILDERS;
+
+const TOKEN_SEPARATOR = /[\s_]+/;
+
+export function suggestQueryTypes(input: string, limit = 5): string[] {
+	const lower = input.toLowerCase();
+	const all = Object.keys(QueryBuilders);
+	const prefixMatches = all.filter((t) => t.toLowerCase().startsWith(lower));
+	const substringMatches = all.filter(
+		(t) => !prefixMatches.includes(t) && t.toLowerCase().includes(lower)
+	);
+	const ranked = [...prefixMatches, ...substringMatches];
+	if (ranked.length >= limit) {
+		return ranked.slice(0, limit);
+	}
+
+	const inputTokens = lower.split(TOKEN_SEPARATOR).filter(Boolean);
+	const firstToken = inputTokens[0];
+	const inputTokenSet = new Set(inputTokens);
+	const tokenMatches = all
+		.filter((t) => !ranked.includes(t))
+		.map((t) => {
+			const typeTokens = t.toLowerCase().split("_");
+			const matched = typeTokens.filter((token) => inputTokenSet.has(token));
+			const score =
+				matched.length + (firstToken && matched.includes(firstToken) ? 1 : 0);
+			return { score, type: t };
+		})
+		.filter((m) => m.score > 0)
+		.sort((a, b) => b.score - a.score)
+		.map((m) => m.type);
+
+	return [...ranked, ...tokenMatches].slice(0, limit);
+}
 
 export function canReadQueryTypesPublicly(
 	queryTypes: readonly string[]

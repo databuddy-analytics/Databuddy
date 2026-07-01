@@ -36,12 +36,14 @@ function e2eTestKey(): string {
 	return key;
 }
 
-function testScope(testTitle: string): string {
-	return testTitle
+function testScope(testTitle: string, retry: number): string {
+	const retrySuffix = retry > 0 ? `-retry-${retry.toString()}` : "";
+	const maxTitleLength = 48 - retrySuffix.length;
+	return `${testTitle
 		.toLowerCase()
 		.replaceAll(/[^a-z0-9]+/g, "-")
 		.replaceAll(/^-+|-+$/g, "")
-		.slice(0, 48);
+		.slice(0, maxTitleLength)}${retrySuffix}`;
 }
 
 async function seedClickHouse(
@@ -76,7 +78,7 @@ export const test = base.extend<E2EFixtures>({
 			.request.post("/api/test/e2e/session", {
 				data: {
 					runScope: process.env.DATABUDDY_E2E_RUN_ID ?? "local",
-					testScope: testScope(testInfo.title),
+					testScope: testScope(testInfo.title, testInfo.retry),
 					withWebsite: true,
 				},
 				headers: { "x-e2e-test-key": e2eTestKey() },

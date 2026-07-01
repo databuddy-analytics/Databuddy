@@ -12,6 +12,92 @@ export const AGENT_TENANT_COLUMN_BY_TABLE: Readonly<Record<string, string>> = {
 	"analytics.error_spans": "client_id",
 	"analytics.web_vitals_spans": "client_id",
 	"analytics.outgoing_links": "client_id",
+	"analytics.custom_events": "owner_id",
+	"analytics.revenue": "owner_id",
+	"analytics.blocked_traffic": "client_id",
+};
+
+export const AGENT_TABLE_COLUMNS: Readonly<
+	Record<string, ReadonlySet<string>>
+> = {
+	"analytics.events": new Set([
+		"client_id",
+		"anonymous_id",
+		"session_id",
+		"time",
+		"path",
+		"referrer",
+		"browser_name",
+		"os_name",
+		"device_type",
+		"country",
+		"region",
+		"city",
+		"utm_source",
+		"utm_medium",
+		"utm_campaign",
+		"utm_term",
+		"utm_content",
+		"time_on_page",
+		"scroll_depth",
+		"event_name",
+	]),
+	"analytics.error_spans": new Set([
+		"client_id",
+		"anonymous_id",
+		"session_id",
+		"timestamp",
+		"path",
+		"message",
+		"filename",
+		"lineno",
+		"colno",
+		"stack",
+		"error_type",
+	]),
+	"analytics.web_vitals_spans": new Set([
+		"client_id",
+		"anonymous_id",
+		"session_id",
+		"timestamp",
+		"path",
+		"metric_name",
+		"metric_value",
+	]),
+	"analytics.outgoing_links": new Set([
+		"client_id",
+		"anonymous_id",
+		"session_id",
+		"timestamp",
+		"path",
+		"href",
+		"text",
+	]),
+	"analytics.custom_events": new Set([
+		"owner_id",
+		"anonymous_id",
+		"session_id",
+		"timestamp",
+		"event_name",
+		"properties",
+	]),
+	"analytics.revenue": new Set([
+		"owner_id",
+		"transaction_id",
+		"amount",
+		"currency",
+		"provider",
+		"type",
+		"customer_id",
+		"created",
+	]),
+	"analytics.blocked_traffic": new Set([
+		"client_id",
+		"timestamp",
+		"block_reason",
+		"bot_name",
+		"path",
+	]),
 };
 
 /**
@@ -45,9 +131,12 @@ const SELECT_OR_WITH_PATTERN = /^\s*(?:SELECT|WITH)\b/i;
 const CTE_PATTERN = /(?:\bWITH\b|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s+AS\s*\(/gi;
 const RELATION_PATTERN =
 	/\b(?:FROM|JOIN)\s+(`[^`]+`|"[^"]+"|[a-zA-Z_][a-zA-Z0-9_.]*)(\s*\()?(?:\s+(?:AS\s+)?(?!ON\b|JOIN\b|LEFT\b|RIGHT\b|FULL\b|INNER\b|OUTER\b|CROSS\b|ASOF\b|ANY\b|ALL\b|SEMI\b|ANTI\b|ARRAY\b|FINAL\b|USING\b|WHERE\b|PREWHERE\b|GROUP\b|ORDER\b|HAVING\b|LIMIT\b|OFFSET\b|SETTINGS\b|WINDOW\b)([a-zA-Z_][a-zA-Z0-9_]*))?/gi;
-const TENANT_FILTER_PATTERN = /\bclient_id\s*=\s*\{websiteId\s*:\s*String\}/i;
+const TENANT_FILTER_PATTERN =
+	/\b(?:client_id|owner_id)\s*=\s*\{websiteId\s*:\s*String\}/i;
 const ALIASED_TENANT_FILTER_PATTERN =
-	/(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\bclient_id\s*=\s*\{websiteId\s*:\s*String\}/gi;
+	/(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(?:client_id|owner_id)\s*=\s*\{websiteId\s*:\s*String\}/gi;
+const ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN =
+	/(?:\b([a-zA-Z_][a-zA-Z0-9_]*)\.)?\b(client_id|owner_id)\s*=\s*\{websiteId\s*:\s*String\}/gi;
 const SELECT_KEYWORD_PATTERN = /\bSELECT\b/gi;
 const FROM_KEYWORD_PATTERN = /\bFROM\b/gi;
 const WHERE_KEYWORD_PATTERN = /\bWHERE\b/gi;
@@ -55,12 +144,6 @@ const TOP_LEVEL_OR_PATTERN = /\bOR\b/i;
 const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
 const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
-const BAD_EVENTS_COLUMN_REPLACEMENTS: Record<string, string> = {
-	created_at: "time",
-	event_type: "event_name",
-	page_path: "path",
-	website_id: "client_id",
-};
 
 function maskCommentsAndStrings(sql: string): string {
 	let result = "";
@@ -264,6 +347,24 @@ function topLevelTenantFilterAliases(whereBody: string): Set<string> {
 	return aliases;
 }
 
+function topLevelTenantColumnsByAlias(
+	whereBody: string
+): Map<string, Set<string>> {
+	const flat = flattenToTopLevel(whereBody);
+	const columnsByAlias = new Map<string, Set<string>>();
+	ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN.lastIndex = 0;
+	let match = ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN.exec(flat);
+	while (match) {
+		const alias = (match[1] ?? "").toLowerCase();
+		const column = (match[2] ?? "").toLowerCase();
+		const set = columnsByAlias.get(alias) ?? new Set<string>();
+		set.add(column);
+		columnsByAlias.set(alias, set);
+		match = ALIASED_TENANT_FILTER_WITH_COLUMN_PATTERN.exec(flat);
+	}
+	return columnsByAlias;
+}
+
 function hasTopLevelOr(whereBody: string): boolean {
 	return TOP_LEVEL_OR_PATTERN.test(flattenToTopLevel(whereBody));
 }
@@ -315,17 +416,6 @@ export function validateAgentSQL(sql: string): {
 		};
 	}
 
-	for (const [badColumn, replacement] of Object.entries(
-		BAD_EVENTS_COLUMN_REPLACEMENTS
-	)) {
-		if (new RegExp(`\\b${badColumn}\\b`, "i").test(sanitized)) {
-			return {
-				valid: false,
-				reason: `Invalid analytics.events column "${badColumn}". Use "${replacement}" instead.`,
-			};
-		}
-	}
-
 	const cteNames = extractCteNames(sanitized);
 	const refs = extractRelationReferences(sanitized);
 
@@ -366,6 +456,33 @@ export function validateAgentSQL(sql: string): {
 		}
 	}
 
+	const aliasToTable = new Map<string, string>();
+	for (const ref of refs) {
+		if (!cteNames.has(ref.name) && ref.name in AGENT_TABLE_COLUMNS) {
+			aliasToTable.set(ref.alias, ref.name);
+		}
+	}
+
+	const QUALIFIED_COLUMN =
+		/\b([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\b/g;
+	QUALIFIED_COLUMN.lastIndex = 0;
+	let qm = QUALIFIED_COLUMN.exec(sanitized);
+	while (qm) {
+		const alias = qm[1].toLowerCase();
+		const col = qm[2].toLowerCase();
+		const table = aliasToTable.get(alias);
+		if (table) {
+			const validCols = AGENT_TABLE_COLUMNS[table];
+			if (validCols && !validCols.has(col)) {
+				return {
+					valid: false,
+					reason: `Column "${qm[2]}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
+				};
+			}
+		}
+		qm = QUALIFIED_COLUMN.exec(sanitized);
+	}
+
 	const selectCount = sanitized.match(SELECT_KEYWORD_PATTERN)?.length ?? 0;
 	if (selectCount > 1 + cteNames.size) {
 		return {
@@ -390,10 +507,11 @@ export function validateAgentSQL(sql: string): {
 		};
 	}
 
+	const outerNonCteRefs = refs.filter(
+		(ref) => ref.depth === 0 && !cteNames.has(ref.name)
+	);
 	const outerNonCteRelationAliases = new Set(
-		refs
-			.filter((ref) => ref.depth === 0 && !cteNames.has(ref.name))
-			.map((ref) => ref.alias.toLowerCase())
+		outerNonCteRefs.map((ref) => ref.alias.toLowerCase())
 	);
 	const requirePerAliasTenantFilter = outerNonCteRelationAliases.size > 1;
 
@@ -402,7 +520,7 @@ export function validateAgentSQL(sql: string): {
 			return {
 				valid: false,
 				reason:
-					"Every WHERE must include `client_id = {websiteId:String}` AND-ed at the top level (not nested inside parentheses).",
+					"Every WHERE must include a tenant filter (`client_id = {websiteId:String}` or `owner_id = {websiteId:String}`) AND-ed at the top level.",
 			};
 		}
 		if (hasTopLevelOr(body)) {
@@ -412,6 +530,10 @@ export function validateAgentSQL(sql: string): {
 					"Top-level OR in WHERE is not allowed; wrap OR predicates inside parentheses so the tenant filter remains AND-ed.",
 			};
 		}
+
+		const columnsByAlias = topLevelTenantColumnsByAlias(body);
+		const unaliasedColumns = columnsByAlias.get("") ?? new Set<string>();
+
 		if (requirePerAliasTenantFilter) {
 			const filteredAliases = topLevelTenantFilterAliases(body);
 			for (const alias of outerNonCteRelationAliases) {
@@ -421,6 +543,23 @@ export function validateAgentSQL(sql: string): {
 						reason: `Multi-table query: each non-CTE table needs its own tenant filter \`${alias}.client_id = {websiteId:String}\` AND-ed at the top level. Missing for alias "${alias}".`,
 					};
 				}
+			}
+		}
+
+		for (const ref of outerNonCteRefs) {
+			const requiredColumn = AGENT_TENANT_COLUMN_BY_TABLE[ref.name];
+			if (!requiredColumn) {
+				continue;
+			}
+			const aliasColumns =
+				columnsByAlias.get(ref.alias.toLowerCase()) ?? new Set<string>();
+			const seenColumns = new Set([...aliasColumns, ...unaliasedColumns]);
+			if (!seenColumns.has(requiredColumn)) {
+				const aliasPrefix = requirePerAliasTenantFilter ? `${ref.alias}.` : "";
+				return {
+					valid: false,
+					reason: `Table ${ref.raw} requires tenant filter \`${aliasPrefix}${requiredColumn} = {websiteId:String}\`. Using ${requiredColumn === "owner_id" ? "client_id" : "owner_id"} silently returns zero rows because the server-side filter is on ${requiredColumn}.`,
+				};
 			}
 		}
 	}

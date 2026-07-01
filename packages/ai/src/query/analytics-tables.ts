@@ -100,10 +100,6 @@ const EVENTS_TABLE: TableDefinition = {
 		col("utm_source", "string", "UTM Source", { nullable: true }),
 		col("utm_medium", "string", "UTM Medium", { nullable: true }),
 		col("utm_campaign", "string", "UTM Campaign", { nullable: true }),
-
-		// Performance
-		col("load_time", "number", "Load Time (ms)", { nullable: true }),
-		col("ttfb", "number", "Time to First Byte (ms)", { nullable: true }),
 	],
 };
 

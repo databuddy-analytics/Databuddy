@@ -76,7 +76,7 @@ jobs:
           path: /tmp/docker-build-cache
 
       - name: Set up Docker Builder
-        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
+        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
 
       - name: Build API Docker image
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
@@ -178,7 +178,7 @@ jobs:
           path: /tmp/docker-build-cache
 
       - name: Set up Docker Builder
-        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
+        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
 
       - name: Build Basket Docker image
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
@@ -310,7 +310,7 @@ jobs:
           path: /tmp/docker-build-cache
 
       - name: Set up Docker Builder
-        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
+        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
 
       - name: Build Insights Docker image
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2
@@ -336,8 +336,11 @@ jobs:
             -e BULLMQ_REDIS_URL=redis://localhost:6379/4 \
             -e INSIGHTS_BULLMQ_REDIS_URL= \
             -e INSIGHTS_DISPATCH_INTERVAL_MS=60000 \
+            -e INSIGHTS_MAINTENANCE_INTERVAL_MS=60000 \
+            -e INSIGHTS_STALE_ITEM_MS=300000 \
             -e INSIGHTS_WORKER_CONCURRENCY=1 \
             -e INSIGHTS_WORKER_ENABLED=true \
+            -e BETTER_AUTH_SECRET=test-better-auth-secret-for-health-checks \
             -e AI_GATEWAY_API_KEY=test-ai-gateway-key \
             -e SUPERMEMORY_API_KEY= \
             insights:test
@@ -358,7 +361,7 @@ jobs:
 
           STATUS_BODY=$(curl -sS http://localhost:4002/health/status)
           echo "Insights /health/status: $STATUS_BODY"
-          if echo "$STATUS_BODY" | grep -q '"status":"ok"'; then
+          if echo "$STATUS_BODY" | jq -e '.status == "ok"' > /dev/null; then
             echo "Insights dependency health is valid"
           else
             echo "Insights dependency health is not ok"
@@ -369,10 +372,10 @@ jobs:
           RESPONSE=$(curl -sf http://localhost:4002/health || echo '{}')
           echo "Insights /health: $RESPONSE"
 
-          if echo "$RESPONSE" | grep -q '"workerEnabled"'; then
+          if echo "$RESPONSE" | jq -e '.workerEnabled == true' > /dev/null; then
             echo "Insights health endpoint structure is valid"
           else
-            echo "Insights health endpoint response missing expected fields"
+            echo "Insights health endpoint response missing expected workerEnabled=true"
             docker logs insights-health-check
             exit 1
           fi

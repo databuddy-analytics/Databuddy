@@ -153,8 +153,6 @@ vi.mock("@databuddy/redis", () => ({
 		attempted: 0,
 		failed: 0,
 	})),
-	insightsDispatchJobId: (triggeredAt: string) =>
-		`insights-dispatch-${triggeredAt}`,
 	insightsRollupJobId: (runId: string) => `insights-rollup-${runId}`,
 	insightsWebsiteJobId: (runId: string, websiteId: string) =>
 		`insights-website-${runId}-${websiteId}`,
@@ -164,7 +162,6 @@ vi.mock("@databuddy/redis", () => ({
 	readStreamHistory: vi.fn(async () => []),
 	redis: mockRedisClient,
 	setActiveStream: vi.fn(async () => undefined),
-	setCacheTraceFn: vi.fn(() => undefined),
 	setCachedLink: vi.fn(async () => undefined),
 	setCachedLinkNotFound: vi.fn(async () => undefined),
 	shouldRecordClick: vi.fn(async () => true),
@@ -189,7 +186,6 @@ vi.mock("../../lib/supermemory", () => ({
 vi.mock("../../lib/tracing", () => ({
 	captureError: mockCaptureError,
 	mergeWideEvent: vi.fn(() => {}),
-	record: vi.fn(async (_name: string, fn: () => unknown) => fn()),
 }));
 
 vi.mock("../config/enrich-context", () => ({

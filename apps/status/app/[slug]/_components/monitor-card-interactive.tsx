@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { cn } from "@databuddy/ui";
 import { CaretDownIcon } from "@databuddy/ui/icons";
 import {
@@ -8,7 +8,7 @@ import {
 	MonitorRowInteractive,
 } from "./monitor-row-interactive";
 
-interface MonitorCardInteractiveProps {
+export interface MonitorCardInteractiveProps {
 	anchorId: string;
 	dailyData: MonitorDailyData;
 	days: number;
@@ -39,14 +39,17 @@ export function MonitorCardInteractive({
 }: MonitorCardInteractiveProps) {
 	const [isOpen, setIsOpen] = useState(true);
 	const panelId = useId();
-	const hasLatencyData = dailyData.some(
-		(d) => d.avg_response_time != null || d.p95_response_time != null
+	const hasLatencyData = useMemo(
+		() =>
+			dailyData.some(
+				(d) => d.avg_response_time != null || d.p95_response_time != null
+			),
+		[dailyData]
 	);
 
 	return (
 		<div
 			className="scroll-mt-20 overflow-hidden rounded-xl border border-border/60 bg-card"
-			data-open={isOpen}
 			data-slot="status-section"
 			id={anchorId}
 		>
@@ -97,6 +100,7 @@ export function MonitorCardInteractive({
 						: "grid-rows-[0fr] opacity-0"
 				)}
 				id={panelId}
+				inert={isOpen ? undefined : true}
 			>
 				<div className="min-h-0 overflow-hidden">
 					<div className="px-5 py-5 sm:px-6 sm:py-6">

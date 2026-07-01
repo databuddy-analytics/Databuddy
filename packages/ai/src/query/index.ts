@@ -1,6 +1,6 @@
 /** biome-ignore-all lint/performance/noBarrelFile: this is a barrel file */
 import { z } from "zod";
-import { QueryBuilders } from "./builders";
+import { QueryBuilders, suggestQueryTypes } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import type { FilterOperators, QueryRequest, TimeGranularity } from "./types";
 
@@ -59,16 +59,6 @@ const QuerySchema = z.object({
 	timezone: z.string().optional(),
 });
 
-export function suggestQueryTypes(input: string, limit = 5): string[] {
-	const lower = input.toLowerCase();
-	const all = Object.keys(QueryBuilders);
-	const prefixMatches = all.filter((t) => t.toLowerCase().startsWith(lower));
-	const substringMatches = all.filter(
-		(t) => !prefixMatches.includes(t) && t.toLowerCase().includes(lower)
-	);
-	return [...prefixMatches, ...substringMatches].slice(0, limit);
-}
-
 function createBuilder(
 	request: QueryRequest,
 	websiteDomain?: string | null,
@@ -93,8 +83,9 @@ function createBuilder(
 export const executeQuery = async (
 	request: QueryRequest,
 	websiteDomain?: string | null,
-	timezone?: string
-) => createBuilder(request, websiteDomain, timezone).execute();
+	timezone?: string,
+	abortSignal?: AbortSignal
+) => createBuilder(request, websiteDomain, timezone).execute(abortSignal);
 
 export const compileQuery = (
 	request: QueryRequest,
@@ -110,4 +101,5 @@ export {
 } from "./batch-executor";
 export * from "./builders";
 export * from "./expressions";
+export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 export * from "./types";

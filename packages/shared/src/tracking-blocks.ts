@@ -12,7 +12,6 @@ const ACTIONABLE_REASON_SET = new Set<string>(
 );
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 const TRAILING_DOT_REGEX = /\.$/;
-const WWW_PREFIX_REGEX = /^www\./;
 
 export function isActionableTrackingBlockReason(
 	reason: string
@@ -50,12 +49,9 @@ function normalizeTrackingDomain(value: string | null): string | null {
 	try {
 		return new URL(urlString).hostname
 			.toLowerCase()
-			.replace(WWW_PREFIX_REGEX, "")
 			.replace(TRAILING_DOT_REGEX, "");
 	} catch {
-		return withoutWildcard
-			.replace(WWW_PREFIX_REGEX, "")
-			.replace(TRAILING_DOT_REGEX, "");
+		return withoutWildcard.replace(TRAILING_DOT_REGEX, "");
 	}
 }
 

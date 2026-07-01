@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { env } from "@databuddy/env/slack";
+import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, RequestLogger } from "evlog";
 import { createLogger, log } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
@@ -29,6 +30,8 @@ const batchedAxiomDrain = axiomApiKey
 		)
 	: null;
 
+const batchedSuperlogDrain = createBatchedSuperlogDrain();
+
 const fsDrain =
 	env.NODE_ENV === "development" || readBooleanEnv("SLACK_EVLOG_FS")
 		? createFsDrain({
@@ -53,15 +56,23 @@ export async function slackLoggerDrain(ctx: DrainContext): Promise<void> {
 	if (fsDrain) {
 		await fsDrain(ctx);
 	}
-	try {
-		await batchedAxiomDrain?.(ctx);
-	} catch {
-		// Drain failures must not break Slack event handling.
+	for (const drain of [batchedAxiomDrain, batchedSuperlogDrain]) {
+		if (!drain) {
+			continue;
+		}
+		try {
+			await drain(ctx);
+		} catch {
+			// Drain failures must not break Slack event handling.
+		}
 	}
 }
 
 export async function flushBatchedSlackDrain(): Promise<void> {
-	await batchedAxiomDrain?.flush();
+	await Promise.all([
+		batchedAxiomDrain?.flush(),
+		batchedSuperlogDrain?.flush(),
+	]);
 }
 
 export function createSlackEventLog(fields: SlackLogFields): RequestLogger {

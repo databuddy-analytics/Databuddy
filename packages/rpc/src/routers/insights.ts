@@ -1,4 +1,4 @@
-import { and, db, desc, eq, gte, inArray, isNull } from "@databuddy/db";
+import { and, db, desc, eq, gte, inArray, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
 	type AnalyticsInsightMetric,
@@ -26,6 +26,8 @@ import { queueInsightGenerationRun } from "./insight-generation";
 
 const voteSchema = z.enum(["up", "down"]);
 const rangeSchema = z.enum(["7d", "30d", "90d"]);
+const insightStatusSchema = z.enum(["open", "resolved"]);
+const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
 
 const CACHE_TTL = 900;
 const NEGATIVE_CACHE_TTL = Math.floor(CACHE_TTL / 3);
@@ -45,15 +47,33 @@ const insightMetricSchema = z.object({
 	previous: z.number().optional(),
 });
 
+const insightEvidenceSchema = z.object({
+	description: z.string(),
+	type: z.string(),
+});
+
+const insightActionSchema = z.object({
+	label: z.string(),
+	params: z.record(z.string(), z.string()),
+	type: z.string(),
+});
+
+const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
+
 const websiteInsightSchema = z.object({
+	actions: z.array(insightActionSchema).nullable().optional(),
+	chainId: z.string().nullable().optional(),
 	changePercent: z.number().optional(),
 	confidence: z.number(),
 	description: z.string(),
+	evidence: z.array(insightEvidenceSchema).nullable().optional(),
 	id: z.string(),
 	impactSummary: z.string().optional(),
+	investigationDepth: investigationDepthSchema.nullable().optional(),
 	link: z.string(),
 	metrics: z.array(insightMetricSchema),
 	priority: z.number(),
+	rootCause: z.string().nullable().optional(),
 	sentiment: z.string(),
 	severity: z.string(),
 	sources: z.array(z.enum(["web", "product", "ops", "business"])),
@@ -72,7 +92,10 @@ const historyInsightSchema = websiteInsightSchema.extend({
 	currentPeriodTo: z.string().nullable(),
 	previousPeriodFrom: z.string().nullable(),
 	previousPeriodTo: z.string().nullable(),
+	resolvedAt: z.string().nullable(),
+	resolvedReason: insightResolvedReasonSchema.nullable(),
 	runId: z.string(),
+	status: insightStatusSchema,
 	timezone: z.string().nullable(),
 });
 
@@ -166,11 +189,13 @@ async function getInsightsFromDb(options: {
 	const whereClause = options.since
 		? and(
 				eq(analyticsInsights.organizationId, options.organizationId),
+				eq(analyticsInsights.status, "open"),
 				gte(analyticsInsights.createdAt, options.since),
 				isNull(websites.deletedAt)
 			)
 		: and(
 				eq(analyticsInsights.organizationId, options.organizationId),
+				eq(analyticsInsights.status, "open"),
 				isNull(websites.deletedAt)
 			);
 
@@ -192,6 +217,11 @@ async function getInsightsFromDb(options: {
 			sources: analyticsInsights.sources,
 			confidence: analyticsInsights.confidence,
 			impactSummary: analyticsInsights.impactSummary,
+			rootCause: analyticsInsights.rootCause,
+			evidence: analyticsInsights.evidence,
+			investigationDepth: analyticsInsights.investigationDepth,
+			actions: analyticsInsights.actions,
+			chainId: analyticsInsights.chainId,
 			metrics: analyticsInsights.metrics,
 			createdAt: analyticsInsights.createdAt,
 		})
@@ -216,6 +246,11 @@ async function getInsightsFromDb(options: {
 		priority: row.priority,
 		subjectKey: row.subjectKey,
 		confidence: row.confidence,
+		rootCause: row.rootCause,
+		evidence: row.evidence ?? null,
+		investigationDepth: row.investigationDepth ?? null,
+		actions: row.actions ?? null,
+		chainId: row.chainId ?? null,
 		...parseInsightShape(row),
 	}));
 }
@@ -297,6 +332,7 @@ const loadNarrativeCached = cacheable(
 			.where(
 				and(
 					eq(analyticsInsights.organizationId, organizationId),
+					eq(analyticsInsights.status, "open"),
 					gte(analyticsInsights.createdAt, cutoff),
 					isNull(websites.deletedAt)
 				)
@@ -336,7 +372,7 @@ export const insightsRouter = {
 					.object({
 						queuedItems: z.number().optional(),
 						runId: z.string().optional(),
-						status: z.enum(["queued", "skipped", "unavailable"]),
+						status: z.enum(["queued", "skipped", "disabled", "unavailable"]),
 					})
 					.optional(),
 				insights: z.array(websiteInsightSchema),
@@ -362,7 +398,7 @@ export const insightsRouter = {
 							generation?: {
 								queuedItems?: number;
 								runId?: string;
-								status: "queued" | "skipped" | "unavailable";
+								status: "queued" | "skipped" | "disabled" | "unavailable";
 							};
 							insights: z.infer<typeof websiteInsightSchema>[];
 							source: "ai" | "fallback";
@@ -397,14 +433,14 @@ export const insightsRouter = {
 			let generation: {
 				queuedItems?: number;
 				runId?: string;
-				status: "queued" | "skipped" | "unavailable";
-			} = { status: "unavailable" };
+				status: "queued" | "skipped" | "disabled" | "unavailable";
+			};
 
 			try {
 				const queued = await queueInsightGenerationRun({
 					organizationId: input.organizationId,
 					requestedByUserId: context.user.id,
-					reason: "manual",
+					reason: "cooldown_refresh",
 					timezone: input.timezone,
 				});
 				generation = {
@@ -486,8 +522,16 @@ export const insightsRouter = {
 					sources: analyticsInsights.sources,
 					confidence: analyticsInsights.confidence,
 					impactSummary: analyticsInsights.impactSummary,
+					rootCause: analyticsInsights.rootCause,
+					evidence: analyticsInsights.evidence,
+					investigationDepth: analyticsInsights.investigationDepth,
+					actions: analyticsInsights.actions,
+					chainId: analyticsInsights.chainId,
 					metrics: analyticsInsights.metrics,
 					createdAt: analyticsInsights.createdAt,
+					status: analyticsInsights.status,
+					resolvedAt: analyticsInsights.resolvedAt,
+					resolvedReason: analyticsInsights.resolvedReason,
 					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
 					currentPeriodTo: analyticsInsights.currentPeriodTo,
 					previousPeriodFrom: analyticsInsights.previousPeriodFrom,
@@ -497,7 +541,11 @@ export const insightsRouter = {
 				.from(analyticsInsights)
 				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 				.where(whereClause)
-				.orderBy(desc(analyticsInsights.createdAt))
+				.orderBy(
+					desc(
+						sql`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`
+					)
+				)
 				.limit(input.limit)
 				.offset(input.offset);
 
@@ -514,8 +562,16 @@ export const insightsRouter = {
 				priority: row.priority,
 				subjectKey: row.subjectKey,
 				confidence: row.confidence,
+				rootCause: row.rootCause,
+				evidence: row.evidence ?? null,
+				investigationDepth: row.investigationDepth ?? null,
+				actions: row.actions ?? null,
+				chainId: row.chainId ?? null,
 				...parseInsightShape(row),
 				createdAt: row.createdAt.toISOString(),
+				status: row.status,
+				resolvedAt: row.resolvedAt?.toISOString() ?? null,
+				resolvedReason: row.resolvedReason ?? null,
 				currentPeriodFrom: row.currentPeriodFrom,
 				currentPeriodTo: row.currentPeriodTo,
 				previousPeriodFrom: row.previousPeriodFrom,
@@ -568,14 +624,14 @@ export const insightsRouter = {
 				);
 			}
 
-			const { generatedAt, narrative } = await loadNarrativeCached(
+			const cached = await loadNarrativeCached(
 				input.organizationId,
 				input.range
 			);
 			return {
 				success: true as const,
-				narrative,
-				generatedAt,
+				narrative: cached.narrative,
+				generatedAt: new Date(cached.generatedAt).toISOString(),
 			};
 		}),
 
@@ -605,15 +661,11 @@ export const insightsRouter = {
 				.delete(insightRollups)
 				.where(eq(insightRollups.organizationId, input.organizationId));
 
+			await db
+				.delete(insightUserFeedback)
+				.where(eq(insightUserFeedback.organizationId, input.organizationId));
+
 			if (ids.length > 0) {
-				await db
-					.delete(insightUserFeedback)
-					.where(
-						and(
-							eq(insightUserFeedback.organizationId, input.organizationId),
-							inArray(insightUserFeedback.insightId, ids)
-						)
-					);
 				await db
 					.delete(analyticsInsights)
 					.where(eq(analyticsInsights.organizationId, input.organizationId));
@@ -660,13 +712,16 @@ export const insightsRouter = {
 					and(
 						eq(insightUserFeedback.userId, context.user.id),
 						eq(insightUserFeedback.organizationId, context.organizationId),
-						inArray(insightUserFeedback.insightId, input.insightIds)
+						inArray(insightUserFeedback.insightId, input.insightIds),
+						inArray(insightUserFeedback.vote, ["up", "down"])
 					)
 				);
 
 			const votes: Record<string, "up" | "down"> = {};
 			for (const row of rows) {
-				votes[row.insightId] = row.vote;
+				if (row.vote === "up" || row.vote === "down") {
+					votes[row.insightId] = row.vote;
+				}
 			}
 			return { votes };
 		}),
@@ -728,6 +783,97 @@ export const insightsRouter = {
 						updatedAt: now,
 					},
 				});
+
+			return { success: true as const };
+		}),
+
+	setDismissed: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/setDismissed",
+			tags: ["Insights"],
+			summary: "Dismiss or restore an insight",
+			description:
+				"Marks an insight as dismissed so its pattern is suppressed in future generation, or restores it when dismissed is false.",
+		})
+		.input(
+			z.object({
+				insightId: z.string().min(1).max(256),
+				dismissed: z.boolean(),
+			})
+		)
+		.output(z.object({ success: z.literal(true) }))
+		.handler(async ({ context, input }) => {
+			if (!context.organizationId) {
+				throw rpcError.badRequest("Organization context is required");
+			}
+
+			if (!input.dismissed) {
+				await context.db
+					.delete(insightUserFeedback)
+					.where(
+						and(
+							eq(insightUserFeedback.userId, context.user.id),
+							eq(insightUserFeedback.organizationId, context.organizationId),
+							eq(insightUserFeedback.insightId, input.insightId),
+							eq(insightUserFeedback.vote, "dismissed")
+						)
+					);
+				return { success: true as const };
+			}
+
+			const now = new Date();
+			await context.db
+				.insert(insightUserFeedback)
+				.values({
+					id: randomUUIDv7(),
+					userId: context.user.id,
+					organizationId: context.organizationId,
+					insightId: input.insightId,
+					vote: "dismissed",
+					createdAt: now,
+					updatedAt: now,
+				})
+				.onConflictDoUpdate({
+					target: [
+						insightUserFeedback.userId,
+						insightUserFeedback.organizationId,
+						insightUserFeedback.insightId,
+					],
+					set: {
+						vote: "dismissed",
+						updatedAt: now,
+					},
+				});
+
+			return { success: true as const };
+		}),
+
+	clearDismissed: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/clearDismissed",
+			tags: ["Insights"],
+			summary: "Clear all dismissed insights",
+			description:
+				"Removes every dismissal for the current user in the active organization.",
+		})
+		.input(z.object({}))
+		.output(z.object({ success: z.literal(true) }))
+		.handler(async ({ context }) => {
+			if (!context.organizationId) {
+				throw rpcError.badRequest("Organization context is required");
+			}
+
+			await context.db
+				.delete(insightUserFeedback)
+				.where(
+					and(
+						eq(insightUserFeedback.userId, context.user.id),
+						eq(insightUserFeedback.organizationId, context.organizationId),
+						eq(insightUserFeedback.vote, "dismissed")
+					)
+				);
 
 			return { success: true as const };
 		}),

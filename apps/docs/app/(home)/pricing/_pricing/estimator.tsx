@@ -1,31 +1,53 @@
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
+import { displayNameForPlan, selectBestPlan } from "./best-plan";
 import { eventsToSliderValue, sliderValueToEvents } from "./estimator-scale";
-import { formatCompact, formatInteger, formatMoney } from "./estimator-utils";
+import {
+	estimateTieredOverageCostFromTiers,
+	formatCompact,
+	formatInteger,
+	formatMoney,
+} from "./estimator-utils";
+import { trackPricingPlanClick } from "./track-pricing";
 import type { NormalizedPlan } from "./types";
 
 interface Props {
-	bestPlan: NormalizedPlan | null;
-	bestPlanDisplayName: string;
-	estimatedMonthly: number;
-	estimatedOverage: number;
-	monthlyEvents: number;
-	setMonthlyEvents: (value: number) => void;
+	plans: NormalizedPlan[];
 }
 
-export function Estimator({
-	monthlyEvents,
-	setMonthlyEvents,
-	bestPlan,
-	bestPlanDisplayName,
-	estimatedOverage,
-	estimatedMonthly,
-}: Props) {
+export function Estimator({ plans }: Props) {
+	const [monthlyEvents, setMonthlyEvents] = useState<number>(25_000);
+
+	const bestPlan = useMemo(
+		() => selectBestPlan(monthlyEvents, plans),
+		[monthlyEvents, plans]
+	);
+
+	const bestPlanDisplayName = useMemo(
+		() => displayNameForPlan(monthlyEvents, plans, bestPlan),
+		[monthlyEvents, plans, bestPlan]
+	);
+
+	const estimatedOverage = useMemo(() => {
+		const included = bestPlan ? bestPlan.includedEventsMonthly : 0;
+		const overageEvents = Math.max(monthlyEvents - included, 0);
+		if (!bestPlan?.eventTiers || overageEvents <= 0) {
+			return 0;
+		}
+		return estimateTieredOverageCostFromTiers(
+			overageEvents,
+			bestPlan.eventTiers
+		);
+	}, [bestPlan, monthlyEvents]);
+
+	const estimatedMonthly =
+		(bestPlan ? bestPlan.priceMonthly : 0) + estimatedOverage;
 	const included = bestPlan ? bestPlan.includedEventsMonthly : 0;
 	const over = Math.max(monthlyEvents - included, 0);
 	const includedPortion =
@@ -122,7 +144,17 @@ export function Estimator({
 									</p>
 									<div className="mt-4 flex justify-end">
 										<SciFiButton asChild>
-											<Link href="/contact">CONTACT US</Link>
+											<Link
+												href="/contact"
+												onClick={() =>
+													trackPricingPlanClick(
+														"enterprise",
+														"pricing_estimator"
+													)
+												}
+											>
+												CONTACT US
+											</Link>
 										</SciFiButton>
 									</div>
 								</>
@@ -171,7 +203,13 @@ export function Estimator({
 									<div className="mt-4 flex justify-end">
 										<SciFiButton asChild>
 											<Link
-												href="https://app.databuddy.cc/register"
+												href={`https://app.databuddy.cc/register${bestPlan ? `?plan=${bestPlan.id}` : ""}`}
+												onClick={() =>
+													trackPricingPlanClick(
+														bestPlan?.id ?? "unknown",
+														"pricing_estimator"
+													)
+												}
 												rel="noopener noreferrer"
 												target="_blank"
 											>

@@ -1,5 +1,6 @@
 "use client";
 
+import { authClient } from "@databuddy/auth/client";
 import { publicConfig } from "@databuddy/env/public";
 import type { SlackIntegrationOutput } from "@databuddy/rpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,13 +21,14 @@ import {
 	Badge,
 	Button,
 	Card,
+	Input,
 	Skeleton,
 	Text,
 	buttonVariants,
 	cn,
 	dayjs,
 } from "@databuddy/ui";
-import { Accordion, DeleteDialog } from "@databuddy/ui/client";
+import { Accordion, Autocomplete, DeleteDialog } from "@databuddy/ui/client";
 
 type SlackIntegration = SlackIntegrationOutput;
 
@@ -53,6 +55,8 @@ const SIMPLE_ICONS = {
 		"M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z",
 	cloudflare:
 		"M16.5088 16.8447c.1475-.5068.0908-.9707-.1553-1.3154-.2246-.3164-.6045-.499-1.0615-.5205l-8.6592-.1123a.1559.1559 0 0 1-.1333-.0713c-.0283-.042-.0351-.0986-.021-.1553.0278-.084.1123-.1484.2036-.1562l8.7359-.1123c1.0351-.0489 2.1601-.8868 2.5537-1.9136l.499-1.3013c.0215-.0561.0293-.1128.0147-.168-.5625-2.5463-2.835-4.4453-5.5499-4.4453-2.5039 0-4.6284 1.6177-5.3876 3.8614-.4927-.3658-1.1187-.5625-1.794-.499-1.2026.119-2.1665 1.083-2.2861 2.2856-.0283.31-.0069.6128.0635.894C1.5683 13.171 0 14.7754 0 16.752c0 .1748.0142.3515.0352.5273.0141.083.0844.1475.1689.1475h15.9814c.0909 0 .1758-.0645.2032-.1553l.12-.4268zm2.7568-5.5634c-.0771 0-.1611 0-.2383.0112-.0566 0-.1054.0415-.127.0976l-.3378 1.1744c-.1475.5068-.0918.9707.1543 1.3164.2256.3164.6055.498 1.0625.5195l1.8437.1133c.0557 0 .1055.0263.1329.0703.0283.043.0351.1074.0214.1562-.0283.084-.1132.1485-.204.1553l-1.921.1123c-1.041.0488-2.1582.8867-2.5527 1.914l-.1406.3585c-.0283.0713.0215.1416.0986.1416h6.5977c.0771 0 .1474-.0489.169-.126.1122-.4082.1757-.837.1757-1.2803 0-2.6025-2.125-4.727-4.7344-4.727",
+	googlesearchconsole:
+		"M8.548 1.156L6.832 2.872v1.682h1.716zm0 3.398v.035H6.832v-.035H3.386L0 7.844v3.577h2.826V8.94c0-.525.429-.954.954-.954h16.476c.525 0 .954.43.954.954v2.48h2.754V7.844l-3.386-3.29H17.3v.035h-1.717v-.035zm7.035 0H17.3V2.872l-1.717-1.716zM8.679 1.188V2.84h6.773V1.188zm11.471 7.07a.834.834 0 00-.132.01l-.543.002c-5.216.014-10.432-.008-15.648.01-.435-.063-.794.436-.716.883v2.264h17.812c-.016-.888.045-1.782-.034-2.666-.104-.342-.427-.502-.739-.502zm-15.422.634a.689.698 0 01.689.698.689.698 0 01-.689.697.689.698 0 01-.688-.697.689.698 0 01.688-.698zm2.134 0a.689.698 0 01.689.698.689.698 0 01-.689.697.689.698 0 01-.688-.697.689.698 0 01.688-.698zM.036 11.645v9.156c0 1.05.858 1.908 1.907 1.908h.883V11.645zm21.174 0v11.064h.882c1.05 0 1.908-.858 1.908-1.908v-9.156zM4.057 13.133v6.85h6.137v-6.85zm13.243.021v3.777l-1.708.977-1.708-.977v-3.758a4.006 4.006 0 000 7.23v2.441h3.457v-2.442a4.006 4.006 0 00-.041-7.248zm-13.243 8.26v1.43h7.925v-1.43z",
 	googleAnalytics:
 		"M22.84 2.9982v17.9987c.0086 1.6473-1.3197 2.9897-2.967 2.9984a2.9808 2.9808 0 01-.3677-.0208c-1.528-.226-2.6477-1.5558-2.6105-3.1V3.1204c-.0369-1.5458 1.0856-2.8762 2.6157-3.1 1.6361-.1915 3.1178.9796 3.3093 2.6158.014.1201.0208.241.0202.3619zM4.1326 18.0548c-1.6417 0-2.9726 1.331-2.9726 2.9726C1.16 22.6691 2.4909 24 4.1326 24s2.9726-1.3309 2.9726-2.9726-1.331-2.9726-2.9726-2.9726zm7.8728-9.0098c-.0171 0-.0342 0-.0513.0003-1.6495.0904-2.9293 1.474-2.891 3.1256v7.9846c0 2.167.9535 3.4825 2.3505 3.763 1.6118.3266 3.1832-.7152 3.5098-2.327.04-.1974.06-.3983.0593-.5998v-8.9585c.003-1.6474-1.33-2.9852-2.9773-2.9882z",
 	notion:
@@ -75,17 +79,32 @@ const SLACK_ITEM: IntegrationCatalogItem = {
 	name: "Slack",
 };
 
+const GITHUB_ITEM: IntegrationCatalogItem = {
+	accent: "#181717",
+	category: "Intelligence",
+	description:
+		"Correlate deploys, commits, and PRs with traffic and error changes.",
+	accentClassName: "bg-foreground/70",
+	iconPath: SIMPLE_ICONS.github,
+	id: "github",
+	name: "GitHub",
+};
+
+const GITHUB_SCOPES = ["repo:status", "read:org"];
+
+const GSC_ITEM: IntegrationCatalogItem = {
+	accent: "#4285F4",
+	category: "Intelligence",
+	description:
+		"Surface keyword ranking changes, impression drops, and CTR shifts in investigations.",
+	iconPath: SIMPLE_ICONS.googlesearchconsole,
+	id: "google-search-console",
+	name: "Google Search Console",
+};
+
+const GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"];
+
 const COMING_SOON_INTEGRATIONS: IntegrationCatalogItem[] = [
-	{
-		accent: "#181717",
-		category: "Deployments",
-		description:
-			"Annotate releases, PRs, and incidents against traffic changes.",
-		accentClassName: "bg-foreground/70",
-		iconPath: SIMPLE_ICONS.github,
-		id: "github",
-		name: "GitHub",
-	},
 	{
 		accent: "#5E6AD2",
 		category: "Product ops",
@@ -180,18 +199,50 @@ function slackInstallUrl(organizationId: string): string {
 	return url.toString();
 }
 
-function slackStatusBadge(
-	integrations: SlackIntegration[],
-	isLoading: boolean
-) {
-	if (isLoading) {
+function useLinkedAccounts() {
+	return useQuery({
+		queryKey: ["linked-accounts"],
+		queryFn: async () => {
+			const result = await authClient.listAccounts();
+			return result.data ?? [];
+		},
+	});
+}
+
+function useOAuthConnect(provider: string, scopes: string[], label: string) {
+	return useMutation({
+		mutationFn: async () => {
+			const result = await authClient.linkSocial({
+				provider,
+				scopes,
+				callbackURL: window.location.href,
+			});
+			if (result.error) {
+				throw new Error(result.error.message);
+			}
+			return result;
+		},
+		onError: (err) => {
+			toast.error(err.message || `Could not connect ${label}`);
+		},
+	});
+}
+
+function ConnectionBadge({
+	connected,
+	loading,
+}: {
+	connected: boolean;
+	loading: boolean;
+}) {
+	if (loading) {
 		return (
 			<Badge size="sm" variant="muted">
 				Checking
 			</Badge>
 		);
 	}
-	if (integrations.some((item) => item.status === "active")) {
+	if (connected) {
 		return (
 			<Badge size="sm" variant="success">
 				Connected
@@ -200,59 +251,17 @@ function slackStatusBadge(
 	}
 	return (
 		<Badge size="sm" variant="warning">
-			Setup needed
+			Not connected
 		</Badge>
 	);
 }
 
-function slackNeedsSetup(integrations: SlackIntegration[]): boolean {
-	return integrations.length === 0;
-}
-
-function slackAction(
-	integrations: SlackIntegration[],
-	isLoading: boolean,
-	organizationId: string
-) {
-	if (isLoading) {
-		return (
-			<Button disabled size="sm" variant="secondary">
-				<ClockIcon className="size-4" />
-				Checking
-			</Button>
-		);
-	}
-	if (integrations.some((item) => item.status === "active")) {
-		return (
-			<Button disabled size="sm" variant="secondary">
-				<CheckCircleIcon className="size-4" />
-				Connected
-			</Button>
-		);
-	}
+function LoadingButton() {
 	return (
-		<a
-			className={buttonVariants({ size: "sm", variant: "secondary" })}
-			href={slackInstallUrl(organizationId)}
-		>
-			<PlugIcon className="size-4" />
-			Connect
-		</a>
-	);
-}
-
-function slackWorkspaceBadge(integration: SlackIntegration) {
-	if (integration.status === "active") {
-		return (
-			<Badge size="sm" variant="success">
-				Active
-			</Badge>
-		);
-	}
-	return (
-		<Badge size="sm" variant="muted">
-			Disabled
-		</Badge>
+		<Button disabled size="sm" variant="secondary">
+			<ClockIcon className="size-4" />
+			Checking
+		</Button>
 	);
 }
 
@@ -347,30 +356,21 @@ export function IntegrationsSettings({
 						</Card.Header>
 
 						<Card.Content className="p-0">
-							<IntegrationListRow
-								action={slackAction(
-									slackIntegrations,
-									integrationsQuery.isLoading,
-									organization.id
-								)}
-								badge={slackStatusBadge(
-									slackIntegrations,
-									integrationsQuery.isLoading
-								)}
-								defaultOpen={slackNeedsSetup(slackIntegrations)}
-								item={SLACK_ITEM}
-							>
-								<SlackIntegrationDetails
-									integrations={slackIntegrations}
-									isLoading={integrationsQuery.isLoading}
-									onUninstall={setPendingUninstall}
-									uninstallingIntegrationId={
-										uninstallSlack.isPending
-											? uninstallSlack.variables?.integrationId
-											: undefined
-									}
-								/>
-							</IntegrationListRow>
+							<SlackIntegrationRow
+								integrations={slackIntegrations}
+								isLoading={integrationsQuery.isLoading}
+								onUninstall={setPendingUninstall}
+								organizationId={organization.id}
+								uninstallingId={
+									uninstallSlack.isPending
+										? uninstallSlack.variables?.integrationId
+										: undefined
+								}
+							/>
+
+							<GitHubIntegrationRow organizationId={organization.id} />
+
+							<GSCIntegrationRow />
 
 							{COMING_SOON_INTEGRATIONS.map((item) => (
 								<IntegrationListRow
@@ -411,6 +411,456 @@ export function IntegrationsSettings({
 				/>
 			)}
 		</div>
+	);
+}
+
+function GSCIntegrationRow() {
+	const accounts = useLinkedAccounts();
+	const googleAccount = accounts.data?.find((a) => a.providerId === "google");
+
+	const gscCheck = useQuery({
+		...orpc.integrations.checkSearchConsoleAccess.queryOptions({
+			input: {},
+		}),
+		enabled: Boolean(googleAccount),
+	});
+
+	const hasGscAccess = gscCheck.data?.hasAccess === true;
+	const connect = useOAuthConnect(
+		"google",
+		GSC_SCOPES,
+		"Google Search Console"
+	);
+
+	let action: React.ReactNode;
+	if (accounts.isLoading || gscCheck.isLoading) {
+		action = <LoadingButton />;
+	} else if (hasGscAccess) {
+		action = (
+			<Button disabled size="sm" variant="secondary">
+				<CheckCircleIcon className="size-4" />
+				Connected
+			</Button>
+		);
+	} else {
+		action = (
+			<Button
+				disabled={connect.isPending}
+				loading={connect.isPending}
+				onClick={() => connect.mutate()}
+				size="sm"
+				variant="secondary"
+			>
+				<PlugIcon className="size-4" />
+				{googleAccount ? "Grant access" : "Connect"}
+			</Button>
+		);
+	}
+
+	return (
+		<IntegrationListRow
+			action={action}
+			badge={
+				<ConnectionBadge
+					connected={hasGscAccess}
+					loading={accounts.isLoading || gscCheck.isLoading}
+				/>
+			}
+			item={GSC_ITEM}
+		/>
+	);
+}
+
+function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
+	const queryClient = useQueryClient();
+	const accounts = useLinkedAccounts();
+	const githubAccount = accounts.data?.find((a) => a.providerId === "github");
+	const canDisconnect = (accounts.data?.length ?? 0) > 1;
+
+	const websitesQuery = useQuery({
+		...orpc.websites.list.queryOptions({
+			input: { organizationId },
+		}),
+		enabled: Boolean(githubAccount),
+	});
+
+	const connect = useOAuthConnect("github", GITHUB_SCOPES, "GitHub");
+
+	const disconnect = useMutation({
+		mutationFn: async () => {
+			const result = await authClient.unlinkAccount({ providerId: "github" });
+			if (result.error) {
+				throw new Error(result.error.message);
+			}
+			return result;
+		},
+		onSuccess: async () => {
+			toast.success("GitHub disconnected");
+			await queryClient.invalidateQueries({ queryKey: ["linked-accounts"] });
+		},
+		onError: (err) => {
+			toast.error(err.message || "Could not disconnect GitHub");
+		},
+	});
+
+	const invalidateWebsites = () =>
+		queryClient.invalidateQueries({ queryKey: orpc.websites.key() });
+
+	const setRepo = useMutation({
+		...orpc.integrations.setGitHubRepo.mutationOptions(),
+		onSuccess: async () => {
+			toast.success("Repository linked");
+			await invalidateWebsites();
+		},
+		onError: () => {
+			toast.error("Could not link repository");
+		},
+	});
+
+	const removeRepo = useMutation({
+		...orpc.integrations.removeGitHubRepo.mutationOptions(),
+		onSuccess: async () => {
+			toast.success("Repository unlinked");
+			await invalidateWebsites();
+		},
+		onError: () => {
+			toast.error("Could not unlink repository");
+		},
+	});
+
+	let action: React.ReactNode;
+	if (accounts.isLoading) {
+		action = <LoadingButton />;
+	} else if (githubAccount) {
+		action = (
+			<div className="flex items-center gap-2">
+				{canDisconnect && (
+					<Button
+						disabled={disconnect.isPending}
+						loading={disconnect.isPending}
+						onClick={() => disconnect.mutate()}
+						size="sm"
+						variant="ghost"
+					>
+						<TrashIcon className="size-4" />
+						Disconnect
+					</Button>
+				)}
+				<Button disabled size="sm" variant="secondary">
+					<CheckCircleIcon className="size-4" />
+					Connected
+				</Button>
+			</div>
+		);
+	} else {
+		action = (
+			<Button
+				disabled={connect.isPending}
+				loading={connect.isPending}
+				onClick={() => connect.mutate()}
+				size="sm"
+				variant="secondary"
+			>
+				<PlugIcon className="size-4" />
+				Connect
+			</Button>
+		);
+	}
+
+	return (
+		<IntegrationListRow
+			action={action}
+			badge={
+				<ConnectionBadge
+					connected={Boolean(githubAccount)}
+					loading={accounts.isLoading}
+				/>
+			}
+			defaultOpen={false}
+			item={GITHUB_ITEM}
+		>
+			{githubAccount && (
+				<GitHubRepoMappings
+					isLoading={websitesQuery.isLoading}
+					onRemove={(websiteId) => removeRepo.mutate({ websiteId })}
+					onSet={(websiteId, owner, repo) =>
+						setRepo.mutate({ websiteId, owner, repo })
+					}
+					removingId={
+						removeRepo.isPending ? removeRepo.variables?.websiteId : undefined
+					}
+					settingId={
+						setRepo.isPending ? setRepo.variables?.websiteId : undefined
+					}
+					websites={websitesQuery.data ?? []}
+				/>
+			)}
+		</IntegrationListRow>
+	);
+}
+
+function GitHubRepoMappings({
+	isLoading,
+	onRemove,
+	onSet,
+	removingId,
+	settingId,
+	websites,
+}: {
+	isLoading: boolean;
+	onRemove: (websiteId: string) => void;
+	onSet: (websiteId: string, owner: string, repo: string) => void;
+	removingId?: string;
+	settingId?: string;
+	websites: Array<{
+		id: string;
+		domain: string;
+		integrations?: { github?: { owner: string; repo: string } } | null;
+	}>;
+}) {
+	const reposQuery = useQuery({
+		...orpc.integrations.listGitHubRepos.queryOptions({ input: {} }),
+	});
+	const repoNames = (reposQuery.data?.repos ?? []).map((r) => r.fullName);
+
+	const [manualId, setManualId] = useState<string | null>(null);
+	const [manualInput, setManualInput] = useState("");
+
+	if (isLoading) {
+		return (
+			<div className="rounded border border-border/60 bg-secondary/30">
+				<IntegrationDetailSkeleton />
+			</div>
+		);
+	}
+
+	if (websites.length === 0) {
+		return (
+			<div className="rounded border border-border/60 bg-secondary/30 px-3 py-2">
+				<Text tone="muted" variant="caption">
+					No websites in this organization.
+				</Text>
+			</div>
+		);
+	}
+
+	function handleSelect(websiteId: string, fullName: string) {
+		const [owner, repo] = fullName.split("/");
+		if (owner && repo) {
+			onSet(websiteId, owner, repo);
+		}
+	}
+
+	function handleManualSubmit(websiteId: string) {
+		const parts = manualInput.trim().split("/");
+		if (parts.length === 2 && parts[0] && parts[1]) {
+			onSet(websiteId, parts[0], parts[1]);
+			setManualId(null);
+			setManualInput("");
+		} else {
+			toast.error("Enter owner/repo format");
+		}
+	}
+
+	return (
+		<div className="rounded border border-border/60 bg-secondary/30">
+			<div className="border-border/60 border-b px-3 py-2">
+				<Text tone="muted" variant="caption">
+					Link a GitHub repository to each website so Databuddy can correlate
+					deploys and commits with traffic changes.
+				</Text>
+			</div>
+			{websites.map((site) => {
+				const gh = site.integrations?.github;
+				const isManual = manualId === site.id;
+
+				return (
+					<div
+						className="flex flex-wrap items-center gap-2 border-border/60 border-b px-3 py-2.5 last:border-b-0"
+						key={site.id}
+					>
+						<span className="min-w-0 flex-1 truncate font-mono text-foreground text-xs">
+							{site.domain}
+						</span>
+
+						{gh ? (
+							<div className="flex items-center gap-2">
+								<span className="font-mono text-muted-foreground text-xs">
+									{gh.owner}/{gh.repo}
+								</span>
+								<Button
+									loading={removingId === site.id}
+									onClick={() => onRemove(site.id)}
+									size="sm"
+									variant="ghost"
+								>
+									<TrashIcon className="size-3.5" />
+								</Button>
+							</div>
+						) : isManual ? (
+							<form
+								className="flex items-center gap-2"
+								onSubmit={(e) => {
+									e.preventDefault();
+									handleManualSubmit(site.id);
+								}}
+							>
+								<Input
+									autoFocus
+									className="h-7 w-48 font-mono text-xs"
+									onChange={(e) => setManualInput(e.target.value)}
+									placeholder="owner/repo"
+									value={manualInput}
+								/>
+								<Button size="sm" type="submit" variant="secondary">
+									Save
+								</Button>
+								<Button
+									onClick={() => setManualId(null)}
+									size="sm"
+									type="button"
+									variant="ghost"
+								>
+									Cancel
+								</Button>
+							</form>
+						) : (
+							<div className="flex items-center gap-2">
+								<RepoSelector
+									disabled={reposQuery.isLoading || settingId === site.id}
+									onSelect={(fullName) => handleSelect(site.id, fullName)}
+									placeholder={
+										reposQuery.isLoading ? "Loading..." : "Search repos..."
+									}
+									repos={repoNames}
+								/>
+								<Button
+									onClick={() => {
+										setManualId(site.id);
+										setManualInput("");
+									}}
+									size="sm"
+									variant="ghost"
+								>
+									Manual
+								</Button>
+							</div>
+						)}
+					</div>
+				);
+			})}
+		</div>
+	);
+}
+
+function RepoSelector({
+	disabled,
+	onSelect,
+	placeholder,
+	repos,
+}: {
+	disabled?: boolean;
+	onSelect: (fullName: string) => void;
+	placeholder?: string;
+	repos: string[];
+}) {
+	const [value, setValue] = useState("");
+	const [open, setOpen] = useState(false);
+
+	const filtered = repos.filter((r) =>
+		value ? r.toLowerCase().includes(value.toLowerCase()) : true
+	);
+
+	return (
+		<Autocomplete
+			items={filtered}
+			mode="none"
+			onOpenChange={setOpen}
+			onValueChange={(next) => {
+				setValue(next);
+				if (repos.includes(next)) {
+					onSelect(next);
+					setValue("");
+					setOpen(false);
+				}
+			}}
+			open={open}
+			value={value}
+		>
+			<Autocomplete.Input
+				className="h-7 w-56 font-mono text-xs"
+				disabled={disabled}
+				onFocus={() => setOpen(true)}
+				placeholder={placeholder}
+			/>
+			{filtered.length > 0 ? (
+				<Autocomplete.Content>
+					{filtered.map((name) => (
+						<Autocomplete.Item key={name} value={name}>
+							{name}
+						</Autocomplete.Item>
+					))}
+				</Autocomplete.Content>
+			) : (
+				<Autocomplete.Content>
+					<Autocomplete.Empty>No matching repos</Autocomplete.Empty>
+				</Autocomplete.Content>
+			)}
+		</Autocomplete>
+	);
+}
+
+function SlackIntegrationRow({
+	integrations,
+	isLoading,
+	onUninstall,
+	organizationId,
+	uninstallingId,
+}: {
+	integrations: SlackIntegration[];
+	isLoading: boolean;
+	onUninstall: (integration: SlackIntegration) => void;
+	organizationId: string;
+	uninstallingId?: string;
+}) {
+	const connected = integrations.some((i) => i.status === "active");
+
+	let action: React.ReactNode;
+	if (isLoading) {
+		action = <LoadingButton />;
+	} else if (connected) {
+		action = (
+			<Button disabled size="sm" variant="secondary">
+				<CheckCircleIcon className="size-4" />
+				Connected
+			</Button>
+		);
+	} else {
+		action = (
+			<a
+				className={buttonVariants({ size: "sm", variant: "secondary" })}
+				href={slackInstallUrl(organizationId)}
+			>
+				<PlugIcon className="size-4" />
+				Connect
+			</a>
+		);
+	}
+
+	return (
+		<IntegrationListRow
+			action={action}
+			badge={<ConnectionBadge connected={connected} loading={isLoading} />}
+			defaultOpen={false}
+			item={SLACK_ITEM}
+		>
+			<SlackIntegrationDetails
+				integrations={integrations}
+				isLoading={isLoading}
+				onUninstall={onUninstall}
+				uninstallingIntegrationId={uninstallingId}
+			/>
+		</IntegrationListRow>
 	);
 }
 
@@ -510,8 +960,8 @@ function SlackIntegrationDetails({
 	if (isLoading) {
 		return (
 			<div className="rounded border border-border/60 bg-secondary/30">
-				<SlackWorkspaceSkeleton />
-				<SlackWorkspaceSkeleton />
+				<IntegrationDetailSkeleton />
+				<IntegrationDetailSkeleton />
 			</div>
 		);
 	}
@@ -541,7 +991,7 @@ function SlackIntegrationDetails({
 	);
 }
 
-function SlackWorkspaceSkeleton() {
+function IntegrationDetailSkeleton() {
 	return (
 		<div className="flex items-center gap-3 border-border/60 border-b px-3 py-3 last:border-b-0">
 			<Skeleton className="size-8 rounded" />
@@ -573,7 +1023,15 @@ function SlackWorkspaceRow({
 						<span className="truncate font-semibold text-foreground text-xs">
 							{teamName}
 						</span>
-						{slackWorkspaceBadge(integration)}
+						{integration.status === "active" ? (
+							<Badge size="sm" variant="success">
+								Active
+							</Badge>
+						) : (
+							<Badge size="sm" variant="muted">
+								Disabled
+							</Badge>
+						)}
 					</div>
 					<div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground text-xs">
 						<span className="font-mono">{integration.teamId}</span>

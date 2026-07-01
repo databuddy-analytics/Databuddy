@@ -1,4 +1,4 @@
-import type { AppContext } from "../config/context";
+import { type AppContext, requireWebsiteId } from "../config/context";
 import { callRPCProcedure } from "../tools/utils";
 import { executeQuery } from "../../query";
 import type { QueryRequest } from "../../query/types";
@@ -28,7 +28,7 @@ function runQuery(
 ) {
 	return executeQuery(
 		{
-			projectId: appContext.websiteId,
+			projectId: requireWebsiteId(appContext),
 			type,
 			from: range.from,
 			to: range.to,

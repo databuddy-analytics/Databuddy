@@ -20,8 +20,11 @@ import {
 	LightningIcon,
 	TableIcon,
 } from "@databuddy/ui/icons";
+import { useSetAtom } from "jotai";
+import { agentMentionsAtom } from "./agent-atoms";
 import { AgentInput } from "./agent-input";
 import { AgentMessages } from "./agent-messages";
+import { AGENT_COMMANDS } from "./agent-commands";
 import { setLastChatId } from "./hooks/use-chat-db";
 import { Avatar } from "@databuddy/ui/client";
 import { Button, Skeleton } from "@databuddy/ui";
@@ -31,7 +34,8 @@ interface AgentChatSurfaceProps {
 	chatId: string;
 	className?: string;
 	contentClassName?: string;
-	websiteId: string;
+	defaultWebsiteId?: string;
+	organizationId: string | null;
 }
 
 const FALLBACK_ICONS = [
@@ -43,20 +47,40 @@ const FALLBACK_ICONS = [
 
 const LOADING_DELAY_MS = 250;
 
+const DEFAULT_PROMPTS = AGENT_COMMANDS.filter(
+	(command) => command.action !== "clear"
+)
+	.slice(0, 4)
+	.map((command) => ({
+		label: command.title,
+		prompt: command.prompt,
+		source: "default" as const,
+	}));
+
 export function AgentChatSurface({
 	autoSendPromptFromUrl = false,
 	chatId,
 	className,
 	contentClassName,
-	websiteId,
+	defaultWebsiteId,
+	organizationId,
 }: AgentChatSurfaceProps) {
+	const lastChatScope = defaultWebsiteId ?? organizationId;
+	const setMentions = useSetAtom(agentMentionsAtom);
+
 	useEffect(() => {
-		setLastChatId(websiteId, chatId);
-	}, [websiteId, chatId]);
+		if (lastChatScope) {
+			setLastChatId(lastChatScope, chatId);
+		}
+	}, [lastChatScope, chatId]);
+
+	useEffect(() => {
+		setMentions([]);
+	}, [chatId, setMentions]);
 
 	const { messages, sendMessage } = useChat();
 	const { isRestoring, isEmpty } = useChatLoading();
-	const { data: website } = useWebsite(websiteId);
+	const { data: website } = useWebsite(defaultWebsiteId ?? "");
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const pathname = usePathname();
@@ -116,7 +140,7 @@ export function AgentChatSurface({
 							<WelcomeState
 								domain={domain}
 								onPromptSelect={launchPrompt}
-								websiteId={websiteId}
+								websiteId={defaultWebsiteId}
 							/>
 						</div>
 					) : null}
@@ -164,14 +188,17 @@ function WelcomeState({
 }: {
 	domain: string | null;
 	onPromptSelect: (text: string) => void;
-	websiteId: string;
+	websiteId?: string;
 }) {
-	const { data: prompts, isLoading } = useQuery({
+	const { data: fetchedPrompts, isLoading } = useQuery({
 		...orpc.agentChats.suggestedPrompts.queryOptions({
-			input: { websiteId },
+			input: { websiteId: websiteId ?? "" },
 		}),
+		enabled: Boolean(websiteId),
 		staleTime: 5 * 60 * 1000,
 	});
+
+	const prompts = websiteId ? fetchedPrompts : DEFAULT_PROMPTS;
 
 	return (
 		<div className="w-full space-y-6">
@@ -186,11 +213,15 @@ function WelcomeState({
 				<div className="space-y-1 text-center">
 					<h3 className="text-balance font-semibold text-lg">Meet Databunny</h3>
 					<p className="text-pretty text-muted-foreground text-sm">
-						Ask anything about{" "}
-						<span className="font-medium text-foreground">
-							{domain ?? "your"}
-						</span>
-						's analytics.
+						{domain ? (
+							<>
+								Ask anything about{" "}
+								<span className="font-medium text-foreground">{domain}</span>'s
+								analytics.
+							</>
+						) : (
+							"Ask anything about your analytics. Mention a site with @."
+						)}
 					</p>
 				</div>
 			</div>

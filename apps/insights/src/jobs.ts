@@ -1,23 +1,30 @@
-import { db, eq } from "@databuddy/db";
+import { db, eq, sql } from "@databuddy/db";
+import { insightRunItems, insightRuns } from "@databuddy/db/schema";
 import {
-	insightRunItems,
-	insightRuns,
-	type InsightRun,
-	type InsightRunStatus,
-} from "@databuddy/db/schema";
-import {
-	getInsightsQueue,
 	INSIGHTS_DISPATCH_JOB_NAME,
 	INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
+	INSIGHTS_MAINTENANCE_JOB_NAME,
+	INSIGHTS_QUEUE_NAME,
 	INSIGHTS_ROLLUP_JOB_NAME,
-	insightsRollupJobId,
 	type InsightsGenerateWebsiteJobData,
 	type InsightsQueueJobData,
 	type InsightsRollupJobData,
 } from "@databuddy/redis";
 import type { Job } from "bullmq";
-import { log } from "evlog";
 import { generateWebsiteInsights } from "./generation";
+import {
+	queueRollupIfSettled,
+	recoverStaleInsightRuns,
+	syncRunStatus,
+} from "./recovery";
+import {
+	captureInsightsError,
+	createInsightsEventLog,
+	emitInsightsEvent,
+	setInsightsLog,
+	toError,
+	withInsightsLogContext,
+} from "./lib/evlog-insights";
 import { processRollupJob } from "./rollup";
 import { dispatchDueInsightRuns } from "./scheduler";
 
@@ -25,104 +32,24 @@ function errorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
 
-interface RunStatusSummary {
-	completedItems: number;
-	failedItems: number;
-	run: InsightRun | null;
-	settled: boolean;
-	skippedItems: number;
-	status: InsightRunStatus;
-	totalItems: number;
+function isFinalAttempt(job: Job<InsightsQueueJobData>): boolean {
+	return job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
 }
 
-async function syncRunStatus(runId: string): Promise<RunStatusSummary> {
-	const [run, items] = await Promise.all([
-		db.query.insightRuns.findFirst({ where: { id: runId } }),
-		db
-			.select({ status: insightRunItems.status })
-			.from(insightRunItems)
-			.where(eq(insightRunItems.runId, runId)),
-	]);
-
-	const completedItems = items.filter(
-		(item) => item.status === "succeeded"
-	).length;
-	const failedItems = items.filter((item) => item.status === "failed").length;
-	const skippedItems = items.filter((item) => item.status === "skipped").length;
-	const settledItems = completedItems + failedItems + skippedItems;
-	const totalItems = items.length;
-	const settled = settledItems === totalItems;
-
-	let status: InsightRunStatus = "running";
-	if (totalItems === 0) {
-		status = "skipped";
-	} else if (settled) {
-		if (completedItems > 0 && failedItems === 0) {
-			status = "succeeded";
-		} else if (completedItems > 0) {
-			status = "partially_succeeded";
-		} else if (skippedItems === totalItems) {
-			status = "skipped";
-		} else {
-			status = "failed";
-		}
-	}
-
-	const now = new Date();
-	await db
-		.update(insightRuns)
-		.set({
-			completedItems,
-			failedItems,
-			skippedItems,
-			status,
-			updatedAt: now,
-			...(settled ? { finishedAt: now } : {}),
-		})
-		.where(eq(insightRuns.id, runId));
-
+function jobContext(job: Job<InsightsQueueJobData>) {
+	const data = job.data as Partial<InsightsGenerateWebsiteJobData> &
+		Partial<InsightsRollupJobData> & { reason?: string };
 	return {
-		completedItems,
-		failedItems,
-		run: run ?? null,
-		settled,
-		skippedItems,
-		status,
-		totalItems,
+		attempts_configured: job.opts.attempts,
+		attempts_made: job.attemptsMade,
+		job_id: job.id,
+		job_name: job.name,
+		organization_id: data.organizationId,
+		queue_name: INSIGHTS_QUEUE_NAME,
+		reason: data.reason,
+		run_id: data.runId,
+		website_id: data.websiteId,
 	};
-}
-
-async function queueRollupIfSettled(summary: RunStatusSummary): Promise<void> {
-	if (!(summary.run && summary.settled && summary.completedItems > 0)) {
-		return;
-	}
-	if (
-		summary.status !== "succeeded" &&
-		summary.status !== "partially_succeeded"
-	) {
-		return;
-	}
-
-	try {
-		await getInsightsQueue().add(
-			INSIGHTS_ROLLUP_JOB_NAME,
-			{
-				organizationId: summary.run.organizationId,
-				reason: summary.run.reason,
-				runId: summary.run.id,
-				timezone: summary.run.timezone,
-			},
-			{ jobId: insightsRollupJobId(summary.run.id) }
-		);
-	} catch (error) {
-		log.error({
-			service: "insights",
-			message: "Failed to queue insight rollup job",
-			run_id: summary.run.id,
-			organization_id: summary.run.organizationId,
-			error_message: errorMessage(error),
-		});
-	}
 }
 
 async function processGenerateWebsiteJob(
@@ -135,7 +62,7 @@ async function processGenerateWebsiteJob(
 			.update(insightRuns)
 			.set({
 				status: "running",
-				startedAt: now,
+				startedAt: sql`coalesce(${insightRuns.startedAt}, ${now})`,
 				updatedAt: now,
 			})
 			.where(eq(insightRuns.id, data.runId)),
@@ -143,6 +70,8 @@ async function processGenerateWebsiteJob(
 			.update(insightRunItems)
 			.set({
 				attempts: job.attemptsMade + 1,
+				errorMessage: null,
+				finishedAt: null,
 				startedAt: now,
 				status: "running",
 				updatedAt: now,
@@ -167,41 +96,99 @@ async function processGenerateWebsiteJob(
 				finishedAt: new Date(),
 				resultCount: result.resultCount,
 				status: result.status,
+				updatedAt: new Date(),
 			})
 			.where(eq(insightRunItems.id, data.itemId));
 		const summary = await syncRunStatus(data.runId);
+		setInsightsLog({
+			run_status: summary.status,
+			run_completed_items: summary.completedItems,
+			run_failed_items: summary.failedItems,
+			run_skipped_items: summary.skippedItems,
+			run_total_items: summary.totalItems,
+		});
 		await queueRollupIfSettled(summary);
 		return { resultCount: result.resultCount, status: result.status };
 	} catch (error) {
+		const finalAttempt = isFinalAttempt(job);
+		const message = errorMessage(error);
 		await db
 			.update(insightRunItems)
 			.set({
-				errorMessage: errorMessage(error),
-				finishedAt: new Date(),
-				status: "failed",
+				errorMessage: finalAttempt
+					? message
+					: `Attempt ${job.attemptsMade + 1} failed, retrying: ${message}`,
+				finishedAt: finalAttempt ? new Date() : null,
+				status: finalAttempt ? "failed" : "queued",
+				updatedAt: new Date(),
 			})
 			.where(eq(insightRunItems.id, data.itemId));
 		const summary = await syncRunStatus(data.runId);
 		await queueRollupIfSettled(summary);
+		captureInsightsError(error, "job.generate_website.failed", {
+			...jobContext(job),
+			item_id: data.itemId,
+			final_attempt: finalAttempt,
+			next_status: finalAttempt ? "failed" : "queued",
+			run_status: summary.status,
+		});
 		throw error;
 	}
 }
 
-export function processInsightsJob(job: Job<InsightsQueueJobData>) {
-	if (job.name === INSIGHTS_DISPATCH_JOB_NAME) {
-		return dispatchDueInsightRuns();
-	}
+export async function processInsightsJob(job: Job<InsightsQueueJobData>) {
+	const startedAt = performance.now();
+	const context = jobContext(job);
+	const logger = createInsightsEventLog({
+		...context,
+		insights_event: "job.process",
+	});
 
-	if (job.name === INSIGHTS_GENERATE_WEBSITE_JOB_NAME) {
-		return processGenerateWebsiteJob(
-			job.data as InsightsGenerateWebsiteJobData,
-			job
-		);
-	}
+	return await withInsightsLogContext(logger, async () => {
+		emitInsightsEvent("info", "job.started", context);
+		try {
+			let result: unknown;
+			if (job.name === INSIGHTS_DISPATCH_JOB_NAME) {
+				result = await dispatchDueInsightRuns();
+			} else if (job.name === INSIGHTS_MAINTENANCE_JOB_NAME) {
+				result = await recoverStaleInsightRuns();
+			} else if (job.name === INSIGHTS_GENERATE_WEBSITE_JOB_NAME) {
+				result = await processGenerateWebsiteJob(
+					job.data as InsightsGenerateWebsiteJobData,
+					job
+				);
+			} else if (job.name === INSIGHTS_ROLLUP_JOB_NAME) {
+				result = await processRollupJob(job.data as InsightsRollupJobData);
+			} else {
+				throw new Error(`Unknown insights job: ${job.name}`);
+			}
 
-	if (job.name === INSIGHTS_ROLLUP_JOB_NAME) {
-		return processRollupJob(job.data as InsightsRollupJobData);
-	}
-
-	throw new Error(`Unknown insights job: ${job.name}`);
+			const durationMs = Math.round(performance.now() - startedAt);
+			setInsightsLog({
+				duration_ms: durationMs,
+				job_status: "succeeded",
+			});
+			emitInsightsEvent("info", "job.completed", {
+				...context,
+				duration_ms: durationMs,
+			});
+			logger.emit({ duration_ms: durationMs, job_status: "succeeded" });
+			return result;
+		} catch (error) {
+			const durationMs = Math.round(performance.now() - startedAt);
+			const err = toError(error);
+			logger.error(err);
+			logger.emit({
+				duration_ms: durationMs,
+				error_message: err.message,
+				job_status: "failed",
+				_forceKeep: true,
+			});
+			captureInsightsError(error, "job.failed", {
+				...context,
+				duration_ms: durationMs,
+			});
+			throw error;
+		}
+	});
 }

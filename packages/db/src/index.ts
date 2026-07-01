@@ -2,7 +2,7 @@ export * from "drizzle-orm";
 export {
 	db,
 	setPgErrorFn,
-	setPgTraceFn,
+	setPgTimingFn,
 	shutdownPostgres,
 	warmPool,
 } from "./client";

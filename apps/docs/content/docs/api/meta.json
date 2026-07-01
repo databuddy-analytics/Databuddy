@@ -5,6 +5,7 @@
   "pages": [
     "index",
     "authentication",
+    "mcp",
     "query",
     "events",
     "links",

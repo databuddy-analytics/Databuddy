@@ -14,7 +14,7 @@ import {
 import { generateText } from "ai";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
-import { log } from "evlog";
+import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 
 const ROLLUP_RANGES = ["7d", "30d", "90d"] as const;
 const RANGE_TO_DAYS: Record<InsightRollupRange, number> = {
@@ -40,10 +40,6 @@ export interface RollupInsightSummary {
 	title: string;
 	websiteDomain: string;
 	websiteName: string | null;
-}
-
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
 }
 
 function sanitizeNarrative(value: string): string {
@@ -88,8 +84,10 @@ async function fetchRollupInsights(
 	organizationId: string,
 	range: InsightRollupRange
 ): Promise<RollupInsightSummary[]> {
-	const cutoff = dayjs().subtract(RANGE_TO_DAYS[range], "day").toDate();
-	const rows = await db
+	const cutoff = dayjs()
+		.subtract(RANGE_TO_DAYS[range], "day")
+		.format("YYYY-MM-DD");
+	return await db
 		.select({
 			title: analyticsInsights.title,
 			description: analyticsInsights.description,
@@ -98,7 +96,6 @@ async function fetchRollupInsights(
 			sentiment: analyticsInsights.sentiment,
 			priority: analyticsInsights.priority,
 			changePercent: analyticsInsights.changePercent,
-			createdAt: analyticsInsights.createdAt,
 			websiteName: websites.name,
 			websiteDomain: websites.domain,
 		})
@@ -107,7 +104,7 @@ async function fetchRollupInsights(
 		.where(
 			and(
 				eq(analyticsInsights.organizationId, organizationId),
-				gte(analyticsInsights.createdAt, cutoff),
+				gte(analyticsInsights.currentPeriodTo, cutoff),
 				isNull(websites.deletedAt)
 			)
 		)
@@ -116,18 +113,6 @@ async function fetchRollupInsights(
 			desc(analyticsInsights.createdAt)
 		)
 		.limit(ROLLUP_INSIGHT_LIMIT);
-
-	return rows.map((row) => ({
-		title: row.title,
-		description: row.description,
-		suggestion: row.suggestion,
-		severity: row.severity,
-		sentiment: row.sentiment,
-		priority: row.priority,
-		changePercent: row.changePercent,
-		websiteName: row.websiteName,
-		websiteDomain: row.websiteDomain,
-	}));
 }
 
 async function generateRollupNarrative(
@@ -137,10 +122,15 @@ async function generateRollupNarrative(
 ): Promise<string> {
 	const fallback = buildDeterministicRollupNarrative(range, insights);
 	if (insights.length === 0) {
+		emitInsightsEvent("info", "rollup.narrative_deterministic_empty", {
+			organization_id: organizationId,
+			range,
+		});
 		return fallback;
 	}
 
 	try {
+		const startedAt = performance.now();
 		const ai = getAILogger();
 		const result = await generateText({
 			model: ai.wrap(models.balanced),
@@ -179,14 +169,18 @@ async function generateRollupNarrative(
 		});
 
 		const text = sanitizeNarrative(result.text);
-		return text || fallback;
-	} catch (error) {
-		log.warn({
-			service: "insights",
-			message: "Failed to generate insight rollup narrative",
+		emitInsightsEvent("info", "rollup.narrative_generation_completed", {
 			organization_id: organizationId,
 			range,
-			error_message: errorMessage(error),
+			duration_ms: Math.round(performance.now() - startedAt),
+			insight_count: insights.length,
+			used_fallback: text.length === 0,
+		});
+		return text || fallback;
+	} catch (error) {
+		captureInsightsError(error, "rollup.narrative_generation_failed", {
+			organization_id: organizationId,
+			range,
 		});
 		return fallback;
 	}
@@ -226,6 +220,7 @@ async function generateRangeRollup(
 	range: InsightRollupRange,
 	generatedAt: Date
 ): Promise<void> {
+	const startedAt = performance.now();
 	const insights = await fetchRollupInsights(data.organizationId, range);
 	const narrative = await generateRollupNarrative(
 		range,
@@ -240,23 +235,30 @@ async function generateRangeRollup(
 		range,
 		runId: data.runId,
 	});
+	emitInsightsEvent("info", "rollup.range_completed", {
+		organization_id: data.organizationId,
+		run_id: data.runId,
+		range,
+		duration_ms: Math.round(performance.now() - startedAt),
+		insight_count: insights.length,
+	});
 }
 
 export async function processRollupJob(
 	data: InsightsRollupJobData
 ): Promise<{ ranges: number; status: "succeeded" }> {
+	const startedAt = performance.now();
 	const generatedAt = new Date();
 	await Promise.all(
 		ROLLUP_RANGES.map((range) => generateRangeRollup(data, range, generatedAt))
 	);
 	await invalidateInsightsCachesForOrganization(data.organizationId);
 
-	log.info({
-		service: "insights",
-		message: "Generated insight rollups",
+	emitInsightsEvent("info", "rollup.job_completed", {
 		organization_id: data.organizationId,
 		run_id: data.runId,
 		reason: data.reason,
+		duration_ms: Math.round(performance.now() - startedAt),
 		ranges: ROLLUP_RANGES.length,
 	});
 

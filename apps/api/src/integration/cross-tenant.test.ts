@@ -176,6 +176,77 @@ describe("cross-tenant isolation", () => {
 		});
 	});
 
+	describe("allowCrossOrg bypass for transfer-like flows", () => {
+		iit(
+			"owner of both source and target can authorize against non-active org",
+			async () => {
+				const user = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(user.id, orgA.id, "owner");
+				await addToOrganization(user.id, orgB.id, "owner");
+				const siteA = await insertWebsite({ organizationId: orgA.id });
+
+				const source = await withWorkspace(userContext(user, orgA.id), {
+					websiteId: siteA.id,
+					permissions: ["update"],
+					allowCrossOrg: true,
+				});
+				expect(source.organizationId).toBe(orgA.id);
+
+				const target = await withWorkspace(userContext(user, orgA.id), {
+					organizationId: orgB.id,
+					resource: "website",
+					permissions: ["create"],
+					allowCrossOrg: true,
+				});
+				expect(target.organizationId).toBe(orgB.id);
+				expect(target.role).toBe("owner");
+			},
+		);
+
+		iit(
+			"allowCrossOrg still blocks non-members from creating in target org",
+			async () => {
+				const user = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(user.id, orgA.id, "owner");
+
+				await expectCode(
+					withWorkspace(userContext(user, orgA.id), {
+						organizationId: orgB.id,
+						resource: "website",
+						permissions: ["create"],
+						allowCrossOrg: true,
+					}),
+					"FORBIDDEN",
+				);
+			},
+		);
+
+		iit(
+			"allowCrossOrg still blocks insufficient role in target org",
+			async () => {
+				const user = await signUp();
+				const orgA = await insertOrganization();
+				const orgB = await insertOrganization();
+				await addToOrganization(user.id, orgA.id, "owner");
+				await addToOrganization(user.id, orgB.id, "viewer");
+
+				await expectCode(
+					withWorkspace(userContext(user, orgA.id), {
+						organizationId: orgB.id,
+						resource: "website",
+						permissions: ["create"],
+						allowCrossOrg: true,
+					}),
+					"FORBIDDEN",
+				);
+			},
+		);
+	});
+
 	describe("correct org access still works", () => {
 		iit("user A can read their own org's websites", async () => {
 			const userA = await signUp();

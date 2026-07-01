@@ -35,12 +35,25 @@ function validateOrigin(value: string): { success: boolean; error?: string } {
 		return { success: true };
 	}
 	if (trimmed.startsWith("*.")) {
-		if (domainRegex.test(trimmed.slice(2))) {
+		const domain = trimmed.slice(2);
+		if (domain.startsWith("www.")) {
+			return {
+				success: false,
+				error: "Use the apex domain instead of a www-prefixed domain",
+			};
+		}
+		if (domainRegex.test(domain)) {
 			return { success: true };
 		}
 		return {
 			success: false,
 			error: "Invalid wildcard domain format (e.g., *.cal.com)",
+		};
+	}
+	if (trimmed.startsWith("www.")) {
+		return {
+			success: false,
+			error: "Use the apex domain instead of a www-prefixed domain",
 		};
 	}
 	if (domainRegex.test(trimmed)) {
@@ -236,6 +249,7 @@ export default function SecurityPage() {
 	>([]);
 	const [trackingIssueWarningsDisabled, setTrackingIssueWarningsDisabled] =
 		useState(false);
+	const [settingsHydrated, setSettingsHydrated] = useState(false);
 	const savedSettings = useMemo(
 		() => readSecuritySettings(websiteData?.settings),
 		[websiteData?.settings]
@@ -254,7 +268,8 @@ export default function SecurityPage() {
 			trackingIssueWarningsDisabled,
 		]
 	);
-	const hasChanges = !areSecuritySettingsEqual(savedSettings, draftSettings);
+	const hasChanges =
+		settingsHydrated && !areSecuritySettingsEqual(savedSettings, draftSettings);
 
 	const updateMutation = useMutation({
 		...orpc.websites.updateSettings.mutationOptions(),
@@ -270,6 +285,7 @@ export default function SecurityPage() {
 		setTrackingIssueWarningsDisabled(
 			savedSettings.trackingIssueWarningsDisabled
 		);
+		setSettingsHydrated(true);
 	}, [savedSettings]);
 
 	useEffect(() => {
@@ -279,7 +295,7 @@ export default function SecurityPage() {
 	}, [websiteData, initializeSettings]);
 
 	const handleSave = useCallback(() => {
-		if (!websiteData) {
+		if (!(websiteData && settingsHydrated)) {
 			return;
 		}
 
@@ -299,7 +315,14 @@ export default function SecurityPage() {
 				error: "Failed to update security settings",
 			}
 		);
-	}, [websiteData, websiteId, draftSettings, hasChanges, updateMutation]);
+	}, [
+		websiteData,
+		settingsHydrated,
+		websiteId,
+		draftSettings,
+		hasChanges,
+		updateMutation,
+	]);
 
 	const handleOriginAdd = useCallback((value: string) => {
 		setAllowedOrigins((prev) => [...prev, value]);
@@ -404,6 +427,7 @@ export default function SecurityPage() {
 							<Switch
 								aria-label="Show tracking warnings"
 								checked={!trackingIssueWarningsDisabled}
+								disabled={!settingsHydrated}
 								onCheckedChange={(checked) =>
 									setTrackingIssueWarningsDisabled(!checked)
 								}

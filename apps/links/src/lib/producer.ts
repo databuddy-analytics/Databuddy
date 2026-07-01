@@ -76,7 +76,7 @@ function connect(): Promise<boolean> {
 				...(username &&
 					password && {
 						sasl: { mechanism: "scram-sha-256", username, password },
-						ssl: false,
+						ssl: process.env.REDPANDA_SSL === "true",
 					}),
 			});
 

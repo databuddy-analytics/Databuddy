@@ -84,7 +84,8 @@ export const dashboardActionsTool = tool({
 	}),
 	execute: ({ actions, title, websiteId }, options) => {
 		const context = getAppContext(options);
-		const resolvedWebsiteId = websiteId ?? context.websiteId;
+		const resolvedWebsiteId =
+			websiteId ?? context.defaultWebsiteId ?? context.websiteId;
 
 		return {
 			type: "dashboard-actions",

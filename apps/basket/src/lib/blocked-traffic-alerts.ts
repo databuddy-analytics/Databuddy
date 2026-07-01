@@ -172,8 +172,7 @@ export function shouldEvaluateBlockedTrafficAlert(
 ): boolean {
 	return (
 		windowBlockedCount === ZERO_TRACKING_BLOCK_THRESHOLD ||
-		(windowBlockedCount >= BLOCKED_SPIKE_THRESHOLD &&
-			windowBlockedCount % BLOCKED_SPIKE_THRESHOLD === 0)
+		windowBlockedCount >= BLOCKED_SPIKE_THRESHOLD
 	);
 }
 

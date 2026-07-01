@@ -1,6 +1,5 @@
 "use client";
 
-import type { Invoice } from "autumn-js";
 import { memo, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ErrorState } from "../components/empty-states";
@@ -158,6 +157,10 @@ export default function HistoryPage() {
 		</main>
 	);
 }
+
+type Invoice = NonNullable<
+	NonNullable<ReturnType<typeof useBillingData>["customerData"]>["invoices"]
+>[number];
 
 const InvoiceRow = memo(function InvoiceRowComponent({
 	invoice,

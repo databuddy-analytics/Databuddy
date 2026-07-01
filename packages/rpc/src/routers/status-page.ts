@@ -20,10 +20,8 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
+import { authorizeTransfer, withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
-
-const monitorsProcedure = protectedProcedure;
-const trackedMonitorsProcedure = trackedProcedure;
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
@@ -105,8 +103,6 @@ const statusPageCustomizationSchema = z.object({
 	websiteUrl: z.string().nullable(),
 	supportUrl: z.string().nullable(),
 	theme: z.enum(["system", "light", "dark"]).nullable(),
-	hideBranding: z.boolean(),
-	customCss: z.string().nullable(),
 });
 
 const incidentStatus = z.enum([
@@ -185,26 +181,27 @@ async function listPublicStatusPageSitemapEntries() {
 
 function deriveOverallStatus(
 	monitors: { currentStatus: "up" | "down" | "degraded" | "unknown" }[],
-	activeIncidents: {
+	incidents: {
+		status: string;
 		severity: string;
 		affectedMonitors: { impact: string }[];
 	}[] = []
 ): "operational" | "degraded" | "outage" {
-	const activeUnresolved = activeIncidents.filter(
-		(i) => !("resolvedAt" in i && (i as { resolvedAt: unknown }).resolvedAt)
+	const activeIncidents = incidents.filter(
+		(incident) => incident.status !== "resolved"
 	);
 
-	if (activeUnresolved.some((i) => i.severity === "critical")) {
+	if (activeIncidents.some((i) => i.severity === "critical")) {
 		return "outage";
 	}
 	if (
-		activeUnresolved.some((i) =>
+		activeIncidents.some((i) =>
 			i.affectedMonitors.some((m) => m.impact === "down")
 		)
 	) {
 		return "outage";
 	}
-	if (activeUnresolved.length > 0) {
+	if (activeIncidents.length > 0) {
 		return "degraded";
 	}
 
@@ -250,15 +247,20 @@ function getDateRange(days: number) {
 	const start = new Date(today);
 	start.setDate(start.getDate() - (days - 1));
 	return {
-		startDate: start.toISOString().split("T").at(0) ?? "",
-		endDate: today.toISOString().split("T").at(0) ?? "",
+		startDate: start.toISOString().slice(0, 10),
+		endDate: today.toISOString().slice(0, 10),
 	};
 }
 
 function groupDailyRows(rows: DailyRow[]): Map<string, DailyRow[]> {
 	const grouped = new Map<string, DailyRow[]>();
 	for (const row of rows) {
-		grouped.set(row.site_id, [...(grouped.get(row.site_id) ?? []), row]);
+		const siteRows = grouped.get(row.site_id);
+		if (siteRows) {
+			siteRows.push(row);
+		} else {
+			grouped.set(row.site_id, [row]);
+		}
 	}
 	return grouped;
 }
@@ -269,39 +271,20 @@ function indexLatestChecks(
 	return new Map(rows.map((row) => [row.site_id, row]));
 }
 
-function buildStatusPageInfo(row: {
-	customCss: string | null;
-	faviconUrl: string | null;
-	hideBranding: boolean;
-	logoUrl: string | null;
-	statusPageDescription: string | null;
-	statusPageName: string;
-	supportUrl: string | null;
-	theme: "system" | "light" | "dark" | null;
-	websiteUrl: string | null;
-}) {
-	return {
-		name: row.statusPageName,
-		description: row.statusPageDescription,
-		logoUrl: row.logoUrl,
-		faviconUrl: row.faviconUrl,
-		websiteUrl: row.websiteUrl,
-		supportUrl: row.supportUrl,
-		theme: row.theme,
-		hideBranding: row.hideBranding,
-		customCss: row.customCss,
-	};
-}
-
 function applyIncidentImpacts(
 	monitors: z.infer<typeof monitorSchema>[],
 	activeIncidents: z.infer<typeof incidentSchema>[],
 	rows: Array<{ scheduleId: string | null; statusPageMonitorId: string | null }>
 ) {
 	const spmToScheduleId = new Map(
-		rows
-			.filter((row) => row.scheduleId)
-			.map((row) => [row.statusPageMonitorId, row.scheduleId] as const)
+		rows.flatMap((row) =>
+			row.statusPageMonitorId && row.scheduleId
+				? [[row.statusPageMonitorId, row.scheduleId] as const]
+				: []
+		)
+	);
+	const monitorsById = new Map(
+		monitors.map((monitor) => [monitor.id, monitor])
 	);
 
 	for (const incident of activeIncidents) {
@@ -309,9 +292,7 @@ function applyIncidentImpacts(
 			const scheduleId = spmToScheduleId.get(
 				affectedMonitor.statusPageMonitorId
 			);
-			const monitor = scheduleId
-				? monitors.find((candidate) => candidate.id === scheduleId)
-				: null;
+			const monitor = scheduleId ? monitorsById.get(scheduleId) : null;
 			if (!monitor) {
 				continue;
 			}
@@ -340,8 +321,6 @@ async function _fetchStatusPageData(
 			websiteUrl: statusPages.websiteUrl,
 			supportUrl: statusPages.supportUrl,
 			theme: statusPages.theme,
-			hideBranding: statusPages.hideBranding,
-			customCss: statusPages.customCss,
 			statusPageMonitorId: statusPageMonitors.id,
 			scheduleId: uptimeSchedules.id,
 			websiteId: uptimeSchedules.websiteId,
@@ -377,28 +356,45 @@ async function _fetchStatusPageData(
 		logo: rows[0].orgLogo,
 	};
 
-	const statusPageInfo = buildStatusPageInfo(rows[0]);
+	const statusPageInfo = {
+		name: rows[0].statusPageName,
+		description: rows[0].statusPageDescription,
+		logoUrl: rows[0].logoUrl,
+		faviconUrl: rows[0].faviconUrl,
+		websiteUrl: rows[0].websiteUrl,
+		supportUrl: rows[0].supportUrl,
+		theme: rows[0].theme,
+	};
 
-	const schedules = rows
-		.filter((r) => r.scheduleId)
-		.map((r) => ({
-			id: r.scheduleId as string,
-			websiteId: r.websiteId,
-			displayName: r.monitorDisplayName,
-			name: r.scheduleName,
-			url: r.scheduleUrl as string,
-			hideUrl: r.hideUrl,
-			hideUptimePercentage: r.hideUptimePercentage,
-			hideLatency: r.hideLatency,
-		}));
+	const schedules = rows.flatMap((r) => {
+		if (!(r.scheduleId && r.scheduleUrl)) {
+			return [];
+		}
+		return [
+			{
+				id: r.scheduleId,
+				websiteId: r.websiteId,
+				displayName: r.monitorDisplayName,
+				name: r.scheduleName,
+				url: r.scheduleUrl,
+				hideUrl: r.hideUrl ?? false,
+				hideUptimePercentage: r.hideUptimePercentage ?? false,
+				hideLatency: r.hideLatency ?? false,
+			},
+		];
+	});
 
 	const { startDate, endDate } = getDateRange(days);
 
-	const websiteIds = schedules
-		.map((s) => s.websiteId)
-		.filter((id): id is string => id !== null);
+	const websiteIds = [
+		...new Set(
+			schedules
+				.map((s) => s.websiteId)
+				.filter((id): id is string => id !== null)
+		),
+	];
 
-	const siteIds = schedules.map((s) => s.websiteId ?? s.id);
+	const siteIds = [...new Set(schedules.map((s) => s.websiteId ?? s.id))];
 
 	const ninetyDaysAgoDate = new Date();
 	ninetyDaysAgoDate.setDate(ninetyDaysAgoDate.getDate() - 90);
@@ -608,12 +604,18 @@ export const statusPageRouter = {
 			return data;
 		}),
 
-	list: monitorsProcedure
+	list: protectedProcedure
 		.route({
+			description:
+				"Lists status pages for an organization. Requires read:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/list",
 			summary: "List status pages for organization",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["read:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -623,7 +625,7 @@ export const statusPageRouter = {
 		.handler(async ({ context, input }) => {
 			await withWorkspace(context, {
 				organizationId: input.organizationId,
-				resource: "website",
+				resource: "status_page",
 				permissions: ["read"],
 			});
 
@@ -644,12 +646,18 @@ export const statusPageRouter = {
 			}));
 		}),
 
-	get: monitorsProcedure
+	get: protectedProcedure
 		.route({
+			description:
+				"Returns status page details including monitors. Requires read:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/get",
 			summary: "Get status page details including monitors",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["read:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -682,7 +690,7 @@ export const statusPageRouter = {
 
 			await withWorkspace(context, {
 				organizationId: statusPage.organizationId,
-				resource: "website",
+				resource: "status_page",
 				permissions: ["read"],
 			});
 
@@ -694,12 +702,17 @@ export const statusPageRouter = {
 			};
 		}),
 
-	create: trackedMonitorsProcedure
+	create: trackedProcedure
 		.route({
+			description: "Creates a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/create",
 			summary: "Create status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -712,15 +725,13 @@ export const statusPageRouter = {
 				websiteUrl: z.string().url().nullish(),
 				supportUrl: z.string().url().nullish(),
 				theme: z.enum(["system", "light", "dark"]).optional(),
-				hideBranding: z.boolean().optional(),
-				customCss: z.string().nullish(),
 			})
 		)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ theme: input.theme ?? "default" });
 			await withWorkspace(context, {
 				organizationId: input.organizationId,
-				resource: "website",
+				resource: "status_page",
 				permissions: ["update"],
 			});
 
@@ -745,8 +756,6 @@ export const statusPageRouter = {
 				websiteUrl: input.websiteUrl ?? null,
 				supportUrl: input.supportUrl ?? null,
 				theme: input.theme ?? "system",
-				hideBranding: input.hideBranding ?? false,
-				customCss: input.customCss ?? null,
 			});
 
 			return db.query.statusPages.findFirst({
@@ -754,12 +763,18 @@ export const statusPageRouter = {
 			});
 		}),
 
-	update: trackedMonitorsProcedure
+	update: trackedProcedure
 		.route({
+			description:
+				"Updates status page details. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/update",
 			summary: "Update status page details",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -772,22 +787,12 @@ export const statusPageRouter = {
 				websiteUrl: z.string().url().nullish(),
 				supportUrl: z.string().url().nullish(),
 				theme: z.enum(["system", "light", "dark"]).optional(),
-				hideBranding: z.boolean().optional(),
-				customCss: z.string().nullish(),
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const statusPage = await db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-			});
-
-			if (!statusPage) {
-				throw rpcError.notFound("StatusPage", input.statusPageId);
-			}
-
-			await withWorkspace(context, {
-				organizationId: statusPage.organizationId,
-				resource: "website",
+			const statusPage = await withResource(context, {
+				resource: "status_page",
+				id: input.statusPageId,
 				permissions: ["update"],
 			});
 
@@ -820,10 +825,6 @@ export const statusPageRouter = {
 						supportUrl: input.supportUrl,
 					}),
 					...(input.theme !== undefined && { theme: input.theme }),
-					...(input.hideBranding !== undefined && {
-						hideBranding: input.hideBranding,
-					}),
-					...(input.customCss !== undefined && { customCss: input.customCss }),
 					updatedAt: new Date(),
 				})
 				.where(eq(statusPages.id, input.statusPageId));
@@ -838,12 +839,17 @@ export const statusPageRouter = {
 			});
 		}),
 
-	delete: trackedMonitorsProcedure
+	delete: trackedProcedure
 		.route({
+			description: "Deletes a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/delete",
 			summary: "Delete status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -851,17 +857,9 @@ export const statusPageRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const statusPage = await db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-			});
-
-			if (!statusPage) {
-				throw rpcError.notFound("StatusPage", input.statusPageId);
-			}
-
-			await withWorkspace(context, {
-				organizationId: statusPage.organizationId,
-				resource: "website",
+			const statusPage = await withResource(context, {
+				resource: "status_page",
+				id: input.statusPageId,
 				permissions: ["update"],
 			});
 
@@ -874,12 +872,18 @@ export const statusPageRouter = {
 			return { success: true };
 		}),
 
-	transfer: trackedMonitorsProcedure
+	transfer: trackedProcedure
 		.route({
+			description:
+				"Transfers a status page to another organization. Requires write:status_pages scope on source and target.",
 			method: "POST",
 			path: "/statusPage/transfer",
 			summary: "Transfer status page to another organization",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -890,35 +894,15 @@ export const statusPageRouter = {
 		)
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
-			const statusPage = await db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-				with: {
-					statusPageMonitors: {
-						columns: { uptimeScheduleId: true },
-					},
-				},
+			const statusPage = await authorizeTransfer(context, {
+				resource: "status_page",
+				id: input.statusPageId,
+				targetOrganizationId: input.targetOrganizationId,
 			});
 
-			if (!statusPage) {
-				throw rpcError.notFound("StatusPage", input.statusPageId);
-			}
-
-			if (statusPage.organizationId === input.targetOrganizationId) {
-				throw rpcError.badRequest(
-					"Status page already belongs to this organization"
-				);
-			}
-
-			await withWorkspace(context, {
-				organizationId: statusPage.organizationId,
-				resource: "website",
-				permissions: ["update"],
-			});
-
-			await withWorkspace(context, {
-				organizationId: input.targetOrganizationId,
-				resource: "website",
-				permissions: ["create"],
+			const pageMonitors = await db.query.statusPageMonitors.findMany({
+				where: { statusPageId: input.statusPageId },
+				columns: { uptimeScheduleId: true },
 			});
 
 			await withTransaction(async (tx) => {
@@ -931,9 +915,7 @@ export const statusPageRouter = {
 					.where(eq(statusPages.id, input.statusPageId));
 
 				if (input.includeMonitors) {
-					const monitorIds = statusPage.statusPageMonitors.map(
-						(m: { uptimeScheduleId: string }) => m.uptimeScheduleId
-					);
+					const monitorIds = pageMonitors.map((m) => m.uptimeScheduleId);
 
 					if (monitorIds.length > 0) {
 						await tx
@@ -952,12 +934,18 @@ export const statusPageRouter = {
 			return { success: true };
 		}),
 
-	addMonitor: trackedMonitorsProcedure
+	addMonitor: trackedProcedure
 		.route({
+			description:
+				"Adds a monitor to a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/addMonitor",
 			summary: "Add a monitor to a status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -966,17 +954,9 @@ export const statusPageRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const statusPage = await db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-			});
-
-			if (!statusPage) {
-				throw rpcError.notFound("StatusPage", input.statusPageId);
-			}
-
-			await withWorkspace(context, {
-				organizationId: statusPage.organizationId,
-				resource: "website",
+			const statusPage = await withResource(context, {
+				resource: "status_page",
+				id: input.statusPageId,
 				permissions: ["update"],
 			});
 
@@ -1021,12 +1001,18 @@ export const statusPageRouter = {
 			});
 		}),
 
-	removeMonitor: trackedMonitorsProcedure
+	removeMonitor: trackedProcedure
 		.route({
+			description:
+				"Removes a monitor from a status page. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/removeMonitor",
 			summary: "Remove a monitor from a status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -1035,17 +1021,9 @@ export const statusPageRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const statusPage = await db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-			});
-
-			if (!statusPage) {
-				throw rpcError.notFound("StatusPage", input.statusPageId);
-			}
-
-			await withWorkspace(context, {
-				organizationId: statusPage.organizationId,
-				resource: "website",
+			const statusPage = await withResource(context, {
+				resource: "status_page",
+				id: input.statusPageId,
 				permissions: ["update"],
 			});
 
@@ -1063,12 +1041,18 @@ export const statusPageRouter = {
 			return { success: true };
 		}),
 
-	updateMonitorSettings: trackedMonitorsProcedure
+	updateMonitorSettings: trackedProcedure
 		.route({
+			description:
+				"Updates visibility settings for a status page monitor. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/updateMonitorSettings",
 			summary: "Update visibility settings for a status page monitor",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -1094,7 +1078,7 @@ export const statusPageRouter = {
 
 			await withWorkspace(context, {
 				organizationId: monitor.statusPage.organizationId,
-				resource: "website",
+				resource: "status_page",
 				permissions: ["update"],
 			});
 
@@ -1123,12 +1107,18 @@ export const statusPageRouter = {
 			});
 		}),
 
-	createIncident: trackedMonitorsProcedure
+	createIncident: trackedProcedure
 		.route({
+			description:
+				"Creates a new status page incident. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/createIncident",
 			summary: "Create a new incident",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -1149,17 +1139,9 @@ export const statusPageRouter = {
 		)
 		.handler(async ({ context, input }) => {
 			setTrackProperties({ severity: input.severity ?? "minor" });
-			const statusPage = await db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-			});
-
-			if (!statusPage) {
-				throw rpcError.notFound("StatusPage", input.statusPageId);
-			}
-
-			await withWorkspace(context, {
-				organizationId: statusPage.organizationId,
-				resource: "website",
+			const statusPage = await withResource(context, {
+				resource: "status_page",
+				id: input.statusPageId,
 				permissions: ["update"],
 			});
 
@@ -1220,12 +1202,18 @@ export const statusPageRouter = {
 			});
 		}),
 
-	updateIncident: trackedMonitorsProcedure
+	updateIncident: trackedProcedure
 		.route({
+			description:
+				"Posts an update to a status page incident. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/updateIncident",
 			summary: "Post an update to an incident",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(
 			z.object({
@@ -1247,7 +1235,7 @@ export const statusPageRouter = {
 
 			await withWorkspace(context, {
 				organizationId: incident.statusPage.organizationId,
-				resource: "website",
+				resource: "status_page",
 				permissions: ["update"],
 			});
 
@@ -1276,12 +1264,18 @@ export const statusPageRouter = {
 			});
 		}),
 
-	deleteIncident: trackedMonitorsProcedure
+	deleteIncident: trackedProcedure
 		.route({
+			description:
+				"Deletes a status page incident. Requires write:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/deleteIncident",
 			summary: "Delete an incident",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["write:status_pages"] as const,
+			}),
 		})
 		.input(z.object({ incidentId: z.string() }))
 		.handler(async ({ context, input }) => {
@@ -1296,7 +1290,7 @@ export const statusPageRouter = {
 
 			await withWorkspace(context, {
 				organizationId: incident.statusPage.organizationId,
-				resource: "website",
+				resource: "status_page",
 				permissions: ["update"],
 			});
 
@@ -1307,26 +1301,24 @@ export const statusPageRouter = {
 			return { deleted: true };
 		}),
 
-	listIncidents: monitorsProcedure
+	listIncidents: protectedProcedure
 		.route({
+			description:
+				"Lists incidents for a status page. Requires read:status_pages scope.",
 			method: "POST",
 			path: "/statusPage/listIncidents",
 			summary: "List incidents for a status page",
 			tags: ["StatusPage"],
+			spec: (s) => ({
+				...s,
+				"x-required-scopes": ["read:status_pages"] as const,
+			}),
 		})
 		.input(z.object({ statusPageId: z.string() }))
 		.handler(async ({ context, input }) => {
-			const statusPage = await db.query.statusPages.findFirst({
-				where: { id: input.statusPageId },
-			});
-
-			if (!statusPage) {
-				throw rpcError.notFound("StatusPage", input.statusPageId);
-			}
-
-			await withWorkspace(context, {
-				organizationId: statusPage.organizationId,
-				resource: "website",
+			await withResource(context, {
+				resource: "status_page",
+				id: input.statusPageId,
 				permissions: ["read"],
 			});
 

@@ -39,6 +39,16 @@ export function checkAutumnUsage(
 			});
 
 			if (!response.allowed) {
+				log.warn("Event quota exceeded", {
+					customerId,
+					featureId,
+					properties,
+					billing: {
+						usage: b?.usage,
+						granted: b?.granted,
+						unlimited: b?.unlimited,
+					},
+				});
 				throw basketErrors.billingLimitExceeded();
 			}
 

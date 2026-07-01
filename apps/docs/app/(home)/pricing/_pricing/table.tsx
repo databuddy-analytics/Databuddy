@@ -2,6 +2,7 @@ import { CheckIcon, XMarkIcon as XIcon } from "@databuddy/ui/icons";
 import Link from "next/link";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { GatedFeaturePricingRows } from "./gated-feature-rows";
+import { trackPricingPlanClick } from "./track-pricing";
 import type { NormalizedPlan } from "./types";
 
 interface Props {
@@ -163,6 +164,15 @@ export function PlansComparisonTable({ plans }: Props) {
 							plans={plans}
 							planTdClassName={planComparisonTdClass}
 						/>
+						{/* Enterprise section header */}
+						<tr className="border-border border-t bg-muted/20">
+							<td
+								className="px-4 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wide sm:px-5 lg:px-6"
+								colSpan={1 + plans.length}
+							>
+								Enterprise
+							</td>
+						</tr>
 						{/* Support row */}
 						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
@@ -235,16 +245,26 @@ export function PlansComparisonTable({ plans }: Props) {
 										{p.id === "enterprise" ? (
 											<Link
 												data-plan={p.id}
-												data-track="pricing_plan_clicked"
 												href="/contact"
+												onClick={() =>
+													trackPricingPlanClick(
+														p.id,
+														"pricing_comparison_table"
+													)
+												}
 											>
 												CONTACT US
 											</Link>
 										) : (
 											<Link
 												data-plan={p.id}
-												data-track="pricing_plan_clicked"
 												href={`https://app.databuddy.cc/register?plan=${p.id}`}
+												onClick={() =>
+													trackPricingPlanClick(
+														p.id,
+														"pricing_comparison_table"
+													)
+												}
 												rel="noopener noreferrer"
 												target="_blank"
 											>
@@ -282,14 +302,19 @@ export function PlansComparisonTable({ plans }: Props) {
 				<p>
 					<span className="text-foreground">What counts as an event?</span> A
 					pageview, custom event, error, or Web Vital measurement. Feature flag
-					evaluations are free and don't count toward your quota.
+					evaluations and uptime checks are free and don't count toward your
+					quota.
 				</p>
 				<p>
 					<span className="text-foreground">Agent credits</span> power
 					Databunny, the AI assistant that analyzes your data, answers
 					questions, and surfaces insights automatically.
 				</p>
-				<p>Overage is tiered. Lower rates apply as volume increases.</p>
+				<p>
+					<span className="text-foreground">Unlimited seats & sites.</span> Team
+					members, websites, and API access are unlimited on every plan. Overage
+					is tiered with lower rates as volume increases.
+				</p>
 			</div>
 		</section>
 	);

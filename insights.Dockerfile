@@ -14,9 +14,12 @@ COPY --from=pruner /app/out/json/ .
 RUN bun install --ignore-scripts
 
 COPY --from=pruner /app/out/full/ .
+COPY tsconfig tsconfig
 COPY turbo.json turbo.json
 
 ENV NODE_ENV=production
+
+RUN bunx turbo run build --filter=@databuddy/insights...
 
 WORKDIR /app/apps/insights
 
@@ -40,6 +43,8 @@ ENV NODE_ENV=production
 ENV BUN_CONFIG_MAX_HTTP_REQUESTS=16384
 
 EXPOSE 4002
+
+USER 1000:1000
 
 ENTRYPOINT []
 CMD ["./server"]

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { insightSchema, insightsOutputSchema } from "./smart-insights-output";
+import { insightSchema } from "./smart-insights-output";
 
 const baseInsight = {
 	title: "Pricing page traffic up 28%",
 	description:
-		"Pricing Page Visitors became a larger share of site activity while Bounce Rate improved. The audience that arrived this week was more qualified than a broad awareness spike. Worth confirming campaign attribution before drawing wider conclusions.",
+		"Pricing visitors grew while bounce rate improved and audience quality improved.",
 	suggestion:
-		"Review the journey from Pricing Page Visitors into the next high-intent step and tighten the CTA path if Contact Page Visitors are lagging.",
+		"Review the journey from pricing into the next high-intent step.",
 	metrics: [
 		{
 			label: "Pricing Page Visitors",
@@ -24,51 +24,36 @@ const baseInsight = {
 	confidence: 0.82,
 };
 
-describe("insightSchema impactSummary length bound", () => {
-	test("accepts a 160-character impactSummary (legacy upper bound)", () => {
-		const summary = "x".repeat(160);
-		const result = insightSchema.safeParse({ ...baseInsight, impactSummary: summary });
-		expect(result.success).toBe(true);
-	});
-
-	test("accepts a 220-character impactSummary (current upper bound)", () => {
-		const summary = "x".repeat(220);
-		const result = insightSchema.safeParse({ ...baseInsight, impactSummary: summary });
-		expect(result.success).toBe(true);
-	});
-
-	test("rejects a 221-character impactSummary", () => {
-		const summary = "x".repeat(221);
-		const result = insightSchema.safeParse({ ...baseInsight, impactSummary: summary });
-		expect(result.success).toBe(false);
-	});
-
-	test("real-world 173-char impactSummary that previously failed now passes", () => {
-		const summary =
-			"Zero navigation interactions for two consecutive weeks means no visitor can explore the product from the homepage — directly suppressing sign-up and pricing funnel entry.";
-		expect(summary.length).toBeGreaterThan(160);
-		expect(summary.length).toBeLessThanOrEqual(220);
-		const result = insightSchema.safeParse({ ...baseInsight, impactSummary: summary });
-		expect(result.success).toBe(true);
-	});
-
-	test("impactSummary remains optional", () => {
+describe("insightSchema", () => {
+	test("accepts a valid insight", () => {
 		const result = insightSchema.safeParse(baseInsight);
 		expect(result.success).toBe(true);
 	});
-});
 
-describe("insightsOutputSchema container", () => {
-	test("accepts configured deep runs with up to 10 insights", () => {
-		const result = insightsOutputSchema.safeParse({
-			insights: Array.from({ length: 10 }, () => baseInsight),
+	test("accepts impactSummary when provided", () => {
+		const result = insightSchema.safeParse({
+			...baseInsight,
+			impactSummary: "Revenue at risk if not addressed.",
 		});
 		expect(result.success).toBe(true);
 	});
 
-	test("rejects 11 insights", () => {
-		const result = insightsOutputSchema.safeParse({
-			insights: Array.from({ length: 11 }, () => baseInsight),
+	test("requires at least one metric", () => {
+		const result = insightSchema.safeParse({
+			...baseInsight,
+			metrics: [],
+		});
+		expect(result.success).toBe(false);
+	});
+
+	test("rejects more than 5 metrics", () => {
+		const result = insightSchema.safeParse({
+			...baseInsight,
+			metrics: Array.from({ length: 6 }, (_, i) => ({
+				label: `Metric ${i}`,
+				current: i * 10,
+				format: "number" as const,
+			})),
 		});
 		expect(result.success).toBe(false);
 	});

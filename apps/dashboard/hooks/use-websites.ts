@@ -59,6 +59,7 @@ const addWebsiteToList = (
 				data: [],
 				totalViews: 0,
 				hasAnyData: false,
+				hasHistoricalData: false,
 				trend: null,
 			},
 		},
@@ -207,9 +208,6 @@ export function useDeleteWebsite() {
 	return useMutation({
 		...orpc.websites.delete.mutationOptions(),
 		onMutate: async ({ id }) => {
-			const getByIdKey = getWebsiteByIdKey(id);
-			const _previousWebsite = queryClient.getQueryData<Website>(getByIdKey);
-
 			const listKey = getWebsitesListKey();
 
 			await queryClient.cancelQueries({ queryKey: listKey });

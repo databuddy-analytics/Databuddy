@@ -25,7 +25,7 @@ jobs:
           path: /tmp/docker-build-cache
 
       - name: Set up Docker Builder
-        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
+        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
 
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
@@ -61,7 +61,7 @@ jobs:
           path: /tmp/docker-build-cache
 
       - name: Set up Docker Builder
-        uses: useblacksmith/setup-docker-builder@ac083cc84672d01c60d5e8561d0a939b697de542 # v1
+        uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
 
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:

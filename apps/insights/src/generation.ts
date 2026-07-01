@@ -1,42 +1,60 @@
 import type { AppContext } from "@databuddy/ai/config/context";
-import { ANTHROPIC_CACHE_1H, models } from "@databuddy/ai/config/models";
-import { insightDedupeKey } from "@databuddy/ai/insights/dedupe";
 import {
-	fetchWebPeriodData,
-	hasWebInsightData,
-} from "@databuddy/ai/insights/fetch-context";
-import { formatLegacyWebDataForPrompt } from "@databuddy/ai/insights/normalize";
-import type {
-	InsightMetricRow,
-	WeekOverWeekPeriod,
-} from "@databuddy/ai/insights/types";
+	ANTHROPIC_CACHE_1H,
+	createModelFromId,
+} from "@databuddy/ai/config/models";
+import { trackAgentUsageAndBill } from "@databuddy/ai/agents/execution";
+import { hasWebInsightData } from "@databuddy/ai/insights/fetch-context";
+import type { WeekOverWeekPeriod } from "@databuddy/ai/insights/types";
 import { validateInsights } from "@databuddy/ai/insights/validate";
 import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import { storeAnalyticsSummary } from "@databuddy/ai/lib/supermemory";
 import type { ParsedInsight } from "@databuddy/ai/schemas/smart-insights-output";
-import { insightsOutputSchema } from "@databuddy/ai/schemas/smart-insights-output";
+import { insightSchema } from "@databuddy/ai/schemas/smart-insights-output";
+import { createToolkit } from "@databuddy/ai/tools/toolkit";
 import { createInsightsAgentTools } from "@databuddy/ai/tools/insights-agent-tools";
-import { and, db, desc, eq, gte, isNotNull, isNull, sql } from "@databuddy/db";
+import { and, db, eq, isNull } from "@databuddy/db";
 import {
-	analyticsInsights,
-	annotations,
 	type InsightGenerationConfigSnapshot,
 	type InsightGenerationTool,
 	websites,
 } from "@databuddy/db/schema";
-import {
-	invalidateAgentContextSnapshotsForWebsite,
-	invalidateInsightsCachesForOrganization,
-} from "@databuddy/redis";
-import { generateText, Output, stepCountIs, ToolLoopAgent } from "ai";
+import { getCachedSiteContext } from "@databuddy/ai/tools/scrape-page";
+import { getOAuthToken } from "@databuddy/ai/tools/utils/oauth-token";
+import { stepCountIs, tool, ToolLoopAgent, type ToolSet } from "ai";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
-import { log } from "evlog";
+import { resolveInsightsBilling } from "./billing";
+import { type ChainAssignment, detectAndAssignChains } from "./chain-detection";
+import { deliverInsightDigests } from "./delivery";
+import { type DetectedSignal, detectSignals, wowWindow } from "./detection";
+import { detectFunnelGoalSignals } from "./funnel-detection";
+import { enrichSignals } from "./enrichment";
+import {
+	type GeneratedWebsiteInsight,
+	maxInsights,
+	persistWebsiteInsights,
+} from "./persistence";
+import { reflectAndRank } from "./reflection";
+import { resolveInsightsForWebsite } from "./resolution";
+import { createInsightsServiceAuth } from "./service-auth";
+import {
+	buildInvestigationPrompt,
+	buildSystemPrompt,
+	fetchDownvotedPatterns,
+	fetchInsightHistory,
+	fetchRecentAnnotations,
+	fetchSiteCapabilities,
+	fetchSuppressedPatterns,
+	formatOrgWebsitesContext,
+	type OrgWebsiteRow,
+} from "./prompts";
+import {
+	captureInsightsError,
+	emitInsightsEvent,
+	setInsightsLog,
+} from "./lib/evlog-insights";
 
-const LEGACY_TIMEOUT_MS = 60_000;
-const AGENT_TIMEOUT_MS = 120_000;
-const RECENT_INSIGHTS_PROMPT_LIMIT = 12;
-const DEFAULT_MAX_INSIGHTS = 3;
 const TOOL_NAMES = [
 	"web_metrics",
 	"product_metrics",
@@ -44,18 +62,15 @@ const TOOL_NAMES = [
 	"business_context",
 ] as const satisfies readonly InsightGenerationTool[];
 
-interface OrgWebsiteRow {
-	domain: string;
-	id: string;
-	name: string | null;
-}
-
-interface GeneratedWebsiteInsight extends ParsedInsight {
-	id: string;
-	websiteDomain: string;
-	websiteId: string;
-	websiteName: string | null;
-}
+const ALWAYS_ON_TOOLS = new Set([
+	"execute_sql",
+	"scrape_page",
+	"search_console",
+	"create_annotation",
+	"update_goal",
+	"create_funnel",
+	"create_goal",
+]);
 
 export interface GenerateWebsiteInsightsInput {
 	config: InsightGenerationConfigSnapshot;
@@ -73,384 +88,82 @@ export interface GenerateWebsiteInsightsResult {
 	status: "skipped" | "succeeded";
 }
 
-function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : String(error);
-}
-
-function maxInsights(config: InsightGenerationConfigSnapshot): number {
-	return Math.max(
-		1,
-		Math.min(10, config.maxInsightsPerWebsite || DEFAULT_MAX_INSIGHTS)
-	);
-}
-
-function promptLookbackDays(config: InsightGenerationConfigSnapshot): number {
-	return Math.max(14, Math.min(180, config.lookbackDays * 2));
-}
-
 function getComparisonPeriod(lookbackDays: number): WeekOverWeekPeriod {
-	const days = Math.max(1, Math.min(90, lookbackDays));
-	const now = dayjs();
+	const window = wowWindow(dayjs(), lookbackDays);
 	return {
-		current: {
-			from: now.subtract(days, "day").format("YYYY-MM-DD"),
-			to: now.format("YYYY-MM-DD"),
-		},
-		previous: {
-			from: now.subtract(days * 2, "day").format("YYYY-MM-DD"),
-			to: now.subtract(days, "day").format("YYYY-MM-DD"),
-		},
+		current: { from: window.currentFrom, to: window.currentTo },
+		previous: { from: window.previousFrom, to: window.previousTo },
 	};
 }
 
-function modelForTier(tier: InsightGenerationConfigSnapshot["modelTier"]) {
+const INSIGHTS_MODEL_IDS = {
+	fast: "openai/gpt-5.4-mini",
+	balanced: "anthropic/claude-sonnet-4.6",
+	deep: "anthropic/claude-opus-4.7",
+} as const;
+
+const INSIGHTS_MODELS = {
+	fast: createModelFromId(INSIGHTS_MODEL_IDS.fast),
+	balanced: createModelFromId(INSIGHTS_MODEL_IDS.balanced),
+	deep: createModelFromId(INSIGHTS_MODEL_IDS.deep),
+};
+
+type InsightsModelKey = keyof typeof INSIGHTS_MODELS;
+
+function modelKeyForTier(
+	tier: InsightGenerationConfigSnapshot["modelTier"],
+	hasCriticalSignals?: boolean
+): InsightsModelKey {
 	if (tier === "fast") {
-		return models.quick;
+		return "fast";
 	}
 	if (tier === "deep") {
-		return models.deep;
+		return "deep";
 	}
-	return models.balanced;
+	return hasCriticalSignals ? "deep" : "balanced";
 }
 
 function normalizeAllowedTools(
 	tools: InsightGenerationConfigSnapshot["allowedTools"]
 ): InsightGenerationTool[] {
 	const allowed = new Set<InsightGenerationTool>(
-		tools.filter((tool): tool is InsightGenerationTool =>
-			(TOOL_NAMES as readonly string[]).includes(tool)
+		tools.filter((t): t is InsightGenerationTool =>
+			(TOOL_NAMES as readonly string[]).includes(t)
 		)
 	);
 	allowed.add("web_metrics");
-	return TOOL_NAMES.filter((tool) => allowed.has(tool));
+	return TOOL_NAMES.filter((t) => allowed.has(t));
 }
 
-function dedupeKeyFor(insight: GeneratedWebsiteInsight): string {
-	return insightDedupeKey({
-		...insight,
-		changePercent: insight.changePercent ?? null,
-	});
+interface AnalyzeWebsiteResult {
+	detectedSignals: DetectedSignal[];
+	hadData: boolean;
+	insights: ParsedInsight[];
 }
 
-async function fetchInsightDedupeKeyToIdMap(
-	organizationId: string,
-	cooldownHours: number
-): Promise<Map<string, string>> {
-	const cutoff = dayjs().subtract(Math.max(1, cooldownHours), "hour").toDate();
-	const rows = await db
-		.select({
-			id: analyticsInsights.id,
-			websiteId: analyticsInsights.websiteId,
-			type: analyticsInsights.type,
-			sentiment: analyticsInsights.sentiment,
-			changePercent: analyticsInsights.changePercent,
-			dedupeKey: analyticsInsights.dedupeKey,
-			subjectKey: analyticsInsights.subjectKey,
-			title: analyticsInsights.title,
-		})
-		.from(analyticsInsights)
-		.where(
-			and(
-				eq(analyticsInsights.organizationId, organizationId),
-				gte(analyticsInsights.createdAt, cutoff)
-			)
-		)
-		.orderBy(desc(analyticsInsights.createdAt));
-
-	const map = new Map<string, string>();
-	for (const row of rows) {
-		const key =
-			row.dedupeKey ??
-			insightDedupeKey({
-				websiteId: row.websiteId,
-				type: row.type as ParsedInsight["type"],
-				sentiment: row.sentiment as ParsedInsight["sentiment"],
-				changePercent: row.changePercent,
-				subjectKey: row.subjectKey,
-				title: row.title,
-			});
-		if (!map.has(key)) {
-			map.set(key, row.id);
-		}
-	}
-	return map;
-}
-
-async function fetchRecentAnnotations(
-	websiteId: string,
-	config: InsightGenerationConfigSnapshot
-): Promise<string> {
-	const since = dayjs().subtract(promptLookbackDays(config), "day").toDate();
-	const rows = await db
-		.select({
-			text: annotations.text,
-			xValue: annotations.xValue,
-			tags: annotations.tags,
-		})
-		.from(annotations)
-		.where(
-			and(
-				eq(annotations.websiteId, websiteId),
-				gte(annotations.xValue, since),
-				isNull(annotations.deletedAt)
-			)
-		)
-		.orderBy(annotations.xValue)
-		.limit(20);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const lines = rows.map((row) => {
-		const date = dayjs(row.xValue).format("YYYY-MM-DD");
-		const tags = row.tags?.length ? ` [${row.tags.join(", ")}]` : "";
-		return `- ${date}: ${row.text}${tags}`;
-	});
-
-	return `\n\nUser annotations (known events that may explain changes):\n${lines.join("\n")}`;
-}
-
-async function fetchRecentInsightsForPrompt(
-	organizationId: string,
-	websiteId: string,
-	config: InsightGenerationConfigSnapshot
-): Promise<string> {
-	const since = dayjs().subtract(promptLookbackDays(config), "day").toDate();
-	const rows = await db
-		.select({
-			title: analyticsInsights.title,
-			type: analyticsInsights.type,
-			createdAt: analyticsInsights.createdAt,
-		})
-		.from(analyticsInsights)
-		.where(
-			and(
-				eq(analyticsInsights.organizationId, organizationId),
-				eq(analyticsInsights.websiteId, websiteId),
-				gte(analyticsInsights.createdAt, since)
-			)
-		)
-		.orderBy(desc(analyticsInsights.createdAt))
-		.limit(RECENT_INSIGHTS_PROMPT_LIMIT);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const lines = rows.map(
-		(row) =>
-			`- [${row.type}] ${row.title} (${dayjs(row.createdAt).format("YYYY-MM-DD")})`
-	);
-
-	return `\n\n## Recently reported insights for this website (avoid repeating the same narrative unless something materially changed)\n${lines.join("\n")}`;
-}
-
-function formatOrgWebsitesContext(
-	orgSites: OrgWebsiteRow[],
-	currentWebsiteId: string
-): string {
-	if (orgSites.length <= 1) {
-		return "";
-	}
-	const sorted = [...orgSites].sort((a, b) =>
-		a.domain.localeCompare(b.domain, "en")
-	);
-	const lines = sorted.map((site) => {
-		const label = site.name?.trim() ? site.name.trim() : site.domain;
-		const marker =
-			site.id === currentWebsiteId
-				? " - metrics below are for this site only"
-				: "";
-		return `- ${label} (${site.domain})${marker}`;
-	});
-	return `## Organization websites (same account, separate analytics)
-Each row is a different tracked property (e.g. marketing site vs app vs docs). The period metrics in this message apply only to the site marked "metrics below". Do not blend numbers across rows. If referrers include another domain from this list, treat it as cross-property traffic and name both sides clearly.
-
-${lines.join("\n")}
-
-`;
-}
-
-function buildSystemPrompt(config: InsightGenerationConfigSnapshot): string {
-	const targetCount = maxInsights(config);
-	const depthInstruction =
-		config.depth === "light"
-			? "Use the smallest useful tool set. Prefer 1-2 high-confidence insights and skip speculative cross-domain analysis."
-			: config.depth === "deep"
-				? "Actively cross-check web, product, ops, and business context when those tools are enabled. Prefer a fuller ranked set, but only when signals are distinct and data-backed."
-				: "Explore enough context to produce concise, distinct, high-confidence insights without over-querying.";
-
-	return `<role>
-You are Databuddy's analytics insights worker. Return up to ${targetCount} period-over-period insights when that many distinct data-backed signals exist. Rank by actionability and user/business impact.
-</role>
-
-<configured_run>
-- Depth: ${config.depth}. ${depthInstruction}
-- Max model/tool-loop steps: ${config.maxSteps}
-- Max requested tool calls: ${config.maxToolCalls}
-- Lookback period length: ${config.lookbackDays} day(s)
-- Enabled tools: ${normalizeAllowedTools(config.allowedTools).join(", ")}
-</configured_run>
-
-<selection_rules>
-- Write for a founder/operator, not an analytics engineer. Translate technical metrics into plain outcomes: "interactions got slower", "pages feel slower", "setup is leaking users", "one source now dominates traffic".
-- Prefer reliability, conversion/product impact, engagement quality, broken instrumentation, and meaningful behavior changes over vanity traffic spikes.
-- Score actionability times impact, not raw percentage magnitude. Reserve priority 8-10 for likely user, revenue, or operational impact.
-- Prefer fewer, sharper insights over broad coverage. Return only signals a user can act on this period.
-- Avoid repeating recently reported narratives unless the signal materially changed.
-</selection_rules>
-
-<data_rules>
-- Use only provided data, tool results, annotations, and recent-insight context.
-- Do not invent revenue, signups, retention, funnel conversion, causality, root causes, or business impact.
-- If multiple org websites are listed, keep properties separate; cross-domain referrers are cross-property traffic, not generic referrals.
-- Use cautious language for correlations unless segment-level evidence directly proves the cause.
-- Do not punt, apologize, or say you cannot produce insights when any useful metrics exist. If one query is sparse, use stronger available evidence and lower confidence.
-</data_rules>
-
-<output_rules>
-- Return no more than ${targetCount} concise insights: reliability/product risk first, then engagement/acquisition opportunity. Do not make near-duplicates.
-- Each insight must be one clear signal with 1-5 metrics; primary metric first.
-- Metrics array owns the numbers. Description/suggestion should reference metric labels, not restate values.
-- Keep title under 80 chars, description under 320 chars, suggestion under 260 chars.
-- Titles must be plain English and user-facing. Do not put raw metric jargon like INP, LCP, FCP, TTFB, CLS, or p75 in titles; put technical metric names only in the metrics array.
-- Keep description 1-2 concise sentences: what changed, why it matters, and whether cause is evidence or hypothesis.
-- Suggestion must be a specific next action with an operational verb such as inspect, review, compare, segment, drill into, fix, audit, trace, or verify. Never use generic monitoring advice.
-- Suggestion must name the exact product surface to inspect next: funnel step, goal, referrer segment, page path, error class, session stream, web vital, flag rollout, or agent diagnostic prompt.
-- subjectKey must be stable; sources must include only evidence domains used; confidence 0-1 should reflect evidence strength.
-- impactSummary is optional, one sentence under 220 characters.
-</output_rules>
-
-<quality_examples>
-Good: Error Rate rose while Sessions stayed stable -> reliability issue; suggest reviewing affected page/errors first.
-Good: INP p75 rose -> title "Interactions got slower"; metrics can still include "INP p75".
-Good: Onboarding step 2 drop-off is 80% -> title "Onboarding is leaking at step 2".
-Bad: Pricing Visitors rose -> "revenue opportunity" without business data.
-Bad: Twitter rose and Bounce Rate worsened -> "Twitter caused the drop" without segmented engagement data.
-Bad: "INP p75 still rising" as a title; users should not need to know web-vitals acronyms.
-</quality_examples>`;
-}
-
-async function validateOrRepairInsights(
-	insights: ParsedInsight[],
-	context: {
-		config: InsightGenerationConfigSnapshot;
-		domain: string;
-		mode: "agent" | "legacy";
-		organizationId: string;
-		websiteId: string;
-	}
-): Promise<ParsedInsight[]> {
-	const validated = validateInsights(insights);
-	if (validated.warnings.length > 0) {
-		log.warn({
-			service: "insights",
-			message: "Insights validation repaired or dropped output",
-			organization_id: context.organizationId,
-			website_id: context.websiteId,
-			mode: context.mode,
-			warnings: validated.warnings,
-		});
-	}
-
-	const targetCount = Math.min(maxInsights(context.config), insights.length);
-	if (targetCount === 0 || validated.insights.length >= targetCount) {
-		return validated.insights.slice(0, targetCount);
-	}
-
-	try {
-		const ai = getAILogger();
-		const repair = await generateText({
-			model: ai.wrap(modelForTier(context.config.modelTier)),
-			output: Output.object({ schema: insightsOutputSchema }),
-			messages: [
-				{
-					role: "system",
-					content: `Repair Databuddy insight cards. Return up to ${targetCount} concise, valid cards when the source contains distinct data-backed signals. Use only the provided metrics and claims; do not invent numbers, causes, revenue impact, or new entities. Keep title <=80 chars, description <=320 chars, suggestion <=260 chars. Write for a founder/operator: titles must be plain English and avoid raw metric jargon like INP, LCP, FCP, TTFB, CLS, or p75. Technical metric names may remain in the metrics array. Suggestions need specific operational actions, not monitoring. Soften unsupported causality.`,
-				},
-				{
-					role: "user",
-					content: JSON.stringify(
-						{
-							domain: context.domain,
-							validationWarnings: validated.warnings,
-							originalInsights: insights,
-						},
-						null,
-						2
-					),
-				},
-			],
-			temperature: 0,
-			maxOutputTokens: 4096,
-			abortSignal: AbortSignal.timeout(30_000),
-			experimental_telemetry: {
-				isEnabled: true,
-				functionId: "databuddy.insights.worker.repair",
-				metadata: {
-					source: "insights_worker",
-					feature: "smart_insights",
-					mode: context.mode,
-					organizationId: context.organizationId,
-					websiteId: context.websiteId,
-					websiteDomain: context.domain,
-				},
-			},
-		});
-
-		const repairedOutput = repair.output?.insights ?? [];
-		const repaired = validateInsights(repairedOutput);
-		if (repaired.warnings.length > 0) {
-			log.warn({
-				service: "insights",
-				message: "Insights repair validation warnings",
-				organization_id: context.organizationId,
-				website_id: context.websiteId,
-				mode: context.mode,
-				warnings: repaired.warnings,
-			});
-		}
-
-		if (repaired.insights.length >= validated.insights.length) {
-			return repaired.insights.slice(0, targetCount);
-		}
-	} catch (error) {
-		log.warn({
-			service: "insights",
-			message: "Insights repair failed",
-			error_message: errorMessage(error),
-			organization_id: context.organizationId,
-			website_id: context.websiteId,
-			mode: context.mode,
-		});
-	}
-
-	return validated.insights.slice(0, targetCount);
-}
-
-async function analyzeWebsiteLegacy(params: {
+async function analyzeWebsite(params: {
+	billingCustomerId: string | null;
 	config: InsightGenerationConfigSnapshot;
 	domain: string;
+	githubRepo?: { owner: string; repo: string };
 	organizationId: string;
 	orgSites: OrgWebsiteRow[];
 	period: WeekOverWeekPeriod;
-	recentInsightsBlock: string;
-	annotationContext: string;
-	userId: string;
+	userId?: string;
 	websiteId: string;
-}): Promise<ParsedInsight[]> {
+}): Promise<AnalyzeWebsiteResult> {
+	const startedAt = performance.now();
 	const currentRange = params.period.current;
 	const previousRange = params.period.previous;
-	const [current, previous] = await Promise.all([
-		fetchWebPeriodData(
+	const [hasCurrentData, hasPreviousData] = await Promise.all([
+		hasWebInsightData(
 			params.websiteId,
 			params.domain,
 			currentRange.from,
 			currentRange.to,
 			params.config.timezone
 		),
-		fetchWebPeriodData(
+		hasWebInsightData(
 			params.websiteId,
 			params.domain,
 			previousRange.from,
@@ -458,104 +171,66 @@ async function analyzeWebsiteLegacy(params: {
 			params.config.timezone
 		),
 	]);
-
-	if (current.summary.length === 0 && current.topPages.length === 0) {
-		return [];
-	}
-
-	const dataSection = formatLegacyWebDataForPrompt(
-		current,
-		previous,
-		currentRange,
-		previousRange
-	);
-	const orgContext = formatOrgWebsitesContext(
-		params.orgSites,
-		params.websiteId
-	);
-	const prompt = `Analyze this website's period-over-period data and return insights.
-
-${orgContext}${dataSection}${params.annotationContext}${params.recentInsightsBlock}`;
-
-	try {
-		const ai = getAILogger();
-		const result = await generateText({
-			model: ai.wrap(modelForTier(params.config.modelTier)),
-			output: Output.object({ schema: insightsOutputSchema }),
-			messages: [
-				{
-					role: "system",
-					content: buildSystemPrompt(params.config),
-					providerOptions: ANTHROPIC_CACHE_1H,
-				},
-				{ role: "user", content: prompt },
-			],
-			temperature: 0.2,
-			maxOutputTokens: 8192,
-			abortSignal: AbortSignal.timeout(LEGACY_TIMEOUT_MS),
-			experimental_telemetry: {
-				isEnabled: true,
-				functionId: "databuddy.insights.worker.analyze_website",
-				metadata: {
-					source: "insights_worker",
-					feature: "smart_insights",
-					mode: "legacy_fallback",
-					organizationId: params.organizationId,
-					userId: params.userId,
-					websiteId: params.websiteId,
-					websiteDomain: params.domain,
-					timezone: params.config.timezone,
-				},
-			},
-		});
-
-		return await validateOrRepairInsights(result.output?.insights ?? [], {
-			config: params.config,
-			domain: params.domain,
-			mode: "legacy",
-			organizationId: params.organizationId,
-			websiteId: params.websiteId,
-		});
-	} catch (error) {
-		log.warn({
-			service: "insights",
-			message: "Failed to generate insights with legacy fallback",
-			error_message: errorMessage(error),
+	if (!(hasCurrentData || hasPreviousData)) {
+		emitInsightsEvent("info", "generation.agent.skipped_no_data", {
 			organization_id: params.organizationId,
 			website_id: params.websiteId,
+			duration_ms: Math.round(performance.now() - startedAt),
 		});
-		return [];
+		return { insights: [], detectedSignals: [], hadData: false };
 	}
-}
 
-async function analyzeWebsite(params: {
-	config: InsightGenerationConfigSnapshot;
-	domain: string;
-	organizationId: string;
-	orgSites: OrgWebsiteRow[];
-	period: WeekOverWeekPeriod;
-	userId: string;
-	websiteId: string;
-}): Promise<ParsedInsight[]> {
-	const currentRange = params.period.current;
-	const previousRange = params.period.previous;
-	const hasData = await hasWebInsightData(
-		params.websiteId,
-		params.domain,
-		currentRange.from,
-		currentRange.to,
-		params.config.timezone
+	const detectParams = {
+		websiteId: params.websiteId,
+		lookbackDays: params.config.lookbackDays,
+		timezone: params.config.timezone,
+	};
+	const [metricSignals, funnelGoalSignals] = await Promise.all([
+		detectSignals(detectParams),
+		detectFunnelGoalSignals(detectParams),
+	]);
+	const detectedSignals = [...metricSignals, ...funnelGoalSignals].sort(
+		(a, b) => Math.abs(b.deltaPercent) - Math.abs(a.deltaPercent)
 	);
-	if (!hasData) {
-		return [];
+
+	if (detectedSignals.length === 0) {
+		emitInsightsEvent("info", "generation.agent.skipped_no_signals", {
+			organization_id: params.organizationId,
+			website_id: params.websiteId,
+			duration_ms: Math.round(performance.now() - startedAt),
+		});
+		return { insights: [], detectedSignals, hadData: true };
 	}
 
-	const [annotationContext, recentInsightsBlock] = await Promise.all([
+	const githubToken = params.githubRepo
+		? await getOAuthToken("github", params.organizationId, params.userId)
+		: null;
+	const enrichedSignals = await enrichSignals(detectedSignals, {
+		websiteId: params.websiteId,
+		timezone: params.config.timezone,
+		lookbackDays: params.config.lookbackDays,
+		githubRepo: params.githubRepo,
+		githubToken,
+	});
+
+	const [
+		annotationContext,
+		historyBlock,
+		siteContext,
+		downvotedBlock,
+		suppressedBlock,
+		capabilitiesBlock,
+	] = await Promise.all([
 		fetchRecentAnnotations(params.websiteId, params.config),
-		fetchRecentInsightsForPrompt(
-			params.organizationId,
+		fetchInsightHistory(params.organizationId, params.websiteId, params.config),
+		getCachedSiteContext(params.domain),
+		fetchDownvotedPatterns(params.organizationId, params.websiteId),
+		fetchSuppressedPatterns(params.organizationId, params.websiteId),
+		fetchSiteCapabilities(
 			params.websiteId,
-			params.config
+			params.config.timezone,
+			currentRange.from,
+			currentRange.to
 		),
 	]);
 
@@ -564,72 +239,117 @@ async function analyzeWebsite(params: {
 		params.orgSites,
 		params.websiteId
 	);
-	const userPrompt = `Analyze this website's period-over-period data and produce insights.
+	const siteBlock = siteContext
+		? `\n\nProduct context (cached from homepage):\n${siteContext}`
+		: '\nScrape "/" first to understand the product.';
+	const userPrompt = buildInvestigationPrompt(enrichedSignals, {
+		domain: params.domain,
+		githubRepo: params.githubRepo,
+		period: params.period,
+		timezone: params.config.timezone,
+		historyBlock,
+		annotationContext,
+		downvotedBlock,
+		suppressedBlock,
+		capabilitiesBlock,
+		orgContext,
+		siteContext: siteBlock,
+	});
 
-**Current period:** ${currentRange.from} to ${currentRange.to}
-**Previous period:** ${previousRange.from} to ${previousRange.to}
-**Timezone:** ${params.config.timezone}
-**Domain:** ${params.domain}
-
-Use web_metrics to pull metrics for both current and previous periods before inferring trends. Start with summary_metrics for both periods, then add top_pages, error_summary, top_referrers, country, browser_name, vitals_overview, or custom_events queries only when they sharpen the narrative. Use product_metrics for goals, funnels, retention, and custom event behavior when a traffic change may have downstream product impact. Use ops_context for page-level errors, uptime, anomaly signals, and recent flag rollouts when reliability or product changes may explain the trend. Use business_context for revenue totals, attribution, and product mix when commercial impact matters.
-
-Only call these enabled tools: ${allowedTools.join(", ")}.
-
-${orgContext}${annotationContext}${recentInsightsBlock}`;
-
-	const { tools: allTools } = createInsightsAgentTools({
+	const { tools: analyticsTools } = createInsightsAgentTools({
 		websiteId: params.websiteId,
 		domain: params.domain,
 		timezone: params.config.timezone,
 		periodBounds: { current: currentRange, previous: previousRange },
 	});
-	const tools = Object.fromEntries(
-		Object.entries(allTools).filter(([name]) =>
-			allowedTools.includes(name as InsightGenerationTool)
-		)
-	) as Partial<typeof allTools>;
+	const investigationTools = createToolkit({
+		capabilities: ["investigation", "mutations"],
+		domain: params.domain,
+		organizationId: params.organizationId,
+		userId: params.userId,
+	});
+	const allTools = { ...analyticsTools, ...investigationTools };
+	const isEnabled = (name: string) =>
+		allowedTools.includes(name as InsightGenerationTool) ||
+		name.startsWith("github_") ||
+		ALWAYS_ON_TOOLS.has(name);
+	const availableTools = Object.fromEntries(
+		Object.entries(allTools).filter(([name]) => isEnabled(name))
+	) as ToolSet;
 
+	const insights = await runInsightsAgent({
+		availableTools,
+		billingCustomerId: params.billingCustomerId,
+		config: params.config,
+		domain: params.domain,
+		hasCriticalSignals: enrichedSignals.some((s) => s.severity === "critical"),
+		organizationId: params.organizationId,
+		startedAt,
+		userId: params.userId,
+		userPrompt,
+		websiteId: params.websiteId,
+	});
+
+	return { insights, detectedSignals, hadData: true };
+}
+
+async function runInsightsAgent(params: {
+	availableTools: ToolSet;
+	billingCustomerId: string | null;
+	config: InsightGenerationConfigSnapshot;
+	domain: string;
+	hasCriticalSignals: boolean;
+	organizationId: string;
+	startedAt: number;
+	userId?: string;
+	userPrompt: string;
+	websiteId: string;
+}): Promise<ParsedInsight[]> {
 	try {
 		const appContext: AppContext = {
-			userId: params.userId,
+			userId: params.userId ?? "system",
 			organizationId: params.organizationId,
 			websiteId: params.websiteId,
 			websiteDomain: params.domain,
 			timezone: params.config.timezone,
 			currentDateTime: new Date().toISOString(),
 			chatId: `insights:${params.organizationId}:${params.websiteId}`,
+			serviceAuth: createInsightsServiceAuth(params.organizationId),
 		};
+
+		const collected: ParsedInsight[] = [];
+		const emitInsightTool = tool({
+			description:
+				"Call this when you have a finding worth reporting. Each call produces one insight. Call multiple times for multiple findings.",
+			inputSchema: insightSchema,
+			execute: (insight: ParsedInsight) => {
+				collected.push(insight);
+				return `Insight recorded: "${insight.title}"`;
+			},
+		});
+
 		let toolCallCount = 0;
 		const ai = getAILogger();
+		const allToolsWithEmit = {
+			...params.availableTools,
+			emit_insight: emitInsightTool,
+		};
+		const modelKey = modelKeyForTier(
+			params.config.modelTier,
+			params.hasCriticalSignals
+		);
 		const agent = new ToolLoopAgent({
-			model: ai.wrap(modelForTier(params.config.modelTier)),
+			model: ai.wrap(INSIGHTS_MODELS[modelKey]),
 			instructions: {
 				role: "system",
 				content: buildSystemPrompt(params.config),
 				providerOptions: ANTHROPIC_CACHE_1H,
 			},
-			output: Output.object({ schema: insightsOutputSchema }),
-			tools,
-			stopWhen: stepCountIs(
-				Math.max(
-					1,
-					Math.min(params.config.maxSteps, params.config.maxToolCalls + 2)
-				)
-			),
-			prepareStep: ({ stepNumber }) => {
-				if (stepNumber === 0 && "web_metrics" in tools) {
-					return {
-						activeTools: ["web_metrics"],
-						toolChoice: { type: "tool", toolName: "web_metrics" },
-					};
-				}
-				return { activeTools: allowedTools };
-			},
+			tools: allToolsWithEmit,
+			stopWhen: stepCountIs(params.config.maxSteps),
 			onStepFinish: ({ usage, finishReason, toolCalls }) => {
 				toolCallCount += toolCalls.length;
-				log.info({
-					service: "insights",
-					message: "Insights worker agent step finished",
+				emitInsightsEvent("info", "generation.agent.step_finished", {
 					organization_id: params.organizationId,
 					website_id: params.websiteId,
 					finish_reason: finishReason,
@@ -648,9 +368,8 @@ ${orgContext}${annotationContext}${recentInsightsBlock}`;
 				metadata: {
 					source: "insights_worker",
 					feature: "smart_insights",
-					mode: "agent",
 					organizationId: params.organizationId,
-					userId: params.userId,
+					userId: params.userId ?? "system",
 					websiteId: params.websiteId,
 					websiteDomain: params.domain,
 					timezone: params.config.timezone,
@@ -661,194 +380,76 @@ ${orgContext}${annotationContext}${recentInsightsBlock}`;
 		});
 
 		const result = await agent.generate({
-			messages: [{ role: "user", content: userPrompt }],
-			abortSignal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
+			messages: [{ role: "user", content: params.userPrompt }],
 		});
 
-		if (result.output?.insights?.length) {
-			return await validateOrRepairInsights(result.output.insights, {
-				config: params.config,
-				domain: params.domain,
-				mode: "agent",
-				organizationId: params.organizationId,
-				websiteId: params.websiteId,
+		await trackAgentUsageAndBill({
+			usage: result.totalUsage,
+			modelId: INSIGHTS_MODEL_IDS[modelKey],
+			source: "insights",
+			organizationId: params.organizationId,
+			userId: params.userId ?? null,
+			chatId: appContext.chatId,
+			billingCustomerId: params.billingCustomerId,
+			websiteId: params.websiteId,
+		});
+
+		if (collected.length === 0) {
+			emitInsightsEvent("warn", "generation.agent.missing_output", {
+				organization_id: params.organizationId,
+				website_id: params.websiteId,
+				duration_ms: Math.round(performance.now() - params.startedAt),
+				tool_call_count: toolCallCount,
+			});
+			return [];
+		}
+
+		const validation = validateInsights(collected);
+		if (validation.warnings.length > 0) {
+			emitInsightsEvent("warn", "generation.validation_warnings", {
+				organization_id: params.organizationId,
+				website_id: params.websiteId,
+				input_count: collected.length,
+				output_count: validation.insights.length,
+				warning_count: validation.warnings.length,
+				warnings: validation.warnings,
 			});
 		}
-
-		log.warn({
-			service: "insights",
-			message: "Insights worker agent finished without structured output",
+		const selected = await reflectAndRank(
+			validation.insights,
+			maxInsights(params.config),
+			{
+				billingCustomerId: params.billingCustomerId,
+				chatId: appContext.chatId,
+				organizationId: params.organizationId,
+				userId: params.userId,
+				websiteId: params.websiteId,
+			}
+		);
+		emitInsightsEvent("info", "generation.agent.completed", {
 			organization_id: params.organizationId,
 			website_id: params.websiteId,
+			duration_ms: Math.round(performance.now() - params.startedAt),
+			raw_output_count: collected.length,
+			validated_count: validation.insights.length,
+			output_count: selected.length,
+			tool_call_count: toolCallCount,
 		});
+		setInsightsLog({
+			generation_mode: "agent",
+			tool_call_count: toolCallCount,
+			generated_candidate_count: selected.length,
+		});
+		return selected;
 	} catch (error) {
-		log.warn({
-			service: "insights",
-			message: "Insights worker agent failed, using legacy fallback",
-			error_message: errorMessage(error),
+		captureInsightsError(error, "generation.agent.failed", {
 			organization_id: params.organizationId,
 			website_id: params.websiteId,
+			duration_ms: Math.round(performance.now() - params.startedAt),
+			error_type: (error as Error).constructor?.name,
 		});
-	}
-
-	return analyzeWebsiteLegacy({
-		...params,
-		annotationContext,
-		recentInsightsBlock,
-	});
-}
-
-async function persistWebsiteInsights(params: {
-	config: InsightGenerationConfigSnapshot;
-	insights: GeneratedWebsiteInsight[];
-	organizationId: string;
-	period: WeekOverWeekPeriod;
-	runId: string;
-}): Promise<GeneratedWebsiteInsight[]> {
-	const dedupeKeyToId = await fetchInsightDedupeKeyToIdMap(
-		params.organizationId,
-		params.config.cooldownHours
-	);
-	const seenInBatch = new Set<string>();
-	const finalInsights: GeneratedWebsiteInsight[] = [];
-
-	for (const insight of [...params.insights].sort(
-		(a, b) => b.priority - a.priority
-	)) {
-		const key = dedupeKeyFor(insight);
-		if (seenInBatch.has(key)) {
-			continue;
-		}
-		seenInBatch.add(key);
-		const existingId = dedupeKeyToId.get(key);
-		finalInsights.push(existingId ? { ...insight, id: existingId } : insight);
-		if (finalInsights.length >= maxInsights(params.config)) {
-			break;
-		}
-	}
-
-	if (finalInsights.length === 0) {
 		return [];
 	}
-
-	const updatePayload = {
-		runId: params.runId,
-		timezone: params.config.timezone,
-		currentPeriodFrom: params.period.current.from,
-		currentPeriodTo: params.period.current.to,
-		previousPeriodFrom: params.period.previous.from,
-		previousPeriodTo: params.period.previous.to,
-		createdAt: new Date(),
-	};
-
-	const toInsert = finalInsights
-		.filter((insight) => {
-			const existingId = dedupeKeyToId.get(dedupeKeyFor(insight));
-			return !(existingId && insight.id === existingId);
-		})
-		.map((insight) => ({
-			id: insight.id,
-			organizationId: params.organizationId,
-			websiteId: insight.websiteId,
-			runId: params.runId,
-			title: insight.title,
-			description: insight.description,
-			suggestion: insight.suggestion,
-			severity: insight.severity,
-			sentiment: insight.sentiment,
-			type: insight.type,
-			priority: insight.priority,
-			changePercent: insight.changePercent ?? null,
-			dedupeKey: dedupeKeyFor(insight),
-			subjectKey: insight.subjectKey,
-			sources: insight.sources,
-			confidence: insight.confidence,
-			impactSummary: insight.impactSummary ?? null,
-			metrics:
-				insight.metrics.length > 0
-					? (insight.metrics as InsightMetricRow[])
-					: null,
-			timezone: params.config.timezone,
-			currentPeriodFrom: params.period.current.from,
-			currentPeriodTo: params.period.current.to,
-			previousPeriodFrom: params.period.previous.from,
-			previousPeriodTo: params.period.previous.to,
-		}));
-
-	const toRefresh = finalInsights.filter((insight) => {
-		const existingId = dedupeKeyToId.get(dedupeKeyFor(insight));
-		return existingId !== undefined && insight.id === existingId;
-	});
-
-	if (toInsert.length > 0) {
-		await db
-			.insert(analyticsInsights)
-			.values(toInsert)
-			.onConflictDoUpdate({
-				target: [analyticsInsights.organizationId, analyticsInsights.dedupeKey],
-				targetWhere: isNotNull(analyticsInsights.dedupeKey),
-				set: {
-					runId: params.runId,
-					timezone: params.config.timezone,
-					currentPeriodFrom: params.period.current.from,
-					currentPeriodTo: params.period.current.to,
-					previousPeriodFrom: params.period.previous.from,
-					previousPeriodTo: params.period.previous.to,
-					createdAt: new Date(),
-					title: sql.raw("excluded.title"),
-					description: sql.raw("excluded.description"),
-					suggestion: sql.raw("excluded.suggestion"),
-					severity: sql.raw("excluded.severity"),
-					sentiment: sql.raw("excluded.sentiment"),
-					type: sql.raw("excluded.type"),
-					priority: sql.raw("excluded.priority"),
-					changePercent: sql.raw("excluded.change_percent"),
-					subjectKey: sql.raw("excluded.subject_key"),
-					sources: sql.raw("excluded.sources"),
-					confidence: sql.raw("excluded.confidence"),
-					impactSummary: sql.raw("excluded.impact_summary"),
-					metrics: sql.raw("excluded.metrics"),
-				},
-			});
-	}
-	await Promise.all(
-		toRefresh.map((insight) =>
-			db
-				.update(analyticsInsights)
-				.set({
-					...updatePayload,
-					title: insight.title,
-					description: insight.description,
-					suggestion: insight.suggestion,
-					severity: insight.severity,
-					sentiment: insight.sentiment,
-					type: insight.type,
-					priority: insight.priority,
-					changePercent: insight.changePercent ?? null,
-					dedupeKey: dedupeKeyFor(insight),
-					subjectKey: insight.subjectKey,
-					sources: insight.sources,
-					confidence: insight.confidence,
-					impactSummary: insight.impactSummary ?? null,
-					metrics:
-						insight.metrics.length > 0
-							? (insight.metrics as InsightMetricRow[])
-							: null,
-				})
-				.where(eq(analyticsInsights.id, insight.id))
-		)
-	);
-
-	const websiteInvalidations = [
-		...new Set(finalInsights.map((insight) => insight.websiteId)),
-	].map((websiteId) => invalidateAgentContextSnapshotsForWebsite(websiteId));
-
-	await Promise.all([
-		invalidateInsightsCachesForOrganization(params.organizationId),
-		...websiteInvalidations,
-	]);
-
-	return finalInsights;
 }
 
 function storeWebsiteSummary(
@@ -869,21 +470,31 @@ function storeWebsiteSummary(
 		`Insights for ${site.domain} (${dayjs().format("YYYY-MM-DD")}):\n${summary}`,
 		site.id,
 		{ period: "configured" }
-	).catch((error: unknown) => {
-		log.warn({
-			service: "insights",
-			message: "Failed to store analytics summary",
-			error_message: errorMessage(error),
-			website_id: site.id,
+	)
+		.then(() => {
+			emitInsightsEvent("info", "generation.summary_stored", {
+				website_id: site.id,
+				insight_count: insights.length,
+			});
+		})
+		.catch((error: unknown) => {
+			captureInsightsError(error, "generation.summary_store_failed", {
+				website_id: site.id,
+			});
 		});
-	});
 }
 
 export async function generateWebsiteInsights(
 	input: GenerateWebsiteInsightsInput
 ): Promise<GenerateWebsiteInsightsResult> {
+	const startedAt = performance.now();
 	const [site] = await db
-		.select({ id: websites.id, name: websites.name, domain: websites.domain })
+		.select({
+			id: websites.id,
+			name: websites.name,
+			domain: websites.domain,
+			integrations: websites.integrations,
+		})
 		.from(websites)
 		.where(
 			and(
@@ -895,6 +506,12 @@ export async function generateWebsiteInsights(
 		.limit(1);
 
 	if (!site) {
+		emitInsightsEvent("warn", "generation.website.skipped_missing_site", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			run_id: input.runId,
+			duration_ms: Math.round(performance.now() - startedAt),
+		});
 		return {
 			status: "skipped",
 			resultCount: 0,
@@ -914,12 +531,41 @@ export async function generateWebsiteInsights(
 		)
 		.orderBy(websites.domain)
 		.limit(100);
+	setInsightsLog({
+		organization_site_count: orgSites.length,
+	});
+
+	const { allowed, billingCustomerId } = await resolveInsightsBilling({
+		organizationId: input.organizationId,
+		userId: input.requestedByUserId,
+	});
+	if (!allowed) {
+		emitInsightsEvent("info", "generation.website.skipped_no_credits", {
+			organization_id: input.organizationId,
+			website_id: input.websiteId,
+			run_id: input.runId,
+			billing_customer_id: billingCustomerId,
+			duration_ms: Math.round(performance.now() - startedAt),
+		});
+		return {
+			status: "skipped",
+			resultCount: 0,
+			insightIds: [],
+			message: "Insufficient agent credits",
+		};
+	}
 
 	const period = getComparisonPeriod(input.config.lookbackDays);
-	const userId = input.requestedByUserId ?? "insights-worker";
-	const insights = await analyzeWebsite({
+	const userId = input.requestedByUserId ?? undefined;
+	const ghIntegration = site.integrations?.github as
+		| { owner: string; repo: string }
+		| undefined;
+
+	const analysis = await analyzeWebsite({
+		billingCustomerId,
 		config: input.config,
 		domain: site.domain,
+		githubRepo: ghIntegration,
 		organizationId: input.organizationId,
 		orgSites,
 		period,
@@ -927,7 +573,7 @@ export async function generateWebsiteInsights(
 		websiteId: site.id,
 	});
 
-	const candidates = insights.map(
+	const candidates = analysis.insights.map(
 		(insight): GeneratedWebsiteInsight => ({
 			...insight,
 			id: randomUUIDv7(),
@@ -945,19 +591,73 @@ export async function generateWebsiteInsights(
 		runId: input.runId,
 	});
 
+	let chainAssignments: ChainAssignment[] = [];
+	if (saved.length > 0) {
+		try {
+			chainAssignments = await detectAndAssignChains({
+				organizationId: input.organizationId,
+			});
+		} catch (error) {
+			captureInsightsError(error, "generation.chain_detection.failed", {
+				organization_id: input.organizationId,
+				website_id: site.id,
+				run_id: input.runId,
+			});
+		}
+	}
+
+	try {
+		await resolveInsightsForWebsite({
+			organizationId: input.organizationId,
+			websiteId: site.id,
+			runId: input.runId,
+			detectedSignals: analysis.detectedSignals,
+			canRecover: analysis.hadData,
+		});
+	} catch (error) {
+		captureInsightsError(error, "generation.resolution.failed", {
+			organization_id: input.organizationId,
+			website_id: site.id,
+			run_id: input.runId,
+		});
+	}
+
 	storeWebsiteSummary(site, saved);
 
-	log.info({
-		service: "insights",
-		message: "Generated website insights",
+	const freshInsights = saved.filter((insight) => insight.isNew);
+	if (freshInsights.length > 0) {
+		try {
+			await deliverInsightDigests({
+				organizationId: input.organizationId,
+				websiteId: site.id,
+				websiteDomain: site.domain,
+				websiteName: site.name,
+				insights: freshInsights,
+				chains: chainAssignments,
+			});
+		} catch (error) {
+			captureInsightsError(error, "generation.delivery.failed", {
+				organization_id: input.organizationId,
+				website_id: site.id,
+				run_id: input.runId,
+			});
+		}
+	}
+
+	emitInsightsEvent("info", "generation.website.completed", {
 		organization_id: input.organizationId,
 		website_id: input.websiteId,
 		run_id: input.runId,
+		duration_ms: Math.round(performance.now() - startedAt),
 		result_count: saved.length,
 		reason: input.reason,
 		depth: input.config.depth,
 		model_tier: input.config.modelTier,
 		allowed_tools: input.config.allowedTools,
+	});
+	setInsightsLog({
+		generation_result_count: saved.length,
+		generation_status: saved.length > 0 ? "succeeded" : "skipped",
 	});
 
 	return saved.length > 0

@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { chQuery } from "@databuddy/db/clickhouse";
+import type { RequestLogger } from "evlog";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setAiRequestLoggerProvider } from "../lib/request-logger";
 import {
 	areQueriesCompatible,
+	buildUnionQuery,
+	executeBatch,
 	extractOuterSelectColumns,
 	getCompatibleQueries,
 	getSchemaGroups,
@@ -8,6 +13,17 @@ import {
 import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 
+vi.mock("@databuddy/db/clickhouse", () => ({
+	chQuery: vi.fn(),
+}));
+
+type MockChQuery = {
+	mockRejectedValueOnce: (value: unknown) => MockChQuery;
+	mockReset: () => void;
+	mockResolvedValueOnce: (value: Record<string, unknown>[]) => MockChQuery;
+};
+
+const mockChQuery = chQuery as unknown as MockChQuery;
 const lastSelectColumns = extractOuterSelectColumns;
 
 function compileSql(type: string): string {
@@ -22,6 +38,27 @@ function compileSql(type: string): string {
 		to: "2026-04-11",
 	}).compile().sql;
 }
+
+const singleQueryRequest = {
+	projectId: "test-website",
+	type: "top_pages",
+	from: "2026-04-01",
+	to: "2026-04-11",
+};
+
+function transientClickHouseError(): Error {
+	const cause = Object.assign(new Error("socket connection was closed"), {
+		code: "ECONNRESET",
+	});
+	const error = new Error("ClickHouse query failed");
+	(error as Error & { cause: unknown }).cause = cause;
+	return error;
+}
+
+beforeEach(() => {
+	mockChQuery.mockReset();
+	setAiRequestLoggerProvider(null);
+});
 
 describe("batch-executor schema signatures", () => {
 	const builderEntries = Object.entries(QueryBuilders);
@@ -80,6 +117,151 @@ describe("batch-executor schema signatures", () => {
 		for (const type of realtimeTypes) {
 			expect(QueryBuilders[type]?.noCache).toBe(true);
 		}
+	});
+});
+
+describe("executeBatch single query retry", () => {
+	it("retries a transient ClickHouse connection drop once and returns data", async () => {
+		mockChQuery
+			.mockRejectedValueOnce(transientClickHouseError())
+			.mockResolvedValueOnce([{ name: "/", pageviews: 2, visitors: 1 }]);
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(2);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [{ name: "/", pageviews: 2, visitors: 1 }],
+		});
+	});
+
+	it("reports the final transient error after the single retry also fails", async () => {
+		mockChQuery
+			.mockRejectedValueOnce(transientClickHouseError())
+			.mockRejectedValueOnce(
+				Object.assign(new Error("read ECONNRESET"), {
+					code: "ECONNRESET",
+				})
+			);
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(2);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [],
+			error: "read ECONNRESET",
+		});
+	});
+
+	it("does not retry non-transient query errors", async () => {
+		mockChQuery.mockRejectedValueOnce(new Error("Syntax error near SELECT"));
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [],
+			error: "Syntax error near SELECT",
+		});
+	});
+
+	it("does not retry AbortError", async () => {
+		mockChQuery.mockRejectedValueOnce(
+			Object.assign(new Error("The operation was aborted"), {
+				name: "AbortError",
+			})
+		);
+
+		const [result] = await executeBatch([singleQueryRequest]);
+
+		expect(chQuery).toHaveBeenCalledTimes(1);
+		expect(result).toEqual({
+			type: "top_pages",
+			data: [],
+			error: "The operation was aborted",
+		});
+	});
+});
+
+describe("executeBatch union fallback logging", () => {
+	it("logs batch union fallback as a warning when single queries recover", async () => {
+		const mockLogger = {
+			error: vi.fn(),
+			set: vi.fn(),
+			warn: vi.fn(),
+		} as unknown as RequestLogger;
+		setAiRequestLoggerProvider(() => mockLogger);
+		mockChQuery
+			.mockRejectedValueOnce(new Error("Union query failed"))
+			.mockResolvedValueOnce([{ name: "/", pageviews: 2, visitors: 1 }])
+			.mockResolvedValueOnce([{ name: "/pricing", pageviews: 1, visitors: 1 }]);
+
+		const results = await executeBatch([
+			{ ...singleQueryRequest, type: "top_pages" },
+			{ ...singleQueryRequest, type: "top_pages" },
+		]);
+
+		expect(chQuery).toHaveBeenCalledTimes(3);
+		expect(mockLogger.warn).toHaveBeenCalledWith(
+			"Union query failed",
+			expect.objectContaining({
+				batch_size: 2,
+				batch_types: "top_pages,top_pages",
+				operation: "batch_union",
+			})
+		);
+		expect(mockLogger.error).not.toHaveBeenCalled();
+		expect(results).toEqual([
+			{
+				type: "top_pages",
+				data: [{ name: "/", pageviews: 2, visitors: 1 }],
+			},
+			{
+				type: "top_pages",
+				data: [{ name: "/pricing", pageviews: 1, visitors: 1 }],
+			},
+		]);
+	});
+});
+
+describe("buildUnionQuery compile isolation", () => {
+	const baseRequest = {
+		projectId: "test-website",
+		from: "2026-04-01",
+		to: "2026-04-11",
+	};
+
+	it("excludes queries that fail to compile and reports them as failures", () => {
+		const { indices, failures, sql } = buildUnionQuery([
+			{ index: 0, req: { ...baseRequest, type: "top_pages" } },
+			{
+				index: 1,
+				req: {
+					...baseRequest,
+					type: "top_pages",
+					orderBy: "pageviews; DROP TABLE analytics.events",
+				},
+			},
+			{ index: 2, req: { ...baseRequest, type: "nope_not_real" } },
+		]);
+
+		expect(indices).toEqual([0]);
+		expect(sql).toContain("SELECT 0 as __query_idx");
+		expect(failures).toHaveLength(2);
+		expect(failures[0]?.error).toContain("not permitted");
+		expect(failures[1]?.error).toContain("Unknown query type");
+	});
+
+	it("returns no failures when every query compiles", () => {
+		const { indices, failures } = buildUnionQuery([
+			{ index: 0, req: { ...baseRequest, type: "top_pages" } },
+			{ index: 1, req: { ...baseRequest, type: "top_pages" } },
+		]);
+
+		expect(indices).toEqual([0, 1]);
+		expect(failures).toEqual([]);
 	});
 });
 

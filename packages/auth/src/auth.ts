@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
-import { db } from "@databuddy/db";
+import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
 import {
 	member as memberTable,
 	organization as organizationTable,
+	verification as verificationTable,
 } from "@databuddy/db/schema";
 import {
 	DeleteAccountEmail,
@@ -155,6 +156,26 @@ function notifySignUpSlackAction(input: {
 	});
 }
 
+async function purgeOutstandingResetTokens(userId: string): Promise<void> {
+	try {
+		await db
+			.delete(verificationTable)
+			.where(
+				and(
+					like(verificationTable.identifier, "reset-password:%"),
+					eq(verificationTable.value, userId)
+				)
+			);
+	} catch (error) {
+		log.error({
+			service: "auth",
+			auth_hook: "purge_reset_tokens",
+			auth_user_id: userId,
+			error: error instanceof Error ? error.message : String(error),
+		});
+	}
+}
+
 async function invalidateMemberCaches(member: {
 	organizationId: string;
 	userId: string;
@@ -172,7 +193,34 @@ async function invalidateMemberCaches(member: {
 	}
 }
 
+type AuthLogLevel = "info" | "warn" | "error" | "debug";
+
+function forwardAuthLog(
+	level: AuthLogLevel,
+	message: string,
+	...args: unknown[]
+): void {
+	const cause = args.find((arg): arg is Error => arg instanceof Error);
+	const fields = {
+		service: "auth",
+		auth_logger: message,
+		...(cause && { error: cause.message, error_stack: cause.stack }),
+	};
+	if (level === "error") {
+		log.error(fields);
+		return;
+	}
+	if (level === "warn") {
+		log.warn(fields);
+		return;
+	}
+	log.info(fields);
+}
+
 export const auth = betterAuth({
+	logger: {
+		log: forwardAuthLog,
+	},
 	database: drizzleAdapter(db, {
 		provider: "pg",
 		schema,
@@ -213,9 +261,20 @@ export const auth = betterAuth({
 			enabled: true,
 			trustedProviders: ["google", "github"],
 			allowDifferentEmails: true,
+			requireLocalEmailVerified: true,
 		},
 	},
 	databaseHooks: {
+		account: {
+			update: {
+				after: async (account) => {
+					if (account.providerId !== "credential" || !account.userId) {
+						return;
+					}
+					await purgeOutstandingResetTokens(account.userId);
+				},
+			},
+		},
 		user: {
 			create: {
 				after: async (createdUser) => {
@@ -355,6 +414,8 @@ export const auth = betterAuth({
 		google: {
 			clientId: process.env.GOOGLE_CLIENT_ID as string,
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+			accessType: "offline",
+			prompt: "select_account consent",
 		},
 		github: {
 			clientId: process.env.GITHUB_CLIENT_ID as string,
@@ -364,9 +425,13 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 		minPasswordLength: 8,
-		maxPasswordLength: 32,
+		maxPasswordLength: 128,
 		autoSignIn: false,
 		requireEmailVerification: shouldRequireEmailVerification(),
+		revokeSessionsOnPasswordReset: true,
+		onPasswordReset: async ({ user }: { user: { id: string } }) => {
+			await purgeOutstandingResetTokens(user.id);
+		},
 		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
 			const { success } = await ratelimit(`reset:${user.email}`, 3, 3600);
 			if (!success) {

@@ -35,14 +35,6 @@ export function track(
 	}
 }
 
-/** @deprecated Use `track()` instead. Will be removed in v3.0. */
-export function trackCustomEvent(
-	name: string,
-	properties?: Record<string, unknown>
-): void {
-	track(name, properties);
-}
-
 /** Reset user session — generates new anonymous and session IDs. Call after logout. */
 export function clear(): void {
 	if (typeof window === "undefined") {

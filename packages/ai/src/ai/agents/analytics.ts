@@ -1,4 +1,3 @@
-import { stepCountIs } from "ai";
 import type { AppContext } from "../config/context";
 import {
 	type AgentModelKey,
@@ -8,30 +7,9 @@ import {
 } from "../config/models";
 import { TIER_CONFIG } from "../config/tiers";
 import { buildAnalyticsInstructions } from "../prompts/analytics";
-import { createAnnotationTools } from "../tools/annotations";
-import { dashboardActionsTool } from "../tools/dashboard-actions";
-import { executeSqlQueryTool } from "../tools/execute-sql-query";
-import { createFlagTools } from "../tools/flags";
-import { createFunnelTools } from "../tools/funnels";
-import { getDataTool } from "../tools/get-data";
-import { createGoalTools } from "../tools/goals";
-import { createLinksTools } from "../tools/links";
-import { createMemoryTools } from "../tools/memory";
-import { createProfileTools } from "../tools/profiles";
+import { createToolkit } from "../tools/toolkit";
+import { stopAtMaxSteps } from "./stop-conditions";
 import type { AgentConfig, AgentContext, AgentThinking } from "./types";
-
-const analyticsTools = {
-	get_data: getDataTool,
-	execute_sql_query: executeSqlQueryTool,
-	dashboard_actions: dashboardActionsTool,
-	...createMemoryTools(),
-	...createProfileTools(),
-	...createFlagTools(),
-	...createFunnelTools(),
-	...createGoalTools(),
-	...createAnnotationTools(),
-	...createLinksTools(),
-};
 
 function thinkingProviderOptions(
 	thinking: AgentThinking | undefined,
@@ -63,6 +41,9 @@ export function createConfig(
 		userId: context.userId,
 		websiteId: context.websiteId,
 		websiteDomain: context.websiteDomain,
+		defaultWebsiteId: context.defaultWebsiteId ?? context.websiteId,
+		accessibleWebsites: context.accessibleWebsites,
+		organizationId: context.organizationId,
 		timezone: context.timezone,
 		currentDateTime: new Date().toISOString(),
 		chatId: context.chatId,
@@ -79,8 +60,19 @@ export function createConfig(
 			content: buildAnalyticsInstructions(appContext),
 			providerOptions: tier.promptCaching ? ANTHROPIC_CACHE_1H : undefined,
 		},
-		tools: analyticsTools,
-		stopWhen: stepCountIs(tier.maxSteps),
+		tools: createToolkit({
+			capabilities: [
+				"analytics",
+				"investigation",
+				"mutations",
+				"memory",
+				"dashboard",
+			],
+			domain: context.websiteDomain,
+			organizationId: context.organizationId,
+			userId: context.userId,
+		}),
+		stopWhen: stopAtMaxSteps,
 		temperature: tier.temperature,
 		providerOptions: thinkingProviderOptions(context.thinking, modelKey),
 		experimental_context: appContext,

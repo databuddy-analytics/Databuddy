@@ -21,7 +21,7 @@ const companies = [
 		name: "Autumn",
 		badge: "YC S25",
 		url: "https://useautumn.com",
-		logo: "/social/autumn.svg",
+		logo: "/social/autumn.webp",
 	},
 	{
 		name: "Better Auth",
@@ -63,7 +63,7 @@ const companies = [
 		name: "Orchid",
 		badge: "YC S25",
 		url: "https://orchid.ai",
-		logo: "/social/orchid.png",
+		logo: "/social/orchid.webp",
 	},
 ];
 

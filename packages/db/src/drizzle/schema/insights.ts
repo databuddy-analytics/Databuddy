@@ -50,6 +50,11 @@ export type InsightRunItemStatus =
 	| "failed"
 	| "skipped";
 
+export interface InsightDelivery {
+	channelId: string;
+	type: "slack";
+}
+
 export interface InsightGenerationConfigSnapshot {
 	allowedTools: InsightGenerationTool[];
 	cooldownHours: number;
@@ -75,10 +80,10 @@ export const insightGenerationConfigs = pgTable(
 			.notNull(),
 		cron: text(),
 		depth: text().$type<InsightGenerationDepth>().default("standard").notNull(),
-		maxSteps: integer("max_steps").default(24).notNull(),
-		maxToolCalls: integer("max_tool_calls").default(16).notNull(),
+		maxSteps: integer("max_steps").default(50).notNull(),
+		maxToolCalls: integer("max_tool_calls").default(50).notNull(),
 		maxInsightsPerWebsite: integer("max_insights_per_website")
-			.default(3)
+			.default(2)
 			.notNull(),
 		cooldownHours: integer("cooldown_hours").default(6).notNull(),
 		lookbackDays: integer("lookback_days").default(7).notNull(),
@@ -90,6 +95,10 @@ export const insightGenerationConfigs = pgTable(
 		allowedTools: jsonb("allowed_tools")
 			.$type<InsightGenerationTool[]>()
 			.default([...INSIGHT_GENERATION_DEFAULT_TOOLS])
+			.notNull(),
+		deliveries: jsonb("deliveries")
+			.$type<InsightDelivery[]>()
+			.default([])
 			.notNull(),
 		nextRunAt: timestamp("next_run_at", {
 			precision: 3,
@@ -123,6 +132,11 @@ export const insightGenerationConfigs = pgTable(
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
 			name: "insight_generation_configs_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId, table.websiteId],
+			foreignColumns: [websites.organizationId, websites.id],
+			name: "insight_generation_configs_org_website_fkey",
 		}).onDelete("cascade"),
 		foreignKey({
 			columns: [table.websiteId],
@@ -168,6 +182,7 @@ export const insightRuns = pgTable(
 			table.createdAt.desc()
 		),
 		index("insight_runs_status_idx").on(table.status),
+		index("insight_runs_status_updated_idx").on(table.status, table.updatedAt),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
@@ -218,6 +233,10 @@ export const insightRunItems = pgTable(
 			table.websiteId
 		),
 		index("insight_run_items_run_status_idx").on(table.runId, table.status),
+		index("insight_run_items_status_updated_idx").on(
+			table.status,
+			table.updatedAt
+		),
 		index("insight_run_items_org_website_idx").on(
 			table.organizationId,
 			table.websiteId
@@ -231,6 +250,11 @@ export const insightRunItems = pgTable(
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
 			name: "insight_run_items_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId, table.websiteId],
+			foreignColumns: [websites.organizationId, websites.id],
+			name: "insight_run_items_org_website_fkey",
 		}).onDelete("cascade"),
 		foreignKey({
 			columns: [table.websiteId],
