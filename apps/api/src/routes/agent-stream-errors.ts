@@ -5,16 +5,6 @@ export type AgentStreamRedisOperation =
 	| "clear_active_stream"
 	| "mark_stream_done";
 
-export type AgentStreamBackgroundFailure =
-	| AgentStreamRedisOperation
-	| "storage_reader";
-
-export function getAgentStreamErrorLevel(
-	failure: AgentStreamBackgroundFailure
-): "error" | "warn" {
-	return failure === "storage_reader" ? "error" : "warn";
-}
-
 export function buildAgentStreamRedisWarningPayload(
 	error: unknown,
 	operation: AgentStreamRedisOperation,

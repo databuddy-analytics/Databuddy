@@ -1,26 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	buildAgentStreamRedisWarningPayload,
-	type AgentStreamBackgroundFailure,
-	getAgentStreamErrorLevel,
-} from "./agent-stream-errors";
-
-describe("agent stream error severity", () => {
-	it.each([
-		"append_stream_chunk",
-		"clear_active_stream",
-		"mark_stream_done",
-	] satisfies AgentStreamBackgroundFailure[])(
-		"treats %s as a warning",
-		(failure) => {
-			expect(getAgentStreamErrorLevel(failure)).toBe("warn");
-		}
-	);
-
-	it("keeps broad storage reader failures as errors", () => {
-		expect(getAgentStreamErrorLevel("storage_reader")).toBe("error");
-	});
-});
+import { buildAgentStreamRedisWarningPayload } from "./agent-stream-errors";
 
 describe("buildAgentStreamRedisWarningPayload", () => {
 	it("builds a consistent warning payload for Redis side effects", () => {
