@@ -239,6 +239,34 @@ describe("supermemory containers", () => {
 		]);
 	});
 
+	test("keeps successful search results when one container fails", async () => {
+		searchHandler = async ({ containerTag }) => {
+			if (containerTag === "user:usr_1") {
+				throw new Error("legacy container unavailable");
+			}
+			return {
+				results:
+					containerTag === "user_usr_1"
+						? [{ memory: "current memory", similarity: 0.7 }]
+						: [],
+			};
+		};
+
+		const results = await searchMemories("pricing", "usr_1", null, {
+			limit: 3,
+			websiteId: "site_1",
+		});
+
+		expect(mockSearchMemories).toHaveBeenCalledTimes(4);
+		expect(results).toEqual([
+			{
+				containerTag: "user_usr_1",
+				memory: "current memory",
+				similarity: 0.7,
+			},
+		]);
+	});
+
 	test("searches anonymous website memory without anonymous container", async () => {
 		await searchMemories("pricing", null, null, {
 			limit: 3,

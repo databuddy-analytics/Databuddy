@@ -322,21 +322,26 @@ export async function searchMemories(
 		const limit = options?.limit ?? 5;
 		const results = await Promise.all(
 			containerTags.map((containerTag) =>
-				client.search.memories({
-					q: query,
-					containerTag,
-					searchMode: "hybrid",
-					limit,
-					threshold: options?.threshold ?? 0.4,
-					...(primaryTags.has(containerTag) && filters ? { filters } : {}),
-				})
+				client.search
+					.memories({
+						q: query,
+						containerTag,
+						searchMode: "hybrid",
+						limit,
+						threshold: options?.threshold ?? 0.4,
+						...(primaryTags.has(containerTag) && filters ? { filters } : {}),
+					})
+					.then((result) => ({ containerTag, result }))
+					.catch(() => null)
 			)
 		);
 
 		const deduped = new Map<string, MemorySearchResult>();
-		for (let i = 0; i < results.length; i++) {
-			const containerTag = containerTags[i] ?? "anonymous";
-			for (const r of results[i]?.results ?? []) {
+		for (const search of results) {
+			if (!search) {
+				continue;
+			}
+			for (const r of search.result?.results ?? []) {
 				const memory = r.memory ?? r.chunk ?? "";
 				if (!memory) {
 					continue;
@@ -344,7 +349,11 @@ export async function searchMemories(
 				const similarity = r.similarity;
 				const existing = deduped.get(memory);
 				if (!(existing && existing.similarity >= similarity)) {
-					deduped.set(memory, { containerTag, memory, similarity });
+					deduped.set(memory, {
+						containerTag: search.containerTag,
+						memory,
+						similarity,
+					});
 				}
 			}
 		}
