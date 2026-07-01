@@ -132,7 +132,7 @@ export default function OnboardingPage() {
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
-			router.replace(`/billing?tab=plans&plan=${pendingPlan}`);
+			router.replace(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
 		} else if (websiteId) {
 			router.replace(`/websites/${websiteId}`);
 		} else {

@@ -19,7 +19,7 @@ declare global {
 let initializedPixelId: string | null = null;
 
 export function isOpenAiAdsPixelHostAllowed(hostname: string): boolean {
-	return !["localhost", "127.0.0.1", "::1", "0.0.0.0"].includes(
+	return !["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"].includes(
 		hostname.toLowerCase()
 	);
 }

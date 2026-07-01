@@ -6,6 +6,7 @@ describe("isOpenAiAdsPixelHostAllowed", () => {
 		expect(isOpenAiAdsPixelHostAllowed("localhost")).toBe(false);
 		expect(isOpenAiAdsPixelHostAllowed("127.0.0.1")).toBe(false);
 		expect(isOpenAiAdsPixelHostAllowed("::1")).toBe(false);
+		expect(isOpenAiAdsPixelHostAllowed("[::1]")).toBe(false);
 		expect(isOpenAiAdsPixelHostAllowed("0.0.0.0")).toBe(false);
 	});
 
