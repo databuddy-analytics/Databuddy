@@ -95,7 +95,7 @@
     "@types/d3": "^7.4.3",
     "@types/d3-geo": "^3.1.0",
     "@types/mdx": "^2.0.13",
-    "@types/node": "22.15.28",
+    "@types/node": "26.0.0",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/topojson-client": "^3.1.5",
