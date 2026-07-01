@@ -36,14 +36,41 @@ export function memoryContainerTag(
 	return `${kind}_${id}`;
 }
 
+function legacyMemoryContainerTag(
+	kind: MemoryContainerKind,
+	id: string
+): string {
+	return `${kind}:${id}`;
+}
+
+function identityContainerTag(
+	userId: string | null,
+	apiKeyId: string | null
+): string | null {
+	if (userId) {
+		return memoryContainerTag("user", userId);
+	}
+	if (apiKeyId) {
+		return memoryContainerTag("apikey", apiKeyId);
+	}
+	return null;
+}
+
 function buildContainerTags(
 	userId: string | null,
 	apiKeyId: string | null,
 	websiteId?: string | null
 ): string[] {
-	const tags = [primaryContainerTag(userId, apiKeyId)];
+	const tags: string[] = [];
+	const identityTag = identityContainerTag(userId, apiKeyId);
+	if (identityTag) {
+		tags.push(identityTag);
+	}
 	if (websiteId) {
 		tags.push(memoryContainerTag("website", websiteId));
+	}
+	if (tags.length === 0) {
+		tags.push("anonymous");
 	}
 	return [...new Set(tags)];
 }
@@ -66,7 +93,16 @@ function readContainerTags(
 	apiKeyId: string | null,
 	websiteId?: string | null
 ): string[] {
-	return buildContainerTags(userId, apiKeyId, websiteId);
+	const tags = buildContainerTags(userId, apiKeyId, websiteId);
+	if (userId) {
+		tags.push(legacyMemoryContainerTag("user", userId));
+	} else if (apiKeyId) {
+		tags.push(legacyMemoryContainerTag("apikey", apiKeyId));
+	}
+	if (websiteId) {
+		tags.push(legacyMemoryContainerTag("website", websiteId));
+	}
+	return [...new Set(tags)];
 }
 
 function uniqueNonEmpty(values: string[]): string[] {
@@ -253,13 +289,17 @@ export async function searchMemories(
 		return [];
 	}
 
-	const primaryTag = primaryContainerTag(userId, apiKeyId);
-	const websiteTag = options?.websiteId
-		? memoryContainerTag("website", options.websiteId)
-		: null;
-	const containerTags = websiteTag
-		? [...new Set([primaryTag, websiteTag])]
-		: [primaryTag];
+	const containerTags = readContainerTags(userId, apiKeyId, options?.websiteId);
+	const primaryTags = new Set<string>();
+	if (userId) {
+		primaryTags.add(memoryContainerTag("user", userId));
+		primaryTags.add(legacyMemoryContainerTag("user", userId));
+	} else if (apiKeyId) {
+		primaryTags.add(memoryContainerTag("apikey", apiKeyId));
+		primaryTags.add(legacyMemoryContainerTag("apikey", apiKeyId));
+	} else if (!options?.websiteId) {
+		primaryTags.add("anonymous");
+	}
 
 	const filters = options?.websiteId
 		? {
@@ -288,14 +328,14 @@ export async function searchMemories(
 					searchMode: "hybrid",
 					limit,
 					threshold: options?.threshold ?? 0.4,
-					...(containerTag === primaryTag && filters ? { filters } : {}),
+					...(primaryTags.has(containerTag) && filters ? { filters } : {}),
 				})
 			)
 		);
 
 		const deduped = new Map<string, MemorySearchResult>();
 		for (let i = 0; i < results.length; i++) {
-			const containerTag = containerTags[i] ?? primaryTag;
+			const containerTag = containerTags[i] ?? "anonymous";
 			for (const r of results[i]?.results ?? []) {
 				const memory = r.memory ?? r.chunk ?? "";
 				if (!memory) {

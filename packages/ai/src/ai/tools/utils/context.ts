@@ -17,6 +17,10 @@ export interface ResolvedWebsite {
 	websiteId: string;
 }
 
+function normalizeDomain(value?: string | null): string | null {
+	return value?.trim().toLowerCase() || null;
+}
+
 export function resolveToolWebsite(
 	ctx: AppContext,
 	inputWebsiteId?: string | null
@@ -37,15 +41,20 @@ export function resolveToolWebsite(
 
 		// Fall back to domain-name lookup — the AI sometimes passes the site's
 		// domain (e.g. "finvzo.com") instead of its UUID.
-		const byDomain = accessible.find(
-			(w) => w.domain != null && w.domain === inputWebsiteId
-		);
+		const inputDomain = normalizeDomain(inputWebsiteId);
+		const byDomain = inputDomain
+			? accessible.find((w) => normalizeDomain(w.domain) === inputDomain)
+			: undefined;
 		if (byDomain) {
 			return { websiteId: byDomain.id, domain: byDomain.domain ?? undefined };
 		}
 
 		// Also handle single-site context where the domain is on ctx directly.
-		if (ctx.websiteDomain === inputWebsiteId && ctx.websiteId) {
+		if (
+			inputDomain &&
+			normalizeDomain(ctx.websiteDomain) === inputDomain &&
+			ctx.websiteId
+		) {
 			return { websiteId: ctx.websiteId, domain: ctx.websiteDomain };
 		}
 

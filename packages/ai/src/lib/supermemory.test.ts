@@ -108,7 +108,23 @@ describe("supermemory containers", () => {
 		);
 	});
 
-	test("loads memory context from primary and website containers", async () => {
+	test("stores website-scoped anonymous conversation memory without anonymous container", () => {
+		storeConversation(
+			[{ role: "user", content: "Watch pricing conversion" }],
+			null,
+			null,
+			{ websiteId: "site_1" }
+		);
+
+		expect(mockAdd).toHaveBeenCalledWith(
+			expect.objectContaining({
+				containerTags: ["website_site_1"],
+				metadata: expect.objectContaining({ websiteId: "site_1" }),
+			})
+		);
+	});
+
+	test("loads memory context from current and legacy containers", async () => {
 		profileHandler = async ({ containerTag }) => ({
 			profile: {
 				dynamic: [`dynamic:${containerTag}`],
@@ -123,26 +139,55 @@ describe("supermemory containers", () => {
 			websiteId: "site_1",
 		});
 
-		expect(mockProfile).toHaveBeenCalledTimes(2);
+		expect(mockProfile).toHaveBeenCalledTimes(4);
 		expect(mockProfile.mock.calls.map(([input]) => input.containerTag)).toEqual([
 			"user_usr_1",
 			"website_site_1",
+			"user:usr_1",
+			"website:site_1",
 		]);
 		expect(context.staticProfile).toEqual([
 			"static:user_usr_1",
 			"static:website_site_1",
+			"static:user:usr_1",
+			"static:website:site_1",
 		]);
 		expect(context.dynamicProfile).toEqual([
 			"dynamic:user_usr_1",
 			"dynamic:website_site_1",
+			"dynamic:user:usr_1",
+			"dynamic:website:site_1",
 		]);
 		expect(context.relevantMemories).toEqual([
 			"memory:user_usr_1",
 			"memory:website_site_1",
+			"memory:user:usr_1",
+			"memory:website:site_1",
 		]);
 	});
 
-	test("searches primary and website containers with source tags", async () => {
+	test("loads anonymous website memory context without anonymous container", async () => {
+		profileHandler = async ({ containerTag }) => ({
+			profile: {
+				dynamic: [`dynamic:${containerTag}`],
+				static: [`static:${containerTag}`],
+			},
+			searchResults: {
+				results: [{ memory: `memory:${containerTag}` }],
+			},
+		});
+
+		await getMemoryContext("pricing", null, null, {
+			websiteId: "site_1",
+		});
+
+		expect(mockProfile.mock.calls.map(([input]) => input.containerTag)).toEqual([
+			"website_site_1",
+			"website:site_1",
+		]);
+	});
+
+	test("searches current and legacy containers with source tags", async () => {
 		searchHandler = async ({ containerTag }) => ({
 			results:
 				containerTag === "website_site_1"
@@ -150,10 +195,12 @@ describe("supermemory containers", () => {
 							{ memory: "website summary", similarity: 0.9 },
 							{ memory: "shared memory", similarity: 0.8 },
 						]
-					: [
-							{ memory: "primary memory", similarity: 0.5 },
-							{ memory: "shared memory", similarity: 0.2 },
-						],
+					: containerTag === "user_usr_1"
+						? [
+								{ memory: "primary memory", similarity: 0.5 },
+								{ memory: "shared memory", similarity: 0.2 },
+							]
+						: [],
 		});
 
 		const results = await searchMemories("pricing", "usr_1", null, {
@@ -161,7 +208,7 @@ describe("supermemory containers", () => {
 			websiteId: "site_1",
 		});
 
-		expect(mockSearchMemories).toHaveBeenCalledTimes(2);
+		expect(mockSearchMemories).toHaveBeenCalledTimes(4);
 		expect(
 			mockSearchMemories.mock.calls.map(([input]) => ({
 				containerTag: input.containerTag,
@@ -170,6 +217,8 @@ describe("supermemory containers", () => {
 		).toEqual([
 			{ containerTag: "user_usr_1", hasFilters: true },
 			{ containerTag: "website_site_1", hasFilters: false },
+			{ containerTag: "user:usr_1", hasFilters: true },
+			{ containerTag: "website:site_1", hasFilters: false },
 		]);
 		expect(results).toEqual([
 			{
@@ -188,5 +237,16 @@ describe("supermemory containers", () => {
 				similarity: 0.5,
 			},
 		]);
+	});
+
+	test("searches anonymous website memory without anonymous container", async () => {
+		await searchMemories("pricing", null, null, {
+			limit: 3,
+			websiteId: "site_1",
+		});
+
+		expect(
+			mockSearchMemories.mock.calls.map(([input]) => input.containerTag)
+		).toEqual(["website_site_1", "website:site_1"]);
 	});
 });
