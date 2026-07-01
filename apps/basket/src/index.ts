@@ -7,6 +7,7 @@ import {
 } from "@lib/evlog-basket";
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
+import { getRedisCache } from "@databuddy/redis/redis";
 import { disconnect, disposeRuntime, runPromise } from "@lib/producer";
 import { Kafka } from "kafkajs";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
@@ -130,10 +131,16 @@ const app = new Elysia()
 			}
 		}
 
-		const [clickhouse, redpanda] = await Promise.all([
+		const [clickhouse, redis, redpanda] = await Promise.all([
 			ping("clickhouse", async () => {
 				const { success } = await clickHouse.ping();
 				if (!success) {
+					throw new Error("ping failed");
+				}
+			}),
+			ping("redis", async () => {
+				const result = await getRedisCache().ping();
+				if (result !== "PONG") {
 					throw new Error("ping failed");
 				}
 			}),
@@ -165,7 +172,7 @@ const app = new Elysia()
 			}),
 		]);
 
-		const services = { clickhouse, redpanda };
+		const services = { clickhouse, redis, redpanda };
 		const status = Object.values(services).every((s) => s.status === "ok")
 			? "ok"
 			: "degraded";

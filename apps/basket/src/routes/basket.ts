@@ -408,7 +408,13 @@ const app = new Elysia()
 					throw createIngestSchemaValidationError(parseResult.error.issues);
 				}
 
-				insertTrackEvent(parseResult.data, clientId, userAgent, ip, request);
+				await insertTrackEvent(
+					parseResult.data,
+					clientId,
+					userAgent,
+					ip,
+					request
+				);
 				return Response.json({ status: "success", type: "track" });
 			}
 
@@ -434,7 +440,7 @@ const app = new Elysia()
 					throw createIngestSchemaValidationError(parseResult.error.issues);
 				}
 
-				insertOutgoingLink(parseResult.data, clientId, request);
+				await insertOutgoingLink(parseResult.data, clientId, request);
 				return Response.json({ status: "success", type: "outgoing_link" });
 			}
 
