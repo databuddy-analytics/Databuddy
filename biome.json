@@ -8,6 +8,7 @@
   "files": {
     "includes": [
       "!**/*.md",
+      "!**/*.svg",
       "!**/*.test.ts",
       "!**/*.spec.ts",
       "!**/ui/**/*.tsx",
@@ -51,7 +52,8 @@
   "assist": {
     "actions": {
       "source": {
-        "organizeImports": "off"
+        "organizeImports": "off",
+        "useSortedAttributes": "off"
       }
     }
   },
@@ -62,15 +64,18 @@
         "noExplicitAny": "off",
         "noEmptyBlockStatements": "off",
         "noArrayIndexKey": "off",
-        "noDocumentCookie": "off"
+        "noDocumentCookie": "off",
+        "noShadow": "off"
       },
       "style": {
         "noNestedTernary": "off",
         "useFilenamingConvention": "off",
-        "noMagicNumbers": "off"
+        "noMagicNumbers": "off",
+        "useReadonlyClassProperties": "off"
       },
       "complexity": {
-        "noExcessiveCognitiveComplexity": "off"
+        "noExcessiveCognitiveComplexity": "off",
+        "useOptionalChain": "off"
       },
       "performance": {
         "noImgElement": "off",
@@ -78,9 +83,6 @@
       },
       "correctness": {
         "useExhaustiveDependencies": "off"
-      },
-      "nursery": {
-        "noShadow": "off"
       },
       "a11y": {
         "noStaticElementInteractions": "off"
