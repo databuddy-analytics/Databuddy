@@ -32,7 +32,7 @@ jobs:
     outputs:
       services: ${{ steps.detect.outputs.services }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
         with:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -111,7 +111,7 @@ jobs:
             description: "Databuddy Uptime service - availability monitoring"
 
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
       - name: Mount Docker build cache
         uses: useblacksmith/stickydisk@41873b1513bb679f9c115504cbd13d3660432504 # v1
