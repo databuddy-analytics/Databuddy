@@ -81,7 +81,7 @@
   },
   "devDependencies": {
     "@types/bun": "catalog:",
-    "@types/node": "^24.12.2",
+    "@types/node": "^26.0.0",
     "typescript": "catalog:",
     "vitest": "^4.1.5"
   },
