@@ -46,7 +46,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@radix-ui/react-use-controllable-state": "^1.2.2",
     "@shikijs/transformers": "^3.23.0",
-    "@usenotra/sdk": "^0.0.6",
+    "@usenotra/sdk": "^1.2.2",
     "botid": "^1.5.11",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
