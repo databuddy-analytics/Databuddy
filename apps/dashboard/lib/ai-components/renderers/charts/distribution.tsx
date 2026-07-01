@@ -122,7 +122,6 @@ export function DistributionRenderer({
 								<ResponsiveContainer height={PLOT_HEIGHT} width="100%">
 									<PieChart>
 										<Pie
-											activeIndex={activeIndex}
 											activeShape={renderActiveShape as never}
 											cx="50%"
 											cy="50%"
@@ -142,6 +141,13 @@ export function DistributionRenderer({
 													key={entry.name}
 													stroke="var(--background)"
 													strokeWidth={2}
+													style={{
+														opacity:
+															activeIndex === -1 || activeIndex === index
+																? 1
+																: 0.5,
+														transition: "opacity 150ms ease-out",
+													}}
 												/>
 											))}
 										</Pie>
