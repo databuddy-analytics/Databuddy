@@ -65,6 +65,10 @@ export function resolveTransitionKind(
 	return null;
 }
 
+export function countFiredAlarms(deliveryCounts: number[]): number {
+	return deliveryCounts.filter((count) => count > 0).length;
+}
+
 function buildSiteLabel(schedule: ScheduleData): string {
 	const w = schedule.website;
 	if (w?.name) {
@@ -357,7 +361,7 @@ const handleTransition = (options: {
 			{ concurrency: "unbounded" }
 		);
 
-		const fired = results.reduce((total, count) => total + count, 0);
+		const fired = countFiredAlarms(results);
 		return { alarms_fired: fired, transition_kind: kind };
 	});
 
