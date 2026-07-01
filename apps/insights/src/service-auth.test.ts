@@ -14,14 +14,13 @@ const { createInsightsServiceAuth, INSIGHTS_SERVICE_AUTH_SCOPES } = await import
 );
 
 describe("createInsightsServiceAuth", () => {
-	it("grants read data and website management scopes to insights agents", () => {
+	it("delegates to service auth with read-only scopes", () => {
 		const auth = createInsightsServiceAuth("org_1");
 
 		expect(auth.apiKey?.organizationId).toBe("org_1");
-		expect(auth.apiKey?.scopes).toEqual(["read:data", "manage:websites"]);
-		expect(INSIGHTS_SERVICE_AUTH_SCOPES).toEqual([
-			"read:data",
-			"manage:websites",
-		]);
+		expect(auth.apiKey?.scopes).toEqual(["read:data"]);
+		expect(INSIGHTS_SERVICE_AUTH_SCOPES).toEqual(["read:data"]);
+		expect(mockCreateServiceAuth).toHaveBeenCalledTimes(1);
+		expect(mockCreateServiceAuth).toHaveBeenCalledWith("org_1", ["read:data"]);
 	});
 });
