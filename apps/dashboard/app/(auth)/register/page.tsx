@@ -2,7 +2,6 @@
 
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -34,7 +33,6 @@ import {
 } from "@databuddy/ui";
 
 function RegisterPageContent() {
-	const router = useRouter();
 	const [selectedPlan] = useQueryState("plan", parseAsString);
 	const [callback] = useQueryState(
 		"callback",
@@ -51,7 +49,7 @@ function RegisterPageContent() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [registrationStep, setRegistrationStep] = useState<
-		"form" | "success" | "verification-needed"
+		"form" | "verification-needed"
 	>("form");
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,9 +115,6 @@ function RegisterPageContent() {
 						"Account created! Please check your email to verify your account."
 					);
 					setRegistrationStep("verification-needed");
-					if (selectedPlan) {
-						localStorage.setItem("pendingPlanSelection", selectedPlan);
-					}
 				},
 			},
 		});
@@ -208,18 +203,6 @@ function RegisterPageContent() {
 						</Text>
 					</>
 				);
-			case "success":
-				return (
-					<>
-						<Text as="h1" className="text-balance font-medium text-2xl">
-							Success!
-						</Text>
-						<Text tone="muted">
-							Your account has been created successfully. You can now sign in to
-							access your dashboard.
-						</Text>
-					</>
-				);
 			default:
 				return (
 					<>
@@ -255,13 +238,6 @@ function RegisterPageContent() {
 				<span className="sm:hidden">Back</span>
 			</Button>
 		</div>
-	);
-
-	const renderSuccessContent = () => (
-		<Button className="w-full" onClick={() => router.push("/login")} size="lg">
-			<span className="hidden sm:inline">Continue to login</span>
-			<span className="sm:hidden">Continue</span>
-		</Button>
 	);
 
 	const renderFormContent = () => (
@@ -459,8 +435,6 @@ function RegisterPageContent() {
 		switch (registrationStep) {
 			case "verification-needed":
 				return renderVerificationContent();
-			case "success":
-				return renderSuccessContent();
 			default:
 				return renderFormContent();
 		}

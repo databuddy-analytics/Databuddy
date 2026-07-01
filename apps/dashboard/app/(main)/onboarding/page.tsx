@@ -52,7 +52,7 @@ export default function OnboardingPage() {
 	const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
 
 	const hasWebsite = websites && websites.length > 0;
-	const websiteId = createdWebsiteId ?? websites?.[0]?.id ?? "";
+	const websiteId = createdWebsiteId ?? websites?.[0]?.id ?? null;
 
 	// Update URL and track step views
 	useEffect(() => {
@@ -133,8 +133,10 @@ export default function OnboardingPage() {
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
 			router.replace(`/billing?tab=plans&plan=${pendingPlan}`);
-		} else {
+		} else if (websiteId) {
 			router.replace(`/websites/${websiteId}`);
+		} else {
+			router.replace("/websites");
 		}
 	}, [markComplete, router, websiteId]);
 
