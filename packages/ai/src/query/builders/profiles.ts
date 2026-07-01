@@ -1,4 +1,5 @@
 import { Analytics } from "../../types/tables";
+import { isFilterFieldAllowed } from "../simple-builder";
 import { FilterOperators, type Filter, type SimpleQueryConfig } from "../types";
 
 const PROFILE_SORT_FIELDS: Record<string, string> = {
@@ -27,6 +28,13 @@ const PROFILE_AGGREGATE_FILTER_OPERATORS = new Set<Filter["op"]>([
 ]);
 
 const SUBQUERY_FILTER_FIELDS = new Set(["event_name"]);
+const PROFILE_LIST_ALLOWED_FILTERS = [
+	...PROFILE_AGGREGATE_FILTER_FIELDS,
+	"event_name",
+];
+const PROFILE_LIST_FILTER_CONFIG: SimpleQueryConfig = {
+	allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
+};
 
 function resolveProfileSort(orderBy?: string): string {
 	if (!orderBy) {
@@ -59,7 +67,11 @@ function separateProfileFilters(
 	const params = { ...filterParams };
 	const filtersForConditions = (filters ?? [])
 		.map((filter, index) => ({ filter, index }))
-		.filter(({ filter }) => !(filter.target || filter.having));
+		.filter(
+			({ filter }) =>
+				!(filter.target || filter.having) &&
+				isFilterFieldAllowed(PROFILE_LIST_FILTER_CONFIG, filter.field)
+		);
 
 	for (let i = 0; i < (filterConditions || []).length; i++) {
 		const matchedFilter = filtersForConditions[i];
@@ -213,7 +225,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 			category: "Profiles",
 			tags: ["profiles", "users", "identified"],
 		},
-		allowedFilters: [...PROFILE_AGGREGATE_FILTER_FIELDS, "event_name"],
+		allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
 		customSql: (ctx) => {
 			const {
 				websiteId,

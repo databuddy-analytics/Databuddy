@@ -549,6 +549,28 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toEqual([1, 2]);
 	});
 
+	it("keeps profile_list aggregate filters aligned after skipped unsupported filters", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [
+					{ field: "href", op: "eq", value: "https://example.com" },
+					{ field: "session_count", op: "eq", value: 5 },
+				],
+				type: "profile_list",
+			})
+		).compile();
+
+		expect(sql).toContain("HAVING session_count = {f1:Float64}");
+		expect(sql).not.toContain("AND session_count = {f1:String}");
+		expect(params.f1).toBe(5);
+	});
+
 	it("rejects text operators for profile_list aggregate filters", () => {
 		const config = QueryBuilders.profile_list;
 		if (!config) {
