@@ -1105,7 +1105,6 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						const [forClient, forStorage] = injectedStream.tee();
 						(async () => {
 							const reader = forStorage.getReader();
-							let streamBufferWriteFailed = false;
 							try {
 								while (true) {
 									const { done, value } = await reader.read();
@@ -1116,7 +1115,6 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 										try {
 											await appendStreamChunk(streamKey, value);
 										} catch (persistError) {
-											streamBufferWriteFailed = true;
 											warnAgentStreamRedisSideEffect(
 												persistError,
 												"append_stream_chunk",
@@ -1131,19 +1129,17 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 								}
 							} finally {
 								reader.releaseLock();
-								if (!streamBufferWriteFailed) {
-									try {
-										await markStreamDone(streamKey);
-									} catch (cleanupError) {
-										warnAgentStreamRedisSideEffect(
-											cleanupError,
-											"mark_stream_done",
-											{
-												chatId,
-												websiteId: defaultWebsiteId,
-											}
-										);
-									}
+								try {
+									await markStreamDone(streamKey);
+								} catch (cleanupError) {
+									warnAgentStreamRedisSideEffect(
+										cleanupError,
+										"mark_stream_done",
+										{
+											chatId,
+											websiteId: defaultWebsiteId,
+										}
+									);
 								}
 							}
 						})().catch((storageError) => {
