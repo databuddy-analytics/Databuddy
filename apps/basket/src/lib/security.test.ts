@@ -116,9 +116,10 @@ describe("visitor ID anonymization helpers", () => {
 
 // ── checkDuplicate (needs Redis mock) ──
 
-const { mockRedisSet, mockLoggerSet } = vi.hoisted(() => ({
+const { mockRedisSet, mockLoggerSet, mockCaptureError } = vi.hoisted(() => ({
 	mockRedisSet: vi.fn(() => Promise.resolve("OK")),
 	mockLoggerSet: vi.fn(() => {}),
+	mockCaptureError: vi.fn(),
 }));
 
 vi.mock("@databuddy/redis/redis", () => ({
@@ -136,13 +137,14 @@ vi.mock("evlog/elysia", () => ({
 vi.mock("@lib/tracing", () => ({
 	record: (_name: string, fn: () => Promise<any>) =>
 		Promise.resolve().then(() => fn()),
-	captureError: vi.fn(),
+	captureError: mockCaptureError,
 }));
 
 describe("checkDuplicate", () => {
 	beforeEach(() => {
 		mockRedisSet.mockReset();
 		mockLoggerSet.mockReset();
+		mockCaptureError.mockReset();
 	});
 
 	test("first event (NX returns OK) → not duplicate", async () => {
@@ -200,10 +202,24 @@ describe("checkDuplicate", () => {
 		);
 	});
 
+	test("transient Redis error → retries once before failing open", async () => {
+		mockRedisSet
+			.mockRejectedValueOnce(new Error("stale connection"))
+			.mockResolvedValueOnce("OK");
+
+		const result = await checkDuplicate("evt_1", "track");
+
+		expect(result).toBe(false);
+		expect(mockRedisSet).toHaveBeenCalledTimes(2);
+		expect(mockCaptureError).not.toHaveBeenCalled();
+	});
+
 	test("Redis error → returns false (fail-open)", async () => {
 		mockRedisSet.mockRejectedValue(new Error("Redis down"));
 		const result = await checkDuplicate("evt_1", "track");
 		expect(result).toBe(false);
+		expect(mockRedisSet).toHaveBeenCalledTimes(2);
+		expect(mockCaptureError).toHaveBeenCalledOnce();
 	});
 
 	test("duplicate event logs dedup context", async () => {
