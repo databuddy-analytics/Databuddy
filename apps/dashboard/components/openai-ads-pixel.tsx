@@ -18,6 +18,12 @@ declare global {
 
 let initializedPixelId: string | null = null;
 
+export function isOpenAiAdsPixelHostAllowed(hostname: string): boolean {
+	return !["localhost", "127.0.0.1", "::1", "0.0.0.0"].includes(
+		hostname.toLowerCase()
+	);
+}
+
 function createOpenAiQueue(): OpenAiAdsQueue {
 	const queuedCalls: unknown[][] = [];
 	return Object.assign(
@@ -29,7 +35,11 @@ function createOpenAiQueue(): OpenAiAdsQueue {
 }
 
 function initOpenAiQueue(): boolean {
-	if (typeof window === "undefined" || !PIXEL_ID) {
+	if (
+		typeof window === "undefined" ||
+		!PIXEL_ID ||
+		!isOpenAiAdsPixelHostAllowed(window.location.hostname)
+	) {
 		return false;
 	}
 
