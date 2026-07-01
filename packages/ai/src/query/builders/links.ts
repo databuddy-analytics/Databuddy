@@ -4,6 +4,69 @@ import type { SimpleQueryConfig } from "../types";
 
 // Link Shortener Query Builders
 
+const OUTBOUND_LINK_CONTEXT_CTES = `
+	WITH session_dimensions AS (
+		SELECT
+			client_id,
+			session_id,
+			argMinIf(path, time, event_name = 'screen_view' AND ifNull(path, '') != '') as path,
+			argMinIf(url, time, event_name = 'screen_view' AND ifNull(url, '') != '') as url,
+			argMinIf(referrer, time, ifNull(referrer, '') != '') as referrer,
+			argMinIf(country, time, ifNull(country, '') != '') as country,
+			argMinIf(region, time, ifNull(region, '') != '') as region,
+			argMinIf(city, time, ifNull(city, '') != '') as city,
+			argMinIf(timezone, time, ifNull(timezone, '') != '') as timezone,
+			argMinIf(language, time, ifNull(language, '') != '') as language,
+			argMinIf(device_type, time, ifNull(device_type, '') != '') as device_type,
+			argMinIf(browser_name, time, ifNull(browser_name, '') != '') as browser_name,
+			argMinIf(os_name, time, ifNull(os_name, '') != '') as os_name,
+			argMinIf(utm_source, time, ifNull(utm_source, '') != '') as utm_source,
+			argMinIf(utm_medium, time, ifNull(utm_medium, '') != '') as utm_medium,
+			argMinIf(utm_campaign, time, ifNull(utm_campaign, '') != '') as utm_campaign
+		FROM analytics.events
+		WHERE
+			client_id = {websiteId:String}
+			AND time >= toDateTime({startDate:String})
+			AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+			AND session_id != ''
+		GROUP BY client_id, session_id
+	),
+	outgoing_with_context AS (
+		SELECT
+			ol.*,
+			sd.path,
+			sd.url,
+			sd.referrer,
+			sd.country,
+			sd.region,
+			sd.city,
+			sd.timezone,
+			sd.language,
+			sd.device_type,
+			sd.browser_name,
+			sd.os_name,
+			sd.utm_source,
+			sd.utm_medium,
+			sd.utm_campaign
+		FROM analytics.outgoing_links ol
+		LEFT JOIN session_dimensions sd
+			ON sd.client_id = ol.client_id
+			AND sd.session_id = ol.session_id
+		WHERE
+			ol.client_id = {websiteId:String}
+			AND ol.timestamp >= toDateTime({startDate:String})
+			AND ol.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+			AND ol.href != ''
+			AND ol.href NOT LIKE '%undefined%'
+			AND ol.href NOT LIKE '%null%'
+			AND length(ol.href) > 7
+			AND ol.href LIKE 'http%'
+			AND position('.' IN ol.href) > 0
+			AND ol.text != 'undefined'
+			AND ol.text != 'null'
+	)
+`;
+
 export const LinkShortenerBuilders: Record<string, SimpleQueryConfig> = {
 	link_total_clicks: {
 		meta: {
@@ -470,55 +533,28 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 
 			return {
 				sql: `
-					WITH enriched_links AS (
-						SELECT
-							ol.href,
-							ol.text,
-							ol.anonymous_id,
-							ol.session_id,
-							ol.timestamp,
-							-- Get context from events table using session_id
-							e.path,
-							e.country,
-							e.device_type,
-							e.browser_name,
-							e.os_name,
-							e.referrer,
-							e.utm_source,
-							e.utm_medium,
-							e.utm_campaign
-						FROM analytics.outgoing_links ol
-						LEFT JOIN analytics.events e ON (
-							ol.session_id = e.session_id
-							AND ol.client_id = e.client_id
-							AND abs(dateDiff('second', ol.timestamp, e.time)) < 60
-						)
-						WHERE
-							ol.client_id = {websiteId:String}
-							AND ol.timestamp >= toDateTime({startDate:String})
-							AND ol.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-							AND ol.href IS NOT NULL
-							AND ol.href != ''
-							AND ol.href NOT LIKE '%undefined%'
-							AND ol.href NOT LIKE '%null%'
-							AND length(ol.href) > 7
-							AND ol.href LIKE 'http%'
-							AND position('.' IN ol.href) > 0
-							AND ol.text != 'undefined'
-							AND ol.text != 'null'
-							AND length(trim(ol.text)) >= 0
-							${filterClause}
-					)
+					${OUTBOUND_LINK_CONTEXT_CTES}
 					SELECT
 						href,
 						text,
-						COUNT(*) as total_clicks,
-						COUNT(DISTINCT anonymous_id) as unique_users,
-						COUNT(DISTINCT session_id) as unique_sessions,
-						ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage,
-						MAX(timestamp) as last_clicked
-					FROM enriched_links
-					GROUP BY href, text
+						total_clicks,
+						unique_users,
+						unique_sessions,
+						ROUND(total_clicks / sum(total_clicks) OVER () * 100, 2) as percentage,
+						last_clicked
+					FROM (
+						SELECT
+							href,
+							text,
+							count() as total_clicks,
+							uniq(anonymous_id) as unique_users,
+							uniq(session_id) as unique_sessions,
+							max(timestamp) as last_clicked
+						FROM outgoing_with_context
+						WHERE 1 = 1
+							${filterClause}
+						GROUP BY href, text
+					)
 					ORDER BY total_clicks DESC
 					LIMIT {limit:UInt32}
 				`,
@@ -532,22 +568,7 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: [
-			"path",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"client_id",
-			"anonymous_id",
-			"session_id",
-			"href",
-			"text",
-		],
+		allowedFilters: ["client_id", "anonymous_id", "session_id", "href", "text"],
 		customizable: true,
 	},
 
@@ -605,53 +626,24 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 
 			return {
 				sql: `
-					WITH enriched_links AS (
-						SELECT
-							ol.href,
-							ol.text,
-							ol.anonymous_id,
-							ol.session_id,
-							ol.timestamp,
-							-- Get context from events table using session_id
-							e.path,
-							e.country,
-							e.device_type,
-							e.browser_name,
-							e.os_name,
-							e.referrer,
-							e.utm_source,
-							e.utm_medium,
-							e.utm_campaign
-						FROM analytics.outgoing_links ol
-						LEFT JOIN analytics.events e ON (
-							ol.session_id = e.session_id
-							AND ol.client_id = e.client_id
-							AND abs(dateDiff('second', ol.timestamp, e.time)) < 60
-						)
-						WHERE
-							ol.client_id = {websiteId:String}
-							AND ol.timestamp >= toDateTime({startDate:String})
-							AND ol.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-							AND ol.href IS NOT NULL
-							AND ol.href != ''
-							AND ol.href NOT LIKE '%undefined%'
-							AND ol.href NOT LIKE '%null%'
-							AND length(ol.href) > 7
-							AND ol.href LIKE 'http%'
-							AND position('.' IN ol.href) > 0
-							AND ol.text != 'undefined'
-							AND ol.text != 'null'
-							AND length(trim(ol.text)) >= 0
-							${filterClause}
-					)
+					${OUTBOUND_LINK_CONTEXT_CTES}
 					SELECT
-						domain(href) as domain,
-						COUNT(*) as total_clicks,
-						COUNT(DISTINCT anonymous_id) as unique_users,
-						COUNT(DISTINCT href) as unique_links,
-						ROUND((COUNT(*) / SUM(COUNT(*)) OVER()) * 100, 2) as percentage
-					FROM enriched_links
-					GROUP BY domain(href)
+						domain,
+						total_clicks,
+						unique_users,
+						unique_links,
+						ROUND(total_clicks / sum(total_clicks) OVER () * 100, 2) as percentage
+					FROM (
+						SELECT
+							domain(href) as domain,
+							count() as total_clicks,
+							uniq(anonymous_id) as unique_users,
+							uniq(href) as unique_links
+						FROM outgoing_with_context
+						WHERE 1 = 1
+							${filterClause}
+						GROUP BY domain(href)
+					)
 					ORDER BY total_clicks DESC
 					LIMIT {limit:UInt32}
 				`,
@@ -665,22 +657,7 @@ export const LinksBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: [
-			"path",
-			"country",
-			"device_type",
-			"browser_name",
-			"os_name",
-			"referrer",
-			"utm_source",
-			"utm_medium",
-			"utm_campaign",
-			"client_id",
-			"anonymous_id",
-			"session_id",
-			"href",
-			"text",
-		],
+		allowedFilters: ["client_id", "anonymous_id", "session_id", "href", "text"],
 		customizable: true,
 	},
 };

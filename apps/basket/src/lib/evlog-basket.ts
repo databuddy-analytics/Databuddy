@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readBooleanEnv } from "@databuddy/env/boolean";
+import { createBatchedSuperlogDrain } from "@databuddy/shared/evlog-superlog";
 import type { DrainContext, EnrichContext } from "evlog";
 import { createAxiomDrain } from "evlog/axiom";
 import {
@@ -11,17 +12,12 @@ import {
 import { createFsDrain } from "evlog/fs";
 import { createDrainPipeline } from "evlog/pipeline";
 
-const pipeline = createDrainPipeline<DrainContext>({
+const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 	batch: { size: 50, intervalMs: 5000 },
 	maxBufferSize: 2000,
-});
+})(createAxiomDrain());
 
-const axiomDrain = createAxiomDrain();
-
-/**
- * Batched Axiom drain; call {@link flushBatchedAxiomDrain} on shutdown.
- */
-const batchedAxiomDrain = pipeline(axiomDrain);
+const batchedSuperlogDrain = createBatchedSuperlogDrain();
 
 const devFsLogsDir = join(
 	dirname(fileURLToPath(import.meta.url)),
@@ -40,9 +36,6 @@ const devFsDrain = useLocalEvlogFiles
 
 const DURATION_MS_REGEX = /^([\d.]+)(ms|s)$/;
 
-/**
- * Before Axiom: fix `error` string vs object collision; downgrade 4xx to warn.
- */
 function normalizeWideEventForAxiom(event: Record<string, unknown>): void {
 	if (typeof event.error === "string") {
 		event.error_message = event.error;
@@ -78,10 +71,6 @@ function parseDurationMs(duration: unknown): number | undefined {
 		: Math.round(Number.parseFloat(match[1]));
 }
 
-/**
- * In development, writes NDJSON wide events to `apps/basket/.evlog/logs/` (analyze-logs skill)
- * and still sends to Axiom via the batched pipeline. Production: Axiom only.
- */
 export async function basketLoggerDrain(ctx: DrainContext): Promise<void> {
 	if (ctx.event.method === "OPTIONS") {
 		return;
@@ -98,6 +87,7 @@ export async function basketLoggerDrain(ctx: DrainContext): Promise<void> {
 		await devFsDrain(ctx);
 	}
 	batchedAxiomDrain(ctx);
+	batchedSuperlogDrain?.(ctx);
 }
 
 const enrichers = [
@@ -113,5 +103,5 @@ export function enrichBasketWideEvent(ctx: EnrichContext): void {
 }
 
 export async function flushBatchedAxiomDrain(): Promise<void> {
-	await batchedAxiomDrain.flush();
+	await Promise.all([batchedAxiomDrain.flush(), batchedSuperlogDrain?.flush()]);
 }

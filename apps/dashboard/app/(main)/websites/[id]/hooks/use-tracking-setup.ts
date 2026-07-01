@@ -17,8 +17,12 @@ export function useTrackingSetup(websiteId: string) {
 	} = useQuery({
 		...orpc.websites.isTrackingSetup.queryOptions({ input: { websiteId } }),
 		enabled: !!websiteId && !isDemoRoute,
-		staleTime: (query) =>
-			query.state.data?.tracking_setup ? Number.POSITIVE_INFINITY : 0,
+		staleTime: (query) => {
+			if (query.state.data?.tracking_issue) {
+				return 30_000;
+			}
+			return query.state.data?.tracking_setup ? 5 * 60_000 : 0;
+		},
 		gcTime: 30 * 60 * 1000,
 	});
 
@@ -30,6 +34,10 @@ export function useTrackingSetup(websiteId: string) {
 		isTrackingSetup: isDemoRoute ? true : isTrackingSetup,
 		isTrackingSetupLoading: isDemoRoute ? false : isTrackingSetupLoading,
 		isTrackingSetupError: isDemoRoute ? false : isTrackingSetupError,
+		trackingIssue: isDemoRoute
+			? null
+			: (trackingSetupData?.tracking_issue ?? null),
+		trackingSetupData: isDemoRoute ? undefined : trackingSetupData,
 		trackingSetupError: isDemoRoute ? undefined : trackingSetupError,
 		refetchTrackingSetup,
 	};

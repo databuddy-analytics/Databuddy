@@ -4,12 +4,14 @@ import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
 import {
 	forgetMemory,
 	isMemoryEnabled,
+	primaryContainerTag,
 	sanitizeMemoryContent,
 	saveCuratedMemory,
 	searchMemories,
 } from "../../lib/supermemory";
 import { executeBatch } from "../../query";
 import { isAiGatewayConfigured } from "../config/models";
+import { summarizeDigestConfig } from "../tools/digest-summary";
 import { callRPCProcedure } from "../tools/utils";
 import {
 	LinkFolderSelectorSchema,
@@ -37,6 +39,7 @@ import {
 	type RegisteredMcpTool,
 } from "./define-tool";
 import { INSIGHT_TOOL_FACTORIES } from "./insights-tools";
+import { investigateTool } from "./investigate";
 import {
 	buildBatchQueryRequests,
 	FilterSchema,
@@ -55,6 +58,7 @@ import {
 	buildRpcContext,
 	getCachedAccessibleWebsites,
 	getOrganizationId,
+	resolveOrganizationIds,
 } from "./tool-context";
 import { createToolRegistry } from "./registry";
 
@@ -436,12 +440,11 @@ const getDataTool = defineMcpTool(
 			);
 		}
 
-		const buildResult = buildBatchQueryRequests(items, websiteId, timezone);
-		if ("error" in buildResult) {
-			throw new McpToolError("invalid_input", buildResult.error);
-		}
-		const requests = buildResult.requests;
-		const isBatch = requests.length > 1;
+		const { requests, invalid } = buildBatchQueryRequests(
+			items,
+			websiteId,
+			timezone
+		);
 
 		// ctx.websiteDomain is guaranteed set by defineMcpTool when resolveWebsite is true
 		const websiteDomain = ctx.websiteDomain ?? "unknown";
@@ -450,19 +453,31 @@ const getDataTool = defineMcpTool(
 			timezone,
 		});
 
-		if (isBatch) {
-			return {
-				batch: true,
-				results: results.map((r) => ({
-					type: r.type,
-					data: r.data,
-					rowCount: r.data.length,
-					...(r.error && { error: r.error }),
-				})),
-			};
+		const merged: Array<{
+			data: unknown[];
+			error?: string;
+			rowCount: number;
+			type: string;
+		}> = [
+			...results.map((r) => ({
+				type: r.type,
+				data: r.data,
+				rowCount: r.data.length,
+				...(r.error && { error: r.error }),
+			})),
+			...invalid.map((q) => ({
+				type: q.type,
+				data: [] as unknown[],
+				rowCount: 0,
+				error: q.error,
+			})),
+		];
+
+		if (items.length > 1) {
+			return { batch: true, results: merged };
 		}
 
-		const first = results[0];
+		const first = merged[0];
 		if (!first) {
 			throw new McpToolError("internal", "No results returned");
 		}
@@ -542,19 +557,9 @@ const CAPABILITY_DEFAULTS: readonly CapabilitySection[] = [
 ];
 
 const HINTS: readonly string[] = [
-	"For a deeper reference (workflow + footguns), read the databuddy://guide MCP resource",
-	"Every tool that takes a website accepts websiteId, websiteName, or websiteDomain — pass one. No need to call list_websites first if you already know the name or domain.",
-	"get_data batch: pass queries array (2-10 items, each with type + preset or from/to). Single: type + preset OR from+to. Defaults to last_7d.",
-	"capabilities is filterable: include=['hints'] for just hints, category='errors' to filter queryTypes, detail='full' for allowedFilters",
-	"get_schema is sectionable: sections=['events'] + includeExamples=false for the smallest useful payload",
-	"Errors: errors_by_type groups by JS class (TypeError, …); error_types groups by error message. Both return count + users. Use errors_by_type for triage.",
-	"summarize_insights with no websiteId returns ORG-WIDE counts + per-site breakdown. Set includeDetail=true for description/suggestion on top priorities.",
-	"compare_metric accepts 'metrics' (array) to batch multiple metrics in a single pair of DB queries",
-	"detect_anomalies runs BOTH z-score (spikes) and week-over-week (gradual drops) by default; use method='wow' for trend-only",
-	"top_movers supports minDeltaPercent to drop small changes, and direction='up'|'down'|'both'",
-	"list_insights supports 'ids' for direct drill-down and 'fields' to slim the response",
-	"Workspace mutations use confirmed=false for preview and confirmed=true only after explicit user approval.",
-	"Custom events discovery: get_data type=custom_events lists event names with counts. Then filter [{field:'event_name',op:'eq',value:'…'}] or [{field:'property_key',op:'eq',value:'…'}].",
+	"For a deeper reference (workflow + footguns), read the databuddy://guide MCP resource.",
+	"capabilities is filterable: include=['queryTypes'] to fetch the heavy catalog, category='Errors' or contains='vital' to narrow, detail='full' for allowedFilters.",
+	"get_schema is sectionable: sections=['events'] + includeExamples=false for the smallest useful payload.",
 ];
 
 const capabilitiesTool = defineMcpTool(
@@ -1522,6 +1527,119 @@ const addUsersToFlagTool = defineMcpTool(
 	}
 );
 
+const DigestFrequencySchema = z.enum(["hourly", "daily", "weekly"]);
+
+const manageInsightDigestTool = defineMcpTool(
+	{
+		name: "manage_insight_digest",
+		description:
+			"Route, stop, or inspect Slack delivery of analytics insight digests. action=route sends digests to a channel, unroute stops it, status shows current routing.",
+		inputSchema: z.object({
+			...WebsiteSelectorSchema,
+			action: z
+				.enum(["route", "unroute", "status"])
+				.describe("route to a channel, unroute to stop, or status to inspect"),
+			channelId: z
+				.string()
+				.min(1)
+				.max(120)
+				.optional()
+				.describe("Slack channel ID. Required for route and unroute."),
+			frequency: DigestFrequencySchema.optional().describe(
+				"How often investigations run for this scope. Applied on route."
+			),
+			confirmed: ConfirmedSchema,
+		}),
+		outputSchema: MutationResultSchema,
+		resolveWebsite: "optional",
+		metadata: writeMetadata(["manage:websites"]),
+		ratelimit: { limit: 20, windowSec: 60 },
+	},
+	async (input, ctx) => {
+		const websiteId = ctx.websiteId;
+		const orgIds = await resolveOrganizationIds(websiteId, ctx);
+		if (orgIds instanceof Error) {
+			throw new McpToolError("not_found", orgIds.message);
+		}
+		const organizationId = orgIds[0];
+		const rpcContext = buildRpcContext(ctx);
+		const scopeInput = { organizationId, websiteId: websiteId ?? undefined };
+
+		if (input.action === "status") {
+			const config = await callRPCProcedure(
+				"insightGeneration",
+				"getConfig",
+				scopeInput,
+				rpcContext
+			);
+			const summary = summarizeDigestConfig(config);
+			return {
+				success: true,
+				message:
+					summary.channels.length > 0
+						? `Digest goes to ${summary.channels.length} Slack channel${summary.channels.length === 1 ? "" : "s"} on a ${summary.frequency} cadence.`
+						: "No Slack digest delivery is configured for this scope.",
+				digest: summary,
+			};
+		}
+
+		if (!input.channelId) {
+			throw new McpToolError(
+				"invalid_input",
+				"channelId is required to route or unroute a digest."
+			);
+		}
+
+		if (!input.confirmed) {
+			return {
+				preview: true,
+				confirmationRequired: true,
+				message:
+					input.action === "route"
+						? `Route insight digests to this Slack channel${input.frequency ? ` on a ${input.frequency} cadence` : ""}?`
+						: "Stop routing insight digests to this Slack channel?",
+				digest: {
+					action: input.action,
+					channelId: input.channelId,
+					frequency: input.frequency ?? null,
+					scope: websiteId ? "website" : "organization",
+				},
+			};
+		}
+
+		if (input.action === "unroute") {
+			const config = await callRPCProcedure(
+				"insightGeneration",
+				"removeSlackDelivery",
+				{ ...scopeInput, channelId: input.channelId },
+				rpcContext
+			);
+			return {
+				success: true,
+				message: "Stopped routing insight digests to this Slack channel.",
+				digest: summarizeDigestConfig(config),
+			};
+		}
+
+		const config = await callRPCProcedure(
+			"insightGeneration",
+			"addSlackDelivery",
+			{
+				...scopeInput,
+				channelId: input.channelId,
+				frequency: input.frequency,
+			},
+			rpcContext
+		);
+		const summary = summarizeDigestConfig(config);
+		return {
+			success: true,
+			message: `Insight digests will be delivered to this Slack channel on a ${summary.frequency} cadence.`,
+			digest: summary,
+		};
+	}
+);
+
 const searchMemoryTool = defineMcpTool(
 	{
 		name: "search_memory",
@@ -1560,6 +1678,7 @@ const searchMemoryTool = defineMcpTool(
 		const results = await searchMemories(input.query, ctx.userId, apiKeyId, {
 			limit: input.limit ?? 5,
 			threshold: 0.4,
+			websiteId: ctx.websiteId,
 		});
 		if (results.length === 0) {
 			return { found: false, message: "No relevant memories found." };
@@ -1599,6 +1718,7 @@ const saveMemoryTool = defineMcpTool(
 		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;
 		saveCuratedMemory(input.content, ctx.userId, apiKeyId, {
 			category: input.category ?? "insight",
+			websiteId: ctx.websiteId,
 		});
 		return { queued: true };
 	}
@@ -1626,6 +1746,7 @@ const forgetMemoryTool = defineMcpTool(
 		const results = await searchMemories(input.query, ctx.userId, apiKeyId, {
 			limit: 1,
 			threshold: 0.3,
+			websiteId: ctx.websiteId,
 		});
 		if (results.length === 0 || !results[0]) {
 			return {
@@ -1633,11 +1754,8 @@ const forgetMemoryTool = defineMcpTool(
 				message: "No matching memory found to forget.",
 			};
 		}
-		const containerTag = ctx.userId
-			? `user:${ctx.userId}`
-			: apiKeyId
-				? `apikey:${apiKeyId}`
-				: "anonymous";
+		const containerTag =
+			results[0].containerTag ?? primaryContainerTag(ctx.userId, apiKeyId);
 		const result = await forgetMemory(containerTag, results[0].memory);
 		return {
 			forgotten: result.success,
@@ -1649,7 +1767,7 @@ const forgetMemoryTool = defineMcpTool(
 );
 
 const TOOL_REGISTRY = createToolRegistry([
-	...(isAiGatewayConfigured ? [askTool] : []),
+	...(isAiGatewayConfigured ? [askTool, investigateTool] : []),
 	listWebsitesTool,
 	getDataTool,
 	getSchemaTool,
@@ -1670,6 +1788,7 @@ const TOOL_REGISTRY = createToolRegistry([
 	createFlagTool,
 	updateFlagTool,
 	addUsersToFlagTool,
+	manageInsightDigestTool,
 	...INSIGHT_TOOL_FACTORIES,
 	...(MEMORY_ENABLED
 		? [searchMemoryTool, saveMemoryTool, forgetMemoryTool]

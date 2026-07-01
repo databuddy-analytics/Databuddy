@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { createRedisConnectionOptions, getRedisUrl } from "./redis-options";
 
 let redisInstance: Redis | null = null;
 
@@ -20,28 +21,21 @@ export function getRedisCache() {
 		return redisInstance;
 	}
 
-	const url = process.env.REDIS_URL;
-	if (!url) {
-		throw new Error("REDIS_URL environment variable is required");
-	}
+	const instance = new Redis(getRedisUrl(), createRedisConnectionOptions());
+	redisInstance = instance;
 
-	redisInstance = new Redis(url, {
-		connectTimeout: 10_000,
-		commandTimeout: 5000,
-		retryStrategy: (times) => {
-			if (times > 20) {
-				return null;
-			}
-			return Math.min(times * 100, 3000);
-		},
-		maxRetriesPerRequest: 3,
+	instance.on("error", (error) => {
+		console.error("[redis] client error:", error);
 	});
-
-	redisInstance.on("error", () => {});
+	instance.on("end", () => {
+		if (redisInstance === instance) {
+			redisInstance = null;
+		}
+	});
 	process.on("SIGTERM", shutdownRedis);
 	process.on("SIGINT", shutdownRedis);
 
-	return redisInstance;
+	return instance;
 }
 
 export const redis = new Proxy({} as Redis, {

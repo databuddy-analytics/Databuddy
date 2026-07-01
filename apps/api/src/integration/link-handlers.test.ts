@@ -155,7 +155,7 @@ describe("links.create", () => {
 
 		const result = await call(
 			appRouter.links.create,
-			apiKeyContext(org.id, ["manage:config", "write:links"]),
+			apiKeyContext(org.id, ["write:links"]),
 		)({
 			name: "API Link",
 			targetUrl: "https://example.com",
@@ -186,7 +186,7 @@ describe("links.create", () => {
 		await expectCode(
 			call(
 				appRouter.links.create,
-				apiKeyContext(org.id, ["manage:config", "write:links"]),
+				apiKeyContext(org.id, ["write:links"]),
 			)({
 				name: "No Owner",
 				targetUrl: "https://example.com",
@@ -196,14 +196,14 @@ describe("links.create", () => {
 		);
 	});
 
-	iit("allows API key with read:data + read:links to list", async () => {
+	iit("allows API key with read:links alone to list", async () => {
 		const org = await insertOrganization();
 		const owner = await signUp();
 		await addToOrganization(owner.id, org.id, "owner");
 
 		const result = await call(
 			appRouter.links.list,
-			apiKeyContext(org.id, ["read:data", "read:links"]),
+			apiKeyContext(org.id, ["read:links"]),
 		)({ organizationId: org.id });
 
 		expect(result).toEqual([]);

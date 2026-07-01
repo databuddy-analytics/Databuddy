@@ -37,8 +37,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth ELSE NULL END), 1) as avg_scroll_depth",
-			"COUNT(DISTINCT session_id) as total_sessions",
-			"COUNT(DISTINCT anonymous_id) as visitors",
+			"uniq(session_id) as total_sessions",
+			"uniq(anonymous_id) as visitors",
 		],
 		where: ["event_name = 'page_exit'", "scroll_depth > 0"],
 		timeField: "time",
@@ -92,10 +92,10 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 				"WHEN scroll_depth < 100 THEN '75-100%' " +
 				"ELSE '100%' " +
 				"END as depth_range",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"COUNT(DISTINCT session_id) as sessions",
-			"ROUND((COUNT(DISTINCT session_id) / SUM(COUNT(DISTINCT session_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
+			"uniq(session_id) as sessions",
 		],
+		percentageOf: { of: "sessions" },
 		where: ["event_name = 'page_exit'", "scroll_depth > 0"],
 		groupBy: ["depth_range"],
 		orderBy:
@@ -152,8 +152,8 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"trimRight(path(path), '/') as name",
 			"ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth ELSE NULL END), 1) as avg_scroll_depth",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"COUNT(DISTINCT session_id) as sessions",
+			"uniq(anonymous_id) as visitors",
+			"uniq(session_id) as sessions",
 			"COUNT(*) as pageviews",
 		],
 		where: ["event_name = 'page_exit'", "path != ''", "scroll_depth > 0"],
@@ -213,9 +213,9 @@ export const EngagementBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"ROUND(AVG(CASE WHEN interaction_count >= 0 THEN interaction_count ELSE NULL END), 1) as avg_interactions",
-			"COUNT(DISTINCT CASE WHEN interaction_count > 0 THEN session_id ELSE NULL END) as interactive_sessions",
-			"ROUND((COUNT(DISTINCT CASE WHEN interaction_count > 0 THEN session_id ELSE NULL END) / COUNT(DISTINCT session_id)) * 100, 1) as interaction_rate",
-			"COUNT(DISTINCT session_id) as total_sessions",
+			"uniqIf(session_id, interaction_count > 0) as interactive_sessions",
+			"ROUND((uniqIf(session_id, interaction_count > 0) / uniq(session_id)) * 100, 1) as interaction_rate",
+			"uniq(session_id) as total_sessions",
 		],
 		where: ["event_name = 'screen_view'", "interaction_count >= 0"],
 		timeField: "time",

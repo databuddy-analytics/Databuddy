@@ -296,6 +296,15 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 	});
 
 	const isSetup = Boolean(trackingSetupData?.tracking_setup);
+	const trackingIssue = trackingSetupData?.tracking_issue ?? null;
+	const statusIsHealthy = isSetup && !trackingIssue;
+	const statusTitle = trackingIssue
+		? "Tracking Issue Detected"
+		: isSetup
+			? "Tracking Active"
+			: "Awaiting Installation";
+	const statusDescription =
+		trackingIssue?.message ?? trackingSetupData?.status_message;
 
 	const handleCopy = (code: string, blockId: string, message: string) => {
 		navigator.clipboard.writeText(code);
@@ -308,7 +317,9 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 		setIsRefreshing(true);
 		try {
 			const result = await refetchTrackingSetup();
-			if (result.data?.tracking_setup) {
+			if (result.data?.tracking_issue) {
+				toast.warning(result.data.tracking_issue.message);
+			} else if (result.data?.tracking_setup) {
 				toast.success("Tracking verified! Data is flowing.");
 			} else {
 				toast.info("No tracking detected yet. Check your installation.");
@@ -324,27 +335,41 @@ export function WebsiteTrackingSetupTab({ websiteId }: TrackingSetupTabProps) {
 		<div className="space-y-6">
 			<div
 				className={cn(
-					"flex items-center justify-between rounded-lg border p-3",
-					isSetup
+					"flex items-center justify-between gap-3 rounded-lg border p-3",
+					statusIsHealthy
 						? "border-success/30 bg-success/5"
 						: "border-amber-500/30 bg-amber-500/5"
 				)}
 			>
-				<div className="flex items-center gap-2.5">
-					{isSetup ? (
-						<PulseIcon className="size-4 text-success" weight="duotone" />
+				<div className="flex min-w-0 items-start gap-2.5">
+					{statusIsHealthy ? (
+						<PulseIcon
+							className="mt-0.5 size-4 text-success"
+							weight="duotone"
+						/>
 					) : (
 						<WarningCircleIcon
-							className="size-4 text-amber-500"
+							className="mt-0.5 size-4 text-amber-500"
 							weight="duotone"
 						/>
 					)}
-					<span className="font-medium text-sm">
-						{isSetup ? "Tracking Active" : "Awaiting Installation"}
-					</span>
-					<Badge variant={isSetup ? "success" : "warning"}>
-						{isSetup ? "Live" : "Pending"}
-					</Badge>
+					<div className="min-w-0 space-y-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<span className="font-medium text-sm">{statusTitle}</span>
+							<Badge variant={statusIsHealthy ? "success" : "warning"}>
+								{statusIsHealthy
+									? "Live"
+									: trackingIssue
+										? "Blocked"
+										: "Pending"}
+							</Badge>
+						</div>
+						{statusDescription ? (
+							<p className="text-muted-foreground text-xs leading-relaxed">
+								{statusDescription}
+							</p>
+						) : null}
+					</div>
 				</div>
 				<Button
 					disabled={isRefreshing}

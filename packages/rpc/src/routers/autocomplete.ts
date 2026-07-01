@@ -4,7 +4,7 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
 import { publicProcedure } from "../orpc";
-import { withWorkspace } from "../procedures/with-workspace";
+import { withPublicWorkspace } from "../procedures/with-workspace";
 import { scopedCacheKey } from "../utils/scoped-cache-key";
 
 const drizzleCache = createDrizzleCache({ redis, namespace: "autocomplete" });
@@ -163,10 +163,9 @@ export const autocompleteRouter = {
 		)
 		.output(autocompleteOutputSchema)
 		.handler(async ({ context, input }) => {
-			const workspace = await withWorkspace(context, {
+			const workspace = await withPublicWorkspace(context, {
 				websiteId: input.websiteId,
 				permissions: ["read"],
-				allowPublicAccess: true,
 			});
 
 			const { startDate, endDate } =

@@ -26,7 +26,7 @@ function directionFromParts(
 	return "flat";
 }
 
-/** Matches server `insightDedupeKey` in apps/api/src/routes/insights.ts */
+/** Matches server `insightDedupeKey` in @databuddy/ai/insights/dedupe. */
 export function insightSignalDedupeKey(insight: {
 	websiteId: string;
 	type: InsightType;

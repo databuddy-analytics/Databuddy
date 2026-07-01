@@ -9,6 +9,7 @@ import { feedbackRouter } from "./routers/feedback";
 import { flagsRouter } from "./routers/flags";
 import { funnelsRouter } from "./routers/funnels";
 import { goalsRouter } from "./routers/goals";
+import { insightGenerationRouter } from "./routers/insight-generation";
 import { insightsRouter } from "./routers/insights";
 import { integrationsRouter } from "./routers/integrations";
 import { linkFoldersRouter } from "./routers/link-folders";
@@ -36,6 +37,7 @@ export const appRouter = {
 	integrations: integrationsRouter,
 	feedback: feedbackRouter,
 	flags: flagsRouter,
+	insightGeneration: insightGenerationRouter,
 	insights: insightsRouter,
 	targetGroups: targetGroupsRouter,
 	organizations: organizationsRouter,

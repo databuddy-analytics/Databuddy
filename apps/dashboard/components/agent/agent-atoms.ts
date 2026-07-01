@@ -3,6 +3,14 @@ import { atomWithStorage } from "jotai/utils";
 
 export const agentInputAtom = atom("");
 
+export interface AgentMention {
+	domain?: string;
+	id: string;
+	label: string;
+}
+
+export const agentMentionsAtom = atom<AgentMention[]>([]);
+
 export type AgentThinking = "off" | "low" | "medium" | "high";
 export type AgentTier = "quick" | "balanced" | "deep";
 

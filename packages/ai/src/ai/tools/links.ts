@@ -385,7 +385,7 @@ export function createLinksTools() {
 					return {
 						preview: true,
 						message:
-							"⚠️ Are you sure you want to delete this link? This cannot be undone.",
+							"Are you sure you want to delete this link? This cannot be undone.",
 						link: {
 							name: link.name,
 							slug: link.slug,

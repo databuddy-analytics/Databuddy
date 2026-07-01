@@ -136,6 +136,12 @@ jobs:
         env:
           NODE_ENV: test
         run: bun run test
+      - name: Insights integration
+        env:
+          NODE_ENV: test
+          INSIGHTS_INTEGRATION_TESTS: "true"
+          BULLMQ_REDIS_URL: redis://localhost:6379/4
+        run: bun run --cwd apps/insights test:integration
       - name: Uptime router integration
         env:
           NODE_ENV: test

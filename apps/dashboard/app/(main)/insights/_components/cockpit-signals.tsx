@@ -50,8 +50,10 @@ function sortInsights(items: Insight[], mode: SortMode): Insight[] {
 			return sorted.sort((a, b) => b.priority - a.priority);
 		case "newest":
 			return sorted.sort((a, b) => {
-				const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-				const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+				const aSource = a.resolvedAt ?? a.createdAt;
+				const bSource = b.resolvedAt ?? b.createdAt;
+				const aTime = aSource ? new Date(aSource).getTime() : 0;
+				const bTime = bSource ? new Date(bSource).getTime() : 0;
 				return bTime - aTime;
 			});
 		case "change":
@@ -139,6 +141,7 @@ export function CockpitSignals(): ReactElement {
 			critical: insights.filter((i) => i.severity === "critical").length,
 			warning: insights.filter((i) => i.severity === "warning").length,
 			info: insights.filter((i) => i.severity === "info").length,
+			resolved: insights.filter((i) => i.status === "resolved").length,
 		}),
 		[insights]
 	);
@@ -215,6 +218,12 @@ export function CockpitSignals(): ReactElement {
 					<span className="text-muted-foreground text-xs tabular-nums">
 						{visibleCount} of {insights.length}{" "}
 						{insights.length === 1 ? "signal" : "signals"}
+						{counts.resolved > 0 && (
+							<span className="text-emerald-600">
+								{" "}
+								&middot; {counts.resolved} resolved
+							</span>
+						)}
 					</span>
 				)}
 			</Card.Header>

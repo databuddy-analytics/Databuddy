@@ -121,6 +121,7 @@ export async function fetchRecentInsights(
 				and(
 					eq(analyticsInsights.organizationId, organizationId),
 					eq(analyticsInsights.websiteId, websiteId),
+					eq(analyticsInsights.status, "open"),
 					gte(analyticsInsights.createdAt, fourteenDaysAgo)
 				)
 			)

@@ -1,6 +1,6 @@
 import { and, db, desc, eq, gte, isNull, lte, or } from "@databuddy/db";
 import { flagChangeEvents } from "@databuddy/db/schema";
-import type { AppContext } from "../config/context";
+import { type AppContext, requireWebsiteId } from "../config/context";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
@@ -24,16 +24,17 @@ export async function fetchFlagChangeContext(
 	limit: number
 ) {
 	const { start, end } = getRangeBounds(range, appContext.timezone);
+	const websiteId = requireWebsiteId(appContext);
 
 	const scopeCondition = appContext.organizationId
 		? or(
-				eq(flagChangeEvents.websiteId, appContext.websiteId),
+				eq(flagChangeEvents.websiteId, websiteId),
 				and(
 					eq(flagChangeEvents.organizationId, appContext.organizationId),
 					isNull(flagChangeEvents.websiteId)
 				)
 			)
-		: eq(flagChangeEvents.websiteId, appContext.websiteId);
+		: eq(flagChangeEvents.websiteId, websiteId);
 
 	const rows = await db
 		.select({

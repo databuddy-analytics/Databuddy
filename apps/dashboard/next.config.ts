@@ -94,6 +94,7 @@ const nextConfig: NextConfig = {
 			"'self'",
 			"'unsafe-inline'",
 			isDev && "'unsafe-eval'",
+			"'wasm-unsafe-eval'",
 			"https://cdn.databuddy.cc"
 		);
 
@@ -126,20 +127,6 @@ const nextConfig: NextConfig = {
 		];
 
 		return [
-			{
-				source: "/status/:path*",
-				headers: [
-					...securityHeaders,
-					{
-						key: "Cache-Control",
-						value: "public, s-maxage=60, stale-while-revalidate=300",
-					},
-					{
-						key: "Content-Security-Policy",
-						value: cspDirectives.join("; "),
-					},
-				],
-			},
 			{
 				source: "/demo/:path*",
 				headers: [

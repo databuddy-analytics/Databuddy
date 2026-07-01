@@ -28,6 +28,7 @@ export const feedbackStatus = pgEnum("feedback_status", [
 export const insightFeedbackVoteEnum = pgEnum("insight_feedback_vote", [
 	"up",
 	"down",
+	"dismissed",
 ]);
 
 export const feedback = pgTable(

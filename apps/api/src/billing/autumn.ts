@@ -48,69 +48,64 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 	}
 
 	const text = await request.text();
-	if (!text) {
-		return new Request(request.url, request);
-	}
-
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(text);
-	} catch {
-		return new Request(request.url, {
-			method: request.method,
-			headers: request.headers,
-			body: text,
-		});
+	let body: string | null = text || null;
+	if (text) {
+		try {
+			body = JSON.stringify(sanitize(JSON.parse(text)));
+		} catch {
+			body = text;
+		}
 	}
 
 	return new Request(request.url, {
 		method: request.method,
 		headers: request.headers,
-		body: JSON.stringify(sanitize(parsed)),
+		body,
 	});
 }
 
+const autumn = autumnHandler({ identify: identifyAutumnCustomer });
+
 export async function handleAutumnRequest(request: Request) {
 	const sanitized = await stripPrivilegedBody(request);
-	return autumnHandler({
-		identify: identifyAutumnCustomer,
-	})(withAutumnApiPath(sanitized));
+	return autumn(withAutumnApiPath(sanitized));
+}
+
+async function loadSession(request: Request) {
+	try {
+		return await auth.api.getSession({ headers: request.headers });
+	} catch (error) {
+		const err = error instanceof Error ? error : new Error(String(error));
+		useLogger().error(err, {
+			autumn: "identify",
+			autumn_stage: "getSession",
+		});
+		throw err;
+	}
 }
 
 async function identifyAutumnCustomer(request: Request) {
-	try {
-		const session = await auth.api.getSession({ headers: request.headers });
-		if (!session?.user) {
-			return null;
-		}
-
-		const activeOrgId = (
-			session.session as { activeOrganizationId?: string | null }
-		)?.activeOrganizationId;
-
-		if (activeOrgId) {
-			const role = await getMemberRole(session.user.id, activeOrgId);
-			if (role !== "owner" && role !== "admin") {
-				return null;
-			}
-		}
-
-		const customerId = await getBillingCustomerId(session.user.id, activeOrgId);
-
-		return {
-			customerId,
-			customerData: {
-				name: session.user.name,
-				email: session.user.email,
-			},
-		};
-	} catch (error) {
-		useLogger().error(
-			error instanceof Error ? error : new Error(String(error)),
-			{
-				autumn: "identify",
-			}
-		);
+	const session = await loadSession(request);
+	if (!session?.user) {
 		return null;
 	}
+
+	const activeOrgId = session.session.activeOrganizationId ?? null;
+
+	if (activeOrgId) {
+		const role = await getMemberRole(session.user.id, activeOrgId);
+		if (role !== "owner" && role !== "admin") {
+			return null;
+		}
+	}
+
+	const customerId = await getBillingCustomerId(session.user.id, activeOrgId);
+
+	return {
+		customerId,
+		customerData: {
+			name: session.user.name,
+			email: session.user.email,
+		},
+	};
 }

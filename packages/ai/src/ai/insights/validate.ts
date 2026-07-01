@@ -1,9 +1,5 @@
 import type { ParsedInsight } from "../schemas/smart-insights-output";
 
-type InsightType = ParsedInsight["type"];
-type InsightSentiment = ParsedInsight["sentiment"];
-type InsightMetric = ParsedInsight["metrics"][number];
-
 export interface InsightValidationResult {
 	insight: ParsedInsight | null;
 	warnings: string[];
@@ -16,7 +12,6 @@ export interface InsightsValidationResult {
 
 const LOWER_IS_BETTER_PATTERNS = [
 	/error/,
-	/errors/,
 	/affected users/,
 	/bounce/,
 	/drop[ -]?off/,
@@ -43,7 +38,9 @@ const SIGNED_UP_NUMBER = /(^|\s)\+\s?\d/;
 const ACTION_VERB_PATTERN =
 	/\b(inspect|review|compare|segment|drill|open|fix|audit|trace|check|verify|validate|filter|investigate|rollback|hotfix|profile|diagnose)\b/i;
 const GENERIC_MONITORING_PATTERN =
-	/\b(monitor|keep an eye|watch this|track closely|continue tracking)\b/i;
+	/\b(monitor|keep an eye|watch this|track closely|continue tracking|worth watching|worth monitoring)\b/i;
+const HEDGING_TITLE_PATTERN =
+	/\b(softened|concerning|slightly|somewhat|may be|could be|appears to|seems to|shows signs|worth watching|potentially)\b/i;
 const HARD_CAUSALITY_PATTERN = /\b(caused by|because of|due to|driven by)\b/i;
 const ATTRIBUTION_CONTEXT_PATTERN =
 	/\b(referrer|source|utm|campaign|channel|twitter|google|bing|toolfolio)\b/i;
@@ -52,14 +49,28 @@ const BUSINESS_CLAIM_PATTERN =
 const TECHNICAL_TITLE_JARGON_PATTERN = /\b(INP|LCP|FCP|TTFB|CLS|p75)\b/i;
 
 const MAX_TITLE_CHARS = 80;
-const MAX_DESCRIPTION_CHARS = 320;
-const MAX_SUGGESTION_CHARS = 260;
+const MAX_DESCRIPTION_CHARS = 300;
+const MAX_SUGGESTION_CHARS = 300;
+
+function truncateAtSentence(text: string, maxLength: number): string {
+	if (text.length <= maxLength) {
+		return text;
+	}
+	const truncated = text.slice(0, maxLength);
+	const lastPeriod = truncated.lastIndexOf(". ");
+	const lastSemicolon = truncated.lastIndexOf("; ");
+	const cut = Math.max(lastPeriod, lastSemicolon);
+	if (cut > maxLength * 0.5) {
+		return text.slice(0, cut + 1).trim();
+	}
+	return text.slice(0, maxLength - 1).trim();
+}
 
 function roundPercent(value: number): number {
 	return Math.round(value * 10) / 10;
 }
 
-function metricChange(metric: InsightMetric): number | null {
+function metricChange(metric: ParsedInsight["metrics"][number]): number | null {
 	if (metric.previous === undefined || metric.previous === 0) {
 		return null;
 	}
@@ -71,7 +82,9 @@ function isLowerBetterMetric(label: string): boolean {
 	return LOWER_IS_BETTER_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-function sentimentForPrimaryMetric(metric: InsightMetric): InsightSentiment {
+function sentimentForPrimaryMetric(
+	metric: ParsedInsight["metrics"][number]
+): ParsedInsight["sentiment"] {
 	const change = metricChange(metric);
 	if (change === null || Math.abs(change) < 0.05) {
 		return "neutral";
@@ -80,22 +93,24 @@ function sentimentForPrimaryMetric(metric: InsightMetric): InsightSentiment {
 	return improved ? "positive" : "negative";
 }
 
+const SENTIMENT_DIVERGENCE_TYPES = new Set([
+	"conversion_leak",
+	"funnel_regression",
+	"channel_concentration",
+	"quality_shift",
+	"cross_property_dependency",
+	"referrer_change",
+	"engagement_change",
+]);
+
 function allowsSentimentDivergence(insight: ParsedInsight): boolean {
-	return [
-		"conversion_leak",
-		"funnel_regression",
-		"channel_concentration",
-		"quality_shift",
-		"cross_property_dependency",
-		"referrer_change",
-		"engagement_change",
-	].includes(insight.type);
+	return SENTIMENT_DIVERGENCE_TYPES.has(insight.type);
 }
 
 function typeForDirection(
-	type: InsightType,
-	sentiment: InsightSentiment
-): InsightType {
+	type: ParsedInsight["type"],
+	sentiment: ParsedInsight["sentiment"]
+): ParsedInsight["type"] {
 	if (sentiment !== "positive") {
 		return type;
 	}
@@ -218,18 +233,45 @@ export function validateInsight(input: ParsedInsight): InsightValidationResult {
 		};
 	}
 
-	if (
-		insight.title.length > MAX_TITLE_CHARS ||
-		insight.description.length > MAX_DESCRIPTION_CHARS ||
-		insight.suggestion.length > MAX_SUGGESTION_CHARS
-	) {
+	if (HEDGING_TITLE_PATTERN.test(insight.title)) {
 		return {
 			insight: null,
 			warnings: [
 				...warnings,
-				`${insight.title}: dropped because insight copy is too verbose`,
+				`${insight.title}: dropped because title uses hedging language`,
 			],
 		};
+	}
+
+	if (insight.title.length > MAX_TITLE_CHARS) {
+		return {
+			insight: null,
+			warnings: [
+				...warnings,
+				`${insight.title}: dropped because title exceeds ${MAX_TITLE_CHARS} chars`,
+			],
+		};
+	}
+
+	if (
+		insight.description.length > MAX_DESCRIPTION_CHARS ||
+		insight.suggestion.length > MAX_SUGGESTION_CHARS
+	) {
+		const trimmed = {
+			...insight,
+			description: truncateAtSentence(
+				insight.description,
+				MAX_DESCRIPTION_CHARS
+			),
+			suggestion: truncateAtSentence(insight.suggestion, MAX_SUGGESTION_CHARS),
+		};
+		if (
+			trimmed.description !== insight.description ||
+			trimmed.suggestion !== insight.suggestion
+		) {
+			warnings.push(`${insight.title}: truncated copy to fit limits`);
+		}
+		insight = trimmed;
 	}
 
 	if (
@@ -271,6 +313,45 @@ export function validateInsight(input: ParsedInsight): InsightValidationResult {
 				`${insight.title}: dropped because business impact claim lacks business data source`,
 			],
 		};
+	}
+
+	if (insight.rootCause !== undefined && insight.confidence <= 0.5) {
+		warnings.push(
+			`${insight.title}: stripped rootCause because confidence is ${insight.confidence}`
+		);
+		insight = { ...insight, rootCause: undefined };
+	}
+
+	if (
+		insight.type === "deploy_correlation" &&
+		insight.evidence &&
+		!insight.evidence.some((e) => e.type === "temporal")
+	) {
+		warnings.push(
+			`${insight.title}: deploy_correlation insight lacks temporal evidence`
+		);
+	}
+
+	const suspiciousMetrics = insight.metrics.filter((m) => {
+		if (m.previous === undefined) {
+			return false;
+		}
+		if (
+			m.format === "percent" &&
+			(m.previous === 100 || m.previous === 0) &&
+			m.current !== m.previous
+		) {
+			return true;
+		}
+		if (m.current < 0 || (m.previous !== undefined && m.previous < 0)) {
+			return true;
+		}
+		return false;
+	});
+	if (suspiciousMetrics.length > 0) {
+		warnings.push(
+			`${insight.title}: suspicious metric values (${suspiciousMetrics.map((m) => `${m.label}: ${m.previous}->${m.current}`).join(", ")})`
+		);
 	}
 
 	return { insight, warnings };

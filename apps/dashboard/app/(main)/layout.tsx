@@ -1,6 +1,5 @@
 import { publicConfig } from "@databuddy/env/public";
 import { FeedbackPrompt } from "@/components/feedback-prompt";
-import { GlobalAgentProvider } from "@/components/agent/global-agent-provider";
 import { isDashboardE2E } from "@/lib/e2e-mode";
 import { Sidebar } from "@/components/layout/sidebar";
 import {
@@ -48,20 +47,18 @@ export default function MainLayout({
 					<SessionGuard>
 						<SidebarLayout>
 							<TopBarProvider>
-								<GlobalAgentProvider>
-									<div className="flex min-h-0 flex-1 flex-col overflow-hidden text-foreground">
-										<Suspense fallback={<SidebarFallback />}>
-											<Sidebar />
-										</Suspense>
-										<SidebarInset>
-											<TopBar />
-											<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-y-none pt-12 md:pt-0">
-												{children}
-											</div>
-										</SidebarInset>
-										<FeedbackPrompt />
-									</div>
-								</GlobalAgentProvider>
+								<div className="flex min-h-0 flex-1 flex-col overflow-hidden text-foreground">
+									<Suspense fallback={<SidebarFallback />}>
+										<Sidebar />
+									</Suspense>
+									<SidebarInset>
+										<TopBar />
+										<div className="flex min-h-0 flex-1 flex-col overflow-hidden overflow-x-hidden overscroll-y-none pt-12 md:pt-0">
+											{children}
+										</div>
+									</SidebarInset>
+									<FeedbackPrompt />
+								</div>
 							</TopBarProvider>
 						</SidebarLayout>
 					</SessionGuard>

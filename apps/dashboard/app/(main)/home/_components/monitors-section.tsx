@@ -41,7 +41,7 @@ function HomeMonitorHeatmap({
 			getDateLabel={(d) => formatDateOnly(d)}
 			interactive={false}
 			isActive={isActive}
-			stripClassName="mt-1.5 flex h-5 w-full items-end gap-[2px]"
+			stripClassName="mt-1.5 grid h-1.5 w-full gap-x-px"
 			tooltipHasData={(day) => day.hasData && isActive}
 		/>
 	);

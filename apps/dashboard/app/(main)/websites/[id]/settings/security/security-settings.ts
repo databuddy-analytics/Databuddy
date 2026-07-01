@@ -1,6 +1,8 @@
 export interface SecuritySettingsDraft {
 	allowedIps: string[];
 	allowedOrigins: string[];
+	ignoredTrackingOrigins: string[];
+	trackingIssueWarningsDisabled: boolean;
 }
 
 function readStringList(value: unknown): string[] {
@@ -15,13 +17,21 @@ function sameList(a: string[], b: string[]): boolean {
 
 export function readSecuritySettings(settings: unknown): SecuritySettingsDraft {
 	if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
-		return { allowedIps: [], allowedOrigins: [] };
+		return {
+			allowedIps: [],
+			allowedOrigins: [],
+			ignoredTrackingOrigins: [],
+			trackingIssueWarningsDisabled: false,
+		};
 	}
 
 	const record = settings as Record<string, unknown>;
 	return {
 		allowedIps: readStringList(record.allowedIps),
 		allowedOrigins: readStringList(record.allowedOrigins),
+		ignoredTrackingOrigins: readStringList(record.ignoredTrackingOrigins),
+		trackingIssueWarningsDisabled:
+			record.trackingIssueWarningsDisabled === true,
 	};
 }
 
@@ -31,6 +41,8 @@ export function createSecuritySettingsPayload(
 	return {
 		allowedIps: [...settings.allowedIps],
 		allowedOrigins: [...settings.allowedOrigins],
+		ignoredTrackingOrigins: [...settings.ignoredTrackingOrigins],
+		trackingIssueWarningsDisabled: settings.trackingIssueWarningsDisabled,
 	};
 }
 
@@ -40,7 +52,9 @@ export function areSecuritySettingsEqual(
 ): boolean {
 	return (
 		sameList(a.allowedOrigins, b.allowedOrigins) &&
-		sameList(a.allowedIps, b.allowedIps)
+		sameList(a.allowedIps, b.allowedIps) &&
+		sameList(a.ignoredTrackingOrigins, b.ignoredTrackingOrigins) &&
+		a.trackingIssueWarningsDisabled === b.trackingIssueWarningsDisabled
 	);
 }
 

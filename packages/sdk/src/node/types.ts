@@ -8,6 +8,8 @@ export type Middleware = (
 ) => BatchEventInput | null | Promise<BatchEventInput | null>;
 
 export interface DatabuddyConfig {
+	/** Whether Databuddy anonymizes visitor IDs before storage. Default: true. */
+	anonymizeVisitorIds?: boolean | "auto";
 	/** API key for authentication (`dbdy_xxx`) */
 	apiKey: string;
 	/** Event ingestion endpoint (default: `'https://basket.databuddy.cc'`) */
@@ -36,6 +38,8 @@ export interface DatabuddyConfig {
 }
 
 export interface CustomEventInput {
+	/** Overrides config default */
+	anonymizeVisitorIds?: boolean | "auto" | null;
 	anonymousId?: string | null;
 	/** Unique ID for deduplication */
 	eventId?: string;
@@ -59,6 +63,7 @@ export interface EventResponse {
 }
 
 export interface BatchEventInput {
+	anonymizeVisitorIds?: boolean | "auto" | null;
 	anonymousId?: string | null;
 	eventId?: string;
 	name: string;

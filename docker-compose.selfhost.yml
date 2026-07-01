@@ -146,6 +146,47 @@ services:
       - databuddy
     <<: *logging
 
+  insights:
+    image: ghcr.io/databuddy-analytics/databuddy-insights:${IMAGE_TAG:?Set IMAGE_TAG to a release tag, for example v1.0.0}
+    container_name: databuddy-insights
+    ports:
+      - "${INSIGHTS_PORT:-4002}:4002"
+    environment:
+      NODE_ENV: production
+      PORT: "4002"
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your environment}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      SERVICE_NAME: databuddy-insights
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in your environment}
+      BULLMQ_REDIS_URL: ${BULLMQ_REDIS_URL:?Set BULLMQ_REDIS_URL in your environment}
+      INSIGHTS_BULLMQ_REDIS_URL: ${INSIGHTS_BULLMQ_REDIS_URL:-}
+      INSIGHTS_DISPATCH_INTERVAL_MS: ${INSIGHTS_DISPATCH_INTERVAL_MS:-300000}
+      INSIGHTS_MAINTENANCE_INTERVAL_MS: ${INSIGHTS_MAINTENANCE_INTERVAL_MS:-300000}
+      INSIGHTS_STALE_ITEM_MS: ${INSIGHTS_STALE_ITEM_MS:-900000}
+      INSIGHTS_WORKER_CONCURRENCY: ${INSIGHTS_WORKER_CONCURRENCY:-5}
+      INSIGHTS_WORKER_ENABLED: ${INSIGHTS_WORKER_ENABLED:-true}
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL:?Set CLICKHOUSE_URL in your environment}
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+      OPR_API_KEY: ${OPR_API_KEY:-}
+      SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}
+    healthcheck:
+      test: [ "CMD", "bun", "-e", "fetch('http://localhost:4002/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - databuddy
+    <<: *logging
+
   links:
     image: ghcr.io/databuddy-analytics/databuddy-links:${IMAGE_TAG:?Set IMAGE_TAG to a release tag, for example v1.0.0}
     container_name: databuddy-links

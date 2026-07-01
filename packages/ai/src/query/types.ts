@@ -43,7 +43,7 @@ export interface QueryBuilderMeta {
 	output_fields?: QueryOutputField[];
 	supports_granularity?: ("hour" | "day" | "week" | "month")[];
 	tags?: string[];
-	title: string;
+	title?: string;
 	version?: string;
 }
 
@@ -131,6 +131,11 @@ export type CustomSqlFn = (
 	ctx: CustomSqlContext
 ) => string | { sql: string; params: Record<string, unknown> };
 
+export interface PercentageOf {
+	as?: string;
+	of: string;
+}
+
 export interface SimpleQueryConfig {
 	allowedFilters?: string[];
 	appendEndOfDayToTo?: boolean;
@@ -145,7 +150,9 @@ export interface SimpleQueryConfig {
 	meta?: QueryBuilderMeta;
 	noCache?: boolean;
 	orderBy?: string;
+	percentageOf?: PercentageOf;
 	plugins?: QueryPlugins;
+	publicAccess?: boolean;
 	requiredFilters?: string[];
 	skipDateFilter?: boolean;
 	table?: string;

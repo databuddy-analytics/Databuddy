@@ -23,12 +23,12 @@ const VITALS_SESSION_DIMENSIONS_CTE = `
 `;
 
 const VITALS_P50_METRICS = `
-	COUNT(DISTINCT wv.anonymous_id) as visitors,
-	quantileIf(0.50)(wv.metric_value, wv.metric_name = 'LCP' AND wv.metric_value > 0) as p50_lcp,
-	quantileIf(0.50)(wv.metric_value, wv.metric_name = 'FCP' AND wv.metric_value > 0) as p50_fcp,
-	quantileIf(0.50)(wv.metric_value, wv.metric_name = 'CLS') as p50_cls,
-	quantileIf(0.50)(wv.metric_value, wv.metric_name = 'INP' AND wv.metric_value > 0) as p50_inp,
-	quantileIf(0.50)(wv.metric_value, wv.metric_name = 'TTFB' AND wv.metric_value > 0) as p50_ttfb,
+	uniq(wv.anonymous_id) as visitors,
+	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'LCP' AND wv.metric_value > 0) as p50_lcp,
+	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'FCP' AND wv.metric_value > 0) as p50_fcp,
+	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'CLS') as p50_cls,
+	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'INP' AND wv.metric_value > 0) as p50_inp,
+	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'TTFB' AND wv.metric_value > 0) as p50_ttfb,
 	COUNT(*) as samples
 `;
 
@@ -37,11 +37,13 @@ interface VitalsByDimensionConfig {
 	extraWhere: string;
 	groupBy: string;
 	metrics?: string;
+	needsSessionDimensions?: boolean;
 	selectName: string;
 }
 
 function vitalsByDimension(config: VitalsByDimensionConfig): CustomSqlFn {
 	const metrics = config.metrics ?? VITALS_P50_METRICS;
+	const needsSd = config.needsSessionDimensions ?? true;
 	return ({
 		websiteId,
 		startDate,
@@ -52,14 +54,18 @@ function vitalsByDimension(config: VitalsByDimensionConfig): CustomSqlFn {
 	}) => {
 		const effectiveLimit = limit ?? config.defaultLimit;
 		const filterClause = appendFilterClause(filterConditions);
+		const withCte = needsSd ? `WITH ${VITALS_SESSION_DIMENSIONS_CTE}` : "";
+		const joinSd = needsSd
+			? "INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id"
+			: "";
 		return {
 			sql: `
-				WITH ${VITALS_SESSION_DIMENSIONS_CTE}
+				${withCte}
 				SELECT
 					${config.selectName},
 					${metrics}
 				FROM ${Analytics.web_vitals_spans} wv
-				INNER JOIN session_dimensions sd ON wv.session_id = sd.session_id AND wv.client_id = sd.client_id
+				${joinSd}
 				WHERE
 					wv.client_id = {websiteId:String}
 					AND wv.timestamp >= toDateTime({startDate:String})
@@ -126,21 +132,21 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
 				sql: `
-				SELECT 
-					metric_name,
-					quantileTDigest(0.50)(metric_value) as p50,
-					quantileTDigest(0.75)(metric_value) as p75,
-					quantileTDigest(0.90)(metric_value) as p90,
-					quantileTDigest(0.95)(metric_value) as p95,
-					quantileTDigest(0.99)(metric_value) as p99,
-					avg(metric_value) as avg_value,
-					count() as samples
-				FROM ${Analytics.web_vitals_spans}
-				WHERE 
-					client_id = {websiteId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY metric_name
+				SELECT metric_name, _q[1] as p50, _q[2] as p75, _q[3] as p90,
+					_q[4] as p95, _q[5] as p99, avg_value, samples
+				FROM (
+					SELECT
+						metric_name,
+						quantilesTDigest(0.50, 0.75, 0.90, 0.95, 0.99)(metric_value) as _q,
+						avg(metric_value) as avg_value,
+						count() as samples
+					FROM ${Analytics.web_vitals_spans}
+					WHERE
+						client_id = {websiteId:String}
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					GROUP BY metric_name
+				)
 				ORDER BY metric_name
 			`,
 				params: { websiteId, startDate, endDate },
@@ -174,21 +180,21 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 			const { websiteId, startDate, endDate } = ctx;
 			return {
 				sql: `
-				SELECT 
-					toDate(timestamp) as date,
-					metric_name,
-					quantileTDigest(0.50)(metric_value) as p50,
-					quantileTDigest(0.75)(metric_value) as p75,
-					quantileTDigest(0.90)(metric_value) as p90,
-					quantileTDigest(0.95)(metric_value) as p95,
-					quantileTDigest(0.99)(metric_value) as p99,
-					count() as samples
-				FROM ${Analytics.web_vitals_spans}
-				WHERE 
-					client_id = {websiteId:String}
-					AND timestamp >= toDateTime({startDate:String})
-					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				GROUP BY date, metric_name
+				SELECT date, metric_name, _q[1] as p50, _q[2] as p75, _q[3] as p90,
+					_q[4] as p95, _q[5] as p99, samples
+				FROM (
+					SELECT
+						toDate(timestamp) as date,
+						metric_name,
+						quantilesTDigest(0.50, 0.75, 0.90, 0.95, 0.99)(metric_value) as _q,
+						count() as samples
+					FROM ${Analytics.web_vitals_spans}
+					WHERE
+						client_id = {websiteId:String}
+						AND timestamp >= toDateTime({startDate:String})
+						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					GROUP BY date, metric_name
+				)
 				ORDER BY date ASC, metric_name
 			`,
 				params: { websiteId, startDate, endDate },
@@ -317,43 +323,5 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 		timeField: "timestamp",
 		customizable: true,
 		plugins: { normalizeGeo: true, deduplicateGeo: true },
-	},
-
-	performance_overview: {
-		meta: {
-			title: "Performance Overview",
-			description:
-				"Average load, DOM ready, and render times across pageviews.",
-			category: "Performance",
-			tags: ["performance", "overview"],
-			output_fields: [
-				{ name: "avg_load_time", type: "number", label: "Avg Load Time" },
-				{ name: "avg_dom_ready_time", type: "number", label: "Avg DOM Ready" },
-				{ name: "avg_render_time", type: "number", label: "Avg Render" },
-			],
-			default_visualization: "metric",
-			version: "1.0",
-		},
-		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
-			return {
-				sql: `
-				SELECT 
-					AVG(CASE WHEN load_time > 0 THEN load_time ELSE NULL END) as avg_load_time,
-					AVG(CASE WHEN dom_ready_time > 0 THEN dom_ready_time ELSE NULL END) as avg_dom_ready_time,
-					AVG(CASE WHEN render_time > 0 THEN render_time ELSE NULL END) as avg_render_time
-				FROM ${Analytics.events}
-				WHERE 
-					client_id = {websiteId:String}
-					AND event_name = 'screen_view'
-					AND time >= toDateTime({startDate:String})
-					AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-					AND load_time > 0
-			`,
-				params: { websiteId, startDate, endDate },
-			};
-		},
-		timeField: "time",
-		customizable: false,
 	},
 };

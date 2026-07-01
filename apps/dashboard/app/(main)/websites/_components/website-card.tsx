@@ -31,6 +31,7 @@ import { TransferWebsiteDialog } from "./transfer-website-dialog";
 import {
 	ArrowSquareOutIcon,
 	ArrowsLeftRightIcon,
+	ChartBarIcon,
 	CodeIcon,
 	CopyIcon,
 	EyeIcon,
@@ -86,6 +87,38 @@ function TrendStat({
 		<div className={className}>
 			<MinusIcon aria-hidden className="size-4 text-muted-foreground" />
 			<span className="text-muted-foreground">0%</span>
+		</div>
+	);
+}
+
+function ChartEmptyState({
+	hasHistoricalData,
+}: {
+	hasHistoricalData: boolean;
+}) {
+	const icon = hasHistoricalData ? (
+		<ChartBarIcon className="size-4 text-muted-foreground" weight="duotone" />
+	) : (
+		<CodeIcon className="size-4 text-amber-500" weight="duotone" />
+	);
+
+	return (
+		<div className="flex h-28 flex-col items-center justify-center gap-2 px-4 text-center">
+			<div
+				className={`flex size-8 items-center justify-center rounded ${hasHistoricalData ? "bg-muted" : "bg-amber-500/10"}`}
+			>
+				{icon}
+			</div>
+			<div className="space-y-0.5">
+				<p className="font-medium text-foreground text-xs">
+					{hasHistoricalData ? "No recent activity" : "Tracking not set up"}
+				</p>
+				<p className="text-[11px] text-muted-foreground">
+					{hasHistoricalData
+						? "No pageviews in the last 7 days"
+						: "Click to add tracking code"}
+				</p>
+			</div>
 		</div>
 	);
 }
@@ -191,22 +224,9 @@ export const WebsiteCard = memo(
 													</div>
 												</div>
 											) : (
-												<div className="flex h-28 flex-col items-center justify-center gap-2 px-4 text-center">
-													<div className="flex size-8 items-center justify-center rounded bg-amber-500/10">
-														<CodeIcon
-															className="size-4 text-amber-500"
-															weight="duotone"
-														/>
-													</div>
-													<div className="space-y-0.5">
-														<p className="font-medium text-foreground text-xs">
-															Tracking not set up
-														</p>
-														<p className="text-[11px] text-muted-foreground">
-															Click to add tracking code
-														</p>
-													</div>
-												</div>
+												<ChartEmptyState
+													hasHistoricalData={chartData.hasHistoricalData}
+												/>
 											)
 										) : (
 											<div className="flex h-28 items-center justify-center text-center text-muted-foreground text-xs">

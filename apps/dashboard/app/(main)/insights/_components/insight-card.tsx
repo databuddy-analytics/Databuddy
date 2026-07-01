@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
 import { type ReactNode, useMemo } from "react";
 import { toast } from "sonner";
@@ -14,6 +15,8 @@ import {
 	extractInsightPathHint,
 	formatComparisonWindow,
 	formatInsightFreshness,
+	formatInsightResolutionDescription,
+	formatInsightResolutionLabel,
 } from "@/app/(main)/insights/lib/insight-meta";
 import { InsightMetrics } from "@/components/insight-metrics";
 import { Button, Skeleton } from "@databuddy/ui";
@@ -22,13 +25,16 @@ import {
 	changePercentChipClassName,
 	formatSignedChangePercent,
 } from "@/lib/insight-signal-key";
-import type { Insight, InsightType } from "@/lib/insight-types";
+import type { Insight, InsightAction, InsightType } from "@/lib/insight-types";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRightIcon,
 	BugIcon,
 	CaretDownIcon,
 	ChartLineUpIcon,
+	CheckCircleIcon,
+	ClockCounterClockwiseIcon,
 	CopyIcon,
 	DotsThreeIcon,
 	GaugeIcon,
@@ -154,6 +160,26 @@ const TYPE_STYLES: Record<
 		color: "text-emerald-500",
 		bg: "bg-emerald-500/10",
 	},
+	deploy_correlation: {
+		icon: <RocketIcon className="size-4" weight="duotone" />,
+		color: "text-amber-500",
+		bg: "bg-amber-500/10",
+	},
+	segment_regression: {
+		icon: <TrendDownIcon className="size-4" weight="fill" />,
+		color: "text-red-500",
+		bg: "bg-red-500/10",
+	},
+	error_impact: {
+		icon: <BugIcon className="size-4" weight="duotone" />,
+		color: "text-red-500",
+		bg: "bg-red-500/10",
+	},
+	cross_signal: {
+		icon: <LinkIcon className="size-4" weight="duotone" />,
+		color: "text-violet-500",
+		bg: "bg-violet-500/10",
+	},
 };
 
 type InsightCardVariant = "full" | "compact";
@@ -257,6 +283,33 @@ function InsightChange({ insight }: { insight: Insight }) {
 	);
 }
 
+function InsightStatusPill({ insight }: { insight: Insight }) {
+	const label = formatInsightResolutionLabel(insight);
+	if (!label) {
+		return null;
+	}
+
+	const isStale = insight.resolvedReason === "stale";
+	const Icon = isStale ? ClockCounterClockwiseIcon : CheckCircleIcon;
+
+	return (
+		<>
+			<span className="text-muted-foreground/30">&middot;</span>
+			<span
+				className={cn(
+					"inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[11px]",
+					isStale
+						? "bg-muted text-muted-foreground"
+						: "bg-emerald-500/10 text-emerald-600"
+				)}
+			>
+				<Icon className="size-3" weight={isStale ? "duotone" : "fill"} />
+				{label}
+			</span>
+		</>
+	);
+}
+
 interface InsightCardHeaderProps {
 	expanded: boolean;
 	insight: Insight;
@@ -306,7 +359,17 @@ function InsightCardHeader({
 						<span className="truncate text-muted-foreground">
 							{view.metaLabel}
 						</span>
+						<InsightStatusPill insight={insight} />
 						<InsightChange insight={insight} />
+						{insight.chainId && (
+							<>
+								<span className="text-muted-foreground/30">&middot;</span>
+								<span className="inline-flex items-center gap-1 text-violet-500">
+									<LinkIcon className="size-3" weight="duotone" />
+									Cross-site
+								</span>
+							</>
+						)}
 					</span>
 					{!expanded && (
 						<span className="mt-1 line-clamp-2 block text-muted-foreground text-xs leading-relaxed">
@@ -355,9 +418,140 @@ function InsightCardPanel({
 	);
 }
 
-function InsightCopy({ view }: { view: InsightCardViewModel }) {
+const ACTION_ICONS: Record<InsightAction["type"], ReactNode> = {
+	fix_goal: <BugIcon className="size-3" weight="duotone" />,
+	create_funnel: <ChartLineUpIcon className="size-3" weight="duotone" />,
+	add_custom_event: <LightningIcon className="size-3" weight="fill" />,
+	create_annotation: (
+		<LightbulbFilamentIcon className="size-3" weight="duotone" />
+	),
+	update_config: <GaugeIcon className="size-3" weight="duotone" />,
+	add_tracking: <LightningIcon className="size-3" weight="fill" />,
+	investigate_further: <ArrowRightIcon className="size-3" weight="fill" />,
+	code_fix: <RocketIcon className="size-3" weight="duotone" />,
+};
+
+function InsightActionPill({
+	action,
+	insight,
+}: {
+	action: InsightAction;
+	insight: Insight;
+}) {
+	const createAnnotation = useMutation({
+		...orpc.annotations.create.mutationOptions(),
+	});
+
+	const handleClick = async () => {
+		if (
+			(action.type === "code_fix" || action.type === "investigate_further") &&
+			action.params.prompt
+		) {
+			try {
+				await navigator.clipboard.writeText(action.params.prompt);
+				toast.success(
+					action.type === "code_fix"
+						? "Copied to clipboard -- paste in Cursor or Claude Code"
+						: "Copied investigation prompt"
+				);
+			} catch {
+				toast.error("Could not copy to clipboard");
+			}
+			return;
+		}
+		if (action.type === "create_annotation") {
+			const date =
+				action.params.date ||
+				insight.currentPeriodTo ||
+				new Date().toISOString().slice(0, 10);
+			try {
+				await createAnnotation.mutateAsync({
+					websiteId: insight.websiteId,
+					chartType: "metrics",
+					chartContext: {
+						dateRange: {
+							start_date: insight.currentPeriodFrom ?? date,
+							end_date: insight.currentPeriodTo ?? date,
+							granularity: "daily",
+						},
+					},
+					annotationType: "line",
+					xValue: date,
+					text: (action.params.text || insight.title).slice(0, 500),
+					tags: ["insight"],
+				});
+				toast.success("Annotation added to your charts");
+			} catch {
+				toast.error("Could not create annotation");
+			}
+			return;
+		}
+		toast.info(`${action.label}`);
+	};
+
+	return (
+		<button
+			className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background px-2 py-1 text-foreground/80 text-xs transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+			disabled={createAnnotation.isPending}
+			onClick={handleClick}
+			type="button"
+		>
+			{ACTION_ICONS[action.type]}
+			{action.label}
+		</button>
+	);
+}
+
+function InsightCopy({
+	view,
+	insight,
+}: {
+	view: InsightCardViewModel;
+	insight: Insight;
+}) {
+	const resolutionDescription = formatInsightResolutionDescription(insight);
+	const resolutionLabel = formatInsightResolutionLabel(insight);
+	const isStaleResolution = insight.resolvedReason === "stale";
+	const ResolutionIcon = isStaleResolution
+		? ClockCounterClockwiseIcon
+		: CheckCircleIcon;
+
 	return (
 		<>
+			{resolutionDescription && (
+				<section
+					className={cn(
+						"space-y-1.5 rounded-lg border p-3",
+						isStaleResolution
+							? "border-border/60 bg-muted/30"
+							: "border-emerald-500/20 bg-emerald-500/5"
+					)}
+				>
+					<div className="flex items-center gap-2">
+						<ResolutionIcon
+							className={cn(
+								"size-4 shrink-0",
+								isStaleResolution ? "text-muted-foreground" : "text-emerald-600"
+							)}
+							weight={isStaleResolution ? "duotone" : "fill"}
+						/>
+						<p
+							className={cn(
+								"font-medium text-xs uppercase tracking-wide",
+								isStaleResolution
+									? "text-muted-foreground"
+									: "text-emerald-700 dark:text-emerald-400"
+							)}
+						>
+							{resolutionLabel}
+						</p>
+					</div>
+					<p className="text-pretty pl-6 text-foreground/80 text-xs leading-relaxed">
+						{resolutionDescription}
+					</p>
+				</section>
+			)}
+
 			<section className="space-y-1.5">
 				<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
 					Why it matters
@@ -367,7 +561,39 @@ function InsightCopy({ view }: { view: InsightCardViewModel }) {
 				</p>
 			</section>
 
-			{view.nextStep && (
+			{view.rootCause && (
+				<section className="space-y-1.5">
+					<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+						Root cause
+					</p>
+					<p className="text-pretty text-[13px] text-foreground/85 leading-relaxed">
+						{view.rootCause}
+					</p>
+				</section>
+			)}
+
+			{view.investigationEvidence.length > 0 && (
+				<section className="space-y-1.5">
+					<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+						Evidence
+					</p>
+					<ul className="space-y-1">
+						{view.investigationEvidence.map((e, i) => (
+							<li
+								className="flex gap-2 text-[13px] text-muted-foreground leading-relaxed"
+								key={`ev-${i}`}
+							>
+								<span className="shrink-0 text-muted-foreground/50">
+									&bull;
+								</span>
+								<span>{e.description}</span>
+							</li>
+						))}
+					</ul>
+				</section>
+			)}
+
+			{insight.status !== "resolved" && view.nextStep && (
 				<section className="space-y-1.5 rounded-lg border border-border/60 bg-accent/40 p-3">
 					<div className="flex items-center gap-2">
 						<LightbulbFilamentIcon
@@ -381,23 +607,34 @@ function InsightCopy({ view }: { view: InsightCardViewModel }) {
 					<p className="text-pretty pl-6 text-foreground/85 text-xs leading-relaxed">
 						{view.nextStep}
 					</p>
+					{view.actions.length > 0 && (
+						<div className="flex flex-wrap gap-1.5 pt-1.5 pl-6">
+							{view.actions.map((action, i) => (
+								<InsightActionPill
+									action={action}
+									insight={insight}
+									key={`action-${i}`}
+								/>
+							))}
+						</div>
+					)}
 				</section>
 			)}
 		</>
 	);
 }
 
-function InsightEvidence({ view }: { view: InsightCardViewModel }) {
-	if (view.evidence.length === 0) {
+function InsightMetricsSection({ view }: { view: InsightCardViewModel }) {
+	if (view.metrics.length === 0) {
 		return null;
 	}
 
 	return (
 		<section className="space-y-2">
 			<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-				Evidence
+				Metrics
 			</p>
-			<InsightMetrics metrics={view.evidence} />
+			<InsightMetrics metrics={view.metrics} />
 		</section>
 	);
 }
@@ -588,6 +825,8 @@ export function InsightCard({
 	variant = "full",
 }: InsightCardProps) {
 	const isCompact = variant === "compact";
+	const isResolved = insight.status === "resolved";
+	const isRecovered = isResolved && insight.resolvedReason !== "stale";
 	const typeStyle = TYPE_STYLES[insight.type];
 	const links = useInsightCardLinks(insight);
 	const view = useMemo(() => toInsightCardViewModel(insight), [insight]);
@@ -609,7 +848,17 @@ export function InsightCard({
 		<div
 			className={cn(
 				"group scroll-mt-24 border-b transition-colors last:border-b-0",
-				expanded ? "bg-accent/20" : "hover:bg-accent/40 active:bg-accent/50"
+				isRecovered
+					? expanded
+						? "bg-emerald-500/[0.07]"
+						: "bg-emerald-500/[0.025] hover:bg-emerald-500/[0.055] active:bg-emerald-500/[0.075]"
+					: isResolved
+						? expanded
+							? "bg-muted/40"
+							: "bg-muted/20 hover:bg-muted/30 active:bg-muted/40"
+						: expanded
+							? "bg-accent/20"
+							: "hover:bg-accent/40 active:bg-accent/50"
 			)}
 			id={`insight-${insight.id}`}
 		>
@@ -624,8 +873,8 @@ export function InsightCard({
 			/>
 
 			<InsightCardPanel expanded={expanded}>
-				<InsightCopy view={view} />
-				{!isCompact && <InsightEvidence view={view} />}
+				<InsightCopy insight={insight} view={view} />
+				{!isCompact && <InsightMetricsSection view={view} />}
 				<InsightCardActions
 					comparisonWindow={comparisonWindow}
 					feedbackVote={feedbackVote}

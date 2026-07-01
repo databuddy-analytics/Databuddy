@@ -21,7 +21,10 @@ import {
 	rethrowOrWrap,
 } from "@lib/structured-errors";
 import { record } from "@lib/tracing";
-import { extractTrustedClientIp } from "@utils/ip-geo";
+import {
+	extractTrustedClientIp,
+	getVisitorCountryForAutoMode,
+} from "@utils/ip-geo";
 import { isValidIpFromSettings } from "@utils/origin-ip-validation";
 import { VALIDATION_LIMITS, validatePayloadSize } from "@utils/validation";
 import { Elysia } from "elysia";
@@ -94,12 +97,27 @@ async function enforceWebsiteSecurity(
 	const allowedIps = settings?.allowedIps;
 
 	if (allowedOrigins?.length && !origin) {
-		log.set({ auth: { ok: false, reason: "origin_missing" } });
+		log.set({
+			auth: {
+				ok: false,
+				reason: "origin_missing",
+				expectedDomain: website.domain,
+				allowedOrigins,
+			},
+		});
 		throw basketErrors.ingestOriginNotAuthorized();
 	}
 
 	if (origin && !isOriginAllowed(origin, website.domain, allowedOrigins)) {
-		log.set({ auth: { ok: false, reason: "origin_not_authorized", origin } });
+		log.set({
+			auth: {
+				ok: false,
+				reason: "origin_not_authorized",
+				origin,
+				expectedDomain: website.domain,
+				allowedOrigins,
+			},
+		});
 		throw basketErrors.ingestOriginNotAuthorized();
 	}
 
@@ -306,11 +324,13 @@ export const trackRoute = new Elysia().post(
 				namespace: event.namespace,
 				properties: event.properties,
 				anonymous_id: event.anonymousId,
+				anonymizeVisitorIds: event.anonymizeVisitorIds,
 				session_id: event.sessionId,
 				source: event.source,
 			}));
 
-			await insertCustomEvents(spans);
+			const visitorCountry = await getVisitorCountryForAutoMode(spans, request);
+			await insertCustomEvents(spans, visitorCountry);
 
 			return json(
 				{ status: "success", type: "custom_event", count: spans.length },

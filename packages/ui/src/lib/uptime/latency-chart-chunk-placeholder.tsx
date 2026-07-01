@@ -3,15 +3,18 @@ import { Skeleton } from "../../components/skeleton";
 /** Same footprint as collapsed LatencyChart row — use with next/dynamic loading to avoid CLS */
 export function LatencyChartChunkPlaceholder() {
 	return (
-		<div className="border-border border-t">
+		<div>
 			<div
 				aria-hidden
-				className="flex min-h-10 items-center gap-3 px-4 py-2.5 sm:px-6"
+				className="mt-1.5 flex min-h-11 items-center gap-2 rounded-lg px-2 py-2"
 			>
-				<Skeleton className="h-3 w-32 rounded" />
-				<Skeleton className="h-3 w-14 rounded" />
-				<Skeleton className="h-3 w-14 rounded" />
-				<div className="ml-auto size-3 shrink-0 rounded bg-muted" />
+				<Skeleton className="size-6 rounded-full" />
+				<Skeleton className="h-4 w-28 rounded" />
+				<div className="ml-auto flex items-center gap-1.5">
+					<Skeleton className="h-4 w-16 rounded-full" />
+					<Skeleton className="h-4 w-16 rounded-full" />
+				</div>
+				<Skeleton className="size-3 shrink-0 rounded" />
 			</div>
 		</div>
 	);

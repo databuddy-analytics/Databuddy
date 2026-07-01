@@ -1,13 +1,17 @@
-import { db } from "@databuddy/db";
 import {
-	buildAnomalyNotificationPayload,
-	NotificationClient,
-} from "@databuddy/notifications";
+	db,
+	normalizeEmailNotificationSettings,
+	type OrganizationEmailNotificationSettings,
+} from "@databuddy/db";
+import { buildAnomalyNotificationPayload } from "@databuddy/notifications";
 import { redis } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { toNotificationConfig } from "../lib/alarm-notifications";
+import {
+	sendNotificationTarget,
+	toNotificationTargets,
+} from "../lib/alarm-notifications";
 import {
 	detectAnomalies,
 	fetchAnomalyTimeSeries,
@@ -58,6 +62,20 @@ const timeSeriesPointSchema = z.object({
 	hour: z.string(),
 	count: z.number(),
 });
+
+function anomalyEmailEnabled(
+	metric: string,
+	organizationSettings: OrganizationEmailNotificationSettings | null | undefined
+): boolean {
+	const settings = normalizeEmailNotificationSettings(organizationSettings);
+	if (metric === "errors") {
+		return settings.anomalies.errorEmails;
+	}
+	if (metric === "custom_events") {
+		return settings.anomalies.customEventEmails;
+	}
+	return settings.anomalies.trafficEmails;
+}
 
 export const anomaliesRouter = {
 	detect: protectedProcedure
@@ -160,6 +178,11 @@ export const anomaliesRouter = {
 			const clientId = workspace.website.id;
 			const orgId = workspace.organizationId;
 
+			const org = await db.query.organization.findFirst({
+				where: { id: orgId },
+				columns: { emailNotifications: true },
+			});
+
 			const detected = await detectAnomalies(clientId);
 
 			if (detected.length === 0) {
@@ -210,15 +233,23 @@ export const anomaliesRouter = {
 						eventName: anomaly.eventName,
 					});
 
-					const { clientConfig, channels } = toNotificationConfig(
-						alarm.destinations
+					const emailEnabled = anomalyEmailEnabled(
+						anomaly.metric,
+						org?.emailNotifications
 					);
-					if (channels.length === 0) {
+					const destinations = emailEnabled
+						? alarm.destinations
+						: alarm.destinations.filter((dest) => dest.type !== "email");
+					const targets = toNotificationTargets(destinations);
+					if (targets.length === 0) {
 						continue;
 					}
 
-					const client = new NotificationClient(clientConfig);
-					const results = await client.send(payload, { channels });
+					const results = (
+						await Promise.all(
+							targets.map((target) => sendNotificationTarget(target, payload))
+						)
+					).flat();
 					notificationsSent += results.filter((r) => r.success).length;
 				}
 			}

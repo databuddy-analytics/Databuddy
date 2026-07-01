@@ -1,6 +1,8 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "bun:test";
 import { getActivePageNavigationTabId } from "../page-navigation-active";
 import { isNavItemActive } from "./nav-item-active";
+import { websiteNavigation } from "./navigation-config";
 import type { NavigationItem } from "./types";
 
 const TestIcon = () => null;
@@ -70,5 +72,44 @@ describe("page navigation active matching", () => {
 
 	it("does not match similarly prefixed sibling paths", () => {
 		expect(getActivePageNavigationTabId(tabs, "/events-archive")).toBeNull();
+	});
+});
+
+describe("demo website navigation", () => {
+	const demoRoot = new URL("../../../app/demo/[id]/", import.meta.url);
+	const websiteItems = websiteNavigation.flatMap((group) => group.items);
+
+	it("hides demo-unsafe or unavailable website surfaces", () => {
+		const hiddenHrefs = new Set([
+			"/realtime",
+			"/anomalies",
+			"/users",
+			"/flags",
+			"/revenue",
+			"/agent",
+			"/settings/general",
+			"/settings/security",
+			"/settings/transfer",
+			"/settings/export",
+			"/settings/tracking",
+		]);
+
+		for (const href of hiddenHrefs) {
+			const item = websiteItems.find((candidate) => candidate.href === href);
+			expect(item?.hideFromDemo, href).toBe(true);
+		}
+	});
+
+	it("only shows website-level demo nav items with real demo pages", () => {
+		const visibleDemoItems = websiteItems.filter(
+			(item) => item.rootLevel === false && !item.hideFromDemo
+		);
+
+		for (const item of visibleDemoItems) {
+			const pagePath = item.href === "" ? "page.tsx" : `${item.href.slice(1)}/page.tsx`;
+			expect(existsSync(new URL(pagePath, demoRoot)), item.href || "/").toBe(
+				true
+			);
+		}
 	});
 });

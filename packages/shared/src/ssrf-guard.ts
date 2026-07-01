@@ -111,6 +111,7 @@ export class SsrfError extends Error {
 
 export interface SafeFetchInit
 	extends Omit<UndiciRequestInit, "redirect" | "signal" | "dispatcher"> {
+	followRedirects?: boolean;
 	maxRedirects?: number;
 	signal?: AbortSignal | null;
 	timeoutMs?: number;
@@ -139,6 +140,7 @@ export async function safeFetch(
 	init: SafeFetchInit = {}
 ): Promise<Response> {
 	const {
+		followRedirects = true,
 		maxRedirects = DEFAULT_MAX_REDIRECTS,
 		timeoutMs = DEFAULT_TIMEOUT_MS,
 		signal: externalSignal,
@@ -178,7 +180,7 @@ export async function safeFetch(
 			throw error;
 		}
 
-		if (response.status < 300 || response.status >= 400) {
+		if (!followRedirects || response.status < 300 || response.status >= 400) {
 			return response;
 		}
 

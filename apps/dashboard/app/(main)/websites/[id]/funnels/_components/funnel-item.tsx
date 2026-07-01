@@ -40,6 +40,7 @@ interface FunnelItemProps {
 	onDelete: (funnelId: string) => void;
 	onEdit: (funnel: FunnelItemData) => void;
 	onToggle: (funnelId: string) => void;
+	readOnly?: boolean;
 }
 
 function MiniFunnelPreview({
@@ -94,6 +95,7 @@ export function FunnelItem({
 	onToggle,
 	onEdit,
 	onDelete,
+	readOnly = false,
 	className,
 	children,
 }: FunnelItemProps) {
@@ -104,10 +106,14 @@ export function FunnelItem({
 	return (
 		<div className={cn("w-full", className)}>
 			<List.Row
-				className={cn(isExpanded && "bg-accent/30", isLast && "border-b-0")}
+				className={cn(
+					"gap-0 px-0 py-0",
+					isExpanded && "bg-accent/30",
+					isLast && "border-b-0"
+				)}
 			>
 				<Button
-					className="min-w-0 flex-1 justify-start gap-4 rounded-none bg-transparent p-0 text-left font-normal text-foreground hover:bg-transparent active:scale-100"
+					className="min-h-15 min-w-0 flex-1 justify-start gap-4 rounded-none bg-transparent px-4 py-3 text-left font-normal text-foreground hover:bg-transparent active:scale-100"
 					onClick={() => onToggle(funnel.id)}
 					variant="ghost"
 				>
@@ -188,38 +194,40 @@ export function FunnelItem({
 					</span>
 				</Button>
 
-				<List.Cell action>
-					<DropdownMenu>
-						<DropdownMenu.Trigger
-							aria-label="Funnel actions"
-							className="inline-flex size-8 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
-							data-dropdown-trigger
-						>
-							<DotsThreeIcon className="size-5" weight="bold" />
-						</DropdownMenu.Trigger>
-						<DropdownMenu.Content align="end" className="w-40">
-							<DropdownMenu.Item
-								className="gap-2"
-								onClick={() => onEdit(funnel)}
+				{!readOnly && (
+					<List.Cell action className="flex items-center pr-4">
+						<DropdownMenu>
+							<DropdownMenu.Trigger
+								aria-label="Funnel actions"
+								className="inline-flex size-8 items-center justify-center gap-1.5 rounded-md bg-transparent p-0 font-medium text-muted-foreground opacity-50 transition-all duration-(--duration-quick) ease-(--ease-smooth) hover:bg-interactive-hover hover:text-foreground hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:pointer-events-none disabled:opacity-50 data-[state=open]:opacity-100"
+								data-dropdown-trigger
 							>
-								<PencilSimpleIcon className="size-4" weight="duotone" />
-								Edit
-							</DropdownMenu.Item>
-							<DropdownMenu.Separator />
-							<DropdownMenu.Item
-								className="gap-2 text-destructive focus:text-destructive"
-								onClick={() => onDelete(funnel.id)}
-								variant="destructive"
-							>
-								<TrashIcon
-									className="size-4 fill-destructive"
-									weight="duotone"
-								/>
-								Delete
-							</DropdownMenu.Item>
-						</DropdownMenu.Content>
-					</DropdownMenu>
-				</List.Cell>
+								<DotsThreeIcon className="size-5" weight="bold" />
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end" className="w-40">
+								<DropdownMenu.Item
+									className="gap-2"
+									onClick={() => onEdit(funnel)}
+								>
+									<PencilSimpleIcon className="size-4" weight="duotone" />
+									Edit
+								</DropdownMenu.Item>
+								<DropdownMenu.Separator />
+								<DropdownMenu.Item
+									className="gap-2 text-destructive focus:text-destructive"
+									onClick={() => onDelete(funnel.id)}
+									variant="destructive"
+								>
+									<TrashIcon
+										className="size-4 fill-destructive"
+										weight="duotone"
+									/>
+									Delete
+								</DropdownMenu.Item>
+							</DropdownMenu.Content>
+						</DropdownMenu>
+					</List.Cell>
+				)}
 			</List.Row>
 
 			{isExpanded ? (

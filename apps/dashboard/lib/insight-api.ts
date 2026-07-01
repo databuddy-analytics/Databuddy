@@ -1,4 +1,3 @@
-import { publicConfig } from "@databuddy/env/public";
 import {
 	infiniteQueryOptions,
 	keepPreviousData,
@@ -6,8 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { guessTimezone } from "@databuddy/ui";
 import type { HistoryInsightRow, Insight } from "@/lib/insight-types";
-
-const API_URL = publicConfig.urls.api;
+import { orpc } from "@/lib/orpc";
 
 export const INSIGHT_CACHE = {
 	staleTime: 15 * 60 * 1000,
@@ -17,6 +15,27 @@ export const INSIGHT_CACHE = {
 
 const INSIGHTS_ROOT = ["insights"] as const;
 const HISTORY_PAGE_SIZE = 50;
+const INSIGHTS_FAST_TIMEOUT_MS = 30_000;
+const INSIGHTS_SLOW_TIMEOUT_MS = 90_000;
+
+function withTimeout<T>(
+	label: string,
+	promise: Promise<T>,
+	timeoutMs: number
+): Promise<T> {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	const timeoutPromise = new Promise<never>((_, reject) => {
+		timeout = setTimeout(
+			() => reject(new Error(`${label} timed out`)),
+			timeoutMs
+		);
+	});
+	return Promise.race([promise, timeoutPromise]).finally(() => {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
+	});
+}
 
 export const insightQueries = {
 	all: () => INSIGHTS_ROOT,
@@ -71,6 +90,11 @@ export const insightQueries = {
 };
 
 export interface InsightsAiResponse {
+	generation?: {
+		queuedItems?: number;
+		runId?: string;
+		status: "queued" | "skipped" | "disabled" | "unavailable";
+	};
 	insights: Insight[];
 	source: "ai" | "fallback";
 	success: boolean;
@@ -82,53 +106,33 @@ export interface InsightsHistoryPage {
 	success: boolean;
 }
 
-export async function fetchInsightsAi(
+export function fetchInsightsAi(
 	organizationId: string
 ): Promise<InsightsAiResponse> {
-	const res = await fetch(`${API_URL}/v1/insights/ai`, {
-		method: "POST",
-		credentials: "include",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ organizationId, timezone: guessTimezone() }),
-		signal: AbortSignal.timeout(90_000),
-	});
-
-	if (!res.ok) {
-		throw new Error(`Insights request failed: ${res.status}`);
-	}
-
-	const data = (await res.json()) as InsightsAiResponse;
-
-	if (!data.success) {
-		throw new Error("Insights response unsuccessful");
-	}
-
-	return data;
+	return withTimeout(
+		"Insights feed request",
+		orpc.insights.feed.call({
+			organizationId,
+			timezone: guessTimezone(),
+		}) as Promise<InsightsAiResponse>,
+		INSIGHTS_SLOW_TIMEOUT_MS
+	);
 }
 
-export async function fetchInsightsHistoryPage(
+export function fetchInsightsHistoryPage(
 	organizationId: string,
 	offset: number,
 	limit = 50
 ): Promise<InsightsHistoryPage> {
-	const params = new URLSearchParams({
-		organizationId,
-		limit: String(limit),
-		offset: String(offset),
-	});
-	const res = await fetch(
-		`${API_URL}/v1/insights/history?${params.toString()}`,
-		{
-			credentials: "include",
-			signal: AbortSignal.timeout(30_000),
-		}
+	return withTimeout(
+		"Insights history request",
+		orpc.insights.history.call({
+			organizationId,
+			limit,
+			offset,
+		}) as Promise<InsightsHistoryPage>,
+		INSIGHTS_FAST_TIMEOUT_MS
 	);
-
-	if (!res.ok) {
-		throw new Error(`Insights history failed: ${res.status}`);
-	}
-
-	return (await res.json()) as InsightsHistoryPage;
 }
 
 export interface ClearInsightsResponse {
@@ -137,24 +141,16 @@ export interface ClearInsightsResponse {
 	success: boolean;
 }
 
-export async function clearInsightsHistory(
+export function clearInsightsHistory(
 	organizationId: string
 ): Promise<ClearInsightsResponse> {
-	const res = await fetch(`${API_URL}/v1/insights/clear`, {
-		method: "POST",
-		credentials: "include",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ organizationId }),
-		signal: AbortSignal.timeout(30_000),
-	});
-
-	const data = (await res.json()) as ClearInsightsResponse;
-
-	if (!res.ok) {
-		throw new Error(data.error ?? `Clear insights failed: ${res.status}`);
-	}
-
-	return data;
+	return withTimeout(
+		"Clear insights history request",
+		orpc.insights.clearHistory.call({
+			organizationId,
+		}) as Promise<ClearInsightsResponse>,
+		INSIGHTS_FAST_TIMEOUT_MS
+	);
 }
 
 export type OrgNarrativeResponse =
@@ -168,20 +164,16 @@ export type OrgNarrativeResponse =
 			error: string;
 	  };
 
-export async function fetchInsightsOrgNarrative(
+export function fetchInsightsOrgNarrative(
 	organizationId: string,
 	range: "7d" | "30d" | "90d"
 ): Promise<OrgNarrativeResponse> {
-	const url = new URL(`${API_URL}/v1/insights/org-narrative`);
-	url.searchParams.set("organizationId", organizationId);
-	url.searchParams.set("range", range);
-	const res = await fetch(url.toString(), {
-		method: "GET",
-		credentials: "include",
-		signal: AbortSignal.timeout(30_000),
-	});
-	if (!res.ok) {
-		return { success: false, error: `HTTP ${res.status}` };
-	}
-	return (await res.json()) as OrgNarrativeResponse;
+	return withTimeout(
+		"Insights narrative request",
+		orpc.insights.orgNarrative.call({
+			organizationId,
+			range,
+		}) as Promise<OrgNarrativeResponse>,
+		INSIGHTS_FAST_TIMEOUT_MS
+	);
 }

@@ -14,6 +14,7 @@
     "@clickhouse/client": "^1.14.0",
     "@databuddy/api-keys": "workspace:*",
     "@databuddy/db": "workspace:*",
+    "@databuddy/email": "workspace:*",
     "@databuddy/env": "workspace:*",
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",

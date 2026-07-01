@@ -8,9 +8,9 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["event_name = 'screen_view'"],
 		groupBy: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END)",
@@ -82,6 +82,12 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	entry_pages: {
+		meta: {
+			description:
+				"First pages visitors land on when entering your site, ranked by entry frequency.",
+			category: "Pages",
+			tags: ["pages", "entry", "landing"],
+		},
 		allowedFilters: [
 			"path",
 			"query_string",
@@ -120,18 +126,16 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
             session_entry AS (
                 SELECT
                     e.session_id,
-                    e.anonymous_id,
-                    CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END as entry_page,
-                    e.time as entry_time,
-                    ROW_NUMBER() OVER (PARTITION BY e.session_id ORDER BY e.time) as page_rank,
-                    sa.session_referrer as referrer,
-                    sa.session_utm_source as utm_source,
-                    sa.session_utm_medium as utm_medium,
-                    sa.session_utm_campaign as utm_campaign,
-                    sa.session_country as country,
-                    sa.session_device_type as device_type,
-                    sa.session_browser_name as browser_name,
-                    sa.session_os_name as os_name
+                    argMin(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as entry_page,
+                    argMin(e.anonymous_id, e.time) as anonymous_id,
+                    any(sa.session_referrer) as referrer,
+                    any(sa.session_utm_source) as utm_source,
+                    any(sa.session_utm_medium) as utm_medium,
+                    any(sa.session_utm_campaign) as utm_campaign,
+                    any(sa.session_country) as country,
+                    any(sa.session_device_type) as device_type,
+                    any(sa.session_browser_name) as browser_name,
+                    any(sa.session_os_name) as os_name
                 FROM analytics.events e
                 ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
@@ -139,51 +143,45 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND e.event_name = 'screen_view'
                     ${filterClause}
+                GROUP BY e.session_id
             )`
 				: `
             session_entry AS (
                 SELECT
                     session_id,
-                    anonymous_id,
-                    CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END as entry_page,
-                    time as entry_time,
-                    ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY time) as page_rank
+                    argMin(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END, time) as entry_page,
+                    argMin(anonymous_id, time) as anonymous_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
                     AND time >= toDateTime({startDate:String})
                     AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND event_name = 'screen_view'
                     ${filterClause}
+                GROUP BY session_id
             )`;
 
+			const ctes = sessionAttributionCTE
+				? `${sessionAttributionCTE}\n${sessionEntryQuery}`
+				: sessionEntryQuery;
+
 			return {
-				sql: sessionAttributionCTE
-					? `
-            WITH ${sessionAttributionCTE}
-            ${sessionEntryQuery}
-            SELECT 
-                entry_page as name,
-                COUNT(*) as pageviews,
-                COUNT(DISTINCT anonymous_id) as visitors,
-                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
-            FROM session_entry
-            WHERE page_rank = 1
-            GROUP BY entry_page
+				sql: `
+            WITH ${ctes}
+            SELECT
+                name,
+                pageviews,
+                visitors,
+                ROUND(visitors / sum(visitors) OVER () * 100, 2) AS percentage
+            FROM (
+                SELECT
+                    entry_page as name,
+                    COUNT(*) as pageviews,
+                    uniq(anonymous_id) as visitors
+                FROM session_entry
+                GROUP BY entry_page
+            )
             ORDER BY visitors DESC
-            LIMIT {limit:Int32} OFFSET {offset:Int32}`
-					: `
-            WITH ${sessionEntryQuery}
-            SELECT 
-                entry_page as name,
-                COUNT(*) as pageviews,
-                COUNT(DISTINCT anonymous_id) as visitors,
-                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
-            FROM session_entry
-            WHERE page_rank = 1
-            GROUP BY entry_page
-            ORDER BY visitors DESC
-            LIMIT {limit:Int32} OFFSET {offset:Int32}
-            `,
+            LIMIT {limit:Int32} OFFSET {offset:Int32}`,
 				params: {
 					websiteId,
 					startDate,
@@ -197,6 +195,12 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	exit_pages: {
+		meta: {
+			description:
+				"Last pages visitors view before leaving your site, ranked by exit frequency.",
+			category: "Pages",
+			tags: ["pages", "exit", "drop-off"],
+		},
 		allowedFilters: [
 			"path",
 			"query_string",
@@ -230,20 +234,21 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 				? `${helpers.sessionAttributionCTE("time")},`
 				: "";
 
-			const sessionsQuery = helpers?.sessionAttributionCTE
+			const sessionExitsQuery = helpers?.sessionAttributionCTE
 				? `
-            sessions AS (
+            session_exit AS (
                 SELECT
                     e.session_id,
-                    MAX(e.time) as session_end_time,
-                    sa.session_referrer as referrer,
-                    sa.session_utm_source as utm_source,
-                    sa.session_utm_medium as utm_medium,
-                    sa.session_utm_campaign as utm_campaign,
-                    sa.session_country as country,
-                    sa.session_device_type as device_type,
-                    sa.session_browser_name as browser_name,
-                    sa.session_os_name as os_name
+                    argMax(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as exit_page,
+                    argMax(e.anonymous_id, e.time) as anonymous_id,
+                    any(sa.session_referrer) as referrer,
+                    any(sa.session_utm_source) as utm_source,
+                    any(sa.session_utm_medium) as utm_medium,
+                    any(sa.session_utm_campaign) as utm_campaign,
+                    any(sa.session_country) as country,
+                    any(sa.session_device_type) as device_type,
+                    any(sa.session_browser_name) as browser_name,
+                    any(sa.session_os_name) as os_name
                 FROM analytics.events e
                 ${helpers.sessionAttributionJoin("e")}
                 WHERE e.client_id = {websiteId:String}
@@ -251,13 +256,14 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
                     AND e.event_name = 'screen_view'
 					${filterClause}
-                GROUP BY e.session_id, sa.session_referrer, sa.session_utm_source, sa.session_utm_medium, sa.session_utm_campaign, sa.session_country, sa.session_device_type, sa.session_browser_name, sa.session_os_name
-            ),`
+                GROUP BY e.session_id
+            )`
 				: `
-            sessions AS (
+            session_exit AS (
                 SELECT
                     session_id,
-                    MAX(time) as session_end_time
+                    argMax(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END, time) as exit_page,
+                    argMax(anonymous_id, time) as anonymous_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
                     AND time >= toDateTime({startDate:String})
@@ -265,35 +271,27 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                     AND event_name = 'screen_view'
 					${filterClause}
                 GROUP BY session_id
-            ),`;
+            )`;
 
 			return {
 				sql: `
             WITH ${sessionAttributionCTE}
-            ${sessionsQuery}
-            exit_pages AS (
+            ${sessionExitsQuery}
+            SELECT
+                name,
+                pageviews,
+                visitors,
+                ROUND(visitors / sum(visitors) OVER () * 100, 2) AS percentage
+            FROM (
                 SELECT
-                    CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END as path,
-                    e.session_id,
-                    e.anonymous_id
-                FROM analytics.events e
-                INNER JOIN sessions s ON e.session_id = s.session_id AND e.time = s.session_end_time
-                WHERE e.client_id = {websiteId:String}
-                    AND e.time >= toDateTime({startDate:String})
-                    AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                    AND e.event_name = 'screen_view'
-					${filterClause}
+                    exit_page as name,
+                    uniq(session_id) as pageviews,
+                    uniq(anonymous_id) as visitors
+                FROM session_exit
+                GROUP BY exit_page
             )
-            SELECT 
-                path as name,
-                COUNT(DISTINCT session_id) as pageviews,
-                COUNT(DISTINCT anonymous_id) as visitors,
-                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
-            FROM exit_pages
-            GROUP BY path
             ORDER BY visitors DESC
-            LIMIT {limit:Int32} OFFSET {offset:Int32}
-            `,
+            LIMIT {limit:Int32} OFFSET {offset:Int32}`,
 				params: {
 					websiteId,
 					startDate,
@@ -307,12 +305,18 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	page_performance: {
+		meta: {
+			description:
+				"Page load performance metrics (load time, TTFB, DOM ready) broken down by page.",
+			category: "Performance",
+			tags: ["pages", "performance", "load time"],
+		},
 		table: Analytics.events,
 		fields: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
 			"COUNT(*) as pageviews",
 			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_time_on_page",
-			"COUNT(DISTINCT anonymous_id) as visitors",
+			"uniq(anonymous_id) as visitors",
 		],
 		where: ["event_name = 'screen_view'"],
 		groupBy: [
@@ -373,55 +377,59 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 				? `${helpers.sessionAttributionCTE("time")}`
 				: "";
 
-			const baseQuery = helpers?.sessionAttributionCTE
+			const perPageCTE = helpers?.sessionAttributionCTE
 				? `
-            SELECT
-                decodeURLComponent(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END) as name,
-                COUNT(*) as sessions_with_time,
-                COUNT(DISTINCT e.anonymous_id) as visitors,
-                ROUND(quantileTDigest(0.5)(e.time_on_page), 2) as median_time_on_page,
-                ROUND((COUNT(DISTINCT e.anonymous_id) / SUM(COUNT(DISTINCT e.anonymous_id)) OVER()) * 100, 2) as percentage
-            FROM analytics.events e
-            ${helpers.sessionAttributionJoin("e")}
-            WHERE e.client_id = {websiteId:String}
-                AND e.time >= toDateTime({startDate:String})
-                AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                AND e.event_name = 'page_exit'
-                AND e.time_on_page IS NOT NULL
-                AND e.time_on_page > 1
-                AND e.time_on_page < 3600
-                ${filterClause}
-            GROUP BY name
-            HAVING COUNT(*) >= 1
-            ORDER BY visitors DESC
-            LIMIT {limit:Int32} OFFSET {offset:Int32}`
+            per_page AS (
+                SELECT
+                    decodeURLComponent(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END) as name,
+                    COUNT(*) as sessions_with_time,
+                    uniq(e.anonymous_id) as visitors,
+                    quantileTDigest(0.5)(e.time_on_page) as median_raw
+                FROM analytics.events e
+                ${helpers.sessionAttributionJoin("e")}
+                WHERE e.client_id = {websiteId:String}
+                    AND e.time >= toDateTime({startDate:String})
+                    AND e.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+                    AND e.event_name = 'page_exit'
+                    AND e.time_on_page > 1
+                    AND e.time_on_page < 3600
+                    ${filterClause}
+                GROUP BY name
+            )`
 				: `
-            SELECT
-                decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name,
-                COUNT(*) as sessions_with_time,
-                COUNT(DISTINCT anonymous_id) as visitors,
-                ROUND(quantileTDigest(0.5)(time_on_page), 2) as median_time_on_page,
-                ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage
-            FROM analytics.events
-            WHERE client_id = {websiteId:String}
-                AND time >= toDateTime({startDate:String})
-                AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-                AND event_name = 'page_exit'
-                AND time_on_page IS NOT NULL
-                AND time_on_page > 1
-                AND time_on_page < 3600
-                ${filterClause}
-            GROUP BY name
-            HAVING COUNT(*) >= 1
-            ORDER BY visitors DESC
-            LIMIT {limit:Int32} OFFSET {offset:Int32}`;
+            per_page AS (
+                SELECT
+                    decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name,
+                    COUNT(*) as sessions_with_time,
+                    uniq(anonymous_id) as visitors,
+                    quantileTDigest(0.5)(time_on_page) as median_raw
+                FROM analytics.events
+                WHERE client_id = {websiteId:String}
+                    AND time >= toDateTime({startDate:String})
+                    AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+                    AND event_name = 'page_exit'
+                    AND time_on_page > 1
+                    AND time_on_page < 3600
+                    ${filterClause}
+                GROUP BY name
+            )`;
+
+			const ctePrefix = sessionAttributionCTE
+				? `${sessionAttributionCTE},\n${perPageCTE}`
+				: perPageCTE;
 
 			return {
-				sql: sessionAttributionCTE
-					? `
-            WITH ${sessionAttributionCTE}
-            ${baseQuery}`
-					: baseQuery,
+				sql: `
+            WITH ${ctePrefix}
+            SELECT
+                name,
+                sessions_with_time,
+                visitors,
+                ROUND(median_raw, 2) as median_time_on_page,
+                ROUND(visitors / sum(visitors) OVER () * 100, 2) as percentage
+            FROM per_page
+            ORDER BY visitors DESC
+            LIMIT {limit:Int32} OFFSET {offset:Int32}`,
 				params: {
 					websiteId,
 					startDate,

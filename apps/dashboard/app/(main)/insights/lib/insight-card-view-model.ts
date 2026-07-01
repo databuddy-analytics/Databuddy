@@ -1,4 +1,10 @@
-import type { Insight, InsightMetric, InsightType } from "@/lib/insight-types";
+import type {
+	Insight,
+	InsightAction,
+	InsightEvidence,
+	InsightMetric,
+	InsightType,
+} from "@/lib/insight-types";
 
 const DEFAULT_PRIMARY_ACTION_LABEL = "Open analytics";
 
@@ -25,22 +31,28 @@ const PRIMARY_ACTION_LABELS: Partial<Record<InsightType, string>> = {
 };
 
 export interface InsightCardViewModel {
-	evidence: InsightMetric[];
+	actions: InsightAction[];
 	headline: string;
+	investigationEvidence: InsightEvidence[];
 	metaLabel: string;
+	metrics: InsightMetric[];
 	nextStep: string;
 	primaryActionLabel: string;
+	rootCause: string | null;
 	whyItMatters: string;
 }
 
 export function toInsightCardViewModel(insight: Insight): InsightCardViewModel {
 	return {
-		evidence: insight.metrics ?? [],
+		actions: insight.actions ?? [],
 		headline: insight.title,
+		investigationEvidence: insight.evidence ?? [],
 		metaLabel: insight.websiteName ?? insight.websiteDomain,
+		metrics: insight.metrics ?? [],
 		nextStep: insight.suggestion,
 		primaryActionLabel:
 			PRIMARY_ACTION_LABELS[insight.type] ?? DEFAULT_PRIMARY_ACTION_LABEL,
+		rootCause: insight.rootCause ?? null,
 		whyItMatters: insight.description,
 	};
 }

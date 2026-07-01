@@ -8,6 +8,7 @@ export const NoticeBanner = ({
 	icon,
 	className,
 	description,
+	tone = "default",
 }: {
 	title?: string;
 	children?: React.ReactNode;
@@ -16,10 +17,14 @@ export const NoticeBanner = ({
 	>;
 	className?: string;
 	description?: string;
+	tone?: "default" | "warning";
 }) => (
 	<div
 		className={cn(
-			"notice-banner-angled-rectangle-gradient flex flex-1 items-center gap-2 rounded border border-border bg-accent px-3 py-2 font-medium text-accent-foreground text-sm",
+			"flex flex-1 items-center gap-2 rounded border px-3 py-2 font-medium text-sm",
+			tone === "default"
+				? "notice-banner-angled-rectangle-gradient border-border bg-accent text-accent-foreground"
+				: "border-border border-l-2 border-l-amber-500/70 bg-card text-foreground shadow-xs",
 			className
 		)}
 	>
@@ -30,7 +35,10 @@ export const NoticeBanner = ({
 						? cloneElement(icon, {
 								...icon.props,
 								className: cn(
-									"shrink-0 text-accent-foreground",
+									"shrink-0",
+									tone === "default"
+										? "text-accent-foreground"
+										: "text-amber-500",
 									icon.props.className
 								),
 								"aria-hidden": true,
@@ -40,12 +48,26 @@ export const NoticeBanner = ({
 						: null}
 					<div className="flex flex-1 flex-col gap-0.5">
 						{title ? (
-							<h3 className="text-balance font-medium text-accent-foreground text-sm">
+							<h3
+								className={cn(
+									"text-balance font-medium text-sm",
+									tone === "default"
+										? "text-accent-foreground"
+										: "text-foreground"
+								)}
+							>
 								{title}
 							</h3>
 						) : null}
 						{description ? (
-							<p className="text-pretty text-accent-foreground/90 text-xs">
+							<p
+								className={cn(
+									"text-pretty text-xs",
+									tone === "default"
+										? "text-accent-foreground/90"
+										: "text-muted-foreground"
+								)}
+							>
 								{description}
 							</p>
 						) : null}

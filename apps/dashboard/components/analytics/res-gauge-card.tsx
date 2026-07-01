@@ -186,8 +186,8 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 	const rating: GaugeRating = res.status || "poor";
 
 	const hasTrend = trend?.change !== null && trend?.change !== undefined;
-	const trendIsPositive = hasTrend && (trend?.change ?? 0) > 0;
-	const trendIsNegative = hasTrend && (trend?.change ?? 0) < 0;
+	const isImprovement = hasTrend && (trend?.change ?? 0) > 0;
+	const isRegression = hasTrend && (trend?.change ?? 0) < 0;
 
 	return (
 		<Card
@@ -210,16 +210,16 @@ export const RESGaugeCard = memo(function RESGaugeCard({
 						<div
 							className={cn(
 								"mt-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-medium text-xs",
-								trendIsPositive && "bg-success/10 text-success",
-								trendIsNegative && "bg-destructive/10 text-destructive",
-								!(trendIsPositive || trendIsNegative) &&
+								isImprovement && "bg-success/10 text-success",
+								isRegression && "bg-destructive/10 text-destructive",
+								!(isImprovement || isRegression) &&
 									"bg-muted text-muted-foreground"
 							)}
 						>
-							{trendIsPositive && (
+							{isImprovement && (
 								<TrendUpIcon className="size-3" weight="bold" />
 							)}
-							{trendIsNegative && (
+							{isRegression && (
 								<TrendDownIcon className="size-3" weight="bold" />
 							)}
 							<span>{Math.abs(Math.round(trend?.change ?? 0))} pts</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useAtomValue } from "jotai";
+import { Streamdown } from "streamdown";
 import { cn } from "@/lib/utils";
 import { useOrgNarrative } from "../hooks/use-org-narrative";
 import { insightsRangeAtom } from "../lib/time-range";
@@ -67,9 +68,9 @@ export function CockpitNarrative() {
 				)}
 
 				{!(isLoading || isError) && data && data.success && (
-					<p className="max-w-4xl text-pretty text-[14px] text-foreground leading-relaxed">
+					<Streamdown className="max-w-4xl text-[14px] text-foreground leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
 						{data.narrative}
-					</p>
+					</Streamdown>
 				)}
 
 				{!(isLoading || isError) && data && !data.success && (

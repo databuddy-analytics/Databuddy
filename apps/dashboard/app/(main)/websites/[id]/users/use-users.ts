@@ -18,7 +18,7 @@ export function useProfilesData(
 	options?: Partial<UseQueryOptions<DynamicQueryResponse>>,
 	sort?: ProfileSort
 ) {
-	const queryResult = useDynamicQuery(
+	const queryResult = useDynamicQuery<{ profile_list?: ProfileData[] }>(
 		websiteId,
 		dateRange,
 		{
@@ -38,7 +38,7 @@ export function useProfilesData(
 	);
 
 	const profiles = useMemo(() => {
-		const rows: ProfileData[] = (queryResult.data as any)?.profile_list ?? [];
+		const rows = queryResult.data.profile_list ?? [];
 		const seen = new Set<string>();
 		return rows.filter((p) => {
 			if (!p.visitor_id || seen.has(p.visitor_id)) {

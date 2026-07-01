@@ -99,6 +99,7 @@ export function useInsightsFeed() {
 
 	return {
 		insights: mergedInsights,
+		generation: aiQuery.data?.generation,
 		source: aiQuery.data?.source ?? null,
 		isLoading: isInitialLoading,
 		isRefreshing,

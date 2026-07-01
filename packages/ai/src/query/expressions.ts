@@ -103,7 +103,7 @@ export const Expressions = {
 	},
 } as const;
 
-const SESSION_ATTRIBUTION_FIELDS = [
+export const SESSION_ATTRIBUTION_FIELDS = [
 	"referrer",
 	"utm_source",
 	"utm_medium",

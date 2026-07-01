@@ -144,6 +144,13 @@ function buildAttributionCte(
 				AND r.session_id IS NOT NULL AND r.session_id != ''
 			GROUP BY r.customer_id
 		),
+		attributed_sessions AS (
+			SELECT r_session_id AS session_id FROM revenue_base
+			WHERE r_session_id IS NOT NULL AND r_session_id != ''
+			UNION DISTINCT
+			SELECT mapped_session_id AS session_id FROM customer_session_map
+			WHERE mapped_session_id IS NOT NULL AND mapped_session_id != ''
+		),
 		first_touch_by_session AS (
 			SELECT
 				session_id,
@@ -160,7 +167,7 @@ function buildAttributionCte(
 				argMin(path, time) as first_path
 			FROM ${Analytics.events}
 			WHERE client_id = {websiteId:String}
-				AND session_id != ''
+				AND session_id IN (SELECT session_id FROM attributed_sessions)
 				AND time >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 				AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 			GROUP BY session_id

@@ -1,21 +1,35 @@
 export interface WebsiteSecuritySettings {
 	allowedIps?: string[];
 	allowedOrigins?: string[];
+	ignoredTrackingOrigins?: string[];
+	trackingIssueWarningsDisabled?: boolean;
 }
 
-function setList(
+type StringListSettingKey =
+	| "allowedIps"
+	| "allowedOrigins"
+	| "ignoredTrackingOrigins";
+
+function omitSetting(
 	settings: WebsiteSecuritySettings,
-	key: keyof WebsiteSecuritySettings,
+	key: keyof WebsiteSecuritySettings
+): WebsiteSecuritySettings {
+	const { [key]: _value, ...rest } = settings;
+	return rest;
+}
+
+function setStringList(
+	settings: WebsiteSecuritySettings,
+	key: StringListSettingKey,
 	value: string[] | undefined
-) {
+): WebsiteSecuritySettings {
 	if (value === undefined) {
-		return;
+		return settings;
 	}
 	if (value.length === 0) {
-		delete settings[key];
-		return;
+		return omitSetting(settings, key);
 	}
-	settings[key] = value;
+	return { ...settings, [key]: value };
 }
 
 function hasOwnSetting(
@@ -31,20 +45,48 @@ export function mergeWebsiteSecuritySettings(
 ): WebsiteSecuritySettings | null {
 	const hasOrigins = hasOwnSetting(patch, "allowedOrigins");
 	const hasIps = hasOwnSetting(patch, "allowedIps");
+	const hasIgnoredOrigins = hasOwnSetting(patch, "ignoredTrackingOrigins");
+	const hasTrackingWarningsDisabled = hasOwnSetting(
+		patch,
+		"trackingIssueWarningsDisabled"
+	);
 
-	if (!(hasOrigins || hasIps)) {
+	if (
+		!(hasOrigins || hasIps || hasIgnoredOrigins || hasTrackingWarningsDisabled)
+	) {
 		return current ?? null;
 	}
 
-	const next: WebsiteSecuritySettings = { ...(current ?? {}) };
+	let next: WebsiteSecuritySettings = { ...(current ?? {}) };
 
 	if (hasOrigins) {
-		setList(next, "allowedOrigins", patch.allowedOrigins);
+		next = setStringList(next, "allowedOrigins", patch.allowedOrigins);
 	}
 
 	if (hasIps) {
-		setList(next, "allowedIps", patch.allowedIps);
+		next = setStringList(next, "allowedIps", patch.allowedIps);
 	}
 
-	return next.allowedOrigins?.length || next.allowedIps?.length ? next : null;
+	if (hasIgnoredOrigins) {
+		next = setStringList(
+			next,
+			"ignoredTrackingOrigins",
+			patch.ignoredTrackingOrigins
+		);
+	}
+
+	if (hasTrackingWarningsDisabled) {
+		if (patch.trackingIssueWarningsDisabled) {
+			next.trackingIssueWarningsDisabled = true;
+		} else {
+			next = omitSetting(next, "trackingIssueWarningsDisabled");
+		}
+	}
+
+	return next.allowedOrigins?.length ||
+		next.allowedIps?.length ||
+		next.ignoredTrackingOrigins?.length ||
+		next.trackingIssueWarningsDisabled
+		? next
+		: null;
 }

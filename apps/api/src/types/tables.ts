@@ -3,7 +3,6 @@ import type {
 	BlockedTraffic,
 	CustomEvent,
 	CustomOutgoingLink,
-	ErrorHourlyAggregate,
 	ErrorSpanRow,
 	RevenueTransaction,
 	UptimeMonitor,
@@ -14,7 +13,6 @@ import type {
 export const Analytics = {
 	events: "analytics.events",
 	error_spans: "analytics.error_spans",
-	error_hourly: "analytics.error_hourly",
 	web_vitals_spans: "analytics.web_vitals_spans",
 	web_vitals_hourly: "analytics.web_vitals_hourly",
 	custom_events: "analytics.custom_events",
@@ -30,7 +28,6 @@ export type AnalyticsTable = (typeof Analytics)[keyof typeof Analytics];
 export interface TableFieldsMap {
 	"analytics.blocked_traffic": keyof BlockedTraffic;
 	"analytics.custom_events": keyof CustomEvent;
-	"analytics.error_hourly": keyof ErrorHourlyAggregate;
 	"analytics.error_spans": keyof ErrorSpanRow;
 	"analytics.events": keyof AnalyticsEvent;
 	"analytics.outgoing_links": keyof CustomOutgoingLink;

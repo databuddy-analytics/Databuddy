@@ -1,0 +1,213 @@
+---
+title: MCP Server
+description: Connect AI agents to your analytics data via the Model Context Protocol
+---
+
+import { Callout, CodeBlock, Card, Cards } from "@/components/docs";
+
+The Databuddy MCP server lets AI agents (Claude, Cursor, Windsurf, or any MCP-compatible client) query your analytics, manage feature flags, triage errors, and more through a standard protocol.
+
+## Endpoint
+
+| Environment | URL |
+|-------------|-----|
+| Production | `https://api.databuddy.cc/v1/mcp/` |
+| Local | `http://localhost:3001/v1/mcp/` |
+
+The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required.
+
+## Authentication
+
+Pass an API key with the `read:data` scope:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "mcpServers": {
+    "databuddy": {
+      "type": "http",
+      "url": "https://api.databuddy.cc/v1/mcp/",
+      "headers": {
+        "x-api-key": "dbdy_your_api_key_here"
+      }
+    }
+  }
+}`}
+/>
+
+<Callout type="info">
+  Get your API key from [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys). The key needs at least the `read:data` scope. Add `manage:config` for mutation tools (flags, links).
+</Callout>
+
+## Client Setup
+
+### Claude Code / Claude Desktop
+
+Add to your `.mcp.json` or Claude Desktop config:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "mcpServers": {
+    "databuddy": {
+      "type": "http",
+      "url": "https://api.databuddy.cc/v1/mcp/",
+      "headers": {
+        "x-api-key": "dbdy_your_api_key_here"
+      }
+    }
+  }
+}`}
+/>
+
+### Cursor / Windsurf
+
+Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "mcpServers": {
+    "databuddy": {
+      "type": "http",
+      "url": "https://api.databuddy.cc/v1/mcp/",
+      "headers": {
+        "x-api-key": "dbdy_your_api_key_here"
+      }
+    }
+  }
+}`}
+/>
+
+## Available Tools
+
+### Analytics
+
+| Tool | Description |
+|------|-------------|
+| `get_data` | Typed analytics queries (top_pages, recent_errors, errors_by_type, etc.). Batch 2-10 queries in one call. |
+| `capabilities` | Tool catalog and available query types. Filter by category. |
+| `get_schema` | ClickHouse column definitions. Use when a field name is uncertain. |
+| `list_websites` | List websites accessible to the authenticated key. |
+
+### Insights
+
+| Tool | Description |
+|------|-------------|
+| `summarize_insights` | Pre-built insight summaries for a website. |
+| `compare_metric` | Compare metrics across two time periods. |
+| `top_movers` | Find dimensions with the largest changes. |
+| `detect_anomalies` | Detect anomalies in your metrics. |
+
+### Funnels & Goals
+
+| Tool | Description |
+|------|-------------|
+| `list_funnels` | List configured funnels. |
+| `get_funnel_analytics` | Per-step conversion analytics for a funnel. |
+| `list_goals` | List configured goals. |
+| `get_goal_analytics` | Goal completion analytics. |
+
+### Feature Flags
+
+| Tool | Description |
+|------|-------------|
+| `list_flags` | List active feature flags. |
+| `create_flag` | Create a new feature flag (requires confirmation). |
+| `update_flag` | Update flag configuration (requires confirmation). |
+
+### Links
+
+| Tool | Description |
+|------|-------------|
+| `list_links` | List short links. |
+| `search_links` | Search links by keyword. |
+| `list_link_folders` | List link folders with usage counts. |
+
+### Memory
+
+| Tool | Description |
+|------|-------------|
+| `search_memory` | Search saved memories for the workspace. |
+| `save_memory` | Save a memory (requires confirmation). |
+| `forget_memory` | Delete a memory (requires confirmation). |
+
+### Agent
+
+| Tool | Description |
+|------|-------------|
+| `ask` | Open-ended natural language question. Slower; only available when the AI gateway is configured. Reuse `conversationId` for follow-ups. |
+
+## Prompts (Workflows)
+
+The server exposes pre-built prompts that orchestrate multi-step workflows:
+
+| Prompt | Description |
+|--------|-------------|
+| `weekly_report` | Traffic trends, top pages, referrers, error health, and one item to investigate. |
+| `triage_errors` | error_summary → errors_by_type → errors_by_page → recent_errors, prioritized by user impact. |
+| `funnel_health` | List funnels + per-step analytics, surfaces biggest drop-offs. |
+| `flag_rollout_check` | Audit active flags for stale or risky rollouts. |
+
+## Conventions
+
+**Website selection**: Any tool that needs a website accepts `websiteId`, `websiteName`, or `websiteDomain`. Pass one.
+
+**Dates**: Use a `preset` (e.g. `last_7d`, `last_30d`) OR both `from` and `to` (YYYY-MM-DD). Defaults to `last_7d`. Passing only one of `from`/`to` is rejected.
+
+**Filters**: The `field` value is the ClickHouse column name. Use `get_schema` when uncertain. Error messages suggest close matches on typos.
+
+**Mutations**: Tools that create, update, or delete (flags, links, memory) require a two-step flow: preview with `confirmed: false`, then execute with `confirmed: true`.
+
+## Example Usage
+
+Batch multiple queries in a single `get_data` call:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "tool": "get_data",
+  "arguments": {
+    "websiteDomain": "example.com",
+    "queries": [
+      { "type": "summary_metrics", "preset": "last_7d" },
+      { "type": "top_pages", "preset": "last_7d", "limit": 5 },
+      { "type": "top_referrers", "preset": "last_7d", "limit": 5 },
+      { "type": "error_summary", "preset": "last_7d" }
+    ]
+  }
+}`}
+/>
+
+Filter errors by type:
+
+<CodeBlock 
+  language="json"
+  code={`{
+  "tool": "get_data",
+  "arguments": {
+    "websiteDomain": "example.com",
+    "type": "recent_errors",
+    "preset": "last_7d",
+    "limit": 20,
+    "filters": [
+      { "field": "error_type", "op": "eq", "value": "TypeError" }
+    ]
+  }
+}`}
+/>
+
+## Resources
+
+The server exposes a `databuddy://guide` resource with extended workflow tips and known footguns. MCP clients that support resources can read it for additional context.
+
+## Scopes & Access Control
+
+Tools are filtered based on your API key's scopes:
+
+| Scope | Tools |
+|-------|-------|
+| `read:data` | All analytics, insights, schema, and read-only tools |
+| `manage:config` | Feature flag mutations, link mutations, memory writes |
+
+Session-authenticated users (via the dashboard) get access based on their organization role instead.

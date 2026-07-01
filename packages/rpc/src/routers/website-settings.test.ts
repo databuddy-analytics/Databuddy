@@ -97,4 +97,31 @@ describe("mergeWebsiteSecuritySettings", () => {
 			allowedIps: ["10.0.0.1", "10.0.0.2"],
 		});
 	});
+
+	it("preserves security settings when ignored tracking origins are updated", () => {
+		expect(
+			mergeWebsiteSecuritySettings(
+				{ allowedOrigins: ["app.example.com"] },
+				{ ignoredTrackingOrigins: ["staging.example.com"] }
+			)
+		).toEqual({
+			allowedOrigins: ["app.example.com"],
+			ignoredTrackingOrigins: ["staging.example.com"],
+		});
+	});
+
+	it("stores disabled tracking issue warnings and clears false values", () => {
+		expect(
+			mergeWebsiteSecuritySettings(null, {
+				trackingIssueWarningsDisabled: true,
+			})
+		).toEqual({ trackingIssueWarningsDisabled: true });
+
+		expect(
+			mergeWebsiteSecuritySettings(
+				{ trackingIssueWarningsDisabled: true },
+				{ trackingIssueWarningsDisabled: false }
+			)
+		).toBeNull();
+	});
 });

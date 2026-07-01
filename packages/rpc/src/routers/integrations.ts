@@ -1,10 +1,34 @@
 import { and, desc, eq } from "@databuddy/db";
-import { slackChannelBindings, slackIntegrations } from "@databuddy/db/schema";
+import {
+	account,
+	slackChannelBindings,
+	slackIntegrations,
+	websites,
+} from "@databuddy/db/schema";
+import type { WebsiteIntegrations } from "@databuddy/db/schema";
 import { invalidateSlackIntegrationCache } from "@databuddy/redis";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { protectedProcedure, trackedProcedure } from "../orpc";
+import type { Context } from "../orpc";
+import {
+	protectedProcedure,
+	sessionProcedure,
+	trackedProcedure,
+} from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+
+async function getUserProviderToken(
+	database: Context["db"],
+	userId: string,
+	providerId: string
+): Promise<string | null> {
+	const [row] = await database
+		.select({ accessToken: account.accessToken })
+		.from(account)
+		.where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
+		.limit(1);
+	return row?.accessToken ?? null;
+}
 
 const slackChannelBindingOutputSchema = z.object({
 	id: z.string(),
@@ -172,6 +196,210 @@ export const integrationsRouter = {
 			}
 
 			return { success: true };
+		}),
+
+	setGitHubRepo: trackedProcedure
+		.route({
+			description: "Links a GitHub repo to a website for deploy correlation.",
+			method: "POST",
+			path: "/integrations/setGitHubRepo",
+			summary: "Set GitHub repo",
+			tags: ["Integrations"],
+		})
+		.input(
+			z.object({
+				websiteId: z.string().min(1),
+				owner: z
+					.string()
+					.min(1)
+					.max(100)
+					.regex(/^[a-zA-Z0-9._-]+$/),
+				repo: z
+					.string()
+					.min(1)
+					.max(100)
+					.regex(/^[a-zA-Z0-9._-]+$/),
+			})
+		)
+		.output(successOutputSchema)
+		.handler(async ({ context, input }) => {
+			const [website] = await context.db
+				.select({
+					id: websites.id,
+					organizationId: websites.organizationId,
+					integrations: websites.integrations,
+				})
+				.from(websites)
+				.where(eq(websites.id, input.websiteId))
+				.limit(1);
+
+			if (!website) {
+				throw rpcError.notFound("Website", input.websiteId);
+			}
+
+			await withWorkspace(context, {
+				organizationId: website.organizationId,
+				resource: "website",
+				permissions: ["update"],
+			});
+
+			const integrations: WebsiteIntegrations = {
+				...(website.integrations ?? {}),
+				github: { owner: input.owner, repo: input.repo },
+			};
+
+			await context.db
+				.update(websites)
+				.set({ integrations })
+				.where(eq(websites.id, input.websiteId));
+
+			return { success: true };
+		}),
+
+	removeGitHubRepo: trackedProcedure
+		.route({
+			description: "Unlinks a GitHub repo from a website.",
+			method: "POST",
+			path: "/integrations/removeGitHubRepo",
+			summary: "Remove GitHub repo",
+			tags: ["Integrations"],
+		})
+		.input(z.object({ websiteId: z.string().min(1) }))
+		.output(successOutputSchema)
+		.handler(async ({ context, input }) => {
+			const [website] = await context.db
+				.select({
+					id: websites.id,
+					organizationId: websites.organizationId,
+					integrations: websites.integrations,
+				})
+				.from(websites)
+				.where(eq(websites.id, input.websiteId))
+				.limit(1);
+
+			if (!website) {
+				throw rpcError.notFound("Website", input.websiteId);
+			}
+
+			await withWorkspace(context, {
+				organizationId: website.organizationId,
+				resource: "website",
+				permissions: ["update"],
+			});
+
+			const integrations: WebsiteIntegrations = Object.fromEntries(
+				Object.entries(website.integrations ?? {}).filter(
+					([key]) => key !== "github"
+				)
+			);
+
+			await context.db
+				.update(websites)
+				.set({ integrations })
+				.where(eq(websites.id, input.websiteId));
+
+			return { success: true };
+		}),
+
+	checkSearchConsoleAccess: sessionProcedure
+		.route({
+			description:
+				"Checks whether the current user has Google Search Console access.",
+			method: "POST",
+			path: "/integrations/checkSearchConsoleAccess",
+			summary: "Check Search Console access",
+			tags: ["Integrations"],
+		})
+		.input(z.object({}))
+		.output(z.object({ hasAccess: z.boolean() }))
+		.handler(async ({ context }) => {
+			const token = await getUserProviderToken(
+				context.db,
+				context.user.id,
+				"google"
+			);
+			if (!token) {
+				return { hasAccess: false };
+			}
+
+			try {
+				const res = await fetch(
+					"https://www.googleapis.com/webmasters/v3/sites",
+					{
+						headers: { Authorization: `Bearer ${token}` },
+						signal: AbortSignal.timeout(5000),
+					}
+				);
+				return { hasAccess: res.ok };
+			} catch {
+				return { hasAccess: false };
+			}
+		}),
+
+	listGitHubRepos: sessionProcedure
+		.route({
+			description: "Lists GitHub repos accessible to the current user.",
+			method: "POST",
+			path: "/integrations/listGitHubRepos",
+			summary: "List GitHub repos",
+			tags: ["Integrations"],
+		})
+		.input(z.object({}))
+		.output(
+			z.object({
+				repos: z.array(
+					z.object({
+						fullName: z.string(),
+						private: z.boolean(),
+						defaultBranch: z.string(),
+					})
+				),
+			})
+		)
+		.handler(async ({ context }) => {
+			const token = await getUserProviderToken(
+				context.db,
+				context.user.id,
+				"github"
+			);
+			if (!token) {
+				return { repos: [] };
+			}
+
+			const res = await fetch(
+				"https://api.github.com/user/repos?sort=pushed&direction=desc&per_page=50",
+				{
+					headers: {
+						Authorization: `Bearer ${token}`,
+						Accept: "application/vnd.github+json",
+						"X-GitHub-Api-Version": "2022-11-28",
+					},
+					signal: AbortSignal.timeout(10_000),
+				}
+			);
+
+			if (!res.ok) {
+				return { repos: [] };
+			}
+
+			const data = await res.json();
+			if (!Array.isArray(data)) {
+				return { repos: [] };
+			}
+
+			return {
+				repos: (
+					data as Array<{
+						full_name: string;
+						private: boolean;
+						default_branch: string;
+					}>
+				).map((r) => ({
+					fullName: r.full_name,
+					private: r.private,
+					defaultBranch: r.default_branch,
+				})),
+			};
 		}),
 };
 

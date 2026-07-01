@@ -44,9 +44,9 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"browser_name as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["browser_name != ''", "event_name = 'screen_view'"],
 		groupBy: ["browser_name"],
 		orderBy: "visitors DESC",
@@ -97,9 +97,9 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"os_name as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["os_name != ''", "event_name = 'screen_view'"],
 		groupBy: ["os_name"],
 		orderBy: "visitors DESC",
@@ -156,10 +156,10 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"viewport_size as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
+			"uniq(anonymous_id) as visitors",
 			"device_type",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["viewport_size != ''", "event_name = 'screen_view'"],
 		groupBy: ["viewport_size", "device_type"],
 		orderBy: "visitors DESC",
@@ -223,8 +223,8 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 			"browser_name",
 			"browser_version",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"COUNT(DISTINCT session_id) as sessions",
+			"uniq(anonymous_id) as visitors",
+			"uniq(session_id) as sessions",
 		],
 		where: [
 			"browser_name != ''",
@@ -281,9 +281,9 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"if(ifNull(device_type, '') = '', 'Desktop', initCap(device_type)) as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["event_name = 'screen_view'"],
 		groupBy: ["name"],
 		orderBy: "visitors DESC",
@@ -293,13 +293,19 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	browsers: {
+		meta: {
+			description:
+				"Detailed browser usage breakdown including specific browser names.",
+			category: "Technology",
+			tags: ["browsers", "technology", "devices"],
+		},
 		table: Analytics.events,
 		fields: [
 			"browser_name as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["browser_name != ''", "event_name = 'screen_view'"],
 		groupBy: ["browser_name"],
 		orderBy: "visitors DESC",
@@ -309,14 +315,19 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	browser_versions: {
+		meta: {
+			description: "Browser usage broken down by specific version numbers.",
+			category: "Technology",
+			tags: ["browsers", "versions", "compatibility"],
+		},
 		table: Analytics.events,
 		fields: [
 			"browser_name",
 			"browser_version",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: [
 			"browser_name != ''",
 			"browser_version != ''",
@@ -330,13 +341,18 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	operating_systems: {
+		meta: {
+			description: "OS usage breakdown by operating system name.",
+			category: "Technology",
+			tags: ["operating systems", "technology", "devices"],
+		},
 		table: Analytics.events,
 		fields: [
 			"os_name as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
 		],
+		percentageOf: { of: "visitors" },
 		where: ["os_name != ''", "event_name = 'screen_view'"],
 		groupBy: ["os_name"],
 		orderBy: "visitors DESC",
@@ -346,11 +362,16 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	os_versions: {
+		meta: {
+			description: "OS usage broken down by specific version numbers.",
+			category: "Technology",
+			tags: ["operating systems", "versions", "compatibility"],
+		},
 		table: Analytics.events,
 		fields: [
 			"CONCAT(os_name, ' ', os_version) as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
+			"uniq(anonymous_id) as visitors",
 		],
 		where: ["os_name != ''", "os_version != ''", "event_name = 'screen_view'"],
 		groupBy: ["os_name", "os_version"],
@@ -361,11 +382,16 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 	},
 
 	screen_resolutions: {
+		meta: {
+			description: "Distribution of screen resolutions across visitors.",
+			category: "Technology",
+			tags: ["screen", "display", "devices"],
+		},
 		table: Analytics.events,
 		fields: [
 			"viewport_size as name",
 			"COUNT(*) as pageviews",
-			"COUNT(DISTINCT anonymous_id) as visitors",
+			"uniq(anonymous_id) as visitors",
 		],
 		where: ["viewport_size != ''", "event_name = 'screen_view'"],
 		groupBy: ["viewport_size"],
@@ -415,7 +441,7 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"viewport_size",
-			"COUNT(DISTINCT anonymous_id) as visitors",
+			"uniq(anonymous_id) as visitors",
 			"COUNT(*) as pageviews",
 			"device_type",
 		],
@@ -473,10 +499,10 @@ export const DevicesBuilders: Record<string, SimpleQueryConfig> = {
 		table: Analytics.events,
 		fields: [
 			"viewport_size",
-			"COUNT(DISTINCT anonymous_id) as visitors",
-			"COUNT(DISTINCT session_id) as sessions",
-			"ROUND((COUNT(DISTINCT anonymous_id) / SUM(COUNT(DISTINCT anonymous_id)) OVER()) * 100, 2) as percentage",
+			"uniq(anonymous_id) as visitors",
+			"uniq(session_id) as sessions",
 		],
+		percentageOf: { of: "visitors" },
 		where: [
 			"event_name = 'screen_view'",
 			"viewport_size != ''",

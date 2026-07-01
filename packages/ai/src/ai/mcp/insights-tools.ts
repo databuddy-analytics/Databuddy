@@ -1438,10 +1438,349 @@ const detectAnomaliesTool = defineMcpTool(
 	}
 );
 
+const EVENT_WINDOW_DEFAULT_DAYS = 7;
+const EVENT_WINDOW_MAX_DAYS = 30;
+const EVENT_PAGES_FETCH_LIMIT = 100;
+const EVENT_PAGES_RETURN_LIMIT = 10;
+const EVENT_ERRORS_FETCH_LIMIT = 50;
+const EVENT_ERRORS_RETURN_LIMIT = 10;
+
+interface ErrorRow {
+	count?: unknown;
+	name?: unknown;
+	sessions?: unknown;
+	users?: unknown;
+}
+
+function eventWindowsAround(
+	eventDate: string,
+	windowDays: number
+): {
+	before: { from: string; to: string };
+	after: { from: string; to: string };
+} {
+	const event = dayjs(eventDate);
+	return {
+		before: {
+			from: event.subtract(windowDays, "day").format("YYYY-MM-DD"),
+			to: event.subtract(1, "day").format("YYYY-MM-DD"),
+		},
+		after: {
+			from: eventDate,
+			to: event.add(windowDays - 1, "day").format("YYYY-MM-DD"),
+		},
+	};
+}
+
+const compareAroundEventTool = defineMcpTool(
+	{
+		name: "compare_around_event",
+		description:
+			"Diff a website's metrics, error classes, and top pages across a date boundary (e.g. a deploy). Splits [eventDate - windowDays, eventDate - 1] vs [eventDate, eventDate + windowDays - 1] and surfaces the largest moves.",
+		inputSchema: z.object({
+			websiteId: z.string().optional(),
+			websiteName: z.string().optional(),
+			websiteDomain: z.string().optional(),
+			eventDate: z
+				.string()
+				.describe(
+					"Boundary day (YYYY-MM-DD). 'after' includes this date; 'before' excludes it."
+				),
+			windowDays: z
+				.number()
+				.int()
+				.min(1)
+				.max(EVENT_WINDOW_MAX_DAYS)
+				.optional()
+				.default(EVENT_WINDOW_DEFAULT_DAYS)
+				.describe(
+					`Days on each side of the boundary (1-${EVENT_WINDOW_MAX_DAYS}, default ${EVENT_WINDOW_DEFAULT_DAYS}).`
+				),
+			metrics: z
+				.array(MetricEnum)
+				.optional()
+				.describe(
+					`Summary metrics to diff. Omit for all. Subset of: ${METRIC_KEYS.join(", ")}`
+				),
+			includeErrors: z
+				.boolean()
+				.optional()
+				.default(true)
+				.describe("Diff errors_by_type and surface new/spiking error classes."),
+			includePages: z
+				.boolean()
+				.optional()
+				.default(true)
+				.describe("Diff top_pages and surface biggest movers by visitors."),
+			timezone: z.string().optional().describe("IANA timezone (default UTC)."),
+		}),
+		outputSchema: z.object({
+			websiteId: z.string(),
+			websiteDomain: z.string(),
+			event: z.object({ date: z.string(), windowDays: z.number() }),
+			before: PeriodSchema,
+			after: PeriodSchema,
+			metrics: z.array(MetricComparisonSchema),
+			newErrors: z.array(
+				z.object({
+					name: z.string(),
+					afterCount: z.number(),
+					afterUsers: z.number(),
+				})
+			),
+			errorMovers: z.array(
+				z.object({
+					name: z.string(),
+					before: z.number(),
+					after: z.number(),
+					delta: z.number(),
+					deltaPercent: z.number(),
+					direction: DirectionSchema,
+				})
+			),
+			pageMovers: z.array(
+				z.object({
+					name: z.string(),
+					before: z.number(),
+					after: z.number(),
+					delta: z.number(),
+					deltaPercent: z.number(),
+					direction: DirectionSchema,
+					headline: z.string(),
+				})
+			),
+			hint: z.string().optional(),
+		}),
+		resolveWebsite: true,
+		ratelimit: { limit: 30, windowSec: 60 },
+	},
+	async (input, ctx) => {
+		const websiteId = ctx.websiteId as string;
+		const websiteDomain = ctx.websiteDomain ?? "unknown";
+		const timezone = input.timezone ?? "UTC";
+
+		if (!isValidDate(input.eventDate)) {
+			throw new McpToolError("invalid_input", "eventDate must be YYYY-MM-DD");
+		}
+
+		const windows = eventWindowsAround(input.eventDate, input.windowDays);
+
+		const selectedMetrics =
+			input.metrics && input.metrics.length > 0
+				? [...new Set(input.metrics)]
+				: METRIC_KEYS;
+		const selectedDefs = selectedMetrics.flatMap((k) => {
+			const def = METRIC_REGISTRY[k];
+			return def ? [[k, def] as const] : [];
+		});
+
+		const runQuery = (
+			type: string,
+			range: { from: string; to: string },
+			limit?: number
+		) =>
+			executeQuery(
+				{
+					projectId: websiteId,
+					type,
+					from: range.from,
+					to: range.to,
+					timezone,
+					limit,
+				},
+				websiteDomain,
+				timezone
+			);
+
+		const summaryRows = Promise.all([
+			runQuery("summary_metrics", windows.before),
+			runQuery("summary_metrics", windows.after),
+		]);
+
+		const errorRows = input.includeErrors
+			? Promise.all([
+					runQuery("errors_by_type", windows.before, EVENT_ERRORS_FETCH_LIMIT),
+					runQuery("errors_by_type", windows.after, EVENT_ERRORS_FETCH_LIMIT),
+				])
+			: Promise.resolve([[], []] as const);
+
+		const pageRows = input.includePages
+			? Promise.all([
+					runQuery("top_pages", windows.before, EVENT_PAGES_FETCH_LIMIT),
+					runQuery("top_pages", windows.after, EVENT_PAGES_FETCH_LIMIT),
+				])
+			: Promise.resolve([[], []] as const);
+
+		const [
+			[summaryBefore, summaryAfter],
+			[errorsBefore, errorsAfter],
+			[pagesBefore, pagesAfter],
+		] = await Promise.all([summaryRows, errorRows, pageRows]);
+
+		const beforeRow =
+			(summaryBefore[0] as Record<string, unknown> | undefined) ?? {};
+		const afterRow =
+			(summaryAfter[0] as Record<string, unknown> | undefined) ?? {};
+
+		const metrics = selectedDefs.map(([metricKey, def]) => {
+			const beforeValue = Number(beforeRow[def.field] ?? 0);
+			const afterValue = Number(afterRow[def.field] ?? 0);
+			const direction = deltaDirection(afterValue, beforeValue);
+			const deltaPct = safeDeltaPercent(afterValue, beforeValue);
+			const isImprovement =
+				direction === "flat"
+					? null
+					: def.betterWhen === "higher"
+						? direction === "up"
+						: direction === "down";
+			return {
+				metric: metricKey,
+				label: def.label,
+				format: def.format,
+				betterWhen: def.betterWhen,
+				current: roundForFormat(afterValue, def.format),
+				previous: roundForFormat(beforeValue, def.format),
+				delta: roundForFormat(afterValue - beforeValue, def.format),
+				deltaPercent: Number(deltaPct.toFixed(2)),
+				direction,
+				isImprovement,
+				headline: buildMetricHeadline(
+					def.label,
+					afterValue,
+					beforeValue,
+					def.format
+				),
+			};
+		});
+
+		const errorBeforeByName = new Map<string, ErrorRow>();
+		for (const row of errorsBefore as ErrorRow[]) {
+			const name = String(row.name ?? "").trim();
+			if (name) {
+				errorBeforeByName.set(name, row);
+			}
+		}
+		const newErrors: Array<{
+			name: string;
+			afterCount: number;
+			afterUsers: number;
+		}> = [];
+		const errorMovers: Array<{
+			name: string;
+			before: number;
+			after: number;
+			delta: number;
+			deltaPercent: number;
+			direction: "up" | "down" | "flat";
+		}> = [];
+		for (const row of errorsAfter as ErrorRow[]) {
+			const name = String(row.name ?? "").trim();
+			if (!name) {
+				continue;
+			}
+			const afterCount = Number(row.count ?? 0);
+			const afterUsers = Number(row.users ?? 0);
+			const before = errorBeforeByName.get(name);
+			const beforeCount = before ? Number(before.count ?? 0) : 0;
+			if (!before) {
+				newErrors.push({ name, afterCount, afterUsers });
+				continue;
+			}
+			errorMovers.push({
+				name,
+				before: beforeCount,
+				after: afterCount,
+				delta: afterCount - beforeCount,
+				deltaPercent: Number(
+					safeDeltaPercent(afterCount, beforeCount).toFixed(2)
+				),
+				direction: deltaDirection(afterCount, beforeCount),
+			});
+		}
+		newErrors.sort(
+			(a, b) => b.afterUsers - a.afterUsers || b.afterCount - a.afterCount
+		);
+		errorMovers.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+		const pageBeforeByName = new Map<string, number>();
+		for (const row of pagesBefore as DimensionRow[]) {
+			const name = String(row.name ?? "").trim();
+			if (name) {
+				pageBeforeByName.set(name, Number(row.visitors ?? 0));
+			}
+		}
+		const pageMoversMap = new Map<
+			string,
+			{ name: string; before: number; after: number }
+		>();
+		for (const row of pagesAfter as DimensionRow[]) {
+			const name = String(row.name ?? "").trim();
+			if (!name) {
+				continue;
+			}
+			const after = Number(row.visitors ?? 0);
+			pageMoversMap.set(name, {
+				name,
+				before: pageBeforeByName.get(name) ?? 0,
+				after,
+			});
+		}
+		for (const [name, before] of pageBeforeByName) {
+			if (!pageMoversMap.has(name)) {
+				pageMoversMap.set(name, { name, before, after: 0 });
+			}
+		}
+		const pageMovers = [...pageMoversMap.values()]
+			.map((m) => ({
+				name: m.name,
+				before: m.before,
+				after: m.after,
+				delta: m.after - m.before,
+				deltaPercent: Number(safeDeltaPercent(m.after, m.before).toFixed(2)),
+				direction: deltaDirection(m.after, m.before),
+				headline: buildDimensionHeadline(
+					"Page",
+					m.name,
+					"visitors",
+					m.after,
+					m.before
+				),
+			}))
+			.filter((m) => m.direction !== "flat")
+			.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+			.slice(0, EVENT_PAGES_RETURN_LIMIT);
+
+		const trimmedNewErrors = newErrors.slice(0, EVENT_ERRORS_RETURN_LIMIT);
+		const trimmedErrorMovers = errorMovers.slice(0, EVENT_ERRORS_RETURN_LIMIT);
+
+		const noSignal =
+			metrics.every((m) => m.direction === "flat") &&
+			trimmedNewErrors.length === 0 &&
+			trimmedErrorMovers.length === 0 &&
+			pageMovers.length === 0;
+
+		return {
+			websiteId,
+			websiteDomain,
+			event: { date: input.eventDate, windowDays: input.windowDays },
+			before: windows.before,
+			after: windows.after,
+			metrics,
+			newErrors: trimmedNewErrors,
+			errorMovers: trimmedErrorMovers,
+			pageMovers,
+			hint: noSignal
+				? "No movement detected on either side of the boundary. Try a wider windowDays or check a different eventDate."
+				: undefined,
+		};
+	}
+);
+
 export const INSIGHT_TOOL_FACTORIES: McpToolFactory[] = [
 	listInsightsTool,
 	summarizeInsightsTool,
 	compareMetricTool,
 	topMoversTool,
 	detectAnomaliesTool,
+	compareAroundEventTool,
 ];

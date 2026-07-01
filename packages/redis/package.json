@@ -13,6 +13,7 @@
     "./redis": "./redis.ts",
     "./stream-buffer": "./stream-buffer.ts",
     "./drizzle-cache": "./drizzle-cache.ts",
+    "./insights-queue": "./insights-queue.ts",
     "./cache-invalidation": "./cache-invalidation.ts",
     "./links-cache": "./links-cache.ts",
     "./click-dedup": "./click-dedup.ts",
@@ -20,10 +21,10 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test *.test.ts"
+    "test": "bun test --max-concurrency=1 *.test.ts"
   },
   "dependencies": {
-    "bullmq": "^5.66.5",
+    "bullmq": "^5.78.0",
     "ioredis": "^5.8.2"
   },
   "devDependencies": {

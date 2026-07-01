@@ -2,6 +2,7 @@ import {
 	boolean,
 	foreignKey,
 	index,
+	jsonb,
 	pgEnum,
 	pgTable,
 	text,
@@ -45,6 +46,36 @@ export const verificationStatus = pgEnum("VerificationStatus", [
 	"FAILED",
 ]);
 
+export type EmailAlertMode = "off" | "critical_only" | "warnings_and_critical";
+
+export type TrackingAlertBlockReason =
+	| "origin_not_authorized"
+	| "origin_missing"
+	| "ip_not_authorized";
+
+export type TrackingAlertKind = "blocked_spike" | "tracking_zero";
+
+export interface OrganizationEmailNotificationSettings {
+	anomalies?: {
+		customEventEmails?: boolean;
+		errorEmails?: boolean;
+		trafficEmails?: boolean;
+	};
+	billing?: {
+		usageWarnings?: boolean;
+	};
+	trackingHealth?: {
+		cooldownMinutes?: number;
+		ignoredOrigins?: string[];
+		ignoredReasons?: TrackingAlertBlockReason[];
+		mode?: EmailAlertMode;
+	};
+	uptime?: {
+		downEmails?: boolean;
+		recoveryEmails?: boolean;
+	};
+}
+
 export const organization = pgTable(
 	"organization",
 	{
@@ -57,6 +88,10 @@ export const organization = pgTable(
 			withTimezone: true,
 		}).notNull(),
 		metadata: text(),
+		emailNotifications: jsonb("email_notifications")
+			.$type<OrganizationEmailNotificationSettings>()
+			.default({})
+			.notNull(),
 	},
 	(table) => [unique("organizations_slug_unique").on(table.slug)]
 );

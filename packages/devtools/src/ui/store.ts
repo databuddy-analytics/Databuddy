@@ -163,16 +163,7 @@ function loadAdminKey(): string | null {
 		return null;
 	}
 	try {
-		const sessionKey = window.sessionStorage.getItem(ADMIN_KEY_STORAGE_KEY);
-		if (sessionKey) {
-			return sessionKey;
-		}
-		const legacyLocalKey = window.localStorage.getItem(ADMIN_KEY_STORAGE_KEY);
-		if (legacyLocalKey) {
-			window.localStorage.removeItem(ADMIN_KEY_STORAGE_KEY);
-			window.sessionStorage.setItem(ADMIN_KEY_STORAGE_KEY, legacyLocalKey);
-		}
-		return legacyLocalKey;
+		return window.sessionStorage.getItem(ADMIN_KEY_STORAGE_KEY);
 	} catch {
 		return null;
 	}

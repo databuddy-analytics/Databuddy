@@ -36,6 +36,9 @@ mock.module("@databuddy/rpc/billing", () => ({
 			planId: "free",
 		})
 	),
+}));
+
+mock.module("@databuddy/rpc/organization", () => ({
 	getMemberRole: mock(async () => "owner"),
 	getOrganizationOwnerId: mockGetOrganizationOwnerId,
 }));
@@ -178,7 +181,7 @@ describe("trackAgentUsageAndBill", () => {
 		});
 
 		expect(summary.cost_fallback).toBe(false);
-		expect(summary.cost_model_id).toBe("anthropic/claude-4-sonnet");
+		expect(summary.cost_model_id).toBe("anthropic/claude-sonnet-4.6");
 		expect(summary.cost_total_usd).toBe(18);
 		expect(summary.agent_credits_used).toBe(360);
 		expect(mockAutumnTrack).toHaveBeenCalledWith(

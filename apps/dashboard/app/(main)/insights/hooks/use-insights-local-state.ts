@@ -32,6 +32,14 @@ export function useInsightsLocalState(
 		},
 	});
 
+	const setDismissedMutation = useMutation(
+		orpc.insights.setDismissed.mutationOptions()
+	);
+
+	const clearDismissedMutation = useMutation(
+		orpc.insights.clearDismissed.mutationOptions()
+	);
+
 	useLayoutEffect(() => {
 		if (!organizationId) {
 			setDismissedIds([]);
@@ -55,8 +63,9 @@ export function useInsightsLocalState(
 				saveDismissedIds(organizationId, next);
 				return next;
 			});
+			setDismissedMutation.mutate({ insightId, dismissed: true });
 		},
-		[organizationId]
+		[organizationId, setDismissedMutation]
 	);
 
 	const clearAllDismissedAction = useCallback(() => {
@@ -65,7 +74,8 @@ export function useInsightsLocalState(
 		}
 		setDismissedIds([]);
 		saveDismissedIds(organizationId, []);
-	}, [organizationId]);
+		clearDismissedMutation.mutate({});
+	}, [organizationId, clearDismissedMutation]);
 
 	const setFeedbackAction = useCallback(
 		(insightId: string, vote: "up" | "down" | null) => {

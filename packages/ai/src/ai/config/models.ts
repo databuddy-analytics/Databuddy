@@ -45,6 +45,6 @@ export function createModelFromId(modelId: string) {
 	return gateway.chat(modelId);
 }
 
-export function getDefaultAgentModelId(source?: AgentSource): string {
-	return source === "slack" ? modelNames.deep : modelNames.balanced;
+export function getDefaultAgentModelId(_source?: AgentSource): string {
+	return modelNames.balanced;
 }

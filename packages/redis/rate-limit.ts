@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { getRedisCache } from "./redis";
 
 interface RateLimitResult {
@@ -18,27 +19,37 @@ export async function ratelimit(
 	const key = `rl:${identifier}`;
 
 	try {
-		const pipeline = redis.pipeline();
-		pipeline.zremrangebyscore(key, 0, now - windowMs);
-		pipeline.zcard(key);
-		pipeline.zadd(key, now, `${now}:${Math.random()}`);
-		pipeline.expire(key, windowSeconds);
+		const result = (await redis.eval(
+			`local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window_ms = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local member = ARGV[4]
+local window_seconds = tonumber(ARGV[5])
+redis.call("ZREMRANGEBYSCORE", key, 0, now - window_ms)
+local count = redis.call("ZCARD", key)
+local success = 0
+if count < limit then
+	redis.call("ZADD", key, now, member)
+	count = count + 1
+	success = 1
+end
+redis.call("EXPIRE", key, window_seconds)
+return { success, count }`,
+			1,
+			key,
+			String(now),
+			String(windowMs),
+			String(limit),
+			`${now}:${randomUUID()}`,
+			String(windowSeconds)
+		)) as [number, number];
 
-		const results = await pipeline.exec();
-		if (!results) {
-			return {
-				success: true,
-				limit,
-				remaining: limit - 1,
-				reset: now + windowMs,
-			};
-		}
-
-		const count = (results[1]?.[1] as number) || 0;
+		const [success, count] = result;
 		return {
-			success: count < limit,
+			success: success === 1,
 			limit,
-			remaining: Math.max(0, limit - count - 1),
+			remaining: Math.max(0, limit - count),
 			reset: now + windowMs,
 		};
 	} catch {

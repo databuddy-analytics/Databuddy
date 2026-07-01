@@ -5,9 +5,11 @@ import {
 } from "./bullmq";
 
 const ORIGINAL_URL = process.env.BULLMQ_REDIS_URL;
+const ORIGINAL_INSIGHTS_URL = process.env.INSIGHTS_BULLMQ_REDIS_URL;
 
 afterEach(() => {
 	process.env.BULLMQ_REDIS_URL = ORIGINAL_URL;
+	process.env.INSIGHTS_BULLMQ_REDIS_URL = ORIGINAL_INSIGHTS_URL;
 });
 
 describe("BullMQ connection options", () => {
@@ -72,6 +74,37 @@ describe("BullMQ connection options", () => {
 			password: undefined,
 			db: undefined,
 			maxRetriesPerRequest: null,
+		});
+	});
+
+	it("prefers a queue-specific Redis URL when an env prefix is provided", () => {
+		process.env.BULLMQ_REDIS_URL = "redis://default.test:6379/0";
+		process.env.INSIGHTS_BULLMQ_REDIS_URL =
+			"redis://insights:secret@insights.test:6380/5";
+
+		expect(
+			getBullMQConnectionOptions({ envPrefix: "INSIGHTS" })
+		).toEqual({
+			host: "insights.test",
+			port: 6380,
+			username: "insights",
+			password: "secret",
+			db: 5,
+			maxRetriesPerRequest: 1,
+		});
+	});
+
+	it("falls back to the default Redis URL when a prefixed URL is blank", () => {
+		process.env.BULLMQ_REDIS_URL = "redis://default.test:6379/4";
+		process.env.INSIGHTS_BULLMQ_REDIS_URL = "";
+
+		expect(getBullMQConnectionOptions({ envPrefix: "INSIGHTS" })).toEqual({
+			host: "default.test",
+			port: 6379,
+			username: undefined,
+			password: undefined,
+			db: 4,
+			maxRetriesPerRequest: 1,
 		});
 	});
 });

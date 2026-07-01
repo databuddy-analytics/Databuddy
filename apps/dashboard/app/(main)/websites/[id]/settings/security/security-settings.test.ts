@@ -9,8 +9,18 @@ import {
 describe("security settings helpers", () => {
 	it("keeps empty arrays in the mutation payload so removals serialize", () => {
 		expect(
-			createSecuritySettingsPayload({ allowedIps: [], allowedOrigins: [] })
-		).toEqual({ allowedIps: [], allowedOrigins: [] });
+			createSecuritySettingsPayload({
+				allowedIps: [],
+				allowedOrigins: [],
+				ignoredTrackingOrigins: [],
+				trackingIssueWarningsDisabled: false,
+			})
+		).toEqual({
+			allowedIps: [],
+			allowedOrigins: [],
+			ignoredTrackingOrigins: [],
+			trackingIssueWarningsDisabled: false,
+		});
 	});
 
 	it("reads only string lists from stored website settings", () => {
@@ -18,22 +28,49 @@ describe("security settings helpers", () => {
 			readSecuritySettings({
 				allowedIps: ["10.0.0.1", 42],
 				allowedOrigins: ["cal.com", null],
+				ignoredTrackingOrigins: ["staging.cal.com", false],
+				trackingIssueWarningsDisabled: true,
 			})
-		).toEqual({ allowedIps: ["10.0.0.1"], allowedOrigins: ["cal.com"] });
+		).toEqual({
+			allowedIps: ["10.0.0.1"],
+			allowedOrigins: ["cal.com"],
+			ignoredTrackingOrigins: ["staging.cal.com"],
+			trackingIssueWarningsDisabled: true,
+		});
 	});
 
 	it("detects exact draft changes", () => {
 		expect(
 			areSecuritySettingsEqual(
-				{ allowedIps: [], allowedOrigins: ["cal.com"] },
-				{ allowedIps: [], allowedOrigins: ["cal.com"] }
+				{
+					allowedIps: [],
+					allowedOrigins: ["cal.com"],
+					ignoredTrackingOrigins: [],
+					trackingIssueWarningsDisabled: false,
+				},
+				{
+					allowedIps: [],
+					allowedOrigins: ["cal.com"],
+					ignoredTrackingOrigins: [],
+					trackingIssueWarningsDisabled: false,
+				}
 			)
 		).toBe(true);
 
 		expect(
 			areSecuritySettingsEqual(
-				{ allowedIps: [], allowedOrigins: ["cal.com"] },
-				{ allowedIps: [], allowedOrigins: [] }
+				{
+					allowedIps: [],
+					allowedOrigins: ["cal.com"],
+					ignoredTrackingOrigins: [],
+					trackingIssueWarningsDisabled: false,
+				},
+				{
+					allowedIps: [],
+					allowedOrigins: [],
+					ignoredTrackingOrigins: [],
+					trackingIssueWarningsDisabled: false,
+				}
 			)
 		).toBe(false);
 	});

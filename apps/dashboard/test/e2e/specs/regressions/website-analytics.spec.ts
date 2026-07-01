@@ -32,6 +32,7 @@ test(
 	"shows seeded analytics data and applies a topbar filter",
 	{ tag: ["@regression", "@core"] },
 	async ({ authenticatedPage, e2eSession }) => {
+		test.setTimeout(60_000);
 		expect(e2eSession.websiteId).toBeTruthy();
 
 		await authenticatedPage.goto(`/demo/${e2eSession.websiteId}`);
@@ -58,14 +59,22 @@ test(
 		});
 		await topbar.getByRole("button", { name: "Filter" }).click();
 
-		await authenticatedPage.getByPlaceholder("Search fields…").fill("Country");
-		await authenticatedPage.getByText("Country", { exact: true }).click();
-		await authenticatedPage.getByPlaceholder("Enter country…").fill("US");
-		await authenticatedPage.getByRole("button", { name: "Add filter" }).click();
+		const filterDialog = authenticatedPage.getByRole("dialog", {
+			name: "Add Filter",
+		});
+		await expect(filterDialog).toBeVisible();
+		await filterDialog.getByPlaceholder("Search fields…").fill("Country");
+		await filterDialog.getByText("Country", { exact: true }).click();
+		await filterDialog.getByPlaceholder("Enter country…").fill("US");
+		await filterDialog
+			.getByRole("button", { exact: true, name: "Add filter" })
+			.click();
+		await expect(filterDialog).toBeHidden();
 
 		const main = authenticatedPage.getByRole("main");
-		await expect(main.getByText("Country")).toBeVisible();
-		await expect(main.getByText("US", { exact: true })).toBeVisible();
+		await expect(
+			main.getByRole("group", { name: "Country = US filter" })
+		).toBeVisible();
 		await expect(
 			main.getByText(formattedCount(seed.screenViewsByCountry.US ?? 0)).first()
 		).toBeVisible({ timeout: 20_000 });
