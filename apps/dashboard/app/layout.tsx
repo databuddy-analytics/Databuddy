@@ -1,5 +1,6 @@
 import "./globals.css";
 
+import { OpenAiAdsPixel } from "@/components/openai-ads-pixel";
 import { Toaster } from "@/components/ui/sonner";
 import { APP_URL } from "@/lib/app-url";
 import { DatabuddyDevtools } from "@databuddy/devtools/react";
@@ -149,6 +150,7 @@ export default function RootLayout({
 						trackWebVitals={true}
 					/>
 				)}
+				{isE2E ? null : <OpenAiAdsPixel />}
 				{isLocalhost && !isE2E ? <DatabuddyDevtools /> : null}
 			</body>
 		</html>

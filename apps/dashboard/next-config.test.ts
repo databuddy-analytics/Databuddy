@@ -62,4 +62,13 @@ describe("dashboard next config", () => {
 			expect(csp).toContain("https://app.databuddy.cc");
 		});
 	});
+
+	it("allows the OpenAI Ads measurement pixel on app routes", async () => {
+		await withNodeEnv("production", async () => {
+			const csp = await getCspHeader("/((?!demo|public).*)");
+
+			expect(csp).toContain("https://bzrcdn.openai.com");
+			expect(csp).toContain("https://bzr.openai.com");
+		});
+	});
 });

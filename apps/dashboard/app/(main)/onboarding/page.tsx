@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { measureOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	APP_EVENTS,
@@ -83,6 +84,7 @@ export default function OnboardingPage() {
 			trackAppEvent(APP_EVENTS.signupCompleted, signupProperties, {
 				flush: true,
 			});
+			measureOpenAiRegistrationCompleted();
 		}
 		trackAppEvent(APP_EVENTS.onboardingStarted);
 	}, []);

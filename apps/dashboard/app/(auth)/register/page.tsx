@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { measureOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 import VisuallyHidden from "@/components/ui/visuallyhidden";
 import {
@@ -22,7 +23,6 @@ import {
 	EyeSlashIcon,
 	InfoIcon,
 } from "@databuddy/ui/icons";
-import { Checkbox } from "@databuddy/ui/client";
 import {
 	Button,
 	Divider,
@@ -47,7 +47,6 @@ function RegisterPageContent() {
 		password: "",
 		confirmPassword: "",
 	});
-	const [acceptTerms, setAcceptTerms] = useState(false);
 	const [isHoneypot, setIsHoneypot] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -96,11 +95,6 @@ function RegisterPageContent() {
 			return;
 		}
 
-		if (!acceptTerms) {
-			toast.error("You must accept the terms and conditions");
-			return;
-		}
-
 		if (isHoneypot) {
 			toast.error("Server error, please try again later");
 			return;
@@ -118,6 +112,7 @@ function RegisterPageContent() {
 			fetchOptions: {
 				onSuccess: () => {
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
+					measureOpenAiRegistrationCompleted();
 					toast.success(
 						"Account created! Please check your email to verify your account."
 					);
@@ -424,57 +419,6 @@ function RegisterPageContent() {
 					/>
 				</VisuallyHidden>
 
-				<div className="flex items-center gap-2">
-					<Checkbox
-						checked={acceptTerms}
-						className="cursor-pointer data-[state=checked]:border-brand-purple/50 data-[state=checked]:bg-brand-purple data-[state=unchecked]:bg-input"
-						disabled={isLoading}
-						id="terms"
-						onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
-					/>
-					<Field.Label
-						className="text-[11px] text-muted-foreground leading-relaxed"
-						htmlFor="terms"
-					>
-						<span className="hidden sm:inline">
-							I agree to the{" "}
-							<Link
-								className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
-								href="https://www.databuddy.cc/terms"
-								target="_blank"
-							>
-								Terms of Service
-							</Link>{" "}
-							and{" "}
-							<Link
-								className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
-								href="https://www.databuddy.cc/privacy"
-								target="_blank"
-							>
-								Privacy Policy
-							</Link>
-						</span>
-						<span className="sm:hidden">
-							I agree to{" "}
-							<Link
-								className="font-medium text-primary hover:text-primary/80"
-								href="https://www.databuddy.cc/terms"
-								target="_blank"
-							>
-								Terms
-							</Link>{" "}
-							&{" "}
-							<Link
-								className="font-medium text-primary hover:text-primary/80"
-								href="https://www.databuddy.cc/privacy"
-								target="_blank"
-							>
-								Privacy
-							</Link>
-						</span>
-					</Field.Label>
-				</div>
-
 				<Button
 					className="mt-4 w-full"
 					loading={isLoading}
@@ -484,6 +428,29 @@ function RegisterPageContent() {
 					<span className="hidden sm:inline">Create account</span>
 					<span className="sm:hidden">Sign up</span>
 				</Button>
+
+				<Text
+					className="mx-auto max-w-xs text-center text-[11px] leading-relaxed"
+					tone="muted"
+				>
+					By creating an account, you agree to the{" "}
+					<Link
+						className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
+						href="https://www.databuddy.cc/terms"
+						target="_blank"
+					>
+						Terms
+					</Link>{" "}
+					and{" "}
+					<Link
+						className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
+						href="https://www.databuddy.cc/privacy"
+						target="_blank"
+					>
+						Privacy Policy
+					</Link>
+					.
+				</Text>
 			</form>
 		</div>
 	);
