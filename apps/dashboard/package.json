@@ -88,7 +88,7 @@
     "qrcode.react": "^4.2.0",
     "radix-ui": "^1.4.3",
     "react": "catalog:",
-    "react-day-picker": "^9.14.0",
+    "react-day-picker": "^10.0.1",
     "react-dom": "catalog:",
     "react-grid-layout": "^2.2.2",
     "react-hook-form": "^7.71.2",
