@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import { publicConfig } from "@databuddy/env/public";
 
-const PIXEL_ID = process.env.NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID?.trim();
+const PIXEL_ID = publicConfig.integrations.openAiAdsPixelId;
 const SCRIPT_SRC = "https://bzrcdn.openai.com/sdk/oaiq.min.js";
 
 type OpenAiAdsQueue = ((...args: unknown[]) => void) & {

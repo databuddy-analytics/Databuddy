@@ -150,7 +150,7 @@ export default function RootLayout({
 						trackWebVitals={true}
 					/>
 				)}
-				{isE2E ? null : <OpenAiAdsPixel />}
+				{isLocalhost || isE2E ? null : <OpenAiAdsPixel />}
 				{isLocalhost && !isE2E ? <DatabuddyDevtools /> : null}
 			</body>
 		</html>
