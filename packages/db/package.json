@@ -27,7 +27,7 @@
   "dependencies": {
     "@clickhouse/client": "^1.14.0",
     "@databuddy/cache": "workspace:*",
-    "@faker-js/faker": "^9.9.0",
+    "@faker-js/faker": "^10.5.0",
     "@neondatabase/serverless": "^1.0.2",
     "drizzle-orm": "catalog:",
     "ioredis": "^5.8.2",
