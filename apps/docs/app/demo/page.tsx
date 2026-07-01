@@ -13,11 +13,6 @@ export const metadata: Metadata = {
 export default async function DemoPage() {
 	const headerList = await headers();
 	const iframeSrc = getDemoEmbedBaseUrl(hostFromNextHeaders(headerList));
-	const prompts = [
-		"Why did signups dip?",
-		"Show funnel drop-offs",
-		"Which pages got slower?",
-	];
 
 	return (
 		<div className="fixed inset-0 h-full w-full">
@@ -72,17 +67,7 @@ export default async function DemoPage() {
 						</p>
 					</div>
 
-					<div className="flex flex-col gap-3 md:items-end">
-						<div className="flex flex-wrap gap-2">
-							{prompts.map((prompt) => (
-								<span
-									className="rounded border border-border/70 bg-card/80 px-2.5 py-1 font-mono text-muted-foreground text-xs"
-									key={prompt}
-								>
-									{prompt}
-								</span>
-							))}
-						</div>
+					<div className="flex md:justify-end">
 						<Link
 							className="pointer-events-auto inline-flex items-center justify-center gap-2 rounded border border-primary/70 bg-primary px-4 py-2.5 font-medium text-primary-foreground text-sm shadow-lg transition hover:bg-primary/90"
 							href="https://app.databuddy.cc/register"
