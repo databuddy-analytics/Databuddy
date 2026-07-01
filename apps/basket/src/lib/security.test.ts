@@ -214,6 +214,19 @@ describe("checkDuplicate", () => {
 		expect(mockCaptureError).not.toHaveBeenCalled();
 	});
 
+	test("ambiguous retry null after Redis error → not duplicate", async () => {
+		mockRedisSet
+			.mockRejectedValueOnce(new Error("stale connection"))
+			.mockResolvedValueOnce(null);
+
+		const result = await checkDuplicate("evt_1", "track");
+
+		expect(result).toBe(false);
+		expect(mockRedisSet).toHaveBeenCalledTimes(2);
+		expect(mockLoggerSet).not.toHaveBeenCalled();
+		expect(mockCaptureError).not.toHaveBeenCalled();
+	});
+
 	test("Redis error → returns false (fail-open)", async () => {
 		mockRedisSet.mockRejectedValue(new Error("Redis down"));
 		const result = await checkDuplicate("evt_1", "track");

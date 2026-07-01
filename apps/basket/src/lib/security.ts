@@ -129,7 +129,10 @@ async function setDedupKey(key: string, ttl: number): Promise<string | null> {
 	} catch (firstError) {
 		await wait(DEDUP_RETRY_DELAY_MS);
 		try {
-			return await redis.set(key, "1", "EX", ttl, "NX");
+			const retryResult = await redis.set(key, "1", "EX", ttl, "NX");
+			// If the first SET succeeded but the client saw an error, retry returns null.
+			// Treat that ambiguous state as first delivery so ingestion fails open.
+			return retryResult ?? "OK";
 		} catch {
 			throw firstError;
 		}
