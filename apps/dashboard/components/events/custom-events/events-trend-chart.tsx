@@ -76,13 +76,13 @@ function ChartTooltip({
 	resolveColor,
 }: {
 	active?: boolean;
-	payload?: Array<{
+	payload?: ReadonlyArray<{
 		color: string;
 		dataKey: string;
 		name: string;
 		value: number;
 	}>;
-	label?: string;
+	label?: number | string;
 	resolveColor?: (entry: { color: string; dataKey: string }) => string;
 }) {
 	if (!(active && payload?.length)) {
@@ -96,7 +96,7 @@ function ChartTooltip({
 			{label && (
 				<div className={chartTooltipHeaderRowClassName}>
 					<div className="size-1.5 shrink-0 rounded-full bg-chart-1" />
-					<p className="font-medium text-foreground text-xs">{label}</p>
+					<p className="font-medium text-foreground text-xs">{String(label)}</p>
 				</div>
 			)}
 			<div className="max-h-48 space-y-1 overflow-y-auto">
@@ -330,19 +330,19 @@ export function EventsTrendChart({
 		setZoomedPerEventData(null);
 	}, []);
 
-	const handleMouseDown = (event: { activeLabel?: string }) => {
+	const handleMouseDown = (event: { activeLabel?: number | string }) => {
 		if (!event?.activeLabel) {
 			return;
 		}
-		setRefAreaLeft(event.activeLabel);
+		setRefAreaLeft(String(event.activeLabel));
 		setRefAreaRight(null);
 	};
 
-	const handleMouseMove = (event: { activeLabel?: string }) => {
+	const handleMouseMove = (event: { activeLabel?: number | string }) => {
 		if (!(refAreaLeft && event?.activeLabel)) {
 			return;
 		}
-		setRefAreaRight(event.activeLabel);
+		setRefAreaRight(String(event.activeLabel));
 	};
 
 	const handleMouseUp = () => {

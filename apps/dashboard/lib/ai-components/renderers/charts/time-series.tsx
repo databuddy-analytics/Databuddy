@@ -93,12 +93,12 @@ export function TimeSeriesRenderer({
 			label,
 		}: {
 			active?: boolean;
-			payload?: Array<{
-				value?: number;
-				dataKey?: string | number;
+			payload?: ReadonlyArray<{
+				value?: unknown;
+				dataKey?: unknown;
 				color?: string;
 			}>;
-			label?: string;
+			label?: number | string;
 		}) => {
 			if (!(active && payload?.length)) {
 				return null;
@@ -111,11 +111,11 @@ export function TimeSeriesRenderer({
 					{payload.map((entry) => (
 						<p
 							className="font-semibold text-foreground text-sm tabular-nums"
-							key={entry.dataKey}
+							key={String(entry.dataKey ?? "")}
 						>
-							{formatNumber(entry.value ?? 0)}{" "}
+							{formatNumber(Number(entry.value ?? 0))}{" "}
 							<span className="font-normal text-muted-foreground">
-								{entry.dataKey}
+								{String(entry.dataKey ?? "")}
 							</span>
 						</p>
 					))}
