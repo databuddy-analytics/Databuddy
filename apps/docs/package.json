@@ -75,7 +75,7 @@
     "react-fast-marquee": "^1.6.5",
     "react-hook-form": "^7.72.1",
     "react-phone-number-input": "^3.4.16",
-    "recharts": "^2.15.4",
+    "recharts": "^3.9.0",
     "remark": "^15.0.1",
     "remark-gfm": "^4.0.1",
     "remark-mdx": "^3.1.1",
