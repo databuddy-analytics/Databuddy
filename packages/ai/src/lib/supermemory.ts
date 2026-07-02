@@ -27,43 +27,98 @@ export function sanitizeMemoryContent(
 	return stripHtmlTags(value, maxLength);
 }
 
+export type MemoryContainerKind = "apikey" | "user" | "website";
+
+export function memoryContainerTag(
+	kind: MemoryContainerKind,
+	id: string
+): string {
+	return `${kind}_${id}`;
+}
+
+function legacyMemoryContainerTag(
+	kind: MemoryContainerKind,
+	id: string
+): string {
+	return `${kind}:${id}`;
+}
+
+function identityContainerTag(
+	userId: string | null,
+	apiKeyId: string | null
+): string | null {
+	if (userId) {
+		return memoryContainerTag("user", userId);
+	}
+	if (apiKeyId) {
+		return memoryContainerTag("apikey", apiKeyId);
+	}
+	return null;
+}
+
 function buildContainerTags(
 	userId: string | null,
 	apiKeyId: string | null,
 	websiteId?: string | null
 ): string[] {
 	const tags: string[] = [];
-	if (userId) {
-		tags.push(`user:${userId}`);
-	} else if (apiKeyId) {
-		tags.push(`apikey:${apiKeyId}`);
+	const identityTag = identityContainerTag(userId, apiKeyId);
+	if (identityTag) {
+		tags.push(identityTag);
 	}
 	if (websiteId) {
-		tags.push(`website:${websiteId}`);
+		tags.push(memoryContainerTag("website", websiteId));
 	}
 	if (tags.length === 0) {
 		tags.push("anonymous");
 	}
-	return tags;
+	return [...new Set(tags)];
 }
 
-function primaryContainerTag(
+export function primaryContainerTag(
 	userId: string | null,
 	apiKeyId: string | null
 ): string {
 	if (userId) {
-		return `user:${userId}`;
+		return memoryContainerTag("user", userId);
 	}
 	if (apiKeyId) {
-		return `apikey:${apiKeyId}`;
+		return memoryContainerTag("apikey", apiKeyId);
 	}
 	return "anonymous";
+}
+
+function readContainerTags(
+	userId: string | null,
+	apiKeyId: string | null,
+	websiteId?: string | null
+): string[] {
+	const tags = buildContainerTags(userId, apiKeyId, websiteId);
+	if (userId) {
+		tags.push(legacyMemoryContainerTag("user", userId));
+	} else if (apiKeyId) {
+		tags.push(legacyMemoryContainerTag("apikey", apiKeyId));
+	}
+	if (websiteId) {
+		tags.push(legacyMemoryContainerTag("website", websiteId));
+	}
+	return [...new Set(tags)];
+}
+
+function uniqueNonEmpty(values: string[]): string[] {
+	return [...new Set(values.filter(Boolean))];
 }
 
 export interface MemoryContext {
 	dynamicProfile: string[];
 	relevantMemories: string[];
 	staticProfile: string[];
+}
+
+export interface MemorySearchResult {
+	containerTag: string;
+	memory: string;
+	similarity: number;
 }
 
 export async function getMemoryContext(
@@ -77,25 +132,39 @@ export async function getMemoryContext(
 		return { staticProfile: [], dynamicProfile: [], relevantMemories: [] };
 	}
 
-	const containerTag = primaryContainerTag(userId, apiKeyId);
+	const containerTags = readContainerTags(userId, apiKeyId, options?.websiteId);
 	const threshold = options?.threshold ?? 0.25;
 
 	try {
-		const profile = await client.profile({
-			containerTag,
-			q: query,
-			threshold,
-		});
+		const profiles = await Promise.all(
+			containerTags.map((containerTag) =>
+				client
+					.profile({
+						containerTag,
+						q: query,
+						threshold,
+					})
+					.catch(() => null)
+			)
+		);
 
-		const searchResults = (profile.searchResults?.results ?? []) as Array<{
-			memory?: string;
-			chunk?: string;
-		}>;
+		const searchResults = profiles.flatMap((profile) =>
+			(
+				(profile?.searchResults?.results ?? []) as Array<{
+					memory?: string;
+					chunk?: string;
+				}>
+			).map((r) => r.memory ?? r.chunk ?? "")
+		);
 
 		return {
-			staticProfile: profile.profile.static,
-			dynamicProfile: profile.profile.dynamic,
-			relevantMemories: searchResults.map((r) => r.memory ?? r.chunk ?? ""),
+			staticProfile: uniqueNonEmpty(
+				profiles.flatMap((profile) => profile?.profile?.static ?? [])
+			),
+			dynamicProfile: uniqueNonEmpty(
+				profiles.flatMap((profile) => profile?.profile?.dynamic ?? [])
+			),
+			relevantMemories: uniqueNonEmpty(searchResults),
 		};
 	} catch {
 		return { staticProfile: [], dynamicProfile: [], relevantMemories: [] };
@@ -156,8 +225,8 @@ export function storeAnalyticsSummary(
 
 	return client
 		.add({
-			content: summary,
-			containerTags: [`website:${websiteId}`],
+			content: sanitizeMemoryContent(summary),
+			containerTag: memoryContainerTag("website", websiteId),
 			metadata: {
 				source: "databuddy",
 				type: "analytics_summary",
@@ -214,13 +283,23 @@ export async function searchMemories(
 		threshold?: number;
 		websiteId?: string;
 	}
-): Promise<Array<{ memory: string; similarity: number }>> {
+): Promise<MemorySearchResult[]> {
 	const client = getClient();
 	if (!client) {
 		return [];
 	}
 
-	const containerTag = primaryContainerTag(userId, apiKeyId);
+	const containerTags = readContainerTags(userId, apiKeyId, options?.websiteId);
+	const primaryTags = new Set<string>();
+	if (userId) {
+		primaryTags.add(memoryContainerTag("user", userId));
+		primaryTags.add(legacyMemoryContainerTag("user", userId));
+	} else if (apiKeyId) {
+		primaryTags.add(memoryContainerTag("apikey", apiKeyId));
+		primaryTags.add(legacyMemoryContainerTag("apikey", apiKeyId));
+	} else if (!options?.websiteId) {
+		primaryTags.add("anonymous");
+	}
 
 	const filters = options?.websiteId
 		? {
@@ -240,19 +319,48 @@ export async function searchMemories(
 		: undefined;
 
 	try {
-		const results = await client.search.memories({
-			q: query,
-			containerTag,
-			searchMode: "hybrid",
-			limit: options?.limit ?? 5,
-			threshold: options?.threshold ?? 0.4,
-			...(filters && { filters }),
-		});
+		const limit = options?.limit ?? 5;
+		const results = await Promise.all(
+			containerTags.map((containerTag) =>
+				client.search
+					.memories({
+						q: query,
+						containerTag,
+						searchMode: "hybrid",
+						limit,
+						threshold: options?.threshold ?? 0.4,
+						...(primaryTags.has(containerTag) && filters ? { filters } : {}),
+					})
+					.then((result) => ({ containerTag, result }))
+					.catch(() => null)
+			)
+		);
 
-		return results.results.map((r) => ({
-			memory: r.memory ?? r.chunk ?? "",
-			similarity: r.similarity,
-		}));
+		const deduped = new Map<string, MemorySearchResult>();
+		for (const search of results) {
+			if (!search) {
+				continue;
+			}
+			for (const r of search.result?.results ?? []) {
+				const memory = r.memory ?? r.chunk ?? "";
+				if (!memory) {
+					continue;
+				}
+				const similarity = r.similarity;
+				const existing = deduped.get(memory);
+				if (!(existing && existing.similarity >= similarity)) {
+					deduped.set(memory, {
+						containerTag: search.containerTag,
+						memory,
+						similarity,
+					});
+				}
+			}
+		}
+
+		return [...deduped.values()]
+			.sort((a, b) => b.similarity - a.similarity)
+			.slice(0, limit);
 	} catch {
 		return [];
 	}

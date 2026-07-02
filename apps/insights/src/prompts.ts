@@ -426,7 +426,7 @@ RULES:
 - Confidence > 0.7 requires segment isolation or temporal correlation.
 - Actions: include when fixable (fix_goal, add_custom_event, create_annotation, create_funnel, add_tracking, investigate_further, code_fix).
 - code_fix: when you find a bug with a clear fix, emit a code_fix action with params {prompt, file_hint, error_message}. The prompt should be paste-ready for Cursor or Claude Code — include the exact file to change, what to change, and why.
-- You have mutation tools: call create_annotation directly to mark deploys or incidents on the timeline. Call update_goal to fix goal target mismatches. Use confirmed=true to execute.
+- Do not execute mutations from this background job. Emit action recommendations only.
 - Investigate detected signals using tools. Call emit_insight for each finding. Drop noise.`;
 }
 
@@ -528,7 +528,7 @@ ${githubInstruction}
 4. For errors: get messages and affected pages. Scrape the page if needed.
 5. For conversion/funnel changes: check product_metrics for funnel/goal data.
 6. For user behavior: use interesting_sessions or session_list to find specific sessions that dropped off, then session_events to see what they did.
-7. When you find something fixable, execute it: call create_annotation to mark deploys, update_goal to fix targets. Use confirmed=true.
+7. When you find something fixable, emit the recommended action and exact params, but do not execute mutations.
 8. Emit findings via emit_insight as you go.
 
 summary_metrics is the canonical source for headline numbers.

@@ -56,6 +56,9 @@ export interface Config {
 		alertsFrom: string;
 		from: string;
 	};
+	integrations: {
+		openAiAdsPixelId?: string;
+	};
 	urls: {
 		api: string;
 		basket: string;
@@ -107,6 +110,10 @@ function readEmail(env: Env, setting: EmailConfig): string {
 	return readFirst(env, setting.env) ?? setting.default;
 }
 
+function readOptional(env: Env, key: string): string | undefined {
+	return env[key]?.trim() || undefined;
+}
+
 function readList(value: string | undefined): string[] {
 	return (
 		value
@@ -134,6 +141,9 @@ export function createConfig(env: Env = process.env): Config {
 		email: {
 			alertsFrom: readEmail(env, EMAIL.alertsFrom),
 			from: readEmail(env, EMAIL.from),
+		},
+		integrations: {
+			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
 		},
 		urls: {
 			api: readUrl(env, URLS.api),

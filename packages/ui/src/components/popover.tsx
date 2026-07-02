@@ -29,11 +29,15 @@ function Content({
 	className,
 	children,
 	align = "center",
+	disableAnchorTracking = false,
 	side = "bottom",
 	sideOffset = 6,
 	...rest
 }: ComponentPropsWithoutRef<typeof BasePopover.Popup> & {
 	align?: ComponentPropsWithoutRef<typeof BasePopover.Positioner>["align"];
+	disableAnchorTracking?: ComponentPropsWithoutRef<
+		typeof BasePopover.Positioner
+	>["disableAnchorTracking"];
 	side?: ComponentPropsWithoutRef<typeof BasePopover.Positioner>["side"];
 	sideOffset?: ComponentPropsWithoutRef<
 		typeof BasePopover.Positioner
@@ -44,6 +48,7 @@ function Content({
 			<BasePopover.Positioner
 				align={align}
 				className="z-50"
+				disableAnchorTracking={disableAnchorTracking}
 				side={side}
 				sideOffset={sideOffset}
 			>

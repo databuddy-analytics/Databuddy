@@ -23,7 +23,7 @@
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/bun": "catalog:",
-    "@types/node": "^20.0.0",
+    "@types/node": "^26.0.0",
     "@types/react": "catalog:",
     "@vitejs/plugin-react": "^5.0.0",
     "msw": "^2.11.5",

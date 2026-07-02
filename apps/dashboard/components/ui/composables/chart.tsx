@@ -84,7 +84,7 @@ interface ChartTooltipProps {
 	className?: string;
 	entries?: TooltipEntry[];
 	formatLabelAction?: (label: string) => string;
-	label?: string;
+	label?: number | string;
 	singleValue?: {
 		value: number;
 		formattedValue?: string;
@@ -108,8 +108,8 @@ function ChartTooltip({
 		label == null || label === ""
 			? undefined
 			: formatLabelAction
-				? formatLabelAction(label)
-				: label;
+				? formatLabelAction(String(label))
+				: String(label);
 
 	if (singleValue) {
 		return (
@@ -173,8 +173,18 @@ export interface MetricConfig {
 	label: string;
 }
 
+export type ChartTooltipPayloadEntry = {
+	color?: string;
+	dataKey?: unknown;
+	name?: unknown;
+	payload?: Record<string, unknown>;
+	value?: unknown;
+};
+
+export type ChartTooltipPayload = ReadonlyArray<ChartTooltipPayloadEntry>;
+
 function createTooltipEntries(
-	payload: Array<{ dataKey: string; value: number; color: string }> | undefined,
+	payload: ChartTooltipPayload | undefined,
 	metrics: MetricConfig[]
 ): TooltipEntry[] {
 	if (!payload?.length) {
@@ -184,18 +194,23 @@ function createTooltipEntries(
 	const entries: TooltipEntry[] = [];
 
 	for (const p of payload) {
-		const metric = metrics.find((m) => m.key === p.dataKey);
-		if (!metric || p.value == null) {
+		const dataKey =
+			typeof p.dataKey === "string" || typeof p.dataKey === "number"
+				? String(p.dataKey)
+				: "";
+		const metric = metrics.find((m) => m.key === dataKey);
+		const value = toFiniteNumber(p.value);
+		if (!metric || value === null) {
 			continue;
 		}
 
 		entries.push({
-			key: p.dataKey,
+			key: dataKey,
 			label: metric.label,
-			value: p.value,
+			value,
 			color: p.color || metric.color || "var(--color-chart-1)",
 			formattedValue: metric.formatValue
-				? metric.formatValue(p.value)
+				? metric.formatValue(value)
 				: undefined,
 		});
 	}
@@ -306,15 +321,15 @@ function toFiniteNumber(v: unknown): number | null {
 	return null;
 }
 
-type RechartsTooltipPayloadEntry = {
-	payload?: { date?: unknown; value?: unknown };
+type RechartsTooltipPayloadEntry = ChartTooltipPayloadEntry & {
+	payload?: Record<string, unknown>;
 	value?: unknown;
 };
 
 type ChartTooltipPayloadRow = RechartsTooltipPayloadEntry["payload"];
 
 function firstTooltipPayloadRow(
-	payload: RechartsTooltipPayloadEntry[] | undefined
+	payload: ReadonlyArray<RechartsTooltipPayloadEntry> | undefined
 ): ChartTooltipPayloadRow {
 	return payload?.[0]?.payload;
 }
@@ -360,7 +375,7 @@ export function createRechartsSingleValueTooltip(
 	return (props: {
 		active?: boolean;
 		label?: string | number;
-		payload?: RechartsTooltipPayloadEntry[];
+		payload?: ReadonlyArray<RechartsTooltipPayloadEntry>;
 	}) => {
 		if (props.active === false) {
 			return null;
@@ -607,11 +622,7 @@ function ChartCartesianArea({
 							<ChartTooltip
 								active={props.active}
 								entries={createTooltipEntries(
-									props.payload as Array<{
-										dataKey: string;
-										value: number;
-										color: string;
-									}>,
+									props.payload,
 									[metricRow]
 								)}
 								formatLabelAction={formatTooltipLabel}
@@ -716,11 +727,7 @@ function ChartMultiSeries({
 					<ChartTooltip
 						active={props.active}
 						entries={createTooltipEntries(
-							props.payload as Array<{
-								dataKey: string;
-								value: number;
-								color: string;
-							}>,
+							props.payload,
 							series
 						)}
 						formatLabelAction={formatTooltipDate}

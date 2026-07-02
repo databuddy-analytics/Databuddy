@@ -18,7 +18,7 @@ jobs:
       id-token: write
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: 0
 
@@ -26,7 +26,7 @@ jobs:
         with:
           bun-version: "1.3.14"
 
-      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
@@ -42,7 +42,7 @@ jobs:
 
       - run: bun install --frozen-lockfile --ignore-scripts
 
-      - uses: changesets/action@e0145edc7d9d8679003495b11f87bd8ef63c0cba # v1
+      - uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1
         id: changesets
         with:
           version: bun run version-packages

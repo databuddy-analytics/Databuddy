@@ -2,10 +2,10 @@
 
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { measureOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 import VisuallyHidden from "@/components/ui/visuallyhidden";
 import {
@@ -22,7 +22,6 @@ import {
 	EyeSlashIcon,
 	InfoIcon,
 } from "@databuddy/ui/icons";
-import { Checkbox } from "@databuddy/ui/client";
 import {
 	Button,
 	Divider,
@@ -34,7 +33,6 @@ import {
 } from "@databuddy/ui";
 
 function RegisterPageContent() {
-	const router = useRouter();
 	const [selectedPlan] = useQueryState("plan", parseAsString);
 	const [callback] = useQueryState(
 		"callback",
@@ -47,12 +45,11 @@ function RegisterPageContent() {
 		password: "",
 		confirmPassword: "",
 	});
-	const [acceptTerms, setAcceptTerms] = useState(false);
 	const [isHoneypot, setIsHoneypot] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 	const [registrationStep, setRegistrationStep] = useState<
-		"form" | "success" | "verification-needed"
+		"form" | "verification-needed"
 	>("form");
 
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,11 +93,6 @@ function RegisterPageContent() {
 			return;
 		}
 
-		if (!acceptTerms) {
-			toast.error("You must accept the terms and conditions");
-			return;
-		}
-
 		if (isHoneypot) {
 			toast.error("Server error, please try again later");
 			return;
@@ -118,13 +110,11 @@ function RegisterPageContent() {
 			fetchOptions: {
 				onSuccess: () => {
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
+					measureOpenAiRegistrationCompleted();
 					toast.success(
 						"Account created! Please check your email to verify your account."
 					);
 					setRegistrationStep("verification-needed");
-					if (selectedPlan) {
-						localStorage.setItem("pendingPlanSelection", selectedPlan);
-					}
 				},
 			},
 		});
@@ -213,18 +203,6 @@ function RegisterPageContent() {
 						</Text>
 					</>
 				);
-			case "success":
-				return (
-					<>
-						<Text as="h1" className="text-balance font-medium text-2xl">
-							Success!
-						</Text>
-						<Text tone="muted">
-							Your account has been created successfully. You can now sign in to
-							access your dashboard.
-						</Text>
-					</>
-				);
 			default:
 				return (
 					<>
@@ -260,13 +238,6 @@ function RegisterPageContent() {
 				<span className="sm:hidden">Back</span>
 			</Button>
 		</div>
-	);
-
-	const renderSuccessContent = () => (
-		<Button className="w-full" onClick={() => router.push("/login")} size="lg">
-			<span className="hidden sm:inline">Continue to login</span>
-			<span className="sm:hidden">Continue</span>
-		</Button>
 	);
 
 	const renderFormContent = () => (
@@ -424,57 +395,6 @@ function RegisterPageContent() {
 					/>
 				</VisuallyHidden>
 
-				<div className="flex items-center gap-2">
-					<Checkbox
-						checked={acceptTerms}
-						className="cursor-pointer data-[state=checked]:border-brand-purple/50 data-[state=checked]:bg-brand-purple data-[state=unchecked]:bg-input"
-						disabled={isLoading}
-						id="terms"
-						onCheckedChange={(checked) => setAcceptTerms(checked as boolean)}
-					/>
-					<Field.Label
-						className="text-[11px] text-muted-foreground leading-relaxed"
-						htmlFor="terms"
-					>
-						<span className="hidden sm:inline">
-							I agree to the{" "}
-							<Link
-								className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
-								href="https://www.databuddy.cc/terms"
-								target="_blank"
-							>
-								Terms of Service
-							</Link>{" "}
-							and{" "}
-							<Link
-								className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
-								href="https://www.databuddy.cc/privacy"
-								target="_blank"
-							>
-								Privacy Policy
-							</Link>
-						</span>
-						<span className="sm:hidden">
-							I agree to{" "}
-							<Link
-								className="font-medium text-primary hover:text-primary/80"
-								href="https://www.databuddy.cc/terms"
-								target="_blank"
-							>
-								Terms
-							</Link>{" "}
-							&{" "}
-							<Link
-								className="font-medium text-primary hover:text-primary/80"
-								href="https://www.databuddy.cc/privacy"
-								target="_blank"
-							>
-								Privacy
-							</Link>
-						</span>
-					</Field.Label>
-				</div>
-
 				<Button
 					className="mt-4 w-full"
 					loading={isLoading}
@@ -484,6 +404,29 @@ function RegisterPageContent() {
 					<span className="hidden sm:inline">Create account</span>
 					<span className="sm:hidden">Sign up</span>
 				</Button>
+
+				<Text
+					className="mx-auto max-w-xs text-center text-[11px] leading-relaxed"
+					tone="muted"
+				>
+					By creating an account, you agree to the{" "}
+					<Link
+						className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
+						href="https://www.databuddy.cc/terms"
+						target="_blank"
+					>
+						Terms
+					</Link>{" "}
+					and{" "}
+					<Link
+						className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
+						href="https://www.databuddy.cc/privacy"
+						target="_blank"
+					>
+						Privacy Policy
+					</Link>
+					.
+				</Text>
 			</form>
 		</div>
 	);
@@ -492,8 +435,6 @@ function RegisterPageContent() {
 		switch (registrationStep) {
 			case "verification-needed":
 				return renderVerificationContent();
-			case "success":
-				return renderSuccessContent();
 			default:
 				return renderFormContent();
 		}

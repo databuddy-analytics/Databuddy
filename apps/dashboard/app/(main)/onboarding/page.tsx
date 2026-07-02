@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { measureOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	APP_EVENTS,
@@ -51,7 +52,7 @@ export default function OnboardingPage() {
 	const [createdWebsiteId, setCreatedWebsiteId] = useState<string | null>(null);
 
 	const hasWebsite = websites && websites.length > 0;
-	const websiteId = createdWebsiteId ?? websites?.[0]?.id ?? "";
+	const websiteId = createdWebsiteId ?? websites?.[0]?.id ?? null;
 
 	// Update URL and track step views
 	useEffect(() => {
@@ -83,6 +84,7 @@ export default function OnboardingPage() {
 			trackAppEvent(APP_EVENTS.signupCompleted, signupProperties, {
 				flush: true,
 			});
+			measureOpenAiRegistrationCompleted();
 		}
 		trackAppEvent(APP_EVENTS.onboardingStarted);
 	}, []);
@@ -130,9 +132,11 @@ export default function OnboardingPage() {
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
-			router.replace(`/billing?tab=plans&plan=${pendingPlan}`);
-		} else {
+			router.replace(`/billing/plans?plan=${encodeURIComponent(pendingPlan)}`);
+		} else if (websiteId) {
 			router.replace(`/websites/${websiteId}`);
+		} else {
+			router.replace("/websites");
 		}
 	}, [markComplete, router, websiteId]);
 

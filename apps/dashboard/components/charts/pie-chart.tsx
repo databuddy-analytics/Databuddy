@@ -163,7 +163,6 @@ const MiniPieChart = memo(
 						<ResponsiveContainer height={120} width={120}>
 							<PieChart>
 								<Pie
-									activeIndex={activeIndex >= 0 ? activeIndex : undefined}
 									activeShape={renderActiveShape as never}
 									animationBegin={0}
 									animationDuration={400}

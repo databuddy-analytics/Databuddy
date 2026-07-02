@@ -86,4 +86,70 @@ describe("resolveToolWebsite", () => {
 
 		expect(() => resolveToolWebsite(ctx)).toThrow(/multiple websites/);
 	});
+
+	it("resolves a domain name to its UUID from accessibleWebsites", () => {
+		const ctx = makeCtx({
+			accessibleWebsites: [
+				{ id: "web_a", domain: "finvzo.com", name: null, isPublic: null, createdAt: null },
+			],
+		});
+
+		expect(resolveToolWebsite(ctx, "finvzo.com")).toEqual({
+			websiteId: "web_a",
+			domain: "finvzo.com",
+		});
+	});
+
+	it("resolves accessible website domains case-insensitively", () => {
+		const ctx = makeCtx({
+			accessibleWebsites: [
+				{ id: "web_a", domain: "Finvzo.COM", name: null, isPublic: null, createdAt: null },
+			],
+		});
+
+		expect(resolveToolWebsite(ctx, " finvzo.com ")).toEqual({
+			websiteId: "web_a",
+			domain: "Finvzo.COM",
+		});
+	});
+
+	it("resolves ctx.websiteDomain to ctx.websiteId for single-site contexts", () => {
+		const ctx = makeCtx({
+			websiteId: "web_ctx",
+			websiteDomain: "ctx-domain.com",
+			accessibleWebsites: [],
+		});
+
+		expect(resolveToolWebsite(ctx, "ctx-domain.com")).toEqual({
+			websiteId: "web_ctx",
+			domain: "ctx-domain.com",
+		});
+	});
+
+	it("resolves ctx.websiteDomain case-insensitively for single-site contexts", () => {
+		const ctx = makeCtx({
+			websiteId: "web_ctx",
+			websiteDomain: "Ctx-Domain.COM",
+			accessibleWebsites: [],
+		});
+
+		expect(resolveToolWebsite(ctx, "ctx-domain.com")).toEqual({
+			websiteId: "web_ctx",
+			domain: "Ctx-Domain.COM",
+		});
+	});
+
+	it("still rejects a domain that does not match any accessible website", () => {
+		const ctx = makeCtx({
+			accessibleWebsites: [
+				{ id: "web_a", domain: "a.com", name: null, isPublic: null, createdAt: null },
+			],
+			websiteId: "web_ctx",
+			websiteDomain: "ctx.com",
+		});
+
+		expect(() => resolveToolWebsite(ctx, "unknown.com")).toThrow(
+			/not in this workspace/
+		);
+	});
 });

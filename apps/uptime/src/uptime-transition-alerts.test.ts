@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { MonitorStatus } from "./types";
-import { resolveTransitionKind } from "./uptime-transition-alerts";
+import {
+	countFiredAlarms,
+	resolveTransitionKind,
+} from "./uptime-transition-alerts";
 
 const { UP, DOWN, PENDING, MAINTENANCE } = MonitorStatus;
 
@@ -120,4 +123,14 @@ describe("resolveTransitionKind — state machine matrix", () => {
 			});
 		}
 	}
+});
+
+describe("countFiredAlarms", () => {
+	test("counts alarms with at least one successful destination", () => {
+		expect(countFiredAlarms([2, 0, 1])).toBe(2);
+	});
+
+	test("does not count alarms where every destination failed or was filtered", () => {
+		expect(countFiredAlarms([0, 0, 0])).toBe(0);
+	});
 });

@@ -1,5 +1,4 @@
 import type { AppContext } from "@databuddy/ai/config/context";
-import { createServiceAuth } from "@databuddy/rpc";
 import {
 	ANTHROPIC_CACHE_1H,
 	createModelFromId,
@@ -38,6 +37,7 @@ import {
 } from "./persistence";
 import { reflectAndRank } from "./reflection";
 import { resolveInsightsForWebsite } from "./resolution";
+import { createInsightsServiceAuth } from "./service-auth";
 import {
 	buildInvestigationPrompt,
 	buildSystemPrompt,
@@ -66,10 +66,6 @@ const ALWAYS_ON_TOOLS = new Set([
 	"execute_sql",
 	"scrape_page",
 	"search_console",
-	"create_annotation",
-	"update_goal",
-	"create_funnel",
-	"create_goal",
 ]);
 
 export interface GenerateWebsiteInsightsInput {
@@ -263,7 +259,7 @@ async function analyzeWebsite(params: {
 		periodBounds: { current: currentRange, previous: previousRange },
 	});
 	const investigationTools = createToolkit({
-		capabilities: ["investigation", "mutations"],
+		capabilities: ["investigation"],
 		domain: params.domain,
 		organizationId: params.organizationId,
 		userId: params.userId,
@@ -314,7 +310,8 @@ async function runInsightsAgent(params: {
 			timezone: params.config.timezone,
 			currentDateTime: new Date().toISOString(),
 			chatId: `insights:${params.organizationId}:${params.websiteId}`,
-			serviceAuth: createServiceAuth(params.organizationId, ["read:data"]),
+			mutationMode: "dry-run",
+			serviceAuth: createInsightsServiceAuth(params.organizationId),
 		};
 
 		const collected: ParsedInsight[] = [];

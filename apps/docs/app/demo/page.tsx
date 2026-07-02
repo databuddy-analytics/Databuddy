@@ -52,6 +52,38 @@ export default async function DemoPage() {
 				</div>
 			</div>
 
+			<div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 border-border/70 border-t bg-background/94 shadow-[0_-18px_70px_rgba(0,0,0,0.35)] backdrop-blur-md">
+				<div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-6">
+					<div className="max-w-2xl">
+						<div className="mb-2 font-mono text-muted-foreground text-xs uppercase tracking-[0.16em]">
+							Live AI analytics demo
+						</div>
+						<h1 className="text-balance font-semibold text-2xl text-foreground leading-tight md:text-4xl">
+							Ask why your metrics changed
+						</h1>
+						<p className="mt-2 max-w-xl text-muted-foreground text-sm leading-6 md:text-base">
+							Explore real traffic, funnels, errors, vitals, and feature flags.
+							Databuddy turns the dashboard into answers your team can act on.
+						</p>
+					</div>
+
+					<div className="flex md:justify-end">
+						<Link
+							className="pointer-events-auto inline-flex items-center justify-center gap-2 rounded border border-primary/70 bg-primary px-4 py-2.5 font-medium text-primary-foreground text-sm shadow-lg transition hover:bg-primary/90"
+							href="https://app.databuddy.cc/register"
+							rel="noopener"
+							target="_blank"
+						>
+							Create free account
+							<ArrowLeftIcon
+								className="size-4 rotate-180 transition-transform"
+								weight="fill"
+							/>
+						</Link>
+					</div>
+				</div>
+			</div>
+
 			{/* Demo iframe */}
 			<iframe
 				allow="fullscreen"

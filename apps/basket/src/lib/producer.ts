@@ -50,6 +50,7 @@ interface ProducerState {
 	flushing: boolean;
 	lastErrorTime: number | null;
 	lastRetry: number;
+	producerInitialized: boolean;
 	sent: number;
 	shuttingDown: boolean;
 }
@@ -81,6 +82,7 @@ const INITIAL_STATE: ProducerState = {
 	connected: false,
 	connectionFailed: false,
 	lastRetry: 0,
+	producerInitialized: false,
 	shuttingDown: false,
 	flushing: false,
 };
@@ -198,6 +200,7 @@ function makeProducerEffects(
 					connected: true,
 					connectionFailed: false,
 					lastRetry: 0,
+					producerInitialized: true,
 				}))
 			),
 			Effect.as(true),
@@ -352,6 +355,8 @@ function makeProducerEffects(
 							Ref.update(ref, (st) => ({
 								...st,
 								connectionFailed: true,
+								connected: false,
+								lastRetry: Date.now(),
 								failedCount: st.failedCount + messages.length,
 							})).pipe(
 								Effect.tap(() =>
@@ -414,18 +419,24 @@ function makeProducerEffects(
 	const shutDown: Effect.Effect<void> = Effect.gen(function* () {
 		yield* Ref.update(ref, (s) => ({ ...s, shuttingDown: true }));
 		yield* Effect.sleep("1 second");
-		yield* flush.pipe(Effect.catchAll(() => Effect.void));
+		yield* flush.pipe(Effect.catch(() => Effect.void));
 		const post = yield* Ref.get(ref);
 		if (post.buffer.length > 0 && !post.flushing) {
-			yield* flush.pipe(Effect.catchAll(() => Effect.void));
+			yield* flush.pipe(Effect.catch(() => Effect.void));
 		}
-		if (post.connected && kafka) {
+		if (post.producerInitialized && kafka) {
 			yield* Effect.tryPromise({
 				try: () => kafka.disconnect(),
 				catch: (e) => new KafkaConnectionError({ cause: toError(e) }),
 			}).pipe(
-				Effect.ensuring(Ref.update(ref, (s) => ({ ...s, connected: false }))),
-				Effect.catchAll((err) =>
+				Effect.ensuring(
+					Ref.update(ref, (s) => ({
+						...s,
+						connected: false,
+						producerInitialized: false,
+					}))
+				),
+				Effect.catch((err) =>
 					Effect.sync(() =>
 						captureError(err.cause, {
 							message: "Error disconnecting Redpanda producer",
@@ -443,6 +454,7 @@ function makeProducerEffects(
 				flushing: _f,
 				shuttingDown: _s,
 				connectionFailed,
+				producerInitialized: _p,
 				...rest
 			}) => ({
 				...rest,
@@ -539,7 +551,7 @@ const TOPIC_MAP: Record<string, string> = {
 
 let fx: ReturnType<typeof makeProducerEffects> | null = null;
 
-const ProducerLive = Layer.scopedDiscard(
+const ProducerLive = Layer.effectDiscard(
 	Effect.gen(function* () {
 		const ref = yield* Ref.make<ProducerState>({ ...INITIAL_STATE });
 		const effects = makeProducerEffects(
@@ -551,7 +563,7 @@ const ProducerLive = Layer.scopedDiscard(
 		);
 		fx = effects;
 		yield* effects.flush.pipe(
-			Effect.catchAll(() => Effect.void),
+			Effect.catch(() => Effect.void),
 			Effect.repeat(Schedule.spaced(CONFIG.bufferInterval)),
 			Effect.forkScoped
 		);

@@ -81,7 +81,6 @@ export function ChatProvider({
 		defaultWebsiteId
 	);
 	const queryClient = useQueryClient();
-	const chatRef = useRef<ChatApi>(null as unknown as ChatApi);
 
 	const { data: storedChat, isFetched } = useQuery({
 		...orpc.agentChats.get.queryOptions({ input: { id: chatId } }),
@@ -96,6 +95,7 @@ export function ChatProvider({
 		resume: Boolean(storedChat?.activeStreamId),
 	});
 
+	const chatRef = useRef(chat);
 	chatRef.current = chat;
 
 	const [hasRestored, setHasRestored] = useState(false);

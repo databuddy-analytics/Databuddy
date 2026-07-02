@@ -70,19 +70,19 @@ export const ErrorTrendsChart = ({
 		setZoomedData(null);
 	}, []);
 
-	const handleMouseDown = (e: { activeLabel?: string }) => {
+	const handleMouseDown = (e: { activeLabel?: number | string }) => {
 		if (!e?.activeLabel) {
 			return;
 		}
-		setRefAreaLeft(e.activeLabel);
+		setRefAreaLeft(String(e.activeLabel));
 		setRefAreaRight(null);
 	};
 
-	const handleMouseMove = (e: { activeLabel?: string }) => {
+	const handleMouseMove = (e: { activeLabel?: number | string }) => {
 		if (!(refAreaLeft && e?.activeLabel)) {
 			return;
 		}
-		setRefAreaRight(e.activeLabel);
+		setRefAreaRight(String(e.activeLabel));
 	};
 
 	const handleMouseUp = () => {
@@ -244,15 +244,11 @@ export const ErrorTrendsChart = ({
 									<Chart.Tooltip
 										active={active}
 										entries={Chart.createTooltipEntries(
-											payload as Array<{
-												dataKey: string;
-												value: number;
-												color: string;
-											}>,
+											payload,
 											TOOLTIP_METRICS
 										)}
 										formatLabelAction={Chart.formatTooltipDate}
-										label={label as string}
+										label={label}
 									/>
 								)}
 								wrapperStyle={{ outline: "none" }}

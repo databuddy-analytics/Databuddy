@@ -39,6 +39,10 @@ import {
 } from "../services/export-service";
 import { mergeWebsiteSecuritySettings } from "./website-settings";
 import {
+	CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE,
+	getTrackingHealthErrorLogLevel,
+} from "./tracking-health-errors";
+import {
 	type ChartDataRow,
 	type ProcessedMiniChartData,
 	processChartData,
@@ -162,7 +166,10 @@ async function getTrackingEventsStatus(
 				{ websiteId }
 			),
 			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error("ClickHouse query timeout")), 10_000)
+				setTimeout(
+					() => reject(new Error(CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE)),
+					10_000
+				)
 			),
 		]);
 
@@ -175,7 +182,8 @@ async function getTrackingEventsStatus(
 	} catch (error) {
 		const message =
 			error instanceof Error ? error.message : "Unknown error checking events";
-		logger.error({ websiteId }, `Error checking tracking events: ${message}`);
+		const level = getTrackingHealthErrorLogLevel(error);
+		logger[level]({ websiteId }, `Error checking tracking events: ${message}`);
 		return { hasEvents: false, recentEvents: 0, error: message };
 	}
 }
@@ -237,7 +245,10 @@ async function getRecentBlockedTrackingIssue(
 				}
 			),
 			new Promise<never>((_, reject) =>
-				setTimeout(() => reject(new Error("ClickHouse query timeout")), 10_000)
+				setTimeout(
+					() => reject(new Error(CLICKHOUSE_TRACKING_HEALTH_TIMEOUT_MESSAGE)),
+					10_000
+				)
 			),
 		]);
 
@@ -250,7 +261,8 @@ async function getRecentBlockedTrackingIssue(
 			error instanceof Error
 				? error.message
 				: "Unknown error checking blocked traffic";
-		logger.error({ websiteId }, `Error checking blocked traffic: ${message}`);
+		const level = getTrackingHealthErrorLogLevel(error);
+		logger[level]({ websiteId }, `Error checking blocked traffic: ${message}`);
 		return null;
 	}
 }

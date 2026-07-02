@@ -362,23 +362,28 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("mobile");
 	});
 
-	it("throws on disallowed filter field", () => {
+	it("silently skips disallowed filter fields rather than throwing", () => {
 		const filters: Filter[] = [
 			{ field: "secret_col", op: "eq", value: "x" },
 		];
-		expect(() =>
-			compile({ allowedFilters: ["country"] }, { filters })
-		).toThrow("not permitted");
+		// Unsupported filter fields are skipped so that a multi-query batch
+		// (e.g. an "href" filter valid for outbound_links but not for "country")
+		// does not break unrelated queries.
+		const { sql } = compile({ allowedFilters: ["country"] }, { filters });
+		expect(sql).not.toContain("secret_col");
 	});
 
-	it("rejects unknown filter fields when allowedFilters is not configured", () => {
+	it("silently skips unknown filter fields when allowedFilters is not configured", () => {
 		const filters: Filter[] = [
-			{ field: "1=1) OR (1", op: "eq", value: "x" },
+			{ field: "unknown_field", op: "eq", value: "x" },
 		];
-		expect(() => compile({}, { filters })).toThrow("not permitted");
+		const { sql } = compile({}, { filters });
+		expect(sql).not.toContain("unknown_field");
 	});
 
-	it("rejects SQL injection attempts in filter field names", () => {
+	it("silently skips SQL injection attempts in filter field names", () => {
+		// Injection field names are not in the allowed set so they are skipped,
+		// meaning no unsafe SQL ever reaches ClickHouse.
 		const injectionAttempts = [
 			"'; DROP TABLE analytics.events; --",
 			"country UNION SELECT * FROM system.tables--",
@@ -387,7 +392,8 @@ describe("SimpleQueryBuilder.compile", () => {
 		];
 		for (const field of injectionAttempts) {
 			const filters: Filter[] = [{ field, op: "eq", value: "x" }];
-			expect(() => compile({}, { filters })).toThrow("not permitted");
+			const { sql } = compile({}, { filters });
+			expect(sql).not.toContain(field);
 		}
 	});
 
@@ -413,6 +419,20 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(() => compile({ requiredFilters: ["session_id"] })).toThrow(
 			"Missing required filter: 'session_id'."
 		);
+	});
+
+	it("skips 'href' filter on a query type that does not allow it (regression: outbound filter in mixed batch)", () => {
+		// When a user has an href filter active on the outbound links view, all
+		// batch queries receive that filter. Queries that don't declare "href" in
+		// allowedFilters (e.g. country, top_pages) should compile without error
+		// and simply omit the href condition from their WHERE clause.
+		const filters: Filter[] = [
+			{ field: "href", op: "eq", value: "https://example.com" },
+			{ field: "country", op: "eq", value: "US" },
+		];
+		const { sql } = compile({}, { filters });
+		expect(sql).not.toContain("href");
+		expect(sql).toContain("country");
 	});
 
 	function whereClauseOf(sql: string): string {
@@ -527,6 +547,28 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).toContain("HAVING session_count NOT IN {f0:Array(Float64)}");
 		expect(sql).not.toContain("session_count NOT IN {f0:Array(String)}");
 		expect(params.f0).toEqual([1, 2]);
+	});
+
+	it("keeps profile_list aggregate filters aligned after skipped unsupported filters", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [
+					{ field: "href", op: "eq", value: "https://example.com" },
+					{ field: "session_count", op: "eq", value: 5 },
+				],
+				type: "profile_list",
+			})
+		).compile();
+
+		expect(sql).toContain("HAVING session_count = {f1:Float64}");
+		expect(sql).not.toContain("AND session_count = {f1:String}");
+		expect(params.f1).toBe(5);
 	});
 
 	it("rejects text operators for profile_list aggregate filters", () => {

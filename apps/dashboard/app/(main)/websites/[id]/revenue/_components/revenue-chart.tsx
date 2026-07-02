@@ -216,14 +216,7 @@ export function RevenueChart({
 							content={({ active, payload, label }) => (
 								<Chart.Tooltip
 									active={active}
-									entries={Chart.createTooltipEntries(
-										payload as Array<{
-											dataKey: string;
-											value: number;
-											color: string;
-										}>,
-										REVENUE_METRICS
-									)}
+									entries={Chart.createTooltipEntries(payload, REVENUE_METRICS)}
 									formatLabelAction={Chart.formatTooltipDate}
 									label={label}
 								/>

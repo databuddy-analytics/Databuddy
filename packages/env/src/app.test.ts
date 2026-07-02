@@ -78,6 +78,16 @@ describe("createConfig", () => {
 		});
 	});
 
+	it("exposes the OpenAI Ads pixel ID through public config", () => {
+		expect(
+			createConfig({
+				NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID: "  px_123  ",
+			})
+		).toMatchObject({
+			integrations: { openAiAdsPixelId: "px_123" },
+		});
+	});
+
 	it("deduplicates API CORS origins from dashboard URLs", () => {
 		expect(
 			createConfig({
