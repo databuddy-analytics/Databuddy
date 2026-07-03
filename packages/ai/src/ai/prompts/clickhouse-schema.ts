@@ -1,6 +1,7 @@
 import {
 	AGENT_TABLE_COLUMNS,
 	AGENT_TENANT_COLUMN_BY_TABLE,
+	EVENTS_VISITOR_KEY,
 	validateAgentSQL,
 } from "@databuddy/db/clickhouse";
 
@@ -32,7 +33,8 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"id (UUID)",
 			"client_id (String) - Website/project identifier",
 			"event_name (String) - Event type",
-			"anonymous_id (String) - User identifier",
+			"anonymous_id (String) - Anonymous device identifier",
+			"profile_id (String) - Identified user id from identify(), '' when anonymous",
 			"session_id (String) - Session identifier",
 			"time (DateTime64) - Event timestamp",
 			"timestamp (DateTime64) - Alternative timestamp",
@@ -88,6 +90,7 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"path (Nullable String)",
 			"properties (String) - JSON",
 			"anonymous_id (Nullable String)",
+			"profile_id (String) - Identified user id from identify(), '' when anonymous",
 			"session_id (Nullable String)",
 			"source (LowCardinality Nullable String)",
 		],
@@ -187,6 +190,7 @@ const GUIDELINES = `## Query Guidelines
 - Geographic data (country, region, city) exists only on analytics.events, NOT on web_vitals_spans or error_spans. Join via session_id if needed.
 - All timestamps are in UTC.
 - analytics.custom_events.properties contains JSON strings — use JSONExtractString(properties, 'key') to parse.
+- Identity: \`anonymous_id\` is a per-device id; \`profile_id\` is the customer-assigned user id ('' when anonymous, on analytics.events, analytics.custom_events, and analytics.revenue). To count people, dedupe identified users across devices with \`uniq(${EVENTS_VISITOR_KEY})\`. To count only identified users: \`uniqIf(profile_id, profile_id != '')\`. error_spans/web_vitals_spans/outgoing_links have no profile_id — resolve an identified user's rows there via their anonymous_ids from analytics.events.
 
 ## Aggregate function preferences
 - Percentiles: use \`quantileTDigest(p)(col)\` for p50/p75/p95/p99. Plain \`quantile(p)\` uses reservoir sampling and is noisy at the tails (~10% error at p99). \`quantileTDigest\` is within 0.1% of exact at the same memory cost.
