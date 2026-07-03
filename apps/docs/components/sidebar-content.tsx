@@ -190,6 +190,11 @@ export const contents: SidebarSection[] = [
 				icon: GearIcon,
 			},
 			{
+				title: "Identify Users",
+				href: "/docs/sdk/identify-users",
+				icon: IdBadgeIcon,
+			},
+			{
 				title: "Web SDKs",
 				icon: GlobeSimpleIcon,
 				children: [

@@ -3,7 +3,9 @@ title: Identify Users
 description: Link tracked activity to your own user IDs and see real names in your dashboard
 ---
 
-import { Callout, CodeBlock } from "@/components/docs";
+import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
+
+By default, Databuddy tracks visitors with an anonymous device ID. Calling `identify()` links that activity to a user ID from your own system, so the same person is recognized across sessions and devices — and your dashboard shows real names and emails instead of anonymous visitors.
 
 <Callout type="warn">
   User identification processes personal data. Make sure you have a lawful
@@ -11,49 +13,82 @@ import { Callout, CodeBlock } from "@/components/docs";
   traits you are allowed to process.
 </Callout>
 
-By default, Databuddy tracks visitors with an anonymous device ID. Calling `identify()` links that activity to a user ID from your own system, so the same person is recognized across sessions and devices, and your dashboard shows real names and emails instead of anonymous visitors.
+## Quick Start
 
-## How it works
+<Tabs items={['React / Next.js', 'Script Tag', 'Node.js']}>
+<Tab value="React / Next.js">
+Call `identify()` when your auth state resolves — on every page load is fine, repeat calls are deduplicated to one request per session.
 
-- Every visitor has an anonymous ID stored on their device.
-- When you call `identify(profileId, traits)`, the ID you pass is attached to every subsequent event and a profile is created for it.
-- Events sent after `identify()` are attributed to that user, including earlier pageviews from the same session.
-- The profile ID is stored in localStorage and survives reloads. Call `clearProfile()` on logout.
+<CodeBlock language="tsx">
+  {`import { clearProfile, identify } from "@databuddy/sdk";
+
+function IdentifyUser() {
+  const { data: session, isPending } = authClient.useSession();
+
+  useEffect(() => {
+    if (isPending) {
+      return;
+    }
+    if (session?.user) {
+      identify(session.user.id, {
+        email: session.user.email,
+        name: session.user.name,
+      });
+    } else {
+      clearProfile();
+    }
+  }, [session, isPending]);
+
+  return null;
+}`}
+</CodeBlock>
+</Tab>
+<Tab value="Script Tag">
+The same methods live on the global object once the script loads.
+
+<CodeBlock language="js">
+  {`// On login or signup
+window.databuddy.identify("user_12345", {
+  email: "jo@acme.com",
+  name: "Jo Doe",
+  plan: "pro",
+});
+
+// On logout
+window.databuddy.clearProfile();`}
+</CodeBlock>
+</Tab>
+<Tab value="Node.js">
+Backends can identify users with an API key that has the `track:events` scope for the target website. Pass the client's anonymous ID (readable in the browser via `getAnonymousId()`) to link the device's activity.
+
+<CodeBlock language="ts">
+  {`import { Databuddy } from "@databuddy/sdk/node";
+
+const client = new Databuddy({
+  apiKey: process.env.DATABUDDY_API_KEY,
+  websiteId: "your-website-id",
+});
+
+await client.identify({
+  profileId: user.id,
+  anonymousId: cookies.get("did"),
+  traits: { email: user.email, plan: "pro" },
+});`}
+</CodeBlock>
+</Tab>
+</Tabs>
 
 <Callout type="info">
   Pass an opaque, stable ID from your database (max 128 characters, stored
   verbatim) — not an email address. Emails belong in traits.
 </Callout>
 
-## Browser
+## How It Works
 
-<CodeBlock language="tsx">
-{`import { clearProfile, identify, setTraits } from "@databuddy/sdk";
-
-// On login or signup
-identify(user.id, {
-  email: user.email,
-  name: user.name,
-  plan: "pro",
-});
-
-// Later, update traits without re-identifying
-setTraits({ plan: "enterprise" });
-
-// On logout
-clearProfile();`}
-</CodeBlock>
-
-Safe to call on every page load: repeat calls with the same ID and no traits are deduplicated to one request per session.
-
-### Script tag
-
-If you use the script tag instead of the npm package, the same methods live on the global:
-
-<CodeBlock language="js">
-{`window.databuddy.identify("user_123", { email: "jo@acme.com" });
-window.databuddy.clearProfile();`}
-</CodeBlock>
+- Every visitor has an anonymous ID stored on their device.
+- `identify(profileId, traits)` links that ID to your user and attaches the user ID to every subsequent event, including earlier pageviews from the same session.
+- The profile ID persists in localStorage across reloads. Call `clearProfile()` on logout to return to anonymous tracking.
+- Identified users appear on the **Users** page with their name and email, and collapse into one person across all their devices.
 
 ## Traits
 
@@ -68,70 +103,51 @@ Traits are flat key/value metadata about the user. Values must be strings, numbe
 
 Display names and emails are encrypted at rest (AES-256-GCM). Custom traits are stored as regular values so you can filter and segment by them.
 
-Setting a trait to `null` removes it:
+Update traits later without re-identifying, and remove one by setting it to `null`:
 
 <CodeBlock language="ts">
-{`setTraits({ trial_ends_at: null });`}
+  {`import { setTraits } from "@databuddy/sdk";
+
+setTraits({ plan: "enterprise", trial_ends_at: null });`}
 </CodeBlock>
 
-## Server-side (Node)
-
-Backends can identify users with an API key that has the `track:events` scope for the target website. Pass the client's anonymous ID (readable in the browser via `getAnonymousId()`) to link the device's activity:
-
-<CodeBlock language="ts">
-{`import { Databuddy } from "@databuddy/sdk/node";
-
-const client = new Databuddy({
-  apiKey: process.env.DATABUDDY_API_KEY,
-  websiteId: "your-website-id",
-});
-
-await client.identify({
-  profileId: user.id,
-  anonymousId: cookies.get("did"),
-  traits: { email: user.email, plan: "pro" },
-});
-
-// Server-tracked events can carry the user too
-await client.track({
-  name: "subscription_started",
-  profileId: user.id,
-});`}
-</CodeBlock>
-
-## Revenue attribution
+## Revenue Attribution
 
 If you use the Stripe or Paddle integration, include the user ID in your payment metadata and transactions are attributed to the identified user:
 
+<Tabs items={['Stripe', 'Paddle']}>
+<Tab value="Stripe">
 <CodeBlock language="ts">
-{`// Stripe: metadata on the PaymentIntent
-await stripe.paymentIntents.create({
+  {`await stripe.paymentIntents.create({
   amount,
   currency,
   metadata: {
     databuddy_profile_id: user.id,
-    databuddy_session_id: sessionId,
   },
-});
-
-// Paddle: custom_data on the transaction
-{ custom_data: { profile_id: user.id } }`}
+});`}
 </CodeBlock>
+</Tab>
+<Tab value="Paddle">
+<CodeBlock language="ts">
+  {`{ custom_data: { profile_id: user.id } }`}
+</CodeBlock>
+</Tab>
+</Tabs>
 
-## API reference
+## API Reference
 
-### identify(profileId, traits?)
+### `identify(profileId, traits?)`
 
-Links the browser to a user ID. Persists across sessions, attaches to every subsequent event.
+Links the browser to a user ID. Persists across sessions, attaches to every subsequent event. Safe to call on every page load — repeat calls with the same ID and no traits send one request per session.
 
-### setTraits(traits)
+### `setTraits(traits)`
 
 Merges traits into the identified user's profile. Requires a prior `identify()` — otherwise a no-op that warns in debug builds.
 
-### clearProfile()
+### `clearProfile()`
 
 Forgets the identified user. The anonymous ID is kept, so subsequent activity is tracked anonymously again.
 
-### getProfileId()
+### `getProfileId()`
 
 Returns the currently identified user ID, or `null` when anonymous.
