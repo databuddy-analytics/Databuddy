@@ -7,8 +7,10 @@ import {
 	hasKeyScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
-import { db } from "@databuddy/db";
+import { and, db, eq, inArray } from "@databuddy/db";
+import { profiles } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
+import { revealPii } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { ratelimit } from "@databuddy/redis/rate-limit";
@@ -880,6 +882,53 @@ interface QueryResult {
 	success: boolean;
 }
 
+const PROFILE_ENRICHED_TYPES = new Set(["profile_list"]);
+
+async function attachProfileIdentities(
+	websiteId: string,
+	results: QueryResult[]
+) {
+	const profileIds = new Set<string>();
+	for (const result of results) {
+		for (const row of result.data) {
+			if (typeof row.profile_id === "string" && row.profile_id) {
+				profileIds.add(row.profile_id);
+			}
+		}
+	}
+	if (profileIds.size === 0) {
+		return;
+	}
+
+	const identities = await db
+		.select({
+			profileId: profiles.profileId,
+			displayName: profiles.displayName,
+			email: profiles.email,
+		})
+		.from(profiles)
+		.where(
+			and(
+				eq(profiles.websiteId, websiteId),
+				inArray(profiles.profileId, [...profileIds])
+			)
+		);
+	const identityByProfileId = new Map(
+		identities.map((identity) => [identity.profileId, identity])
+	);
+
+	for (const result of results) {
+		for (const row of result.data) {
+			const identity =
+				typeof row.profile_id === "string"
+					? identityByProfileId.get(row.profile_id)
+					: undefined;
+			row.display_name = identity ? revealPii(identity.displayName) : null;
+			row.email = identity ? revealPii(identity.email) : null;
+		}
+	}
+}
+
 async function executeDynamicQuery(
 	request: DynamicQueryRequestType,
 	projectId: string,
@@ -1024,6 +1073,22 @@ async function executeDynamicQuery(
 					data: result?.data || [],
 					error: result?.error ? QUERY_EXECUTION_ERROR_MESSAGE : undefined,
 				});
+			}
+		}
+
+		if (projectType === "website") {
+			const profileResults = validParameters
+				.filter((p) => PROFILE_ENRICHED_TYPES.has(p.request.type))
+				.flatMap((p) => resultMap.get(p.id) ?? []);
+			if (profileResults.length > 0) {
+				await attachProfileIdentities(projectId, profileResults).catch(
+					(error) => {
+						captureError(error, {
+							route: "v1/query",
+							step: "attach_profile_identities",
+						});
+					}
+				);
 			}
 		}
 	}
