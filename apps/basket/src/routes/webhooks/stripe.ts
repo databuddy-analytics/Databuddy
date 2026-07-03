@@ -3,6 +3,7 @@ import { clickHouse } from "@databuddy/db/clickhouse";
 import { Elysia } from "elysia";
 import { evlog, useLogger } from "evlog/elysia";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
+import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
@@ -145,7 +146,11 @@ async function extractAnalyticsMetadata(
 
 	return {
 		anonymous_id: anonymousId,
-		profile_id: metadata.databuddy_profile_id,
+		profile_id:
+			sanitizeString(
+				metadata.databuddy_profile_id,
+				VALIDATION_LIMITS.USER_ID_MAX_LENGTH
+			) || undefined,
 		session_id: metadata.databuddy_session_id,
 		client_id: metadata.databuddy_client_id,
 	};
