@@ -8,6 +8,7 @@ import {
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import { db } from "@databuddy/db";
+import { config } from "@databuddy/env/app";
 import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { ratelimit } from "@databuddy/redis/rate-limit";
@@ -94,6 +95,7 @@ async function runPerWebsite<T>(key: string, fn: () => Promise<T>): Promise<T> {
 
 const MAX_HOURLY_DAYS = 30;
 const MS_PER_DAY = 86_400_000;
+const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
 
 function normalizeDate(input: string): string {
 	return normalizeClickHouseDateTime(input);
@@ -337,7 +339,13 @@ function createAuthFailedResponse(requestId: string): Response {
 			code: "AUTH_REQUIRED",
 			requestId,
 		}),
-		{ status: 401, headers: { "Content-Type": "application/json" } }
+		{
+			status: 401,
+			headers: {
+				"Content-Type": "application/json",
+				"WWW-Authenticate": `Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`,
+			},
+		}
 	);
 }
 
@@ -401,6 +409,14 @@ function createErrorResponse(
 	requestId?: string,
 	details?: ValidationError[]
 ): Response {
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+	};
+	if (status === 401) {
+		headers["WWW-Authenticate"] =
+			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+	}
+
 	return new Response(
 		JSON.stringify({
 			success: false,
@@ -411,7 +427,7 @@ function createErrorResponse(
 		}),
 		{
 			status,
-			headers: { "Content-Type": "application/json" },
+			headers,
 		}
 	);
 }

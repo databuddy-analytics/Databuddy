@@ -20,6 +20,7 @@ import {
 } from "@/rpc/handlers";
 import { openApiHandler } from "@/rpc/openapi";
 import { agent } from "./routes/agent";
+import { discovery } from "./routes/discovery";
 import { health } from "./routes/health";
 import { integrations } from "./routes/integrations";
 import { mcp } from "./routes/mcp";
@@ -54,6 +55,18 @@ function handleOpenApiEndpoint({ request }: RequestContext) {
 	return handleAuthenticatedOrpcRequest(request, handleOpenApiRequest);
 }
 
+function handleOpenApiJson({ request }: RequestContext) {
+	const url = new URL(request.url);
+	url.pathname = "/spec.json";
+	const specRequest = new Request(url, {
+		headers: request.headers,
+		method: request.method,
+		signal: request.signal,
+	});
+
+	return handleOpenApiReference({ request: specRequest });
+}
+
 function handleOpenApiRequest(orpcRequest: Request, context: OrpcContext) {
 	return openApiHandler.handle(orpcRequest, {
 		prefix: "/",
@@ -76,14 +89,7 @@ const app = new Elysia({ precompile: true })
 	)
 	.use(publicApi)
 	.use(health)
-	.get(
-		"/.well-known/oauth-authorization-server",
-		() =>
-			new Response(null, {
-				status: 404,
-				headers: { "Cache-Control": "no-store" },
-			})
-	)
+	.use(discovery)
 	.use(webhooks)
 	.mount(AUTUMN_API_PREFIX, handleAutumnRequest)
 	.use(query)
@@ -92,6 +98,7 @@ const app = new Elysia({ precompile: true })
 	.use(mcp)
 	.all("/rpc/*", handleRpcEndpoint, { parse: "none" })
 	.all("/", handleOpenApiReference, { parse: "none" })
+	.all("/openapi.json", handleOpenApiJson, { parse: "none" })
 	.all("/spec.json", handleOpenApiReference, { parse: "none" })
 	.all("/*", handleOpenApiEndpoint, { parse: "none" })
 	.onError(handleAppError);

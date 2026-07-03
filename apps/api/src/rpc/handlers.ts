@@ -54,7 +54,17 @@ async function handleOrpcRequest(
 	try {
 		const context = await createContext(request);
 		const result = await handle(request, context);
-		return result.response ?? new Response("Not Found", { status: 404 });
+		return (
+			result.response ??
+			Response.json(
+				{
+					success: false,
+					error: "Not found",
+					code: "NOT_FOUND",
+				},
+				{ status: 404 }
+			)
+		);
 	} catch (error) {
 		if (error instanceof ORPCError) {
 			recordORPCError({ code: error.code, message: error.message });
@@ -63,7 +73,14 @@ async function handleOrpcRequest(
 			error instanceof Error ? error : new Error(String(error)),
 			{ rpc: "handler" }
 		);
-		return new Response("Internal Server Error", { status: 500 });
+		return Response.json(
+			{
+				success: false,
+				error: "An internal server error occurred",
+				code: "INTERNAL_SERVER_ERROR",
+			},
+			{ status: 500 }
+		);
 	}
 }
 

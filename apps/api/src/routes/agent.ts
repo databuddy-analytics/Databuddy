@@ -32,6 +32,7 @@ import {
 import { auth } from "@databuddy/auth";
 import { db, eq } from "@databuddy/db";
 import { agentChats } from "@databuddy/db/schema";
+import { config } from "@databuddy/env/app";
 import {
 	appendStreamChunk,
 	clearActiveStream,
@@ -70,12 +71,22 @@ import { captureError, mergeWideEvent } from "@databuddy/ai/lib/tracing";
 import { getAccessibleWebsites } from "@databuddy/ai/lib/accessible-websites";
 import { warnAgentStreamRedisSideEffect } from "./agent-stream-errors";
 
+const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
+
 function jsonError(status: number, code: string, message: string): Response {
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+	};
+	if (status === 401) {
+		headers["WWW-Authenticate"] =
+			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+	}
+
 	return new Response(
 		JSON.stringify({ success: false, error: message, code }),
 		{
 			status,
-			headers: { "Content-Type": "application/json" },
+			headers,
 		}
 	);
 }
@@ -505,6 +516,8 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 	.onBeforeHandle(({ isAuthenticated, set }) => {
 		if (!isAuthenticated) {
 			set.status = 401;
+			set.headers["WWW-Authenticate"] =
+				`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
 			return {
 				success: false,
 				error: "Authentication required",
