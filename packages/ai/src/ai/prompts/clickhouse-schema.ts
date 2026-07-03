@@ -165,6 +165,8 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"provider (LowCardinality String) - Payment provider",
 			"type (LowCardinality String) - Transaction type",
 			"customer_id (String)",
+			"anonymous_id (Nullable String) - Anonymous device identifier",
+			"profile_id (String) - Identified user id from identify(), '' when anonymous",
 			"created (DateTime64) - Transaction timestamp",
 		],
 	},
