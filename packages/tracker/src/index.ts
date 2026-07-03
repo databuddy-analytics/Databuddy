@@ -245,6 +245,7 @@ export class Databuddy extends BaseTracker {
 				name: "page_exit",
 				anonymousId: this.anonymousId,
 				anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+				profileId: this.profileId ?? undefined,
 				sessionId: this.sessionId,
 				timestamp: now,
 				...this.getBaseContext(),
@@ -369,15 +370,13 @@ export class Databuddy extends BaseTracker {
 		if (!this.isServer()) {
 			try {
 				localStorage.removeItem("did");
-				localStorage.removeItem("did_profile");
-				sessionStorage.removeItem("did_profile_sent");
 				sessionStorage.removeItem("did_session");
 				sessionStorage.removeItem("did_session_timestamp");
 				sessionStorage.removeItem("did_session_start");
 			} catch {}
 		}
 		this.clearUrlParamStorage();
-		this.profileId = null;
+		this.clearProfile();
 		this.anonymousId = this.generateAnonymousId();
 		this.sessionId = this.generateSessionId();
 		this.sessionStartTime = Date.now();

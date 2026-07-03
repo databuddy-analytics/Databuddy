@@ -118,13 +118,19 @@ test.describe("Identity", () => {
 			}
 		});
 
-		const first = page.waitForRequest((req: Request) =>
-			req.url().includes("/identify")
+		const first = page.waitForResponse(
+			(res) =>
+				res.url().includes("/identify") && res.request().method() === "POST"
 		);
 		await page.evaluate(() => {
 			(window as any).db.identify("user_dedupe");
 		});
 		await first;
+		await expect
+			.poll(async () =>
+				page.evaluate(() => sessionStorage.getItem("did_profile_sent"))
+			)
+			.toBe("user_dedupe");
 
 		await page.evaluate(() => {
 			(window as any).db.identify("user_dedupe");
@@ -132,8 +138,9 @@ test.describe("Identity", () => {
 		await page.waitForTimeout(300);
 		expect(identifyCount).toBe(1);
 
-		const withTraits = page.waitForRequest((req: Request) =>
-			req.url().includes("/identify")
+		const withTraits = page.waitForRequest(
+			(req: Request) =>
+				req.url().includes("/identify") && req.method() === "POST"
 		);
 		await page.evaluate(() => {
 			(window as any).db.identify("user_dedupe", { plan: "pro" });

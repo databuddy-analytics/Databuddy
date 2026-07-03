@@ -29,6 +29,7 @@ const HEADLESS_CHROME_REGEX = /\bHeadlessChrome\b/i;
 const PHANTOMJS_REGEX = /\bPhantomJS\b/i;
 const ANON_ID_PATTERN = /^anon_[0-9a-f-]{36}$/;
 const SESSION_ID_PATTERN = /^[0-9a-f-]{36}$/;
+const MAX_PROFILE_ID_LENGTH = 128;
 
 interface QueueMeta<T> {
 	endpoint: string;
@@ -274,12 +275,19 @@ export class BaseTracker {
 			logger.error("identify requires a non-empty string profileId");
 			return;
 		}
+		const trimmed = profileId.trim();
+		if (trimmed.length > MAX_PROFILE_ID_LENGTH) {
+			logger.error(
+				`identify profileId exceeds ${MAX_PROFILE_ID_LENGTH} characters`
+			);
+			return;
+		}
 		if (this.shouldSkipTracking()) {
 			return;
 		}
 
-		const trimmed = profileId.trim();
 		this.profileId = trimmed;
+		const hasTraits = Boolean(traits && Object.keys(traits).length > 0);
 		let alreadySentThisSession = false;
 		try {
 			localStorage.setItem("did_profile", trimmed);
@@ -287,14 +295,11 @@ export class BaseTracker {
 				sessionStorage.getItem("did_profile_sent") === trimmed;
 		} catch {}
 
-		if (alreadySentThisSession && !traits) {
+		if (alreadySentThisSession && !hasTraits) {
 			return;
 		}
 
-		this.sendIdentify(trimmed, traits);
-		try {
-			sessionStorage.setItem("did_profile_sent", trimmed);
-		} catch {}
+		this.sendIdentify(trimmed, hasTraits ? traits : undefined);
 	}
 
 	setTraits(traits: ProfileTraits): void {
@@ -331,6 +336,14 @@ export class BaseTracker {
 				{ keepalive: true },
 				{ client_id: this.options.clientId }
 			)
+			.then((result) => {
+				if (!result) {
+					return;
+				}
+				try {
+					sessionStorage.setItem("did_profile_sent", profileId);
+				} catch {}
+			})
 			.catch(() => {});
 	}
 
