@@ -176,6 +176,10 @@ const PROFILE_ACTIVITY_CTE = `
           AND ${VISITOR_MATCH}
           AND time >= toDateTime({startDate:String})
           AND time <= toDateTime({endDate:String})
+
+        UNION DISTINCT
+
+        SELECT {visitorId:String} as anonymous_id
       ),
       profile_activity AS (
         SELECT
@@ -462,7 +466,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     ),
     profile_context AS (
       SELECT
-        max(profile_id) as profile_id,
+        argMaxIf(profile_id, time, profile_id != '') as profile_id,
         any(device_type) as device,
         any(browser_name) as browser,
         any(os_name) as os,
