@@ -2,13 +2,17 @@
 /** biome-ignore-all lint/performance/noBarrelFile: we like barrels */
 export {
 	clear,
+	clearProfile,
 	flush,
 	getAnonymousId,
+	getProfileId,
 	getSessionId,
 	getTracker,
 	getTrackingIds,
 	getTrackingParams,
+	identify,
 	isTrackerAvailable,
+	setTraits,
 	track,
 	trackError,
 } from "../core/tracker";
