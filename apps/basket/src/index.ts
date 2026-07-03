@@ -1,5 +1,7 @@
 import "./polyfills/compression";
 
+import { env as basketEnv } from "@databuddy/env/basket";
+
 import {
 	basketLoggerDrain,
 	enrichBasketWideEvent,
@@ -37,7 +39,7 @@ initLogger({
 	},
 });
 
-if (!process.env.DATABUDDY_ENCRYPTION_KEY) {
+if (!basketEnv.DATABUDDY_ENCRYPTION_KEY) {
 	log.warn({
 		message:
 			"DATABUDDY_ENCRYPTION_KEY is not set — profile display names and emails will be stored unencrypted",
