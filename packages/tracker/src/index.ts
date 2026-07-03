@@ -1,5 +1,5 @@
 import { BaseTracker } from "./core/tracker";
-import type { TrackerOptions } from "./core/types";
+import type { ProfileTraits, TrackerOptions } from "./core/types";
 import {
 	generateUUIDv4,
 	getTrackerConfig,
@@ -47,6 +47,11 @@ export class Databuddy extends BaseTracker {
 				track: (name: string, props?: Record<string, unknown>) =>
 					this.track(name, props),
 				screenView: (props?: Record<string, unknown>) => this.screenView(props),
+				identify: (profileId: string, traits?: ProfileTraits) =>
+					this.identify(profileId, traits),
+				setTraits: (traits: ProfileTraits) => this.setTraits(traits),
+				clearProfile: () => this.clearProfile(),
+				getProfileId: () => this.getProfileId(),
 				flush: () => {
 					Promise.all([
 						this.flushBatch(),
@@ -324,6 +329,7 @@ export class Databuddy extends BaseTracker {
 			name,
 			anonymousId: this.anonymousId,
 			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+			profileId: this.profileId ?? undefined,
 			sessionId: this.sessionId,
 			timestamp: Date.now(),
 			...this.getBaseContext(),
@@ -363,12 +369,15 @@ export class Databuddy extends BaseTracker {
 		if (!this.isServer()) {
 			try {
 				localStorage.removeItem("did");
+				localStorage.removeItem("did_profile");
+				sessionStorage.removeItem("did_profile_sent");
 				sessionStorage.removeItem("did_session");
 				sessionStorage.removeItem("did_session_timestamp");
 				sessionStorage.removeItem("did_session_start");
 			} catch {}
 		}
 		this.clearUrlParamStorage();
+		this.profileId = null;
 		this.anonymousId = this.generateAnonymousId();
 		this.sessionId = this.generateSessionId();
 		this.sessionStartTime = Date.now();
@@ -424,6 +433,10 @@ function initializeDatabuddy() {
 		window.databuddy = {
 			track: () => {},
 			screenView: () => {},
+			identify: () => {},
+			setTraits: () => {},
+			clearProfile: () => {},
+			getProfileId: () => null,
 			clear: () => {},
 			flush: () => {},
 			setGlobalProperties: () => {},
