@@ -1,4 +1,5 @@
 import "./polyfills/compression";
+import { env as apiEnv } from "@databuddy/env/api";
 import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import { evlog } from "evlog/elysia";
@@ -108,6 +109,6 @@ registerShutdownHooks();
 
 export default {
 	fetch: app.fetch,
-	port: Number.parseInt(process.env.PORT ?? "3001", 10),
+	port: Number.parseInt(apiEnv.PORT, 10),
 	idleTimeout: BUN_IDLE_TIMEOUT_SECONDS,
 };

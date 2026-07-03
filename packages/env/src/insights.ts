@@ -13,6 +13,18 @@ const insightsEnvSchema = z.object({
 	AXIOM_TOKEN: optionalString,
 	AXIOM_ORG_ID: optionalString,
 	DATABUDDY_ENCRYPTION_KEY: optionalString,
+	PORT: z.string().default("3005"),
+	APP_ENV: optionalString,
+	INSIGHTS_WORKER_ENABLED: optionalString,
+	INSIGHTS_WORKER_CONCURRENCY: optionalString,
+	INSIGHTS_DISPATCH_INTERVAL_MS: optionalString,
+	INSIGHTS_MAINTENANCE_INTERVAL_MS: optionalString,
+	INSIGHTS_STALE_ITEM_MS: optionalString,
+	RAILWAY_ENVIRONMENT_NAME: optionalString,
+	RAILWAY_REPLICA_REGION: optionalString,
+	RAILWAY_REPLICA_ID: optionalString,
+	RAILWAY_DEPLOYMENT_ID: optionalString,
+	RAILWAY_GIT_COMMIT_SHA: optionalString,
 });
 
 export const env = createEnv(insightsEnvSchema, {

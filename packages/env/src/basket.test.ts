@@ -8,11 +8,18 @@ const baseEnvironment = {
 	REDIS_URL: "redis://localhost",
 };
 
+const productionSecrets = {
+	DATABUDDY_ENCRYPTION_KEY: "key",
+	IP_HASH_SALT: "salt",
+};
+
 describe("basket env schema", () => {
 	test("rejects production without an encryption key", () => {
 		const result = basketEnvSchema.safeParse({
 			...baseEnvironment,
+			...productionSecrets,
 			NODE_ENV: "production",
+			DATABUDDY_ENCRYPTION_KEY: undefined,
 		});
 
 		expect(result.success).toBe(false);
@@ -21,11 +28,23 @@ describe("basket env schema", () => {
 		]);
 	});
 
-	test("accepts production with an encryption key", () => {
+	test("rejects production without an ip hash salt", () => {
 		const result = basketEnvSchema.safeParse({
 			...baseEnvironment,
+			...productionSecrets,
 			NODE_ENV: "production",
-			DATABUDDY_ENCRYPTION_KEY: "key",
+			IP_HASH_SALT: undefined,
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.path).toEqual(["IP_HASH_SALT"]);
+	});
+
+	test("accepts production with the required secrets", () => {
+		const result = basketEnvSchema.safeParse({
+			...baseEnvironment,
+			...productionSecrets,
+			NODE_ENV: "production",
 		});
 
 		expect(result.success).toBe(true);
