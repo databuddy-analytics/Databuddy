@@ -40,6 +40,44 @@ export const profiles = pgTable(
 	]
 );
 
+export const profileTraitChanges = pgTable(
+	"profile_trait_changes",
+	{
+		id: text().primaryKey(),
+		websiteId: text("website_id")
+			.notNull()
+			.references(() => websites.id, { onDelete: "cascade" }),
+		profileId: text("profile_id").notNull(),
+		// Full merged non-PII traits after this change — state at time T is the
+		// latest row with createdAt <= T, no diff folding needed.
+		traits: jsonb().$type<Record<string, unknown>>().default({}).notNull(),
+		changes: jsonb()
+			.$type<
+				Record<
+					string,
+					{
+						old: string | number | boolean | null;
+						new: string | number | boolean | null;
+					}
+				>
+			>()
+			.default({})
+			.notNull(),
+		source: text().default("identify").notNull(),
+		createdAt: timestamp({ precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("profile_trait_changes_profile_idx").on(
+			table.websiteId,
+			table.profileId,
+			table.createdAt
+		),
+		index("profile_trait_changes_changes_gin_idx").using("gin", table.changes),
+	]
+);
+
 export const profileAliases = pgTable(
 	"profile_aliases",
 	{
