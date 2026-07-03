@@ -5,6 +5,7 @@
   "pages": [
     "index",
     "configuration",
+    "identify-users",
     "react",
     "nuxt",
     "vue",
