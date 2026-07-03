@@ -12,12 +12,12 @@ describe("identity schema", () => {
 		]);
 	});
 
-	test("profiles index email lookups and trait containment search", () => {
+	test("profiles index email-hash lookups and trait containment search", () => {
 		const indexNames = getTableConfig(profiles).indexes.map(
 			(index) => index.config.name
 		);
 
-		expect(indexNames).toContain("profiles_website_email_idx");
+		expect(indexNames).toContain("profiles_website_email_hash_idx");
 		expect(indexNames).toContain("profiles_traits_gin_idx");
 	});
 

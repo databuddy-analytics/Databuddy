@@ -15,8 +15,12 @@ export const profiles = pgTable(
 			.notNull()
 			.references(() => websites.id, { onDelete: "cascade" }),
 		profileId: text("profile_id").notNull(),
+		// displayName and email hold AES-GCM payloads (v1:...) when
+		// DATABUDDY_ENCRYPTION_KEY is configured, plaintext otherwise.
+		// emailHash is the deterministic lookup key for either mode.
 		displayName: text("display_name"),
 		email: text(),
+		emailHash: text("email_hash"),
 		traits: jsonb().$type<Record<string, unknown>>().default({}).notNull(),
 		firstSeenAt: timestamp({ precision: 3, withTimezone: true })
 			.defaultNow()
@@ -28,7 +32,10 @@ export const profiles = pgTable(
 	},
 	(table) => [
 		primaryKey({ columns: [table.websiteId, table.profileId] }),
-		index("profiles_website_email_idx").on(table.websiteId, table.email),
+		index("profiles_website_email_hash_idx").on(
+			table.websiteId,
+			table.emailHash
+		),
 		index("profiles_traits_gin_idx").using("gin", table.traits),
 	]
 );

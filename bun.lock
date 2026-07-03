@@ -714,6 +714,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@databuddy/db": "workspace:*",
+        "@databuddy/encryption": "workspace:*",
         "@databuddy/redis": "workspace:*",
       },
       "devDependencies": {
