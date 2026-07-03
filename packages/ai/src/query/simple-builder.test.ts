@@ -491,6 +491,24 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("session-1");
 	});
 
+	it("applies profile_list profile_id filters for identified-user views", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({
+				filters: [{ field: "profile_id", op: "ne", value: "" }],
+				type: "profile_list",
+			})
+		).compile();
+
+		expect(sql).toContain("profile_id != {f0:String}");
+		expect(params.f0).toBe("");
+	});
+
 	it("applies profile_list event_name filters through a custom-events visitor subquery", () => {
 		const config = QueryBuilders.profile_list;
 		if (!config) {
@@ -505,7 +523,12 @@ describe("SimpleQueryBuilder.compile", () => {
 			})
 		).compile();
 
-		expect(sql).toContain("AND anonymous_id IN (");
+		expect(sql).toContain(
+			"AND if(profile_id != '', profile_id, anonymous_id) IN ("
+		);
+		expect(sql).toContain(
+			"SELECT DISTINCT if(profile_id != '', profile_id, ifNull(anonymous_id, ''))"
+		);
 		expect(sql).toContain("FROM analytics.custom_events");
 		expect(sql).toContain("AND event_name = {f0:String}");
 		expect(sql).not.toContain("eventNameFilter");
