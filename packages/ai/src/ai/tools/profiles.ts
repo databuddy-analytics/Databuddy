@@ -1,3 +1,4 @@
+import { and, db, desc, eq, profileTraitChanges } from "@databuddy/db";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
@@ -123,6 +124,40 @@ export function buildProfileTools(opts: ProfileToolsOptions): ToolSet {
 					visitorId,
 				});
 				return { profile: data.at(0), period: `Last ${days} days` };
+			},
+		}),
+
+		get_profile_history: tool({
+			description: `Trait change timeline for an identified profile (profile_id). Each entry shows which traits changed (old and new values) plus the full trait snapshot after the change — answers "when did the plan change" and "what were the traits at time T" directly.${suffix}`,
+			inputSchema: z.object({
+				websiteId: opts.websiteIdSchema,
+				profileId: z.string(),
+				limit: z.number().min(1).max(200).default(50),
+			}),
+			execute: async ({ websiteId, profileId, limit }, options) => {
+				const site = await opts.resolveSite(websiteId, options);
+				const history = await db
+					.select({
+						changes: profileTraitChanges.changes,
+						traits: profileTraitChanges.traits,
+						source: profileTraitChanges.source,
+						changedAt: profileTraitChanges.createdAt,
+					})
+					.from(profileTraitChanges)
+					.where(
+						and(
+							eq(profileTraitChanges.websiteId, site.websiteId),
+							eq(profileTraitChanges.profileId, profileId)
+						)
+					)
+					.orderBy(desc(profileTraitChanges.createdAt))
+					.limit(limit);
+				logger.info("Fetched profile trait history", {
+					websiteId: site.websiteId,
+					profileId,
+					changeCount: history.length,
+				});
+				return { history, count: history.length };
 			},
 		}),
 
