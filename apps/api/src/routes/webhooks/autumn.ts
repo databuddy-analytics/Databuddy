@@ -17,6 +17,7 @@ import {
 	invalidateAgentContextSnapshotsForOwner,
 	invalidateBillingOwnerCaches,
 } from "@databuddy/redis";
+import { recordPlanChange } from "@databuddy/services/billing-lifecycle";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
 import { Resend } from "resend";
@@ -324,9 +325,24 @@ async function handleProductsUpdated(
 	});
 	await invalidatePlanCaches(customer.id);
 
-	const shouldSkipSlack =
-		!slack ||
-		(process.env.NODE_ENV === "production" && customer.env === "sandbox");
+	const isSandboxInProduction =
+		process.env.NODE_ENV === "production" && customer.env === "sandbox";
+
+	if (customer.id && !isSandboxInProduction) {
+		try {
+			await recordPlanChange({
+				customerId: customer.id,
+				planId: updated_product.id,
+				scenario,
+			});
+		} catch (error) {
+			log.error(error instanceof Error ? error : new Error(String(error)), {
+				autumn: { step: "record_plan_change", customerId: customer.id },
+			});
+		}
+	}
+
+	const shouldSkipSlack = !slack || isSandboxInProduction;
 
 	if (shouldSkipSlack) {
 		return { success: true, message: `Processed ${scenario}` };

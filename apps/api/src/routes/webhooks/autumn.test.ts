@@ -92,6 +92,10 @@ vi.mock("@databuddy/redis", () => ({
 	invalidateBillingOwnerCaches: vi.fn(async () => ({ attempted: 0, failed: 0 })),
 }));
 
+vi.mock("@databuddy/services/billing-lifecycle", () => ({
+	recordPlanChange: vi.fn(async () => undefined),
+}));
+
 vi.mock("elysia", () => ({
 	Elysia: class {
 		post() {

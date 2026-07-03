@@ -718,6 +718,7 @@
         "@databuddy/db": "workspace:*",
         "@databuddy/encryption": "workspace:*",
         "@databuddy/redis": "workspace:*",
+        "@databuddy/shared": "workspace:*",
       },
       "devDependencies": {
         "typescript": "^5.9.3",
