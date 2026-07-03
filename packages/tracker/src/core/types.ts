@@ -51,6 +51,7 @@ export type BaseEvent = {
 	name?: string;
 	anonymousId?: string;
 	anonymizeVisitorIds?: boolean | "auto";
+	profileId?: string;
 	sessionId?: string;
 	sessionStartTime?: number;
 	timestamp: number;
@@ -90,14 +91,42 @@ export type TrackEventPayload = {
 	properties?: Record<string, unknown>;
 	anonymousId?: string;
 	anonymizeVisitorIds?: boolean | "auto";
+	profileId?: string;
 	sessionId?: string;
 	websiteId: string;
 	source: "browser";
 };
 
+/**
+ * User metadata attached via identify()/setTraits(). Scalar values only —
+ * nested objects and arrays are rejected by the server. Limits: 50 keys,
+ * 2KB serialized. Setting a value to `null` removes that trait.
+ *
+ * Special keys promoted to profile fields instead of being stored as traits:
+ * `email` (lowercased), `username` and `name` (display name; username wins).
+ */
+export type ProfileTraits = Record<string, string | number | boolean | null>;
+
 export type DatabuddyGlobal = {
 	track: (name: string, props?: Record<string, unknown>) => void;
 	screenView: (props?: Record<string, unknown>) => void;
+	/**
+	 * Link this browser to a user ID from your system (max 128 chars, stored
+	 * verbatim — pass an opaque ID, not an email). Persists in localStorage
+	 * across sessions and attaches to every subsequent event. Safe to call on
+	 * every page load: repeat calls with the same ID and no traits are
+	 * deduplicated to one request per session. Call clearProfile() on logout.
+	 */
+	identify: (profileId: string, traits?: ProfileTraits) => void;
+	/**
+	 * Merge traits into the current user's profile without re-identifying.
+	 * Requires a prior identify(); otherwise a no-op (warns in debug builds).
+	 */
+	setTraits: (traits: ProfileTraits) => void;
+	/** Forget the identified user (call on logout). Anonymous ID is kept. */
+	clearProfile: () => void;
+	/** Currently identified user ID, or null when anonymous. */
+	getProfileId: () => string | null;
 	clear: () => void;
 	flush: () => void;
 	setGlobalProperties: (props: Record<string, unknown>) => void;

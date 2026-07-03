@@ -3,6 +3,7 @@ import type {
 	BaseEvent,
 	ErrorSpan,
 	EventContext,
+	ProfileTraits,
 	TrackEventPayload,
 	TrackerOptions,
 	WebVitalEvent,
@@ -44,6 +45,7 @@ export class BaseTracker {
 
 	anonymousId?: string;
 	sessionId?: string;
+	profileId: string | null = null;
 	sessionStartTime = 0;
 
 	pageCount = 0;
@@ -159,6 +161,7 @@ export class BaseTracker {
 
 		this.anonymousId = this.getOrCreateAnonymousId();
 		this.sessionId = this.getOrCreateSessionId();
+		this.profileId = this.loadProfileId();
 		this.sessionStartTime = this.getSessionStartTime();
 		this.refreshUrlParams();
 		logger.log("Tracker initialized", this.options);
@@ -253,6 +256,82 @@ export class BaseTracker {
 
 	generateSessionId(): string {
 		return `sess_${generateUUIDv4()}`;
+	}
+
+	loadProfileId(): string | null {
+		if (this.isServer()) {
+			return null;
+		}
+		try {
+			return localStorage.getItem("did_profile");
+		} catch {
+			return null;
+		}
+	}
+
+	identify(profileId: string, traits?: ProfileTraits): void {
+		if (typeof profileId !== "string" || !profileId.trim()) {
+			logger.error("identify requires a non-empty string profileId");
+			return;
+		}
+		if (this.shouldSkipTracking()) {
+			return;
+		}
+
+		const trimmed = profileId.trim();
+		this.profileId = trimmed;
+		let alreadySentThisSession = false;
+		try {
+			localStorage.setItem("did_profile", trimmed);
+			alreadySentThisSession =
+				sessionStorage.getItem("did_profile_sent") === trimmed;
+		} catch {}
+
+		if (alreadySentThisSession && !traits) {
+			return;
+		}
+
+		this.sendIdentify(trimmed, traits);
+		try {
+			sessionStorage.setItem("did_profile_sent", trimmed);
+		} catch {}
+	}
+
+	setTraits(traits: ProfileTraits): void {
+		if (!this.profileId) {
+			logger.error("setTraits requires identify() to be called first");
+			return;
+		}
+		if (this.shouldSkipTracking()) {
+			return;
+		}
+		this.sendIdentify(this.profileId, traits);
+	}
+
+	clearProfile(): void {
+		this.profileId = null;
+		if (this.isServer()) {
+			return;
+		}
+		try {
+			localStorage.removeItem("did_profile");
+			sessionStorage.removeItem("did_profile_sent");
+		} catch {}
+	}
+
+	getProfileId(): string | null {
+		return this.profileId;
+	}
+
+	private sendIdentify(profileId: string, traits?: ProfileTraits): void {
+		this.api
+			.fetch(
+				"/identify",
+				{ profileId, anonymousId: this.anonymousId, traits },
+				{ keepalive: true },
+				{ client_id: this.options.clientId }
+			)
+			.catch(() => {});
 	}
 
 	getSessionStartTime(): number {
@@ -519,6 +598,7 @@ export class BaseTracker {
 			properties,
 			anonymousId: this.anonymousId,
 			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+			profileId: this.profileId ?? undefined,
 			sessionId: this.sessionId,
 			websiteId: this.options.clientId,
 			source: "browser",
