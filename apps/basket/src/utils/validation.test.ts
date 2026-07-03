@@ -6,7 +6,9 @@ import {
 	XSS_PAYLOADS,
 } from "../test-helpers";
 import {
+	redactSensitiveQueryParams,
 	sanitizeString,
+	sanitizeUrl,
 	VALIDATION_LIMITS,
 	validateNumeric,
 	validatePayloadSize,
@@ -75,6 +77,72 @@ describe("sanitizeString", () => {
 			}
 		}
 	});
+});
+
+// ── redactSensitiveQueryParams ──
+
+describe("redactSensitiveQueryParams", () => {
+	const table: [string, string, string][] = [
+		[
+			"password redacted",
+			"https://a.com/login?email=x%40y.com&password=hunter2",
+			"https://a.com/login?email=REDACTED&password=REDACTED",
+		],
+		[
+			"case-insensitive param names",
+			"/login?Email=x%40y.com&PASSWORD=abc",
+			"/login?Email=REDACTED&PASSWORD=REDACTED",
+		],
+		[
+			"safe params untouched",
+			"/pricing?utm_source=x&plan=pro",
+			"/pricing?utm_source=x&plan=pro",
+		],
+		["no query string untouched", "/login", "/login"],
+		[
+			"token and api_key redacted",
+			"/cb?token=abc&api_key=k123&page=2",
+			"/cb?token=REDACTED&api_key=REDACTED&page=2",
+		],
+		[
+			"oauth fragment redacted",
+			"/cb#access_token=abc&state=xyz",
+			"/cb#access_token=REDACTED&state=xyz",
+		],
+		["plain fragment untouched", "/docs?page=1#install", "/docs?page=1#install"],
+		[
+			"relative path with otp",
+			"/verify?otp=123456",
+			"/verify?otp=REDACTED",
+		],
+		["empty string", "", ""],
+	];
+
+	for (const [label, input, expected] of table) {
+		test(label, () =>
+			expect(redactSensitiveQueryParams(input)).toBe(expected));
+	}
+});
+
+// ── sanitizeUrl ──
+
+describe("sanitizeUrl", () => {
+	test("non-string → ''", () => expect(sanitizeUrl(123)).toBe(""));
+
+	test("redacts before sanitizing", () => {
+		const result = sanitizeUrl(
+			"https://a.com/login?email=x%40y.com&password=hunter2"
+		);
+		expect(result).not.toContain("hunter2");
+		expect(result).not.toContain("x@y.com");
+		expect(result).toContain("REDACTED");
+	});
+
+	test("applies sanitizeString rules", () =>
+		expect(sanitizeUrl("/a<script>b</script>?q=1")).toBe("/ab?q=1"));
+
+	test("respects maxLength", () =>
+		expect(sanitizeUrl("/abcdefghij", 5)).toBe("/abcd"));
 });
 
 // ── validateSessionId ──

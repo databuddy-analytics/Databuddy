@@ -7,7 +7,11 @@ import { runFork, send } from "@lib/producer";
 import { captureError } from "@lib/tracing";
 import { extractIpFromRequest, getGeo } from "@utils/ip-geo";
 import { parseUserAgent } from "@utils/user-agent";
-import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
+import {
+	sanitizeString,
+	sanitizeUrl,
+	VALIDATION_LIMITS,
+} from "@utils/validation";
 import { randomUUIDv7 } from "bun";
 
 async function _logBlockedTrafficAsync(
@@ -41,12 +45,12 @@ async function _logBlockedTrafficAsync(
 			client_id: clientId || "",
 			timestamp: now,
 
-			path: sanitizeString(body?.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-			url: sanitizeString(
+			path: sanitizeUrl(body?.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			url: sanitizeUrl(
 				body?.url || body?.href,
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			),
-			referrer: sanitizeString(
+			referrer: sanitizeUrl(
 				body?.referrer || request.headers.get("referer"),
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
 			),
