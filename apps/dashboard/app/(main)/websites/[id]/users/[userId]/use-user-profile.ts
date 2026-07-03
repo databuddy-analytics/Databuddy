@@ -100,6 +100,7 @@ export function useUserProfile(
 
 		return {
 			visitor_id: rawProfile.visitor_id,
+			profile_id: rawProfile.profile_id || "",
 			first_visit: rawProfile.first_visit,
 			last_visit: rawProfile.last_visit,
 			total_sessions: rawProfile.total_sessions,
