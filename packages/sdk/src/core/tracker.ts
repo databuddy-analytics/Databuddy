@@ -1,5 +1,5 @@
 import { logger } from "@/logger";
-import type { DatabuddyTracker } from "./types";
+import type { DatabuddyTracker, ProfileTraits } from "./types";
 
 /** Check if the full tracker instance (`window.databuddy`) is available. */
 export function isTrackerAvailable(): boolean {
@@ -68,6 +68,81 @@ export function flush(): void {
 		fn();
 	} catch (error) {
 		logger.error("flush error:", error);
+	}
+}
+
+/** Link this browser to a user ID from your system. Safe to call on server (no-op) or on every page load. */
+export function identify(profileId: string, traits?: ProfileTraits): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	const fn = window.db?.identify || window.databuddy?.identify;
+	if (!fn) {
+		return;
+	}
+
+	try {
+		fn(profileId, traits);
+	} catch (error) {
+		logger.error("identify error:", error);
+	}
+}
+
+/** Merge traits into the identified user's profile. Requires a prior identify(). */
+export function setTraits(traits: ProfileTraits): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	const fn = window.db?.setTraits || window.databuddy?.setTraits;
+	if (!fn) {
+		return;
+	}
+
+	try {
+		fn(traits);
+	} catch (error) {
+		logger.error("setTraits error:", error);
+	}
+}
+
+/** Forget the identified user (call on logout). Anonymous ID is kept. */
+export function clearProfile(): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	const fn = window.db?.clearProfile || window.databuddy?.clearProfile;
+	if (!fn) {
+		return;
+	}
+
+	try {
+		fn();
+	} catch (error) {
+		logger.error("clearProfile error:", error);
+	}
+}
+
+/** Currently identified user ID, or null when anonymous. Falls back to localStorage before the tracker loads. */
+export function getProfileId(): string | null {
+	if (typeof window === "undefined") {
+		return null;
+	}
+
+	const fn = window.db?.getProfileId || window.databuddy?.getProfileId;
+	if (fn) {
+		try {
+			return fn();
+		} catch (error) {
+			logger.error("getProfileId error:", error);
+		}
+	}
+	try {
+		return localStorage.getItem("did_profile");
+	} catch {
+		return null;
 	}
 }
 
