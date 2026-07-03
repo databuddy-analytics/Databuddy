@@ -31,6 +31,9 @@ async function extractAnalyticsMetadata(
 		const salt = await getDailySalt();
 		result.anonymous_id = saltAnonymousId(data.anonymous_id, salt);
 	}
+	if (data.profile_id) {
+		result.profile_id = data.profile_id;
+	}
 	if (data.session_id) {
 		result.session_id = data.session_id;
 	}
@@ -170,6 +173,7 @@ async function handleTransaction(
 				original_currency: currency,
 				currency,
 				anonymous_id: metadata.anonymous_id || undefined,
+				profile_id: metadata.profile_id || undefined,
 				session_id: metadata.session_id || undefined,
 				product_id: lineItems[0]?.product?.id || undefined,
 				product_name: lineItems[0]?.product?.name || undefined,

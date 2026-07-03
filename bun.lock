@@ -99,6 +99,7 @@
         "@databuddy/env": "workspace:*",
         "@databuddy/redis": "workspace:*",
         "@databuddy/rpc": "workspace:*",
+        "@databuddy/services": "workspace:*",
         "@databuddy/shared": "workspace:*",
         "@databuddy/validation": "workspace:*",
         "@maxmind/geoip2-node": "^6.3.4",

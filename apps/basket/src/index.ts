@@ -18,6 +18,7 @@ import {
 import { buildBasketErrorPayload } from "@lib/structured-errors";
 import { captureError } from "@lib/tracing";
 import basketRouter from "@routes/basket";
+import { identifyRoute } from "@routes/identify";
 import { trackRoute } from "@routes/track";
 import { paddleWebhook } from "@routes/webhooks/paddle";
 import { stripeWebhook } from "@routes/webhooks/stripe";
@@ -106,6 +107,7 @@ const app = new Elysia()
 	})
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(basketRouter)
+	.use(identifyRoute)
 	.use(trackRoute)
 	.use(stripeWebhook)
 	.use(paddleWebhook)

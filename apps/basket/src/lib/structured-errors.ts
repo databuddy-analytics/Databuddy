@@ -56,6 +56,18 @@ export const basketErrorCatalog = defineErrorCatalog("basket", {
 		why: "Too many /track requests from this principal.",
 		fix: "Reduce request frequency or batch events.",
 	},
+	IDENTIFY_RATE_LIMITED: {
+		message: "Rate limit exceeded",
+		status: 429,
+		why: "Too many /identify requests from this principal.",
+		fix: "Call identify only on login, signup, or trait changes.",
+	},
+	IDENTIFY_MISSING_WEBSITE_ID: {
+		message: "Missing websiteId",
+		status: 400,
+		why: "API-key identify requests must state which website the profile belongs to.",
+		fix: "Include websiteId in the request body.",
+	},
 	INGEST_PAYLOAD_TOO_LARGE: {
 		message: "Payload too large",
 		status: 413,
@@ -146,6 +158,8 @@ export const basketErrors = {
 	trackWebsiteNoOrganization: basketErrorCatalog.TRACK_WEBSITE_NO_ORGANIZATION,
 	trackWebsiteScopeMismatch: basketErrorCatalog.TRACK_WEBSITE_SCOPE_MISMATCH,
 	trackRateLimited: basketErrorCatalog.TRACK_RATE_LIMITED,
+	identifyRateLimited: basketErrorCatalog.IDENTIFY_RATE_LIMITED,
+	identifyMissingWebsiteId: basketErrorCatalog.IDENTIFY_MISSING_WEBSITE_ID,
 	ingestPayloadTooLarge: basketErrorCatalog.INGEST_PAYLOAD_TOO_LARGE,
 	ingestMissingClientId: basketErrorCatalog.INGEST_MISSING_CLIENT_ID,
 	ingestInvalidClientId: basketErrorCatalog.INGEST_INVALID_CLIENT_ID,

@@ -325,6 +325,7 @@ export const trackRoute = new Elysia().post(
 				properties: event.properties,
 				anonymous_id: event.anonymousId,
 				anonymizeVisitorIds: event.anonymizeVisitorIds,
+				profile_id: event.profileId,
 				session_id: event.sessionId,
 				source: event.source,
 			}));
