@@ -8,6 +8,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { useMemo, useState } from "react";
+import { IdentifyUser } from "@/components/providers/identify-user";
 import { OrganizationsProvider } from "@/components/providers/organizations-provider";
 import { useToastTracking } from "@/hooks/toast-hooks";
 import { isDashboardE2E } from "@/lib/e2e-mode";
@@ -22,6 +23,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 				<QueryClientProvider client={queryClient}>
 					<FlagsProviderWrapper>
 						<OrganizationsProvider>
+							<IdentifyUser />
 							<ToastTracker>
 								<NuqsAdapter>{children}</NuqsAdapter>
 							</ToastTracker>
