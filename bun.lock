@@ -471,6 +471,7 @@
       "dependencies": {
         "@databuddy/db": "workspace:*",
         "@databuddy/redis": "workspace:*",
+        "@databuddy/shared": "workspace:*",
         "keypal": "0.2.0",
       },
       "devDependencies": {

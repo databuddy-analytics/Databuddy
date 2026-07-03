@@ -4,6 +4,8 @@
   "version": "0.0.1",
   "type": "module",
   "exports": {
+    "./api-scopes": "./src/api-scopes.ts",
+    "./agent-discovery": "./src/agent-discovery.ts",
     "./country-codes": "./src/country-codes.ts",
     "./types/features": "./src/types/features.ts",
     "./flags": "./src/flags/index.ts",
