@@ -687,7 +687,7 @@
     },
     "packages/sdk": {
       "name": "@databuddy/sdk",
-      "version": "2.4.20",
+      "version": "2.5.0",
       "devDependencies": {
         "@playwright/test": "^1.58.2",
         "@types/bun": "catalog:",
