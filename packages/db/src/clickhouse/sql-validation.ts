@@ -23,6 +23,7 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 	"analytics.events": new Set([
 		"client_id",
 		"anonymous_id",
+		"profile_id",
 		"session_id",
 		"time",
 		"path",
@@ -76,6 +77,7 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 	"analytics.custom_events": new Set([
 		"owner_id",
 		"anonymous_id",
+		"profile_id",
 		"session_id",
 		"timestamp",
 		"event_name",
@@ -89,6 +91,8 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"provider",
 		"type",
 		"customer_id",
+		"anonymous_id",
+		"profile_id",
 		"created",
 	]),
 	"analytics.blocked_traffic": new Set([
