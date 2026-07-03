@@ -4,6 +4,10 @@ import type { NextConfig } from "next";
 
 const withMDX = createMDX();
 
+const APP_URL = "https://app.databuddy.cc";
+const AGENT_LINK_HEADER =
+	'</sitemap.xml>; rel="sitemap", </index.md>; rel="alternate"; type="text/markdown", </openapi.json>; rel="service-desc"; type="application/vnd.oai.openapi+json;version=3.1", </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"';
+
 const config: NextConfig = {
 	reactStrictMode: true,
 	transpilePackages: ["@databuddy/ui"],
@@ -32,6 +36,19 @@ const config: NextConfig = {
 						key: "X-Robots-Tag",
 						value:
 							"index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1",
+					},
+					{
+						key: "Link",
+						value: AGENT_LINK_HEADER,
+					},
+				],
+			},
+			{
+				source: "/",
+				headers: [
+					{
+						key: "Vary",
+						value: "Accept, Accept-Encoding",
 					},
 				],
 			},
@@ -85,6 +102,86 @@ const config: NextConfig = {
 				source: "/docs/docs/:path*",
 				destination: "/docs/:path*",
 				permanent: true,
+			},
+			{
+				source: "/register",
+				destination: `${APP_URL}/register`,
+				permanent: false,
+			},
+			{
+				source: "/signup",
+				destination: `${APP_URL}/register`,
+				permanent: false,
+			},
+			{
+				source: "/sign-up",
+				destination: `${APP_URL}/register`,
+				permanent: false,
+			},
+			{
+				source: "/auth/register",
+				destination: `${APP_URL}/register`,
+				permanent: false,
+			},
+			{
+				source: "/auth/signup",
+				destination: `${APP_URL}/register`,
+				permanent: false,
+			},
+			{
+				source: "/auth/sign-up",
+				destination: `${APP_URL}/register`,
+				permanent: false,
+			},
+			{
+				source: "/login",
+				destination: `${APP_URL}/login`,
+				permanent: false,
+			},
+			{
+				source: "/signin",
+				destination: `${APP_URL}/login`,
+				permanent: false,
+			},
+			{
+				source: "/sign-in",
+				destination: `${APP_URL}/login`,
+				permanent: false,
+			},
+			{
+				source: "/auth/login",
+				destination: `${APP_URL}/login`,
+				permanent: false,
+			},
+			{
+				source: "/auth/signin",
+				destination: `${APP_URL}/login`,
+				permanent: false,
+			},
+			{
+				source: "/auth/sign-in",
+				destination: `${APP_URL}/login`,
+				permanent: false,
+			},
+			{
+				source: "/app",
+				destination: APP_URL,
+				permanent: false,
+			},
+			{
+				source: "/app/:path*",
+				destination: `${APP_URL}/:path*`,
+				permanent: false,
+			},
+			{
+				source: "/dashboard",
+				destination: APP_URL,
+				permanent: false,
+			},
+			{
+				source: "/dashboard/:path*",
+				destination: `${APP_URL}/:path*`,
+				permanent: false,
 			},
 			{
 				source: "/twitter",

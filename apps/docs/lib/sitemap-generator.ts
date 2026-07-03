@@ -14,6 +14,8 @@ const exactPriority: Record<string, number> = {
 	"/calculator": 0.85,
 	"/demo": 0.8,
 	"/contact": 0.6,
+	"/about": 0.6,
+	"/developers": 0.9,
 	"/blog": 0.8,
 	"/changelog": 0.7,
 	"/api": 0.7,
@@ -175,7 +177,9 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 			"/links",
 			"/databunny",
 			"/demo",
+			"/about",
 			"/contact",
+			"/developers",
 			"/pricing",
 			"/calculator",
 			"/privacy",
@@ -191,11 +195,49 @@ export async function generateSitemapEntries(): Promise<MetadataRoute.Sitemap> {
 			"/data-policy",
 			"/dpa",
 		];
+
+		const machineReadableResources = [
+			"/llms.txt",
+			"/llms-full.txt",
+			"/skill.md",
+			"/openapi.json",
+			"/mcp.json",
+			"/.well-known/mcp.json",
+			"/.well-known/mcp/manifest.json",
+			"/.well-known/mcp/server-card.json",
+			"/.well-known/agent.json",
+			"/.well-known/agent-card.json",
+			"/.well-known/api-catalog",
+			"/.well-known/oauth-protected-resource",
+			"/.well-known/oauth-authorization-server",
+			"/.well-known/http-message-signatures-directory",
+			"/.well-known/ucp",
+			"/auth.md",
+			"/api.md",
+			"/index.md",
+			"/llms.md",
+			"/agents.md",
+			"/developers.md",
+			"/docs/llms.txt",
+			"/api/llms.txt",
+			"/ask",
+			"/developers/llms.txt",
+			"/schemamap.xml",
+			"/schema/software.jsonl",
+			"/schema/faq.jsonl",
+		];
 		entries.push(
 			...staticPages.map((page) => ({
 				url: `${SITE_URL}${page}`,
 				changeFrequency: getChangeFrequency(page),
 				priority: getPriority(page),
+			}))
+		);
+		entries.push(
+			...machineReadableResources.map((page) => ({
+				url: `${SITE_URL}${page}`,
+				changeFrequency: "weekly" as const,
+				priority: 0.4,
 			}))
 		);
 

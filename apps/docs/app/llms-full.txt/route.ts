@@ -3,6 +3,7 @@ import fg from "fast-glob";
 import matter from "gray-matter";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { developerResources } from "@/lib/agent-discovery";
 
 export const revalidate = false;
 
@@ -12,6 +13,7 @@ const HEADER = `# Databuddy Documentation (Full)
 > This file contains the complete documentation corpus for long-context agents.
 
 `;
+const MAX_LLMS_FULL_CHARS = 190_000;
 
 const SECTION_ORDER = [
 	"root",
@@ -78,11 +80,22 @@ export async function GET() {
 		})
 		.join("\n\n---\n\n");
 
-	const body = HEADER + sections;
+	const resourceList = developerResources
+		.map(
+			(resource) =>
+				`- [${resource.title}](${resource.url}): ${resource.description}`
+		)
+		.join("\n");
+
+	let body = `${HEADER}## Developer Resources\n${resourceList}\n\n---\n\n${sections}`;
+	if (body.length > MAX_LLMS_FULL_CHARS) {
+		const notice = `\n\n---\n\n## Additional Documentation\n\nThis single-file agent corpus is capped below 200,000 characters for one-request ingestion. Continue with the scoped indexes at https://www.databuddy.cc/docs/llms.txt, https://www.databuddy.cc/api/llms.txt, and https://www.databuddy.cc/developers/llms.txt.\n`;
+		body = `${body.slice(0, MAX_LLMS_FULL_CHARS - notice.length).trimEnd()}${notice}`;
+	}
 
 	return new Response(body, {
 		headers: {
-			"Content-Type": "text/plain; charset=utf-8",
+			"Content-Type": "text/markdown; charset=utf-8",
 			"Cache-Control": "public, max-age=3600, must-revalidate",
 			ETag: `"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`,
 		},
