@@ -1,10 +1,6 @@
 import { z } from "zod";
-import { createEnv } from "./base";
+import { createEnv, optionalString } from "./base";
 import { readBooleanEnv } from "./boolean";
-
-const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
-
-const optionalString = z.preprocess(emptyToUndefined, z.string().optional());
 
 const booleanFromEnv = z.preprocess((value) => {
 	if (value === undefined || value === "") {

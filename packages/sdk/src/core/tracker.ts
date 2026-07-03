@@ -14,115 +14,55 @@ export function getTracker(): DatabuddyTracker | null {
 	return window.databuddy || null;
 }
 
+function callTracker(
+	name: string,
+	invoke: (tracker: NonNullable<Window["db"]>) => void
+): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	const tracker = window.db ?? window.databuddy;
+	if (!tracker) {
+		return;
+	}
+	try {
+		invoke(tracker);
+	} catch (error) {
+		logger.error(`${name} error:`, error);
+	}
+}
+
 /** Track a custom event. Safe to call on server (no-op) or before tracker loads. */
 export function track(
 	name: string,
 	properties?: Record<string, unknown>
 ): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.track || window.databuddy?.track;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn(name, properties);
-	} catch (error) {
-		logger.error("track error:", error);
-	}
+	callTracker("track", (tracker) => tracker.track(name, properties));
 }
 
 /** Reset user session — generates new anonymous and session IDs. Call after logout. */
 export function clear(): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.clear || window.databuddy?.clear;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn();
-	} catch (error) {
-		logger.error("clear error:", error);
-	}
+	callTracker("clear", (tracker) => tracker.clear());
 }
 
 /** Force send all queued events. Call before navigating to external sites. */
 export function flush(): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.flush || window.databuddy?.flush;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn();
-	} catch (error) {
-		logger.error("flush error:", error);
-	}
+	callTracker("flush", (tracker) => tracker.flush());
 }
 
 /** Link this browser to a user ID from your system. Safe to call on server (no-op) or on every page load. */
 export function identify(profileId: string, traits?: ProfileTraits): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.identify || window.databuddy?.identify;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn(profileId, traits);
-	} catch (error) {
-		logger.error("identify error:", error);
-	}
+	callTracker("identify", (tracker) => tracker.identify(profileId, traits));
 }
 
 /** Merge traits into the identified user's profile. Requires a prior identify(). */
 export function setTraits(traits: ProfileTraits): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.setTraits || window.databuddy?.setTraits;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn(traits);
-	} catch (error) {
-		logger.error("setTraits error:", error);
-	}
+	callTracker("setTraits", (tracker) => tracker.setTraits(traits));
 }
 
 /** Forget the identified user (call on logout). Anonymous ID is kept. */
 export function clearProfile(): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.clearProfile || window.databuddy?.clearProfile;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn();
-	} catch (error) {
-		logger.error("clearProfile error:", error);
-	}
+	callTracker("clearProfile", (tracker) => tracker.clearProfile());
 }
 
 /** Currently identified user ID, or null when anonymous. Falls back to localStorage before the tracker loads. */

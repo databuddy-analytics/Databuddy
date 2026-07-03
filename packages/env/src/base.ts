@@ -56,6 +56,14 @@ export const externalServiceEnvSchema = {
 } as const;
 
 /**
+ * Optional string that treats empty env values as unset
+ */
+export const optionalString = z.preprocess(
+	(value) => (value === "" ? undefined : value),
+	z.string().optional()
+);
+
+/**
  * Development environment check
  */
 export const isDevelopment = () => process.env.NODE_ENV === "development";
