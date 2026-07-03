@@ -9,6 +9,7 @@ import {
 import { SidebarNavigationProvider } from "@/components/layout/sidebar-navigation-provider";
 import { TopBar, TopBarProvider } from "@/components/layout/top-bar";
 import { BillingProvider } from "@/components/providers/billing-provider";
+import { IdentifyBillingTraits } from "@/components/providers/identify-billing-traits";
 import { SessionGuard } from "@/components/providers/session-guard";
 import { CommandSearchProvider } from "@/components/ui/command-search";
 import { Skeleton } from "@databuddy/ui";
@@ -45,6 +46,7 @@ export default function MainLayout({
 			<CommandSearchProvider>
 				<SidebarNavigationProvider>
 					<SessionGuard>
+						<IdentifyBillingTraits />
 						<SidebarLayout>
 							<TopBarProvider>
 								<div className="flex min-h-0 flex-1 flex-col overflow-hidden text-foreground">
