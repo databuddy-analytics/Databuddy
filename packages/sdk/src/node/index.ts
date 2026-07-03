@@ -178,10 +178,10 @@ export class Databuddy {
 	 * with the track:events scope for the target website.
 	 */
 	async identify(input: IdentifyInput): Promise<EventResponse> {
-		if (!input.profileId || typeof input.profileId !== "string") {
+		if (typeof input.profileId !== "string" || !input.profileId.trim()) {
 			return {
 				success: false,
-				error: "profileId is required and must be a string",
+				error: "profileId is required and must be a non-empty string",
 			};
 		}
 

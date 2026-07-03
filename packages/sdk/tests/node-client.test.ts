@@ -203,7 +203,7 @@ describe("Databuddy Node client", () => {
 });
 
 describe("identify", () => {
-	it("sends profileId, traits, and websiteId to /identify", async () => {
+	it("sends profileId, anonymousId, traits, and websiteId to /identify", async () => {
 		const calls = mockFetch(() =>
 			jsonResponse({ status: "success", type: "identify" })
 		);
