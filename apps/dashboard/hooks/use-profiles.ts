@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { orpc } from "@/lib/orpc";
 
@@ -11,29 +11,39 @@ export interface ProfileIdentity {
 	updatedAt: Date;
 }
 
+const BATCH_SIZE = 100;
+
 export function useProfileIdentities(websiteId: string, profileIds: string[]) {
-	const uniqueIds = useMemo(
-		() => [...new Set(profileIds.filter(Boolean))].slice(0, 100),
-		[profileIds]
-	);
-
-	const query = useQuery({
-		...orpc.profiles.getByIds.queryOptions({
-			input: { websiteId, profileIds: uniqueIds },
-		}),
-		enabled: Boolean(websiteId) && uniqueIds.length > 0,
-		staleTime: 5 * 60 * 1000,
-	});
-
-	const identityMap = useMemo(() => {
-		const map = new Map<string, ProfileIdentity>();
-		for (const profile of query.data ?? []) {
-			map.set(profile.profileId, profile);
+	const batches = useMemo(() => {
+		const uniqueIds = [...new Set(profileIds.filter(Boolean))];
+		const chunks: string[][] = [];
+		for (let i = 0; i < uniqueIds.length; i += BATCH_SIZE) {
+			chunks.push(uniqueIds.slice(i, i + BATCH_SIZE));
 		}
-		return map;
-	}, [query.data]);
+		return chunks;
+	}, [profileIds]);
 
-	return { identityMap, isLoading: query.isLoading };
+	return useQueries({
+		queries: batches.map((batch) => ({
+			...orpc.profiles.getByIds.queryOptions({
+				input: { websiteId, profileIds: batch },
+			}),
+			enabled: Boolean(websiteId) && batch.length > 0,
+			staleTime: 5 * 60 * 1000,
+		})),
+		combine: (results) => {
+			const identityMap = new Map<string, ProfileIdentity>();
+			for (const result of results) {
+				for (const profile of result.data ?? []) {
+					identityMap.set(profile.profileId, profile);
+				}
+			}
+			return {
+				identityMap,
+				isLoading: results.some((result) => result.isLoading),
+			};
+		},
+	});
 }
 
 export function useProfileIdentity(websiteId: string, profileId: string) {
