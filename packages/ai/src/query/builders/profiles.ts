@@ -1,3 +1,8 @@
+import {
+	CUSTOM_EVENTS_VISITOR_KEY,
+	EVENTS_VISITOR_KEY,
+	visitorMatch,
+} from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
 import { isFilterFieldAllowed } from "../simple-builder";
 import { FilterOperators, type Filter, type SimpleQueryConfig } from "../types";
@@ -27,10 +32,13 @@ const PROFILE_AGGREGATE_FILTER_OPERATORS = new Set<Filter["op"]>([
 	"not_in",
 ]);
 
+const VISITOR_MATCH = visitorMatch();
+
 const SUBQUERY_FILTER_FIELDS = new Set(["event_name"]);
 const PROFILE_LIST_ALLOWED_FILTERS = [
 	...PROFILE_AGGREGATE_FILTER_FIELDS,
 	"event_name",
+	"profile_id",
 ];
 const PROFILE_LIST_FILTER_CONFIG: SimpleQueryConfig = {
 	allowedFilters: PROFILE_LIST_ALLOWED_FILTERS,
@@ -156,7 +164,23 @@ function buildProfileAggregateFilter(
 	};
 }
 
+// error_spans, web_vitals_spans, and outgoing_links carry no profile_id,
+// so an identified visitor's rows there are found via the device set
+// (anonymous_ids) resolved from the events table.
 const PROFILE_ACTIVITY_CTE = `
+      visitor_ids AS (
+        SELECT DISTINCT anonymous_id
+        FROM ${Analytics.events}
+        WHERE
+          client_id = {websiteId:String}
+          AND ${VISITOR_MATCH}
+          AND time >= toDateTime({startDate:String})
+          AND time <= toDateTime({endDate:String})
+
+        UNION DISTINCT
+
+        SELECT {visitorId:String} as anonymous_id
+      ),
       profile_activity AS (
         SELECT
           session_id,
@@ -164,7 +188,7 @@ const PROFILE_ACTIVITY_CTE = `
         FROM ${Analytics.events}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id = {visitorId:String}
+          AND ${VISITOR_MATCH}
           AND time >= toDateTime({startDate:String})
           AND time <= toDateTime({endDate:String})
 
@@ -176,7 +200,7 @@ const PROFILE_ACTIVITY_CTE = `
         FROM ${Analytics.custom_events}
         WHERE
           website_id = {websiteId:String}
-          AND anonymous_id = {visitorId:String}
+          AND ${VISITOR_MATCH}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
 
@@ -188,7 +212,7 @@ const PROFILE_ACTIVITY_CTE = `
         FROM ${Analytics.error_spans}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id = {visitorId:String}
+          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
 
@@ -200,7 +224,7 @@ const PROFILE_ACTIVITY_CTE = `
         FROM ${Analytics.web_vitals_spans}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id = {visitorId:String}
+          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
 
@@ -212,7 +236,7 @@ const PROFILE_ACTIVITY_CTE = `
         FROM ${Analytics.outgoing_links}
         WHERE
           client_id = {websiteId:String}
-          AND anonymous_id = {visitorId:String}
+          AND anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
       )`;
@@ -254,14 +278,14 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 				: "";
 
 			const eventSubqueryClause = subqueryConditions.length
-				? `AND anonymous_id IN (
-        SELECT DISTINCT anonymous_id
+				? `AND ${EVENTS_VISITOR_KEY} IN (
+        SELECT DISTINCT ${CUSTOM_EVENTS_VISITOR_KEY}
         FROM ${Analytics.custom_events}
         WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
           AND ${subqueryConditions.join(" AND ")}
           AND timestamp >= toDateTime({startDate:String})
           AND timestamp <= toDateTime({endDate:String})
-          AND anonymous_id IS NOT NULL
+          AND (anonymous_id IS NOT NULL OR profile_id != '')
       )`
 				: "";
 
@@ -271,7 +295,8 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 				sql: `
     WITH visitor_profiles AS (
       SELECT
-        anonymous_id as visitor_id,
+        ${EVENTS_VISITOR_KEY} as visitor_id,
+        max(profile_id) as profile_id,
         MIN(time) as first_visit,
         MAX(time) as last_visit,
         uniq(session_id) as session_count,
@@ -291,26 +316,26 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         AND time <= toDateTime({endDate:String})
 	${combinedWhereClause}
 	${eventSubqueryClause}
-      GROUP BY anonymous_id
+      GROUP BY visitor_id
       ${havingClause}
       ORDER BY ${profileSort}
       LIMIT {limit:Int32} OFFSET {offset:Int32}
     ),
     visitor_custom_events AS (
       SELECT
-        anonymous_id as visitor_id,
+        ${CUSTOM_EVENTS_VISITOR_KEY} as visitor_id,
         COUNT(*) as custom_event_count,
         uniq(event_name) as unique_event_names
       FROM ${Analytics.custom_events}
       WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
         AND timestamp >= toDateTime({startDate:String})
         AND timestamp <= toDateTime({endDate:String})
-        AND anonymous_id IN (SELECT visitor_id FROM visitor_profiles)
-      GROUP BY anonymous_id
+        AND ${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
+      GROUP BY visitor_id
     ),
     visitor_sessions AS (
       SELECT
-        anonymous_id as visitor_id,
+        ${EVENTS_VISITOR_KEY} as visitor_id,
         session_id,
         MIN(time) as session_start,
         MAX(time) as session_end,
@@ -343,13 +368,14 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       WHERE client_id = {websiteId:String}
         AND time >= toDateTime({startDate:String})
         AND time <= toDateTime({endDate:String})
-        AND anonymous_id IN (SELECT visitor_id FROM visitor_profiles)
+        AND ${EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
 	${combinedWhereClause}
-      GROUP BY anonymous_id, session_id
-      ORDER BY anonymous_id, session_start DESC
+      GROUP BY visitor_id, session_id
+      ORDER BY visitor_id, session_start DESC
     )
     SELECT
       vp.visitor_id AS visitor_id,
+      vp.profile_id AS profile_id,
       vp.first_visit AS first_visit,
       vp.last_visit AS last_visit,
       vp.session_count AS session_count,
@@ -434,12 +460,13 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM ${Analytics.events}
       WHERE
         client_id = {websiteId:String}
-        AND anonymous_id = {visitorId:String}
+        AND ${VISITOR_MATCH}
         AND time >= toDateTime({startDate:String})
         AND time <= toDateTime({endDate:String})
     ),
     profile_context AS (
       SELECT
+        argMaxIf(profile_id, time, profile_id != '') as profile_id,
         any(device_type) as device,
         any(browser_name) as browser,
         any(os_name) as os,
@@ -448,7 +475,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       FROM ${Analytics.events}
       WHERE
         client_id = {websiteId:String}
-        AND anonymous_id = {visitorId:String}
+        AND ${VISITOR_MATCH}
         AND time >= toDateTime({startDate:String})
         AND time <= toDateTime({endDate:String})
     )
@@ -460,6 +487,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       es.total_pageviews,
       es.total_duration,
       es.total_duration_formatted,
+      pc.profile_id,
       pc.device,
       pc.browser,
       pc.os,
@@ -533,7 +561,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       INNER JOIN user_sessions us ON e.session_id = us.session_id
       WHERE
         e.client_id = {websiteId:String}
-        AND e.anonymous_id = {visitorId:String}
+        AND (e.anonymous_id = {visitorId:String} OR e.profile_id = {visitorId:String})
         AND e.time >= toDateTime({startDate:String})
         AND e.time <= toDateTime({endDate:String})
       GROUP BY e.session_id
@@ -560,7 +588,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       INNER JOIN user_sessions us ON e.session_id = us.session_id
       WHERE
         e.client_id = {websiteId:String}
-        AND e.anonymous_id = {visitorId:String}
+        AND (e.anonymous_id = {visitorId:String} OR e.profile_id = {visitorId:String})
         AND e.time >= toDateTime({startDate:String})
         AND e.time <= toDateTime({endDate:String})
 
@@ -586,7 +614,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       INNER JOIN user_sessions us ON ifNull(ce.session_id, '') = us.session_id
       WHERE
         ce.website_id = {websiteId:String}
-        AND ce.anonymous_id = {visitorId:String}
+        AND (ce.anonymous_id = {visitorId:String} OR ce.profile_id = {visitorId:String})
         AND ce.timestamp >= toDateTime({startDate:String})
         AND ce.timestamp <= toDateTime({endDate:String})
 
@@ -614,7 +642,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       INNER JOIN user_sessions us ON es.session_id = us.session_id
       WHERE
         es.client_id = {websiteId:String}
-        AND es.anonymous_id = {visitorId:String}
+        AND es.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
         AND es.timestamp >= toDateTime({startDate:String})
         AND es.timestamp <= toDateTime({endDate:String})
 
@@ -635,7 +663,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       INNER JOIN user_sessions us ON ol.session_id = us.session_id
       WHERE
         ol.client_id = {websiteId:String}
-        AND ol.anonymous_id = {visitorId:String}
+        AND ol.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
         AND ol.timestamp >= toDateTime({startDate:String})
         AND ol.timestamp <= toDateTime({endDate:String})
     ),
@@ -666,7 +694,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         INNER JOIN user_sessions us ON wv.session_id = us.session_id
         WHERE
           wv.client_id = {websiteId:String}
-          AND wv.anonymous_id = {visitorId:String}
+          AND wv.anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
           AND wv.timestamp >= toDateTime({startDate:String})
           AND wv.timestamp <= toDateTime({endDate:String})
         ORDER BY wv.timestamp ASC

@@ -8,6 +8,7 @@ import type {
 	DatabuddyConfig,
 	EventResponse,
 	GlobalProperties,
+	IdentifyInput,
 	Middleware,
 } from "./types";
 
@@ -18,8 +19,10 @@ export type {
 	DatabuddyConfig,
 	EventResponse,
 	GlobalProperties,
+	IdentifyInput,
 	Logger,
 	Middleware,
+	ProfileTraits,
 } from "./types";
 
 const DEFAULT_API_URL = "https://basket.databuddy.cc";
@@ -120,6 +123,7 @@ export class Databuddy {
 			anonymousId: event.anonymousId,
 			anonymizeVisitorIds:
 				event.anonymizeVisitorIds ?? this.anonymizeVisitorIds,
+			profileId: event.profileId,
 			sessionId: event.sessionId,
 			timestamp: event.timestamp,
 			properties: {
@@ -167,6 +171,66 @@ export class Databuddy {
 		return { success: true };
 	}
 
+	/**
+	 * Link a user ID from your system to their tracked activity. Pass the
+	 * client's `anonymousId` (readable via the web SDK's getAnonymousId())
+	 * to connect pre-login events from that device. Requires an API key
+	 * with the track:events scope for the target website.
+	 */
+	async identify(input: IdentifyInput): Promise<EventResponse> {
+		if (typeof input.profileId !== "string" || !input.profileId.trim()) {
+			return {
+				success: false,
+				error: "profileId is required and must be a non-empty string",
+			};
+		}
+
+		const websiteId = input.websiteId ?? this.websiteId;
+		if (!websiteId) {
+			return {
+				success: false,
+				error: "websiteId is required (set it in config or pass it per call)",
+			};
+		}
+
+		try {
+			const url = `${this.apiUrl}/identify`;
+			const response = await fetch(url, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${this.apiKey}`,
+				},
+				body: JSON.stringify({
+					profileId: input.profileId.trim(),
+					anonymousId: input.anonymousId ?? undefined,
+					traits: input.traits ?? undefined,
+					websiteId,
+				}),
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text().catch(() => "Unknown error");
+				this.logger.error("Identify failed", {
+					status: response.status,
+					body: errorText,
+				});
+				return {
+					success: false,
+					error: `HTTP ${response.status}: ${response.statusText}`,
+				};
+			}
+
+			return { success: true };
+		} catch (error) {
+			this.logger.error("Identify error", { error });
+			return {
+				success: false,
+				error: error instanceof Error ? error.message : "Unknown error",
+			};
+		}
+	}
+
 	private toTrackPayload(event: BatchEventInput) {
 		const timestamp = event.timestamp
 			? Math.floor(event.timestamp)
@@ -179,6 +243,7 @@ export class Databuddy {
 			properties: event.properties ?? undefined,
 			anonymousId: event.anonymousId ?? undefined,
 			anonymizeVisitorIds: event.anonymizeVisitorIds ?? undefined,
+			profileId: event.profileId ?? undefined,
 			sessionId: event.sessionId ?? undefined,
 			websiteId: event.websiteId ?? undefined,
 			source: event.source ?? undefined,

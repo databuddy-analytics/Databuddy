@@ -3,6 +3,7 @@ import type {
 	BaseEvent,
 	ErrorSpan,
 	EventContext,
+	ProfileTraits,
 	TrackEventPayload,
 	TrackerOptions,
 	WebVitalEvent,
@@ -28,6 +29,7 @@ const HEADLESS_CHROME_REGEX = /\bHeadlessChrome\b/i;
 const PHANTOMJS_REGEX = /\bPhantomJS\b/i;
 const ANON_ID_PATTERN = /^anon_[0-9a-f-]{36}$/;
 const SESSION_ID_PATTERN = /^[0-9a-f-]{36}$/;
+const MAX_PROFILE_ID_LENGTH = 128;
 
 interface QueueMeta<T> {
 	endpoint: string;
@@ -44,6 +46,7 @@ export class BaseTracker {
 
 	anonymousId?: string;
 	sessionId?: string;
+	profileId: string | null = null;
 	sessionStartTime = 0;
 
 	pageCount = 0;
@@ -159,6 +162,7 @@ export class BaseTracker {
 
 		this.anonymousId = this.getOrCreateAnonymousId();
 		this.sessionId = this.getOrCreateSessionId();
+		this.profileId = this.loadProfileId();
 		this.sessionStartTime = this.getSessionStartTime();
 		this.refreshUrlParams();
 		logger.log("Tracker initialized", this.options);
@@ -253,6 +257,94 @@ export class BaseTracker {
 
 	generateSessionId(): string {
 		return `sess_${generateUUIDv4()}`;
+	}
+
+	loadProfileId(): string | null {
+		if (this.isServer()) {
+			return null;
+		}
+		try {
+			return localStorage.getItem("did_profile");
+		} catch {
+			return null;
+		}
+	}
+
+	identify(profileId: string, traits?: ProfileTraits): void {
+		if (typeof profileId !== "string" || !profileId.trim()) {
+			logger.error("identify requires a non-empty string profileId");
+			return;
+		}
+		const trimmed = profileId.trim();
+		if (trimmed.length > MAX_PROFILE_ID_LENGTH) {
+			logger.error(
+				`identify profileId exceeds ${MAX_PROFILE_ID_LENGTH} characters`
+			);
+			return;
+		}
+		if (this.shouldSkipTracking()) {
+			return;
+		}
+
+		this.profileId = trimmed;
+		const hasTraits = Boolean(traits && Object.keys(traits).length > 0);
+		let alreadySentThisSession = false;
+		try {
+			localStorage.setItem("did_profile", trimmed);
+			alreadySentThisSession =
+				sessionStorage.getItem("did_profile_sent") === trimmed;
+		} catch {}
+
+		if (alreadySentThisSession && !hasTraits) {
+			return;
+		}
+
+		this.sendIdentify(trimmed, hasTraits ? traits : undefined);
+	}
+
+	setTraits(traits: ProfileTraits): void {
+		if (!this.profileId) {
+			logger.error("setTraits requires identify() to be called first");
+			return;
+		}
+		if (this.shouldSkipTracking()) {
+			return;
+		}
+		this.sendIdentify(this.profileId, traits);
+	}
+
+	clearProfile(): void {
+		this.profileId = null;
+		if (this.isServer()) {
+			return;
+		}
+		try {
+			localStorage.removeItem("did_profile");
+			sessionStorage.removeItem("did_profile_sent");
+		} catch {}
+	}
+
+	getProfileId(): string | null {
+		return this.profileId;
+	}
+
+	private sendIdentify(profileId: string, traits?: ProfileTraits): void {
+		this.api
+			.fetch(
+				"/identify",
+				{ profileId, anonymousId: this.anonymousId, traits },
+				{ keepalive: true },
+				{ client_id: this.options.clientId }
+			)
+			.then((result) => {
+				if (!result) {
+					return;
+				}
+				try {
+					sessionStorage.setItem("did_profile_sent", profileId);
+				} catch {}
+			})
+			.catch(() => {});
 	}
 
 	getSessionStartTime(): number {
@@ -519,6 +611,7 @@ export class BaseTracker {
 			properties,
 			anonymousId: this.anonymousId,
 			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
+			profileId: this.profileId ?? undefined,
 			sessionId: this.sessionId,
 			websiteId: this.options.clientId,
 			source: "browser",

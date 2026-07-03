@@ -316,6 +316,7 @@ describe("buildTrackEvent — output shape completeness", () => {
 		"client_id",
 		"event_name",
 		"anonymous_id",
+		"profile_id",
 		"time",
 		"session_id",
 		"event_type",

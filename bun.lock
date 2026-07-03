@@ -99,6 +99,7 @@
         "@databuddy/env": "workspace:*",
         "@databuddy/redis": "workspace:*",
         "@databuddy/rpc": "workspace:*",
+        "@databuddy/services": "workspace:*",
         "@databuddy/shared": "workspace:*",
         "@databuddy/validation": "workspace:*",
         "@maxmind/geoip2-node": "^6.3.4",
@@ -470,6 +471,7 @@
       "dependencies": {
         "@databuddy/db": "workspace:*",
         "@databuddy/redis": "workspace:*",
+        "@databuddy/shared": "workspace:*",
         "keypal": "0.2.0",
       },
       "devDependencies": {
@@ -686,7 +688,7 @@
     },
     "packages/sdk": {
       "name": "@databuddy/sdk",
-      "version": "2.4.20",
+      "version": "2.5.0",
       "devDependencies": {
         "@playwright/test": "^1.58.2",
         "@types/bun": "catalog:",
@@ -713,6 +715,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@databuddy/db": "workspace:*",
+        "@databuddy/encryption": "workspace:*",
         "@databuddy/redis": "workspace:*",
       },
       "devDependencies": {

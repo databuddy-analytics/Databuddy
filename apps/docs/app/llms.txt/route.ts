@@ -3,6 +3,7 @@ import fg from "fast-glob";
 import matter from "gray-matter";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { developerResources } from "@/lib/agent-discovery";
 
 export const revalidate = false;
 
@@ -17,6 +18,7 @@ const HEADER = `# Databuddy Documentation
 
 const SECTION_ORDER = [
 	"root",
+	"sdk",
 	"api",
 	"Integrations",
 	"hooks",
@@ -76,11 +78,18 @@ export async function GET() {
 		})
 		.join("\n\n");
 
-	const body = HEADER + sections;
+	const resourceList = developerResources
+		.map(
+			(resource) =>
+				`- [${resource.title}](${resource.url}): ${resource.description}`
+		)
+		.join("\n");
+
+	const body = `${HEADER}## Developer Resources\n${resourceList}\n\n${sections}`;
 
 	return new Response(body, {
 		headers: {
-			"Content-Type": "text/plain; charset=utf-8",
+			"Content-Type": "text/markdown; charset=utf-8",
 			"Cache-Control": "public, max-age=3600, must-revalidate",
 			ETag: `"${createHash("sha256").update(body).digest("hex").slice(0, 16)}"`,
 		},

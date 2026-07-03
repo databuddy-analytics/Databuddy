@@ -16,6 +16,7 @@ const footerSections = [
 		title: "Product",
 		items: [
 			{ href: "/docs", label: "Docs", navItem: "docs" },
+			{ href: "/developers", label: "Developers", navItem: "developers" },
 			{ href: "/pricing", label: "Pricing", navItem: "pricing" },
 			{
 				href: "/calculator",
@@ -30,6 +31,7 @@ const footerSections = [
 		title: "Company",
 		items: [
 			{ href: "/blog", label: "Blog", navItem: "blog" },
+			{ href: "/about", label: "About", navItem: "about" },
 			{ href: "/manifesto", label: "Manifesto", navItem: "manifesto" },
 			{ href: "/contact", label: "Contact", navItem: "contact" },
 			{

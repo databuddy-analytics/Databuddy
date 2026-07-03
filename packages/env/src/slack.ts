@@ -1,10 +1,6 @@
 import { z } from "zod";
-import { createEnv } from "./base";
+import { createEnv, optionalString } from "./base";
 import { readBooleanEnv } from "./boolean";
-
-const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
-
-const optionalString = z.preprocess(emptyToUndefined, z.string().optional());
 
 const booleanFromEnv = z.preprocess((value) => {
 	if (value === undefined || value === "") {
@@ -19,24 +15,35 @@ const booleanFromEnv = z.preprocess((value) => {
 	return value;
 }, z.boolean().default(true));
 
-const slackEnvSchema = z.object({
-	NODE_ENV: z.string().default("development"),
-	SLACK_APP_ID: optionalString,
-	SLACK_APP_TOKEN: optionalString,
-	SLACK_APP_CONFIG_TOKEN: optionalString,
-	SLACK_SIGNING_SECRET: optionalString,
-	SLACK_SOCKET_MODE: booleanFromEnv,
-	SLACK_PORT: z.coerce.number().int().positive().default(3010),
-	SLACK_EVLOG_FS: optionalString,
-	SLACK_AXIOM_DATASET: z.string().default("slack"),
-	SLACK_LOG_LEVEL: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).default("INFO"),
-	DATABUDDY_ENCRYPTION_KEY: optionalString,
-	AUTUMN_SECRET_KEY: z.string().min(1),
-	BETTER_AUTH_SECRET: z.string().min(1),
-	AXIOM_API_KEY: optionalString,
-	AXIOM_TOKEN: optionalString,
-	AXIOM_ORG_ID: optionalString,
-});
+const slackEnvSchema = z
+	.object({
+		NODE_ENV: z.string().default("development"),
+		SLACK_APP_ID: optionalString,
+		SLACK_APP_TOKEN: optionalString,
+		SLACK_APP_CONFIG_TOKEN: optionalString,
+		SLACK_SIGNING_SECRET: optionalString,
+		SLACK_SOCKET_MODE: booleanFromEnv,
+		SLACK_PORT: z.coerce.number().int().positive().default(3010),
+		SLACK_EVLOG_FS: optionalString,
+		SLACK_AXIOM_DATASET: z.string().default("slack"),
+		SLACK_LOG_LEVEL: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).default("INFO"),
+		DATABUDDY_ENCRYPTION_KEY: optionalString,
+		AUTUMN_SECRET_KEY: z.string().min(1),
+		BETTER_AUTH_SECRET: z.string().min(1),
+		AXIOM_API_KEY: optionalString,
+		AXIOM_TOKEN: optionalString,
+		AXIOM_ORG_ID: optionalString,
+	})
+	.superRefine((env, ctx) => {
+		if (env.NODE_ENV === "production" && !env.DATABUDDY_ENCRYPTION_KEY) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["DATABUDDY_ENCRYPTION_KEY"],
+				message:
+					"DATABUDDY_ENCRYPTION_KEY is required in production — Slack integration secrets cannot be encrypted without it.",
+			});
+		}
+	});
 
 export const env = createEnv(slackEnvSchema, {
 	skipValidation: readBooleanEnv("SKIP_VALIDATION"),

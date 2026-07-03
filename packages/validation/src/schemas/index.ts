@@ -3,6 +3,7 @@ export * from "./analytics";
 export * from "./batch";
 export * from "./custom-events";
 export * from "./errors";
+export * from "./identity";
 export * from "./organizations";
 export * from "./web-vitals";
 export * from "./websites";

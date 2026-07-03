@@ -7,6 +7,7 @@ import { type ElementType, type ReactNode, useCallback, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { getDeviceIcon } from "@/components/device-icon";
+import { useProfileIdentity } from "@/hooks/use-profiles";
 import { cn } from "@/lib/utils";
 import { generateProfileName } from "./_components/generate-profile-name";
 import { SessionRow } from "./_components/session-row";
@@ -319,6 +320,7 @@ function WebVitalsSection({
 function Header({
 	onBack,
 	userProfile,
+	identity,
 }: {
 	onBack: () => void;
 	userProfile?: {
@@ -327,6 +329,7 @@ function Header({
 		region?: string;
 		total_sessions: number;
 	};
+	identity?: { displayName: string | null; email: string | null } | null;
 }) {
 	const countryCode = userProfile
 		? getCountryCode(userProfile.country || "")
@@ -350,9 +353,14 @@ function Header({
 						<CountryFlag country={countryCode} size="sm" />
 						<div>
 							<h1 className="font-medium text-foreground text-sm">
-								{generateProfileName(userProfile.visitor_id)}
+								{identity?.displayName ||
+									identity?.email ||
+									generateProfileName(userProfile.visitor_id)}
 							</h1>
 							<p className="text-muted-foreground text-xs">
+								{identity?.displayName && identity?.email
+									? `${identity.email} · `
+									: ""}
 								{userProfile.region && userProfile.region !== "Unknown"
 									? `${userProfile.region}, `
 									: ""}
@@ -394,6 +402,10 @@ export default function UserDetailPage() {
 		websiteId,
 		userId,
 		dateRange
+	);
+	const { data: identity } = useProfileIdentity(
+		websiteId,
+		userProfile?.profile_id ?? ""
 	);
 
 	const handleToggleSession = useCallback((sessionId: string) => {
@@ -466,7 +478,11 @@ export default function UserDetailPage() {
 
 	return (
 		<div className="flex h-full flex-col">
-			<Header onBack={handleBack} userProfile={userProfile} />
+			<Header
+				identity={identity}
+				onBack={handleBack}
+				userProfile={userProfile}
+			/>
 
 			<div className="flex min-h-0 flex-1 overflow-hidden">
 				<aside className="hidden w-80 shrink-0 overflow-y-auto border-r bg-sidebar lg:block">

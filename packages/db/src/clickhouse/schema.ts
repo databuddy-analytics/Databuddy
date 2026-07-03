@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.events (
   client_id String,
   event_name String,
   anonymous_id String,
+  profile_id String DEFAULT '',
   time DateTime64(3, 'UTC'),
   session_id String,
   
@@ -70,8 +71,10 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.events (
   domain_lookup_time Nullable(Int32),
   
   properties String,
-  
-  created_at DateTime64(3, 'UTC')
+
+  created_at DateTime64(3, 'UTC'),
+
+  INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = MergeTree()
 PARTITION BY toYYYYMM(time)
 ORDER BY (client_id, time, id)
@@ -348,8 +351,9 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.custom_events (
   namespace LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
   path Nullable(String) CODEC(ZSTD(1)),
   properties String CODEC(ZSTD(1)),
-  
+
   anonymous_id Nullable(String) CODEC(ZSTD(1)),
+  profile_id String DEFAULT '' CODEC(ZSTD(1)),
   session_id Nullable(String) CODEC(ZSTD(1)),
   
   source LowCardinality(Nullable(String)) CODEC(ZSTD(1)),
@@ -357,7 +361,8 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.custom_events (
   INDEX idx_event_name event_name TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_namespace namespace TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_website_id website_id TYPE bloom_filter(0.01) GRANULARITY 1,
-  INDEX idx_source source TYPE bloom_filter(0.01) GRANULARITY 1
+  INDEX idx_source source TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = MergeTree
 PARTITION BY toDate(timestamp)
 ORDER BY (owner_id, event_name, timestamp)
@@ -441,6 +446,7 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.revenue (
   currency LowCardinality(String) CODEC(ZSTD(1)),
   
   anonymous_id Nullable(String) CODEC(ZSTD(1)),
+  profile_id String DEFAULT '' CODEC(ZSTD(1)),
   session_id Nullable(String) CODEC(ZSTD(1)),
   customer_id Nullable(String) CODEC(ZSTD(1)),
   
@@ -457,7 +463,8 @@ CREATE TABLE IF NOT EXISTS ${DATABASES.ANALYTICS}.revenue (
   INDEX idx_transaction_id transaction_id TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_provider provider TYPE bloom_filter(0.01) GRANULARITY 1,
   INDEX idx_type type TYPE bloom_filter(0.01) GRANULARITY 1,
-  INDEX idx_anonymous_id anonymous_id TYPE bloom_filter(0.01) GRANULARITY 1
+  INDEX idx_anonymous_id anonymous_id TYPE bloom_filter(0.01) GRANULARITY 1,
+  INDEX idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1
 ) ENGINE = ReplacingMergeTree(synced_at)
 PARTITION BY toYYYYMM(created)
 ORDER BY (owner_id, transaction_id)
@@ -571,6 +578,7 @@ export interface CustomEvent {
 	namespace?: string;
 	owner_id: string;
 	path?: string;
+	profile_id?: string;
 	properties: string;
 	session_id?: string;
 	source?: string;
@@ -654,6 +662,7 @@ export interface RevenueTransaction {
 	owner_id: string;
 	product_id?: string;
 	product_name?: string;
+	profile_id?: string;
 	provider: "stripe" | "paddle";
 	session_id?: string;
 	status: string;
@@ -712,6 +721,7 @@ export interface AnalyticsEvent {
 	os_version?: string;
 	page_count: number;
 	path: string;
+	profile_id?: string;
 
 	properties: string;
 	redirect_time?: number;
@@ -785,10 +795,42 @@ export async function initClickHouseSchema() {
 			{ name: "uptime_monitor", query: CREATE_UPTIME_TABLE },
 		];
 
+		const migrations = [
+			{
+				name: "events.profile_id",
+				query: `ALTER TABLE ${DATABASES.ANALYTICS}.events ADD COLUMN IF NOT EXISTS profile_id String DEFAULT ''`,
+			},
+			{
+				name: "events.idx_profile_id",
+				query: `ALTER TABLE ${DATABASES.ANALYTICS}.events ADD INDEX IF NOT EXISTS idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1`,
+			},
+			{
+				name: "custom_events.profile_id",
+				query: `ALTER TABLE ${DATABASES.ANALYTICS}.custom_events ADD COLUMN IF NOT EXISTS profile_id String DEFAULT ''`,
+			},
+			{
+				name: "custom_events.idx_profile_id",
+				query: `ALTER TABLE ${DATABASES.ANALYTICS}.custom_events ADD INDEX IF NOT EXISTS idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1`,
+			},
+			{
+				name: "revenue.profile_id",
+				query: `ALTER TABLE ${DATABASES.ANALYTICS}.revenue ADD COLUMN IF NOT EXISTS profile_id String DEFAULT ''`,
+			},
+			{
+				name: "revenue.idx_profile_id",
+				query: `ALTER TABLE ${DATABASES.ANALYTICS}.revenue ADD INDEX IF NOT EXISTS idx_profile_id profile_id TYPE bloom_filter(0.01) GRANULARITY 1`,
+			},
+		];
+
 		// Create base tables
 		for (const table of tables) {
 			await clickHouse.command({ query: table.query });
 			console.info(`Created table: ${DATABASES.ANALYTICS}.${table.name}`);
+		}
+
+		for (const migration of migrations) {
+			await clickHouse.command({ query: migration.query });
+			console.info(`Applied migration: ${migration.name}`);
 		}
 
 		// Create uptime tables

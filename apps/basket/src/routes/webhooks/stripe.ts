@@ -3,6 +3,7 @@ import { clickHouse } from "@databuddy/db/clickhouse";
 import { Elysia } from "elysia";
 import { evlog, useLogger } from "evlog/elysia";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
+import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
@@ -125,6 +126,7 @@ export function verifyStripeSignature(
 interface AnalyticsMetadata {
 	anonymous_id?: string;
 	client_id?: string;
+	profile_id?: string;
 	session_id?: string;
 }
 
@@ -144,6 +146,11 @@ async function extractAnalyticsMetadata(
 
 	return {
 		anonymous_id: anonymousId,
+		profile_id:
+			sanitizeString(
+				metadata.databuddy_profile_id,
+				VALIDATION_LIMITS.USER_ID_MAX_LENGTH
+			) || undefined,
 		session_id: metadata.databuddy_session_id,
 		client_id: metadata.databuddy_client_id,
 	};
@@ -213,6 +220,7 @@ async function handlePaymentIntent(
 				original_currency: currency,
 				currency,
 				anonymous_id: metadata.anonymous_id || undefined,
+				profile_id: metadata.profile_id || undefined,
 				session_id: metadata.session_id || undefined,
 				customer_id: customerId,
 				product_name: productName,
@@ -275,6 +283,7 @@ async function handleFailedPayment(
 				original_currency: currency,
 				currency,
 				anonymous_id: metadata.anonymous_id || undefined,
+				profile_id: metadata.profile_id || undefined,
 				session_id: metadata.session_id || undefined,
 				customer_id: customerId,
 				product_name: productName,
@@ -329,6 +338,7 @@ async function handleInvoiceFailed(
 				original_currency: currency,
 				currency,
 				anonymous_id: metadata.anonymous_id || undefined,
+				profile_id: metadata.profile_id || undefined,
 				session_id: metadata.session_id || undefined,
 				customer_id: customerId,
 				product_name: invoice.description || undefined,
@@ -382,6 +392,7 @@ async function handleRefund(
 					original_currency: currency,
 					currency,
 					anonymous_id: metadata.anonymous_id || undefined,
+					profile_id: metadata.profile_id || undefined,
 					session_id: metadata.session_id || undefined,
 					customer_id: customerId,
 					product_name: "Refund",

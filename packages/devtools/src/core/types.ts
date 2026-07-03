@@ -137,6 +137,7 @@ export interface DiagnosticItem {
 export interface DatabuddyIdentitySnapshot {
 	anonymousId: string | null;
 	globalProperties: Record<string, unknown>;
+	profileId: string | null;
 	sessionAgeMs: number | null;
 	sessionId: string | null;
 	sessionStartedAt: number | null;

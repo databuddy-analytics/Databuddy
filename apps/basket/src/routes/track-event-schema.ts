@@ -1,4 +1,8 @@
-import { MAX_FUTURE_MS, MIN_TIMESTAMP } from "@databuddy/validation";
+import {
+	MAX_FUTURE_MS,
+	MIN_TIMESTAMP,
+	profileIdSchema,
+} from "@databuddy/validation";
 import { VALIDATION_LIMITS } from "@utils/validation";
 import { z } from "zod";
 
@@ -48,6 +52,7 @@ const trackEventObject = z.object({
 	properties: boundedProperties.optional(),
 	anonymousId: z.string().max(256).optional(),
 	anonymizeVisitorIds,
+	profileId: profileIdSchema.optional(),
 	sessionId: z.string().max(256).optional(),
 	websiteId: z
 		.string()

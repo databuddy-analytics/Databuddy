@@ -5,6 +5,7 @@ export * from "./auth";
 export * from "./billing";
 export * from "./feedback";
 export * from "./flags";
+export * from "./identity";
 export * from "./integrations";
 export * from "./insights";
 export * from "./links";

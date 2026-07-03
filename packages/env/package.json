@@ -28,14 +28,6 @@
       "types": "./src/basket.ts",
       "default": "./src/basket.ts"
     },
-    "./better-admin": {
-      "types": "./src/better-admin.ts",
-      "default": "./src/better-admin.ts"
-    },
-    "./database": {
-      "types": "./src/database.ts",
-      "default": "./src/database.ts"
-    },
     "./docs": {
       "types": "./src/docs.ts",
       "default": "./src/docs.ts"

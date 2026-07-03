@@ -16,6 +16,21 @@ The Databuddy MCP server lets AI agents (Claude, Cursor, Windsurf, or any MCP-co
 
 The server uses the **Streamable HTTP** transport (JSON-RPC over HTTP). No SSE or WebSocket connection required.
 
+Alternate transport surfaces are also available at `https://api.databuddy.cc/mcp` and `https://api.databuddy.cc/.well-known/mcp` for WebMCP-capable agents.
+
+## Discovery Manifest
+
+Agents can discover the Databuddy MCP server from either well-known manifest URL:
+
+| Manifest | URL |
+|----------|-----|
+| Primary | `https://www.databuddy.cc/.well-known/mcp.json` |
+| Alternate | `https://www.databuddy.cc/.well-known/mcp/manifest.json` |
+| Server card | `https://www.databuddy.cc/.well-known/mcp/server-card.json` |
+| API-hosted server card | `https://api.databuddy.cc/.well-known/mcp/server-card.json` |
+
+The manifest includes the Streamable HTTP endpoint, API-key auth header, required scopes, related OpenAPI spec, and a ready-to-use MCP client config template.
+
 ## Authentication
 
 Pass an API key with the `read:data` scope:
@@ -200,6 +215,8 @@ Filter errors by type:
 ## Resources
 
 The server exposes a `databuddy://guide` resource with extended workflow tips and known footguns. MCP clients that support resources can read it for additional context.
+
+The server also exposes `ui://databuddy/analytics-overview`, an MCP Apps / A2UI-compatible HTML resource. Tools advertise this resource through `_meta.ui.resourceUri` and `openai/outputTemplate` so compatible agent clients can render Databuddy analytics summaries inside the conversation.
 
 ## Scopes & Access Control
 

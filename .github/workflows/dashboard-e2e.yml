@@ -43,6 +43,9 @@ jobs:
       REDIS_URL: redis://localhost:6379
       BULLMQ_REDIS_URL: redis://localhost:6379
       BETTER_AUTH_SECRET: databuddy-e2e-secret-at-least-32-bytes
+      BETTER_AUTH_URL: http://localhost:3000
+      AI_API_KEY: e2e-ai-api-key
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
       RESEND_API_KEY: re_e2e_dummy
       AUTUMN_SECRET_KEY: e2e-autumn-secret
 

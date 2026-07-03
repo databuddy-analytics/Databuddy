@@ -142,16 +142,38 @@ export type PropertiesForEvent<T extends EventName> =
 		: EventProperties;
 
 /** The global tracker instance at `window.databuddy` or `window.db`. */
+/**
+ * User metadata attached via identify()/setTraits(). Scalar values only —
+ * nested objects and arrays are rejected by the server. Limits: 50 keys,
+ * 2KB serialized. Setting a value to `null` removes that trait.
+ *
+ * Special keys promoted to profile fields instead of being stored as traits:
+ * `email` (lowercased), `username` and `name` (display name; username wins).
+ */
+export type ProfileTraits = Record<string, string | number | boolean | null>;
+
 export interface DatabuddyTracker {
 	/** Reset user session — generates new anonymous and session IDs. */
 	clear(): void;
+	/** Forget the identified user (call on logout). Anonymous ID is kept. */
+	clearProfile(): void;
 	/** Force send all queued events immediately. */
 	flush(): void;
+	/** Currently identified user ID, or null when anonymous. */
+	getProfileId(): string | null;
+	/**
+	 * Link this browser to a user ID from your system (max 128 chars, stored
+	 * verbatim — pass an opaque ID, not an email). Persists across sessions
+	 * and attaches to every subsequent event. Safe to call on every page load.
+	 */
+	identify(profileId: string, traits?: ProfileTraits): void;
 	options: DatabuddyConfig;
 	/** Manually track a page view. Called automatically on route changes. */
 	screenView(properties?: Record<string, unknown>): void;
 	/** Set properties attached to ALL future events (plan, role, A/B variant, etc.). */
 	setGlobalProperties(properties: Record<string, unknown>): void;
+	/** Merge traits into the identified user's profile. Requires a prior identify(). */
+	setTraits(traits: ProfileTraits): void;
 	/** Track a custom event. */
 	track(eventName: string, properties?: Record<string, unknown>): void;
 }
@@ -162,6 +184,10 @@ declare global {
 		db?: {
 			track: DatabuddyTracker["track"];
 			screenView: DatabuddyTracker["screenView"];
+			identify: DatabuddyTracker["identify"];
+			setTraits: DatabuddyTracker["setTraits"];
+			clearProfile: DatabuddyTracker["clearProfile"];
+			getProfileId: DatabuddyTracker["getProfileId"];
 			clear: DatabuddyTracker["clear"];
 			flush: DatabuddyTracker["flush"];
 			setGlobalProperties: DatabuddyTracker["setGlobalProperties"];

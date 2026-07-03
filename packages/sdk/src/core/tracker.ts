@@ -1,5 +1,5 @@
 import { logger } from "@/logger";
-import type { DatabuddyTracker } from "./types";
+import type { DatabuddyTracker, ProfileTraits } from "./types";
 
 /** Check if the full tracker instance (`window.databuddy`) is available. */
 export function isTrackerAvailable(): boolean {
@@ -14,60 +14,75 @@ export function getTracker(): DatabuddyTracker | null {
 	return window.databuddy || null;
 }
 
+function callTracker(
+	name: string,
+	invoke: (tracker: NonNullable<Window["db"]>) => void
+): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	const tracker = window.db ?? window.databuddy;
+	if (!tracker) {
+		return;
+	}
+	try {
+		invoke(tracker);
+	} catch (error) {
+		logger.error(`${name} error:`, error);
+	}
+}
+
 /** Track a custom event. Safe to call on server (no-op) or before tracker loads. */
 export function track(
 	name: string,
 	properties?: Record<string, unknown>
 ): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.track || window.databuddy?.track;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn(name, properties);
-	} catch (error) {
-		logger.error("track error:", error);
-	}
+	callTracker("track", (tracker) => tracker.track(name, properties));
 }
 
 /** Reset user session — generates new anonymous and session IDs. Call after logout. */
 export function clear(): void {
-	if (typeof window === "undefined") {
-		return;
-	}
-
-	const fn = window.db?.clear || window.databuddy?.clear;
-	if (!fn) {
-		return;
-	}
-
-	try {
-		fn();
-	} catch (error) {
-		logger.error("clear error:", error);
-	}
+	callTracker("clear", (tracker) => tracker.clear());
 }
 
 /** Force send all queued events. Call before navigating to external sites. */
 export function flush(): void {
+	callTracker("flush", (tracker) => tracker.flush());
+}
+
+/** Link this browser to a user ID from your system. Safe to call on server (no-op) or on every page load. */
+export function identify(profileId: string, traits?: ProfileTraits): void {
+	callTracker("identify", (tracker) => tracker.identify(profileId, traits));
+}
+
+/** Merge traits into the identified user's profile. Requires a prior identify(). */
+export function setTraits(traits: ProfileTraits): void {
+	callTracker("setTraits", (tracker) => tracker.setTraits(traits));
+}
+
+/** Forget the identified user (call on logout). Anonymous ID is kept. */
+export function clearProfile(): void {
+	callTracker("clearProfile", (tracker) => tracker.clearProfile());
+}
+
+/** Currently identified user ID, or null when anonymous. Falls back to localStorage before the tracker loads. */
+export function getProfileId(): string | null {
 	if (typeof window === "undefined") {
-		return;
+		return null;
 	}
 
-	const fn = window.db?.flush || window.databuddy?.flush;
-	if (!fn) {
-		return;
+	const fn = window.db?.getProfileId || window.databuddy?.getProfileId;
+	if (fn) {
+		try {
+			return fn();
+		} catch (error) {
+			logger.error("getProfileId error:", error);
+		}
 	}
-
 	try {
-		fn();
-	} catch (error) {
-		logger.error("flush error:", error);
+		return localStorage.getItem("did_profile");
+	} catch {
+		return null;
 	}
 }
 

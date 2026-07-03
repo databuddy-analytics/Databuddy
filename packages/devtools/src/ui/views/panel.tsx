@@ -261,6 +261,24 @@ function IdentityStrip({
 					</button>
 				) : null}
 			</div>
+			<div className="panel-identity-row">
+				<span className="panel-identity-label">Profile</span>
+				<span
+					className={`panel-identity-value mono ${identity.profileId ? "" : "id-value--muted"}`}
+				>
+					{identity.profileId ?? "anonymous"}
+				</span>
+				{identity.profileId ? (
+					<button
+						aria-label="Copy profile ID"
+						className="icon-btn"
+						onClick={() => copy(identity.profileId)}
+						type="button"
+					>
+						<CopyIcon />
+					</button>
+				) : null}
+			</div>
 		</div>
 	);
 }

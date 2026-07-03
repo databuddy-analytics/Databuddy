@@ -9,7 +9,7 @@ All API errors follow a consistent format with clear error codes, messages, and 
 
 ## Error Response Format
 
-<CodeBlock 
+<CodeBlock
   language="json"
   code={`{
   "success": false,
@@ -23,7 +23,7 @@ All API errors follow a consistent format with clear error codes, messages, and 
 
 Validation errors include detailed field-level information:
 
-<CodeBlock 
+<CodeBlock
   language="json"
   code={`{
   "success": false,
@@ -83,6 +83,13 @@ The `details` array contains all validation issues found, with suggestions when 
 ## Error Examples
 
 ### Missing Authentication
+
+401 responses include a discovery hint for agents:
+
+<CodeBlock
+  language="http"
+  code={`WWW-Authenticate: Bearer resource_metadata="https://api.databuddy.cc/.well-known/oauth-protected-resource"`}
+/>
 
 <CodeBlock 
   language="json"

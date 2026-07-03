@@ -201,3 +201,73 @@ describe("Databuddy Node client", () => {
 		expect(() => client.setGlobalProperties(circular)).not.toThrow();
 	});
 });
+
+describe("identify", () => {
+	it("sends profileId, anonymousId, traits, and websiteId to /identify", async () => {
+		const calls = mockFetch(() =>
+			jsonResponse({ status: "success", type: "identify" })
+		);
+		const client = new Databuddy({ apiKey: "dbdy_test", websiteId: "site_1" });
+
+		const result = await client.identify({
+			profileId: " user_42 ",
+			anonymousId: "anon_abc",
+			traits: { email: "jo@acme.com", plan: "pro" },
+		});
+
+		expect(result.success).toBe(true);
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toContain("/identify");
+		expect(calls[0].body).toEqual({
+			profileId: "user_42",
+			anonymousId: "anon_abc",
+			traits: { email: "jo@acme.com", plan: "pro" },
+			websiteId: "site_1",
+		});
+	});
+
+	it("prefers per-call websiteId over the config default", async () => {
+		const calls = mockFetch(() =>
+			jsonResponse({ status: "success", type: "identify" })
+		);
+		const client = new Databuddy({ apiKey: "dbdy_test", websiteId: "site_1" });
+
+		await client.identify({ profileId: "user_42", websiteId: "site_2" });
+
+		expect((calls[0].body as { websiteId: string }).websiteId).toBe("site_2");
+	});
+
+	it("fails without a websiteId and sends nothing", async () => {
+		const calls = mockFetch(() => jsonResponse({ status: "success" }));
+		const client = new Databuddy({ apiKey: "dbdy_test" });
+
+		const result = await client.identify({ profileId: "user_42" });
+
+		expect(result.success).toBe(false);
+		expect(result.error).toContain("websiteId");
+		expect(calls).toHaveLength(0);
+	});
+
+	it("fails without a profileId and sends nothing", async () => {
+		const calls = mockFetch(() => jsonResponse({ status: "success" }));
+		const client = new Databuddy({ apiKey: "dbdy_test", websiteId: "site_1" });
+
+		const result = await client.identify({ profileId: "" });
+
+		expect(result.success).toBe(false);
+		expect(result.error).toContain("profileId");
+		expect(calls).toHaveLength(0);
+	});
+
+	it("surfaces HTTP errors", async () => {
+		mockFetch(
+			() => new Response("denied", { status: 403, statusText: "Forbidden" })
+		);
+		const client = new Databuddy({ apiKey: "dbdy_test", websiteId: "site_1" });
+
+		const result = await client.identify({ profileId: "user_42" });
+
+		expect(result.success).toBe(false);
+		expect(result.error).toContain("403");
+	});
+});

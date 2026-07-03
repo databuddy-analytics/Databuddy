@@ -1,5 +1,4 @@
 import { serializeJsonLd } from "@databuddy/shared/json-ld";
-import Script from "next/script";
 import type { RawItem, RawPlan } from "@/app/(home)/pricing/data";
 
 interface Breadcrumb {
@@ -35,10 +34,18 @@ interface DocumentationProps extends ArticleProps {
 	section?: string;
 }
 
+interface SoftwareApplicationProps {
+	description?: string;
+	featureList?: string[];
+	name?: string;
+	softwareVersion?: string;
+}
+
 type ElementItem =
 	| { type: "article"; value: ArticleProps }
 	| { type: "documentation"; value: DocumentationProps }
 	| { type: "faq"; items: FAQItem[] }
+	| { type: "softwareApplication"; value?: SoftwareApplicationProps }
 	| { type: "softwareOffers"; name?: string; plans: RawPlan[] };
 
 interface StructuredDataProps {
@@ -186,6 +193,7 @@ export function StructuredData({
 	const breadcrumbId = `${pageUrl}#breadcrumb`;
 	const faqId = `${pageUrl}#faq`;
 	const softwareId = `${baseUrl}#software`;
+	const serviceId = `${baseUrl}#analytics-service`;
 
 	const graph: any[] = [];
 
@@ -194,13 +202,28 @@ export function StructuredData({
 		"@type": "Organization",
 		"@id": orgId,
 		name: "Databuddy",
+		legalName: "Databuddy Analytics, Inc.",
 		url: baseUrl,
 		logo: { "@type": "ImageObject", url: logoUrl },
+		sameAs: [
+			"https://github.com/databuddy-analytics",
+			"https://x.com/trydatabuddy",
+			"https://www.linkedin.com/company/databuddy-analytics",
+			"https://www.npmjs.com/package/@databuddy/sdk",
+			"https://pypi.org/project/databuddy/",
+		],
+		email: "support@databuddy.cc",
 		contactPoint: {
 			"@type": "ContactPoint",
 			contactType: "Customer Support",
 			email: "support@databuddy.cc",
+			url: `${baseUrl}/contact`,
 		},
+		address: {
+			"@type": "PostalAddress",
+			addressCountry: "US",
+		},
+		areaServed: "Worldwide",
 	});
 
 	// WebSite (always)
@@ -228,6 +251,22 @@ export function StructuredData({
 			? { "@type": "ImageObject", url: abs(page.imageUrl) }
 			: undefined,
 		inLanguage: lang,
+		speakable: {
+			"@type": "SpeakableSpecification",
+			cssSelector: ["#hero h1", "#agent-summary", "#faq"],
+		},
+	});
+
+	graph.push({
+		"@type": "Service",
+		"@id": serviceId,
+		name: "Databuddy privacy-first analytics",
+		description:
+			"Privacy-first analytics, error tracking, Core Web Vitals monitoring, feature flags, short links, uptime, and AI insights for developer teams.",
+		provider: { "@type": "Organization", "@id": orgId },
+		serviceType: "Web analytics software",
+		areaServed: "Worldwide",
+		url: baseUrl,
 	});
 
 	// Breadcrumbs
@@ -299,6 +338,38 @@ export function StructuredData({
 			});
 		} else if (el.type === "faq") {
 			faqItems.push(...el.items);
+		} else if (el.type === "softwareApplication") {
+			const app = el.value ?? {};
+			graph.push({
+				"@type": ["SoftwareApplication", "Product"],
+				"@id": softwareId,
+				name: app.name ?? "Databuddy",
+				description:
+					app.description ??
+					"Privacy-first analytics, error tracking, web vitals, feature flags, short links, and AI insights for developer teams.",
+				applicationCategory: "BusinessApplication",
+				operatingSystem: "Web",
+				url: baseUrl,
+				softwareVersion: app.softwareVersion,
+				featureList: app.featureList,
+				brand: { "@id": orgId },
+				publisher: { "@type": "Organization", "@id": orgId },
+				provider: { "@type": "Organization", "@id": orgId },
+				isAccessibleForFree: true,
+				sameAs: [
+					`${baseUrl}/developers`,
+					`${baseUrl}/openapi.json`,
+					`${baseUrl}/.well-known/agent.json`,
+					`${baseUrl}/.well-known/mcp/server-card.json`,
+				],
+				offers: {
+					"@type": "Offer",
+					price: "0",
+					priceCurrency: "USD",
+					url: `${baseUrl}/pricing`,
+					availability: "https://schema.org/InStock",
+				},
+			});
 		} else if (el.type === "softwareOffers") {
 			const offers = el.plans.map((p) => planToOffer(p, baseUrl));
 
@@ -345,7 +416,7 @@ export function StructuredData({
 	};
 
 	return (
-		<Script
+		<script
 			dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
 			id="structured-data-page"
 			type="application/ld+json"

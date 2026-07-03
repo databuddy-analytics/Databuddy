@@ -3,6 +3,7 @@ import { clickHouse } from "@databuddy/db/clickhouse";
 import { Elysia } from "elysia";
 import { evlog, useLogger } from "evlog/elysia";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
+import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
 import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
 
 interface PaddleTransaction {
@@ -30,6 +31,15 @@ async function extractAnalyticsMetadata(
 	if (data.anonymous_id) {
 		const salt = await getDailySalt();
 		result.anonymous_id = saltAnonymousId(data.anonymous_id, salt);
+	}
+	if (data.profile_id) {
+		const profileId = sanitizeString(
+			data.profile_id,
+			VALIDATION_LIMITS.USER_ID_MAX_LENGTH
+		);
+		if (profileId) {
+			result.profile_id = profileId;
+		}
 	}
 	if (data.session_id) {
 		result.session_id = data.session_id;
@@ -170,6 +180,7 @@ async function handleTransaction(
 				original_currency: currency,
 				currency,
 				anonymous_id: metadata.anonymous_id || undefined,
+				profile_id: metadata.profile_id || undefined,
 				session_id: metadata.session_id || undefined,
 				product_id: lineItems[0]?.product?.id || undefined,
 				product_name: lineItems[0]?.product?.name || undefined,

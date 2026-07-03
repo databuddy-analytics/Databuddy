@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "exports": {
+    "./identity": "./src/identity.ts",
     "./websites": "./src/websites.ts"
   },
   "scripts": {
@@ -11,6 +12,7 @@
   },
   "dependencies": {
     "@databuddy/db": "workspace:*",
+    "@databuddy/encryption": "workspace:*",
     "@databuddy/redis": "workspace:*"
   },
   "devDependencies": {

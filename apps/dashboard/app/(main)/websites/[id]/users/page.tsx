@@ -12,6 +12,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { useProfileIdentities } from "@/hooks/use-profiles";
 import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
@@ -56,7 +57,7 @@ interface SortState {
 	order: "asc" | "desc";
 }
 
-type PresetKey = "all" | "power" | "new" | "returning";
+type PresetKey = "all" | "identified" | "power" | "new" | "returning";
 
 interface PresetConfig {
 	filters: DynamicQueryFilter[];
@@ -66,6 +67,10 @@ interface PresetConfig {
 
 const PRESETS: Record<PresetKey, PresetConfig> = {
 	all: { label: "All", filters: [] },
+	identified: {
+		label: "Identified",
+		filters: [{ field: "profile_id", operator: "ne", value: "" }],
+	},
 	power: {
 		label: "Power users",
 		filters: [{ field: "session_count", operator: "not_in", value: [1, 2] }],
@@ -221,6 +226,12 @@ export default function UsersPage() {
 		profileSort
 	);
 
+	const identifiedIds = useMemo(
+		() => allUsers.map((user) => user.profile_id).filter(Boolean),
+		[allUsers]
+	);
+	const { identityMap } = useProfileIdentities(websiteId, identifiedIds);
+
 	const hasUsersRef = useRef(false);
 	hasUsersRef.current = allUsers.length > 0;
 
@@ -324,7 +335,17 @@ export default function UsersPage() {
 				header: "User",
 				accessorKey: "visitor_id",
 				cell: ({ row }) => {
-					const profileName = generateProfileName(row.original.visitor_id);
+					const identity = row.original.profile_id
+						? identityMap.get(row.original.profile_id)
+						: undefined;
+					const displayName =
+						identity?.displayName ||
+						identity?.email ||
+						(row.original.profile_id
+							? row.original.profile_id
+							: generateProfileName(row.original.visitor_id));
+					const secondary =
+						identity?.displayName && identity?.email ? identity.email : null;
 					return (
 						<div className="flex items-center gap-2.5">
 							<Image
@@ -335,7 +356,16 @@ export default function UsersPage() {
 								unoptimized
 								width={32}
 							/>
-							<span className="truncate font-medium">{profileName}</span>
+							<div className="min-w-0">
+								<span className="block truncate font-medium">
+									{displayName}
+								</span>
+								{secondary ? (
+									<span className="block truncate text-muted-foreground text-xs">
+										{secondary}
+									</span>
+								) : null}
+							</div>
 						</div>
 					);
 				},
@@ -502,7 +532,7 @@ export default function UsersPage() {
 				size: 100,
 			},
 		],
-		[sort, handleSort]
+		[sort, handleSort, identityMap]
 	);
 
 	const table = useReactTable({

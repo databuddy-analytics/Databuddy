@@ -27,6 +27,7 @@ export interface ProfileDetail {
 	first_visit: string;
 	last_visit: string;
 	os: string | null;
+	profile_id: string;
 	region: string | null;
 	total_duration: number;
 	total_duration_formatted: string;

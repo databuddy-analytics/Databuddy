@@ -1,3 +1,4 @@
+import { config } from "@databuddy/env/app";
 import { EvlogError, parseError } from "evlog";
 
 interface AppErrorContext {
@@ -23,6 +24,8 @@ const HTTP_STATUS_BY_ERROR_CODE: Record<string, number> = {
 	VALIDATION: 422,
 };
 
+const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
+
 export function handleAppError({ error, code }: AppErrorContext) {
 	const parsed = parseError(error);
 	const statusCode = getStatusCode({
@@ -45,6 +48,13 @@ export function handleAppError({ error, code }: AppErrorContext) {
 		isClientError,
 		statusCode,
 	});
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+	};
+	if (statusCode === 401) {
+		headers["WWW-Authenticate"] =
+			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
+	}
 
 	return new Response(
 		JSON.stringify({
@@ -57,7 +67,7 @@ export function handleAppError({ error, code }: AppErrorContext) {
 				? { link: parsed.link }
 				: {}),
 		}),
-		{ status: statusCode, headers: { "Content-Type": "application/json" } }
+		{ status: statusCode, headers }
 	);
 }
 

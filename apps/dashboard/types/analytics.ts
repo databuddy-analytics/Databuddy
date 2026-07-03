@@ -13,6 +13,7 @@ export interface ProfileData {
 	first_visit: string;
 	last_visit: string;
 	os_name: string;
+	profile_id: string;
 	referrer: string;
 	region: string;
 	session_count: number;
