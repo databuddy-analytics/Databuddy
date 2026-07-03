@@ -89,7 +89,8 @@ export async function GET() {
 
 	let body = `${HEADER}## Developer Resources\n${resourceList}\n\n---\n\n${sections}`;
 	if (body.length > MAX_LLMS_FULL_CHARS) {
-		const notice = `\n\n---\n\n## Additional Documentation\n\nThis single-file agent corpus is capped below 200,000 characters for one-request ingestion. Continue with the scoped indexes at https://www.databuddy.cc/docs/llms.txt, https://www.databuddy.cc/api/llms.txt, and https://www.databuddy.cc/developers/llms.txt.\n`;
+		const notice =
+			"\n\n---\n\n## Additional Documentation\n\nThis single-file agent corpus is capped below 200,000 characters for one-request ingestion. Continue with the scoped indexes at https://www.databuddy.cc/docs/llms.txt, https://www.databuddy.cc/api/llms.txt, and https://www.databuddy.cc/developers/llms.txt.\n";
 		body = `${body.slice(0, MAX_LLMS_FULL_CHARS - notice.length).trimEnd()}${notice}`;
 	}
 
