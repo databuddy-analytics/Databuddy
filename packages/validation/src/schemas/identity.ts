@@ -7,7 +7,7 @@ export const profileIdSchema = z
 	.max(VALIDATION_LIMITS.USER_ID_MAX_LENGTH);
 
 const traitValueSchema = z.union([
-	z.string().max(VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH),
+	z.string().max(VALIDATION_LIMITS.PROPERTY_VALUE_MAX_LENGTH),
 	z.number(),
 	z.boolean(),
 	z.null(),
@@ -37,6 +37,7 @@ export const identifyPayloadSchema = z.object({
 	profileId: profileIdSchema,
 	anonymousId: z
 		.string()
+		.min(1)
 		.max(VALIDATION_LIMITS.ANONYMOUS_ID_MAX_LENGTH)
 		.nullable()
 		.optional(),
