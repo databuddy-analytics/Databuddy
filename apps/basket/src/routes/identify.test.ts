@@ -4,7 +4,10 @@ vi.mock("@databuddy/db", () => ({
 	db: {},
 	profiles: {},
 	profileAliases: {},
+	profileTraitChanges: {},
 	sql: () => {},
+	and: vi.fn(),
+	eq: vi.fn(),
 }));
 vi.mock("@databuddy/redis/rate-limit", () => ({ ratelimit: vi.fn() }));
 vi.mock("@lib/request-validation", () => ({
@@ -19,6 +22,7 @@ vi.mock("@lib/api-key", () => ({
 vi.mock("evlog/elysia", () => ({ useLogger: () => ({ set: vi.fn() }) }));
 
 import {
+	applyTraits,
 	emailLookupHash,
 	protectPii,
 	revealPii,
@@ -92,6 +96,52 @@ describe("splitTraits", () => {
 		expect(result.removeKeys).toEqual([]);
 		expect(result.displayName).toBeUndefined();
 		expect(result.email).toBeUndefined();
+	});
+});
+
+describe("applyTraits", () => {
+	test("first identify reports every trait as a change from null", () => {
+		const { changes, traits } = applyTraits({}, { plan: "free", seats: 1 }, []);
+		expect(traits).toEqual({ plan: "free", seats: 1 });
+		expect(changes).toEqual([
+			{ traitKey: "plan", oldValue: null, newValue: "free" },
+			{ traitKey: "seats", oldValue: null, newValue: 1 },
+		]);
+	});
+
+	test("changed value carries old and new, unchanged values are silent", () => {
+		const { changes, traits } = applyTraits(
+			{ plan: "free", seats: 1 },
+			{ plan: "pro", seats: 1 },
+			[]
+		);
+		expect(traits).toEqual({ plan: "pro", seats: 1 });
+		expect(changes).toEqual([
+			{ traitKey: "plan", oldValue: "free", newValue: "pro" },
+		]);
+	});
+
+	test("removed keys drop from the snapshot and report null", () => {
+		const { changes, traits } = applyTraits(
+			{ plan: "pro", beta: true },
+			{},
+			["beta"]
+		);
+		expect(traits).toEqual({ plan: "pro" });
+		expect(changes).toEqual([
+			{ traitKey: "beta", oldValue: true, newValue: null },
+		]);
+	});
+
+	test("removing an absent key changes nothing", () => {
+		const { changes, traits } = applyTraits({ plan: "pro" }, {}, ["missing"]);
+		expect(traits).toEqual({ plan: "pro" });
+		expect(changes).toEqual([]);
+	});
+
+	test("type changes between same-looking values are detected", () => {
+		const { changes } = applyTraits({ seats: "1" }, { seats: 1 }, []);
+		expect(changes).toEqual([{ traitKey: "seats", oldValue: "1", newValue: 1 }]);
 	});
 });
 

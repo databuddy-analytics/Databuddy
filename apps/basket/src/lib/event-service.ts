@@ -17,6 +17,7 @@ import { extractTrustedClientIp, getGeo } from "@utils/ip-geo";
 import { parseUserAgent } from "@utils/user-agent";
 import {
 	sanitizeString,
+	sanitizeUrl,
 	VALIDATION_LIMITS,
 	validatePerformanceMetric,
 	validateSessionId,
@@ -77,12 +78,12 @@ export function buildTrackEvent(
 		event_id: ctx.eventId,
 		session_start_time: sessionStartTime,
 		timestamp,
-		referrer: sanitizeString(
+		referrer: sanitizeUrl(
 			trackData.referrer,
 			VALIDATION_LIMITS.STRING_MAX_LENGTH
 		),
-		url: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
-		path: sanitizeString(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		url: sanitizeUrl(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+		path: sanitizeUrl(trackData.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		title: sanitizeString(trackData.title, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 		ip: ctx.geo.anonymizedIP || "",
 		user_agent: "",
@@ -242,7 +243,7 @@ export function insertOutgoingLink(
 				salt
 			),
 			session_id: validateSessionId(linkData.sessionId),
-			href: sanitizeString(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
+			href: sanitizeUrl(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
 			text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
 			properties: linkData.properties
 				? JSON.stringify(linkData.properties)
@@ -293,7 +294,7 @@ export function insertErrorSpans(
 			),
 			session_id: validateSessionId(error.sessionId),
 			timestamp: typeof error.timestamp === "number" ? error.timestamp : now,
-			path: sanitizeString(error.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			path: sanitizeUrl(error.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 			message: sanitizeString(
 				error.message,
 				VALIDATION_LIMITS.STRING_MAX_LENGTH
@@ -342,7 +343,7 @@ export function insertIndividualVitals(
 			),
 			session_id: validateSessionId(vital.sessionId),
 			timestamp: typeof vital.timestamp === "number" ? vital.timestamp : now,
-			path: sanitizeString(vital.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
+			path: sanitizeUrl(vital.path, VALIDATION_LIMITS.STRING_MAX_LENGTH),
 			metric_name: vital.metricName,
 			metric_value: vital.metricValue,
 		}));
@@ -407,7 +408,7 @@ export function insertCustomEvents(
 					)
 				: undefined,
 			path: event.path
-				? sanitizeString(event.path, VALIDATION_LIMITS.STRING_MAX_LENGTH)
+				? sanitizeUrl(event.path, VALIDATION_LIMITS.STRING_MAX_LENGTH)
 				: undefined,
 			properties: event.properties ? JSON.stringify(event.properties) : "{}",
 			anonymous_id: event.anonymous_id

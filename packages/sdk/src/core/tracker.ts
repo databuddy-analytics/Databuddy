@@ -60,6 +60,13 @@ export function setTraits(traits: ProfileTraits): void {
 	callTracker("setTraits", (tracker) => tracker.setTraits(traits));
 }
 
+/** Set properties attached to ALL future events (plan, role, A/B variant, etc.). */
+export function setGlobalProperties(properties: Record<string, unknown>): void {
+	callTracker("setGlobalProperties", (tracker) =>
+		tracker.setGlobalProperties(properties)
+	);
+}
+
 /** Forget the identified user (call on logout). Anonymous ID is kept. */
 export function clearProfile(): void {
 	callTracker("clearProfile", (tracker) => tracker.clearProfile());

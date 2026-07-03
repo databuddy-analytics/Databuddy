@@ -61,6 +61,79 @@ export function sanitizeString(input: unknown, maxLength?: number): string {
 	return result.replace(/[<>'"&]/g, "").replace(/\s+/g, " ");
 }
 
+const SENSITIVE_QUERY_PARAMS = new Set([
+	"password",
+	"passwd",
+	"pwd",
+	"pass",
+	"new_password",
+	"old_password",
+	"confirm_password",
+	"password_confirmation",
+	"secret",
+	"client_secret",
+	"token",
+	"access_token",
+	"refresh_token",
+	"id_token",
+	"auth_token",
+	"session_token",
+	"auth",
+	"authorization",
+	"api_key",
+	"apikey",
+	"api-key",
+	"otp",
+	"pin",
+	"mfa_code",
+	"verification_code",
+	"credit_card",
+	"card_number",
+	"cvv",
+	"ssn",
+	"email",
+	"e-mail",
+	"phone",
+	"tel",
+	"username",
+]);
+
+const REDACTED_VALUE = "REDACTED";
+
+function redactParams(query: string): string {
+	const params = new URLSearchParams(query);
+	let changed = false;
+	for (const key of [...params.keys()]) {
+		if (SENSITIVE_QUERY_PARAMS.has(key.toLowerCase())) {
+			params.set(key, REDACTED_VALUE);
+			changed = true;
+		}
+	}
+	return changed ? params.toString() : query;
+}
+
+export function redactSensitiveQueryParams(input: string): string {
+	const hashIndex = input.indexOf("#");
+	const beforeHash = hashIndex === -1 ? input : input.slice(0, hashIndex);
+	const queryIndex = beforeHash.indexOf("?");
+
+	let result =
+		queryIndex === -1
+			? beforeHash
+			: `${beforeHash.slice(0, queryIndex)}?${redactParams(beforeHash.slice(queryIndex + 1))}`;
+	if (hashIndex !== -1) {
+		result += `#${redactParams(input.slice(hashIndex + 1))}`;
+	}
+	return result;
+}
+
+export function sanitizeUrl(input: unknown, maxLength?: number): string {
+	if (typeof input !== "string") {
+		return "";
+	}
+	return sanitizeString(redactSensitiveQueryParams(input), maxLength);
+}
+
 const sessionIdRegex = /^[a-zA-Z0-9_-]+$/;
 
 export function validateSessionId(sessionId: unknown): string {

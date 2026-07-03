@@ -12,6 +12,7 @@ export {
 	getTrackingParams,
 	identify,
 	isTrackerAvailable,
+	setGlobalProperties,
 	setTraits,
 	track,
 	trackError,

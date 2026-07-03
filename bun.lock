@@ -53,6 +53,7 @@
         "@databuddy/redis": "workspace:*",
         "@databuddy/rpc": "workspace:*",
         "@databuddy/sdk": "workspace:*",
+        "@databuddy/services": "workspace:*",
         "@databuddy/shared": "workspace:*",
         "@databuddy/validation": "workspace:*",
         "@elysiajs/cors": "^1.4.1",
@@ -717,6 +718,7 @@
         "@databuddy/db": "workspace:*",
         "@databuddy/encryption": "workspace:*",
         "@databuddy/redis": "workspace:*",
+        "@databuddy/shared": "workspace:*",
       },
       "devDependencies": {
         "typescript": "^5.9.3",

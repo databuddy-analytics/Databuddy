@@ -263,21 +263,21 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 				),
 				top_sessions AS (
 					SELECT
-						bs.session_id,
-						bs.visitor_id,
-						bs.first_visit,
-						bs.last_visit,
-						bs.duration_seconds,
-						bs.page_views,
-						bs.unique_pages,
-						bs.analytics_engagement_events,
+						bs.session_id AS session_id,
+						bs.visitor_id AS visitor_id,
+						bs.first_visit AS first_visit,
+						bs.last_visit AS last_visit,
+						bs.duration_seconds AS duration_seconds,
+						bs.page_views AS page_views,
+						bs.unique_pages AS unique_pages,
+						bs.analytics_engagement_events AS analytics_engagement_events,
 						ifNull(cc.custom_events, 0) as custom_events,
 						ifNull(es.errors, 0) as errors,
-						bs.country,
-						bs.referrer,
-						bs.device_type,
-						bs.browser_name,
-						bs.os_name,
+						bs.country AS country,
+						bs.referrer AS referrer,
+						bs.device_type AS device_type,
+						bs.browser_name AS browser_name,
+						bs.os_name AS os_name,
 						(
 							least(bs.page_views, 10) * 2
 							+ least(bs.unique_pages, 8) * 3
@@ -301,7 +301,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 						client_id = {websiteId:String}
 						AND time >= toDateTime({startDate:String})
 						AND time <= toDateTime({endDate:String})
-						AND session_id IN (SELECT session_id FROM top_sessions)
+						AND session_id != ''
 					GROUP BY session_id
 				),
 				names_for_top AS (
@@ -313,7 +313,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 						website_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime({endDate:String})
-						AND session_id IN (SELECT session_id FROM top_sessions)
+						AND session_id != ''
 					GROUP BY session_id
 				)
 				SELECT

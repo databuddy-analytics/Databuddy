@@ -10,6 +10,8 @@ export interface ProfileData {
 	country: string;
 	custom_event_count: number;
 	device_type: string;
+	display_name: string | null;
+	email: string | null;
 	first_visit: string;
 	last_visit: string;
 	os_name: string;

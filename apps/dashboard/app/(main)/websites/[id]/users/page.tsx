@@ -12,7 +12,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDateFilters } from "@/hooks/use-date-filters";
-import { useProfileIdentities } from "@/hooks/use-profiles";
 import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
@@ -37,7 +36,7 @@ import {
 import { useAtomValue } from "jotai";
 import Image from "next/image";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateProfileName } from "./[userId]/_components/generate-profile-name";
 import { type ProfileSort, useProfilesData } from "./use-users";
 import { useEventNames } from "./use-event-names";
@@ -185,13 +184,11 @@ export default function UsersPage() {
 	const [eventFilter, setEventFilter] = useState<string | null>(null);
 	const [page, setPage] = useState(1);
 	const [allUsers, setAllUsers] = useState<ProfileData[]>([]);
-	const [isReplacing, setIsReplacing] = useState(false);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLTableCellElement | null>(
 		null
 	);
 	const [scrollContainerRef, setScrollContainerRef] =
 		useState<HTMLDivElement | null>(null);
-	const [isInitialLoad, setIsInitialLoad] = useState(true);
 
 	const { eventNames } = useEventNames(websiteId, dateRange);
 
@@ -226,23 +223,13 @@ export default function UsersPage() {
 		profileSort
 	);
 
-	const identifiedIds = useMemo(
-		() => allUsers.map((user) => user.profile_id).filter(Boolean),
-		[allUsers]
-	);
-	const { identityMap } = useProfileIdentities(websiteId, identifiedIds);
-
-	const hasUsersRef = useRef(false);
-	hasUsersRef.current = allUsers.length > 0;
-
 	useEffect(() => {
 		setPage(1);
-		if (hasUsersRef.current) {
-			setIsReplacing(true);
-		} else {
-			setIsInitialLoad(true);
-		}
 	}, [dateRange, mergedFilters, sort]);
+
+	const isInitialLoad = isLoading && allUsers.length === 0;
+	const isReplacing =
+		isLoading && page === 1 && profiles.length === 0 && allUsers.length > 0;
 
 	const handleSort = useCallback((field: SortField) => {
 		setSort((prev) => {
@@ -293,21 +280,15 @@ export default function UsersPage() {
 	}, [loadMoreRef, scrollContainerRef, handleIntersection]);
 
 	useEffect(() => {
-		if (!profiles?.length) {
-			if (!isLoading && isReplacing) {
-				setAllUsers([]);
-				setIsReplacing(false);
+		if (page === 1) {
+			if (profiles.length > 0 || !isLoading) {
+				setAllUsers(profiles);
 			}
 			return;
 		}
-
-		if (isReplacing) {
-			setAllUsers(profiles);
-			setIsReplacing(false);
-			setIsInitialLoad(false);
+		if (isLoading) {
 			return;
 		}
-
 		setAllUsers((prev) => {
 			const existingUsers = new Map(prev.map((u) => [u.visitor_id, u]));
 			let hasNewUsers = false;
@@ -319,14 +300,9 @@ export default function UsersPage() {
 				}
 			}
 
-			if (hasNewUsers) {
-				return Array.from(existingUsers.values());
-			}
-
-			return prev;
+			return hasNewUsers ? Array.from(existingUsers.values()) : prev;
 		});
-		setIsInitialLoad(false);
-	}, [profiles, isLoading, isReplacing]);
+	}, [profiles, isLoading, page]);
 
 	const columns = useMemo<ColumnDef<ProfileData>[]>(
 		() => [
@@ -335,17 +311,13 @@ export default function UsersPage() {
 				header: "User",
 				accessorKey: "visitor_id",
 				cell: ({ row }) => {
-					const identity = row.original.profile_id
-						? identityMap.get(row.original.profile_id)
-						: undefined;
+					const { display_name, email, profile_id, visitor_id } = row.original;
 					const displayName =
-						identity?.displayName ||
-						identity?.email ||
-						(row.original.profile_id
-							? row.original.profile_id
-							: generateProfileName(row.original.visitor_id));
-					const secondary =
-						identity?.displayName && identity?.email ? identity.email : null;
+						display_name ||
+						email ||
+						profile_id ||
+						generateProfileName(visitor_id);
+					const secondary = display_name && email ? email : null;
 					return (
 						<div className="flex items-center gap-2.5">
 							<Image
@@ -532,7 +504,7 @@ export default function UsersPage() {
 				size: 100,
 			},
 		],
-		[sort, handleSort, identityMap]
+		[sort, handleSort]
 	);
 
 	const table = useReactTable({
@@ -607,7 +579,7 @@ export default function UsersPage() {
 		</div>
 	);
 
-	if (isLoading && isInitialLoad) {
+	if (isInitialLoad) {
 		return (
 			<div className="flex h-full flex-col">
 				<TopBar.Title>
@@ -662,7 +634,7 @@ export default function UsersPage() {
 		);
 	}
 
-	if (!(isReplacing || isInitialLoad) && (!allUsers || allUsers.length === 0)) {
+	if (!isLoading && allUsers.length === 0) {
 		return (
 			<div className="flex h-full flex-col">
 				<TopBar.Title>

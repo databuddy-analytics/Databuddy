@@ -36,9 +36,9 @@ describe("getContentHash", () => {
 		expect(hash1).not.toBe(hash2);
 	});
 
-	test("returns a numeric string", () => {
+	test("returns a sha256 hex digest", () => {
 		const hash = getContentHash("test content");
-		expect(hash).toMatch(/^\d+$/);
+		expect(hash).toMatch(/^[0-9a-f]{64}$/);
 	});
 });
 

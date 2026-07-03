@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "exports": {
+    "./billing-lifecycle": "./src/billing-lifecycle.ts",
     "./identity": "./src/identity.ts",
     "./websites": "./src/websites.ts"
   },
@@ -13,7 +14,8 @@
   "dependencies": {
     "@databuddy/db": "workspace:*",
     "@databuddy/encryption": "workspace:*",
-    "@databuddy/redis": "workspace:*"
+    "@databuddy/redis": "workspace:*",
+    "@databuddy/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

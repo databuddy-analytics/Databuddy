@@ -147,7 +147,7 @@ export const identifyRoute = new Elysia().post(
 				hasAlias: Boolean(anonymousId),
 			});
 
-			await Promise.all([
+			const [update] = await Promise.all([
 				record("upsertProfile", () =>
 					upsertProfile(websiteId, profileId, splitTraits(traits))
 				),
@@ -157,6 +157,10 @@ export const identifyRoute = new Elysia().post(
 						)
 					: Promise.resolve(),
 			]);
+
+			if (update && update.changes.length > 0) {
+				log.set({ traitChanges: update.changes.length });
+			}
 
 			return Response.json({ status: "success", type: "identify" });
 		} catch (error) {

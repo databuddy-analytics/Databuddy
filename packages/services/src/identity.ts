@@ -1,5 +1,13 @@
 import { createHash, createHmac } from "node:crypto";
-import { db, profileAliases, profiles, sql } from "@databuddy/db";
+import {
+	and,
+	db,
+	eq,
+	profileAliases,
+	profiles,
+	profileTraitChanges,
+	sql,
+} from "@databuddy/db";
 import { decrypt, encrypt } from "@databuddy/encryption";
 
 const ENCRYPTED_PREFIX = "v1:";
@@ -83,11 +91,64 @@ export function splitTraits(
 	};
 }
 
+export interface TraitChange {
+	newValue: TraitValue;
+	oldValue: TraitValue;
+	traitKey: string;
+}
+
+export interface ProfileTraitUpdate {
+	changes: TraitChange[];
+	traits: Record<string, unknown>;
+}
+
+function asTraitValue(value: unknown): TraitValue {
+	return typeof value === "string" ||
+		typeof value === "number" ||
+		typeof value === "boolean"
+		? value
+		: null;
+}
+
+export function applyTraits(
+	existing: Record<string, unknown>,
+	rest: Record<string, unknown>,
+	removeKeys: string[]
+): ProfileTraitUpdate {
+	const changes: TraitChange[] = [];
+	const traits = { ...existing };
+
+	for (const [key, value] of Object.entries(rest)) {
+		if (asTraitValue(existing[key]) !== asTraitValue(value)) {
+			changes.push({
+				traitKey: key,
+				oldValue: asTraitValue(existing[key]),
+				newValue: asTraitValue(value),
+			});
+		}
+		traits[key] = value;
+	}
+
+	for (const key of removeKeys) {
+		if (key in existing) {
+			changes.push({
+				traitKey: key,
+				oldValue: asTraitValue(existing[key]),
+				newValue: null,
+			});
+		}
+		delete traits[key];
+	}
+
+	return { changes, traits };
+}
+
 export async function upsertProfile(
 	websiteId: string,
 	profileId: string,
-	split: SplitTraits
-): Promise<void> {
+	split: SplitTraits,
+	source = "identify"
+): Promise<ProfileTraitUpdate | null> {
 	const { displayName, email, rest, removeKeys } = split;
 	const hasTraitUpdates =
 		displayName !== undefined ||
@@ -99,18 +160,18 @@ export async function upsertProfile(
 	const protectedEmail = email ? protectPii(email) : null;
 	const emailHash = email ? emailLookupHash(email) : null;
 
-	const insert = db.insert(profiles).values({
+	const values = {
 		websiteId,
 		profileId,
 		displayName: protectedDisplayName,
 		email: protectedEmail,
 		emailHash,
 		traits: rest,
-	});
+	};
 
 	if (!hasTraitUpdates) {
-		await insert.onConflictDoNothing();
-		return;
+		await db.insert(profiles).values(values).onConflictDoNothing();
+		return null;
 	}
 
 	const mergedTraits =
@@ -118,14 +179,55 @@ export async function upsertProfile(
 			? sql`(${profiles.traits} - ${removeKeys}::text[]) || ${JSON.stringify(rest)}::jsonb`
 			: sql`${profiles.traits} || ${JSON.stringify(rest)}::jsonb`;
 
-	await insert.onConflictDoUpdate({
-		target: [profiles.websiteId, profiles.profileId],
-		set: {
-			...(displayName !== undefined && { displayName: protectedDisplayName }),
-			...(email !== undefined && { email: protectedEmail, emailHash }),
-			traits: mergedTraits,
-			updatedAt: sql`now()`,
-		},
+	return await db.transaction(async (tx) => {
+		const existingRows = await tx
+			.select({ traits: profiles.traits })
+			.from(profiles)
+			.where(
+				and(
+					eq(profiles.websiteId, websiteId),
+					eq(profiles.profileId, profileId)
+				)
+			)
+			.limit(1)
+			.for("update");
+		const existingTraits = (existingRows[0]?.traits ?? {}) as Record<
+			string,
+			unknown
+		>;
+
+		await tx
+			.insert(profiles)
+			.values(values)
+			.onConflictDoUpdate({
+				target: [profiles.websiteId, profiles.profileId],
+				set: {
+					...(displayName !== undefined && {
+						displayName: protectedDisplayName,
+					}),
+					...(email !== undefined && { email: protectedEmail, emailHash }),
+					traits: mergedTraits,
+					updatedAt: sql`now()`,
+				},
+			});
+
+		const update = applyTraits(existingTraits, rest, removeKeys);
+		if (update.changes.length > 0) {
+			await tx.insert(profileTraitChanges).values({
+				id: crypto.randomUUID(),
+				websiteId,
+				profileId,
+				traits: update.traits,
+				changes: Object.fromEntries(
+					update.changes.map((change) => [
+						change.traitKey,
+						{ old: change.oldValue, new: change.newValue },
+					])
+				),
+				source,
+			});
+		}
+		return update;
 	});
 }
 
