@@ -354,6 +354,7 @@ const app = new Elysia()
 				properties: event.properties as Record<string, unknown> | undefined,
 				anonymous_id: event.anonymousId ?? undefined,
 				anonymizeVisitorIds: event.anonymizeVisitorIds,
+				profile_id: event.profileId ?? undefined,
 				session_id: event.sessionId ?? undefined,
 			}));
 

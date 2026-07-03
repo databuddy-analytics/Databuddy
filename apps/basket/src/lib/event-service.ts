@@ -65,6 +65,12 @@ export function buildTrackEvent(
 			VALIDATION_LIMITS.SHORT_STRING_MAX_LENGTH
 		),
 		anonymous_id: ctx.anonymousId,
+		profile_id: trackData.profileId
+			? sanitizeString(
+					trackData.profileId,
+					VALIDATION_LIMITS.USER_ID_MAX_LENGTH
+				)
+			: undefined,
 		time: timestamp,
 		session_id: validateSessionId(trackData.sessionId),
 		event_type: "track",
@@ -367,6 +373,7 @@ export function insertCustomEvents(
 		path?: string;
 		properties?: Record<string, unknown>;
 		anonymous_id?: string;
+		profile_id?: string;
 		session_id?: string;
 		anonymizeVisitorIds?: boolean | "auto";
 		source?: string;
@@ -409,6 +416,9 @@ export function insertCustomEvents(
 						shouldAnonymize[index] === true,
 						salt
 					)
+				: undefined,
+			profile_id: event.profile_id
+				? sanitizeString(event.profile_id, VALIDATION_LIMITS.USER_ID_MAX_LENGTH)
 				: undefined,
 			session_id: event.session_id
 				? validateSessionId(event.session_id)

@@ -5,6 +5,7 @@ import {
 	getApiKeyFromHeader as resolveApiKey,
 	hasGlobalAccess as _hasGlobalAccess,
 	hasKeyScope as _hasKeyScope,
+	hasWebsiteScope as _hasWebsiteScope,
 } from "@databuddy/api-keys/resolve";
 import { record } from "@lib/tracing";
 import { useLogger } from "evlog/elysia";
@@ -14,6 +15,7 @@ export type { ApiKeyRow, ApiScope } from "@databuddy/api-keys/resolve";
 export const hasKeyScope = _hasKeyScope;
 export const hasGlobalAccess = _hasGlobalAccess;
 export const getAccessibleWebsiteIds = _getAccessibleWebsiteIds;
+export const hasWebsiteScope = _hasWebsiteScope;
 
 export function getApiKeyFromHeader(
 	headers: Headers

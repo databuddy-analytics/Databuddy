@@ -48,6 +48,11 @@ const trackEventObject = z.object({
 	properties: boundedProperties.optional(),
 	anonymousId: z.string().max(256).optional(),
 	anonymizeVisitorIds,
+	profileId: z
+		.string()
+		.min(1)
+		.max(VALIDATION_LIMITS.USER_ID_MAX_LENGTH)
+		.optional(),
 	sessionId: z.string().max(256).optional(),
 	websiteId: z
 		.string()
