@@ -1,5 +1,6 @@
 import z from "zod";
 import { VALIDATION_LIMITS } from "../constants";
+import { profileIdSchema } from "./identity";
 
 const anonymizeVisitorIds = z
 	.union([z.boolean(), z.literal("auto")])
@@ -43,6 +44,7 @@ export const customEventSpanSchema = z.object({
 		.nullable()
 		.optional(),
 	anonymizeVisitorIds,
+	profileId: profileIdSchema.nullable().optional(),
 	sessionId: z
 		.string()
 		.max(VALIDATION_LIMITS.SESSION_ID_MAX_LENGTH)

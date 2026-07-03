@@ -5,6 +5,7 @@ import {
 	LOCALHOST_URL_REGEX,
 	RESOLUTION_REGEX,
 } from "../regexes";
+import { profileIdSchema } from "./identity";
 
 const resolutionSchema = z
 	.string()
@@ -69,6 +70,7 @@ export const analyticsEventSchema = z.object({
 	name: z.string().min(1).max(VALIDATION_LIMITS.NAME_MAX_LENGTH),
 	anonymousId: z.string().nullable().optional(),
 	anonymizeVisitorIds,
+	profileId: profileIdSchema.nullable().optional(),
 	sessionId: z.string().nullable().optional(),
 	timestamp: timestampSchema,
 	sessionStartTime: timestampSchema,
