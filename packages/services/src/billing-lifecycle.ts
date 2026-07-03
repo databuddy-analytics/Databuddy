@@ -1,9 +1,9 @@
-import { db, eq, websites as websitesTable } from "@databuddy/db";
+import { db, eq, websites } from "@databuddy/db";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { PLAN_IDS } from "@databuddy/shared/types/features";
 import { splitTraits, upsertProfile } from "./identity";
 
-const SCENARIO_EVENTS: Record<string, string> = {
+const SCENARIO_EVENTS = {
 	new: "subscription_started",
 	upgrade: "plan_upgraded",
 	downgrade: "plan_downgraded",
@@ -12,20 +12,21 @@ const SCENARIO_EVENTS: Record<string, string> = {
 	expired: "subscription_expired",
 	past_due: "payment_past_due",
 	scheduled: "plan_change_scheduled",
-};
+} as const;
 
-const PLAN_SETTING_SCENARIOS = new Set([
+export type BillingScenario = keyof typeof SCENARIO_EVENTS;
+
+const PLAN_SETTING_SCENARIOS = new Set<BillingScenario>([
 	"new",
 	"upgrade",
 	"downgrade",
 	"renew",
 ]);
 
-function selfWebsiteId(): string {
-	return process.env.SELF_ANALYTICS_WEBSITE_ID || "";
-}
-
-function planAfterScenario(scenario: string, planId: string): string | null {
+function planAfterScenario(
+	scenario: BillingScenario,
+	planId: string
+): string | null {
 	if (PLAN_SETTING_SCENARIOS.has(scenario)) {
 		return planId;
 	}
@@ -42,9 +43,9 @@ async function insertLifecycleEvent(
 	properties: Record<string, string>
 ): Promise<void> {
 	const [website] = await db
-		.select({ organizationId: websitesTable.organizationId })
-		.from(websitesTable)
-		.where(eq(websitesTable.id, websiteId))
+		.select({ organizationId: websites.organizationId })
+		.from(websites)
+		.where(eq(websites.id, websiteId))
 		.limit(1);
 	if (!website) {
 		return;
@@ -69,15 +70,14 @@ async function insertLifecycleEvent(
 export async function recordPlanChange(opts: {
 	customerId: string;
 	planId: string;
-	scenario: string;
+	scenario: BillingScenario;
 }): Promise<void> {
-	const websiteId = selfWebsiteId();
+	const websiteId = process.env.SELF_ANALYTICS_WEBSITE_ID;
 	if (!websiteId) {
 		return;
 	}
 
 	const plan = planAfterScenario(opts.scenario, opts.planId);
-	const eventName = SCENARIO_EVENTS[opts.scenario];
 
 	await Promise.all([
 		plan
@@ -88,11 +88,14 @@ export async function recordPlanChange(opts: {
 					"billing"
 				)
 			: Promise.resolve(null),
-		eventName
-			? insertLifecycleEvent(websiteId, opts.customerId, eventName, {
-					plan: opts.planId,
-					scenario: opts.scenario,
-				})
-			: Promise.resolve(),
+		insertLifecycleEvent(
+			websiteId,
+			opts.customerId,
+			SCENARIO_EVENTS[opts.scenario],
+			{
+				plan: opts.planId,
+				scenario: opts.scenario,
+			}
+		),
 	]);
 }
