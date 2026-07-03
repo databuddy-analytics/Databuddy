@@ -296,7 +296,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     WITH visitor_profiles AS (
       SELECT
         ${EVENTS_VISITOR_KEY} as visitor_id,
-        max(profile_id) as profile_id,
+        max(profile_id) as latest_profile_id,
         MIN(time) as first_visit,
         MAX(time) as last_visit,
         uniq(session_id) as session_count,
@@ -375,7 +375,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     )
     SELECT
       vp.visitor_id AS visitor_id,
-      vp.profile_id AS profile_id,
+      vp.latest_profile_id AS profile_id,
       vp.first_visit AS first_visit,
       vp.last_visit AS last_visit,
       vp.session_count AS session_count,
@@ -466,7 +466,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     ),
     profile_context AS (
       SELECT
-        argMaxIf(profile_id, time, profile_id != '') as profile_id,
+        argMaxIf(profile_id, time, profile_id != '') as latest_profile_id,
         any(device_type) as device,
         any(browser_name) as browser,
         any(os_name) as os,
@@ -487,7 +487,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       es.total_pageviews,
       es.total_duration,
       es.total_duration_formatted,
-      pc.profile_id,
+      pc.latest_profile_id AS profile_id,
       pc.device,
       pc.browser,
       pc.os,
