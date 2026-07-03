@@ -28,7 +28,7 @@ const DID_PARAMS_KEY = "did_params";
 const HEADLESS_CHROME_REGEX = /\bHeadlessChrome\b/i;
 const PHANTOMJS_REGEX = /\bPhantomJS\b/i;
 const ANON_ID_PATTERN = /^anon_[0-9a-f-]{36}$/;
-const SESSION_ID_PATTERN = /^[0-9a-f-]{36}$/;
+const SESSION_ID_PATTERN = /^sess_[0-9a-f-]{36}$/;
 const MAX_PROFILE_ID_LENGTH = 128;
 
 interface QueueMeta<T> {

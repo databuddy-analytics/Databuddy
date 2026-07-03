@@ -3,7 +3,29 @@ import { countEvents, expect, findEvent, hasEvent, test } from "./test-utils";
 test.describe("Edge Cases", () => {
 
 	test.describe("URL-based ID Override", () => {
-		test("uses anonId from URL query param", async ({ page }) => {
+		test("uses a well-formed anonId from URL query param", async ({ page }) => {
+			const anonId = "anon_00000000-0000-4000-8000-000000000001";
+			await page.goto(`/test?anonId=${anonId}`);
+			await page.evaluate(() => {
+				(window as any).databuddyConfig = {
+					clientId: "test-url-override",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			await expect
+				.poll(async () => await page.evaluate(() => !!(window as any).db))
+				.toBeTruthy();
+
+			const storedId = await page.evaluate(() => localStorage.getItem("did"));
+			expect(storedId).toBe(anonId);
+		});
+
+		test("rejects a malformed anonId from URL query param", async ({
+			page,
+		}) => {
 			await page.goto("/test?anonId=custom-anon-123");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
@@ -19,10 +41,36 @@ test.describe("Edge Cases", () => {
 				.toBeTruthy();
 
 			const storedId = await page.evaluate(() => localStorage.getItem("did"));
-			expect(storedId).toBe("custom-anon-123");
+			expect(storedId).toMatch(/^anon_[0-9a-f-]{36}$/);
 		});
 
-		test("uses sessionId from URL query param", async ({ page }) => {
+		test("uses a well-formed sessionId from URL query param", async ({
+			page,
+		}) => {
+			const sessionId = "sess_00000000-0000-4000-8000-000000000002";
+			await page.goto(`/test?sessionId=${sessionId}`);
+			await page.evaluate(() => {
+				(window as any).databuddyConfig = {
+					clientId: "test-url-override",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			await expect
+				.poll(async () => await page.evaluate(() => !!(window as any).db))
+				.toBeTruthy();
+
+			const storedId = await page.evaluate(() =>
+				sessionStorage.getItem("did_session")
+			);
+			expect(storedId).toBe(sessionId);
+		});
+
+		test("rejects a malformed sessionId from URL query param", async ({
+			page,
+		}) => {
 			await page.goto("/test?sessionId=custom-session-456");
 			await page.evaluate(() => {
 				(window as any).databuddyConfig = {
@@ -40,7 +88,7 @@ test.describe("Edge Cases", () => {
 			const storedId = await page.evaluate(() =>
 				sessionStorage.getItem("did_session")
 			);
-			expect(storedId).toBe("custom-session-456");
+			expect(storedId).toMatch(/^sess_[0-9a-f-]{36}$/);
 		});
 	});
 
