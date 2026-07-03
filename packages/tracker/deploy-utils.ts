@@ -1,7 +1,7 @@
-import { hash } from "bun";
+import { createHash } from "node:crypto";
 
 export function getContentHash(content: string): string {
-	return hash(content).toString();
+	return createHash("sha256").update(content).digest("hex");
 }
 
 export async function generateSriHash(content: string): Promise<string> {
