@@ -18,12 +18,18 @@ const PATCHED = Symbol.for("databuddy.devtools.patched");
 const STORAGE_KEYS = {
 	local: [
 		"did",
+		"did_profile",
 		"did_params",
 		"db-flags",
 		"databuddy_opt_out",
 		"databuddy_disabled",
 	],
-	session: ["did_session", "did_session_timestamp", "did_session_start"],
+	session: [
+		"did_session",
+		"did_session_timestamp",
+		"did_session_start",
+		"did_profile_sent",
+	],
 } as const;
 
 const BOT_UA_REGEX = /\b(headlesschrome|phantomjs|bot|spider|crawler)\b/i;
@@ -269,6 +275,7 @@ export function getDatabuddyIdentitySnapshot(): DatabuddyIdentitySnapshot {
 	if (!isBrowser()) {
 		return {
 			anonymousId: null,
+			profileId: null,
 			sessionId: null,
 			sessionAgeMs: null,
 			sessionStartedAt: null,
@@ -303,6 +310,7 @@ export function getDatabuddyIdentitySnapshot(): DatabuddyIdentitySnapshot {
 
 	return {
 		anonymousId: getStorageValue(window.localStorage, "did"),
+		profileId: getStorageValue(window.localStorage, "did_profile"),
 		sessionId: getStorageValue(window.sessionStorage, "did_session"),
 		sessionAgeMs,
 		sessionStartedAt,
