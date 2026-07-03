@@ -112,6 +112,8 @@ jobs:
             -e AUTUMN_SECRET_KEY=test-autumn-secret-key \
             -e EMAIL_API_KEY=test-email-api-key \
             -e IP_HASH_SALT=test-ip-hash-salt \
+            -e AI_API_KEY=test-ai-api-key \
+            -e CLICKHOUSE_URL=http://default:@localhost:8123/analytics \
             api:test
 
           echo "Waiting for API to start..."
