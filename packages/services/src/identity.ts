@@ -1,4 +1,40 @@
+import { createHash, createHmac } from "node:crypto";
 import { db, profileAliases, profiles, sql } from "@databuddy/db";
+import { decrypt, encrypt } from "@databuddy/encryption";
+
+const ENCRYPTED_PREFIX = "v1:";
+
+function identitySecret(): string {
+	return process.env.DATABUDDY_ENCRYPTION_KEY || "";
+}
+
+export function protectPii(value: string): string {
+	const secret = identitySecret();
+	return secret ? encrypt(value, secret) : value;
+}
+
+export function revealPii(value: string | null): string | null {
+	if (!(value && value.startsWith(ENCRYPTED_PREFIX))) {
+		return value;
+	}
+	const secret = identitySecret();
+	if (!secret) {
+		return null;
+	}
+	try {
+		return decrypt(value, secret);
+	} catch {
+		return null;
+	}
+}
+
+export function emailLookupHash(email: string): string {
+	const normalized = email.trim().toLowerCase();
+	const secret = identitySecret();
+	return secret
+		? createHmac("sha256", secret).update(normalized).digest("hex")
+		: createHash("sha256").update(normalized).digest("hex");
+}
 
 export type TraitValue = string | number | boolean | null;
 
@@ -59,11 +95,16 @@ export async function upsertProfile(
 		removeKeys.length > 0 ||
 		Object.keys(rest).length > 0;
 
+	const protectedDisplayName = displayName ? protectPii(displayName) : null;
+	const protectedEmail = email ? protectPii(email) : null;
+	const emailHash = email ? emailLookupHash(email) : null;
+
 	const insert = db.insert(profiles).values({
 		websiteId,
 		profileId,
-		displayName: displayName ?? null,
-		email: email ?? null,
+		displayName: protectedDisplayName,
+		email: protectedEmail,
+		emailHash,
 		traits: rest,
 	});
 
@@ -80,8 +121,8 @@ export async function upsertProfile(
 	await insert.onConflictDoUpdate({
 		target: [profiles.websiteId, profiles.profileId],
 		set: {
-			...(displayName !== undefined && { displayName }),
-			...(email !== undefined && { email }),
+			...(displayName !== undefined && { displayName: protectedDisplayName }),
+			...(email !== undefined && { email: protectedEmail, emailHash }),
 			traits: mergedTraits,
 			updatedAt: sql`now()`,
 		},

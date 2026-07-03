@@ -66,6 +66,8 @@ Traits are flat key/value metadata about the user. Values must be strings, numbe
 | `email` | Shown under the user's name; lowercased |
 | anything else | Stored on the profile and shown in the user detail view |
 
+Display names and emails are encrypted at rest (AES-256-GCM). Custom traits are stored as regular values so you can filter and segment by them.
+
 Setting a trait to `null` removes it:
 
 <CodeBlock language="ts">

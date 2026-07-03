@@ -1,5 +1,6 @@
 import { and, eq, inArray } from "@databuddy/db";
 import { profileAliases, profiles } from "@databuddy/db/schema";
+import { revealPii } from "@databuddy/services/identity";
 import { z } from "zod";
 import { trackedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
@@ -36,7 +37,7 @@ export const profilesRouter = {
 				permissions: ["read"],
 			});
 
-			return await context.db
+			const rows = await context.db
 				.select({
 					profileId: profiles.profileId,
 					displayName: profiles.displayName,
@@ -52,6 +53,12 @@ export const profilesRouter = {
 						inArray(profiles.profileId, input.profileIds)
 					)
 				);
+
+			return rows.map((row) => ({
+				...row,
+				displayName: revealPii(row.displayName),
+				email: revealPii(row.email),
+			}));
 		}),
 
 	get: trackedProcedure
@@ -114,6 +121,8 @@ export const profilesRouter = {
 
 			return {
 				...profile,
+				displayName: revealPii(profile.displayName),
+				email: revealPii(profile.email),
 				anonymousIds: aliases.map((alias) => alias.anonymousId),
 			};
 		}),

@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@databuddy/db", () => ({
 	db: {},
@@ -18,7 +18,12 @@ vi.mock("@lib/api-key", () => ({
 }));
 vi.mock("evlog/elysia", () => ({ useLogger: () => ({ set: vi.fn() }) }));
 
-import { splitTraits } from "@databuddy/services/identity";
+import {
+	emailLookupHash,
+	protectPii,
+	revealPii,
+	splitTraits,
+} from "@databuddy/services/identity";
 import { VALIDATION_LIMITS as SHARED_LIMITS } from "@databuddy/validation";
 import type { ApiKeyRow } from "@lib/api-key";
 import { hasWebsiteScope } from "@lib/api-key";
@@ -87,6 +92,43 @@ describe("splitTraits", () => {
 		expect(result.removeKeys).toEqual([]);
 		expect(result.displayName).toBeUndefined();
 		expect(result.email).toBeUndefined();
+	});
+});
+
+describe("pii protection", () => {
+	const KEY = "test-identity-encryption-key";
+
+	afterEach(() => {
+		delete process.env.DATABUDDY_ENCRYPTION_KEY;
+	});
+
+	test("encrypts and reveals round-trip when a key is configured", () => {
+		process.env.DATABUDDY_ENCRYPTION_KEY = KEY;
+		const protectedValue = protectPii("jo@acme.com");
+		expect(protectedValue.startsWith("v1:")).toBe(true);
+		expect(protectedValue).not.toContain("jo@acme.com");
+		expect(revealPii(protectedValue)).toBe("jo@acme.com");
+	});
+
+	test("passes plaintext through when no key is configured", () => {
+		expect(protectPii("jo@acme.com")).toBe("jo@acme.com");
+		expect(revealPii("jo@acme.com")).toBe("jo@acme.com");
+		expect(revealPii(null)).toBeNull();
+	});
+
+	test("returns null for undecryptable payloads instead of leaking them", () => {
+		process.env.DATABUDDY_ENCRYPTION_KEY = KEY;
+		const protectedValue = protectPii("jo@acme.com");
+		process.env.DATABUDDY_ENCRYPTION_KEY = "different-key";
+		expect(revealPii(protectedValue)).toBeNull();
+	});
+
+	test("email lookup hash is deterministic and normalized", () => {
+		process.env.DATABUDDY_ENCRYPTION_KEY = KEY;
+		const hash = emailLookupHash(" Jo@Acme.com ");
+		expect(hash).toBe(emailLookupHash("jo@acme.com"));
+		expect(hash).toMatch(/^[0-9a-f]{64}$/);
+		expect(hash).not.toBe(emailLookupHash("other@acme.com"));
 	});
 });
 

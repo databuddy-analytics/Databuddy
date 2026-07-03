@@ -7,6 +7,7 @@ import { commonEnvSchema, createEnv, shouldSkipValidation } from "./base";
 const basketEnvSchema = z.object({
 	...commonEnvSchema,
 	PORT: z.string().default("3002"),
+	DATABUDDY_ENCRYPTION_KEY: z.string().optional(),
 	STRIPE_SECRET_KEY: z.string().optional(),
 	STRIPE_WEBHOOK_SECRET: z.string().optional(),
 });
