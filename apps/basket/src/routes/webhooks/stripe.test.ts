@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { createHmac } from "node:crypto";
-import { verifyStripeSignature } from "./stripe";
+import { invoiceMetadataSources, verifyStripeSignature } from "./stripe";
 
 const SECRET = "whsec_test_secret_key";
 
@@ -182,5 +182,44 @@ describe("verifyStripeSignature", () => {
 			const result = verifyStripeSignature(payload, header, SECRET);
 			expect(result.valid).toBe(false);
 		}
+	});
+});
+
+describe("invoiceMetadataSources", () => {
+	test("merges parent, subscription_details, and invoice metadata with invoice winning", () => {
+		const merged = invoiceMetadataSources({
+			amount_paid: 100,
+			created: 1_700_000_000,
+			currency: "usd",
+			id: "in_1",
+			metadata: { databuddy_profile_id: "user_invoice" },
+			parent: {
+				subscription_details: {
+					metadata: {
+						databuddy_profile_id: "user_parent",
+						databuddy_client_id: "site_parent",
+					},
+				},
+			},
+			subscription_details: {
+				metadata: { databuddy_session_id: "sess_sub" },
+			},
+		});
+		expect(merged).toEqual({
+			databuddy_profile_id: "user_invoice",
+			databuddy_client_id: "site_parent",
+			databuddy_session_id: "sess_sub",
+		});
+	});
+
+	test("returns empty object when no metadata anywhere", () => {
+		expect(
+			invoiceMetadataSources({
+				amount_paid: 100,
+				created: 1_700_000_000,
+				currency: "usd",
+				id: "in_1",
+			})
+		).toEqual({});
 	});
 });

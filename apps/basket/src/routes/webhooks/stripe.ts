@@ -50,9 +50,15 @@ interface WebhookInvoice {
 	description?: string | null;
 	id: string;
 	metadata?: Record<string, string>;
-	payment_intent?: string | null;
+	parent?: {
+		subscription_details?: { metadata?: Record<string, string> | null } | null;
+	} | null;
+	payment_intent?: string | { id: string } | null;
 	status?: string;
 	subscription?: string | null;
+	subscription_details?: {
+		metadata?: Record<string, string> | null;
+	} | null;
 }
 
 interface WebhookEvent {
@@ -171,12 +177,73 @@ function getConfig(hash: string): Promise<WebhookConfig | { error: string }> {
 	>;
 }
 
+export function invoiceMetadataSources(
+	invoice: WebhookInvoice
+): Record<string, string> {
+	return {
+		...invoice.parent?.subscription_details?.metadata,
+		...invoice.subscription_details?.metadata,
+		...invoice.metadata,
+	};
+}
+
+async function existingAttribution(
+	ownerId: string,
+	transactionId: string
+): Promise<
+	Pick<AnalyticsMetadata, "anonymous_id" | "profile_id" | "session_id">
+> {
+	try {
+		const result = await clickHouse.query({
+			query: `SELECT
+					argMax(profile_id, synced_at) AS profile_id,
+					argMax(ifNull(anonymous_id, ''), synced_at) AS anonymous_id,
+					argMax(ifNull(session_id, ''), synced_at) AS session_id
+				FROM analytics.revenue
+				WHERE owner_id = {ownerId:String} AND transaction_id = {transactionId:String}`,
+			query_params: { ownerId, transactionId },
+			format: "JSONEachRow",
+		});
+		const [row] = await result.json<{
+			profile_id: string;
+			anonymous_id: string;
+			session_id: string;
+		}>();
+		if (!row) {
+			return {};
+		}
+		return {
+			profile_id: row.profile_id || undefined,
+			anonymous_id: row.anonymous_id || undefined,
+			session_id: row.session_id || undefined,
+		};
+	} catch {
+		return {};
+	}
+}
+
+async function withCarriedAttribution(
+	metadata: AnalyticsMetadata,
+	ownerId: string,
+	transactionId: string
+): Promise<AnalyticsMetadata> {
+	if (metadata.profile_id || metadata.anonymous_id || metadata.session_id) {
+		return metadata;
+	}
+	const carried = await existingAttribution(ownerId, transactionId);
+	return { ...metadata, ...carried };
+}
+
 async function handlePaymentIntent(
 	pi: WebhookPaymentIntent,
 	config: WebhookConfig
 ): Promise<void> {
 	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(pi.metadata);
+	const metadata = await withCarriedAttribution(
+		await extractAnalyticsMetadata(pi.metadata),
+		config.ownerId,
+		pi.id
+	);
 	const customerId = extractCustomerId(pi.customer);
 	const descLower = pi.description?.toLowerCase() ?? "";
 	const isSubscription = !!pi.invoice || descLower.startsWith("subscription");
@@ -289,6 +356,75 @@ async function handleFailedPayment(
 				product_name: productName,
 				metadata: JSON.stringify(metadata),
 				created: formatDate(new Date(pi.created * 1000)),
+				synced_at: formatDate(new Date()),
+			},
+		],
+		format: "JSONEachRow",
+	});
+}
+
+async function handleInvoicePaid(
+	invoice: WebhookInvoice,
+	config: WebhookConfig
+): Promise<void> {
+	const log = useLogger();
+	if (invoice.amount_paid === 0) {
+		log.set({ revenue: { skipped: "zero_amount", invoiceId: invoice.id } });
+		return;
+	}
+
+	const paymentIntentId =
+		typeof invoice.payment_intent === "string"
+			? invoice.payment_intent
+			: invoice.payment_intent?.id;
+	const transactionId = paymentIntentId || invoice.id;
+	const metadata = await withCarriedAttribution(
+		await extractAnalyticsMetadata(invoiceMetadataSources(invoice)),
+		config.ownerId,
+		transactionId
+	);
+	const customerId = extractCustomerId(invoice.customer);
+	const amount = invoice.amount_paid / 100;
+	const currency = invoice.currency.toUpperCase();
+
+	log.set({
+		revenue: {
+			type: "subscription",
+			status: "completed",
+			amount,
+			currency,
+			customerId,
+			transactionId,
+			billingReason: invoice.billing_reason,
+			subscriptionId: invoice.subscription,
+		},
+	});
+
+	await clickHouse.insert({
+		table: "analytics.revenue",
+		values: [
+			{
+				owner_id: config.ownerId,
+				website_id: await resolveWebsiteId(
+					metadata.client_id,
+					config.websiteId,
+					config.ownerId
+				),
+				transaction_id: transactionId,
+				provider: "stripe",
+				type: "subscription" as const,
+				status: "completed",
+				amount,
+				original_amount: amount,
+				original_currency: currency,
+				currency,
+				anonymous_id: metadata.anonymous_id || undefined,
+				profile_id: metadata.profile_id || undefined,
+				session_id: metadata.session_id || undefined,
+				customer_id: customerId,
+				product_name: invoice.description || undefined,
+				metadata: JSON.stringify(metadata),
+				created: formatDate(new Date(invoice.created * 1000)),
 				synced_at: formatDate(new Date()),
 			},
 		],
@@ -469,6 +605,11 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 						result,
 						"canceled"
 					);
+					break;
+				}
+				case "invoice.paid":
+				case "invoice.payment_succeeded": {
+					await handleInvoicePaid(event.data.object as WebhookInvoice, result);
 					break;
 				}
 				case "invoice.payment_failed": {
