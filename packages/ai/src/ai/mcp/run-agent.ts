@@ -413,6 +413,7 @@ const ANALYTICS_ACTIVE_TOOLS = [
 	"list_profiles",
 	"get_profile",
 	"get_profile_sessions",
+	"list_profile_traits",
 ];
 
 function latestSlackText(input: string): string {

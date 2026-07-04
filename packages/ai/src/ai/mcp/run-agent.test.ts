@@ -16,6 +16,7 @@ describe("MCP agent active tool selection", () => {
 			"list_profiles",
 			"get_profile",
 			"get_profile_sessions",
+			"list_profile_traits",
 		]);
 	});
 

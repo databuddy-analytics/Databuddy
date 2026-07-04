@@ -1,4 +1,5 @@
 import { and, db, desc, eq, profileTraitChanges } from "@databuddy/db";
+import { getTraitDistribution } from "@databuddy/services/identity";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
@@ -158,6 +159,23 @@ export function buildProfileTools(opts: ProfileToolsOptions): ToolSet {
 					changeCount: history.length,
 				});
 				return { history, count: history.length };
+			},
+		}),
+
+		list_profile_traits: tool({
+			description: `Distribution of identified-user traits: every trait key, its values, and how many profiles carry each value, plus the total identified profile count. Call this before segmenting to learn which keys and values exist and to quantify identified-vs-anonymous coverage. To measure sessions or behavior per segment, follow up with get_data using a trait:<key> filter (e.g. session_metrics filtered by trait:plan eq pro) — that is how profiles link to sessions; prefer aggregate query types like session_metrics/summary_metrics for totals instead of summing time series rows by hand.${suffix}`,
+			inputSchema: z.object({
+				websiteId: opts.websiteIdSchema,
+			}),
+			execute: async ({ websiteId }, options) => {
+				const site = await opts.resolveSite(websiteId, options);
+				const distribution = await getTraitDistribution(site.websiteId);
+				logger.info("Fetched trait distribution", {
+					websiteId: site.websiteId,
+					identifiedProfiles: distribution.identifiedProfiles,
+					traitRows: distribution.traits.length,
+				});
+				return distribution;
 			},
 		}),
 

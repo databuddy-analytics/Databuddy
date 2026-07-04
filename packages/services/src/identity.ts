@@ -324,3 +324,35 @@ export async function resolveTraitSegment(
 	}
 	return rows.map((row) => row.profileId);
 }
+
+export interface TraitDistributionRow {
+	key: string;
+	profiles: number;
+	value: string;
+}
+
+const TRAIT_DISTRIBUTION_LIMIT = 200;
+
+export async function getTraitDistribution(websiteId: string): Promise<{
+	identifiedProfiles: number;
+	traits: TraitDistributionRow[];
+}> {
+	const [totals] = await db
+		.select({ identifiedProfiles: sql<number>`count(*)::int` })
+		.from(profiles)
+		.where(eq(profiles.websiteId, websiteId));
+
+	const result = await db.execute(sql`
+		select t.key as key, t.value as value, count(*)::int as profiles
+		from ${profiles} p, jsonb_each_text(p.traits) as t(key, value)
+		where p.website_id = ${websiteId}
+		group by t.key, t.value
+		order by t.key asc, count(*) desc
+		limit ${TRAIT_DISTRIBUTION_LIMIT}
+	`);
+
+	return {
+		identifiedProfiles: totals?.identifiedProfiles ?? 0,
+		traits: result.rows as unknown as TraitDistributionRow[],
+	};
+}
