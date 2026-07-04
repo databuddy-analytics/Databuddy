@@ -88,6 +88,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		timeField: "timestamp",
 		allowedFilters: [
+			"profile_id",
 			"namespace",
 			"website_id",
 			"anonymous_id",
@@ -159,6 +160,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		timeField: "timestamp",
 		allowedFilters: [
+			"profile_id",
 			"namespace",
 			"website_id",
 			"anonymous_id",
@@ -217,7 +219,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id"],
+		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 		customizable: true,
 	},
 
@@ -268,7 +270,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id"],
+		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 
 	custom_events_trends_by_event: {
@@ -315,7 +317,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id"],
+		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 
 	custom_events_summary: {
@@ -360,7 +362,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id"],
+		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 
 	custom_events_property_cardinality: {
@@ -430,7 +432,13 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id", "property_key"],
+		allowedFilters: [
+			"profile_id",
+			"path",
+			"event_name",
+			"website_id",
+			"property_key",
+		],
 	},
 
 	custom_events_recent: {
@@ -484,7 +492,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id"],
+		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 
 	/**
@@ -630,7 +638,13 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id", "property_key"],
+		allowedFilters: [
+			"profile_id",
+			"path",
+			"event_name",
+			"website_id",
+			"property_key",
+		],
 	},
 
 	/**
@@ -722,7 +736,13 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id", "property_key"],
+		allowedFilters: [
+			"profile_id",
+			"path",
+			"event_name",
+			"website_id",
+			"property_key",
+		],
 	},
 
 	/**
@@ -812,7 +832,13 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id", "property_key"],
+		allowedFilters: [
+			"profile_id",
+			"path",
+			"event_name",
+			"website_id",
+			"property_key",
+		],
 	},
 
 	/**
@@ -927,6 +953,6 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["custom-events", "discovery", "properties"],
 		},
 		timeField: "timestamp",
-		allowedFilters: ["path", "event_name", "website_id"],
+		allowedFilters: ["profile_id", "path", "event_name", "website_id"],
 	},
 };

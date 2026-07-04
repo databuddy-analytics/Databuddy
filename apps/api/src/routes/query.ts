@@ -10,7 +10,12 @@ import {
 import { and, db, eq, inArray } from "@databuddy/db";
 import { profiles } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
-import { revealPii } from "@databuddy/services/identity";
+import {
+	isTraitFilterField,
+	resolveTraitSegment,
+	revealPii,
+	type TraitFilter,
+} from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { ratelimit } from "@databuddy/redis/rate-limit";
@@ -959,6 +964,32 @@ async function executeDynamicQuery(
 			? (scope?.organizationWebsiteIds ?? [])
 			: undefined;
 
+	const requestFilters = (request.filters || []) as Filter[];
+	const traitFilters = requestFilters.filter((f) =>
+		isTraitFilterField(f.field)
+	);
+	let effectiveFilters = requestFilters;
+	let traitError: string | null = null;
+	if (traitFilters.length > 0) {
+		if (projectType === "website") {
+			try {
+				const segment = await resolveTraitSegment(
+					projectId,
+					traitFilters as TraitFilter[]
+				);
+				effectiveFilters = [
+					...requestFilters.filter((f) => !isTraitFilterField(f.field)),
+					{ field: "profile_id", op: "in", value: segment },
+				];
+			} catch (error) {
+				traitError =
+					error instanceof Error ? error.message : "Trait filter failed";
+			}
+		} else {
+			traitError = "Trait filters are only supported for website queries";
+		}
+	}
+
 	// Org-level custom_events queries: builder scans by owner_id (= organizationId
 	// set at ingestion) via primary key instead of matching website_id.
 	const hasCustomEventsQueries = request.parameters.some((param) => {
@@ -981,6 +1012,16 @@ async function executeDynamicQuery(
 		const config = QueryBuilders[name];
 		if (!config) {
 			return { id, error: `Unknown query type: ${name}` };
+		}
+
+		if (traitError) {
+			return { id, error: traitError };
+		}
+		if (
+			traitFilters.length > 0 &&
+			!isFilterFieldAllowed(config, "profile_id")
+		) {
+			return { id, error: `Trait filters are not supported for ${name}` };
 		}
 
 		if (
@@ -1015,7 +1056,7 @@ async function executeDynamicQuery(
 					paramFrom,
 					paramTo
 				),
-				filters: ((request.filters || []) as Filter[]).filter((f) =>
+				filters: effectiveFilters.filter((f) =>
 					isFilterFieldAllowed(config, f.field)
 				),
 				limit: request.limit || 100,
