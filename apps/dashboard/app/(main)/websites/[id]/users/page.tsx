@@ -625,9 +625,10 @@ export default function UsersPage() {
 						</button>
 					) : traitFilter ? (
 						<DropdownMenu
+							key="trait-values"
 							onOpenChange={(open) => {
 								if (!open) {
-									setTraitFilter(null);
+									setTraitFilter((prev) => (prev?.value ? prev : null));
 								}
 							}}
 							open
@@ -648,21 +649,25 @@ export default function UsersPage() {
 									<DropdownMenu.GroupLabel>
 										{traitFilter.key} value
 									</DropdownMenu.GroupLabel>
-									{(traitValues ?? []).map((value) => (
-										<DropdownMenu.Item
-											key={value}
-											onClick={() =>
-												setTraitFilter({ key: traitFilter.key, value })
-											}
-										>
-											{value}
-										</DropdownMenu.Item>
-									))}
+									{traitValues?.length ? (
+										traitValues.map((value) => (
+											<DropdownMenu.Item
+												key={value}
+												onClick={() =>
+													setTraitFilter({ key: traitFilter.key, value })
+												}
+											>
+												{value}
+											</DropdownMenu.Item>
+										))
+									) : (
+										<DropdownMenu.Item disabled>Loading…</DropdownMenu.Item>
+									)}
 								</DropdownMenu.Group>
 							</DropdownMenu.Content>
 						</DropdownMenu>
 					) : (
-						<DropdownMenu>
+						<DropdownMenu key="trait-keys">
 							<DropdownMenu.Trigger
 								render={
 									<button
