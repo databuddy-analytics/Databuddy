@@ -73,7 +73,7 @@ interface RevenueTimeSeries {
 const BASKET_URL = publicConfig.urls.basket;
 
 const STRIPE_EVENTS = {
-	required: ["payment_intent.succeeded", "charge.refunded"],
+	required: ["payment_intent.succeeded", "invoice.paid", "charge.refunded"],
 	optional: ["payment_intent.payment_failed", "payment_intent.canceled"],
 };
 
