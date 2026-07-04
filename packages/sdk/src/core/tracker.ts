@@ -15,7 +15,7 @@ export function getTracker(): DatabuddyTracker | null {
 }
 
 function callTracker(
-	name: string,
+	name: keyof NonNullable<Window["db"]> & string,
 	invoke: (tracker: NonNullable<Window["db"]>) => void
 ): void {
 	if (typeof window === "undefined") {
@@ -23,6 +23,12 @@ function callTracker(
 	}
 	const tracker = window.db ?? window.databuddy;
 	if (!tracker) {
+		return;
+	}
+	if (typeof tracker[name] !== "function") {
+		logger.warn(
+			`${name} skipped: the loaded tracker script predates it. A hard refresh loads the current script.`
+		);
 		return;
 	}
 	try {
