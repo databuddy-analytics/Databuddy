@@ -17,7 +17,33 @@ describe("MCP agent active tool selection", () => {
 			"get_profile",
 			"get_profile_sessions",
 			"list_profile_traits",
+			"submit_feedback",
 		]);
+	});
+
+	it("does not let thread-reference words hijack explicit feedback requests", () => {
+		expect(
+			selectActiveToolsForQuestion({
+				question:
+					"can you send that to the databuddy team as a feature request?",
+				source: "slack",
+			})
+		).toBeUndefined();
+	});
+
+	it("keeps all tools available when the user reports something broken", () => {
+		expect(
+			selectActiveToolsForQuestion({
+				question: "the errors page looks broken, can you report it?",
+				source: "slack",
+			})
+		).toBeUndefined();
+		expect(
+			selectActiveToolsForQuestion({
+				question: "i want to send feedback about the dashboard",
+				source: "dashboard",
+			})
+		).toBeUndefined();
 	});
 
 	it("keeps Slack thread context available for thread references", () => {

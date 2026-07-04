@@ -3,6 +3,7 @@ import { createAnnotationTools } from "./annotations";
 import { describeSchemaTool } from "./describe-schema";
 import { discoverQueryTypesTool } from "./discover-query-types";
 import { executeSqlQueryTool } from "./execute-sql-query";
+import { createFeedbackTools } from "./feedback";
 import { createFlagTools } from "./flags";
 import { createFunnelTools } from "./funnels";
 import { getDataTool } from "./get-data";
@@ -42,6 +43,7 @@ const MUTATION_TOOLS: ToolSet = {
 	...createAnnotationTools(),
 	...createFlagTools(),
 	...createLinksTools(),
+	...createFeedbackTools(),
 };
 
 const MEMORY_TOOLS: ToolSet = {

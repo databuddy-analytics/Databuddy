@@ -11,6 +11,7 @@ import {
 } from "../../query";
 import type { QueryRequest } from "../../query/types";
 import { createAnnotationTools } from "../tools/annotations";
+import { createFeedbackTools } from "../tools/feedback";
 import { createFlagTools } from "../tools/flags";
 import { createFunnelTools } from "../tools/funnels";
 import { createGoalTools } from "../tools/goals";
@@ -272,6 +273,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		...createGoalTools(),
 		...createAnnotationTools(),
 		...createLinksTools(),
+		...createFeedbackTools(),
 		...createInsightDigestTools(),
 		...createSlackConversationTools(options.slackContext),
 		...investigationTools,

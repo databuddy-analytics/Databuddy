@@ -17,6 +17,7 @@ export interface AppContext {
 	organizationId?: string | null;
 	requestHeaders?: Headers;
 	serviceAuth?: ServiceAuth;
+	source?: "dashboard" | "mcp" | "slack";
 	timezone: string;
 	userId: string;
 	websiteDomain?: string;

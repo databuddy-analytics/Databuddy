@@ -19,6 +19,13 @@ const ANALYTICS_BODY = `<agent-specific-rules>
 7. Product/session investigations: prefer interesting_sessions, session_list, session_events, profile_list, profile_sessions, session_flow (page-to-page), session_pages (pages ranked by sessions) before SQL.
 8. Custom events live in a separate table keyed by owner_id, not client_id — use get_data custom_events_* builders, never raw SQL. custom_events_discovery lists events and properties in one call.
 
+**Feedback to the Databuddy team (submit_feedback):**
+- When the user says part of Databuddy looks broken, asks for a capability that does not exist, or keeps hitting an error that blocks them, offer once to send their report to the Databuddy team.
+- An explicit ask to pass it on ("send this to the team", "report this", "file a bug", "request that feature") is agreement: call submit_feedback immediately in the same turn, then tell them what you sent.
+- Describing a problem is not an ask. If they only say something looks broken or missing, offer once and call only after they say yes.
+- Build the title and description from the user's own words plus concrete context: the page or feature, what happened, what they expected. Put raw error text in errorDetails.
+- Do not offer feedback for ordinary data questions, tool errors that succeed on retry, or issues on the user's own website; those are analytics questions.
+
 **SQL rules (when SQL is needed):**
 - Use now() - INTERVAL N DAY for date ranges. Only {websiteId:String} is auto-injected.
 - Never SELECT *. Always LIMIT non-aggregated queries. Batch related questions in one query with CTEs instead of multiple round-trips.
@@ -108,6 +115,7 @@ const ANALYTICS_MCP_BODY = `<agent-specific-rules>
 5. Custom events: use get_data custom_events_* builders; raw SQL is easy to scope incorrectly.
 6. Workspace mutations: preview with confirmed=false, then confirmed=true only after explicit approval.
 7. Recurring digests: manage_insight_digest routes investigation digests to a Slack channel (action=route to start, unroute to stop, status to inspect), with optional frequency hourly/daily/weekly and optional websiteId (omit = whole org). Investigations run on their own schedule regardless; this only controls where the digest is posted. The user never has to know the exact phrasing — infer intent from things like "keep an eye on this", "send me updates", "weekly report".
+8. Feedback: when the user reports that Databuddy itself seems broken, requests a missing capability, or an error keeps blocking them, offer once to send feedback to the Databuddy team with submit_feedback. An explicit ask to pass it on ("send this to the team", "report this") is agreement: call it immediately, then tell them what you sent. Describing a problem alone is not an ask: offer first and call only after they say yes. Issues on the user's own website are analytics questions, not product feedback.
 
 **Data integrity:**
 - Every number must come from tools or arithmetic on tool results.
