@@ -336,7 +336,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
     visitor_revenue AS (
       SELECT
         ${CUSTOM_EVENTS_VISITOR_KEY} as visitor_id,
-        toFloat64(sumIf(amount, type != 'refund') - sumIf(amount, type = 'refund')) as ltv
+        toFloat64(sumIf(amount, status IN ('completed', 'refunded') AND type != 'subscription_event')) as ltv
       FROM ${Analytics.revenue}
       WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
         AND ${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
@@ -576,6 +576,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       created
     FROM ${Analytics.revenue}
     WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+      AND type != 'subscription_event'
       AND created >= toDateTime({startDate:String})
       AND created <= toDateTime({endDate:String})
       AND (
