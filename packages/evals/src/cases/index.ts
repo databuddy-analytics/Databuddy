@@ -1,6 +1,7 @@
 import type { EvalCase, EvalSurface } from "../types";
 import { attributionCases } from "./attribution";
 import { behavioralCases } from "./behavioral";
+import { feedbackCases } from "./feedback";
 import { formatCases } from "./format";
 import { insightsCases } from "./insights";
 import { integrationCases } from "./integrations";
@@ -14,6 +15,7 @@ const DEFAULT_SURFACE: EvalSurface = "agent";
 export const allCases: EvalCase[] = [
 	...toolRoutingCases,
 	...behavioralCases,
+	...feedbackCases,
 	...attributionCases,
 	...traitCases,
 	...qualityCases,
