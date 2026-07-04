@@ -27,6 +27,7 @@ In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoin
 | Event | Purpose |
 |---|---|
 | `payment_intent.succeeded` | Records completed sales and subscriptions (required) |
+| `invoice.paid` | Records recurring subscription payments with attribution (required) |
 | `charge.refunded` | Records refunds (required) |
 | `payment_intent.payment_failed` | Tracks failed payments (optional) |
 | `payment_intent.canceled` | Tracks canceled payments (optional) |
