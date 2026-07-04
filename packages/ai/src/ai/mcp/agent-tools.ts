@@ -189,7 +189,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 pre-built analytics queries in one call. Preferred for explicit analytics requests. Covers traffic, pages, sessions, errors, performance, vitals, custom events, profiles, links, uptime, LLM, and revenue. Use preset (last_7d/last_30d/etc.) or from/to dates. Supports filters, groupBy, orderBy. If a type is invalid, the server returns valid options.",
+				"Run 1-10 pre-built analytics queries in one call. Preferred for explicit analytics requests. Covers traffic, pages, sessions, errors, performance, vitals, custom events, profiles, links, uptime, LLM, and revenue. Use preset (last_7d/last_30d/etc.) or from/to dates. Supports filters (column names or trait:<key> to segment by identified-user traits, e.g. trait:plan), groupBy, orderBy. If a type or filter field is invalid, the error lists valid options.",
 			strict: true,
 			inputSchema: z.object({
 				websiteId: z.string(),
@@ -244,7 +244,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 							type: r.type,
 							data: r.data,
 							rowCount: r.data.length,
-							...(r.error && { error: "Query failed" }),
+							...(r.error && { error: r.error }),
 						})),
 						...invalid.map((q) => ({
 							type: q.type,

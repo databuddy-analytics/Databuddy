@@ -29,6 +29,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {
@@ -99,6 +101,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
 		],
 		customizable: true,
 		plugins: {
@@ -212,6 +215,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
 		],
 		customizable: true,
 		plugins: {
@@ -336,6 +340,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {
@@ -355,6 +361,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {

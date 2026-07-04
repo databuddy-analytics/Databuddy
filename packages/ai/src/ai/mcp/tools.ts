@@ -365,7 +365,7 @@ const getDataTool = defineMcpTool(
 				.array(FilterSchema)
 				.optional()
 				.describe(
-					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is the ClickHouse column name — call get_schema if unsure. Rejected fields return the allowed list for this query."
+					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a ClickHouse column name — call get_schema if unsure — or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
 				),
 			groupBy: z.array(z.string()).optional().describe("Fields to group by."),
 			orderBy: z.string().optional().describe("Field to order results by."),

@@ -1,14 +1,9 @@
-import {
-	isTraitFilterField,
-	resolveTraitSegment,
-	type TraitFilter,
-	TraitFilterError,
-} from "@databuddy/services/identity";
+import { TraitFilterError } from "@databuddy/services/identity";
 import { captureError } from "../../lib/tracing";
 import { tool } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
-import { executeQuery, QueryBuilders } from "../../query";
+import { executeQuery, hasTraitFilters, QueryBuilders } from "../../query";
 import { shiftDate, todayInTimeZone } from "../../query/date-utils";
 import type { QueryRequest } from "../../query/types";
 import { getAppContext, resolveToolWebsite } from "./utils";
@@ -105,27 +100,6 @@ function describeTraitFilterError(error: unknown): string {
 	return "Trait filter failed";
 }
 
-async function resolveItemFilters(
-	websiteId: string,
-	filters: QueryItem["filters"]
-): Promise<QueryItem["filters"]> {
-	if (!filters?.length) {
-		return filters;
-	}
-	const traitFilters = filters.filter((f) => isTraitFilterField(f.field));
-	if (traitFilters.length === 0) {
-		return filters;
-	}
-	const segment = await resolveTraitSegment(
-		websiteId,
-		traitFilters as TraitFilter[]
-	);
-	return [
-		...filters.filter((f) => !isTraitFilterField(f.field)),
-		{ field: "profile_id", op: "in" as const, value: segment },
-	];
-}
-
 const PRESET_DAYS = {
 	last_7d: 7,
 	last_14d: 14,
@@ -203,20 +177,6 @@ export const getDataTool = tool({
 					};
 				}
 
-				let filters: QueryItem["filters"];
-				try {
-					filters = await resolveItemFilters(websiteId, item.filters);
-				} catch (error) {
-					return {
-						type: item.type,
-						websiteId,
-						data: [],
-						rowCount: 0,
-						executionTime: Date.now() - queryStart,
-						error: describeTraitFilterError(error),
-					};
-				}
-
 				const domain = resolvedDomain || (await getWebsiteDomain(websiteId));
 				const timezone = item.timezone ?? ctx.timezone ?? "UTC";
 				const { from, to } = resolveDates(item, timezone);
@@ -226,28 +186,43 @@ export const getDataTool = tool({
 					from,
 					to,
 					timeUnit: item.timeUnit,
-					filters: filters as QueryRequest["filters"],
+					filters: item.filters as QueryRequest["filters"],
 					groupBy: item.groupBy,
 					orderBy: item.orderBy,
 					limit: item.limit,
 					timezone,
 				};
 
-				const data = await executeQuery(req, domain, timezone);
-				return {
-					type: item.type,
-					websiteId,
-					summary: buildResultSummary(
-						item.type,
-						from,
-						to,
-						item.filters,
-						item.groupBy
-					),
-					data: data.slice(0, MAX_MODEL_ROWS),
-					rowCount: data.length,
-					executionTime: Date.now() - queryStart,
-				};
+				try {
+					const data = await executeQuery(req, domain, timezone);
+					return {
+						type: item.type,
+						websiteId,
+						summary: buildResultSummary(
+							item.type,
+							from,
+							to,
+							item.filters,
+							item.groupBy
+						),
+						data: data.slice(0, MAX_MODEL_ROWS),
+						rowCount: data.length,
+						executionTime: Date.now() - queryStart,
+					};
+				} catch (error) {
+					return {
+						type: item.type,
+						websiteId,
+						data: [],
+						rowCount: 0,
+						executionTime: Date.now() - queryStart,
+						error: hasTraitFilters(req.filters)
+							? describeTraitFilterError(error)
+							: error instanceof Error
+								? error.message
+								: "Query failed",
+					};
+				}
 			})
 		);
 

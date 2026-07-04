@@ -2,6 +2,10 @@
 import { z } from "zod";
 import { QueryBuilders, suggestQueryTypes } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
+import {
+	invalidFilterFieldError,
+	resolveRequestTraitFilters,
+} from "./trait-filters";
 import type { FilterOperators, QueryRequest, TimeGranularity } from "./types";
 
 const FILTER_OPS = [
@@ -85,7 +89,14 @@ export const executeQuery = async (
 	websiteDomain?: string | null,
 	timezone?: string,
 	abortSignal?: AbortSignal
-) => createBuilder(request, websiteDomain, timezone).execute(abortSignal);
+) => {
+	const filterError = invalidFilterFieldError(request.type, request.filters);
+	if (filterError) {
+		throw new Error(filterError);
+	}
+	const resolved = await resolveRequestTraitFilters(request);
+	return createBuilder(resolved, websiteDomain, timezone).execute(abortSignal);
+};
 
 export const compileQuery = (
 	request: QueryRequest,
@@ -102,4 +113,9 @@ export {
 export * from "./builders";
 export * from "./expressions";
 export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
+export {
+	hasTraitFilters,
+	invalidFilterFieldError,
+	resolveRequestTraitFilters,
+} from "./trait-filters";
 export * from "./types";
