@@ -193,7 +193,7 @@ export const getDataTool = tool({
 					};
 				}
 
-				let filters = item.filters;
+				let filters: QueryItem["filters"];
 				try {
 					filters = await resolveItemFilters(websiteId, item.filters);
 				} catch (error) {
