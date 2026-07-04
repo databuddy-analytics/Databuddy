@@ -887,8 +887,6 @@ interface QueryResult {
 	success: boolean;
 }
 
-const PROFILE_ENRICHED_TYPES = new Set(["profile_list"]);
-
 async function attachProfileIdentities(
 	websiteId: string,
 	results: QueryResult[]
@@ -1119,7 +1117,7 @@ async function executeDynamicQuery(
 
 		if (projectType === "website") {
 			const profileResults = validParameters
-				.filter((p) => PROFILE_ENRICHED_TYPES.has(p.request.type))
+				.filter((p) => p.request.type === "profile_list")
 				.flatMap((p) => resultMap.get(p.id) ?? []);
 			if (profileResults.length > 0) {
 				await attachProfileIdentities(projectId, profileResults).catch(

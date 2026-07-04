@@ -55,6 +55,11 @@ import { DropdownMenu } from "@databuddy/ui/client";
 
 const wwwRegex = /^www\./;
 
+const activeFilterChipClass =
+	"flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary text-xs transition-colors hover:bg-primary/15";
+const filterTriggerClass =
+	"flex items-center gap-1 rounded-md px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:bg-secondary/50 hover:text-foreground";
+
 type SortField =
 	| "session_count"
 	| "total_events"
@@ -569,7 +574,7 @@ export default function UsersPage() {
 					<div className="mx-1 h-4 w-px bg-border" />
 					{eventFilter ? (
 						<button
-							className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary text-xs transition-colors hover:bg-primary/15"
+							className={activeFilterChipClass}
 							onClick={() => setEventFilter(null)}
 							type="button"
 						>
@@ -581,10 +586,7 @@ export default function UsersPage() {
 						<DropdownMenu>
 							<DropdownMenu.Trigger
 								render={
-									<button
-										className="flex items-center gap-1 rounded-md px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:bg-secondary/50 hover:text-foreground"
-										type="button"
-									>
+									<button className={filterTriggerClass} type="button">
 										<LightningIcon className="size-3" />
 										Event filter
 									</button>
@@ -615,7 +617,7 @@ export default function UsersPage() {
 					<div className="mx-1 h-4 w-px bg-border" />
 					{traitFilter?.value ? (
 						<button
-							className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary text-xs transition-colors hover:bg-primary/15"
+							className={activeFilterChipClass}
 							onClick={() => setTraitFilter(null)}
 							type="button"
 						>
@@ -670,10 +672,7 @@ export default function UsersPage() {
 						<DropdownMenu key="trait-keys">
 							<DropdownMenu.Trigger
 								render={
-									<button
-										className="flex items-center gap-1 rounded-md px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:bg-secondary/50 hover:text-foreground"
-										type="button"
-									>
+									<button className={filterTriggerClass} type="button">
 										<TagIcon className="size-3" />
 										Trait filter
 									</button>
