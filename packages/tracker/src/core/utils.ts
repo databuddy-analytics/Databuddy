@@ -42,6 +42,73 @@ function parseJsonAttribute(value: string): unknown {
 	}
 }
 
+export function maskPathname(
+	pathname: string,
+	patterns: readonly string[] | undefined
+): string {
+	if (!patterns) {
+		return pathname;
+	}
+	for (const pattern of patterns) {
+		if (typeof pattern !== "string" || !pattern.includes("*")) {
+			continue;
+		}
+		const masked = applyMaskPattern(pathname, pattern);
+		if (masked !== null) {
+			return masked;
+		}
+	}
+	return pathname;
+}
+
+function applyMaskPattern(pathname: string, pattern: string): string | null {
+	const normalized =
+		pattern.length > 1 && pattern.endsWith("/")
+			? pattern.slice(0, -1)
+			: pattern;
+	const patternSegments = normalized.split("/");
+	const pathSegments = pathname.split("/");
+	const masked: string[] = [];
+
+	for (let i = 0; i < patternSegments.length; i++) {
+		const patternSegment = patternSegments[i];
+		if (patternSegment === "**") {
+			if (i < pathSegments.length) {
+				masked.push("*");
+			}
+			return masked.join("/");
+		}
+		if (i >= pathSegments.length) {
+			return null;
+		}
+		if (!patternSegment.includes("*")) {
+			if (patternSegment !== pathSegments[i]) {
+				return null;
+			}
+			masked.push(pathSegments[i]);
+			continue;
+		}
+		if (!segmentMatches(patternSegment, pathSegments[i])) {
+			return null;
+		}
+		masked.push(patternSegment);
+	}
+
+	masked.push(...pathSegments.slice(patternSegments.length));
+	return masked.join("/");
+}
+
+function segmentMatches(patternSegment: string, pathSegment: string): boolean {
+	const parts = patternSegment.split("*");
+	const prefix = parts[0];
+	const suffix = parts.at(-1) ?? "";
+	return (
+		pathSegment.length >= prefix.length + suffix.length &&
+		pathSegment.startsWith(prefix) &&
+		pathSegment.endsWith(suffix)
+	);
+}
+
 export const generateUUIDv4 = () => {
 	if (typeof crypto !== "undefined" && crypto.randomUUID) {
 		return crypto.randomUUID();

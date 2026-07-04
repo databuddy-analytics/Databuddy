@@ -53,6 +53,60 @@ test.describe("Feature Tracking", () => {
 			expect(String(event?.path)).not.toContain("security");
 		});
 
+		test("masks multiple segments with multiple stars", async ({ page }) => {
+			await page.goto("/test");
+			await page.evaluate(() => {
+				history.replaceState(
+					{},
+					"",
+					"/websites/tV1FRwicsiVkl3KbilZB5/users/cus_842"
+				);
+				(window as any).databuddyConfig = {
+					clientId: "test-mask",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+					maskPatterns: ["/websites/*/users/*"],
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			const requestPromise = page.waitForRequest((req) =>
+				req.url().includes("basket.databuddy.cc")
+			);
+
+			const request = await requestPromise;
+			const event = findEvent(request, (e) => e.name === "screen_view");
+			expect(event).toBeTruthy();
+			expect(String(event?.path)).toContain("/websites/*/users/*");
+			expect(String(event?.path)).not.toContain("tV1FRwicsiVkl3KbilZB5");
+			expect(String(event?.path)).not.toContain("cus_842");
+		});
+
+		test("does not mask when literal segments after a star mismatch", async ({
+			page,
+		}) => {
+			await page.goto("/test");
+			await page.evaluate(() => {
+				history.replaceState({}, "", "/users/12345/settings");
+				(window as any).databuddyConfig = {
+					clientId: "test-mask",
+					ignoreBotDetection: true,
+					batchTimeout: 200,
+					maskPatterns: ["/users/*/profile"],
+				};
+			});
+			await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+
+			const requestPromise = page.waitForRequest((req) =>
+				req.url().includes("basket.databuddy.cc")
+			);
+
+			const request = await requestPromise;
+			const event = findEvent(request, (e) => e.name === "screen_view");
+			expect(event).toBeTruthy();
+			expect(String(event?.path)).toContain("/users/12345/settings");
+		});
+
 		test("preserves unmasked paths", async ({ page }) => {
 			await page.goto("/test");
 			await page.evaluate(() => {

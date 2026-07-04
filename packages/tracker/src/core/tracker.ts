@@ -8,7 +8,13 @@ import type {
 	TrackerOptions,
 	WebVitalEvent,
 } from "./types";
-import { generateUUIDv4, isDebugMode, isLocalhost, logger } from "./utils";
+import {
+	generateUUIDv4,
+	isDebugMode,
+	isLocalhost,
+	logger,
+	maskPathname,
+} from "./utils";
 
 const TRACKED_PARAMS: Record<string, boolean> = {
 	gclid: true,
@@ -393,29 +399,7 @@ export class BaseTracker {
 		if (this.isServer()) {
 			return "";
 		}
-
-		const pathname = window.location.pathname;
-		if (!this.options.maskPatterns) {
-			return pathname;
-		}
-
-		for (const pattern of this.options.maskPatterns) {
-			const starIndex = pattern.indexOf("*");
-			if (starIndex === -1) {
-				continue;
-			}
-
-			const prefix = pattern.slice(0, starIndex);
-			if (pathname.startsWith(prefix)) {
-				if (pattern.slice(starIndex, starIndex + 2) === "**") {
-					return `${prefix}*`;
-				}
-				const remainder = pathname.slice(prefix.length);
-				const nextSlash = remainder.indexOf("/");
-				return `${prefix}*${nextSlash === -1 ? "" : remainder.slice(nextSlash)}`;
-			}
-		}
-		return pathname;
+		return maskPathname(window.location.pathname, this.options.maskPatterns);
 	}
 
 	protected refreshUrlParams(): void {
