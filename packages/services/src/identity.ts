@@ -261,6 +261,8 @@ export interface TraitFilter {
 	value: string | number | (string | number)[];
 }
 
+export class TraitFilterError extends Error {}
+
 export function isTraitFilterField(field: string): boolean {
 	return (
 		field.startsWith(TRAIT_FILTER_PREFIX) &&
@@ -294,7 +296,7 @@ function traitCondition(filter: TraitFilter) {
 				? sql`true`
 				: sql`(${extracted} is null or ${extracted} not in (${traitValueList(filter.value)}))`;
 		default:
-			throw new Error(
+			throw new TraitFilterError(
 				`Trait filters do not support the ${filter.op as string} operator.`
 			);
 	}
@@ -316,8 +318,8 @@ export async function resolveTraitSegment(
 		.limit(TRAIT_SEGMENT_LIMIT + 1);
 
 	if (rows.length > TRAIT_SEGMENT_LIMIT) {
-		throw new Error(
-			`Trait segment exceeds ${TRAIT_SEGMENT_LIMIT} profiles — narrow the filter.`
+		throw new TraitFilterError(
+			`Trait segment exceeds ${TRAIT_SEGMENT_LIMIT} profiles, narrow the filter.`
 		);
 	}
 	return rows.map((row) => row.profileId);

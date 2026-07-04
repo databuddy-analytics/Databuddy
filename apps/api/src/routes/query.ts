@@ -15,6 +15,7 @@ import {
 	resolveTraitSegment,
 	revealPii,
 	type TraitFilter,
+	TraitFilterError,
 } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
@@ -980,8 +981,15 @@ async function executeDynamicQuery(
 					{ field: "profile_id", op: "in", value: segment },
 				];
 			} catch (error) {
-				traitError =
-					error instanceof Error ? error.message : "Trait filter failed";
+				if (error instanceof TraitFilterError) {
+					traitError = error.message;
+				} else {
+					captureError(error, {
+						route: "v1/query",
+						step: "resolve_trait_segment",
+					});
+					traitError = "Trait filter failed";
+				}
 			}
 		} else {
 			traitError = "Trait filters are only supported for website queries";

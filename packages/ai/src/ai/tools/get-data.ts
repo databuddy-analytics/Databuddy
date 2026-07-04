@@ -2,7 +2,9 @@ import {
 	isTraitFilterField,
 	resolveTraitSegment,
 	type TraitFilter,
+	TraitFilterError,
 } from "@databuddy/services/identity";
+import { captureError } from "../../lib/tracing";
 import { tool } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
@@ -94,6 +96,14 @@ function buildResultSummary(
 }
 
 const MAX_MODEL_ROWS = 50;
+
+function describeTraitFilterError(error: unknown): string {
+	if (error instanceof TraitFilterError) {
+		return error.message;
+	}
+	captureError(error, { tool: "get_data", step: "resolve_trait_segment" });
+	return "Trait filter failed";
+}
 
 async function resolveItemFilters(
 	websiteId: string,
@@ -203,8 +213,7 @@ export const getDataTool = tool({
 						data: [],
 						rowCount: 0,
 						executionTime: Date.now() - queryStart,
-						error:
-							error instanceof Error ? error.message : "Trait filter failed",
+						error: describeTraitFilterError(error),
 					};
 				}
 
