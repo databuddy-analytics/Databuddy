@@ -184,11 +184,16 @@ export async function streamAgentToSlack({
 			startedAt,
 		});
 	} catch (error) {
+		const abortReason =
+			abortSignal?.aborted && typeof abortSignal.reason === "string"
+				? abortSignal.reason
+				: undefined;
 		if (streamTs && !thinkingResolved) {
 			const status =
-				abortSignal?.aborted ||
-				isAbortError(error) ||
-				isSlackUserCancellation(error)
+				abortReason !== "timeout" &&
+				(abortSignal?.aborted ||
+					isAbortError(error) ||
+					isSlackUserCancellation(error))
 					? "complete"
 					: "error";
 			await resolveThinking(client, run.channelId, streamTs, status);
@@ -196,7 +201,14 @@ export async function streamAgentToSlack({
 
 		if (abortSignal?.aborted || isAbortError(error)) {
 			if (streamTs) {
-				await flushAndStop(client, run.channelId, streamTs, pending, logger);
+				await flushAndStop(
+					client,
+					run.channelId,
+					streamTs,
+					pending,
+					logger,
+					abortStopText(abortReason)
+				);
 			}
 			return abortedResult(safeMarkdown, chunkCount, streamTs);
 		}
@@ -558,6 +570,16 @@ function logStreamError(
 		logger.error("Slack agent response failed", err);
 		eventLog?.error(err, { error_step: "agent_response" });
 	}
+}
+
+function abortStopText(reason: string | undefined): string | undefined {
+	if (reason === "timeout") {
+		return SLACK_COPY.agentTimeout;
+	}
+	if (reason === "shutdown") {
+		return SLACK_COPY.agentRestarted;
+	}
+	return;
 }
 
 function abortedResult(

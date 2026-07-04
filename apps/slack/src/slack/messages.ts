@@ -18,6 +18,10 @@ export const SLACK_SUGGESTED_PROMPTS = [
 export const SLACK_COPY = {
 	agentFailure:
 		"I hit a snag before I could answer. Try again in a moment; if it keeps happening, reconnect Slack from Databuddy settings.",
+	agentRestarted:
+		"I was restarted before I could finish. Mention me again and I'll take another look.",
+	agentTimeout:
+		"This took longer than expected, so I stopped. Try again with a narrower question.",
 	assistantGreeting:
 		"I'm in. Ask me about traffic, pages, referrers, conversions, campaigns, links, flags, or product usage.",
 	autoBindSuccess: "Ready here.",
