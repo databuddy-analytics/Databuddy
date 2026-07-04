@@ -8,12 +8,8 @@ import { useBillingContext } from "./billing-provider";
 
 export function IdentifyBillingTraits() {
 	const { data: session } = authClient.useSession();
-	const {
-		currentPlanId,
-		hasActiveSubscription,
-		isOrganizationBilling,
-		isLoading,
-	} = useBillingContext();
+	const { currentPlanId, isOrganizationBilling, isLoading } =
+		useBillingContext();
 	const userId = session?.user?.id;
 
 	useEffect(() => {
@@ -22,17 +18,10 @@ export function IdentifyBillingTraits() {
 		}
 		identify(userId, {
 			plan: currentPlanId,
-			has_active_subscription: hasActiveSubscription,
 			billing_scope: isOrganizationBilling ? "organization" : "personal",
 		});
 		setGlobalProperties({ plan: currentPlanId });
-	}, [
-		userId,
-		currentPlanId,
-		hasActiveSubscription,
-		isOrganizationBilling,
-		isLoading,
-	]);
+	}, [userId, currentPlanId, isOrganizationBilling, isLoading]);
 
 	return null;
 }
