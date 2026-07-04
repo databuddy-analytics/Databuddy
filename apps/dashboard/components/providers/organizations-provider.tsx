@@ -34,6 +34,7 @@ export function OrganizationsProvider({ children }: { children: ReactNode }) {
 			const result = await authClient.organization.list();
 			return result.data ?? [];
 		},
+		enabled: !isLoadingSession && Boolean(session?.user),
 		staleTime: 5 * 60 * 1000,
 		gcTime: 10 * 60 * 1000,
 	});

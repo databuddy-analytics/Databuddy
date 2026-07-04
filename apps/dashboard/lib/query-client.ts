@@ -1,5 +1,11 @@
 import { trackError } from "@databuddy/sdk";
-import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+import {
+	MutationCache,
+	type Query,
+	QueryCache,
+	QueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 import { isAbortError } from "@/lib/is-abort-error";
 
@@ -109,4 +115,62 @@ export function getQueryClient() {
 		browserQueryClient = makeQueryClient();
 	}
 	return browserQueryClient;
+}
+
+const PERSIST_KEY = "db-query-cache";
+const PERSIST_OWNER_KEY = "db-query-cache-owner";
+
+const PERSISTED_ROUTERS = new Set([
+	"organizations",
+	"websites",
+	"uptime",
+	"preferences",
+]);
+
+function isPersistableQuery(query: Query): boolean {
+	if (query.state.status !== "success") {
+		return false;
+	}
+	const [head] = query.queryKey;
+	if (Array.isArray(head)) {
+		return PERSISTED_ROUTERS.has(String(head[0]));
+	}
+	return head === "auth";
+}
+
+export function makeQueryPersister() {
+	return createSyncStoragePersister({
+		storage: typeof window === "undefined" ? undefined : window.localStorage,
+		key: PERSIST_KEY,
+	});
+}
+
+export const persistOptions = {
+	maxAge: 1000 * 60 * 60 * 24,
+	buster: "v1",
+	dehydrateOptions: {
+		shouldDehydrateQuery: isPersistableQuery,
+	},
+};
+
+export function readPersistedCacheOwner(): string | null {
+	if (typeof window === "undefined") {
+		return null;
+	}
+	return window.localStorage.getItem(PERSIST_OWNER_KEY);
+}
+
+export function writePersistedCacheOwner(userId: string) {
+	if (typeof window === "undefined") {
+		return;
+	}
+	window.localStorage.setItem(PERSIST_OWNER_KEY, userId);
+}
+
+export function clearPersistedQueryCache() {
+	if (typeof window === "undefined") {
+		return;
+	}
+	window.localStorage.removeItem(PERSIST_KEY);
+	window.localStorage.removeItem(PERSIST_OWNER_KEY);
 }
