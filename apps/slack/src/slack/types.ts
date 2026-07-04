@@ -26,6 +26,7 @@ export interface SlackAgentClient {
 		WebClient["conversations"],
 		"history" | "info" | "replies"
 	>;
+	files: Pick<WebClient["files"], "uploadV2">;
 	reactions: Pick<WebClient["reactions"], "add">;
 }
 

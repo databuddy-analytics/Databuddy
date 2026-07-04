@@ -1,3 +1,5 @@
+import { isChartableComponent } from "@databuddy/charts";
+
 const COMPONENT_START_REGEX = /\{\s*"type"\s*:\s*"([^"]+)"/g;
 const CLOSING_JSON_FENCE_REGEX = /^\s*```/;
 const TRAILING_JSON_FENCE_REGEX = /```(?:json)?\s*$/i;
@@ -27,16 +29,20 @@ const SUPPORTED_DASHBOARD_COMPONENT_TYPES = new Set([
 ]);
 
 export interface SlackRenderedAgentOutput {
+	charts: DashboardComponentPayload[];
 	convertedComponents: number;
 	droppedComponents: number;
 	markdown: string;
 }
 
 interface SlackOutputRenderOptions {
+	extractCharts?: boolean;
 	streaming?: boolean;
 }
 
-type DashboardComponentPayload = Record<string, unknown> & { type: string };
+export type DashboardComponentPayload = Record<string, unknown> & {
+	type: string;
+};
 
 type OutputSegment =
 	| { kind: "text"; text: string }
@@ -51,10 +57,18 @@ export function renderAgentOutputForSlack(
 		options
 	);
 	let convertedComponents = 0;
+	const charts: DashboardComponentPayload[] = [];
 	const markdown = segments
 		.map((segment) => {
 			if (segment.kind === "text") {
 				return segment.text.trim();
+			}
+			if (
+				options.extractCharts &&
+				isChartableComponent(segment.component.type)
+			) {
+				charts.push(segment.component);
+				return "";
 			}
 			convertedComponents++;
 			return renderDashboardComponent(segment.component);
@@ -63,7 +77,13 @@ export function renderAgentOutputForSlack(
 		.join("\n\n")
 		.trim();
 
-	return { convertedComponents, droppedComponents, markdown };
+	return { charts, convertedComponents, droppedComponents, markdown };
+}
+
+export function renderComponentMarkdown(
+	component: DashboardComponentPayload
+): string {
+	return renderDashboardComponent(component);
 }
 
 function parseAgentOutputSegments(

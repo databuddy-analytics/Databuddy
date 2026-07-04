@@ -3,8 +3,12 @@ import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
+import { postChartImages } from "@/slack/chart-images";
 import { SLACK_COPY } from "@/slack/messages";
-import { renderAgentOutputForSlack } from "@/slack/output-adapter";
+import {
+	type DashboardComponentPayload,
+	renderAgentOutputForSlack,
+} from "@/slack/output-adapter";
 import type { SlackAgentClient } from "@/slack/types";
 
 const STREAM_FLUSH_INTERVAL_MS = 900;
@@ -37,7 +41,7 @@ type SayFn = (message: {
 interface StreamAgentToSlackOptions {
 	abortSignal?: AbortSignal;
 	agent: Pick<DatabuddyAgentClient, "stream">;
-	client: Pick<SlackAgentClient, "chat">;
+	client: Pick<SlackAgentClient, "chat" | "files">;
 	eventLog?: RequestLogger;
 	logger: LoggerLike;
 	run: SlackAgentRun;
@@ -85,6 +89,7 @@ export async function streamAgentToSlack({
 	let chunkCount = 0;
 	let convertedComponents = 0;
 	let droppedComponents = 0;
+	let charts: DashboardComponentPayload[] = [];
 	let lastFlushAt = Date.now();
 	let thinkingResolved = false;
 
@@ -120,9 +125,13 @@ export async function streamAgentToSlack({
 	};
 
 	const renderIncremental = (streaming: boolean) => {
-		const rendered = renderAgentOutputForSlack(fullText, { streaming });
+		const rendered = renderAgentOutputForSlack(fullText, {
+			extractCharts: true,
+			streaming,
+		});
 		convertedComponents = rendered.convertedComponents;
 		droppedComponents = rendered.droppedComponents;
+		charts = rendered.charts;
 		if (rendered.markdown.startsWith(safeMarkdown)) {
 			pending += rendered.markdown.slice(safeMarkdown.length);
 			safeMarkdown = rendered.markdown;
@@ -171,9 +180,10 @@ export async function streamAgentToSlack({
 					ts: streamTs,
 				});
 			}
+			await postChartImages({ charts, client, eventLog, logger, run, say });
 			return result;
 		}
-		return sendFinalMessage({
+		const result = await sendFinalMessage({
 			convertedComponents,
 			droppedComponents,
 			eventLog,
@@ -183,6 +193,8 @@ export async function streamAgentToSlack({
 			chunkCount,
 			startedAt,
 		});
+		await postChartImages({ charts, client, eventLog, logger, run, say });
+		return result;
 	} catch (error) {
 		const abortReason =
 			abortSignal?.aborted && typeof abortSignal.reason === "string"

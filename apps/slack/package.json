@@ -14,6 +14,7 @@
   "dependencies": {
     "@databuddy/ai": "workspace:*",
     "@databuddy/api-keys": "workspace:*",
+    "@databuddy/charts": "workspace:*",
     "@databuddy/db": "workspace:*",
     "@databuddy/encryption": "workspace:*",
     "@databuddy/env": "workspace:*",

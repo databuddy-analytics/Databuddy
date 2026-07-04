@@ -54,4 +54,41 @@ describe("Slack output adapter", () => {
 		expect(output.markdown).toBe("Before");
 		expect(output.convertedComponents).toBe(0);
 	});
+
+	it("extracts chartable components instead of rendering tables", () => {
+		const raw = [
+			"Traffic trend:",
+			JSON.stringify({
+				type: "line-chart",
+				title: "Sessions",
+				series: ["Sessions"],
+				rows: [
+					["2026-07-01", 150],
+					["2026-07-02", 141],
+				],
+			}),
+		].join("\n");
+
+		const output = renderAgentOutputForSlack(raw, { extractCharts: true });
+
+		expect(output.charts).toHaveLength(1);
+		expect(output.charts[0]?.type).toBe("line-chart");
+		expect(output.convertedComponents).toBe(0);
+		expect(output.markdown).toBe("Traffic trend:");
+	});
+
+	it("still renders chart tables when extraction is off", () => {
+		const raw = JSON.stringify({
+			type: "line-chart",
+			title: "Sessions",
+			series: ["Sessions"],
+			rows: [["2026-07-01", 150]],
+		});
+
+		const output = renderAgentOutputForSlack(raw);
+
+		expect(output.charts).toHaveLength(0);
+		expect(output.convertedComponents).toBe(1);
+		expect(output.markdown).toContain("*Sessions*");
+	});
 });
