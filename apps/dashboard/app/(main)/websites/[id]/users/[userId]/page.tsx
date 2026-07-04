@@ -353,8 +353,8 @@ function TraitsSection({
 					className="flex min-h-10 items-center justify-between gap-3 py-2.5"
 					key={key}
 				>
-					<span className="text-muted-foreground text-xs">{key}</span>
-					<span className="truncate text-right font-medium text-foreground text-sm">
+					<span className="shrink-0 text-muted-foreground text-xs">{key}</span>
+					<span className="min-w-0 truncate text-right font-medium text-foreground text-sm">
 						{formatTraitValue(value)}
 					</span>
 				</div>
