@@ -10,12 +10,16 @@ import type {
 	SignupMethod,
 } from "@databuddy/shared/custom-events";
 import {
+	MARKETING_PARAM_KEYS,
 	SIGNUP_METHODS,
-	UTM_PARAM_KEYS,
 	isSignupMethod,
 } from "@databuddy/shared/custom-events";
 
-export { APP_EVENTS, readUtmProperties } from "@databuddy/shared/custom-events";
+export {
+	APP_EVENTS,
+	readMarketingProperties,
+	readUtmProperties,
+} from "@databuddy/shared/custom-events";
 export type {
 	SignupEventProperties,
 	SignupMethod,
@@ -94,7 +98,7 @@ function readStoredSignupProperties(
 		properties.plan = plan;
 	}
 
-	for (const key of UTM_PARAM_KEYS) {
+	for (const key of MARKETING_PARAM_KEYS) {
 		const param = trimStoredString(source[key]);
 		if (param) {
 			properties[key] = param;

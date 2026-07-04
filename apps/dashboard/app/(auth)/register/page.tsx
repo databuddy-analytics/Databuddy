@@ -5,12 +5,12 @@ import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
-import { measureOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
+import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 import VisuallyHidden from "@/components/ui/visuallyhidden";
 import {
 	APP_EVENTS,
-	readUtmProperties,
+	readMarketingProperties,
 	storePendingSocialSignup,
 	type SignupEventProperties,
 	type SignupMethod,
@@ -60,7 +60,7 @@ function RegisterPageContent() {
 	const getSignupProperties = (
 		method: SignupMethod
 	): SignupEventProperties => ({
-		...readUtmProperties(new URLSearchParams(window.location.search)),
+		...readMarketingProperties(new URLSearchParams(window.location.search)),
 		method,
 		plan: selectedPlan || undefined,
 	});
@@ -110,7 +110,10 @@ function RegisterPageContent() {
 			fetchOptions: {
 				onSuccess: () => {
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
-					measureOpenAiRegistrationCompleted();
+					trackOpenAiRegistrationCompleted({
+						email: formData.email,
+						properties: signupProperties,
+					});
 					toast.success(
 						"Account created! Please check your email to verify your account."
 					);

@@ -88,6 +88,16 @@ describe("createConfig", () => {
 		});
 	});
 
+	it("reads the server-only OpenAI Ads Conversions API key", () => {
+		expect(
+			createConfig({
+				OPENAI_ADS_CONVERSIONS_API_KEY: "  capi_123  ",
+			})
+		).toMatchObject({
+			integrations: { openAiAdsConversionsApiKey: "capi_123" },
+		});
+	});
+
 	it("deduplicates API CORS origins from dashboard URLs", () => {
 		expect(
 			createConfig({

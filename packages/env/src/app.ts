@@ -57,6 +57,7 @@ export interface Config {
 		from: string;
 	};
 	integrations: {
+		openAiAdsConversionsApiKey?: string;
 		openAiAdsPixelId?: string;
 	};
 	urls: {
@@ -143,6 +144,10 @@ export function createConfig(env: Env = process.env): Config {
 			from: readEmail(env, EMAIL.from),
 		},
 		integrations: {
+			openAiAdsConversionsApiKey: readOptional(
+				env,
+				"OPENAI_ADS_CONVERSIONS_API_KEY"
+			),
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
 		},
 		urls: {

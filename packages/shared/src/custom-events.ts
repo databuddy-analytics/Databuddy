@@ -52,12 +52,14 @@ export type AppEventNameWithProperties = Exclude<
 >;
 export type UtmParamKey = (typeof UTM_PARAM_KEYS)[number];
 export type UtmProperties = Partial<Record<UtmParamKey, string>>;
+export type MarketingParamKey = (typeof MARKETING_PARAM_KEYS)[number];
+export type MarketingProperties = Partial<Record<MarketingParamKey, string>>;
 export type SignupMethod = (typeof SIGNUP_METHODS)[number];
 export type OnboardingStepId = "website" | "tracking" | "team" | "explore";
 
 type EmptyProperties = Record<never, never>;
 
-export interface SignupEventProperties extends UtmProperties {
+export interface SignupEventProperties extends MarketingProperties {
 	method: SignupMethod;
 	plan?: string;
 }
@@ -92,10 +94,13 @@ export interface AppEventProperties {
 	[APP_EVENTS.signupStarted]: SignupEventProperties;
 }
 
-export function readUtmProperties(params: URLSearchParams): UtmProperties {
-	const properties: UtmProperties = {};
+function readParamProperties<const Key extends string>(
+	params: URLSearchParams,
+	keys: readonly Key[]
+): Partial<Record<Key, string>> {
+	const properties: Partial<Record<Key, string>> = {};
 
-	for (const key of UTM_PARAM_KEYS) {
+	for (const key of keys) {
 		const value = params.get(key)?.trim();
 		if (value) {
 			properties[key] = value.slice(0, 160);
@@ -103,6 +108,16 @@ export function readUtmProperties(params: URLSearchParams): UtmProperties {
 	}
 
 	return properties;
+}
+
+export function readMarketingProperties(
+	params: URLSearchParams
+): MarketingProperties {
+	return readParamProperties(params, MARKETING_PARAM_KEYS);
+}
+
+export function readUtmProperties(params: URLSearchParams): UtmProperties {
+	return readParamProperties(params, UTM_PARAM_KEYS);
 }
 
 export function isSignupMethod(value: unknown): value is SignupMethod {
