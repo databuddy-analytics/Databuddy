@@ -20,6 +20,7 @@ import {
 	DevicesIcon,
 	GaugeIcon,
 	GlobeIcon,
+	LockSimpleIcon,
 	TagIcon,
 	UserIcon,
 } from "@databuddy/ui/icons";
@@ -28,6 +29,7 @@ import {
 	EmptyState,
 	Spinner,
 	StatusDot,
+	Tooltip,
 	formatDateOnly,
 	formatLocalTime,
 } from "@databuddy/ui";
@@ -456,11 +458,21 @@ function Header({
 					<div className="flex items-center gap-2.5">
 						<CountryFlag country={countryCode} size="sm" />
 						<div>
-							<h1 className="font-medium text-foreground text-sm">
-								{identity?.displayName ||
-									identity?.email ||
-									generateProfileName(userProfile.visitor_id)}
-							</h1>
+							<div className="flex items-center gap-1.5">
+								<h1 className="font-medium text-foreground text-sm">
+									{identity?.displayName ||
+										identity?.email ||
+										generateProfileName(userProfile.visitor_id)}
+								</h1>
+								{identity?.displayName || identity?.email ? (
+									<Tooltip content="Name and email are encrypted at rest">
+										<LockSimpleIcon
+											className="size-3 text-muted-foreground"
+											weight="duotone"
+										/>
+									</Tooltip>
+								) : null}
+							</div>
 							<p className="text-muted-foreground text-xs">
 								{identity?.displayName && identity?.email
 									? `${identity.email} · `
