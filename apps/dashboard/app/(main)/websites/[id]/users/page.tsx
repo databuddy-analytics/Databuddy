@@ -12,6 +12,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { useDateFilters } from "@/hooks/use-date-filters";
+import { useTraitKeys, useTraitValues } from "@/hooks/use-profiles";
 import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
@@ -26,6 +27,7 @@ import {
 	ArrowUpIcon,
 	GlobeIcon,
 	LightningIcon,
+	TagIcon,
 	UsersIcon,
 } from "@databuddy/ui/icons";
 import {
@@ -190,6 +192,10 @@ export default function UsersPage() {
 		order: "desc",
 	});
 	const [eventFilter, setEventFilter] = useState<string | null>(null);
+	const [traitFilter, setTraitFilter] = useState<{
+		key: string;
+		value: string | null;
+	} | null>(null);
 	const [page, setPage] = useState(1);
 	const [allUsers, setAllUsers] = useState<ProfileData[]>([]);
 	const [loadMoreRef, setLoadMoreRef] = useState<HTMLTableCellElement | null>(
@@ -199,6 +205,11 @@ export default function UsersPage() {
 		useState<HTMLDivElement | null>(null);
 
 	const { eventNames } = useEventNames(websiteId, dateRange);
+	const { data: traitKeys } = useTraitKeys(websiteId);
+	const { data: traitValues } = useTraitValues(
+		websiteId,
+		traitFilter && !traitFilter.value ? traitFilter.key : null
+	);
 
 	const mergedFilters = useMemo(() => {
 		const preset = PRESETS[activePreset];
@@ -213,8 +224,15 @@ export default function UsersPage() {
 				value: eventFilter,
 			});
 		}
+		if (traitFilter?.value) {
+			filters.push({
+				field: `trait:${traitFilter.key}`,
+				operator: "eq",
+				value: traitFilter.value,
+			});
+		}
 		return filters;
-	}, [globalFilters, activePreset, eventFilter]);
+	}, [globalFilters, activePreset, eventFilter, traitFilter]);
 
 	const profileSort: ProfileSort = useMemo(
 		() => ({ field: sort.field, order: sort.order }),
@@ -583,6 +601,90 @@ export default function UsersPage() {
 											onClick={() => setEventFilter(name)}
 										>
 											{name}
+										</DropdownMenu.Item>
+									))}
+								</DropdownMenu.Group>
+							</DropdownMenu.Content>
+						</DropdownMenu>
+					)}
+				</>
+			)}
+
+			{(traitKeys?.length ?? 0) > 0 && (
+				<>
+					<div className="mx-1 h-4 w-px bg-border" />
+					{traitFilter?.value ? (
+						<button
+							className="flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 font-medium text-primary text-xs transition-colors hover:bg-primary/15"
+							onClick={() => setTraitFilter(null)}
+							type="button"
+						>
+							<TagIcon className="size-3" />
+							{traitFilter.key} = {traitFilter.value}
+							<span className="text-[10px] leading-none">✕</span>
+						</button>
+					) : traitFilter ? (
+						<DropdownMenu
+							onOpenChange={(open) => {
+								if (!open) {
+									setTraitFilter(null);
+								}
+							}}
+							open
+						>
+							<DropdownMenu.Trigger
+								render={
+									<button
+										className="flex items-center gap-1 rounded-md bg-secondary/50 px-2.5 py-1 font-medium text-muted-foreground text-xs"
+										type="button"
+									>
+										<TagIcon className="size-3" />
+										{traitFilter.key} = …
+									</button>
+								}
+							/>
+							<DropdownMenu.Content align="start" side="bottom">
+								<DropdownMenu.Group>
+									<DropdownMenu.GroupLabel>
+										{traitFilter.key} value
+									</DropdownMenu.GroupLabel>
+									{(traitValues ?? []).map((value) => (
+										<DropdownMenu.Item
+											key={value}
+											onClick={() =>
+												setTraitFilter({ key: traitFilter.key, value })
+											}
+										>
+											{value}
+										</DropdownMenu.Item>
+									))}
+								</DropdownMenu.Group>
+							</DropdownMenu.Content>
+						</DropdownMenu>
+					) : (
+						<DropdownMenu>
+							<DropdownMenu.Trigger
+								render={
+									<button
+										className="flex items-center gap-1 rounded-md px-2.5 py-1 font-medium text-muted-foreground text-xs transition-colors hover:bg-secondary/50 hover:text-foreground"
+										type="button"
+									>
+										<TagIcon className="size-3" />
+										Trait filter
+									</button>
+								}
+							/>
+							<DropdownMenu.Content align="start" side="bottom">
+								<DropdownMenu.Group>
+									<DropdownMenu.GroupLabel>
+										Filter by trait
+									</DropdownMenu.GroupLabel>
+									{(traitKeys ?? []).map((key) => (
+										<DropdownMenu.Item
+											key={key}
+											onClick={() => setTraitFilter({ key, value: null })}
+										>
+											{key}
 										</DropdownMenu.Item>
 									))}
 								</DropdownMenu.Group>
