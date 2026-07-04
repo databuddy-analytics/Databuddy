@@ -13,6 +13,7 @@ const {
 	mockInsertIndividualVitals,
 	mockInsertErrorSpans,
 	mockInsertCustomEvents,
+	mockCheckAutumnUsage,
 	mockGetApiKeyFromHeader,
 	mockHasKeyScope,
 	mockHasGlobalAccess,
@@ -62,6 +63,7 @@ const {
 		mockInsertIndividualVitals: vi.fn(() => Promise.resolve()),
 		mockInsertErrorSpans: vi.fn(() => Promise.resolve()),
 		mockInsertCustomEvents: vi.fn(() => Promise.resolve()),
+		mockCheckAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
 		mockGetApiKeyFromHeader: vi.fn(() => Promise.resolve(defaultApiKey)),
 		mockHasKeyScope: vi.fn(() => true),
 		mockHasGlobalAccess: vi.fn(() => false),
@@ -143,7 +145,7 @@ vi.mock("@lib/blocked-traffic", () => ({
 }));
 
 vi.mock("@lib/billing", () => ({
-	checkAutumnUsage: vi.fn(() => Promise.resolve({ allowed: true })),
+	checkAutumnUsage: mockCheckAutumnUsage,
 }));
 
 vi.mock("@databuddy/redis/rate-limit", () => ({
@@ -546,6 +548,7 @@ describe("POST /track", () => {
 		mockGetAccessibleWebsiteIds.mockReset();
 		mockGetWebsiteByIdV2.mockReset();
 		mockResolveApiKeyOwnerId.mockReset();
+		mockCheckAutumnUsage.mockClear();
 
 		mockGetApiKeyFromHeader.mockResolvedValue({
 			id: "key_1",
@@ -605,14 +608,23 @@ describe("POST /track", () => {
 		);
 	});
 
-	test("website-scoped api key + no websiteId → 200 (org-scoped event)", async () => {
+	test("website-scoped api key + no websiteId → 403", async () => {
 		const res = await post(trackRoute, "/track", { name: "org_event" });
+		expect(res.status).toBe(403);
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
+	});
+
+	test("website-scoped api key + query website_id → 200", async () => {
+		const res = await post(trackRoute, "/track?website_id=ws_test", {
+			name: "org_event",
+		});
 		expect(res.status).toBe(200);
 		expect(mockInsertCustomEvents).toHaveBeenCalledWith(
 			[
 				expect.objectContaining({
 					event_name: "org_event",
-					website_id: undefined,
+					website_id: "ws_test",
 				}),
 			],
 			undefined
@@ -626,6 +638,24 @@ describe("POST /track", () => {
 		});
 		expect(res.status).toBe(403);
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+	});
+
+	test("api key target rejection happens before billing", async () => {
+		mockGetWebsiteByIdV2.mockResolvedValueOnce({
+			id: "ws_test",
+			domain: "example.com",
+			name: "Test",
+			status: "INACTIVE",
+			ownerId: "user_1",
+			organizationId: "org_1",
+		});
+		const res = await post(trackRoute, "/track", {
+			name: "signup",
+			websiteId: "ws_test",
+		});
+		expect(res.status).toBe(404);
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+		expect(mockCheckAutumnUsage).not.toHaveBeenCalled();
 	});
 
 	test("schema rejection wide-event includes event names + property keys", async () => {
@@ -799,6 +829,21 @@ describe("POST /track", () => {
 			websiteId: "ws_test",
 		});
 		expect(res.status).toBe(400);
+		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
+	});
+
+	test("api key without organization cannot target websites", async () => {
+		mockGetApiKeyFromHeader.mockResolvedValueOnce({
+			id: "key_user",
+			organizationId: null,
+			userId: "user_1",
+			scopes: ["track:events"],
+		} as never);
+		const res = await post(trackRoute, "/track", {
+			name: "signup",
+			websiteId: "ws_test",
+		});
+		expect(res.status).toBe(403);
 		expect(mockInsertCustomEvents).not.toHaveBeenCalled();
 	});
 

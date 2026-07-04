@@ -10,7 +10,13 @@ import {
 import { and, db, eq, inArray } from "@databuddy/db";
 import { profiles } from "@databuddy/db/schema";
 import { config } from "@databuddy/env/app";
-import { revealPii } from "@databuddy/services/identity";
+import {
+	isTraitFilterField,
+	resolveTraitSegment,
+	revealPii,
+	type TraitFilter,
+	TraitFilterError,
+} from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { ratelimit } from "@databuddy/redis/rate-limit";
@@ -882,8 +888,6 @@ interface QueryResult {
 	success: boolean;
 }
 
-const PROFILE_ENRICHED_TYPES = new Set(["profile_list"]);
-
 async function attachProfileIdentities(
 	websiteId: string,
 	results: QueryResult[]
@@ -959,6 +963,39 @@ async function executeDynamicQuery(
 			? (scope?.organizationWebsiteIds ?? [])
 			: undefined;
 
+	const requestFilters = (request.filters || []) as Filter[];
+	const traitFilters = requestFilters.filter((f) =>
+		isTraitFilterField(f.field)
+	);
+	let effectiveFilters = requestFilters;
+	let traitError: string | null = null;
+	if (traitFilters.length > 0) {
+		if (projectType === "website") {
+			try {
+				const segment = await resolveTraitSegment(
+					projectId,
+					traitFilters as TraitFilter[]
+				);
+				effectiveFilters = [
+					...requestFilters.filter((f) => !isTraitFilterField(f.field)),
+					{ field: "profile_id", op: "in", value: segment },
+				];
+			} catch (error) {
+				if (error instanceof TraitFilterError) {
+					traitError = error.message;
+				} else {
+					captureError(error, {
+						route: "v1/query",
+						step: "resolve_trait_segment",
+					});
+					traitError = "Trait filter failed";
+				}
+			}
+		} else {
+			traitError = "Trait filters are only supported for website queries";
+		}
+	}
+
 	// Org-level custom_events queries: builder scans by owner_id (= organizationId
 	// set at ingestion) via primary key instead of matching website_id.
 	const hasCustomEventsQueries = request.parameters.some((param) => {
@@ -981,6 +1018,16 @@ async function executeDynamicQuery(
 		const config = QueryBuilders[name];
 		if (!config) {
 			return { id, error: `Unknown query type: ${name}` };
+		}
+
+		if (traitError) {
+			return { id, error: traitError };
+		}
+		if (
+			traitFilters.length > 0 &&
+			!isFilterFieldAllowed(config, "profile_id")
+		) {
+			return { id, error: `Trait filters are not supported for ${name}` };
 		}
 
 		if (
@@ -1015,7 +1062,7 @@ async function executeDynamicQuery(
 					paramFrom,
 					paramTo
 				),
-				filters: ((request.filters || []) as Filter[]).filter((f) =>
+				filters: effectiveFilters.filter((f) =>
 					isFilterFieldAllowed(config, f.field)
 				),
 				limit: request.limit || 100,
@@ -1078,7 +1125,7 @@ async function executeDynamicQuery(
 
 		if (projectType === "website") {
 			const profileResults = validParameters
-				.filter((p) => PROFILE_ENRICHED_TYPES.has(p.request.type))
+				.filter((p) => p.request.type === "profile_list")
 				.flatMap((p) => resultMap.get(p.id) ?? []);
 			if (profileResults.length > 0) {
 				await attachProfileIdentities(projectId, profileResults).catch(

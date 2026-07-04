@@ -184,7 +184,7 @@ describe("pii protection", () => {
 
 describe("denyApiKeyIdentify", () => {
 	const orgKey = { id: "key_1", organizationId: "org_1" } as ApiKeyRow;
-	const website = { organizationId: "org_1" };
+	const website = { organizationId: "org_1", status: "ACTIVE" };
 	const scopeMock = vi.mocked(hasWebsiteScope);
 
 	test("requires a websiteId", () => {
@@ -211,8 +211,21 @@ describe("denyApiKeyIdentify", () => {
 	test("rejects websites from another organization", () => {
 		scopeMock.mockReturnValueOnce(true);
 		expect(
-			denyApiKeyIdentify(orgKey, "site_1", { organizationId: "org_2" })
+			denyApiKeyIdentify(orgKey, "site_1", {
+				organizationId: "org_2",
+				status: "ACTIVE",
+			})
 		).toBe("website_scope_mismatch");
+	});
+
+	test("rejects websites that are not active", () => {
+		scopeMock.mockReturnValueOnce(true);
+		expect(
+			denyApiKeyIdentify(orgKey, "site_1", {
+				organizationId: "org_1",
+				status: "INACTIVE",
+			})
+		).toBe("website_not_active");
 	});
 
 	test("rejects keys without an organization", () => {

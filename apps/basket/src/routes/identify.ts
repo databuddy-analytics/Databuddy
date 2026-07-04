@@ -25,12 +25,13 @@ export type ApiKeyIdentifyDenial =
 	| "missing_website_id"
 	| "missing_scope"
 	| "website_not_found"
-	| "website_scope_mismatch";
+	| "website_scope_mismatch"
+	| "website_not_active";
 
 export function denyApiKeyIdentify(
 	apiKey: ApiKeyRow,
 	websiteId: string | undefined,
-	website: { organizationId: string | null } | null
+	website: { organizationId: string | null; status: string } | null
 ): ApiKeyIdentifyDenial | null {
 	if (!websiteId) {
 		return "missing_website_id";
@@ -47,6 +48,9 @@ export function denyApiKeyIdentify(
 	) {
 		return "website_scope_mismatch";
 	}
+	if (website.status !== "ACTIVE") {
+		return "website_not_active";
+	}
 	return null;
 }
 
@@ -55,6 +59,7 @@ const DENIAL_ERRORS: Record<ApiKeyIdentifyDenial, () => Error> = {
 	missing_scope: basketErrors.trackMissingScope,
 	website_not_found: basketErrors.trackWebsiteNotFound,
 	website_scope_mismatch: basketErrors.trackWebsiteScopeMismatch,
+	website_not_active: basketErrors.trackWebsiteNotFound,
 };
 
 type IdentifyTarget =

@@ -20,3 +20,21 @@ export function useProfileHistory(websiteId: string, profileId: string) {
 		staleTime: 5 * 60 * 1000,
 	});
 }
+
+export function useTraitKeys(websiteId: string) {
+	return useQuery({
+		...orpc.profiles.traitKeys.queryOptions({ input: { websiteId } }),
+		enabled: Boolean(websiteId),
+		staleTime: 5 * 60 * 1000,
+	});
+}
+
+export function useTraitValues(websiteId: string, key: string | null) {
+	return useQuery({
+		...orpc.profiles.traitValues.queryOptions({
+			input: { websiteId, key: key ?? "" },
+		}),
+		enabled: Boolean(websiteId && key),
+		staleTime: 5 * 60 * 1000,
+	});
+}

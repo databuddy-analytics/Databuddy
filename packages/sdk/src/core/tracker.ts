@@ -14,8 +14,48 @@ export function getTracker(): DatabuddyTracker | null {
 	return window.databuddy || null;
 }
 
+const PENDING_LIMIT = 100;
+const PENDING_POLL_MS = 150;
+const PENDING_TIMEOUT_MS = 15_000;
+
+const pendingCalls: Array<() => void> = [];
+let pendingPoll: ReturnType<typeof setInterval> | undefined;
+let pendingSince = 0;
+
+function flushPendingCalls(): void {
+	while (pendingCalls.length > 0) {
+		pendingCalls.shift()?.();
+	}
+}
+
+function enqueueUntilTrackerLoads(replay: () => void, name: string): void {
+	if (pendingCalls.length >= PENDING_LIMIT) {
+		logger.warn(`${name} dropped: tracker script not loaded and queue full`);
+		return;
+	}
+	pendingCalls.push(replay);
+	if (pendingPoll) {
+		return;
+	}
+	pendingSince = Date.now();
+	pendingPoll = setInterval(() => {
+		if (window.db ?? window.databuddy) {
+			clearInterval(pendingPoll);
+			pendingPoll = undefined;
+			flushPendingCalls();
+			return;
+		}
+		if (Date.now() - pendingSince > PENDING_TIMEOUT_MS) {
+			clearInterval(pendingPoll);
+			pendingPoll = undefined;
+			pendingCalls.length = 0;
+			logger.warn("tracker script never loaded — queued calls dropped");
+		}
+	}, PENDING_POLL_MS);
+}
+
 function callTracker(
-	name: string,
+	name: keyof NonNullable<Window["db"]> & string,
 	invoke: (tracker: NonNullable<Window["db"]>) => void
 ): void {
 	if (typeof window === "undefined") {
@@ -23,6 +63,13 @@ function callTracker(
 	}
 	const tracker = window.db ?? window.databuddy;
 	if (!tracker) {
+		enqueueUntilTrackerLoads(() => callTracker(name, invoke), name);
+		return;
+	}
+	if (typeof tracker[name] !== "function") {
+		logger.warn(
+			`${name} skipped: the loaded tracker script predates it. A hard refresh loads the current script.`
+		);
 		return;
 	}
 	try {

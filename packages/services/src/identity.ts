@@ -251,3 +251,76 @@ export async function upsertAlias(
 			setWhere: sql`${profileAliases.profileId} is distinct from excluded.profile_id`,
 		});
 }
+
+export const TRAIT_FILTER_PREFIX = "trait:";
+export const TRAIT_SEGMENT_LIMIT = 10_000;
+
+export interface TraitFilter {
+	field: string;
+	op: "eq" | "ne" | "in" | "not_in";
+	value: string | number | (string | number)[];
+}
+
+export class TraitFilterError extends Error {}
+
+export function isTraitFilterField(field: string): boolean {
+	return (
+		field.startsWith(TRAIT_FILTER_PREFIX) &&
+		field.length > TRAIT_FILTER_PREFIX.length
+	);
+}
+
+function traitValueList(value: TraitFilter["value"]) {
+	const values = Array.isArray(value) ? value : [value];
+	return sql.join(
+		values.map((item) => sql`${String(item)}`),
+		sql`, `
+	);
+}
+
+function traitCondition(filter: TraitFilter) {
+	const key = filter.field.slice(TRAIT_FILTER_PREFIX.length);
+	const extracted = sql`${profiles.traits}->>${key}`;
+	const isEmptyList = Array.isArray(filter.value) && filter.value.length === 0;
+	switch (filter.op) {
+		case "eq":
+			return sql`${extracted} = ${String(filter.value)}`;
+		case "ne":
+			return sql`${extracted} is distinct from ${String(filter.value)}`;
+		case "in":
+			return isEmptyList
+				? sql`false`
+				: sql`${extracted} in (${traitValueList(filter.value)})`;
+		case "not_in":
+			return isEmptyList
+				? sql`true`
+				: sql`(${extracted} is null or ${extracted} not in (${traitValueList(filter.value)}))`;
+		default:
+			throw new TraitFilterError(
+				`Trait filters do not support the ${filter.op as string} operator.`
+			);
+	}
+}
+
+export async function resolveTraitSegment(
+	websiteId: string,
+	traitFilters: TraitFilter[]
+): Promise<string[]> {
+	const rows = await db
+		.select({ profileId: profiles.profileId })
+		.from(profiles)
+		.where(
+			and(
+				eq(profiles.websiteId, websiteId),
+				...traitFilters.map(traitCondition)
+			)
+		)
+		.limit(TRAIT_SEGMENT_LIMIT + 1);
+
+	if (rows.length > TRAIT_SEGMENT_LIMIT) {
+		throw new TraitFilterError(
+			`Trait segment exceeds ${TRAIT_SEGMENT_LIMIT} profiles, narrow the filter.`
+		);
+	}
+	return rows.map((row) => row.profileId);
+}

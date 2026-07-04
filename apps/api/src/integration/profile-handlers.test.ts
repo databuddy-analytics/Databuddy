@@ -7,7 +7,11 @@ import {
 } from "@databuddy/db/schema";
 import { eq } from "@databuddy/db";
 import { appRouter, type Context } from "@databuddy/rpc";
-import { splitTraits, upsertProfile } from "@databuddy/services/identity";
+import {
+	resolveTraitSegment,
+	splitTraits,
+	upsertProfile,
+} from "@databuddy/services/identity";
 import {
 	addToOrganization,
 	cleanup,
@@ -244,5 +248,91 @@ describe("upsertProfile trait history", () => {
 				.from(profileTraitChanges)
 				.where(eq(profileTraitChanges.profileId, "user_1"))
 		).toHaveLength(0);
+	});
+});
+
+describe("profiles.traitKeys / traitValues", () => {
+	iit("lists distinct keys and values for the website only", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+		const website = await insertWebsite({ organizationId: org.id });
+		const otherWebsite = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "user_1", {
+			traits: { plan: "pro", beta: true },
+		});
+		await seedProfile(website.id, "user_2", { traits: { plan: "free" } });
+		await seedProfile(otherWebsite.id, "user_3", {
+			traits: { region: "eu" },
+		});
+		const ctx = userContext(user, org.id);
+
+		const keys = await call(appRouter.profiles.traitKeys, ctx)({
+			websiteId: website.id,
+		});
+		expect(keys).toEqual(["beta", "plan"]);
+
+		const values = await call(appRouter.profiles.traitValues, ctx)({
+			websiteId: website.id,
+			key: "plan",
+		});
+		expect(values).toEqual(["free", "pro"]);
+	});
+
+	iit("rejects non-members", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const ctx = userContext(user, org.id);
+
+		await expectCode(
+			call(appRouter.profiles.traitKeys, ctx)({ websiteId: website.id }),
+			"FORBIDDEN"
+		);
+	});
+});
+
+describe("resolveTraitSegment", () => {
+	iit("resolves profile ids by trait predicate scoped to the website", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const otherWebsite = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "user_1", { traits: { plan: "pro" } });
+		await seedProfile(website.id, "user_2", { traits: { plan: "free" } });
+		await seedProfile(website.id, "user_3", {
+			traits: { plan: "pro", beta: true },
+		});
+		await seedProfile(otherWebsite.id, "user_4", { traits: { plan: "pro" } });
+
+		const pro = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "eq", value: "pro" },
+		]);
+		expect(pro.sort()).toEqual(["user_1", "user_3"]);
+
+		const proBeta = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "eq", value: "pro" },
+			{ field: "trait:beta", op: "eq", value: "true" },
+		]);
+		expect(proBeta).toEqual(["user_3"]);
+
+		const notPro = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "ne", value: "pro" },
+		]);
+		expect(notPro).toEqual(["user_2"]);
+
+		const inList = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "in", value: ["free", "trial"] },
+		]);
+		expect(inList).toEqual(["user_2"]);
+
+		const emptyIn = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "in", value: [] },
+		]);
+		expect(emptyIn).toEqual([]);
+
+		const emptyNotIn = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "not_in", value: [] },
+		]);
+		expect(emptyNotIn.sort()).toEqual(["user_1", "user_2", "user_3"]);
 	});
 });

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "@databuddy/db";
+import { and, desc, eq, inArray, sql } from "@databuddy/db";
 import {
 	profileAliases,
 	profiles,
@@ -19,6 +19,69 @@ const profileOutputSchema = z.object({
 });
 
 export const profilesRouter = {
+	traitKeys: trackedProcedure
+		.route({
+			method: "POST",
+			path: "/profiles/traitKeys",
+			tags: ["Profiles"],
+			summary: "List trait keys",
+			description:
+				"Returns the distinct trait keys present on this website's profiles. Requires website read permission.",
+		})
+		.input(z.object({ websiteId: z.string() }))
+		.output(z.array(z.string()))
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+
+			const rows = await context.db
+				.selectDistinct({
+					key: sql<string>`jsonb_object_keys(${profiles.traits})`,
+				})
+				.from(profiles)
+				.where(eq(profiles.websiteId, input.websiteId))
+				.orderBy(sql`1`)
+				.limit(100);
+
+			return rows.map((row) => row.key);
+		}),
+
+	traitValues: trackedProcedure
+		.route({
+			method: "POST",
+			path: "/profiles/traitValues",
+			tags: ["Profiles"],
+			summary: "List trait values",
+			description:
+				"Returns the distinct values of one trait key across this website's profiles. Requires website read permission.",
+		})
+		.input(z.object({ websiteId: z.string(), key: z.string().min(1).max(128) }))
+		.output(z.array(z.string()))
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+
+			const rows = await context.db
+				.selectDistinct({
+					value: sql<string>`${profiles.traits}->>${input.key}`,
+				})
+				.from(profiles)
+				.where(
+					and(
+						eq(profiles.websiteId, input.websiteId),
+						sql`jsonb_exists(${profiles.traits}, ${input.key})`
+					)
+				)
+				.orderBy(sql`1`)
+				.limit(50);
+
+			return rows.map((row) => row.value).filter((value) => value !== null);
+		}),
+
 	getByIds: trackedProcedure
 		.route({
 			method: "POST",

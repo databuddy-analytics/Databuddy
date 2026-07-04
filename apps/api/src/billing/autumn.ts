@@ -1,4 +1,5 @@
 import { auth } from "@databuddy/auth";
+import { getRedisCache } from "@databuddy/redis";
 import { getBillingCustomerId, getMemberRole } from "@databuddy/rpc";
 import { autumnHandler } from "autumn-js/fetch";
 import { useLogger } from "evlog/elysia";
@@ -66,9 +67,102 @@ async function stripPrivilegedBody(request: Request): Promise<Request> {
 
 const autumn = autumnHandler({ identify: identifyAutumnCustomer });
 
+const AUTUMN_CACHE_TTL_SEC: Record<string, number> = {
+	getOrCreateCustomer: 30,
+	listPlans: 300,
+};
+
+function autumnPathSegment(request: Request): string {
+	const { pathname } = new URL(request.url);
+	return pathname.split("/").at(-1) ?? "";
+}
+
+function autumnCacheKey(segment: string, customerId: string): string {
+	return `autumn:proxy:${segment}:${customerId}`;
+}
+
+async function invalidateAutumnCustomerCache(request: Request) {
+	const identity = await identifyAutumnCustomer(request).catch(() => null);
+	if (!identity?.customerId) {
+		return;
+	}
+	await getRedisCache()
+		.del(autumnCacheKey("getOrCreateCustomer", identity.customerId))
+		.catch(() => {});
+}
+
+async function readAutumnCache(key: string): Promise<Response | null> {
+	const hit = await getRedisCache()
+		.get(key)
+		.catch(() => null);
+	if (!hit) {
+		return null;
+	}
+	try {
+		const { body, contentType } = JSON.parse(hit) as {
+			body: string;
+			contentType: string;
+		};
+		return new Response(body, {
+			status: 200,
+			headers: { "content-type": contentType },
+		});
+	} catch {
+		return null;
+	}
+}
+
+async function writeAutumnCache(
+	key: string,
+	ttlSec: number,
+	response: Response
+) {
+	const body = await response.clone().text();
+	await getRedisCache()
+		.setex(
+			key,
+			ttlSec,
+			JSON.stringify({
+				body,
+				contentType: response.headers.get("content-type") ?? "application/json",
+			})
+		)
+		.catch(() => {});
+}
+
 export async function handleAutumnRequest(request: Request) {
 	const sanitized = await stripPrivilegedBody(request);
-	return autumn(withAutumnApiPath(sanitized));
+	const segment = autumnPathSegment(sanitized);
+	const ttlSec = AUTUMN_CACHE_TTL_SEC[segment];
+
+	if (ttlSec === undefined) {
+		const response = await autumn(withAutumnApiPath(sanitized));
+		if (
+			response.ok &&
+			sanitized.method !== "GET" &&
+			sanitized.method !== "HEAD"
+		) {
+			await invalidateAutumnCustomerCache(sanitized);
+		}
+		return response;
+	}
+
+	const identity = await identifyAutumnCustomer(sanitized).catch(() => null);
+	if (!identity?.customerId) {
+		return autumn(withAutumnApiPath(sanitized));
+	}
+
+	const key = autumnCacheKey(segment, identity.customerId);
+	const cached = await readAutumnCache(key);
+	if (cached) {
+		return cached;
+	}
+
+	const response = await autumn(withAutumnApiPath(sanitized));
+	if (response.status === 200) {
+		await writeAutumnCache(key, ttlSec, response);
+	}
+	return response;
 }
 
 async function loadSession(request: Request) {

@@ -2,15 +2,9 @@
 
 import { authClient, useSession } from "@databuddy/auth/client";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useEffect, useMemo } from "react";
-import {
-	activeOrganizationAtom,
-	getOrganizationBySlugAtom,
-	isLoadingOrganizationsAtom,
-	organizationsAtom,
-	pendingActiveOrganizationIdAtom,
-} from "@/stores/jotai/organizationsAtoms";
+import { useAtom, useAtomValue } from "jotai";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
+import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 export type { Organization } from "@/stores/jotai/organization-types";
 
 export const AUTH_QUERY_KEYS = {
@@ -18,78 +12,79 @@ export const AUTH_QUERY_KEYS = {
 	activeOrganization: ["auth", "activeOrganization"] as const,
 } as const;
 
-export function OrganizationsProvider({ children }: { children: ReactNode }) {
-	const setOrganizations = useSetAtom(organizationsAtom);
-	const setActiveOrganization = useSetAtom(activeOrganizationAtom);
-	const [pendingActiveOrganizationId, setPendingActiveOrganizationId] = useAtom(
-		pendingActiveOrganizationIdAtom
-	);
-	const setIsLoading = useSetAtom(isLoadingOrganizationsAtom);
+type SessionData = ReturnType<typeof useSession>["data"];
 
+function readActiveOrganizationId(session: SessionData): string | null {
+	const sessionRecord = session?.session as
+		| { activeOrganizationId?: string | null }
+		| undefined;
+	return sessionRecord?.activeOrganizationId ?? null;
+}
+
+function useOrganizationsQuery() {
 	const { data: session, isPending: isLoadingSession } = useSession();
+	const isAuthenticated = Boolean(session?.user);
 
-	const { data: organizationsData, isPending: isLoadingOrgs } = useQuery({
+	const { data, isPending: isLoadingOrgs } = useQuery({
 		queryKey: AUTH_QUERY_KEYS.organizations,
 		queryFn: async () => {
 			const result = await authClient.organization.list();
 			return result.data ?? [];
 		},
+		enabled: !isLoadingSession && isAuthenticated,
 		staleTime: 5 * 60 * 1000,
 		gcTime: 10 * 60 * 1000,
 	});
 
-	const activeOrganization = useMemo(() => {
-		const activeId = (
-			session?.session as { activeOrganizationId?: string | null } | undefined
-		)?.activeOrganizationId;
-		if (!activeId) {
-			return null;
-		}
-		return organizationsData?.find((org) => org.id === activeId) ?? null;
-	}, [session, organizationsData]);
+	const organizations = useMemo(() => data ?? [], [data]);
+
+	return {
+		organizations,
+		activeOrganizationId: readActiveOrganizationId(session),
+		isLoading: isLoadingSession || (isAuthenticated && isLoadingOrgs),
+	};
+}
+
+export function OrganizationsProvider({ children }: { children: ReactNode }) {
+	const { activeOrganizationId } = useOrganizationsQuery();
+	const [pendingActiveOrganizationId, setPendingActiveOrganizationId] = useAtom(
+		pendingActiveOrganizationIdAtom
+	);
 
 	useEffect(() => {
-		if (organizationsData) {
-			setOrganizations(organizationsData);
-		}
-	}, [organizationsData, setOrganizations]);
-
-	useEffect(() => {
-		setActiveOrganization(activeOrganization);
-		if (activeOrganization?.id === pendingActiveOrganizationId) {
+		if (
+			pendingActiveOrganizationId &&
+			pendingActiveOrganizationId === activeOrganizationId
+		) {
 			setPendingActiveOrganizationId(null);
 		}
 	}, [
-		activeOrganization,
+		activeOrganizationId,
 		pendingActiveOrganizationId,
-		setActiveOrganization,
 		setPendingActiveOrganizationId,
 	]);
-
-	useEffect(() => {
-		setIsLoading(isLoadingSession || isLoadingOrgs);
-	}, [isLoadingSession, isLoadingOrgs, setIsLoading]);
 
 	return <>{children}</>;
 }
 
 export function useOrganizationsContext() {
-	const organizations = useAtomValue(organizationsAtom);
-	const activeOrganization = useAtomValue(activeOrganizationAtom);
+	const { organizations, activeOrganizationId, isLoading } =
+		useOrganizationsQuery();
 	const pendingActiveOrganizationId = useAtomValue(
 		pendingActiveOrganizationIdAtom
 	);
-	const isLoading = useAtomValue(isLoadingOrganizationsAtom);
-	const [getOrganizationBySlug] = useAtom(getOrganizationBySlugAtom);
 
-	const { data: sessionData } = useSession();
+	const activeOrganization = useMemo(() => {
+		if (!activeOrganizationId) {
+			return null;
+		}
+		return organizations.find((org) => org.id === activeOrganizationId) ?? null;
+	}, [organizations, activeOrganizationId]);
 
-	const activeOrganizationId =
-		(
-			sessionData?.session as
-				| { activeOrganizationId?: string | null }
-				| undefined
-		)?.activeOrganizationId ?? null;
+	const getOrganization = useCallback(
+		(orgSlug: string) => organizations.find((org) => org.slug === orgSlug),
+		[organizations]
+	);
 
 	return {
 		organizations,
@@ -97,6 +92,6 @@ export function useOrganizationsContext() {
 		activeOrganizationId,
 		isLoading,
 		isSwitchingOrganization: pendingActiveOrganizationId !== null,
-		getOrganization: getOrganizationBySlug,
+		getOrganization,
 	};
 }

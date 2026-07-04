@@ -24,6 +24,7 @@ import { useBillingContext } from "@/components/providers/billing-provider";
 import { useCommandSearchOpenAction } from "@/components/ui/command-search";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { clearPersistedQueryCache } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
 import { Branding } from "./logo";
 import { isNavItemActive } from "./navigation/nav-item-active";
@@ -282,6 +283,7 @@ export function MobileSidebar() {
 
 	const handleSignOut = useCallback(async () => {
 		setIsOpen(false);
+		clearPersistedQueryCache();
 		await authClient.signOut({
 			fetchOptions: {
 				onSuccess: () => {

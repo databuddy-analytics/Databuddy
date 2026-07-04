@@ -12,14 +12,20 @@ import { useDateFilters } from "@/hooks/use-date-filters";
 import { getDeviceIcon } from "@/components/device-icon";
 import { useProfileHistory, useProfileIdentity } from "@/hooks/use-profiles";
 import { cn } from "@/lib/utils";
+import { formatCurrency } from "@/lib/formatters";
 import { generateProfileName } from "./_components/generate-profile-name";
 import { SessionRow } from "./_components/session-row";
-import { useUserProfile } from "./use-user-profile";
+import {
+	type ProfileTransaction,
+	useProfileRevenue,
+	useUserProfile,
+} from "./use-user-profile";
 import {
 	ArrowLeftIcon,
 	ChartLineIcon,
 	ClockCounterClockwiseIcon,
 	ClockIcon,
+	CoinsIcon,
 	DevicesIcon,
 	GaugeIcon,
 	GlobeIcon,
@@ -368,6 +374,61 @@ function TraitsSection({
 	);
 }
 
+function transactionDotColor(tx: ProfileTransaction) {
+	if (tx.type === "refund") {
+		return "destructive" as const;
+	}
+	return tx.status === "completed" ? ("success" as const) : ("muted" as const);
+}
+
+function RevenueSection({
+	className,
+	transactions,
+}: {
+	className?: string;
+	transactions: ProfileTransaction[];
+}) {
+	if (transactions.length === 0) {
+		return null;
+	}
+
+	const totals = new Map<string, number>();
+	for (const tx of transactions) {
+		if (tx.type === "refund") {
+			totals.set(tx.currency, (totals.get(tx.currency) ?? 0) - tx.amount);
+		} else if (tx.status === "completed") {
+			totals.set(tx.currency, (totals.get(tx.currency) ?? 0) + tx.amount);
+		}
+	}
+
+	return (
+		<SidebarSection className={className} icon={CoinsIcon} title="Revenue">
+			{[...totals.entries()].map(([currency, total]) => (
+				<div
+					className="flex min-h-10 items-center justify-between gap-3 py-2.5"
+					key={currency}
+				>
+					<span className="text-muted-foreground text-xs">
+						Total {totals.size > 1 ? currency : ""}
+					</span>
+					<span className="font-semibold text-foreground text-sm tabular-nums">
+						{formatCurrency(total, currency)}
+					</span>
+				</div>
+			))}
+			{transactions.slice(0, 5).map((tx) => (
+				<DetailRow
+					indicator={<StatusDot color={transactionDotColor(tx)} size="md" />}
+					key={tx.transaction_id}
+					label={`${formatDateOnly(tx.created)} · ${tx.type}`}
+					subValue={tx.product_name || undefined}
+					value={`${tx.type === "refund" ? "-" : ""}${formatCurrency(tx.amount, tx.currency)}`}
+				/>
+			))}
+		</SidebarSection>
+	);
+}
+
 interface TraitHistoryEntry {
 	changes: Record<string, { old: unknown; new: unknown }>;
 	createdAt: string | Date;
@@ -533,6 +594,7 @@ export default function UserDetailPage() {
 		websiteId,
 		userProfile?.profile_id ?? ""
 	);
+	const { transactions } = useProfileRevenue(websiteId, userId, dateRange);
 
 	const handleToggleSession = useCallback((sessionId: string) => {
 		setExpandedSessions((prev) => {
@@ -624,6 +686,8 @@ export default function UserDetailPage() {
 					</div>
 
 					<TraitsSection traits={identity?.traits} />
+
+					<RevenueSection transactions={transactions} />
 
 					<WebVitalsSection vitals={webVitals} />
 
@@ -720,6 +784,11 @@ export default function UserDetailPage() {
 					<TraitsSection
 						className="bg-background lg:hidden"
 						traits={identity?.traits}
+					/>
+
+					<RevenueSection
+						className="bg-background lg:hidden"
+						transactions={transactions}
 					/>
 
 					<WebVitalsSection

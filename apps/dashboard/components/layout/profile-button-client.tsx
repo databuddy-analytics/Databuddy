@@ -14,6 +14,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
 import { Text, Tooltip } from "@databuddy/ui";
+import { clearPersistedQueryCache } from "@/lib/query-client";
 
 export interface ProfileButtonUser {
 	email?: string | null;
@@ -69,6 +70,7 @@ function useProfileActions(_user: ProfileButtonUser | null) {
 
 	const handleLogout = async () => {
 		setIsLoggingOut(true);
+		clearPersistedQueryCache();
 		await authClient.signOut({
 			fetchOptions: {
 				onSuccess: () => {

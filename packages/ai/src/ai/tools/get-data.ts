@@ -1,3 +1,10 @@
+import {
+	isTraitFilterField,
+	resolveTraitSegment,
+	type TraitFilter,
+	TraitFilterError,
+} from "@databuddy/services/identity";
+import { captureError } from "../../lib/tracing";
 import { tool } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
@@ -23,7 +30,11 @@ const queryItemSchema = z.object({
 	filters: z
 		.array(
 			z.object({
-				field: z.string(),
+				field: z
+					.string()
+					.describe(
+						"Column name, or trait:<key> (e.g. trait:plan) to segment by an identified-user trait"
+					),
 				op: z.enum([
 					"eq",
 					"ne",
@@ -85,6 +96,35 @@ function buildResultSummary(
 }
 
 const MAX_MODEL_ROWS = 50;
+
+function describeTraitFilterError(error: unknown): string {
+	if (error instanceof TraitFilterError) {
+		return error.message;
+	}
+	captureError(error, { tool: "get_data", step: "resolve_trait_segment" });
+	return "Trait filter failed";
+}
+
+async function resolveItemFilters(
+	websiteId: string,
+	filters: QueryItem["filters"]
+): Promise<QueryItem["filters"]> {
+	if (!filters?.length) {
+		return filters;
+	}
+	const traitFilters = filters.filter((f) => isTraitFilterField(f.field));
+	if (traitFilters.length === 0) {
+		return filters;
+	}
+	const segment = await resolveTraitSegment(
+		websiteId,
+		traitFilters as TraitFilter[]
+	);
+	return [
+		...filters.filter((f) => !isTraitFilterField(f.field)),
+		{ field: "profile_id", op: "in" as const, value: segment },
+	];
+}
 
 const PRESET_DAYS = {
 	last_7d: 7,
@@ -163,6 +203,20 @@ export const getDataTool = tool({
 					};
 				}
 
+				let filters: QueryItem["filters"];
+				try {
+					filters = await resolveItemFilters(websiteId, item.filters);
+				} catch (error) {
+					return {
+						type: item.type,
+						websiteId,
+						data: [],
+						rowCount: 0,
+						executionTime: Date.now() - queryStart,
+						error: describeTraitFilterError(error),
+					};
+				}
+
 				const domain = resolvedDomain || (await getWebsiteDomain(websiteId));
 				const timezone = item.timezone ?? ctx.timezone ?? "UTC";
 				const { from, to } = resolveDates(item, timezone);
@@ -172,7 +226,7 @@ export const getDataTool = tool({
 					from,
 					to,
 					timeUnit: item.timeUnit,
-					filters: item.filters as QueryRequest["filters"],
+					filters: filters as QueryRequest["filters"],
 					groupBy: item.groupBy,
 					orderBy: item.orderBy,
 					limit: item.limit,

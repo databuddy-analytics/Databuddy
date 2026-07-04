@@ -1,0 +1,111 @@
+---
+title: Payments
+description: Attribute Stripe and Paddle revenue to sessions, campaigns, and identified users with Databuddy webhooks.
+---
+
+import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
+
+Connect your payment provider and every transaction shows up in the Revenue dashboard, attributed to the session, referrer, and user that produced it.
+
+> **TL;DR:** Generate a webhook URL in the dashboard, add it to Stripe or Paddle, and pass Databuddy IDs in your payment metadata.
+
+---
+
+## 1. Generate your webhook URL
+
+1. Open your [Databuddy dashboard](https://app.databuddy.cc) and go to **Website → Revenue**.
+2. Click **Generate webhook URLs**. You get one URL per provider, each with a unique secret path.
+3. Keep this page open — you'll paste the URL into your provider next.
+
+## 2. Add the webhook to your provider
+
+<Tabs items={['Stripe', 'Paddle']}>
+<Tab value="Stripe">
+
+In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoint with your generated URL and subscribe to these events:
+
+| Event | Purpose |
+|---|---|
+| `payment_intent.succeeded` | Records completed sales and subscriptions (required) |
+| `charge.refunded` | Records refunds (required) |
+| `payment_intent.payment_failed` | Tracks failed payments (optional) |
+| `payment_intent.canceled` | Tracks canceled payments (optional) |
+
+Paste the endpoint's **signing secret** into the Revenue settings so Databuddy can verify each delivery.
+
+</Tab>
+<Tab value="Paddle">
+
+In the [Paddle dashboard](https://vendors.paddle.com), create a notification destination with your generated URL and subscribe to `transaction.completed`.
+
+Paste the **webhook secret key** into the Revenue settings so Databuddy can verify each delivery.
+
+</Tab>
+</Tabs>
+
+## 3. Pass Databuddy IDs with each payment
+
+Metadata connects a payment to the visitor who made it. Include what you have — every field is optional, and more fields mean stronger attribution:
+
+<Tabs items={['Stripe', 'Paddle']}>
+<Tab value="Stripe">
+<CodeBlock language="ts">
+  {`import { getProfileId, getTrackingIds } from "@databuddy/sdk";
+
+// In the browser, collect the visitor's IDs...
+const { anonId, sessionId } = getTrackingIds();
+const profileId = getProfileId();
+
+// ...send them to your server, then create the payment:
+await stripe.paymentIntents.create({
+  amount,
+  currency,
+  metadata: {
+    databuddy_client_id: websiteId,
+    databuddy_session_id: sessionId,
+    databuddy_anonymous_id: anonId,
+    databuddy_profile_id: profileId,
+  },
+});`}
+</CodeBlock>
+</Tab>
+<Tab value="Paddle">
+<CodeBlock language="ts">
+  {`import { getProfileId, getTrackingIds } from "@databuddy/sdk";
+
+const { anonId, sessionId } = getTrackingIds();
+
+Paddle.Checkout.open({
+  items,
+  customData: {
+    website_id: websiteId,
+    session_id: sessionId,
+    anonymous_id: anonId,
+    profile_id: getProfileId(),
+  },
+});`}
+</CodeBlock>
+</Tab>
+</Tabs>
+
+| Field | What it unlocks |
+|---|---|
+| Session ID | Ties revenue to the exact visit, referrer, and campaign |
+| Anonymous ID | Ties revenue to the device even without a session |
+| Profile ID | Ties revenue to the identified user — see [Identify Users](/docs/sdk/identify-users) |
+
+<Callout type="info">
+Anonymous IDs are hashed on arrival, the same way the tracker hashes them — raw
+device IDs are never stored. Profile IDs are your own user IDs and are stored
+as sent.
+</Callout>
+
+## Verify it works
+
+Send a test payment (Stripe test mode works), then check **Website → Revenue**. The transaction appears within seconds of the webhook delivery. If you passed a profile ID, the revenue also shows on that user in **Website → Users**.
+
+## Troubleshooting
+
+- **Nothing appears:** confirm the webhook URL matches the generated one exactly and the signing secret is saved in Revenue settings — deliveries with bad signatures are rejected.
+- **Revenue appears but isn't attributed:** the payment had no Databuddy metadata. Attribution only works for payments created after you started passing IDs.
+- **Stripe shows failed deliveries:** regenerating webhook URLs invalidates the old path — update Stripe after regenerating.

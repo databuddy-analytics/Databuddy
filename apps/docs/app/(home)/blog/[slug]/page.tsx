@@ -66,7 +66,7 @@ export async function generateMetadata({
 		}
 
 		const postUrl = `${SITE_URL}/blog/${slug}`;
-		const ogImage = data.post.coverImage ?? `${SITE_URL}/og.webp`;
+		const ogImage = data.post.coverImage ?? `${SITE_URL}/og-image.png`;
 		const publishedIso = new Date(data.post.publishedAt).toISOString();
 
 		return {
@@ -158,7 +158,7 @@ export default async function PostPage({
 
 	const postUrl = `${SITE_URL}/blog/${slug}`;
 	const publishedIso = new Date(post.publishedAt).toISOString();
-	const ogImage = post.coverImage ?? `${SITE_URL}/og.webp`;
+	const ogImage = post.coverImage ?? `${SITE_URL}/og-image.png`;
 
 	return (
 		<>

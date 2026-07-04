@@ -508,6 +508,85 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		},
 	},
 
+	profile_revenue: {
+		meta: {
+			description:
+				"Revenue transactions attributed to a user profile via profile id, device set, or session stitching.",
+			category: "Profiles",
+			tags: ["profiles", "revenue", "transactions"],
+		},
+		allowedFilters: ["anonymous_id"],
+		requiredFilters: ["anonymous_id"],
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filters } = ctx;
+			const limit = ctx.limit ?? 50;
+			const offset = ctx.offset ?? 0;
+			const visitorId = filters?.find((f) => f.field === "anonymous_id")?.value;
+
+			if (!visitorId || typeof visitorId !== "string") {
+				throw new Error(
+					"anonymous_id filter is required for profile_revenue query"
+				);
+			}
+
+			return {
+				sql: `
+    WITH visitor_ids AS (
+      SELECT DISTINCT anonymous_id
+      FROM ${Analytics.events}
+      WHERE
+        client_id = {websiteId:String}
+        AND ${VISITOR_MATCH}
+        AND time >= toDateTime({startDate:String})
+        AND time <= toDateTime({endDate:String})
+
+      UNION DISTINCT
+
+      SELECT {visitorId:String} as anonymous_id
+    ),
+    visitor_sessions AS (
+      SELECT DISTINCT session_id
+      FROM ${Analytics.events}
+      WHERE
+        client_id = {websiteId:String}
+        AND ${VISITOR_MATCH}
+        AND time >= toDateTime({startDate:String})
+        AND time <= toDateTime({endDate:String})
+        AND session_id != ''
+    )
+    SELECT
+      transaction_id,
+      provider,
+      type,
+      status,
+      toFloat64(amount) as amount,
+      currency,
+      ifNull(product_name, '') as product_name,
+      created
+    FROM ${Analytics.revenue}
+    WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+      AND created >= toDateTime({startDate:String})
+      AND created <= toDateTime({endDate:String})
+      AND (
+        ${VISITOR_MATCH}
+        OR anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+        OR session_id IN (SELECT session_id FROM visitor_sessions)
+      )
+    ORDER BY created DESC
+    LIMIT {limit:Int32} OFFSET {offset:Int32}
+  `,
+				params: {
+					websiteId,
+					visitorId,
+					startDate,
+					endDate: `${endDate} 23:59:59`,
+					limit,
+					offset,
+				},
+			};
+		},
+	},
+
 	profile_sessions: {
 		meta: {
 			description:

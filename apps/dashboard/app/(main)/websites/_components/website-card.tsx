@@ -196,8 +196,6 @@ export const WebsiteCard = memo(
 								className="group block h-full rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
 								data-section="website-grid"
 								data-track="website-card-click"
-								data-website-id={website.id}
-								data-website-name={website.name}
 								href={`/websites/${website.id}`}
 							>
 								<Card className="relative z-0 flex h-full select-none flex-col gap-0 bg-background p-0 transition-all duration-300 ease-in-out group-hover:z-50 group-hover:border-primary/60 motion-reduce:transform-none motion-reduce:transition-none">
