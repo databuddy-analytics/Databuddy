@@ -29,6 +29,12 @@ describe("MCP agent active tool selection", () => {
 				source: "slack",
 			})
 		).toBeUndefined();
+		expect(
+			selectActiveToolsForQuestion({
+				question: "this agent sucks, tell the team",
+				source: "dashboard",
+			})
+		).toBeUndefined();
 	});
 
 	it("keeps all tools available when the user reports something broken", () => {

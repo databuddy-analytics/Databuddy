@@ -400,7 +400,7 @@ const INVESTIGATION_REQUEST_PATTERN =
 	/\b(why|what caused|root cause|because|reason|investigate|investigation|diagnose|debug|deploy|deployed|deployment|commit|commits|merged|pull request|pr|branch|release|rollback|regression|search console|google search|keyword|seo|impressions|ranking|scrape|crawl)\b/i;
 const COPY_ONLY_PATTERN = /\b(exact copy|copy only)\b/i;
 const FEEDBACK_REQUEST_PATTERN =
-	/\b(feedback|feature request|report (this|that|it|a bug)|file a bug|send (this|that|it) to)\b/i;
+	/\b(feedback|feature request|report (this|that|it|a bug)|file a bug|send (this|that|it) to|tell the (databuddy )?team|complain)\b/i;
 const SLACK_FOLLOW_UP_OPEN_TAG = "<slack_follow_up";
 const SLACK_FOLLOW_UP_CLOSE_TAG = "</slack_follow_up>";
 const SLACK_LATEST_MESSAGE_OPEN_TAG = "<slack_latest_message>";

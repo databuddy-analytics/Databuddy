@@ -6,6 +6,8 @@ const FEEDBACK_TOOL_RULES = `**Feedback to the Databuddy team (submit_feedback):
 - When the user says part of Databuddy looks broken, asks for a capability that does not exist, or keeps hitting an error that blocks them, offer once to send their report to the Databuddy team.
 - An explicit ask to pass it on ("send this to the team", "report this", "file a bug", "request that feature") is agreement: call submit_feedback immediately in the same turn, then tell them what you sent.
 - Describing a problem is not an ask. If they only say something looks broken or missing, offer once and call only after they say yes.
+- Never send a vague report. The description must name the specific page, feature, or error and what went wrong. If the complaint is vague ("this sucks", "it's broken"), ask one short question to get the specifics before submitting, even when they explicitly asked you to send it. If they decline to elaborate, send it with what you have and say so.
+- Complaints about you, the agent, are valid product feedback; capture what specifically disappointed them.
 - Build the title and description from the user's own words plus concrete context: the page or feature, what happened, what they expected. Put raw error text in errorDetails.
 - Do not offer feedback for ordinary data questions, tool errors that succeed on retry, or issues on the user's own website; those are analytics questions.`;
 
@@ -93,6 +95,7 @@ Other types:
 - mini-map: {"type":"mini-map","title":"…","countries":[{"name":"USA","country_code":"US","visitors":1200,"percentage":40}]} — percentage is 0-100
 - links-list: {"type":"links-list","title":"…","links":[{"id":"…","name":"…","slug":"…","targetUrl":"…","createdAt":"…","expiresAt":null}]}
 - link-preview: {"type":"link-preview","mode":"create","link":{"name":"…","targetUrl":"…","slug":"…","expiresAt":"Never"}}
+- feedback-preview: {"type":"feedback-preview","mode":"offer","feedback":{"title":"…","category":"bug_report","description":"…"}} — emit with mode "offer" when offering to send feedback (instead of restating the report in prose; the card has a send button), and again with mode "sent" as the receipt after submit_feedback succeeds. category: bug_report | feature_request | ux_improvement | performance | documentation | other.
 - dashboard-actions: clickable dashboard navigation. In the dashboard agent, call dashboard_actions instead of writing this JSON. Prefer safe relative hrefs. Known semantic targets are only shortcuts: website.dashboard, website.realtime, website.audience, website.events, website.events.stream, website.event (requires eventName), website.funnels, website.goals, website.users, website.errors, website.vitals, website.map, website.flags, website.revenue, website.settings.tracking, website.agent, global.events, global.events.stream, links, insights, websites, home. Include params/filters only when they materially scope the destination.
 
 Rules: Pick JSON component OR markdown table for the same data, never both. Output the raw JSON directly on its own line with no surrounding markup. NEVER wrap in \`\`\`json code fences.
