@@ -137,7 +137,11 @@ export async function handleAutumnRequest(request: Request) {
 
 	if (ttlSec === undefined) {
 		const response = await autumn(withAutumnApiPath(sanitized));
-		if (response.ok) {
+		if (
+			response.ok &&
+			sanitized.method !== "GET" &&
+			sanitized.method !== "HEAD"
+		) {
 			await invalidateAutumnCustomerCache(sanitized);
 		}
 		return response;
