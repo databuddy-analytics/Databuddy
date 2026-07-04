@@ -5,7 +5,6 @@ import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
 import {
 	executeQuery,
-	hasTraitFilters,
 	publicQueryErrorMessage,
 	QueryBuilders,
 } from "../../query";
@@ -97,12 +96,15 @@ function buildResultSummary(
 
 const MAX_MODEL_ROWS = 50;
 
-function describeTraitFilterError(error: unknown): string {
+function describeQueryError(error: unknown): string {
 	if (error instanceof TraitFilterError) {
 		return error.message;
 	}
-	captureError(error, { tool: "get_data", step: "resolve_trait_segment" });
-	return "Trait filter failed";
+	const message = publicQueryErrorMessage(error);
+	if (message === "Query failed") {
+		captureError(error, { tool: "get_data" });
+	}
+	return message;
 }
 
 const PRESET_DAYS = {
@@ -221,9 +223,7 @@ export const getDataTool = tool({
 						data: [],
 						rowCount: 0,
 						executionTime: Date.now() - queryStart,
-						error: hasTraitFilters(req.filters)
-							? describeTraitFilterError(error)
-							: publicQueryErrorMessage(error),
+						error: describeQueryError(error),
 					};
 				}
 			})
