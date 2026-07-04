@@ -16,8 +16,8 @@ import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
 import {
+	formatCountryName,
 	getCountryCode,
-	getCountryName,
 } from "@databuddy/shared/country-codes";
 import type { ProfileData } from "@/types/analytics";
 import {
@@ -363,9 +363,8 @@ export default function UsersPage() {
 				id: "location",
 				header: "Location",
 				cell: ({ row }) => {
-					const country = row.original.country || "";
-					const countryCode = getCountryCode(country);
-					const countryName = getCountryName(countryCode);
+					const countryCode = getCountryCode(row.original.country || "");
+					const countryName = formatCountryName(row.original.country);
 					const isUnknown = !countryCode || countryCode === "Unknown";
 
 					return (
@@ -376,7 +375,7 @@ export default function UsersPage() {
 								<CountryFlag country={countryCode} size="sm" />
 							)}
 							<span className="truncate text-sm">
-								{isUnknown ? "Unknown" : countryName || countryCode}
+								{countryName || "Unknown"}
 							</span>
 						</div>
 					);

@@ -1,8 +1,8 @@
 "use client";
 
 import {
+	formatCountryName,
 	getCountryCode,
-	getCountryName,
 } from "@databuddy/shared/country-codes";
 import type { ProfileSession, Session } from "@/types/sessions";
 import { notFound, useParams, useRouter } from "next/navigation";
@@ -443,7 +443,7 @@ function Header({
 	const countryCode = userProfile
 		? getCountryCode(userProfile.country || "")
 		: "";
-	const countryName = getCountryName(countryCode) || userProfile?.country || "";
+	const countryName = formatCountryName(userProfile?.country);
 	const isReturning = (userProfile?.total_sessions ?? 0) > 1;
 
 	return (
@@ -594,10 +594,7 @@ export default function UserDetailPage() {
 		userProfile.region && userProfile.region !== "Unknown"
 			? userProfile.region
 			: undefined;
-	const countryName =
-		getCountryName(getCountryCode(userProfile.country || "")) ||
-		userProfile.country ||
-		"Unknown";
+	const countryName = formatCountryName(userProfile.country) || "Unknown";
 	const metrics = [
 		{ label: "Sessions", value: totalSessions },
 		{ label: "Pageviews", value: userProfile.total_pageviews ?? 0 },
