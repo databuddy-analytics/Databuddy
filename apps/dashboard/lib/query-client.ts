@@ -125,7 +125,10 @@ const PERSISTED_ROUTERS = new Set([
 	"websites",
 	"uptime",
 	"preferences",
+	"insights",
 ]);
+
+const PERSISTED_FLAT_KEYS = new Set(["auth", "insights"]);
 
 function isPersistableQuery(query: Query): boolean {
 	if (query.state.status !== "success") {
@@ -135,7 +138,7 @@ function isPersistableQuery(query: Query): boolean {
 	if (Array.isArray(head)) {
 		return PERSISTED_ROUTERS.has(String(head[0]));
 	}
-	return head === "auth";
+	return PERSISTED_FLAT_KEYS.has(String(head));
 }
 
 export function makeQueryPersister() {
