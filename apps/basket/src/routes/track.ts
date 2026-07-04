@@ -315,6 +315,48 @@ export const trackRoute = new Elysia().post(
 				}
 			}
 
+			if (auth.apiKey) {
+				const targetIds = [
+					...new Set(
+						events.flatMap((event) =>
+							event.websiteId ? [event.websiteId] : []
+						)
+					),
+				];
+				const websites = await Promise.all(
+					targetIds.map((id) => getWebsiteByIdV2(id))
+				);
+				for (const [i, website] of websites.entries()) {
+					if (!website) {
+						log.set({
+							rejected: "website_not_found",
+							targetWebsiteId: targetIds[i],
+						});
+						captureRejectedBody();
+						throw basketErrors.trackWebsiteNotFound();
+					}
+					if (
+						auth.organizationId &&
+						website.organizationId !== auth.organizationId
+					) {
+						log.set({
+							rejected: "website_scope",
+							targetWebsiteId: targetIds[i],
+						});
+						captureRejectedBody();
+						throw basketErrors.trackWebsiteScopeMismatch();
+					}
+					if (website.status !== "ACTIVE") {
+						log.set({
+							rejected: "website_not_active",
+							targetWebsiteId: targetIds[i],
+						});
+						captureRejectedBody();
+						throw basketErrors.trackWebsiteNotFound();
+					}
+				}
+			}
+
 			const now = Date.now();
 			const spans = events.map((event) => ({
 				owner_id: auth.ownerId,
