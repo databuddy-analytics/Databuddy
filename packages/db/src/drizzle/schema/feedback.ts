@@ -72,6 +72,7 @@ export const feedback = pgTable(
 	(table) => [
 		index("feedback_user_id_idx").on(table.userId),
 		index("feedback_org_status_idx").on(table.organizationId, table.status),
+		index("feedback_website_id_idx").on(table.websiteId),
 		foreignKey({
 			columns: [table.userId],
 			foreignColumns: [user.id],
