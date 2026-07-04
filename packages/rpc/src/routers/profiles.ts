@@ -1,5 +1,9 @@
-import { and, eq, inArray } from "@databuddy/db";
-import { profileAliases, profiles } from "@databuddy/db/schema";
+import { and, desc, eq, inArray } from "@databuddy/db";
+import {
+	profileAliases,
+	profiles,
+	profileTraitChanges,
+} from "@databuddy/db/schema";
 import { revealPii } from "@databuddy/services/identity";
 import { z } from "zod";
 import { trackedProcedure } from "../orpc";
@@ -125,5 +129,61 @@ export const profilesRouter = {
 				email: revealPii(profile.email),
 				anonymousIds: aliases.map((alias) => alias.anonymousId),
 			};
+		}),
+
+	getHistory: trackedProcedure
+		.route({
+			method: "POST",
+			path: "/profiles/getHistory",
+			tags: ["Profiles"],
+			summary: "Get profile trait history",
+			description:
+				"Returns the trait change timeline for a profile, newest first. Each entry has the changed keys (old and new) and the full trait snapshot after the change. Requires website read permission.",
+		})
+		.input(
+			z.object({
+				websiteId: z.string(),
+				profileId: z.string().min(1).max(128),
+				limit: z.number().min(1).max(200).default(50),
+			})
+		)
+		.output(
+			z.array(
+				z.object({
+					changes: z.record(
+						z.string(),
+						z.object({
+							old: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+							new: z.union([z.string(), z.number(), z.boolean(), z.null()]),
+						})
+					),
+					traits: z.record(z.string(), z.unknown()),
+					source: z.string(),
+					createdAt: z.date(),
+				})
+			)
+		)
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+
+			return await context.db
+				.select({
+					changes: profileTraitChanges.changes,
+					traits: profileTraitChanges.traits,
+					source: profileTraitChanges.source,
+					createdAt: profileTraitChanges.createdAt,
+				})
+				.from(profileTraitChanges)
+				.where(
+					and(
+						eq(profileTraitChanges.websiteId, input.websiteId),
+						eq(profileTraitChanges.profileId, input.profileId)
+					)
+				)
+				.orderBy(desc(profileTraitChanges.createdAt))
+				.limit(input.limit);
 		}),
 };

@@ -1,7 +1,13 @@
 import "@databuddy/test/env";
 
-import { profileAliases, profiles } from "@databuddy/db/schema";
+import {
+	profileAliases,
+	profiles,
+	profileTraitChanges,
+} from "@databuddy/db/schema";
+import { eq } from "@databuddy/db";
 import { appRouter, type Context } from "@databuddy/rpc";
+import { splitTraits, upsertProfile } from "@databuddy/services/identity";
 import {
 	addToOrganization,
 	cleanup,
@@ -118,5 +124,125 @@ describe("profiles.get", () => {
 		})({ websiteId: website.id, profileId: "user_ghost" });
 
 		expect(result).toBeNull();
+	});
+});
+
+describe("profiles.getHistory", () => {
+	iit("returns trait changes newest first", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+		const website = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "user_1");
+		await db()
+			.insert(profileTraitChanges)
+			.values([
+				{
+					id: "change_old",
+					websiteId: website.id,
+					profileId: "user_1",
+					traits: { plan: "free" },
+					changes: { plan: { old: null, new: "free" } },
+					source: "identify",
+					createdAt: new Date("2026-01-01T00:00:00Z"),
+				},
+				{
+					id: "change_new",
+					websiteId: website.id,
+					profileId: "user_1",
+					traits: { plan: "pro" },
+					changes: { plan: { old: "free", new: "pro" } },
+					source: "billing",
+					createdAt: new Date("2026-02-01T00:00:00Z"),
+				},
+			]);
+
+		const result = await call(appRouter.profiles.getHistory, {
+			...userContext(user, org.id),
+		})({ websiteId: website.id, profileId: "user_1" });
+
+		expect(result.map((r) => r.source)).toEqual(["billing", "identify"]);
+		expect(result[0]?.changes).toEqual({ plan: { old: "free", new: "pro" } });
+	});
+
+	iit("does not leak history from another organization's website", async () => {
+		const outsider = await signUp();
+		const outsiderOrg = await insertOrganization();
+		await addToOrganization(outsider.id, outsiderOrg.id, "member");
+
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+
+		await expectCode(
+			call(appRouter.profiles.getHistory, {
+				...userContext(outsider, outsiderOrg.id),
+			})({ websiteId: website.id, profileId: "user_1" }),
+			"FORBIDDEN"
+		);
+	});
+});
+
+describe("upsertProfile trait history", () => {
+	iit("records baseline on first identify, diff on the next", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+
+		await upsertProfile(website.id, "user_1", splitTraits({ plan: "free" }));
+		await upsertProfile(
+			website.id,
+			"user_1",
+			splitTraits({ plan: "pro" }),
+			"billing"
+		);
+
+		const rows = await db()
+			.select()
+			.from(profileTraitChanges)
+			.where(eq(profileTraitChanges.profileId, "user_1"))
+			.orderBy(profileTraitChanges.createdAt);
+
+		expect(rows).toHaveLength(2);
+		expect(rows[0]?.changes).toEqual({ plan: { old: null, new: "free" } });
+		expect(rows[0]?.source).toBe("identify");
+		expect(rows[1]?.changes).toEqual({ plan: { old: "free", new: "pro" } });
+		expect(rows[1]?.source).toBe("billing");
+		expect(rows[1]?.traits).toEqual({ plan: "pro" });
+	});
+
+	iit("writes no history row when traits are unchanged", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+
+		await upsertProfile(website.id, "user_1", splitTraits({ plan: "pro" }));
+		await upsertProfile(website.id, "user_1", splitTraits({ plan: "pro" }));
+
+		const rows = await db()
+			.select()
+			.from(profileTraitChanges)
+			.where(eq(profileTraitChanges.profileId, "user_1"));
+
+		expect(rows).toHaveLength(1);
+	});
+
+	iit("cascades history deletion when the profile is deleted", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+
+		await upsertProfile(website.id, "user_1", splitTraits({ plan: "pro" }));
+		expect(
+			await db()
+				.select()
+				.from(profileTraitChanges)
+				.where(eq(profileTraitChanges.profileId, "user_1"))
+		).toHaveLength(1);
+
+		await db().delete(profiles).where(eq(profiles.profileId, "user_1"));
+
+		expect(
+			await db()
+				.select()
+				.from(profileTraitChanges)
+				.where(eq(profileTraitChanges.profileId, "user_1"))
+		).toHaveLength(0);
 	});
 });

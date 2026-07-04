@@ -16,12 +16,13 @@ import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
 import {
+	formatCountryName,
 	getCountryCode,
-	getCountryName,
 } from "@databuddy/shared/country-codes";
 import type { ProfileData } from "@/types/analytics";
 import {
 	ArrowDownIcon,
+	ArrowsClockwiseIcon,
 	ArrowUpIcon,
 	GlobeIcon,
 	LightningIcon,
@@ -40,7 +41,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { generateProfileName } from "./[userId]/_components/generate-profile-name";
 import { type ProfileSort, useProfilesData } from "./use-users";
 import { useEventNames } from "./use-event-names";
-import { Badge, EmptyState, Skeleton, Tooltip, dayjs } from "@databuddy/ui";
+import {
+	Badge,
+	Button,
+	EmptyState,
+	Skeleton,
+	Tooltip,
+	dayjs,
+} from "@databuddy/ui";
 import { DropdownMenu } from "@databuddy/ui/client";
 
 const wwwRegex = /^www\./;
@@ -213,7 +221,15 @@ export default function UsersPage() {
 		[sort.field, sort.order]
 	);
 
-	const { profiles, pagination, isLoading, isError, error } = useProfilesData(
+	const {
+		profiles,
+		pagination,
+		isLoading,
+		isFetching,
+		isError,
+		error,
+		refetch,
+	} = useProfilesData(
 		websiteId,
 		dateRange,
 		50,
@@ -347,9 +363,8 @@ export default function UsersPage() {
 				id: "location",
 				header: "Location",
 				cell: ({ row }) => {
-					const country = row.original.country || "";
-					const countryCode = getCountryCode(country);
-					const countryName = getCountryName(countryCode);
+					const countryCode = getCountryCode(row.original.country || "");
+					const countryName = formatCountryName(row.original.country);
 					const isUnknown = !countryCode || countryCode === "Unknown";
 
 					return (
@@ -360,7 +375,7 @@ export default function UsersPage() {
 								<CountryFlag country={countryCode} size="sm" />
 							)}
 							<span className="truncate text-sm">
-								{isUnknown ? "Unknown" : countryName || countryCode}
+								{countryName || "Unknown"}
 							</span>
 						</div>
 					);
@@ -579,12 +594,29 @@ export default function UsersPage() {
 		</div>
 	);
 
+	const refreshAction = (
+		<TopBar.Actions>
+			<Button
+				disabled={isFetching}
+				onClick={() => refetch()}
+				size="icon"
+				title="Refresh"
+				variant="ghost"
+			>
+				<ArrowsClockwiseIcon
+					className={isFetching ? "size-4 animate-spin" : "size-4"}
+				/>
+			</Button>
+		</TopBar.Actions>
+	);
+
 	if (isInitialLoad) {
 		return (
 			<div className="flex h-full flex-col">
 				<TopBar.Title>
 					<h1 className="font-semibold text-sm">Users</h1>
 				</TopBar.Title>
+				{refreshAction}
 
 				{presetBar}
 
@@ -622,6 +654,7 @@ export default function UsersPage() {
 				<TopBar.Title>
 					<h1 className="font-semibold text-sm">Users</h1>
 				</TopBar.Title>
+				{refreshAction}
 
 				<div className="flex min-h-0 flex-1 flex-col items-center justify-center py-24 text-center text-muted-foreground">
 					<UsersIcon className="mb-4 size-12 opacity-50" />
@@ -640,6 +673,7 @@ export default function UsersPage() {
 				<TopBar.Title>
 					<h1 className="font-semibold text-sm">Users</h1>
 				</TopBar.Title>
+				{refreshAction}
 
 				{presetBar}
 
@@ -658,6 +692,7 @@ export default function UsersPage() {
 			<TopBar.Title>
 				<h1 className="font-semibold text-sm">Users</h1>
 			</TopBar.Title>
+			{refreshAction}
 
 			{presetBar}
 
