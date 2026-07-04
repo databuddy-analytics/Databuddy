@@ -32,6 +32,7 @@ interface WebhookCharge {
 	customer?: string | { id: string } | null;
 	id: string;
 	metadata?: Record<string, string>;
+	payment_intent?: string | { id: string } | null;
 	refunds?: {
 		data: Array<{
 			id: string;
@@ -42,6 +43,7 @@ interface WebhookCharge {
 }
 
 interface WebhookInvoice {
+	amount_due?: number;
 	amount_paid: number;
 	billing_reason?: string | null;
 	created: number;
@@ -332,7 +334,11 @@ async function handleFailedPayment(
 	status: "failed" | "canceled"
 ): Promise<void> {
 	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(pi.metadata);
+	const metadata = await withCarriedAttribution(
+		await extractAnalyticsMetadata(pi.metadata),
+		config.ownerId,
+		pi.id
+	);
 	const customerId = extractCustomerId(pi.customer);
 	const amount = (pi.amount_received ?? pi.amount) / 100;
 	const currency = pi.currency.toUpperCase();
@@ -451,9 +457,11 @@ async function handleInvoiceFailed(
 	config: WebhookConfig
 ): Promise<void> {
 	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(invoice.metadata);
+	const metadata = await extractAnalyticsMetadata(
+		invoiceMetadataSources(invoice)
+	);
 	const customerId = extractCustomerId(invoice.customer);
-	const amount = invoice.amount_paid / 100;
+	const amount = (invoice.amount_due ?? invoice.amount_paid) / 100;
 	const currency = invoice.currency.toUpperCase();
 
 	log.set({
@@ -486,7 +494,15 @@ async function handleRefund(
 	config: WebhookConfig
 ): Promise<void> {
 	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(charge.metadata);
+	const chargePaymentIntentId =
+		typeof charge.payment_intent === "string"
+			? charge.payment_intent
+			: charge.payment_intent?.id;
+	const metadata = await withCarriedAttribution(
+		await extractAnalyticsMetadata(charge.metadata),
+		config.ownerId,
+		chargePaymentIntentId || charge.id
+	);
 	const customerId = extractCustomerId(charge.customer);
 	const currency = charge.currency.toUpperCase();
 	const refunds = charge.refunds?.data || [];
