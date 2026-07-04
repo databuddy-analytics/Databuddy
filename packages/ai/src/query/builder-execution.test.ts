@@ -3,9 +3,11 @@ import { QueryBuilders } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
 import type { Filter, QueryRequest, SimpleQueryConfig } from "./types";
 
-const TEST_CLICKHOUSE_URL = "http://default:@localhost:8123";
+const TEST_CLICKHOUSE_URL = "http://default:@127.0.0.1:8123";
 
-const isClickHouseUp = await fetch(`${TEST_CLICKHOUSE_URL}/?query=SELECT+1`, {
+// Bun's fetch rejects userinfo in URLs, so the probe goes credential-free;
+// the ClickHouse client parses TEST_CLICKHOUSE_URL itself and is unaffected.
+const isClickHouseUp = await fetch("http://127.0.0.1:8123/?query=SELECT+1", {
 	signal: AbortSignal.timeout(1500),
 })
 	.then((response) => response.ok)
