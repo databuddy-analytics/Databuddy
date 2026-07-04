@@ -5,6 +5,7 @@ import {
 	CalendarIcon,
 	CodeIcon,
 	CompassIcon,
+	CreditCardIcon,
 	DatabaseIcon,
 	FileTextIcon,
 	FlagIcon,
@@ -145,6 +146,11 @@ export const contents: SidebarSection[] = [
 						href: "/docs/Integrations/cal",
 					},
 				],
+			},
+			{
+				title: "Payments",
+				href: "/docs/Integrations/payments",
+				icon: CreditCardIcon,
 			},
 			{
 				title: "Static Sites & Tools",
