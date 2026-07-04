@@ -2,6 +2,7 @@ import {
 	foreignKey,
 	index,
 	integer,
+	jsonb,
 	pgEnum,
 	pgTable,
 	text,
@@ -9,6 +10,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth";
+import { websites } from "./websites";
 
 export const feedbackCategory = pgEnum("feedback_category", [
 	"bug_report",
@@ -17,6 +19,13 @@ export const feedbackCategory = pgEnum("feedback_category", [
 	"performance",
 	"documentation",
 	"other",
+]);
+
+export const feedbackSource = pgEnum("feedback_source", [
+	"dashboard",
+	"agent",
+	"slack",
+	"mcp",
 ]);
 
 export const feedbackStatus = pgEnum("feedback_status", [
@@ -41,6 +50,10 @@ export const feedback = pgTable(
 		description: text().notNull(),
 		category: feedbackCategory().notNull(),
 		status: feedbackStatus().default("pending").notNull(),
+		source: feedbackSource().default("dashboard").notNull(),
+		websiteId: text("website_id"),
+		conversationId: text("conversation_id"),
+		metadata: jsonb().$type<Record<string, unknown>>(),
 		creditsAwarded: integer("credits_awarded").default(0).notNull(),
 		adminNotes: text("admin_notes"),
 		reviewedBy: text("reviewed_by"),
@@ -73,6 +86,11 @@ export const feedback = pgTable(
 			columns: [table.reviewedBy],
 			foreignColumns: [user.id],
 			name: "feedback_reviewed_by_fkey",
+		}).onDelete("set null"),
+		foreignKey({
+			columns: [table.websiteId],
+			foreignColumns: [websites.id],
+			name: "feedback_website_id_fkey",
 		}).onDelete("set null"),
 	]
 );

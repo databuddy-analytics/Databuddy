@@ -520,6 +520,10 @@ export const relations = defineRelations(schema, (r) => ({
 			to: r.user.id,
 			alias: "feedbackReviewer",
 		}),
+		website: r.one.websites({
+			from: r.feedback.websiteId,
+			to: r.websites.id,
+		}),
 	},
 
 	feedbackRedemptions: {
