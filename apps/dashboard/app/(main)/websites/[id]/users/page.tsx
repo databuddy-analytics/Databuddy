@@ -206,6 +206,7 @@ export default function UsersPage() {
 	});
 	const [eventFilter, setEventFilter] = useState<string | null>(null);
 	const [emailQuery, setEmailQuery] = useState("");
+	const [emailSearching, setEmailSearching] = useState(false);
 	const [traitFilter, setTraitFilter] = useState<{
 		key: string;
 		value: string | null;
@@ -518,7 +519,11 @@ export default function UsersPage() {
 			},
 			{
 				id: "ltv",
-				header: "LTV",
+				header: () => (
+					<Tooltip content="Lifetime revenue, refunds netted" side="top">
+						<span>LTV</span>
+					</Tooltip>
+				),
 				cell: ({ row }) => {
 					const ltv = row.original.ltv ?? 0;
 					if (ltv === 0) {
@@ -734,12 +739,14 @@ export default function UsersPage() {
 				onSubmit={async (e) => {
 					e.preventDefault();
 					const email = emailQuery.trim().toLowerCase();
-					if (!email) {
+					if (!email || emailSearching) {
 						return;
 					}
+					setEmailSearching(true);
 					const found = await orpc.profiles.findByEmail
 						.call({ websiteId, email })
 						.catch(() => null);
+					setEmailSearching(false);
 					if (found) {
 						router.push(`/websites/${websiteId}/users/${found.profileId}`);
 					} else {
@@ -751,6 +758,7 @@ export default function UsersPage() {
 					<MagnifyingGlassIcon className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						className="h-8 w-52 pl-7 text-xs"
+						disabled={emailSearching}
 						onChange={(e) => setEmailQuery(e.target.value)}
 						placeholder="Find by email"
 						type="email"
