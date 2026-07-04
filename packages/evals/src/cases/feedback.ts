@@ -52,6 +52,24 @@ export const feedbackCases: EvalCase[] = [
 		},
 	},
 	{
+		id: "feedback-vague-complaint-gets-clarified",
+		category: "behavioral",
+		name: "Asks for specifics instead of submitting a vague complaint",
+		query: "this agent sucks, tell the team",
+		websiteId: WS,
+		surfaces: ["agent", "slack"],
+		tags: ["feedback"],
+		expect: {
+			toolsNotCalled: ["submit_feedback"],
+			responseMatches: [
+				{
+					pattern: "\\?",
+					description: "asks a clarifying question about what went wrong",
+				},
+			],
+		},
+	},
+	{
 		id: "feedback-own-website-errors-stay-analytics",
 		category: "behavioral",
 		name: "Treats errors on the user's own website as analytics, not product feedback",
