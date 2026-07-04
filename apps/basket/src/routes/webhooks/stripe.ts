@@ -363,6 +363,31 @@ async function handleFailedPayment(
 	});
 }
 
+async function matchingPaymentIntentRow(
+	ownerId: string,
+	amount: number,
+	createdUnix: number
+): Promise<string | undefined> {
+	try {
+		const result = await clickHouse.query({
+			query: `SELECT transaction_id
+				FROM analytics.revenue
+				WHERE owner_id = {ownerId:String}
+					AND startsWith(transaction_id, 'pi_')
+					AND amount = {amount:Float64}
+					AND abs(toUnixTimestamp(created) - {createdUnix:Int64}) <= 1
+				ORDER BY synced_at DESC
+				LIMIT 1`,
+			query_params: { ownerId, amount, createdUnix },
+			format: "JSONEachRow",
+		});
+		const [row] = await result.json<{ transaction_id: string }>();
+		return row?.transaction_id;
+	} catch {
+		return;
+	}
+}
+
 async function handleInvoicePaid(
 	invoice: WebhookInvoice,
 	config: WebhookConfig
@@ -373,19 +398,22 @@ async function handleInvoicePaid(
 		return;
 	}
 
+	const customerId = extractCustomerId(invoice.customer);
+	const amount = invoice.amount_paid / 100;
+	const currency = invoice.currency.toUpperCase();
 	const paymentIntentId =
 		typeof invoice.payment_intent === "string"
 			? invoice.payment_intent
 			: invoice.payment_intent?.id;
-	const transactionId = paymentIntentId || invoice.id;
+	const transactionId =
+		paymentIntentId ||
+		(await matchingPaymentIntentRow(config.ownerId, amount, invoice.created)) ||
+		invoice.id;
 	const metadata = await withCarriedAttribution(
 		await extractAnalyticsMetadata(invoiceMetadataSources(invoice)),
 		config.ownerId,
 		transactionId
 	);
-	const customerId = extractCustomerId(invoice.customer);
-	const amount = invoice.amount_paid / 100;
-	const currency = invoice.currency.toUpperCase();
 
 	log.set({
 		revenue: {
