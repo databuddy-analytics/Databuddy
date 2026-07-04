@@ -324,5 +324,15 @@ describe("resolveTraitSegment", () => {
 			{ field: "trait:plan", op: "in", value: ["free", "trial"] },
 		]);
 		expect(inList).toEqual(["user_2"]);
+
+		const emptyIn = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "in", value: [] },
+		]);
+		expect(emptyIn).toEqual([]);
+
+		const emptyNotIn = await resolveTraitSegment(website.id, [
+			{ field: "trait:plan", op: "not_in", value: [] },
+		]);
+		expect(emptyNotIn.sort()).toEqual(["user_1", "user_2", "user_3"]);
 	});
 });

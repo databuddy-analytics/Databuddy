@@ -279,15 +279,20 @@ function traitValueList(value: TraitFilter["value"]) {
 function traitCondition(filter: TraitFilter) {
 	const key = filter.field.slice(TRAIT_FILTER_PREFIX.length);
 	const extracted = sql`${profiles.traits}->>${key}`;
+	const isEmptyList = Array.isArray(filter.value) && filter.value.length === 0;
 	switch (filter.op) {
 		case "eq":
 			return sql`${extracted} = ${String(filter.value)}`;
 		case "ne":
 			return sql`${extracted} is distinct from ${String(filter.value)}`;
 		case "in":
-			return sql`${extracted} in (${traitValueList(filter.value)})`;
+			return isEmptyList
+				? sql`false`
+				: sql`${extracted} in (${traitValueList(filter.value)})`;
 		case "not_in":
-			return sql`(${extracted} is null or ${extracted} not in (${traitValueList(filter.value)}))`;
+			return isEmptyList
+				? sql`true`
+				: sql`(${extracted} is null or ${extracted} not in (${traitValueList(filter.value)}))`;
 		default:
 			throw new Error(
 				`Trait filters do not support the ${filter.op as string} operator.`
