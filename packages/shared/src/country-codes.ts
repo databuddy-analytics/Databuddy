@@ -311,3 +311,16 @@ export function getCountryName(countryCode: string): string {
 
 	return countryCode;
 }
+
+/**
+ * Resolves a raw country value (ISO code or name) to a display name.
+ * Single source of truth for country display — use everywhere a country is
+ * shown so raw codes like "DE" never leak into the UI. Returns "" for
+ * empty/unknown so callers can apply their own fallback label.
+ */
+export function formatCountryName(raw: string | null | undefined): string {
+	if (!raw || raw === "Unknown") {
+		return "";
+	}
+	return getCountryName(getCountryCode(raw)) || raw;
+}
