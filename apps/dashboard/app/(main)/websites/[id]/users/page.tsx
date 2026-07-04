@@ -743,14 +743,20 @@ export default function UsersPage() {
 						return;
 					}
 					setEmailSearching(true);
-					const found = await orpc.profiles.findByEmail
-						.call({ websiteId, email })
-						.catch(() => null);
-					setEmailSearching(false);
-					if (found) {
-						router.push(`/websites/${websiteId}/users/${found.profileId}`);
-					} else {
-						toast.info("No user found with that email");
+					try {
+						const found = await orpc.profiles.findByEmail.call({
+							websiteId,
+							email,
+						});
+						if (found) {
+							router.push(`/websites/${websiteId}/users/${found.profileId}`);
+						} else {
+							toast.info("No user found with that email");
+						}
+					} catch {
+						toast.error("Search failed, try again");
+					} finally {
+						setEmailSearching(false);
 					}
 				}}
 			>

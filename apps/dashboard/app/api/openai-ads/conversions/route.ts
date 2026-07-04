@@ -11,8 +11,7 @@ const ConversionRequestSchema = z.object({
 });
 
 function readClientIp(headers: Headers): string | undefined {
-	const forwardedFor = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-	return forwardedFor || headers.get("x-real-ip")?.trim() || undefined;
+	return headers.get("x-real-ip")?.trim() || undefined;
 }
 
 async function readJson(request: NextRequest): Promise<unknown> {
@@ -46,19 +45,22 @@ export async function POST(request: NextRequest) {
 		userAgent: request.headers.get("user-agent") ?? undefined,
 	});
 
-	const response = await fetch(
-		`https://bzr.openai.com/v1/events?pid=${encodeURIComponent(pixelId)}`,
-		{
-			body: JSON.stringify({ events: [event], validate_only: false }),
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-				"Content-Type": "application/json",
-			},
-			method: "POST",
+	try {
+		const response = await fetch(
+			`https://bzr.openai.com/v1/events?pid=${encodeURIComponent(pixelId)}`,
+			{
+				body: JSON.stringify({ events: [event], validate_only: false }),
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+					"Content-Type": "application/json",
+				},
+				method: "POST",
+			}
+		);
+		if (!response.ok) {
+			return NextResponse.json({ ok: false }, { status: 502 });
 		}
-	);
-
-	if (!response.ok) {
+	} catch {
 		return NextResponse.json({ ok: false }, { status: 502 });
 	}
 
