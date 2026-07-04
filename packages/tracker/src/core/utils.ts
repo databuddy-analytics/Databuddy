@@ -100,13 +100,27 @@ function applyMaskPattern(pathname: string, pattern: string): string | null {
 
 function segmentMatches(patternSegment: string, pathSegment: string): boolean {
 	const parts = patternSegment.split("*");
-	const prefix = parts[0];
+	const prefix = parts[0] ?? "";
 	const suffix = parts.at(-1) ?? "";
-	return (
-		pathSegment.length >= prefix.length + suffix.length &&
-		pathSegment.startsWith(prefix) &&
-		pathSegment.endsWith(suffix)
-	);
+	if (
+		pathSegment.length < prefix.length + suffix.length ||
+		!(pathSegment.startsWith(prefix) && pathSegment.endsWith(suffix))
+	) {
+		return false;
+	}
+	let cursor = prefix.length;
+	const end = pathSegment.length - suffix.length;
+	for (const fragment of parts.slice(1, -1)) {
+		if (fragment === "") {
+			continue;
+		}
+		const found = pathSegment.indexOf(fragment, cursor);
+		if (found === -1 || found + fragment.length > end) {
+			return false;
+		}
+		cursor = found + fragment.length;
+	}
+	return true;
 }
 
 export const generateUUIDv4 = () => {

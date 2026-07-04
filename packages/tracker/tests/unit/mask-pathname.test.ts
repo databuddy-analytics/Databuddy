@@ -189,8 +189,11 @@ describe("maskPathname", () => {
 			expect(maskPathname("/files/ab", ["/files/abc*cba"])).toBe("/files/ab");
 		});
 
-		test("middle literals between stars are not enforced", () => {
+		test("middle literals between stars are enforced", () => {
 			expect(maskPathname("/files/a-x-c", ["/files/a*mid*c"])).toBe(
+				"/files/a-x-c"
+			);
+			expect(maskPathname("/files/a-mid-c", ["/files/a*mid*c"])).toBe(
 				"/files/a*mid*c"
 			);
 		});
@@ -401,5 +404,16 @@ describe("maskPathname", () => {
 		test.each(cases)("%s -> %s", (path, expected) => {
 			expect(maskPathname(path, patterns)).toBe(expected);
 		});
+	});
+});
+
+describe("multi-wildcard segments", () => {
+	test("middle fragments must match", () => {
+		expect(maskPathname("/fooXbarYbaz", ["/foo*bar*baz"])).toBe("/foo*bar*baz");
+		expect(maskPathname("/fooXYbaz", ["/foo*bar*baz"])).toBe("/fooXYbaz");
+	});
+
+	test("middle fragments must appear in order within the bounds", () => {
+		expect(maskPathname("/barfoobaz", ["/foo*bar*baz"])).toBe("/barfoobaz");
 	});
 });
