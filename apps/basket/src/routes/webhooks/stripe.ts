@@ -43,7 +43,6 @@ interface WebhookCharge {
 }
 
 interface WebhookInvoice {
-	amount_due?: number;
 	amount_paid: number;
 	billing_reason?: string | null;
 	created: number;
@@ -461,7 +460,7 @@ async function handleInvoiceFailed(
 		invoiceMetadataSources(invoice)
 	);
 	const customerId = extractCustomerId(invoice.customer);
-	const amount = (invoice.amount_due ?? invoice.amount_paid) / 100;
+	const amount = invoice.amount_paid / 100;
 	const currency = invoice.currency.toUpperCase();
 
 	log.set({
