@@ -180,6 +180,13 @@ export async function upsertProfile(
 			: sql`${profiles.traits} || ${JSON.stringify(rest)}::jsonb`;
 
 	return await db.transaction(async (tx) => {
+		// FOR UPDATE can't lock a not-yet-existent row, so two concurrent
+		// first-time identifies would both read {} and write conflicting
+		// history. Serialize on the (websiteId, profileId) pair instead.
+		await tx.execute(
+			sql`SELECT pg_advisory_xact_lock(hashtextextended(${`profile:${websiteId}:${profileId}`}, 0))`
+		);
+
 		const existingRows = await tx
 			.select({ traits: profiles.traits })
 			.from(profiles)
@@ -189,8 +196,7 @@ export async function upsertProfile(
 					eq(profiles.profileId, profileId)
 				)
 			)
-			.limit(1)
-			.for("update");
+			.limit(1);
 		const existingTraits = (existingRows[0]?.traits ?? {}) as Record<
 			string,
 			unknown

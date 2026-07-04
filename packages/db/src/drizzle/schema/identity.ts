@@ -1,4 +1,5 @@
 import {
+	foreignKey,
 	index,
 	jsonb,
 	pgTable,
@@ -44,9 +45,7 @@ export const profileTraitChanges = pgTable(
 	"profile_trait_changes",
 	{
 		id: text().primaryKey(),
-		websiteId: text("website_id")
-			.notNull()
-			.references(() => websites.id, { onDelete: "cascade" }),
+		websiteId: text("website_id").notNull(),
 		profileId: text("profile_id").notNull(),
 		// Full merged non-PII traits after this change — state at time T is the
 		// latest row with createdAt <= T, no diff folding needed.
@@ -75,6 +74,11 @@ export const profileTraitChanges = pgTable(
 			table.createdAt
 		),
 		index("profile_trait_changes_changes_gin_idx").using("gin", table.changes),
+		foreignKey({
+			columns: [table.websiteId, table.profileId],
+			foreignColumns: [profiles.websiteId, profiles.profileId],
+			name: "profile_trait_changes_profile_fkey",
+		}).onDelete("cascade"),
 	]
 );
 
