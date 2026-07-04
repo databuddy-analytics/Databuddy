@@ -605,7 +605,7 @@ export default function UsersPage() {
 				variant="ghost"
 			>
 				<ArrowsClockwiseIcon
-					className={`size-4${isFetching ? "animate-spin" : ""}`}
+					className={isFetching ? "size-4 animate-spin" : "size-4"}
 				/>
 			</Button>
 		</TopBar.Actions>
