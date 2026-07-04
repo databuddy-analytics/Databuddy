@@ -1,15 +1,11 @@
 "use client";
 
-import { useAtomValue } from "jotai";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { InviteMemberDialog } from "@/components/organizations/invite-member-dialog";
-import {
-	activeOrganizationAtom,
-	isLoadingOrganizationsAtom,
-} from "@/stores/jotai/organizationsAtoms";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	BuildingsIcon,
 	EnvelopeIcon,
@@ -88,9 +84,7 @@ export function OrganizationProvider({
 }: {
 	children: React.ReactNode;
 }) {
-	// Subscribe directly to atoms - no hook overhead
-	const activeOrganization = useAtomValue(activeOrganizationAtom);
-	const isLoading = useAtomValue(isLoadingOrganizationsAtom);
+	const { activeOrganization, isLoading } = useOrganizationsContext();
 
 	const pathname = usePathname();
 	const [showCreateDialog, setShowCreateDialog] = useState(false);

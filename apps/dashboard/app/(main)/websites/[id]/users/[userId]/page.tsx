@@ -374,6 +374,13 @@ function TraitsSection({
 	);
 }
 
+function transactionDotColor(tx: ProfileTransaction) {
+	if (tx.type === "refund") {
+		return "destructive" as const;
+	}
+	return tx.status === "completed" ? ("success" as const) : ("muted" as const);
+}
+
 function RevenueSection({
 	className,
 	transactions,
@@ -385,37 +392,37 @@ function RevenueSection({
 		return null;
 	}
 
-	const currency = transactions[0]?.currency ?? "USD";
-	const total = transactions.reduce((sum, tx) => {
-		if (tx.status === "completed") {
-			return sum + tx.amount;
+	const totals = new Map<string, number>();
+	for (const tx of transactions) {
+		if (tx.type === "refund") {
+			totals.set(tx.currency, (totals.get(tx.currency) ?? 0) - tx.amount);
+		} else if (tx.status === "completed") {
+			totals.set(tx.currency, (totals.get(tx.currency) ?? 0) + tx.amount);
 		}
-		if (tx.status === "refunded") {
-			return sum - tx.amount;
-		}
-		return sum;
-	}, 0);
+	}
 
 	return (
 		<SidebarSection className={className} icon={CoinsIcon} title="Revenue">
-			<div className="flex min-h-10 items-center justify-between gap-3 py-2.5">
-				<span className="text-muted-foreground text-xs">Total</span>
-				<span className="font-semibold text-foreground text-sm tabular-nums">
-					{formatCurrency(total, currency)}
-				</span>
-			</div>
+			{[...totals.entries()].map(([currency, total]) => (
+				<div
+					className="flex min-h-10 items-center justify-between gap-3 py-2.5"
+					key={currency}
+				>
+					<span className="text-muted-foreground text-xs">
+						Total {totals.size > 1 ? currency : ""}
+					</span>
+					<span className="font-semibold text-foreground text-sm tabular-nums">
+						{formatCurrency(total, currency)}
+					</span>
+				</div>
+			))}
 			{transactions.slice(0, 5).map((tx) => (
 				<DetailRow
-					indicator={
-						<StatusDot
-							color={tx.status === "completed" ? "success" : "destructive"}
-							size="md"
-						/>
-					}
+					indicator={<StatusDot color={transactionDotColor(tx)} size="md" />}
 					key={tx.transaction_id}
 					label={`${formatDateOnly(tx.created)} · ${tx.type}`}
 					subValue={tx.product_name || undefined}
-					value={`${tx.status === "refunded" ? "-" : ""}${formatCurrency(tx.amount, tx.currency)}`}
+					value={`${tx.type === "refund" ? "-" : ""}${formatCurrency(tx.amount, tx.currency)}`}
 				/>
 			))}
 		</SidebarSection>

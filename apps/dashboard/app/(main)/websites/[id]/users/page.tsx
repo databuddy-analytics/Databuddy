@@ -211,7 +211,7 @@ export default function UsersPage() {
 
 	const { eventNames } = useEventNames(websiteId, dateRange);
 	const { data: traitKeys } = useTraitKeys(websiteId);
-	const { data: traitValues } = useTraitValues(
+	const { data: traitValues, isPending: traitValuesPending } = useTraitValues(
 		websiteId,
 		traitFilter && !traitFilter.value ? traitFilter.key : null
 	);
@@ -663,7 +663,9 @@ export default function UsersPage() {
 											</DropdownMenu.Item>
 										))
 									) : (
-										<DropdownMenu.Item disabled>Loading…</DropdownMenu.Item>
+										<DropdownMenu.Item disabled>
+											{traitValuesPending ? "Loading…" : "No values found"}
+										</DropdownMenu.Item>
 									)}
 								</DropdownMenu.Group>
 							</DropdownMenu.Content>

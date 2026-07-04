@@ -141,9 +141,20 @@ function isPersistableQuery(query: Query): boolean {
 	return PERSISTED_FLAT_KEYS.has(String(head));
 }
 
+function safeLocalStorage(): Storage | undefined {
+	if (typeof window === "undefined") {
+		return;
+	}
+	try {
+		return window.localStorage;
+	} catch {
+		return;
+	}
+}
+
 export function makeQueryPersister() {
 	return createSyncStoragePersister({
-		storage: typeof window === "undefined" ? undefined : window.localStorage,
+		storage: safeLocalStorage(),
 		key: PERSIST_KEY,
 	});
 }
@@ -157,23 +168,23 @@ export const persistOptions = {
 };
 
 export function readPersistedCacheOwner(): string | null {
-	if (typeof window === "undefined") {
+	try {
+		return safeLocalStorage()?.getItem(PERSIST_OWNER_KEY) ?? null;
+	} catch {
 		return null;
 	}
-	return window.localStorage.getItem(PERSIST_OWNER_KEY);
 }
 
 export function writePersistedCacheOwner(userId: string) {
-	if (typeof window === "undefined") {
-		return;
-	}
-	window.localStorage.setItem(PERSIST_OWNER_KEY, userId);
+	try {
+		safeLocalStorage()?.setItem(PERSIST_OWNER_KEY, userId);
+	} catch {}
 }
 
 export function clearPersistedQueryCache() {
-	if (typeof window === "undefined") {
-		return;
-	}
-	window.localStorage.removeItem(PERSIST_KEY);
-	window.localStorage.removeItem(PERSIST_OWNER_KEY);
+	try {
+		const storage = safeLocalStorage();
+		storage?.removeItem(PERSIST_KEY);
+		storage?.removeItem(PERSIST_OWNER_KEY);
+	} catch {}
 }

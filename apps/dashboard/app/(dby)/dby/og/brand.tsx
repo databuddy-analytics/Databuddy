@@ -18,7 +18,14 @@ export const OG_COLORS = {
 
 const FONT_DIR = path.join(process.cwd(), "fonts", "lt-superior");
 
-export async function loadOgFonts() {
+let ogFontsPromise: ReturnType<typeof readOgFonts> | undefined;
+
+export function loadOgFonts() {
+	ogFontsPromise ??= readOgFonts();
+	return ogFontsPromise;
+}
+
+async function readOgFonts() {
 	const [regular, medium, bold] = await Promise.all([
 		readFile(path.join(FONT_DIR, "regular.otf")),
 		readFile(path.join(FONT_DIR, "medium.otf")),
