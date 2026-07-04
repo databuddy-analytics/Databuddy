@@ -1,6 +1,10 @@
 import "@databuddy/test/env";
 
-import { profileAliases, profiles } from "@databuddy/db/schema";
+import {
+	profileAliases,
+	profiles,
+	profileTraitChanges,
+} from "@databuddy/db/schema";
 import { appRouter, type Context } from "@databuddy/rpc";
 import {
 	addToOrganization,
@@ -118,5 +122,60 @@ describe("profiles.get", () => {
 		})({ websiteId: website.id, profileId: "user_ghost" });
 
 		expect(result).toBeNull();
+	});
+});
+
+describe("profiles.getHistory", () => {
+	iit("returns trait changes newest first", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+		const website = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "user_1");
+		await db()
+			.insert(profileTraitChanges)
+			.values([
+				{
+					id: "change_old",
+					websiteId: website.id,
+					profileId: "user_1",
+					traits: { plan: "free" },
+					changes: { plan: { old: null, new: "free" } },
+					source: "identify",
+					createdAt: new Date("2026-01-01T00:00:00Z"),
+				},
+				{
+					id: "change_new",
+					websiteId: website.id,
+					profileId: "user_1",
+					traits: { plan: "pro" },
+					changes: { plan: { old: "free", new: "pro" } },
+					source: "billing",
+					createdAt: new Date("2026-02-01T00:00:00Z"),
+				},
+			]);
+
+		const result = await call(appRouter.profiles.getHistory, {
+			...userContext(user, org.id),
+		})({ websiteId: website.id, profileId: "user_1" });
+
+		expect(result.map((r) => r.source)).toEqual(["billing", "identify"]);
+		expect(result[0]?.changes).toEqual({ plan: { old: "free", new: "pro" } });
+	});
+
+	iit("does not leak history from another organization's website", async () => {
+		const outsider = await signUp();
+		const outsiderOrg = await insertOrganization();
+		await addToOrganization(outsider.id, outsiderOrg.id, "member");
+
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+
+		await expectCode(
+			call(appRouter.profiles.getHistory, {
+				...userContext(outsider, outsiderOrg.id),
+			})({ websiteId: website.id, profileId: "user_1" }),
+			"FORBIDDEN"
+		);
 	});
 });
