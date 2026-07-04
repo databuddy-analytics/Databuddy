@@ -269,19 +269,6 @@ export const trackRoute = new Elysia().post(
 				throw basketErrors.trackRateLimited();
 			}
 
-			const billingUserId = auth.organizationId
-				? await resolveApiKeyOwnerId(auth.organizationId)
-				: auth.ownerId;
-
-			if (billingUserId) {
-				await checkAutumnUsage(
-					billingUserId,
-					"events",
-					{ api_route: "track", batch_size: events.length },
-					events.length
-				);
-			}
-
 			const allowedApiKeyWebsiteIds =
 				auth.apiKey && !hasGlobalAccess(auth.apiKey)
 					? new Set(getAccessibleWebsiteIds(auth.apiKey))
@@ -336,8 +323,9 @@ export const trackRoute = new Elysia().post(
 						throw basketErrors.trackWebsiteNotFound();
 					}
 					if (
-						auth.organizationId &&
-						website.organizationId !== auth.organizationId
+						auth.organizationId
+							? website.organizationId !== auth.organizationId
+							: hasGlobalAccess(auth.apiKey ?? null)
 					) {
 						log.set({
 							rejected: "website_scope",
@@ -355,6 +343,19 @@ export const trackRoute = new Elysia().post(
 						throw basketErrors.trackWebsiteNotFound();
 					}
 				}
+			}
+
+			const billingUserId = auth.organizationId
+				? await resolveApiKeyOwnerId(auth.organizationId)
+				: auth.ownerId;
+
+			if (billingUserId) {
+				await checkAutumnUsage(
+					billingUserId,
+					"events",
+					{ api_route: "track", batch_size: events.length },
+					events.length
+				);
 			}
 
 			const now = Date.now();
