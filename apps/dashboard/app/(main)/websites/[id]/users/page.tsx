@@ -40,6 +40,7 @@ import { useAtomValue } from "jotai";
 import Image from "next/image";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatCurrency } from "@/lib/formatters";
 import { generateProfileName } from "./[userId]/_components/generate-profile-name";
 import { type ProfileSort, useProfilesData } from "./use-users";
 import { useEventNames } from "./use-event-names";
@@ -168,6 +169,9 @@ function SkeletonRow() {
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-4 w-6" />
+			</TableCell>
+			<TableCell className="h-[49px] py-2">
+				<Skeleton className="h-4 w-12" />
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-5 w-12 rounded-full" />
@@ -506,6 +510,22 @@ export default function UsersPage() {
 					);
 				},
 				size: 70,
+			},
+			{
+				id: "ltv",
+				header: "LTV",
+				cell: ({ row }) => {
+					const ltv = row.original.ltv ?? 0;
+					if (ltv === 0) {
+						return <span className="text-muted-foreground text-sm">—</span>;
+					}
+					return (
+						<span className="font-medium tabular-nums">
+							{formatCurrency(ltv)}
+						</span>
+					);
+				},
+				size: 90,
 			},
 			{
 				id: "type",

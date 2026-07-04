@@ -14,6 +14,7 @@ export interface ProfileData {
 	email: string | null;
 	first_visit: string;
 	last_visit: string;
+	ltv: number;
 	os_name: string;
 	profile_id: string;
 	referrer: string;

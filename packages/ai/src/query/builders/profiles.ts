@@ -333,6 +333,15 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         AND ${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
       GROUP BY visitor_id
     ),
+    visitor_revenue AS (
+      SELECT
+        ${CUSTOM_EVENTS_VISITOR_KEY} as visitor_id,
+        toFloat64(sumIf(amount, type != 'refund') - sumIf(amount, type = 'refund')) as ltv
+      FROM ${Analytics.revenue}
+      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+        AND ${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
+      GROUP BY visitor_id
+    ),
     visitor_sessions AS (
       SELECT
         ${EVENTS_VISITOR_KEY} as visitor_id,
@@ -390,6 +399,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       vp.referrer AS referrer,
       COALESCE(vce.custom_event_count, 0) as custom_event_count,
       COALESCE(vce.unique_event_names, 0) as unique_event_names,
+      COALESCE(vr.ltv, 0) as ltv,
       COALESCE(vs.session_id, '') as session_id,
       COALESCE(vs.session_start, '') as session_start,
       COALESCE(vs.session_end, '') as session_end,
@@ -406,6 +416,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       COALESCE(vs.events, []) as events
     FROM visitor_profiles vp
     LEFT JOIN visitor_custom_events vce ON vp.visitor_id = vce.visitor_id
+    LEFT JOIN visitor_revenue vr ON vp.visitor_id = vr.visitor_id
     LEFT JOIN visitor_sessions vs ON vp.visitor_id = vs.visitor_id
     ORDER BY vp.${profileSort}, vs.session_start DESC
   `,
