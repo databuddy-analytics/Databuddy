@@ -265,6 +265,7 @@ export class TraitFilterError extends Error {}
 
 export function isTraitFilterField(field: string): boolean {
 	return (
+		typeof field === "string" &&
 		field.startsWith(TRAIT_FILTER_PREFIX) &&
 		field.length > TRAIT_FILTER_PREFIX.length
 	);
@@ -332,6 +333,7 @@ export interface TraitDistributionRow {
 }
 
 const TRAIT_DISTRIBUTION_LIMIT = 200;
+const TRAIT_VALUES_PER_KEY = 20;
 
 export async function getTraitDistribution(websiteId: string): Promise<{
 	identifiedProfiles: number;
@@ -343,11 +345,21 @@ export async function getTraitDistribution(websiteId: string): Promise<{
 		.where(eq(profiles.websiteId, websiteId));
 
 	const result = await db.execute(sql`
-		select t.key as key, t.value as value, count(*)::int as profiles
-		from ${profiles} p, jsonb_each_text(p.traits) as t(key, value)
-		where p.website_id = ${websiteId}
-		group by t.key, t.value
-		order by t.key asc, count(*) desc
+		with ranked as (
+			select
+				t.key as key,
+				t.value as value,
+				count(*)::int as profiles,
+				row_number() over (partition by t.key order by count(*) desc) as value_rank
+			from ${profiles} p, jsonb_each_text(p.traits) as t(key, value)
+			where p.website_id = ${websiteId}
+				and jsonb_typeof(p.traits) = 'object'
+			group by t.key, t.value
+		)
+		select key, value, profiles
+		from ranked
+		where value_rank <= ${TRAIT_VALUES_PER_KEY}
+		order by key asc, profiles desc
 		limit ${TRAIT_DISTRIBUTION_LIMIT}
 	`);
 

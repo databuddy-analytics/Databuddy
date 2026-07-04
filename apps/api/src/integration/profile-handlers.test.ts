@@ -8,6 +8,7 @@ import {
 import { eq } from "@databuddy/db";
 import { appRouter, type Context } from "@databuddy/rpc";
 import {
+	getTraitDistribution,
 	resolveTraitSegment,
 	splitTraits,
 	upsertProfile,
@@ -316,6 +317,26 @@ describe("profiles.traitKeys / traitValues", () => {
 			call(appRouter.profiles.traitKeys, ctx)({ websiteId: website.id }),
 			"FORBIDDEN"
 		);
+	});
+});
+
+describe("getTraitDistribution", () => {
+	iit("ranks values per key with profile counts", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "u1", { traits: { plan: "pro" } });
+		await seedProfile(website.id, "u2", { traits: { plan: "pro" } });
+		await seedProfile(website.id, "u3", {
+			traits: { plan: "free", beta: true },
+		});
+
+		const distribution = await getTraitDistribution(website.id);
+		expect(distribution.identifiedProfiles).toBe(3);
+		expect(distribution.traits).toEqual([
+			{ key: "beta", value: "true", profiles: 1 },
+			{ key: "plan", value: "pro", profiles: 2 },
+			{ key: "plan", value: "free", profiles: 1 },
+		]);
 	});
 });
 

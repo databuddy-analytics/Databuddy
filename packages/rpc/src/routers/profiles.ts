@@ -50,6 +50,7 @@ export const profilesRouter = {
 						eq(profiles.emailHash, emailLookupHash(input.email))
 					)
 				)
+				.orderBy(desc(profiles.updatedAt))
 				.limit(1);
 
 			return row ?? null;
