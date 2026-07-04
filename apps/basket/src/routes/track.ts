@@ -29,7 +29,7 @@ import { isValidIpFromSettings } from "@utils/origin-ip-validation";
 import { VALIDATION_LIMITS, validatePayloadSize } from "@utils/validation";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
-import { trackEventSchema } from "./track-event-schema";
+import { type TrackEventPayload, trackEventSchema } from "./track-event-schema";
 
 interface ResolvedAuth {
 	apiKey?: ApiKeyRow;
@@ -244,12 +244,16 @@ export const trackRoute = new Elysia().post(
 				throw createIngestSchemaValidationError(parseResult.error.issues);
 			}
 
-			const events = Array.isArray(parseResult.data)
+			const events: TrackEventPayload[] = Array.isArray(parseResult.data)
 				? parseResult.data
 				: [parseResult.data];
 			const websiteIdParam = typedQuery.website_id || events[0]?.websiteId;
 
 			const auth = await resolveAuth(request.headers, request, websiteIdParam);
+			const targets = events.map((event) => ({
+				event,
+				websiteId: event.websiteId ?? typedQuery.website_id ?? auth.websiteId,
+			}));
 
 			log.set({
 				ownerId: auth.ownerId,
@@ -274,10 +278,15 @@ export const trackRoute = new Elysia().post(
 					? new Set(getAccessibleWebsiteIds(auth.apiKey))
 					: null;
 
-			for (const event of events) {
-				const targetId = event.websiteId ?? auth.websiteId;
+			for (const target of targets) {
+				const targetId = target.websiteId;
 
 				if (auth.apiKey) {
+					if (allowedApiKeyWebsiteIds && !targetId) {
+						log.set({ rejected: "website_scope" });
+						captureRejectedBody();
+						throw basketErrors.trackWebsiteScopeMismatch();
+					}
 					if (
 						targetId &&
 						allowedApiKeyWebsiteIds &&
@@ -305,8 +314,8 @@ export const trackRoute = new Elysia().post(
 			if (auth.apiKey) {
 				const targetIds = [
 					...new Set(
-						events.flatMap((event) =>
-							event.websiteId ? [event.websiteId] : []
+						targets.flatMap((target) =>
+							target.websiteId ? [target.websiteId] : []
 						)
 					),
 				];
@@ -323,9 +332,8 @@ export const trackRoute = new Elysia().post(
 						throw basketErrors.trackWebsiteNotFound();
 					}
 					if (
-						auth.organizationId
-							? website.organizationId !== auth.organizationId
-							: hasGlobalAccess(auth.apiKey ?? null)
+						!auth.organizationId ||
+						website.organizationId !== auth.organizationId
 					) {
 						log.set({
 							rejected: "website_scope",
@@ -359,9 +367,9 @@ export const trackRoute = new Elysia().post(
 			}
 
 			const now = Date.now();
-			const spans = events.map((event) => ({
+			const spans = targets.map(({ event, websiteId }) => ({
 				owner_id: auth.ownerId,
-				website_id: event.websiteId ?? auth.websiteId,
+				website_id: websiteId,
 				timestamp: parseTimestamp(event.timestamp, now),
 				event_name: event.name,
 				namespace: event.namespace,

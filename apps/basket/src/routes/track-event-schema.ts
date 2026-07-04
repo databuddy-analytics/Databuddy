@@ -61,6 +61,8 @@ const trackEventObject = z.object({
 	source: z.string().max(64).optional(),
 });
 
+export type TrackEventPayload = z.infer<typeof trackEventObject>;
+
 export const trackEventSchema = z.union([
 	trackEventObject,
 	z.array(trackEventObject).max(VALIDATION_LIMITS.BATCH_MAX_SIZE),
