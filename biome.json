@@ -12,6 +12,7 @@
       "!**/*.test.ts",
       "!**/*.spec.ts",
       "!**/ui/**/*.tsx",
+      "!.fablize",
       "!apps/dashboard/public/subdivisions.json"
     ]
   },
