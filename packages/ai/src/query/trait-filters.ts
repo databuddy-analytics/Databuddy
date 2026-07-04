@@ -8,8 +8,35 @@ import { QueryBuilders } from "./builders";
 import { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 import type { Filter, QueryRequest } from "./types";
 
+const PUBLIC_QUERY_ERROR_PATTERNS = [
+	/^Unknown query type:/,
+	/^Filter on field '[^']+' is not permitted/,
+	/^Grouping by '[^']+' is not permitted/,
+	/^Ordering by '[^']+' is not permitted/,
+	/^Missing required filters?:/,
+	/^Trait filters /,
+	/^Trait segment exceeds /,
+	/^[a-z_]+ filter is required for [a-z_]+ query$/,
+	/^[a-z_]+ filter expects /,
+];
+
 export function hasTraitFilters(filters: Filter[] | undefined): boolean {
 	return Boolean(filters?.some((f) => isTraitFilterField(f.field)));
+}
+
+export function publicQueryErrorMessage(error: unknown): string {
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "";
+	if (!message) {
+		return "Query failed";
+	}
+	return PUBLIC_QUERY_ERROR_PATTERNS.some((pattern) => pattern.test(message))
+		? message
+		: "Query failed";
 }
 
 export function invalidFilterFieldError(
@@ -48,7 +75,7 @@ export async function resolveRequestTraitFilters(
 		);
 	}
 	const config = QueryBuilders[request.type];
-	if (config && !isFilterFieldAllowed(config, "profile_id")) {
+	if (!(config && isFilterFieldAllowed(config, "profile_id"))) {
 		throw new TraitFilterError(
 			`Trait filters are not supported for ${request.type}. Query types that support them accept a profile_id filter.`
 		);

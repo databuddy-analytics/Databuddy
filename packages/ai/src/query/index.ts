@@ -116,6 +116,7 @@ export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 export {
 	hasTraitFilters,
 	invalidFilterFieldError,
+	publicQueryErrorMessage,
 	resolveRequestTraitFilters,
 } from "./trait-filters";
 export * from "./types";

@@ -3,7 +3,12 @@ import { captureError } from "../../lib/tracing";
 import { tool } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
-import { executeQuery, hasTraitFilters, QueryBuilders } from "../../query";
+import {
+	executeQuery,
+	hasTraitFilters,
+	publicQueryErrorMessage,
+	QueryBuilders,
+} from "../../query";
 import { shiftDate, todayInTimeZone } from "../../query/date-utils";
 import type { QueryRequest } from "../../query/types";
 import { getAppContext, resolveToolWebsite } from "./utils";
@@ -218,9 +223,7 @@ export const getDataTool = tool({
 						executionTime: Date.now() - queryStart,
 						error: hasTraitFilters(req.filters)
 							? describeTraitFilterError(error)
-							: error instanceof Error
-								? error.message
-								: "Query failed",
+							: publicQueryErrorMessage(error),
 					};
 				}
 			})

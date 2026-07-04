@@ -4,7 +4,11 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
 import { getWebsiteDomain } from "../../lib/website-utils";
-import { executeBatch, executeQuery } from "../../query";
+import {
+	executeBatch,
+	executeQuery,
+	publicQueryErrorMessage,
+} from "../../query";
 import type { QueryRequest } from "../../query/types";
 import { createAnnotationTools } from "../tools/annotations";
 import { createFlagTools } from "../tools/flags";
@@ -144,12 +148,17 @@ export function createMcpAgentTools(
 					offset: args.offset,
 					timezone: args.timezone ?? "UTC",
 				};
-				const data = await executeQuery(
-					queryRequest,
-					websiteDomain,
-					queryRequest.timezone,
-					options.abortSignal
-				);
+				let data: unknown[];
+				try {
+					data = await executeQuery(
+						queryRequest,
+						websiteDomain,
+						queryRequest.timezone,
+						options.abortSignal
+					);
+				} catch (error) {
+					throw new Error(publicQueryErrorMessage(error));
+				}
 				return { data, rowCount: data.length, type: args.type };
 			},
 		}),
@@ -189,7 +198,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 pre-built analytics queries in one call. Preferred for explicit analytics requests. Covers traffic, pages, sessions, errors, performance, vitals, custom events, profiles, links, uptime, LLM, and revenue. Use preset (last_7d/last_30d/etc.) or from/to dates. Supports filters (column names or trait:<key> to segment by identified-user traits, e.g. trait:plan), groupBy, orderBy. If a type or filter field is invalid, the error lists valid options.",
+				"Run 1-10 pre-built analytics queries in one call. Preferred for explicit analytics requests. Covers traffic, pages, sessions, errors, performance, vitals, custom events, profiles, links, uptime, LLM, and revenue. Use preset (last_7d/last_30d/etc.) or from/to dates. Supports filters (column names or trait:<key> to segment by identified-user traits, e.g. {field:'trait:plan',op:'in',value:['pro','scale']}), groupBy, orderBy. For plan/subscription/user-segment questions, call list_profile_traits first to see which trait keys and values exist, then filter here with trait:<key> instead of raw SQL. If a type or filter field is invalid, the error lists valid options.",
 			strict: true,
 			inputSchema: z.object({
 				websiteId: z.string(),
@@ -244,7 +253,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 							type: r.type,
 							data: r.data,
 							rowCount: r.data.length,
-							...(r.error && { error: r.error }),
+							...(r.error && { error: publicQueryErrorMessage(r.error) }),
 						})),
 						...invalid.map((q) => ({
 							type: q.type,

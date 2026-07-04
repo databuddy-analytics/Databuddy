@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	invalidFilterFieldError,
+	publicQueryErrorMessage,
 	resolveRequestTraitFilters,
 } from "./trait-filters";
 import type { QueryRequest } from "./types";
@@ -88,6 +89,18 @@ describe("resolveRequestTraitFilters", () => {
 		).rejects.toThrow("Trait filters are not supported for session_events");
 		expect(mockResolveTraitSegment).not.toHaveBeenCalled();
 	});
+
+	it("rejects unknown query types before resolving trait segments", async () => {
+		await expect(
+			resolveRequestTraitFilters(
+				makeRequest({
+					type: "not_a_query",
+					filters: [{ field: "trait:plan", op: "eq", value: "pro" }],
+				})
+			)
+		).rejects.toThrow("Trait filters are not supported for not_a_query");
+		expect(mockResolveTraitSegment).not.toHaveBeenCalled();
+	});
 });
 
 describe("invalidFilterFieldError", () => {
@@ -126,5 +139,41 @@ describe("invalidFilterFieldError", () => {
 			])
 		).toBeNull();
 		expect(invalidFilterFieldError("session_metrics", [])).toBeNull();
+	});
+});
+
+describe("publicQueryErrorMessage", () => {
+	it("preserves user-actionable query validation errors", () => {
+		expect(publicQueryErrorMessage("Unknown query type: nope")).toBe(
+			"Unknown query type: nope"
+		);
+		expect(
+			publicQueryErrorMessage(
+				"Filter on field 'bad' is not permitted for summary."
+			)
+		).toBe("Filter on field 'bad' is not permitted for summary.");
+		expect(
+			publicQueryErrorMessage(
+				"Trait filters are not supported for session_events."
+			)
+		).toBe("Trait filters are not supported for session_events.");
+		expect(
+			publicQueryErrorMessage("Missing required filter: 'session_id'.")
+		).toBe("Missing required filter: 'session_id'.");
+	});
+
+	it("hides raw backend and compiler errors", () => {
+		expect(
+			publicQueryErrorMessage(
+				"Aggregate function argMin(path, time) is found in WHERE in query"
+			)
+		).toBe("Query failed");
+		expect(publicQueryErrorMessage("Syntax error: failed at position 42")).toBe(
+			"Query failed"
+		);
+		expect(publicQueryErrorMessage(new Error("Table analytics.events missing"))).toBe(
+			"Query failed"
+		);
+		expect(publicQueryErrorMessage(null)).toBe("Query failed");
 	});
 });

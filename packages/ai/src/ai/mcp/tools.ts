@@ -9,7 +9,7 @@ import {
 	saveCuratedMemory,
 	searchMemories,
 } from "../../lib/supermemory";
-import { executeBatch } from "../../query";
+import { executeBatch, publicQueryErrorMessage } from "../../query";
 import { isAiGatewayConfigured } from "../config/models";
 import { summarizeDigestConfig } from "../tools/digest-summary";
 import { callRPCProcedure } from "../tools/utils";
@@ -463,7 +463,7 @@ const getDataTool = defineMcpTool(
 				type: r.type,
 				data: r.data,
 				rowCount: r.data.length,
-				...(r.error && { error: r.error }),
+				...(r.error && { error: publicQueryErrorMessage(r.error) }),
 			})),
 			...invalid.map((q) => ({
 				type: q.type,
