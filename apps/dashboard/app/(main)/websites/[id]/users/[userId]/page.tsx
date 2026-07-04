@@ -465,7 +465,10 @@ function Header({
 										generateProfileName(userProfile.visitor_id)}
 								</h1>
 								{identity?.displayName || identity?.email ? (
-									<Tooltip content="Name and email are encrypted at rest">
+									<Tooltip
+										content="Name and email are encrypted at rest"
+										side="bottom"
+									>
 										<span className="flex items-center text-muted-foreground">
 											<LockSimpleIcon className="size-3" weight="duotone" />
 										</span>
