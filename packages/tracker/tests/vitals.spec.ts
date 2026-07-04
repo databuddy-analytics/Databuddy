@@ -1,7 +1,6 @@
 import { expect, test } from "./test-utils";
 
 type WebVitalEvent = {
-	name: "web_vital";
 	timestamp: number;
 	path: string;
 	metricName: string;
@@ -43,9 +42,9 @@ test.describe("Web Vitals Tracking", () => {
 
 			const validMetrics = ["FCP", "LCP", "CLS", "INP", "TTFB", "FPS"];
 			for (const vital of allVitals) {
-				expect(vital.name).toBe("web_vital");
 				expect(validMetrics).toContain(vital.metricName);
 				expect(typeof vital.metricValue).toBe("number");
+				expect(typeof vital.path).toBe("string");
 			}
 
 			console.table(
