@@ -4,7 +4,7 @@ import {
 	profiles,
 	profileTraitChanges,
 } from "@databuddy/db/schema";
-import { revealPii } from "@databuddy/services/identity";
+import { emailLookupHash, revealPii } from "@databuddy/services/identity";
 import { z } from "zod";
 import { trackedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
@@ -19,6 +19,42 @@ const profileOutputSchema = z.object({
 });
 
 export const profilesRouter = {
+	findByEmail: trackedProcedure
+		.route({
+			method: "POST",
+			path: "/profiles/findByEmail",
+			tags: ["Profiles"],
+			summary: "Find profile by email",
+			description:
+				"Looks up an identified profile by exact email match via the deterministic email hash. Requires website read permission.",
+		})
+		.input(
+			z.object({
+				websiteId: z.string(),
+				email: z.string().email().max(320),
+			})
+		)
+		.output(z.object({ profileId: z.string() }).nullable())
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				websiteId: input.websiteId,
+				permissions: ["read"],
+			});
+
+			const [row] = await context.db
+				.select({ profileId: profiles.profileId })
+				.from(profiles)
+				.where(
+					and(
+						eq(profiles.websiteId, input.websiteId),
+						eq(profiles.emailHash, emailLookupHash(input.email))
+					)
+				)
+				.limit(1);
+
+			return row ?? null;
+		}),
+
 	traitKeys: trackedProcedure
 		.route({
 			method: "POST",

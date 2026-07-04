@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useTraitKeys, useTraitValues } from "@/hooks/use-profiles";
+import { orpc } from "@/lib/orpc";
 import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
@@ -27,6 +28,7 @@ import {
 	ArrowUpIcon,
 	GlobeIcon,
 	LightningIcon,
+	MagnifyingGlassIcon,
 	TagIcon,
 	UsersIcon,
 } from "@databuddy/ui/icons";
@@ -48,10 +50,12 @@ import {
 	Badge,
 	Button,
 	EmptyState,
+	Input,
 	Skeleton,
 	Tooltip,
 	dayjs,
 } from "@databuddy/ui";
+import { toast } from "sonner";
 import { DropdownMenu } from "@databuddy/ui/client";
 
 const wwwRegex = /^www\./;
@@ -201,6 +205,7 @@ export default function UsersPage() {
 		order: "desc",
 	});
 	const [eventFilter, setEventFilter] = useState<string | null>(null);
+	const [emailQuery, setEmailQuery] = useState("");
 	const [traitFilter, setTraitFilter] = useState<{
 		key: string;
 		value: string | null;
@@ -724,6 +729,35 @@ export default function UsersPage() {
 
 	const refreshAction = (
 		<TopBar.Actions>
+			<form
+				className="flex items-center"
+				onSubmit={async (e) => {
+					e.preventDefault();
+					const email = emailQuery.trim().toLowerCase();
+					if (!email) {
+						return;
+					}
+					const found = await orpc.profiles.findByEmail
+						.call({ websiteId, email })
+						.catch(() => null);
+					if (found) {
+						router.push(`/websites/${websiteId}/users/${found.profileId}`);
+					} else {
+						toast.info("No user found with that email");
+					}
+				}}
+			>
+				<div className="relative">
+					<MagnifyingGlassIcon className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						className="h-8 w-52 pl-7 text-xs"
+						onChange={(e) => setEmailQuery(e.target.value)}
+						placeholder="Find by email"
+						type="email"
+						value={emailQuery}
+					/>
+				</div>
+			</form>
 			<Button
 				disabled={isFetching}
 				onClick={() => refetch()}

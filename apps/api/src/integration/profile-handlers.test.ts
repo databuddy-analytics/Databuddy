@@ -251,6 +251,33 @@ describe("upsertProfile trait history", () => {
 	});
 });
 
+describe("profiles.findByEmail", () => {
+	iit("finds a profile by exact email via the lookup hash", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+		const website = await insertWebsite({ organizationId: org.id });
+		await upsertProfile(
+			website.id,
+			"user_1",
+			splitTraits({ email: "Jo@Acme.com", name: "Jo" })
+		);
+		const ctx = userContext(user, org.id);
+
+		const found = await call(appRouter.profiles.findByEmail, ctx)({
+			websiteId: website.id,
+			email: "jo@acme.com",
+		});
+		expect(found).toEqual({ profileId: "user_1" });
+
+		const missing = await call(appRouter.profiles.findByEmail, ctx)({
+			websiteId: website.id,
+			email: "nobody@acme.com",
+		});
+		expect(missing).toBeNull();
+	});
+});
+
 describe("profiles.traitKeys / traitValues", () => {
 	iit("lists distinct keys and values for the website only", async () => {
 		const user = await signUp();
