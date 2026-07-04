@@ -191,8 +191,10 @@ export function useDynamicQuery<
 	return {
 		data: processedData,
 		isLoading: query.isLoading || query.isFetching || query.isPending,
+		isFetching: query.isFetching,
 		isError: query.isError,
 		error: query.error,
+		refetch: query.refetch,
 	};
 }
 

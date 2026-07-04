@@ -7,7 +7,7 @@ import { type ElementType, type ReactNode, useCallback, useState } from "react";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { getDeviceIcon } from "@/components/device-icon";
-import { useProfileIdentity } from "@/hooks/use-profiles";
+import { useProfileHistory, useProfileIdentity } from "@/hooks/use-profiles";
 import { cn } from "@/lib/utils";
 import { generateProfileName } from "./_components/generate-profile-name";
 import { SessionRow } from "./_components/session-row";
@@ -15,10 +15,12 @@ import { useUserProfile } from "./use-user-profile";
 import {
 	ArrowLeftIcon,
 	ChartLineIcon,
+	ClockCounterClockwiseIcon,
 	ClockIcon,
 	DevicesIcon,
 	GaugeIcon,
 	GlobeIcon,
+	TagIcon,
 	UserIcon,
 } from "@databuddy/ui/icons";
 import {
@@ -317,6 +319,108 @@ function WebVitalsSection({
 	);
 }
 
+function formatTraitValue(value: unknown): string {
+	if (value === null || value === undefined) {
+		return "—";
+	}
+	if (typeof value === "boolean") {
+		return value ? "Yes" : "No";
+	}
+	if (typeof value === "object") {
+		return JSON.stringify(value);
+	}
+	return String(value);
+}
+
+function TraitsSection({
+	className,
+	traits,
+}: {
+	className?: string;
+	traits: Record<string, unknown> | undefined;
+}) {
+	const entries = Object.entries(traits ?? {}).sort(([a], [b]) =>
+		a.localeCompare(b)
+	);
+	if (entries.length === 0) {
+		return null;
+	}
+
+	return (
+		<SidebarSection className={className} icon={TagIcon} title="Traits">
+			{entries.map(([key, value]) => (
+				<div
+					className="flex min-h-10 items-center justify-between gap-3 py-2.5"
+					key={key}
+				>
+					<span className="text-muted-foreground text-xs">{key}</span>
+					<span className="truncate text-right font-medium text-foreground text-sm">
+						{formatTraitValue(value)}
+					</span>
+				</div>
+			))}
+		</SidebarSection>
+	);
+}
+
+interface TraitHistoryEntry {
+	changes: Record<string, { old: unknown; new: unknown }>;
+	createdAt: string | Date;
+	source: string;
+}
+
+function TraitHistorySection({
+	className,
+	history,
+}: {
+	className?: string;
+	history: TraitHistoryEntry[];
+}) {
+	if (history.length === 0) {
+		return null;
+	}
+
+	return (
+		<SidebarSection
+			className={className}
+			icon={ClockCounterClockwiseIcon}
+			title="Trait history"
+		>
+			<div className="flex flex-col gap-3">
+				{history.map((entry, index) => (
+					<div
+						className="border-border/60 border-l-2 pl-3"
+						key={`${entry.createdAt}-${index}`}
+					>
+						<div className="flex items-center justify-between gap-2">
+							<span className="text-muted-foreground text-xs">
+								{formatDateOnly(entry.createdAt)} ·{" "}
+								{formatLocalTime(entry.createdAt, "h:mm A")}
+							</span>
+							<span className="text-muted-foreground/60 text-xs">
+								{entry.source}
+							</span>
+						</div>
+						<div className="mt-1 flex flex-col gap-0.5">
+							{Object.entries(entry.changes).map(([key, change]) => (
+								<p className="text-sm" key={key}>
+									<span className="font-medium text-foreground">{key}</span>{" "}
+									<span className="text-muted-foreground/70 line-through">
+										{formatTraitValue(change.old)}
+									</span>{" "}
+									<span className="text-foreground">
+										→ {formatTraitValue(change.new)}
+									</span>
+								</p>
+							))}
+						</div>
+					</div>
+				))}
+			</div>
+		</SidebarSection>
+	);
+}
+
 function Header({
 	onBack,
 	userProfile,
@@ -404,6 +508,10 @@ export default function UserDetailPage() {
 		dateRange
 	);
 	const { data: identity } = useProfileIdentity(
+		websiteId,
+		userProfile?.profile_id ?? ""
+	);
+	const { data: traitHistory } = useProfileHistory(
 		websiteId,
 		userProfile?.profile_id ?? ""
 	);
@@ -496,6 +604,8 @@ export default function UserDetailPage() {
 						))}
 					</div>
 
+					<TraitsSection traits={identity?.traits} />
+
 					<WebVitalsSection vitals={webVitals} />
 
 					<SidebarSection icon={GlobeIcon} title="Location">
@@ -572,6 +682,8 @@ export default function UserDetailPage() {
 							value={userProfile.total_duration_formatted || "0s"}
 						/>
 					</SidebarSection>
+
+					<TraitHistorySection history={traitHistory ?? []} />
 				</aside>
 
 				<main className="min-w-0 flex-1 overflow-y-auto">
@@ -586,9 +698,19 @@ export default function UserDetailPage() {
 						))}
 					</div>
 
+					<TraitsSection
+						className="bg-background lg:hidden"
+						traits={identity?.traits}
+					/>
+
 					<WebVitalsSection
 						className="bg-background lg:hidden"
 						vitals={webVitals}
+					/>
+
+					<TraitHistorySection
+						className="bg-background lg:hidden"
+						history={traitHistory ?? []}
 					/>
 
 					<div className="sticky top-0 z-10 grid h-[39px] grid-cols-[24px_1fr_120px_80px_60px_60px_70px_80px] items-center gap-2 border-b bg-accent px-3 font-medium text-muted-foreground text-xs shadow-[0_0_0_0.5px_var(--border)] lg:grid-cols-[24px_1fr_120px_80px_100px_60px_60px_70px_80px]">
