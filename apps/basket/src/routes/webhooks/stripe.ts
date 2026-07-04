@@ -234,6 +234,52 @@ async function withCarriedAttribution(
 	return { ...metadata, ...carried };
 }
 
+async function insertRevenueRow(
+	config: WebhookConfig,
+	metadata: AnalyticsMetadata,
+	row: {
+		transactionId: string;
+		type: "sale" | "subscription" | "refund";
+		status: string;
+		amount: number;
+		currency: string;
+		customerId: string | undefined;
+		productName: string | null | undefined;
+		createdUnix: number;
+	}
+): Promise<void> {
+	await clickHouse.insert({
+		table: "analytics.revenue",
+		values: [
+			{
+				owner_id: config.ownerId,
+				website_id: await resolveWebsiteId(
+					metadata.client_id,
+					config.websiteId,
+					config.ownerId
+				),
+				transaction_id: row.transactionId,
+				provider: "stripe",
+				type: row.type,
+				status: row.status,
+				amount: row.amount,
+				original_amount: row.amount,
+				original_currency: row.currency,
+				currency: row.currency,
+				anonymous_id: metadata.anonymous_id || undefined,
+				profile_id: metadata.profile_id || undefined,
+				session_id: metadata.session_id || undefined,
+				customer_id: row.customerId,
+				product_name: row.productName || undefined,
+				metadata: JSON.stringify(metadata),
+				created: formatDate(new Date(row.createdUnix * 1000)),
+				synced_at: formatDate(new Date()),
+			},
+		],
+		format: "JSONEachRow",
+	});
+}
+
 async function handlePaymentIntent(
 	pi: WebhookPaymentIntent,
 	config: WebhookConfig
@@ -268,35 +314,15 @@ async function handlePaymentIntent(
 		},
 	});
 
-	await clickHouse.insert({
-		table: "analytics.revenue",
-		values: [
-			{
-				owner_id: config.ownerId,
-				website_id: await resolveWebsiteId(
-					metadata.client_id,
-					config.websiteId,
-					config.ownerId
-				),
-				transaction_id: pi.id,
-				provider: "stripe",
-				type,
-				status: "completed",
-				amount,
-				original_amount: amount,
-				original_currency: currency,
-				currency,
-				anonymous_id: metadata.anonymous_id || undefined,
-				profile_id: metadata.profile_id || undefined,
-				session_id: metadata.session_id || undefined,
-				customer_id: customerId,
-				product_name: productName,
-				metadata: JSON.stringify(metadata),
-				created: formatDate(new Date(pi.created * 1000)),
-				synced_at: formatDate(new Date()),
-			},
-		],
-		format: "JSONEachRow",
+	await insertRevenueRow(config, metadata, {
+		transactionId: pi.id,
+		type,
+		status: "completed",
+		amount,
+		currency,
+		customerId,
+		productName,
+		createdUnix: pi.created,
 	});
 }
 
@@ -331,35 +357,15 @@ async function handleFailedPayment(
 		},
 	});
 
-	await clickHouse.insert({
-		table: "analytics.revenue",
-		values: [
-			{
-				owner_id: config.ownerId,
-				website_id: await resolveWebsiteId(
-					metadata.client_id,
-					config.websiteId,
-					config.ownerId
-				),
-				transaction_id: pi.id,
-				provider: "stripe",
-				type,
-				status,
-				amount,
-				original_amount: amount,
-				original_currency: currency,
-				currency,
-				anonymous_id: metadata.anonymous_id || undefined,
-				profile_id: metadata.profile_id || undefined,
-				session_id: metadata.session_id || undefined,
-				customer_id: customerId,
-				product_name: productName,
-				metadata: JSON.stringify(metadata),
-				created: formatDate(new Date(pi.created * 1000)),
-				synced_at: formatDate(new Date()),
-			},
-		],
-		format: "JSONEachRow",
+	await insertRevenueRow(config, metadata, {
+		transactionId: pi.id,
+		type,
+		status,
+		amount,
+		currency,
+		customerId,
+		productName,
+		createdUnix: pi.created,
 	});
 }
 
@@ -428,35 +434,15 @@ async function handleInvoicePaid(
 		},
 	});
 
-	await clickHouse.insert({
-		table: "analytics.revenue",
-		values: [
-			{
-				owner_id: config.ownerId,
-				website_id: await resolveWebsiteId(
-					metadata.client_id,
-					config.websiteId,
-					config.ownerId
-				),
-				transaction_id: transactionId,
-				provider: "stripe",
-				type: "subscription" as const,
-				status: "completed",
-				amount,
-				original_amount: amount,
-				original_currency: currency,
-				currency,
-				anonymous_id: metadata.anonymous_id || undefined,
-				profile_id: metadata.profile_id || undefined,
-				session_id: metadata.session_id || undefined,
-				customer_id: customerId,
-				product_name: invoice.description || undefined,
-				metadata: JSON.stringify(metadata),
-				created: formatDate(new Date(invoice.created * 1000)),
-				synced_at: formatDate(new Date()),
-			},
-		],
-		format: "JSONEachRow",
+	await insertRevenueRow(config, metadata, {
+		transactionId,
+		type: "subscription",
+		status: "completed",
+		amount,
+		currency,
+		customerId,
+		productName: invoice.description || undefined,
+		createdUnix: invoice.created,
 	});
 }
 
@@ -483,35 +469,15 @@ async function handleInvoiceFailed(
 		},
 	});
 
-	await clickHouse.insert({
-		table: "analytics.revenue",
-		values: [
-			{
-				owner_id: config.ownerId,
-				website_id: await resolveWebsiteId(
-					metadata.client_id,
-					config.websiteId,
-					config.ownerId
-				),
-				transaction_id: invoice.id,
-				provider: "stripe",
-				type: "subscription" as const,
-				status: "failed",
-				amount,
-				original_amount: amount,
-				original_currency: currency,
-				currency,
-				anonymous_id: metadata.anonymous_id || undefined,
-				profile_id: metadata.profile_id || undefined,
-				session_id: metadata.session_id || undefined,
-				customer_id: customerId,
-				product_name: invoice.description || undefined,
-				metadata: JSON.stringify(metadata),
-				created: formatDate(new Date(invoice.created * 1000)),
-				synced_at: formatDate(new Date()),
-			},
-		],
-		format: "JSONEachRow",
+	await insertRevenueRow(config, metadata, {
+		transactionId: invoice.id,
+		type: "subscription",
+		status: "failed",
+		amount,
+		currency,
+		customerId,
+		productName: invoice.description || undefined,
+		createdUnix: invoice.created,
 	});
 }
 
@@ -537,35 +503,15 @@ async function handleRefund(
 	for (const refund of refunds) {
 		const amount = refund.amount / 100;
 
-		await clickHouse.insert({
-			table: "analytics.revenue",
-			values: [
-				{
-					owner_id: config.ownerId,
-					website_id: await resolveWebsiteId(
-						metadata.client_id,
-						config.websiteId,
-						config.ownerId
-					),
-					transaction_id: refund.id,
-					provider: "stripe",
-					type: "refund",
-					status: "refunded",
-					amount: -amount,
-					original_amount: -amount,
-					original_currency: currency,
-					currency,
-					anonymous_id: metadata.anonymous_id || undefined,
-					profile_id: metadata.profile_id || undefined,
-					session_id: metadata.session_id || undefined,
-					customer_id: customerId,
-					product_name: "Refund",
-					metadata: JSON.stringify(metadata),
-					created: formatDate(new Date(refund.created * 1000)),
-					synced_at: formatDate(new Date()),
-				},
-			],
-			format: "JSONEachRow",
+		await insertRevenueRow(config, metadata, {
+			transactionId: refund.id,
+			type: "refund",
+			status: "refunded",
+			amount: -amount,
+			currency,
+			customerId,
+			productName: "Refund",
+			createdUnix: refund.created,
 		});
 	}
 }
