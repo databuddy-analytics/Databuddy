@@ -38,11 +38,11 @@ export const profilesRouter = {
 
 			const rows = await context.db
 				.selectDistinct({
-					key: sql<string>`jsonb_object_keys(${profiles.traits})`.as("key"),
+					key: sql<string>`jsonb_object_keys(${profiles.traits})`,
 				})
 				.from(profiles)
 				.where(eq(profiles.websiteId, input.websiteId))
-				.orderBy(sql`key`)
+				.orderBy(sql`1`)
 				.limit(100);
 
 			return rows.map((row) => row.key);
@@ -67,7 +67,7 @@ export const profilesRouter = {
 
 			const rows = await context.db
 				.selectDistinct({
-					value: sql<string>`${profiles.traits}->>${input.key}`.as("value"),
+					value: sql<string>`${profiles.traits}->>${input.key}`,
 				})
 				.from(profiles)
 				.where(
@@ -76,7 +76,7 @@ export const profilesRouter = {
 						sql`jsonb_exists(${profiles.traits}, ${input.key})`
 					)
 				)
-				.orderBy(sql`value`)
+				.orderBy(sql`1`)
 				.limit(50);
 
 			return rows.map((row) => row.value).filter((value) => value !== null);
