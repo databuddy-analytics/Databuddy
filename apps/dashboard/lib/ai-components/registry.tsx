@@ -33,6 +33,10 @@ import {
 	type GoalPreviewProps,
 	GoalPreviewRenderer,
 } from "./renderers/goals/preview";
+import {
+	type FeedbackPreviewProps,
+	FeedbackPreviewRenderer,
+} from "./renderers/feedback/preview";
 import { type LinksListProps, LinksListRenderer } from "./renderers/links/list";
 import {
 	type LinkPreviewProps,
@@ -51,6 +55,7 @@ import type {
 	DashboardActionsInput,
 	DataTableInput,
 	DistributionInput,
+	FeedbackPreviewInput,
 	FunnelPreviewInput,
 	FunnelsListInput,
 	GoalPreviewInput,
@@ -121,6 +126,26 @@ function isLinkPreviewInput(
 		return false;
 	}
 	return typeof link.name === "string" && typeof link.targetUrl === "string";
+}
+
+function isFeedbackPreviewInput(
+	input: RawComponentInput
+): input is RawComponentInput & FeedbackPreviewInput {
+	if (input.type !== "feedback-preview") {
+		return false;
+	}
+	const mode = input.mode as string;
+	if (!["offer", "sent"].includes(mode)) {
+		return false;
+	}
+	const feedback = input.feedback as Record<string, unknown> | undefined;
+	if (!feedback || typeof feedback !== "object") {
+		return false;
+	}
+	return (
+		typeof feedback.title === "string" &&
+		typeof feedback.description === "string"
+	);
 }
 
 function isFunnelsListInput(
@@ -364,6 +389,15 @@ function toLinkPreviewProps(input: LinkPreviewInput): LinkPreviewProps {
 	};
 }
 
+function toFeedbackPreviewProps(
+	input: FeedbackPreviewInput
+): FeedbackPreviewProps {
+	return {
+		mode: input.mode,
+		feedback: input.feedback,
+	};
+}
+
 function toFunnelsListProps(input: FunnelsListInput): FunnelsListProps {
 	return {
 		title: input.title,
@@ -506,6 +540,12 @@ export const componentRegistry: ComponentRegistry = {
 		transform: toLinkPreviewProps,
 		component: LinkPreviewRenderer,
 	} as ComponentDefinition<LinkPreviewInput, LinkPreviewProps>,
+
+	"feedback-preview": {
+		validate: isFeedbackPreviewInput,
+		transform: toFeedbackPreviewProps,
+		component: FeedbackPreviewRenderer,
+	} as ComponentDefinition<FeedbackPreviewInput, FeedbackPreviewProps>,
 
 	"funnels-list": {
 		validate: isFunnelsListInput,
