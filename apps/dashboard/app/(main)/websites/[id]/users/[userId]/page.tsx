@@ -1,6 +1,9 @@
 "use client";
 
-import { getCountryCode } from "@databuddy/shared/country-codes";
+import {
+	getCountryCode,
+	getCountryName,
+} from "@databuddy/shared/country-codes";
 import type { ProfileSession, Session } from "@/types/sessions";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { type ElementType, type ReactNode, useCallback, useState } from "react";
@@ -440,6 +443,7 @@ function Header({
 	const countryCode = userProfile
 		? getCountryCode(userProfile.country || "")
 		: "";
+	const countryName = getCountryName(countryCode) || userProfile?.country || "";
 	const isReturning = (userProfile?.total_sessions ?? 0) > 1;
 
 	return (
@@ -482,7 +486,7 @@ function Header({
 								{userProfile.region && userProfile.region !== "Unknown"
 									? `${userProfile.region}, `
 									: ""}
-								{userProfile.country || "Unknown location"}
+								{countryName || "Unknown location"}
 							</p>
 						</div>
 					</div>
@@ -590,6 +594,10 @@ export default function UserDetailPage() {
 		userProfile.region && userProfile.region !== "Unknown"
 			? userProfile.region
 			: undefined;
+	const countryName =
+		getCountryName(getCountryCode(userProfile.country || "")) ||
+		userProfile.country ||
+		"Unknown";
 	const metrics = [
 		{ label: "Sessions", value: totalSessions },
 		{ label: "Pageviews", value: userProfile.total_pageviews ?? 0 },
@@ -632,7 +640,7 @@ export default function UserDetailPage() {
 							}
 							label="Country"
 							subValue={region}
-							value={userProfile.country || "Unknown"}
+							value={countryName}
 						/>
 					</SidebarSection>
 
