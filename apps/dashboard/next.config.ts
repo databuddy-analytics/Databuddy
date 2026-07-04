@@ -15,6 +15,9 @@ const demoFrameAncestorSources = [
 
 const nextConfig: NextConfig = {
 	outputFileTracingRoot: path.join(process.cwd(), "../.."),
+	outputFileTracingIncludes: {
+		"/dby/og": ["./fonts/lt-superior/*.otf"],
+	},
 	serverExternalPackages: ["pg"],
 	images: {
 		remotePatterns: [
