@@ -466,10 +466,9 @@ function Header({
 								</h1>
 								{identity?.displayName || identity?.email ? (
 									<Tooltip content="Name and email are encrypted at rest">
-										<LockSimpleIcon
-											className="size-3 text-muted-foreground"
-											weight="duotone"
-										/>
+										<span className="flex items-center text-muted-foreground">
+											<LockSimpleIcon className="size-3" weight="duotone" />
+										</span>
 									</Tooltip>
 								) : null}
 							</div>
