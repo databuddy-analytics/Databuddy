@@ -1,8 +1,7 @@
 import { ImageResponse } from "next/og";
+import { loadOgFonts, OG_COLORS, OgLogo } from "@/lib/og";
 
-export const runtime = "edge";
-
-export function GET(request: Request) {
+export async function GET(request: Request) {
 	const { searchParams } = new URL(request.url);
 	const revenue = searchParams.get("revenue") || "0";
 	const visitors = searchParams.get("visitors") || "0";
@@ -23,9 +22,10 @@ export function GET(request: Request) {
 				width: "100%",
 				display: "flex",
 				flexDirection: "column",
-				backgroundColor: "#0a0a0a",
+				backgroundColor: OG_COLORS.background,
 				position: "relative",
 				overflow: "hidden",
+				fontFamily: "LT Superior",
 			}}
 		>
 			<div
@@ -35,8 +35,7 @@ export function GET(request: Request) {
 					left: 0,
 					right: 0,
 					bottom: 0,
-					backgroundImage:
-						"linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)",
+					backgroundImage: `linear-gradient(${OG_COLORS.grid} 1px, transparent 1px), linear-gradient(90deg, ${OG_COLORS.grid} 1px, transparent 1px)`,
 					backgroundSize: "48px 48px",
 				}}
 			/>
@@ -44,12 +43,22 @@ export function GET(request: Request) {
 			<div
 				style={{
 					position: "absolute",
-					top: "-20%",
+					top: "-25%",
 					right: "-10%",
+					width: "700px",
+					height: "550px",
+					background: `radial-gradient(ellipse at center, ${OG_COLORS.purpleGlow}, transparent 70%)`,
+				}}
+			/>
+
+			<div
+				style={{
+					position: "absolute",
+					bottom: "-30%",
+					left: "-10%",
 					width: "600px",
 					height: "500px",
-					background:
-						"radial-gradient(ellipse at center, rgba(239, 68, 68, 0.08), transparent 70%)",
+					background: `radial-gradient(ellipse at center, ${OG_COLORS.amberGlow}, transparent 70%)`,
 				}}
 			/>
 
@@ -61,45 +70,12 @@ export function GET(request: Request) {
 					padding: "40px 60px 0",
 				}}
 			>
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: "14px",
-					}}
-				>
-					<svg
-						height="36"
-						style={{ borderRadius: "4px" }}
-						viewBox="0 0 8 8"
-						width="36"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<title>Databuddy</title>
-						<path d="M0 0h8v8H0z" fill="#000" />
-						<path
-							d="M1 1h1v6H1zm1 0h4v1H2zm4 1h1v1H6zm0 1h1v1H6zm0 1h1v1H6zm0 1h1v1H6zM2 6h4v1H2zm1-3h1v1H3zm1 1h1v1H4z"
-							fill="#fff"
-						/>
-					</svg>
-					<span
-						style={{
-							color: "#ffffff",
-							fontSize: "18px",
-							fontWeight: 600,
-							fontFamily: "monospace",
-							letterSpacing: "0.1em",
-							textTransform: "uppercase",
-						}}
-					>
-						Databuddy
-					</span>
-				</div>
+				<OgLogo height={40} />
 				<span
 					style={{
-						color: "#525252",
-						fontSize: "14px",
-						fontFamily: "monospace",
+						color: OG_COLORS.faint,
+						fontSize: "15px",
+						fontWeight: 500,
 						letterSpacing: "0.05em",
 					}}
 				>
@@ -128,20 +104,20 @@ export function GET(request: Request) {
 				>
 					<span
 						style={{
-							color: "#737373",
+							color: OG_COLORS.muted,
 							fontSize: "16px",
+							fontWeight: 500,
 							textTransform: "uppercase",
 							letterSpacing: "0.15em",
-							fontFamily: "monospace",
 						}}
 					>
 						Estimated Opportunity Cost / Year
 					</span>
 					<span
 						style={{
-							color: "#ef4444",
+							color: OG_COLORS.amber,
 							fontSize: "96px",
-							fontWeight: 800,
+							fontWeight: 700,
 							letterSpacing: "-0.04em",
 							lineHeight: 1,
 						}}
@@ -167,18 +143,18 @@ export function GET(request: Request) {
 					>
 						<span
 							style={{
-								color: "#525252",
-								fontSize: "12px",
+								color: OG_COLORS.faint,
+								fontSize: "13px",
+								fontWeight: 500,
 								textTransform: "uppercase",
 								letterSpacing: "0.1em",
-								fontFamily: "monospace",
 							}}
 						>
 							Monthly Visitors
 						</span>
 						<span
 							style={{
-								color: "#ffffff",
+								color: OG_COLORS.foreground,
 								fontSize: "28px",
 								fontWeight: 700,
 							}}
@@ -190,7 +166,7 @@ export function GET(request: Request) {
 						style={{
 							width: "1px",
 							height: "40px",
-							backgroundColor: "rgba(255,255,255,0.1)",
+							backgroundColor: OG_COLORS.badgeBorder,
 						}}
 					/>
 					<div
@@ -203,18 +179,18 @@ export function GET(request: Request) {
 					>
 						<span
 							style={{
-								color: "#525252",
-								fontSize: "12px",
+								color: OG_COLORS.faint,
+								fontSize: "13px",
+								fontWeight: 500,
 								textTransform: "uppercase",
 								letterSpacing: "0.1em",
-								fontFamily: "monospace",
 							}}
 						>
 							Databuddy (est.)
 						</span>
 						<span
 							style={{
-								color: "#ffffff",
+								color: OG_COLORS.foreground,
 								fontSize: "28px",
 								fontWeight: 700,
 							}}
@@ -235,9 +211,9 @@ export function GET(request: Request) {
 			>
 				<span
 					style={{
-						color: "#525252",
+						color: OG_COLORS.faint,
 						fontSize: "18px",
-						fontFamily: "monospace",
+						fontWeight: 500,
 					}}
 				>
 					Model yours at databuddy.cc/calculator
@@ -247,6 +223,7 @@ export function GET(request: Request) {
 		{
 			width: 1200,
 			height: 630,
+			fonts: await loadOgFonts(),
 		}
 	);
 }
