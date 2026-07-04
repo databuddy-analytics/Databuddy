@@ -15,7 +15,7 @@ Connect your payment provider and every transaction shows up in the Revenue dash
 
 1. Open your [Databuddy dashboard](https://app.databuddy.cc) and go to **Website → Revenue**.
 2. Click **Generate webhook URLs**. You get one URL per provider, each with a unique secret path.
-3. Keep this page open — you'll paste the URL into your provider next.
+3. Keep this page open, you'll paste the URL into your provider next.
 
 ## 2. Add the webhook to your provider
 
@@ -46,7 +46,7 @@ Paste the **webhook secret key** into the Revenue settings so Databuddy can veri
 
 ## 3. Pass Databuddy IDs with each payment
 
-Metadata connects a payment to the visitor who made it. Include what you have — every field is optional, and more fields mean stronger attribution:
+Metadata connects a payment to the visitor who made it. Include what you have: every field is optional, and more fields mean stronger attribution.
 
 <Tabs items={['Stripe', 'Paddle']}>
 <Tab value="Stripe">
@@ -93,10 +93,10 @@ Paddle.Checkout.open({
 |---|---|
 | Session ID | Ties revenue to the exact visit, referrer, and campaign |
 | Anonymous ID | Ties revenue to the device even without a session |
-| Profile ID | Ties revenue to the identified user — see [Identify Users](/docs/sdk/identify-users) |
+| Profile ID | Ties revenue to the identified user, see [Identify Users](/docs/sdk/identify-users) |
 
 <Callout type="info">
-Anonymous IDs are hashed on arrival, the same way the tracker hashes them — raw
+Anonymous IDs are hashed on arrival, the same way the tracker hashes them; raw
 device IDs are never stored. Profile IDs are your own user IDs and are stored
 as sent.
 </Callout>
@@ -107,6 +107,6 @@ Send a test payment (Stripe test mode works), then check **Website → Revenue**
 
 ## Troubleshooting
 
-- **Nothing appears:** confirm the webhook URL matches the generated one exactly and the signing secret is saved in Revenue settings — deliveries with bad signatures are rejected.
+- **Nothing appears:** confirm the webhook URL matches the generated one exactly and the signing secret is saved in Revenue settings; deliveries with bad signatures are rejected.
 - **Revenue appears but isn't attributed:** the payment had no Databuddy metadata. Attribution only works for payments created after you started passing IDs.
-- **Stripe shows failed deliveries:** regenerating webhook URLs invalidates the old path — update Stripe after regenerating.
+- **Stripe shows failed deliveries:** regenerating webhook URLs invalidates the old path, so update Stripe after regenerating.

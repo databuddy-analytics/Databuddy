@@ -129,7 +129,7 @@ export function buildProfileTools(opts: ProfileToolsOptions): ToolSet {
 		}),
 
 		get_profile_history: tool({
-			description: `Trait change timeline for an identified profile (profile_id). Each entry shows which traits changed (old and new values) plus the full trait snapshot after the change — answers "when did the plan change" and "what were the traits at time T" directly.${suffix}`,
+			description: `Trait change timeline for an identified profile (profile_id). Each entry shows which traits changed (old and new values) plus the full trait snapshot after the change; answers "when did the plan change" and "what were the traits at time T" directly.${suffix}`,
 			inputSchema: z.object({
 				websiteId: opts.websiteIdSchema,
 				profileId: z.string(),
@@ -163,7 +163,7 @@ export function buildProfileTools(opts: ProfileToolsOptions): ToolSet {
 		}),
 
 		list_profile_traits: tool({
-			description: `Distribution of identified-user traits: every trait key, its values, and how many profiles carry each value, plus the total identified profile count. Call this before segmenting to learn which keys and values exist and to quantify identified-vs-anonymous coverage. To measure sessions or behavior per segment, follow up with get_data using a trait:<key> filter (e.g. session_metrics filtered by trait:plan eq pro) — that is how profiles link to sessions; prefer aggregate query types like session_metrics/summary_metrics for totals instead of summing time series rows by hand.${suffix}`,
+			description: `Distribution of identified-user traits: every trait key, its values, and how many profiles carry each value, plus the total identified profile count. Call this before segmenting to learn which keys and values exist and to quantify identified-vs-anonymous coverage. To measure sessions or behavior per segment, follow up with get_data using a trait:<key> filter (e.g. session_metrics filtered by trait:plan eq pro); that is how profiles link to sessions, and prefer aggregate query types like session_metrics/summary_metrics for totals instead of summing time series rows by hand.${suffix}`,
 			inputSchema: z.object({
 				websiteId: opts.websiteIdSchema,
 			}),
