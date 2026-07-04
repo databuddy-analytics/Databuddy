@@ -152,9 +152,51 @@ function safeLocalStorage(): Storage | undefined {
 	}
 }
 
-export function makeQueryPersister() {
+function makeOwnerScopedStorage(userId: string): Storage | undefined {
+	const storage = safeLocalStorage();
+	if (!storage) {
+		return;
+	}
+
+	const ensureOwner = () => {
+		const owner = storage.getItem(PERSIST_OWNER_KEY);
+		if (owner === userId) {
+			return true;
+		}
+		storage.removeItem(PERSIST_KEY);
+		storage.removeItem(PERSIST_OWNER_KEY);
+		storage.setItem(PERSIST_OWNER_KEY, userId);
+		return false;
+	};
+
+	return {
+		get length() {
+			return storage.length;
+		},
+		clear: () => {
+			storage.removeItem(PERSIST_KEY);
+			storage.removeItem(PERSIST_OWNER_KEY);
+		},
+		getItem: (key: string) => {
+			if (key === PERSIST_KEY && !ensureOwner()) {
+				return null;
+			}
+			return storage.getItem(key);
+		},
+		key: (index: number) => storage.key(index),
+		removeItem: (key: string) => storage.removeItem(key),
+		setItem: (key: string, value: string) => {
+			if (key === PERSIST_KEY) {
+				ensureOwner();
+			}
+			storage.setItem(key, value);
+		},
+	};
+}
+
+export function makeQueryPersister(userId?: string) {
 	return createSyncStoragePersister({
-		storage: safeLocalStorage(),
+		storage: userId ? makeOwnerScopedStorage(userId) : undefined,
 		key: PERSIST_KEY,
 	});
 }

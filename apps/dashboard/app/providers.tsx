@@ -23,8 +23,11 @@ import {
 } from "@/lib/query-client";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
+	const { data: session, isPending } = authClient.useSession();
+	const userId = session?.user?.id;
 	const [queryClient] = useState(getQueryClient);
-	const [persister] = useState(makeQueryPersister);
+	const persister = useMemo(() => makeQueryPersister(userId), [userId]);
+	const shouldPersist = !(isDashboardE2E || isPending) && Boolean(userId);
 
 	const content = (
 		<FlagsProviderWrapper>
@@ -41,17 +44,17 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 	return (
 		<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 			<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-				{isDashboardE2E ? (
-					<QueryClientProvider client={queryClient}>
-						{content}
-					</QueryClientProvider>
-				) : (
+				{shouldPersist ? (
 					<PersistQueryClientProvider
 						client={queryClient}
 						persistOptions={{ ...persistOptions, persister }}
 					>
 						{content}
 					</PersistQueryClientProvider>
+				) : (
+					<QueryClientProvider client={queryClient}>
+						{content}
+					</QueryClientProvider>
 				)}
 			</div>
 		</ThemeProvider>
