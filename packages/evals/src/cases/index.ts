@@ -7,6 +7,7 @@ import { integrationCases } from "./integrations";
 import { qualityCases } from "./quality";
 import { slackThreadCases } from "./slack-thread";
 import { toolRoutingCases } from "./tool-routing";
+import { traitCases } from "./traits";
 
 const DEFAULT_SURFACE: EvalSurface = "agent";
 
@@ -14,6 +15,7 @@ export const allCases: EvalCase[] = [
 	...toolRoutingCases,
 	...behavioralCases,
 	...attributionCases,
+	...traitCases,
 	...qualityCases,
 	...insightsCases,
 	...formatCases,
