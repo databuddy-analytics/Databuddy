@@ -118,5 +118,6 @@ export {
 	invalidFilterFieldError,
 	publicQueryErrorMessage,
 	resolveRequestTraitFilters,
+	SANITIZED_QUERY_ERROR,
 } from "./trait-filters";
 export * from "./types";

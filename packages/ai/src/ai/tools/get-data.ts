@@ -7,6 +7,7 @@ import {
 	executeQuery,
 	publicQueryErrorMessage,
 	QueryBuilders,
+	SANITIZED_QUERY_ERROR,
 } from "../../query";
 import { shiftDate, todayInTimeZone } from "../../query/date-utils";
 import type { QueryRequest } from "../../query/types";
@@ -101,8 +102,8 @@ function describeQueryError(error: unknown): string {
 		return error.message;
 	}
 	const message = publicQueryErrorMessage(error);
-	if (message === "Query failed") {
-		captureError(error, { tool: "get_data" });
+	if (message === SANITIZED_QUERY_ERROR) {
+		captureError(error, { tool: "get_data", step: "execute_query" });
 	}
 	return message;
 }

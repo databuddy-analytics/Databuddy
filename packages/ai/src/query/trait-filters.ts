@@ -8,6 +8,8 @@ import { QueryBuilders } from "./builders";
 import { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
 import type { Filter, QueryRequest } from "./types";
 
+export const SANITIZED_QUERY_ERROR = "Query failed";
+
 const PUBLIC_QUERY_ERROR_PATTERNS = [
 	/^Unknown query type:/,
 	/^Filter on field '[^']+' is not permitted/,
@@ -32,11 +34,11 @@ export function publicQueryErrorMessage(error: unknown): string {
 				? error
 				: "";
 	if (!message) {
-		return "Query failed";
+		return SANITIZED_QUERY_ERROR;
 	}
 	return PUBLIC_QUERY_ERROR_PATTERNS.some((pattern) => pattern.test(message))
 		? message
-		: "Query failed";
+		: SANITIZED_QUERY_ERROR;
 }
 
 export function invalidFilterFieldError(
