@@ -300,12 +300,12 @@ const websiteStatusOutputSchema = z.enum([
 
 const websiteSettingsSchema = z
 	.object({
-		allowedOrigins: z.array(z.string()).optional(),
-		allowedIps: z.array(z.string()).optional(),
-		ignoredTrackingOrigins: z.array(z.string()).optional(),
-		trackingIssueWarningsDisabled: z.boolean().optional(),
+		allowedOrigins: z.array(z.string()).nullish(),
+		allowedIps: z.array(z.string()).nullish(),
+		ignoredTrackingOrigins: z.array(z.string()).nullish(),
+		trackingIssueWarningsDisabled: z.boolean().nullish(),
 	})
-	.nullable();
+	.nullish();
 
 const websiteOutputSchema = z.object({
 	id: z.string(),
@@ -317,7 +317,7 @@ const websiteOutputSchema = z.object({
 	updatedAt: z.coerce.date(),
 	organizationId: z.string(),
 	deletedAt: z.coerce.date().nullable(),
-	integrations: z.record(z.string(), z.unknown()).nullable(),
+	integrations: z.record(z.string(), z.unknown()).nullish(),
 	settings: websiteSettingsSchema,
 });
 
