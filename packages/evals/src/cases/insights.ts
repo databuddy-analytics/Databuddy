@@ -203,6 +203,92 @@ export const insightsCases: EvalCase[] = [
 		},
 	},
 	{
+		id: "insights-plain-voice-no-number-dump",
+		category: "insights",
+		name: "Tells the story in plain voice instead of dumping deltas",
+		query:
+			"Generate this week's Databuddy insight cards. Write each description like a short DM to a teammate: what happened and what it means, then one concrete action. Keep at most two numbers in the prose and put the rest in the metric evidence. No arrow deltas, no parenthetical week-over-week spam, no dramatic metaphors.",
+		websiteId: WS,
+		tags: ["insights", "voice", "brevity"],
+		expect: {
+			maxSteps: 20,
+			maxLatencyMs: 300_000,
+			maxResponseWords: 520,
+			minQualityScore: 82,
+			responseMatches: [
+				{
+					description: "reads as narrative with a concrete action",
+					pattern:
+						"\\b(inspect|open|compare|review|fix|audit|trace|verify|walk through|drill into)\\b",
+				},
+			],
+			responseNotMatches: [
+				{
+					description: "does not use arrow deltas between values",
+					pattern: "\\d\\s*(→|->)\\s*\\d",
+				},
+				{
+					description: "does not spam parenthetical before/after deltas",
+					pattern:
+						"\\(\\s*(from|was|up from|down from)\\s+[\\d,.]+%?\\s*\\)[\\s\\S]{0,200}\\(\\s*(from|was|up from|down from)\\s+[\\d,.]+%?\\s*\\)",
+				},
+				{
+					description: "does not attach signed percentages in parens to counts",
+					pattern: "\\d\\s*\\([+-]\\d+(\\.\\d+)?%\\)",
+				},
+				{
+					description: "avoids dramatic metaphor verbs",
+					pattern:
+						"\\b(cratered|collapsed|plummeted|skyrocketed|imploded|nosedived|evaporated)\\b",
+				},
+				{
+					description: "avoids editorializing adverbs and AI filler",
+					pattern:
+						"\\b(quietly|essentially|notably)\\b|it'?s worth noting|importantly,",
+				},
+			],
+		},
+	},
+	{
+		id: "insights-earned-impact-lines",
+		category: "insights",
+		name: "Writes impact lines that add information or omits them",
+		query:
+			"Generate this week's Databuddy insight cards. For each card, only include a why-it-matters line when it says something the description does not already say, and make it specific to this site's data. If an error affects one or two users, say exactly that instead of implying broad impact. Name the suspected cause in the next action when the data shows one.",
+		websiteId: WS,
+		tags: ["insights", "impact", "grounding"],
+		expect: {
+			maxSteps: 20,
+			maxLatencyMs: 300_000,
+			maxResponseWords: 520,
+			minQualityScore: 80,
+			responseMatches: [
+				{
+					description: "ties impact or action to concrete site entities",
+					pattern:
+						"(/pricing|/demo|/docs|/onboarding|funnel|goal|referrer|sessions|errors)",
+				},
+			],
+			responseNotMatches: [
+				{
+					description: "does not use generic distortion/blocking boilerplate",
+					pattern:
+						"(can distort (error )?reporting|may block affected users|changes which follow-up|worth repeating while the context is fresh)",
+				},
+				{
+					description: "does not imply broad impact for single-user errors",
+					pattern:
+						"\\b(one|1|single)\\b[^.]{0,80}\\b(user|session|visitor)\\b[^.]{0,120}\\b(all users|many users|widespread|site-?wide|blocking users)\\b",
+				},
+				{
+					description: "does not pad with generic significance claims",
+					pattern:
+						"\\b(this is (a )?significant|this highlights|underscores the importance|critical to understand)\\b",
+				},
+			],
+		},
+	},
+	{
 		id: "insights-actionable-deep-link-intent",
 		category: "insights",
 		name: "Turns each insight into a product action, not a memo",

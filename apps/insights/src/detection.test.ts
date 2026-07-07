@@ -164,8 +164,8 @@ describe("adaptiveWowThreshold", () => {
 
 describe("detectSignals", () => {
 	describe("z-score detection", () => {
-		it("flags a spike on the latest day", async () => {
-			const start = dayjs().subtract(27, "day");
+		it("flags a spike on the latest complete day", async () => {
+			const start = dayjs().subtract(28, "day");
 			const normal = generateStableDays(27, {
 				visitors: 100,
 				sessions: 120,
@@ -198,8 +198,8 @@ describe("detectSignals", () => {
 			expect(Math.abs(visitorSignal!.zScore!)).toBeGreaterThanOrEqual(2.5);
 		});
 
-		it("flags a drop on the latest day", async () => {
-			const start = dayjs().subtract(27, "day");
+		it("flags a drop on the latest complete day", async () => {
+			const start = dayjs().subtract(28, "day");
 			const normal = generateStableDays(27, {
 				visitors: 200,
 				sessions: 250,
@@ -284,6 +284,36 @@ describe("detectSignals", () => {
 				(s) => s.metric === "visitors" && s.method === "zscore"
 			);
 			expect(visitorSignal).toBeUndefined();
+		});
+
+		it("ignores the current partial day when picking the latest", async () => {
+			const start = dayjs().subtract(28, "day");
+			const normal = generateStableDays(28, {
+				visitors: 100,
+				sessions: 120,
+				pageviews: 200,
+				bounce_rate: 40,
+				median_session_duration: 60,
+			}, start);
+
+			const partialToday = {
+				date: dayjs().format("YYYY-MM-DD"),
+				visitors: 8,
+				sessions: 10,
+				pageviews: 15,
+				bounce_rate: 40,
+				median_session_duration: 60,
+			};
+
+			const rows = makeDailyRows([...normal, partialToday]);
+			const signals = await detectSignals(BASE_PARAMS, createMockQueryFn(rows));
+
+			expect(
+				signals.some(
+					(s) => s.method === "zscore" && s.current === 8
+				)
+			).toBe(false);
+			expect(signals.filter((s) => s.method === "zscore")).toHaveLength(0);
 		});
 
 		it("requires at least 7 days of data", async () => {
@@ -401,7 +431,7 @@ describe("detectSignals", () => {
 
 	describe("severity tiers", () => {
 		it("assigns critical for large spikes", async () => {
-			const start = dayjs().subtract(27, "day");
+			const start = dayjs().subtract(28, "day");
 			const normal = generateStableDays(27, {
 				visitors: 100,
 				sessions: 120,
@@ -437,7 +467,7 @@ describe("detectSignals", () => {
 
 	describe("deduplication", () => {
 		it("keeps highest delta per metric when both methods fire", async () => {
-			const start = dayjs().subtract(27, "day");
+			const start = dayjs().subtract(28, "day");
 			const normal = generateStableDays(27, {
 				visitors: 100,
 				sessions: 120,
@@ -744,7 +774,10 @@ describe("detectSignals", () => {
 	describe("error detection", () => {
 		it("flags error count spike above 40%", async () => {
 			const queryFn = createMockQueryFn([], {}, {}, {
-				error_summary: [{ totalErrors: 50 }, { totalErrors: 20 }],
+				error_summary: [
+					{ totalErrors: 50, affectedUsers: 8 },
+					{ totalErrors: 20, affectedUsers: 5 },
+				],
 			});
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
@@ -756,11 +789,113 @@ describe("detectSignals", () => {
 
 		it("skips errors below absolute threshold", async () => {
 			const queryFn = createMockQueryFn([], {}, {}, {
-				error_summary: [{ totalErrors: 3 }, { totalErrors: 1 }],
+				error_summary: [
+					{ totalErrors: 3, affectedUsers: 3 },
+					{ totalErrors: 1, affectedUsers: 1 },
+				],
 			});
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
+		});
+
+		it("suppresses a single-user error storm regardless of volume", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				error_summary: [
+					{ totalErrors: 168, affectedUsers: 1 },
+					{ totalErrors: 10, affectedUsers: 1 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
+		});
+
+		it("keeps an error recovery when the previous week had enough affected users", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				error_summary: [
+					{ totalErrors: 12, affectedUsers: 2 },
+					{ totalErrors: 60, affectedUsers: 15 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const errorSignal = signals.find((s) => s.metric === "error_count");
+			expect(errorSignal).toBeDefined();
+			expect(errorSignal!.direction).toBe("down");
+		});
+
+		it("suppresses a current single-user spike even when the prior week had many affected users", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				error_summary: [
+					{ totalErrors: 168, affectedUsers: 1 },
+					{ totalErrors: 20, affectedUsers: 8 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
+		});
+	});
+
+	describe("low-traffic floor", () => {
+		const lowTrafficDays = () => {
+			const start = dayjs().subtract(27, "day");
+			return makeDailyRows(
+				generateStableDays(
+					28,
+					{
+						visitors: 3,
+						sessions: 4,
+						pageviews: 6,
+						bounce_rate: 40,
+						median_session_duration: 60,
+					},
+					start
+				)
+			);
+		};
+
+		it("suppresses small-count custom event spikes on low-traffic sites", async () => {
+			const queryFn = createMockQueryFn(lowTrafficDays(), {}, {}, {
+				custom_events_discovery: [
+					{ event_name: "signup_started", total_events: 9 },
+					{ event_name: "signup_started", total_events: 4 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((s) => s.metric === "custom_event:signup_started")
+			).toBeUndefined();
+		});
+
+		it("keeps the same spike on a site with normal traffic", async () => {
+			const start = dayjs().subtract(27, "day");
+			const rows = makeDailyRows(
+				generateStableDays(
+					28,
+					{
+						visitors: 100,
+						sessions: 120,
+						pageviews: 200,
+						bounce_rate: 40,
+						median_session_duration: 60,
+					},
+					start
+				)
+			);
+			const queryFn = createMockQueryFn(rows, {}, {}, {
+				custom_events_discovery: [
+					{ event_name: "signup_started", total_events: 9 },
+					{ event_name: "signup_started", total_events: 4 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((s) => s.metric === "custom_event:signup_started")
+			).toBeDefined();
 		});
 	});
 

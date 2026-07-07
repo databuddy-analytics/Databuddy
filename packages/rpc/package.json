@@ -34,6 +34,7 @@
     "@types/jszip": "^3.4.1",
     "autumn-js": "catalog:",
     "dayjs": "^1.11.19",
+    "drizzle-orm": "catalog:",
     "evlog": "catalog:",
     "jszip": "^3.10.1",
     "keypal": "0.2.0",

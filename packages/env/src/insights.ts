@@ -9,6 +9,7 @@ const insightsEnvSchema = z.object({
 	AXIOM_API_KEY: optionalString,
 	AXIOM_TOKEN: optionalString,
 	AXIOM_ORG_ID: optionalString,
+	DASHBOARD_URL: optionalString,
 	DATABUDDY_ENCRYPTION_KEY: optionalString,
 	PORT: z.string().default("3005"),
 	APP_ENV: optionalString,

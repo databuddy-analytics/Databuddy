@@ -1,5 +1,10 @@
 import { executeQuery } from "@databuddy/ai/query";
 import dayjs from "dayjs";
+import timezonePlugin from "dayjs/plugin/timezone";
+import utcPlugin from "dayjs/plugin/utc";
+
+dayjs.extend(utcPlugin);
+dayjs.extend(timezonePlugin);
 
 export interface DetectedSignal {
 	baseline: number;
@@ -93,6 +98,9 @@ const FILTER_SESSION_DURATION_MIN_PEAK = 20;
 const FILTER_BOUNCE_MIN_DELTA = 10;
 const FILTER_ERROR_MIN_DELTA = 5;
 const FILTER_ERROR_MIN_PEAK = 10;
+const ERROR_MIN_AFFECTED_USERS = 3;
+const LOW_TRAFFIC_WEEKLY_SESSIONS = 50;
+const LOW_TRAFFIC_MIN_VALUE = 10;
 const FILTER_TRAFFIC_MIN_PEAK = 80;
 const FILTER_TRAFFIC_MIN_DELTA = 50;
 const ADAPTIVE_CV_SCALE = 200;
@@ -196,6 +204,21 @@ function passesImpactFilter(signal: DetectedSignal): boolean {
 	return filter ? filter(signal) : DEFAULT_TRAFFIC_FILTER(signal);
 }
 
+const RATE_METRICS = new Set(["bounce_rate", "session_duration", "lcp", "inp"]);
+
+export function passesLowTrafficFloor(
+	signal: DetectedSignal,
+	weeklySessions: number
+): boolean {
+	if (weeklySessions >= LOW_TRAFFIC_WEEKLY_SESSIONS) {
+		return true;
+	}
+	if (RATE_METRICS.has(signal.metric)) {
+		return true;
+	}
+	return Math.max(signal.current, signal.baseline) >= LOW_TRAFFIC_MIN_VALUE;
+}
+
 export function safeDeltaPercent(current: number, previous: number): number {
 	if (previous === 0) {
 		return current === 0 ? 0 : 100;
@@ -261,7 +284,7 @@ export async function detectSignals(
 ): Promise<DetectedSignal[]> {
 	const { websiteId, lookbackDays, timezone } = params;
 
-	const today = dayjs();
+	const today = timezone ? dayjs().tz(timezone) : dayjs();
 	const dailyFrom = today
 		.subtract(lookbackDays - 1, "day")
 		.format("YYYY-MM-DD");
@@ -281,9 +304,10 @@ export async function detectSignals(
 		timezone
 	);
 
-	const sorted = [...rows].sort((a, b) =>
-		String(a.date ?? "").localeCompare(String(b.date ?? ""))
-	);
+	const todayStr = today.format("YYYY-MM-DD");
+	const sorted = [...rows]
+		.sort((a, b) => String(a.date ?? "").localeCompare(String(b.date ?? "")))
+		.filter((row) => String(row.date ?? "") !== todayStr);
 
 	const zscoreSignals = detectZscore(sorted);
 
@@ -320,7 +344,17 @@ export async function detectSignals(
 		}
 	}
 
-	const filtered = [...byMetric.values()].filter(passesImpactFilter);
+	const windowSessions = sorted.reduce(
+		(sum, row) => sum + numberField(row, "sessions"),
+		0
+	);
+	const weeklySessions = (windowSessions / Math.max(1, sorted.length)) * 7;
+
+	const filtered = [...byMetric.values()].filter(
+		(signal) =>
+			passesImpactFilter(signal) &&
+			passesLowTrafficFloor(signal, weeklySessions)
+	);
 
 	const collapsed = collapseCorrelated(filtered);
 
@@ -491,16 +525,26 @@ async function detectWow(
 
 	const errNow = numberField(currentErrors[0], "totalErrors");
 	const errPrev = numberField(previousErrors[0], "totalErrors");
-	if (errPrev === 0 && errNow >= FILTER_ERROR_MIN_PEAK) {
+	const currAffectedUsers = numberField(currentErrors[0], "affectedUsers");
+	const prevAffectedUsers = numberField(previousErrors[0], "affectedUsers");
+	if (
+		errPrev === 0 &&
+		errNow >= FILTER_ERROR_MIN_PEAK &&
+		currAffectedUsers >= ERROR_MIN_AFFECTED_USERS
+	) {
 		signals.push(makeWowSignal("error_count", "Errors", errNow, 0, currentTo));
 	} else if (
 		errNow > 0 &&
 		errPrev > 0 &&
 		Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD
 	) {
-		signals.push(
-			makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo)
-		);
+		const relevantAffectedUsers =
+			errNow >= errPrev ? currAffectedUsers : prevAffectedUsers;
+		if (relevantAffectedUsers >= ERROR_MIN_AFFECTED_USERS) {
+			signals.push(
+				makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo)
+			);
+		}
 	}
 
 	const revNow = numberField(currentRevenue[0], "total_revenue");
