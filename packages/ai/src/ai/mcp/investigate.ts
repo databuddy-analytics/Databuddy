@@ -7,6 +7,7 @@ import { type McpAgentToolTrace, runMcpAgentWithTrace } from "./run-agent";
 
 const INVESTIGATION_TIMEOUT_MS = 40_000;
 const SYNTHESIS_TIMEOUT_MS = 40_000;
+const SWEEP_TIMEOUT_MS = 15_000;
 const MAX_TRACE_INPUT_CHARS = 300;
 const MAX_TRACE_OUTPUT_CHARS = 1500;
 
@@ -133,7 +134,7 @@ async function safeQuery(
 	from: string,
 	to: string,
 	extra?: { timeUnit?: "day"; limit?: number }
-): Promise<Record<string, unknown>[]> {
+): Promise<Record<string, unknown>[] | null> {
 	try {
 		const rows = await executeQuery(
 			{ projectId: websiteId, type, from, to, timezone, ...extra },
@@ -142,11 +143,14 @@ async function safeQuery(
 		);
 		return Array.isArray(rows) ? rows : [];
 	} catch {
-		return [];
+		return null;
 	}
 }
 
-function compactRows(rows: Record<string, unknown>[], max = 25): string {
+function compactRows(rows: Record<string, unknown>[] | null, max = 25): string {
+	if (rows === null) {
+		return "(query failed — source unavailable, treat as unknown not zero)";
+	}
 	if (rows.length === 0) {
 		return "(no rows)";
 	}
@@ -159,7 +163,7 @@ export async function runInvestigationSweep(params: {
 	timezone: string;
 	websiteDomain: string;
 	websiteId: string;
-}): Promise<string> {
+}): Promise<string | null> {
 	const w = buildInvestigationWindow(params.lookbackDays, params.now);
 	const { websiteId: id, websiteDomain: dom, timezone: tz } = params;
 	const q = (
@@ -169,19 +173,7 @@ export async function runInvestigationSweep(params: {
 		extra?: { timeUnit?: "day"; limit?: number }
 	) => safeQuery(id, dom, tz, type, from, to, extra);
 
-	const [
-		daily,
-		summaryH1,
-		summaryH2,
-		errorsH1,
-		errorsH2,
-		revenueH1,
-		revenueH2,
-		topPages,
-		topReferrers,
-		countries,
-		customEvents,
-	] = await Promise.all([
+	const gather = Promise.all([
 		q("events_by_date", w.from, w.to, {
 			timeUnit: "day",
 			limit: params.lookbackDays + 2,
@@ -197,6 +189,32 @@ export async function runInvestigationSweep(params: {
 		q("country", w.from, w.to, { limit: 8 }),
 		q("custom_events_discovery", w.from, w.to, { limit: 30 }),
 	]);
+
+	const timeout = new Promise<null>((resolve) => {
+		setTimeout(() => resolve(null), SWEEP_TIMEOUT_MS);
+	});
+	const results = await Promise.race([gather, timeout]);
+	if (results === null) {
+		return null;
+	}
+
+	const [
+		daily,
+		summaryH1,
+		summaryH2,
+		errorsH1,
+		errorsH2,
+		revenueH1,
+		revenueH2,
+		topPages,
+		topReferrers,
+		countries,
+		customEvents,
+	] = results;
+
+	if (daily === null && summaryH1 === null && summaryH2 === null) {
+		return null;
+	}
 
 	return [
 		"## Pre-gathered sweep (phases 1-2 already complete — do NOT re-run these)",
@@ -429,12 +447,13 @@ export async function runInvestigation(
 ): Promise<InvestigationResult> {
 	let sweep: string | undefined;
 	try {
-		sweep = await runInvestigationSweep({
-			lookbackDays: params.lookbackDays,
-			timezone: params.timezone ?? "UTC",
-			websiteDomain: params.websiteDomain,
-			websiteId: params.websiteId,
-		});
+		sweep =
+			(await runInvestigationSweep({
+				lookbackDays: params.lookbackDays,
+				timezone: params.timezone ?? "UTC",
+				websiteDomain: params.websiteDomain,
+				websiteId: params.websiteId,
+			})) ?? undefined;
 	} catch {
 		sweep = undefined;
 	}
