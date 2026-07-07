@@ -1,5 +1,10 @@
 import { executeQuery } from "@databuddy/ai/query";
 import dayjs from "dayjs";
+import timezonePlugin from "dayjs/plugin/timezone";
+import utcPlugin from "dayjs/plugin/utc";
+
+dayjs.extend(utcPlugin);
+dayjs.extend(timezonePlugin);
 
 export interface DetectedSignal {
 	baseline: number;
@@ -279,7 +284,7 @@ export async function detectSignals(
 ): Promise<DetectedSignal[]> {
 	const { websiteId, lookbackDays, timezone } = params;
 
-	const today = dayjs();
+	const today = timezone ? dayjs().tz(timezone) : dayjs();
 	const dailyFrom = today
 		.subtract(lookbackDays - 1, "day")
 		.format("YYYY-MM-DD");
@@ -520,20 +525,22 @@ async function detectWow(
 
 	const errNow = numberField(currentErrors[0], "totalErrors");
 	const errPrev = numberField(previousErrors[0], "totalErrors");
-	const errAffectedUsers = Math.max(
-		numberField(currentErrors[0], "affectedUsers"),
-		numberField(previousErrors[0], "affectedUsers")
-	);
-	if (errAffectedUsers >= ERROR_MIN_AFFECTED_USERS) {
-		if (errPrev === 0 && errNow >= FILTER_ERROR_MIN_PEAK) {
-			signals.push(
-				makeWowSignal("error_count", "Errors", errNow, 0, currentTo)
-			);
-		} else if (
-			errNow > 0 &&
-			errPrev > 0 &&
-			Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD
-		) {
+	const currAffectedUsers = numberField(currentErrors[0], "affectedUsers");
+	const prevAffectedUsers = numberField(previousErrors[0], "affectedUsers");
+	if (
+		errPrev === 0 &&
+		errNow >= FILTER_ERROR_MIN_PEAK &&
+		currAffectedUsers >= ERROR_MIN_AFFECTED_USERS
+	) {
+		signals.push(makeWowSignal("error_count", "Errors", errNow, 0, currentTo));
+	} else if (
+		errNow > 0 &&
+		errPrev > 0 &&
+		Math.abs(safeDeltaPercent(errNow, errPrev)) >= WOW_ERROR_THRESHOLD
+	) {
+		const relevantAffectedUsers =
+			errNow >= errPrev ? currAffectedUsers : prevAffectedUsers;
+		if (relevantAffectedUsers >= ERROR_MIN_AFFECTED_USERS) {
 			signals.push(
 				makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo)
 			);

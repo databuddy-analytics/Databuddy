@@ -12,6 +12,7 @@ import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 
 const SLACK_POST_URL = "https://slack.com/api/chat.postMessage";
 const MAX_DIGEST_INSIGHTS = 3;
+const MAX_ONGOING_LINES = 5;
 const SLACK_HEADER_MAX = 150;
 const SLACK_SECTION_TEXT_MAX = 3000;
 
@@ -348,7 +349,7 @@ export function buildBlocks(
 			emoji: ":radio_button:",
 			note: "Still open, no change since it was first flagged.",
 		})),
-	];
+	].slice(0, MAX_ONGOING_LINES);
 	if (ongoing.length > 0 && visible.length > 0) {
 		blocks.push({ type: "divider" });
 	}
@@ -549,6 +550,8 @@ export async function deliverInsightDigests(params: {
 				website_id: params.websiteId,
 				slack_channel_id: channelId,
 				insight_count: Math.min(params.insights.length, MAX_DIGEST_INSIGHTS),
+				escalation_count: escalations.length,
+				persistent_count: persistent.length,
 				threaded_detail: threadBlocks.length > 0,
 			});
 		} catch (error) {

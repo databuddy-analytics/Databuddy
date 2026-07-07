@@ -824,6 +824,18 @@ describe("detectSignals", () => {
 			expect(errorSignal).toBeDefined();
 			expect(errorSignal!.direction).toBe("down");
 		});
+
+		it("suppresses a current single-user spike even when the prior week had many affected users", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				error_summary: [
+					{ totalErrors: 168, affectedUsers: 1 },
+					{ totalErrors: 20, affectedUsers: 8 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
+		});
 	});
 
 	describe("low-traffic floor", () => {

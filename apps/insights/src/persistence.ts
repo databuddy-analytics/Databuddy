@@ -30,6 +30,7 @@ import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const DEFAULT_MAX_INSIGHTS = 2;
 const DISMISSAL_SUPPRESSION_LOOKBACK_DAYS = 30;
+const OPEN_INSIGHT_LOOKBACK_DAYS = 90;
 const MATERIALLY_WORSE_MULTIPLIER = 1.5;
 const SEVERITY_RANK: Record<string, number> = {
 	info: 0,
@@ -124,6 +125,9 @@ async function fetchPriorInsightsByDedupeKey(
 	organizationId: string,
 	cooldownCutoff: Date
 ): Promise<Map<string, PriorInsightRow>> {
+	const openCutoff = dayjs()
+		.subtract(OPEN_INSIGHT_LOOKBACK_DAYS, "day")
+		.toDate();
 	const rows = await db
 		.select({
 			id: analyticsInsights.id,
@@ -144,7 +148,10 @@ async function fetchPriorInsightsByDedupeKey(
 				eq(analyticsInsights.organizationId, organizationId),
 				or(
 					gte(analyticsInsights.createdAt, cooldownCutoff),
-					eq(analyticsInsights.status, "open")
+					and(
+						eq(analyticsInsights.status, "open"),
+						gte(analyticsInsights.createdAt, openCutoff)
+					)
 				)
 			)
 		)
