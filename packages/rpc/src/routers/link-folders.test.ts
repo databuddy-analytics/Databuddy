@@ -1,45 +1,12 @@
 import { describe, expect, it } from "bun:test";
-import { z } from "zod";
-
-const folderSlugSchema = z
-	.string()
-	.min(1)
-	.max(64)
-	.regex(/^[a-z0-9_-]+$/);
-
-const listLinkFoldersSchema = z
-	.object({
-		organizationId: z.string().optional(),
-	})
-	.default({});
-
-const createLinkFolderSchema = z.object({
-	organizationId: z.string().optional(),
-	name: z.string().trim().min(1).max(80),
-	slug: folderSlugSchema.optional(),
-});
-
-const updateLinkFolderSchema = z.object({
-	id: z.string(),
-	name: z.string().trim().min(1).max(80).optional(),
-	slug: folderSlugSchema.optional(),
-});
-
-const deleteLinkFolderSchema = z.object({
-	id: z.string(),
-});
-
-function slugifyFolderName(name: string): string {
-	const slug = name
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9\s_-]/g, "")
-		.replace(/[\s_]+/g, "-")
-		.replace(/-+/g, "-")
-		.replace(/^-|-$/g, "");
-
-	return slug || "folder";
-}
+import {
+	createLinkFolderSchema,
+	deleteLinkFolderSchema,
+	linkFolderOutputSchema,
+	listLinkFoldersSchema,
+	slugifyFolderName,
+	updateLinkFolderSchema,
+} from "./links.schemas";
 
 describe("link folder schemas", () => {
 	it("accepts folder creation with a name only", () => {
@@ -87,6 +54,24 @@ describe("link folder schemas", () => {
 		expect(result.success).toBe(true);
 		if (result.success) {
 			expect(result.data).toEqual({});
+		}
+	});
+
+	it("accepts folder rows returned by the router", () => {
+		const result = linkFolderOutputSchema.safeParse({
+			id: "folder-123",
+			organizationId: "org-123",
+			createdBy: "user-123",
+			name: "Posts",
+			slug: "posts",
+			deletedAt: null,
+			createdAt: "2025-01-01T00:00:00.000Z",
+			updatedAt: "2025-01-02T00:00:00.000Z",
+		});
+
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.createdAt).toBeInstanceOf(Date);
 		}
 	});
 });

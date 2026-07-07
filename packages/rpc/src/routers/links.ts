@@ -14,111 +14,36 @@ import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+import {
+	createLinkSchema,
+	deleteLinkSchema,
+	getLinkSchema,
+	linkOutputSchema,
+	listLinksSchema,
+	updateLinkSchema,
+} from "./links.schemas";
 
-const generateSlug = customAlphabet(
+type LinkPermission = "read" | "create" | "update" | "delete";
+type LinkRow = typeof links.$inferSelect;
+type CacheableLink = Pick<
+	LinkRow,
+	| "id"
+	| "targetUrl"
+	| "expiresAt"
+	| "expiredRedirectUrl"
+	| "ogTitle"
+	| "ogDescription"
+	| "ogImageUrl"
+	| "ogVideoUrl"
+	| "iosUrl"
+	| "androidUrl"
+	| "deepLinkApp"
+>;
+
+const generateLinkSlug = customAlphabet(
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
 	8
 );
-
-const listLinksSchema = z
-	.object({
-		organizationId: z.string().optional(),
-		externalId: z.string().optional(),
-		folderId: z.string().nullable().optional(),
-		sourceType: z.string().max(64).optional(),
-		sourceId: z.string().max(255).optional(),
-		sourceOwnerId: z.string().max(255).optional(),
-		targetDomain: z.string().max(255).optional(),
-	})
-	.default({});
-
-const getLinkSchema = z.object({
-	id: z.string(),
-});
-
-const slugSchema = z
-	.string()
-	.min(3)
-	.max(50)
-	.regex(
-		/^[a-zA-Z0-9_-]+$/,
-		"Slug can only contain letters, numbers, hyphens, and underscores"
-	);
-
-const createLinkSchema = z.object({
-	organizationId: z.string().optional(),
-	name: z.string().min(1).max(255),
-	targetUrl: z.url(),
-	slug: slugSchema.optional(),
-	folderId: z.string().nullable().optional(),
-	expiresAt: z.date().nullable().optional(),
-	expiredRedirectUrl: z.url().nullable().optional(),
-	ogTitle: z.string().max(200).nullable().optional(),
-	ogDescription: z.string().max(500).nullable().optional(),
-	ogImageUrl: z.url().nullable().optional(),
-	ogVideoUrl: z.url().nullable().optional(),
-	iosUrl: z.url().nullable().optional(),
-	androidUrl: z.url().nullable().optional(),
-	externalId: z.string().max(255).nullable().optional(),
-	sourceType: z.string().max(64).nullable().optional(),
-	sourceId: z.string().max(255).nullable().optional(),
-	sourceOwnerId: z.string().max(255).nullable().optional(),
-	targetDomain: z.string().max(255).nullable().optional(),
-	deepLinkApp: z.string().nullable().optional(),
-});
-
-const updateLinkSchema = z.object({
-	id: z.string(),
-	name: z.string().min(1).max(255).optional(),
-	targetUrl: z.url().optional(),
-	slug: slugSchema.optional(),
-	folderId: z.string().nullable().optional(),
-	expiresAt: z.string().datetime().nullable().optional(),
-	expiredRedirectUrl: z.url().nullable().optional(),
-	ogTitle: z.string().max(200).nullable().optional(),
-	ogDescription: z.string().max(500).nullable().optional(),
-	ogImageUrl: z.url().nullable().optional(),
-	ogVideoUrl: z.url().nullable().optional(),
-	iosUrl: z.url().nullable().optional(),
-	androidUrl: z.url().nullable().optional(),
-	externalId: z.string().max(255).nullable().optional(),
-	sourceType: z.string().max(64).nullable().optional(),
-	sourceId: z.string().max(255).nullable().optional(),
-	sourceOwnerId: z.string().max(255).nullable().optional(),
-	targetDomain: z.string().max(255).nullable().optional(),
-	deepLinkApp: z.string().nullable().optional(),
-});
-
-const deleteLinkSchema = z.object({
-	id: z.string(),
-});
-
-const linkOutputSchema = z.object({
-	id: z.string(),
-	organizationId: z.string(),
-	createdBy: z.string(),
-	folderId: z.string().nullable(),
-	slug: z.string(),
-	name: z.string(),
-	targetUrl: z.string(),
-	targetDomain: z.string().nullable(),
-	sourceType: z.string().nullable(),
-	sourceId: z.string().nullable(),
-	sourceOwnerId: z.string().nullable(),
-	expiresAt: z.nullable(z.coerce.date()),
-	expiredRedirectUrl: z.string().nullable(),
-	ogTitle: z.string().nullable(),
-	ogDescription: z.string().nullable(),
-	ogImageUrl: z.string().nullable(),
-	ogVideoUrl: z.string().nullable(),
-	iosUrl: z.string().nullable(),
-	androidUrl: z.string().nullable(),
-	externalId: z.string().nullable(),
-	deepLinkApp: z.string().nullable(),
-	deletedAt: z.nullable(z.coerce.date()),
-	createdAt: z.coerce.date(),
-	updatedAt: z.coerce.date(),
-});
 
 function validateHttpUrl(url: string): void {
 	const parsed = new URL(url);
@@ -191,19 +116,7 @@ async function validateFolderId(
 	throw rpcError.badRequest("Link folder does not exist in this organization");
 }
 
-function toCachedLink(link: {
-	id: string;
-	targetUrl: string;
-	expiresAt: Date | null;
-	expiredRedirectUrl: string | null;
-	ogTitle: string | null;
-	ogDescription: string | null;
-	ogImageUrl: string | null;
-	ogVideoUrl: string | null;
-	iosUrl: string | null;
-	androidUrl: string | null;
-	deepLinkApp: string | null;
-}): CachedLink {
+function toCachedLink(link: CacheableLink): CachedLink {
 	return {
 		id: link.id,
 		targetUrl: link.targetUrl,
@@ -217,6 +130,42 @@ function toCachedLink(link: {
 		androidUrl: link.androidUrl,
 		deepLinkApp: link.deepLinkApp,
 	};
+}
+
+function requireOrganizationId(
+	organizationId: string | null | undefined
+): string {
+	if (!organizationId) {
+		throw rpcError.badRequest("Organization ID is required");
+	}
+	return organizationId;
+}
+
+function requireLinkAccess(
+	context: Context,
+	organizationId: string,
+	permission: LinkPermission
+) {
+	const permissions: [LinkPermission] = [permission];
+	return withWorkspace(context, {
+		organizationId,
+		resource: "link",
+		permissions,
+	});
+}
+
+async function getLinkOrThrow(context: Context, id: string): Promise<LinkRow> {
+	const [link] = await context.db
+		.select()
+		.from(links)
+		.where(eq(links.id, id))
+		.limit(1);
+
+	if (!link) {
+		throw rpcError.notFound("link", id);
+	}
+
+	return link;
 }
 
 export const linksRouter = {
@@ -233,17 +182,11 @@ export const linksRouter = {
 		.input(listLinksSchema)
 		.output(z.array(linkOutputSchema))
 		.handler(async ({ context, input }) => {
-			const organizationId =
-				input.organizationId ?? context.organizationId ?? null;
-			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
-			}
+			const organizationId = requireOrganizationId(
+				input.organizationId ?? context.organizationId
+			);
 
-			await withWorkspace(context, {
-				organizationId,
-				resource: "link",
-				permissions: ["read"],
-			});
+			await requireLinkAccess(context, organizationId, "read");
 
 			const conditions = [eq(links.organizationId, organizationId)];
 			if (input.externalId) {
@@ -290,27 +233,10 @@ export const linksRouter = {
 		.input(getLinkSchema)
 		.output(linkOutputSchema)
 		.handler(async ({ context, input }) => {
-			const result = await context.db
-				.select()
-				.from(links)
-				.where(eq(links.id, input.id))
-				.limit(1);
+			const link = await getLinkOrThrow(context, input.id);
+			await requireLinkAccess(context, link.organizationId, "read");
 
-			if (result.length === 0) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			const linkRow = result[0];
-			if (!linkRow) {
-				throw rpcError.notFound("link", input.id);
-			}
-			await withWorkspace(context, {
-				organizationId: linkRow.organizationId,
-				resource: "link",
-				permissions: ["read"],
-			});
-
-			return linkRow;
+			return link;
 		}),
 
 	create: trackedProcedure
@@ -329,17 +255,15 @@ export const linksRouter = {
 				has_expiry: !!input.expiresAt,
 				has_og: !!(input.ogTitle || input.ogImageUrl),
 			});
-			const organizationId =
-				input.organizationId?.trim() || context.organizationId || null;
-			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
-			}
+			const organizationId = requireOrganizationId(
+				input.organizationId?.trim() || context.organizationId
+			);
 
-			const workspace = await withWorkspace(context, {
+			const workspace = await requireLinkAccess(
+				context,
 				organizationId,
-				resource: "link",
-				permissions: ["create"],
-			});
+				"create"
+			);
 
 			validateHttpUrl(input.targetUrl);
 			if (input.expiredRedirectUrl) {
@@ -357,7 +281,7 @@ export const linksRouter = {
 
 			const slugsToTry = input.slug
 				? [input.slug]
-				: Array.from({ length: 10 }, () => generateSlug());
+				: Array.from({ length: 10 }, () => generateLinkSlug());
 
 			for (const slug of slugsToTry) {
 				try {
@@ -431,25 +355,8 @@ export const linksRouter = {
 		.input(updateLinkSchema)
 		.output(linkOutputSchema)
 		.handler(async ({ context, input }) => {
-			const existingLink = await context.db
-				.select()
-				.from(links)
-				.where(eq(links.id, input.id))
-				.limit(1);
-
-			if (existingLink.length === 0) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			const link = existingLink[0];
-			if (!link) {
-				throw rpcError.notFound("link", input.id);
-			}
-			await withWorkspace(context, {
-				organizationId: link.organizationId,
-				resource: "link",
-				permissions: ["update"],
-			});
+			const link = await getLinkOrThrow(context, input.id);
+			await requireLinkAccess(context, link.organizationId, "update");
 
 			if (input.targetUrl) {
 				validateHttpUrl(input.targetUrl);
@@ -559,29 +466,8 @@ export const linksRouter = {
 		.input(deleteLinkSchema)
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
-			const existingLink = await context.db
-				.select({
-					organizationId: links.organizationId,
-					slug: links.slug,
-				})
-				.from(links)
-				.where(eq(links.id, input.id))
-				.limit(1);
-
-			if (existingLink.length === 0) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			const link = existingLink[0];
-			if (!link) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			await withWorkspace(context, {
-				organizationId: link.organizationId,
-				resource: "link",
-				permissions: ["delete"],
-			});
+			const link = await getLinkOrThrow(context, input.id);
+			await requireLinkAccess(context, link.organizationId, "delete");
 
 			try {
 				await invalidateLinkCache(link.slug);
