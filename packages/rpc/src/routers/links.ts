@@ -158,7 +158,7 @@ async function getLinkOrThrow(context: Context, id: string): Promise<LinkRow> {
 	const [link] = await context.db
 		.select()
 		.from(links)
-		.where(eq(links.id, id))
+		.where(and(eq(links.id, id), isNull(links.deletedAt)))
 		.limit(1);
 
 	if (!link) {
