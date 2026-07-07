@@ -1274,12 +1274,17 @@ const detectAnomaliesTool = defineMcpTool(
 				timezone
 			)) as DailyRow[];
 
-			if (rows.length < 7) {
-				insufficientDataHint = `Insufficient data for z-score: need at least 7 days, got ${rows.length}.`;
-			} else {
-				const sorted = [...rows].sort((a, b) =>
+			const todayStr = today.format("YYYY-MM-DD");
+			const completeRows = [...rows]
+				.sort((a, b) =>
 					String(a.date ?? "").localeCompare(String(b.date ?? ""))
-				);
+				)
+				.filter((r) => String(r.date ?? "") !== todayStr);
+
+			if (completeRows.length < 7) {
+				insufficientDataHint = `Insufficient data for z-score: need at least 7 complete days, got ${completeRows.length}.`;
+			} else {
+				const sorted = completeRows;
 				const latest = sorted.at(-1);
 				const baseline = sorted.slice(0, -1);
 
