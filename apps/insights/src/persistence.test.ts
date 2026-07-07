@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { isMateriallyWorse } from "./persistence";
+import {
+	classifyRecurrence,
+	isMateriallyWorse,
+	type PriorInsightRow,
+} from "./persistence";
 
 describe("isMateriallyWorse", () => {
 	it("suppresses a candidate that matches the dismissed severity and magnitude", () => {
@@ -72,5 +76,80 @@ describe("isMateriallyWorse", () => {
 				{ severity: "warning", changePercent: -40 }
 			)
 		).toBe(false);
+	});
+});
+
+describe("classifyRecurrence", () => {
+	const cutoff = new Date("2026-07-05T00:00:00Z");
+
+	function prior(overrides: Partial<PriorInsightRow>): PriorInsightRow {
+		return {
+			id: "prior-1",
+			changePercent: -40,
+			createdAt: new Date("2026-06-28T00:00:00Z"),
+			severity: "warning",
+			status: "open",
+			...overrides,
+		};
+	}
+
+	it("treats a first occurrence as new", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "warning", changePercent: -40 },
+				undefined,
+				cutoff
+			)
+		).toEqual({ isEscalation: false, isNew: true });
+	});
+
+	it("treats recurrence of a resolved insight as new", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "warning", changePercent: -40 },
+				prior({ status: "resolved" }),
+				cutoff
+			)
+		).toEqual({ isEscalation: false, isNew: true });
+	});
+
+	it("stays silent for a refresh inside the cooldown window", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "warning", changePercent: -45 },
+				prior({ createdAt: new Date("2026-07-05T03:00:00Z") }),
+				cutoff
+			)
+		).toEqual({ isEscalation: false, isNew: false });
+	});
+
+	it("stays silent for an open recurrence that is not materially worse", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "warning", changePercent: -45 },
+				prior({}),
+				cutoff
+			)
+		).toEqual({ isEscalation: false, isNew: false });
+	});
+
+	it("escalates an open recurrence when severity rises", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "critical", changePercent: -45 },
+				prior({}),
+				cutoff
+			)
+		).toEqual({ isEscalation: true, isNew: false });
+	});
+
+	it("escalates an open recurrence when magnitude grows past 1.5x", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "warning", changePercent: -75 },
+				prior({}),
+				cutoff
+			)
+		).toEqual({ isEscalation: true, isNew: false });
 	});
 });

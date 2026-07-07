@@ -24,6 +24,17 @@ const reviewSchema = z.object({
 		.max(10)
 		.describe("Worth-surfacing-today score: actionability x novelty x impact."),
 	reason: z.string().describe("One line explaining the score."),
+	rewrite: z
+		.object({
+			title: z.string(),
+			description: z.string(),
+			suggestion: z.string(),
+			impactSummary: z.string().optional(),
+		})
+		.optional()
+		.describe(
+			"Provide only for kept cards that fail the voice rules. Same facts, plain DM voice. Use only numbers already present in the card; never invent or recompute. Omit impactSummary unless it adds something the description does not."
+		),
 });
 
 const reflectionSchema = z.object({
@@ -37,19 +48,70 @@ const REFLECTION_SYSTEM = [
 	"Keep only findings that change what an operator does this week. Drop vanity metrics, restated numbers, vague 'monitor this' advice, and anything a busy founder would scroll past.",
 	"Score each card 0-10 on actionability x novelty x business impact. A reliability or conversion issue outranks a traffic vanity spike.",
 	"Return exactly one review per card, referencing its index. Set keep=true only when the card earns a slot in a short, high-signal feed.",
+	"Voice check for kept cards: copy must read like a DM to a teammate. Arrow deltas ('125→73'), percent-in-parens spam, metaphors, drama words, and editorializing adverbs all fail.",
+	"When a kept card fails the voice check, include a rewrite with the same facts in plain voice: what happened, what it means, one concrete action. At most two numbers in prose, only numbers already on the card.",
 ].join(" ");
 
 function formatCards(insights: ParsedInsight[]): string {
 	return insights
-		.map((insight, index) =>
-			[
+		.map((insight, index) => {
+			const lines = [
 				`#${index} [${insight.severity}/${insight.type}] ${insight.title}`,
 				`  change: ${insight.changePercent ?? "n/a"}% | priority: ${insight.priority} | confidence: ${insight.confidence}`,
 				`  so what: ${insight.description}`,
 				`  action: ${insight.suggestion}`,
-			].join("\n")
-		)
+			];
+			if (insight.impactSummary) {
+				lines.push(`  impact: ${insight.impactSummary}`);
+			}
+			if (insight.metrics?.length) {
+				lines.push(
+					`  metrics: ${insight.metrics
+						.map(
+							(m) =>
+								`${m.label}=${m.current}${m.previous === undefined ? "" : ` (prev ${m.previous})`}`
+						)
+						.join(", ")}`
+				);
+			}
+			return lines.join("\n");
+		})
 		.join("\n\n");
+}
+
+export function applyReviewRewrites(
+	insights: ParsedInsight[],
+	reviews: InsightReview[]
+): ParsedInsight[] {
+	const rewritten = [...insights];
+	for (const review of reviews) {
+		const rewrite = review.rewrite;
+		if (!(rewrite && review.keep)) {
+			continue;
+		}
+		if (!Number.isInteger(review.index)) {
+			continue;
+		}
+		if (review.index < 0 || review.index >= insights.length) {
+			continue;
+		}
+		if (!(rewrite.title.trim() && rewrite.description.trim())) {
+			continue;
+		}
+		const original = insights[review.index];
+		rewritten[review.index] = {
+			...original,
+			title: rewrite.title,
+			description: rewrite.description,
+			suggestion: rewrite.suggestion.trim()
+				? rewrite.suggestion
+				: original.suggestion,
+			impactSummary: rewrite.impactSummary?.trim()
+				? rewrite.impactSummary
+				: undefined,
+		};
+	}
+	return rewritten;
 }
 
 export function selectReflectedInsights<T>(
@@ -78,10 +140,7 @@ export function selectReflectedInsights<T>(
 	}
 
 	if (kept.length === 0) {
-		const [bestIndex] = [...scoreByIndex.entries()].sort(
-			(a, b) => b[1] - a[1]
-		)[0];
-		return [insights[bestIndex]];
+		return [];
 	}
 
 	return kept
@@ -103,8 +162,8 @@ export async function reflectAndRank(
 	maxKeep: number,
 	context: ReflectionContext
 ): Promise<ParsedInsight[]> {
-	if (insights.length <= 1) {
-		return insights.slice(0, maxKeep);
+	if (insights.length === 0) {
+		return [];
 	}
 
 	try {
@@ -140,8 +199,9 @@ export async function reflectAndRank(
 			websiteId: context.websiteId,
 		});
 
+		const rewritten = applyReviewRewrites(insights, result.object.reviews);
 		const selected = selectReflectedInsights(
-			insights,
+			rewritten,
 			result.object.reviews,
 			maxKeep
 		);

@@ -22,12 +22,12 @@ export const insightSchema = z.object({
 	description: z
 		.string()
 		.describe(
-			"1-2 sentences: evidence for what changed. Do NOT restate numbers from the title or metrics array unless they are essential. Add NEW context only. Under 300 characters. Use object names, not raw IDs."
+			"1-2 sentences telling the story: what happened and what it means, written like a DM to a teammate. At most two numbers, and only when the number is the point; every other verified number belongs in the metrics array. No arrow deltas ('125→73'), no percent-in-parens spam, no metaphors or drama words. Under 300 characters. Use object names, not raw IDs."
 		),
 	suggestion: z
 		.string()
 		.describe(
-			"One specific action in plain English. Name the exact page, button, query, or tool to use. Under 300 characters. Do not expose raw internal IDs; put IDs only in action params."
+			"One specific action in plain English, naming the exact page, button, query, or tool, plus the suspected cause when known ('start with the query cache change that shipped right before the drop'). Under 300 characters. Do not expose raw internal IDs; put IDs only in action params."
 		),
 	metrics: z
 		.array(insightMetricSchema)
@@ -106,7 +106,7 @@ export const insightSchema = z.object({
 		.string()
 		.optional()
 		.describe(
-			"Optional short statement of why this matters to the operator. Use when the impact is clear from the available data. Keep to a single sentence."
+			"Optional single sentence on what this costs or blocks if ignored. Include only when it adds something the description does not already say; omit rather than write a generic line."
 		),
 	rootCause: z
 		.string()

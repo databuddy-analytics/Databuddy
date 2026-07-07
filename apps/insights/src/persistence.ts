@@ -13,6 +13,7 @@ import {
 	gte,
 	inArray,
 	isNotNull,
+	or,
 	sql,
 } from "@databuddy/db";
 import {
@@ -111,11 +112,18 @@ function resolveDedupeKey(row: DedupeKeyRow): string {
 	);
 }
 
-async function fetchInsightDedupeKeyToIdMap(
+export interface PriorInsightRow {
+	changePercent: number | null;
+	createdAt: Date;
+	id: string;
+	severity: string;
+	status: string;
+}
+
+async function fetchPriorInsightsByDedupeKey(
 	organizationId: string,
-	cooldownHours: number
-): Promise<Map<string, string>> {
-	const cutoff = dayjs().subtract(Math.max(1, cooldownHours), "hour").toDate();
+	cooldownCutoff: Date
+): Promise<Map<string, PriorInsightRow>> {
 	const rows = await db
 		.select({
 			id: analyticsInsights.id,
@@ -126,24 +134,56 @@ async function fetchInsightDedupeKeyToIdMap(
 			dedupeKey: analyticsInsights.dedupeKey,
 			subjectKey: analyticsInsights.subjectKey,
 			title: analyticsInsights.title,
+			severity: analyticsInsights.severity,
+			status: analyticsInsights.status,
+			createdAt: analyticsInsights.createdAt,
 		})
 		.from(analyticsInsights)
 		.where(
 			and(
 				eq(analyticsInsights.organizationId, organizationId),
-				gte(analyticsInsights.createdAt, cutoff)
+				or(
+					gte(analyticsInsights.createdAt, cooldownCutoff),
+					eq(analyticsInsights.status, "open")
+				)
 			)
 		)
 		.orderBy(desc(analyticsInsights.createdAt));
 
-	const map = new Map<string, string>();
+	const map = new Map<string, PriorInsightRow>();
 	for (const row of rows) {
 		const key = resolveDedupeKey(row);
 		if (!map.has(key)) {
-			map.set(key, row.id);
+			map.set(key, {
+				id: row.id,
+				changePercent: row.changePercent,
+				createdAt: row.createdAt,
+				severity: row.severity,
+				status: row.status,
+			});
 		}
 	}
 	return map;
+}
+
+export function classifyRecurrence(
+	candidate: { changePercent?: number | null; severity: string },
+	prior: PriorInsightRow | undefined,
+	cooldownCutoff: Date
+): { isEscalation: boolean; isNew: boolean } {
+	if (!prior || prior.status !== "open") {
+		return { isEscalation: false, isNew: true };
+	}
+	if (prior.createdAt >= cooldownCutoff) {
+		return { isEscalation: false, isNew: false };
+	}
+	return {
+		isEscalation: isMateriallyWorse(candidate, {
+			changePercent: prior.changePercent,
+			severity: prior.severity,
+		}),
+		isNew: false,
+	};
 }
 
 interface DismissedBaseline {
@@ -218,17 +258,23 @@ export async function persistWebsiteInsights(params: {
 	organizationId: string;
 	period: WeekOverWeekPeriod;
 	runId: string;
-}): Promise<(GeneratedWebsiteInsight & { isNew: boolean })[]> {
+}): Promise<
+	(GeneratedWebsiteInsight & { isEscalation: boolean; isNew: boolean })[]
+> {
 	const startedAt = performance.now();
-	const [dedupeKeyToId, dismissedBaselines] = await Promise.all([
-		fetchInsightDedupeKeyToIdMap(
-			params.organizationId,
-			params.config.cooldownHours
-		),
+	const cooldownCutoff = dayjs()
+		.subtract(Math.max(1, params.config.cooldownHours), "hour")
+		.toDate();
+	const [priorByDedupeKey, dismissedBaselines] = await Promise.all([
+		fetchPriorInsightsByDedupeKey(params.organizationId, cooldownCutoff),
 		fetchDismissedBaselines(params.organizationId),
 	]);
 	const seenInBatch = new Set<string>();
 	const finalInsights: GeneratedWebsiteInsight[] = [];
+	const classificationByKey = new Map<
+		string,
+		{ isEscalation: boolean; isNew: boolean }
+	>();
 	let duplicateCandidates = 0;
 	let suppressedByDismissal = 0;
 
@@ -246,8 +292,12 @@ export async function persistWebsiteInsights(params: {
 			suppressedByDismissal += 1;
 			continue;
 		}
-		const existingId = dedupeKeyToId.get(key);
-		finalInsights.push(existingId ? { ...insight, id: existingId } : insight);
+		const prior = priorByDedupeKey.get(key);
+		classificationByKey.set(
+			key,
+			classifyRecurrence(insight, prior, cooldownCutoff)
+		);
+		finalInsights.push(prior ? { ...insight, id: prior.id } : insight);
 		if (finalInsights.length >= maxInsights(params.config)) {
 			break;
 		}
@@ -268,7 +318,7 @@ export async function persistWebsiteInsights(params: {
 			candidate_count: params.insights.length,
 			duplicate_candidate_count: duplicateCandidates,
 			suppressed_dismissed_count: suppressedByDismissal,
-			dedupe_window_count: dedupeKeyToId.size,
+			dedupe_window_count: priorByDedupeKey.size,
 		});
 		return [];
 	}
@@ -307,8 +357,8 @@ export async function persistWebsiteInsights(params: {
 
 	const insightsWithKeys = finalInsights.map((insight) => {
 		const key = dedupeKeyFor(insight);
-		const existingId = dedupeKeyToId.get(key);
-		const isRefresh = existingId !== undefined && insight.id === existingId;
+		const prior = priorByDedupeKey.get(key);
+		const isRefresh = prior !== undefined && insight.id === prior.id;
 		return { insight, key, isRefresh };
 	});
 
@@ -338,6 +388,9 @@ export async function persistWebsiteInsights(params: {
 					previousPeriodFrom: params.period.previous.from,
 					previousPeriodTo: params.period.previous.to,
 					createdAt: new Date(),
+					status: "open",
+					resolvedAt: null,
+					resolvedReason: null,
 					...excludedRefreshSet(),
 				},
 			});
@@ -346,7 +399,13 @@ export async function persistWebsiteInsights(params: {
 		toRefresh.map(({ id, row }) =>
 			db
 				.update(analyticsInsights)
-				.set({ ...row, createdAt: new Date() })
+				.set({
+					...row,
+					createdAt: new Date(),
+					status: "open",
+					resolvedAt: null,
+					resolvedReason: null,
+				})
 				.where(eq(analyticsInsights.id, id))
 		)
 	);
@@ -371,15 +430,17 @@ export async function persistWebsiteInsights(params: {
 			row.dedupeKey ? [[row.dedupeKey, row.id] as const] : []
 		)
 	);
-	const refreshedKeys = new Set(
-		insightsWithKeys.filter((i) => i.isRefresh).map((i) => i.key)
-	);
 	const persistedInsights = finalInsights.map((insight) => {
 		const key = dedupeKeyFor(insight);
+		const classification = classificationByKey.get(key) ?? {
+			isEscalation: false,
+			isNew: true,
+		};
 		return {
 			...insight,
 			id: persistedIdByDedupeKey.get(key) ?? insight.id,
-			isNew: !refreshedKeys.has(key),
+			isEscalation: classification.isEscalation,
+			isNew: classification.isNew,
 		};
 	});
 

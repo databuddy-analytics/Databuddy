@@ -622,7 +622,8 @@ export async function generateWebsiteInsights(
 	storeWebsiteSummary(site, saved);
 
 	const freshInsights = saved.filter((insight) => insight.isNew);
-	if (freshInsights.length > 0) {
+	const escalations = saved.filter((insight) => insight.isEscalation);
+	if (freshInsights.length > 0 || escalations.length > 0) {
 		try {
 			await deliverInsightDigests({
 				organizationId: input.organizationId,
@@ -630,6 +631,7 @@ export async function generateWebsiteInsights(
 				websiteDomain: site.domain,
 				websiteName: site.name,
 				insights: freshInsights,
+				escalations,
 				chains: chainAssignments,
 			});
 		} catch (error) {
