@@ -224,6 +224,48 @@ describe("Slack insight digest blocks", () => {
 		expect(blocks.filter((b) => b.type === "divider")).toHaveLength(1);
 	});
 
+	it("renders persistent criticals as still-open reminders with their own marker", () => {
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			[goalInsight],
+			[],
+			[],
+			[
+				{
+					...goalInsight,
+					id: "signup-leak",
+					title: "Signup leak still bleeding",
+				},
+			]
+		);
+
+		expect(contextText(blocks, 1)).toBe(
+			"1 fix · 1 still open · week of Jun 28 to Jul 4"
+		);
+		const last = blocks.at(-1);
+		expect(last?.text?.text).toContain(":radio_button:");
+		expect(last?.text?.text).toContain("Signup leak still bleeding");
+		expect(last?.text?.text).toContain("no change since it was first flagged");
+	});
+
+	it("orders escalations before persistent reminders", () => {
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			[],
+			[],
+			[{ ...goalInsight, id: "worse", title: "Got worse" }],
+			[{ ...goalInsight, id: "flat", title: "Still flat" }]
+		);
+
+		const sections = blocks.filter((b) => b.type === "section");
+		expect(sections[0]?.text?.text).toContain(":small_red_triangle_up:");
+		expect(sections[0]?.text?.text).toContain("Got worse");
+		expect(sections[1]?.text?.text).toContain(":radio_button:");
+		expect(sections[1]?.text?.text).toContain("Still flat");
+	});
+
 	it("renders an escalation-only digest without cards", () => {
 		const blocks = buildBlocks(
 			"Databuddy",

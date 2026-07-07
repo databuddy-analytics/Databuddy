@@ -100,7 +100,7 @@ describe("classifyRecurrence", () => {
 				undefined,
 				cutoff
 			)
-		).toEqual({ isEscalation: false, isNew: true });
+		).toEqual({ isEscalation: false, isNew: true, isPersistent: false });
 	});
 
 	it("treats recurrence of a resolved insight as new", () => {
@@ -110,27 +110,37 @@ describe("classifyRecurrence", () => {
 				prior({ status: "resolved" }),
 				cutoff
 			)
-		).toEqual({ isEscalation: false, isNew: true });
+		).toEqual({ isEscalation: false, isNew: true, isPersistent: false });
 	});
 
 	it("stays silent for a refresh inside the cooldown window", () => {
 		expect(
 			classifyRecurrence(
-				{ severity: "warning", changePercent: -45 },
+				{ severity: "critical", changePercent: -45 },
 				prior({ createdAt: new Date("2026-07-05T03:00:00Z") }),
 				cutoff
 			)
-		).toEqual({ isEscalation: false, isNew: false });
+		).toEqual({ isEscalation: false, isNew: false, isPersistent: false });
 	});
 
-	it("stays silent for an open recurrence that is not materially worse", () => {
+	it("stays silent for a flat warning-level open recurrence", () => {
 		expect(
 			classifyRecurrence(
 				{ severity: "warning", changePercent: -45 },
 				prior({}),
 				cutoff
 			)
-		).toEqual({ isEscalation: false, isNew: false });
+		).toEqual({ isEscalation: false, isNew: false, isPersistent: false });
+	});
+
+	it("keeps a flat but still-open critical as a persistent reminder", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "critical", changePercent: -45 },
+				prior({ severity: "critical", changePercent: -42 }),
+				cutoff
+			)
+		).toEqual({ isEscalation: false, isNew: false, isPersistent: true });
 	});
 
 	it("escalates an open recurrence when severity rises", () => {
@@ -140,7 +150,7 @@ describe("classifyRecurrence", () => {
 				prior({}),
 				cutoff
 			)
-		).toEqual({ isEscalation: true, isNew: false });
+		).toEqual({ isEscalation: true, isNew: false, isPersistent: false });
 	});
 
 	it("escalates an open recurrence when magnitude grows past 1.5x", () => {
@@ -150,6 +160,6 @@ describe("classifyRecurrence", () => {
 				prior({}),
 				cutoff
 			)
-		).toEqual({ isEscalation: true, isNew: false });
+		).toEqual({ isEscalation: true, isNew: false, isPersistent: false });
 	});
 });

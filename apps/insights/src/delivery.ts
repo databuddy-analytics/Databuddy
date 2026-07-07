@@ -209,9 +209,11 @@ function formatPeriodDay(value: string): string {
 
 function summaryChip(
 	insights: DigestInsight[],
-	escalations: DigestInsight[]
+	escalations: DigestInsight[],
+	persistent: DigestInsight[] = []
 ): string {
 	const escalationCount = escalations.length;
+	const ongoingCount = persistent.length;
 	let fixes = 0;
 	let reviews = 0;
 	let wins = 0;
@@ -243,7 +245,10 @@ function summaryChip(
 			`${escalationCount} ${escalationCount === 1 ? "escalation" : "escalations"}`
 		);
 	}
-	const withPeriod = [...insights, ...escalations].find(
+	if (ongoingCount > 0) {
+		parts.push(`${ongoingCount} still open`);
+	}
+	const withPeriod = [...insights, ...escalations, ...persistent].find(
 		(insight) => insight.currentPeriodFrom && insight.currentPeriodTo
 	);
 	if (withPeriod?.currentPeriodFrom && withPeriod.currentPeriodTo) {
@@ -259,7 +264,8 @@ export function buildBlocks(
 	websiteDomain: string,
 	insights: DigestInsight[],
 	chains: ChainAssignment[],
-	escalations: DigestInsight[] = []
+	escalations: DigestInsight[] = [],
+	persistent: DigestInsight[] = []
 ): SlackBlock[] {
 	const websiteLabel = formatWebsiteLabel(websiteName, websiteDomain);
 	const visible = insights.slice(0, MAX_DIGEST_INSIGHTS);
@@ -276,7 +282,7 @@ export function buildBlocks(
 			elements: [
 				{
 					type: "mrkdwn",
-					text: truncate(summaryChip(visible, escalations), 255),
+					text: truncate(summaryChip(visible, escalations, persistent), 255),
 				},
 			],
 		},
@@ -331,27 +337,37 @@ export function buildBlocks(
 		}
 	}
 
-	if (escalations.length > 0) {
-		if (visible.length > 0) {
-			blocks.push({ type: "divider" });
-		}
-		for (const escalation of escalations) {
-			blocks.push({
-				type: "section",
-				text: {
-					type: "mrkdwn",
-					text: truncate(
-						`:small_red_triangle_up: *${escapeMrkdwn(userVisibleCopy(escalation.title))}*\n>Still open and now worse than when first reported.`,
-						SLACK_SECTION_TEXT_MAX
-					),
-				},
-				accessory: {
-					type: "button",
-					text: { type: "plain_text", text: "Open", emoji: true },
-					url: insightUrl(escalation.id),
-				},
-			});
-		}
+	const ongoing = [
+		...escalations.map((insight) => ({
+			insight,
+			emoji: ":small_red_triangle_up:",
+			note: "Still open and now worse than when first reported.",
+		})),
+		...persistent.map((insight) => ({
+			insight,
+			emoji: ":radio_button:",
+			note: "Still open, no change since it was first flagged.",
+		})),
+	];
+	if (ongoing.length > 0 && visible.length > 0) {
+		blocks.push({ type: "divider" });
+	}
+	for (const { insight, emoji, note } of ongoing) {
+		blocks.push({
+			type: "section",
+			text: {
+				type: "mrkdwn",
+				text: truncate(
+					`${emoji} *${escapeMrkdwn(userVisibleCopy(insight.title))}*\n>${note}`,
+					SLACK_SECTION_TEXT_MAX
+				),
+			},
+			accessory: {
+				type: "button",
+				text: { type: "plain_text", text: "Open", emoji: true },
+				url: insightUrl(insight.id),
+			},
+		});
 	}
 	return blocks;
 }
@@ -388,11 +404,13 @@ function hasThreadDetail(insight: DigestInsight): boolean {
 
 export function buildThreadBlocks(
 	insights: DigestInsight[],
-	escalations: DigestInsight[] = []
+	escalations: DigestInsight[] = [],
+	persistent: DigestInsight[] = []
 ): SlackBlock[] {
 	const all = [
 		...insights.slice(0, MAX_DIGEST_INSIGHTS),
 		...escalations,
+		...persistent,
 	].filter(hasThreadDetail);
 	const blocks: SlackBlock[] = [];
 	for (const insight of all) {
@@ -462,12 +480,18 @@ export async function deliverInsightDigests(params: {
 	escalations?: DigestInsight[];
 	insights: DigestInsight[];
 	organizationId: string;
+	persistent?: DigestInsight[];
 	websiteDomain: string;
 	websiteId: string;
 	websiteName?: string | null;
 }): Promise<void> {
 	const escalations = params.escalations ?? [];
-	if (params.insights.length === 0 && escalations.length === 0) {
+	const persistent = params.persistent ?? [];
+	if (
+		params.insights.length === 0 &&
+		escalations.length === 0 &&
+		persistent.length === 0
+	) {
 		return;
 	}
 
@@ -499,9 +523,14 @@ export async function deliverInsightDigests(params: {
 		params.websiteDomain,
 		params.insights,
 		params.chains ?? [],
-		escalations
+		escalations,
+		persistent
 	);
-	const threadBlocks = buildThreadBlocks(params.insights, escalations);
+	const threadBlocks = buildThreadBlocks(
+		params.insights,
+		escalations,
+		persistent
+	);
 	const text = buildFallbackText(params.websiteName, params.websiteDomain);
 	for (const channelId of slackChannelIds) {
 		try {

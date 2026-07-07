@@ -623,7 +623,12 @@ export async function generateWebsiteInsights(
 
 	const freshInsights = saved.filter((insight) => insight.isNew);
 	const escalations = saved.filter((insight) => insight.isEscalation);
-	if (freshInsights.length > 0 || escalations.length > 0) {
+	const persistent = saved.filter((insight) => insight.isPersistent);
+	if (
+		freshInsights.length > 0 ||
+		escalations.length > 0 ||
+		persistent.length > 0
+	) {
 		try {
 			await deliverInsightDigests({
 				organizationId: input.organizationId,
@@ -632,6 +637,7 @@ export async function generateWebsiteInsights(
 				websiteName: site.name,
 				insights: freshInsights,
 				escalations,
+				persistent,
 				chains: chainAssignments,
 			});
 		} catch (error) {

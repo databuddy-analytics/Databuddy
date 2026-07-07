@@ -170,19 +170,25 @@ export function classifyRecurrence(
 	candidate: { changePercent?: number | null; severity: string },
 	prior: PriorInsightRow | undefined,
 	cooldownCutoff: Date
-): { isEscalation: boolean; isNew: boolean } {
+): { isEscalation: boolean; isNew: boolean; isPersistent: boolean } {
 	if (!prior || prior.status !== "open") {
-		return { isEscalation: false, isNew: true };
+		return { isEscalation: false, isNew: true, isPersistent: false };
 	}
 	if (prior.createdAt >= cooldownCutoff) {
-		return { isEscalation: false, isNew: false };
+		return { isEscalation: false, isNew: false, isPersistent: false };
 	}
-	return {
-		isEscalation: isMateriallyWorse(candidate, {
+	if (
+		isMateriallyWorse(candidate, {
 			changePercent: prior.changePercent,
 			severity: prior.severity,
-		}),
+		})
+	) {
+		return { isEscalation: true, isNew: false, isPersistent: false };
+	}
+	return {
+		isEscalation: false,
 		isNew: false,
+		isPersistent: candidate.severity === "critical",
 	};
 }
 
@@ -259,7 +265,11 @@ export async function persistWebsiteInsights(params: {
 	period: WeekOverWeekPeriod;
 	runId: string;
 }): Promise<
-	(GeneratedWebsiteInsight & { isEscalation: boolean; isNew: boolean })[]
+	(GeneratedWebsiteInsight & {
+		isEscalation: boolean;
+		isNew: boolean;
+		isPersistent: boolean;
+	})[]
 > {
 	const startedAt = performance.now();
 	const cooldownCutoff = dayjs()
@@ -273,7 +283,7 @@ export async function persistWebsiteInsights(params: {
 	const finalInsights: GeneratedWebsiteInsight[] = [];
 	const classificationByKey = new Map<
 		string,
-		{ isEscalation: boolean; isNew: boolean }
+		{ isEscalation: boolean; isNew: boolean; isPersistent: boolean }
 	>();
 	let duplicateCandidates = 0;
 	let suppressedByDismissal = 0;
@@ -435,12 +445,14 @@ export async function persistWebsiteInsights(params: {
 		const classification = classificationByKey.get(key) ?? {
 			isEscalation: false,
 			isNew: true,
+			isPersistent: false,
 		};
 		return {
 			...insight,
 			id: persistedIdByDedupeKey.get(key) ?? insight.id,
 			isEscalation: classification.isEscalation,
 			isNew: classification.isNew,
+			isPersistent: classification.isPersistent,
 		};
 	});
 
