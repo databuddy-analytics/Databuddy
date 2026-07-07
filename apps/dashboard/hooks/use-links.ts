@@ -5,7 +5,6 @@ import { dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
 import type { Link, LinkFolder } from "@databuddy/db/schema";
 import type { DateRange } from "@/types/analytics";
-import type { QueryKey } from "@tanstack/react-query";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -65,57 +64,15 @@ export interface LinkStats {
 const EMPTY_LINKS: Link[] = [];
 const EMPTY_LINK_FOLDERS: LinkFolder[] = [];
 
-export const getLinksListKey = (input: LinkListInput = {}): QueryKey =>
+const linksRootKey = orpc.links.list.key();
+const foldersRootKey = orpc.linkFolders.list.key();
+
+const linksListKey = (input: LinkListInput = {}) =>
 	orpc.links.list.queryKey({ input });
 
-export const getLinkFoldersListKey = (): QueryKey =>
-	orpc.linkFolders.list.queryKey({ input: {} });
+const foldersListKey = () => orpc.linkFolders.list.queryKey({ input: {} });
 
-export const getLinkByIdKey = (id: string): QueryKey =>
-	orpc.links.get.queryKey({ input: { id } });
-
-const addLinkToList = (old: Link[] | undefined, newLink: Link): Link[] => {
-	if (!old) {
-		return [newLink];
-	}
-	if (old.some((l) => l.id === newLink.id)) {
-		return old;
-	}
-	return [newLink, ...old];
-};
-
-const updateLinkInList = (
-	old: Link[] | undefined,
-	updatedLink: Link
-): Link[] | undefined => {
-	if (!old) {
-		return old;
-	}
-	return old.map((link) => (link.id === updatedLink.id ? updatedLink : link));
-};
-
-const removeLinkFromList = (
-	old: Link[] | undefined,
-	linkId: string
-): Link[] | undefined => {
-	if (!old) {
-		return old;
-	}
-	return old.filter((l) => l.id !== linkId);
-};
-
-const addFolderToList = (
-	old: LinkFolder[] | undefined,
-	newFolder: LinkFolder
-): LinkFolder[] => {
-	if (!old) {
-		return [newFolder];
-	}
-	if (old.some((folder) => folder.id === newFolder.id)) {
-		return old;
-	}
-	return [...old, newFolder].sort((a, b) => a.name.localeCompare(b.name));
-};
+const linkKey = (id: string) => orpc.links.get.queryKey({ input: { id } });
 
 export function useLinks(options?: {
 	enabled?: boolean;
@@ -319,11 +276,16 @@ export function useCreateLink() {
 	return useMutation({
 		...orpc.links.create.mutationOptions(),
 		onSuccess: (newLink: Link) => {
-			const listKey = getLinksListKey();
-			queryClient.setQueryData<Link[]>(listKey, (old) =>
-				addLinkToList(old, newLink)
-			);
-			queryClient.invalidateQueries({ queryKey: orpc.links.list.key() });
+			queryClient.setQueryData<Link[]>(linksListKey(), (old) => {
+				if (!old) {
+					return [newLink];
+				}
+				if (old.some((link) => link.id === newLink.id)) {
+					return old;
+				}
+				return [newLink, ...old];
+			});
+			queryClient.invalidateQueries({ queryKey: linksRootKey });
 		},
 	});
 }
@@ -334,13 +296,12 @@ export function useUpdateLink() {
 	return useMutation({
 		...orpc.links.update.mutationOptions(),
 		onSuccess: (updatedLink: Link) => {
-			const listKey = getLinksListKey();
-			queryClient.setQueryData<Link[]>(listKey, (old) =>
-				updateLinkInList(old, updatedLink)
+			queryClient.setQueryData<Link[]>(linksListKey(), (old) =>
+				old?.map((link) => (link.id === updatedLink.id ? updatedLink : link))
 			);
 
-			queryClient.setQueryData(getLinkByIdKey(updatedLink.id), updatedLink);
-			queryClient.invalidateQueries({ queryKey: orpc.links.list.key() });
+			queryClient.setQueryData<Link>(linkKey(updatedLink.id), updatedLink);
+			queryClient.invalidateQueries({ queryKey: linksRootKey });
 		},
 	});
 }
@@ -351,12 +312,12 @@ export function useDeleteLink() {
 	return useMutation({
 		...orpc.links.delete.mutationOptions(),
 		onMutate: async ({ id }) => {
-			const listKey = getLinksListKey();
+			const listKey = linksListKey();
 			await queryClient.cancelQueries({ queryKey: listKey });
 			const previousData = queryClient.getQueryData<Link[]>(listKey);
 
 			queryClient.setQueryData<Link[]>(listKey, (old) =>
-				removeLinkFromList(old, id)
+				old?.filter((link) => link.id !== id)
 			);
 
 			return { previousData, listKey };
@@ -367,7 +328,7 @@ export function useDeleteLink() {
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: orpc.links.list.key() });
+			queryClient.invalidateQueries({ queryKey: linksRootKey });
 		},
 	});
 }
@@ -378,11 +339,17 @@ export function useCreateLinkFolder() {
 	return useMutation({
 		...orpc.linkFolders.create.mutationOptions(),
 		onSuccess: (newFolder: LinkFolder) => {
-			queryClient.setQueryData<LinkFolder[]>(getLinkFoldersListKey(), (old) =>
-				addFolderToList(old, newFolder)
-			);
+			queryClient.setQueryData<LinkFolder[]>(foldersListKey(), (old) => {
+				if (!old) {
+					return [newFolder];
+				}
+				if (old.some((folder) => folder.id === newFolder.id)) {
+					return old;
+				}
+				return [...old, newFolder].sort((a, b) => a.name.localeCompare(b.name));
+			});
 			queryClient.invalidateQueries({
-				queryKey: orpc.linkFolders.list.key(),
+				queryKey: foldersRootKey,
 			});
 		},
 	});
@@ -395,7 +362,7 @@ export function useUpdateLinkFolder() {
 		...orpc.linkFolders.update.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.linkFolders.list.key(),
+				queryKey: foldersRootKey,
 			});
 		},
 	});
@@ -408,9 +375,9 @@ export function useDeleteLinkFolder() {
 		...orpc.linkFolders.delete.mutationOptions(),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: orpc.linkFolders.list.key(),
+				queryKey: foldersRootKey,
 			});
-			queryClient.invalidateQueries({ queryKey: orpc.links.list.key() });
+			queryClient.invalidateQueries({ queryKey: linksRootKey });
 		},
 	});
 }

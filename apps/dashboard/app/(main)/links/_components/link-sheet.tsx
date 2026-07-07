@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
@@ -73,104 +73,52 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 	const updateLinkMutation = useUpdateLink();
 	const { folders, isLoading: foldersLoading } = useLinkFolders();
 
-	const [utmParams, setUtmParams] = useState<UtmParams>(DEFAULT_UTM_PARAMS);
-	const [ogData, setOgData] = useState<OgData>(DEFAULT_OG_DATA);
-	const [useCustomOg, setUseCustomOg] = useState(false);
+	const initialTargetUrl = link ? stripProtocol(link.targetUrl) : "";
+	const initialCustomOg = !!(
+		link?.ogTitle ??
+		link?.ogDescription ??
+		link?.ogImageUrl
+	);
+
+	const [utmParams, setUtmParams] = useState<UtmParams>(() =>
+		link ? parseUtmFromUrl(initialTargetUrl) : DEFAULT_UTM_PARAMS
+	);
+	const [ogData, setOgData] = useState<OgData>(() =>
+		link
+			? {
+					ogTitle: link.ogTitle ?? "",
+					ogDescription: link.ogDescription ?? "",
+					ogImageUrl: link.ogImageUrl ?? "",
+					ogVideoUrl: link.ogVideoUrl ?? "",
+				}
+			: DEFAULT_OG_DATA
+	);
+	const [useCustomOg, setUseCustomOg] = useState(initialCustomOg);
 
 	const form = useForm<LinkFormData>({
 		resolver: zodResolver(linkFormSchema),
 		mode: "onChange",
 		defaultValues: {
-			name: "",
-			targetUrl: "",
-			slug: "",
-			folderId: "",
-			expiresAt: "",
-			expiredRedirectUrl: "",
-			iosUrl: "",
-			androidUrl: "",
-			externalId: "",
+			name: link?.name ?? "",
+			targetUrl: stripUtmFromUrl(initialTargetUrl),
+			slug: link?.slug ?? "",
+			folderId: link?.folderId ?? "",
+			expiresAt: link?.expiresAt
+				? dayjs(link.expiresAt).format("YYYY-MM-DDTHH:mm")
+				: "",
+			expiredRedirectUrl: stripProtocol(link?.expiredRedirectUrl ?? null),
+			iosUrl: stripProtocol(link?.iosUrl ?? null),
+			androidUrl: stripProtocol(link?.androidUrl ?? null),
+			externalId: link?.externalId ?? "",
 		},
 	});
 
-	const resetForm = useCallback(
-		(linkData: Link | null | undefined) => {
-			if (linkData) {
-				const targetUrl = stripProtocol(linkData.targetUrl);
-				const parsedUtm = parseUtmFromUrl(targetUrl);
-				setUtmParams(parsedUtm);
-				const urlWithoutUtm = stripUtmFromUrl(targetUrl);
-
-				const hasCustomOg =
-					linkData.ogTitle ?? linkData.ogDescription ?? linkData.ogImageUrl;
-				setUseCustomOg(!!hasCustomOg);
-				setOgData({
-					ogTitle: linkData.ogTitle ?? "",
-					ogDescription: linkData.ogDescription ?? "",
-					ogImageUrl: linkData.ogImageUrl ?? "",
-					ogVideoUrl: linkData.ogVideoUrl ?? "",
-				});
-
-				form.reset({
-					name: linkData.name,
-					targetUrl: urlWithoutUtm,
-					slug: linkData.slug,
-					folderId: linkData.folderId ?? "",
-					expiresAt: linkData.expiresAt
-						? dayjs(linkData.expiresAt).format("YYYY-MM-DDTHH:mm")
-						: "",
-					expiredRedirectUrl: stripProtocol(linkData.expiredRedirectUrl),
-					iosUrl: stripProtocol(linkData.iosUrl),
-					androidUrl: stripProtocol(linkData.androidUrl),
-					externalId: linkData.externalId ?? "",
-				});
-			} else {
-				form.reset({
-					name: "",
-					targetUrl: "",
-					slug: "",
-					folderId: "",
-					expiresAt: "",
-					expiredRedirectUrl: "",
-					iosUrl: "",
-					androidUrl: "",
-					externalId: "",
-				});
-				setUtmParams(DEFAULT_UTM_PARAMS);
-				setOgData(DEFAULT_OG_DATA);
-				setUseCustomOg(false);
-			}
-		},
-		[form]
-	);
-
-	const linkRef = useRef(link);
-	linkRef.current = link;
-
-	useLayoutEffect(() => {
-		if (!open) {
-			return;
-		}
-		resetForm(linkRef.current);
-	}, [open, link?.id, resetForm]);
-
-	const handleOpenChange = useCallback(
-		(isOpen: boolean) => {
-			onOpenChange(isOpen);
-		},
-		[onOpenChange]
-	);
-
 	const targetUrlValue = form.watch("targetUrl");
-
-	const fullTargetUrl = useMemo(() => {
-		if (!targetUrlValue) {
-			return "";
-		}
-		return targetUrlValue.startsWith("http")
+	const fullTargetUrl = targetUrlValue
+		? targetUrlValue.startsWith("http")
 			? targetUrlValue
-			: `https://${targetUrlValue}`;
-	}, [targetUrlValue]);
+			: `https://${targetUrlValue}`
+		: "";
 
 	const handleSubmit: SubmitHandler<LinkFormData> = async (formData) => {
 		const resolvedOrganizationId =
@@ -572,7 +520,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 	);
 
 	return (
-		<Sheet onOpenChange={handleOpenChange} open={open}>
+		<Sheet onOpenChange={onOpenChange} open={open}>
 			<Sheet.Content className="w-full sm:max-w-lg" side="right">
 				<Sheet.Header>
 					<Sheet.Title>{isEditing ? "Edit Link" : "Create Link"}</Sheet.Title>
