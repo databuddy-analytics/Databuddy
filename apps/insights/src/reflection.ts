@@ -29,11 +29,14 @@ const reviewSchema = z.object({
 			title: z.string(),
 			description: z.string(),
 			suggestion: z.string(),
-			impactSummary: z.string().optional(),
+			impactSummary: z
+				.string()
+				.nullable()
+				.describe("Empty string or null when it adds nothing new."),
 		})
-		.optional()
+		.nullable()
 		.describe(
-			"Provide only for kept cards that fail the voice rules. Same facts, plain DM voice. Use only numbers already present in the card; never invent or recompute. Omit impactSummary unless it adds something the description does not."
+			"null unless the kept card fails the voice rules. When set, same facts in plain DM voice; use only numbers already present in the card, never invent or recompute."
 		),
 });
 
@@ -48,8 +51,9 @@ const REFLECTION_SYSTEM = [
 	"Keep only findings that change what an operator does this week. Drop vanity metrics, restated numbers, vague 'monitor this' advice, and anything a busy founder would scroll past.",
 	"Score each card 0-10 on actionability x novelty x business impact. A reliability or conversion issue outranks a traffic vanity spike.",
 	"Return exactly one review per card, referencing its index. Set keep=true only when the card earns a slot in a short, high-signal feed.",
-	"Voice check for kept cards: copy must read like a DM to a teammate. Arrow deltas ('125→73'), percent-in-parens spam, metaphors, drama words, and editorializing adverbs all fail.",
-	"When a kept card fails the voice check, include a rewrite with the same facts in plain voice: what happened, what it means, one concrete action. At most two numbers in prose, only numbers already on the card.",
+	"Every kept card also gets a voice check. It reads like a DM to a teammate or it fails.",
+	"A kept card MUST get a rewrite (this is not optional) if its title or description contains any of: an arrow ('→' or '->'), a parenthetical delta like '(up from 10)' or '(-40%)', a raw event name like signup_started, a drama word (cratered, collapsed, plummeted), or an editorializing adverb (quietly, essentially, notably). These are the common failures and they are frequent.",
+	"A rewrite keeps the same facts in plain voice: what happened, what it means, one concrete action. Move the raw numbers out of the prose into at most two that carry the point; use only numbers already on the card, never invent or recompute. Set rewrite to null only when the card is already clean.",
 ].join(" ");
 
 function formatCards(insights: ParsedInsight[]): string {
