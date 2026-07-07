@@ -1,5 +1,7 @@
+import { lookupAgentModelCost } from "@databuddy/shared/agent-credits";
 import { describe, expect, it } from "bun:test";
 import {
+	REFLECTION_MODEL_ID,
 	applyReviewRewrites,
 	type InsightReview,
 	selectReflectedInsights,
@@ -146,5 +148,11 @@ describe("applyReviewRewrites", () => {
 			]
 		);
 		expect(result.suggestion).toBe("Trace onboarding step handlers");
+	});
+});
+
+describe("reflection model pricing", () => {
+	it("has explicit pricing so cost telemetry never falls back", () => {
+		expect(lookupAgentModelCost(REFLECTION_MODEL_ID)).not.toBeNull();
 	});
 });

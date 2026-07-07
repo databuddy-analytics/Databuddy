@@ -10,7 +10,7 @@ import {
 	setInsightsLog,
 } from "./lib/evlog-insights";
 
-const REFLECTION_MODEL_ID = "openai/gpt-5.4-mini";
+export const REFLECTION_MODEL_ID = "google/gemini-2.5-flash-lite";
 const REFLECTION_MODEL = createModelFromId(REFLECTION_MODEL_ID);
 const KEEP_SCORE_THRESHOLD = 5;
 const REFLECTION_TIMEOUT_MS = 30_000;
@@ -52,7 +52,8 @@ const REFLECTION_SYSTEM = [
 	"Score each card 0-10 on actionability x novelty x business impact. A reliability or conversion issue outranks a traffic vanity spike.",
 	"Return exactly one review per card, referencing its index. Set keep=true only when the card earns a slot in a short, high-signal feed.",
 	"Every kept card also gets a voice check. It reads like a DM to a teammate or it fails.",
-	"A kept card MUST get a rewrite (this is not optional) if its title or description contains any of: an arrow ('→' or '->'), a parenthetical delta like '(up from 10)' or '(-40%)', a raw event name like signup_started, a drama word (cratered, collapsed, plummeted), or an editorializing adverb (quietly, essentially, notably). These are the common failures and they are frequent.",
+	"A kept card MUST get a rewrite (this is not optional) if its title or description contains any of: an arrow ('→' or '->'), a parenthetical delta like '(up from 10)' or '(-40%)', a bare percentage change in the prose like '380%' or 'increased by 40%', a raw event name like signup_started, a drama word (cratered, collapsed, plummeted), or an editorializing adverb (quietly, essentially, notably). These are the common failures and they are frequent.",
+	"In a rewrite, never state a percentage change in the sentence; use the actual before/after counts in plain words or leave the percentage to the metrics.",
 	"A rewrite keeps the same facts in plain voice: what happened, what it means, one concrete action. Move the raw numbers out of the prose into at most two that carry the point; use only numbers already on the card, never invent or recompute. Set rewrite to null only when the card is already clean.",
 ].join(" ");
 
@@ -164,7 +165,8 @@ export interface ReflectionContext {
 export async function reflectAndRank(
 	insights: ParsedInsight[],
 	maxKeep: number,
-	context: ReflectionContext
+	context: ReflectionContext,
+	modelId: string = REFLECTION_MODEL_ID
 ): Promise<ParsedInsight[]> {
 	if (insights.length === 0) {
 		return [];
@@ -172,8 +174,12 @@ export async function reflectAndRank(
 
 	try {
 		const ai = getAILogger();
+		const model =
+			modelId === REFLECTION_MODEL_ID
+				? REFLECTION_MODEL
+				: createModelFromId(modelId);
 		const result = await generateObject({
-			model: ai.wrap(REFLECTION_MODEL),
+			model: ai.wrap(model),
 			schema: reflectionSchema,
 			system: REFLECTION_SYSTEM,
 			prompt: `Review these ${insights.length} insight cards and decide which to keep.\n\n${formatCards(insights)}`,
@@ -194,7 +200,7 @@ export async function reflectAndRank(
 
 		await trackAgentUsageAndBill({
 			usage: result.usage,
-			modelId: REFLECTION_MODEL_ID,
+			modelId,
 			source: "insights",
 			organizationId: context.organizationId,
 			userId: context.userId ?? null,
