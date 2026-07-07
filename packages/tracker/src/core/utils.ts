@@ -73,10 +73,10 @@ function applyMaskPattern(pathname: string, pattern: string): string | null {
 	for (let i = 0; i < patternSegments.length; i++) {
 		const patternSegment = patternSegments[i];
 		if (patternSegment === "**") {
-			if (i < pathSegments.length) {
+			if (pathSegments.slice(i).some((segment) => segment.length > 0)) {
 				masked.push("*");
 			}
-			return masked.join("/");
+			return masked.join("/") || "/";
 		}
 		if (i >= pathSegments.length) {
 			return null;
