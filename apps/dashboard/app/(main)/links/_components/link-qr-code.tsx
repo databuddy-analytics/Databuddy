@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { type ChangeEvent, useRef, useState } from "react";
 import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -12,8 +12,6 @@ import {
 	XMarkIcon as XIcon,
 } from "@databuddy/ui/icons";
 import { Button } from "@databuddy/ui";
-
-type QrStyle = "squares" | "dots";
 
 const QR_SIZES = [
 	{ value: 128, label: "Small", description: "128px" },
@@ -51,32 +49,28 @@ export function LinkQrCode({
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const shortUrl = `${LINKS_FULL_URL}/${slug}`;
 
-	// Customization state
-	const [qrStyle, setQrStyle] = useState<QrStyle>("dots");
-	const [fgColor, setFgColor] = useState("#000000");
-	const [downloadSize, setDownloadSize] = useState(256);
-	const [logoImage, setLogoImage] = useState<string | undefined>(undefined);
-	const [logoSize, setLogoSize] = useState(50);
+	const [qr, setQr] = useState({
+		color: "#000000",
+		logo: "",
+		logoSize: 50,
+		size: 256,
+		style: "dots" as "squares" | "dots",
+	});
+	const updateQr = (next: Partial<typeof qr>) => {
+		setQr((current) => ({ ...current, ...next }));
+	};
 
-	// Preview is always smaller
-	const previewSize = 180;
-
-	const downloadQrCode = useCallback(() => {
+	const downloadQrCode = () => {
 		if (!qrRef.current) {
 			return;
 		}
 		const fileName = `${name.toLowerCase().replace(/\s+/g, "-")}-qr-code`;
 		qrRef.current.download("png", fileName);
 		toast.success("QR code downloaded");
-	}, [name]);
+	};
 
-	const copyQrCode = useCallback(() => {
-		if (!qrContainerRef.current) {
-			toast.error("Failed to copy QR code");
-			return;
-		}
-
-		const canvas = qrContainerRef.current.querySelector("canvas");
+	const copyQrCode = () => {
+		const canvas = qrContainerRef.current?.querySelector("canvas");
 		if (!canvas) {
 			toast.error("Failed to copy QR code");
 			return;
@@ -96,35 +90,34 @@ export function LinkQrCode({
 					toast.error("Failed to copy QR code");
 				});
 		}, "image/png");
-	}, []);
+	};
 
-	const handleLogoUpload = useCallback(
-		(e: React.ChangeEvent<HTMLInputElement>) => {
-			const file = e.target.files?.[0];
-			if (!file) {
-				return;
+	const handleLogoUpload = (event: ChangeEvent<HTMLInputElement>) => {
+		const file = event.target.files?.[0];
+		if (!file) {
+			return;
+		}
+
+		if (!file.type.startsWith("image/")) {
+			toast.error("Please upload an image file");
+			return;
+		}
+
+		const reader = new FileReader();
+		reader.onload = () => {
+			if (typeof reader.result === "string") {
+				updateQr({ logo: reader.result });
 			}
+		};
+		reader.readAsDataURL(file);
+	};
 
-			if (!file.type.startsWith("image/")) {
-				toast.error("Please upload an image file");
-				return;
-			}
-
-			const reader = new FileReader();
-			reader.onload = (event) => {
-				setLogoImage(event.target?.result as string);
-			};
-			reader.readAsDataURL(file);
-		},
-		[]
-	);
-
-	const removeLogo = useCallback(() => {
-		setLogoImage(undefined);
+	const removeLogo = () => {
+		updateQr({ logo: "" });
 		if (fileInputRef.current) {
 			fileInputRef.current.value = "";
 		}
-	}, []);
+	};
 
 	return (
 		<div className={cn("flex flex-col gap-6", className)}>
@@ -133,19 +126,19 @@ export function LinkQrCode({
 					<QRCode
 						bgColor="#ffffff"
 						ecLevel="H"
-						eyeRadius={qrStyle === "dots" ? 8 : 0}
-						fgColor={fgColor}
-						logoHeight={logoImage ? logoSize : undefined}
-						logoImage={logoImage}
-						logoPadding={logoImage ? 4 : undefined}
+						eyeRadius={qr.style === "dots" ? 8 : 0}
+						fgColor={qr.color}
+						logoHeight={qr.logo ? qr.logoSize : undefined}
+						logoImage={qr.logo || undefined}
+						logoPadding={qr.logo ? 4 : undefined}
 						logoPaddingStyle="circle"
-						logoWidth={logoImage ? logoSize : undefined}
-						qrStyle={qrStyle}
+						logoWidth={qr.logo ? qr.logoSize : undefined}
+						qrStyle={qr.style}
 						quietZone={16}
 						ref={qrRef}
-						removeQrCodeBehindLogo={!!logoImage}
-						size={downloadSize}
-						style={{ width: previewSize, height: previewSize }}
+						removeQrCodeBehindLogo={!!qr.logo}
+						size={qr.size}
+						style={{ width: 180, height: 180 }}
 						value={shortUrl}
 					/>
 				</div>
@@ -174,15 +167,15 @@ export function LinkQrCode({
 						<div className="grid grid-cols-4 gap-2">
 							{QR_SIZES.map((size) => (
 								<button
-									aria-pressed={downloadSize === size.value}
+									aria-pressed={qr.size === size.value}
 									className={cn(
 										"cursor-pointer rounded border py-2 text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-										downloadSize === size.value
+										qr.size === size.value
 											? "border-primary bg-primary/5 text-foreground"
 											: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
 									)}
 									key={size.value}
-									onClick={() => setDownloadSize(size.value)}
+									onClick={() => updateQr({ size: size.value })}
 									type="button"
 								>
 									<span className="block font-medium text-xs">
@@ -201,15 +194,15 @@ export function LinkQrCode({
 						<div className="grid grid-cols-2 gap-2">
 							{(["squares", "dots"] as const).map((style) => (
 								<button
-									aria-pressed={qrStyle === style}
+									aria-pressed={qr.style === style}
 									className={cn(
 										"cursor-pointer rounded border py-2.5 text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-										qrStyle === style
+										qr.style === style
 											? "border-primary bg-primary/5 text-foreground"
 											: "border-transparent bg-secondary text-muted-foreground hover:border-border hover:text-foreground"
 									)}
 									key={style}
-									onClick={() => setQrStyle(style)}
+									onClick={() => updateQr({ style })}
 									type="button"
 								>
 									<span className="font-medium text-sm capitalize">
@@ -228,12 +221,12 @@ export function LinkQrCode({
 									aria-label={color.label}
 									className={cn(
 										"size-8 cursor-pointer rounded border-2 transition-all",
-										fgColor === color.value
+										qr.color === color.value
 											? "border-primary ring-2 ring-primary/20"
 											: "border-transparent hover:border-border"
 									)}
 									key={color.value}
-									onClick={() => setFgColor(color.value)}
+									onClick={() => updateQr({ color: color.value })}
 									style={{ backgroundColor: color.value }}
 									type="button"
 								/>
@@ -248,14 +241,14 @@ export function LinkQrCode({
 						>
 							Logo
 						</span>
-						{logoImage ? (
+						{qr.logo ? (
 							<div className="flex items-center gap-3">
 								<div className="relative size-12 overflow-hidden rounded border bg-white">
 									<img
 										alt="Logo preview"
 										className="size-full object-contain"
 										height={48}
-										src={logoImage}
+										src={qr.logo}
 										width={48}
 									/>
 								</div>
@@ -270,20 +263,22 @@ export function LinkQrCode({
 										<input
 											aria-valuemax={80}
 											aria-valuemin={20}
-											aria-valuenow={logoSize}
+											aria-valuenow={qr.logoSize}
 											className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-secondary accent-primary"
 											id="logo-size"
 											max={80}
 											min={20}
-											onChange={(e) => setLogoSize(Number(e.target.value))}
+											onChange={(e) =>
+												updateQr({ logoSize: Number(e.target.value) })
+											}
 											type="range"
-											value={logoSize}
+											value={qr.logoSize}
 										/>
 										<span
 											aria-hidden="true"
 											className="w-8 text-right font-mono text-muted-foreground text-xs"
 										>
-											{logoSize}
+											{qr.logoSize}
 										</span>
 									</div>
 								</div>

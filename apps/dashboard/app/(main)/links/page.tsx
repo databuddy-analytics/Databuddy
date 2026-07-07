@@ -40,6 +40,14 @@ import {
 import { Badge, Button, Card, EmptyState } from "@databuddy/ui";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
 
+type ActiveDialog =
+	| { type: "deep-link" }
+	| { id: string; type: "delete" }
+	| { type: "folder" }
+	| { link: Link | null; type: "link" }
+	| { link: Link; type: "qr" }
+	| null;
+
 export default function LinksPage() {
 	return (
 		<Suspense fallback={null}>
@@ -52,12 +60,7 @@ function LinksPageContent() {
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
-	const [sheetLink, setSheetLink] = useState<Link | null>(null);
-	const [isSheetOpen, setIsSheetOpen] = useState(false);
-	const [deleteId, setDeleteId] = useState<string | null>(null);
-	const [qrLink, setQrLink] = useState<Link | null>(null);
-	const [isDeepLinkSheetOpen, setIsDeepLinkSheetOpen] = useState(false);
-	const [isFolderSheetOpen, setIsFolderSheetOpen] = useState(false);
+	const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
 	const [search, setSearch] = useState("");
 	const [sort, setSort] = useState<SortOption>("newest");
 	const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
@@ -85,8 +88,7 @@ function LinksPageContent() {
 	const canMutateWorkspace = !isSwitchingOrganization;
 
 	const openCreate = useCallback(() => {
-		setSheetLink(null);
-		setIsSheetOpen(true);
+		setActiveDialog({ link: null, type: "link" });
 	}, []);
 
 	const clearCommandParam = useCallback(() => {
@@ -99,13 +101,7 @@ function LinksPageContent() {
 	}, [pathname, router, searchParams]);
 
 	const openEdit = useCallback((link: Link) => {
-		setSheetLink(link);
-		setIsSheetOpen(true);
-	}, []);
-
-	const closeSheet = useCallback(() => {
-		setIsSheetOpen(false);
-		setSheetLink(null);
+		setActiveDialog({ link, type: "link" });
 	}, []);
 
 	useEffect(() => {
@@ -120,7 +116,7 @@ function LinksPageContent() {
 			return;
 		}
 		if (command === "create-folder") {
-			setIsFolderSheetOpen(true);
+			setActiveDialog({ type: "folder" });
 			clearCommandParam();
 		}
 	}, [clearCommandParam, isSwitchingOrganization, openCreate, searchParams]);
@@ -128,7 +124,7 @@ function LinksPageContent() {
 	const handleDelete = async (id: string) => {
 		try {
 			await deleteLink.mutateAsync({ id });
-			setDeleteId(null);
+			setActiveDialog(null);
 		} catch (error: unknown) {
 			toast.error(
 				error instanceof Error ? error.message : "Failed to delete link"
@@ -139,12 +135,22 @@ function LinksPageContent() {
 	const handleCreateFolder = async (name: string) => {
 		try {
 			await createFolder.mutateAsync({ name });
-			setIsFolderSheetOpen(false);
+			setActiveDialog(null);
 			toast.success("Folder created");
 		} catch (error: unknown) {
 			toast.error(
 				error instanceof Error ? error.message : "Failed to create folder"
 			);
+		}
+	};
+
+	const sheetLink = activeDialog?.type === "link" ? activeDialog.link : null;
+	const qrLink = activeDialog?.type === "qr" ? activeDialog.link : null;
+	const deleteId = activeDialog?.type === "delete" ? activeDialog.id : null;
+	const closeDialog = () => setActiveDialog(null);
+	const closeDialogOnOpenChange = (open: boolean) => {
+		if (!open) {
+			closeDialog();
 		}
 	};
 
@@ -170,7 +176,7 @@ function LinksPageContent() {
 							<div className="flex shrink-0 items-center gap-2">
 								<Button
 									disabled={!canMutateWorkspace}
-									onClick={() => setIsFolderSheetOpen(true)}
+									onClick={() => setActiveDialog({ type: "folder" })}
 									size="sm"
 									variant="secondary"
 								>
@@ -193,7 +199,7 @@ function LinksPageContent() {
 											</DropdownMenu.Item>
 											<DropdownMenu.Item
 												className="gap-2"
-												onClick={() => setIsDeepLinkSheetOpen(true)}
+												onClick={() => setActiveDialog({ type: "deep-link" })}
 											>
 												<RocketIcon className="size-4" weight="duotone" />
 												Deep Link
@@ -253,9 +259,9 @@ function LinksPageContent() {
 											foldersById={foldersById}
 											links={filtered}
 											onCreateLink={openCreate}
-											onDelete={setDeleteId}
+											onDelete={(id) => setActiveDialog({ id, type: "delete" })}
 											onEdit={openEdit}
-											onShowQr={setQrLink}
+											onShowQr={(link) => setActiveDialog({ link, type: "qr" })}
 										/>
 									)}
 								</>
@@ -277,9 +283,9 @@ function LinksPageContent() {
 									foldersById={foldersById}
 									links={[]}
 									onCreateLink={openCreate}
-									onDelete={setDeleteId}
+									onDelete={(id) => setActiveDialog({ id, type: "delete" })}
 									onEdit={openEdit}
-									onShowQr={setQrLink}
+									onShowQr={(link) => setActiveDialog({ link, type: "qr" })}
 								/>
 							)}
 						</Card.Content>
@@ -289,29 +295,25 @@ function LinksPageContent() {
 
 			<LinkSheet
 				link={sheetLink}
-				onOpenChange={(open) => (open ? setIsSheetOpen(true) : closeSheet())}
-				open={isSheetOpen && canMutateWorkspace}
+				onOpenChange={closeDialogOnOpenChange}
+				open={activeDialog?.type === "link" && canMutateWorkspace}
 			/>
 
 			<DeepLinkSheet
-				onOpenChange={setIsDeepLinkSheetOpen}
-				open={isDeepLinkSheetOpen && canMutateWorkspace}
+				onOpenChange={closeDialogOnOpenChange}
+				open={activeDialog?.type === "deep-link" && canMutateWorkspace}
 			/>
 
 			<LinkFolderSheet
 				isCreating={createFolder.isPending}
 				onCreate={handleCreateFolder}
-				onOpenChange={setIsFolderSheetOpen}
-				open={isFolderSheetOpen && canMutateWorkspace}
+				onOpenChange={closeDialogOnOpenChange}
+				open={activeDialog?.type === "folder" && canMutateWorkspace}
 			/>
 
 			<QrCodeDialog
 				link={qrLink}
-				onOpenChange={(open) => {
-					if (!open) {
-						setQrLink(null);
-					}
-				}}
+				onOpenChange={closeDialogOnOpenChange}
 				open={!!qrLink}
 			/>
 
@@ -321,7 +323,7 @@ function LinksPageContent() {
 					description="Are you sure you want to delete this link? This action cannot be undone and will permanently remove all click data."
 					isDeleting={deleteLink.isPending}
 					isOpen={!!deleteId}
-					onClose={() => setDeleteId(null)}
+					onClose={closeDialog}
 					onConfirm={() => handleDelete(deleteId)}
 					title="Delete Link"
 				/>

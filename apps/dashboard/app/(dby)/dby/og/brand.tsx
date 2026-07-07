@@ -21,7 +21,10 @@ const FONT_DIR = path.join(process.cwd(), "fonts", "lt-superior");
 let ogFontsPromise: ReturnType<typeof readOgFonts> | undefined;
 
 export function loadOgFonts() {
-	ogFontsPromise ??= readOgFonts();
+	ogFontsPromise ??= readOgFonts().catch((error) => {
+		ogFontsPromise = undefined;
+		throw error;
+	});
 	return ogFontsPromise;
 }
 
