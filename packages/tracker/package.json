@@ -24,7 +24,7 @@
     "@playwright/test": "^1.56.1",
     "@types/bun": "catalog:",
     "chalk": "^5.6.2",
-    "commander": "^14.0.2",
+    "commander": "^15.0.0",
     "typescript": "^5.9.3"
   },
   "description": "Databuddy Analytics Tracker Scripts"
