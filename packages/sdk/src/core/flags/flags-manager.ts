@@ -272,6 +272,9 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			if (isStale(entry) && !this.shouldSkipFetch()) {
 				this.revalidate(key, cacheKey, user);
 			}
+			if (entry.result) {
+				this.onFlagEvaluated(key, entry.result);
+			}
 			return entry.result ?? entry.promise;
 		}
 

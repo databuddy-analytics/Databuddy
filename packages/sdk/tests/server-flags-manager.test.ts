@@ -578,4 +578,23 @@ describe("ServerFlagsManager", () => {
 			expect(fetchMock.calls.length).toBeGreaterThanOrEqual(1);
 		});
 	});
+
+	describe("evaluation telemetry", () => {
+		it("fires onFlagEvaluated on cache hits, not only cache misses", async () => {
+			let evalCount = 0;
+			class CountingManager extends ServerFlagsManager {
+				protected override onFlagEvaluated(): void {
+					evalCount += 1;
+				}
+			}
+			const manager = new CountingManager({ config: { clientId: "test-id" } });
+			managers.push(manager);
+			await manager.waitForInit();
+
+			await manager.getFlag("feature-on"); // cache miss -> fetch -> fires
+			await manager.getFlag("feature-on"); // cache hit -> must also fire
+
+			expect(evalCount).toBe(2);
+		});
+	});
 });
