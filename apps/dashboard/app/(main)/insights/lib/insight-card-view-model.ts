@@ -1,12 +1,23 @@
 import type {
 	Insight,
 	InsightAction,
+	InsightActionType,
 	InsightEvidence,
 	InsightMetric,
 	InsightType,
 } from "@/lib/insight-types";
 
 const DEFAULT_PRIMARY_ACTION_LABEL = "Open analytics";
+
+const SUPPORTED_ACTION_TYPES = new Set<InsightActionType>([
+	"code_fix",
+	"investigate_further",
+	"create_annotation",
+	"create_funnel",
+	"fix_goal",
+	"add_custom_event",
+	"add_tracking",
+]);
 
 const PRIMARY_ACTION_LABELS: Partial<Record<InsightType, string>> = {
 	bounce_rate_change: "Review traffic quality",
@@ -44,7 +55,9 @@ export interface InsightCardViewModel {
 
 export function toInsightCardViewModel(insight: Insight): InsightCardViewModel {
 	return {
-		actions: insight.actions ?? [],
+		actions: (insight.actions ?? []).filter((action) =>
+			SUPPORTED_ACTION_TYPES.has(action.type)
+		),
 		headline: insight.title,
 		investigationEvidence: insight.evidence ?? [],
 		metaLabel: insight.websiteName ?? insight.websiteDomain,

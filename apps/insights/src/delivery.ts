@@ -193,7 +193,7 @@ function digestEmoji(label: string): string {
 
 function insightUrl(insightId: string): string {
 	const base = env.DASHBOARD_URL ?? "https://app.databuddy.cc";
-	return `${base}/insights#insight-${insightId}`;
+	return `${base}/insights/${insightId}`;
 }
 
 function quoted(value: string): string {

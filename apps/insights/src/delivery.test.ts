@@ -70,7 +70,7 @@ describe("Slack insight digest blocks", () => {
 		expect(sectionText(blocks, 2)).toBe(
 			":red_circle: *Pricing intent is undercounted by about 47%*"
 		);
-		expect(accessoryUrl(blocks, 2)).toContain("/insights#insight-goal-insight");
+		expect(accessoryUrl(blocks, 2)).toContain("/insights/goal-insight");
 		expect(sectionText(blocks, 3)).toContain(">The goal only matches");
 		expect(sectionText(blocks, 3)).toContain(
 			"\nBilling interest is stronger than the goal reports."

@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { type ReactNode, useMemo } from "react";
 import { toast } from "sonner";
 import type { InsightFeedbackVote } from "@/app/(main)/insights/lib/insight-feedback-vote";
@@ -29,7 +30,9 @@ import type { Insight, InsightAction, InsightType } from "@/lib/insight-types";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
+	ArrowCounterClockwiseIcon,
 	ArrowRightIcon,
+	ArrowSquareOutIcon,
 	BugIcon,
 	CaretDownIcon,
 	ChartLineUpIcon,
@@ -314,6 +317,7 @@ interface InsightCardHeaderProps {
 	expanded: boolean;
 	insight: Insight;
 	isCompact: boolean;
+	isDismissed?: boolean;
 	onDismissAction?: () => void;
 	onToggleAction: () => void;
 	typeStyle: InsightTypeStyle;
@@ -324,6 +328,7 @@ function InsightCardHeader({
 	expanded,
 	insight,
 	isCompact,
+	isDismissed = false,
 	onDismissAction,
 	onToggleAction,
 	typeStyle,
@@ -343,17 +348,8 @@ function InsightCardHeader({
 			>
 				<InsightIcon typeStyle={typeStyle} />
 				<span className="min-w-0 flex-1">
-					<span className="flex items-center justify-between gap-2">
-						<span className="line-clamp-2 font-medium text-foreground text-sm leading-snug">
-							{view.headline}
-						</span>
-						<CaretDownIcon
-							className={cn(
-								"size-3 shrink-0 text-muted-foreground transition-transform",
-								expanded && "rotate-180"
-							)}
-							weight="fill"
-						/>
+					<span className="line-clamp-2 block font-medium text-foreground text-sm leading-snug">
+						{view.headline}
 					</span>
 					<span className="mt-0.5 flex items-center gap-1.5 text-xs">
 						<span className="truncate text-muted-foreground">
@@ -378,17 +374,41 @@ function InsightCardHeader({
 					)}
 				</span>
 			</Button>
-			{!isCompact && onDismissAction && (
-				<Button
-					aria-label="Dismiss insight"
-					className="size-6 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-hover:opacity-100"
-					onClick={onDismissAction}
-					size="icon"
-					variant="ghost"
-				>
-					<XIcon className="size-3" weight="bold" />
-				</Button>
-			)}
+			<div className="flex shrink-0 items-center gap-0.5">
+				<CaretDownIcon
+					aria-hidden
+					className={cn(
+						"size-3.5 text-muted-foreground transition-transform",
+						expanded && "rotate-180"
+					)}
+					weight="fill"
+				/>
+				{!isCompact &&
+					onDismissAction &&
+					(isDismissed ? (
+						<Button
+							aria-label="Restore insight"
+							className="size-6 text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
+							onClick={onDismissAction}
+							size="icon"
+							title="Restore this insight to the queue"
+							variant="ghost"
+						>
+							<ArrowCounterClockwiseIcon className="size-3.5" weight="bold" />
+						</Button>
+					) : (
+						<Button
+							aria-label="Dismiss insight"
+							className="size-6 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-focus-within:opacity-100 group-hover:opacity-100"
+							onClick={onDismissAction}
+							size="icon"
+							title="Dismiss and mute this pattern for 30 days"
+							variant="ghost"
+						>
+							<XIcon className="size-3" weight="bold" />
+						</Button>
+					))}
+			</div>
 		</div>
 	);
 }
@@ -418,6 +438,15 @@ function InsightCardPanel({
 	);
 }
 
+const ACTION_ROUTES: Partial<
+	Record<InsightAction["type"], (websiteId: string) => string>
+> = {
+	create_funnel: (websiteId) => `/websites/${websiteId}/funnels?new=funnel`,
+	fix_goal: (websiteId) => `/websites/${websiteId}/goals`,
+	add_custom_event: (websiteId) => `/websites/${websiteId}/events`,
+	add_tracking: (websiteId) => `/websites/${websiteId}/settings/tracking`,
+};
+
 const ACTION_ICONS: Record<InsightAction["type"], ReactNode> = {
 	fix_goal: <BugIcon className="size-3" weight="duotone" />,
 	create_funnel: <ChartLineUpIcon className="size-3" weight="duotone" />,
@@ -438,11 +467,17 @@ function InsightActionPill({
 	action: InsightAction;
 	insight: Insight;
 }) {
+	const router = useRouter();
 	const createAnnotation = useMutation({
 		...orpc.annotations.create.mutationOptions(),
 	});
 
 	const handleClick = async () => {
+		const buildRoute = ACTION_ROUTES[action.type];
+		if (buildRoute) {
+			router.push(buildRoute(insight.websiteId));
+			return;
+		}
 		if (
 			(action.type === "code_fix" || action.type === "investigate_further") &&
 			action.params.prompt
@@ -486,7 +521,6 @@ function InsightActionPill({
 			}
 			return;
 		}
-		toast.info(`${action.label}`);
 	};
 
 	return (
@@ -729,6 +763,7 @@ function InsightOverflowMenu({
 	onCopyLink: (value: string) => void;
 	onCopyPrompt: (value: string) => void;
 }) {
+	const router = useRouter();
 	return (
 		<DropdownMenu>
 			<DropdownMenu.Trigger
@@ -738,6 +773,12 @@ function InsightOverflowMenu({
 				<DotsThreeIcon className="size-4" weight="bold" />
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Content align="start" className="w-44">
+				<DropdownMenu.Item
+					onClick={() => router.push(`/insights/${insight.id}`)}
+				>
+					<ArrowSquareOutIcon className="size-4" weight="duotone" />
+					Open insight
+				</DropdownMenu.Item>
 				<DropdownMenu.Item
 					onClick={() => {
 						onCopyPrompt(buildInsightAgentCopyText(insight));
@@ -809,6 +850,7 @@ export interface InsightCardProps {
 	expanded: boolean;
 	feedbackVote?: InsightFeedbackVote | null;
 	insight: Insight;
+	isDismissed?: boolean;
 	onDismissAction?: () => void;
 	onFeedbackAction?: (vote: InsightFeedbackVote | null) => void;
 	onToggleAction: () => void;
@@ -818,6 +860,7 @@ export interface InsightCardProps {
 export function InsightCard({
 	insight,
 	expanded,
+	isDismissed = false,
 	onToggleAction,
 	onDismissAction,
 	feedbackVote,
@@ -858,7 +901,8 @@ export function InsightCard({
 							: "bg-muted/20 hover:bg-muted/30 active:bg-muted/40"
 						: expanded
 							? "bg-accent/20"
-							: "hover:bg-accent/40 active:bg-accent/50"
+							: "hover:bg-accent/40 active:bg-accent/50",
+				isDismissed && "opacity-60"
 			)}
 			id={`insight-${insight.id}`}
 		>
@@ -866,6 +910,7 @@ export function InsightCard({
 				expanded={expanded}
 				insight={insight}
 				isCompact={isCompact}
+				isDismissed={isDismissed}
 				onDismissAction={onDismissAction}
 				onToggleAction={onToggleAction}
 				typeStyle={typeStyle}

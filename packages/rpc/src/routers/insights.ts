@@ -1,4 +1,14 @@
-import { and, db, desc, eq, gte, inArray, isNull, sql } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	gte,
+	inArray,
+	isNull,
+	ne,
+	sql,
+} from "@databuddy/db";
 import {
 	analyticsInsights,
 	type AnalyticsInsightMetric,
@@ -583,6 +593,202 @@ export const insightsRouter = {
 				success: true as const,
 				insights,
 				hasMore: rows.length === input.limit,
+			};
+		}),
+
+	getById: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/getById",
+			tags: ["Insights"],
+			summary: "Get a single insight by id",
+			description:
+				"Resolves one insight regardless of status or feed position so deep links always open it. Authorized against the insight's own organization.",
+		})
+		.input(z.object({ insightId: z.string().min(1).max(256) }))
+		.output(
+			z.object({
+				insight: historyInsightSchema.nullable(),
+				success: z.literal(true),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const [row] = await db
+				.select({
+					id: analyticsInsights.id,
+					organizationId: analyticsInsights.organizationId,
+					runId: analyticsInsights.runId,
+					websiteId: analyticsInsights.websiteId,
+					websiteName: websites.name,
+					websiteDomain: websites.domain,
+					title: analyticsInsights.title,
+					description: analyticsInsights.description,
+					suggestion: analyticsInsights.suggestion,
+					severity: analyticsInsights.severity,
+					sentiment: analyticsInsights.sentiment,
+					type: analyticsInsights.type,
+					priority: analyticsInsights.priority,
+					changePercent: analyticsInsights.changePercent,
+					subjectKey: analyticsInsights.subjectKey,
+					sources: analyticsInsights.sources,
+					confidence: analyticsInsights.confidence,
+					impactSummary: analyticsInsights.impactSummary,
+					rootCause: analyticsInsights.rootCause,
+					evidence: analyticsInsights.evidence,
+					investigationDepth: analyticsInsights.investigationDepth,
+					actions: analyticsInsights.actions,
+					chainId: analyticsInsights.chainId,
+					metrics: analyticsInsights.metrics,
+					createdAt: analyticsInsights.createdAt,
+					status: analyticsInsights.status,
+					resolvedAt: analyticsInsights.resolvedAt,
+					resolvedReason: analyticsInsights.resolvedReason,
+					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
+					currentPeriodTo: analyticsInsights.currentPeriodTo,
+					previousPeriodFrom: analyticsInsights.previousPeriodFrom,
+					previousPeriodTo: analyticsInsights.previousPeriodTo,
+					timezone: analyticsInsights.timezone,
+				})
+				.from(analyticsInsights)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+				.where(
+					and(
+						eq(analyticsInsights.id, input.insightId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.limit(1);
+
+			if (!row) {
+				return { success: true as const, insight: null };
+			}
+
+			await withWorkspace(context, {
+				organizationId: row.organizationId,
+				resource: "organization",
+				permissions: ["read"],
+			});
+
+			return {
+				success: true as const,
+				insight: {
+					id: row.id,
+					runId: row.runId,
+					websiteId: row.websiteId,
+					websiteName: row.websiteName,
+					websiteDomain: row.websiteDomain,
+					link: buildInsightLink(row.websiteId, row.type),
+					title: row.title,
+					description: row.description,
+					suggestion: row.suggestion,
+					priority: row.priority,
+					subjectKey: row.subjectKey,
+					confidence: row.confidence,
+					rootCause: row.rootCause,
+					evidence: row.evidence ?? null,
+					investigationDepth: row.investigationDepth ?? null,
+					actions: row.actions ?? null,
+					chainId: row.chainId ?? null,
+					...parseInsightShape(row),
+					createdAt: row.createdAt.toISOString(),
+					status: row.status,
+					resolvedAt: row.resolvedAt?.toISOString() ?? null,
+					resolvedReason: row.resolvedReason ?? null,
+					currentPeriodFrom: row.currentPeriodFrom,
+					currentPeriodTo: row.currentPeriodTo,
+					previousPeriodFrom: row.previousPeriodFrom,
+					previousPeriodTo: row.previousPeriodTo,
+					timezone: row.timezone,
+				},
+			};
+		}),
+
+	related: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/related",
+			tags: ["Insights"],
+			summary: "Get other open insights for the same website",
+		})
+		.input(
+			z.object({
+				insightId: z.string().min(1).max(256),
+				limit: z.number().int().min(1).max(10).default(5),
+			})
+		)
+		.output(
+			z.object({
+				insights: z.array(
+					z.object({
+						changePercent: z.number().nullable(),
+						createdAt: z.string(),
+						id: z.string(),
+						sentiment: z.string(),
+						severity: z.string(),
+						title: z.string(),
+						type: z.string(),
+					})
+				),
+				success: z.literal(true),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const [current] = await db
+				.select({
+					organizationId: analyticsInsights.organizationId,
+					websiteId: analyticsInsights.websiteId,
+				})
+				.from(analyticsInsights)
+				.where(eq(analyticsInsights.id, input.insightId))
+				.limit(1);
+
+			if (!current) {
+				return { success: true as const, insights: [] };
+			}
+
+			await withWorkspace(context, {
+				organizationId: current.organizationId,
+				resource: "organization",
+				permissions: ["read"],
+			});
+
+			const rows = await db
+				.select({
+					id: analyticsInsights.id,
+					title: analyticsInsights.title,
+					severity: analyticsInsights.severity,
+					sentiment: analyticsInsights.sentiment,
+					type: analyticsInsights.type,
+					changePercent: analyticsInsights.changePercent,
+					createdAt: analyticsInsights.createdAt,
+				})
+				.from(analyticsInsights)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+				.where(
+					and(
+						eq(analyticsInsights.websiteId, current.websiteId),
+						eq(analyticsInsights.status, "open"),
+						ne(analyticsInsights.id, input.insightId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.orderBy(
+					desc(analyticsInsights.priority),
+					desc(analyticsInsights.createdAt)
+				)
+				.limit(input.limit);
+
+			return {
+				success: true as const,
+				insights: rows.map((row) => ({
+					id: row.id,
+					title: row.title,
+					severity: row.severity,
+					sentiment: row.sentiment,
+					type: row.type,
+					changePercent: row.changePercent,
+					createdAt: row.createdAt.toISOString(),
+				})),
 			};
 		}),
 

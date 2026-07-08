@@ -42,6 +42,26 @@ describe("insight card view model", () => {
 		expect(view.primaryActionLabel).toBe("Open analytics");
 	});
 
+	it("drops action pills the card cannot handle and keeps the rest", () => {
+		const view = toInsightCardViewModel({
+			...baseInsight,
+			actions: [
+				{ type: "update_config", label: "Update config", params: {} },
+				{ type: "create_funnel", label: "Create funnel", params: {} },
+				{
+					type: "investigate_further",
+					label: "Investigate",
+					params: { prompt: "Look into the LCP regression." },
+				},
+			],
+		});
+
+		expect(view.actions.map((a) => a.type)).toEqual([
+			"create_funnel",
+			"investigate_further",
+		]);
+	});
+
 	it("keeps investigation evidence separate from metric evidence", () => {
 		const view = toInsightCardViewModel({
 			...baseInsight,

@@ -74,9 +74,7 @@ export function buildInsightShareUrl(insightId: string): string {
 	if (typeof window === "undefined") {
 		return "";
 	}
-	const url = new URL(window.location.href);
-	url.hash = `insight-${insightId}`;
-	return url.toString();
+	return new URL(`/insights/${insightId}`, window.location.origin).toString();
 }
 
 export function extractInsightPathHint(insight: Insight): string | null {

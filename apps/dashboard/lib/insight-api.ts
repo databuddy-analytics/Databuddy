@@ -74,6 +74,26 @@ export const insightQueries = {
 			retry: 2,
 			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
 		}),
+	byId: (insightId: string | undefined) =>
+		queryOptions({
+			queryKey: [...INSIGHTS_ROOT, "by-id", insightId] as const,
+			queryFn: () => fetchInsightById(insightId ?? ""),
+			enabled: !!insightId,
+			staleTime: INSIGHT_CACHE.historyStaleTime,
+			gcTime: INSIGHT_CACHE.gcTime,
+			refetchOnWindowFocus: false,
+			retry: 1,
+		}),
+	related: (insightId: string | undefined) =>
+		queryOptions({
+			queryKey: [...INSIGHTS_ROOT, "related", insightId] as const,
+			queryFn: () => fetchInsightRelated(insightId ?? ""),
+			enabled: !!insightId,
+			staleTime: INSIGHT_CACHE.historyStaleTime,
+			gcTime: INSIGHT_CACHE.gcTime,
+			refetchOnWindowFocus: false,
+			retry: 1,
+		}),
 	orgNarrative: (orgId: string | undefined, range: "7d" | "30d" | "90d") =>
 		queryOptions({
 			queryKey: [...INSIGHTS_ROOT, "org-narrative", orgId, range] as const,
@@ -131,6 +151,48 @@ export function fetchInsightsHistoryPage(
 			limit,
 			offset,
 		}) as Promise<InsightsHistoryPage>,
+		INSIGHTS_FAST_TIMEOUT_MS
+	);
+}
+
+export interface InsightByIdResponse {
+	insight: HistoryInsightRow | null;
+	success: boolean;
+}
+
+export function fetchInsightById(
+	insightId: string
+): Promise<InsightByIdResponse> {
+	return withTimeout(
+		"Insight lookup request",
+		orpc.insights.getById.call({ insightId }) as Promise<InsightByIdResponse>,
+		INSIGHTS_FAST_TIMEOUT_MS
+	);
+}
+
+export interface RelatedInsightRow {
+	changePercent: number | null;
+	createdAt: string;
+	id: string;
+	sentiment: string;
+	severity: string;
+	title: string;
+	type: string;
+}
+
+export interface InsightRelatedResponse {
+	insights: RelatedInsightRow[];
+	success: boolean;
+}
+
+export function fetchInsightRelated(
+	insightId: string
+): Promise<InsightRelatedResponse> {
+	return withTimeout(
+		"Insight related request",
+		orpc.insights.related.call({
+			insightId,
+		}) as Promise<InsightRelatedResponse>,
 		INSIGHTS_FAST_TIMEOUT_MS
 	);
 }

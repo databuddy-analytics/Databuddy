@@ -91,6 +91,7 @@ export function CockpitSignals(): ReactElement {
 		hydrated,
 		dismissedIdSet,
 		dismissAction,
+		restoreDismissedAction,
 		clearAllDismissedAction,
 		feedbackById,
 		setFeedbackAction,
@@ -370,8 +371,13 @@ export function CockpitSignals(): ReactElement {
 								expanded={expandedId === insight.id}
 								feedbackVote={feedbackById[insight.id] ?? null}
 								insight={insight}
+								isDismissed={dismissedIdSet.has(insight.id)}
 								key={insight.id}
-								onDismissAction={() => dismissAction(insight.id)}
+								onDismissAction={() =>
+									dismissedIdSet.has(insight.id)
+										? restoreDismissedAction(insight.id)
+										: dismissAction(insight.id)
+								}
 								onFeedbackAction={(vote) => setFeedbackAction(insight.id, vote)}
 								onToggleAction={() =>
 									setExpandedId((prev) =>
