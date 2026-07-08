@@ -1,4 +1,14 @@
-import { and, desc, eq, isNull, isUniqueViolationFor } from "@databuddy/db";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	ilike,
+	isNotNull,
+	isNull,
+	isUniqueViolationFor,
+	or,
+} from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
 import {
 	type CachedLink,
@@ -19,6 +29,8 @@ import {
 	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
+	listLinksPageOutputSchema,
+	listLinksPageSchema,
 	listLinksSchema,
 	updateLinkSchema,
 } from "./links.schemas";
@@ -154,6 +166,53 @@ function requireLinkAccess(
 	});
 }
 
+const LINKS_LIST_MAX = 1000;
+
+function buildLinkListConditions(
+	input: {
+		externalId?: string;
+		folderId?: string | null;
+		sourceId?: string;
+		sourceOwnerId?: string;
+		sourceType?: string;
+		targetDomain?: string;
+	},
+	organizationId: string
+) {
+	const conditions = [eq(links.organizationId, organizationId)];
+	if (input.externalId) {
+		conditions.push(eq(links.externalId, input.externalId));
+	}
+	if (input.folderId !== undefined) {
+		conditions.push(
+			input.folderId === null
+				? isNull(links.folderId)
+				: eq(links.folderId, input.folderId)
+		);
+	}
+	if (input.sourceType) {
+		conditions.push(eq(links.sourceType, input.sourceType));
+	}
+	if (input.sourceId) {
+		conditions.push(eq(links.sourceId, input.sourceId));
+	}
+	if (input.sourceOwnerId) {
+		conditions.push(eq(links.sourceOwnerId, input.sourceOwnerId));
+	}
+	const targetDomain = normalizeTargetDomain(input.targetDomain);
+	if (targetDomain) {
+		conditions.push(eq(links.targetDomain, targetDomain));
+	}
+	return conditions;
+}
+
+const linkSortOrder = {
+	newest: [desc(links.createdAt), desc(links.id)],
+	oldest: [asc(links.createdAt), asc(links.id)],
+	"name-asc": [asc(links.name), desc(links.id)],
+	"name-desc": [desc(links.name), desc(links.id)],
+} as const;
+
 async function getLinkOrThrow(context: Context, id: string): Promise<LinkRow> {
 	const [link] = await context.db
 		.select()
@@ -176,7 +235,7 @@ export const linksRouter = {
 			tags: ["Links"],
 			summary: "List links",
 			description:
-				"Returns all links for the workspace. Optional organizationId defaults to the active organization from the session. Requires read:links scope.",
+				"Returns up to the 1000 most recent links for the workspace. Optional organizationId defaults to the active organization from the session. Use the paginated endpoint for larger workspaces. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinksSchema)
@@ -188,36 +247,75 @@ export const linksRouter = {
 
 			await requireLinkAccess(context, organizationId, "read");
 
-			const conditions = [eq(links.organizationId, organizationId)];
-			if (input.externalId) {
-				conditions.push(eq(links.externalId, input.externalId));
-			}
-			if (input.folderId !== undefined) {
-				conditions.push(
-					input.folderId === null
-						? isNull(links.folderId)
-						: eq(links.folderId, input.folderId)
-				);
-			}
-			if (input.sourceType) {
-				conditions.push(eq(links.sourceType, input.sourceType));
-			}
-			if (input.sourceId) {
-				conditions.push(eq(links.sourceId, input.sourceId));
-			}
-			if (input.sourceOwnerId) {
-				conditions.push(eq(links.sourceOwnerId, input.sourceOwnerId));
-			}
-			const targetDomain = normalizeTargetDomain(input.targetDomain);
-			if (targetDomain) {
-				conditions.push(eq(links.targetDomain, targetDomain));
-			}
+			const conditions = buildLinkListConditions(input, organizationId);
 
 			return context.db
 				.select()
 				.from(links)
 				.where(and(...conditions))
-				.orderBy(desc(links.createdAt));
+				.orderBy(desc(links.createdAt))
+				.limit(LINKS_LIST_MAX);
+		}),
+
+	paginated: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/links/paginated",
+			tags: ["Links"],
+			summary: "List links (paginated)",
+			description:
+				"Returns a page of links for the workspace with server-side search, sort, type filter, and offset pagination. Requires read:links scope.",
+			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
+		})
+		.input(listLinksPageSchema)
+		.output(listLinksPageOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = requireOrganizationId(
+				input.organizationId ?? context.organizationId
+			);
+
+			await requireLinkAccess(context, organizationId, "read");
+
+			const conditions = buildLinkListConditions(input, organizationId);
+
+			if (input.type === "short") {
+				conditions.push(isNull(links.deepLinkApp));
+			} else if (input.type === "deep") {
+				conditions.push(isNotNull(links.deepLinkApp));
+			}
+
+			const search = input.search?.trim();
+			if (search) {
+				const term = `%${search}%`;
+				const matches = or(
+					ilike(links.name, term),
+					ilike(links.slug, term),
+					ilike(links.targetUrl, term),
+					ilike(links.externalId, term),
+					ilike(links.sourceType, term),
+					ilike(links.sourceId, term),
+					ilike(links.sourceOwnerId, term),
+					ilike(links.targetDomain, term)
+				);
+				if (matches) {
+					conditions.push(matches);
+				}
+			}
+
+			const rows = await context.db
+				.select()
+				.from(links)
+				.where(and(...conditions))
+				.orderBy(...linkSortOrder[input.sort])
+				.limit(input.limit + 1)
+				.offset(input.offset);
+
+			const hasMore = rows.length > input.limit;
+
+			return {
+				items: hasMore ? rows.slice(0, input.limit) : rows,
+				hasMore,
+			};
 		}),
 
 	get: protectedProcedure

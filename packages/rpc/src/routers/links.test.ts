@@ -4,6 +4,7 @@ import {
 	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
+	listLinksPageSchema,
 	listLinksSchema,
 	updateLinkSchema,
 } from "./links.schemas";
@@ -200,6 +201,46 @@ describe("listLinksSchema validation", () => {
 				folderId: null,
 			}).success
 		).toBe(true);
+	});
+});
+
+describe("listLinksPageSchema validation", () => {
+	it("applies pagination and filter defaults", () => {
+		const result = listLinksPageSchema.safeParse({});
+
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.limit).toBe(50);
+			expect(result.data.offset).toBe(0);
+			expect(result.data.sort).toBe("newest");
+			expect(result.data.type).toBe("all");
+		}
+	});
+
+	it("accepts search, sort, type, and pagination bounds", () => {
+		expect(
+			listLinksPageSchema.safeParse({
+				organizationId: "org-123",
+				folderId: null,
+				search: "campaign",
+				sort: "name-asc",
+				type: "deep",
+				limit: 100,
+				offset: 200,
+			}).success
+		).toBe(true);
+	});
+
+	it("rejects out-of-range pagination and unknown enums", () => {
+		expect(listLinksPageSchema.safeParse({ limit: 0 }).success).toBe(false);
+		expect(listLinksPageSchema.safeParse({ limit: 101 }).success).toBe(false);
+		expect(listLinksPageSchema.safeParse({ offset: -1 }).success).toBe(false);
+		expect(listLinksPageSchema.safeParse({ sort: "random" }).success).toBe(
+			false
+		);
+		expect(listLinksPageSchema.safeParse({ type: "medium" }).success).toBe(
+			false
+		);
 	});
 });
 

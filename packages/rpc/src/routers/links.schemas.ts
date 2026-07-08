@@ -37,6 +37,22 @@ export const listLinksSchema = z
 	})
 	.default({});
 
+export const linkSortSchema = z
+	.enum(["newest", "oldest", "name-asc", "name-desc"])
+	.default("newest");
+
+export const linkTypeFilterSchema = z
+	.enum(["all", "short", "deep"])
+	.default("all");
+
+export const listLinksPageSchema = listLinksSchema.unwrap().extend({
+	limit: z.number().int().min(1).max(100).default(50),
+	offset: z.number().int().min(0).default(0),
+	search: z.string().max(255).optional(),
+	sort: linkSortSchema,
+	type: linkTypeFilterSchema,
+});
+
 export const listLinkFoldersSchema = z
 	.object({
 		organizationId: z.string().optional(),
@@ -203,6 +219,11 @@ export const linkOutputSchema = linkSelectSchema.pick({
 	deletedAt: true,
 	createdAt: true,
 	updatedAt: true,
+});
+
+export const listLinksPageOutputSchema = z.object({
+	items: z.array(linkOutputSchema),
+	hasMore: z.boolean(),
 });
 
 export const linkFolderOutputSchema = linkFolderSelectSchema.pick({
