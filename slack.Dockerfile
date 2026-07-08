@@ -44,6 +44,10 @@ COPY --from=builder /app/server server
 # distroless runtime omits. Bring it over from the Debian-based builder stage.
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libgcc_s.so.1 /usr/lib/x86_64-linux-gnu/libgcc_s.so.1
 
+# The compiled binary reads the chart fonts from disk at this path on startup;
+# only the binary is copied above, so the asset dir must come along too.
+COPY --from=builder /app/packages/charts/assets /app/packages/charts/assets
+
 ENV NODE_ENV=production
 
 EXPOSE 3010
