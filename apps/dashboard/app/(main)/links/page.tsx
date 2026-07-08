@@ -4,18 +4,27 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	type Link,
+	type LinkSortOption,
+	type LinkTypeFilter,
 	useCreateLinkFolder,
 	useDeleteLink,
 	useLinkFolders,
-	useLinks,
+	useLinksPaginated,
 } from "@/hooks/use-links";
 import { useFlags } from "@databuddy/sdk/react";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	Suspense,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { DeepLinkSheet } from "./_components/deep-link-sheet";
 import { LinkFolderSheet } from "./_components/link-folder-sheet";
-import { LinkFoldersList } from "./_components/link-folders-list";
 import {
 	LinksListSkeleton,
 	LinksSearchBarSkeleton,
@@ -24,11 +33,7 @@ import {
 import { LinkSheet } from "./_components/link-sheet";
 import { LinksSearchBar } from "./_components/links-search-bar";
 import { QrCodeDialog } from "./_components/qr-code-dialog";
-import {
-	type SortOption,
-	type TypeFilter,
-	useFilteredLinks,
-} from "./_components/use-filtered-links";
+import { VirtualizedLinksList } from "./_components/virtualized-links-list";
 import {
 	ArchiveIcon,
 	LinkIcon as LinkSimpleIcon,
@@ -60,31 +65,52 @@ function LinksPageContent() {
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
+	const scrollRef = useRef<HTMLDivElement>(null);
 	const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
 	const [search, setSearch] = useState("");
-	const [sort, setSort] = useState<SortOption>("newest");
-	const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+	const [sort, setSort] = useState<LinkSortOption>("newest");
+	const [typeFilter, setTypeFilter] = useState<LinkTypeFilter>("all");
+	const [folderId, setFolderId] = useState<string | null | undefined>(
+		undefined
+	);
 	const { activeOrganization, isSwitchingOrganization } =
 		useOrganizationsContext();
 	const workspaceName = activeOrganization?.name ?? "this workspace";
 
 	const { isOn } = useFlags();
 	const deepLinksEnabled = isOn("deeplinks");
-	const { links, isLoading, isError, isFetching, refetch } = useLinks();
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 250 });
+
+	const {
+		links,
+		isLoading,
+		isError,
+		refetch,
+		fetchNextPage,
+		hasNextPage,
+		isFetchingNextPage,
+	} = useLinksPaginated({
+		search: debouncedSearch,
+		sort,
+		type: typeFilter,
+		folderId,
+	});
 	const { folders } = useLinkFolders();
 	const createFolder = useCreateLinkFolder();
 	const deleteLink = useDeleteLink();
-	const filtered = useFilteredLinks(links, search, sort, typeFilter);
 	const foldersById = useMemo(
 		() => new Map(folders.map((folder) => [folder.id, folder.name])),
 		[folders]
 	);
-	const hasDeepLinks = links.some((l) => !!l.deepLinkApp);
 
-	const busy = isLoading || isFetching || isSwitchingOrganization;
+	const hasActiveFilters =
+		!!debouncedSearch.trim() || typeFilter !== "all" || folderId !== undefined;
+	const busy = isLoading || isSwitchingOrganization;
 	const hasLinks = links.length > 0;
 	const hasFolders = folders.length > 0;
-	const noResults = !busy && hasLinks && filtered.length === 0;
+	const showToolbar = hasLinks || hasActiveFilters || hasFolders;
+	const noResults = !(busy || hasLinks) && hasActiveFilters;
+	const emptyWorkspace = !(busy || hasLinks || hasActiveFilters);
 	const canMutateWorkspace = !isSwitchingOrganization;
 
 	const openCreate = useCallback(() => {
@@ -156,7 +182,7 @@ function LinksPageContent() {
 
 	return (
 		<ErrorBoundary>
-			<div className="flex-1 overflow-y-auto">
+			<div className="flex-1 overflow-y-auto" ref={scrollRef}>
 				<div className="mx-auto max-w-2xl space-y-6 p-5">
 					<Card>
 						<Card.Header className="flex-row items-start justify-between gap-4">
@@ -168,9 +194,9 @@ function LinksPageContent() {
 								<Card.Description>
 									{isSwitchingOrganization
 										? "Switching workspace…"
-										: hasLinks
-											? `${links.length} link${links.length === 1 ? "" : "s"} in ${workspaceName} · Free while in beta`
-											: `${workspaceName} does not have any links yet. Create short links with workspace-scoped analytics.`}
+										: emptyWorkspace
+											? `${workspaceName} does not have any links yet. Create short links with workspace-scoped analytics.`
+											: `Short links for ${workspaceName} · Free while in beta`}
 								</Card.Description>
 							</div>
 							<div className="flex shrink-0 items-center gap-2">
@@ -229,39 +255,46 @@ function LinksPageContent() {
 									<LinksSearchBarSkeleton />
 									<LinksListSkeleton />
 								</>
-							) : hasLinks || hasFolders ? (
+							) : showToolbar ? (
 								<>
-									{hasLinks && (
-										<div className="border-b px-4 py-2">
-											<LinksSearchBar
-												hasDeepLinks={hasDeepLinks}
-												onSearchQueryChangeAction={setSearch}
-												onSortByChangeAction={setSort}
-												onTypeFilterChangeAction={setTypeFilter}
-												searchQuery={search}
-												sortBy={sort}
-												typeFilter={typeFilter}
-											/>
-										</div>
-									)}
+									<div className="border-b px-4 py-2">
+										<LinksSearchBar
+											folderId={folderId}
+											folders={folders}
+											hasDeepLinks={deepLinksEnabled}
+											onFolderChangeAction={setFolderId}
+											onSearchQueryChangeAction={setSearch}
+											onSortByChangeAction={setSort}
+											onTypeFilterChangeAction={setTypeFilter}
+											searchQuery={search}
+											sortBy={sort}
+											typeFilter={typeFilter}
+										/>
+									</div>
 									{noResults ? (
 										<div className="px-5 py-12">
 											<EmptyState
-												description={`No links match \u201c${search}\u201d`}
+												description={
+													debouncedSearch.trim()
+														? `No links match “${debouncedSearch}”`
+														: "No links match the current filters"
+												}
 												icon={<MagnifyingGlassIcon weight="duotone" />}
 												title="No results"
 												variant="minimal"
 											/>
 										</div>
 									) : (
-										<LinkFoldersList
-											folders={folders}
+										<VirtualizedLinksList
+											fetchNextPage={fetchNextPage}
 											foldersById={foldersById}
-											links={filtered}
-											onCreateLink={openCreate}
+											hasNextPage={hasNextPage}
+											isFetchingNextPage={isFetchingNextPage}
+											links={links}
 											onDelete={(id) => setActiveDialog({ id, type: "delete" })}
 											onEdit={openEdit}
 											onShowQr={(link) => setActiveDialog({ link, type: "qr" })}
+											scrollRef={scrollRef}
 										/>
 									)}
 								</>

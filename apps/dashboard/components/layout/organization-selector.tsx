@@ -165,6 +165,7 @@ export function OrganizationSelector({
 
 		queryClient.removeQueries({ queryKey: orpc.websites.key() });
 		queryClient.removeQueries({ queryKey: orpc.links.list.key() });
+		queryClient.removeQueries({ queryKey: orpc.links.paginated.key() });
 		queryClient.removeQueries({ queryKey: orpc.linkFolders.list.key() });
 		queryClient.removeQueries({ queryKey: orpc.apikeys.list.key() });
 

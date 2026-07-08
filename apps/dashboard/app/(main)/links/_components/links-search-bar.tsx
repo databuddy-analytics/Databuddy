@@ -1,8 +1,13 @@
 "use client";
 
-import type { SortOption, TypeFilter } from "./use-filtered-links";
+import type {
+	LinkFolder,
+	LinkSortOption,
+	LinkTypeFilter,
+} from "@/hooks/use-links";
 import {
 	ArrowsDownUpIcon as SortAscendingIcon,
+	FolderSimpleIcon,
 	FunnelIcon,
 	MagnifyingGlassIcon,
 	XMarkIcon as XIcon,
@@ -10,27 +15,56 @@ import {
 import { Input } from "@databuddy/ui";
 import { DropdownMenu } from "@databuddy/ui/client";
 
-const SORT_LABELS: Record<SortOption, string> = {
+const SORT_LABELS: Record<LinkSortOption, string> = {
 	newest: "Newest",
 	oldest: "Oldest",
-	"name-asc": "A \u2192 Z",
-	"name-desc": "Z \u2192 A",
+	"name-asc": "A → Z",
+	"name-desc": "Z → A",
 };
 
-const TYPE_LABELS: Record<TypeFilter, string> = {
+const TYPE_LABELS: Record<LinkTypeFilter, string> = {
 	all: "All",
 	short: "Short Links",
 	deep: "Deep Links",
 };
 
+const UNFILED_VALUE = "__unfiled__";
+const ALL_FOLDERS_VALUE = "__all__";
+
 interface LinksSearchBarProps {
+	folderId: string | null | undefined;
+	folders: LinkFolder[];
 	hasDeepLinks: boolean;
+	onFolderChangeAction: (folderId: string | null | undefined) => void;
 	onSearchQueryChangeAction: (query: string) => void;
-	onSortByChangeAction: (sort: SortOption) => void;
-	onTypeFilterChangeAction: (type: TypeFilter) => void;
+	onSortByChangeAction: (sort: LinkSortOption) => void;
+	onTypeFilterChangeAction: (type: LinkTypeFilter) => void;
 	searchQuery: string;
-	sortBy: SortOption;
-	typeFilter: TypeFilter;
+	sortBy: LinkSortOption;
+	typeFilter: LinkTypeFilter;
+}
+
+function folderFilterValue(folderId: string | null | undefined): string {
+	if (folderId === undefined) {
+		return ALL_FOLDERS_VALUE;
+	}
+	if (folderId === null) {
+		return UNFILED_VALUE;
+	}
+	return folderId;
+}
+
+function folderFilterLabel(
+	folderId: string | null | undefined,
+	folders: LinkFolder[]
+): string {
+	if (folderId === undefined) {
+		return "All folders";
+	}
+	if (folderId === null) {
+		return "Unfiled";
+	}
+	return folders.find((folder) => folder.id === folderId)?.name ?? "Folder";
 }
 
 export function LinksSearchBar({
@@ -41,6 +75,9 @@ export function LinksSearchBar({
 	typeFilter,
 	onTypeFilterChangeAction,
 	hasDeepLinks,
+	folders,
+	folderId,
+	onFolderChangeAction,
 }: LinksSearchBarProps) {
 	return (
 		<div className="flex w-full items-center gap-1.5">
@@ -68,6 +105,51 @@ export function LinksSearchBar({
 				)}
 			</div>
 
+			{folders.length > 0 && (
+				<DropdownMenu>
+					<DropdownMenu.Trigger
+						className={`inline-flex h-7 max-w-32 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors hover:bg-interactive-hover hover:text-foreground ${folderId === undefined ? "text-muted-foreground" : "text-foreground"}`}
+					>
+						<FolderSimpleIcon
+							size={14}
+							weight={folderId === undefined ? "bold" : "fill"}
+						/>
+						<span className="hidden truncate sm:inline">
+							{folderFilterLabel(folderId, folders)}
+						</span>
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content
+						align="end"
+						className="max-h-72 w-44 overflow-auto"
+					>
+						<DropdownMenu.RadioGroup
+							onValueChange={(value) => {
+								if (value === ALL_FOLDERS_VALUE) {
+									onFolderChangeAction(undefined);
+								} else if (value === UNFILED_VALUE) {
+									onFolderChangeAction(null);
+								} else {
+									onFolderChangeAction(value);
+								}
+							}}
+							value={folderFilterValue(folderId)}
+						>
+							<DropdownMenu.RadioItem value={ALL_FOLDERS_VALUE}>
+								All folders
+							</DropdownMenu.RadioItem>
+							<DropdownMenu.RadioItem value={UNFILED_VALUE}>
+								Unfiled
+							</DropdownMenu.RadioItem>
+							{folders.map((folder) => (
+								<DropdownMenu.RadioItem key={folder.id} value={folder.id}>
+									{folder.name}
+								</DropdownMenu.RadioItem>
+							))}
+						</DropdownMenu.RadioGroup>
+					</DropdownMenu.Content>
+				</DropdownMenu>
+			)}
+
 			{hasDeepLinks && (
 				<DropdownMenu>
 					<DropdownMenu.Trigger
@@ -86,7 +168,7 @@ export function LinksSearchBar({
 						<DropdownMenu.Separator />
 						<DropdownMenu.RadioGroup
 							onValueChange={(value) =>
-								onTypeFilterChangeAction(value as TypeFilter)
+								onTypeFilterChangeAction(value as LinkTypeFilter)
 							}
 							value={typeFilter}
 						>
@@ -113,7 +195,9 @@ export function LinksSearchBar({
 					</DropdownMenu.Group>
 					<DropdownMenu.Separator />
 					<DropdownMenu.RadioGroup
-						onValueChange={(value) => onSortByChangeAction(value as SortOption)}
+						onValueChange={(value) =>
+							onSortByChangeAction(value as LinkSortOption)
+						}
 						value={sortBy}
 					>
 						<DropdownMenu.RadioItem value="newest">

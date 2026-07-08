@@ -55,6 +55,7 @@
     "@tanstack/react-query": "^5.99.2",
     "@tanstack/react-query-persist-client": "5.100.10",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.5",
     "@tokenlens/models": "catalog:",
     "@types/d3-scale": "^4.0.9",
     "@types/geojson": "^7946.0.16",

@@ -5,20 +5,15 @@ import { dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
 import type { Link, LinkFolder } from "@databuddy/db/schema";
 import type { DateRange } from "@/types/analytics";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { useMemo } from "react";
 
 export type { Link, LinkFolder } from "@databuddy/db/schema";
-
-export interface LinkListInput {
-	externalId?: string;
-	folderId?: string | null;
-	organizationId?: string;
-	sourceId?: string;
-	sourceOwnerId?: string;
-	sourceType?: string;
-	targetDomain?: string;
-}
 
 interface GeoEntry {
 	clicks: number;
@@ -64,33 +59,71 @@ export interface LinkStats {
 const EMPTY_LINKS: Link[] = [];
 const EMPTY_LINK_FOLDERS: LinkFolder[] = [];
 
-const linksRootKey = orpc.links.list.key();
-const foldersRootKey = orpc.linkFolders.list.key();
+export type LinkSortOption = "newest" | "oldest" | "name-asc" | "name-desc";
+export type LinkTypeFilter = "all" | "short" | "deep";
 
-const linksListKey = (input: LinkListInput = {}) =>
-	orpc.links.list.queryKey({ input });
+export const LINKS_PAGE_SIZE = 50;
+
+export interface LinksPageParams {
+	folderId?: string | null;
+	organizationId?: string;
+	search?: string;
+	sort?: LinkSortOption;
+	type?: LinkTypeFilter;
+}
+
+interface LinksPage {
+	hasMore: boolean;
+	items: Link[];
+}
+
+const linksPaginatedRootKey = orpc.links.paginated.key();
+const foldersRootKey = orpc.linkFolders.list.key();
 
 const foldersListKey = () => orpc.linkFolders.list.queryKey({ input: {} });
 
 const linkKey = (id: string) => orpc.links.get.queryKey({ input: { id } });
 
-export function useLinks(options?: {
-	enabled?: boolean;
-	input?: LinkListInput;
-}) {
-	const query = useQuery({
-		...orpc.links.list.queryOptions({
-			input: options?.input ?? {},
-		}),
-		enabled: options?.enabled !== false,
+export function useLinksPaginated(params: LinksPageParams) {
+	const search = params.search?.trim() || undefined;
+	const sort = params.sort ?? "newest";
+	const type = params.type ?? "all";
+	const folderId = params.folderId;
+
+	const query = useInfiniteQuery({
+		queryKey: [
+			...linksPaginatedRootKey,
+			{ folderId, organizationId: params.organizationId, search, sort, type },
+		] as const,
+		queryFn: ({ pageParam }) =>
+			orpc.links.paginated.call({
+				organizationId: params.organizationId,
+				folderId: folderId === undefined ? undefined : folderId,
+				search,
+				sort,
+				type,
+				limit: LINKS_PAGE_SIZE,
+				offset: pageParam,
+			}) as Promise<LinksPage>,
+		initialPageParam: 0,
+		getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+			lastPage.hasMore ? lastPageParam + LINKS_PAGE_SIZE : undefined,
 	});
 
+	const links = useMemo(
+		() => query.data?.pages.flatMap((page) => page.items) ?? EMPTY_LINKS,
+		[query.data]
+	);
+
 	return {
-		links: query.data ?? EMPTY_LINKS,
+		links,
 		isLoading: query.isLoading,
 		isFetching: query.isFetching,
 		isError: query.isError,
 		refetch: query.refetch,
+		fetchNextPage: query.fetchNextPage,
+		hasNextPage: query.hasNextPage,
+		isFetchingNextPage: query.isFetchingNextPage,
 	};
 }
 
@@ -270,22 +303,37 @@ export function useLinkStats(linkId: string, dateRange: DateRange) {
 	};
 }
 
+interface InfiniteLinksData {
+	pageParams: unknown[];
+	pages: LinksPage[];
+}
+
+function patchPaginatedLinks(
+	queryClient: ReturnType<typeof useQueryClient>,
+	patch: (items: Link[]) => Link[]
+) {
+	queryClient.setQueriesData<InfiniteLinksData>(
+		{ queryKey: linksPaginatedRootKey },
+		(old) =>
+			old
+				? {
+						...old,
+						pages: old.pages.map((page) => ({
+							...page,
+							items: patch(page.items),
+						})),
+					}
+				: old
+	);
+}
+
 export function useCreateLink() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		...orpc.links.create.mutationOptions(),
-		onSuccess: (newLink: Link) => {
-			queryClient.setQueryData<Link[]>(linksListKey(), (old) => {
-				if (!old) {
-					return [newLink];
-				}
-				if (old.some((link) => link.id === newLink.id)) {
-					return old;
-				}
-				return [newLink, ...old];
-			});
-			queryClient.invalidateQueries({ queryKey: linksRootKey });
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
 	});
 }
@@ -296,12 +344,11 @@ export function useUpdateLink() {
 	return useMutation({
 		...orpc.links.update.mutationOptions(),
 		onSuccess: (updatedLink: Link) => {
-			queryClient.setQueryData<Link[]>(linksListKey(), (old) =>
-				old?.map((link) => (link.id === updatedLink.id ? updatedLink : link))
-			);
-
 			queryClient.setQueryData<Link>(linkKey(updatedLink.id), updatedLink);
-			queryClient.invalidateQueries({ queryKey: linksRootKey });
+			patchPaginatedLinks(queryClient, (items) =>
+				items.map((link) => (link.id === updatedLink.id ? updatedLink : link))
+			);
+			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
 	});
 }
@@ -312,23 +359,24 @@ export function useDeleteLink() {
 	return useMutation({
 		...orpc.links.delete.mutationOptions(),
 		onMutate: async ({ id }) => {
-			const listKey = linksListKey();
-			await queryClient.cancelQueries({ queryKey: listKey });
-			const previousData = queryClient.getQueryData<Link[]>(listKey);
+			await queryClient.cancelQueries({ queryKey: linksPaginatedRootKey });
+			const previousPaginated = queryClient.getQueriesData<InfiniteLinksData>({
+				queryKey: linksPaginatedRootKey,
+			});
 
-			queryClient.setQueryData<Link[]>(listKey, (old) =>
-				old?.filter((link) => link.id !== id)
+			patchPaginatedLinks(queryClient, (items) =>
+				items.filter((link) => link.id !== id)
 			);
 
-			return { previousData, listKey };
+			return { previousPaginated };
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousData && context.listKey) {
-				queryClient.setQueryData(context.listKey, context.previousData);
+			for (const [key, data] of context?.previousPaginated ?? []) {
+				queryClient.setQueryData(key, data);
 			}
 		},
 		onSettled: () => {
-			queryClient.invalidateQueries({ queryKey: linksRootKey });
+			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
 	});
 }
@@ -377,7 +425,7 @@ export function useDeleteLinkFolder() {
 			queryClient.invalidateQueries({
 				queryKey: foldersRootKey,
 			});
-			queryClient.invalidateQueries({ queryKey: linksRootKey });
+			queryClient.invalidateQueries({ queryKey: linksPaginatedRootKey });
 		},
 	});
 }
