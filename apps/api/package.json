@@ -44,7 +44,7 @@
     "jszip": "^3.10.1",
     "keypal": "0.2.0",
     "lru-cache": "^11.2.7",
-    "resend": "^4.0.1",
+    "resend": "^6.17.1",
     "supermemory": "^4.17.0",
     "svix": "^1.84.1",
     "zod": "catalog:"

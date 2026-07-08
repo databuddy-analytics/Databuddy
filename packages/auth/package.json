@@ -24,6 +24,6 @@
     "better-auth": "^1.4.10",
     "drizzle-kit": "^1.0.0-rc.1",
     "evlog": "catalog:",
-    "resend": "^4.8.0"
+    "resend": "^6.17.1"
   }
 }
