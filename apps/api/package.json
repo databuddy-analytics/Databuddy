@@ -10,7 +10,7 @@
     "test:watch": "TZ=UTC bunx --bun vitest"
   },
   "dependencies": {
-    "@ai-sdk/provider": "^3.0.5",
+    "@ai-sdk/provider": "^4.0.2",
     "@contextcompany/otel": "^1.0.13",
     "@databuddy/ai": "workspace:*",
     "@databuddy/api-keys": "workspace:*",
