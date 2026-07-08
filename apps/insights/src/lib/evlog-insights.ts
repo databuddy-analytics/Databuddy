@@ -24,15 +24,16 @@ const pipeline = createDrainPipeline<DrainContext>({
 	maxBufferSize: 2000,
 });
 
-const batchedAxiomDrain = axiomApiKey
-	? pipeline(
-			createAxiomDrain({
-				apiKey: axiomApiKey,
-				dataset: env.INSIGHTS_AXIOM_DATASET,
-				...(env.AXIOM_ORG_ID ? { orgId: env.AXIOM_ORG_ID } : {}),
-			})
-		)
-	: null;
+const batchedAxiomDrain =
+	axiomApiKey && env.NODE_ENV !== "development"
+		? pipeline(
+				createAxiomDrain({
+					apiKey: axiomApiKey,
+					dataset: env.INSIGHTS_AXIOM_DATASET,
+					...(env.AXIOM_ORG_ID ? { orgId: env.AXIOM_ORG_ID } : {}),
+				})
+			)
+		: null;
 
 const batchedSuperlogDrain = createBatchedSuperlogDrain();
 

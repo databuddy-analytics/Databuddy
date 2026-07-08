@@ -30,6 +30,8 @@ const devFsLogsDir = join(
 const useLocalEvlogFiles =
 	process.env.NODE_ENV === "development" || readBooleanEnv("UPTIME_EVLOG_FS");
 
+const drainToAxiom = process.env.NODE_ENV !== "development";
+
 const devFsDrain = useLocalEvlogFiles
 	? createFsDrain({ dir: devFsLogsDir, pretty: false })
 	: null;
@@ -82,7 +84,9 @@ export async function uptimeLoggerDrain(ctx: DrainContext): Promise<void> {
 	if (devFsDrain) {
 		await devFsDrain(ctx);
 	}
-	batchedAxiomDrain(ctx);
+	if (drainToAxiom) {
+		batchedAxiomDrain(ctx);
+	}
 	batchedSuperlogDrain?.(ctx);
 }
 

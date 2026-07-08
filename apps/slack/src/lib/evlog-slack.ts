@@ -17,18 +17,19 @@ const activeSlackLog = new AsyncLocalStorage<RequestLogger>();
 
 const axiomApiKey = env.AXIOM_API_KEY ?? env.AXIOM_TOKEN;
 
-const batchedAxiomDrain = axiomApiKey
-	? createDrainPipeline<DrainContext>({
-			batch: { size: 50, intervalMs: 5000 },
-			maxBufferSize: 2000,
-		})(
-			createAxiomDrain({
-				apiKey: axiomApiKey,
-				dataset: env.SLACK_AXIOM_DATASET,
-				...(env.AXIOM_ORG_ID ? { orgId: env.AXIOM_ORG_ID } : {}),
-			})
-		)
-	: null;
+const batchedAxiomDrain =
+	axiomApiKey && env.NODE_ENV !== "development"
+		? createDrainPipeline<DrainContext>({
+				batch: { size: 50, intervalMs: 5000 },
+				maxBufferSize: 2000,
+			})(
+				createAxiomDrain({
+					apiKey: axiomApiKey,
+					dataset: env.SLACK_AXIOM_DATASET,
+					...(env.AXIOM_ORG_ID ? { orgId: env.AXIOM_ORG_ID } : {}),
+				})
+			)
+		: null;
 
 const batchedSuperlogDrain = createBatchedSuperlogDrain();
 
