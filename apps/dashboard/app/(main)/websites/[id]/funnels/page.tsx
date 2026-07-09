@@ -66,11 +66,11 @@ export default function FunnelsPage() {
 	const searchParams = useSearchParams();
 
 	useEffect(() => {
-		if (searchParams.get("new") === "funnel") {
+		if (!isDemoRoute && searchParams.get("new") === "funnel") {
 			setEditing("new");
 			router.replace(pathname);
 		}
-	}, [searchParams, router, pathname]);
+	}, [searchParams, router, pathname, isDemoRoute]);
 
 	const {
 		analyticsMap,
