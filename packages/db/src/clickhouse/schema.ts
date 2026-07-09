@@ -12,18 +12,6 @@ export interface ErrorSpanRow {
 	timestamp: number;
 }
 
-export interface ErrorHourlyAggregate {
-	affected_sessions: number;
-	affected_users: number;
-	client_id: string;
-	error_count: number;
-	error_type: string;
-	hour: number;
-	message_hash: number;
-	path: string;
-	sample_message: string;
-}
-
 export type WebVitalMetricName = "FCP" | "LCP" | "CLS" | "INP" | "TTFB" | "FPS";
 
 export interface WebVitalsSpan {
