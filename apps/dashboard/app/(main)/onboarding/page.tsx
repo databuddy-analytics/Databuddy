@@ -46,6 +46,7 @@ export default function OnboardingPage() {
 	const router = useRouter();
 	const { websites } = useWebsitesLight();
 	const trackedStepRef = useRef<number>(-1);
+	const onboardingCompletedRef = useRef(false);
 
 	const [currentStep, setCurrentStep] = useState(0);
 	const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
@@ -126,9 +127,17 @@ export default function OnboardingPage() {
 		goNext();
 	}, [markComplete, goNext]);
 
-	const handleExploreComplete = useCallback(() => {
+	const recordExploreComplete = useCallback(() => {
+		if (onboardingCompletedRef.current) {
+			return;
+		}
+		onboardingCompletedRef.current = true;
 		markComplete("explore");
 		trackAppEvent(APP_EVENTS.onboardingCompleted);
+	}, [markComplete]);
+
+	const handleExploreComplete = useCallback(() => {
+		recordExploreComplete();
 		const pendingPlan = localStorage.getItem("pendingPlanSelection");
 		if (pendingPlan) {
 			localStorage.removeItem("pendingPlanSelection");
@@ -138,7 +147,7 @@ export default function OnboardingPage() {
 		} else {
 			router.replace("/websites");
 		}
-	}, [markComplete, router, websiteId]);
+	}, [recordExploreComplete, router, websiteId]);
 
 	const handleSkipOnboarding = useCallback(() => {
 		trackAppEvent(APP_EVENTS.onboardingSkipped, {
@@ -212,6 +221,7 @@ export default function OnboardingPage() {
 				return (
 					<StepExplore
 						onComplete={handleExploreComplete}
+						onEnterProduct={recordExploreComplete}
 						websiteId={websiteId}
 					/>
 				);

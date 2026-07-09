@@ -42,10 +42,15 @@ const FEATURES = [
 
 interface StepExploreProps {
 	onComplete: () => void;
+	onEnterProduct: () => void;
 	websiteId: string;
 }
 
-export function StepExplore({ onComplete, websiteId }: StepExploreProps) {
+export function StepExplore({
+	onComplete,
+	onEnterProduct,
+	websiteId,
+}: StepExploreProps) {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center gap-3">
@@ -76,6 +81,7 @@ export function StepExplore({ onComplete, websiteId }: StepExploreProps) {
 						className="group flex items-start gap-3 rounded border p-3 hover:border-primary/30 hover:bg-accent/50"
 						href={`/websites/${websiteId}${feature.tab}`}
 						key={feature.title}
+						onClick={onEnterProduct}
 					>
 						<div className="flex size-8 shrink-0 items-center justify-center rounded bg-accent">
 							<feature.icon
