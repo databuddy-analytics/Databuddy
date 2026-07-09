@@ -1,4 +1,4 @@
-import type { BlockedTraffic } from "@databuddy/db/clickhouse/schema";
+import type { BlockedTrafficInsert } from "@databuddy/db/clickhouse/tables";
 import { chQuery } from "@databuddy/db/clickhouse";
 import {
 	db,
@@ -45,16 +45,16 @@ export interface BlockedTrafficAlertDecision {
 	severity: "critical" | "warning";
 }
 
-function getAlertOrigin(event: BlockedTraffic): string {
+function getAlertOrigin(event: BlockedTrafficInsert): string {
 	return event.origin?.trim() || "";
 }
 
-function getAlertOriginKey(event: BlockedTraffic): string {
+function getAlertOriginKey(event: BlockedTrafficInsert): string {
 	return encodeURIComponent(getAlertOrigin(event) || "missing-origin");
 }
 
 function getBlockedTrafficSource(
-	event: Pick<BlockedTraffic, "origin" | "referrer">
+	event: Pick<BlockedTrafficInsert, "origin" | "referrer">
 ): string | null {
 	return event.origin || event.referrer || null;
 }
@@ -68,7 +68,7 @@ export function matchesTrackingAlertIgnoredOrigin(
 
 export function shouldIgnoreBlockedTrafficAlertEvent(
 	event: Pick<
-		BlockedTraffic,
+		BlockedTrafficInsert,
 		"block_reason" | "client_id" | "origin" | "referrer"
 	>
 ): boolean {
@@ -81,7 +81,7 @@ export function shouldIgnoreBlockedTrafficAlertEvent(
 	return isIgnoredTrackingBlockOrigin(getBlockedTrafficSource(event));
 }
 
-function buildRecommendedFix(event: BlockedTraffic): string {
+function buildRecommendedFix(event: BlockedTrafficInsert): string {
 	const host = getTrackingBlockOriginHost(event.origin ?? null);
 	if (event.block_reason === "origin_not_authorized") {
 		return host
@@ -101,7 +101,7 @@ function buildDashboardUrl(clientId: string, reason: string): string {
 	return `${config.urls.dashboard}/websites/${clientId}/settings/${section}`;
 }
 
-async function incrementWindowCounter(event: BlockedTraffic): Promise<number> {
+async function incrementWindowCounter(event: BlockedTrafficInsert): Promise<number> {
 	const key = `blocked-traffic-alert:count:${event.client_id}:${event.block_reason}:${getAlertOriginKey(event)}`;
 	const count = await redis.incr(key);
 	if (count === 1) {
@@ -124,7 +124,7 @@ async function getTrackingHealth(
 	return rows[0] ?? { baselineEvents: 0, recentEvents: 0 };
 }
 
-async function getPreviousBlockedCount(event: BlockedTraffic): Promise<number> {
+async function getPreviousBlockedCount(event: BlockedTrafficInsert): Promise<number> {
 	const rows = await chQuery<PreviousBlockedCountRow>(
 		`SELECT count() AS previousBlocked
 		FROM analytics.blocked_traffic
@@ -177,14 +177,14 @@ export function shouldEvaluateBlockedTrafficAlert(
 }
 
 function cooldownKey(
-	event: BlockedTraffic,
+	event: BlockedTrafficInsert,
 	kind: BlockedTrafficAlertDecision["kind"]
 ): string {
 	return `blocked-traffic-alert:sent:${event.client_id}:${event.block_reason}:${getAlertOriginKey(event)}:${kind}`;
 }
 
 async function reserveCooldown(
-	event: BlockedTraffic,
+	event: BlockedTrafficInsert,
 	kind: BlockedTrafficAlertDecision["kind"],
 	settings: EmailNotificationSettings
 ): Promise<string | null> {
@@ -223,7 +223,7 @@ async function getOrganizationEmailSettings(
 
 function isAlertMutedBySettings(input: {
 	decision: BlockedTrafficAlertDecision;
-	event: BlockedTraffic;
+	event: BlockedTrafficInsert;
 	settings: EmailNotificationSettings;
 }): boolean {
 	const tracking = input.settings.trackingHealth;
@@ -252,7 +252,7 @@ function isAlertMutedBySettings(input: {
 async function sendAlertEmail(input: {
 	context: BlockedTrafficAlertContext;
 	decision: BlockedTrafficAlertDecision;
-	event: BlockedTraffic;
+	event: BlockedTrafficInsert;
 	trackingHealth: TrackingHealthCounts;
 	ownerEmail: string;
 	previousBlocked: number;
@@ -313,7 +313,7 @@ async function sendAlertEmail(input: {
 }
 
 async function maybeSendBlockedTrafficAlertAsync(
-	event: BlockedTraffic,
+	event: BlockedTrafficInsert,
 	context: BlockedTrafficAlertContext = {}
 ): Promise<void> {
 	if (shouldIgnoreBlockedTrafficAlertEvent(event)) {
@@ -377,7 +377,7 @@ async function maybeSendBlockedTrafficAlertAsync(
 }
 
 export function queueBlockedTrafficAlert(
-	event: BlockedTraffic,
+	event: BlockedTrafficInsert,
 	context?: BlockedTrafficAlertContext
 ): void {
 	maybeSendBlockedTrafficAlertAsync(event, context).catch((error) => {
