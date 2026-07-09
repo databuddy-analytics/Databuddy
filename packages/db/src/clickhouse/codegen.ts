@@ -1,7 +1,13 @@
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseColumns, readSql, sqlFiles, tableNameOf } from "./schema-parse";
+import {
+	type ParsedColumn,
+	parseColumns,
+	readSql,
+	sqlFiles,
+	tableNameOf,
+} from "./schema-parse";
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 const OUT_FILE = join(SCHEMA_DIR, "tables.generated.ts");
@@ -40,17 +46,24 @@ function pascal(name: string): string {
 		.join("");
 }
 
+function rowField(c: ParsedColumn): string {
+	return `\t${c.name}: ${tsType(c.type)};`;
+}
+
+function insertField(c: ParsedColumn): string {
+	const optional = c.nullable || c.hasDefault ? "?" : "";
+	return `\t${c.name}${optional}: ${tsType(c.type)};`;
+}
+
 const tables = sqlFiles(SCHEMA_DIR, false)
 	.map((file) => {
 		const sql = readSql(file);
 		const table = tableNameOf(sql);
 		return {
 			table,
-			iface: `${pascal(table)}Row`,
-			cols: parseColumns(sql).map((c) => ({
-				name: c.name,
-				type: tsType(c.type),
-			})),
+			rowIface: `${pascal(table)}Row`,
+			insertIface: `${pascal(table)}Insert`,
+			cols: parseColumns(sql),
 		};
 	})
 	.sort((a, b) => a.table.localeCompare(b.table));
@@ -58,19 +71,23 @@ const tables = sqlFiles(SCHEMA_DIR, false)
 const header = `// Generated from packages/db/src/clickhouse/schema/**/*.sql — do not edit by hand.
 // Regenerate with \`bun run generate-db\` (repo root) or \`bun run generate\` in packages/db.
 // The .sql DDL is the single source of truth; these types mirror it.
+//
+// <Table>Row:    read shape — every column present (a query returns them all).
+// <Table>Insert: write shape — DEFAULT/Nullable columns optional, MATERIALIZED/ALIAS omitted.
 `;
 
 const interfaces = tables
-	.map(
-		(t) =>
-			`export interface ${t.iface} {\n${t.cols
-				.map((c) => `\t${c.name}: ${c.type};`)
-				.join("\n")}\n}`
-	)
+	.flatMap((t) => [
+		`export interface ${t.rowIface} {\n${t.cols.map(rowField).join("\n")}\n}`,
+		`export interface ${t.insertIface} {\n${t.cols
+			.filter((c) => !c.computed)
+			.map(insertField)
+			.join("\n")}\n}`,
+	])
 	.join("\n\n");
 
 const registry = `export interface ClickHouseTables {\n${tables
-	.map((t) => `\t${t.table}: ${t.iface};`)
+	.map((t) => `\t${t.table}: ${t.rowIface};`)
 	.join("\n")}\n}`;
 
 writeFileSync(OUT_FILE, `${header}\n${interfaces}\n\n${registry}\n`);

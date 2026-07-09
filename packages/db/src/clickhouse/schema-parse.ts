@@ -4,6 +4,14 @@ import { join } from "node:path";
 export interface ParsedColumn {
 	name: string;
 	type: string;
+	nullable: boolean;
+	hasDefault: boolean;
+	computed: boolean;
+}
+
+export function isNullable(type: string): boolean {
+	const inner = type.replace(/^LowCardinality\((.*)\)$/i, "$1").trim();
+	return /^Nullable\(/i.test(inner);
 }
 
 export interface ParsedTable {
@@ -99,7 +107,13 @@ export function parseColumns(sql: string): ParsedColumn[] {
 		const afterName = item.slice(nameMatch[0].length);
 		const modAt = afterName.search(COLUMN_MODIFIERS);
 		const type = (modAt === -1 ? afterName : afterName.slice(0, modAt)).trim();
-		cols.push({ name: nameMatch[1], type });
+		cols.push({
+			name: nameMatch[1],
+			type,
+			nullable: isNullable(type),
+			hasDefault: /\b(?:DEFAULT|EPHEMERAL)\b/i.test(afterName),
+			computed: /\b(?:MATERIALIZED|ALIAS)\b/i.test(afterName),
+		});
 	}
 	return cols;
 }
