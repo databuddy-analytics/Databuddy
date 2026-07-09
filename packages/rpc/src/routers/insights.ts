@@ -49,6 +49,8 @@ const NARRATIVE_RATE_LIMIT = 30;
 const NARRATIVE_RATE_WINDOW_SECS = 3600;
 const NARRATIVE_CACHE_TTL_SECS = 3600;
 const NARRATIVE_INSIGHTS_LIMIT = 5;
+const INSIGHT_READ_RATE_LIMIT = 120;
+const INSIGHT_READ_RATE_WINDOW_SECS = 60;
 
 const insightMetricSchema = z.object({
 	current: z.number(),
@@ -613,6 +615,17 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
+			const rl = await ratelimit(
+				`insights:getById:${context.user.id}`,
+				INSIGHT_READ_RATE_LIMIT,
+				INSIGHT_READ_RATE_WINDOW_SECS
+			);
+			if (!rl.success) {
+				throw rpcError.rateLimited(
+					Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
+				);
+			}
+
 			const [row] = await db
 				.select({
 					id: analyticsInsights.id,
@@ -667,6 +680,7 @@ export const insightsRouter = {
 				organizationId: row.organizationId,
 				resource: "organization",
 				permissions: ["read"],
+				allowCrossOrg: true,
 			});
 
 			return {
@@ -733,6 +747,17 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
+			const rl = await ratelimit(
+				`insights:related:${context.user.id}`,
+				INSIGHT_READ_RATE_LIMIT,
+				INSIGHT_READ_RATE_WINDOW_SECS
+			);
+			if (!rl.success) {
+				throw rpcError.rateLimited(
+					Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
+				);
+			}
+
 			const [current] = await db
 				.select({
 					organizationId: analyticsInsights.organizationId,
@@ -750,6 +775,7 @@ export const insightsRouter = {
 				organizationId: current.organizationId,
 				resource: "organization",
 				permissions: ["read"],
+				allowCrossOrg: true,
 			});
 
 			const rows = await db

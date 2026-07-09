@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
 	loadDismissedIds,
 	saveDismissedIds,
@@ -16,6 +16,8 @@ export function useInsightsLocalState(
 	const queryClient = useQueryClient();
 	const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 	const [hydrated, setHydrated] = useState(false);
+	const dismissedIdsRef = useRef<string[]>([]);
+	dismissedIdsRef.current = dismissedIds;
 
 	const votesQuery = useQuery({
 		...orpc.insights.getVotes.queryOptions({
@@ -61,7 +63,22 @@ export function useInsightsLocalState(
 				saveDismissedIds(organizationId, next);
 				return next;
 			});
-			setDismissedMutation.mutate({ insightId, dismissed: false });
+			setDismissedMutation.mutate(
+				{ insightId, dismissed: false },
+				{
+					onError: () => {
+						setDismissedIds((prev) => {
+							if (prev.includes(insightId)) {
+								return prev;
+							}
+							const next = [...prev, insightId];
+							saveDismissedIds(organizationId, next);
+							return next;
+						});
+						toast.error("Could not restore insight");
+					},
+				}
+			);
 		},
 		[organizationId, setDismissedMutation]
 	);
@@ -71,6 +88,7 @@ export function useInsightsLocalState(
 			if (!organizationId) {
 				return;
 			}
+			const toastId = `dismiss-${insightId}`;
 			setDismissedIds((prev) => {
 				if (prev.includes(insightId)) {
 					return prev;
@@ -79,8 +97,21 @@ export function useInsightsLocalState(
 				saveDismissedIds(organizationId, next);
 				return next;
 			});
-			setDismissedMutation.mutate({ insightId, dismissed: true });
+			setDismissedMutation.mutate(
+				{ insightId, dismissed: true },
+				{
+					onError: () => {
+						setDismissedIds((prev) => {
+							const next = prev.filter((id) => id !== insightId);
+							saveDismissedIds(organizationId, next);
+							return next;
+						});
+						toast.error("Could not dismiss insight", { id: toastId });
+					},
+				}
+			);
 			toast.success("Insight dismissed", {
+				id: toastId,
 				description: "This pattern is muted for 30 days.",
 				action: {
 					label: "Undo",
@@ -95,9 +126,19 @@ export function useInsightsLocalState(
 		if (!organizationId) {
 			return;
 		}
+		const previous = dismissedIdsRef.current;
 		setDismissedIds([]);
 		saveDismissedIds(organizationId, []);
-		clearDismissedMutation.mutate({});
+		clearDismissedMutation.mutate(
+			{},
+			{
+				onError: () => {
+					setDismissedIds(previous);
+					saveDismissedIds(organizationId, previous);
+					toast.error("Could not clear dismissed insights");
+				},
+			}
+		);
 	}, [organizationId, clearDismissedMutation]);
 
 	const setFeedbackAction = useCallback(
