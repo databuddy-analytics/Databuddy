@@ -87,6 +87,10 @@
     "check-types": {
       "dependsOn": ["^build"]
     },
+    "generate": {
+      "inputs": ["src/clickhouse/schema/**/*.sql", "src/clickhouse/codegen.ts"],
+      "outputs": ["src/clickhouse/schema/tables.generated.ts"]
+    },
     "clickhouse:init": {
       "cache": false,
       "persistent": false

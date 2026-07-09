@@ -27,6 +27,11 @@ pre-commit:
     check-types:
       glob: "**/*.{ts,tsx}"
       run: bun run check-types
+    ch-types:
+      glob: "packages/db/src/clickhouse/schema/**/*.sql"
+      run: |
+        bun run generate-db
+        git add packages/db/src/clickhouse/schema/tables.generated.ts
     lockfile-check:
       glob:
         - "**/package.json"

@@ -15,6 +15,9 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
+    "generate": "bun src/clickhouse/codegen.ts",
+    "ch:verify": "bun src/clickhouse/verify.ts",
+    "ch:check": "bun run generate && git diff --exit-code src/clickhouse/schema/tables.generated.ts",
     "db:push": "dotenv -- drizzle-kit push",
     "db:studio": "dotenv -- drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
