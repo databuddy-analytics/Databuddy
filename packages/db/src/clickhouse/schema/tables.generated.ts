@@ -17,7 +17,7 @@ export interface AiTrafficSpansRow {
 
 export interface AiTrafficSpansInsert {
 	client_id: string;
-	timestamp: string;
+	timestamp: number | string;
 	bot_type: string;
 	bot_name: string;
 	user_agent: string;
@@ -55,7 +55,7 @@ export interface BlockedTrafficRow {
 export interface BlockedTrafficInsert {
 	id: string;
 	client_id: string;
-	timestamp: string;
+	timestamp: number | string;
 	path?: string | null;
 	url?: string | null;
 	referrer?: string | null;
@@ -76,7 +76,7 @@ export interface BlockedTrafficInsert {
 	os_version?: string | null;
 	device_type?: string | null;
 	payload_size?: number | null;
-	created_at?: string;
+	created_at?: number | string;
 }
 
 export interface CustomEventsRow {
@@ -96,7 +96,7 @@ export interface CustomEventsRow {
 export interface CustomEventsInsert {
 	owner_id: string;
 	website_id?: string | null;
-	timestamp: string;
+	timestamp: number | string;
 	event_name: string;
 	namespace?: string | null;
 	path?: string | null;
@@ -115,7 +115,7 @@ export interface DailyPageviewsRow {
 
 export interface DailyPageviewsInsert {
 	client_id: string;
-	date: string;
+	date: number | string;
 	pageviews: number;
 }
 
@@ -137,7 +137,7 @@ export interface ErrorSpansInsert {
 	client_id: string;
 	anonymous_id: string;
 	session_id: string;
-	timestamp: string;
+	timestamp: number | string;
 	path: string;
 	message: string;
 	filename?: string | null;
@@ -198,7 +198,7 @@ export interface EventsInsert {
 	client_id: string;
 	event_name: string;
 	anonymous_id: string;
-	time: string;
+	time: number | string;
 	session_id: string;
 	referrer?: string | null;
 	url: string;
@@ -234,8 +234,8 @@ export interface EventsInsert {
 	interaction_count?: number | null;
 	page_count?: number;
 	properties: string;
-	created_at: string;
-	timestamp?: string;
+	created_at: number | string;
+	timestamp?: number | string;
 	profile_id?: string;
 }
 
@@ -256,7 +256,7 @@ export interface LinkVisitsRow {
 export interface LinkVisitsInsert {
 	id: string;
 	link_id: string;
-	timestamp: string;
+	timestamp: number | string;
 	referrer?: string | null;
 	user_agent?: string | null;
 	ip_hash: string;
@@ -286,7 +286,7 @@ export interface OutgoingLinksInsert {
 	href: string;
 	text?: string | null;
 	properties: string;
-	timestamp?: string;
+	timestamp?: number | string;
 }
 
 export interface RevenueRow {
@@ -328,8 +328,8 @@ export interface RevenueInsert {
 	product_id?: string | null;
 	product_name?: string | null;
 	metadata?: string;
-	created: string;
-	synced_at: string;
+	created: number | string;
+	synced_at: number | string;
 	profile_id?: string;
 }
 
@@ -361,7 +361,7 @@ export interface UptimeMonitorRow {
 export interface UptimeMonitorInsert {
 	site_id: string;
 	url: string;
-	timestamp: string;
+	timestamp: number | string;
 	status: number;
 	http_code: number;
 	ttfb_ms: number;
@@ -374,7 +374,7 @@ export interface UptimeMonitorInsert {
 	redirect_count?: number;
 	probe_region?: string;
 	probe_ip: string;
-	ssl_expiry?: string | null;
+	ssl_expiry?: number | string | null;
 	ssl_valid?: number;
 	env?: string;
 	check_type?: string;
@@ -400,7 +400,7 @@ export interface WebVitalsHourlyInsert {
 	client_id: string;
 	path: string;
 	metric_name: string;
-	hour: string;
+	hour: number | string;
 	sample_count: number;
 	p75: number;
 	p50: number;
@@ -423,7 +423,7 @@ export interface WebVitalsSpansInsert {
 	client_id: string;
 	anonymous_id: string;
 	session_id: string;
-	timestamp: string;
+	timestamp: number | string;
 	path: string;
 	metric_name: string;
 	metric_value: number;

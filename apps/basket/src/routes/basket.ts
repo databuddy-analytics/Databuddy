@@ -1,7 +1,5 @@
-import type {
-	AnalyticsEvent,
-	CustomOutgoingLink,
-} from "@databuddy/db/clickhouse/schema";
+import type { CustomOutgoingLink } from "@databuddy/db/clickhouse/schema";
+import type { EventsInsert } from "@databuddy/db/clickhouse";
 import type {
 	AnalyticsEventInput,
 	OutgoingLinkInput,
@@ -484,7 +482,7 @@ const app = new Elysia()
 			const { clientId, userAgent, ip } = validation;
 			log.set({ clientId });
 
-			const trackEvents: AnalyticsEvent[] = [];
+			const trackEvents: EventsInsert[] = [];
 			const outgoingLinkEvents: CustomOutgoingLink[] = [];
 			const results: Record<string, unknown>[] = [];
 			let batchVisitorCountry: string | undefined;

@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+	isNullable,
 	type ParsedColumn,
 	parseColumns,
 	readSql,
@@ -46,13 +47,26 @@ function pascal(name: string): string {
 		.join("");
 }
 
+function insertTsType(rawType: string): string {
+	let t = rawType.replace(/^LowCardinality\((.*)\)$/i, "$1").trim();
+	const nul = t.match(/^Nullable\((.*)\)$/i);
+	if (nul) {
+		t = nul[1].trim();
+	}
+	if (/^(?:Date|DateTime)/i.test(t)) {
+		const base = "number | string";
+		return isNullable(rawType) ? `${base} | null` : base;
+	}
+	return tsType(rawType);
+}
+
 function rowField(c: ParsedColumn): string {
 	return `\t${c.name}: ${tsType(c.type)};`;
 }
 
 function insertField(c: ParsedColumn): string {
 	const optional = c.nullable || c.hasDefault ? "?" : "";
-	return `\t${c.name}${optional}: ${tsType(c.type)};`;
+	return `\t${c.name}${optional}: ${insertTsType(c.type)};`;
 }
 
 const tables = sqlFiles(SCHEMA_DIR, false)

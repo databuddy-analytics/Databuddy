@@ -1,9 +1,9 @@
 import type {
-	AnalyticsEvent,
 	CustomOutgoingLink,
 	ErrorSpanRow,
 	WebVitalsSpan,
 } from "@databuddy/db/clickhouse/schema";
+import type { EventsInsert } from "@databuddy/db/clickhouse";
 import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
 import { runFork, runPromise, send, sendBatch } from "@lib/producer";
 import {
@@ -50,13 +50,9 @@ export interface TrackEventContext {
 export function buildTrackEvent(
 	trackData: any,
 	ctx: TrackEventContext
-): AnalyticsEvent {
+): EventsInsert {
 	const timestamp =
 		typeof trackData.timestamp === "number" ? trackData.timestamp : ctx.now;
-	const sessionStartTime =
-		typeof trackData.sessionStartTime === "number"
-			? trackData.sessionStartTime
-			: ctx.now;
 
 	return {
 		id: randomUUIDv7(),
@@ -74,9 +70,6 @@ export function buildTrackEvent(
 			: undefined,
 		time: timestamp,
 		session_id: validateSessionId(trackData.sessionId),
-		event_type: "track",
-		event_id: ctx.eventId,
-		session_start_time: sessionStartTime,
 		timestamp,
 		referrer: sanitizeUrl(
 			trackData.referrer,
@@ -97,13 +90,9 @@ export function buildTrackEvent(
 		country: ctx.geo.country || "",
 		region: ctx.geo.region || "",
 		city: ctx.geo.city || "",
-		screen_resolution: trackData.screen_resolution,
 		viewport_size: trackData.viewport_size,
 		language: trackData.language,
 		timezone: trackData.timezone,
-		connection_type: trackData.connection_type,
-		rtt: trackData.rtt,
-		downlink: trackData.downlink,
 		time_on_page: trackData.time_on_page,
 		scroll_depth: trackData.scroll_depth,
 		interaction_count: trackData.interaction_count,
@@ -114,14 +103,9 @@ export function buildTrackEvent(
 		utm_term: trackData.utm_term,
 		utm_content: trackData.utm_content,
 		gclid: trackData.gclid,
-		load_time: validatePerformanceMetric(trackData.load_time),
 		dom_ready_time: validatePerformanceMetric(trackData.dom_ready_time),
-		dom_interactive: validatePerformanceMetric(trackData.dom_interactive),
 		ttfb: validatePerformanceMetric(trackData.ttfb),
-		connection_time: validatePerformanceMetric(trackData.connection_time),
 		render_time: validatePerformanceMetric(trackData.render_time),
-		redirect_time: validatePerformanceMetric(trackData.redirect_time),
-		domain_lookup_time: validatePerformanceMetric(trackData.domain_lookup_time),
 		properties: trackData.properties
 			? JSON.stringify(trackData.properties)
 			: "{}",
@@ -257,7 +241,7 @@ export function insertOutgoingLink(
 }
 
 export function insertTrackEventsBatch(
-	events: AnalyticsEvent[]
+	events: EventsInsert[]
 ): Promise<void> {
 	return record("insertTrackEventsBatch", async () => {
 		if (events.length === 0) {
