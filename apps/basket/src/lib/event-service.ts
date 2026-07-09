@@ -1,9 +1,9 @@
 import type {
-	CustomOutgoingLink,
-	ErrorSpanRow,
-	WebVitalsSpan,
-} from "@databuddy/db/clickhouse/schema";
-import type { EventsInsert } from "@databuddy/db/clickhouse/tables";
+	ErrorSpansInsert,
+	EventsInsert,
+	OutgoingLinksInsert,
+	WebVitalsSpansInsert,
+} from "@databuddy/db/clickhouse/tables";
 import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
 import { runFork, runPromise, send, sendBatch } from "@lib/producer";
 import {
@@ -218,7 +218,7 @@ export function insertOutgoingLink(
 		);
 		const salt = anonymizeVisitorIds ? await getDailySalt() : undefined;
 
-		const outgoingLinkEvent: CustomOutgoingLink = {
+		const outgoingLinkEvent: OutgoingLinksInsert = {
 			id: randomUUIDv7(),
 			client_id: clientId,
 			anonymous_id: applyVisitorIdPrivacy(
@@ -269,7 +269,7 @@ export function insertErrorSpans(
 			? await getDailySalt()
 			: undefined;
 		const now = Date.now();
-		const spans: ErrorSpanRow[] = errors.map((error, index) => ({
+		const spans: ErrorSpansInsert[] = errors.map((error, index) => ({
 			client_id: clientId,
 			anonymous_id: applyVisitorIdPrivacy(
 				error.anonymousId,
@@ -318,7 +318,7 @@ export function insertIndividualVitals(
 			? await getDailySalt()
 			: undefined;
 		const now = Date.now();
-		const spans: WebVitalsSpan[] = vitals.map((vital, index) => ({
+		const spans: WebVitalsSpansInsert[] = vitals.map((vital, index) => ({
 			client_id: clientId,
 			anonymous_id: applyVisitorIdPrivacy(
 				vital.anonymousId,
@@ -337,7 +337,7 @@ export function insertIndividualVitals(
 }
 
 export function insertOutgoingLinksBatch(
-	events: CustomOutgoingLink[]
+	events: OutgoingLinksInsert[]
 ): Promise<void> {
 	return record("insertOutgoingLinksBatch", async () => {
 		if (events.length === 0) {
