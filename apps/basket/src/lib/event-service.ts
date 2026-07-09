@@ -3,7 +3,7 @@ import type {
 	ErrorSpanRow,
 	WebVitalsSpan,
 } from "@databuddy/db/clickhouse/schema";
-import type { EventsInsert } from "@databuddy/db/clickhouse";
+import type { EventsInsert } from "@databuddy/db/clickhouse/tables";
 import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
 import { runFork, runPromise, send, sendBatch } from "@lib/producer";
 import {

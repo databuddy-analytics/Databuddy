@@ -1,5 +1,5 @@
 import type { CustomOutgoingLink } from "@databuddy/db/clickhouse/schema";
-import type { EventsInsert } from "@databuddy/db/clickhouse";
+import type { EventsInsert } from "@databuddy/db/clickhouse/tables";
 import type {
 	AnalyticsEventInput,
 	OutgoingLinkInput,

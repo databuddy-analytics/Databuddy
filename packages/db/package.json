@@ -11,6 +11,7 @@
     "./schema/relations": "./src/drizzle/schema/relations.ts",
     "./clickhouse": "./src/clickhouse/index.ts",
     "./clickhouse/schema": "./src/clickhouse/schema.ts",
+    "./clickhouse/tables": "./src/clickhouse/schema/tables.generated.ts",
     "./e2e-db-lifecycle": "./src/e2e-db-lifecycle.ts"
   },
   "scripts": {
