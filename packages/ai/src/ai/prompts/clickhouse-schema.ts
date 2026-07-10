@@ -24,7 +24,7 @@ interface TableDef {
 	section: SchemaSection;
 }
 
-const ANALYTICS_TABLES: TableDef[] = [
+export const ANALYTICS_TABLES: TableDef[] = [
 	{
 		name: "analytics.events",
 		section: "events",
@@ -147,7 +147,6 @@ const ANALYTICS_TABLES: TableDef[] = [
 			"anonymous_id (String)",
 			"session_id (String)",
 			"timestamp (DateTime64)",
-			"path (String) - Page the link was clicked from",
 			"href (String) - Destination URL",
 			"text (String) - Link text",
 		],
