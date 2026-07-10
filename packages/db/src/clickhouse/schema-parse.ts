@@ -94,6 +94,16 @@ export function tableNameOf(sql: string): string {
 	return m[1];
 }
 
+export function qualifiedNameOf(sql: string): string {
+	const m = sql.match(
+		/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\.(\w+)/i
+	);
+	if (!m) {
+		throw new Error("Could not parse qualified table name");
+	}
+	return `${m[1]}.${m[2]}`;
+}
+
 export function parseColumns(sql: string): ParsedColumn[] {
 	const cols: ParsedColumn[] = [];
 	for (const item of splitTopLevel(firstParenGroup(sql).body)) {

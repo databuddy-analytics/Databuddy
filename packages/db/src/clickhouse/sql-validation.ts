@@ -70,7 +70,6 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"anonymous_id",
 		"session_id",
 		"timestamp",
-		"path",
 		"href",
 		"text",
 	]),
@@ -472,19 +471,21 @@ export function validateAgentSQL(sql: string): {
 	QUALIFIED_COLUMN.lastIndex = 0;
 	let qm = QUALIFIED_COLUMN.exec(sanitized);
 	while (qm) {
-		const alias = qm[1].toLowerCase();
-		const col = qm[2].toLowerCase();
-		const table = aliasToTable.get(alias);
+		const [, aliasRaw, colRaw] = qm;
+		qm = QUALIFIED_COLUMN.exec(sanitized);
+		if (!(aliasRaw && colRaw)) {
+			continue;
+		}
+		const table = aliasToTable.get(aliasRaw.toLowerCase());
 		if (table) {
 			const validCols = AGENT_TABLE_COLUMNS[table];
-			if (validCols && !validCols.has(col)) {
+			if (validCols && !validCols.has(colRaw.toLowerCase())) {
 				return {
 					valid: false,
-					reason: `Column "${qm[2]}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
+					reason: `Column "${colRaw}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
 				};
 			}
 		}
-		qm = QUALIFIED_COLUMN.exec(sanitized);
 	}
 
 	const selectCount = sanitized.match(SELECT_KEYWORD_PATTERN)?.length ?? 0;

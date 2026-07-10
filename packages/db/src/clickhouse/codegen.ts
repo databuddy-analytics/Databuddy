@@ -5,6 +5,7 @@ import {
 	isNullable,
 	type ParsedColumn,
 	parseColumns,
+	qualifiedNameOf,
 	readSql,
 	sqlFiles,
 	tableNameOf,
@@ -75,12 +76,13 @@ const tables = sqlFiles(SCHEMA_DIR, false)
 		const table = tableNameOf(sql);
 		return {
 			table,
+			qualified: qualifiedNameOf(sql),
 			rowIface: `${pascal(table)}Row`,
 			insertIface: `${pascal(table)}Insert`,
 			cols: parseColumns(sql),
 		};
 	})
-	.sort((a, b) => a.table.localeCompare(b.table));
+	.sort((a, b) => a.qualified.localeCompare(b.qualified));
 
 const header = `// Generated from packages/db/src/clickhouse/schema/**/*.sql — do not edit by hand.
 // Regenerate with \`bun run generate-db\` (repo root) or \`bun run generate\` in packages/db.
@@ -104,5 +106,12 @@ const registry = `export interface ClickHouseTables {\n${tables
 	.map((t) => `\t${t.table}: ${t.rowIface};`)
 	.join("\n")}\n}`;
 
-writeFileSync(OUT_FILE, `${header}\n${interfaces}\n\n${registry}\n`);
+const columnsConst = `export const TABLE_COLUMNS = {\n${tables
+	.map(
+		(t) =>
+			`\t"${t.qualified}": [${t.cols.map((c) => `"${c.name}"`).join(", ")}],`
+	)
+	.join("\n")}\n} as const satisfies Record<string, readonly string[]>;`;
+
+writeFileSync(OUT_FILE, `${header}\n${interfaces}\n\n${registry}\n\n${columnsConst}\n`);
 console.info(`Generated ${OUT_FILE} (${tables.length} tables)`);
