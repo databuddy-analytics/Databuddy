@@ -30,6 +30,7 @@ pre-commit:
     ch-types:
       glob: "packages/db/src/clickhouse/schema/**/*.sql"
       run: |
+        set -e
         bun run generate-db
         git add packages/db/src/clickhouse/schema/tables.generated.ts
     lockfile-check:
