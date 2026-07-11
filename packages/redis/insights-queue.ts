@@ -26,15 +26,6 @@ export const INSIGHTS_JOB_OPTIONS = {
 	},
 };
 
-export const INSIGHT_GENERATION_TOOLS = [
-	"web_metrics",
-	"product_metrics",
-	"ops_context",
-	"business_context",
-] as const;
-
-export type InsightGenerationTool = (typeof INSIGHT_GENERATION_TOOLS)[number];
-export type InsightGenerationDepth = "light" | "standard" | "deep";
 export type InsightGenerationModelTier = "fast" | "balanced" | "deep";
 export type InsightGenerationReason =
 	| "manual"
@@ -42,13 +33,6 @@ export type InsightGenerationReason =
 	| "cooldown_refresh";
 
 export interface InsightGenerationConfigSnapshot {
-	allowedTools: InsightGenerationTool[];
-	cooldownHours: number;
-	depth: InsightGenerationDepth;
-	lookbackDays: number;
-	maxInsightsPerWebsite: number;
-	maxSteps: number;
-	maxToolCalls: number;
 	modelTier: InsightGenerationModelTier;
 	timezone: string;
 }
