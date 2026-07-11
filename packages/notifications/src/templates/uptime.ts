@@ -42,6 +42,13 @@ function formatDurationMs(ms: number | undefined): string | undefined {
 	return `${Math.round(ms)} ms`;
 }
 
+function formatHttpResult(code: number): string {
+	if (!Number.isFinite(code) || code <= 0) {
+		return "No HTTP response";
+	}
+	return String(Math.trunc(code));
+}
+
 function sslLine(input: UptimeNotificationInput): string | undefined {
 	if (input.sslValid === undefined) {
 		return;
@@ -64,7 +71,7 @@ function buildMessageLines(input: UptimeNotificationInput): string[] {
 		`Checked at: ${formatUtcTimestamp(input.checkedAt)}`,
 	];
 
-	lines.push(`HTTP: ${input.httpCode}`);
+	lines.push(`HTTP: ${formatHttpResult(input.httpCode)}`);
 
 	const total = formatDurationMs(input.totalMs);
 	const ttfb = formatDurationMs(input.ttfbMs);

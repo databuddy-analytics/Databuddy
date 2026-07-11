@@ -278,6 +278,51 @@ describe("sendAlertEmail", () => {
 		});
 		expect(state.send).not.toHaveBeenCalled();
 	});
+
+	it("suppresses usage alerts when multiple organizations are ambiguous", async () => {
+		state.ownedOrganizations.push({
+			organizationId: "org-2",
+			organization: {
+				emailNotifications: { billing: { usageWarnings: true } },
+				id: "org-2",
+				name: "Second organization",
+			},
+		});
+
+		const result = await handleUsageAlert({
+			customer_id: "user-1",
+			feature_id: "events",
+			usage_alert: {
+				threshold: 80,
+				threshold_type: "usage_percentage",
+			},
+		});
+
+		expect(result).toEqual({
+			success: true,
+			message: "Billing usage email skipped: organization could not be resolved",
+		});
+		expect(state.check).not.toHaveBeenCalled();
+		expect(UsageAlertEmail).not.toHaveBeenCalled();
+		expect(state.send).not.toHaveBeenCalled();
+	});
+
+	it("suppresses limit alerts when the entity does not resolve", async () => {
+		const result = await handleLimitReached({
+			customer_id: "user-1",
+			entity_id: "org-missing",
+			feature_id: "events",
+			limit_type: "included",
+		});
+
+		expect(result).toEqual({
+			success: true,
+			message: "Billing usage email skipped: organization could not be resolved",
+		});
+		expect(state.check).not.toHaveBeenCalled();
+		expect(UsageLimitEmail).not.toHaveBeenCalled();
+		expect(state.send).not.toHaveBeenCalled();
+	});
 });
 
 describe("Autumn usage emails", () => {

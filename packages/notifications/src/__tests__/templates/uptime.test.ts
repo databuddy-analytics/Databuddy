@@ -51,6 +51,12 @@ describe("buildUptimeNotificationPayload", () => {
 			expect(result.message).toContain("HTTP: 503");
 		});
 
+		test("describes a missing HTTP response without exposing HTTP 0", () => {
+			const result = buildUptimeNotificationPayload(makeInput({ httpCode: 0 }));
+			expect(result.message).toContain("HTTP: No HTTP response");
+			expect(result.message).not.toContain("HTTP: 0");
+		});
+
 		test("includes response timing when provided", () => {
 			const result = buildUptimeNotificationPayload(
 				makeInput({ totalMs: 500, ttfbMs: 100 })
@@ -134,6 +140,11 @@ describe("buildUptimeNotificationPayload", () => {
 				checkedAt: 1_700_000_000_000,
 				httpCode: 503,
 			});
+		});
+
+		test("keeps the raw HTTP result in metadata for webhook routing", () => {
+			const result = buildUptimeNotificationPayload(makeInput({ httpCode: 0 }));
+			expect(result.metadata?.httpCode).toBe(0);
 		});
 
 		test("includes optional keys when present", () => {

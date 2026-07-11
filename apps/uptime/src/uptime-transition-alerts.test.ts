@@ -4,6 +4,7 @@ import {
 	buildTransitionNotificationPayload,
 	countFiredAlarms,
 	resolveTransitionKind,
+	resolveUptimeEmailPreference,
 	shouldReleaseTransitionClaim,
 } from "./uptime-transition-alerts";
 import type { UptimeData } from "./types";
@@ -170,6 +171,22 @@ describe("shouldReleaseTransitionClaim", () => {
 	test("keeps the claim after any alarm delivers or when nothing was configured", () => {
 		expect(shouldReleaseTransitionClaim(2, 1)).toBe(false);
 		expect(shouldReleaseTransitionClaim(0, 0)).toBe(false);
+	});
+});
+
+describe("resolveUptimeEmailPreference", () => {
+	test("keeps a settings lookup failure distinct so the claim can be released", () => {
+		expect(resolveUptimeEmailPreference(null, "down")).toBeNull();
+		expect(resolveUptimeEmailPreference(null, "recovered")).toBeNull();
+	});
+
+	test("returns the configured preference when settings load successfully", () => {
+		const settings = {
+			uptime: { downEmails: false, recoveryEmails: true },
+		};
+
+		expect(resolveUptimeEmailPreference(settings, "down")).toBe(false);
+		expect(resolveUptimeEmailPreference(settings, "recovered")).toBe(true);
 	});
 });
 

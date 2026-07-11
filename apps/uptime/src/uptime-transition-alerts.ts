@@ -90,6 +90,20 @@ export function shouldReleaseTransitionClaim(
 	return sendableAlarmCount > 0 && firedAlarmCount === 0;
 }
 
+export function resolveUptimeEmailPreference(
+	settings: {
+		uptime: { downEmails: boolean; recoveryEmails: boolean };
+	} | null,
+	kind: "down" | "recovered"
+): boolean | null {
+	if (settings === null) {
+		return null;
+	}
+	return kind === "down"
+		? settings.uptime.downEmails
+		: settings.uptime.recoveryEmails;
+}
+
 function buildSiteLabel(schedule: ScheduleData): string {
 	const w = schedule.website;
 	if (w?.name) {
@@ -433,11 +447,11 @@ const handleTransition = (options: {
 				return Effect.succeed(null);
 			})
 		);
-		const emailsEnabled =
-			emailSettings !== null &&
-			(kind === "down"
-				? emailSettings.uptime.downEmails
-				: emailSettings.uptime.recoveryEmails);
+		const emailsEnabled = resolveUptimeEmailPreference(emailSettings, kind);
+		if (emailsEnabled === null) {
+			yield* releaseClaim;
+			return { alarms_fired: 0, transition_kind: kind };
+		}
 
 		const siteLabel = buildSiteLabel(options.schedule);
 		const dashboardUrl = `${config.urls.dashboard}/monitors/${options.schedule.id}`;

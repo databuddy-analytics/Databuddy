@@ -354,23 +354,28 @@ export async function handleLimitReached(
 	data: LimitReachedData
 ): Promise<WebhookResult> {
 	const { customer_id, entity_id, feature_id, limit_type } = data;
-	const [recipient, organization, snapshot] = await Promise.all([
-		getBillingRecipient(customer_id),
-		resolveBillingOrganization(customer_id, entity_id),
-		getUsageSnapshot(customer_id, feature_id),
-	]);
-
-	if (
-		organization &&
-		!normalizeEmailNotificationSettings(organization.emailNotifications).billing
-			.usageWarnings
-	) {
-		return { success: true, message: "Billing usage emails disabled" };
-	}
+	const organization = await resolveBillingOrganization(customer_id, entity_id);
 	if (!organization) {
 		useLogger().warn("Could not resolve billing organization", {
 			autumn: { customerId: customer_id, entityId: entity_id },
 		});
+		return {
+			success: true,
+			message:
+				"Billing usage email skipped: organization could not be resolved",
+		};
+	}
+
+	const [recipient, snapshot] = await Promise.all([
+		getBillingRecipient(customer_id),
+		getUsageSnapshot(customer_id, feature_id),
+	]);
+
+	if (
+		!normalizeEmailNotificationSettings(organization.emailNotifications).billing
+			.usageWarnings
+	) {
+		return { success: true, message: "Billing usage emails disabled" };
 	}
 	if (!snapshot) {
 		return { success: false, message: "Current usage is unavailable" };
@@ -410,22 +415,27 @@ export async function handleUsageAlert(
 	data: UsageAlertData
 ): Promise<WebhookResult> {
 	const { customer_id, entity_id, feature_id, usage_alert } = data;
-	const [recipient, organization, snapshot] = await Promise.all([
-		getBillingRecipient(customer_id),
-		resolveBillingOrganization(customer_id, entity_id),
-		getUsageSnapshot(customer_id, feature_id),
-	]);
-	if (
-		organization &&
-		!normalizeEmailNotificationSettings(organization.emailNotifications).billing
-			.usageWarnings
-	) {
-		return { success: true, message: "Billing usage emails disabled" };
-	}
+	const organization = await resolveBillingOrganization(customer_id, entity_id);
 	if (!organization) {
 		useLogger().warn("Could not resolve billing organization", {
 			autumn: { customerId: customer_id, entityId: entity_id },
 		});
+		return {
+			success: true,
+			message:
+				"Billing usage email skipped: organization could not be resolved",
+		};
+	}
+
+	const [recipient, snapshot] = await Promise.all([
+		getBillingRecipient(customer_id),
+		getUsageSnapshot(customer_id, feature_id),
+	]);
+	if (
+		!normalizeEmailNotificationSettings(organization.emailNotifications).billing
+			.usageWarnings
+	) {
+		return { success: true, message: "Billing usage emails disabled" };
 	}
 	if (!snapshot) {
 		return { success: false, message: "Current usage is unavailable" };

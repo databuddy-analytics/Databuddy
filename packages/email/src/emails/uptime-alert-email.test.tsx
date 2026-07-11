@@ -9,6 +9,10 @@ function render(props: Props): Promise<string> {
 	return renderEmail(UptimeAlertEmail(props));
 }
 
+function renderText(props: Props): Promise<string> {
+	return renderEmail(UptimeAlertEmail(props), { plainText: true });
+}
+
 const SAFE_HREF_FALLBACK = "https://app.databuddy.cc/";
 
 describe("UptimeAlertEmail — URL text rendering", () => {
@@ -240,8 +244,20 @@ describe("UptimeAlertEmail — down vs recovered variants", () => {
 			url: "https://acme.com",
 		});
 		expect(html).toContain("Health check failed for acme.com");
-		expect(html).toContain("could not reach this URL");
+		expect(html).toContain("did not receive an HTTP response");
 		expect(html.toLowerCase()).toContain("#dc2626");
+	});
+
+	test("down variant does not describe an HTTP error response as unreachable", async () => {
+		const html = await render({
+			kind: "down",
+			siteLabel: "acme.com",
+			url: "https://acme.com",
+			httpCode: 503,
+		});
+		expect(html).toContain("received an HTTP response");
+		expect(html).toContain("did not meet the monitor&#x27;s success criteria");
+		expect(html).not.toContain("could not reach");
 	});
 
 	test("recovered variant uses the recovery copy and green accent", async () => {
@@ -285,13 +301,14 @@ describe("UptimeAlertEmail — down vs recovered variants", () => {
 });
 
 describe("UptimeAlertEmail — timing and numeric edge cases", () => {
-	test("HTTP 0 (timeout) renders literally as 0", async () => {
-		const html = await render({
+	test("HTTP 0 renders as no HTTP response", async () => {
+		const text = await renderText({
 			kind: "down",
 			url: "https://example.com",
 			httpCode: 0,
 		});
-		expect(html).toMatch(/HTTP.*·.*0/);
+		expect(text).toContain("HTTP · No HTTP response");
+		expect(text).not.toContain("HTTP · 0");
 	});
 
 	test("checkedAt undefined renders em-dash placeholder", async () => {
@@ -420,10 +437,19 @@ describe("UptimeAlertEmail — SSL row", () => {
 
 describe("UptimeAlertEmail — preview text", () => {
 	test.each([
-		["down", "failed health check — HTTP timeout"],
+		["down", "failed its latest health check — No HTTP response"],
 		["recovered", "passed its latest health check"],
 	] as const)("%s preview matches current copy", async (kind, copy) => {
 		const html = await render({ kind, url: "https://example.com" });
 		expect(html).toContain(copy);
+	});
+
+	test("down preview includes the received HTTP status", async () => {
+		const html = await render({
+			kind: "down",
+			url: "https://example.com",
+			httpCode: 503,
+		});
+		expect(html).toContain("failed its latest health check — HTTP 503");
 	});
 });
