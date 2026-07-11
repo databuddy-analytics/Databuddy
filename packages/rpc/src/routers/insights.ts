@@ -39,6 +39,19 @@ const NARRATIVE_CACHE_TTL_SECS = 3600;
 const INSIGHT_READ_RATE_LIMIT = 120;
 const INSIGHT_READ_RATE_WINDOW_SECS = 60;
 
+async function enforceRateLimit(
+	key: string,
+	limit: number,
+	windowSecs: number
+): Promise<void> {
+	const rl = await ratelimit(key, limit, windowSecs);
+	if (!rl.success) {
+		throw rpcError.rateLimited(
+			Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
+		);
+	}
+}
+
 const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
 const historyInsightEvidenceSchema = insightEvidenceSchema.extend({
 	type: z.string(),
@@ -310,16 +323,11 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const rl = await ratelimit(
+			await enforceRateLimit(
 				`insights:getById:${context.user.id}`,
 				INSIGHT_READ_RATE_LIMIT,
 				INSIGHT_READ_RATE_WINDOW_SECS
 			);
-			if (!rl.success) {
-				throw rpcError.rateLimited(
-					Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
-				);
-			}
 
 			const [row] = await selectInsights()
 				.where(
@@ -383,16 +391,11 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const rl = await ratelimit(
+			await enforceRateLimit(
 				`insights:related:${context.user.id}`,
 				INSIGHT_READ_RATE_LIMIT,
 				INSIGHT_READ_RATE_WINDOW_SECS
 			);
-			if (!rl.success) {
-				throw rpcError.rateLimited(
-					Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
-				);
-			}
 
 			const [current] = await db
 				.select({
@@ -487,16 +490,11 @@ export const insightsRouter = {
 				permissions: ["read"],
 			});
 
-			const rl = await ratelimit(
+			await enforceRateLimit(
 				`insights:narrative:${input.organizationId}:${context.user.id}`,
 				NARRATIVE_RATE_LIMIT,
 				NARRATIVE_RATE_WINDOW_SECS
 			);
-			if (!rl.success) {
-				throw rpcError.rateLimited(
-					Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
-				);
-			}
 
 			const cached = await loadNarrativeCached(
 				input.organizationId,
