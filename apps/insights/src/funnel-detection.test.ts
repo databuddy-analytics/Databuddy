@@ -70,7 +70,7 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signal.direction).toBe("down");
 		expect(signal.deltaPercent).toBe(-50);
 		expect(signal.method).toBe("wow");
-		expect(signal.detectedAt).toBe("2026-05-29");
+		expect(signal.detectedAt).toBe("2026-05-28");
 	});
 
 	it("flags a funnel conversion rise above threshold", async () => {
@@ -172,7 +172,7 @@ describe("detectFunnelGoalSignals", () => {
 
 		await detectFunnelGoalSignals(PARAMS, TODAY, deps);
 
-		expect(ranges).toContainEqual({ from: "2026-05-23", to: "2026-05-29" });
-		expect(ranges).toContainEqual({ from: "2026-05-16", to: "2026-05-22" });
+		expect(ranges).toContainEqual({ from: "2026-05-22", to: "2026-05-28" });
+		expect(ranges).toContainEqual({ from: "2026-05-15", to: "2026-05-21" });
 	});
 });

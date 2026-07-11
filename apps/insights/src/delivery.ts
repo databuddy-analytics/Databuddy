@@ -1,13 +1,14 @@
-import { and, db, eq, isNull } from "@databuddy/db";
+import { and, db, eq } from "@databuddy/db";
 import dayjs from "dayjs";
 import {
 	type InsightDelivery,
 	insightGenerationConfigs,
+	slackChannelBindings,
 	slackIntegrations,
 } from "@databuddy/db/schema";
 import { decrypt } from "@databuddy/encryption";
 import { env } from "@databuddy/env/insights";
-import type { ChainAssignment } from "./chain-detection";
+import type { GeneratedWebsiteInsight } from "./persistence";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 
 const SLACK_POST_URL = "https://slack.com/api/chat.postMessage";
@@ -20,33 +21,24 @@ function truncate(value: string, max: number): string {
 	return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-interface DigestMetric {
-	current: number;
-	format?: "number" | "percent" | "duration_ms" | "duration_s";
-	label: string;
-	previous?: number | null;
-}
-
-interface DigestEvidence {
-	description: string;
-}
-
-interface DigestInsight {
-	actions?: { label: string }[] | null;
-	currentPeriodFrom?: string | null;
-	currentPeriodTo?: string | null;
-	description: string;
-	evidence?: DigestEvidence[] | null;
-	id: string;
-	impactSummary?: string | null;
-	metrics?: DigestMetric[] | null;
-	rootCause?: string | null;
-	sentiment?: string | null;
-	severity: string;
-	suggestion: string;
-	title: string;
-	type?: string | null;
-}
+type DigestInsight = Pick<
+	GeneratedWebsiteInsight,
+	"description" | "id" | "severity" | "title"
+> &
+	Partial<
+		Pick<
+			GeneratedWebsiteInsight,
+			| "evidence"
+			| "impactSummary"
+			| "metrics"
+			| "rootCause"
+			| "sentiment"
+			| "type"
+		>
+	> & {
+		currentPeriodFrom?: string | null;
+		currentPeriodTo?: string | null;
+	};
 
 interface SlackBlock {
 	accessory?: unknown;
@@ -87,65 +79,46 @@ export function buildFallbackText(
 	websiteDomain: string
 ): string {
 	return escapeMrkdwn(
-		`Insights for ${formatWebsiteLabel(websiteName, websiteDomain)}`
+		`Findings for ${formatWebsiteLabel(websiteName, websiteDomain)}`
 	);
 }
 
 async function resolveDeliveries(
-	organizationId: string,
-	websiteId: string
+	organizationId: string
 ): Promise<InsightDelivery[]> {
-	const [websiteConfig] = await db
-		.select({ deliveries: insightGenerationConfigs.deliveries })
-		.from(insightGenerationConfigs)
-		.where(
-			and(
-				eq(insightGenerationConfigs.organizationId, organizationId),
-				eq(insightGenerationConfigs.websiteId, websiteId)
-			)
-		)
-		.limit(1);
-	if (websiteConfig) {
-		return websiteConfig.deliveries;
-	}
-
 	const [orgConfig] = await db
 		.select({ deliveries: insightGenerationConfigs.deliveries })
 		.from(insightGenerationConfigs)
-		.where(
-			and(
-				eq(insightGenerationConfigs.organizationId, organizationId),
-				isNull(insightGenerationConfigs.websiteId)
-			)
-		)
+		.where(eq(insightGenerationConfigs.organizationId, organizationId))
 		.limit(1);
 	return orgConfig?.deliveries ?? [];
 }
 
-async function loadBotToken(organizationId: string): Promise<string | null> {
-	const key = env.DATABUDDY_ENCRYPTION_KEY;
-	if (!key) {
-		return null;
-	}
-	const [integration] = await db
+async function loadBoundBotToken(
+	organizationId: string,
+	channelId: string
+): Promise<{ bindingCount: number; token: string | null }> {
+	const integrations = await db
 		.select({ ciphertext: slackIntegrations.botTokenCiphertext })
-		.from(slackIntegrations)
-		.where(
+		.from(slackChannelBindings)
+		.innerJoin(
+			slackIntegrations,
 			and(
+				eq(slackChannelBindings.integrationId, slackIntegrations.id),
 				eq(slackIntegrations.organizationId, organizationId),
 				eq(slackIntegrations.status, "active")
 			)
 		)
-		.limit(1);
-	if (!integration) {
-		return null;
+		.where(eq(slackChannelBindings.slackChannelId, channelId))
+		.limit(2);
+	if (integrations.length !== 1) {
+		return { bindingCount: integrations.length, token: null };
 	}
-	return decrypt(integration.ciphertext, key);
-}
-
-function chainSiteCount(insightId: string, chains: ChainAssignment[]): number {
-	const chain = chains.find((c) => c.insightIds.includes(insightId));
-	return chain ? new Set(chain.websiteIds).size : 0;
+	const key = env.DATABUDDY_ENCRYPTION_KEY;
+	return {
+		bindingCount: 1,
+		token: key ? decrypt(integrations[0].ciphertext, key) : null,
+	};
 }
 
 function digestLabel(insight: DigestInsight): string {
@@ -175,9 +148,7 @@ function digestLabel(insight: DigestInsight): string {
 		case "segment_regression":
 			return "Review · Data quality";
 		default:
-			return insight.severity === "info"
-				? "Review · Signal"
-				: "Fix · Priority signal";
+			return insight.severity === "info" ? "Review" : "Fix";
 	}
 }
 
@@ -264,7 +235,6 @@ export function buildBlocks(
 	websiteName: string | null | undefined,
 	websiteDomain: string,
 	insights: DigestInsight[],
-	chains: ChainAssignment[],
 	escalations: DigestInsight[] = [],
 	persistent: DigestInsight[] = []
 ): SlackBlock[] {
@@ -275,7 +245,7 @@ export function buildBlocks(
 			type: "header",
 			text: {
 				type: "plain_text",
-				text: truncate(`Insights for ${websiteLabel}`, SLACK_HEADER_MAX),
+				text: truncate(`Findings for ${websiteLabel}`, SLACK_HEADER_MAX),
 			},
 		},
 		{
@@ -321,16 +291,9 @@ export function buildBlocks(
 			},
 		});
 
-		const siteCount = chainSiteCount(insight.id, chains);
-		const contextParts = [escapeMrkdwn(label)];
-		if (siteCount > 1) {
-			contextParts.push(`part of a pattern across ${siteCount} sites`);
-		}
 		blocks.push({
 			type: "context",
-			elements: [
-				{ type: "mrkdwn", text: truncate(contextParts.join(" · "), 255) },
-			],
+			elements: [{ type: "mrkdwn", text: truncate(escapeMrkdwn(label), 255) }],
 		});
 
 		if (index < visible.length - 1) {
@@ -387,7 +350,9 @@ function formatMetricValue(value: number, format?: string): string {
 	}
 }
 
-function metricLine(metric: DigestMetric): string {
+function metricLine(
+	metric: NonNullable<DigestInsight["metrics"]>[number]
+): string {
 	const current = formatMetricValue(metric.current, metric.format);
 	if (metric.previous === undefined || metric.previous === null) {
 		return `${metric.label}: ${current}`;
@@ -477,7 +442,6 @@ async function postToSlack(
 }
 
 export async function deliverInsightDigests(params: {
-	chains?: ChainAssignment[];
 	escalations?: DigestInsight[];
 	insights: DigestInsight[];
 	organizationId: string;
@@ -496,10 +460,7 @@ export async function deliverInsightDigests(params: {
 		return;
 	}
 
-	const deliveries = await resolveDeliveries(
-		params.organizationId,
-		params.websiteId
-	);
+	const deliveries = await resolveDeliveries(params.organizationId);
 	const slackChannelIds = [
 		...new Set(
 			deliveries.filter((d) => d.type === "slack").map((d) => d.channelId)
@@ -509,21 +470,10 @@ export async function deliverInsightDigests(params: {
 		return;
 	}
 
-	const token = await loadBotToken(params.organizationId);
-	if (!token) {
-		emitInsightsEvent("warn", "delivery.slack.skipped_no_integration", {
-			organization_id: params.organizationId,
-			website_id: params.websiteId,
-			delivery_count: slackChannelIds.length,
-		});
-		return;
-	}
-
 	const blocks = buildBlocks(
 		params.websiteName,
 		params.websiteDomain,
 		params.insights,
-		params.chains ?? [],
 		escalations,
 		persistent
 	);
@@ -535,6 +485,37 @@ export async function deliverInsightDigests(params: {
 	const text = buildFallbackText(params.websiteName, params.websiteDomain);
 	for (const channelId of slackChannelIds) {
 		try {
+			const { bindingCount, token } = await loadBoundBotToken(
+				params.organizationId,
+				channelId
+			);
+			if (bindingCount !== 1) {
+				emitInsightsEvent(
+					"warn",
+					bindingCount === 0
+						? "delivery.slack.skipped_missing_binding"
+						: "delivery.slack.skipped_ambiguous_binding",
+					{
+						organization_id: params.organizationId,
+						website_id: params.websiteId,
+						slack_channel_id: channelId,
+						binding_count: bindingCount,
+					}
+				);
+				continue;
+			}
+			if (!token) {
+				emitInsightsEvent(
+					"warn",
+					"delivery.slack.skipped_missing_encryption_key",
+					{
+						organization_id: params.organizationId,
+						website_id: params.websiteId,
+						slack_channel_id: channelId,
+					}
+				);
+				continue;
+			}
 			const parentTs = await postToSlack(token, channelId, blocks, text);
 			if (threadBlocks.length > 0 && parentTs) {
 				await postToSlack(

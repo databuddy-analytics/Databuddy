@@ -92,7 +92,8 @@ async function processGenerateWebsiteJob(
 		await db
 			.update(insightRunItems)
 			.set({
-				errorMessage: result.message ?? null,
+				errorMessage:
+					result.status === "skipped" ? (result.message ?? null) : null,
 				finishedAt: new Date(),
 				resultCount: result.resultCount,
 				status: result.status,

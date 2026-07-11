@@ -36,8 +36,18 @@ describeIntegration("insights idempotency integration", () => {
 		const dedupeKey = `integration:${randomUUIDv7()}`;
 
 		await db().insert(insightRuns).values([
-			{ id: firstRunId, organizationId: org.id, reason: "manual" },
-			{ id: secondRunId, organizationId: org.id, reason: "manual" },
+			{
+				id: firstRunId,
+				organizationId: org.id,
+				reason: "manual",
+				status: "succeeded",
+			},
+			{
+				id: secondRunId,
+				organizationId: org.id,
+				reason: "manual",
+				status: "succeeded",
+			},
 		]);
 
 		await db().insert(analyticsInsights).values(

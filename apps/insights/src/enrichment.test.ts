@@ -11,7 +11,7 @@ function makeSignal(overrides: Partial<DetectedSignal> = {}): DetectedSignal {
 	return {
 		metric: "visitors",
 		label: "Visitors",
-		method: "zscore",
+		method: "wow",
 		direction: "down",
 		current: 50,
 		baseline: 100,
@@ -61,18 +61,18 @@ describe("enrichSignals", () => {
 
 			const queryFn = createMockQueryFn({
 				top_pages: {
-					"2026-05-20:2026-05-20": [
+					"2026-05-07:2026-05-20": [
 						{ name: "/home", visitors: 30 },
 						{ name: "/about", visitors: 20 },
 					],
-					"2026-05-07:2026-05-19": [
+					"2026-04-23:2026-05-06": [
 						{ name: "/home", visitors: 80 },
 						{ name: "/about", visitors: 25 },
 					],
 				},
 				country: {
-					"2026-05-20:2026-05-20": [{ name: "US", visitors: 20 }],
-					"2026-05-07:2026-05-19": [{ name: "US", visitors: 60 }],
+					"2026-05-07:2026-05-20": [{ name: "US", visitors: 20 }],
+					"2026-04-23:2026-05-06": [{ name: "US", visitors: 60 }],
 				},
 				browser_name: { "*": [] },
 				top_referrers: { "*": [] },
@@ -95,6 +95,8 @@ describe("enrichSignals", () => {
 
 			const homeMover = pages!.topMovers.find((m) => m.name === "/home");
 			expect(homeMover).toBeDefined();
+			expect(homeMover!.current).toBe(30);
+			expect(homeMover!.previous).toBe(80);
 			expect(homeMover!.delta).toBe(-50);
 			expect(homeMover!.deltaPercent).toBe(-62.5);
 
@@ -110,11 +112,11 @@ describe("enrichSignals", () => {
 
 			const queryFn = createMockQueryFn({
 				top_pages: {
-					"2026-05-20:2026-05-20": [
+					"2026-05-07:2026-05-20": [
 						{ name: "/home", visitors: 95 },
 						{ name: "/big-change", visitors: 200 },
 					],
-					"2026-05-07:2026-05-19": [
+					"2026-04-23:2026-05-06": [
 						{ name: "/home", visitors: 100 },
 						{ name: "/big-change", visitors: 50 },
 					],
@@ -151,8 +153,8 @@ describe("enrichSignals", () => {
 
 			const queryFn = createMockQueryFn({
 				top_pages: {
-					"2026-05-20:2026-05-20": [{ name: "/home", visitors: 100 }],
-					"2026-05-07:2026-05-19": [{ name: "/home", visitors: 100 }],
+					"2026-05-07:2026-05-20": [{ name: "/home", visitors: 100 }],
+					"2026-04-23:2026-05-06": [{ name: "/home", visitors: 100 }],
 				},
 				country: { "*": [] },
 				browser_name: { "*": [] },
@@ -182,16 +184,16 @@ describe("enrichSignals", () => {
 				browser_name: { "*": [] },
 				top_referrers: { "*": [] },
 				error_summary: {
-					"2026-05-20:2026-05-20": [{ totalErrors: 150 }],
-					"2026-05-07:2026-05-19": [{ totalErrors: 100 }],
+					"2026-05-07:2026-05-20": [{ totalErrors: 150 }],
+					"2026-04-23:2026-05-06": [{ totalErrors: 100 }],
 				},
 				error_types: {
-					"2026-05-20:2026-05-20": [
+					"2026-05-07:2026-05-20": [
 						{ name: "TypeError", count: 80 },
 						{ name: "RangeError", count: 40 },
 						{ name: "NetworkError", count: 30 },
 					],
-					"2026-05-07:2026-05-19": [
+					"2026-04-23:2026-05-06": [
 						{ name: "TypeError", count: 50 },
 						{ name: "RangeError", count: 40 },
 					],
@@ -220,8 +222,8 @@ describe("enrichSignals", () => {
 				browser_name: { "*": [] },
 				top_referrers: { "*": [] },
 				error_summary: {
-					"2026-05-20:2026-05-20": [{ totalErrors: 110 }],
-					"2026-05-07:2026-05-19": [{ totalErrors: 100 }],
+					"2026-05-07:2026-05-20": [{ totalErrors: 110 }],
+					"2026-04-23:2026-05-06": [{ totalErrors: 100 }],
 				},
 				error_types: { "*": [] },
 			});
@@ -245,16 +247,16 @@ describe("enrichSignals", () => {
 				browser_name: { "*": [] },
 				top_referrers: { "*": [] },
 				error_summary: {
-					"2026-05-20:2026-05-20": [{ totalErrors: 200 }],
-					"2026-05-07:2026-05-19": [{ totalErrors: 80 }],
+					"2026-05-07:2026-05-20": [{ totalErrors: 200 }],
+					"2026-04-23:2026-05-06": [{ totalErrors: 80 }],
 				},
 				error_types: {
-					"2026-05-20:2026-05-20": [
+					"2026-05-07:2026-05-20": [
 						{ name: "TypeError", count: 100 },
 						{ name: "NewCrash", count: 60 },
 						{ name: "AnotherNew", count: 40 },
 					],
-					"2026-05-07:2026-05-19": [{ name: "TypeError", count: 80 }],
+					"2026-04-23:2026-05-06": [{ name: "TypeError", count: 80 }],
 				},
 			});
 
@@ -280,16 +282,16 @@ describe("enrichSignals", () => {
 				browser_name: { "*": [] },
 				top_referrers: { "*": [] },
 				error_summary: {
-					"2026-05-20:2026-05-20": [{ totalErrors: 300 }],
-					"2026-05-07:2026-05-19": [{ totalErrors: 100 }],
+					"2026-05-07:2026-05-20": [{ totalErrors: 300 }],
+					"2026-04-23:2026-05-06": [{ totalErrors: 100 }],
 				},
 				error_types: {
-					"2026-05-20:2026-05-20": [
+					"2026-05-07:2026-05-20": [
 						{ name: "TypeError", count: 150 },
 						{ name: "RangeError", count: 100 },
 						{ name: "SyntaxError", count: 50 },
 					],
-					"2026-05-07:2026-05-19": [
+					"2026-04-23:2026-05-06": [
 						{ name: "TypeError", count: 30 },
 						{ name: "RangeError", count: 20 },
 						{ name: "SyntaxError", count: 50 },
@@ -354,8 +356,19 @@ describe("enrichSignals", () => {
 	});
 
 	describe("time window computation", () => {
-		it("uses single-day current window for zscore signals", async () => {
-			const signal = makeSignal({ method: "zscore", detectedAt: "2026-05-20" });
+		it("does not compare continuous ranges for zscore signals", async () => {
+			const signal = makeSignal({
+				method: "zscore",
+				detectedAt: "2026-05-20",
+				baselineDates: [
+					"2026-04-30",
+					"2026-05-01",
+					"2026-05-04",
+					"2026-05-05",
+					"2026-05-06",
+					"2026-05-18",
+				],
+			});
 			const calls: { type: string; from: string; to: string }[] = [];
 
 			const queryFn: QueryFn = async (request: {
@@ -378,11 +391,7 @@ describe("enrichSignals", () => {
 				createMockAnnotationFn()
 			);
 
-			const pagesCurrent = calls.find(
-				(c) => c.type === "top_pages" && c.from === "2026-05-20"
-			);
-			expect(pagesCurrent).toBeDefined();
-			expect(pagesCurrent!.to).toBe("2026-05-20");
+			expect(calls).toEqual([]);
 		});
 
 		it("uses full-lookback windows for wow signals", async () => {

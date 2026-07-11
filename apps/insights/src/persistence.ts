@@ -1,9 +1,3 @@
-import { insightDedupeKey } from "@databuddy/ai/insights/dedupe";
-import type {
-	InsightMetricRow,
-	WeekOverWeekPeriod,
-} from "@databuddy/ai/insights/types";
-import type { ParsedInsight } from "@databuddy/ai/schemas/smart-insights-output";
 import {
 	and,
 	db,
@@ -16,19 +10,24 @@ import {
 	or,
 	sql,
 } from "@databuddy/db";
-import {
-	analyticsInsights,
-	type InsightGenerationConfigSnapshot,
-	insightUserFeedback,
-} from "@databuddy/db/schema";
+import { analyticsInsights, insightUserFeedback } from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
+import {
+	insightDedupeKey,
+	type GeneratedInsight,
+	type WeekOverWeekPeriod,
+} from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import { emitInsightsEvent } from "./lib/evlog-insights";
+import {
+	INSIGHT_COOLDOWN_HOURS,
+	type InsightDepth,
+	MAX_INSIGHTS_PER_WEBSITE,
+} from "./policy";
 
-const DEFAULT_MAX_INSIGHTS = 2;
 const DISMISSAL_SUPPRESSION_LOOKBACK_DAYS = 30;
 const OPEN_INSIGHT_LOOKBACK_DAYS = 90;
 const MATERIALLY_WORSE_MULTIPLIER = 1.5;
@@ -56,20 +55,19 @@ const REFRESHED_INSIGHT_COLUMNS = [
 	"investigationDepth",
 	"actions",
 	"metrics",
+	"timezone",
+	"currentPeriodFrom",
+	"currentPeriodTo",
+	"previousPeriodFrom",
+	"previousPeriodTo",
 ] as const satisfies readonly (keyof typeof analyticsInsights.$inferInsert)[];
 
-export interface GeneratedWebsiteInsight extends ParsedInsight {
+export interface GeneratedWebsiteInsight extends GeneratedInsight {
 	id: string;
+	period: WeekOverWeekPeriod;
 	websiteDomain: string;
 	websiteId: string;
 	websiteName: string | null;
-}
-
-export function maxInsights(config: InsightGenerationConfigSnapshot): number {
-	return Math.max(
-		1,
-		Math.min(10, config.maxInsightsPerWebsite || DEFAULT_MAX_INSIGHTS)
-	);
 }
 
 function excludedRefreshSet() {
@@ -89,23 +87,24 @@ function dedupeKeyFor(insight: GeneratedWebsiteInsight): string {
 	});
 }
 
-interface DedupeKeyRow {
-	changePercent: number | null;
-	dedupeKey: string | null;
-	sentiment: string;
-	subjectKey: string;
-	title: string;
-	type: string;
-	websiteId: string;
-}
+type DedupeKeyRow = Pick<
+	typeof analyticsInsights.$inferSelect,
+	| "changePercent"
+	| "dedupeKey"
+	| "sentiment"
+	| "subjectKey"
+	| "title"
+	| "type"
+	| "websiteId"
+>;
 
 function resolveDedupeKey(row: DedupeKeyRow): string {
 	return (
 		row.dedupeKey ??
 		insightDedupeKey({
 			websiteId: row.websiteId,
-			type: row.type as ParsedInsight["type"],
-			sentiment: row.sentiment as ParsedInsight["sentiment"],
+			type: row.type,
+			sentiment: row.sentiment,
 			changePercent: row.changePercent,
 			subjectKey: row.subjectKey,
 			title: row.title,
@@ -266,11 +265,11 @@ export function isMateriallyWorse(
 }
 
 export async function persistWebsiteInsights(params: {
-	config: InsightGenerationConfigSnapshot;
 	insights: GeneratedWebsiteInsight[];
+	investigationDepth: InsightDepth;
 	organizationId: string;
-	period: WeekOverWeekPeriod;
 	runId: string;
+	timezone: string;
 }): Promise<
 	(GeneratedWebsiteInsight & {
 		isEscalation: boolean;
@@ -280,7 +279,7 @@ export async function persistWebsiteInsights(params: {
 > {
 	const startedAt = performance.now();
 	const cooldownCutoff = dayjs()
-		.subtract(Math.max(1, params.config.cooldownHours), "hour")
+		.subtract(INSIGHT_COOLDOWN_HOURS, "hour")
 		.toDate();
 	const [priorByDedupeKey, dismissedBaselines] = await Promise.all([
 		fetchPriorInsightsByDedupeKey(params.organizationId, cooldownCutoff),
@@ -315,7 +314,7 @@ export async function persistWebsiteInsights(params: {
 			classifyRecurrence(insight, prior, cooldownCutoff)
 		);
 		finalInsights.push(prior ? { ...insight, id: prior.id } : insight);
-		if (finalInsights.length >= maxInsights(params.config)) {
+		if (finalInsights.length >= MAX_INSIGHTS_PER_WEBSITE) {
 			break;
 		}
 	}
@@ -341,6 +340,7 @@ export async function persistWebsiteInsights(params: {
 	}
 
 	function insightRow(insight: GeneratedWebsiteInsight, key: string) {
+		const period = insight.period;
 		return {
 			id: insight.id,
 			organizationId: params.organizationId,
@@ -361,14 +361,14 @@ export async function persistWebsiteInsights(params: {
 			impactSummary: insight.impactSummary ?? null,
 			rootCause: insight.rootCause ?? null,
 			evidence: insight.evidence ?? null,
-			investigationDepth: insight.investigationDepth ?? null,
+			investigationDepth: params.investigationDepth,
 			actions: insight.actions ?? null,
-			metrics: insight.metrics as InsightMetricRow[],
-			timezone: params.config.timezone,
-			currentPeriodFrom: params.period.current.from,
-			currentPeriodTo: params.period.current.to,
-			previousPeriodFrom: params.period.previous.from,
-			previousPeriodTo: params.period.previous.to,
+			metrics: insight.metrics,
+			timezone: params.timezone,
+			currentPeriodFrom: period.current.from,
+			currentPeriodTo: period.current.to,
+			previousPeriodFrom: period.previous.from,
+			previousPeriodTo: period.previous.to,
 		};
 	}
 
@@ -399,11 +399,6 @@ export async function persistWebsiteInsights(params: {
 				targetWhere: isNotNull(analyticsInsights.dedupeKey),
 				set: {
 					runId: params.runId,
-					timezone: params.config.timezone,
-					currentPeriodFrom: params.period.current.from,
-					currentPeriodTo: params.period.current.to,
-					previousPeriodFrom: params.period.previous.from,
-					previousPeriodTo: params.period.previous.to,
 					createdAt: new Date(),
 					status: "open",
 					resolvedAt: null,

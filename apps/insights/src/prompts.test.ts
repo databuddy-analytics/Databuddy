@@ -1,5 +1,28 @@
 import { describe, expect, it } from "bun:test";
-import { historyStateSuffix } from "./prompts";
+import { buildSystemPrompt, historyStateSuffix } from "./prompts";
+
+describe("buildSystemPrompt", () => {
+	it("changes only the investigation instruction by quality", () => {
+		expect(buildSystemPrompt("surface")).toContain(
+			"Use the supplied evidence"
+		);
+		expect(buildSystemPrompt("investigated")).toContain(
+			"Cross-check one relevant context"
+		);
+		expect(buildSystemPrompt("deep")).toContain(
+			"Cross-check each conclusion"
+		);
+	});
+
+	it("requires one evidence-bound terminal submission", () => {
+		const prompt = buildSystemPrompt("investigated");
+		expect(prompt).toContain("action_ready");
+		expect(prompt).toContain("not_a_problem");
+		expect(prompt).toContain("Call submit_investigation with one terminal result");
+		expect(prompt).toContain("correct it and resubmit");
+		expect(prompt).not.toContain("emit_insight");
+	});
+});
 
 describe("historyStateSuffix", () => {
 	it("annotates a recovered insight with its resolution date", () => {

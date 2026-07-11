@@ -1,5 +1,3 @@
-import { ANTHROPIC_CACHE_1H, models } from "@databuddy/ai/config/models";
-import { getAILogger } from "@databuddy/ai/lib/ai-logger";
 import { and, db, desc, eq, gte, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
@@ -11,10 +9,9 @@ import {
 	invalidateInsightsCachesForOrganization,
 	type InsightsRollupJobData,
 } from "@databuddy/redis";
-import { generateText } from "ai";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
-import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
+import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const ROLLUP_RANGES = ["7d", "30d", "90d"] as const;
 const RANGE_TO_DAYS: Record<InsightRollupRange, number> = {
@@ -28,26 +25,12 @@ const RANGE_TO_LABEL: Record<InsightRollupRange, string> = {
 	"90d": "quarter",
 };
 const ROLLUP_INSIGHT_LIMIT = 12;
-const MAX_NARRATIVE_LENGTH = 700;
 
 export interface RollupInsightSummary {
 	changePercent: number | null;
-	description: string;
-	priority: number;
-	sentiment: string;
-	severity: string;
-	suggestion: string;
 	title: string;
 	websiteDomain: string;
 	websiteName: string | null;
-}
-
-function sanitizeNarrative(value: string): string {
-	const text = value.replace(/\s+/g, " ").trim();
-	if (text.length <= MAX_NARRATIVE_LENGTH) {
-		return text;
-	}
-	return `${text.slice(0, MAX_NARRATIVE_LENGTH - 3).trimEnd()}...`;
 }
 
 export function buildDeterministicRollupNarrative(
@@ -57,7 +40,7 @@ export function buildDeterministicRollupNarrative(
 	const label = RANGE_TO_LABEL[range];
 	const headline = insights[0];
 	if (!headline) {
-		return `All systems healthy this ${label}. No actionable signals detected.`;
+		return `No priority findings were stored this ${label}.`;
 	}
 
 	const siteName = headline.websiteName ?? headline.websiteDomain;
@@ -77,7 +60,7 @@ export function buildDeterministicRollupNarrative(
 		return `${opener} Also review ${second.title} on ${secondSite}.`;
 	}
 	const remaining = extra - 1;
-	return `${opener} Also review ${second.title} on ${secondSite}, plus ${remaining} more signal${remaining === 1 ? "" : "s"}.`;
+	return `${opener} Also review ${second.title} on ${secondSite}, plus ${remaining} more finding${remaining === 1 ? "" : "s"}.`;
 }
 
 async function fetchRollupInsights(
@@ -90,11 +73,6 @@ async function fetchRollupInsights(
 	return await db
 		.select({
 			title: analyticsInsights.title,
-			description: analyticsInsights.description,
-			suggestion: analyticsInsights.suggestion,
-			severity: analyticsInsights.severity,
-			sentiment: analyticsInsights.sentiment,
-			priority: analyticsInsights.priority,
 			changePercent: analyticsInsights.changePercent,
 			websiteName: websites.name,
 			websiteDomain: websites.domain,
@@ -104,6 +82,7 @@ async function fetchRollupInsights(
 		.where(
 			and(
 				eq(analyticsInsights.organizationId, organizationId),
+				eq(analyticsInsights.status, "open"),
 				gte(analyticsInsights.currentPeriodTo, cutoff),
 				isNull(websites.deletedAt)
 			)
@@ -113,77 +92,6 @@ async function fetchRollupInsights(
 			desc(analyticsInsights.createdAt)
 		)
 		.limit(ROLLUP_INSIGHT_LIMIT);
-}
-
-async function generateRollupNarrative(
-	range: InsightRollupRange,
-	organizationId: string,
-	insights: RollupInsightSummary[]
-): Promise<string> {
-	const fallback = buildDeterministicRollupNarrative(range, insights);
-	if (insights.length === 0) {
-		emitInsightsEvent("info", "rollup.narrative_deterministic_empty", {
-			organization_id: organizationId,
-			range,
-		});
-		return fallback;
-	}
-
-	try {
-		const startedAt = performance.now();
-		const ai = getAILogger();
-		const result = await generateText({
-			model: ai.wrap(models.balanced),
-			messages: [
-				{
-					role: "system",
-					content:
-						"Write one compact Databuddy executive analytics brief from stored insight cards. Use only the supplied cards. Be specific, operational, and plain English. Mention the most important website names. Do not invent causes, revenue, user counts, or metrics. Return one paragraph under 90 words.",
-					providerOptions: ANTHROPIC_CACHE_1H,
-				},
-				{
-					role: "user",
-					content: JSON.stringify(
-						{
-							range,
-							insights,
-						},
-						null,
-						2
-					),
-				},
-			],
-			temperature: 0.2,
-			maxOutputTokens: 512,
-			abortSignal: AbortSignal.timeout(30_000),
-			experimental_telemetry: {
-				isEnabled: true,
-				functionId: "databuddy.insights.worker.rollup",
-				metadata: {
-					source: "insights_worker",
-					feature: "smart_insights",
-					organizationId,
-					range,
-				},
-			},
-		});
-
-		const text = sanitizeNarrative(result.text);
-		emitInsightsEvent("info", "rollup.narrative_generation_completed", {
-			organization_id: organizationId,
-			range,
-			duration_ms: Math.round(performance.now() - startedAt),
-			insight_count: insights.length,
-			used_fallback: text.length === 0,
-		});
-		return text || fallback;
-	} catch (error) {
-		captureInsightsError(error, "rollup.narrative_generation_failed", {
-			organization_id: organizationId,
-			range,
-		});
-		return fallback;
-	}
 }
 
 async function persistRollup(input: {
@@ -222,11 +130,7 @@ async function generateRangeRollup(
 ): Promise<void> {
 	const startedAt = performance.now();
 	const insights = await fetchRollupInsights(data.organizationId, range);
-	const narrative = await generateRollupNarrative(
-		range,
-		data.organizationId,
-		insights
-	);
+	const narrative = buildDeterministicRollupNarrative(range, insights);
 
 	await persistRollup({
 		generatedAt,

@@ -8,6 +8,7 @@ dayjs.extend(timezonePlugin);
 
 export interface DetectedSignal {
 	baseline: number;
+	baselineDates?: string[];
 	current: number;
 	deltaPercent: number;
 	detectedAt: string;
@@ -88,6 +89,7 @@ export function mad(values: number[]): number {
 const MAD_SCALE = 1.4826;
 const ZSCORE_THRESHOLD = 2.5;
 const ZSCORE_MIN_BASELINE = 6;
+const ZSCORE_HISTORY_DAYS = 22;
 const WOW_TRAFFIC_THRESHOLD = 40;
 const WOW_ERROR_THRESHOLD = 40;
 const WOW_REVENUE_THRESHOLD = 30;
@@ -122,13 +124,18 @@ export interface WowWindow {
 
 export function wowWindow(today: dayjs.Dayjs, lookbackDays: number): WowWindow {
 	const windowDays = Math.max(3, lookbackDays);
+	const lastCompleteDay = today.subtract(1, "day");
 	return {
-		currentFrom: today.subtract(windowDays - 1, "day").format("YYYY-MM-DD"),
-		currentTo: today.format("YYYY-MM-DD"),
-		previousFrom: today
+		currentFrom: lastCompleteDay
+			.subtract(windowDays - 1, "day")
+			.format("YYYY-MM-DD"),
+		currentTo: lastCompleteDay.format("YYYY-MM-DD"),
+		previousFrom: lastCompleteDay
 			.subtract(windowDays * 2 - 1, "day")
 			.format("YYYY-MM-DD"),
-		previousTo: today.subtract(windowDays, "day").format("YYYY-MM-DD"),
+		previousTo: lastCompleteDay
+			.subtract(windowDays, "day")
+			.format("YYYY-MM-DD"),
 	};
 }
 
@@ -280,15 +287,17 @@ export type QueryFn = typeof executeQuery;
 
 export async function detectSignals(
 	params: DetectSignalsParams,
-	queryFn: QueryFn = executeQuery
+	queryFn: QueryFn = executeQuery,
+	today: dayjs.Dayjs = params.timezone ? dayjs().tz(params.timezone) : dayjs()
 ): Promise<DetectedSignal[]> {
 	const { websiteId, lookbackDays, timezone } = params;
 
-	const today = timezone ? dayjs().tz(timezone) : dayjs();
-	const dailyFrom = today
-		.subtract(lookbackDays - 1, "day")
+	const lastCompleteDay = today.subtract(1, "day");
+	const dailyHistoryDays = Math.max(lookbackDays, ZSCORE_HISTORY_DAYS);
+	const dailyFrom = lastCompleteDay
+		.subtract(dailyHistoryDays - 1, "day")
 		.format("YYYY-MM-DD");
-	const dailyTo = today.format("YYYY-MM-DD");
+	const dailyTo = lastCompleteDay.format("YYYY-MM-DD");
 
 	const rows = await queryFn(
 		{
@@ -298,16 +307,15 @@ export async function detectSignals(
 			to: dailyTo,
 			timezone,
 			timeUnit: "day",
-			limit: lookbackDays + 5,
+			limit: dailyHistoryDays + 5,
 		},
 		undefined,
 		timezone
 	);
 
-	const todayStr = today.format("YYYY-MM-DD");
 	const sorted = [...rows]
 		.sort((a, b) => String(a.date ?? "").localeCompare(String(b.date ?? "")))
-		.filter((row) => String(row.date ?? "") !== todayStr);
+		.filter((row) => String(row.date ?? "") <= dailyTo);
 
 	const zscoreSignals = detectZscore(sorted);
 
@@ -412,9 +420,12 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 	const signals: DetectedSignal[] = [];
 
 	for (const metric of ANOMALY_METRICS) {
-		const baselineValues = baseline
-			.map((row) => numberField(row, metric.dailyField))
-			.filter((v) => Number.isFinite(v));
+		const comparableRows = baseline.filter((row) =>
+			Number.isFinite(numberField(row, metric.dailyField))
+		);
+		const baselineValues = comparableRows.map((row) =>
+			numberField(row, metric.dailyField)
+		);
 
 		if (baselineValues.length < ZSCORE_MIN_BASELINE) {
 			continue;
@@ -441,6 +452,7 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 			metric: metric.key,
 			label: metric.label,
 			method: "zscore",
+			baselineDates: comparableRows.map((row) => String(row.date ?? "")),
 			direction,
 			current: currentValue,
 			baseline: baselineMedian,
@@ -504,7 +516,7 @@ async function detectWow(
 		const currentValue = numberField(currentSummary[0], metric.summaryField);
 		const previousValue = numberField(previousSummary[0], metric.summaryField);
 
-		if (previousValue === 0 || currentValue === 0) {
+		if (previousValue === 0) {
 			continue;
 		}
 

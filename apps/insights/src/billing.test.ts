@@ -89,31 +89,33 @@ describe("resolveInsightsBilling", () => {
 		]);
 	});
 
-	it("fails open when customer resolution throws", async () => {
-		const { deps } = makeDeps({
+	it("propagates customer resolution failures for retry", async () => {
+		const { deps, calls } = makeDeps({
 			resolveBillingCustomerId: () =>
 				Promise.reject(new Error("AUTUMN_SECRET_KEY is not set")),
 		});
 
-		const decision = await resolveInsightsBilling(
-			{ organizationId: "org_1", userId: "user_1" },
-			deps
-		);
-
-		expect(decision).toEqual({ allowed: true, billingCustomerId: null });
+		await expect(
+			resolveInsightsBilling(
+				{ organizationId: "org_1", userId: "user_1" },
+				deps
+			)
+		).rejects.toThrow("AUTUMN_SECRET_KEY is not set");
+		expect(calls.ensureArgs).toEqual([]);
 	});
 
-	it("fails open when the credit check throws", async () => {
+	it("propagates credit-check failures for retry", async () => {
 		const { deps } = makeDeps({
+			customerId: "cust_42",
 			ensureCreditsAvailable: () =>
 				Promise.reject(new Error("Command timed out")),
 		});
 
-		const decision = await resolveInsightsBilling(
-			{ organizationId: "org_1", userId: "user_1" },
-			deps
-		);
-
-		expect(decision).toEqual({ allowed: true, billingCustomerId: null });
+		await expect(
+			resolveInsightsBilling(
+				{ organizationId: "org_1", userId: "user_1" },
+				deps
+			)
+		).rejects.toThrow("Command timed out");
 	});
 });

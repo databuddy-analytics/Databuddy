@@ -2,7 +2,6 @@ import {
 	ensureAgentCreditsAvailable,
 	resolveAgentBillingCustomerId,
 } from "@databuddy/ai/agents/execution";
-import { captureInsightsError } from "./lib/evlog-insights";
 
 export interface InsightsBillingDeps {
 	ensureCreditsAvailable: (
@@ -28,17 +27,10 @@ export async function resolveInsightsBilling(
 	principal: { organizationId: string; userId: string | null },
 	deps: InsightsBillingDeps = defaultBillingDeps
 ): Promise<InsightsBillingDecision> {
-	try {
-		const billingCustomerId = await deps.resolveBillingCustomerId({
-			organizationId: principal.organizationId,
-			userId: principal.userId,
-		});
-		const allowed = await deps.ensureCreditsAvailable(billingCustomerId);
-		return { allowed, billingCustomerId };
-	} catch (error) {
-		captureInsightsError(error, "billing.check_failed_open", {
-			organization_id: principal.organizationId,
-		});
-		return { allowed: true, billingCustomerId: null };
-	}
+	const billingCustomerId = await deps.resolveBillingCustomerId({
+		organizationId: principal.organizationId,
+		userId: principal.userId,
+	});
+	const allowed = await deps.ensureCreditsAvailable(billingCustomerId);
+	return { allowed, billingCustomerId };
 }

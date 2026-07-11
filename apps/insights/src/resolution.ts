@@ -1,11 +1,13 @@
-import { directionKeyFromParts } from "@databuddy/ai/insights/dedupe";
-import type { ParsedInsight } from "@databuddy/ai/schemas/smart-insights-output";
 import { and, db, eq, inArray } from "@databuddy/db";
 import { analyticsInsights } from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
+import {
+	directionKeyFromParts,
+	type GeneratedInsight,
+} from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
@@ -61,7 +63,7 @@ export interface OpenInsightRow {
 	changePercent: number | null;
 	createdAt: Date;
 	id: string;
-	sentiment: ParsedInsight["sentiment"];
+	sentiment: GeneratedInsight["sentiment"];
 	type: string;
 }
 
@@ -149,7 +151,7 @@ export async function resolveInsightsForWebsite(params: {
 			id: row.id,
 			type: row.type,
 			changePercent: row.changePercent,
-			sentiment: row.sentiment as ParsedInsight["sentiment"],
+			sentiment: row.sentiment as GeneratedInsight["sentiment"],
 			createdAt: row.createdAt,
 		})),
 	});

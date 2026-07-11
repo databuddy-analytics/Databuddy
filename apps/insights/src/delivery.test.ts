@@ -34,30 +34,20 @@ const goalInsight = {
 	type: "conversion_leak",
 };
 
-describe("Slack insight digest blocks", () => {
+describe("Slack finding blocks", () => {
 	it("uses the website name with domain in the header", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[goalInsight],
-			[]
-		);
+		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [goalInsight]);
 
 		expect(blocks[0]?.text?.text).toBe(
-			"Insights for Databuddy (app.databuddy.cc)"
+			"Findings for Databuddy (app.databuddy.cc)"
 		);
 		expect(buildFallbackText("Databuddy <@U123>", "app.databuddy.cc")).toBe(
-			"Insights for Databuddy &lt;@U123&gt; (app.databuddy.cc)"
+			"Findings for Databuddy &lt;@U123&gt; (app.databuddy.cc)"
 		);
 	});
 
 	it("renders summary chip, title with link button, quoted evidence, and label chip", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[goalInsight],
-			[]
-		);
+		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [goalInsight]);
 
 		expect(blocks.map((b) => b.type)).toEqual([
 			"header",
@@ -92,8 +82,7 @@ describe("Slack insight digest blocks", () => {
 					sentiment: "positive",
 					type: "positive_trend",
 				},
-			],
-			[]
+			]
 		);
 
 		expect(contextText(blocks, 1)).toBe("1 fix · 1 win");
@@ -103,8 +92,7 @@ describe("Slack insight digest blocks", () => {
 		const blocks = buildBlocks(
 			"Databuddy",
 			"app.databuddy.cc",
-			[{ ...goalInsight, impactSummary: null }],
-			[]
+			[{ ...goalInsight, impactSummary: null }]
 		);
 
 		expect(sectionText(blocks, 3)).toBe(
@@ -116,8 +104,7 @@ describe("Slack insight digest blocks", () => {
 		const blocks = buildBlocks(
 			"Databuddy",
 			"app.databuddy.cc",
-			[goalInsight, { ...goalInsight, id: "second" }],
-			[]
+			[goalInsight, { ...goalInsight, id: "second" }]
 		);
 
 		expect(blocks.filter((b) => b.type === "divider")).toHaveLength(1);
@@ -141,8 +128,7 @@ describe("Slack insight digest blocks", () => {
 						"Duplicate funnel 019d7dac-6c23-7000-b8b0-b5cacc81db79 is active",
 					type: "funnel_regression",
 				},
-			],
-			[]
+			]
 		);
 
 		expect(sectionText(blocks, 2)).toContain(
@@ -157,24 +143,6 @@ describe("Slack insight digest blocks", () => {
 		}
 	});
 
-	it("marks cross-site patterns in the label chip", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[goalInsight],
-			[
-				{
-					insightIds: ["goal-insight"],
-					websiteIds: ["site-a", "site-b", "site-c"],
-				} as never,
-			]
-		);
-
-		expect(contextText(blocks, 4)).toBe(
-			"Fix · Goal tracking · part of a pattern across 3 sites"
-		);
-	});
-
 	it("handles legacy insight rows without type or sentiment fields", () => {
 		const blocks = buildBlocks(
 			"Databuddy",
@@ -187,12 +155,11 @@ describe("Slack insight digest blocks", () => {
 					suggestion: "Review this legacy insight.",
 					title: "Legacy insight still renders",
 				},
-			],
-			[]
+			]
 		);
 
 		expect(contextText(blocks, 1)).toBe("1 fix");
-		expect(contextText(blocks, 4)).toBe("Fix · Priority signal");
+		expect(contextText(blocks, 4)).toBe("Fix");
 		expect(sectionText(blocks, 2)).toStartWith(":red_circle:");
 	});
 
@@ -201,7 +168,6 @@ describe("Slack insight digest blocks", () => {
 			"Databuddy",
 			"app.databuddy.cc",
 			[goalInsight],
-			[],
 			[
 				{
 					...goalInsight,
@@ -230,7 +196,6 @@ describe("Slack insight digest blocks", () => {
 			"app.databuddy.cc",
 			[goalInsight],
 			[],
-			[],
 			[
 				{
 					...goalInsight,
@@ -254,7 +219,6 @@ describe("Slack insight digest blocks", () => {
 			"Databuddy",
 			"app.databuddy.cc",
 			[],
-			[],
 			[{ ...goalInsight, id: "worse", title: "Got worse" }],
 			[{ ...goalInsight, id: "flat", title: "Still flat" }]
 		);
@@ -270,7 +234,6 @@ describe("Slack insight digest blocks", () => {
 		const blocks = buildBlocks(
 			"Databuddy",
 			"app.databuddy.cc",
-			[],
 			[],
 			[goalInsight]
 		);
@@ -296,11 +259,10 @@ describe("Slack insight digest blocks", () => {
 					title: "Traffic tripled this week",
 					type: "positive_trend",
 				},
-			],
-			[]
+			]
 		);
 
-		expect(blocks[0]?.text?.text).toBe("Insights for example.com");
+		expect(blocks[0]?.text?.text).toBe("Findings for example.com");
 		expect(contextText(blocks, 1)).toBe("1 win");
 		expect(sectionText(blocks, 2)).toStartWith(":large_green_circle:");
 		expect(contextText(blocks, 4)).toBe("Opportunity · Acquisition");

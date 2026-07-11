@@ -8,6 +8,7 @@ import {
 	detectSignals,
 	mad,
 	median,
+	wowWindow,
 } from "./detection";
 
 function makeDailyRows(
@@ -162,7 +163,52 @@ describe("adaptiveWowThreshold", () => {
 	});
 });
 
+describe("wowWindow", () => {
+	it("ends both comparison windows on complete days", () => {
+		expect(wowWindow(dayjs("2026-06-15"), 7)).toEqual({
+			currentFrom: "2026-06-08",
+			currentTo: "2026-06-14",
+			previousFrom: "2026-06-01",
+			previousTo: "2026-06-07",
+		});
+	});
+});
+
 describe("detectSignals", () => {
+	it("uses an explicit clock for historical replay windows", async () => {
+		const requests: Array<{ from?: string; to?: string; type: string }> = [];
+		const queryFn: QueryFn = async (request) => {
+			requests.push({
+				from: request.from,
+				to: request.to,
+				type: request.type,
+			});
+			return [];
+		};
+
+		await detectSignals(BASE_PARAMS, queryFn, dayjs("2025-03-15"));
+
+		expect(requests[0]).toMatchObject({
+			from: "2025-02-15",
+			to: "2025-03-14",
+			type: "events_by_date",
+		});
+		expect(
+			requests.filter((request) => request.type === "summary_metrics")
+		).toEqual([
+			{
+				from: "2025-02-15",
+				to: "2025-03-14",
+				type: "summary_metrics",
+			},
+			{
+				from: "2025-01-18",
+				to: "2025-02-14",
+				type: "summary_metrics",
+			},
+		]);
+	});
+
 	describe("z-score detection", () => {
 		it("flags a spike on the latest complete day", async () => {
 			const start = dayjs().subtract(28, "day");
@@ -196,6 +242,10 @@ describe("detectSignals", () => {
 			expect(visitorSignal!.current).toBe(350);
 			expect(visitorSignal!.zScore).toBeDefined();
 			expect(Math.abs(visitorSignal!.zScore!)).toBeGreaterThanOrEqual(2.5);
+			expect(visitorSignal!.baselineDates?.length).toBeGreaterThanOrEqual(6);
+			expect(visitorSignal!.baselineDates).toEqual(
+				[...(visitorSignal!.baselineDates ?? [])].sort()
+			);
 		});
 
 		it("flags a drop on the latest complete day", async () => {
@@ -337,6 +387,49 @@ describe("detectSignals", () => {
 			const zscoreSignals = signals.filter((s) => s.method === "zscore");
 			expect(zscoreSignals.length).toBe(0);
 		});
+
+		it("fetches enough history for z-score detection at the default lookback", async () => {
+			const lastCompleteDay = dayjs().subtract(1, "day");
+			const start = lastCompleteDay.subtract(21, "day");
+			const rows = generateStableDays(22, {
+				visitors: 100,
+				sessions: 120,
+				pageviews: 200,
+				bounce_rate: 40,
+				median_session_duration: 60,
+			}, start);
+			rows[21].visitors = 500;
+
+			let requestedFrom = "";
+			let requestedTo = "";
+			const queryFn: QueryFn = async (request: {
+				from?: string;
+				to?: string;
+				type: string;
+			}) => {
+				if (request.type !== "events_by_date") {
+					return [];
+				}
+				requestedFrom = request.from ?? "";
+				requestedTo = request.to ?? "";
+				return makeDailyRows(rows).filter(
+					(row) => row.date >= requestedFrom && row.date <= requestedTo
+				);
+			};
+
+			const signals = await detectSignals(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				queryFn
+			);
+
+			expect(requestedFrom).toBe(start.format("YYYY-MM-DD"));
+			expect(requestedTo).toBe(lastCompleteDay.format("YYYY-MM-DD"));
+			expect(
+				signals.some(
+					(signal) => signal.metric === "visitors" && signal.method === "zscore"
+				)
+			).toBe(true);
+		});
 	});
 
 	describe("WoW detection", () => {
@@ -391,6 +484,36 @@ describe("detectSignals", () => {
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			const wowSignals = signals.filter((s) => s.method === "wow");
 			expect(wowSignals.length).toBe(0);
+		});
+
+		it("flags a complete traffic outage after a nonzero baseline", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{
+					unique_visitors: 0,
+					sessions: 0,
+					pageviews: 0,
+					bounce_rate: 0,
+					median_session_duration: 0,
+				},
+				{
+					unique_visitors: 200,
+					sessions: 250,
+					pageviews: 500,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const trafficDrop = signals.find((signal) =>
+				["visitors", "sessions", "pageviews"].includes(signal.metric)
+			);
+
+			expect(trafficDrop).toBeDefined();
+			expect(trafficDrop!.direction).toBe("down");
+			expect(trafficDrop!.current).toBe(0);
+			expect(trafficDrop!.deltaPercent).toBe(-100);
 		});
 
 		it("suppresses WoW changes within a volatile site's normal range", async () => {

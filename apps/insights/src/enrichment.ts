@@ -6,13 +6,14 @@ import {
 	safeDeltaPercent,
 	type DetectedSignal,
 	type QueryFn,
-	wowWindow,
 } from "./detection";
 
 export interface SegmentMover {
+	current: number;
 	delta: number;
 	deltaPercent: number;
 	name: string;
+	previous: number;
 }
 
 export interface SegmentBreakdown {
@@ -35,17 +36,6 @@ export interface AnnotationContext {
 	title: string;
 }
 
-export interface GitHubContext {
-	commits: { sha: string; message: string; author: string; date: string }[];
-	recentPRs: {
-		number: number;
-		title: string;
-		mergedAt: string;
-		author: string;
-	}[];
-	repo: string;
-}
-
 export interface VitalsContext {
 	metrics: Array<{
 		name: string;
@@ -58,14 +48,11 @@ export interface VitalsContext {
 export interface EnrichedSignal extends DetectedSignal {
 	annotations: AnnotationContext[];
 	errorContext?: ErrorContext;
-	githubContext?: GitHubContext;
 	segments: SegmentBreakdown[];
 	vitalsContext?: VitalsContext;
 }
 
 export interface EnrichSignalsParams {
-	githubRepo?: { owner: string; repo: string };
-	githubToken?: string | null;
 	lookbackDays: number;
 	timezone: string;
 	websiteId: string;
@@ -85,7 +72,7 @@ interface ErrorTypeRow {
 	name?: unknown;
 }
 
-interface SignalWindow {
+export interface SignalWindow {
 	currentFrom: string;
 	currentTo: string;
 	previousFrom: string;
@@ -107,26 +94,38 @@ const SEGMENT_TOP_MOVERS = 3;
 const SEGMENT_FETCH_LIMIT = 100;
 const ERROR_MIN_DELTA_PERCENT = 20;
 const ERROR_TOP_LIMIT = 5;
-const ERROR_WORD_SPLIT_RE = /[\s:()]+/;
 
-function computeWindow(
+export function signalWindow(
 	signal: DetectedSignal,
 	lookbackDays: number
 ): SignalWindow {
 	const detectedDay = dayjs(signal.detectedAt);
 
 	if (signal.method === "zscore") {
+		const baselineDates = signal.baselineDates ?? [];
 		return {
 			currentFrom: detectedDay.format("YYYY-MM-DD"),
 			currentTo: detectedDay.format("YYYY-MM-DD"),
-			previousFrom: detectedDay
-				.subtract(lookbackDays - 1, "day")
-				.format("YYYY-MM-DD"),
-			previousTo: detectedDay.subtract(1, "day").format("YYYY-MM-DD"),
+			previousFrom:
+				baselineDates[0] ??
+				detectedDay.subtract(lookbackDays - 1, "day").format("YYYY-MM-DD"),
+			previousTo:
+				baselineDates.at(-1) ??
+				detectedDay.subtract(1, "day").format("YYYY-MM-DD"),
 		};
 	}
 
-	return wowWindow(detectedDay, lookbackDays);
+	const windowDays = Math.max(3, lookbackDays);
+	return {
+		currentFrom: detectedDay
+			.subtract(windowDays - 1, "day")
+			.format("YYYY-MM-DD"),
+		currentTo: detectedDay.format("YYYY-MM-DD"),
+		previousFrom: detectedDay
+			.subtract(windowDays * 2 - 1, "day")
+			.format("YYYY-MM-DD"),
+		previousTo: detectedDay.subtract(windowDays, "day").format("YYYY-MM-DD"),
+	};
 }
 
 function queryPeriodPair(
@@ -193,6 +192,8 @@ function computeSegmentMovers(
 		.filter((m) => m.current !== 0 || m.previous !== 0)
 		.map((m) => ({
 			name: m.name,
+			current: m.current,
+			previous: m.previous,
 			delta: Number((m.current - m.previous).toFixed(2)),
 			deltaPercent: Number(safeDeltaPercent(m.current, m.previous).toFixed(2)),
 		}))
@@ -385,150 +386,50 @@ async function enrichVitals(
 	return metrics.length > 0 ? { metrics } : undefined;
 }
 
-function extractSignalKeywords(signals: EnrichedSignal[]): string[] {
-	const keywords = new Set<string>();
-	for (const s of signals) {
-		keywords.add(s.metric);
-		for (const seg of s.segments) {
-			for (const m of seg.topMovers) {
-				const segment = m.name.split("/").find((p) => p.length > 2);
-				if (segment) {
-					keywords.add(segment.toLowerCase());
-				}
-			}
-		}
-		if (s.errorContext) {
-			for (const err of s.errorContext.topNewErrors) {
-				const words = err
-					.split(ERROR_WORD_SPLIT_RE)
-					.filter((w) => w.length > 3);
-				for (const w of words.slice(0, 3)) {
-					keywords.add(w.toLowerCase());
-				}
-			}
-		}
-	}
-	return [...keywords].slice(0, 10);
-}
-
-async function enrichGitHub(
-	repo: { owner: string; repo: string },
-	token: string,
-	window: SignalWindow,
-	signalKeywords: string[]
-): Promise<GitHubContext | undefined> {
-	const { githubFetch } = await import("@databuddy/ai/tools/github-tools");
-	const repoPath = `${repo.owner}/${repo.repo}`;
-
-	try {
-		const [commitsData, prsData] = await Promise.all([
-			githubFetch(
-				`/repos/${repoPath}/commits?since=${window.previousFrom}T00:00:00Z&until=${window.currentTo}T23:59:59Z&per_page=15`,
-				token
-			),
-			githubFetch(
-				`/repos/${repoPath}/pulls?state=closed&sort=updated&direction=desc&per_page=10`,
-				token
-			),
-		]);
-
-		if (!(Array.isArray(commitsData) && Array.isArray(prsData))) {
-			return;
-		}
-
-		interface GHCommit {
-			commit?: {
-				message?: string;
-				author?: { name?: string; date?: string };
-			};
-			sha?: string;
-		}
-		interface GHPR {
-			merged_at?: string | null;
-			number?: number;
-			title?: string;
-			user?: { login?: string };
-		}
-
-		const commits = (commitsData as GHCommit[]).map((c) => ({
-			sha: String(c.sha ?? "").slice(0, 7),
-			message: String(c.commit?.message ?? "")
-				.split("\n")[0]
-				.slice(0, 120),
-			author: String(c.commit?.author?.name ?? ""),
-			date: String(c.commit?.author?.date ?? ""),
-		}));
-
-		const recentPRs = (prsData as GHPR[])
-			.filter((pr) => pr.merged_at)
-			.map((pr) => ({
-				number: Number(pr.number),
-				title: String(pr.title ?? "").slice(0, 120),
-				mergedAt: String(pr.merged_at),
-				author: String(pr.user?.login ?? ""),
-			}));
-
-		let relevantCommits: typeof commits = [];
-		if (signalKeywords.length > 0 && commits.length > 0) {
-			const detailFetches = commits.slice(0, 5).map(async (c) => {
-				const detail = await githubFetch(
-					`/repos/${repoPath}/commits/${c.sha}`,
-					token
-				);
-				if (!detail || typeof detail !== "object" || "error" in detail) {
-					return null;
-				}
-				const files =
-					(detail as { files?: Array<{ filename: string }> }).files ?? [];
-				const changedFiles = files.map((f) => f.filename);
-				const relevant = signalKeywords.some(
-					(kw) =>
-						changedFiles.some((f) => f.toLowerCase().includes(kw)) ||
-						c.message.toLowerCase().includes(kw)
-				);
-				return relevant
-					? { ...c, changedFiles: changedFiles.slice(0, 10) }
-					: null;
-			});
-
-			const results = await Promise.all(detailFetches);
-			relevantCommits = results.flatMap((r) => (r ? [r] : []));
-		}
-
-		return {
-			repo: repoPath,
-			commits:
-				relevantCommits.length > 0 ? relevantCommits : commits.slice(0, 5),
-			recentPRs,
-		};
-	} catch {
-		return;
-	}
-}
-
-export async function enrichSignals(
+export function enrichSignals(
 	signals: DetectedSignal[],
 	params: EnrichSignalsParams,
 	queryFn: QueryFn = executeQuery,
 	annotationQueryFn: AnnotationQueryFn = defaultAnnotationQuery
 ): Promise<EnrichedSignal[]> {
 	if (signals.length === 0) {
-		return [];
+		return Promise.resolve([]);
 	}
 
 	const { websiteId, timezone, lookbackDays } = params;
+	const queryCache = new Map<string, ReturnType<QueryFn>>();
+	const cachedQuery: QueryFn = (
+		request,
+		domain,
+		queryTimezone,
+		abortSignal
+	) => {
+		const key = JSON.stringify([request, domain, queryTimezone]);
+		const cached = queryCache.get(key);
+		if (cached) {
+			return cached;
+		}
+		const result = queryFn(request, domain, queryTimezone, abortSignal);
+		queryCache.set(key, result);
+		return result;
+	};
 
-	const firstWindow = computeWindow(signals[0], lookbackDays);
-
-	const enrichedWithoutGitHub = await Promise.all(
+	return Promise.all(
 		signals.map(async (signal) => {
-			const window = computeWindow(signal, lookbackDays);
+			const window = signalWindow(signal, lookbackDays);
+			const canCompareContinuousPeriods = signal.method !== "zscore";
 
 			const [segments, errorContext, vitalsContext, signalAnnotations] =
 				await Promise.all([
-					enrichSegments(websiteId, timezone, window, queryFn),
-					enrichErrors(websiteId, timezone, window, queryFn),
-					enrichVitals(websiteId, timezone, window, queryFn),
+					canCompareContinuousPeriods
+						? enrichSegments(websiteId, timezone, window, cachedQuery)
+						: Promise.resolve([]),
+					canCompareContinuousPeriods
+						? enrichErrors(websiteId, timezone, window, cachedQuery)
+						: Promise.resolve(undefined),
+					canCompareContinuousPeriods
+						? enrichVitals(websiteId, timezone, window, cachedQuery)
+						: Promise.resolve(undefined),
 					enrichAnnotations(websiteId, window, annotationQueryFn),
 				]);
 
@@ -538,23 +439,7 @@ export async function enrichSignals(
 				errorContext,
 				vitalsContext,
 				annotations: signalAnnotations,
-			} as EnrichedSignal;
+			};
 		})
 	);
-
-	let sharedGitHub: GitHubContext | undefined;
-	if (params.githubRepo && params.githubToken) {
-		const keywords = extractSignalKeywords(enrichedWithoutGitHub);
-		sharedGitHub = await enrichGitHub(
-			params.githubRepo,
-			params.githubToken,
-			firstWindow,
-			keywords
-		);
-	}
-
-	return enrichedWithoutGitHub.map((signal) => ({
-		...signal,
-		githubContext: sharedGitHub,
-	}));
 }

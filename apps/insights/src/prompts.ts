@@ -1,258 +1,17 @@
-import type { WeekOverWeekPeriod } from "@databuddy/ai/insights/types";
-import { executeQuery } from "@databuddy/ai/query";
-import { and, db, desc, eq, gte, isNull } from "@databuddy/db";
-import {
-	analyticsInsights,
-	annotations,
-	funnelDefinitions,
-	goals,
-	type InsightGenerationConfigSnapshot,
-	insightUserFeedback,
-} from "@databuddy/db/schema";
+import { and, db, desc, eq, gte, lte } from "@databuddy/db";
+import { analyticsInsights } from "@databuddy/db/schema";
+import type {
+	InvestigationEvidence,
+	InvestigationSignal,
+} from "@databuddy/shared/insights";
 import dayjs from "dayjs";
-import type { EnrichedSignal } from "./enrichment";
+import type { InvestigationInput } from "./investigation";
+import { type InsightDepth, MAX_INSIGHTS_PER_WEBSITE } from "./policy";
 
 const RECENT_INSIGHTS_PROMPT_LIMIT = 12;
 
-function capabilityLine(
-	label: string,
-	items: string[],
-	emptyText: string
-): string {
-	if (items.length === 0) {
-		return `${label}: ${emptyText}`;
-	}
-	return `${label} (${items.length}): ${items.join(", ")}`;
-}
-
-export async function fetchSiteCapabilities(
-	websiteId: string,
-	timezone: string,
-	from: string,
-	to: string
-): Promise<string> {
-	const [customEventRows, errorSummaryRows, vitalRows, funnelRows, goalRows] =
-		await Promise.all([
-			executeQuery(
-				{
-					projectId: websiteId,
-					type: "custom_events_discovery",
-					from,
-					to,
-					timezone,
-					limit: 50,
-				},
-				undefined,
-				timezone
-			),
-			executeQuery(
-				{
-					projectId: websiteId,
-					type: "error_summary",
-					from,
-					to,
-					timezone,
-				},
-				undefined,
-				timezone
-			),
-			executeQuery(
-				{
-					projectId: websiteId,
-					type: "vitals_overview",
-					from,
-					to,
-					timezone,
-				},
-				undefined,
-				timezone
-			),
-			db
-				.select({ name: funnelDefinitions.name })
-				.from(funnelDefinitions)
-				.where(
-					and(
-						eq(funnelDefinitions.websiteId, websiteId),
-						eq(funnelDefinitions.isActive, true),
-						isNull(funnelDefinitions.deletedAt)
-					)
-				)
-				.limit(20),
-			db
-				.select({ name: goals.name, type: goals.type, target: goals.target })
-				.from(goals)
-				.where(
-					and(
-						eq(goals.websiteId, websiteId),
-						eq(goals.isActive, true),
-						isNull(goals.deletedAt)
-					)
-				)
-				.limit(20),
-		]);
-
-	const customEvents = customEventRows as Array<{
-		event_name?: string;
-		total_events?: number;
-	}>;
-	const eventNames = [
-		...new Set(
-			customEvents
-				.filter((r) => r.event_name && (r.total_events ?? 0) > 0)
-				.map((r) => r.event_name as string)
-		),
-	];
-
-	const errors = errorSummaryRows[0] as { totalErrors?: number } | undefined;
-	const errorCount = Number(errors?.totalErrors ?? 0);
-
-	const vitals = (vitalRows as Array<{ metric_name?: string }>).map(
-		(r) => r.metric_name
-	);
-
-	const parts = [
-		capabilityLine("Custom events", eventNames, "none configured"),
-		errorCount > 0
-			? `Errors: ${errorCount} in current period`
-			: "Errors: none recorded",
-		vitals.length > 0 ? `Vitals: ${vitals.join(", ")}` : "Vitals: no data",
-		capabilityLine(
-			"Funnels",
-			funnelRows.map((f) => f.name),
-			"none configured"
-		),
-		capabilityLine(
-			"Goals",
-			goalRows.map((g) => `${g.name} (${g.type}: ${g.target})`),
-			"none configured"
-		),
-	];
-
-	return `\nSite capabilities:\n${parts.join("\n")}`;
-}
-
-export function promptLookbackDays(
-	config: InsightGenerationConfigSnapshot
-): number {
-	return Math.max(14, Math.min(180, config.lookbackDays * 2));
-}
-
-export async function fetchRecentAnnotations(
-	websiteId: string,
-	config: InsightGenerationConfigSnapshot
-): Promise<string> {
-	const since = dayjs().subtract(promptLookbackDays(config), "day").toDate();
-	const rows = await db
-		.select({
-			text: annotations.text,
-			xValue: annotations.xValue,
-			tags: annotations.tags,
-		})
-		.from(annotations)
-		.where(
-			and(
-				eq(annotations.websiteId, websiteId),
-				gte(annotations.xValue, since),
-				isNull(annotations.deletedAt)
-			)
-		)
-		.orderBy(annotations.xValue)
-		.limit(20);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const lines = rows.map((row) => {
-		const date = dayjs(row.xValue).format("YYYY-MM-DD");
-		const tags = row.tags?.length ? ` [${row.tags.join(", ")}]` : "";
-		return `- ${date}: ${row.text}${tags}`;
-	});
-
-	return `\n\nUser annotations (known events that may explain changes):\n${lines.join("\n")}`;
-}
-
-export async function fetchDownvotedPatterns(
-	organizationId: string,
-	websiteId: string
-): Promise<string> {
-	const since = dayjs().subtract(30, "day").toDate();
-	const rows = await db
-		.select({
-			title: analyticsInsights.title,
-			type: analyticsInsights.type,
-		})
-		.from(insightUserFeedback)
-		.innerJoin(
-			analyticsInsights,
-			eq(insightUserFeedback.insightId, analyticsInsights.id)
-		)
-		.where(
-			and(
-				eq(insightUserFeedback.organizationId, organizationId),
-				eq(analyticsInsights.websiteId, websiteId),
-				eq(insightUserFeedback.vote, "down"),
-				gte(insightUserFeedback.createdAt, since)
-			)
-		)
-		.orderBy(desc(insightUserFeedback.createdAt))
-		.limit(10);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const lines = rows.map((r) => `- [${r.type}] ${r.title}`);
-	return `\n\nInsights users marked as NOT helpful (avoid similar narratives):\n${lines.join("\n")}`;
-}
-
-export async function fetchSuppressedPatterns(
-	organizationId: string,
-	websiteId: string
-): Promise<string> {
-	const since = dayjs().subtract(30, "day").toDate();
-	const rows = await db
-		.select({
-			title: analyticsInsights.title,
-			type: analyticsInsights.type,
-			subjectKey: analyticsInsights.subjectKey,
-		})
-		.from(insightUserFeedback)
-		.innerJoin(
-			analyticsInsights,
-			eq(insightUserFeedback.insightId, analyticsInsights.id)
-		)
-		.where(
-			and(
-				eq(insightUserFeedback.organizationId, organizationId),
-				eq(analyticsInsights.websiteId, websiteId),
-				eq(insightUserFeedback.vote, "dismissed"),
-				gte(insightUserFeedback.createdAt, since)
-			)
-		)
-		.orderBy(desc(insightUserFeedback.createdAt))
-		.limit(20);
-
-	if (rows.length === 0) {
-		return "";
-	}
-
-	const seen = new Set<string>();
-	const lines: string[] = [];
-	for (const row of rows) {
-		const subject = row.subjectKey?.trim() || row.title;
-		const key = `${row.type}|${subject}`;
-		if (seen.has(key)) {
-			continue;
-		}
-		seen.add(key);
-		lines.push(`- ${row.type} on ${subject}`);
-		if (lines.length >= 10) {
-			break;
-		}
-	}
-
-	return `\n\nUsers dismissed these findings as not worth surfacing. Do not re-raise the same pattern unless it is materially worse than when dismissed:\n${lines.join("\n")}`;
+function promptLookbackDays(lookbackDays: number): number {
+	return Math.max(14, Math.min(180, lookbackDays * 2));
 }
 
 export function historyStateSuffix(state: {
@@ -268,10 +27,7 @@ export function historyStateSuffix(state: {
 				? ` (recovered ${dayjs(state.resolvedAt).format("YYYY-MM-DD")})`
 				: " (recovered)";
 		}
-		if (state.resolvedReason === "stale") {
-			return " (went quiet)";
-		}
-		return " (resolved)";
+		return state.resolvedReason === "stale" ? " (went quiet)" : " (resolved)";
 	}
 	if (state.recurrence > 1) {
 		return state.hadResolvedHistory
@@ -284,9 +40,12 @@ export function historyStateSuffix(state: {
 export async function fetchInsightHistory(
 	organizationId: string,
 	websiteId: string,
-	config: InsightGenerationConfigSnapshot
+	lookbackDays: number,
+	asOf: Date = new Date()
 ): Promise<string> {
-	const since = dayjs().subtract(promptLookbackDays(config), "day").toDate();
+	const since = dayjs(asOf)
+		.subtract(promptLookbackDays(lookbackDays), "day")
+		.toDate();
 	const rows = await db
 		.select({
 			title: analyticsInsights.title,
@@ -305,7 +64,8 @@ export async function fetchInsightHistory(
 			and(
 				eq(analyticsInsights.organizationId, organizationId),
 				eq(analyticsInsights.websiteId, websiteId),
-				gte(analyticsInsights.createdAt, since)
+				gte(analyticsInsights.createdAt, since),
+				lte(analyticsInsights.createdAt, asOf)
 			)
 		)
 		.orderBy(desc(analyticsInsights.createdAt))
@@ -337,7 +97,6 @@ export async function fetchInsightHistory(
 		}
 		seen.add(key);
 
-		const date = dayjs(row.createdAt).format("YYYY-MM-DD");
 		const change =
 			row.changePercent === null
 				? ""
@@ -349,8 +108,9 @@ export async function fetchInsightHistory(
 			recurrence: subjectCounts.get(key) ?? 1,
 			hadResolvedHistory: subjectHadResolved.has(key) && row.status === "open",
 		});
-
-		lines.push(`- [${row.severity}] ${row.title}${change}${suffix} (${date})`);
+		lines.push(
+			`- [${row.severity}] ${row.title}${change}${suffix} (${dayjs(row.createdAt).format("YYYY-MM-DD")})`
+		);
 		if (row.description) {
 			lines.push(`  ${row.description.slice(0, 150)}`);
 		}
@@ -359,188 +119,90 @@ export async function fetchInsightHistory(
 		}
 	}
 
-	return `\n\nPrevious findings for this site (compare against current data). Items marked "recovered" already returned to normal; do not re-raise them unless they regressed again. Items marked "intermittent" flap repeatedly, so treat them as a recurring pattern rather than a fresh anomaly:
-${lines.join("\n")}`;
+	return `Previous findings (orientation only; not citable evidence):\n${lines.join("\n")}`;
 }
 
-export interface OrgWebsiteRow {
-	domain: string;
-	id: string;
-	name: string | null;
-}
-
-export function formatOrgWebsitesContext(
-	orgSites: OrgWebsiteRow[],
-	currentWebsiteId: string
-): string {
-	if (orgSites.length <= 1) {
-		return "";
-	}
-
-	const sorted = [...orgSites].sort((a, b) =>
-		a.domain.localeCompare(b.domain, "en")
-	);
-	const lines = sorted.map((site) => {
-		const label = site.name?.trim() ? site.name.trim() : site.domain;
-		const marker =
-			site.id === currentWebsiteId
-				? " - metrics below are for this site only"
-				: "";
-		return `- ${label} (${site.domain})${marker}`;
-	});
-	return `## Organization websites\n${lines.join("\n")}\n\n`;
-}
-
-const DEPTH_INSTRUCTIONS: Record<
-	InsightGenerationConfigSnapshot["depth"],
-	string
-> = {
-	light:
-		"Use the smallest useful tool set. Prefer 1-2 high-confidence insights.",
-	standard:
-		"Explore enough context for concise, distinct, high-confidence insights.",
-	deep: "Actively cross-check web, product, ops, and business context.",
+const DEPTH_INSTRUCTIONS: Record<InsightDepth, string> = {
+	surface: "Use the supplied evidence; query only a blocking gap.",
+	investigated:
+		"Cross-check one relevant context when it can change the action.",
+	deep: "Cross-check each conclusion across the relevant evidence domains.",
 };
 
-export function buildSystemPrompt(
-	config: InsightGenerationConfigSnapshot
-): string {
-	const targetCount = Math.max(
-		1,
-		Math.min(10, config.maxInsightsPerWebsite ?? 2)
-	);
-	const depthInstruction = DEPTH_INSTRUCTIONS[config.depth];
+export function buildSystemPrompt(investigationDepth: InsightDepth): string {
+	return `You investigate analytics signals and return the next useful decision. ${DEPTH_INSTRUCTIONS[investigationDepth]}
 
-	return `You are an analytics investigator. Return up to ${targetCount} insights ranked by business impact. ${depthInstruction}
+For every listed signal, choose exactly one disposition:
+- action_ready: evidence supports one specific action and a verification check.
+- needs_context: a named missing fact blocks the decision; ask one answerable question.
+- monitor: acting now is premature; give a measurable escalation condition and check date.
+- not_a_problem: evidence explains why no action is warranted.
 
-RULES:
-- Titles: outcome-first, plain language, ≤80 chars. No hedging, no jargon (INP, LCP, TTFB, CLS, p75). Avoid "still" and "again" unless recurrence is the central evidence.
-- Title direction MUST match the primary metric. Mismatches are rejected.
-- Only report signals that change what someone does today. Silence > noise.
-- Suggestions: name the exact page, button, or query, and the suspected cause when you found one. Never say "monitor" or "watch". Keep the visible suggestion human-readable; put raw object IDs only in action params.
-- ZERO REPETITION: title = what. description = the story (what happened and what it means, ≤300 chars). impactSummary = what it costs if ignored, only when that adds something. rootCause = why. evidence = new facts only. suggestion = one action (≤300 chars).
-- Every verified number goes in the metrics array. Prose carries at most two numbers, and only when the number is the point (5 visitors, 0 activations).
-- Metrics: only verified numbers. Label segment-specific values clearly.
-
-VOICE (title, description, impactSummary, suggestion):
-Write like you are DMing a teammate who trusts you. Short sentences. Contractions are fine. Say "broken" when it is broken.
-Banned: arrow deltas and paren spam ("2064→1231 (-40%)"); metaphors and drama words ("cratered", "collapsed", "rounding error"); rhetorical frames ("X, not Y"); editorializing adverbs (quietly, effectively, essentially, notably); filler ("it's worth noting", "importantly").
-
-BAD description (machine voice, buries the story):
-"signup_started fired 48 times (up from 10) yet signup_completed fell to 5 (from 38). /onboarding pageviews also dropped 125→73 and 67 of 67 onboarding visitors exit on that page."
-GOOD description (same facts, human voice):
-"48 people started signup this week but only 5 finished. Almost everyone drops at the onboarding step, so something in that flow is broken."
-The bad version dumps deltas the metrics array already carries. The good version says what happened and what it means; the numbers live in metrics.
-- Low traffic (<50 sessions/week): no percentage claims on <10 absolute values.
-- Tools: batch queries in web_metrics (up to 8). search_console for keywords. summary_metrics for headline numbers.
-- Confidence > 0.7 requires segment isolation or temporal correlation.
-- Actions: include when fixable (fix_goal, add_custom_event, create_annotation, create_funnel, add_tracking, investigate_further, code_fix).
-- code_fix: when you find a bug with a clear fix, emit a code_fix action with params {prompt, file_hint, error_message}. The prompt should be paste-ready for Cursor or Claude Code — include the exact file to change, what to change, and why.
-- Do not execute mutations from this background job. Emit action recommendations only.
-- Investigate detected signals using tools. Call emit_insight for each finding. Drop noise.`;
+Rules:
+- Backend signal fields are facts. Never rewrite identity, metrics, windows, severity, sentiment, type, or priority.
+- Cite only evidence IDs owned by that signal. Failed evidence can support needs_context, never a conclusion.
+- Do not claim a cause or impact unless cited evidence directly measures it.
+- Query only a specific missing fact. Every data-tool call must include the signalKey.
+- For z-score signals, query current only; the supplied detector evidence owns the sparse comparable-day baseline.
+- Keep summaries plain and short. No filler, drama, jargon, or repeated metrics.
+- Recommend; never mutate anything.
+- Call submit_investigation with one terminal result for every signal. If rejected, correct it and resubmit. Do not finish with prose.`;
 }
 
-export function formatSignalBlock(
-	signal: EnrichedSignal,
-	index: number
-): string {
-	const dir = signal.direction === "up" ? "+" : "-";
-	const scope =
-		signal.method === "zscore"
-			? `z=${signal.zScore}, latest day vs baseline`
-			: "WoW";
-	const parts = [
-		`${index + 1}. ${signal.label} ${dir}${Math.abs(signal.deltaPercent).toFixed(0)}% (${scope}, ${signal.severity}) — ${signal.current.toLocaleString()} vs ${signal.baseline.toLocaleString()}`,
-	];
+function formatSignal(signal: InvestigationSignal): string {
+	const previous = signal.metric.previous ?? "n/a";
+	const baseline = signal.detection.baselineDates
+		? `comparable dates ${signal.detection.baselineDates.join(",")}`
+		: `${signal.period.previous.from}..${signal.period.previous.to}`;
+	return `- ${signal.signalKey} | ${signal.entity.type}:${signal.entity.label} | ${signal.metric.label}=${signal.metric.current} vs ${previous} (${signal.changePercent ?? "n/a"}%) | ${signal.period.current.from}..${signal.period.current.to} vs ${baseline} | ${signal.severity}, ${signal.sentiment}, priority ${signal.priority} | ${signal.detection.reason}`;
+}
 
-	for (const seg of signal.segments) {
-		parts.push(
-			`  ${seg.dimension}: ${seg.topMovers.map((m) => `${m.name} ${m.deltaPercent > 0 ? "+" : ""}${m.deltaPercent}%`).join(", ")}`
-		);
-	}
-
-	if (signal.errorContext) {
-		const ec = signal.errorContext;
-		parts.push(
-			`  errors: ${ec.totalErrorsPrevious}->${ec.totalErrorsCurrent} (${ec.deltaPercent > 0 ? "+" : ""}${ec.deltaPercent}%)`
-		);
-		if (ec.topNewErrors.length > 0) {
-			parts.push(`  new: ${ec.topNewErrors.join(", ")}`);
-		}
-	}
-
-	if (signal.vitalsContext) {
-		const vitals = signal.vitalsContext.metrics
-			.map(
-				(m) =>
-					`${m.name} p75: ${m.previousP75}→${m.currentP75} (${m.deltaPercent > 0 ? "+" : ""}${m.deltaPercent}%)`
-			)
-			.join(", ");
-		parts.push(`  vitals: ${vitals}`);
-	}
-
-	for (const a of signal.annotations) {
-		parts.push(`  [${a.date}] ${a.title}`);
-	}
-
-	if (signal.githubContext) {
-		const gc = signal.githubContext;
-		for (const c of gc.commits.slice(0, 3)) {
-			parts.push(`  ${c.sha} ${c.message} (${c.date?.slice(0, 10)})`);
-		}
-		for (const pr of gc.recentPRs.slice(0, 3)) {
-			parts.push(
-				`  PR#${pr.number} ${pr.title} (${pr.mergedAt?.slice(0, 10)})`
-			);
-		}
-	}
-
-	return parts.join("\n");
+function formatEvidence(evidence: InvestigationEvidence): string {
+	const detail =
+		evidence.status === "failed" ? evidence.error : evidence.summary;
+	const metrics =
+		evidence.status !== "failed" &&
+		evidence.status !== "empty" &&
+		evidence.metrics?.length
+			? ` | metrics=${JSON.stringify(evidence.metrics)}`
+			: "";
+	const range = evidence.comparison
+		? `${evidence.comparison.current.from}..${evidence.comparison.current.to} vs ${evidence.comparison.previous.from}..${evidence.comparison.previous.to}`
+		: evidence.range
+			? `${evidence.range.from}..${evidence.range.to}`
+			: evidence.period;
+	const entity = evidence.entity
+		? ` | entity=${evidence.entity.type}:${evidence.entity.id}`
+		: "";
+	return `- ${evidence.evidenceId} | signal=${evidence.signalKey}${entity} | ${evidence.source}.${evidence.queryType} | ${range} | ${evidence.status}, rows=${evidence.rowCount} | ${detail}${metrics}`;
 }
 
 export function buildInvestigationPrompt(
-	enrichedSignals: EnrichedSignal[],
+	investigation: InvestigationInput,
 	params: {
-		annotationContext: string;
-		capabilitiesBlock: string;
-		downvotedBlock: string;
 		domain: string;
-		githubRepo?: { owner: string; repo: string };
-		orgContext: string;
-		period: WeekOverWeekPeriod;
 		historyBlock: string;
 		siteContext: string;
-		suppressedBlock: string;
 		timezone: string;
 	}
 ): string {
-	const { domain, period, timezone } = params;
-	const signalBlocks = enrichedSignals
-		.map((signal, i) => formatSignalBlock(signal, i))
+	const orientation = [
+		params.siteContext
+			? `Product description (orientation only; not evidence):\n${params.siteContext}`
+			: "",
+		params.historyBlock,
+	]
+		.filter(Boolean)
 		.join("\n\n");
 
-	const githubInstruction = params.githubRepo
-		? `2. github_commits for ${params.githubRepo.owner}/${params.githubRepo.repo} with dates matching the anomaly window.`
-		: "2. If GitHub tools are available, check commits matching the anomaly window.";
+	return `Investigate ${investigation.signals.length} signals for ${params.domain} (${params.timezone}). Return no more than ${MAX_INSIGHTS_PER_WEBSITE} action-ready or needs-context findings.
 
-	return `Investigating ${enrichedSignals.length} anomalies on ${domain}.
-Period: ${period.current.from} to ${period.current.to} vs ${period.previous.from} to ${period.previous.to} (${timezone})
-${params.siteContext}${params.capabilitiesBlock}
+SIGNALS
+${investigation.signals.map(formatSignal).join("\n")}
 
-SIGNALS:
+EVIDENCE
+${investigation.evidence.map(formatEvidence).join("\n")}
 
-${signalBlocks}
-
-STRATEGY:
-1. web_metrics period="both" to confirm signals and get segment breakdowns. Batch queries.
-${githubInstruction}
-3. search_console for keyword/page changes between periods.
-4. For errors: get messages and affected pages. Scrape the page if needed.
-5. For conversion/funnel changes: check product_metrics for funnel/goal data.
-6. For user behavior: use interesting_sessions or session_list to find specific sessions that dropped off, then session_events to see what they did.
-7. When you find something fixable, emit the recommended action and exact params, but do not execute mutations.
-8. Emit findings via emit_insight as you go.
-
-summary_metrics is the canonical source for headline numbers.
-${params.orgContext}${params.annotationContext}${params.historyBlock}${params.suppressedBlock}${params.downvotedBlock}`;
+Use supplied evidence first. If it does not settle the disposition, query only the missing fact and cite the returned evidence ID.
+${orientation ? `\nORIENTATION\n${orientation}` : ""}`;
 }
