@@ -1,4 +1,5 @@
 import { createError } from "evlog";
+import { t, ValidationError } from "elysia";
 import { afterEach, describe, expect, it } from "vitest";
 import { handleAppError } from "./errors";
 
@@ -16,6 +17,7 @@ describe("handleAppError", () => {
 	it("masks structured 5xx details in production", async () => {
 		process.env.NODE_ENV = "production";
 		const response = handleAppError({
+			requestId: "req_test_5xx",
 			error: createError({
 				code: "api.SECRET_FAILURE",
 				message: "Database password leaked into error",
@@ -27,16 +29,19 @@ describe("handleAppError", () => {
 		});
 
 		expect(response.status).toBe(500);
-		expect(await readPayload(response)).toEqual({
-			success: false,
-			error: "An internal server error occurred",
-			code: "api.SECRET_FAILURE",
-		});
+			expect(await readPayload(response)).toEqual({
+				success: false,
+				error: "An internal server error occurred",
+				code: "api.SECRET_FAILURE",
+				requestId: "req_test_5xx",
+			});
+			expect(response.headers.get("X-Request-ID")).toBe("req_test_5xx");
 	});
 
 	it("keeps structured 4xx details visible in production", async () => {
 		process.env.NODE_ENV = "production";
 		const response = handleAppError({
+			requestId: "req_test_4xx",
 			error: createError({
 				code: "api.BAD_INPUT",
 				message: "Invalid filter",
@@ -47,12 +52,38 @@ describe("handleAppError", () => {
 		});
 
 		expect(response.status).toBe(400);
-		expect(await readPayload(response)).toEqual({
+			expect(await readPayload(response)).toEqual({
 			success: false,
 			error: "Invalid filter",
 			code: "api.BAD_INPUT",
 			why: "The filter operator is unsupported.",
-			fix: "Use one of the documented operators.",
+				fix: "Use one of the documented operators.",
+				requestId: "req_test_4xx",
+			});
+	});
+
+	it("returns safe field details for request validation errors", async () => {
+		process.env.NODE_ENV = "production";
+		const response = handleAppError({
+			code: "VALIDATION",
+			requestId: "req_test_validation",
+			error: new ValidationError(
+				"body",
+				t.Object({ name: t.String({ minLength: 1 }) }),
+				{}
+			),
 		});
+		const payload = await readPayload(response);
+
+		expect(response.status).toBe(422);
+		expect(payload).toMatchObject({
+			success: false,
+			error: "Invalid request",
+			code: "VALIDATION",
+			requestId: "req_test_validation",
+		});
+		expect(payload.details).toEqual([
+			expect.objectContaining({ field: "body.name" }),
+		]);
 	});
 });

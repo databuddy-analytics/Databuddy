@@ -22,13 +22,14 @@ export const publicApi = new Elysia({ prefix: "/public" })
 	.use(
 		cors({
 			credentials: false,
+			exposeHeaders: ["X-Request-ID", "Retry-After"],
 			origin: true,
 		})
 	)
 	.options("*", () => new Response(null, { status: 204 }))
 	.use(agentTelemetryRoute)
 	.use(flagsRoute)
-	.onError(function handlePublicError({ error, code }) {
+	.onError(function handlePublicError({ error, code, request }) {
 		const isNotFound = code === "NOT_FOUND";
 		mergeWideEvent({
 			public_api: true,
@@ -38,5 +39,5 @@ export const publicApi = new Elysia({ prefix: "/public" })
 			captureError(error, { public_api: true });
 		}
 
-		return handleAppError({ code, error });
+		return handleAppError({ code, error, request });
 	});

@@ -9,6 +9,7 @@ import { db } from "@databuddy/db";
 import type { Website } from "@databuddy/db/schema";
 import { cacheNamespaces } from "@databuddy/redis/cache-invalidation";
 import { cacheable } from "@databuddy/redis/cacheable";
+import { basketErrors } from "@lib/structured-errors";
 import { captureError, record } from "@lib/tracing";
 import { isValidOriginFromSettings } from "@utils/origin-ip-validation";
 import { createError, EvlogError } from "evlog";
@@ -45,10 +46,14 @@ function _resolveOwnerId(
 				return orgMember.userId;
 			}
 		} catch (error) {
+			if (error instanceof EvlogError) {
+				throw error;
+			}
 			captureError(error, {
 				message: "Failed to fetch workspace owner",
 				organizationId,
 			});
+			throw basketErrors.websiteLookupUnavailable();
 		}
 
 		return null;
@@ -198,11 +203,14 @@ const getWebsiteByIdWithOwnerCached = cacheable(
 			const ownerId = await _resolveOwnerId(website.organizationId);
 			return { ...website, ownerId };
 		} catch (error) {
+			if (error instanceof EvlogError) {
+				throw error;
+			}
 			captureError(error, {
 				message: "Failed to get website by ID from cache",
 				websiteId: id,
 			});
-			return null;
+			throw basketErrors.websiteLookupUnavailable();
 		}
 	},
 	{
@@ -233,11 +241,14 @@ export function getWebsiteByIdV2(id: string): Promise<WebsiteWithOwner | null> {
 		try {
 			return await getWebsiteByIdWithOwnerCached(id);
 		} catch (error) {
+			if (error instanceof EvlogError) {
+				throw error;
+			}
 			captureError(error, {
 				message: "Failed to get website by ID V2",
 				websiteId: id,
 			});
-			return null;
+			throw basketErrors.websiteLookupUnavailable();
 		}
 	});
 }

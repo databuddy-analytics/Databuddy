@@ -108,6 +108,17 @@ const bulkFlagQuerySchema = t.Object({
 	environment: t.Optional(t.String()),
 });
 
+const bulkFlagBodySchema = t.Object({
+	clientId: t.String(),
+	keys: t.Optional(t.Array(t.String())),
+	userId: t.Optional(t.String()),
+	email: t.Optional(t.String()),
+	organizationId: t.Optional(t.String()),
+	teamId: t.Optional(t.String()),
+	properties: t.Optional(t.Record(t.String(), t.Any())),
+	environment: t.Optional(t.String()),
+});
+
 const getCachedFlag = cacheable(
 	async (key: string, clientId: string, environment?: string) => {
 		const flag = await db.query.flags.findFirst({
@@ -731,6 +742,100 @@ function buildFlagChangeSnapshot(flag: typeof flags.$inferSelect) {
 	};
 }
 
+interface BulkFlagInput extends UserContext {
+	clientId: string;
+	environment?: string;
+	keys?: string[];
+}
+
+async function evaluateBulkFlags(
+	input: BulkFlagInput,
+	set: ElysiaSet,
+	request: Request
+) {
+	if (!(await enforcePublicFlagRateLimit(request, input.clientId, set))) {
+		return { flags: {}, count: 0, reason: "RATE_LIMITED" };
+	}
+
+	mergeWideEvent({
+		flag_bulk: true,
+		flag_client_id: input.clientId || "",
+		flag_has_user_id: Boolean(input.userId),
+		flag_has_email: Boolean(input.email),
+		flag_environment: input.environment || "",
+	});
+
+	try {
+		if (!input.clientId) {
+			mergeWideEvent({ flag_error: "missing_client_id" });
+			set.status = 400;
+			return {
+				flags: {},
+				count: 0,
+				error: "Missing required clientId parameter",
+			};
+		}
+
+		const context: UserContext = {
+			userId: input.userId,
+			email: input.email,
+			organizationId: input.organizationId,
+			teamId: input.teamId,
+			properties: input.properties,
+		};
+		const requestedKeys = input.keys
+			? new Set(input.keys.map((key) => key.trim()).filter(Boolean))
+			: null;
+
+		const clientFlags = await fromMemory(
+			`fc:${input.clientId}:${input.environment || ""}`,
+			() => getCachedFlagsForClient(input.clientId, input.environment)
+		);
+		let allFlags = clientFlags;
+
+		if (context.userId) {
+			const userId = context.userId;
+			const userFlags = await fromMemory(
+				`fu:${userId}:${input.clientId}:${input.environment || ""}`,
+				() => getCachedFlagsForUser(userId, input.clientId, input.environment)
+			);
+			if (userFlags.length > 0) {
+				const clientKeys = new Set(clientFlags.map((flag) => flag.key));
+				const uniqueUserFlags = userFlags.filter(
+					(flag) => !clientKeys.has(flag.key)
+				);
+				allFlags = [...clientFlags, ...uniqueUserFlags];
+			}
+		}
+
+		const flagsToEvaluate = requestedKeys
+			? allFlags.filter((flag) => requestedKeys.has(flag.key))
+			: allFlags;
+		const results: Record<string, FlagResult> = {};
+		for (const flag of flagsToEvaluate) {
+			results[flag.key] = dependenciesSatisfiedFromList(flag, allFlags)
+				? evaluateFlag(flag, context)
+				: dependencyFailure();
+		}
+
+		const count = Object.keys(results).length;
+		mergeWideEvent({
+			flag_total_flags: allFlags.length,
+			flag_evaluated: flagsToEvaluate.length,
+			flag_count: count,
+		});
+		return { flags: results, count };
+	} catch (error) {
+		mergeWideEvent({ flag_error: true });
+		useLogger().error(
+			error instanceof Error ? error : new Error(String(error)),
+			{ flags: { bulk: true, clientId: input.clientId } }
+		);
+		set.status = 500;
+		return { flags: {}, count: 0, error: "Bulk evaluation failed" };
+	}
+}
+
 const variantBodySchema = t.Object({
 	key: t.String({ minLength: 1 }),
 	type: t.Union([t.Literal("string"), t.Literal("number"), t.Literal("json")]),
@@ -742,10 +847,20 @@ const variantBodySchema = t.Object({
 export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 	.onAfterHandle(({ set, request }) => {
 		if (!set.status || set.status === 200) {
-			const pathname = new URL(request.url).pathname;
-			set.headers["cache-control"] = PUBLIC_CACHE_PATH_RE.test(pathname)
-				? FLAG_CACHE_CONTROL
-				: "private, no-store";
+			const url = new URL(request.url);
+			const hasTargetingContext = [
+				"userId",
+				"email",
+				"organizationId",
+				"teamId",
+				"properties",
+			].some((key) => url.searchParams.has(key));
+			set.headers["cache-control"] =
+				request.method === "GET" &&
+				!hasTargetingContext &&
+				PUBLIC_CACHE_PATH_RE.test(url.pathname)
+					? FLAG_CACHE_CONTROL
+					: "private, no-store";
 		}
 		set.headers.vary = "Origin";
 	})
@@ -848,99 +963,30 @@ export const flagsRoute = new Elysia({ prefix: "/v1/flags" })
 
 	.get(
 		"/bulk",
-		async function bulkEvaluateFlags({ query, set, request }) {
-			if (!(await enforcePublicFlagRateLimit(request, query.clientId, set))) {
-				return { flags: [], reason: "RATE_LIMITED" };
-			}
-
-			mergeWideEvent({
-				flag_bulk: true,
-				flag_client_id: query.clientId || "",
-				flag_has_user_id: Boolean(query.userId),
-				flag_has_email: Boolean(query.email),
-				flag_environment: query.environment || "",
-			});
-
-			try {
-				if (!query.clientId) {
-					mergeWideEvent({ flag_error: "missing_client_id" });
-					set.status = 400;
-					return {
-						flags: {},
-						count: 0,
-						error: "Missing required clientId parameter",
-					};
-				}
-
-				const context: UserContext = {
+		function bulkEvaluateFlags({ query, set, request }) {
+			return evaluateBulkFlags(
+				{
+					clientId: query.clientId,
+					keys: query.keys?.split(","),
 					userId: query.userId,
 					email: query.email,
 					organizationId: query.organizationId,
 					teamId: query.teamId,
 					properties: parseProperties(query.properties),
-				};
-
-				const requestedKeys = query.keys
-					? new Set(
-							query.keys
-								.split(",")
-								.map((k) => k.trim())
-								.filter(Boolean)
-						)
-					: null;
-
-				const clientFlags = await fromMemory(
-					`fc:${query.clientId}:${query.environment || ""}`,
-					() => getCachedFlagsForClient(query.clientId, query.environment)
-				);
-
-				let allFlags = clientFlags;
-
-				if (context.userId) {
-					const uid = context.userId;
-					const userFlags = await fromMemory(
-						`fu:${uid}:${query.clientId}:${query.environment || ""}`,
-						() => getCachedFlagsForUser(uid, query.clientId, query.environment)
-					);
-					if (userFlags.length > 0) {
-						const clientKeys = new Set(clientFlags.map((f) => f.key));
-						const uniqueUserFlags = userFlags.filter(
-							(f) => !clientKeys.has(f.key)
-						);
-						allFlags = [...clientFlags, ...uniqueUserFlags];
-					}
-				}
-
-				const flagsToEvaluate = requestedKeys
-					? allFlags.filter((f) => requestedKeys.has(f.key))
-					: allFlags;
-
-				const results: Record<string, FlagResult> = {};
-				for (const flag of flagsToEvaluate) {
-					results[flag.key] = dependenciesSatisfiedFromList(flag, allFlags)
-						? evaluateFlag(flag, context)
-						: dependencyFailure();
-				}
-
-				const count = Object.keys(results).length;
-				mergeWideEvent({
-					flag_total_flags: allFlags.length,
-					flag_evaluated: flagsToEvaluate.length,
-					flag_count: count,
-				});
-
-				return { flags: results, count };
-			} catch (error) {
-				mergeWideEvent({ flag_error: true });
-				useLogger().error(
-					error instanceof Error ? error : new Error(String(error)),
-					{ flags: { bulk: true, clientId: query.clientId } }
-				);
-				set.status = 500;
-				return { flags: {}, count: 0, error: "Bulk evaluation failed" };
-			}
+					environment: query.environment,
+				},
+				set,
+				request
+			);
 		},
 		{ query: bulkFlagQuerySchema }
+	)
+	.post(
+		"/bulk",
+		function bulkEvaluateFlagsPost({ body, set, request }) {
+			return evaluateBulkFlags(body, set, request);
+		},
+		{ body: bulkFlagBodySchema }
 	)
 
 	.get(

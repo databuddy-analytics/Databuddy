@@ -10,6 +10,7 @@ import { registerProcessErrorHandlers } from "@/bootstrap/process-errors";
 import { registerShutdownHooks, warmPostgresPool } from "@/bootstrap/shutdown";
 import { isAllowedApiOrigin } from "@/http/cors";
 import { handleAppError } from "@/http/errors";
+import { getRequestId } from "@/http/request-id";
 import { AUTUMN_API_PREFIX } from "@/lib/autumn-mount";
 import { enrichApiWideEvent } from "@/lib/evlog-api";
 import { enrichRequestAuthWideEvent } from "@/middleware/auth-wide-event";
@@ -81,10 +82,20 @@ const app = new Elysia({ precompile: true })
 			enrich: enrichApiWideEvent,
 		})
 	)
+	.onBeforeHandle(({ request, set }) => {
+		set.headers["X-Request-ID"] = getRequestId(request);
+	})
 	.onBeforeHandle(({ request }) => enrichRequestAuthWideEvent(request))
 	.use(
 		cors({
 			credentials: true,
+			exposeHeaders: [
+				"X-Request-ID",
+				"Retry-After",
+				"X-RateLimit-Limit",
+				"X-RateLimit-Remaining",
+				"X-RateLimit-Reset",
+			],
 			origin: isAllowedApiOrigin,
 		})
 	)

@@ -19,7 +19,7 @@ import {
 } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
-import { ratelimit } from "@databuddy/redis/rate-limit";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import {
@@ -59,6 +59,7 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from "../schemas/query-schemas";
+import { getRequestId } from "../http/request-id";
 
 const parsedPerWebsiteQueryConcurrency = Number(
 	process.env.PER_WEBSITE_QUERY_CONCURRENCY ?? 8
@@ -311,10 +312,6 @@ function validatePaginationFields(
 	return errors;
 }
 
-function generateRequestId(): string {
-	return `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
-
 interface AuthContext {
 	// Session active org; used when query omits organization_id.
 	activeOrganizationId: string | null;
@@ -351,6 +348,7 @@ function createAuthFailedResponse(requestId: string): Response {
 			status: 401,
 			headers: {
 				"Content-Type": "application/json",
+				"X-Request-ID": requestId,
 				"WWW-Authenticate": `Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`,
 			},
 		}
@@ -391,20 +389,24 @@ async function enforceQueryRateLimit(
 	if (rl.success) {
 		return null;
 	}
+	const retryAfter = Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000));
 	return new Response(
 		JSON.stringify({
 			success: false,
 			error: "Rate limit exceeded",
 			code: "RATE_LIMITED",
 			requestId,
+			limit: rl.limit,
+			remaining: rl.remaining,
+			reset: rl.reset,
+			retryAfter,
 		}),
 		{
 			status: 429,
 			headers: {
 				"Content-Type": "application/json",
-				"X-RateLimit-Limit": String(rl.limit),
-				"X-RateLimit-Remaining": String(rl.remaining),
-				"X-RateLimit-Reset": String(rl.reset),
+				"X-Request-ID": requestId,
+				...getRateLimitHeaders(rl),
 			},
 		}
 	);
@@ -420,6 +422,9 @@ function createErrorResponse(
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 	};
+	if (requestId) {
+		headers["X-Request-ID"] = requestId;
+	}
 	if (status === 401) {
 		headers["WWW-Authenticate"] =
 			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
@@ -1216,9 +1221,9 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		};
 	})
 
-	.get("/websites", ({ auth: ctx }) =>
+	.get("/websites", ({ auth: ctx, request }) =>
 		(async () => {
-			const requestId = generateRequestId();
+			const requestId = getRequestId(request);
 			if (!ctx.isAuthenticated) {
 				return createAuthFailedResponse(requestId);
 			}
@@ -1232,29 +1237,38 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		})()
 	)
 
-	.get("/types", ({ query: params }: { query: { include_meta?: string } }) => {
-		const requestId = generateRequestId();
-		const includeMeta = params.include_meta === "true";
-		const configs = Object.fromEntries(
-			Object.entries(QueryBuilders).map(([key, cfg]) => [
-				key,
-				{
-					allowedFilters: allowedFilterFields(cfg),
-					customizable: cfg.customizable,
-					defaultLimit: cfg.limit,
-					publicAccess: cfg.publicAccess === true,
-					...(includeMeta && { meta: cfg.meta }),
-				},
-			])
-		);
-		return {
-			success: true,
-			requestId,
-			types: Object.keys(QueryBuilders),
-			configs,
-			presets: Object.keys(DatePresets),
-		};
-	})
+	.get(
+		"/types",
+		({
+			query: params,
+			request,
+		}: {
+			query: { include_meta?: string };
+			request: Request;
+		}) => {
+			const requestId = getRequestId(request);
+			const includeMeta = params.include_meta === "true";
+			const configs = Object.fromEntries(
+				Object.entries(QueryBuilders).map(([key, cfg]) => [
+					key,
+					{
+						allowedFilters: allowedFilterFields(cfg),
+						customizable: cfg.customizable,
+						defaultLimit: cfg.limit,
+						publicAccess: cfg.publicAccess === true,
+						...(includeMeta && { meta: cfg.meta }),
+					},
+				])
+			);
+			return {
+				success: true,
+				requestId,
+				types: Object.keys(QueryBuilders),
+				configs,
+				presets: Object.keys(DatePresets),
+			};
+		}
+	)
 
 	.post(
 		"/compile",
@@ -1269,7 +1283,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			auth: AuthContext;
 			request: Request;
 		}) => {
-			const requestId = generateRequestId();
+			const requestId = getRequestId(request);
 			const rateLimited = await enforceQueryRateLimit(
 				ctx,
 				"compile",
@@ -1339,7 +1353,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			request: Request;
 		}) =>
 			(async () => {
-				const requestId = generateRequestId();
+				const requestId = getRequestId(request);
 				const timezone = validateTimezone(q.timezone) || "UTC";
 				const rateLimited = await enforceQueryRateLimit(
 					ctx,
@@ -1530,7 +1544,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			request: Request;
 		}) =>
 			(async () => {
-				const requestId = generateRequestId();
+				const requestId = getRequestId(request);
 				const rateLimited = await enforceQueryRateLimit(
 					ctx,
 					"custom",

@@ -98,16 +98,20 @@ const app = new Elysia()
 			set.headers["Access-Control-Allow-Credentials"] = "true";
 		}
 	})
-	.onError(function handleError({ error, code }) {
+	.onError(function handleError({ error, code, request, set }) {
 		if (code === "NOT_FOUND") {
 			return new Response(null, { status: 404 });
 		}
 
-		captureError(error);
+		const requestId =
+			request.headers.get("x-request-id") ?? crypto.randomUUID();
+		captureError(error, { requestId });
 
 		const { status, payload } = buildBasketErrorPayload(error, {
 			elysiaCode: code ?? "INTERNAL_SERVER_ERROR",
+			extra: { requestId },
 		});
+		set.headers["x-request-id"] = requestId;
 
 		return new Response(JSON.stringify(payload), {
 			status,

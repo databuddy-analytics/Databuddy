@@ -447,7 +447,12 @@ export const integrations = new Elysia({ prefix: "/v1/integrations" })
 					slack_oauth: "callback",
 					provider_error: query.error,
 				});
-				return integrationsRedirect("error", "Slack authorization failed");
+				return integrationsRedirect(
+					"error",
+					query.error === "access_denied"
+						? "Slack wasn't connected because authorization was canceled"
+						: "Slack authorization failed"
+				);
 			}
 			try {
 				if (!(query.code && query.state)) {
