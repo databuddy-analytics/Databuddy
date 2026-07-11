@@ -53,6 +53,14 @@ export async function postChartImages({
 	}
 
 	const skipped = charts.length - Math.min(charts.length, MAX_CHART_UPLOADS);
+	if (skipped > 0) {
+		await say({
+			text: `_Showing the first ${MAX_CHART_UPLOADS} of ${charts.length} charts. ${skipped} more not shown._`,
+			thread_ts: run.threadTs,
+		}).catch((error) => {
+			logger.warn("Failed to post chart skip notice", toError(error));
+		});
+	}
 	setSlackLog(eventLog, {
 		slack_chart_fallbacks: fallbacks,
 		slack_chart_uploads: uploaded,

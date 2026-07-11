@@ -81,15 +81,20 @@ describe("postChartImages", () => {
 			uploads++;
 			return Promise.resolve({ ok: true });
 		});
+		const said: string[] = [];
 
 		await postChartImages({
 			charts: [],
 			client,
 			logger,
 			run,
-			say: () => Promise.resolve(),
+			say: (message) => {
+				said.push(message.text);
+				return Promise.resolve();
+			},
 		});
 
 		expect(uploads).toBe(0);
+		expect(said).toHaveLength(0);
 	});
 });
