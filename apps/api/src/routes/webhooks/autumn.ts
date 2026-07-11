@@ -360,9 +360,9 @@ export async function handleLimitReached(
 			autumn: { customerId: customer_id, entityId: entity_id },
 		});
 		return {
-			success: true,
+			success: false,
 			message:
-				"Billing usage email skipped: organization could not be resolved",
+				"Billing usage email deferred: organization could not be resolved",
 		};
 	}
 
@@ -421,9 +421,9 @@ export async function handleUsageAlert(
 			autumn: { customerId: customer_id, entityId: entity_id },
 		});
 		return {
-			success: true,
+			success: false,
 			message:
-				"Billing usage email skipped: organization could not be resolved",
+				"Billing usage email deferred: organization could not be resolved",
 		};
 	}
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { MonitorStatus } from "./types";
 import {
 	buildTransitionNotificationPayload,
+	buildUptimeDeliveryPlan,
 	countFiredAlarms,
 	resolveTransitionKind,
 	resolveUptimeEmailPreference,
@@ -172,6 +173,15 @@ describe("shouldReleaseTransitionClaim", () => {
 		expect(shouldReleaseTransitionClaim(2, 1)).toBe(false);
 		expect(shouldReleaseTransitionClaim(0, 0)).toBe(false);
 	});
+
+	test("releases when email delivery is deferred and no non-email alarm fires", () => {
+		expect(shouldReleaseTransitionClaim(0, 0, true)).toBe(true);
+		expect(shouldReleaseTransitionClaim(2, 0, true)).toBe(true);
+	});
+
+	test("keeps the claim after non-email delivery to avoid duplicate retries", () => {
+		expect(shouldReleaseTransitionClaim(1, 1, true)).toBe(false);
+	});
 });
 
 describe("resolveUptimeEmailPreference", () => {
@@ -187,6 +197,62 @@ describe("resolveUptimeEmailPreference", () => {
 
 		expect(resolveUptimeEmailPreference(settings, "down")).toBe(false);
 		expect(resolveUptimeEmailPreference(settings, "recovered")).toBe(true);
+	});
+});
+
+describe("buildUptimeDeliveryPlan", () => {
+	test("defers only email destinations when preference lookup fails", () => {
+		const plan = buildUptimeDeliveryPlan(
+			[
+				{
+					id: "alarm-1",
+					destinations: [
+						{ type: "email", identifier: "ops@example.com", config: {} },
+						{
+							type: "slack",
+							identifier: "https://hooks.slack.com/services/test",
+							config: {},
+						},
+						{
+							type: "webhook",
+							identifier: "https://example.com/alerts",
+							config: {},
+						},
+					],
+				},
+			],
+			null
+		);
+
+		expect(plan.emailDeliveryDeferred).toBe(true);
+		expect(plan.sendable).toHaveLength(1);
+		expect(plan.sendable[0]?.destinations.map((dest) => dest.type)).toEqual([
+			"slack",
+			"webhook",
+		]);
+	});
+
+	test("leaves an email-only alarm retryable when settings are unavailable", () => {
+		const plan = buildUptimeDeliveryPlan(
+			[
+				{
+					id: "alarm-1",
+					destinations: [
+						{ type: "email", identifier: "ops@example.com", config: {} },
+					],
+				},
+			],
+			null
+		);
+
+		expect(plan.sendable).toEqual([]);
+		expect(
+			shouldReleaseTransitionClaim(
+				plan.sendable.length,
+				0,
+				plan.emailDeliveryDeferred
+			)
+		).toBe(true);
 	});
 });
 

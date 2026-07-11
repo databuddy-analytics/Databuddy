@@ -38,7 +38,7 @@ class NotificationSendError extends Data.TaggedError("NotificationSendError")<{
 	cause: unknown;
 }> {}
 
-interface LinkedAlarm {
+export interface LinkedAlarm {
 	destinations: Array<{ type: string; identifier: string; config: unknown }>;
 	id: string;
 }
@@ -85,9 +85,16 @@ export function countFiredAlarms(deliveryCounts: number[]): number {
 
 export function shouldReleaseTransitionClaim(
 	sendableAlarmCount: number,
-	firedAlarmCount: number
+	firedAlarmCount: number,
+	emailDeliveryDeferred = false
 ): boolean {
-	return sendableAlarmCount > 0 && firedAlarmCount === 0;
+	if (firedAlarmCount > 0) {
+		// A successful non-email destination owns the transition claim. Releasing
+		// it would duplicate that delivery; retrying only the deferred email needs
+		// a durable per-destination outbox.
+		return false;
+	}
+	return sendableAlarmCount > 0 || emailDeliveryDeferred;
 }
 
 export function resolveUptimeEmailPreference(
@@ -298,6 +305,23 @@ function filterUptimeEmailDestinations(
 	};
 }
 
+export function buildUptimeDeliveryPlan(
+	alarms: LinkedAlarm[],
+	emailPreference: boolean | null
+): {
+	emailDeliveryDeferred: boolean;
+	sendable: LinkedAlarm[];
+} {
+	return {
+		emailDeliveryDeferred: emailPreference === null,
+		sendable: alarms
+			.map((alarm) =>
+				filterUptimeEmailDestinations(alarm, emailPreference === true)
+			)
+			.filter((alarm) => alarm.destinations.length > 0),
+	};
+}
+
 const sendToAlarm = (
 	alarm: LinkedAlarm,
 	payload: Parameters<NotificationClient["send"]>[0]
@@ -448,10 +472,6 @@ const handleTransition = (options: {
 			})
 		);
 		const emailsEnabled = resolveUptimeEmailPreference(emailSettings, kind);
-		if (emailsEnabled === null) {
-			yield* releaseClaim;
-			return { alarms_fired: 0, transition_kind: kind };
-		}
 
 		const siteLabel = buildSiteLabel(options.schedule);
 		const dashboardUrl = `${config.urls.dashboard}/monitors/${options.schedule.id}`;
@@ -464,9 +484,10 @@ const handleTransition = (options: {
 			siteLabel,
 		});
 
-		const sendable = linkedAlarms
-			.map((alarm) => filterUptimeEmailDestinations(alarm, emailsEnabled))
-			.filter((alarm) => alarm.destinations.length > 0);
+		const { emailDeliveryDeferred, sendable } = buildUptimeDeliveryPlan(
+			linkedAlarms,
+			emailsEnabled
+		);
 
 		const results = yield* Effect.all(
 			sendable.map((alarm) => sendToAlarm(alarm, payload)),
@@ -474,7 +495,13 @@ const handleTransition = (options: {
 		);
 
 		const fired = countFiredAlarms(results);
-		if (shouldReleaseTransitionClaim(sendable.length, fired)) {
+		if (
+			shouldReleaseTransitionClaim(
+				sendable.length,
+				fired,
+				emailDeliveryDeferred
+			)
+		) {
 			yield* releaseClaim;
 		}
 		return { alarms_fired: fired, transition_kind: kind };

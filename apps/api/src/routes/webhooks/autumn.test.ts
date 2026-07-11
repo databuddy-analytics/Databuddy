@@ -393,7 +393,7 @@ describe("Autumn usage emails", () => {
 		expect(state.send).not.toHaveBeenCalled();
 	});
 
-	it("suppresses usage alerts when multiple organizations are ambiguous", async () => {
+	it("defers usage alerts when multiple organizations are ambiguous", async () => {
 		state.ownedOrganizations.push({
 			organizationId: "org-2",
 			organization: {
@@ -413,15 +413,15 @@ describe("Autumn usage emails", () => {
 		});
 
 		expect(result).toEqual({
-			success: true,
-			message: "Billing usage email skipped: organization could not be resolved",
+			success: false,
+			message: "Billing usage email deferred: organization could not be resolved",
 		});
 		expect(state.check).not.toHaveBeenCalled();
 		expect(UsageAlertEmail).not.toHaveBeenCalled();
 		expect(state.send).not.toHaveBeenCalled();
 	});
 
-	it("suppresses limit alerts when the entity does not resolve", async () => {
+	it("defers limit alerts when the entity does not resolve", async () => {
 		const result = await handleLimitReached({
 			customer_id: "user-1",
 			entity_id: "org-missing",
@@ -430,8 +430,8 @@ describe("Autumn usage emails", () => {
 		});
 
 		expect(result).toEqual({
-			success: true,
-			message: "Billing usage email skipped: organization could not be resolved",
+			success: false,
+			message: "Billing usage email deferred: organization could not be resolved",
 		});
 		expect(state.check).not.toHaveBeenCalled();
 		expect(UsageLimitEmail).not.toHaveBeenCalled();
