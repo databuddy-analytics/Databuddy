@@ -37,6 +37,9 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Shared agent integrations should call `@databuddy/ai/agent` (`askDatabuddyAgent` / `streamDatabuddyAgent`) instead of importing internal MCP run/history helpers directly.
 - First-party ads attribution work should start by preserving UTMs into registration and signup events only; do not add RPC plumbing, conversion destinations, env hooks, tables, workers, or UI until explicitly needed.
 - Insights generation logic belongs in `apps/insights` and should reuse `@databuddy/ai`; `apps/api` should only read insight data or queue runs, not own prompts, model calls, tool loops, validation, or persistence orchestration.
+- Automated insight digests have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
+- Insight run items are execution metadata, not rendered insight content; previews should use run status/counts or query real insights, never infer titles or bodies from run items.
+- Insight Slack delivery must resolve each channel binding to its active same-organization integration; never choose an arbitrary organization bot token.
 - Agent ClickHouse SQL must use the canonical analytics.events schema: `client_id`, `time`, `path`, `event_name`, and pageviews as `event_name = 'screen_view'`; never `website_id`, `created_at`, `page_path`, `event_type`, or `pageview`.
 - Slack agent evals live in `packages/evals`: use `bun run eval --surface slack` for the whole Slack surface. `--tag slack` is only a tiny smoke subset, and `cost_fallback` in agent telemetry is pricing-catalog fallback, not proof the model request fell back.
 - Slack agent expected stops such as exhausted Databunny credits should throw `DatabuddyAgentUserError` from `@databuddy/ai/agent/errors`; Slack surfaces those messages directly and reserves the generic reconnect copy for real infrastructure failures.
@@ -110,7 +113,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Funnel rows keep the action menu outside the main toggle button; put row padding on the sibling `Button`, not only on `List.Row`, so the visible row surface is clickable without nesting buttons.
 - Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, Anomalies, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
 - Dashboard definitions for feature flags and target groups are admin surfaces; do not expose even sanitized rows to demo-tier/public website access.
-- Insights merged feed (`use-insights-feed`) collapses history + AI by `insightSignalDedupeKey` in `apps/dashboard/lib/insight-signal-key.ts` so the list is one row per signal (latest wins).
+- Insights feed (`use-insights-feed`) collapses persisted history by `insightSignalDedupeKey` in `apps/dashboard/lib/insight-signal-key.ts` so the list is one row per signal (latest wins); reads must not invoke AI generation.
 - Insights page (`app/(main)/insights`) should stay focused on the brief + signal queue; do not add generic global analytics KPI cards or top pages/referrers/countries tables there.
 - Theme: `apps/dashboard/app/globals.css`. **`--border` is intentionally subtle**; do not crank it darker for “contrast” unless **iza** asks—prefer text tokens or layout for readability.
 - Website analytics filters are two-way synced between Jotai and the `filters` URL param in `app/(main)/websites/[id]/layout.tsx`; guard URL-driven atom writes from echoing stale atom state back into `nuqs`, or adding a filter can lock the page during form submit.
@@ -140,10 +143,10 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ## Billing (Autumn)
 
+- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as Databunny usage or an AI analysis allowance and explain what it enables.
 - `autumn-js` v1.2.2+ — import `autumnHandler` from `autumn-js/fetch` (NOT `autumn-js/elysia`, that export was removed in v1.0)
 - For Elysia, mount with `.mount(autumnHandler(...))` — NOT `.use()`
 - `identify` callback receives `(request: Request)` directly, not `({ request })`
-- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as Databunny usage or an AI analysis allowance and explain what it enables.
 - Webhook event types: `balances.limit_reached` (replaces old `customer.threshold_reached`), `customer.products.updated`, `balances.usage_alert_triggered`
 - `balances.limit_reached` payload is flat: `{ customer_id, feature_id, entity_id?, limit_type }` — no full customer object
 - SDK `Customer` type uses camelCase (`balances`, `subscriptions`, `overageAllowed`), but **webhook payloads are snake_case** and use old field names (`features`, `products`, `included_usage`, `overage_allowed`) — do NOT use the SDK `Customer` type for webhooks
@@ -170,10 +173,10 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Published SDK logic: `packages/sdk/src`
 - Browser tracker bundle: `packages/tracker/src`
+- When a retryable batch failure restores events to an in-memory queue, it must also restore an automatic retry timer with capped backoff; requeueing alone silently stalls delivery.
 - Public SDK/tracker visitor ID privacy is only `anonymizeVisitorIds` (`true`/omitted = anonymized, `false` = raw IDs, `"auto"` = raw only in Databuddy's conservative country allowlist).
 - Keep visitor ID privacy internals small and direct; avoid exported helper stacks or storage/hashing vocabulary for this option.
 - If the user reports missing analytics events, inspect both the producer side and `apps/basket`
-- When a retryable batch failure restores events to an in-memory queue, it must also restore an automatic retry timer with capped backoff; requeueing alone silently stalls delivery.
 
 ## Verification
 
