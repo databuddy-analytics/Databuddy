@@ -79,7 +79,6 @@ export default function HomePage() {
 		isLoading: isInsightsLoading,
 		isRefreshing: isInsightsRefreshing,
 		isFetching: isInsightsFetching,
-		isFetchingFresh: isInsightsFetchingFresh,
 		isError: isInsightsError,
 		refetch: refetchInsights,
 	} = useSmartInsights();
@@ -158,7 +157,6 @@ export default function HomePage() {
 						insights={insights}
 						isError={isInsightsError}
 						isFetching={isInsightsFetching}
-						isFetchingFresh={isInsightsFetchingFresh}
 						isLoading={isInsightsLoading}
 						onRefreshAction={refetchInsights}
 					/>

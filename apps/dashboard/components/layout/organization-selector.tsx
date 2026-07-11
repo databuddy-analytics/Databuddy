@@ -16,11 +16,7 @@ import {
 } from "@databuddy/ui/icons";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
-import {
-	AUTH_QUERY_KEYS,
-	useOrganizationsContext,
-} from "@/components/providers/organizations-provider";
-import { orpc } from "@/lib/orpc";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { cn } from "@/lib/utils";
 import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
@@ -116,8 +112,10 @@ function OrgDropdownItems({
 
 export function OrganizationSelector({
 	collapsed = false,
+	container,
 }: {
 	collapsed?: boolean;
+	container?: HTMLElement | null;
 }) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
@@ -163,17 +161,8 @@ export function OrganizationSelector({
 			return;
 		}
 
-		queryClient.removeQueries({ queryKey: orpc.websites.key() });
-		queryClient.removeQueries({ queryKey: orpc.links.list.key() });
-		queryClient.removeQueries({ queryKey: orpc.links.paginated.key() });
-		queryClient.removeQueries({ queryKey: orpc.linkFolders.list.key() });
-		queryClient.removeQueries({ queryKey: orpc.apikeys.list.key() });
-
-		await queryClient.invalidateQueries({
-			queryKey: AUTH_QUERY_KEYS.activeOrganization,
-		});
-		queryClient.invalidateQueries();
-
+		router.push("/websites");
+		queryClient.clear();
 		toast.success("Organization updated");
 	};
 
@@ -251,6 +240,7 @@ export function OrganizationSelector({
 						<DropdownMenu.Content
 							align="start"
 							className="w-56"
+							container={container}
 							side="right"
 							sideOffset={8}
 						>
@@ -313,6 +303,7 @@ export function OrganizationSelector({
 					<DropdownMenu.Content
 						align="start"
 						className="min-w-60"
+						container={container}
 						sideOffset={4}
 					>
 						{dropdownItems}

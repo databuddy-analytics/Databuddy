@@ -75,7 +75,7 @@ export function useInsightsLocalState(
 							saveDismissedIds(organizationId, next);
 							return next;
 						});
-						toast.error("Could not restore insight");
+						toast.error("Could not restore finding");
 					},
 				}
 			);
@@ -106,11 +106,11 @@ export function useInsightsLocalState(
 							saveDismissedIds(organizationId, next);
 							return next;
 						});
-						toast.error("Could not dismiss insight", { id: toastId });
+						toast.error("Could not dismiss finding", { id: toastId });
 					},
 				}
 			);
-			toast.success("Insight dismissed", {
+			toast.success("Finding dismissed", {
 				id: toastId,
 				description: "This pattern is muted for 30 days.",
 				action: {
@@ -135,7 +135,7 @@ export function useInsightsLocalState(
 				onError: () => {
 					setDismissedIds(previous);
 					saveDismissedIds(organizationId, previous);
-					toast.error("Could not clear dismissed insights");
+					toast.error("Could not clear dismissed findings");
 				},
 			}
 		);

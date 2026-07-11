@@ -357,15 +357,6 @@ function InsightCardHeader({
 						</span>
 						<InsightStatusPill insight={insight} />
 						<InsightChange insight={insight} />
-						{insight.chainId && (
-							<>
-								<span className="text-muted-foreground/30">&middot;</span>
-								<span className="inline-flex items-center gap-1 text-violet-500">
-									<LinkIcon className="size-3" weight="duotone" />
-									Cross-site
-								</span>
-							</>
-						)}
 					</span>
 					{!expanded && (
 						<span className="mt-1 line-clamp-2 block text-muted-foreground text-xs leading-relaxed">
@@ -387,18 +378,18 @@ function InsightCardHeader({
 					onDismissAction &&
 					(isDismissed ? (
 						<Button
-							aria-label="Restore insight"
+							aria-label="Restore finding"
 							className="size-6 text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
 							onClick={onDismissAction}
 							size="icon"
-							title="Restore this insight to the queue"
+							title="Restore this finding"
 							variant="ghost"
 						>
 							<ArrowCounterClockwiseIcon className="size-3.5" weight="bold" />
 						</Button>
 					) : (
 						<Button
-							aria-label="Dismiss insight"
+							aria-label="Dismiss finding"
 							className="size-6 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-focus-within:opacity-100 group-hover:opacity-100"
 							onClick={onDismissAction}
 							size="icon"
@@ -487,7 +478,7 @@ function InsightActionPill({
 				toast.success(
 					action.type === "code_fix"
 						? "Copied to clipboard -- paste in Cursor or Claude Code"
-						: "Copied investigation prompt"
+						: "Copied analysis prompt"
 				);
 			} catch {
 				toast.error("Could not copy to clipboard");
@@ -701,7 +692,7 @@ function InsightCardActions({
 	const actions = (
 		<>
 			<Link
-				aria-label="Open AI agent with this insight as context"
+				aria-label="Open AI agent with this finding as context"
 				className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs transition-opacity hover:opacity-90"
 				href={links.agentHref}
 			>
@@ -777,7 +768,7 @@ function InsightOverflowMenu({
 					onClick={() => router.push(`/insights/${insight.id}`)}
 				>
 					<ArrowSquareOutIcon className="size-4" weight="duotone" />
-					Open insight
+					Open finding
 				</DropdownMenu.Item>
 				<DropdownMenu.Item
 					onClick={() => {
@@ -884,7 +875,7 @@ export function InsightCard({
 	});
 
 	const { copyToClipboard: copyLink } = useCopyToClipboard({
-		onCopy: () => toast.success("Copied link to this insight"),
+		onCopy: () => toast.success("Copied link to this finding"),
 	});
 
 	return (

@@ -7,7 +7,6 @@ import type { Insight } from "@/lib/insight-types";
 import { cn } from "@/lib/utils";
 import {
 	ArrowClockwiseIcon,
-	CheckCircleIcon,
 	LightbulbIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
@@ -43,7 +42,7 @@ function InsightSkeleton({ wide }: { wide?: boolean }) {
 	);
 }
 
-function AnalyzingState() {
+function InsightsLoadingState() {
 	return (
 		<div className="divide-y">
 			<div className="flex items-center gap-3 px-5 py-4">
@@ -55,10 +54,10 @@ function AnalyzingState() {
 				</div>
 				<div className="min-w-0 flex-1">
 					<p className="font-medium text-foreground text-sm">
-						Analyzing your websites…
+						Loading stored findings…
 					</p>
 					<p className="text-muted-foreground text-xs">
-						Databunny is checking traffic, errors, and performance
+						Fetching findings from the last completed analysis
 					</p>
 				</div>
 			</div>
@@ -71,15 +70,15 @@ function AnalyzingState() {
 function InsightsEmptyState() {
 	return (
 		<div className="flex items-center gap-3 px-5 py-4">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
-				<CheckCircleIcon className="size-5 text-emerald-500" weight="fill" />
+			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+				<LightbulbIcon className="size-5 text-primary" weight="duotone" />
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">
-					All systems healthy
+					No priority findings
 				</p>
 				<p className="text-muted-foreground text-xs">
-					No actionable insights detected across your websites
+					No stored priority findings from the last completed analysis
 				</p>
 			</div>
 		</div>
@@ -94,10 +93,10 @@ function InsightsErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">
-					Couldn't load insights
+					Couldn't load findings
 				</p>
 				<p className="text-muted-foreground text-xs">
-					AI analysis timed out or failed
+					Stored findings couldn't be loaded
 				</p>
 			</div>
 			{onRetryAction && (
@@ -118,7 +117,6 @@ interface InsightsSectionProps {
 	insights: Insight[];
 	isError?: boolean;
 	isFetching?: boolean;
-	isFetchingFresh?: boolean;
 	isLoading?: boolean;
 	onRefreshAction?: () => void;
 	variant?: "compact" | "full";
@@ -128,7 +126,6 @@ export function SmartInsightsSection({
 	insights,
 	isLoading,
 	isFetching,
-	isFetchingFresh,
 	isError,
 	onRefreshAction,
 	variant = "compact",
@@ -139,10 +136,10 @@ export function SmartInsightsSection({
 				<Card.Header className="flex-row items-center justify-between gap-3">
 					<div className="flex items-center gap-2">
 						<LightbulbIcon className="size-4 text-primary" weight="duotone" />
-						<Card.Title className="text-sm">Actionable Insights</Card.Title>
+						<Card.Title className="text-sm">Findings</Card.Title>
 					</div>
 				</Card.Header>
-				<AnalyzingState />
+				<InsightsLoadingState />
 			</Card>
 		);
 	}
@@ -153,7 +150,7 @@ export function SmartInsightsSection({
 				<Card.Header className="flex-row items-center justify-between gap-3">
 					<div className="flex items-center gap-2">
 						<LightbulbIcon className="size-4 text-primary" weight="duotone" />
-						<Card.Title className="text-sm">Actionable Insights</Card.Title>
+						<Card.Title className="text-sm">Findings</Card.Title>
 					</div>
 				</Card.Header>
 				<InsightsErrorState onRetryAction={onRefreshAction} />
@@ -173,18 +170,13 @@ export function SmartInsightsSection({
 							className="size-4 shrink-0 text-primary"
 							weight="duotone"
 						/>
-						<Card.Title className="text-sm">Actionable Insights</Card.Title>
+						<Card.Title className="text-sm">Findings</Card.Title>
 					</div>
-					{isFetchingFresh && (
-						<p className="mt-1 text-muted-foreground text-xs">
-							Updating with latest analysis…
-						</p>
-					)}
 				</div>
 				<div className="flex shrink-0 items-center gap-2">
 					{showInsights && (
 						<span className="text-muted-foreground text-xs">
-							{insights.length} {insights.length === 1 ? "insight" : "insights"}
+							{insights.length} {insights.length === 1 ? "finding" : "findings"}
 						</span>
 					)}
 					<Link
@@ -195,7 +187,7 @@ export function SmartInsightsSection({
 					</Link>
 					{onRefreshAction && (
 						<Button
-							aria-label="Refresh insights"
+							aria-label="Refresh findings"
 							className="size-6 text-muted-foreground"
 							disabled={isFetching}
 							onClick={onRefreshAction}

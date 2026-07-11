@@ -13,11 +13,9 @@ export function useSmartInsights() {
 	);
 	return {
 		insights,
-		source: feed.source,
 		isLoading: feed.isLoading,
 		isRefreshing: feed.isRefreshing,
 		isFetching: feed.isFetching,
-		isFetchingFresh: feed.isFetchingFresh,
 		isError: feed.isError,
 		refetch: feed.refetch,
 	};

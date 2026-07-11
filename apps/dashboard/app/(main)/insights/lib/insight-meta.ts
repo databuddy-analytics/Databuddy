@@ -39,16 +39,11 @@ export function formatInsightFreshness(insight: Insight): string {
 		}
 		return resolvedLabel;
 	}
-	if (insight.insightSource === "ai") {
-		return "Latest analysis";
+	const createdAt = dayjs(insight.createdAt);
+	if (createdAt.isValid()) {
+		return `Analyzed ${createdAt.fromNow()}`;
 	}
-	if (insight.createdAt) {
-		const d = dayjs(insight.createdAt);
-		if (d.isValid()) {
-			return `From history · ${d.fromNow()}`;
-		}
-	}
-	return "From history";
+	return "Analyzed";
 }
 
 export function formatInsightResolutionLabel(insight: Insight): string | null {
@@ -65,9 +60,9 @@ export function formatInsightResolutionDescription(
 		return null;
 	}
 	if (insight.resolvedReason === "stale") {
-		return "This signal aged out of the active queue.";
+		return "This finding was archived after it became inactive.";
 	}
-	return "This signal stopped firing in a later analysis run.";
+	return "This finding no longer appeared in a later analysis.";
 }
 
 export function buildInsightShareUrl(insightId: string): string {
@@ -109,7 +104,7 @@ export function buildInsightAgentCopyText(insight: Insight): string {
 		insight.suggestion,
 		"",
 		"## Metadata",
-		`Insight type: ${insight.type.replaceAll("_", " ")} · Severity: ${insight.severity} · Priority: ${insight.priority}/10 · Sentiment: ${insight.sentiment}`,
+		`Finding type: ${insight.type.replaceAll("_", " ")} · Severity: ${insight.severity} · Priority: ${insight.priority}/10 · Sentiment: ${insight.sentiment}`,
 	];
 
 	if (insight.changePercent !== undefined) {

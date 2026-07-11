@@ -5,6 +5,7 @@ import { Streamdown } from "streamdown";
 import { cn } from "@/lib/utils";
 import { useOrgNarrative } from "../hooks/use-org-narrative";
 import { insightsRangeAtom } from "../lib/time-range";
+import { TimeRangeSelector } from "./time-range-selector";
 import { ArrowClockwiseIcon, LightbulbIcon } from "@databuddy/ui/icons";
 import { Badge, Button, Card, Skeleton, dayjs } from "@databuddy/ui";
 
@@ -26,17 +27,17 @@ export function CockpitNarrative() {
 						<Card.Title className="text-sm">Brief</Card.Title>
 					</div>
 					<Card.Description>
-						Organization-wide signals · {rangeLabel(range)}
+						Across your organization · {rangeLabel(range)}
 					</Card.Description>
 				</div>
-				{!(isLoading || isError) &&
-					data &&
-					data.success &&
-					data.generatedAt && (
+				<div className="flex shrink-0 items-center gap-2">
+					<TimeRangeSelector />
+					{!(isLoading || isError) && data?.generatedAt && (
 						<Badge className="tabular-nums" variant="muted">
 							Updated {dayjs(data.generatedAt).fromNow(true)} ago
 						</Badge>
 					)}
+				</div>
 			</Card.Header>
 
 			<Card.Content className="min-h-[72px]">
@@ -67,16 +68,10 @@ export function CockpitNarrative() {
 					</div>
 				)}
 
-				{!(isLoading || isError) && data && data.success && (
+				{!(isLoading || isError) && data && (
 					<Streamdown className="max-w-4xl text-[14px] text-foreground leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
 						{data.narrative}
 					</Streamdown>
-				)}
-
-				{!(isLoading || isError) && data && !data.success && (
-					<p className="text-muted-foreground text-sm">
-						Couldn't generate summary
-					</p>
 				)}
 			</Card.Content>
 		</Card>

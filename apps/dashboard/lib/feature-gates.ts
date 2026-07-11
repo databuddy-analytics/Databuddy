@@ -1,5 +1,5 @@
 export const FLAG_KEY_LABELS: Record<string, string> = {
-	insights: "AI Insights",
+	insights: "Findings",
 	revenue: "Revenue Analytics",
 	anomalies: "Anomaly Detection",
 	pulse: "Pulse",
@@ -7,7 +7,7 @@ export const FLAG_KEY_LABELS: Record<string, string> = {
 };
 
 export const FLAG_KEY_DESCRIPTIONS: Record<string, string> = {
-	insights: "Get AI-powered analytics insights across your websites.",
+	insights: "Automatic analysis across your websites.",
 	revenue: "Track revenue attribution and conversion analytics.",
 	anomalies: "Detect unusual traffic patterns and performance anomalies.",
 	pulse: "Real-time uptime monitoring and status checks for your websites.",

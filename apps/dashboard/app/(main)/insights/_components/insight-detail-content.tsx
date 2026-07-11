@@ -3,12 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useInsightsLocalState } from "@/app/(main)/insights/hooks/use-insights-local-state";
 import { TopBar } from "@/components/layout/top-bar";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { insightQueries, type RelatedInsightRow } from "@/lib/insight-api";
-import { mapHistoryRowToInsight } from "@/lib/insight-types";
 import { cn } from "@/lib/utils";
 import { ArrowLeftIcon, LightbulbIcon } from "@databuddy/ui/icons";
 import { Card, EmptyState, Skeleton } from "@databuddy/ui";
@@ -41,12 +40,9 @@ export function InsightDetailContent() {
 	);
 	const relatedQuery = useQuery(insightQueries.related(insightId || undefined));
 
-	const insight = useMemo(
-		() => (data?.insight ? mapHistoryRowToInsight(data.insight) : null),
-		[data?.insight]
-	);
+	const insight = data?.insight ?? null;
 
-	const insightIds = useMemo(() => (insight ? [insight.id] : []), [insight]);
+	const insightIds = insight ? [insight.id] : [];
 	const { feedbackById, setFeedbackAction } = useInsightsLocalState(
 		orgId,
 		insightIds
@@ -57,7 +53,7 @@ export function InsightDetailContent() {
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
 			<TopBar.Title>
-				<h1 className="font-semibold text-sm">Insight</h1>
+				<h1 className="font-semibold text-sm">Finding</h1>
 			</TopBar.Title>
 
 			<div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-5">
@@ -66,11 +62,11 @@ export function InsightDetailContent() {
 					href="/insights"
 				>
 					<ArrowLeftIcon className="size-3.5 shrink-0" />
-					All insights
+					All findings
 				</Link>
 
 				{isLoading && (
-					<Card aria-label="Insight">
+					<Card aria-label="Finding">
 						<div className="space-y-3 p-5">
 							<Skeleton className="h-5 w-2/3 rounded" />
 							<Skeleton className="h-4 w-full rounded" />
@@ -84,7 +80,7 @@ export function InsightDetailContent() {
 						<p className="font-medium text-muted-foreground text-xs">
 							{insight.websiteName ?? insight.websiteDomain}
 						</p>
-						<Card aria-label="Insight">
+						<Card aria-label="Finding">
 							<InsightCard
 								expanded={expanded}
 								feedbackVote={feedbackById[insight.id] ?? null}
@@ -103,16 +99,16 @@ export function InsightDetailContent() {
 				{!(isLoading || insight) && (
 					<EmptyState
 						action={{
-							label: "All insights",
+							label: "All findings",
 							onClick: () => router.push("/insights"),
 						}}
 						description={
 							isError
-								? "This insight is unavailable, or it belongs to a workspace you can't access."
-								: "This insight no longer exists. It may have been cleared, or resolved and aged out of history."
+								? "This finding is unavailable, or it belongs to a workspace you can't access."
+								: "This finding no longer exists. It may have been cleared or aged out of history."
 						}
 						icon={<LightbulbIcon weight="duotone" />}
-						title="Insight not available"
+						title="Finding not available"
 						variant="minimal"
 					/>
 				)}
@@ -130,9 +126,9 @@ function RelatedInsights({
 }) {
 	if (isLoading) {
 		return (
-			<Card aria-label="Related insights">
+			<Card aria-label="Related findings">
 				<Card.Header>
-					<Card.Title className="text-sm">Related insights</Card.Title>
+					<Card.Title className="text-sm">Related findings</Card.Title>
 				</Card.Header>
 				<div className="space-y-2 p-4">
 					{[1, 2, 3].map((i) => (
@@ -148,9 +144,9 @@ function RelatedInsights({
 	}
 
 	return (
-		<Card aria-label="Related insights">
+		<Card aria-label="Related findings">
 			<Card.Header>
-				<Card.Title className="text-sm">Related insights</Card.Title>
+				<Card.Title className="text-sm">Related findings</Card.Title>
 			</Card.Header>
 			<div className="divide-y">
 				{rows.map((row) => {

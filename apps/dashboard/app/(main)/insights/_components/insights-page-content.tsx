@@ -10,7 +10,6 @@ import { useWebsitesLight } from "@/hooks/use-websites";
 import {
 	clearInsightsHistory,
 	insightQueries,
-	type InsightsAiResponse,
 	type InsightsHistoryPage,
 } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
@@ -18,7 +17,6 @@ import { cn } from "@/lib/utils";
 import { CockpitNarrative } from "./cockpit-narrative";
 import { CockpitSignals } from "./cockpit-signals";
 import { InsightGenerationSettings } from "./insight-generation-settings";
-import { TimeRangeSelector } from "./time-range-selector";
 import { ArrowClockwiseIcon, GlobeIcon, TrashIcon } from "@databuddy/ui/icons";
 import { DeleteDialog } from "@databuddy/ui/client";
 import { Button, EmptyState } from "@databuddy/ui";
@@ -51,20 +49,11 @@ export function InsightsPageContent() {
 			setClearDialogOpen(false);
 			clearAllDismissedAction();
 			if (orgId) {
-				const emptyAi: InsightsAiResponse = {
-					success: true,
-					insights: [],
-					source: "ai",
-				};
 				const emptyHistoryPage: InsightsHistoryPage = {
 					success: true,
 					insights: [],
 					hasMore: false,
 				};
-				queryClient.setQueryData<InsightsAiResponse>(
-					insightQueries.ai(orgId).queryKey,
-					emptyAi
-				);
 				queryClient.setQueryData(
 					insightQueries.historyInfinite(orgId).queryKey,
 					{ pages: [emptyHistoryPage], pageParams: [0] }
@@ -75,13 +64,13 @@ export function InsightsPageContent() {
 			}
 			toast.success(
 				data.deleted === 0
-					? "No stored insights to remove"
-					: `Removed ${data.deleted} insight${data.deleted === 1 ? "" : "s"}`
+					? "No stored findings to remove"
+					: `Removed ${data.deleted} finding${data.deleted === 1 ? "" : "s"}`
 			);
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error ? error.message : "Could not clear insights"
+				error instanceof Error ? error.message : "Could not clear findings"
 			);
 		},
 	});
@@ -100,12 +89,11 @@ export function InsightsPageContent() {
 				className="flex h-full flex-col overflow-y-auto"
 			>
 				<TopBar.Title>
-					<h1 className="font-semibold text-sm">Insights</h1>
+					<h1 className="font-semibold text-sm">Findings</h1>
 				</TopBar.Title>
 				<TopBar.Actions>
-					<TimeRangeSelector />
 					<Button
-						aria-label="Refresh insights"
+						aria-label="Refresh findings"
 						disabled={isLoading || websitesLoading}
 						onClick={handleRefreshAll}
 						size="sm"
@@ -127,10 +115,7 @@ export function InsightsPageContent() {
 						<TrashIcon className="size-4 shrink-0" weight="duotone" />
 						Clear all
 					</Button>
-					<InsightGenerationSettings
-						organizationId={orgId}
-						websites={websites}
-					/>
+					<InsightGenerationSettings organizationId={orgId} />
 				</TopBar.Actions>
 
 				{hasNoWebsites ? (
@@ -146,7 +131,7 @@ export function InsightsPageContent() {
 			<DeleteDialog
 				confirmDisabled={!orgId}
 				confirmLabel="Clear all"
-				description="This removes every stored insight for this organization from the database. Fresh insights will be generated on the next analysis run."
+				description="This removes every stored finding for this organization. New findings will be saved after the next analysis."
 				isDeleting={clearInsightsMutation.isPending}
 				isOpen={clearDialogOpen}
 				onClose={() => setClearDialogOpen(false)}
@@ -155,7 +140,7 @@ export function InsightsPageContent() {
 						await clearInsightsMutation.mutateAsync();
 					}
 				}}
-				title="Clear all insights?"
+				title="Clear all findings?"
 			/>
 		</>
 	);
@@ -170,7 +155,7 @@ function EmptyOrgState() {
 					window.location.href = "/websites";
 				},
 			}}
-			description="Add a website to see insights across your organization."
+			description="Add a website to see findings across your organization."
 			icon={<GlobeIcon weight="duotone" />}
 			title="No websites yet"
 			variant="minimal"

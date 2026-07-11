@@ -18,7 +18,6 @@ import {
 	ArrowClockwiseIcon,
 	ArrowsDownUpIcon,
 	CaretDownIcon,
-	CheckCircleIcon,
 	FunnelIcon,
 	LightbulbIcon,
 	WarningCircleIcon,
@@ -205,7 +204,7 @@ export function CockpitSignals(): ReactElement {
 	const visibleCount = filteredInsights.length;
 
 	return (
-		<Card aria-label="Insight queue">
+		<Card aria-label="Findings">
 			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
 					<LightbulbIcon
@@ -213,16 +212,16 @@ export function CockpitSignals(): ReactElement {
 						className="size-4 text-primary"
 						weight="duotone"
 					/>
-					<Card.Title className="text-sm">Insight queue</Card.Title>
+					<Card.Title className="text-sm">Findings</Card.Title>
 				</div>
 				{insights.length > 0 && (
 					<span className="text-muted-foreground text-xs tabular-nums">
 						{visibleCount} of {insights.length}{" "}
-						{insights.length === 1 ? "signal" : "signals"}
+						{insights.length === 1 ? "finding" : "findings"}
 						{counts.resolved > 0 && (
 							<span className="text-emerald-600">
 								{" "}
-								&middot; {counts.resolved} resolved
+								&middot; {counts.resolved} closed
 							</span>
 						)}
 					</span>
@@ -345,16 +344,16 @@ export function CockpitSignals(): ReactElement {
 
 			{isLoading && (
 				<InsightsFetchStatusRow
-					description="Comparing organization-wide traffic, errors, referrers, and product events"
-					title="Loading insights…"
+					description="Loading stored findings across your organization"
+					title="Loading findings…"
 					variant="initial"
 				/>
 			)}
 
 			{!(isLoading || isError) && isRefreshing && (
 				<InsightsFetchStatusRow
-					description="Refreshing organization-wide analysis"
-					title="Updating insights…"
+					description="Refreshing stored findings across your organization"
+					title="Refreshing findings…"
 					variant="refresh"
 				/>
 			)}
@@ -363,7 +362,7 @@ export function CockpitSignals(): ReactElement {
 
 			{!(isLoading || isError) && (
 				<>
-					{insights.length === 0 && !isRefreshing && <AllHealthyState />}
+					{insights.length === 0 && !isRefreshing && <NoFindingsState />}
 
 					{filteredInsights.length > 0 &&
 						filteredInsights.map((insight) => (
@@ -479,9 +478,9 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 				<WarningCircleIcon className="size-5 text-red-500" weight="duotone" />
 			</div>
 			<div className="space-y-1">
-				<p className="font-medium text-foreground">Couldn't load insights</p>
+				<p className="font-medium text-foreground">Couldn't load findings</p>
 				<p className="text-muted-foreground text-sm">
-					AI analysis timed out or failed. Try again.
+					Stored findings couldn't be loaded. Try again.
 				</p>
 			</div>
 			<Button onClick={onRetryAction} size="sm" variant="secondary">
@@ -492,16 +491,16 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 	);
 }
 
-function AllHealthyState() {
+function NoFindingsState() {
 	return (
 		<div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
-				<CheckCircleIcon className="size-5 text-emerald-500" weight="fill" />
+			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+				<LightbulbIcon className="size-5 text-primary" weight="duotone" />
 			</div>
 			<div className="space-y-1">
-				<p className="font-medium text-foreground">No priority insights</p>
+				<p className="font-medium text-foreground">No priority findings</p>
 				<p className="text-pretty text-muted-foreground text-sm">
-					No actionable signals detected for the selected window
+					No stored priority findings from the last completed analysis
 				</p>
 			</div>
 		</div>
@@ -521,7 +520,7 @@ function NoMatchState({
 				<FunnelIcon className="size-5 text-muted-foreground" weight="duotone" />
 			</div>
 			<div className="space-y-1">
-				<p className="font-medium text-foreground">No matching insights</p>
+				<p className="font-medium text-foreground">No matching findings</p>
 				<p className="text-muted-foreground text-sm">
 					Try adjusting your filters
 				</p>

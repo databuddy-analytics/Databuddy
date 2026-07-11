@@ -1,56 +1,27 @@
-import type {
-	Insight,
-	InsightSentiment,
-	InsightType,
-} from "@/lib/insight-types";
+import type { Insight, InsightSentiment } from "@/lib/insight-types";
+import { insightDedupeKey } from "@databuddy/shared/insights";
 
-type Direction = "up" | "down" | "flat";
-
-function directionFromParts(
-	changePercent: number | undefined,
-	sentiment: InsightSentiment
-): Direction {
-	if (
-		changePercent !== undefined &&
-		changePercent !== 0 &&
-		!Number.isNaN(changePercent)
-	) {
-		return changePercent > 0 ? "up" : "down";
-	}
-	if (sentiment === "positive") {
-		return "up";
-	}
-	if (sentiment === "negative") {
-		return "down";
-	}
-	return "flat";
-}
-
-/** Matches server `insightDedupeKey` in @databuddy/ai/insights/dedupe. */
-export function insightSignalDedupeKey(insight: {
-	websiteId: string;
-	type: InsightType;
-	sentiment: InsightSentiment;
-	changePercent?: number;
-}): string {
-	const dir = directionFromParts(insight.changePercent, insight.sentiment);
-	return `${insight.websiteId}|${insight.type}|${dir}`;
+/** Uses the same signal key as persistence. */
+export function insightSignalDedupeKey(
+	insight: Pick<
+		Insight,
+		| "changePercent"
+		| "sentiment"
+		| "subjectKey"
+		| "title"
+		| "type"
+		| "websiteId"
+	>
+): string {
+	return insightDedupeKey(insight);
 }
 
 function insightSortTimeMs(insight: Insight): number {
-	if (insight.createdAt) {
-		const t = new Date(insight.createdAt).getTime();
-		if (!Number.isNaN(t)) {
-			return t;
-		}
-	}
-	if (insight.insightSource === "ai") {
-		return Date.now();
-	}
-	return 0;
+	const time = new Date(insight.createdAt).getTime();
+	return Number.isNaN(time) ? 0 : time;
 }
 
-/** One row per (website, type, direction): keeps the newest version for history noise. */
+/** One row per (website, type, direction, subject): keeps the newest version. */
 export function collapseInsightsBySignal(insights: Insight[]): Insight[] {
 	const sorted = [...insights].sort(
 		(a, b) => insightSortTimeMs(b) - insightSortTimeMs(a)
