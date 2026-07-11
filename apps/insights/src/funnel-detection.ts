@@ -167,7 +167,7 @@ export function defaultFunnelGoalDeps(websiteId: string): FunnelGoalDeps {
 
 export async function detectFunnelGoalSignals(
 	params: DetectSignalsParams,
-	today: dayjs.Dayjs = dayjs().tz(params.timezone),
+	today: dayjs.Dayjs = params.timezone ? dayjs().tz(params.timezone) : dayjs(),
 	deps: FunnelGoalDeps = defaultFunnelGoalDeps(params.websiteId)
 ): Promise<DetectedSignal[]> {
 	const window = wowWindow(today, params.lookbackDays);
