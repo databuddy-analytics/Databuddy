@@ -26,14 +26,16 @@ function Content({
 	side = "bottom",
 	align = "end",
 	sideOffset = 4,
+	container,
 	...rest
 }: ComponentPropsWithoutRef<typeof BaseMenu.Popup> & {
 	side?: ComponentPropsWithoutRef<typeof BaseMenu.Positioner>["side"];
 	align?: ComponentPropsWithoutRef<typeof BaseMenu.Positioner>["align"];
 	sideOffset?: number;
+	container?: ComponentPropsWithoutRef<typeof BaseMenu.Portal>["container"];
 }) {
 	return (
-		<BaseMenu.Portal>
+		<BaseMenu.Portal container={container}>
 			<BaseMenu.Positioner
 				align={align}
 				className="z-50"
