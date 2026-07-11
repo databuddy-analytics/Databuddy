@@ -397,17 +397,7 @@ export class Databuddy extends BaseTracker {
 	}
 
 	private discardPendingEvents(): void {
-		this.batchQueue.length = 0;
-		this.trackQueue.length = 0;
-		this.vitalsQueue.length = 0;
-		this.errorsQueue.length = 0;
-		for (const meta of Object.values(this._meta)) {
-			if (meta.timer) {
-				clearTimeout(meta.timer);
-				meta.timer = null;
-			}
-			meta.retryAttempts = 0;
-		}
+		this.cancelPendingDelivery();
 	}
 
 	destroy() {

@@ -45,6 +45,7 @@ const MIN_RETRY_DELAY = 250;
 const MAX_RETRY_DELAY = 30_000;
 
 interface QueueMeta {
+	activeDeliveryGeneration: number | null;
 	endpoint: string;
 	flushing: boolean;
 	queryParam: string;
@@ -90,6 +91,7 @@ export class BaseTracker {
 	private readonly routeChangeCallbacks: Array<(path: string) => void> = [];
 
 	protected urlParams: Record<string, string> = {};
+	private deliveryGeneration = 0;
 
 	constructor(options: TrackerOptions) {
 		if (!options.clientId || typeof options.clientId !== "string") {
@@ -132,6 +134,7 @@ export class BaseTracker {
 
 		this._meta = {
 			batch: {
+				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
 				endpoint: "/batch",
@@ -140,6 +143,7 @@ export class BaseTracker {
 				threshold: this.options.batchSize || 10,
 			},
 			vitals: {
+				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
 				endpoint: "/vitals",
@@ -148,6 +152,7 @@ export class BaseTracker {
 				threshold: 6,
 			},
 			errors: {
+				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
 				endpoint: "/errors",
@@ -156,6 +161,7 @@ export class BaseTracker {
 				threshold: 10,
 			},
 			track: {
+				activeDeliveryGeneration: null,
 				timer: null,
 				flushing: false,
 				endpoint: "/track",
@@ -351,6 +357,7 @@ export class BaseTracker {
 	}
 
 	private sendIdentify(profileId: string, traits?: ProfileTraits): void {
+		const deliveryGeneration = this.deliveryGeneration;
 		this.api
 			.fetch(
 				"/identify",
@@ -359,7 +366,7 @@ export class BaseTracker {
 				{ client_id: this.options.clientId }
 			)
 			.then((result) => {
-				if (!result.ok) {
+				if (!result.ok || deliveryGeneration !== this.deliveryGeneration) {
 					return;
 				}
 				try {
@@ -386,6 +393,7 @@ export class BaseTracker {
 
 	protected shouldSkipTracking(): boolean {
 		if (typeof window !== "undefined" && isOptedOut()) {
+			this.cancelPendingDelivery();
 			this.clearStoredVisitorState();
 			return true;
 		}
@@ -417,6 +425,25 @@ export class BaseTracker {
 
 	protected shouldBlockQueuedDelivery(): boolean {
 		return this.shouldSkipTracking();
+	}
+
+	protected cancelPendingDelivery(): void {
+		this.deliveryGeneration += 1;
+		this.api.cancelPendingRequests();
+		this.batchQueue.length = 0;
+		this.trackQueue.length = 0;
+		this.vitalsQueue.length = 0;
+		this.errorsQueue.length = 0;
+
+		for (const meta of Object.values(this._meta)) {
+			if (meta.timer) {
+				clearTimeout(meta.timer);
+				meta.timer = null;
+			}
+			meta.activeDeliveryGeneration = null;
+			meta.flushing = false;
+			meta.retryAttempts = 0;
+		}
 	}
 
 	protected getMaskedPath(): string {
@@ -598,7 +625,9 @@ export class BaseTracker {
 			return { ok: true, status: "skipped", count: 0 };
 		}
 
+		const deliveryGeneration = this.deliveryGeneration;
 		meta.flushing = true;
+		meta.activeDeliveryGeneration = deliveryGeneration;
 		const items = queue.slice();
 		queue.length = 0;
 
@@ -609,7 +638,13 @@ export class BaseTracker {
 				{ keepalive: true },
 				{ [meta.queryParam]: this.options.clientId }
 			);
-			if (!result.ok && result.retryable && !this.shouldBlockQueuedDelivery()) {
+			if (
+				deliveryGeneration === this.deliveryGeneration &&
+				!result.ok &&
+				result.retryable &&
+				!this.shouldBlockQueuedDelivery() &&
+				deliveryGeneration === this.deliveryGeneration
+			) {
 				queue.unshift(...items);
 				meta.retryAttempts += 1;
 				this._scheduleQueueFlush(
@@ -617,12 +652,15 @@ export class BaseTracker {
 					meta,
 					this._retryDelay(meta.retryAttempts)
 				);
-			} else {
+			} else if (deliveryGeneration === this.deliveryGeneration) {
 				meta.retryAttempts = 0;
 			}
 			return this.toSendOutcome(result, items.length);
 		} finally {
-			meta.flushing = false;
+			if (meta.activeDeliveryGeneration === deliveryGeneration) {
+				meta.activeDeliveryGeneration = null;
+				meta.flushing = false;
+			}
 		}
 	}
 

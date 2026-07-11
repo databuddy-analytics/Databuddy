@@ -57,6 +57,7 @@ export class HttpClient {
 	headers: Record<string, string>;
 	maxRetries: number;
 	initialRetryDelay: number;
+	private readonly activeRequests = new Set<AbortController>();
 
 	constructor(config: ClientConfig) {
 		this.baseUrl = config.baseUrl;
@@ -74,6 +75,47 @@ export class HttpClient {
 		options: RequestInit = {},
 		retryCount = 0
 	): Promise<HttpResult<T>> {
+		const controller = new AbortController();
+		const callerSignal = options.signal;
+		const abortFromCaller = () => controller.abort();
+
+		if (callerSignal?.aborted) {
+			controller.abort();
+		} else {
+			callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+		}
+		this.activeRequests.add(controller);
+
+		try {
+			return await this.postAttempt<T>(
+				url,
+				data,
+				{ ...options, signal: controller.signal },
+				retryCount
+			);
+		} finally {
+			this.activeRequests.delete(controller);
+			callerSignal?.removeEventListener("abort", abortFromCaller);
+		}
+	}
+
+	cancelPendingRequests(): void {
+		for (const controller of this.activeRequests) {
+			controller.abort();
+		}
+	}
+
+	private async postAttempt<T>(
+		url: string,
+		data: unknown,
+		options: RequestInit,
+		retryCount: number
+	): Promise<HttpResult<T>> {
+		const signal = options.signal;
+		if (signal?.aborted) {
+			return this.abortedResult(retryCount);
+		}
+
 		if (
 			retryCount === 0 &&
 			typeof navigator !== "undefined" &&
@@ -108,13 +150,19 @@ export class HttpClient {
 				...options,
 			});
 			const text = await response.text();
+			if (signal?.aborted) {
+				return this.abortedResult(retryCount + 1);
+			}
 			const body = parseResponseBody(text);
 
 			if (!response.ok) {
 				const retryable = isRetryableStatus(response.status);
 				if (retryable && retryCount < this.maxRetries) {
-					await this.waitBeforeRetry(retryCount);
-					return this.post(url, data, options, retryCount + 1);
+					const shouldRetry = await this.waitBeforeRetry(retryCount, signal);
+					if (!shouldRetry) {
+						return this.abortedResult(retryCount + 1);
+					}
+					return this.postAttempt(url, data, options, retryCount + 1);
 				}
 				return {
 					ok: false,
@@ -135,13 +183,22 @@ export class HttpClient {
 				transport: "fetch",
 			};
 		} catch (error) {
+			if (
+				signal?.aborted ||
+				(error instanceof Error && error.name === "AbortError")
+			) {
+				return this.abortedResult(retryCount + 1);
+			}
 			const isNetworkError =
 				error instanceof TypeError ||
 				(error instanceof Error && error.name === "NetworkError");
 
 			if (retryCount < this.maxRetries && isNetworkError) {
-				await this.waitBeforeRetry(retryCount);
-				return this.post(url, data, options, retryCount + 1);
+				const shouldRetry = await this.waitBeforeRetry(retryCount, signal);
+				if (!shouldRetry) {
+					return this.abortedResult(retryCount + 1);
+				}
+				return this.postAttempt(url, data, options, retryCount + 1);
 			}
 
 			return {
@@ -170,9 +227,42 @@ export class HttpClient {
 		return this.post(url, data, options, 0);
 	}
 
-	private async waitBeforeRetry(retryCount: number): Promise<void> {
+	private abortedResult<T>(attempts: number): HttpResult<T> {
+		return {
+			ok: false,
+			code: "REQUEST_ERROR",
+			message: "Request aborted",
+			status: null,
+			retryable: false,
+			attempts,
+			transport: "fetch",
+		};
+	}
+
+	private async waitBeforeRetry(
+		retryCount: number,
+		signal: AbortSignal | null | undefined
+	): Promise<boolean> {
+		if (signal?.aborted) {
+			return false;
+		}
 		const jitter = Math.random() * 0.3 + 0.85;
 		const delay = this.initialRetryDelay * 2 ** retryCount * jitter;
-		await new Promise((resolve) => setTimeout(resolve, delay));
+		return await new Promise((resolve) => {
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const handleAbort = () => {
+				if (timer !== undefined) {
+					clearTimeout(timer);
+				}
+				signal?.removeEventListener("abort", handleAbort);
+				resolve(false);
+			};
+
+			timer = setTimeout(() => {
+				signal?.removeEventListener("abort", handleAbort);
+				resolve(true);
+			}, delay);
+			signal?.addEventListener("abort", handleAbort, { once: true });
+		});
 	}
 }

@@ -1,12 +1,23 @@
 import { afterEach, describe, expect, jest, mock, test } from "bun:test";
-import { HttpClient } from "../../src/core/client";
+import { HttpClient, type HttpResult } from "../../src/core/client";
 import { BaseTracker } from "../../src/core/tracker";
 
 const originalFetch = globalThis.fetch;
 
 class DeliveryTestTracker extends BaseTracker {
+	private deliveryBlocked = false;
+
 	protected override shouldSkipTracking(): boolean {
-		return false;
+		return this.deliveryBlocked;
+	}
+
+	optOutForTest(): void {
+		this.deliveryBlocked = true;
+		this.cancelPendingDelivery();
+	}
+
+	optInForTest(): void {
+		this.deliveryBlocked = false;
 	}
 }
 
@@ -22,6 +33,19 @@ async function flushMicrotasks(): Promise<void> {
 	for (let index = 0; index < 20; index += 1) {
 		await Promise.resolve();
 	}
+}
+
+function createDeferred<T>(): {
+	promise: Promise<T>;
+	resolve: (value: T) => void;
+} {
+	let resolvePromise: (value: T) => void = () => {
+		throw new Error("Deferred promise was not initialized");
+	};
+	const promise = new Promise<T>((resolve) => {
+		resolvePromise = resolve;
+	});
+	return { promise, resolve: resolvePromise };
 }
 
 describe("HttpClient", () => {
@@ -100,6 +124,80 @@ describe("HttpClient", () => {
 			retryable: false,
 		});
 	});
+
+	test("aborts an in-flight HTTP request", async () => {
+		let requestSignal: AbortSignal | null = null;
+		const fetchMock = mock(
+			(_input: RequestInfo | URL, init?: RequestInit) =>
+				new Promise<Response>((_resolve, reject) => {
+					requestSignal = init?.signal ?? null;
+					requestSignal?.addEventListener(
+						"abort",
+						() => {
+							const error = new Error("Request aborted");
+							error.name = "AbortError";
+							reject(error);
+						},
+						{ once: true }
+					);
+				})
+		);
+		globalThis.fetch = fetchMock as typeof fetch;
+		const client = new HttpClient({ baseUrl: "https://example.com" });
+
+		const delivery = client.post(
+			"https://example.com/events",
+			{},
+			{ keepalive: false }
+		);
+		await flushMicrotasks();
+		client.cancelPendingRequests();
+
+		expect(requestSignal?.aborted).toBe(true);
+		expect(await delivery).toMatchObject({
+			ok: false,
+			code: "REQUEST_ERROR",
+			message: "Request aborted",
+			retryable: false,
+			attempts: 1,
+		});
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	test("cancels an active retry delay without another HTTP attempt", async () => {
+		jest.useFakeTimers();
+		const fetchMock = mock(async () =>
+			Response.json({ error: "Temporarily unavailable" }, { status: 503 })
+		);
+		globalThis.fetch = fetchMock as typeof fetch;
+		const client = new HttpClient({
+			baseUrl: "https://example.com",
+			maxRetries: 3,
+			initialRetryDelay: 1000,
+		});
+
+		const delivery = client.post(
+			"https://example.com/events",
+			{},
+			{ keepalive: false }
+		);
+		await flushMicrotasks();
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+
+		client.cancelPendingRequests();
+		const result = await delivery;
+		jest.advanceTimersByTime(30_000);
+		await flushMicrotasks();
+
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({
+			ok: false,
+			code: "REQUEST_ERROR",
+			message: "Request aborted",
+			retryable: false,
+			attempts: 1,
+		});
+	});
 });
 
 describe("BaseTracker delivery outcomes", () => {
@@ -175,6 +273,75 @@ describe("BaseTracker delivery outcomes", () => {
 			ok: true,
 			status: "skipped",
 		});
+	});
+
+	test("does not requeue a stale flush across a quick opt-out and opt-in", async () => {
+		jest.useFakeTimers();
+		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
+		const firstRequest = createDeferred<HttpResult<unknown>>();
+		const secondRequest = createDeferred<HttpResult<unknown>>();
+		const success: HttpResult<unknown> = {
+			ok: true,
+			data: { status: "success" },
+			status: 202,
+			attempts: 1,
+			transport: "fetch",
+		};
+		const retryableFailure: HttpResult<unknown> = {
+			ok: false,
+			code: "NETWORK_ERROR",
+			message: "offline",
+			status: null,
+			retryable: true,
+			attempts: 1,
+			transport: "fetch",
+		};
+		const send = mock(() => {
+			if (send.mock.calls.length === 1) {
+				return firstRequest.promise;
+			}
+			if (send.mock.calls.length === 2) {
+				return secondRequest.promise;
+			}
+			return Promise.resolve(success);
+		});
+		tracker.api.fetch = send;
+
+		await tracker.addToBatch({ eventId: "before_opt_out", timestamp: 1 });
+		const staleFlush = tracker.flushBatch();
+		await flushMicrotasks();
+		expect(send).toHaveBeenCalledTimes(1);
+
+		tracker.optOutForTest();
+		tracker.optInForTest();
+		await tracker.addToBatch({ eventId: "after_opt_in", timestamp: 2 });
+		const currentFlush = tracker.flushBatch();
+		await flushMicrotasks();
+		expect(send).toHaveBeenCalledTimes(2);
+
+		firstRequest.resolve(retryableFailure);
+		await staleFlush;
+		expect(tracker.batchQueue).toHaveLength(0);
+
+		await tracker.addToBatch({ eventId: "while_current_flush_runs", timestamp: 3 });
+		expect(await tracker.flushBatch()).toEqual({
+			ok: true,
+			status: "queued",
+			count: 1,
+		});
+		expect(send).toHaveBeenCalledTimes(2);
+
+		secondRequest.resolve(success);
+		await currentFlush;
+		expect(tracker.batchQueue).toEqual([
+			{ eventId: "while_current_flush_runs", timestamp: 3 },
+		]);
+		expect(await tracker.flushBatch()).toMatchObject({
+			ok: true,
+			status: "delivered",
+			count: 1,
+		});
+		expect(send).toHaveBeenCalledTimes(3);
 	});
 
 	test("treats trackPerformance as a compatibility alias", () => {
