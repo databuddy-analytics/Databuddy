@@ -539,6 +539,242 @@ describe("ServerFlagsManager", () => {
 			expect(manager.getSnapshot().flags["staging-only"]).toBeUndefined();
 		});
 
+		it("clears and fetches again when the client changes", async () => {
+			fetchMock.restore();
+			const clientIds: unknown[] = [];
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					clientIds.push(body.clientId);
+					return Response.json({
+						flags:
+							body.clientId === "client-a"
+								? { "client-a-only": FLAG_ENABLED }
+								: { "client-b-only": FLAG_ENABLED },
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "client-a",
+				autoFetch: true,
+			});
+			expect(manager.getSnapshot().flags["client-a-only"]).toBeDefined();
+
+			manager.updateConfig({ clientId: "client-b" });
+			await sleep(50);
+
+			expect(clientIds).toContain("client-b");
+			expect(manager.getSnapshot().flags["client-a-only"]).toBeUndefined();
+			expect(manager.getSnapshot().flags["client-b-only"]).toBeDefined();
+		});
+
+		it("does not expose prior-client flags when the new client fetch fails", async () => {
+			fetchMock.restore();
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					if (body.clientId === "client-b") {
+						return Response.json(
+							{ error: "Flag service unavailable" },
+							{ status: 503 }
+						);
+					}
+					return Response.json({
+						flags: { "client-a-only": FLAG_ENABLED },
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "client-a",
+				autoFetch: true,
+			});
+			expect(manager.getSnapshot().flags["client-a-only"]).toBeDefined();
+
+			manager.updateConfig({ clientId: "client-b" });
+			await sleep(50);
+
+			expect(manager.getSnapshot().flags["client-a-only"]).toBeUndefined();
+			expect(manager.getMemoryFlags()["client-a-only"]).toBeUndefined();
+			expect(manager.getLastError()).toMatchObject({
+				status: 503,
+				retryable: true,
+			});
+		});
+
+		it("settles a pre-flush getFlag against the new identity", async () => {
+			fetchMock.restore();
+			const bodies: Array<Record<string, unknown>> = [];
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					bodies.push(body);
+					return Response.json({
+						flags: {
+							audience: {
+								...FLAG_ENABLED,
+								payload: { audience: body.userId },
+							},
+						},
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "test-id",
+				user: { userId: "user-a" },
+			});
+			const pending = manager.getFlag("audience");
+			manager.updateUser({ userId: "user-b" });
+
+			const result = await Promise.race([
+				pending,
+				sleep(250).then(() => {
+					throw new Error("getFlag did not settle after the context switch");
+				}),
+			]);
+
+			expect(result.payload).toEqual({ audience: "user-b" });
+			expect(bodies.some((body) => body.userId === "user-b")).toBe(true);
+		});
+
+		it("redirects every concurrent in-flight caller to the new identity", async () => {
+			fetchMock.restore();
+			let markUserAStarted: () => void;
+			const userAStarted = new Promise<void>((resolve) => {
+				markUserAStarted = resolve;
+			});
+			let resolveUserA: (response: Response) => void;
+			const userAResponse = new Promise<Response>((resolve) => {
+				resolveUserA = resolve;
+			});
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					if (body.userId === "user-a") {
+						markUserAStarted();
+						return userAResponse;
+					}
+					return Response.json({
+						flags: {
+							audience: {
+								...FLAG_ENABLED,
+								payload: { audience: "user-b" },
+							},
+						},
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "test-id",
+				user: { userId: "user-a" },
+			});
+			const first = manager.getFlag("audience");
+			const second = manager.getFlag("audience");
+			await userAStarted;
+
+			manager.updateUser({ userId: "user-b" });
+			resolveUserA(
+				Response.json({
+					flags: {
+						audience: {
+							...FLAG_ENABLED,
+							payload: { audience: "user-a" },
+						},
+					},
+				})
+			);
+
+			const [firstResult, secondResult] = await Promise.all([first, second]);
+			expect(firstResult.payload).toEqual({ audience: "user-b" });
+			expect(secondResult.payload).toEqual({ audience: "user-b" });
+			expect(manager.getSnapshot().flags.audience?.payload).toEqual({
+				audience: "user-b",
+			});
+		});
+
+		it("does not cache a stale revalidation after an identity switch", async () => {
+			fetchMock.restore();
+			let userACalls = 0;
+			let markRevalidationStarted: () => void;
+			const revalidationStarted = new Promise<void>((resolve) => {
+				markRevalidationStarted = resolve;
+			});
+			let resolveRevalidation: (response: Response) => void;
+			const revalidationResponse = new Promise<Response>((resolve) => {
+				resolveRevalidation = resolve;
+			});
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					if (body.userId === "user-a") {
+						userACalls += 1;
+						if (userACalls > 1) {
+							markRevalidationStarted();
+							return revalidationResponse;
+						}
+						return Response.json({
+							flags: { audience: FLAG_ENABLED },
+						});
+					}
+					return Response.json({
+						flags: {
+							audience: {
+								...FLAG_ENABLED,
+								payload: { audience: "user-b" },
+							},
+						},
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "test-id",
+				staleTime: 1,
+				user: { userId: "user-a" },
+			});
+			await manager.getFlag("audience");
+			await sleep(5);
+			await manager.getFlag("audience");
+			await revalidationStarted;
+
+			manager.updateUser({ userId: "user-b" });
+			await sleep(20);
+			resolveRevalidation(
+				Response.json({
+					flags: {
+						audience: {
+							...FLAG_ENABLED,
+							payload: { audience: "user-a-stale" },
+						},
+					},
+				})
+			);
+			await sleep(20);
+
+			expect(manager.getSnapshot().flags.audience?.payload).toEqual({
+				audience: "user-b",
+			});
+			expect(manager.getDevtoolsConfig().cacheSize).toBe(1);
+		});
+
 		it("ignores an old identity response that finishes after a switch", async () => {
 			fetchMock.restore();
 			let markUserAStarted: () => void;
@@ -611,6 +847,58 @@ describe("ServerFlagsManager", () => {
 
 			const flagsAfter = manager.getMemoryFlags();
 			expect(Object.keys(flagsAfter).length).toBeGreaterThan(0);
+		});
+
+		it("forceClear prevents an in-flight single fetch from restoring stale data", async () => {
+			fetchMock.restore();
+			let markSingleStarted: () => void;
+			const singleStarted = new Promise<void>((resolve) => {
+				markSingleStarted = resolve;
+			});
+			let resolveSingle: (response: Response) => void;
+			const singleResponse = new Promise<Response>((resolve) => {
+				resolveSingle = resolve;
+			});
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					if (Array.isArray(body.keys)) {
+						markSingleStarted();
+						return singleResponse;
+					}
+					return Response.json({
+						flags: {
+							audience: {
+								...FLAG_ENABLED,
+								payload: { version: "fresh" },
+							},
+						},
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({ clientId: "test-id" });
+			const pending = manager.getFlag("audience");
+			await singleStarted;
+			await manager.refresh(true);
+			resolveSingle(
+				Response.json({
+					flags: {
+						audience: {
+							...FLAG_ENABLED,
+							payload: { version: "stale" },
+						},
+					},
+				})
+			);
+
+			expect((await pending).payload).toEqual({ version: "fresh" });
+			expect(manager.getSnapshot().flags.audience?.payload).toEqual({
+				version: "fresh",
+			});
 		});
 	});
 

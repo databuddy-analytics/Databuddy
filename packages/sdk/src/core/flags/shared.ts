@@ -16,10 +16,14 @@ export const DEFAULT_RESULT: FlagResult = {
 
 export function getCacheContext(
 	user?: UserContext,
-	environment?: string
+	environment?: string,
+	clientId?: string
 ): string {
 	const params = new URLSearchParams();
 
+	if (clientId) {
+		params.set("clientId", clientId);
+	}
 	if (user?.userId) {
 		params.set("userId", user.userId);
 	}
@@ -45,9 +49,10 @@ export function getCacheContext(
 export function getCacheKey(
 	key: string,
 	user?: UserContext,
-	environment?: string
+	environment?: string,
+	clientId?: string
 ): string {
-	const context = getCacheContext(user, environment);
+	const context = getCacheContext(user, environment, clientId);
 	if (!context) {
 		return key;
 	}
@@ -62,13 +67,21 @@ export function getFlagKey(cacheKey: string): string {
 export function cacheKeyBelongsToContext(
 	cacheKey: string,
 	user?: UserContext,
-	environment?: string
+	environment?: string,
+	clientId?: string
 ): boolean {
-	const context = getCacheContext(user, environment);
+	const context = getCacheContext(user, environment, clientId);
 	if (!context) {
 		return !cacheKey.includes(CACHE_CONTEXT_SEPARATOR);
 	}
 	return cacheKey.endsWith(`${CACHE_CONTEXT_SEPARATOR}${context}`);
+}
+
+export class FlagsContextChangedError extends Error {
+	constructor() {
+		super("Flag evaluation context changed");
+		this.name = "FlagsContextChangedError";
+	}
 }
 
 export function buildQueryParams(config: FlagsConfig): URLSearchParams {
@@ -302,10 +315,15 @@ export class RequestBatcher {
 		}
 	}
 
-	destroy(): void {
+	destroy(error: Error = new Error("Flag request batcher destroyed")): void {
 		if (this.timer) {
 			clearTimeout(this.timer);
 			this.timer = null;
+		}
+		for (const callbacks of this.pending.values()) {
+			for (const callback of callbacks) {
+				callback.reject(error);
+			}
 		}
 		this.pending.clear();
 	}

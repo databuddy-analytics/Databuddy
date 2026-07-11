@@ -525,6 +525,53 @@ test.describe("BrowserFlagsManager", () => {
 			expect(capturedUserIds).toContain("user-b");
 		});
 
+		test("fresh managers discard another client and legacy persisted flags", async ({
+			page,
+		}) => {
+			const result = await page.evaluate(async () => {
+				localStorage.removeItem("db-flags");
+				const SDK = window.__SDK__;
+				const storage = new SDK.BrowserFlagStorage();
+				const enabledFlag = {
+					enabled: true,
+					payload: null,
+					reason: "MATCH",
+					value: true,
+				};
+				storage.setAll({
+					[SDK.getCacheKey(
+						"client-a-only",
+						{ userId: "shared-user" },
+						undefined,
+						"client-a"
+					)]: enabledFlag,
+					[SDK.getCacheKey("legacy-only", { userId: "shared-user" })]:
+						enabledFlag,
+				});
+
+				const manager = new SDK.BrowserFlagsManager({
+					config: {
+						autoFetch: false,
+						clientId: "client-b",
+						user: { userId: "shared-user" },
+					},
+					storage,
+				});
+				await new Promise((resolve) => setTimeout(resolve, 20));
+				const flags = manager.getSnapshot().flags;
+				const persisted = storage.getAll();
+				manager.destroy();
+
+				return {
+					flags: Object.keys(flags),
+					persisted: Object.keys(persisted),
+				};
+			});
+
+			expect(result.flags).toEqual([]);
+			expect(result.persisted).toEqual([]);
+		});
+
 		test("injects anonymous ID when no user identity provided", async ({
 			page,
 		}) => {
