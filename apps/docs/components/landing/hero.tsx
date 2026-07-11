@@ -373,7 +373,7 @@ export default function Hero({
 					<div className="flex flex-wrap items-center gap-3 pt-2">
 						<SciFiButton asChild className="px-6 py-5">
 							<a href="https://app.databuddy.cc/register">
-								See answers surfaced
+								Start analyzing for free
 							</a>
 						</SciFiButton>
 

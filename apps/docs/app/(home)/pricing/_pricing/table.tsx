@@ -102,10 +102,10 @@ export function PlansComparisonTable({ plans }: Props) {
 								</td>
 							))}
 						</tr>
-						{/* Agent credits per month */}
+						{/* Databunny usage per month */}
 						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Agent credits / month
+								Databunny usage / month
 							</td>
 							{plans.map((p) => (
 								<td
@@ -122,10 +122,10 @@ export function PlansComparisonTable({ plans }: Props) {
 								</td>
 							))}
 						</tr>
-						{/* Daily bonus credits */}
+						{/* Daily Databunny usage bonus */}
 						<tr className="border-border border-t hover:bg-card/10">
 							<td className="px-4 py-3 text-muted-foreground text-sm sm:px-5 lg:px-6">
-								Daily bonus credits
+								Daily usage bonus
 							</td>
 							{plans.map((p) => (
 								<td
@@ -306,9 +306,10 @@ export function PlansComparisonTable({ plans }: Props) {
 					quota.
 				</p>
 				<p>
-					<span className="text-foreground">Agent credits</span> power
-					Databunny, the AI assistant that analyzes your data, answers
-					questions, and surfaces insights automatically.
+					<span className="text-foreground">Databunny usage</span> is the AI
+					processing allowance used when Databunny answers questions or runs
+					analysis. It is not a message count: deeper work can use more than a
+					simple question.
 				</p>
 				<p>
 					<span className="text-foreground">Unlimited seats & sites.</span> Team

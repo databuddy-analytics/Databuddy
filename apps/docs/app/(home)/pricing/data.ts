@@ -47,9 +47,9 @@ export interface RawPlan {
 
 const AGENT_CREDITS_FEATURE: RawFeature = {
 	id: "agent_credits",
-	name: "Agent Credits",
+	name: "Databunny Usage",
 	type: "single_use",
-	display: { singular: "agent credit", plural: "agent credits" },
+	display: { singular: "usage unit", plural: "usage units" },
 };
 
 const EVENTS_FEATURE: RawFeature = {

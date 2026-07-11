@@ -35,7 +35,7 @@ export function StatsCards({
 					</div>
 					<div className="flex items-center justify-between">
 						<span className="text-muted-foreground">Free tier</span>
-						<span className="font-medium">10K pageviews</span>
+						<span className="font-medium">10K events</span>
 					</div>
 					<div className="flex items-center justify-between">
 						<span className="text-muted-foreground">Advantages</span>

@@ -72,7 +72,7 @@ Databuddy is **compliant by default** - no consent banners or cookie notices req
         {/* No consent needed - privacy-first by design */}
         <Databuddy
           clientId="your-client-id"
-          trackPerformance
+          trackWebVitals
         />
 
         {/* No cookie banner needed! */}
@@ -101,7 +101,6 @@ Databuddy is **compliant by default** - no consent banners or cookie notices req
     clientId="your-client-id"
     // Basic page tracking (automatic)
     // Disable everything else
-    trackPerformance={false}
     trackWebVitals={false}
     trackOutgoingLinks={false}
     trackErrors={false}
@@ -119,7 +118,6 @@ Databuddy is **compliant by default** - no consent banners or cookie notices req
     clientId="your-client-id"
     disabled={!isProd} // No tracking in development
     // Production-only features
-    trackPerformance={isProd}
     trackWebVitals={isProd}
   />;`}
 />
@@ -356,7 +354,7 @@ Since Databuddy only collects anonymous data, users don't need to request data d
   <Databuddy
     clientId="your-client-id"
     // Screen views are tracked automatically
-    trackPerformance={privacySettings.allowPerformance}
+    trackWebVitals={privacySettings.allowPerformance}
     trackErrors={privacySettings.allowErrors}
   />`}
 />

@@ -13,7 +13,9 @@ The Query API lets you fetch analytics data for your websites with flexible date
 |--------|----------|-------------|
 | GET | `/v1/query/websites` | List accessible websites |
 | GET | `/v1/query/types` | Get available query types |
+| POST | `/v1/query/compile` | Validate and compile a query without executing it |
 | POST | `/v1/query` | Execute analytics query |
+| POST | `/v1/query/custom` | Execute a custom query for one website |
 
 ## List Websites
 
@@ -91,9 +93,10 @@ Query analytics data with full parameter control:
 | `website_id` | Yes* | Website to query |
 | `link_id` | Yes* | Link shortener ID (for link analytics) |
 | `schedule_id` | Yes* | Uptime monitor ID (for uptime analytics) |
+| `organization_id` | Yes* | Organization ID for organization-scoped query types |
 | `timezone` | No | Timezone for date calculations (default: UTC) |
 
-*One of `website_id`, `link_id`, or `schedule_id` is required.
+*One of `website_id`, `link_id`, `schedule_id`, or `organization_id` is required unless the signed-in session or global API key supplies an organization context.
 
 **Request Body:**
 

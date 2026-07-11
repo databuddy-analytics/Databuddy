@@ -79,7 +79,6 @@ Navigate to your [Databuddy dashboard](https://app.databuddy.cc) and copy your t
     script.async = true;
     script.src = "https://cdn.databuddy.cc/databuddy.js";
     script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
-    script.setAttribute("data-track-screen-views", "true");
     script.setAttribute("data-track-attributes", "true");
     script.setAttribute("data-track-errors", "true");
     document.head.appendChild(script);
@@ -146,9 +145,7 @@ Enable performance tracking by updating your script configuration:
     script.async = true;
     script.src = "https://cdn.databuddy.cc/databuddy.js";
     script.setAttribute("data-client-id", "YOUR_CLIENT_ID");
-    script.setAttribute("data-track-screen-views", "true");
-    script.setAttribute("data-track-performance", "true");
-    script.setAttribute("data-track-web-vitals", "true");
+		script.setAttribute("data-track-web-vitals", "true");
     script.setAttribute("data-track-errors", "true");
     document.head.appendChild(script);
   })();
@@ -158,13 +155,12 @@ Enable performance tracking by updating your script configuration:
 ## Benefits for Framer Sites
 
 - **Cookie-free tracking**: No cookie consent banners needed
-- **Lightweight**: Under 30 KB script size (far smaller than Google Analytics)
+- **Lightweight**: About 10 KB gzipped for the current tracker bundle
 - **True privacy**: No fingerprinting, complete data ownership
 - **Fast Loading**: Async loading won't slow down your Framer site
-- **SEO Friendly**: Improves Core Web Vitals and page speed scores
+- **Performance visibility**: Collect Core Web Vitals when enabled
 - **Privacy Compliant**: Fully GDPR and CCPA compliant
 - **Real-time Data**: See visitor activity as it happens
-- **10x more efficient**: Better for the planet, better for performance
 - **Open Source**: Fully transparent and auditable code
 
 ## Troubleshooting
@@ -216,4 +212,4 @@ If analytics data isn't showing:
   </Card>
 </Cards>
 
-Need help? Contact our support team at [help@databuddy.cc](mailto:help@databuddy.cc).
+Need help? Contact our support team at [support@databuddy.cc](mailto:support@databuddy.cc).

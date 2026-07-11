@@ -7,7 +7,7 @@ import { Card, Cards } from "@/components/docs";
 
 Integrate Databuddy with Google Tag Manager for centralized tag management while maintaining privacy-first analytics. Perfect for teams managing multiple tracking tools.
 
-> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable desired flags (e.g., `data-track-screen-views`, `data-track-attributes`, `data-track-errors`). Trigger on All Pages and publish.
+> TL;DR: In GTM, create a Custom HTML tag with an inline loader that appends `https://cdn.databuddy.cc/databuddy.js` and sets `data-client-id`. Enable optional flags such as `data-track-attributes` or `data-track-errors`. Page views and sessions are automatic. Trigger on All Pages and publish.
 
 ## Why Use GTM with Databuddy?
 
@@ -34,7 +34,6 @@ Integrate Databuddy with Google Tag Manager for centralized tag management while
     el.src = "https://cdn.databuddy.cc/databuddy.js";
     el.async = true;
     el.setAttribute("data-client-id", "Databuddy Client ID");
-    el.setAttribute("data-track-screen-views", "true");
     el.setAttribute("data-track-attributes", "true");
     el.setAttribute("data-track-errors", "true");
     document.head.appendChild(el);
@@ -81,7 +80,6 @@ Load different Databuddy configurations based on environment:
     el.src = "https://cdn.databuddy.cc/databuddy.js";
     el.async = true;
     el.setAttribute("data-client-id", clientId);
-    el.setAttribute("data-track-screen-views", "true");
     el.setAttribute("data-track-attributes", "true");
     el.setAttribute("data-track-errors", "true");
     el.setAttribute("data-debug", isProduction ? "false" : "true");
@@ -103,7 +101,6 @@ Load Databuddy only for specific conditions:
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
       el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
-      el.setAttribute("data-track-screen-views", "true");
       el.setAttribute("data-track-attributes", "true");
       el.setAttribute("data-track-errors", "true");
       document.head.appendChild(el);
@@ -286,7 +283,6 @@ Respect user privacy choices:
       el.src = "https://cdn.databuddy.cc/databuddy.js";
       el.async = true;
       el.setAttribute("data-client-id", "{{Databuddy Client ID}}");
-      el.setAttribute("data-track-screen-views", "true");
       el.setAttribute("data-track-attributes", "true");
       el.setAttribute("data-track-errors", "true");
       document.head.appendChild(el);
@@ -473,4 +469,4 @@ Map GA4 events to Databuddy equivalents:
   </Card>
 </Cards>
 
-Need help with your GTM integration? Contact us at [help@databuddy.cc](mailto:help@databuddy.cc).
+Need help with your GTM integration? Contact us at [support@databuddy.cc](mailto:support@databuddy.cc).

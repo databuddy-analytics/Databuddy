@@ -8,7 +8,7 @@ import { Callout, Card, Cards, CodeBlock } from "@/components/docs";
 The Databuddy script can be used directly in vanilla JavaScript projects without any framework dependencies. This is perfect for static sites, traditional HTML pages, or any environment where you want minimal overhead.
 
 <Callout type="info">
-  **CDN**: `https://cdn.databuddy.cc/databuddy.js` | **Size**: under 30 KB minified
+  **CDN**: `https://cdn.databuddy.cc/databuddy.js` | **Current size**: about 32 KB minified / 10 KB gzip
 </Callout>
 
 ## Quick Setup
@@ -33,7 +33,7 @@ Configure the tracker using data attributes on the script tag:
   {`<script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="your-client-id"
-  data-track-performance
+  data-track-web-vitals
   data-track-errors
   data-enable-batching
   data-batch-size="20"
@@ -49,8 +49,7 @@ Configure the tracker using data attributes on the script tag:
 | `data-track-attributes` | `false` | Track data-track attributes |
 | `data-track-outgoing-links` | `false` | Track clicks on external links |
 | `data-track-interactions` | `false` | Track button clicks and form submissions |
-| `data-track-performance` | `true` | Include performance metrics |
-| `data-track-web-vitals` | `false` | Track Core Web Vitals |
+| `data-track-web-vitals` | `false` | Track page performance and Core Web Vitals |
 | `data-track-errors` | `false` | Track JavaScript errors |
 | `data-enable-batching` | `true` | Batch events before sending |
 | `data-batch-size` | `10` | Events per batch when batching enabled |
@@ -304,7 +303,7 @@ Opt-out is stored in localStorage and persists across sessions.
   <script
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="your-client-id"
-    data-track-performance
+    data-track-web-vitals
     data-track-errors
     data-enable-batching
     async
@@ -342,7 +341,7 @@ Use the official CDN URL for best performance:
   {`https://cdn.databuddy.cc/databuddy.js`}
 </CodeBlock>
 
-The script is automatically minified and gzipped for optimal performance (under 30 KB minified).
+The script is automatically minified and served compressed. The current bundle is about 32 KB minified and 10 KB gzip; check release notes for future size changes.
 
 ## Related
 

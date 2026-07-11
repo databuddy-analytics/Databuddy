@@ -4,12 +4,12 @@ export const pricingFaqItems = [
 	{
 		question: "What happens when I hit my event limit?",
 		answer:
-			"You won't lose any data. Events above your included quota are billed at tiered overage rates that get cheaper the more you send. You can monitor your usage in the dashboard and set alerts so there are no surprises.",
+			"On Free, event ingestion pauses after 10,000 events for the month. Hobby and Pro continue with tiered event overage unless you set a hard billing limit. The dashboard shows current usage and lets you configure alerts and limits.",
 	},
 	{
 		question: "Is there a free trial?",
 		answer:
-			"The Free plan is forever free - no trial period, no credit card required. You get 10,000 events per month and 10 agent credits to explore the AI assistant. Upgrade any time if you need more, or buy credit top-ups as you go.",
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 Databunny usage units per month. Databunny usage measures AI processing rather than messages, so a deeper analysis can use more than a simple question.",
 	},
 	{
 		question: "Can I switch plans?",

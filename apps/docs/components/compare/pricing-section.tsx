@@ -4,9 +4,11 @@ import type { PricingTier } from "@/lib/comparison-config";
 export function PricingSection({
 	tiers,
 	competitorName,
+	competitorWebsite,
 }: {
 	tiers: PricingTier[];
 	competitorName: string;
+	competitorWebsite: string;
 }) {
 	return (
 		<div>
@@ -15,7 +17,8 @@ export function PricingSection({
 					Pricing <span className="text-muted-foreground">comparison</span>
 				</h2>
 				<p className="text-muted-foreground text-sm sm:text-base">
-					See the real cost of {competitorName} vs Databuddy
+					Representative plan and feature differences for {competitorName} and
+					Databuddy
 				</p>
 			</div>
 
@@ -74,6 +77,18 @@ export function PricingSection({
 					</div>
 				))}
 			</div>
+			<p className="mt-3 text-center text-muted-foreground text-xs">
+				Competitor plans and prices can change. Confirm current terms on{" "}
+				<a
+					className="underline underline-offset-2"
+					href={competitorWebsite}
+					rel="noopener noreferrer"
+					target="_blank"
+				>
+					{competitorName}&apos;s website
+				</a>
+				.
+			</p>
 		</div>
 	);
 }

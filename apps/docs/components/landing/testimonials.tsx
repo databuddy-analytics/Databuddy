@@ -224,7 +224,7 @@ export default function Testimonials(): ReactElement {
 						Why developers are switching
 					</h2>
 					<p className="max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-xl">
-						2,000+ developers and 500+ websites already made the move from GA4,
+						Hear from developers using Databuddy alongside or instead of GA4,
 						PostHog, and Plausible.
 					</p>
 				</div>

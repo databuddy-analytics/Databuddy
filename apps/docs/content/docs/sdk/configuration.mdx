@@ -21,7 +21,6 @@ This page documents all configuration options across the Databuddy SDK platforms
   scriptUrl="https://cdn.databuddy.cc/databuddy.js"
   
   // Core tracking
-  trackPerformance        // default: true
   trackWebVitals          // default: false
   trackErrors             // default: false
   trackOutgoingLinks      // default: false
@@ -49,7 +48,6 @@ This page documents all configuration options across the Databuddy SDK platforms
   // Control
   disabled={false}
   debug={false}
-  waitForProfile={false}
 />`}
 </CodeBlock>
 
@@ -67,8 +65,7 @@ This page documents all configuration options across the Databuddy SDK platforms
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `trackPerformance` | `boolean` | `true` | Page load times and navigation |
-| `trackWebVitals` | `boolean` | `false` | Core Web Vitals (LCP, FID, CLS, TTFB) |
+| `trackWebVitals` | `boolean` | `false` | Core Web Vitals (LCP, INP, CLS, TTFB) |
 | `trackErrors` | `boolean` | `false` | JavaScript errors |
 | `trackOutgoingLinks` | `boolean` | `false` | External link clicks |
 | `trackInteractions` | `boolean` | `false` | Button clicks and form submissions |
@@ -142,8 +139,7 @@ Vue uses the same props as React but with kebab-case naming:
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `data-client-id` | `string` | Required | Your client ID |
-| `data-track-performance` | flag | `true` | Track page performance |
-| `data-track-web-vitals` | flag | `false` | Track Core Web Vitals |
+| `data-track-web-vitals` | flag | `false` | Track page performance and Core Web Vitals |
 | `data-track-errors` | flag | `false` | Track JavaScript errors |
 | `data-track-outgoing-links` | flag | `false` | Track external links |
 | `data-track-interactions` | flag | `false` | Track interactions |

@@ -275,7 +275,6 @@ export const roadmapItems: RoadmapItem[] = [
 		status: "in-progress",
 		priority: "critical",
 		category: "AI",
-		targetDate: "2026-03-31",
 		progress: 70,
 		features: [
 			"Natural language queries",
@@ -295,7 +294,6 @@ export const roadmapItems: RoadmapItem[] = [
 		status: "in-progress",
 		priority: "high",
 		category: "AI",
-		targetDate: "2026-06-30",
 		progress: 40,
 		features: [
 			"Anomaly detection",
@@ -315,7 +313,6 @@ export const roadmapItems: RoadmapItem[] = [
 		status: "planned",
 		priority: "high",
 		category: "analytics",
-		targetDate: "2026-06-30",
 		progress: 0,
 		features: [
 			"Experiment setup",
@@ -502,8 +499,7 @@ export const roadmapMilestones: RoadmapMilestone[] = [
 		id: "ai-agent-launch",
 		title: "AI Agent Launch",
 		description: "Natural language querying with autonomous analytics agents",
-		targetDate: "2026-03-31",
-		status: "current",
+		status: "delayed",
 		items: ["ai-agent", "ai-capabilities"],
 		progress: 55,
 	},
@@ -512,8 +508,7 @@ export const roadmapMilestones: RoadmapMilestone[] = [
 		title: "Experimentation Platform",
 		description:
 			"A/B testing and statistical analysis for data-driven decisions",
-		targetDate: "2026-06-30",
-		status: "upcoming",
+		status: "delayed",
 		items: ["ab-testing"],
 		progress: 0,
 	},

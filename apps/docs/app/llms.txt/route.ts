@@ -11,7 +11,7 @@ const BASE_URL = "https://www.databuddy.cc/docs";
 
 const HEADER = `# Databuddy Documentation
 
-> Privacy-first web analytics. 65x faster than Google Analytics, GDPR compliant, no cookies required.
+> Lightweight web analytics with an asynchronous tracker, GDPR compliant, no cookies required.
 > For the full documentation corpus, see [llms-full.txt](https://www.databuddy.cc/llms-full.txt).
 
 `;

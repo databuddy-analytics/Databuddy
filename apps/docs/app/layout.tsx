@@ -42,7 +42,7 @@ export const metadata: Metadata = {
 			"Databuddy - Lightweight Developer Analytics, Error Tracking & Feature Flags",
 	},
 	description:
-		"One script for analytics, error tracking, web vitals, and feature flags. Under 30 KB, no cookies, GDPR compliant. Free for small projects. Open-source Google Analytics alternative for developers.",
+		"One connected platform for analytics, error tracking, web vitals, feature flags, links, and AI analysis. No cookies, GDPR compliant. Free for small projects.",
 	authors: [{ name: "Databuddy Team" }],
 	creator: "Databuddy",
 	publisher: "Databuddy",

@@ -121,8 +121,18 @@ export function ComparisonPageView({
 					<FeatureTable competitorName={competitor.name} features={features} />
 
 					<p className="mt-4 text-center text-muted-foreground text-xs">
-						All Databuddy features available on the free plan - up to 10,000
-						monthly pageviews
+						The Free plan includes core analytics for up to 10,000 monthly
+						events. Feature availability and limits vary by plan. Competitor
+						details can change; confirm them on{" "}
+						<a
+							className="underline underline-offset-2"
+							href={competitor.website}
+							rel="noopener noreferrer"
+							target="_blank"
+						>
+							{competitor.name}&apos;s website
+						</a>
+						.
 					</p>
 
 					{migrationSection ? (
@@ -143,6 +153,7 @@ export function ComparisonPageView({
 					<div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
 						<PricingSection
 							competitorName={competitor.name}
+							competitorWebsite={competitor.website}
 							tiers={pricingTiers}
 						/>
 					</div>
