@@ -81,7 +81,7 @@ export function splitTopLevel(body: string): string[] {
 }
 
 const COLUMN_MODIFIERS =
-	/\s+(?:DEFAULT|MATERIALIZED|ALIAS|EPHEMERAL|CODEC|TTL|COMMENT)\b/;
+	/\s+(?:DEFAULT|MATERIALIZED|ALIAS|EPHEMERAL|CODEC|TTL|COMMENT)\b/i;
 const NON_COLUMN = /^(?:INDEX|CONSTRAINT|PROJECTION|PRIMARY\s+KEY)\b/i;
 
 export function tableNameOf(sql: string): string {
@@ -96,12 +96,14 @@ export function tableNameOf(sql: string): string {
 
 export function qualifiedNameOf(sql: string): string {
 	const m = sql.match(
-		/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\.(\w+)/i
+		/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`([^`]+)`|(\w+))\.(?:`([^`]+)`|(\w+))/i
 	);
 	if (!m) {
 		throw new Error("Could not parse qualified table name");
 	}
-	return `${m[1]}.${m[2]}`;
+	const db = m[1] ?? m[2];
+	const table = m[3] ?? m[4];
+	return `${db}.${table}`;
 }
 
 export function parseColumns(sql: string): ParsedColumn[] {
@@ -129,11 +131,10 @@ export function parseColumns(sql: string): ParsedColumn[] {
 }
 
 function clause(tail: string, keyword: string, stops: string[]): string {
-	const stopAlt = stops.join("|");
-	const re = new RegExp(
-		`${keyword}\\s+([\\s\\S]*?)\\s*(?=(?:${stopAlt})\\b|$)`,
-		"i"
-	);
+	const lookahead = stops.length
+		? `(?=(?:${stops.join("|")})\\b|$)`
+		: "(?=$)";
+	const re = new RegExp(`${keyword}\\s+([\\s\\S]*?)\\s*${lookahead}`, "i");
 	const m = tail.match(re);
 	return m ? m[1].trim() : "";
 }

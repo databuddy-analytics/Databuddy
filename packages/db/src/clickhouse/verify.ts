@@ -29,7 +29,7 @@ async function fetchLive(): Promise<Map<string, ParsedTable>> {
 	const url = new URL(raw);
 	const headers: Record<string, string> = {};
 	if (url.username) {
-		headers.Authorization = `Basic ${btoa(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`)}`;
+		headers.Authorization = `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`, "utf-8").toString("base64")}`;
 		url.username = "";
 		url.password = "";
 	}
