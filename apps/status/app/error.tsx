@@ -20,10 +20,10 @@ export default function ErrorPage({
 	return (
 		<StatusErrorShell
 			action={<StatusRetryButton onClick={reset} />}
-			code="500"
-			description="Our bunny tripped over a wire. Let's try that again."
+			code="503"
+			description="Current monitor data could not be loaded. Try again in a moment."
 			detail={error.digest}
-			title="Something went wrong"
+			title="Status unavailable"
 		/>
 	);
 }
