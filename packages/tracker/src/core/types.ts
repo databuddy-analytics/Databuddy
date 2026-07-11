@@ -106,6 +106,7 @@ export type ErrorSpan = {
 export type TrackEventPayload = {
 	name: string;
 	timestamp: number;
+	path?: string;
 	properties?: Record<string, unknown>;
 	anonymousId?: string;
 	anonymizeVisitorIds?: boolean | "auto";

@@ -516,6 +516,17 @@ export class BaseTracker {
 		clearStoredTrackingState();
 	}
 
+	currentPath(): string {
+		const path = buildPagePath(
+			window.location.origin,
+			window.location.pathname,
+			this.options.maskPatterns
+		);
+		return this.options.trackHashChanges
+			? `${path}${window.location.hash}`
+			: path;
+	}
+
 	getBaseContext(): EventContext {
 		if (this.isServer()) {
 			return {} as EventContext;
@@ -529,11 +540,7 @@ export class BaseTracker {
 		}
 
 		return {
-			path: buildPagePath(
-				window.location.origin,
-				window.location.pathname,
-				this.options.maskPatterns
-			),
+			path: this.currentPath(),
 			title: document.title,
 			referrer: sanitizePageUrl(document.referrer),
 			viewport_size: width && height ? `${width}x${height}` : undefined,
@@ -708,6 +715,7 @@ export class BaseTracker {
 		const event: TrackEventPayload = {
 			name,
 			timestamp: Date.now(),
+			path: this.isServer() ? undefined : this.currentPath(),
 			properties,
 			anonymousId: this.anonymousId,
 			anonymizeVisitorIds: this.options.anonymizeVisitorIds,
