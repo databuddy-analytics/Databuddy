@@ -1,6 +1,6 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 import { Button, Field, Input } from "@databuddy/ui";
 import { Sheet } from "@databuddy/ui/client";
 
@@ -17,14 +17,18 @@ export function LinkFolderSheet({
 	onOpenChange,
 	open,
 }: LinkFolderSheetProps) {
+	const [error, setError] = useState<string | null>(null);
+
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		const form = event.currentTarget;
 		const name = new FormData(form).get("name")?.toString().trim() ?? "";
 
 		if (!name) {
+			setError("Enter a folder name.");
 			return;
 		}
+		setError(null);
 		await onCreate(name);
 		form.reset();
 	};
@@ -45,7 +49,15 @@ export function LinkFolderSheet({
 					<Sheet.Body>
 						<Field>
 							<Field.Label>Folder Name</Field.Label>
-							<Input autoFocus name="name" placeholder="Posts" required />
+							<Input
+								aria-invalid={error ? true : undefined}
+								autoFocus
+								name="name"
+								onChange={() => setError(null)}
+								placeholder="Posts"
+								required
+							/>
+							{error ? <Field.Error>{error}</Field.Error> : null}
 						</Field>
 					</Sheet.Body>
 					<Sheet.Footer>

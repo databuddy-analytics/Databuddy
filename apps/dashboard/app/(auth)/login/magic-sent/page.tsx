@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon, EnvelopeIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
+import { safeCallbackPath } from "@/lib/safe-callback";
 
 const MAGIC_EMAIL_KEY = "databuddy:magic-email";
 
@@ -18,8 +19,9 @@ function MagicSentPage() {
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isReady, setIsReady] = useState(false);
-	const magicLinkHref = `/login/magic?callback=${encodeURIComponent(callback)}`;
-	const loginHref = `/login?callback=${encodeURIComponent(callback)}`;
+	const safeCallback = safeCallbackPath(callback);
+	const magicLinkHref = `/login/magic?callback=${encodeURIComponent(safeCallback)}`;
+	const loginHref = `/login?callback=${encodeURIComponent(safeCallback)}`;
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -55,8 +57,8 @@ function MagicSentPage() {
 		try {
 			const { error } = await authClient.signIn.magicLink({
 				email,
-				callbackURL: callback,
-				errorCallbackURL: `/auth/error?callback=${encodeURIComponent(callback)}`,
+				callbackURL: safeCallback,
+				errorCallbackURL: `/auth/error?callback=${encodeURIComponent(safeCallback)}`,
 			});
 			if (error) {
 				toast.error("We couldn't send the magic link. Try again in a moment.");

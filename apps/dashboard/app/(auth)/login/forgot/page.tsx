@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ArrowLeftIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
 import { OtpInput } from "@databuddy/ui/client";
+import { safeCallbackPath } from "@/lib/safe-callback";
 
 function ForgotPasswordPage() {
 	const router = useRouter();
@@ -16,7 +17,7 @@ function ForgotPasswordPage() {
 		"callback",
 		parseAsString.withDefault("/websites")
 	);
-	const loginHref = `/login?callback=${encodeURIComponent(callback)}`;
+	const loginHref = `/login?callback=${encodeURIComponent(safeCallbackPath(callback))}`;
 	const [step, setStep] = useState<"email" | "reset">("email");
 	const [email, setEmail] = useState("");
 	const [otp, setOtp] = useState("");

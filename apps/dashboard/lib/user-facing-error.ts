@@ -46,7 +46,7 @@ export function getUserFacingErrorMessage(
 
 	const details = error as ErrorDetails;
 	const code = details.data?.code ?? details.code;
-	if (code) {
+	if (typeof code === "string") {
 		const message = CODE_MESSAGES[code.toUpperCase()];
 		if (message) {
 			return message;

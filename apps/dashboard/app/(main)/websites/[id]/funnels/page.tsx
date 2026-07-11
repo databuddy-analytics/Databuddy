@@ -68,7 +68,10 @@ export default function FunnelsPage() {
 	useEffect(() => {
 		if (!isDemoRoute && searchParams.get("new") === "funnel") {
 			setEditing("new");
-			router.replace(pathname);
+			const params = new URLSearchParams(searchParams);
+			params.delete("new");
+			const query = params.toString();
+			router.replace(query ? `${pathname}?${query}` : pathname);
 		}
 	}, [searchParams, router, pathname, isDemoRoute]);
 

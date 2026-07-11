@@ -39,7 +39,7 @@ export const errorColumns = [
 					</span>
 					<span className="text-muted-foreground text-xs">
 						{errorsPerUser.toFixed(1)} error
-						{errorsPerUser === 1 ? "" : "s"} per affected user
+						{errorsPerUser.toFixed(1) === "1.0" ? "" : "s"} per affected user
 					</span>
 				</div>
 			);

@@ -36,18 +36,18 @@ export async function trackCancelFeedbackAction({
 	planName,
 	immediate,
 }: TrackCancelFeedbackParams): Promise<{ success: boolean }> {
-	const session = await auth.api.getSession({
-		headers: await headers(),
-	});
-	if (!session) {
-		return { success: false };
-	}
-
-	if (!VALID_REASONS.includes(feedback.reason)) {
-		return { success: false };
-	}
-
 	try {
+		const session = await auth.api.getSession({
+			headers: await headers(),
+		});
+		if (!session) {
+			return { success: false };
+		}
+
+		if (!VALID_REASONS.includes(feedback.reason)) {
+			return { success: false };
+		}
+
 		if (!client) {
 			return { success: true };
 		}

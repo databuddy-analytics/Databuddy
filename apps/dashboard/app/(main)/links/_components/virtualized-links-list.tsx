@@ -46,11 +46,22 @@ export function VirtualizedLinksList({
 		if (!(scrollEl && listEl)) {
 			return;
 		}
-		setScrollMargin(
-			listEl.getBoundingClientRect().top -
-				scrollEl.getBoundingClientRect().top +
-				scrollEl.scrollTop
-		);
+		const recalculate = () => {
+			setScrollMargin(
+				listEl.getBoundingClientRect().top -
+					scrollEl.getBoundingClientRect().top +
+					scrollEl.scrollTop
+			);
+		};
+		recalculate();
+		const observer = new ResizeObserver(recalculate);
+		observer.observe(scrollEl);
+		observer.observe(listEl);
+		window.addEventListener("resize", recalculate);
+		return () => {
+			observer.disconnect();
+			window.removeEventListener("resize", recalculate);
+		};
 	}, [scrollRef]);
 
 	const virtualizer = useVirtualizer({

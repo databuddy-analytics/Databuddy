@@ -96,8 +96,7 @@ export function makeQueryClient() {
 				if (
 					isAbortError(error) ||
 					isSilencedError(error) ||
-					mutation.meta?.suppressGlobalErrorToast ||
-					mutation.options.onError
+					mutation.meta?.suppressGlobalErrorToast
 				) {
 					return;
 				}
