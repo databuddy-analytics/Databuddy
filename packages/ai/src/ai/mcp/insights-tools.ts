@@ -1,4 +1,9 @@
 import { cacheNamespaces, cacheTags, cacheable } from "@databuddy/redis";
+import {
+	insightSentimentSchema,
+	insightSeveritySchema,
+	storedInsightTypeSchema,
+} from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import { z } from "zod";
 import {
@@ -12,25 +17,6 @@ import {
 	type McpToolFactory,
 } from "./define-tool";
 import { resolveOrganizationIds } from "./tool-context";
-
-const INSIGHT_TYPES = [
-	"error_spike",
-	"new_errors",
-	"vitals_degraded",
-	"custom_event_spike",
-	"traffic_drop",
-	"traffic_spike",
-	"bounce_rate_change",
-	"engagement_change",
-	"referrer_change",
-	"page_trend",
-	"positive_trend",
-	"performance",
-	"uptime_issue",
-] as const;
-
-const INSIGHT_SEVERITIES = ["critical", "warning", "info"] as const;
-const INSIGHT_SENTIMENTS = ["positive", "neutral", "negative"] as const;
 
 const PERIOD_PRESETS = [
 	"last_24h",
@@ -445,7 +431,7 @@ const listInsightsTool = defineMcpTool(
 	{
 		name: "list_insights",
 		description:
-			"List recent AI-generated insights (anomalies, trends, top movers). Defaults to org-wide. Pass websiteId to scope, ids to fetch specific insights, or fields to slim the response.",
+			"List recent stored findings (anomalies, trends, top movers). Defaults to org-wide. Pass websiteId to scope, ids to fetch specific findings, or fields to slim the response.",
 		inputSchema: z.object({
 			websiteId: z.string().optional().describe("Optional. Scope to one site."),
 			websiteName: z.string().optional(),
@@ -455,19 +441,19 @@ const listInsightsTool = defineMcpTool(
 				.min(1)
 				.max(100)
 				.optional()
-				.describe("Fetch specific insights by id (bypasses other filters)."),
+				.describe("Fetch specific findings by id (bypasses other filters)."),
 			type: z
-				.array(z.enum(INSIGHT_TYPES))
+				.array(storedInsightTypeSchema)
 				.optional()
 				.describe(
-					"Filter by insight type(s) (e.g. ['traffic_drop','error_spike'])"
+					"Filter by finding type(s) (e.g. ['traffic_drop','error_spike'])"
 				),
 			severity: z
-				.array(z.enum(INSIGHT_SEVERITIES))
+				.array(insightSeveritySchema)
 				.optional()
 				.describe("Filter by severity (e.g. ['critical','warning'])"),
 			sentiment: z
-				.array(z.enum(INSIGHT_SENTIMENTS))
+				.array(insightSentimentSchema)
 				.optional()
 				.describe("Filter by sentiment (e.g. ['negative'])"),
 			since: z
@@ -480,7 +466,7 @@ const listInsightsTool = defineMcpTool(
 				.array(z.enum(INSIGHT_FIELDS))
 				.optional()
 				.describe(
-					"Subset of insight fields to return. Default returns all. Use ['id','title','severity','priority'] for slim output."
+					"Subset of finding fields to return. Default returns all. Use ['id','title','severity','priority'] for slim output."
 				),
 			limit: z
 				.number()
@@ -489,7 +475,7 @@ const listInsightsTool = defineMcpTool(
 				.max(100)
 				.optional()
 				.default(20)
-				.describe("Max insights (1-100, default 20)"),
+				.describe("Max findings (1-100, default 20)"),
 		}),
 		outputSchema: z.object({
 			insights: z.array(z.record(z.string(), z.unknown())),
@@ -543,7 +529,7 @@ const listInsightsTool = defineMcpTool(
 				insights: [],
 				count: 0,
 				scope: ctx.websiteId ? "website" : "organization",
-				hint: "No insights found for these filters. Try widening 'since' or removing type/severity filters.",
+				hint: "No findings matched these filters. Try widening 'since' or removing type/severity filters.",
 			};
 		}
 
@@ -699,7 +685,7 @@ const summarizeInsightsTool = defineMcpTool(
 			topPriorities,
 			hint:
 				rows.length === 0
-					? "No insights in this window. Try a wider 'since' or call list_insights with no filters."
+					? "No findings in this window. Try a wider 'since' or call list_insights with no filters."
 					: undefined,
 		};
 	}

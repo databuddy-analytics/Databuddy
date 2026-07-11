@@ -7,11 +7,10 @@ describe("summarizeDigestConfig", () => {
 
 		expect(summary).toEqual({
 			channels: [],
-			cron: null,
-			enabled: true,
+			enabled: false,
 			frequency: "weekly",
 			nextRunAt: null,
-			scope: "default",
+			source: "default",
 			timezone: "UTC",
 		});
 	});
@@ -35,26 +34,23 @@ describe("summarizeDigestConfig", () => {
 		expect(summary.frequency).toBe("weekly");
 	});
 
-	it("accepts valid frequency values verbatim", () => {
-		for (const freq of ["hourly", "daily", "weekly", "custom"] as const) {
+	it("accepts daily and weekly frequencies verbatim", () => {
+		for (const freq of ["daily", "weekly"] as const) {
 			expect(summarizeDigestConfig({ frequency: freq }).frequency).toBe(freq);
 		}
 	});
 
-	it("normalizes cron and timezone to canonical types", () => {
+	it("normalizes timezone to a canonical type", () => {
 		const summary = summarizeDigestConfig({
-			cron: "0 8 * * 5",
 			timezone: "Europe/Berlin",
 		});
 
-		expect(summary.cron).toBe("0 8 * * 5");
 		expect(summary.timezone).toBe("Europe/Berlin");
 	});
 
-	it("treats empty-string cron and timezone as absent", () => {
-		const summary = summarizeDigestConfig({ cron: "", timezone: "" });
+	it("treats an empty timezone as absent", () => {
+		const summary = summarizeDigestConfig({ timezone: "" });
 
-		expect(summary.cron).toBeNull();
 		expect(summary.timezone).toBe("UTC");
 	});
 
@@ -66,13 +62,17 @@ describe("summarizeDigestConfig", () => {
 		expect(summary.nextRunAt).toBe("2026-06-12T06:00:00.000Z");
 	});
 
-	it("respects enabled=false but accepts unset as enabled=true", () => {
+	it("enables only an explicit true value", () => {
 		expect(summarizeDigestConfig({ enabled: false }).enabled).toBe(false);
-		expect(summarizeDigestConfig({}).enabled).toBe(true);
+		expect(summarizeDigestConfig({ enabled: true }).enabled).toBe(true);
+		expect(summarizeDigestConfig({}).enabled).toBe(false);
 	});
 
-	it("derives scope from source when present", () => {
-		expect(summarizeDigestConfig({ source: "website" }).scope).toBe("website");
-		expect(summarizeDigestConfig({}).scope).toBe("default");
+	it("only accepts organization as a persisted source", () => {
+		expect(summarizeDigestConfig({ source: "organization" }).source).toBe(
+			"organization"
+		);
+		expect(summarizeDigestConfig({ source: "website" }).source).toBe("default");
+		expect(summarizeDigestConfig({}).source).toBe("default");
 	});
 });

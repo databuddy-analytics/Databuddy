@@ -1527,43 +1527,42 @@ const addUsersToFlagTool = defineMcpTool(
 	}
 );
 
-const DigestFrequencySchema = z.enum(["hourly", "daily", "weekly"]);
+const DigestScheduleSchema = z.enum(["off", "daily", "weekly"]);
 
 const manageInsightDigestTool = defineMcpTool(
 	{
 		name: "manage_insight_digest",
 		description:
-			"Route, stop, or inspect Slack delivery of analytics insight digests. action=route sends digests to a channel, unroute stops it, status shows current routing.",
+			"Manage one organization-wide automatic analysis schedule and its Slack destinations. status inspects it; route/unroute change Slack delivery; reschedule sets Off, Daily, or Weekly. Mutations require confirmation.",
 		inputSchema: z.object({
-			...WebsiteSelectorSchema,
 			action: z
-				.enum(["route", "unroute", "status"])
-				.describe("route to a channel, unroute to stop, or status to inspect"),
+				.enum(["route", "unroute", "reschedule", "status"])
+				.describe(
+					"route to a channel, unroute to stop, reschedule to set Off/Daily/Weekly, or status to inspect"
+				),
 			channelId: z
 				.string()
 				.min(1)
 				.max(120)
 				.optional()
 				.describe("Slack channel ID. Required for route and unroute."),
-			frequency: DigestFrequencySchema.optional().describe(
-				"How often investigations run for this scope. Applied on route."
+			frequency: DigestScheduleSchema.optional().describe(
+				"Organization schedule. Required for reschedule. Route accepts daily or weekly."
 			),
 			confirmed: ConfirmedSchema,
 		}),
 		outputSchema: MutationResultSchema,
-		resolveWebsite: "optional",
-		metadata: writeMetadata(["manage:websites"]),
+		metadata: writeMetadata(["manage:config"]),
 		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
-		const websiteId = ctx.websiteId;
-		const orgIds = await resolveOrganizationIds(websiteId, ctx);
+		const orgIds = await resolveOrganizationIds(undefined, ctx);
 		if (orgIds instanceof Error) {
 			throw new McpToolError("not_found", orgIds.message);
 		}
 		const organizationId = orgIds[0];
 		const rpcContext = buildRpcContext(ctx);
-		const scopeInput = { organizationId, websiteId: websiteId ?? undefined };
+		const scopeInput = { organizationId };
 
 		if (input.action === "status") {
 			const config = await callRPCProcedure(
@@ -1573,37 +1572,107 @@ const manageInsightDigestTool = defineMcpTool(
 				rpcContext
 			);
 			const summary = summarizeDigestConfig(config);
+			const schedule = summary.enabled ? summary.frequency : "off";
+			const scheduleLabel =
+				schedule === "off" ? "Off" : schedule === "daily" ? "Daily" : "Weekly";
 			return {
 				success: true,
 				message:
-					summary.channels.length > 0
-						? `Digest goes to ${summary.channels.length} Slack channel${summary.channels.length === 1 ? "" : "s"} on a ${summary.frequency} cadence.`
-						: "No Slack digest delivery is configured for this scope.",
-				digest: summary,
+					summary.enabled && summary.channels.length > 0
+						? `Automatic analysis: ${scheduleLabel}. Findings go to ${summary.channels.length} Slack channel${summary.channels.length === 1 ? "" : "s"}.`
+						: summary.enabled
+							? `Automatic analysis: ${scheduleLabel}. Slack delivery: None.`
+							: "Automatic analysis: Off.",
+				digest: { ...summary, schedule },
 			};
 		}
 
-		if (!input.channelId) {
+		if (input.action === "reschedule" && !input.frequency) {
 			throw new McpToolError(
 				"invalid_input",
-				"channelId is required to route or unroute a digest."
+				"frequency is required to reschedule automatic analysis. Choose off, daily, or weekly."
 			);
+		}
+		if (
+			(input.action === "route" || input.action === "unroute") &&
+			!input.channelId
+		) {
+			throw new McpToolError(
+				"invalid_input",
+				"channelId is required to change Slack delivery."
+			);
+		}
+		if (input.action === "route" && input.frequency === "off") {
+			throw new McpToolError(
+				"invalid_input",
+				"Slack delivery requires daily or weekly analysis. Use reschedule with frequency=off to turn automatic analysis off."
+			);
+		}
+		let routeSchedule: "daily" | "weekly" | null = null;
+		let routeScheduleWas: "off" | "daily" | "weekly" | null = null;
+		if (input.action === "route") {
+			const config = await callRPCProcedure(
+				"insightGeneration",
+				"getConfig",
+				scopeInput,
+				rpcContext
+			);
+			const summary = summarizeDigestConfig(config);
+			routeScheduleWas = summary.enabled ? summary.frequency : "off";
+			routeSchedule =
+				input.frequency === "daily" || input.frequency === "weekly"
+					? input.frequency
+					: summary.frequency;
 		}
 
 		if (!input.confirmed) {
+			const routeScheduleChange =
+				routeSchedule && routeScheduleWas && routeSchedule !== routeScheduleWas
+					? ` Schedule change: ${routeScheduleWas === "off" ? "Off" : routeScheduleWas === "daily" ? "Daily" : "Weekly"} -> ${routeSchedule === "daily" ? "Daily" : "Weekly"}.`
+					: "";
 			return {
 				preview: true,
 				confirmationRequired: true,
 				message:
-					input.action === "route"
-						? `Route insight digests to this Slack channel${input.frequency ? ` on a ${input.frequency} cadence` : ""}?`
-						: "Stop routing insight digests to this Slack channel?",
+					input.action === "reschedule"
+						? `Set automatic analysis to ${input.frequency}?`
+						: input.action === "route"
+							? `Send findings to this Slack channel after each ${routeSchedule} analysis?${routeScheduleChange}`
+							: "Stop sending findings to this Slack channel?",
 				digest: {
 					action: input.action,
-					channelId: input.channelId,
-					frequency: input.frequency ?? null,
-					scope: websiteId ? "website" : "organization",
+					channelId: input.channelId ?? null,
+					schedule:
+						input.action === "route"
+							? routeSchedule
+							: (input.frequency ?? null),
+					scheduleWas: input.action === "route" ? routeScheduleWas : undefined,
+					scope: "organization",
 				},
+			};
+		}
+
+		if (input.action === "reschedule") {
+			const frequency = input.frequency;
+			if (!frequency) {
+				throw new McpToolError("invalid_input", "frequency is required");
+			}
+			const config = await callRPCProcedure(
+				"insightGeneration",
+				"upsertConfig",
+				{
+					organizationId,
+					enabled: frequency !== "off",
+					...(frequency === "off" ? {} : { frequency }),
+				},
+				rpcContext
+			);
+			const summary = summarizeDigestConfig(config);
+			const schedule = summary.enabled ? summary.frequency : "off";
+			return {
+				success: true,
+				message: `Automatic analysis set to ${schedule}.`,
+				digest: { ...summary, schedule },
 			};
 		}
 
@@ -1616,7 +1685,7 @@ const manageInsightDigestTool = defineMcpTool(
 			);
 			return {
 				success: true,
-				message: "Stopped routing insight digests to this Slack channel.",
+				message: "Findings will no longer go to this Slack channel.",
 				digest: summarizeDigestConfig(config),
 			};
 		}
@@ -1634,7 +1703,7 @@ const manageInsightDigestTool = defineMcpTool(
 		const summary = summarizeDigestConfig(config);
 		return {
 			success: true,
-			message: `Insight digests will be delivered to this Slack channel on a ${summary.frequency} cadence.`,
+			message: `Findings will go to this Slack channel after each ${summary.frequency} analysis.`,
 			digest: summary,
 		};
 	}

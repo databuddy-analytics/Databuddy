@@ -10,42 +10,11 @@ import {
 	type SQL,
 } from "@databuddy/db";
 import { analyticsInsights, websites } from "@databuddy/db/schema";
-
-export type InsightSeverity = "critical" | "warning" | "info";
-export type InsightSentiment = "positive" | "neutral" | "negative";
-
-export interface InsightMetricRow {
-	current: number;
-	format: "number" | "percent" | "duration_ms" | "duration_s";
-	label: string;
-	previous?: number;
-}
-
-export interface InsightRow {
-	changePercent: number | null;
-	confidence: number;
-	createdAt: Date;
-	currentPeriodFrom: string;
-	currentPeriodTo: string;
-	description: string;
-	id: string;
-	impactSummary: string | null;
-	metrics: InsightMetricRow[] | null;
-	previousPeriodFrom: string;
-	previousPeriodTo: string;
-	priority: number;
-	sentiment: string;
-	severity: string;
-	sources: Array<"web" | "product" | "ops" | "business">;
-	subjectKey: string;
-	suggestion: string;
-	timezone: string;
-	title: string;
-	type: string;
-	websiteDomain: string;
-	websiteId: string;
-	websiteName: string | null;
-}
+import type {
+	InsightSentiment,
+	InsightSeverity,
+	StoredInsightType,
+} from "@databuddy/shared/insights";
 
 export interface FetchInsightsOptions {
 	createdAfter?: Date;
@@ -53,15 +22,13 @@ export interface FetchInsightsOptions {
 	ids?: string[];
 	limit: number;
 	organizationIds: string[];
-	sentiments?: string[];
-	severities?: string[];
-	types?: string[];
+	sentiments?: InsightSentiment[];
+	severities?: InsightSeverity[];
+	types?: StoredInsightType[];
 	websiteId?: string;
 }
 
-export async function fetchInsightsForOrgs(
-	opts: FetchInsightsOptions
-): Promise<InsightRow[]> {
+export async function fetchInsightsForOrgs(opts: FetchInsightsOptions) {
 	if (opts.organizationIds.length === 0) {
 		return [];
 	}
@@ -128,10 +95,9 @@ export async function fetchInsightsForOrgs(
 		)
 		.limit(opts.limit);
 
-	return rows.map((r) => ({
-		...r,
-		metrics: (r.metrics as InsightMetricRow[] | null) ?? null,
-		sources:
-			(r.sources as Array<"web" | "product" | "ops" | "business"> | null) ?? [],
-	}));
+	return rows;
 }
+
+export type InsightRow = Awaited<
+	ReturnType<typeof fetchInsightsForOrgs>
+>[number];

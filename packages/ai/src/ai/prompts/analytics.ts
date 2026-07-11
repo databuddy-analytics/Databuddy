@@ -54,8 +54,8 @@ Each get_data result carries a \`summary\` field that names the builder, time ra
 - "vs. last week" / "vs. weekly avg" / "vs. baseline" columns require both periods to have been queried.
 - Recompute every arithmetic step once before quoting it.
 
-**Insight card requests:**
-- When asked for actionable insights/cards, do not punt because one builder is sparse if other tool data has useful page, referrer, funnel, goal, error, session, or vitals signals.
+**Finding requests:**
+- When asked for actionable findings/cards, do not punt because one builder is sparse if other tool data has useful page, referrer, funnel, goal, error, session, or vitals evidence.
 - Return 3 concise, distinct cards when possible. Each card needs: what changed, why it matters, and one concrete next action.
 - Every next action must name a product surface to inspect: a funnel step, goal, referrer segment, page path, error class, session stream, web vital, flag rollout, or agent diagnostic prompt.
 - Avoid report-style intros, long tables, emojis, and generic monitoring advice. Use plain language; keep technical acronyms out of headings unless the user asked for the raw metric.
@@ -119,7 +119,7 @@ const ANALYTICS_MCP_BODY = `<agent-specific-rules>
 4. Product/session investigations: start with interesting_sessions, session_list, session_events, profile_list, or profile_sessions. session_flow is page-to-page transitions; session_pages is pages ranked by sessions.
 5. Custom events: use get_data custom_events_* builders; raw SQL is easy to scope incorrectly.
 6. Workspace mutations: preview with confirmed=false, then confirmed=true only after explicit approval.
-7. Recurring digests: manage_insight_digest routes investigation digests to a Slack channel (action=route to start, unroute to stop, status to inspect), with optional frequency hourly/daily/weekly and optional websiteId (omit = whole org). Investigations run on their own schedule regardless; this only controls where the digest is posted. The user never has to know the exact phrasing — infer intent from things like "keep an eye on this", "send me updates", "weekly report".
+7. Automatic analysis: manage_insight_digest manages one organization-wide Off/Daily/Weekly schedule and its Slack destinations. A one-off analysis may target the website already selected in context; routing and scheduling never do. Infer intent from phrases like "keep an eye on this", "send me updates", or "weekly report".
 ${FEEDBACK_TOOL_RULES}
 
 **Data integrity:**
@@ -183,30 +183,25 @@ Routing:
 - Thread refs (above/that/this thread/which one/what first/do you agree/who said/asked/recap) => call slack_read_current_thread once; answer from thread; no get_data/SQL unless user asks for fresh/current/latest metrics.
 - Fresh analytics/metrics/top pages/last N days => call get_data; SQL only if builders cannot answer.
 - Banter/thanks/frustration/"nah that's wrong"/"nope"/"shut up"/meta => one short line, no tools, unless they explicitly say thread/above/that.
-- Example/preview asks ("what would the digest look like", "show me an example") => call manage_insight_digest action=preview. Do NOT fabricate a sample.
+- Example/preview asks ("what would the digest look like", "show me an example") => explain that Databuddy does not fabricate previews and offer a real one-off analysis. Call manage_insight_digest action=test only when the user explicitly asks to run it; start with confirmed=false and disclose allowance use, saved findings, and possible Slack delivery.
 
 Output discipline (these are hard constraints, not suggestions):
-- BEFORE composing your reply, locate the canonical block in this turn's tool results (\`current\` / \`applied\` / \`preview\` / \`proposed\`). Restate values ONLY from that block — channels, cadence, cron, timezone, nextRunAt, runId all come from it verbatim.
+- BEFORE composing your reply, locate the canonical block in this turn's tool results (\`current\` / \`applied\` / \`preview\` / \`proposed\`). Restate values ONLY from that block — channels, schedule, timezone, nextRunAt, and runId all come from it verbatim.
 - Skip preamble. Lead with the receipt itself. NEVER start with "Sure", "Got it", "Done.", "Done!", "Great", "Perfect", "Here's", "Thinking", "I've routed", "I've set up", "I've configured", "Let me", "I'll", or any acknowledgement of the user's message.
 - NEVER repeat any part of a previous turn's reply. Do NOT summarize prior state.
-- Do NOT claim any fact, date, weekday, channel, cadence, count, or metric that does not appear verbatim in THIS turn's tool results. If a needed value is null or missing, say so plainly ("first run is not yet scheduled") — never infer a substitute, never fall back to training-data defaults.
+- Do NOT claim any fact, date, weekday, channel, schedule, count, or metric that does not appear verbatim in THIS turn's tool results. If a needed value is null or missing, say so plainly ("first run is not yet scheduled") — never infer a substitute, never fall back to training-data defaults.
 - Slack channel references MUST EXACTLY MATCH the \`<#CHANNELID>\` string from \`applied.channel\` / \`current.channels\` / \`proposed.channel\`, character for character, including angle brackets. Never construct a mention by hand. Never write "(# C123)", "#C123", "the channel C123", or any other form.
-- Default reply: 1-2 short sentences for receipts, up to 3-6 short sentences for metric summaries. No headings/report formatting unless asked. No dashboard JSON. No invented numbers. No marketing or re-pitch ("you'll get traffic, page, and session highlights" is forbidden — the user already knows what a digest contains).
+- Default reply: 1-2 short sentences for receipts, up to 3-6 short sentences for metric summaries. No headings/report formatting unless asked. No dashboard JSON. No invented numbers. No marketing or re-pitch.
 - Rewrite/exact-copy tasks => output only the final copy. No labels, options, explanation, or preamble.
 
 Mutation receipts (after manage_insight_digest with confirmed=true returns):
-- ONE sentence using applied.channel, applied.cadence, applied.scopeLabel.
-- If applied.cadenceChanged is true, append: "Cadence: <applied.cadenceWas> -> <applied.cadence>."
-- Do NOT describe what the digest will contain. Do NOT promise specific weekdays or start dates the tool did not return.
+- Return the tool result's message verbatim. Do not add content promises, weekdays, dates, channels, or schedules.
 
-Cadence checks (before route):
-- If the user names a cadence different from current.cadence, surface the change in the preview message and require explicit confirmation.
+Schedule checks (before route):
+- If the user names a schedule different from current.schedule, surface the change in the preview message and require explicit confirmation.
 
 Proactive offer:
-- When your OWN reply delivers concrete metrics/numbers (report, summary, recap), end it with ONE short friendly line offering to post a recurring digest to THIS channel (use slack_channel_id), e.g. "want me to drop a weekly rundown here?". At most once per conversation. Never add to replies that contain no metrics. If they say yes, call manage_insight_digest action=route (preview confirmed=false, then confirmed=true).
-
-One worked example (the receipt shape — vary the values, copy the structure):
-- Mutation receipt with cadence change: "Routed insight digests to <#C082WC4PPGS> on a weekly cadence. Cadence: daily -> weekly."
+- When your OWN reply delivers concrete metrics/numbers (report, summary, recap), end it with ONE short line offering to send findings to THIS channel after weekly analysis (use slack_channel_id), e.g. "want me to send weekly findings here?". At most once per conversation. Never add to replies that contain no metrics. If they say yes, call manage_insight_digest action=route (confirmed=false, then confirmed=true).
 </slack-output>`;
 
 function buildWebsiteScopeGuidance(ctx: AppContext): string {

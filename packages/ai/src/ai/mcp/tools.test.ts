@@ -143,3 +143,46 @@ describe("MCP tool registry invariants", () => {
 		}
 	});
 });
+
+describe("manage_insight_digest contract", () => {
+	const digest = tools.find((tool) => tool.name === "manage_insight_digest");
+
+	test("is organization-wide with no website or cron selectors", () => {
+		expect(digest).toBeDefined();
+		expect(digest?.metadata.access.scopes).toEqual(["manage:config"]);
+		const json = z.toJSONSchema(digest?.inputSchema ?? z.never(), {
+			io: "input",
+		});
+
+		for (const field of [
+			"websiteId",
+			"websiteName",
+			"websiteDomain",
+			"cron",
+		]) {
+			expect(json).not.toHaveProperty(`properties.${field}`);
+		}
+	});
+
+	test("accepts only Off, Daily, and Weekly schedules", () => {
+		expect(digest).toBeDefined();
+		for (const frequency of ["off", "daily", "weekly"]) {
+			expect(
+				digest?.inputSchema.safeParse({
+					action: "reschedule",
+					confirmed: false,
+					frequency,
+				}).success
+			).toBe(true);
+		}
+		for (const frequency of ["hourly", "custom"]) {
+			expect(
+				digest?.inputSchema.safeParse({
+					action: "reschedule",
+					confirmed: false,
+					frequency,
+				}).success
+			).toBe(false);
+		}
+	});
+});

@@ -2,22 +2,10 @@ import { type AppContext, requireWebsiteId } from "../config/context";
 import { callRPCProcedure } from "../tools/utils";
 import { executeQuery } from "../../query";
 import type { QueryRequest } from "../../query/types";
-import type { WeekOverWeekPeriod } from "./types";
 
-const DEFAULT_PRODUCT_LIMIT = 5;
-
-export const PRODUCT_INSIGHT_QUERY_TYPES = [
-	"goals_summary",
-	"funnels_summary",
-	"custom_events_summary",
-] as const;
-
-export type ProductInsightQueryType =
-	(typeof PRODUCT_INSIGHT_QUERY_TYPES)[number];
-
-export interface ProductInsightQuery {
-	limit?: number;
-	type: ProductInsightQueryType;
+export interface ProductInsightTarget {
+	id: string;
+	type: "event" | "funnel" | "goal";
 }
 
 function toNumber(value: unknown): number {
@@ -36,40 +24,34 @@ function toNumber(value: unknown): number {
 async function getGoalsSummary(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	limit: number
+	goalId: string
 ) {
-	const goals = await callRPCProcedure(
+	const goal = (await callRPCProcedure(
 		"goals",
-		"list",
-		{ websiteId: appContext.websiteId },
+		"getById",
+		{ id: goalId },
 		appContext
-	);
+	)) as Record<string, unknown>;
+	const analytics = (await callRPCProcedure(
+		"goals",
+		"getAnalytics",
+		{
+			goalId,
+			websiteId: appContext.websiteId,
+			startDate: range.from,
+			endDate: range.to,
+		},
+		appContext
+	)) as Record<string, unknown>;
+	const steps = Array.isArray(analytics.steps_analytics)
+		? (analytics.steps_analytics as Record<string, unknown>[])
+		: [];
+	const primaryStep = steps[0] ?? {};
 
-	if (!Array.isArray(goals) || goals.length === 0) {
-		return { count: 0, goals: [] };
-	}
-
-	const selectedGoals = goals.slice(0, limit) as Record<string, unknown>[];
-	const summaries = await Promise.all(
-		selectedGoals.map(async (goal) => {
-			const analytics = (await callRPCProcedure(
-				"goals",
-				"getAnalytics",
-				{
-					goalId: goal.id,
-					websiteId: appContext.websiteId,
-					startDate: range.from,
-					endDate: range.to,
-				},
-				appContext
-			)) as Record<string, unknown>;
-
-			const steps = Array.isArray(analytics.steps_analytics)
-				? (analytics.steps_analytics as Record<string, unknown>[])
-				: [];
-			const primaryStep = steps[0] ?? {};
-
-			return {
+	return {
+		count: 1,
+		goals: [
+			{
 				id: goal.id,
 				name: goal.name,
 				type: goal.type,
@@ -78,51 +60,43 @@ async function getGoalsSummary(
 				total_users_entered: toNumber(analytics.total_users_entered),
 				total_users_completed: toNumber(analytics.total_users_completed),
 				error_rate: toNumber(primaryStep.error_rate),
-			};
-		})
-	);
-
-	return { count: goals.length, goals: summaries };
+			},
+		],
+	};
 }
 
 async function getFunnelsSummary(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	limit: number
+	funnelId: string
 ) {
-	const funnels = await callRPCProcedure(
+	const funnel = (await callRPCProcedure(
 		"funnels",
-		"list",
-		{ websiteId: appContext.websiteId },
+		"getById",
+		{ id: funnelId },
 		appContext
-	);
+	)) as Record<string, unknown>;
+	const analytics = (await callRPCProcedure(
+		"funnels",
+		"getAnalytics",
+		{
+			funnelId,
+			websiteId: appContext.websiteId,
+			startDate: range.from,
+			endDate: range.to,
+		},
+		appContext
+	)) as Record<string, unknown>;
+	const errorInsights =
+		typeof analytics.error_insights === "object" &&
+		analytics.error_insights !== null
+			? (analytics.error_insights as Record<string, unknown>)
+			: {};
 
-	if (!Array.isArray(funnels) || funnels.length === 0) {
-		return { count: 0, funnels: [] };
-	}
-
-	const selectedFunnels = funnels.slice(0, limit) as Record<string, unknown>[];
-	const summaries = await Promise.all(
-		selectedFunnels.map(async (funnel) => {
-			const analytics = (await callRPCProcedure(
-				"funnels",
-				"getAnalytics",
-				{
-					funnelId: funnel.id,
-					websiteId: appContext.websiteId,
-					startDate: range.from,
-					endDate: range.to,
-				},
-				appContext
-			)) as Record<string, unknown>;
-
-			const errorInsights =
-				typeof analytics.error_insights === "object" &&
-				analytics.error_insights !== null
-					? (analytics.error_insights as Record<string, unknown>)
-					: {};
-
-			return {
+	return {
+		count: 1,
+		funnels: [
+			{
 				id: funnel.id,
 				name: funnel.name,
 				overall_conversion_rate: toNumber(analytics.overall_conversion_rate),
@@ -131,18 +105,16 @@ async function getFunnelsSummary(
 				biggest_dropoff_step: toNumber(analytics.biggest_dropoff_step),
 				biggest_dropoff_rate: toNumber(analytics.biggest_dropoff_rate),
 				error_correlation_rate: toNumber(errorInsights.error_correlation_rate),
-			};
-		})
-	);
-
-	return { count: funnels.length, funnels: summaries };
+			},
+		],
+	};
 }
 
 function runQuery(
 	type: QueryRequest["type"],
 	appContext: AppContext,
 	range: { from: string; to: string },
-	limit?: number
+	filters?: QueryRequest["filters"]
 ) {
 	return executeQuery(
 		{
@@ -151,7 +123,7 @@ function runQuery(
 			from: range.from,
 			to: range.to,
 			timezone: appContext.timezone,
-			limit,
+			filters,
 		},
 		appContext.websiteDomain,
 		appContext.timezone
@@ -161,60 +133,48 @@ function runQuery(
 async function getCustomEventsSummary(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	limit: number
+	eventName: string
 ) {
-	const summary = await runQuery(
-		"custom_events_summary",
-		appContext,
-		range,
-		limit
-	);
+	const summary = await runQuery("custom_events_summary", appContext, range, [
+		{ field: "event_name", op: "eq", value: eventName },
+	]);
 
 	return {
+		event: { id: eventName, name: eventName },
 		custom_events: Array.isArray(summary) ? summary : [],
 	};
 }
 
 export async function fetchProductMetrics(
 	appContext: AppContext,
-	periodBounds: WeekOverWeekPeriod,
-	period: "current" | "previous",
-	queries: ProductInsightQuery[]
+	range: { from: string; to: string },
+	target: ProductInsightTarget
 ) {
-	const range =
-		period === "current" ? periodBounds.current : periodBounds.previous;
-	const results: Record<string, unknown>[] = [];
-
-	for (const query of queries) {
-		const limit = query.limit ?? DEFAULT_PRODUCT_LIMIT;
-
-		switch (query.type) {
-			case "goals_summary":
-				results.push({
-					type: query.type,
-					...(await getGoalsSummary(appContext, range, limit)),
-				});
-				break;
-			case "funnels_summary":
-				results.push({
-					type: query.type,
-					...(await getFunnelsSummary(appContext, range, limit)),
-				});
-				break;
-			case "custom_events_summary":
-				results.push({
-					type: query.type,
-					...(await getCustomEventsSummary(appContext, range, limit)),
-				});
-				break;
-			default:
-				break;
-		}
+	let result: Record<string, unknown>;
+	switch (target.type) {
+		case "goal":
+			result = {
+				type: "goals_summary",
+				...(await getGoalsSummary(appContext, range, target.id)),
+			};
+			break;
+		case "funnel":
+			result = {
+				type: "funnels_summary",
+				...(await getFunnelsSummary(appContext, range, target.id)),
+			};
+			break;
+		case "event":
+			result = {
+				type: "custom_events_summary",
+				...(await getCustomEventsSummary(appContext, range, target.id)),
+			};
+			break;
+		default:
+			throw new Error("Unsupported product target");
 	}
 
 	return {
-		period,
-		range,
-		results,
+		results: [result],
 	};
 }

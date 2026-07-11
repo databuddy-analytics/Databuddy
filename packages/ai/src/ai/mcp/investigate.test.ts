@@ -4,154 +4,131 @@ import { describe, expect, test } from "bun:test";
 import { z } from "zod";
 import {
 	buildFallbackMemo,
-	buildInvestigationBrief,
 	buildInvestigationWindow,
 	buildReceipts,
 	type InvestigationMemo,
+	type InvestigationReceipts,
 	investigationMemoSchema,
 	renderMemoMarkdown,
 } from "./investigate";
-import type { McpAgentToolTrace } from "./run-agent";
 
-const sampleTrace: McpAgentToolTrace[] = [
-	{
-		index: 0,
-		name: "get_data",
-		input: { websiteId: "site_1", queries: [{ type: "events_by_date" }] },
-		output: { batch: true, results: [{ type: "events_by_date", rowCount: 30 }] },
-	},
-	{
-		index: 1,
-		name: "get_data",
-		input: { websiteId: "site_1", queries: [{ type: "top_pages" }] },
-		output: { batch: true, results: [{ type: "top_pages", rowCount: 10 }] },
-	},
-	{
-		index: 2,
-		name: "list_recent_commits",
-		input: { since: "2026-06-01" },
-		output: [{ sha: "d4f21a9" }],
-	},
-];
+const receiptParams = {
+	lookbackDays: 14,
+	now: new Date("2026-06-12T15:00:00Z"),
+	timezone: "UTC",
+	websiteId: "site_1",
+};
 
 const sampleMemo: InvestigationMemo = {
-	headline: "Checkout errors up 412% after deploy d4f21a9",
-	narrative: "Errors on /checkout jumped from 12/day to 61/day on June 8.",
+	headline: "Checkout errors rose from 12 to 61 per day",
+	narrative:
+		"Errors increased in the second window and were concentrated on /checkout. The fixed analytics sweep does not establish the cause.",
 	causalChain: [
 		{
-			step: "Deploy d4f21a9 landed June 8 14:02 UTC",
-			evidence: "commit list shows d4f21a9 merged 14 minutes before error onset",
-		},
-		{
-			step: "TypeError spike began 14:16 UTC on /checkout",
-			evidence: "error count went 12 -> 61/day, all one error class",
+			step: "Checkout error volume increased on June 8",
+			evidence: "daily errors rose from 12 to 61",
 		},
 	],
 	deadEnds: [
 		{
-			hypothesis: "Traffic mix shift caused the error increase",
-			ruledOutBecause: "referrer and device distribution unchanged week-over-week",
+			hypothesis: "A broad traffic increase explains the error count",
+			ruledOutBecause: "traffic stayed flat while checkout errors increased",
 		},
 	],
-	confidence: { level: "high", reason: "cause, mechanism, and timing all align" },
+	confidence: {
+		level: "medium",
+		reason: "the error increase is measured, but no causal source was queried",
+	},
 	verdict: {
 		type: "act",
-		reason: "deploy d4f21a9 is rollbackable and errors are still climbing",
+		reason: "checkout errors increased by 49 per day",
 	},
-	actions: ["Roll back or patch d4f21a9"],
+	actions: ["Inspect the top /checkout error class before changing code"],
 };
 
+function emptyReceipts(steps = 0): InvestigationReceipts {
+	return { steps, queriesRun: [], sourcesChecked: [] };
+}
+
 describe("buildReceipts", () => {
-	test("maps every tool call and dedupes sources", () => {
-		const receipts = buildReceipts(5, sampleTrace);
-		expect(receipts.steps).toBe(5);
-		expect(receipts.queriesRun).toHaveLength(3);
-		expect(receipts.sourcesChecked).toEqual(["get_data", "list_recent_commits"]);
-	});
+	test("lists the fixed analytics queries and one synthesis operation", () => {
+		const receipts = buildReceipts(receiptParams);
 
-	test("truncates oversized inputs", () => {
-		const receipts = buildReceipts(1, [
-			{ index: 0, name: "get_data", input: { sql: "x".repeat(5000) }, output: null },
-		]);
-		expect(receipts.queriesRun[0]?.input.length).toBeLessThanOrEqual(300);
-	});
-
-	test("handles empty trace", () => {
-		const receipts = buildReceipts(0, []);
-		expect(receipts.queriesRun).toEqual([]);
-		expect(receipts.sourcesChecked).toEqual([]);
-	});
-});
-
-describe("buildInvestigationBrief", () => {
-	test("includes website, lookback, and protocol phases", () => {
-		const brief = buildInvestigationBrief({
-			websiteId: "site_1",
-			websiteDomain: "example.com",
-			lookbackDays: 30,
-		});
-		expect(brief).toContain("site_1");
-		expect(brief).toContain("example.com");
-		expect(brief).toContain("30-day");
-		expect(brief).toContain("1. Sweep");
-		expect(brief).toContain("2. Baseline health");
-		expect(brief).toContain("4. Correlate");
-		expect(brief).toContain("most consequential change");
-	});
-
-	test("pins exact equal-length comparison windows", () => {
-		const brief = buildInvestigationBrief({
-			websiteId: "site_1",
-			websiteDomain: "example.com",
-			lookbackDays: 14,
-			now: new Date("2026-06-12T15:00:00Z"),
-		});
-		expect(brief).toContain("2026-05-30 to 2026-06-12");
-		expect(brief).toContain(
-			"2026-05-30 to 2026-06-05 vs 2026-06-06 to 2026-06-12 (7 days each)"
+		expect(receipts.steps).toBe(2);
+		expect(receipts.queriesRun).toHaveLength(12);
+		expect(receipts.queriesRun[0]?.tool).toBe("events_by_date");
+		expect(receipts.queriesRun.at(-1)?.tool).toBe(
+			"structured_memo_synthesis"
 		);
+		expect(receipts.sourcesChecked).toContain("summary_metrics");
+		expect(receipts.sourcesChecked).toContain("revenue_overview");
 	});
 
-	test("anchors on the user question when given", () => {
-		const brief = buildInvestigationBrief({
-			websiteId: "site_1",
-			websiteDomain: "example.com",
-			lookbackDays: 14,
-			question: "why did signups drop?",
+	test("records the exact timezone-aware query window", () => {
+		const receipts = buildReceipts(receiptParams);
+		const dailyInput = JSON.parse(
+			receipts.queriesRun[0]?.input ?? "{}"
+		) as Record<string, unknown>;
+		const synthesisInput = JSON.parse(
+			receipts.queriesRun.at(-1)?.input ?? "{}"
+		) as Record<string, unknown>;
+
+		expect(dailyInput).toMatchObject({
+			projectId: "site_1",
+			from: "2026-05-29",
+			to: "2026-06-11",
+			timezone: "UTC",
 		});
-		expect(brief).toContain("why did signups drop?");
-		expect(brief).not.toContain("most consequential change");
+		expect(synthesisInput.queryOutputsPersisted).toBe(false);
 	});
 });
 
 describe("buildInvestigationWindow", () => {
-	test("drops the oldest day for odd lookbacks so halves stay equal", () => {
+	test("drops the extra day for odd lookbacks so both windows stay equal", () => {
 		const window = buildInvestigationWindow(
 			15,
-			new Date("2026-06-12T15:00:00Z")
+			new Date("2026-06-12T15:00:00Z"),
+			"UTC"
 		);
+
 		expect(window.from).toBe("2026-05-29");
-		expect(window.to).toBe("2026-06-12");
+		expect(window.to).toBe("2026-06-11");
 		expect(window.halves).toBe(
-			"2026-05-30 to 2026-06-05 vs 2026-06-06 to 2026-06-12 (7 days each)"
+			"2026-05-29 to 2026-06-04 vs 2026-06-05 to 2026-06-11 (7 days each)"
 		);
+	});
+
+	test("anchors the last complete day in the configured timezone", () => {
+		const window = buildInvestigationWindow(
+			14,
+			new Date("2026-06-12T01:00:00Z"),
+			"America/Los_Angeles"
+		);
+
+		expect(window.to).toBe("2026-06-10");
+		expect(window.h2From).toBe("2026-06-04");
+		expect(window.h2To).toBe("2026-06-10");
 	});
 });
 
 describe("renderMemoMarkdown", () => {
-	test("renders all sections with receipts", () => {
-		const receipts = buildReceipts(5, sampleTrace);
-		const markdown = renderMemoMarkdown(sampleMemo, receipts);
-		expect(markdown).toContain("# Checkout errors up 412%");
-		expect(markdown).toContain("## Causal chain");
-		expect(markdown).toContain("evidence: commit list shows d4f21a9");
+	test("renders supported sections with operation receipts", () => {
+		const markdown = renderMemoMarkdown(
+			sampleMemo,
+			buildReceipts(receiptParams)
+		);
+
+		expect(markdown).toContain("# Checkout errors rose from 12 to 61");
+		expect(markdown).toContain("## Observed sequence");
+		expect(markdown).toContain("evidence: daily errors rose from 12 to 61");
 		expect(markdown).toContain("## Ruled out");
-		expect(markdown).toContain("## Confidence: high");
+		expect(markdown).toContain("## Confidence: medium");
 		expect(markdown).toContain("## Do next");
-		expect(markdown).toContain("5 agent steps, 3 tool calls");
+		expect(markdown).toContain("2 pipeline steps, 12 attempted operations");
+		expect(markdown).toContain("Query outputs are not persisted by this tool");
 	});
 
-	test("omits empty causal chain, dead ends, and actions", () => {
+	test("omits empty sequence, dead ends, and actions", () => {
 		const emptyMemo: InvestigationMemo = {
 			...sampleMemo,
 			causalChain: [],
@@ -159,80 +136,75 @@ describe("renderMemoMarkdown", () => {
 			actions: [],
 			confidence: {
 				level: "low",
-				reason: "no inflection point found in the window",
+				reason: "no material movement was established",
 			},
 		};
-		const markdown = renderMemoMarkdown(emptyMemo, buildReceipts(2, []));
-		expect(markdown).not.toContain("## Causal chain");
+		const markdown = renderMemoMarkdown(emptyMemo, emptyReceipts(2));
+
+		expect(markdown).not.toContain("## Observed sequence");
 		expect(markdown).not.toContain("## Ruled out");
 		expect(markdown).not.toContain("## Do next");
 		expect(markdown).toContain("## Confidence: low");
 	});
 
-	test("labels act verdict and includes the reason", () => {
-		const markdown = renderMemoMarkdown(sampleMemo, buildReceipts(2, []));
-		expect(markdown).toContain(
-			"**Act now.** deploy d4f21a9 is rollbackable and errors are still climbing"
+	test("labels act and watch verdicts", () => {
+		const actMarkdown = renderMemoMarkdown(sampleMemo, emptyReceipts(2));
+		const watchMarkdown = renderMemoMarkdown(
+			{
+				...sampleMemo,
+				verdict: { type: "watch", reason: "cause unconfirmed" },
+			},
+			emptyReceipts(2)
 		);
+
+		expect(actMarkdown).toContain(
+			"**Act now.** checkout errors increased by 49 per day"
+		);
+		expect(watchMarkdown).toContain("**Watch.** cause unconfirmed");
 	});
 
-	test("labels watch verdict", () => {
-		const watchMemo: InvestigationMemo = {
-			...sampleMemo,
-			verdict: { type: "watch", reason: "cause unconfirmed, trend worsening" },
-		};
-		const markdown = renderMemoMarkdown(watchMemo, buildReceipts(2, []));
-		expect(markdown).toContain(
-			"**Watch.** cause unconfirmed, trend worsening"
-		);
-	});
-
-	test("renders compact output for all_clear without full sections", () => {
+	test("renders compact output for all_clear", () => {
 		const allClearMemo: InvestigationMemo = {
 			...sampleMemo,
 			verdict: {
 				type: "all_clear",
-				reason: "viral spike normalized, nothing is broken",
+				reason: "available primary metrics stayed within normal variance",
 			},
 			actions: ["Recheck direct traffic next week"],
 		};
-		const markdown = renderMemoMarkdown(allClearMemo, buildReceipts(5, sampleTrace));
-		expect(markdown).toContain(
-			"**All clear.** viral spike normalized, nothing is broken"
+		const markdown = renderMemoMarkdown(
+			allClearMemo,
+			buildReceipts(receiptParams)
 		);
+
+		expect(markdown).toContain("**All clear.**");
 		expect(markdown).toContain("Monitor: Recheck direct traffic next week");
-		expect(markdown).toContain("5 agent steps, 3 tool calls");
-		expect(markdown).not.toContain("## Causal chain");
+		expect(markdown).not.toContain("## Observed sequence");
 		expect(markdown).not.toContain("## Confidence");
 		expect(markdown).not.toContain("## Do next");
-	});
-
-	test("all_clear without actions omits the monitor line", () => {
-		const allClearMemo: InvestigationMemo = {
-			...sampleMemo,
-			verdict: { type: "all_clear", reason: "change is within normal variance" },
-			actions: [],
-		};
-		const markdown = renderMemoMarkdown(allClearMemo, buildReceipts(2, []));
-		expect(markdown).not.toContain("Monitor:");
 	});
 });
 
 describe("buildFallbackMemo", () => {
-	test("preserves the agent answer as a valid low-confidence memo", () => {
-		const memo = buildFallbackMemo("Pageviews fell 30% on /pricing after June 8.");
+	test("preserves supplied detail as a valid low-confidence memo", () => {
+		const memo = buildFallbackMemo(
+			"Pageviews fell 30% on /pricing, but synthesis failed."
+		);
+
 		expect(investigationMemoSchema.safeParse(memo).success).toBe(true);
 		expect(memo.narrative).toContain("/pricing");
 		expect(memo.confidence.level).toBe("low");
 		expect(memo.verdict.type).toBe("watch");
 	});
 
-	test("stays valid and renders when the answer is empty", () => {
-		const memo = buildFallbackMemo("   ");
+	test("does not invent a conclusion when no detail is available", () => {
+		const memo = buildFallbackMemo();
+		const markdown = renderMemoMarkdown(memo, emptyReceipts(2));
+
 		expect(investigationMemoSchema.safeParse(memo).success).toBe(true);
-		const markdown = renderMemoMarkdown(memo, buildReceipts(7, sampleTrace));
+		expect(memo.narrative).toContain("No cause was established");
 		expect(markdown).toContain("## Confidence: low");
-		expect(markdown).toContain("7 agent steps, 3 tool calls");
+		expect(markdown).not.toContain("agent steps");
 	});
 });
 
@@ -241,12 +213,15 @@ describe("investigationMemoSchema", () => {
 		expect(investigationMemoSchema.safeParse(sampleMemo).success).toBe(true);
 	});
 
-	test("rejects unknown confidence levels", () => {
-		const bad = {
-			...sampleMemo,
-			confidence: { level: "certain", reason: "x" },
-		};
-		expect(investigationMemoSchema.safeParse(bad).success).toBe(false);
+	test("rejects confidence above what the bounded sweep can support", () => {
+		for (const level of ["high", "certain"]) {
+			expect(
+				investigationMemoSchema.safeParse({
+					...sampleMemo,
+					confidence: { level, reason: "x" },
+				}).success
+			).toBe(false);
+		}
 	});
 
 	test("renders to JSON Schema for MCP output", () => {

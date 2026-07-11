@@ -1,15 +1,7 @@
-import {
-	getNextInsightRunAt,
-	isValidCron,
-	isValidTimezone,
-} from "@databuddy/rpc";
+import { getNextInsightRunAt, isValidTimezone } from "@databuddy/rpc";
 import { tool } from "ai";
 import { z } from "zod";
 import type { AppContext } from "../config/context";
-import {
-	computeReschedulePatch,
-	computeRescheduleProposal,
-} from "./digest-reschedule";
 import {
 	type DigestConfigSummary,
 	summarizeDigestConfig,
@@ -18,39 +10,35 @@ import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
 
 const logger = createToolLogger("Insight Digest Tools");
 
-const SLACK_CHANNEL_ID_RE = /^[CGD][A-Z0-9]{8,}$/i;
+const SLACK_CHANNEL_ID_RE = /^[CG][A-Z0-9]{8,}$/;
 
 const CONFIRM_INSTRUCTION =
 	"Wait for the user to explicitly confirm before calling this tool again with confirmed=true.";
 
-const digestFrequencySchema = z.enum(["hourly", "daily", "weekly", "custom"]);
+const digestScheduleSchema = z.enum(["off", "daily", "weekly"]);
 
 const manageDigestInputSchema = z.object({
 	action: z
-		.enum(["status", "preview", "route", "unroute", "reschedule", "test"])
+		.enum(["status", "route", "unroute", "reschedule", "test"])
 		.describe(
-			"status: read current routing and schedule (safe, no confirmation). preview: show the most recent past digest run for this scope (no mutation). route: start posting digests to a Slack channel. unroute: stop posting to a Slack channel. reschedule: change when the digest runs (cron expression, timezone, or cadence). test: trigger a one-off end-to-end run right now — investigates, generates insights, and posts the digest to whichever Slack channels are currently configured. Bypasses cooldown. Costs LLM tokens and DOES post to Slack."
+			"status: read the organization's analysis schedule and Slack destinations. route: send findings to a Slack channel. unroute: stop sending findings to a Slack channel. reschedule: set automatic analysis to Off, Daily, or Weekly, or change its timezone. test: run one analysis now for the selected website, or every website when none is selected. It uses the organization's Databunny allowance, saves findings, and sends them to configured Slack channels."
 		),
 	channelId: z
 		.string()
 		.min(1)
 		.max(120)
+		.regex(
+			SLACK_CHANNEL_ID_RE,
+			"Slack channels must start with C or G; direct messages are not supported."
+		)
 		.optional()
 		.describe(
-			"Slack channel ID like 'C082WC4PPGS'. Required for route and unroute. For the current channel use slack_channel_id from context. Not a channel name (do not pass '#general')."
+			"Slack public/private channel ID starting with C or G, like 'C082WC4PPGS'. Required for route and unroute. Direct messages (D...) are not supported. For the current channel use slack_channel_id from context. Not a channel name (do not pass '#general')."
 		),
-	frequency: digestFrequencySchema
+	frequency: digestScheduleSchema
 		.optional()
 		.describe(
-			"Cadence for a new route (hourly, daily, weekly) or reschedule (also accepts custom, which requires cron). Ignored for status, preview, unroute."
-		),
-	cron: z
-		.string()
-		.min(1)
-		.max(120)
-		.optional()
-		.describe(
-			"Five-field cron expression evaluated in the config timezone: 'minute hour day-of-month month day-of-week'. Example: '0 8 * * 5' for every Friday at 08:00 local time. Used by reschedule. When cron is provided, frequency is set to 'custom' automatically. Ignored for all other actions."
+			"Organization schedule for reschedule: off, daily, or weekly. Route accepts daily or weekly. Ignored for status, unroute, and test."
 		),
 	timezone: z
 		.string()
@@ -58,44 +46,27 @@ const manageDigestInputSchema = z.object({
 		.max(80)
 		.optional()
 		.describe(
-			"IANA timezone name like 'Europe/Berlin', 'America/New_York', or 'UTC'. Anchors weekly/daily/cron schedules. Used by reschedule only. Ignored for all other actions."
+			"IANA timezone name like 'Europe/Berlin', 'America/New_York', or 'UTC'. Anchors daily and weekly schedules. Used by reschedule only."
 		),
-	websiteId: z
-		.string()
-		.optional()
-		.describe("Scope to one website. Omit to apply to the whole organization."),
 	confirmed: z
 		.boolean()
+		.default(false)
 		.describe(
-			"Required for route, unroute, reschedule, and test. The user's INITIAL message asking for the change is NOT confirmation — it is the request. Always call with confirmed=false first (the tool returns a preview block describing the proposed change), then wait for the user to reply in a separate message before calling again with confirmed=true. Even confident phrasings like 'drop a weekly digest here', 'kill the digest', or 'change it to Friday 8am' must still start with confirmed=false. Ignored for status and preview."
+			"Set true only after the user confirms a route, unroute, reschedule, or one-off analysis in a separate message. The initial request is not confirmation. Ignored for status."
 		),
 });
 
 type DigestAction = z.infer<typeof manageDigestInputSchema>["action"];
 type DigestInput = z.infer<typeof manageDigestInputSchema>;
 
-interface ScopeInput {
-	organizationId: string;
-	websiteId?: string;
-}
-
 interface ActionContext {
 	context: AppContext;
-	scope: string;
-	scopeInput: ScopeInput;
-	websiteId: string | undefined;
+	organizationId: string;
+	selectedWebsiteId?: string;
 }
 
 function fail<C extends string>(code: C, message: string) {
 	return { success: false, code, message } as const;
-}
-
-function scopeKind(websiteId: string | undefined): "organization" | "website" {
-	return websiteId ? "website" : "organization";
-}
-
-function scopeLabel(websiteId: string | undefined): string {
-	return websiteId ? "this website" : "this organization";
 }
 
 function channelMention(channelId: string): string {
@@ -106,182 +77,98 @@ function describeChannels(channels: string[]): string {
 	if (channels.length === 0) {
 		return "no Slack channels";
 	}
-	if (channels.length === 1) {
-		return channelMention(channels[0] as string);
+	const [only] = channels;
+	if (channels.length === 1 && only) {
+		return channelMention(only);
 	}
 	return `${channels.length} Slack channels (${channels.map(channelMention).join(", ")})`;
 }
 
-function validateChannelId(
+function validatedChannelId(
 	channelId: string | undefined,
 	action: DigestAction
 ) {
 	if (!channelId) {
 		return fail(
 			"MISSING_CHANNEL_ID",
-			`channelId is required to ${action} a digest. Provide a Slack channel ID like C082WC4PPGS, or use slack_channel_id from context for the current channel.`
+			`channelId is required to ${action} Slack delivery. Provide a Slack channel ID like C082WC4PPGS, or use slack_channel_id from context for the current channel.`
 		);
 	}
 	if (!SLACK_CHANNEL_ID_RE.test(channelId)) {
 		return fail(
 			"INVALID_CHANNEL_ID",
-			`"${channelId}" doesn't look like a Slack channel ID. Channel IDs start with C, G, or D followed by uppercase letters and digits (for example C082WC4PPGS). For the current channel use slack_channel_id from context. Refusing to ${action}.`
+			`"${channelId}" isn't a supported Slack channel. Channel IDs start with C or G (for example C082WC4PPGS); direct messages are not supported. For the current channel use slack_channel_id from context. Refusing to ${action}.`
 		);
 	}
-	return null;
+	return channelId;
 }
 
 function rpcFailure(action: DigestAction, error: unknown) {
 	const message =
 		error instanceof Error
 			? error.message
-			: `Failed to ${action} insight digest.`;
+			: `Failed to ${action} automatic analysis.`;
 	return fail("RPC_FAILED", message);
 }
 
 async function readDigestSummary(
 	context: AppContext,
-	scopeInput: ScopeInput
+	organizationId: string
 ): Promise<DigestConfigSummary> {
 	const config = await callRPCProcedure(
 		"insightGeneration",
 		"getConfig",
-		scopeInput,
+		{ organizationId },
 		context
 	);
 	return summarizeDigestConfig(config);
 }
 
-interface RawRun {
-	createdAt?: string | Date | null;
-	id?: string;
-	status?: string;
-	summary?: string | null;
-	websiteId?: string | null;
-}
-
-interface RawRunItem {
-	body?: string | null;
-	severity?: string | null;
-	title?: string | null;
-}
-
-function asString(value: unknown): string | null {
-	return typeof value === "string" && value.length > 0 ? value : null;
-}
-
-function asIsoDate(value: unknown): string | null {
-	if (value instanceof Date) {
-		return value.toISOString();
-	}
-	return asString(value);
-}
-
-async function handleStatus({
-	context,
-	scope,
-	scopeInput,
-	websiteId,
-}: ActionContext) {
+async function handleStatus({ context, organizationId }: ActionContext) {
 	try {
-		const summary = await readDigestSummary(context, scopeInput);
+		const summary = await readDigestSummary(context, organizationId);
 		const channels = summary.channels.map(channelMention);
-		const scheduleSuffix = `(timezone ${summary.timezone}${summary.cron ? `, cron \`${summary.cron}\`` : ""})`;
-		const message =
-			summary.channels.length > 0
-				? `${scope} sends digests to ${describeChannels(summary.channels)} on a ${summary.frequency} cadence ${scheduleSuffix}.`
-				: `No Slack digest delivery is configured for ${scope}. Investigations still run on a ${summary.frequency} cadence at the ${summary.scope} level ${scheduleSuffix}.`;
+		const schedule = summary.enabled ? summary.frequency : "off";
+		const scheduleLabel =
+			schedule === "off" ? "Off" : schedule === "daily" ? "Daily" : "Weekly";
+		let message = "Automatic analysis: Off.";
+		if (summary.enabled && summary.channels.length > 0) {
+			message = `Automatic analysis: ${scheduleLabel} (${summary.timezone}). Findings go to ${describeChannels(summary.channels)}.`;
+		} else if (summary.enabled) {
+			message = `Automatic analysis: ${scheduleLabel} (${summary.timezone}). Slack delivery: None.`;
+		}
 
 		return {
 			success: true,
 			action: "status" as const,
 			current: {
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
-				cadence: summary.frequency,
+				scope: "organization" as const,
+				schedule,
 				channels,
 				channelIds: summary.channels,
-				source: summary.scope,
-				cron: summary.cron,
+				source: summary.source,
 				timezone: summary.timezone,
 				nextRunAt: summary.nextRunAt,
 			},
 			message,
 		};
 	} catch (error) {
-		logger.error("Failed to read insight digest config", { websiteId, error });
+		logger.error("Failed to read automatic analysis config", {
+			organizationId,
+			error,
+		});
 		return rpcFailure("status", error);
 	}
 }
 
-async function handlePreview({ context, scope, websiteId }: ActionContext) {
-	try {
-		const listResult = (await callRPCProcedure(
-			"insightGeneration",
-			"listRuns",
-			{ limit: 1, organizationId: context.organizationId },
-			context
-		)) as { runs?: RawRun[] };
-
-		const latest = listResult.runs?.[0];
-		if (!latest?.id) {
-			return {
-				success: true,
-				action: "preview" as const,
-				preview: { runs: 0 },
-				message: `No past digest runs to preview for ${scope} yet. Once the first digest runs you can call action=preview to see it.`,
-			};
-		}
-
-		const runDetail = (await callRPCProcedure(
-			"insightGeneration",
-			"getRun",
-			{ runId: latest.id },
-			context
-		)) as { items?: RawRunItem[]; run?: RawRun };
-
-		const items = (runDetail.items ?? []).map((item) => ({
-			title: asString(item.title) ?? "Untitled insight",
-			body: asString(item.body),
-			severity: asString(item.severity),
-		}));
-
-		return {
-			success: true,
-			action: "preview" as const,
-			preview: {
-				runId: latest.id,
-				runAt: asIsoDate(latest.createdAt),
-				status: asString(latest.status),
-				summary: asString(latest.summary),
-				items,
-				runs: 1,
-			},
-			message:
-				items.length > 0
-					? `Most recent digest for ${scope} had ${items.length} insight${items.length === 1 ? "" : "s"}.`
-					: `Most recent digest for ${scope} produced no insights.`,
-		};
-	} catch (error) {
-		logger.error("Failed to preview insight digest", { websiteId, error });
-		return rpcFailure("preview", error);
-	}
-}
-
 async function handleReschedule(
-	{ context, scope, scopeInput, websiteId }: ActionContext,
-	{ cron, frequency, timezone, confirmed }: DigestInput
+	{ context, organizationId }: ActionContext,
+	{ frequency, timezone, confirmed }: DigestInput
 ) {
-	if (cron === undefined && timezone === undefined && frequency === undefined) {
+	if (timezone === undefined && frequency === undefined) {
 		return fail(
 			"RESCHEDULE_NOOP",
-			"reschedule needs at least one of cron, timezone, or frequency. Pass the field(s) you want to change."
-		);
-	}
-	if (cron !== undefined && !isValidCron(cron)) {
-		return fail(
-			"INVALID_CRON",
-			`"${cron}" is not a valid five-field cron expression. Expected 'minute hour day-of-month month day-of-week' with numbers, comma lists, '*', or '*/N' steps in each field, e.g. '0 8 * * 5' for every Friday at 08:00.`
+			"reschedule needs frequency (off, daily, or weekly) or timezone."
 		);
 	}
 	if (timezone !== undefined && !isValidTimezone(timezone)) {
@@ -293,41 +180,44 @@ async function handleReschedule(
 
 	let existing: DigestConfigSummary;
 	try {
-		existing = await readDigestSummary(context, scopeInput);
+		existing = await readDigestSummary(context, organizationId);
 	} catch (error) {
 		logger.error("Failed to read digest config for reschedule", {
-			websiteId,
+			organizationId,
 			error,
 		});
 		return rpcFailure("reschedule", error);
 	}
 
-	if (frequency === "custom" && cron === undefined && !existing.cron) {
-		return fail(
-			"CRON_REQUIRED",
-			"Setting frequency=custom requires a cron expression. Pass cron alongside frequency, or leave the existing cron in place."
-		);
+	const previousSchedule = existing.enabled ? existing.frequency : "off";
+	const proposedEnabled =
+		frequency === undefined ? existing.enabled : frequency !== "off";
+	const proposedFrequency =
+		frequency === "daily" || frequency === "weekly"
+			? frequency
+			: existing.frequency;
+	const proposedTimezone = timezone ?? existing.timezone;
+	const proposedSchedule = proposedEnabled ? proposedFrequency : "off";
+	const changes: string[] = [];
+	if (proposedSchedule !== previousSchedule) {
+		changes.push(`schedule ${previousSchedule} -> ${proposedSchedule}`);
 	}
-
-	const proposal = computeRescheduleProposal(existing, {
-		cron,
-		frequency,
-		timezone,
-	});
-	if (proposal.changes.length === 0) {
+	if (proposedTimezone !== existing.timezone) {
+		changes.push(`timezone ${existing.timezone} -> ${proposedTimezone}`);
+	}
+	if (changes.length === 0) {
 		return fail(
 			"RESCHEDULE_NOOP",
-			`Nothing to change — the proposed schedule for ${scope} matches the current one.`
+			"Nothing to change — the proposed organization schedule matches the current one."
 		);
 	}
 
 	const proposedNextRunAt =
 		getNextInsightRunAt(
 			{
-				cron: proposal.cron,
-				enabled: true,
-				frequency: proposal.frequency,
-				timezone: proposal.timezone,
+				enabled: proposedEnabled,
+				frequency: proposedFrequency,
+				timezone: proposedTimezone,
 			},
 			new Date()
 		)?.toISOString() ?? null;
@@ -338,18 +228,15 @@ async function handleReschedule(
 			confirmationRequired: true,
 			proposed: {
 				action: "reschedule" as const,
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
-				cadence: proposal.frequency,
-				cadenceWas: existing.frequency,
-				cron: proposal.cron,
-				cronWas: existing.cron,
-				timezone: proposal.timezone,
+				scope: "organization" as const,
+				schedule: proposedSchedule,
+				scheduleWas: previousSchedule,
+				timezone: proposedTimezone,
 				timezoneWas: existing.timezone,
 				nextRunAt: proposedNextRunAt,
 				nextRunAtWas: existing.nextRunAt,
 			},
-			message: `Reschedule digest for ${scope}: ${proposal.changes.join(", ")}. ${proposedNextRunAt ? `Next run would be ${proposedNextRunAt}.` : "Next run cannot be computed for the proposed schedule — double-check cron/frequency."} Reply to confirm.`,
+			message: `Change automatic analysis: ${changes.join(", ")}. ${proposedNextRunAt ? `Next run would be ${proposedNextRunAt}.` : "No next run while automatic analysis is off."} Reply to confirm.`,
 			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
@@ -359,8 +246,14 @@ async function handleReschedule(
 			"insightGeneration",
 			"upsertConfig",
 			{
-				...scopeInput,
-				...computeReschedulePatch({ cron, frequency, timezone }),
+				organizationId,
+				...(frequency === undefined
+					? {}
+					: {
+							enabled: frequency !== "off",
+							...(frequency === "off" ? {} : { frequency }),
+						}),
+				...(timezone === undefined ? {} : { timezone }),
 			},
 			context
 		);
@@ -369,25 +262,19 @@ async function handleReschedule(
 			success: true,
 			action: "reschedule" as const,
 			applied: {
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
-				cadence: summary.frequency,
-				cadenceWas: existing.frequency,
-				cadenceChanged: existing.frequency !== summary.frequency,
-				cron: summary.cron,
-				cronWas: existing.cron,
-				cronChanged: existing.cron !== summary.cron,
+				scope: "organization" as const,
+				schedule: summary.enabled ? summary.frequency : "off",
+				scheduleWas: previousSchedule,
 				timezone: summary.timezone,
 				timezoneWas: existing.timezone,
 				timezoneChanged: existing.timezone !== summary.timezone,
 				nextRunAt: summary.nextRunAt,
 			},
-			message: `Rescheduled digest for ${scope}. Next run: ${summary.nextRunAt ?? "not scheduled"}.`,
+			message: `Automatic analysis updated. Next run: ${summary.nextRunAt ?? "not scheduled"}.`,
 		};
 	} catch (error) {
 		logger.error("Failed to reschedule insight digest", {
-			websiteId,
-			cron,
+			organizationId,
 			timezone,
 			frequency,
 			error,
@@ -397,15 +284,16 @@ async function handleReschedule(
 }
 
 async function handleTest(
-	{ context, scope, scopeInput, websiteId }: ActionContext,
+	{ context, organizationId, selectedWebsiteId }: ActionContext,
 	{ confirmed }: DigestInput
 ) {
 	let existing: DigestConfigSummary;
 	try {
-		existing = await readDigestSummary(context, scopeInput);
+		existing = await readDigestSummary(context, organizationId);
 	} catch (error) {
 		logger.error("Failed to read digest config for test run", {
-			websiteId,
+			organizationId,
+			selectedWebsiteId,
 			error,
 		});
 		return rpcFailure("test", error);
@@ -414,8 +302,8 @@ async function handleTest(
 	const channels = existing.channels.map(channelMention);
 	const deliveryDescription =
 		channels.length > 0
-			? `post to ${describeChannels(existing.channels)}`
-			: "store insights without posting (no Slack channels are routed)";
+			? `send findings to ${describeChannels(existing.channels)}`
+			: "save findings on the Findings page without Slack delivery";
 
 	if (!confirmed) {
 		return {
@@ -423,14 +311,13 @@ async function handleTest(
 			confirmationRequired: true,
 			proposed: {
 				action: "test" as const,
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
-				websiteId: websiteId ?? null,
+				scope: "organization" as const,
+				targetWebsiteId: selectedWebsiteId ?? null,
 				channels,
 				channelIds: existing.channels,
-				cadence: existing.frequency,
+				schedule: existing.enabled ? existing.frequency : "off",
 			},
-			message: `Trigger a one-off test digest run for ${scope}. The pipeline will run the full investigation and ${deliveryDescription}. This costs LLM tokens and bypasses cooldown. Reply to confirm.`,
+			message: `Run analysis now for ${selectedWebsiteId ? "the selected website" : "every website in this organization"}? This uses the organization's Databunny allowance and will ${deliveryDescription}. Reply to confirm.`,
 			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
@@ -440,10 +327,8 @@ async function handleTest(
 			"insightGeneration",
 			"triggerRun",
 			{
-				force: true,
-				organizationId: context.organizationId,
-				reason: "manual" as const,
-				websiteIds: websiteId ? [websiteId] : undefined,
+				organizationId,
+				websiteIds: selectedWebsiteId ? [selectedWebsiteId] : undefined,
 			},
 			context
 		)) as {
@@ -454,24 +339,23 @@ async function handleTest(
 		};
 
 		const message = result.reusedRun
-			? `A digest run is already in flight for this organization (runId ${result.runId ?? "unknown"}). No new run was queued; that one will ${deliveryDescription} when it finishes. Use action=preview after it completes.`
+			? `Analysis is already running for this organization (runId ${result.runId ?? "unknown"}). No new run was queued; it will ${deliveryDescription} when it finishes.`
 			: result.status === "skipped"
-				? `Test run produced no queueable websites — nothing to investigate for ${scope}.`
-				: `Queued test digest run ${result.runId ?? "(no id)"} with ${result.queuedItems} website${result.queuedItems === 1 ? "" : "s"} in flight. The pipeline will ${deliveryDescription} when it finishes. Use action=preview to inspect the results once the run completes.`;
+				? "No websites were available for analysis."
+				: `Queued analysis ${result.runId ?? "(no id)"} for ${result.queuedItems} website${result.queuedItems === 1 ? "" : "s"}. It will ${deliveryDescription} when it finishes.`;
 
 		return {
 			success: true,
 			action: "test" as const,
 			applied: {
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
-				websiteId: websiteId ?? null,
+				scope: "organization" as const,
+				targetWebsiteId: selectedWebsiteId ?? null,
 				runId: result.runId ?? null,
 				queuedItems: result.queuedItems,
 				runStatus: result.status,
 				reusedRun: result.reusedRun ?? false,
-				targetScope: websiteId
-					? `1 website (${websiteId})`
+				targetScope: selectedWebsiteId
+					? `1 website (${selectedWebsiteId})`
 					: "all websites in this organization",
 				channels,
 				channelIds: existing.channels,
@@ -480,7 +364,8 @@ async function handleTest(
 		};
 	} catch (error) {
 		logger.error("Failed to trigger test insight digest run", {
-			websiteId,
+			organizationId,
+			selectedWebsiteId,
 			error,
 		});
 		return rpcFailure("test", error);
@@ -488,49 +373,50 @@ async function handleTest(
 }
 
 async function handleRoute(
-	{ context, scope, scopeInput, websiteId }: ActionContext,
+	{ context, organizationId }: ActionContext,
 	{ channelId, frequency, confirmed }: DigestInput
 ) {
-	if (frequency === "custom") {
+	if (frequency === "off") {
 		return fail(
 			"INVALID_FREQUENCY_FOR_ROUTE",
-			"frequency=custom is only valid for action=reschedule. For route, pick hourly, daily, or weekly; switch to a custom cron via action=reschedule afterwards."
+			"Slack delivery requires daily or weekly analysis. Use reschedule with frequency=off to turn automatic analysis off."
 		);
 	}
-	const channelError = validateChannelId(channelId, "route");
-	if (channelError) {
-		return channelError;
+	const id = validatedChannelId(channelId, "route");
+	if (typeof id !== "string") {
+		return id;
 	}
-	const id = channelId as string;
 
-	let cadenceWas: string | null = null;
+	let existing: DigestConfigSummary;
 	try {
-		cadenceWas = (await readDigestSummary(context, scopeInput)).frequency;
+		existing = await readDigestSummary(context, organizationId);
 	} catch (error) {
-		logger.error("Failed to read digest config for cadence diff", {
-			websiteId,
+		logger.error("Failed to read digest config before routing", {
+			organizationId,
 			error,
 		});
+		return rpcFailure("route", error);
 	}
+	const scheduleWas = existing.enabled ? existing.frequency : "off";
+	const schedule = frequency ?? existing.frequency;
 
 	if (!confirmed) {
-		const cadenceLine =
-			frequency && cadenceWas && cadenceWas !== frequency
-				? ` Cadence change: ${cadenceWas} -> ${frequency}.`
-				: "";
+		const scheduleLine =
+			scheduleWas === schedule
+				? ""
+				: ` Schedule change: ${scheduleWas === "off" ? "Off" : scheduleWas === "daily" ? "Daily" : "Weekly"} -> ${schedule === "daily" ? "Daily" : "Weekly"}.`;
 		return {
 			preview: true,
 			confirmationRequired: true,
 			proposed: {
 				action: "route" as const,
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
+				scope: "organization" as const,
 				channel: channelMention(id),
 				channelId: id,
-				frequency: frequency ?? null,
-				cadenceWas,
+				schedule,
+				scheduleWas,
 			},
-			message: `Route insight digests for ${scope} to ${channelMention(id)}${frequency ? ` on a ${frequency} cadence` : ""}.${cadenceLine} Reply to confirm.`,
+			message: `Send findings to ${channelMention(id)} after each ${schedule} analysis?${scheduleLine} Reply to confirm.`,
 			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
@@ -539,7 +425,7 @@ async function handleRoute(
 		const config = await callRPCProcedure(
 			"insightGeneration",
 			"addSlackDelivery",
-			{ ...scopeInput, channelId: id, frequency },
+			{ organizationId, channelId: id, frequency },
 			context
 		);
 		const summary = summarizeDigestConfig(config);
@@ -547,20 +433,18 @@ async function handleRoute(
 			success: true,
 			action: "route" as const,
 			applied: {
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
+				scope: "organization" as const,
 				channel: channelMention(id),
 				channelId: id,
-				cadence: summary.frequency,
-				cadenceWas,
-				cadenceChanged: cadenceWas !== null && cadenceWas !== summary.frequency,
+				schedule: summary.frequency,
+				scheduleWas,
 				nextRunAt: summary.nextRunAt,
 			},
-			message: `Routed insight digests to ${channelMention(id)} on a ${summary.frequency} cadence.`,
+			message: `Findings will go to ${channelMention(id)} after each ${summary.frequency} analysis.`,
 		};
 	} catch (error) {
 		logger.error("Failed to route insight digest", {
-			websiteId,
+			organizationId,
 			channelId: id,
 			error,
 		});
@@ -569,14 +453,13 @@ async function handleRoute(
 }
 
 async function handleUnroute(
-	{ context, scope, scopeInput, websiteId }: ActionContext,
+	{ context, organizationId }: ActionContext,
 	{ channelId, confirmed }: DigestInput
 ) {
-	const channelError = validateChannelId(channelId, "unroute");
-	if (channelError) {
-		return channelError;
+	const id = validatedChannelId(channelId, "unroute");
+	if (typeof id !== "string") {
+		return id;
 	}
-	const id = channelId as string;
 
 	if (!confirmed) {
 		return {
@@ -584,12 +467,11 @@ async function handleUnroute(
 			confirmationRequired: true,
 			proposed: {
 				action: "unroute" as const,
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
+				scope: "organization" as const,
 				channel: channelMention(id),
 				channelId: id,
 			},
-			message: `Stop routing insight digests for ${scope} to ${channelMention(id)}. Reply to confirm.`,
+			message: `Stop sending findings to ${channelMention(id)}? Reply to confirm.`,
 			instruction: CONFIRM_INSTRUCTION,
 		};
 	}
@@ -598,7 +480,7 @@ async function handleUnroute(
 		const config = await callRPCProcedure(
 			"insightGeneration",
 			"removeSlackDelivery",
-			{ ...scopeInput, channelId: id },
+			{ organizationId, channelId: id },
 			context
 		);
 		const summary = summarizeDigestConfig(config);
@@ -606,19 +488,18 @@ async function handleUnroute(
 			success: true,
 			action: "unroute" as const,
 			applied: {
-				scope: scopeKind(websiteId),
-				scopeLabel: scope,
+				scope: "organization" as const,
 				channel: channelMention(id),
 				channelId: id,
-				cadence: summary.frequency,
+				schedule: summary.enabled ? summary.frequency : "off",
 				channelsRemaining: summary.channels.map(channelMention),
 				nextRunAt: summary.nextRunAt,
 			},
-			message: `Stopped routing insight digests to ${channelMention(id)}.`,
+			message: `Findings will no longer go to ${channelMention(id)}.`,
 		};
 	} catch (error) {
 		logger.error("Failed to unroute insight digest", {
-			websiteId,
+			organizationId,
 			channelId: id,
 			error,
 		});
@@ -629,32 +510,27 @@ async function handleUnroute(
 export function createInsightDigestTools() {
 	const manageInsightDigestTool = tool({
 		description:
-			"Inspect, preview, change, OR trigger a test run of the analytics insight digest. Actions: status (read routing+schedule), preview (last past run), route, unroute, reschedule (cron/timezone/cadence), test (one-off end-to-end run that posts to currently-routed channels and costs LLM tokens). The schedule IS configurable via reschedule. CONFIRMATION CONTRACT (route/unroute/reschedule/test): the user's first ask is the REQUEST, not the confirmation. Always call confirmed=false first to get a preview block, restate it, then call confirmed=true only after the user replies in a separate turn — even when phrasing is confident ('drop a digest here', 'kill the digest', 'switch to Friday 8am'). RESPONSE CONTRACT: results carry a structured `current` / `proposed` / `applied` / `preview` block. Quote every value (channels, cadence, cron, timezone, nextRunAt, runId) verbatim from that block; channels arrive in <#CHANNELID> form, paste them as-is. Don't paraphrase, don't invent fields, don't re-pitch what the digest contains. If a field is null, say so plainly.",
+			"Inspect or change automatic analysis and Slack delivery. Actions: status, route, unroute, reschedule (off/daily/weekly plus timezone), and test (run one analysis now). Scheduling and delivery are organization-wide; a one-off run targets the selected website, or every website when none is selected. CONFIRMATION CONTRACT (route/unroute/reschedule/test): the user's first ask is the request, not confirmation. Always call confirmed=false first, then call confirmed=true only after the user confirms in a separate turn. RESPONSE CONTRACT: quote channels, schedule, timezone, nextRunAt, and runId verbatim from the structured result. Channels arrive in <#CHANNELID> form. If a field is null, say so plainly.",
 		inputSchema: manageDigestInputSchema,
 		execute: async (args, options) => {
 			const context = getAppContext(options);
 			if (!context.organizationId) {
 				return fail(
 					"NO_ORGANIZATION",
-					`Cannot ${args.action} a digest without an organization in context. Identify the organization first.`
+					`Cannot ${args.action} automatic analysis without an organization in context. Identify the organization first.`
 				);
 			}
 
 			const actionContext: ActionContext = {
 				context,
-				scope: scopeLabel(args.websiteId),
-				scopeInput: {
-					organizationId: context.organizationId,
-					websiteId: args.websiteId ?? undefined,
-				},
-				websiteId: args.websiteId,
+				organizationId: context.organizationId,
+				selectedWebsiteId:
+					context.defaultWebsiteId ?? context.websiteId ?? undefined,
 			};
 
 			switch (args.action) {
 				case "status":
 					return await handleStatus(actionContext);
-				case "preview":
-					return await handlePreview(actionContext);
 				case "reschedule":
 					return await handleReschedule(actionContext, args);
 				case "test":
@@ -664,7 +540,7 @@ export function createInsightDigestTools() {
 				case "unroute":
 					return await handleUnroute(actionContext, args);
 				default:
-					return fail("UNKNOWN_ACTION", "Unsupported digest action.");
+					return fail("UNKNOWN_ACTION", "Unsupported analysis action.");
 			}
 		},
 	});

@@ -3,7 +3,6 @@ import { callRPCProcedure } from "../tools/utils";
 import { executeQuery } from "../../query";
 import type { QueryRequest } from "../../query/types";
 import { fetchFlagChangeContext } from "./flag-context";
-import type { WeekOverWeekPeriod } from "./types";
 
 const DEFAULT_OPS_LIMIT = 5;
 
@@ -110,12 +109,10 @@ async function getFlagChanges(
 
 export async function fetchOpsMetrics(
 	appContext: AppContext,
-	periodBounds: WeekOverWeekPeriod,
+	range: { from: string; to: string },
 	period: "current" | "previous",
 	queries: OpsInsightQuery[]
 ) {
-	const range =
-		period === "current" ? periodBounds.current : periodBounds.previous;
 	const results: Record<string, unknown>[] = [];
 
 	for (const query of queries) {
@@ -157,9 +154,5 @@ export async function fetchOpsMetrics(
 		}
 	}
 
-	return {
-		period,
-		range,
-		results,
-	};
+	return { results };
 }

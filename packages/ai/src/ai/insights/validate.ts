@@ -1,370 +1,604 @@
-import type { ParsedInsight } from "../schemas/smart-insights-output";
+import {
+	generatedInsightSchema,
+	investigationEvidenceSchema,
+	investigationSignalSchema,
+	investigationSubmissionSchema,
+	type GeneratedInsight,
+	type InsightEvidence,
+	type InsightMetric,
+	type InsightSource,
+	type InvestigationEvidence,
+	type InvestigationResult,
+	type InvestigationSignal,
+	type InvestigationSubmission,
+} from "@databuddy/shared/insights";
 
-export interface InsightValidationResult {
-	insight: ParsedInsight | null;
-	warnings: string[];
+export interface InvestigationValidationResult {
+	errors: string[];
+	insights: GeneratedInsight[];
+	submission: InvestigationSubmission | null;
 }
 
-export interface InsightsValidationResult {
-	insights: ParsedInsight[];
-	warnings: string[];
+export interface ValidateInvestigationInput {
+	evidence: InvestigationEvidence[];
+	signals: InvestigationSignal[];
+	submission: unknown;
 }
 
-const LOWER_IS_BETTER_PATTERNS = [
-	/error/,
-	/affected users/,
-	/bounce/,
-	/drop[ -]?off/,
-	/latency/,
-	/inp/,
-	/lcp/,
-	/fcp/,
-	/ttfb/,
-	/cls/,
-	/load time/,
-	/response time/,
-	/duration.*p75/,
-];
-
-const UP_WORDS =
-	/\b(rise|rises|rising|rose|up|increase|increases|increased|climb|climbs|climbed|growth|grew|grows|jump|jumps|jumped)\b/i;
-const DOWN_WORDS =
-	/\b(fall|falls|falling|fell|down|drop|drops|dropped|decline|declines|declined|decrease|decreases|decreased|slip|slips|slipped)\b/i;
-const IMPROVE_WORDS =
-	/\b(improve|improves|improved|improving|recover|recovers|recovered|easing|eased|better)\b/i;
-const WORSEN_WORDS =
-	/\b(worse|worsens|worsened|worsening|degrade|degrades|degraded|regression|broken|sluggish)\b/i;
-const SIGNED_UP_NUMBER = /(^|\s)\+\s?\d/;
-const ACTION_VERB_PATTERN =
-	/\b(inspect|review|compare|segment|drill|open|fix|audit|trace|check|verify|validate|filter|investigate|rollback|hotfix|profile|diagnose)\b/i;
-const GENERIC_MONITORING_PATTERN =
-	/\b(monitor|keep an eye|watch this|track closely|continue tracking|worth watching|worth monitoring)\b/i;
-const HEDGING_TITLE_PATTERN =
-	/\b(softened|concerning|slightly|somewhat|may be|could be|appears to|seems to|shows signs|worth watching|potentially)\b/i;
-const HARD_CAUSALITY_PATTERN = /\b(caused by|because of|due to|driven by)\b/i;
-const ATTRIBUTION_CONTEXT_PATTERN =
-	/\b(referrer|source|utm|campaign|channel|twitter|google|bing|toolfolio)\b/i;
-const BUSINESS_CLAIM_PATTERN =
-	/\b(revenue|roi|roas|cac|ltv|payback|profit|sales|commercial impact)\b/i;
-const TECHNICAL_TITLE_JARGON_PATTERN = /\b(INP|LCP|FCP|TTFB|CLS|p75)\b/i;
-
-const MAX_TITLE_CHARS = 80;
-const MAX_DESCRIPTION_CHARS = 300;
-const MAX_SUGGESTION_CHARS = 300;
-
-function truncateAtSentence(text: string, maxLength: number): string {
-	if (text.length <= maxLength) {
-		return text;
-	}
-	const truncated = text.slice(0, maxLength);
-	const lastPeriod = truncated.lastIndexOf(". ");
-	const lastSemicolon = truncated.lastIndexOf("; ");
-	const cut = Math.max(lastPeriod, lastSemicolon);
-	if (cut > maxLength * 0.5) {
-		return text.slice(0, cut + 1).trim();
-	}
-	return text.slice(0, maxLength - 1).trim();
-}
-
-function roundPercent(value: number): number {
-	return Math.round(value * 10) / 10;
-}
-
-function metricChange(metric: ParsedInsight["metrics"][number]): number | null {
-	if (metric.previous === undefined || metric.previous === 0) {
-		return null;
-	}
-	return ((metric.current - metric.previous) / metric.previous) * 100;
-}
-
-function isLowerBetterMetric(label: string): boolean {
-	const normalized = label.toLowerCase();
-	return LOWER_IS_BETTER_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
-function sentimentForPrimaryMetric(
-	metric: ParsedInsight["metrics"][number]
-): ParsedInsight["sentiment"] {
-	const change = metricChange(metric);
-	if (change === null || Math.abs(change) < 0.05) {
-		return "neutral";
-	}
-	const improved = isLowerBetterMetric(metric.label) ? change < 0 : change > 0;
-	return improved ? "positive" : "negative";
-}
-
-const SENTIMENT_DIVERGENCE_TYPES = new Set([
-	"conversion_leak",
-	"funnel_regression",
-	"channel_concentration",
-	"quality_shift",
-	"cross_property_dependency",
-	"referrer_change",
-	"engagement_change",
+const NUMBER_TOKEN = /[+-]?\$?\d[\d,]*(?:\.\d+)?(?:%|ms|s)?/g;
+const DURATION_SUFFIX = /(?:ms|s)$/;
+const WORD_SPLIT = /[^a-z]+/;
+const UP_WORDS = new Set([
+	"up",
+	"rise",
+	"rises",
+	"rose",
+	"rising",
+	"increase",
+	"increased",
+	"grew",
+	"growth",
+]);
+const DOWN_WORDS = new Set([
+	"down",
+	"fall",
+	"falls",
+	"fell",
+	"falling",
+	"drop",
+	"dropped",
+	"decline",
+	"declined",
+	"decrease",
+	"decreased",
 ]);
 
-function allowsSentimentDivergence(insight: ParsedInsight): boolean {
-	return SENTIMENT_DIVERGENCE_TYPES.has(insight.type);
+type NumberUnit =
+	| "currency"
+	| "duration_ms"
+	| "duration_s"
+	| "number"
+	| "percent";
+
+interface TypedNumber {
+	raw: string;
+	unit: NumberUnit;
+	value: number;
 }
 
-function typeForDirection(
-	type: ParsedInsight["type"],
-	sentiment: ParsedInsight["sentiment"]
-): ParsedInsight["type"] {
-	if (sentiment !== "positive") {
-		return type;
-	}
-	if (type === "error_spike" || type === "new_errors") {
-		return "reliability_improved";
-	}
-	if (type === "vitals_degraded") {
-		return "performance_improved";
-	}
-	if (type === "traffic_drop") {
-		return "positive_trend";
-	}
-	return type;
+function numbersIn(text: string): TypedNumber[] {
+	return [...text.matchAll(NUMBER_TOKEN)].flatMap((match) => {
+		const raw = match[0];
+		const value = Number(
+			raw
+				.replaceAll(",", "")
+				.replaceAll("$", "")
+				.replaceAll("%", "")
+				.replace(DURATION_SUFFIX, "")
+		);
+		if (!Number.isFinite(value)) {
+			return [];
+		}
+		const unit: NumberUnit = raw.includes("$")
+			? "currency"
+			: raw.endsWith("%")
+				? "percent"
+				: raw.endsWith("ms")
+					? "duration_ms"
+					: raw.endsWith("s")
+						? "duration_s"
+						: "number";
+		return [{ raw, unit, value }];
+	});
 }
 
-function hasDirectionContradiction(insight: ParsedInsight): boolean {
-	if (insight.changePercent === undefined || insight.changePercent === 0) {
-		return false;
-	}
-	const text = insight.title;
-	const hasUp = UP_WORDS.test(text) || SIGNED_UP_NUMBER.test(text);
-	const hasDown = DOWN_WORDS.test(text);
-
-	if (hasUp && hasDown) {
-		return false;
-	}
-	if (insight.changePercent > 0) {
-		return hasDown && !IMPROVE_WORDS.test(text);
-	}
-	return hasUp && !IMPROVE_WORDS.test(text);
+function metricUnit(format: InsightMetric["format"]): NumberUnit {
+	return format === "percent" ||
+		format === "duration_ms" ||
+		format === "duration_s"
+		? format
+		: "number";
 }
 
-function hasSentimentContradiction(insight: ParsedInsight): boolean {
-	if (allowsSentimentDivergence(insight)) {
+function metricNumbers(metric: InsightMetric): TypedNumber[] {
+	const unit = metricUnit(metric.format);
+	return [metric.current, metric.previous].flatMap((value) =>
+		value === undefined ? [] : [{ raw: String(value), unit, value }]
+	);
+}
+
+function unsupportedNumbers(
+	result: InvestigationResult,
+	signal: InvestigationSignal,
+	evidence: InvestigationEvidence[]
+): string[] {
+	const allowed = [
+		...metricNumbers(signal.metric),
+		...(signal.metric.key === "revenue"
+			? metricNumbers(signal.metric).map((claim) => ({
+					...claim,
+					unit: "currency" as const,
+				}))
+			: []),
+		...(signal.changePercent === null
+			? []
+			: [
+					{
+						raw: String(signal.changePercent),
+						unit: "percent" as const,
+						value: signal.changePercent,
+					},
+				]),
+		...evidence.flatMap((item) => [
+			{
+				raw: String(item.rowCount),
+				unit: "number" as const,
+				value: item.rowCount,
+			},
+			...numbersIn(evidenceDescription(item)),
+			...(item.status === "ok" || item.status === "truncated"
+				? (item.metrics ?? []).flatMap(metricNumbers)
+				: []),
+		]),
+	].flatMap((claim) => [claim, { ...claim, value: Math.abs(claim.value) }]);
+	const scheduleNumber = (days: number): TypedNumber => ({
+		raw: String(days),
+		unit: "number",
+		value: days,
+	});
+	const claims: { allowed?: TypedNumber[]; text: string }[] = [
+		{ text: result.summary },
+		...(result.disposition === "action_ready"
+			? [
+					{ text: result.title },
+					{ text: result.action },
+					{ text: result.rootCause ?? "" },
+					{ text: result.impactSummary ?? "" },
+					{
+						text: result.verification.successCondition,
+						allowed: [scheduleNumber(result.verification.checkAfterDays)],
+					},
+				]
+			: result.disposition === "monitor"
+				? [
+						{
+							text: result.escalationCondition,
+							allowed: [scheduleNumber(result.checkAfterDays)],
+						},
+					]
+				: result.disposition === "needs_context"
+					? [{ text: result.missingContext }]
+					: []),
+	];
+	return claims.flatMap((statement) =>
+		numbersIn(statement.text)
+			.filter(
+				(claim) =>
+					![...allowed, ...(statement.allowed ?? [])].some(
+						(value) =>
+							value.unit === claim.unit &&
+							Math.abs(value.value - claim.value) <=
+								Math.max(0.01, Math.abs(value.value) * 0.0001)
+					)
+			)
+			.map((claim) => claim.raw)
+	);
+}
+
+function contradictsSignalDirection(
+	result: InvestigationResult,
+	signal: InvestigationSignal
+): boolean {
+	const statements = [
+		result.summary,
+		...(result.disposition === "action_ready" ? [result.title] : []),
+	];
+	return statements.some((text) => {
+		const words = text.toLowerCase().split(WORD_SPLIT).filter(Boolean);
+		const saysUp = words.some((word) => UP_WORDS.has(word));
+		const saysDown = words.some((word) => DOWN_WORDS.has(word));
+		return (
+			saysUp !== saysDown && (signal.direction === "up" ? saysDown : saysUp)
+		);
+	});
+}
+
+function evidenceDescription(evidence: InvestigationEvidence): string {
+	if (evidence.status === "failed") {
+		return `${evidence.queryType} failed: ${evidence.error}`;
+	}
+	return evidence.status === "truncated"
+		? `${evidence.summary} Truncated: ${evidence.truncationReason}`
+		: evidence.summary;
+}
+
+function storedEvidenceType(
+	kind: InvestigationEvidence["kind"]
+): InsightEvidence["type"] {
+	if (kind === "breakdown") {
+		return "segment";
+	}
+	if (kind === "data_health") {
+		return "error";
+	}
+	if (kind === "related_change") {
+		return "temporal";
+	}
+	return "metric";
+}
+
+function generatedSource(
+	source: InvestigationEvidence["source"]
+): InsightSource {
+	return source === "sql" ? "web" : source;
+}
+
+function defaultSource(signal: InvestigationSignal): InsightSource {
+	if (signal.entity.type === "error" || signal.entity.type === "vital") {
+		return "ops";
+	}
+	if (
+		signal.entity.type === "event" ||
+		signal.entity.type === "funnel" ||
+		signal.entity.type === "goal"
+	) {
+		return "product";
+	}
+	return "web";
+}
+
+function evidenceExplainsSignal(
+	signal: InvestigationSignal,
+	evidence: InvestigationEvidence
+): boolean {
+	if (evidence.status !== "ok") {
 		return false;
 	}
-	const text = `${insight.title} ${insight.description}`;
-	if (insight.sentiment === "positive") {
-		return WORSEN_WORDS.test(text) && !IMPROVE_WORDS.test(text);
+	if (signal.entity.type === "goal") {
+		return (
+			evidence.kind === "definition" &&
+			evidence.queryType === "goals_summary" &&
+			evidence.entity?.type === "goal" &&
+			evidence.entity.id === signal.entity.id
+		);
 	}
-	if (insight.sentiment === "negative") {
-		return IMPROVE_WORDS.test(text) && !WORSEN_WORDS.test(text);
+	if (signal.entity.type === "funnel") {
+		return (
+			evidence.kind === "definition" &&
+			evidence.queryType === "funnels_summary" &&
+			evidence.entity?.type === "funnel" &&
+			evidence.entity.id === signal.entity.id
+		);
+	}
+	if (signal.entity.type === "event") {
+		return (
+			evidence.kind === "definition" &&
+			evidence.queryType === "custom_events_summary" &&
+			evidence.entity?.type === "event" &&
+			evidence.entity.id === signal.entity.id
+		);
+	}
+	if (signal.entity.type === "error") {
+		return (
+			evidence.kind === "data_health" && evidence.queryType.includes("error")
+		);
+	}
+	if (signal.entity.type === "vital") {
+		return (
+			evidence.kind === "data_health" && evidence.queryType.includes("vital")
+		);
 	}
 	return false;
 }
 
-export function validateInsight(input: ParsedInsight): InsightValidationResult {
-	const warnings: string[] = [];
-	const primary = input.metrics[0];
-	let insight = { ...input };
-
-	if (!primary) {
-		return {
-			insight: null,
-			warnings: [`${input.title}: missing primary metric`],
-		};
-	}
-
-	const computed = metricChange(primary);
-	if (computed !== null) {
-		const nextChange = roundPercent(computed);
-		if (
-			insight.changePercent === undefined ||
-			Math.abs(insight.changePercent - nextChange) > 0.2
-		) {
-			warnings.push(
-				`${insight.title}: repaired changePercent from ${insight.changePercent ?? "missing"} to ${nextChange}`
-			);
-			insight = { ...insight, changePercent: nextChange };
-		}
-	}
-
-	const metricSentiment = sentimentForPrimaryMetric(primary);
-	if (
-		metricSentiment !== "neutral" &&
-		insight.sentiment !== metricSentiment &&
-		!allowsSentimentDivergence(insight)
-	) {
-		warnings.push(
-			`${insight.title}: repaired sentiment from ${insight.sentiment} to ${metricSentiment}`
-		);
-		insight = { ...insight, sentiment: metricSentiment };
-	}
-
-	const nextType = typeForDirection(insight.type, insight.sentiment);
-	if (nextType !== insight.type) {
-		warnings.push(
-			`${insight.title}: repaired type from ${insight.type} to ${nextType}`
-		);
-		insight = { ...insight, type: nextType };
-	}
-
-	if (hasDirectionContradiction(insight)) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because title direction contradicts primary metric`,
-			],
-		};
-	}
-
-	if (hasSentimentContradiction(insight)) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because narrative sentiment contradicts metric direction`,
-			],
-		};
-	}
-
-	if (TECHNICAL_TITLE_JARGON_PATTERN.test(insight.title)) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because title uses technical jargon`,
-			],
-		};
-	}
-
-	if (HEDGING_TITLE_PATTERN.test(insight.title)) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because title uses hedging language`,
-			],
-		};
-	}
-
-	if (insight.title.length > MAX_TITLE_CHARS) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because title exceeds ${MAX_TITLE_CHARS} chars`,
-			],
-		};
-	}
-
-	if (
-		insight.description.length > MAX_DESCRIPTION_CHARS ||
-		insight.suggestion.length > MAX_SUGGESTION_CHARS
-	) {
-		const trimmed = {
-			...insight,
-			description: truncateAtSentence(
-				insight.description,
-				MAX_DESCRIPTION_CHARS
-			),
-			suggestion: truncateAtSentence(insight.suggestion, MAX_SUGGESTION_CHARS),
-		};
-		if (
-			trimmed.description !== insight.description ||
-			trimmed.suggestion !== insight.suggestion
-		) {
-			warnings.push(`${insight.title}: truncated copy to fit limits`);
-		}
-		insight = trimmed;
-	}
-
-	if (
-		GENERIC_MONITORING_PATTERN.test(insight.suggestion) &&
-		!ACTION_VERB_PATTERN.test(insight.suggestion)
-	) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because suggestion is generic monitoring advice`,
-			],
-		};
-	}
-
-	const narrative = `${insight.title} ${insight.description} ${insight.suggestion}`;
-	if (
-		HARD_CAUSALITY_PATTERN.test(narrative) &&
-		ATTRIBUTION_CONTEXT_PATTERN.test(narrative) &&
-		insight.confidence < 0.9
-	) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because attribution causality is overstated`,
-			],
-		};
-	}
-
-	if (
-		BUSINESS_CLAIM_PATTERN.test(narrative) &&
-		!insight.sources.includes("business")
-	) {
-		return {
-			insight: null,
-			warnings: [
-				...warnings,
-				`${insight.title}: dropped because business impact claim lacks business data source`,
-			],
-		};
-	}
-
-	if (insight.rootCause !== undefined && insight.confidence <= 0.5) {
-		warnings.push(
-			`${insight.title}: stripped rootCause because confidence is ${insight.confidence}`
-		);
-		insight = { ...insight, rootCause: undefined };
-	}
-
-	if (
-		insight.type === "deploy_correlation" &&
-		insight.evidence &&
-		!insight.evidence.some((e) => e.type === "temporal")
-	) {
-		warnings.push(
-			`${insight.title}: deploy_correlation insight lacks temporal evidence`
-		);
-	}
-
-	const suspiciousMetrics = insight.metrics.filter((m) => {
-		if (m.previous === undefined) {
-			return false;
-		}
-		if (
-			m.format === "percent" &&
-			(m.previous === 100 || m.previous === 0) &&
-			m.current !== m.previous
-		) {
-			return true;
-		}
-		if (m.current < 0 || (m.previous !== undefined && m.previous < 0)) {
-			return true;
-		}
-		return false;
-	});
-	if (suspiciousMetrics.length > 0) {
-		warnings.push(
-			`${insight.title}: suspicious metric values (${suspiciousMetrics.map((m) => `${m.label}: ${m.previous}->${m.current}`).join(", ")})`
-		);
-	}
-
-	return { insight, warnings };
+function evidenceExplainsNoAction(
+	signal: InvestigationSignal,
+	evidence: InvestigationEvidence
+): boolean {
+	return (
+		(evidence.status === "ok" && evidence.kind === "related_change") ||
+		evidenceExplainsSignal(signal, evidence) ||
+		(signal.metric.key === "revenue" &&
+			evidence.status === "ok" &&
+			evidence.kind === "impact")
+	);
 }
 
-export function validateInsights(
-	insights: ParsedInsight[]
-): InsightsValidationResult {
-	const warnings: string[] = [];
-	const valid = insights.flatMap((insight) => {
-		const result = validateInsight(insight);
-		warnings.push(...result.warnings);
-		return result.insight ? [result.insight] : [];
+function citedEvidence(
+	result: InvestigationResult,
+	evidenceById: Map<string, InvestigationEvidence>
+): InvestigationEvidence[] {
+	return result.evidenceIds.flatMap((id) => {
+		const evidence = evidenceById.get(id);
+		return evidence ? [evidence] : [];
 	});
-	return { insights: valid, warnings };
+}
+
+function toGeneratedInsight(
+	signal: InvestigationSignal,
+	result: InvestigationResult,
+	evidence: InvestigationEvidence[]
+): GeneratedInsight | null {
+	if (
+		result.disposition === "monitor" ||
+		result.disposition === "not_a_problem"
+	) {
+		return null;
+	}
+
+	const supportingMetrics = evidence.flatMap((item) =>
+		item.status === "ok" ? (item.metrics ?? []) : []
+	);
+	const metrics: InsightMetric[] = [
+		{
+			label: signal.metric.label,
+			current: signal.metric.current,
+			previous: signal.metric.previous,
+			format: signal.metric.format,
+		},
+	];
+	const seenLabels = new Set([signal.metric.label]);
+	for (const metric of supportingMetrics) {
+		if (metrics.length >= 5 || seenLabels.has(metric.label)) {
+			continue;
+		}
+		seenLabels.add(metric.label);
+		metrics.push(metric);
+	}
+
+	const sources = [
+		...new Set(
+			evidence.length > 0
+				? evidence.map((item) => generatedSource(item.source))
+				: [defaultSource(signal)]
+		),
+	];
+	const storedEvidence: InsightEvidence[] = evidence.map((item) => ({
+		type: storedEvidenceType(item.kind),
+		description: evidenceDescription(item),
+	}));
+
+	if (result.disposition === "action_ready") {
+		storedEvidence.push({
+			type: "temporal",
+			description: `Verify in ${result.verification.checkAfterDays} day${result.verification.checkAfterDays === 1 ? "" : "s"}: ${result.verification.successCondition}`,
+		});
+	}
+
+	const insight: GeneratedInsight = {
+		title:
+			result.disposition === "action_ready"
+				? result.title
+				: `${signal.entity.label} needs context`.slice(0, 80),
+		description: result.summary,
+		suggestion:
+			result.disposition === "action_ready" ? result.action : result.question,
+		metrics,
+		severity: signal.severity,
+		sentiment: signal.sentiment,
+		priority:
+			result.disposition === "action_ready"
+				? signal.priority
+				: Math.min(signal.priority, 6),
+		changePercent: signal.changePercent ?? undefined,
+		type: signal.insightType,
+		subjectKey: signal.signalKey,
+		sources,
+		confidence: result.confidence,
+		evidence: storedEvidence.slice(0, 5),
+		...(result.disposition === "action_ready" && result.impactSummary
+			? { impactSummary: result.impactSummary }
+			: {}),
+		...(result.disposition === "action_ready" && result.rootCause
+			? { rootCause: result.rootCause }
+			: {}),
+	};
+
+	return generatedInsightSchema.parse(insight);
+}
+
+function formatSchemaErrors(
+	prefix: string,
+	issues: { message: string; path: PropertyKey[] }[]
+): string[] {
+	return issues.map(
+		(issue) =>
+			`${prefix}${issue.path.length > 0 ? `.${issue.path.join(".")}` : ""}: ${issue.message}`
+	);
+}
+
+export function validateInvestigationSubmission(
+	input: ValidateInvestigationInput
+): InvestigationValidationResult {
+	const signalParse = investigationSignalSchema
+		.array()
+		.safeParse(input.signals);
+	if (!signalParse.success) {
+		return {
+			errors: formatSchemaErrors("signals", signalParse.error.issues),
+			insights: [],
+			submission: null,
+		};
+	}
+	const evidenceParse = investigationEvidenceSchema
+		.array()
+		.safeParse(input.evidence);
+	if (!evidenceParse.success) {
+		return {
+			errors: formatSchemaErrors("evidence", evidenceParse.error.issues),
+			insights: [],
+			submission: null,
+		};
+	}
+	const submissionParse = investigationSubmissionSchema.safeParse(
+		input.submission
+	);
+	if (!submissionParse.success) {
+		return {
+			errors: formatSchemaErrors("submission", submissionParse.error.issues),
+			insights: [],
+			submission: null,
+		};
+	}
+
+	const errors: string[] = [];
+	const signalsByKey = new Map<string, InvestigationSignal>();
+	for (const signal of signalParse.data) {
+		if (signalsByKey.has(signal.signalKey)) {
+			errors.push(`Duplicate signal key: ${signal.signalKey}`);
+			continue;
+		}
+		signalsByKey.set(signal.signalKey, signal);
+	}
+	const evidenceById = new Map<string, InvestigationEvidence>();
+	for (const evidence of evidenceParse.data) {
+		if (evidenceById.has(evidence.evidenceId)) {
+			errors.push(`Duplicate evidence ID: ${evidence.evidenceId}`);
+			continue;
+		}
+		if (!signalsByKey.has(evidence.signalKey)) {
+			errors.push(
+				`Evidence ${evidence.evidenceId} belongs to unknown signal: ${evidence.signalKey}`
+			);
+		}
+		evidenceById.set(evidence.evidenceId, evidence);
+	}
+
+	const submittedKeys = new Set(
+		submissionParse.data.results.map((result) => result.signalKey)
+	);
+	for (const signalKey of signalsByKey.keys()) {
+		if (!submittedKeys.has(signalKey)) {
+			errors.push(`Missing terminal result for signal: ${signalKey}`);
+		}
+	}
+	for (const result of submissionParse.data.results) {
+		const signal = signalsByKey.get(result.signalKey);
+		if (!signal) {
+			errors.push(`Unknown signal: ${result.signalKey}`);
+			continue;
+		}
+
+		const cited = citedEvidence(result, evidenceById);
+		for (const evidenceId of result.evidenceIds) {
+			const evidence = evidenceById.get(evidenceId);
+			if (!evidence) {
+				errors.push(
+					`${result.signalKey} cites unknown evidence: ${evidenceId}`
+				);
+			} else if (evidence.signalKey !== result.signalKey) {
+				errors.push(
+					`${result.signalKey} cites evidence owned by ${evidence.signalKey}`
+				);
+			}
+		}
+		const unsupported = unsupportedNumbers(result, signal, cited);
+		if (unsupported.length > 0) {
+			errors.push(
+				`${result.signalKey} uses unsupported numbers: ${[...new Set(unsupported)].join(", ")}`
+			);
+		}
+		if (contradictsSignalDirection(result, signal)) {
+			errors.push(
+				`${result.signalKey} describes the opposite metric direction`
+			);
+		}
+
+		if (result.disposition !== "needs_context") {
+			const unusable = cited.filter((evidence) => {
+				if (evidence.status === "failed") {
+					return true;
+				}
+				if (evidence.status !== "empty") {
+					return false;
+				}
+				return !(
+					result.disposition === "action_ready" &&
+					signal.kind === "missing_expected_data" &&
+					(evidence.kind === "definition" || evidence.kind === "data_health")
+				);
+			});
+			if (unusable.length > 0) {
+				errors.push(
+					`${result.signalKey} uses ${unusable.map((evidence) => evidence.status).join("/")} evidence for a conclusion`
+				);
+			}
+		}
+		if (result.disposition === "action_ready") {
+			const hasDiagnosticEvidence = cited.some(
+				(evidence) =>
+					evidence.kind !== "trend" &&
+					(evidence.status === "ok" ||
+						evidence.status === "truncated" ||
+						(signal.kind === "missing_expected_data" &&
+							evidence.status === "empty" &&
+							(evidence.kind === "definition" ||
+								evidence.kind === "data_health")))
+			);
+			if (!hasDiagnosticEvidence) {
+				errors.push(
+					`${result.signalKey} recommends action without usable diagnostic evidence`
+				);
+			}
+		}
+		if (
+			result.disposition !== "needs_context" &&
+			result.confidence > 0.7 &&
+			cited.length > 0 &&
+			cited.every((evidence) => evidence.status === "truncated")
+		) {
+			errors.push(
+				`${result.signalKey} claims high confidence from only truncated evidence`
+			);
+		}
+		if (result.disposition === "action_ready" && result.rootCause) {
+			const hasCausalEvidence = cited.some((evidence) =>
+				evidenceExplainsSignal(signal, evidence)
+			);
+			if (!hasCausalEvidence) {
+				errors.push(
+					`${result.signalKey} states a root cause without causal evidence`
+				);
+			}
+		}
+		if (result.disposition === "action_ready" && result.impactSummary) {
+			const hasImpactEvidence = cited.some(
+				(evidence) =>
+					evidence.kind === "impact" &&
+					(evidence.status === "ok" || evidence.status === "truncated")
+			);
+			if (!hasImpactEvidence) {
+				errors.push(
+					`${result.signalKey} states impact without impact evidence`
+				);
+			}
+		}
+		if (
+			result.disposition === "not_a_problem" &&
+			!cited.some((evidence) => evidenceExplainsNoAction(signal, evidence))
+		) {
+			errors.push(
+				`${result.signalKey} dismisses a signal without explanatory evidence`
+			);
+		}
+	}
+
+	if (errors.length > 0) {
+		return { errors, insights: [], submission: null };
+	}
+
+	const insights = submissionParse.data.results.flatMap((result) => {
+		const signal = signalsByKey.get(result.signalKey);
+		if (!signal) {
+			return [];
+		}
+		const insight = toGeneratedInsight(
+			signal,
+			result,
+			citedEvidence(result, evidenceById)
+		);
+		return insight ? [insight] : [];
+	});
+
+	return { errors: [], insights, submission: submissionParse.data };
 }

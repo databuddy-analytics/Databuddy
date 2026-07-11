@@ -1,68 +1,66 @@
+import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import { validateTimezone } from "@databuddy/validation";
 import { generateObject } from "ai";
+import dayjs from "dayjs";
+import timezonePlugin from "dayjs/plugin/timezone";
+import utcPlugin from "dayjs/plugin/utc";
 import { z } from "zod";
+import { DatabuddyAgentUserError } from "../../agent/errors";
 import { executeQuery } from "../../query";
-import { models } from "../config/models";
+import {
+	ensureAgentCreditsAvailable,
+	resolveAgentBillingCustomerId,
+	trackAgentUsageAndBill,
+} from "../agents/execution";
+import { modelNames, models } from "../config/models";
 import { defineMcpTool, McpToolError } from "./define-tool";
-import { type McpAgentToolTrace, runMcpAgentWithTrace } from "./run-agent";
 
-const INVESTIGATION_TIMEOUT_MS = 40_000;
+dayjs.extend(utcPlugin);
+dayjs.extend(timezonePlugin);
+
 const SYNTHESIS_TIMEOUT_MS = 40_000;
 const SWEEP_TIMEOUT_MS = 15_000;
-const MAX_TRACE_INPUT_CHARS = 300;
-const MAX_TRACE_OUTPUT_CHARS = 1500;
 
 export const investigationMemoSchema = z.object({
-	headline: z
-		.string()
-		.describe(
-			"One sentence with the key numbers in it. Specific to this site, never generic."
-		),
+	headline: z.string().describe("One specific sentence with the key numbers."),
 	narrative: z
 		.string()
 		.describe(
-			"Analyst memo in markdown: what changed, why it happened, what it means. Short paragraphs, numbers inline."
+			"What changed, what the data supports, and what remains unknown."
 		),
 	causalChain: z
 		.array(
 			z.object({
-				step: z.string().describe("One link in the cause-to-effect chain"),
-				evidence: z
-					.string()
-					.describe("The observed data backing this link, with numbers"),
+				step: z.string(),
+				evidence: z.string(),
 			})
 		)
-		.describe("Ordered cause-to-effect steps. Empty if no causal link found."),
+		.describe("Observed sequence only; empty when the data cannot prove one."),
 	deadEnds: z
 		.array(
 			z.object({
 				hypothesis: z.string(),
-				ruledOutBecause: z
-					.string()
-					.describe("The data that ruled this hypothesis out"),
+				ruledOutBecause: z.string(),
 			})
 		)
-		.describe("Hypotheses checked and eliminated during the investigation."),
+		.describe("Only hypotheses directly tested by the supplied data."),
 	confidence: z.object({
-		level: z.enum(["high", "medium", "low"]),
+		level: z.enum(["medium", "low"]),
 		reason: z
 			.string()
-			.describe(
-				"Why this confidence level, and what data would raise it if low"
-			),
+			.describe("Include unavailable data that limits confidence."),
 	}),
 	verdict: z.object({
 		type: z
 			.enum(["act", "watch", "all_clear"])
 			.describe(
-				"act: a fixable cause with material impact, the owner should do something today. watch: something real is moving but the cause is unconfirmed or not yet actionable; name the metric to monitor. all_clear: the change is explained and is either immaterial or outside the owner's control (viral decay, seasonality, spike normalization), nothing to do."
+				"act: material observed issue; watch: real but uncertain change; all_clear: sufficient data shows no material issue."
 			),
-		reason: z
-			.string()
-			.describe("One sentence justifying the verdict, with the key number."),
+		reason: z.string().describe("One sentence with the key number."),
 	}),
 	actions: z
 		.array(z.string())
-		.describe("Concrete next steps ranked by impact. Empty if none warranted."),
+		.describe("Cautious, reversible next checks grounded in the data."),
 });
 
 export type InvestigationMemo = z.infer<typeof investigationMemoSchema>;
@@ -73,83 +71,186 @@ export interface InvestigationReceipts {
 	steps: number;
 }
 
-export function buildReceipts(
-	steps: number,
-	toolCalls: McpAgentToolTrace[]
-): InvestigationReceipts {
-	return {
-		steps,
-		queriesRun: toolCalls.map((call) => ({
-			tool: call.name,
-			input: JSON.stringify(call.input ?? {}).slice(0, MAX_TRACE_INPUT_CHARS),
-		})),
-		sourcesChecked: [...new Set(toolCalls.map((call) => call.name))],
-	};
-}
-
-function formatUtcDay(date: Date): string {
-	return date.toISOString().slice(0, 10);
-}
-
-function shiftDays(date: Date, days: number): Date {
-	return new Date(date.getTime() + days * 86_400_000);
-}
-
-export function buildInvestigationWindow(
-	lookbackDays: number,
-	now: Date = new Date()
-): {
+interface InvestigationWindow {
 	from: string;
-	to: string;
-	halves: string;
-	halfDays: number;
 	h1From: string;
 	h1To: string;
 	h2From: string;
 	h2To: string;
-} {
-	const to = now;
-	const from = shiftDays(to, -(lookbackDays - 1));
-	const halfDays = Math.floor(lookbackDays / 2);
-	const secondHalfStart = shiftDays(to, -(halfDays - 1));
-	const firstHalfEnd = shiftDays(secondHalfStart, -1);
-	const firstHalfStart = shiftDays(firstHalfEnd, -(halfDays - 1));
+	halfDays: number;
+	halves: string;
+	to: string;
+}
+
+interface InvestigationSweep {
+	complete: boolean;
+	hasData: boolean;
+	text: string;
+}
+
+interface SweepQuery {
+	from: string;
+	label: string;
+	limit?: number;
+	timeUnit?: "day";
+	to: string;
+	type: string;
+}
+
+type SweepRange = "all" | "first" | "second";
+
+const SWEEP_QUERY_SPECS = [
+	["Daily series", "events_by_date", "all"],
+	["Summary metrics — first window", "summary_metrics", "first"],
+	["Summary metrics — second window", "summary_metrics", "second"],
+	["Error summary — first window", "error_summary", "first"],
+	["Error summary — second window", "error_summary", "second"],
+	["Revenue overview — first window", "revenue_overview", "first"],
+	["Revenue overview — second window", "revenue_overview", "second"],
+	["Top pages — full window", "top_pages", "all", 12],
+	["Top referrers — full window", "top_referrers", "all", 12],
+	["Countries — full window", "country", "all", 8],
+	["Custom events — full window", "custom_events_discovery", "all", 30],
+] as const satisfies readonly (
+	| readonly [string, string, SweepRange]
+	| readonly [string, string, SweepRange, number]
+)[];
+
+function formatDay(value: dayjs.Dayjs): string {
+	return value.format("YYYY-MM-DD");
+}
+
+export function buildInvestigationWindow(
+	lookbackDays: number,
+	now: Date = new Date(),
+	timezone = "UTC"
+): InvestigationWindow {
+	const halfDays = Math.max(1, Math.floor(lookbackDays / 2));
+	const lastCompleteDay = dayjs(now)
+		.tz(timezone)
+		.subtract(1, "day")
+		.startOf("day");
+	const secondHalfStart = lastCompleteDay.subtract(halfDays - 1, "day");
+	const firstHalfEnd = secondHalfStart.subtract(1, "day");
+	const firstHalfStart = firstHalfEnd.subtract(halfDays - 1, "day");
+
 	return {
-		from: formatUtcDay(from),
-		to: formatUtcDay(to),
+		from: formatDay(firstHalfStart),
+		to: formatDay(lastCompleteDay),
 		halfDays,
-		h1From: formatUtcDay(firstHalfStart),
-		h1To: formatUtcDay(firstHalfEnd),
-		h2From: formatUtcDay(secondHalfStart),
-		h2To: formatUtcDay(to),
-		halves: `${formatUtcDay(firstHalfStart)} to ${formatUtcDay(firstHalfEnd)} vs ${formatUtcDay(secondHalfStart)} to ${formatUtcDay(to)} (${halfDays} days each)`,
+		h1From: formatDay(firstHalfStart),
+		h1To: formatDay(firstHalfEnd),
+		h2From: formatDay(secondHalfStart),
+		h2To: formatDay(lastCompleteDay),
+		halves: `${formatDay(firstHalfStart)} to ${formatDay(firstHalfEnd)} vs ${formatDay(secondHalfStart)} to ${formatDay(lastCompleteDay)} (${halfDays} days each)`,
 	};
+}
+
+function buildSweepQueries(
+	window: InvestigationWindow,
+	lookbackDays: number
+): SweepQuery[] {
+	const ranges: Record<SweepRange, readonly [string, string]> = {
+		all: [window.from, window.to],
+		first: [window.h1From, window.h1To],
+		second: [window.h2From, window.h2To],
+	};
+	return SWEEP_QUERY_SPECS.map(([label, type, range, fixedLimit]) => {
+		const [from, to] = ranges[range];
+		const daily = type === "events_by_date";
+		return {
+			label,
+			type,
+			from,
+			to,
+			...(daily ? { timeUnit: "day" as const } : {}),
+			...(fixedLimit || daily
+				? { limit: fixedLimit ?? Math.min(62, lookbackDays + 2) }
+				: {}),
+		};
+	});
+}
+
+function queryRequest(query: SweepQuery, websiteId: string, timezone: string) {
+	return {
+		projectId: websiteId,
+		type: query.type,
+		from: query.from,
+		to: query.to,
+		timezone,
+		...(query.timeUnit ? { timeUnit: query.timeUnit } : {}),
+		...(query.limit ? { limit: query.limit } : {}),
+	};
+}
+
+export function buildReceipts(params: {
+	lookbackDays: number;
+	now?: Date;
+	timezone: string;
+	websiteId: string;
+}): InvestigationReceipts {
+	const window = buildInvestigationWindow(
+		params.lookbackDays,
+		params.now,
+		params.timezone
+	);
+	const queries = buildSweepQueries(window, params.lookbackDays);
+
+	return {
+		steps: 2,
+		queriesRun: [
+			...queries.map((query) => ({
+				tool: query.type,
+				input: JSON.stringify(
+					queryRequest(query, params.websiteId, params.timezone)
+				),
+			})),
+			{
+				tool: "structured_memo_synthesis",
+				input: JSON.stringify({
+					source: "in_memory_analytics_sweep",
+					queryOutputsPersisted: false,
+				}),
+			},
+		],
+		sourcesChecked: [...new Set(queries.map((query) => query.type))],
+	};
+}
+
+function createSweepTimeoutError(): Error {
+	const error = new Error("Investigation analytics sweep timed out");
+	error.name = "AbortError";
+	return error;
 }
 
 async function safeQuery(
 	websiteId: string,
 	domain: string,
 	timezone: string,
-	type: string,
-	from: string,
-	to: string,
-	extra?: { timeUnit?: "day"; limit?: number }
+	query: SweepQuery,
+	abortSignal: AbortSignal
 ): Promise<Record<string, unknown>[] | null> {
 	try {
 		const rows = await executeQuery(
-			{ projectId: websiteId, type, from, to, timezone, ...extra },
+			queryRequest(query, websiteId, timezone),
 			domain,
-			timezone
+			timezone,
+			abortSignal
 		);
 		return Array.isArray(rows) ? rows : [];
 	} catch {
+		if (abortSignal.aborted) {
+			throw abortSignal.reason instanceof Error
+				? abortSignal.reason
+				: createSweepTimeoutError();
+		}
 		return null;
 	}
 }
 
 function compactRows(rows: Record<string, unknown>[] | null, max = 25): string {
 	if (rows === null) {
-		return "(query failed — source unavailable, treat as unknown not zero)";
+		return "(query failed — source unavailable; treat as unknown, not zero)";
 	}
 	if (rows.length === 0) {
 		return "(no rows)";
@@ -163,140 +264,67 @@ export async function runInvestigationSweep(params: {
 	timezone: string;
 	websiteDomain: string;
 	websiteId: string;
-}): Promise<string | null> {
-	const w = buildInvestigationWindow(params.lookbackDays, params.now);
-	const { websiteId: id, websiteDomain: dom, timezone: tz } = params;
-	const q = (
-		type: string,
-		from: string,
-		to: string,
-		extra?: { timeUnit?: "day"; limit?: number }
-	) => safeQuery(id, dom, tz, type, from, to, extra);
+}): Promise<InvestigationSweep> {
+	const window = buildInvestigationWindow(
+		params.lookbackDays,
+		params.now,
+		params.timezone
+	);
+	const queries = buildSweepQueries(window, params.lookbackDays);
+	const controller = new AbortController();
+	const timeout = setTimeout(
+		() => controller.abort(createSweepTimeoutError()),
+		SWEEP_TIMEOUT_MS
+	);
 
-	const gather = Promise.all([
-		q("events_by_date", w.from, w.to, {
-			timeUnit: "day",
-			limit: params.lookbackDays + 2,
-		}),
-		q("summary_metrics", w.h1From, w.h1To),
-		q("summary_metrics", w.h2From, w.h2To),
-		q("error_summary", w.h1From, w.h1To),
-		q("error_summary", w.h2From, w.h2To),
-		q("revenue_overview", w.h1From, w.h1To),
-		q("revenue_overview", w.h2From, w.h2To),
-		q("top_pages", w.from, w.to, { limit: 12 }),
-		q("top_referrers", w.from, w.to, { limit: 12 }),
-		q("country", w.from, w.to, { limit: 8 }),
-		q("custom_events_discovery", w.from, w.to, { limit: 30 }),
-	]);
+	try {
+		const results = await Promise.all(
+			queries.map((query) =>
+				safeQuery(
+					params.websiteId,
+					params.websiteDomain,
+					params.timezone,
+					query,
+					controller.signal
+				)
+			)
+		);
 
-	const timeout = new Promise<null>((resolve) => {
-		setTimeout(() => resolve(null), SWEEP_TIMEOUT_MS);
-	});
-	const results = await Promise.race([gather, timeout]);
-	if (results === null) {
-		return null;
+		const sections = queries.flatMap((query, index) => [
+			`### ${query.label}`,
+			compactRows(
+				results[index] ?? null,
+				query.type === "events_by_date" ? params.lookbackDays + 2 : 25
+			),
+		]);
+
+		return {
+			complete: results.every((rows) => rows !== null),
+			hasData: results.some((rows) =>
+				rows?.some((row) =>
+					Object.values(row).some((value) => {
+						const number = Number(value);
+						return Number.isFinite(number) && number !== 0;
+					})
+				)
+			),
+			text: [
+				"## Bounded analytics sweep",
+				`Timezone: ${params.timezone}. Last complete local day: ${window.to}.`,
+				`Equal comparison windows: ${window.halves}.`,
+				"Query results below are used in memory for this response and are not persisted by this tool.",
+				"",
+				...sections,
+			].join("\n"),
+		};
+	} finally {
+		clearTimeout(timeout);
 	}
-
-	const [
-		daily,
-		summaryH1,
-		summaryH2,
-		errorsH1,
-		errorsH2,
-		revenueH1,
-		revenueH2,
-		topPages,
-		topReferrers,
-		countries,
-		customEvents,
-	] = results;
-
-	if (daily === null && summaryH1 === null && summaryH2 === null) {
-		return null;
-	}
-
-	return [
-		"## Pre-gathered sweep (phases 1-2 already complete — do NOT re-run these)",
-		`Window ${w.from} to ${w.to}. Halves: first ${w.h1From}..${w.h1To} vs second ${w.h2From}..${w.h2To} (${w.halfDays} days each). Final day is partial.`,
-		"",
-		"### Daily series (events_by_date)",
-		compactRows(daily, params.lookbackDays + 2),
-		"### summary_metrics — first half",
-		compactRows(summaryH1),
-		"### summary_metrics — second half",
-		compactRows(summaryH2),
-		"### error_summary — first half / second half",
-		compactRows(errorsH1),
-		compactRows(errorsH2),
-		"### revenue_overview — first half / second half",
-		compactRows(revenueH1),
-		compactRows(revenueH2),
-		"### top_pages (full window)",
-		compactRows(topPages),
-		"### top_referrers (full window)",
-		compactRows(topReferrers),
-		"### country (full window)",
-		compactRows(countries),
-		"### custom_events_discovery (full window)",
-		compactRows(customEvents),
-	].join("\n");
 }
 
-export function buildInvestigationBrief(params: {
-	lookbackDays: number;
-	now?: Date;
-	question?: string;
-	sweep?: string;
-	websiteDomain: string;
-	websiteId: string;
-}): string {
-	const focus = params.question
-		? `The user wants to know: "${params.question}". Anchor the investigation on this, but report anything bigger you find on the way.`
-		: "No specific question was asked. Find the single most consequential change on this site and explain it.";
-
-	const window = buildInvestigationWindow(params.lookbackDays, params.now);
-
-	const phases = params.sweep
-		? [
-				"The sweep and baseline queries have ALREADY been run — results are in the block below. This is your descriptive data. Do NOT re-run events_by_date, summary_metrics, error_summary, revenue_overview, top_pages, top_referrers, country, or custom-event discovery for this window; they are already below.",
-				"",
-				params.sweep,
-				"",
-				"Protocol — the data above is phases 1-2. Do only what remains, in as few turns as possible:",
-				"1-2. Sweep + baseline: DONE (data above). Read it, name the single largest move and any standing funnel-failure rate.",
-				"3. Enrich ONLY if a flagged move needs a breakdown that is NOT already above (e.g. device split, or errors on one specific page). If the sweep already answers where the change is concentrated, skip this — do not re-fetch pages, referrers, country, errors, or revenue.",
-				"4. Correlate — this is your main remaining job (one turn, parallel tools): emit the github deploy/commit/PR checks around the inflection date, the annotations lookup, and — if the change looks search-driven — the search console query, all in the same turn. Find WHEN the cause landed relative to the effect.",
-				"5. Conclude: state the causal chain with evidence for every link. Once you can write the chain, stop calling tools and answer.",
-			]
-		: [
-				"Round-trip discipline (this is the difference between finishing and timing out): each phase is one turn, not one query. Issue every independent query in a phase together in that single turn. get_data takes up to 10 builders in one call — never call it once per builder. When a phase spans different tools (github, search console, annotations), emit all of those tool calls in the same turn so they run in parallel. Only wait for a phase's results before the next turn when the next phase actually depends on them (enrichment depends on which moves the sweep flagged; correlation depends on the inflection date).",
-				"",
-				"Protocol — work through every phase, in order:",
-				`1. Sweep (one get_data call): batch events_by_date for the full ${params.lookbackDays}-day window, summary_metrics for each half, and — if the site records them — revenue and custom-event daily trends, all in a single call. Flag the largest moves.`,
-				"2. Baseline health: if the site has a conversion funnel (payments, checkouts, signups), compute the standing failure rate for the full window (e.g. payment_failed vs payment_succeeded) — fold these builders into the sweep call when you already suspect a funnel. A high failure rate that is flat across both halves is still a primary finding; unchanged does not mean fine. Denominate it in blocked revenue or lost conversions and rank it against the largest moves from the sweep.",
-				"3. Enrich (one get_data call): for the flagged moves, batch the page, referrer, country, and device breakdowns plus any error builders into a single call. Find WHERE the change is concentrated.",
-				"4. Correlate (one turn, parallel tools): emit the deploy, commit, and PR checks around the inflection date, the annotations lookup, and — if the change looks search-driven — the search console query together in the same turn. Find WHEN the cause landed relative to the effect.",
-				"5. Conclude: state the causal chain with evidence for every link.",
-			];
-
-	return [
-		`Run a root-cause investigation on website ${params.websiteId} (${params.websiteDomain}) over the last ${params.lookbackDays} days.`,
-		`Window (UTC dates, inclusive): ${window.from} to ${window.to}. For half-over-half comparisons use exactly: ${window.halves}. Note the final day is partial.`,
-		focus,
-		"",
-		...phases,
-		"",
-		"Rules:",
-		"- Money outranks traffic. If the site has revenue or conversion-funnel custom events (checkouts, payments, subscriptions), investigate changes there first and denominate impact in revenue or conversions; pageviews are the proxy of last resort.",
-		"- Every claim needs a number from a query you actually ran.",
-		"- Compare equal-length periods only. If the window splits unevenly, trim a day or quote per-day rates; never headline a raw total from an 8-day window against a 7-day one.",
-		"- Quantify how much of the total change each cause explains (e.g. 'X accounts for 63 of the 230 lost visitors'). Say plainly what share remains unexplained.",
-		"- Report hypotheses you ruled out and what ruled them out.",
-		"- If you cannot establish a cause, say exactly what you eliminated and what data would settle it. Never hand-wave.",
-		"- Timing beats correlation: an effect that starts before its supposed cause is a dead end.",
-		"- If a data source errors or is not connected, name it as a gap in your findings; do not silently work around it.",
-	].join("\n");
+function receiptSummary(receipts: InvestigationReceipts): string {
+	const sources = receipts.sourcesChecked.join(", ") || "none";
+	return `${receipts.steps} pipeline steps, ${receipts.queriesRun.length} attempted operations (${sources}). Query outputs are not persisted by this tool.`;
 }
 
 export function renderMemoMarkdown(
@@ -314,10 +342,7 @@ export function renderMemoMarkdown(
 		if (memo.actions.length > 0) {
 			lines.push("", `Monitor: ${memo.actions[0]}`);
 		}
-		lines.push(
-			"",
-			`Receipts: ${receipts.steps} agent steps, ${receipts.queriesRun.length} tool calls (${receipts.sourcesChecked.join(", ")})`
-		);
+		lines.push("", `Receipts: ${receiptSummary(receipts)}`);
 		return lines.join("\n");
 	}
 
@@ -333,7 +358,7 @@ export function renderMemoMarkdown(
 	if (memo.causalChain.length > 0) {
 		sections.push(
 			"",
-			"## Causal chain",
+			"## Observed sequence",
 			...memo.causalChain.map(
 				(link, i) => `${i + 1}. ${link.step}\n   - evidence: ${link.evidence}`
 			)
@@ -364,72 +389,49 @@ export function renderMemoMarkdown(
 		);
 	}
 
-	sections.push(
-		"",
-		"## Receipts",
-		`${receipts.steps} agent steps, ${receipts.queriesRun.length} tool calls: ${receipts.sourcesChecked.join(", ")}`
-	);
+	sections.push("", "## Receipts", receiptSummary(receipts));
 
 	return sections.join("\n");
 }
 
-export function buildFallbackMemo(answer: string): InvestigationMemo {
+export function buildFallbackMemo(detail = ""): InvestigationMemo {
 	const narrative =
-		answer.trim() ||
-		"The investigation finished gathering data but produced no written findings.";
+		detail.trim() ||
+		"The analytics sweep ran, but the structured memo could not be synthesized. No cause was established; re-run before acting on this result.";
 	return {
-		headline: "Investigation completed; structured memo unavailable.",
+		headline: "Analytics review could not be synthesized.",
 		narrative,
 		causalChain: [],
 		deadEnds: [],
 		confidence: {
 			level: "low",
 			reason:
-				"The synthesis step failed, so this memo is the agent's raw findings without structured verification. Re-run to get a graded verdict.",
+				"Structured synthesis was unavailable, so the available analytics were not converted into a verified finding.",
 		},
 		verdict: {
 			type: "watch",
-			reason:
-				"Findings were gathered but not synthesized into a graded verdict.",
+			reason: "No reliable conclusion is available from this run.",
 		},
 		actions: [],
 	};
 }
 
-function compactTrace(toolCalls: McpAgentToolTrace[]): string {
-	return toolCalls
-		.map((call) => {
-			const input = JSON.stringify(call.input ?? {}).slice(
-				0,
-				MAX_TRACE_INPUT_CHARS
-			);
-			const output = JSON.stringify(call.output ?? null).slice(
-				0,
-				MAX_TRACE_OUTPUT_CHARS
-			);
-			return `[${call.index}] ${call.name}(${input}) => ${output}`;
-		})
-		.join("\n");
-}
-
 const MEMO_SYNTHESIS_SYSTEM = [
-	"You turn a completed analytics investigation into a structured memo.",
-	"Use ONLY facts present in the investigation findings and tool trace. Never invent numbers, dates, commits, or causes.",
-	"The headline must contain the most important number. Generic headlines ('Traffic changed recently') are failures.",
-	"Headline numbers must compare equal-length periods; prefer per-day rates when the underlying windows differ in length.",
-	"causalChain steps must each cite evidence that appears in the trace. If the investigation found no cause, leave causalChain empty and say what was ruled out.",
-	"Set confidence honestly: high only when cause, mechanism, and timing all check out AND the causal chain accounts for the majority of the observed change. If most of the change is unexplained, confidence is medium at best and the narrative must say what share remains unexplained.",
-	"Classify the verdict honestly. 'act' requires both a concrete fix the site owner can execute AND material impact, denominated in revenue or conversions when the site has them. A standing structural problem (e.g. a majority of payment attempts failing) qualifies as 'act' even if the rate did not change inside the window; a problem being old does not make it fine. A cause outside the owner's control (viral decay, seasonality, a spike normalizing back to baseline) is 'all_clear' no matter how large the numbers are. A real worsening trend without a confirmed fixable cause is 'watch'.",
-	"When the verdict is all_clear, keep the narrative to 2-3 sentences and limit actions to at most one monitoring step. Do not pad an all_clear finding into a full report.",
-	"Actions must be verbs the owner can execute today with an expected impact. Generic advice ('diversify acquisition', 'improve content') is a failure; omit it.",
+	"Turn the supplied bounded analytics sweep into one cautious structured memo.",
+	"Use only facts present in the sweep. Never invent causes, deploys, dates, segments, revenue, or conversion impact.",
+	"Treat a failed source as unknown, not zero. Treat an empty result as no rows returned, not proof that the metric is healthy.",
+	"Compare only the two equal windows named in the prompt. The headline should include the most decision-relevant observed number.",
+	"This sweep supports descriptive findings, not root-cause proof. Leave causalChain empty unless the supplied time series directly supports an ordered sequence, and never turn correlation into a causal mechanism.",
+	"Confidence must be low or medium because no external causal evidence was gathered. Name the missing data that limits confidence.",
+	"Use act only for a material observed reliability, revenue, or conversion problem with a safe concrete next check. Use watch for unexplained movement. Use all_clear only when primary sources succeeded and show no material issue.",
+	"Actions must be cautious, reversible, and grounded in a named page, metric, event, referrer, or error surface. Do not recommend rollback, code changes, or broad strategy without direct evidence.",
 ].join(" ");
 
 export interface RunInvestigationParams {
-	apiKey: Parameters<typeof runMcpAgentWithTrace>[0]["apiKey"];
-	billingMode?: Parameters<typeof runMcpAgentWithTrace>[0]["billingMode"];
+	apiKey: ApiKeyRow | null;
+	billingMode?: "bill" | "skip";
 	lookbackDays: number;
 	question?: string;
-	requestHeaders: Headers;
 	timezone?: string;
 	userId: string | null;
 	websiteDomain: string;
@@ -445,73 +447,96 @@ export interface InvestigationResult {
 export async function runInvestigation(
 	params: RunInvestigationParams
 ): Promise<InvestigationResult> {
-	let sweep: string | undefined;
-	try {
-		sweep =
-			(await runInvestigationSweep({
-				lookbackDays: params.lookbackDays,
-				timezone: params.timezone ?? "UTC",
-				websiteDomain: params.websiteDomain,
-				websiteId: params.websiteId,
-			})) ?? undefined;
-	} catch {
-		sweep = undefined;
+	const userId = params.userId ?? params.apiKey?.userId ?? null;
+	const organizationId = params.apiKey?.organizationId ?? null;
+	const billingCustomerId =
+		params.billingMode === "skip"
+			? null
+			: await resolveAgentBillingCustomerId({
+					apiKey: params.apiKey,
+					organizationId,
+					userId,
+				});
+	if (
+		params.billingMode !== "skip" &&
+		!(await ensureAgentCreditsAvailable(billingCustomerId))
+	) {
+		throw new DatabuddyAgentUserError({
+			code: "agent_credits_exhausted",
+			message:
+				"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
+		});
 	}
 
-	const brief = buildInvestigationBrief({ ...params, sweep });
-
-	const trace = await runMcpAgentWithTrace({
-		question: brief,
-		requestHeaders: params.requestHeaders,
-		apiKey: params.apiKey,
-		userId: params.userId,
-		websiteId: params.websiteId,
+	const timezone = params.timezone ?? "UTC";
+	const now = new Date();
+	const sweep = await runInvestigationSweep({
+		lookbackDays: params.lookbackDays,
+		now,
+		timezone,
 		websiteDomain: params.websiteDomain,
-		timezone: params.timezone,
-		billingMode: params.billingMode,
-		mutationMode: "dry-run",
-		storeMemory: false,
-		timeoutMs: INVESTIGATION_TIMEOUT_MS,
+		websiteId: params.websiteId,
 	});
-
-	const receipts = buildReceipts(trace.steps, trace.toolCalls);
-
-	const controller = new AbortController();
-	const timeout = setTimeout(() => controller.abort(), SYNTHESIS_TIMEOUT_MS);
+	const receipts = buildReceipts({
+		lookbackDays: params.lookbackDays,
+		now,
+		timezone,
+		websiteId: params.websiteId,
+	});
+	const window = buildInvestigationWindow(params.lookbackDays, now, timezone);
+	const prompt = [
+		`Website: ${params.websiteId} (${params.websiteDomain}). Timezone: ${timezone}.`,
+		`Compare exactly ${window.halves}; ${window.to} is the last complete day.`,
+		params.question?.trim()
+			? `User question: ${params.question.trim()}`
+			: "Find the most material observed change, or report that none is supported.",
+		"Do not infer deploys, intent, or root cause.",
+		"",
+		sweep.text,
+	].join("\n");
 
 	let memo: InvestigationMemo;
 	try {
 		const result = await generateObject({
-			abortSignal: controller.signal,
+			abortSignal: AbortSignal.timeout(SYNTHESIS_TIMEOUT_MS),
 			model: models.balanced,
 			schema: investigationMemoSchema,
 			system: MEMO_SYNTHESIS_SYSTEM,
-			prompt: [
-				...(sweep
-					? [
-							"Deterministic sweep (analytics data gathered before the agent ran — always reliable, use it as the descriptive backbone of the memo):",
-							sweep,
-							"",
-						]
-					: []),
-				"Investigation findings (the agent's correlation and reasoning):",
-				trace.answer,
-				"",
-				"Tool trace (what the agent actually queried and returned):",
-				compactTrace(trace.toolCalls),
-				...(trace.truncated
-					? [
-							"",
-							"NOTE: The agent's correlation phase was stopped by a time limit. The deterministic sweep above is complete and reliable — ground the memo in it. The agent trace may be partial, so treat any correlation (deploys, commits) it found as a lead rather than proof. Set confidence to 'medium' at most unless the sweep alone makes the cause unambiguous.",
-						]
-					: []),
-			].join("\n"),
+			prompt,
 		});
 		memo = result.object;
+		await trackAgentUsageAndBill({
+			usage: result.usage,
+			modelId: modelNames.balanced,
+			source: "mcp",
+			agentType: "investigate",
+			billingCustomerId,
+			organizationId,
+			userId,
+			websiteId: params.websiteId,
+		});
 	} catch {
-		memo = buildFallbackMemo(trace.answer);
-	} finally {
-		clearTimeout(timeout);
+		memo = buildFallbackMemo();
+	}
+	if (memo.verdict.type === "all_clear" && !(sweep.complete && sweep.hasData)) {
+		memo = {
+			...memo,
+			headline: "The available data cannot support an all-clear.",
+			narrative:
+				"One or more sources were empty or unavailable, so this run cannot determine whether conditions are normal.",
+			causalChain: [],
+			deadEnds: [],
+			confidence: {
+				level: "low",
+				reason:
+					"The available sources cannot establish that the site is clear.",
+			},
+			verdict: {
+				type: "watch",
+				reason:
+					"Data was missing or unavailable, so no all-clear is supported.",
+			},
+		};
 	}
 
 	return {
@@ -525,7 +550,7 @@ export const investigateTool = defineMcpTool(
 	{
 		name: "investigate",
 		description:
-			"Deep root-cause investigation for one website: a deterministic analytics sweep, then deploy/commit correlation, then a memo with causal chain, dead ends, confidence, and receipts. ~30-60s, always grounded. Use for 'why did X change?'",
+			"Compare fixed analytics views for one website across two equal, complete time windows and return a cautious memo with confidence and operation receipts. Use for 'what changed?' or a bounded first pass on 'why did X change?'.",
 		inputSchema: z.object({
 			websiteId: z.string().optional(),
 			websiteName: z.string().optional(),
@@ -536,11 +561,14 @@ export const investigateTool = defineMcpTool(
 				.max(2000)
 				.optional()
 				.describe(
-					"Optional steering question, e.g. 'why did signups drop last week?'. Omit to find the most consequential change."
+					"Optional steering question, e.g. 'what changed in signups last week?'. Omit to find the most consequential observed change."
 				),
 			lookbackDays: z.number().int().min(7).max(60).optional().default(30),
 			timezone: z
 				.string()
+				.refine((value) => Boolean(validateTimezone(value)), {
+					message: "Invalid IANA timezone",
+				})
 				.optional()
 				.describe("IANA timezone (e.g. 'America/New_York'). Defaults to UTC."),
 		}),
@@ -562,24 +590,23 @@ export const investigateTool = defineMcpTool(
 			return await runInvestigation({
 				apiKey: ctx.apiKey,
 				userId: ctx.userId,
-				requestHeaders: ctx.requestHeaders,
 				websiteId: ctx.websiteId as string,
 				websiteDomain: ctx.websiteDomain ?? "unknown",
 				question: input.question,
 				lookbackDays: input.lookbackDays,
 				timezone: input.timezone,
 			});
-		} catch (err) {
-			if (err instanceof Error && err.name === "AbortError") {
+		} catch (error) {
+			if (error instanceof Error && error.name === "AbortError") {
 				throw new McpToolError(
 					"upstream_timeout",
-					"Investigation timed out. Try a narrower question or a shorter lookbackDays.",
+					"The analytics sweep timed out. Try a shorter lookbackDays window.",
 					{
-						hint: "Investigations run a multi-step agent and can take 1-2 minutes.",
+						hint: "The bounded analytics queries exceeded their shared time budget.",
 					}
 				);
 			}
-			throw err;
+			throw error;
 		}
 	}
 );
