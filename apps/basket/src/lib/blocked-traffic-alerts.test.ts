@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
 	decideBlockedTrafficAlert,
 	matchesTrackingAlertIgnoredOrigin,
+	requireBlockedTrafficEmailApiKey,
 	shouldEvaluateBlockedTrafficAlert,
 	shouldIgnoreBlockedTrafficAlertEvent,
 } from "./blocked-traffic-alerts";
@@ -147,5 +148,12 @@ describe("blocked traffic alert rules", () => {
 		expect(shouldEvaluateBlockedTrafficAlert(25)).toBe(true);
 		expect(shouldEvaluateBlockedTrafficAlert(50)).toBe(true);
 		expect(shouldEvaluateBlockedTrafficAlert(75)).toBe(true);
+	});
+
+	test("fails delivery when the email provider is not configured", () => {
+		expect(() => requireBlockedTrafficEmailApiKey(undefined)).toThrow(
+			"Blocked traffic email delivery is not configured"
+		);
+		expect(requireBlockedTrafficEmailApiKey("test-key")).toBe("test-key");
 	});
 });

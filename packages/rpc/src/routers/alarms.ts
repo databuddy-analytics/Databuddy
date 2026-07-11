@@ -410,8 +410,8 @@ export const alarmsRouter = {
 
 			const targets = toNotificationTargets(alarm.destinations);
 			const payload = {
-				title: `Test: ${alarm.name}`,
-				message: `This is a test notification from your "${alarm.name}" alarm. If you're reading this, the channel is working.`,
+				title: `Test alert: ${alarm.name}`,
+				message: `This is a test notification from your "${alarm.name}" alert. If you received it, this destination is working.`,
 				priority: "normal" as const,
 				metadata: {
 					template: "test",

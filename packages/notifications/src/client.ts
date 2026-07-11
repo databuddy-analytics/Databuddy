@@ -95,13 +95,21 @@ export class NotificationClient {
 			})
 		);
 
-		return results.map((result, index) => {
+		return channels.map((channel, index) => {
+			const result = results[index];
+			if (!result) {
+				return {
+					success: false,
+					channel,
+					error: "Notification provider returned no result",
+				} satisfies NotificationResult;
+			}
 			if (result.status === "fulfilled") {
 				return result.value;
 			}
 			return {
 				success: false,
-				channel: channels[index],
+				channel,
 				error:
 					result.reason instanceof Error
 						? result.reason.message

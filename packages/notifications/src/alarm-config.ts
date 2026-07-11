@@ -127,15 +127,21 @@ export function buildAlarmNotificationTargets(
 							const { Resend } = await import("resend");
 							const apiKey = process.env.RESEND_API_KEY;
 							if (!apiKey) {
-								return;
+								throw new Error("Email delivery is not configured");
 							}
 							const resend = new Resend(apiKey);
-							await resend.emails.send({
+							const result = await resend.emails.send({
 								from: payload.from || "Databuddy <alerts@databuddy.cc>",
 								to: Array.isArray(payload.to) ? payload.to : [payload.to],
 								subject: payload.subject,
 								html: payload.html || payload.text || "",
+								...(payload.text ? { text: payload.text } : {}),
 							});
+							if (result.error) {
+								throw new Error(
+									`Email delivery failed: ${result.error.message}`
+								);
+							}
 						},
 					},
 				},

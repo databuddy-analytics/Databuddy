@@ -7,8 +7,8 @@ export const emailBrand = {
 	muted: "#9599a6",
 	amber: "#E3A514",
 	onAmber: "#27282D",
-	coral: "#B74677",
-	primaryLogoUrl: "https://www.databuddy.cc/brand/primary-logo/white.svg",
+	coral: "#F08AB7",
+	primaryLogoUrl: "https://www.databuddy.cc/web-app-manifest-192x192.png",
 	primaryLogoHeightPx: 40,
-	primaryLogoWidthPx: 170,
+	primaryLogoWidthPx: 40,
 } as const;

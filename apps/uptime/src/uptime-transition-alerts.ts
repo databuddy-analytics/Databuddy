@@ -1,4 +1,5 @@
 import {
+	and,
 	db,
 	eq,
 	normalizeEmailNotificationSettings,
@@ -21,6 +22,12 @@ class TransitionClaimError extends Data.TaggedError("TransitionClaimError")<{
 	cause: unknown;
 }> {}
 
+class TransitionReleaseError extends Data.TaggedError(
+	"TransitionReleaseError"
+)<{
+	cause: unknown;
+}> {}
+
 class AlarmLookupError extends Data.TaggedError("AlarmLookupError")<{
 	cause: unknown;
 }> {}
@@ -35,6 +42,13 @@ interface LinkedAlarm {
 	destinations: Array<{ type: string; identifier: string; config: unknown }>;
 	id: string;
 }
+
+interface ClaimedTransition {
+	kind: "down" | "recovered";
+	previousStatus: number | null;
+}
+
+type TransitionNotificationPayload = Parameters<NotificationClient["send"]>[0];
 
 export interface TransitionResult {
 	alarms_fired: number;
@@ -69,6 +83,13 @@ export function countFiredAlarms(deliveryCounts: number[]): number {
 	return deliveryCounts.filter((count) => count > 0).length;
 }
 
+export function shouldReleaseTransitionClaim(
+	sendableAlarmCount: number,
+	firedAlarmCount: number
+): boolean {
+	return sendableAlarmCount > 0 && firedAlarmCount === 0;
+}
+
 function buildSiteLabel(schedule: ScheduleData): string {
 	const w = schedule.website;
 	if (w?.name) {
@@ -85,6 +106,65 @@ function buildSiteLabel(schedule: ScheduleData): string {
 	} catch {
 		return schedule.url;
 	}
+}
+
+function formatCheckedAt(timestamp: number): string {
+	if (!Number.isFinite(timestamp)) {
+		return "an unknown time";
+	}
+	const checkedAt = new Date(timestamp);
+	return Number.isNaN(checkedAt.valueOf())
+		? "an unknown time"
+		: checkedAt.toISOString();
+}
+
+function formatCheckError(error: string): string | undefined {
+	const normalized = error.replaceAll(/[\r\n]+/g, " ").trim();
+	if (!normalized) {
+		return;
+	}
+	return normalized.length > 200 ? `${normalized.slice(0, 199)}…` : normalized;
+}
+
+export function buildTransitionNotificationPayload(input: {
+	dashboardUrl: string;
+	data: UptimeData;
+	kind: "down" | "recovered";
+	monitorId: string;
+	siteLabel: string;
+}): TransitionNotificationPayload {
+	const checkedAt = formatCheckedAt(input.data.timestamp);
+	const error = formatCheckError(input.data.error);
+	const checkContext = [
+		`Checked at ${checkedAt}`,
+		input.data.http_code > 0
+			? `HTTP ${input.data.http_code}`
+			: "No HTTP response",
+		error ? `Reason: ${error}` : null,
+	]
+		.filter((value): value is string => value !== null)
+		.join(" · ");
+
+	return {
+		title:
+			input.kind === "down"
+				? `Health check failed: ${input.siteLabel}`
+				: `Health check passed: ${input.siteLabel}`,
+		message:
+			input.kind === "down"
+				? `A health check failed for ${input.siteLabel}. ${checkContext}. View details: ${input.dashboardUrl}`
+				: `A health check passed for ${input.siteLabel} after a previous failed check. Checked at ${checkedAt} · Response time ${input.data.total_ms} ms. View details: ${input.dashboardUrl}`,
+		priority: input.kind === "down" ? "high" : "normal",
+		metadata: {
+			template: "uptime-transition",
+			monitorId: input.monitorId,
+			monitorName: input.siteLabel,
+			url: input.data.url,
+			kind: input.kind,
+			httpCode: input.data.http_code,
+			dashboardUrl: input.dashboardUrl,
+		},
+	};
 }
 
 const AlarmCache =
@@ -159,9 +239,28 @@ const claimTransition = (scheduleId: string, currentStatus: number) =>
 					.set({ lastNotifiedStatus: currentStatus })
 					.where(eq(uptimeSchedules.id, scheduleId));
 
-				return kind;
+				return { kind, previousStatus: row.last } satisfies ClaimedTransition;
 			}),
 		catch: (cause) => new TransitionClaimError({ cause }),
+	});
+
+const releaseTransitionClaim = (input: {
+	currentStatus: number;
+	previousStatus: number | null;
+	scheduleId: string;
+}) =>
+	Effect.tryPromise({
+		try: () =>
+			db
+				.update(uptimeSchedules)
+				.set({ lastNotifiedStatus: input.previousStatus })
+				.where(
+					and(
+						eq(uptimeSchedules.id, input.scheduleId),
+						eq(uptimeSchedules.lastNotifiedStatus, input.currentStatus)
+					)
+				),
+		catch: (cause) => new TransitionReleaseError({ cause }),
 	});
 
 async function getOrganizationEmailSettings(organizationId: string) {
@@ -277,15 +376,7 @@ const handleTransition = (options: {
 			return NO_TRANSITION;
 		}
 
-		if (
-			options.previousStatus !== undefined &&
-			resolveTransitionKind(options.previousStatus, options.data.status) ===
-				null
-		) {
-			return NO_TRANSITION;
-		}
-
-		const kind = yield* claimTransition(
+		const claim = yield* claimTransition(
 			options.schedule.id,
 			options.data.status
 		).pipe(
@@ -295,9 +386,23 @@ const handleTransition = (options: {
 			})
 		);
 
-		if (kind === null) {
+		if (claim === null) {
 			return NO_TRANSITION;
 		}
+		const { kind } = claim;
+		const releaseClaim = releaseTransitionClaim({
+			currentStatus: options.data.status,
+			previousStatus: claim.previousStatus,
+			scheduleId: options.schedule.id,
+		}).pipe(
+			Effect.catchTag("TransitionReleaseError", (error) => {
+				captureError(error.cause, {
+					error_step: "transition_claim_release",
+					schedule_id: options.schedule.id,
+				});
+				return Effect.void;
+			})
+		);
 
 		const linkedAlarms = yield* lookupLinkedAlarms(
 			options.schedule.id,
@@ -305,9 +410,13 @@ const handleTransition = (options: {
 		).pipe(
 			Effect.catchTag("AlarmLookupError", (e) => {
 				captureError(e.cause, { error_step: "alarm_lookup" });
-				return Effect.succeed([] as LinkedAlarm[]);
+				return Effect.succeed(null);
 			})
 		);
+		if (linkedAlarms === null) {
+			yield* releaseClaim;
+			return { alarms_fired: 0, transition_kind: kind };
+		}
 
 		if (linkedAlarms.length === 0) {
 			return { alarms_fired: 0, transition_kind: kind };
@@ -316,41 +425,30 @@ const handleTransition = (options: {
 		const emailSettings = yield* Effect.tryPromise(() =>
 			getOrganizationEmailSettings(options.schedule.organizationId)
 		).pipe(
-			Effect.orElseSucceed(() => normalizeEmailNotificationSettings(null))
+			Effect.catch((error) => {
+				captureError(error, {
+					error_step: "organization_email_settings",
+					organization_id: options.schedule.organizationId,
+				});
+				return Effect.succeed(null);
+			})
 		);
 		const emailsEnabled =
-			kind === "down"
+			emailSettings !== null &&
+			(kind === "down"
 				? emailSettings.uptime.downEmails
-				: emailSettings.uptime.recoveryEmails;
+				: emailSettings.uptime.recoveryEmails);
 
 		const siteLabel = buildSiteLabel(options.schedule);
 		const dashboardUrl = `${config.urls.dashboard}/monitors/${options.schedule.id}`;
 
-		const httpInfo = options.data.http_code
-			? ` (HTTP ${options.data.http_code})`
-			: "";
-		const errorInfo = options.data.error ? ` - ${options.data.error}` : "";
-
-		const payload = {
-			title:
-				kind === "down"
-					? `[DOWN] ${siteLabel} is unreachable`
-					: `[Recovered] ${siteLabel} is back up`,
-			message:
-				kind === "down"
-					? `${siteLabel} is down${httpInfo}${errorInfo}. View details: ${dashboardUrl}`
-					: `${siteLabel} has recovered and is operational again. Response time: ${options.data.total_ms}ms. View details: ${dashboardUrl}`,
-			priority: kind === "down" ? ("high" as const) : ("normal" as const),
-			metadata: {
-				template: "uptime-transition" as const,
-				monitorId: options.schedule.id,
-				monitorName: siteLabel,
-				url: options.data.url,
-				kind,
-				httpCode: options.data.http_code,
-				dashboardUrl,
-			},
-		};
+		const payload = buildTransitionNotificationPayload({
+			dashboardUrl,
+			data: options.data,
+			kind,
+			monitorId: options.schedule.id,
+			siteLabel,
+		});
 
 		const sendable = linkedAlarms
 			.map((alarm) => filterUptimeEmailDestinations(alarm, emailsEnabled))
@@ -362,6 +460,9 @@ const handleTransition = (options: {
 		);
 
 		const fired = countFiredAlarms(results);
+		if (shouldReleaseTransitionClaim(sendable.length, fired)) {
+			yield* releaseClaim;
+		}
 		return { alarms_fired: fired, transition_kind: kind };
 	});
 

@@ -5,6 +5,7 @@ export {
 	recordORPCError,
 	setRpcRequestLoggerProvider,
 } from "./lib/rpc-log-context";
+export { getAutumn } from "./lib/autumn-client";
 export { setTrackingFn } from "./middleware/track-mutation";
 export {
 	type Context,

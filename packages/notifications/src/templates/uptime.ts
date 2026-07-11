@@ -104,9 +104,9 @@ function priorityForKind(kind: UptimeNotificationKind): NotificationPriority {
 
 function titleForInput(input: UptimeNotificationInput): string {
 	if (input.kind === "down") {
-		return `Uptime: ${input.siteLabel} is down`;
+		return `Health check failed: ${input.siteLabel}`;
 	}
-	return `Uptime: ${input.siteLabel} is back up`;
+	return `Health check passed: ${input.siteLabel}`;
 }
 
 /**

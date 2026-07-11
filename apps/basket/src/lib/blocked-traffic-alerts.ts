@@ -101,7 +101,9 @@ function buildDashboardUrl(clientId: string, reason: string): string {
 	return `${config.urls.dashboard}/websites/${clientId}/settings/${section}`;
 }
 
-async function incrementWindowCounter(event: BlockedTrafficInsert): Promise<number> {
+async function incrementWindowCounter(
+	event: BlockedTrafficInsert
+): Promise<number> {
 	const key = `blocked-traffic-alert:count:${event.client_id}:${event.block_reason}:${getAlertOriginKey(event)}`;
 	const count = await redis.incr(key);
 	if (count === 1) {
@@ -124,7 +126,9 @@ async function getTrackingHealth(
 	return rows[0] ?? { baselineEvents: 0, recentEvents: 0 };
 }
 
-async function getPreviousBlockedCount(event: BlockedTrafficInsert): Promise<number> {
+async function getPreviousBlockedCount(
+	event: BlockedTrafficInsert
+): Promise<number> {
 	const rows = await chQuery<PreviousBlockedCountRow>(
 		`SELECT count() AS previousBlocked
 		FROM analytics.blocked_traffic
@@ -176,6 +180,15 @@ export function shouldEvaluateBlockedTrafficAlert(
 	);
 }
 
+export function requireBlockedTrafficEmailApiKey(
+	apiKey: string | undefined
+): string {
+	if (!apiKey) {
+		throw new Error("Blocked traffic email delivery is not configured");
+	}
+	return apiKey;
+}
+
 function cooldownKey(
 	event: BlockedTrafficInsert,
 	kind: BlockedTrafficAlertDecision["kind"]
@@ -194,17 +207,15 @@ async function reserveCooldown(
 	return reserved === "OK" ? key : null;
 }
 
-async function getOwnerEmail(
-	ownerId: string
-): Promise<{ email: string; name: string | null } | null> {
+async function getOwnerEmail(ownerId: string): Promise<string | null> {
 	const row = await db.query.user.findFirst({
 		where: { id: ownerId },
-		columns: { email: true, name: true },
+		columns: { email: true },
 	});
 	if (!row?.email) {
 		return null;
 	}
-	return { email: row.email, name: row.name ?? null };
+	return row.email;
 }
 
 async function getOrganizationEmailSettings(
@@ -254,14 +265,11 @@ async function sendAlertEmail(input: {
 	decision: BlockedTrafficAlertDecision;
 	event: BlockedTrafficInsert;
 	trackingHealth: TrackingHealthCounts;
-	ownerEmail: string;
+	recipientEmail: string;
 	previousBlocked: number;
 	windowBlockedCount: number;
 }): Promise<void> {
-	const apiKey = process.env.RESEND_API_KEY;
-	if (!apiKey) {
-		return;
-	}
+	const apiKey = requireBlockedTrafficEmailApiKey(process.env.RESEND_API_KEY);
 
 	const siteLabel =
 		input.context.websiteName ||
@@ -273,25 +281,27 @@ async function sendAlertEmail(input: {
 			? `[Action required] Tracking may be blocked for ${siteLabel}`
 			: `[Databuddy] Blocked tracking increased for ${siteLabel}`;
 
-	const html = await render(
-		BlockedTrafficAlertEmail({
-			baselineEvents: input.trackingHealth.baselineEvents,
-			baselineHours: BASELINE_SUCCESS_HOURS,
-			blockReason: input.event.block_reason,
-			blockedCount: input.windowBlockedCount,
-			dashboardUrl: buildDashboardUrl(
-				input.event.client_id || "",
-				input.event.block_reason
-			),
-			fix: buildRecommendedFix(input.event),
-			origin: input.event.origin ?? null,
-			previousBlockedCount: input.previousBlocked,
-			recentEvents: input.trackingHealth.recentEvents,
-			severity: input.decision.severity,
-			siteLabel,
-			windowMinutes: ALERT_WINDOW_MINUTES,
-		})
-	);
+	const email = BlockedTrafficAlertEmail({
+		baselineEvents: input.trackingHealth.baselineEvents,
+		baselineHours: BASELINE_SUCCESS_HOURS,
+		blockReason: input.event.block_reason,
+		blockedCount: input.windowBlockedCount,
+		dashboardUrl: buildDashboardUrl(
+			input.event.client_id || "",
+			input.event.block_reason
+		),
+		fix: buildRecommendedFix(input.event),
+		origin: input.event.origin ?? null,
+		previousBlockedCount: input.previousBlocked,
+		recentEvents: input.trackingHealth.recentEvents,
+		severity: input.decision.severity,
+		siteLabel,
+		windowMinutes: ALERT_WINDOW_MINUTES,
+	});
+	const [html, text] = await Promise.all([
+		render(email),
+		render(email, { plainText: true }),
+	]);
 
 	const response = await fetch("https://api.resend.com/emails", {
 		method: "POST",
@@ -301,9 +311,10 @@ async function sendAlertEmail(input: {
 		},
 		body: JSON.stringify({
 			from: config.email.alertsFrom,
-			to: input.ownerEmail,
+			to: input.recipientEmail,
 			subject,
 			html,
+			text,
 		}),
 	});
 
@@ -350,8 +361,8 @@ async function maybeSendBlockedTrafficAlertAsync(
 		return;
 	}
 
-	const owner = await getOwnerEmail(context.ownerId);
-	if (!owner) {
+	const recipientEmail = await getOwnerEmail(context.ownerId);
+	if (!recipientEmail) {
 		return;
 	}
 
@@ -366,7 +377,7 @@ async function maybeSendBlockedTrafficAlertAsync(
 			decision,
 			event,
 			trackingHealth,
-			ownerEmail: owner.email,
+			recipientEmail,
 			previousBlocked,
 			windowBlockedCount,
 		});

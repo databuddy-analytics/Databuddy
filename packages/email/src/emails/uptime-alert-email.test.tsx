@@ -212,8 +212,8 @@ describe("UptimeAlertEmail — field fallbacks and optional props", () => {
 
 	test("defaults to kind='down' when kind is missing", async () => {
 		const html = await render({ url: "https://example.com" });
-		expect(html).toContain("is down");
-		expect(html).not.toContain("back up");
+		expect(html).toContain("Health check failed for");
+		expect(html).not.toContain("Health check passed for");
 	});
 
 	test("dashboardUrl absent → no dashboard button", async () => {
@@ -239,7 +239,7 @@ describe("UptimeAlertEmail — down vs recovered variants", () => {
 			siteLabel: "acme.com",
 			url: "https://acme.com",
 		});
-		expect(html).toContain("acme.com is down");
+		expect(html).toContain("Health check failed for acme.com");
 		expect(html).toContain("could not reach this URL");
 		expect(html.toLowerCase()).toContain("#dc2626");
 	});
@@ -250,8 +250,8 @@ describe("UptimeAlertEmail — down vs recovered variants", () => {
 			siteLabel: "acme.com",
 			url: "https://acme.com",
 		});
-		expect(html).toContain("acme.com is back up");
-		expect(html).toContain("latest health check succeeded");
+		expect(html).toContain("Health check passed for acme.com");
+		expect(html).toContain("latest health check passed");
 		expect(html.toLowerCase()).toContain("#22c55e");
 	});
 
@@ -421,7 +421,7 @@ describe("UptimeAlertEmail — SSL row", () => {
 describe("UptimeAlertEmail — preview text", () => {
 	test.each([
 		["down", "failed health check — HTTP timeout"],
-		["recovered", "is responding normally again"],
+		["recovered", "passed its latest health check"],
 	] as const)("%s preview matches current copy", async (kind, copy) => {
 		const html = await render({ kind, url: "https://example.com" });
 		expect(html).toContain(copy);

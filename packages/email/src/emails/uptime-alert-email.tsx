@@ -123,16 +123,18 @@ export const UptimeAlertEmail = ({
 			preview={
 				isDown
 					? `${safe} failed health check — HTTP ${httpCode || "timeout"}`
-					: `${safe} is responding normally again`
+					: `${safe} passed its latest health check`
 			}
-			tagline={isDown ? "Uptime alert" : "Site recovered"}
+			tagline={isDown ? "Health check failed" : "Health check passed"}
 		>
 			<Section className="text-center">
 				<Heading
 					className="m-0 mb-3 font-semibold text-xl tracking-tight"
 					style={{ color: emailBrand.foreground }}
 				>
-					{isDown ? `${safe} is down` : `${safe} is back up`}
+					{isDown
+						? `Health check failed for ${safe}`
+						: `Health check passed for ${safe}`}
 				</Heading>
 				<Text
 					className="m-0 mb-4 text-sm leading-relaxed"
@@ -140,7 +142,7 @@ export const UptimeAlertEmail = ({
 				>
 					{isDown
 						? "We could not reach this URL during the latest health check."
-						: "The latest health check succeeded. Your site responded normally."}
+						: "The latest health check passed after a previous failed check."}
 				</Text>
 			</Section>
 

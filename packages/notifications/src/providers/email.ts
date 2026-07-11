@@ -5,6 +5,8 @@ import type {
 } from "../types";
 import { BaseProvider } from "./base";
 
+const FIRST_CHARACTER_PATTERN = /^./;
+
 export interface EmailProviderConfig {
 	defaultTo?: string | string[];
 	from?: string;
@@ -21,6 +23,22 @@ function escapeHtml(str: string): string {
 		.replaceAll(">", "&gt;")
 		.replaceAll('"', "&quot;")
 		.replaceAll("'", "&#39;");
+}
+
+function isUserFacingMetadata(key: string): boolean {
+	return !(
+		key === "to" ||
+		key === "template" ||
+		key === "zScore" ||
+		key.endsWith("Id")
+	);
+}
+
+function formatMetadataLabel(key: string): string {
+	return key
+		.replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
+		.replaceAll(/[_-]+/g, " ")
+		.replace(FIRST_CHARACTER_PATTERN, (character) => character.toUpperCase());
 }
 
 export class EmailProvider extends BaseProvider {
@@ -73,14 +91,16 @@ export class EmailProvider extends BaseProvider {
 		}
 
 		const metadataEntries = payload.metadata
-			? Object.entries(payload.metadata).filter(([key]) => key !== "to")
+			? Object.entries(payload.metadata).filter(([key]) =>
+					isUserFacingMetadata(key)
+				)
 			: [];
 
 		const sanitize = (s: string) => s.replaceAll(/[\r\n]/g, " ");
 
 		const metadataText =
 			metadataEntries.length > 0
-				? `\n\n${metadataEntries.map(([key, value]) => `${sanitize(key)}: ${sanitize(String(value))}`).join("\n")}`
+				? `\n\n${metadataEntries.map(([key, value]) => `${sanitize(formatMetadataLabel(key))}: ${sanitize(String(value))}`).join("\n")}`
 				: "";
 
 		const text = `${payload.message}${metadataText}`;
@@ -90,7 +110,7 @@ export class EmailProvider extends BaseProvider {
 				? `<table style="margin-top:16px;border-collapse:collapse">${metadataEntries
 						.map(
 							([key, value]) =>
-								`<tr><td style="padding:4px 12px 4px 0;font-weight:600">${escapeHtml(key)}</td><td style="padding:4px 0">${escapeHtml(String(value))}</td></tr>`
+								`<tr><td style="padding:4px 12px 4px 0;font-weight:600">${escapeHtml(formatMetadataLabel(key))}</td><td style="padding:4px 0">${escapeHtml(String(value))}</td></tr>`
 						)
 						.join("")}</table>`
 				: "";

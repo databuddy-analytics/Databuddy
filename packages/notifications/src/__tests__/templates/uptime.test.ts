@@ -24,7 +24,7 @@ describe("buildUptimeNotificationPayload", () => {
 			const result = buildUptimeNotificationPayload(
 				makeInput({ kind: "down" })
 			);
-			expect(result.title).toBe("Uptime: Acme Corp is down");
+			expect(result.title).toBe("Health check failed: Acme Corp");
 			expect(result.priority).toBe("urgent");
 		});
 
@@ -32,7 +32,7 @@ describe("buildUptimeNotificationPayload", () => {
 			const result = buildUptimeNotificationPayload(
 				makeInput({ kind: "recovered" })
 			);
-			expect(result.title).toBe("Uptime: Acme Corp is back up");
+			expect(result.title).toBe("Health check passed: Acme Corp");
 			expect(result.priority).toBe("normal");
 		});
 	});

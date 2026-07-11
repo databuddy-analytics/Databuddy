@@ -17,6 +17,7 @@ import {
 	invalidateAgentContextSnapshotsForOwner,
 	invalidateBillingOwnerCaches,
 } from "@databuddy/redis";
+import { getAutumn } from "@databuddy/rpc";
 import { recordPlanChange } from "@databuddy/services/billing-lifecycle";
 import { Elysia } from "elysia";
 import { useLogger } from "evlog/elysia";
@@ -31,18 +32,19 @@ const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 const SVIX_SECRET = process.env.AUTUMN_WEBHOOK_SECRET;
 const SLACK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const svix = SVIX_SECRET ? new Webhook(SVIX_SECRET) : null;
 const slack = SLACK_URL ? new SlackProvider({ webhookUrl: SLACK_URL }) : null;
 
 const limitReachedSchema = z.object({
 	customer_id: z.string(),
+	entity_id: z.string().optional(),
 	feature_id: z.string(),
 	limit_type: z.enum(["included", "max_purchase", "spend_limit"]),
 });
 
 const usageAlertSchema = z.object({
 	customer_id: z.string(),
+	entity_id: z.string().optional(),
 	feature_id: z.string(),
 	usage_alert: z.object({
 		name: z.string().optional(),
@@ -92,23 +94,39 @@ interface WebhookResult {
 	success: boolean;
 }
 
-async function getOrganizationEmailSettings(customerId: string) {
-	const row = await db.query.organization.findFirst({
-		where: { id: customerId },
-		columns: { emailNotifications: true },
-	});
-	return normalizeEmailNotificationSettings(row?.emailNotifications);
+interface BillingRecipient {
+	email: string | null;
 }
 
-const getUserData = cacheable(
-	async (
-		customerId: string
-	): Promise<{ email: string | null; name: string | null }> => {
+interface BillingOrganizationContext {
+	emailNotifications: Parameters<typeof normalizeEmailNotificationSettings>[0];
+	id: string;
+	name: string;
+}
+
+interface UsageSnapshot {
+	granted: number;
+	isAvailable: boolean;
+	nextResetAt: number | null;
+	overageAllowed: boolean;
+	remaining: number;
+	usage: number;
+}
+
+interface BillingFeatureCopy {
+	description: string;
+	name: string;
+	pausedActivity: string;
+	unit: string;
+}
+
+const getBillingRecipient = cacheable(
+	async (customerId: string): Promise<BillingRecipient> => {
 		const row = await db.query.user.findFirst({
 			where: { id: customerId },
-			columns: { email: true, name: true },
+			columns: { email: true },
 		});
-		return { email: row?.email ?? null, name: row?.name ?? null };
+		return { email: row?.email ?? null };
 	},
 	{
 		expireInSec: 300,
@@ -118,8 +136,105 @@ const getUserData = cacheable(
 	}
 );
 
-function formatFeatureId(id: string): string {
-	return id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+export async function resolveBillingOrganization(
+	customerId: string,
+	entityId?: string
+): Promise<BillingOrganizationContext | null> {
+	const memberships = await db.query.member.findMany({
+		where: { userId: customerId, role: "owner" },
+		columns: { organizationId: true },
+		with: {
+			organization: {
+				columns: { id: true, name: true, emailNotifications: true },
+			},
+		},
+	});
+
+	const candidates = entityId
+		? memberships.filter((row) => row.organizationId === entityId)
+		: memberships;
+	if (candidates.length !== 1) {
+		return null;
+	}
+
+	const organization = candidates[0]?.organization;
+	return organization
+		? {
+				emailNotifications: organization.emailNotifications,
+				id: organization.id,
+				name: organization.name,
+			}
+		: null;
+}
+
+function getFeatureCopy(featureId: string): BillingFeatureCopy {
+	if (featureId === "agent_credits") {
+		return {
+			description:
+				"This allowance powers Databunny questions and AI analysis. More complex work uses more of it.",
+			name: "Databunny usage",
+			pausedActivity: "Databunny questions and AI analysis",
+			unit: "allowance units",
+		};
+	}
+
+	if (featureId === "events") {
+		return {
+			description:
+				"Events include page views, custom events, errors, and Web Vitals collected by Databuddy.",
+			name: "Event tracking",
+			pausedActivity: "new event collection",
+			unit: "events",
+		};
+	}
+
+	const label = featureId.replaceAll(/[_-]+/g, " ").trim() || "Feature";
+	return {
+		description: `This allowance controls how much ${label} your plan can use.`,
+		name: `${label[0]?.toUpperCase() ?? ""}${label.slice(1)} usage`,
+		pausedActivity: label,
+		unit: "units",
+	};
+}
+
+async function getUsageSnapshot(
+	customerId: string,
+	featureId: string
+): Promise<UsageSnapshot | null> {
+	try {
+		const response = await getAutumn().check({ customerId, featureId });
+		const balance = response.balance;
+		if (!balance) {
+			return null;
+		}
+		return {
+			granted: balance.granted,
+			isAvailable: response.allowed,
+			nextResetAt: balance.nextResetAt,
+			overageAllowed: balance.overageAllowed,
+			remaining: balance.remaining,
+			usage: balance.usage,
+		};
+	} catch (error) {
+		useLogger().error(
+			error instanceof Error ? error : new Error(String(error)),
+			{ autumn: { step: "load_usage", customerId, featureId } }
+		);
+		return null;
+	}
+}
+
+function formatUsageNumber(value: number): string {
+	return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(
+		value
+	);
+}
+
+function usagePercentage(snapshot: UsageSnapshot): number | null {
+	if (snapshot.granted <= 0) {
+		return null;
+	}
+	return Math.round((snapshot.usage / snapshot.granted) * 100);
 }
 
 export async function sendAlertEmail(opts: {
@@ -128,19 +243,29 @@ export async function sendAlertEmail(opts: {
 	alertType: string;
 	subject: string;
 	react: React.ReactElement;
+	recipient: BillingRecipient;
 }): Promise<WebhookResult> {
 	const log = useLogger();
-	const { customerId, cooldownKey, alertType, subject, react } = opts;
+	const { customerId, cooldownKey, alertType, subject, react, recipient } =
+		opts;
 
-	const { email } = await getUserData(customerId);
+	const { email } = recipient;
 	if (!email) {
 		log.warn("No email for customer", {
 			autumn: { customerId, cooldownKey },
 		});
 		return { success: true, message: "No notification recipient found" };
 	}
+	const resendApiKey = process.env.RESEND_API_KEY;
+	if (!resendApiKey) {
+		log.error(new Error("RESEND_API_KEY is not configured"), {
+			autumn: { customerId, cooldownKey, step: "email_configuration" },
+		});
+		return { success: false, message: "Alert email delivery unavailable" };
+	}
+	const resend = new Resend(resendApiKey);
 
-	return withTransaction(async (tx) => {
+	return await withTransaction(async (tx) => {
 		await tx.execute(
 			sql`SELECT pg_advisory_xact_lock(hashtextextended(${`usage-alert:${customerId}:${cooldownKey}`}, 0))`
 		);
@@ -165,12 +290,16 @@ export async function sendAlertEmail(opts: {
 			return { success: true, message: "Already sent recently" };
 		}
 
-		const html = await render(react);
+		const [html, text] = await Promise.all([
+			render(react),
+			render(react, { plainText: true }),
+		]);
 		const result = await resend.emails.send({
 			from: config.email.alertsFrom,
 			to: email,
 			subject,
 			html,
+			text,
 		});
 
 		if (result.error) {
@@ -221,42 +350,93 @@ async function invalidatePlanCaches(customerId: string | null): Promise<void> {
 	}
 }
 
-function handleLimitReached(
+export async function handleLimitReached(
 	data: LimitReachedData
-): Promise<WebhookResult> | WebhookResult {
-	const { customer_id, feature_id, limit_type } = data;
+): Promise<WebhookResult> {
+	const { customer_id, entity_id, feature_id, limit_type } = data;
+	const [recipient, organization, snapshot] = await Promise.all([
+		getBillingRecipient(customer_id),
+		resolveBillingOrganization(customer_id, entity_id),
+		getUsageSnapshot(customer_id, feature_id),
+	]);
 
-	if (limit_type !== "included") {
-		return { success: true, message: `Skipped ${limit_type} limit` };
+	if (
+		organization &&
+		!normalizeEmailNotificationSettings(organization.emailNotifications).billing
+			.usageWarnings
+	) {
+		return { success: true, message: "Billing usage emails disabled" };
+	}
+	if (!organization) {
+		useLogger().warn("Could not resolve billing organization", {
+			autumn: { customerId: customer_id, entityId: entity_id },
+		});
+	}
+	if (!snapshot) {
+		return { success: false, message: "Current usage is unavailable" };
 	}
 
-	const featureName = formatFeatureId(feature_id);
+	const feature = getFeatureCopy(feature_id);
+	const isHardStop = !snapshot.isAvailable;
+	const subject = isHardStop
+		? `[Action required] ${feature.name} is paused`
+		: `${feature.name}: included allowance used`;
 	mergeWideEvent({ customer_id, feature_id, limit_type });
 
 	return sendAlertEmail({
 		customerId: customer_id,
-		cooldownKey: feature_id,
+		cooldownKey: `${feature_id}:limit:${limit_type}`,
 		alertType: limit_type,
-		subject: `[Action required] ${featureName} limit reached — upgrade to continue tracking`,
+		subject,
 		react: UsageLimitEmail({
-			featureName,
-			thresholdType: "limit_reached",
+			featureDescription: feature.description,
+			featureName: feature.name,
+			isAvailable: snapshot.isAvailable,
+			limitAmount: snapshot.granted,
+			limitType: limit_type,
+			nextResetAt: snapshot.nextResetAt,
+			organizationName: organization?.name,
+			overageAllowed: snapshot.overageAllowed,
+			pausedActivity: feature.pausedActivity,
+			remainingAmount: snapshot.remaining,
+			usageAmount: snapshot.usage,
+			usageUnit: feature.unit,
 		}),
+		recipient,
 	});
 }
 
-async function handleUsageAlert(data: UsageAlertData): Promise<WebhookResult> {
-	const { customer_id, feature_id, usage_alert } = data;
-	const settings = await getOrganizationEmailSettings(customer_id);
-	if (!settings.billing.usageWarnings) {
-		return { success: true, message: "Usage warning emails disabled" };
+export async function handleUsageAlert(
+	data: UsageAlertData
+): Promise<WebhookResult> {
+	const { customer_id, entity_id, feature_id, usage_alert } = data;
+	const [recipient, organization, snapshot] = await Promise.all([
+		getBillingRecipient(customer_id),
+		resolveBillingOrganization(customer_id, entity_id),
+		getUsageSnapshot(customer_id, feature_id),
+	]);
+	if (
+		organization &&
+		!normalizeEmailNotificationSettings(organization.emailNotifications).billing
+			.usageWarnings
+	) {
+		return { success: true, message: "Billing usage emails disabled" };
 	}
-	const featureName = formatFeatureId(feature_id);
-	const isPercentage =
-		usage_alert.threshold_type === "usage_percentage_threshold";
-	const label = isPercentage
-		? `${usage_alert.threshold}%`
-		: String(usage_alert.threshold);
+	if (!organization) {
+		useLogger().warn("Could not resolve billing organization", {
+			autumn: { customerId: customer_id, entityId: entity_id },
+		});
+	}
+	if (!snapshot) {
+		return { success: false, message: "Current usage is unavailable" };
+	}
+
+	const feature = getFeatureCopy(feature_id);
+	const percentage = usagePercentage(snapshot);
+	const subject =
+		percentage === null
+			? `${feature.name}: ${formatUsageNumber(snapshot.usage)} ${feature.unit} used`
+			: `${feature.name} is at ${percentage}%`;
 
 	mergeWideEvent({
 		customer_id,
@@ -267,15 +447,22 @@ async function handleUsageAlert(data: UsageAlertData): Promise<WebhookResult> {
 
 	return sendAlertEmail({
 		customerId: customer_id,
-		cooldownKey: `${feature_id}_alert_${usage_alert.threshold}`,
+		cooldownKey: `${feature_id}:alert:${usage_alert.threshold_type}:${usage_alert.threshold}`,
 		alertType: `usage_alert_${usage_alert.threshold_type}`,
-		subject: `[Action required] You've used ${label} of your ${featureName.toLowerCase()}`,
+		subject,
 		react: UsageAlertEmail({
-			featureName,
-			threshold: usage_alert.threshold,
-			thresholdType: isPercentage ? "usage_percentage_threshold" : "usage",
-			alertName: usage_alert.name ?? undefined,
+			featureDescription: feature.description,
+			featureName: feature.name,
+			limitAmount: snapshot.granted,
+			nextResetAt: snapshot.nextResetAt,
+			organizationName: organization?.name,
+			overageAllowed: snapshot.overageAllowed,
+			pausedActivity: feature.pausedActivity,
+			remainingAmount: snapshot.remaining,
+			usageAmount: snapshot.usage,
+			usageUnit: feature.unit,
 		}),
+		recipient,
 	});
 }
 

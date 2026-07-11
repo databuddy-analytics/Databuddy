@@ -1,11 +1,38 @@
 import { describe, expect, test } from "bun:test";
 import { MonitorStatus } from "./types";
 import {
+	buildTransitionNotificationPayload,
 	countFiredAlarms,
 	resolveTransitionKind,
+	shouldReleaseTransitionClaim,
 } from "./uptime-transition-alerts";
+import type { UptimeData } from "./types";
 
 const { UP, DOWN, PENDING, MAINTENANCE } = MonitorStatus;
+
+const baseUptimeData: UptimeData = {
+	attempt: 1,
+	check_type: "http",
+	content_hash: "",
+	env: "production",
+	error: "",
+	failure_streak: 0,
+	http_code: 200,
+	probe_ip: "192.0.2.1",
+	probe_region: "test-region",
+	redirect_count: 0,
+	response_bytes: 100,
+	retries: 0,
+	site_id: "monitor-1",
+	ssl_expiry: 0,
+	ssl_valid: 1,
+	status: UP,
+	timestamp: Date.UTC(2026, 6, 11, 12, 30),
+	total_ms: 245,
+	ttfb_ms: 120,
+	url: "https://example.com",
+	user_agent: "Databuddy test",
+};
 
 describe("resolveTransitionKind — happy path transitions", () => {
 	test("fresh monitor going UP is silent", () => {
@@ -132,5 +159,60 @@ describe("countFiredAlarms", () => {
 
 	test("does not count alarms where every destination failed or was filtered", () => {
 		expect(countFiredAlarms([0, 0, 0])).toBe(0);
+	});
+});
+
+describe("shouldReleaseTransitionClaim", () => {
+	test("releases the dedupe claim when every configured alarm delivery fails", () => {
+		expect(shouldReleaseTransitionClaim(2, 0)).toBe(true);
+	});
+
+	test("keeps the claim after any alarm delivers or when nothing was configured", () => {
+		expect(shouldReleaseTransitionClaim(2, 1)).toBe(false);
+		expect(shouldReleaseTransitionClaim(0, 0)).toBe(false);
+	});
+});
+
+describe("buildTransitionNotificationPayload", () => {
+	test("describes a failed check without declaring the whole site down", () => {
+		const payload = buildTransitionNotificationPayload({
+			dashboardUrl: "https://app.databuddy.cc/monitors/monitor-1",
+			data: {
+				...baseUptimeData,
+				error: "upstream returned an error",
+				http_code: 503,
+				status: DOWN,
+			},
+			kind: "down",
+			monitorId: "monitor-1",
+			siteLabel: "Example",
+		});
+
+		expect(payload.title).toBe("Health check failed: Example");
+		expect(payload.message).toContain("A health check failed for Example");
+		expect(payload.message).toContain("2026-07-11T12:30:00.000Z");
+		expect(payload.message).toContain("HTTP 503");
+		expect(payload.message).toContain("Reason: upstream returned an error");
+		expect(payload.metadata).not.toHaveProperty("checkedAt");
+		expect(payload.message).not.toContain("is down");
+		expect(payload.title).not.toContain("[DOWN]");
+	});
+
+	test("recovery copy only claims that the latest check passed", () => {
+		const payload = buildTransitionNotificationPayload({
+			dashboardUrl: "https://app.databuddy.cc/monitors/monitor-1",
+			data: baseUptimeData,
+			kind: "recovered",
+			monitorId: "monitor-1",
+			siteLabel: "Example",
+		});
+
+		expect(payload.title).toBe("Health check passed: Example");
+		expect(payload.message).toContain(
+			"A health check passed for Example after a previous failed check"
+		);
+		expect(payload.message).toContain("Response time 245 ms");
+		expect(payload.message).not.toContain("outage");
+		expect(payload.message).not.toContain("operational again");
 	});
 });
