@@ -22,6 +22,7 @@ import {
 	storedInsightActionSchema,
 	storedInsightTypeSchema,
 } from "@databuddy/shared/insights";
+import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -38,6 +39,13 @@ const NARRATIVE_RATE_WINDOW_SECS = 3600;
 const NARRATIVE_CACHE_TTL_SECS = 3600;
 const INSIGHT_READ_RATE_LIMIT = 120;
 const INSIGHT_READ_RATE_WINDOW_SECS = 60;
+
+function isAccessDenied(error: unknown): boolean {
+	return (
+		error instanceof ORPCError &&
+		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
+	);
+}
 
 async function enforceRateLimit(
 	key: string,
@@ -349,7 +357,12 @@ export const insightsRouter = {
 				allowCrossOrg: true,
 			})
 				.then(() => true)
-				.catch(() => false);
+				.catch((error) => {
+					if (isAccessDenied(error)) {
+						return false;
+					}
+					throw error;
+				});
 
 			if (!canRead) {
 				return { success: true as const, insight: null };
@@ -417,7 +430,12 @@ export const insightsRouter = {
 				allowCrossOrg: true,
 			})
 				.then(() => true)
-				.catch(() => false);
+				.catch((error) => {
+					if (isAccessDenied(error)) {
+						return false;
+					}
+					throw error;
+				});
 
 			if (!canRead) {
 				return { success: true as const, insights: [] };
