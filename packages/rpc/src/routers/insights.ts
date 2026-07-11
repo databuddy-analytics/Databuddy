@@ -334,12 +334,18 @@ export const insightsRouter = {
 				return { success: true as const, insight: null };
 			}
 
-			await withWorkspace(context, {
+			const canRead = await withWorkspace(context, {
 				organizationId: row.organizationId,
 				resource: "organization",
 				permissions: ["read"],
 				allowCrossOrg: true,
-			});
+			})
+				.then(() => true)
+				.catch(() => false);
+
+			if (!canRead) {
+				return { success: true as const, insight: null };
+			}
 
 			return {
 				success: true as const,
@@ -401,12 +407,18 @@ export const insightsRouter = {
 				return { success: true as const, insights: [] };
 			}
 
-			await withWorkspace(context, {
+			const canRead = await withWorkspace(context, {
 				organizationId: current.organizationId,
 				resource: "organization",
 				permissions: ["read"],
 				allowCrossOrg: true,
-			});
+			})
+				.then(() => true)
+				.catch(() => false);
+
+			if (!canRead) {
+				return { success: true as const, insights: [] };
+			}
 
 			const rows = await db
 				.select({
