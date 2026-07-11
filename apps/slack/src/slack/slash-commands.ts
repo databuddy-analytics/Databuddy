@@ -20,7 +20,7 @@ export async function respondToBindCommand({
 }): Promise<void> {
 	const eventLog = createSlackEventLog({
 		slack_channel_id: command.channel_id,
-		slack_command: "/bind",
+		slack_command: command.command || "/databuddy-bind",
 		slack_event: "slash_command",
 		slack_team_id: command.team_id,
 		slack_user_id: command.user_id,

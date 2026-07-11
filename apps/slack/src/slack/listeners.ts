@@ -368,6 +368,13 @@ function registerSlackCommands(
 		}
 	);
 
+	app.command("/databuddy-bind", async ({ ack, command, logger, respond }) => {
+		await ack();
+		await respondToBindCommand({ command, installations, logger, respond });
+	});
+
+	// Keep the original command working for existing installations while new
+	// manifests use the namespaced command.
 	app.command("/bind", async ({ ack, command, logger, respond }) => {
 		await ack();
 		await respondToBindCommand({ command, installations, logger, respond });

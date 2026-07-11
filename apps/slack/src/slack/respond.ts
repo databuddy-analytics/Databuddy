@@ -525,7 +525,7 @@ async function recoverFromError({
 			streamTs,
 			pending,
 			logger,
-			partialText ? undefined : failureText
+			partialText ? SLACK_COPY.responseInterrupted : failureText
 		);
 		return {
 			answerChars: partialText.length,
@@ -537,7 +537,9 @@ async function recoverFromError({
 	}
 
 	const response = await say({
-		text: partialText || failureText,
+		text: partialText
+			? `${partialText}\n\n${SLACK_COPY.responseInterrupted}`
+			: failureText,
 		thread_ts: run.threadTs,
 	});
 	return {

@@ -147,7 +147,7 @@ describe("Databuddy Slack response streaming", () => {
 		]);
 	});
 
-	it("does not append a failure message after a partial answer streamed", async () => {
+	it("marks a partial answer as interrupted when streaming fails", async () => {
 		const { calls, client } = createStreamClient();
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
@@ -167,7 +167,9 @@ describe("Databuddy Slack response streaming", () => {
 		expect(result).toMatchObject({ ok: false, streamed: true });
 
 		const stopCall = calls.find((c) => c.method === "chat.stopStream");
-		expect(stopCall?.options).not.toHaveProperty("markdown_text");
+		expect(getChunkText(stopCall?.options)).toBe(
+			SLACK_COPY.responseInterrupted
+		);
 		expect(JSON.stringify(calls)).not.toContain(SLACK_COPY.agentFailure);
 	});
 
@@ -178,7 +180,7 @@ describe("Databuddy Slack response streaming", () => {
 				throw new DatabuddyAgentUserError({
 					code: "agent_credits_exhausted",
 					message:
-						"You're out of Databunny credits this month. Upgrade or wait for the monthly reset.",
+						"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
 				});
 			},
 		};
@@ -206,7 +208,7 @@ describe("Databuddy Slack response streaming", () => {
 
 		const stopCall = calls.find((c) => c.method === "chat.stopStream");
 		expect(getChunkText(stopCall?.options)).toBe(
-			"You're out of Databunny credits this month. Upgrade or wait for the monthly reset.",
+			"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
 		);
 	});
 

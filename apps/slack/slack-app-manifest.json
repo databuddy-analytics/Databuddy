@@ -32,7 +32,7 @@
     },
     "slash_commands": [
       {
-        "command": "/bind",
+        "command": "/databuddy-bind",
         "description": "Approve this channel for Databuddy answers.",
         "usage_hint": "Use when automatic channel approval is unavailable.",
         "should_escape": true
