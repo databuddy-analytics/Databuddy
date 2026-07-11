@@ -76,13 +76,17 @@ export function abortAllSlackActiveRuns(reason: string): number {
 }
 
 export async function waitForSlackActiveRuns(timeoutMs: number): Promise<void> {
-	if (inflightRuns.size === 0) {
-		return;
+	const deadline = Date.now() + timeoutMs;
+	while (inflightRuns.size > 0) {
+		const remaining = deadline - Date.now();
+		if (remaining <= 0) {
+			return;
+		}
+		await Promise.race([
+			Promise.allSettled([...inflightRuns]),
+			new Promise((resolve) => setTimeout(resolve, remaining)),
+		]);
 	}
-	await Promise.race([
-		Promise.allSettled([...inflightRuns]),
-		new Promise((resolve) => setTimeout(resolve, timeoutMs)),
-	]);
 }
 
 export function cleanupSlackActiveRun(run: SlackAgentRun): void {
