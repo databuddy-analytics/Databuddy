@@ -1,3 +1,12 @@
+import type {
+	InsightEvidence,
+	InsightMetric,
+	InsightSentiment,
+	InsightSeverity,
+	InsightSource,
+	StoredInsightAction,
+	StoredInsightType,
+} from "@databuddy/shared/insights";
 import { isNotNull, sql } from "drizzle-orm";
 import {
 	boolean,
@@ -63,34 +72,6 @@ export interface AnnotationChartContext {
 	}>;
 	metrics?: string[];
 	tabId?: string;
-}
-
-export interface AnalyticsInsightMetric {
-	current: number;
-	format: "number" | "percent" | "duration_ms" | "duration_s";
-	label: string;
-	previous?: number;
-}
-
-export interface AnalyticsInsightEvidence {
-	description: string;
-	type: "segment" | "error" | "annotation" | "temporal" | "metric";
-}
-
-export type AnalyticsInsightSource = "web" | "product" | "ops" | "business";
-
-export interface AnalyticsInsightAction {
-	label: string;
-	params: Record<string, string>;
-	type:
-		| "fix_goal"
-		| "create_funnel"
-		| "add_custom_event"
-		| "create_annotation"
-		| "update_config"
-		| "add_tracking"
-		| "investigate_further"
-		| "code_fix";
 }
 
 export const funnelDefinitions = pgTable(
@@ -228,23 +209,23 @@ export const analyticsInsights = pgTable(
 		title: text().notNull(),
 		description: text().notNull(),
 		suggestion: text().notNull(),
-		severity: text().notNull(),
-		sentiment: text().notNull(),
-		type: text().notNull(),
+		severity: text().$type<InsightSeverity>().notNull(),
+		sentiment: text().$type<InsightSentiment>().notNull(),
+		type: text().$type<StoredInsightType>().notNull(),
 		priority: integer().notNull(),
 		changePercent: doublePrecision("change_percent"),
 		dedupeKey: text("dedupe_key"),
 		subjectKey: text("subject_key").notNull().default(""),
-		sources: jsonb().$type<AnalyticsInsightSource[]>().notNull().default([]),
+		sources: jsonb().$type<InsightSource[]>().notNull().default([]),
 		confidence: doublePrecision().notNull().default(0),
 		impactSummary: text("impact_summary"),
-		metrics: jsonb().$type<AnalyticsInsightMetric[]>(),
+		metrics: jsonb().$type<InsightMetric[]>(),
 		rootCause: text("root_cause"),
-		evidence: jsonb("evidence").$type<AnalyticsInsightEvidence[]>(),
+		evidence: jsonb("evidence").$type<InsightEvidence[]>(),
 		investigationDepth: text("investigation_depth").$type<
 			"surface" | "investigated" | "deep"
 		>(),
-		actions: jsonb().$type<AnalyticsInsightAction[]>(),
+		actions: jsonb().$type<StoredInsightAction[]>(),
 		chainId: text("chain_id"),
 		timezone: text().notNull().default("UTC"),
 		currentPeriodFrom: text("current_period_from").notNull(),

@@ -147,6 +147,10 @@ const TOP_LEVEL_OR_PATTERN = /\bOR\b/i;
 const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
 const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
+const SELECT_PROJECTION_PATTERN = /\bSELECT\b([\s\S]*?)\bFROM\b/gi;
+const WILDCARD_PROJECTION_PATTERN =
+	/(?:^|,)\s*(?:(?:DISTINCT|ALL)\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\s*\.\s*)?\*\s*(?=,|$|\b(?:APPLY|EXCEPT|REPLACE)\b)/i;
+const SENSITIVE_PROJECTION_PATTERN = /\b(?:ip|properties|url|user_agent)\b/i;
 
 function maskCommentsAndStrings(sql: string): string {
 	let result = "";
@@ -302,6 +306,20 @@ function extractRelationReferences(sql: string): {
 		match = RELATION_PATTERN.exec(sql);
 	}
 	return refs;
+}
+
+function validateSelectProjections(sql: string): string | null {
+	for (const match of sql.matchAll(SELECT_PROJECTION_PATTERN)) {
+		const projection = match[1] ?? "";
+		if (WILDCARD_PROJECTION_PATTERN.test(projection)) {
+			return "Wildcard projections are not allowed; select explicit columns.";
+		}
+		const sensitive = projection.match(SENSITIVE_PROJECTION_PATTERN)?.[0];
+		if (sensitive) {
+			return `Column "${sensitive}" is sensitive and is not allowed in agent SQL projections.`;
+		}
+	}
+	return null;
 }
 
 function whereClauseBodies(sql: string): string[] {
@@ -567,6 +585,11 @@ export function validateAgentSQL(sql: string): {
 				};
 			}
 		}
+	}
+
+	const projectionError = validateSelectProjections(sanitized);
+	if (projectionError) {
+		return { valid: false, reason: projectionError };
 	}
 
 	return { valid: true, reason: null };

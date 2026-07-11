@@ -1,4 +1,4 @@
-import { isNotNull, isNull } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import {
 	boolean,
 	foreignKey,
@@ -13,23 +13,7 @@ import {
 import { organization, user } from "./auth";
 import { websites } from "./websites";
 
-export const INSIGHT_GENERATION_DEFAULT_TOOLS = [
-	"web_metrics",
-	"product_metrics",
-	"ops_context",
-] as const;
-
-export type InsightGenerationTool =
-	| "web_metrics"
-	| "product_metrics"
-	| "ops_context"
-	| "business_context";
-export type InsightGenerationDepth = "light" | "standard" | "deep";
-export type InsightGenerationFrequency =
-	| "hourly"
-	| "daily"
-	| "weekly"
-	| "custom";
+export type InsightGenerationFrequency = "daily" | "weekly";
 export type InsightGenerationModelTier = "fast" | "balanced" | "deep";
 export type InsightGenerationReason =
 	| "manual"
@@ -43,6 +27,8 @@ export type InsightRunStatus =
 	| "partially_succeeded"
 	| "failed"
 	| "skipped";
+export const INSIGHT_RUN_ACTIVE_STATUSES = ["queued", "running"] as const;
+export const INSIGHT_RUN_ACTIVE_UNIQUE_INDEX = "insight_runs_org_active_uidx";
 export type InsightRunItemStatus =
 	| "queued"
 	| "running"
@@ -56,13 +42,6 @@ export interface InsightDelivery {
 }
 
 export interface InsightGenerationConfigSnapshot {
-	allowedTools: InsightGenerationTool[];
-	cooldownHours: number;
-	depth: InsightGenerationDepth;
-	lookbackDays: number;
-	maxInsightsPerWebsite: number;
-	maxSteps: number;
-	maxToolCalls: number;
 	modelTier: InsightGenerationModelTier;
 	timezone: string;
 }
@@ -72,29 +51,15 @@ export const insightGenerationConfigs = pgTable(
 	{
 		id: text().primaryKey(),
 		organizationId: text("organization_id").notNull(),
-		websiteId: text("website_id"),
-		enabled: boolean().default(true).notNull(),
+		enabled: boolean().default(false).notNull(),
 		frequency: text()
 			.$type<InsightGenerationFrequency>()
 			.default("weekly")
 			.notNull(),
-		cron: text(),
-		depth: text().$type<InsightGenerationDepth>().default("standard").notNull(),
-		maxSteps: integer("max_steps").default(50).notNull(),
-		maxToolCalls: integer("max_tool_calls").default(50).notNull(),
-		maxInsightsPerWebsite: integer("max_insights_per_website")
-			.default(2)
-			.notNull(),
-		cooldownHours: integer("cooldown_hours").default(6).notNull(),
-		lookbackDays: integer("lookback_days").default(7).notNull(),
 		timezone: text().default("UTC").notNull(),
 		modelTier: text("model_tier")
 			.$type<InsightGenerationModelTier>()
 			.default("balanced")
-			.notNull(),
-		allowedTools: jsonb("allowed_tools")
-			.$type<InsightGenerationTool[]>()
-			.default([...INSIGHT_GENERATION_DEFAULT_TOOLS])
 			.notNull(),
 		deliveries: jsonb("deliveries")
 			.$type<InsightDelivery[]>()
@@ -117,31 +82,12 @@ export const insightGenerationConfigs = pgTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		uniqueIndex("insight_generation_configs_org_default_uidx")
-			.on(table.organizationId)
-			.where(isNull(table.websiteId)),
-		uniqueIndex("insight_generation_configs_org_website_uidx")
-			.on(table.organizationId, table.websiteId)
-			.where(isNotNull(table.websiteId)),
-		index("insight_generation_configs_org_next_run_idx").on(
-			table.organizationId,
-			table.nextRunAt
-		),
-		index("insight_generation_configs_website_idx").on(table.websiteId),
+		uniqueIndex("insight_generation_configs_org_uidx").on(table.organizationId),
+		index("insight_generation_configs_next_run_idx").on(table.nextRunAt),
 		foreignKey({
 			columns: [table.organizationId],
 			foreignColumns: [organization.id],
 			name: "insight_generation_configs_organization_id_fkey",
-		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.organizationId, table.websiteId],
-			foreignColumns: [websites.organizationId, websites.id],
-			name: "insight_generation_configs_org_website_fkey",
-		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.websiteId],
-			foreignColumns: [websites.id],
-			name: "insight_generation_configs_website_id_fkey",
 		}).onDelete("cascade"),
 	]
 );
@@ -181,6 +127,9 @@ export const insightRuns = pgTable(
 			table.organizationId,
 			table.createdAt.desc()
 		),
+		uniqueIndex(INSIGHT_RUN_ACTIVE_UNIQUE_INDEX)
+			.on(table.organizationId)
+			.where(inArray(table.status, INSIGHT_RUN_ACTIVE_STATUSES)),
 		index("insight_runs_status_idx").on(table.status),
 		index("insight_runs_status_updated_idx").on(table.status, table.updatedAt),
 		foreignKey({

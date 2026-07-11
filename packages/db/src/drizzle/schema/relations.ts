@@ -121,7 +121,10 @@ export const relations = defineRelations(schema, (r) => ({
 		linkFolders: r.many.linkFolders(),
 		links: r.many.links(),
 		slackIntegrations: r.many.slackIntegrations(),
-		insightGenerationConfigs: r.many.insightGenerationConfigs(),
+		insightGenerationConfig: r.one.insightGenerationConfigs({
+			from: r.organization.id,
+			to: r.insightGenerationConfigs.organizationId,
+		}),
 		insightRuns: r.many.insightRuns(),
 		insightRollups: r.many.insightRollups(),
 	},
@@ -193,7 +196,6 @@ export const relations = defineRelations(schema, (r) => ({
 		funnelDefinitions: r.many.funnelDefinitions(),
 		alarms: r.many.alarms(),
 		analyticsInsights: r.many.analyticsInsights(),
-		insightGenerationConfigs: r.many.insightGenerationConfigs(),
 		insightRunItems: r.many.insightRunItems(),
 	},
 
@@ -215,10 +217,6 @@ export const relations = defineRelations(schema, (r) => ({
 			from: r.insightGenerationConfigs.organizationId,
 			to: r.organization.id,
 			optional: false,
-		}),
-		website: r.one.websites({
-			from: r.insightGenerationConfigs.websiteId,
-			to: r.websites.id,
 		}),
 	},
 
