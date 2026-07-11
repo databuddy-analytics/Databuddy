@@ -63,12 +63,15 @@ const QuerySchema = z.object({
 	timezone: z.string().optional(),
 });
 
+function parseRequest(request: QueryRequest): QueryRequest {
+	return QuerySchema.parse(request) as QueryRequest;
+}
+
 function createBuilder(
-	request: QueryRequest,
+	validated: QueryRequest,
 	websiteDomain?: string | null,
 	timezone?: string
 ) {
-	const validated = QuerySchema.parse(request) as QueryRequest;
 	const config = QueryBuilders[validated.type];
 	if (!config) {
 		const suggestions = suggestQueryTypes(validated.type);
@@ -90,11 +93,15 @@ export const executeQuery = async (
 	timezone?: string,
 	abortSignal?: AbortSignal
 ) => {
-	const filterError = invalidFilterFieldError(request.type, request.filters);
+	const validated = parseRequest(request);
+	const filterError = invalidFilterFieldError(
+		validated.type,
+		validated.filters
+	);
 	if (filterError) {
 		throw new Error(filterError);
 	}
-	const resolved = await resolveRequestTraitFilters(request);
+	const resolved = await resolveRequestTraitFilters(validated);
 	return createBuilder(resolved, websiteDomain, timezone).execute(abortSignal);
 };
 
@@ -102,7 +109,7 @@ export const compileQuery = (
 	request: QueryRequest,
 	websiteDomain?: string | null,
 	timezone?: string
-) => createBuilder(request, websiteDomain, timezone).compile();
+) => createBuilder(parseRequest(request), websiteDomain, timezone).compile();
 
 export {
 	areQueriesCompatible,
