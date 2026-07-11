@@ -65,7 +65,7 @@ const FEATURE_ITEMS: FeatureItem[] = [
 	},
 	{
 		title: "Databunny",
-		description: "AI agent, insights, and anomaly detection",
+		description: "AI agent, findings, and anomaly detection",
 		href: "/databunny",
 		icon: RobotIcon,
 		trackId: "databunny",

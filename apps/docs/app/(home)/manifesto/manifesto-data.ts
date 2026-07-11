@@ -126,7 +126,7 @@ export const manifestoSections: readonly ManifestoChapter[] = [
 			},
 			{
 				type: "paragraph",
-				text: "Databunny, the AI agent inside Databuddy, answers questions, builds charts, and writes summaries. When you configure a schedule and Slack delivery, it can post the next digest to your chosen channels.",
+				text: "Databunny, the AI agent inside Databuddy, answers questions, builds charts, and writes summaries. When you configure a schedule and Slack delivery, it can send new findings to your chosen channels.",
 			},
 			{
 				type: "paragraph",

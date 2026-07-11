@@ -105,11 +105,11 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | `get_schema` | ClickHouse column definitions. Use when a field name is uncertain. |
 | `list_websites` | List websites accessible to the authenticated key. |
 
-### Insights
+### Findings
 
 | Tool | Description |
 |------|-------------|
-| `summarize_insights` | Pre-built insight summaries for a website. |
+| `summarize_insights` | Stored findings for a website. |
 | `compare_metric` | Compare metrics across two time periods. |
 | `top_movers` | Find dimensions with the largest changes. |
 | `detect_anomalies` | Detect anomalies in your metrics. |
@@ -224,7 +224,7 @@ Tools are filtered based on your API key's scopes:
 
 | Scope | Tools |
 |-------|-------|
-| `read:data` | All analytics, insights, schema, and read-only tools |
+| `read:data` | All analytics, findings, schema, and read-only tools |
 | `manage:config` | Feature flag mutations, link mutations, memory writes |
 
 Session-authenticated users (via the dashboard) get access based on their organization role instead.

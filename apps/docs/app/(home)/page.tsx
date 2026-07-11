@@ -136,8 +136,8 @@ function AgentSummary() {
 						<p>
 							Databuddy is a privacy-first analytics platform for developers. It
 							combines web analytics, error tracking, Core Web Vitals, feature
-							flags, short links, uptime monitoring, and AI insights in one
-							lightweight product.
+							flags, short links, uptime monitoring, and automatic findings in
+							one lightweight product.
 						</p>
 						<p>
 							AI agents can discover Databuddy through OpenAPI, llms.txt,
@@ -172,14 +172,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 						value: {
 							name: "Databuddy",
 							description:
-								"Privacy-first developer analytics with error tracking, web vitals, feature flags, short links, and AI insights in one lightweight script.",
+								"Privacy-first developer analytics with error tracking, web vitals, feature flags, short links, and automatic findings in one lightweight script.",
 							featureList: [
 								"Privacy-first web analytics",
 								"Error tracking",
 								"Core Web Vitals monitoring",
 								"Feature flags",
 								"Short link analytics",
-								"AI analytics insights",
+								"Automatic findings",
 								"REST API",
 								"Model Context Protocol server",
 							],

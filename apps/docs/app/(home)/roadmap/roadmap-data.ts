@@ -62,7 +62,7 @@ export const roadmapItems: RoadmapItem[] = [
 		features: [
 			"LCP/FCP/CLS/INP/TTFB",
 			"Real Experience Score",
-			"Performance insights",
+			"Performance findings",
 			"Threshold alerts",
 		],
 		assignees: ["core-team"],
@@ -187,9 +187,9 @@ export const roadmapItems: RoadmapItem[] = [
 	},
 	{
 		id: "smart-insights",
-		title: "Smart Insights",
+		title: "Automatic Findings",
 		description:
-			"Automated insights for anomalies, errors, and performance issues",
+			"Automatic findings for anomalies, errors, and performance issues",
 		status: "completed",
 		priority: "medium",
 		category: "AI",
@@ -203,7 +203,7 @@ export const roadmapItems: RoadmapItem[] = [
 			"Uptime issues",
 		],
 		assignees: ["ai-team"],
-		tags: ["insights", "automation"],
+		tags: ["findings", "automation"],
 	},
 	{
 		id: "notifications",
@@ -290,7 +290,7 @@ export const roadmapItems: RoadmapItem[] = [
 	{
 		id: "ai-capabilities",
 		title: "Advanced AI Features",
-		description: "Anomaly detection, correlation engine, and auto-insights",
+		description: "Anomaly detection, AI analysis, and automatic findings",
 		status: "in-progress",
 		priority: "high",
 		category: "AI",
@@ -298,7 +298,7 @@ export const roadmapItems: RoadmapItem[] = [
 		features: [
 			"Anomaly detection",
 			"Correlation engine",
-			"Auto-generated insights",
+			"Automatic findings",
 			"Weekly summaries",
 		],
 		assignees: ["ai-team"],
@@ -489,7 +489,7 @@ export const roadmapMilestones: RoadmapMilestone[] = [
 	{
 		id: "ai-observability",
 		title: "AI Observability",
-		description: "LLM analytics, smart insights, and cost tracking",
+		description: "LLM analytics, automatic findings, and cost tracking",
 		targetDate: "2026-01-14",
 		status: "completed",
 		items: ["llm-analytics", "smart-insights"],

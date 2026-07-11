@@ -48,7 +48,7 @@ Overage = events **above** the monthly included amount. Cumulative overage is ch
 
 ## Databunny usage
 
-Every cloud plan includes an AI processing allowance for Databunny questions and analysis. This is not a message quota: a simple question can use less of the allowance than a deeper investigation. Hobby and Pro also receive a daily bonus that replenishes each day.
+Every cloud plan includes an AI processing allowance for Databunny questions and analysis. This is not a message quota: a simple question can use less of the allowance than deeper analysis. Hobby and Pro also receive a daily bonus that replenishes each day.
 
 ## Enterprise
 

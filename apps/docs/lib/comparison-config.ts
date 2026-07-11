@@ -142,7 +142,7 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "performance",
 			},
 			{
-				name: "AI insights (Databunny)",
+				name: "Automatic findings (Databunny)",
 				databuddy: true,
 				competitor: true,
 				benefit: "Ask questions in plain English vs navigating complex reports",
@@ -273,17 +273,17 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Plausible",
 			description:
-				"Plausible shows you the numbers. Databuddy tells you what they mean. Same privacy values, dramatically more signal - with AI insights, product analytics, and a free plan.",
+				"Plausible focuses on traffic totals. Databuddy adds product analytics, automatic findings, and a free plan.",
 			cta: "Compare analytics capabilities",
 		},
 		seo: {
 			title: "Databuddy vs Plausible: Complete Analytics Comparison 2026",
 			description:
-				"Compare Databuddy and Plausible analytics. Databuddy offers AI insights, product analytics, user identification, and a free plan that Plausible doesn't have.",
+				"Compare Databuddy and Plausible analytics. Databuddy offers automatic findings, product analytics, user identification, and a free plan that Plausible doesn't have.",
 		},
 		features: [
 			{
-				name: "AI-powered insights (Databunny)",
+				name: "Automatic findings (Databunny)",
 				databuddy: true,
 				competitor: false,
 				benefit: "Ask questions in plain English, get instant answers",
@@ -402,7 +402,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy have that Plausible doesn't?",
 				answer:
-					"Product analytics with user-level tracking, AI-powered insights, user identification, feature flags, uptime monitoring, custom dashboards, raw data export, and a free forever plan.",
+					"Product analytics with user-level tracking, automatic findings, user identification, feature flags, uptime monitoring, custom dashboards, raw data export, and a free forever plan.",
 			},
 			{
 				question: "Is Databuddy open source?",
@@ -432,7 +432,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Free",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic findings",
 				competitor: "Not available",
 				databuddy: "Free",
 			},
@@ -465,13 +465,13 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Fathom Analytics",
 			description:
-				"Fathom is great for simple traffic stats. When you need to understand your users, you need Databuddy - product analytics, AI-powered insights, and a free plan. Same privacy values, dramatically more signal.",
+				"Fathom focuses on traffic stats. Databuddy adds product analytics, automatic findings, and a free plan.",
 			cta: "Get more for less",
 		},
 		seo: {
 			title: "Databuddy vs Fathom Analytics: Feature & Price Comparison 2026",
 			description:
-				"Compare Databuddy and Fathom Analytics. See why Databuddy offers AI insights, product analytics, and a free tier for privacy-first analytics.",
+				"Compare Databuddy and Fathom Analytics. See why Databuddy offers automatic findings, product analytics, and a free tier for privacy-first analytics.",
 		},
 		features: [
 			{
@@ -579,7 +579,7 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Team collaboration",
 				databuddy: true,
 				competitor: true,
-				benefit: "Share insights across your organization",
+				benefit: "Share findings across your organization",
 				category: "features",
 			},
 			{
@@ -614,7 +614,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy have that Fathom doesn't?",
 				answer:
-					"AI-powered insights, product analytics, custom dashboards, funnels and goals, self-hosting, uptime monitoring, and a free forever plan.",
+					"Automatic findings, product analytics, custom dashboards, funnels and goals, self-hosting, uptime monitoring, and a free forever plan.",
 			},
 		],
 		pricingTiers: [
@@ -672,7 +672,7 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs PostHog",
 			description:
-				"PostHog is 10+ products. You're probably only using 2. Databuddy gives you what matters - analytics and AI insights - at 1/17th the script size.",
+				"PostHog is 10+ products. You're probably only using 2. Databuddy gives you what matters - analytics and automatic findings - at 1/17th the script size.",
 			cta: "Lighter, faster, AI-native analytics",
 		},
 		seo: {
@@ -682,7 +682,7 @@ export const competitors: Record<string, ComparisonData> = {
 		},
 		features: [
 			{
-				name: "AI insights (Databunny NLP)",
+				name: "Automatic findings (Databunny NLP)",
 				databuddy: true,
 				competitor: false,
 				benefit: "Ask questions in plain English, get instant answers",
@@ -807,7 +807,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Does Databuddy have session replay?",
 				answer:
-					"Not yet. If session replay is critical for your workflow, PostHog is the better choice. Databuddy focuses on analytics, AI insights, and product analytics.",
+					"Not yet. If session replay is critical for your workflow, PostHog is the better choice. Databuddy focuses on analytics, automatic findings, and product analytics.",
 			},
 			{
 				question: "Why choose Databuddy over PostHog?",
@@ -854,17 +854,17 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Umami",
 			description:
-				"Same privacy values, dramatically more signal. Umami shows numbers - Databuddy shows what they mean with AI insights, product analytics, and user identification.",
+				"Umami focuses on traffic totals. Databuddy adds automatic findings, product analytics, and user identification.",
 			cta: "Beyond basic analytics",
 		},
 		seo: {
 			title: "Databuddy vs Umami: Analytics Comparison 2026",
 			description:
-				"Compare Databuddy and Umami analytics. Both are open-source and privacy-first. Databuddy adds AI insights, product analytics, and user identification.",
+				"Compare Databuddy and Umami analytics. Both are open-source and privacy-first. Databuddy adds automatic findings, product analytics, and user identification.",
 		},
 		features: [
 			{
-				name: "AI insights (Databunny NLP)",
+				name: "Automatic findings (Databunny NLP)",
 				databuddy: true,
 				competitor: false,
 				benefit: "Ask questions in plain English, get instant answers",
@@ -981,7 +981,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Which is better for developers?",
 				answer:
-					"Both are developer-friendly. If you just need basic pageview analytics, Umami is great. If you want AI insights, product analytics, and feature flags alongside web analytics, Databuddy is the better fit.",
+					"Both are developer-friendly. If you just need basic pageview analytics, Umami is great. If you want automatic findings, product analytics, and feature flags alongside web analytics, Databuddy is the better fit.",
 			},
 		],
 		pricingTiers: [
@@ -1001,7 +1001,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Paid plan",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic findings",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1034,7 +1034,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Databuddy vs Mixpanel: Simpler Product Analytics 2026",
 			description:
-				"Compare Databuddy and Mixpanel. Databuddy unifies web and product analytics with AI insights, simpler setup, and a free plan - no data team required.",
+				"Compare Databuddy and Mixpanel. Databuddy unifies web and product analytics with automatic findings, simpler setup, and a free plan - no data team required.",
 		},
 		features: [
 			{
@@ -1154,7 +1154,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Can I switch from Mixpanel to Databuddy?",
 				answer:
-					"Yes. Add the Databuddy script and start tracking immediately. For product analytics, you'll get AI-powered insights without the complex event instrumentation Mixpanel requires.",
+					"Yes. Add the Databuddy script and start tracking immediately. For product analytics, you'll get automatic findings without the complex event instrumentation Mixpanel requires.",
 			},
 		],
 		pricingTiers: [
@@ -1174,7 +1174,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Included",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic findings",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1201,8 +1201,8 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Amplitude",
 			description:
-				"Amplitude is built for companies with analysts. Databuddy is built for founders without one. Same behavioral insights, powered by AI, at a fraction of the cost.",
-			cta: "Enterprise insights without the enterprise price",
+				"Amplitude is built for data teams. Databuddy gives startups simpler product analytics with an AI agent and transparent pricing.",
+			cta: "Product analytics without a data team",
 		},
 		seo: {
 			title: "Databuddy vs Amplitude: Analytics for Startups 2026",
@@ -1350,7 +1350,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Contact us",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic findings",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1377,13 +1377,13 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Rybbit",
 			description:
-				"We share the same values on privacy. We disagree on whether AI should help you understand your data. Same cookieless analytics, opposite bets on insights.",
+				"Both are cookieless and privacy-first. Databuddy adds an AI agent, automatic findings, and product analytics.",
 			cta: "Analytics that tells you what your data means",
 		},
 		seo: {
 			title: "Databuddy vs Rybbit: Analytics Comparison 2026",
 			description:
-				"Compare Databuddy and Rybbit analytics. Both are open-source and privacy-first. Databuddy adds AI insights, product analytics, and user identification.",
+				"Compare Databuddy and Rybbit analytics. Both are open-source and privacy-first. Databuddy adds automatic findings, product analytics, and user identification.",
 		},
 		features: [
 			{
@@ -1488,7 +1488,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Does Rybbit have AI analytics?",
 				answer:
-					"No. Rybbit's founder has publicly stated that NLP-powered analytics insights are unnecessary. Databuddy's users disagree - Databunny is one of the most requested features.",
+					"Check Rybbit's current feature list. Databuddy includes Databunny for plain-English questions and automatic findings.",
 			},
 			{
 				question: "Is Rybbit free?",
@@ -1498,7 +1498,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Which has better privacy?",
 				answer:
-					"Both are excellent on privacy - cookieless, GDPR compliant, open-source. Neither collects personal data. The choice comes down to whether you want AI insights and product analytics.",
+					"Both are excellent on privacy - cookieless, GDPR compliant, open-source. Neither collects personal data. The choice comes down to whether you want automatic findings and product analytics.",
 			},
 		],
 		pricingTiers: [
@@ -1513,7 +1513,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Free (10K events)",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic findings",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1540,18 +1540,18 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Vercel Analytics",
 			description:
-				"Vercel Analytics is built for Vercel. Databuddy is built for your stack. Same framework-native feel, but with error tracking, feature flags, AI insights, and a free tier that works on any host.",
+				"Vercel Analytics is built for Vercel. Databuddy is built for your stack. Same framework-native feel, but with error tracking, feature flags, automatic findings, and a free tier that works on any host.",
 			cta: "Full analytics on any platform",
 		},
 		seo: {
 			title:
 				"Databuddy vs Vercel Analytics: Next.js Analytics Alternative 2026",
 			description:
-				"Compare Databuddy and Vercel Analytics for Next.js and React apps. Databuddy adds error tracking, feature flags, AI insights, and works on any hosting provider.",
+				"Compare Databuddy and Vercel Analytics for Next.js and React apps. Databuddy adds error tracking, feature flags, automatic findings, and works on any hosting provider.",
 		},
 		features: [
 			{
-				name: "AI insights (Databunny NLP)",
+				name: "Automatic findings (Databunny NLP)",
 				databuddy: true,
 				competitor: false,
 				benefit:
@@ -1685,12 +1685,12 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Does Vercel Analytics have error tracking?",
 				answer:
-					"No. Vercel Analytics tracks pageviews and Web Vitals only. For error tracking you need a separate tool. Databuddy includes error tracking, feature flags, and AI insights in the same script.",
+					"No. Vercel Analytics tracks pageviews and Web Vitals only. For error tracking you need a separate tool. Databuddy includes error tracking, feature flags, and automatic findings in the same script.",
 			},
 			{
 				question: "Why choose Databuddy over Vercel Analytics?",
 				answer:
-					"If you only need basic pageview counts on Vercel, Vercel Analytics is fine. If you want error tracking, feature flags, AI-powered insights, custom events, funnels, and the freedom to host anywhere, Databuddy is the better choice.",
+					"If you only need basic pageview counts on Vercel, Vercel Analytics is fine. If you want error tracking, feature flags, automatic findings, custom events, funnels, and the freedom to host anywhere, Databuddy is the better choice.",
 			},
 		],
 		pricingTiers: [
@@ -1715,7 +1715,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Included",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic findings",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1737,13 +1737,13 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Matomo",
 			description:
-				"Matomo has been the privacy-first standard since 2007, and the UX shows. Databuddy was built for how modern startup teams actually work - with AI insights out of the box.",
+				"Matomo has been the privacy-first standard since 2007, and the UX shows. Databuddy was built for how modern startup teams actually work - with automatic findings out of the box.",
 			cta: "Modern analytics, same privacy values",
 		},
 		seo: {
 			title: "Databuddy vs Matomo: Modern Analytics Alternative 2026",
 			description:
-				"Compare Databuddy and Matomo. Both are open-source and privacy-first. Databuddy offers a modern UI, AI insights, and simpler self-hosting without the PHP stack.",
+				"Compare Databuddy and Matomo. Both are open-source and privacy-first. Databuddy offers a modern UI, automatic findings, and simpler self-hosting without the PHP stack.",
 		},
 		features: [
 			{
@@ -1862,7 +1862,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Matomo's UI outdated?",
 				answer:
-					"Matomo has been around since 2007 (originally Piwik) and its interface reflects that legacy. Databuddy was built from scratch for modern teams with a clean, real-time dashboard and AI-powered insights.",
+					"Matomo has been around since 2007 (originally Piwik) and its interface reflects that legacy. Databuddy was built from scratch for modern teams with a clean, real-time dashboard and automatic findings.",
 			},
 			{
 				question: "Is Matomo hard to self-host?",
@@ -1902,7 +1902,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Not available",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic findings",
 				competitor: "Not available",
 				databuddy: "Included",
 			},

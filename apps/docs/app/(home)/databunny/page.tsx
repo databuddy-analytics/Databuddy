@@ -54,12 +54,12 @@ const FAQ_ITEMS = [
 	{
 		question: "Can findings go to Slack?",
 		answer:
-			"Yes. Add one or more Slack channels to the organization schedule. After each analysis, websites with new findings post them to those channels.",
+			"Yes. Add Slack channels to the organization. After each analysis, websites with new findings post them there.",
 	},
 	{
 		question: "Is Databunny included in all plans?",
 		answer:
-			"Every plan includes a Databunny usage allowance for questions and analysis. Free includes 10 usage units each month; deeper investigations can use more of the allowance than simple questions.",
+			"Every plan includes a Databunny usage allowance for questions and analysis. Free includes 10 usage units each month; deeper analysis can use more of the allowance than simple questions.",
 	},
 ] as const;
 

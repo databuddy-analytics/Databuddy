@@ -366,7 +366,7 @@ export default function Hero({
 
 					<p className="z-10 max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 						Databuddy tracks visits, events, errors, funnels, and rollouts, then
-						surfaces the important answers as insight cards with evidence and a
+						surfaces the important answers as finding cards with evidence and a
 						next step attached.
 					</p>
 

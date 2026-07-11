@@ -262,7 +262,7 @@ export function StructuredData({
 		"@id": serviceId,
 		name: "Databuddy privacy-first analytics",
 		description:
-			"Privacy-first analytics, error tracking, Core Web Vitals monitoring, feature flags, short links, uptime, and AI insights for developer teams.",
+			"Privacy-first analytics, error tracking, Core Web Vitals monitoring, feature flags, short links, uptime, and automatic findings for developer teams.",
 		provider: { "@type": "Organization", "@id": orgId },
 		serviceType: "Web analytics software",
 		areaServed: "Worldwide",
@@ -346,7 +346,7 @@ export function StructuredData({
 				name: app.name ?? "Databuddy",
 				description:
 					app.description ??
-					"Privacy-first analytics, error tracking, web vitals, feature flags, short links, and AI insights for developer teams.",
+					"Privacy-first analytics, error tracking, web vitals, feature flags, short links, and automatic findings for developer teams.",
 				applicationCategory: "BusinessApplication",
 				operatingSystem: "Web",
 				url: baseUrl,
