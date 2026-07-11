@@ -146,9 +146,9 @@ function buildDistributionOption(
 	theme: ChartTheme,
 	frame: ChartFrame
 ): EChartsOption | null {
-	const rows = (component.rows ?? []).filter(
-		(row) => row.length >= 2 && toFiniteNumber(row[1]) !== null
-	);
+	const rows = (component.rows ?? [])
+		.filter((row) => row.length >= 2 && toFiniteNumber(row[1]) !== null)
+		.sort((a, b) => (toFiniteNumber(b[1]) ?? 0) - (toFiniteNumber(a[1]) ?? 0));
 	if (rows.length === 0) {
 		return null;
 	}
@@ -244,7 +244,7 @@ function legendOption(theme: ChartTheme, width: number) {
 		icon: "roundRect",
 		itemWidth: 14,
 		itemHeight: 6,
-		width: width - 400,
+		width: Math.max(0, width - 400),
 	};
 }
 
