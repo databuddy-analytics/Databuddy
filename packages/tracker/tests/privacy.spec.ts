@@ -1,6 +1,57 @@
 import { expect, hasEvent, test } from "./test-utils";
 
 test.describe("Privacy & Opt-out", () => {
+	test("does not track when Global Privacy Control is enabled", async ({
+		page,
+	}) => {
+		let requestCount = 0;
+		page.on("request", (request) => {
+			if (request.url().includes("basket.databuddy.cc")) {
+				requestCount += 1;
+			}
+		});
+
+		await page.goto("/test");
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, "globalPrivacyControl", {
+				configurable: true,
+				value: true,
+			});
+			(window as any).databuddyConfig = {
+				clientId: "test-gpc",
+				ignoreBotDetection: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+		await page.waitForTimeout(500);
+
+		expect(requestCount).toBe(0);
+	});
+
+	test("does not track when Do Not Track is enabled", async ({ page }) => {
+		let requestCount = 0;
+		page.on("request", (request) => {
+			if (request.url().includes("basket.databuddy.cc")) {
+				requestCount += 1;
+			}
+		});
+
+		await page.goto("/test");
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, "doNotTrack", {
+				configurable: true,
+				value: "1",
+			});
+			(window as any).databuddyConfig = {
+				clientId: "test-dnt",
+				ignoreBotDetection: true,
+			};
+		});
+		await page.addScriptTag({ url: "/dist/databuddy-debug.js" });
+		await page.waitForTimeout(500);
+
+		expect(requestCount).toBe(0);
+	});
 
 	test("does not track when opted out via function", async ({ page }) => {
 		let requestCount = 0;

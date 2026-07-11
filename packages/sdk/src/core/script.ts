@@ -9,13 +9,10 @@ export function isScriptInjected() {
 	return !!document.querySelector(`script[${INJECTED_SCRIPT_ATTRIBUTE}]`);
 }
 
-export function createScript({
-	scriptUrl,
-	sdkVersion,
-	clientSecret,
-	filter,
-	...props
-}: DatabuddyConfig) {
+export function createScript(config: DatabuddyConfig) {
+	const safeConfig = { ...config };
+	Reflect.deleteProperty(safeConfig, "clientSecret");
+	const { scriptUrl, sdkVersion, filter, ...props } = safeConfig;
 	const script = document.createElement("script");
 
 	const defaultUrl = props.debug

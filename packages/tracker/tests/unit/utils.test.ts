@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { getTrackerConfig } from "../../src/core/utils";
+import {
+	buildPagePath,
+	getTrackerConfig,
+	isOptedOut,
+	sanitizePageUrl,
+} from "../../src/core/utils";
 
 const originalDocument = globalThis.document;
 const originalWindow = globalThis.window;
+const originalNavigator = globalThis.navigator;
 
 afterEach(() => {
 	Object.defineProperty(globalThis, "document", {
@@ -12,6 +18,49 @@ afterEach(() => {
 	Object.defineProperty(globalThis, "window", {
 		configurable: true,
 		value: originalWindow,
+	});
+	Object.defineProperty(globalThis, "navigator", {
+		configurable: true,
+		value: originalNavigator,
+	});
+});
+
+describe("privacy-safe page context", () => {
+	test("omits query parameters and hashes from page and referrer URLs", () => {
+		expect(
+			buildPagePath("https://example.com", "/account/123", ["/account/*"])
+		).toBe("https://example.com/account/*");
+		expect(
+			sanitizePageUrl(
+				"https://referrer.example/path?token=secret#private-section"
+			)
+		).toBe("https://referrer.example/path");
+	});
+
+	test("honors Global Privacy Control", () => {
+		Object.defineProperty(globalThis, "window", {
+			configurable: true,
+			value: {},
+		});
+		Object.defineProperty(globalThis, "navigator", {
+			configurable: true,
+			value: { globalPrivacyControl: true, doNotTrack: "0" },
+		});
+
+		expect(isOptedOut()).toBe(true);
+	});
+
+	test("honors Do Not Track", () => {
+		Object.defineProperty(globalThis, "window", {
+			configurable: true,
+			value: {},
+		});
+		Object.defineProperty(globalThis, "navigator", {
+			configurable: true,
+			value: { globalPrivacyControl: false, doNotTrack: "1" },
+		});
+
+		expect(isOptedOut()).toBe(true);
 	});
 });
 

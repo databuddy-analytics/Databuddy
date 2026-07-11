@@ -1,5 +1,5 @@
 import type { BaseTracker } from "../core/tracker";
-import { generateUUIDv4 } from "../core/utils";
+import { generateUUIDv4, sanitizePageUrl } from "../core/utils";
 
 export function initOutgoingLinksTracking(tracker: BaseTracker): () => void {
 	if (tracker.isServer()) {
@@ -43,7 +43,7 @@ export function initOutgoingLinksTracking(tracker: BaseTracker): () => void {
 					anonymizeVisitorIds: tracker.options.anonymizeVisitorIds,
 					sessionId: tracker.sessionId,
 					timestamp: Date.now(),
-					href: link.href,
+					href: sanitizePageUrl(link.href),
 					text: link.innerText || link.title || "",
 					...tracker.getBaseContext(),
 				},

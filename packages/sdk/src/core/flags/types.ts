@@ -6,6 +6,14 @@ export interface FlagResult {
 	variant?: string;
 }
 
+export interface FlagsRequestFailure {
+	code: "HTTP_ERROR" | "INVALID_RESPONSE" | "NETWORK_ERROR";
+	message: string;
+	requestId?: string;
+	retryable: boolean;
+	status: number | null;
+}
+
 export interface UserContext {
 	email?: string;
 	organizationId?: string;
@@ -54,6 +62,7 @@ export interface FlagsContext {
 	getValue: <T = boolean>(key: string, defaultValue?: T) => T;
 	isOn: (key: string) => boolean;
 	isReady: boolean;
+	lastError: FlagsRequestFailure | null;
 	refresh: (forceClear?: boolean) => Promise<void>;
 	updateUser: (user: UserContext) => void;
 }
@@ -61,6 +70,7 @@ export interface FlagsContext {
 export interface FlagsSnapshot {
 	flags: Record<string, FlagResult>;
 	isReady: boolean;
+	lastError: FlagsRequestFailure | null;
 }
 
 export interface StorageInterface {
@@ -78,6 +88,7 @@ export interface FlagsManager {
 	destroy(): void;
 	fetchAllFlags(user?: UserContext): Promise<void>;
 	getFlag(key: string, user?: UserContext): Promise<FlagResult>;
+	getLastError(): FlagsRequestFailure | null;
 	getMemoryFlags(): Record<string, FlagResult>;
 	getSnapshot(): FlagsSnapshot;
 	getValue<T = boolean>(key: string, defaultValue?: T): T;

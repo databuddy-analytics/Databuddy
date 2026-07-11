@@ -1,4 +1,4 @@
-import { HttpClient } from "./client";
+import { HttpClient, type HttpResult } from "./client";
 import type {
 	BaseEvent,
 	ErrorSpan,
@@ -6,14 +6,18 @@ import type {
 	ProfileTraits,
 	TrackEventPayload,
 	TrackerOptions,
+	TrackerSendOutcome,
 	WebVitalEvent,
 } from "./types";
 import {
 	generateUUIDv4,
+	buildPagePath,
 	isDebugMode,
 	isLocalhost,
+	isOptedOut,
 	logger,
 	maskPathname,
+	sanitizePageUrl,
 } from "./utils";
 
 const TRACKED_PARAMS: Record<string, boolean> = {
@@ -36,12 +40,14 @@ const PHANTOMJS_REGEX = /\bPhantomJS\b/i;
 const ANON_ID_PATTERN = /^anon_[0-9a-f-]{36}$/;
 const SESSION_ID_PATTERN = /^sess_[0-9a-f-]{36}$/;
 const MAX_PROFILE_ID_LENGTH = 128;
+const MIN_RETRY_DELAY = 250;
+const MAX_RETRY_DELAY = 30_000;
 
-interface QueueMeta<T> {
+interface QueueMeta {
 	endpoint: string;
 	flushing: boolean;
-	onFailure?: (items: T[]) => void;
 	queryParam: string;
+	retryAttempts: number;
 	threshold: number;
 	timer: Timer | null;
 }
@@ -74,10 +80,10 @@ export class BaseTracker {
 	// Public flushBatch/flushVitals/flushErrors/flushTrack remain as thin
 	// wrappers for backwards-compat with tests + index.ts.
 	protected _meta!: {
-		batch: QueueMeta<BaseEvent>;
-		vitals: QueueMeta<WebVitalEvent>;
-		errors: QueueMeta<ErrorSpan>;
-		track: QueueMeta<TrackEventPayload>;
+		batch: QueueMeta;
+		vitals: QueueMeta;
+		errors: QueueMeta;
+		track: QueueMeta;
 	};
 
 	private readonly routeChangeCallbacks: Array<(path: string) => void> = [];
@@ -102,6 +108,12 @@ export class BaseTracker {
 			sdkVersion: "2.0.0",
 			...options,
 		};
+		if (
+			options.trackWebVitals === undefined &&
+			options.trackPerformance !== undefined
+		) {
+			this.options.trackWebVitals = options.trackPerformance;
+		}
 
 		const effectiveMaxRetries =
 			this.options.enableRetries === false ? 0 : (this.options.maxRetries ?? 3);
@@ -123,18 +135,15 @@ export class BaseTracker {
 				flushing: false,
 				endpoint: "/batch",
 				queryParam: "client_id",
+				retryAttempts: 0,
 				threshold: this.options.batchSize || 10,
-				onFailure: (items) => {
-					for (const evt of items) {
-						this.send({ ...evt, isForceSend: true });
-					}
-				},
 			},
 			vitals: {
 				timer: null,
 				flushing: false,
 				endpoint: "/vitals",
 				queryParam: "client_id",
+				retryAttempts: 0,
 				threshold: 6,
 			},
 			errors: {
@@ -142,6 +151,7 @@ export class BaseTracker {
 				flushing: false,
 				endpoint: "/errors",
 				queryParam: "client_id",
+				retryAttempts: 0,
 				threshold: 10,
 			},
 			track: {
@@ -149,6 +159,7 @@ export class BaseTracker {
 				flushing: false,
 				endpoint: "/track",
 				queryParam: "website_id",
+				retryAttempts: 0,
 				threshold: 10,
 			},
 		};
@@ -343,7 +354,7 @@ export class BaseTracker {
 				{ client_id: this.options.clientId }
 			)
 			.then((result) => {
-				if (!result) {
+				if (!result.ok) {
 					return;
 				}
 				try {
@@ -369,7 +380,12 @@ export class BaseTracker {
 	}
 
 	protected shouldSkipTracking(): boolean {
-		if (this.isServer() || this.options.disabled || this.isLikelyBot) {
+		if (
+			this.isServer() ||
+			this.options.disabled ||
+			this.isLikelyBot ||
+			isOptedOut()
+		) {
 			return true;
 		}
 
@@ -462,13 +478,13 @@ export class BaseTracker {
 		}
 
 		return {
-			path:
-				window.location.origin +
-				this.getMaskedPath() +
-				window.location.search +
-				window.location.hash,
+			path: buildPagePath(
+				window.location.origin,
+				window.location.pathname,
+				this.options.maskPatterns
+			),
 			title: document.title,
-			referrer: document.referrer || "",
+			referrer: sanitizePageUrl(document.referrer),
 			viewport_size: width && height ? `${width}x${height}` : undefined,
 			timezone: this.cachedTimezone,
 			language: navigator.language,
@@ -476,39 +492,58 @@ export class BaseTracker {
 		};
 	}
 
-	send(event: BaseEvent & { isForceSend?: boolean }): Promise<unknown> {
+	send(
+		event: BaseEvent & { isForceSend?: boolean }
+	): Promise<TrackerSendOutcome> {
 		if (this.shouldSkipTracking()) {
-			return Promise.resolve();
+			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
 		}
 		if (this.options.filter && !this.options.filter(event)) {
-			return Promise.resolve();
+			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
 		}
 
 		const samplingRate = this.options.samplingRate ?? 1.0;
 		if (samplingRate < 1.0 && Math.random() > samplingRate) {
-			return Promise.resolve();
+			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
 		}
 
 		if (this.options.enableBatching && !event.isForceSend) {
 			return this.addToBatch(event);
 		}
 
-		return this.api.fetch(
-			"/",
-			event,
-			{ keepalive: true },
-			{ client_id: this.options.clientId }
-		);
+		return this.api
+			.fetch(
+				"/",
+				event,
+				{ keepalive: true },
+				{ client_id: this.options.clientId }
+			)
+			.then((result) => this.toSendOutcome(result, 1));
 	}
 
-	private _enqueue<T>(queue: T[], meta: QueueMeta<T>, item: T): void {
-		queue.push(item);
+	private _retryDelay(attempts: number): number {
+		const configured = this.options.initialRetryDelay ?? 500;
+		const base = Math.max(
+			MIN_RETRY_DELAY,
+			Math.min(configured, MAX_RETRY_DELAY)
+		);
+		const exponent = Math.min(Math.max(0, attempts - 1), 16);
+		return Math.min(base * 2 ** exponent, MAX_RETRY_DELAY);
+	}
+
+	private _scheduleQueueFlush<T>(
+		queue: T[],
+		meta: QueueMeta,
+		delay: number
+	): void {
 		if (meta.timer === null) {
-			meta.timer = setTimeout(
-				() => this._flushQueue(queue, meta),
-				this.options.batchTimeout
-			);
+			meta.timer = setTimeout(() => this._flushQueue(queue, meta), delay);
 		}
+	}
+
+	private _enqueue<T>(queue: T[], meta: QueueMeta, item: T): void {
+		queue.push(item);
+		this._scheduleQueueFlush(queue, meta, this.options.batchTimeout ?? 5000);
 		if (queue.length >= meta.threshold) {
 			this._flushQueue(queue, meta);
 		}
@@ -516,17 +551,18 @@ export class BaseTracker {
 
 	private async _flushQueue<T>(
 		queue: T[],
-		meta: QueueMeta<T>
-	): Promise<unknown> {
+		meta: QueueMeta
+	): Promise<TrackerSendOutcome> {
 		if (meta.flushing) {
-			return;
+			return { ok: true, status: "queued", count: queue.length };
 		}
 		if (meta.timer) {
 			clearTimeout(meta.timer);
 			meta.timer = null;
 		}
 		if (queue.length === 0) {
-			return;
+			meta.retryAttempts = 0;
+			return { ok: true, status: "skipped", count: 0 };
 		}
 
 		meta.flushing = true;
@@ -534,47 +570,56 @@ export class BaseTracker {
 		queue.length = 0;
 
 		try {
-			return await this.api.fetch(
+			const result = await this.api.fetch(
 				meta.endpoint,
 				items,
 				{ keepalive: true },
 				{ [meta.queryParam]: this.options.clientId }
 			);
-		} catch {
-			meta.onFailure?.(items);
-			return null;
+			if (!result.ok && result.retryable) {
+				queue.unshift(...items);
+				meta.retryAttempts += 1;
+				this._scheduleQueueFlush(
+					queue,
+					meta,
+					this._retryDelay(meta.retryAttempts)
+				);
+			} else {
+				meta.retryAttempts = 0;
+			}
+			return this.toSendOutcome(result, items.length);
 		} finally {
 			meta.flushing = false;
 		}
 	}
 
-	addToBatch(event: BaseEvent): Promise<void> {
+	addToBatch(event: BaseEvent): Promise<TrackerSendOutcome> {
 		this._enqueue(this.batchQueue, this._meta.batch, event);
-		return Promise.resolve();
+		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
 	flushBatch() {
 		return this._flushQueue(this.batchQueue, this._meta.batch);
 	}
 
-	sendVital(event: WebVitalEvent): Promise<void> {
+	sendVital(event: WebVitalEvent): Promise<TrackerSendOutcome> {
 		if (this.shouldSkipTracking()) {
-			return Promise.resolve();
+			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
 		}
 		this._enqueue(this.vitalsQueue, this._meta.vitals, event);
-		return Promise.resolve();
+		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
 	flushVitals() {
 		return this._flushQueue(this.vitalsQueue, this._meta.vitals);
 	}
 
-	sendError(error: ErrorSpan): Promise<void> {
+	sendError(error: ErrorSpan): Promise<TrackerSendOutcome> {
 		if (this.shouldSkipTracking()) {
-			return Promise.resolve();
+			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
 		}
 		this._enqueue(this.errorsQueue, this._meta.errors, error);
-		return Promise.resolve();
+		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
 	flushErrors() {
@@ -584,9 +629,9 @@ export class BaseTracker {
 	trackEvent(
 		name: string,
 		properties?: Record<string, unknown>
-	): Promise<void> {
+	): Promise<TrackerSendOutcome> {
 		if (this.shouldSkipTracking()) {
-			return Promise.resolve();
+			return Promise.resolve({ ok: true, status: "skipped", count: 0 });
 		}
 
 		const event: TrackEventPayload = {
@@ -602,11 +647,34 @@ export class BaseTracker {
 		};
 
 		this._enqueue(this.trackQueue, this._meta.track, event);
-		return Promise.resolve();
+		return Promise.resolve({ ok: true, status: "queued", count: 1 });
 	}
 
 	flushTrack() {
 		return this._flushQueue(this.trackQueue, this._meta.track);
+	}
+
+	private toSendOutcome<T>(
+		result: HttpResult<T>,
+		count: number
+	): TrackerSendOutcome {
+		if (result.ok) {
+			return {
+				ok: true,
+				status: result.transport === "beacon" ? "queued" : "delivered",
+				count,
+			};
+		}
+		return {
+			ok: false,
+			status: "failed",
+			count,
+			code: result.code,
+			message: result.message,
+			statusCode: result.status,
+			retryable: result.retryable,
+			attempts: result.attempts,
+		};
 	}
 
 	sendBeacon(data: unknown, endpoint = "/vitals"): boolean {

@@ -9,8 +9,6 @@ export interface DatabuddyConfig {
 	batchTimeout?: number;
 	/** Databuddy Client ID. Auto-detected from `NEXT_PUBLIC_DATABUDDY_CLIENT_ID` env var if omitted. */
 	clientId?: string;
-	/** Server-side only. Not required for browser usage. */
-	clientSecret?: string;
 	/** Enable debug logging (default: false) */
 	debug?: boolean;
 	/** Disable all tracking (default: false) */
@@ -44,7 +42,7 @@ export interface DatabuddyConfig {
 	trackHashChanges?: boolean;
 	trackInteractions?: boolean;
 	trackOutgoingLinks?: boolean;
-	/** Track page performance metrics (default: true) */
+	/** @deprecated Use trackWebVitals. This remains as a compatibility alias. */
 	trackPerformance?: boolean;
 	trackWebVitals?: boolean;
 	/** Use 1x1 pixel image for tracking instead of script (default: false) */
@@ -123,7 +121,10 @@ export interface EventTypeMap {
 		fcp?: number;
 		lcp?: number;
 		cls?: string;
+		/** @deprecated FID was replaced by INP. */
 		fid?: number;
+		inp?: number;
+		fps?: number;
 		ttfb?: number;
 		load_time?: number;
 		dom_ready_time?: number;

@@ -22,7 +22,6 @@ export const Databuddy = defineComponent({
 		batchSize: Number,
 		batchTimeout: Number,
 		clientId: String,
-		clientSecret: String,
 		debug: optionalBoolean,
 		disabled: optionalBoolean,
 		enableBatching: optionalBoolean,

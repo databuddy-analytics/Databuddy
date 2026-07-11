@@ -5,6 +5,7 @@ import {
 	getTrackerConfig,
 	isDebugMode,
 	isOptedOut,
+	sanitizePageUrl,
 } from "./core/utils";
 import { initErrorTracking } from "./plugins/errors";
 import { initInteractionTracking } from "./plugins/interactions";
@@ -279,7 +280,7 @@ export class Databuddy extends BaseTracker {
 	private trackPageExit(exitPath?: string) {
 		const now = Date.now();
 		this._trackInternal("page_exit", {
-			path: exitPath,
+			path: exitPath ? sanitizePageUrl(exitPath) : undefined,
 			timestamp: now,
 			time_on_page: Math.round((now - this.pageStartTime) / 1000),
 			scroll_depth: this.maxScrollDepth,

@@ -3,6 +3,8 @@ import {
 	MOCK_FLAG_DISABLED,
 	MOCK_FLAG_ENABLED,
 	MOCK_FLAG_VARIANT,
+	getFlagRequestBody,
+	getFlagRequestKeys,
 	waitForSDK,
 } from "./test-utils";
 
@@ -13,7 +15,7 @@ test.describe("BrowserFlagsManager", () => {
 			async (route) => {
 				const url = new URL(route.request().url());
 				const key = url.searchParams.get("key");
-				const keys = url.searchParams.get("keys");
+				const requestedKeys = getFlagRequestKeys(route.request());
 
 				if (url.pathname.includes("/evaluate") && key) {
 					const flags: Record<string, typeof MOCK_FLAG_ENABLED> = {
@@ -30,7 +32,6 @@ test.describe("BrowserFlagsManager", () => {
 				}
 
 				if (url.pathname.includes("/bulk")) {
-					const requestedKeys = keys?.split(",") ?? [];
 					const allFlags: Record<string, typeof MOCK_FLAG_ENABLED> = {
 						"feature-on": MOCK_FLAG_ENABLED,
 						"feature-off": MOCK_FLAG_DISABLED,
@@ -312,7 +313,7 @@ test.describe("BrowserFlagsManager", () => {
 			expect(result).toBeLessThanOrEqual(2);
 		});
 
-		test("cache expires after TTL", async ({ page }) => {
+		test("expired cache stays available during background revalidation", async ({ page }) => {
 			const result = await page.evaluate(async () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: {
@@ -334,8 +335,8 @@ test.describe("BrowserFlagsManager", () => {
 			});
 
 			expect(result.cached.status).toBe("ready");
-			expect(result.afterExpiry.status).toBe("loading");
-			expect(result.afterExpiry.loading).toBe(true);
+			expect(result.afterExpiry.status).toBe("ready");
+			expect(result.afterExpiry.loading).toBe(false);
 		});
 	});
 
@@ -350,8 +351,7 @@ test.describe("BrowserFlagsManager", () => {
 				"**/api.databuddy.cc/public/v1/flags/bulk**",
 				async (route) => {
 					bulkRequestCount++;
-					const url = new URL(route.request().url());
-					lastRequestedKeys = url.searchParams.get("keys")?.split(",") ?? [];
+					lastRequestedKeys = getFlagRequestKeys(route.request());
 
 					const response: Record<string, typeof MOCK_FLAG_ENABLED> = {};
 					for (const k of lastRequestedKeys) {
@@ -390,12 +390,12 @@ test.describe("BrowserFlagsManager", () => {
 	});
 
 	test.describe("user context", () => {
-		test("sends userId in query params", async ({ page }) => {
-			let capturedUrl = "";
+		test("sends user identity in the POST body", async ({ page }) => {
+			let capturedBody: Record<string, unknown> = {};
 			await page.route(
 				"**/api.databuddy.cc/public/v1/flags/bulk**",
 				async (route) => {
-					capturedUrl = route.request().url();
+					capturedBody = getFlagRequestBody(route.request());
 					await route.fulfill({
 						status: 200,
 						contentType: "application/json",
@@ -417,16 +417,19 @@ test.describe("BrowserFlagsManager", () => {
 				manager.destroy();
 			});
 
-			expect(capturedUrl).toContain("userId=user-123");
-			expect(capturedUrl).toContain("email=test%40example.com");
+			expect(capturedBody.userId).toBe("user-123");
+			expect(capturedBody.email).toBe("test@example.com");
 		});
 
 		test("updateUser triggers fresh fetch with new user", async ({ page }) => {
-			const capturedUrls: string[] = [];
+			const capturedUserIds: string[] = [];
 			await page.route(
 				"**/api.databuddy.cc/public/v1/flags/bulk**",
 				async (route) => {
-					capturedUrls.push(route.request().url());
+					const userId = getFlagRequestBody(route.request()).userId;
+					if (typeof userId === "string") {
+						capturedUserIds.push(userId);
+					}
 					await route.fulfill({
 						status: 200,
 						contentType: "application/json",
@@ -450,8 +453,8 @@ test.describe("BrowserFlagsManager", () => {
 				manager.destroy();
 			});
 
-			const hasUser1 = capturedUrls.some((u) => u.includes("userId=user-1"));
-			const hasUser2 = capturedUrls.some((u) => u.includes("userId=user-2"));
+			const hasUser1 = capturedUserIds.includes("user-1");
+			const hasUser2 = capturedUserIds.includes("user-2");
 			expect(hasUser1).toBe(true);
 			expect(hasUser2).toBe(true);
 		});
@@ -459,11 +462,11 @@ test.describe("BrowserFlagsManager", () => {
 		test("injects anonymous ID when no user identity provided", async ({
 			page,
 		}) => {
-			let capturedUrl = "";
+			let capturedBody: Record<string, unknown> = {};
 			await page.route(
 				"**/api.databuddy.cc/public/v1/flags/bulk**",
 				async (route) => {
-					capturedUrl = route.request().url();
+					capturedBody = getFlagRequestBody(route.request());
 					await route.fulfill({
 						status: 200,
 						contentType: "application/json",
@@ -481,7 +484,7 @@ test.describe("BrowserFlagsManager", () => {
 				manager.destroy();
 			});
 
-			expect(capturedUrl).toContain("userId=anon_");
+			expect(capturedBody.userId).toMatch(/^anon_/);
 		});
 	});
 
@@ -582,7 +585,7 @@ test.describe("BrowserFlagsManager", () => {
 	});
 
 	test.describe("error handling", () => {
-		test("returns default on API error", async ({ page }) => {
+		test("returns a typed initial API error", async ({ page }) => {
 			await page.route(
 				"**/api.databuddy.cc/public/v1/flags/bulk**",
 				async (route) => {
@@ -594,13 +597,23 @@ test.describe("BrowserFlagsManager", () => {
 				const manager = new window.__SDK__.BrowserFlagsManager({
 					config: { clientId: "test-id", autoFetch: false },
 				});
-				const flag = await manager.getFlag("feature-on");
+				let message = "";
+				try {
+					await manager.getFlag("feature-on");
+				} catch (error) {
+					message = error instanceof Error ? error.message : String(error);
+				}
+				const failure = manager.getLastError();
 				manager.destroy();
-				return flag;
+				return { message, failure };
 			});
 
-			expect(result.enabled).toBe(false);
-			expect(result.reason).toBe("ERROR");
+			expect(result.message).toContain("HTTP 500");
+			expect(result.failure).toMatchObject({
+				code: "HTTP_ERROR",
+				status: 500,
+				retryable: true,
+			});
 		});
 	});
 
@@ -670,11 +683,11 @@ test.describe("BrowserFlagsManager", () => {
 
 	test.describe("environment param", () => {
 		test("includes environment in request", async ({ page }) => {
-			let capturedUrl = "";
+			let capturedBody: Record<string, unknown> = {};
 			await page.route(
 				"**/api.databuddy.cc/public/v1/flags/bulk**",
 				async (route) => {
-					capturedUrl = route.request().url();
+					capturedBody = getFlagRequestBody(route.request());
 					await route.fulfill({
 						status: 200,
 						contentType: "application/json",
@@ -694,7 +707,7 @@ test.describe("BrowserFlagsManager", () => {
 				manager.destroy();
 			});
 
-			expect(capturedUrl).toContain("environment=staging");
+			expect(capturedBody.environment).toBe("staging");
 		});
 	});
 });

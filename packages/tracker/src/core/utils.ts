@@ -61,6 +61,26 @@ export function maskPathname(
 	return pathname;
 }
 
+export function buildPagePath(
+	origin: string,
+	pathname: string,
+	patterns?: readonly string[]
+): string {
+	return `${origin}${maskPathname(pathname, patterns)}`;
+}
+
+export function sanitizePageUrl(value: string): string {
+	if (!value) {
+		return "";
+	}
+	try {
+		const url = new URL(value);
+		return `${url.origin}${url.pathname}`;
+	} catch {
+		return "";
+	}
+}
+
 function applyMaskPattern(pathname: string, pattern: string): string | null {
 	const normalized =
 		pattern.length > 1 && pattern.endsWith("/")
@@ -144,6 +164,12 @@ export const generateUUIDv4 = () => {
 export function isOptedOut(): boolean {
 	if (typeof window === "undefined") {
 		return false;
+	}
+	if (
+		typeof navigator !== "undefined" &&
+		(navigator.globalPrivacyControl === true || navigator.doNotTrack === "1")
+	) {
+		return true;
 	}
 	try {
 		return (

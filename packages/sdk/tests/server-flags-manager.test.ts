@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { FlagResult, FlagsConfig } from "../src/core/flags/types";
+import { FlagsRequestError } from "../src/core/flags/shared";
 import { createServerFlagsManager } from "../src/node/flags/flags-manager";
 import { ServerFlagsManager } from "../src/node/flags/flags-manager";
 
@@ -35,19 +36,25 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function mockFetch(flagsResponse: Record<string, FlagResult> = DEFAULT_FLAGS) {
 	const calls: string[] = [];
+	const bodies: Array<Record<string, unknown>> = [];
 	const originalFetch = globalThis.fetch;
 
-	globalThis.fetch = mock(async (input: string | URL | Request) => {
+	globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
 		const url = typeof input === "string" ? input : input.toString();
 		calls.push(url);
-
-		const urlObj = new URL(url);
-		const keys = urlObj.searchParams.get("keys");
+		const body =
+			typeof init?.body === "string"
+				? (JSON.parse(init.body) as Record<string, unknown>)
+				: {};
+		bodies.push(body);
+		const keys = Array.isArray(body.keys) ? body.keys : null;
 
 		if (keys) {
-			const requestedKeys = keys.split(",");
 			const filtered = Object.fromEntries(
-				requestedKeys.map((k) => [k, flagsResponse[k] ?? FLAG_DISABLED])
+				keys.map((key) => [
+					String(key),
+					flagsResponse[String(key)] ?? FLAG_DISABLED,
+				])
 			);
 			return new Response(JSON.stringify({ flags: filtered }), {
 				status: 200,
@@ -62,6 +69,7 @@ function mockFetch(flagsResponse: Record<string, FlagResult> = DEFAULT_FLAGS) {
 	}) as typeof fetch;
 
 	return {
+		bodies,
 		calls,
 		restore: () => {
 			globalThis.fetch = originalFetch;
@@ -196,24 +204,31 @@ describe("ServerFlagsManager", () => {
 
 			expect(resultA.enabled).toBe(true);
 			expect(resultB.enabled).toBe(true);
+			expect(fetchMock.bodies.some((body) => body.userId === "user-a")).toBe(
+				true
+			);
+			expect(fetchMock.bodies.some((body) => body.userId === "user-b")).toBe(
+				true
+			);
 			expect(
-				fetchMock.calls.some((url) => url.includes("userId=user-a"))
-			).toBe(true);
-			expect(
-				fetchMock.calls.some((url) => url.includes("userId=user-b"))
-			).toBe(true);
-			expect(
-				fetchMock.calls.some((url) => url.includes("userId=global-user"))
+				fetchMock.bodies.some((body) => body.userId === "global-user")
 			).toBe(false);
+			expect(fetchMock.calls.some((url) => url.includes("userId="))).toBe(
+				false
+			);
 		});
 
 		it("isolates cache by organization context", async () => {
 			fetchMock.restore();
 			const calls: string[] = [];
-			globalThis.fetch = mock(async (input: string | URL | Request) => {
+			globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
 				const url = typeof input === "string" ? input : input.toString();
 				calls.push(url);
-				const orgId = new URL(url).searchParams.get("organizationId");
+				const body =
+					typeof init?.body === "string"
+						? (JSON.parse(init.body) as Record<string, unknown>)
+						: {};
+				const orgId = body.organizationId;
 				return new Response(
 					JSON.stringify({
 						flags: {
@@ -260,9 +275,9 @@ describe("ServerFlagsManager", () => {
 			const bulkCalls = fetchMock.calls.filter((url) => url.includes("/bulk"));
 			expect(bulkCalls.length).toBe(1);
 
-			const url = new URL(bulkCalls.at(0) ?? "");
-			const keys = url.searchParams.get("keys")?.split(",") ?? [];
-			expect(keys.length).toBe(3);
+			const keys = fetchMock.bodies.find((body) => Array.isArray(body.keys))
+				?.keys as string[] | undefined;
+			expect(keys?.length).toBe(3);
 			expect(keys).toContain("feature-on");
 			expect(keys).toContain("feature-off");
 			expect(keys).toContain("feature-variant");
@@ -296,7 +311,7 @@ describe("ServerFlagsManager", () => {
 			expect(fetchMock.calls.length).toBe(callsBefore);
 		});
 
-		it("re-fetches after cache expires", async () => {
+		it("serves stale data while re-fetching after cache expiry", async () => {
 			const manager = await create({
 				clientId: "test-id",
 				cacheTtl: 30,
@@ -308,7 +323,9 @@ describe("ServerFlagsManager", () => {
 
 			await sleep(50);
 
-			await manager.getFlag("feature-on");
+			const stale = await manager.getFlag("feature-on");
+			expect(stale.enabled).toBe(true);
+			await sleep(20);
 			expect(fetchMock.calls.length).toBeGreaterThan(callsAfterFirst);
 		});
 
@@ -343,7 +360,7 @@ describe("ServerFlagsManager", () => {
 	});
 
 	describe("user context", () => {
-		it("sends userId and email in query params", async () => {
+		it("sends userId and email in the POST body, not the URL", async () => {
 			const manager = await create({
 				clientId: "test-id",
 				user: { userId: "user-123", email: "test@example.com" },
@@ -352,12 +369,12 @@ describe("ServerFlagsManager", () => {
 			await manager.getFlag("feature-on");
 			await sleep(20);
 
-			const hasUser = fetchMock.calls.some(
-				(url) =>
-					url.includes("userId=user-123") &&
-					url.includes("email=test%40example.com")
+			const hasUser = fetchMock.bodies.some(
+				(body) =>
+					body.userId === "user-123" && body.email === "test@example.com"
 			);
 			expect(hasUser).toBe(true);
+			expect(fetchMock.calls.some((url) => url.includes("test%40"))).toBe(false);
 		});
 
 		it("sends organizationId and teamId", async () => {
@@ -369,14 +386,14 @@ describe("ServerFlagsManager", () => {
 			await manager.getFlag("feature-on");
 			await sleep(20);
 
-			const hasOrgTeam = fetchMock.calls.some(
-				(url) =>
-					url.includes("organizationId=org-1") && url.includes("teamId=team-1")
+			const hasOrgTeam = fetchMock.bodies.some(
+				(body) =>
+					body.organizationId === "org-1" && body.teamId === "team-1"
 			);
 			expect(hasOrgTeam).toBe(true);
 		});
 
-		it("sends environment in query params", async () => {
+		it("sends environment in the POST body", async () => {
 			const manager = await create({
 				clientId: "test-id",
 				environment: "staging",
@@ -385,8 +402,8 @@ describe("ServerFlagsManager", () => {
 			await manager.getFlag("feature-on");
 			await sleep(20);
 
-			const hasEnv = fetchMock.calls.some((url) =>
-				url.includes("environment=staging")
+			const hasEnv = fetchMock.bodies.some(
+				(body) => body.environment === "staging"
 			);
 			expect(hasEnv).toBe(true);
 		});
@@ -401,8 +418,8 @@ describe("ServerFlagsManager", () => {
 			manager.updateUser({ userId: "user-2" });
 			await sleep(100);
 
-			const hasUser2 = fetchMock.calls.some((url) =>
-				url.includes("userId=user-2")
+			const hasUser2 = fetchMock.bodies.some(
+				(body) => body.userId === "user-2"
 			);
 			expect(hasUser2).toBe(true);
 		});
@@ -485,7 +502,7 @@ describe("ServerFlagsManager", () => {
 	});
 
 	describe("error handling", () => {
-		it("returns error result on API failure", async () => {
+		it("throws a typed failure on an initial API error", async () => {
 			fetchMock.restore();
 			globalThis.fetch = mock(async () => {
 				return new Response("Internal Server Error", { status: 500 });
@@ -493,9 +510,14 @@ describe("ServerFlagsManager", () => {
 
 			const manager = await create({ clientId: "test-id" });
 
-			const result = await manager.getFlag("feature-on");
-			expect(result.enabled).toBe(false);
-			expect(result.reason).toBe("ERROR");
+			await expect(manager.getFlag("feature-on")).rejects.toBeInstanceOf(
+				FlagsRequestError
+			);
+			expect(manager.getLastError()).toMatchObject({
+				code: "HTTP_ERROR",
+				status: 500,
+				retryable: true,
+			});
 		});
 
 		it("returns error result on network failure", async () => {
@@ -509,6 +531,34 @@ describe("ServerFlagsManager", () => {
 			await expect(manager.getFlag("feature-on")).rejects.toThrow(
 				"Network error"
 			);
+		});
+
+		it("keeps the last-known value when revalidation fails", async () => {
+			const manager = await create({
+				clientId: "test-id",
+				cacheTtl: 5,
+				staleTime: 1,
+			});
+			const first = await manager.getFlag("feature-on");
+			expect(first.enabled).toBe(true);
+
+			fetchMock.restore();
+			globalThis.fetch = mock(async () =>
+				Response.json(
+					{ error: "Flag service unavailable" },
+					{ status: 503 }
+				)
+			) as typeof fetch;
+			await sleep(10);
+
+			const stale = await manager.getFlag("feature-on");
+			expect(stale).toEqual(first);
+			await sleep(20);
+			expect(manager.getMemoryFlags()["feature-on"]).toEqual(first);
+			expect(manager.getLastError()).toMatchObject({
+				status: 503,
+				retryable: true,
+			});
 		});
 	});
 
