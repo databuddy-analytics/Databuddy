@@ -10,8 +10,9 @@ import type {
 	WebVitalEvent,
 } from "./types";
 import {
-	generateUUIDv4,
 	buildPagePath,
+	clearStoredTrackingState,
+	generateUUIDv4,
 	isDebugMode,
 	isLocalhost,
 	isOptedOut,
@@ -164,6 +165,10 @@ export class BaseTracker {
 			},
 		};
 
+		if (typeof window !== "undefined" && isOptedOut()) {
+			this.clearStoredVisitorState();
+			return;
+		}
 		if (this.isServer()) {
 			return;
 		}
@@ -380,12 +385,11 @@ export class BaseTracker {
 	}
 
 	protected shouldSkipTracking(): boolean {
-		if (
-			this.isServer() ||
-			this.options.disabled ||
-			this.isLikelyBot ||
-			isOptedOut()
-		) {
+		if (typeof window !== "undefined" && isOptedOut()) {
+			this.clearStoredVisitorState();
+			return true;
+		}
+		if (this.isServer() || this.options.disabled || this.isLikelyBot) {
 			return true;
 		}
 
@@ -411,6 +415,10 @@ export class BaseTracker {
 		return false;
 	}
 
+	protected shouldBlockQueuedDelivery(): boolean {
+		return this.shouldSkipTracking();
+	}
+
 	protected getMaskedPath(): string {
 		if (this.isServer()) {
 			return "";
@@ -419,6 +427,10 @@ export class BaseTracker {
 	}
 
 	protected refreshUrlParams(): void {
+		if (typeof window !== "undefined" && isOptedOut()) {
+			this.clearStoredVisitorState();
+			return;
+		}
 		if (this.isServer()) {
 			return;
 		}
@@ -463,6 +475,18 @@ export class BaseTracker {
 				/* ignore */
 			}
 		}
+	}
+
+	private clearStoredVisitorState(): void {
+		if (typeof window === "undefined") {
+			return;
+		}
+		this.anonymousId = undefined;
+		this.sessionId = undefined;
+		this.profileId = null;
+		this.sessionStartTime = 0;
+		this.urlParams = {};
+		clearStoredTrackingState();
 	}
 
 	getBaseContext(): EventContext {
@@ -553,6 +577,15 @@ export class BaseTracker {
 		queue: T[],
 		meta: QueueMeta
 	): Promise<TrackerSendOutcome> {
+		if (this.shouldBlockQueuedDelivery()) {
+			if (meta.timer) {
+				clearTimeout(meta.timer);
+				meta.timer = null;
+			}
+			queue.length = 0;
+			meta.retryAttempts = 0;
+			return { ok: true, status: "skipped", count: 0 };
+		}
 		if (meta.flushing) {
 			return { ok: true, status: "queued", count: queue.length };
 		}
@@ -576,7 +609,7 @@ export class BaseTracker {
 				{ keepalive: true },
 				{ [meta.queryParam]: this.options.clientId }
 			);
-			if (!result.ok && result.retryable) {
+			if (!result.ok && result.retryable && !this.shouldBlockQueuedDelivery()) {
 				queue.unshift(...items);
 				meta.retryAttempts += 1;
 				this._scheduleQueueFlush(
@@ -678,7 +711,11 @@ export class BaseTracker {
 	}
 
 	sendBeacon(data: unknown, endpoint = "/vitals"): boolean {
-		if (this.isServer() || !navigator.sendBeacon) {
+		if (
+			this.isServer() ||
+			this.shouldBlockQueuedDelivery() ||
+			!navigator.sendBeacon
+		) {
 			return false;
 		}
 

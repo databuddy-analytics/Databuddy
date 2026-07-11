@@ -185,6 +185,31 @@ export function isOptedOut(): boolean {
 	}
 }
 
+export function clearStoredTrackingState(): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	if (typeof localStorage !== "undefined") {
+		try {
+			localStorage.removeItem("did");
+			localStorage.removeItem("did_profile");
+			localStorage.removeItem("did_params");
+		} catch {
+			// Local storage may be blocked by the browser.
+		}
+	}
+	if (typeof sessionStorage !== "undefined") {
+		try {
+			sessionStorage.removeItem("did_session");
+			sessionStorage.removeItem("did_session_timestamp");
+			sessionStorage.removeItem("did_session_start");
+			sessionStorage.removeItem("did_profile_sent");
+		} catch {
+			// Session storage may be blocked by the browser.
+		}
+	}
+}
+
 export function getTrackerConfig(): TrackerOptions {
 	if (typeof window === "undefined") {
 		return { clientId: "" };

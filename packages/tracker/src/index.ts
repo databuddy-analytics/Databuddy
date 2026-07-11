@@ -1,6 +1,7 @@
 import { BaseTracker } from "./core/tracker";
 import type { ProfileTraits, TrackerOptions } from "./core/types";
 import {
+	clearStoredTrackingState,
 	generateUUIDv4,
 	getTrackerConfig,
 	isDebugMode,
@@ -22,6 +23,9 @@ export class Databuddy extends BaseTracker {
 
 	constructor(options: TrackerOptions) {
 		super(options);
+		if (typeof window !== "undefined" && isOptedOut()) {
+			return;
+		}
 
 		if (this.options.trackWebVitals) {
 			initWebVitalsTracking(this);
@@ -225,6 +229,10 @@ export class Databuddy extends BaseTracker {
 	}
 
 	private handlePageUnload() {
+		if (this.shouldBlockQueuedDelivery()) {
+			this.discardPendingEvents();
+			return;
+		}
 		this.flushQueueViaBeacon(this.trackQueue, "/track", () =>
 			this.flushTrack()
 		);
@@ -367,6 +375,7 @@ export class Databuddy extends BaseTracker {
 	}
 
 	clear() {
+		this.discardPendingEvents();
 		this.globalProperties = {};
 		if (!this.isServer()) {
 			try {
@@ -385,6 +394,20 @@ export class Databuddy extends BaseTracker {
 		this.lastPath = "";
 		this.interactionCount = 0;
 		this.maxScrollDepth = 0;
+	}
+
+	private discardPendingEvents(): void {
+		this.batchQueue.length = 0;
+		this.trackQueue.length = 0;
+		this.vitalsQueue.length = 0;
+		this.errorsQueue.length = 0;
+		for (const meta of Object.values(this._meta)) {
+			if (meta.timer) {
+				clearTimeout(meta.timer);
+				meta.timer = null;
+			}
+			meta.retryAttempts = 0;
+		}
 	}
 
 	destroy() {
@@ -430,6 +453,7 @@ function initializeDatabuddy() {
 	}
 
 	if (isOptedOut()) {
+		clearStoredTrackingState();
 		window.databuddy = {
 			track: () => {},
 			screenView: () => {},
@@ -463,8 +487,10 @@ if (typeof window !== "undefined") {
 		window.databuddyOptedOut = true;
 		window.databuddyDisabled = true;
 		if (window.databuddy) {
+			window.databuddy.clear();
 			window.databuddy.options.disabled = true;
 		}
+		clearStoredTrackingState();
 	};
 
 	window.databuddyOptIn = () => {

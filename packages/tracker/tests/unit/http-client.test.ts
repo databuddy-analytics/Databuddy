@@ -4,6 +4,12 @@ import { BaseTracker } from "../../src/core/tracker";
 
 const originalFetch = globalThis.fetch;
 
+class DeliveryTestTracker extends BaseTracker {
+	protected override shouldSkipTracking(): boolean {
+		return false;
+	}
+}
+
 afterEach(() => {
 	if (jest.isFakeTimers()) {
 		jest.clearAllTimers();
@@ -99,7 +105,7 @@ describe("HttpClient", () => {
 describe("BaseTracker delivery outcomes", () => {
 	test("keeps a retryable failed batch queued", async () => {
 		jest.useFakeTimers();
-		const tracker = new BaseTracker({ clientId: "site_example" });
+		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
 		tracker.api.fetch = mock(async () => ({
 			ok: false as const,
 			code: "NETWORK_ERROR" as const,
@@ -124,7 +130,7 @@ describe("BaseTracker delivery outcomes", () => {
 
 	test("automatically retries queues with capped exponential backoff", async () => {
 		jest.useFakeTimers();
-		const tracker = new BaseTracker({
+		const tracker = new DeliveryTestTracker({
 			clientId: "site_example",
 			initialRetryDelay: 1,
 		});
