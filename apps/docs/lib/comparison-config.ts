@@ -71,7 +71,7 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Google Analytics",
 			description:
-				"GA4 is powerful, but it can take time to configure. Databuddy uses an asynchronous tracker of about 10 KB gzip and is designed to start showing data within minutes.",
+				"GA4 is powerful, but it can take time to configure. Databuddy uses an asynchronous tracker of about 11 KB gzip and is designed to start showing data within minutes.",
 			cta: "Switch to privacy-first analytics",
 		},
 		seo: {
@@ -138,7 +138,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: false,
 				benefit:
-					"About 10 KB gzip for the current Databuddy tracker; measure both tools on your own site",
+					"About 11 KB gzip for the current Databuddy tracker; measure both tools on your own site",
 				category: "performance",
 			},
 			{
@@ -248,7 +248,7 @@ export const competitors: Record<string, ComparisonData> = {
 		migrationSection: {
 			heading: "Switch from GA4 to Databuddy in under 10 minutes",
 			steps: [
-				"Add one asynchronous script tag (about 10 KB gzip)",
+				"Add one asynchronous script tag (about 11 KB gzip)",
 				"No GTM configuration required",
 				"Page views and events flow automatically - no Enhanced Measurement setup",
 				"GDPR-friendly by default - you can remove your analytics consent banner",
@@ -412,7 +412,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Can I switch from Plausible to Databuddy?",
 				answer:
-					"Yes. Add the asynchronous Databuddy tracker alongside Plausible and compare results before removing either tool. The current Databuddy bundle is about 10 KB gzip.",
+					"Yes. Add the asynchronous Databuddy tracker alongside Plausible and compare results before removing either tool. The current Databuddy bundle is about 11 KB gzip.",
 			},
 		],
 		pricingTiers: [
@@ -693,7 +693,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: false,
 				benefit:
-					"Databuddy's current tracker is about 10 KB gzip; measure production impact on your site",
+					"Databuddy's current tracker is about 11 KB gzip; measure production impact on your site",
 				category: "performance",
 			},
 			{
@@ -812,7 +812,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Why choose Databuddy over PostHog?",
 				answer:
-					"If you need lightweight analytics and AI-assisted analysis without session replay or A/B testing, Databuddy offers a narrower product surface and a tracker of about 10 KB gzip.",
+					"If you need lightweight analytics and AI-assisted analysis without session replay or A/B testing, Databuddy offers a narrower product surface and a tracker of about 11 KB gzip.",
 			},
 		],
 		pricingTiers: [
@@ -1440,7 +1440,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: true,
 				benefit:
-					"Databuddy's current tracker is about 10 KB gzip; compare current builds directly",
+					"Databuddy's current tracker is about 11 KB gzip; compare current builds directly",
 				category: "performance",
 			},
 			{
@@ -1662,7 +1662,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: true,
 				benefit:
-					"Both are designed to be lightweight; Databuddy's current tracker is about 10 KB gzip",
+					"Both are designed to be lightweight; Databuddy's current tracker is about 11 KB gzip",
 				category: "performance",
 			},
 		],
@@ -1765,7 +1765,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: false,
 				benefit:
-					"Databuddy's current tracker is about 10 KB gzip and loads asynchronously",
+					"Databuddy's current tracker is about 11 KB gzip and loads asynchronously",
 				category: "performance",
 			},
 			{
