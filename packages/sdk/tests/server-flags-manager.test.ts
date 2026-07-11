@@ -423,6 +423,167 @@ describe("ServerFlagsManager", () => {
 			);
 			expect(hasUser2).toBe(true);
 		});
+
+		it("removes prior-user flags after a successful identity switch", async () => {
+			fetchMock.restore();
+			const bodies: Array<Record<string, unknown>> = [];
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					bodies.push(body);
+					const flags =
+						body.userId === "user-a"
+							? {
+									"user-a-only": {
+										...FLAG_ENABLED,
+										payload: { audience: "user-a" },
+									},
+								}
+							: {};
+					return Response.json({ flags });
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "test-id",
+				user: { userId: "user-a" },
+				autoFetch: true,
+			});
+			expect(manager.getSnapshot().flags["user-a-only"]).toBeDefined();
+
+			manager.updateUser({ userId: "user-b" });
+			await sleep(50);
+
+			expect(bodies.some((body) => body.userId === "user-b")).toBe(true);
+			expect(manager.getSnapshot().flags["user-a-only"]).toBeUndefined();
+			expect(manager.getMemoryFlags()["user-a-only"]).toBeUndefined();
+			expect(manager.getLastError()).toBeNull();
+		});
+
+		it("does not expose prior-user flags when the new identity fetch fails", async () => {
+			fetchMock.restore();
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					if (body.userId === "user-b") {
+						return Response.json(
+							{ error: "Flag service unavailable" },
+							{ status: 503 }
+						);
+					}
+					return Response.json({
+						flags: {
+							"user-a-only": {
+								...FLAG_ENABLED,
+								payload: { audience: "user-a" },
+							},
+						},
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "test-id",
+				user: { userId: "user-a" },
+				autoFetch: true,
+			});
+			expect(manager.getSnapshot().flags["user-a-only"]).toBeDefined();
+
+			manager.updateUser({ userId: "user-b" });
+			await sleep(50);
+
+			expect(manager.getSnapshot().flags["user-a-only"]).toBeUndefined();
+			expect(manager.getMemoryFlags()["user-a-only"]).toBeUndefined();
+			expect(manager.getLastError()).toMatchObject({
+				status: 503,
+				retryable: true,
+			});
+		});
+
+		it("clears and fetches again when the environment changes", async () => {
+			fetchMock.restore();
+			const environments: unknown[] = [];
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					environments.push(body.environment);
+					return Response.json({
+						flags:
+							body.environment === "staging"
+								? { "staging-only": FLAG_ENABLED }
+								: {},
+					});
+				}
+			) as typeof fetch;
+
+			const manager = await create({
+				clientId: "test-id",
+				environment: "staging",
+				autoFetch: true,
+			});
+			expect(manager.getSnapshot().flags["staging-only"]).toBeDefined();
+
+			manager.updateConfig({ clientId: "test-id", environment: "production" });
+			await sleep(50);
+
+			expect(environments).toContain("production");
+			expect(manager.getSnapshot().flags["staging-only"]).toBeUndefined();
+		});
+
+		it("ignores an old identity response that finishes after a switch", async () => {
+			fetchMock.restore();
+			let markUserAStarted: () => void;
+			const userAStarted = new Promise<void>((resolve) => {
+				markUserAStarted = resolve;
+			});
+			let resolveUserA: (response: Response) => void;
+			const userAResponse = new Promise<Response>((resolve) => {
+				resolveUserA = resolve;
+			});
+			globalThis.fetch = mock(
+				async (_input: string | URL | Request, init?: RequestInit) => {
+					const body =
+						typeof init?.body === "string"
+							? (JSON.parse(init.body) as Record<string, unknown>)
+							: {};
+					if (body.userId === "user-a") {
+						markUserAStarted();
+						return userAResponse;
+					}
+					return Response.json({ flags: { "user-b-only": FLAG_ENABLED } });
+				}
+			) as typeof fetch;
+
+			const manager = new ServerFlagsManager({
+				config: {
+					clientId: "test-id",
+					user: { userId: "user-a" },
+					autoFetch: true,
+				},
+			});
+			managers.push(manager);
+			await userAStarted;
+
+			manager.updateUser({ userId: "user-b" });
+			await sleep(20);
+			resolveUserA(
+				Response.json({ flags: { "user-a-only": FLAG_ENABLED } })
+			);
+			await manager.waitForInit();
+			await sleep(20);
+
+			expect(manager.getSnapshot().flags["user-a-only"]).toBeUndefined();
+			expect(manager.getSnapshot().flags["user-b-only"]).toBeDefined();
+		});
 	});
 
 	describe("refresh", () => {

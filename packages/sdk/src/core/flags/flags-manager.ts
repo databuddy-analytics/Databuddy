@@ -4,6 +4,7 @@ import {
 	buildEvaluationRequest,
 	DEFAULT_RESULT,
 	fetchAllFlags as fetchAllFlagsApi,
+	getCacheContext,
 	getCacheKey,
 	getFlagKey,
 	RequestBatcher,
@@ -116,6 +117,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				}
 			}
 			if (this.cache.size > 0) {
+				this.persist();
 				this.emit();
 			}
 		} catch (err) {
@@ -130,7 +132,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		try {
 			const flags: Record<string, FlagResult> = {};
 			for (const [key, entry] of this.cache) {
-				if (entry.result) {
+				if (entry.result && this.cacheKeyIsActive(key)) {
 					flags[key] = entry.result;
 				}
 			}
@@ -218,14 +220,14 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		return 10;
 	}
 
-	private pruneStaleKeys(validKeys: Set<string>, user?: UserContext): void {
+	private pruneStaleKeys(
+		validKeys: Set<string>,
+		user?: UserContext,
+		environment = this.config.environment
+	): void {
 		for (const key of this.cache.keys()) {
 			if (
-				cacheKeyBelongsToContext(
-					key,
-					user ?? this.config.user,
-					this.config.environment
-				) &&
+				cacheKeyBelongsToContext(key, user, environment) &&
 				!validKeys.has(key)
 			) {
 				this.cache.delete(key);
@@ -345,7 +347,11 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			return;
 		}
 
-		const request = buildEvaluationRequest(this.config, user);
+		const requestUser = user ?? this.config.user;
+		const requestEnvironment = this.config.environment;
+		const requestContext = getCacheContext(requestUser, requestEnvironment);
+		const tracksActiveContext = user === undefined;
+		const request = buildEvaluationRequest(this.config, requestUser);
 		const { ttl, stale } = this.ttls();
 
 		try {
@@ -353,19 +359,23 @@ export abstract class BaseFlagsManager implements FlagsManager {
 				this.config.apiUrl ?? DEFAULT_API,
 				request
 			);
+			if (
+				tracksActiveContext &&
+				requestContext !==
+					getCacheContext(this.config.user, this.config.environment)
+			) {
+				return;
+			}
 			this.lastError = null;
 			const entries = Object.entries(flags).map(([key, result]) => ({
-				cacheKey: getCacheKey(
-					key,
-					user ?? this.config.user,
-					this.config.environment
-				),
+				cacheKey: getCacheKey(key, requestUser, requestEnvironment),
 				entry: resolved(result, ttl, stale),
 			}));
 
 			this.pruneStaleKeys(
 				new Set(entries.map(({ cacheKey }) => cacheKey)),
-				user
+				requestUser,
+				requestEnvironment
 			);
 
 			for (const { cacheKey, entry } of entries) {
@@ -376,6 +386,13 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			this.emit();
 			this.onCacheUpdated();
 		} catch (err) {
+			if (
+				tracksActiveContext &&
+				requestContext !==
+					getCacheContext(this.config.user, this.config.environment)
+			) {
+				return;
+			}
 			this.captureError(err);
 			logger.error("Bulk fetch error:", err);
 		}
@@ -450,8 +467,17 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	}
 
 	updateUser(user: UserContext): void {
-		this.config = { ...this.config, user: this.enrichUser(user) };
+		const nextUser = this.enrichUser(user);
+		const contextChanged = this.activeContextChanged(
+			nextUser,
+			this.config.environment
+		);
+		this.config = { ...this.config, user: nextUser };
 		this.resetBatchers();
+		if (contextChanged) {
+			this.clearActiveContextState();
+			this.emit();
+		}
 		this.refresh().catch((err) => logger.error("Refresh error:", err));
 	}
 
@@ -469,11 +495,23 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 	updateConfig(config: FlagsConfig): void {
 		const wasInactive = this.config.disabled || this.config.isPending;
-		this.config = { ...this.config, ...config };
+		const nextConfig = { ...this.config, ...config };
+		const contextChanged = this.activeContextChanged(
+			nextConfig.user,
+			nextConfig.environment
+		);
+		this.config = nextConfig;
 		this.resetBatchers();
+		if (contextChanged) {
+			this.clearActiveContextState();
+		}
 		this.emit();
 
-		if (wasInactive && !this.config.disabled && !this.config.isPending) {
+		if (
+			(contextChanged || wasInactive) &&
+			!this.config.disabled &&
+			!this.config.isPending
+		) {
 			this.fetchAllFlags().catch((err) => logger.error("Fetch error:", err));
 		}
 	}
@@ -481,7 +519,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	getMemoryFlags(): Record<string, FlagResult> {
 		const flags: Record<string, FlagResult> = {};
 		for (const [key, entry] of this.cache) {
-			if (entry.result) {
+			if (entry.result && this.cacheKeyIsActive(key)) {
 				flags[getFlagKey(key)] = entry.result;
 			}
 		}
@@ -591,6 +629,30 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			batcher.destroy();
 		}
 		this.batchers.clear();
+	}
+
+	private activeContextChanged(
+		nextUser: UserContext | undefined,
+		nextEnvironment: string | undefined
+	): boolean {
+		return (
+			getCacheContext(this.config.user, this.config.environment) !==
+			getCacheContext(nextUser, nextEnvironment)
+		);
+	}
+
+	private cacheKeyIsActive(cacheKey: string): boolean {
+		return cacheKeyBelongsToContext(
+			cacheKey,
+			this.config.user,
+			this.config.environment
+		);
+	}
+
+	private clearActiveContextState(): void {
+		this.cache.clear();
+		this.storage?.clear();
+		this.lastError = null;
 	}
 
 	private captureError(error: unknown): void {

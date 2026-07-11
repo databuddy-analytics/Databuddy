@@ -459,6 +459,72 @@ test.describe("BrowserFlagsManager", () => {
 			expect(hasUser2).toBe(true);
 		});
 
+		test("updateConfig isolates browser snapshots and persistence by user", async ({
+			page,
+		}) => {
+			const capturedUserIds: string[] = [];
+			await page.route(
+				"**/api.databuddy.cc/public/v1/flags/bulk**",
+				async (route) => {
+					const userId = getFlagRequestBody(route.request()).userId;
+					if (typeof userId === "string") {
+						capturedUserIds.push(userId);
+					}
+					await route.fulfill({
+						status: 200,
+						contentType: "application/json",
+						body: JSON.stringify({
+							flags:
+								userId === "user-a"
+									? {
+											"user-a-only": {
+												...MOCK_FLAG_ENABLED,
+												payload: { audience: "user-a" },
+											},
+										}
+									: {},
+						}),
+					});
+				}
+			);
+
+			const result = await page.evaluate(async () => {
+				localStorage.removeItem("db-flags");
+				const storage = new window.__SDK__.BrowserFlagStorage();
+				const manager = new window.__SDK__.BrowserFlagsManager({
+					config: {
+						clientId: "test-id",
+						user: { userId: "user-a" },
+					},
+					storage,
+				});
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				const before = manager.getSnapshot().flags["user-a-only"];
+
+				manager.updateConfig({
+					clientId: "test-id",
+					user: { userId: "user-b" },
+				});
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				const after = manager.getSnapshot().flags["user-a-only"];
+				const stored = JSON.parse(localStorage.getItem("db-flags") ?? "{}") as {
+					flags?: Record<string, unknown>;
+				};
+				manager.destroy();
+
+				return {
+					before,
+					after,
+					storedKeys: Object.keys(stored.flags ?? {}),
+				};
+			});
+
+			expect(result.before).toBeDefined();
+			expect(result.after).toBeUndefined();
+			expect(result.storedKeys).toEqual([]);
+			expect(capturedUserIds).toContain("user-b");
+		});
+
 		test("injects anonymous ID when no user identity provided", async ({
 			page,
 		}) => {
