@@ -20,10 +20,14 @@ const SEVERITY_DOT: Record<string, string> = {
 };
 
 function formatChange(value: number | null): string | null {
-	if (value == null || value === 0) {
+	if (value == null) {
 		return null;
 	}
-	return `${value > 0 ? "+" : ""}${value.toFixed(0)}%`;
+	const rounded = Math.round(value);
+	if (rounded === 0) {
+		return null;
+	}
+	return `${rounded > 0 ? "+" : ""}${rounded}%`;
 }
 
 export function InsightDetailContent() {

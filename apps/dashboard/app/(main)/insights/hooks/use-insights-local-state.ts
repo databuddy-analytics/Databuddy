@@ -54,7 +54,7 @@ export function useInsightsLocalState(
 	}, [organizationId]);
 
 	const restoreDismissedAction = useCallback(
-		(insightId: string) => {
+		async (insightId: string) => {
 			if (!organizationId) {
 				return;
 			}
@@ -63,28 +63,25 @@ export function useInsightsLocalState(
 				saveDismissedIds(organizationId, next);
 				return next;
 			});
-			setDismissedMutation.mutate(
-				{ insightId, dismissed: false },
-				{
-					onError: () => {
-						setDismissedIds((prev) => {
-							if (prev.includes(insightId)) {
-								return prev;
-							}
-							const next = [...prev, insightId];
-							saveDismissedIds(organizationId, next);
-							return next;
-						});
-						toast.error("Could not restore finding");
-					},
-				}
-			);
+			try {
+				await setDismissedMutation.mutateAsync({ insightId, dismissed: false });
+			} catch {
+				setDismissedIds((prev) => {
+					if (prev.includes(insightId)) {
+						return prev;
+					}
+					const next = [...prev, insightId];
+					saveDismissedIds(organizationId, next);
+					return next;
+				});
+				toast.error("Could not restore finding");
+			}
 		},
 		[organizationId, setDismissedMutation]
 	);
 
 	const dismissAction = useCallback(
-		(insightId: string) => {
+		async (insightId: string) => {
 			if (!organizationId) {
 				return;
 			}
@@ -97,19 +94,6 @@ export function useInsightsLocalState(
 				saveDismissedIds(organizationId, next);
 				return next;
 			});
-			setDismissedMutation.mutate(
-				{ insightId, dismissed: true },
-				{
-					onError: () => {
-						setDismissedIds((prev) => {
-							const next = prev.filter((id) => id !== insightId);
-							saveDismissedIds(organizationId, next);
-							return next;
-						});
-						toast.error("Could not dismiss finding", { id: toastId });
-					},
-				}
-			);
 			toast.success("Finding dismissed", {
 				id: toastId,
 				description: "This pattern is muted for 30 days.",
@@ -118,27 +102,34 @@ export function useInsightsLocalState(
 					onClick: () => restoreDismissedAction(insightId),
 				},
 			});
+			try {
+				await setDismissedMutation.mutateAsync({ insightId, dismissed: true });
+			} catch {
+				setDismissedIds((prev) => {
+					const next = prev.filter((id) => id !== insightId);
+					saveDismissedIds(organizationId, next);
+					return next;
+				});
+				toast.error("Could not dismiss finding", { id: toastId });
+			}
 		},
 		[organizationId, setDismissedMutation, restoreDismissedAction]
 	);
 
-	const clearAllDismissedAction = useCallback(() => {
+	const clearAllDismissedAction = useCallback(async () => {
 		if (!organizationId) {
 			return;
 		}
 		const previous = dismissedIdsRef.current;
 		setDismissedIds([]);
 		saveDismissedIds(organizationId, []);
-		clearDismissedMutation.mutate(
-			{},
-			{
-				onError: () => {
-					setDismissedIds(previous);
-					saveDismissedIds(organizationId, previous);
-					toast.error("Could not clear dismissed findings");
-				},
-			}
-		);
+		try {
+			await clearDismissedMutation.mutateAsync({});
+		} catch {
+			setDismissedIds(previous);
+			saveDismissedIds(organizationId, previous);
+			toast.error("Could not clear dismissed findings");
+		}
 	}, [organizationId, clearDismissedMutation]);
 
 	const setFeedbackAction = useCallback(

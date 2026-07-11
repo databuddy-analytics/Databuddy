@@ -39,9 +39,11 @@ export function formatInsightFreshness(insight: Insight): string {
 		}
 		return resolvedLabel;
 	}
-	const createdAt = dayjs(insight.createdAt);
-	if (createdAt.isValid()) {
-		return `Analyzed ${createdAt.fromNow()}`;
+	if (insight.createdAt) {
+		const createdAt = dayjs(insight.createdAt);
+		if (createdAt.isValid()) {
+			return `Analyzed ${createdAt.fromNow()}`;
+		}
 	}
 	return "Analyzed";
 }
