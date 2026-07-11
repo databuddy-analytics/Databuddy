@@ -1,5 +1,9 @@
 import { getErrorTypeIcon } from "./error-icons";
-import { getErrorCategory, getSeverityColor } from "./utils";
+import {
+	getErrorCategory,
+	getErrorsPerAffectedUser,
+	getSeverityColor,
+} from "./utils";
 import { BugIcon } from "@databuddy/ui/icons";
 import { Badge, formatLocalTime } from "@databuddy/ui";
 
@@ -26,7 +30,7 @@ export const errorColumns = [
 		cell: (info: CellInfo<number>) => {
 			const users = info.getValue() ?? 0;
 			const errors = (info.row?.original?.errors as number) ?? 0;
-			const errorRate = errors > 0 ? ((users / errors) * 100).toFixed(1) : "0";
+			const errorsPerUser = getErrorsPerAffectedUser(errors, users);
 
 			return (
 				<div className="flex flex-col">
@@ -34,7 +38,8 @@ export const errorColumns = [
 						{users.toLocaleString()}
 					</span>
 					<span className="text-muted-foreground text-xs">
-						{errorRate}% error rate
+						{errorsPerUser.toFixed(1)} error
+						{errorsPerUser === 1 ? "" : "s"} per affected user
 					</span>
 				</div>
 			);

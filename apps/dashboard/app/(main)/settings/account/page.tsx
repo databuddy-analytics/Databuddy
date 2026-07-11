@@ -36,6 +36,9 @@ interface Account {
 	createdAt: Date;
 	id: string;
 	providerId: string;
+	scopes: string[];
+	updatedAt: Date;
+	userId: string;
 }
 
 type SocialProvider = "google" | "github";
@@ -51,6 +54,35 @@ const PROVIDER_CONFIG: Record<string, { icon: IconComponent; name: string }> = {
 	github: { icon: GlobeIcon, name: "GitHub" },
 	credential: { icon: KeyIcon, name: "Password" },
 };
+
+const SCOPE_LABELS: Record<string, string> = {
+	email: "email address",
+	openid: "identity",
+	profile: "basic profile",
+	"read:user": "GitHub profile",
+	"user:email": "GitHub email addresses",
+};
+
+function formatAccountScopes(scopes: string[]): string {
+	if (scopes.length === 0) {
+		return "basic identity used for sign-in";
+	}
+
+	return [
+		...new Set(
+			scopes.map((scope) => {
+				const normalized = scope.trim();
+				const knownLabel = SCOPE_LABELS[normalized];
+				if (knownLabel) {
+					return knownLabel;
+				}
+
+				const finalSegment = normalized.split("/").filter(Boolean).at(-1);
+				return (finalSegment || normalized).replaceAll(/[_:-]+/g, " ");
+			})
+		),
+	].join(", ");
+}
 
 function getInitials(name: string): string {
 	return name
@@ -158,33 +190,46 @@ function ChangePasswordDialog({
 }
 
 function UnlinkConfirmDialog({
-	provider,
+	account,
 	isPending,
 	onConfirm,
 	onClose,
 }: {
-	provider: SocialProvider | null;
+	account: Account | null;
 	isPending: boolean;
 	onConfirm: () => void;
 	onClose: () => void;
 }) {
+	const provider = account?.providerId as SocialProvider | undefined;
+	const providerName = provider ? PROVIDER_CONFIG[provider]?.name : "";
+
 	return (
-		<Dialog onOpenChange={(open) => !open && onClose()} open={!!provider}>
+		<Dialog onOpenChange={(open) => !open && onClose()} open={!!account}>
 			<Dialog.Content>
 				<Dialog.Header>
-					<Dialog.Title>Unlink Account</Dialog.Title>
+					<Dialog.Title>Disconnect {providerName} sign-in?</Dialog.Title>
 					<Dialog.Description>
-						Are you sure you want to unlink your{" "}
-						{provider ? PROVIDER_CONFIG[provider]?.name : ""} account? You can
-						reconnect it later.
+						This removes {providerName} as a way to sign in to Databuddy. It
+						does not disconnect an organization data integration. You can
+						reconnect this identity later.
 					</Dialog.Description>
 				</Dialog.Header>
+				{account && (
+					<Dialog.Body className="space-y-2">
+						<Text className="break-all" tone="muted" variant="caption">
+							Provider account ID: {account.accountId}
+						</Text>
+						<Text tone="muted" variant="caption">
+							Permissions: {formatAccountScopes(account.scopes)}
+						</Text>
+					</Dialog.Body>
+				)}
 				<Dialog.Footer>
 					<Button onClick={onClose} variant="secondary">
 						Cancel
 					</Button>
 					<Button loading={isPending} onClick={onConfirm} tone="destructive">
-						Unlink
+						Disconnect sign-in
 					</Button>
 				</Dialog.Footer>
 			</Dialog.Content>
@@ -219,7 +264,7 @@ function DeleteAccountDialog({
 	const deleteAccount = useMutation({
 		mutationFn: async () => {
 			const opts: { password?: string; callbackURL?: string } = {
-				callbackURL: "/auth/login",
+				callbackURL: "/login",
 			};
 			if (hasPassword) {
 				opts.password = password;
@@ -233,7 +278,7 @@ function DeleteAccountDialog({
 		onSuccess: () => {
 			if (hasPassword) {
 				toast.success("Your account has been deleted");
-				router.push("/auth/login");
+				router.push("/login");
 			} else {
 				setEmailSent(true);
 			}
@@ -346,9 +391,8 @@ export default function AccountSettingsPage() {
 	const [isProfileInitialized, setIsProfileInitialized] = useState(false);
 	const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 	const [showTwoFactorDialog, setShowTwoFactorDialog] = useState(false);
-	const [unlinkProvider, setUnlinkProvider] = useState<SocialProvider | null>(
-		null
-	);
+	const [unlinkAccountTarget, setUnlinkAccountTarget] =
+		useState<Account | null>(null);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	useEffect(() => {
@@ -401,15 +445,20 @@ export default function AccountSettingsPage() {
 	});
 
 	const unlinkAccount = useMutation({
-		mutationFn: async (providerId: string) => {
-			const result = await authClient.unlinkAccount({ providerId });
+		mutationFn: async (accountToUnlink: Account) => {
+			const result = await authClient.unlinkAccount({
+				providerId: accountToUnlink.providerId,
+				accountId: accountToUnlink.accountId,
+			});
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
 			return result;
 		},
-		onSuccess: () => {
-			toast.success("Account unlinked successfully");
+		onSuccess: (_result, accountToUnlink) => {
+			const providerName =
+				PROVIDER_CONFIG[accountToUnlink.providerId]?.name ?? "Social";
+			toast.success(`${providerName} sign-in disconnected`);
 			queryClient.invalidateQueries({ queryKey: ["user-accounts"] });
 		},
 	});
@@ -594,7 +643,8 @@ export default function AccountSettingsPage() {
 						<Card.Header>
 							<Card.Title>Connected Identities</Card.Title>
 							<Card.Description>
-								Link your accounts for easier sign-in
+								Personal sign-in methods for your Databuddy account. These are
+								not organization data integrations.
 							</Card.Description>
 						</Card.Header>
 						<Card.Content>
@@ -613,39 +663,64 @@ export default function AccountSettingsPage() {
 											(acc) => acc.providerId === provider
 										);
 										const isOnlyAccount =
-											accounts.length === 1 && !!connectedAccount;
+											accounts.length <= 1 && !!connectedAccount;
 
 										return (
 											<div key={provider}>
 												{index > 0 && <Divider className="mb-3" />}
-												<div className="flex items-center justify-between">
-													<div className="flex items-center gap-3">
+												<div className="flex items-start justify-between gap-3">
+													<div className="flex min-w-0 items-start gap-3">
 														<ProviderIcon
 															className="size-4 text-muted-foreground"
 															weight="duotone"
 														/>
-														<div>
+														<div className="min-w-0">
 															<Text variant="label">{config.name}</Text>
 															<Text tone="muted" variant="caption">
 																{connectedAccount
-																	? "Linked to your account"
+																	? `Provider account ID: ${connectedAccount.accountId}`
 																	: `Sign in with ${config.name}`}
 															</Text>
+															{connectedAccount && (
+																<>
+																	<Text tone="muted" variant="caption">
+																		Permissions:{" "}
+																		{formatAccountScopes(
+																			connectedAccount.scopes
+																		)}
+																	</Text>
+																	{isOnlyAccount && (
+																		<Text
+																			className="text-warning"
+																			variant="caption"
+																		>
+																			Add another sign-in method before
+																			disconnecting this one.
+																		</Text>
+																	)}
+																</>
+															)}
 														</div>
 													</div>
 													{connectedAccount ? (
-														<div className="flex items-center gap-2">
-															{!isOnlyAccount && (
-																<Button
-																	aria-label={`Unlink ${config.name}`}
-																	onClick={() => setUnlinkProvider(provider)}
-																	size="sm"
-																	variant="ghost"
-																>
-																	<LinkBreakIcon className="size-3.5" />
-																	Unlink
-																</Button>
-															)}
+														<div className="flex shrink-0 items-center gap-2">
+															<Button
+																aria-label={`Disconnect ${config.name} sign-in`}
+																disabled={isOnlyAccount}
+																onClick={() =>
+																	setUnlinkAccountTarget(connectedAccount)
+																}
+																size="sm"
+																title={
+																	isOnlyAccount
+																		? "Add another sign-in method before disconnecting this one"
+																		: `Disconnect ${config.name} as a sign-in method`
+																}
+																variant="ghost"
+															>
+																<LinkBreakIcon className="size-3.5" />
+																Disconnect
+															</Button>
 															<Badge variant="success">Connected</Badge>
 														</div>
 													) : (
@@ -747,16 +822,16 @@ export default function AccountSettingsPage() {
 				open={showTwoFactorDialog}
 			/>
 			<UnlinkConfirmDialog
+				account={unlinkAccountTarget}
 				isPending={unlinkAccount.isPending}
-				onClose={() => setUnlinkProvider(null)}
+				onClose={() => setUnlinkAccountTarget(null)}
 				onConfirm={() => {
-					if (unlinkProvider) {
-						unlinkAccount.mutate(unlinkProvider, {
-							onSuccess: () => setUnlinkProvider(null),
+					if (unlinkAccountTarget) {
+						unlinkAccount.mutate(unlinkAccountTarget, {
+							onSuccess: () => setUnlinkAccountTarget(null),
 						});
 					}
 				}}
-				provider={unlinkProvider}
 			/>
 			{user?.email && (
 				<DeleteAccountDialog

@@ -142,11 +142,11 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			upgradeMessage: "Upgrade to track more events",
 		},
 		[FEATURE_IDS.AGENT_CREDITS]: {
-			name: "Agent Credits",
+			name: "Databunny Usage",
 			description:
-				"Credits power Databunny conversations. Heavier questions consume more credits.",
-			upgradeMessage: "Upgrade for more agent credits",
-			unit: "credits",
+				"AI processing allowance used by Databunny questions and analysis. Deeper work uses more of the allowance.",
+			upgradeMessage: "Add more Databunny usage or upgrade your plan",
+			unit: "usage units",
 		},
 		[GATED_FEATURES.FUNNELS]: {
 			name: "Funnels",

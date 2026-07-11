@@ -67,6 +67,16 @@ const ERROR_MESSAGES: Record<string, { title: string; description: string }> = {
 		description:
 			"The callback request was invalid. Please try signing in again.",
 	},
+	expired_token: {
+		title: "Magic link expired",
+		description:
+			"This magic link has expired. Request a new link to continue signing in.",
+	},
+	invalid_token: {
+		title: "Magic link no longer works",
+		description:
+			"This magic link is invalid or has already been used. Request a new link to continue.",
+	},
 };
 
 const DEFAULT_ERROR = {
@@ -77,8 +87,21 @@ const DEFAULT_ERROR = {
 
 function AuthErrorPage() {
 	const [errorCode] = useQueryState("error", parseAsString.withDefault(""));
+	const [callback] = useQueryState(
+		"callback",
+		parseAsString.withDefault("/websites")
+	);
 
-	const errorInfo = ERROR_MESSAGES[errorCode] ?? DEFAULT_ERROR;
+	const errorInfo =
+		ERROR_MESSAGES[errorCode] ??
+		ERROR_MESSAGES[errorCode.toLowerCase()] ??
+		DEFAULT_ERROR;
+	const isMagicLinkError = ["expired_token", "invalid_token"].includes(
+		errorCode.toLowerCase()
+	);
+	const recoveryHref = isMagicLinkError
+		? `/login/magic?callback=${encodeURIComponent(callback)}`
+		: `/login?callback=${encodeURIComponent(callback)}`;
 
 	return (
 		<>
@@ -95,16 +118,10 @@ function AuthErrorPage() {
 					<Text tone="muted">{errorInfo.description}</Text>
 				</div>
 
-				{errorCode && (
-					<div className="rounded border border-border bg-muted/30 px-3 py-2">
-						<Text mono tone="muted" variant="caption">
-							Error: {errorCode}
-						</Text>
-					</div>
-				)}
-
 				<Button asChild className="w-full">
-					<Link href="/login">Back to login</Link>
+					<Link href={recoveryHref}>
+						{isMagicLinkError ? "Request a new magic link" : "Back to login"}
+					</Link>
 				</Button>
 			</div>
 

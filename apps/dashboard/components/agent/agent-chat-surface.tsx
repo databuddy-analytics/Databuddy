@@ -262,7 +262,7 @@ function WelcomeState({
 										</span>
 										<span className="mt-0.5 block text-muted-foreground text-xs">
 											{item.source === "insight"
-												? "From your insights"
+												? "From your findings"
 												: "Suggested"}
 										</span>
 									</span>

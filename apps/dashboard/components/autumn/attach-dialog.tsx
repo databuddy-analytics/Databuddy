@@ -2,13 +2,15 @@
 
 import type { PreviewAttachResponse } from "autumn-js";
 import { useState } from "react";
+import { getAttachDialogCopy } from "@/lib/autumn/attach-dialog-copy";
 import { Dialog } from "@databuddy/ui/client";
 import { Badge, Button, Divider, Text, dayjs } from "@databuddy/ui";
 
 export interface AttachDialogProps {
+	action?: string | null;
 	onConfirm: () => Promise<void>;
 	open: boolean;
-	planId: string;
+	planName: string;
 	preview: PreviewAttachResponse;
 	setOpen: (open: boolean) => void;
 }
@@ -123,9 +125,11 @@ function NextCycleSummary({
 }
 
 export default function AttachDialog({
+	action,
 	open,
 	setOpen,
 	preview,
+	planName,
 	onConfirm,
 }: AttachDialogProps) {
 	const [loading, setLoading] = useState(false);
@@ -133,15 +137,14 @@ export default function AttachDialog({
 	const { currency, lineItems, subtotal, total, nextCycle } = preview;
 	const discountTotal = Math.max(0, subtotal - total);
 	const discountBreakdown = aggregateDiscounts(lineItems);
+	const copy = getAttachDialogCopy(action, planName);
 
 	return (
 		<Dialog onOpenChange={setOpen} open={open}>
 			<Dialog.Content className="w-[95vw] max-w-md sm:w-full">
 				<Dialog.Header>
-					<Dialog.Title>Confirm purchase</Dialog.Title>
-					<Dialog.Description>
-						Review the charges before confirming.
-					</Dialog.Description>
+					<Dialog.Title>{copy.title}</Dialog.Title>
+					<Dialog.Description>{copy.description}</Dialog.Description>
 				</Dialog.Header>
 
 				<Dialog.Body className="space-y-4">
@@ -256,12 +259,16 @@ export default function AttachDialog({
 							try {
 								await onConfirm();
 								setOpen(false);
+							} catch {
+								// The caller owns the action-specific error message. Keep the dialog open.
 							} finally {
 								setLoading(false);
 							}
 						}}
 					>
-						{total > 0 ? `Pay ${formatMoney(total, currency)}` : "Confirm"}
+						{total > 0
+							? `${copy.confirmLabel} · ${formatMoney(total, currency)} due today`
+							: copy.confirmLabel}
 					</Button>
 				</Dialog.Footer>
 				<Dialog.Close />

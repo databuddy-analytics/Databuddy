@@ -1,7 +1,12 @@
 "use client";
 
 import { CreditArcSlider } from "@/components/ui/credit-arc-slider";
+import {
+	DATABUNNY_USAGE_EXPLANATION,
+	DATABUNNY_USAGE_UNIT,
+} from "@/lib/databunny-usage";
 import { cn } from "@/lib/utils";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import {
 	blendedRatePerCredit,
 	calculateTopupCost,
@@ -63,7 +68,10 @@ export function TopupCard() {
 			});
 		} catch (error) {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to start checkout."
+				getUserFacingErrorMessage(
+					error,
+					"We couldn't open checkout. Try again."
+				)
 			);
 		} finally {
 			setIsAttaching(false);
@@ -75,35 +83,38 @@ export function TopupCard() {
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2">
 					<CoinsIcon className="text-primary" size={14} weight="duotone" />
-					Top up credits
+					Top up Databunny usage
 				</Card.Title>
 				<Card.Description>
-					Buy more, pay less per credit. Stacks with your plan and never expires
-					— nothing goes to waste.
+					{DATABUNNY_USAGE_EXPLANATION} Purchased usage stacks with your plan
+					and does not expire.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="space-y-5">
 				<div className="flex flex-col items-center gap-3">
 					<div className="w-full max-w-sm">
 						<CreditArcSlider
+							ariaLabel="Databunny usage units to buy"
 							max={TOPUP_MAX_QUANTITY}
 							min={TOPUP_MIN_QUANTITY}
 							onValueChange={setQuantity}
 							value={quantity}
+							unit={DATABUNNY_USAGE_UNIT}
 						/>
 					</div>
 
 					<div className="flex flex-wrap items-center justify-center gap-2">
 						{PRESET_QUANTITIES.map((preset) => (
-							<button
+							<Button
 								aria-pressed={quantity === preset}
 								className="rounded border border-border/60 bg-card px-3 py-1 text-xs tabular-nums transition-colors hover:border-primary/60 hover:text-foreground aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground"
 								key={preset}
 								onClick={() => setQuantity(preset)}
-								type="button"
+								size="sm"
+								variant="secondary"
 							>
 								{preset.toLocaleString()}
-							</button>
+							</Button>
 						))}
 					</div>
 				</div>
@@ -113,10 +124,10 @@ export function TopupCard() {
 				<div className="space-y-2">
 					<Row label="You get">
 						<span className="tabular-nums">
-							{quantity.toLocaleString()} credits
+							{quantity.toLocaleString()} usage units
 						</span>
 					</Row>
-					<Row label="Per credit">
+					<Row label="Per usage unit">
 						<span className="tabular-nums">${blendedRate.toFixed(4)}</span>
 					</Row>
 					<Row label="You pay">
@@ -134,11 +145,12 @@ export function TopupCard() {
 				/>
 
 				<div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<button
+					<Button
 						aria-expanded={showTiers}
 						className="flex items-center gap-1 self-start text-muted-foreground text-xs underline-offset-2 hover:text-foreground hover:underline"
 						onClick={() => setShowTiers((s) => !s)}
-						type="button"
+						size="sm"
+						variant="ghost"
 					>
 						<CaretDownIcon
 							className={cn("transition-transform", showTiers && "rotate-180")}
@@ -146,7 +158,7 @@ export function TopupCard() {
 							weight="bold"
 						/>
 						{showTiers ? "Hide pricing details" : "How pricing works"}
-					</button>
+					</Button>
 					<Button
 						className="sm:min-w-[220px]"
 						disabled={isAttaching}
@@ -155,7 +167,7 @@ export function TopupCard() {
 					>
 						{isAttaching
 							? "Opening checkout…"
-							: `Buy ${quantity.toLocaleString()} credits · $${cost.toFixed(2)}`}
+							: `Buy ${quantity.toLocaleString()} usage units · $${cost.toFixed(2)}`}
 					</Button>
 				</div>
 
@@ -171,9 +183,9 @@ export function TopupCard() {
 					<div className="overflow-hidden">
 						<div className="space-y-2 rounded border border-border/60 bg-secondary/40 p-3">
 							<Text tone="muted" variant="caption">
-								Graduated tiers: each credit is billed by the tier it falls
+								Graduated tiers: each usage unit is billed by the tier it falls
 								into. Buy 5,000 and only the first 100 cost $
-								{BASE_RATE.toFixed(2)} — every credit above that drops to a
+								{BASE_RATE.toFixed(2)} — every unit above that drops to a
 								cheaper rate.
 							</Text>
 							<div className="rounded border border-border/50 bg-background">
@@ -206,7 +218,7 @@ export function TopupCard() {
 												)}
 											</div>
 											<Text className="tabular-nums" variant="caption">
-												${tier.amount.toFixed(3)} / credit
+												${tier.amount.toFixed(3)} / unit
 											</Text>
 										</div>
 									);
@@ -247,7 +259,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							{nudge.unitsUntilNextTier.toLocaleString()}
 						</span>{" "}
-						more and every credit drops to{" "}
+						more and every usage unit drops to{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${nudge.nextRate.toFixed(3)}
 						</span>
@@ -285,7 +297,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							{FIRST_TIER_TOP.toLocaleString()}+
 						</span>{" "}
-						credits — every one drops to{" "}
+						usage units — every unit drops to{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${SECOND_TIER_RATE.toFixed(3)}
 						</span>

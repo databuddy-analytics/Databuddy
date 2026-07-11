@@ -24,7 +24,7 @@ const FEATURES = [
 		icon: UsersIcon,
 		title: "Live Visitors",
 		description: "See who's on your site right now with real-time data.",
-		tab: "?tab=realtime",
+		tab: "/realtime",
 	},
 	{
 		icon: CursorClickIcon,
@@ -101,7 +101,7 @@ export function StepExplore({
 			</div>
 
 			<Button className="w-full sm:w-auto" onClick={onComplete} size="lg">
-				Go to Dashboard
+				Go to dashboard
 			</Button>
 		</div>
 	);

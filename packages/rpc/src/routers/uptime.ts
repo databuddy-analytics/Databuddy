@@ -136,7 +136,7 @@ export const uptimeRouter = {
 	listSchedules: protectedProcedure
 		.route({
 			description:
-				"Returns uptime schedules for organization or all user workspaces. Requires read:monitors scope.",
+				"Returns uptime schedules for one organization or all accessible organizations. Requires read:monitors scope.",
 			method: "POST",
 			path: "/uptime/listSchedules",
 			summary: "List schedules",
@@ -255,7 +255,7 @@ export const uptimeRouter = {
 
 			if (existing) {
 				throw rpcError.conflict(
-					"Monitor already exists for this URL in this workspace"
+					"Monitor already exists for this URL in this organization"
 				);
 			}
 

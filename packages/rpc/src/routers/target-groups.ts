@@ -63,7 +63,7 @@ const successOutputSchema = z.object({ success: z.literal(true) });
 function requireAuthedTargetGroupRead(workspace: { tier: "authed" | "demo" }) {
 	if (workspace.tier === "demo") {
 		throw rpcError.unauthorized(
-			"Target group definitions require authenticated workspace access"
+			"Target group definitions require authenticated organization access"
 		);
 	}
 }

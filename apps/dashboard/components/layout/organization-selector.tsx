@@ -182,7 +182,7 @@ export function OrganizationSelector({
 	const isSwitching = isSwitchingOrganization;
 	const activeOrganizationName = activeOrganization?.name ?? "Organization";
 	const organizationTriggerLabel = isSwitching
-		? `Switching workspace from ${activeOrganizationName}`
+		? `Switching organization from ${activeOrganizationName}`
 		: `Organization: ${activeOrganizationName}`;
 	const avatarUrl = getDicebearUrl(
 		activeOrganization?.logo || activeOrganization?.id
@@ -296,7 +296,7 @@ export function OrganizationSelector({
 						/>
 						<span className="min-w-0 flex-1 truncate text-left font-semibold text-sidebar-foreground text-sm">
 							{isSwitching
-								? "Switching workspace…"
+								? "Switching organization…"
 								: (activeOrganization?.name ?? "Select organization")}
 						</span>
 						{isSwitching ? (

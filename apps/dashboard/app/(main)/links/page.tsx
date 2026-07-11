@@ -75,7 +75,7 @@ function LinksPageContent() {
 	);
 	const { activeOrganization, isSwitchingOrganization } =
 		useOrganizationsContext();
-	const workspaceName = activeOrganization?.name ?? "this workspace";
+	const organizationName = activeOrganization?.name ?? "this organization";
 
 	const { isOn } = useFlags();
 	const deepLinksEnabled = isOn("deeplinks");
@@ -193,10 +193,10 @@ function LinksPageContent() {
 								</div>
 								<Card.Description>
 									{isSwitchingOrganization
-										? "Switching workspace…"
+										? "Switching organization…"
 										: emptyWorkspace
-											? `${workspaceName} does not have any links yet. Create short links with workspace-scoped analytics.`
-											: `Short links for ${workspaceName} · Free while in beta`}
+											? `${organizationName} does not have any links yet. Create short links with organization-wide analytics.`
+											: `Short links for ${organizationName} · Free while in beta`}
 								</Card.Description>
 							</div>
 							<div className="flex shrink-0 items-center gap-2">
@@ -249,7 +249,7 @@ function LinksPageContent() {
 								<>
 									{isSwitchingOrganization && (
 										<p className="sr-only" role="status">
-											Switching workspace…
+											Switching organization…
 										</p>
 									)}
 									<LinksSearchBarSkeleton />

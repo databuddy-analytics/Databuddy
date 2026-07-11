@@ -1,6 +1,8 @@
 "use server";
 
+import { auth } from "@databuddy/auth";
 import { Databuddy } from "@databuddy/sdk/node";
+import { headers } from "next/headers";
 import type { CancelFeedback } from "../components/cancel-subscription-dialog";
 
 const databuddyApiKey = process.env.DATABUDDY_API_KEY;
@@ -34,6 +36,13 @@ export async function trackCancelFeedbackAction({
 	planName,
 	immediate,
 }: TrackCancelFeedbackParams): Promise<{ success: boolean }> {
+	const session = await auth.api.getSession({
+		headers: await headers(),
+	});
+	if (!session) {
+		return { success: false };
+	}
+
 	if (!VALID_REASONS.includes(feedback.reason)) {
 		return { success: false };
 	}

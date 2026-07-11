@@ -85,7 +85,7 @@ export const AGENT_COMMANDS: readonly AgentCommand[] = [
 		id: "clear",
 		command: "/clear",
 		title: "Clear chat",
-		description: "Erase chat history and start fresh",
+		description: "Clear messages from this view and start fresh",
 		action: "clear",
 		prompt: "",
 		keywords: ["clear", "reset", "erase", "new", "fresh"],

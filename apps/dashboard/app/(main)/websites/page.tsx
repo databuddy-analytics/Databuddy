@@ -51,7 +51,7 @@ export default function WebsitesPage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
 	const { activeOrganization, isSwitchingOrganization } =
 		useOrganizationsContext();
-	const workspaceName = activeOrganization?.name ?? "this workspace";
+	const organizationName = activeOrganization?.name ?? "this organization";
 
 	const {
 		websites,
@@ -100,7 +100,7 @@ export default function WebsitesPage() {
 
 				{isSwitchingOrganization && (
 					<p className="sr-only" role="status">
-						Switching workspace…
+						Switching organization…
 					</p>
 				)}
 
@@ -127,9 +127,9 @@ export default function WebsitesPage() {
 								onClick: () => setDialogOpen(true),
 							}}
 							className="h-full"
-							description={`${workspaceName} does not have any websites yet. Add one to start collecting analytics for this workspace.`}
+							description={`${organizationName} does not have any websites yet. Add one to start collecting analytics for this organization.`}
 							icon={<GlobeIcon weight="duotone" />}
-							title="No websites in this workspace"
+							title="No websites in this organization"
 							variant="minimal"
 						/>
 					)}

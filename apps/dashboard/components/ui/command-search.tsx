@@ -121,7 +121,7 @@ function toSearchItem(
 		name: item.name,
 		path: path || pathPrefix,
 		icon: item.icon,
-		disabled: item.disabled || locked,
+		disabled: item.disabled,
 		tag: item.tag,
 		searchTags: item.searchTags,
 		external: item.external,
@@ -374,7 +374,7 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 						name: "Create API Key",
 						subtitle: activeOrganization
 							? `Create a key for ${activeOrganization.name}`
-							: "Create a workspace API key",
+							: "Create an organization API key",
 						icon: KeyIcon,
 						action: openCreateApiKey,
 						disabled: !(organizationId && !isSwitchingOrganization),
@@ -683,7 +683,9 @@ function SearchResultItem({
 }) {
 	const ItemIcon = item.icon;
 	const subtitle =
-		item.subtitle ??
+		(item.lockedPlanName
+			? `Requires ${item.lockedPlanName} · open upgrade options`
+			: item.subtitle) ??
 		(item.path
 			? item.path.startsWith("http")
 				? "External link"

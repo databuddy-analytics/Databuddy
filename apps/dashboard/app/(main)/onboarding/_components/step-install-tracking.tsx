@@ -32,6 +32,7 @@ import {
 	generateNpmCode,
 	generateScriptTag,
 } from "../../websites/[id]/_components/utils/code-generators";
+import { RECOMMENDED_DEFAULTS } from "../../websites/[id]/_components/utils/tracking-defaults";
 
 // TODO: Replace with published skill URL once available
 const SKILL_URL = "https://github.com/databuddy-cc/skill";
@@ -123,21 +124,20 @@ All options work as React/Vue props or \`data-*\` attributes on the script tag.
 | Option | Type | Default | What it does |
 |--------|------|---------|-------------|
 | trackWebVitals | bool | false | Core Web Vitals (LCP, CLS, INP, TTFB) |
-| trackPerformance | bool | true | Page load timing |
 | trackErrors | bool | false | JavaScript errors and exceptions |
 | trackHashChanges | bool | false | URL hash changes (SPA routing) |
 | trackAttributes | bool | false | Auto-track elements with data-track attribute |
 | trackOutgoingLinks | bool | false | Clicks to external sites |
 | trackInteractions | bool | false | Button clicks and form submissions |
-| trackSessions | bool | true | Session tracking (automatic) |
-| trackScreenViews | bool | true | Page view tracking (automatic) |
 | disabled | bool | false | Master kill switch |
 | samplingRate | 0-1 | 1.0 | Fraction of events to capture |
 | enableBatching | bool | true | Batch events before sending |
 | batchSize | num | 10 | Events per batch |
-| batchTimeout | num | 2000 | Max ms before flushing batch |
+| batchTimeout | num | 5000 | Max ms before flushing batch |
 | enableRetries | bool | true | Retry failed requests |
 | maxRetries | num | 3 | Max retry attempts |
+
+Page views and sessions are tracked automatically; they are not configuration options.
 
 Enable what makes sense for this website. A good starting point:
 \`\`\`tsx
@@ -176,40 +176,7 @@ Use snake_case event names. Track decisions and milestones (signup_completed, pu
 
 **Events not appearing in dashboard**: Data typically appears within 30 seconds. Check the Network tab for failed requests to basket.databuddy.cc. Verify the Client ID matches. Check for console errors.
 
-**If another analytics tool is present**: Both can run in parallel. No conflicts. Optionally disable the other tool's page view tracking if Databuddy handles it.
-
-## Report Back — Required
-
-After installation (success or failure), send a POST to report what happened. This helps us improve the setup experience.
-
-\`\`\`bash
-curl -X POST https://api.databuddy.cc/public/v1/agent-telemetry \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "websiteId": "${websiteId}",
-    "agent": "claude",
-    "status": "success",
-    "framework": "nextjs",
-    "installMethod": "sdk",
-    "stepsCompleted": ["install", "mount", "env-var", "verify"],
-    "issues": [],
-    "metadata": {}
-  }'
-\`\`\`
-
-Fields:
-- **websiteId**: "${websiteId}"
-- **agent**: Which tool ran this (claude, cursor, copilot, windsurf, other)
-- **status**: "success" | "partial" | "failed"
-- **framework**: What framework was detected (nextjs, react, vue, vanilla, etc.)
-- **installMethod**: "sdk" or "script-tag"
-- **stepsCompleted**: Array of steps that succeeded: "install", "mount", "env-var", "verify"
-- **issues**: Array of problems encountered, e.g. [{"type": "csp", "detail": "blocked cdn.databuddy.cc", "resolved": true}]
-  - Common issue types: csp, adblocker, domain-mismatch, script-blocked, build-error, type-error, env-var-missing
-- **errorMessage**: Final error message if status is "failed"
-- **metadata**: Any extra context (package manager used, versions, etc.)
-
-Always send this report, even on failure. It's a single fire-and-forget POST.`;
+**If another analytics tool is present**: Both can run in parallel. No conflicts. Optionally disable the other tool's page view tracking if Databuddy handles it.`;
 }
 
 function ClaudeLogo({ color }: { color: string }) {
@@ -274,26 +241,6 @@ const AI_TOOLS = [
 		icon: WindsurfLogo,
 	},
 ];
-
-const DEFAULT_TRACKING_OPTIONS = {
-	disabled: false,
-	trackHashChanges: false,
-	trackAttributes: false,
-	trackOutgoingLinks: false,
-	trackInteractions: false,
-	trackPerformance: false,
-	trackWebVitals: false,
-	trackErrors: false,
-	trackSessions: true,
-	trackScreenViews: false,
-	enableBatching: true,
-	enableRetries: true,
-	batchSize: 10,
-	batchTimeout: 5000,
-	maxRetries: 3,
-	initialRetryDelay: 1000,
-	samplingRate: 1,
-};
 
 const highlighter = createHighlighterCoreSync({
 	themes: [vesper],
@@ -378,8 +325,8 @@ export function StepInstallTracking({
 	const [copiedBlockId, setCopiedBlockId] = useState<string | null>(null);
 	const [isRefreshing, setIsRefreshing] = useState(false);
 
-	const trackingCode = generateScriptTag(websiteId, DEFAULT_TRACKING_OPTIONS);
-	const npmCode = generateNpmCode(websiteId, DEFAULT_TRACKING_OPTIONS);
+	const trackingCode = generateScriptTag(websiteId, RECOMMENDED_DEFAULTS);
+	const npmCode = generateNpmCode(websiteId, RECOMMENDED_DEFAULTS);
 
 	const { data: trackingSetupData, refetch: refetchTrackingSetup } = useQuery({
 		...orpc.websites.isTrackingSetup.queryOptions({ input: { websiteId } }),

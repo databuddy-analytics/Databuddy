@@ -77,3 +77,10 @@ const SEVERITY_COLORS: Record<"high" | "medium" | "low", string> = {
 
 export const getSeverityColor = (severity: "high" | "medium" | "low"): string =>
 	SEVERITY_COLORS[severity];
+
+export function getErrorsPerAffectedUser(
+	errors: number,
+	users: number
+): number {
+	return users > 0 ? errors / users : 0;
+}

@@ -46,9 +46,6 @@ export interface TrackingOptions {
 	trackHashChanges: boolean;
 	trackInteractions: boolean;
 	trackOutgoingLinks: boolean;
-	trackPerformance: boolean;
-	trackScreenViews: boolean;
-	trackSessions: boolean;
 	trackWebVitals: boolean;
 }
 

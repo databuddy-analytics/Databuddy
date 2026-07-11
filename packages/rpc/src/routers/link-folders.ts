@@ -77,7 +77,7 @@ export const linkFoldersRouter = {
 			tags: ["Links"],
 			summary: "List link folders",
 			description:
-				"Returns folders used to organize short links inside a workspace. Requires read:links scope.",
+				"Returns folders used to organize short links inside an organization. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinkFoldersSchema)

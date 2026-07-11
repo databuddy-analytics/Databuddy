@@ -265,7 +265,7 @@ export const settingsNavigation: NavigationGroup[] = [
 						searchTags: ["workspace details", "organization id", "slug"],
 					},
 					{
-						name: "Workspace Websites",
+						name: "Organization Websites",
 						href: "#websites",
 						icon: GlobeIcon,
 						searchTags: ["organization websites", "workspace sites"],

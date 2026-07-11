@@ -76,7 +76,7 @@ export const mcpTools = [
 	},
 	{
 		name: "list_flags",
-		description: "List feature flags available to the workspace.",
+		description: "List feature flags available to the organization.",
 	},
 ] as const;
 
@@ -426,7 +426,7 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 		sandbox: {
 			demo: `${resolved.siteUrl}/demo`,
 			api_probe: `${resolved.apiUrl}/sandbox`,
-			note: "Use the public demo for read-only product exploration. Real workspace API calls require a scoped Databuddy API key.",
+			note: "Use the public demo for read-only product exploration. Real organization API calls require a scoped Databuddy API key.",
 		},
 		updated_at: AGENT_DISCOVERY_UPDATED,
 	};
@@ -474,7 +474,7 @@ export function createA2aAgentCard(urls: AgentDiscoveryUrls) {
 			},
 			{
 				id: "workspace-operations",
-				name: "Manage workspace objects",
+				name: "Manage organization objects",
 				description:
 					"List and manage Databuddy links, feature flags, goals, funnels, and annotations with scoped API keys.",
 				tags: ["feature-flags", "links", "funnels", "goals"],
@@ -647,7 +647,7 @@ export function createSandboxDiscovery(urls: AgentDiscoveryUrls) {
 	return {
 		name: "Databuddy sandbox",
 		description:
-			"Read-only discovery and demo environment for agents. Real workspace API calls require a scoped Databuddy API key.",
+			"Read-only discovery and demo environment for agents. Real organization API calls require a scoped Databuddy API key.",
 		demo_url: `${resolved.siteUrl}/demo`,
 		openapi_url: resolved.openapiSpecUrl,
 		mcp_server_url: resolved.mcpServerUrl,
@@ -776,11 +776,11 @@ ${JSON.stringify({ agent_auth: createAuthorizationServerMetadata(urls).agent_aut
 
 ## 3. Register
 
-Use \`register_uri\`: ${resolved.apiUrl}/agent-auth/register. Production workspace credentials are created from the Databuddy dashboard at ${resolved.dashboardUrl}/organizations/settings#api-keys. Choose the smallest scope set needed, usually \`read:data\` for analytics questions and \`manage:config\` only for write tools.
+Use \`register_uri\`: ${resolved.apiUrl}/agent-auth/register. Production organization credentials are created from the Databuddy dashboard at ${resolved.dashboardUrl}/organizations/settings#api-keys. Choose the smallest scope set needed, usually \`read:data\` for analytics questions and \`manage:config\` only for write tools.
 
 ## 4. Claim
 
-Use \`claim_uri\`: ${resolved.apiUrl}/agent-auth/claim. For \`identity_assertion\`, present an \`urn:ietf:params:oauth:token-type:id-jag\` assertion that identifies the user and requested workspace. Databuddy returns structured JSON errors when a claim cannot be completed automatically.
+Use \`claim_uri\`: ${resolved.apiUrl}/agent-auth/claim. For \`identity_assertion\`, present an \`urn:ietf:params:oauth:token-type:id-jag\` assertion that identifies the user and requested organization. Databuddy returns structured JSON errors when a claim cannot be completed automatically.
 
 ## 5. Use the credential
 
@@ -807,7 +807,7 @@ For MCP clients:
 
 ## 6. Errors
 
-Databuddy API errors are JSON objects with \`success: false\`, an error \`code\`, a human-readable \`error\`, and where available a \`fix\` or \`hint\`. A 401 means the credential is missing or invalid. A 403 means the credential exists but lacks the requested workspace or scope.
+Databuddy API errors are JSON objects with \`success: false\`, an error \`code\`, a human-readable \`error\`, and where available a \`fix\` or \`hint\`. A 401 means the credential is missing or invalid. A 403 means the credential exists but lacks the requested organization or scope.
 
 ## 7. Revocation
 

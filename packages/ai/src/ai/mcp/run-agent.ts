@@ -273,7 +273,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 		throw new DatabuddyAgentUserError({
 			code: "agent_credits_exhausted",
 			message:
-				"You're out of Databunny credits this month. Upgrade or wait for the monthly reset.",
+				"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
 		});
 	}
 

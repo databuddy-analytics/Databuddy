@@ -81,7 +81,7 @@ const SLACK_ITEM: IntegrationCatalogItem = {
 
 const GITHUB_ITEM: IntegrationCatalogItem = {
 	accent: "#181717",
-	category: "Intelligence",
+	category: "Deployments",
 	description:
 		"Correlate deploys, commits, and PRs with traffic and error changes.",
 	accentClassName: "bg-foreground/70",
@@ -94,9 +94,9 @@ const GITHUB_SCOPES = ["repo:status", "read:org"];
 
 const GSC_ITEM: IntegrationCatalogItem = {
 	accent: "#4285F4",
-	category: "Intelligence",
+	category: "Search",
 	description:
-		"Surface keyword ranking changes, impression drops, and CTR shifts in investigations.",
+		"Use keyword rankings, impression drops, and CTR shifts in findings.",
 	iconPath: SIMPLE_ICONS.googlesearchconsole,
 	id: "google-search-console",
 	name: "Google Search Console",

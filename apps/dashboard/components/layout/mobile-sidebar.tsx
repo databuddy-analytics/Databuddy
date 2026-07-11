@@ -120,9 +120,13 @@ function MobileNavItem({
 
 	if (isLocked) {
 		return (
-			<div
-				aria-disabled
-				className={cn(base, "cursor-not-allowed text-sidebar-foreground/30")}
+			<Link
+				aria-label={`${item.name}. Requires ${lockedPlanName ?? "a paid"} plan. Open upgrade options.`}
+				className={cn(
+					base,
+					"text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+				)}
+				href={fullPath}
 			>
 				<Icon aria-hidden className="size-[18px] shrink-0" />
 				<span className="min-w-0 flex-1 truncate">{item.name}</span>
@@ -132,7 +136,7 @@ function MobileNavItem({
 						{lockedPlanName}
 					</span>
 				)}
-			</div>
+			</Link>
 		);
 	}
 

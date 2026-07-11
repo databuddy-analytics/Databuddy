@@ -38,11 +38,12 @@ export default function LinkNotFoundPage() {
 						Link not found
 					</h1>
 					<p className="mb-6 text-balance text-center text-muted-foreground text-sm">
-						This link doesn&apos;t exist or may have been deleted.
+						Check the address for a typo. If someone shared this link with you,
+						ask them to confirm it or send a new one.
 					</p>
 
-					<Button asChild className="w-full">
-						<Link href="https://databuddy.cc">Go to Databuddy</Link>
+					<Button asChild className="w-full" variant="outline">
+						<Link href="https://databuddy.cc">Learn about Databuddy</Link>
 					</Button>
 				</div>
 			</main>

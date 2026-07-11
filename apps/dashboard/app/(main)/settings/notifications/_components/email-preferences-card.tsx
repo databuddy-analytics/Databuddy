@@ -279,7 +279,7 @@ export function EmailPreferencesCard() {
 											"origin_missing"
 										)
 									}
-									description="Browser ingest was called without an Origin header."
+									description="We received browser tracking requests without a website origin, so we could not verify the source domain."
 									disabled={disabled}
 									onChange={(checked) =>
 										save(

@@ -132,34 +132,38 @@ function RegisterPageContent() {
 	const resendVerificationEmail = async () => {
 		setIsLoading(true);
 
-		await authClient.sendVerificationEmail({
-			email: formData.email,
-			callbackURL: "/onboarding",
-			fetchOptions: {
-				onSuccess: () => {
-					toast.success("Verification email sent!");
-				},
-				onError: () => {
-					toast.error(
-						"Failed to send verification email. Please try again later."
-					);
-				},
-			},
-		});
-
+		try {
+			const { error } = await authClient.sendVerificationEmail({
+				email: formData.email,
+				callbackURL: getCallbackUrl(),
+			});
+			if (error) {
+				toast.error(
+					"We couldn't send the verification email. Try again in a moment."
+				);
+			} else {
+				toast.success("Verification email sent. Check your inbox.");
+			}
+		} catch {
+			toast.error(
+				"We couldn't send the verification email. Try again in a moment."
+			);
+		}
 		setIsLoading(false);
 	};
 
 	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
 		const signupProperties = getSignupProperties(`social_${provider}`);
+		const callbackURL = getCallbackUrl();
 		trackSignup(APP_EVENTS.signupStarted, signupProperties);
 
 		try {
 			const result = await authClient.signIn.social({
 				provider,
-				callbackURL: getCallbackUrl(),
-				newUserCallbackURL: "/onboarding",
+				callbackURL,
+				newUserCallbackURL:
+					callbackURL === "/websites" ? "/onboarding" : callbackURL,
 				disableRedirect: true,
 			});
 

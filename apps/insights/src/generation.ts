@@ -548,7 +548,7 @@ export async function generateWebsiteInsights(
 			status: "skipped",
 			resultCount: 0,
 			insightIds: [],
-			message: "Insufficient agent credits",
+			message: "The Databunny usage allowance is empty",
 		};
 	}
 

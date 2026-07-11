@@ -235,7 +235,7 @@ export const linksRouter = {
 			tags: ["Links"],
 			summary: "List links",
 			description:
-				"Returns up to the 1000 most recent links for the workspace. Optional organizationId defaults to the active organization from the session. Use the paginated endpoint for larger workspaces. Requires read:links scope.",
+				"Returns up to the 1000 most recent links for the organization. Optional organizationId defaults to the active organization from the session. Use the paginated endpoint for larger organizations. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinksSchema)
@@ -264,7 +264,7 @@ export const linksRouter = {
 			tags: ["Links"],
 			summary: "List links (paginated)",
 			description:
-				"Returns a page of links for the workspace with server-side search, sort, type filter, and offset pagination. Requires read:links scope.",
+				"Returns a page of links for the organization with server-side search, sort, type filter, and offset pagination. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinksPageSchema)
@@ -325,7 +325,7 @@ export const linksRouter = {
 			tags: ["Links"],
 			summary: "Get link",
 			description:
-				"Returns a single link by id; workspace is resolved from the link. Requires read:links scope.",
+				"Returns a single link by id; the organization is resolved from the link. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(getLinkSchema)

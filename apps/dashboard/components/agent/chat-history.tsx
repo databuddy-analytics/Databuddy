@@ -117,7 +117,7 @@ export function ChatHistory({
 							if (!organizationId) {
 								return (
 									<div className="p-4 text-center text-muted-foreground text-xs">
-										No active workspace
+										No active organization
 									</div>
 								);
 							}

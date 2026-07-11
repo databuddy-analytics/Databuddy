@@ -100,7 +100,7 @@ export const ErrorSummaryStats = ({
 			/>
 			<ErrorStatCard
 				icon={TrendUpIcon}
-				title="Error Rate"
+				title="Sessions with errors"
 				value={`${(errorSummary.errorRate || 0).toFixed(2)}%`}
 				variant="warning"
 			/>

@@ -61,7 +61,7 @@ export function AgentCreditBalance({
 			return null;
 		}
 		return (
-			<Tooltip content="Unlimited agent credits on your plan">
+			<Tooltip content="Unlimited Databunny usage on your plan">
 				<Button
 					className="gap-1 border border-border/60 bg-card px-2 text-muted-foreground text-xs hover:border-border hover:bg-card hover:text-foreground"
 					onClick={() => router.push("/billing")}
@@ -86,8 +86,8 @@ export function AgentCreditBalance({
 		<Tooltip
 			content={
 				isEmpty
-					? "Out of agent credits - click to upgrade"
-					: `${balance.toLocaleString()} of ${limit.toLocaleString()} agent credits remaining this month`
+					? "Your AI analysis allowance is empty. Open billing to top up or change plans."
+					: `${balance.toLocaleString()} of ${limit.toLocaleString()} Databunny usage units remain this month. Complex analysis uses more.`
 			}
 		>
 			<motion.div
@@ -98,6 +98,11 @@ export function AgentCreditBalance({
 				transition={{ duration: 0.18, ease: "easeOut" }}
 			>
 				<Button
+					aria-label={
+						isEmpty
+							? "Databunny usage is empty; open billing"
+							: `${balance.toLocaleString()} of ${limit.toLocaleString()} Databunny usage units remaining`
+					}
 					className={cn(
 						"gap-1.5 border px-2 text-xs",
 						variant === "compact" && "px-1.5 text-[11px]",
@@ -113,6 +118,7 @@ export function AgentCreditBalance({
 					variant="secondary"
 				>
 					{variant === "compact" ? null : <CoinsIcon className="size-3" />}
+					{variant === "compact" ? null : <span>Databunny</span>}
 					<span className="font-medium tabular-nums">{label}</span>
 				</Button>
 			</motion.div>
