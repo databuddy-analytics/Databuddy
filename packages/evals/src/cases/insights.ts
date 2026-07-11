@@ -13,7 +13,7 @@ export const insightsCases: EvalCase[] = [
 		category: "insights",
 		name: "Keeps metric direction, sentiment, and wording consistent",
 		query:
-			"Generate 3 actionable Databuddy insight cards for this week. Be careful: if errors, bounce, drop-off, or latency go down, that is good even though the numeric change is negative. Do not say a metric rose if it fell. Include the metric evidence and one concrete next action per card.",
+			"Generate 3 actionable Databuddy finding cards for this week. Be careful: if errors, bounce, drop-off, or latency go down, that is good even though the numeric change is negative. Do not say a metric rose if it fell. Include the metric evidence and one concrete next action per card.",
 		websiteId: WS,
 		tags: ["insights", "direction", "sentiment"],
 		expect: {
@@ -51,7 +51,7 @@ export const insightsCases: EvalCase[] = [
 		category: "insights",
 		name: "Uses cautious causal language unless segment data proves the cause",
 		query:
-			"Create actionable insights from the weekly analytics. If a referrer mix changed at the same time as engagement changed, do not claim the new referrer caused engagement to drop unless you have segment-level engagement data. Phrase hypotheses clearly and say what to verify next.",
+			"Create actionable findings from the weekly analytics. If a referrer mix changed at the same time as engagement changed, do not claim the new referrer caused engagement to drop unless you have segment-level engagement data. Phrase hypotheses clearly and say what to verify next.",
 		websiteId: WS,
 		tags: ["insights", "grounding", "causality"],
 		expect: {
@@ -83,7 +83,7 @@ export const insightsCases: EvalCase[] = [
 		category: "insights",
 		name: "Avoids unsupported revenue and causal claims from traffic data",
 		query:
-			"Generate concise Databuddy insight cards for this week. If pricing or campaign traffic changed, do not call it revenue impact, ROI, CAC, LTV, payback, or causality unless revenue/spend/identity data is actually present. Use proxy language and say what to verify next.",
+			"Generate concise Databuddy finding cards for this week. If pricing or campaign traffic changed, do not call it revenue impact, ROI, CAC, LTV, payback, or causality unless revenue/spend/identity data is actually present. Use proxy language and say what to verify next.",
 		websiteId: WS,
 		tags: ["insights", "grounding", "revenue", "causality"],
 		expect: {
@@ -120,9 +120,9 @@ export const insightsCases: EvalCase[] = [
 	{
 		id: "insights-plain-language-not-technical-jargon",
 		category: "insights",
-		name: "Translates technical metrics into useful plain-language insight cards",
+		name: "Translates technical metrics into useful plain-language finding cards",
 		query:
-			"Generate the weekly Databuddy insight cards for a founder. If web vitals changed, explain the user-visible problem in plain English. Do not put acronyms like INP, LCP, TTFB, CLS, or p75 in the headline; those can stay in the metric evidence only.",
+			"Generate the weekly Databuddy finding cards for a founder. If web vitals changed, explain the user-visible problem in plain English. Do not put acronyms like INP, LCP, TTFB, CLS, or p75 in the headline; those can stay in the metric evidence only.",
 		websiteId: WS,
 		tags: ["insights", "plain-language", "brevity"],
 		expect: {
@@ -159,7 +159,7 @@ export const insightsCases: EvalCase[] = [
 		category: "insights",
 		name: "Produces three concise distinct cards when enough signals exist",
 		query:
-			"Generate the 3 most useful Databuddy insight cards for this week. Each card should be short, distinct, backed by metrics, and include one concrete next action. Prefer reliability/product risk over vanity traffic wins. Do not repeat the same narrative.",
+			"Generate the 3 most useful Databuddy finding cards for this week. Each card should be short, distinct, backed by metrics, and include one concrete next action. Prefer reliability/product risk over vanity traffic wins. Do not repeat the same narrative.",
 		websiteId: WS,
 		tags: ["insights", "brevity", "distinct", "actionability"],
 		expect: {
@@ -207,7 +207,7 @@ export const insightsCases: EvalCase[] = [
 		category: "insights",
 		name: "Tells the story in plain voice instead of dumping deltas",
 		query:
-			"Generate this week's Databuddy insight cards. Write each description like a short DM to a teammate: what happened and what it means, then one concrete action. Keep at most two numbers in the prose and put the rest in the metric evidence. No arrow deltas, no parenthetical week-over-week spam, no dramatic metaphors.",
+			"Generate this week's Databuddy finding cards. Write each description like a short DM to a teammate: what happened and what it means, then one concrete action. Keep at most two numbers in the prose and put the rest in the metric evidence. No arrow deltas, no parenthetical week-over-week spam, no dramatic metaphors.",
 		websiteId: WS,
 		tags: ["insights", "voice", "brevity"],
 		expect: {
@@ -254,7 +254,7 @@ export const insightsCases: EvalCase[] = [
 		category: "insights",
 		name: "Writes impact lines that add information or omits them",
 		query:
-			"Generate this week's Databuddy insight cards. For each card, only include a why-it-matters line when it says something the description does not already say, and make it specific to this site's data. If an error affects one or two users, say exactly that instead of implying broad impact. Name the suspected cause in the next action when the data shows one.",
+			"Generate this week's Databuddy finding cards. For each card, only include a why-it-matters line when it says something the description does not already say, and make it specific to this site's data. If an error affects one or two users, say exactly that instead of implying broad impact. Name the suspected cause in the next action when the data shows one.",
 		websiteId: WS,
 		tags: ["insights", "impact", "grounding"],
 		expect: {
@@ -293,7 +293,7 @@ export const insightsCases: EvalCase[] = [
 		category: "insights",
 		name: "Turns each insight into a product action, not a memo",
 		query:
-			"Produce Databuddy actionable insights for the current week. Keep each one short: what changed, why it matters, and the exact next product action. Prefer actions like inspect affected sessions, open the funnel step, compare referrers, review errors for a page, or ask the agent to diagnose. Avoid generic monitoring advice.",
+			"Produce actionable Databuddy findings for the current week. Keep each one short: what changed, why it matters, and the exact next product action. Prefer actions like inspect affected sessions, open the funnel step, compare referrers, review errors for a page, or ask the agent to diagnose. Avoid generic monitoring advice.",
 		websiteId: WS,
 		tags: ["insights", "actionability", "brevity"],
 		expect: {

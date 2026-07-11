@@ -941,6 +941,7 @@ function insightDigestCases(): EvalCase[] {
 					{
 						tool: "manage_insight_digest",
 						includes: { action: "route" },
+						excludes: ["websiteId", "cron"],
 					},
 				],
 			},
@@ -954,9 +955,7 @@ function insightDigestCases(): EvalCase[] {
 				currentUserId: KAYLEE,
 				messages: [
 					human(ISSA, "we set up the weekly rundown last month"),
-					bot(
-						"Insight digests are delivered to this Slack channel on a weekly cadence."
-					),
+					bot("Findings go to this Slack channel after each weekly analysis."),
 					human(KAYLEE, "it's a bit much tbh"),
 				],
 			}),
@@ -1006,7 +1005,7 @@ function insightDigestCases(): EvalCase[] {
 		{
 			id: "digest-proactive-offer-after-report",
 			category: "behavioral",
-			name: "Appends a digest offer when delivering a fresh metrics report",
+			name: "Offers weekly findings after delivering a fresh metrics report",
 			query: "how's traffic been the last 7 days?",
 			slack: {
 				currentUserId: ISSA,
@@ -1026,7 +1025,7 @@ function insightDigestCases(): EvalCase[] {
 				toolsNotCalled: ["manage_insight_digest"],
 				responseMatches: [
 					{
-						description: "offers to set up a recurring digest in this channel",
+						description: "offers to send weekly findings to this channel",
 						pattern: OFFER_PHRASING,
 						flags: "i",
 					},
@@ -1034,50 +1033,15 @@ function insightDigestCases(): EvalCase[] {
 			},
 		},
 		{
-			id: "digest-reschedule-friday-morning-berlin",
+			id: "digest-reschedule-daily",
 			category: "tool-routing",
-			name: "Reschedules the digest to Friday 8 AM Europe/Berlin on natural-language ask",
-			query:
-				"can you set the digest to fire every Friday morning at 8 AM Berlin time?",
-			slack: thread({
-				currentUserId: ISSA,
-				messages: [
-					human(ISSA, "@databuddy what's the digest"),
-					bot(
-						"Weekly digest is routed to <#C_DIGEST>, next run at 2026-06-12T06:00:00.000Z."
-					),
-				],
-			}),
-			surfaces: ["slack"],
-			tags: ["slack", "digest", "reschedule", "tool-routing"],
-			websiteId: WS,
-			expect: {
-				maxSteps: 4,
-				maxLatencyMs: 60_000,
-				toolsCalled: ["manage_insight_digest"],
-				toolInputs: [
-					{
-						tool: "manage_insight_digest",
-						includes: {
-							action: "reschedule",
-							timezone: "Europe/Berlin",
-							confirmed: false,
-						},
-					},
-				],
-				confirmationFlow: true,
-			},
-		},
-		{
-			id: "digest-reschedule-cadence-daily",
-			category: "tool-routing",
-			name: "Reschedules cadence only when user says 'make it daily'",
+			name: "Changes the organization schedule when the user says 'make it daily'",
 			query: "actually make the digest daily instead of weekly",
 			slack: thread({
 				currentUserId: ISSA,
 				messages: [
-					human(ISSA, "the weekly cadence isn't enough"),
-					bot("Insight digests are delivered weekly to <#C_DIGEST>."),
+					human(ISSA, "the weekly schedule isn't enough"),
+					bot("Findings go to <#C_DIGEST> after each weekly analysis."),
 				],
 			}),
 			surfaces: ["slack"],
@@ -1101,46 +1065,15 @@ function insightDigestCases(): EvalCase[] {
 			},
 		},
 		{
-			id: "digest-does-not-deny-schedule-config",
-			category: "behavioral",
-			name: "Never claims the digest time is fixed when asked to change it",
-			query: "can you change when the digest runs?",
-			slack: thread({
-				currentUserId: ISSA,
-				messages: [
-					human(ISSA, "the digest hits at a weird hour"),
-					bot(
-						"Insight digests are delivered to <#C_DIGEST> on a weekly cadence."
-					),
-				],
-			}),
-			surfaces: ["slack"],
-			tags: ["slack", "digest", "reschedule", "guardrail"],
-			websiteId: WS,
-			expect: {
-				maxSteps: 4,
-				maxLatencyMs: 45_000,
-				responseNotMatches: [
-					{
-						description:
-							"agent must not claim the schedule is fixed, hard-coded, or out of its control",
-						pattern:
-							"\\b(fixed on (databuddy|my|our) (end|side)|not configurable|can'?t (change|configure|adjust) (the )?(time|schedule|when)|isn'?t (something I can|configurable)|out of (my|our) control|don'?t have (a way|the ability) to (change|set))\\b",
-						flags: "i",
-					},
-				],
-			},
-		},
-		{
 			id: "digest-test-run-on-explicit-ask",
 			category: "tool-routing",
-			name: "Triggers a test digest run when the user asks to run one now",
+			name: "Triggers a one-off analysis when the user asks to run one now",
 			query: "run a test digest right now so I can see what it looks like",
 			slack: thread({
 				currentUserId: ISSA,
 				messages: [
 					human(ISSA, "we set up the digest last week"),
-					bot("Insight digests are routed to <#C_DIGEST> on a weekly cadence."),
+					bot("Findings go to <#C_DIGEST> after each weekly analysis."),
 				],
 			}),
 			surfaces: ["slack"],
@@ -1184,9 +1117,9 @@ function insightDigestCases(): EvalCase[] {
 			},
 		},
 		{
-			id: "digest-status-quotes-cron-and-timezone",
+			id: "digest-status-quotes-schedule-and-timezone",
 			category: "behavioral",
-			name: "Quotes cron and timezone verbatim from status, never invents them",
+			name: "Quotes schedule and timezone verbatim from status",
 			query: "what's the digest schedule right now",
 			slack: thread({
 				currentUserId: ISSA,
@@ -1208,9 +1141,9 @@ function insightDigestCases(): EvalCase[] {
 				responseNotMatches: [
 					{
 						description:
-							"must not invent a cron expression or timezone — only restate canonical values",
+							"must not invent a schedule or timezone — only restate canonical values",
 						pattern:
-							"\\b(probably|might be|i think|usually|by default).*(utc|cron|timezone)\\b",
+							"\\b(probably|might be|i think|usually|by default).*(off|daily|weekly|timezone)\\b",
 						flags: "i",
 					},
 				],
@@ -1252,9 +1185,7 @@ function insightDigestCases(): EvalCase[] {
 				currentUserId: KAYLEE,
 				messages: [
 					human(ISSA, "we set up the weekly rundown last month"),
-					bot(
-						"Insight digests are delivered to this Slack channel on a weekly cadence."
-					),
+					bot("Findings go to this Slack channel after each weekly analysis."),
 					human(KAYLEE, "it's a bit much tbh"),
 				],
 			}),
@@ -1279,48 +1210,6 @@ function insightDigestCases(): EvalCase[] {
 
 function realWorldDerivedCases(): EvalCase[] {
 	return [
-		{
-			id: "real-digest-set-time-must-not-deny",
-			category: "tool-routing",
-			name: "Real thread: 'set it to 8 AM GMT+2' must engage the schedule tool, not deny",
-			query: "can you set it to 8 AM GMT+2",
-			slack: thread({
-				currentUserId: ISSA,
-				messages: [
-					human(ISSA, "<@U_DATABUDDY> what's the digest?"),
-					bot(
-						"Weekly digest is routed to <#C0EVALTHRD>, next run at 2026-06-12T06:00:00.000Z."
-					),
-					human(ISSA, "when is that"),
-					bot("2026-06-12 at 06:00 UTC -- that's next Friday morning."),
-				],
-			}),
-			surfaces: ["slack"],
-			tags: ["slack", "digest", "reschedule", "real-world"],
-			websiteId: WS,
-			expect: {
-				maxSteps: 4,
-				maxLatencyMs: 60_000,
-				responseNotMatches: [
-					{
-						description:
-							"agent must not claim the schedule is fixed or out of its control (the original regression)",
-						pattern:
-							"\\b(fixed on (databuddy|my|our) (end|side)|not configurable|can'?t (change|configure|adjust) (the )?(time|schedule|when)|isn'?t (something I can|configurable))\\b",
-						flags: "i",
-					},
-				],
-				responseMatches: [
-					{
-						description:
-							"agent should either offer to reschedule / ask which IANA timezone / confirm a change, OR correctly recognize that 8 AM GMT+2 is already 06:00 UTC and no change is needed",
-						pattern:
-							"\\b(reschedule|timezone|europe/|africa/|america/|asia/|confirm|i'?ll (set|update|change)|want me to|already|no change|same as|matches|equivalent)\\b",
-						flags: "i",
-					},
-				],
-			},
-		},
 		{
 			id: "real-ignore-social-distraction",
 			category: "tool-routing",
@@ -1375,72 +1264,7 @@ function realWorldDerivedCases(): EvalCase[] {
 }
 
 function adversarialDigestCases(): EvalCase[] {
-	const DENIAL_PATTERN =
-		"\\b(fixed on (databuddy|my|our) (end|side)|not configurable|can'?t (change|configure|adjust) (the )?(time|schedule|when)|isn'?t (something I can|configurable))\\b";
-	const CONFIRMATION_HEDGE =
-		"\\b(reply|confirm|want me to|should i|sound good|ok with you|go ahead|just to confirm)\\b";
-
 	return [
-		{
-			id: "adv-natural-language-cron",
-			category: "tool-routing",
-			name: "Adversarial: 'Friday morning' must engage reschedule, propose a concrete time, and ask to confirm",
-			query: "make the digest fire every Friday morning",
-			slack: thread({
-				currentUserId: ISSA,
-				messages: [human(ISSA, "the cadence is fine but the time is weird")],
-			}),
-			surfaces: ["slack"],
-			tags: ["slack", "digest", "adversarial", "reschedule"],
-			websiteId: WS,
-			expect: {
-				maxSteps: 4,
-				maxLatencyMs: 60_000,
-				toolsCalled: ["manage_insight_digest"],
-				responseMatches: [
-					{
-						description:
-							"agent must either propose a concrete hour/timezone for confirmation or ask the user to specify",
-						pattern: CONFIRMATION_HEDGE,
-						flags: "i",
-					},
-				],
-			},
-		},
-		{
-			id: "adv-timezone-alias-EST",
-			category: "tool-routing",
-			name: "Adversarial: 'EST' must be resolved to America/New_York (or asked about), never rejected",
-			query: "set the digest to 9 AM EST on weekdays",
-			slack: thread({
-				currentUserId: ISSA,
-				messages: [],
-			}),
-			surfaces: ["slack"],
-			tags: ["slack", "digest", "adversarial", "reschedule", "timezone"],
-			websiteId: WS,
-			expect: {
-				maxSteps: 4,
-				maxLatencyMs: 60_000,
-				toolsCalled: ["manage_insight_digest"],
-				responseNotMatches: [
-					{
-						description: "must not deny the schedule change",
-						pattern: DENIAL_PATTERN,
-						flags: "i",
-					},
-				],
-				responseMatches: [
-					{
-						description:
-							"must surface an IANA timezone (America/New_York or America/Toronto) or ask for one",
-						pattern:
-							"\\b(america/|eastern time|new[ _]york|which timezone|specify (a |the )?(timezone|iana))\\b",
-						flags: "i",
-					},
-				],
-			},
-		},
 		{
 			id: "adv-contradictory-then-go",
 			category: "tool-routing",
@@ -1451,7 +1275,7 @@ function adversarialDigestCases(): EvalCase[] {
 				messages: [
 					human(ISSA, "route the digest here"),
 					bot(
-						"Route insight digests for this organization to <#C0EVALTHRD> on a weekly cadence. Reply to confirm."
+						"Send findings to <#C0EVALTHRD> after each weekly analysis? Reply to confirm."
 					),
 					human(ISSA, "wait no, nevermind"),
 					bot(
@@ -1483,9 +1307,7 @@ function adversarialDigestCases(): EvalCase[] {
 				currentUserId: ISSA,
 				messages: [
 					human(ISSA, "i want to see what the digest looks like"),
-					bot(
-						"No Slack digest delivery is configured for this organization. Investigations still run on a weekly cadence."
-					),
+					bot("Automatic analysis: Weekly. Slack delivery: None."),
 				],
 			}),
 			surfaces: ["slack"],
@@ -1514,7 +1336,7 @@ function adversarialDigestCases(): EvalCase[] {
 				messages: [
 					human(ISSA, "route the digest here"),
 					bot(
-						"Route insight digests for this organization to <#C0EVALTHRD> on a weekly cadence. Reply to confirm."
+						"Send findings to <#C0EVALTHRD> after each weekly analysis? Reply to confirm."
 					),
 				],
 			}),
@@ -1529,7 +1351,7 @@ function adversarialDigestCases(): EvalCase[] {
 						description:
 							"agent must not claim it routed/applied/rescheduled in response to sarcasm",
 						pattern:
-							"\\b(routed insight digests|rescheduled|applied|done\\. the digest|will now post|configured the digest)\\b",
+							"\\b(routed insight digests|findings will go|automatic analysis (set|updated)|rescheduled|applied|done\\. the digest|will now post|configured the digest)\\b",
 						flags: "i",
 					},
 				],
@@ -1561,10 +1383,10 @@ function adversarialDigestCases(): EvalCase[] {
 			},
 		},
 		{
-			id: "adv-custom-frequency-without-cron",
-			category: "behavioral",
-			name: "Adversarial: 'set to custom frequency' without a cron should ask for one, never silently break the schedule",
-			query: "switch the digest to a custom cadence",
+			id: "adv-turn-organization-schedule-off",
+			category: "tool-routing",
+			name: "Adversarial: turning automatic analysis off uses the organization schedule",
+			query: "turn off automated digest investigations for the organization",
 			slack: thread({
 				currentUserId: ISSA,
 				messages: [],
@@ -1573,60 +1395,21 @@ function adversarialDigestCases(): EvalCase[] {
 			tags: ["slack", "digest", "adversarial", "reschedule"],
 			websiteId: WS,
 			expect: {
-				maxSteps: 6,
+				maxSteps: 4,
 				maxLatencyMs: 60_000,
-				responseMatches: [
-					{
-						description:
-							"agent should ask for a cron expression or specific schedule before changing cadence to custom",
-						pattern:
-							"\\b(cron|schedule|specific (time|day)|what (time|day|hours)|when (exactly|should))\\b",
-						flags: "i",
-					},
-				],
-				responseNotMatches: [
-					{
-						description:
-							"must not claim the schedule was changed without a concrete cron",
-						pattern:
-							"\\b(switched|rescheduled|applied|now (set|firing|on a custom))\\b",
-						flags: "i",
-					},
-				],
-			},
-		},
-		{
-			id: "adv-reschedule-then-test-same-turn",
-			category: "tool-routing",
-			name: "Adversarial: combined 'reschedule + test now' in one message — agent must sequence and confirm each",
-			query:
-				"set the digest to fire Mondays 7 AM Europe/Berlin, and run a test once it's updated",
-			slack: thread({
-				currentUserId: ISSA,
-				messages: [],
-			}),
-			surfaces: ["slack"],
-			tags: ["slack", "digest", "adversarial", "reschedule", "test-run"],
-			websiteId: WS,
-			expect: {
-				maxSteps: 6,
-				maxLatencyMs: 90_000,
 				toolsCalled: ["manage_insight_digest"],
 				toolInputs: [
 					{
 						tool: "manage_insight_digest",
-						includes: { confirmed: false },
+						includes: {
+							action: "reschedule",
+							confirmed: false,
+							frequency: "off",
+						},
+						excludes: ["websiteId", "cron"],
 					},
 				],
-				responseMatches: [
-					{
-						description:
-							"agent should describe sequencing reschedule before test",
-						pattern:
-							"\\b(first|step (1|one)|then|after that|once (it'?s |that'?s )?(confirmed|updated|applied)|and (i'?ll|then) (apply|run|trigger|kick off)|after .* confirm)\\b",
-						flags: "i",
-					},
-				],
+				confirmationFlow: true,
 			},
 		},
 	];

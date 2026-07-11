@@ -8,7 +8,6 @@ export type ModelTag =
 	| "xai"
 	| "zai"
 	| "alibaba"
-	| "nvidia"
 	| "inception"
 	| "deepseek"
 	| "minimax"
@@ -41,6 +40,21 @@ const MODELS: Record<string, ModelEntry> = {
 		tags: ["premium", "anthropic"],
 	},
 
+	"openai/gpt-5.6-sol": {
+		inputPerMToken: 5.0,
+		outputPerMToken: 30.0,
+		tags: ["premium", "openai"],
+	},
+	"openai/gpt-5.6-terra": {
+		inputPerMToken: 2.5,
+		outputPerMToken: 15.0,
+		tags: ["mid", "openai"],
+	},
+	"openai/gpt-5.6-luna": {
+		inputPerMToken: 1.0,
+		outputPerMToken: 6.0,
+		tags: ["budget", "openai"],
+	},
 	"openai/gpt-5.5": {
 		inputPerMToken: 5.0,
 		outputPerMToken: 30.0,
