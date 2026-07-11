@@ -1,18 +1,6 @@
-import {
-	and,
-	db,
-	desc,
-	eq,
-	gte,
-	inArray,
-	isNull,
-	ne,
-	sql,
-} from "@databuddy/db";
+import { and, db, desc, eq, inArray, isNull, ne, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
-	type AnalyticsInsightMetric,
-	type AnalyticsInsightSource,
 	insightRollups,
 	insightUserFeedback,
 	websites,
@@ -21,105 +9,119 @@ import {
 	cacheNamespaces,
 	cacheTags,
 	cacheable,
-	getRedisCache,
 	invalidateAgentContextSnapshotsForOwner,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import {
+	insightEvidenceSchema,
+	insightMetricSchema,
+	insightSentimentSchema,
+	insightSeveritySchema,
+	insightSourceSchema,
+	storedInsightActionSchema,
+	storedInsightTypeSchema,
+} from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
-import dayjs from "dayjs";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
-import { queueInsightGenerationRun } from "./insight-generation";
 
 const voteSchema = z.enum(["up", "down"]);
 const rangeSchema = z.enum(["7d", "30d", "90d"]);
 const insightStatusSchema = z.enum(["open", "resolved"]);
 const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
 
-const CACHE_TTL = 900;
-const NEGATIVE_CACHE_TTL = Math.floor(CACHE_TTL / 3);
-const CACHE_KEY_PREFIX = "ai-insights";
-const GENERATION_COOLDOWN_HOURS = 6;
-const STALE_INSIGHTS_LOOKBACK_DAYS = 14;
-const TOP_INSIGHTS_LIMIT = 10;
 const NARRATIVE_RATE_LIMIT = 30;
 const NARRATIVE_RATE_WINDOW_SECS = 3600;
 const NARRATIVE_CACHE_TTL_SECS = 3600;
-const NARRATIVE_INSIGHTS_LIMIT = 5;
 const INSIGHT_READ_RATE_LIMIT = 120;
 const INSIGHT_READ_RATE_WINDOW_SECS = 60;
 
-const insightMetricSchema = z.object({
-	current: z.number(),
-	format: z.enum(["number", "percent", "duration_ms", "duration_s"]),
-	label: z.string(),
-	previous: z.number().optional(),
-});
-
-const insightEvidenceSchema = z.object({
-	description: z.string(),
-	type: z.string(),
-});
-
-const insightActionSchema = z.object({
-	label: z.string(),
-	params: z.record(z.string(), z.string()),
-	type: z.string(),
-});
-
 const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
+const historyInsightEvidenceSchema = insightEvidenceSchema.extend({
+	type: z.string(),
+});
 
-const websiteInsightSchema = z.object({
-	actions: z.array(insightActionSchema).nullable().optional(),
-	chainId: z.string().nullable().optional(),
+const historyInsightSchema = z.object({
+	actions: z.array(storedInsightActionSchema).nullable().optional(),
 	changePercent: z.number().optional(),
 	confidence: z.number(),
+	createdAt: z.string(),
+	currentPeriodFrom: z.string().nullable(),
+	currentPeriodTo: z.string().nullable(),
 	description: z.string(),
-	evidence: z.array(insightEvidenceSchema).nullable().optional(),
+	evidence: z.array(historyInsightEvidenceSchema).nullable().optional(),
 	id: z.string(),
 	impactSummary: z.string().optional(),
 	investigationDepth: investigationDepthSchema.nullable().optional(),
 	link: z.string(),
 	metrics: z.array(insightMetricSchema),
+	previousPeriodFrom: z.string().nullable(),
+	previousPeriodTo: z.string().nullable(),
 	priority: z.number(),
+	resolvedAt: z.string().nullable(),
+	resolvedReason: insightResolvedReasonSchema.nullable(),
 	rootCause: z.string().nullable().optional(),
-	sentiment: z.string(),
-	severity: z.string(),
-	sources: z.array(z.enum(["web", "product", "ops", "business"])),
+	runId: z.string(),
+	sentiment: insightSentimentSchema,
+	severity: insightSeveritySchema,
+	sources: z.array(insightSourceSchema),
+	status: insightStatusSchema,
 	subjectKey: z.string(),
 	suggestion: z.string(),
+	timezone: z.string().nullable(),
 	title: z.string(),
-	type: z.string(),
+	type: storedInsightTypeSchema,
 	websiteDomain: z.string(),
 	websiteId: z.string(),
 	websiteName: z.string().nullable(),
 });
 
-const historyInsightSchema = websiteInsightSchema.extend({
-	createdAt: z.string(),
-	currentPeriodFrom: z.string().nullable(),
-	currentPeriodTo: z.string().nullable(),
-	previousPeriodFrom: z.string().nullable(),
-	previousPeriodTo: z.string().nullable(),
-	resolvedAt: z.string().nullable(),
-	resolvedReason: insightResolvedReasonSchema.nullable(),
-	runId: z.string(),
-	status: insightStatusSchema,
-	timezone: z.string().nullable(),
-});
+const insightSelection = {
+	actions: analyticsInsights.actions,
+	changePercent: analyticsInsights.changePercent,
+	confidence: analyticsInsights.confidence,
+	createdAt: analyticsInsights.createdAt,
+	currentPeriodFrom: analyticsInsights.currentPeriodFrom,
+	currentPeriodTo: analyticsInsights.currentPeriodTo,
+	description: analyticsInsights.description,
+	evidence: analyticsInsights.evidence,
+	id: analyticsInsights.id,
+	impactSummary: analyticsInsights.impactSummary,
+	investigationDepth: analyticsInsights.investigationDepth,
+	metrics: analyticsInsights.metrics,
+	organizationId: analyticsInsights.organizationId,
+	previousPeriodFrom: analyticsInsights.previousPeriodFrom,
+	previousPeriodTo: analyticsInsights.previousPeriodTo,
+	priority: analyticsInsights.priority,
+	resolvedAt: analyticsInsights.resolvedAt,
+	resolvedReason: analyticsInsights.resolvedReason,
+	rootCause: analyticsInsights.rootCause,
+	runId: analyticsInsights.runId,
+	sentiment: analyticsInsights.sentiment,
+	severity: analyticsInsights.severity,
+	sources: analyticsInsights.sources,
+	status: analyticsInsights.status,
+	subjectKey: analyticsInsights.subjectKey,
+	suggestion: analyticsInsights.suggestion,
+	timezone: analyticsInsights.timezone,
+	title: analyticsInsights.title,
+	type: analyticsInsights.type,
+	websiteDomain: websites.domain,
+	websiteId: analyticsInsights.websiteId,
+	websiteName: websites.name,
+};
 
-interface RawInsightShape {
-	changePercent: number | null;
-	impactSummary: string | null;
-	metrics: unknown;
-	sentiment: string;
-	severity: string;
-	sources: unknown;
-	type: string;
+function selectInsights() {
+	return db
+		.select(insightSelection)
+		.from(analyticsInsights)
+		.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id));
 }
+
+type InsightRow = Awaited<ReturnType<typeof selectInsights>>[number];
 
 function buildInsightLink(websiteId: string, type: string): string {
 	const base = `/websites/${websiteId}`;
@@ -152,36 +154,43 @@ function buildInsightLink(websiteId: string, type: string): string {
 	return base;
 }
 
-function parseInsightShape(row: RawInsightShape) {
+function serializeInsight(
+	row: InsightRow
+): z.infer<typeof historyInsightSchema> {
 	return {
-		severity: row.severity,
-		sentiment: row.sentiment,
-		type: row.type,
-		sources: (row.sources as AnalyticsInsightSource[] | null) ?? [],
-		metrics: (row.metrics as AnalyticsInsightMetric[] | null) ?? [],
+		actions: row.actions ?? null,
 		changePercent: row.changePercent ?? undefined,
+		confidence: row.confidence,
+		createdAt: row.createdAt.toISOString(),
+		currentPeriodFrom: row.currentPeriodFrom,
+		currentPeriodTo: row.currentPeriodTo,
+		description: row.description,
+		evidence: row.evidence ?? null,
+		id: row.id,
 		impactSummary: row.impactSummary ?? undefined,
+		investigationDepth: row.investigationDepth ?? null,
+		link: buildInsightLink(row.websiteId, row.type),
+		metrics: row.metrics ?? [],
+		previousPeriodFrom: row.previousPeriodFrom,
+		previousPeriodTo: row.previousPeriodTo,
+		priority: row.priority,
+		resolvedAt: row.resolvedAt?.toISOString() ?? null,
+		resolvedReason: row.resolvedReason ?? null,
+		rootCause: row.rootCause,
+		runId: row.runId,
+		sentiment: row.sentiment,
+		severity: row.severity,
+		sources: row.sources ?? [],
+		status: row.status,
+		subjectKey: row.subjectKey,
+		suggestion: row.suggestion,
+		timezone: row.timezone,
+		title: row.title,
+		type: row.type,
+		websiteDomain: row.websiteDomain,
+		websiteId: row.websiteId,
+		websiteName: row.websiteName,
 	};
-}
-
-function getRedis() {
-	try {
-		return getRedisCache();
-	} catch {
-		return null;
-	}
-}
-
-function tryCacheSet(
-	redis: ReturnType<typeof getRedis>,
-	key: string,
-	ttl: number,
-	payload: unknown
-): void {
-	if (!redis) {
-		return;
-	}
-	redis.setex(key, ttl, JSON.stringify(payload)).catch(() => {});
 }
 
 async function invalidateInsightsCacheForOrg(
@@ -192,118 +201,6 @@ async function invalidateInsightsCacheForOrg(
 		invalidateAgentContextSnapshotsForOwner(organizationId),
 	]);
 }
-
-async function getInsightsFromDb(options: {
-	limit?: number;
-	organizationId: string;
-	since?: Date;
-}): Promise<z.infer<typeof websiteInsightSchema>[]> {
-	const whereClause = options.since
-		? and(
-				eq(analyticsInsights.organizationId, options.organizationId),
-				eq(analyticsInsights.status, "open"),
-				gte(analyticsInsights.createdAt, options.since),
-				isNull(websites.deletedAt)
-			)
-		: and(
-				eq(analyticsInsights.organizationId, options.organizationId),
-				eq(analyticsInsights.status, "open"),
-				isNull(websites.deletedAt)
-			);
-
-	const rows = await db
-		.select({
-			id: analyticsInsights.id,
-			websiteId: analyticsInsights.websiteId,
-			websiteName: websites.name,
-			websiteDomain: websites.domain,
-			title: analyticsInsights.title,
-			description: analyticsInsights.description,
-			suggestion: analyticsInsights.suggestion,
-			severity: analyticsInsights.severity,
-			sentiment: analyticsInsights.sentiment,
-			type: analyticsInsights.type,
-			priority: analyticsInsights.priority,
-			changePercent: analyticsInsights.changePercent,
-			subjectKey: analyticsInsights.subjectKey,
-			sources: analyticsInsights.sources,
-			confidence: analyticsInsights.confidence,
-			impactSummary: analyticsInsights.impactSummary,
-			rootCause: analyticsInsights.rootCause,
-			evidence: analyticsInsights.evidence,
-			investigationDepth: analyticsInsights.investigationDepth,
-			actions: analyticsInsights.actions,
-			chainId: analyticsInsights.chainId,
-			metrics: analyticsInsights.metrics,
-			createdAt: analyticsInsights.createdAt,
-		})
-		.from(analyticsInsights)
-		.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
-		.where(whereClause)
-		.orderBy(
-			desc(analyticsInsights.priority),
-			desc(analyticsInsights.createdAt)
-		)
-		.limit(options.limit ?? TOP_INSIGHTS_LIMIT);
-
-	return rows.map((row) => ({
-		id: row.id,
-		websiteId: row.websiteId,
-		websiteName: row.websiteName,
-		websiteDomain: row.websiteDomain,
-		link: buildInsightLink(row.websiteId, row.type),
-		title: row.title,
-		description: row.description,
-		suggestion: row.suggestion,
-		priority: row.priority,
-		subjectKey: row.subjectKey,
-		confidence: row.confidence,
-		rootCause: row.rootCause,
-		evidence: row.evidence ?? null,
-		investigationDepth: row.investigationDepth ?? null,
-		actions: row.actions ?? null,
-		chainId: row.chainId ?? null,
-		...parseInsightShape(row),
-	}));
-}
-
-const RANGE_WORDS: Record<z.infer<typeof rangeSchema>, string> = {
-	"7d": "week",
-	"30d": "month",
-	"90d": "quarter",
-};
-
-function rangeWord(range: z.infer<typeof rangeSchema>): string {
-	return RANGE_WORDS[range];
-}
-
-function buildDeterministicNarrative(
-	range: z.infer<typeof rangeSchema>,
-	topInsights: {
-		changePercent: number | null;
-		severity: string;
-		title: string;
-		websiteName: string | null;
-	}[]
-): string {
-	const word = rangeWord(range);
-	const headline = topInsights[0];
-	if (!headline) {
-		return `All systems healthy this ${word}. No actionable signals detected.`;
-	}
-	const siteSuffix = headline.websiteName ? ` on ${headline.websiteName}` : "";
-	const change =
-		headline.changePercent == null
-			? ""
-			: ` (${headline.changePercent > 0 ? "+" : ""}${headline.changePercent.toFixed(0)}%)`;
-	if (topInsights.length === 1) {
-		return `This ${word}: ${headline.title}${change}${siteSuffix}.`;
-	}
-	const extra = topInsights.length - 1;
-	return `This ${word}: ${headline.title}${change}${siteSuffix}, plus ${extra} more signal${extra === 1 ? "" : "s"} worth reviewing.`;
-}
-
-const RANGE_TO_DAYS = { "7d": 7, "30d": 30, "90d": 90 } as const;
 
 const loadNarrativeCached = cacheable(
 	async function loadNarrativeCached(
@@ -324,37 +221,11 @@ const loadNarrativeCached = cacheable(
 			)
 			.limit(1);
 
-		if (rollup) {
-			return {
-				generatedAt: rollup.generatedAt.toISOString(),
-				narrative: rollup.narrative,
-			};
-		}
-
-		const cutoff = dayjs().subtract(RANGE_TO_DAYS[range], "day").toDate();
-		const topInsights = await db
-			.select({
-				title: analyticsInsights.title,
-				severity: analyticsInsights.severity,
-				changePercent: analyticsInsights.changePercent,
-				websiteName: websites.name,
-			})
-			.from(analyticsInsights)
-			.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
-			.where(
-				and(
-					eq(analyticsInsights.organizationId, organizationId),
-					eq(analyticsInsights.status, "open"),
-					gte(analyticsInsights.createdAt, cutoff),
-					isNull(websites.deletedAt)
-				)
-			)
-			.orderBy(desc(analyticsInsights.priority))
-			.limit(NARRATIVE_INSIGHTS_LIMIT);
-
 		return {
-			generatedAt: new Date().toISOString(),
-			narrative: buildDeterministicNarrative(range, topInsights),
+			generatedAt:
+				rollup?.generatedAt.toISOString() ?? new Date().toISOString(),
+			narrative:
+				rollup?.narrative ?? "No summary yet. Run an analysis to create one.",
 		};
 	},
 	{
@@ -365,116 +236,6 @@ const loadNarrativeCached = cacheable(
 );
 
 export const insightsRouter = {
-	feed: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/feed",
-			tags: ["Insights"],
-			summary: "Get current insight feed and queue generation when stale",
-		})
-		.input(
-			z.object({
-				organizationId: z.string().min(1),
-				timezone: z.string().min(1).max(80).default("UTC"),
-			})
-		)
-		.output(
-			z.object({
-				generation: z
-					.object({
-						queuedItems: z.number().optional(),
-						runId: z.string().optional(),
-						status: z.enum(["queued", "skipped", "disabled", "unavailable"]),
-					})
-					.optional(),
-				insights: z.array(websiteInsightSchema),
-				source: z.enum(["ai", "fallback"]),
-				success: z.literal(true),
-			})
-		)
-		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-			});
-
-			const redis = getRedis();
-			const cacheKey = `${CACHE_KEY_PREFIX}:${input.organizationId}:${input.timezone}`;
-
-			if (redis) {
-				try {
-					const cached = await redis.get(cacheKey);
-					if (cached) {
-						return JSON.parse(cached) as {
-							generation?: {
-								queuedItems?: number;
-								runId?: string;
-								status: "queued" | "skipped" | "disabled" | "unavailable";
-							};
-							insights: z.infer<typeof websiteInsightSchema>[];
-							source: "ai" | "fallback";
-							success: true;
-						};
-					}
-				} catch {
-					// Insights cache is advisory; continue to DB/queue.
-				}
-			}
-
-			const recentInsights = await getInsightsFromDb({
-				organizationId: input.organizationId,
-				since: dayjs().subtract(GENERATION_COOLDOWN_HOURS, "hour").toDate(),
-			});
-
-			if (recentInsights.length > 0) {
-				const payload = {
-					insights: recentInsights,
-					source: "ai" as const,
-					success: true as const,
-				};
-				tryCacheSet(redis, cacheKey, CACHE_TTL, payload);
-				return payload;
-			}
-
-			const staleInsights = await getInsightsFromDb({
-				organizationId: input.organizationId,
-				since: dayjs().subtract(STALE_INSIGHTS_LOOKBACK_DAYS, "day").toDate(),
-			});
-
-			let generation: {
-				queuedItems?: number;
-				runId?: string;
-				status: "queued" | "skipped" | "disabled" | "unavailable";
-			};
-
-			try {
-				const queued = await queueInsightGenerationRun({
-					organizationId: input.organizationId,
-					requestedByUserId: context.user.id,
-					reason: "cooldown_refresh",
-					timezone: input.timezone,
-				});
-				generation = {
-					status: queued.status,
-					runId: queued.runId,
-					queuedItems: queued.queuedItems,
-				};
-			} catch {
-				generation = { status: "unavailable" };
-			}
-
-			const payload = {
-				generation,
-				insights: staleInsights,
-				source:
-					staleInsights.length > 0 ? ("ai" as const) : ("fallback" as const),
-				success: true as const,
-			};
-			tryCacheSet(redis, cacheKey, NEGATIVE_CACHE_TTL, payload);
-			return payload;
-		}),
-
 	history: sessionProcedure
 		.route({
 			method: "POST",
@@ -515,43 +276,7 @@ export const insightsRouter = {
 						isNull(websites.deletedAt)
 					);
 
-			const rows = await db
-				.select({
-					id: analyticsInsights.id,
-					runId: analyticsInsights.runId,
-					websiteId: analyticsInsights.websiteId,
-					websiteName: websites.name,
-					websiteDomain: websites.domain,
-					title: analyticsInsights.title,
-					description: analyticsInsights.description,
-					suggestion: analyticsInsights.suggestion,
-					severity: analyticsInsights.severity,
-					sentiment: analyticsInsights.sentiment,
-					type: analyticsInsights.type,
-					priority: analyticsInsights.priority,
-					changePercent: analyticsInsights.changePercent,
-					subjectKey: analyticsInsights.subjectKey,
-					sources: analyticsInsights.sources,
-					confidence: analyticsInsights.confidence,
-					impactSummary: analyticsInsights.impactSummary,
-					rootCause: analyticsInsights.rootCause,
-					evidence: analyticsInsights.evidence,
-					investigationDepth: analyticsInsights.investigationDepth,
-					actions: analyticsInsights.actions,
-					chainId: analyticsInsights.chainId,
-					metrics: analyticsInsights.metrics,
-					createdAt: analyticsInsights.createdAt,
-					status: analyticsInsights.status,
-					resolvedAt: analyticsInsights.resolvedAt,
-					resolvedReason: analyticsInsights.resolvedReason,
-					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
-					currentPeriodTo: analyticsInsights.currentPeriodTo,
-					previousPeriodFrom: analyticsInsights.previousPeriodFrom,
-					previousPeriodTo: analyticsInsights.previousPeriodTo,
-					timezone: analyticsInsights.timezone,
-				})
-				.from(analyticsInsights)
-				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+			const rows = await selectInsights()
 				.where(whereClause)
 				.orderBy(
 					desc(
@@ -561,39 +286,9 @@ export const insightsRouter = {
 				.limit(input.limit)
 				.offset(input.offset);
 
-			const insights = rows.map((row) => ({
-				id: row.id,
-				runId: row.runId,
-				websiteId: row.websiteId,
-				websiteName: row.websiteName,
-				websiteDomain: row.websiteDomain,
-				link: buildInsightLink(row.websiteId, row.type),
-				title: row.title,
-				description: row.description,
-				suggestion: row.suggestion,
-				priority: row.priority,
-				subjectKey: row.subjectKey,
-				confidence: row.confidence,
-				rootCause: row.rootCause,
-				evidence: row.evidence ?? null,
-				investigationDepth: row.investigationDepth ?? null,
-				actions: row.actions ?? null,
-				chainId: row.chainId ?? null,
-				...parseInsightShape(row),
-				createdAt: row.createdAt.toISOString(),
-				status: row.status,
-				resolvedAt: row.resolvedAt?.toISOString() ?? null,
-				resolvedReason: row.resolvedReason ?? null,
-				currentPeriodFrom: row.currentPeriodFrom,
-				currentPeriodTo: row.currentPeriodTo,
-				previousPeriodFrom: row.previousPeriodFrom,
-				previousPeriodTo: row.previousPeriodTo,
-				timezone: row.timezone,
-			}));
-
 			return {
 				success: true as const,
-				insights,
+				insights: rows.map(serializeInsight),
 				hasMore: rows.length === input.limit,
 			};
 		}),
@@ -626,44 +321,7 @@ export const insightsRouter = {
 				);
 			}
 
-			const [row] = await db
-				.select({
-					id: analyticsInsights.id,
-					organizationId: analyticsInsights.organizationId,
-					runId: analyticsInsights.runId,
-					websiteId: analyticsInsights.websiteId,
-					websiteName: websites.name,
-					websiteDomain: websites.domain,
-					title: analyticsInsights.title,
-					description: analyticsInsights.description,
-					suggestion: analyticsInsights.suggestion,
-					severity: analyticsInsights.severity,
-					sentiment: analyticsInsights.sentiment,
-					type: analyticsInsights.type,
-					priority: analyticsInsights.priority,
-					changePercent: analyticsInsights.changePercent,
-					subjectKey: analyticsInsights.subjectKey,
-					sources: analyticsInsights.sources,
-					confidence: analyticsInsights.confidence,
-					impactSummary: analyticsInsights.impactSummary,
-					rootCause: analyticsInsights.rootCause,
-					evidence: analyticsInsights.evidence,
-					investigationDepth: analyticsInsights.investigationDepth,
-					actions: analyticsInsights.actions,
-					chainId: analyticsInsights.chainId,
-					metrics: analyticsInsights.metrics,
-					createdAt: analyticsInsights.createdAt,
-					status: analyticsInsights.status,
-					resolvedAt: analyticsInsights.resolvedAt,
-					resolvedReason: analyticsInsights.resolvedReason,
-					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
-					currentPeriodTo: analyticsInsights.currentPeriodTo,
-					previousPeriodFrom: analyticsInsights.previousPeriodFrom,
-					previousPeriodTo: analyticsInsights.previousPeriodTo,
-					timezone: analyticsInsights.timezone,
-				})
-				.from(analyticsInsights)
-				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+			const [row] = await selectInsights()
 				.where(
 					and(
 						eq(analyticsInsights.id, input.insightId),
@@ -685,35 +343,7 @@ export const insightsRouter = {
 
 			return {
 				success: true as const,
-				insight: {
-					id: row.id,
-					runId: row.runId,
-					websiteId: row.websiteId,
-					websiteName: row.websiteName,
-					websiteDomain: row.websiteDomain,
-					link: buildInsightLink(row.websiteId, row.type),
-					title: row.title,
-					description: row.description,
-					suggestion: row.suggestion,
-					priority: row.priority,
-					subjectKey: row.subjectKey,
-					confidence: row.confidence,
-					rootCause: row.rootCause,
-					evidence: row.evidence ?? null,
-					investigationDepth: row.investigationDepth ?? null,
-					actions: row.actions ?? null,
-					chainId: row.chainId ?? null,
-					...parseInsightShape(row),
-					createdAt: row.createdAt.toISOString(),
-					status: row.status,
-					resolvedAt: row.resolvedAt?.toISOString() ?? null,
-					resolvedReason: row.resolvedReason ?? null,
-					currentPeriodFrom: row.currentPeriodFrom,
-					currentPeriodTo: row.currentPeriodTo,
-					previousPeriodFrom: row.previousPeriodFrom,
-					previousPeriodTo: row.previousPeriodTo,
-					timezone: row.timezone,
-				},
+				insight: serializeInsight(row),
 			};
 		}),
 
@@ -737,10 +367,10 @@ export const insightsRouter = {
 						changePercent: z.number().nullable(),
 						createdAt: z.string(),
 						id: z.string(),
-						sentiment: z.string(),
-						severity: z.string(),
+						sentiment: insightSentimentSchema,
+						severity: insightSeveritySchema,
 						title: z.string(),
-						type: z.string(),
+						type: storedInsightTypeSchema,
 					})
 				),
 				success: z.literal(true),

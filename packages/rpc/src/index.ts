@@ -25,8 +25,8 @@ export type { WebsiteOutput } from "./routers/websites";
 export type { ExportFormat } from "./services/export-service";
 export {
 	getNextInsightRunAt,
-	isValidCron,
 	isValidTimezone,
+	normalizeInsightScheduleFrequency,
 } from "./services/insight-schedule";
 export { getBillingCustomerId } from "./utils/billing";
 export { getMemberRole } from "./utils/organization";
