@@ -201,14 +201,10 @@ export function AgentInput() {
 
 	const applyVoiceTranscript = useCallback(
 		(transcript: string) => {
-<<<<<<< HEAD
-			setInput(transcript);
-=======
 			setInput((prev) => {
 				const existing = prev.trim();
 				return existing ? `${existing} ${transcript}` : transcript;
 			});
->>>>>>> baddc01d9 (fixed ui)
 			setCommandsDismissed(false);
 			setMentionsDismissed(false);
 			requestAnimationFrame(() => textareaRef.current?.focus());

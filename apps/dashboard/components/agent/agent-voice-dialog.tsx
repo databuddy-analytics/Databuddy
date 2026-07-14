@@ -4,10 +4,7 @@ import { Button } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 import { MicrophoneIcon } from "@databuddy/ui/icons";
 import { useCallback, useState } from "react";
-<<<<<<< HEAD
-=======
 import { Shimmer } from "@/components/ai-elements/shimmer";
->>>>>>> baddc01d9 (fixed ui)
 import FluidOrb from "@/components/ui/fluid-orb";
 import { useSpeechTranscription } from "./hooks/use-speech-transcription";
 
@@ -43,13 +40,10 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 		handleOpenChange(false);
 	}, [displayTranscript, handleOpenChange, onTranscript]);
 
-<<<<<<< HEAD
-=======
 	if (!isSupported) {
 		return null;
 	}
 
->>>>>>> baddc01d9 (fixed ui)
 	return (
 		<Dialog onOpenChange={handleOpenChange} open={open}>
 			<Dialog.Trigger
@@ -70,12 +64,6 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 				<Dialog.Close />
 				<Dialog.Header className="border-border/50 border-b text-center">
 					<Dialog.Title className="text-sm">Voice input</Dialog.Title>
-<<<<<<< HEAD
-					<Dialog.Description>
-						Talk to Databunny about your analytics.
-					</Dialog.Description>
-=======
->>>>>>> baddc01d9 (fixed ui)
 				</Dialog.Header>
 
 				<Dialog.Body className="flex flex-col items-center gap-5 py-8">
@@ -92,19 +80,6 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 								{displayTranscript}
 							</p>
 						) : (
-<<<<<<< HEAD
-							<div className="flex flex-col items-center gap-1.5 text-muted-foreground text-xs">
-								<div className="flex items-center gap-2">
-									<span
-										aria-hidden="true"
-										className="size-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
-									/>
-									<span>
-										{status === "error" ? "Voice unavailable" : "Listening..."}
-									</span>
-								</div>
-								<span>
-=======
 							<div className="flex flex-col items-center gap-2">
 								{status === "error" ? (
 									<span className="font-medium text-foreground text-sm tracking-tight">
@@ -119,7 +94,6 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 									</Shimmer>
 								)}
 								<span className="max-w-60 text-balance text-muted-foreground text-xs leading-5">
->>>>>>> baddc01d9 (fixed ui)
 									{error ??
 										(isSupported
 											? "Start speaking when you're ready"
