@@ -3,9 +3,10 @@
 import { Button } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 import { MicrophoneIcon } from "@databuddy/ui/icons";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import FluidOrb from "@/components/ui/fluid-orb";
+import { useMicLevel } from "./hooks/use-mic-level";
 import { useSpeechTranscription } from "./hooks/use-speech-transcription";
 
 interface AgentVoiceDialogProps {
@@ -17,11 +18,26 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 	const { displayTranscript, error, isSupported, start, status, stop } =
 		useSpeechTranscription();
 	const hasTranscript = displayTranscript.trim().length > 0;
+	const orbRef = useRef<HTMLDivElement | null>(null);
+	const orbScaleRef = useRef(1);
+
+	useMicLevel(
+		open && status !== "error",
+		useCallback((level: number) => {
+			const target = 1 + Math.min(level * 0.9, 0.06);
+			orbScaleRef.current += (target - orbScaleRef.current) * 0.06;
+			orbRef.current?.style.setProperty(
+				"transform",
+				`scale(${orbScaleRef.current.toFixed(4)})`
+			);
+		}, [])
+	);
 
 	const handleOpenChange = useCallback(
 		(nextOpen: boolean) => {
 			setOpen(nextOpen);
 			if (nextOpen) {
+				orbScaleRef.current = 1;
 				start();
 			} else {
 				stop();
@@ -68,7 +84,9 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 
 				<Dialog.Body className="flex flex-col items-center gap-5 py-8">
 					<div className="grid size-56 place-items-center">
-						<FluidOrb aria-hidden="true" size={208} />
+						<div className="will-change-transform" ref={orbRef}>
+							<FluidOrb aria-hidden="true" size={208} />
+						</div>
 					</div>
 
 					<div
