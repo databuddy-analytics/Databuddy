@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { buildBlocks, buildFallbackText, buildThreadBlocks } from "./delivery";
+import {
+	buildBlocks,
+	buildFallbackText,
+	buildSlackPostPayload,
+	buildThreadBlocks,
+	postToSlack,
+} from "./delivery";
 
 type Blocks = ReturnType<typeof buildBlocks>;
 
@@ -27,6 +33,7 @@ const goalInsight = {
 		"The goal only matches /billing, but 15 of 32 billing visitors landed on /billing/plans or /billing/history.",
 	id: "goal-insight",
 	impactSummary: "  Billing interest is stronger than the goal reports.  ",
+	remediationKind: "configuration" as const,
 	severity: "warning",
 	sentiment: "negative",
 	suggestion: "Edit the Pricing viewers goal and include nested billing routes.",
@@ -35,6 +42,70 @@ const goalInsight = {
 };
 
 describe("Slack finding blocks", () => {
+	it("honors rate limits with the same durable message ID and a timeout", async () => {
+		const responses = [
+			new Response("rate limited", {
+				headers: { "Retry-After": "2" },
+				status: 429,
+			}),
+			Response.json({ ok: true, ts: "123.456" }),
+		];
+		const requests: RequestInit[] = [];
+		const delays: number[] = [];
+		const fetcher = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+			requests.push(init ?? {});
+			const response = responses.shift();
+			if (!response) {
+				throw new Error("Unexpected Slack request");
+			}
+			return response;
+		}) as typeof fetch;
+
+		const externalId = await postToSlack(
+			"token",
+			"channel-test",
+			[{ type: "divider" }],
+			"Finding",
+			"effect-test",
+			{
+				fetcher,
+				random: () => 0,
+				sleep: async (milliseconds) => {
+					delays.push(milliseconds);
+				},
+			}
+		);
+
+		expect(externalId).toBe("123.456");
+		expect(delays).toEqual([2000]);
+		expect(requests).toHaveLength(2);
+		expect(requests.every((request) => request.signal instanceof AbortSignal)).toBe(
+			true
+		);
+		expect(requests.map((request) => request.body)).toEqual([
+			requests[0]?.body,
+			requests[0]?.body,
+		]);
+		expect(String(requests[0]?.body)).toContain(
+			'"client_msg_id":"effect-test"'
+		);
+	});
+
+	it("uses the durable effect ID as Slack's client message ID", () => {
+		expect(
+			buildSlackPostPayload(
+				"channel-test",
+				[{ type: "divider" }],
+				"Finding",
+				"effect-test"
+			)
+		).toEqual({
+			blocks: [{ type: "divider" }],
+			channel: "channel-test",
+			client_msg_id: "effect-test",
+			text: "Finding",
+		});
+	});
 	it("uses the website name with domain in the header", () => {
 		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [goalInsight]);
 
@@ -121,6 +192,7 @@ describe("Slack finding blocks", () => {
 					description:
 						"Two funnels share ids 019d7dac-6c23-7000-b8b0-b5cacc81db79 and 019d7dac-ef9b-... but have identical results.",
 					id: "duplicate-funnel",
+					remediationKind: "configuration",
 					severity: "warning",
 					sentiment: "negative",
 					suggestion: "Delete funnel 019d7dac-6c23-7000-b8b0-b5cacc81db79.",
@@ -137,7 +209,7 @@ describe("Slack finding blocks", () => {
 		expect(sectionText(blocks, 3)).toContain(
 			">Two funnels share ids the affected item"
 		);
-		expect(contextText(blocks, 4)).toBe("Cleanup · Funnel config");
+		expect(contextText(blocks, 4)).toBe("Fix · Funnel");
 		for (const block of blocks) {
 			expect(block.text?.text ?? "").not.toContain("019d7dac");
 		}
@@ -158,9 +230,40 @@ describe("Slack finding blocks", () => {
 			]
 		);
 
-		expect(contextText(blocks, 1)).toBe("1 fix");
-		expect(contextText(blocks, 4)).toBe("Fix");
-		expect(sectionText(blocks, 2)).toStartWith(":red_circle:");
+		expect(contextText(blocks, 1)).toBe("1 review");
+		expect(contextText(blocks, 4)).toBe("Review");
+		expect(sectionText(blocks, 2)).toStartWith(":large_yellow_circle:");
+	});
+
+	it("labels a needs-context goal as review rather than a tracking fix", () => {
+		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [
+			{
+				...goalInsight,
+				id: "goal-question",
+				remediationKind: undefined,
+				suggestion: "Did users complete Signup?",
+				title: "Signup needs context",
+			},
+		]);
+
+		expect(contextText(blocks, 1)).toBe("1 review · week of Jun 28 to Jul 4");
+		expect(contextText(blocks, 4)).toBe("Review · Conversion");
+		expect(sectionText(blocks, 2)).toStartWith(":large_yellow_circle:");
+	});
+
+	it("labels an unresolved error as review rather than a fix", () => {
+		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [
+			{
+				...goalInsight,
+				id: "error-question",
+				remediationKind: undefined,
+				title: "Investigate checkout error",
+				type: "error_spike",
+			},
+		]);
+
+		expect(contextText(blocks, 4)).toBe("Review · Error");
+		expect(sectionText(blocks, 2)).toStartWith(":large_yellow_circle:");
 	});
 
 	it("renders escalations as compact one-line sections after the cards", () => {

@@ -84,14 +84,17 @@ export function extractInsightPathHint(insight: Insight): string | null {
 	return sorted[0] ?? null;
 }
 
-/** Structured prompt for pasting into an AI agent: issue, analysis, data, and recommendation. */
+/** Structured handoff for continuing a finding in an AI agent. */
 export function buildInsightAgentCopyText(insight: Insight): string {
 	const siteLine = `${insight.websiteName ?? insight.websiteDomain} (${insight.websiteDomain})`;
 	const windowLine = formatComparisonWindow(insight);
 	const pathHint = extractInsightPathHint(insight);
+	const hasRecommendedFix = Boolean(insight.remediationKind);
 
 	const lines: string[] = [
-		"Paste the sections below into an AI assistant or agent. Ask it to help validate the analysis and implement the recommended fix.",
+		hasRecommendedFix
+			? "Paste this into an AI assistant or agent. Ask it to review the evidence and implement the recommended fix."
+			: "Paste this into an AI assistant or agent. Ask it to help answer the open question or continue the investigation.",
 		"",
 		"## Site",
 		siteLine,
@@ -102,7 +105,7 @@ export function buildInsightAgentCopyText(insight: Insight): string {
 		"## Analysis (what changed and why it matters — evidence from the data)",
 		insight.description,
 		"",
-		"## Recommended action",
+		hasRecommendedFix ? "## Recommended fix" : "## Next question or step",
 		insight.suggestion,
 		"",
 		"## Metadata",

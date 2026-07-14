@@ -1,46 +1,84 @@
 import { createHash } from "node:crypto";
 import type {
+	InvestigationExpectation,
 	InvestigationEvidence,
 	InvestigationSignal,
+	InsightMetric,
 } from "@databuddy/shared/insights";
-import { tool } from "ai";
+import type { AppContext } from "../config/context";
 import { z } from "zod";
 import {
 	fetchOpsMetrics,
 	OPS_INSIGHT_QUERY_TYPES,
+	type OpsInsightQuery,
 } from "../insights/ops-context";
 import {
 	fetchProductMetrics,
 	type ProductInsightTarget,
 } from "../insights/product-context";
-import { getAppContext } from "./utils";
 import { executeQuery } from "../../query";
-import { QueryBuilders } from "../../query/builders";
 import type { QueryRequest } from "../../query/types";
 
 const MAX_EVIDENCE_SUMMARY_CHARS = 500;
-const MAX_QUERIES = 8;
-
-function isValidQueryType(type: string): boolean {
-	return type in QueryBuilders;
-}
+const MAX_QUERIES = 3;
 
 type QueryEvidenceSource = "business" | "ops" | "product" | "web";
 
 type QueryEvidencePeriod = "current" | "previous";
 
-export interface QueryEvidence {
+interface QueryEvidence {
 	data: unknown;
 	entity?: InvestigationSignal["entity"];
 	error?: string;
-	evidenceId: string;
 	period: QueryEvidencePeriod;
+	query: unknown;
 	queryType: string;
 	range: { from: string; to: string };
+	remediation?: InvestigationExpectation;
 	rowCount: number;
-	signalKey: string;
 	source: QueryEvidenceSource;
 	status: "empty" | "failed" | "ok";
+}
+
+interface OwnedQueryEvidence extends QueryEvidence {
+	evidenceId: string;
+	signalKey: string;
+}
+
+function uniqueQueries<T extends { type: string }>(queries: T[]): T[] {
+	const seen = new Set<string>();
+	return queries.filter((query) => {
+		if (seen.has(query.type)) {
+			return false;
+		}
+		seen.add(query.type);
+		return true;
+	});
+}
+
+type EvidenceRow = Record<string, unknown>;
+
+function rethrowAbort(error: unknown, abortSignal?: AbortSignal): void {
+	if (abortSignal?.aborted) {
+		throw abortSignal.reason ?? error;
+	}
+	if (error instanceof Error && error.name === "AbortError") {
+		throw error;
+	}
+}
+
+async function readWithRetry<T>(
+	read: () => Promise<T>,
+	abortSignal?: AbortSignal
+): Promise<T> {
+	abortSignal?.throwIfAborted();
+	try {
+		return await read();
+	} catch (error) {
+		rethrowAbort(error, abortSignal);
+		abortSignal?.throwIfAborted();
+		return await read();
+	}
 }
 
 function evidenceKind(queryType: string): InvestigationEvidence["kind"] {
@@ -71,7 +109,7 @@ function evidenceKind(queryType: string): InvestigationEvidence["kind"] {
 }
 
 function sourceForWebQuery(queryType: string): QueryEvidenceSource {
-	if (queryType.startsWith("revenue")) {
+	if (queryType.startsWith("revenue") || queryType.startsWith("utm_")) {
 		return "business";
 	}
 	if (
@@ -84,7 +122,10 @@ function sourceForWebQuery(queryType: string): QueryEvidenceSource {
 	return "web";
 }
 
-function evidenceSummary(evidence: QueryEvidence): {
+function evidenceSummary(
+	evidence: QueryEvidence,
+	signal: InvestigationSignal
+): {
 	summary: string;
 	truncated: boolean;
 } {
@@ -94,8 +135,7 @@ function evidenceSummary(evidence: QueryEvidence): {
 			truncated: false,
 		};
 	}
-	const prefix = `${evidence.queryType} returned ${evidence.rowCount} row${evidence.rowCount === 1 ? "" : "s"}: `;
-	const summary = `${prefix}${canonicalJson(evidence.data)}`;
+	const summary = summarizeEvidenceData(evidence, signal);
 	return summary.length <= MAX_EVIDENCE_SUMMARY_CHARS
 		? { summary, truncated: false }
 		: {
@@ -104,8 +144,9 @@ function evidenceSummary(evidence: QueryEvidence): {
 			};
 }
 
-export function toInvestigationEvidence(
-	evidence: QueryEvidence
+function toInvestigationEvidence(
+	evidence: OwnedQueryEvidence,
+	signal: InvestigationSignal
 ): InvestigationEvidence {
 	const base = {
 		evidenceId: evidence.evidenceId,
@@ -114,6 +155,7 @@ export function toInvestigationEvidence(
 		source: evidence.source,
 		queryType: evidence.queryType,
 		...(evidence.entity ? { entity: evidence.entity } : {}),
+		...(evidence.remediation ? { remediation: evidence.remediation } : {}),
 		period: evidence.period,
 		range: evidence.range,
 		rowCount: evidence.rowCount,
@@ -126,13 +168,15 @@ export function toInvestigationEvidence(
 			error: evidence.error ?? "Query failed",
 		};
 	}
-	const summary = evidenceSummary(evidence);
+	const summary = evidenceSummary(evidence, signal);
+	const metrics = evidenceMetrics(evidence, signal);
 	if (summary.truncated) {
 		return {
 			...base,
 			status: "truncated",
 			summary: summary.summary,
-			truncationReason: "The query result exceeded the evidence summary limit.",
+			...(metrics.length > 0 ? { metrics } : {}),
+			truncationReason: "The evidence summary exceeded the output limit.",
 		};
 	}
 	if (evidence.status === "empty") {
@@ -147,26 +191,16 @@ export function toInvestigationEvidence(
 		...base,
 		status: "ok",
 		summary: summary.summary,
+		...(metrics.length > 0 ? { metrics } : {}),
 	};
 }
-
-type QueryEvidenceBase = Pick<
-	QueryEvidence,
-	| "entity"
-	| "evidenceId"
-	| "period"
-	| "queryType"
-	| "range"
-	| "signalKey"
-	| "source"
->;
 
 function canonicalJson(value: unknown): string {
 	if (Array.isArray(value)) {
 		return `[${value.map(canonicalJson).join(",")}]`;
 	}
 	if (value && typeof value === "object") {
-		return `{${Object.entries(value as Record<string, unknown>)
+		return `{${Object.entries(value)
 			.sort(([a], [b]) => a.localeCompare(b))
 			.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
 			.join(",")}}`;
@@ -174,28 +208,479 @@ function canonicalJson(value: unknown): string {
 	return JSON.stringify(value) ?? "null";
 }
 
-function queryEvidenceBase(input: {
-	entity?: InvestigationSignal["entity"];
-	period: QueryEvidencePeriod;
-	query: unknown;
-	queryType: string;
-	range: { from: string; to: string };
-	signalKey: string;
-	source: QueryEvidenceSource;
-}): QueryEvidenceBase {
-	const digest = createHash("sha256")
-		.update(canonicalJson(input))
-		.digest("hex")
-		.slice(0, 16);
-	return {
-		evidenceId: `evidence:${input.source}:${digest}`,
-		...(input.entity ? { entity: input.entity } : {}),
-		period: input.period,
-		queryType: input.queryType,
-		range: input.range,
-		signalKey: input.signalKey,
-		source: input.source,
-	};
+function evidenceRows(
+	data: unknown,
+	preferredKeys: string[] = []
+): EvidenceRow[] {
+	if (Array.isArray(data)) {
+		return data.filter((value): value is EvidenceRow =>
+			Boolean(value && typeof value === "object")
+		);
+	}
+	if (!(data && typeof data === "object")) {
+		return [];
+	}
+	const record = data as EvidenceRow;
+	for (const key of preferredKeys) {
+		const rows = record[key];
+		if (Array.isArray(rows)) {
+			return rows.filter((value): value is EvidenceRow =>
+				Boolean(value && typeof value === "object")
+			);
+		}
+	}
+	for (const value of Object.values(record)) {
+		if (Array.isArray(value)) {
+			return value.filter((row): row is EvidenceRow =>
+				Boolean(row && typeof row === "object")
+			);
+		}
+	}
+	return [record];
+}
+
+function finiteNumber(
+	row: EvidenceRow | undefined,
+	...keys: string[]
+): number | null {
+	for (const key of keys) {
+		const value = Number(row?.[key]);
+		if (Number.isFinite(value)) {
+			return value;
+		}
+	}
+	return null;
+}
+
+function textValue(
+	row: EvidenceRow | undefined,
+	...keys: string[]
+): string | null {
+	for (const key of keys) {
+		const value = row?.[key];
+		if (typeof value === "string") {
+			const normalized = value.trim();
+			if (
+				normalized &&
+				normalized.toLowerCase() !== "null" &&
+				normalized.toLowerCase() !== "undefined"
+			) {
+				return normalized;
+			}
+		}
+	}
+	return null;
+}
+
+function compactNumber(value: number): string {
+	return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
+		value
+	);
+}
+
+function revenueMatchesDetector(data: unknown, expected: number): boolean {
+	const row = evidenceRows(data)[0];
+	const actual = finiteNumber(row, "total_revenue", "revenue");
+	return (
+		actual !== null &&
+		Math.abs(actual - expected) <= Math.max(0.01, Math.abs(expected) * 0.01)
+	);
+}
+
+function shortText(value: string, max = 110): string {
+	const singleLine = value.replace(/\s+/g, " ").trim();
+	return singleLine.length <= max
+		? singleLine
+		: `${singleLine.slice(0, max - 1).trimEnd()}…`;
+}
+
+function countPhrase(value: number | null, singular: string): string | null {
+	if (value === null) {
+		return null;
+	}
+	return `${compactNumber(value)} ${singular}${value === 1 ? "" : "s"}`;
+}
+
+function summarizeErrorOverview(rows: EvidenceRow[]): string | null {
+	const row = rows[0];
+	if (!row) {
+		return null;
+	}
+	const parts = [
+		countPhrase(finiteNumber(row, "totalErrors", "total_errors"), "error"),
+		countPhrase(finiteNumber(row, "affectedUsers", "affected_users"), "user"),
+		countPhrase(
+			finiteNumber(row, "affectedSessions", "affected_sessions"),
+			"session"
+		),
+	].filter((part): part is string => Boolean(part));
+	const rate = finiteNumber(row, "errorRate", "error_rate");
+	if (parts.length === 0) {
+		return null;
+	}
+	return `${parts[0]} affected ${parts.slice(1).join(" across ")}${rate === null ? "" : ` (${compactNumber(rate)}% session error rate)`}.`;
+}
+
+function summarizeErrorFingerprints(rows: EvidenceRow[]): string | null {
+	const summaries = rows.slice(0, 1).flatMap((row) => {
+		const message = textValue(row, "message", "name");
+		if (!message) {
+			return [];
+		}
+		const details = [
+			countPhrase(finiteNumber(row, "count", "errors"), "error"),
+			countPhrase(finiteNumber(row, "users", "affected_users"), "user"),
+			countPhrase(
+				finiteNumber(row, "sessions", "affected_sessions"),
+				"session"
+			),
+		]
+			.filter((part): part is string => Boolean(part))
+			.join(", ");
+		const path = textValue(row, "path", "representative_path");
+		const location = textValue(row, "filename");
+		const line = finiteNumber(row, "lineno", "line");
+		const target = location
+			? `${shortText(location, 60)}${line === null ? "" : `:${line}`}`
+			: path;
+		return [
+			`“${shortText(message)}”${details ? ` — ${details}` : ""}${target ? `; seen at ${shortText(target, 70)}` : ""}`,
+		];
+	});
+	return summaries.length > 0 ? `${summaries.join(". ")}.` : null;
+}
+
+function summarizePages(rows: EvidenceRow[]): string | null {
+	const summaries = rows.slice(0, 3).flatMap((row) => {
+		const name = textValue(row, "name", "path");
+		if (!name) {
+			return [];
+		}
+		const errors = finiteNumber(row, "errors", "count");
+		const users = finiteNumber(row, "users", "affected_users");
+		const detail = [countPhrase(errors, "error"), countPhrase(users, "user")]
+			.filter((part): part is string => Boolean(part))
+			.join(", ");
+		return [`${shortText(name, 80)}${detail ? ` — ${detail}` : ""}`];
+	});
+	return summaries.length > 0
+		? `Most affected pages: ${summaries.join("; ")}.`
+		: null;
+}
+
+function summarizeRevenue(rows: EvidenceRow[]): string | null {
+	const row = rows[0];
+	if (!row) {
+		return null;
+	}
+	const revenue = finiteNumber(row, "total_revenue", "revenue");
+	const transactions = finiteNumber(row, "total_transactions", "transactions");
+	const customers = finiteNumber(row, "unique_customers", "customers");
+	if (revenue === null && transactions === null && customers === null) {
+		return null;
+	}
+	return `Tracked revenue was ${compactNumber(revenue ?? 0)} from ${compactNumber(transactions ?? 0)} transactions across ${compactNumber(customers ?? 0)} customers.`;
+}
+
+function summarizeProduct(
+	rows: EvidenceRow[],
+	label: string,
+	expectation?: InvestigationExpectation
+): string | null {
+	const row = rows[0];
+	if (!row) {
+		return null;
+	}
+	const name = textValue(row, "name") ?? label;
+	const entrants = finiteNumber(row, "total_users_entered");
+	const completions = finiteNumber(row, "total_users_completed");
+	const rate = finiteNumber(row, "overall_conversion_rate");
+	if (entrants === null && completions === null && rate === null) {
+		return null;
+	}
+	const activity = `${shortText(name, 90)} had ${compactNumber(completions ?? 0)} completions from ${compactNumber(entrants ?? 0)} entrants${rate === null ? "" : ` (${compactNumber(rate)}% conversion)`}.`;
+	return expectation
+		? `${activity} The active definition expects the "${shortText(expectation.eventName, 90)}" event${expectation.stepName ? ` at ${shortText(expectation.stepName, 70)}` : ""}.`
+		: activity;
+}
+
+function vitalField(
+	metricKey: string
+): { field: string; label: string } | null {
+	if (metricKey === "lcp") {
+		return { field: "p75_lcp", label: "p75 LCP" };
+	}
+	if (metricKey === "inp") {
+		return { field: "p75_inp", label: "p75 INP" };
+	}
+	return null;
+}
+
+function summarizeVitals(
+	rows: EvidenceRow[],
+	metricKey: string
+): string | null {
+	const metric = vitalField(metricKey);
+	if (!metric) {
+		return null;
+	}
+	const summaries = rows.slice(0, 2).flatMap((row) => {
+		const name = textValue(row, "name");
+		const value = finiteNumber(row, metric.field);
+		if (!(name && value !== null)) {
+			return [];
+		}
+		const visitors = finiteNumber(row, "visitors");
+		const measurements = finiteNumber(row, "measurements");
+		return [
+			`${shortText(name, 80)} — ${metric.label} ${compactNumber(value)} ms${visitors === null ? "" : ` across ${compactNumber(visitors)} visitors`}${measurements === null ? "" : ` (${compactNumber(measurements)} measurements)`}`,
+		];
+	});
+	return summaries.length > 0
+		? `Slowest supported segments: ${summaries.join("; ")}.`
+		: null;
+}
+
+function summarizeNamedRows(rows: EvidenceRow[]): string | null {
+	const summaries = rows.slice(0, 3).flatMap((row) => {
+		const name = textValue(row, "name", "path", "label");
+		if (!name) {
+			return [];
+		}
+		const numeric = Object.entries(row).find(
+			([key, value]) =>
+				key !== "name" &&
+				key !== "path" &&
+				typeof value !== "boolean" &&
+				Number.isFinite(Number(value))
+		);
+		return [
+			`${shortText(name, 90)}${numeric ? ` — ${numeric[0].replaceAll("_", " ")} ${compactNumber(Number(numeric[1]))}` : ""}`,
+		];
+	});
+	return summaries.length > 0 ? `Top results: ${summaries.join("; ")}.` : null;
+}
+
+function summarizeAggregate(rows: EvidenceRow[]): string | null {
+	const row = rows[0];
+	if (!row) {
+		return null;
+	}
+	const facts = Object.entries(row)
+		.filter(([, value]) => Number.isFinite(Number(value)))
+		.slice(0, 4)
+		.map(
+			([key, value]) =>
+				`${key.replaceAll("_", " ")} ${compactNumber(Number(value))}`
+		);
+	return facts.length > 0 ? `${facts.join("; ")}.` : null;
+}
+
+function summarizeEvidenceData(
+	evidence: QueryEvidence,
+	signal: InvestigationSignal
+): string {
+	const queryType = evidence.queryType;
+	const rows = evidenceRows(evidence.data, [
+		"error_summary",
+		"error_fingerprints",
+		"error_types",
+		"errors_by_page",
+		"goals",
+		"funnels",
+		"events",
+		"results",
+	]);
+	let summary: string | null = null;
+	if (queryType === "errors_summary" || queryType === "error_summary") {
+		summary = summarizeErrorOverview(rows);
+	} else if (
+		queryType === "error_fingerprints" ||
+		queryType === "error_types" ||
+		queryType === "recent_errors"
+	) {
+		summary = summarizeErrorFingerprints(rows);
+	} else if (queryType === "errors_by_page") {
+		summary = summarizePages(rows);
+	} else if (queryType === "revenue_overview") {
+		summary = summarizeRevenue(rows);
+	} else if (queryType === "goals_summary" || queryType === "funnels_summary") {
+		summary = summarizeProduct(rows, signal.entity.label, signal.expectation);
+	} else if (queryType.startsWith("web_vitals_by_")) {
+		summary = summarizeVitals(rows, signal.metric.key);
+	}
+	summary ??= summarizeNamedRows(rows);
+	summary ??= summarizeAggregate(rows);
+	return (
+		summary ??
+		`${queryType} returned ${evidence.rowCount} row${evidence.rowCount === 1 ? "" : "s"} for review.`
+	);
+}
+
+function metric(
+	label: string,
+	current: number | null,
+	format: "duration_ms" | "number" | "percent" = "number"
+) {
+	return current === null ? [] : [{ label, current, format }];
+}
+
+function evidenceMetrics(
+	evidence: QueryEvidence,
+	signal: InvestigationSignal
+): InsightMetric[] {
+	const rows = evidenceRows(evidence.data, [
+		"error_summary",
+		"error_fingerprints",
+		"error_types",
+		"errors_by_page",
+	]);
+	const row = rows[0];
+	if (!row) {
+		return [];
+	}
+	if (
+		evidence.queryType === "errors_summary" ||
+		evidence.queryType === "error_summary"
+	) {
+		return [
+			...metric(
+				"Affected users",
+				finiteNumber(row, "affectedUsers", "affected_users")
+			),
+			...metric(
+				"Affected sessions",
+				finiteNumber(row, "affectedSessions", "affected_sessions")
+			),
+			...metric(
+				"Session error rate",
+				finiteNumber(row, "errorRate", "error_rate"),
+				"percent"
+			),
+		];
+	}
+	if (
+		evidence.queryType === "error_fingerprints" ||
+		evidence.queryType === "error_types"
+	) {
+		return [
+			...metric("Affected users", finiteNumber(row, "users", "affected_users")),
+			...metric(
+				"Affected sessions",
+				finiteNumber(row, "sessions", "affected_sessions")
+			),
+		];
+	}
+	if (evidence.queryType === "revenue_overview") {
+		return [
+			...metric(
+				"Queried revenue",
+				finiteNumber(row, "total_revenue", "revenue")
+			),
+			...metric(
+				"Transactions",
+				finiteNumber(row, "total_transactions", "transactions")
+			),
+			...metric(
+				"Customers",
+				finiteNumber(row, "unique_customers", "customers")
+			),
+		];
+	}
+	if (
+		evidence.queryType === "goals_summary" ||
+		evidence.queryType === "funnels_summary"
+	) {
+		return [
+			...metric("Entrants", finiteNumber(row, "total_users_entered")),
+			...metric("Completions", finiteNumber(row, "total_users_completed")),
+			...metric(
+				"Conversion rate",
+				finiteNumber(row, "overall_conversion_rate"),
+				"percent"
+			),
+		];
+	}
+	if (evidence.queryType.startsWith("web_vitals_by_")) {
+		const vital = vitalField(signal.metric.key);
+		return vital
+			? [
+					...metric(vital.label, finiteNumber(row, vital.field), "duration_ms"),
+					...metric("Visitors sampled", finiteNumber(row, "visitors")),
+				]
+			: [];
+	}
+	return [];
+}
+
+const VITAL_ACTION_THRESHOLDS = {
+	inp: { bad: 200, maxPlausible: 10_000 },
+	lcp: { bad: 2500, maxPlausible: 60_000 },
+} as const;
+
+function qualifyVitalRows(
+	rows: EvidenceRow[],
+	metricKey: string,
+	limit: number
+): EvidenceRow[] {
+	const vital = vitalField(metricKey);
+	const thresholds =
+		metricKey === "lcp" || metricKey === "inp"
+			? VITAL_ACTION_THRESHOLDS[metricKey]
+			: null;
+	if (!(vital && thresholds)) {
+		return [];
+	}
+	return rows
+		.filter((row) => {
+			const value = finiteNumber(row, vital.field);
+			const visitors = finiteNumber(row, "visitors") ?? 0;
+			const measurements = finiteNumber(row, "measurements") ?? 0;
+			return (
+				value !== null &&
+				value > thresholds.bad &&
+				value <= thresholds.maxPlausible &&
+				visitors >= 10 &&
+				measurements >= 20
+			);
+		})
+		.sort(
+			(a, b) =>
+				(finiteNumber(b, vital.field) ?? 0) -
+				(finiteNumber(a, vital.field) ?? 0)
+		)
+		.slice(0, limit);
+}
+
+function diagnosticEntity(
+	queryType: string,
+	data: unknown
+): InvestigationSignal["entity"] | undefined {
+	if (queryType === "error_fingerprints") {
+		const row = evidenceRows(data, ["error_fingerprints"])[0];
+		const message = textValue(row, "message", "name");
+		if (!message) {
+			return;
+		}
+		return {
+			type: "error",
+			id: `fingerprint:${createHash("sha256").update(message).digest("hex").slice(0, 16)}`,
+			label: shortText(message, 120),
+		};
+	}
+	if (queryType === "web_vitals_by_page:qualified") {
+		const row = evidenceRows(data)[0];
+		const path = textValue(row, "name", "path");
+		if (!path) {
+			return;
+		}
+		return {
+			type: "page",
+			id: `page:${createHash("sha256").update(path).digest("hex").slice(0, 16)}`,
+			label: shortText(path, 120),
+		};
+	}
+	return;
 }
 
 export function countEvidenceRows(data: unknown): number {
@@ -206,10 +691,10 @@ export function countEvidenceRows(data: unknown): number {
 		return data == null ? 0 : 1;
 	}
 
-	const entries = Object.entries(data as Record<string, unknown>);
+	const entries = Object.entries(data);
 	const arrayRows = entries
 		.filter(([, value]) => Array.isArray(value))
-		.map(([, value]) => (value as unknown[]).length);
+		.map(([, value]) => value.length);
 	const maxArrayRows = arrayRows.length > 0 ? Math.max(...arrayRows) : 0;
 	if (arrayRows.length > 0) {
 		return maxArrayRows;
@@ -222,91 +707,173 @@ export function countEvidenceRows(data: unknown): number {
 		: 0;
 }
 
-function snapshotEvidence(evidence: QueryEvidence): QueryEvidence {
-	const { evidenceId: _requestId, ...snapshot } = evidence;
-	const digest = createHash("sha256")
-		.update(canonicalJson(snapshot))
-		.digest("hex")
-		.slice(0, 16);
-	return { ...evidence, evidenceId: `evidence:${evidence.source}:${digest}` };
-}
-
-export interface CreateInsightsAgentToolsParams {
+export interface CreateInsightEvidenceReaderParams {
 	domain: string;
 	onEvidence?: (evidence: InvestigationEvidence) => void;
-	signals: InvestigationSignal[];
+	signal: InvestigationSignal;
 	timezone: string;
 	websiteId: string;
 }
 
-export function createInsightsAgentTools(
-	params: CreateInsightsAgentToolsParams
-) {
-	const signalsByKey = new Map(
-		params.signals.map((signal) => [signal.signalKey, signal])
-	);
+type WebInsightQueryType =
+	| "country"
+	| "device_types"
+	| "entry_pages"
+	| "revenue_overview"
+	| "top_pages"
+	| "top_referrers"
+	| "utm_campaigns"
+	| "web_vitals_by_page";
 
-	function productScope(signalKey: string): {
+export type InsightEvidenceReadRequest =
+	| {
+			input: { period: "current"; queries: OpsInsightQuery[] };
+			name: "ops_context";
+	  }
+	| {
+			input: { period: "current" };
+			name: "product_metrics";
+	  }
+	| {
+			input: {
+				period: "both" | "current";
+				queries: Array<{ type: WebInsightQueryType }>;
+			};
+			name: "web_metrics";
+	  };
+
+export type InsightEvidenceReader = (
+	request: InsightEvidenceReadRequest,
+	appContext: AppContext,
+	abortSignal?: AbortSignal
+) => Promise<InvestigationEvidence[]>;
+
+function verifiedRemediation(
+	signal: InvestigationSignal,
+	data: unknown
+): InvestigationExpectation | undefined {
+	const expectation = signal.expectation;
+	if (
+		!expectation ||
+		signal.kind !== "missing_expected_data" ||
+		(signal.entity.type !== "goal" && signal.entity.type !== "funnel")
+	) {
+		return;
+	}
+	const row = evidenceRows(data, [
+		signal.entity.type === "goal" ? "goals" : "funnels",
+	])[0];
+	if (
+		!row ||
+		textValue(row, "id") !== signal.entity.id ||
+		row.is_active === false ||
+		textValue(row, "definition_updated_at") !==
+			expectation.definitionUpdatedAt ||
+		finiteNumber(row, "total_users_entered") === null ||
+		(finiteNumber(row, "total_users_entered") ?? 0) < 30 ||
+		finiteNumber(row, "total_users_completed") !== 0
+	) {
+		return;
+	}
+	if (signal.entity.type === "goal") {
+		return textValue(row, "type") !== "PAGE_VIEW" &&
+			textValue(row, "target") === expectation.eventName
+			? expectation
+			: undefined;
+	}
+	const steps = Array.isArray(row.steps)
+		? row.steps.filter((step): step is EvidenceRow =>
+				Boolean(step && typeof step === "object")
+			)
+		: [];
+	const exactStep = steps.find(
+		(step) =>
+			textValue(step, "type") !== "PAGE_VIEW" &&
+			textValue(step, "target") === expectation.eventName &&
+			(!expectation.stepName ||
+				textValue(step, "name") === expectation.stepName)
+	);
+	return exactStep && finiteNumber(exactStep, "users") === 0
+		? expectation
+		: undefined;
+}
+
+export function createInsightEvidenceReader(
+	params: CreateInsightEvidenceReaderParams
+): InsightEvidenceReader {
+	function productScope(): {
 		entity: InvestigationSignal["entity"];
 		queryType: "custom_events_summary" | "funnels_summary" | "goals_summary";
 		target: ProductInsightTarget;
 	} {
-		const signal = signalsByKey.get(signalKey);
-		if (!signal) {
-			throw new Error(`Unknown investigation signal key: ${signalKey}`);
-		}
 		let target: ProductInsightTarget;
 		let queryType:
 			| "custom_events_summary"
 			| "funnels_summary"
 			| "goals_summary";
-		switch (signal.entity.type) {
+		switch (params.signal.entity.type) {
 			case "goal":
-				target = { id: signal.entity.id, type: "goal" };
+				target = { id: params.signal.entity.id, type: "goal" };
 				queryType = "goals_summary";
 				break;
 			case "funnel":
-				target = { id: signal.entity.id, type: "funnel" };
+				target = { id: params.signal.entity.id, type: "funnel" };
 				queryType = "funnels_summary";
 				break;
 			case "event":
-				target = { id: signal.entity.id, type: "event" };
+				target = { id: params.signal.entity.id, type: "event" };
 				queryType = "custom_events_summary";
 				break;
 			default:
 				throw new Error(
-					`Product evidence is not scoped to the ${signal.entity.type} signal ${signalKey}`
+					`Product evidence is not scoped to this ${params.signal.entity.type} signal`
 				);
 		}
 		return {
-			entity: signal.entity,
+			entity: params.signal.entity,
 			queryType,
 			target,
 		};
 	}
 
-	function completeEvidence(items: QueryEvidence[]) {
-		const evidence = items.map(snapshotEvidence).map(toInvestigationEvidence);
-		for (const item of evidence) {
-			params.onEvidence?.(item);
-		}
-		return { evidence };
+	function materializeEvidence(
+		items: QueryEvidence[]
+	): InvestigationEvidence[] {
+		return items.map((item) => {
+			const signalKey = params.signal.signalKey;
+			const digest = createHash("sha256")
+				.update(
+					canonicalJson({
+						period: item.period,
+						query: item.query,
+						queryType: item.queryType,
+						range: item.range,
+						signalKey,
+						source: item.source,
+					})
+				)
+				.digest("hex")
+				.slice(0, 16);
+			const evidence = toInvestigationEvidence(
+				{
+					...item,
+					evidenceId: `evidence:${item.source}:${digest}`,
+					signalKey,
+				},
+				params.signal
+			);
+			params.onEvidence?.(evidence);
+			return evidence;
+		});
 	}
 
-	function resolveRanges(
-		period: "current" | "previous" | "both",
-		signalKey: string
-	) {
-		const signal = signalsByKey.get(signalKey);
-		if (!signal) {
-			throw new Error(`Missing period bounds for signal: ${signalKey}`);
-		}
-		if (signal.detection.method === "zscore" && period !== "current") {
+	function resolveRanges(period: "current" | "previous" | "both") {
+		if (params.signal.detection.method === "zscore" && period !== "current") {
 			throw new Error(
-				`Z-score signal ${signalKey} has a sparse comparable-day baseline; query current only and use the supplied detector evidence for its baseline`
+				"This signal has a sparse comparable-day baseline; query current only and use the supplied detector evidence for its baseline"
 			);
 		}
-		const bounds = signal.period;
+		const bounds = params.signal.period;
 		if (period === "both") {
 			return [
 				{ label: "current" as const, range: bounds.current },
@@ -322,26 +889,17 @@ export function createInsightsAgentTools(
 	}
 
 	async function fetchContextEvidence(input: {
+		abortSignal?: AbortSignal;
 		entity?: InvestigationSignal["entity"];
 		fetch: () => Promise<{ results: Record<string, unknown>[] }>;
 		period: "current" | "previous";
 		queries: { limit?: number; type: string }[];
 		range: { from: string; to: string };
-		signalKey: string;
 		source: "ops" | "product";
 	}): Promise<QueryEvidence[]> {
 		try {
-			const response = await input.fetch();
-			return input.queries.map((query, index) => {
-				const base = queryEvidenceBase({
-					entity: input.entity,
-					period: input.period,
-					query,
-					queryType: query.type,
-					range: input.range,
-					signalKey: input.signalKey,
-					source: input.source,
-				});
+			const response = await readWithRetry(input.fetch, input.abortSignal);
+			return input.queries.map((query, index): QueryEvidence => {
 				const result = response.results[index];
 				const data = result
 					? Object.fromEntries(
@@ -349,194 +907,285 @@ export function createInsightsAgentTools(
 						)
 					: [];
 				const rowCount = countEvidenceRows(data);
+				const entity = input.entity ?? diagnosticEntity(query.type, data);
+				const remediation = verifiedRemediation(params.signal, data);
 				return {
-					...base,
 					data,
+					...(entity ? { entity } : {}),
+					period: input.period,
+					query,
+					queryType: query.type,
+					...(remediation ? { remediation } : {}),
+					range: input.range,
 					rowCount,
+					source: input.source,
 					status: rowCount === 0 ? "empty" : "ok",
 				};
 			});
 		} catch (error) {
+			rethrowAbort(error, input.abortSignal);
 			const message =
 				error instanceof Error ? error.message.slice(0, 500) : "Query failed";
-			return input.queries.map((query) => {
-				const base = queryEvidenceBase({
-					entity: input.entity,
+			return input.queries.map(
+				(query): QueryEvidence => ({
+					data: [],
+					...(input.entity ? { entity: input.entity } : {}),
+					error: message,
 					period: input.period,
 					query,
 					queryType: query.type,
 					range: input.range,
-					signalKey: input.signalKey,
-					source: input.source,
-				});
-				return {
-					...base,
-					data: [],
-					error: message,
 					rowCount: 0,
-					status: "failed" as const,
-				};
-			});
+					source: input.source,
+					status: "failed",
+				})
+			);
 		}
 	}
 
-	const querySchema = z.object({
-		type: z.string().refine(isValidQueryType, "Unknown query type"),
-		limit: z.number().min(1).max(50).optional(),
-		filters: z
-			.array(
-				z.object({
-					field: z.string(),
-					value: z.string(),
-				})
-			)
-			.optional(),
-	});
-
-	const periodSchema = z.enum(["current", "previous", "both"]);
-	const signalKeySchema = z
-		.string()
-		.min(1)
-		.refine((signalKey) => signalsByKey.has(signalKey), {
-			message: "Unknown investigation signal key",
-		});
-
-	const webMetricsTool = tool({
-		description:
-			'Query analytics data. Use period="both" to compare. Key types: summary_metrics, top_pages, entry_pages, exit_pages, recent_errors, errors_by_page, error_types, session_flow, session_pages, interesting_sessions, session_list, sessions_by_device, sessions_by_browser, web_vitals_by_page, web_vitals_by_browser, revenue_overview, revenue_by_referrer, custom_events_discovery, custom_events_trends, country, region, city, utm_campaigns, device_types. Filter by: path, country, device_type, browser_name, os_name, referrer, utm_source, utm_medium, utm_campaign.',
-		inputSchema: z.object({
-			period: periodSchema,
+	const webQueryTypeSchema =
+		params.signal.metric.key === "revenue"
+			? z.literal("revenue_overview")
+			: params.signal.entity.type === "vital"
+				? z.literal("web_vitals_by_page")
+				: params.signal.entity.type === "campaign"
+					? z.literal("utm_campaigns")
+					: z.enum([
+							"country",
+							"device_types",
+							"entry_pages",
+							"top_pages",
+							"top_referrers",
+							"utm_campaigns",
+						]);
+	const querySchema = z
+		.object({
+			type: webQueryTypeSchema,
+		})
+		.strict();
+	const webInputSchema = z
+		.object({
+			period:
+				params.signal.metric.key === "revenue"
+					? z.literal("both")
+					: z.literal("current"),
 			queries: z.array(querySchema).min(1).max(MAX_QUERIES),
-			signalKey: signalKeySchema,
-		}),
-		execute: async ({ period, queries, signalKey }) => {
-			const ranges = resolveRanges(period, signalKey);
+		})
+		.strict();
 
-			const tasks = ranges.flatMap((p) =>
-				queries.map(async (q) => {
-					const base = queryEvidenceBase({
+	function fetchWebEvidence(
+		{ period, queries }: z.infer<typeof webInputSchema>,
+		abortSignal?: AbortSignal
+	): Promise<QueryEvidence[]> {
+		if (params.signal.metric.key !== "revenue" && period !== "current") {
+			throw new Error(
+				"Investigations use the detector baseline and query only the current period"
+			);
+		}
+		if (params.signal.metric.key === "revenue" && period !== "both") {
+			throw new Error(
+				"Revenue investigations must reconcile both detector periods"
+			);
+		}
+		const ranges = resolveRanges(period);
+		const unique = uniqueQueries(queries);
+
+		const tasks = ranges.flatMap((p) =>
+			unique.map(async (q) => {
+				const requestedLimit = 10;
+				const isVitalPageQuery =
+					q.type === "web_vitals_by_page" &&
+					params.signal.entity.type === "vital";
+				const evidenceQueryType =
+					isVitalPageQuery && p.label === "current"
+						? "web_vitals_by_page:qualified"
+						: q.type;
+				const req: QueryRequest = {
+					projectId: params.websiteId,
+					type: q.type,
+					from: p.range.from,
+					to: p.range.to,
+					timezone: params.timezone,
+					limit: isVitalPageQuery ? 50 : requestedLimit,
+					filters:
+						params.signal.entity.type === "campaign"
+							? [
+									{
+										field: "utm_campaign",
+										op: "eq" as const,
+										value: params.signal.entity.id,
+									},
+								]
+							: undefined,
+				};
+
+				try {
+					const read = () =>
+						executeQuery(req, params.domain, params.timezone, abortSignal);
+					let data = await readWithRetry(read, abortSignal);
+					if (q.type === "revenue_overview") {
+						const expected =
+							p.label === "current"
+								? params.signal.metric.current
+								: (params.signal.metric.previous ?? 0);
+						if (!revenueMatchesDetector(data, expected)) {
+							data = await read();
+						}
+					}
+					const rawRows = Array.isArray(data) ? data : [];
+					const rows =
+						isVitalPageQuery && p.label === "current"
+							? qualifyVitalRows(
+									rawRows.filter((row): row is EvidenceRow =>
+										Boolean(row && typeof row === "object")
+									),
+									params.signal.metric.key,
+									requestedLimit
+								)
+							: rawRows;
+					const entity =
+						params.signal.entity.type === "campaign"
+							? params.signal.entity
+							: diagnosticEntity(evidenceQueryType, rows);
+					return {
+						data: rows,
+						...(entity ? { entity } : {}),
 						period: p.label,
 						query: q,
-						queryType: q.type,
+						queryType: evidenceQueryType,
 						range: p.range,
-						signalKey,
+						rowCount: rows.length,
 						source: sourceForWebQuery(q.type),
-					});
-					const req: QueryRequest = {
-						projectId: params.websiteId,
-						type: q.type,
-						from: p.range.from,
-						to: p.range.to,
-						timezone: params.timezone,
-						limit: q.limit ?? 10,
-						filters: q.filters?.map((f) => ({
-							field: f.field,
-							op: "eq" as const,
-							value: f.value,
-						})),
-					};
-
-					try {
-						const data = await executeQuery(
-							req,
-							params.domain,
-							params.timezone
-						);
-						const rows = Array.isArray(data) ? data : [];
-						return {
-							...base,
-							data: rows,
-							rowCount: rows.length,
-							status: rows.length === 0 ? "empty" : "ok",
-						} satisfies QueryEvidence;
-					} catch (error) {
-						return {
-							...base,
-							data: [],
-							error:
-								error instanceof Error
-									? error.message.slice(0, 500)
-									: "Query failed",
-							rowCount: 0,
-							status: "failed",
-						} satisfies QueryEvidence;
-					}
-				})
-			);
-
-			const results = await Promise.all(tasks);
-			return completeEvidence(results);
-		},
-	});
-
-	const productMetricsTool = tool({
-		description:
-			"Read the exact goal, funnel, or event matching the signal entity.",
-		inputSchema: z.object({
-			period: periodSchema,
-			signalKey: signalKeySchema,
-		}),
-		execute: async ({ period, signalKey }, options) => {
-			const scope = productScope(signalKey);
-			const appContext = getAppContext(options);
-			const ranges = resolveRanges(period, signalKey);
-			const results = await Promise.all(
-				ranges.map((p) =>
-					fetchContextEvidence({
-						entity: scope.entity,
-						fetch: () => fetchProductMetrics(appContext, p.range, scope.target),
+						status: rows.length === 0 ? "empty" : "ok",
+					} satisfies QueryEvidence;
+				} catch (error) {
+					rethrowAbort(error, abortSignal);
+					return {
+						data: [],
+						error:
+							error instanceof Error
+								? error.message.slice(0, 500)
+								: "Query failed",
 						period: p.label,
-						queries: [{ type: scope.queryType }],
+						query: q,
+						queryType: evidenceQueryType,
 						range: p.range,
-						signalKey,
-						source: "product",
-					})
-				)
-			);
-			return completeEvidence(results.flat());
-		},
-	});
+						rowCount: 0,
+						source: sourceForWebQuery(q.type),
+						status: "failed",
+					} satisfies QueryEvidence;
+				}
+			})
+		);
 
-	const opsContextTool = tool({
-		description:
-			"Errors, uptime, anomalies, flag changes. Use for reliability context.",
-		inputSchema: z.object({
-			period: periodSchema,
+		return Promise.all(tasks);
+	}
+
+	const productInputSchema = z
+		.object({ period: z.literal("current") })
+		.strict();
+	async function fetchProductEvidence(
+		{ period }: z.infer<typeof productInputSchema>,
+		appContext: AppContext,
+		abortSignal?: AbortSignal
+	): Promise<QueryEvidence[]> {
+		if (period !== "current") {
+			throw new Error(
+				"Product investigations use the detector baseline and query only the current period"
+			);
+		}
+		const scope = productScope();
+		const ranges = resolveRanges(period);
+		const results = await Promise.all(
+			ranges.map((p) =>
+				fetchContextEvidence({
+					abortSignal,
+					entity: scope.entity,
+					fetch: () =>
+						fetchProductMetrics(appContext, p.range, scope.target, abortSignal),
+					period: p.label,
+					queries: [{ type: scope.queryType }],
+					range: p.range,
+					source: "product",
+				})
+			)
+		);
+		return results.flat();
+	}
+	const opsInputSchema = z
+		.object({
+			period: z.literal("current"),
 			queries: z
 				.array(
-					z.object({
-						type: z.enum(OPS_INSIGHT_QUERY_TYPES),
-						limit: z.number().min(1).max(10).optional(),
-					})
+					z
+						.object({
+							type: z.enum(OPS_INSIGHT_QUERY_TYPES),
+							limit: z.number().min(1).max(10).optional(),
+						})
+						.strict()
 				)
 				.min(1)
 				.max(MAX_QUERIES),
-			signalKey: signalKeySchema,
-		}),
-		execute: async ({ period, queries, signalKey }, options) => {
-			const appContext = getAppContext(options);
-			const ranges = resolveRanges(period, signalKey);
-			const results = await Promise.all(
-				ranges.map((p) =>
-					fetchContextEvidence({
-						fetch: () => fetchOpsMetrics(appContext, p.range, p.label, queries),
-						period: p.label,
-						queries,
-						range: p.range,
-						signalKey,
-						source: "ops",
-					})
-				)
+		})
+		.strict();
+	async function fetchOpsEvidence(
+		{ period, queries }: z.infer<typeof opsInputSchema>,
+		appContext: AppContext,
+		abortSignal?: AbortSignal
+	): Promise<QueryEvidence[]> {
+		if (
+			(params.signal.entity.type === "error" ||
+				params.signal.entity.type === "uptime_monitor") &&
+			period !== "current"
+		) {
+			throw new Error(
+				"Reliability investigations use the detector baseline and query only the current period"
 			);
-			return completeEvidence(results.flat());
-		},
-	});
-
-	return {
-		tools: {
-			ops_context: opsContextTool,
-			product_metrics: productMetricsTool,
-			web_metrics: webMetricsTool,
-		},
+		}
+		const ranges = resolveRanges(period);
+		const unique = uniqueQueries(queries);
+		const results = await Promise.all(
+			ranges.map((p) =>
+				fetchContextEvidence({
+					abortSignal,
+					fetch: () =>
+						fetchOpsMetrics(appContext, p.range, p.label, unique, abortSignal),
+					period: p.label,
+					queries: unique,
+					range: p.range,
+					source: "ops",
+				})
+			)
+		);
+		return results.flat();
+	}
+	return async (request, appContext, abortSignal) => {
+		switch (request.name) {
+			case "product_metrics":
+				return materializeEvidence(
+					await fetchProductEvidence(
+						productInputSchema.parse(request.input),
+						appContext,
+						abortSignal
+					)
+				);
+			case "ops_context":
+				return materializeEvidence(
+					await fetchOpsEvidence(
+						opsInputSchema.parse(request.input),
+						appContext,
+						abortSignal
+					)
+				);
+			case "web_metrics":
+				return materializeEvidence(
+					await fetchWebEvidence(
+						webInputSchema.parse(request.input),
+						abortSignal
+					)
+				);
+			default:
+				throw new Error("Unsupported insight evidence request");
+		}
 	};
 }

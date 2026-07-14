@@ -1,5 +1,6 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
+import { readBooleanEnv } from "@databuddy/env/boolean";
 import { closeInsightsQueue, getInsightsQueue } from "@databuddy/redis";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import { Elysia } from "elysia";
@@ -21,7 +22,7 @@ const environment =
 	process.env.APP_ENV ??
 	process.env.RAILWAY_ENVIRONMENT_NAME ??
 	(process.env.NODE_ENV === "development" ? "development" : "production");
-const workerEnabled = process.env.INSIGHTS_WORKER_ENABLED !== "false";
+const workerEnabled = readBooleanEnv("INSIGHTS_WORKER_ENABLED");
 const DRAIN_TIMEOUT_MS = 10_000;
 
 initLogger({

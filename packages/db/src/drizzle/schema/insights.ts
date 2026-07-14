@@ -1,4 +1,9 @@
 import { inArray } from "drizzle-orm";
+import type {
+	InvestigationDecision,
+	InvestigationEvidence,
+	InvestigationSignal,
+} from "@databuddy/shared/insights";
 import {
 	boolean,
 	foreignKey,
@@ -14,7 +19,6 @@ import { organization, user } from "./auth";
 import { websites } from "./websites";
 
 export type InsightGenerationFrequency = "daily" | "weekly";
-export type InsightGenerationModelTier = "fast" | "balanced" | "deep";
 export type InsightGenerationReason =
 	| "manual"
 	| "scheduled"
@@ -35,15 +39,14 @@ export type InsightRunItemStatus =
 	| "succeeded"
 	| "failed"
 	| "skipped";
+export type InsightRunPreparedStatus = "skipped" | "succeeded";
+export type InsightRunEffectStatus = "failed" | "pending" | "succeeded";
+export type InsightObservationDisposition =
+	InvestigationDecision["disposition"];
 
 export interface InsightDelivery {
 	channelId: string;
 	type: "slack";
-}
-
-export interface InsightGenerationConfigSnapshot {
-	modelTier: InsightGenerationModelTier;
-	timezone: string;
 }
 
 export const insightGenerationConfigs = pgTable(
@@ -57,10 +60,6 @@ export const insightGenerationConfigs = pgTable(
 			.default("weekly")
 			.notNull(),
 		timezone: text().default("UTC").notNull(),
-		modelTier: text("model_tier")
-			.$type<InsightGenerationModelTier>()
-			.default("balanced")
-			.notNull(),
 		deliveries: jsonb("deliveries")
 			.$type<InsightDelivery[]>()
 			.default([])
@@ -155,10 +154,13 @@ export const insightRunItems = pgTable(
 		queueJobId: text("queue_job_id"),
 		status: text().$type<InsightRunItemStatus>().default("queued").notNull(),
 		attempts: integer().default(0).notNull(),
-		configSnapshot: jsonb("config_snapshot")
-			.$type<InsightGenerationConfigSnapshot>()
-			.notNull(),
 		resultCount: integer("result_count").default(0).notNull(),
+		preparedAt: timestamp("prepared_at", {
+			precision: 3,
+			withTimezone: true,
+		}),
+		preparedStatus: text("prepared_status").$type<InsightRunPreparedStatus>(),
+		preparedMessage: text("prepared_message"),
 		errorMessage: text("error_message"),
 		startedAt: timestamp("started_at", {
 			precision: 3,
@@ -209,6 +211,98 @@ export const insightRunItems = pgTable(
 			columns: [table.websiteId],
 			foreignColumns: [websites.id],
 			name: "insight_run_items_website_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
+
+export const insightRunEffects = pgTable(
+	"insight_run_effects",
+	{
+		id: text().primaryKey(),
+		runItemId: text("run_item_id").notNull(),
+		effectKey: text("effect_key").notNull(),
+		payload: jsonb().$type<unknown>().notNull(),
+		status: text().$type<InsightRunEffectStatus>().default("pending").notNull(),
+		attempts: integer().default(0).notNull(),
+		externalId: text("external_id"),
+		errorMessage: text("error_message"),
+		completedAt: timestamp("completed_at", {
+			precision: 3,
+			withTimezone: true,
+		}),
+		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+		updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("insight_run_effects_item_key_uidx").on(
+			table.runItemId,
+			table.effectKey
+		),
+		index("insight_run_effects_status_updated_idx").on(
+			table.status,
+			table.updatedAt
+		),
+		foreignKey({
+			columns: [table.runItemId],
+			foreignColumns: [insightRunItems.id],
+			name: "insight_run_effects_run_item_id_fkey",
+		}).onDelete("cascade"),
+	]
+);
+
+export const insightObservations = pgTable(
+	"insight_observations",
+	{
+		id: text().primaryKey(),
+		runId: text("run_id"),
+		organizationId: text("organization_id").notNull(),
+		websiteId: text("website_id").notNull(),
+		insightId: text("insight_id"),
+		signalKey: text("signal_key").notNull(),
+		asOf: timestamp("as_of", { precision: 3, withTimezone: true }).notNull(),
+		disposition: text().$type<InsightObservationDisposition>().notNull(),
+		signal: jsonb().$type<InvestigationSignal>().notNull(),
+		evidence: jsonb().$type<InvestigationEvidence[]>().default([]).notNull(),
+		decision: jsonb().$type<InvestigationDecision>().notNull(),
+		recheckAt: timestamp("recheck_at", {
+			precision: 3,
+			withTimezone: true,
+		}).notNull(),
+		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("insight_observations_run_website_uidx").on(
+			table.runId,
+			table.websiteId
+		),
+		index("insight_observations_site_signal_asof_idx").on(
+			table.organizationId,
+			table.websiteId,
+			table.signalKey,
+			table.asOf.desc(),
+			table.createdAt.desc()
+		),
+		foreignKey({
+			columns: [table.runId],
+			foreignColumns: [insightRuns.id],
+			name: "insight_observations_run_id_fkey",
+		}).onDelete("set null"),
+		foreignKey({
+			columns: [table.organizationId],
+			foreignColumns: [organization.id],
+			name: "insight_observations_organization_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.organizationId, table.websiteId],
+			foreignColumns: [websites.organizationId, websites.id],
+			name: "insight_observations_org_website_fkey",
 		}).onDelete("cascade"),
 	]
 );
@@ -265,5 +359,7 @@ export type InsightRun = typeof insightRuns.$inferSelect;
 export type InsightRunInsert = typeof insightRuns.$inferInsert;
 export type InsightRunItem = typeof insightRunItems.$inferSelect;
 export type InsightRunItemInsert = typeof insightRunItems.$inferInsert;
+export type InsightObservation = typeof insightObservations.$inferSelect;
+export type InsightObservationInsert = typeof insightObservations.$inferInsert;
 export type InsightRollup = typeof insightRollups.$inferSelect;
 export type InsightRollupInsert = typeof insightRollups.$inferInsert;

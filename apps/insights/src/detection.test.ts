@@ -209,6 +209,93 @@ describe("detectSignals", () => {
 		]);
 	});
 
+	it("keeps a valid traffic signal when history and revenue probes fail", async () => {
+		let summaryCalls = 0;
+		const diagnostics = { failedFamilies: 0 };
+		const queryFn: QueryFn = async (request) => {
+			if (request.type === "events_by_date") {
+				throw new Error("daily history unavailable");
+			}
+			if (request.type === "revenue_overview") {
+				throw new Error("revenue unavailable");
+			}
+			if (request.type === "summary_metrics") {
+				summaryCalls += 1;
+				return [
+					{
+						unique_visitors: summaryCalls === 1 ? 200 : 100,
+						sessions: 100,
+						pageviews: 100,
+					},
+				];
+			}
+			return [];
+		};
+
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			queryFn,
+			dayjs("2025-03-15"),
+			undefined,
+			diagnostics
+		);
+
+		expect(signals.map((signal) => signal.metric)).toContain("visitors");
+		expect(diagnostics.failedFamilies).toBe(2);
+	});
+
+	it("returns no signals and reports an incomplete scan when one family fails", async () => {
+		const diagnostics = { failedFamilies: 0 };
+		const queryFn: QueryFn = async (request) => {
+			if (request.type === "revenue_overview") {
+				throw new Error("revenue unavailable");
+			}
+			if (request.type === "summary_metrics") {
+				return [
+					{ unique_visitors: 100, sessions: 100, pageviews: 100 },
+				];
+			}
+			return [];
+		};
+
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			queryFn,
+			dayjs("2025-03-15"),
+			undefined,
+			diagnostics
+		);
+
+		expect(signals).toEqual([]);
+		expect(diagnostics.failedFamilies).toBe(1);
+	});
+
+	it("recovers a detector family after one transient query failure", async () => {
+		let revenueCalls = 0;
+		const diagnostics = { failedFamilies: 0 };
+		const queryFn: QueryFn = async (request) => {
+			if (request.type === "revenue_overview") {
+				revenueCalls += 1;
+				if (revenueCalls === 1) {
+					throw new Error("socket closed");
+				}
+			}
+			return [];
+		};
+
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			queryFn,
+			dayjs("2025-03-15"),
+			undefined,
+			diagnostics
+		);
+
+		expect(signals).toEqual([]);
+		expect(revenueCalls).toBe(4);
+		expect(diagnostics.failedFamilies).toBe(0);
+	});
+
 	describe("z-score detection", () => {
 		it("flags a spike on the latest complete day", async () => {
 			const start = dayjs().subtract(28, "day");
@@ -280,7 +367,7 @@ describe("detectSignals", () => {
 		});
 
 		it("ignores normal variation below threshold", async () => {
-			const start = dayjs().subtract(27, "day");
+			const start = dayjs().subtract(14, "day");
 			const stable = generateStableDays(14, {
 				visitors: 100,
 				sessions: 120,
@@ -364,6 +451,73 @@ describe("detectSignals", () => {
 				)
 			).toBe(false);
 			expect(signals.filter((s) => s.method === "zscore")).toHaveLength(0);
+		});
+
+		it("treats missing aggregate dates as zero-activity days", async () => {
+			const start = dayjs().subtract(29, "day");
+			const normal = generateStableDays(
+				27,
+				{
+					visitors: 100,
+					sessions: 120,
+					pageviews: 200,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
+			const staleSpike = {
+				...normal.at(-1)!,
+				date: dayjs().subtract(3, "day").format("YYYY-MM-DD"),
+				visitors: 500,
+			};
+			const rows = makeDailyRows([...normal.slice(0, -1), staleSpike]);
+
+			const diagnostics = { failedFamilies: 0 };
+			const signals = await detectSignals(
+				BASE_PARAMS,
+				createMockQueryFn(rows),
+				undefined,
+				undefined,
+				diagnostics
+			);
+
+			expect(signals).toContainEqual(
+				expect.objectContaining({
+					current: 0,
+					direction: "down",
+					metric: "visitors",
+					method: "zscore",
+				})
+			);
+			expect(diagnostics.failedFamilies).toBe(0);
+		});
+
+		it("does not mark sparse successful history as incomplete", async () => {
+			const diagnostics = { failedFamilies: 0 };
+			const staleRows = [
+				{
+					date: dayjs().subtract(3, "day").format("YYYY-MM-DD"),
+					pageviews: 100,
+					sessions: 100,
+					visitors: 100,
+				},
+			];
+
+			const signals = await detectSignals(
+				BASE_PARAMS,
+				createMockQueryFn(
+					staleRows,
+					{ pageviews: 100, sessions: 100, unique_visitors: 200 },
+					{ pageviews: 100, sessions: 100, unique_visitors: 100 }
+				),
+				undefined,
+				undefined,
+				diagnostics
+			);
+
+			expect(signals).toEqual([]);
+			expect(diagnostics.failedFamilies).toBe(0);
 		});
 
 		it("requires at least 7 days of data", async () => {
@@ -550,6 +704,40 @@ describe("detectSignals", () => {
 			);
 			expect(visitorWow.length).toBe(0);
 		});
+
+		it("does not let adaptive volatility hide a material volume collapse", async () => {
+			const start = dayjs().subtract(27, "day");
+			const volatile = generateStableDays(
+				28,
+				{
+					visitors: 500,
+					sessions: 700,
+					pageviews: 1000,
+					bounce_rate: 40,
+					median_session_duration: 60,
+				},
+				start
+			);
+			for (const [index, row] of volatile.entries()) {
+				row.pageviews = index % 2 === 0 ? 100 : 2000;
+			}
+			const signals = await detectSignals(
+				BASE_PARAMS,
+				createMockQueryFn(
+					volatile,
+					{ pageviews: 1337, sessions: 2000 },
+					{ pageviews: 4999, sessions: 2000 }
+				)
+			);
+
+			expect(signals).toContainEqual(
+				expect.objectContaining({
+					current: 1337,
+					direction: "down",
+					metric: "pageviews",
+				})
+			);
+		});
 	});
 
 	describe("severity tiers", () => {
@@ -669,7 +857,8 @@ describe("detectSignals", () => {
 			const queryFn = createMockQueryFn(rows);
 			const signals = await detectSignals(
 				{ ...BASE_PARAMS, lookbackDays: 14 },
-				queryFn
+				queryFn,
+				d
 			);
 
 			const zscoreVisitors = signals.find(
@@ -710,7 +899,8 @@ describe("detectSignals", () => {
 			const queryFn = createMockQueryFn(rows);
 			const signals = await detectSignals(
 				{ ...BASE_PARAMS, lookbackDays: 14 },
-				queryFn
+				queryFn,
+				d.add(1, "day")
 			);
 
 			const zscoreVisitors = signals.find(
@@ -751,7 +941,7 @@ describe("detectSignals", () => {
 			expect(volumeSignals.length).toBe(0);
 		});
 
-		it("does not filter rate metrics by traffic volume", async () => {
+		it("filters rate metrics when the comparison has too few sessions", async () => {
 			const queryFn = createMockQueryFn(
 				[],
 				{
@@ -775,7 +965,7 @@ describe("detectSignals", () => {
 				(s) =>
 					s.metric === "bounce_rate" || s.metric === "session_duration"
 			);
-			expect(rateSignals.length).toBeGreaterThan(0);
+			expect(rateSignals).toEqual([]);
 		});
 	});
 
@@ -898,8 +1088,8 @@ describe("detectSignals", () => {
 		it("flags error count spike above 40%", async () => {
 			const queryFn = createMockQueryFn([], {}, {}, {
 				error_summary: [
-					{ totalErrors: 50, affectedUsers: 8 },
-					{ totalErrors: 20, affectedUsers: 5 },
+					{ totalErrors: 50, affectedUsers: 8, errorRate: 2.5 },
+					{ totalErrors: 20, affectedUsers: 5, errorRate: 1.2 },
 				],
 			});
 
@@ -908,6 +1098,24 @@ describe("detectSignals", () => {
 			expect(errorSignal).toBeDefined();
 			expect(errorSignal!.direction).toBe("up");
 			expect(errorSignal!.deltaPercent).toBe(150);
+			expect(errorSignal!.severity).toBe("warning");
+		});
+
+		it("suppresses a low-rate error spike affecting only three users", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 4000 },
+				{ sessions: 4000 },
+				{
+					error_summary: [
+						{ totalErrors: 10, affectedUsers: 3, errorRate: 0.08 },
+						{ totalErrors: 2, affectedUsers: 1, errorRate: 0.03 },
+					],
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
 		});
 
 		it("skips errors below absolute threshold", async () => {
@@ -937,8 +1145,8 @@ describe("detectSignals", () => {
 		it("keeps an error recovery when the previous week had enough affected users", async () => {
 			const queryFn = createMockQueryFn([], {}, {}, {
 				error_summary: [
-					{ totalErrors: 12, affectedUsers: 2 },
-					{ totalErrors: 60, affectedUsers: 15 },
+					{ totalErrors: 12, affectedUsers: 2, errorRate: 0.4 },
+					{ totalErrors: 60, affectedUsers: 15, errorRate: 3 },
 				],
 			});
 
@@ -979,21 +1187,27 @@ describe("detectSignals", () => {
 			);
 		};
 
-		it("suppresses small-count custom event spikes on low-traffic sites", async () => {
-			const queryFn = createMockQueryFn(lowTrafficDays(), {}, {}, {
-				custom_events_discovery: [
-					{ event_name: "signup_started", total_events: 9 },
-					{ event_name: "signup_started", total_events: 4 },
-				],
-			});
+		it("suppresses rate changes without enough sessions", async () => {
+			const queryFn = createMockQueryFn(
+				lowTrafficDays(),
+				{
+					bounce_rate: 60,
+					median_session_duration: 120,
+				},
+				{
+					bounce_rate: 30,
+					median_session_duration: 60,
+				}
+			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "bounce_rate")).toBeUndefined();
 			expect(
-				signals.find((s) => s.metric === "custom_event:signup_started")
+				signals.find((s) => s.metric === "session_duration")
 			).toBeUndefined();
 		});
 
-		it("keeps the same spike on a site with normal traffic", async () => {
+		it("keeps rate changes when the site has enough sessions", async () => {
 			const start = dayjs().subtract(27, "day");
 			const rows = makeDailyRows(
 				generateStableDays(
@@ -1008,17 +1222,66 @@ describe("detectSignals", () => {
 					start
 				)
 			);
-			const queryFn = createMockQueryFn(rows, {}, {}, {
-				custom_events_discovery: [
-					{ event_name: "signup_started", total_events: 9 },
-					{ event_name: "signup_started", total_events: 4 },
+			const queryFn = createMockQueryFn(
+				rows,
+				{
+					bounce_rate: 60,
+					median_session_duration: 120,
+				},
+				{
+					bounce_rate: 30,
+					median_session_duration: 60,
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "bounce_rate")).toBeDefined();
+			expect(
+				signals.find((s) => s.metric === "session_duration")
+			).toBeDefined();
+		});
+	});
+
+	describe("vitals detection", () => {
+		it("ignores regressions that remain within the good threshold", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				vitals_overview: [
+					{ metric_name: "INP", p75: 147, samples: 100 },
+					{ metric_name: "INP", p75: 104, samples: 100 },
 				],
 			});
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(
-				signals.find((s) => s.metric === "custom_event:signup_started")
-			).toBeDefined();
+			expect(signals.find((signal) => signal.metric === "inp")).toBeUndefined();
+		});
+
+		it("keeps regressions that cross the good threshold", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 1000 },
+				{ sessions: 1000 },
+				{
+				vitals_overview: [
+					{ metric_name: "INP", p75: 240, samples: 100 },
+					{ metric_name: "INP", p75: 150, samples: 100 },
+				],
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((signal) => signal.metric === "inp")).toBeDefined();
+		});
+
+		it("ignores implausible instrumentation outliers", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				vitals_overview: [
+					{ metric_name: "LCP", p75: 76_751_400, samples: 100 },
+					{ metric_name: "LCP", p75: 2400, samples: 100 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((signal) => signal.metric === "lcp")).toBeUndefined();
 		});
 	});
 
@@ -1053,6 +1316,30 @@ describe("detectSignals", () => {
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "revenue")).toBeUndefined();
+		});
+
+		it("skips a one-transaction revenue fluctuation", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{ total_revenue: 0, total_transactions: 0 },
+					{ total_revenue: 4.99, total_transactions: 1 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "revenue")).toBeUndefined();
+		});
+
+		it("keeps a high-volume revenue change below the amount floor", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{ total_revenue: 2, total_transactions: 8 },
+					{ total_revenue: 10, total_transactions: 10 },
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((s) => s.metric === "revenue")).toBeDefined();
 		});
 	});
 

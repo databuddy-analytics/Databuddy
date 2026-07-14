@@ -343,7 +343,6 @@
         "@databuddy/redis": "workspace:*",
         "@databuddy/rpc": "workspace:*",
         "@databuddy/shared": "workspace:*",
-        "ai": "^6.0.188",
         "bullmq": "^5.78.0",
         "dayjs": "^1.11.19",
         "elysia": "catalog:",
@@ -606,8 +605,14 @@
       "version": "0.0.1",
       "dependencies": {
         "@databuddy/ai": "workspace:*",
+        "@databuddy/db": "workspace:*",
         "@databuddy/env": "workspace:*",
+        "@databuddy/shared": "workspace:*",
         "ai": "^6.0.188",
+        "pg": "^8.16.3",
+      },
+      "devDependencies": {
+        "@types/pg": "^8.16.0",
       },
     },
     "packages/mapper": {

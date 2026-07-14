@@ -16,6 +16,7 @@ import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	insightEvidenceSchema,
 	insightMetricSchema,
+	insightRemediationKindSchema,
 	insightSentimentSchema,
 	insightSeveritySchema,
 	insightSourceSchema,
@@ -60,7 +61,6 @@ async function enforceRateLimit(
 	}
 }
 
-const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
 const historyInsightEvidenceSchema = insightEvidenceSchema.extend({
 	type: z.string(),
 });
@@ -76,12 +76,12 @@ const historyInsightSchema = z.object({
 	evidence: z.array(historyInsightEvidenceSchema).nullable().optional(),
 	id: z.string(),
 	impactSummary: z.string().optional(),
-	investigationDepth: investigationDepthSchema.nullable().optional(),
 	link: z.string(),
 	metrics: z.array(insightMetricSchema),
 	previousPeriodFrom: z.string().nullable(),
 	previousPeriodTo: z.string().nullable(),
 	priority: z.number(),
+	remediationKind: insightRemediationKindSchema.nullable().optional(),
 	resolvedAt: z.string().nullable(),
 	resolvedReason: insightResolvedReasonSchema.nullable(),
 	rootCause: z.string().nullable().optional(),
@@ -111,12 +111,12 @@ const insightSelection = {
 	evidence: analyticsInsights.evidence,
 	id: analyticsInsights.id,
 	impactSummary: analyticsInsights.impactSummary,
-	investigationDepth: analyticsInsights.investigationDepth,
 	metrics: analyticsInsights.metrics,
 	organizationId: analyticsInsights.organizationId,
 	previousPeriodFrom: analyticsInsights.previousPeriodFrom,
 	previousPeriodTo: analyticsInsights.previousPeriodTo,
 	priority: analyticsInsights.priority,
+	remediationKind: analyticsInsights.remediationKind,
 	resolvedAt: analyticsInsights.resolvedAt,
 	resolvedReason: analyticsInsights.resolvedReason,
 	rootCause: analyticsInsights.rootCause,
@@ -189,12 +189,12 @@ function serializeInsight(
 		evidence: row.evidence ?? null,
 		id: row.id,
 		impactSummary: row.impactSummary ?? undefined,
-		investigationDepth: row.investigationDepth ?? null,
 		link: buildInsightLink(row.websiteId, row.type),
 		metrics: row.metrics ?? [],
 		previousPeriodFrom: row.previousPeriodFrom,
 		previousPeriodTo: row.previousPeriodTo,
 		priority: row.priority,
+		remediationKind: row.remediationKind ?? null,
 		resolvedAt: row.resolvedAt?.toISOString() ?? null,
 		resolvedReason: row.resolvedReason ?? null,
 		rootCause: row.rootCause,
@@ -673,97 +673,6 @@ export const insightsRouter = {
 						updatedAt: now,
 					},
 				});
-
-			return { success: true as const };
-		}),
-
-	setDismissed: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/setDismissed",
-			tags: ["Insights"],
-			summary: "Dismiss or restore an insight",
-			description:
-				"Marks an insight as dismissed so its pattern is suppressed in future generation, or restores it when dismissed is false.",
-		})
-		.input(
-			z.object({
-				insightId: z.string().min(1).max(256),
-				dismissed: z.boolean(),
-			})
-		)
-		.output(z.object({ success: z.literal(true) }))
-		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-
-			if (!input.dismissed) {
-				await context.db
-					.delete(insightUserFeedback)
-					.where(
-						and(
-							eq(insightUserFeedback.userId, context.user.id),
-							eq(insightUserFeedback.organizationId, context.organizationId),
-							eq(insightUserFeedback.insightId, input.insightId),
-							eq(insightUserFeedback.vote, "dismissed")
-						)
-					);
-				return { success: true as const };
-			}
-
-			const now = new Date();
-			await context.db
-				.insert(insightUserFeedback)
-				.values({
-					id: randomUUIDv7(),
-					userId: context.user.id,
-					organizationId: context.organizationId,
-					insightId: input.insightId,
-					vote: "dismissed",
-					createdAt: now,
-					updatedAt: now,
-				})
-				.onConflictDoUpdate({
-					target: [
-						insightUserFeedback.userId,
-						insightUserFeedback.organizationId,
-						insightUserFeedback.insightId,
-					],
-					set: {
-						vote: "dismissed",
-						updatedAt: now,
-					},
-				});
-
-			return { success: true as const };
-		}),
-
-	clearDismissed: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/clearDismissed",
-			tags: ["Insights"],
-			summary: "Clear all dismissed insights",
-			description:
-				"Removes every dismissal for the current user in the active organization.",
-		})
-		.input(z.object({}))
-		.output(z.object({ success: z.literal(true) }))
-		.handler(async ({ context }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-
-			await context.db
-				.delete(insightUserFeedback)
-				.where(
-					and(
-						eq(insightUserFeedback.userId, context.user.id),
-						eq(insightUserFeedback.organizationId, context.organizationId),
-						eq(insightUserFeedback.vote, "dismissed")
-					)
-				);
 
 			return { success: true as const };
 		}),

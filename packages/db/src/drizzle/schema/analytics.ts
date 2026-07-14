@@ -1,6 +1,7 @@
 import type {
 	InsightEvidence,
 	InsightMetric,
+	InsightRemediationKind,
 	InsightSentiment,
 	InsightSeverity,
 	InsightSource,
@@ -221,10 +222,8 @@ export const analyticsInsights = pgTable(
 		impactSummary: text("impact_summary"),
 		metrics: jsonb().$type<InsightMetric[]>(),
 		rootCause: text("root_cause"),
+		remediationKind: text("remediation_kind").$type<InsightRemediationKind>(),
 		evidence: jsonb("evidence").$type<InsightEvidence[]>(),
-		investigationDepth: text("investigation_depth").$type<
-			"surface" | "investigated" | "deep"
-		>(),
 		actions: jsonb().$type<StoredInsightAction[]>(),
 		chainId: text("chain_id"),
 		timezone: text().notNull().default("UTC"),

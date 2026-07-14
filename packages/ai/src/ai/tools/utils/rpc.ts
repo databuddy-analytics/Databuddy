@@ -12,7 +12,8 @@ export async function callRPCProcedure(
 	routerName: string,
 	method: string,
 	input: unknown,
-	context: AppContext
+	context: AppContext,
+	abortSignal?: AbortSignal
 ) {
 	try {
 		if (context.mutationMode === "dry-run" && isMutationMethod(method)) {
@@ -29,7 +30,13 @@ export async function callRPCProcedure(
 		const client = await getServerRPCClient(headers, preResolved);
 
 		const router = client[routerName as keyof typeof client] as
-			| Record<string, (input: unknown) => Promise<unknown>>
+			| Record<
+					string,
+					(
+						input: unknown,
+						options?: { signal?: AbortSignal }
+					) => Promise<unknown>
+			  >
 			| undefined;
 		if (!router || typeof router !== "object") {
 			throw new Error(`Router ${routerName} not found`);
@@ -42,7 +49,9 @@ export async function callRPCProcedure(
 			);
 		}
 
-		return await clientFn(input);
+		return await (abortSignal
+			? clientFn(input, { signal: abortSignal })
+			: clientFn(input));
 	} catch (error) {
 		if (error instanceof ORPCError) {
 			logger.error("ORPC error", {

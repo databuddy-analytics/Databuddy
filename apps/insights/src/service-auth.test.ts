@@ -4,8 +4,10 @@ const mockCreateServiceAuth = mock((organizationId: string, scopes: string[]) =>
 	apiKey: { organizationId, scopes },
 	session: null,
 }));
+const actualRpc = await import("@databuddy/rpc");
 
 mock.module("@databuddy/rpc", () => ({
+	...actualRpc,
 	createServiceAuth: mockCreateServiceAuth,
 }));
 

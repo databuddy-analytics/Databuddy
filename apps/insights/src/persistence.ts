@@ -10,7 +10,7 @@ import {
 	or,
 	sql,
 } from "@databuddy/db";
-import { analyticsInsights, insightUserFeedback } from "@databuddy/db/schema";
+import { analyticsInsights } from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
@@ -22,13 +22,8 @@ import {
 } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import { emitInsightsEvent } from "./lib/evlog-insights";
-import {
-	INSIGHT_COOLDOWN_HOURS,
-	type InsightDepth,
-	MAX_INSIGHTS_PER_WEBSITE,
-} from "./policy";
+import { INSIGHT_COOLDOWN_HOURS } from "./policy";
 
-const DISMISSAL_SUPPRESSION_LOOKBACK_DAYS = 30;
 const OPEN_INSIGHT_LOOKBACK_DAYS = 90;
 const MATERIALLY_WORSE_MULTIPLIER = 1.5;
 const SEVERITY_RANK: Record<string, number> = {
@@ -51,8 +46,8 @@ const REFRESHED_INSIGHT_COLUMNS = [
 	"confidence",
 	"impactSummary",
 	"rootCause",
+	"remediationKind",
 	"evidence",
-	"investigationDepth",
 	"actions",
 	"metrics",
 	"timezone",
@@ -116,6 +111,7 @@ export interface PriorInsightRow {
 	changePercent: number | null;
 	createdAt: Date;
 	id: string;
+	runId: string;
 	severity: string;
 	status: string;
 }
@@ -130,6 +126,7 @@ async function fetchPriorInsightsByDedupeKey(
 	const rows = await db
 		.select({
 			id: analyticsInsights.id,
+			runId: analyticsInsights.runId,
 			websiteId: analyticsInsights.websiteId,
 			type: analyticsInsights.type,
 			sentiment: analyticsInsights.sentiment,
@@ -162,6 +159,7 @@ async function fetchPriorInsightsByDedupeKey(
 		if (!map.has(key)) {
 			map.set(key, {
 				id: row.id,
+				runId: row.runId,
 				changePercent: row.changePercent,
 				createdAt: row.createdAt,
 				severity: row.severity,
@@ -180,9 +178,6 @@ export function classifyRecurrence(
 	if (!prior || prior.status !== "open") {
 		return { isEscalation: false, isNew: true, isPersistent: false };
 	}
-	if (prior.createdAt >= cooldownCutoff) {
-		return { isEscalation: false, isNew: false, isPersistent: false };
-	}
 	if (
 		isMateriallyWorse(candidate, {
 			changePercent: prior.changePercent,
@@ -191,6 +186,9 @@ export function classifyRecurrence(
 	) {
 		return { isEscalation: true, isNew: false, isPersistent: false };
 	}
+	if (prior.createdAt >= cooldownCutoff) {
+		return { isEscalation: false, isNew: false, isPersistent: false };
+	}
 	return {
 		isEscalation: false,
 		isNew: false,
@@ -198,58 +196,14 @@ export function classifyRecurrence(
 	};
 }
 
-interface DismissedBaseline {
+interface ChangeBaseline {
 	changePercent: number | null;
 	severity: string;
 }
 
-async function fetchDismissedBaselines(
-	organizationId: string
-): Promise<Map<string, DismissedBaseline>> {
-	const cutoff = dayjs()
-		.subtract(DISMISSAL_SUPPRESSION_LOOKBACK_DAYS, "day")
-		.toDate();
-	const rows = await db
-		.select({
-			dedupeKey: analyticsInsights.dedupeKey,
-			websiteId: analyticsInsights.websiteId,
-			type: analyticsInsights.type,
-			sentiment: analyticsInsights.sentiment,
-			subjectKey: analyticsInsights.subjectKey,
-			title: analyticsInsights.title,
-			severity: analyticsInsights.severity,
-			changePercent: analyticsInsights.changePercent,
-		})
-		.from(insightUserFeedback)
-		.innerJoin(
-			analyticsInsights,
-			eq(insightUserFeedback.insightId, analyticsInsights.id)
-		)
-		.where(
-			and(
-				eq(insightUserFeedback.organizationId, organizationId),
-				eq(insightUserFeedback.vote, "dismissed"),
-				gte(insightUserFeedback.createdAt, cutoff)
-			)
-		)
-		.orderBy(desc(insightUserFeedback.createdAt));
-
-	const map = new Map<string, DismissedBaseline>();
-	for (const row of rows) {
-		const key = resolveDedupeKey(row);
-		if (!map.has(key)) {
-			map.set(key, {
-				changePercent: row.changePercent,
-				severity: row.severity,
-			});
-		}
-	}
-	return map;
-}
-
 export function isMateriallyWorse(
 	candidate: { changePercent?: number | null; severity: string },
-	baseline: DismissedBaseline
+	baseline: ChangeBaseline
 ): boolean {
 	const candidateRank = SEVERITY_RANK[candidate.severity] ?? 0;
 	const baselineRank = SEVERITY_RANK[baseline.severity] ?? 0;
@@ -266,7 +220,6 @@ export function isMateriallyWorse(
 
 export async function persistWebsiteInsights(params: {
 	insights: GeneratedWebsiteInsight[];
-	investigationDepth: InsightDepth;
 	organizationId: string;
 	runId: string;
 	timezone: string;
@@ -275,24 +228,29 @@ export async function persistWebsiteInsights(params: {
 		isEscalation: boolean;
 		isNew: boolean;
 		isPersistent: boolean;
+		isRetry: boolean;
 	})[]
 > {
 	const startedAt = performance.now();
 	const cooldownCutoff = dayjs()
 		.subtract(INSIGHT_COOLDOWN_HOURS, "hour")
 		.toDate();
-	const [priorByDedupeKey, dismissedBaselines] = await Promise.all([
-		fetchPriorInsightsByDedupeKey(params.organizationId, cooldownCutoff),
-		fetchDismissedBaselines(params.organizationId),
-	]);
+	const priorByDedupeKey = await fetchPriorInsightsByDedupeKey(
+		params.organizationId,
+		cooldownCutoff
+	);
 	const seenInBatch = new Set<string>();
 	const finalInsights: GeneratedWebsiteInsight[] = [];
 	const classificationByKey = new Map<
 		string,
-		{ isEscalation: boolean; isNew: boolean; isPersistent: boolean }
+		{
+			isEscalation: boolean;
+			isNew: boolean;
+			isPersistent: boolean;
+			isRetry: boolean;
+		}
 	>();
 	let duplicateCandidates = 0;
-	let suppressedByDismissal = 0;
 
 	for (const insight of [...params.insights].sort(
 		(a, b) => b.priority - a.priority
@@ -303,28 +261,12 @@ export async function persistWebsiteInsights(params: {
 			continue;
 		}
 		seenInBatch.add(key);
-		const dismissed = dismissedBaselines.get(key);
-		if (dismissed && !isMateriallyWorse(insight, dismissed)) {
-			suppressedByDismissal += 1;
-			continue;
-		}
 		const prior = priorByDedupeKey.get(key);
-		classificationByKey.set(
-			key,
-			classifyRecurrence(insight, prior, cooldownCutoff)
-		);
-		finalInsights.push(prior ? { ...insight, id: prior.id } : insight);
-		if (finalInsights.length >= MAX_INSIGHTS_PER_WEBSITE) {
-			break;
-		}
-	}
-
-	if (suppressedByDismissal > 0) {
-		emitInsightsEvent("info", "generation.persistence.suppressed_dismissed", {
-			organization_id: params.organizationId,
-			run_id: params.runId,
-			suppressed_count: suppressedByDismissal,
+		classificationByKey.set(key, {
+			...classifyRecurrence(insight, prior, cooldownCutoff),
+			isRetry: prior?.runId === params.runId,
 		});
+		finalInsights.push(prior ? { ...insight, id: prior.id } : insight);
 	}
 
 	if (finalInsights.length === 0) {
@@ -333,7 +275,6 @@ export async function persistWebsiteInsights(params: {
 			run_id: params.runId,
 			candidate_count: params.insights.length,
 			duplicate_candidate_count: duplicateCandidates,
-			suppressed_dismissed_count: suppressedByDismissal,
 			dedupe_window_count: priorByDedupeKey.size,
 		});
 		return [];
@@ -360,9 +301,9 @@ export async function persistWebsiteInsights(params: {
 			confidence: insight.confidence,
 			impactSummary: insight.impactSummary ?? null,
 			rootCause: insight.rootCause ?? null,
+			remediationKind: insight.remediationKind ?? null,
 			evidence: insight.evidence ?? null,
-			investigationDepth: params.investigationDepth,
-			actions: insight.actions ?? null,
+			actions: null,
 			metrics: insight.metrics,
 			timezone: params.timezone,
 			currentPeriodFrom: period.current.from,
@@ -448,6 +389,7 @@ export async function persistWebsiteInsights(params: {
 			isEscalation: false,
 			isNew: true,
 			isPersistent: false,
+			isRetry: false,
 		};
 		return {
 			...insight,
@@ -455,6 +397,7 @@ export async function persistWebsiteInsights(params: {
 			isEscalation: classification.isEscalation,
 			isNew: classification.isNew,
 			isPersistent: classification.isPersistent,
+			isRetry: classification.isRetry,
 		};
 	});
 
@@ -474,7 +417,6 @@ export async function persistWebsiteInsights(params: {
 		result_count: persistedInsights.length,
 		insert_count: toInsert.length,
 		refresh_count: toRefresh.length,
-		suppressed_dismissed_count: suppressedByDismissal,
 		invalidated_website_count: websiteInvalidations.length,
 	});
 

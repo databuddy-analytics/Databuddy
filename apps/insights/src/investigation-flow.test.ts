@@ -1,10 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { validateInvestigationSubmission } from "@databuddy/ai/insights/validate";
+import { validateInvestigationDecision } from "@databuddy/ai/insights/validate";
 import type { InvestigationEvidence } from "@databuddy/shared/insights";
-import type { EnrichedSignal } from "./enrichment";
+import type { DetectedSignal } from "./detection";
 import { prepareInvestigation } from "./investigation";
+import { terminalDecisionFromEvidence } from "./terminal-decision";
 
-const detected: EnrichedSignal = {
+const detected: DetectedSignal = {
 	metric: "goal:signup",
 	label: 'Goal "Signup" conversion',
 	method: "wow",
@@ -14,162 +15,292 @@ const detected: EnrichedSignal = {
 	deltaPercent: -66.67,
 	severity: "critical",
 	detectedAt: "2026-07-10",
-	segments: [],
-	annotations: [
-		{
-			id: "annotation-1",
-			date: "2026-07-10",
-			title: "Signup campaign intentionally paused",
-			tags: ["campaign"],
-		},
-	],
 };
 
 function fixture() {
-	return prepareInvestigation([detected], {
-		websiteId: "site-1",
-		lookbackDays: 7,
+	const investigation = prepareInvestigation(
+		detected,
+		{ websiteId: "site-1", lookbackDays: 7 },
+		[{ date: "2026-07-10", title: "Signup instrumentation changed" }]
+	);
+	investigation.evidence.push({
+		evidenceId: "evidence:goal-definition",
+		signalKey: investigation.signal.signalKey,
+		kind: "definition",
+		source: "product",
+		queryType: "goals_summary",
+		entity: investigation.signal.entity,
+		period: "current",
+		range: investigation.signal.period.current,
+		status: "ok",
+		rowCount: 1,
+		summary: "The goal is configured for the signup completion event.",
+		metrics: [
+			{ label: "Entrants", current: 100, format: "number" },
+			{ label: "Completions", current: 4, format: "number" },
+		],
 	});
+	return investigation;
 }
 
-function actionReady(signalKey: string, evidenceId: string) {
-	return {
-		signalKey,
-		disposition: "action_ready" as const,
-		evidenceIds: [evidenceId],
-		title: "Signup completion fell",
-		summary: "Signup conversion is one-third of its previous level.",
-		action: "Check the signup completion event after a successful signup.",
-		confidence: 0.85,
-		verification: {
-			successCondition: "A successful signup records the configured goal event.",
-			checkAfterDays: 1,
-		},
-	};
-}
+const action = {
+	disposition: "action_ready" as const,
+	remediation: {
+		kind: "tracking" as const,
+		evidenceId: "evidence:goal-definition",
+		instruction: "Restore the completion event after a successful signup.",
+	},
+};
 
 describe("scheduled investigation contract", () => {
-	it("keeps identity, dates, and metrics owned by the worker", () => {
-		const investigation = fixture();
-		const signal = investigation.signals[0];
-		const result = validateInvestigationSubmission({
-			signals: investigation.signals,
-			evidence: investigation.evidence,
-			submission: {
-				results: [
-					actionReady(
-						signal.signalKey,
-						investigation.evidence.at(-1)!.evidenceId
-					),
-				],
+	it("surfaces one exact backend-owned repair after independent confirmation", () => {
+		const expectation = {
+			confirmation: {
+				count: 12,
+				definitionId: "signup",
+				definitionType: "goal" as const,
+				source: "server_completions" as const,
 			},
+			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
+			eventName: "sign_up",
+			instruction: 'Restore the "sign_up" event when Signup completes.',
+			kind: "tracking" as const,
+			previousCompletions: 20,
+			currentEntrants: 100,
+			currentCompletions: 0 as const,
+		};
+		const investigation = prepareInvestigation(
+			{
+				...detected,
+				baseline: 20,
+				current: 0,
+				deltaPercent: -100,
+				expectation,
+				kind: "missing_expected_data",
+			},
+			{ websiteId: "site-1", lookbackDays: 7 }
+		);
+		const definition: InvestigationEvidence = {
+			evidenceId: "evidence:goal-definition",
+			signalKey: investigation.signal.signalKey,
+			kind: "definition",
+			source: "product",
+			queryType: "goals_summary",
+			entity: investigation.signal.entity,
+			period: "current",
+			range: investigation.signal.period.current,
+			status: "ok",
+			rowCount: 1,
+			summary:
+				'Signup had 0 completions from 100 entrants. The active definition expects the "sign_up" event.',
+			remediation: expectation,
+		};
+		const decision = terminalDecisionFromEvidence(
+			investigation.signal,
+			[...investigation.evidence, definition]
+		);
+		const result = validateInvestigationDecision({
+			signal: investigation.signal,
+			evidence: [...investigation.evidence, definition],
+			decision,
 		});
 
-		expect(result.errors).toEqual([]);
-		expect(result.insights[0]).toMatchObject({
-			subjectKey: signal.signalKey,
-			changePercent: -66.67,
-			metrics: [{ current: 4, previous: 12, format: "percent" }],
+		expect(decision).toEqual({
+			disposition: "action_ready",
+			remediation: {
+				evidenceId: definition.evidenceId,
+				instruction: expectation.instruction,
+				kind: "tracking",
+			},
 		});
-		expect(signal.period).toEqual({
+		expect(result.errors).toEqual([]);
+		expect(result.insight).toMatchObject({
+			remediationKind: "tracking",
+			suggestion: expectation.instruction,
+			title: 'Fix tracking for Goal "Signup" conversion',
+		});
+
+		const wrongExpectation = {
+			...expectation,
+			confirmation: {
+				...expectation.confirmation,
+				definitionId: "another-goal",
+			},
+		};
+		expect(
+			terminalDecisionFromEvidence(
+				{
+					...investigation.signal,
+					expectation: wrongExpectation,
+				},
+				[{ ...definition, remediation: wrongExpectation }]
+			)
+		).toEqual({
+			disposition: "needs_context",
+			gap: "expected_behavior",
+		});
+	});
+
+	it("asks for confirmation when zero analytics completions do not prove broken tracking", () => {
+		const expectation = {
+			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
+			eventName: "sign_up",
+			instruction: 'Restore the "sign_up" event when Signup completes.',
+			kind: "tracking" as const,
+			previousCompletions: 20,
+			currentEntrants: 100,
+			currentCompletions: 0 as const,
+		};
+		const investigation = prepareInvestigation(
+			{
+				...detected,
+				baseline: 20,
+				current: 0,
+				deltaPercent: -100,
+				expectation,
+				kind: "missing_expected_data",
+			},
+			{ websiteId: "site-1", lookbackDays: 7 }
+		);
+		const definition: InvestigationEvidence = {
+			evidenceId: "evidence:goal-definition",
+			signalKey: investigation.signal.signalKey,
+			kind: "definition",
+			source: "product",
+			queryType: "goals_summary",
+			entity: investigation.signal.entity,
+			period: "current",
+			range: investigation.signal.period.current,
+			status: "ok",
+			rowCount: 1,
+			summary:
+				'Signup had 0 completions from 100 entrants. The active definition expects the "sign_up" event.',
+			remediation: expectation,
+		};
+
+		const decision = terminalDecisionFromEvidence(investigation.signal, [
+			...investigation.evidence,
+			definition,
+		]);
+		const result = validateInvestigationDecision({
+			signal: investigation.signal,
+			evidence: [...investigation.evidence, definition],
+			decision,
+		});
+
+		expect(decision).toEqual({
+			disposition: "needs_context",
+			gap: "expected_behavior",
+		});
+		expect(result.errors).toEqual([]);
+		expect(result.insight).toMatchObject({
+			title: 'Goal "Signup" conversion needs context',
+		});
+		expect(result.insight?.suggestion).toContain("Did users complete");
+		expect(result.insight?.suggestion).toContain(
+			"replay Goal \"Signup\" conversion and find the first failed step"
+		);
+		expect(result.insight).not.toHaveProperty("remediationKind");
+	});
+
+	it("suppresses that repair when an exact annotation says the change was planned", () => {
+		const investigation = fixture();
+		const planned: InvestigationEvidence = {
+			evidenceId: "evidence:planned-signup",
+			signalKey: investigation.signal.signalKey,
+			kind: "related_change",
+			source: "business",
+			queryType: "annotations:planned_signal",
+			entity: investigation.signal.entity,
+			period: "custom",
+			comparison: investigation.signal.period,
+			range: null,
+			status: "ok",
+			rowCount: 1,
+			summary: "Signup instrumentation was intentionally paused.",
+		};
+		const decision = terminalDecisionFromEvidence(investigation.signal, [
+			...investigation.evidence,
+			planned,
+		]);
+
+		expect(decision).toEqual({ disposition: "not_a_problem" });
+	});
+
+	it("does not turn a configured goal regression into an unsupported repair", () => {
+		const investigation = fixture();
+		const result = validateInvestigationDecision({
+			signal: investigation.signal,
+			evidence: investigation.evidence,
+			decision: action,
+		});
+
+		expect(result.errors).toContain(
+			"action_ready is not allowed for this signal. Submit monitor unless external context or explanatory evidence supports another outcome."
+		);
+		expect(result.insight).toBeNull();
+		expect(investigation.signal.period).toEqual({
 			current: { from: "2026-07-04", to: "2026-07-10" },
 			previous: { from: "2026-06-27", to: "2026-07-03" },
 		});
 	});
 
-	it("rejects model-authored metric and severity fields", () => {
+	it("rejects model-authored backend and execution fields", () => {
 		const investigation = fixture();
-		const signal = investigation.signals[0];
-		const result = validateInvestigationSubmission({
-			signals: investigation.signals,
+		const result = validateInvestigationDecision({
+			signal: investigation.signal,
 			evidence: investigation.evidence,
-			submission: {
-				results: [
-					{
-						...actionReady(
-							signal.signalKey,
-							investigation.evidence.at(-1)!.evidenceId
-						),
-						severity: "info",
-						metrics: [{ label: "Revenue", current: 1_000_000 }],
-					},
-				],
+			decision: {
+				...action,
+				signalKey: investigation.signal.signalKey,
+				severity: "info",
+				actions: [{ type: "code_fix" }],
 			},
 		});
 
-		expect(result.submission).toBeNull();
+		expect(result.decision).toBeNull();
 		expect(result.errors.join(" ")).toContain("Unrecognized keys");
 	});
 
-	it("turns a failed query into missing context, never false certainty", () => {
+	it("turns an internal query failure into retryable invalid output", () => {
 		const investigation = fixture();
-		const signal = investigation.signals[0];
 		const failedEvidence: InvestigationEvidence = {
 			evidenceId: "evidence:product:failure",
-			signalKey: signal.signalKey,
+			signalKey: investigation.signal.signalKey,
 			kind: "definition",
 			source: "product",
 			queryType: "goals_summary",
 			period: "current",
-			range: signal.period.current,
+			range: investigation.signal.period.current,
 			status: "failed",
 			rowCount: 0,
 			error: "Goal analytics timed out",
 		};
-		const needsContext = validateInvestigationSubmission({
-			signals: investigation.signals,
+		const result = validateInvestigationDecision({
+			signal: investigation.signal,
 			evidence: [...investigation.evidence, failedEvidence],
-			submission: {
-				results: [
-					{
-						signalKey: signal.signalKey,
-						disposition: "needs_context",
-						evidenceIds: [failedEvidence.evidenceId],
-						summary: "Goal configuration could not be checked.",
-						confidence: 1,
-						missingContext: "The configured completion event.",
-						question: "Which event should complete Signup?",
-					},
-				],
-			},
-		});
-		const falseConclusion = validateInvestigationSubmission({
-			signals: investigation.signals,
-			evidence: [failedEvidence],
-			submission: {
-				results: [actionReady(signal.signalKey, failedEvidence.evidenceId)],
+			decision: {
+				disposition: "needs_context",
+				gap: "expected_behavior",
 			},
 		});
 
-		expect(needsContext.errors).toEqual([]);
-		expect(needsContext.insights[0].suggestion).toBe(
-			"Which event should complete Signup?"
-		);
-		expect(falseConclusion.errors).toContain(
-			`${signal.signalKey} uses failed evidence for a conclusion`
+		expect(result.decision).toBeNull();
+		expect(result.errors).toContain(
+			"A failed Databuddy query must be retried, not turned into a terminal decision."
 		);
 	});
 
-	it("treats not-a-problem as a valid investigation with no card", () => {
+	it("does not let an unscoped annotation dismiss a signal", () => {
 		const investigation = fixture();
-		const signal = investigation.signals[0];
-		const result = validateInvestigationSubmission({
-			signals: investigation.signals,
+		const result = validateInvestigationDecision({
+			signal: investigation.signal,
 			evidence: investigation.evidence,
-			submission: {
-				results: [
-					{
-						signalKey: signal.signalKey,
-						disposition: "not_a_problem",
-						evidenceIds: [investigation.evidence.at(-1)!.evidenceId],
-						summary: "The goal was intentionally paused for this period.",
-						confidence: 0.9,
-					},
-				],
-			},
+			decision: { disposition: "not_a_problem" },
 		});
 
-		expect(result.submission).not.toBeNull();
-		expect(result.insights).toEqual([]);
+		expect(result.decision).toBeNull();
+		expect(result.insight).toBeNull();
+		expect(result.errors).not.toEqual([]);
 	});
 });

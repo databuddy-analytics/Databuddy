@@ -26,6 +26,8 @@ import { flags, flagsToTargetGroups, targetGroups } from "./flags";
 import { slackChannelBindings, slackIntegrations } from "./integrations";
 import {
 	insightGenerationConfigs,
+	insightObservations,
+	insightRunEffects,
 	insightRunItems,
 	insightRollups,
 	insightRuns,
@@ -78,6 +80,8 @@ const schema = {
 	insightGenerationConfigs,
 	insightRuns,
 	insightRunItems,
+	insightRunEffects,
+	insightObservations,
 	insightRollups,
 	ssoProvider,
 	agentChats,
@@ -126,6 +130,7 @@ export const relations = defineRelations(schema, (r) => ({
 			to: r.insightGenerationConfigs.organizationId,
 		}),
 		insightRuns: r.many.insightRuns(),
+		insightObservations: r.many.insightObservations(),
 		insightRollups: r.many.insightRollups(),
 	},
 
@@ -197,6 +202,7 @@ export const relations = defineRelations(schema, (r) => ({
 		alarms: r.many.alarms(),
 		analyticsInsights: r.many.analyticsInsights(),
 		insightRunItems: r.many.insightRunItems(),
+		insightObservations: r.many.insightObservations(),
 	},
 
 	analyticsInsights: {
@@ -231,6 +237,7 @@ export const relations = defineRelations(schema, (r) => ({
 			to: r.user.id,
 		}),
 		items: r.many.insightRunItems(),
+		observations: r.many.insightObservations(),
 		rollups: r.many.insightRollups(),
 	},
 
@@ -247,6 +254,32 @@ export const relations = defineRelations(schema, (r) => ({
 		}),
 		website: r.one.websites({
 			from: r.insightRunItems.websiteId,
+			to: r.websites.id,
+			optional: false,
+		}),
+		effects: r.many.insightRunEffects(),
+	},
+
+	insightRunEffects: {
+		item: r.one.insightRunItems({
+			from: r.insightRunEffects.runItemId,
+			to: r.insightRunItems.id,
+			optional: false,
+		}),
+	},
+
+	insightObservations: {
+		run: r.one.insightRuns({
+			from: r.insightObservations.runId,
+			to: r.insightRuns.id,
+		}),
+		organization: r.one.organization({
+			from: r.insightObservations.organizationId,
+			to: r.organization.id,
+			optional: false,
+		}),
+		website: r.one.websites({
+			from: r.insightObservations.websiteId,
 			to: r.websites.id,
 			optional: false,
 		}),

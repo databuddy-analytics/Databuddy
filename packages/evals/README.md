@@ -16,6 +16,18 @@ bun run eval:ui
 
 The UI shows all historical runs, trend lines per model, latest-model leaderboard, searchable case failures, and response/tool details.
 
+## Historical insight quality
+
+Run the deterministic insights engine against the built-in synthetic timelines:
+
+```bash
+bun run eval:insights
+```
+
+This command does not load `.env` or accept website identifiers. It uses required fixture sources, performs no database writes or delivery, prints every customer-visible finding, replays every case twice, and exits non-zero on lifecycle, safety, quality, determinism, or 100-word-limit failures. Lifecycle checks execute the production detection, investigation, recurrence, and resolution rules in memory; database transaction/idempotency behavior remains covered by the insights integration suite.
+
+The action-ready fixture supplies completion evidence scoped to one exact definition. Production does not infer that evidence from site-wide revenue; without an exact corroborator, the same regression stays `needs_context`.
+
 Compare saved runs:
 
 ```bash

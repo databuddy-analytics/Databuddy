@@ -222,7 +222,7 @@ function buildDiagnosticPrompt(insight: Insight): string {
 
 	parts.push(
 		"",
-		"Investigate the root cause using this site's analytics for the comparison window above, and provide a clear explanation of what's happening and specific steps to fix or improve it."
+		"Use this site's data to test likely explanations. Separate what is observed from what is proven, then give the smallest supported next step."
 	);
 
 	return parts.join("\n");
@@ -393,7 +393,7 @@ function InsightCardHeader({
 							className="size-6 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-focus-within:opacity-100 group-hover:opacity-100"
 							onClick={onDismissAction}
 							size="icon"
-							title="Dismiss and mute this pattern for 30 days"
+							title="Dismiss finding"
 							variant="ghost"
 						>
 							<XIcon className="size-3" weight="bold" />
@@ -515,15 +515,17 @@ function InsightActionPill({
 	};
 
 	return (
-		<button
-			className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background px-2 py-1 text-foreground/80 text-xs transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+		<Button
+			className="h-auto gap-1 px-2 py-1 font-normal text-foreground/80"
 			disabled={createAnnotation.isPending}
 			onClick={handleClick}
+			size="sm"
 			type="button"
+			variant="secondary"
 		>
 			{ACTION_ICONS[action.type]}
 			{action.label}
-		</button>
+		</Button>
 	);
 }
 
@@ -589,7 +591,7 @@ function InsightCopy({
 			{view.rootCause && (
 				<section className="space-y-1.5">
 					<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-						Root cause
+						What explains it
 					</p>
 					<p className="text-pretty text-[13px] text-foreground/85 leading-relaxed">
 						{view.rootCause}
@@ -626,7 +628,7 @@ function InsightCopy({
 							weight="duotone"
 						/>
 						<p className="font-medium text-foreground text-xs uppercase tracking-wide">
-							Do this next
+							Do this
 						</p>
 					</div>
 					<p className="text-pretty pl-6 text-foreground/85 text-xs leading-relaxed">
@@ -696,7 +698,7 @@ function InsightCardActions({
 				className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground text-xs transition-opacity hover:opacity-90"
 				href={links.agentHref}
 			>
-				Ask agent
+				{insight.remediationKind ? "Plan fix" : "Investigate"}
 				<ArrowRightIcon className="size-3" weight="fill" />
 			</Link>
 			<Link

@@ -112,6 +112,81 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		customizable: true,
 	},
 
+	error_fingerprints: {
+		meta: {
+			description:
+				"Exact error messages ranked by affected users and sessions, with one representative debugging context per message.",
+			category: "Errors",
+			tags: ["errors", "fingerprints", "debugging", "internal"],
+		},
+		customSql: (ctx) => {
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const requestedLimit = ctx.limit ?? 20;
+			const limit = Math.min(
+				Math.max(
+					Number.isFinite(requestedLimit) ? Math.trunc(requestedLimit) : 20,
+					1
+				),
+				50
+			);
+			const filterClause = appendFilterClause(filterConditions);
+			const representativeRank =
+				"tuple(if(ifNull(es.stack, '') != '', 1, 0), es.timestamp, es.session_id, es.anonymous_id)";
+			const normalizedPath =
+				"if(es.path = '', '', if(trimRight(path(es.path), '/') = '', '/', trimRight(path(es.path), '/')))";
+
+			return {
+				sql: `
+					SELECT
+						name,
+						count,
+						users,
+						sessions,
+						representative_path as path,
+						representative_error_type as error_type,
+						representative_filename as filename,
+						representative_line as line,
+						representative_stack as stack,
+						last_seen
+					FROM (
+						SELECT
+							es.message as name,
+							count() as count,
+							uniqIf(es.anonymous_id, es.anonymous_id != '') as users,
+							uniqIf(es.session_id, es.session_id != '') as sessions,
+							argMax(${normalizedPath}, ${representativeRank}) as representative_path,
+							argMax(es.error_type, ${representativeRank}) as representative_error_type,
+							argMax(ifNull(es.filename, ''), ${representativeRank}) as representative_filename,
+							nullIf(argMax(ifNull(es.lineno, 0), ${representativeRank}), 0) as representative_line,
+							argMax(substring(ifNull(es.stack, ''), 1, 1000), ${representativeRank}) as representative_stack,
+							max(es.timestamp) as last_seen
+						FROM ${Analytics.error_spans} es
+						WHERE es.client_id = {websiteId:String}
+							AND es.timestamp >= toDateTime({startDate:String})
+							AND es.timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND es.message != ''
+							${filterClause}
+						GROUP BY es.message
+					)
+					ORDER BY users DESC, sessions DESC, count DESC, last_seen DESC
+					LIMIT {limit:UInt32}
+				`,
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					limit,
+					...filterParams,
+				},
+			};
+		},
+		timeField: "timestamp",
+		allowedFilters: ["message", "path", "error_type"],
+		customizable: true,
+		noCache: true,
+	},
+
 	error_trends: {
 		meta: {
 			description: "Error counts over time to identify spikes and trends.",

@@ -6,7 +6,7 @@ import {
 } from "./persistence";
 
 describe("isMateriallyWorse", () => {
-	it("suppresses a candidate that matches the dismissed severity and magnitude", () => {
+	it("keeps a matching severity and magnitude below the worsening threshold", () => {
 		expect(
 			isMateriallyWorse(
 				{ severity: "warning", changePercent: -40 },
@@ -33,7 +33,7 @@ describe("isMateriallyWorse", () => {
 		).toBe(true);
 	});
 
-	it("stays suppressed just below the 1.5x threshold", () => {
+	it("stays below the worsening threshold just under 1.5x", () => {
 		expect(
 			isMateriallyWorse(
 				{ severity: "warning", changePercent: -59 },
@@ -87,6 +87,7 @@ describe("classifyRecurrence", () => {
 			id: "prior-1",
 			changePercent: -40,
 			createdAt: new Date("2026-06-28T00:00:00Z"),
+			runId: "run-1",
 			severity: "warning",
 			status: "open",
 			...overrides,
@@ -113,14 +114,24 @@ describe("classifyRecurrence", () => {
 		).toEqual({ isEscalation: false, isNew: true, isPersistent: false });
 	});
 
-	it("stays silent for a refresh inside the cooldown window", () => {
+	it("stays silent for an unchanged refresh inside the cooldown window", () => {
+		expect(
+			classifyRecurrence(
+				{ severity: "warning", changePercent: -45 },
+				prior({ createdAt: new Date("2026-07-05T03:00:00Z") }),
+				cutoff
+			)
+		).toEqual({ isEscalation: false, isNew: false, isPersistent: false });
+	});
+
+	it("escalates material worsening inside the cooldown window", () => {
 		expect(
 			classifyRecurrence(
 				{ severity: "critical", changePercent: -45 },
 				prior({ createdAt: new Date("2026-07-05T03:00:00Z") }),
 				cutoff
 			)
-		).toEqual({ isEscalation: false, isNew: false, isPersistent: false });
+		).toEqual({ isEscalation: true, isNew: false, isPersistent: false });
 	});
 
 	it("stays silent for a flat warning-level open recurrence", () => {

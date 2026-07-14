@@ -9,13 +9,18 @@ import {
 import { decrypt } from "@databuddy/encryption";
 import { env } from "@databuddy/env/insights";
 import type { GeneratedWebsiteInsight } from "./persistence";
-import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
+import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const SLACK_POST_URL = "https://slack.com/api/chat.postMessage";
+const SLACK_POST_TIMEOUT_MS = 10_000;
+const SLACK_RATE_LIMIT_ATTEMPTS = 3;
+const SLACK_RATE_LIMIT_FALLBACK_MS = 1000;
+const SLACK_RATE_LIMIT_MAX_WAIT_MS = 5000;
 const MAX_DIGEST_INSIGHTS = 3;
 const MAX_ONGOING_LINES = 5;
 const SLACK_HEADER_MAX = 150;
 const SLACK_SECTION_TEXT_MAX = 3000;
+const SLACK_BLOCK_MAX = 50;
 
 function truncate(value: string, max: number): string {
 	return value.length > max ? `${value.slice(0, max - 1)}…` : value;
@@ -31,6 +36,7 @@ type DigestInsight = Pick<
 			| "evidence"
 			| "impactSummary"
 			| "metrics"
+			| "remediationKind"
 			| "rootCause"
 			| "sentiment"
 			| "type"
@@ -40,11 +46,19 @@ type DigestInsight = Pick<
 		currentPeriodTo?: string | null;
 	};
 
-interface SlackBlock {
+export interface SlackBlock {
 	accessory?: unknown;
 	elements?: unknown[];
 	text?: { emoji?: boolean; text: string; type: string };
 	type: string;
+}
+
+export interface InsightSlackEffectPayload {
+	blocks: SlackBlock[];
+	channelId: string;
+	organizationId: string;
+	text: string;
+	websiteId: string;
 }
 
 function escapeMrkdwn(value: string): string {
@@ -122,6 +136,7 @@ async function loadBoundBotToken(
 }
 
 function digestLabel(insight: DigestInsight): string {
+	const verifiedRepair = Boolean(insight.remediationKind);
 	switch (insight.type) {
 		case "referrer_change":
 		case "traffic_spike":
@@ -130,17 +145,17 @@ function digestLabel(insight: DigestInsight): string {
 				? "Opportunity · Acquisition"
 				: "Review · Traffic";
 		case "conversion_leak":
-			return "Fix · Goal tracking";
+			return verifiedRepair ? "Fix · Goal tracking" : "Review · Conversion";
 		case "funnel_regression":
-			return "Cleanup · Funnel config";
+			return verifiedRepair ? "Fix · Funnel" : "Review · Conversion";
 		case "error_spike":
 		case "new_errors":
 		case "persistent_error_hotspot":
 		case "error_impact":
-			return "Fix · Error volume";
+			return verifiedRepair ? "Fix · Error" : "Review · Error";
 		case "vitals_degraded":
 		case "performance":
-			return "Fix · Performance";
+			return verifiedRepair ? "Fix · Performance" : "Review · Performance";
 		case "performance_improved":
 		case "reliability_improved":
 			return "Improvement · Reliability";
@@ -148,7 +163,7 @@ function digestLabel(insight: DigestInsight): string {
 		case "segment_regression":
 			return "Review · Data quality";
 		default:
-			return insight.severity === "info" ? "Review" : "Fix";
+			return verifiedRepair ? "Fix" : "Review";
 	}
 }
 
@@ -409,39 +424,96 @@ export function buildThreadBlocks(
 	return blocks;
 }
 
-async function postToSlack(
+interface SlackPostDependencies {
+	fetcher?: typeof fetch;
+	random?: () => number;
+	sleep?: (milliseconds: number) => Promise<void>;
+}
+
+function rateLimitDelay(response: Response, random: () => number): number {
+	const seconds = Number(response.headers.get("retry-after"));
+	const requested =
+		Number.isFinite(seconds) && seconds > 0
+			? seconds * 1000
+			: SLACK_RATE_LIMIT_FALLBACK_MS;
+	return (
+		Math.min(requested, SLACK_RATE_LIMIT_MAX_WAIT_MS) +
+		Math.floor(random() * 250)
+	);
+}
+
+export async function postToSlack(
 	token: string,
 	channelId: string,
 	blocks: SlackBlock[],
 	text: string,
-	threadTs?: string
+	clientMessageId: string,
+	dependencies: SlackPostDependencies = {}
 ): Promise<string> {
-	const payload: Record<string, unknown> = { channel: channelId, blocks, text };
-	if (threadTs) {
-		payload.thread_ts = threadTs;
+	const payload = buildSlackPostPayload(
+		channelId,
+		blocks,
+		text,
+		clientMessageId
+	);
+	const fetcher = dependencies.fetcher ?? fetch;
+	const random = dependencies.random ?? Math.random;
+	const sleep =
+		dependencies.sleep ??
+		((milliseconds: number) =>
+			new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+	for (let attempt = 1; attempt <= SLACK_RATE_LIMIT_ATTEMPTS; attempt += 1) {
+		const response = await fetcher(SLACK_POST_URL, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify(payload),
+			signal: AbortSignal.timeout(SLACK_POST_TIMEOUT_MS),
+		});
+		if (response.status === 429) {
+			if (attempt === SLACK_RATE_LIMIT_ATTEMPTS) {
+				throw new Error("slack chat.postMessage remained rate limited");
+			}
+			await sleep(rateLimitDelay(response, random));
+			continue;
+		}
+		if (!response.ok) {
+			throw new Error(
+				`slack chat.postMessage failed with status ${response.status}`
+			);
+		}
+		const body = (await response.json()) as {
+			ok: boolean;
+			error?: string;
+			ts?: string;
+		};
+		if (!body.ok) {
+			throw new Error(
+				`slack chat.postMessage failed: ${body.error ?? "unknown_error"}`
+			);
+		}
+		return body.ts ?? "";
 	}
-	const res = await fetch(SLACK_POST_URL, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			Authorization: `Bearer ${token}`,
-		},
-		body: JSON.stringify(payload),
-	});
-	const body = (await res.json()) as {
-		ok: boolean;
-		error?: string;
-		ts?: string;
-	};
-	if (!body.ok) {
-		throw new Error(
-			`slack chat.postMessage failed: ${body.error ?? "unknown_error"}`
-		);
-	}
-	return body.ts ?? "";
+	throw new Error("slack chat.postMessage did not complete");
 }
 
-export async function deliverInsightDigests(params: {
+export function buildSlackPostPayload(
+	channelId: string,
+	blocks: SlackBlock[],
+	text: string,
+	clientMessageId: string
+): Record<string, unknown> {
+	return {
+		blocks,
+		channel: channelId,
+		client_msg_id: clientMessageId,
+		text,
+	};
+}
+
+export async function prepareInsightSlackEffects(params: {
 	escalations?: DigestInsight[];
 	insights: DigestInsight[];
 	organizationId: string;
@@ -449,7 +521,7 @@ export async function deliverInsightDigests(params: {
 	websiteDomain: string;
 	websiteId: string;
 	websiteName?: string | null;
-}): Promise<void> {
+}): Promise<InsightSlackEffectPayload[]> {
 	const escalations = params.escalations ?? [];
 	const persistent = params.persistent ?? [];
 	if (
@@ -457,90 +529,103 @@ export async function deliverInsightDigests(params: {
 		escalations.length === 0 &&
 		persistent.length === 0
 	) {
-		return;
+		return [];
 	}
-
 	const deliveries = await resolveDeliveries(params.organizationId);
-	const slackChannelIds = [
+	const channelIds = [
 		...new Set(
-			deliveries.filter((d) => d.type === "slack").map((d) => d.channelId)
+			deliveries
+				.filter((item) => item.type === "slack")
+				.map((item) => item.channelId)
 		),
 	];
-	if (slackChannelIds.length === 0) {
-		return;
+	if (channelIds.length === 0) {
+		return [];
 	}
-
-	const blocks = buildBlocks(
+	const summaryBlocks = buildBlocks(
 		params.websiteName,
 		params.websiteDomain,
 		params.insights,
 		escalations,
 		persistent
 	);
-	const threadBlocks = buildThreadBlocks(
+	const detailBlocks = buildThreadBlocks(
 		params.insights,
 		escalations,
 		persistent
 	);
+	const blocks = [
+		...summaryBlocks,
+		...(detailBlocks.length > 0
+			? [
+					{ type: "divider" } satisfies SlackBlock,
+					{
+						type: "context",
+						elements: [
+							{ type: "mrkdwn", text: "Supporting numbers and evidence" },
+						],
+					} satisfies SlackBlock,
+					...detailBlocks,
+				]
+			: []),
+	].slice(0, SLACK_BLOCK_MAX);
 	const text = buildFallbackText(params.websiteName, params.websiteDomain);
-	for (const channelId of slackChannelIds) {
-		try {
-			const { bindingCount, token } = await loadBoundBotToken(
-				params.organizationId,
-				channelId
-			);
-			if (bindingCount !== 1) {
-				emitInsightsEvent(
-					"warn",
-					bindingCount === 0
-						? "delivery.slack.skipped_missing_binding"
-						: "delivery.slack.skipped_ambiguous_binding",
-					{
-						organization_id: params.organizationId,
-						website_id: params.websiteId,
-						slack_channel_id: channelId,
-						binding_count: bindingCount,
-					}
-				);
-				continue;
+	return channelIds.map((channelId) => ({
+		blocks,
+		channelId,
+		organizationId: params.organizationId,
+		text,
+		websiteId: params.websiteId,
+	}));
+}
+
+export async function deliverInsightSlackEffect(
+	payload: InsightSlackEffectPayload,
+	clientMessageId: string
+): Promise<string | null> {
+	const { bindingCount, token } = await loadBoundBotToken(
+		payload.organizationId,
+		payload.channelId
+	);
+	if (bindingCount !== 1) {
+		emitInsightsEvent(
+			"warn",
+			bindingCount === 0
+				? "delivery.slack.skipped_missing_binding"
+				: "delivery.slack.skipped_ambiguous_binding",
+			{
+				organization_id: payload.organizationId,
+				website_id: payload.websiteId,
+				slack_channel_id: payload.channelId,
+				binding_count: bindingCount,
 			}
-			if (!token) {
-				emitInsightsEvent(
-					"warn",
-					"delivery.slack.skipped_missing_encryption_key",
-					{
-						organization_id: params.organizationId,
-						website_id: params.websiteId,
-						slack_channel_id: channelId,
-					}
-				);
-				continue;
-			}
-			const parentTs = await postToSlack(token, channelId, blocks, text);
-			if (threadBlocks.length > 0 && parentTs) {
-				await postToSlack(
-					token,
-					channelId,
-					threadBlocks,
-					"Supporting numbers and evidence",
-					parentTs
-				);
-			}
-			emitInsightsEvent("info", "delivery.slack.posted", {
-				organization_id: params.organizationId,
-				website_id: params.websiteId,
-				slack_channel_id: channelId,
-				insight_count: Math.min(params.insights.length, MAX_DIGEST_INSIGHTS),
-				escalation_count: escalations.length,
-				persistent_count: persistent.length,
-				threaded_detail: threadBlocks.length > 0,
-			});
-		} catch (error) {
-			captureInsightsError(error, "delivery.slack.failed", {
-				organization_id: params.organizationId,
-				website_id: params.websiteId,
-				slack_channel_id: channelId,
-			});
-		}
+		);
+		throw new Error(
+			bindingCount === 0
+				? "Slack channel binding is missing"
+				: "Slack channel binding is ambiguous"
+		);
 	}
+	if (!token) {
+		emitInsightsEvent("warn", "delivery.slack.skipped_missing_encryption_key", {
+			organization_id: payload.organizationId,
+			website_id: payload.websiteId,
+			slack_channel_id: payload.channelId,
+		});
+		throw new Error("Slack encryption key is unavailable");
+	}
+	const externalId = await postToSlack(
+		token,
+		payload.channelId,
+		payload.blocks,
+		payload.text,
+		clientMessageId
+	);
+	emitInsightsEvent("info", "delivery.slack.posted", {
+		organization_id: payload.organizationId,
+		website_id: payload.websiteId,
+		slack_channel_id: payload.channelId,
+		client_message_id: clientMessageId,
+	});
+	return externalId;
 }

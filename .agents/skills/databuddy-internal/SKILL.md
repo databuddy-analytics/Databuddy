@@ -21,6 +21,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 
 - Prod infrastructure repo is local at `/Users/iza/Documents/GitHub/databuddy-infra` (`databuddy-analytics/infra`); ClickHouse cluster inventory is `clickhouse/ansible/inventory.yml`, not `/Users/iza/Dev/Databuddy/infra` or `DatabuddyOPS`.
 - Never use production/customer data as tests, fixtures, snapshots, examples, or copied output. Tests must use placeholders/mocks only (example.com, example IDs). If production ClickHouse is queried for investigation, summarize anonymized aggregates and do not paste customer domains, client IDs, emails, or other identifiers into code or responses.
+- `@databuddy/test/env` replaces database/Redis URLs with local defaults unless `CI=true`; set `CI=true` when pointing integration tests at an isolated temporary database.
 - `apps/dashboard`: Next.js app on port `3000` (per-website **agent** chat: `@ai-sdk/react` `useChat` via `contexts/chat-context.tsx` — not the separate `chat-sdk` package; overlapping sends while streaming are queued client-side to mirror a “queue latest” strategy.)
 - Dashboard Playwright webServer commands run under CI PATH from setup-bun; avoid `bash -lc` because login shells can drop Bun from PATH. Build dist-only workspace packages such as `@databuddy/sdk` and `@databuddy/devtools` before starting the API/dashboard. Client `NEXT_PUBLIC_*` flags must use direct env access so Next can inline them. `readBooleanEnv` only treats the literal string `"true"` as enabled, so CI E2E booleans must use `"true"`/`"false"`, not `"1"`/`"0"`.
 - Local E2E dashboard smokes that need `/api/test/e2e/*` should start the API/dashboard directly (or through Playwright's webServer command), not via `bun run dev:dashboard`; Turbo runs in strict env mode and drops `DATABUDDY_E2E_MODE`/`DATABUDDY_E2E_TEST_KEY` unless they are added to `turbo.json` `globalEnv`.
@@ -37,6 +38,8 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Shared agent integrations should call `@databuddy/ai/agent` (`askDatabuddyAgent` / `streamDatabuddyAgent`) instead of importing internal MCP run/history helpers directly.
 - First-party ads attribution work should start by preserving UTMs into registration and signup events only; do not add RPC plumbing, conversion destinations, env hooks, tables, workers, or UI until explicitly needed.
 - Insights generation logic belongs in `apps/insights` and should reuse `@databuddy/ai`; `apps/api` should only read insight data or queue runs, not own prompts, model calls, tool loops, validation, or persistence orchestration.
+- Historical insight quality uses `bun run eval:insights`; it is synthetic-only, does not load `.env`, and must never accept customer website identifiers or fall through to live data sources.
+- Insight repairs require confirmation scoped to the exact goal or funnel; site-wide revenue totals are context, never proof that one definition completed.
 - Automated insight digests have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
 - Insight run items are execution metadata, not rendered insight content; previews should use run status/counts or query real insights, never infer titles or bodies from run items.
 - Insight Slack delivery must resolve each channel binding to its active same-organization integration; never choose an arbitrary organization bot token.
@@ -143,6 +146,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ## Billing (Autumn)
 
+- Retried insight jobs must persist immutable external delivery effects (currently Slack) before calling providers and reuse the effect ID as the provider idempotency key. An insight observation is product memory, not a delivery checkpoint.
 - Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as Databunny usage or an AI analysis allowance and explain what it enables.
 - `autumn-js` v1.2.2+ — import `autumnHandler` from `autumn-js/fetch` (NOT `autumn-js/elysia`, that export was removed in v1.0)
 - For Elysia, mount with `.mount(autumnHandler(...))` — NOT `.use()`

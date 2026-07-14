@@ -9,6 +9,7 @@ const DEFAULT_OPS_LIMIT = 5;
 export const OPS_INSIGHT_QUERY_TYPES = [
 	"errors_summary",
 	"errors_by_page",
+	"error_fingerprints",
 	"uptime_summary",
 	"anomaly_summary",
 	"flag_changes",
@@ -25,7 +26,8 @@ function runQuery(
 	type: QueryRequest["type"],
 	appContext: AppContext,
 	range: { from: string; to: string },
-	limit?: number
+	limit?: number,
+	abortSignal?: AbortSignal
 ) {
 	return executeQuery(
 		{
@@ -37,15 +39,23 @@ function runQuery(
 			limit,
 		},
 		appContext.websiteDomain,
-		appContext.timezone
+		appContext.timezone,
+		abortSignal
 	);
 }
 
 async function getErrorsSummary(
 	appContext: AppContext,
-	range: { from: string; to: string }
+	range: { from: string; to: string },
+	abortSignal?: AbortSignal
 ) {
-	const summary = await runQuery("error_summary", appContext, range);
+	const summary = await runQuery(
+		"error_summary",
+		appContext,
+		range,
+		undefined,
+		abortSignal
+	);
 
 	return {
 		error_summary: Array.isArray(summary) ? summary : [],
@@ -55,30 +65,69 @@ async function getErrorsSummary(
 async function getErrorsByPage(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	limit: number
+	limit: number,
+	abortSignal?: AbortSignal
 ) {
-	const pages = await runQuery("errors_by_page", appContext, range, limit);
+	const pages = await runQuery(
+		"errors_by_page",
+		appContext,
+		range,
+		limit,
+		abortSignal
+	);
 
 	return {
 		errors_by_page: Array.isArray(pages) ? pages : [],
 	};
 }
 
+async function getErrorFingerprints(
+	appContext: AppContext,
+	range: { from: string; to: string },
+	limit: number,
+	abortSignal?: AbortSignal
+) {
+	const errors = await runQuery(
+		"error_fingerprints",
+		appContext,
+		range,
+		limit,
+		abortSignal
+	);
+	return { error_fingerprints: Array.isArray(errors) ? errors : [] };
+}
+
 async function getUptimeSummary(
 	appContext: AppContext,
-	range: { from: string; to: string }
+	range: { from: string; to: string },
+	abortSignal?: AbortSignal
 ) {
-	const uptime = await runQuery("uptime_overview", appContext, range);
+	const uptime = await runQuery(
+		"uptime_overview",
+		appContext,
+		range,
+		undefined,
+		abortSignal
+	);
+	const measured = Array.isArray(uptime)
+		? uptime.filter(
+				(row) =>
+					row !== null &&
+					typeof row === "object" &&
+					Number((row as Record<string, unknown>).total_checks) > 0
+			)
+		: [];
 
 	return {
-		uptime_overview: Array.isArray(uptime) ? uptime : [],
+		uptime_overview: measured,
 	};
 }
 
 async function getAnomalySummary(
 	appContext: AppContext,
 	period: "current" | "previous",
-	limit: number
+	limit: number,
+	abortSignal?: AbortSignal
 ) {
 	if (period !== "current") {
 		return {
@@ -91,7 +140,8 @@ async function getAnomalySummary(
 		"anomalies",
 		"detect",
 		{ websiteId: appContext.websiteId },
-		appContext
+		appContext,
+		abortSignal
 	);
 
 	return {
@@ -111,7 +161,8 @@ export async function fetchOpsMetrics(
 	appContext: AppContext,
 	range: { from: string; to: string },
 	period: "current" | "previous",
-	queries: OpsInsightQuery[]
+	queries: OpsInsightQuery[],
+	abortSignal?: AbortSignal
 ) {
 	const results: Record<string, unknown>[] = [];
 
@@ -122,25 +173,36 @@ export async function fetchOpsMetrics(
 			case "errors_summary":
 				results.push({
 					type: query.type,
-					...(await getErrorsSummary(appContext, range)),
+					...(await getErrorsSummary(appContext, range, abortSignal)),
 				});
 				break;
 			case "errors_by_page":
 				results.push({
 					type: query.type,
-					...(await getErrorsByPage(appContext, range, limit)),
+					...(await getErrorsByPage(appContext, range, limit, abortSignal)),
+				});
+				break;
+			case "error_fingerprints":
+				results.push({
+					type: query.type,
+					...(await getErrorFingerprints(
+						appContext,
+						range,
+						limit,
+						abortSignal
+					)),
 				});
 				break;
 			case "uptime_summary":
 				results.push({
 					type: query.type,
-					...(await getUptimeSummary(appContext, range)),
+					...(await getUptimeSummary(appContext, range, abortSignal)),
 				});
 				break;
 			case "anomaly_summary":
 				results.push({
 					type: query.type,
-					...(await getAnomalySummary(appContext, period, limit)),
+					...(await getAnomalySummary(appContext, period, limit, abortSignal)),
 				});
 				break;
 			case "flag_changes":

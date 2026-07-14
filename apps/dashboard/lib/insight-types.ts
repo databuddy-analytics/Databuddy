@@ -10,6 +10,5 @@ export type InsightResolvedReason = NonNullable<Insight["resolvedReason"]>;
 export type InsightMetric = NonNullable<Insight["metrics"]>[number];
 export type InsightMetricFormat = InsightMetric["format"];
 export type InsightEvidence = NonNullable<Insight["evidence"]>[number];
-export type InvestigationDepth = NonNullable<Insight["investigationDepth"]>;
 export type InsightAction = NonNullable<Insight["actions"]>[number];
 export type InsightActionType = InsightAction["type"];

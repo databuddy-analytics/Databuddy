@@ -1,11 +1,20 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { AppContext } from "../../config/context";
 
+let observedSignal: AbortSignal | undefined;
+
 mock.module("../../../lib/orpc-server", () => ({
 	getServerRPCClient: async () => ({
 		links: {
 			create: async () => {
 				throw new Error("Live RPC should not be called in this test");
+			},
+			list: async (
+				_input: unknown,
+				options?: { signal?: AbortSignal }
+			) => {
+				observedSignal = options?.signal;
+				return [];
 			},
 		},
 	}),
@@ -37,5 +46,19 @@ describe("AI tool RPC helper", () => {
 			mutationBlocked: true,
 			success: false,
 		});
+	});
+
+	it("forwards cancellation to the ORPC client", async () => {
+		const controller = new AbortController();
+
+		await callRPCProcedure(
+			"links",
+			"list",
+			{ websiteId: "website_123" },
+			BASE_CONTEXT,
+			controller.signal
+		);
+
+		expect(observedSignal).toBe(controller.signal);
 	});
 });

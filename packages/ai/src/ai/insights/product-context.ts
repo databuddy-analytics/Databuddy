@@ -21,16 +21,23 @@ function toNumber(value: unknown): number {
 	return 0;
 }
 
+function isoDate(value: unknown): string | null {
+	const date = value instanceof Date ? value : new Date(String(value ?? ""));
+	return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 async function getGoalsSummary(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	goalId: string
+	goalId: string,
+	abortSignal?: AbortSignal
 ) {
 	const goal = (await callRPCProcedure(
 		"goals",
 		"getById",
 		{ id: goalId },
-		appContext
+		appContext,
+		abortSignal
 	)) as Record<string, unknown>;
 	const analytics = (await callRPCProcedure(
 		"goals",
@@ -41,8 +48,19 @@ async function getGoalsSummary(
 			startDate: range.from,
 			endDate: range.to,
 		},
-		appContext
+		appContext,
+		abortSignal
 	)) as Record<string, unknown>;
+	const confirmedGoal = (await callRPCProcedure(
+		"goals",
+		"getById",
+		{ id: goalId },
+		appContext,
+		abortSignal
+	)) as Record<string, unknown>;
+	if (isoDate(goal.updatedAt) !== isoDate(confirmedGoal.updatedAt)) {
+		throw new Error("Goal definition changed during evidence collection");
+	}
 	const steps = Array.isArray(analytics.steps_analytics)
 		? (analytics.steps_analytics as Record<string, unknown>[])
 		: [];
@@ -53,9 +71,11 @@ async function getGoalsSummary(
 		goals: [
 			{
 				id: goal.id,
+				is_active: goal.isActive,
 				name: goal.name,
 				type: goal.type,
 				target: goal.target,
+				definition_updated_at: isoDate(goal.updatedAt),
 				overall_conversion_rate: toNumber(analytics.overall_conversion_rate),
 				total_users_entered: toNumber(analytics.total_users_entered),
 				total_users_completed: toNumber(analytics.total_users_completed),
@@ -68,13 +88,15 @@ async function getGoalsSummary(
 async function getFunnelsSummary(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	funnelId: string
+	funnelId: string,
+	abortSignal?: AbortSignal
 ) {
 	const funnel = (await callRPCProcedure(
 		"funnels",
 		"getById",
 		{ id: funnelId },
-		appContext
+		appContext,
+		abortSignal
 	)) as Record<string, unknown>;
 	const analytics = (await callRPCProcedure(
 		"funnels",
@@ -85,20 +107,46 @@ async function getFunnelsSummary(
 			startDate: range.from,
 			endDate: range.to,
 		},
-		appContext
+		appContext,
+		abortSignal
 	)) as Record<string, unknown>;
+	const confirmedFunnel = (await callRPCProcedure(
+		"funnels",
+		"getById",
+		{ id: funnelId },
+		appContext,
+		abortSignal
+	)) as Record<string, unknown>;
+	if (isoDate(funnel.updatedAt) !== isoDate(confirmedFunnel.updatedAt)) {
+		throw new Error("Funnel definition changed during evidence collection");
+	}
 	const errorInsights =
 		typeof analytics.error_insights === "object" &&
 		analytics.error_insights !== null
 			? (analytics.error_insights as Record<string, unknown>)
 			: {};
+	const analyticsSteps = Array.isArray(analytics.steps_analytics)
+		? (analytics.steps_analytics as Record<string, unknown>[])
+		: [];
+	const definitionSteps = Array.isArray(funnel.steps)
+		? (funnel.steps as Record<string, unknown>[])
+		: [];
 
 	return {
 		count: 1,
 		funnels: [
 			{
 				id: funnel.id,
+				is_active: funnel.isActive,
 				name: funnel.name,
+				definition_updated_at: isoDate(funnel.updatedAt),
+				steps: definitionSteps.map((step, index) => ({
+					step_number: index + 1,
+					name: step.name,
+					target: step.target,
+					type: step.type,
+					users: toNumber(analyticsSteps[index]?.users),
+				})),
 				overall_conversion_rate: toNumber(analytics.overall_conversion_rate),
 				total_users_entered: toNumber(analytics.total_users_entered),
 				total_users_completed: toNumber(analytics.total_users_completed),
@@ -114,7 +162,8 @@ function runQuery(
 	type: QueryRequest["type"],
 	appContext: AppContext,
 	range: { from: string; to: string },
-	filters?: QueryRequest["filters"]
+	filters?: QueryRequest["filters"],
+	abortSignal?: AbortSignal
 ) {
 	return executeQuery(
 		{
@@ -126,18 +175,24 @@ function runQuery(
 			filters,
 		},
 		appContext.websiteDomain,
-		appContext.timezone
+		appContext.timezone,
+		abortSignal
 	);
 }
 
 async function getCustomEventsSummary(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	eventName: string
+	eventName: string,
+	abortSignal?: AbortSignal
 ) {
-	const summary = await runQuery("custom_events_summary", appContext, range, [
-		{ field: "event_name", op: "eq", value: eventName },
-	]);
+	const summary = await runQuery(
+		"custom_events_summary",
+		appContext,
+		range,
+		[{ field: "event_name", op: "eq", value: eventName }],
+		abortSignal
+	);
 
 	return {
 		event: { id: eventName, name: eventName },
@@ -148,26 +203,32 @@ async function getCustomEventsSummary(
 export async function fetchProductMetrics(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	target: ProductInsightTarget
+	target: ProductInsightTarget,
+	abortSignal?: AbortSignal
 ) {
 	let result: Record<string, unknown>;
 	switch (target.type) {
 		case "goal":
 			result = {
 				type: "goals_summary",
-				...(await getGoalsSummary(appContext, range, target.id)),
+				...(await getGoalsSummary(appContext, range, target.id, abortSignal)),
 			};
 			break;
 		case "funnel":
 			result = {
 				type: "funnels_summary",
-				...(await getFunnelsSummary(appContext, range, target.id)),
+				...(await getFunnelsSummary(appContext, range, target.id, abortSignal)),
 			};
 			break;
 		case "event":
 			result = {
 				type: "custom_events_summary",
-				...(await getCustomEventsSummary(appContext, range, target.id)),
+				...(await getCustomEventsSummary(
+					appContext,
+					range,
+					target.id,
+					abortSignal
+				)),
 			};
 			break;
 		default:

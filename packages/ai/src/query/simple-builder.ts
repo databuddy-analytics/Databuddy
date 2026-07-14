@@ -28,6 +28,12 @@ import { applyPlugins } from "./utils";
 export function getClickHouseQuerySettings(
 	noCache?: boolean
 ): Record<string, string | number> {
+	if (
+		process.env.CLICKHOUSE_READONLY_URL &&
+		process.env.CLICKHOUSE_URL === process.env.CLICKHOUSE_READONLY_URL
+	) {
+		return {};
+	}
 	if (noCache) {
 		return { use_query_cache: 0 };
 	}

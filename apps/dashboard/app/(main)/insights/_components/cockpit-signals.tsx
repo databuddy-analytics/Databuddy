@@ -313,31 +313,35 @@ export function CockpitSignals(): ReactElement {
 					</DropdownMenu>
 
 					{dismissedIdSet.size > 0 && (
-						<button
+						<Button
 							className={cn(
-								"text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+								"h-auto px-0 py-0 font-normal text-xs",
 								showDismissed
 									? "font-medium text-foreground"
-									: "text-muted-foreground hover:text-foreground"
+									: "text-muted-foreground"
 							)}
 							onClick={() => setShowDismissed((v) => !v)}
+							size="sm"
 							type="button"
+							variant="ghost"
 						>
 							{showDismissed
 								? "Hide dismissed"
 								: `Show dismissed (${dismissedIdSet.size})`}
-						</button>
+						</Button>
 					)}
 
 					{hasActiveFilters && (
-						<button
-							className="ml-auto flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+						<Button
+							className="ml-auto h-auto gap-1 px-0 py-0 font-normal text-muted-foreground text-xs"
 							onClick={clearFilters}
+							size="sm"
 							type="button"
+							variant="ghost"
 						>
 							<XIcon className="size-3" />
 							Clear
-						</button>
+						</Button>
 					)}
 				</div>
 			)}

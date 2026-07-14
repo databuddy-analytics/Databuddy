@@ -203,12 +203,6 @@ describeIntegration("insights scheduler integration", () => {
 		const originalNextRunAt = configs[0]?.nextRunAt;
 		expect(originalNextRunAt).toBeInstanceOf(Date);
 
-		const qualityOnly = await mutateConfig(org.id, (current) => ({
-			...current,
-			modelTier: "deep",
-		}));
-		expect(qualityOnly.nextRunAt).toEqual(originalNextRunAt);
-
 		const deliveryOnly = await mutateConfig(org.id, (current) => ({
 			...current,
 			deliveries: [{ channelId: "C_TEST", type: "slack" }],
@@ -310,15 +304,7 @@ describeIntegration("insights scheduler integration", () => {
 			.where(eq(insightGenerationConfigs.organizationId, org.id));
 		expect(configs).toHaveLength(0);
 		expect(items).toHaveLength(1);
-		expect(items[0]?.configSnapshot).toEqual({
-			modelTier: "balanced",
-			timezone: "UTC",
-		});
 		expect(jobs).toHaveLength(1);
-		expect(jobs[0]?.data.config).toEqual({
-			modelTier: "balanced",
-			timezone: "UTC",
-		});
 		expect(jobs[0]?.data.runId).toBe(runs[0].id);
 	});
 

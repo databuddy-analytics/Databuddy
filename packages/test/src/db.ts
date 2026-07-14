@@ -43,6 +43,8 @@ export function db(): DB {
 
 const TABLES = [
 	"insight_rollups",
+	"insight_observations",
+	"insight_run_effects",
 	"analytics_insights",
 	"insight_run_items",
 	"insight_runs",

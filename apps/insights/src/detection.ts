@@ -1,7 +1,12 @@
 import { executeQuery } from "@databuddy/ai/query";
+import type {
+	InsightMetric,
+	InvestigationExpectation,
+} from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
+import { emitInsightsEvent } from "./lib/evlog-insights";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
@@ -10,9 +15,18 @@ export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
 	current: number;
+	definitionEvidence?: {
+		metrics: InsightMetric[];
+		queryType: "funnels_summary" | "goals_summary";
+		summary: string;
+	};
+	definitionUpdatedAt?: string;
 	deltaPercent: number;
 	detectedAt: string;
 	direction: "up" | "down";
+	entityLabel?: string;
+	expectation?: InvestigationExpectation;
+	kind?: "change" | "missing_expected_data";
 	label: string;
 	method: "zscore" | "wow";
 	metric: string;
@@ -24,6 +38,10 @@ export interface DetectSignalsParams {
 	lookbackDays: number;
 	timezone: string;
 	websiteId: string;
+}
+
+export interface DetectionDiagnostics {
+	failedFamilies: number;
 }
 
 interface AnomalyMetric {
@@ -94,25 +112,35 @@ const WOW_TRAFFIC_THRESHOLD = 40;
 const WOW_ERROR_THRESHOLD = 40;
 const WOW_REVENUE_THRESHOLD = 30;
 const WOW_VITALS_THRESHOLD = 30;
-const WOW_CUSTOM_EVENT_THRESHOLD = 40;
+const REVENUE_MIN_ABSOLUTE_CHANGE = 25;
+const REVENUE_MIN_TRANSACTIONS = 5;
 const FILTER_SESSION_DURATION_MIN_DELTA = 60;
 const FILTER_SESSION_DURATION_MIN_PEAK = 20;
 const FILTER_BOUNCE_MIN_DELTA = 10;
 const FILTER_ERROR_MIN_DELTA = 5;
 const FILTER_ERROR_MIN_PEAK = 10;
-const ERROR_MIN_AFFECTED_USERS = 3;
+const ERROR_MIN_AFFECTED_USERS = 5;
+const ERROR_SIGNIFICANT_AFFECTED_USERS = 20;
+const ERROR_MIN_SESSION_RATE = 1;
 const LOW_TRAFFIC_WEEKLY_SESSIONS = 50;
 const LOW_TRAFFIC_MIN_VALUE = 10;
 const FILTER_TRAFFIC_MIN_PEAK = 80;
 const FILTER_TRAFFIC_MIN_DELTA = 50;
+const MATERIAL_VOLUME_DROP_PERCENT = 60;
 const ADAPTIVE_CV_SCALE = 200;
-const CUSTOM_EVENT_MIN_COUNT = 5;
-const CUSTOM_EVENT_NEW_THRESHOLD = 10;
-const CUSTOM_EVENT_DISAPPEARED_THRESHOLD = 10;
+const DETECTOR_RETRY_DELAY_MS = 100;
 
 const VITALS_METRICS: Record<string, string> = {
 	LCP: "Page load time (LCP)",
 	INP: "Interaction speed (INP)",
+};
+const VITALS_BAD_THRESHOLDS: Record<string, number> = {
+	LCP: 2500,
+	INP: 200,
+};
+const VITALS_MAX_PLAUSIBLE: Record<string, number> = {
+	LCP: 60_000,
+	INP: 10_000,
 };
 
 export interface WowWindow {
@@ -204,9 +232,6 @@ export function makeWowSignal(
 }
 
 function passesImpactFilter(signal: DetectedSignal): boolean {
-	if (signal.metric.startsWith("custom_event:")) {
-		return true;
-	}
 	const filter = METRIC_FILTERS[signal.metric];
 	return filter ? filter(signal) : DEFAULT_TRAFFIC_FILTER(signal);
 }
@@ -221,9 +246,33 @@ export function passesLowTrafficFloor(
 		return true;
 	}
 	if (RATE_METRICS.has(signal.metric)) {
-		return true;
+		return false;
 	}
 	return Math.max(signal.current, signal.baseline) >= LOW_TRAFFIC_MIN_VALUE;
+}
+
+function hasMeaningfulErrorImpact(
+	affectedUsers: number,
+	errorRate: number
+): boolean {
+	return (
+		affectedUsers >= ERROR_MIN_AFFECTED_USERS &&
+		(affectedUsers >= ERROR_SIGNIFICANT_AFFECTED_USERS ||
+			errorRate >= ERROR_MIN_SESSION_RATE)
+	);
+}
+
+function capLowReachErrorSeverity(
+	signal: DetectedSignal,
+	affectedUsers: number
+): DetectedSignal {
+	if (
+		affectedUsers < ERROR_SIGNIFICANT_AFFECTED_USERS &&
+		signal.severity === "critical"
+	) {
+		return { ...signal, severity: "warning" };
+	}
+	return signal;
 }
 
 export function safeDeltaPercent(current: number, previous: number): number {
@@ -268,6 +317,51 @@ function mapRowsByStringField(
 	return mapped;
 }
 
+function densifyDailyHistory(
+	rows: Record<string, unknown>[],
+	from: string,
+	to: string
+): Record<string, unknown>[] {
+	const byDate = new Map<string, Record<string, unknown>>();
+	for (const row of rows) {
+		const date = String(row.date ?? "").slice(0, 10);
+		if (date >= from && date <= to) {
+			byDate.set(date, row);
+		}
+	}
+
+	const dense: Record<string, unknown>[] = [];
+	let date = dayjs.utc(from);
+	const end = dayjs.utc(to);
+	while (!date.isAfter(end, "day")) {
+		const key = date.format("YYYY-MM-DD");
+		dense.push(
+			byDate.get(key) ?? {
+				date: key,
+				bounce_rate: 0,
+				median_session_duration: 0,
+				pageviews: 0,
+				sessions: 0,
+				visitors: 0,
+			}
+		);
+		date = date.add(1, "day");
+	}
+	return dense;
+}
+
+function weeklySessionVolume(
+	rows: Record<string, unknown>[],
+	windowDays: number
+): number {
+	const recent = rows.slice(-windowDays);
+	const sessions = recent.reduce(
+		(sum, row) => sum + numberField(row, "sessions"),
+		0
+	);
+	return (sessions / Math.max(1, windowDays)) * 7;
+}
+
 export function assignSeverity(
 	zScore: number | undefined,
 	deltaPercent: number
@@ -285,10 +379,58 @@ export function assignSeverity(
 
 export type QueryFn = typeof executeQuery;
 
+interface DetectorFamilyResult<T> {
+	failed: boolean;
+	value: T | null;
+}
+
+function rethrowDetectionAbort(
+	error: unknown,
+	abortSignal?: AbortSignal
+): void {
+	if (abortSignal?.aborted) {
+		throw abortSignal.reason ?? error;
+	}
+	if (error instanceof Error && error.name === "AbortError") {
+		throw error;
+	}
+}
+
+async function readDetectorFamily<T>(params: {
+	abortSignal?: AbortSignal;
+	family: "errors" | "history" | "revenue" | "summary" | "vitals";
+	read: () => Promise<T>;
+	websiteId: string;
+}): Promise<DetectorFamilyResult<T>> {
+	try {
+		return { failed: false, value: await params.read() };
+	} catch (firstError) {
+		rethrowDetectionAbort(firstError, params.abortSignal);
+		await new Promise((resolve) =>
+			setTimeout(resolve, DETECTOR_RETRY_DELAY_MS)
+		);
+		params.abortSignal?.throwIfAborted();
+		try {
+			return { failed: false, value: await params.read() };
+		} catch (error) {
+			rethrowDetectionAbort(error, params.abortSignal);
+			emitInsightsEvent("warn", "generation.detection.metric_family_failed", {
+				website_id: params.websiteId,
+				metric_family: params.family,
+				error_type:
+					error instanceof Error ? error.constructor.name : typeof error,
+			});
+			return { failed: true, value: null };
+		}
+	}
+}
+
 export async function detectSignals(
 	params: DetectSignalsParams,
 	queryFn: QueryFn = executeQuery,
-	today: dayjs.Dayjs = params.timezone ? dayjs().tz(params.timezone) : dayjs()
+	today: dayjs.Dayjs = params.timezone ? dayjs().tz(params.timezone) : dayjs(),
+	abortSignal?: AbortSignal,
+	diagnostics?: DetectionDiagnostics
 ): Promise<DetectedSignal[]> {
 	const { websiteId, lookbackDays, timezone } = params;
 
@@ -299,25 +441,31 @@ export async function detectSignals(
 		.format("YYYY-MM-DD");
 	const dailyTo = lastCompleteDay.format("YYYY-MM-DD");
 
-	const rows = await queryFn(
-		{
-			projectId: websiteId,
-			type: "events_by_date",
-			from: dailyFrom,
-			to: dailyTo,
-			timezone,
-			timeUnit: "day",
-			limit: dailyHistoryDays + 5,
-		},
-		undefined,
-		timezone
-	);
-
-	const sorted = [...rows]
-		.sort((a, b) => String(a.date ?? "").localeCompare(String(b.date ?? "")))
-		.filter((row) => String(row.date ?? "") <= dailyTo);
-
-	const zscoreSignals = detectZscore(sorted);
+	const history = await readDetectorFamily({
+		abortSignal,
+		family: "history",
+		websiteId,
+		read: () =>
+			queryFn(
+				{
+					projectId: websiteId,
+					type: "events_by_date",
+					from: dailyFrom,
+					to: dailyTo,
+					timezone,
+					timeUnit: "day",
+					limit: dailyHistoryDays + 5,
+				},
+				undefined,
+				timezone,
+				abortSignal
+			),
+	});
+	const sorted = history.failed
+		? []
+		: densifyDailyHistory(history.value ?? [], dailyFrom, dailyTo);
+	const historyIncomplete = history.failed;
+	const zscoreSignals = history.failed ? [] : detectZscore(sorted);
 
 	const baselineRows = sorted.slice(0, -1);
 	const wowThresholds = new Map<string, number>();
@@ -331,7 +479,18 @@ export async function detectSignals(
 		);
 	}
 
-	const wowSignals = await detectWow(params, today, queryFn, wowThresholds);
+	const wow = await detectWow(
+		params,
+		today,
+		queryFn,
+		wowThresholds,
+		abortSignal
+	);
+	const wowSignals = wow.signals;
+	if (diagnostics) {
+		diagnostics.failedFamilies =
+			(historyIncomplete ? 1 : 0) + wow.failedFamilies;
+	}
 
 	const wowDirection = new Map<string, "up" | "down">();
 	for (const s of wowSignals) {
@@ -352,11 +511,10 @@ export async function detectSignals(
 		}
 	}
 
-	const windowSessions = sorted.reduce(
-		(sum, row) => sum + numberField(row, "sessions"),
-		0
+	const weeklySessions = Math.max(
+		weeklySessionVolume(sorted, Math.max(3, lookbackDays)),
+		wow.weeklySessions
 	);
-	const weeklySessions = (windowSessions / Math.max(1, sorted.length)) * 7;
 
 	const filtered = [...byMetric.values()].filter(
 		(signal) =>
@@ -364,9 +522,7 @@ export async function detectSignals(
 			passesLowTrafficFloor(signal, weeklySessions)
 	);
 
-	const collapsed = collapseCorrelated(filtered);
-
-	return collapsed.sort(
+	return collapseCorrelated(filtered).sort(
 		(a, b) => Math.abs(b.deltaPercent) - Math.abs(a.deltaPercent)
 	);
 }
@@ -470,8 +626,13 @@ async function detectWow(
 	params: DetectSignalsParams,
 	today: dayjs.Dayjs,
 	queryFn: QueryFn,
-	wowThresholds: Map<string, number>
-): Promise<DetectedSignal[]> {
+	wowThresholds: Map<string, number>,
+	abortSignal?: AbortSignal
+): Promise<{
+	failedFamilies: number;
+	signals: DetectedSignal[];
+	weeklySessions: number;
+}> {
 	const { websiteId, lookbackDays, timezone } = params;
 	const { currentFrom, currentTo, previousFrom, previousTo } = wowWindow(
 		today,
@@ -482,33 +643,57 @@ async function detectWow(
 		return queryFn(
 			{ projectId: websiteId, type, from, to, timezone },
 			undefined,
-			timezone
+			timezone,
+			abortSignal
 		);
 	}
 
-	const [
-		currentSummary,
-		previousSummary,
-		currentErrors,
-		previousErrors,
-		currentRevenue,
-		previousRevenue,
-		currentVitals,
-		previousVitals,
-		currentCustom,
-		previousCustom,
-	] = await Promise.all([
-		query("summary_metrics", currentFrom, currentTo),
-		query("summary_metrics", previousFrom, previousTo),
-		query("error_summary", currentFrom, currentTo),
-		query("error_summary", previousFrom, previousTo),
-		query("revenue_overview", currentFrom, currentTo),
-		query("revenue_overview", previousFrom, previousTo),
-		query("vitals_overview", currentFrom, currentTo),
-		query("vitals_overview", previousFrom, previousTo),
-		query("custom_events_discovery", currentFrom, currentTo),
-		query("custom_events_discovery", previousFrom, previousTo),
+	const [summary, errors, revenue, vitals] = await Promise.all([
+		readDetectorFamily({
+			abortSignal,
+			family: "summary",
+			websiteId,
+			read: () =>
+				Promise.all([
+					query("summary_metrics", currentFrom, currentTo),
+					query("summary_metrics", previousFrom, previousTo),
+				]),
+		}),
+		readDetectorFamily({
+			abortSignal,
+			family: "errors",
+			websiteId,
+			read: () =>
+				Promise.all([
+					query("error_summary", currentFrom, currentTo),
+					query("error_summary", previousFrom, previousTo),
+				]),
+		}),
+		readDetectorFamily({
+			abortSignal,
+			family: "revenue",
+			websiteId,
+			read: () =>
+				Promise.all([
+					query("revenue_overview", currentFrom, currentTo),
+					query("revenue_overview", previousFrom, previousTo),
+				]),
+		}),
+		readDetectorFamily({
+			abortSignal,
+			family: "vitals",
+			websiteId,
+			read: () =>
+				Promise.all([
+					query("vitals_overview", currentFrom, currentTo),
+					query("vitals_overview", previousFrom, previousTo),
+				]),
+		}),
 	]);
+	const [currentSummary, previousSummary] = summary.value ?? [[], []];
+	const [currentErrors, previousErrors] = errors.value ?? [[], []];
+	const [currentRevenue, previousRevenue] = revenue.value ?? [[], []];
+	const [currentVitals, previousVitals] = vitals.value ?? [[], []];
 
 	const signals: DetectedSignal[] = [];
 
@@ -520,8 +705,13 @@ async function detectWow(
 			continue;
 		}
 
+		const deltaPercent = safeDeltaPercent(currentValue, previousValue);
+		const materialVolumeDrop =
+			TRAFFIC_METRICS.has(metric.key) &&
+			deltaPercent <= -MATERIAL_VOLUME_DROP_PERCENT &&
+			previousValue - currentValue >= FILTER_TRAFFIC_MIN_DELTA;
 		const threshold = wowThresholds.get(metric.key) ?? WOW_TRAFFIC_THRESHOLD;
-		if (Math.abs(safeDeltaPercent(currentValue, previousValue)) < threshold) {
+		if (!materialVolumeDrop && Math.abs(deltaPercent) < threshold) {
 			continue;
 		}
 		signals.push(
@@ -539,12 +729,19 @@ async function detectWow(
 	const errPrev = numberField(previousErrors[0], "totalErrors");
 	const currAffectedUsers = numberField(currentErrors[0], "affectedUsers");
 	const prevAffectedUsers = numberField(previousErrors[0], "affectedUsers");
+	const currErrorRate = numberField(currentErrors[0], "errorRate");
+	const prevErrorRate = numberField(previousErrors[0], "errorRate");
 	if (
 		errPrev === 0 &&
 		errNow >= FILTER_ERROR_MIN_PEAK &&
-		currAffectedUsers >= ERROR_MIN_AFFECTED_USERS
+		hasMeaningfulErrorImpact(currAffectedUsers, currErrorRate)
 	) {
-		signals.push(makeWowSignal("error_count", "Errors", errNow, 0, currentTo));
+		signals.push(
+			capLowReachErrorSeverity(
+				makeWowSignal("error_count", "Errors", errNow, 0, currentTo),
+				currAffectedUsers
+			)
+		);
 	} else if (
 		errNow > 0 &&
 		errPrev > 0 &&
@@ -552,16 +749,27 @@ async function detectWow(
 	) {
 		const relevantAffectedUsers =
 			errNow >= errPrev ? currAffectedUsers : prevAffectedUsers;
-		if (relevantAffectedUsers >= ERROR_MIN_AFFECTED_USERS) {
+		const relevantErrorRate = errNow >= errPrev ? currErrorRate : prevErrorRate;
+		if (hasMeaningfulErrorImpact(relevantAffectedUsers, relevantErrorRate)) {
 			signals.push(
-				makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo)
+				capLowReachErrorSeverity(
+					makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo),
+					relevantAffectedUsers
+				)
 			);
 		}
 	}
 
 	const revNow = numberField(currentRevenue[0], "total_revenue");
 	const revPrev = numberField(previousRevenue[0], "total_revenue");
-	if ((revNow > 0 || revPrev > 0) && Math.abs(revNow - revPrev) > 0) {
+	const revenueTransactions = Math.max(
+		numberField(currentRevenue[0], "total_transactions"),
+		numberField(previousRevenue[0], "total_transactions")
+	);
+	const meaningfulRevenueChange =
+		Math.abs(revNow - revPrev) >= REVENUE_MIN_ABSOLUTE_CHANGE ||
+		revenueTransactions >= REVENUE_MIN_TRANSACTIONS;
+	if ((revNow > 0 || revPrev > 0) && meaningfulRevenueChange) {
 		const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
 		if (
 			Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
@@ -583,12 +791,21 @@ async function detectWow(
 		const prevVal = numberField(prev, "p75");
 		const curSamples = numberField(cur, "samples");
 
-		if (curSamples < 10 || prevVal === 0 || curVal === 0) {
+		if (
+			curSamples < 10 ||
+			prevVal === 0 ||
+			curVal === 0 ||
+			curVal > VITALS_MAX_PLAUSIBLE[metricName] ||
+			prevVal > VITALS_MAX_PLAUSIBLE[metricName]
+		) {
 			continue;
 		}
 
 		const pct = safeDeltaPercent(curVal, prevVal);
 		if (Math.abs(pct) < WOW_VITALS_THRESHOLD) {
+			continue;
+		}
+		if (curVal > prevVal && curVal <= VITALS_BAD_THRESHOLDS[metricName]) {
 			continue;
 		}
 
@@ -597,81 +814,17 @@ async function detectWow(
 		);
 	}
 
-	const prevEventsMap = new Map<string, number>();
-	for (const row of previousCustom) {
-		const name = stringField(row, "event_name");
-		if (name) {
-			prevEventsMap.set(name, numberField(row, "total_events"));
-		}
-	}
-
-	const curEventNames = new Set<string>();
-	for (const row of currentCustom) {
-		const name = stringField(row, "event_name");
-		const curCount = numberField(row, "total_events");
-		if (!name) {
-			continue;
-		}
-		curEventNames.add(name);
-		if (curCount < CUSTOM_EVENT_MIN_COUNT) {
-			continue;
-		}
-
-		const prevCount = prevEventsMap.get(name) ?? 0;
-		if (prevCount === 0 && curCount >= CUSTOM_EVENT_NEW_THRESHOLD) {
-			signals.push(
-				makeWowSignal(
-					`custom_event:${name}`,
-					`Custom event "${name}"`,
-					curCount,
-					0,
-					currentTo
-				)
-			);
-			continue;
-		}
-		if (prevCount === 0) {
-			continue;
-		}
-		if (
-			Math.abs(safeDeltaPercent(curCount, prevCount)) <
-			WOW_CUSTOM_EVENT_THRESHOLD
-		) {
-			continue;
-		}
-		if (Math.abs(curCount - prevCount) < CUSTOM_EVENT_MIN_COUNT) {
-			continue;
-		}
-		signals.push(
-			makeWowSignal(
-				`custom_event:${name}`,
-				`Custom event "${name}"`,
-				curCount,
-				prevCount,
-				currentTo
-			)
-		);
-	}
-
-	for (const [name, prevCount] of prevEventsMap) {
-		if (prevCount < CUSTOM_EVENT_DISAPPEARED_THRESHOLD) {
-			continue;
-		}
-		if (curEventNames.has(name)) {
-			continue;
-		}
-		signals.push({
-			...makeWowSignal(
-				`custom_event:${name}`,
-				`Custom event "${name}"`,
-				0,
-				prevCount,
-				currentTo
-			),
-			severity: "warning",
-			detectedAt: currentTo,
-		});
-	}
-
-	return signals;
+	return {
+		failedFamilies: [summary, errors, revenue, vitals].filter(
+			(result) => result.failed
+		).length,
+		signals,
+		weeklySessions:
+			(Math.max(
+				numberField(currentSummary[0], "sessions"),
+				numberField(previousSummary[0], "sessions")
+			) /
+				Math.max(3, lookbackDays)) *
+			7,
+	};
 }

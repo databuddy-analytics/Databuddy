@@ -17,7 +17,6 @@ import {
 	slackChannelBindings,
 	slackIntegrations,
 	type InsightGenerationConfig,
-	type InsightGenerationConfigSnapshot,
 	websites,
 } from "@databuddy/db/schema";
 import {
@@ -41,7 +40,6 @@ import {
 
 const queueStatusSchema = z.enum(["queued", "skipped", "disabled"]);
 const frequencySchema = z.enum(["daily", "weekly"]);
-const modelTierSchema = z.enum(["fast", "balanced", "deep"]);
 const queueReasonSchema = z.enum(["manual", "scheduled"]);
 const reasonSchema = z.enum(["manual", "scheduled", "cooldown_refresh"]);
 const deliverySchema = z.object({
@@ -61,7 +59,6 @@ type ConfigExecutor =
 const configPatchSchema = z.object({
 	enabled: z.boolean().optional(),
 	frequency: frequencySchema.optional(),
-	modelTier: modelTierSchema.optional(),
 	timezone: z
 		.string()
 		.trim()
@@ -71,7 +68,6 @@ const configPatchSchema = z.object({
 		.optional(),
 });
 const runPatchSchema = configPatchSchema.pick({
-	modelTier: true,
 	timezone: true,
 });
 const organizationScopeSchema = z.object({
@@ -86,7 +82,6 @@ const configOutputSchema = z.object({
 	frequency: frequencySchema,
 	id: z.string().nullable(),
 	lastRunAt: z.union([z.date(), z.string()]).nullable(),
-	modelTier: modelTierSchema,
 	nextRunAt: z.union([z.date(), z.string()]).nullable(),
 	organizationId: z.string(),
 	source: z.enum(["default", "organization"]),
@@ -121,7 +116,6 @@ const runOutputSchema = z.object({
 
 const runItemOutputSchema = z.object({
 	attempts: z.number(),
-	configSnapshot: z.unknown(),
 	createdAt: z.union([z.date(), z.string()]),
 	errorMessage: z.string().nullable(),
 	finishedAt: z.union([z.date(), z.string()]).nullable(),
@@ -148,7 +142,6 @@ const DEFAULT_CONFIG: Omit<
 	deliveries: [],
 	enabled: false,
 	frequency: "weekly",
-	modelTier: "balanced",
 	timezone: "UTC",
 };
 
@@ -196,7 +189,6 @@ function rowToConfig(
 		frequency: normalizeInsightScheduleFrequency(row.frequency),
 		id: row.id,
 		lastRunAt: row.lastRunAt,
-		modelTier: row.modelTier,
 		nextRunAt: row.enabled ? row.nextRunAt : null,
 		organizationId: row.organizationId,
 		source,
@@ -220,15 +212,6 @@ function defaultConfig(
 	};
 }
 
-function toSnapshot(
-	config: z.infer<typeof configOutputSchema>
-): InsightGenerationConfigSnapshot {
-	return {
-		modelTier: config.modelTier,
-		timezone: config.timezone,
-	};
-}
-
 function applyPatch(
 	config: z.infer<typeof configOutputSchema>,
 	patch: z.infer<typeof configPatchSchema>
@@ -238,7 +221,6 @@ function applyPatch(
 		...config,
 		enabled: parsed.enabled ?? config.enabled,
 		frequency: parsed.frequency ?? config.frequency,
-		modelTier: parsed.modelTier ?? config.modelTier,
 		timezone: parsed.timezone ?? config.timezone,
 	};
 }
@@ -320,7 +302,6 @@ function runConfigMutation(
 			deliveries: next.deliveries,
 			enabled: next.enabled,
 			frequency: next.frequency,
-			modelTier: next.modelTier,
 			nextRunAt,
 			timezone: next.timezone,
 		};
@@ -477,11 +458,9 @@ export async function queueInsightGenerationRun(
 		input.websiteIds
 	);
 	const runId = randomUUIDv7();
-	const config = toSnapshot(runConfig);
 	const queueItems = targetWebsites.map((website) => {
 		const itemId = randomUUIDv7();
 		return {
-			config,
 			itemId,
 			jobId: insightsWebsiteJobId(runId, website.id),
 			websiteId: website.id,
@@ -496,7 +475,6 @@ export async function queueInsightGenerationRun(
 		organizationId: input.organizationId,
 		websiteId: item.websiteId,
 		queueJobId: item.jobId,
-		configSnapshot: item.config,
 	}));
 	const concurrentRun = await insertInsightRunOrFindActive(
 		input.organizationId,
@@ -526,7 +504,6 @@ export async function queueInsightGenerationRun(
 			queueItems.map((item) => ({
 				name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
 				data: {
-					config: item.config,
 					itemId: item.itemId,
 					organizationId: input.organizationId,
 					reason,
@@ -730,7 +707,6 @@ export const insightGenerationRouter = {
 				"update"
 			);
 			return queueInsightGenerationRun({
-				modelTier: input.modelTier,
 				organizationId,
 				requestedByUserId: context.user?.id ?? null,
 				timezone: input.timezone,

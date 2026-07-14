@@ -1,5 +1,17 @@
-import { and, asc, db, eq, inArray, lt } from "@databuddy/db";
 import {
+	and,
+	asc,
+	db,
+	eq,
+	inArray,
+	isNotNull,
+	lt,
+	ne,
+	notExists,
+	or,
+} from "@databuddy/db";
+import {
+	insightRunEffects,
 	insightRunItems,
 	insightRuns,
 	type InsightRun,
@@ -17,6 +29,7 @@ import {
 	emitInsightsEvent,
 	setInsightsLog,
 } from "./lib/evlog-insights";
+import { loadCompletedPreparedResult } from "./effects";
 
 const DEFAULT_MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
 const MIN_MAINTENANCE_INTERVAL_MS = 60 * 1000;
@@ -38,7 +51,7 @@ const ACTIVE_QUEUE_STATES = new Set([
 
 type RecoverableItem = Pick<
 	InsightRunItem,
-	"id" | "queueJobId" | "runId" | "status"
+	"id" | "queueJobId" | "runId" | "status" | "updatedAt"
 >;
 
 interface RunStatusSummary {
@@ -118,11 +131,30 @@ async function staleItems(cutoff: Date): Promise<RecoverableItem[]> {
 			queueJobId: insightRunItems.queueJobId,
 			runId: insightRunItems.runId,
 			status: insightRunItems.status,
+			updatedAt: insightRunItems.updatedAt,
 		})
 		.from(insightRunItems)
 		.where(
 			and(
-				inArray(insightRunItems.status, ["queued", "running"]),
+				or(
+					inArray(insightRunItems.status, ["queued", "running"]),
+					and(
+						eq(insightRunItems.status, "failed"),
+						isNotNull(insightRunItems.preparedAt),
+						eq(insightRunItems.preparedStatus, "succeeded"),
+						notExists(
+							db
+								.select({ id: insightRunEffects.id })
+								.from(insightRunEffects)
+								.where(
+									and(
+										eq(insightRunEffects.runItemId, insightRunItems.id),
+										ne(insightRunEffects.status, "succeeded")
+									)
+								)
+						)
+					)
+				),
 				lt(insightRunItems.updatedAt, cutoff)
 			)
 		)
@@ -144,6 +176,38 @@ async function staleRunIds(cutoff: Date): Promise<string[]> {
 		.limit(MAX_STALE_RUNS_PER_SWEEP);
 
 	return rows.map((row) => row.id);
+}
+
+export async function finalizeCompletedPreparedItem(
+	itemId: string,
+	now = new Date()
+): Promise<boolean> {
+	const result = await loadCompletedPreparedResult(itemId);
+	if (!result) {
+		return false;
+	}
+	const recoverableStatuses: InsightRunItem["status"][] =
+		result.status === "succeeded"
+			? ["failed", "queued", "running"]
+			: ["queued", "running"];
+	const updated = await db
+		.update(insightRunItems)
+		.set({
+			errorMessage:
+				result.status === "skipped" ? (result.message ?? null) : null,
+			finishedAt: now,
+			resultCount: result.resultCount,
+			status: result.status,
+			updatedAt: now,
+		})
+		.where(
+			and(
+				eq(insightRunItems.id, itemId),
+				inArray(insightRunItems.status, recoverableStatuses)
+			)
+		)
+		.returning({ id: insightRunItems.id });
+	return updated.length === 1;
 }
 
 export function summarizeItemErrors(
@@ -174,82 +238,91 @@ export function summarizeItemErrors(
 }
 
 export async function syncRunStatus(runId: string): Promise<RunStatusSummary> {
-	const [run, items] = await Promise.all([
-		db.query.insightRuns.findFirst({ where: { id: runId } }),
-		db
+	const summary = await db.transaction(async (tx) => {
+		const [run] = await tx
+			.select()
+			.from(insightRuns)
+			.where(eq(insightRuns.id, runId))
+			.limit(1)
+			.for("update");
+		const items = await tx
 			.select({
 				errorMessage: insightRunItems.errorMessage,
 				status: insightRunItems.status,
 			})
 			.from(insightRunItems)
-			.where(eq(insightRunItems.runId, runId)),
-	]);
+			.where(eq(insightRunItems.runId, runId));
 
-	const completedItems = items.filter(
-		(item) => item.status === "succeeded"
-	).length;
-	const failedItems = items.filter((item) => item.status === "failed").length;
-	const queuedItems = items.filter((item) => item.status === "queued").length;
-	const runningItems = items.filter((item) => item.status === "running").length;
-	const skippedItems = items.filter((item) => item.status === "skipped").length;
-	const settledItems = completedItems + failedItems + skippedItems;
-	const totalItems = items.length;
-	const settled = settledItems === totalItems;
+		const completedItems = items.filter(
+			(item) => item.status === "succeeded"
+		).length;
+		const failedItems = items.filter((item) => item.status === "failed").length;
+		const queuedItems = items.filter((item) => item.status === "queued").length;
+		const runningItems = items.filter(
+			(item) => item.status === "running"
+		).length;
+		const skippedItems = items.filter(
+			(item) => item.status === "skipped"
+		).length;
+		const settledItems = completedItems + failedItems + skippedItems;
+		const totalItems = items.length;
+		const settled = settledItems === totalItems;
 
-	let status: InsightRunStatus =
-		queuedItems === totalItems ? "queued" : "running";
-	if (totalItems === 0) {
-		status = "skipped";
-	} else if (settled) {
-		if (completedItems > 0 && failedItems === 0) {
-			status = "succeeded";
-		} else if (completedItems > 0) {
-			status = "partially_succeeded";
-		} else if (skippedItems === totalItems) {
+		let status: InsightRunStatus =
+			queuedItems === totalItems ? "queued" : "running";
+		if (totalItems === 0) {
 			status = "skipped";
-		} else {
-			status = "failed";
+		} else if (settled) {
+			if (completedItems > 0 && failedItems === 0) {
+				status = "succeeded";
+			} else if (completedItems > 0) {
+				status = "partially_succeeded";
+			} else if (skippedItems === totalItems) {
+				status = "skipped";
+			} else {
+				status = "failed";
+			}
 		}
-	}
 
-	const now = new Date();
-	await db
-		.update(insightRuns)
-		.set({
+		const now = new Date();
+		await tx
+			.update(insightRuns)
+			.set({
+				completedItems,
+				errorMessage:
+					settled && failedItems > 0 ? summarizeItemErrors(items) : null,
+				failedItems,
+				finishedAt: settled ? now : null,
+				skippedItems,
+				status,
+				updatedAt: now,
+			})
+			.where(eq(insightRuns.id, runId));
+
+		return {
 			completedItems,
 			failedItems,
+			queuedItems,
+			run: run ?? null,
+			runningItems,
+			settled,
 			skippedItems,
 			status,
-			updatedAt: now,
-			...(settled ? { finishedAt: now } : {}),
-			...(settled && failedItems > 0
-				? { errorMessage: summarizeItemErrors(items) }
-				: {}),
-		})
-		.where(eq(insightRuns.id, runId));
-
-	setInsightsLog({
-		run_status: status,
-		run_total_items: totalItems,
-		run_completed_items: completedItems,
-		run_failed_items: failedItems,
-		run_queued_items: queuedItems,
-		run_running_items: runningItems,
-		run_skipped_items: skippedItems,
-		run_settled: settled,
+			totalItems,
+		};
 	});
 
-	return {
-		completedItems,
-		failedItems,
-		queuedItems,
-		run: run ?? null,
-		runningItems,
-		settled,
-		skippedItems,
-		status,
-		totalItems,
-	};
+	setInsightsLog({
+		run_status: summary.status,
+		run_total_items: summary.totalItems,
+		run_completed_items: summary.completedItems,
+		run_failed_items: summary.failedItems,
+		run_queued_items: summary.queuedItems,
+		run_running_items: summary.runningItems,
+		run_skipped_items: summary.skippedItems,
+		run_settled: summary.settled,
+	});
+	return summary;
 }
 
 export async function queueRollupIfSettled(
@@ -301,13 +374,37 @@ export async function recoverStaleInsightRuns(
 	let keptItems = 0;
 
 	for (const item of items) {
+		if (item.status === "failed") {
+			affectedRunIds.add(item.runId);
+			if (await finalizeCompletedPreparedItem(item.id, now)) {
+				emitInsightsEvent("info", "recovery.prepared_item_completed", {
+					item_id: item.id,
+					queue_job_id: item.queueJobId,
+					run_id: item.runId,
+					previous_status: item.status,
+				});
+			}
+			keptItems += 1;
+			continue;
+		}
+
 		const reason = await staleItemFailureReason(item);
 		if (!reason) {
 			keptItems += 1;
 			continue;
 		}
+		if (await finalizeCompletedPreparedItem(item.id, now)) {
+			affectedRunIds.add(item.runId);
+			keptItems += 1;
+			emitInsightsEvent("info", "recovery.prepared_item_completed", {
+				item_id: item.id,
+				queue_job_id: item.queueJobId,
+				run_id: item.runId,
+			});
+			continue;
+		}
 
-		await db
+		const updated = await db
 			.update(insightRunItems)
 			.set({
 				errorMessage: reason,
@@ -315,7 +412,25 @@ export async function recoverStaleInsightRuns(
 				status: "failed",
 				updatedAt: now,
 			})
-			.where(eq(insightRunItems.id, item.id));
+			.where(
+				and(
+					eq(insightRunItems.id, item.id),
+					eq(insightRunItems.status, item.status),
+					eq(insightRunItems.updatedAt, item.updatedAt)
+				)
+			)
+			.returning({ id: insightRunItems.id });
+		if (updated.length === 0) {
+			affectedRunIds.add(item.runId);
+			keptItems += 1;
+			emitInsightsEvent("info", "recovery.stale_item_changed", {
+				item_id: item.id,
+				queue_job_id: item.queueJobId,
+				run_id: item.runId,
+				previous_status: item.status,
+			});
+			continue;
+		}
 		affectedRunIds.add(item.runId);
 		failedItems += 1;
 		emitInsightsEvent("warn", "recovery.stale_item_failed", {

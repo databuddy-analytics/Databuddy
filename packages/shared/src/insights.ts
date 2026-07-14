@@ -45,13 +45,15 @@ const generatedInsightTypes = [
 	"cross_signal",
 ] as const;
 
-const generatedInsightActionTypes = [
+const storedInsightActionTypes = [
 	"fix_goal",
 	"create_funnel",
 	"add_custom_event",
 	"create_annotation",
 	"add_tracking",
 	"investigate_further",
+	"update_config",
+	"code_fix",
 ] as const;
 
 export const insightSeveritySchema = z.enum(["critical", "warning", "info"]);
@@ -72,12 +74,7 @@ export const storedInsightTypeSchema = z.enum([
 	"cross_property_dependency",
 	"deploy_correlation",
 ]);
-const generatedInsightActionTypeSchema = z.enum(generatedInsightActionTypes);
-const storedInsightActionTypeSchema = z.enum([
-	...generatedInsightActionTypes,
-	"update_config",
-	"code_fix",
-]);
+const storedInsightActionTypeSchema = z.enum(storedInsightActionTypes);
 
 export const insightMetricSchema = z.object({
 	label: z
@@ -95,17 +92,21 @@ export const insightEvidenceSchema = z.object({
 	description: z.string(),
 });
 
-const generatedInsightActionSchema = z.object({
-	type: generatedInsightActionTypeSchema,
+export const storedInsightActionSchema = z.object({
+	type: storedInsightActionTypeSchema,
 	label: z.string().describe("Short button label"),
 	params: z
 		.record(z.string(), z.string())
 		.describe("Action-specific string parameters"),
 });
 
-export const storedInsightActionSchema = generatedInsightActionSchema.extend({
-	type: storedInsightActionTypeSchema,
-});
+export const insightRemediationKindSchema = z.enum([
+	"code",
+	"tracking",
+	"configuration",
+	"campaign",
+	"operations",
+]);
 
 const insightShape = {
 	title: z
@@ -168,15 +169,13 @@ const insightShape = {
 		.describe("Distinct supporting facts not repeated in the narrative."),
 };
 
-export const generatedInsightSchema = z.object({
-	...insightShape,
-	type: generatedInsightTypeSchema,
-	actions: z
-		.array(generatedInsightActionSchema)
-		.max(3)
-		.optional()
-		.describe("Optional machine-readable actions the user can take."),
-});
+export const generatedInsightSchema = z
+	.object({
+		...insightShape,
+		type: generatedInsightTypeSchema,
+		remediationKind: insightRemediationKindSchema.optional(),
+	})
+	.strict();
 
 const investigationKeySchema = z.string().trim().min(1).max(160);
 
@@ -197,6 +196,28 @@ const investigationEntitySchema = z
 		]),
 		id: investigationKeySchema,
 		label: z.string().trim().min(1).max(120),
+	})
+	.strict();
+
+export const investigationExpectationSchema = z
+	.object({
+		confirmation: z
+			.object({
+				count: z.number().int().positive(),
+				definitionId: investigationKeySchema,
+				definitionType: z.enum(["funnel", "goal"]),
+				source: z.enum(["revenue_transactions", "server_completions"]),
+			})
+			.strict()
+			.optional(),
+		definitionUpdatedAt: z.iso.datetime(),
+		eventName: investigationKeySchema,
+		instruction: z.string().trim().min(1).max(180),
+		kind: z.literal("tracking"),
+		previousCompletions: z.number().int().min(10),
+		currentEntrants: z.number().int().min(30),
+		currentCompletions: z.literal(0),
+		stepName: z.string().trim().min(1).max(120).optional(),
 	})
 	.strict();
 
@@ -228,6 +249,7 @@ export const investigationSignalSchema = z
 				baselineDates: z.array(z.iso.date()).min(6).max(90).optional(),
 			})
 			.strict(),
+		expectation: investigationExpectationSchema.optional(),
 		sampleSize: z
 			.object({
 				current: z.number().int().nonnegative(),
@@ -293,6 +315,7 @@ const investigationEvidenceBaseSchema = z
 		entity: investigationEntitySchema.optional(),
 		period: z.enum(["current", "previous", "custom"]),
 		comparison: weekOverWeekPeriodSchema.optional(),
+		remediation: investigationExpectationSchema.optional(),
 		range: z
 			.object({
 				from: z.iso.date(),
@@ -372,91 +395,57 @@ export const investigationDispositionSchema = z.enum([
 	"not_a_problem",
 ]);
 
-const citedEvidenceIdsSchema = z
-	.array(investigationKeySchema)
-	.max(3)
-	.refine((ids) => new Set(ids).size === ids.length, {
-		message: "Evidence IDs must be unique",
-	});
+export const externalContextGapSchema = z.enum([
+	"expected_behavior",
+	"business_priority",
+	"planned_external_change",
+]);
 
-const investigationResultBaseSchema = z
+const remediationSchema = z
 	.object({
-		signalKey: investigationKeySchema,
-		summary: z.string().trim().min(1).max(300),
-		confidence: z.number().min(0).max(1),
+		kind: insightRemediationKindSchema,
+		evidenceId: investigationKeySchema.describe(
+			"Backend-owned evidence ID that directly supports this repair."
+		),
+		instruction: z.string().trim().min(1).max(180),
 	})
 	.strict();
 
-export const investigationResultSchema = z.discriminatedUnion("disposition", [
-	investigationResultBaseSchema
-		.extend({
+export const investigationDecisionSchema = z.discriminatedUnion("disposition", [
+	z
+		.object({
 			disposition: z.literal("action_ready"),
-			evidenceIds: citedEvidenceIdsSchema.min(1),
-			title: z.string().trim().min(1).max(80),
-			action: z.string().trim().min(1).max(300),
-			impactSummary: z.string().trim().min(1).max(300).optional(),
-			rootCause: z.string().trim().min(1).max(300).optional(),
-			verification: z
-				.object({
-					successCondition: z.string().trim().min(1).max(200),
-					checkAfterDays: z.number().int().min(1).max(90),
-				})
-				.strict(),
+			remediation: remediationSchema,
 		})
 		.strict(),
-	investigationResultBaseSchema
-		.extend({
+	z
+		.object({
 			disposition: z.literal("needs_context"),
-			evidenceIds: citedEvidenceIdsSchema,
-			missingContext: z.string().trim().min(1).max(300),
-			question: z.string().trim().min(1).max(200),
+			gap: externalContextGapSchema,
 		})
 		.strict(),
-	investigationResultBaseSchema
-		.extend({
-			disposition: z.literal("monitor"),
-			evidenceIds: citedEvidenceIdsSchema.min(1),
-			escalationCondition: z.string().trim().min(1).max(200),
-			checkAfterDays: z.number().int().min(1).max(90),
-		})
-		.strict(),
-	investigationResultBaseSchema
-		.extend({
-			disposition: z.literal("not_a_problem"),
-			evidenceIds: citedEvidenceIdsSchema.min(1),
-		})
-		.strict(),
+	z.object({ disposition: z.literal("monitor") }).strict(),
+	z.object({ disposition: z.literal("not_a_problem") }).strict(),
 ]);
-
-export const investigationSubmissionSchema = z
-	.object({
-		results: z.array(investigationResultSchema).min(1).max(8),
-	})
-	.strict()
-	.refine(
-		(submission) =>
-			new Set(submission.results.map((result) => result.signalKey)).size ===
-			submission.results.length,
-		{
-			message: "Each signal must have exactly one terminal result",
-			path: ["results"],
-		}
-	);
 
 export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
 export type InsightSource = z.infer<typeof insightSourceSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
+export type InvestigationExpectation = z.infer<
+	typeof investigationExpectationSchema
+>;
 export type InsightEvidence = z.infer<typeof insightEvidenceSchema>;
 export type StoredInsightType = z.infer<typeof storedInsightTypeSchema>;
 export type StoredInsightAction = z.infer<typeof storedInsightActionSchema>;
+export type InsightRemediationKind = z.infer<
+	typeof insightRemediationKindSchema
+>;
+export type ExternalContextGap = z.infer<typeof externalContextGapSchema>;
 export type GeneratedInsight = z.infer<typeof generatedInsightSchema>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationEvidence = z.infer<typeof investigationEvidenceSchema>;
-export type InvestigationResult = z.infer<typeof investigationResultSchema>;
-export type InvestigationSubmission = z.infer<
-	typeof investigationSubmissionSchema
->;
+export type InvestigationDecision = z.infer<typeof investigationDecisionSchema>;
 
 function normalizeInsightSubject(value: string): string {
 	let key = "";

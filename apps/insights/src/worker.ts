@@ -11,7 +11,7 @@ import { emitInsightsEvent } from "./lib/evlog-insights";
 import { getInsightsWorkerErrorLevel } from "./worker-errors";
 import { buildInsightsStalledJobEvent } from "./worker-events";
 
-const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 5;
+const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 2;
 
 export function getInsightsWorkerConcurrency(
 	value = process.env.INSIGHTS_WORKER_CONCURRENCY

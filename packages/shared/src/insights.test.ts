@@ -3,10 +3,9 @@ import {
 	deriveInsightSubjectKey,
 	generatedInsightSchema,
 	type InsightDedupeInput,
+	investigationDecisionSchema,
 	investigationEvidenceSchema,
-	investigationResultSchema,
 	investigationSignalSchema,
-	investigationSubmissionSchema,
 	insightDedupeKey,
 } from "./insights";
 
@@ -38,8 +37,24 @@ describe("generatedInsightSchema", () => {
 			generatedInsightSchema.safeParse({
 				...baseInsight,
 				impactSummary: "Revenue at risk if not addressed.",
+				remediationKind: "campaign",
 			}).success
 		).toBe(true);
+	});
+
+	it("does not accept newly generated executable actions", () => {
+		expect(
+			generatedInsightSchema.safeParse({
+				...baseInsight,
+				actions: [
+					{
+						type: "create_annotation",
+						label: "Create annotation",
+						params: {},
+					},
+				],
+			}).success
+		).toBe(false);
 	});
 
 	it("requires one to five metrics", () => {
@@ -259,90 +274,54 @@ describe("investigationEvidenceSchema", () => {
 	});
 });
 
-const actionReadyResult = {
-	signalKey: signal.signalKey,
-	disposition: "action_ready" as const,
-	evidenceIds: [evidenceBase.evidenceId],
-	title: "Signup tracking stopped",
-	summary: "Visitors reach signup, but its configured completion event is absent.",
-	action: "Restore the signup_completed event on successful signup.",
-	confidence: 0.94,
-	rootCause: "The configured completion event is no longer emitted.",
-	verification: {
-		successCondition: "signup_completed is recorded after successful signup.",
-		checkAfterDays: 1,
-	},
-};
-
-describe("investigationResultSchema", () => {
-	it("accepts an evidence-cited action with a verification plan", () => {
-		expect(investigationResultSchema.parse(actionReadyResult)).toEqual(
-			actionReadyResult
-		);
+describe("investigationDecisionSchema", () => {
+	it("accepts one small terminal decision", () => {
+		for (const decision of [
+			{
+				disposition: "action_ready",
+				remediation: {
+					kind: "tracking",
+					evidenceId: evidenceBase.evidenceId,
+					instruction: "Restore the signup completion event.",
+				},
+			},
+			{ disposition: "needs_context", gap: "expected_behavior" },
+			{ disposition: "monitor" },
+			{ disposition: "not_a_problem" },
+		]) {
+			expect(investigationDecisionSchema.safeParse(decision).success).toBe(
+				true
+			);
+		}
 	});
 
-	it("allows missing context without fabricated evidence", () => {
+	it("allows only external context gaps", () => {
 		expect(
-			investigationResultSchema.safeParse({
-				signalKey: signal.signalKey,
+			investigationDecisionSchema.safeParse({
 				disposition: "needs_context",
-				evidenceIds: [],
-				summary: "The goal definition cannot be loaded.",
-				confidence: 1,
-				missingContext: "The configured event name and matching rules.",
-				question: "Which event should complete this goal?",
+				gap: "planned_external_change",
 			}).success
 		).toBe(true);
-	});
-
-	it("requires evidence for conclusions and an escalation threshold to monitor", () => {
 		expect(
-			investigationResultSchema.safeParse({
-				...actionReadyResult,
-				evidenceIds: [],
+			investigationDecisionSchema.safeParse({
+				disposition: "needs_context",
+				gap: "missing_referrer_breakdown",
 			}).success
 		).toBe(false);
+	});
+
+	it("rejects copied backend facts and legacy submission fields", () => {
 		expect(
-			investigationResultSchema.safeParse({
+			investigationDecisionSchema.safeParse({
+				disposition: "action_ready",
+				remediation: {
+					kind: "tracking",
+					evidenceId: evidenceBase.evidenceId,
+					instruction: "Restore the signup completion event.",
+				},
 				signalKey: signal.signalKey,
-				disposition: "monitor",
 				evidenceIds: [evidenceBase.evidenceId],
-				summary: "One incomplete day is not enough to establish a break.",
-				confidence: 0.72,
-				checkAfterDays: 2,
-			}).success
-		).toBe(false);
-	});
-
-	it("rejects duplicate evidence citations", () => {
-		expect(
-			investigationResultSchema.safeParse({
-				...actionReadyResult,
-				evidenceIds: [evidenceBase.evidenceId, evidenceBase.evidenceId],
-			}).success
-		).toBe(false);
-	});
-});
-
-describe("investigationSubmissionSchema", () => {
-	it("submits one terminal result per signal", () => {
-		expect(
-			investigationSubmissionSchema.safeParse({
-				results: [actionReadyResult],
-			}).success
-		).toBe(true);
-		expect(
-			investigationSubmissionSchema.safeParse({
-				results: [
-					actionReadyResult,
-					{
-						signalKey: signal.signalKey,
-						disposition: "not_a_problem",
-						evidenceIds: [evidenceBase.evidenceId],
-						summary: "This was an expected configuration change.",
-						confidence: 0.98,
-					},
-				],
+				summary: "Signup conversion fell.",
 			}).success
 		).toBe(false);
 	});

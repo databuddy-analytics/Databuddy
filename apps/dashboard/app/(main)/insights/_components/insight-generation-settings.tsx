@@ -14,11 +14,9 @@ import {
 } from "@databuddy/ui/icons";
 import { Popover, SearchList, Sheet } from "@databuddy/ui/client";
 
-type Quality = "fast" | "balanced" | "deep";
 type Schedule = "off" | "daily" | "weekly";
 
 interface ConfigFormState {
-	quality: Quality;
 	schedule: Schedule;
 	timezone: string;
 }
@@ -28,7 +26,6 @@ interface InsightGenerationSettingsProps {
 }
 
 const DEFAULT_FORM: ConfigFormState = {
-	quality: "balanced",
 	schedule: "weekly",
 	timezone: "UTC",
 };
@@ -37,12 +34,6 @@ const SCHEDULE_OPTIONS: { label: string; value: Schedule }[] = [
 	{ label: "Off", value: "off" },
 	{ label: "Daily", value: "daily" },
 	{ label: "Weekly", value: "weekly" },
-];
-
-const QUALITY_OPTIONS: { label: string; value: Quality }[] = [
-	{ label: "Fast", value: "fast" },
-	{ label: "Balanced", value: "balanced" },
-	{ label: "Thorough", value: "deep" },
 ];
 
 const TIMEZONES: string[] = Intl.supportedValuesOf("timeZone");
@@ -82,7 +73,6 @@ export function InsightGenerationSettings({
 			schedule = config.frequency === "daily" ? "daily" : "weekly";
 		}
 		setForm({
-			quality: config.modelTier,
 			schedule,
 			timezone: config.timezone || guessTimezone(),
 		});
@@ -191,7 +181,6 @@ export function InsightGenerationSettings({
 						<div className="space-y-4">
 							<Skeleton className="h-10 rounded" />
 							<Skeleton className="h-10 rounded" />
-							<Skeleton className="h-10 rounded" />
 						</div>
 					) : (
 						<>
@@ -204,17 +193,6 @@ export function InsightGenerationSettings({
 								options={SCHEDULE_OPTIONS}
 								value={form.schedule}
 							/>
-
-							<OptionButtons
-								disabled={isBusy}
-								label="Quality"
-								onChange={(quality) =>
-									setForm((current) => ({ ...current, quality }))
-								}
-								options={QUALITY_OPTIONS}
-								value={form.quality}
-							/>
-
 							<Field>
 								<Field.Label>Timezone</Field.Label>
 								<TimezonePicker
@@ -234,7 +212,6 @@ export function InsightGenerationSettings({
 						disabled={!organizationId || isBusy}
 						onClick={() =>
 							triggerMutation.mutate({
-								modelTier: form.quality,
 								organizationId,
 								timezone: form.timezone || guessTimezone(),
 							})
@@ -254,7 +231,6 @@ export function InsightGenerationSettings({
 								...(form.schedule === "off"
 									? {}
 									: { frequency: form.schedule }),
-								modelTier: form.quality,
 								organizationId,
 								timezone: form.timezone || guessTimezone(),
 							})

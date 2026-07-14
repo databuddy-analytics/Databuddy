@@ -5,13 +5,20 @@
   "type": "module",
   "main": "./src/cli.ts",
   "scripts": {
+    "check-types": "tsc --noEmit",
     "eval": "bun run src/cli.ts",
     "eval:ui": "bun run ui/serve.ts",
     "test": "bun test src"
   },
   "dependencies": {
     "@databuddy/ai": "workspace:*",
+    "@databuddy/db": "workspace:*",
     "@databuddy/env": "workspace:*",
-    "ai": "^6.0.188"
+    "@databuddy/shared": "workspace:*",
+    "ai": "^6.0.188",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.16.0"
   }
 }

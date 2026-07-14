@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import {
 	loadDismissedIds,
 	saveDismissedIds,
@@ -16,8 +16,6 @@ export function useInsightsLocalState(
 	const queryClient = useQueryClient();
 	const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 	const [hydrated, setHydrated] = useState(false);
-	const dismissedIdsRef = useRef<string[]>([]);
-	dismissedIdsRef.current = dismissedIds;
 
 	const votesQuery = useQuery({
 		...orpc.insights.getVotes.queryOptions({
@@ -35,14 +33,6 @@ export function useInsightsLocalState(
 		},
 	});
 
-	const setDismissedMutation = useMutation(
-		orpc.insights.setDismissed.mutationOptions()
-	);
-
-	const clearDismissedMutation = useMutation(
-		orpc.insights.clearDismissed.mutationOptions()
-	);
-
 	useLayoutEffect(() => {
 		if (!organizationId) {
 			setDismissedIds([]);
@@ -54,7 +44,7 @@ export function useInsightsLocalState(
 	}, [organizationId]);
 
 	const restoreDismissedAction = useCallback(
-		async (insightId: string) => {
+		(insightId: string) => {
 			if (!organizationId) {
 				return;
 			}
@@ -63,25 +53,12 @@ export function useInsightsLocalState(
 				saveDismissedIds(organizationId, next);
 				return next;
 			});
-			try {
-				await setDismissedMutation.mutateAsync({ insightId, dismissed: false });
-			} catch {
-				setDismissedIds((prev) => {
-					if (prev.includes(insightId)) {
-						return prev;
-					}
-					const next = [...prev, insightId];
-					saveDismissedIds(organizationId, next);
-					return next;
-				});
-				toast.error("Could not restore finding");
-			}
 		},
-		[organizationId, setDismissedMutation]
+		[organizationId]
 	);
 
 	const dismissAction = useCallback(
-		async (insightId: string) => {
+		(insightId: string) => {
 			if (!organizationId) {
 				return;
 			}
@@ -96,41 +73,23 @@ export function useInsightsLocalState(
 			});
 			toast.success("Finding dismissed", {
 				id: toastId,
-				description: "This pattern is muted for 30 days.",
+				description: "Hidden from this view. You can restore it anytime.",
 				action: {
 					label: "Undo",
 					onClick: () => restoreDismissedAction(insightId),
 				},
 			});
-			try {
-				await setDismissedMutation.mutateAsync({ insightId, dismissed: true });
-			} catch {
-				setDismissedIds((prev) => {
-					const next = prev.filter((id) => id !== insightId);
-					saveDismissedIds(organizationId, next);
-					return next;
-				});
-				toast.error("Could not dismiss finding", { id: toastId });
-			}
 		},
-		[organizationId, setDismissedMutation, restoreDismissedAction]
+		[organizationId, restoreDismissedAction]
 	);
 
-	const clearAllDismissedAction = useCallback(async () => {
+	const clearAllDismissedAction = useCallback(() => {
 		if (!organizationId) {
 			return;
 		}
-		const previous = dismissedIdsRef.current;
 		setDismissedIds([]);
 		saveDismissedIds(organizationId, []);
-		try {
-			await clearDismissedMutation.mutateAsync({});
-		} catch {
-			setDismissedIds(previous);
-			saveDismissedIds(organizationId, previous);
-			toast.error("Could not clear dismissed findings");
-		}
-	}, [organizationId, clearDismissedMutation]);
+	}, [organizationId]);
 
 	const setFeedbackAction = useCallback(
 		(insightId: string, vote: "up" | "down" | null) => {

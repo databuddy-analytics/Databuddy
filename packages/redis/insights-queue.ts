@@ -26,16 +26,10 @@ export const INSIGHTS_JOB_OPTIONS = {
 	},
 };
 
-export type InsightGenerationModelTier = "fast" | "balanced" | "deep";
 export type InsightGenerationReason =
 	| "manual"
 	| "scheduled"
 	| "cooldown_refresh";
-
-export interface InsightGenerationConfigSnapshot {
-	modelTier: InsightGenerationModelTier;
-	timezone: string;
-}
 
 export interface InsightsDispatchJobData {
 	reason: "scheduled";
@@ -48,7 +42,6 @@ export interface InsightsMaintenanceJobData {
 }
 
 export interface InsightsGenerateWebsiteJobData {
-	config: InsightGenerationConfigSnapshot;
 	itemId: string;
 	organizationId: string;
 	reason: InsightGenerationReason;

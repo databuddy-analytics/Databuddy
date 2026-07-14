@@ -1001,6 +1001,40 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).not.toContain("event_name = 'pageview'");
 	});
 
+	it("builds bounded error fingerprints ranked by affected people", () => {
+		const config = QueryBuilders.error_fingerprints;
+		if (!config) {
+			throw new Error("error_fingerprints builder is missing");
+		}
+
+		const { params, sql } = new SimpleQueryBuilder(
+			config,
+			makeRequest({ type: "error_fingerprints", limit: 500 })
+		).compile();
+
+		expect(sql).toContain("es.message as name");
+		expect(sql).toContain("GROUP BY es.message");
+		expect(sql).toContain(
+			"uniqIf(es.anonymous_id, es.anonymous_id != '') as users"
+		);
+		expect(sql).toContain(
+			"uniqIf(es.session_id, es.session_id != '') as sessions"
+		);
+		expect(sql).toContain("trimRight(path(es.path), '/')");
+		expect(sql).toContain("as error_type");
+		expect(sql).toContain("as filename");
+		expect(sql).toContain("as line");
+		expect(sql).toContain(
+			"argMax(substring(ifNull(es.stack, ''), 1, 1000), tuple(if(ifNull(es.stack, '') != '', 1, 0), es.timestamp, es.session_id, es.anonymous_id)) as representative_stack"
+		);
+		expect(sql).toContain("max(es.timestamp) as last_seen");
+		expect(sql).toContain(
+			"ORDER BY users DESC, sessions DESC, count DESC, last_seen DESC"
+		);
+		expect(params.limit).toBe(50);
+		expect(config.publicAccess).not.toBe(true);
+	});
+
 	it("builds scroll depth queries from page_exit percent values", () => {
 		const summaryConfig = QueryBuilders.scroll_depth_summary;
 		const distributionConfig = QueryBuilders.scroll_depth_distribution;
@@ -1058,5 +1092,21 @@ describe("getClickHouseQuerySettings", () => {
 		expect(getClickHouseQuerySettings(true)).toEqual({
 			use_query_cache: 0,
 		});
+	});
+
+	it("does not mutate settings for a server-enforced read-only connection", () => {
+		const previousUrl = process.env.CLICKHOUSE_URL;
+		const previousReadonlyUrl = process.env.CLICKHOUSE_READONLY_URL;
+		try {
+			process.env.CLICKHOUSE_URL = "https://readonly.example.test";
+			process.env.CLICKHOUSE_READONLY_URL =
+				"https://readonly.example.test";
+
+			expect(getClickHouseQuerySettings()).toEqual({});
+			expect(getClickHouseQuerySettings(true)).toEqual({});
+		} finally {
+			process.env.CLICKHOUSE_URL = previousUrl;
+			process.env.CLICKHOUSE_READONLY_URL = previousReadonlyUrl;
+		}
 	});
 });

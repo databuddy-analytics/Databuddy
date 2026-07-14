@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["../../apps/slack/src/*"]
     }
   },
   "include": ["src/**/*.ts", "ui/**/*.ts"]

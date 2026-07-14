@@ -164,11 +164,8 @@ services:
       INSIGHTS_MAINTENANCE_INTERVAL_MS: ${INSIGHTS_MAINTENANCE_INTERVAL_MS:-300000}
       INSIGHTS_STALE_ITEM_MS: ${INSIGHTS_STALE_ITEM_MS:-900000}
       INSIGHTS_WORKER_CONCURRENCY: ${INSIGHTS_WORKER_CONCURRENCY:-5}
-      INSIGHTS_WORKER_ENABLED: ${INSIGHTS_WORKER_ENABLED:-true}
+      INSIGHTS_WORKER_ENABLED: ${INSIGHTS_WORKER_ENABLED:-false}
       CLICKHOUSE_URL: ${CLICKHOUSE_URL:?Set CLICKHOUSE_URL in your environment}
-      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
-      OPR_API_KEY: ${OPR_API_KEY:-}
-      SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}
     healthcheck:
       test: [ "CMD", "bun", "-e", "fetch('http://localhost:4002/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]
       interval: 30s

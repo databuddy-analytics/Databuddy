@@ -366,7 +366,8 @@ const buildStepSubquery = (
 const queryFunnelErrors = async (
 	steps: AnalyticsStep[],
 	hasVisitors: boolean,
-	params: ClickhouseQueryParams
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
 ): Promise<{
 	errorsByPath: Map<string, ErrorRow[]>;
 	sessionsWithErrors: Set<string>;
@@ -423,9 +424,11 @@ const queryFunnelErrors = async (
 		: null;
 
 	const [errorRows, dropoffResult] = await Promise.all([
-		chQuery<ErrorRow>(errorQuery, params),
+		chQuery<ErrorRow>(errorQuery, params, { abort_signal: abortSignal }),
 		dropoffQuery
-			? chQuery<{ count: number }>(dropoffQuery, params)
+			? chQuery<{ count: number }>(dropoffQuery, params, {
+					abort_signal: abortSignal,
+				})
 			: Promise.resolve([]),
 	]);
 
@@ -527,7 +530,8 @@ export const processFunnelAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
 	params: ClickhouseQueryParams,
-	visitorFilter?: Set<string>
+	visitorFilter?: Set<string>,
+	abortSignal?: AbortSignal
 ): Promise<FunnelAnalytics> => {
 	const filterSQL = buildFilterSQL(filters, params);
 	const totalSteps = steps.length;
@@ -569,8 +573,8 @@ ORDER BY 1, 2`;
 	const sentinelStep = totalSteps + 1;
 
 	const [aggRows, errorData] = await Promise.all([
-		chQuery<FunnelAggRow>(fullQuery, params),
-		queryFunnelErrors(steps, true, params),
+		chQuery<FunnelAggRow>(fullQuery, params, { abort_signal: abortSignal }),
+		queryFunnelErrors(steps, true, params, abortSignal),
 	]);
 
 	const stepRows: FunnelAggRow[] = [];
@@ -670,7 +674,8 @@ export const processGoalAnalytics = async (
 	steps: AnalyticsStep[],
 	filters: Filter[],
 	params: ClickhouseQueryParams,
-	totalWebsiteUsers: number
+	totalWebsiteUsers: number,
+	abortSignal?: AbortSignal
 ): Promise<FunnelAnalytics> => {
 	const filterSQL = buildFilterSQL(filters, params);
 	const step = steps[0];
@@ -679,14 +684,15 @@ export const processGoalAnalytics = async (
 		 SELECT DISTINCT step, vid, ts FROM events`;
 	const rows = await chQuery<{ step: number; vid: string; ts: number }>(
 		sql,
-		params
+		params,
+		{ abort_signal: abortSignal }
 	);
 
 	const goalVids = new Set(rows.map((r) => r.vid));
 	const completions = goalVids.size;
 
 	const { errorsByPath, sessionsWithErrors, totalErrors } =
-		await queryFunnelErrors(steps, goalVids.size > 0, params);
+		await queryFunnelErrors(steps, goalVids.size > 0, params, abortSignal);
 
 	const { stepErrorCount, usersWithErrors, topErrors } = buildStepErrorInsights(
 		errorsByPath,
@@ -797,7 +803,8 @@ export const getTotalWebsiteUsers = async (
 	websiteId: string,
 	startDate: string,
 	endDate: string,
-	filters: Filter[] = []
+	filters: Filter[] = [],
+	abortSignal?: AbortSignal
 ): Promise<number> => {
 	const params: ClickhouseQueryParams = {
 		websiteId,
@@ -814,7 +821,8 @@ export const getTotalWebsiteUsers = async (
 			AND time >= parseDateTimeBestEffort({startDate:String})
 			AND time <= parseDateTimeBestEffort({endDate:String})
 			AND event_name = 'screen_view'${filterSQL}`,
-		params
+		params,
+		{ abort_signal: abortSignal }
 	);
 	return result?.count ?? 0;
 };
