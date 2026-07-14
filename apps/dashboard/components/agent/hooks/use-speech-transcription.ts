@@ -202,6 +202,8 @@ export function useSpeechTranscription() {
 	return {
 		displayTranscript: joinTranscript(transcript, interimTranscript),
 		error,
+		finalTranscript: transcript,
+		interimTranscript,
 		isSupported,
 		start,
 		status,
