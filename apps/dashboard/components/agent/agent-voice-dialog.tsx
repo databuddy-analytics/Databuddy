@@ -15,8 +15,11 @@ interface AgentVoiceDialogProps {
 	onTranscript: (transcript: string) => void;
 }
 
+const ORB_COLORS = ["#E3A514", "#B74677", "#453C7C"];
+
 export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 	const [open, setOpen] = useState(false);
+	const [orbColor, setOrbColor] = useState(ORB_COLORS[0]);
 	const {
 		displayTranscript,
 		error,
@@ -50,6 +53,7 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 			setOpen(nextOpen);
 			if (nextOpen) {
 				orbScaleRef.current = 1;
+				setOrbColor(ORB_COLORS[Math.floor(Math.random() * ORB_COLORS.length)]);
 				start();
 			} else {
 				stop();
@@ -138,7 +142,7 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 									repeat: Number.POSITIVE_INFINITY,
 								}}
 							>
-								<FluidOrb aria-hidden="true" size={208} />
+								<FluidOrb aria-hidden="true" color={orbColor} size={208} />
 							</motion.div>
 						</div>
 					</motion.div>
