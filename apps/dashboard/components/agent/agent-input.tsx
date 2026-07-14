@@ -48,6 +48,7 @@ import {
 	AgentTextSwitch,
 	AGENT_INPUT_PLACEHOLDER_PHRASES,
 } from "./agent-text-switch";
+import { AgentVoiceDialog } from "./agent-voice-dialog";
 import { useEnterSubmit } from "./hooks/use-enter-submit";
 import { DropdownMenu } from "@databuddy/ui/client";
 import { Button, Skeleton, Textarea, Tooltip } from "@databuddy/ui";
@@ -198,6 +199,16 @@ export function AgentInput() {
 		setMentions((prev) => prev.filter((m) => m.id !== id));
 	};
 
+	const applyVoiceTranscript = useCallback(
+		(transcript: string) => {
+			setInput(transcript);
+			setCommandsDismissed(false);
+			setMentionsDismissed(false);
+			requestAnimationFrame(() => textareaRef.current?.focus());
+		},
+		[setInput]
+	);
+
 	const handleMessageKeyDown = (
 		event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>
 	) => {
@@ -326,6 +337,7 @@ export function AgentInput() {
 				canSend={Boolean(input.trim())}
 				isLoading={isLoading}
 				onStop={stop}
+				onVoiceTranscript={applyVoiceTranscript}
 			/>
 		</div>
 	);
@@ -369,10 +381,12 @@ const InputToolbar = memo(function InputToolbar({
 	canSend,
 	isLoading,
 	onStop,
+	onVoiceTranscript,
 }: {
 	canSend: boolean;
 	isLoading: boolean;
 	onStop: () => void;
+	onVoiceTranscript: (transcript: string) => void;
 }) {
 	return (
 		<div className="flex items-center justify-between gap-3 rounded border-border/60 bg-background px-1.5 py-1.5">
@@ -395,6 +409,9 @@ const InputToolbar = memo(function InputToolbar({
 
 			<div className="ml-auto flex shrink-0 items-center gap-3">
 				<KeyboardHints isLoading={isLoading} />
+				{isLoading ? null : (
+					<AgentVoiceDialog onTranscript={onVoiceTranscript} />
+				)}
 				{isLoading ? (
 					<Button
 						aria-label="Stop generation"
