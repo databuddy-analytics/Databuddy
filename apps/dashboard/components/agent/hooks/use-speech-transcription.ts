@@ -68,7 +68,11 @@ export function useSpeechTranscription() {
 	const [interimTranscript, setInterimTranscript] = useState("");
 	const [status, setStatus] = useState<TranscriptionStatus>("idle");
 	const [error, setError] = useState<string | null>(null);
-	const isSupported = Boolean(getSpeechRecognitionConstructor());
+	const [isSupported, setIsSupported] = useState(false);
+
+	useEffect(() => {
+		setIsSupported(Boolean(getSpeechRecognitionConstructor()));
+	}, []);
 
 	const reset = useCallback(() => {
 		finalTranscriptRef.current = "";
@@ -146,11 +150,20 @@ export function useSpeechTranscription() {
 			}
 
 			shouldListenRef.current = false;
-			setError(
-				event.error === "not-allowed" || event.error === "service-not-allowed"
-					? "Allow microphone access to use voice input."
-					: "Voice input stopped unexpectedly. Please try again."
-			);
+			if (event.error === "network") {
+				// Chromium forks like Brave expose the API but strip the speech
+				// backend, which surfaces as a network error on start.
+				setError(
+					"Speech recognition isn't available in this browser. Try Chrome or Edge."
+				);
+			} else if (
+				event.error === "not-allowed" ||
+				event.error === "service-not-allowed"
+			) {
+				setError("Allow microphone access to use voice input.");
+			} else {
+				setError("Voice input stopped unexpectedly. Please try again.");
+			}
 			setStatus("error");
 		};
 
