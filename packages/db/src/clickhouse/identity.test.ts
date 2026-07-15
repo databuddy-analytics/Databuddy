@@ -51,4 +51,10 @@ describe("identity sql expressions", () => {
 			expect(expression).toContain("anonymous_id");
 		}
 	});
+
+	test("nullable visitor keys do not invent an unidentified visitor", () => {
+		expect(CUSTOM_EVENTS_VISITOR_KEY).toContain("nullIf(profile_id, '')");
+		expect(CUSTOM_EVENTS_VISITOR_KEY).toContain("nullIf(anonymous_id, '')");
+		expect(CUSTOM_EVENTS_VISITOR_KEY).not.toContain("ifNull(anonymous_id, '')");
+	});
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { parseUptimeGranularity } from "@databuddy/shared/uptime";
 import {
 	deriveMonitorFreshness,
 	deriveMonitorStatus,
@@ -16,6 +17,20 @@ describe("status page health", () => {
 		expect(
 			deriveMonitorFreshness("2026-07-11 11:50:00", "minute", now)
 		).toBe("stale");
+		expect(
+			deriveMonitorFreshness(
+				"2026-07-11 11:59:00",
+				parseUptimeGranularity("toString"),
+				now
+			)
+		).toBe("unknown");
+		expect(
+			deriveMonitorFreshness(
+				"2026-07-11 11:59:00",
+				parseUptimeGranularity("__proto__"),
+				now
+			)
+		).toBe("unknown");
 	});
 
 	it("uses the monitor cadence when deciding freshness", () => {

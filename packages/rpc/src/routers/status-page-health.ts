@@ -1,8 +1,10 @@
+import type { UptimeGranularity } from "@databuddy/shared/uptime";
+
 export type MonitorStatus = "up" | "down" | "degraded" | "unknown";
 export type MonitorFreshness = "fresh" | "stale" | "unknown";
 export type OverallStatus = "operational" | "degraded" | "outage" | "unknown";
 
-const GRANULARITY_MS: Record<string, number> = {
+const GRANULARITY_MS = {
 	minute: 60_000,
 	five_minutes: 5 * 60_000,
 	ten_minutes: 10 * 60_000,
@@ -11,7 +13,7 @@ const GRANULARITY_MS: Record<string, number> = {
 	six_hours: 6 * 60 * 60_000,
 	twelve_hours: 12 * 60 * 60_000,
 	day: 24 * 60 * 60_000,
-};
+} satisfies Record<UptimeGranularity, number>;
 
 function parseCheckTimestamp(value: string): number {
 	const normalized = value.includes("T")
@@ -30,10 +32,10 @@ export function normalizeCheckTimestamp(value: string | null): string | null {
 
 export function deriveMonitorFreshness(
 	lastCheckedAt: string | null,
-	granularity: string,
+	granularity: UptimeGranularity | null,
 	now = Date.now()
 ): MonitorFreshness {
-	if (!lastCheckedAt) {
+	if (!(lastCheckedAt && granularity)) {
 		return "unknown";
 	}
 

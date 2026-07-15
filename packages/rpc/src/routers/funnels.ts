@@ -10,7 +10,6 @@ import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import {
-	type AnalyticsStep,
 	processFunnelAnalytics,
 	processFunnelAnalyticsByReferrer,
 	queryLinkVisitorIds,
@@ -23,18 +22,16 @@ import {
 	withWorkspace,
 } from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
+import {
+	funnelStepSchema,
+	requireFunnelSteps,
+	toAnalyticsSteps,
+} from "./funnel-steps";
 
 const cache = createDrizzleCache({ redis, namespace: "funnels" });
 
 const CACHE_TTL = 300;
 const ANALYTICS_CACHE_TTL = 180;
-
-const stepSchema = z.object({
-	type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
-	target: z.string().min(1),
-	name: z.string().min(1),
-	conditions: z.record(z.string(), z.unknown()).optional(),
-});
 
 const filterSchema = z.object({
 	field: z.string(),
@@ -42,7 +39,6 @@ const filterSchema = z.object({
 	value: z.union([z.string(), z.array(z.string())]),
 });
 
-type Step = z.infer<typeof stepSchema>;
 type Filter = z.infer<typeof filterSchema>;
 
 const getDefaultDateRange = () => {
@@ -82,14 +78,6 @@ const invalidateFunnelsCache = async (websiteId: string, funnelId?: string) => {
 	operations.push(invalidateAgentContextSnapshotsForWebsite(websiteId));
 	await Promise.all(operations);
 };
-
-const toAnalyticsSteps = (steps: Step[]): AnalyticsStep[] =>
-	steps.map((step, index) => ({
-		step_number: index + 1,
-		type: step.type as "PAGE_VIEW" | "EVENT",
-		target: step.target,
-		name: step.name,
-	}));
 
 const funnelListOutputSchema = z.object({
 	createdAt: z.coerce.date(),
@@ -135,6 +123,7 @@ const stepAnalyticsOutputSchema = z.object({
 	dropoffs: z.number(),
 	dropoff_rate: z.number(),
 	avg_time_to_complete: z.number(),
+	error_context_available: z.boolean(),
 	error_count: z.number(),
 	error_rate: z.number(),
 	top_errors: z.array(stepErrorInsightOutputSchema),
@@ -157,9 +146,11 @@ const funnelAnalyticsOutputSchema = z.object({
 	avg_completion_time_formatted: z.string(),
 	biggest_dropoff_step: z.number(),
 	biggest_dropoff_rate: z.number(),
+	duration_available: z.boolean(),
 	steps_analytics: z.array(stepAnalyticsOutputSchema),
 	time_series: z.array(timeSeriesPointSchema).optional(),
 	error_insights: z.object({
+		available: z.boolean(),
 		total_errors: z.number(),
 		sessions_with_errors: z.number(),
 		dropoffs_with_errors: z.number(),
@@ -288,7 +279,7 @@ export const funnelsRouter = {
 				websiteId: z.string(),
 				name: z.string().min(1).max(100),
 				description: z.string().optional(),
-				steps: z.array(stepSchema).min(2).max(10),
+				steps: z.array(funnelStepSchema).min(2).max(10),
 				filters: z.array(filterSchema).optional(),
 				ignoreHistoricData: z.boolean().optional(),
 			})
@@ -351,7 +342,7 @@ export const funnelsRouter = {
 				id: z.string(),
 				name: z.string().min(1).max(100).optional(),
 				description: z.string().optional(),
-				steps: z.array(stepSchema).min(2).max(10).optional(),
+				steps: z.array(funnelStepSchema).min(2).max(10).optional(),
 				filters: z.array(filterSchema).optional(),
 				ignoreHistoricData: z.boolean().optional(),
 				isActive: z.boolean().optional(),
@@ -478,10 +469,7 @@ export const funnelsRouter = {
 				throw rpcError.notFound("funnel", input.funnelId);
 			}
 
-			const steps = funnel.steps as Step[];
-			if (!steps?.length) {
-				throw rpcError.badRequest("Funnel has no steps");
-			}
+			const steps = requireFunnelSteps(funnel.steps);
 
 			const effectiveStartDate = getEffectiveStartDate(
 				startDate,
@@ -550,10 +538,7 @@ export const funnelsRouter = {
 				throw rpcError.notFound("funnel", input.funnelId);
 			}
 
-			const steps = funnel.steps as Step[];
-			if (!steps?.length) {
-				throw rpcError.badRequest("Funnel has no steps");
-			}
+			const steps = requireFunnelSteps(funnel.steps);
 
 			const effectiveStartDate = getEffectiveStartDate(
 				startDate,
@@ -623,10 +608,7 @@ export const funnelsRouter = {
 				throw rpcError.notFound("funnel", input.funnelId);
 			}
 
-			const steps = funnel.steps as Step[];
-			if (!steps?.length) {
-				throw rpcError.badRequest("Funnel has no steps");
-			}
+			const steps = requireFunnelSteps(funnel.steps);
 
 			const effectiveStartDate = getEffectiveStartDate(
 				startDate,
@@ -651,8 +633,10 @@ export const funnelsRouter = {
 					avg_completion_time_formatted: "—",
 					biggest_dropoff_step: 1,
 					biggest_dropoff_rate: 0,
+					duration_available: false,
 					steps_analytics: [],
 					error_insights: {
+						available: false,
 						total_errors: 0,
 						sessions_with_errors: 0,
 						dropoffs_with_errors: 0,

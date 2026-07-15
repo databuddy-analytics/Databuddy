@@ -9,6 +9,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { UptimeGranularity } from "@databuddy/shared/uptime";
 import { organization } from "./auth";
 import { websites } from "./websites";
 
@@ -24,7 +25,7 @@ export const uptimeSchedules = pgTable(
 		organizationId: text("organization_id").notNull(),
 		url: text().notNull(),
 		name: text(),
-		granularity: text().notNull(),
+		granularity: text().$type<UptimeGranularity>().notNull(),
 		cron: text().notNull(),
 		isPaused: boolean("is_paused").default(false).notNull(),
 		isPublic: boolean("is_public").default(false).notNull(),
