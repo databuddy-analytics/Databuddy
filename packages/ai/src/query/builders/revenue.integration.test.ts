@@ -492,7 +492,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		[overview] = await revenueOverview(websiteId);
 		expect(Number(overview?.total_revenue)).toBe(100);
 		expect(Number(overview?.total_transactions)).toBe(2);
-	});
+	}, 10_000);
 
 	it("keeps currencies separate and counts retry events without collapsing them", async () => {
 		const websiteId = `revenue-currency-${randomUUIDv7()}`;
