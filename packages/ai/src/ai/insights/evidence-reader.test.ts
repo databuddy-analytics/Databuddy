@@ -20,6 +20,7 @@ type WebQueryMode =
 	| "large"
 	| "normal"
 	| "payment-failure"
+	| "payment-unavailable"
 	| "payment-unverified"
 	| "revenue-reconcile"
 	| "uptime-empty"
@@ -64,6 +65,23 @@ mock.module("../../query", () => ({
 		}
 		if (webQueryMode === "changed") {
 			return [{ sessions: 121 }];
+		}
+		if (
+			webQueryMode === "payment-unavailable" &&
+			request.type === "revenue_overview"
+		) {
+			return [
+				{
+					currency: "USD",
+					failed_payment_attempts: null,
+					observed_failure_event_types: null,
+					payment_diagnostics_available: 0,
+					payment_failure_rate: null,
+					successful_payment_attempts: null,
+					total_revenue: 75,
+					total_transactions: 1,
+				},
+			];
 		}
 		if (
 			webQueryMode === "payment-unverified" &&
@@ -993,6 +1011,40 @@ describe("insight evidence reader", () => {
 			"No recognized Stripe failure event types were observed"
 		);
 		expect(result[0]?.summary).not.toContain("coverage");
+	});
+
+	test("does not present unavailable payment diagnostics as measured zeros", async () => {
+		webQueryMode = "payment-unavailable";
+		const paymentSignal: InvestigationSignal = {
+			...revenueSignal,
+			signalKey: "payment-failure-rate:usd",
+			metric: {
+				...revenueSignal.metric,
+				key: "payment_failure_rate",
+				label: "Payment failure rate (USD)",
+			},
+		};
+		const reader = createReader(undefined, paymentSignal);
+		const result = await reader(
+			{
+				name: "web_metrics",
+				input: {
+					period: "both",
+					queries: [{ type: "revenue_overview" }],
+				},
+			},
+			appContext
+		);
+
+		expect(result[0]?.summary).toBe(
+			"Stripe payment diagnostics are unavailable for the selected filters."
+		);
+		expect(result[0]?.summary).not.toContain("failed payment attempts 0");
+		expect(
+			result[0]?.metrics.some((metric) =>
+				metric.label.toLowerCase().includes("payment")
+			)
+		).toBe(false);
 	});
 
 	test("scopes revenue evidence to the detected currency", async () => {

@@ -240,13 +240,26 @@ function evidenceRows(
 	return [record];
 }
 
+function finiteValue(value: unknown): number | null {
+	if (
+		value === null ||
+		value === undefined ||
+		value === "" ||
+		typeof value === "boolean"
+	) {
+		return null;
+	}
+	const number = Number(value);
+	return Number.isFinite(number) ? number : null;
+}
+
 function finiteNumber(
 	row: EvidenceRow | undefined,
 	...keys: string[]
 ): number | null {
 	for (const key of keys) {
-		const value = Number(row?.[key]);
-		if (Number.isFinite(value)) {
+		const value = finiteValue(row?.[key]);
+		if (value !== null) {
 			return value;
 		}
 	}
@@ -391,6 +404,9 @@ function summarizeRevenue(
 	const currency = textValue(row, "currency");
 	const currencyLabel = currency ? `${currency} ` : "";
 	if (metricKey === "payment_failure_rate") {
+		if (finiteNumber(row, "payment_diagnostics_available") === 0) {
+			return "Stripe payment diagnostics are unavailable for the selected filters.";
+		}
 		const failureRate = finiteNumber(row, "payment_failure_rate");
 		const failed = finiteNumber(row, "failed_payment_attempts");
 		const successful = finiteNumber(row, "successful_payment_attempts");
@@ -488,13 +504,11 @@ function summarizeNamedRows(rows: EvidenceRow[]): string | null {
 		}
 		const numeric = Object.entries(row).find(
 			([key, value]) =>
-				key !== "name" &&
-				key !== "path" &&
-				typeof value !== "boolean" &&
-				Number.isFinite(Number(value))
+				key !== "name" && key !== "path" && finiteValue(value) !== null
 		);
+		const value = finiteValue(numeric?.[1]);
 		return [
-			`${shortText(name, 90)}${numeric ? ` — ${numeric[0].replaceAll("_", " ")} ${compactNumber(Number(numeric[1]))}` : ""}`,
+			`${shortText(name, 90)}${numeric && value !== null ? ` — ${numeric[0].replaceAll("_", " ")} ${compactNumber(value)}` : ""}`,
 		];
 	});
 	return summaries.length > 0 ? `Top results: ${summaries.join("; ")}.` : null;
@@ -506,11 +520,13 @@ function summarizeAggregate(rows: EvidenceRow[]): string | null {
 		return null;
 	}
 	const facts = Object.entries(row)
-		.filter(([, value]) => Number.isFinite(Number(value)))
+		.flatMap(([key, value]) => {
+			const number = finiteValue(value);
+			return number === null ? [] : [[key, number] as const];
+		})
 		.slice(0, 4)
 		.map(
-			([key, value]) =>
-				`${key.replaceAll("_", " ")} ${compactNumber(Number(value))}`
+			([key, value]) => `${key.replaceAll("_", " ")} ${compactNumber(value)}`
 		);
 	return facts.length > 0 ? `${facts.join("; ")}.` : null;
 }
@@ -611,6 +627,32 @@ function evidenceMetrics(
 		];
 	}
 	if (evidence.queryType === "revenue_overview") {
+		const paymentMetrics =
+			finiteNumber(row, "payment_diagnostics_available") === 0
+				? []
+				: [
+						...metric(
+							"Payment failure rate",
+							finiteNumber(row, "payment_failure_rate"),
+							"percent"
+						),
+						...metric(
+							"Failed payment attempts",
+							finiteNumber(row, "failed_payment_attempts")
+						),
+						...metric(
+							"Successful payment attempts",
+							finiteNumber(row, "successful_payment_attempts")
+						),
+						...metric(
+							"Recovered payment attempts",
+							finiteNumber(row, "recovered_payment_attempts")
+						),
+						...metric(
+							"Observed failure event types",
+							finiteNumber(row, "observed_failure_event_types")
+						),
+					];
 		return [
 			...metric(
 				"Queried revenue",
@@ -624,27 +666,7 @@ function evidenceMetrics(
 				"Customers",
 				finiteNumber(row, "unique_customers", "customers")
 			),
-			...metric(
-				"Payment failure rate",
-				finiteNumber(row, "payment_failure_rate"),
-				"percent"
-			),
-			...metric(
-				"Failed payment attempts",
-				finiteNumber(row, "failed_payment_attempts")
-			),
-			...metric(
-				"Successful payment attempts",
-				finiteNumber(row, "successful_payment_attempts")
-			),
-			...metric(
-				"Recovered payment attempts",
-				finiteNumber(row, "recovered_payment_attempts")
-			),
-			...metric(
-				"Observed failure event types",
-				finiteNumber(row, "observed_failure_event_types")
-			),
+			...paymentMetrics,
 		];
 	}
 	if (

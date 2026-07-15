@@ -15,6 +15,7 @@ const emptyOverview = {
 	failed_payment_amount: 0,
 	failed_payment_attempts: 0,
 	observed_failure_event_types: 0,
+	payment_diagnostics_available: 1,
 	payment_failure_rate: 0,
 	recovered_payment_attempts: 0,
 	required_failure_event_types: 2,
@@ -48,6 +49,23 @@ describe("revenue overview activity", () => {
 	it("keeps a truly empty overview in the setup state", () => {
 		expect(hasRevenueActivity(emptyOverview)).toBe(false);
 		expect(hasPaymentActivity(emptyOverview)).toBe(false);
+	});
+
+	it("does not treat unavailable payment diagnostics as zero activity", () => {
+		const overview = {
+			...emptyOverview,
+			canceled_payment_attempts: null,
+			failed_payment_attempts: null,
+			payment_diagnostics_available: 0,
+			successful_payment_attempts: null,
+		};
+
+		expect(hasRevenueActivity(overview)).toBe(false);
+		expect(hasPaymentActivity(overview)).toBe(false);
+		expect(paymentFailureRateLabel(overview)).toBe("—");
+		expect(paymentFailureObservationDescription(overview)).toBe(
+			"Stripe payment diagnostics are unavailable for the selected filters."
+		);
 	});
 });
 
