@@ -86,6 +86,11 @@ interface EvaluableFlag {
 	variants?: FlagVariant[] | null;
 }
 
+const MAX_BULK_FLAG_KEYS = 100;
+const MAX_FLAG_KEY_LENGTH = 128;
+const MAX_BULK_FLAG_QUERY_LENGTH =
+	MAX_BULK_FLAG_KEYS * (MAX_FLAG_KEY_LENGTH + 1);
+
 const flagQuerySchema = t.Object({
 	key: t.String(),
 	clientId: t.String(),
@@ -99,7 +104,7 @@ const flagQuerySchema = t.Object({
 
 const bulkFlagQuerySchema = t.Object({
 	clientId: t.String(),
-	keys: t.Optional(t.String()),
+	keys: t.Optional(t.String({ maxLength: MAX_BULK_FLAG_QUERY_LENGTH })),
 	userId: t.Optional(t.String()),
 	email: t.Optional(t.String()),
 	organizationId: t.Optional(t.String()),
@@ -110,7 +115,11 @@ const bulkFlagQuerySchema = t.Object({
 
 const bulkFlagBodySchema = t.Object({
 	clientId: t.String(),
-	keys: t.Optional(t.Array(t.String())),
+	keys: t.Optional(
+		t.Array(t.String({ maxLength: MAX_FLAG_KEY_LENGTH }), {
+			maxItems: MAX_BULK_FLAG_KEYS,
+		})
+	),
 	userId: t.Optional(t.String()),
 	email: t.Optional(t.String()),
 	organizationId: t.Optional(t.String()),
@@ -776,6 +785,25 @@ async function evaluateBulkFlags(
 			};
 		}
 
+		if (input.keys && input.keys.length > MAX_BULK_FLAG_KEYS) {
+			set.status = 400;
+			return {
+				flags: {},
+				count: 0,
+				error: `A maximum of ${MAX_BULK_FLAG_KEYS} flag keys is allowed`,
+			};
+		}
+
+		const normalizedKeys = input.keys?.map((key) => key.trim());
+		if (normalizedKeys?.some((key) => key.length > MAX_FLAG_KEY_LENGTH)) {
+			set.status = 400;
+			return {
+				flags: {},
+				count: 0,
+				error: `Flag keys must be at most ${MAX_FLAG_KEY_LENGTH} characters`,
+			};
+		}
+
 		const context: UserContext = {
 			userId: input.userId,
 			email: input.email,
@@ -783,9 +811,17 @@ async function evaluateBulkFlags(
 			teamId: input.teamId,
 			properties: input.properties,
 		};
-		const requestedKeys = input.keys
-			? new Set(input.keys.map((key) => key.trim()).filter(Boolean))
-			: null;
+		const filteredKeys = normalizedKeys?.filter(Boolean);
+		const requestedKeys =
+			filteredKeys === undefined ? null : new Set(filteredKeys);
+		if (requestedKeys?.size === 0) {
+			mergeWideEvent({
+				flag_total_flags: 0,
+				flag_evaluated: 0,
+				flag_count: 0,
+			});
+			return { flags: {}, count: 0 };
+		}
 
 		const clientFlags = await fromMemory(
 			`fc:${input.clientId}:${input.environment || ""}`,

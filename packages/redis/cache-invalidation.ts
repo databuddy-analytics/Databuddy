@@ -51,7 +51,7 @@ export function getCacheableTagIndexKey(prefix: string, tag: string): string {
 export const cacheNamespaces = {
 	agentTelemetryWebsiteExists: "agent-telemetry:website-exists",
 	apiKeyByHash: "api-key-by-hash",
-	apiKeyOwnerId: "api_key_owner_id",
+	apiKeyOwnerId: "api_key_owner_id_v2",
 	billingOwner: "rpc:billing_owner",
 	flag: "flag",
 	flagsClient: "flags-client",
@@ -69,7 +69,7 @@ export const cacheNamespaces = {
 	websiteCache: "website-cache",
 	websiteDomain: "website-domain",
 	websiteDomainsBatch: "website-domains-batch",
-	websiteWithOwner: "website_with_owner_v2",
+	websiteWithOwner: "website_with_owner_v3",
 } as const;
 
 function cacheTag(scope: string, ...parts: string[]): string {

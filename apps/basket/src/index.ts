@@ -17,6 +17,7 @@ import {
 	handleUncaughtException,
 	handleUnhandledRejection,
 } from "@lib/process-errors";
+import { sanitizeRequestId } from "@lib/request-id";
 import { buildBasketErrorPayload } from "@lib/structured-errors";
 import { captureError } from "@lib/tracing";
 import basketRouter from "@routes/basket";
@@ -104,7 +105,8 @@ const app = new Elysia()
 		}
 
 		const requestId =
-			request.headers.get("x-request-id") ?? crypto.randomUUID();
+			sanitizeRequestId(request.headers.get("x-request-id")) ??
+			crypto.randomUUID();
 		captureError(error, { requestId });
 
 		const { status, payload } = buildBasketErrorPayload(error, {

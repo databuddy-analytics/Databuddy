@@ -83,7 +83,29 @@ describe("handleAppError", () => {
 			requestId: "req_test_validation",
 		});
 		expect(payload.details).toEqual([
-			expect.objectContaining({ field: "body.name" }),
+			{ field: "body.name", message: "Invalid value" },
 		]);
+	});
+
+	it("does not reflect Elysia validation values or messages in production", async () => {
+		process.env.NODE_ENV = "production";
+		const response = handleAppError({
+			code: "VALIDATION",
+			requestId: "req_test_reflection",
+			error: new ValidationError(
+				"body",
+				t.Object({ profile: t.Object({ email: t.String() }) }),
+				{ profile: { email: 867_530_900 } }
+			),
+		});
+		const payload = await readPayload(response);
+		const serialized = JSON.stringify(payload);
+
+		expect(payload.details).toEqual([
+			{ field: "body.profile.email", message: "Invalid value" },
+		]);
+		expect(serialized).not.toContain("867530900");
+		expect(serialized).not.toContain("Expected");
+		expect(serialized).not.toContain("found");
 	});
 });

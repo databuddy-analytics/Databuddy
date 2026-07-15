@@ -16,6 +16,7 @@ import {
 	type SignupMethod,
 	trackAppEvent,
 } from "@/lib/app-events";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import {
 	CaretLeftIcon,
 	EyeIcon,
@@ -38,6 +39,7 @@ function RegisterPageContent() {
 		"callback",
 		parseAsString.withDefault("/websites")
 	);
+	const safeCallback = safeCallbackPath(callback);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
 		name: "",
@@ -79,7 +81,7 @@ function RegisterPageContent() {
 			localStorage.setItem("pendingPlanSelection", selectedPlan);
 			return `/billing/plans?plan=${selectedPlan}`;
 		}
-		return callback;
+		return safeCallback;
 	};
 
 	const getProviderLabel = (provider: "github" | "google") =>
@@ -110,10 +112,7 @@ function RegisterPageContent() {
 			fetchOptions: {
 				onSuccess: () => {
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
-					trackOpenAiRegistrationCompleted({
-						email: formData.email,
-						properties: signupProperties,
-					});
+					trackOpenAiRegistrationCompleted();
 					toast.success(
 						"Account created! Please check your email to verify your account."
 					);
@@ -457,11 +456,7 @@ function RegisterPageContent() {
 						Already have an account?{" "}
 						<Link
 							className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/60"
-							href={
-								callback
-									? `/login?callback=${encodeURIComponent(callback)}`
-									: "/login"
-							}
+							href={`/login?callback=${encodeURIComponent(safeCallback)}`}
 						>
 							Sign in
 						</Link>

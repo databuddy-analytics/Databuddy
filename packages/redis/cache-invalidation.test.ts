@@ -117,8 +117,10 @@ mock.module("./redis", () => ({
 }));
 
 const {
+	cacheNamespaces,
 	cacheTags,
 	getAgentContextSnapshotKey,
+	getCacheableKey,
 	invalidateAgentContextSnapshot,
 	invalidateAgentContextSnapshotsForOwner,
 	invalidateAgentContextSnapshotsForWebsite,
@@ -178,31 +180,51 @@ describe("agent context snapshot keys", () => {
 describe("website read cache invalidation", () => {
 	it("invalidates known website cacheable keys and batch domain caches", async () => {
 		const websiteId = "site-1";
-		redisStore.set("cacheable:website_by_id:[site-1]", {
+		const keys = {
+			agentTelemetry: getCacheableKey(
+				cacheNamespaces.agentTelemetryWebsiteExists,
+				websiteId
+			),
+			batch: getCacheableKey(cacheNamespaces.websiteDomainsBatch, [
+				websiteId,
+				"site-2",
+			]),
+			otherBatch: getCacheableKey(cacheNamespaces.websiteDomainsBatch, [
+				"site-2",
+			]),
+			website: getCacheableKey(cacheNamespaces.websiteById, websiteId),
+			websiteCache: getCacheableKey(cacheNamespaces.websiteCache, websiteId),
+			websiteDomain: getCacheableKey(cacheNamespaces.websiteDomain, websiteId),
+			websiteWithOwner: getCacheableKey(
+				cacheNamespaces.websiteWithOwner,
+				websiteId
+			),
+		};
+		redisStore.set(keys.website, {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:website_with_owner_v2:[site-1]", {
+		redisStore.set(keys.websiteWithOwner, {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:website-cache:[site-1]", {
+		redisStore.set(keys.websiteCache, {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:website-domain:[site-1]", {
+		redisStore.set(keys.websiteDomain, {
 			value: "example.com",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:agent-telemetry:website-exists:[site-1]", {
+		redisStore.set(keys.agentTelemetry, {
 			value: "true",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:website-domains-batch:[[site-1,site-2]]", {
+		redisStore.set(keys.batch, {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:website-domains-batch:[[site-2]]", {
+		redisStore.set(keys.otherBatch, {
 			value: "{}",
 			ttl: 100,
 		});
@@ -210,21 +232,13 @@ describe("website read cache invalidation", () => {
 		const result = await invalidateWebsiteReadCaches(websiteId);
 
 		expect(result).toEqual({ attempted: 6, failed: 0 });
-		expect(redisStore.has("cacheable:website_by_id:[site-1]")).toBe(false);
-		expect(redisStore.has("cacheable:website_with_owner_v2:[site-1]")).toBe(
-			false
-		);
-		expect(redisStore.has("cacheable:website-cache:[site-1]")).toBe(false);
-		expect(redisStore.has("cacheable:website-domain:[site-1]")).toBe(false);
-		expect(
-			redisStore.has("cacheable:agent-telemetry:website-exists:[site-1]")
-		).toBe(false);
-		expect(
-			redisStore.has("cacheable:website-domains-batch:[[site-1,site-2]]")
-		).toBe(false);
-		expect(redisStore.has("cacheable:website-domains-batch:[[site-2]]")).toBe(
-			true
-		);
+		expect(redisStore.has(keys.website)).toBe(false);
+		expect(redisStore.has(keys.websiteWithOwner)).toBe(false);
+		expect(redisStore.has(keys.websiteCache)).toBe(false);
+		expect(redisStore.has(keys.websiteDomain)).toBe(false);
+		expect(redisStore.has(keys.agentTelemetry)).toBe(false);
+		expect(redisStore.has(keys.batch)).toBe(false);
+		expect(redisStore.has(keys.otherBatch)).toBe(true);
 	});
 });
 
@@ -354,27 +368,54 @@ describe("flag read cache invalidation", () => {
 
 describe("organization membership cache invalidation", () => {
 	it("invalidates role, owner, and billing caches for a member", async () => {
-		redisStore.set("cacheable:rpc:member_role:[user-1,org-1]", {
+		const keys = {
+			apiKeyOwner: getCacheableKey(cacheNamespaces.apiKeyOwnerId, "org-1"),
+			billingMember: getCacheableKey(
+				cacheNamespaces.billingOwner,
+				"user-1",
+				"org-1"
+			),
+			billingOrganization: getCacheableKey(
+				cacheNamespaces.billingOwner,
+				"user-2",
+				"org-1"
+			),
+			otherBillingOrganization: getCacheableKey(
+				cacheNamespaces.billingOwner,
+				"user-2",
+				"org-2"
+			),
+			organizationOwner: getCacheableKey(
+				cacheNamespaces.organizationOwner,
+				"org-1"
+			),
+			role: getCacheableKey(
+				cacheNamespaces.memberRole,
+				"user-1",
+				"org-1"
+			),
+		};
+		redisStore.set(keys.role, {
 			value: "member",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:rpc:org_owner:[org-1]", {
+		redisStore.set(keys.organizationOwner, {
 			value: "user-1",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:api_key_owner_id:[org-1]", {
+		redisStore.set(keys.apiKeyOwner, {
 			value: "user-1",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:rpc:billing_owner:[user-1,org-1]", {
+		redisStore.set(keys.billingMember, {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:rpc:billing_owner:[user-2,org-1]", {
+		redisStore.set(keys.billingOrganization, {
 			value: "{}",
 			ttl: 100,
 		});
-		redisStore.set("cacheable:rpc:billing_owner:[user-2,org-2]", {
+		redisStore.set(keys.otherBillingOrganization, {
 			value: "{}",
 			ttl: 100,
 		});
@@ -385,22 +426,12 @@ describe("organization membership cache invalidation", () => {
 		});
 
 		expect(result).toEqual({ attempted: 5, failed: 0 });
-		expect(redisStore.has("cacheable:rpc:member_role:[user-1,org-1]")).toBe(
-			false
-		);
-		expect(redisStore.has("cacheable:rpc:org_owner:[org-1]")).toBe(false);
-		expect(redisStore.has("cacheable:api_key_owner_id:[org-1]")).toBe(
-			false
-		);
-		expect(redisStore.has("cacheable:rpc:billing_owner:[user-1,org-1]")).toBe(
-			false
-		);
-		expect(redisStore.has("cacheable:rpc:billing_owner:[user-2,org-1]")).toBe(
-			false
-		);
-		expect(redisStore.has("cacheable:rpc:billing_owner:[user-2,org-2]")).toBe(
-			true
-		);
+		expect(redisStore.has(keys.role)).toBe(false);
+		expect(redisStore.has(keys.organizationOwner)).toBe(false);
+		expect(redisStore.has(keys.apiKeyOwner)).toBe(false);
+		expect(redisStore.has(keys.billingMember)).toBe(false);
+		expect(redisStore.has(keys.billingOrganization)).toBe(false);
+		expect(redisStore.has(keys.otherBillingOrganization)).toBe(true);
 	});
 });
 
