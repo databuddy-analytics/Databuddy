@@ -527,12 +527,33 @@ describe("SimpleQueryBuilder.compile", () => {
 			"AND if(profile_id != '', profile_id, anonymous_id) IN ("
 		);
 		expect(sql).toContain(
-			"SELECT DISTINCT if(profile_id != '', profile_id, ifNull(anonymous_id, ''))"
+			"SELECT DISTINCT coalesce(nullIf(profile_id, ''), nullIf(anonymous_id, ''))"
 		);
 		expect(sql).toContain("FROM analytics.custom_events");
 		expect(sql).toContain("AND event_name = {f0:String}");
 		expect(sql).not.toContain("eventNameFilter");
 		expect(params.f0).toBe("signup");
+	});
+
+	it.each([
+		"custom_events",
+		"custom_events_by_path",
+		"custom_events_trends",
+		"custom_events_summary",
+		"custom_events_discovery",
+	])("counts users by canonical profile-first identity in %s", (type) => {
+		const config = QueryBuilders[type];
+		if (!config) {
+			throw new Error(`${type} builder is missing`);
+		}
+
+		const { sql } = compileBuilder(type, config);
+
+		expect(sql).toContain(
+			"uniq(coalesce(nullIf(profile_id, ''), nullIf(anonymous_id, ''))) as unique_users"
+		);
+		expect(sql).not.toContain("ifNull(anonymous_id, '')");
+		expect(sql).not.toContain("uniq(anonymous_id)");
 	});
 
 	it("keeps profile_list event_name operator semantics in the custom-events subquery", () => {
@@ -842,6 +863,31 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.f0).toBe("US");
 	});
 
+	it.each(["entry_pages", "exit_pages"])(
+		"filters %s by anonymous visitor id",
+		(type) => {
+			const config = QueryBuilders[type];
+			if (!config) {
+				throw new Error(`${type} builder is missing`);
+			}
+
+			const { params, sql } = new SimpleQueryBuilder(
+				config,
+				makeRequest({
+					filters: [
+						{ field: "anonymous_id", op: "eq", value: "visitor-1" },
+					],
+					type,
+				})
+			).compile();
+
+			expect(sql).toContain("anonymous_id = {f0:String}");
+			expect(sql).toContain("as visitor_id");
+			expect(sql).not.toMatch(/arg(?:Min|Max)\([^\n]+\) as anonymous_id/);
+			expect(params.f0).toBe("visitor-1");
+		}
+	);
+
 	it("normalizes standard session attribution queries", () => {
 		const { sql, params } = compile(
 			{
@@ -999,6 +1045,119 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).toContain("analytics.error_spans");
 		expect(sql).toContain("event_name = 'screen_view'");
 		expect(sql).not.toContain("event_name = 'pageview'");
+	});
+
+	it("collapses immutable revenue versions in revenue and profile reads", () => {
+		for (const type of [
+			"revenue_overview",
+			"profile_list",
+			"profile_revenue",
+		]) {
+			const config = QueryBuilders[type];
+			if (!config) {
+				throw new Error(`${type} builder is missing`);
+			}
+			const { sql } = compileBuilder(type, config);
+
+			expect(sql, type).toContain(
+				"GROUP BY owner_id, provider, transaction_id"
+			);
+			expect(sql, type).toContain("FROM analytics.revenue");
+			expect(sql, type).not.toContain("analytics.revenue FINAL");
+		}
+	});
+
+	it("keeps profile LTV lifetime while activity stays window-scoped", () => {
+		const config = QueryBuilders.profile_list;
+		if (!config) {
+			throw new Error("profile_list builder is missing");
+		}
+		const { sql } = compileBuilder("profile_list", config);
+
+		expect(sql).toContain("time >= {startDate:DateTime}");
+		expect(sql).toContain("timestamp >= {startDate:DateTime}");
+		expect(sql).not.toContain("created >= {startDate:DateTime}");
+		expect(sql).not.toContain("created <= {endDate:DateTime}");
+	});
+
+	it("counts only terminal successful states in revenue totals", () => {
+		const config = QueryBuilders.revenue_overview;
+		if (!config) {
+			throw new Error("revenue_overview builder is missing");
+		}
+		const { sql } = compileBuilder("revenue_overview", config);
+
+		expect(sql).toContain("r.type = 'refund' AND r.status = 'refunded'");
+		expect(sql).toContain("r.type != 'refund' AND r.status = 'completed'");
+		expect(sql).toContain("customer_session_map AS");
+		expect(sql).toContain(
+			"created >= {startDate:DateTime} - INTERVAL 90 DAY"
+		);
+		expect(sql).toContain("ON rb.provider = csm.provider");
+		expect(sql).toContain("legacy_pi_dedup AS");
+		expect(sql).toContain("scoped_stripe_invoice_keys AS");
+		expect(sql).toContain("stripe_relation_rows AS");
+		expect(sql).toContain("linked_payment_intents AS");
+		expect(sql).toContain("stripe_invoice_payment_totals AS");
+		expect(sql).toContain(
+			"JSONExtractString(r.metadata, 'stripe_money_kind') = 'invoice_fallback'"
+		);
+		expect(sql).toContain(
+			"r.amount - ifNull(invoice_payments.amount, 0)"
+		);
+		expect(sql).toContain(
+			"OR JSONExtractString(r.metadata, 'stripe_money_kind') = 'invoice_fallback'"
+		);
+		expect(sql).toContain("OR r.linked_website_id = {websiteId:String}");
+		expect(sql).toContain(
+			"coalesce(r.product_name, nullIf(r.linked_product_name, ''))"
+		);
+		expect(sql).toContain("stripe_invoice_failure_attempt_keys AS");
+		expect(sql).toContain("stripe_payment_attempts AS");
+		expect(sql).toContain("startsWith(r.transaction_id, 'in_')");
+		expect(sql).toContain(
+			"JSONExtractString(r.metadata, 'databuddy_revenue_model') = ''"
+		);
+		expect(sql).toContain(
+			"SELECT payment_intent_id FROM linked_payment_intents"
+		);
+		expect(sql).toContain("stripe_record_kind') = 'attempt'");
+		expect(sql).toContain("recovered_payment_attempts");
+	});
+
+	it("keeps revenue attribution transaction-as-of without truncating exact sessions", () => {
+		const config = QueryBuilders.recent_transactions;
+		if (!config) {
+			throw new Error("recent_transactions builder is missing");
+		}
+		const { sql } = compileBuilder("recent_transactions", config);
+		const firstTouchStart = sql.indexOf("first_touch_by_session AS");
+		const firstTouchEnd = sql.indexOf("revenue_attributed AS");
+		const firstTouchSql = sql.slice(firstTouchStart, firstTouchEnd);
+
+		expect(firstTouchStart).toBeGreaterThan(-1);
+		expect(firstTouchEnd).toBeGreaterThan(firstTouchStart);
+		expect(firstTouchSql).not.toContain("INTERVAL 90 DAY");
+		expect(sql).toContain("min(created) as mapped_session_created");
+		expect(sql).toContain("csm.mapped_session_created <= rb.created");
+		expect(sql).toContain("min(time) as first_touch_time");
+		expect(sql).toContain("ft_direct.first_touch_time <= rb.created");
+		expect(sql).toContain("ft_customer.first_touch_time <= rb.created");
+		expect(sql).toContain("argMin(ifNull(utm_campaign, ''), time)");
+	});
+
+	it("keeps revenue currencies separate and accepts an exact currency filter", () => {
+		const config = QueryBuilders.revenue_overview;
+		if (!config) {
+			throw new Error("revenue_overview builder is missing");
+		}
+		const { params, sql } = compileBuilder("revenue_overview", config, {
+			filters: [{ field: "currency", op: "eq", value: "EUR" }],
+		});
+
+		expect(sql).toContain("GROUP BY currency");
+		expect(sql).toContain("revenue_attributed WHERE currency = {rf0:String}");
+		expect(params.rf0).toBe("EUR");
 	});
 
 	it("builds bounded error fingerprints ranked by affected people", () => {

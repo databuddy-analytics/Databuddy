@@ -2,6 +2,7 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 import { BrowserIcon, CountryFlag, OSIcon } from "@/components/icon";
 import { ReferrerSourceCell } from "@/components/atomic/ReferrerSourceCell";
 import { formatNumber } from "@/lib/formatters";
+import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import {
 	CurrencyDollarIcon,
 	MapPinIcon,
@@ -19,15 +20,8 @@ export interface RevenueEntry {
 	transactions: number;
 }
 
-const formatCurrency = (amount: number, currency = "USD"): string =>
-	new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency,
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 0,
-	}).format(amount);
-
 interface RevenueRowProps {
+	currency: string;
 	nameLabel?: string;
 	type?:
 		| "default"
@@ -42,9 +36,10 @@ interface RevenueRowProps {
 }
 
 export function createRevenueColumns({
+	currency,
 	type = "default",
 	nameLabel,
-}: RevenueRowProps = {}): ColumnDef<RevenueEntry>[] {
+}: RevenueRowProps): ColumnDef<RevenueEntry>[] {
 	const getNameColumn = (): ColumnDef<RevenueEntry> => {
 		const header =
 			nameLabel ||
@@ -166,7 +161,7 @@ export function createRevenueColumns({
 				const value = info.getValue() as number;
 				return (
 					<span className="font-semibold text-success">
-						{formatCurrency(value)}
+						{formatRevenueCurrency(value, currency)}
 					</span>
 				);
 			},
