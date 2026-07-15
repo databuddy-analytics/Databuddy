@@ -242,9 +242,11 @@ mock.module("../insights/product-context", () => ({
 	},
 }));
 
-const { countEvidenceRows, createInsightEvidenceReader } = await import(
-	"./insights-agent-tools"
-);
+const {
+	countEvidenceRows,
+	createInsightEvidenceReader,
+	insightEvidenceReadRequestSchema,
+} = await import("./insights-agent-tools");
 
 const signal: InvestigationSignal = {
 	signalKey: "website:traffic",
@@ -300,11 +302,9 @@ const appContext: AppContext = {
 
 function createReader(
 	onEvidence?: (evidence: InvestigationEvidence) => void,
-	selectedSignal: InvestigationSignal = signal,
-	allowLiveAnomalyDetection = true
+	selectedSignal: InvestigationSignal = signal
 ) {
 	return createInsightEvidenceReader({
-		allowLiveAnomalyDetection,
 		domain: "example.com",
 		onEvidence,
 		signal: selectedSignal,
@@ -460,25 +460,16 @@ describe("insight evidence reader", () => {
 		});
 	});
 
-	test("does not run live anomaly detection for historical read-only evidence", async () => {
-		const reader = createReader(undefined, signal, false);
-		const result = await reader(
-			{
+	test("does not expose unscoped live anomaly detection", () => {
+		expect(
+			insightEvidenceReadRequestSchema.safeParse({
 				name: "ops_context",
 				input: {
 					period: "current",
 					queries: [{ type: "anomaly_summary" }],
 				},
-			},
-			appContext
-		);
-
-		expect(result).toEqual([
-			expect.objectContaining({
-				queryType: "anomaly_summary",
-				status: "empty",
-			}),
-		]);
+			}).success
+		).toBe(false);
 	});
 
 	test("renders an exact error bundle as concise claims instead of raw JSON", async () => {

@@ -98,7 +98,7 @@ function evidenceKind(queryType: string): InvestigationEvidence["kind"] {
 	) {
 		return "data_health";
 	}
-	if (queryType.includes("anomaly") || queryType.includes("flag")) {
+	if (queryType.includes("flag")) {
 		return "related_change";
 	}
 	if (queryType === "summary_metrics" || queryType.includes("trend")) {
@@ -740,7 +740,6 @@ export function countEvidenceRows(data: unknown): number {
 }
 
 export interface CreateInsightEvidenceReaderParams {
-	allowLiveAnomalyDetection?: boolean;
 	domain: string;
 	onEvidence?: (evidence: InvestigationEvidence) => void;
 	signal: InvestigationSignal;
@@ -1165,14 +1164,7 @@ export function createInsightEvidenceReader(
 				fetchContextEvidence({
 					abortSignal,
 					fetch: () =>
-						fetchOpsMetrics(
-							appContext,
-							p.range,
-							p.label,
-							unique,
-							abortSignal,
-							params.allowLiveAnomalyDetection ?? true
-						),
+						fetchOpsMetrics(appContext, p.range, unique, abortSignal),
 					period: p.label,
 					queries: unique,
 					range: p.range,

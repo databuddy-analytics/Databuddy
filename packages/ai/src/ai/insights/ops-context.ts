@@ -1,5 +1,4 @@
 import { type AppContext, requireWebsiteId } from "../config/context";
-import { callRPCProcedure } from "../tools/utils";
 import { executeQuery } from "../../query";
 import type { QueryRequest } from "../../query/types";
 import { fetchFlagChangeContext } from "./flag-context";
@@ -11,7 +10,6 @@ export const OPS_INSIGHT_QUERY_TYPES = [
 	"errors_by_page",
 	"error_fingerprints",
 	"uptime_summary",
-	"anomaly_summary",
 	"flag_changes",
 ] as const;
 
@@ -123,39 +121,6 @@ async function getUptimeSummary(
 	};
 }
 
-async function getAnomalySummary(
-	appContext: AppContext,
-	period: "current" | "previous",
-	limit: number,
-	abortSignal: AbortSignal | undefined,
-	allowLiveAnomalyDetection: boolean
-) {
-	if (!allowLiveAnomalyDetection) {
-		return {
-			anomalies: [],
-			note: "Live anomaly detection is disabled for this read-only historical run.",
-		};
-	}
-	if (period !== "current") {
-		return {
-			anomalies: [],
-			note: "Anomaly detection is only available for the current window.",
-		};
-	}
-
-	const anomalies = await callRPCProcedure(
-		"anomalies",
-		"detect",
-		{ websiteId: appContext.websiteId },
-		appContext,
-		abortSignal
-	);
-
-	return {
-		anomalies: Array.isArray(anomalies) ? anomalies.slice(0, limit) : [],
-	};
-}
-
 async function getFlagChanges(
 	appContext: AppContext,
 	range: { from: string; to: string },
@@ -167,10 +132,8 @@ async function getFlagChanges(
 export async function fetchOpsMetrics(
 	appContext: AppContext,
 	range: { from: string; to: string },
-	period: "current" | "previous",
 	queries: OpsInsightQuery[],
-	abortSignal?: AbortSignal,
-	allowLiveAnomalyDetection = true
+	abortSignal?: AbortSignal
 ) {
 	const results: Record<string, unknown>[] = [];
 
@@ -205,18 +168,6 @@ export async function fetchOpsMetrics(
 				results.push({
 					type: query.type,
 					...(await getUptimeSummary(appContext, range, abortSignal)),
-				});
-				break;
-			case "anomaly_summary":
-				results.push({
-					type: query.type,
-					...(await getAnomalySummary(
-						appContext,
-						period,
-						limit,
-						abortSignal,
-						allowLiveAnomalyDetection
-					)),
 				});
 				break;
 			case "flag_changes":

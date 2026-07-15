@@ -466,7 +466,6 @@ async function createSources(params: {
 		createEvidenceReader: (readerParams) => {
 			const readEvidence = createInsightEvidenceReader({
 				...readerParams,
-				allowLiveAnomalyDetection: false,
 			});
 			return Promise.resolve((request, appContext, signal) =>
 				readEvidence(request, appContext, withAttemptSignal(signal))

@@ -382,7 +382,7 @@ export async function runInsightAgent(
 	const tools = {
 		read_evidence: tool({
 			description:
-				"Select a candidate and read tenant-scoped analytics evidence for it. Pass its exact signalKey and put one product_metrics, ops_context, or web_metrics request in request. Product metrics apply to goals, funnels, and events. Ops context supports error, uptime, anomaly, and flag queries. Web metrics supports page, acquisition, audience, campaign, revenue, and vital breakdowns; revenue requires period both. The result lists usable fresh receipt IDs. Cite them only when relevant; the candidate's initial detector receipts remain valid.",
+				"Select a candidate and read tenant-scoped analytics evidence for it. Pass its exact signalKey and put one product_metrics, ops_context, or web_metrics request in request. Product metrics apply to goals, funnels, and events. Ops context supports error, uptime, and flag queries. Web metrics supports page, acquisition, audience, campaign, revenue, and vital breakdowns; revenue requires period both. The result lists usable fresh receipt IDs. Cite them only when relevant; the candidate's initial detector receipts remain valid.",
 			inputSchema: z
 				.object({
 					request: insightEvidenceReadRequestSchema,
