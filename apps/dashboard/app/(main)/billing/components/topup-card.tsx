@@ -1,12 +1,9 @@
 "use client";
 
 import { CreditArcSlider } from "@/components/ui/credit-arc-slider";
-import {
-	DATABUNNY_USAGE_EXPLANATION,
-	DATABUNNY_USAGE_UNIT,
-} from "@/lib/databunny-usage";
 import { cn } from "@/lib/utils";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import {
 	blendedRatePerCredit,
 	calculateTopupCost,
@@ -86,7 +83,7 @@ export function TopupCard() {
 					Top up Databunny usage
 				</Card.Title>
 				<Card.Description>
-					{DATABUNNY_USAGE_EXPLANATION} Purchased usage stacks with your plan
+					{DATABUNNY_USAGE.description} Purchased usage stacks with your plan
 					and does not expire.
 				</Card.Description>
 			</Card.Header>
@@ -99,7 +96,7 @@ export function TopupCard() {
 							min={TOPUP_MIN_QUANTITY}
 							onValueChange={setQuantity}
 							value={quantity}
-							unit={DATABUNNY_USAGE_UNIT}
+							unit={DATABUNNY_USAGE.unit}
 						/>
 					</div>
 
@@ -127,7 +124,7 @@ export function TopupCard() {
 							{quantity.toLocaleString()} usage units
 						</span>
 					</Row>
-					<Row label="Per usage unit">
+					<Row label="Average per usage unit">
 						<span className="tabular-nums">${blendedRate.toFixed(4)}</span>
 					</Row>
 					<Row label="You pay">
@@ -183,22 +180,19 @@ export function TopupCard() {
 					<div className="overflow-hidden">
 						<div className="space-y-2 rounded border border-border/60 bg-secondary/40 p-3">
 							<Text tone="muted" variant="caption">
-								Graduated tiers: each usage unit is billed by the tier it falls
-								into. Buy 5,000 and only the first 100 cost $
-								{BASE_RATE.toFixed(2)} — every unit above that drops to a
-								cheaper rate.
+								With graduated pricing, each unit is priced by its tier.
+								Reaching a lower rate does not change the price of earlier
+								units.
 							</Text>
 							<div className="rounded border border-border/50 bg-background">
 								{TOPUP_TIERS.map((tier, idx) => {
 									const prev = idx === 0 ? null : TOPUP_TIERS[idx - 1];
-									const prevTop =
-										prev === null
-											? TOPUP_MIN_QUANTITY
-											: prev.to === "inf"
-												? 0
-												: prev.to;
-									const topLabel =
-										tier.to === "inf" ? "∞" : tier.to.toLocaleString();
+									const tierStart =
+										prev === null || prev.to === "inf" ? 1 : prev.to + 1;
+									const rangeLabel =
+										tier.to === "inf"
+											? `${tierStart.toLocaleString()}+`
+											: `${tierStart.toLocaleString()} – ${tier.to.toLocaleString()}`;
 									const isActive = tier.amount === tierInfo.currentRate;
 									return (
 										<div
@@ -211,7 +205,7 @@ export function TopupCard() {
 													tone="muted"
 													variant="caption"
 												>
-													{prevTop.toLocaleString()} – {topLabel}
+													{rangeLabel}
 												</Text>
 												{isActive && (
 													<Badge variant="success">You're here</Badge>
@@ -259,7 +253,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							{nudge.unitsUntilNextTier.toLocaleString()}
 						</span>{" "}
-						more and every usage unit drops to{" "}
+						more to reach the next tier. Usage units in that tier cost{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${nudge.nextRate.toFixed(3)}
 						</span>
@@ -278,7 +272,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							${savings.toFixed(2)}
 						</span>{" "}
-						vs. buying one at a time — that's{" "}
+						compared with the first-tier rate — that's{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							{Math.round((1 - blendedRate / BASE_RATE) * 100)}%
 						</span>{" "}
@@ -293,11 +287,11 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						weight="duotone"
 					/>
 					<Text variant="caption">
-						Volume discount kicks in at{" "}
+						After the first{" "}
 						<span className="font-medium text-foreground tabular-nums">
-							{FIRST_TIER_TOP.toLocaleString()}+
+							{FIRST_TIER_TOP.toLocaleString()}
 						</span>{" "}
-						usage units — every unit drops to{" "}
+						usage units, additional units cost{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${SECOND_TIER_RATE.toFixed(3)}
 						</span>

@@ -15,12 +15,12 @@ export function warmPostgresPool() {
 	);
 }
 
-export function registerShutdownHooks() {
-	process.on("SIGINT", () => shutdownApi("SIGINT"));
-	process.on("SIGTERM", () => shutdownApi("SIGTERM"));
+export function registerShutdownHooks(beforeShutdown?: () => void) {
+	process.on("SIGINT", () => shutdownApi("SIGINT", beforeShutdown));
+	process.on("SIGTERM", () => shutdownApi("SIGTERM", beforeShutdown));
 }
 
-async function shutdownApi(signal: string) {
+async function shutdownApi(signal: string, beforeShutdown?: () => void) {
 	if (shuttingDown) {
 		log.info({
 			lifecycle: "shutdown",
@@ -31,6 +31,7 @@ async function shutdownApi(signal: string) {
 	}
 
 	shuttingDown = true;
+	beforeShutdown?.();
 	const timeout = setTimeout(() => {
 		log.error({
 			lifecycle: "shutdown",

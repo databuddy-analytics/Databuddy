@@ -1,8 +1,10 @@
+import { DATABUNNY_USAGE, LEGACY_SCALE_PLAN } from "../billing";
+
 export const PLAN_IDS = {
 	FREE: "free",
 	HOBBY: "hobby",
 	PRO: "pro",
-	SCALE: "scale",
+	SCALE: LEGACY_SCALE_PLAN.id,
 } as const;
 
 export type PlanId = (typeof PLAN_IDS)[keyof typeof PLAN_IDS];
@@ -142,11 +144,10 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			upgradeMessage: "Upgrade to track more events",
 		},
 		[FEATURE_IDS.AGENT_CREDITS]: {
-			name: "Databunny Usage",
-			description:
-				"AI processing allowance used by Databunny questions and analysis. Deeper work uses more of the allowance.",
-			upgradeMessage: "Add more Databunny usage or upgrade your plan",
-			unit: "usage units",
+			name: DATABUNNY_USAGE.name,
+			description: DATABUNNY_USAGE.description,
+			upgradeMessage: DATABUNNY_USAGE.upgradeMessage,
+			unit: DATABUNNY_USAGE.unit,
 		},
 		[GATED_FEATURES.FUNNELS]: {
 			name: "Funnels",

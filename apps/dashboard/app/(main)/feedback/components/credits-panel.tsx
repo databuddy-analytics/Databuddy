@@ -8,7 +8,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Button, Card, Skeleton } from "@databuddy/ui";
 import { cn } from "@/lib/utils";
-import { DATABUNNY_USAGE_EXPLANATION } from "@/lib/databunny-usage";
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 
 interface RewardTier {
 	creditsRequired: number;
@@ -239,7 +239,7 @@ export function CreditsPanel({
 			<RewardSection
 				available={available}
 				baseIndex={eventTiers.length}
-				description={DATABUNNY_USAGE_EXPLANATION}
+				description={DATABUNNY_USAGE.description}
 				onRedeemAction={onRedeemAction}
 				redeemingTier={redeemingTier}
 				tiers={agentTiers}

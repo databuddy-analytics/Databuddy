@@ -38,5 +38,6 @@ describe("public pricing copy", () => {
 
 		expect(markdown).not.toContain("Assistant messages");
 		expect(markdown).not.toContain("Agent credits");
+		expect(markdown).not.toContain("Scale");
 	});
 });
