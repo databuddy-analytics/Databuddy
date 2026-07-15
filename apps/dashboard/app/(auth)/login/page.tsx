@@ -7,6 +7,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import { EnvelopeSimpleIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import {
 	Badge,
@@ -31,9 +32,10 @@ function LoginPage() {
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const isHydrated = useHydrated();
+	const safeCallback = safeCallbackPath(callback);
 
 	const lastUsed = isHydrated ? authClient.getLastUsedLoginMethod() : null;
-	const callbackQuery = `?callback=${encodeURIComponent(callback)}`;
+	const callbackQuery = `?callback=${encodeURIComponent(safeCallback)}`;
 
 	const getProviderLabel = (provider: "github" | "google") =>
 		provider === "github" ? "GitHub" : "Google";
@@ -41,12 +43,12 @@ function LoginPage() {
 	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
 		const newUserCallbackURL =
-			callback === "/websites" ? "/onboarding" : callback;
+			safeCallback === "/websites" ? "/onboarding" : safeCallback;
 
 		try {
 			const result = await authClient.signIn.social({
 				provider,
-				callbackURL: callback,
+				callbackURL: safeCallback,
 				newUserCallbackURL,
 				disableRedirect: true,
 			});
@@ -89,7 +91,7 @@ function LoginPage() {
 		await authClient.signIn.email({
 			email,
 			password,
-			callbackURL: callback,
+			callbackURL: safeCallback,
 			fetchOptions: {
 				onError: (error) => {
 					setIsLoading(false);
@@ -99,7 +101,7 @@ function LoginPage() {
 					) {
 						storeVerificationEmail(email);
 						router.push(
-							`/login/verification-needed?callback=${encodeURIComponent(callback)}`
+							`/login/verification-needed?callback=${encodeURIComponent(safeCallback)}`
 						);
 					} else {
 						toast.error(

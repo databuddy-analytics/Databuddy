@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense } from "react";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import { ArrowLeftIcon, ShieldWarningIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
 
@@ -91,6 +92,7 @@ function AuthErrorPage() {
 		"callback",
 		parseAsString.withDefault("/websites")
 	);
+	const safeCallback = safeCallbackPath(callback);
 
 	const errorInfo =
 		ERROR_MESSAGES[errorCode] ??
@@ -100,8 +102,8 @@ function AuthErrorPage() {
 		errorCode.toLowerCase()
 	);
 	const recoveryHref = isMagicLinkError
-		? `/login/magic?callback=${encodeURIComponent(callback)}`
-		: `/login?callback=${encodeURIComponent(callback)}`;
+		? `/login/magic?callback=${encodeURIComponent(safeCallback)}`
+		: `/login?callback=${encodeURIComponent(safeCallback)}`;
 
 	return (
 		<>

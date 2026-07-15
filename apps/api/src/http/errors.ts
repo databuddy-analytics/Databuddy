@@ -59,7 +59,7 @@ export function handleAppError({
 		isClientError,
 		statusCode,
 	});
-	const validationDetails = getValidationDetails(error);
+	const validationDetails = getValidationDetails(error, isDevelopment);
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 		"X-Request-ID": responseRequestId,
@@ -91,7 +91,10 @@ interface ValidationDetail {
 	message: string;
 }
 
-function getValidationDetails(error: unknown): ValidationDetail[] {
+function getValidationDetails(
+	error: unknown,
+	isDevelopment: boolean
+): ValidationDetail[] {
 	if (!(error instanceof ValidationError) || error.type === "response") {
 		return [];
 	}
@@ -111,16 +114,24 @@ function getValidationDetails(error: unknown): ValidationDetail[] {
 		seenFields.add(field);
 		details.push({
 			field,
-			message:
-				typeof issue.summary === "string" && issue.summary
-					? issue.summary
-					: issue.message,
+			message: isDevelopment
+				? getDevelopmentValidationMessage(issue)
+				: "Invalid value",
 		});
 		if (details.length === 20) {
 			break;
 		}
 	}
 	return details;
+}
+
+function getDevelopmentValidationMessage(issue: {
+	message: string;
+	summary?: string;
+}): string {
+	return typeof issue.summary === "string" && issue.summary
+		? issue.summary
+		: issue.message;
 }
 
 function getErrorCode({

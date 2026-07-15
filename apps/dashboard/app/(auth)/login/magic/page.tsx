@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import { ArrowLeftIcon, EnvelopeSimpleIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
 
@@ -17,7 +18,8 @@ function MagicLinkPage() {
 	);
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
-	const loginHref = `/login?callback=${encodeURIComponent(callback)}`;
+	const safeCallback = safeCallbackPath(callback);
+	const loginHref = `/login?callback=${encodeURIComponent(safeCallback)}`;
 
 	const handleMagicLinkLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -30,8 +32,8 @@ function MagicLinkPage() {
 		try {
 			const { error } = await authClient.signIn.magicLink({
 				email,
-				callbackURL: callback,
-				errorCallbackURL: `/auth/error?callback=${encodeURIComponent(callback)}`,
+				callbackURL: safeCallback,
+				errorCallbackURL: `/auth/error?callback=${encodeURIComponent(safeCallback)}`,
 			});
 			if (error) {
 				toast.error("We couldn't send the magic link. Try again in a moment.");
@@ -39,7 +41,7 @@ function MagicLinkPage() {
 				toast.success("Magic link sent. Check your email.");
 				sessionStorage.setItem("databuddy:magic-email", email);
 				router.push(
-					`/login/magic-sent?callback=${encodeURIComponent(callback)}`
+					`/login/magic-sent?callback=${encodeURIComponent(safeCallback)}`
 				);
 			}
 		} catch {
