@@ -331,12 +331,68 @@ describe("getTraitDistribution", () => {
 		});
 
 		const distribution = await getTraitDistribution(website.id);
-		expect(distribution.identifiedProfiles).toBe(3);
+		expect(distribution).toMatchObject({
+			hasMoreKeys: false,
+			hasMoreValues: false,
+			identifiedProfiles: 3,
+			returnedTraitKeys: 2,
+			totalTraitKeys: 2,
+			valuesPerKey: 20,
+		});
 		expect(distribution.traits).toEqual([
 			{ key: "beta", value: "true", profiles: 1 },
 			{ key: "plan", value: "pro", profiles: 2 },
 			{ key: "plan", value: "free", profiles: 1 },
 		]);
+	});
+
+	iit("gives every returned key a value before adding more values per key", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const keys = Array.from({ length: 11 }, (_, index) => `trait_${index}`);
+
+		await Promise.all(
+			Array.from({ length: 20 }, (_, valueIndex) =>
+				seedProfile(website.id, `user_${valueIndex}`, {
+					traits: Object.fromEntries(
+						keys.map((key) => [key, `value_${valueIndex}`])
+					),
+				})
+			)
+		);
+
+		const distribution = await getTraitDistribution(website.id);
+		expect(distribution).toMatchObject({
+			hasMoreKeys: false,
+			hasMoreValues: true,
+			returnedTraitKeys: 11,
+			totalTraitKeys: 11,
+			valuesPerKey: 18,
+		});
+		expect(distribution.traits).toHaveLength(198);
+		expect(new Set(distribution.traits.map((trait) => trait.key))).toEqual(
+			new Set(keys)
+		);
+	});
+
+	iit("reports when lower-coverage keys are omitted by the row bound", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "user_1", {
+			traits: Object.fromEntries(
+				Array.from({ length: 201 }, (_, index) => [`trait_${index}`, true])
+			),
+		});
+
+		const distribution = await getTraitDistribution(website.id);
+		expect(distribution).toMatchObject({
+			hasMoreKeys: true,
+			hasMoreValues: false,
+			returnedTraitKeys: 200,
+			totalTraitKeys: 201,
+			valuesPerKey: 1,
+		});
+		expect(distribution.traits).toHaveLength(200);
 	});
 });
 

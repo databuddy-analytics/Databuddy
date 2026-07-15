@@ -17,10 +17,12 @@ import {
 	LinkFolderSelectorSchema,
 	LinkFolderWithUsageSchema,
 	LinkRowOutputSchema,
+	getLinkSummary,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
 	resolveLinkFolder,
+	searchLinks,
 	summarizeLink,
 	summarizeLinkFolder,
 	summarizeLinkFoldersWithUsage,
@@ -943,15 +945,15 @@ const listLinkFoldersTool = defineMcpTool(
 		}
 
 		const rpcContext = buildRpcContext(ctx);
-		const [folders, links] = await Promise.all([
+		const [folders, summary] = await Promise.all([
 			listLinkFolders(rpcContext, orgId),
-			listLinks(rpcContext, orgId),
+			getLinkSummary(rpcContext, orgId),
 		]);
 
 		return {
-			folders: summarizeLinkFoldersWithUsage(folders, links),
+			folders: summarizeLinkFoldersWithUsage(folders),
 			count: folders.length,
-			unfiledCount: links.filter((link) => !link.folderId).length,
+			unfiledCount: summary.unfiledTotal,
 			hint:
 				folders.length === 0
 					? "No link folders exist yet. Leave links unfiled unless the user creates a folder in Databuddy."
@@ -964,7 +966,7 @@ const listLinksTool = defineMcpTool(
 	{
 		name: "list_links",
 		description:
-			"List short links and existing folders for the website's organization. Use to enumerate all links before referencing one or choosing where a new link should go.",
+			"List the newest short links and existing folders for the website's organization. The count covers the full catalog; use search_links to find a specific older link.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 		}),
@@ -984,24 +986,29 @@ const listLinksTool = defineMcpTool(
 			throw new McpToolError("not_found", orgId.message);
 		}
 		const rpcContext = buildRpcContext(ctx);
-		const [links, folders] = await Promise.all([
+		const [page, folders, summary] = await Promise.all([
 			listLinks(rpcContext, orgId),
 			listLinkFolders(rpcContext, orgId),
+			getLinkSummary(rpcContext, orgId),
 		]);
-		if (links.length === 0) {
+		if (page.items.length === 0) {
 			return {
-				links,
+				links: page.items,
 				count: 0,
-				folders: summarizeLinkFoldersWithUsage(folders, links),
-				unfiledCount: 0,
+				folders: summarizeLinkFoldersWithUsage(folders),
+				unfiledCount: summary.unfiledTotal,
 				hint: "No links yet for this organization.",
 			};
 		}
 		return {
-			links: links.map((link) => summarizeLink(link, folders)),
-			count: links.length,
-			folders: summarizeLinkFoldersWithUsage(folders, links),
-			unfiledCount: links.filter((link) => !link.folderId).length,
+			links: page.items.map((link) => summarizeLink(link, folders)),
+			count: summary.total,
+			folders: summarizeLinkFoldersWithUsage(folders, page.items),
+			unfiledCount: summary.unfiledTotal,
+			hint:
+				page.hasMore || summary.total > page.items.length
+					? `Showing the ${page.items.length} newest of ${summary.total} links. Use search_links for older links.`
+					: undefined,
 		};
 	}
 );
@@ -1010,12 +1017,14 @@ const searchLinksTool = defineMcpTool(
 	{
 		name: "search_links",
 		description:
-			"Find short links matching a substring on name, slug, target URL, or external ID. Use when you know part of a link identifier.",
+			"Find short links across the full catalog matching a substring on name, slug, target URL, or external ID. Returns at most the newest 50 matches.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			query: z
 				.string()
+				.trim()
 				.min(1)
+				.max(255)
 				.describe("Search query (matches name, slug, URL, or external ID)"),
 		}),
 		outputSchema: z.object({
@@ -1031,9 +1040,10 @@ const searchLinksTool = defineMcpTool(
 				})
 			),
 			count: z.number(),
+			hasMore: z.boolean(),
 		}),
 		resolveWebsite: true,
-		ratelimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const orgId = await getOrganizationId(getResolvedWebsiteId(ctx));
@@ -1041,20 +1051,12 @@ const searchLinksTool = defineMcpTool(
 			throw new McpToolError("not_found", orgId.message);
 		}
 		const rpcContext = buildRpcContext(ctx);
-		const [allLinks, folders] = await Promise.all([
-			listLinks(rpcContext, orgId),
+		const [page, folders] = await Promise.all([
+			searchLinks(rpcContext, orgId, input.query),
 			listLinkFolders(rpcContext, orgId),
 		]);
-		const queryLower = input.query.toLowerCase();
-		const matches = allLinks.filter(
-			(link) =>
-				link.name.toLowerCase().includes(queryLower) ||
-				link.slug.toLowerCase().includes(queryLower) ||
-				link.targetUrl.toLowerCase().includes(queryLower) ||
-				link.externalId?.toLowerCase().includes(queryLower)
-		);
 		return {
-			links: matches.map((link) => ({
+			links: page.items.map((link) => ({
 				id: link.id,
 				name: link.name,
 				slug: link.slug,
@@ -1063,7 +1065,8 @@ const searchLinksTool = defineMcpTool(
 				folder: summarizeLink(link, folders).folder,
 				externalId: link.externalId,
 			})),
-			count: matches.length,
+			count: page.items.length,
+			hasMore: page.hasMore,
 		};
 	}
 );

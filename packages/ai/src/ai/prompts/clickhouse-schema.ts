@@ -1,6 +1,7 @@
 import {
 	AGENT_TABLE_COLUMNS,
 	AGENT_TENANT_COLUMN_BY_TABLE,
+	CUSTOM_EVENTS_VISITOR_KEY,
 	EVENTS_VISITOR_KEY,
 	validateAgentSQL,
 } from "@databuddy/db/clickhouse";
@@ -191,7 +192,7 @@ const GUIDELINES = `## Query Guidelines
 - Geographic data (country, region, city) exists only on analytics.events, NOT on web_vitals_spans or error_spans. Join via session_id if needed.
 - All timestamps are in UTC.
 - analytics.custom_events.properties contains JSON strings — use JSONExtractString(properties, 'key') to parse.
-- Identity: \`anonymous_id\` is a per-device id; \`profile_id\` is the customer-assigned user id ('' when anonymous, on analytics.events, analytics.custom_events, and analytics.revenue). To count people, dedupe identified users across devices with \`uniq(${EVENTS_VISITOR_KEY})\` (on custom_events/revenue wrap the fallback: \`if(profile_id != '', profile_id, ifNull(anonymous_id, ''))\` since anonymous_id is Nullable there). To count only identified users: \`uniqIf(profile_id, profile_id != '')\`. error_spans/web_vitals_spans/outgoing_links have no profile_id — resolve an identified user's rows there via their anonymous_ids from analytics.events.
+- Identity: \`anonymous_id\` is a per-device id; \`profile_id\` is the customer-assigned user id ('' when anonymous, on analytics.events, analytics.custom_events, and analytics.revenue). To count people, dedupe identified users across devices with \`uniq(${EVENTS_VISITOR_KEY})\`; on custom_events/revenue use \`uniq(${CUSTOM_EVENTS_VISITOR_KEY})\` because anonymous_id is Nullable and rows missing both identifiers must not count as a person. To count only identified users: \`uniqIf(profile_id, profile_id != '')\`. error_spans/web_vitals_spans/outgoing_links have no profile_id — resolve an identified user's rows there via their anonymous_ids from analytics.events.
 
 ## Aggregate function preferences
 - Percentiles: use \`quantileTDigest(p)(col)\` for p50/p75/p95/p99. Plain \`quantile(p)\` uses reservoir sampling and is noisy at the tails (~10% error at p99). \`quantileTDigest\` is within 0.1% of exact at the same memory cost.

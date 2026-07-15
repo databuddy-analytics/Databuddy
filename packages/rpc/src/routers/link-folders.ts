@@ -2,8 +2,10 @@ import {
 	and,
 	asc,
 	eq,
+	getTableColumns,
 	isNull,
 	isUniqueViolationFor,
+	sql,
 	withTransaction,
 } from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
@@ -17,6 +19,7 @@ import {
 	createLinkFolderSchema,
 	deleteLinkFolderSchema,
 	linkFolderOutputSchema,
+	linkFolderWithUsageOutputSchema,
 	listLinkFoldersSchema,
 	slugifyFolderName,
 	updateLinkFolderSchema,
@@ -81,7 +84,7 @@ export const linkFoldersRouter = {
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinkFoldersSchema)
-		.output(z.array(linkFolderOutputSchema))
+		.output(z.array(linkFolderWithUsageOutputSchema))
 		.handler(async ({ context, input }) => {
 			const organizationId = requireOrganizationId(
 				input.organizationId ?? context.organizationId
@@ -90,7 +93,16 @@ export const linkFoldersRouter = {
 			await requireLinkAccess(context, organizationId, "read");
 
 			return context.db
-				.select()
+				.select({
+					...getTableColumns(linkFolders),
+					linkCount: sql<number>`(
+						select count(*)::int
+						from ${links}
+						where ${links.organizationId} = ${organizationId}
+							and ${links.folderId} = ${linkFolders.id}
+							and ${links.deletedAt} is null
+					)`.mapWith(Number),
+				})
 				.from(linkFolders)
 				.where(
 					and(

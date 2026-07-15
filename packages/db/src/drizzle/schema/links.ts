@@ -80,6 +80,11 @@ export const links = pgTable(
 	(table) => [
 		index("links_folder_id_idx").on(table.folderId),
 		index("links_org_folder_idx").on(table.organizationId, table.folderId),
+		index("links_org_created_at_id_idx").on(
+			table.organizationId,
+			table.createdAt.desc(),
+			table.id.desc()
+		),
 		index("links_created_by_idx").on(table.createdBy),
 		index("links_external_id_idx").on(table.externalId),
 		index("links_org_source_type_idx").on(

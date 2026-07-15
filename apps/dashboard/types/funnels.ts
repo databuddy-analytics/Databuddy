@@ -43,6 +43,7 @@ export interface FunnelStepAnalytics {
 	conversion_rate: number;
 	dropoff_rate: number;
 	dropoffs: number;
+	error_context_available: boolean;
 	error_count: number;
 	error_rate: number;
 	step_name: string;
@@ -53,6 +54,7 @@ export interface FunnelStepAnalytics {
 }
 
 export interface FunnelErrorInsights {
+	available: boolean;
 	dropoffs_with_errors: number;
 	error_correlation_rate: number;
 	sessions_with_errors: number;
@@ -74,6 +76,7 @@ export interface FunnelAnalyticsData {
 	avg_completion_time_formatted: string;
 	biggest_dropoff_rate: number;
 	biggest_dropoff_step: number;
+	duration_available: boolean;
 	error_insights?: FunnelErrorInsights;
 	overall_conversion_rate: number;
 	steps_analytics: FunnelStepAnalytics[];

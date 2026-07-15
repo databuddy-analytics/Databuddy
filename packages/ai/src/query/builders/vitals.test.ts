@@ -19,7 +19,7 @@ describe("vitals_overview", () => {
 			"quantilesDeterministic(0.50, 0.75, 0.90, 0.95, 0.99)"
 		);
 		expect(normalizedSql).toContain(
-			"cityHash64(tuple(timestamp, metric_value))"
+			"cityHash64(tuple( timestamp, metric_value, session_id, anonymous_id, path ))"
 		);
 		expect(normalizedSql).not.toContain("TDigest");
 		expect(params).toMatchObject({
