@@ -7,7 +7,7 @@ output:
   - execution_out
 
 pre-commit:
-  parallel: true
+  parallel: false
   commands:
     no-secrets:
       glob:
@@ -24,15 +24,15 @@ pre-commit:
       run: |
         blocked_files="$(echo "{staged_files}" | tr ' ' '\n' | grep -vE '(^|/)\.env\.example$' || true)"
         [ -z "$blocked_files" ] || (echo "Blocked: staged file(s) may contain secrets:" && echo "$blocked_files" | sed 's/^/  - /' && exit 1)
-    check-types:
-      glob: "**/*.{ts,tsx}"
-      run: bun run check-types
     ch-types:
       glob: "packages/db/src/clickhouse/schema/**/*.sql"
       run: |
         set -e
         bun run generate-db
         git add packages/db/src/clickhouse/schema/tables.generated.ts
+    check-types:
+      glob: "**/*.{ts,tsx}"
+      run: bun run check-types
     lockfile-check:
       glob:
         - "**/package.json"

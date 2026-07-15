@@ -58,6 +58,10 @@
     "TCC_API_KEY",
     "UPTIME_ROUTER_INTEGRATION"
   ],
+  "globalPassThroughEnv": [
+    "INSIGHTS_SCHEDULED_DISPATCH_ENABLED",
+    "INSIGHTS_SCHEDULED_ORGANIZATION_IDS"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -82,7 +86,8 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["CLICKHOUSE_INTEGRATION_TESTS"]
     },
     "check-types": {
       "dependsOn": ["^build"]
