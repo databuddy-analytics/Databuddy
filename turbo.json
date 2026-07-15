@@ -80,7 +80,8 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["CLICKHOUSE_INTEGRATION_TESTS"]
     },
     "check-types": {
       "dependsOn": ["^build"]

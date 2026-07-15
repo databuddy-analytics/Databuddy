@@ -333,32 +333,6 @@ export interface RevenueInsert {
 	profile_id?: string;
 }
 
-export interface WebVitalsHourlyRow {
-	client_id: string;
-	path: string;
-	metric_name: string;
-	hour: string;
-	sample_count: number;
-	p75: number;
-	p50: number;
-	avg_value: number;
-	min_value: number;
-	max_value: number;
-}
-
-export interface WebVitalsHourlyInsert {
-	client_id: string;
-	path: string;
-	metric_name: string;
-	hour: number | string;
-	sample_count: number;
-	p75: number;
-	p50: number;
-	avg_value: number;
-	min_value: number;
-	max_value: number;
-}
-
 export interface WebVitalsSpansRow {
 	client_id: string;
 	anonymous_id: string;
@@ -439,7 +413,6 @@ export interface ClickHouseTables {
 	link_visits: LinkVisitsRow;
 	outgoing_links: OutgoingLinksRow;
 	revenue: RevenueRow;
-	web_vitals_hourly: WebVitalsHourlyRow;
 	web_vitals_spans: WebVitalsSpansRow;
 	uptime_monitor: UptimeMonitorRow;
 }
@@ -454,7 +427,6 @@ export const TABLE_COLUMNS = {
 	"analytics.link_visits": ["id", "link_id", "timestamp", "referrer", "user_agent", "ip_hash", "country", "region", "city", "browser_name", "device_type"],
 	"analytics.outgoing_links": ["id", "client_id", "anonymous_id", "session_id", "href", "text", "properties", "timestamp"],
 	"analytics.revenue": ["owner_id", "website_id", "transaction_id", "provider", "type", "status", "amount", "original_amount", "original_currency", "currency", "anonymous_id", "session_id", "customer_id", "product_id", "product_name", "metadata", "created", "synced_at", "profile_id"],
-	"analytics.web_vitals_hourly": ["client_id", "path", "metric_name", "hour", "sample_count", "p75", "p50", "avg_value", "min_value", "max_value"],
 	"analytics.web_vitals_spans": ["client_id", "anonymous_id", "session_id", "timestamp", "path", "metric_name", "metric_value"],
 	"uptime.uptime_monitor": ["site_id", "url", "timestamp", "status", "http_code", "ttfb_ms", "total_ms", "attempt", "retries", "failure_streak", "response_bytes", "content_hash", "redirect_count", "probe_region", "probe_ip", "ssl_expiry", "ssl_valid", "env", "check_type", "user_agent", "error", "json_data"],
 } as const satisfies Record<string, readonly string[]>;

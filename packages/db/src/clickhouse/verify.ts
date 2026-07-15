@@ -6,6 +6,7 @@ import {
 	readSql,
 	sqlFiles,
 } from "./schema-parse";
+import { isUnmanagedClickHouseObject } from "./verify-policy";
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 const DATABASES = ["analytics", "uptime"];
@@ -99,6 +100,36 @@ function diffTable(repo: ParsedTable, live: ParsedTable): string[] {
 		lines.push(c.yellow("    ~ column order differs"));
 	}
 
+	const repoIndexes = new Map(
+		repo.indexes.map((index) => [index.name, index.definition])
+	);
+	const liveIndexes = new Map(
+		live.indexes.map((index) => [index.name, index.definition])
+	);
+	for (const [name, definition] of repoIndexes) {
+		const liveDefinition = liveIndexes.get(name);
+		if (liveDefinition === undefined) {
+			lines.push(
+				c.green(`    + INDEX ${name} ${definition}`) +
+					c.dim("  (in repo, missing on cluster)")
+			);
+		} else if (liveDefinition !== definition) {
+			lines.push(
+				c.yellow(`    ~ INDEX ${name}`) +
+					`\n        ${c.red(`cluster: ${liveDefinition}`)}` +
+					`\n        ${c.green(`repo:    ${definition}`)}`
+			);
+		}
+	}
+	for (const [name, definition] of liveIndexes) {
+		if (!repoIndexes.has(name)) {
+			lines.push(
+				c.red(`    - INDEX ${name} ${definition}`) +
+					c.dim("  (on cluster, missing in repo)")
+			);
+		}
+	}
+
 	for (const key of ["engine", "partitionBy", "orderBy", "settings"] as const) {
 		if (repo[key] !== live[key]) {
 			lines.push(
@@ -115,6 +146,7 @@ const live = await fetchLive();
 const repoFiles = sqlFiles(SCHEMA_DIR);
 const seenLive = new Set<string>();
 let drifted = 0;
+let unmanaged = 0;
 
 for (const file of repoFiles) {
 	const sql = readSql(file);
@@ -142,18 +174,28 @@ for (const file of repoFiles) {
 }
 
 for (const key of live.keys()) {
-	if (!(seenLive.has(key) || key.endsWith("_mv"))) {
-		console.info(
-			`${c.red("✗")} ${c.bold(key)} ${c.red("— on cluster, no .sql in repo")}`
-		);
-		drifted++;
+	if (seenLive.has(key)) {
+		continue;
 	}
+	if (isUnmanagedClickHouseObject(key)) {
+		console.info(
+			`${c.yellow("⚠")} ${c.bold(key)} ${c.yellow("— unmanaged legacy object remains on cluster")}`
+		);
+		unmanaged++;
+		continue;
+	}
+	console.info(
+		`${c.red("✗")} ${c.bold(key)} ${c.red("— on cluster, no .sql in repo")}`
+	);
+	drifted++;
 }
 
 console.info("");
 if (drifted === 0) {
 	console.info(
-		c.green(`✓ schema in sync — ${repoFiles.length} objects match the cluster`)
+		c.green(
+			`✓ schema in sync — ${repoFiles.length} managed objects match the cluster; ${unmanaged} unmanaged legacy object(s) acknowledged`
+		)
 	);
 	process.exit(0);
 }

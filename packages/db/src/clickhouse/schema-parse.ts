@@ -4,6 +4,7 @@ import { join } from "node:path";
 const COLUMN_NAME_PATTERN = /^`?(\w+)`?\s+/;
 const COMPUTED_PATTERN = /\b(?:MATERIALIZED|ALIAS)\b/i;
 const DEFAULT_PATTERN = /\b(?:DEFAULT|EPHEMERAL)\b/i;
+const INDEX_NAME_PATTERN = /^INDEX\s+`?(\w+)`?\s+/i;
 const LOW_CARDINALITY_PATTERN = /^LowCardinality\((.*)\)$/i;
 const MATERIALIZED_VIEW_PATTERN = /MATERIALIZED\s+VIEW/i;
 const NULLABLE_PATTERN = /^Nullable\(/i;
@@ -20,6 +21,11 @@ export interface ParsedColumn {
 	type: string;
 }
 
+export interface ParsedIndex {
+	definition: string;
+	name: string;
+}
+
 export function isNullable(type: string): boolean {
 	const inner = type.replace(LOW_CARDINALITY_PATTERN, "$1").trim();
 	return NULLABLE_PATTERN.test(inner);
@@ -28,6 +34,7 @@ export function isNullable(type: string): boolean {
 export interface ParsedTable {
 	columns: ParsedColumn[];
 	engine: string;
+	indexes: ParsedIndex[];
 	isView: boolean;
 	name: string;
 	orderBy: string;
@@ -137,6 +144,25 @@ export function parseColumns(sql: string): ParsedColumn[] {
 	return cols;
 }
 
+function normalizeDefinition(definition: string): string {
+	return definition.replaceAll("`", "").replace(/\s+/g, " ").trim();
+}
+
+export function parseIndexes(sql: string): ParsedIndex[] {
+	const indexes: ParsedIndex[] = [];
+	for (const item of splitTopLevel(firstParenGroup(sql).body)) {
+		const match = item.match(INDEX_NAME_PATTERN);
+		if (!match) {
+			continue;
+		}
+		indexes.push({
+			name: match[1],
+			definition: normalizeDefinition(item.slice(match[0].length)),
+		});
+	}
+	return indexes;
+}
+
 function clause(tail: string, keyword: string, stops: string[]): string {
 	const lookahead = stops.length ? `(?=(?:${stops.join("|")})\\b|$)` : "(?=$)";
 	const re = new RegExp(`${keyword}\\s+([\\s\\S]*?)\\s*${lookahead}`, "i");
@@ -148,6 +174,7 @@ export function parseTable(sql: string): ParsedTable {
 	const name = tableNameOf(sql);
 	const isView = MATERIALIZED_VIEW_PATTERN.test(sql);
 	const columns = parseColumns(sql);
+	const indexes = parseIndexes(sql);
 	const tail = sql
 		.slice(firstParenGroup(sql).end + 1)
 		.replace(/\s+/g, " ")
@@ -156,6 +183,7 @@ export function parseTable(sql: string): ParsedTable {
 		name,
 		isView,
 		columns,
+		indexes,
 		engine: clause(tail, "ENGINE\\s*=", [
 			"PARTITION BY",
 			"PRIMARY KEY",
