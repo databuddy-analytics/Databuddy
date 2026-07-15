@@ -123,6 +123,15 @@ describe("privacy-safe page context", () => {
 		).toBe("https://referrer.example/path");
 	});
 
+	test("only accepts HTTP page and referrer URLs", () => {
+		expect(sanitizePageUrl("http://example.com/path?secret=value")).toBe(
+			"http://example.com/path"
+		);
+		expect(sanitizePageUrl("javascript:alert(1)")).toBe("");
+		expect(sanitizePageUrl("data:text/plain,private")).toBe("");
+		expect(sanitizePageUrl("file:///tmp/private.txt")).toBe("");
+	});
+
 	test("honors Global Privacy Control", () => {
 		Object.defineProperty(globalThis, "window", {
 			configurable: true,

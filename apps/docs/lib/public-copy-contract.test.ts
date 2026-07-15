@@ -23,6 +23,40 @@ describe("public copy contracts", () => {
 		expect(publicDocs).not.toContain("trackSessions=");
 	});
 
+	it("lists every performance metric collected by trackWebVitals", async () => {
+		const configuration = await readFile(
+			join(
+				import.meta.dir,
+				"..",
+				"content",
+				"docs",
+				"sdk",
+				"configuration.mdx"
+			),
+			"utf8"
+		);
+		const vitalsPlugin = await readFile(
+			join(
+				import.meta.dir,
+				"..",
+				"..",
+				"..",
+				"packages",
+				"tracker",
+				"src",
+				"plugins",
+				"vitals.ts"
+			),
+			"utf8"
+		);
+		const description = "FCP, LCP, INP, CLS, TTFB, and FPS";
+
+		expect(configuration.split(description)).toHaveLength(3);
+		for (const metric of ["FCP", "LCP", "INP", "CLS", "TTFB", "FPS"]) {
+			expect(vitalsPlugin).toContain(`on${metric}(handleMetric)`);
+		}
+	});
+
 	it("keeps the tracker-size claim aligned with the checked-in bundle", async () => {
 		const bundle = await readFile(
 			join(
