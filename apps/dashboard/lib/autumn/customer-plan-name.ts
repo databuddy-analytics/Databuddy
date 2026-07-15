@@ -1,6 +1,4 @@
-const CUSTOMER_PLAN_NAMES: Record<string, string> = {
-	scale: "Enterprise",
-};
+import { LEGACY_SCALE_PLAN } from "@databuddy/shared/billing";
 
 export function getCustomerPlanName(
 	planId: string | null | undefined,
@@ -10,5 +8,7 @@ export function getCustomerPlanName(
 		return fallbackName;
 	}
 
-	return CUSTOMER_PLAN_NAMES[planId] ?? fallbackName;
+	return planId === LEGACY_SCALE_PLAN.id
+		? LEGACY_SCALE_PLAN.name
+		: fallbackName;
 }

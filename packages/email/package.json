@@ -16,6 +16,7 @@
   },
   "main": "./src/emails/index.ts",
   "dependencies": {
+    "@databuddy/shared": "workspace:*",
     "@types/node": "^26.0.0",
     "react": "catalog:",
     "react-dom": "catalog:",
