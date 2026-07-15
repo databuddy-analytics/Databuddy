@@ -5,6 +5,7 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { protectedProcedure, sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+import { revenueUpsertInputSchema } from "./revenue.schemas";
 
 function generateHash(): string {
 	const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -71,14 +72,7 @@ export const revenueRouter = {
 			summary: "Upsert revenue config",
 			tags: ["Revenue"],
 		})
-		.input(
-			z.object({
-				websiteId: z.string().optional(),
-				stripeWebhookSecret: z.string().optional(),
-				paddleWebhookSecret: z.string().optional(),
-				currency: z.string().length(3).optional(),
-			})
-		)
+		.input(revenueUpsertInputSchema)
 		.output(revenueOutputSchema)
 		.handler(async ({ context, input }) => {
 			const workspace = input.websiteId

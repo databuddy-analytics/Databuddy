@@ -1,8 +1,8 @@
 "use client";
 
 import type { DateRange } from "@/types/analytics";
+import type { DynamicQueryFilter } from "@/types/api";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useAtom } from "jotai";
 import { useMemo } from "react";
 import { DataTable } from "@/components/table/data-table";
 import {
@@ -10,28 +10,30 @@ import {
 	type RevenueEntry,
 } from "@/components/table/rows";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
-import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 
 interface RevenueAttributionTablesProps {
+	currency: string;
 	dateRange: DateRange;
-	isLoading?: boolean;
+	enabled?: boolean;
 	onAddFilter?: (field: string, value: string) => void;
+	queryFilters: DynamicQueryFilter[];
 	websiteId: string;
 }
 
 export function RevenueAttributionTables({
+	currency,
 	websiteId,
 	dateRange,
+	enabled = true,
 	onAddFilter,
+	queryFilters,
 }: RevenueAttributionTablesProps) {
-	const [filters] = useAtom(dynamicQueryFiltersAtom);
-
 	const queries = useMemo(
 		() => [
 			{
 				id: "revenue-products",
 				parameters: ["revenue_by_product"],
-				filters,
+				filters: queryFilters,
 			},
 			{
 				id: "revenue-traffic",
@@ -42,7 +44,7 @@ export function RevenueAttributionTables({
 					"revenue_by_utm_campaign",
 					"revenue_by_entry_page",
 				],
-				filters,
+				filters: queryFilters,
 			},
 			{
 				id: "revenue-geo",
@@ -51,7 +53,7 @@ export function RevenueAttributionTables({
 					"revenue_by_region",
 					"revenue_by_city",
 				],
-				filters,
+				filters: queryFilters,
 			},
 			{
 				id: "revenue-tech",
@@ -60,16 +62,17 @@ export function RevenueAttributionTables({
 					"revenue_by_browser",
 					"revenue_by_os",
 				],
-				filters,
+				filters: queryFilters,
 			},
 		],
-		[filters]
+		[queryFilters]
 	);
 
 	const { isLoading: queryLoading, getDataForQuery } = useBatchDynamicQuery(
 		websiteId,
 		dateRange,
-		queries
+		queries,
+		{ enabled }
 	);
 
 	const isLoading = queryLoading;
@@ -153,39 +156,51 @@ export function RevenueAttributionTables({
 	);
 
 	const productColumns = useMemo(
-		() => createRevenueColumns({ type: "default", nameLabel: "Product" }),
-		[]
+		() =>
+			createRevenueColumns({ currency, type: "default", nameLabel: "Product" }),
+		[currency]
 	);
 	const referrerColumns = useMemo(
-		() => createRevenueColumns({ type: "referrer" }),
-		[]
+		() => createRevenueColumns({ currency, type: "referrer" }),
+		[currency]
 	);
 	const utmColumns = useMemo(
-		() => createRevenueColumns({ type: "utm", nameLabel: "Source" }),
-		[]
+		() => createRevenueColumns({ currency, type: "utm", nameLabel: "Source" }),
+		[currency]
 	);
 	const pageColumns = useMemo(
-		() => createRevenueColumns({ type: "default", nameLabel: "Entry Page" }),
-		[]
+		() =>
+			createRevenueColumns({
+				currency,
+				type: "default",
+				nameLabel: "Entry Page",
+			}),
+		[currency]
 	);
 	const countryColumns = useMemo(
-		() => createRevenueColumns({ type: "country" }),
-		[]
+		() => createRevenueColumns({ currency, type: "country" }),
+		[currency]
 	);
 	const regionColumns = useMemo(
-		() => createRevenueColumns({ type: "region" }),
-		[]
+		() => createRevenueColumns({ currency, type: "region" }),
+		[currency]
 	);
-	const cityColumns = useMemo(() => createRevenueColumns({ type: "city" }), []);
+	const cityColumns = useMemo(
+		() => createRevenueColumns({ currency, type: "city" }),
+		[currency]
+	);
 	const deviceColumns = useMemo(
-		() => createRevenueColumns({ type: "device" }),
-		[]
+		() => createRevenueColumns({ currency, type: "device" }),
+		[currency]
 	);
 	const browserColumns = useMemo(
-		() => createRevenueColumns({ type: "browser" }),
-		[]
+		() => createRevenueColumns({ currency, type: "browser" }),
+		[currency]
 	);
-	const osColumns = useMemo(() => createRevenueColumns({ type: "os" }), []);
+	const osColumns = useMemo(
+		() => createRevenueColumns({ currency, type: "os" }),
+		[currency]
+	);
 
 	const trafficTabs = useMemo(
 		() => [

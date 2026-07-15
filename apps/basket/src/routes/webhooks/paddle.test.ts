@@ -22,7 +22,6 @@ const VALID_PAYLOAD = JSON.stringify({
 		details: { totals: { total: "1000" } },
 	},
 });
-
 describe("verifyPaddleSignature", () => {
 	test("valid Paddle Billing signature -> accepted", () => {
 		const result = verifyPaddleSignature(VALID_PAYLOAD, sign(VALID_PAYLOAD), SECRET);
