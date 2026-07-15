@@ -59,7 +59,7 @@ describe("scheduled investigation contract", () => {
 				count: 12,
 				definitionId: "signup",
 				definitionType: "goal" as const,
-				source: "server_completions" as const,
+				source: "revenue_transactions" as const,
 			},
 			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
 			eventName: "sign_up",
@@ -194,7 +194,7 @@ describe("scheduled investigation contract", () => {
 		});
 		expect(result.errors).toEqual([]);
 		expect(result.insight).toMatchObject({
-			title: 'Goal "Signup" conversion needs context',
+			title: 'Goal "Signup" conversion stopped',
 		});
 		expect(result.insight?.suggestion).toContain("Did users complete");
 		expect(result.insight?.suggestion).toContain(

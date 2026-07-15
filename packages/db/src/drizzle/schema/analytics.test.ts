@@ -12,6 +12,15 @@ describe("analytics insights schema", () => {
 		expect(column?.notNull).toBe(false);
 	});
 
+	test("preserves historical investigation provenance", () => {
+		const column = getTableConfig(analyticsInsights).columns.find(
+			(candidate) => candidate.name === "investigation_depth"
+		);
+
+		expect(column).toBeDefined();
+		expect(column?.notNull).toBe(false);
+	});
+
 	test("indexes the resolved history sort by organization and website", () => {
 		const indexNames = getTableConfig(analyticsInsights).indexes.map(
 			(index) => index.config.name

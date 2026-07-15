@@ -18,7 +18,7 @@
     "./agents/types": "./src/ai/agents/types.ts",
     "./config/context": "./src/ai/config/context.ts",
     "./config/models": "./src/ai/config/models.ts",
-    "./insights/evidence-reader": "./src/ai/tools/insights-agent-tools.ts",
+    "./insights/evidence-reader": "./src/ai/insights/evidence-reader.ts",
     "./insights/fetch-context": "./src/ai/insights/fetch-context.ts",
     "./insights/validate": "./src/ai/insights/validate.ts",
     "./lib/accessible-websites": "./src/lib/accessible-websites.ts",

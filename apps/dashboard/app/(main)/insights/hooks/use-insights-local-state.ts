@@ -93,12 +93,9 @@ export function useInsightsLocalState(
 
 	const setFeedbackAction = useCallback(
 		(insightId: string, vote: "up" | "down" | null) => {
-			if (!organizationId) {
-				return;
-			}
 			setVoteMutation.mutate({ insightId, vote });
 		},
-		[organizationId, setVoteMutation]
+		[setVoteMutation]
 	);
 
 	const feedbackById = votesQuery.data?.votes ?? {};

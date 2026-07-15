@@ -11,11 +11,12 @@ import {
 	fetchOpsMetrics,
 	OPS_INSIGHT_QUERY_TYPES,
 	type OpsInsightQuery,
-} from "../insights/ops-context";
+} from "./ops-context";
 import {
 	fetchProductMetrics,
 	type ProductInsightTarget,
-} from "../insights/product-context";
+	type ProductMetricsFetcher,
+} from "./product-context";
 import { executeQuery } from "../../query";
 import type { QueryRequest } from "../../query/types";
 
@@ -278,9 +279,20 @@ function compactNumber(value: number): string {
 	);
 }
 
-function revenueMatchesDetector(data: unknown, expected: number): boolean {
+function isRevenueMetric(metricKey: string): boolean {
+	return metricKey === "revenue" || metricKey === "payment_failure_rate";
+}
+
+function revenueMetricMatchesDetector(
+	data: unknown,
+	metricKey: string,
+	expected: number
+): boolean {
 	const row = evidenceRows(data)[0];
-	const actual = finiteNumber(row, "total_revenue", "revenue");
+	const actual =
+		metricKey === "payment_failure_rate"
+			? finiteNumber(row, "payment_failure_rate")
+			: finiteNumber(row, "total_revenue", "revenue");
 	return (
 		actual !== null &&
 		Math.abs(actual - expected) <= Math.max(0.01, Math.abs(expected) * 0.01)
@@ -368,10 +380,37 @@ function summarizePages(rows: EvidenceRow[]): string | null {
 		: null;
 }
 
-function summarizeRevenue(rows: EvidenceRow[]): string | null {
+function summarizeRevenue(
+	rows: EvidenceRow[],
+	metricKey: string
+): string | null {
 	const row = rows[0];
 	if (!row) {
 		return null;
+	}
+	const currency = textValue(row, "currency");
+	const currencyLabel = currency ? `${currency} ` : "";
+	if (metricKey === "payment_failure_rate") {
+		const failureRate = finiteNumber(row, "payment_failure_rate");
+		const failed = finiteNumber(row, "failed_payment_attempts");
+		const successful = finiteNumber(row, "successful_payment_attempts");
+		const recovered = finiteNumber(row, "recovered_payment_attempts");
+		const observedTypes = finiteNumber(row, "observed_failure_event_types");
+		const topReason = textValue(row, "top_payment_failure_reason")?.replaceAll(
+			"_",
+			" "
+		);
+		if (failureRate === null && failed === null && successful === null) {
+			return null;
+		}
+		const cause = topReason ? ` Most common failure: ${topReason}.` : "";
+		const observations =
+			observedTypes === null
+				? ""
+				: observedTypes === 0
+					? " No recognized Stripe failure event types were observed in this range."
+					: ` ${compactNumber(observedTypes)} distinct Stripe failure event ${observedTypes === 1 ? "type was" : "types were"} observed in this range.`;
+		return `Tracked ${currencyLabel}payment failure rate was ${compactNumber(failureRate ?? 0)}%: ${compactNumber(failed ?? 0)} failed and ${compactNumber(successful ?? 0)} successful attempts${recovered === null ? "" : `, with ${compactNumber(recovered)} later recovered`}.${cause}${observations}`;
 	}
 	const revenue = finiteNumber(row, "total_revenue", "revenue");
 	const transactions = finiteNumber(row, "total_transactions", "transactions");
@@ -379,7 +418,7 @@ function summarizeRevenue(rows: EvidenceRow[]): string | null {
 	if (revenue === null && transactions === null && customers === null) {
 		return null;
 	}
-	return `Tracked revenue was ${compactNumber(revenue ?? 0)} from ${compactNumber(transactions ?? 0)} transactions across ${compactNumber(customers ?? 0)} customers.`;
+	return `Tracked ${currencyLabel}revenue was ${compactNumber(revenue ?? 0)} from ${compactNumber(transactions ?? 0)} transactions across ${compactNumber(customers ?? 0)} customers.`;
 }
 
 function summarizeProduct(
@@ -503,7 +542,7 @@ function summarizeEvidenceData(
 	} else if (queryType === "errors_by_page") {
 		summary = summarizePages(rows);
 	} else if (queryType === "revenue_overview") {
-		summary = summarizeRevenue(rows);
+		summary = summarizeRevenue(rows, signal.metric.key);
 	} else if (queryType === "goals_summary" || queryType === "funnels_summary") {
 		summary = summarizeProduct(rows, signal.entity.label, signal.expectation);
 	} else if (queryType.startsWith("web_vitals_by_")) {
@@ -584,6 +623,27 @@ function evidenceMetrics(
 			...metric(
 				"Customers",
 				finiteNumber(row, "unique_customers", "customers")
+			),
+			...metric(
+				"Payment failure rate",
+				finiteNumber(row, "payment_failure_rate"),
+				"percent"
+			),
+			...metric(
+				"Failed payment attempts",
+				finiteNumber(row, "failed_payment_attempts")
+			),
+			...metric(
+				"Successful payment attempts",
+				finiteNumber(row, "successful_payment_attempts")
+			),
+			...metric(
+				"Recovered payment attempts",
+				finiteNumber(row, "recovered_payment_attempts")
+			),
+			...metric(
+				"Observed failure event types",
+				finiteNumber(row, "observed_failure_event_types")
 			),
 		];
 	}
@@ -709,6 +769,8 @@ export function countEvidenceRows(data: unknown): number {
 
 export interface CreateInsightEvidenceReaderParams {
 	domain: string;
+	/** Overrides product reads for snapshot/evaluation runtimes. */
+	fetchProductMetrics?: ProductMetricsFetcher;
 	onEvidence?: (evidence: InvestigationEvidence) => void;
 	signal: InvestigationSignal;
 	timezone: string;
@@ -943,21 +1005,20 @@ export function createInsightEvidenceReader(
 		}
 	}
 
-	const webQueryTypeSchema =
-		params.signal.metric.key === "revenue"
-			? z.literal("revenue_overview")
-			: params.signal.entity.type === "vital"
-				? z.literal("web_vitals_by_page")
-				: params.signal.entity.type === "campaign"
-					? z.literal("utm_campaigns")
-					: z.enum([
-							"country",
-							"device_types",
-							"entry_pages",
-							"top_pages",
-							"top_referrers",
-							"utm_campaigns",
-						]);
+	const webQueryTypeSchema = isRevenueMetric(params.signal.metric.key)
+		? z.literal("revenue_overview")
+		: params.signal.entity.type === "vital"
+			? z.literal("web_vitals_by_page")
+			: params.signal.entity.type === "campaign"
+				? z.literal("utm_campaigns")
+				: z.enum([
+						"country",
+						"device_types",
+						"entry_pages",
+						"top_pages",
+						"top_referrers",
+						"utm_campaigns",
+					]);
 	const querySchema = z
 		.object({
 			type: webQueryTypeSchema,
@@ -965,10 +1026,9 @@ export function createInsightEvidenceReader(
 		.strict();
 	const webInputSchema = z
 		.object({
-			period:
-				params.signal.metric.key === "revenue"
-					? z.literal("both")
-					: z.literal("current"),
+			period: isRevenueMetric(params.signal.metric.key)
+				? z.literal("both")
+				: z.literal("current"),
 			queries: z.array(querySchema).min(1).max(MAX_QUERIES),
 		})
 		.strict();
@@ -977,12 +1037,12 @@ export function createInsightEvidenceReader(
 		{ period, queries }: z.infer<typeof webInputSchema>,
 		abortSignal?: AbortSignal
 	): Promise<QueryEvidence[]> {
-		if (params.signal.metric.key !== "revenue" && period !== "current") {
+		if (!isRevenueMetric(params.signal.metric.key) && period !== "current") {
 			throw new Error(
 				"Investigations use the detector baseline and query only the current period"
 			);
 		}
-		if (params.signal.metric.key === "revenue" && period !== "both") {
+		if (isRevenueMetric(params.signal.metric.key) && period !== "both") {
 			throw new Error(
 				"Revenue investigations must reconcile both detector periods"
 			);
@@ -1007,8 +1067,15 @@ export function createInsightEvidenceReader(
 					to: p.range.to,
 					timezone: params.timezone,
 					limit: isVitalPageQuery ? 50 : requestedLimit,
-					filters:
-						params.signal.entity.type === "campaign"
+					filters: params.signal.currency
+						? [
+								{
+									field: "currency",
+									op: "eq" as const,
+									value: params.signal.currency,
+								},
+							]
+						: params.signal.entity.type === "campaign"
 							? [
 									{
 										field: "utm_campaign",
@@ -1028,7 +1095,13 @@ export function createInsightEvidenceReader(
 							p.label === "current"
 								? params.signal.metric.current
 								: (params.signal.metric.previous ?? 0);
-						if (!revenueMatchesDetector(data, expected)) {
+						if (
+							!revenueMetricMatchesDetector(
+								data,
+								params.signal.metric.key,
+								expected
+							)
+						) {
 							data = await read();
 						}
 					}
@@ -1102,7 +1175,12 @@ export function createInsightEvidenceReader(
 					abortSignal,
 					entity: scope.entity,
 					fetch: () =>
-						fetchProductMetrics(appContext, p.range, scope.target, abortSignal),
+						(params.fetchProductMetrics ?? fetchProductMetrics)(
+							appContext,
+							p.range,
+							scope.target,
+							abortSignal
+						),
 					period: p.label,
 					queries: [{ type: scope.queryType }],
 					range: p.range,
@@ -1189,3 +1267,5 @@ export function createInsightEvidenceReader(
 		}
 	};
 }
+
+export type { ProductMetricsFetcher } from "./product-context";

@@ -397,6 +397,12 @@ async function runTimeline(
 				)
 			: null;
 		const retiredSignalKey = retiredSignalKeyForOutcome({
+			coverage: {
+				definitions:
+					artifact.recoveryCoverage?.definitions ?? artifact.detectionComplete,
+				metrics:
+					artifact.recoveryCoverage?.metrics ?? artifact.detectionComplete,
+			},
 			disposition: artifact.decision?.disposition,
 			hasInsight: artifact.insight !== null,
 			signalKey,

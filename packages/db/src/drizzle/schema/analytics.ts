@@ -224,6 +224,10 @@ export const analyticsInsights = pgTable(
 		rootCause: text("root_cause"),
 		remediationKind: text("remediation_kind").$type<InsightRemediationKind>(),
 		evidence: jsonb("evidence").$type<InsightEvidence[]>(),
+		// Historical provenance; new investigations express depth through evidence.
+		investigationDepth: text("investigation_depth").$type<
+			"surface" | "investigated" | "deep"
+		>(),
 		actions: jsonb().$type<StoredInsightAction[]>(),
 		chainId: text("chain_id"),
 		timezone: text().notNull().default("UTC"),

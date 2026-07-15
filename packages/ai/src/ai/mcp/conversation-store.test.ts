@@ -32,7 +32,7 @@ vi.mock("@databuddy/redis", () => ({
 	INSIGHTS_JOB_OPTIONS: {},
 	INSIGHTS_JOB_TIMEOUT_MS: 120_000,
 	INSIGHTS_QUEUE_ENV_PREFIX: "INSIGHTS",
-	INSIGHTS_QUEUE_NAME: "insights-generation",
+	INSIGHTS_QUEUE_NAME: "insights-investigations-v1",
 	INSIGHTS_ROLLUP_JOB_NAME: "insights-rollup",
 	activeStreamKey: (id: string) => `active:${id}`,
 	appendStreamChunk: vi.fn(async () => undefined),

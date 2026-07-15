@@ -1,13 +1,16 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import * as actualQuery from "../../query";
-import * as actualProductContext from "../insights/product-context";
+import * as actualProductContext from "./product-context";
 import type {
 	InvestigationEvidence,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import type { AppContext } from "../config/context";
-import type { ProductInsightTarget } from "../insights/product-context";
-import type { InsightEvidenceReadRequest } from "./insights-agent-tools";
+import type {
+	ProductInsightTarget,
+	ProductMetricsFetcher,
+} from "./product-context";
+import type { InsightEvidenceReadRequest } from "./evidence-reader";
 
 type WebQueryMode =
 	| "changed"
@@ -16,6 +19,8 @@ type WebQueryMode =
 	| "failed"
 	| "large"
 	| "normal"
+	| "payment-failure"
+	| "payment-unverified"
 	| "revenue-reconcile"
 	| "uptime-empty"
 	| "vital-pages";
@@ -59,6 +64,38 @@ mock.module("../../query", () => ({
 		}
 		if (webQueryMode === "changed") {
 			return [{ sessions: 121 }];
+		}
+		if (
+			webQueryMode === "payment-unverified" &&
+			request.type === "revenue_overview"
+		) {
+			return [
+				{
+					currency: "USD",
+					failed_payment_attempts: 0,
+					observed_failure_event_types: 0,
+					payment_failure_rate: 0,
+					required_failure_event_types: 2,
+					successful_payment_attempts: 20,
+				},
+			];
+		}
+		if (
+			webQueryMode === "payment-failure" &&
+			request.type === "revenue_overview"
+		) {
+			return [
+				{
+					currency: "USD",
+					failed_payment_attempts: 8,
+					observed_failure_event_types: 1,
+					payment_failure_rate: 20,
+					recovered_payment_attempts: 2,
+					required_failure_event_types: 2,
+					successful_payment_attempts: 32,
+					top_payment_failure_reason: "insufficient_funds",
+				},
+			];
 		}
 		if (
 			webQueryMode === "revenue-reconcile" &&
@@ -175,7 +212,7 @@ mock.module("../../query", () => ({
 	},
 }));
 
-mock.module("../insights/product-context", () => ({
+mock.module("./product-context", () => ({
 	...actualProductContext,
 	fetchProductMetrics: async (
 		_context: unknown,
@@ -225,7 +262,7 @@ mock.module("../insights/product-context", () => ({
 }));
 
 const { countEvidenceRows, createInsightEvidenceReader } = await import(
-	"./insights-agent-tools"
+	"./evidence-reader"
 );
 
 const signal: InvestigationSignal = {
@@ -282,10 +319,14 @@ const appContext: AppContext = {
 
 function createReader(
 	onEvidence?: (evidence: InvestigationEvidence) => void,
-	selectedSignal: InvestigationSignal = signal
+	selectedSignal: InvestigationSignal = signal,
+	productMetricsFetcher?: ProductMetricsFetcher
 ) {
 	return createInsightEvidenceReader({
 		domain: "example.com",
+		...(productMetricsFetcher
+			? { fetchProductMetrics: productMetricsFetcher }
+			: {}),
 		onEvidence,
 		signal: selectedSignal,
 		timezone: "UTC",
@@ -306,7 +347,7 @@ describe("insight evidence reader", () => {
 
 	afterAll(() => {
 		mock.module("../../query", () => actualQuery);
-		mock.module("../insights/product-context", () => actualProductContext);
+		mock.module("./product-context", () => actualProductContext);
 	});
 
 	test("returns stable, signal-scoped success and empty evidence", async () => {
@@ -696,6 +737,86 @@ describe("insight evidence reader", () => {
 		expect(result.every((item) => item.evidenceId.length > 0)).toBe(true);
 	});
 
+	test("queries a long custom-event name without replacing it with a bounded key", async () => {
+		const eventName = `checkout_${"step_".repeat(38)}`;
+		const eventSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "custom_event:bounded",
+			entity: {
+				type: "event",
+				id: eventName,
+				label: eventName.slice(0, 120),
+			},
+			metric: {
+				...signal.metric,
+				key: "custom_event:bounded",
+				label: "Long checkout event",
+			},
+		};
+		const reader = createReader(undefined, eventSignal);
+
+		await reader(
+			{ name: "product_metrics", input: { period: "current" } },
+			appContext
+		);
+
+		expect(productCalls).toEqual([
+			{
+				range: { from: "2026-07-01", to: "2026-07-07" },
+				target: { id: eventName, type: "event" },
+			},
+		]);
+	});
+
+	test("uses injected product evidence without RPC-backed default reads or service auth", async () => {
+		const goalSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "goal:private",
+			entity: { type: "goal", id: "goal_private", label: "Private goal" },
+			metric: { ...signal.metric, key: "goal:private" },
+		};
+		const injectedCalls: ProductInsightTarget[] = [];
+		const injected: ProductMetricsFetcher = async (
+			context,
+			_range,
+			target
+		) => {
+			expect(context.serviceAuth).toBeUndefined();
+			injectedCalls.push(target);
+			return {
+				results: [
+					{
+						type: "goals_summary",
+						count: 1,
+						goals: [
+							{
+								id: target.id,
+								is_active: true,
+								name: "Private goal",
+								total_users_entered: 40,
+								total_users_completed: 10,
+								overall_conversion_rate: 25,
+							},
+						],
+					},
+				],
+			};
+		};
+		const reader = createReader(undefined, goalSignal, injected);
+
+		const result = await reader(
+			{ name: "product_metrics", input: { period: "current" } },
+			appContext
+		);
+
+		expect(injectedCalls).toEqual([{ id: "goal_private", type: "goal" }]);
+		expect(productCalls).toEqual([]);
+		expect(result[0]).toMatchObject({
+			queryType: "goals_summary",
+			status: "ok",
+		});
+	});
+
 	test("attaches only an exact backend-owned tracking repair", async () => {
 		const expectation = {
 			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
@@ -793,6 +914,114 @@ describe("insight evidence reader", () => {
 			source: "business",
 			status: "ok",
 		});
+	});
+
+	test("includes safe payment failure causes and observed occurrences", async () => {
+		webQueryMode = "payment-failure";
+		const paymentSignal: InvestigationSignal = {
+			...revenueSignal,
+			signalKey: "payment-failure-rate:usd",
+			metric: {
+				...revenueSignal.metric,
+				current: 20,
+				key: "payment_failure_rate",
+				label: "Payment failure rate (USD)",
+				previous: 10,
+			},
+		};
+		const reader = createReader(undefined, paymentSignal);
+		const result = await reader(
+			{
+				name: "web_metrics",
+				input: {
+					period: "both",
+					queries: [{ type: "revenue_overview" }],
+				},
+			},
+			appContext
+		);
+
+		expect(result[0]?.summary).toContain(
+			"Most common failure: insufficient funds."
+		);
+		expect(result[0]?.summary).toContain(
+			"1 distinct Stripe failure event type was observed"
+		);
+		expect(result[0]?.summary).not.toContain("coverage");
+		expect(result[0]?.metrics).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					current: 1,
+					label: "Observed failure event types",
+				}),
+			])
+		);
+		expect(
+			result[0]?.metrics.some(
+				(metric) => metric.label === "Required failure event types"
+			)
+		).toBe(false);
+	});
+
+	test("reports a tracked zero without inferring webhook coverage", async () => {
+		webQueryMode = "payment-unverified";
+		const paymentSignal: InvestigationSignal = {
+			...revenueSignal,
+			signalKey: "payment-failure-rate:usd",
+			metric: {
+				...revenueSignal.metric,
+				current: 0,
+				key: "payment_failure_rate",
+				label: "Payment failure rate (USD)",
+				previous: 0,
+			},
+		};
+		const reader = createReader(undefined, paymentSignal);
+		const result = await reader(
+			{
+				name: "web_metrics",
+				input: {
+					period: "both",
+					queries: [{ type: "revenue_overview" }],
+				},
+			},
+			appContext
+		);
+
+		expect(result[0]?.summary).toContain("Tracked USD payment failure rate was 0%");
+		expect(result[0]?.summary).toContain(
+			"No recognized Stripe failure event types were observed"
+		);
+		expect(result[0]?.summary).not.toContain("coverage");
+	});
+
+	test("scopes revenue evidence to the detected currency", async () => {
+		const reader = createReader(undefined, {
+			...revenueSignal,
+			currency: "USD",
+			metric: { ...revenueSignal.metric, label: "Revenue (USD)" },
+		});
+
+		await reader(
+			{
+				name: "web_metrics",
+				input: {
+					period: "both",
+					queries: [{ type: "revenue_overview" }],
+				},
+			},
+			appContext
+		);
+
+		expect(queryRequests.length).toBeGreaterThanOrEqual(2);
+		expect(queryRequests.every((request) =>
+			request.filters?.some(
+				(filter) =>
+					filter.field === "currency" &&
+					filter.op === "eq" &&
+					filter.value === "USD"
+			)
+		)).toBe(true);
 	});
 
 	test("re-reads revenue once when query totals conflict with the detector", async () => {

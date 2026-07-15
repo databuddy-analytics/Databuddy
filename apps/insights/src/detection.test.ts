@@ -10,6 +10,7 @@ import {
 	median,
 	wowWindow,
 } from "./detection";
+import { computeResolutions } from "./resolution";
 
 function makeDailyRows(
 	values: {
@@ -242,6 +243,55 @@ describe("detectSignals", () => {
 
 		expect(signals.map((signal) => signal.metric)).toContain("visitors");
 		expect(diagnostics.failedFamilies).toBe(2);
+	});
+
+	it("detects an exact custom event disappearance", async () => {
+		const queryFn = createMockQueryFn(
+			[],
+			{ sessions: 100 },
+			{ sessions: 100 },
+			{
+				custom_events: [
+					{ name: "checkout_completed", unique_users: 0 },
+					{ name: "checkout_completed", unique_users: 30 },
+				],
+			}
+		);
+
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			queryFn,
+			dayjs("2025-03-15")
+		);
+		const signal = signals.find(
+			(candidate) => candidate.metric === "custom_event:checkout_completed"
+		);
+
+		expect(signal).toMatchObject({
+			current: 0,
+			direction: "down",
+			kind: "missing_expected_data",
+		});
+	});
+
+	it("ignores small custom event changes", async () => {
+		const queryFn = createMockQueryFn([], { sessions: 100 }, { sessions: 100 }, {
+			custom_events: [
+				{ name: "checkout_completed", unique_users: 18 },
+				{ name: "checkout_completed", unique_users: 20 },
+			],
+		});
+
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			queryFn,
+			dayjs("2025-03-15")
+		);
+		expect(
+			signals.find(
+				(candidate) => candidate.metric === "custom_event:checkout_completed"
+			)
+		).toBeUndefined();
 	});
 
 	it("returns no signals and reports an incomplete scan when one family fails", async () => {
@@ -941,61 +991,6 @@ describe("detectSignals", () => {
 			expect(volumeSignals.length).toBe(0);
 		});
 
-		it("filters rate metrics when the comparison has too few sessions", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 10,
-					sessions: 10,
-					pageviews: 10,
-					bounce_rate: 60,
-					median_session_duration: 120,
-				},
-				{
-					unique_visitors: 5,
-					sessions: 5,
-					pageviews: 5,
-					bounce_rate: 30,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const rateSignals = signals.filter(
-				(s) =>
-					s.metric === "bounce_rate" || s.metric === "session_duration"
-			);
-			expect(rateSignals).toEqual([]);
-		});
-	});
-
-	describe("rate metric absolute delta filter", () => {
-		it("filters rate metrics with less than 10pp absolute change", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 200,
-					sessions: 200,
-					pageviews: 200,
-					bounce_rate: 52,
-					median_session_duration: 67,
-				},
-				{
-					unique_visitors: 200,
-					sessions: 200,
-					pageviews: 200,
-					bounce_rate: 45,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const rateSignals = signals.filter(
-				(s) =>
-					s.metric === "bounce_rate" || s.metric === "session_duration"
-			);
-			expect(rateSignals.length).toBe(0);
-		});
 	});
 
 	describe("impact floor filter", () => {
@@ -1169,79 +1164,6 @@ describe("detectSignals", () => {
 		});
 	});
 
-	describe("low-traffic floor", () => {
-		const lowTrafficDays = () => {
-			const start = dayjs().subtract(27, "day");
-			return makeDailyRows(
-				generateStableDays(
-					28,
-					{
-						visitors: 3,
-						sessions: 4,
-						pageviews: 6,
-						bounce_rate: 40,
-						median_session_duration: 60,
-					},
-					start
-				)
-			);
-		};
-
-		it("suppresses rate changes without enough sessions", async () => {
-			const queryFn = createMockQueryFn(
-				lowTrafficDays(),
-				{
-					bounce_rate: 60,
-					median_session_duration: 120,
-				},
-				{
-					bounce_rate: 30,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((s) => s.metric === "bounce_rate")).toBeUndefined();
-			expect(
-				signals.find((s) => s.metric === "session_duration")
-			).toBeUndefined();
-		});
-
-		it("keeps rate changes when the site has enough sessions", async () => {
-			const start = dayjs().subtract(27, "day");
-			const rows = makeDailyRows(
-				generateStableDays(
-					28,
-					{
-						visitors: 100,
-						sessions: 120,
-						pageviews: 200,
-						bounce_rate: 40,
-						median_session_duration: 60,
-					},
-					start
-				)
-			);
-			const queryFn = createMockQueryFn(
-				rows,
-				{
-					bounce_rate: 60,
-					median_session_duration: 120,
-				},
-				{
-					bounce_rate: 30,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((s) => s.metric === "bounce_rate")).toBeDefined();
-			expect(
-				signals.find((s) => s.metric === "session_duration")
-			).toBeDefined();
-		});
-	});
-
 	describe("vitals detection", () => {
 		it("ignores regressions that remain within the good threshold", async () => {
 			const queryFn = createMockQueryFn([], {}, {}, {
@@ -1283,6 +1205,23 @@ describe("detectSignals", () => {
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((signal) => signal.metric === "lcp")).toBeUndefined();
 		});
+
+		it("ignores comparisons with a sparse baseline period", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 1000 },
+				{ sessions: 1000 },
+				{
+					vitals_overview: [
+						{ metric_name: "INP", p75: 240, samples: 100 },
+						{ metric_name: "INP", p75: 150, samples: 1 },
+					],
+				}
+			);
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(signals.find((signal) => signal.metric === "inp")).toBeUndefined();
+		});
 	});
 
 	describe("revenue detection", () => {
@@ -1307,6 +1246,43 @@ describe("detectSignals", () => {
 			expect(revSignal).toBeDefined();
 			expect(revSignal!.direction).toBe("down");
 			expect(revSignal!.deltaPercent).toBe(-50);
+		});
+
+		it("evaluates each revenue currency independently", async () => {
+			let revenueCalls = 0;
+			const queryFn: QueryFn = async (request) => {
+				if (request.type !== "revenue_overview") {
+					return [];
+				}
+				revenueCalls += 1;
+				return revenueCalls === 1
+					? [
+							{ currency: "USD", total_revenue: 50 },
+							{ currency: "EUR", total_revenue: 200 },
+						]
+					: [
+							{ currency: "USD", total_revenue: 100 },
+							{ currency: "EUR", total_revenue: 100 },
+						];
+			};
+
+			const signals = (await detectSignals(BASE_PARAMS, queryFn)).filter(
+				(signal) => signal.metric === "revenue"
+			);
+
+			expect(signals).toHaveLength(2);
+			expect(signals.find((signal) => signal.currency === "USD")).toMatchObject({
+				current: 50,
+				baseline: 100,
+				direction: "down",
+				label: "Revenue (USD)",
+			});
+			expect(signals.find((signal) => signal.currency === "EUR")).toMatchObject({
+				current: 200,
+				baseline: 100,
+				direction: "up",
+				label: "Revenue (EUR)",
+			});
 		});
 
 		it("skips small revenue changes", async () => {
@@ -1341,6 +1317,226 @@ describe("detectSignals", () => {
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "revenue")).toBeDefined();
 		});
+
+		it("flags a material payment failure-rate regression", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{
+						failed_payment_attempts: 10,
+						observed_failure_event_types: 2,
+						payment_failure_rate: 20,
+						required_failure_event_types: 2,
+						successful_payment_attempts: 40,
+					},
+					{
+						failed_payment_attempts: 2,
+						observed_failure_event_types: 2,
+						payment_failure_rate: 5,
+						required_failure_event_types: 2,
+						successful_payment_attempts: 38,
+					},
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const failureSignal = signals.find(
+				(signal) => signal.metric === "payment_failure_rate"
+			);
+			expect(failureSignal?.direction).toBe("up");
+			expect(failureSignal?.current).toBe(20);
+			expect(failureSignal?.baseline).toBe(5);
+		});
+
+		it("detects a regression when only one failure event type occurs", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{
+						failed_payment_attempts: 10,
+						observed_failure_event_types: 1,
+						payment_failure_rate: 20,
+						required_failure_event_types: 2,
+						successful_payment_attempts: 40,
+					},
+					{
+						failed_payment_attempts: 2,
+						observed_failure_event_types: 2,
+						payment_failure_rate: 5,
+						required_failure_event_types: 2,
+						successful_payment_attempts: 38,
+					},
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((signal) => signal.metric === "payment_failure_rate")
+			).toMatchObject({ current: 20, baseline: 5, direction: "up" });
+		});
+
+		it("detects a failure spike against a prior zero", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{
+						failed_payment_attempts: 10,
+						observed_failure_event_types: 1,
+						payment_failure_rate: 20,
+						successful_payment_attempts: 40,
+					},
+					{
+						failed_payment_attempts: 0,
+						observed_failure_event_types: 0,
+						payment_failure_rate: 0,
+						successful_payment_attempts: 40,
+					},
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((signal) => signal.metric === "payment_failure_rate")
+			).toMatchObject({ current: 20, baseline: 0, direction: "up" });
+		});
+
+		it("does not claim recovery when no current failure events are observed", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{
+						failed_payment_attempts: 0,
+						observed_failure_event_types: 0,
+						payment_failure_rate: 0,
+						successful_payment_attempts: 40,
+					},
+					{
+						failed_payment_attempts: 10,
+						observed_failure_event_types: 1,
+						payment_failure_rate: 20,
+						successful_payment_attempts: 40,
+					},
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((signal) => signal.metric === "payment_failure_rate")
+			).toBeUndefined();
+			expect(
+				computeResolutions({
+					canRecover: true,
+					detectedSignals: signals,
+					now: new Date("2026-06-01T00:00:00.000Z"),
+					openInsights: [
+						{
+							changePercent: 300,
+							createdAt: new Date("2026-05-01T00:00:00.000Z"),
+							id: "open-payment-failure",
+							sentiment: "negative",
+							subjectKey: "payment_failure_rate",
+							type: "quality_shift",
+						},
+					],
+				})
+			).toEqual([{ id: "open-payment-failure", reason: "stale" }]);
+		});
+
+		it("detects a recovery when failures occur in both periods", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{
+						failed_payment_attempts: 5,
+						observed_failure_event_types: 1,
+						payment_failure_rate: 10,
+						successful_payment_attempts: 45,
+					},
+					{
+						failed_payment_attempts: 20,
+						observed_failure_event_types: 1,
+						payment_failure_rate: 40,
+						successful_payment_attempts: 30,
+					},
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((signal) => signal.metric === "payment_failure_rate")
+			).toMatchObject({ current: 10, baseline: 40, direction: "down" });
+		});
+
+		it("does not confuse higher payment volume with a failure regression", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{
+						failed_payment_attempts: 10,
+						payment_failure_rate: 10,
+						successful_payment_attempts: 90,
+					},
+					{
+						failed_payment_attempts: 5,
+						payment_failure_rate: 10,
+						successful_payment_attempts: 45,
+					},
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((signal) => signal.metric === "payment_failure_rate")
+			).toBeUndefined();
+		});
+
+	it("ignores sparse payment failure samples", async () => {
+			const queryFn = createMockQueryFn([], {}, {}, {
+				revenue_overview: [
+					{
+						failed_payment_attempts: 2,
+						payment_failure_rate: 40,
+						successful_payment_attempts: 3,
+					},
+					{
+						failed_payment_attempts: 0,
+						payment_failure_rate: 0,
+						successful_payment_attempts: 4,
+					},
+				],
+			});
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			expect(
+				signals.find((signal) => signal.metric === "payment_failure_rate")
+		).toBeUndefined();
+	});
+
+	it("does not combine failure and volume floors from different periods", async () => {
+		const queryFn = createMockQueryFn(
+			[],
+			{ sessions: 100 },
+			{ sessions: 100 },
+			{
+				revenue_overview: [
+					{
+						failed_payment_attempts: 5,
+						payment_failure_rate: 100,
+						successful_payment_attempts: 0,
+					},
+					{
+						failed_payment_attempts: 0,
+						payment_failure_rate: 0,
+						successful_payment_attempts: 10,
+					},
+				],
+			}
+		);
+
+		const signals = await detectSignals(
+			BASE_PARAMS,
+			queryFn,
+			dayjs("2025-03-15")
+		);
+
+		expect(
+			signals.find((signal) => signal.metric === "payment_failure_rate")
+		).toBeUndefined();
+	});
 	});
 
 	describe("correlated signal collapsing", () => {
@@ -1388,12 +1584,17 @@ describe("detectSignals", () => {
 					pageviews: 200,
 					bounce_rate: 25,
 					median_session_duration: 60,
+				},
+				{
+					error_summary: [
+						{ totalErrors: 100, affectedUsers: 30, errorRate: 5 },
+						{ totalErrors: 20, affectedUsers: 10, errorRate: 2 },
+					],
 				}
 			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const downSignals = signals.filter((s) => s.direction === "down");
-			expect(downSignals.some((s) => s.metric === "bounce_rate")).toBe(true);
+			expect(signals.some((s) => s.metric === "error_count")).toBe(true);
 		});
 
 		it("does not collapse a single traffic metric", async () => {

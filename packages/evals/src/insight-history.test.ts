@@ -48,23 +48,35 @@ describe("historical insight runner", () => {
 		expect(result.aggregate).toMatchObject({
 			actions: 1,
 			failures: 0,
-			insights: 8,
-			stages: 16,
-			timelines: 13,
+			insights: 9,
+			stages: 17,
+			timelines: 14,
 		});
-		expect(
-			result.timelines
-				.flatMap((timeline) => timeline.stages)
-				.find(
-					(stage) =>
-						stage.artifact?.decision?.disposition === "action_ready"
-				)
-				?.artifact?.insight?.evidence?.some((item) =>
-					item.description.includes(
-						"Independent revenue tracking recorded 12 transactions"
-					)
-				)
-		).toBe(true);
+		const action = result.timelines
+			.flatMap((timeline) => timeline.stages)
+			.find(
+				(stage) => stage.artifact?.decision?.disposition === "action_ready"
+			)?.artifact?.insight;
+		expect(action?.impactSummary).toContain(
+			"Independent revenue tracking recorded 12 transactions"
+		);
+		expect(action?.suggestion).toBe(
+			'Restore the "purchase" event at the Purchase step in Checkout.'
+		);
+		const payment = result.timelines.find(
+			(timeline) => timeline.id === "payment-failure-regression"
+		)?.stages[0];
+		expect(payment?.lifecycle).toBe("detected");
+		expect(payment?.artifact?.validationErrors).toEqual([]);
+		expect(payment?.artifact?.insight?.impactSummary).toContain(
+			"Most common failure: insufficient funds"
+		);
+		expect(payment?.artifact?.insight?.impactSummary).toContain(
+			"2 distinct Stripe failure event types were observed"
+		);
+		expect(payment?.artifact?.insight?.impactSummary).not.toContain(
+			"provider message"
+		);
 	});
 
 	it("keeps low-volume noise out of the investigation queue", async () => {
@@ -92,12 +104,12 @@ describe("historical insight runner", () => {
 		const report = formatInsightHistory(result);
 
 		expect(result.passed).toBe(true);
-		expect(result.aggregate.maxVisibleWords).toBe(43);
+		expect(result.aggregate.maxVisibleWords).toBe(37);
 		expect(result.aggregate.actions).toBe(0);
 		expect(result.aggregate.contexts).toBe(1);
-		expect(report).toContain("Title: Visitors drop needs context");
+		expect(report).toContain("Title: Visitors fell 60%");
 		expect(report).toContain(
-			"Next: Visitors fell from 1000 to 400. Was this expected?"
+			"Next: Was this traffic drop expected? If not, check source traffic"
 		);
 	});
 

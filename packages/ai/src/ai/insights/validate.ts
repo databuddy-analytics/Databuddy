@@ -43,12 +43,6 @@ const ACTION_TITLE_PREFIX: Record<InsightRemediationKind, string> = {
 	operations: "Address",
 };
 
-const GENERIC_WEBSITE_RATE_METRICS = new Set([
-	"bounce_rate",
-	"session_duration",
-]);
-const LOCALIZED_RATE_ENTITY_TYPES = new Set(["page", "channel", "campaign"]);
-
 const ERROR_DISPLAY_LABEL_MAX_CHARS = 60;
 const ERROR_HELP_SUFFIX_MARKERS = [
 	". for more information",
@@ -147,6 +141,7 @@ const REPAIR_VERBS = new Set([
 	"fix",
 	"guard",
 	"handle",
+	"link",
 	"pause",
 	"reduce",
 	"remove",
@@ -195,16 +190,29 @@ function evidenceDescription(evidence: UsableInvestigationEvidence): string {
 }
 
 function needsContextTitle(signal: InvestigationSignal): string {
-	if (["event", "funnel", "goal"].includes(signal.entity.type)) {
-		return `${signal.entity.label} needs context`;
+	if (signal.entity.type === "funnel" || signal.entity.type === "goal") {
+		const label = signal.entity.label.toLowerCase().includes("conversion")
+			? signal.entity.label
+			: `${signal.entity.label} conversion`;
+		return signal.metric.current === 0 && (signal.metric.previous ?? 0) > 0
+			? `${label} stopped`
+			: `${label} ${signal.direction === "down" ? "fell" : "rose"}`;
 	}
-	const change =
-		signal.direction === "down"
-			? "drop"
-			: signal.direction === "up"
-				? "increase"
-				: "change";
-	return `${signal.metric.label} ${change} needs context`;
+	if (signal.metric.key === "payment_failure_rate") {
+		return `${signal.metric.label} rose to ${compactNumber(signal.metric.current)}%`;
+	}
+	const derivedChange =
+		signal.metric.previous === undefined
+			? signal.changePercent
+			: signal.metric.previous === 0
+				? signal.changePercent
+				: ((signal.metric.current - signal.metric.previous) /
+						signal.metric.previous) *
+					100;
+	const change = Number.isFinite(derivedChange)
+		? ` ${compactNumber(Math.abs(derivedChange ?? 0))}%`
+		: "";
+	return `${signal.metric.label} ${signal.direction === "down" ? "fell" : "rose"}${change}`;
 }
 
 function storedEvidenceType(
@@ -316,17 +324,34 @@ function valuesAgree(expected: number, actual: number): boolean {
 	);
 }
 
-function queriedRevenue(
+function isRevenueMetric(metricKey: string): boolean {
+	return metricKey === "revenue" || metricKey === "payment_failure_rate";
+}
+
+function queriedRevenueMetric(
 	evidence: InvestigationEvidence[],
-	period: "current" | "previous"
+	period: "current" | "previous",
+	metricKey: string
 ): number | null {
 	const item = evidence.find(
 		(candidate) =>
 			candidate.queryType === "revenue_overview" &&
 			candidate.period === period &&
-			(candidate.status === "ok" || candidate.status === "truncated")
+			(candidate.status === "ok" ||
+				candidate.status === "truncated" ||
+				candidate.status === "empty")
 	);
-	return item ? evidenceMetricValue(item, "Queried revenue") : null;
+	if (item?.status === "empty") {
+		return 0;
+	}
+	return item
+		? evidenceMetricValue(
+				item,
+				metricKey === "payment_failure_rate"
+					? "Payment failure rate"
+					: "Queried revenue"
+			)
+		: null;
 }
 
 export function isRelevantInvestigationEvidence(
@@ -356,7 +381,7 @@ export function isRelevantInvestigationEvidence(
 	if (signal.entity.type === "uptime_monitor") {
 		return evidence.source === "ops" && evidence.queryType.includes("uptime");
 	}
-	if (signal.metric.key === "revenue") {
+	if (isRevenueMetric(signal.metric.key)) {
 		return (
 			evidence.source === "business" && evidence.queryType.startsWith("revenue")
 		);
@@ -384,37 +409,9 @@ export function canRecommendAction(signal: InvestigationSignal): boolean {
 		Boolean(signal.expectation) &&
 		(signal.entity.type === "funnel" || signal.entity.type === "goal") &&
 		confirmation?.definitionId === signal.entity.id &&
-		confirmation.definitionType === signal.entity.type
-	);
-}
-
-function requiresLocalizedRateEvidence(signal: InvestigationSignal): boolean {
-	return (
-		signal.entity.type === "website" &&
-		GENERIC_WEBSITE_RATE_METRICS.has(signal.metric.key)
-	);
-}
-
-function localizesWebsiteRate(
-	signal: InvestigationSignal,
-	evidence: InvestigationEvidence
-): evidence is UsableInvestigationEvidence {
-	return (
-		requiresLocalizedRateEvidence(signal) &&
-		isUsableEvidence(evidence) &&
-		isRelevantInvestigationEvidence(signal, evidence) &&
-		evidence.kind === "breakdown" &&
-		evidence.period === "current" &&
-		Boolean(
-			evidence.entity && LOCALIZED_RATE_ENTITY_TYPES.has(evidence.entity.type)
-		) &&
-		Boolean(
-			evidence.metrics?.some(
-				(metric) =>
-					metric.label === signal.metric.label &&
-					metric.format === signal.metric.format
-			)
-		)
+		confirmation.definitionType === signal.entity.type &&
+		(confirmation.source === "revenue_transactions" ||
+			confirmation.source === "server_completions")
 	);
 }
 
@@ -471,10 +468,13 @@ function contextQuestion(
 	signal: InvestigationSignal
 ): string {
 	if (signal.metric.key === "revenue") {
-		return `Revenue changed from ${signal.metric.previous ?? "its prior level"} to ${signal.metric.current}. Was this expected? If not, reconcile billing events with revenue tracking.`;
+		return "Was this revenue change expected? If not, reconcile billing events with revenue tracking.";
+	}
+	if (signal.metric.key === "payment_failure_rate") {
+		return "Was this payment failure increase expected? If not, check the failing payment method or checkout path before retrying customers.";
 	}
 	if (["visitors", "sessions", "pageviews"].includes(signal.metric.key)) {
-		return `${signal.metric.label} fell from ${signal.metric.previous ?? "its prior level"} to ${signal.metric.current}. Was this expected? If not, check source traffic against recorded events on the first affected day.`;
+		return "Was this traffic drop expected? If not, check source traffic against recorded events on the first affected day.";
 	}
 	if (signal.entity.type === "goal" || signal.entity.type === "funnel") {
 		if (signal.expectation) {
@@ -507,6 +507,11 @@ function investigationSuggestion(
 	if (signal.entity.type === "goal" || signal.entity.type === "funnel") {
 		return `The failing step is not established yet. Replay ${label} in Databuddy DevTools and verify its entry and completion events.`;
 	}
+	if (signal.entity.type === "event") {
+		return signal.metric.current === 0 && (signal.metric.previous ?? 0) > 0
+			? `Verify that ${label} still fires at its expected trigger in Databuddy DevTools. If it does, compare the last nonzero day with the first zero day for ingestion or filtering changes.`
+			: `Compare ${label} between the last healthy and first affected day by page and device, then verify its expected trigger in Databuddy DevTools.`;
+	}
 	return `Break down ${label} by its largest affected segment and verify the change in the next complete window.`;
 }
 
@@ -532,6 +537,14 @@ function insightDescription(signal: InvestigationSignal): string {
 		const movement = signal.direction === "down" ? "improved" : "worsened";
 		return `${signal.metric.label} ${movement} to ${signal.metric.current} ms but remains above the ${healthyMaximum} ms healthy threshold.`;
 	}
+	if (signal.metric.previous !== undefined) {
+		if (signal.metric.current === signal.metric.previous) {
+			return `${signal.metric.label} held at ${formatMetricValue(signal.metric.current, signal.metric.format)}.`;
+		}
+		const movement =
+			signal.metric.current > signal.metric.previous ? "rose" : "fell";
+		return `${signal.metric.label} ${movement} from ${formatMetricValue(signal.metric.previous, signal.metric.format)} to ${formatMetricValue(signal.metric.current, signal.metric.format)}.`;
+	}
 	return signal.detection.reason;
 }
 
@@ -541,16 +554,21 @@ function compactNumber(value: number): string {
 	);
 }
 
-function impactSummary(
-	signal: InvestigationSignal,
-	evidence: UsableInvestigationEvidence
+function formatMetricValue(
+	value: number,
+	format: InsightMetric["format"]
 ): string {
-	if (signal.metric.key !== "revenue" || signal.metric.previous === undefined) {
-		return evidence.summary;
+	const number = compactNumber(value);
+	if (format === "percent") {
+		return `${number}%`;
 	}
-	const difference = signal.metric.current - signal.metric.previous;
-	const direction = difference < 0 ? "decreased" : "increased";
-	return `Tracked revenue ${direction} by ${compactNumber(Math.abs(difference))} compared with the previous period (${compactNumber(signal.metric.previous)} → ${compactNumber(signal.metric.current)}).`;
+	if (format === "duration_ms") {
+		return `${number} ms`;
+	}
+	if (format === "duration_s") {
+		return `${number} s`;
+	}
+	return number;
 }
 
 function backendConfidence(
@@ -616,10 +634,6 @@ function toGeneratedInsight(
 	const hasExactUnresolvedTarget = evidence.some((item) =>
 		explainsExactEntity(signal, item)
 	);
-	const localizedRateEvidence = evidence.find((item) =>
-		localizesWebsiteRate(signal, item)
-	);
-	const needsLocalizedRateEvidence = requiresLocalizedRateEvidence(signal);
 	const requiresExactUnresolvedTarget = [
 		"error",
 		"event",
@@ -632,11 +646,8 @@ function toGeneratedInsight(
 		decision.disposition === "monitor" &&
 		signal.sentiment === "negative" &&
 		((signal.severity === "critical" &&
-			(needsLocalizedRateEvidence
-				? Boolean(localizedRateEvidence)
-				: !requiresExactUnresolvedTarget || hasExactUnresolvedTarget)) ||
-			(signal.severity === "warning" &&
-				(Boolean(localizedRateEvidence) || hasExactUnresolvedTarget)));
+			(!requiresExactUnresolvedTarget || hasExactUnresolvedTarget)) ||
+			(signal.severity === "warning" && hasExactUnresolvedTarget));
 	if (
 		decision.disposition === "not_a_problem" ||
 		(decision.disposition === "monitor" && !unresolvedMonitor)
@@ -659,6 +670,8 @@ function toGeneratedInsight(
 	for (const metric of usableEvidence.flatMap((item) => item.metrics ?? [])) {
 		const duplicatesPrimaryLabel =
 			(signal.metric.key === "revenue" && metric.label === "Queried revenue") ||
+			(signal.metric.key === "payment_failure_rate" &&
+				metric.label === "Payment failure rate") ||
 			(signal.metric.key === "lcp" && metric.label === "p75 LCP") ||
 			(signal.metric.key === "inp" && metric.label === "p75 INP");
 		const duplicatesPrimaryValue =
@@ -692,13 +705,12 @@ function toGeneratedInsight(
 			)
 		: undefined;
 	const investigationEvidence = unresolvedMonitor
-		? (localizedRateEvidence ??
-			usableEvidence.find(
+		? usableEvidence.find(
 				(item) =>
 					isDiagnosticEvidence(item) &&
 					item.entity &&
 					explainsExactEntity(signal, item)
-			))
+			)
 		: undefined;
 	const title = actionReady
 		? `${ACTION_TITLE_PREFIX[decision.remediation.kind]} ${displayEntityLabel(citedEvidence?.entity ?? signal.entity)}`
@@ -712,7 +724,7 @@ function toGeneratedInsight(
 				? "goals_summary"
 				: signal.entity.type === "funnel"
 					? "funnels_summary"
-					: signal.metric.key === "revenue"
+					: isRevenueMetric(signal.metric.key)
 						? "revenue_overview"
 						: signal.entity.type === "vital"
 							? "web_vitals_by_page:qualified"
@@ -721,7 +733,12 @@ function toGeneratedInsight(
 		? usableEvidence.find((item) => item.queryType === impactQueryType)
 		: undefined;
 	const displayEvidence = [
-		...(actionReady && citedEvidence ? [citedEvidence] : []),
+		...(actionReady &&
+		citedEvidence &&
+		(citedEvidence.queryType !== impactQueryType ||
+			citedEvidence.evidenceId === impactEvidence?.evidenceId)
+			? [citedEvidence]
+			: []),
 		...(unresolvedMonitor && investigationEvidence
 			? [investigationEvidence]
 			: []),
@@ -730,7 +747,7 @@ function toGeneratedInsight(
 			: usableEvidence.filter(
 					(item) =>
 						!item.queryType.startsWith("detector:") &&
-						item.evidenceId !== impactEvidence?.evidenceId
+						item.queryType !== impactQueryType
 				)),
 	];
 	const insight: GeneratedInsight = {
@@ -759,7 +776,7 @@ function toGeneratedInsight(
 		...(impactEvidence &&
 		impactEvidence.evidenceId !== citedEvidence?.evidenceId &&
 		impactEvidence.evidenceId !== investigationEvidence?.evidenceId
-			? { impactSummary: impactSummary(signal, impactEvidence) }
+			? { impactSummary: impactEvidence.summary }
 			: {}),
 		evidence: [
 			...displayEvidence.slice(0, 3).map((item) => ({
@@ -840,25 +857,35 @@ export function validateInvestigationDecision(
 			"Investigate at least one relevant Databuddy query before submitting a terminal decision."
 		);
 	}
-	if (signal.metric.key === "revenue" && signal.sentiment === "negative") {
-		const currentRevenue = queriedRevenue(evidence, "current");
-		const previousRevenue = queriedRevenue(evidence, "previous");
-		if (currentRevenue === null || previousRevenue === null) {
+	if (isRevenueMetric(signal.metric.key) && signal.sentiment === "negative") {
+		const currentValue = queriedRevenueMetric(
+			evidence,
+			"current",
+			signal.metric.key
+		);
+		const previousValue = queriedRevenueMetric(
+			evidence,
+			"previous",
+			signal.metric.key
+		);
+		if (currentValue === null || previousValue === null) {
 			errors.push(
-				"Revenue decisions require revenue_overview evidence for both detector periods."
+				"Revenue and payment decisions require revenue_overview evidence for both detector periods."
 			);
 		} else if (
-			!valuesAgree(signal.metric.current, currentRevenue) ||
+			!valuesAgree(signal.metric.current, currentValue) ||
 			(signal.metric.previous !== undefined &&
-				!valuesAgree(signal.metric.previous, previousRevenue))
+				!valuesAgree(signal.metric.previous, previousValue))
 		) {
 			errors.push(
-				"Revenue query totals conflict with the detector. Retry the query instead of producing customer advice."
+				signal.metric.key === "revenue"
+					? "Revenue query totals conflict with the detector. Retry the query instead of producing customer advice."
+					: "Payment failure rate conflicts with the revenue query. Retry the query instead of producing customer advice."
 			);
 		}
 	}
 	if (
-		signal.metric.key === "revenue" &&
+		isRevenueMetric(signal.metric.key) &&
 		signal.sentiment === "negative" &&
 		signal.severity === "critical" &&
 		decision.disposition === "monitor"
@@ -878,7 +905,7 @@ export function validateInvestigationDecision(
 		);
 	}
 	if (
-		signal.metric.key === "revenue" &&
+		isRevenueMetric(signal.metric.key) &&
 		decision.disposition === "needs_context" &&
 		decision.gap === "business_priority"
 	) {

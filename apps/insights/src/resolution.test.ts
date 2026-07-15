@@ -13,14 +13,16 @@ describe("retiredSignalKeyForOutcome", () => {
 	it("retires an old finding only when the new decision is intentionally silent", () => {
 		expect(
 			retiredSignalKeyForOutcome({
-				disposition: "monitor",
+				coverage: { definitions: true, metrics: true },
+					disposition: "monitor",
 				hasInsight: false,
 				signalKey: "goal:signup",
 			})
 		).toBe("goal:signup");
 		expect(
 			retiredSignalKeyForOutcome({
-				disposition: "not_a_problem",
+				coverage: { definitions: true, metrics: true },
+					disposition: "not_a_problem",
 				hasInsight: false,
 				signalKey: "goal:signup",
 			})
@@ -30,9 +32,29 @@ describe("retiredSignalKeyForOutcome", () => {
 	it("keeps a surfaced unresolved monitor open", () => {
 		expect(
 			retiredSignalKeyForOutcome({
-				disposition: "monitor",
+				coverage: { definitions: true, metrics: true },
+					disposition: "monitor",
 				hasInsight: true,
 				signalKey: "error_count",
+			})
+		).toBeUndefined();
+	});
+
+	it("uses the selected signal family instead of unrelated scan failures", () => {
+		expect(
+			retiredSignalKeyForOutcome({
+				coverage: { definitions: false, metrics: true },
+				disposition: "not_a_problem",
+				hasInsight: false,
+				signalKey: "visitors",
+			})
+		).toBe("visitors");
+		expect(
+			retiredSignalKeyForOutcome({
+				coverage: { definitions: false, metrics: true },
+				disposition: "not_a_problem",
+				hasInsight: false,
+				signalKey: "goal:signup",
 			})
 		).toBeUndefined();
 	});
@@ -182,6 +204,123 @@ describe("computeResolutions", () => {
 		]);
 	});
 
+	it("resolves currency-specific revenue findings independently", () => {
+		const decisions = computeResolutions({
+			canRecover: true,
+			detectedSignals: [
+				{ ...signal("revenue", "down"), currency: "USD" },
+			],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "usd",
+					type: "quality_shift",
+					changePercent: -42,
+					sentiment: "negative",
+					subjectKey: "revenue:usd",
+				}),
+				openInsight({
+					id: "eur",
+					type: "quality_shift",
+					changePercent: -42,
+					sentiment: "negative",
+					subjectKey: "revenue:eur",
+				}),
+			],
+		});
+
+		expect(decisions).toEqual([{ id: "eur", reason: "recovered" }]);
+	});
+
+	it("recovers a currency-specific payment failure after a confirmed drop", () => {
+		const decisions = computeResolutions({
+			canRecover: true,
+			detectedSignals: [
+				{ ...signal("payment_failure_rate", "down"), currency: "USD" },
+			],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "payment-failures",
+					type: "quality_shift",
+					changePercent: 60,
+					sentiment: "negative",
+					subjectKey: "payment_failure_rate:usd",
+				}),
+			],
+		});
+
+		expect(decisions).toEqual([
+			{ id: "payment-failures", reason: "recovered" },
+		]);
+	});
+
+	it("keeps an unconfirmed payment recovery open inside the TTL", () => {
+		const decisions = computeResolutions({
+			canRecover: true,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "payment-failures",
+					type: "quality_shift",
+					changePercent: 60,
+					sentiment: "negative",
+					subjectKey: "payment_failure_rate:usd",
+				}),
+			],
+		});
+
+		expect(decisions).toEqual([]);
+	});
+
+	it("expires an unconfirmed payment recovery as stale after the TTL", () => {
+		const old = new Date(NOW.getTime() - 80 * 60 * 60 * 1000);
+		const decisions = computeResolutions({
+			canRecover: true,
+			detectedSignals: [
+				{ ...signal("payment_failure_rate", "down"), currency: "EUR" },
+			],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					createdAt: old,
+					id: "payment-failures",
+					type: "quality_shift",
+					changePercent: 60,
+					sentiment: "negative",
+					subjectKey: "payment_failure_rate:usd",
+				}),
+			],
+		});
+
+		expect(decisions).toEqual([
+			{ id: "payment-failures", reason: "stale" },
+		]);
+	});
+
+	it("keeps an old payment finding open while the exact regression fires", () => {
+		const decisions = computeResolutions({
+			canRecover: true,
+			detectedSignals: [
+				{ ...signal("payment_failure_rate", "up"), currency: "USD" },
+			],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					createdAt: new Date(NOW.getTime() - 80 * 60 * 60 * 1000),
+					id: "payment-failures",
+					type: "quality_shift",
+					changePercent: 60,
+					sentiment: "negative",
+					subjectKey: "payment_failure_rate:usd",
+				}),
+			],
+		});
+
+		expect(decisions).toEqual([]);
+	});
+
 	it("resolves an exact goal when only a sibling conversion fires", () => {
 		const decisions = computeResolutions({
 			canRecover: true,
@@ -290,6 +429,206 @@ describe("computeResolutions", () => {
 		expect(decisions).toEqual([]);
 	});
 
+	it("recovers complete metric families while a definition rotation is partial", () => {
+		const decisions = computeResolutions({
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "traffic",
+					type: "traffic_drop",
+					changePercent: -40,
+					sentiment: "negative",
+					subjectKey: "visitors",
+				}),
+				openInsight({
+					id: "goal",
+					type: "conversion_leak",
+					changePercent: -100,
+					sentiment: "negative",
+					subjectKey: "goal:signup",
+				}),
+			],
+		});
+
+		expect(decisions).toEqual([{ id: "traffic", reason: "recovered" }]);
+	});
+
+	it("recovers only conversion definitions evaluated in a partial rotation", () => {
+		const decisions = computeResolutions({
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "evaluated",
+					type: "conversion_leak",
+					changePercent: -100,
+					sentiment: "negative",
+					subjectKey: "goal:evaluated",
+				}),
+				openInsight({
+					id: "not-evaluated",
+					type: "conversion_leak",
+					changePercent: -100,
+					sentiment: "negative",
+					subjectKey: "goal:not-evaluated",
+				}),
+			],
+			recoverableConversionKeys: new Set(["goal:evaluated"]),
+		});
+
+		expect(decisions).toEqual([{ id: "evaluated", reason: "recovered" }]);
+	});
+
+	it("eventually expires transient insights when detection stays incomplete", () => {
+		const old = new Date(NOW.getTime() - 80 * 60 * 60 * 1000);
+		const decisions = computeResolutions({
+			canRecover: false,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					createdAt: old,
+					id: "goal",
+					type: "conversion_leak",
+				}),
+			],
+		});
+
+		expect(decisions).toEqual([{ id: "goal", reason: "stale" }]);
+	});
+
+	it("keeps an exact conversion open until its rotated definition is evaluated", () => {
+		const weekOld = new Date(NOW.getTime() - 8 * 24 * 60 * 60 * 1000);
+		const decisions = computeResolutions({
+			activeConversionKeys: new Set(["goal:waiting"]),
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					createdAt: weekOld,
+					id: "waiting",
+					subjectKey: "goal:waiting",
+					type: "conversion_leak",
+				}),
+			],
+			recoverableConversionKeys: new Set(["goal:another"]),
+		});
+
+		expect(decisions).toEqual([]);
+	});
+
+	it("keeps a versioned conversion open until its active definition is evaluated", () => {
+		const decisions = computeResolutions({
+			activeConversionKeys: new Set(["goal:waiting"]),
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "waiting-versioned",
+					subjectKey: "goal:waiting@2026-05-20T00:00:00.000Z",
+					type: "conversion_leak",
+				}),
+			],
+			recoverableConversionKeys: new Set(["goal:another"]),
+		});
+
+		expect(decisions).toEqual([]);
+	});
+
+	it("recovers a versioned conversion after that definition is evaluated", () => {
+		const decisions = computeResolutions({
+			activeConversionKeys: new Set(["goal:evaluated"]),
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "evaluated-versioned",
+					subjectKey: "goal:evaluated@2026-05-01T00:00:00.000Z",
+					type: "conversion_leak",
+				}),
+			],
+			recoverableConversionKeys: new Set(["goal:evaluated"]),
+		});
+
+		expect(decisions).toEqual([
+			{ id: "evaluated-versioned", reason: "recovered" },
+		]);
+	});
+
+	it("resolves an exact conversion whose definition was removed", () => {
+		const decisions = computeResolutions({
+			activeConversionKeys: new Set(["goal:active"]),
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "removed",
+					subjectKey: "goal:removed",
+					type: "conversion_leak",
+				}),
+			],
+			recoverableConversionKeys: new Set(),
+		});
+
+		expect(decisions).toEqual([{ id: "removed", reason: "recovered" }]);
+	});
+
+	it("resolves a versioned conversion whose definition was removed", () => {
+		const decisions = computeResolutions({
+			activeConversionKeys: new Set(["goal:active"]),
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "removed-versioned",
+					subjectKey: "goal:removed@2026-05-01T00:00:00.000Z",
+					type: "conversion_leak",
+				}),
+			],
+			recoverableConversionKeys: new Set(),
+		});
+
+		expect(decisions).toEqual([
+			{ id: "removed-versioned", reason: "recovered" },
+		]);
+	});
+
+	it("keeps an exact conversion open when its active definition was edited", () => {
+		const decisions = computeResolutions({
+			activeConversionKeys: new Set(["goal:edited"]),
+			canRecover: true,
+			canRecoverConversion: false,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "edited",
+					subjectKey: "goal:edited",
+					type: "conversion_leak",
+				}),
+			],
+			recoverableConversionKeys: new Set(),
+		});
+
+		expect(decisions).toEqual([]);
+	});
+
 	it("matches legacy null-change regressions without guessing direction", () => {
 		const decisions = computeResolutions({
 			canRecover: true,
@@ -335,10 +674,27 @@ describe("computeResolutions", () => {
 					type: "custom_event_spike",
 					changePercent: 60,
 					sentiment: "positive",
+					subjectKey: "custom_event:signup",
 				}),
 			],
 		});
 		expect(stillFiring).toEqual([]);
+
+		const recovered = computeResolutions({
+			canRecover: true,
+			detectedSignals: [],
+			now: NOW,
+			openInsights: [
+				openInsight({
+					id: "i1",
+					type: "custom_event_spike",
+					changePercent: 60,
+					sentiment: "positive",
+					subjectKey: "custom_event:signup",
+				}),
+			],
+		});
+		expect(recovered).toEqual([{ id: "i1", reason: "recovered" }]);
 	});
 
 	it("maps funnel and goal signals to the conversion family", () => {

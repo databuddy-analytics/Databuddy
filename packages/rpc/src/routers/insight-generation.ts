@@ -6,9 +6,11 @@ import {
 	inArray,
 	isNull,
 	isUniqueViolationFor,
+	sql,
 	withTransaction,
 } from "@databuddy/db";
 import {
+	DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT,
 	INSIGHT_RUN_ACTIVE_STATUSES,
 	INSIGHT_RUN_ACTIVE_UNIQUE_INDEX,
 	insightGenerationConfigs,
@@ -17,6 +19,7 @@ import {
 	slackChannelBindings,
 	slackIntegrations,
 	type InsightGenerationConfig,
+	type InsightGenerationConfigSnapshot,
 	websites,
 } from "@databuddy/db/schema";
 import {
@@ -40,6 +43,15 @@ import {
 
 const queueStatusSchema = z.enum(["queued", "skipped", "disabled"]);
 const frequencySchema = z.enum(["daily", "weekly"]);
+const legacyFrequencySchema = z.enum(["hourly", "daily", "weekly", "custom"]);
+const generationToolSchema = z.enum([
+	"web_metrics",
+	"product_metrics",
+	"ops_context",
+	"business_context",
+]);
+const depthSchema = z.enum(["light", "standard", "deep"]);
+const modelTierSchema = z.enum(["fast", "balanced", "deep"]);
 const queueReasonSchema = z.enum(["manual", "scheduled"]);
 const reasonSchema = z.enum(["manual", "scheduled", "cooldown_refresh"]);
 const deliverySchema = z.object({
@@ -57,8 +69,17 @@ type ConfigExecutor =
 	| Parameters<Parameters<typeof withTransaction>[0]>[0];
 
 const configPatchSchema = z.object({
+	allowedTools: z.array(generationToolSchema).min(1).max(4).optional(),
+	cooldownHours: z.number().int().min(1).max(168).optional(),
+	cron: z.string().trim().min(1).max(120).nullable().optional(),
+	depth: depthSchema.optional(),
 	enabled: z.boolean().optional(),
-	frequency: frequencySchema.optional(),
+	frequency: legacyFrequencySchema.optional(),
+	lookbackDays: z.number().int().min(1).max(90).optional(),
+	maxInsightsPerWebsite: z.number().int().min(1).max(10).optional(),
+	maxSteps: z.number().int().min(1).max(64).optional(),
+	maxToolCalls: z.number().int().min(1).max(64).optional(),
+	modelTier: modelTierSchema.optional(),
 	timezone: z
 		.string()
 		.trim()
@@ -67,26 +88,36 @@ const configPatchSchema = z.object({
 		.refine(isValidTimezone, "Invalid IANA timezone")
 		.optional(),
 });
-const runPatchSchema = configPatchSchema.pick({
-	timezone: true,
-});
 const organizationScopeSchema = z.object({
 	organizationId: z.string().nullish(),
-	websiteId: z.never().optional(),
+	websiteId: z.string().nullish(),
 });
 
 const configOutputSchema = z.object({
+	allowedTools: z.array(generationToolSchema).describe("Deprecated"),
+	cooldownHours: z.number().describe("Deprecated"),
 	createdAt: z.union([z.date(), z.string()]).nullable(),
+	cron: z.string().nullable().describe("Deprecated"),
 	deliveries: z.array(deliverySchema),
+	depth: depthSchema.describe("Deprecated"),
 	enabled: z.boolean(),
 	frequency: frequencySchema,
 	id: z.string().nullable(),
 	lastRunAt: z.union([z.date(), z.string()]).nullable(),
+	lookbackDays: z.number().describe("Deprecated"),
+	maxInsightsPerWebsite: z.number().describe("Deprecated"),
+	maxSteps: z.number().describe("Deprecated"),
+	maxToolCalls: z.number().describe("Deprecated"),
+	modelTier: modelTierSchema.describe("Deprecated"),
 	nextRunAt: z.union([z.date(), z.string()]).nullable(),
 	organizationId: z.string(),
 	source: z.enum(["default", "organization"]),
 	timezone: z.string(),
 	updatedAt: z.union([z.date(), z.string()]).nullable(),
+	websiteId: z
+		.string()
+		.nullable()
+		.describe("Deprecated read scope; settings inherit from the organization"),
 });
 
 const runOutputSchema = z.object({
@@ -116,6 +147,7 @@ const runOutputSchema = z.object({
 
 const runItemOutputSchema = z.object({
 	attempts: z.number(),
+	configSnapshot: z.unknown(),
 	createdAt: z.union([z.date(), z.string()]),
 	errorMessage: z.string().nullable(),
 	finishedAt: z.union([z.date(), z.string()]).nullable(),
@@ -139,14 +171,25 @@ const DEFAULT_CONFIG: Omit<
 	| "source"
 	| "updatedAt"
 > = {
+	allowedTools: [...DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.allowedTools],
+	cooldownHours: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.cooldownHours,
+	cron: null,
 	deliveries: [],
+	depth: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.depth,
 	enabled: false,
 	frequency: "weekly",
+	lookbackDays: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.lookbackDays,
+	maxInsightsPerWebsite:
+		DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.maxInsightsPerWebsite,
+	maxSteps: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.maxSteps,
+	maxToolCalls: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.maxToolCalls,
+	modelTier: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.modelTier,
 	timezone: "UTC",
+	websiteId: null,
 };
 
 export interface QueueInsightGenerationRunInput
-	extends z.infer<typeof runPatchSchema> {
+	extends z.infer<typeof configPatchSchema> {
 	organizationId: string;
 	reason?: z.infer<typeof queueReasonSchema>;
 	requestedByUserId?: string | null;
@@ -183,17 +226,28 @@ function rowToConfig(
 	}
 
 	return {
+		allowedTools: [...DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.allowedTools],
+		cooldownHours: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.cooldownHours,
 		createdAt: row.createdAt,
+		cron: null,
 		deliveries: row.deliveries,
+		depth: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.depth,
 		enabled: row.enabled,
 		frequency: normalizeInsightScheduleFrequency(row.frequency),
 		id: row.id,
 		lastRunAt: row.lastRunAt,
+		lookbackDays: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.lookbackDays,
+		maxInsightsPerWebsite:
+			DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.maxInsightsPerWebsite,
+		maxSteps: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.maxSteps,
+		maxToolCalls: DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.maxToolCalls,
+		modelTier: row.legacyModelTier,
 		nextRunAt: row.enabled ? row.nextRunAt : null,
 		organizationId: row.organizationId,
 		source,
 		timezone: normalizeInsightTimezone(row.timezone),
 		updatedAt: row.updatedAt,
+		websiteId: null,
 	};
 }
 
@@ -212,24 +266,62 @@ function defaultConfig(
 	};
 }
 
-function applyPatch(
+function compatibilitySnapshot(
+	timezone: string
+): InsightGenerationConfigSnapshot {
+	return {
+		...DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT,
+		allowedTools: [...DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT.allowedTools],
+		timezone,
+	};
+}
+
+export function applyInsightGenerationConfigPatch(
 	config: z.infer<typeof configOutputSchema>,
 	patch: z.infer<typeof configPatchSchema>
 ): z.infer<typeof configOutputSchema> {
 	const parsed = configPatchSchema.parse(patch);
+	const frequency =
+		parsed.frequency === "daily" || parsed.frequency === "weekly"
+			? parsed.frequency
+			: config.frequency;
 	return {
 		...config,
 		enabled: parsed.enabled ?? config.enabled,
-		frequency: parsed.frequency ?? config.frequency,
+		frequency,
 		timezone: parsed.timezone ?? config.timezone,
 	};
 }
 
 async function resolveOrganization(
 	context: Context,
-	input: { organizationId?: string | null },
+	input: {
+		organizationId?: string | null;
+		websiteId?: string | null;
+	},
 	permission: "read" | "update"
 ): Promise<string> {
+	if (input.websiteId) {
+		const workspace = await withWorkspace(context, {
+			websiteId: input.websiteId,
+			resource: "website",
+			permissions: [permission === "read" ? "view_analytics" : "update"],
+		});
+		if (
+			input.organizationId &&
+			input.organizationId !== workspace.website.organizationId
+		) {
+			throw rpcError.badRequest("Website does not belong to organization");
+		}
+		await withWorkspace(context, {
+			organizationId: workspace.website.organizationId,
+			resource: "organization",
+			permissions: [permission],
+			allowCrossOrg: true,
+		});
+		return workspace.website.organizationId;
+	}
+
 	const organizationId = input.organizationId?.trim() || context.organizationId;
 	if (!organizationId) {
 		throw rpcError.badRequest("Organization ID is required");
@@ -242,6 +334,19 @@ async function resolveOrganization(
 	return organizationId;
 }
 
+async function resolveOrganizationForMutation(
+	context: Context,
+	input: z.infer<typeof organizationScopeSchema>
+): Promise<string> {
+	const organizationId = await resolveOrganization(context, input, "update");
+	if (input.websiteId) {
+		throw rpcError.badRequest(
+			"Website-specific insight settings are retired. Remove websiteId to update the organization settings."
+		);
+	}
+	return organizationId;
+}
+
 async function findConfig(
 	organizationId: string,
 	executor: ConfigExecutor = db
@@ -250,7 +355,6 @@ async function findConfig(
 		.select()
 		.from(insightGenerationConfigs)
 		.where(eq(insightGenerationConfigs.organizationId, organizationId))
-		.orderBy(insightGenerationConfigs.createdAt)
 		.limit(1);
 	return rows[0] ?? null;
 }
@@ -300,8 +404,10 @@ function runConfigMutation(
 		}
 		const values = {
 			deliveries: next.deliveries,
+			dispatchDueAt: scheduleChanged ? null : (row?.dispatchDueAt ?? null),
 			enabled: next.enabled,
 			frequency: next.frequency,
+			legacyModelTier: next.modelTier,
 			nextRunAt,
 			timezone: next.timezone,
 		};
@@ -375,9 +481,10 @@ async function listTargetWebsites(
 }
 
 async function findActiveInsightRun(
-	organizationId: string
+	organizationId: string,
+	executor: ConfigExecutor = db
 ): Promise<{ id: string; totalItems: number } | null> {
-	const [active] = await db
+	const [active] = await executor
 		.select({ id: insightRuns.id, totalItems: insightRuns.totalItems })
 		.from(insightRuns)
 		.where(
@@ -412,13 +519,21 @@ async function insertInsightRunOrFindActive(
 	let conflict: unknown;
 	for (let attempt = 0; attempt < 2; attempt += 1) {
 		try {
-			await withTransaction(async (tx) => {
+			return await withTransaction(async (tx) => {
+				await tx.execute(
+					sql`SELECT pg_advisory_xact_lock(hashtextextended(${`insight-run:${organizationId}`}, 0))`
+				);
+				const active = await findActiveInsightRun(organizationId, tx);
+				if (active) {
+					return active;
+				}
+
 				await tx.insert(insightRuns).values(run);
 				if (items.length > 0) {
 					await tx.insert(insightRunItems).values(items);
 				}
+				return null;
 			});
-			return null;
 		} catch (error) {
 			if (!isUniqueViolationFor(error, INSIGHT_RUN_ACTIVE_UNIQUE_INDEX)) {
 				throw error;
@@ -440,8 +555,7 @@ export async function queueInsightGenerationRun(
 		throw rpcError.badRequest("Select at least one website");
 	}
 	const baseConfig = await getConfig(input.organizationId);
-	const runPatch = runPatchSchema.parse(input);
-	const runConfig = applyPatch(baseConfig, runPatch);
+	const runConfig = applyInsightGenerationConfigPatch(baseConfig, input);
 	const reason = input.reason ?? "manual";
 
 	const active = await findActiveInsightRun(input.organizationId);
@@ -468,8 +582,10 @@ export async function queueInsightGenerationRun(
 	});
 	const requestedByUserId = input.requestedByUserId ?? null;
 	const now = new Date();
+	const configSnapshot = compatibilitySnapshot(runConfig.timezone);
 
 	const runItems = queueItems.map((item) => ({
+		configSnapshot,
 		id: item.itemId,
 		runId,
 		organizationId: input.organizationId,
@@ -519,8 +635,8 @@ export async function queueInsightGenerationRun(
 			{ error, organizationId: input.organizationId, runId },
 			"Failed to queue insight generation"
 		);
-		await Promise.all([
-			db
+		await withTransaction(async (tx) => {
+			await tx
 				.update(insightRuns)
 				.set({
 					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
@@ -528,16 +644,16 @@ export async function queueInsightGenerationRun(
 					finishedAt: new Date(),
 					status: "failed",
 				})
-				.where(eq(insightRuns.id, runId)),
-			db
+				.where(eq(insightRuns.id, runId));
+			await tx
 				.update(insightRunItems)
 				.set({
 					errorMessage: QUEUE_INSIGHT_GENERATION_ERROR,
 					finishedAt: new Date(),
 					status: "failed",
 				})
-				.where(eq(insightRunItems.runId, runId)),
-		]);
+				.where(eq(insightRunItems.runId, runId));
+		});
 		throw rpcError.internal("Failed to queue insight generation");
 	}
 
@@ -560,7 +676,10 @@ export const insightGenerationRouter = {
 		.output(configOutputSchema)
 		.handler(async ({ context, input }) => {
 			const organizationId = await resolveOrganization(context, input, "read");
-			return getConfig(organizationId);
+			const config = await getConfig(organizationId);
+			return input.websiteId
+				? { ...config, websiteId: input.websiteId }
+				: config;
 		}),
 
 	upsertConfig: protectedProcedure
@@ -573,13 +692,12 @@ export const insightGenerationRouter = {
 		.input(organizationScopeSchema.extend(configPatchSchema.shape))
 		.output(configOutputSchema)
 		.handler(async ({ context, input }) => {
-			const organizationId = await resolveOrganization(
+			const organizationId = await resolveOrganizationForMutation(
 				context,
-				input,
-				"update"
+				input
 			);
 			return mutateConfig(organizationId, (current) =>
-				applyPatch(current, input)
+				applyInsightGenerationConfigPatch(current, input)
 			);
 		}),
 
@@ -593,15 +711,14 @@ export const insightGenerationRouter = {
 		.input(
 			organizationScopeSchema.extend({
 				channelId: z.string().min(1).max(120),
-				frequency: frequencySchema.optional(),
+				frequency: legacyFrequencySchema.optional(),
 			})
 		)
 		.output(configOutputSchema)
 		.handler(async ({ context, input }) => {
-			const organizationId = await resolveOrganization(
+			const organizationId = await resolveOrganizationForMutation(
 				context,
-				input,
-				"update"
+				input
 			);
 			const bindings = await db
 				.select({ id: slackChannelBindings.id })
@@ -630,7 +747,7 @@ export const insightGenerationRouter = {
 						`Cannot route to more than ${MAX_SLACK_DELIVERIES} Slack channels`
 					);
 				}
-				const base = applyPatch(
+				const base = applyInsightGenerationConfigPatch(
 					current,
 					input.frequency
 						? { enabled: true, frequency: input.frequency }
@@ -660,10 +777,9 @@ export const insightGenerationRouter = {
 		)
 		.output(configOutputSchema)
 		.handler(async ({ context, input }) => {
-			const organizationId = await resolveOrganization(
+			const organizationId = await resolveOrganizationForMutation(
 				context,
-				input,
-				"update"
+				input
 			);
 			return mutateConfig(organizationId, (current) => ({
 				...current,
@@ -690,7 +806,7 @@ export const insightGenerationRouter = {
 					organizationId: z.string().nullish(),
 					websiteIds: z.array(z.string().min(1)).min(1).max(100).optional(),
 				})
-				.extend(runPatchSchema.shape)
+				.extend(configPatchSchema.shape)
 		)
 		.output(
 			z.object({
@@ -707,10 +823,9 @@ export const insightGenerationRouter = {
 				"update"
 			);
 			return queueInsightGenerationRun({
+				...input,
 				organizationId,
 				requestedByUserId: context.user?.id ?? null,
-				timezone: input.timezone,
-				websiteIds: input.websiteIds,
 			});
 		}),
 
@@ -744,5 +859,30 @@ export const insightGenerationRouter = {
 			});
 
 			return { items, run };
+		}),
+
+	listRuns: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/generation/listRuns",
+			summary: "List insight generation runs",
+			description: "Deprecated compatibility endpoint for run history.",
+			tags: ["Insights"],
+		})
+		.input(
+			organizationScopeSchema.extend({
+				limit: z.number().int().min(1).max(100).default(20),
+			})
+		)
+		.output(z.object({ runs: z.array(runOutputSchema) }))
+		.handler(async ({ context, input }) => {
+			const organizationId = await resolveOrganization(context, input, "read");
+			const runs = await db
+				.select()
+				.from(insightRuns)
+				.where(eq(insightRuns.organizationId, organizationId))
+				.orderBy(desc(insightRuns.createdAt))
+				.limit(input.limit);
+			return { runs };
 		}),
 };

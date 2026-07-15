@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import {
+	DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT,
 	INSIGHT_RUN_ACTIVE_STATUSES,
-	INSIGHT_RUN_ACTIVE_UNIQUE_INDEX,
 	insightGenerationConfigs,
 	insightObservations,
 	insightRunEffects,
@@ -11,7 +11,7 @@ import {
 } from "./insights";
 
 describe("insight generation config schema", () => {
-	test("stores only product settings and scheduling metadata", () => {
+	test("stores one minimal schedule per organization", () => {
 		expect(
 			getTableConfig(insightGenerationConfigs).columns.map(
 				(column) => column.name
@@ -21,24 +21,34 @@ describe("insight generation config schema", () => {
 			"organization_id",
 			"enabled",
 			"frequency",
+			"model_tier",
 			"timezone",
 			"deliveries",
 			"next_run_at",
+			"dispatch_due_at",
 			"last_run_at",
 			"created_at",
 			"updated_at",
 		]);
 
-		const uniqueIndexes = getTableConfig(insightGenerationConfigs).indexes.filter(
-			(index) => index.config.unique
-		);
-		expect(uniqueIndexes).toHaveLength(1);
-		expect(uniqueIndexes[0]?.config.name).toBe(
-			"insight_generation_configs_org_uidx"
-		);
-		expect(uniqueIndexes[0]?.config.columns.map((column) => column.name)).toEqual(
-			["organization_id"]
-		);
+		const config = getTableConfig(insightGenerationConfigs);
+		const uniqueIndexes = config.indexes.filter((index) => index.config.unique);
+		expect(
+			uniqueIndexes.map((index) => ({
+				columns: index.config.columns.map((column) => column.name),
+				name: index.config.name,
+				partial: Boolean(index.config.where),
+			}))
+		).toEqual([
+			{
+				columns: ["organization_id"],
+				name: "insight_generation_configs_org_uidx",
+				partial: false,
+			},
+		]);
+		expect(config.foreignKeys.map((key) => key.getName())).toEqual([
+			"insight_generation_configs_organization_id_fkey",
+		]);
 	});
 });
 
@@ -85,29 +95,38 @@ describe("insight observations schema", () => {
 });
 
 describe("insight runs schema", () => {
-	test("enforces one active run per organization", () => {
-		const index = getTableConfig(insightRuns).indexes.find(
-			(candidate) => candidate.config.name === INSIGHT_RUN_ACTIVE_UNIQUE_INDEX
+	test("keeps one active run per organization across mixed-version deploys", () => {
+		const indexes = getTableConfig(insightRuns).indexes;
+		expect(
+			indexes.find(
+				(index) => index.config.name === "insight_runs_org_created_idx"
+			)?.config.columns.map((column) => column.name)
+		).toEqual(["organization_id", "created_at"]);
+		const activeRunIndex = indexes.find(
+			(index) => index.config.name === "insight_runs_org_active_uidx"
 		);
-
-		expect(index?.config.unique).toBe(true);
-		expect(index?.config.columns.map((column) => column.name)).toEqual([
-			"organization_id",
-		]);
-		expect(index?.config.where).toBeDefined();
+		expect(activeRunIndex?.config.unique).toBe(true);
+		expect(
+			activeRunIndex?.config.columns.map((column) => column.name)
+		).toEqual(["organization_id"]);
+		expect(activeRunIndex?.config.where).toBeDefined();
 		expect(INSIGHT_RUN_ACTIVE_STATUSES).toEqual(["queued", "running"]);
 	});
 
 	test("stores prepared state and one durable effect per provider target", () => {
-		expect(
-			getTableConfig(insightRunItems).columns.map((column) => column.name)
-		).toEqual(
+		const runItemColumns = getTableConfig(insightRunItems).columns;
+		expect(runItemColumns.map((column) => column.name)).toEqual(
 			expect.arrayContaining([
 				"prepared_at",
 				"prepared_status",
 				"prepared_message",
+				"config_snapshot",
 			])
 		);
+		expect(
+			runItemColumns.find((column) => column.name === "config_snapshot")
+				?.default
+		).toEqual(DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT);
 		const effects = getTableConfig(insightRunEffects);
 		expect(effects.columns.map((column) => column.name)).toEqual([
 			"id",

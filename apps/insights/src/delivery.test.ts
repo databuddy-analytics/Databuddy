@@ -91,6 +91,41 @@ describe("Slack finding blocks", () => {
 		);
 	});
 
+	it("honors Retry-After values longer than five seconds", async () => {
+		const responses = [
+			new Response("rate limited", {
+				headers: { "Retry-After": "120" },
+				status: 429,
+			}),
+			Response.json({ ok: true, ts: "123.456" }),
+		];
+		const delays: number[] = [];
+		const fetcher = (async () => {
+			const response = responses.shift();
+			if (!response) {
+				throw new Error("Unexpected Slack request");
+			}
+			return response;
+		}) as typeof fetch;
+
+		await postToSlack(
+			"token",
+			"channel-test",
+			[{ type: "divider" }],
+			"Finding",
+			"effect-test",
+			{
+				fetcher,
+				random: () => 0,
+				sleep: async (milliseconds) => {
+					delays.push(milliseconds);
+				},
+			}
+		);
+
+		expect(delays).toEqual([120_000]);
+	});
+
 	it("uses the durable effect ID as Slack's client message ID", () => {
 		expect(
 			buildSlackPostPayload(

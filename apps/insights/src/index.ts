@@ -1,7 +1,12 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { readBooleanEnv } from "@databuddy/env/boolean";
-import { closeInsightsQueue, getInsightsQueue } from "@databuddy/redis";
+import {
+	closeInsightsQueue,
+	getInsightsQueue,
+	INSIGHTS_DISPATCH_JOB_NAME,
+	INSIGHTS_MAINTENANCE_JOB_NAME,
+} from "@databuddy/redis";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
@@ -15,6 +20,8 @@ import {
 import {
 	ensureInsightsDispatchSchedule,
 	ensureInsightsMaintenanceSchedule,
+	isScheduledDispatchActive,
+	removeInsightsSchedules,
 } from "./scheduler";
 import { startInsightsWorker } from "./worker";
 
@@ -23,6 +30,7 @@ const environment =
 	process.env.RAILWAY_ENVIRONMENT_NAME ??
 	(process.env.NODE_ENV === "development" ? "development" : "production");
 const workerEnabled = readBooleanEnv("INSIGHTS_WORKER_ENABLED");
+const scheduledDispatchEnabled = isScheduledDispatchActive(workerEnabled);
 const DRAIN_TIMEOUT_MS = 10_000;
 
 initLogger({
@@ -124,18 +132,21 @@ async function shutdown(signal: string) {
 
 async function startRuntime() {
 	emitInsightsEvent("info", "lifecycle.starting", {
+		scheduled_dispatch_enabled: scheduledDispatchEnabled,
 		worker_enabled: workerEnabled,
 	});
 	if (workerEnabled) {
-		insightsWorker = startInsightsWorker();
 		await Promise.all([
 			ensureInsightsDispatchSchedule(),
 			ensureInsightsMaintenanceSchedule(),
 		]);
+		insightsWorker = startInsightsWorker();
 		emitInsightsEvent("info", "lifecycle.started", {
+			scheduled_dispatch_enabled: scheduledDispatchEnabled,
 			worker_enabled: true,
 		});
 	} else {
+		await removeInsightsSchedules();
 		emitInsightsEvent("info", "lifecycle.disabled", {
 			worker_enabled: false,
 		});
@@ -158,7 +169,7 @@ type ProbeResult =
 
 async function probe(
 	name: string,
-	fn: () => Promise<void>
+	fn: () => void | Promise<void>
 ): Promise<ProbeResult> {
 	const start = performance.now();
 	try {
@@ -191,24 +202,46 @@ const app = new Elysia()
 		);
 	})
 	.get("/health/status", async () => {
-		const [postgres, bullmqRedis] = await Promise.all([
+		const [postgres, bullmqRedis, schedulers, worker] = await Promise.all([
 			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
 			probe("bullmqRedis", async () => {
 				await getInsightsQueue().count();
 			}),
+			probe("schedulers", async () => {
+				const queue = getInsightsQueue();
+				const [dispatch, maintenance] = await Promise.all([
+					queue.getJobScheduler(INSIGHTS_DISPATCH_JOB_NAME),
+					queue.getJobScheduler(INSIGHTS_MAINTENANCE_JOB_NAME),
+				]);
+				if (Boolean(dispatch) !== scheduledDispatchEnabled) {
+					throw new Error("Insight dispatch scheduler state is incorrect");
+				}
+				if (Boolean(maintenance) !== workerEnabled) {
+					throw new Error("Insight maintenance scheduler state is incorrect");
+				}
+			}),
+			probe("worker", () => {
+				if (workerEnabled && !insightsWorker?.isRunning()) {
+					throw new Error("Insights worker is not running");
+				}
+			}),
 		]);
 
-		const services = { postgres, bullmqRedis };
+		const services = { postgres, bullmqRedis, schedulers, worker };
 		const status = Object.values(services).every((s) => s.status === "ok")
 			? "ok"
 			: "degraded";
 
 		return Response.json(
-			{ status, workerEnabled, services },
+			{ status, workerEnabled, scheduledDispatchEnabled, services },
 			{ status: status === "ok" ? 200 : 503 }
 		);
 	})
-	.get("/health", () => ({ status: "ok", workerEnabled }));
+	.get("/health", () => ({
+		status: "ok",
+		workerEnabled,
+		scheduledDispatchEnabled,
+	}));
 
 export default {
 	port: Number(process.env.PORT ?? 4002),

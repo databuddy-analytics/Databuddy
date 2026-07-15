@@ -101,6 +101,17 @@ export interface WebsiteInvestigationArtifact {
 	engineId: string;
 	evidence: InvestigationEvidence[];
 	insight: GeneratedInsight | null;
+	recoveryCoverage?: {
+		activeDefinitionKeys?: string[];
+		failedDefinitions?: number;
+		definitionFailureMessages?: string[];
+		failedMetricFamilies?: number;
+		definitionKeys: string[];
+		definitions: boolean;
+		eligibleDefinitionKeys?: string[];
+		metrics: boolean;
+		rotatedDefinitions?: number;
+	};
 	signal: InvestigationSignal | null;
 	status:
 		| "completed"
@@ -108,6 +119,7 @@ export interface WebsiteInvestigationArtifact {
 		| "invalid_output"
 		| "no_data"
 		| "no_signals";
+	validationErrors?: string[];
 }
 
 function getComparisonPeriod(
@@ -161,6 +173,7 @@ export interface InvestigationSources {
 interface DeterministicInvestigationResult {
 	decision: InvestigationDecision | null;
 	insight: GeneratedInsight | null;
+	validationErrors: string[];
 }
 
 function normalizeAsOf(asOf: Date | string, timezone: string): dayjs.Dayjs {
@@ -179,6 +192,7 @@ function emptyInvestigationArtifact(params: {
 	detectionComplete: boolean;
 	detectedSignals: DetectedSignal[];
 	engineId: string;
+	recoveryCoverage?: WebsiteInvestigationArtifact["recoveryCoverage"];
 	status: "deferred" | "no_data" | "no_signals";
 }): WebsiteInvestigationArtifact {
 	return {
@@ -189,6 +203,7 @@ function emptyInvestigationArtifact(params: {
 		evidence: [],
 		insight: null,
 		engineId: params.engineId,
+		recoveryCoverage: params.recoveryCoverage,
 		signal: null,
 		status: params.status,
 	};
@@ -276,6 +291,15 @@ async function investigateWebsiteCore(
 			detectionComplete: false,
 			detectedSignals: [],
 			engineId,
+			recoveryCoverage: {
+				definitionFailureMessages: [],
+				failedDefinitions: 0,
+				failedMetricFamilies: 0,
+				definitionKeys: [],
+				definitions: false,
+				metrics: false,
+				rotatedDefinitions: 0,
+			},
 			status: "no_data",
 		});
 	}
@@ -288,7 +312,12 @@ async function investigateWebsiteCore(
 	const detectionAbortSignal = AbortSignal.timeout(DETECTION_TIMEOUT_MS);
 	const metricDiagnostics: DetectionDiagnostics = { failedFamilies: 0 };
 	const definitionDiagnostics: FunnelGoalDetectionDiagnostics = {
+		activeDefinitionKeys: new Set(),
+		eligibleDefinitionKeys: new Set(),
+		evaluatedDefinitionKeys: new Set(),
+		failureMessages: [],
 		failedDefinitions: 0,
+		truncatedDefinitions: 0,
 	};
 	const [metricSignals, funnelGoalSignals] = await Promise.all([
 		runtime.sources.detectMetricSignals(
@@ -302,9 +331,34 @@ async function investigateWebsiteCore(
 			diagnostics: definitionDiagnostics,
 		}),
 	]);
+	const activeDefinitionKeys = [
+		...(definitionDiagnostics.activeDefinitionKeys ?? new Set<string>()),
+	];
+	const eligibleDefinitionKeys = [
+		...(definitionDiagnostics.eligibleDefinitionKeys ?? new Set<string>()),
+	];
+	const eligibleDefinitionKeySet = new Set(eligibleDefinitionKeys);
+	const allActiveDefinitionsAreComparable = activeDefinitionKeys.every((key) =>
+		eligibleDefinitionKeySet.has(key)
+	);
+	const recoveryCoverage = {
+		activeDefinitionKeys,
+		definitionFailureMessages: definitionDiagnostics.failureMessages ?? [],
+		failedDefinitions: definitionDiagnostics.failedDefinitions,
+		failedMetricFamilies: metricDiagnostics.failedFamilies,
+		definitionKeys: [
+			...(definitionDiagnostics.evaluatedDefinitionKeys ?? new Set<string>()),
+		],
+		definitions:
+			definitionDiagnostics.failedDefinitions === 0 &&
+			definitionDiagnostics.truncatedDefinitions === 0 &&
+			allActiveDefinitionsAreComparable,
+		eligibleDefinitionKeys,
+		metrics: metricDiagnostics.failedFamilies === 0,
+		rotatedDefinitions: definitionDiagnostics.truncatedDefinitions,
+	};
 	const detectionComplete =
-		metricDiagnostics.failedFamilies === 0 &&
-		definitionDiagnostics.failedDefinitions === 0;
+		recoveryCoverage.metrics && recoveryCoverage.definitions;
 	const detectedSignals = rankSignals([...metricSignals, ...funnelGoalSignals]);
 
 	if (detectedSignals.length === 0) {
@@ -325,6 +379,7 @@ async function investigateWebsiteCore(
 				detectionComplete,
 				detectedSignals,
 				engineId,
+				recoveryCoverage,
 				status: "deferred",
 			});
 		}
@@ -340,6 +395,7 @@ async function investigateWebsiteCore(
 			detectionComplete,
 			detectedSignals,
 			engineId,
+			recoveryCoverage,
 			status: "no_signals",
 		});
 	}
@@ -369,6 +425,7 @@ async function investigateWebsiteCore(
 			detectionComplete,
 			detectedSignals,
 			engineId,
+			recoveryCoverage,
 			status: "deferred",
 		});
 	}
@@ -417,6 +474,7 @@ async function investigateWebsiteCore(
 			evidence: [...evidenceById.values()],
 			insight: null,
 			engineId,
+			recoveryCoverage,
 			signal: investigation.signal,
 			status: "completed",
 		};
@@ -456,8 +514,10 @@ async function investigateWebsiteCore(
 		evidence: [...evidenceById.values()],
 		insight: investigationResult.insight,
 		engineId,
+		recoveryCoverage,
 		signal: investigation.signal,
 		status: investigationResult.decision ? "completed" : "invalid_output",
+		validationErrors: investigationResult.validationErrors,
 	};
 }
 
@@ -497,7 +557,10 @@ function evidenceReadRequest(
 			input: { period: "current", queries: [{ type: "uptime_summary" }] },
 		};
 	}
-	if (signal.metric.key === "revenue") {
+	if (
+		signal.metric.key === "revenue" ||
+		signal.metric.key === "payment_failure_rate"
+	) {
 		return {
 			name: "web_metrics",
 			input: { period: "both", queries: [{ type: "revenue_overview" }] },
@@ -516,12 +579,7 @@ function evidenceReadRequest(
 		};
 	}
 	const type =
-		signal.metric.key === "pageviews"
-			? "top_pages"
-			: signal.metric.key === "bounce_rate" ||
-					signal.metric.key === "session_duration"
-				? "entry_pages"
-				: "top_referrers";
+		signal.metric.key === "pageviews" ? "top_pages" : "top_referrers";
 	return {
 		name: "web_metrics",
 		input: {
@@ -588,7 +646,13 @@ async function runDeterministicInvestigation(params: {
 					"Insights investigation stopped without valid supporting evidence"
 				);
 			}
-			return { decision: null, insight: null };
+			return {
+				decision: null,
+				insight: null,
+				validationErrors: validated.errors
+					.slice(0, 5)
+					.map((error) => error.slice(0, 300)),
+			};
 		}
 		const decision = validated.decision;
 		const insight = validated.insight;
@@ -619,7 +683,7 @@ async function runDeterministicInvestigation(params: {
 				generated_candidate_count: insight ? 1 : 0,
 			});
 		}
-		return { decision, insight };
+		return { decision, insight, validationErrors: [] };
 	} catch (error) {
 		if (params.runtimeMode === "production") {
 			captureInsightsError(error, "generation.investigation.failed", {
@@ -752,8 +816,23 @@ export async function generateWebsiteInsights(
 			websiteId: site.id,
 			runId: input.runId,
 			detectedSignals: analysis.detectedSignals,
-			canRecover: analysis.status !== "no_data" && analysis.detectionComplete,
+			canRecover:
+				analysis.status !== "no_data" &&
+				(analysis.recoveryCoverage?.metrics ?? analysis.detectionComplete),
+			canRecoverConversion:
+				analysis.status !== "no_data" &&
+				(analysis.recoveryCoverage?.definitions ?? analysis.detectionComplete),
+			recoverableConversionKeys:
+				analysis.recoveryCoverage?.definitionKeys ?? [],
+			activeConversionKeys: analysis.recoveryCoverage?.activeDefinitionKeys,
 			retiredSignalKey: retiredSignalKeyForOutcome({
+				coverage: {
+					definitions:
+						analysis.recoveryCoverage?.definitions ??
+						analysis.detectionComplete,
+					metrics:
+						analysis.recoveryCoverage?.metrics ?? analysis.detectionComplete,
+				},
 				disposition: analysis.decision?.disposition,
 				hasInsight: analysis.insight !== null,
 				signalKey: analysis.signal?.signalKey,

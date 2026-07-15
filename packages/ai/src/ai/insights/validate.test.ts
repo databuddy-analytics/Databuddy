@@ -75,7 +75,7 @@ const goalExpectation = {
 		count: 12,
 		definitionId: "signup",
 		definitionType: "goal" as const,
-		source: "server_completions" as const,
+		source: "revenue_transactions" as const,
 	},
 	definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
 	eventName: "sign_up",
@@ -154,7 +154,7 @@ describe("validateInvestigationDecision", () => {
 		expect(result.decision).toEqual(missingGoalAction);
 		expect(result.insight).toMatchObject({
 			title: "Fix tracking for Signup",
-			description: missingGoalSignal.detection.reason,
+			description: "Signup completion rate fell from 20% to 0%.",
 			suggestion: missingGoalAction.remediation.instruction,
 			severity: missingGoalSignal.severity,
 			sentiment: missingGoalSignal.sentiment,
@@ -210,12 +210,6 @@ describe("validateInvestigationDecision", () => {
 
 	it("only permits actions for exact negative entities", () => {
 		expect(canRecommendAction(signal)).toBe(false);
-		expect(
-			canRecommendAction({
-				...signal,
-				metric: { ...signal.metric, key: "bounce_rate" },
-			})
-		).toBe(false);
 		expect(
 			canRecommendAction(missingGoalSignal)
 		).toBe(true);
@@ -492,111 +486,9 @@ describe("validateInvestigationDecision", () => {
 		});
 		expect(needsContext.errors).toEqual([]);
 		expect(needsContext.insight).toMatchObject({
-			title: "Visitors drop needs context",
+			title: "Visitors fell 40%",
 			severity: "critical",
 		});
-	});
-
-	it("keeps generic website rate monitors silent until evidence localizes the same metric", () => {
-		for (const metric of [
-			{
-				key: "bounce_rate",
-				label: "Bounce rate",
-				current: 70,
-				previous: 40,
-				format: "percent" as const,
-			},
-			{
-				key: "session_duration",
-				label: "Session duration",
-				current: 30,
-				previous: 90,
-				format: "duration_s" as const,
-			},
-		]) {
-			const rateSignal: InvestigationSignal = {
-				...signal,
-				signalKey: metric.key,
-				insightType:
-					metric.key === "bounce_rate"
-						? "bounce_rate_change"
-						: "engagement_change",
-				entity: { type: "website", id: "website", label: metric.label },
-				metric,
-				changePercent: 75,
-				direction: metric.key === "bounce_rate" ? "up" : "down",
-				severity: "critical",
-			};
-			const genericBreakdown: InvestigationEvidence = {
-				...evidence,
-				evidenceId: `evidence:${metric.key}:generic`,
-				signalKey: rateSignal.signalKey,
-				queryType: "entry_pages",
-				summary: "Entry pages were ranked by visitor count.",
-				metrics: [],
-			};
-			const emptyBreakdown: InvestigationEvidence = {
-				evidenceId: `evidence:${metric.key}:empty`,
-				signalKey: rateSignal.signalKey,
-				kind: "breakdown",
-				source: "web",
-				queryType: "entry_pages",
-				period: "current",
-				range: rateSignal.period.current,
-				status: "empty",
-				rowCount: 0,
-				summary: "entry_pages returned no rows.",
-			};
-			const unrelatedPageMetric: InvestigationEvidence = {
-				...genericBreakdown,
-				evidenceId: `evidence:${metric.key}:traffic-only`,
-				entity: { type: "page", id: "page:pricing", label: "/pricing" },
-				metrics: [{ label: "Visitors", current: 200, format: "number" }],
-			};
-
-			for (const item of [
-				emptyBreakdown,
-				genericBreakdown,
-				unrelatedPageMetric,
-			]) {
-				const result = validateInvestigationDecision({
-					signal: rateSignal,
-					evidence: [item],
-					decision: { disposition: "monitor" },
-				});
-				expect(result.errors).toEqual([]);
-				expect(result.insight).toBeNull();
-			}
-
-			const localizedBreakdown: InvestigationEvidence = {
-				...unrelatedPageMetric,
-				evidenceId: `evidence:${metric.key}:localized`,
-				summary: `${metric.label} is concentrated on /pricing.`,
-				metrics: [
-					{
-						label: metric.label,
-						current: metric.current,
-						format: metric.format,
-					},
-				],
-			};
-			const localized = validateInvestigationDecision({
-				signal: rateSignal,
-				evidence: [localizedBreakdown],
-				decision: { disposition: "monitor" },
-			});
-
-			expect(localized.errors).toEqual([]);
-			expect(localized.insight).toMatchObject({
-				title: "Investigate /pricing",
-				evidence: [
-					{
-						type: "segment",
-						description: localizedBreakdown.summary,
-					},
-				],
-			});
-		}
 	});
 
 	it("surfaces a critical exact error as unresolved when the repair is unknown", () => {
@@ -876,10 +768,10 @@ describe("validateInvestigationDecision", () => {
 
 		expect(result.errors).toEqual([]);
 		expect(result.insight).toMatchObject({
-			title: "Visitors drop needs context",
-			description: signal.detection.reason,
+			title: "Visitors fell 40%",
+			description: "Visitors fell from 1,000 to 600.",
 			suggestion:
-				"Visitors fell from 1000 to 600. Was this expected? If not, check source traffic against recorded events on the first affected day.",
+				"Was this traffic drop expected? If not, check source traffic against recorded events on the first affected day.",
 			priority: 6,
 			sources: ["web"],
 		});
@@ -899,6 +791,7 @@ describe("validateInvestigationDecision", () => {
 			kind: "impact",
 			source: "business",
 			queryType: "revenue_overview",
+			summary: "Tracked revenue was 600 from 12 transactions across 8 customers.",
 			metrics: [
 				{ label: "Queried revenue", current: 600, format: "number" },
 			],
@@ -908,6 +801,7 @@ describe("validateInvestigationDecision", () => {
 			evidenceId: "evidence:revenue:previous",
 			period: "previous",
 			range: revenueSignal.period.previous,
+			summary: "Tracked revenue was 1,000 from 20 transactions across 13 customers.",
 			metrics: [
 				{ label: "Queried revenue", current: 1000, format: "number" },
 			],
@@ -956,11 +850,12 @@ describe("validateInvestigationDecision", () => {
 			},
 		});
 		expect(surfaced.insight?.suggestion).toBe(
-			"Revenue changed from 1000 to 600. Was this expected? If not, reconcile billing events with revenue tracking."
+			"Was this revenue change expected? If not, reconcile billing events with revenue tracking."
 		);
 		expect(surfaced.insight?.impactSummary).toBe(
-			"Tracked revenue decreased by 400 compared with the previous period (1,000 → 600)."
+			"Tracked revenue was 600 from 12 transactions across 8 customers."
 		);
+		expect(surfaced.insight?.evidence).toEqual([]);
 		expect(surfaced.insight?.metrics).toEqual([
 			{
 				label: "Revenue",
@@ -985,6 +880,112 @@ describe("validateInvestigationDecision", () => {
 		expect(conflict.errors).toContain(
 			"Revenue query totals conflict with the detector. Retry the query instead of producing customer advice."
 		);
+	});
+
+	it("treats an empty revenue overview as a confirmed zero", () => {
+		const revenueSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "revenue:USD",
+			currency: "USD",
+			severity: "critical",
+			metric: {
+				...signal.metric,
+				key: "revenue",
+				label: "Revenue (USD)",
+				current: 0,
+				previous: 1000,
+			},
+		};
+		const currentRevenueEvidence: InvestigationEvidence = {
+			evidenceId: "evidence:revenue:current-empty",
+			signalKey: revenueSignal.signalKey,
+			kind: "impact",
+			source: "business",
+			queryType: "revenue_overview",
+			period: "current",
+			range: revenueSignal.period.current,
+			status: "empty",
+			rowCount: 0,
+			summary: "revenue_overview returned no rows.",
+		};
+		const previousRevenueEvidence: InvestigationEvidence = {
+			evidenceId: "evidence:revenue:previous",
+			signalKey: revenueSignal.signalKey,
+			kind: "impact",
+			source: "business",
+			queryType: "revenue_overview",
+			period: "previous",
+			range: revenueSignal.period.previous,
+			status: "ok",
+			rowCount: 1,
+			summary: "Tracked USD revenue was 1,000.",
+			metrics: [
+				{ label: "Queried revenue", current: 1000, format: "number" },
+			],
+		};
+
+		const result = validateInvestigationDecision({
+			signal: revenueSignal,
+			evidence: [currentRevenueEvidence, previousRevenueEvidence],
+			decision: {
+				disposition: "needs_context",
+				gap: "planned_external_change",
+			},
+		});
+
+		expect(result.errors).toEqual([]);
+		expect(result.insight).toMatchObject({
+			title: "Revenue (USD) fell 100%",
+			suggestion:
+				"Was this revenue change expected? If not, reconcile billing events with revenue tracking.",
+		});
+	});
+
+	it("gives a vanished custom event a concrete instrumentation check", () => {
+		const eventSignal: InvestigationSignal = {
+			...signal,
+			signalKey: "custom_event:checkout_completed",
+			kind: "missing_expected_data",
+			entity: {
+				type: "event",
+				id: "checkout_completed",
+				label: "checkout_completed",
+			},
+			metric: {
+				key: "custom_event:checkout_completed",
+				label: "“checkout_completed” users",
+				current: 0,
+				previous: 24,
+				format: "number",
+			},
+			severity: "critical",
+		};
+		const eventEvidence: InvestigationEvidence = {
+			evidenceId: "evidence:event:checkout-completed",
+			signalKey: eventSignal.signalKey,
+			kind: "definition",
+			source: "product",
+			queryType: "custom_events_summary",
+			entity: eventSignal.entity,
+			period: "current",
+			range: eventSignal.period.current,
+			status: "ok",
+			rowCount: 1,
+			summary: "checkout_completed recorded no users in the current period.",
+		};
+
+		const result = validateInvestigationDecision({
+			signal: eventSignal,
+			evidence: [eventEvidence],
+			decision: { disposition: "monitor" },
+		});
+
+		expect(result.errors).toEqual([]);
+		expect(result.insight).toMatchObject({
+			title: "Investigate checkout_completed",
+			suggestion:
+				"Verify that checkout_completed still fires at its expected trigger in Databuddy DevTools. If it does, compare the last nonzero day with the first zero day for ingestion or filtering changes.",
+		});
 	});
 
 	it("does not turn an internal query failure into a terminal outcome", () => {

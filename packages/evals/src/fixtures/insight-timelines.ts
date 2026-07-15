@@ -99,10 +99,20 @@ interface VitalRow extends Record<string, unknown> {
 	samples: number;
 }
 
+interface PaymentRow extends Record<string, unknown> {
+	currency: string;
+	failed_payment_attempts: number;
+	observed_failure_event_types: number;
+	payment_failure_rate: number;
+	successful_payment_attempts: number;
+	top_payment_failure_reason: string;
+}
+
 interface MetricFrame {
 	errors?: { current: ErrorRow; previous: ErrorRow };
 	failQueries?: string[];
 	hasData?: boolean;
+	payment?: { current: PaymentRow; previous: PaymentRow };
 	revenue?: { current: number; previous: number };
 	summary?: { current: SummaryRow; previous: SummaryRow };
 	vitals?: { current: VitalRow[]; previous: VitalRow[] };
@@ -232,7 +242,7 @@ function metricQuery(frame: MetricFrame, asOf: string): QueryFn {
 		if (failed.has(request.type)) {
 			return Promise.reject(new Error(`Synthetic ${request.type} failure`));
 		}
-		if (request.type === "events_by_date") {
+		if (request.type === "events_by_date" || request.type === "custom_events") {
 			return Promise.resolve([]);
 		}
 		if (request.type === "summary_metrics") {
@@ -242,9 +252,14 @@ function metricQuery(frame: MetricFrame, asOf: string): QueryFn {
 			return Promise.resolve([periodValue(request, asOf, errors)]);
 		}
 		if (request.type === "revenue_overview") {
+			const payment = frame.payment
+				? periodValue(request, asOf, frame.payment)
+				: {};
 			return Promise.resolve([
 				{
+					currency: frame.payment?.current.currency ?? "USD",
 					total_revenue: periodValue(request, asOf, revenue),
+					...payment,
 				},
 			]);
 		}
@@ -300,8 +315,74 @@ function definitionDeps(frame: DefinitionFrame, asOf: string): FunnelGoalDeps {
 }
 
 function evidenceForSignal(
-	signal: InvestigationSignal
+	signal: InvestigationSignal,
+	frame: MetricFrame
 ): InvestigationEvidence[] {
+	if (
+		(signal.entity.type === "goal" || signal.entity.type === "funnel") &&
+		signal.expectation?.confirmation
+	) {
+		return [
+			{
+				evidenceId: `fixture:${signal.entity.type}:verified`,
+				signalKey: signal.signalKey,
+				kind: "definition",
+				source: "product",
+				queryType:
+					signal.entity.type === "goal" ? "goals_summary" : "funnels_summary",
+				entity: signal.entity,
+				period: "current",
+				range: signal.period.current,
+				status: "ok",
+				rowCount: 1,
+				summary: `${signal.entity.label} was re-verified against its active definition.`,
+				remediation: signal.expectation,
+			},
+		];
+	}
+	if (signal.metric.key === "payment_failure_rate" && frame.payment) {
+		return (["current", "previous"] as const).map((period) => {
+			const payment = frame.payment?.[period];
+			if (!payment) {
+				throw new Error("Missing synthetic payment evidence");
+			}
+			const reason = payment.top_payment_failure_reason.replace(/[_-]+/g, " ");
+			return {
+				evidenceId: `fixture:payment-failure:${period}`,
+				signalKey: signal.signalKey,
+				kind: "breakdown",
+				source: "business",
+				queryType: "revenue_overview",
+				period,
+				range: signal.period[period],
+				status: "ok",
+				rowCount: 1,
+				summary: `${period === "current" ? "Current" : "Previous"} tracked payment failure rate was ${payment.payment_failure_rate}%. Most common failure: ${reason}. ${payment.observed_failure_event_types} distinct Stripe failure event types were observed in this range.`,
+				metrics: [
+					{
+						label: "Payment failure rate",
+						current: payment.payment_failure_rate,
+						format: "percent",
+					},
+					{
+						label: "Failed payment attempts",
+						current: payment.failed_payment_attempts,
+						format: "number",
+					},
+					{
+						label: "Successful payment attempts",
+						current: payment.successful_payment_attempts,
+						format: "number",
+					},
+					{
+						label: "Observed failure event types",
+						current: payment.observed_failure_event_types,
+						format: "number",
+					},
+				],
+			};
+		});
+	}
 	if (signal.metric.key === "revenue") {
 		return (["current", "previous"] as const).map((period) => ({
 			evidenceId: `fixture:revenue:${period}`,
@@ -313,7 +394,7 @@ function evidenceForSignal(
 			range: signal.period[period],
 			status: "ok",
 			rowCount: 1,
-			summary: `${period === "current" ? "Current" : "Previous"} queried revenue was ${period === "current" ? signal.metric.current : signal.metric.previous}.`,
+			summary: `${period === "current" ? "Current" : "Previous"} queried revenue (${signal.currency ?? "unknown currency"}) was ${period === "current" ? signal.metric.current : signal.metric.previous}.`,
 			metrics: [
 				{
 					label: "Queried revenue",
@@ -401,7 +482,7 @@ function createSources(
 						new Error("Unexpected synthetic evidence read")
 					);
 				}
-				return Promise.resolve(evidenceForSignal(params.signal));
+				return Promise.resolve(evidenceForSignal(params.signal, metricFrame));
 			}),
 		createServiceAuth: () => Promise.resolve(undefined),
 		detectDefinitionSignals: (params, today, _deps, options) =>
@@ -487,7 +568,7 @@ const trafficLifecycle: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Visitors drop needs context",
+				title: "Visitors fell 60%",
 			},
 			id: "detected",
 			previous: { unique_visitors: 1000 },
@@ -513,7 +594,7 @@ const trafficLifecycle: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "worsened",
 				status: "completed",
-				title: "Visitors drop needs context",
+				title: "Visitors fell 95%",
 			},
 			id: "worsened",
 			previous: { unique_visitors: 1000 },
@@ -545,11 +626,51 @@ const revenueDrop: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Revenue drop needs context",
+				title: "Revenue (USD) fell 60%",
 			},
 			frame: { metrics: { revenue: { current: 400, previous: 1000 } } },
 			id: "drop",
 			timelineId: "revenue-drop",
+		}),
+	],
+};
+
+const paymentFailureRegression: InsightTimeline = {
+	id: "payment-failure-regression",
+	name: "Payment failure regression preserves safe cause and occurrence context",
+	stages: [
+		stage({
+			asOf: "2026-07-06",
+			expect: {
+				disposition: "needs_context",
+				lifecycle: "detected",
+				status: "completed",
+				title: "Payment failure rate (USD) rose to 20%",
+			},
+			frame: {
+				metrics: {
+					payment: {
+						current: {
+							currency: "USD",
+							failed_payment_attempts: 10,
+							observed_failure_event_types: 2,
+							payment_failure_rate: 20,
+							successful_payment_attempts: 40,
+							top_payment_failure_reason: "insufficient_funds",
+						},
+						previous: {
+							currency: "USD",
+							failed_payment_attempts: 2,
+							observed_failure_event_types: 2,
+							payment_failure_rate: 5,
+							successful_payment_attempts: 38,
+							top_payment_failure_reason: "generic_decline",
+						},
+					},
+				},
+			},
+			id: "regression",
+			timelineId: "payment-failure-regression",
 		}),
 	],
 };
@@ -616,7 +737,7 @@ const zeroGoal: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Signup needs context",
+				title: "Signup conversion stopped",
 			},
 			frame: {
 				definitions: {
@@ -750,7 +871,7 @@ const incompleteValidSignal: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Visitors drop needs context",
+				title: "Visitors fell 70%",
 			},
 			frame: {
 				metrics: {
@@ -875,6 +996,7 @@ const lowImpactErrorSpike: InsightTimeline = {
 export const insightTimelines: InsightTimeline[] = [
 	trafficLifecycle,
 	revenueDrop,
+	paymentFailureRegression,
 	errorSpike,
 	vitalRegression,
 	zeroGoal,

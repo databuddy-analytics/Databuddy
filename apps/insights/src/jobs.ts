@@ -1,4 +1,13 @@
-import { and, db, eq, isNull, notInArray, sql } from "@databuddy/db";
+import {
+	and,
+	db,
+	eq,
+	isNull,
+	notInArray,
+	or,
+	sql,
+	withTransaction,
+} from "@databuddy/db";
 import { insightRunItems, insightRuns } from "@databuddy/db/schema";
 import {
 	INSIGHTS_DISPATCH_JOB_NAME,
@@ -33,7 +42,10 @@ import {
 	withInsightsLogContext,
 } from "./lib/evlog-insights";
 import { processRollupJob } from "./rollup";
-import { dispatchDueInsightRuns } from "./scheduler";
+import {
+	dispatchDueInsightRuns,
+	scheduledDispatchOrganizations,
+} from "./scheduler";
 
 const SUCCESS_CHECKPOINT_ATTEMPTS = 3;
 const SUCCESSFUL_ITEM_STATUSES: ("skipped" | "succeeded")[] = [
@@ -52,6 +64,7 @@ type InsightsJob = Pick<
 >;
 
 interface CanonicalGenerateItem extends InsightRunIdentity {
+	attempts: number;
 	errorMessage: string | null;
 	queueJobId: string;
 	reason: InsightsGenerateWebsiteJobData["reason"];
@@ -130,6 +143,7 @@ async function loadCanonicalGenerateItem(
 ): Promise<CanonicalGenerateItem> {
 	const [item] = await db
 		.select({
+			attempts: insightRunItems.attempts,
 			errorMessage: insightRunItems.errorMessage,
 			itemId: insightRunItems.id,
 			organizationId: insightRunItems.organizationId,
@@ -303,21 +317,8 @@ async function processGenerateWebsiteJob(
 	}
 
 	const now = new Date();
-	const [, started] = await Promise.all([
-		db
-			.update(insightRuns)
-			.set({
-				status: "running",
-				startedAt: sql`coalesce(${insightRuns.startedAt}, ${now})`,
-				updatedAt: now,
-			})
-			.where(
-				and(
-					eq(insightRuns.id, data.runId),
-					eq(insightRuns.organizationId, data.organizationId)
-				)
-			),
-		db
+	const started = await withTransaction(async (tx) => {
+		const claimed = await tx
 			.update(insightRunItems)
 			.set({
 				attempts: job.attemptsMade + 1,
@@ -330,11 +331,34 @@ async function processGenerateWebsiteJob(
 			.where(
 				and(
 					itemIdentityCondition(data),
-					notInArray(insightRunItems.status, SUCCESSFUL_ITEM_STATUSES)
+					or(
+						eq(insightRunItems.status, "queued"),
+						and(
+							eq(insightRunItems.status, "running"),
+							eq(insightRunItems.attempts, job.attemptsMade)
+						)
+					)
 				)
 			)
-			.returning({ id: insightRunItems.id }),
-	]);
+			.returning({ id: insightRunItems.id });
+		if (claimed.length === 0) {
+			return claimed;
+		}
+		await tx
+			.update(insightRuns)
+			.set({
+				status: "running",
+				startedAt: sql`coalesce(${insightRuns.startedAt}, ${now})`,
+				updatedAt: now,
+			})
+			.where(
+				and(
+					eq(insightRuns.id, data.runId),
+					eq(insightRuns.organizationId, data.organizationId)
+				)
+			);
+		return claimed;
+	});
 	if (started.length === 0) {
 		const concurrentlyCompleted = await loadSuccessfulItem(data);
 		if (concurrentlyCompleted) {
@@ -344,9 +368,8 @@ async function processGenerateWebsiteJob(
 				status: concurrentlyCompleted.status,
 			};
 		}
-		throw new Error("Insight run item not found");
+		throw new Error("Insight run item is already running or unavailable");
 	}
-
 	let result: GenerateWebsiteInsightsResult;
 	try {
 		result = await generateWebsiteInsights({
@@ -383,7 +406,16 @@ export async function processInsightsJob(job: InsightsJob) {
 		try {
 			let result: unknown;
 			if (job.name === INSIGHTS_DISPATCH_JOB_NAME) {
-				result = await dispatchDueInsightRuns();
+				const organizations = scheduledDispatchOrganizations();
+				if (organizations === null || organizations.length > 0) {
+					result = await dispatchDueInsightRuns(
+						new Date(),
+						organizations ?? undefined
+					);
+				} else {
+					result = { status: "disabled" };
+					emitInsightsEvent("info", "scheduler.dispatch_job_ignored", context);
+				}
 			} else if (job.name === INSIGHTS_MAINTENANCE_JOB_NAME) {
 				result = await recoverStaleInsightRuns();
 			} else if (job.name === INSIGHTS_GENERATE_WEBSITE_JOB_NAME) {

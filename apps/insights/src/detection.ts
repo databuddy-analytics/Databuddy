@@ -14,6 +14,7 @@ dayjs.extend(timezonePlugin);
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
+	currency?: string;
 	current: number;
 	definitionEvidence?: {
 		metrics: InsightMetric[];
@@ -70,18 +71,6 @@ const ANOMALY_METRICS: AnomalyMetric[] = [
 		dailyField: "pageviews",
 		summaryField: "pageviews",
 	},
-	{
-		key: "bounce_rate",
-		label: "Bounce rate",
-		dailyField: "bounce_rate",
-		summaryField: "bounce_rate",
-	},
-	{
-		key: "session_duration",
-		label: "Avg. session duration",
-		dailyField: "median_session_duration",
-		summaryField: "median_session_duration",
-	},
 ];
 
 export function median(values: number[]): number {
@@ -110,15 +99,20 @@ const ZSCORE_MIN_BASELINE = 6;
 const ZSCORE_HISTORY_DAYS = 22;
 const WOW_TRAFFIC_THRESHOLD = 40;
 const WOW_ERROR_THRESHOLD = 40;
+const WOW_CUSTOM_EVENT_THRESHOLD = 60;
 const WOW_REVENUE_THRESHOLD = 30;
+const WOW_PAYMENT_FAILURE_THRESHOLD = 50;
 const WOW_VITALS_THRESHOLD = 30;
 const REVENUE_MIN_ABSOLUTE_CHANGE = 25;
 const REVENUE_MIN_TRANSACTIONS = 5;
-const FILTER_SESSION_DURATION_MIN_DELTA = 60;
-const FILTER_SESSION_DURATION_MIN_PEAK = 20;
-const FILTER_BOUNCE_MIN_DELTA = 10;
+const PAYMENT_FAILURE_MIN_FAILED = 5;
+const PAYMENT_FAILURE_MIN_TOTAL_ATTEMPTS = 10;
+const PAYMENT_FAILURE_MIN_RATE = 5;
+const PAYMENT_FAILURE_MIN_POINT_CHANGE = 5;
 const FILTER_ERROR_MIN_DELTA = 5;
 const FILTER_ERROR_MIN_PEAK = 10;
+const FILTER_CUSTOM_EVENT_MIN_DELTA = 10;
+const FILTER_CUSTOM_EVENT_MIN_PEAK = 20;
 const ERROR_MIN_AFFECTED_USERS = 5;
 const ERROR_SIGNIFICANT_AFFECTED_USERS = 20;
 const ERROR_MIN_SESSION_RATE = 1;
@@ -192,15 +186,11 @@ export function adaptiveWowThreshold(
 type SignalFilter = (signal: DetectedSignal) => boolean;
 
 const METRIC_FILTERS: Record<string, SignalFilter> = {
-	session_duration: (s) =>
-		Math.abs(s.current - s.baseline) >= FILTER_SESSION_DURATION_MIN_DELTA &&
-		Math.max(s.current, s.baseline) >= FILTER_SESSION_DURATION_MIN_PEAK,
-	bounce_rate: (s) =>
-		Math.abs(s.current - s.baseline) >= FILTER_BOUNCE_MIN_DELTA,
 	error_count: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_ERROR_MIN_DELTA &&
 		Math.max(s.current, s.baseline) >= FILTER_ERROR_MIN_PEAK,
 	revenue: () => true,
+	payment_failure_rate: () => true,
 	lcp: () => true,
 	inp: () => true,
 };
@@ -232,17 +222,27 @@ export function makeWowSignal(
 }
 
 function passesImpactFilter(signal: DetectedSignal): boolean {
+	if (signal.metric.startsWith("custom_event:")) {
+		return (
+			Math.abs(signal.current - signal.baseline) >=
+				FILTER_CUSTOM_EVENT_MIN_DELTA &&
+			Math.max(signal.current, signal.baseline) >= FILTER_CUSTOM_EVENT_MIN_PEAK
+		);
+	}
 	const filter = METRIC_FILTERS[signal.metric];
 	return filter ? filter(signal) : DEFAULT_TRAFFIC_FILTER(signal);
 }
 
-const RATE_METRICS = new Set(["bounce_rate", "session_duration", "lcp", "inp"]);
+const RATE_METRICS = new Set(["lcp", "inp"]);
 
 export function passesLowTrafficFloor(
 	signal: DetectedSignal,
 	weeklySessions: number
 ): boolean {
 	if (weeklySessions >= LOW_TRAFFIC_WEEKLY_SESSIONS) {
+		return true;
+	}
+	if (signal.metric === "payment_failure_rate") {
 		return true;
 	}
 	if (RATE_METRICS.has(signal.metric)) {
@@ -317,6 +317,16 @@ function mapRowsByStringField(
 	return mapped;
 }
 
+function mapRevenueRowsByCurrency(
+	rows: Record<string, unknown>[]
+): Map<string, Record<string, unknown>> {
+	const mapped = new Map<string, Record<string, unknown>>();
+	for (const row of rows) {
+		mapped.set(stringField(row, "currency") ?? "", row);
+	}
+	return mapped;
+}
+
 function densifyDailyHistory(
 	rows: Record<string, unknown>[],
 	from: string,
@@ -338,8 +348,6 @@ function densifyDailyHistory(
 		dense.push(
 			byDate.get(key) ?? {
 				date: key,
-				bounce_rate: 0,
-				median_session_duration: 0,
 				pageviews: 0,
 				sessions: 0,
 				visitors: 0,
@@ -398,7 +406,13 @@ function rethrowDetectionAbort(
 
 async function readDetectorFamily<T>(params: {
 	abortSignal?: AbortSignal;
-	family: "errors" | "history" | "revenue" | "summary" | "vitals";
+	family:
+		| "custom_events"
+		| "errors"
+		| "history"
+		| "revenue"
+		| "summary"
+		| "vitals";
 	read: () => Promise<T>;
 	websiteId: string;
 }): Promise<DetectorFamilyResult<T>> {
@@ -494,10 +508,10 @@ export async function detectSignals(
 
 	const wowDirection = new Map<string, "up" | "down">();
 	for (const s of wowSignals) {
-		wowDirection.set(s.metric, s.direction);
+		wowDirection.set(`${s.metric}:${s.currency ?? ""}`, s.direction);
 	}
 	const reconciledZscore = zscoreSignals.filter((s) => {
-		const wow = wowDirection.get(s.metric);
+		const wow = wowDirection.get(`${s.metric}:${s.currency ?? ""}`);
 		return wow === undefined || wow === s.direction;
 	});
 
@@ -505,9 +519,10 @@ export async function detectSignals(
 
 	const byMetric = new Map<string, DetectedSignal>();
 	for (const signal of all) {
-		const prev = byMetric.get(signal.metric);
+		const key = `${signal.metric}:${signal.currency ?? ""}`;
+		const prev = byMetric.get(key);
 		if (!prev || Math.abs(signal.deltaPercent) > Math.abs(prev.deltaPercent)) {
-			byMetric.set(signal.metric, signal);
+			byMetric.set(key, signal);
 		}
 	}
 
@@ -648,7 +663,7 @@ async function detectWow(
 		);
 	}
 
-	const [summary, errors, revenue, vitals] = await Promise.all([
+	const [summary, customEvents, errors, revenue, vitals] = await Promise.all([
 		readDetectorFamily({
 			abortSignal,
 			family: "summary",
@@ -657,6 +672,16 @@ async function detectWow(
 				Promise.all([
 					query("summary_metrics", currentFrom, currentTo),
 					query("summary_metrics", previousFrom, previousTo),
+				]),
+		}),
+		readDetectorFamily({
+			abortSignal,
+			family: "custom_events",
+			websiteId,
+			read: () =>
+				Promise.all([
+					query("custom_events", currentFrom, currentTo),
+					query("custom_events", previousFrom, previousTo),
 				]),
 		}),
 		readDetectorFamily({
@@ -691,11 +716,53 @@ async function detectWow(
 		}),
 	]);
 	const [currentSummary, previousSummary] = summary.value ?? [[], []];
+	const [currentCustomEvents, previousCustomEvents] = customEvents.value ?? [
+		[],
+		[],
+	];
 	const [currentErrors, previousErrors] = errors.value ?? [[], []];
 	const [currentRevenue, previousRevenue] = revenue.value ?? [[], []];
 	const [currentVitals, previousVitals] = vitals.value ?? [[], []];
 
 	const signals: DetectedSignal[] = [];
+	const currentEventsByName = mapRowsByStringField(currentCustomEvents, "name");
+	const previousEventsByName = mapRowsByStringField(
+		previousCustomEvents,
+		"name"
+	);
+	const customEventNames = new Set([
+		...currentEventsByName.keys(),
+		...previousEventsByName.keys(),
+	]);
+	for (const eventName of customEventNames) {
+		const currentUsers = numberField(
+			currentEventsByName.get(eventName),
+			"unique_users"
+		);
+		const previousUsers = numberField(
+			previousEventsByName.get(eventName),
+			"unique_users"
+		);
+		const deltaPercent = safeDeltaPercent(currentUsers, previousUsers);
+		if (
+			Math.abs(deltaPercent) < WOW_CUSTOM_EVENT_THRESHOLD ||
+			Math.abs(currentUsers - previousUsers) < FILTER_CUSTOM_EVENT_MIN_DELTA ||
+			Math.max(currentUsers, previousUsers) < FILTER_CUSTOM_EVENT_MIN_PEAK
+		) {
+			continue;
+		}
+		const signal = makeWowSignal(
+			`custom_event:${eventName}`,
+			`“${eventName}” users`,
+			currentUsers,
+			previousUsers,
+			currentTo
+		);
+		if (currentUsers === 0 && previousUsers > 0) {
+			signal.kind = "missing_expected_data";
+		}
+		signals.push(signal);
+	}
 
 	for (const metric of ANOMALY_METRICS) {
 		const currentValue = numberField(currentSummary[0], metric.summaryField);
@@ -760,24 +827,110 @@ async function detectWow(
 		}
 	}
 
-	const revNow = numberField(currentRevenue[0], "total_revenue");
-	const revPrev = numberField(previousRevenue[0], "total_revenue");
-	const revenueTransactions = Math.max(
-		numberField(currentRevenue[0], "total_transactions"),
-		numberField(previousRevenue[0], "total_transactions")
-	);
-	const meaningfulRevenueChange =
-		Math.abs(revNow - revPrev) >= REVENUE_MIN_ABSOLUTE_CHANGE ||
-		revenueTransactions >= REVENUE_MIN_TRANSACTIONS;
-	if ((revNow > 0 || revPrev > 0) && meaningfulRevenueChange) {
-		const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
+	const currentRevenueByCurrency = mapRevenueRowsByCurrency(currentRevenue);
+	const previousRevenueByCurrency = mapRevenueRowsByCurrency(previousRevenue);
+	const revenueCurrencies = new Set([
+		...currentRevenueByCurrency.keys(),
+		...previousRevenueByCurrency.keys(),
+	]);
+	for (const currency of revenueCurrencies) {
+		const current = currentRevenueByCurrency.get(currency);
+		const previous = previousRevenueByCurrency.get(currency);
+		const currencySuffix = currency ? ` (${currency})` : "";
+		const revNow = numberField(current, "total_revenue");
+		const revPrev = numberField(previous, "total_revenue");
+		const revenueTransactions = Math.max(
+			numberField(current, "total_transactions"),
+			numberField(previous, "total_transactions")
+		);
+		const meaningfulRevenueChange =
+			Math.abs(revNow - revPrev) >= REVENUE_MIN_ABSOLUTE_CHANGE ||
+			revenueTransactions >= REVENUE_MIN_TRANSACTIONS;
+		if ((revNow > 0 || revPrev > 0) && meaningfulRevenueChange) {
+			const pct = revPrev === 0 ? 100 : safeDeltaPercent(revNow, revPrev);
+			if (
+				Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
+				(revPrev === 0 && revNow > 0)
+			) {
+				const signal = makeWowSignal(
+					"revenue",
+					`Revenue${currencySuffix}`,
+					revNow,
+					revPrev,
+					currentTo
+				);
+				if (currency) {
+					signal.currency = currency;
+				}
+				signals.push(signal);
+			}
+		}
+
+		const failedPaymentsNow = numberField(current, "failed_payment_attempts");
+		const failedPaymentsPrev = numberField(previous, "failed_payment_attempts");
+		const successfulPaymentsNow = numberField(
+			current,
+			"successful_payment_attempts"
+		);
+		const successfulPaymentsPrev = numberField(
+			previous,
+			"successful_payment_attempts"
+		);
+		const paymentFailureRateNow = numberField(current, "payment_failure_rate");
+		const paymentFailureRatePrev = numberField(
+			previous,
+			"payment_failure_rate"
+		);
+		const observedFailureEventTypesNow = numberField(
+			current,
+			"observed_failure_event_types"
+		);
+		const observedFailureEventTypesPrev = numberField(
+			previous,
+			"observed_failure_event_types"
+		);
+		const isFailureRateIncrease =
+			paymentFailureRateNow > paymentFailureRatePrev;
+		// Event types observed in a date range are occurrences, not proof of the
+		// endpoint's subscription coverage. A regression needs current evidence;
+		// a recovery needs failure observations in both periods.
+		const hasFailureObservations =
+			observedFailureEventTypesNow > 0 &&
+			(isFailureRateIncrease || observedFailureEventTypesPrev > 0);
+		const paymentAttemptsNow = failedPaymentsNow + successfulPaymentsNow;
+		const paymentAttemptsPrev = failedPaymentsPrev + successfulPaymentsPrev;
+		const hasMaterialFailureSample =
+			(failedPaymentsNow >= PAYMENT_FAILURE_MIN_FAILED &&
+				paymentAttemptsNow >= PAYMENT_FAILURE_MIN_TOTAL_ATTEMPTS) ||
+			(failedPaymentsPrev >= PAYMENT_FAILURE_MIN_FAILED &&
+				paymentAttemptsPrev >= PAYMENT_FAILURE_MIN_TOTAL_ATTEMPTS);
+		const failureRateDelta = safeDeltaPercent(
+			paymentFailureRateNow,
+			paymentFailureRatePrev
+		);
 		if (
-			Math.abs(pct) >= WOW_REVENUE_THRESHOLD ||
-			(revPrev === 0 && revNow > 0)
+			hasFailureObservations &&
+			hasMaterialFailureSample &&
+			paymentAttemptsNow >= PAYMENT_FAILURE_MIN_TOTAL_ATTEMPTS &&
+			paymentAttemptsPrev >= PAYMENT_FAILURE_MIN_TOTAL_ATTEMPTS &&
+			Math.max(paymentFailureRateNow, paymentFailureRatePrev) >=
+				PAYMENT_FAILURE_MIN_RATE &&
+			Math.abs(paymentFailureRateNow - paymentFailureRatePrev) >=
+				PAYMENT_FAILURE_MIN_POINT_CHANGE &&
+			Math.abs(failureRateDelta) >= WOW_PAYMENT_FAILURE_THRESHOLD
 		) {
-			signals.push(
-				makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo)
+			const signal = makeWowSignal(
+				"payment_failure_rate",
+				`Payment failure rate${currencySuffix}`,
+				paymentFailureRateNow,
+				paymentFailureRatePrev,
+				currentTo,
+				true
 			);
+			if (currency) {
+				signal.currency = currency;
+			}
+			signals.push(signal);
 		}
 	}
 
@@ -790,9 +943,11 @@ async function detectWow(
 		const curVal = numberField(cur, "p75");
 		const prevVal = numberField(prev, "p75");
 		const curSamples = numberField(cur, "samples");
+		const prevSamples = numberField(prev, "samples");
 
 		if (
 			curSamples < 10 ||
+			prevSamples < 10 ||
 			prevVal === 0 ||
 			curVal === 0 ||
 			curVal > VITALS_MAX_PLAUSIBLE[metricName] ||
@@ -815,7 +970,7 @@ async function detectWow(
 	}
 
 	return {
-		failedFamilies: [summary, errors, revenue, vitals].filter(
+		failedFamilies: [summary, customEvents, errors, revenue, vitals].filter(
 			(result) => result.failed
 		).length,
 		signals,

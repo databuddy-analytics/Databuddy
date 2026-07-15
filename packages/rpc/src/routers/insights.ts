@@ -27,13 +27,14 @@ import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { sessionProcedure } from "../orpc";
+import { type Context, sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
 const voteSchema = z.enum(["up", "down"]);
 const rangeSchema = z.enum(["7d", "30d", "90d"]);
 const insightStatusSchema = z.enum(["open", "resolved"]);
 const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
+const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
 
 const NARRATIVE_RATE_LIMIT = 30;
 const NARRATIVE_RATE_WINDOW_SECS = 3600;
@@ -46,6 +47,25 @@ function isAccessDenied(error: unknown): boolean {
 		error instanceof ORPCError &&
 		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
 	);
+}
+
+function canReadInsightOrganization(
+	context: Context,
+	organizationId: string
+): Promise<boolean> {
+	return withWorkspace(context, {
+		organizationId,
+		resource: "organization",
+		permissions: ["read"],
+		allowCrossOrg: true,
+	})
+		.then(() => true)
+		.catch((error) => {
+			if (isAccessDenied(error)) {
+				return false;
+			}
+			throw error;
+		});
 }
 
 async function enforceRateLimit(
@@ -67,6 +87,7 @@ const historyInsightEvidenceSchema = insightEvidenceSchema.extend({
 
 const historyInsightSchema = z.object({
 	actions: z.array(storedInsightActionSchema).nullable().optional(),
+	chainId: z.string().nullable().optional(),
 	changePercent: z.number().optional(),
 	confidence: z.number(),
 	createdAt: z.string(),
@@ -76,6 +97,7 @@ const historyInsightSchema = z.object({
 	evidence: z.array(historyInsightEvidenceSchema).nullable().optional(),
 	id: z.string(),
 	impactSummary: z.string().optional(),
+	investigationDepth: investigationDepthSchema.nullable().optional(),
 	link: z.string(),
 	metrics: z.array(insightMetricSchema),
 	previousPeriodFrom: z.string().nullable(),
@@ -100,8 +122,23 @@ const historyInsightSchema = z.object({
 	websiteName: z.string().nullable(),
 });
 
+const legacyWebsiteInsightSchema = historyInsightSchema.omit({
+	createdAt: true,
+	currentPeriodFrom: true,
+	currentPeriodTo: true,
+	previousPeriodFrom: true,
+	previousPeriodTo: true,
+	remediationKind: true,
+	resolvedAt: true,
+	resolvedReason: true,
+	runId: true,
+	status: true,
+	timezone: true,
+});
+
 const insightSelection = {
 	actions: analyticsInsights.actions,
+	chainId: analyticsInsights.chainId,
 	changePercent: analyticsInsights.changePercent,
 	confidence: analyticsInsights.confidence,
 	createdAt: analyticsInsights.createdAt,
@@ -111,6 +148,7 @@ const insightSelection = {
 	evidence: analyticsInsights.evidence,
 	id: analyticsInsights.id,
 	impactSummary: analyticsInsights.impactSummary,
+	investigationDepth: analyticsInsights.investigationDepth,
 	metrics: analyticsInsights.metrics,
 	organizationId: analyticsInsights.organizationId,
 	previousPeriodFrom: analyticsInsights.previousPeriodFrom,
@@ -144,8 +182,20 @@ function selectInsights() {
 
 type InsightRow = Awaited<ReturnType<typeof selectInsights>>[number];
 
-function buildInsightLink(websiteId: string, type: string): string {
+export function buildInsightLink(
+	websiteId: string,
+	type: string,
+	subjectKey: string
+): string {
 	const base = `/websites/${websiteId}`;
+	if (
+		subjectKey === "revenue" ||
+		subjectKey.startsWith("revenue:") ||
+		subjectKey === "payment_failure_rate" ||
+		subjectKey.startsWith("payment_failure_rate:")
+	) {
+		return `${base}/revenue`;
+	}
 	if (
 		[
 			"error_spike",
@@ -180,6 +230,7 @@ function serializeInsight(
 ): z.infer<typeof historyInsightSchema> {
 	return {
 		actions: row.actions ?? null,
+		chainId: row.chainId ?? null,
 		changePercent: row.changePercent ?? undefined,
 		confidence: row.confidence,
 		createdAt: row.createdAt.toISOString(),
@@ -189,7 +240,8 @@ function serializeInsight(
 		evidence: row.evidence ?? null,
 		id: row.id,
 		impactSummary: row.impactSummary ?? undefined,
-		link: buildInsightLink(row.websiteId, row.type),
+		investigationDepth: row.investigationDepth ?? null,
+		link: buildInsightLink(row.websiteId, row.type, row.subjectKey),
 		metrics: row.metrics ?? [],
 		previousPeriodFrom: row.previousPeriodFrom,
 		previousPeriodTo: row.previousPeriodTo,
@@ -257,6 +309,71 @@ const loadNarrativeCached = cacheable(
 );
 
 export const insightsRouter = {
+	feed: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/feed",
+			tags: ["Insights"],
+			summary: "Get current insight feed",
+			description:
+				"Deprecated read-only compatibility endpoint. Reads persisted findings without starting an analysis.",
+		})
+		.input(
+			z.object({
+				organizationId: z.string().min(1),
+				timezone: z.string().min(1).max(80).default("UTC"),
+			})
+		)
+		.output(
+			z.object({
+				generation: z
+					.object({
+						queuedItems: z.number().optional(),
+						runId: z.string().optional(),
+						status: z.enum(["queued", "skipped", "disabled", "unavailable"]),
+					})
+					.optional(),
+				insights: z.array(legacyWebsiteInsightSchema),
+				source: z.enum(["ai", "fallback"]),
+				success: z.literal(true),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await withWorkspace(context, {
+				organizationId: input.organizationId,
+				resource: "organization",
+				permissions: ["read"],
+			});
+			await enforceRateLimit(
+				`insights:feed:${input.organizationId}:${context.user.id}`,
+				INSIGHT_READ_RATE_LIMIT,
+				INSIGHT_READ_RATE_WINDOW_SECS
+			);
+
+			const rows = await selectInsights()
+				.where(
+					and(
+						eq(analyticsInsights.organizationId, input.organizationId),
+						eq(analyticsInsights.status, "open"),
+						isNull(websites.deletedAt)
+					)
+				)
+				.orderBy(
+					desc(analyticsInsights.priority),
+					desc(analyticsInsights.createdAt)
+				)
+				.limit(10);
+			const insights = rows.map((row) =>
+				legacyWebsiteInsightSchema.parse(serializeInsight(row))
+			);
+
+			return {
+				insights,
+				source: insights.length > 0 ? ("ai" as const) : ("fallback" as const),
+				success: true as const,
+			};
+		}),
+
 	history: sessionProcedure
 		.route({
 			method: "POST",
@@ -350,19 +467,10 @@ export const insightsRouter = {
 				return { success: true as const, insight: null };
 			}
 
-			const canRead = await withWorkspace(context, {
-				organizationId: row.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-				allowCrossOrg: true,
-			})
-				.then(() => true)
-				.catch((error) => {
-					if (isAccessDenied(error)) {
-						return false;
-					}
-					throw error;
-				});
+			const canRead = await canReadInsightOrganization(
+				context,
+				row.organizationId
+			);
 
 			if (!canRead) {
 				return { success: true as const, insight: null };
@@ -423,19 +531,10 @@ export const insightsRouter = {
 				return { success: true as const, insights: [] };
 			}
 
-			const canRead = await withWorkspace(context, {
-				organizationId: current.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-				allowCrossOrg: true,
-			})
-				.then(() => true)
-				.catch((error) => {
-					if (isAccessDenied(error)) {
-						return false;
-					}
-					throw error;
-				});
+			const canRead = await canReadInsightOrganization(
+				context,
+				current.organizationId
+			);
 
 			if (!canRead) {
 				return { success: true as const, insights: [] };
@@ -572,7 +671,7 @@ export const insightsRouter = {
 			tags: ["Insights"],
 			summary: "Get insight feedback votes",
 			description:
-				"Returns thumbs up/down votes for the given insight ids for the current user in the active organization.",
+				"Returns thumbs up/down votes for findings the current user can access, resolved against each finding's organization.",
 		})
 		.input(
 			z.object({
@@ -585,10 +684,42 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
 			if (input.insightIds.length === 0) {
+				return { votes: {} };
+			}
+
+			const insightRows = await context.db
+				.select({
+					id: analyticsInsights.id,
+					organizationId: analyticsInsights.organizationId,
+				})
+				.from(analyticsInsights)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+				.where(
+					and(
+						inArray(analyticsInsights.id, input.insightIds),
+						isNull(websites.deletedAt)
+					)
+				);
+			const organizationIds = [
+				...new Set(insightRows.map((row) => row.organizationId)),
+			];
+			const access = await Promise.all(
+				organizationIds.map(async (organizationId) => ({
+					organizationId,
+					canRead: await canReadInsightOrganization(context, organizationId),
+				}))
+			);
+			const accessibleOrganizations = new Set(
+				access
+					.filter((result) => result.canRead)
+					.map((result) => result.organizationId)
+			);
+			const accessibleInsightIds = insightRows
+				.filter((row) => accessibleOrganizations.has(row.organizationId))
+				.map((row) => row.id);
+
+			if (accessibleInsightIds.length === 0) {
 				return { votes: {} };
 			}
 
@@ -598,11 +729,20 @@ export const insightsRouter = {
 					vote: insightUserFeedback.vote,
 				})
 				.from(insightUserFeedback)
+				.innerJoin(
+					analyticsInsights,
+					and(
+						eq(insightUserFeedback.insightId, analyticsInsights.id),
+						eq(
+							insightUserFeedback.organizationId,
+							analyticsInsights.organizationId
+						)
+					)
+				)
 				.where(
 					and(
 						eq(insightUserFeedback.userId, context.user.id),
-						eq(insightUserFeedback.organizationId, context.organizationId),
-						inArray(insightUserFeedback.insightId, input.insightIds),
+						inArray(analyticsInsights.id, accessibleInsightIds),
 						inArray(insightUserFeedback.vote, ["up", "down"])
 					)
 				);
@@ -623,7 +763,7 @@ export const insightsRouter = {
 			tags: ["Insights"],
 			summary: "Set or clear insight vote",
 			description:
-				"Sets thumbs up/down for an insight, or clears the vote when vote is null.",
+				"Sets thumbs up/down for a finding in its stored organization, or clears the vote when vote is null.",
 		})
 		.input(
 			z.object({
@@ -633,46 +773,189 @@ export const insightsRouter = {
 		)
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
+			const [insight] = await context.db
+				.select({ organizationId: analyticsInsights.organizationId })
+				.from(analyticsInsights)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+				.where(
+					and(
+						eq(analyticsInsights.id, input.insightId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.limit(1);
+
+			if (!insight) {
+				throw rpcError.notFound("insight", input.insightId);
 			}
 
-			if (input.vote === null) {
-				await context.db
+			await withWorkspace(context, {
+				organizationId: insight.organizationId,
+				resource: "organization",
+				permissions: ["read"],
+				allowCrossOrg: true,
+			});
+
+			await context.db.transaction(async (tx) => {
+				if (input.vote === null) {
+					await tx
+						.delete(insightUserFeedback)
+						.where(
+							and(
+								eq(insightUserFeedback.userId, context.user.id),
+								eq(insightUserFeedback.insightId, input.insightId)
+							)
+						);
+					return;
+				}
+
+				await tx
 					.delete(insightUserFeedback)
 					.where(
 						and(
 							eq(insightUserFeedback.userId, context.user.id),
-							eq(insightUserFeedback.organizationId, context.organizationId),
-							eq(insightUserFeedback.insightId, input.insightId)
+							eq(insightUserFeedback.insightId, input.insightId),
+							ne(insightUserFeedback.organizationId, insight.organizationId)
 						)
 					);
-				return { success: true as const };
+
+				const now = new Date();
+				await tx
+					.insert(insightUserFeedback)
+					.values({
+						id: randomUUIDv7(),
+						userId: context.user.id,
+						organizationId: insight.organizationId,
+						insightId: input.insightId,
+						vote: input.vote,
+						createdAt: now,
+						updatedAt: now,
+					})
+					.onConflictDoUpdate({
+						target: [
+							insightUserFeedback.userId,
+							insightUserFeedback.organizationId,
+							insightUserFeedback.insightId,
+						],
+						set: {
+							vote: input.vote,
+							updatedAt: now,
+						},
+					});
+			});
+
+			return { success: true as const };
+		}),
+
+	setDismissed: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/setDismissed",
+			tags: ["Insights"],
+			summary: "Dismiss or restore an insight",
+			description:
+				"Deprecated compatibility endpoint. Persists dismissal for older clients; the current dashboard keeps view state locally.",
+		})
+		.input(
+			z.object({
+				dismissed: z.boolean(),
+				insightId: z.string().min(1).max(256),
+			})
+		)
+		.output(z.object({ success: z.literal(true) }))
+		.handler(async ({ context, input }) => {
+			const [insight] = await context.db
+				.select({ organizationId: analyticsInsights.organizationId })
+				.from(analyticsInsights)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+				.where(
+					and(
+						eq(analyticsInsights.id, input.insightId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.limit(1);
+
+			if (!insight) {
+				throw rpcError.notFound("insight", input.insightId);
 			}
 
-			const now = new Date();
-			await context.db
-				.insert(insightUserFeedback)
-				.values({
-					id: randomUUIDv7(),
-					userId: context.user.id,
-					organizationId: context.organizationId,
-					insightId: input.insightId,
-					vote: input.vote,
-					createdAt: now,
-					updatedAt: now,
-				})
-				.onConflictDoUpdate({
-					target: [
-						insightUserFeedback.userId,
-						insightUserFeedback.organizationId,
-						insightUserFeedback.insightId,
-					],
-					set: {
-						vote: input.vote,
+			await withWorkspace(context, {
+				organizationId: insight.organizationId,
+				resource: "organization",
+				permissions: ["read"],
+				allowCrossOrg: true,
+			});
+
+			await context.db.transaction(async (tx) => {
+				await tx
+					.delete(insightUserFeedback)
+					.where(
+						and(
+							eq(insightUserFeedback.userId, context.user.id),
+							eq(insightUserFeedback.insightId, input.insightId),
+							eq(insightUserFeedback.vote, "dismissed")
+						)
+					);
+
+				if (!input.dismissed) {
+					return;
+				}
+
+				const now = new Date();
+				await tx
+					.insert(insightUserFeedback)
+					.values({
+						id: randomUUIDv7(),
+						userId: context.user.id,
+						organizationId: insight.organizationId,
+						insightId: input.insightId,
+						vote: "dismissed",
+						createdAt: now,
 						updatedAt: now,
-					},
-				});
+					})
+					.onConflictDoUpdate({
+						target: [
+							insightUserFeedback.userId,
+							insightUserFeedback.organizationId,
+							insightUserFeedback.insightId,
+						],
+						set: { vote: "dismissed", updatedAt: now },
+					});
+			});
+
+			return { success: true as const };
+		}),
+
+	clearDismissed: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/clearDismissed",
+			tags: ["Insights"],
+			summary: "Clear dismissed insights",
+			description:
+				"Deprecated compatibility endpoint. Clears persisted dismissals for the active organization.",
+		})
+		.input(z.object({}))
+		.output(z.object({ success: z.literal(true) }))
+		.handler(async ({ context }) => {
+			if (!context.organizationId) {
+				throw rpcError.badRequest("Organization context is required");
+			}
+			await withWorkspace(context, {
+				organizationId: context.organizationId,
+				resource: "organization",
+				permissions: ["read"],
+			});
+			await context.db
+				.delete(insightUserFeedback)
+				.where(
+					and(
+						eq(insightUserFeedback.userId, context.user.id),
+						eq(insightUserFeedback.organizationId, context.organizationId),
+						eq(insightUserFeedback.vote, "dismissed")
+					)
+				);
 
 			return { success: true as const };
 		}),

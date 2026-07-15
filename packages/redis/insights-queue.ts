@@ -2,7 +2,9 @@ import { Queue } from "bullmq";
 import { getBullMQConnectionOptions } from "./bullmq";
 
 export const INSIGHTS_QUEUE_ENV_PREFIX = "INSIGHTS";
-export const INSIGHTS_QUEUE_NAME = "insights-generation";
+// Version the queue whenever worker semantics stop being backward-compatible.
+// This keeps rolling deploys from sending legacy jobs to the deterministic engine.
+export const INSIGHTS_QUEUE_NAME = "insights-investigations-v1";
 export const INSIGHTS_DISPATCH_JOB_NAME = "insights-dispatch";
 export const INSIGHTS_GENERATE_WEBSITE_JOB_NAME = "insights-generate-website";
 export const INSIGHTS_MAINTENANCE_JOB_NAME = "insights-maintenance";

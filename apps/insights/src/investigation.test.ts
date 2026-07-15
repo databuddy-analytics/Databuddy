@@ -99,6 +99,59 @@ describe("prepareInvestigation", () => {
 		});
 	});
 
+	it("keeps revenue currencies in distinct signal identities", () => {
+		const usd = prepareInvestigation(
+			{ ...baseSignal, metric: "revenue", label: "Revenue (USD)", currency: "USD" },
+			{ websiteId: "site-1", lookbackDays: 7 }
+		).signal;
+		const eur = prepareInvestigation(
+			{ ...baseSignal, metric: "revenue", label: "Revenue (EUR)", currency: "EUR" },
+			{ websiteId: "site-1", lookbackDays: 7 }
+		).signal;
+
+		expect(usd.currency).toBe("USD");
+		expect(usd.signalKey).not.toBe(eur.signalKey);
+	});
+
+	it("uses the event name, not its metric label, as custom-event identity", () => {
+		const customEvent = prepareInvestigation(
+			{
+				...baseSignal,
+				metric: "custom_event:checkout_completed",
+				label: "“checkout_completed” users",
+			},
+			{ websiteId: "site-1", lookbackDays: 7 }
+		).signal;
+
+		expect(customEvent.entity).toEqual({
+			type: "event",
+			id: "checkout_completed",
+			label: "checkout_completed",
+		});
+	});
+
+	it("keeps a long custom-event query target exact while bounding durable keys", () => {
+		const eventName = `checkout_${"step_".repeat(38)}`;
+		const customEvent = prepareInvestigation(
+			{
+				...baseSignal,
+				metric: `custom_event:${eventName}`,
+				label: `“${eventName}” users`,
+			},
+			{ websiteId: "site-1", lookbackDays: 7 }
+		).signal;
+
+		expect(eventName.length).toBeGreaterThan(160);
+		expect(eventName.length).toBeLessThanOrEqual(256);
+		expect(customEvent.entity).toEqual({
+			type: "event",
+			id: eventName,
+			label: eventName.slice(0, 120),
+		});
+		expect(customEvent.metric.key.length).toBeLessThanOrEqual(160);
+		expect(customEvent.signalKey.length).toBeLessThanOrEqual(160);
+	});
+
 	it("starts with only exact detector evidence", () => {
 		const result = prepareInvestigation(baseSignal, {
 			websiteId: "site-1",
@@ -117,26 +170,27 @@ describe("prepareInvestigation", () => {
 		]);
 	});
 
-	it("reuses exact detector-owned goal evidence without another read", () => {
-		const result = prepareInvestigation(
-			{
-				...baseSignal,
-				definitionEvidence: {
-					metrics: [
-						{
-							current: 0,
-							format: "number",
-							label: "Completions",
-							previous: 20,
-						},
-					],
-					queryType: "goals_summary",
-					summary: "Signup had 0 completions from 100 eligible visitors.",
-				},
-				definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
-				entityLabel: "Signup",
-				metric: "goal:goal-1",
+	it("reuses detector goal context but re-reads a confirmed repair", () => {
+		const candidate = {
+			...baseSignal,
+			definitionEvidence: {
+				metrics: [
+					{
+						current: 0,
+						format: "number" as const,
+						label: "Completions",
+						previous: 20,
+					},
+				],
+				queryType: "goals_summary" as const,
+				summary: "Signup had 0 completions from 100 eligible visitors.",
 			},
+			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
+			entityLabel: "Signup",
+			metric: "goal:goal-1",
+		};
+		const result = prepareInvestigation(
+			candidate,
 			{ websiteId: "site-1", lookbackDays: 7 }
 		);
 
@@ -144,6 +198,34 @@ describe("prepareInvestigation", () => {
 		expect(needsAdditionalEvidence(result.signal, result.evidence.slice(0, 2))).toBe(
 			true
 		);
+
+		const confirmed = prepareInvestigation(
+			{
+				...candidate,
+				expectation: {
+					confirmation: {
+						count: 12,
+						definitionId: "goal-1",
+						definitionType: "goal",
+						source: "revenue_transactions",
+					},
+					definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
+					eventName: "sign_up",
+					instruction: 'Restore the "sign_up" event when Signup completes.',
+					kind: "tracking",
+					previousCompletions: 20,
+					currentEntrants: 100,
+					currentCompletions: 0,
+				},
+				kind: "missing_expected_data",
+			},
+			{ websiteId: "site-1", lookbackDays: 7 }
+		);
+
+		expect(needsAdditionalEvidence(confirmed.signal, confirmed.evidence)).toBe(
+			true
+		);
+		expect(confirmed.evidence.some((item) => item.remediation)).toBe(false);
 	});
 
 	it("ignores unscoped annotations", () => {

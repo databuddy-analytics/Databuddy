@@ -583,6 +583,7 @@ describeIntegration("insights idempotency integration", () => {
 			totalItems: 1,
 		});
 		await db().insert(insightRunItems).values({
+			attempts: 2,
 			id: itemId,
 			queueJobId,
 			runId,
@@ -781,6 +782,59 @@ describeIntegration("insights idempotency integration", () => {
 		expect(itemsAfter).toEqual(itemsBefore);
 	});
 
+	it("does not let a duplicate worker claim an already-running item", async () => {
+		const { processInsightsJob } = await import("./jobs");
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const runId = randomUUIDv7();
+		const itemId = randomUUIDv7();
+		const queueJobId = `job-${itemId}`;
+		await db().insert(insightRuns).values({
+			id: runId,
+			organizationId: org.id,
+			status: "queued",
+			totalItems: 1,
+		});
+		await db().insert(insightRunItems).values({
+			id: itemId,
+			organizationId: org.id,
+			queueJobId,
+			runId,
+			status: "running",
+			websiteId: website.id,
+		});
+
+		await expect(
+			processInsightsJob({
+				attemptsMade: 1,
+				data: {
+					itemId,
+					organizationId: org.id,
+					reason: "manual",
+					runId,
+					websiteId: website.id,
+				},
+				id: queueJobId,
+				name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
+				opts: { attempts: 3 },
+			})
+		).rejects.toThrow("already running");
+
+		const [run] = await db()
+			.select({ status: insightRuns.status })
+			.from(insightRuns)
+			.where(eq(insightRuns.id, runId));
+		const [item] = await db()
+			.select({
+				attempts: insightRunItems.attempts,
+				status: insightRunItems.status,
+			})
+			.from(insightRunItems)
+			.where(eq(insightRunItems.id, itemId));
+		expect(run.status).toBe("queued");
+		expect(item).toEqual({ attempts: 0, status: "running" });
+	});
+
 	it("recovers a prepared item after its final worker dies before item success", async () => {
 		const org = await insertOrganization();
 		const website = await insertWebsite({ organizationId: org.id });
@@ -908,7 +962,6 @@ describeIntegration("insights idempotency integration", () => {
 			.where(eq(insightRuns.id, runId));
 
 		expect(result).toMatchObject({
-			failedItems: 0,
 			keptItems: 1,
 			scannedItems: 1,
 			syncedRuns: 1,
@@ -975,6 +1028,37 @@ describeIntegration("insights idempotency integration", () => {
 		});
 		expect(run.finishedAt).toBeInstanceOf(Date);
 		expect(run.finishedAt).not.toEqual(staleAt);
+	});
+
+	it("keeps a settled run's original finish time when status is unchanged", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const runId = randomUUIDv7();
+		const finishedAt = new Date("2025-01-01T00:00:00.000Z");
+		await db().insert(insightRuns).values({
+			completedItems: 1,
+			finishedAt,
+			id: runId,
+			organizationId: org.id,
+			status: "succeeded",
+			totalItems: 1,
+		});
+		await db().insert(insightRunItems).values({
+			finishedAt,
+			id: randomUUIDv7(),
+			organizationId: org.id,
+			runId,
+			status: "succeeded",
+			websiteId: website.id,
+		});
+
+		await syncRunStatus(runId);
+
+		const [run] = await db()
+			.select({ finishedAt: insightRuns.finishedAt })
+			.from(insightRuns)
+			.where(eq(insightRuns.id, runId));
+		expect(run.finishedAt).toEqual(finishedAt);
 	});
 
 	it("locks the run before deriving status from its items", async () => {
@@ -1147,7 +1231,6 @@ describeIntegration("insights idempotency integration", () => {
 			.where(eq(insightRuns.id, runId));
 
 		expect(result).toMatchObject({
-			failedItems: 0,
 			keptItems: 1,
 			scannedItems: 1,
 		});
@@ -1177,6 +1260,7 @@ describeIntegration("insights idempotency integration", () => {
 			totalItems: 1,
 		});
 		await db().insert(insightRunItems).values({
+			attempts: 2,
 			id: itemId,
 			queueJobId,
 			runId,

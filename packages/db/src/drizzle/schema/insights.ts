@@ -18,7 +18,20 @@ import {
 import { organization, user } from "./auth";
 import { websites } from "./websites";
 
+export const INSIGHT_GENERATION_DEFAULT_TOOLS = [
+	"web_metrics",
+	"product_metrics",
+	"ops_context",
+] as const;
+
 export type InsightGenerationFrequency = "daily" | "weekly";
+export type InsightGenerationTool =
+	| "web_metrics"
+	| "product_metrics"
+	| "ops_context"
+	| "business_context";
+export type InsightGenerationDepth = "light" | "standard" | "deep";
+export type InsightGenerationModelTier = "fast" | "balanced" | "deep";
 export type InsightGenerationReason =
 	| "manual"
 	| "scheduled"
@@ -49,6 +62,34 @@ export interface InsightDelivery {
 	type: "slack";
 }
 
+/**
+ * Deprecated worker payload retained for one mixed-version deploy window.
+ * The current engine owns its policy in code and does not read these knobs.
+ */
+export interface InsightGenerationConfigSnapshot {
+	allowedTools: InsightGenerationTool[];
+	cooldownHours: number;
+	depth: InsightGenerationDepth;
+	lookbackDays: number;
+	maxInsightsPerWebsite: number;
+	maxSteps: number;
+	maxToolCalls: number;
+	modelTier: InsightGenerationModelTier;
+	timezone: string;
+}
+
+export const DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT = {
+	allowedTools: [...INSIGHT_GENERATION_DEFAULT_TOOLS],
+	cooldownHours: 6,
+	depth: "standard",
+	lookbackDays: 7,
+	maxInsightsPerWebsite: 3,
+	maxSteps: 24,
+	maxToolCalls: 16,
+	modelTier: "balanced",
+	timezone: "UTC",
+} satisfies InsightGenerationConfigSnapshot;
+
 export const insightGenerationConfigs = pgTable(
 	"insight_generation_configs",
 	{
@@ -59,12 +100,21 @@ export const insightGenerationConfigs = pgTable(
 			.$type<InsightGenerationFrequency>()
 			.default("weekly")
 			.notNull(),
+		// Kept while old clients still read this deprecated field.
+		legacyModelTier: text("model_tier")
+			.$type<InsightGenerationModelTier>()
+			.default("balanced")
+			.notNull(),
 		timezone: text().default("UTC").notNull(),
 		deliveries: jsonb("deliveries")
 			.$type<InsightDelivery[]>()
 			.default([])
 			.notNull(),
 		nextRunAt: timestamp("next_run_at", {
+			precision: 3,
+			withTimezone: true,
+		}),
+		dispatchDueAt: timestamp("dispatch_due_at", {
 			precision: 3,
 			withTimezone: true,
 		}),
@@ -154,6 +204,12 @@ export const insightRunItems = pgTable(
 		queueJobId: text("queue_job_id"),
 		status: text().$type<InsightRunItemStatus>().default("queued").notNull(),
 		attempts: integer().default(0).notNull(),
+		// Keep the database default through the mixed-version rollout: old API
+		// instances do not send this newly added column.
+		configSnapshot: jsonb("config_snapshot")
+			.$type<InsightGenerationConfigSnapshot>()
+			.default(DEFAULT_INSIGHT_GENERATION_CONFIG_SNAPSHOT)
+			.notNull(),
 		resultCount: integer("result_count").default(0).notNull(),
 		preparedAt: timestamp("prepared_at", {
 			precision: 3,

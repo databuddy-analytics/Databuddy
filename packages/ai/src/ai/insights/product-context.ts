@@ -2,10 +2,45 @@ import { type AppContext, requireWebsiteId } from "../config/context";
 import { callRPCProcedure } from "../tools/utils";
 import { executeQuery } from "../../query";
 import type { QueryRequest } from "../../query/types";
+import { normalizeFunnelSteps } from "@databuddy/rpc/funnel-steps";
 
 export interface ProductInsightTarget {
 	id: string;
 	type: "event" | "funnel" | "goal";
+}
+
+export interface ProductMetricsResult {
+	results: Record<string, unknown>[];
+}
+
+export type ProductMetricsFetcher = (
+	appContext: AppContext,
+	range: { from: string; to: string },
+	target: ProductInsightTarget,
+	abortSignal?: AbortSignal
+) => Promise<ProductMetricsResult>;
+
+export function summarizeFunnelSteps(
+	steps: unknown,
+	analyticsSteps: Record<string, unknown>[]
+) {
+	const normalized = normalizeFunnelSteps(steps);
+	const analyticsByStep = new Map(
+		analyticsSteps.flatMap((step) => {
+			const stepNumber = toNumber(step.step_number);
+			return Number.isInteger(stepNumber) && stepNumber > 0
+				? [[stepNumber, step] as const]
+				: [];
+		})
+	);
+
+	return normalized.map((step, index) => ({
+		step_number: index + 1,
+		name: step.name,
+		target: step.target,
+		type: step.type,
+		users: toNumber(analyticsByStep.get(index + 1)?.users),
+	}));
 }
 
 function toNumber(value: unknown): number {
@@ -79,6 +114,7 @@ async function getGoalsSummary(
 				overall_conversion_rate: toNumber(analytics.overall_conversion_rate),
 				total_users_entered: toNumber(analytics.total_users_entered),
 				total_users_completed: toNumber(analytics.total_users_completed),
+				error_context_available: primaryStep.error_context_available === true,
 				error_rate: toNumber(primaryStep.error_rate),
 			},
 		],
@@ -128,9 +164,6 @@ async function getFunnelsSummary(
 	const analyticsSteps = Array.isArray(analytics.steps_analytics)
 		? (analytics.steps_analytics as Record<string, unknown>[])
 		: [];
-	const definitionSteps = Array.isArray(funnel.steps)
-		? (funnel.steps as Record<string, unknown>[])
-		: [];
 
 	return {
 		count: 1,
@@ -140,18 +173,13 @@ async function getFunnelsSummary(
 				is_active: funnel.isActive,
 				name: funnel.name,
 				definition_updated_at: isoDate(funnel.updatedAt),
-				steps: definitionSteps.map((step, index) => ({
-					step_number: index + 1,
-					name: step.name,
-					target: step.target,
-					type: step.type,
-					users: toNumber(analyticsSteps[index]?.users),
-				})),
+				steps: summarizeFunnelSteps(funnel.steps, analyticsSteps),
 				overall_conversion_rate: toNumber(analytics.overall_conversion_rate),
 				total_users_entered: toNumber(analytics.total_users_entered),
 				total_users_completed: toNumber(analytics.total_users_completed),
 				biggest_dropoff_step: toNumber(analytics.biggest_dropoff_step),
 				biggest_dropoff_rate: toNumber(analytics.biggest_dropoff_rate),
+				error_context_available: errorInsights.available === true,
 				error_correlation_rate: toNumber(errorInsights.error_correlation_rate),
 			},
 		],
@@ -205,7 +233,7 @@ export async function fetchProductMetrics(
 	range: { from: string; to: string },
 	target: ProductInsightTarget,
 	abortSignal?: AbortSignal
-) {
+): Promise<ProductMetricsResult> {
 	let result: Record<string, unknown>;
 	switch (target.type) {
 		case "goal":

@@ -14,13 +14,17 @@ import { signalKeyForDetectedSignal } from "./investigation";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const DEFAULT_STALE_TTL_MS = 72 * 60 * 60 * 1000;
+const ISO_DEFINITION_VERSION_PATTERN =
+	/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 type InsightFamily =
 	| "errors"
 	| "vitals"
 	| "traffic"
 	| "engagement"
-	| "conversion";
+	| "custom_event"
+	| "conversion"
+	| "revenue";
 
 const TRANSIENT_TYPE_FAMILY: Record<string, InsightFamily> = {
 	error_spike: "errors",
@@ -29,13 +33,20 @@ const TRANSIENT_TYPE_FAMILY: Record<string, InsightFamily> = {
 	traffic_spike: "traffic",
 	bounce_rate_change: "engagement",
 	engagement_change: "engagement",
+	custom_event_spike: "custom_event",
 	conversion_leak: "conversion",
 	funnel_regression: "conversion",
 };
 
 function signalFamily(metric: string): InsightFamily | null {
+	if (metric.startsWith("custom_event:")) {
+		return "custom_event";
+	}
 	if (metric.startsWith("funnel:") || metric.startsWith("goal:")) {
 		return "conversion";
+	}
+	if (metric === "revenue" || metric === "payment_failure_rate") {
+		return "revenue";
 	}
 	switch (metric) {
 		case "visitors":
@@ -55,6 +66,21 @@ function signalFamily(metric: string): InsightFamily | null {
 	}
 }
 
+function isRevenueSubject(subjectKey: string): boolean {
+	return (
+		subjectKey === "revenue" ||
+		subjectKey.startsWith("revenue:") ||
+		isPaymentFailureSubject(subjectKey)
+	);
+}
+
+function isPaymentFailureSubject(subjectKey: string): boolean {
+	return (
+		subjectKey === "payment_failure_rate" ||
+		subjectKey.startsWith("payment_failure_rate:")
+	);
+}
+
 export interface OpenInsightRow {
 	changePercent: number | null;
 	createdAt: Date;
@@ -70,11 +96,18 @@ export interface ResolutionDecision {
 }
 
 export function retiredSignalKeyForOutcome(params: {
+	coverage: { definitions: boolean; metrics: boolean };
 	disposition: InvestigationDecision["disposition"] | undefined;
 	hasInsight: boolean;
 	signalKey: string | undefined;
 }): string | undefined {
-	if (params.hasInsight) {
+	const isConversion =
+		params.signalKey?.startsWith("goal:") ||
+		params.signalKey?.startsWith("funnel:");
+	const familyComplete = isConversion
+		? params.coverage.definitions
+		: params.coverage.metrics;
+	if (params.hasInsight || !familyComplete) {
 		return;
 	}
 	return params.disposition === "monitor" ||
@@ -84,6 +117,12 @@ export function retiredSignalKeyForOutcome(params: {
 }
 
 function hasExactSubject(insight: OpenInsightRow): boolean {
+	if (isRevenueSubject(insight.subjectKey)) {
+		return true;
+	}
+	if (insight.subjectKey.startsWith("custom_event:")) {
+		return true;
+	}
 	if (insight.type === "traffic_drop" || insight.type === "traffic_spike") {
 		return (
 			insight.subjectKey === "visitors" ||
@@ -112,11 +151,36 @@ function hasExactSubject(insight: OpenInsightRow): boolean {
 	return false;
 }
 
+function familyForInsight(insight: OpenInsightRow): InsightFamily | undefined {
+	if (isRevenueSubject(insight.subjectKey)) {
+		return "revenue";
+	}
+	if (insight.subjectKey.startsWith("custom_event:")) {
+		return "custom_event";
+	}
+	return TRANSIENT_TYPE_FAMILY[insight.type];
+}
+
+function conversionDefinitionKey(subjectKey: string): string {
+	const versionSeparator = subjectKey.lastIndexOf("@");
+	if (versionSeparator < 0) {
+		return subjectKey;
+	}
+	const version = subjectKey.slice(versionSeparator + 1);
+	return !ISO_DEFINITION_VERSION_PATTERN.test(version) ||
+		Number.isNaN(Date.parse(version))
+		? subjectKey
+		: subjectKey.slice(0, versionSeparator);
+}
+
 export function computeResolutions(params: {
+	activeConversionKeys?: ReadonlySet<string>;
 	canRecover: boolean;
+	canRecoverConversion?: boolean;
 	detectedSignals: DetectedSignal[];
 	now: Date;
 	openInsights: OpenInsightRow[];
+	recoverableConversionKeys?: ReadonlySet<string>;
 	retiredSignalKey?: string;
 	staleTtlMs?: number;
 }): ResolutionDecision[] {
@@ -143,9 +207,30 @@ export function computeResolutions(params: {
 			decisions.push({ id: insight.id, reason: "stale" });
 			continue;
 		}
-		const family = TRANSIENT_TYPE_FAMILY[insight.type];
+		const family = familyForInsight(insight);
 		if (family) {
-			if (!params.canRecover) {
+			const exactConversionSubject =
+				family === "conversion" && hasExactSubject(insight);
+			const definitionKey = exactConversionSubject
+				? conversionDefinitionKey(insight.subjectKey)
+				: insight.subjectKey;
+			const definitionWasRemoved =
+				exactConversionSubject &&
+				params.activeConversionKeys !== undefined &&
+				!params.activeConversionKeys.has(definitionKey);
+			const canRecover =
+				family === "conversion"
+					? (params.canRecoverConversion ?? params.canRecover) ||
+						(params.recoverableConversionKeys?.has(definitionKey) ?? false) ||
+						definitionWasRemoved
+					: params.canRecover;
+			if (!canRecover) {
+				if (exactConversionSubject) {
+					continue;
+				}
+				if (params.now.getTime() - insight.createdAt.getTime() >= staleTtlMs) {
+					decisions.push({ id: insight.id, reason: "stale" });
+				}
 				continue;
 			}
 			const direction =
@@ -160,7 +245,17 @@ export function computeResolutions(params: {
 					? activeFamilies.has(family)
 					: activeKeys.has(`${family}:${direction}`);
 			if (!stillFiring) {
-				decisions.push({ id: insight.id, reason: "recovered" });
+				const paymentRecoveryConfirmed =
+					!isPaymentFailureSubject(insight.subjectKey) ||
+					activeExactKeys.has(`${insight.subjectKey}:down`);
+				if (paymentRecoveryConfirmed) {
+					decisions.push({ id: insight.id, reason: "recovered" });
+				} else if (
+					params.now.getTime() - insight.createdAt.getTime() >=
+					staleTtlMs
+				) {
+					decisions.push({ id: insight.id, reason: "stale" });
+				}
 			}
 			continue;
 		}
@@ -172,10 +267,13 @@ export function computeResolutions(params: {
 }
 
 export async function resolveInsightsForWebsite(params: {
+	activeConversionKeys?: string[];
 	canRecover: boolean;
+	canRecoverConversion?: boolean;
 	detectedSignals: DetectedSignal[];
 	now?: Date;
 	organizationId: string;
+	recoverableConversionKeys?: string[];
 	retiredSignalKey?: string;
 	runId: string;
 	websiteId: string;
@@ -200,10 +298,16 @@ export async function resolveInsightsForWebsite(params: {
 		);
 
 	const decisions = computeResolutions({
+		activeConversionKeys:
+			params.activeConversionKeys === undefined
+				? undefined
+				: new Set(params.activeConversionKeys),
 		canRecover: params.canRecover,
+		canRecoverConversion: params.canRecoverConversion,
 		detectedSignals: params.detectedSignals,
 		now,
 		openInsights,
+		recoverableConversionKeys: new Set(params.recoverableConversionKeys ?? []),
 		retiredSignalKey: params.retiredSignalKey,
 	});
 
@@ -255,6 +359,7 @@ export async function resolveInsightsForWebsite(params: {
 		recovered_count: recoveredIds.length,
 		stale_count: staleIds.length,
 		can_recover: params.canRecover,
+		can_recover_conversion: params.canRecoverConversion ?? params.canRecover,
 	});
 
 	return decisions;

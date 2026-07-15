@@ -178,6 +178,7 @@ export const generatedInsightSchema = z
 	.strict();
 
 const investigationKeySchema = z.string().trim().min(1).max(160);
+const investigationEntityIdSchema = z.string().trim().min(1).max(256);
 
 const investigationEntitySchema = z
 	.object({
@@ -194,7 +195,7 @@ const investigationEntitySchema = z
 			"campaign",
 			"uptime_monitor",
 		]),
-		id: investigationKeySchema,
+		id: investigationEntityIdSchema,
 		label: z.string().trim().min(1).max(120),
 	})
 	.strict();
@@ -236,6 +237,7 @@ export const investigationSignalSchema = z
 			})
 			.strict(),
 		changePercent: z.number().nullable(),
+		currency: z.string().trim().length(3).optional(),
 		direction: z.enum(["up", "down", "flat"]),
 		severity: insightSeveritySchema,
 		sentiment: insightSentimentSchema,

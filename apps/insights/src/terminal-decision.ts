@@ -23,16 +23,14 @@ export function terminalDecisionFromEvidence(
 			item.entity.id === signal.entity.id &&
 			item.remediation
 	);
-	if (
-		signal.kind === "missing_expected_data" &&
-		signal.expectation &&
-		remediationEvidence?.remediation
-	) {
+	if (signal.kind === "missing_expected_data" && signal.expectation) {
 		const confirmation = signal.expectation.confirmation;
 		if (
-			!confirmation ||
+			!(remediationEvidence?.remediation && confirmation) ||
 			confirmation.definitionId !== signal.entity.id ||
-			confirmation.definitionType !== signal.entity.type
+			confirmation.definitionType !== signal.entity.type ||
+			(confirmation.source !== "revenue_transactions" &&
+				confirmation.source !== "server_completions")
 		) {
 			return { disposition: "needs_context", gap: "expected_behavior" };
 		}
@@ -49,6 +47,7 @@ export function terminalDecisionFromEvidence(
 		signal.severity !== "info" &&
 		signal.sentiment === "negative" &&
 		(signal.metric.key === "revenue" ||
+			signal.metric.key === "payment_failure_rate" ||
 			(signal.severity === "critical" &&
 				["pageviews", "sessions", "visitors"].includes(signal.metric.key)))
 	) {

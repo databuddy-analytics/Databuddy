@@ -15,7 +15,6 @@ const SLACK_POST_URL = "https://slack.com/api/chat.postMessage";
 const SLACK_POST_TIMEOUT_MS = 10_000;
 const SLACK_RATE_LIMIT_ATTEMPTS = 3;
 const SLACK_RATE_LIMIT_FALLBACK_MS = 1000;
-const SLACK_RATE_LIMIT_MAX_WAIT_MS = 5000;
 const MAX_DIGEST_INSIGHTS = 3;
 const MAX_ONGOING_LINES = 5;
 const SLACK_HEADER_MAX = 150;
@@ -436,10 +435,7 @@ function rateLimitDelay(response: Response, random: () => number): number {
 		Number.isFinite(seconds) && seconds > 0
 			? seconds * 1000
 			: SLACK_RATE_LIMIT_FALLBACK_MS;
-	return (
-		Math.min(requested, SLACK_RATE_LIMIT_MAX_WAIT_MS) +
-		Math.floor(random() * 250)
-	);
+	return requested + Math.floor(random() * 250);
 }
 
 export async function postToSlack(

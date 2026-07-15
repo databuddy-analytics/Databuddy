@@ -2,6 +2,7 @@ import { and, db, desc, eq, gte, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightRollups,
+	insightRuns,
 	type InsightRollupRange,
 	websites,
 } from "@databuddy/db/schema";
@@ -120,6 +121,18 @@ async function persistRollup(input: {
 				generatedAt: input.generatedAt,
 				updatedAt: input.generatedAt,
 			},
+			setWhere: sql`
+				${insightRollups.runId} is null
+				or (
+					select row(${insightRuns.createdAt}, ${insightRuns.id})
+					from ${insightRuns}
+					where ${insightRuns.id} = excluded.run_id
+				) >= (
+					select row(${insightRuns.createdAt}, ${insightRuns.id})
+					from ${insightRuns}
+					where ${insightRuns.id} = ${insightRollups.runId}
+				)
+			`,
 		});
 }
 

@@ -35,6 +35,9 @@ export function needsAdditionalEvidence(
 	if (signal.entity.type !== "goal" && signal.entity.type !== "funnel") {
 		return true;
 	}
+	if (signal.expectation?.confirmation) {
+		return true;
+	}
 	return !evidence.some(
 		(item) =>
 			item.kind === "definition" &&
@@ -133,7 +136,7 @@ export function signalKeyForMetric(metric: string): string {
 export function signalKeyForDetectedSignal(
 	signal: Pick<
 		DetectedSignal,
-		"definitionUpdatedAt" | "expectation" | "kind" | "metric"
+		"currency" | "definitionUpdatedAt" | "expectation" | "kind" | "metric"
 	>
 ): string {
 	const definitionVersion =
@@ -141,21 +144,21 @@ export function signalKeyForDetectedSignal(
 		(signal.kind === "missing_expected_data"
 			? signal.expectation?.definitionUpdatedAt
 			: undefined);
+	const metric = signal.currency
+		? `${signal.metric}:${signal.currency.toLowerCase()}`
+		: signal.metric;
 	return signalKeyForMetric(
-		definitionVersion ? `${signal.metric}@${definitionVersion}` : signal.metric
+		definitionVersion ? `${metric}@${definitionVersion}` : metric
 	);
 }
 
 function metricFormat(metric: string): InsightMetric["format"] {
 	if (
-		metric === "bounce_rate" ||
+		metric === "payment_failure_rate" ||
 		metric.startsWith("funnel:") ||
 		metric.startsWith("goal:")
 	) {
 		return "percent";
-	}
-	if (metric === "session_duration") {
-		return "duration_s";
 	}
 	if (metric === "lcp" || metric === "inp") {
 		return "duration_ms";
@@ -164,7 +167,7 @@ function metricFormat(metric: string): InsightMetric["format"] {
 }
 
 function isLowerBetter(metric: string): boolean {
-	return ["bounce_rate", "error_count", "lcp", "inp"].includes(metric);
+	return ["error_count", "lcp", "inp", "payment_failure_rate"].includes(metric);
 }
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
@@ -172,6 +175,7 @@ const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
+		signal.metric === "payment_failure_rate" ||
 		signal.metric === "error_count" ||
 		signal.metric === "lcp" ||
 		signal.metric === "inp" ||
@@ -240,11 +244,8 @@ function insightType(
 			? "vitals_degraded"
 			: "performance_improved";
 	}
-	if (signal.metric === "bounce_rate") {
-		return "bounce_rate_change";
-	}
-	if (signal.metric === "session_duration") {
-		return "engagement_change";
+	if (signal.metric === "payment_failure_rate") {
+		return signal.direction === "up" ? "quality_shift" : "positive_trend";
 	}
 	if (signal.metric.startsWith("funnel:")) {
 		return signal.direction === "down" ? "funnel_regression" : "positive_trend";
@@ -265,7 +266,8 @@ function insightType(
 
 function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 	const [prefix, ...idParts] = signal.metric.split(":");
-	const id = boundedKey(idParts.join(":").trim());
+	const rawId = idParts.join(":").trim();
+	const id = boundedKey(rawId);
 	if (prefix === "funnel" || prefix === "goal") {
 		return {
 			type: prefix,
@@ -274,7 +276,7 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 		};
 	}
 	if (prefix === "custom_event") {
-		return { type: "event", id, label: signal.label.slice(0, 120) };
+		return { type: "event", id: rawId, label: rawId.slice(0, 120) };
 	}
 	if (signal.metric === "error_count") {
 		return { type: "error", id: signal.metric, label: signal.label };
@@ -296,7 +298,7 @@ function sourceForMetric(metric: string): InvestigationEvidence["source"] {
 	) {
 		return "product";
 	}
-	if (metric === "revenue") {
+	if (metric === "revenue" || metric === "payment_failure_rate") {
 		return "business";
 	}
 	return "web";
@@ -381,6 +383,7 @@ export function prepareInvestigation(
 			format: metricFormat(candidate.metric),
 		},
 		changePercent: candidate.deltaPercent,
+		...(candidate.currency ? { currency: candidate.currency } : {}),
 		direction: candidate.direction,
 		severity: candidate.severity,
 		sentiment: improved ? "positive" : "negative",
@@ -428,7 +431,6 @@ export function prepareInvestigation(
 			rowCount: 1,
 			summary: candidate.definitionEvidence.summary,
 			metrics: candidate.definitionEvidence.metrics,
-			...(candidate.expectation ? { remediation: candidate.expectation } : {}),
 		});
 	}
 	const dismissalAnnotations = annotations.filter(
