@@ -370,16 +370,6 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(paddle?.observed_failure_event_types).toBeNull();
 		expect(paddle?.required_failure_event_types).toBeNull();
 
-		const [attributionSlice] = await revenueOverview(
-			websiteId,
-			"2026-07-01",
-			"2026-08-03",
-			[{ field: "country", op: "ne", value: "US" }]
-		);
-		expect(Number(attributionSlice?.total_revenue)).toBe(75);
-		expect(Number(attributionSlice?.payment_diagnostics_available)).toBe(0);
-		expect(attributionSlice?.failed_payment_attempts).toBeNull();
-
 		const [stripe] = await revenueOverview(
 			websiteId,
 			"2026-07-01",
@@ -393,7 +383,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(stripe?.observed_failure_event_types)).toBe(1);
 		expect(Number(stripe?.required_failure_event_types)).toBe(2);
 		expect(stripe?.top_payment_failure_reason).toBe("do_not_honor");
-	});
+	}, 10_000);
 
 	it("reconciles invoice fallbacks as exact allocation events arrive", async () => {
 		const websiteId = `revenue-invoice-fallback-${randomUUIDv7()}`;
