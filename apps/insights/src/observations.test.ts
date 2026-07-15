@@ -7,8 +7,8 @@ import {
 } from "./investigation";
 import {
 	type LatestInsightObservation,
+	eligibleSignalsForInvestigation,
 	nextRecheckAt,
-	selectSignalForInvestigation,
 } from "./observations";
 
 const NOW = new Date("2026-07-12T12:00:00.000Z");
@@ -40,6 +40,7 @@ function observed(
 		asOf: NOW,
 		decision: { disposition: "monitor" },
 		evidence: [],
+		finding: null,
 		recheckAt,
 		signal: prepareInvestigation(signal, {
 			lookbackDays: 7,
@@ -59,41 +60,44 @@ function memory(
 	);
 }
 
-describe("selectSignalForInvestigation", () => {
-	it("uses the highest-ranked signal when memory is empty", () => {
+describe("eligibleSignalsForInvestigation", () => {
+	it("returns every unseen signal in detection rank order", () => {
 		const first = detected("goal:signup");
-		expect(selectSignalForInvestigation([first], new Map(), NOW)).toBe(first);
+		const second = detected("goal:purchase");
+		expect(
+			eligibleSignalsForInvestigation([first, second], new Map(), NOW)
+		).toEqual([first, second]);
 	});
 
 	it("rotates past a cooling signal to an unseen signal", () => {
 		const first = detected("goal:signup");
 		const second = detected("goal:purchase", { deltaPercent: -30 });
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[first, second],
 				memory([[first, observed(first)]]),
 				NOW
 			)
-		).toBe(second);
+		).toEqual([second]);
 	});
 
 	it("chooses unseen work before a higher-ranked due recheck", () => {
 		const due = detected("goal:signup");
 		const unseen = detected("goal:purchase", { deltaPercent: -30 });
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[due, unseen],
 				memory([[due, observed(due, NOW)]]),
 				NOW
 			)
-		).toBe(unseen);
+		).toEqual([unseen, due]);
 	});
 
 	it("defers when every unchanged signal is cooling down", () => {
 		const first = detected("goal:signup");
 		const second = detected("goal:purchase");
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[first, second],
 				memory([
 					[first, observed(first)],
@@ -101,18 +105,18 @@ describe("selectSignalForInvestigation", () => {
 				]),
 				NOW
 			)
-		).toBeNull();
+		).toEqual([]);
 	});
 
 	it("rechecks at the exact due boundary", () => {
 		const first = detected("goal:signup");
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[first],
 				memory([[first, observed(first, NOW)]]),
 				NOW
 			)
-		).toBe(first);
+		).toEqual([first]);
 	});
 
 	it("bypasses cooldown for a negative severity or 1.5x magnitude increase", () => {
@@ -125,11 +129,11 @@ describe("selectSignalForInvestigation", () => {
 		const observations = memory([[baseline, observed(baseline)]]);
 
 		expect(
-			selectSignalForInvestigation([severity], observations, NOW)
-		).toBe(severity);
+			eligibleSignalsForInvestigation([severity], observations, NOW)
+		).toEqual([severity]);
 		expect(
-			selectSignalForInvestigation([magnitude], observations, NOW)
-		).toBe(magnitude);
+			eligibleSignalsForInvestigation([magnitude], observations, NOW)
+		).toEqual([magnitude]);
 	});
 
 	it("does not bypass for a 1.49x change or a larger improvement", () => {
@@ -143,19 +147,19 @@ describe("selectSignalForInvestigation", () => {
 		});
 
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[almost],
 				memory([[baseline, observed(baseline)]]),
 				NOW
 			)
-		).toBeNull();
+		).toEqual([]);
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[improved],
 				memory([[improved, observed(improved)]]),
 				NOW
 			)
-		).toBeNull();
+		).toEqual([]);
 	});
 
 	it("immediately investigates a signal that flips from positive to negative", () => {
@@ -166,12 +170,12 @@ describe("selectSignalForInvestigation", () => {
 		});
 		const negative = detected("visitors", { deltaPercent: -20 });
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[negative],
 				memory([[positive, observed(positive)]]),
 				NOW
 			)
-		).toBe(negative);
+		).toEqual([negative]);
 	});
 
 	it("keeps sibling and long signal keys independent", () => {
@@ -184,19 +188,19 @@ describe("selectSignalForInvestigation", () => {
 		});
 
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[sibling],
 				memory([[first, observed(first)]]),
 				NOW
 			)
-		).toBe(sibling);
+		).toEqual([sibling]);
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[longFirst, longSibling],
 				memory([[longFirst, observed(longFirst)]]),
 				NOW
 			)
-		).toBe(longSibling);
+		).toEqual([longSibling]);
 	});
 
 	it("does not inherit cooldown after a goal definition changes", () => {
@@ -222,12 +226,12 @@ describe("selectSignalForInvestigation", () => {
 		});
 
 		expect(
-			selectSignalForInvestigation(
+			eligibleSignalsForInvestigation(
 				[changed],
 				memory([[previous, observed(previous)]]),
 				NOW
 			)
-		).toBe(changed);
+		).toEqual([changed]);
 	});
 });
 

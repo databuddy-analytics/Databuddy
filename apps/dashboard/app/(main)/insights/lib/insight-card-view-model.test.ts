@@ -26,6 +26,9 @@ describe("insight card view model", () => {
 		const view = toInsightCardViewModel(baseInsight);
 
 		expect(view.headline).toBe("Interactions got slower");
+		expect(view.whatChanged).toBe(
+			"Visitors are waiting longer after clicking key controls."
+		);
 		expect(view.metaLabel).toBe("Marketing");
 		expect(view.primaryActionLabel).toBe("Review speed");
 		expect(view.metrics[0]?.label).toBe("Interaction delay");

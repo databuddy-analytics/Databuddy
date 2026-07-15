@@ -285,7 +285,7 @@ describe("investigationDecisionSchema", () => {
 					instruction: "Restore the signup completion event.",
 				},
 			},
-			{ disposition: "needs_context", gap: "expected_behavior" },
+			{ disposition: "needs_context" },
 			{ disposition: "monitor" },
 			{ disposition: "not_a_problem" },
 		]) {
@@ -295,17 +295,11 @@ describe("investigationDecisionSchema", () => {
 		}
 	});
 
-	it("allows only external context gaps", () => {
+	it("rejects obsolete context taxonomy", () => {
 		expect(
 			investigationDecisionSchema.safeParse({
 				disposition: "needs_context",
 				gap: "planned_external_change",
-			}).success
-		).toBe(true);
-		expect(
-			investigationDecisionSchema.safeParse({
-				disposition: "needs_context",
-				gap: "missing_referrer_breakdown",
 			}).success
 		).toBe(false);
 	});

@@ -16,6 +16,7 @@ type WebQueryMode =
 	| "failed"
 	| "large"
 	| "normal"
+	| "revenue-conflict"
 	| "revenue-reconcile"
 	| "uptime-empty"
 	| "vital-pages";
@@ -61,7 +62,8 @@ mock.module("../../query", () => ({
 			return [{ sessions: 121 }];
 		}
 		if (
-			webQueryMode === "revenue-reconcile" &&
+			(webQueryMode === "revenue-reconcile" ||
+				webQueryMode === "revenue-conflict") &&
 			request.type === "revenue_overview"
 		) {
 			const from = request.from ?? "unknown";
@@ -69,7 +71,23 @@ mock.module("../../query", () => ({
 			revenueCallsByFrom.set(from, call);
 			return [
 				{
-					total_revenue: call === 1 ? 1 : from === "2026-07-01" ? 40 : 80,
+					total_revenue:
+						webQueryMode === "revenue-conflict"
+							? 1
+							: call === 1
+								? 1
+								: from === "2026-07-01"
+									? 40
+									: 80,
+					total_transactions: 4,
+					unique_customers: 4,
+				},
+			];
+		}
+		if (request.type === "revenue_overview") {
+			return [
+				{
+					total_revenue: request.from === "2026-07-01" ? 40 : 80,
 					total_transactions: 4,
 					unique_customers: 4,
 				},
@@ -282,9 +300,11 @@ const appContext: AppContext = {
 
 function createReader(
 	onEvidence?: (evidence: InvestigationEvidence) => void,
-	selectedSignal: InvestigationSignal = signal
+	selectedSignal: InvestigationSignal = signal,
+	allowLiveAnomalyDetection = true
 ) {
 	return createInsightEvidenceReader({
+		allowLiveAnomalyDetection,
 		domain: "example.com",
 		onEvidence,
 		signal: selectedSignal,
@@ -440,6 +460,27 @@ describe("insight evidence reader", () => {
 		});
 	});
 
+	test("does not run live anomaly detection for historical read-only evidence", async () => {
+		const reader = createReader(undefined, signal, false);
+		const result = await reader(
+			{
+				name: "ops_context",
+				input: {
+					period: "current",
+					queries: [{ type: "anomaly_summary" }],
+				},
+			},
+			appContext
+		);
+
+		expect(result).toEqual([
+			expect.objectContaining({
+				queryType: "anomaly_summary",
+				status: "empty",
+			}),
+		]);
+	});
+
 	test("renders an exact error bundle as concise claims instead of raw JSON", async () => {
 		webQueryMode = "error-bundle";
 		const errorSignal: InvestigationSignal = {
@@ -564,7 +605,7 @@ describe("insight evidence reader", () => {
 		});
 	});
 
-	test("does not aggregate sparse z-score baselines as continuous periods", async () => {
+	test("does not compare a z-score median with one arbitrary baseline day", async () => {
 		const zscoreSignal: InvestigationSignal = {
 			...signal,
 			detection: {
@@ -593,7 +634,7 @@ describe("insight evidence reader", () => {
 				},
 				appContext
 			)
-		).rejects.toThrow();
+		).rejects.toThrow("comparable-day median");
 		expect(queryCalls).toBe(0);
 	});
 
@@ -815,6 +856,25 @@ describe("insight evidence reader", () => {
 		expect(observed.map((item) => item.metrics?.[0]?.current)).toEqual([
 			40, 80,
 		]);
+	});
+
+	test("rejects revenue that still conflicts after the re-read", async () => {
+		webQueryMode = "revenue-conflict";
+		const reader = createReader(undefined, revenueSignal);
+
+		const result = await reader(
+			{
+				name: "web_metrics",
+				input: {
+					period: "both",
+					queries: [{ type: "revenue_overview" }],
+				},
+			},
+			appContext
+		);
+
+		expect(queryCalls).toBe(4);
+		expect(result.every((item) => item.status === "failed")).toBe(true);
 	});
 
 	test("classifies UTM evidence as business context", async () => {

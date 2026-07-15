@@ -1,4 +1,3 @@
-import type { GeneratedInsight } from "@databuddy/shared/insights";
 import {
 	type InvestigationSources,
 	investigateWebsiteWithSources,
@@ -19,20 +18,6 @@ import {
 	type InsightTimeline,
 	type InsightTimelineStage,
 } from "./fixtures/insight-timelines";
-import {
-	visibleInsightText,
-	visibleInsightWordCount,
-	visibleTextWordCount,
-} from "./insight-visible-output";
-
-const MAXIMUM_VISIBLE_WORDS = 100;
-const MAXIMUM_DESCRIPTION_WORDS = 40;
-const MAXIMUM_SUGGESTION_WORDS = 30;
-const MAXIMUM_EVIDENCE_ITEMS = 3;
-const DIAGNOSTIC_STEP_PATTERN =
-	/\b(check|isolate|profile|reconcile|replay|reproduce|trace|verify)\b/i;
-const EVIDENCE_GAP_PATTERN =
-	/\b(no|not established|missing|unavailable|without)\b/i;
 
 type Investigate = (
 	input: InsightTimelineStage["input"],
@@ -60,135 +45,12 @@ interface InsightHistoryResult {
 		contexts: number;
 		failures: number;
 		insights: number;
-		maxVisibleWords: number;
 		monitors: number;
 		stages: number;
 		timelines: number;
 	};
 	passed: boolean;
 	timelines: InsightHistoryTimelineResult[];
-}
-
-function isJson(value: string): boolean {
-	try {
-		const parsed: unknown = JSON.parse(value);
-		return typeof parsed === "object" && parsed !== null;
-	} catch {
-		return false;
-	}
-}
-
-function containsRawJson(value: string): boolean {
-	const text = value.trim();
-	if (isJson(text)) {
-		return true;
-	}
-	for (const [opening, closing] of [
-		["{", "}"],
-		["[", "]"],
-	] as const) {
-		const start = text.indexOf(opening);
-		const end = text.lastIndexOf(closing);
-		if (start >= 0 && end > start && isJson(text.slice(start, end + 1))) {
-			return true;
-		}
-	}
-	return false;
-}
-
-function artifactQualityFailures(
-	artifact: WebsiteInvestigationArtifact,
-	output: GeneratedInsight | null
-): string[] {
-	const failures: string[] = [];
-	if (output && visibleInsightText(output).some(containsRawJson)) {
-		failures.push("raw_json_visible: customer-visible output contains JSON");
-	}
-	if (output) {
-		const descriptionWords = visibleTextWordCount(output.description);
-		const suggestionWords = visibleTextWordCount(output.suggestion);
-		if (descriptionWords > MAXIMUM_DESCRIPTION_WORDS) {
-			failures.push(
-				`verbose_description: ${descriptionWords} words; maximum is ${MAXIMUM_DESCRIPTION_WORDS}`
-			);
-		}
-		if (suggestionWords > MAXIMUM_SUGGESTION_WORDS) {
-			failures.push(
-				`verbose_suggestion: ${suggestionWords} words; maximum is ${MAXIMUM_SUGGESTION_WORDS}`
-			);
-		}
-		if ((output.evidence?.length ?? 0) > MAXIMUM_EVIDENCE_ITEMS) {
-			failures.push(
-				`too_much_evidence: ${output.evidence?.length ?? 0} items; maximum is ${MAXIMUM_EVIDENCE_ITEMS}`
-			);
-		}
-	}
-
-	const { decision, signal } = artifact;
-	if (!(decision && signal)) {
-		return failures;
-	}
-	if (decision.disposition === "action_ready") {
-		const confirmation = signal.expectation?.confirmation;
-		const cited = artifact.evidence.find(
-			(item) => item.evidenceId === decision.remediation.evidenceId
-		);
-		const supportsAction = Boolean(
-			signal.kind === "missing_expected_data" &&
-				(signal.entity.type === "funnel" || signal.entity.type === "goal") &&
-				confirmation?.definitionId === signal.entity.id &&
-				confirmation.definitionType === signal.entity.type &&
-				cited &&
-				(cited.status === "ok" || cited.status === "truncated") &&
-				cited.period === "current" &&
-				cited.entity?.id === signal.entity.id &&
-				cited.entity.type === signal.entity.type &&
-				cited.remediation?.instruction === decision.remediation.instruction
-		);
-		if (!supportsAction) {
-			failures.push(
-				"unsupported_action: repair lacks exact definition-scoped evidence"
-			);
-		}
-		const expectedVerification = `Verify after 7 complete days that ${signal.metric.label.toLowerCase()} has moved back toward ${signal.metric.previous ?? "its prior level"}.`;
-		if (
-			output?.suggestion !== decision.remediation.instruction ||
-			!output.description.trim() ||
-			!(output.evidence ?? []).some(
-				(item) => item.description === expectedVerification
-			)
-		) {
-			failures.push(
-				"non_executable_action: visible repair must match the verified instruction"
-			);
-		}
-	}
-	if (
-		decision.disposition === "needs_context" &&
-		signal.severity === "critical" &&
-		signal.sentiment === "negative" &&
-		((output?.suggestion.match(/\?/g) ?? []).length !== 1 ||
-			!DIAGNOSTIC_STEP_PATTERN.test(output?.suggestion ?? ""))
-	) {
-		failures.push(
-			"weak_context_request: critical findings need one question and one next check"
-		);
-	}
-	if (
-		decision.disposition === "monitor" &&
-		signal.sentiment === "negative" &&
-		output &&
-		["error", "funnel", "goal", "vital"].includes(signal.entity.type) &&
-		!(
-			EVIDENCE_GAP_PATTERN.test(output?.suggestion ?? "") &&
-			DIAGNOSTIC_STEP_PATTERN.test(output?.suggestion ?? "")
-		)
-	) {
-		failures.push(
-			"incomplete_monitor: unresolved findings need the evidence gap and next check"
-		);
-	}
-	return failures;
 }
 
 function inferLifecycle(params: {
@@ -434,6 +296,13 @@ async function runTimeline(
 				asOf: new Date(artifact.asOf),
 				decision: artifact.decision,
 				evidence: artifact.evidence,
+				finding: artifact.insight
+					? {
+							description: artifact.insight.description,
+							suggestion: artifact.insight.suggestion,
+							title: artifact.insight.title,
+						}
+					: null,
 				recheckAt: nextRecheckAt(
 					new Date(artifact.asOf),
 					artifact.decision.disposition,
@@ -443,14 +312,6 @@ async function runTimeline(
 			});
 		}
 
-		const output = artifact.insight;
-		const visibleWords = output ? visibleInsightWordCount(output) : 0;
-		if (visibleWords > MAXIMUM_VISIBLE_WORDS) {
-			failures.push(
-				`visible output has ${visibleWords} words; maximum is ${MAXIMUM_VISIBLE_WORDS}`
-			);
-		}
-		failures.push(...artifactQualityFailures(artifact, output));
 		for (const value of [
 			stage.expect.artifact === undefined
 				? null
@@ -467,7 +328,6 @@ async function runTimeline(
 				stage.expect.disposition ?? null,
 				artifact.decision?.disposition ?? null
 			),
-			mismatch("title", stage.expect.title ?? null, output?.title ?? null),
 			mismatch("lifecycle", stage.expect.lifecycle, lifecycle),
 		]) {
 			if (value) {
@@ -493,18 +353,11 @@ export async function runInsightHistory(
 	investigate: Investigate = investigateWebsiteWithSources
 ): Promise<InsightHistoryResult> {
 	validateTimelines(timelines);
-	const first: InsightHistoryTimelineResult[] = [];
-	const second: InsightHistoryTimelineResult[] = [];
+	const results: InsightHistoryTimelineResult[] = [];
 	for (const timeline of timelines) {
-		first.push(await runTimeline(timeline, investigate));
-		second.push(await runTimeline(timeline, investigate));
+		results.push(await runTimeline(timeline, investigate));
 	}
-	if (JSON.stringify(first) !== JSON.stringify(second)) {
-		first[0]?.stages[0]?.failures.push(
-			"deterministic replay produced different semantic output"
-		);
-	}
-	const allStages = first.flatMap((timeline) => timeline.stages);
+	const allStages = results.flatMap((timeline) => timeline.stages);
 	const failures = allStages.reduce(
 		(total, stage) => total + stage.failures.length,
 		0
@@ -514,73 +367,39 @@ export async function runInsightHistory(
 			actions: allStages.filter(
 				(stage) => stage.artifact?.decision?.disposition === "action_ready"
 			).length,
-			timelines: first.length,
+			timelines: results.length,
 			stages: allStages.length,
 			insights: allStages.filter((stage) => stage.artifact?.insight).length,
 			failures,
 			contexts: allStages.filter(
 				(stage) => stage.artifact?.decision?.disposition === "needs_context"
 			).length,
-			maxVisibleWords: Math.max(
-				0,
-				...allStages.map((stage) =>
-					stage.artifact?.insight
-						? visibleInsightWordCount(stage.artifact.insight)
-						: 0
-				)
-			),
 			monitors: allStages.filter(
 				(stage) => stage.artifact?.decision?.disposition === "monitor"
 			).length,
 		},
 		passed: failures === 0,
-		timelines: first,
+		timelines: results,
 	};
 }
 
 export function formatInsightHistory(result: InsightHistoryResult): string {
 	const lines = [
-		`Insight state-model history: ${result.passed ? "PASS" : "FAIL"}`,
+		`Insight lifecycle fixtures: ${result.passed ? "PASS" : "FAIL"}`,
 		`${result.aggregate.timelines} timelines · ${result.aggregate.stages} stages · ${result.aggregate.insights} insights · ${result.aggregate.failures} failures`,
 		`${result.aggregate.actions} actions · ${result.aggregate.contexts} context requests · ${result.aggregate.monitors} monitors`,
-		`Longest insight ${result.aggregate.maxVisibleWords}/${MAXIMUM_VISIBLE_WORDS} words · every timeline replayed twice`,
 	];
 	for (const timeline of result.timelines) {
 		lines.push("", `## ${timeline.name}`);
 		for (const stage of timeline.stages) {
 			const disposition = stage.artifact?.decision?.disposition ?? "none";
 			const status = stage.artifact?.status ?? "error";
-			const output = stage.artifact?.insight;
 			lines.push(
 				"",
 				`### ${stage.asOf} · ${stage.lifecycle} · ${status} · ${disposition}`
 			);
 			if (stage.error) {
 				lines.push(`Error: ${stage.error}`);
-			}
-			if (output) {
-				lines.push(
-					`Title: ${output.title}`,
-					`Why it matters: ${output.description}`
-				);
-				if (output.impactSummary) {
-					lines.push(`Impact: ${output.impactSummary}`);
-				}
-				if (output.rootCause) {
-					lines.push(`Root cause: ${output.rootCause}`);
-				}
-				for (const evidence of output.evidence ?? []) {
-					lines.push(`Evidence: ${evidence.description}`);
-				}
-				lines.push(`Next: ${output.suggestion}`);
-				for (const metric of output.metrics) {
-					lines.push(
-						`Metric: ${metric.label} ${metric.previous ?? "n/a"} → ${metric.current} (${metric.format})`
-					);
-				}
-				lines.push(
-					`Length: ${visibleInsightWordCount(output)}/${MAXIMUM_VISIBLE_WORDS} words`
-				);
 			}
 			for (const failure of stage.failures) {
 				lines.push(`FAIL: ${failure}`);

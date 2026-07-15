@@ -16,15 +16,21 @@ bun run eval:ui
 
 The UI shows all historical runs, trend lines per model, latest-model leaderboard, searchable case failures, and response/tool details.
 
-## Historical insight quality
+## Historical insight lifecycle
 
-Run the deterministic insights engine against the built-in synthetic timelines:
+Run the insights investigation flow against built-in synthetic timelines:
 
 ```bash
 bun run eval:insights
 ```
 
-This command does not load `.env` or accept website identifiers. It uses required fixture sources, performs no database writes or delivery, prints every customer-visible finding, replays every case twice, and exits non-zero on lifecycle, safety, quality, determinism, or 100-word-limit failures. Lifecycle checks execute the production detection, investigation, recurrence, and resolution rules in memory; database transaction/idempotency behavior remains covered by the insights integration suite.
+This command does not load `.env` or accept website identifiers. It uses fixed investigator results at the test boundary, performs no database writes or delivery, and checks detection, recurrence, and resolution. It is a lifecycle fixture suite, not a prompt or model-quality benchmark.
+
+Evaluate the real agent against read-only production history and write the anonymized report outside Git:
+
+```bash
+bun run eval:insights:production-shadow -- --confirm-read-only-production --limit=3 --offsets=30,7,0 --output=/tmp/insights-shadow.json
+```
 
 The action-ready fixture supplies completion evidence scoped to one exact definition. Production does not infer that evidence from site-wide revenue; without an exact corroborator, the same regression stays `needs_context`.
 

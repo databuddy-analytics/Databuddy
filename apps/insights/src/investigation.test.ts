@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import type { DetectedSignal } from "./detection";
 import {
 	annotationMatchesSignal,
-	needsAdditionalEvidence,
 	prepareInvestigation,
 	rankSignals,
 	signalAnnotationWindow,
@@ -140,10 +139,11 @@ describe("prepareInvestigation", () => {
 			{ websiteId: "site-1", lookbackDays: 7 }
 		);
 
-		expect(needsAdditionalEvidence(result.signal, result.evidence)).toBe(false);
-		expect(needsAdditionalEvidence(result.signal, result.evidence.slice(0, 2))).toBe(
-			true
-		);
+		expect(result.evidence).toHaveLength(3);
+		expect(result.evidence.at(-1)).toMatchObject({
+			entity: { id: "goal-1", type: "goal" },
+			queryType: "goals_summary",
+		});
 	});
 
 	it("ignores unscoped annotations", () => {

@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { isRelevantInvestigationEvidence } from "@databuddy/ai/insights/validate";
 import {
 	investigationEvidenceSchema,
 	investigationSignalSchema,
@@ -26,21 +25,6 @@ export interface InvestigationAnnotation {
 	date: string;
 	signalScoped?: boolean;
 	title: string;
-}
-
-export function needsAdditionalEvidence(
-	signal: InvestigationSignal,
-	evidence: InvestigationEvidence[]
-): boolean {
-	if (signal.entity.type !== "goal" && signal.entity.type !== "funnel") {
-		return true;
-	}
-	return !evidence.some(
-		(item) =>
-			item.kind === "definition" &&
-			item.source === "product" &&
-			isRelevantInvestigationEvidence(signal, item)
-	);
 }
 
 const ANNOTATION_TOKEN_SPLIT = /[^\p{L}\p{N}]+/u;

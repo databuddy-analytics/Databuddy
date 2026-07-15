@@ -18,6 +18,7 @@ import {
 } from "../../../../apps/insights/src/funnel-detection";
 import type { LatestInsightObservation } from "../../../../apps/insights/src/observations";
 import type {
+	GeneratedInsight,
 	InvestigationDecision,
 	InvestigationEvidence,
 	InvestigationSignal,
@@ -61,7 +62,6 @@ export interface InsightStageExpectation {
 	expectedError?: string;
 	lifecycle: InsightLifecycle;
 	status?: WebsiteInvestigationArtifact["status"];
-	title?: string | null;
 }
 
 export interface InsightTimelineStage {
@@ -125,7 +125,6 @@ interface DefinitionFrame {
 interface StageFrame {
 	annotations?: Array<{ date: string; signalScoped: boolean; title: string }>;
 	definitions?: DefinitionFrame;
-	forbidEvidenceRead?: boolean;
 	metrics?: MetricFrame;
 }
 
@@ -299,90 +298,67 @@ function definitionDeps(frame: DefinitionFrame, asOf: string): FunnelGoalDeps {
 	};
 }
 
-function evidenceForSignal(
-	signal: InvestigationSignal
-): InvestigationEvidence[] {
-	if (signal.metric.key === "revenue") {
-		return (["current", "previous"] as const).map((period) => ({
-			evidenceId: `fixture:revenue:${period}`,
-			signalKey: signal.signalKey,
-			kind: "breakdown",
-			source: "business",
-			queryType: "revenue_overview",
-			period,
-			range: signal.period[period],
-			status: "ok",
-			rowCount: 1,
-			summary: `${period === "current" ? "Current" : "Previous"} queried revenue was ${period === "current" ? signal.metric.current : signal.metric.previous}.`,
-			metrics: [
-				{
-					label: "Queried revenue",
-					current:
-						period === "current"
-							? signal.metric.current
-							: (signal.metric.previous ?? 0),
-					format: "number",
+function fixtureResult(
+	signal: InvestigationSignal,
+	evidence: InvestigationEvidence[]
+): {
+	decision: InvestigationDecision;
+	insight: GeneratedInsight | null;
+} {
+	const usable = evidence.filter(
+		(item) => item.status === "ok" || item.status === "truncated"
+	);
+	const firstEvidence = usable[0];
+	if (!firstEvidence) {
+		throw new Error("Synthetic agent is missing usable evidence");
+	}
+	const planned = usable.find(
+		(item) => item.queryType === "annotations:planned_signal"
+	);
+	if (planned) {
+		return { decision: { disposition: "not_a_problem" }, insight: null };
+	}
+	const repair = signal.expectation?.confirmation
+		? usable.find((item) => item.remediation)
+		: undefined;
+	const decision: InvestigationDecision = repair?.remediation
+		? {
+				disposition: "action_ready",
+				remediation: {
+					evidenceId: repair.evidenceId,
+					instruction: repair.remediation.instruction,
+					kind: repair.remediation.kind,
 				},
-			],
-		}));
-	}
-	if (signal.entity.type === "error") {
-		return [
-			{
-				evidenceId: "fixture:error:fingerprint",
-				signalKey: signal.signalKey,
-				kind: "data_health",
-				source: "ops",
-				queryType: "error_fingerprints",
-				entity: {
-					type: "error",
-					id: "checkout-type-error",
-					label: "Checkout TypeError",
-				},
-				period: "current",
-				range: signal.period.current,
-				status: "ok",
-				rowCount: 1,
-				summary: "Checkout TypeError affected 80 users in the current period.",
-				metrics: [{ label: "Affected users", current: 80, format: "number" }],
-			},
-		];
-	}
-	if (signal.entity.type === "vital") {
-		return [
-			{
-				evidenceId: "fixture:vital:checkout",
-				signalKey: signal.signalKey,
-				kind: "data_health",
-				source: "ops",
-				queryType: "web_vitals_by_page:qualified",
-				entity: { type: "page", id: "/checkout", label: "/checkout" },
-				period: "current",
-				range: signal.period.current,
-				status: "ok",
-				rowCount: 1,
-				summary: "/checkout had a 4,000 ms LCP across 200 sampled visitors.",
-				metrics: [
-					{ label: "Visitors sampled", current: 200, format: "number" },
-				],
-			},
-		];
-	}
-	return [
-		{
-			evidenceId: "fixture:web:breakdown",
-			signalKey: signal.signalKey,
-			kind: "breakdown",
-			source: "web",
-			queryType: "top_referrers",
-			period: "current",
-			range: signal.period.current,
-			status: "ok",
-			rowCount: 1,
-			summary:
-				"Organic search accounted for the largest affected visitor segment.",
+			}
+		: { disposition: "needs_context" };
+	const primary = repair ?? firstEvidence;
+	const suggestion =
+		repair?.remediation?.instruction ??
+		"What external change explains this regression?";
+	const source = primary.source === "sql" ? "web" : primary.source;
+	return {
+		decision,
+		insight: {
+			title: `${signal.entity.label} needs attention`,
+			description: "The measured regression needs attention.",
+			suggestion,
+			metrics: [signal.metric],
+			severity: signal.severity,
+			sentiment: signal.sentiment,
+			priority: signal.priority,
+			...(signal.changePercent === null
+				? {}
+				: { changePercent: signal.changePercent }),
+			type: signal.insightType,
+			subjectKey: signal.signalKey,
+			sources: [source],
+			confidence: 0.8,
+			evidence: [{ type: "metric", description: primary.summary }],
+			...(repair?.remediation
+				? { remediationKind: repair.remediation.kind }
+				: {}),
 		},
-	];
+	};
 }
 
 function createSources(
@@ -394,15 +370,8 @@ function createSources(
 	const query = metricQuery(metricFrame, asOf);
 	const definitions = definitionDeps(frame.definitions ?? {}, asOf);
 	return {
-		createEvidenceReader: (params) =>
-			Promise.resolve(() => {
-				if (frame.forbidEvidenceRead) {
-					return Promise.reject(
-						new Error("Unexpected synthetic evidence read")
-					);
-				}
-				return Promise.resolve(evidenceForSignal(params.signal));
-			}),
+		createEvidenceReader: () =>
+			Promise.reject(new Error("Lifecycle fixtures do not execute the agent")),
 		createServiceAuth: () => Promise.resolve(undefined),
 		detectDefinitionSignals: (params, today, _deps, options) =>
 			detectFunnelGoalSignals(params, today, definitions, options),
@@ -410,6 +379,19 @@ function createSources(
 			detectSignals(params, query, today, abortSignal, diagnostics),
 		fetchAnnotations: () => Promise.resolve(frame.annotations ?? []),
 		hasTrackedData: () => Promise.resolve(metricFrame.hasData !== false),
+		investigateSignal: (input) => {
+			const candidate = input.candidates[0];
+			if (!candidate) {
+				throw new Error("Lifecycle fixture is missing a candidate");
+			}
+			const evidence = candidate.evidence;
+			return Promise.resolve({
+				...fixtureResult(candidate.signal, evidence),
+				evidence,
+				signal: candidate.signal,
+				toolCallCount: 0,
+			});
+		},
 		loadObservations: () => Promise.resolve(new Map(observations)),
 	};
 }
@@ -487,7 +469,6 @@ const trafficLifecycle: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Visitors drop needs context",
 			},
 			id: "detected",
 			previous: { unique_visitors: 1000 },
@@ -500,7 +481,6 @@ const trafficLifecycle: InsightTimeline = {
 				disposition: null,
 				lifecycle: "persists",
 				status: "deferred",
-				title: null,
 			},
 			id: "persists",
 			previous: { unique_visitors: 1000 },
@@ -513,7 +493,6 @@ const trafficLifecycle: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "worsened",
 				status: "completed",
-				title: "Visitors drop needs context",
 			},
 			id: "worsened",
 			previous: { unique_visitors: 1000 },
@@ -526,7 +505,6 @@ const trafficLifecycle: InsightTimeline = {
 				disposition: null,
 				lifecycle: "recovered",
 				status: "no_signals",
-				title: null,
 			},
 			id: "recovered",
 			previous: {},
@@ -545,7 +523,6 @@ const revenueDrop: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Revenue drop needs context",
 			},
 			frame: { metrics: { revenue: { current: 400, previous: 1000 } } },
 			id: "drop",
@@ -561,10 +538,9 @@ const errorSpike: InsightTimeline = {
 		stage({
 			asOf: "2026-07-06",
 			expect: {
-				disposition: "monitor",
+				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Investigate Checkout TypeError",
 			},
 			frame: {
 				metrics: {
@@ -587,10 +563,9 @@ const vitalRegression: InsightTimeline = {
 		stage({
 			asOf: "2026-07-06",
 			expect: {
-				disposition: "monitor",
+				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Investigate /checkout",
 			},
 			frame: {
 				metrics: {
@@ -616,7 +591,6 @@ const zeroGoal: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Signup needs context",
 			},
 			frame: {
 				definitions: {
@@ -645,7 +619,6 @@ const missingFunnelStep: InsightTimeline = {
 				disposition: "action_ready",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Fix tracking for Checkout",
 			},
 			frame: {
 				definitions: {
@@ -675,7 +648,6 @@ const plannedGoalChange: InsightTimeline = {
 				disposition: "not_a_problem",
 				lifecycle: "none",
 				status: "completed",
-				title: null,
 			},
 			frame: {
 				annotations: [
@@ -709,10 +681,9 @@ const positiveTrend: InsightTimeline = {
 			asOf: "2026-07-06",
 			current: { unique_visitors: 1800 },
 			expect: {
-				disposition: "monitor",
+				disposition: null,
 				lifecycle: "none",
-				status: "completed",
-				title: null,
+				status: "no_signals",
 			},
 			id: "growth",
 			previous: { unique_visitors: 1000 },
@@ -731,7 +702,6 @@ const noData: InsightTimeline = {
 				disposition: null,
 				lifecycle: "none",
 				status: "no_data",
-				title: null,
 			},
 			frame: { metrics: { hasData: false } },
 			id: "empty",
@@ -750,7 +720,6 @@ const incompleteValidSignal: InsightTimeline = {
 				disposition: "needs_context",
 				lifecycle: "detected",
 				status: "completed",
-				title: "Visitors drop needs context",
 			},
 			frame: {
 				metrics: {
@@ -811,7 +780,6 @@ const oneSessionBounce: InsightTimeline = {
 				lifecycle: "none",
 			},
 			frame: {
-				forbidEvidenceRead: true,
 				metrics: {
 					summary: {
 						current: summary({
@@ -854,7 +822,6 @@ const lowImpactErrorSpike: InsightTimeline = {
 				lifecycle: "none",
 			},
 			frame: {
-				forbidEvidenceRead: true,
 				metrics: {
 					errors: {
 						current: { affectedUsers: 3, totalErrors: 10 },

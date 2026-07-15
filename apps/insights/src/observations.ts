@@ -1,6 +1,7 @@
 import { and, db, desc, eq, inArray, lte } from "@databuddy/db";
-import { insightObservations } from "@databuddy/db/schema";
+import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
 import type {
+	GeneratedInsight,
 	InvestigationDecision,
 	InvestigationEvidence,
 	InvestigationSignal,
@@ -15,7 +16,12 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export type LatestInsightObservation = Pick<
 	typeof insightObservations.$inferSelect,
 	"asOf" | "decision" | "evidence" | "recheckAt" | "signal"
->;
+> & {
+	finding: Pick<
+		GeneratedInsight,
+		"description" | "suggestion" | "title"
+	> | null;
+};
 
 export function nextRecheckAt(
 	asOf: Date,
@@ -33,45 +39,39 @@ export function nextRecheckAt(
 	return new Date(asOf.getTime() + days * DAY_MS);
 }
 
-export function selectSignalForInvestigation(
+export function eligibleSignalsForInvestigation(
 	signals: DetectedSignal[],
 	observations: ReadonlyMap<string, LatestInsightObservation>,
 	asOf: Date
-): DetectedSignal | null {
-	const entries = signals.map((signal) => ({
-		signal,
-		observation: observations.get(signalKeyForDetectedSignal(signal)),
-	}));
-	const worsened = entries.find(({ signal, observation }) => {
-		if (!(observation && isRegression(signal))) {
-			return false;
+): DetectedSignal[] {
+	const buckets: [DetectedSignal[], DetectedSignal[], DetectedSignal[]] = [
+		[],
+		[],
+		[],
+	];
+	for (const signal of signals) {
+		const observation = observations.get(signalKeyForDetectedSignal(signal));
+		if (!observation) {
+			buckets[1].push(signal);
+			continue;
 		}
-		if (observation.signal.sentiment !== "negative") {
-			return true;
+		const worsened =
+			isRegression(signal) &&
+			(observation.signal.sentiment !== "negative" ||
+				isMateriallyWorse(
+					{ changePercent: signal.deltaPercent, severity: signal.severity },
+					{
+						changePercent: observation.signal.changePercent,
+						severity: observation.signal.severity,
+					}
+				));
+		if (worsened) {
+			buckets[0].push(signal);
+		} else if (observation.recheckAt <= asOf) {
+			buckets[2].push(signal);
 		}
-		return isMateriallyWorse(
-			{ changePercent: signal.deltaPercent, severity: signal.severity },
-			{
-				changePercent: observation.signal.changePercent,
-				severity: observation.signal.severity,
-			}
-		);
-	});
-	if (worsened) {
-		return worsened.signal;
 	}
-
-	const unseen = entries.find(({ observation }) => !observation);
-	if (unseen) {
-		return unseen.signal;
-	}
-
-	return (
-		entries.find(
-			({ observation }) =>
-				observation !== undefined && observation.recheckAt <= asOf
-		)?.signal ?? null
-	);
+	return buckets.flat();
 }
 
 export async function loadLatestSignalObservations(params: {
@@ -89,11 +89,22 @@ export async function loadLatestSignalObservations(params: {
 			asOf: insightObservations.asOf,
 			decision: insightObservations.decision,
 			evidence: insightObservations.evidence,
+			findingDescription: analyticsInsights.description,
+			findingSuggestion: analyticsInsights.suggestion,
+			findingTitle: analyticsInsights.title,
 			signalKey: insightObservations.signalKey,
 			signal: insightObservations.signal,
 			recheckAt: insightObservations.recheckAt,
 		})
 		.from(insightObservations)
+		.leftJoin(
+			analyticsInsights,
+			and(
+				eq(analyticsInsights.id, insightObservations.insightId),
+				eq(analyticsInsights.organizationId, params.organizationId),
+				eq(analyticsInsights.websiteId, params.websiteId)
+			)
+		)
 		.where(
 			and(
 				eq(insightObservations.organizationId, params.organizationId),
@@ -108,7 +119,26 @@ export async function loadLatestSignalObservations(params: {
 			desc(insightObservations.createdAt)
 		);
 
-	return new Map(rows.map((row) => [row.signalKey, row]));
+	return new Map(
+		rows.map((row) => [
+			row.signalKey,
+			{
+				asOf: row.asOf,
+				decision: row.decision,
+				evidence: row.evidence,
+				finding:
+					row.findingDescription && row.findingSuggestion && row.findingTitle
+						? {
+								description: row.findingDescription,
+								suggestion: row.findingSuggestion,
+								title: row.findingTitle,
+							}
+						: null,
+				recheckAt: row.recheckAt,
+				signal: row.signal,
+			},
+		])
+	);
 }
 
 export async function findRunObservation(params: {

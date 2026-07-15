@@ -395,12 +395,6 @@ export const investigationDispositionSchema = z.enum([
 	"not_a_problem",
 ]);
 
-export const externalContextGapSchema = z.enum([
-	"expected_behavior",
-	"business_priority",
-	"planned_external_change",
-]);
-
 const remediationSchema = z
 	.object({
 		kind: insightRemediationKindSchema,
@@ -418,12 +412,7 @@ export const investigationDecisionSchema = z.discriminatedUnion("disposition", [
 			remediation: remediationSchema,
 		})
 		.strict(),
-	z
-		.object({
-			disposition: z.literal("needs_context"),
-			gap: externalContextGapSchema,
-		})
-		.strict(),
+	z.object({ disposition: z.literal("needs_context") }).strict(),
 	z.object({ disposition: z.literal("monitor") }).strict(),
 	z.object({ disposition: z.literal("not_a_problem") }).strict(),
 ]);
@@ -441,7 +430,6 @@ export type StoredInsightAction = z.infer<typeof storedInsightActionSchema>;
 export type InsightRemediationKind = z.infer<
 	typeof insightRemediationKindSchema
 >;
-export type ExternalContextGap = z.infer<typeof externalContextGapSchema>;
 export type GeneratedInsight = z.infer<typeof generatedInsightSchema>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationEvidence = z.infer<typeof investigationEvidenceSchema>;

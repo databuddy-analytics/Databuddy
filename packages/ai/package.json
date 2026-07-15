@@ -20,7 +20,6 @@
     "./config/models": "./src/ai/config/models.ts",
     "./insights/evidence-reader": "./src/ai/tools/insights-agent-tools.ts",
     "./insights/fetch-context": "./src/ai/insights/fetch-context.ts",
-    "./insights/validate": "./src/ai/insights/validate.ts",
     "./lib/accessible-websites": "./src/lib/accessible-websites.ts",
     "./lib/ai-logger": "./src/lib/ai-logger.ts",
     "./lib/databuddy": "./src/lib/databuddy.ts",

@@ -9,7 +9,12 @@ import type {
 	FunnelDef,
 	GoalDef,
 } from "../../../apps/insights/src/funnel-detection";
-import type { InvestigationAnnotation } from "../../../apps/insights/src/investigation";
+import {
+	type InvestigationAnnotation,
+	signalKeyForDetectedSignal,
+} from "../../../apps/insights/src/investigation";
+import type { LatestInsightObservation } from "../../../apps/insights/src/observations";
+import { visibleInsightWordCount } from "./insight-visible-output";
 
 const REQUIRED_CONFIRMATION = "--confirm-read-only-production";
 const DEFAULT_OFFSETS = [60, 30, 7, 0];
@@ -17,7 +22,6 @@ const DEFAULT_MIN_EVENTS = 25_000;
 const DEFAULT_CONCURRENCY = 2;
 const STATEMENT_TIMEOUT_MS = 60_000;
 const CASE_ATTEMPT_TIMEOUT_MS = 150_000;
-const WHITESPACE_PATTERN = /\s+/;
 
 interface CliOptions {
 	concurrency: number;
@@ -25,12 +29,10 @@ interface CliOptions {
 	minEvents: number;
 	offsets: number[];
 	output: string | null;
-	repeat: boolean;
 }
 
 interface RankedWebsite {
 	domain: string;
-	events: number;
 	id: string;
 	organizationId: string;
 	timezone: string;
@@ -59,7 +61,6 @@ interface ShadowCase {
 	detectionComplete: boolean;
 	disposition: string | null;
 	durationMs: number;
-	engineId: string;
 	errorSummary: string | null;
 	errorType: string | null;
 	evidence: {
@@ -72,16 +73,13 @@ interface ShadowCase {
 	insight: null | {
 		description: string;
 		evidence: string[];
-		impact: string | null;
-		rootCause: string | null;
 		suggestion: string;
 		title: string;
 		visibleWords: number;
 	};
 	offsetDays: number;
-	repeatDifferences: string[];
-	repeatEqual: boolean | null;
 	selectedSignal: null | {
+		backendRank: number;
 		changePercent: number | null;
 		current: number;
 		entityType: string;
@@ -105,7 +103,6 @@ interface ShadowReport {
 		evidenceFailed: number;
 		evidenceTruncated: number;
 		metricFamilies: Record<string, number>;
-		repeatAgreement: number | null;
 		severity: Record<string, number>;
 		status: Record<string, number>;
 		visibleWords: { max: number; p50: number; p95: number };
@@ -113,13 +110,12 @@ interface ShadowReport {
 	cases: ShadowCase[];
 	meta: {
 		concurrency: number;
-		engine: "current deterministic production path";
+		engine: "bounded production agent";
 		generatedAt: string;
-		history: "disabled";
+		history: "in_memory";
 		minEvents: number;
 		offsets: number[];
 		productionWrites: false;
-		repeat: boolean;
 		sites: number;
 	};
 }
@@ -173,7 +169,6 @@ function parseOptions(args: string[]): CliOptions {
 		),
 		offsets,
 		output: optionValue(args, "--output") ?? null,
-		repeat: args.includes("--repeat"),
 	};
 }
 
@@ -359,11 +354,9 @@ function loadMetadata(ranked: Array<{ events: number; id: string }>): Promise<{
 			[ids]
 		);
 		const rank = new Map(ranked.map((item, index) => [item.id, index]));
-		const events = new Map(ranked.map((item) => [item.id, item.events]));
 		const sites = siteResult.rows
 			.map((row) => ({
 				domain: row.domain,
-				events: events.get(row.id) ?? 0,
 				id: row.id,
 				organizationId: row.organization_id,
 				timezone: safeTimezone(row.timezone),
@@ -402,10 +395,23 @@ function loadMetadata(ranked: Array<{ events: number; id: string }>): Promise<{
 	});
 }
 
-function dateAtOffset(offsetDays: number): string {
-	const now = new Date();
+function dateAtOffset(
+	referenceTime: Date,
+	offsetDays: number,
+	timezone: string
+): string {
+	const parts = Object.fromEntries(
+		new Intl.DateTimeFormat("en", {
+			day: "2-digit",
+			month: "2-digit",
+			timeZone: timezone,
+			year: "numeric",
+		})
+			.formatToParts(referenceTime)
+			.map((part) => [part.type, part.value])
+	);
 	const date = new Date(
-		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) -
+		Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) -
 			offsetDays * 86_400_000
 	);
 	return date.toISOString().slice(0, 10);
@@ -425,6 +431,7 @@ async function createSources(params: {
 	asOf: Date;
 	funnels: FunnelRow[];
 	goals: GoalRow[];
+	observations: ReadonlyMap<string, LatestInsightObservation>;
 	site: RankedWebsite;
 	attemptSignal: AbortSignal;
 }): Promise<InvestigationSources> {
@@ -434,12 +441,14 @@ async function createSources(params: {
 		{ detectSignals },
 		{ defaultFunnelGoalDeps, detectFunnelGoalSignals },
 		{ annotationMatchesSignal, signalAnnotationWindow },
+		{ runInsightAgent },
 	] = await Promise.all([
 		import("@databuddy/ai/insights/evidence-reader"),
 		import("@databuddy/ai/insights/fetch-context"),
 		import("../../../apps/insights/src/detection"),
 		import("../../../apps/insights/src/funnel-detection"),
 		import("../../../apps/insights/src/investigation"),
+		import("../../../apps/insights/src/agent"),
 	]);
 	const siteFunnels = definitionsAt(
 		params.funnels.filter((row) => row.websiteId === params.site.id),
@@ -455,12 +464,20 @@ async function createSources(params: {
 			: params.attemptSignal;
 	return {
 		createEvidenceReader: (readerParams) => {
-			const readEvidence = createInsightEvidenceReader(readerParams);
+			const readEvidence = createInsightEvidenceReader({
+				...readerParams,
+				allowLiveAnomalyDetection: false,
+			});
 			return Promise.resolve((request, appContext, signal) =>
 				readEvidence(request, appContext, withAttemptSignal(signal))
 			);
 		},
-		createServiceAuth: () => Promise.resolve(undefined),
+		createServiceAuth: async (organizationId) => {
+			const { createInsightsServiceAuth } = await import(
+				"../../../apps/insights/src/service-auth"
+			);
+			return createInsightsServiceAuth(organizationId);
+		},
 		detectDefinitionSignals: (detectParams, today, _deps, options) => {
 			const base = defaultFunnelGoalDeps(params.site.id, params.asOf);
 			return detectFunnelGoalSignals(
@@ -486,7 +503,7 @@ async function createSources(params: {
 				withAttemptSignal(signal),
 				diagnostics
 			),
-		fetchAnnotations: (_websiteId, signal, asOf, timezone) => {
+		fetchAnnotations: (_websiteId, signal, _asOf, timezone) => {
 			const window = signalAnnotationWindow(signal, timezone);
 			return Promise.resolve(
 				params.annotations
@@ -495,9 +512,9 @@ async function createSources(params: {
 							row.websiteId === params.site.id &&
 							row.xValue >= window.from &&
 							row.xValue <= window.to &&
-							row.createdAt <= asOf &&
-							row.updatedAt <= asOf &&
-							(row.deletedAt === null || row.deletedAt > asOf)
+							row.createdAt <= params.asOf &&
+							row.updatedAt <= params.asOf &&
+							(row.deletedAt === null || row.deletedAt > params.asOf)
 					)
 					.sort((a, b) => a.xValue.getTime() - b.xValue.getTime())
 					.slice(0, 10)
@@ -519,7 +536,8 @@ async function createSources(params: {
 				timezone,
 				withAttemptSignal(signal)
 			),
-		loadObservations: () => Promise.resolve(new Map()),
+		investigateSignal: runInsightAgent,
+		loadObservations: () => Promise.resolve(new Map(params.observations)),
 	};
 }
 
@@ -571,15 +589,6 @@ function percentile(values: number[], quantile: number): number {
 	];
 }
 
-function wordCount(values: Array<string | null | undefined>): number {
-	return values
-		.filter((value): value is string => Boolean(value?.trim()))
-		.join(" ")
-		.trim()
-		.split(WHITESPACE_PATTERN)
-		.filter(Boolean).length;
-}
-
 function escapeRegExp(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -626,42 +635,11 @@ function metricFamily(key: string): string {
 	return key;
 }
 
-function semanticProjection(artifact: WebsiteInvestigationArtifact): unknown {
-	return {
-		decision: artifact.decision,
-		detectedSignals: artifact.detectedSignals.map((signal) => ({
-			baseline: signal.baseline,
-			current: signal.current,
-			deltaPercent: signal.deltaPercent,
-			kind: signal.kind,
-			method: signal.method,
-			metric: metricFamily(signal.metric),
-			severity: signal.severity,
-		})),
-		insight: artifact.insight,
-		signal: artifact.signal,
-		status: artifact.status,
-	};
-}
-
-function semanticDifferences(
-	first: WebsiteInvestigationArtifact,
-	second: WebsiteInvestigationArtifact
-): string[] {
-	const a = semanticProjection(first) as Record<string, unknown>;
-	const b = semanticProjection(second) as Record<string, unknown>;
-	return Object.keys(a).filter(
-		(key) => JSON.stringify(a[key]) !== JSON.stringify(b[key])
-	);
-}
-
 function projectCase(params: {
 	artifact: WebsiteInvestigationArtifact;
 	caseId: string;
 	durationMs: number;
 	offsetDays: number;
-	repeatDifferences: string[];
-	repeatEqual: boolean | null;
 	secrets: string[];
 }): ShadowCase {
 	const { artifact } = params;
@@ -669,7 +647,6 @@ function projectCase(params: {
 		artifact.evidence.map((item) => item.status)
 	);
 	const insight = artifact.insight;
-	const isError = artifact.signal?.entity.type === "error";
 	const visibleEvidence =
 		insight?.evidence?.map((item) => item.description) ?? [];
 	return {
@@ -678,7 +655,6 @@ function projectCase(params: {
 		detectedSignalCount: artifact.detectedSignals.length,
 		disposition: artifact.decision?.disposition ?? null,
 		durationMs: params.durationMs,
-		engineId: artifact.engineId,
 		evidence: {
 			failed: evidenceStatuses.failed ?? 0,
 			queries: countBy(
@@ -696,33 +672,20 @@ function projectCase(params: {
 					evidence: visibleEvidence.map((value) =>
 						sanitizeText(value, params.secrets)
 					),
-					impact: insight.impactSummary
-						? sanitizeText(insight.impactSummary, params.secrets)
-						: null,
-					rootCause: insight.rootCause
-						? sanitizeText(insight.rootCause, params.secrets)
-						: null,
-					suggestion: isError
-						? "No patch target is established yet. Reproduce [error] and trace its first application frame."
-						: sanitizeText(insight.suggestion, params.secrets),
-					title: isError
-						? "Investigate [error]"
-						: sanitizeText(insight.title, params.secrets),
-					visibleWords: wordCount([
-						insight.title,
-						insight.description,
-						insight.impactSummary,
-						insight.rootCause,
-						...visibleEvidence,
-						insight.suggestion,
-					]),
+					suggestion: sanitizeText(insight.suggestion, params.secrets),
+					title: sanitizeText(insight.title, params.secrets),
+					visibleWords: visibleInsightWordCount(insight),
 				}
 			: null,
 		offsetDays: params.offsetDays,
-		repeatDifferences: params.repeatDifferences,
-		repeatEqual: params.repeatEqual,
 		selectedSignal: artifact.signal
 			? {
+					backendRank:
+						artifact.detectedSignals.findIndex(
+							(signal) =>
+								signalKeyForDetectedSignal(signal) ===
+								artifact.signal?.signalKey
+						) + 1,
 					changePercent: artifact.signal.changePercent,
 					current: artifact.signal.metric.current,
 					entityType: artifact.signal.entity.type,
@@ -745,26 +708,32 @@ function failedCase(params: {
 	offsetDays: number;
 	secrets: string[];
 }): ShadowCase {
+	const cause =
+		params.error instanceof Error &&
+		typeof params.error.cause === "object" &&
+		params.error.cause &&
+		"message" in params.error.cause &&
+		typeof params.error.cause.message === "string"
+			? params.error.cause.message
+			: null;
+	const message =
+		params.error instanceof Error
+			? [params.error.message, cause].filter(Boolean).join(": ")
+			: "Unknown failure";
 	return {
 		caseId: params.caseId,
 		detectionComplete: false,
 		detectedSignalCount: 0,
 		disposition: null,
 		durationMs: params.durationMs,
-		engineId: "deterministic/v1",
 		evidence: { failed: 0, queries: {}, statuses: {}, total: 0, truncated: 0 },
-		errorSummary:
-			params.error instanceof Error
-				? sanitizeText(params.error.message, params.secrets).slice(0, 300)
-				: "Unknown failure",
+		errorSummary: sanitizeText(message, params.secrets).slice(0, 500),
 		errorType:
 			params.error instanceof Error
 				? params.error.constructor.name
 				: typeof params.error,
 		insight: null,
 		offsetDays: params.offsetDays,
-		repeatDifferences: [],
-		repeatEqual: null,
 		selectedSignal: null,
 		status: "error",
 	};
@@ -793,7 +762,6 @@ function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
 	const words = cases.flatMap((item) =>
 		item.insight ? [item.insight.visibleWords] : []
 	);
-	const repeats = cases.filter((item) => item.repeatEqual !== null);
 	return {
 		cases: cases.length,
 		cards: words.length,
@@ -817,10 +785,6 @@ function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
 		metricFamilies: countBy(
 			cases.map((item) => item.selectedSignal?.metric ?? null)
 		),
-		repeatAgreement:
-			repeats.length === 0
-				? null
-				: repeats.filter((item) => item.repeatEqual).length / repeats.length,
 		severity: countBy(
 			cases.map((item) => item.selectedSignal?.severity ?? null)
 		),
@@ -855,105 +819,130 @@ export async function runProductionShadow(
 ): Promise<ShadowReport> {
 	disableExternalEffects();
 	configureReadOnlyClickHouse();
+	const referenceTime = new Date();
 	const restoreConsole = silenceLibraryConsole();
 	try {
 		const ranked = await loadCohort(options.minEvents, options.limit);
 		const metadata = await loadMetadata(ranked);
-		const jobs = metadata.sites.flatMap((site, siteIndex) =>
-			options.offsets.map((offsetDays) => ({ offsetDays, site, siteIndex }))
-		);
-		const { investigateWebsiteWithSources } = await import(
-			"../../../apps/insights/src/generation"
-		);
-		const cases = await mapConcurrent(
-			jobs,
+		const [
+			{ investigateWebsiteWithSources, resolveInvestigationAsOf },
+			{ nextRecheckAt },
+		] = await Promise.all([
+			import("../../../apps/insights/src/generation"),
+			import("../../../apps/insights/src/observations"),
+		]);
+		const siteCases = await mapConcurrent(
+			metadata.sites,
 			options.concurrency,
-			async ({ offsetDays, site, siteIndex }) => {
-				const caseId = `site-${String(siteIndex + 1).padStart(2, "0")}@d-${offsetDays}`;
-				const asOfString = dateAtOffset(offsetDays);
-				const asOf = new Date(`${asOfString}T23:59:59.999Z`);
-				const startedAt = Date.now();
-				try {
-					const input = {
-						asOf: asOfString,
-						domain: site.domain,
-						organizationId: site.organizationId,
-						timezone: site.timezone,
-						websiteId: site.id,
-					};
-					const investigate = () =>
-						runCancellableAttempt(async (attemptSignal) => {
-							const sources = await createSources({
-								annotations: metadata.annotations,
+			async (site, siteIndex) => {
+				const observations = new Map<string, LatestInsightObservation>();
+				const cases: ShadowCase[] = [];
+				for (const offsetDays of [...options.offsets].sort((a, b) => b - a)) {
+					const caseId = `site-${String(siteIndex + 1).padStart(2, "0")}@d-${offsetDays}`;
+					const asOf = resolveInvestigationAsOf(
+						dateAtOffset(referenceTime, offsetDays, site.timezone),
+						site.timezone
+					);
+					const startedAt = Date.now();
+					try {
+						const input = {
+							asOf,
+							domain: site.domain,
+							organizationId: site.organizationId,
+							timezone: site.timezone,
+							websiteId: site.id,
+						};
+						const artifact = await runCancellableAttempt(
+							async (attemptSignal) => {
+								const sources = await createSources({
+									annotations: metadata.annotations,
+									asOf,
+									attemptSignal,
+									funnels: metadata.funnels,
+									goals: metadata.goals,
+									observations,
+									site,
+								});
+								return investigateWebsiteWithSources(input, sources);
+							}
+						);
+						if (artifact.decision && artifact.signal) {
+							observations.set(artifact.signal.signalKey, {
 								asOf,
-								attemptSignal,
-								funnels: metadata.funnels,
-								goals: metadata.goals,
-								site,
+								decision: artifact.decision,
+								evidence: artifact.evidence,
+								finding: artifact.insight
+									? {
+											description: artifact.insight.description,
+											suggestion: artifact.insight.suggestion,
+											title: artifact.insight.title,
+										}
+									: null,
+								recheckAt: nextRecheckAt(
+									asOf,
+									artifact.decision.disposition,
+									artifact.signal
+								),
+								signal: artifact.signal,
 							});
-							return investigateWebsiteWithSources(input, sources);
-						});
-					const artifact = await investigate();
-					let repeatEqual: boolean | null = null;
-					let repeatDifferences: string[] = [];
-					if (options.repeat) {
-						const repeated = await investigate();
-						repeatDifferences = semanticDifferences(artifact, repeated);
-						repeatEqual = repeatDifferences.length === 0;
-					}
-					const secrets = [
-						site.id,
-						site.domain,
-						site.organizationId,
-						artifact.signal?.entity.id ?? "",
-						artifact.signal?.entity.label ?? "",
-						artifact.signal?.expectation?.eventName ?? "",
-						artifact.signal?.expectation?.stepName ?? "",
-					];
-					return projectCase({
-						artifact,
-						caseId,
-						durationMs: Date.now() - startedAt,
-						offsetDays,
-						repeatDifferences,
-						repeatEqual,
-						secrets,
-					});
-				} catch (error) {
-					const siteDefinitions = [
-						...metadata.funnels.filter((row) => row.websiteId === site.id),
-						...metadata.goals.filter((row) => row.websiteId === site.id),
-					];
-					return failedCase({
-						caseId,
-						durationMs: Date.now() - startedAt,
-						error,
-						offsetDays,
-						secrets: [
+						}
+						const secrets = [
 							site.id,
 							site.domain,
 							site.organizationId,
-							...siteDefinitions.flatMap((definition) => [
-								definition.id,
-								definition.name,
-							]),
-						],
-					});
+							artifact.signal?.entity.id ?? "",
+							artifact.signal?.entity.label ?? "",
+							artifact.signal?.expectation?.eventName ?? "",
+							artifact.signal?.expectation?.stepName ?? "",
+						];
+						cases.push(
+							projectCase({
+								artifact,
+								caseId,
+								durationMs: Date.now() - startedAt,
+								offsetDays,
+								secrets,
+							})
+						);
+					} catch (error) {
+						const siteDefinitions = [
+							...metadata.funnels.filter((row) => row.websiteId === site.id),
+							...metadata.goals.filter((row) => row.websiteId === site.id),
+						];
+						cases.push(
+							failedCase({
+								caseId,
+								durationMs: Date.now() - startedAt,
+								error,
+								offsetDays,
+								secrets: [
+									site.id,
+									site.domain,
+									site.organizationId,
+									...siteDefinitions.flatMap((definition) => [
+										definition.id,
+										definition.name,
+									]),
+								],
+							})
+						);
+					}
 				}
+				return cases;
 			}
 		);
+		const cases = siteCases.flat();
 		return {
 			aggregate: aggregateCases(cases),
 			cases,
 			meta: {
 				concurrency: options.concurrency,
-				engine: "current deterministic production path",
-				generatedAt: new Date().toISOString(),
-				history: "disabled",
+				engine: "bounded production agent",
+				generatedAt: referenceTime.toISOString(),
+				history: "in_memory",
 				minEvents: options.minEvents,
 				offsets: options.offsets,
 				productionWrites: false,
-				repeat: options.repeat,
 				sites: metadata.sites.length,
 			},
 		};

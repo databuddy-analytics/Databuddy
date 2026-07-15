@@ -1,9 +1,12 @@
+import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type { InvestigationEvidence } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
+import { materializeAgentDecision } from "./agent";
 import {
 	type InvestigationSources,
 	investigateWebsiteWithSources,
+	resolveInvestigationAsOf,
 } from "./generation";
 
 const trafficDrop: DetectedSignal = {
@@ -18,7 +21,22 @@ const trafficDrop: DetectedSignal = {
 	severity: "critical",
 };
 
+const revenueDrop: DetectedSignal = {
+	...trafficDrop,
+	baseline: 1000,
+	current: 400,
+	deltaPercent: -60,
+	label: "Revenue",
+	metric: "revenue",
+};
+
 describe("fixture investigation sources", () => {
+	it("resolves a date-only run to one exact instant in the website timezone", () => {
+		expect(resolveInvestigationAsOf("2026-07-12", "Asia/Hebron")).toEqual(
+			new Date("2026-07-11T21:00:00.000Z")
+		);
+	});
+
 	it("runs the production investigation path using only required sources", async () => {
 		const calls: string[] = [];
 		const sources: InvestigationSources = {
@@ -28,7 +46,7 @@ describe("fixture investigation sources", () => {
 			},
 			detectMetricSignals: async () => {
 				calls.push("metric detection");
-				return [trafficDrop];
+				return [trafficDrop, revenueDrop];
 			},
 			detectDefinitionSignals: async () => {
 				calls.push("definition detection");
@@ -65,6 +83,46 @@ describe("fixture investigation sources", () => {
 				calls.push("service auth");
 				return undefined;
 			},
+			investigateSignal: async (input) => {
+				calls.push(`agent:${input.candidates.length}`);
+				const candidate = input.candidates.find(
+					(item) => item.signal.signalKey === "visitors"
+				);
+				if (!candidate) {
+					throw new Error("Expected one fixture candidate");
+				}
+				const queried = await input.readEvidence(
+					candidate.signal,
+					{
+						name: "web_metrics",
+						input: {
+							period: "current",
+							queries: [{ type: "top_referrers" }],
+						},
+					},
+					input.appContext
+				);
+				const evidence = [...queried, ...candidate.evidence];
+				return {
+					...materializeAgentDecision({
+						decision: {
+							disposition: "needs_context",
+							title: "Organic search traffic fell",
+							evidenceIds: ["fixture:top-referrers"],
+							confidence: 0.8,
+							question: "Did search traffic or tracking change intentionally?",
+						},
+						evidence,
+						queriedEvidenceIds: new Set(
+							queried.map((item) => item.evidenceId)
+						),
+						signal: candidate.signal,
+					}),
+					evidence,
+					signal: candidate.signal,
+					toolCallCount: 1,
+				};
+			},
 		};
 
 		const artifact = await investigateWebsiteWithSources(
@@ -81,12 +139,14 @@ describe("fixture investigation sources", () => {
 		expect(artifact).toMatchObject({
 			decision: { disposition: "needs_context" },
 			detectionComplete: true,
-			engineId: "deterministic/v1",
 			status: "completed",
 		});
-		expect(artifact.insight?.title).toBe("Visitors drop needs context");
+		expect(artifact.insight?.title).toBe("Organic search traffic fell");
+		expect(artifact.signal?.signalKey).toBe("visitors");
 		expect(calls.sort()).toEqual(
 			[
+				"agent:2",
+				"annotations",
 				"annotations",
 				"definition detection",
 				"evidence reader",
@@ -110,6 +170,7 @@ describe("fixture investigation sources", () => {
 			detectMetricSignals: forbidden,
 			fetchAnnotations: forbidden,
 			hasTrackedData: async () => false,
+			investigateSignal: forbidden,
 			loadObservations: forbidden,
 		};
 
@@ -158,6 +219,7 @@ describe("fixture investigation sources", () => {
 			},
 			fetchAnnotations: forbidden,
 			hasTrackedData: async () => true,
+			investigateSignal: forbidden,
 			loadObservations: forbidden,
 		};
 
@@ -182,6 +244,68 @@ describe("fixture investigation sources", () => {
 		});
 		expect(calls.sort()).toEqual(
 			["definition detection", "metric detection"].sort()
+		);
+	});
+
+	it("checks agent access only after deterministic detection", async () => {
+		const calls: string[] = [];
+		const forbidden = () => {
+			throw new Error("agent access denial should stop downstream reads");
+		};
+		const sources: InvestigationSources = {
+			createEvidenceReader: forbidden,
+			createServiceAuth: forbidden,
+			detectDefinitionSignals: async () => {
+				calls.push("definition detection");
+				return [];
+			},
+			detectMetricSignals: async () => {
+				calls.push("metric detection");
+				return [trafficDrop];
+			},
+			fetchAnnotations: forbidden,
+			hasTrackedData: async () => {
+				calls.push("preflight");
+				return true;
+			},
+			investigateSignal: forbidden,
+			loadObservations: async () => {
+				calls.push("observations");
+				return new Map();
+			},
+		};
+
+		const artifact = await investigateWebsiteWithSources(
+			{
+				asOf: "2026-07-12",
+				domain: "example.com",
+				organizationId: "fixture-org",
+				timezone: "UTC",
+				websiteId: "fixture-site",
+			},
+			sources,
+			async () => {
+				calls.push("agent access");
+				return false;
+			}
+		);
+
+		expect(artifact).toMatchObject({
+			decision: null,
+			detectionComplete: true,
+			detectedSignals: [trafficDrop],
+			insight: null,
+			signal: null,
+			status: "deferred",
+		});
+		expect(calls.sort()).toEqual(
+			[
+				"agent access",
+				"definition detection",
+				"metric detection",
+				"observations",
+				"preflight",
+			].sort()
 		);
 	});
 });

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import { validateInvestigationDecision } from "@databuddy/ai/insights/validate";
 import dayjs from "dayjs";
 import type { DetectSignalsParams } from "./detection";
 import {
@@ -12,7 +11,6 @@ import {
 	type GoalDef,
 } from "./funnel-detection";
 import { prepareInvestigation } from "./investigation";
-import { terminalDecisionFromEvidence } from "./terminal-decision";
 
 const TODAY = dayjs("2026-05-29");
 
@@ -384,29 +382,10 @@ describe("detectFunnelGoalSignals", () => {
 				range: { from: "2026-05-22", to: "2026-05-28" },
 			},
 		]);
-		const investigation = prepareInvestigation(signals[0]!, {
-			websiteId: PARAMS.websiteId,
-			lookbackDays: PARAMS.lookbackDays,
-		});
-		const decision = terminalDecisionFromEvidence(
-			investigation.signal,
-			investigation.evidence
-		);
-		expect(decision).toMatchObject({ disposition: "action_ready" });
-		expect(
-			validateInvestigationDecision({
-				signal: investigation.signal,
-				evidence: investigation.evidence,
-				decision,
-			}).insight
-		).toMatchObject({
-			remediationKind: "tracking",
-			title: "Fix tracking for Checkout",
-		});
 		expect(signals[0]?.definitionEvidence?.summary).not.toContain("2026-");
 	});
 
-	it("keeps a missing purchase as needs-context when confirmation fails", async () => {
+	it("leaves confirmation absent when its independent query fails", async () => {
 		let call = 0;
 		const [signal] = await detectFunnelGoalSignals(
 			PARAMS,
@@ -426,16 +405,6 @@ describe("detectFunnelGoalSignals", () => {
 		);
 
 		expect(signal?.expectation?.confirmation).toBeUndefined();
-		const investigation = prepareInvestigation(signal!, {
-			websiteId: PARAMS.websiteId,
-			lookbackDays: PARAMS.lookbackDays,
-		});
-		expect(
-			terminalDecisionFromEvidence(
-				investigation.signal,
-				investigation.evidence
-			)
-		).toEqual({ disposition: "needs_context", gap: "expected_behavior" });
 	});
 
 	it("keeps partial regressions as non-actionable changes", async () => {
@@ -458,7 +427,7 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0]?.expectation).toBeUndefined();
 	});
 
-	it("uses the product name in customer-facing goal output", async () => {
+	it("keeps the product name as the investigation entity", async () => {
 		let call = 0;
 		const [detected] = await detectFunnelGoalSignals(
 			PARAMS,
@@ -477,22 +446,7 @@ describe("detectFunnelGoalSignals", () => {
 			lookbackDays: 7,
 			websiteId: PARAMS.websiteId,
 		});
-		const decision = terminalDecisionFromEvidence(
-			investigation.signal,
-			investigation.evidence
-		);
-		const result = validateInvestigationDecision({
-			decision,
-			evidence: investigation.evidence,
-			signal: investigation.signal,
-		});
-
 		expect(investigation.signal.entity.label).toBe("Signup");
-		expect(result.insight?.title).toBe("Signup needs context");
-		expect(result.insight?.suggestion).toContain(
-			"Did users complete Signup?"
-		);
-		expect(result.insight?.title).not.toContain("completion rate");
 	});
 
 	it("does not create actions for page-view goals or recently edited definitions", async () => {

@@ -10,7 +10,6 @@ import { z } from "zod";
 import {
 	fetchOpsMetrics,
 	OPS_INSIGHT_QUERY_TYPES,
-	type OpsInsightQuery,
 } from "../insights/ops-context";
 import {
 	fetchProductMetrics,
@@ -244,7 +243,16 @@ function finiteNumber(
 	...keys: string[]
 ): number | null {
 	for (const key of keys) {
-		const value = Number(row?.[key]);
+		const raw = row?.[key];
+		if (
+			raw === null ||
+			raw === undefined ||
+			raw === "" ||
+			typeof raw === "boolean"
+		) {
+			continue;
+		}
+		const value = Number(raw);
 		if (Number.isFinite(value)) {
 			return value;
 		}
@@ -379,7 +387,15 @@ function summarizeRevenue(rows: EvidenceRow[]): string | null {
 	if (revenue === null && transactions === null && customers === null) {
 		return null;
 	}
-	return `Tracked revenue was ${compactNumber(revenue ?? 0)} from ${compactNumber(transactions ?? 0)} transactions across ${compactNumber(customers ?? 0)} customers.`;
+	return `${[
+		revenue === null ? null : `Tracked revenue was ${compactNumber(revenue)}`,
+		transactions === null
+			? null
+			: `${compactNumber(transactions)} transactions`,
+		customers === null ? null : `${compactNumber(customers)} customers`,
+	]
+		.filter((value): value is string => Boolean(value))
+		.join("; ")}.`;
 }
 
 function summarizeProduct(
@@ -398,7 +414,13 @@ function summarizeProduct(
 	if (entrants === null && completions === null && rate === null) {
 		return null;
 	}
-	const activity = `${shortText(name, 90)} had ${compactNumber(completions ?? 0)} completions from ${compactNumber(entrants ?? 0)} entrants${rate === null ? "" : ` (${compactNumber(rate)}% conversion)`}.`;
+	const activity = `${shortText(name, 90)}: ${[
+		completions === null ? null : `${compactNumber(completions)} completions`,
+		entrants === null ? null : `${compactNumber(entrants)} entrants`,
+		rate === null ? null : `${compactNumber(rate)}% conversion`,
+	]
+		.filter((value): value is string => Boolean(value))
+		.join(", ")}.`;
 	return expectation
 		? `${activity} The active definition expects the "${shortText(expectation.eventName, 90)}" event${expectation.stepName ? ` at ${shortText(expectation.stepName, 70)}` : ""}.`
 		: activity;
@@ -451,6 +473,9 @@ function summarizeNamedRows(rows: EvidenceRow[]): string | null {
 			([key, value]) =>
 				key !== "name" &&
 				key !== "path" &&
+				value !== null &&
+				value !== undefined &&
+				value !== "" &&
 				typeof value !== "boolean" &&
 				Number.isFinite(Number(value))
 		);
@@ -467,7 +492,14 @@ function summarizeAggregate(rows: EvidenceRow[]): string | null {
 		return null;
 	}
 	const facts = Object.entries(row)
-		.filter(([, value]) => Number.isFinite(Number(value)))
+		.filter(
+			([, value]) =>
+				value !== null &&
+				value !== undefined &&
+				value !== "" &&
+				typeof value !== "boolean" &&
+				Number.isFinite(Number(value))
+		)
 		.slice(0, 4)
 		.map(
 			([key, value]) =>
@@ -708,6 +740,7 @@ export function countEvidenceRows(data: unknown): number {
 }
 
 export interface CreateInsightEvidenceReaderParams {
+	allowLiveAnomalyDetection?: boolean;
 	domain: string;
 	onEvidence?: (evidence: InvestigationEvidence) => void;
 	signal: InvestigationSignal;
@@ -715,32 +748,76 @@ export interface CreateInsightEvidenceReaderParams {
 	websiteId: string;
 }
 
-type WebInsightQueryType =
-	| "country"
-	| "device_types"
-	| "entry_pages"
-	| "revenue_overview"
-	| "top_pages"
-	| "top_referrers"
-	| "utm_campaigns"
-	| "web_vitals_by_page";
+const WEB_INSIGHT_QUERY_TYPES = [
+	"country",
+	"device_types",
+	"entry_pages",
+	"revenue_overview",
+	"top_pages",
+	"top_referrers",
+	"utm_campaigns",
+	"web_vitals_by_page",
+] as const;
 
-export type InsightEvidenceReadRequest =
-	| {
-			input: { period: "current"; queries: OpsInsightQuery[] };
-			name: "ops_context";
-	  }
-	| {
-			input: { period: "current" };
-			name: "product_metrics";
-	  }
-	| {
-			input: {
-				period: "both" | "current";
-				queries: Array<{ type: WebInsightQueryType }>;
-			};
-			name: "web_metrics";
-	  };
+export const insightEvidenceReadRequestSchema = z.discriminatedUnion("name", [
+	z
+		.object({
+			name: z.literal("ops_context"),
+			input: z
+				.object({
+					period: z.literal("current"),
+					queries: z
+						.array(
+							z
+								.object({
+									type: z.enum(OPS_INSIGHT_QUERY_TYPES),
+									limit: z.number().int().min(1).max(10).optional(),
+								})
+								.strict()
+						)
+						.min(1)
+						.max(MAX_QUERIES),
+				})
+				.strict(),
+		})
+		.strict(),
+	z
+		.object({
+			name: z.literal("product_metrics"),
+			input: z.object({ period: z.literal("current") }).strict(),
+		})
+		.strict(),
+	z
+		.object({
+			name: z.literal("web_metrics"),
+			input: z
+				.object({
+					period: z.enum(["current", "both"]),
+					queries: z
+						.array(z.object({ type: z.enum(WEB_INSIGHT_QUERY_TYPES) }).strict())
+						.min(1)
+						.max(MAX_QUERIES),
+				})
+				.strict(),
+		})
+		.strict(),
+]);
+
+export type InsightEvidenceReadRequest = z.infer<
+	typeof insightEvidenceReadRequestSchema
+>;
+type OpsEvidenceInput = Extract<
+	InsightEvidenceReadRequest,
+	{ name: "ops_context" }
+>["input"];
+type ProductEvidenceInput = Extract<
+	InsightEvidenceReadRequest,
+	{ name: "product_metrics" }
+>["input"];
+type WebEvidenceInput = Extract<
+	InsightEvidenceReadRequest,
+	{ name: "web_metrics" }
+>["input"];
 
 export type InsightEvidenceReader = (
 	request: InsightEvidenceReadRequest,
@@ -870,7 +947,7 @@ export function createInsightEvidenceReader(
 	function resolveRanges(period: "current" | "previous" | "both") {
 		if (params.signal.detection.method === "zscore" && period !== "current") {
 			throw new Error(
-				"This signal has a sparse comparable-day baseline; query current only and use the supplied detector evidence for its baseline"
+				"This signal uses a comparable-day median; query the current period only"
 			);
 		}
 		const bounds = params.signal.period;
@@ -943,49 +1020,16 @@ export function createInsightEvidenceReader(
 		}
 	}
 
-	const webQueryTypeSchema =
-		params.signal.metric.key === "revenue"
-			? z.literal("revenue_overview")
-			: params.signal.entity.type === "vital"
-				? z.literal("web_vitals_by_page")
-				: params.signal.entity.type === "campaign"
-					? z.literal("utm_campaigns")
-					: z.enum([
-							"country",
-							"device_types",
-							"entry_pages",
-							"top_pages",
-							"top_referrers",
-							"utm_campaigns",
-						]);
-	const querySchema = z
-		.object({
-			type: webQueryTypeSchema,
-		})
-		.strict();
-	const webInputSchema = z
-		.object({
-			period:
-				params.signal.metric.key === "revenue"
-					? z.literal("both")
-					: z.literal("current"),
-			queries: z.array(querySchema).min(1).max(MAX_QUERIES),
-		})
-		.strict();
-
 	function fetchWebEvidence(
-		{ period, queries }: z.infer<typeof webInputSchema>,
+		{ period, queries }: WebEvidenceInput,
 		abortSignal?: AbortSignal
 	): Promise<QueryEvidence[]> {
-		if (params.signal.metric.key !== "revenue" && period !== "current") {
-			throw new Error(
-				"Investigations use the detector baseline and query only the current period"
-			);
-		}
-		if (params.signal.metric.key === "revenue" && period !== "both") {
-			throw new Error(
-				"Revenue investigations must reconcile both detector periods"
-			);
+		if (
+			params.signal.metric.key === "revenue" &&
+			queries.some((query) => query.type === "revenue_overview") &&
+			period !== "both"
+		) {
+			throw new Error("Revenue totals must reconcile both detector periods");
 		}
 		const ranges = resolveRanges(period);
 		const unique = uniqueQueries(queries);
@@ -1030,6 +1074,11 @@ export function createInsightEvidenceReader(
 								: (params.signal.metric.previous ?? 0);
 						if (!revenueMatchesDetector(data, expected)) {
 							data = await read();
+							if (!revenueMatchesDetector(data, expected)) {
+								throw new Error(
+									"Revenue evidence disagrees with the detector total"
+								);
+							}
 						}
 					}
 					const rawRows = Array.isArray(data) ? data : [];
@@ -1081,19 +1130,11 @@ export function createInsightEvidenceReader(
 		return Promise.all(tasks);
 	}
 
-	const productInputSchema = z
-		.object({ period: z.literal("current") })
-		.strict();
 	async function fetchProductEvidence(
-		{ period }: z.infer<typeof productInputSchema>,
+		{ period }: ProductEvidenceInput,
 		appContext: AppContext,
 		abortSignal?: AbortSignal
 	): Promise<QueryEvidence[]> {
-		if (period !== "current") {
-			throw new Error(
-				"Product investigations use the detector baseline and query only the current period"
-			);
-		}
 		const scope = productScope();
 		const ranges = resolveRanges(period);
 		const results = await Promise.all(
@@ -1112,36 +1153,11 @@ export function createInsightEvidenceReader(
 		);
 		return results.flat();
 	}
-	const opsInputSchema = z
-		.object({
-			period: z.literal("current"),
-			queries: z
-				.array(
-					z
-						.object({
-							type: z.enum(OPS_INSIGHT_QUERY_TYPES),
-							limit: z.number().min(1).max(10).optional(),
-						})
-						.strict()
-				)
-				.min(1)
-				.max(MAX_QUERIES),
-		})
-		.strict();
 	async function fetchOpsEvidence(
-		{ period, queries }: z.infer<typeof opsInputSchema>,
+		{ period, queries }: OpsEvidenceInput,
 		appContext: AppContext,
 		abortSignal?: AbortSignal
 	): Promise<QueryEvidence[]> {
-		if (
-			(params.signal.entity.type === "error" ||
-				params.signal.entity.type === "uptime_monitor") &&
-			period !== "current"
-		) {
-			throw new Error(
-				"Reliability investigations use the detector baseline and query only the current period"
-			);
-		}
 		const ranges = resolveRanges(period);
 		const unique = uniqueQueries(queries);
 		const results = await Promise.all(
@@ -1149,7 +1165,14 @@ export function createInsightEvidenceReader(
 				fetchContextEvidence({
 					abortSignal,
 					fetch: () =>
-						fetchOpsMetrics(appContext, p.range, p.label, unique, abortSignal),
+						fetchOpsMetrics(
+							appContext,
+							p.range,
+							p.label,
+							unique,
+							abortSignal,
+							params.allowLiveAnomalyDetection ?? true
+						),
 					period: p.label,
 					queries: unique,
 					range: p.range,
@@ -1160,32 +1183,22 @@ export function createInsightEvidenceReader(
 		return results.flat();
 	}
 	return async (request, appContext, abortSignal) => {
-		switch (request.name) {
+		const parsed = insightEvidenceReadRequestSchema.parse(request);
+		switch (parsed.name) {
 			case "product_metrics":
 				return materializeEvidence(
-					await fetchProductEvidence(
-						productInputSchema.parse(request.input),
-						appContext,
-						abortSignal
-					)
+					await fetchProductEvidence(parsed.input, appContext, abortSignal)
 				);
 			case "ops_context":
 				return materializeEvidence(
-					await fetchOpsEvidence(
-						opsInputSchema.parse(request.input),
-						appContext,
-						abortSignal
-					)
+					await fetchOpsEvidence(parsed.input, appContext, abortSignal)
 				);
 			case "web_metrics":
 				return materializeEvidence(
-					await fetchWebEvidence(
-						webInputSchema.parse(request.input),
-						abortSignal
-					)
+					await fetchWebEvidence(parsed.input, abortSignal)
 				);
 			default:
-				throw new Error("Unsupported insight evidence request");
+				throw new Error("Unsupported evidence reader request");
 		}
 	};
 }

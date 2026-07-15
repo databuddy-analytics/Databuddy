@@ -360,7 +360,7 @@ function InsightCardHeader({
 					</span>
 					{!expanded && (
 						<span className="mt-1 line-clamp-2 block text-muted-foreground text-xs leading-relaxed">
-							{view.whyItMatters}
+							{view.whatChanged}
 						</span>
 					)}
 				</span>
@@ -581,10 +581,10 @@ function InsightCopy({
 
 			<section className="space-y-1.5">
 				<p className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-					Why it matters
+					What changed
 				</p>
 				<p className="text-pretty text-[13px] text-foreground/85 leading-relaxed">
-					{view.whyItMatters}
+					{view.whatChanged}
 				</p>
 			</section>
 

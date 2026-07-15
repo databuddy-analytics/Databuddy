@@ -50,7 +50,7 @@ export interface InsightCardViewModel {
 	nextStep: string;
 	primaryActionLabel: string;
 	rootCause: string | null;
-	whyItMatters: string;
+	whatChanged: string;
 }
 
 export function toInsightCardViewModel(insight: Insight): InsightCardViewModel {
@@ -66,6 +66,6 @@ export function toInsightCardViewModel(insight: Insight): InsightCardViewModel {
 		primaryActionLabel:
 			PRIMARY_ACTION_LABELS[insight.type] ?? DEFAULT_PRIMARY_ACTION_LABEL,
 		rootCause: insight.rootCause ?? null,
-		whyItMatters: insight.description,
+		whatChanged: insight.description,
 	};
 }

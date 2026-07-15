@@ -17,6 +17,7 @@
     "@databuddy/redis": "workspace:*",
     "@databuddy/rpc": "workspace:*",
     "@databuddy/shared": "workspace:*",
+    "ai": "^6.0.188",
     "bullmq": "^5.78.0",
     "dayjs": "^1.11.19",
     "elysia": "catalog:",

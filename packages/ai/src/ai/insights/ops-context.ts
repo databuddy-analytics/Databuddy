@@ -127,8 +127,15 @@ async function getAnomalySummary(
 	appContext: AppContext,
 	period: "current" | "previous",
 	limit: number,
-	abortSignal?: AbortSignal
+	abortSignal: AbortSignal | undefined,
+	allowLiveAnomalyDetection: boolean
 ) {
+	if (!allowLiveAnomalyDetection) {
+		return {
+			anomalies: [],
+			note: "Live anomaly detection is disabled for this read-only historical run.",
+		};
+	}
 	if (period !== "current") {
 		return {
 			anomalies: [],
@@ -162,7 +169,8 @@ export async function fetchOpsMetrics(
 	range: { from: string; to: string },
 	period: "current" | "previous",
 	queries: OpsInsightQuery[],
-	abortSignal?: AbortSignal
+	abortSignal?: AbortSignal,
+	allowLiveAnomalyDetection = true
 ) {
 	const results: Record<string, unknown>[] = [];
 
@@ -202,7 +210,13 @@ export async function fetchOpsMetrics(
 			case "anomaly_summary":
 				results.push({
 					type: query.type,
-					...(await getAnomalySummary(appContext, period, limit, abortSignal)),
+					...(await getAnomalySummary(
+						appContext,
+						period,
+						limit,
+						abortSignal,
+						allowLiveAnomalyDetection
+					)),
 				});
 				break;
 			case "flag_changes":
