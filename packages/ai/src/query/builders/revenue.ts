@@ -26,6 +26,51 @@ const REVENUE_FILTER_COLUMNS: Record<string, string> = {
 };
 
 const REVENUE_ALLOWED_FILTERS = ["currency", "provider", "type"];
+const REVENUE_OVERVIEW_ALLOWED_FILTERS = ["currency", "provider"];
+
+function fixedValueMatchesFilter(value: string, filter: Filter): boolean {
+	const values = (
+		Array.isArray(filter.value) ? filter.value : [filter.value]
+	).map((item) => String(item));
+	if ((filter.op === "in" || filter.op === "not_in") && values.length === 0) {
+		return true;
+	}
+	const expected = String(filter.value);
+
+	switch (filter.op) {
+		case "eq":
+			return value === expected;
+		case "ne":
+			return value !== expected;
+		case "in":
+			return values.includes(value);
+		case "not_in":
+			return !values.includes(value);
+		case "contains":
+			return value.includes(expected);
+		case "not_contains":
+			return !value.includes(expected);
+		case "starts_with":
+			return value.startsWith(expected);
+		default:
+			return false;
+	}
+}
+
+function stripePaymentMetricsInScope(filters?: Filter[]): boolean {
+	return (filters ?? []).every((filter) => {
+		if (!filter || filter.having) {
+			return true;
+		}
+		if (filter.field === "currency") {
+			return true;
+		}
+		if (filter.field === "provider") {
+			return fixedValueMatchesFilter("stripe", filter);
+		}
+		return false;
+	});
+}
 
 function buildRevenueWhereClause(
 	filters: Filter[] | undefined,
@@ -117,6 +162,17 @@ function buildCurrencyWhereClause(filters?: Filter[]): string {
 		);
 	});
 	return conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
+}
+
+function buildStripePaymentWhereClause(
+	filters: Filter[] | undefined,
+	paymentMetricsInScope: boolean
+): string {
+	const currencyWhereClause = buildCurrencyWhereClause(filters);
+	if (paymentMetricsInScope) {
+		return currencyWhereClause;
+	}
+	return currencyWhereClause ? `${currencyWhereClause} AND 0` : " WHERE 0";
 }
 
 function isOrgScope(filterParams?: Record<string, Filter["value"]>): boolean {
@@ -664,7 +720,10 @@ interface RevenueQueryConfig {
 	extraConditions?: string[];
 	from?: (
 		defaultSource: string,
-		context: { currencyWhereClause: string }
+		context: {
+			paymentMetricsInScope: boolean;
+			stripePaymentWhereClause: string;
+		}
 	) => string;
 	groupBy?: string;
 	innerCte?: { name: string; body: (filteredSource: string) => string };
@@ -692,9 +751,14 @@ function buildRevenueQuery(
 		? `WITH ${baseCte},\n\t\t${config.innerCte.name} AS (${config.innerCte.body(filteredSource)})`
 		: `WITH ${baseCte}`;
 	const defaultSource = config.innerCte ? config.innerCte.name : filteredSource;
+	const paymentMetricsInScope = stripePaymentMetricsInScope(filters);
 	const fromExpr =
 		config.from?.(defaultSource, {
-			currencyWhereClause: buildCurrencyWhereClause(filters),
+			paymentMetricsInScope,
+			stripePaymentWhereClause: buildStripePaymentWhereClause(
+				filters,
+				paymentMetricsInScope
+			),
 		}) ?? defaultSource;
 
 	const parts = [withClause, config.select, `FROM ${fromExpr}`];
@@ -822,6 +886,13 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 					label: "Attributed Revenue",
 				},
 				{
+					name: "payment_diagnostics_available",
+					type: "number",
+					label: "Payment Diagnostics Available",
+					description:
+						"1 when Stripe payment diagnostics support the selected filters; otherwise 0.",
+				},
+				{
 					name: "failed_payment_attempts",
 					type: "number",
 					label: "Failed Payment Attempts",
@@ -928,7 +999,7 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 					GROUP BY currency
 				`,
 			},
-			from: (source, { currencyWhereClause }) => `(
+			from: (source, { paymentMetricsInScope, stripePaymentWhereClause }) => `(
 				SELECT
 					if(summary.currency = '', attempts.currency, summary.currency) AS currency,
 					summary.total_revenue,
@@ -950,13 +1021,16 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 					attempts.cancellation_reason AS attempt_cancellation_reason,
 					attempts.status AS attempt_status,
 					attempts.amount AS attempt_amount,
+					toUInt8(${paymentMetricsInScope ? 1 : 0}) AS payment_metrics_in_scope,
 					failure_observations.observed_failure_event_types,
 					has(summary.successful_payment_keys, attempts.attempt_key) AS attempt_recovered
 				FROM ${source} summary
 				FULL OUTER JOIN (
-					SELECT * FROM stripe_payment_attempts${currencyWhereClause}
+					SELECT * FROM stripe_payment_attempts${stripePaymentWhereClause}
 				) attempts USING (currency)
-				LEFT JOIN stripe_failure_observations failure_observations
+				LEFT JOIN (
+					SELECT * FROM stripe_failure_observations${stripePaymentWhereClause}
+				) failure_observations
 					ON failure_observations.currency = if(summary.currency = '', attempts.currency, summary.currency)
 			)`,
 			select: `SELECT
@@ -972,34 +1046,75 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 				any(unique_customers) as unique_customers,
 				any(attributed_transactions) as attributed_transactions,
 				any(attributed_revenue) as attributed_revenue,
-				countIf(attempt_status = 'failed') as failed_payment_attempts,
-				countIf(attempt_status = 'canceled') as canceled_payment_attempts,
-				sumIf(attempt_amount, attempt_status = 'failed') as failed_payment_amount,
-				uniqExactIf(
-					attempt_key,
-					attempt_status = 'failed' AND attempt_recovered
+				any(payment_metrics_in_scope) as payment_diagnostics_available,
+				if(
+					any(payment_metrics_in_scope) = 1,
+					countIf(attempt_status = 'failed'),
+					NULL
+				) as failed_payment_attempts,
+				if(
+					any(payment_metrics_in_scope) = 1,
+					countIf(attempt_status = 'canceled'),
+					NULL
+				) as canceled_payment_attempts,
+				if(
+					any(payment_metrics_in_scope) = 1,
+					sumIf(attempt_amount, attempt_status = 'failed'),
+					NULL
+				) as failed_payment_amount,
+				if(
+					any(payment_metrics_in_scope) = 1,
+					uniqExactIf(
+						attempt_key,
+						attempt_status = 'failed' AND attempt_recovered
+					),
+					NULL
 				) as recovered_payment_attempts,
-				any(successful_payment_attempts) as successful_payment_attempts,
-				any(observed_failure_event_types) as observed_failure_event_types,
-				toUInt8(${STRIPE_FAILURE_WEBHOOK_EVENTS.length}) as required_failure_event_types,
-				arrayElement(
-					topKIf(1)(
-						attempt_failure_reason,
-						attempt_status = 'failed' AND attempt_failure_reason != ''
+				if(
+					any(payment_metrics_in_scope) = 1,
+					any(successful_payment_attempts),
+					NULL
+				) as successful_payment_attempts,
+				if(
+					any(payment_metrics_in_scope) = 1,
+					ifNull(any(observed_failure_event_types), 0),
+					NULL
+				) as observed_failure_event_types,
+				if(
+					any(payment_metrics_in_scope) = 1,
+					toUInt8(${STRIPE_FAILURE_WEBHOOK_EVENTS.length}),
+					NULL
+				) as required_failure_event_types,
+				if(
+					any(payment_metrics_in_scope) = 1,
+					arrayElement(
+						topKIf(1)(
+							attempt_failure_reason,
+							attempt_status = 'failed' AND attempt_failure_reason != ''
+						),
+						1
 					),
-					1
+					NULL
 				) as top_payment_failure_reason,
-				arrayElement(
-					topKIf(1)(
-						attempt_cancellation_reason,
-						attempt_status = 'canceled' AND attempt_cancellation_reason != ''
+				if(
+					any(payment_metrics_in_scope) = 1,
+					arrayElement(
+						topKIf(1)(
+							attempt_cancellation_reason,
+							attempt_status = 'canceled' AND attempt_cancellation_reason != ''
+						),
+						1
 					),
-					1
+					NULL
 				) as top_payment_cancellation_reason,
-				round(
-					100 * failed_payment_attempts /
-					nullIf(failed_payment_attempts + successful_payment_attempts, 0),
-					2
+				if(
+					any(payment_metrics_in_scope) = 1,
+					round(
+						100 * failed_payment_attempts /
+						nullIf(failed_payment_attempts + successful_payment_attempts, 0),
+						2
+					),
+					NULL
 				) as payment_failure_rate`,
 			groupBy: "currency",
 		})),
@@ -1470,6 +1585,12 @@ export const RevenueBuilders: Record<string, SimpleQueryConfig> =
 	Object.fromEntries(
 		Object.entries(revenueBuilderDefinitions).map(([name, config]) => [
 			name,
-			{ ...config, allowedFilters: REVENUE_ALLOWED_FILTERS },
+			{
+				...config,
+				allowedFilters:
+					name === "revenue_overview"
+						? REVENUE_OVERVIEW_ALLOWED_FILTERS
+						: REVENUE_ALLOWED_FILTERS,
+			},
 		])
 	);

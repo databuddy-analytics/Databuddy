@@ -1221,6 +1221,62 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(params.rf0).toBe("EUR");
 	});
 
+	it("keeps Stripe payment diagnostics inside the provider scope", () => {
+		const config = QueryBuilders.revenue_overview;
+		if (!config) {
+			throw new Error("revenue_overview builder is missing");
+		}
+
+		const paddle = compileBuilder("revenue_overview", config, {
+			filters: [{ field: "provider", op: "eq", value: "paddle" }],
+		});
+		const stripe = compileBuilder("revenue_overview", config, {
+			filters: [{ field: "provider", op: "eq", value: "stripe" }],
+		});
+		const mixed = compileBuilder("revenue_overview", config, {
+			filters: [
+				{ field: "provider", op: "in", value: ["paddle", "stripe"] },
+			],
+		});
+		const withoutStripe = compileBuilder("revenue_overview", config, {
+			filters: [{ field: "provider", op: "ne", value: "stripe" }],
+		});
+		const attributedSlice = compileBuilder("revenue_overview", config, {
+			filters: [{ field: "country", op: "eq", value: "US" }],
+		});
+
+		expect(config.allowedFilters).toEqual(["currency", "provider"]);
+		expect(paddle.sql).toContain("SELECT * FROM stripe_payment_attempts WHERE 0");
+		expect(paddle.sql).toContain(
+			"SELECT * FROM stripe_failure_observations WHERE 0"
+		);
+		expect(paddle.sql).toContain("toUInt8(0) AS payment_metrics_in_scope");
+		expect(paddle.sql).toContain(
+			"any(payment_metrics_in_scope) as payment_diagnostics_available"
+		);
+		expect(paddle.sql).toContain(
+			"countIf(attempt_status = 'failed'),\n\t\t\t\t\tNULL"
+		);
+		expect(paddle.params.rf0).toBe("paddle");
+		expect(stripe.sql).not.toContain("stripe_payment_attempts WHERE 0");
+		expect(stripe.sql).toContain("toUInt8(1) AS payment_metrics_in_scope");
+		expect(stripe.params.rf0).toBe("stripe");
+		expect(mixed.sql).not.toContain("stripe_payment_attempts WHERE 0");
+		expect(mixed.sql).toContain("toUInt8(1) AS payment_metrics_in_scope");
+		expect(withoutStripe.sql).toContain(
+			"SELECT * FROM stripe_payment_attempts WHERE 0"
+		);
+		expect(withoutStripe.sql).toContain(
+			"toUInt8(0) AS payment_metrics_in_scope"
+		);
+		expect(attributedSlice.sql).toContain(
+			"SELECT * FROM stripe_payment_attempts WHERE 0"
+		);
+		expect(attributedSlice.sql).toContain(
+			"toUInt8(0) AS payment_metrics_in_scope"
+		);
+	});
+
 	it("builds bounded error fingerprints ranked by affected people", () => {
 		const config = QueryBuilders.error_fingerprints;
 		if (!config) {

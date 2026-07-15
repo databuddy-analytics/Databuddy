@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { randomUUIDv7 } from "bun";
+import type { Filter } from "../types";
 import { ProfilesBuilders } from "./profiles";
 import { RevenueBuilders } from "./revenue";
 
@@ -51,15 +52,13 @@ async function revenueOverview(
 	websiteId: string,
 	startDate = "2026-07-01",
 	endDate = "2026-08-03",
-	currency?: string
-): Promise<Record<string, number | string>[]> {
+	filters?: Filter[]
+): Promise<Record<string, null | number | string>[]> {
 	const query = RevenueBuilders.revenue_overview?.customSql?.({
 		endDate,
 		startDate,
 		websiteId,
-		...(currency
-			? { filters: [{ field: "currency", op: "eq" as const, value: currency }] }
-			: {}),
+		...(filters?.length ? { filters } : {}),
 	});
 	if (!query || typeof query === "string") {
 		throw new Error("Revenue overview did not compile");
@@ -323,6 +322,77 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(overview?.top_payment_cancellation_reason).toBe(
 			"requested_by_customer"
 		);
+	});
+
+	it("does not leak Stripe payment diagnostics into another provider", async () => {
+		const websiteId = `revenue-provider-scope-${randomUUIDv7()}`;
+
+		await clickHouse.insert({
+			table: "analytics.revenue",
+			format: "JSONEachRow",
+			values: [
+				revenueRow(
+					websiteId,
+					"paddle-sale",
+					75,
+					"sale",
+					"completed",
+					"{}",
+					"2026-08-02 12:00:00",
+					{ customer_id: "paddle-customer", provider: "paddle" }
+				),
+				revenueRow(
+					websiteId,
+					"stripe-failure",
+					45,
+					"subscription_event",
+					"failed",
+					stripeMetadata("attempt", {
+						stripe_event_type: "payment_intent.payment_failed",
+						stripe_failure_code: "do_not_honor",
+						stripe_payment_intent_id: "pi_provider_scope",
+					})
+				),
+			],
+		});
+
+		const [paddle] = await revenueOverview(
+			websiteId,
+			"2026-07-01",
+			"2026-08-03",
+			[{ field: "provider", op: "eq", value: "paddle" }]
+		);
+		expect(Number(paddle?.total_revenue)).toBe(75);
+		expect(Number(paddle?.total_transactions)).toBe(1);
+		expect(Number(paddle?.payment_diagnostics_available)).toBe(0);
+		expect(paddle?.failed_payment_attempts).toBeNull();
+		expect(paddle?.successful_payment_attempts).toBeNull();
+		expect(paddle?.observed_failure_event_types).toBeNull();
+		expect(paddle?.required_failure_event_types).toBeNull();
+
+		const [attributionSlice] = await revenueOverview(
+			websiteId,
+			"2026-07-01",
+			"2026-08-03",
+			[{ field: "country", op: "ne", value: "US" }]
+		);
+		expect(Number(attributionSlice?.total_revenue)).toBe(75);
+		expect(Number(attributionSlice?.payment_diagnostics_available)).toBe(0);
+		expect(attributionSlice?.failed_payment_attempts).toBeNull();
+
+		const [stripe] = await revenueOverview(
+			websiteId,
+			"2026-07-01",
+			"2026-08-03",
+			[{ field: "provider", op: "eq", value: "stripe" }]
+		);
+		expect(Number(stripe?.total_revenue)).toBe(0);
+		expect(Number(stripe?.payment_diagnostics_available)).toBe(1);
+		expect(Number(stripe?.failed_payment_attempts)).toBe(1);
+		expect(Number(stripe?.failed_payment_amount)).toBe(45);
+		expect(Number(stripe?.observed_failure_event_types)).toBe(1);
+		expect(Number(stripe?.required_failure_event_types)).toBe(2);
+		expect(stripe?.top_payment_failure_reason).toBe("do_not_honor");
 	});
 
 	it("reconciles invoice fallbacks as exact allocation events arrive", async () => {
@@ -611,7 +681,9 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(gbp?.failed_payment_attempts)).toBe(1);
 		expect(Number(gbp?.payment_failure_rate)).toBe(100);
 		expect(
-			await revenueOverview(websiteId, "2026-07-01", "2026-08-03", "EUR")
+			await revenueOverview(websiteId, "2026-07-01", "2026-08-03", [
+				{ field: "currency", op: "eq", value: "EUR" },
+			])
 		).toEqual([
 			expect.objectContaining({ currency: "EUR", total_revenue: 70 }),
 		]);
