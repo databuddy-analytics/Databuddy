@@ -1,45 +1,42 @@
-import { and, db, desc, eq, inArray, isNull, ne, sql } from "@databuddy/db";
+import { and, db, desc, eq, inArray, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
-	insightRollups,
-	insightUserFeedback,
+	insightObservations,
+	insightReplies,
 	websites,
 } from "@databuddy/db/schema";
 import {
-	cacheNamespaces,
-	cacheTags,
-	cacheable,
-	invalidateAgentContextSnapshotsForOwner,
-	invalidateInsightsCachesForOrganization,
+	enqueueInsightsResume,
+	getInsightsQueue,
+	insightsResumeJobId,
 } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
-	insightEvidenceSchema,
-	insightMetricSchema,
-	insightRemediationKindSchema,
+	investigationOutcomeSchema,
 	insightSentimentSchema,
 	insightSeveritySchema,
-	insightSourceSchema,
-	storedInsightActionSchema,
-	storedInsightTypeSchema,
+	parseInvestigationOutcome,
+	weekOverWeekPeriodSchema,
 } from "@databuddy/shared/insights";
 import { ORPCError } from "@orpc/server";
+import { roleHasPermission } from "@databuddy/auth/permissions";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { logger } from "../lib/logger";
 import { sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
-const voteSchema = z.enum(["up", "down"]);
-const rangeSchema = z.enum(["7d", "30d", "90d"]);
 const insightStatusSchema = z.enum(["open", "resolved"]);
 const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
+const insightReplyStatusSchema = z.enum([
+	"queued",
+	"running",
+	"succeeded",
+	"failed",
+]);
 
-const NARRATIVE_RATE_LIMIT = 30;
-const NARRATIVE_RATE_WINDOW_SECS = 3600;
-const NARRATIVE_CACHE_TTL_SECS = 3600;
-const INSIGHT_READ_RATE_LIMIT = 120;
-const INSIGHT_READ_RATE_WINDOW_SECS = 60;
+const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
 
 function isAccessDenied(error: unknown): boolean {
 	return (
@@ -48,88 +45,101 @@ function isAccessDenied(error: unknown): boolean {
 	);
 }
 
-async function enforceRateLimit(
-	key: string,
-	limit: number,
-	windowSecs: number
-): Promise<void> {
-	const rl = await ratelimit(key, limit, windowSecs);
-	if (!rl.success) {
-		throw rpcError.rateLimited(
-			Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
-		);
-	}
-}
-
-const historyInsightEvidenceSchema = insightEvidenceSchema.extend({
-	type: z.string(),
-});
-
 const historyInsightSchema = z.object({
-	actions: z.array(storedInsightActionSchema).nullable().optional(),
 	changePercent: z.number().optional(),
-	confidence: z.number(),
-	createdAt: z.string(),
-	currentPeriodFrom: z.string().nullable(),
-	currentPeriodTo: z.string().nullable(),
 	description: z.string(),
-	evidence: z.array(historyInsightEvidenceSchema).nullable().optional(),
 	id: z.string(),
-	impactSummary: z.string().optional(),
-	link: z.string(),
-	metrics: z.array(insightMetricSchema),
-	previousPeriodFrom: z.string().nullable(),
-	previousPeriodTo: z.string().nullable(),
-	priority: z.number(),
-	remediationKind: insightRemediationKindSchema.nullable().optional(),
-	resolvedAt: z.string().nullable(),
 	resolvedReason: insightResolvedReasonSchema.nullable(),
-	rootCause: z.string().nullable().optional(),
-	runId: z.string(),
 	sentiment: insightSentimentSchema,
 	severity: insightSeveritySchema,
-	sources: z.array(insightSourceSchema),
 	status: insightStatusSchema,
-	subjectKey: z.string(),
-	suggestion: z.string(),
-	timezone: z.string().nullable(),
 	title: z.string(),
-	type: storedInsightTypeSchema,
 	websiteDomain: z.string(),
 	websiteId: z.string(),
 	websiteName: z.string().nullable(),
 });
 
+const timelineOutcomeSchema = investigationOutcomeSchema
+	.omit({ sources: true })
+	.strip();
+
+const insightTimelineInvestigationSchema = z.object({
+	createdAt: z.string(),
+	id: z.string(),
+	kind: z.literal("investigation"),
+	outcome: timelineOutcomeSchema,
+	period: weekOverWeekPeriodSchema,
+});
+
+const insightTimelineReplySchema = z.object({
+	author: z.string(),
+	body: z.string(),
+	createdAt: z.string(),
+	id: z.string(),
+	kind: z.literal("reply"),
+	status: insightReplyStatusSchema,
+});
+
+const insightTimelineItemSchema = z.discriminatedUnion("kind", [
+	insightTimelineInvestigationSchema,
+	insightTimelineReplySchema,
+]);
+
+type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
+
+async function queueInsightReply(
+	replyId: string
+): Promise<z.infer<typeof insightReplyStatusSchema>> {
+	try {
+		const status = await enqueueInsightsResume(replyId);
+		if (status === "succeeded") {
+			await db
+				.update(insightReplies)
+				.set({ status })
+				.where(eq(insightReplies.id, replyId));
+		}
+		return status;
+	} catch (error) {
+		logger.error({ error, replyId }, "Failed to queue investigation reply");
+		try {
+			if (await getInsightsQueue().getJob(insightsResumeJobId(replyId))) {
+				const status = await enqueueInsightsResume(replyId);
+				if (status === "succeeded") {
+					await db
+						.update(insightReplies)
+						.set({ status })
+						.where(eq(insightReplies.id, replyId));
+				}
+				return status;
+			}
+		} catch (reconciliationError) {
+			logger.warn(
+				{ error: reconciliationError, replyId },
+				"Could not confirm investigation reply queue state"
+			);
+			return "queued";
+		}
+		await db
+			.update(insightReplies)
+			.set({ status: "failed" })
+			.where(
+				and(eq(insightReplies.id, replyId), eq(insightReplies.status, "queued"))
+			);
+		return "failed";
+	}
+}
+
 const insightSelection = {
-	actions: analyticsInsights.actions,
 	changePercent: analyticsInsights.changePercent,
-	confidence: analyticsInsights.confidence,
-	createdAt: analyticsInsights.createdAt,
-	currentPeriodFrom: analyticsInsights.currentPeriodFrom,
-	currentPeriodTo: analyticsInsights.currentPeriodTo,
 	description: analyticsInsights.description,
-	evidence: analyticsInsights.evidence,
 	id: analyticsInsights.id,
-	impactSummary: analyticsInsights.impactSummary,
-	metrics: analyticsInsights.metrics,
 	organizationId: analyticsInsights.organizationId,
-	previousPeriodFrom: analyticsInsights.previousPeriodFrom,
-	previousPeriodTo: analyticsInsights.previousPeriodTo,
-	priority: analyticsInsights.priority,
-	remediationKind: analyticsInsights.remediationKind,
-	resolvedAt: analyticsInsights.resolvedAt,
 	resolvedReason: analyticsInsights.resolvedReason,
-	rootCause: analyticsInsights.rootCause,
-	runId: analyticsInsights.runId,
 	sentiment: analyticsInsights.sentiment,
 	severity: analyticsInsights.severity,
-	sources: analyticsInsights.sources,
 	status: analyticsInsights.status,
 	subjectKey: analyticsInsights.subjectKey,
-	suggestion: analyticsInsights.suggestion,
-	timezone: analyticsInsights.timezone,
 	title: analyticsInsights.title,
-	type: analyticsInsights.type,
 	websiteDomain: websites.domain,
 	websiteId: analyticsInsights.websiteId,
 	websiteName: websites.name,
@@ -144,117 +154,101 @@ function selectInsights() {
 
 type InsightRow = Awaited<ReturnType<typeof selectInsights>>[number];
 
-function buildInsightLink(websiteId: string, type: string): string {
-	const base = `/websites/${websiteId}`;
-	if (
-		[
-			"error_spike",
-			"new_errors",
-			"persistent_error_hotspot",
-			"reliability_improved",
-		].includes(type)
-	) {
-		return `${base}/errors`;
-	}
-	if (
-		["vitals_degraded", "performance", "performance_improved"].includes(type)
-	) {
-		return `${base}/vitals`;
-	}
-	if (["conversion_leak", "funnel_regression"].includes(type)) {
-		return `${base}/funnels`;
-	}
-	if (
-		["custom_event_spike", "engagement_change", "quality_shift"].includes(type)
-	) {
-		return `${base}/events/stream`;
-	}
-	if (type === "uptime_issue") {
-		return `${base}/anomalies`;
-	}
-	return base;
-}
-
 function serializeInsight(
 	row: InsightRow
 ): z.infer<typeof historyInsightSchema> {
 	return {
-		actions: row.actions ?? null,
 		changePercent: row.changePercent ?? undefined,
-		confidence: row.confidence,
-		createdAt: row.createdAt.toISOString(),
-		currentPeriodFrom: row.currentPeriodFrom,
-		currentPeriodTo: row.currentPeriodTo,
 		description: row.description,
-		evidence: row.evidence ?? null,
 		id: row.id,
-		impactSummary: row.impactSummary ?? undefined,
-		link: buildInsightLink(row.websiteId, row.type),
-		metrics: row.metrics ?? [],
-		previousPeriodFrom: row.previousPeriodFrom,
-		previousPeriodTo: row.previousPeriodTo,
-		priority: row.priority,
-		remediationKind: row.remediationKind ?? null,
-		resolvedAt: row.resolvedAt?.toISOString() ?? null,
 		resolvedReason: row.resolvedReason ?? null,
-		rootCause: row.rootCause,
-		runId: row.runId,
 		sentiment: row.sentiment,
 		severity: row.severity,
-		sources: row.sources ?? [],
 		status: row.status,
-		subjectKey: row.subjectKey,
-		suggestion: row.suggestion,
-		timezone: row.timezone,
 		title: row.title,
-		type: row.type,
 		websiteDomain: row.websiteDomain,
 		websiteId: row.websiteId,
 		websiteName: row.websiteName,
 	};
 }
 
-async function invalidateInsightsCacheForOrg(
-	organizationId: string
-): Promise<void> {
-	await Promise.all([
-		invalidateInsightsCachesForOrganization(organizationId),
-		invalidateAgentContextSnapshotsForOwner(organizationId),
-	]);
-}
-
-const loadNarrativeCached = cacheable(
-	async function loadNarrativeCached(
-		organizationId: string,
-		range: z.infer<typeof rangeSchema>
-	): Promise<{ generatedAt: string; narrative: string }> {
-		const [rollup] = await db
+async function loadInsightTimeline(
+	insight: InsightRow
+): Promise<InsightTimelineItem[]> {
+	const [observations, replies] = await Promise.all([
+		db
 			.select({
-				generatedAt: insightRollups.generatedAt,
-				narrative: insightRollups.narrative,
+				createdAt: insightObservations.createdAt,
+				id: insightObservations.id,
+				outcome: insightObservations.outcome,
+				signal: insightObservations.signal,
 			})
-			.from(insightRollups)
+			.from(insightObservations)
 			.where(
 				and(
-					eq(insightRollups.organizationId, organizationId),
-					eq(insightRollups.range, range)
+					eq(insightObservations.organizationId, insight.organizationId),
+					eq(insightObservations.websiteId, insight.websiteId),
+					eq(insightObservations.signalKey, insight.subjectKey)
 				)
 			)
-			.limit(1);
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
+			.limit(INSIGHT_TIMELINE_ROWS_PER_KIND),
+		db
+			.select({
+				authorName: insightReplies.authorName,
+				body: insightReplies.body,
+				createdAt: insightReplies.createdAt,
+				id: insightReplies.id,
+				status: insightReplies.status,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				analyticsInsights,
+				eq(insightReplies.insightId, analyticsInsights.id)
+			)
+			.where(
+				and(
+					eq(analyticsInsights.organizationId, insight.organizationId),
+					eq(analyticsInsights.websiteId, insight.websiteId),
+					eq(analyticsInsights.subjectKey, insight.subjectKey)
+				)
+			)
+			.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
+			.limit(INSIGHT_TIMELINE_ROWS_PER_KIND),
+	]);
 
-		return {
-			generatedAt:
-				rollup?.generatedAt.toISOString() ?? new Date().toISOString(),
-			narrative:
-				rollup?.narrative ?? "No summary yet. Run an analysis to create one.",
-		};
-	},
-	{
-		expireInSec: NARRATIVE_CACHE_TTL_SECS,
-		prefix: cacheNamespaces.insightsNarrative,
-		tags: (_result, organizationId) => [cacheTags.organization(organizationId)],
-	}
-);
+	const timeline: InsightTimelineItem[] = [
+		...observations.flatMap((observation) => {
+			const parsed = parseInvestigationOutcome(observation.outcome);
+			if (!parsed) {
+				return [];
+			}
+			const { sources: _sources, ...outcome } = parsed;
+			return {
+				createdAt: observation.createdAt.toISOString(),
+				id: observation.id,
+				kind: "investigation" as const,
+				outcome,
+				period: observation.signal.period,
+			};
+		}),
+		...replies.map((reply) => ({
+			author: reply.authorName,
+			body: reply.body,
+			createdAt: reply.createdAt.toISOString(),
+			id: reply.id,
+			kind: "reply" as const,
+			status: reply.status,
+		})),
+	];
+
+	return timeline.sort(
+		(a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+	);
+}
 
 export const insightsRouter = {
 	history: sessionProcedure
@@ -276,7 +270,6 @@ export const insightsRouter = {
 			z.object({
 				hasMore: z.boolean(),
 				insights: z.array(historyInsightSchema),
-				success: z.literal(true),
 			})
 		)
 		.handler(async ({ context, input }) => {
@@ -297,20 +290,49 @@ export const insightsRouter = {
 						isNull(websites.deletedAt)
 					);
 
-			const rows = await selectInsights()
-				.where(whereClause)
-				.orderBy(
-					desc(
-						sql`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`
+			const latestCases = db
+				.selectDistinctOn(
+					[analyticsInsights.websiteId, analyticsInsights.subjectKey],
+					{
+						...insightSelection,
+						activityAt:
+							sql<Date>`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`.as(
+								"activity_at"
+							),
+					}
+				)
+				.from(analyticsInsights)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+				.innerJoin(
+					insightObservations,
+					and(
+						eq(
+							insightObservations.organizationId,
+							analyticsInsights.organizationId
+						),
+						eq(insightObservations.websiteId, analyticsInsights.websiteId),
+						eq(insightObservations.signalKey, analyticsInsights.subjectKey)
 					)
 				)
-				.limit(input.limit)
+				.where(whereClause)
+				.orderBy(
+					analyticsInsights.websiteId,
+					analyticsInsights.subjectKey,
+					desc(analyticsInsights.createdAt),
+					desc(analyticsInsights.id)
+				)
+				.as("latest_insight_cases");
+			const rows = await db
+				.select()
+				.from(latestCases)
+				.orderBy(desc(latestCases.activityAt), desc(latestCases.id))
+				.limit(input.limit + 1)
 				.offset(input.offset);
+			const page = rows.slice(0, input.limit);
 
 			return {
-				success: true as const,
-				insights: rows.map(serializeInsight),
-				hasMore: rows.length === input.limit,
+				insights: page.map(serializeInsight),
+				hasMore: rows.length > input.limit,
 			};
 		}),
 
@@ -326,16 +348,22 @@ export const insightsRouter = {
 		.input(z.object({ insightId: z.string().min(1).max(256) }))
 		.output(
 			z.object({
+				canReply: z.boolean(),
 				insight: historyInsightSchema.nullable(),
-				success: z.literal(true),
+				timeline: z.array(insightTimelineItemSchema),
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await enforceRateLimit(
+			const rate = await ratelimit(
 				`insights:getById:${context.user.id}`,
-				INSIGHT_READ_RATE_LIMIT,
-				INSIGHT_READ_RATE_WINDOW_SECS
+				120,
+				60
 			);
+			if (!rate.success) {
+				throw rpcError.rateLimited(
+					Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
+				);
+			}
 
 			const [row] = await selectInsights()
 				.where(
@@ -347,333 +375,329 @@ export const insightsRouter = {
 				.limit(1);
 
 			if (!row) {
-				return { success: true as const, insight: null };
+				return {
+					canReply: false,
+					insight: null,
+					timeline: [],
+				};
 			}
 
-			const canRead = await withWorkspace(context, {
+			const workspace = await withWorkspace(context, {
 				organizationId: row.organizationId,
 				resource: "organization",
 				permissions: ["read"],
 				allowCrossOrg: true,
-			})
-				.then(() => true)
-				.catch((error) => {
-					if (isAccessDenied(error)) {
-						return false;
-					}
-					throw error;
-				});
+			}).catch((error) => {
+				if (isAccessDenied(error)) {
+					return null;
+				}
+				throw error;
+			});
 
-			if (!canRead) {
-				return { success: true as const, insight: null };
+			if (!workspace) {
+				return {
+					canReply: false,
+					insight: null,
+					timeline: [],
+				};
+			}
+
+			const [current] = await selectInsights()
+				.where(
+					and(
+						eq(analyticsInsights.organizationId, row.organizationId),
+						eq(analyticsInsights.websiteId, row.websiteId),
+						eq(analyticsInsights.subjectKey, row.subjectKey),
+						isNull(websites.deletedAt)
+					)
+				)
+				.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
+				.limit(1);
+			const insight = current ?? row;
+			const timeline = await loadInsightTimeline(insight);
+			const hasInvestigation = timeline.some(
+				(item) => item.kind === "investigation"
+			);
+			if (!hasInvestigation) {
+				return {
+					canReply: false,
+					insight: null,
+					timeline: [],
+				};
 			}
 
 			return {
-				success: true as const,
-				insight: serializeInsight(row),
+				canReply: roleHasPermission(workspace.role ?? "", "website", [
+					"update",
+				]),
+				insight: serializeInsight(insight),
+				timeline,
 			};
 		}),
 
-	related: sessionProcedure
+	reply: sessionProcedure
 		.route({
 			method: "POST",
-			path: "/insights/related",
+			path: "/insights/reply",
 			tags: ["Insights"],
-			summary: "Get other open insights for the same website",
+			summary: "Add context to an investigation",
 		})
 		.input(
 			z.object({
+				body: z.string().trim().min(1).max(2000),
 				insightId: z.string().min(1).max(256),
-				limit: z.number().int().min(1).max(10).default(5),
 			})
 		)
 		.output(
 			z.object({
-				insights: z.array(
-					z.object({
-						changePercent: z.number().nullable(),
-						createdAt: z.string(),
-						id: z.string(),
-						sentiment: insightSentimentSchema,
-						severity: insightSeveritySchema,
-						title: z.string(),
-						type: storedInsightTypeSchema,
-					})
-				),
-				success: z.literal(true),
+				reply: insightTimelineReplySchema,
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await enforceRateLimit(
-				`insights:related:${context.user.id}`,
-				INSIGHT_READ_RATE_LIMIT,
-				INSIGHT_READ_RATE_WINDOW_SECS
-			);
-
-			const [current] = await db
+			const [insight] = await db
 				.select({
 					organizationId: analyticsInsights.organizationId,
+					subjectKey: analyticsInsights.subjectKey,
 					websiteId: analyticsInsights.websiteId,
-				})
-				.from(analyticsInsights)
-				.where(eq(analyticsInsights.id, input.insightId))
-				.limit(1);
-
-			if (!current) {
-				return { success: true as const, insights: [] };
-			}
-
-			const canRead = await withWorkspace(context, {
-				organizationId: current.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-				allowCrossOrg: true,
-			})
-				.then(() => true)
-				.catch((error) => {
-					if (isAccessDenied(error)) {
-						return false;
-					}
-					throw error;
-				});
-
-			if (!canRead) {
-				return { success: true as const, insights: [] };
-			}
-
-			const rows = await db
-				.select({
-					id: analyticsInsights.id,
-					title: analyticsInsights.title,
-					severity: analyticsInsights.severity,
-					sentiment: analyticsInsights.sentiment,
-					type: analyticsInsights.type,
-					changePercent: analyticsInsights.changePercent,
-					createdAt: analyticsInsights.createdAt,
 				})
 				.from(analyticsInsights)
 				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 				.where(
 					and(
-						eq(analyticsInsights.websiteId, current.websiteId),
-						eq(analyticsInsights.status, "open"),
-						ne(analyticsInsights.id, input.insightId),
+						eq(analyticsInsights.id, input.insightId),
 						isNull(websites.deletedAt)
 					)
 				)
-				.orderBy(
-					desc(analyticsInsights.priority),
-					desc(analyticsInsights.createdAt)
-				)
-				.limit(input.limit);
+				.limit(1);
 
-			return {
-				success: true as const,
-				insights: rows.map((row) => ({
-					id: row.id,
-					title: row.title,
-					severity: row.severity,
-					sentiment: row.sentiment,
-					type: row.type,
-					changePercent: row.changePercent,
-					createdAt: row.createdAt.toISOString(),
-				})),
-			};
-		}),
+			if (!insight) {
+				throw rpcError.notFound("insight", input.insightId);
+			}
 
-	orgNarrative: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/orgNarrative",
-			tags: ["Insights"],
-			summary: "Get organization insights narrative",
-		})
-		.input(
-			z.object({
-				organizationId: z.string().min(1),
-				range: rangeSchema,
-			})
-		)
-		.output(
-			z.object({
-				generatedAt: z.string(),
-				narrative: z.string(),
-				success: z.literal(true),
-			})
-		)
-		.handler(async ({ context, input }) => {
 			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-			});
-
-			await enforceRateLimit(
-				`insights:narrative:${input.organizationId}:${context.user.id}`,
-				NARRATIVE_RATE_LIMIT,
-				NARRATIVE_RATE_WINDOW_SECS
-			);
-
-			const cached = await loadNarrativeCached(
-				input.organizationId,
-				input.range
-			);
-			return {
-				success: true as const,
-				narrative: cached.narrative,
-				generatedAt: new Date(cached.generatedAt).toISOString(),
-			};
-		}),
-
-	clearHistory: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/clearHistory",
-			tags: ["Insights"],
-			summary: "Clear persisted insights for an organization",
-		})
-		.input(z.object({ organizationId: z.string().min(1) }))
-		.output(z.object({ deleted: z.number(), success: z.literal(true) }))
-		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
+				allowCrossOrg: true,
+				organizationId: insight.organizationId,
 				permissions: ["update"],
+				websiteId: insight.websiteId,
 			});
-
-			const idRows = await db
-				.select({ id: analyticsInsights.id })
-				.from(analyticsInsights)
-				.where(eq(analyticsInsights.organizationId, input.organizationId));
-			const ids = idRows.map((row) => row.id);
-
-			await db
-				.delete(insightRollups)
-				.where(eq(insightRollups.organizationId, input.organizationId));
-
-			await db
-				.delete(insightUserFeedback)
-				.where(eq(insightUserFeedback.organizationId, input.organizationId));
-
-			if (ids.length > 0) {
-				await db
-					.delete(analyticsInsights)
-					.where(eq(analyticsInsights.organizationId, input.organizationId));
-			}
-
-			await invalidateInsightsCacheForOrg(input.organizationId);
-			return { success: true as const, deleted: ids.length };
-		}),
-
-	getVotes: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/getVotes",
-			tags: ["Insights"],
-			summary: "Get insight feedback votes",
-			description:
-				"Returns thumbs up/down votes for the given insight ids for the current user in the active organization.",
-		})
-		.input(
-			z.object({
-				insightIds: z.array(z.string().min(1)).max(200),
-			})
-		)
-		.output(
-			z.object({
-				votes: z.record(z.string(), voteSchema),
-			})
-		)
-		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-			if (input.insightIds.length === 0) {
-				return { votes: {} };
-			}
-
-			const rows = await context.db
-				.select({
-					insightId: insightUserFeedback.insightId,
-					vote: insightUserFeedback.vote,
-				})
-				.from(insightUserFeedback)
-				.where(
-					and(
-						eq(insightUserFeedback.userId, context.user.id),
-						eq(insightUserFeedback.organizationId, context.organizationId),
-						inArray(insightUserFeedback.insightId, input.insightIds),
-						inArray(insightUserFeedback.vote, ["up", "down"])
-					)
+			const id = randomUUIDv7();
+			const createdAt = new Date();
+			const authorName = context.user.name.trim() || "Team member";
+			await db.transaction(async (tx) => {
+				const insightCase = and(
+					eq(analyticsInsights.organizationId, insight.organizationId),
+					eq(analyticsInsights.websiteId, insight.websiteId),
+					eq(analyticsInsights.subjectKey, insight.subjectKey)
 				);
-
-			const votes: Record<string, "up" | "down"> = {};
-			for (const row of rows) {
-				if (row.vote === "up" || row.vote === "down") {
-					votes[row.insightId] = row.vote;
+				const [current] = await tx
+					.select({ id: analyticsInsights.id })
+					.from(analyticsInsights)
+					.where(insightCase)
+					.orderBy(
+						desc(analyticsInsights.createdAt),
+						desc(analyticsInsights.id)
+					)
+					.limit(1)
+					.for("update");
+				if (!current) {
+					throw rpcError.notFound("insight", input.insightId);
 				}
-			}
-			return { votes };
-		}),
 
-	setVote: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/setVote",
-			tags: ["Insights"],
-			summary: "Set or clear insight vote",
-			description:
-				"Sets thumbs up/down for an insight, or clears the vote when vote is null.",
-		})
-		.input(
-			z.object({
-				insightId: z.string().min(1).max(256),
-				vote: voteSchema.nullable(),
-			})
-		)
-		.output(z.object({ success: z.literal(true) }))
-		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-
-			if (input.vote === null) {
-				await context.db
-					.delete(insightUserFeedback)
+				const [observation] = await tx
+					.select({ id: insightObservations.id })
+					.from(insightObservations)
 					.where(
 						and(
-							eq(insightUserFeedback.userId, context.user.id),
-							eq(insightUserFeedback.organizationId, context.organizationId),
-							eq(insightUserFeedback.insightId, input.insightId)
+							eq(insightObservations.organizationId, insight.organizationId),
+							eq(insightObservations.websiteId, insight.websiteId),
+							eq(insightObservations.signalKey, insight.subjectKey)
+						)
+					)
+					.limit(1);
+				if (!observation) {
+					throw rpcError.badRequest(
+						"This finding has no investigation history to continue"
+					);
+				}
+
+				const [active] = await tx
+					.select({ id: insightReplies.id })
+					.from(insightReplies)
+					.innerJoin(
+						analyticsInsights,
+						eq(insightReplies.insightId, analyticsInsights.id)
+					)
+					.where(
+						and(
+							inArray(insightReplies.status, ["queued", "running"]),
+							insightCase
+						)
+					)
+					.limit(1);
+				if (active) {
+					throw rpcError.badRequest(
+						"Databuddy is already investigating the latest reply"
+					);
+				}
+
+				await tx.insert(insightReplies).values({
+					authorId: context.user.id,
+					authorName,
+					body: input.body,
+					createdAt,
+					id,
+					insightId: current.id,
+					status: "queued",
+				});
+			});
+			const status = await queueInsightReply(id);
+
+			return {
+				reply: {
+					author: authorName,
+					body: input.body,
+					createdAt: createdAt.toISOString(),
+					id,
+					kind: "reply" as const,
+					status,
+				},
+			};
+		}),
+
+	retryReply: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/reply/retry",
+			tags: ["Insights"],
+			summary: "Retry an investigation reply",
+		})
+		.input(z.object({ replyId: z.string().min(1).max(256) }))
+		.output(
+			z.object({
+				replyId: z.string(),
+				status: insightReplyStatusSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const [reply] = await db
+				.select({
+					organizationId: analyticsInsights.organizationId,
+					status: insightReplies.status,
+					subjectKey: analyticsInsights.subjectKey,
+					websiteId: analyticsInsights.websiteId,
+				})
+				.from(insightReplies)
+				.innerJoin(
+					analyticsInsights,
+					eq(insightReplies.insightId, analyticsInsights.id)
+				)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+				.where(
+					and(eq(insightReplies.id, input.replyId), isNull(websites.deletedAt))
+				)
+				.limit(1);
+			if (!reply) {
+				throw rpcError.notFound("insight reply", input.replyId);
+			}
+			await withWorkspace(context, {
+				allowCrossOrg: true,
+				organizationId: reply.organizationId,
+				permissions: ["update"],
+				websiteId: reply.websiteId,
+			});
+			const pendingStatus = await db.transaction(async (tx) => {
+				const insightCase = and(
+					eq(analyticsInsights.organizationId, reply.organizationId),
+					eq(analyticsInsights.websiteId, reply.websiteId),
+					eq(analyticsInsights.subjectKey, reply.subjectKey)
+				);
+				const [current] = await tx
+					.select({ id: analyticsInsights.id })
+					.from(analyticsInsights)
+					.where(insightCase)
+					.orderBy(
+						desc(analyticsInsights.createdAt),
+						desc(analyticsInsights.id)
+					)
+					.limit(1)
+					.for("update");
+				if (!current) {
+					throw rpcError.notFound("insight reply", input.replyId);
+				}
+
+				const [latest] = await tx
+					.select({ id: insightReplies.id, status: insightReplies.status })
+					.from(insightReplies)
+					.innerJoin(
+						analyticsInsights,
+						eq(insightReplies.insightId, analyticsInsights.id)
+					)
+					.where(insightCase)
+					.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
+					.limit(1);
+				if (latest?.id !== input.replyId) {
+					throw rpcError.badRequest("Only the latest reply can be retried");
+				}
+				if (latest.status !== "failed") {
+					return latest.status;
+				}
+
+				const [observation] = await tx
+					.select({ id: insightObservations.id })
+					.from(insightObservations)
+					.where(
+						and(
+							eq(insightObservations.organizationId, reply.organizationId),
+							eq(insightObservations.websiteId, reply.websiteId),
+							eq(insightObservations.signalKey, reply.subjectKey)
+						)
+					)
+					.limit(1);
+				if (!observation) {
+					throw rpcError.badRequest(
+						"This finding has no investigation history to continue"
+					);
+				}
+
+				const [active] = await tx
+					.select({ id: insightReplies.id })
+					.from(insightReplies)
+					.innerJoin(
+						analyticsInsights,
+						eq(insightReplies.insightId, analyticsInsights.id)
+					)
+					.where(
+						and(
+							insightCase,
+							inArray(insightReplies.status, ["queued", "running"])
+						)
+					)
+					.limit(1);
+				if (active) {
+					throw rpcError.badRequest(
+						"Databuddy is already investigating the latest reply"
+					);
+				}
+
+				await tx
+					.update(insightReplies)
+					.set({ status: "queued" })
+					.where(
+						and(
+							eq(insightReplies.id, input.replyId),
+							eq(insightReplies.status, "failed")
 						)
 					);
-				return { success: true as const };
+				return "queued" as const;
+			});
+
+			if (pendingStatus !== "queued") {
+				return {
+					replyId: input.replyId,
+					status: pendingStatus,
+				};
 			}
-
-			const now = new Date();
-			await context.db
-				.insert(insightUserFeedback)
-				.values({
-					id: randomUUIDv7(),
-					userId: context.user.id,
-					organizationId: context.organizationId,
-					insightId: input.insightId,
-					vote: input.vote,
-					createdAt: now,
-					updatedAt: now,
-				})
-				.onConflictDoUpdate({
-					target: [
-						insightUserFeedback.userId,
-						insightUserFeedback.organizationId,
-						insightUserFeedback.insightId,
-					],
-					set: {
-						vote: input.vote,
-						updatedAt: now,
-					},
-				});
-
-			return { success: true as const };
+			const status = await queueInsightReply(input.replyId);
+			return { replyId: input.replyId, status };
 		}),
 };

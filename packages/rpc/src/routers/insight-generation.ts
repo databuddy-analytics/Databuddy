@@ -160,19 +160,6 @@ export interface QueueInsightGenerationRunResult {
 	status: z.infer<typeof queueStatusSchema>;
 }
 
-export function assertSingleActiveSlackBinding(bindingCount: number): void {
-	if (bindingCount === 0) {
-		throw rpcError.badRequest(
-			"Connect or use the Databuddy Slack app in this channel first"
-		);
-	}
-	if (bindingCount > 1) {
-		throw rpcError.badRequest(
-			"Multiple active Slack connections match this channel"
-		);
-	}
-}
-
 function rowToConfig(
 	row: InsightGenerationConfig | null,
 	fallback: z.infer<typeof configOutputSchema>,
@@ -616,7 +603,16 @@ export const insightGenerationRouter = {
 				)
 				.where(eq(slackChannelBindings.slackChannelId, input.channelId))
 				.limit(2);
-			assertSingleActiveSlackBinding(bindings.length);
+			if (bindings.length === 0) {
+				throw rpcError.badRequest(
+					"Connect or use the Databuddy Slack app in this channel first"
+				);
+			}
+			if (bindings.length > 1) {
+				throw rpcError.badRequest(
+					"Multiple active Slack connections match this channel"
+				);
+			}
 			return mutateConfig(organizationId, (current) => {
 				const filtered = current.deliveries.filter(
 					(delivery) =>
