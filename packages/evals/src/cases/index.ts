@@ -3,7 +3,6 @@ import { attributionCases } from "./attribution";
 import { behavioralCases } from "./behavioral";
 import { feedbackCases } from "./feedback";
 import { formatCases } from "./format";
-import { insightsCases } from "./insights";
 import { integrationCases } from "./integrations";
 import { qualityCases } from "./quality";
 import { slackThreadCases } from "./slack-thread";
@@ -12,22 +11,17 @@ import { traitCases } from "./traits";
 
 const DEFAULT_SURFACE: EvalSurface = "agent";
 
-export const allCases: EvalCase[] = [
+const allCases: EvalCase[] = [
 	...toolRoutingCases,
 	...behavioralCases,
 	...feedbackCases,
 	...attributionCases,
 	...traitCases,
 	...qualityCases,
-	...insightsCases,
 	...formatCases,
 	...integrationCases,
 	...slackThreadCases,
 ];
-
-export function getCasesByCategory(category: string): EvalCase[] {
-	return allCases.filter((c) => c.category === category);
-}
 
 export function getCaseById(id: string): EvalCase | undefined {
 	return allCases.find((c) => c.id === id);

@@ -1,20 +1,27 @@
+import { chmod, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { writeFile } from "node:fs/promises";
+import { parseArgs } from "node:util";
 import { Pool, type PoolClient } from "pg";
+import {
+	summarizeAgentUsage,
+	type UsageTelemetry,
+} from "@databuddy/ai/lib/usage-telemetry";
+import { usdToAgentCredits } from "@databuddy/shared/agent-credits";
+import { computeCaseCost, hasModelPricing } from "./costs";
 import type {
 	InvestigationSources,
 	WebsiteInvestigationArtifact,
 } from "../../../apps/insights/src/generation";
 import type {
+	InsightAgentResult,
+	InsightAgentStepTrace,
+} from "../../../apps/insights/src/agent";
+import type {
 	FunnelDef,
 	GoalDef,
 } from "../../../apps/insights/src/funnel-detection";
-import {
-	type InvestigationAnnotation,
-	signalKeyForDetectedSignal,
-} from "../../../apps/insights/src/investigation";
+import type { InvestigationAnnotation } from "../../../apps/insights/src/investigation";
 import type { LatestInsightObservation } from "../../../apps/insights/src/observations";
-import { visibleInsightWordCount } from "./insight-visible-output";
 
 const REQUIRED_CONFIRMATION = "--confirm-read-only-production";
 const DEFAULT_OFFSETS = [60, 30, 7, 0];
@@ -22,19 +29,24 @@ const DEFAULT_MIN_EVENTS = 25_000;
 const DEFAULT_CONCURRENCY = 2;
 const STATEMENT_TIMEOUT_MS = 60_000;
 const CASE_ATTEMPT_TIMEOUT_MS = 150_000;
+const WORD_SEPARATOR = /\s+/u;
 
 interface CliOptions {
 	concurrency: number;
 	limit: number | null;
 	minEvents: number;
+	model: string;
 	offsets: number[];
 	output: string | null;
+	referenceTime: Date;
 }
 
 interface RankedWebsite {
 	domain: string;
+	githubRepository: { owner: string; repo: string } | null;
 	id: string;
 	organizationId: string;
+	secrets: string[];
 	timezone: string;
 }
 
@@ -56,119 +68,159 @@ interface AnnotationRow {
 }
 
 interface ShadowCase {
+	agent: ShadowAgentUsage | null;
+	asOf: string;
 	caseId: string;
+	contextFacts: number;
 	detectedSignalCount: number;
 	detectionComplete: boolean;
-	disposition: string | null;
 	durationMs: number;
 	errorSummary: string | null;
 	errorType: string | null;
-	evidence: {
-		failed: number;
-		queries: Record<string, number>;
-		statuses: Record<string, number>;
-		total: number;
-		truncated: number;
-	};
-	insight: null | {
-		description: string;
-		evidence: string[];
-		suggestion: string;
-		title: string;
-		visibleWords: number;
-	};
+	githubAvailable: boolean;
 	offsetDays: number;
+	outcome: WebsiteInvestigationArtifact["outcome"];
+	outcomeWords: number | null;
 	selectedSignal: null | {
-		backendRank: number;
 		changePercent: number | null;
 		current: number;
 		entityType: string;
-		kind: string;
 		method: string;
 		metric: string;
+		period: NonNullable<WebsiteInvestigationArtifact["signal"]>["period"];
 		previous: number | null;
 		sentiment: string;
 		severity: string;
 	};
 	status: string;
+	toolCallCount: number;
+	trace: Pick<InsightAgentStepTrace, "tools">[];
+}
+
+export interface ShadowAgentUsage {
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
+	costFallback: boolean;
+	estimatedCostUsd: number;
+	inputTokens: number;
+	modelId: string;
+	outputTokens: number;
+	reasoningTokens: number;
+}
+
+export interface ShadowCostSummary {
+	average: number;
+	fallbackPricedInvestigations: number;
+	investigations: number;
+	max: number;
+	min: number;
+	total: number;
+}
+
+export interface ShadowOutcomeSummary {
+	next: Record<string, number>;
+	rootCause: { known: number; unknown: number };
+	surfaced: number;
+	toolCalls: { average: number; max: number; total: number };
 }
 
 interface ShadowReport {
 	aggregate: {
+		agentCostUsd: ShadowCostSummary;
 		cases: number;
-		cards: number;
 		detectionIncomplete: number;
-		dispositions: Record<string, number>;
 		durationsMs: { p50: number; p95: number };
-		evidenceFailed: number;
-		evidenceTruncated: number;
 		metricFamilies: Record<string, number>;
+		outcomeWords: { max: number; p50: number; p95: number };
+		outcomes: ShadowOutcomeSummary;
 		severity: Record<string, number>;
 		status: Record<string, number>;
-		visibleWords: { max: number; p50: number; p95: number };
 	};
 	cases: ShadowCase[];
 	meta: {
 		concurrency: number;
-		engine: "bounded production agent";
+		dataAccess: {
+			clickhouse: "read_only";
+			connectors: "enabled";
+			postgres: "read_only";
+			redaction: "best_effort";
+		};
+		engine: "investigation agent";
 		generatedAt: string;
 		history: "in_memory";
 		minEvents: number;
+		model: string;
 		offsets: number[];
-		productionWrites: false;
+		referenceTime: string;
 		sites: number;
 	};
 }
 
-function positiveInteger(value: string | undefined, name: string): number {
-	const parsed = Number.parseInt(value ?? "", 10);
-	if (!(Number.isInteger(parsed) && parsed > 0)) {
-		throw new Error(`${name} must be a positive integer`);
+function integerOption(value: string, name: string, minimum: number): number {
+	const parsed = Number(value);
+	if (!(Number.isInteger(parsed) && parsed >= minimum)) {
+		throw new Error(
+			`${name} must be ${minimum === 0 ? "a non-negative" : "a positive"} integer`
+		);
 	}
 	return parsed;
 }
 
-function nonNegativeInteger(value: string, name: string): number {
-	const parsed = Number.parseInt(value, 10);
-	if (!(Number.isInteger(parsed) && parsed >= 0)) {
-		throw new Error(`${name} must be a non-negative integer`);
+function modelOption(value: string | undefined): string {
+	const model = value?.trim();
+	if (model) {
+		return model;
 	}
-	return parsed;
+	throw new Error("model must be a non-empty gateway model id");
 }
 
-function optionValue(args: string[], name: string): string | undefined {
-	const prefix = `${name}=`;
-	return args.find((arg) => arg.startsWith(prefix))?.slice(prefix.length);
+export function resolveReferenceTime(
+	value: string | undefined,
+	now: () => Date = () => new Date()
+): Date {
+	const result = value ? new Date(value) : now();
+	if (Number.isNaN(result.getTime())) {
+		throw new Error("reference-time must be a valid ISO timestamp");
+	}
+	return result;
 }
 
 function parseOptions(args: string[]): CliOptions {
-	if (!args.includes(REQUIRED_CONFIRMATION)) {
+	const { values } = parseArgs({
+		args,
+		options: {
+			concurrency: { default: String(DEFAULT_CONCURRENCY), type: "string" },
+			"confirm-read-only-production": { default: false, type: "boolean" },
+			limit: { type: "string" },
+			"min-events": { default: String(DEFAULT_MIN_EVENTS), type: "string" },
+			model: { default: "balanced", type: "string" },
+			offsets: { type: "string" },
+			output: { type: "string" },
+			"reference-time": { type: "string" },
+		},
+		strict: true,
+	});
+	if (!values["confirm-read-only-production"]) {
 		throw new Error(
 			`Production shadow evaluation requires ${REQUIRED_CONFIRMATION}`
 		);
 	}
-	const offsetsValue = optionValue(args, "--offsets");
-	const offsets = offsetsValue
-		? offsetsValue
+	const offsets = values.offsets
+		? values.offsets
 				.split(",")
-				.map((value) => nonNegativeInteger(value, "offset"))
+				.map((value) => integerOption(value, "offset", 0))
 		: DEFAULT_OFFSETS;
 	if (new Set(offsets).size !== offsets.length) {
 		throw new Error("Offsets must be unique");
 	}
-	const limitValue = optionValue(args, "--limit");
 	return {
-		concurrency: positiveInteger(
-			optionValue(args, "--concurrency") ?? String(DEFAULT_CONCURRENCY),
-			"concurrency"
-		),
-		limit: limitValue ? positiveInteger(limitValue, "limit") : null,
-		minEvents: positiveInteger(
-			optionValue(args, "--min-events") ?? String(DEFAULT_MIN_EVENTS),
-			"min-events"
-		),
+		concurrency: integerOption(values.concurrency, "concurrency", 1),
+		limit: values.limit ? integerOption(values.limit, "limit", 1) : null,
+		minEvents: integerOption(values["min-events"], "min-events", 1),
+		model: modelOption(values.model),
 		offsets,
-		output: optionValue(args, "--output") ?? null,
+		output: values.output ?? null,
+		referenceTime: resolveReferenceTime(values["reference-time"]),
 	};
 }
 
@@ -176,7 +228,12 @@ function disableExternalEffects(): void {
 	process.env.NODE_ENV = "test";
 	process.env.SERVICE_NAME = "insights-production-shadow-readonly";
 	process.env.DB_POOL_MAX = "1";
-	for (const key of ["AXIOM_API_KEY", "AXIOM_TOKEN", "SUPERLOG_API_KEY"]) {
+	for (const key of [
+		"AXIOM_API_KEY",
+		"AXIOM_TOKEN",
+		"FIRECRAWL_API_KEY",
+		"SUPERLOG_API_KEY",
+	]) {
 		delete process.env[key];
 	}
 }
@@ -252,8 +309,9 @@ async function inReadOnlyTransaction<T>(
 
 async function loadCohort(
 	minEvents: number,
-	limit: number | null
-): Promise<Array<{ events: number; id: string }>> {
+	limit: number | null,
+	referenceTime: Date
+): Promise<string[]> {
 	const { chQuery } = await import("@databuddy/db/clickhouse");
 	const readonlySetting = await chQuery<{ readonly: number | string }>(
 		"SELECT getSetting({setting:String}) AS readonly",
@@ -262,27 +320,48 @@ async function loadCohort(
 	if (Number(readonlySetting[0]?.readonly) < 1) {
 		throw new Error("ClickHouse connection is not read-only");
 	}
-	const rows = await chQuery<{ events: number; id: string }>(
-		`SELECT client_id AS id, count() AS events
+	const rows = await chQuery<{ id: string }>(
+		`SELECT client_id AS id
 		 FROM analytics.events
-		 WHERE time >= now() - INTERVAL 60 DAY
-		   AND time < toStartOfDay(now())
+		 WHERE time >= toDateTime({referenceTime:String}, 'UTC') - INTERVAL 60 DAY
+		   AND time < toStartOfDay(toDateTime({referenceTime:String}, 'UTC'))
 		 GROUP BY client_id
-		 HAVING events >= {minEvents:UInt64}
-		 ORDER BY events DESC, id ASC
+		 HAVING count() >= {minEvents:UInt64}
+		 ORDER BY count() DESC, id ASC
 		 ${limit ? "LIMIT {limit:UInt32}" : ""}`,
-		{ minEvents, ...(limit ? { limit } : {}) }
+		{
+			minEvents,
+			referenceTime: referenceTime.toISOString().slice(0, 19).replace("T", " "),
+			...(limit ? { limit } : {}),
+		}
 	);
-	return rows.map((row) => ({ events: Number(row.events), id: row.id }));
+	return rows.map((row) => row.id);
 }
 
-function loadMetadata(ranked: Array<{ events: number; id: string }>): Promise<{
+function githubRepository(
+	value: unknown
+): { owner: string; repo: string } | null {
+	if (!(value && typeof value === "object" && "github" in value)) {
+		return null;
+	}
+	const github = value.github;
+	if (!(github && typeof github === "object")) {
+		return null;
+	}
+	const owner = "owner" in github ? github.owner : null;
+	const repo = "repo" in github ? github.repo : null;
+	return typeof owner === "string" && owner && typeof repo === "string" && repo
+		? { owner, repo }
+		: null;
+}
+
+function loadMetadata(ids: string[]): Promise<{
 	annotations: AnnotationRow[];
 	funnels: FunnelRow[];
 	goals: GoalRow[];
 	sites: RankedWebsite[];
 }> {
-	if (ranked.length === 0) {
+	if (ids.length === 0) {
 		return Promise.resolve({
 			annotations: [],
 			funnels: [],
@@ -291,31 +370,41 @@ function loadMetadata(ranked: Array<{ events: number; id: string }>): Promise<{
 		});
 	}
 	return inReadOnlyTransaction(async (client) => {
-		const ids = ranked.map((item) => item.id);
 		const siteResult = await client.query<{
 			domain: string;
 			id: string;
-			organization_id: string;
+			integrations: unknown;
+			name: string | null;
+			organizationId: string;
+			organizationName: string;
+			organizationSlug: string | null;
 			timezone: string | null;
 		}>(
-			`SELECT w.id, w.organization_id, w.domain, c.timezone
+			`SELECT w.id,
+					w.organization_id AS "organizationId",
+					w.domain,
+					w.name,
+					w.integrations,
+					o.name AS "organizationName",
+					o.slug AS "organizationSlug",
+					c.timezone
 					 FROM websites w
+					 JOIN "organization" o ON o.id = w.organization_id
 					 LEFT JOIN insight_generation_configs c
 					   ON c.organization_id = w.organization_id
 					 WHERE w.id = ANY($1::text[])
-					   AND w."deletedAt" IS NULL`,
+					   AND w."deletedAt" IS NULL
+					 ORDER BY array_position($1::text[], w.id)`,
 			[ids]
 		);
-		const funnelResult = await client.query<{
-			created_at: Date;
-			filters: FunnelDef["filters"];
-			id: string;
-			name: string;
-			steps: FunnelDef["steps"];
-			updated_at: Date;
-			website_id: string;
-		}>(
-			`SELECT id, website_id, name, steps, filters, created_at, updated_at
+		const funnelResult = await client.query<FunnelRow>(
+			`SELECT id,
+						website_id AS "websiteId",
+						name,
+						steps,
+						filters,
+						created_at AS "createdAt",
+						updated_at AS "updatedAt"
 					 FROM funnel_definitions
 					 WHERE website_id = ANY($1::text[])
 					   AND is_active = true
@@ -323,74 +412,57 @@ function loadMetadata(ranked: Array<{ events: number; id: string }>): Promise<{
 					   AND jsonb_array_length(steps) > 1`,
 			[ids]
 		);
-		const goalResult = await client.query<{
-			created_at: Date;
-			filters: GoalDef["filters"];
-			id: string;
-			name: string;
-			target: string;
-			type: GoalDef["type"];
-			updated_at: Date;
-			website_id: string;
-		}>(
-			`SELECT id, website_id, name, type, target, filters, created_at, updated_at
+		const goalResult = await client.query<GoalRow>(
+			`SELECT id,
+						website_id AS "websiteId",
+						name,
+						type,
+						target,
+						filters,
+						created_at AS "createdAt",
+						updated_at AS "updatedAt"
 					 FROM goals
 					 WHERE website_id = ANY($1::text[])
 					   AND is_active = true
 					   AND deleted_at IS NULL`,
 			[ids]
 		);
-		const annotationResult = await client.query<{
-			created_at: Date;
-			deleted_at: Date | null;
-			text: string;
-			updated_at: Date;
-			website_id: string;
-			x_value: Date;
-		}>(
-			`SELECT website_id, x_value, text, created_at, updated_at, deleted_at
+		const annotationResult = await client.query<AnnotationRow>(
+			`SELECT website_id AS "websiteId",
+						x_value AS "xValue",
+						text,
+						created_at AS "createdAt",
+						updated_at AS "updatedAt",
+						deleted_at AS "deletedAt"
 					 FROM annotations
 					 WHERE website_id = ANY($1::text[])`,
 			[ids]
 		);
-		const rank = new Map(ranked.map((item, index) => [item.id, index]));
-		const sites = siteResult.rows
-			.map((row) => ({
+		const sites = siteResult.rows.map((row) => {
+			const repository = githubRepository(row.integrations);
+			return {
 				domain: row.domain,
+				githubRepository: repository,
 				id: row.id,
-				organizationId: row.organization_id,
+				organizationId: row.organizationId,
+				secrets: [
+					row.id,
+					row.domain,
+					row.organizationId,
+					row.name ?? "",
+					row.organizationName,
+					row.organizationSlug ?? "",
+					repository?.owner ?? "",
+					repository?.repo ?? "",
+				],
 				timezone: safeTimezone(row.timezone),
-			}))
-			.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+			};
+		});
 		return {
 			sites,
-			funnels: funnelResult.rows.map((row) => ({
-				createdAt: row.created_at,
-				filters: row.filters,
-				id: row.id,
-				name: row.name,
-				steps: row.steps,
-				updatedAt: row.updated_at,
-				websiteId: row.website_id,
-			})),
-			goals: goalResult.rows.map((row) => ({
-				createdAt: row.created_at,
-				filters: row.filters,
-				id: row.id,
-				name: row.name,
-				target: row.target,
-				type: row.type,
-				updatedAt: row.updated_at,
-				websiteId: row.website_id,
-			})),
-			annotations: annotationResult.rows.map((row) => ({
-				createdAt: row.created_at,
-				deletedAt: row.deleted_at,
-				text: row.text,
-				updatedAt: row.updated_at,
-				websiteId: row.website_id,
-				xValue: row.x_value,
-			})),
+			funnels: funnelResult.rows,
+			goals: goalResult.rows,
+			annotations: annotationResult.rows,
 		};
 	});
 }
@@ -431,20 +503,21 @@ async function createSources(params: {
 	asOf: Date;
 	funnels: FunnelRow[];
 	goals: GoalRow[];
+	model: string;
 	observations: ReadonlyMap<string, LatestInsightObservation>;
+	onAgentResult: (result: InsightAgentResult) => void;
 	site: RankedWebsite;
 	attemptSignal: AbortSignal;
+	trace: InsightAgentStepTrace[];
 }): Promise<InvestigationSources> {
 	const [
-		{ createInsightEvidenceReader },
-		{ hasTrackedInsightData },
+		{ createModelFromId },
 		{ detectSignals },
 		{ defaultFunnelGoalDeps, detectFunnelGoalSignals },
-		{ annotationMatchesSignal, signalAnnotationWindow },
+		{ signalAnnotationWindow },
 		{ runInsightAgent },
 	] = await Promise.all([
-		import("@databuddy/ai/insights/evidence-reader"),
-		import("@databuddy/ai/insights/fetch-context"),
+		import("@databuddy/ai/config/models"),
 		import("../../../apps/insights/src/detection"),
 		import("../../../apps/insights/src/funnel-detection"),
 		import("../../../apps/insights/src/investigation"),
@@ -463,20 +536,6 @@ async function createSources(params: {
 			? AbortSignal.any([params.attemptSignal, signal])
 			: params.attemptSignal;
 	return {
-		createEvidenceReader: (readerParams) => {
-			const readEvidence = createInsightEvidenceReader({
-				...readerParams,
-			});
-			return Promise.resolve((request, appContext, signal) =>
-				readEvidence(request, appContext, withAttemptSignal(signal))
-			);
-		},
-		createServiceAuth: async (organizationId) => {
-			const { createInsightsServiceAuth } = await import(
-				"../../../apps/insights/src/service-auth"
-			);
-			return createInsightsServiceAuth(organizationId);
-		},
 		detectDefinitionSignals: (detectParams, today, _deps, options) => {
 			const base = defaultFunnelGoalDeps(params.site.id, params.asOf);
 			return detectFunnelGoalSignals(
@@ -520,22 +579,38 @@ async function createSources(params: {
 					.map(
 						(row): InvestigationAnnotation => ({
 							date: row.xValue.toISOString().slice(0, 10),
-							signalScoped: annotationMatchesSignal(row.text, signal),
 							title: row.text,
 						})
 					)
 			);
 		},
-		hasTrackedData: (websiteId, domain, from, to, timezone, signal) =>
-			hasTrackedInsightData(
-				websiteId,
-				domain,
-				from,
-				to,
-				timezone,
-				withAttemptSignal(signal)
-			),
-		investigateSignal: runInsightAgent,
+		investigateSignal: async (input) => {
+			const result = await runInsightAgent(input, {
+				abortSignal: params.attemptSignal,
+				model: createModelFromId(params.model),
+				onStepFinish: (step) => {
+					params.trace.push(step);
+				},
+			});
+			params.onAgentResult(result);
+			return result;
+		},
+		loadHistory: ({ signalKey }) => {
+			const observation = params.observations.get(signalKey);
+			return Promise.resolve(
+				observation
+					? [
+							{
+								asOf: observation.asOf.toISOString(),
+								evidence: observation.evidence,
+								kind: "investigation" as const,
+								outcome: observation.outcome,
+								signal: observation.signal,
+							},
+						]
+					: []
+			);
+		},
 		loadObservations: () => Promise.resolve(new Map(params.observations)),
 	};
 }
@@ -578,6 +653,15 @@ function countBy(values: Array<string | null>): Record<string, number> {
 	return result;
 }
 
+function traceToolCount(trace: InsightAgentStepTrace[], name?: string): number {
+	return trace.reduce(
+		(count, step) =>
+			count +
+			step.tools.filter((toolCall) => !name || toolCall.name === name).length,
+		0
+	);
+}
+
 function percentile(values: number[], quantile: number): number {
 	if (values.length === 0) {
 		return 0;
@@ -588,18 +672,48 @@ function percentile(values: number[], quantile: number): number {
 	];
 }
 
-function escapeRegExp(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function outcomeWordCount(
+	outcome: WebsiteInvestigationArtifact["outcome"]
+): number | null {
+	if (!outcome) {
+		return null;
+	}
+	const nextCopy = Object.entries(outcome.next).flatMap(([key, value]) =>
+		key === "type" || key === "kind" || typeof value !== "string" ? [] : [value]
+	);
+	return [
+		outcome.title,
+		outcome.summary,
+		outcome.impact,
+		outcome.rootCause,
+		...outcome.evidence,
+		...nextCopy,
+	]
+		.filter((value): value is string => value !== null)
+		.join(" ")
+		.trim()
+		.split(WORD_SEPARATOR).length;
 }
 
-function sanitizeText(value: string, secrets: string[]): string {
+export function sanitizeText(value: string, secrets: string[]): string {
 	let output = value;
 	for (const secret of [...new Set(secrets)]
 		.filter((item) => item.length >= 2)
 		.sort((a, b) => b.length - a.length)) {
-		output = output.replace(new RegExp(escapeRegExp(secret), "gi"), "[entity]");
+		output = output.replace(
+			new RegExp(RegExp.escape(secret), "gi"),
+			"[entity]"
+		);
 	}
 	return output
+		.replace(
+			/\b(utm_(?:source|medium|campaign|content|term)=)[^\s,;]+/gi,
+			"$1[entity]"
+		)
+		.replace(
+			/\b(campaign(?:\s+id)?\s*[:=]\s*)[a-z0-9][\w.-]{2,}/gi,
+			"$1[entity]"
+		)
 		.replace(/https?:\/\/[^\s"'“”]+/gi, "[url]")
 		.replace(/\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b/gi, "[email]")
 		.replace(/\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b/gi, "[domain]")
@@ -608,17 +722,17 @@ function sanitizeText(value: string, secrets: string[]): string {
 		.replace(/\/(?:[^\s.,;:!?()[\]{}]+\/)*[^\s.,;:!?()[\]{}]*/g, "[path]");
 }
 
-function safeQueryType(value: string): string {
-	if (value.startsWith("detector:goal:")) {
-		return "detector:goal";
-	}
-	if (value.startsWith("detector:funnel:")) {
-		return "detector:funnel";
-	}
-	if (value.startsWith("detector:custom_event:")) {
-		return "detector:custom_event";
-	}
-	return value;
+function sanitizeOutcome(
+	outcome: WebsiteInvestigationArtifact["outcome"],
+	secrets: string[]
+): WebsiteInvestigationArtifact["outcome"] {
+	return outcome
+		? JSON.parse(
+				JSON.stringify(outcome, (_key, value) =>
+					typeof value === "string" ? sanitizeText(value, secrets) : value
+				)
+			)
+		: null;
 }
 
 function metricFamily(key: string): string {
@@ -634,78 +748,150 @@ function metricFamily(key: string): string {
 	return key;
 }
 
+function summarizeShadowUsage(
+	modelId: string,
+	usage: Parameters<typeof summarizeAgentUsage>[1]
+): UsageTelemetry {
+	const summary = summarizeAgentUsage(modelId, usage);
+	if (!(summary.cost_fallback && hasModelPricing(modelId))) {
+		return summary;
+	}
+	const cost = computeCaseCost(
+		modelId,
+		summary.input_tokens,
+		summary.output_tokens,
+		summary.cache_read_tokens,
+		summary.cache_write_tokens
+	);
+	return {
+		...summary,
+		agent_credits_used: usdToAgentCredits(cost),
+		cost_fallback: false,
+		cost_model_id: modelId,
+		cost_total_usd: cost,
+	};
+}
+
+function projectAgentUsage(
+	result: InsightAgentResult
+): ShadowAgentUsage | null {
+	if (!(result.modelId && result.usage)) {
+		return null;
+	}
+	const usage = summarizeShadowUsage(result.modelId, result.usage);
+	return {
+		cacheReadTokens: usage.cache_read_tokens,
+		cacheWriteTokens: usage.cache_write_tokens,
+		costFallback: usage.cost_fallback,
+		estimatedCostUsd: usage.cost_total_usd,
+		inputTokens: usage.input_tokens,
+		modelId: result.modelId,
+		outputTokens: usage.output_tokens,
+		reasoningTokens: usage.reasoning_tokens,
+	};
+}
+
+export function projectTraceUsage(
+	trace: InsightAgentStepTrace[]
+): ShadowAgentUsage | null {
+	const steps = trace.filter(
+		(step) => step.inputTokens !== null || step.outputTokens !== null
+	);
+	if (steps.length === 0) {
+		return null;
+	}
+	const priced = steps.map((step) => {
+		const inputTokens = step.inputTokens ?? 0;
+		const outputTokens = step.outputTokens ?? 0;
+		const cacheReadTokens = step.cacheReadTokens ?? 0;
+		const cacheWriteTokens = step.cacheWriteTokens ?? 0;
+		const reasoningTokens = step.reasoningTokens ?? 0;
+		return summarizeShadowUsage(step.modelId, {
+			inputTokens,
+			outputTokens,
+			totalTokens: inputTokens + outputTokens,
+			inputTokenDetails: {
+				cacheReadTokens,
+				cacheWriteTokens,
+				noCacheTokens: Math.max(
+					0,
+					inputTokens - cacheReadTokens - cacheWriteTokens
+				),
+			},
+			outputTokenDetails: {
+				reasoningTokens,
+				textTokens: Math.max(0, outputTokens - reasoningTokens),
+			},
+		});
+	});
+	const sum = (pick: (usage: UsageTelemetry) => number): number =>
+		priced.reduce((total, usage) => total + pick(usage), 0);
+	return {
+		cacheReadTokens: sum((usage) => usage.cache_read_tokens),
+		cacheWriteTokens: sum((usage) => usage.cache_write_tokens),
+		costFallback: priced.some((usage) => usage.cost_fallback),
+		estimatedCostUsd: sum((usage) => usage.cost_total_usd),
+		inputTokens: sum((usage) => usage.input_tokens),
+		modelId: [...new Set(steps.map((step) => step.modelId))].join(","),
+		outputTokens: sum((usage) => usage.output_tokens),
+		reasoningTokens: sum((usage) => usage.reasoning_tokens),
+	};
+}
+
 function projectCase(params: {
+	agent: ShadowAgentUsage | null;
 	artifact: WebsiteInvestigationArtifact;
 	caseId: string;
 	durationMs: number;
+	githubAvailable: boolean;
 	offsetDays: number;
 	secrets: string[];
+	trace: InsightAgentStepTrace[];
 }): ShadowCase {
 	const { artifact } = params;
-	const evidenceStatuses = countBy(
-		artifact.evidence.map((item) => item.status)
-	);
-	const insight = artifact.insight;
-	const visibleEvidence =
-		insight?.evidence?.map((item) => item.description) ?? [];
 	return {
+		agent: params.agent,
+		asOf: artifact.asOf,
 		caseId: params.caseId,
+		contextFacts: artifact.evidence.length,
 		detectionComplete: artifact.detectionComplete,
 		detectedSignalCount: artifact.detectedSignals.length,
-		disposition: artifact.decision?.disposition ?? null,
 		durationMs: params.durationMs,
-		evidence: {
-			failed: evidenceStatuses.failed ?? 0,
-			queries: countBy(
-				artifact.evidence.map((item) => safeQueryType(item.queryType))
-			),
-			statuses: evidenceStatuses,
-			total: artifact.evidence.length,
-			truncated: evidenceStatuses.truncated ?? 0,
-		},
 		errorType: null,
 		errorSummary: null,
-		insight: insight
-			? {
-					description: sanitizeText(insight.description, params.secrets),
-					evidence: visibleEvidence.map((value) =>
-						sanitizeText(value, params.secrets)
-					),
-					suggestion: sanitizeText(insight.suggestion, params.secrets),
-					title: sanitizeText(insight.title, params.secrets),
-					visibleWords: visibleInsightWordCount(insight),
-				}
-			: null,
+		githubAvailable: params.githubAvailable,
 		offsetDays: params.offsetDays,
+		outcome: sanitizeOutcome(artifact.outcome, params.secrets),
+		outcomeWords: outcomeWordCount(artifact.outcome),
 		selectedSignal: artifact.signal
 			? {
-					backendRank:
-						artifact.detectedSignals.findIndex(
-							(signal) =>
-								signalKeyForDetectedSignal(signal) ===
-								artifact.signal?.signalKey
-						) + 1,
 					changePercent: artifact.signal.changePercent,
 					current: artifact.signal.metric.current,
 					entityType: artifact.signal.entity.type,
-					kind: artifact.signal.kind,
 					method: artifact.signal.detection.method,
 					metric: metricFamily(artifact.signal.metric.key),
+					period: artifact.signal.period,
 					previous: artifact.signal.metric.previous ?? null,
 					sentiment: artifact.signal.sentiment,
 					severity: artifact.signal.severity,
 				}
 			: null,
 		status: artifact.status,
+		trace: params.trace.map(({ tools }) => ({ tools })),
+		toolCallCount: artifact.toolCallCount,
 	};
 }
 
 function failedCase(params: {
+	agent: ShadowAgentUsage | null;
+	asOf: Date;
 	caseId: string;
 	durationMs: number;
 	error: unknown;
+	githubAvailable: boolean;
 	offsetDays: number;
 	secrets: string[];
+	trace: InsightAgentStepTrace[];
 }): ShadowCase {
 	const cause =
 		params.error instanceof Error &&
@@ -720,21 +906,26 @@ function failedCase(params: {
 			? [params.error.message, cause].filter(Boolean).join(": ")
 			: "Unknown failure";
 	return {
+		agent: params.agent,
+		asOf: params.asOf.toISOString(),
 		caseId: params.caseId,
-		detectionComplete: false,
+		contextFacts: 0,
+		detectionComplete: params.trace.length > 0,
 		detectedSignalCount: 0,
-		disposition: null,
 		durationMs: params.durationMs,
-		evidence: { failed: 0, queries: {}, statuses: {}, total: 0, truncated: 0 },
 		errorSummary: sanitizeText(message, params.secrets).slice(0, 500),
 		errorType:
 			params.error instanceof Error
 				? params.error.constructor.name
 				: typeof params.error,
-		insight: null,
+		githubAvailable: params.githubAvailable,
 		offsetDays: params.offsetDays,
+		outcome: null,
+		outcomeWords: null,
 		selectedSignal: null,
 		status: "error",
+		trace: params.trace.map(({ tools }) => ({ tools })),
+		toolCallCount: traceToolCount(params.trace),
 	};
 }
 
@@ -758,14 +949,13 @@ async function mapConcurrent<T, R>(
 }
 
 function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
-	const words = cases.flatMap((item) =>
-		item.insight ? [item.insight.visibleWords] : []
+	const outcomeWords = cases.flatMap((item) =>
+		item.outcomeWords === null ? [] : [item.outcomeWords]
 	);
 	return {
+		agentCostUsd: summarizeInvestigationCosts(cases.map((item) => item.agent)),
 		cases: cases.length,
-		cards: words.length,
 		detectionIncomplete: cases.filter((item) => !item.detectionComplete).length,
-		dispositions: countBy(cases.map((item) => item.disposition)),
 		durationsMs: {
 			p50: percentile(
 				cases.map((item) => item.durationMs),
@@ -776,23 +966,79 @@ function aggregateCases(cases: ShadowCase[]): ShadowReport["aggregate"] {
 				0.95
 			),
 		},
-		evidenceFailed: cases.reduce((sum, item) => sum + item.evidence.failed, 0),
-		evidenceTruncated: cases.reduce(
-			(sum, item) => sum + item.evidence.truncated,
-			0
-		),
 		metricFamilies: countBy(
 			cases.map((item) => item.selectedSignal?.metric ?? null)
 		),
+		outcomeWords: {
+			max: Math.max(0, ...outcomeWords),
+			p50: percentile(outcomeWords, 0.5),
+			p95: percentile(outcomeWords, 0.95),
+		},
+		outcomes: summarizeShadowOutcomes(cases),
 		severity: countBy(
 			cases.map((item) => item.selectedSignal?.severity ?? null)
 		),
 		status: countBy(cases.map((item) => item.status)),
-		visibleWords: {
-			max: Math.max(0, ...words),
-			p50: percentile(words, 0.5),
-			p95: percentile(words, 0.95),
+	};
+}
+
+export function summarizeShadowOutcomes(
+	cases: Array<{
+		outcome: null | {
+			impact: string | null;
+			next: { type: "act" | "ask" | "resolve" | "watch" };
+			rootCause: string | null;
+		};
+		toolCallCount: number;
+	}>
+): ShadowOutcomeSummary {
+	const completedCases = cases.filter(
+		(
+			item
+		): item is typeof item & { outcome: NonNullable<typeof item.outcome> } =>
+			item.outcome !== null
+	);
+	const completed = completedCases.map((item) => item.outcome);
+	const toolCalls = completedCases.map((item) => item.toolCallCount);
+	return {
+		next: countBy(completed.map((outcome) => outcome.next.type)),
+		rootCause: {
+			known: completed.filter((outcome) => outcome.rootCause !== null).length,
+			unknown: completed.filter((outcome) => outcome.rootCause === null).length,
 		},
+		surfaced: completed.filter(
+			(outcome) =>
+				(outcome.next.type === "act" || outcome.next.type === "ask") &&
+				outcome.impact !== null
+		).length,
+		toolCalls: {
+			average:
+				toolCalls.length === 0
+					? 0
+					: toolCalls.reduce((sum, value) => sum + value, 0) / toolCalls.length,
+			max: Math.max(0, ...toolCalls),
+			total: toolCalls.reduce((sum, value) => sum + value, 0),
+		},
+	};
+}
+
+export function summarizeInvestigationCosts(
+	usages: Array<ShadowAgentUsage | null>
+): ShadowCostSummary {
+	const investigations = usages.filter(
+		(value): value is ShadowAgentUsage => value !== null
+	);
+	const costs = investigations.map((value) => value.estimatedCostUsd);
+	const total = costs.reduce((sum, value) => sum + value, 0);
+	return {
+		average: costs.length === 0 ? 0 : total / costs.length,
+		fallbackPricedInvestigations: investigations.filter(
+			(value) => value.costFallback
+		).length,
+		investigations: costs.length,
+		max: Math.max(0, ...costs),
+		min: costs.length === 0 ? 0 : Math.min(...costs),
+		total,
 	};
 }
 
@@ -818,10 +1064,14 @@ export async function runProductionShadow(
 ): Promise<ShadowReport> {
 	disableExternalEffects();
 	configureReadOnlyClickHouse();
-	const referenceTime = new Date();
+	const referenceTime = options.referenceTime;
 	const restoreConsole = silenceLibraryConsole();
 	try {
-		const ranked = await loadCohort(options.minEvents, options.limit);
+		const ranked = await loadCohort(
+			options.minEvents,
+			options.limit,
+			referenceTime
+		);
 		const metadata = await loadMetadata(ranked);
 		const [
 			{ investigateWebsiteWithSources, resolveInvestigationAsOf },
@@ -836,6 +1086,20 @@ export async function runProductionShadow(
 			async (site, siteIndex) => {
 				const observations = new Map<string, LatestInsightObservation>();
 				const cases: ShadowCase[] = [];
+				const definitions = [
+					...metadata.funnels.filter((row) => row.websiteId === site.id),
+					...metadata.goals.filter((row) => row.websiteId === site.id),
+				];
+				const siteSecrets = [
+					...site.secrets,
+					...definitions.flatMap((definition) => [
+						definition.id,
+						definition.name,
+					]),
+					...metadata.annotations
+						.filter((row) => row.websiteId === site.id)
+						.map((row) => row.text),
+				];
 				for (const offsetDays of [...options.offsets].sort((a, b) => b - a)) {
 					const caseId = `site-${String(siteIndex + 1).padStart(2, "0")}@d-${offsetDays}`;
 					const asOf = resolveInvestigationAsOf(
@@ -843,10 +1107,15 @@ export async function runProductionShadow(
 						site.timezone
 					);
 					const startedAt = Date.now();
+					const trace: InsightAgentStepTrace[] = [];
+					let agent: ShadowAgentUsage | null = null;
+					const githubAvailable =
+						offsetDays === 0 && site.githubRepository !== null;
 					try {
 						const input = {
 							asOf,
 							domain: site.domain,
+							githubRepository: githubAvailable ? site.githubRepository : null,
 							organizationId: site.organizationId,
 							timezone: site.timezone,
 							websiteId: site.id,
@@ -859,70 +1128,56 @@ export async function runProductionShadow(
 									attemptSignal,
 									funnels: metadata.funnels,
 									goals: metadata.goals,
+									model: options.model,
 									observations,
+									onAgentResult: (result) => {
+										agent = projectAgentUsage(result);
+									},
 									site,
+									trace,
 								});
 								return investigateWebsiteWithSources(input, sources);
 							}
 						);
-						if (artifact.decision && artifact.signal) {
+						if (artifact.outcome && artifact.signal) {
 							observations.set(artifact.signal.signalKey, {
 								asOf,
-								decision: artifact.decision,
 								evidence: artifact.evidence,
-								finding: artifact.insight
-									? {
-											description: artifact.insight.description,
-											suggestion: artifact.insight.suggestion,
-											title: artifact.insight.title,
-										}
-									: null,
-								recheckAt: nextRecheckAt(
-									asOf,
-									artifact.decision.disposition,
-									artifact.signal
-								),
+								outcome: artifact.outcome,
+								recheckAt: nextRecheckAt(asOf, artifact.outcome.next.type),
 								signal: artifact.signal,
 							});
 						}
 						const secrets = [
-							site.id,
-							site.domain,
-							site.organizationId,
+							...siteSecrets,
 							artifact.signal?.entity.id ?? "",
 							artifact.signal?.entity.label ?? "",
-							artifact.signal?.expectation?.eventName ?? "",
-							artifact.signal?.expectation?.stepName ?? "",
 						];
 						cases.push(
 							projectCase({
+								agent,
 								artifact,
 								caseId,
 								durationMs: Date.now() - startedAt,
+								githubAvailable,
 								offsetDays,
 								secrets,
+								trace,
 							})
 						);
 					} catch (error) {
-						const siteDefinitions = [
-							...metadata.funnels.filter((row) => row.websiteId === site.id),
-							...metadata.goals.filter((row) => row.websiteId === site.id),
-						];
+						agent ??= projectTraceUsage(trace);
 						cases.push(
 							failedCase({
+								agent,
+								asOf,
 								caseId,
 								durationMs: Date.now() - startedAt,
 								error,
+								githubAvailable,
 								offsetDays,
-								secrets: [
-									site.id,
-									site.domain,
-									site.organizationId,
-									...siteDefinitions.flatMap((definition) => [
-										definition.id,
-										definition.name,
-									]),
-								],
+								secrets: siteSecrets,
+								trace,
 							})
 						);
 					}
@@ -936,17 +1191,28 @@ export async function runProductionShadow(
 			cases,
 			meta: {
 				concurrency: options.concurrency,
-				engine: "bounded production agent",
-				generatedAt: referenceTime.toISOString(),
+				dataAccess: {
+					clickhouse: "read_only",
+					connectors: "enabled",
+					postgres: "read_only",
+					redaction: "best_effort",
+				},
+				engine: "investigation agent",
+				generatedAt: new Date().toISOString(),
 				history: "in_memory",
 				minEvents: options.minEvents,
+				model: options.model,
 				offsets: options.offsets,
-				productionWrites: false,
+				referenceTime: referenceTime.toISOString(),
 				sites: metadata.sites.length,
 			},
 		};
 	} finally {
-		restoreConsole();
+		try {
+			await closeShadowConnections();
+		} finally {
+			restoreConsole();
+		}
 	}
 }
 
@@ -957,6 +1223,7 @@ if (import.meta.main) {
 		if (options.output) {
 			const output = assertOutsideRepository(options.output);
 			await writeFile(output, `${JSON.stringify(result, null, 2)}\n`);
+			await chmod(output, 0o600);
 		}
 		process.stdout.write(
 			`${JSON.stringify({ aggregate: result.aggregate, meta: result.meta }, null, 2)}\n`
@@ -968,7 +1235,5 @@ if (import.meta.main) {
 		const type = error instanceof Error ? error.constructor.name : typeof error;
 		process.stderr.write(`Production shadow evaluation failed (${type}).\n`);
 		process.exitCode = 1;
-	} finally {
-		await closeShadowConnections();
 	}
 }

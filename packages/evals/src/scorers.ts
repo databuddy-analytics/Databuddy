@@ -17,7 +17,7 @@ interface ScoreResult {
 	warnings?: string[];
 }
 
-export function scoreToolRouting(
+function scoreToolRouting(
 	evalCase: EvalCase,
 	response: ParsedAgentResponse
 ): ScoreResult {
@@ -127,7 +127,7 @@ export function scoreToolRouting(
 	return { score: Math.max(0, Math.min(100, score)), failures };
 }
 
-export function scoreBehavioral(
+function scoreBehavioral(
 	evalCase: EvalCase,
 	response: ParsedAgentResponse
 ): ScoreResult {
@@ -302,7 +302,7 @@ function stringOutputLooksFailed(output: string): boolean {
 	}
 }
 
-export function scoreFormat(
+function scoreFormat(
 	evalCase: EvalCase,
 	response: ParsedAgentResponse
 ): ScoreResult {
@@ -465,7 +465,7 @@ function containsMarkdownTable(text: string): boolean {
 	});
 }
 
-export function scorePerformance(
+function scorePerformance(
 	evalCase: EvalCase,
 	response: ParsedAgentResponse
 ): ScoreResult {

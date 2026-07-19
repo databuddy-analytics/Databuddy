@@ -1,27 +1,26 @@
-export type EvalCategory =
+type EvalCategory =
 	| "tool-routing"
 	| "behavioral"
 	| "quality"
 	| "format"
-	| "attribution"
-	| "insights";
+	| "attribution";
 
 export type EvalSurface = "agent" | "mcp" | "slack";
 export type EvalRunner = "api" | "package";
 
-export interface ToolInputExpectation {
+interface ToolInputExpectation {
 	excludes?: string[];
 	includes?: Record<string, unknown>;
 	tool: string;
 }
 
-export interface ResponsePatternExpectation {
+interface ResponsePatternExpectation {
 	description?: string;
 	flags?: string;
 	pattern: string;
 }
 
-export interface ToolCallCountExpectation {
+interface ToolCallCountExpectation {
 	max?: number;
 	min?: number;
 	tool: string;
@@ -35,7 +34,7 @@ export interface SlackEvalMessage {
 	userId?: string;
 }
 
-export interface SlackEvalThread {
+interface SlackEvalThread {
 	botUserId?: string;
 	channelId?: string;
 	currentUserId: string;
@@ -99,7 +98,7 @@ export interface ScoreCard {
 	tool_routing: number;
 }
 
-export interface CaseMetrics {
+interface CaseMetrics {
 	costUsd: number;
 	inputTokens: number;
 	judgeCostUsd: number;
@@ -156,7 +155,7 @@ export interface EvalRun {
 	timestamp: string;
 }
 
-export interface JudgeScores {
+interface JudgeScores {
 	actionability: number;
 	analyticalDepth: number;
 	average: number;

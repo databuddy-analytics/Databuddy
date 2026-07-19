@@ -1,4 +1,4 @@
-export type ModelTier = "budget" | "mid" | "premium";
+type ModelTier = "budget" | "mid" | "premium";
 
 export type ModelTag =
 	| ModelTier
@@ -18,6 +18,8 @@ export type ModelTag =
 	| "open-weight";
 
 interface ModelEntry {
+	cacheReadPerMToken?: number;
+	cacheWritePerMToken?: number;
 	inputPerMToken: number;
 	outputPerMToken: number;
 	tags: ModelTag[];
@@ -41,16 +43,22 @@ const MODELS: Record<string, ModelEntry> = {
 	},
 
 	"openai/gpt-5.6-sol": {
+		cacheReadPerMToken: 0.5,
+		cacheWritePerMToken: 6.25,
 		inputPerMToken: 5.0,
 		outputPerMToken: 30.0,
 		tags: ["premium", "openai"],
 	},
 	"openai/gpt-5.6-terra": {
+		cacheReadPerMToken: 0.25,
+		cacheWritePerMToken: 3.125,
 		inputPerMToken: 2.5,
 		outputPerMToken: 15.0,
 		tags: ["mid", "openai"],
 	},
 	"openai/gpt-5.6-luna": {
+		cacheReadPerMToken: 0.1,
+		cacheWritePerMToken: 1.25,
 		inputPerMToken: 1.0,
 		outputPerMToken: 6.0,
 		tags: ["budget", "openai"],
@@ -220,7 +228,9 @@ export function hasModelPricing(modelId: string): boolean {
 export function computeCaseCost(
 	modelId: string,
 	inputTokens: number,
-	outputTokens: number
+	outputTokens: number,
+	cacheReadTokens = 0,
+	cacheWriteTokens = 0
 ): number {
 	if (inputTokens === 0 && outputTokens === 0) {
 		return 0;
@@ -229,8 +239,16 @@ export function computeCaseCost(
 	if (!entry) {
 		return 0;
 	}
+	const freshInputTokens = Math.max(
+		0,
+		inputTokens - cacheReadTokens - cacheWriteTokens
+	);
 	return (
-		(inputTokens / 1_000_000) * entry.inputPerMToken +
+		(freshInputTokens / 1_000_000) * entry.inputPerMToken +
+		(cacheReadTokens / 1_000_000) *
+			(entry.cacheReadPerMToken ?? entry.inputPerMToken) +
+		(cacheWriteTokens / 1_000_000) *
+			(entry.cacheWritePerMToken ?? entry.inputPerMToken) +
 		(outputTokens / 1_000_000) * entry.outputPerMToken
 	);
 }

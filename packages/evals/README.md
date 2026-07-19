@@ -16,23 +16,18 @@ bun run eval:ui
 
 The UI shows all historical runs, trend lines per model, latest-model leaderboard, searchable case failures, and response/tool details.
 
-## Historical insight lifecycle
-
-Run the insights investigation flow against built-in synthetic timelines:
-
-```bash
-bun run eval:insights
-```
-
-This command does not load `.env` or accept website identifiers. It uses fixed investigator results at the test boundary, performs no database writes or delivery, and checks detection, recurrence, and resolution. It is a lifecycle fixture suite, not a prompt or model-quality benchmark.
-
 Evaluate the real agent against read-only production history and write the anonymized report outside Git:
 
 ```bash
-bun run eval:insights:production-shadow -- --confirm-read-only-production --limit=3 --offsets=30,7,0 --output=/tmp/insights-shadow.json
+bun run eval:insights:production-shadow -- --confirm-read-only-production --limit=3 --offsets=30,7,0 --reference-time=2026-07-17T20:16:54.076Z --output=/tmp/insights-shadow.json
 ```
 
-The action-ready fixture supplies completion evidence scoped to one exact definition. Production does not infer that evidence from site-wide revenue; without an exact corroborator, the same regression stays `needs_context`.
+Postgres and ClickHouse reads are transaction- or connection-enforced read-only. Investigation connectors remain enabled and can refresh credentials or write caches. Reports use best-effort redaction and must stay outside Git.
+
+The report includes cache-aware token usage and estimated USD cost for every
+investigation that invoked the agent, plus total, minimum, maximum, and average
+investigation cost. It uses production billing prices when available and the
+eval catalog for explicitly priced eval-only models.
 
 Compare saved runs:
 
@@ -59,7 +54,10 @@ Re-judging archives the previous result before overwriting the target file.
 
 ## Cost reporting
 
-Agent cost is calculated from `src/costs.ts`. If a model has no pricing entry, the run still works, but agent cost is reported as `$0` with a warning. Add pricing before using cost numbers for model decisions.
+Agent cost is calculated from production billing or `src/costs.ts`. Published
+cache-read and cache-write rates are used when the catalog has them. If a model
+has no pricing entry, the run still works, but agent cost is reported as `$0`
+with a warning. Add pricing before using cost numbers for model decisions.
 
 For one-off models, set exact per-million token prices without editing code:
 
