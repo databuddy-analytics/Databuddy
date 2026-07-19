@@ -1,11 +1,9 @@
 import type {
 	InsightEvidence,
 	InsightMetric,
-	InsightRemediationKind,
 	InsightSentiment,
 	InsightSeverity,
 	InsightSource,
-	StoredInsightAction,
 	StoredInsightType,
 } from "@databuddy/shared/insights";
 import { isNotNull, sql } from "drizzle-orm";
@@ -23,6 +21,12 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth";
+
+interface LegacyStoredInsightAction {
+	label: string;
+	params: Record<string, string>;
+	type: string;
+}
 import { websites } from "./websites";
 
 export const funnelStepType = pgEnum("FunnelStepType", [
@@ -222,9 +226,8 @@ export const analyticsInsights = pgTable(
 		impactSummary: text("impact_summary"),
 		metrics: jsonb().$type<InsightMetric[]>(),
 		rootCause: text("root_cause"),
-		remediationKind: text("remediation_kind").$type<InsightRemediationKind>(),
 		evidence: jsonb("evidence").$type<InsightEvidence[]>(),
-		actions: jsonb().$type<StoredInsightAction[]>(),
+		actions: jsonb().$type<LegacyStoredInsightAction[]>(),
 		chainId: text("chain_id"),
 		timezone: text().notNull().default("UTC"),
 		currentPeriodFrom: text("current_period_from").notNull(),

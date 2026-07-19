@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm";
 import type {
-	InvestigationDecision,
 	InvestigationEvidence,
+	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import {
@@ -15,6 +15,7 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { analyticsInsights } from "./analytics";
 import { organization, user } from "./auth";
 import { websites } from "./websites";
 
@@ -23,7 +24,6 @@ export type InsightGenerationReason =
 	| "manual"
 	| "scheduled"
 	| "cooldown_refresh";
-export type InsightRollupRange = "7d" | "30d" | "90d";
 export type InsightRunStatus =
 	| "queued"
 	| "running"
@@ -33,16 +33,15 @@ export type InsightRunStatus =
 	| "skipped";
 export const INSIGHT_RUN_ACTIVE_STATUSES = ["queued", "running"] as const;
 export const INSIGHT_RUN_ACTIVE_UNIQUE_INDEX = "insight_runs_org_active_uidx";
-export type InsightRunItemStatus =
+type InsightRunItemStatus =
 	| "queued"
 	| "running"
 	| "succeeded"
 	| "failed"
 	| "skipped";
 export type InsightRunPreparedStatus = "skipped" | "succeeded";
-export type InsightRunEffectStatus = "failed" | "pending" | "succeeded";
-export type InsightObservationDisposition =
-	InvestigationDecision["disposition"];
+type InsightRunEffectStatus = "failed" | "pending" | "succeeded";
+type InsightReplyStatus = "queued" | "running" | "succeeded" | "failed";
 
 export interface InsightDelivery {
 	channelId: string;
@@ -265,10 +264,9 @@ export const insightObservations = pgTable(
 		insightId: text("insight_id"),
 		signalKey: text("signal_key").notNull(),
 		asOf: timestamp("as_of", { precision: 3, withTimezone: true }).notNull(),
-		disposition: text().$type<InsightObservationDisposition>().notNull(),
 		signal: jsonb().$type<InvestigationSignal>().notNull(),
 		evidence: jsonb().$type<InvestigationEvidence[]>().default([]).notNull(),
-		decision: jsonb().$type<InvestigationDecision>().notNull(),
+		outcome: jsonb("decision").$type<InvestigationOutcome>().notNull(),
 		recheckAt: timestamp("recheck_at", {
 			precision: 3,
 			withTimezone: true,
@@ -307,13 +305,15 @@ export const insightObservations = pgTable(
 	]
 );
 
-export const insightRollups = pgTable(
+// Keep the populated legacy table through the additive replies rollout.
+// No application code reads or writes it.
+export const legacyInsightRollups = pgTable(
 	"insight_rollups",
 	{
 		id: text().primaryKey(),
 		organizationId: text("organization_id").notNull(),
 		runId: text("run_id"),
-		range: text().$type<InsightRollupRange>().notNull(),
+		range: text().notNull(),
 		narrative: text().notNull(),
 		generatedAt: timestamp("generated_at", {
 			precision: 3,
@@ -351,15 +351,38 @@ export const insightRollups = pgTable(
 	]
 );
 
+export const insightReplies = pgTable(
+	"insight_replies",
+	{
+		id: text().primaryKey(),
+		insightId: text("insight_id").notNull(),
+		authorId: text("author_id"),
+		authorName: text("author_name").notNull(),
+		body: text().notNull(),
+		status: text().$type<InsightReplyStatus>().default("queued").notNull(),
+		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
+			.defaultNow()
+			.notNull(),
+	},
+	(table) => [
+		index("insight_replies_insight_created_idx").on(
+			table.insightId,
+			table.createdAt,
+			table.id
+		),
+		foreignKey({
+			columns: [table.insightId],
+			foreignColumns: [analyticsInsights.id],
+			name: "insight_replies_insight_id_fkey",
+		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.authorId],
+			foreignColumns: [user.id],
+			name: "insight_replies_author_id_fkey",
+		}).onDelete("set null"),
+	]
+);
+
 export type InsightGenerationConfig =
 	typeof insightGenerationConfigs.$inferSelect;
-export type InsightGenerationConfigInsert =
-	typeof insightGenerationConfigs.$inferInsert;
-export type InsightRun = typeof insightRuns.$inferSelect;
-export type InsightRunInsert = typeof insightRuns.$inferInsert;
 export type InsightRunItem = typeof insightRunItems.$inferSelect;
-export type InsightRunItemInsert = typeof insightRunItems.$inferInsert;
-export type InsightObservation = typeof insightObservations.$inferSelect;
-export type InsightObservationInsert = typeof insightObservations.$inferInsert;
-export type InsightRollup = typeof insightRollups.$inferSelect;
-export type InsightRollupInsert = typeof insightRollups.$inferInsert;

@@ -33,7 +33,6 @@ vi.mock("@databuddy/redis", () => ({
 	INSIGHTS_JOB_TIMEOUT_MS: 120_000,
 	INSIGHTS_QUEUE_ENV_PREFIX: "INSIGHTS",
 	INSIGHTS_QUEUE_NAME: "insights-generation",
-	INSIGHTS_ROLLUP_JOB_NAME: "insights-rollup",
 	activeStreamKey: (id: string) => `active:${id}`,
 	appendStreamChunk: vi.fn(async () => undefined),
 	cacheNamespaces: {
@@ -45,7 +44,6 @@ vi.mock("@databuddy/redis", () => ({
 		flagsClient: "flags-client",
 		flagsDefinitions: "flags-definitions",
 		flagsUser: "flags-user",
-		insightsNarrative: "insights-narrative",
 		mcpInsights: "mcp:insights",
 		memberRole: "rpc:member_role",
 		organizationOwner: "rpc:org_owner",
@@ -129,7 +127,6 @@ vi.mock("@databuddy/redis", () => ({
 		attempted: 0,
 		failed: 0,
 	})),
-	insightsRollupJobId: (runId: string) => `insights-rollup-${runId}`,
 	insightsWebsiteJobId: (runId: string, websiteId: string) =>
 		`insights-website-${runId}-${websiteId}`,
 	isClickRecorded: vi.fn(async () => false),

@@ -3,15 +3,6 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { analyticsInsights } from "./analytics";
 
 describe("analytics insights schema", () => {
-	test("stores an optional remediation kind", () => {
-		const column = getTableConfig(analyticsInsights).columns.find(
-			(candidate) => candidate.name === "remediation_kind"
-		);
-
-		expect(column).toBeDefined();
-		expect(column?.notNull).toBe(false);
-	});
-
 	test("indexes the resolved history sort by organization and website", () => {
 		const indexNames = getTableConfig(analyticsInsights).indexes.map(
 			(index) => index.config.name

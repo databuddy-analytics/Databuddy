@@ -29,7 +29,6 @@ import {
 	insightObservations,
 	insightRunEffects,
 	insightRunItems,
-	insightRollups,
 	insightRuns,
 } from "./insights";
 import { linkFolders, links } from "./links";
@@ -82,7 +81,6 @@ const schema = {
 	insightRunItems,
 	insightRunEffects,
 	insightObservations,
-	insightRollups,
 	ssoProvider,
 	agentChats,
 	slackIntegrations,
@@ -131,7 +129,6 @@ export const relations = defineRelations(schema, (r) => ({
 		}),
 		insightRuns: r.many.insightRuns(),
 		insightObservations: r.many.insightObservations(),
-		insightRollups: r.many.insightRollups(),
 	},
 
 	account: {
@@ -238,7 +235,6 @@ export const relations = defineRelations(schema, (r) => ({
 		}),
 		items: r.many.insightRunItems(),
 		observations: r.many.insightObservations(),
-		rollups: r.many.insightRollups(),
 	},
 
 	insightRunItems: {
@@ -282,18 +278,6 @@ export const relations = defineRelations(schema, (r) => ({
 			from: r.insightObservations.websiteId,
 			to: r.websites.id,
 			optional: false,
-		}),
-	},
-
-	insightRollups: {
-		organization: r.one.organization({
-			from: r.insightRollups.organizationId,
-			to: r.organization.id,
-			optional: false,
-		}),
-		run: r.one.insightRuns({
-			from: r.insightRollups.runId,
-			to: r.insightRuns.id,
 		}),
 	},
 

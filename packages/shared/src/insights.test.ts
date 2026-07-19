@@ -1,83 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import {
-	deriveInsightSubjectKey,
-	generatedInsightSchema,
-	type InsightDedupeInput,
-	investigationDecisionSchema,
 	investigationEvidenceSchema,
+	investigationOutcomeSchema,
 	investigationSignalSchema,
-	insightDedupeKey,
+	parseInvestigationOutcome,
 } from "./insights";
-
-const baseInsight = {
-	title: "Pricing page traffic up 28%",
-	description: "Pricing visitors grew while bounce rate improved.",
-	suggestion: "Review the next high-intent step.",
-	metrics: [
-		{
-			label: "Pricing Page Visitors",
-			current: 640,
-			previous: 500,
-			format: "number" as const,
-		},
-	],
-	severity: "info" as const,
-	sentiment: "positive" as const,
-	priority: 6,
-	type: "traffic_spike" as const,
-	subjectKey: "pricing_page",
-	sources: ["web" as const],
-	confidence: 0.82,
-};
-
-describe("generatedInsightSchema", () => {
-	it("accepts the generated contract", () => {
-		expect(generatedInsightSchema.safeParse(baseInsight).success).toBe(true);
-		expect(
-			generatedInsightSchema.safeParse({
-				...baseInsight,
-				impactSummary: "Revenue at risk if not addressed.",
-				remediationKind: "campaign",
-			}).success
-		).toBe(true);
-	});
-
-	it("does not accept newly generated executable actions", () => {
-		expect(
-			generatedInsightSchema.safeParse({
-				...baseInsight,
-				actions: [
-					{
-						type: "create_annotation",
-						label: "Create annotation",
-						params: {},
-					},
-				],
-			}).success
-		).toBe(false);
-	});
-
-	it("requires one to five metrics", () => {
-		expect(
-			generatedInsightSchema.safeParse({ ...baseInsight, metrics: [] }).success
-		).toBe(false);
-		expect(
-			generatedInsightSchema.safeParse({
-				...baseInsight,
-				metrics: Array.from({ length: 6 }, (_, index) => ({
-					label: `Metric ${index}`,
-					current: index,
-					format: "number" as const,
-				})),
-			}).success
-		).toBe(false);
-	});
-});
 
 const signal = {
 	signalKey: "site-1|goal|signup|completion_rate",
 	websiteId: "site-1",
-	kind: "absolute_state" as const,
 	insightType: "conversion_leak" as const,
 	entity: {
 		type: "goal" as const,
@@ -104,18 +35,13 @@ const signal = {
 	detection: {
 		method: "rule" as const,
 		reason: "The configured goal received traffic but no completions.",
+		boundary: { comparison: "at_or_below" as const, value: 0.14 },
 	},
-	sampleSize: { current: 412, previous: 389 },
 };
 
 const evidenceBase = {
-	evidenceId: "evidence:goal-definition",
-	signalKey: signal.signalKey,
-	kind: "definition" as const,
 	source: "product" as const,
-	queryType: "goal_configuration",
-	period: "current" as const,
-	range: { from: "2026-07-01", to: "2026-07-07" },
+	summary: "The goal is configured for signup_completed.",
 };
 
 describe("investigationSignalSchema", () => {
@@ -192,219 +118,60 @@ describe("investigationSignalSchema", () => {
 });
 
 describe("investigationEvidenceSchema", () => {
-	it("keeps usable, empty, truncated, and failed query states distinct", () => {
+	it("keeps one concise context fact", () => {
+		expect(investigationEvidenceSchema.safeParse(evidenceBase).success).toBe(
+			true
+		);
 		expect(
 			investigationEvidenceSchema.safeParse({
 				...evidenceBase,
 				status: "ok",
-				rowCount: 1,
-				summary: "The goal is configured for signup_completed.",
-			}).success
-		).toBe(true);
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				status: "empty",
-				rowCount: 0,
-				summary: "No signup_completed events were recorded.",
-			}).success
-		).toBe(true);
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				status: "truncated",
-				rowCount: 147,
-				summary: "The first 100 event names contain no exact match.",
-				truncationReason: "The event-name query reached its row limit.",
-			}).success
-		).toBe(true);
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				status: "failed",
-				rowCount: 0,
-				error: "The analytics query timed out.",
-			}).success
-		).toBe(true);
-	});
-
-	it("does not let failed or empty queries masquerade as measured evidence", () => {
-		const metrics = [{ label: "Completions", current: 0, format: "number" }];
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				status: "failed",
-				rowCount: 0,
-				error: "The analytics query timed out.",
-				metrics,
 			}).success
 		).toBe(false);
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				status: "empty",
-				rowCount: 0,
-				summary: "No rows matched.",
-				metrics,
-			}).success
-		).toBe(false);
-	});
-
-	it("requires exact ranges for standard periods", () => {
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				status: "ok",
-				rowCount: 1,
-				range: null,
-				summary: "The goal is configured.",
-			}).success
-		).toBe(false);
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				source: "sql",
-				period: "custom",
-				range: null,
-				status: "ok",
-				rowCount: 1,
-				summary: "The scoped query returned one aggregate row.",
-			}).success
-		).toBe(true);
 	});
 });
 
-describe("investigationDecisionSchema", () => {
-	it("accepts one small terminal decision", () => {
-		for (const decision of [
-			{
-				disposition: "action_ready",
-				remediation: {
-					kind: "tracking",
-					evidenceId: evidenceBase.evidenceId,
-					instruction: "Restore the signup completion event.",
-				},
-			},
-			{ disposition: "needs_context" },
-			{ disposition: "monitor" },
-			{ disposition: "not_a_problem" },
+const outcomeBase = {
+	title: "Checkout submission is failing",
+	summary: "Checkout failures began after the latest handler change.",
+	impact: "The failure blocked 18 checkout attempts.",
+	rootCause: null,
+	rootCauseConfidence: 0.4,
+	impactConfidence: 0,
+	evidence: ["The checkout handler changed before failures increased."],
+	sources: ["code" as const],
+	next: {
+		type: "resolve" as const,
+		reason: "The change was rolled back.",
+	},
+};
+
+describe("investigationOutcomeSchema", () => {
+	it("accepts concise output with measured or unknown impact", () => {
+		expect(investigationOutcomeSchema.safeParse(outcomeBase).success).toBe(true);
+		expect(
+			investigationOutcomeSchema.safeParse({ ...outcomeBase, impact: null })
+				.success
+		).toBe(true);
+	});
+
+	it("keeps copy editorial and requires the outcome structure", () => {
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				summary: "x".repeat(401),
+			}).success
+		).toBe(true);
+		for (const invalid of [
+			{ ...outcomeBase, evidence: [] },
+			{ ...outcomeBase, evidence: Array(6).fill("Measured fact") },
 		]) {
-			expect(investigationDecisionSchema.safeParse(decision).success).toBe(
-				true
-			);
+			expect(investigationOutcomeSchema.safeParse(invalid).success).toBe(false);
 		}
 	});
 
-	it("rejects obsolete context taxonomy", () => {
-		expect(
-			investigationDecisionSchema.safeParse({
-				disposition: "needs_context",
-				gap: "planned_external_change",
-			}).success
-		).toBe(false);
-	});
-
-	it("rejects copied backend facts and legacy submission fields", () => {
-		expect(
-			investigationDecisionSchema.safeParse({
-				disposition: "action_ready",
-				remediation: {
-					kind: "tracking",
-					evidenceId: evidenceBase.evidenceId,
-					instruction: "Restore the signup completion event.",
-				},
-				signalKey: signal.signalKey,
-				evidenceIds: [evidenceBase.evidenceId],
-				summary: "Signup conversion fell.",
-			}).success
-		).toBe(false);
-	});
-});
-
-describe("deriveInsightSubjectKey", () => {
-	it("normalizes the explicit key", () => {
-		expect(
-			deriveInsightSubjectKey({
-				subjectKey: "  Google / Organic  ",
-				type: "traffic_spike",
-			})
-		).toBe("google_organic");
-	});
-
-	it("falls back through title and type", () => {
-		expect(
-			deriveInsightSubjectKey({
-				subjectKey: "",
-				title: "Bounce Rate Spike",
-				type: "engagement_change",
-			})
-		).toBe("bounce_rate_spike");
-		expect(
-			deriveInsightSubjectKey({
-				subjectKey: null,
-				title: null,
-				type: "performance",
-			})
-		).toBe("performance");
-	});
-
-	it("trims separators and limits keys to 80 characters", () => {
-		expect(
-			deriveInsightSubjectKey({
-				subjectKey: "---hello---",
-				type: "performance",
-			})
-		).toBe("hello");
-		expect(
-			deriveInsightSubjectKey({
-				subjectKey: "a".repeat(100),
-				type: "performance",
-			}).length
-		).toBe(80);
-	});
-});
-
-describe("insightDedupeKey", () => {
-	const base: InsightDedupeInput = {
-		websiteId: "site-1",
-		type: "traffic_spike",
-		sentiment: "positive",
-		changePercent: 15,
-		subjectKey: "google",
-	};
-
-	it("includes website, type, direction, and subject", () => {
-		expect(insightDedupeKey(base)).toBe(
-			"site-1|traffic_spike|up|google"
-		);
-		expect(insightDedupeKey({ ...base, changePercent: -10 })).toBe(
-			"site-1|traffic_spike|down|google"
-		);
-	});
-
-	it("uses sentiment when change is absent or flat", () => {
-		expect(
-			insightDedupeKey({ ...base, changePercent: 0, sentiment: "negative" })
-		).toBe("site-1|traffic_spike|down|google");
-		expect(
-			insightDedupeKey({
-				...base,
-				changePercent: null,
-				sentiment: "neutral",
-			})
-		).toBe("site-1|traffic_spike|flat|google");
-	});
-
-	it("falls back to the title for missing subject keys", () => {
-		expect(
-			insightDedupeKey({
-				websiteId: "site-1",
-				type: "error_spike",
-				sentiment: "negative",
-				changePercent: -5,
-				subjectKey: null,
-				title: "404 errors rising",
-			})
-		).toBe("site-1|error_spike|down|404_errors_rising");
+	it("reads the canonical outcome", () => {
+		expect(parseInvestigationOutcome(outcomeBase)).toEqual(outcomeBase);
+		expect(parseInvestigationOutcome({ title: "Incomplete" })).toBeNull();
 	});
 });

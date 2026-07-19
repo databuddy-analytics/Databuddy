@@ -57,7 +57,6 @@ export const cacheNamespaces = {
 	flagsClient: "flags-client",
 	flagsDefinitions: "flags-definitions",
 	flagsUser: "flags-user",
-	insightsNarrative: "insights-narrative",
 	mcpInsights: "mcp:insights",
 	memberRole: "rpc:member_role",
 	organizationOwner: "rpc:org_owner",
@@ -541,9 +540,6 @@ export function invalidateInsightsCachesForOrganization(
 		invalidateCacheablePattern(
 			`${LEGACY_INSIGHTS_API_CACHE_PREFIX}:${organizationId}:*`
 		),
-		invalidateCacheableTag(cacheNamespaces.insightsNarrative, organizationTag, {
-			fallbackPattern: `cacheable:${cacheNamespaces.insightsNarrative}:*${organizationId}*`,
-		}),
 		invalidateCacheableTag(cacheNamespaces.mcpInsights, organizationTag, {
 			fallbackPattern: `cacheable:${cacheNamespaces.mcpInsights}:*${organizationId}*`,
 		}),
