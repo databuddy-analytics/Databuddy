@@ -38,8 +38,8 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Shared agent integrations should call `@databuddy/ai/agent` (`askDatabuddyAgent` / `streamDatabuddyAgent`) instead of importing internal MCP run/history helpers directly.
 - First-party ads attribution work should start by preserving UTMs into registration and signup events only; do not add RPC plumbing, conversion destinations, env hooks, tables, workers, or UI until explicitly needed.
 - Insights generation logic belongs in `apps/insights` and should reuse `@databuddy/ai`; `apps/api` should only read insight data or queue runs, not own prompts, model calls, tool loops, validation, or persistence orchestration.
-- Historical insight quality uses `bun run eval:insights`; it is synthetic-only, does not load `.env`, and must never accept customer website identifiers or fall through to live data sources.
-- Insight repairs require confirmation scoped to the exact goal or funnel; site-wide revenue totals are context, never proof that one definition completed.
+- `SPEC.md` is the insights product contract. Keep one investigation agent on the shared analytics/investigation toolkit; do not add a parallel evidence API, fixed query choreography, or an action-specific lifecycle to the core loop.
+- Production insight shadows must freeze `--reference-time`, retain a tool-name trace, and pass available GitHub context before supporting quality claims. Postgres and ClickHouse are read-only, but connector token refreshes or cache writes can still occur; never describe the whole run as zero-write.
 - Automated insight digests have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
 - Insight run items are execution metadata, not rendered insight content; previews should use run status/counts or query real insights, never infer titles or bodies from run items.
 - Insight Slack delivery must resolve each channel binding to its active same-organization integration; never choose an arbitrary organization bot token.
@@ -116,8 +116,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Funnel rows keep the action menu outside the main toggle button; put row padding on the sibling `Button`, not only on `List.Row`, so the visible row surface is clickable without nesting buttons.
 - Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, Anomalies, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
 - Dashboard definitions for feature flags and target groups are admin surfaces; do not expose even sanitized rows to demo-tier/public website access.
-- Insights feed (`use-insights-feed`) collapses persisted history by `insightSignalDedupeKey` in `apps/dashboard/lib/insight-signal-key.ts` so the list is one row per signal (latest wins); reads must not invoke AI generation.
-- Insights page (`app/(main)/insights`) should stay focused on the brief + signal queue; do not add generic global analytics KPI cards or top pages/referrers/countries tables there.
+- Insights history is grouped by its backend-owned subject key in the RPC layer so every client sees one current row per investigation; reads must not invoke AI generation.
 - Theme: `apps/dashboard/app/globals.css`. **`--border` is intentionally subtle**; do not crank it darker for “contrast” unless **iza** asks—prefer text tokens or layout for readability.
 - Website analytics filters are two-way synced between Jotai and the `filters` URL param in `app/(main)/websites/[id]/layout.tsx`; guard URL-driven atom writes from echoing stale atom state back into `nuqs`, or adding a filter can lock the page during form submit.
 - Do not centralize, relocate, or otherwise refactor dashboard E2E API route access gates during cleanup; keep test-only access checks local to each route unless iza explicitly asks for that change.
@@ -137,7 +136,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Start in `apps/api/src`
 - Shared API contracts and procedure logic live in `packages/rpc`
 - Prefer changing shared router logic in `packages/rpc` rather than duplicating validation in the dashboard
-- Analytics AI insights: `apps/api/src/routes/insights.ts` — dedupe key is `websiteId|type|direction` (direction from **signed** `changePercent`, not sentiment); within the cooldown window, matching rows are **updated** (same `id`) instead of inserting duplicates. **Do not** show `changePercent` in the UI with sentiment-based sign flips; the stored value is already signed.
+- Investigations run in `apps/insights`; RPC only reads cases and accepts durable replies. Case identity is `websiteId|subjectKey`, where the backend owns the subject key. Persist a new observation for each turn while updating the existing insight row. The stored `changePercent` is already signed.
 
 ### Ingestion and analytics pipeline
 
@@ -220,4 +219,4 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Use `rg "clickHouse|ClickHouse|TABLE_NAMES" packages/db apps/basket apps/api`
 - Use `rg "betterAuth|drizzleAdapter|organization" packages/auth packages/rpc apps/dashboard`
 - Use `rg "trackRoute|basketRouter|llmRouter|structured-errors" apps/basket`
-- Use `rg "insightDedupeKey|collapseInsightsBySignal|insightSignalDedupeKey" apps/api apps/dashboard`
+- Use `rg "signalKey|subjectKey|insightDedupeKey" apps/insights packages/rpc packages/shared`
