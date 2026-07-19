@@ -10,13 +10,14 @@ import { WebsiteCard } from "../websites/_components/website-card";
 import { MonitorsSection } from "./_components/monitors-section";
 import { SmartInsightsSection } from "./_components/smart-insights-section";
 import { SummaryStats } from "./_components/summary-stats";
+import { useInsightsFeed } from "../insights/hooks/use-insights-feed";
 import { useGlobalAnalytics } from "./hooks/use-global-analytics";
 import { usePulseStatus } from "./hooks/use-pulse-status";
-import { useSmartInsights } from "./hooks/use-smart-insights";
 import { ArrowClockwiseIcon, GlobeIcon, PlusIcon } from "@databuddy/ui/icons";
 import { Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
 
 const WEBSITE_PREVIEW_LIMIT = 3;
+const INSIGHT_PREVIEW_LIMIT = 20;
 
 function WebsiteCardSkeleton() {
 	return (
@@ -74,14 +75,15 @@ export default function HomePage() {
 		refetch: refetchMonitors,
 	} = usePulseStatus();
 
+	const insightFeed = useInsightsFeed();
 	const {
-		insights,
 		isLoading: isInsightsLoading,
 		isRefreshing: isInsightsRefreshing,
 		isFetching: isInsightsFetching,
 		isError: isInsightsError,
 		refetch: refetchInsights,
-	} = useSmartInsights();
+	} = insightFeed;
+	const insights = insightFeed.insights.slice(0, INSIGHT_PREVIEW_LIMIT);
 
 	const handleRefetch = async () => {
 		await Promise.all([

@@ -36,7 +36,7 @@ const SCHEDULE_OPTIONS: { label: string; value: Schedule }[] = [
 	{ label: "Weekly", value: "weekly" },
 ];
 
-const TIMEZONES: string[] = Intl.supportedValuesOf("timeZone");
+const TIMEZONES = Intl.supportedValuesOf("timeZone");
 
 export function InsightGenerationSettings({
 	organizationId,
@@ -105,7 +105,9 @@ export function InsightGenerationSettings({
 		}
 		setRunId(undefined);
 		Promise.all([refreshConfig(), refreshFindings()]).catch(() => {
-			toast.error("Analysis finished, but findings could not be refreshed");
+			toast.error(
+				"Analysis finished, but investigations could not be refreshed"
+			);
 		});
 	}, [
 		refreshConfig,
@@ -184,15 +186,31 @@ export function InsightGenerationSettings({
 						</div>
 					) : (
 						<>
-							<OptionButtons
-								disabled={isBusy}
-								label="Schedule"
-								onChange={(schedule) =>
-									setForm((current) => ({ ...current, schedule }))
-								}
-								options={SCHEDULE_OPTIONS}
-								value={form.schedule}
-							/>
+							<div className="space-y-2">
+								<p className="font-medium text-sm">Schedule</p>
+								<div className="flex gap-1.5">
+									{SCHEDULE_OPTIONS.map((option) => (
+										<Button
+											className="flex-1 justify-center"
+											disabled={isBusy}
+											key={option.value}
+											onClick={() =>
+												setForm((current) => ({
+													...current,
+													schedule: option.value,
+												}))
+											}
+											size="sm"
+											type="button"
+											variant={
+												form.schedule === option.value ? "primary" : "secondary"
+											}
+										>
+											{option.label}
+										</Button>
+									))}
+								</div>
+							</div>
 							<Field>
 								<Field.Label>Timezone</Field.Label>
 								<TimezonePicker
@@ -244,41 +262,6 @@ export function InsightGenerationSettings({
 				</Sheet.Footer>
 			</Sheet.Content>
 		</Sheet>
-	);
-}
-
-function OptionButtons<T extends string>({
-	disabled,
-	label,
-	onChange,
-	options,
-	value,
-}: {
-	disabled: boolean;
-	label: string;
-	onChange: (value: T) => void;
-	options: { label: string; value: T }[];
-	value: T;
-}) {
-	return (
-		<div className="space-y-2">
-			<p className="font-medium text-sm">{label}</p>
-			<div className="flex gap-1.5">
-				{options.map((option) => (
-					<Button
-						className="flex-1 justify-center"
-						disabled={disabled}
-						key={option.value}
-						onClick={() => onChange(option.value)}
-						size="sm"
-						type="button"
-						variant={value === option.value ? "primary" : "secondary"}
-					>
-						{option.label}
-					</Button>
-				))}
-			</div>
-		</div>
 	);
 }
 

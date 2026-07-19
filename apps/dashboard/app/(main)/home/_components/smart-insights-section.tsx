@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { InsightCard } from "@/app/(main)/insights/_components/insight-card";
-import type { Insight } from "@/lib/insight-types";
+import { InvestigationRow } from "@/app/(main)/insights/_components/investigation-row";
+import type { Insight } from "@/lib/insight-api";
 import { cn } from "@/lib/utils";
 import {
 	ArrowClockwiseIcon,
@@ -11,18 +10,6 @@ import {
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 import { Button, Card, Skeleton } from "@databuddy/ui";
-
-function InsightRowWrapper({ insight }: { insight: Insight }) {
-	const [expanded, setExpanded] = useState(false);
-	return (
-		<InsightCard
-			expanded={expanded}
-			insight={insight}
-			onToggleAction={() => setExpanded((prev) => !prev)}
-			variant="compact"
-		/>
-	);
-}
 
 function InsightSkeleton({ wide }: { wide?: boolean }) {
 	return (
@@ -54,10 +41,10 @@ function InsightsLoadingState() {
 				</div>
 				<div className="min-w-0 flex-1">
 					<p className="font-medium text-foreground text-sm">
-						Loading stored findings…
+						Loading investigations…
 					</p>
 					<p className="text-muted-foreground text-xs">
-						Fetching findings from the last completed analysis
+						Fetching cases from the last completed analysis
 					</p>
 				</div>
 			</div>
@@ -75,17 +62,17 @@ function InsightsEmptyState() {
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">
-					No priority findings
+					No investigations yet
 				</p>
 				<p className="text-muted-foreground text-xs">
-					No stored priority findings from the last completed analysis
+					Databuddy has not opened a case from the latest analysis
 				</p>
 			</div>
 		</div>
 	);
 }
 
-function InsightsErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
+function InsightsErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 	return (
 		<div className="flex items-center gap-3 px-5 py-4">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
@@ -93,22 +80,20 @@ function InsightsErrorState({ onRetryAction }: { onRetryAction?: () => void }) {
 			</div>
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-foreground text-sm">
-					Couldn't load findings
+					Couldn't load investigations
 				</p>
 				<p className="text-muted-foreground text-xs">
-					Stored findings couldn't be loaded
+					Stored investigations couldn't be loaded
 				</p>
 			</div>
-			{onRetryAction && (
-				<Button
-					className="shrink-0"
-					onClick={onRetryAction}
-					size="sm"
-					variant="secondary"
-				>
-					Retry
-				</Button>
-			)}
+			<Button
+				className="shrink-0"
+				onClick={onRetryAction}
+				size="sm"
+				variant="secondary"
+			>
+				Retry
+			</Button>
 		</div>
 	);
 }
@@ -118,8 +103,7 @@ interface InsightsSectionProps {
 	isError?: boolean;
 	isFetching?: boolean;
 	isLoading?: boolean;
-	onRefreshAction?: () => void;
-	variant?: "compact" | "full";
+	onRefreshAction: () => void;
 }
 
 export function SmartInsightsSection({
@@ -128,41 +112,11 @@ export function SmartInsightsSection({
 	isFetching,
 	isError,
 	onRefreshAction,
-	variant = "compact",
 }: InsightsSectionProps) {
-	if (isLoading) {
-		return (
-			<Card className={variant === "full" ? "min-h-0 flex-1" : ""}>
-				<Card.Header className="flex-row items-center justify-between gap-3">
-					<div className="flex items-center gap-2">
-						<LightbulbIcon className="size-4 text-primary" weight="duotone" />
-						<Card.Title className="text-sm">Findings</Card.Title>
-					</div>
-				</Card.Header>
-				<InsightsLoadingState />
-			</Card>
-		);
-	}
-
-	if (isError) {
-		return (
-			<Card className={variant === "full" ? "min-h-0 flex-1" : ""}>
-				<Card.Header className="flex-row items-center justify-between gap-3">
-					<div className="flex items-center gap-2">
-						<LightbulbIcon className="size-4 text-primary" weight="duotone" />
-						<Card.Title className="text-sm">Findings</Card.Title>
-					</div>
-				</Card.Header>
-				<InsightsErrorState onRetryAction={onRefreshAction} />
-			</Card>
-		);
-	}
-
-	const showInsights = insights.length > 0;
-	const showEmpty = insights.length === 0;
+	const showInsights = !(isLoading || isError) && insights.length > 0;
 
 	return (
-		<Card className={variant === "full" ? "min-h-0 flex-1" : ""}>
+		<Card>
 			<Card.Header className="flex-row items-center justify-between gap-3">
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-2">
@@ -170,24 +124,24 @@ export function SmartInsightsSection({
 							className="size-4 shrink-0 text-primary"
 							weight="duotone"
 						/>
-						<Card.Title className="text-sm">Findings</Card.Title>
+						<Card.Title className="text-sm">Investigations</Card.Title>
 					</div>
 				</div>
-				<div className="flex shrink-0 items-center gap-2">
-					{showInsights && (
-						<span className="text-muted-foreground text-xs">
-							{insights.length} {insights.length === 1 ? "finding" : "findings"}
-						</span>
-					)}
-					<Link
-						className="text-muted-foreground text-xs hover:text-foreground"
-						href="/insights"
-					>
-						View all
-					</Link>
-					{onRefreshAction && (
+				{!(isLoading || isError) && (
+					<div className="flex shrink-0 items-center gap-2">
+						{showInsights && (
+							<span className="text-muted-foreground text-xs">
+								{insights.length} {insights.length === 1 ? "case" : "cases"}
+							</span>
+						)}
+						<Link
+							className="text-muted-foreground text-xs hover:text-foreground"
+							href="/insights"
+						>
+							View all
+						</Link>
 						<Button
-							aria-label="Refresh findings"
+							aria-label="Refresh investigations"
 							className="size-6 text-muted-foreground"
 							disabled={isFetching}
 							onClick={onRefreshAction}
@@ -198,21 +152,18 @@ export function SmartInsightsSection({
 								className={cn("size-3.5", isFetching && "animate-spin")}
 							/>
 						</Button>
-					)}
-				</div>
+					</div>
+				)}
 			</Card.Header>
-			{showEmpty && <InsightsEmptyState />}
+			{isLoading && <InsightsLoadingState />}
+			{!isLoading && isError && (
+				<InsightsErrorState onRetryAction={onRefreshAction} />
+			)}
+			{!(isLoading || isError || showInsights) && <InsightsEmptyState />}
 			{showInsights && (
-				<div
-					className={cn(
-						"overflow-y-auto",
-						variant === "compact"
-							? "max-h-[min(400px,60dvh)]"
-							: "min-h-0 flex-1"
-					)}
-				>
+				<div className="max-h-[min(400px,60dvh)] overflow-y-auto">
 					{insights.map((insight) => (
-						<InsightRowWrapper insight={insight} key={insight.id} />
+						<InvestigationRow insight={insight} key={insight.id} />
 					))}
 				</div>
 			)}

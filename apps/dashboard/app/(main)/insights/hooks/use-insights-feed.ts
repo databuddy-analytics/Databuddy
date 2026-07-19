@@ -1,10 +1,8 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { useCallback, useMemo } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { insightQueries } from "@/lib/insight-api";
-import { collapseInsightsBySignal } from "@/lib/insight-signal-key";
 
 export function useInsightsFeed() {
 	const {
@@ -19,15 +17,8 @@ export function useInsightsFeed() {
 		insightQueries.historyInfinite(orgId)
 	);
 
-	const insights = useMemo(() => {
-		const rows =
-			historyInfinite.data?.pages.flatMap((page) => page.insights) ?? [];
-		return collapseInsightsBySignal(rows);
-	}, [historyInfinite.data?.pages]);
-
-	const refetch = useCallback(async () => {
-		await historyInfinite.refetch();
-	}, [historyInfinite.refetch]);
+	const insights =
+		historyInfinite.data?.pages.flatMap((page) => page.insights) ?? [];
 
 	const isInitialLoading =
 		isOrgContextLoading || Boolean(orgId && historyInfinite.isLoading);
@@ -43,7 +34,7 @@ export function useInsightsFeed() {
 		isRefreshing,
 		isFetching,
 		isError,
-		refetch,
+		refetch: historyInfinite.refetch,
 		fetchNextPage: historyInfinite.fetchNextPage,
 		hasNextPage: historyInfinite.hasNextPage ?? false,
 		isFetchingNextPage: historyInfinite.isFetchingNextPage,
