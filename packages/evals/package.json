@@ -14,7 +14,6 @@
     "@databuddy/ai": "workspace:*",
     "@databuddy/db": "workspace:*",
     "@databuddy/env": "workspace:*",
-    "@databuddy/shared": "workspace:*",
     "ai": "^6.0.188",
     "pg": "^8.16.3"
   },

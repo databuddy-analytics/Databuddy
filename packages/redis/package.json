@@ -13,7 +13,6 @@
     "./redis": "./redis.ts",
     "./stream-buffer": "./stream-buffer.ts",
     "./drizzle-cache": "./drizzle-cache.ts",
-    "./insights-queue": "./insights-queue.ts",
     "./cache-invalidation": "./cache-invalidation.ts",
     "./links-cache": "./links-cache.ts",
     "./click-dedup": "./click-dedup.ts",
