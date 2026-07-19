@@ -78,7 +78,7 @@ export async function executeAgentSqlForWebsite({
 }
 
 export const executeSqlQueryTool = tool({
-	description: `Read-only ClickHouse SQL for session-level joins, path analysis, or cross-table correlations the get_data builders can't express. SELECT/WITH only; use CTEs instead of subqueries/UNION; {paramName:Type} placeholders only. Every WHERE needs the per-table tenant filter on the correct column — call describe_schema when in doubt; the validator rejects wrong-column queries (it does not silently return zero rows). Footguns the validator can't catch for you: analytics.events uses "time" as its timestamp column ("timestamp" elsewhere); pageviews are event_name = 'screen_view' (never 'pageview'); use uniq() not COUNT(DISTINCT); quantileTDigest on a Decimal column needs toFloat64() cast.`,
+	description: `Read-only ClickHouse SQL for session-level joins, path analysis, or cross-table correlations the get_data builders can't express. SELECT/WITH only; use CTEs instead of subqueries/UNION; {paramName:Type} placeholders only. Every WHERE needs the per-table tenant filter on the correct column — call describe_schema when in doubt; the validator rejects wrong-column queries (it does not silently return zero rows). Footguns the validator can't catch for you: analytics.events uses "time" as its timestamp column ("timestamp" elsewhere); pageviews are event_name = 'screen_view' (never 'pageview'); use uniq() not COUNT(DISTINCT); quantileTDigest on a Decimal column needs toFloat64() cast; session sets selected by different events can overlap, so never add or compare them as exclusive cohorts unless the query makes them exclusive.`,
 	strict: true,
 	inputSchema: z.object({
 		sql: z

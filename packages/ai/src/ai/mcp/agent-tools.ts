@@ -16,9 +16,9 @@ import { createFlagTools } from "../tools/flags";
 import { createFunnelTools } from "../tools/funnels";
 import { createGoalTools } from "../tools/goals";
 import { createInsightDigestTools } from "../tools/insight-digest";
-import { createInvestigationTools } from "../tools/investigation-tools";
 import { createLinksTools } from "../tools/links";
 import { createMemoryTools } from "../tools/memory";
+import { createToolkit } from "../tools/toolkit";
 import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
 import {
 	buildBatchQueryRequests,
@@ -63,7 +63,8 @@ export function createMcpAgentTools(
 	} = {}
 ): ToolSet {
 	const investigationTools = options.organizationId
-		? createInvestigationTools({
+		? createToolkit({
+				capabilities: ["investigation"],
 				organizationId: options.organizationId,
 				userId: options.userId ?? undefined,
 				domain: options.websiteDomain ?? undefined,

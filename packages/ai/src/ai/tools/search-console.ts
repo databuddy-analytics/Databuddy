@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
-import { getAppContext, resolveToolWebsite } from "./utils";
+import { getAppContext, resolveToolWebsite, toolDateRangeError } from "./utils";
 import { createCachedTokenFn } from "./utils/oauth-token";
 
 const GSC_API = "https://www.googleapis.com/webmasters/v3";
@@ -112,6 +112,14 @@ export function createSearchConsoleTools(params: {
 			inputSchema: searchAnalyticsInput,
 			execute: async (input, options) => {
 				const ctx = getAppContext(options);
+				const dateError = toolDateRangeError(
+					input.startDate,
+					input.endDate,
+					ctx
+				);
+				if (dateError) {
+					return { error: dateError };
+				}
 				let domain = params.domain;
 				if (input.websiteId || !domain) {
 					const resolved = resolveToolWebsite(ctx, input.websiteId);

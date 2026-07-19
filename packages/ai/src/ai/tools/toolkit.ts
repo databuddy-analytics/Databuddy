@@ -8,11 +8,13 @@ import { createFlagTools } from "./flags";
 import { createFunnelTools } from "./funnels";
 import { getDataTool } from "./get-data";
 import { createGoalTools } from "./goals";
-import { createInvestigationTools } from "./investigation-tools";
+import { createGitHubTools, type GitHubRepository } from "./github-tools";
 import { createLinksTools } from "./links";
 import { listWebsitesTool } from "./list-websites";
 import { createMemoryTools } from "./memory";
 import { createProfileTools } from "./profiles";
+import { createScrapeTools } from "./scrape-page";
+import { createSearchConsoleTools } from "./search-console";
 import { dashboardActionsTool } from "./dashboard-actions";
 
 export type ToolCapability =
@@ -25,6 +27,7 @@ export type ToolCapability =
 export interface ToolkitParams {
 	capabilities: ToolCapability[];
 	domain?: string;
+	githubRepository?: GitHubRepository | null;
 	organizationId?: string;
 	userId?: string;
 }
@@ -66,8 +69,14 @@ export function createToolkit(params: ToolkitParams): ToolSet {
 	if (caps.has("investigation") && params.organizationId) {
 		Object.assign(
 			tools,
-			createInvestigationTools({
+			createScrapeTools(),
+			createSearchConsoleTools({
 				domain: params.domain,
+				organizationId: params.organizationId,
+				userId: params.userId,
+			}),
+			createGitHubTools({
+				repository: params.githubRepository,
 				organizationId: params.organizationId,
 				userId: params.userId,
 			})

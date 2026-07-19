@@ -39,7 +39,6 @@ import {
 	type RegisteredMcpTool,
 } from "./define-tool";
 import { INSIGHT_TOOL_FACTORIES } from "./insights-tools";
-import { investigateTool } from "./investigate";
 import {
 	buildBatchQueryRequests,
 	FilterSchema,
@@ -1836,7 +1835,7 @@ const forgetMemoryTool = defineMcpTool(
 );
 
 const TOOL_REGISTRY = createToolRegistry([
-	...(isAiGatewayConfigured ? [askTool, investigateTool] : []),
+	...(isAiGatewayConfigured ? [askTool] : []),
 	listWebsitesTool,
 	getDataTool,
 	getSchemaTool,

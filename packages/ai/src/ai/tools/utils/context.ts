@@ -1,4 +1,21 @@
 import type { AppContext } from "../../config/context";
+import { todayInTimeZone } from "../../../query/date-utils";
+
+export function toolDateRangeError(
+	from: string,
+	to: string,
+	context: AppContext,
+	timezone = context.timezone ?? "UTC"
+): string | null {
+	const reference = new Date(context.currentDateTime);
+	const contextDate = todayInTimeZone(
+		timezone,
+		Number.isNaN(reference.getTime()) ? new Date() : reference
+	);
+	return from > contextDate || to > contextDate
+		? `Date range cannot extend beyond context date ${contextDate}`
+		: null;
+}
 
 export function getAppContext(options: {
 	experimental_context?: unknown;
@@ -12,7 +29,7 @@ export function getAppContext(options: {
 	return ctx as AppContext;
 }
 
-export interface ResolvedWebsite {
+interface ResolvedWebsite {
 	domain?: string;
 	websiteId: string;
 }
