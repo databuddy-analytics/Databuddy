@@ -5,20 +5,13 @@ import {
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } from "@databuddy/ai/agents/execution";
-import { hasTrackedInsightData } from "@databuddy/ai/insights/fetch-context";
-import type {
-	CreateInsightEvidenceReaderParams,
-	InsightEvidenceReader,
-} from "@databuddy/ai/insights/evidence-reader";
 import { and, between, db, eq, gt, isNull, lte, or } from "@databuddy/db";
 import { annotations, websites } from "@databuddy/db/schema";
 import type { InsightGenerationReason } from "@databuddy/redis";
 import type {
-	GeneratedInsight,
-	InvestigationDecision,
 	InvestigationEvidence,
+	InvestigationOutcome,
 	InvestigationSignal,
-	WeekOverWeekPeriod,
 } from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import dayjs from "dayjs";
@@ -27,15 +20,15 @@ import {
 	type DetectedSignal,
 	type DetectionDiagnostics,
 	detectSignals,
-	wowWindow,
 } from "./detection";
 import {
 	detectFunnelGoalSignals,
 	type FunnelGoalDetectionDiagnostics,
 } from "./funnel-detection";
 import {
-	annotationMatchesSignal,
 	type InvestigationAnnotation,
+	isDirectSignal,
+	isRegression,
 	prepareInvestigation,
 	rankSignals,
 	signalAnnotationWindow,
@@ -45,6 +38,7 @@ import {
 	eligibleSignalsForInvestigation,
 	findRunObservation,
 	type LatestInsightObservation,
+	loadInvestigationHistory,
 	loadLatestSignalObservations,
 	nextRecheckAt,
 } from "./observations";
@@ -54,19 +48,10 @@ import {
 	prepareInsightRun,
 	type InsightRunEffectInput,
 } from "./effects";
-import {
-	MAX_AGENT_CANDIDATES,
-	type InsightAgentInput,
-	type InsightAgentResult,
-	runInsightAgent,
-} from "./agent";
-import type { GeneratedWebsiteInsight } from "./persistence";
-import { persistWebsiteInsights } from "./persistence";
-import { INSIGHT_LOOKBACK_DAYS } from "./policy";
-import {
-	resolveInsightsForWebsite,
-	retiredSignalKeyForOutcome,
-} from "./resolution";
+import type { InsightAgentInput, InsightAgentResult } from "./agent";
+import { runInsightAgent } from "./agent";
+import type { WebsiteInvestigation } from "./persistence";
+import { isVisibleInvestigation, persistInvestigation } from "./persistence";
 import {
 	captureInsightsError,
 	emitInsightsEvent,
@@ -86,7 +71,6 @@ export interface GenerateWebsiteInsightsInput {
 }
 
 export interface GenerateWebsiteInsightsResult {
-	insightIds: string[];
 	message?: string;
 	resultCount: number;
 	status: "skipped" | "succeeded";
@@ -95,6 +79,7 @@ export interface GenerateWebsiteInsightsResult {
 export interface InvestigateWebsiteInput {
 	asOf: Date | string;
 	domain: string;
+	githubRepository?: { owner: string; repo: string } | null;
 	organizationId: string;
 	timezone: string;
 	userId?: string;
@@ -103,29 +88,18 @@ export interface InvestigateWebsiteInput {
 
 export interface WebsiteInvestigationArtifact {
 	asOf: string;
-	decision: InvestigationDecision | null;
 	detectedSignals: DetectedSignal[];
 	detectionComplete: boolean;
 	evidence: InvestigationEvidence[];
-	insight: GeneratedInsight | null;
+	outcome: InvestigationOutcome | null;
 	signal: InvestigationSignal | null;
-	status: "completed" | "deferred" | "no_data" | "no_signals";
+	status: "completed" | "deferred" | "no_signals";
+	toolCallCount: number;
 }
 
-function getComparisonPeriod(
-	lookbackDays: number,
-	timezone: string,
-	asOf: dayjs.Dayjs
-): WeekOverWeekPeriod {
-	const window = wowWindow(asOf.tz(timezone), lookbackDays);
-	return {
-		current: { from: window.currentFrom, to: window.currentTo },
-		previous: { from: window.previousFrom, to: window.previousTo },
-	};
-}
-
-const DATA_CHECK_TIMEOUT_MS = 30_000;
 const DETECTION_TIMEOUT_MS = 45_000;
+const INSIGHT_LOOKBACK_DAYS = 7;
+const RELATED_SIGNAL_LIMIT = 5;
 
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -134,17 +108,11 @@ interface InvestigationRuntime {
 	mode: "evaluation" | "production";
 	onUsage?: (
 		result: Required<Pick<InsightAgentResult, "modelId" | "usage">>
-	) => Promise<void>;
+	) => Promise<void> | void;
 	sources: InvestigationSources;
 }
 
 export interface InvestigationSources {
-	createEvidenceReader: (
-		params: CreateInsightEvidenceReaderParams
-	) => Promise<InsightEvidenceReader>;
-	createServiceAuth: (
-		organizationId: string
-	) => Promise<AppContext["serviceAuth"]>;
 	detectDefinitionSignals: typeof detectFunnelGoalSignals;
 	detectMetricSignals: typeof detectSignals;
 	fetchAnnotations: (
@@ -153,8 +121,8 @@ export interface InvestigationSources {
 		asOf: Date,
 		timezone: string
 	) => Promise<InvestigationAnnotation[]>;
-	hasTrackedData: typeof hasTrackedInsightData;
 	investigateSignal: (input: InsightAgentInput) => Promise<InsightAgentResult>;
+	loadHistory: typeof loadInvestigationHistory;
 	loadObservations: (params: {
 		asOf: Date;
 		organizationId: string;
@@ -185,17 +153,17 @@ function emptyInvestigationArtifact(params: {
 	asOf: dayjs.Dayjs;
 	detectionComplete: boolean;
 	detectedSignals: DetectedSignal[];
-	status: "deferred" | "no_data" | "no_signals";
+	status: "deferred" | "no_signals";
 }): WebsiteInvestigationArtifact {
 	return {
 		asOf: params.asOf.toISOString(),
-		decision: null,
 		detectionComplete: params.detectionComplete,
 		detectedSignals: params.detectedSignals,
 		evidence: [],
-		insight: null,
+		outcome: null,
 		signal: null,
 		status: params.status,
+		toolCallCount: 0,
 	};
 }
 
@@ -223,29 +191,41 @@ async function fetchSignalAnnotations(
 
 	return rows.map((row) => ({
 		date: dayjs(row.date).tz(timezone).format("YYYY-MM-DD"),
-		signalScoped: annotationMatchesSignal(row.title, signal),
 		title: row.title,
 	}));
 }
 
 const productionInvestigationSources: InvestigationSources = {
-	createEvidenceReader: async (params) => {
-		const { createInsightEvidenceReader } = await import(
-			"@databuddy/ai/insights/evidence-reader"
-		);
-		return createInsightEvidenceReader(params);
-	},
-	createServiceAuth: async (organizationId) => {
-		const { createInsightsServiceAuth } = await import("./service-auth");
-		return createInsightsServiceAuth(organizationId);
-	},
 	detectDefinitionSignals: detectFunnelGoalSignals,
 	detectMetricSignals: detectSignals,
 	fetchAnnotations: fetchSignalAnnotations,
-	hasTrackedData: hasTrackedInsightData,
 	investigateSignal: runInsightAgent,
+	loadHistory: loadInvestigationHistory,
 	loadObservations: loadLatestSignalObservations,
 };
+
+async function prepareDeliveryEffects(params: {
+	investigation: WebsiteInvestigation | null;
+	organizationId: string;
+	websiteDomain: string;
+	websiteId: string;
+	websiteName: string | null;
+}): Promise<InsightRunEffectInput[]> {
+	const next = params.investigation?.outcome.next.type;
+	const finding =
+		next === "act" || next === "ask" ? params.investigation : null;
+	const payloads = await prepareInsightSlackEffects({
+		insight: finding,
+		organizationId: params.organizationId,
+		websiteDomain: params.websiteDomain,
+		websiteId: params.websiteId,
+		websiteName: params.websiteName,
+	});
+	return payloads.map((payload) => ({
+		effectKey: payload.channelId,
+		payload,
+	}));
+}
 
 async function investigateWebsiteCore(
 	input: InvestigateWebsiteInput,
@@ -253,37 +233,6 @@ async function investigateWebsiteCore(
 ): Promise<WebsiteInvestigationArtifact> {
 	const startedAt = performance.now();
 	const asOf = normalizeAsOf(input.asOf, input.timezone);
-	const period = getComparisonPeriod(
-		INSIGHT_LOOKBACK_DAYS,
-		input.timezone,
-		asOf
-	);
-	const currentRange = period.current;
-	const previousRange = period.previous;
-	const hasData = await runtime.sources.hasTrackedData(
-		input.websiteId,
-		input.domain,
-		previousRange.from,
-		currentRange.to,
-		input.timezone,
-		AbortSignal.timeout(DATA_CHECK_TIMEOUT_MS)
-	);
-	if (!hasData) {
-		if (runtime.mode === "production") {
-			emitInsightsEvent("info", "generation.investigation.skipped_no_data", {
-				organization_id: input.organizationId,
-				website_id: input.websiteId,
-				duration_ms: Math.round(performance.now() - startedAt),
-			});
-		}
-		return emptyInvestigationArtifact({
-			asOf,
-			detectionComplete: false,
-			detectedSignals: [],
-			status: "no_data",
-		});
-	}
-
 	const detectParams = {
 		websiteId: input.websiteId,
 		lookbackDays: INSIGHT_LOOKBACK_DAYS,
@@ -374,19 +323,12 @@ async function investigateWebsiteCore(
 		});
 	}
 
-	const preparedCandidates = eligibleSignals.map((detectedSignal) => ({
-		detectedSignal,
-		investigation: prepareInvestigation(detectedSignal, {
-			websiteId: input.websiteId,
-			lookbackDays: INSIGHT_LOOKBACK_DAYS,
-		}),
-	}));
-	const shortlist = preparedCandidates
-		.filter(
-			({ investigation }) => investigation.signal.sentiment === "negative"
-		)
-		.slice(0, MAX_AGENT_CANDIDATES);
-	if (shortlist.length === 0) {
+	const detectedSignal = eligibleSignals.find(
+		(signal) =>
+			isRegression(signal) &&
+			(signal.severity !== "info" || isDirectSignal(signal))
+	);
+	if (!detectedSignal) {
 		if (runtime.mode === "production") {
 			emitInsightsEvent(
 				"info",
@@ -425,43 +367,39 @@ async function investigateWebsiteCore(
 		});
 	}
 
-	const [serviceAuth, candidates] = await Promise.all([
-		runtime.sources.createServiceAuth(input.organizationId),
-		Promise.all(
-			shortlist.map(async ({ detectedSignal, investigation }) => {
-				const annotationRows = await runtime.sources.fetchAnnotations(
-					input.websiteId,
-					investigation.signal,
-					asOf.toDate(),
-					input.timezone
+	const base = prepareInvestigation(detectedSignal, {
+		websiteId: input.websiteId,
+		lookbackDays: INSIGHT_LOOKBACK_DAYS,
+	});
+	const relatedSignals = detectedSignals
+		.filter(
+			(signal) => signalKeyForDetectedSignal(signal) !== base.signal.signalKey
+		)
+		.slice(0, RELATED_SIGNAL_LIMIT)
+		.map(
+			(signal) =>
+				prepareInvestigation(signal, {
+					websiteId: input.websiteId,
+					lookbackDays: INSIGHT_LOOKBACK_DAYS,
+				}).signal
+		);
+	const annotationRows = await runtime.sources.fetchAnnotations(
+		input.websiteId,
+		base.signal,
+		asOf.toDate(),
+		input.timezone
+	);
+	const investigation =
+		annotationRows.length === 0
+			? base
+			: prepareInvestigation(
+					detectedSignal,
+					{
+						websiteId: input.websiteId,
+						lookbackDays: INSIGHT_LOOKBACK_DAYS,
+					},
+					annotationRows
 				);
-				const prepared =
-					annotationRows.length === 0
-						? investigation
-						: prepareInvestigation(
-								detectedSignal,
-								{
-									websiteId: input.websiteId,
-									lookbackDays: INSIGHT_LOOKBACK_DAYS,
-								},
-								annotationRows
-							);
-				const observation = observations.get(prepared.signal.signalKey);
-				return {
-					evidence: prepared.evidence,
-					previous: observation
-						? {
-								asOf: observation.asOf,
-								decision: observation.decision,
-								finding: observation.finding,
-								signal: observation.signal,
-							}
-						: undefined,
-					signal: prepared.signal,
-				};
-			})
-		),
-	]);
 	const appContext: AppContext = {
 		userId: input.userId ?? "system",
 		organizationId: input.organizationId,
@@ -470,24 +408,24 @@ async function investigateWebsiteCore(
 		websiteDomain: input.domain,
 		timezone: input.timezone,
 		currentDateTime: asOf.toISOString(),
-		chatId: `insights:${input.organizationId}:${input.websiteId}`,
+		chatId: `insights:${input.organizationId}:${input.websiteId}:${investigation.signal.signalKey}`,
 		mutationMode: "dry-run",
-		...(serviceAuth ? { serviceAuth } : {}),
 	};
 	let investigationResult: InsightAgentResult;
 	try {
+		const history = await runtime.sources.loadHistory({
+			organizationId: input.organizationId,
+			signalKey: investigation.signal.signalKey,
+			through: asOf.toDate(),
+			websiteId: input.websiteId,
+		});
 		investigationResult = await runtime.sources.investigateSignal({
 			appContext,
-			candidates,
-			readEvidence: async (signal, request, context, abortSignal) => {
-				const reader = await runtime.sources.createEvidenceReader({
-					websiteId: input.websiteId,
-					domain: input.domain,
-					timezone: input.timezone,
-					signal,
-				});
-				return reader(request, context, abortSignal);
-			},
+			evidence: investigation.evidence,
+			githubRepository: input.githubRepository ?? null,
+			history,
+			relatedSignals,
+			signal: investigation.signal,
 		});
 		if (investigationResult.modelId && investigationResult.usage) {
 			await runtime.onUsage?.({
@@ -512,27 +450,27 @@ async function investigateWebsiteCore(
 			organization_id: input.organizationId,
 			website_id: input.websiteId,
 			duration_ms: Math.round(performance.now() - startedAt),
-			disposition: investigationResult.decision.disposition,
-			output_count: investigationResult.insight ? 1 : 0,
-			evidence_count: investigationResult.evidence.length,
+			next: investigationResult.outcome.next.type,
+			output_count: 1,
+			evidence_count: investigation.evidence.length,
 			tool_call_count: investigationResult.toolCallCount,
 		});
 		setInsightsLog({
 			generation_mode: "agent",
-			generated_candidate_count: investigationResult.insight ? 1 : 0,
+			generated_candidate_count: 1,
 			tool_call_count: investigationResult.toolCallCount,
 		});
 	}
 
 	return {
 		asOf: asOf.toISOString(),
-		decision: investigationResult.decision,
 		detectionComplete,
 		detectedSignals,
-		evidence: investigationResult.evidence,
-		insight: investigationResult.insight,
-		signal: investigationResult.signal,
+		evidence: investigation.evidence,
+		outcome: investigationResult.outcome,
+		signal: investigation.signal,
 		status: "completed",
+		toolCallCount: investigationResult.toolCallCount,
 	};
 }
 
@@ -573,6 +511,7 @@ export async function generateWebsiteInsights(
 			id: websites.id,
 			name: websites.name,
 			domain: websites.domain,
+			integrations: websites.integrations,
 		})
 		.from(websites)
 		.where(
@@ -597,7 +536,6 @@ export async function generateWebsiteInsights(
 			result: {
 				status: "skipped",
 				resultCount: 0,
-				insightIds: [],
 				message: "Website not found or deleted",
 			},
 		});
@@ -613,28 +551,49 @@ export async function generateWebsiteInsights(
 			organization_id: input.organizationId,
 			website_id: site.id,
 			run_id: input.runId,
-			disposition: replay.disposition,
+			next: replay.outcome.next.type,
 		});
-		const legacyResult = await prepareInsightRun({
+		const replayed: WebsiteInvestigation | null =
+			replay.insightId && isVisibleInvestigation(replay)
+				? {
+						id: replay.insightId,
+						outcome: replay.outcome,
+						signal: replay.signal,
+						websiteDomain: site.domain,
+						websiteId: site.id,
+						websiteName: site.name,
+					}
+				: null;
+		const effects = await prepareDeliveryEffects({
+			investigation: replayed,
+			organizationId: input.organizationId,
+			websiteDomain: site.domain,
+			websiteId: site.id,
+			websiteName: site.name,
+		});
+		const replayedResult = await prepareInsightRun({
 			...runIdentity,
-			effects: [],
+			effects,
 			result: {
 				status: "succeeded",
-				resultCount: replay.insightId ? 1 : 0,
-				insightIds: replay.insightId ? [replay.insightId] : [],
+				resultCount: replayed ? 1 : 0,
 			},
 		});
 		await drainInsightRunEffects(runIdentity, input.finalAttempt);
-		return legacyResult;
+		return replayedResult;
 	}
 	let billingCheckError: unknown;
 	let billingCustomerId: string | null = null;
+	const agentUsage: {
+		value: Required<Pick<InsightAgentResult, "modelId" | "usage">> | null;
+	} = { value: null };
 	let noCredits = false;
 	const userId = input.requestedByUserId ?? undefined;
 	const analysis = await investigateWebsiteCore(
 		{
 			asOf: new Date(),
 			domain: site.domain,
+			githubRepository: site.integrations?.github ?? null,
 			organizationId: input.organizationId,
 			timezone: input.timezone,
 			userId,
@@ -664,140 +623,88 @@ export async function generateWebsiteInsights(
 			},
 			mode: "production",
 			sources: productionInvestigationSources,
-			onUsage: async ({ modelId, usage }) => {
-				await trackAgentUsageAndBill({
-					billingCustomerId,
-					chatId: `insights:${input.organizationId}:${site.id}`,
-					idempotencyKey: `insights:${input.runId}:${site.id}`,
-					modelId,
-					organizationId: input.organizationId,
-					source: "insights",
-					usage,
-					userId: input.requestedByUserId,
-					websiteId: site.id,
-				});
+			onUsage: (usage) => {
+				agentUsage.value = usage;
 			},
 		}
 	);
-	const candidates: GeneratedWebsiteInsight[] =
-		analysis.insight && analysis.signal
-			? [
-					{
-						...analysis.insight,
-						id: randomUUIDv7(),
-						period: analysis.signal.period,
-						websiteId: site.id,
-						websiteName: site.name,
-						websiteDomain: site.domain,
-					},
-				]
-			: [];
+	const candidate: WebsiteInvestigation | null =
+		analysis.outcome && analysis.signal
+			? {
+					id: randomUUIDv7(),
+					outcome: analysis.outcome,
+					signal: analysis.signal,
+					websiteId: site.id,
+					websiteName: site.name,
+					websiteDomain: site.domain,
+				}
+			: null;
 
-	const saved =
-		candidates.length === 0
-			? []
-			: await persistWebsiteInsights({
-					insights: candidates,
-					organizationId: input.organizationId,
-					runId: input.runId,
-					timezone: input.timezone,
-				});
+	const asOf = new Date(analysis.asOf);
+	const saved = candidate
+		? await persistInvestigation({
+				evidence: analysis.evidence,
+				investigation: candidate,
+				notNewerThan: asOf,
+				organizationId: input.organizationId,
+				recheckAt: nextRecheckAt(asOf, candidate.outcome.next.type),
+				runId: input.runId,
+				timezone: input.timezone,
+			})
+		: null;
 
-	try {
-		await resolveInsightsForWebsite({
-			organizationId: input.organizationId,
-			websiteId: site.id,
-			runId: input.runId,
-			detectedSignals: analysis.detectedSignals,
-			canRecover: analysis.status !== "no_data" && analysis.detectionComplete,
-			retiredSignalKey: retiredSignalKeyForOutcome({
-				disposition: analysis.decision?.disposition,
-				hasInsight: analysis.insight !== null,
-				signalKey: analysis.signal?.signalKey,
-			}),
-		});
-	} catch (error) {
-		captureInsightsError(error, "generation.resolution.failed", {
-			organization_id: input.organizationId,
-			website_id: site.id,
-			run_id: input.runId,
-		});
-		throw error;
-	}
 	if (billingCheckError) {
 		throw billingCheckError;
 	}
+	if (candidate && agentUsage.value) {
+		try {
+			await trackAgentUsageAndBill({
+				billingCustomerId,
+				chatId: `insights:${input.organizationId}:${site.id}`,
+				idempotencyKey: `insights:${input.runId}:${site.id}`,
+				modelId: agentUsage.value.modelId,
+				organizationId: input.organizationId,
+				source: "insights",
+				usage: agentUsage.value.usage,
+				userId: input.requestedByUserId,
+				websiteId: site.id,
+			});
+		} catch (error) {
+			captureInsightsError(error, "generation.billing.failed", {
+				organization_id: input.organizationId,
+				run_id: input.runId,
+				website_id: site.id,
+			});
+		}
+	}
 
-	const freshInsights = saved.filter(
-		(insight) => insight.isNew || insight.isRetry
-	);
-	const escalations = saved.filter(
-		(insight) => !insight.isRetry && insight.isEscalation
-	);
-	const persistent = saved.filter(
-		(insight) => !insight.isRetry && insight.isPersistent
-	);
-	const slackEffects = await prepareInsightSlackEffects({
+	const effects = await prepareDeliveryEffects({
+		investigation: saved,
 		organizationId: input.organizationId,
-		websiteId: site.id,
 		websiteDomain: site.domain,
+		websiteId: site.id,
 		websiteName: site.name,
-		insights: freshInsights,
-		escalations,
-		persistent,
 	});
-	const effects: InsightRunEffectInput[] = slackEffects.map((payload) => ({
-		effectKey: payload.channelId,
-		payload,
-	}));
 
-	const succeeded = saved.length > 0 || analysis.status === "completed";
+	const succeeded = saved !== null || analysis.status === "completed";
 
 	const result: GenerateWebsiteInsightsResult = succeeded
 		? {
 				status: "succeeded",
-				resultCount: saved.length,
-				insightIds: saved.map((insight) => insight.id),
+				resultCount: saved ? 1 : 0,
 			}
 		: {
 				status: "skipped",
 				resultCount: 0,
-				insightIds: [],
 				message: noCredits
 					? "AI usage allowance is empty"
 					: analysis.status === "deferred"
 						? "Detected signals are waiting for recheck"
 						: "No data-backed findings generated",
 			};
-	const signal = analysis.signal;
-	const asOf = new Date(analysis.asOf);
-	const suppressedAction =
-		analysis.decision?.disposition === "action_ready" &&
-		candidates.length > 0 &&
-		saved.length === 0;
 	const preparedResult = await prepareInsightRun({
 		...runIdentity,
 		effects,
-		...(analysis.decision && signal
-			? {
-					observation: {
-						asOf,
-						decision: analysis.decision,
-						evidence: analysis.evidence.filter(
-							(evidence) => evidence.signalKey === signal.signalKey
-						),
-						insightId: saved[0]?.id ?? null,
-						recheckAt: nextRecheckAt(
-							asOf,
-							suppressedAction
-								? "not_a_problem"
-								: analysis.decision.disposition,
-							signal
-						),
-						signal,
-					},
-				}
-			: {}),
 		result,
 	});
 	try {
@@ -815,11 +722,11 @@ export async function generateWebsiteInsights(
 		website_id: input.websiteId,
 		run_id: input.runId,
 		duration_ms: Math.round(performance.now() - startedAt),
-		result_count: saved.length,
+		result_count: saved ? 1 : 0,
 		reason: input.reason,
 	});
 	setInsightsLog({
-		generation_result_count: saved.length,
+		generation_result_count: saved ? 1 : 0,
 		generation_status: succeeded ? "succeeded" : "skipped",
 	});
 	return preparedResult;

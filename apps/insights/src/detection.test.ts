@@ -270,7 +270,7 @@ describe("detectSignals", () => {
 		expect(diagnostics.failedFamilies).toBe(1);
 	});
 
-	it("recovers a detector family after one transient query failure", async () => {
+	it("retries only the failed period after a transient query failure", async () => {
 		let revenueCalls = 0;
 		const diagnostics = { failedFamilies: 0 };
 		const queryFn: QueryFn = async (request) => {
@@ -292,8 +292,27 @@ describe("detectSignals", () => {
 		);
 
 		expect(signals).toEqual([]);
-		expect(revenueCalls).toBe(4);
+		expect(revenueCalls).toBe(3);
 		expect(diagnostics.failedFamilies).toBe(0);
+	});
+
+	it("limits metric probes to one current and previous pair", async () => {
+		let active = 0;
+		let peak = 0;
+		const queryFn: QueryFn = async (request) => {
+			if (request.type === "events_by_date") {
+				return [];
+			}
+			active += 1;
+			peak = Math.max(peak, active);
+			await Bun.sleep(5);
+			active -= 1;
+			return [];
+		};
+
+		await detectSignals(BASE_PARAMS, queryFn, dayjs("2025-03-15"));
+
+		expect(peak).toBe(2);
 	});
 
 	describe("z-score detection", () => {
@@ -614,6 +633,10 @@ describe("detectSignals", () => {
 			expect(visitorWow).toBeDefined();
 			expect(visitorWow!.direction).toBe("up");
 			expect(visitorWow!.deltaPercent).toBe(100);
+			expect(visitorWow!.boundary).toEqual({
+				comparison: "at_or_above",
+				value: 140,
+			});
 		});
 
 		it("does not flag changes below 40%", async () => {
@@ -647,7 +670,7 @@ describe("detectSignals", () => {
 					unique_visitors: 0,
 					sessions: 0,
 					pageviews: 0,
-					bounce_rate: 0,
+					bounce_rate: 100,
 					median_session_duration: 0,
 				},
 				{
@@ -668,6 +691,11 @@ describe("detectSignals", () => {
 			expect(trafficDrop!.direction).toBe("down");
 			expect(trafficDrop!.current).toBe(0);
 			expect(trafficDrop!.deltaPercent).toBe(-100);
+			expect(
+				signals.filter((signal) =>
+					["bounce_rate", "session_duration"].includes(signal.metric)
+				)
+			).toEqual([]);
 		});
 
 		it("suppresses WoW changes within a volatile site's normal range", async () => {
@@ -1227,22 +1255,66 @@ describe("detectSignals", () => {
 				{
 					bounce_rate: 60,
 					median_session_duration: 120,
+					sessions: 120,
 				},
 				{
 					bounce_rate: 30,
 					median_session_duration: 60,
+					sessions: 120,
 				}
 			);
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "bounce_rate")).toBeDefined();
-			expect(
-				signals.find((s) => s.metric === "session_duration")
-			).toBeDefined();
+			expect(signals.find((s) => s.metric === "session_duration")).toMatchObject(
+				{ label: "Median session duration" }
+			);
 		});
 	});
 
 	describe("vitals detection", () => {
+		for (const [metricName, current, previous] of [
+			["LCP", 4000, 2000],
+			["INP", 300, 150],
+		] as const) {
+			it(`requires enough previous-period samples for ${metricName}`, async () => {
+				const withPreviousSamples = createMockQueryFn(
+					[],
+					{ sessions: 1000 },
+					{ sessions: 1000 },
+					{
+						vitals_overview: [
+							{ metric_name: metricName, p75: current, samples: 100 },
+							{ metric_name: metricName, p75: previous, samples: 10 },
+						],
+					}
+				);
+				const withoutPreviousSamples = createMockQueryFn(
+					[],
+					{ sessions: 1000 },
+					{ sessions: 1000 },
+					{
+						vitals_overview: [
+							{ metric_name: metricName, p75: current, samples: 100 },
+							{ metric_name: metricName, p75: previous, samples: 9 },
+						],
+					}
+				);
+
+				const sufficient = await detectSignals(BASE_PARAMS, withPreviousSamples);
+				const sparse = await detectSignals(BASE_PARAMS, withoutPreviousSamples);
+
+				expect(
+					sufficient.find(
+						(signal) => signal.metric === metricName.toLowerCase()
+					)
+				).toBeDefined();
+				expect(
+					sparse.find((signal) => signal.metric === metricName.toLowerCase())
+				).toBeUndefined();
+			});
+		}
+
 		it("ignores regressions that remain within the good threshold", async () => {
 			const queryFn = createMockQueryFn([], {}, {}, {
 				vitals_overview: [

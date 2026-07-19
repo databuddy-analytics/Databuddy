@@ -23,63 +23,7 @@ export interface InvestigationInput {
 
 export interface InvestigationAnnotation {
 	date: string;
-	signalScoped?: boolean;
 	title: string;
-}
-
-const ANNOTATION_TOKEN_SPLIT = /[^\p{L}\p{N}]+/u;
-const BENIGN_ANNOTATION_PATTERN =
-	/\b(benign|expected|intentional(?:ly)?|planned)\b/i;
-const ANNOTATION_STOP_WORDS = new Set([
-	"change",
-	"changed",
-	"completion",
-	"conversion",
-	"funnel",
-	"goal",
-	"metric",
-	"page",
-	"rate",
-	"site",
-	"website",
-]);
-
-function annotationTokens(value: string): Set<string> {
-	return new Set(
-		value
-			.toLocaleLowerCase("en-US")
-			.split(ANNOTATION_TOKEN_SPLIT)
-			.map((token) =>
-				token.length > 4 && token.endsWith("s") ? token.slice(0, -1) : token
-			)
-			.filter((token) => token.length >= 3 && !ANNOTATION_STOP_WORDS.has(token))
-	);
-}
-
-export function annotationMatchesSignal(
-	title: string,
-	signal: InvestigationSignal
-): boolean {
-	if (!["campaign", "event", "funnel", "goal"].includes(signal.entity.type)) {
-		return false;
-	}
-	const titleTokens = annotationTokens(title);
-	const labelTokens = annotationTokens(signal.entity.label);
-	const requiredLabelMatches = Math.min(2, labelTokens.size);
-	if (
-		requiredLabelMatches > 0 &&
-		[...labelTokens].filter((token) => titleTokens.has(token)).length >=
-			requiredLabelMatches
-	) {
-		return true;
-	}
-	const idTokens = annotationTokens(signal.entity.id);
-	const requiredIdMatches = Math.min(2, idTokens.size);
-	return (
-		requiredIdMatches > 0 &&
-		[...idTokens].filter((token) => titleTokens.has(token)).length >=
-			requiredIdMatches
-	);
 }
 
 export function signalAnnotationWindow(
@@ -99,10 +43,6 @@ function digest(value: string): string {
 	return createHash("sha256").update(value).digest("hex").slice(0, 20);
 }
 
-function stableKey(prefix: string, value: string): string {
-	return `${prefix}:${digest(value)}`;
-}
-
 function boundedKey(value: string): string {
 	if (value.length <= 160) {
 		return value;
@@ -110,24 +50,14 @@ function boundedKey(value: string): string {
 	return `${value.slice(0, 139)}:${digest(value)}`;
 }
 
-export function signalKeyForMetric(metric: string): string {
+function signalKeyForMetric(metric: string): string {
 	return boundedKey(metric);
 }
 
 export function signalKeyForDetectedSignal(
-	signal: Pick<
-		DetectedSignal,
-		"definitionUpdatedAt" | "expectation" | "kind" | "metric"
-	>
+	signal: Pick<DetectedSignal, "metric">
 ): string {
-	const definitionVersion =
-		signal.definitionUpdatedAt ??
-		(signal.kind === "missing_expected_data"
-			? signal.expectation?.definitionUpdatedAt
-			: undefined);
-	return signalKeyForMetric(
-		definitionVersion ? `${signal.metric}@${definitionVersion}` : signal.metric
-	);
+	return signalKeyForMetric(signal.metric);
 }
 
 function metricFormat(metric: string): InsightMetric["format"] {
@@ -153,7 +83,7 @@ function isLowerBetter(metric: string): boolean {
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
 
-function isDirectSignal(signal: DetectedSignal): boolean {
+export function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
 		signal.metric === "error_count" ||
@@ -165,6 +95,12 @@ function isDirectSignal(signal: DetectedSignal): boolean {
 }
 
 export function isRegression(signal: DetectedSignal): boolean {
+	if (signal.metric === "lcp" && signal.current > 2500) {
+		return true;
+	}
+	if (signal.metric === "inp" && signal.current > 200) {
+		return true;
+	}
 	return isLowerBetter(signal.metric)
 		? signal.direction === "up"
 		: signal.direction === "down";
@@ -220,9 +156,7 @@ function insightType(
 		return signal.direction === "up" ? "error_spike" : "reliability_improved";
 	}
 	if (signal.metric === "lcp" || signal.metric === "inp") {
-		return signal.direction === "up"
-			? "vitals_degraded"
-			: "performance_improved";
+		return isRegression(signal) ? "vitals_degraded" : "performance_improved";
 	}
 	if (signal.metric === "bounce_rate") {
 		return "bounce_rate_change";
@@ -269,74 +203,12 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 	return { type: "website", id: "website", label: signal.label.slice(0, 120) };
 }
 
-function sourceForMetric(metric: string): InvestigationEvidence["source"] {
-	if (metric === "error_count" || metric === "lcp" || metric === "inp") {
-		return "ops";
-	}
-	if (
-		metric.startsWith("funnel:") ||
-		metric.startsWith("goal:") ||
-		metric.startsWith("custom_event:")
-	) {
-		return "product";
-	}
-	if (metric === "revenue") {
-		return "business";
-	}
-	return "web";
-}
-
 function signalPriority(severity: DetectedSignal["severity"]): number {
 	return severity === "critical" ? 9 : severity === "warning" ? 7 : 5;
 }
 
-function remainsUnhealthyVital(candidate: DetectedSignal): boolean {
-	return (
-		(candidate.metric === "lcp" && candidate.current > 2500) ||
-		(candidate.metric === "inp" && candidate.current > 200)
-	);
-}
-
 function evidenceSummary(value: string): string {
 	return value.length <= 500 ? value : `${value.slice(0, 499).trimEnd()}…`;
-}
-
-function comparisonEvidence(
-	signal: InvestigationSignal
-): InvestigationEvidence[] {
-	const source = sourceForMetric(signal.metric.key);
-	return (["current", "previous"] as const).map((period) => {
-		const value =
-			period === "current"
-				? signal.metric.current
-				: (signal.metric.previous ?? 0);
-		const summary =
-			period === "previous" && signal.detection.method === "zscore"
-				? `Comparable-day median ${signal.metric.label.toLowerCase()} was ${value} across ${signal.detection.baselineDates?.length ?? 0} days: ${signal.detection.baselineDates?.join(", ") ?? "unknown"}.`
-				: `${period === "current" ? "Current" : "Previous"} ${signal.metric.label.toLowerCase()} was ${value}.`;
-		return {
-			evidenceId: stableKey(
-				"evidence",
-				`${signal.signalKey}:detector:${period}`
-			),
-			signalKey: signal.signalKey,
-			kind: "trend",
-			source,
-			queryType: boundedKey(`detector:${signal.metric.key}`),
-			period,
-			range: signal.period[period],
-			status: "ok",
-			rowCount: signal.sampleSize?.[period] ?? 1,
-			summary: evidenceSummary(summary),
-			metrics: [
-				{
-					label: signal.metric.label,
-					current: value,
-					format: signal.metric.format,
-				},
-			],
-		} satisfies InvestigationEvidence;
-	});
 }
 
 export function prepareInvestigation(
@@ -346,15 +218,10 @@ export function prepareInvestigation(
 ): InvestigationInput {
 	const subject = entity(candidate);
 	const window = signalWindow(candidate, params.lookbackDays);
-	const improved =
-		!remainsUnhealthyVital(candidate) &&
-		(isLowerBetter(candidate.metric)
-			? candidate.direction === "down"
-			: candidate.direction === "up");
+	const improved = !isRegression(candidate);
 	const signal: InvestigationSignal = {
 		signalKey: signalKeyForDetectedSignal(candidate),
 		websiteId: params.websiteId,
-		kind: candidate.kind ?? "change",
 		insightType: insightType(candidate),
 		entity: subject,
 		metric: {
@@ -369,14 +236,6 @@ export function prepareInvestigation(
 		severity: candidate.severity,
 		sentiment: improved ? "positive" : "negative",
 		priority: signalPriority(candidate.severity),
-		...(candidate.method === "zscore"
-			? {
-					sampleSize: {
-						current: 1,
-						previous: candidate.baselineDates?.length ?? 0,
-					},
-				}
-			: {}),
 		period: {
 			current: { from: window.currentFrom, to: window.currentTo },
 			previous: { from: window.previousFrom, to: window.previousTo },
@@ -391,53 +250,22 @@ export function prepareInvestigation(
 			...(candidate.method === "zscore"
 				? { baselineDates: candidate.baselineDates }
 				: {}),
+			...(candidate.boundary ? { boundary: candidate.boundary } : {}),
 		},
-		...(candidate.expectation ? { expectation: candidate.expectation } : {}),
 	};
-	const evidence = comparisonEvidence(signal);
+	const evidence: InvestigationEvidence[] = [];
 	if (candidate.definitionEvidence) {
 		evidence.push({
-			evidenceId: stableKey(
-				"evidence",
-				`${signal.signalKey}:${candidate.definitionEvidence.queryType}`
-			),
-			signalKey: signal.signalKey,
-			kind: "definition",
 			source: "product",
-			queryType: candidate.definitionEvidence.queryType,
-			entity: signal.entity,
-			period: "current",
-			range: signal.period.current,
-			status: "ok",
-			rowCount: 1,
 			summary: candidate.definitionEvidence.summary,
 			metrics: candidate.definitionEvidence.metrics,
-			...(candidate.expectation ? { remediation: candidate.expectation } : {}),
 		});
 	}
-	const dismissalAnnotations = annotations.filter(
-		(annotation) =>
-			annotation.signalScoped &&
-			BENIGN_ANNOTATION_PATTERN.test(annotation.title)
-	);
-	if (dismissalAnnotations.length > 0) {
+	if (annotations.length > 0) {
 		evidence.push({
-			evidenceId: stableKey(
-				"evidence",
-				`${signal.signalKey}:annotations:planned_signal`
-			),
-			signalKey: signal.signalKey,
-			kind: "related_change",
 			source: "business",
-			queryType: "annotations:planned_signal",
-			entity: signal.entity,
-			period: "custom",
-			comparison: signal.period,
-			range: null,
-			status: "ok",
-			rowCount: dismissalAnnotations.length,
 			summary: evidenceSummary(
-				dismissalAnnotations
+				annotations
 					.map((annotation) => `${annotation.date}: ${annotation.title}`)
 					.join("; ")
 			),

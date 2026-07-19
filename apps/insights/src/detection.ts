@@ -1,8 +1,5 @@
 import { executeQuery } from "@databuddy/ai/query";
-import type {
-	InsightMetric,
-	InvestigationExpectation,
-} from "@databuddy/shared/insights";
+import type { InsightMetric } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
@@ -14,19 +11,19 @@ dayjs.extend(timezonePlugin);
 export interface DetectedSignal {
 	baseline: number;
 	baselineDates?: string[];
+	boundary?: {
+		comparison: "at_or_above" | "at_or_below";
+		value: number;
+	};
 	current: number;
 	definitionEvidence?: {
 		metrics: InsightMetric[];
-		queryType: "funnels_summary" | "goals_summary";
 		summary: string;
 	};
-	definitionUpdatedAt?: string;
 	deltaPercent: number;
 	detectedAt: string;
 	direction: "up" | "down";
 	entityLabel?: string;
-	expectation?: InvestigationExpectation;
-	kind?: "change" | "missing_expected_data";
 	label: string;
 	method: "zscore" | "wow";
 	metric: string;
@@ -78,11 +75,13 @@ const ANOMALY_METRICS: AnomalyMetric[] = [
 	},
 	{
 		key: "session_duration",
-		label: "Avg. session duration",
+		label: "Median session duration",
 		dailyField: "median_session_duration",
 		summaryField: "median_session_duration",
 	},
 ];
+
+const SESSION_DERIVED_METRICS = new Set(["bounce_rate", "session_duration"]);
 
 export function median(values: number[]): number {
 	if (values.length === 0) {
@@ -138,6 +137,7 @@ const VITALS_BAD_THRESHOLDS: Record<string, number> = {
 	LCP: 2500,
 	INP: 200,
 };
+const VITALS_MIN_SAMPLES = 10;
 const VITALS_MAX_PLAUSIBLE: Record<string, number> = {
 	LCP: 60_000,
 	INP: 10_000,
@@ -215,19 +215,55 @@ export function makeWowSignal(
 	current: number,
 	baseline: number,
 	detectedAt: string,
-	round = false
+	options: { round?: boolean; thresholdPercent?: number } = {}
 ): DetectedSignal {
 	const pct = baseline === 0 ? 100 : safeDeltaPercent(current, baseline);
+	const direction = current > baseline ? "up" : "down";
 	return {
 		metric,
 		label,
 		method: "wow",
-		direction: current > baseline ? "up" : "down",
-		current: round ? round2(current) : current,
-		baseline: round ? round2(baseline) : baseline,
+		direction,
+		current: options.round ? round2(current) : current,
+		baseline: options.round ? round2(baseline) : baseline,
 		deltaPercent: round2(pct),
 		severity: assignSeverity(undefined, pct),
 		detectedAt,
+		...(baseline > 0 && options.thresholdPercent !== undefined
+			? {
+					boundary: detectionBoundary(
+						metric,
+						direction,
+						baseline *
+							(1 +
+								(direction === "up" ? 1 : -1) *
+									(options.thresholdPercent / 100))
+					),
+				}
+			: {}),
+	};
+}
+
+const DISCRETE_METRICS = new Set([
+	"visitors",
+	"sessions",
+	"pageviews",
+	"error_count",
+]);
+
+function detectionBoundary(
+	metric: string,
+	direction: "up" | "down",
+	value: number
+): NonNullable<DetectedSignal["boundary"]> {
+	const rounded = DISCRETE_METRICS.has(metric)
+		? direction === "up"
+			? Math.ceil(value)
+			: Math.floor(value)
+		: round2(value);
+	return {
+		comparison: direction === "up" ? "at_or_above" : "at_or_below",
+		value: rounded,
 	};
 }
 
@@ -238,7 +274,7 @@ function passesImpactFilter(signal: DetectedSignal): boolean {
 
 const RATE_METRICS = new Set(["bounce_rate", "session_duration", "lcp", "inp"]);
 
-export function passesLowTrafficFloor(
+function passesLowTrafficFloor(
 	signal: DetectedSignal,
 	weeklySessions: number
 ): boolean {
@@ -425,6 +461,36 @@ async function readDetectorFamily<T>(params: {
 	}
 }
 
+async function readDetectorPair<T>(params: {
+	abortSignal?: AbortSignal;
+	current: () => Promise<T>;
+	family: "errors" | "revenue" | "summary" | "vitals";
+	previous: () => Promise<T>;
+	websiteId: string;
+}): Promise<DetectorFamilyResult<[T, T]>> {
+	const [current, previous] = await Promise.all([
+		readDetectorFamily({
+			abortSignal: params.abortSignal,
+			family: params.family,
+			read: params.current,
+			websiteId: params.websiteId,
+		}),
+		readDetectorFamily({
+			abortSignal: params.abortSignal,
+			family: params.family,
+			read: params.previous,
+			websiteId: params.websiteId,
+		}),
+	]);
+	return {
+		failed: current.failed || previous.failed,
+		value:
+			current.value === null || previous.value === null
+				? null
+				: [current.value, previous.value],
+	};
+}
+
 export async function detectSignals(
 	params: DetectSignalsParams,
 	queryFn: QueryFn = executeQuery,
@@ -576,8 +642,17 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 	const signals: DetectedSignal[] = [];
 
 	for (const metric of ANOMALY_METRICS) {
-		const comparableRows = baseline.filter((row) =>
-			Number.isFinite(numberField(row, metric.dailyField))
+		if (
+			SESSION_DERIVED_METRICS.has(metric.key) &&
+			numberField(latest, "sessions") === 0
+		) {
+			continue;
+		}
+		const comparableRows = baseline.filter(
+			(row) =>
+				Number.isFinite(numberField(row, metric.dailyField)) &&
+				(!SESSION_DERIVED_METRICS.has(metric.key) ||
+					numberField(row, "sessions") > 0)
 		);
 		const baselineValues = comparableRows.map((row) =>
 			numberField(row, metric.dailyField)
@@ -616,6 +691,12 @@ function detectZscore(sorted: Record<string, unknown>[]): DetectedSignal[] {
 			zScore: Number(zScore.toFixed(2)),
 			severity: assignSeverity(zScore, delta),
 			detectedAt: latestDate,
+			boundary: detectionBoundary(
+				metric.key,
+				direction,
+				baselineMedian +
+					(direction === "up" ? 1 : -1) * scaledMad * ZSCORE_THRESHOLD
+			),
 		});
 	}
 
@@ -648,56 +729,50 @@ async function detectWow(
 		);
 	}
 
-	const [summary, errors, revenue, vitals] = await Promise.all([
-		readDetectorFamily({
-			abortSignal,
-			family: "summary",
-			websiteId,
-			read: () =>
-				Promise.all([
-					query("summary_metrics", currentFrom, currentTo),
-					query("summary_metrics", previousFrom, previousTo),
-				]),
-		}),
-		readDetectorFamily({
-			abortSignal,
-			family: "errors",
-			websiteId,
-			read: () =>
-				Promise.all([
-					query("error_summary", currentFrom, currentTo),
-					query("error_summary", previousFrom, previousTo),
-				]),
-		}),
-		readDetectorFamily({
-			abortSignal,
-			family: "revenue",
-			websiteId,
-			read: () =>
-				Promise.all([
-					query("revenue_overview", currentFrom, currentTo),
-					query("revenue_overview", previousFrom, previousTo),
-				]),
-		}),
-		readDetectorFamily({
-			abortSignal,
-			family: "vitals",
-			websiteId,
-			read: () =>
-				Promise.all([
-					query("vitals_overview", currentFrom, currentTo),
-					query("vitals_overview", previousFrom, previousTo),
-				]),
-		}),
-	]);
+	const summary = await readDetectorPair({
+		abortSignal,
+		current: () => query("summary_metrics", currentFrom, currentTo),
+		family: "summary",
+		previous: () => query("summary_metrics", previousFrom, previousTo),
+		websiteId,
+	});
+	const errors = await readDetectorPair({
+		abortSignal,
+		current: () => query("error_summary", currentFrom, currentTo),
+		family: "errors",
+		previous: () => query("error_summary", previousFrom, previousTo),
+		websiteId,
+	});
+	const revenue = await readDetectorPair({
+		abortSignal,
+		current: () => query("revenue_overview", currentFrom, currentTo),
+		family: "revenue",
+		previous: () => query("revenue_overview", previousFrom, previousTo),
+		websiteId,
+	});
+	const vitals = await readDetectorPair({
+		abortSignal,
+		current: () => query("vitals_overview", currentFrom, currentTo),
+		family: "vitals",
+		previous: () => query("vitals_overview", previousFrom, previousTo),
+		websiteId,
+	});
 	const [currentSummary, previousSummary] = summary.value ?? [[], []];
 	const [currentErrors, previousErrors] = errors.value ?? [[], []];
 	const [currentRevenue, previousRevenue] = revenue.value ?? [[], []];
 	const [currentVitals, previousVitals] = vitals.value ?? [[], []];
 
 	const signals: DetectedSignal[] = [];
+	const currentSessions = numberField(currentSummary[0], "sessions");
+	const previousSessions = numberField(previousSummary[0], "sessions");
 
 	for (const metric of ANOMALY_METRICS) {
+		if (
+			SESSION_DERIVED_METRICS.has(metric.key) &&
+			(currentSessions === 0 || previousSessions === 0)
+		) {
+			continue;
+		}
 		const currentValue = numberField(currentSummary[0], metric.summaryField);
 		const previousValue = numberField(previousSummary[0], metric.summaryField);
 
@@ -720,7 +795,12 @@ async function detectWow(
 				metric.label,
 				currentValue,
 				previousValue,
-				currentTo
+				currentTo,
+				{
+					thresholdPercent: materialVolumeDrop
+						? MATERIAL_VOLUME_DROP_PERCENT
+						: threshold,
+				}
 			)
 		);
 	}
@@ -753,7 +833,9 @@ async function detectWow(
 		if (hasMeaningfulErrorImpact(relevantAffectedUsers, relevantErrorRate)) {
 			signals.push(
 				capLowReachErrorSeverity(
-					makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo),
+					makeWowSignal("error_count", "Errors", errNow, errPrev, currentTo, {
+						thresholdPercent: WOW_ERROR_THRESHOLD,
+					}),
 					relevantAffectedUsers
 				)
 			);
@@ -776,7 +858,9 @@ async function detectWow(
 			(revPrev === 0 && revNow > 0)
 		) {
 			signals.push(
-				makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo)
+				makeWowSignal("revenue", "Revenue", revNow, revPrev, currentTo, {
+					thresholdPercent: WOW_REVENUE_THRESHOLD,
+				})
 			);
 		}
 	}
@@ -790,9 +874,11 @@ async function detectWow(
 		const curVal = numberField(cur, "p75");
 		const prevVal = numberField(prev, "p75");
 		const curSamples = numberField(cur, "samples");
+		const prevSamples = numberField(prev, "samples");
 
 		if (
-			curSamples < 10 ||
+			curSamples < VITALS_MIN_SAMPLES ||
+			prevSamples < VITALS_MIN_SAMPLES ||
 			prevVal === 0 ||
 			curVal === 0 ||
 			curVal > VITALS_MAX_PLAUSIBLE[metricName] ||
@@ -810,7 +896,16 @@ async function detectWow(
 		}
 
 		signals.push(
-			makeWowSignal(metricName.toLowerCase(), label, curVal, prevVal, currentTo)
+			makeWowSignal(
+				metricName.toLowerCase(),
+				label,
+				curVal,
+				prevVal,
+				currentTo,
+				{
+					thresholdPercent: WOW_VITALS_THRESHOLD,
+				}
+			)
 		);
 	}
 

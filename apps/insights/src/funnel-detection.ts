@@ -11,10 +11,7 @@ import {
 	processFunnelAnalytics,
 	processGoalAnalytics,
 } from "@databuddy/rpc/analytics-utils";
-import type {
-	InvestigationExpectation,
-	WeekOverWeekPeriod,
-} from "@databuddy/shared/insights";
+import type { WeekOverWeekPeriod } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
@@ -33,7 +30,7 @@ dayjs.extend(timezonePlugin);
 const CONVERSION_WOW_THRESHOLD = 20;
 const MIN_ENTRANTS = 30;
 const MIN_COMPLETIONS = 10;
-const DEFINITION_QUERY_CONCURRENCY = 4;
+const DEFINITION_QUERY_CONCURRENCY = 2;
 const DEFINITION_DETECTION_TIMEOUT_MS = 45_000;
 
 export interface FunnelDef {
@@ -55,7 +52,7 @@ export interface GoalDef {
 	updatedAt: Date;
 }
 
-export type PeriodRange = WeekOverWeekPeriod["current"];
+type PeriodRange = WeekOverWeekPeriod["current"];
 
 export interface FunnelConversion {
 	completions: number;
@@ -71,10 +68,6 @@ export interface GoalConversion {
 }
 
 export interface FunnelGoalDeps {
-	confirmCompletion?: (
-		request: CompletionConfirmationRequest,
-		abortSignal?: AbortSignal
-	) => Promise<CompletionConfirmation>;
 	fetchFunnels: () => Promise<FunnelDef[]>;
 	fetchGoals: () => Promise<GoalDef[]>;
 	funnelConversion: (
@@ -88,20 +81,6 @@ export interface FunnelGoalDeps {
 		abortSignal?: AbortSignal
 	) => Promise<GoalConversion>;
 }
-
-interface CompletionConfirmationRequest {
-	definitionId: string;
-	definitionType: "funnel" | "goal";
-	expectation: InvestigationExpectation;
-	range: PeriodRange;
-}
-
-type CompletionConfirmation =
-	| Pick<
-			NonNullable<InvestigationExpectation["confirmation"]>,
-			"count" | "source"
-	  >
-	| undefined;
 
 export interface FunnelGoalDetectionDiagnostics {
 	failedDefinitions: number;
@@ -297,8 +276,18 @@ function definitionPredatesComparison(
 	);
 }
 
-function instruction(value: string): string {
-	return value.length <= 180 ? value : `${value.slice(0, 179).trimEnd()}…`;
+function definitionHistory(
+	definition: Pick<FunnelDef, "createdAt" | "updatedAt">,
+	comparisonStart: string,
+	timezone: string
+): string {
+	const createdAt = dayjs(definition.createdAt)
+		.tz(timezone)
+		.format("YYYY-MM-DD");
+	const updatedAt = dayjs(definition.updatedAt)
+		.tz(timezone)
+		.format("YYYY-MM-DD");
+	return `Definition history: created ${createdAt}; last updated ${updatedAt}; comparison started ${comparisonStart}.`;
 }
 
 function handleDefinitionFailure(
@@ -327,139 +316,6 @@ function handleDefinitionFailure(
 		error_type: error instanceof Error ? error.constructor.name : typeof error,
 	});
 	return null;
-}
-
-function missingGoalExpectation(
-	goal: GoalDef,
-	current: GoalConversion,
-	previous: GoalConversion
-) {
-	if (
-		goal.type === "PAGE_VIEW" ||
-		current.entrants < MIN_ENTRANTS ||
-		current.completions !== 0 ||
-		previous.completions < MIN_COMPLETIONS
-	) {
-		return;
-	}
-	const eventName = goal.target.slice(0, 160);
-	return {
-		definitionUpdatedAt: goal.updatedAt.toISOString(),
-		eventName,
-		instruction: instruction(
-			`Restore the "${eventName}" event when ${goal.name} completes.`
-		),
-		kind: "tracking" as const,
-		previousCompletions: Math.round(previous.completions),
-		currentEntrants: Math.round(current.entrants),
-		currentCompletions: 0 as const,
-	};
-}
-
-function missingFunnelExpectation(
-	funnel: FunnelDef,
-	current: FunnelConversion,
-	previous: FunnelConversion
-) {
-	if (
-		current.entrants < MIN_ENTRANTS ||
-		current.completions !== 0 ||
-		previous.completions < MIN_COMPLETIONS
-	) {
-		return;
-	}
-	const missingStep = current.steps.find((step) => {
-		const definition = funnel.steps[step.stepNumber - 1];
-		const previousUsers =
-			previous.steps.find((item) => item.stepNumber === step.stepNumber)
-				?.users ?? 0;
-		return (
-			definition?.type !== "PAGE_VIEW" &&
-			step.users === 0 &&
-			previousUsers >= MIN_COMPLETIONS
-		);
-	});
-	const definition = missingStep
-		? funnel.steps[missingStep.stepNumber - 1]
-		: undefined;
-	if (!(missingStep && definition)) {
-		return;
-	}
-	const eventName = definition.target.slice(0, 160);
-	const stepName = definition.name.slice(0, 120);
-	return {
-		definitionUpdatedAt: funnel.updatedAt.toISOString(),
-		eventName,
-		instruction: instruction(
-			`Restore the "${eventName}" event at the ${stepName} step in ${funnel.name}.`
-		),
-		kind: "tracking" as const,
-		previousCompletions: Math.round(previous.completions),
-		currentEntrants: Math.round(current.entrants),
-		currentCompletions: 0 as const,
-		stepName,
-	};
-}
-
-async function confirmExpectation(
-	expectation: InvestigationExpectation,
-	definition: { id: string; type: "funnel" | "goal" },
-	range: PeriodRange,
-	deps: FunnelGoalDeps,
-	abortSignal: AbortSignal,
-	websiteId: string
-): Promise<InvestigationExpectation> {
-	if (!deps.confirmCompletion) {
-		return expectation;
-	}
-	try {
-		const confirmation = await deps.confirmCompletion(
-			{
-				definitionId: definition.id,
-				definitionType: definition.type,
-				expectation,
-				range,
-			},
-			abortSignal
-		);
-		return confirmation
-			? {
-					...expectation,
-					confirmation: {
-						...confirmation,
-						definitionId: definition.id,
-						definitionType: definition.type,
-					},
-				}
-			: expectation;
-	} catch (error) {
-		if (abortSignal.aborted) {
-			throw abortSignal.reason ?? error;
-		}
-		if (error instanceof Error && error.name === "AbortError") {
-			throw error;
-		}
-		emitInsightsEvent("warn", "generation.detection.confirmation_failed", {
-			website_id: websiteId,
-			event_name: expectation.eventName,
-			error_type:
-				error instanceof Error ? error.constructor.name : typeof error,
-		});
-		return expectation;
-	}
-}
-
-function confirmationSummary(
-	expectation: InvestigationExpectation | undefined
-): string {
-	const confirmation = expectation?.confirmation;
-	if (!confirmation) {
-		return "";
-	}
-	const scope = confirmation.definitionType === "funnel" ? "funnel" : "goal";
-	return confirmation.source === "revenue_transactions"
-		? ` Independent revenue tracking recorded ${confirmation.count} transactions for this ${scope}.`
-		: ` Independent server tracking recorded ${confirmation.count} completions for this ${scope}.`;
 }
 
 export function detectFunnelGoalSignals(
@@ -532,45 +388,11 @@ export function detectFunnelGoalSignals(
 						cur.rate,
 						prev.rate,
 						current.to,
-						true
+						{ round: true, thresholdPercent: CONVERSION_WOW_THRESHOLD }
 					);
 					signal.entityLabel = funnel.name;
-					const missingExpectation = missingFunnelExpectation(
-						funnel,
-						cur,
-						prev
-					);
-					const expectation = missingExpectation
-						? await confirmExpectation(
-								missingExpectation,
-								{ id: funnel.id, type: "funnel" },
-								current,
-								activeDeps,
-								deadlineSignal,
-								params.websiteId
-							)
-						: undefined;
-					const expectedStepIndex = expectation
-						? funnel.steps.findIndex(
-								(step) =>
-									step.name === expectation.stepName &&
-									step.target === expectation.eventName
-							)
-						: -1;
-					const currentStepUsers =
-						expectedStepIndex < 0
-							? null
-							: (cur.steps.find(
-									(step) => step.stepNumber === expectedStepIndex + 1
-								)?.users ?? 0);
-					const previousStepUsers =
-						expectedStepIndex < 0
-							? null
-							: (prev.steps.find(
-									(step) => step.stepNumber === expectedStepIndex + 1
-								)?.users ?? 0);
-					const definitionContext = {
-						definitionUpdatedAt: funnel.updatedAt.toISOString(),
+					return {
+						...signal,
 						definitionEvidence: {
 							metrics: [
 								{
@@ -584,49 +406,10 @@ export function detectFunnelGoalSignals(
 									previous: prev.completions,
 									format: "number" as const,
 								},
-								...(expectation &&
-								currentStepUsers !== null &&
-								previousStepUsers !== null
-									? [
-											{
-												label: `${expectation.stepName} step users`,
-												current: currentStepUsers,
-												previous: previousStepUsers,
-												format: "number" as const,
-											},
-										]
-									: []),
-								...(expectation?.confirmation
-									? [
-											{
-												label:
-													expectation.confirmation.source ===
-													"revenue_transactions"
-														? "Flow revenue transactions"
-														: "Server completions",
-												current: expectation.confirmation.count,
-												format: "number" as const,
-											},
-										]
-									: []),
 							],
-							queryType: "funnels_summary" as const,
-							summary:
-								expectation &&
-								currentStepUsers !== null &&
-								previousStepUsers !== null
-									? `${funnel.name} had ${cur.completions} completions from ${cur.entrants} entrants. The "${expectation.eventName}" event at ${expectation.stepName} had ${currentStepUsers} users, down from ${previousStepUsers}.${confirmationSummary(expectation)}`
-									: `${funnel.name} had ${cur.completions} completions from ${cur.entrants} entrants.`,
+							summary: `${funnel.name} had ${cur.completions} completions from ${cur.entrants} entrants. ${definitionHistory(funnel, previous.from, params.timezone)}`,
 						},
 					};
-					return expectation
-						? {
-								...signal,
-								...definitionContext,
-								expectation,
-								kind: "missing_expected_data" as const,
-							}
-						: { ...signal, ...definitionContext };
 				} catch (error) {
 					return handleDefinitionFailure(error, deadlineSignal, {
 						definitionId: funnel.id,
@@ -673,26 +456,15 @@ export function detectFunnelGoalSignals(
 						cur.rate,
 						prev.rate,
 						current.to,
-						true
+						{ round: true, thresholdPercent: CONVERSION_WOW_THRESHOLD }
 					);
 					signal.entityLabel = goal.name;
-					const missingExpectation = missingGoalExpectation(goal, cur, prev);
-					const expectation = missingExpectation
-						? await confirmExpectation(
-								missingExpectation,
-								{ id: goal.id, type: "goal" },
-								current,
-								activeDeps,
-								deadlineSignal,
-								params.websiteId
-							)
-						: undefined;
-					const definitionContext = {
-						definitionUpdatedAt: goal.updatedAt.toISOString(),
+					return {
+						...signal,
 						definitionEvidence: {
 							metrics: [
 								{
-									label: "Entrants",
+									label: "Observed visitors",
 									current: cur.entrants,
 									format: "number" as const,
 								},
@@ -702,32 +474,10 @@ export function detectFunnelGoalSignals(
 									previous: prev.completions,
 									format: "number" as const,
 								},
-								...(expectation?.confirmation
-									? [
-											{
-												label:
-													expectation.confirmation.source ===
-													"revenue_transactions"
-														? "Flow revenue transactions"
-														: "Server completions",
-												current: expectation.confirmation.count,
-												format: "number" as const,
-											},
-										]
-									: []),
 							],
-							queryType: "goals_summary" as const,
-							summary: `${goal.name} had ${cur.completions} completions from ${cur.entrants} eligible visitors. The active goal target is "${goal.target}".${confirmationSummary(expectation)}`,
+							summary: `${goal.name} had ${cur.completions} completions from ${cur.entrants} observed website visitors${goal.filters?.length ? " matching the goal filters" : ""}. The active goal target is "${goal.target}". ${definitionHistory(goal, previous.from, params.timezone)}`,
 						},
 					};
-					return expectation
-						? {
-								...signal,
-								...definitionContext,
-								expectation,
-								kind: "missing_expected_data" as const,
-							}
-						: { ...signal, ...definitionContext };
 				} catch (error) {
 					return handleDefinitionFailure(error, deadlineSignal, {
 						definitionId: goal.id,

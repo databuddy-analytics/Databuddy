@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import type { InvestigationDecision } from "@databuddy/shared/insights";
+import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
 import {
 	prepareInvestigation,
@@ -38,9 +38,21 @@ function observed(
 ): LatestInsightObservation {
 	return {
 		asOf: NOW,
-		decision: { disposition: "monitor" },
 		evidence: [],
-		finding: null,
+		outcome: {
+			evidence: ["Signup conversion changed in the measured window."],
+			impact: "Signup completion is affected.",
+			impactConfidence: 0.8,
+			next: {
+				escalation: "Escalate if signup conversion falls another 10%.",
+				type: "watch",
+			},
+			rootCause: null,
+			rootCauseConfidence: 0.2,
+			sources: ["web"],
+			summary: "Signup conversion needs attention.",
+			title: "Signup conversion changed",
+		},
 		recheckAt,
 		signal: prepareInvestigation(signal, {
 			lookbackDays: 7,
@@ -117,6 +129,32 @@ describe("eligibleSignalsForInvestigation", () => {
 				NOW
 			)
 		).toEqual([first]);
+	});
+
+	it("keeps resolved signals closed until they materially worsen", () => {
+		const resolvedSignal = detected("goal:signup", { deltaPercent: -40 });
+		const resolution = observed(resolvedSignal, NOW);
+		resolution.outcome = {
+			...resolution.outcome,
+			next: { reason: "The measured regression recovered.", type: "resolve" },
+		};
+
+		expect(
+			eligibleSignalsForInvestigation(
+				[resolvedSignal],
+				memory([[resolvedSignal, resolution]]),
+				NOW
+			)
+		).toEqual([]);
+
+		const worsened = detected("goal:signup", { deltaPercent: -60 });
+		expect(
+			eligibleSignalsForInvestigation(
+				[worsened],
+				memory([[resolvedSignal, resolution]]),
+				NOW
+			)
+		).toEqual([worsened]);
 	});
 
 	it("bypasses cooldown for a negative severity or 1.5x magnitude increase", () => {
@@ -203,26 +241,10 @@ describe("eligibleSignalsForInvestigation", () => {
 		).toEqual([longSibling]);
 	});
 
-	it("does not inherit cooldown after a goal definition changes", () => {
-		const expectation = {
-			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
-			eventName: "sign_up",
-			instruction: 'Restore the "sign_up" event when Signup completes.',
-			kind: "tracking" as const,
-			previousCompletions: 20,
-			currentEntrants: 100,
-			currentCompletions: 0 as const,
-		};
-		const previous = detected("goal:signup", {
-			expectation,
-			kind: "missing_expected_data",
-		});
+	it("keeps cooldown on the same goal after it is renamed", () => {
+		const previous = detected("goal:signup", { entityLabel: "Signup" });
 		const changed = detected("goal:signup", {
-			expectation: {
-				...expectation,
-				definitionUpdatedAt: "2026-07-01T00:00:00.000Z",
-			},
-			kind: "missing_expected_data",
+			entityLabel: "Create account",
 		});
 
 		expect(
@@ -231,29 +253,20 @@ describe("eligibleSignalsForInvestigation", () => {
 				memory([[previous, observed(previous)]]),
 				NOW
 			)
-		).toEqual([changed]);
+		).toEqual([]);
 	});
 });
 
 describe("nextRecheckAt", () => {
-	it("uses one comparison window for action/monitor and 30 days otherwise", () => {
-		const cases: [InvestigationDecision["disposition"], string][] = [
-			["action_ready", "2026-07-19T12:00:00.000Z"],
-			["monitor", "2026-07-19T12:00:00.000Z"],
-			["needs_context", "2026-08-11T12:00:00.000Z"],
-			["not_a_problem", "2026-08-11T12:00:00.000Z"],
+	it("uses one comparison window for act/watch and 30 days otherwise", () => {
+		const cases: [InvestigationOutcome["next"]["type"], string][] = [
+			["act", "2026-07-19T12:00:00.000Z"],
+			["watch", "2026-07-19T12:00:00.000Z"],
+			["ask", "2026-08-11T12:00:00.000Z"],
+			["resolve", "2026-08-11T12:00:00.000Z"],
 		];
-		for (const [disposition, expected] of cases) {
-			expect(nextRecheckAt(NOW, disposition).toISOString()).toBe(expected);
+		for (const [next, expected] of cases) {
+			expect(nextRecheckAt(NOW, next).toISOString()).toBe(expected);
 		}
-	});
-
-	it("rechecks a critical missing-data question after one complete window", () => {
-		expect(
-			nextRecheckAt(NOW, "needs_context", {
-				kind: "missing_expected_data",
-				severity: "critical",
-			}).toISOString()
-		).toBe("2026-07-19T12:00:00.000Z");
 	});
 });

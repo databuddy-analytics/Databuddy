@@ -1,23 +1,18 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type {
-	InsightEvidenceReadRequest,
-	InsightEvidenceReader,
-} from "@databuddy/ai/insights/evidence-reader";
-import type {
 	InvestigationEvidence,
+	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
+import { tool } from "ai";
 import { MockLanguageModelV3, mockValues } from "ai/test";
-import {
-	materializeAgentDecision,
-	runInsightAgent,
-} from "./agent";
+import { z } from "zod";
+import { type InsightAgentStepTrace, runInsightAgent } from "./agent";
 
 const signal: InvestigationSignal = {
 	signalKey: "visitors",
 	websiteId: "site-1",
-	kind: "change",
 	insightType: "traffic_drop",
 	entity: { type: "website", id: "website", label: "Visitors" },
 	metric: {
@@ -40,84 +35,48 @@ const signal: InvestigationSignal = {
 	detection: {
 		method: "period_comparison",
 		reason: "Visitors changed -70% from the previous period.",
+		boundary: { comparison: "at_or_below", value: 400 },
 	},
 };
 
-const secondarySignal: InvestigationSignal = {
-	...signal,
-	signalKey: "revenue",
-	insightType: "quality_shift",
-	metric: {
-		key: "revenue",
-		label: "Revenue",
-		current: 400,
-		previous: 1000,
-		format: "number",
+const evidence: InvestigationEvidence[] = [
+	{
+		source: "web",
+		summary: "Current visitors were 300, down from 1,000.",
 	},
-	changePercent: -60,
-};
+	{
+		source: "business",
+		summary:
+			"Campaign cmp_search_1 is paused and owned by the Acquisition team.",
+	},
+];
 
-const detectorEvidence: InvestigationEvidence = {
-	evidenceId: "evidence:detector",
-	signalKey: signal.signalKey,
-	kind: "trend",
-	source: "web",
-	queryType: "detector:visitors",
-	period: "current",
-	range: signal.period.current,
-	status: "ok",
-	rowCount: 1,
-	summary: "Current visitors were 300, down from 1,000.",
-};
-
-const secondaryDetectorEvidence: InvestigationEvidence = {
-	...detectorEvidence,
-	evidenceId: "evidence:revenue-detector",
-	signalKey: secondarySignal.signalKey,
-	queryType: "detector:revenue",
-	range: secondarySignal.period.current,
-	summary: "Current revenue was 400, down from 1,000.",
-};
-
-const referrerEvidence: InvestigationEvidence = {
-	evidenceId: "evidence:referrers",
-	signalKey: signal.signalKey,
-	kind: "breakdown",
-	source: "web",
-	queryType: "top_referrers",
-	period: "current",
-	range: signal.period.current,
-	status: "ok",
-	rowCount: 3,
-	summary: "Paid search supplied nearly all of the lost traffic.",
-};
-
-const previousReferrerEvidence: InvestigationEvidence = {
-	...referrerEvidence,
-	evidenceId: "evidence:referrers:previous",
-	period: "previous",
-	range: signal.period.previous,
-	summary: "Paid search was the largest referrer in the previous period.",
+const outcome: InvestigationOutcome = {
+	title: "Paid search campaign is paused",
+	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
+	impact: "The site lost 700 visitors in the comparison window.",
+	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
+	rootCauseConfidence: 0.82,
+	impactConfidence: 0.95,
+	evidence: [
+		"Visitors fell from 1,000 to 300.",
+		"The campaign record shows cmp_search_1 is paused.",
+	],
+	sources: ["web", "business"],
+	next: {
+		type: "act",
+		action: "Resume campaign cmp_search_1.",
+		kind: "campaign",
+		owner: "Acquisition team",
+		target: "campaign cmp_search_1",
+		verification: "Paid visits exceed 80 per day for three days.",
+	},
 };
 
 const usage = {
 	inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
 	outputTokens: { total: 1, text: 1, reasoning: 0 },
 };
-
-type GenerateResult = Awaited<ReturnType<MockLanguageModelV3["doGenerate"]>>;
-
-function modelResponse(
-	content: GenerateResult["content"],
-	finishReason: "stop" | "tool-calls"
-): GenerateResult {
-	return {
-		content,
-		finishReason: { unified: finishReason, raw: undefined },
-		usage,
-		warnings: [],
-	};
-}
 
 function appContext() {
 	return {
@@ -133,406 +92,220 @@ function appContext() {
 	};
 }
 
-describe("insights agent", () => {
-	it("chooses evidence and writes a concise missing-context finding", async () => {
-		const requests: InsightEvidenceReadRequest[] = [];
-		const selectedSignalKeys: string[] = [];
-		const readEvidence: InsightEvidenceReader = async (request) => {
-			requests.push(request);
-			return [referrerEvidence, previousReferrerEvidence];
-		};
-		const model = new MockLanguageModelV3({
-			doGenerate: mockValues(
-				modelResponse(
-					[
-						{
-							type: "tool-call",
-							toolCallId: "call-1",
-						toolName: "read_evidence",
-						input: JSON.stringify({
-							signalKey: signal.signalKey,
-							request: {
-									name: "web_metrics",
-								input: {
-									period: "both",
-										queries: [{ type: "top_referrers" }],
-									},
-								},
-							}),
-						},
-					],
-					"tool-calls"
-				),
-				modelResponse(
-					[
-						{
-							type: "tool-call",
-							toolCallId: "call-2",
-						toolName: "submit_finding",
-						input: JSON.stringify({
-							signalKey: signal.signalKey,
-							decision: {
-								disposition: "needs_context",
-									title: "Paid search traffic disappeared",
-									evidenceIds: [
-										"evidence:referrers",
-										"evidence:referrers:previous",
-									],
-									confidence: 0.8,
-								},
-							}),
-						},
-					],
-					"tool-calls"
-				),
-				modelResponse(
-					[
-						{
-							type: "tool-call",
-							toolCallId: "call-3",
-						toolName: "submit_finding",
-						input: JSON.stringify({
-							signalKey: signal.signalKey,
-							decision: {
-								disposition: "needs_context",
-									title: "Paid search traffic disappeared",
-									evidenceIds: [
-										"evidence:referrers",
-										"evidence:referrers:previous",
-									],
-									confidence: 0.86,
-									question:
-										"Were paid search campaigns paused during the current period?",
-								},
-							}),
-						},
-					],
-					"tool-calls"
-				)
-			),
+function outputResponse(value: unknown) {
+	return {
+		content: [{ type: "text" as const, text: JSON.stringify(value) }],
+		finishReason: { unified: "stop" as const, raw: undefined },
+		usage,
+		warnings: [],
+	};
+}
+
+function outputModel(value: unknown = outcome) {
+	return new MockLanguageModelV3({
+		doGenerate: mockValues(outputResponse(value)),
+	});
+}
+
+describe("investigation agent", () => {
+	it("returns the model's structured outcome directly", async () => {
+		const model = outputModel();
+		const trace: InsightAgentStepTrace[] = [];
+		const availableRead = tool({
+			description: "Test read",
+			inputSchema: z.object({}),
+			execute: () => ({ ok: true }),
 		});
 
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
-				candidates: [
-					{
-						evidence: [secondaryDetectorEvidence],
-						signal: secondarySignal,
-					},
-					{
-						evidence: [detectorEvidence],
-						previous: {
-							asOf: new Date("2026-06-12T00:00:00.000Z"),
-							decision: { disposition: "needs_context" },
-							finding: {
-								description: "Paid search was the largest missing segment.",
-								suggestion: "Was this traffic change expected?",
-								title: "Paid search needs context",
-							},
-							signal,
-						},
-						signal,
-					},
-				],
-				readEvidence: (selectedSignal, ...args) => {
-					selectedSignalKeys.push(selectedSignal.signalKey);
-					return readEvidence(...args);
-				},
+				evidence,
+				githubRepository: null,
+				history: [],
+				signal,
 			},
-			{ model }
-		);
-
-		expect(requests).toEqual([
 			{
-				name: "web_metrics",
-				input: {
-					period: "both",
-					queries: [{ type: "top_referrers" }],
+				model,
+				onStepFinish: (step) => {
+					trace.push(step);
 				},
-			},
-		]);
-		expect(selectedSignalKeys).toEqual([signal.signalKey]);
-		expect(model.doGenerateCalls).toHaveLength(3);
-		expect(JSON.stringify(model.doGenerateCalls[0])).toContain(
-			"Was this traffic change expected?"
+				tools: {
+					describe_schema: availableRead,
+					execute_sql_query: availableRead,
+					get_data: availableRead,
+					list_websites: availableRead,
+				},
+			}
 		);
-		expect(result).toMatchObject({
-			decision: {
-				disposition: "needs_context",
-			},
-			insight: {
-				description: "Visitors decreased 70% versus the previous period.",
-				title: "Paid search traffic disappeared",
-				suggestion:
-					"Were paid search campaigns paused during the current period?",
-				subjectKey: signal.signalKey,
-				priority: signal.priority,
-			},
-			signal: { signalKey: signal.signalKey },
-			toolCallCount: 3,
-		});
+
+		expect(result).toMatchObject({ outcome, toolCallCount: 0 });
+		expect(result).not.toHaveProperty("decision");
+		expect(result).not.toHaveProperty("insight");
+		expect(trace).toHaveLength(1);
+		expect(trace[0]?.tools).toEqual([]);
+
+		const call = model.doGenerateCalls[0];
+		expect(call?.responseFormat?.type).toBe("json");
+		expect(call?.toolChoice).toEqual({ type: "auto" });
+		expect(call?.tools?.map((item) => item.name)).toEqual(["get_data"]);
+
+		const prompt = JSON.stringify(call?.prompt);
+		expect(prompt).toContain('\\\"asOf\\\"');
+		expect(prompt).toContain('\\\"evidence\\\"');
+		expect(prompt).toContain('\\\"relatedSignals\\\"');
+		expect(prompt).toContain('\\\"signal\\\"');
+		expect(prompt).toContain("Correlation is not cause");
+		expect(prompt).toContain("makes a named goal or business metric unusable");
+		expect(prompt).toContain("missing optional attribution alone is not impact");
+		expect(prompt).toContain("first use tools for any metric or event comparison");
+		expect(prompt).toContain("never ask whether something changed merely");
+		expect(prompt).toContain("When impact is null, next must be watch or resolve");
+		expect(prompt).toContain("Use related signals to test cross-signal explanations");
+		expect(prompt).toContain("under 130 words");
+		expect(prompt).toContain("closed comparison windows");
+		expect(prompt).not.toContain("codeRepositoryConnected");
+		expect(prompt).not.toContain("signalPeriodsAreComplete");
 	});
 
-	it("derives the exact repair from backend-confirmed evidence", () => {
-		const expectation = {
-			confirmation: {
-				count: 12,
-				definitionId: "signup",
-				definitionType: "goal" as const,
-				source: "server_completions" as const,
-			},
-			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
-			eventName: "sign_up",
-			instruction: 'Restore the "sign_up" event when Signup completes.',
-			kind: "tracking" as const,
-			previousCompletions: 20,
-			currentEntrants: 100,
-			currentCompletions: 0 as const,
-		};
-		const goalSignal: InvestigationSignal = {
-			...signal,
-			signalKey: "goal:signup",
-			kind: "missing_expected_data",
-			insightType: "conversion_leak",
-			entity: { type: "goal", id: "signup", label: "Signup" },
-			expectation,
-		};
-		const evidence: InvestigationEvidence = {
-			...referrerEvidence,
-			evidenceId: "evidence:goal",
-			signalKey: goalSignal.signalKey,
-			kind: "definition",
-			source: "product",
-			queryType: "goals_summary",
-			entity: goalSignal.entity,
-			remediation: expectation,
-		};
-		const decision = {
-			disposition: "action_ready" as const,
-			title: "Signup tracking stopped",
-			evidenceIds: [evidence.evidenceId],
-			confidence: 0.97,
-		};
-
-		const result = materializeAgentDecision({
-			decision,
-			evidence: [evidence],
-			queriedEvidenceIds: new Set([evidence.evidenceId]),
-			signal: goalSignal,
-		});
-
-		expect(result).toMatchObject({
-			decision: {
-				disposition: "action_ready",
-				remediation: {
-					instruction: expectation.instruction,
-					kind: "tracking",
-				},
-			},
-			insight: {
-				title: "Signup tracking stopped",
-				remediationKind: "tracking",
-				suggestion: expectation.instruction,
-			},
-		});
-	});
-
-	it("fails after repeated invalid submissions instead of inventing a monitor decision", async () => {
-		const read = modelResponse(
-			[
-				{
-					type: "tool-call",
-					toolCallId: "read",
-					toolName: "read_evidence",
-					input: JSON.stringify({
-						request: {
-							name: "web_metrics",
-							input: {
-								period: "current",
-								queries: [{ type: "top_referrers" }],
-							},
-						},
-						signalKey: signal.signalKey,
-					}),
-				},
-			],
-			"tool-calls"
-		);
-		const invalid = (toolCallId: string) =>
-			modelResponse(
-				[
-					{
-						type: "tool-call" as const,
-						toolCallId,
-						toolName: "submit_finding",
-						input: JSON.stringify({
-							decision: {
-								confidence: 0.8,
-								disposition: "action_ready",
-								evidenceIds: [referrerEvidence.evidenceId],
-								title: "Visitor traffic needs repair",
-							},
-							signalKey: signal.signalKey,
-						}),
-					},
-				],
-				"tool-calls"
-			);
+	it("can inspect evidence before returning structured output", async () => {
 		const model = new MockLanguageModelV3({
 			doGenerate: mockValues(
-				read,
-				invalid("submit-1"),
-				invalid("submit-2"),
-				invalid("submit-3"),
-				invalid("submit-4")
+				{
+					content: [
+						{
+							input: "{}",
+							toolCallId: "inspect-1",
+							toolName: "inspect",
+							type: "tool-call" as const,
+						},
+					],
+					finishReason: { unified: "tool-calls" as const, raw: undefined },
+					usage,
+					warnings: [],
+				},
+				outputResponse(outcome)
 			),
 		});
+		const trace: InsightAgentStepTrace[] = [];
 
-		expect(
+		const result = await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				signal,
+			},
+			{
+				model,
+				onStepFinish: (step) => {
+					trace.push(step);
+				},
+				tools: {
+					inspect: tool({
+						description: "Inspect another relevant fact.",
+						inputSchema: z.object({}).strict(),
+						execute: () => ({ inspected: true }),
+					}),
+				},
+			}
+		);
+
+		expect(result.outcome).toEqual(outcome);
+		expect(result.toolCallCount).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
+		expect(trace.map((step) => step.tools)).toEqual([
+			[
+				{
+					errorType: null,
+					name: "inspect",
+					outcome: "returned",
+				},
+			],
+			[],
+		]);
+		expect(model.doGenerateCalls[1]?.toolChoice).toEqual({ type: "auto" });
+	});
+
+	it("fails when the structured output does not match the contract", async () => {
+		await expect(
 			runInsightAgent(
 				{
-				appContext: appContext(),
-				candidates: [{ evidence: [detectorEvidence], signal }],
-				readEvidence: () => Promise.resolve([referrerEvidence]),
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					signal,
 				},
-				{ model }
+				{ model: outputModel({ title: "Incomplete" }), tools: {} }
 			)
-		).rejects.toThrow("backend-verified repair");
+		).rejects.toThrow("response did not match schema");
 	});
 
-	it("rejects foreign, failed, and unsupported action evidence", () => {
-		const finding = {
-			disposition: "action_ready" as const,
-			title: "Fix acquisition",
-			evidenceIds: [referrerEvidence.evidenceId],
-			confidence: 0.8,
+	it("replays prior outcomes and new human context", async () => {
+		const model = outputModel();
+		const previousOutcome: InvestigationOutcome = {
+			...outcome,
+			title: "Historical outcome title",
+			next: {
+				type: "ask",
+				question: "Was the campaign intentionally paused?",
+				who: "Acquisition team",
+				why: "This determines whether to restore spend.",
+			},
 		};
 
-		expect(() =>
-				materializeAgentDecision({
-					decision: finding,
-					evidence: [{ ...referrerEvidence, signalKey: "another-signal" }],
-					queriedEvidenceIds: new Set([referrerEvidence.evidenceId]),
-					signal,
-			})
-		).toThrow("another signal");
-		expect(() =>
-				materializeAgentDecision({
-					decision: finding,
-				evidence: [
+		await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [
 					{
-						...referrerEvidence,
-						status: "failed",
-						rowCount: 0,
-						error: "Timed out",
+						asOf: "2026-07-12T00:00:00.000Z",
+						evidence,
+						kind: "investigation",
+						outcome: previousOutcome,
+						signal,
 					},
-					],
-					queriedEvidenceIds: new Set([referrerEvidence.evidenceId]),
-					signal,
-			})
-		).toThrow("unusable evidence");
-		expect(() =>
-				materializeAgentDecision({
-					decision: finding,
-					evidence: [referrerEvidence],
-					queriedEvidenceIds: new Set([referrerEvidence.evidenceId]),
-					signal,
-			})
-		).toThrow("backend-verified repair");
-	});
-
-	it("requires a fresh evidence read but does not force an unrelated receipt into the card", () => {
-		const decision = {
-			disposition: "needs_context" as const,
-			title: "Visitor loss needs context",
-			evidenceIds: [detectorEvidence.evidenceId],
-			confidence: 0.7,
-			question: "Was this traffic change expected?",
-		};
-		expect(() =>
-			materializeAgentDecision({
-				decision,
-				evidence: [detectorEvidence],
-				queriedEvidenceIds: new Set(),
-				signal,
-			})
-		).toThrow("did not read fresh evidence");
-		expect(
-			materializeAgentDecision({
-				decision,
-				evidence: [detectorEvidence, referrerEvidence],
-				queriedEvidenceIds: new Set([referrerEvidence.evidenceId]),
-				signal,
-			}).insight?.evidence
-		).toEqual([
-			{ type: "metric", description: detectorEvidence.summary },
-		]);
-	});
-
-	it("allows dismissal only when the cited change was planned", () => {
-		const decision = {
-			disposition: "not_a_problem" as const,
-			evidenceIds: [referrerEvidence.evidenceId],
-		};
-		expect(() =>
-				materializeAgentDecision({
-					decision,
-					evidence: [referrerEvidence],
-					queriedEvidenceIds: new Set(),
-					signal,
-			})
-		).toThrow("planned change");
-
-		const planned: InvestigationEvidence = {
-			...referrerEvidence,
-			queryType: "annotations:planned_signal",
-			kind: "related_change",
-			source: "business",
-			period: "custom",
-			comparison: signal.period,
-			range: null,
-			entity: signal.entity,
-		};
-		expect(
-			materializeAgentDecision({
-				decision,
-				evidence: [planned],
-				queriedEvidenceIds: new Set(),
-				signal,
-			})
-		).toEqual({ decision: { disposition: "not_a_problem" }, insight: null });
-	});
-
-	it("allows evidence-backed silence without fabricating a card", () => {
-		expect(
-			materializeAgentDecision({
-				decision: {
-					disposition: "monitor",
-					evidenceIds: [referrerEvidence.evidenceId],
-				},
-				evidence: [referrerEvidence],
-				queriedEvidenceIds: new Set([referrerEvidence.evidenceId]),
-				signal,
-			})
-		).toEqual({ decision: { disposition: "monitor" }, insight: null });
-		expect(
-			materializeAgentDecision({
-				decision: {
-					disposition: "monitor",
-					evidenceIds: [referrerEvidence.evidenceId],
-				},
-				evidence: [
 					{
-						...referrerEvidence,
-						error: "Timed out",
-						rowCount: 0,
-						status: "failed",
+						author: "Ari",
+						body: "The campaign was paused intentionally.",
+						createdAt: "2026-07-12T01:00:00.000Z",
+						kind: "reply",
 					},
 				],
-				queriedEvidenceIds: new Set([referrerEvidence.evidenceId]),
+				request: {
+					body: "It was restarted this morning.",
+					createdAt: "2026-07-12T02:00:00.000Z",
+				},
 				signal,
-			})
-		).toEqual({ decision: { disposition: "monitor" }, insight: null });
+			},
+			{ model, tools: {} }
+		);
+
+		const prompt = JSON.stringify(model.doGenerateCalls[0]?.prompt);
+		expect(prompt).toContain("Historical outcome title");
+		expect(prompt).toContain('\\"outcome\\"');
+		expect(prompt).toContain("The campaign was paused intentionally.");
+		expect(prompt).toContain("It was restarted this morning.");
+		expect(prompt).toContain("Treat it as a claim to verify");
+		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
+	});
+
+	it("requires an organization before exposing investigation tools", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: { ...appContext(), organizationId: null },
+					evidence,
+					githubRepository: null,
+					history: [],
+					signal,
+				},
+				{ model: new MockLanguageModelV3(), tools: {} }
+			)
+		).rejects.toThrow("organization");
 	});
 });

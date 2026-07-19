@@ -8,7 +8,7 @@ import {
 } from "@databuddy/db/schema";
 import { decrypt } from "@databuddy/encryption";
 import { env } from "@databuddy/env/insights";
-import type { GeneratedWebsiteInsight } from "./persistence";
+import { formatNextStep, type WebsiteInvestigation } from "./persistence";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
 const SLACK_POST_URL = "https://slack.com/api/chat.postMessage";
@@ -16,35 +16,14 @@ const SLACK_POST_TIMEOUT_MS = 10_000;
 const SLACK_RATE_LIMIT_ATTEMPTS = 3;
 const SLACK_RATE_LIMIT_FALLBACK_MS = 1000;
 const SLACK_RATE_LIMIT_MAX_WAIT_MS = 5000;
-const MAX_DIGEST_INSIGHTS = 3;
-const MAX_ONGOING_LINES = 5;
 const SLACK_HEADER_MAX = 150;
 const SLACK_SECTION_TEXT_MAX = 3000;
-const SLACK_BLOCK_MAX = 50;
 
 function truncate(value: string, max: number): string {
 	return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-type DigestInsight = Pick<
-	GeneratedWebsiteInsight,
-	"description" | "id" | "severity" | "title"
-> &
-	Partial<
-		Pick<
-			GeneratedWebsiteInsight,
-			| "evidence"
-			| "impactSummary"
-			| "metrics"
-			| "remediationKind"
-			| "rootCause"
-			| "sentiment"
-			| "type"
-		>
-	> & {
-		currentPeriodFrom?: string | null;
-		currentPeriodTo?: string | null;
-	};
+type DigestInsight = Pick<WebsiteInvestigation, "id" | "outcome" | "signal">;
 
 export interface SlackBlock {
 	accessory?: unknown;
@@ -136,26 +115,26 @@ async function loadBoundBotToken(
 }
 
 function digestLabel(insight: DigestInsight): string {
-	const verifiedRepair = Boolean(insight.remediationKind);
-	switch (insight.type) {
+	const hasAction = insight.outcome.next.type === "act";
+	switch (insight.signal.insightType) {
 		case "referrer_change":
 		case "traffic_spike":
 		case "positive_trend":
-			return insight.sentiment === "positive"
+			return insight.signal.sentiment === "positive"
 				? "Opportunity · Acquisition"
 				: "Review · Traffic";
 		case "conversion_leak":
-			return verifiedRepair ? "Fix · Goal tracking" : "Review · Conversion";
+			return hasAction ? "Fix · Conversion" : "Review · Conversion";
 		case "funnel_regression":
-			return verifiedRepair ? "Fix · Funnel" : "Review · Conversion";
+			return hasAction ? "Fix · Funnel" : "Review · Conversion";
 		case "error_spike":
 		case "new_errors":
 		case "persistent_error_hotspot":
 		case "error_impact":
-			return verifiedRepair ? "Fix · Error" : "Review · Error";
+			return hasAction ? "Fix · Error" : "Review · Error";
 		case "vitals_degraded":
 		case "performance":
-			return verifiedRepair ? "Fix · Performance" : "Review · Performance";
+			return hasAction ? "Fix · Performance" : "Review · Performance";
 		case "performance_improved":
 		case "reliability_improved":
 			return "Improvement · Reliability";
@@ -163,7 +142,7 @@ function digestLabel(insight: DigestInsight): string {
 		case "segment_regression":
 			return "Review · Data quality";
 		default:
-			return verifiedRepair ? "Fix" : "Review";
+			return hasAction ? "Fix" : "Review";
 	}
 }
 
@@ -189,72 +168,32 @@ function quoted(value: string): string {
 		.join("\n");
 }
 
+function nextStepLine(insight: DigestInsight): string {
+	return `*Next:* ${escapeMrkdwn(userVisibleCopy(formatNextStep(insight.outcome, insight.signal)))}`;
+}
+
 function formatPeriodDay(value: string): string {
 	const parsed = dayjs(value);
 	return parsed.isValid() ? parsed.format("MMM D") : value;
 }
 
-function summaryChip(
-	insights: DigestInsight[],
-	escalations: DigestInsight[],
-	persistent: DigestInsight[] = []
-): string {
-	const escalationCount = escalations.length;
-	const ongoingCount = persistent.length;
-	let fixes = 0;
-	let reviews = 0;
-	let wins = 0;
-	for (const insight of insights) {
-		const label = digestLabel(insight);
-		if (label.startsWith("Fix")) {
-			fixes += 1;
-		} else if (
-			label.startsWith("Opportunity") ||
-			label.startsWith("Improvement")
-		) {
-			wins += 1;
-		} else {
-			reviews += 1;
-		}
-	}
-	const parts: string[] = [];
-	if (fixes > 0) {
-		parts.push(`${fixes} ${fixes === 1 ? "fix" : "fixes"}`);
-	}
-	if (reviews > 0) {
-		parts.push(`${reviews} ${reviews === 1 ? "review" : "reviews"}`);
-	}
-	if (wins > 0) {
-		parts.push(`${wins} ${wins === 1 ? "win" : "wins"}`);
-	}
-	if (escalationCount > 0) {
-		parts.push(
-			`${escalationCount} ${escalationCount === 1 ? "escalation" : "escalations"}`
-		);
-	}
-	if (ongoingCount > 0) {
-		parts.push(`${ongoingCount} still open`);
-	}
-	const withPeriod = [...insights, ...escalations, ...persistent].find(
-		(insight) => insight.currentPeriodFrom && insight.currentPeriodTo
-	);
-	if (withPeriod?.currentPeriodFrom && withPeriod.currentPeriodTo) {
-		parts.push(
-			`week of ${formatPeriodDay(withPeriod.currentPeriodFrom)} to ${formatPeriodDay(withPeriod.currentPeriodTo)}`
-		);
-	}
-	return parts.join(" · ");
+function summaryChip(insight: DigestInsight): string {
+	const label = digestLabel(insight);
+	const kind = label.startsWith("Fix")
+		? "Fix"
+		: label.startsWith("Opportunity") || label.startsWith("Improvement")
+			? "Opportunity"
+			: "Review";
+	return `${kind} · ${formatPeriodDay(insight.signal.period.current.from)} to ${formatPeriodDay(insight.signal.period.current.to)}`;
 }
 
 export function buildBlocks(
 	websiteName: string | null | undefined,
 	websiteDomain: string,
-	insights: DigestInsight[],
-	escalations: DigestInsight[] = [],
-	persistent: DigestInsight[] = []
+	insight: DigestInsight
 ): SlackBlock[] {
 	const websiteLabel = formatWebsiteLabel(websiteName, websiteDomain);
-	const visible = insights.slice(0, MAX_DIGEST_INSIGHTS);
+	const label = digestLabel(insight);
 	const blocks: SlackBlock[] = [
 		{
 			type: "header",
@@ -268,86 +207,42 @@ export function buildBlocks(
 			elements: [
 				{
 					type: "mrkdwn",
-					text: truncate(summaryChip(visible, escalations, persistent), 255),
+					text: truncate(summaryChip(insight), 255),
 				},
 			],
 		},
 	];
-	for (const [index, insight] of visible.entries()) {
-		const label = digestLabel(insight);
-		blocks.push({
-			type: "section",
-			text: {
-				type: "mrkdwn",
-				text: truncate(
-					`${digestEmoji(label)} *${escapeMrkdwn(userVisibleCopy(insight.title))}*`,
-					SLACK_SECTION_TEXT_MAX
-				),
-			},
-			accessory: {
-				type: "button",
-				text: { type: "plain_text", text: "Open", emoji: true },
-				url: insightUrl(insight.id),
-			},
-		});
+	blocks.push({
+		type: "section",
+		text: {
+			type: "mrkdwn",
+			text: truncate(
+				`${digestEmoji(label)} *${escapeMrkdwn(userVisibleCopy(insight.outcome.title))}*`,
+				SLACK_SECTION_TEXT_MAX
+			),
+		},
+		accessory: {
+			type: "button",
+			text: { type: "plain_text", text: "Open", emoji: true },
+			url: insightUrl(insight.id),
+		},
+	});
 
-		const bodyLines = [
-			quoted(escapeMrkdwn(userVisibleCopy(insight.description))),
-		];
-		const impact = insight.impactSummary?.trim();
-		if (impact) {
-			bodyLines.push(escapeMrkdwn(userVisibleCopy(impact)));
-		}
-		blocks.push({
-			type: "section",
-			text: {
-				type: "mrkdwn",
-				text: truncate(bodyLines.join("\n"), SLACK_SECTION_TEXT_MAX),
-			},
-		});
-
-		blocks.push({
-			type: "context",
-			elements: [{ type: "mrkdwn", text: truncate(escapeMrkdwn(label), 255) }],
-		});
-
-		if (index < visible.length - 1) {
-			blocks.push({ type: "divider" });
-		}
+	const bodyLines = [
+		quoted(escapeMrkdwn(userVisibleCopy(insight.outcome.summary))),
+	];
+	const impact = insight.outcome.impact?.trim();
+	if (impact) {
+		bodyLines.push(escapeMrkdwn(userVisibleCopy(impact)));
 	}
-
-	const ongoing = [
-		...escalations.map((insight) => ({
-			insight,
-			emoji: ":small_red_triangle_up:",
-			note: "Still open and now worse than when first reported.",
-		})),
-		...persistent.map((insight) => ({
-			insight,
-			emoji: ":radio_button:",
-			note: "Still open, no change since it was first flagged.",
-		})),
-	].slice(0, MAX_ONGOING_LINES);
-	if (ongoing.length > 0 && visible.length > 0) {
-		blocks.push({ type: "divider" });
-	}
-	for (const { insight, emoji, note } of ongoing) {
-		blocks.push({
-			type: "section",
-			text: {
-				type: "mrkdwn",
-				text: truncate(
-					`${emoji} *${escapeMrkdwn(userVisibleCopy(insight.title))}*\n>${note}`,
-					SLACK_SECTION_TEXT_MAX
-				),
-			},
-			accessory: {
-				type: "button",
-				text: { type: "plain_text", text: "Open", emoji: true },
-				url: insightUrl(insight.id),
-			},
-		});
-	}
+	bodyLines.push(nextStepLine(insight));
+	blocks.push({
+		type: "section",
+		text: {
+			type: "mrkdwn",
+			text: truncate(bodyLines.join("\n"), SLACK_SECTION_TEXT_MAX),
+		},
+	});
 	return blocks;
 }
 
@@ -365,9 +260,7 @@ function formatMetricValue(value: number, format?: string): string {
 	}
 }
 
-function metricLine(
-	metric: NonNullable<DigestInsight["metrics"]>[number]
-): string {
+function metricLine(metric: DigestInsight["signal"]["metric"]): string {
 	const current = formatMetricValue(metric.current, metric.format);
 	if (metric.previous === undefined || metric.previous === null) {
 		return `${metric.label}: ${current}`;
@@ -375,53 +268,29 @@ function metricLine(
 	return `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`;
 }
 
-function hasThreadDetail(insight: DigestInsight): boolean {
-	return Boolean(
-		insight.metrics?.length ||
-			insight.evidence?.length ||
-			insight.rootCause?.trim()
-	);
-}
-
-export function buildThreadBlocks(
-	insights: DigestInsight[],
-	escalations: DigestInsight[] = [],
-	persistent: DigestInsight[] = []
-): SlackBlock[] {
-	const all = [
-		...insights.slice(0, MAX_DIGEST_INSIGHTS),
-		...escalations,
-		...persistent,
-	].filter(hasThreadDetail);
-	const blocks: SlackBlock[] = [];
-	for (const insight of all) {
-		const lines = [`*${escapeMrkdwn(userVisibleCopy(insight.title))}*`];
-		if (insight.metrics?.length) {
-			lines.push(
-				insight.metrics
-					.map((metric) => `• ${escapeMrkdwn(metricLine(metric))}`)
-					.join("\n")
-			);
-		}
-		if (insight.rootCause?.trim()) {
-			lines.push(`_Why:_ ${escapeMrkdwn(userVisibleCopy(insight.rootCause))}`);
-		}
-		if (insight.evidence?.length) {
-			lines.push(
-				insight.evidence
-					.map((fact) => `• ${escapeMrkdwn(userVisibleCopy(fact.description))}`)
-					.join("\n")
-			);
-		}
-		blocks.push({
+export function buildThreadBlocks(insight: DigestInsight): SlackBlock[] {
+	const lines = [`• ${escapeMrkdwn(metricLine(insight.signal.metric))}`];
+	if (insight.outcome.rootCause?.trim()) {
+		lines.push(
+			`_Why:_ ${escapeMrkdwn(userVisibleCopy(insight.outcome.rootCause))}`
+		);
+	}
+	if (insight.outcome.evidence.length) {
+		lines.push(
+			insight.outcome.evidence
+				.map((fact) => `• ${escapeMrkdwn(userVisibleCopy(fact))}`)
+				.join("\n")
+		);
+	}
+	return [
+		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
 				text: truncate(lines.join("\n"), SLACK_SECTION_TEXT_MAX),
 			},
-		});
-	}
-	return blocks;
+		},
+	];
 }
 
 interface SlackPostDependencies {
@@ -514,21 +383,13 @@ export function buildSlackPostPayload(
 }
 
 export async function prepareInsightSlackEffects(params: {
-	escalations?: DigestInsight[];
-	insights: DigestInsight[];
+	insight: DigestInsight | null;
 	organizationId: string;
-	persistent?: DigestInsight[];
 	websiteDomain: string;
 	websiteId: string;
 	websiteName?: string | null;
 }): Promise<InsightSlackEffectPayload[]> {
-	const escalations = params.escalations ?? [];
-	const persistent = params.persistent ?? [];
-	if (
-		params.insights.length === 0 &&
-		escalations.length === 0 &&
-		persistent.length === 0
-	) {
+	if (!params.insight) {
 		return [];
 	}
 	const deliveries = await resolveDeliveries(params.organizationId);
@@ -545,30 +406,17 @@ export async function prepareInsightSlackEffects(params: {
 	const summaryBlocks = buildBlocks(
 		params.websiteName,
 		params.websiteDomain,
-		params.insights,
-		escalations,
-		persistent
-	);
-	const detailBlocks = buildThreadBlocks(
-		params.insights,
-		escalations,
-		persistent
+		params.insight
 	);
 	const blocks = [
 		...summaryBlocks,
-		...(detailBlocks.length > 0
-			? [
-					{ type: "divider" } satisfies SlackBlock,
-					{
-						type: "context",
-						elements: [
-							{ type: "mrkdwn", text: "Supporting numbers and evidence" },
-						],
-					} satisfies SlackBlock,
-					...detailBlocks,
-				]
-			: []),
-	].slice(0, SLACK_BLOCK_MAX);
+		{ type: "divider" } satisfies SlackBlock,
+		{
+			type: "context",
+			elements: [{ type: "mrkdwn", text: "Evidence" }],
+		} satisfies SlackBlock,
+		...buildThreadBlocks(params.insight),
+	];
 	const text = buildFallbackText(params.websiteName, params.websiteDomain);
 	return channelIds.map((channelId) => ({
 		blocks,

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { DetectedSignal } from "./detection";
 import {
-	annotationMatchesSignal,
 	prepareInvestigation,
 	rankSignals,
 	signalAnnotationWindow,
@@ -17,6 +16,7 @@ const baseSignal: DetectedSignal = {
 	deltaPercent: -40,
 	severity: "warning",
 	detectedAt: "2026-07-10",
+	boundary: { comparison: "at_or_below", value: 600 },
 };
 
 describe("rankSignals", () => {
@@ -85,7 +85,7 @@ describe("prepareInvestigation", () => {
 		);
 
 		expect(first.signal.signalKey).toBe(second.signal.signalKey);
-		expect(first.signal).toMatchObject({
+			expect(first.signal).toMatchObject({
 			websiteId: "site-1",
 			insightType: "traffic_drop",
 			sentiment: "negative",
@@ -95,25 +95,19 @@ describe("prepareInvestigation", () => {
 				current: { from: "2026-07-04", to: "2026-07-10" },
 				previous: { from: "2026-06-27", to: "2026-07-03" },
 			},
+			detection: {
+				boundary: { comparison: "at_or_below", value: 600 },
+			},
 		});
 	});
 
-	it("starts with only exact detector evidence", () => {
+	it("uses the signal as the required measured context", () => {
 		const result = prepareInvestigation(baseSignal, {
 			websiteId: "site-1",
 			lookbackDays: 7,
 		});
 
-		expect(result.evidence).toHaveLength(2);
-		expect(
-			result.evidence.every(
-				(item) => item.signalKey === result.signal.signalKey
-			)
-		).toBe(true);
-		expect(result.evidence.map((item) => item.period)).toEqual([
-			"current",
-			"previous",
-		]);
+		expect(result.evidence).toEqual([]);
 	});
 
 	it("reuses exact detector-owned goal evidence without another read", () => {
@@ -129,110 +123,48 @@ describe("prepareInvestigation", () => {
 							previous: 20,
 						},
 					],
-					queryType: "goals_summary",
 					summary: "Signup had 0 completions from 100 eligible visitors.",
 				},
-				definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
 				entityLabel: "Signup",
 				metric: "goal:goal-1",
 			},
 			{ websiteId: "site-1", lookbackDays: 7 }
 		);
 
-		expect(result.evidence).toHaveLength(3);
+		expect(result.evidence).toHaveLength(1);
 		expect(result.evidence.at(-1)).toMatchObject({
-			entity: { id: "goal-1", type: "goal" },
-			queryType: "goals_summary",
+			source: "product",
+			summary: "Signup had 0 completions from 100 eligible visitors.",
 		});
 	});
 
-	it("ignores unscoped annotations", () => {
+	it("passes signal-window annotations to the agent without classifying them", () => {
 		const result = prepareInvestigation(
 			baseSignal,
-			{ websiteId: "site-1", lookbackDays: 7 },
-			[{ date: "2026-07-08", title: "Pricing campaign paused" }]
-		);
-
-		expect(result.evidence).toHaveLength(2);
-		expect(
-			annotationMatchesSignal("Planned visitors dashboard change", result.signal)
-		).toBe(false);
-	});
-
-	it("only scopes annotations that name the selected signal", () => {
-		const result = prepareInvestigation(
-			{
-				...baseSignal,
-				metric: "goal:signup",
-				label: "Signup completion rate",
-			},
 			{ websiteId: "site-1", lookbackDays: 7 },
 			[
 				{
 					date: "2026-07-08",
-					signalScoped: true,
 					title: "Signup instrumentation intentionally changed",
-				},
-				{
-					date: "2026-07-08",
-					signalScoped: true,
-					title: "Signup outage started",
 				},
 				{ date: "2026-07-09", title: "Pricing campaign paused" },
 			]
 		);
 
-		expect(result.evidence.slice(2)).toMatchObject([
+		expect(result.evidence).toMatchObject([
 			{
-				entity: result.signal.entity,
-				queryType: "annotations:planned_signal",
-				rowCount: 1,
+				source: "business",
+				summary:
+					"2026-07-08: Signup instrumentation intentionally changed; 2026-07-09: Pricing campaign paused",
 			},
 		]);
-		expect(
-			annotationMatchesSignal(
-				"Signup instrumentation intentionally changed",
-				result.signal
-			)
-		).toBe(true);
-		expect(annotationMatchesSignal("Pricing campaign paused", result.signal)).toBe(
-			false
-		);
 	});
 
-	it("matches a goal annotation by its label when its database ID is opaque", () => {
-		const result = prepareInvestigation(
-			{
-				...baseSignal,
-				metric: "goal:019f5b32-1af4-78ac-9434-a6be92d9f611",
-				label: "Signup completion rate",
-			},
-			{ websiteId: "site-1", lookbackDays: 7 }
-		);
-
-		expect(
-			annotationMatchesSignal(
-				"Signup instrumentation intentionally changed",
-				result.signal
-			)
-		).toBe(true);
-	});
-
-	it("treats a changed goal definition as a new investigation signal", () => {
-		const expectation = {
-			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
-			eventName: "sign_up",
-			instruction: 'Restore the "sign_up" event when Signup completes.',
-			kind: "tracking" as const,
-			previousCompletions: 20,
-			currentEntrants: 100,
-			currentCompletions: 0 as const,
-		};
+	it("keeps a renamed goal in the same investigation", () => {
 		const first = prepareInvestigation(
 			{
 				...baseSignal,
-				expectation,
-				kind: "missing_expected_data",
+				entityLabel: "Signup",
 				metric: "goal:signup",
 			},
 			{ websiteId: "site-1", lookbackDays: 7 }
@@ -240,17 +172,13 @@ describe("prepareInvestigation", () => {
 		const changed = prepareInvestigation(
 			{
 				...baseSignal,
-				expectation: {
-					...expectation,
-					definitionUpdatedAt: "2026-07-01T00:00:00.000Z",
-				},
-				kind: "missing_expected_data",
+				entityLabel: "Create account",
 				metric: "goal:signup",
 			},
 			{ websiteId: "site-1", lookbackDays: 7 }
 		);
 
-		expect(first.signal.signalKey).not.toBe(changed.signal.signalKey);
+		expect(first.signal.signalKey).toBe(changed.signal.signalKey);
 		expect(first.signal.metric.key).toBe("goal:signup");
 		expect(changed.signal.metric.key).toBe("goal:signup");
 	});
@@ -319,7 +247,6 @@ describe("prepareInvestigation", () => {
 
 		expect(result.signal.metric.key.length).toBe(160);
 		expect(result.signal.entity.id.length).toBe(160);
-		expect(result.evidence[0].queryType.length).toBe(160);
 	});
 
 	it("preserves sparse comparable dates for zscore baselines", () => {
@@ -343,11 +270,9 @@ describe("prepareInvestigation", () => {
 		);
 
 		expect(result.signal.detection.baselineDates).toEqual(baselineDates);
-		expect(result.evidence[1]).toMatchObject({
-			period: "previous",
-			range: { from: baselineDates[0], to: baselineDates.at(-1) },
-			rowCount: baselineDates.length,
+		expect(result.signal.period.previous).toEqual({
+			from: baselineDates[0],
+			to: baselineDates.at(-1),
 		});
-		expect(result.evidence[1].summary).toContain(baselineDates.join(", "));
 	});
 });

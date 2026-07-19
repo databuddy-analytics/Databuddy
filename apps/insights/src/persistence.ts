@@ -4,33 +4,23 @@ import {
 	desc,
 	eq,
 	getTableColumns,
-	gte,
-	inArray,
 	isNotNull,
+	lte,
 	or,
 	sql,
 } from "@databuddy/db";
-import { analyticsInsights } from "@databuddy/db/schema";
+import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
 import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
-import {
-	insightDedupeKey,
-	type GeneratedInsight,
-	type WeekOverWeekPeriod,
+import type {
+	InvestigationEvidence,
+	InvestigationOutcome,
+	InvestigationSignal,
 } from "@databuddy/shared/insights";
-import dayjs from "dayjs";
-import { emitInsightsEvent } from "./lib/evlog-insights";
-import { INSIGHT_COOLDOWN_HOURS } from "./policy";
-
-const OPEN_INSIGHT_LOOKBACK_DAYS = 90;
-const MATERIALLY_WORSE_MULTIPLIER = 1.5;
-const SEVERITY_RANK: Record<string, number> = {
-	info: 0,
-	warning: 1,
-	critical: 2,
-};
+import { randomUUIDv7 } from "bun";
+import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 
 const REFRESHED_INSIGHT_COLUMNS = [
 	"title",
@@ -46,7 +36,6 @@ const REFRESHED_INSIGHT_COLUMNS = [
 	"confidence",
 	"impactSummary",
 	"rootCause",
-	"remediationKind",
 	"evidence",
 	"actions",
 	"metrics",
@@ -57,12 +46,22 @@ const REFRESHED_INSIGHT_COLUMNS = [
 	"previousPeriodTo",
 ] as const satisfies readonly (keyof typeof analyticsInsights.$inferInsert)[];
 
-export interface GeneratedWebsiteInsight extends GeneratedInsight {
+export interface WebsiteInvestigation {
 	id: string;
-	period: WeekOverWeekPeriod;
+	outcome: InvestigationOutcome;
+	signal: InvestigationSignal;
 	websiteDomain: string;
 	websiteId: string;
 	websiteName: string | null;
+}
+
+export function isVisibleInvestigation(
+	investigation: Pick<WebsiteInvestigation, "outcome">
+): boolean {
+	const next = investigation.outcome.next.type;
+	return (
+		(next === "act" || next === "ask") && investigation.outcome.impact !== null
+	);
 }
 
 function excludedRefreshSet() {
@@ -75,350 +74,220 @@ function excludedRefreshSet() {
 	);
 }
 
-function dedupeKeyFor(insight: GeneratedWebsiteInsight): string {
-	return insightDedupeKey({
-		...insight,
-		changePercent: insight.changePercent ?? null,
-	});
+function dedupeKeyFor(investigation: WebsiteInvestigation): string {
+	return `${investigation.websiteId}|${investigation.signal.signalKey}`;
 }
 
-type DedupeKeyRow = Pick<
-	typeof analyticsInsights.$inferSelect,
-	| "changePercent"
-	| "dedupeKey"
-	| "sentiment"
-	| "subjectKey"
-	| "title"
-	| "type"
-	| "websiteId"
->;
-
-function resolveDedupeKey(row: DedupeKeyRow): string {
-	return (
-		row.dedupeKey ??
-		insightDedupeKey({
-			websiteId: row.websiteId,
-			type: row.type,
-			sentiment: row.sentiment,
-			changePercent: row.changePercent,
-			subjectKey: row.subjectKey,
-			title: row.title,
-		})
-	);
-}
-
-export interface PriorInsightRow {
-	changePercent: number | null;
-	createdAt: Date;
+interface PriorInsightRow {
+	dedupeKey: string | null;
 	id: string;
-	runId: string;
-	severity: string;
-	status: string;
 }
 
-async function fetchPriorInsightsByDedupeKey(
+async function fetchPriorInsight(
 	organizationId: string,
-	cooldownCutoff: Date
-): Promise<Map<string, PriorInsightRow>> {
-	const openCutoff = dayjs()
-		.subtract(OPEN_INSIGHT_LOOKBACK_DAYS, "day")
-		.toDate();
-	const rows = await db
+	investigation: WebsiteInvestigation,
+	dedupeKey: string
+): Promise<PriorInsightRow | undefined> {
+	const [row] = await db
 		.select({
 			id: analyticsInsights.id,
-			runId: analyticsInsights.runId,
-			websiteId: analyticsInsights.websiteId,
-			type: analyticsInsights.type,
-			sentiment: analyticsInsights.sentiment,
-			changePercent: analyticsInsights.changePercent,
 			dedupeKey: analyticsInsights.dedupeKey,
-			subjectKey: analyticsInsights.subjectKey,
-			title: analyticsInsights.title,
-			severity: analyticsInsights.severity,
-			status: analyticsInsights.status,
-			createdAt: analyticsInsights.createdAt,
 		})
 		.from(analyticsInsights)
 		.where(
 			and(
 				eq(analyticsInsights.organizationId, organizationId),
+				eq(analyticsInsights.websiteId, investigation.websiteId),
 				or(
-					gte(analyticsInsights.createdAt, cooldownCutoff),
-					and(
-						eq(analyticsInsights.status, "open"),
-						gte(analyticsInsights.createdAt, openCutoff)
-					)
+					eq(analyticsInsights.dedupeKey, dedupeKey),
+					eq(analyticsInsights.subjectKey, investigation.signal.signalKey)
 				)
 			)
 		)
-		.orderBy(desc(analyticsInsights.createdAt));
-
-	const map = new Map<string, PriorInsightRow>();
-	for (const row of rows) {
-		const key = resolveDedupeKey(row);
-		if (!map.has(key)) {
-			map.set(key, {
-				id: row.id,
-				runId: row.runId,
-				changePercent: row.changePercent,
-				createdAt: row.createdAt,
-				severity: row.severity,
-				status: row.status,
-			});
-		}
-	}
-	return map;
+		.orderBy(
+			sql`${analyticsInsights.dedupeKey} = ${dedupeKey} desc`,
+			desc(analyticsInsights.createdAt),
+			desc(analyticsInsights.id)
+		)
+		.limit(1);
+	return row;
 }
 
-export function classifyRecurrence(
-	candidate: { changePercent?: number | null; severity: string },
-	prior: PriorInsightRow | undefined,
-	cooldownCutoff: Date
-): { isEscalation: boolean; isNew: boolean; isPersistent: boolean } {
-	if (!prior || prior.status !== "open") {
-		return { isEscalation: false, isNew: true, isPersistent: false };
+export function formatNextStep(
+	outcome: InvestigationOutcome,
+	signal: InvestigationSignal
+): string {
+	const next = outcome.next;
+	if (next.type === "act") {
+		return `${next.action} Owner: ${next.owner}. Target: ${next.target}. Verify: ${next.verification}`;
 	}
-	if (
-		isMateriallyWorse(candidate, {
-			changePercent: prior.changePercent,
-			severity: prior.severity,
-		})
-	) {
-		return { isEscalation: true, isNew: false, isPersistent: false };
+	if (next.type === "ask") {
+		return `Ask ${next.who}: ${next.question} ${next.why}`;
 	}
-	if (prior.createdAt >= cooldownCutoff) {
-		return { isEscalation: false, isNew: false, isPersistent: false };
+	if (next.type === "watch") {
+		return `Watch ${signal.metric.label}. Escalate: ${next.escalation}`;
 	}
+	return next.reason;
+}
+
+export function caseValues(
+	investigation: Pick<WebsiteInvestigation, "outcome" | "signal">,
+	timezone: string
+) {
+	const { outcome, signal } = investigation;
 	return {
-		isEscalation: false,
-		isNew: false,
-		isPersistent: candidate.severity === "critical",
+		actions: null,
+		changePercent: signal.changePercent,
+		confidence: Math.max(outcome.impactConfidence, outcome.rootCauseConfidence),
+		currentPeriodFrom: signal.period.current.from,
+		currentPeriodTo: signal.period.current.to,
+		description: outcome.summary,
+		evidence: null,
+		impactSummary: outcome.impact,
+		metrics: [signal.metric],
+		previousPeriodFrom: signal.period.previous.from,
+		previousPeriodTo: signal.period.previous.to,
+		priority: signal.priority,
+		rootCause: outcome.rootCause,
+		sentiment: signal.sentiment,
+		severity: signal.severity,
+		sources: outcome.sources,
+		subjectKey: signal.signalKey,
+		suggestion: formatNextStep(outcome, signal),
+		timezone,
+		title: outcome.title,
+		type: signal.insightType,
 	};
 }
 
-interface ChangeBaseline {
-	changePercent: number | null;
-	severity: string;
-}
-
-export function isMateriallyWorse(
-	candidate: { changePercent?: number | null; severity: string },
-	baseline: ChangeBaseline
-): boolean {
-	const candidateRank = SEVERITY_RANK[candidate.severity] ?? 0;
-	const baselineRank = SEVERITY_RANK[baseline.severity] ?? 0;
-	if (candidateRank > baselineRank) {
-		return true;
-	}
-	const baselineMagnitude = Math.abs(baseline.changePercent ?? 0);
-	const candidateMagnitude = Math.abs(candidate.changePercent ?? 0);
-	return (
-		baselineMagnitude > 0 &&
-		candidateMagnitude >= baselineMagnitude * MATERIALLY_WORSE_MULTIPLIER
-	);
-}
-
-export async function persistWebsiteInsights(params: {
-	insights: GeneratedWebsiteInsight[];
+export async function persistInvestigation(params: {
+	evidence: InvestigationEvidence[];
+	investigation: WebsiteInvestigation;
+	notNewerThan: Date;
 	organizationId: string;
+	recheckAt: Date;
 	runId: string;
 	timezone: string;
-}): Promise<
-	(GeneratedWebsiteInsight & {
-		isEscalation: boolean;
-		isNew: boolean;
-		isPersistent: boolean;
-		isRetry: boolean;
-	})[]
-> {
+}): Promise<WebsiteInvestigation | null> {
 	const startedAt = performance.now();
-	const cooldownCutoff = dayjs()
-		.subtract(INSIGHT_COOLDOWN_HOURS, "hour")
-		.toDate();
-	const priorByDedupeKey = await fetchPriorInsightsByDedupeKey(
+	const key = dedupeKeyFor(params.investigation);
+	const prior = await fetchPriorInsight(
 		params.organizationId,
-		cooldownCutoff
+		params.investigation,
+		key
 	);
-	const seenInBatch = new Set<string>();
-	const finalInsights: GeneratedWebsiteInsight[] = [];
-	const classificationByKey = new Map<
-		string,
-		{
-			isEscalation: boolean;
-			isNew: boolean;
-			isPersistent: boolean;
-			isRetry: boolean;
-		}
-	>();
-	let duplicateCandidates = 0;
+	const investigation = prior
+		? { ...params.investigation, id: prior.id }
+		: params.investigation;
+	const persistedAt = params.notNewerThan;
+	const visible = isVisibleInvestigation(investigation);
+	const resolvedAt = visible ? null : persistedAt;
+	const resolvedReason = visible
+		? null
+		: investigation.outcome.next.type === "resolve"
+			? ("recovered" as const)
+			: ("stale" as const);
+	const status: "open" | "resolved" = visible ? "open" : "resolved";
 
-	for (const insight of [...params.insights].sort(
-		(a, b) => b.priority - a.priority
-	)) {
-		const key = dedupeKeyFor(insight);
-		if (seenInBatch.has(key)) {
-			duplicateCandidates += 1;
-			continue;
-		}
-		seenInBatch.add(key);
-		const prior = priorByDedupeKey.get(key);
-		classificationByKey.set(key, {
-			...classifyRecurrence(insight, prior, cooldownCutoff),
-			isRetry: prior?.runId === params.runId,
-		});
-		finalInsights.push(prior ? { ...insight, id: prior.id } : insight);
-	}
-
-	if (finalInsights.length === 0) {
-		emitInsightsEvent("info", "generation.persistence.skipped_empty", {
-			organization_id: params.organizationId,
-			run_id: params.runId,
-			candidate_count: params.insights.length,
-			duplicate_candidate_count: duplicateCandidates,
-			dedupe_window_count: priorByDedupeKey.size,
-		});
-		return [];
-	}
-
-	function insightRow(insight: GeneratedWebsiteInsight, key: string) {
-		const period = insight.period;
+	function caseRow(value: WebsiteInvestigation, dedupeKey: string) {
 		return {
-			id: insight.id,
+			id: value.id,
 			organizationId: params.organizationId,
-			websiteId: insight.websiteId,
+			websiteId: value.websiteId,
 			runId: params.runId,
-			title: insight.title,
-			description: insight.description,
-			suggestion: insight.suggestion,
-			severity: insight.severity,
-			sentiment: insight.sentiment,
-			type: insight.type,
-			priority: insight.priority,
-			changePercent: insight.changePercent ?? null,
-			dedupeKey: key,
-			subjectKey: insight.subjectKey,
-			sources: insight.sources,
-			confidence: insight.confidence,
-			impactSummary: insight.impactSummary ?? null,
-			rootCause: insight.rootCause ?? null,
-			remediationKind: insight.remediationKind ?? null,
-			evidence: insight.evidence ?? null,
-			actions: null,
-			metrics: insight.metrics,
-			timezone: params.timezone,
-			currentPeriodFrom: period.current.from,
-			currentPeriodTo: period.current.to,
-			previousPeriodFrom: period.previous.from,
-			previousPeriodTo: period.previous.to,
+			dedupeKey,
+			...caseValues(value, params.timezone),
+			createdAt: persistedAt,
+			resolvedAt,
+			resolvedReason,
+			status,
 		};
 	}
 
-	const insightsWithKeys = finalInsights.map((insight) => {
-		const key = dedupeKeyFor(insight);
-		const prior = priorByDedupeKey.get(key);
-		const isRefresh = prior !== undefined && insight.id === prior.id;
-		return { insight, key, isRefresh };
+	const persisted = await db.transaction(async (tx) => {
+		const rows =
+			visible || prior
+				? prior && (prior.dedupeKey !== key || !visible)
+					? await tx
+							.update(analyticsInsights)
+							.set(caseRow(investigation, key))
+							.where(
+								and(
+									eq(analyticsInsights.id, prior.id),
+									lte(analyticsInsights.createdAt, params.notNewerThan)
+								)
+							)
+							.returning({ id: analyticsInsights.id })
+					: await tx
+							.insert(analyticsInsights)
+							.values(caseRow(investigation, key))
+							.onConflictDoUpdate({
+								target: [
+									analyticsInsights.organizationId,
+									analyticsInsights.dedupeKey,
+								],
+								targetWhere: isNotNull(analyticsInsights.dedupeKey),
+								setWhere: lte(analyticsInsights.createdAt, params.notNewerThan),
+								set: {
+									runId: params.runId,
+									createdAt: persistedAt,
+									status,
+									resolvedAt,
+									resolvedReason,
+									...excludedRefreshSet(),
+								},
+							})
+							.returning({ id: analyticsInsights.id })
+				: [];
+		if ((visible || prior) && !rows[0]) {
+			throw new Error(
+				"The investigation changed while scheduled analysis was running"
+			);
+		}
+		const observations = await tx
+			.insert(insightObservations)
+			.values({
+				asOf: persistedAt,
+				evidence: params.evidence,
+				id: randomUUIDv7(),
+				insightId: rows[0]?.id ?? null,
+				organizationId: params.organizationId,
+				outcome: investigation.outcome,
+				recheckAt: params.recheckAt,
+				runId: params.runId,
+				signal: investigation.signal,
+				signalKey: investigation.signal.signalKey,
+				websiteId: investigation.websiteId,
+			})
+			.onConflictDoNothing({
+				target: [insightObservations.runId, insightObservations.websiteId],
+			})
+			.returning({ id: insightObservations.id });
+		if (observations.length === 0) {
+			throw new Error("This website run already has an investigation outcome");
+		}
+		return rows[0] ?? null;
 	});
 
-	const toInsert = insightsWithKeys
-		.filter((i) => !i.isRefresh)
-		.map(({ insight, key }) => insightRow(insight, key));
-
-	const toRefresh = insightsWithKeys
-		.filter((i) => i.isRefresh)
-		.map(({ insight, key }) => ({
-			id: insight.id,
-			row: insightRow(insight, key),
-		}));
-
-	if (toInsert.length > 0) {
-		await db
-			.insert(analyticsInsights)
-			.values(toInsert)
-			.onConflictDoUpdate({
-				target: [analyticsInsights.organizationId, analyticsInsights.dedupeKey],
-				targetWhere: isNotNull(analyticsInsights.dedupeKey),
-				set: {
-					runId: params.runId,
-					createdAt: new Date(),
-					status: "open",
-					resolvedAt: null,
-					resolvedReason: null,
-					...excludedRefreshSet(),
-				},
-			});
+	try {
+		await Promise.all([
+			invalidateInsightsCachesForOrganization(params.organizationId),
+			invalidateAgentContextSnapshotsForWebsite(investigation.websiteId),
+		]);
+	} catch (error) {
+		captureInsightsError(error, "generation.cache_invalidation.failed", {
+			organization_id: params.organizationId,
+			website_id: investigation.websiteId,
+		});
 	}
-	await Promise.all(
-		toRefresh.map(({ id, row }) =>
-			db
-				.update(analyticsInsights)
-				.set({
-					...row,
-					createdAt: new Date(),
-					status: "open",
-					resolvedAt: null,
-					resolvedReason: null,
-				})
-				.where(eq(analyticsInsights.id, id))
-		)
-	);
-
-	const persistedRows = await db
-		.select({
-			dedupeKey: analyticsInsights.dedupeKey,
-			id: analyticsInsights.id,
-		})
-		.from(analyticsInsights)
-		.where(
-			and(
-				eq(analyticsInsights.organizationId, params.organizationId),
-				inArray(
-					analyticsInsights.dedupeKey,
-					finalInsights.map((insight) => dedupeKeyFor(insight))
-				)
-			)
-		);
-	const persistedIdByDedupeKey = new Map(
-		persistedRows.flatMap((row) =>
-			row.dedupeKey ? [[row.dedupeKey, row.id] as const] : []
-		)
-	);
-	const persistedInsights = finalInsights.map((insight) => {
-		const key = dedupeKeyFor(insight);
-		const classification = classificationByKey.get(key) ?? {
-			isEscalation: false,
-			isNew: true,
-			isPersistent: false,
-			isRetry: false,
-		};
-		return {
-			...insight,
-			id: persistedIdByDedupeKey.get(key) ?? insight.id,
-			isEscalation: classification.isEscalation,
-			isNew: classification.isNew,
-			isPersistent: classification.isPersistent,
-			isRetry: classification.isRetry,
-		};
-	});
-
-	const websiteInvalidations = [
-		...new Set(persistedInsights.map((insight) => insight.websiteId)),
-	].map((websiteId) => invalidateAgentContextSnapshotsForWebsite(websiteId));
-
-	await Promise.all([
-		invalidateInsightsCachesForOrganization(params.organizationId),
-		...websiteInvalidations,
-	]);
 
 	emitInsightsEvent("info", "generation.persistence.completed", {
 		organization_id: params.organizationId,
 		run_id: params.runId,
 		duration_ms: Math.round(performance.now() - startedAt),
-		result_count: persistedInsights.length,
-		insert_count: toInsert.length,
-		refresh_count: toRefresh.length,
-		invalidated_website_count: websiteInvalidations.length,
+		is_new: visible && prior === undefined,
+		visible,
 	});
 
-	return persistedInsights;
+	return visible && persisted ? { ...investigation, id: persisted.id } : null;
 }

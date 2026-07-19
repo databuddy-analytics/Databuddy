@@ -1,41 +1,52 @@
-import { and, db, desc, eq, inArray, lte } from "@databuddy/db";
-import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
-import type {
-	GeneratedInsight,
-	InvestigationDecision,
-	InvestigationEvidence,
-	InvestigationSignal,
-} from "@databuddy/shared/insights";
-import { randomUUIDv7 } from "bun";
+import { and, db, desc, eq, inArray, lt, lte, or } from "@databuddy/db";
+import {
+	analyticsInsights,
+	insightObservations,
+	insightReplies,
+} from "@databuddy/db/schema";
+import type { InvestigationOutcome } from "@databuddy/shared/insights";
+import { parseInvestigationOutcome } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
+import type { InsightAgentInput } from "./agent";
 import { isRegression, signalKeyForDetectedSignal } from "./investigation";
-import { isMateriallyWorse } from "./persistence";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HISTORY_LIMIT = 40;
+const MATERIALLY_WORSE_MULTIPLIER = 1.5;
+const SEVERITY_RANK: Record<string, number> = {
+	info: 0,
+	warning: 1,
+	critical: 2,
+};
+
+function isMateriallyWorse(
+	candidate: { changePercent?: number | null; severity: string },
+	baseline: { changePercent: number | null; severity: string }
+): boolean {
+	if (
+		(SEVERITY_RANK[candidate.severity] ?? 0) >
+		(SEVERITY_RANK[baseline.severity] ?? 0)
+	) {
+		return true;
+	}
+	const baselineMagnitude = Math.abs(baseline.changePercent ?? 0);
+	return (
+		baselineMagnitude > 0 &&
+		Math.abs(candidate.changePercent ?? 0) >=
+			baselineMagnitude * MATERIALLY_WORSE_MULTIPLIER
+	);
+}
 
 export type LatestInsightObservation = Pick<
 	typeof insightObservations.$inferSelect,
-	"asOf" | "decision" | "evidence" | "recheckAt" | "signal"
-> & {
-	finding: Pick<
-		GeneratedInsight,
-		"description" | "suggestion" | "title"
-	> | null;
-};
+	"asOf" | "evidence" | "outcome" | "recheckAt" | "signal"
+>;
 
 export function nextRecheckAt(
 	asOf: Date,
-	disposition: InvestigationDecision["disposition"],
-	signal?: Pick<InvestigationSignal, "kind" | "severity">
+	next: InvestigationOutcome["next"]["type"]
 ): Date {
-	const days =
-		disposition === "action_ready" ||
-		disposition === "monitor" ||
-		(disposition === "needs_context" &&
-			signal?.kind === "missing_expected_data" &&
-			signal.severity === "critical")
-			? 7
-			: 30;
+	const days = next === "act" || next === "watch" ? 7 : 30;
 	return new Date(asOf.getTime() + days * DAY_MS);
 }
 
@@ -67,7 +78,10 @@ export function eligibleSignalsForInvestigation(
 				));
 		if (worsened) {
 			buckets[0].push(signal);
-		} else if (observation.recheckAt <= asOf) {
+		} else if (
+			observation.outcome.next.type !== "resolve" &&
+			observation.recheckAt <= asOf
+		) {
 			buckets[2].push(signal);
 		}
 	}
@@ -87,24 +101,13 @@ export async function loadLatestSignalObservations(params: {
 	const rows = await db
 		.selectDistinctOn([insightObservations.signalKey], {
 			asOf: insightObservations.asOf,
-			decision: insightObservations.decision,
 			evidence: insightObservations.evidence,
-			findingDescription: analyticsInsights.description,
-			findingSuggestion: analyticsInsights.suggestion,
-			findingTitle: analyticsInsights.title,
+			outcome: insightObservations.outcome,
 			signalKey: insightObservations.signalKey,
 			signal: insightObservations.signal,
 			recheckAt: insightObservations.recheckAt,
 		})
 		.from(insightObservations)
-		.leftJoin(
-			analyticsInsights,
-			and(
-				eq(analyticsInsights.id, insightObservations.insightId),
-				eq(analyticsInsights.organizationId, params.organizationId),
-				eq(analyticsInsights.websiteId, params.websiteId)
-			)
-		)
 		.where(
 			and(
 				eq(insightObservations.organizationId, params.organizationId),
@@ -119,26 +122,137 @@ export async function loadLatestSignalObservations(params: {
 			desc(insightObservations.createdAt)
 		);
 
-	return new Map(
-		rows.map((row) => [
-			row.signalKey,
-			{
-				asOf: row.asOf,
-				decision: row.decision,
-				evidence: row.evidence,
-				finding:
-					row.findingDescription && row.findingSuggestion && row.findingTitle
-						? {
-								description: row.findingDescription,
-								suggestion: row.findingSuggestion,
-								title: row.findingTitle,
-							}
-						: null,
-				recheckAt: row.recheckAt,
-				signal: row.signal,
+	const observations = new Map<string, LatestInsightObservation>();
+	for (const row of rows) {
+		const outcome = parseInvestigationOutcome(row.outcome);
+		if (outcome) {
+			observations.set(row.signalKey, { ...row, outcome });
+		}
+	}
+	return observations;
+}
+
+export async function loadInvestigationHistory(params: {
+	beforeReply?: { createdAt: Date; id: string };
+	insightId?: string;
+	organizationId: string;
+	signalKey: string;
+	through?: Date;
+	websiteId: string;
+}): Promise<InsightAgentInput["history"]> {
+	const hasSignal = params.signalKey.trim().length > 0;
+	const observationCase = hasSignal
+		? and(
+				eq(insightObservations.organizationId, params.organizationId),
+				eq(insightObservations.websiteId, params.websiteId),
+				eq(insightObservations.signalKey, params.signalKey)
+			)
+		: eq(insightObservations.insightId, params.insightId ?? "");
+	const replyCase = hasSignal
+		? and(
+				eq(analyticsInsights.organizationId, params.organizationId),
+				eq(analyticsInsights.websiteId, params.websiteId),
+				eq(analyticsInsights.subjectKey, params.signalKey)
+			)
+		: eq(insightReplies.insightId, params.insightId ?? "");
+
+	const [observations, replies] = await Promise.all([
+		db
+			.select({
+				asOf: insightObservations.asOf,
+				createdAt: insightObservations.createdAt,
+				evidence: insightObservations.evidence,
+				id: insightObservations.id,
+				outcome: insightObservations.outcome,
+				signal: insightObservations.signal,
+			})
+			.from(insightObservations)
+			.where(
+				and(
+					observationCase,
+					params.through
+						? and(
+								lte(insightObservations.asOf, params.through),
+								lte(insightObservations.createdAt, params.through)
+							)
+						: undefined
+				)
+			)
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
+			.limit(HISTORY_LIMIT),
+		db
+			.select({
+				author: insightReplies.authorName,
+				body: insightReplies.body,
+				createdAt: insightReplies.createdAt,
+				id: insightReplies.id,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				analyticsInsights,
+				eq(insightReplies.insightId, analyticsInsights.id)
+			)
+			.where(
+				and(
+					replyCase,
+					params.through
+						? lte(insightReplies.createdAt, params.through)
+						: undefined,
+					params.beforeReply
+						? or(
+								lt(insightReplies.createdAt, params.beforeReply.createdAt),
+								and(
+									eq(insightReplies.createdAt, params.beforeReply.createdAt),
+									lt(insightReplies.id, params.beforeReply.id)
+								)
+							)
+						: undefined
+				)
+			)
+			.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
+			.limit(HISTORY_LIMIT),
+	]);
+
+	return [
+		...observations.flatMap((observation) => {
+			const outcome = parseInvestigationOutcome(observation.outcome);
+			return outcome
+				? [
+						{
+							createdAt: observation.createdAt,
+							id: observation.id,
+							item: {
+								asOf: observation.asOf.toISOString(),
+								evidence: observation.evidence,
+								kind: "investigation" as const,
+								outcome,
+								signal: observation.signal,
+							},
+						},
+					]
+				: [];
+		}),
+		...replies.map((reply) => ({
+			createdAt: reply.createdAt,
+			id: reply.id,
+			item: {
+				author: reply.author,
+				body: reply.body,
+				createdAt: reply.createdAt.toISOString(),
+				kind: "reply" as const,
 			},
-		])
-	);
+		})),
+	]
+		.sort(
+			(a, b) =>
+				a.createdAt.getTime() - b.createdAt.getTime() ||
+				a.id.localeCompare(b.id)
+		)
+		.slice(-HISTORY_LIMIT)
+		.map((entry) => entry.item);
 }
 
 export async function findRunObservation(params: {
@@ -148,8 +262,9 @@ export async function findRunObservation(params: {
 }) {
 	const [observation] = await db
 		.select({
-			disposition: insightObservations.disposition,
 			insightId: insightObservations.insightId,
+			outcome: insightObservations.outcome,
+			signal: insightObservations.signal,
 		})
 		.from(insightObservations)
 		.where(
@@ -160,39 +275,9 @@ export async function findRunObservation(params: {
 			)
 		)
 		.limit(1);
-	return observation;
-}
-
-export async function appendInsightObservation(params: {
-	asOf: Date;
-	decision: InvestigationDecision;
-	evidence: InvestigationEvidence[];
-	insightId: string | null;
-	organizationId: string;
-	recheckAt?: Date;
-	runId: string;
-	signal: InvestigationSignal;
-	websiteId: string;
-}): Promise<void> {
-	await db
-		.insert(insightObservations)
-		.values({
-			id: randomUUIDv7(),
-			runId: params.runId,
-			organizationId: params.organizationId,
-			websiteId: params.websiteId,
-			insightId: params.insightId,
-			signalKey: params.signal.signalKey,
-			asOf: params.asOf,
-			disposition: params.decision.disposition,
-			signal: params.signal,
-			evidence: params.evidence,
-			decision: params.decision,
-			recheckAt:
-				params.recheckAt ??
-				nextRecheckAt(params.asOf, params.decision.disposition, params.signal),
-		})
-		.onConflictDoNothing({
-			target: [insightObservations.runId, insightObservations.websiteId],
-		});
+	if (!observation) {
+		return;
+	}
+	const outcome = parseInvestigationOutcome(observation.outcome);
+	return outcome ? { ...observation, outcome } : undefined;
 }

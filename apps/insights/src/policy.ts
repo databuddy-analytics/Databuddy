@@ -1,2 +1,0 @@
-export const INSIGHT_COOLDOWN_HOURS = 6;
-export const INSIGHT_LOOKBACK_DAYS = 7;

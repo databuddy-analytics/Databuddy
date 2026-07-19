@@ -1,8 +1,7 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
-import type { InvestigationEvidence } from "@databuddy/shared/insights";
+import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
-import { materializeAgentDecision } from "./agent";
 import {
 	type InvestigationSources,
 	investigateWebsiteWithSources,
@@ -21,13 +20,15 @@ const trafficDrop: DetectedSignal = {
 	severity: "critical",
 };
 
-const revenueDrop: DetectedSignal = {
+const revenueIncrease: DetectedSignal = {
 	...trafficDrop,
-	baseline: 1000,
-	current: 400,
-	deltaPercent: -60,
+	baseline: 100,
+	current: 140,
+	deltaPercent: 40,
+	direction: "up",
 	label: "Revenue",
 	metric: "revenue",
+	severity: "info",
 };
 
 describe("fixture investigation sources", () => {
@@ -39,14 +40,29 @@ describe("fixture investigation sources", () => {
 
 	it("runs the production investigation path using only required sources", async () => {
 		const calls: string[] = [];
-		const sources: InvestigationSources = {
-			hasTrackedData: async () => {
-				calls.push("preflight");
-				return true;
+		let receivedHistoryBody: string | undefined;
+		let receivedRepository: { owner: string; repo: string } | null = null;
+		let receivedRelatedMetrics: string[] = [];
+		const outcome: InvestigationOutcome = {
+			title: "Organic search traffic fell",
+			summary: "Organic search accounts for most of the visitor decline.",
+			impact: "Visitors fell from 1,000 to 300.",
+			rootCause: null,
+			rootCauseConfidence: 0.3,
+			impactConfidence: 0.9,
+			evidence: ["Visitors fell 70% in the comparison window."],
+			sources: ["web"],
+			next: {
+				type: "ask",
+				question: "Was search traffic or tracking changed intentionally?",
+				who: "Growth",
+				why: "The answer determines whether to restore acquisition or tracking.",
 			},
+		};
+		const sources: InvestigationSources = {
 			detectMetricSignals: async () => {
 				calls.push("metric detection");
-				return [trafficDrop, revenueDrop];
+				return [trafficDrop, revenueIncrease];
 			},
 			detectDefinitionSignals: async () => {
 				calls.push("definition detection");
@@ -60,68 +76,29 @@ describe("fixture investigation sources", () => {
 				calls.push("annotations");
 				return [];
 			},
-			createEvidenceReader: async (params) => {
-				calls.push("evidence reader");
-				return async (request) => {
-					calls.push(`evidence:${request.name}`);
-					const evidence: InvestigationEvidence = {
-						evidenceId: "fixture:top-referrers",
-						signalKey: params.signal.signalKey,
-						kind: "breakdown",
-						source: "web",
-						queryType: "top_referrers",
-						period: "current",
-						range: params.signal.period.current,
-						status: "ok",
-						rowCount: 1,
-						summary: "Organic search accounted for most of the visitor decline.",
-					};
-					return [evidence];
-				};
-			},
-			createServiceAuth: async () => {
-				calls.push("service auth");
-				return undefined;
-			},
 			investigateSignal: async (input) => {
-				calls.push(`agent:${input.candidates.length}`);
-				const candidate = input.candidates.find(
-					(item) => item.signal.signalKey === "visitors"
-				);
-				if (!candidate) {
-					throw new Error("Expected one fixture candidate");
-				}
-				const queried = await input.readEvidence(
-					candidate.signal,
-					{
-						name: "web_metrics",
-						input: {
-							period: "current",
-							queries: [{ type: "top_referrers" }],
-						},
-					},
-					input.appContext
-				);
-				const evidence = [...queried, ...candidate.evidence];
+				calls.push(`agent:${input.signal.signalKey}`);
+				receivedHistoryBody = input.history.find(
+					(item) => item.kind === "reply"
+				)?.body;
+				receivedRepository = input.githubRepository;
+				receivedRelatedMetrics =
+					input.relatedSignals?.map((signal) => signal.metric.key) ?? [];
 				return {
-					...materializeAgentDecision({
-						decision: {
-							disposition: "needs_context",
-							title: "Organic search traffic fell",
-							evidenceIds: ["fixture:top-referrers"],
-							confidence: 0.8,
-							question: "Did search traffic or tracking change intentionally?",
-						},
-						evidence,
-						queriedEvidenceIds: new Set(
-							queried.map((item) => item.evidenceId)
-						),
-						signal: candidate.signal,
-					}),
-					evidence,
-					signal: candidate.signal,
+					outcome,
 					toolCallCount: 1,
 				};
+			},
+			loadHistory: async () => {
+				calls.push("history");
+				return [
+					{
+						author: "Ari",
+						body: "The campaign was intentionally paused.",
+						createdAt: "2026-07-11T12:00:00.000Z",
+						kind: "reply",
+					},
+				];
 			},
 		};
 
@@ -129,6 +106,7 @@ describe("fixture investigation sources", () => {
 			{
 				asOf: "2026-07-12",
 				domain: "example.com",
+				githubRepository: { owner: "databuddy-analytics", repo: "app" },
 				organizationId: "fixture-org",
 				timezone: "UTC",
 				websiteId: "fixture-site",
@@ -137,56 +115,29 @@ describe("fixture investigation sources", () => {
 		);
 
 		expect(artifact).toMatchObject({
-			decision: { disposition: "needs_context" },
 			detectionComplete: true,
+			outcome,
 			status: "completed",
 		});
-		expect(artifact.insight?.title).toBe("Organic search traffic fell");
 		expect(artifact.signal?.signalKey).toBe("visitors");
+		expect(receivedHistoryBody).toBe(
+			"The campaign was intentionally paused."
+		);
+		expect(receivedRepository).toEqual({
+			owner: "databuddy-analytics",
+			repo: "app",
+		});
+		expect(receivedRelatedMetrics).toEqual(["revenue"]);
 		expect(calls.sort()).toEqual(
 			[
-				"agent:2",
-				"annotations",
+				"agent:visitors",
 				"annotations",
 				"definition detection",
-				"evidence reader",
-				"evidence:web_metrics",
+				"history",
 				"metric detection",
 				"observations",
-				"preflight",
-				"service auth",
 			].sort()
 		);
-	});
-
-	it("does not fall through to downstream production reads after fixture preflight", async () => {
-		const forbidden = () => {
-			throw new Error("downstream source should not run");
-		};
-		const sources: InvestigationSources = {
-			createEvidenceReader: forbidden,
-			createServiceAuth: forbidden,
-			detectDefinitionSignals: forbidden,
-			detectMetricSignals: forbidden,
-			fetchAnnotations: forbidden,
-			hasTrackedData: async () => false,
-			investigateSignal: forbidden,
-			loadObservations: forbidden,
-		};
-
-		const artifact = await investigateWebsiteWithSources(
-			{
-				asOf: "2026-07-12",
-				domain: "example.com",
-				organizationId: "fixture-org",
-				timezone: "UTC",
-				websiteId: "fixture-site",
-			},
-			sources
-		);
-
-		expect(artifact.status).toBe("no_data");
-		expect(artifact.detectedSignals).toEqual([]);
 	});
 
 	it("defers an incomplete scan without retrying or reading evidence", async () => {
@@ -195,8 +146,6 @@ describe("fixture investigation sources", () => {
 			throw new Error("incomplete scan should stop before downstream reads");
 		};
 		const sources: InvestigationSources = {
-			createEvidenceReader: forbidden,
-			createServiceAuth: forbidden,
 			detectDefinitionSignals: async (_params, _today, _deps, options) => {
 				calls.push("definition detection");
 				if (options?.diagnostics) {
@@ -218,8 +167,8 @@ describe("fixture investigation sources", () => {
 				return [];
 			},
 			fetchAnnotations: forbidden,
-			hasTrackedData: async () => true,
 			investigateSignal: forbidden,
+			loadHistory: forbidden,
 			loadObservations: forbidden,
 		};
 
@@ -235,10 +184,9 @@ describe("fixture investigation sources", () => {
 		);
 
 		expect(artifact).toMatchObject({
-			decision: null,
 			detectionComplete: false,
 			detectedSignals: [],
-			insight: null,
+			outcome: null,
 			signal: null,
 			status: "deferred",
 		});
@@ -247,14 +195,116 @@ describe("fixture investigation sources", () => {
 		);
 	});
 
+	it("does not spend an agent run on an informational regression", async () => {
+		const forbidden = () => {
+			throw new Error("informational signals should stay quiet");
+		};
+		const sources: InvestigationSources = {
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [
+				{ ...trafficDrop, severity: "info" },
+			],
+			fetchAnnotations: forbidden,
+			investigateSignal: forbidden,
+			loadHistory: forbidden,
+			loadObservations: async () => new Map(),
+		};
+
+		const artifact = await investigateWebsiteWithSources(
+			{
+				asOf: "2026-07-12",
+				domain: "example.com",
+				organizationId: "fixture-org",
+				timezone: "UTC",
+				websiteId: "fixture-site",
+			},
+			sources
+		);
+
+		expect(artifact.status).toBe("no_signals");
+		expect(artifact.toolCallCount).toBe(0);
+	});
+
+	it("investigates informational direct regressions and still-bad vitals", async () => {
+		const cases = [
+			{
+				detected: {
+					...trafficDrop,
+					baseline: 100,
+					current: 51,
+					deltaPercent: -49,
+					label: "Checkout completion rate",
+					metric: "goal:checkout",
+					severity: "info" as const,
+				},
+				type: "conversion_leak",
+			},
+			{
+				detected: {
+					...trafficDrop,
+					baseline: 4000,
+					current: 3000,
+					deltaPercent: -25,
+					label: "Largest contentful paint",
+					metric: "lcp",
+					severity: "info" as const,
+				},
+				type: "vitals_degraded",
+			},
+		];
+		for (const current of cases) {
+			const outcome: InvestigationOutcome = {
+				title: "No work remains",
+				summary: "The investigation is complete.",
+				impact: "The measured change was reviewed.",
+				rootCause: null,
+				rootCauseConfidence: 0.2,
+				impactConfidence: 0.8,
+				evidence: ["The current value was checked against its threshold."],
+				sources: ["product"],
+				next: { type: "resolve", reason: "No action is justified." },
+			};
+			const seen: Array<{ sentiment: string; type: string }> = [];
+			const sources: InvestigationSources = {
+				detectDefinitionSignals: async () => [],
+				detectMetricSignals: async () => [current.detected],
+				fetchAnnotations: async () => [],
+				investigateSignal: async (input) => {
+					seen.push({
+						sentiment: input.signal.sentiment,
+						type: input.signal.insightType,
+					});
+					return {
+						outcome,
+						toolCallCount: 1,
+					};
+				},
+				loadHistory: async () => [],
+				loadObservations: async () => new Map(),
+			};
+
+			const artifact = await investigateWebsiteWithSources(
+				{
+					asOf: "2026-07-12",
+					domain: "example.com",
+					organizationId: "fixture-org",
+					timezone: "UTC",
+					websiteId: "fixture-site",
+				},
+				sources
+			);
+
+			expect(seen).toEqual([{ sentiment: "negative", type: current.type }]);
+			expect(artifact.status).toBe("completed");
+		}
+	});
+
 	it("checks agent access only after deterministic detection", async () => {
 		const calls: string[] = [];
 		const forbidden = () => {
 			throw new Error("agent access denial should stop downstream reads");
 		};
 		const sources: InvestigationSources = {
-			createEvidenceReader: forbidden,
-			createServiceAuth: forbidden,
 			detectDefinitionSignals: async () => {
 				calls.push("definition detection");
 				return [];
@@ -264,11 +314,8 @@ describe("fixture investigation sources", () => {
 				return [trafficDrop];
 			},
 			fetchAnnotations: forbidden,
-			hasTrackedData: async () => {
-				calls.push("preflight");
-				return true;
-			},
 			investigateSignal: forbidden,
+			loadHistory: forbidden,
 			loadObservations: async () => {
 				calls.push("observations");
 				return new Map();
@@ -291,10 +338,9 @@ describe("fixture investigation sources", () => {
 		);
 
 		expect(artifact).toMatchObject({
-			decision: null,
 			detectionComplete: true,
 			detectedSignals: [trafficDrop],
-			insight: null,
+			outcome: null,
 			signal: null,
 			status: "deferred",
 		});
@@ -304,7 +350,6 @@ describe("fixture investigation sources", () => {
 				"definition detection",
 				"metric detection",
 				"observations",
-				"preflight",
 			].sort()
 		);
 	});

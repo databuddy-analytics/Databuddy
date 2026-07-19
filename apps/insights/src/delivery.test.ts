@@ -1,3 +1,7 @@
+import type {
+	InvestigationOutcome,
+	InvestigationSignal,
+} from "@databuddy/shared/insights";
 import { describe, expect, it } from "bun:test";
 import {
 	buildBlocks,
@@ -6,6 +10,7 @@ import {
 	buildThreadBlocks,
 	postToSlack,
 } from "./delivery";
+import type { WebsiteInvestigation } from "./persistence";
 
 type Blocks = ReturnType<typeof buildBlocks>;
 
@@ -20,29 +25,80 @@ function contextText(blocks: Blocks, index: number) {
 	return element?.text ?? "";
 }
 
-function accessoryUrl(blocks: Blocks, index: number) {
-	const accessory = blocks[index]?.accessory as { url?: string } | undefined;
-	return accessory?.url ?? "";
-}
-
-const goalInsight = {
-	actions: [{ label: "Switch goal to /billing contains" }],
-	currentPeriodFrom: "2026-06-28",
-	currentPeriodTo: "2026-07-04",
-	description:
-		"The goal only matches /billing, but 15 of 32 billing visitors landed on /billing/plans or /billing/history.",
-	id: "goal-insight",
-	impactSummary: "  Billing interest is stronger than the goal reports.  ",
-	remediationKind: "configuration" as const,
+const signal: InvestigationSignal = {
+	signalKey: "goal:pricing",
+	websiteId: "site-1",
+	insightType: "conversion_leak",
+	entity: { type: "goal", id: "pricing", label: "Pricing viewers" },
+	metric: {
+		key: "goal_completion_rate",
+		label: "Pricing goal completion",
+		current: 17,
+		previous: 32,
+		format: "number",
+	},
+	changePercent: -46.9,
+	direction: "down",
 	severity: "warning",
 	sentiment: "negative",
-	suggestion: "Edit the Pricing viewers goal and include nested billing routes.",
-	title: "Pricing intent is undercounted by about 47%",
-	type: "conversion_leak",
+	priority: 8,
+	period: {
+		current: { from: "2026-06-28", to: "2026-07-04" },
+		previous: { from: "2026-06-21", to: "2026-06-27" },
+	},
+	detectedAt: "2026-07-05",
+	detection: {
+		method: "period_comparison",
+		reason: "Pricing goal completion fell 46.9%.",
+	},
 };
 
-describe("Slack finding blocks", () => {
-	it("honors rate limits with the same durable message ID and a timeout", async () => {
+const outcome: InvestigationOutcome = {
+	title: "Pricing intent is undercounted by about 47%",
+	summary:
+		"The goal only matches /billing, but 15 of 32 billing visitors landed on nested billing routes.",
+	impact: "Billing interest is stronger than the goal reports.",
+	rootCause: "The goal definition excludes nested billing routes.",
+	rootCauseConfidence: 0.95,
+	impactConfidence: 0.8,
+	evidence: ["15 of 32 billing visitors used nested routes."],
+	sources: ["product"],
+	next: {
+		type: "act",
+		action: "Include nested billing routes in the goal.",
+		kind: "configuration",
+		owner: "Growth",
+		target: "Pricing viewers goal",
+		verification: "Goal completions match nested route visits.",
+	},
+};
+
+const goalInvestigation: WebsiteInvestigation = {
+	id: "goal-insight",
+	outcome,
+	signal,
+	websiteDomain: "app.databuddy.cc",
+	websiteId: "site-1",
+	websiteName: "Databuddy",
+};
+
+function finding(
+	changes: {
+		id?: string;
+		outcome?: Partial<InvestigationOutcome>;
+		signal?: Partial<InvestigationSignal>;
+	} = {}
+): WebsiteInvestigation {
+	return {
+		...goalInvestigation,
+		id: changes.id ?? goalInvestigation.id,
+		outcome: { ...outcome, ...changes.outcome } as InvestigationOutcome,
+		signal: { ...signal, ...changes.signal } as InvestigationSignal,
+	};
+}
+
+describe("Slack finding delivery", () => {
+	it("retries rate limits with the same durable message ID", async () => {
 		const responses = [
 			new Response("rate limited", {
 				headers: { "Retry-After": "2" },
@@ -70,9 +126,7 @@ describe("Slack finding blocks", () => {
 			{
 				fetcher,
 				random: () => 0,
-				sleep: async (milliseconds) => {
-					delays.push(milliseconds);
-				},
+				sleep: async (milliseconds) => delays.push(milliseconds),
 			}
 		);
 
@@ -82,13 +136,7 @@ describe("Slack finding blocks", () => {
 		expect(requests.every((request) => request.signal instanceof AbortSignal)).toBe(
 			true
 		);
-		expect(requests.map((request) => request.body)).toEqual([
-			requests[0]?.body,
-			requests[0]?.body,
-		]);
-		expect(String(requests[0]?.body)).toContain(
-			'"client_msg_id":"effect-test"'
-		);
+		expect(requests[0]?.body).toBe(requests[1]?.body);
 	});
 
 	it("uses the durable effect ID as Slack's client message ID", () => {
@@ -106,335 +154,140 @@ describe("Slack finding blocks", () => {
 			text: "Finding",
 		});
 	});
-	it("uses the website name with domain in the header", () => {
-		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [goalInsight]);
+
+	it("renders one actionable investigation", () => {
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			goalInvestigation
+		);
 
 		expect(blocks[0]?.text?.text).toBe(
 			"Findings for Databuddy (app.databuddy.cc)"
 		);
+		expect(contextText(blocks, 1)).toBe("Fix · Jun 28 to Jul 4");
+		expect(sectionText(blocks, 2)).toContain(outcome.title);
+		expect(sectionText(blocks, 3)).toContain(`>${outcome.summary}`);
+		expect(sectionText(blocks, 3)).toContain(outcome.impact ?? "");
+		expect(sectionText(blocks, 3)).toContain("*Next:* Include nested billing");
+		expect(blocks).toHaveLength(4);
 		expect(buildFallbackText("Databuddy <@U123>", "app.databuddy.cc")).toBe(
 			"Findings for Databuddy &lt;@U123&gt; (app.databuddy.cc)"
 		);
 	});
 
-	it("renders summary chip, title with link button, quoted evidence, and label chip", () => {
-		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [goalInsight]);
-
-		expect(blocks.map((b) => b.type)).toEqual([
-			"header",
-			"context",
-			"section",
-			"section",
-			"context",
-		]);
-		expect(contextText(blocks, 1)).toBe("1 fix · week of Jun 28 to Jul 4");
-		expect(sectionText(blocks, 2)).toBe(
-			":red_circle: *Pricing intent is undercounted by about 47%*"
+	it("renders a question as a review, not a fix", () => {
+		const next: InvestigationOutcome["next"] = {
+			type: "ask",
+			question: "Was this goal change intentional?",
+			who: "Growth",
+			why: "The answer determines whether to restore the definition.",
+		};
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			finding({ id: "question", outcome: { next } })
 		);
-		expect(accessoryUrl(blocks, 2)).toContain("/insights/goal-insight");
-		expect(sectionText(blocks, 3)).toContain(">The goal only matches");
+
+		expect(contextText(blocks, 1)).toContain("Review");
 		expect(sectionText(blocks, 3)).toContain(
-			"\nBilling interest is stronger than the goal reports."
+			"*Next:* Ask Growth: Was this goal change intentional?"
 		);
-		expect(contextText(blocks, 4)).toBe("Fix · Goal tracking");
 	});
 
-	it("counts mixed labels in the summary chip and omits the period when missing", () => {
+	it("redacts UUIDs from all visible copy", () => {
+		const uuid = "019d7dac-6c23-7000-b8b0-b5cacc81db79";
+		const next: InvestigationOutcome["next"] = {
+			...outcome.next,
+			action: `Delete funnel ${uuid}.`,
+		};
 		const blocks = buildBlocks(
 			"Databuddy",
 			"app.databuddy.cc",
-			[
-				{ ...goalInsight, currentPeriodFrom: null, currentPeriodTo: null },
-				{
-					...goalInsight,
-					currentPeriodFrom: null,
-					currentPeriodTo: null,
-					id: "trend",
-					sentiment: "positive",
-					type: "positive_trend",
+			finding({
+				outcome: {
+					next,
+					summary: `Two funnels share id ${uuid}.`,
+					title: `Duplicate funnel ${uuid} is active`,
 				},
-			]
+			})
 		);
 
-		expect(contextText(blocks, 1)).toBe("1 fix · 1 win");
+		expect(JSON.stringify(blocks)).not.toContain("019d7dac");
+		expect(JSON.stringify(blocks)).toContain("the affected item");
 	});
 
-	it("omits the impact line when no impact summary exists", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[{ ...goalInsight, impactSummary: null }]
-		);
-
-		expect(sectionText(blocks, 3)).toBe(
-			">The goal only matches /billing, but 15 of 32 billing visitors landed on /billing/plans or /billing/history."
-		);
-	});
-
-	it("separates insights with dividers but does not trail one", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[goalInsight, { ...goalInsight, id: "second" }]
-		);
-
-		expect(blocks.filter((b) => b.type === "divider")).toHaveLength(1);
-		expect(blocks.at(-1)?.type).toBe("context");
-	});
-
-	it("does not expose raw IDs in visible Slack copy", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[
-				{
-					actions: [],
-					description:
-						"Two funnels share ids 019d7dac-6c23-7000-b8b0-b5cacc81db79 and 019d7dac-ef9b-... but have identical results.",
-					id: "duplicate-funnel",
-					remediationKind: "configuration",
-					severity: "warning",
-					sentiment: "negative",
-					suggestion: "Delete funnel 019d7dac-6c23-7000-b8b0-b5cacc81db79.",
-					title:
-						"Duplicate funnel 019d7dac-6c23-7000-b8b0-b5cacc81db79 is active",
-					type: "funnel_regression",
-				},
-			]
-		);
-
-		expect(sectionText(blocks, 2)).toContain(
-			"*Duplicate funnel the affected item is active*"
-		);
-		expect(sectionText(blocks, 3)).toContain(
-			">Two funnels share ids the affected item"
-		);
-		expect(contextText(blocks, 4)).toBe("Fix · Funnel");
-		for (const block of blocks) {
-			expect(block.text?.text ?? "").not.toContain("019d7dac");
-		}
-	});
-
-	it("handles legacy insight rows without type or sentiment fields", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[
-				{
-					description: "A historical insight row was missing newer metadata.",
-					id: "legacy-insight",
-					severity: "warning",
-					suggestion: "Review this legacy insight.",
-					title: "Legacy insight still renders",
-				},
-			]
-		);
-
-		expect(contextText(blocks, 1)).toBe("1 review");
-		expect(contextText(blocks, 4)).toBe("Review");
-		expect(sectionText(blocks, 2)).toStartWith(":large_yellow_circle:");
-	});
-
-	it("labels a needs-context goal as review rather than a tracking fix", () => {
-		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [
-			{
-				...goalInsight,
-				id: "goal-question",
-				remediationKind: undefined,
-				suggestion: "Did users complete Signup?",
-				title: "Signup needs context",
-			},
-		]);
-
-		expect(contextText(blocks, 1)).toBe("1 review · week of Jun 28 to Jul 4");
-		expect(contextText(blocks, 4)).toBe("Review · Conversion");
-		expect(sectionText(blocks, 2)).toStartWith(":large_yellow_circle:");
-	});
-
-	it("labels an unresolved error as review rather than a fix", () => {
-		const blocks = buildBlocks("Databuddy", "app.databuddy.cc", [
-			{
-				...goalInsight,
-				id: "error-question",
-				remediationKind: undefined,
-				title: "Investigate checkout error",
-				type: "error_spike",
-			},
-		]);
-
-		expect(contextText(blocks, 4)).toBe("Review · Error");
-		expect(sectionText(blocks, 2)).toStartWith(":large_yellow_circle:");
-	});
-
-	it("renders escalations as compact one-line sections after the cards", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[goalInsight],
-			[
-				{
-					...goalInsight,
-					id: "flag-telemetry",
-					title: "Feature-flag telemetry stayed near-silent this week",
-				},
-			]
-		);
-
-		expect(contextText(blocks, 1)).toBe(
-			"1 fix · 1 escalation · week of Jun 28 to Jul 4"
-		);
-		const last = blocks.at(-1);
-		expect(last?.type).toBe("section");
-		expect(last?.text?.text).toContain(":small_red_triangle_up:");
-		expect(last?.text?.text).toContain(
-			"Feature-flag telemetry stayed near-silent this week"
-		);
-		expect(last?.text?.text).toContain("Still open and now worse");
-		expect(blocks.filter((b) => b.type === "divider")).toHaveLength(1);
-	});
-
-	it("renders persistent criticals as still-open reminders with their own marker", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[goalInsight],
-			[],
-			[
-				{
-					...goalInsight,
-					id: "signup-leak",
-					title: "Signup leak still bleeding",
-				},
-			]
-		);
-
-		expect(contextText(blocks, 1)).toBe(
-			"1 fix · 1 still open · week of Jun 28 to Jul 4"
-		);
-		const last = blocks.at(-1);
-		expect(last?.text?.text).toContain(":radio_button:");
-		expect(last?.text?.text).toContain("Signup leak still bleeding");
-		expect(last?.text?.text).toContain("no change since it was first flagged");
-	});
-
-	it("orders escalations before persistent reminders", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[],
-			[{ ...goalInsight, id: "worse", title: "Got worse" }],
-			[{ ...goalInsight, id: "flat", title: "Still flat" }]
-		);
-
-		const sections = blocks.filter((b) => b.type === "section");
-		expect(sections[0]?.text?.text).toContain(":small_red_triangle_up:");
-		expect(sections[0]?.text?.text).toContain("Got worse");
-		expect(sections[1]?.text?.text).toContain(":radio_button:");
-		expect(sections[1]?.text?.text).toContain("Still flat");
-	});
-
-	it("renders an escalation-only digest without cards", () => {
-		const blocks = buildBlocks(
-			"Databuddy",
-			"app.databuddy.cc",
-			[],
-			[goalInsight]
-		);
-
-		expect(contextText(blocks, 1)).toBe(
-			"1 escalation · week of Jun 28 to Jul 4"
-		);
-		expect(blocks.filter((b) => b.type === "divider")).toHaveLength(0);
-		expect(blocks.at(-1)?.type).toBe("section");
-	});
-
-	it("uses the green marker and domain fallback for positive trends", () => {
+	it("uses the positive acquisition label", () => {
 		const blocks = buildBlocks(
 			null,
 			"example.com",
-			[
-				{
-					description: "Traffic rose from 10 to 30 sessions.",
-					id: "traffic-insight",
-					severity: "info",
+			finding({
+				id: "trend",
+				outcome: { title: "Traffic tripled this week" },
+				signal: {
+					insightType: "positive_trend",
 					sentiment: "positive",
-					suggestion: "Annotate the campaign.",
-					title: "Traffic tripled this week",
-					type: "positive_trend",
 				},
-			]
+			})
 		);
 
 		expect(blocks[0]?.text?.text).toBe("Findings for example.com");
-		expect(contextText(blocks, 1)).toBe("1 win");
+		expect(contextText(blocks, 1)).toContain("Opportunity");
 		expect(sectionText(blocks, 2)).toStartWith(":large_green_circle:");
-		expect(contextText(blocks, 4)).toBe("Opportunity · Acquisition");
+		expect(blocks).toHaveLength(4);
+	});
+
+	it("omits unproven operational impact", () => {
+		const blocks = buildBlocks(
+			"Databuddy",
+			"app.databuddy.cc",
+			finding({ outcome: { impact: null } })
+		);
+
+		expect(sectionText(blocks, 3)).not.toContain(
+			"Billing interest is stronger"
+		);
+		expect(sectionText(blocks, 3)).toContain("*Next:*");
 	});
 });
 
-describe("buildThreadBlocks", () => {
-	const detailed = {
-		currentPeriodFrom: "2026-06-28",
-		currentPeriodTo: "2026-07-04",
-		description: "48 people started signup but only 5 finished.",
-		evidence: [
-			{ description: "67 of 67 onboarding visitors exit on that page." },
-		],
-		id: "goal-insight",
-		metrics: [
-			{ label: "Signups started", current: 48, previous: 10, format: "number" },
-			{ label: "Signups completed", current: 5, previous: 38, format: "number" },
-		],
-		rootCause: "The onboarding step handler throws before completion.",
-		severity: "warning",
-		suggestion: "Trace a failing signup session.",
-		title: "Signup leak deepened",
-		type: "conversion_leak",
-	} as never;
+describe("Slack investigation detail", () => {
+	it("renders the measured signal, proven cause, and evidence", () => {
+		const text = buildThreadBlocks(goalInvestigation)[0]?.text?.text ?? "";
 
-	it("renders metrics with before/after, root cause, and evidence", () => {
-		const blocks = buildThreadBlocks([detailed]);
-		expect(blocks).toHaveLength(1);
-		const text = blocks[0]?.text?.text ?? "";
-		expect(text).toContain("*Signup leak deepened*");
-		expect(text).toContain("Signups started: 48 (was 10)");
-		expect(text).toContain("Signups completed: 5 (was 38)");
-		expect(text).toContain("_Why:_ The onboarding step handler");
-		expect(text).toContain("67 of 67 onboarding visitors");
+		expect(text).toContain("Pricing goal completion: 17 (was 32)");
+		expect(text).toContain("_Why:_ The goal definition excludes");
+		expect(text).toContain("15 of 32 billing visitors");
 	});
 
-	it("skips insights with no metrics, evidence, or root cause", () => {
-		const bare = {
-			description: "d",
-			id: "bare",
-			severity: "info",
-			suggestion: "s",
-			title: "Bare card",
-		} as never;
-		expect(buildThreadBlocks([bare])).toHaveLength(0);
-	});
+	it("formats percent and duration units", () => {
+		const percent = finding({
+			signal: {
+				metric: {
+					key: "bounce_rate",
+					label: "Bounce rate",
+					current: 62,
+					previous: 40,
+					format: "percent",
+				},
+			},
+		});
+		const duration = finding({
+			signal: {
+				metric: {
+					key: "lcp",
+					label: "Load time",
+					current: 3200,
+					format: "duration_ms",
+				},
+			},
+		});
 
-	it("formats percent and duration metrics", () => {
-		const perf = {
-			description: "d",
-			id: "perf",
-			metrics: [
-				{ label: "Bounce rate", current: 62, previous: 40, format: "percent" },
-				{ label: "Load time", current: 3200, format: "duration_ms" },
-			],
-			severity: "warning",
-			suggestion: "s",
-			title: "Perf card",
-		} as never;
-		const text = buildThreadBlocks([perf])[0]?.text?.text ?? "";
-		expect(text).toContain("Bounce rate: 62% (was 40%)");
-		expect(text).toContain("Load time: 3,200ms");
-	});
-
-	it("includes escalation detail after capped card detail", () => {
-		const escalation = { ...detailed, id: "esc", title: "Still open" };
-		const blocks = buildThreadBlocks([detailed], [escalation]);
-		expect(blocks).toHaveLength(2);
-		expect(blocks[1]?.text?.text).toContain("*Still open*");
+		expect(buildThreadBlocks(percent)[0]?.text?.text).toContain(
+			"Bounce rate: 62% (was 40%)"
+		);
+		expect(buildThreadBlocks(duration)[0]?.text?.text).toContain(
+			"Load time: 3,200ms"
+		);
 	});
 });
