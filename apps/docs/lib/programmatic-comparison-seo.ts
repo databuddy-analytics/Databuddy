@@ -22,7 +22,7 @@ export function getProgrammaticComparisonSeo(
 
 	if (variant === "alternative") {
 		const description = trimMetaDescription(
-			`Best ${name} alternative (${YEAR}): cookieless analytics, automatic findings, and product analytics. Compare pricing (${competitor.pricing.starting} vs free), features, and migration.`
+			`Best ${name} alternative (${YEAR}): cookieless analytics, automatic investigations, and product analytics. Compare pricing (${competitor.pricing.starting} vs free), features, and migration.`
 		);
 		return {
 			title: `Alternative to ${name} (${YEAR}) [Pricing & Features] | Databuddy`,
@@ -31,7 +31,7 @@ export function getProgrammaticComparisonSeo(
 	}
 
 	const description = trimMetaDescription(
-		`Switch from ${name} to Databuddy (${YEAR}). Compare features, pricing, automatic findings, and migration steps before you move.`
+		`Switch from ${name} to Databuddy (${YEAR}). Compare features, pricing, automatic investigations, and migration steps before you move.`
 	);
 	return {
 		title: `Switch from ${name} to Databuddy (${YEAR}) - Migration & Comparison`,

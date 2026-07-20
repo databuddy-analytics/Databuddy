@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+
+const originalAutumnSecretKey = process.env.AUTUMN_SECRET_KEY;
 
 const mockAutumnCheck = mock(async () => ({
 	allowed: true,
@@ -54,6 +56,7 @@ mock.module("../../lib/tracing", () => ({
 
 const {
 	ensureAgentCreditsAvailable,
+	isAgentBillingConfigured,
 	resolveAgentBillingCustomerId,
 	trackAgentUsageAndBill,
 } = await import("./execution");
@@ -62,11 +65,20 @@ type AgentPrincipal = Parameters<typeof resolveAgentBillingCustomerId>[0];
 type ApiKeyPrincipal = NonNullable<AgentPrincipal["apiKey"]>;
 
 beforeEach(() => {
+	process.env.AUTUMN_SECRET_KEY = "test-autumn-secret";
 	mockAutumnCheck.mockClear();
 	mockAutumnTrack.mockClear();
 	mockGetBillingCustomerId.mockClear();
 	mockGetOrganizationOwnerId.mockClear();
 	mockMergeWideEvent.mockClear();
+});
+
+afterAll(() => {
+	if (originalAutumnSecretKey === undefined) {
+		delete process.env.AUTUMN_SECRET_KEY;
+	} else {
+		process.env.AUTUMN_SECRET_KEY = originalAutumnSecretKey;
+	}
 });
 
 describe("resolveAgentBillingCustomerId", () => {
@@ -131,6 +143,27 @@ describe("resolveAgentBillingCustomerId", () => {
 
 		expect(customerId).toBeNull();
 	});
+
+	it("does not resolve a billing owner when Autumn is not configured", async () => {
+		delete process.env.AUTUMN_SECRET_KEY;
+
+		const customerId = await resolveAgentBillingCustomerId({
+			apiKey: null,
+			organizationId: "self-hosted-org",
+			userId: "self-hosted-user",
+		});
+
+		expect(isAgentBillingConfigured()).toBe(false);
+		expect(customerId).toBeNull();
+		expect(mockGetBillingCustomerId).not.toHaveBeenCalled();
+		expect(mockGetOrganizationOwnerId).not.toHaveBeenCalled();
+		expect(mockMergeWideEvent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				agent_billing_resolution: "billing_disabled",
+				organization_id: "self-hosted-org",
+			})
+		);
+	});
 });
 
 describe("ensureAgentCreditsAvailable", () => {
@@ -157,7 +190,9 @@ describe("ensureAgentCreditsAvailable", () => {
 	});
 
 	it("skips Autumn when billing is not configured", async () => {
-		const allowed = await ensureAgentCreditsAvailable(null);
+		delete process.env.AUTUMN_SECRET_KEY;
+
+		const allowed = await ensureAgentCreditsAvailable("self-hosted-user");
 
 		expect(allowed).toBe(true);
 		expect(mockAutumnCheck).not.toHaveBeenCalled();
@@ -214,5 +249,34 @@ describe("trackAgentUsageAndBill", () => {
 				value: 8.4,
 			})
 		);
+	});
+
+	it("deduplicates retryable usage charges", async () => {
+		await trackAgentUsageAndBill({
+			billingCustomerId: "owner:org_slack",
+			idempotencyKey: "insights:run-1:site-1",
+			modelId: "anthropic/claude-sonnet-4.6",
+			source: "insights",
+			usage: { inputTokens: 1000, outputTokens: 100 },
+		});
+
+		expect(mockAutumnTrack).toHaveBeenCalledWith(
+			expect.objectContaining({ featureId: "agent_credits" }),
+			{ headers: { "Idempotency-Key": "insights:run-1:site-1" } }
+		);
+	});
+
+	it("records usage without billing when Autumn is not configured", async () => {
+		delete process.env.AUTUMN_SECRET_KEY;
+
+		const summary = await trackAgentUsageAndBill({
+			billingCustomerId: "self-hosted-user",
+			modelId: "anthropic/claude-sonnet-4.6",
+			source: "insights",
+			usage: { inputTokens: 1000, outputTokens: 100 },
+		});
+
+		expect(summary.agent_credits_used).toBeGreaterThan(0);
+		expect(mockAutumnTrack).not.toHaveBeenCalled();
 	});
 });

@@ -1,64 +1,31 @@
-import { and, db, eq, inArray, isNull, ne, sql } from "@databuddy/db";
 import {
-	insightObservations,
+	and,
+	db,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	ne,
+	sql,
+} from "@databuddy/db";
+import {
 	insightRunEffects,
 	insightRunItems,
 	type InsightRunPreparedStatus,
 } from "@databuddy/db/schema";
-import type {
-	InvestigationDecision,
-	InvestigationEvidence,
-	InvestigationSignal,
-} from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
-import { z } from "zod";
 import {
 	deliverInsightSlackEffect,
+	insightSlackEffectPayloadSchema,
 	type InsightSlackEffectPayload,
 } from "./delivery";
 
-const slackBlockSchema = z
-	.object({
-		accessory: z.unknown().optional(),
-		elements: z.array(z.unknown()).optional(),
-		text: z
-			.object({
-				emoji: z.boolean().optional(),
-				text: z.string(),
-				type: z.string(),
-			})
-			.strict()
-			.optional(),
-		type: z.string(),
-	})
-	.strict();
-
-const insightSlackEffectPayloadSchema = z
-	.object({
-		blocks: z.array(slackBlockSchema).max(50),
-		channelId: z.string().min(1),
-		organizationId: z.string().min(1),
-		text: z.string().min(1),
-		websiteId: z.string().min(1),
-	})
-	.strict();
-
-export interface InsightRunEffectInput {
+interface InsightRunEffectInput {
 	effectKey: string;
 	payload: InsightSlackEffectPayload;
 }
 
-interface ObservationInput {
-	asOf: Date;
-	decision: InvestigationDecision;
-	evidence: InvestigationEvidence[];
-	insightId: string | null;
-	recheckAt: Date;
-	signal: InvestigationSignal;
-}
-
-export interface PreparedResult {
-	insightIds: string[];
+interface PreparedResult {
 	message?: string;
 	resultCount: number;
 	status: InsightRunPreparedStatus;
@@ -72,7 +39,7 @@ export interface InsightRunIdentity {
 	websiteId: string;
 }
 
-function runIdentityCondition(identity: InsightRunIdentity) {
+export function runIdentityCondition(identity: InsightRunIdentity) {
 	return and(
 		eq(insightRunItems.id, identity.itemId),
 		eq(insightRunItems.runId, identity.runId),
@@ -84,24 +51,16 @@ function runIdentityCondition(identity: InsightRunIdentity) {
 	);
 }
 
-function preparedResult(
-	item: {
-		message: string | null;
-		resultCount: number;
-		status: InsightRunPreparedStatus;
-	},
-	insightId: string | null | undefined
-): PreparedResult {
+function preparedResult(item: {
+	message: string | null;
+	resultCount: number;
+	status: InsightRunPreparedStatus;
+}): PreparedResult {
 	return {
-		insightIds: insightId ? [insightId] : [],
 		...(item.message ? { message: item.message } : {}),
 		resultCount: item.resultCount,
 		status: item.status,
 	};
-}
-
-function parseEffectPayload(payload: unknown): InsightSlackEffectPayload {
-	return insightSlackEffectPayloadSchema.parse(payload);
 }
 
 export async function loadPreparedInsightRun(
@@ -120,21 +79,7 @@ export async function loadPreparedInsightRun(
 	if (!(item?.preparedAt && item.status)) {
 		return null;
 	}
-	const [observation] = await db
-		.select({ insightId: insightObservations.insightId })
-		.from(insightObservations)
-		.where(
-			and(
-				eq(insightObservations.runId, identity.runId),
-				eq(insightObservations.organizationId, identity.organizationId),
-				eq(insightObservations.websiteId, identity.websiteId)
-			)
-		)
-		.limit(1);
-	return preparedResult(
-		{ ...item, status: item.status },
-		observation?.insightId
-	);
+	return preparedResult({ ...item, status: item.status });
 }
 
 export async function loadCompletedPreparedResult(
@@ -170,33 +115,24 @@ export async function loadCompletedPreparedResult(
 	if (!(item?.preparedAt && item.status) || incompleteEffect) {
 		return null;
 	}
-	return preparedResult(
-		{
-			message: item.message,
-			resultCount: item.resultCount,
-			status: item.status,
-		},
-		null
-	);
+	return preparedResult({
+		message: item.message,
+		resultCount: item.resultCount,
+		status: item.status,
+	});
 }
 
 export function prepareInsightRun(
 	params: InsightRunIdentity & {
 		effects: InsightRunEffectInput[];
-		observation?: ObservationInput;
 		result: PreparedResult;
 	}
 ): Promise<PreparedResult> {
-	const effects = params.effects.map((effect) => {
-		const payload = parseEffectPayload(effect.payload);
-		if (
-			payload.organizationId !== params.organizationId ||
-			payload.websiteId !== params.websiteId
-		) {
-			throw new Error("Insight effect identity does not match its run item");
-		}
-		return { ...effect, id: randomUUIDv7(), payload };
-	});
+	const effects = params.effects.map((effect) => ({
+		...effect,
+		id: randomUUIDv7(),
+		payload: insightSlackEffectPayloadSchema.parse(effect.payload),
+	}));
 	return db.transaction(async (tx) => {
 		const [item] = await tx
 			.select({
@@ -216,42 +152,7 @@ export function prepareInsightRun(
 			if (!item.status) {
 				throw new Error("Prepared insight run item is missing its result");
 			}
-			const [observation] = await tx
-				.select({ insightId: insightObservations.insightId })
-				.from(insightObservations)
-				.where(
-					and(
-						eq(insightObservations.runId, params.runId),
-						eq(insightObservations.organizationId, params.organizationId),
-						eq(insightObservations.websiteId, params.websiteId)
-					)
-				)
-				.limit(1);
-			return preparedResult(
-				{ ...item, status: item.status },
-				observation?.insightId
-			);
-		}
-		if (params.observation) {
-			await tx
-				.insert(insightObservations)
-				.values({
-					id: randomUUIDv7(),
-					runId: params.runId,
-					organizationId: params.organizationId,
-					websiteId: params.websiteId,
-					insightId: params.observation.insightId,
-					signalKey: params.observation.signal.signalKey,
-					asOf: params.observation.asOf,
-					disposition: params.observation.decision.disposition,
-					signal: params.observation.signal,
-					evidence: params.observation.evidence,
-					decision: params.observation.decision,
-					recheckAt: params.observation.recheckAt,
-				})
-				.onConflictDoNothing({
-					target: [insightObservations.runId, insightObservations.websiteId],
-				});
+			return preparedResult({ ...item, status: item.status });
 		}
 		if (effects.length > 0) {
 			await tx
@@ -282,17 +183,6 @@ export function prepareInsightRun(
 			);
 		return params.result;
 	});
-}
-
-function executeEffect(
-	effect: {
-		id: string;
-		payload: unknown;
-	},
-	handlers: InsightEffectHandlers
-): Promise<string | null> {
-	const payload = parseEffectPayload(effect.payload);
-	return (handlers.slack ?? deliverInsightSlackEffect)(payload, effect.id);
 }
 
 function errorMessage(error: unknown): string {
@@ -370,6 +260,7 @@ export async function drainInsightRunEffects(
 	}
 	const effects = await db
 		.select({
+			effectKey: insightRunEffects.effectKey,
 			id: insightRunEffects.id,
 			payload: insightRunEffects.payload,
 		})
@@ -409,7 +300,38 @@ export async function drainInsightRunEffects(
 
 		let externalId: string | null;
 		try {
-			externalId = await executeEffect(effect, handlers);
+			const payload = insightSlackEffectPayloadSchema.parse(effect.payload);
+			const [root] = payload.insightId
+				? await db
+						.select({ externalId: insightRunEffects.externalId })
+						.from(insightRunEffects)
+						.innerJoin(
+							insightRunItems,
+							eq(insightRunEffects.runItemId, insightRunItems.id)
+						)
+						.where(
+							and(
+								eq(insightRunItems.organizationId, identity.organizationId),
+								eq(insightRunItems.websiteId, identity.websiteId),
+								eq(insightRunEffects.effectKey, effect.effectKey),
+								eq(insightRunEffects.status, "succeeded"),
+								isNotNull(insightRunEffects.externalId),
+								sql`${insightRunEffects.payload}->>'insightId' = ${payload.insightId}`
+							)
+						)
+						.orderBy(insightRunEffects.createdAt, insightRunEffects.id)
+						.limit(1)
+				: [];
+			externalId = await (handlers.slack ?? deliverInsightSlackEffect)(
+				payload,
+				{
+					channelId: effect.effectKey,
+					organizationId: identity.organizationId,
+					websiteId: identity.websiteId,
+				},
+				effect.id,
+				root?.externalId ?? undefined
+			);
 		} catch (error) {
 			firstError ??= error;
 			try {
@@ -454,9 +376,6 @@ export async function drainInsightRunEffects(
 	);
 }
 
-export interface InsightEffectHandlers {
-	slack?: (
-		payload: InsightSlackEffectPayload,
-		clientMessageId: string
-	) => Promise<string | null>;
+interface InsightEffectHandlers {
+	slack?: typeof deliverInsightSlackEffect;
 }

@@ -165,6 +165,8 @@ services:
       INSIGHTS_STALE_ITEM_MS: ${INSIGHTS_STALE_ITEM_MS:-900000}
       INSIGHTS_WORKER_CONCURRENCY: ${INSIGHTS_WORKER_CONCURRENCY:-5}
       INSIGHTS_WORKER_ENABLED: ${INSIGHTS_WORKER_ENABLED:-false}
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+      AI_API_KEY: ${AI_API_KEY:-}
       CLICKHOUSE_URL: ${CLICKHOUSE_URL:?Set CLICKHOUSE_URL in your environment}
     healthcheck:
       test: [ "CMD", "bun", "-e", "fetch('http://localhost:4002/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]

@@ -3,8 +3,7 @@ import { API_SCOPES } from "./api-scopes";
 
 export { API_SCOPES } from "./api-scopes";
 
-export const AGENT_DISCOVERY_UPDATED = "2026-07-03";
-export const MCP_UI_RESOURCE_URI = "ui://databuddy/analytics-overview";
+export const AGENT_DISCOVERY_UPDATED = "2026-07-20";
 
 const CDN_SCRIPT_URL = "https://cdn.databuddy.cc/databuddy.js";
 
@@ -27,58 +26,6 @@ export interface AgentDiscoveryUrls {
 }
 
 export type ScopedLlmsArea = "api" | "developers" | "docs";
-
-export const mcpTools = [
-	{
-		name: "ask",
-		description:
-			"Ask an open-ended analytics question and receive a concise answer with supporting data.",
-	},
-	{
-		name: "list_websites",
-		description:
-			"List websites available to the authenticated Databuddy API key.",
-	},
-	{
-		name: "get_data",
-		description:
-			"Run typed analytics queries for traffic, pages, referrers, errors, sessions, funnels, goals, and performance.",
-	},
-	{
-		name: "get_schema",
-		description:
-			"Read analytics schema details before building filters or SQL queries.",
-	},
-	{
-		name: "capabilities",
-		description:
-			"Inspect available query types, tool categories, and supported workflows.",
-	},
-	{
-		name: "list_funnels",
-		description: "List configured conversion funnels.",
-	},
-	{
-		name: "get_funnel_analytics",
-		description: "Read per-step conversion analytics for a funnel.",
-	},
-	{
-		name: "list_goals",
-		description: "List configured conversion goals.",
-	},
-	{
-		name: "get_goal_analytics",
-		description: "Read completion analytics for a goal.",
-	},
-	{
-		name: "list_links",
-		description: "List short links and folders for link analytics workflows.",
-	},
-	{
-		name: "list_flags",
-		description: "List feature flags available to the organization.",
-	},
-] as const;
 
 function discoveryUrls(urls: AgentDiscoveryUrls) {
 	return {
@@ -178,7 +125,7 @@ export function createDeveloperResources(urls: AgentDiscoveryUrls) {
 			title: "Databuddy MCP Server Card",
 			url: resolved.mcpServerCardUrl,
 			description:
-				"MCP server card with tools, UI resources, authentication, and transport details.",
+				"MCP server card with tools, authentication, and transport details.",
 		},
 		{
 			title: "Databuddy SDK Docs",
@@ -215,7 +162,7 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 		name: "Databuddy",
 		display_name: "Databuddy Analytics",
 		description:
-			"Privacy-first analytics, error tracking, feature flags, uptime, short links, and AI insights for developer teams.",
+			"Privacy-first analytics, error tracking, feature flags, uptime, short links, and durable investigations for developer teams.",
 		homepage_url: resolved.siteUrl,
 		documentation_url: `${resolved.siteUrl}/docs/api/mcp`,
 		manifest_url: resolved.mcpManifestUrl,
@@ -231,7 +178,7 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 			protocol: "mcp",
 			transport: "streamable-http",
 			description:
-				"Authenticated Streamable HTTP MCP server for Databuddy analytics and configuration tools.",
+				"Authenticated Streamable HTTP MCP server for Databuddy analytics, investigations, and mutations.",
 		},
 		transports: [
 			{
@@ -255,37 +202,12 @@ export function createMcpManifest(urls: AgentDiscoveryUrls) {
 		capabilities: {
 			tools: true,
 			resources: true,
-			prompts: true,
-			mcp_apps: true,
-			ui_resources: true,
 		},
-		tools: mcpTools,
 		resources: [
 			{
 				uri: "databuddy://guide",
 				description:
 					"Extended Databuddy MCP workflow guide and known query conventions.",
-			},
-			{
-				uri: MCP_UI_RESOURCE_URI,
-				mimeType: "text/html",
-				description:
-					"Embeddable MCP Apps UI template for Databuddy analytics summaries.",
-			},
-		],
-		prompts: [
-			{
-				name: "weekly_report",
-				description:
-					"Traffic trends, top pages, referrers, error health, and one item to investigate.",
-			},
-			{
-				name: "triage_errors",
-				description: "Prioritize recent errors by type, page, and user impact.",
-			},
-			{
-				name: "funnel_health",
-				description: "Find conversion drop-offs across configured funnels.",
 			},
 		],
 		client_config: {
@@ -321,7 +243,7 @@ export function createMcpServerCard(urls: AgentDiscoveryUrls) {
 	return {
 		name: "databuddy",
 		description:
-			"Databuddy MCP server for privacy-first analytics, errors, web vitals, feature flags, links, funnels, goals, and AI insights.",
+			"Databuddy MCP server for privacy-first analytics, errors, web vitals, feature flags, links, funnels, goals, and durable investigations.",
 		version: "1.0.0",
 		serverUrl: resolved.mcpServerUrl,
 		transports: [
@@ -335,33 +257,12 @@ export function createMcpServerCard(urls: AgentDiscoveryUrls) {
 			protectedResourceMetadataUrl: resolved.protectedResourceMetadataUrl,
 			scopes: API_SCOPES,
 		},
-		tools: mcpTools.map((tool) => ({
-			...tool,
-			_meta: {
-				ui: {
-					resourceUri: MCP_UI_RESOURCE_URI,
-				},
-				"openai/outputTemplate": MCP_UI_RESOURCE_URI,
-			},
-		})),
 		resources: [
 			{
 				uri: "databuddy://guide",
 				mimeType: "text/markdown",
 				description: "MCP workflow guide and query conventions.",
 			},
-			{
-				uri: MCP_UI_RESOURCE_URI,
-				mimeType: "text/html",
-				description:
-					"MCP Apps UI resource for rendering Databuddy analytics summaries inside an agent conversation.",
-			},
-		],
-		prompts: [
-			"weekly_report",
-			"triage_errors",
-			"funnel_health",
-			"flag_rollout_check",
 		],
 	};
 }
@@ -374,7 +275,7 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 		name: "Databuddy",
 		url: resolved.siteUrl,
 		description:
-			"Databuddy is a privacy-first analytics platform for developers. It combines web analytics, error tracking, web vitals, feature flags, short links, uptime, and AI insights.",
+			"Databuddy is a privacy-first analytics platform for developers. It combines web analytics, error tracking, web vitals, feature flags, short links, uptime, and durable investigations.",
 		when_to_use: [
 			"Use Databuddy when a user asks to install privacy-first analytics or replace Google Analytics, Plausible, PostHog, Mixpanel, or Umami.",
 			"Use Databuddy when a user wants an AI agent to query website traffic, referrers, pages, errors, web vitals, funnels, goals, links, or feature flags.",
@@ -392,11 +293,10 @@ export function createAgentJson(urls: AgentDiscoveryUrls) {
 			"feature flags",
 			"short links",
 			"uptime monitoring",
-			"AI analytics assistant",
+			"durable AI investigations",
 			"REST API",
 			"OpenAPI",
 			"MCP Streamable HTTP server",
-			"MCP Apps UI resources",
 		],
 		endpoints: {
 			homepage: resolved.siteUrl,
@@ -721,7 +621,7 @@ export function createIndexMarkdown(urls: AgentDiscoveryUrls) {
 
 	return `# Databuddy
 
-Databuddy is a privacy-first analytics platform for developers. It combines web analytics, error tracking, Core Web Vitals, feature flags, short links, uptime monitoring, and AI analytics insights behind one lightweight script and a typed API.
+Databuddy is a privacy-first analytics platform for developers. It combines web analytics, error tracking, Core Web Vitals, feature flags, short links, uptime monitoring, and durable investigations behind one lightweight script and a typed API.
 
 Databuddy is useful when a team wants product analytics without cookies, fingerprinting, or heavy client bundles. AI agents can use Databuddy through OpenAPI, markdown docs, API-key authentication, and a Streamable HTTP MCP server.
 
@@ -776,7 +676,7 @@ ${JSON.stringify({ agent_auth: createAuthorizationServerMetadata(urls).agent_aut
 
 ## 3. Register
 
-Use \`register_uri\`: ${resolved.apiUrl}/agent-auth/register. Production organization credentials are created from the Databuddy dashboard at ${resolved.dashboardUrl}/organizations/settings#api-keys. Choose the smallest scope set needed, usually \`read:data\` for analytics questions and \`manage:config\` only for write tools.
+Use \`register_uri\`: ${resolved.apiUrl}/agent-auth/register. Production organization credentials are created from the Databuddy dashboard at ${resolved.dashboardUrl}/organizations/settings#api-keys. Choose the smallest scope set needed, usually \`read:data\` for analytics questions and only the specific write scope for mutations.
 
 ## 4. Claim
 
@@ -919,7 +819,7 @@ export function createSoftwareJsonl(urls: AgentDiscoveryUrls) {
 		applicationCategory: "BusinessApplication",
 		operatingSystem: "Web",
 		description:
-			"Privacy-first analytics, error tracking, web vitals, feature flags, short links, uptime, and AI insights for developer teams.",
+			"Privacy-first analytics, error tracking, web vitals, feature flags, short links, uptime, and durable investigations for developer teams.",
 		offers: {
 			"@type": "Offer",
 			price: "0",
@@ -934,7 +834,7 @@ export function createFaqJsonl() {
 		{
 			question: "What is Databuddy?",
 			answer:
-				"Databuddy is a privacy-first analytics platform for developers that combines web analytics, error tracking, Core Web Vitals, feature flags, short links, uptime, and AI insights.",
+				"Databuddy is a privacy-first analytics platform for developers that combines web analytics, error tracking, Core Web Vitals, feature flags, short links, uptime, and durable investigations.",
 		},
 		{
 			question: "Does Databuddy support AI agents?",

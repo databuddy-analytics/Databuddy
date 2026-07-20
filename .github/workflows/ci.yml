@@ -172,3 +172,8 @@ jobs:
           UPTIME_ROUTER_INTEGRATION: "true"
           BULLMQ_REDIS_URL: redis://localhost:6379/3
         run: cd apps/api && bun test src/integration/uptime-handlers.test.ts
+      - name: Insights router integration
+        env:
+          NODE_ENV: test
+          BULLMQ_REDIS_URL: redis://localhost:6379/5
+        run: cd apps/api && bun test src/integration/insights-handlers.test.ts

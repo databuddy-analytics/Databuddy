@@ -90,13 +90,13 @@ const GITHUB_ITEM: IntegrationCatalogItem = {
 	name: "GitHub",
 };
 
-const GITHUB_SCOPES = ["repo:status", "read:org"];
+const GITHUB_SCOPES = ["repo"];
 
 const GSC_ITEM: IntegrationCatalogItem = {
 	accent: "#4285F4",
 	category: "Search",
 	description:
-		"Use keyword rankings, impression drops, and CTR shifts in findings.",
+		"Use keyword rankings, impression drops, and CTR shifts in investigations.",
 	iconPath: SIMPLE_ICONS.googlesearchconsole,
 	id: "google-search-console",
 	name: "Google Search Console",
@@ -512,8 +512,8 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 			toast.success("Repository linked");
 			await invalidateWebsites();
 		},
-		onError: () => {
-			toast.error("Could not link repository");
+		onError: (error) => {
+			toast.error(error.message || "Could not link repository");
 		},
 	});
 
@@ -546,9 +546,15 @@ function GitHubIntegrationRow({ organizationId }: { organizationId: string }) {
 						Disconnect
 					</Button>
 				)}
-				<Button disabled size="sm" variant="secondary">
-					<CheckCircleIcon className="size-4" />
-					Connected
+				<Button
+					disabled={connect.isPending}
+					loading={connect.isPending}
+					onClick={() => connect.mutate()}
+					size="sm"
+					variant="secondary"
+				>
+					<PlugIcon className="size-4" />
+					Grant access
 				</Button>
 			</div>
 		);
@@ -670,6 +676,20 @@ function GitHubRepoMappings({
 					deploys and commits with traffic changes.
 				</Text>
 			</div>
+			{reposQuery.isError && (
+				<div className="flex items-center justify-between gap-3 border-border/60 border-b px-3 py-2">
+					<Text className="text-destructive" variant="caption">
+						GitHub could not load repositories. Grant access above, then retry.
+					</Text>
+					<Button
+						onClick={() => reposQuery.refetch()}
+						size="sm"
+						variant="ghost"
+					>
+						Retry
+					</Button>
+				</div>
+			)}
 			{websites.map((site) => {
 				const gh = site.integrations?.github;
 				const isManual = manualId === site.id;
@@ -727,10 +747,18 @@ function GitHubRepoMappings({
 						) : (
 							<div className="flex items-center gap-2">
 								<RepoSelector
-									disabled={reposQuery.isLoading || settingId === site.id}
+									disabled={
+										reposQuery.isLoading ||
+										reposQuery.isError ||
+										settingId === site.id
+									}
 									onSelect={(fullName) => handleSelect(site.id, fullName)}
 									placeholder={
-										reposQuery.isLoading ? "Loading..." : "Search repos..."
+										reposQuery.isLoading
+											? "Loading..."
+											: reposQuery.isError
+												? "GitHub access required"
+												: "Search repos..."
 									}
 									repos={repoNames}
 								/>

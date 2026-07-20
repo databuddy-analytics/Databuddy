@@ -65,7 +65,7 @@ export default function AboutPage() {
 								that want useful product data without turning their websites
 								into surveillance systems. The platform brings website
 								analytics, error tracking, Core Web Vitals, feature flags, short
-								links, uptime monitoring, and automatic findings into one
+								links, uptime monitoring, and automatic investigations into one
 								product with a small client footprint and a clear API surface.
 							</p>
 							<p>

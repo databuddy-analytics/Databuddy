@@ -108,14 +108,12 @@ describeIntegration("insights scheduler integration", () => {
 
 		const [config] = await db()
 			.select({
-				lastRunAt: insightGenerationConfigs.lastRunAt,
 				nextRunAt: insightGenerationConfigs.nextRunAt,
 			})
 			.from(insightGenerationConfigs)
 			.where(eq(insightGenerationConfigs.organizationId, org.id))
 			.limit(1);
 
-		expect(config?.lastRunAt?.getTime()).toBe(now.getTime());
 		expect(config?.nextRunAt && config.nextRunAt.getTime() > now.getTime()).toBe(
 			true
 		);

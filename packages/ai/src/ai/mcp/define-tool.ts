@@ -1,6 +1,7 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { ORPCError } from "@orpc/server";
 import type { z } from "zod";
 import { trackAgentEvent } from "../../lib/databuddy";
 import { captureError, mergeWideEvent } from "../../lib/tracing";
@@ -80,6 +81,7 @@ export class McpToolError extends Error {
 
 export interface McpRequestContext {
 	apiKey: ApiKeyRow | null;
+	organizationId?: string | null;
 	requestHeaders: Headers;
 	userId: string | null;
 }
@@ -89,11 +91,10 @@ export interface McpHandlerContext extends McpRequestContext {
 	websiteId?: string;
 }
 
-export type McpToolCapability = "analytics" | "memory" | "workspace";
-export type McpToolMutationKind = "read" | "write";
-export type McpToolSurface = "agent" | "mcp";
+type McpToolCapability = "analytics" | "workspace";
+type McpToolMutationKind = "read" | "write";
 
-export interface McpToolAccess {
+interface McpToolAccess {
 	confirmation?: "none" | "recommended" | "required";
 	kind: McpToolMutationKind;
 	scopes?: string[];
@@ -103,7 +104,6 @@ export interface McpToolMetadata {
 	access: McpToolAccess;
 	capability: McpToolCapability;
 	evlogAction?: string;
-	surfaces?: McpToolSurface[];
 }
 
 export interface McpToolMeta<S extends z.ZodTypeAny = z.ZodTypeAny> {
@@ -146,9 +146,6 @@ export interface RegisteredMcpTool {
 
 export interface McpToolFactory {
 	readonly build: (ctx: McpRequestContext) => RegisteredMcpTool;
-	readonly description: string;
-	readonly metadata: McpToolMetadata;
-	readonly toolName: string;
 }
 
 function toErrorResult(err: McpToolError): CallToolResult {
@@ -171,6 +168,25 @@ function toErrorResult(err: McpToolError): CallToolResult {
 		],
 		isError: true,
 	};
+}
+
+function fromORPCError(error: ORPCError<string, unknown>): McpToolError {
+	switch (error.code) {
+		case "UNAUTHORIZED":
+		case "FORBIDDEN":
+			return new McpToolError("unauthorized", error.message);
+		case "NOT_FOUND":
+			return new McpToolError("not_found", error.message);
+		case "BAD_REQUEST":
+		case "CONFLICT":
+		case "FEATURE_UNAVAILABLE":
+		case "PLAN_LIMIT_EXCEEDED":
+			return new McpToolError("invalid_input", error.message);
+		case "RATE_LIMITED":
+			return new McpToolError("rate_limited", error.message);
+		default:
+			return new McpToolError("internal", error.message);
+	}
 }
 
 function toSuccessResult(
@@ -205,7 +221,7 @@ function getAttribution(ctx: McpRequestContext): {
 	auth_type: "session" | "api_key";
 } {
 	return {
-		organization_id: ctx.apiKey?.organizationId ?? null,
+		organization_id: ctx.organizationId ?? ctx.apiKey?.organizationId ?? null,
 		user_id: ctx.userId ?? ctx.apiKey?.userId ?? null,
 		auth_type: ctx.apiKey ? "api_key" : "session",
 	};
@@ -328,15 +344,17 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 
 				return toSuccessResult(result, hasOutputSchema);
 			} catch (err) {
-				const isToolError = err instanceof McpToolError;
-				const toolError = isToolError
-					? err
-					: new McpToolError(
-							"internal",
-							err instanceof Error ? err.message : "Unexpected error"
-						);
+				const toolError =
+					err instanceof McpToolError
+						? err
+						: err instanceof ORPCError
+							? fromORPCError(err)
+							: new McpToolError(
+									"internal",
+									err instanceof Error ? err.message : "Unexpected error"
+								);
 
-				if (!isToolError) {
+				if (toolError.code === "internal") {
 					captureError(err, { mcp_tool: meta.name });
 				}
 
@@ -359,12 +377,7 @@ export function defineMcpTool<S extends z.ZodTypeAny>(
 			}
 		},
 	});
-	return {
-		toolName: meta.name,
-		description: meta.description,
-		metadata,
-		build,
-	};
+	return { build };
 }
 
 function normalizeToolMetadata(
@@ -378,6 +391,5 @@ function normalizeToolMetadata(
 		},
 		capability: metadata?.capability ?? "analytics",
 		evlogAction: metadata?.evlogAction,
-		surfaces: metadata?.surfaces ?? ["mcp", "agent"],
 	};
 }

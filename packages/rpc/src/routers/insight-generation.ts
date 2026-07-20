@@ -41,7 +41,6 @@ import {
 const queueStatusSchema = z.enum(["queued", "skipped", "disabled"]);
 const frequencySchema = z.enum(["daily", "weekly"]);
 const queueReasonSchema = z.enum(["manual", "scheduled"]);
-const reasonSchema = z.enum(["manual", "scheduled", "cooldown_refresh"]);
 const deliverySchema = z.object({
 	channelId: z.string().min(1).max(120),
 	type: z.literal("slack"),
@@ -76,72 +75,27 @@ const organizationScopeSchema = z.object({
 });
 
 const configOutputSchema = z.object({
-	createdAt: z.union([z.date(), z.string()]).nullable(),
 	deliveries: z.array(deliverySchema),
 	enabled: z.boolean(),
 	frequency: frequencySchema,
-	id: z.string().nullable(),
-	lastRunAt: z.union([z.date(), z.string()]).nullable(),
 	nextRunAt: z.union([z.date(), z.string()]).nullable(),
-	organizationId: z.string(),
-	source: z.enum(["default", "organization"]),
 	timezone: z.string(),
-	updatedAt: z.union([z.date(), z.string()]).nullable(),
 });
 
-const runOutputSchema = z.object({
-	completedItems: z.number(),
-	createdAt: z.union([z.date(), z.string()]),
-	errorMessage: z.string().nullable(),
-	failedItems: z.number(),
-	finishedAt: z.union([z.date(), z.string()]).nullable(),
-	id: z.string(),
-	organizationId: z.string(),
-	reason: reasonSchema,
-	requestedByUserId: z.string().nullable(),
-	skippedItems: z.number(),
-	startedAt: z.union([z.date(), z.string()]).nullable(),
-	status: z.enum([
-		"queued",
-		"running",
-		"succeeded",
-		"partially_succeeded",
-		"failed",
-		"skipped",
-	]),
-	timezone: z.string(),
-	totalItems: z.number(),
-	updatedAt: z.union([z.date(), z.string()]),
-});
+const runStatusSchema = z.enum([
+	"queued",
+	"running",
+	"succeeded",
+	"partially_succeeded",
+	"failed",
+	"skipped",
+]);
 
-const runItemOutputSchema = z.object({
-	attempts: z.number(),
-	createdAt: z.union([z.date(), z.string()]),
-	errorMessage: z.string().nullable(),
-	finishedAt: z.union([z.date(), z.string()]).nullable(),
-	id: z.string(),
-	queueJobId: z.string().nullable(),
-	resultCount: z.number(),
-	runId: z.string(),
-	startedAt: z.union([z.date(), z.string()]).nullable(),
-	status: z.enum(["queued", "running", "succeeded", "failed", "skipped"]),
-	updatedAt: z.union([z.date(), z.string()]),
-	websiteId: z.string(),
-});
-
-const DEFAULT_CONFIG: Omit<
-	z.infer<typeof configOutputSchema>,
-	| "createdAt"
-	| "id"
-	| "lastRunAt"
-	| "nextRunAt"
-	| "organizationId"
-	| "source"
-	| "updatedAt"
-> = {
+const DEFAULT_CONFIG: z.infer<typeof configOutputSchema> = {
 	deliveries: [],
 	enabled: false,
 	frequency: "weekly",
+	nextRunAt: null,
 	timezone: "UTC",
 };
 
@@ -160,55 +114,19 @@ export interface QueueInsightGenerationRunResult {
 	status: z.infer<typeof queueStatusSchema>;
 }
 
-export function assertSingleActiveSlackBinding(bindingCount: number): void {
-	if (bindingCount === 0) {
-		throw rpcError.badRequest(
-			"Connect or use the Databuddy Slack app in this channel first"
-		);
-	}
-	if (bindingCount > 1) {
-		throw rpcError.badRequest(
-			"Multiple active Slack connections match this channel"
-		);
-	}
-}
-
 function rowToConfig(
-	row: InsightGenerationConfig | null,
-	fallback: z.infer<typeof configOutputSchema>,
-	source: "default" | "organization"
+	row: InsightGenerationConfig | null
 ): z.infer<typeof configOutputSchema> {
 	if (!row) {
-		return { ...fallback, source };
+		return { ...DEFAULT_CONFIG };
 	}
 
 	return {
-		createdAt: row.createdAt,
 		deliveries: row.deliveries,
 		enabled: row.enabled,
 		frequency: normalizeInsightScheduleFrequency(row.frequency),
-		id: row.id,
-		lastRunAt: row.lastRunAt,
 		nextRunAt: row.enabled ? row.nextRunAt : null,
-		organizationId: row.organizationId,
-		source,
 		timezone: normalizeInsightTimezone(row.timezone),
-		updatedAt: row.updatedAt,
-	};
-}
-
-function defaultConfig(
-	organizationId: string
-): z.infer<typeof configOutputSchema> {
-	return {
-		...DEFAULT_CONFIG,
-		createdAt: null,
-		id: null,
-		lastRunAt: null,
-		nextRunAt: null,
-		organizationId,
-		source: "default",
-		updatedAt: null,
 	};
 }
 
@@ -250,7 +168,6 @@ async function findConfig(
 		.select()
 		.from(insightGenerationConfigs)
 		.where(eq(insightGenerationConfigs.organizationId, organizationId))
-		.orderBy(insightGenerationConfigs.createdAt)
 		.limit(1);
 	return rows[0] ?? null;
 }
@@ -260,11 +177,7 @@ async function getConfig(
 	executor: ConfigExecutor = db
 ): Promise<z.infer<typeof configOutputSchema>> {
 	const row = await findConfig(organizationId, executor);
-	return rowToConfig(
-		row,
-		defaultConfig(organizationId),
-		row ? "organization" : "default"
-	);
+	return rowToConfig(row);
 }
 
 function runConfigMutation(
@@ -280,11 +193,7 @@ function runConfigMutation(
 			.where(eq(insightGenerationConfigs.organizationId, organizationId))
 			.limit(1)
 			.for("update");
-		const current = rowToConfig(
-			row ?? null,
-			defaultConfig(organizationId),
-			row ? "organization" : "default"
-		);
+		const current = rowToConfig(row ?? null);
 		const next = apply(current);
 		const now = new Date();
 		const scheduleChanged =
@@ -587,7 +496,7 @@ export const insightGenerationRouter = {
 		.route({
 			method: "POST",
 			path: "/insights/generation/addSlackDelivery",
-			summary: "Send findings to a Slack channel",
+			summary: "Send investigations to a Slack channel",
 			tags: ["Insights"],
 		})
 		.input(
@@ -616,7 +525,16 @@ export const insightGenerationRouter = {
 				)
 				.where(eq(slackChannelBindings.slackChannelId, input.channelId))
 				.limit(2);
-			assertSingleActiveSlackBinding(bindings.length);
+			if (bindings.length === 0) {
+				throw rpcError.badRequest(
+					"Connect or use the Databuddy Slack app in this channel first"
+				);
+			}
+			if (bindings.length > 1) {
+				throw rpcError.badRequest(
+					"Multiple active Slack connections match this channel"
+				);
+			}
 			return mutateConfig(organizationId, (current) => {
 				const filtered = current.deliveries.filter(
 					(delivery) =>
@@ -650,7 +568,7 @@ export const insightGenerationRouter = {
 		.route({
 			method: "POST",
 			path: "/insights/generation/removeSlackDelivery",
-			summary: "Stop sending findings to a Slack channel",
+			summary: "Stop sending investigations to a Slack channel",
 			tags: ["Insights"],
 		})
 		.input(
@@ -722,13 +640,16 @@ export const insightGenerationRouter = {
 			tags: ["Insights"],
 		})
 		.input(z.object({ runId: z.string() }))
-		.output(
-			z.object({ items: z.array(runItemOutputSchema), run: runOutputSchema })
-		)
+		.output(z.object({ status: runStatusSchema }))
 		.handler(async ({ context, input }) => {
-			const run = await db.query.insightRuns.findFirst({
-				where: { id: input.runId },
-			});
+			const [run] = await db
+				.select({
+					organizationId: insightRuns.organizationId,
+					status: insightRuns.status,
+				})
+				.from(insightRuns)
+				.where(eq(insightRuns.id, input.runId))
+				.limit(1);
 			if (!run) {
 				throw rpcError.notFound("InsightRun", input.runId);
 			}
@@ -739,10 +660,6 @@ export const insightGenerationRouter = {
 				permissions: ["read"],
 			});
 
-			const items = await db.query.insightRunItems.findMany({
-				where: { runId: input.runId },
-			});
-
-			return { items, run };
+			return { status: run.status };
 		}),
 };

@@ -18,9 +18,7 @@ const booleanFromEnv = z.preprocess((value) => {
 const slackEnvSchema = z
 	.object({
 		NODE_ENV: z.string().default("development"),
-		SLACK_APP_ID: optionalString,
 		SLACK_APP_TOKEN: optionalString,
-		SLACK_APP_CONFIG_TOKEN: optionalString,
 		SLACK_SIGNING_SECRET: optionalString,
 		SLACK_SOCKET_MODE: booleanFromEnv,
 		SLACK_PORT: z.coerce.number().int().positive().default(3010),

@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "Databuddy",
-    "description": "Ask Databuddy for analytics answers in Slack."
+    "description": "Investigate analytics changes and continue fixes in Slack."
   },
   "features": {
     "app_home": {
@@ -10,19 +10,19 @@
       "messages_tab_read_only_enabled": false
     },
     "assistant_view": {
-      "assistant_description": "Ask Databuddy about traffic, conversions, campaigns, pages, referrers, and product usage.",
+      "assistant_description": "Run, review, and continue Databuddy investigations without leaving Slack.",
       "suggested_prompts": [
         {
-          "title": "Weekly changes",
-          "message": "What changed in traffic, conversions, and top pages over the last 7 days?"
+          "title": "Open investigations",
+          "message": "Show me our open investigations and what needs attention first."
         },
         {
-          "title": "Find anomalies",
-          "message": "What looks unusual in our analytics today?"
+          "title": "Run an investigation",
+          "message": "Run a new investigation now."
         },
         {
-          "title": "Channel performance",
-          "message": "Which referrers and campaigns are driving the best traffic this week?"
+          "title": "Weekly delivery",
+          "message": "Send new investigations to this channel every week."
         }
       ]
     },

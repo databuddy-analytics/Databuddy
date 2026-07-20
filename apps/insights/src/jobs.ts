@@ -1,16 +1,18 @@
-import { and, db, eq, isNull, notInArray, sql } from "@databuddy/db";
+import { and, db, eq, notInArray, sql } from "@databuddy/db";
 import { insightRunItems, insightRuns } from "@databuddy/db/schema";
 import {
 	INSIGHTS_DISPATCH_JOB_NAME,
 	INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
 	INSIGHTS_MAINTENANCE_JOB_NAME,
 	INSIGHTS_QUEUE_NAME,
-	INSIGHTS_ROLLUP_JOB_NAME,
+	INSIGHTS_RESUME_JOB_NAME,
 	type InsightsGenerateWebsiteJobData,
 	type InsightsQueueJobData,
-	type InsightsRollupJobData,
+	type InsightsResumeJobData,
+	insightsResumeJobId,
 } from "@databuddy/redis";
 import type { Job } from "bullmq";
+import { z } from "zod";
 import {
 	generateWebsiteInsights,
 	type GenerateWebsiteInsightsResult,
@@ -18,12 +20,9 @@ import {
 import {
 	type InsightRunIdentity,
 	loadCompletedPreparedResult,
+	runIdentityCondition,
 } from "./effects";
-import {
-	queueRollupIfSettled,
-	recoverStaleInsightRuns,
-	syncRunStatus,
-} from "./recovery";
+import { recoverStaleInsightRuns, syncRunStatus } from "./recovery";
 import {
 	captureInsightsError,
 	createInsightsEventLog,
@@ -32,7 +31,7 @@ import {
 	toError,
 	withInsightsLogContext,
 } from "./lib/evlog-insights";
-import { processRollupJob } from "./rollup";
+import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import { dispatchDueInsightRuns } from "./scheduler";
 
 const SUCCESS_CHECKPOINT_ATTEMPTS = 3;
@@ -40,11 +39,9 @@ const SUCCESSFUL_ITEM_STATUSES: ("skipped" | "succeeded")[] = [
 	"skipped",
 	"succeeded",
 ];
-
-type GenerateJobResult = Pick<
-	GenerateWebsiteInsightsResult,
-	"message" | "resultCount" | "status"
->;
+const resumeJobSchema = z
+	.object({ replyId: z.string().min(1).max(256) })
+	.strict();
 
 type InsightsJob = Pick<
 	Job<InsightsQueueJobData>,
@@ -71,7 +68,7 @@ function isFinalAttempt(job: InsightsJob): boolean {
 
 function jobContext(job: InsightsJob) {
 	const data = job.data as Partial<InsightsGenerateWebsiteJobData> &
-		Partial<InsightsRollupJobData> & { reason?: string };
+		Partial<InsightsResumeJobData> & { reason?: string };
 	return {
 		attempts_configured: job.opts.attempts,
 		attempts_made: job.attemptsMade,
@@ -80,16 +77,46 @@ function jobContext(job: InsightsJob) {
 		organization_id: data.organizationId,
 		queue_name: INSIGHTS_QUEUE_NAME,
 		reason: data.reason,
+		reply_id: data.replyId,
 		run_id: data.runId,
 		website_id: data.websiteId,
 	};
+}
+
+async function processResumeJob(
+	queuedData: InsightsResumeJobData,
+	job: InsightsJob
+): Promise<{ status: "skipped" | "succeeded" }> {
+	const data = resumeJobSchema.parse(queuedData);
+	if (
+		typeof job.id !== "string" ||
+		job.id !== insightsResumeJobId(data.replyId)
+	) {
+		throw new Error("Insight reply queue job identity does not match");
+	}
+	try {
+		return { status: await resumeInsightReply(data.replyId) };
+	} catch (error) {
+		try {
+			await recordInsightReplyFailure(data.replyId, isFinalAttempt(job));
+		} catch (deliveryError) {
+			captureInsightsError(
+				deliveryError,
+				"resume.slack_failure_delivery.failed",
+				{
+					reply_id: data.replyId,
+				}
+			);
+		}
+		throw error;
+	}
 }
 
 function itemResult(item: {
 	message: string | null;
 	resultCount: number;
 	status: "skipped" | "succeeded";
-}): GenerateJobResult {
+}): GenerateWebsiteInsightsResult {
 	return {
 		...(item.message ? { message: item.message } : {}),
 		resultCount: item.resultCount,
@@ -97,23 +124,11 @@ function itemResult(item: {
 	};
 }
 
-function itemIdentityCondition(identity: InsightRunIdentity) {
-	return and(
-		eq(insightRunItems.id, identity.itemId),
-		eq(insightRunItems.runId, identity.runId),
-		eq(insightRunItems.organizationId, identity.organizationId),
-		eq(insightRunItems.websiteId, identity.websiteId),
-		identity.queueJobId === null
-			? isNull(insightRunItems.queueJobId)
-			: eq(insightRunItems.queueJobId, identity.queueJobId)
-	);
-}
-
 function successfulItemResult(item: {
 	errorMessage: string | null;
 	resultCount: number;
 	status: typeof insightRunItems.$inferSelect.status;
-}): GenerateJobResult | null {
+}): GenerateWebsiteInsightsResult | null {
 	if (item.status !== "skipped" && item.status !== "succeeded") {
 		return null;
 	}
@@ -169,7 +184,7 @@ async function loadCanonicalGenerateItem(
 
 async function loadSuccessfulItem(
 	identity: InsightRunIdentity
-): Promise<GenerateJobResult | null> {
+): Promise<GenerateWebsiteInsightsResult | null> {
 	const [item] = await db
 		.select({
 			errorMessage: insightRunItems.errorMessage,
@@ -177,14 +192,14 @@ async function loadSuccessfulItem(
 			status: insightRunItems.status,
 		})
 		.from(insightRunItems)
-		.where(itemIdentityCondition(identity))
+		.where(runIdentityCondition(identity))
 		.limit(1);
 	return item ? successfulItemResult(item) : null;
 }
 
 async function checkpointSuccessfulItem(
 	identity: InsightRunIdentity,
-	result: GenerateJobResult
+	result: GenerateWebsiteInsightsResult
 ): Promise<void> {
 	let lastError: unknown;
 	for (let attempt = 0; attempt < SUCCESS_CHECKPOINT_ATTEMPTS; attempt += 1) {
@@ -200,7 +215,7 @@ async function checkpointSuccessfulItem(
 					status: result.status,
 					updatedAt: now,
 				})
-				.where(itemIdentityCondition(identity))
+				.where(runIdentityCondition(identity))
 				.returning({ id: insightRunItems.id });
 			if (updated.length === 0) {
 				throw new Error("Insight run item is missing at success checkpoint");
@@ -213,28 +228,15 @@ async function checkpointSuccessfulItem(
 	throw lastError;
 }
 
-async function finalizeRun(runId: string) {
-	const summary = await syncRunStatus(runId);
-	setInsightsLog({
-		run_status: summary.status,
-		run_completed_items: summary.completedItems,
-		run_failed_items: summary.failedItems,
-		run_skipped_items: summary.skippedItems,
-		run_total_items: summary.totalItems,
-	});
-	await queueRollupIfSettled(summary);
-	return summary;
-}
-
 async function finishGenerationFailure(params: {
 	data: CanonicalGenerateItem;
 	error: unknown;
 	job: InsightsJob;
-}): Promise<GenerateJobResult> {
+}): Promise<GenerateWebsiteInsightsResult> {
 	const recovered = await loadCompletedPreparedResult(params.data);
 	if (recovered) {
 		await checkpointSuccessfulItem(params.data, recovered);
-		await finalizeRun(params.data.runId);
+		await syncRunStatus(params.data.runId);
 		emitInsightsEvent("warn", "job.generate_website.concurrent_success", {
 			...jobContext(params.job),
 			item_id: params.data.itemId,
@@ -257,7 +259,7 @@ async function finishGenerationFailure(params: {
 		})
 		.where(
 			and(
-				itemIdentityCondition(params.data),
+				runIdentityCondition(params.data),
 				notInArray(insightRunItems.status, SUCCESSFUL_ITEM_STATUSES)
 			)
 		)
@@ -266,14 +268,14 @@ async function finishGenerationFailure(params: {
 	if (updated.length === 0) {
 		const completed = await loadSuccessfulItem(params.data);
 		if (completed) {
-			await finalizeRun(params.data.runId);
+			await syncRunStatus(params.data.runId);
 			return completed;
 		}
 	}
 
 	let runStatus: string | undefined;
 	try {
-		const summary = await finalizeRun(params.data.runId);
+		const summary = await syncRunStatus(params.data.runId);
 		runStatus = summary.status;
 	} catch (error) {
 		captureInsightsError(error, "job.generate_website.finalization_failed", {
@@ -298,7 +300,7 @@ async function processGenerateWebsiteJob(
 	const data = await loadCanonicalGenerateItem(queuedData, job);
 	const completed = successfulItemResult(data);
 	if (completed) {
-		await finalizeRun(data.runId);
+		await syncRunStatus(data.runId);
 		return { resultCount: completed.resultCount, status: completed.status };
 	}
 
@@ -329,7 +331,7 @@ async function processGenerateWebsiteJob(
 			})
 			.where(
 				and(
-					itemIdentityCondition(data),
+					runIdentityCondition(data),
 					notInArray(insightRunItems.status, SUCCESSFUL_ITEM_STATUSES)
 				)
 			)
@@ -338,7 +340,7 @@ async function processGenerateWebsiteJob(
 	if (started.length === 0) {
 		const concurrentlyCompleted = await loadSuccessfulItem(data);
 		if (concurrentlyCompleted) {
-			await finalizeRun(data.runId);
+			await syncRunStatus(data.runId);
 			return {
 				resultCount: concurrentlyCompleted.resultCount,
 				status: concurrentlyCompleted.status,
@@ -366,7 +368,7 @@ async function processGenerateWebsiteJob(
 	}
 
 	await checkpointSuccessfulItem(data, result);
-	await finalizeRun(data.runId);
+	await syncRunStatus(data.runId);
 	return { resultCount: result.resultCount, status: result.status };
 }
 
@@ -379,7 +381,6 @@ export async function processInsightsJob(job: InsightsJob) {
 	});
 
 	return await withInsightsLogContext(logger, async () => {
-		emitInsightsEvent("info", "job.started", context);
 		try {
 			let result: unknown;
 			if (job.name === INSIGHTS_DISPATCH_JOB_NAME) {
@@ -391,8 +392,8 @@ export async function processInsightsJob(job: InsightsJob) {
 					job.data as InsightsGenerateWebsiteJobData,
 					job
 				);
-			} else if (job.name === INSIGHTS_ROLLUP_JOB_NAME) {
-				result = await processRollupJob(job.data as InsightsRollupJobData);
+			} else if (job.name === INSIGHTS_RESUME_JOB_NAME) {
+				result = await processResumeJob(job.data as InsightsResumeJobData, job);
 			} else {
 				throw new Error(`Unknown insights job: ${job.name}`);
 			}
@@ -401,10 +402,6 @@ export async function processInsightsJob(job: InsightsJob) {
 			setInsightsLog({
 				duration_ms: durationMs,
 				job_status: "succeeded",
-			});
-			emitInsightsEvent("info", "job.completed", {
-				...context,
-				duration_ms: durationMs,
 			});
 			logger.emit({ duration_ms: durationMs, job_status: "succeeded" });
 			return result;
@@ -417,10 +414,6 @@ export async function processInsightsJob(job: InsightsJob) {
 				error_message: err.message,
 				job_status: "failed",
 				_forceKeep: true,
-			});
-			captureInsightsError(error, "job.failed", {
-				...context,
-				duration_ms: durationMs,
 			});
 			throw error;
 		}

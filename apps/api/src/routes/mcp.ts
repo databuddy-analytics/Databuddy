@@ -1,6 +1,8 @@
 import {
+	getAccessibleWebsiteIds,
 	getApiKeyFromHeader,
 	hasKeyScope,
+	hasWebsiteScope,
 	isApiKeyPresent,
 } from "@databuddy/api-keys/resolve";
 import {
@@ -13,12 +15,25 @@ import { Elysia } from "elysia";
 
 const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
 
+function canReadMcp(
+	apiKey: NonNullable<Awaited<ReturnType<typeof getApiKeyFromHeader>>>
+) {
+	return (
+		hasKeyScope(apiKey, "read:data") ||
+		getAccessibleWebsiteIds(apiKey).some((websiteId) =>
+			hasWebsiteScope(apiKey, websiteId, "read:data")
+		)
+	);
+}
+
 async function handleMcpRequest({
 	request,
 	user,
 	apiKey,
+	organizationId,
 }: {
 	apiKey: Awaited<ReturnType<typeof getApiKeyFromHeader>> | null;
+	organizationId: string | null;
 	request: Request;
 	user: { id: string } | null;
 }) {
@@ -27,22 +42,26 @@ async function handleMcpRequest({
 		requestHeaders: request.headers,
 		userId: user?.id ?? null,
 		apiKey,
+		organizationId,
 	});
 }
 
 export const mcp = new Elysia({ name: "mcp" })
 	.derive(async ({ request }) => {
 		const hasApiKey = isApiKeyPresent(request.headers);
-		const [apiKey, session] = await Promise.all([
-			hasApiKey ? getApiKeyFromHeader(request.headers) : null,
-			auth.api.getSession({ headers: request.headers }),
-		]);
+		const apiKey = hasApiKey
+			? await getApiKeyFromHeader(request.headers)
+			: null;
+		const session = hasApiKey
+			? null
+			: await auth.api.getSession({ headers: request.headers });
 
-		if (apiKey && !hasKeyScope(apiKey, "read:data")) {
+		if (hasApiKey && !(apiKey && canReadMcp(apiKey))) {
 			return {
 				user: null,
 				apiKey: null,
 				isAuthenticated: false,
+				organizationId: null,
 			};
 		}
 
@@ -51,6 +70,8 @@ export const mcp = new Elysia({ name: "mcp" })
 			user,
 			apiKey,
 			isAuthenticated: Boolean(user ?? apiKey),
+			organizationId:
+				apiKey?.organizationId ?? session?.session.activeOrganizationId ?? null,
 		};
 	})
 	.onBeforeHandle(async ({ request, isAuthenticated, set }) => {
@@ -63,26 +84,26 @@ export const mcp = new Elysia({ name: "mcp" })
 	})
 	.all(
 		"/v1/mcp",
-		async ({ request, user, apiKey }) =>
-			await handleMcpRequest({ request, user, apiKey })
+		async ({ request, user, apiKey, organizationId }) =>
+			await handleMcpRequest({ request, user, apiKey, organizationId })
 	)
 	.all(
 		"/v1/mcp/",
-		async ({ request, user, apiKey }) =>
-			await handleMcpRequest({ request, user, apiKey })
+		async ({ request, user, apiKey, organizationId }) =>
+			await handleMcpRequest({ request, user, apiKey, organizationId })
 	)
 	.all(
 		"/mcp",
-		async ({ request, user, apiKey }) =>
-			await handleMcpRequest({ request, user, apiKey })
+		async ({ request, user, apiKey, organizationId }) =>
+			await handleMcpRequest({ request, user, apiKey, organizationId })
 	)
 	.all(
 		"/mcp/",
-		async ({ request, user, apiKey }) =>
-			await handleMcpRequest({ request, user, apiKey })
+		async ({ request, user, apiKey, organizationId }) =>
+			await handleMcpRequest({ request, user, apiKey, organizationId })
 	)
 	.all(
 		"/.well-known/mcp",
-		async ({ request, user, apiKey }) =>
-			await handleMcpRequest({ request, user, apiKey })
+		async ({ request, user, apiKey, organizationId }) =>
+			await handleMcpRequest({ request, user, apiKey, organizationId })
 	);

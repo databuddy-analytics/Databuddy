@@ -6,7 +6,7 @@ export const INSIGHTS_QUEUE_NAME = "insights-generation";
 export const INSIGHTS_DISPATCH_JOB_NAME = "insights-dispatch";
 export const INSIGHTS_GENERATE_WEBSITE_JOB_NAME = "insights-generate-website";
 export const INSIGHTS_MAINTENANCE_JOB_NAME = "insights-maintenance";
-export const INSIGHTS_ROLLUP_JOB_NAME = "insights-rollup";
+export const INSIGHTS_RESUME_JOB_NAME = "insights-resume";
 
 export const INSIGHTS_JOB_TIMEOUT_MS = 120_000;
 
@@ -26,10 +26,7 @@ export const INSIGHTS_JOB_OPTIONS = {
 	},
 };
 
-export type InsightGenerationReason =
-	| "manual"
-	| "scheduled"
-	| "cooldown_refresh";
+export type InsightGenerationReason = "manual" | "scheduled";
 
 export interface InsightsDispatchJobData {
 	reason: "scheduled";
@@ -41,6 +38,10 @@ export interface InsightsMaintenanceJobData {
 	triggeredAt: string;
 }
 
+export interface InsightsResumeJobData {
+	replyId: string;
+}
+
 export interface InsightsGenerateWebsiteJobData {
 	itemId: string;
 	organizationId: string;
@@ -50,18 +51,11 @@ export interface InsightsGenerateWebsiteJobData {
 	websiteId: string;
 }
 
-export interface InsightsRollupJobData {
-	organizationId: string;
-	reason: InsightGenerationReason;
-	runId: string;
-	timezone: string;
-}
-
 export type InsightsQueueJobData =
 	| InsightsDispatchJobData
 	| InsightsGenerateWebsiteJobData
 	| InsightsMaintenanceJobData
-	| InsightsRollupJobData;
+	| InsightsResumeJobData;
 
 let insightsQueue: Queue<InsightsQueueJobData> | null = null;
 
@@ -89,6 +83,30 @@ export function insightsWebsiteJobId(runId: string, websiteId: string): string {
 	return `insights-website-${runId}-${websiteId}`;
 }
 
-export function insightsRollupJobId(runId: string): string {
-	return `insights-rollup-${runId}`;
+export function insightsResumeJobId(replyId: string): string {
+	return `insights-reply-${replyId}`;
+}
+
+export async function enqueueInsightsResume(
+	replyId: string
+): Promise<"queued" | "running" | "succeeded"> {
+	const queue = getInsightsQueue();
+	const jobId = insightsResumeJobId(replyId);
+	const existing = await queue.getJob(jobId);
+	if (existing) {
+		const state = await existing.getState();
+		if (state === "failed") {
+			await existing.retry("failed");
+			return "queued";
+		}
+		if (state === "active") {
+			return "running";
+		}
+		if (state === "completed") {
+			return "succeeded";
+		}
+		return "queued";
+	}
+	await queue.add(INSIGHTS_RESUME_JOB_NAME, { replyId }, { jobId });
+	return "queued";
 }

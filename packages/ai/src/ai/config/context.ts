@@ -22,6 +22,7 @@ export interface AppContext {
 	userId: string;
 	websiteDomain?: string;
 	websiteId?: string;
+	websiteName?: string | null;
 	[key: string]: unknown;
 }
 

@@ -1,12 +1,6 @@
 import type {
-	InsightEvidence,
-	InsightMetric,
-	InsightRemediationKind,
 	InsightSentiment,
 	InsightSeverity,
-	InsightSource,
-	StoredInsightAction,
-	StoredInsightType,
 } from "@databuddy/shared/insights";
 import { isNotNull, sql } from "drizzle-orm";
 import {
@@ -23,6 +17,7 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth";
+
 import { websites } from "./websites";
 
 export const funnelStepType = pgEnum("FunnelStepType", [
@@ -206,31 +201,14 @@ export const analyticsInsights = pgTable(
 		id: text().primaryKey(),
 		organizationId: text("organization_id").notNull(),
 		websiteId: text("website_id").notNull(),
-		runId: text("run_id").notNull(),
 		title: text().notNull(),
 		description: text().notNull(),
-		suggestion: text().notNull(),
 		severity: text().$type<InsightSeverity>().notNull(),
 		sentiment: text().$type<InsightSentiment>().notNull(),
-		type: text().$type<StoredInsightType>().notNull(),
-		priority: integer().notNull(),
 		changePercent: doublePrecision("change_percent"),
 		dedupeKey: text("dedupe_key"),
 		subjectKey: text("subject_key").notNull().default(""),
-		sources: jsonb().$type<InsightSource[]>().notNull().default([]),
-		confidence: doublePrecision().notNull().default(0),
-		impactSummary: text("impact_summary"),
-		metrics: jsonb().$type<InsightMetric[]>(),
-		rootCause: text("root_cause"),
-		remediationKind: text("remediation_kind").$type<InsightRemediationKind>(),
-		evidence: jsonb("evidence").$type<InsightEvidence[]>(),
-		actions: jsonb().$type<StoredInsightAction[]>(),
-		chainId: text("chain_id"),
 		timezone: text().notNull().default("UTC"),
-		currentPeriodFrom: text("current_period_from").notNull(),
-		currentPeriodTo: text("current_period_to").notNull(),
-		previousPeriodFrom: text("previous_period_from").notNull(),
-		previousPeriodTo: text("previous_period_to").notNull(),
 		status: text().$type<"open" | "resolved">().notNull().default("open"),
 		resolvedAt: timestamp("resolved_at", {
 			precision: 3,
@@ -255,15 +233,9 @@ export const analyticsInsights = pgTable(
 			table.websiteId,
 			table.createdAt.desc()
 		),
-		index("analytics_insights_run_idx").on(table.runId),
 		index("analytics_insights_subject_key_idx").on(
 			table.websiteId,
 			table.subjectKey,
-			table.createdAt.desc()
-		),
-		index("analytics_insights_chain_id_idx").on(
-			table.organizationId,
-			table.chainId,
 			table.createdAt.desc()
 		),
 		index("analytics_insights_org_resolved_sort_idx").on(

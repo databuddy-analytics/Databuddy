@@ -295,6 +295,7 @@ async function prepareMcpAgentRun(options: RunMcpAgentOptions) {
 				websiteDomain: options.websiteDomain,
 				websiteId: options.websiteId,
 				activeTools: selectActiveToolsForQuestion({
+					hasPriorMessages: Boolean(options.priorMessages?.length),
 					question: options.question,
 					source,
 				}),
@@ -395,7 +396,7 @@ const THREAD_REFERENCE_PATTERN =
 const ANALYTICS_REQUEST_PATTERN =
 	/\b(analytics?|metrics?|traffic|visitors?|sessions?|page\s*views?|pageviews?|top pages?|pages?|referrers?|sources?|campaigns?|conversions?|events?|errors?|vitals?|performance|uptime|revenue|transactions?|llm|latency|bounce|countries|country|regions?|cities|devices?|browsers?|operating systems?|utm|fresh|current|latest|live|rerun|last \d+|last week|last month|today|yesterday)\b/i;
 const NON_ANALYTICS_TOOL_PATTERN =
-	/\b(remember|memory|forget|profile|profiles|flag|flags|feature flag|feature flags|funnel|funnels|goal|goals|annotation|annotations|link|links|short link|short links|digest|digests|subscribe|unsubscribe|create|update|delete|archive|enable|disable|rollout|target|folder|folders|navigate|open|go to|take me|feedback|bug|bugs|broken)\b/i;
+	/\b(remember|memory|forget|profile|profiles|flag|flags|feature flag|feature flags|funnel|funnels|goal|goals|annotation|annotations|link|links|short link|short links|investigation|investigations|automatic analysis|subscribe|unsubscribe|create|update|delete|archive|enable|disable|rollout|target|folder|folders|navigate|open|go to|take me|feedback|bug|bugs|broken)\b/i;
 const INVESTIGATION_REQUEST_PATTERN =
 	/\b(why|what caused|root cause|because|reason|investigate|investigation|diagnose|debug|deploy|deployed|deployment|commit|commits|merged|pull request|pr|branch|release|rollback|regression|search console|google search|keyword|seo|impressions|ranking|scrape|crawl)\b/i;
 const COPY_ONLY_PATTERN = /\b(exact copy|copy only)\b/i;
@@ -410,7 +411,6 @@ const SLACK_TEXT_PREFIX = "text:\n";
 const ANALYTICS_ACTIVE_TOOLS = [
 	"list_websites",
 	"get_data",
-	"execute_query_builder",
 	"execute_sql_query",
 	"list_profiles",
 	"get_profile",
@@ -513,9 +513,13 @@ function getSlackBlockText(block: string): string | undefined {
 }
 
 export function selectActiveToolsForQuestion(options: {
+	hasPriorMessages?: boolean;
 	question: string;
 	source: "dashboard" | "mcp" | "slack";
 }): string[] | undefined {
+	if (options.source === "slack" && options.hasPriorMessages) {
+		return;
+	}
 	const text = (
 		options.source === "slack"
 			? latestSlackText(options.question)

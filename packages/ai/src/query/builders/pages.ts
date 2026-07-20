@@ -319,7 +319,6 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
 			"COUNT(*) as pageviews",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_time_on_page",
 			"uniq(anonymous_id) as visitors",
 		],
 		where: ["event_name = 'screen_view'"],

@@ -42,7 +42,8 @@ export function db(): DB {
 }
 
 const TABLES = [
-	"insight_rollups",
+	"insight_user_feedback",
+	"insight_replies",
 	"insight_observations",
 	"insight_run_effects",
 	"analytics_insights",

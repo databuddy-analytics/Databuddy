@@ -74,14 +74,14 @@ function baseRun() {
 }
 
 describe("Databuddy Slack response streaming", () => {
-	it("shows a thinking indicator then streams the answer", async () => {
+	it("streams the agent's native answer after the thinking indicator", async () => {
 		const originalDateNow = Date.now;
 		let now = 0;
 		const { calls, client } = createStreamClient();
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
 				now = 1000;
-				yield "Traffic is up 12%.";
+				yield "Sure — traffic is up 12%.";
 			},
 		};
 
@@ -134,7 +134,9 @@ describe("Databuddy Slack response streaming", () => {
 		expect(calls[2]).toEqual({
 			method: "chat.appendStream",
 			options: expect.objectContaining({
-				chunks: [{ text: "Traffic is up 12%.", type: "markdown_text" }],
+				chunks: [
+					{ text: "Sure — traffic is up 12%.", type: "markdown_text" },
+				],
 			}),
 		});
 		expect(calls[2].options).not.toHaveProperty("markdown_text");

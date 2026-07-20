@@ -39,9 +39,9 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 					GROUP BY session_id
 				)
 				SELECT
-					count() as total_sessions,
-					round(avgIf(duration, duration > 0), 2) as avg_session_duration,
-					round((countIf(page_views <= 1 AND duration < 10 AND engagement_events = 0) / nullIf(count(), 0)) * 100, 2) as bounce_rate,
+					countIf(page_views >= 1) as total_sessions,
+					round(avgIf(duration, page_views >= 1 AND duration > 0), 2) as avg_session_duration,
+					round((countIf(page_views = 1 AND duration < 10 AND engagement_events = 0) / nullIf(countIf(page_views >= 1), 0)) * 100, 2) as bounce_rate,
 					sum(total_events) as total_events
 				FROM session_rollup
 			`,
@@ -88,13 +88,12 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"device_type as name",
+			"if(ifNull(device_type, '') = '', 'Desktop', initCap(device_type)) as name",
 			"uniq(session_id) as sessions",
 			"uniq(anonymous_id) as visitors",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
-		where: ["event_name = 'screen_view'", "device_type != ''"],
-		groupBy: ["device_type"],
+		where: ["event_name = 'screen_view'"],
+		groupBy: ["name"],
 		orderBy: "sessions DESC",
 		timeField: "time",
 		allowedFilters: ["profile_id", "anonymous_id"],
@@ -112,7 +111,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			"browser_name as name",
 			"uniq(session_id) as sessions",
 			"uniq(anonymous_id) as visitors",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
 		where: ["event_name = 'screen_view'", "browser_name != ''"],
 		groupBy: ["browser_name"],
@@ -134,7 +132,6 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			"toDate(time) as date",
 			"uniq(session_id) as sessions",
 			"uniq(anonymous_id) as visitors",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
 		where: ["event_name = 'screen_view'"],
 		groupBy: ["toDate(time)"],

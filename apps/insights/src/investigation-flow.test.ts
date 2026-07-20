@@ -1,306 +1,248 @@
+import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
-import { validateInvestigationDecision } from "@databuddy/ai/insights/validate";
-import type { InvestigationEvidence } from "@databuddy/shared/insights";
-import type { DetectedSignal } from "./detection";
-import { prepareInvestigation } from "./investigation";
-import { terminalDecisionFromEvidence } from "./terminal-decision";
+import type {
+	InvestigationOutcome,
+	InvestigationSignal,
+} from "@databuddy/shared/insights";
+import { tool } from "ai";
+import { MockLanguageModelV3, mockValues } from "ai/test";
+import { z } from "zod";
+import { runInsightAgent } from "./agent";
 
-const detected: DetectedSignal = {
-	metric: "goal:signup",
-	label: 'Goal "Signup" conversion',
-	method: "wow",
-	direction: "down",
-	current: 4,
-	baseline: 12,
-	deltaPercent: -66.67,
+const signal: InvestigationSignal = {
+	signalKey: "visitors",
+	entity: { type: "website", id: "website", label: "Visitors" },
+	metric: {
+		label: "Visitors",
+		current: 300,
+		previous: 1000,
+		format: "number",
+	},
+	changePercent: -70,
 	severity: "critical",
-	detectedAt: "2026-07-10",
-};
-
-function fixture() {
-	const investigation = prepareInvestigation(
-		detected,
-		{ websiteId: "site-1", lookbackDays: 7 },
-		[{ date: "2026-07-10", title: "Signup instrumentation changed" }]
-	);
-	investigation.evidence.push({
-		evidenceId: "evidence:goal-definition",
-		signalKey: investigation.signal.signalKey,
-		kind: "definition",
-		source: "product",
-		queryType: "goals_summary",
-		entity: investigation.signal.entity,
-		period: "current",
-		range: investigation.signal.period.current,
-		status: "ok",
-		rowCount: 1,
-		summary: "The goal is configured for the signup completion event.",
-		metrics: [
-			{ label: "Entrants", current: 100, format: "number" },
-			{ label: "Completions", current: 4, format: "number" },
-		],
-	});
-	return investigation;
-}
-
-const action = {
-	disposition: "action_ready" as const,
-	remediation: {
-		kind: "tracking" as const,
-		evidenceId: "evidence:goal-definition",
-		instruction: "Restore the completion event after a successful signup.",
+	sentiment: "negative",
+	period: {
+		current: { from: "2026-07-05", to: "2026-07-11" },
+		previous: { from: "2026-06-28", to: "2026-07-04" },
 	},
 };
 
-describe("scheduled investigation contract", () => {
-	it("surfaces one exact backend-owned repair after independent confirmation", () => {
-		const expectation = {
-			confirmation: {
-				count: 12,
-				definitionId: "signup",
-				definitionType: "goal" as const,
-				source: "server_completions" as const,
-			},
-			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
-			eventName: "sign_up",
-			instruction: 'Restore the "sign_up" event when Signup completes.',
-			kind: "tracking" as const,
-			previousCompletions: 20,
-			currentEntrants: 100,
-			currentCompletions: 0 as const,
-		};
-		const investigation = prepareInvestigation(
+const evidence = [
+	"Current visitors were 300, down from 1,000.",
+	"Campaign cmp_search_1 is paused and owned by the Acquisition team.",
+];
+
+const outcome: InvestigationOutcome = {
+	title: "Paid search campaign is paused",
+	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
+	impact: "The site lost 700 visitors in the comparison window.",
+	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
+	evidence: [
+		"Visitors fell from 1,000 to 300.",
+		"The campaign record shows cmp_search_1 is paused.",
+	],
+	next: {
+		type: "act",
+		action: "Resume campaign cmp_search_1.",
+		target: "campaign cmp_search_1",
+		verification: "Paid visits exceed 80 per day for three days.",
+	},
+};
+
+const usage = {
+	inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+	outputTokens: { total: 1, text: 1, reasoning: 0 },
+};
+
+function appContext() {
+	return {
+		chatId: "insights:org-1:site-1",
+		currentDateTime: "2026-07-12T00:00:00.000Z",
+		defaultWebsiteId: "site-1",
+		mutationMode: "dry-run" as const,
+		organizationId: "org-1",
+		timezone: "UTC",
+		userId: "system",
+		websiteDomain: "example.com",
+		websiteId: "site-1",
+		websiteName: "Example Store",
+	};
+}
+
+function outputResponse(value: unknown) {
+	return {
+		content: [{ type: "text" as const, text: JSON.stringify(value) }],
+		finishReason: { unified: "stop" as const, raw: undefined },
+		usage,
+		warnings: [],
+	};
+}
+
+function outputModel(value: unknown = outcome) {
+	return new MockLanguageModelV3({
+		doGenerate: mockValues(outputResponse(value)),
+	});
+}
+
+describe("investigation agent", () => {
+	it("returns the model's structured outcome directly", async () => {
+		const model = outputModel();
+		const availableRead = tool({
+			description: "Test read",
+			inputSchema: z.object({}),
+			execute: () => ({ ok: true }),
+		});
+
+		const result = await runInsightAgent(
 			{
-				...detected,
-				baseline: 20,
-				current: 0,
-				deltaPercent: -100,
-				expectation,
-				kind: "missing_expected_data",
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				signal,
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
-		);
-		const definition: InvestigationEvidence = {
-			evidenceId: "evidence:goal-definition",
-			signalKey: investigation.signal.signalKey,
-			kind: "definition",
-			source: "product",
-			queryType: "goals_summary",
-			entity: investigation.signal.entity,
-			period: "current",
-			range: investigation.signal.period.current,
-			status: "ok",
-			rowCount: 1,
-			summary:
-				'Signup had 0 completions from 100 entrants. The active definition expects the "sign_up" event.',
-			remediation: expectation,
-		};
-		const decision = terminalDecisionFromEvidence(
-			investigation.signal,
-			[...investigation.evidence, definition]
-		);
-		const result = validateInvestigationDecision({
-			signal: investigation.signal,
-			evidence: [...investigation.evidence, definition],
-			decision,
-		});
-
-		expect(decision).toEqual({
-			disposition: "action_ready",
-			remediation: {
-				evidenceId: definition.evidenceId,
-				instruction: expectation.instruction,
-				kind: "tracking",
-			},
-		});
-		expect(result.errors).toEqual([]);
-		expect(result.insight).toMatchObject({
-			remediationKind: "tracking",
-			suggestion: expectation.instruction,
-			title: 'Fix tracking for Goal "Signup" conversion',
-		});
-
-		const wrongExpectation = {
-			...expectation,
-			confirmation: {
-				...expectation.confirmation,
-				definitionId: "another-goal",
-			},
-		};
-		expect(
-			terminalDecisionFromEvidence(
-				{
-					...investigation.signal,
-					expectation: wrongExpectation,
+			{
+				model,
+				tools: {
+					describe_schema: availableRead,
+					execute_sql_query: availableRead,
+					get_data: availableRead,
+					get_goal_analytics: availableRead,
+					list_websites: availableRead,
 				},
-				[{ ...definition, remediation: wrongExpectation }]
-			)
-		).toEqual({
-			disposition: "needs_context",
-			gap: "expected_behavior",
-		});
+			}
+		);
+
+		expect(result).toMatchObject({ outcome, toolCallCount: 0 });
+		const call = model.doGenerateCalls[0];
+		expect(call?.tools?.map((item) => item.name)).toEqual(["get_data"]);
+
+		const prompt = JSON.stringify(call?.prompt);
+		expect(prompt).toContain("Example Store");
 	});
 
-	it("asks for confirmation when zero analytics completions do not prove broken tracking", () => {
-		const expectation = {
-			definitionUpdatedAt: "2026-06-01T00:00:00.000Z",
-			eventName: "sign_up",
-			instruction: 'Restore the "sign_up" event when Signup completes.',
-			kind: "tracking" as const,
-			previousCompletions: 20,
-			currentEntrants: 100,
-			currentCompletions: 0 as const,
-		};
-		const investigation = prepareInvestigation(
+	it("can inspect evidence before returning structured output", async () => {
+		const model = new MockLanguageModelV3({
+			doGenerate: mockValues(
+				{
+					content: [
+						{
+							input: "{}",
+							toolCallId: "inspect-1",
+							toolName: "inspect",
+							type: "tool-call" as const,
+						},
+					],
+					finishReason: { unified: "tool-calls" as const, raw: undefined },
+					usage,
+					warnings: [],
+				},
+				outputResponse(outcome)
+			),
+		});
+		const result = await runInsightAgent(
 			{
-				...detected,
-				baseline: 20,
-				current: 0,
-				deltaPercent: -100,
-				expectation,
-				kind: "missing_expected_data",
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [],
+				signal,
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			{
+				model,
+				tools: {
+					inspect: tool({
+						description: "Inspect another relevant fact.",
+						inputSchema: z.object({}).strict(),
+						execute: () => ({ inspected: true }),
+					}),
+				},
+			}
 		);
-		const definition: InvestigationEvidence = {
-			evidenceId: "evidence:goal-definition",
-			signalKey: investigation.signal.signalKey,
-			kind: "definition",
-			source: "product",
-			queryType: "goals_summary",
-			entity: investigation.signal.entity,
-			period: "current",
-			range: investigation.signal.period.current,
-			status: "ok",
-			rowCount: 1,
-			summary:
-				'Signup had 0 completions from 100 entrants. The active definition expects the "sign_up" event.',
-			remediation: expectation,
+
+		expect(result.outcome).toEqual(outcome);
+		expect(result.toolCallCount).toBe(1);
+		expect(model.doGenerateCalls).toHaveLength(2);
+	});
+
+	it("fails when the structured output does not match the contract", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					signal,
+				},
+				{ model: outputModel({ title: "Incomplete" }), tools: {} }
+			)
+		).rejects.toThrow();
+	});
+
+	it("replays prior outcomes and new human context", async () => {
+		const model = outputModel();
+		const priorEvidence = [
+			'The goal previously tracked the event "checkout_started".',
+		];
+		const previousOutcome: InvestigationOutcome = {
+			...outcome,
+			title: "Historical outcome title",
+			next: {
+				type: "ask",
+				question: "Was the campaign intentionally paused?",
+			},
 		};
 
-		const decision = terminalDecisionFromEvidence(investigation.signal, [
-			...investigation.evidence,
-			definition,
-		]);
-		const result = validateInvestigationDecision({
-			signal: investigation.signal,
-			evidence: [...investigation.evidence, definition],
-			decision,
-		});
-
-		expect(decision).toEqual({
-			disposition: "needs_context",
-			gap: "expected_behavior",
-		});
-		expect(result.errors).toEqual([]);
-		expect(result.insight).toMatchObject({
-			title: 'Goal "Signup" conversion needs context',
-		});
-		expect(result.insight?.suggestion).toContain("Did users complete");
-		expect(result.insight?.suggestion).toContain(
-			"replay Goal \"Signup\" conversion and find the first failed step"
-		);
-		expect(result.insight).not.toHaveProperty("remediationKind");
-	});
-
-	it("suppresses that repair when an exact annotation says the change was planned", () => {
-		const investigation = fixture();
-		const planned: InvestigationEvidence = {
-			evidenceId: "evidence:planned-signup",
-			signalKey: investigation.signal.signalKey,
-			kind: "related_change",
-			source: "business",
-			queryType: "annotations:planned_signal",
-			entity: investigation.signal.entity,
-			period: "custom",
-			comparison: investigation.signal.period,
-			range: null,
-			status: "ok",
-			rowCount: 1,
-			summary: "Signup instrumentation was intentionally paused.",
-		};
-		const decision = terminalDecisionFromEvidence(investigation.signal, [
-			...investigation.evidence,
-			planned,
-		]);
-
-		expect(decision).toEqual({ disposition: "not_a_problem" });
-	});
-
-	it("does not turn a configured goal regression into an unsupported repair", () => {
-		const investigation = fixture();
-		const result = validateInvestigationDecision({
-			signal: investigation.signal,
-			evidence: investigation.evidence,
-			decision: action,
-		});
-
-		expect(result.errors).toContain(
-			"action_ready is not allowed for this signal. Submit monitor unless external context or explanatory evidence supports another outcome."
-		);
-		expect(result.insight).toBeNull();
-		expect(investigation.signal.period).toEqual({
-			current: { from: "2026-07-04", to: "2026-07-10" },
-			previous: { from: "2026-06-27", to: "2026-07-03" },
-		});
-	});
-
-	it("rejects model-authored backend and execution fields", () => {
-		const investigation = fixture();
-		const result = validateInvestigationDecision({
-			signal: investigation.signal,
-			evidence: investigation.evidence,
-			decision: {
-				...action,
-				signalKey: investigation.signal.signalKey,
-				severity: "info",
-				actions: [{ type: "code_fix" }],
+		await runInsightAgent(
+			{
+				appContext: appContext(),
+				evidence,
+				githubRepository: null,
+				history: [
+					{
+						asOf: "2026-07-12T00:00:00.000Z",
+						evidence: priorEvidence,
+						kind: "investigation",
+						outcome: previousOutcome,
+						signal,
+					},
+					{
+						author: "Ari",
+						body: "The campaign was paused intentionally.",
+						createdAt: "2026-07-12T01:00:00.000Z",
+						kind: "reply",
+					},
+				],
+				request: {
+					body: "It was restarted this morning.",
+					createdAt: "2026-07-12T02:00:00.000Z",
+				},
+				signal,
 			},
-		});
-
-		expect(result.decision).toBeNull();
-		expect(result.errors.join(" ")).toContain("Unrecognized keys");
-	});
-
-	it("turns an internal query failure into retryable invalid output", () => {
-		const investigation = fixture();
-		const failedEvidence: InvestigationEvidence = {
-			evidenceId: "evidence:product:failure",
-			signalKey: investigation.signal.signalKey,
-			kind: "definition",
-			source: "product",
-			queryType: "goals_summary",
-			period: "current",
-			range: investigation.signal.period.current,
-			status: "failed",
-			rowCount: 0,
-			error: "Goal analytics timed out",
-		};
-		const result = validateInvestigationDecision({
-			signal: investigation.signal,
-			evidence: [...investigation.evidence, failedEvidence],
-			decision: {
-				disposition: "needs_context",
-				gap: "expected_behavior",
-			},
-		});
-
-		expect(result.decision).toBeNull();
-		expect(result.errors).toContain(
-			"A failed Databuddy query must be retried, not turned into a terminal decision."
+			{ model, tools: {} }
 		);
+
+		const prompt = JSON.stringify(model.doGenerateCalls[0]?.prompt);
+		expect(prompt).toContain("Historical outcome title");
+		expect(prompt).toContain("checkout_started");
+		expect(prompt).toContain("The campaign was paused intentionally.");
+		expect(prompt).toContain("It was restarted this morning.");
+		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
 	});
 
-	it("does not let an unscoped annotation dismiss a signal", () => {
-		const investigation = fixture();
-		const result = validateInvestigationDecision({
-			signal: investigation.signal,
-			evidence: investigation.evidence,
-			decision: { disposition: "not_a_problem" },
-		});
-
-		expect(result.decision).toBeNull();
-		expect(result.insight).toBeNull();
-		expect(result.errors).not.toEqual([]);
+	it("requires an organization before exposing investigation tools", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: { ...appContext(), organizationId: null },
+					evidence,
+					githubRepository: null,
+					history: [],
+					signal,
+				},
+				{ model: new MockLanguageModelV3(), tools: {} }
+			)
+		).rejects.toThrow();
 	});
 });

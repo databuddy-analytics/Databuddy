@@ -5,6 +5,7 @@ import {
 	INSIGHT_RUN_ACTIVE_UNIQUE_INDEX,
 	insightGenerationConfigs,
 	insightObservations,
+	insightReplies,
 	insightRunEffects,
 	insightRunItems,
 	insightRuns,
@@ -24,7 +25,6 @@ describe("insight generation config schema", () => {
 			"timezone",
 			"deliveries",
 			"next_run_at",
-			"last_run_at",
 			"created_at",
 			"updated_at",
 		]);
@@ -53,13 +53,15 @@ describe("insight observations schema", () => {
 			"insight_id",
 			"signal_key",
 			"as_of",
-			"disposition",
 			"signal",
 			"evidence",
 			"decision",
 			"recheck_at",
 			"created_at",
 		]);
+		expect(insightObservations).toHaveProperty("outcome");
+		expect(insightObservations.outcome.name).toBe("decision");
+		expect(insightObservations).not.toHaveProperty("decision");
 
 		const unique = config.indexes.find(
 			(index) => index.config.name === "insight_observations_run_website_uidx"
@@ -80,6 +82,35 @@ describe("insight observations schema", () => {
 			"signal_key",
 			"as_of",
 			"created_at",
+		]);
+	});
+});
+
+	describe("insight replies schema", () => {
+		test("stores immutable human context on an investigation", () => {
+			const config = getTableConfig(insightReplies);
+			expect(config.columns.map((column) => column.name)).toEqual([
+				"id",
+				"insight_id",
+				"observation_id",
+				"author_id",
+				"author_name",
+			"body",
+			"slack_delivery",
+			"status",
+			"created_at",
+		]);
+		expect(config.columns.find((column) => column.name === "status")?.default).toBe(
+			"queued"
+		);
+
+		const history = config.indexes.find(
+			(index) => index.config.name === "insight_replies_insight_created_idx"
+		);
+		expect(history?.config.columns.map((column) => column.name)).toEqual([
+			"insight_id",
+			"created_at",
+			"id",
 		]);
 	});
 });

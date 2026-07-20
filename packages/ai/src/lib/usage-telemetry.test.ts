@@ -63,4 +63,24 @@ describe("summarizeAgentUsage", () => {
 		expect(summary.cost_total_usd).toBe(0.6);
 		expect(summary.agent_credits_used).toBe(12);
 	});
+
+	test("uses Terra cache pricing for insight investigations", () => {
+		const summary = summarizeAgentUsage("openai/gpt-5.6-terra", {
+			inputTokens: 3_000_000,
+			outputTokens: 1_000_000,
+			inputTokenDetails: {
+				cacheReadTokens: 1_000_000,
+				cacheWriteTokens: 1_000_000,
+			},
+		});
+
+		expect(summary.cost_fallback).toBe(false);
+		expect(summary.cost_model_id).toBe("openai/gpt-5.6-terra");
+		expect(summary.cost_input_usd).toBe(2.5);
+		expect(summary.cost_cache_read_usd).toBe(0.25);
+		expect(summary.cost_cache_write_usd).toBe(3.125);
+		expect(summary.cost_output_usd).toBe(15);
+		expect(summary.cost_total_usd).toBe(20.875);
+		expect(summary.agent_credits_used).toBe(417.5);
+	});
 });

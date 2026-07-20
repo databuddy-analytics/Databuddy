@@ -983,6 +983,67 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).not.toContain("event_name = 'pageview'");
 	});
 
+	it("counts only page-view sessions in session metrics", () => {
+		const config = QueryBuilders.session_metrics;
+		if (!config) {
+			throw new Error("session_metrics builder is missing");
+		}
+
+		const { sql } = compileBuilder("session_metrics", config);
+
+		expect(sql).toContain("countIf(page_views >= 1) as total_sessions");
+		expect(sql).toContain(
+			"avgIf(duration, page_views >= 1 AND duration > 0)"
+		);
+		expect(sql).toContain(
+			"countIf(page_views = 1 AND duration < 10 AND engagement_events = 0)"
+		);
+		expect(sql).toContain("nullIf(countIf(page_views >= 1), 0)");
+		expect(sql).not.toContain("count() as total_sessions");
+		expect(sql).not.toContain("page_views <= 1");
+	});
+
+	it("does not expose page time as session duration", () => {
+		for (const type of [
+			"sessions_by_device",
+			"sessions_by_browser",
+			"sessions_time_series",
+		]) {
+			const config = QueryBuilders[type];
+			if (!config) {
+				throw new Error(`${type} builder is missing`);
+			}
+
+			const { sql } = compileBuilder(type, config);
+			expect(sql).not.toContain("avg_session_duration");
+			expect(sql).not.toContain("time_on_page / 1000");
+		}
+	});
+
+	it("includes blank-valued desktop sessions in device breakdowns", () => {
+		const config = QueryBuilders.sessions_by_device;
+		if (!config) {
+			throw new Error("sessions_by_device builder is missing");
+		}
+
+		const { sql } = compileBuilder("sessions_by_device", config);
+		expect(sql).toContain("'Desktop'");
+		expect(sql).not.toContain("device_type != ''");
+	});
+
+	it("does not calculate page time from screen-view rows", () => {
+		const config = QueryBuilders.page_performance;
+		if (!config) {
+			throw new Error("page_performance builder is missing");
+		}
+
+		const { sql } = compileBuilder("page_performance", config);
+
+		expect(sql).toContain("event_name = 'screen_view'");
+		expect(sql).not.toContain("avg_time_on_page");
+		expect(sql).not.toContain("time_on_page / 1000");
+	});
+
 	it("builds interesting sessions with pageview, custom event, and error signals", () => {
 		const config = QueryBuilders.interesting_sessions;
 		if (!config) {

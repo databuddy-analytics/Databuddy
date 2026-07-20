@@ -22,14 +22,14 @@ import { StructuredData } from "@/components/structured-data";
 export const metadata: Metadata = {
 	title: "AI Analytics Agent - Ask Your Data Questions in Plain English",
 	description:
-		"Ask analytics questions in plain English. Run automatic analysis daily or weekly, save noteworthy findings, and send them to Slack.",
+		"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/databunny",
 	},
 	openGraph: {
 		title: "AI Analytics Agent - Ask Your Data Questions in Plain English",
 		description:
-			"Ask analytics questions in plain English. Run automatic analysis daily or weekly, save noteworthy findings, and send them to Slack.",
+			"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
 		url: "https://www.databuddy.cc/databunny",
 		images: ["/og-image.png"],
 	},
@@ -44,17 +44,17 @@ const FAQ_ITEMS = [
 	{
 		question: "How does automatic analysis work?",
 		answer:
-			"Choose a daily or weekly organization schedule. Databunny analyzes each website, saves noteworthy changes as findings, and includes the evidence and a recommended next step.",
+			"Choose a daily or weekly organization schedule. Databunny investigates noteworthy changes, keeps their evidence and history together, and gives you a concrete next step.",
 	},
 	{
-		question: "What becomes a finding?",
+		question: "What becomes an investigation?",
 		answer:
 			"Databunny compares recent periods and checks anomaly baselines across traffic, errors, conversions, events, and performance. It saves only changes with enough evidence to act on.",
 	},
 	{
-		question: "Can findings go to Slack?",
+		question: "Can investigations go to Slack?",
 		answer:
-			"Yes. Add Slack channels to the organization. After each analysis, websites with new findings post them there.",
+			"Yes. Databunny posts actionable investigations to your configured channels, and replies in that thread continue the same investigation.",
 	},
 	{
 		question: "Is Databunny included in all plans?",
@@ -74,14 +74,14 @@ export default function DatabunnyPage() {
 					title:
 						"AI Analytics Agent - Ask Your Data Questions in Plain English",
 					description:
-						"Ask analytics questions in plain English. Run automatic analysis daily or weekly, save noteworthy findings, and send them to Slack.",
+						"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
 					url: "https://www.databuddy.cc/databunny",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs"
-					subtitle="Type a question for an immediate answer, or schedule daily or weekly analysis. Databunny saves noteworthy changes as findings backed by your data."
+					subtitle="Type a question for an immediate answer, or schedule daily or weekly investigations that keep evidence, context, and replies together."
 					title="Ask your analytics anything in plain English."
 				/>
 
@@ -112,8 +112,8 @@ export default function DatabunnyPage() {
 				<Section className="border-border border-b" id="insights">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Schedule daily or weekly analysis across your organization. Each website with something noteworthy gets a clear, evidence-backed finding."
-							title="Findings that"
+							subtitle="Schedule daily or weekly analysis across your organization. Each noteworthy change becomes one evidence-backed investigation with a clear next move."
+							title="Investigations that"
 							titleMuted="find you."
 						/>
 						<TwoColumnGrid>
@@ -136,7 +136,7 @@ export default function DatabunnyPage() {
 				<Section className="border-border border-b" id="detection">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Databunny checks traffic, errors, events, conversions, and performance, then sends new findings to your configured Slack channels."
+							subtitle="Databunny checks traffic, errors, events, conversions, and performance, then sends actionable investigations to Slack where your team can continue them."
 							title="Catch problems"
 							titleMuted="before users do."
 						/>

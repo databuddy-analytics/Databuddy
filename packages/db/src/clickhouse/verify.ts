@@ -1,9 +1,16 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type ParsedTable, parseTable, readSql, sqlFiles } from "./schema-parse";
+import {
+	type ParsedTable,
+	parseTable,
+	readSql,
+	sqlFiles,
+} from "./schema-parse";
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 const DATABASES = ["analytics", "uptime"];
+const DATABASE_PATTERN =
+	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i;
 
 const NO_COLOR = Boolean(process.env.NO_COLOR);
 const c = {
@@ -15,9 +22,7 @@ const c = {
 };
 
 function dbNameOf(sql: string): string {
-	const m = sql.match(
-		/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i
-	);
+	const m = sql.match(DATABASE_PATTERN);
 	return m ? m[1] : "analytics";
 }
 
@@ -38,12 +43,17 @@ async function fetchLive(): Promise<Map<string, ParsedTable>> {
 	url.searchParams.set("query", query);
 	const res = await fetch(url, { headers });
 	if (!res.ok) {
-		throw new Error(`ClickHouse query failed: ${res.status} ${await res.text()}`);
+		throw new Error(
+			`ClickHouse query failed: ${res.status} ${await res.text()}`
+		);
 	}
 	const text = await res.text();
 	const live = new Map<string, ParsedTable>();
 	for (const line of text.trim().split("\n").filter(Boolean)) {
-		const row = JSON.parse(line) as { database: string; create_table_query: string };
+		const row = JSON.parse(line) as {
+			database: string;
+			create_table_query: string;
+		};
 		const parsed = parseTable(row.create_table_query);
 		live.set(`${row.database}.${parsed.name}`, parsed);
 	}
@@ -57,7 +67,10 @@ function diffTable(repo: ParsedTable, live: ParsedTable): string[] {
 
 	for (const [name, type] of repoCols) {
 		if (!liveCols.has(name)) {
-			lines.push(c.green(`    + ${name.padEnd(24)} ${type}`) + c.dim("  (in repo, missing on cluster)"));
+			lines.push(
+				c.green(`    + ${name.padEnd(24)} ${type}`) +
+					c.dim("  (in repo, missing on cluster)")
+			);
 		} else if (liveCols.get(name) !== type) {
 			lines.push(
 				c.yellow(`    ~ ${name.padEnd(24)} `) +
@@ -69,14 +82,20 @@ function diffTable(repo: ParsedTable, live: ParsedTable): string[] {
 	}
 	for (const [name, type] of liveCols) {
 		if (!repoCols.has(name)) {
-			lines.push(c.red(`    - ${name.padEnd(24)} ${type}`) + c.dim("  (on cluster, missing in repo)"));
+			lines.push(
+				c.red(`    - ${name.padEnd(24)} ${type}`) +
+					c.dim("  (on cluster, missing in repo)")
+			);
 		}
 	}
 
 	const repoNames = repo.columns.map((col) => col.name).join(",");
 	const liveNames = live.columns.map((col) => col.name).join(",");
-	if (repoNames !== liveNames && repoCols.size === liveCols.size &&
-		[...repoCols.keys()].every((k) => liveCols.has(k))) {
+	if (
+		repoNames !== liveNames &&
+		repoCols.size === liveCols.size &&
+		[...repoCols.keys()].every((k) => liveCols.has(k))
+	) {
 		lines.push(c.yellow("    ~ column order differs"));
 	}
 
@@ -104,7 +123,9 @@ for (const file of repoFiles) {
 	const repo = parseTable(sql);
 	const liveTable = live.get(key);
 	if (!liveTable) {
-		console.info(`${c.red("✗")} ${c.bold(key)} ${c.red("— in repo, does not exist on cluster")}`);
+		console.info(
+			`${c.red("✗")} ${c.bold(key)} ${c.red("— in repo, does not exist on cluster")}`
+		);
 		drifted++;
 		continue;
 	}
@@ -121,15 +142,19 @@ for (const file of repoFiles) {
 }
 
 for (const key of live.keys()) {
-	if (!seenLive.has(key) && !key.endsWith("_mv")) {
-		console.info(`${c.red("✗")} ${c.bold(key)} ${c.red("— on cluster, no .sql in repo")}`);
+	if (!(seenLive.has(key) || key.endsWith("_mv"))) {
+		console.info(
+			`${c.red("✗")} ${c.bold(key)} ${c.red("— on cluster, no .sql in repo")}`
+		);
 		drifted++;
 	}
 }
 
 console.info("");
 if (drifted === 0) {
-	console.info(c.green(`✓ schema in sync — ${repoFiles.length} objects match the cluster`));
+	console.info(
+		c.green(`✓ schema in sync — ${repoFiles.length} objects match the cluster`)
+	);
 	process.exit(0);
 }
 console.info(c.red(`✗ ${drifted} object(s) drifted from the cluster`));

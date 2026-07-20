@@ -44,9 +44,6 @@ describe("agent discovery resources", () => {
 
 		expect(agent.endpoints.auth_md).toBe("https://www.databuddy.cc/auth.md");
 		expect(serverCard.serverUrl).toBe("https://api.databuddy.cc/v1/mcp/");
-		expect(serverCard.tools[0]._meta.ui.resourceUri).toBe(
-			"ui://databuddy/analytics-overview"
-		);
 		expect(catalog.linkset[0]["service-desc"][0].href).toBe(
 			"https://www.databuddy.cc/openapi.json"
 		);

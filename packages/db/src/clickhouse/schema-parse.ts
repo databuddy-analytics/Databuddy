@@ -1,26 +1,37 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+const COLUMN_NAME_PATTERN = /^`?(\w+)`?\s+/;
+const COMPUTED_PATTERN = /\b(?:MATERIALIZED|ALIAS)\b/i;
+const DEFAULT_PATTERN = /\b(?:DEFAULT|EPHEMERAL)\b/i;
+const LOW_CARDINALITY_PATTERN = /^LowCardinality\((.*)\)$/i;
+const MATERIALIZED_VIEW_PATTERN = /MATERIALIZED\s+VIEW/i;
+const NULLABLE_PATTERN = /^Nullable\(/i;
+const QUALIFIED_NAME_PATTERN =
+	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`([^`]+)`|(\w+))\.(?:`([^`]+)`|(\w+))/i;
+const TABLE_NAME_PATTERN =
+	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?[\w.]*\.(\w+)/i;
+
 export interface ParsedColumn {
-	name: string;
-	type: string;
-	nullable: boolean;
-	hasDefault: boolean;
 	computed: boolean;
+	hasDefault: boolean;
+	name: string;
+	nullable: boolean;
+	type: string;
 }
 
 export function isNullable(type: string): boolean {
-	const inner = type.replace(/^LowCardinality\((.*)\)$/i, "$1").trim();
-	return /^Nullable\(/i.test(inner);
+	const inner = type.replace(LOW_CARDINALITY_PATTERN, "$1").trim();
+	return NULLABLE_PATTERN.test(inner);
 }
 
 export interface ParsedTable {
-	name: string;
-	isView: boolean;
 	columns: ParsedColumn[];
 	engine: string;
-	partitionBy: string;
+	isView: boolean;
+	name: string;
 	orderBy: string;
+	partitionBy: string;
 	settings: string;
 }
 
@@ -85,9 +96,7 @@ const COLUMN_MODIFIERS =
 const NON_COLUMN = /^(?:INDEX|CONSTRAINT|PROJECTION|PRIMARY\s+KEY)\b/i;
 
 export function tableNameOf(sql: string): string {
-	const m = sql.match(
-		/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?[\w.]*\.(\w+)/i
-	);
+	const m = sql.match(TABLE_NAME_PATTERN);
 	if (!m) {
 		throw new Error("Could not parse table name");
 	}
@@ -95,9 +104,7 @@ export function tableNameOf(sql: string): string {
 }
 
 export function qualifiedNameOf(sql: string): string {
-	const m = sql.match(
-		/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:`([^`]+)`|(\w+))\.(?:`([^`]+)`|(\w+))/i
-	);
+	const m = sql.match(QUALIFIED_NAME_PATTERN);
 	if (!m) {
 		throw new Error("Could not parse qualified table name");
 	}
@@ -112,7 +119,7 @@ export function parseColumns(sql: string): ParsedColumn[] {
 		if (NON_COLUMN.test(item)) {
 			continue;
 		}
-		const nameMatch = item.match(/^`?(\w+)`?\s+/);
+		const nameMatch = item.match(COLUMN_NAME_PATTERN);
 		if (!nameMatch) {
 			continue;
 		}
@@ -123,17 +130,15 @@ export function parseColumns(sql: string): ParsedColumn[] {
 			name: nameMatch[1],
 			type,
 			nullable: isNullable(type),
-			hasDefault: /\b(?:DEFAULT|EPHEMERAL)\b/i.test(afterName),
-			computed: /\b(?:MATERIALIZED|ALIAS)\b/i.test(afterName),
+			hasDefault: DEFAULT_PATTERN.test(afterName),
+			computed: COMPUTED_PATTERN.test(afterName),
 		});
 	}
 	return cols;
 }
 
 function clause(tail: string, keyword: string, stops: string[]): string {
-	const lookahead = stops.length
-		? `(?=(?:${stops.join("|")})\\b|$)`
-		: "(?=$)";
+	const lookahead = stops.length ? `(?=(?:${stops.join("|")})\\b|$)` : "(?=$)";
 	const re = new RegExp(`${keyword}\\s+([\\s\\S]*?)\\s*${lookahead}`, "i");
 	const m = tail.match(re);
 	return m ? m[1].trim() : "";
@@ -141,9 +146,12 @@ function clause(tail: string, keyword: string, stops: string[]): string {
 
 export function parseTable(sql: string): ParsedTable {
 	const name = tableNameOf(sql);
-	const isView = /MATERIALIZED\s+VIEW/i.test(sql);
+	const isView = MATERIALIZED_VIEW_PATTERN.test(sql);
 	const columns = parseColumns(sql);
-	const tail = sql.slice(firstParenGroup(sql).end + 1).replace(/\s+/g, " ").trim();
+	const tail = sql
+		.slice(firstParenGroup(sql).end + 1)
+		.replace(/\s+/g, " ")
+		.trim();
 	return {
 		name,
 		isView,

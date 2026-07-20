@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -10,13 +9,11 @@ import {
 } from "@/components/ai-elements/conversation";
 import { useChat, useChatLoading } from "@/contexts/chat-context";
 import { useWebsite } from "@/hooks/use-websites";
-import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRightIcon,
 	BrainIcon,
 	ChartBarIcon,
-	LightbulbIcon,
 	LightningIcon,
 	TableIcon,
 } from "@databuddy/ui/icons";
@@ -54,7 +51,6 @@ const DEFAULT_PROMPTS = AGENT_COMMANDS.filter(
 	.map((command) => ({
 		label: command.title,
 		prompt: command.prompt,
-		source: "default" as const,
 	}));
 
 export function AgentChatSurface({
@@ -137,11 +133,7 @@ export function AgentChatSurface({
 					{showLoading ? <DelayedLoading /> : null}
 					{showWelcome ? (
 						<div className="flex flex-1 items-center justify-center">
-							<WelcomeState
-								domain={domain}
-								onPromptSelect={launchPrompt}
-								websiteId={defaultWebsiteId}
-							/>
+							<WelcomeState domain={domain} onPromptSelect={launchPrompt} />
 						</div>
 					) : null}
 				</ConversationContent>
@@ -183,23 +175,11 @@ function DelayedLoading() {
 
 function WelcomeState({
 	onPromptSelect,
-	websiteId,
 	domain,
 }: {
 	domain: string | null;
 	onPromptSelect: (text: string) => void;
-	websiteId?: string;
 }) {
-	const { data: fetchedPrompts, isLoading } = useQuery({
-		...orpc.agentChats.suggestedPrompts.queryOptions({
-			input: { websiteId: websiteId ?? "" },
-		}),
-		enabled: Boolean(websiteId),
-		staleTime: 5 * 60 * 1000,
-	});
-
-	const prompts = websiteId ? fetchedPrompts : DEFAULT_PROMPTS;
-
 	return (
 		<div className="w-full space-y-6">
 			<div className="flex flex-col items-center gap-3">
@@ -227,69 +207,34 @@ function WelcomeState({
 			</div>
 
 			<div className="grid gap-2 sm:grid-cols-2">
-				{isLoading || !prompts
-					? SKELETON_WIDTHS.map((widthClass) => (
-							<SuggestionSkeleton key={widthClass} widthClass={widthClass} />
-						))
-					: prompts.map((item, idx) => {
-							const Icon =
-								item.source === "insight"
-									? LightbulbIcon
-									: (FALLBACK_ICONS[idx] ?? FALLBACK_ICONS[0]);
-							return (
-								<Button
-									className={cn(
-										"group h-auto items-start justify-start gap-3 whitespace-normal rounded-lg border border-border/40 bg-card p-3 text-left",
-										"hover:border-border/60 hover:bg-accent/40"
-									)}
-									key={`${item.source}-${item.label}`}
-									onClick={() => onPromptSelect(item.prompt)}
-									variant="secondary"
-								>
-									<span
-										className={cn(
-											"flex size-7 shrink-0 items-center justify-center rounded",
-											item.source === "insight"
-												? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-												: "bg-accent/60 text-muted-foreground"
-										)}
-									>
-										<Icon className="size-3.5" weight="duotone" />
-									</span>
-									<span className="min-w-0 flex-1">
-										<span className="line-clamp-2 text-sm leading-tight">
-											{item.label}
-										</span>
-										<span className="mt-0.5 block text-muted-foreground text-xs">
-											{item.source === "insight"
-												? "From your findings"
-												: "Suggested"}
-										</span>
-									</span>
-									<ArrowRightIcon className="mt-0.5 size-3.5 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
-								</Button>
-							);
-						})}
+				{DEFAULT_PROMPTS.map((item, idx) => {
+					const Icon = FALLBACK_ICONS[idx] ?? FALLBACK_ICONS[0];
+					return (
+						<Button
+							className={cn(
+								"group h-auto items-start justify-start gap-3 whitespace-normal rounded-lg border border-border/40 bg-card p-3 text-left",
+								"hover:border-border/60 hover:bg-accent/40"
+							)}
+							key={item.label}
+							onClick={() => onPromptSelect(item.prompt)}
+							variant="secondary"
+						>
+							<span className="flex size-7 shrink-0 items-center justify-center rounded bg-accent/60 text-muted-foreground">
+								<Icon className="size-3.5" weight="duotone" />
+							</span>
+							<span className="min-w-0 flex-1">
+								<span className="line-clamp-2 text-sm leading-tight">
+									{item.label}
+								</span>
+								<span className="mt-0.5 block text-muted-foreground text-xs">
+									Suggested
+								</span>
+							</span>
+							<ArrowRightIcon className="mt-0.5 size-3.5 shrink-0 text-transparent transition-colors group-hover:text-muted-foreground" />
+						</Button>
+					);
+				})}
 			</div>
 		</div>
 	);
 }
-
-function SuggestionSkeleton({ widthClass }: { widthClass: string }) {
-	return (
-		<div
-			aria-hidden
-			className="flex items-start gap-3 rounded-lg border border-border/40 bg-card p-3"
-		>
-			<Skeleton className="size-7 shrink-0 rounded" />
-			<div className="min-w-0 flex-1 space-y-1.5">
-				<Skeleton className="h-3.5 w-full rounded" />
-				<Skeleton className={cn("h-3.5 rounded", widthClass)} />
-				<Skeleton className="mt-1 h-2.5 w-20 rounded" />
-			</div>
-			<Skeleton className="mt-1 size-3.5 shrink-0 rounded opacity-50" />
-		</div>
-	);
-}
-
-const SKELETON_WIDTHS = ["w-3/5", "w-4/5", "w-2/3", "w-1/2"] as const;

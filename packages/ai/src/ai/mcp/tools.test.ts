@@ -1,7 +1,9 @@
 import "./tools.test-env";
 
+import { createInternalPrincipal } from "@databuddy/rpc";
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
+import { handleDatabuddyMcpRequest } from "../../mcp/http";
 import type { McpRequestContext } from "./define-tool";
 import { createMcpTools } from "./tools";
 
@@ -42,147 +44,142 @@ describe("MCP tools/list JSON Schema rendering", () => {
 	}
 });
 
-describe("MCP tool registry invariants", () => {
-	test("every tool name matches snake_case pattern", () => {
-		for (const tool of tools) {
-			expect(tool.name).toMatch(TOOL_NAME_RE);
+describe("MCP tool invariants", () => {
+	test("tool names are unique snake_case", () => {
+		const names = tools.map((tool) => tool.name);
+		expect(new Set(names).size).toBe(names.length);
+		for (const name of names) {
+			expect(name).toMatch(TOOL_NAME_RE);
 		}
 	});
 
-	test("every tool name is unique", () => {
-		const names = tools.map((t) => t.name);
-		const unique = new Set(names);
-		expect(unique.size).toBe(names.length);
-	});
-
-	test("every tool has a non-empty description", () => {
+	test("tools have bounded descriptions, metadata, and handlers", () => {
 		for (const tool of tools) {
 			expect(tool.description.length).toBeGreaterThan(0);
-		}
-	});
-
-	test("every tool description is within MCP description length budget", () => {
-		for (const tool of tools) {
 			expect(tool.description.length).toBeLessThanOrEqual(MAX_DESCRIPTION_LEN);
-		}
-	});
-
-	test("every tool has metadata with kind and capability", () => {
-		for (const tool of tools) {
-			expect(tool.metadata).toBeDefined();
 			expect(tool.metadata.access.kind).toMatch(/^(read|write)$/);
-			expect(tool.metadata.capability).toMatch(/^(analytics|memory|workspace)$/);
-		}
-	});
-
-	test("every tool has a callable handler function", () => {
-		for (const tool of tools) {
+			expect(tool.metadata.capability).toMatch(/^(analytics|workspace)$/);
 			expect(typeof tool.handler).toBe("function");
 		}
 	});
 
-	test("every write tool declares at least one scope", () => {
-		const writers = tools.filter((t) => t.metadata.access.kind === "write");
+	test("write tools declare scopes", () => {
+		const writers = tools.filter(
+			(tool) => tool.metadata.access.kind === "write"
+		);
 		expect(writers.length).toBeGreaterThan(0);
 		for (const tool of writers) {
 			expect(tool.metadata.access.scopes?.length ?? 0).toBeGreaterThan(0);
 		}
 	});
 
-	test("every input schema is a Zod object (MCP requires top-level object)", () => {
+	test("schemas render as JSON-RPC objects", () => {
 		for (const tool of tools) {
-			const json = z.toJSONSchema(tool.inputSchema, { io: "input" });
-			expect(json.type).toBe("object");
-		}
-	});
-
-	test("every declared output schema describes an object (MCP structuredContent requirement)", () => {
-		for (const tool of tools) {
-			if (!tool.outputSchema) {
-				continue;
+			const input = z.toJSONSchema(tool.inputSchema, { io: "input" });
+			expect(input.type).toBe("object");
+			expect(() => JSON.parse(JSON.stringify(input))).not.toThrow();
+			if (tool.outputSchema) {
+				const output = z.toJSONSchema(tool.outputSchema, { io: "output" });
+				expect(output.type).toBe("object");
+				expect(() => JSON.parse(JSON.stringify(output))).not.toThrow();
 			}
-			const json = z.toJSONSchema(tool.outputSchema, { io: "output" });
-			expect(json.type).toBe("object");
 		}
 	});
 
-	test("no tool name collides with reserved JSON-RPC method names", () => {
+	test("zero-argument schemas accept an empty object", () => {
+		for (const tool of tools) {
+			const schema = z.toJSONSchema(tool.inputSchema, { io: "input" });
+			if ((schema.required as string[] | undefined)?.length === 0) {
+				expect(tool.inputSchema.safeParse({}).success).toBe(true);
+			}
+		}
+	});
+
+	test("avoids reserved methods", () => {
 		const reserved = new Set(["initialize", "ping", "notifications/initialized"]);
 		for (const tool of tools) {
 			expect(reserved.has(tool.name)).toBe(false);
 		}
 	});
-
-	test("schemas are JSON-serializable after conversion (round-trip)", () => {
-		for (const tool of tools) {
-			const inJson = z.toJSONSchema(tool.inputSchema, { io: "input" });
-			expect(() => JSON.parse(JSON.stringify(inJson))).not.toThrow();
-			if (tool.outputSchema) {
-				const outJson = z.toJSONSchema(tool.outputSchema, { io: "output" });
-				expect(() => JSON.parse(JSON.stringify(outJson))).not.toThrow();
-			}
-		}
-	});
-
-	test("at least one tool exists per declared capability used", () => {
-		const capabilities = new Set(tools.map((t) => t.metadata.capability));
-		expect(capabilities.has("analytics")).toBe(true);
-	});
-
-	test("tool registry size is reasonable (>=10, <=200)", () => {
-		expect(tools.length).toBeGreaterThanOrEqual(10);
-		expect(tools.length).toBeLessThanOrEqual(200);
-	});
-
-	test("input schemas allow JSON-RPC empty object input (no required-field surprises for zero-arg tools)", () => {
-		for (const tool of tools) {
-			const json = z.toJSONSchema(tool.inputSchema, { io: "input" });
-			if ((json.required as string[] | undefined)?.length === 0) {
-				expect(tool.inputSchema.safeParse({}).success).toBe(true);
-			}
-		}
-	});
 });
 
-describe("manage_insight_digest contract", () => {
-	const digest = tools.find((tool) => tool.name === "manage_insight_digest");
-
-	test("is organization-wide with no website or cron selectors", () => {
-		expect(digest).toBeDefined();
-		expect(digest?.metadata.access.scopes).toEqual(["manage:config"]);
-		const json = z.toJSONSchema(digest?.inputSchema ?? z.never(), {
-			io: "input",
+describe("investigation tools", () => {
+	test("publishes the investigation lifecycle to a website-scoped key", async () => {
+		const principal = createInternalPrincipal({
+			metadata: {
+				resources: {
+					"website:site-1": ["read:data", "manage:websites"],
+				},
+			},
+			organizationId: "org-1",
+			scopes: [],
 		});
+		const response = await handleDatabuddyMcpRequest({
+			apiKey: principal.apiKey,
+			organizationId: "org-1",
+			request: new Request("https://api.databuddy.test/v1/mcp", {
+				body: JSON.stringify({
+					id: 1,
+					jsonrpc: "2.0",
+					method: "tools/list",
+					params: {},
+				}),
+				headers: {
+					accept: "application/json, text/event-stream",
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+			requestHeaders: new Headers(),
+			userId: null,
+		});
+		const body = (await response.json()) as {
+			result?: { tools?: Array<{ name: string }> };
+		};
+		const names = new Set(body.result?.tools?.map((tool) => tool.name));
 
-		for (const field of [
-			"websiteId",
-			"websiteName",
-			"websiteDomain",
-			"cron",
+		expect(response.status).toBe(200);
+		for (const name of [
+			"list_investigations",
+			"get_investigation",
+			"reply_to_investigation",
 		]) {
-			expect(json).not.toHaveProperty(`properties.${field}`);
+			expect(names.has(name)).toBe(true);
 		}
 	});
 
-	test("accepts only Off, Daily, and Weekly schedules", () => {
-		expect(digest).toBeDefined();
-		for (const frequency of ["off", "daily", "weekly"]) {
-			expect(
-				digest?.inputSchema.safeParse({
-					action: "reschedule",
-					confirmed: false,
-					frequency,
-				}).success
-			).toBe(true);
-		}
-		for (const frequency of ["hourly", "custom"]) {
-			expect(
-				digest?.inputSchema.safeParse({
-					action: "reschedule",
-					confirmed: false,
-					frequency,
-				}).success
-			).toBe(false);
-		}
+	test("exposes the durable investigation lifecycle", () => {
+		const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+		expect(byName.get("list_investigations")?.metadata).toMatchObject({
+			access: { kind: "read", scopes: ["read:data"] },
+		});
+		expect(byName.get("get_investigation")?.metadata).toMatchObject({
+			access: { kind: "read", scopes: ["read:data"] },
+		});
+		expect(byName.get("reply_to_investigation")?.metadata).toMatchObject({
+			access: { kind: "write", scopes: ["manage:websites"] },
+		});
+		expect(
+			byName.get("reply_to_investigation")?.inputSchema.safeParse({
+				body: "The deploy completed at noon.",
+				investigationId: "investigation-1",
+				replyId: "mcp-request-1",
+			}).success
+		).toBe(true);
+		expect(
+			byName.get("reply_to_investigation")?.inputSchema.safeParse({
+				body: "The deploy completed at noon.",
+				investigationId: "investigation-1",
+				replyId: "mcp:request:1",
+			}).success
+		).toBe(false);
+		expect(
+			byName.get("reply_to_investigation")?.inputSchema.safeParse({
+				body: "The deploy completed at noon.",
+				investigationId: "investigation-1",
+			}).success
+		).toBe(false);
 	});
+
 });

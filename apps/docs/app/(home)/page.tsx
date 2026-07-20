@@ -12,11 +12,7 @@ import Section from "@/components/landing/section";
 import Testimonials from "@/components/landing/testimonials";
 import { TrustedBy } from "@/components/landing/trusted-by";
 import { StructuredData } from "@/components/structured-data";
-import {
-	createAgentJson,
-	developerResources,
-	mcpTools,
-} from "@/lib/agent-discovery";
+import { createAgentJson, developerResources } from "@/lib/agent-discovery";
 import { getDemoEmbedBaseUrl, hostFromNextHeaders } from "@/lib/demo-embed-url";
 import { homeFaqItems, homePageSeo } from "@/lib/home-seo";
 
@@ -97,17 +93,6 @@ function AgentModeView() {
 				</p>
 			</section>
 
-			<section className="mt-10" id="agent-tools">
-				<h2 className="font-semibold text-2xl">MCP Tools</h2>
-				<ul className="mt-4 grid gap-2 text-muted-foreground">
-					{mcpTools.map((tool) => (
-						<li key={tool.name}>
-							<code>{tool.name}</code>: {tool.description}
-						</li>
-					))}
-				</ul>
-			</section>
-
 			<section className="mt-10" id="agent-json">
 				<h2 className="font-semibold text-2xl">Machine JSON</h2>
 				<pre className="mt-4 overflow-x-auto rounded border border-border bg-muted/30 p-4 text-xs">
@@ -136,8 +121,8 @@ function AgentSummary() {
 						<p>
 							Databuddy is a privacy-first analytics platform for developers. It
 							combines web analytics, error tracking, Core Web Vitals, feature
-							flags, short links, uptime monitoring, and automatic findings in
-							one lightweight product.
+							flags, short links, uptime monitoring, and automatic
+							investigations in one lightweight product.
 						</p>
 						<p>
 							AI agents can discover Databuddy through OpenAPI, llms.txt,
@@ -172,14 +157,14 @@ export default async function HomePage({ searchParams }: HomePageProps) {
 						value: {
 							name: "Databuddy",
 							description:
-								"Privacy-first developer analytics with error tracking, web vitals, feature flags, short links, and automatic findings in one lightweight script.",
+								"Privacy-first developer analytics with error tracking, web vitals, feature flags, short links, and automatic investigations in one lightweight script.",
 							featureList: [
 								"Privacy-first web analytics",
 								"Error tracking",
 								"Core Web Vitals monitoring",
 								"Feature flags",
 								"Short link analytics",
-								"Automatic findings",
+								"Automatic investigations",
 								"REST API",
 								"Model Context Protocol server",
 							],

@@ -1,4 +1,5 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
+import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { closeInsightsQueue, getInsightsQueue } from "@databuddy/redis";
@@ -127,6 +128,11 @@ async function startRuntime() {
 		worker_enabled: workerEnabled,
 	});
 	if (workerEnabled) {
+		if (!isAiGatewayConfigured) {
+			throw new Error(
+				"INSIGHTS_WORKER_ENABLED requires AI_GATEWAY_API_KEY or AI_API_KEY"
+			);
+		}
 		insightsWorker = startInsightsWorker();
 		await Promise.all([
 			ensureInsightsDispatchSchedule(),

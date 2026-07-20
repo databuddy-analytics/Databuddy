@@ -1,12 +1,11 @@
 import { ORPCError } from "@orpc/server";
 import type { PreResolvedAuth } from "@databuddy/rpc";
-import { getServerRPCClient } from "../../../lib/orpc-server";
 import type { AppContext } from "../../config/context";
 import { createToolLogger } from "./logger";
 
 const logger = createToolLogger("RPC");
 const MUTATION_METHOD_RE =
-	/^(add|archive|bulk|create|delete|pause|publish|remove|reset|restore|resume|revoke|rotate|send|set|trigger|unarchive|update|upsert)/i;
+	/^(add|archive|bulk|create|delete|detect|pause|publish|remove|reply|reset|restore|resume|revoke|rotate|send|set|trigger|unarchive|update|upsert)/i;
 
 export async function callRPCProcedure(
 	routerName: string,
@@ -27,6 +26,7 @@ export async function callRPCProcedure(
 
 		const headers = context.requestHeaders ?? new Headers();
 		const preResolved = resolvePreResolvedAuth(context);
+		const { getServerRPCClient } = await import("../../../lib/orpc-server");
 		const client = await getServerRPCClient(headers, preResolved);
 
 		const router = client[routerName as keyof typeof client] as
@@ -74,7 +74,7 @@ export async function callRPCProcedure(
 									: error.message ||
 										"An error occurred while processing your request.";
 
-			throw new Error(userMessage);
+			throw new ORPCError(error.code, { message: userMessage });
 		}
 
 		if (error instanceof Error) {
