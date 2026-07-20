@@ -5,7 +5,7 @@ import { createToolLogger } from "./logger";
 
 const logger = createToolLogger("RPC");
 const MUTATION_METHOD_RE =
-	/^(add|archive|bulk|create|delete|pause|publish|remove|reply|reset|restore|resume|revoke|rotate|send|set|trigger|unarchive|update|upsert)/i;
+	/^(add|archive|bulk|create|delete|detect|pause|publish|remove|reply|reset|restore|resume|revoke|rotate|send|set|trigger|unarchive|update|upsert)/i;
 
 export async function callRPCProcedure(
 	routerName: string,

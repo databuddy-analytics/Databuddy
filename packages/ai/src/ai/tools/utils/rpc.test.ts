@@ -56,6 +56,21 @@ describe("AI tool RPC helper", () => {
 		expect(reply).toMatchObject({ dryRun: true, mutationBlocked: true });
 	});
 
+	it("blocks detection RPC calls in dry-run mode", async () => {
+		const result = await callRPCProcedure(
+			"anomalies",
+			"detect",
+			{ websiteId: "website_123" },
+			{ ...BASE_CONTEXT, mutationMode: "dry-run" }
+		);
+
+		expect(result).toMatchObject({
+			dryRun: true,
+			mutationBlocked: true,
+			success: false,
+		});
+	});
+
 	it("forwards cancellation to the ORPC client", async () => {
 		const controller = new AbortController();
 
