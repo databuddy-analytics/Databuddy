@@ -330,7 +330,7 @@ export function EditFunnelDialog({
 							</Field>
 							<Field>
 								<Field.Label>
-									Description{" "}
+									Business meaning{" "}
 									<span className="text-muted-foreground">(optional)</span>
 								</Field.Label>
 								<Input
@@ -344,9 +344,13 @@ export function EditFunnelDialog({
 												: prev
 										)
 									}
-									placeholder="What this funnel tracks"
+									placeholder="A visitor completes checkout from cart to payment"
 									value={formData.description || ""}
 								/>
+								<Field.Description>
+									Helps Databuddy explain which customer journey changed and why
+									it matters.
+								</Field.Description>
 							</Field>
 						</div>
 

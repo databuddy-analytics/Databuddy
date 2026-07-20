@@ -8,6 +8,11 @@ const DEPLOY_FETCH_SIZE = 50;
 const MAX_DEPLOY_PAGES = 5;
 const MAX_COMMITS = 50;
 const SEARCH_SCOPE = /\b(?:repo|org|user):\S+/i;
+const DEPLOYMENT_RESULT_STATES = new Set(["error", "failure", "success"]);
+const DEPLOYMENT_TIMESTAMP = z
+	.string()
+	.datetime({ offset: true })
+	.describe("ISO timestamp with timezone, for example 2026-05-12T23:59:59Z");
 const REPOSITORY_FIELDS = {
 	owner: z.string().min(1).describe("GitHub repo owner (user or org)"),
 	repo: z.string().min(1).describe("GitHub repo name"),
@@ -43,6 +48,15 @@ interface GitHubDeploy {
 	id: number;
 	ref: string;
 	sha: string;
+}
+
+interface GitHubDeploymentStatus {
+	created_at: string;
+	description: string | null;
+	environment_url: string | null;
+	log_url: string | null;
+	state: string;
+	updated_at: string;
 }
 
 async function githubFetch(path: string, token: string): Promise<unknown> {
@@ -120,27 +134,47 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 	const getToken = createCachedTokenFn(
 		"github",
 		params.organizationId,
-		params.userId
+		params.userId,
+		"repo"
 	);
+	const deploymentInput = createRepositorySchema(repository, {
+		environment: z
+			.string()
+			.optional()
+			.describe(
+				"Case-insensitive substring filter on the environment name (e.g. 'production', 'preview')"
+			),
+		since: DEPLOYMENT_TIMESTAMP.optional().describe(
+			"Only deployments requested on or after this timestamp"
+		),
+		until: DEPLOYMENT_TIMESTAMP.optional().describe(
+			"Only deployments requested on or before this timestamp"
+		),
+		limit: z
+			.number()
+			.min(1)
+			.max(MAX_RESULTS)
+			.optional()
+			.default(5)
+			.describe("Number of deploys to return"),
+	}).superRefine((input, context) => {
+		if (
+			input.since &&
+			input.until &&
+			Date.parse(input.since) > Date.parse(input.until)
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "since must be before or equal to until",
+				path: ["until"],
+			});
+		}
+	});
 
 	const getRecentDeploysTool = tool({
 		description:
-			"Get recent GitHub deployments for a repo. Use when a metric changed and you want to check if a deploy happened in the same time window. Returns SHA, environment, timestamp, and author. Environment names vary by platform (e.g. 'Databuddy / production', 'api - preview'), so the environment filter matches as a case-insensitive substring; check availableEnvironments in the response if a filter returns nothing.",
-		inputSchema: createRepositorySchema(repository, {
-			environment: z
-				.string()
-				.optional()
-				.describe(
-					"Case-insensitive substring filter on the environment name (e.g. 'production', 'preview')"
-				),
-			limit: z
-				.number()
-				.min(1)
-				.max(MAX_RESULTS)
-				.optional()
-				.default(5)
-				.describe("Number of deploys to return"),
-		}),
+			"Get GitHub deployments around a metric change. since/until filter the request time and require exact timestamps. Returns the successful or failed completion separately from the current state, because old preview deployments may later become inactive. If truncated is true, the requested history was older than the scanned window and absence is not evidence that no deploy occurred.",
+		inputSchema: deploymentInput,
 		execute: async (input) => {
 			const token = await getToken();
 			if (!token) {
@@ -149,9 +183,14 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 			const repo = resolveRepository(repository, input);
 
 			const envNeedle = input.environment?.toLowerCase();
+			const since = input.since ? Date.parse(input.since) : null;
+			const until = input.until ? Date.parse(input.until) : null;
 			const seenEnvironments = new Set<string>();
 			const matched: GitHubDeploy[] = [];
-			const maxPages = envNeedle ? MAX_DEPLOY_PAGES : 1;
+			let oldestScannedAt: string | null = null;
+			let truncated = false;
+			const maxPages =
+				envNeedle || since !== null || until !== null ? MAX_DEPLOY_PAGES : 1;
 
 			for (let page = 1; page <= maxPages; page++) {
 				const data = await githubFetch(
@@ -164,35 +203,86 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 				}
 
 				const pageDeploys = data as GitHubDeploy[];
+				oldestScannedAt = pageDeploys.at(-1)?.created_at ?? oldestScannedAt;
 				for (const d of pageDeploys) {
 					seenEnvironments.add(d.environment);
-					if (!envNeedle || d.environment.toLowerCase().includes(envNeedle)) {
+					const requestedAt = Date.parse(d.created_at);
+					if (
+						(!envNeedle || d.environment.toLowerCase().includes(envNeedle)) &&
+						(since === null || requestedAt >= since) &&
+						(until === null || requestedAt <= until)
+					) {
 						matched.push(d);
 					}
 				}
 
+				const crossedSince =
+					since !== null &&
+					oldestScannedAt !== null &&
+					Date.parse(oldestScannedAt) < since;
 				if (
 					pageDeploys.length < DEPLOY_FETCH_SIZE ||
-					matched.length >= input.limit
+					matched.length >= input.limit ||
+					crossedSince
 				) {
 					break;
+				}
+				if (page === maxPages) {
+					truncated = true;
 				}
 			}
 
 			const availableEnvironments = [...seenEnvironments];
+			const statusResults = await Promise.all(
+				matched.slice(0, input.limit).map(async (deployment) => {
+					const statuses = await githubFetch(
+						`/repos/${repositoryPath(repo)}/deployments/${deployment.id}/statuses?per_page=10`,
+						token
+					);
+					if (!Array.isArray(statuses)) {
+						return { deployment, error: statuses };
+					}
+					return { deployment, statuses: statuses as GitHubDeploymentStatus[] };
+				})
+			);
+			const failedStatus = statusResults.find((result) => "error" in result);
+			if (failedStatus && "error" in failedStatus) {
+				return failedStatus.error;
+			}
+			const deployments = statusResults.map((result) => {
+				const deployment = result.deployment;
+				const statuses =
+					"statuses" in result && result.statuses ? result.statuses : [];
+				const current = statuses[0];
+				const completed = statuses.find((status) =>
+					DEPLOYMENT_RESULT_STATES.has(status.state)
+				);
+				return {
+					sha: deployment.sha.slice(0, 7),
+					ref: deployment.ref,
+					environment: deployment.environment,
+					requestedAt: deployment.created_at,
+					description: deployment.description,
+					author: deployment.creator?.login,
+					result: completed?.state ?? null,
+					completedAt: completed?.created_at ?? null,
+					currentState: current?.state ?? null,
+					currentStateAt: current?.created_at ?? null,
+					statusDescription:
+						completed?.description ?? current?.description ?? null,
+					environmentUrl:
+						completed?.environment_url ?? current?.environment_url ?? null,
+					logUrl: completed?.log_url ?? current?.log_url ?? null,
+				};
+			});
 
 			return {
 				repo: `${repo.owner}/${repo.repo}`,
-				count: matched.length,
+				count: deployments.length,
 				availableEnvironments,
-				deploys: matched.slice(0, input.limit).map((d) => ({
-					sha: d.sha.slice(0, 7),
-					ref: d.ref,
-					environment: d.environment,
-					deployedAt: d.created_at,
-					description: d.description,
-					author: d.creator?.login,
-				})),
+				deployments,
+				oldestScannedAt,
+				truncated,
 			};
 		},
 	});

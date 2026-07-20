@@ -7,6 +7,7 @@ const TOKEN_TTL_MS = 45 * 60 * 1000;
 const NEGATIVE_TTL_MS = 5 * 60 * 1000;
 const EXPIRY_SKEW_MS = 60 * 1000;
 const MAX_CANDIDATES = 5;
+const SCOPE_SEPARATOR = /[\s,]+/;
 
 interface TokenCandidate {
 	accessToken: string | null;
@@ -27,6 +28,10 @@ function isExpired(candidate: TokenCandidate): boolean {
 interface ResolvedToken {
 	expiresAt: Date | null;
 	token: string;
+}
+
+function hasScope(scope: string | null, required: string): boolean {
+	return scope?.split(SCOPE_SEPARATOR).includes(required) ?? false;
 }
 
 async function resolveCandidateToken(
@@ -91,7 +96,7 @@ async function resolveOAuthToken(
 		.limit(MAX_CANDIDATES);
 
 	for (const candidate of candidates) {
-		if (requiredScope && !candidate.scope?.includes(requiredScope)) {
+		if (requiredScope && !hasScope(candidate.scope, requiredScope)) {
 			continue;
 		}
 		const resolved = await resolveCandidateToken(providerId, candidate);

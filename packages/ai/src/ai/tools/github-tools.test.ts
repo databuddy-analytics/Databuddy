@@ -58,6 +58,7 @@ describe("GitHub repository binding", () => {
 		const readFile = schema(bound, "github_read_file");
 		const commit = schema(bound, "github_commit_diff");
 		const search = schema(bound, "github_search_code");
+		const deploys = schema(bound, "github_deploys");
 
 		expect(readFile.safeParse({ path: "src/index.ts" }).success).toBe(true);
 		for (const path of ["../secret", "src/../secret", "/etc/passwd", "src\\secret"]) {
@@ -68,6 +69,20 @@ describe("GitHub repository binding", () => {
 		for (const sha of ["main", "a1b2c3", "../secret", "g1b2c3d"]) {
 			expect(commit.safeParse({ sha }).success).toBe(false);
 		}
+		expect(
+			deploys.safeParse({
+				since: "2026-05-10T00:00:00Z",
+				until: "2026-05-12T23:59:59Z",
+			}).success
+		).toBe(true);
+		expect(deploys.safeParse({ until: "2026-05-12" }).success).toBe(false);
+		expect(deploys.safeParse({ since: "not-a-date" }).success).toBe(false);
+		expect(
+			deploys.safeParse({
+				since: "2026-05-13T00:00:00Z",
+				until: "2026-05-12T23:59:59Z",
+			}).success
+		).toBe(false);
 
 		expect(
 			search.safeParse({ query: "handleCheckout language:typescript" }).success
