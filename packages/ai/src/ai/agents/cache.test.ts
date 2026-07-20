@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 interface RedisEntry {
 	ttl: number;
@@ -151,6 +151,8 @@ vi.mock("@databuddy/redis", () => ({
 		attempted: 0,
 		failed: 0,
 	})),
+	enqueueInsightsResume: vi.fn(async () => "queued"),
+	insightsResumeJobId: (replyId: string) => `insights-reply-${replyId}`,
 	insightsWebsiteJobId: (runId: string, websiteId: string) =>
 		`insights-website-${runId}-${websiteId}`,
 	isClickRecorded: vi.fn(async () => false),
@@ -182,6 +184,7 @@ vi.mock("../../lib/supermemory", () => ({
 
 vi.mock("../../lib/tracing", () => ({
 	captureError: mockCaptureError,
+	captureWarning: vi.fn(() => {}),
 	mergeWideEvent: vi.fn(() => {}),
 }));
 
@@ -209,6 +212,12 @@ beforeEach(() => {
 	mockRedisClient.setex.mockClear();
 	mockEnrichAgentContext.mockClear();
 	mockCaptureError.mockClear();
+});
+
+afterEach(() => {
+	failGet = false;
+	failSet = false;
+	memoryEnabled = true;
 });
 
 describe("shouldLoadMemoryContext", () => {

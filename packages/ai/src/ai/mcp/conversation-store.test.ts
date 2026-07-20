@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const redisStore = new Map<string, string>();
 let failGet = false;
@@ -127,6 +127,8 @@ vi.mock("@databuddy/redis", () => ({
 		attempted: 0,
 		failed: 0,
 	})),
+	enqueueInsightsResume: vi.fn(async () => "queued"),
+	insightsResumeJobId: (replyId: string) => `insights-reply-${replyId}`,
 	insightsWebsiteJobId: (runId: string, websiteId: string) =>
 		`insights-website-${runId}-${websiteId}`,
 	isClickRecorded: vi.fn(async () => false),
@@ -155,6 +157,12 @@ beforeEach(() => {
 	redisUnavailable = false;
 	mockRedisClient.get.mockClear();
 	mockRedisClient.setex.mockClear();
+});
+
+afterEach(() => {
+	failGet = false;
+	failSet = false;
+	redisUnavailable = false;
 });
 
 describe("conversation store", () => {
