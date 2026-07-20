@@ -6,13 +6,15 @@ import { readSql, sqlFiles } from "./schema-parse";
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 
 const SINGLE_NODE = process.env.CLICKHOUSE_CLUSTER == null;
+const DATABASE_PATTERN =
+	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i;
 
 function databaseOf(sql: string): string {
-	const m = sql.match(
-		/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i
-	);
+	const m = sql.match(DATABASE_PATTERN);
 	if (!m) {
-		throw new Error(`Could not determine database for statement: ${sql.slice(0, 80)}`);
+		throw new Error(
+			`Could not determine database for statement: ${sql.slice(0, 80)}`
+		);
 	}
 	return m[1];
 }
@@ -33,7 +35,9 @@ export async function applyClickHouseSchema(): Promise<{
 	const tables = files.filter((f) => !f.endsWith("_mv.sql"));
 	const views = files.filter((f) => f.endsWith("_mv.sql"));
 
-	const databases = [...new Set(files.map((f) => databaseOf(readSql(f))))].sort();
+	const databases = [
+		...new Set(files.map((f) => databaseOf(readSql(f)))),
+	].sort();
 	for (const db of databases) {
 		await clickHouse.command({ query: `CREATE DATABASE IF NOT EXISTS ${db}` });
 	}

@@ -240,9 +240,7 @@ export function insertOutgoingLink(
 	});
 }
 
-export function insertTrackEventsBatch(
-	events: EventsInsert[]
-): Promise<void> {
+export function insertTrackEventsBatch(events: EventsInsert[]): Promise<void> {
 	return record("insertTrackEventsBatch", async () => {
 		if (events.length === 0) {
 			return;

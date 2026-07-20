@@ -13,27 +13,34 @@ import {
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 const OUT_FILE = join(SCHEMA_DIR, "tables.generated.ts");
+const ARRAY_PATTERN = /^Array\((.*)\)$/i;
+const BOOL_PATTERN = /^Bool/i;
+const DATE_PATTERN = /^(?:Date|DateTime)/i;
+const FLOAT_PATTERN = /^Float/i;
+const INT_PATTERN = /Int/i;
+const LOW_CARDINALITY_PATTERN = /^LowCardinality\((.*)\)$/i;
+const NULLABLE_PATTERN = /^Nullable\((.*)\)$/i;
 
 function tsType(rawType: string): string {
 	let t = rawType.trim();
 	let nullable = false;
-	const lc = t.match(/^LowCardinality\((.*)\)$/i);
+	const lc = t.match(LOW_CARDINALITY_PATTERN);
 	if (lc) {
 		t = lc[1].trim();
 	}
-	const nul = t.match(/^Nullable\((.*)\)$/i);
+	const nul = t.match(NULLABLE_PATTERN);
 	if (nul) {
 		nullable = true;
 		t = nul[1].trim();
 	}
-	const arr = t.match(/^Array\((.*)\)$/i);
+	const arr = t.match(ARRAY_PATTERN);
 	if (arr) {
 		return `${tsType(arr[1])}[]`;
 	}
 	let base: string;
-	if (/Int/i.test(t) || /^Float/i.test(t)) {
+	if (INT_PATTERN.test(t) || FLOAT_PATTERN.test(t)) {
 		base = "number";
-	} else if (/^Bool/i.test(t)) {
+	} else if (BOOL_PATTERN.test(t)) {
 		base = "boolean";
 	} else {
 		base = "string";
@@ -49,12 +56,12 @@ function pascal(name: string): string {
 }
 
 function insertTsType(rawType: string): string {
-	let t = rawType.replace(/^LowCardinality\((.*)\)$/i, "$1").trim();
-	const nul = t.match(/^Nullable\((.*)\)$/i);
+	let t = rawType.replace(LOW_CARDINALITY_PATTERN, "$1").trim();
+	const nul = t.match(NULLABLE_PATTERN);
 	if (nul) {
 		t = nul[1].trim();
 	}
-	if (/^(?:Date|DateTime)/i.test(t)) {
+	if (DATE_PATTERN.test(t)) {
 		const base = "number | string";
 		return isNullable(rawType) ? `${base} | null` : base;
 	}
@@ -113,5 +120,8 @@ const columnsConst = `export const TABLE_COLUMNS = {\n${tables
 	)
 	.join("\n")}\n} as const satisfies Record<string, readonly string[]>;`;
 
-writeFileSync(OUT_FILE, `${header}\n${interfaces}\n\n${registry}\n\n${columnsConst}\n`);
+writeFileSync(
+	OUT_FILE,
+	`${header}\n${interfaces}\n\n${registry}\n\n${columnsConst}\n`
+);
 console.info(`Generated ${OUT_FILE} (${tables.length} tables)`);
