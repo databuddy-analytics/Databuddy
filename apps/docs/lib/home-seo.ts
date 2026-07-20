@@ -3,7 +3,7 @@ import { SITE_URL } from "@/app/util/constants";
 export const homePageSeo = {
 	title: "Lightweight Analytics for Developers - One Connected Platform",
 	description:
-		"Analytics, error tracking, web vitals, feature flags, and automatic findings in one connected platform. No cookies, GDPR compliant. Free for small projects. Open-source Google Analytics alternative for developers.",
+		"Analytics, error tracking, web vitals, feature flags, and automatic investigations in one connected platform. No cookies, GDPR compliant. Free for small projects. Open-source Google Analytics alternative for developers.",
 	url: SITE_URL,
 } as const;
 

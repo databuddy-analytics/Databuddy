@@ -51,7 +51,7 @@ Pass an API key with the `read:data` scope:
 />
 
 <Callout type="info">
-  Get your API key from [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys). The key needs at least the `read:data` scope. Add `manage:config` for mutation tools (flags, links).
+  Get your API key from [Dashboard → Organization Settings → API Keys](https://app.databuddy.cc/organizations/settings#api-keys). The key needs at least the `read:data` scope. Add `manage:websites` to reply to investigations.
 </Callout>
 
 ## Client Setup
@@ -101,18 +101,19 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | Tool | Description |
 |------|-------------|
 | `get_data` | Typed analytics queries (top_pages, recent_errors, errors_by_type, etc.). Batch 2-10 queries in one call. |
-| `capabilities` | Tool catalog and available query types. Filter by category. |
+| `capabilities` | Query types, date presets, categories, and compact schema hints. Filter by category. |
 | `get_schema` | ClickHouse column definitions. Use when a field name is uncertain. |
 | `list_websites` | List websites accessible to the authenticated key. |
 
-### Findings
+### Investigations
 
 | Tool | Description |
 |------|-------------|
-| `summarize_insights` | Stored findings for a website. |
-| `compare_metric` | Compare metrics across two time periods. |
-| `top_movers` | Find dimensions with the largest changes. |
-| `detect_anomalies` | Detect anomalies in your metrics. |
+| `list_investigations` | List durable investigations and their current status. |
+| `get_investigation` | Read an investigation's evidence, outcome, and reply timeline. |
+| `reply_to_investigation` | Add context and queue the same investigation to continue. |
+
+`reply_to_investigation` returns the durable reply status immediately. If it is `queued` or `running`, call `get_investigation` with the same investigation ID until the reply is `succeeded` or `failed`; the new outcome appears in that timeline.
 
 ### Funnels & Goals
 
@@ -139,31 +140,6 @@ Add to your MCP settings (typically `.cursor/mcp.json` or workspace settings):
 | `search_links` | Search links by keyword. |
 | `list_link_folders` | List link folders with usage counts. |
 
-### Memory
-
-| Tool | Description |
-|------|-------------|
-| `search_memory` | Search saved memories scoped to the current user, API key, and website. |
-| `save_memory` | Save a memory (requires confirmation). |
-| `forget_memory` | Delete a memory (requires confirmation). |
-
-### Agent
-
-| Tool | Description |
-|------|-------------|
-| `ask` | Open-ended natural language question. Slower; only available when the AI gateway is configured. Reuse `conversationId` for follow-ups. |
-
-## Prompts (Workflows)
-
-The server exposes pre-built prompts that orchestrate multi-step workflows:
-
-| Prompt | Description |
-|--------|-------------|
-| `weekly_report` | Traffic trends, top pages, referrers, error health, and one item to investigate. |
-| `triage_errors` | error_summary → errors_by_type → errors_by_page → recent_errors, prioritized by user impact. |
-| `funnel_health` | List funnels + per-step analytics, surfaces biggest drop-offs. |
-| `flag_rollout_check` | Audit active flags for stale or risky rollouts. |
-
 ## Conventions
 
 **Website selection**: Any tool that needs a website accepts `websiteId`, `websiteName`, or `websiteDomain`. Pass one.
@@ -172,7 +148,7 @@ The server exposes pre-built prompts that orchestrate multi-step workflows:
 
 **Filters**: The `field` value is the ClickHouse column name. Use `get_schema` when uncertain. Error messages suggest close matches on typos.
 
-**Mutations**: Tools that create, update, or delete (flags, links, memory) require a two-step flow: preview with `confirmed: false`, then execute with `confirmed: true`.
+**Mutations**: When a tool exposes `confirmed`, preview with `confirmed: false`, then execute with `confirmed: true`. Investigation replies use a stable `replyId` for safe retries instead.
 
 ## Example Usage
 
@@ -216,15 +192,15 @@ Filter errors by type:
 
 The server exposes a `databuddy://guide` resource with extended workflow tips and known footguns. MCP clients that support resources can read it for additional context.
 
-The server also exposes `ui://databuddy/analytics-overview`, an MCP Apps / A2UI-compatible HTML resource. Tools advertise this resource through `_meta.ui.resourceUri` and `openai/outputTemplate` so compatible agent clients can render Databuddy analytics summaries inside the conversation.
-
 ## Scopes & Access Control
 
 Tools are filtered based on your API key's scopes:
 
 | Scope | Tools |
 |-------|-------|
-| `read:data` | All analytics, findings, schema, and read-only tools |
-| `manage:config` | Feature flag mutations, link mutations, memory writes |
+| `read:data` | Analytics, investigations, schema, and read-only tools |
+| `manage:websites` | Reply to investigations; create goals, funnels, and annotations |
+| `manage:flags` + `manage:websites` | Feature flag mutations |
+| `write:links` | Link mutations |
 
 Session-authenticated users (via the dashboard) get access based on their organization role instead.

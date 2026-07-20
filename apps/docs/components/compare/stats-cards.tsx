@@ -20,7 +20,7 @@ export function StatsCards({
 					<div>
 						<h3 className="font-semibold text-lg text-primary">Databuddy</h3>
 						<p className="text-muted-foreground text-xs">
-							Privacy-first analytics with automatic findings
+							Privacy-first analytics with automatic investigations
 						</p>
 					</div>
 					<Badge className="bg-primary text-primary-foreground">
