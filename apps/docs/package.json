@@ -90,13 +90,13 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.1",
+    "@biomejs/biome": "2.5.4",
     "@databuddy/tracker": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/d3": "^7.4.3",
     "@types/d3-geo": "^3.1.0",
     "@types/mdx": "^2.0.13",
-    "@types/node": "26.0.0",
+    "@types/node": "26.1.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/topojson-client": "^3.1.5",

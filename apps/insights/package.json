@@ -10,7 +10,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@slack/web-api": "7.17.0",
+    "@slack/web-api": "7.19.0",
     "@databuddy/ai": "workspace:*",
     "@databuddy/db": "workspace:*",
     "@databuddy/encryption": "workspace:*",
