@@ -1,4 +1,3 @@
-import { repairSlackReply, validateSlackReply } from "@databuddy/ai/agent";
 import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
@@ -148,14 +147,7 @@ export async function streamAgentToSlack({
 		renderIncremental(false);
 		await flush(true);
 
-		const rawFinalText = safeMarkdown.trim();
-		const repaired = await maybeRepairReply({
-			abortSignal,
-			draft: rawFinalText,
-			eventLog,
-			logger,
-		});
-		const finalText = repaired.text;
+		const finalText = safeMarkdown.trim();
 		if (streamTs) {
 			if (!thinkingResolved) {
 				await resolveThinking(client, run.channelId, streamTs, "complete");
@@ -171,15 +163,6 @@ export async function streamAgentToSlack({
 				startedAt,
 				streamTs,
 			});
-			if (repaired.applied) {
-				await replaceStreamedMessage({
-					channelId: run.channelId,
-					client,
-					logger,
-					text: finalText,
-					ts: streamTs,
-				});
-			}
 			await postChartImages({ charts, client, eventLog, logger, run, say });
 			return result;
 		}
@@ -257,80 +240,6 @@ export async function streamAgentToSlack({
 
 function markdownChunk(text: string) {
 	return { text, type: "markdown_text" as const };
-}
-
-interface MaybeRepairOptions {
-	abortSignal?: AbortSignal;
-	draft: string;
-	eventLog?: RequestLogger;
-	logger: LoggerLike;
-}
-
-async function maybeRepairReply({
-	abortSignal,
-	draft,
-	eventLog,
-	logger,
-}: MaybeRepairOptions): Promise<{ applied: boolean; text: string }> {
-	if (!draft) {
-		return { applied: false, text: draft };
-	}
-	const validation = validateSlackReply(draft);
-	if (validation.valid) {
-		return { applied: false, text: draft };
-	}
-	setSlackLog(eventLog, {
-		slack_reply_repair_issues: validation.issues.length,
-		slack_reply_repair_issue_codes: validation.issues
-			.map((i) => i.code)
-			.join(","),
-		slack_reply_repair_triggered: true,
-	});
-	try {
-		const corrected = await repairSlackReply({
-			abortSignal,
-			draft,
-			issues: validation.issues,
-		});
-		if (!(corrected && corrected !== draft)) {
-			setSlackLog(eventLog, { slack_reply_repair_no_change: true });
-			return { applied: false, text: draft };
-		}
-		const post = validateSlackReply(corrected);
-		setSlackLog(eventLog, {
-			slack_reply_repair_applied: true,
-			slack_reply_repair_residual_issues: post.issues.length,
-		});
-		return { applied: true, text: corrected };
-	} catch (error) {
-		logger.warn("Failed to repair slack reply", toError(error));
-		setSlackLog(eventLog, { slack_reply_repair_failed: true });
-		return { applied: false, text: draft };
-	}
-}
-
-async function replaceStreamedMessage({
-	channelId,
-	client,
-	logger,
-	text,
-	ts,
-}: {
-	channelId: string;
-	client: Pick<SlackAgentClient, "chat">;
-	logger: LoggerLike;
-	text: string;
-	ts: string;
-}): Promise<void> {
-	try {
-		await client.chat.update({
-			channel: channelId,
-			text,
-			ts,
-		});
-	} catch (error) {
-		logger.warn("Failed to update slack message with repaired text", error);
-	}
 }
 
 function thinkingTaskChunk(status: "complete" | "error" | "in_progress") {

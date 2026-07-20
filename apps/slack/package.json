@@ -6,8 +6,6 @@
   "scripts": {
     "dev": "NODE_ENV=development dotenv -e ../../.env -- bun --watch src/index.ts",
     "start": "dotenv -e ../../.env -- bun src/index.ts",
-    "manifest:validate": "dotenv -e ../../.env -- bun scripts/update-manifest.ts --validate",
-    "manifest:update": "dotenv -e ../../.env -- bun scripts/update-manifest.ts",
     "check-types": "tsc --noEmit",
     "test": "SKIP_VALIDATION=true bun test"
   },

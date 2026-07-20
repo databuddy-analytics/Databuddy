@@ -1,17 +1,15 @@
 export const SLACK_SUGGESTED_PROMPTS = [
 	{
-		message:
-			"What changed in traffic, conversions, and top pages over the last 7 days?",
-		title: "Weekly changes",
+		message: "Show me our open investigations and what needs attention first.",
+		title: "Open investigations",
 	},
 	{
-		message: "What looks unusual in our analytics today?",
-		title: "Find anomalies",
+		message: "Run a new investigation now.",
+		title: "Run an investigation",
 	},
 	{
-		message:
-			"Which referrers and campaigns are driving the best traffic this week?",
-		title: "Channel performance",
+		message: "Send new investigations to this channel every week.",
+		title: "Weekly delivery",
 	},
 ] as const;
 
@@ -23,7 +21,7 @@ export const SLACK_COPY = {
 	agentTimeout:
 		"This took longer than expected, so I stopped. Try again with a narrower question.",
 	assistantGreeting:
-		"I'm in. Ask me about traffic, pages, referrers, conversions, campaigns, links, flags, or product usage.",
+		"I'm in. Show open investigations, run one now, or send new investigations to this channel automatically.",
 	autoBindSuccess: "Ready here.",
 	bindFailure:
 		"I couldn't approve this channel. Check Organization settings → Integrations, then try `/databuddy-bind` again.",
@@ -34,7 +32,7 @@ export const SLACK_COPY = {
 		"I'm here. Ask after the mention, like `@Databuddy what changed this week?`",
 	help: [
 		"*Databuddy in Slack*",
-		"Mention `@Databuddy`, DM me, or use the Slack assistant to ask about traffic, pages, referrers, conversions, campaigns, links, flags, and product usage.",
+		"Mention `@Databuddy`, DM me, or use the Slack assistant to list, run, configure, or continue investigations. You can also ask about traffic, pages, conversions, campaigns, errors, and product usage.",
 		"Databuddy reads messages in approved channels and DMs to understand the current question and thread. Answers posted in a channel are visible to that channel's members.",
 		"Channels usually connect on first mention from the workspace where Databuddy is installed. Slack Connect may need approval from the installed side, or Databuddy connected in both workspaces.",
 		"Commands: `/databuddy-status`, `/databuddy-help`, `/databuddy-bind`.",

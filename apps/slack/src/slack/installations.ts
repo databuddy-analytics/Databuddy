@@ -71,7 +71,7 @@ export interface SlackTeamContext {
 
 export type SlackInstallationServices = Pick<
 	SlackInstallationStore,
-	"bindChannel" | "getChannelReadiness" | "getTeamContext"
+	"bindChannel" | "getChannelReadiness" | "getTeamContext" | "resolve"
 >;
 
 export class SlackInstallationStore implements SlackRunContextResolver {
