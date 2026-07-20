@@ -343,6 +343,7 @@
         "@databuddy/redis": "workspace:*",
         "@databuddy/rpc": "workspace:*",
         "@databuddy/shared": "workspace:*",
+        "@slack/web-api": "7.17.0",
         "ai": "^6.0.188",
         "bullmq": "^5.78.0",
         "dayjs": "^1.11.19",
@@ -352,6 +353,8 @@
       },
       "devDependencies": {
         "@databuddy/test": "workspace:*",
+        "@types/pg": "^8.16.0",
+        "pg": "^8.16.3",
       },
     },
     "apps/links": {
@@ -595,20 +598,6 @@
       "devDependencies": {
         "@types/node": "^26.0.0",
         "typescript": "catalog:",
-      },
-    },
-    "packages/evals": {
-      "name": "@databuddy/evals",
-      "version": "0.0.1",
-      "dependencies": {
-        "@databuddy/ai": "workspace:*",
-        "@databuddy/db": "workspace:*",
-        "@databuddy/env": "workspace:*",
-        "ai": "^6.0.188",
-        "pg": "^8.16.3",
-      },
-      "devDependencies": {
-        "@types/pg": "^8.16.0",
       },
     },
     "packages/mapper": {
@@ -1165,8 +1154,6 @@
     "@databuddy/encryption": ["@databuddy/encryption@workspace:packages/encryption"],
 
     "@databuddy/env": ["@databuddy/env@workspace:packages/env"],
-
-    "@databuddy/evals": ["@databuddy/evals@workspace:packages/evals"],
 
     "@databuddy/insights": ["@databuddy/insights@workspace:apps/insights"],
 
