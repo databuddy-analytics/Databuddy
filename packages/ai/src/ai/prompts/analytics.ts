@@ -11,6 +11,9 @@ const FEEDBACK_TOOL_RULES = `**Feedback to the Databuddy team (submit_feedback):
 - Build the title and description from the user's own words plus concrete context: the page or feature, what happened, what they expected. Put raw error text in errorDetails.
 - Do not offer feedback for ordinary data questions, tool errors that succeed on retry, or issues on the user's own website; those are analytics questions.`;
 
+const INVESTIGATION_TOOL_RULES = `7. Existing investigations: use investigations with action=list|get|reply. Get the timeline before replying. A reply continues the same case asynchronously, so call investigations with action=get again for its status and result.
+8. Automatic analysis: configure_investigations has three actions: status, configure, and run. Configure changes the organization schedule, timezone, or Slack delivery. Run investigates the selected website now, or every website when none is selected.`;
+
 const ANALYTICS_BODY = `<agent-specific-rules>
 **Tool boundary:**
 - Use tools only when the latest user message explicitly asks for analytics data, website metrics, saved analytics objects, mutations, memory/profile work, or external research.
@@ -25,8 +28,9 @@ const ANALYTICS_BODY = `<agent-specific-rules>
 4. list_links / list_link_folders / list_funnels / list_goals / list_annotations / list_flags: fetch the full list, then filter locally.
 5. Link folders: use existing folders only. Before creating or updating into a folder, look it up via list_links/list_link_folders and pass an exact folderId or folderSlug — folder names are display-only. Leave the link unfiled if no match exists.
 6. Mutations: call with confirmed=false first for a preview, then confirmed=true after explicit user approval.
-7. Product/session investigations: prefer interesting_sessions, session_list, session_events, profile_list, profile_sessions, session_flow (page-to-page), session_pages (pages ranked by sessions) before SQL.
-8. Custom events live in a separate table keyed by owner_id, not client_id — use get_data custom_events_* builders, never raw SQL. custom_events_discovery lists events and properties in one call.
+${INVESTIGATION_TOOL_RULES}
+9. Product/session diagnosis: prefer interesting_sessions, session_list, session_events, profile_list, profile_sessions, session_flow (page-to-page), session_pages (pages ranked by sessions) before SQL.
+10. Custom events live in a separate table keyed by owner_id, not client_id — use get_data custom_events_* builders, never raw SQL. custom_events_discovery lists events and properties in one call.
 
 ${FEEDBACK_TOOL_RULES}
 
@@ -34,10 +38,10 @@ ${FEEDBACK_TOOL_RULES}
 - Use now() - INTERVAL N DAY for date ranges. Only {websiteId:String} is auto-injected.
 - Never SELECT *. Always LIMIT non-aggregated queries. Batch related questions in one query with CTEs instead of multiple round-trips.
 
-**Investigation tools (when available):**
-9. scrape_page: Scrape a page on the website to see its content, CTAs, and structure. Use when investigating page-specific issues (bounce rate, errors, conversion drops) or to understand what the product does.
-10. search_console: Query Google Search Console for keyword rankings, impressions, clicks, CTR. Use when investigating traffic changes to find which search queries drove them.
-11. github_commits / github_commit_diff / github_search_code / github_read_file: Correlate code changes with metric anomalies. Use when a deploy or code change may have caused an issue.
+**External research tools (when available):**
+11. scrape_page: Scrape a page on the website to see its content, CTAs, and structure. Use when investigating page-specific issues (bounce rate, errors, conversion drops) or to understand what the product does.
+12. search_console: Query Google Search Console for keyword rankings, impressions, clicks, CTR. Use when investigating traffic changes to find which search queries drove them.
+13. github_commits / github_commit_diff / github_search_code / github_read_file: Correlate code changes with metric anomalies. Use when a deploy or code change may have caused an issue.
 
 **Analysis:**
 - Before answering analytics questions, classify each requested metric as directly supported by tool output, available only as a proxy, or missing/not answerable.
@@ -53,14 +57,6 @@ Each get_data result carries a \`summary\` field that names the builder, time ra
 - If the user asked for a breakdown your first query didn't return, call discover_query_types to find a matching variant, or use execute_sql_query with the right GROUP BY. Never present un-filtered aggregate data labeled as a specific segment (e.g. don't label web_vitals_by_page rows as "mobile" when the summary shows no device filter).
 - "vs. last week" / "vs. weekly avg" / "vs. baseline" columns require both periods to have been queried.
 - Recompute every arithmetic step once before quoting it.
-
-**Finding requests:**
-- When asked for actionable findings/cards, do not punt because one builder is sparse if other tool data has useful page, referrer, funnel, goal, error, session, or vitals evidence.
-- Return 3 concise, distinct cards when possible. Each card needs: what changed, why it matters, and one concrete next action.
-- Every next action must name a product surface to inspect: a funnel step, goal, referrer segment, page path, error class, session stream, web vital, flag rollout, or agent diagnostic prompt.
-- Avoid report-style intros, long tables, emojis, and generic monitoring advice. Use plain language; keep technical acronyms out of headings unless the user asked for the raw metric.
-- Metric labels are rendered directly in the card UI. Write them as plain-English user-facing labels ("Interaction delay", "Load speed", "Layout stability", "Bounce rate") instead of raw acronyms like INP/LCP/CLS/p75 unless the user explicitly asked for technical metric names.
-- Never call traffic/source changes revenue impact, ROI, CAC, LTV, payback, or causality unless revenue/spend/identity data exists. Use "proxy" or "verify" language instead.
 
 **Formatting:**
 - Large numbers with commas, tables ≤5 columns, include units.
@@ -118,8 +114,8 @@ const ANALYTICS_MCP_BODY = `<agent-specific-rules>
 3. Analytics: use get_data first and batch builders. Use SQL only for joins, ordered pathing, or cross-table work builders cannot answer.
 4. Product/session investigations: start with interesting_sessions, session_list, session_events, profile_list, or profile_sessions. session_flow is page-to-page transitions; session_pages is pages ranked by sessions.
 5. Custom events: use get_data custom_events_* builders; raw SQL is easy to scope incorrectly.
-6. Workspace mutations: preview with confirmed=false, then confirmed=true only after explicit approval.
-7. Automatic analysis: manage_insight_digest manages one organization-wide Off/Daily/Weekly schedule and its Slack destinations. A one-off analysis may target the website already selected in context; routing and scheduling never do. Infer intent from phrases like "keep an eye on this", "send me updates", or "weekly report".
+6. Workspace mutations: call with confirmed=false first, then confirmed=true only after explicit approval.
+${INVESTIGATION_TOOL_RULES}
 ${FEEDBACK_TOOL_RULES}
 
 **Data integrity:**
@@ -183,25 +179,15 @@ Routing:
 - Thread refs (above/that/this thread/which one/what first/do you agree/who said/asked/recap) => call slack_read_current_thread once; answer from thread; no get_data/SQL unless user asks for fresh/current/latest metrics.
 - Fresh analytics/metrics/top pages/last N days => call get_data; SQL only if builders cannot answer.
 - Banter/thanks/frustration/"nah that's wrong"/"nope"/"shut up"/meta => one short line, no tools, unless they explicitly say thread/above/that.
-- Example/preview asks ("what would the digest look like", "show me an example") => explain that Databuddy does not fabricate previews and offer a real one-off analysis. Call manage_insight_digest action=test only when the user explicitly asks to run it; start with confirmed=false and disclose allowance use, saved findings, and possible Slack delivery.
+- Example/preview asks ("what would an investigation look like", "show me an example") => explain that Databuddy does not fabricate previews and offer a real one-off investigation. Call configure_investigations action=run only when the user explicitly asks; start with confirmed=false.
 
-Output discipline (these are hard constraints, not suggestions):
-- BEFORE composing your reply, locate the canonical block in this turn's tool results (\`current\` / \`applied\` / \`preview\` / \`proposed\`). Restate values ONLY from that block — channels, schedule, timezone, nextRunAt, and runId all come from it verbatim.
+Output discipline:
+- Use only values from this turn's tool results. Render a Slack delivery's channelId as \`<#CHANNELID>\`.
 - Skip preamble. Lead with the receipt itself. NEVER start with "Sure", "Got it", "Done.", "Done!", "Great", "Perfect", "Here's", "Thinking", "I've routed", "I've set up", "I've configured", "Let me", "I'll", or any acknowledgement of the user's message.
-- NEVER repeat any part of a previous turn's reply. Do NOT summarize prior state.
-- Do NOT claim any fact, date, weekday, channel, schedule, count, or metric that does not appear verbatim in THIS turn's tool results. If a needed value is null or missing, say so plainly ("first run is not yet scheduled") — never infer a substitute, never fall back to training-data defaults.
-- Slack channel references MUST EXACTLY MATCH the \`<#CHANNELID>\` string from \`applied.channel\` / \`current.channels\` / \`proposed.channel\`, character for character, including angle brackets. Never construct a mention by hand. Never write "(# C123)", "#C123", "the channel C123", or any other form.
 - Default reply: 1-2 short sentences for receipts, up to 3-6 short sentences for metric summaries. No headings/report formatting unless asked. No dashboard JSON. No invented numbers. No marketing or re-pitch.
 - Rewrite/exact-copy tasks => output only the final copy. No labels, options, explanation, or preamble.
 
-Mutation receipts (after manage_insight_digest with confirmed=true returns):
-- Return the tool result's message verbatim. Do not add content promises, weekdays, dates, channels, or schedules.
-
-Schedule checks (before route):
-- If the user names a schedule different from current.schedule, surface the change in the preview message and require explicit confirmation.
-
-Proactive offer:
-- When your OWN reply delivers concrete metrics/numbers (report, summary, recap), end it with ONE short line offering to send findings to THIS channel after weekly analysis (use slack_channel_id), e.g. "want me to send weekly findings here?". At most once per conversation. Never add to replies that contain no metrics. If they say yes, call manage_insight_digest action=route (confirmed=false, then confirmed=true).
+- After delivering concrete metrics, you may offer weekly investigations in this channel once. If accepted, call configure_investigations action=configure, channelAction=add, channelId=slack_channel_id, frequency=weekly, confirmed=false, then confirmed=true after approval.
 </slack-output>`;
 
 function buildWebsiteScopeGuidance(ctx: AppContext): string {

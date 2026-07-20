@@ -9,6 +9,7 @@ import { createFunnelTools } from "./funnels";
 import { getDataTool } from "./get-data";
 import { createGoalTools } from "./goals";
 import { createGitHubTools, type GitHubRepository } from "./github-tools";
+import { createInvestigationTools } from "./investigations";
 import { createLinksTools } from "./links";
 import { listWebsitesTool } from "./list-websites";
 import { createMemoryTools } from "./memory";
@@ -32,17 +33,26 @@ export interface ToolkitParams {
 	userId?: string;
 }
 
+const GOAL_TOOLS = createGoalTools();
+const FUNNEL_TOOLS = createFunnelTools();
+
 const ANALYTICS_TOOLS: ToolSet = {
 	list_websites: listWebsitesTool,
 	discover_query_types: discoverQueryTypesTool,
 	describe_schema: describeSchemaTool,
 	get_data: getDataTool,
 	execute_sql_query: executeSqlQueryTool,
+	list_goals: GOAL_TOOLS.list_goals,
+	get_goal_analytics: GOAL_TOOLS.get_goal_analytics,
+	list_funnels: FUNNEL_TOOLS.list_funnels,
+	get_funnel_analytics: FUNNEL_TOOLS.get_funnel_analytics,
+	get_funnel_analytics_by_referrer:
+		FUNNEL_TOOLS.get_funnel_analytics_by_referrer,
 };
 
 const MUTATION_TOOLS: ToolSet = {
-	...createFunnelTools(),
-	...createGoalTools(),
+	...FUNNEL_TOOLS,
+	...GOAL_TOOLS,
 	...createAnnotationTools(),
 	...createFlagTools(),
 	...createLinksTools(),
@@ -66,21 +76,24 @@ export function createToolkit(params: ToolkitParams): ToolSet {
 		Object.assign(tools, ANALYTICS_TOOLS);
 	}
 
-	if (caps.has("investigation") && params.organizationId) {
-		Object.assign(
-			tools,
-			createScrapeTools(),
-			createSearchConsoleTools({
-				domain: params.domain,
-				organizationId: params.organizationId,
-				userId: params.userId,
-			}),
-			createGitHubTools({
-				repository: params.githubRepository,
-				organizationId: params.organizationId,
-				userId: params.userId,
-			})
-		);
+	if (caps.has("investigation")) {
+		Object.assign(tools, createInvestigationTools());
+		if (params.organizationId) {
+			Object.assign(
+				tools,
+				createScrapeTools(),
+				createSearchConsoleTools({
+					domain: params.domain,
+					organizationId: params.organizationId,
+					userId: params.userId,
+				}),
+				createGitHubTools({
+					repository: params.githubRepository,
+					organizationId: params.organizationId,
+					userId: params.userId,
+				})
+			);
+		}
 	}
 
 	if (caps.has("mutations")) {

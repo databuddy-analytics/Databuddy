@@ -21,9 +21,7 @@ const queryItemSchema = z.object({
 	websiteId: z
 		.string()
 		.optional()
-		.describe(
-			"Target website id. Omit to use the workspace default. Required when comparing or querying a specific site in a multi-website workspace; get ids from list_websites."
-		),
+		.describe("Target website id. Omit to use the workspace default."),
 	from: z.string().optional(),
 	to: z.string().optional(),
 	preset: z
@@ -147,7 +145,7 @@ function resolveDates(
 
 export const getDataTool = tool({
 	description:
-		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. Call discover_query_types to browse available types. When truncated is true, data contains only returnedRows examples from rowCount query rows; never aggregate or generalize that sample.",
+		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. When truncated is true, data contains only returnedRows examples from rowCount query rows; never aggregate or generalize that sample.",
 	inputSchema: z.object({
 		queries: z
 			.array(queryItemSchema)

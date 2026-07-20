@@ -102,7 +102,7 @@ export function createSearchConsoleTools(params: {
 		"google",
 		params.organizationId,
 		params.userId,
-		"auth/webmasters"
+		"https://www.googleapis.com/auth/webmasters.readonly"
 	);
 
 	return {

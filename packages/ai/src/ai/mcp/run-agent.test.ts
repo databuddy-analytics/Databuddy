@@ -11,7 +11,6 @@ describe("MCP agent active tool selection", () => {
 		).toEqual([
 			"list_websites",
 			"get_data",
-			"execute_query_builder",
 			"execute_sql_query",
 			"list_profiles",
 			"get_profile",
@@ -59,6 +58,18 @@ describe("MCP agent active tool selection", () => {
 				source: "slack",
 			})
 		).toEqual(["slack_read_current_thread"]);
+	});
+
+	it("keeps every tool available for Slack confirmations and follow-ups", () => {
+		for (const question of ["yes", "which one should we fix first?"]) {
+			expect(
+				selectActiveToolsForQuestion({
+					hasPriorMessages: true,
+					question,
+					source: "slack",
+				})
+			).toBeUndefined();
+		}
 	});
 
 	it("does not hide mutation tools for non-analytics requests with generic timing words", () => {

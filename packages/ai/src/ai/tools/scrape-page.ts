@@ -212,9 +212,7 @@ export function createScrapeTools() {
 			websiteId: z
 				.string()
 				.optional()
-				.describe(
-					"Target website id. Omit to use the workspace default. Get ids from list_websites."
-				),
+				.describe("Target website id. Omit to use the workspace default."),
 			path: z
 				.string()
 				.describe(

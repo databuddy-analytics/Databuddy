@@ -46,6 +46,14 @@ describe("AI tool RPC helper", () => {
 			mutationBlocked: true,
 			success: false,
 		});
+
+		const reply = await callRPCProcedure(
+			"insights",
+			"reply",
+			{ insightId: "case-1" },
+			{ ...BASE_CONTEXT, mutationMode: "dry-run" }
+		);
+		expect(reply).toMatchObject({ dryRun: true, mutationBlocked: true });
 	});
 
 	it("forwards cancellation to the ORPC client", async () => {
