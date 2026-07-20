@@ -10,7 +10,7 @@ import {
 	GlobeIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { InsightGenerationSettings } from "./_components/insight-generation-settings";
+import { InvestigationSettings } from "./_components/investigation-settings";
 import { InvestigationRow } from "./_components/investigation-row";
 import { useInsightsFeed } from "./hooks/use-insights-feed";
 
@@ -46,7 +46,7 @@ export default function InsightsPage() {
 						className={cn("size-4 shrink-0", isRefreshing && "animate-spin")}
 					/>
 				</Button>
-				<InsightGenerationSettings organizationId={orgId} />
+				<InvestigationSettings organizationId={orgId} />
 			</TopBar.Actions>
 
 			{hasNoWebsites ? (

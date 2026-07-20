@@ -21,7 +21,7 @@ interface ConfigFormState {
 	timezone: string;
 }
 
-interface InsightGenerationSettingsProps {
+interface InvestigationSettingsProps {
 	organizationId?: string;
 }
 
@@ -38,9 +38,9 @@ const SCHEDULE_OPTIONS: { label: string; value: Schedule }[] = [
 
 const TIMEZONES = Intl.supportedValuesOf("timeZone");
 
-export function InsightGenerationSettings({
+export function InvestigationSettings({
 	organizationId,
-}: InsightGenerationSettingsProps) {
+}: InvestigationSettingsProps) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
 	const [form, setForm] = useState(DEFAULT_FORM);
@@ -52,7 +52,7 @@ export function InsightGenerationSettings({
 			}),
 		[queryClient]
 	);
-	const refreshFindings = useCallback(
+	const refreshInvestigations = useCallback(
 		() => queryClient.invalidateQueries({ queryKey: insightQueries.all() }),
 		[queryClient]
 	);
@@ -87,7 +87,7 @@ export function InsightGenerationSettings({
 			if (query.state.error) {
 				return false;
 			}
-			const status = query.state.data?.run.status;
+			const status = query.state.data?.status;
 			return !status || status === "queued" || status === "running"
 				? 2000
 				: false;
@@ -99,21 +99,21 @@ export function InsightGenerationSettings({
 			setRunId(undefined);
 			return;
 		}
-		const status = runQuery.data?.run.status;
+		const status = runQuery.data?.status;
 		if (!(runId && status) || status === "queued" || status === "running") {
 			return;
 		}
 		setRunId(undefined);
-		Promise.all([refreshConfig(), refreshFindings()]).catch(() => {
+		Promise.all([refreshConfig(), refreshInvestigations()]).catch(() => {
 			toast.error(
 				"Analysis finished, but investigations could not be refreshed"
 			);
 		});
 	}, [
 		refreshConfig,
-		refreshFindings,
+		refreshInvestigations,
 		runId,
-		runQuery.data?.run.status,
+		runQuery.data?.status,
 		runQuery.isError,
 	]);
 
@@ -145,7 +145,7 @@ export function InsightGenerationSettings({
 			if (data.runId && data.status === "queued") {
 				setRunId(data.runId);
 			} else {
-				await refreshFindings();
+				await refreshInvestigations();
 			}
 			await refreshConfig();
 			setOpen(false);

@@ -11,7 +11,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Button, Card, Skeleton } from "@databuddy/ui";
 
-function InsightSkeleton({ wide }: { wide?: boolean }) {
+function InvestigationSkeleton({ wide }: { wide?: boolean }) {
 	return (
 		<div className="flex items-start gap-3 px-5 py-3">
 			<Skeleton className="mt-0.5 size-7 shrink-0 rounded" />
@@ -29,7 +29,7 @@ function InsightSkeleton({ wide }: { wide?: boolean }) {
 	);
 }
 
-function InsightsLoadingState() {
+function InvestigationsLoadingState() {
 	return (
 		<div className="divide-y">
 			<div className="flex items-center gap-3 px-5 py-4">
@@ -48,13 +48,13 @@ function InsightsLoadingState() {
 					</p>
 				</div>
 			</div>
-			<InsightSkeleton />
-			<InsightSkeleton wide />
+			<InvestigationSkeleton />
+			<InvestigationSkeleton wide />
 		</div>
 	);
 }
 
-function InsightsEmptyState() {
+function InvestigationsEmptyState() {
 	return (
 		<div className="flex items-center gap-3 px-5 py-4">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
@@ -72,7 +72,11 @@ function InsightsEmptyState() {
 	);
 }
 
-function InsightsErrorState({ onRetryAction }: { onRetryAction: () => void }) {
+function InvestigationsErrorState({
+	onRetryAction,
+}: {
+	onRetryAction: () => void;
+}) {
 	return (
 		<div className="flex items-center gap-3 px-5 py-4">
 			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-red-500/10">
@@ -98,7 +102,7 @@ function InsightsErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 	);
 }
 
-interface InsightsSectionProps {
+interface InvestigationsSectionProps {
 	insights: Insight[];
 	isError?: boolean;
 	isFetching?: boolean;
@@ -106,13 +110,13 @@ interface InsightsSectionProps {
 	onRefreshAction: () => void;
 }
 
-export function SmartInsightsSection({
+export function InvestigationsSection({
 	insights,
 	isLoading,
 	isFetching,
 	isError,
 	onRefreshAction,
-}: InsightsSectionProps) {
+}: InvestigationsSectionProps) {
 	const showInsights = !(isLoading || isError) && insights.length > 0;
 
 	return (
@@ -155,11 +159,11 @@ export function SmartInsightsSection({
 					</div>
 				)}
 			</Card.Header>
-			{isLoading && <InsightsLoadingState />}
+			{isLoading && <InvestigationsLoadingState />}
 			{!isLoading && isError && (
-				<InsightsErrorState onRetryAction={onRefreshAction} />
+				<InvestigationsErrorState onRetryAction={onRefreshAction} />
 			)}
-			{!(isLoading || isError || showInsights) && <InsightsEmptyState />}
+			{!(isLoading || isError || showInsights) && <InvestigationsEmptyState />}
 			{showInsights && (
 				<div className="max-h-[min(400px,60dvh)] overflow-y-auto">
 					{insights.map((insight) => (

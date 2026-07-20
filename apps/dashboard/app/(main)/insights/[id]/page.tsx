@@ -288,10 +288,13 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 
 	return (
 		<div className="space-y-3">
-			<p className="text-[11px] text-muted-foreground">
-				Signal window {formatPeriod(item.period.current)} against{" "}
-				{formatPeriod(item.period.previous)}
-			</p>
+			<div className="text-[11px] text-muted-foreground">
+				<p className="font-medium text-foreground/75">{item.subject}</p>
+				<p>
+					{formatPeriod(item.period.current)} compared with{" "}
+					{formatPeriod(item.period.previous)}
+				</p>
+			</div>
 
 			<div>
 				<h3 className="font-medium text-[13px] text-foreground">
@@ -457,13 +460,12 @@ function nextCopy(next: InvestigationNext): {
 		case "act":
 			return {
 				body: next.action,
-				detail: `Target: ${next.target} · Owner: ${next.owner} · Verify: ${next.verification}`,
+				detail: `Target: ${next.target} · Verify: ${next.verification}`,
 				label: "Next action",
 			};
 		case "ask":
 			return {
 				body: next.question,
-				detail: `Ask: ${next.who} · ${next.why}`,
 				label: "Question",
 			};
 		case "watch":

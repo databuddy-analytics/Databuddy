@@ -8,7 +8,7 @@ import { useWebsites } from "@/hooks/use-websites";
 import { cn } from "@/lib/utils";
 import { WebsiteCard } from "../websites/_components/website-card";
 import { MonitorsSection } from "./_components/monitors-section";
-import { SmartInsightsSection } from "./_components/smart-insights-section";
+import { InvestigationsSection } from "./_components/investigations-section";
 import { SummaryStats } from "./_components/summary-stats";
 import { useInsightsFeed } from "../insights/hooks/use-insights-feed";
 import { useGlobalAnalytics } from "./hooks/use-global-analytics";
@@ -155,7 +155,7 @@ export default function HomePage() {
 				/>
 
 				<div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-					<SmartInsightsSection
+					<InvestigationsSection
 						insights={insights}
 						isError={isInsightsError}
 						isFetching={isInsightsFetching}
