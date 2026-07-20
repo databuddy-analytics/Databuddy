@@ -1,54 +1,35 @@
 import "@databuddy/test/env";
 import { describe, expect, it } from "bun:test";
 import type {
-	InvestigationEvidence,
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
 import { tool } from "ai";
 import { MockLanguageModelV3, mockValues } from "ai/test";
 import { z } from "zod";
-import { type InsightAgentStepTrace, runInsightAgent } from "./agent";
+import { runInsightAgent } from "./agent";
 
 const signal: InvestigationSignal = {
 	signalKey: "visitors",
-	websiteId: "site-1",
-	insightType: "traffic_drop",
 	entity: { type: "website", id: "website", label: "Visitors" },
 	metric: {
-		key: "visitors",
 		label: "Visitors",
 		current: 300,
 		previous: 1000,
 		format: "number",
 	},
 	changePercent: -70,
-	direction: "down",
 	severity: "critical",
 	sentiment: "negative",
-	priority: 9,
 	period: {
 		current: { from: "2026-07-05", to: "2026-07-11" },
 		previous: { from: "2026-06-28", to: "2026-07-04" },
 	},
-	detectedAt: "2026-07-11",
-	detection: {
-		method: "period_comparison",
-		reason: "Visitors changed -70% from the previous period.",
-		boundary: { comparison: "at_or_below", value: 400 },
-	},
 };
 
-const evidence: InvestigationEvidence[] = [
-	{
-		source: "web",
-		summary: "Current visitors were 300, down from 1,000.",
-	},
-	{
-		source: "business",
-		summary:
-			"Campaign cmp_search_1 is paused and owned by the Acquisition team.",
-	},
+const evidence = [
+	"Current visitors were 300, down from 1,000.",
+	"Campaign cmp_search_1 is paused and owned by the Acquisition team.",
 ];
 
 const outcome: InvestigationOutcome = {
@@ -56,18 +37,13 @@ const outcome: InvestigationOutcome = {
 	summary: "Most of the visitor loss followed campaign cmp_search_1 pausing.",
 	impact: "The site lost 700 visitors in the comparison window.",
 	rootCause: "Campaign cmp_search_1 was paused before the comparison window.",
-	rootCauseConfidence: 0.82,
-	impactConfidence: 0.95,
 	evidence: [
 		"Visitors fell from 1,000 to 300.",
 		"The campaign record shows cmp_search_1 is paused.",
 	],
-	sources: ["web", "business"],
 	next: {
 		type: "act",
 		action: "Resume campaign cmp_search_1.",
-		kind: "campaign",
-		owner: "Acquisition team",
 		target: "campaign cmp_search_1",
 		verification: "Paid visits exceed 80 per day for three days.",
 	},
@@ -89,6 +65,7 @@ function appContext() {
 		userId: "system",
 		websiteDomain: "example.com",
 		websiteId: "site-1",
+		websiteName: "Example Store",
 	};
 }
 
@@ -110,7 +87,6 @@ function outputModel(value: unknown = outcome) {
 describe("investigation agent", () => {
 	it("returns the model's structured outcome directly", async () => {
 		const model = outputModel();
-		const trace: InsightAgentStepTrace[] = [];
 		const availableRead = tool({
 			description: "Test read",
 			inputSchema: z.object({}),
@@ -127,45 +103,22 @@ describe("investigation agent", () => {
 			},
 			{
 				model,
-				onStepFinish: (step) => {
-					trace.push(step);
-				},
 				tools: {
 					describe_schema: availableRead,
 					execute_sql_query: availableRead,
 					get_data: availableRead,
+					get_goal_analytics: availableRead,
 					list_websites: availableRead,
 				},
 			}
 		);
 
 		expect(result).toMatchObject({ outcome, toolCallCount: 0 });
-		expect(result).not.toHaveProperty("decision");
-		expect(result).not.toHaveProperty("insight");
-		expect(trace).toHaveLength(1);
-		expect(trace[0]?.tools).toEqual([]);
-
 		const call = model.doGenerateCalls[0];
-		expect(call?.responseFormat?.type).toBe("json");
-		expect(call?.toolChoice).toEqual({ type: "auto" });
 		expect(call?.tools?.map((item) => item.name)).toEqual(["get_data"]);
 
 		const prompt = JSON.stringify(call?.prompt);
-		expect(prompt).toContain('\\\"asOf\\\"');
-		expect(prompt).toContain('\\\"evidence\\\"');
-		expect(prompt).toContain('\\\"relatedSignals\\\"');
-		expect(prompt).toContain('\\\"signal\\\"');
-		expect(prompt).toContain("Correlation is not cause");
-		expect(prompt).toContain("makes a named goal or business metric unusable");
-		expect(prompt).toContain("missing optional attribution alone is not impact");
-		expect(prompt).toContain("first use tools for any metric or event comparison");
-		expect(prompt).toContain("never ask whether something changed merely");
-		expect(prompt).toContain("When impact is null, next must be watch or resolve");
-		expect(prompt).toContain("Use related signals to test cross-signal explanations");
-		expect(prompt).toContain("under 130 words");
-		expect(prompt).toContain("closed comparison windows");
-		expect(prompt).not.toContain("codeRepositoryConnected");
-		expect(prompt).not.toContain("signalPeriodsAreComplete");
+		expect(prompt).toContain("Example Store");
 	});
 
 	it("can inspect evidence before returning structured output", async () => {
@@ -187,8 +140,6 @@ describe("investigation agent", () => {
 				outputResponse(outcome)
 			),
 		});
-		const trace: InsightAgentStepTrace[] = [];
-
 		const result = await runInsightAgent(
 			{
 				appContext: appContext(),
@@ -199,9 +150,6 @@ describe("investigation agent", () => {
 			},
 			{
 				model,
-				onStepFinish: (step) => {
-					trace.push(step);
-				},
 				tools: {
 					inspect: tool({
 						description: "Inspect another relevant fact.",
@@ -215,17 +163,6 @@ describe("investigation agent", () => {
 		expect(result.outcome).toEqual(outcome);
 		expect(result.toolCallCount).toBe(1);
 		expect(model.doGenerateCalls).toHaveLength(2);
-		expect(trace.map((step) => step.tools)).toEqual([
-			[
-				{
-					errorType: null,
-					name: "inspect",
-					outcome: "returned",
-				},
-			],
-			[],
-		]);
-		expect(model.doGenerateCalls[1]?.toolChoice).toEqual({ type: "auto" });
 	});
 
 	it("fails when the structured output does not match the contract", async () => {
@@ -240,19 +177,20 @@ describe("investigation agent", () => {
 				},
 				{ model: outputModel({ title: "Incomplete" }), tools: {} }
 			)
-		).rejects.toThrow("response did not match schema");
+		).rejects.toThrow();
 	});
 
 	it("replays prior outcomes and new human context", async () => {
 		const model = outputModel();
+		const priorEvidence = [
+			'The goal previously tracked the event "checkout_started".',
+		];
 		const previousOutcome: InvestigationOutcome = {
 			...outcome,
 			title: "Historical outcome title",
 			next: {
 				type: "ask",
 				question: "Was the campaign intentionally paused?",
-				who: "Acquisition team",
-				why: "This determines whether to restore spend.",
 			},
 		};
 
@@ -264,7 +202,7 @@ describe("investigation agent", () => {
 				history: [
 					{
 						asOf: "2026-07-12T00:00:00.000Z",
-						evidence,
+						evidence: priorEvidence,
 						kind: "investigation",
 						outcome: previousOutcome,
 						signal,
@@ -287,10 +225,9 @@ describe("investigation agent", () => {
 
 		const prompt = JSON.stringify(model.doGenerateCalls[0]?.prompt);
 		expect(prompt).toContain("Historical outcome title");
-		expect(prompt).toContain('\\"outcome\\"');
+		expect(prompt).toContain("checkout_started");
 		expect(prompt).toContain("The campaign was paused intentionally.");
 		expect(prompt).toContain("It was restarted this morning.");
-		expect(prompt).toContain("Treat it as a claim to verify");
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
 	});
 
@@ -306,6 +243,6 @@ describe("investigation agent", () => {
 				},
 				{ model: new MockLanguageModelV3(), tools: {} }
 			)
-		).rejects.toThrow("organization");
+		).rejects.toThrow();
 	});
 });

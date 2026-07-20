@@ -39,6 +39,7 @@ import {
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import {
 	findRunObservation,
+	loadDueOpenInvestigation,
 	loadInvestigationHistory,
 	loadLatestSignalObservations,
 } from "./observations";
@@ -122,7 +123,6 @@ describeIntegration("insights idempotency integration", () => {
 				dedupeKey,
 				id: insightId,
 				organizationId: org.id,
-				runId: "original-run",
 				title: "Original scheduled result",
 				websiteId: website.id,
 			}),
@@ -143,7 +143,6 @@ describeIntegration("insights idempotency integration", () => {
 
 		await expect(
 			persistInvestigation({
-				evidence: [],
 				investigation: staleCandidate,
 				notNewerThan: analysisStartedAt,
 				organizationId: org.id,
@@ -185,7 +184,6 @@ describeIntegration("insights idempotency integration", () => {
 				dedupeKey: `temporary:${insightId}`,
 				id: insightId,
 				organizationId: org.id,
-				runId: "legacy-run",
 				title: "Legacy checkout result",
 				websiteId: website.id,
 			}),
@@ -194,7 +192,6 @@ describeIntegration("insights idempotency integration", () => {
 		});
 
 		const saved = await persistInvestigation({
-			evidence: [],
 			investigation: websiteInvestigation({
 				title: "Current checkout result",
 				website,
@@ -237,7 +234,6 @@ describeIntegration("insights idempotency integration", () => {
 		const results = await Promise.allSettled(
 			["First outcome", "Second outcome"].map((title) =>
 				persistInvestigation({
-					evidence: [],
 					investigation: websiteInvestigation({ title, website }),
 					notNewerThan: asOf,
 					organizationId: org.id,
@@ -267,12 +263,11 @@ describeIntegration("insights idempotency integration", () => {
 		expect(stored.title).toBe(observation.outcome.title);
 	});
 
-	it("records first-time quiet outcomes without opening cases", async () => {
+	it("keeps first-time watches due without making them visible", async () => {
 		const org = await insertOrganization();
 		for (const { impact, next, title } of [
 			{ impact: undefined, next: "watch", title: "watch outcome" },
 			{ impact: undefined, next: "resolve", title: "resolve outcome" },
-			{ impact: null, next: "ask", title: "unproven impact" },
 		] as const) {
 			const website = await insertWebsite({ organizationId: org.id });
 			const runId = randomUUIDv7();
@@ -285,7 +280,6 @@ describeIntegration("insights idempotency integration", () => {
 			});
 
 			const saved = await persistInvestigation({
-				evidence: [],
 				investigation: websiteInvestigation({
 					impact,
 					next,
@@ -299,9 +293,9 @@ describeIntegration("insights idempotency integration", () => {
 				timezone: "UTC",
 			});
 
-			const [cases, observations, history] = await Promise.all([
+			const [cases, observations, history, due] = await Promise.all([
 				db()
-					.select({ id: analyticsInsights.id })
+					.select({ id: analyticsInsights.id, status: analyticsInsights.status })
 					.from(analyticsInsights)
 					.where(eq(analyticsInsights.websiteId, website.id)),
 				db()
@@ -317,13 +311,20 @@ describeIntegration("insights idempotency integration", () => {
 					signalKey: "checkout",
 					websiteId: website.id,
 				}),
+				loadDueOpenInvestigation({
+					asOf: recheckAt,
+					organizationId: org.id,
+					websiteId: website.id,
+				}),
 			]);
 
 			expect(saved).toBeNull();
-			expect(cases).toHaveLength(0);
+			expect(cases).toEqual(
+				next === "watch" ? [{ id: expect.any(String), status: "open" }] : []
+			);
 			expect(observations).toEqual([
 				{
-					insightId: null,
+					insightId: cases[0]?.id ?? null,
 					outcome: {
 						...investigationOutcome(next, title),
 						...(impact === null ? { impact: null } : {}),
@@ -333,15 +334,17 @@ describeIntegration("insights idempotency integration", () => {
 			]);
 			expect(history).toHaveLength(1);
 			expect(history[0]?.kind).toBe("investigation");
+			expect(due?.outcome.next.type ?? null).toBe(
+				next === "watch" ? "watch" : null
+			);
 		}
 	});
 
-	it("closes an existing case when the investigation becomes quiet", async () => {
+	it("keeps watched cases open and closes resolved cases", async () => {
 		const org = await insertOrganization();
-		for (const [next, resolvedReason, impact] of [
-			["watch", "stale", undefined],
-			["resolve", "recovered", undefined],
-			["ask", "stale", null],
+		for (const [next, impact] of [
+			["watch", undefined],
+			["resolve", undefined],
 		] as const) {
 			const website = await insertWebsite({ organizationId: org.id });
 			const openedRunId = randomUUIDv7();
@@ -351,7 +354,6 @@ describeIntegration("insights idempotency integration", () => {
 				{ id: closedRunId, organizationId: org.id, status: "succeeded" },
 			]);
 			const opened = await persistInvestigation({
-				evidence: [],
 				investigation: websiteInvestigation({
 					next: "ask",
 					title: "Checkout needs action",
@@ -365,7 +367,6 @@ describeIntegration("insights idempotency integration", () => {
 			});
 			const resolvedAt = new Date("2026-07-11T10:00:00.000Z");
 			const quiet = await persistInvestigation({
-				evidence: [],
 				investigation: websiteInvestigation({
 					impact,
 					next,
@@ -396,11 +397,15 @@ describeIntegration("insights idempotency integration", () => {
 
 			expect(opened).not.toBeNull();
 			expect(quiet).toBeNull();
-			expect(stored).toEqual({
-				resolvedAt,
-				resolvedReason,
-				status: "resolved",
-			});
+			expect(stored).toEqual(
+				next === "watch"
+					? { resolvedAt: null, resolvedReason: null, status: "open" }
+					: {
+							resolvedAt,
+							resolvedReason: "recovered",
+							status: "resolved",
+						}
+			);
 			expect(observations).toEqual([
 				{ insightId: opened?.id },
 				{ insightId: opened?.id },
@@ -428,7 +433,6 @@ describeIntegration("insights idempotency integration", () => {
 			websiteId: website.id,
 		});
 		await persistInvestigation({
-			evidence: [],
 			investigation: websiteInvestigation({
 				next: "ask",
 				title: "Checkout needs action",
@@ -441,7 +445,6 @@ describeIntegration("insights idempotency integration", () => {
 			timezone: "UTC",
 		});
 		await persistInvestigation({
-			evidence: [],
 			investigation: websiteInvestigation({
 				next: "watch",
 				title: "Checkout is stable enough to watch",
@@ -506,23 +509,34 @@ describeIntegration("insights idempotency integration", () => {
 			metric: "goal:signup",
 			severity: "warning",
 		};
-		const investigation = prepareInvestigation(detected, {
-			lookbackDays: 7,
-			websiteId: website.id,
-		});
-		const evidence = [
+		const investigation = prepareInvestigation(detected, 7);
+		const firstMeasurement = prepareInvestigation(
 			{
-				source: "web" as const,
-				summary: "Signup conversion fell from 40% to 20%.",
+				...detected,
+				current: 18,
+				deltaPercent: -55,
+				detectedAt: "2026-02-10",
 			},
-		];
+			7
+		);
+		const recoveredMeasurement = prepareInvestigation(
+			{
+				...detected,
+				baseline: 40,
+				current: 42,
+				deltaPercent: 5,
+				detectedAt: "2026-03-10",
+				direction: "up",
+				severity: "info",
+			},
+			7
+		);
 		await db().insert(analyticsInsights).values([
 			{
 				...insightRow({
 					dedupeKey: `older:${investigation.signal.signalKey}`,
 					id: olderInsightId,
 					organizationId: org.id,
-					runId: "run-older",
 					title: "Older signup case",
 					websiteId: website.id,
 				}),
@@ -534,7 +548,6 @@ describeIntegration("insights idempotency integration", () => {
 					dedupeKey: `other-site:${investigation.signal.signalKey}`,
 					id: otherInsightId,
 					organizationId: org.id,
-					runId: "run-other-site",
 					title: "Other website signup case",
 					websiteId: otherWebsite.id,
 				}),
@@ -546,7 +559,6 @@ describeIntegration("insights idempotency integration", () => {
 					dedupeKey: `current:${investigation.signal.signalKey}`,
 					id: currentInsightId,
 					organizationId: org.id,
-					runId: "run-current",
 					title: "Current signup case",
 					websiteId: website.id,
 				}),
@@ -557,7 +569,7 @@ describeIntegration("insights idempotency integration", () => {
 		await db().insert(insightObservations).values({
 			asOf: new Date("2026-01-10T00:00:00.000Z"),
 			createdAt: new Date("2026-01-10T00:00:00.000Z"),
-			evidence,
+			evidence: ["Signup tracks the signup_completed event."],
 			id: randomUUIDv7(),
 			insightId: currentInsightId,
 			organizationId: org.id,
@@ -576,46 +588,90 @@ describeIntegration("insights idempotency integration", () => {
 			createdAt: new Date("2026-01-11T00:00:00.000Z"),
 			id: replyId,
 			insightId: olderInsightId,
+			slackDelivery: {
+				channelId: "C_TEST",
+				threadTs: "171234.000",
+				type: "slack",
+			},
 			status: "running",
 		});
 
 		const action: InvestigationOutcome = {
-			evidence: ["The form changed immediately before the conversion drop."],
+			evidence: [
+				"The deploy removed signup_completed emission from the signup submit handler.",
+			],
 			impact: "Signup completion is down by half.",
-			impactConfidence: 0.95,
 			next: {
-				action: "Inspect the signup submit handler from the latest deploy.",
-				kind: "code",
-				owner: "Engineering",
+				action: "Restore signup_completed emission in the signup submit handler.",
 				target: "Signup submit handler",
 				type: "act",
-				verification: "Signup conversion returns above 35% for 24 hours.",
+				verification:
+					"The submit handler emits signup_completed and signup conversion stays above 35% for 24 hours.",
 			},
-			rootCause: "The latest form change likely broke submission.",
-			rootCauseConfidence: 0.8,
-			sources: ["web"],
-			summary: "The conversion drop began after the signup form changed.",
-			title: "Signup submission likely broke after the deploy",
+			rootCause:
+				"The latest deploy removed signup_completed emission from the signup submit handler.",
+			summary:
+				"Signup completions fell after the submit handler stopped emitting them.",
+			title: "Signup completions stopped after the deploy",
 		};
 		let calls = 0;
 		let agentFinishedAt: Date | undefined;
+		let receivedEvidence: string[] = [];
+		let receivedWindow: { from: string; to: string } | undefined;
 		let receivedRepository: { owner: string; repo: string } | null = null;
 		let receivedRequest: string | undefined;
+		const slackDeliveries: unknown[] = [];
 		await expect(
 			withAgentBillingDisabled(() =>
-				resumeInsightReply(replyId, async (input) => {
-					calls += 1;
-					receivedRepository = input.githubRepository;
-					receivedRequest = input.request?.body;
-					await new Promise((resolve) => setTimeout(resolve, 5));
-					agentFinishedAt = new Date();
-					return { outcome: action, toolCallCount: 2 };
-				})
+				resumeInsightReply(
+					replyId,
+					async (input) => {
+						calls += 1;
+						receivedEvidence = input.evidence;
+						receivedWindow = input.signal.period.current;
+						receivedRepository = input.githubRepository;
+						receivedRequest = input.request?.body;
+						await new Promise((resolve) => setTimeout(resolve, 5));
+						agentFinishedAt = new Date();
+						return { outcome: action, toolCallCount: 2 };
+					},
+					async (delivery) => {
+						slackDeliveries.push(delivery);
+						throw new Error("Slack unavailable after commit");
+					},
+					async ({ signal }) => {
+						expect(signal.period.current).toEqual(
+							investigation.signal.period.current
+						);
+						return {
+							evidence: ["Fresh signup measurement."],
+							signal: firstMeasurement.signal,
+						};
+					}
+				)
 			)
-		).resolves.toBe("succeeded");
+		).rejects.toThrow("Slack unavailable after commit");
+		expect(await replyStatus(replyId)).toBe("succeeded");
+		const [replyObservation] = await db()
+			.select({
+				observationId: insightReplies.observationId,
+				outcome: insightObservations.outcome,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				insightObservations,
+				eq(insightReplies.observationId, insightObservations.id)
+			)
+			.where(eq(insightReplies.id, replyId));
+		expect(replyObservation).toMatchObject({
+			observationId: expect.any(String),
+			outcome: action,
+		});
 		expect(receivedRequest).toBe(
 			"The signup form changed in yesterday's deploy."
 		);
+		expect(receivedEvidence).toEqual(["Fresh signup measurement."]);
+		expect(receivedWindow).toEqual(firstMeasurement.signal.period.current);
 		expect(receivedRepository).toEqual({
 			owner: "databuddy-analytics",
 			repo: "app",
@@ -633,12 +689,37 @@ describeIntegration("insights idempotency integration", () => {
 		);
 
 		await withAgentBillingDisabled(() =>
-			resumeInsightReply(replyId, async () => {
-				calls += 1;
-				throw new Error("A completed reply must not rerun the agent");
-			})
+			resumeInsightReply(
+				replyId,
+				async () => {
+					calls += 1;
+					throw new Error("A completed reply must not rerun the agent");
+				},
+				async (delivery) => {
+					slackDeliveries.push(delivery);
+					return "171234.999";
+				}
+			)
 		);
 		expect(calls).toBe(1);
+		expect(slackDeliveries).toHaveLength(2);
+		expect(slackDeliveries[1]).toEqual(slackDeliveries[0]);
+		expect(slackDeliveries).toMatchObject([
+			{
+				clientMessageId: `${replyId}-success`,
+				context: {
+					channelId: "C_TEST",
+					threadTs: "171234.000",
+				},
+			},
+			{
+				clientMessageId: `${replyId}-success`,
+				context: {
+					channelId: "C_TEST",
+					threadTs: "171234.000",
+				},
+			},
+		]);
 
 		const secondReplyId = randomUUIDv7();
 		await db().insert(insightReplies).values({
@@ -651,32 +732,51 @@ describeIntegration("insights idempotency integration", () => {
 		});
 		const resolution: InvestigationOutcome = {
 			...action,
+			evidence: [
+				"The signup submit handler resumed emitting signup_completed after the rollback.",
+			],
+			impact: "Signup completion tracking recovered after the rollback.",
 			next: {
-				reason: "The breaking deploy was intentionally rolled back.",
+				reason: "The rollback restored signup_completed emission.",
 				type: "resolve",
 			},
-			summary: "The rollout was reversed and no further change is needed.",
-			title: "Signup deploy was rolled back",
+			summary: "The rollback restored signup completion tracking.",
+			title: "Signup completion tracking recovered after rollback",
 		};
 		let secondHistoryKinds: string[] = [];
 		let secondHistoryReplies: string[] = [];
 		let secondRunUserId: string | undefined;
 		let firstHistoricalWindow: { from: string; to: string } | undefined;
+		let secondCurrentWindow: { from: string; to: string } | undefined;
 		await withAgentBillingDisabled(() =>
-			resumeInsightReply(secondReplyId, async (input) => {
-				secondHistoryKinds = input.history.map((item) => item.kind);
-				secondHistoryReplies = input.history
-					.filter((item) => item.kind === "reply")
-					.map((item) => item.body);
-				secondRunUserId = input.appContext.userId;
-				firstHistoricalWindow = input.history.find(
-					(item) => item.kind === "investigation"
-				)?.signal.period.current;
-				return {
-					outcome: resolution,
-					toolCallCount: 1,
-				};
-			})
+			resumeInsightReply(
+				secondReplyId,
+				async (input) => {
+					secondHistoryKinds = input.history.map((item) => item.kind);
+					secondHistoryReplies = input.history
+						.filter((item) => item.kind === "reply")
+						.map((item) => item.body);
+					secondRunUserId = input.appContext.userId;
+					firstHistoricalWindow = input.history.find(
+						(item) => item.kind === "investigation"
+					)?.signal.period.current;
+					secondCurrentWindow = input.signal.period.current;
+					return {
+						outcome: resolution,
+						toolCallCount: 1,
+					};
+				},
+				undefined,
+				async ({ signal }) => {
+					expect(signal.period.current).toEqual(
+						firstMeasurement.signal.period.current
+					);
+					return {
+						evidence: ["Signup recovered in the newest complete week."],
+						signal: recoveredMeasurement.signal,
+					};
+				}
+			)
 		);
 		expect(secondHistoryKinds).toEqual([
 			"investigation",
@@ -693,6 +793,9 @@ describeIntegration("insights idempotency integration", () => {
 		expect(firstHistoricalWindow).toEqual(
 			investigation.signal.period.current
 		);
+		expect(secondCurrentWindow).toEqual(
+			recoveredMeasurement.signal.period.current
+		);
 
 		const insights = await db()
 			.select({
@@ -704,7 +807,7 @@ describeIntegration("insights idempotency integration", () => {
 			.from(analyticsInsights)
 			.orderBy(analyticsInsights.createdAt);
 		const observations = await db()
-			.select({ id: insightObservations.id })
+			.select({ id: insightObservations.id, signal: insightObservations.signal })
 			.from(insightObservations);
 		const replies = await db()
 			.select({ status: insightReplies.status })
@@ -722,6 +825,13 @@ describeIntegration("insights idempotency integration", () => {
 			"Other website signup case"
 		);
 		expect(observations).toHaveLength(3);
+		expect(
+			observations.find(
+				(row) =>
+					row.signal.period.current.to ===
+					recoveredMeasurement.signal.period.current.to
+			)?.signal
+		).toEqual(recoveredMeasurement.signal);
 		expect(replies).toEqual([
 			{ status: "succeeded" },
 			{ status: "succeeded" },
@@ -734,18 +844,140 @@ describeIntegration("insights idempotency integration", () => {
 			body: "Retry this context.",
 			id: failedReplyId,
 			insightId: olderInsightId,
+			slackDelivery: {
+				channelId: "C_TEST",
+				threadTs: "171234.000",
+				type: "slack",
+			},
 			status: "running",
 		});
-		await recordInsightReplyFailure(failedReplyId, false);
+		const slackFailures: unknown[] = [];
+		const deliverFailure: NonNullable<
+			Parameters<typeof recordInsightReplyFailure>[2]
+		> = async (delivery) => {
+			slackFailures.push(delivery);
+			return "171234.998";
+		};
+		await recordInsightReplyFailure(failedReplyId, false, deliverFailure);
 		expect(await replyStatus(failedReplyId)).toBe("queued");
-		await recordInsightReplyFailure(failedReplyId, true);
+		await recordInsightReplyFailure(failedReplyId, true, deliverFailure);
 		expect(await replyStatus(failedReplyId)).toBe("failed");
 		await db()
 			.update(insightReplies)
 			.set({ status: "succeeded" })
 			.where(eq(insightReplies.id, failedReplyId));
-		await recordInsightReplyFailure(failedReplyId, true);
+		await recordInsightReplyFailure(failedReplyId, true, deliverFailure);
 		expect(await replyStatus(failedReplyId)).toBe("succeeded");
+		expect(slackFailures).toMatchObject([
+			{
+				clientMessageId: `${failedReplyId}-failure`,
+				context: {
+					channelId: "C_TEST",
+					threadTs: "171234.000",
+				},
+			},
+		]);
+	});
+
+	it("retries Slack delivery with the observation committed for that reply", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const insightId = randomUUIDv7();
+		const replyId = randomUUIDv7();
+		const firstObservationId = randomUUIDv7();
+		const laterObservationId = randomUUIDv7();
+		const investigation = prepareInvestigation(
+			{
+				baseline: 40,
+				current: 20,
+				deltaPercent: -50,
+				detectedAt: "2026-01-10",
+				direction: "down",
+				label: "Checkout",
+				method: "wow",
+				metric: "checkout",
+				severity: "warning",
+			},
+			7
+		);
+		const replyOutcome = investigationOutcome(
+			"watch",
+			"Reply-specific checkout outcome"
+		);
+		const laterOutcome = investigationOutcome(
+			"resolve",
+			"Later scheduled checkout outcome"
+		);
+		await db().insert(analyticsInsights).values({
+			...insightRow({
+				dedupeKey: `slack-retry:${investigation.signal.signalKey}`,
+				id: insightId,
+				organizationId: org.id,
+				title: laterOutcome.title,
+				websiteId: website.id,
+			}),
+			subjectKey: investigation.signal.signalKey,
+		});
+		await db().insert(insightObservations).values([
+			{
+				asOf: new Date("2026-01-10T00:00:00.000Z"),
+				createdAt: new Date("2026-01-10T00:00:00.000Z"),
+				evidence: replyOutcome.evidence,
+				id: firstObservationId,
+				insightId,
+				organizationId: org.id,
+				outcome: replyOutcome,
+				recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+				runId: null,
+				signal: investigation.signal,
+				signalKey: investigation.signal.signalKey,
+				websiteId: website.id,
+			},
+			{
+				asOf: new Date("2026-01-11T00:00:00.000Z"),
+				createdAt: new Date("2026-01-11T00:00:00.000Z"),
+				evidence: laterOutcome.evidence,
+				id: laterObservationId,
+				insightId,
+				organizationId: org.id,
+				outcome: laterOutcome,
+				recheckAt: new Date("2026-01-18T00:00:00.000Z"),
+				runId: null,
+				signal: investigation.signal,
+				signalKey: investigation.signal.signalKey,
+				websiteId: website.id,
+			},
+		]);
+		await db().insert(insightReplies).values({
+			authorId: null,
+			authorName: "Test author",
+			body: "Retry the committed Slack response.",
+			id: replyId,
+			insightId,
+			observationId: firstObservationId,
+			slackDelivery: {
+				channelId: "C_TEST",
+				threadTs: "171234.000",
+				type: "slack",
+			},
+			status: "succeeded",
+		});
+
+		let deliveredTitle: string | undefined;
+		const result = await resumeInsightReply(
+			replyId,
+			async () => {
+				throw new Error("A completed reply must not rerun the agent");
+			},
+			async (delivery) => {
+				deliveredTitle = delivery.result?.outcome.title;
+				return "171234.999";
+			}
+		);
+
+		expect(result).toBe("succeeded");
+		expect(deliveredTitle).toBe(replyOutcome.title);
+		expect(deliveredTitle).not.toBe(laterOutcome.title);
 	});
 
 	it("reconciles reply status at the worker boundary", async () => {
@@ -759,7 +991,6 @@ describeIntegration("insights idempotency integration", () => {
 				dedupeKey: `reply-worker:${replyId}`,
 				id: insightId,
 				organizationId: org.id,
-				runId: "run-reply-worker",
 				title: "Reply worker case",
 				websiteId: website.id,
 			})
@@ -787,13 +1018,13 @@ describeIntegration("insights idempotency integration", () => {
 		expect(await replyStatus(replyId)).toBe("queued");
 
 		await expect(processInsightsJob(job)).rejects.toThrow(
-			"no investigation history"
+			"no history to resume"
 		);
 		expect(await replyStatus(replyId)).toBe("queued");
 
 		await expect(
 			processInsightsJob({ ...job, attemptsMade: 2 })
-		).rejects.toThrow("no investigation history");
+		).rejects.toThrow("no history to resume");
 		expect(await replyStatus(replyId)).toBe("failed");
 	});
 
@@ -810,7 +1041,6 @@ describeIntegration("insights idempotency integration", () => {
 				dedupeKey: `reply-recovery:${insightId}`,
 				id: insightId,
 				organizationId: org.id,
-				runId: "run-reply-recovery",
 				title: "Reply recovery case",
 				websiteId: website.id,
 			})
@@ -874,10 +1104,7 @@ describeIntegration("insights idempotency integration", () => {
 			metric: "goal:signup",
 			severity: "critical",
 		};
-		const investigation = prepareInvestigation(detected, {
-			lookbackDays: 7,
-			websiteId: website.id,
-		});
+		const investigation = prepareInvestigation(detected, 7);
 		const secondaryInvestigation = prepareInvestigation(
 			{
 				...detected,
@@ -885,7 +1112,7 @@ describeIntegration("insights idempotency integration", () => {
 				label: "Purchase",
 				metric: "goal:purchase",
 			},
-			{ lookbackDays: 7, websiteId: website.id }
+			7
 		);
 		const firstAsOf = new Date("2026-01-01T12:00:00.000Z");
 		const secondaryAsOf = new Date("2026-01-03T12:00:00.000Z");
@@ -895,7 +1122,6 @@ describeIntegration("insights idempotency integration", () => {
 			.values([
 				{
 					asOf: firstAsOf,
-					evidence: investigation.evidence,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -908,7 +1134,6 @@ describeIntegration("insights idempotency integration", () => {
 				},
 				{
 					asOf: firstAsOf,
-					evidence: investigation.evidence,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -921,7 +1146,6 @@ describeIntegration("insights idempotency integration", () => {
 				},
 				{
 					asOf: secondAsOf,
-					evidence: investigation.evidence,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -934,7 +1158,6 @@ describeIntegration("insights idempotency integration", () => {
 				},
 				{
 					asOf: secondaryAsOf,
-					evidence: investigation.evidence,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -988,17 +1211,7 @@ describeIntegration("insights idempotency integration", () => {
 		expect(
 			historical.get(investigation.signal.signalKey)?.outcome.next.type
 		).toBe("watch");
-		expect(historical.get(investigation.signal.signalKey)?.asOf).toEqual(
-			firstAsOf
-		);
-		expect(
-			historical.get(investigation.signal.signalKey)?.evidence
-		).toEqual(investigation.evidence);
-		expect(
-			historical.get(secondaryInvestigation.signal.signalKey)?.asOf
-		).toEqual(secondaryAsOf);
 		expect(latest.size).toBe(2);
-		expect(latest.get(investigation.signal.signalKey)?.asOf).toEqual(secondAsOf);
 		expect(
 			latest.get(investigation.signal.signalKey)?.outcome.next.type
 		).toBe("resolve");
@@ -1035,44 +1248,25 @@ describeIntegration("insights idempotency integration", () => {
 			websiteId: website.id,
 			status: "running",
 		});
-		const slackPayload = (channelId: string) => ({
+		const slackPayload = {
 			blocks: [
 				{
 					type: "section",
-					text: { type: "mrkdwn", text: "A bounded finding" },
+					text: { type: "mrkdwn", text: "A bounded investigation" },
 				},
 			],
-			channelId,
-			organizationId: org.id,
-			text: "A bounded finding",
-			websiteId: website.id,
-		});
+			text: "A bounded investigation",
+		};
 		const effects = [
 			{
 				effectKey: "channel-a",
-				payload: slackPayload("channel-a"),
+				payload: slackPayload,
 			},
 			{
 				effectKey: "channel-b",
-				payload: slackPayload("channel-b"),
+				payload: slackPayload,
 			},
 		];
-		expect(() =>
-			prepareInsightRun({
-				...identity,
-				effects: [
-					{
-						effectKey: "wrong-tenant",
-						payload: {
-							...slackPayload("wrong-tenant"),
-							organizationId: "another-organization",
-						},
-					},
-				],
-				result: { resultCount: 0, status: "succeeded" },
-			})
-		).toThrow("identity does not match");
-
 		await prepareInsightRun({
 			...identity,
 			effects,
@@ -1092,12 +1286,16 @@ describeIntegration("insights idempotency integration", () => {
 		const calls: Array<{ id: string; key: string }> = [];
 		let failChannelB = true;
 		const handlers = {
-			slack: async (payload: { channelId: string }, id: string) => {
-				calls.push({ id, key: payload.channelId });
-				if (payload.channelId === "channel-b" && failChannelB) {
+			slack: async (
+				_payload: unknown,
+				context: { channelId: string },
+				id: string
+			) => {
+				calls.push({ id, key: context.channelId });
+				if (context.channelId === "channel-b" && failChannelB) {
 					throw new Error("temporary Slack failure");
 				}
-				return `ts:${payload.channelId}`;
+				return `ts:${context.channelId}`;
 			},
 		};
 
@@ -1183,7 +1381,7 @@ describeIntegration("insights idempotency integration", () => {
 		const finalCalls: string[] = [];
 		await expect(
 			drainInsightRunEffects(identity, true, {
-				slack: async (_payload, id) => {
+				slack: async (_payload, _context, id) => {
 					finalCalls.push(id);
 					throw new Error("permanent Slack failure");
 				},
@@ -1206,6 +1404,87 @@ describeIntegration("insights idempotency integration", () => {
 			})
 		).rejects.toThrow("failed external effect");
 		expect(replayCalls).toBe(0);
+	});
+
+	it("reuses the original Slack thread for recurring case delivery", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const insightId = randomUUIDv7();
+		const identity = () => ({
+			itemId: randomUUIDv7(),
+			organizationId: org.id,
+			queueJobId: null,
+			runId: randomUUIDv7(),
+			websiteId: website.id,
+		});
+		const first = identity();
+		const second = identity();
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				dedupeKey: `${website.id}|checkout`,
+				id: insightId,
+				organizationId: org.id,
+				title: "Checkout conversion fell",
+				websiteId: website.id,
+			})
+		);
+		await db()
+			.insert(insightRuns)
+			.values(
+				[first, second].map(({ runId }) => ({
+					id: runId,
+					organizationId: org.id,
+					status: "succeeded" as const,
+				}))
+			);
+		await db()
+			.insert(insightRunItems)
+			.values(
+				[first, second].map(({ itemId, runId }) => ({
+					id: itemId,
+					organizationId: org.id,
+					runId,
+					status: "running" as const,
+					websiteId: website.id,
+				}))
+			);
+
+		const payload = {
+			blocks: [],
+			insightId,
+			text: "Checkout conversion fell",
+		};
+		for (const run of [first, second]) {
+			await prepareInsightRun({
+				...run,
+				effects: [{ effectKey: "C_TEST", payload }],
+				result: { resultCount: 1, status: "succeeded" },
+			});
+		}
+
+		const threadTimestamps: Array<string | undefined> = [];
+		const deliver = async (
+			_payload: unknown,
+			_context: unknown,
+			_id: string,
+			threadTs?: string
+		) => {
+			threadTimestamps.push(threadTs);
+			return threadTs ? "171234.001" : "171234.000";
+		};
+		await drainInsightRunEffects(first, true, { slack: deliver });
+		await drainInsightRunEffects(second, true, { slack: deliver });
+		await drainInsightRunEffects(second, true, { slack: deliver });
+
+		expect(threadTimestamps).toEqual([undefined, "171234.000"]);
+		const stored = await db()
+			.select({ externalId: insightRunEffects.externalId })
+			.from(insightRunEffects)
+			.orderBy(insightRunEffects.createdAt, insightRunEffects.id);
+		expect(stored).toEqual([
+			{ externalId: "171234.000" },
+			{ externalId: "171234.001" },
+		]);
 	});
 
 	it("retries a known-success checkpoint without calling the provider again", async () => {
@@ -1239,10 +1518,7 @@ describeIntegration("insights idempotency integration", () => {
 					effectKey: "checkpoint-retry",
 					payload: {
 						blocks: [],
-						channelId: "channel-checkpoint",
-						organizationId: org.id,
-						text: "A bounded finding",
-						websiteId: website.id,
+						text: "A bounded investigation",
 					},
 				},
 			],
@@ -1597,10 +1873,7 @@ describeIntegration("insights idempotency integration", () => {
 					effectKey: "completed-channel",
 					payload: {
 						blocks: [],
-						channelId: "completed-channel",
-						organizationId: org.id,
-						text: "A bounded finding",
-						websiteId: website.id,
+						text: "A bounded investigation",
 					},
 				},
 			],
@@ -1928,10 +2201,7 @@ describeIntegration("insights idempotency integration", () => {
 					effectKey: "missing-channel",
 					payload: {
 						blocks: [],
-						channelId: "missing-channel",
-						organizationId: org.id,
-						text: "A bounded finding",
-						websiteId: website.id,
+						text: "A bounded investigation",
 					},
 				},
 			],
@@ -1983,7 +2253,6 @@ function insightRow(input: {
 	dedupeKey: string;
 	id: string;
 	organizationId: string;
-	runId: string;
 	title: string;
 	websiteId: string;
 }): typeof analyticsInsights.$inferInsert {
@@ -1991,26 +2260,14 @@ function insightRow(input: {
 		id: input.id,
 		organizationId: input.organizationId,
 		websiteId: input.websiteId,
-		runId: input.runId,
 		dedupeKey: input.dedupeKey,
 		title: input.title,
 		description: "A test insight description.",
-		suggestion: "Inspect the affected flow.",
 		severity: "warning",
 		sentiment: "negative",
-		type: "conversion_leak",
-		priority: 8,
 		changePercent: -12,
 		subjectKey: "checkout",
-		sources: ["web"],
-		confidence: 0.82,
-		impactSummary: "Checkout needs review.",
-		metrics: [{ label: "Errors", current: 12, previous: 6, format: "number" }],
 		timezone: "UTC",
-		currentPeriodFrom: "2026-01-01",
-		currentPeriodTo: "2026-01-08",
-		previousPeriodFrom: "2025-12-25",
-		previousPeriodTo: "2026-01-01",
 	};
 }
 
@@ -2021,26 +2278,34 @@ function investigationOutcome(
 	const nextStep: InvestigationOutcome["next"] =
 		next === "ask"
 			? {
-					question: "Was the checkout change intentional?",
-					who: "Product",
-					why: "The answer determines whether to restore the flow.",
+					question:
+						"Was the Checkout conversion decline intentional, or should the checkout flow be restored?",
 					type: "ask",
 				}
 			: next === "resolve"
-				? { reason: "The measured regression recovered.", type: "resolve" }
+				? {
+						reason: "Checkout conversion returned to its previous level.",
+						type: "resolve",
+					}
 				: {
 						escalation: "Reopen the case if checkout falls again.",
 						type: "watch",
 					};
+	const resolved = next === "resolve";
 	return {
-		evidence: ["Checkout conversion fell from 40% to 20%."],
-		impact: "Checkout completion is affected.",
-		impactConfidence: 0.8,
+		evidence: [
+			resolved
+				? "Checkout conversion returned from 20% to its previous 40% level."
+				: "Checkout conversion fell from 40% to 20%.",
+		],
+		impact: resolved
+			? "Checkout completion recovered."
+			: "Checkout completion is affected.",
 		next: nextStep,
 		rootCause: null,
-		rootCauseConfidence: 0.2,
-		sources: ["web"],
-		summary: "Checkout conversion needs investigation.",
+		summary: resolved
+			? "Checkout conversion returned to 40%."
+			: "Checkout conversion fell to 20%.",
 		title,
 	};
 }
@@ -2063,7 +2328,7 @@ function websiteInvestigation(input: {
 			metric: "checkout",
 			severity: "warning",
 		},
-		{ lookbackDays: 7, websiteId: input.website.id }
+		7
 	);
 	return {
 		id: randomUUIDv7(),

@@ -17,6 +17,7 @@
     "./billing": "./src/utils/billing.ts",
     "./flags": "./src/utils/flags.ts",
     "./insight-generation": "./src/routers/insight-generation.ts",
+    "./insights": "./src/routers/insights.ts",
     "./insight-schedule": "./src/services/insight-schedule.ts",
     "./log-context": "./src/lib/rpc-log-context.ts",
     "./organization": "./src/utils/organization.ts"

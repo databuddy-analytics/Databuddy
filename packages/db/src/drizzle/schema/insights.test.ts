@@ -25,7 +25,6 @@ describe("insight generation config schema", () => {
 			"timezone",
 			"deliveries",
 			"next_run_at",
-			"last_run_at",
 			"created_at",
 			"updated_at",
 		]);
@@ -87,21 +86,23 @@ describe("insight observations schema", () => {
 	});
 });
 
-describe("insight replies schema", () => {
-	test("stores immutable human context on an investigation", () => {
-		const config = getTableConfig(insightReplies);
+	describe("insight replies schema", () => {
+		test("stores immutable human context on an investigation", () => {
+			const config = getTableConfig(insightReplies);
 			expect(config.columns.map((column) => column.name)).toEqual([
 				"id",
 				"insight_id",
+				"observation_id",
 				"author_id",
 				"author_name",
-				"body",
-				"status",
-				"created_at",
-			]);
-			expect(config.columns.find((column) => column.name === "status")?.default).toBe(
-				"queued"
-			);
+			"body",
+			"slack_delivery",
+			"status",
+			"created_at",
+		]);
+		expect(config.columns.find((column) => column.name === "status")?.default).toBe(
+			"queued"
+		);
 
 		const history = config.indexes.find(
 			(index) => index.config.name === "insight_replies_insight_created_idx"

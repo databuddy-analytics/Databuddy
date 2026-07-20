@@ -97,7 +97,17 @@ async function processResumeJob(
 	try {
 		return { status: await resumeInsightReply(data.replyId) };
 	} catch (error) {
-		await recordInsightReplyFailure(data.replyId, isFinalAttempt(job));
+		try {
+			await recordInsightReplyFailure(data.replyId, isFinalAttempt(job));
+		} catch (deliveryError) {
+			captureInsightsError(
+				deliveryError,
+				"resume.slack_failure_delivery.failed",
+				{
+					reply_id: data.replyId,
+				}
+			);
+		}
 		throw error;
 	}
 }

@@ -16,7 +16,6 @@ const baseSignal: DetectedSignal = {
 	deltaPercent: -40,
 	severity: "warning",
 	detectedAt: "2026-07-10",
-	boundary: { comparison: "at_or_below", value: 600 },
 };
 
 describe("rankSignals", () => {
@@ -66,7 +65,7 @@ describe("prepareInvestigation", () => {
 	it("uses website-local day bounds across daylight-saving changes", () => {
 		const signal = prepareInvestigation(
 			{ ...baseSignal, detectedAt: "2026-03-14" },
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		).signal;
 		const window = signalAnnotationWindow(signal, "America/New_York");
 
@@ -75,73 +74,45 @@ describe("prepareInvestigation", () => {
 	});
 
 	it("turns detection into backend-owned identity, metrics, and windows", () => {
-		const first = prepareInvestigation(baseSignal, {
-			websiteId: "site-1",
-			lookbackDays: 7,
-		});
+		const first = prepareInvestigation(baseSignal, 7);
 		const second = prepareInvestigation(
 			{ ...baseSignal, current: 500, detectedAt: "2026-07-17" },
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 
 		expect(first.signal.signalKey).toBe(second.signal.signalKey);
-			expect(first.signal).toMatchObject({
-			websiteId: "site-1",
-			insightType: "traffic_drop",
+		expect(first.signal).toMatchObject({
 			sentiment: "negative",
-			priority: 7,
 			metric: { current: 600, previous: 1000, format: "number" },
 			period: {
 				current: { from: "2026-07-04", to: "2026-07-10" },
 				previous: { from: "2026-06-27", to: "2026-07-03" },
 			},
-			detection: {
-				boundary: { comparison: "at_or_below", value: 600 },
-			},
 		});
-	});
-
-	it("uses the signal as the required measured context", () => {
-		const result = prepareInvestigation(baseSignal, {
-			websiteId: "site-1",
-			lookbackDays: 7,
-		});
-
-		expect(result.evidence).toEqual([]);
 	});
 
 	it("reuses exact detector-owned goal evidence without another read", () => {
 		const result = prepareInvestigation(
 			{
 				...baseSignal,
-				definitionEvidence: {
-					metrics: [
-						{
-							current: 0,
-							format: "number",
-							label: "Completions",
-							previous: 20,
-						},
-					],
-					summary: "Signup had 0 completions from 100 eligible visitors.",
-				},
+				definitionEvidence:
+					"Signup had 0 completions from 100 eligible visitors, versus 20 previously.",
 				entityLabel: "Signup",
 				metric: "goal:goal-1",
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 
 		expect(result.evidence).toHaveLength(1);
-		expect(result.evidence.at(-1)).toMatchObject({
-			source: "product",
-			summary: "Signup had 0 completions from 100 eligible visitors.",
-		});
+		expect(result.evidence.at(-1)).toBe(
+			"Signup had 0 completions from 100 eligible visitors, versus 20 previously."
+		);
 	});
 
 	it("passes signal-window annotations to the agent without classifying them", () => {
 		const result = prepareInvestigation(
 			baseSignal,
-			{ websiteId: "site-1", lookbackDays: 7 },
+			7,
 			[
 				{
 					date: "2026-07-08",
@@ -151,12 +122,8 @@ describe("prepareInvestigation", () => {
 			]
 		);
 
-		expect(result.evidence).toMatchObject([
-			{
-				source: "business",
-				summary:
-					"2026-07-08: Signup instrumentation intentionally changed; 2026-07-09: Pricing campaign paused",
-			},
+		expect(result.evidence).toEqual([
+			"Annotation: 2026-07-08: Signup instrumentation intentionally changed; 2026-07-09: Pricing campaign paused",
 		]);
 	});
 
@@ -167,7 +134,7 @@ describe("prepareInvestigation", () => {
 				entityLabel: "Signup",
 				metric: "goal:signup",
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 		const changed = prepareInvestigation(
 			{
@@ -175,12 +142,11 @@ describe("prepareInvestigation", () => {
 				entityLabel: "Create account",
 				metric: "goal:signup",
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 
 		expect(first.signal.signalKey).toBe(changed.signal.signalKey);
-		expect(first.signal.metric.key).toBe("goal:signup");
-		expect(changed.signal.metric.key).toBe("goal:signup");
+		expect(first.signal.signalKey).toBe("goal:signup");
 	});
 
 	it("derives good/bad direction and native entity identity", () => {
@@ -188,12 +154,13 @@ describe("prepareInvestigation", () => {
 			{
 				...baseSignal,
 				metric: "error_count",
-				label: "Errors",
+				label: "TypeError: cart is undefined at checkout.ts:42",
+				subjectKey: "error:cart is undefined",
 				current: 20,
 				baseline: 100,
 				deltaPercent: -80,
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 		const funnel = prepareInvestigation(
 			{
@@ -203,16 +170,18 @@ describe("prepareInvestigation", () => {
 				current: 12,
 				baseline: 20,
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 
 		expect(errorRecovery.signal).toMatchObject({
-			insightType: "reliability_improved",
+			signalKey: "error:cart is undefined",
 			sentiment: "positive",
-			entity: { type: "error", id: "error_count" },
+			entity: {
+				type: "error",
+				id: "cart is undefined",
+			},
 		});
 		expect(funnel.signal).toMatchObject({
-			insightType: "funnel_regression",
 			entity: { type: "funnel", id: "checkout-id" },
 			metric: { format: "percent" },
 		});
@@ -229,7 +198,7 @@ describe("prepareInvestigation", () => {
 				baseline: 2840,
 				deltaPercent: -86.76,
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 
 		expect(result.signal).toMatchObject({
@@ -238,14 +207,23 @@ describe("prepareInvestigation", () => {
 		});
 	});
 
+	it("keeps an unchanged remeasurement neutral", () => {
+		const result = prepareInvestigation(
+			{ ...baseSignal, baseline: 10, current: 10, deltaPercent: 0 },
+			7
+		);
+
+		expect(result.signal.sentiment).toBe("neutral");
+	});
+
 	it("keeps long entity identities valid and stable", () => {
 		const metric = `goal:${"checkout_step_".repeat(20)}`;
 		const result = prepareInvestigation(
 			{ ...baseSignal, metric, label: "Checkout step" },
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 
-		expect(result.signal.metric.key.length).toBe(160);
+		expect(result.signal.signalKey.length).toBe(160);
 		expect(result.signal.entity.id.length).toBe(160);
 	});
 
@@ -262,14 +240,13 @@ describe("prepareInvestigation", () => {
 			{
 				...baseSignal,
 				method: "zscore",
-				zScore: -3.1,
 				detectedAt: "2026-07-01",
 				baselineDates,
 			},
-			{ websiteId: "site-1", lookbackDays: 7 }
+			7
 		);
 
-		expect(result.signal.detection.baselineDates).toEqual(baselineDates);
+		expect(result.signal.baselineDates).toEqual(baselineDates);
 		expect(result.signal.period.previous).toEqual({
 			from: baselineDates[0],
 			to: baselineDates.at(-1),

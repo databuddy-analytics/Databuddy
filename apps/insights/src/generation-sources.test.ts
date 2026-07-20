@@ -7,6 +7,7 @@ import {
 	investigateWebsiteWithSources,
 	resolveInvestigationAsOf,
 } from "./generation";
+import { prepareInvestigation } from "./investigation";
 
 const trafficDrop: DetectedSignal = {
 	baseline: 1000,
@@ -48,18 +49,18 @@ describe("fixture investigation sources", () => {
 			summary: "Organic search accounts for most of the visitor decline.",
 			impact: "Visitors fell from 1,000 to 300.",
 			rootCause: null,
-			rootCauseConfidence: 0.3,
-			impactConfidence: 0.9,
 			evidence: ["Visitors fell 70% in the comparison window."],
-			sources: ["web"],
 			next: {
 				type: "ask",
-				question: "Was search traffic or tracking changed intentionally?",
-				who: "Growth",
-				why: "The answer determines whether to restore acquisition or tracking.",
+				question:
+					"Was the organic search decline expected after a site or acquisition change, or should organic-visit tracking be fixed?",
 			},
 		};
 		const sources: InvestigationSources = {
+			loadDueInvestigation: async () => {
+				calls.push("due investigation");
+				return null;
+			},
 			detectMetricSignals: async () => {
 				calls.push("metric detection");
 				return [trafficDrop, revenueIncrease];
@@ -83,7 +84,7 @@ describe("fixture investigation sources", () => {
 				)?.body;
 				receivedRepository = input.githubRepository;
 				receivedRelatedMetrics =
-					input.relatedSignals?.map((signal) => signal.metric.key) ?? [];
+					input.relatedSignals?.map((signal) => signal.signalKey) ?? [];
 				return {
 					outcome,
 					toolCallCount: 1,
@@ -100,6 +101,9 @@ describe("fixture investigation sources", () => {
 					},
 				];
 			},
+			remeasureSignal: async () => {
+				throw new Error("nothing is due for remeasurement");
+			},
 		};
 
 		const artifact = await investigateWebsiteWithSources(
@@ -115,7 +119,6 @@ describe("fixture investigation sources", () => {
 		);
 
 		expect(artifact).toMatchObject({
-			detectionComplete: true,
 			outcome,
 			status: "completed",
 		});
@@ -133,6 +136,7 @@ describe("fixture investigation sources", () => {
 				"agent:visitors",
 				"annotations",
 				"definition detection",
+				"due investigation",
 				"history",
 				"metric detection",
 				"observations",
@@ -146,6 +150,7 @@ describe("fixture investigation sources", () => {
 			throw new Error("incomplete scan should stop before downstream reads");
 		};
 		const sources: InvestigationSources = {
+			loadDueInvestigation: async () => null,
 			detectDefinitionSignals: async (_params, _today, _deps, options) => {
 				calls.push("definition detection");
 				if (options?.diagnostics) {
@@ -170,6 +175,7 @@ describe("fixture investigation sources", () => {
 			investigateSignal: forbidden,
 			loadHistory: forbidden,
 			loadObservations: forbidden,
+			remeasureSignal: forbidden,
 		};
 
 		const artifact = await investigateWebsiteWithSources(
@@ -184,8 +190,6 @@ describe("fixture investigation sources", () => {
 		);
 
 		expect(artifact).toMatchObject({
-			detectionComplete: false,
-			detectedSignals: [],
 			outcome: null,
 			signal: null,
 			status: "deferred",
@@ -200,6 +204,7 @@ describe("fixture investigation sources", () => {
 			throw new Error("informational signals should stay quiet");
 		};
 		const sources: InvestigationSources = {
+			loadDueInvestigation: async () => null,
 			detectDefinitionSignals: async () => [],
 			detectMetricSignals: async () => [
 				{ ...trafficDrop, severity: "info" },
@@ -208,6 +213,7 @@ describe("fixture investigation sources", () => {
 			investigateSignal: forbidden,
 			loadHistory: forbidden,
 			loadObservations: async () => new Map(),
+			remeasureSignal: forbidden,
 		};
 
 		const artifact = await investigateWebsiteWithSources(
@@ -222,7 +228,6 @@ describe("fixture investigation sources", () => {
 		);
 
 		expect(artifact.status).toBe("no_signals");
-		expect(artifact.toolCallCount).toBe(0);
 	});
 
 	it("investigates informational direct regressions and still-bad vitals", async () => {
@@ -237,7 +242,6 @@ describe("fixture investigation sources", () => {
 					metric: "goal:checkout",
 					severity: "info" as const,
 				},
-				type: "conversion_leak",
 			},
 			{
 				detected: {
@@ -249,31 +253,30 @@ describe("fixture investigation sources", () => {
 					metric: "lcp",
 					severity: "info" as const,
 				},
-				type: "vitals_degraded",
 			},
 		];
 		for (const current of cases) {
 			const outcome: InvestigationOutcome = {
-				title: "No work remains",
-				summary: "The investigation is complete.",
-				impact: "The measured change was reviewed.",
+				title: `${current.detected.label} changed without proven customer impact`,
+				summary: `${current.detected.label} changed from ${current.detected.baseline} to ${current.detected.current}, but no broken workflow was confirmed.`,
+				impact: null,
 				rootCause: null,
-				rootCauseConfidence: 0.2,
-				impactConfidence: 0.8,
-				evidence: ["The current value was checked against its threshold."],
-				sources: ["product"],
-				next: { type: "resolve", reason: "No action is justified." },
+				evidence: [
+					`${current.detected.label} was ${current.detected.current}, compared with ${current.detected.baseline} in the previous period.`,
+				],
+				next: {
+					type: "resolve",
+					reason: `No customer-facing problem was confirmed for ${current.detected.label}.`,
+				},
 			};
-			const seen: Array<{ sentiment: string; type: string }> = [];
+			const seen: string[] = [];
 			const sources: InvestigationSources = {
+				loadDueInvestigation: async () => null,
 				detectDefinitionSignals: async () => [],
 				detectMetricSignals: async () => [current.detected],
 				fetchAnnotations: async () => [],
 				investigateSignal: async (input) => {
-					seen.push({
-						sentiment: input.signal.sentiment,
-						type: input.signal.insightType,
-					});
+					seen.push(input.signal.sentiment);
 					return {
 						outcome,
 						toolCallCount: 1,
@@ -281,6 +284,9 @@ describe("fixture investigation sources", () => {
 				},
 				loadHistory: async () => [],
 				loadObservations: async () => new Map(),
+				remeasureSignal: async () => {
+					throw new Error("nothing is due for remeasurement");
+				},
 			};
 
 			const artifact = await investigateWebsiteWithSources(
@@ -294,7 +300,7 @@ describe("fixture investigation sources", () => {
 				sources
 			);
 
-			expect(seen).toEqual([{ sentiment: "negative", type: current.type }]);
+			expect(seen).toEqual(["negative"]);
 			expect(artifact.status).toBe("completed");
 		}
 	});
@@ -305,6 +311,7 @@ describe("fixture investigation sources", () => {
 			throw new Error("agent access denial should stop downstream reads");
 		};
 		const sources: InvestigationSources = {
+			loadDueInvestigation: async () => null,
 			detectDefinitionSignals: async () => {
 				calls.push("definition detection");
 				return [];
@@ -320,6 +327,7 @@ describe("fixture investigation sources", () => {
 				calls.push("observations");
 				return new Map();
 			},
+			remeasureSignal: forbidden,
 		};
 
 		const artifact = await investigateWebsiteWithSources(
@@ -338,8 +346,6 @@ describe("fixture investigation sources", () => {
 		);
 
 		expect(artifact).toMatchObject({
-			detectionComplete: true,
-			detectedSignals: [trafficDrop],
 			outcome: null,
 			signal: null,
 			status: "deferred",
@@ -352,5 +358,141 @@ describe("fixture investigation sources", () => {
 				"observations",
 			].sort()
 		);
+	});
+
+	it("remeasures a due case even after it disappears from detection", async () => {
+		const prior = prepareInvestigation(trafficDrop, 7);
+		const recovered: DetectedSignal = {
+			...trafficDrop,
+			baseline: 900,
+			current: 920,
+			deltaPercent: 2.22,
+			detectedAt: "2026-07-18",
+			direction: "up",
+			severity: "info",
+		};
+		const resolved: InvestigationOutcome = {
+			evidence: ["Visitors recovered in the newest complete week."],
+			impact: null,
+			next: { reason: "Traffic recovered.", type: "resolve" },
+			rootCause: null,
+			summary: "Traffic returned to its prior range.",
+			title: "Traffic recovered",
+		};
+		const forbidden = () => {
+			throw new Error("a due case must be handled before novel detection");
+		};
+		let currentWindow: { from: string; to: string } | undefined;
+		let historicalWindow: { from: string; to: string } | undefined;
+		const sources: InvestigationSources = {
+			detectDefinitionSignals: forbidden,
+			detectMetricSignals: forbidden,
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				currentWindow = input.signal.period.current;
+				historicalWindow = input.history.find(
+					(item) => item.kind === "investigation"
+				)?.signal.period.current;
+				return { outcome: resolved, toolCallCount: 1 };
+			},
+			loadDueInvestigation: async () => ({
+				evidence: prior.evidence,
+				outcome: {
+					...resolved,
+					next: {
+						question: "Did anything intentionally change?",
+						type: "ask",
+					},
+				},
+				recheckAt: new Date("2026-07-18T00:00:00.000Z"),
+				signal: prior.signal,
+			}),
+			loadHistory: async () => [
+				{
+					asOf: "2026-07-12T00:00:00.000Z",
+					evidence: prior.evidence,
+					kind: "investigation",
+					outcome: {
+						...resolved,
+						next: {
+							question: "Did anything intentionally change?",
+							type: "ask",
+						},
+					},
+					signal: prior.signal,
+				},
+			],
+			loadObservations: forbidden,
+			remeasureSignal: async (_params, signal) => {
+				expect(signal.signalKey).toBe(prior.signal.signalKey);
+				return recovered;
+			},
+		};
+
+		const artifact = await investigateWebsiteWithSources(
+			{
+				asOf: "2026-07-19",
+				domain: "example.com",
+				organizationId: "fixture-org",
+				timezone: "UTC",
+				websiteId: "fixture-site",
+			},
+			sources
+		);
+
+		expect(artifact.status).toBe("completed");
+		expect(artifact.signal?.signalKey).toBe(prior.signal.signalKey);
+		expect(currentWindow?.to).toBe("2026-07-18");
+		expect(historicalWindow?.to).toBe("2026-07-11");
+	});
+
+	it("does not let an unmeasurable case starve new work", async () => {
+		const prior = prepareInvestigation(trafficDrop, 7);
+		const outcome: InvestigationOutcome = {
+			evidence: ["Revenue fell in the newest complete week."],
+			impact: null,
+			next: { reason: "No customer impact was confirmed.", type: "resolve" },
+			rootCause: null,
+			summary: "Revenue changed without a confirmed failure.",
+			title: "Revenue changed",
+		};
+		let investigated: string | undefined;
+		const sources: InvestigationSources = {
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [
+				{ ...trafficDrop, label: "Revenue", metric: "revenue" },
+			],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				investigated = input.signal.signalKey;
+				return { outcome, toolCallCount: 1 };
+			},
+			loadDueInvestigation: async () => ({
+				evidence: [],
+				outcome: {
+					...outcome,
+					next: { question: "Was this expected?", type: "ask" },
+				},
+				recheckAt: new Date("2026-07-18T00:00:00.000Z"),
+				signal: prior.signal,
+			}),
+			loadHistory: async () => [],
+			loadObservations: async () => new Map(),
+			remeasureSignal: async () => null,
+		};
+
+		const artifact = await investigateWebsiteWithSources(
+			{
+				asOf: "2026-07-19",
+				domain: "example.com",
+				organizationId: "fixture-org",
+				timezone: "UTC",
+				websiteId: "fixture-site",
+			},
+			sources
+		);
+
+		expect(artifact.status).toBe("completed");
+		expect(investigated).toBe("revenue");
 	});
 });

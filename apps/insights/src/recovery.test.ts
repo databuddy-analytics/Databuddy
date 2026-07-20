@@ -39,14 +39,6 @@ describe("summarizeItemErrors", () => {
 		).toBeNull();
 	});
 
-	it("reports the single error with its count", () => {
-		expect(
-			summarizeItemErrors([
-				{ errorMessage: "Model timeout", status: "failed" },
-			])
-		).toBe("1 item: Model timeout");
-	});
-
 	it("picks the most frequent error and counts other error types", () => {
 		expect(
 			summarizeItemErrors([

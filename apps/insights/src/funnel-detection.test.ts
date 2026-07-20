@@ -2,13 +2,13 @@ import { describe, expect, it } from "bun:test";
 import dayjs from "dayjs";
 import type { DetectSignalsParams } from "./detection";
 import {
+	type ConversionResult,
 	defaultFunnelGoalDeps,
 	detectFunnelGoalSignals,
-	type FunnelConversion,
 	type FunnelDef,
 	type FunnelGoalDeps,
-	type GoalConversion,
 	type GoalDef,
+	remeasureFunnelGoalSignal,
 } from "./funnel-detection";
 import { prepareInvestigation } from "./investigation";
 
@@ -22,6 +22,7 @@ const PARAMS: DetectSignalsParams = {
 
 const FUNNEL: FunnelDef = {
 	createdAt: new Date("2026-05-01T00:00:00.000Z"),
+	description: "A visitor completes checkout.",
 	id: "f1",
 	name: "Checkout",
 	steps: [
@@ -34,6 +35,7 @@ const FUNNEL: FunnelDef = {
 
 const GOAL: GoalDef = {
 	createdAt: new Date("2026-05-01T00:00:00.000Z"),
+	description: "A visitor creates an account.",
 	id: "g1",
 	name: "Signup",
 	type: "EVENT",
@@ -45,16 +47,18 @@ const GOAL: GoalDef = {
 function funnelResult(
 	rate: number,
 	entrants: number,
-	completions = Math.round((rate * entrants) / 100)
-): FunnelConversion {
+	completions = Math.round((rate * entrants) / 100),
+	stepRates = [100, rate]
+): ConversionResult {
 	return {
 		completions,
 		entrants,
 		rate,
-		steps: [
-			{ stepNumber: 1, users: entrants },
-			{ stepNumber: 2, users: completions },
-		],
+		steps: stepRates.map((stepRate, index) => ({
+			name: FUNNEL.steps[index]?.name ?? `Step ${index + 1}`,
+			number: index + 1,
+			rate: stepRate,
+		})),
 	};
 }
 
@@ -62,7 +66,7 @@ function goalResult(
 	rate: number,
 	completions: number,
 	entrants = 100
-): GoalConversion {
+): ConversionResult {
 	return { completions, entrants, rate };
 }
 
@@ -121,6 +125,171 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals).toEqual([]);
 	});
 
+	it("remeasures the same goal below the detector threshold", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 30,
+				current: 10,
+				deltaPercent: -66.67,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				label: 'Goal "Signup" completion rate',
+				method: "wow",
+				metric: "goal:g1",
+				severity: "critical",
+			},
+			7
+		).signal;
+		let call = 0;
+		const current = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchGoals: async () => [GOAL],
+				goalConversion: async () => {
+					call += 1;
+					return call === 1 ? goalResult(21, 21) : goalResult(20, 20);
+				},
+			})
+		);
+
+		expect(current).toMatchObject({
+			current: 21,
+			baseline: 20,
+			deltaPercent: 5,
+			direction: "up",
+			metric: "goal:g1",
+			subjectKey: prior.signalKey,
+		});
+	});
+
+	it("keeps a missing goal measurable as configuration evidence", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 30,
+				current: 10,
+				deltaPercent: -66.67,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				entityLabel: "Signup",
+				label: 'Goal "Signup" completion rate',
+				method: "wow",
+				metric: "goal:g1",
+				severity: "critical",
+			},
+			7
+		).signal;
+		let includeInactive = false;
+		const current = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchGoals: async (include) => {
+					includeInactive = include === true;
+					return [];
+				},
+			})
+		);
+
+		expect(includeInactive).toBe(true);
+		expect(current).toMatchObject({
+			current: 10,
+			baseline: 30,
+			detectedAt: "2026-05-21",
+			metric: "goal:g1",
+			subjectKey: prior.signalKey,
+		});
+		expect(current?.definitionEvidence).toContain(
+			"is no longer present in the website configuration"
+		);
+	});
+
+	it("remeasures disabled and deleted goals with their current state", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 30,
+				current: 10,
+				deltaPercent: -66.67,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				label: 'Goal "Signup" completion rate',
+				method: "wow",
+				metric: "goal:g1",
+				severity: "critical",
+			},
+			7
+		).signal;
+		for (const [goal, state] of [
+			[{ ...GOAL, isActive: false }, "is disabled"],
+			[
+				{ ...GOAL, deletedAt: new Date("2026-05-28T12:00:00.000Z") },
+				"was deleted",
+			],
+		] as const) {
+			let call = 0;
+			const current = await remeasureFunnelGoalSignal(
+				PARAMS,
+				prior,
+				TODAY,
+				makeDeps({
+					fetchGoals: async () => [goal],
+					goalConversion: async () => {
+						call += 1;
+						return call === 1 ? goalResult(21, 21) : goalResult(20, 20);
+					},
+				})
+			);
+
+			expect(current).toMatchObject({ current: 21, baseline: 20 });
+			expect(current?.definitionEvidence).toContain(state);
+		}
+	});
+
+	it("keeps a removed funnel step measurable as configuration evidence", async () => {
+		const prior = prepareInvestigation(
+			{
+				baseline: 40,
+				current: 20,
+				deltaPercent: -50,
+				detectedAt: "2026-05-21",
+				direction: "down",
+				entityLabel: "Checkout → Buy",
+				label: 'Funnel "Checkout" step "Buy" conversion',
+				method: "wow",
+				metric: "funnel:f1",
+				severity: "warning",
+				subjectKey: "funnel:f1:step:2",
+			},
+			7
+		).signal;
+		const funnel = { ...FUNNEL, steps: FUNNEL.steps.slice(0, 1) };
+		let conversions = 0;
+		const current = await remeasureFunnelGoalSignal(
+			PARAMS,
+			prior,
+			TODAY,
+			makeDeps({
+				fetchFunnels: async () => [funnel],
+				funnelConversion: async () => {
+					conversions += 1;
+					return funnelResult(100, 100, 100, [100]);
+				},
+			})
+		);
+
+		expect(conversions).toBe(0);
+		expect(current).toMatchObject({
+			current: 20,
+			baseline: 40,
+			detectedAt: "2026-05-21",
+			metric: "funnel:f1",
+			subjectKey: prior.signalKey,
+		});
+		expect(current?.definitionEvidence).toContain("no longer contains");
+	});
+
 	it("flags a funnel conversion drop above threshold", async () => {
 		let call = 0;
 		const deps = makeDeps({
@@ -137,18 +306,23 @@ describe("detectFunnelGoalSignals", () => {
 
 		expect(signals.length).toBe(1);
 		const signal = signals[0];
-		expect(signal.metric).toBe("funnel:f1");
+		expect(signal).toMatchObject({
+			metric: "funnel:f1",
+			subjectKey: "funnel:f1:step:2",
+			entityLabel: "Checkout → Buy",
+		});
 		expect(signal.direction).toBe("down");
 		expect(signal.deltaPercent).toBe(-50);
 		expect(signal.method).toBe("wow");
 		expect(signal.detectedAt).toBe("2026-05-28");
-		expect(signal.boundary).toEqual({
-			comparison: "at_or_below",
-			value: 16,
+		expect(signal.definitionEvidence).toContain(FUNNEL.description);
+		const investigation = prepareInvestigation(signal, 7).signal;
+		expect(investigation.entity).toEqual({
+			type: "funnel_step",
+			id: "f1:step:2",
+			label: "Checkout → Buy",
 		});
-		expect(signal.definitionEvidence?.summary).toContain(
-			"Definition history: created 2026-05-01; last updated 2026-05-01; comparison started 2026-05-15."
-		);
+		expect(investigation.signalKey).toBe("funnel:f1:step:2");
 	});
 
 	it("flags a funnel conversion rise above threshold", async () => {
@@ -236,10 +410,9 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0].metric).toBe("goal:g1");
 		expect(signals[0].direction).toBe("down");
 		expect(signals[0].deltaPercent).toBe(-50);
-		expect(signals[0].boundary).toEqual({
-			comparison: "at_or_below",
-			value: 4,
-		});
+		expect(signals[0].definitionEvidence).toContain(GOAL.description);
+		expect(signals[0].definitionEvidence).toContain(GOAL.type);
+		expect(signals[0].definitionEvidence).toContain(GOAL.target);
 	});
 
 	it("ignores goals with too few completions", async () => {
@@ -310,22 +483,11 @@ describe("detectFunnelGoalSignals", () => {
 		);
 
 		expect(signals).toHaveLength(1);
-		expect(signals[0]?.definitionEvidence?.metrics).toContainEqual({
-			current: 100,
-			format: "number",
-			label: "Observed visitors",
-		});
-		expect(signals[0]?.definitionEvidence?.summary).toBe(
-			'Signup had 0 completions from 100 observed website visitors. The active goal target is "sign_up". Definition history: created 2026-05-01; last updated 2026-05-01; comparison started 2026-05-15.'
+		expect(signals[0]?.definitionEvidence).toContain(
+			"completed for 0 of 100 observed website visitors"
 		);
-		expect(signals[0]?.definitionEvidence?.summary).not.toContain("eligible");
-		const investigation = prepareInvestigation(signals[0], {
-			lookbackDays: 7,
-			websiteId: PARAMS.websiteId,
-		});
-		expect(investigation.evidence[0]?.summary).toBe(
-			signals[0]?.definitionEvidence?.summary
-		);
+		const investigation = prepareInvestigation(signals[0], 7);
+		expect(investigation.evidence[0]).toBe(signals[0]?.definitionEvidence);
 	});
 
 	it("reports partial regressions without pre-classifying an action", async () => {
@@ -345,12 +507,9 @@ describe("detectFunnelGoalSignals", () => {
 		);
 
 		expect(signals).toHaveLength(1);
-		expect(signals[0]?.definitionEvidence?.metrics).toContainEqual({
-			current: 1,
-			format: "number",
-			label: "Completions",
-			previous: 20,
-		});
+		expect(signals[0]?.definitionEvidence).toContain(
+			"completed for 1 of 100 observed website visitors, compared with 20 previously"
+		);
 	});
 
 	it("keeps the product name as the investigation entity", async () => {
@@ -368,10 +527,7 @@ describe("detectFunnelGoalSignals", () => {
 				},
 			})
 		);
-		const investigation = prepareInvestigation(detected, {
-			lookbackDays: 7,
-			websiteId: PARAMS.websiteId,
-		});
+		const investigation = prepareInvestigation(detected, 7);
 		expect(investigation.signal.entity.label).toBe("Signup");
 	});
 

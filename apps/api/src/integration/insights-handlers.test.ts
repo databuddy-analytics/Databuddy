@@ -1,12 +1,18 @@
 import "@databuddy/test/env";
 
+import { createMcpTools } from "@databuddy/ai/mcp/tools";
 import { eq } from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightObservations,
 	insightReplies,
 } from "@databuddy/db/schema";
-import { appRouter, type Context } from "@databuddy/rpc";
+import {
+	appRouter,
+	createInternalPrincipal,
+	createRPCContext,
+	type Context,
+} from "@databuddy/rpc";
 import {
 	closeInsightsQueue,
 	getInsightsQueue,
@@ -35,12 +41,11 @@ function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	const next: InvestigationOutcome["next"] =
 		nextType === "act"
 			? {
-					action: "Inspect the signup submit path.",
-					kind: "code",
-					owner: "Engineering",
+					action: "Restore signup_completed emission in the signup submit handler.",
 					target: "Signup submit handler",
 					type: "act",
-					verification: "Signup conversion recovers for 24 hours.",
+					verification:
+						"The handler emits signup_completed and signup conversion recovers for 24 hours.",
 				}
 			: {
 					escalation: "Escalate if signup conversion falls another 10%.",
@@ -49,11 +54,11 @@ function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 	return {
 		evidence: ["Signup conversion changed in the measured window."],
 		impact: "Signup completion is affected.",
-		impactConfidence: 0.8,
 		next,
-		rootCause: null,
-		rootCauseConfidence: 0.2,
-		sources: ["web"],
+		rootCause:
+			nextType === "act"
+				? "The signup submit handler stopped emitting completions."
+				: null,
 		summary: "Signup conversion needs attention.",
 		title: "Signup conversion changed",
 	};
@@ -137,7 +142,6 @@ describe("insight investigation timeline", () => {
 			(["goal:signup", "goal:checkout", "goal:activation"] as const).map(
 				(subjectKey, index) => ({
 					asOf: new Date(`2026-01-0${index + 1}T12:00:00.000Z`),
-					evidence: [],
 					id: randomUUIDv7(),
 					insightId:
 						subjectKey === "goal:signup"
@@ -148,11 +152,7 @@ describe("insight investigation timeline", () => {
 					organizationId: organization.id,
 					outcome: investigationOutcome("watch"),
 					recheckAt: new Date("2026-01-10T00:00:00.000Z"),
-					signal: signal(
-						website.id,
-						subjectKey,
-						`2026-01-0${index + 1}`
-					),
+					signal: signal(subjectKey),
 					signalKey: subjectKey,
 					websiteId: website.id,
 				}))
@@ -219,13 +219,7 @@ describe("insight investigation timeline", () => {
 				signalKey,
 				asOf: new Date("2026-01-10T00:00:00.000Z"),
 				createdAt: new Date("2026-01-10T12:00:00.000Z"),
-				signal: signal(website.id, signalKey, "2026-01-10"),
-				evidence: [
-					{
-						source: "product",
-						summary: "Signup conversion fell from 40% to 20%.",
-					},
-				],
+				signal: signal(signalKey),
 				outcome: investigationOutcome("act"),
 				recheckAt: new Date("2026-01-17T00:00:00.000Z"),
 			},
@@ -237,8 +231,7 @@ describe("insight investigation timeline", () => {
 				signalKey,
 				asOf: new Date("2026-01-01T00:00:00.000Z"),
 				createdAt: new Date("2026-01-11T12:00:00.000Z"),
-				signal: signal(website.id, signalKey, "2026-01-01"),
-				evidence: [],
+				signal: signal(signalKey),
 				outcome: investigationOutcome("watch"),
 				recheckAt: new Date("2026-01-18T00:00:00.000Z"),
 			},
@@ -281,7 +274,6 @@ describe("insight investigation timeline", () => {
 			},
 		});
 		expect(result.timeline[0]).not.toHaveProperty("asOf");
-		expect(result.timeline[0]).not.toHaveProperty("outcome.sources");
 		expect(result.timeline[2]).toMatchObject({
 			author: "test",
 			body: "The signup form changed in yesterday's deploy.",
@@ -323,6 +315,132 @@ describe("insight investigation timeline", () => {
 		expect(await db().select().from(insightReplies)).toHaveLength(2);
 	});
 
+	iit("uses one scoped API-key reply across retries", async () => {
+		const organization = await insertOrganization();
+		const website = await insertWebsite({ organizationId: organization.id });
+		await insertWebsite({ organizationId: organization.id });
+		const insightId = randomUUIDv7();
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey: "goal:signup",
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-10T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome: investigationOutcome("watch"),
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+			signal: signal("goal:signup"),
+			signalKey: "goal:signup",
+			websiteId: website.id,
+		});
+
+		const principal = createInternalPrincipal({
+			metadata: {
+				resources: {
+					global: ["manage:flags"],
+					[`website:${website.id}`]: ["read:data", "manage:websites"],
+				},
+			},
+			name: "MCP client",
+			organizationId: organization.id,
+			scopes: [],
+		});
+		const context = await createRPCContext(
+			{ headers: new Headers() },
+			principal
+		);
+		const input = {
+			body: "The deploy completed at noon.",
+			insightId,
+			replyId: "mcp-request-1",
+		};
+		const first = await call(appRouter.insights.reply, context)(input);
+		const mcpTools = createMcpTools({
+			apiKey: principal.apiKey,
+			organizationId: organization.id,
+			requestHeaders: new Headers(),
+			userId: null,
+		});
+		const replyTool = mcpTools.find(
+			(tool) => tool.name === "reply_to_investigation"
+		);
+		const retry = await replyTool?.handler({
+			body: input.body,
+			investigationId: insightId,
+			replyId: input.replyId,
+		});
+
+		expect(retry?.isError).toBe(false);
+		expect(retry?.structuredContent).toEqual({ reply: first.reply });
+		expect(
+			(await mcpTools.find((tool) => tool.name === "list_websites")?.handler({}))
+				?.structuredContent
+		).toEqual({
+			total: 1,
+			websites: [expect.objectContaining({ id: website.id })],
+		});
+		const listed = await mcpTools
+			.find((tool) => tool.name === "list_investigations")
+			?.handler({ limit: 20, offset: 0, websiteId: website.id });
+		expect(listed?.isError).toBe(false);
+		expect(listed?.structuredContent).toMatchObject({
+			investigations: [expect.objectContaining({ id: insightId })],
+		});
+		expect(await db().select().from(insightReplies)).toEqual([
+			expect.objectContaining({
+				authorId: null,
+				authorName: "MCP client",
+				body: input.body,
+				id: input.replyId,
+				insightId,
+			}),
+		]);
+
+		const readOnlyPrincipal = createInternalPrincipal({
+			name: "Read-only MCP client",
+			organizationId: organization.id,
+			scopes: ["read:data"],
+		});
+		const readOnlyContext = await createRPCContext(
+			{ headers: new Headers() },
+			readOnlyPrincipal
+		);
+		expect(
+			(await call(appRouter.insights.getById, readOnlyContext)({ insightId }))
+				.canReply
+		).toBe(false);
+		await expectCode(
+			call(appRouter.insights.reply, readOnlyContext)({
+				body: "I should not be able to reply.",
+				insightId,
+			}),
+			"FORBIDDEN"
+		);
+		const denied = await createMcpTools({
+			apiKey: readOnlyPrincipal.apiKey,
+			organizationId: organization.id,
+			requestHeaders: new Headers(),
+			userId: null,
+		})
+			.find((tool) => tool.name === "reply_to_investigation")
+			?.handler({
+				body: "I should not be able to reply.",
+				investigationId: insightId,
+				replyId: "mcp-denied-request",
+			});
+		expect(denied?.isError).toBe(true);
+		expect(denied?.content[0]).toMatchObject({
+			type: "text",
+			text: expect.stringContaining('"code":"unauthorized"'),
+		});
+	});
+
 	iit("keeps investigation replies read-only for viewers", async () => {
 		const viewer = await signUp();
 		const member = await signUp();
@@ -341,13 +459,12 @@ describe("insight investigation timeline", () => {
 		);
 		await db().insert(insightObservations).values({
 			asOf: new Date("2026-01-10T00:00:00.000Z"),
-			evidence: [],
 			id: randomUUIDv7(),
 			insightId,
 			organizationId: organization.id,
 			outcome: investigationOutcome("watch"),
 			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
-			signal: signal(website.id, "goal:signup", "2026-01-10"),
+			signal: signal("goal:signup"),
 			signalKey: "goal:signup",
 			websiteId: website.id,
 		});
@@ -472,56 +589,33 @@ function insightRow(input: {
 		id: input.id,
 		organizationId: input.organizationId,
 		websiteId: input.websiteId,
-		runId: randomUUIDv7(),
 		title: "Signup conversion fell",
 		description: "Signup conversion fell from 40% to 20%.",
-		suggestion: "Inspect the signup submit path.",
 		severity: "warning",
 		sentiment: "negative",
-		type: "conversion_leak",
-		priority: 8,
 		changePercent: -50,
 		dedupeKey: `${input.websiteId}|${input.subjectKey}`,
 		subjectKey: input.subjectKey,
-		sources: ["web"],
-		confidence: 0.9,
-		metrics: [
-			{ label: "Signup conversion", current: 20, previous: 40, format: "percent" },
-		],
 		timezone: "UTC",
-		currentPeriodFrom: "2026-01-04",
-		currentPeriodTo: "2026-01-10",
-		previousPeriodFrom: "2025-12-28",
-		previousPeriodTo: "2026-01-03",
 	};
 }
 
-function signal(websiteId: string, signalKey: string, detectedAt: string) {
+function signal(signalKey: string) {
 	return {
 		signalKey,
-		websiteId,
-		insightType: "conversion_leak" as const,
 		entity: { type: "goal" as const, id: "signup", label: "Signup" },
 		metric: {
-			key: signalKey,
 			label: "Signup conversion",
 			current: 20,
 			previous: 40,
 			format: "percent" as const,
 		},
 		changePercent: -50,
-		direction: "down" as const,
 		severity: "warning" as const,
 		sentiment: "negative" as const,
-		priority: 8,
 		period: {
 			current: { from: "2026-01-04", to: "2026-01-10" },
 			previous: { from: "2025-12-28", to: "2026-01-03" },
-		},
-		detectedAt,
-		detection: {
-			method: "period_comparison" as const,
-			reason: "Signup conversion fell by 50% week over week.",
 		},
 	};
 }

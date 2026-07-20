@@ -19,52 +19,12 @@ export const weekOverWeekPeriodSchema = z
 
 export type WeekOverWeekPeriod = z.infer<typeof weekOverWeekPeriodSchema>;
 
-const generatedInsightTypes = [
-	"error_spike",
-	"new_errors",
-	"vitals_degraded",
-	"custom_event_spike",
-	"traffic_drop",
-	"traffic_spike",
-	"bounce_rate_change",
-	"engagement_change",
-	"referrer_change",
-	"page_trend",
-	"positive_trend",
-	"performance",
-	"uptime_issue",
-	"conversion_leak",
-	"funnel_regression",
-	"channel_concentration",
-	"reliability_improved",
-	"persistent_error_hotspot",
-	"quality_shift",
-	"performance_improved",
-	"segment_regression",
-	"error_impact",
-	"cross_signal",
-] as const;
-
 export const insightSeveritySchema = z.enum(["critical", "warning", "info"]);
 export const insightSentimentSchema = z.enum([
 	"positive",
 	"neutral",
 	"negative",
 ]);
-export const insightSourceSchema = z.enum([
-	"web",
-	"product",
-	"ops",
-	"business",
-	"code",
-]);
-const generatedInsightTypeSchema = z.enum(generatedInsightTypes);
-export const storedInsightTypeSchema = z.enum([
-	...generatedInsightTypes,
-	"cross_property_dependency",
-	"deploy_correlation",
-]);
-
 export const insightMetricSchema = z.object({
 	label: z
 		.string()
@@ -75,19 +35,6 @@ export const insightMetricSchema = z.object({
 		.enum(["number", "percent", "duration_ms", "duration_s"])
 		.default("number"),
 });
-
-export const insightEvidenceSchema = z.object({
-	type: z.enum(["segment", "error", "annotation", "temporal", "metric"]),
-	description: z.string(),
-});
-
-const insightRemediationKindSchema = z.enum([
-	"code",
-	"tracking",
-	"configuration",
-	"campaign",
-	"operations",
-]);
 
 const investigationKeySchema = z.string().trim().min(1).max(160);
 
@@ -106,106 +53,81 @@ const investigationEntitySchema = z
 			"campaign",
 			"uptime_monitor",
 		]),
-		id: investigationKeySchema,
+		id: z.string().min(1),
 		label: z.string().trim().min(1).max(120),
 	})
 	.strict();
 
-export const investigationSignalSchema = z
-	.object({
-		signalKey: investigationKeySchema.describe(
-			"Backend-owned identity for this exact signal."
-		),
-		websiteId: investigationKeySchema,
-		insightType: generatedInsightTypeSchema,
-		entity: investigationEntitySchema,
-		metric: insightMetricSchema
-			.extend({
-				key: investigationKeySchema,
-			})
-			.strict(),
-		changePercent: z.number().nullable(),
-		direction: z.enum(["up", "down", "flat"]),
-		severity: insightSeveritySchema,
-		sentiment: insightSentimentSchema,
-		priority: z.number().int().min(1).max(10),
-		period: weekOverWeekPeriodSchema,
-		detectedAt: z.iso.date(),
-		detection: z
-			.object({
-				method: z.enum(["zscore", "period_comparison", "rule"]),
-				reason: z.string().trim().min(1).max(300),
-				baselineDates: z.array(z.iso.date()).min(6).max(90).optional(),
-				boundary: z
-					.object({
-						comparison: z.enum(["at_or_above", "at_or_below"]),
-						value: z.number(),
-					})
-					.strict()
-					.optional(),
-			})
-			.strict(),
-	})
-	.strict()
-	.superRefine((signal, context) => {
-		const baselineDates = signal.detection.baselineDates;
-		if (signal.detection.method === "zscore" && !baselineDates) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Z-score signals require their exact comparable baseline dates",
-				path: ["detection", "baselineDates"],
-			});
-			return;
-		}
-		if (signal.detection.method !== "zscore" && baselineDates) {
-			context.addIssue({
-				code: "custom",
-				message: "Only Z-score signals may include sparse baseline dates",
-				path: ["detection", "baselineDates"],
-			});
-			return;
-		}
-		if (!baselineDates) {
-			return;
-		}
-		const uniqueDates = [...new Set(baselineDates)].sort();
-		if (
-			uniqueDates.length !== baselineDates.length ||
-			uniqueDates[0] !== signal.period.previous.from ||
-			uniqueDates.at(-1) !== signal.period.previous.to
-		) {
-			context.addIssue({
-				code: "custom",
-				message:
-					"Z-score baseline dates must be unique and match the comparison envelope",
-				path: ["detection", "baselineDates"],
-			});
-		}
-	});
+const investigationSignalShape = {
+	signalKey: investigationKeySchema.describe(
+		"Backend-owned identity for this exact signal."
+	),
+	entity: investigationEntitySchema,
+	metric: insightMetricSchema,
+	changePercent: z.number().nullable(),
+	severity: insightSeveritySchema,
+	sentiment: insightSentimentSchema,
+	period: weekOverWeekPeriodSchema,
+	baselineDates: z.array(z.iso.date()).min(6).max(90).optional(),
+};
 
-export const investigationEvidenceSchema = z
-	.object({
-		source: insightSourceSchema,
-		summary: z.string().trim().min(1).max(500),
-		metrics: z.array(insightMetricSchema).max(10).optional(),
-	})
-	.strict();
+function validateBaselineDates(
+	signal: z.infer<z.ZodObject<typeof investigationSignalShape>>,
+	context: z.core.$RefinementCtx<
+		z.infer<z.ZodObject<typeof investigationSignalShape>>
+	>
+) {
+	const { baselineDates } = signal;
+	if (!baselineDates) {
+		return;
+	}
+	const uniqueDates = [...new Set(baselineDates)].sort();
+	if (
+		uniqueDates.length !== baselineDates.length ||
+		uniqueDates[0] !== signal.period.previous.from ||
+		uniqueDates.at(-1) !== signal.period.previous.to
+	) {
+		context.addIssue({
+			code: "custom",
+			message:
+				"Z-score baseline dates must be unique and match the comparison envelope",
+			path: ["baselineDates"],
+		});
+	}
+}
+
+export const investigationSignalSchema = z
+	.object(investigationSignalShape)
+	.strict()
+	.superRefine(validateBaselineDates);
+
+const storedInvestigationSignalSchema = z
+	.object(investigationSignalShape)
+	.strip()
+	.superRefine(validateBaselineDates);
 
 const investigationNextSchema = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal("act"),
-		action: z.string().trim().min(1),
-		kind: insightRemediationKindSchema,
-		owner: z.string().trim().min(1),
+		action: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"Concrete product, code, tracking, or configuration change; not more investigation or monitoring."
+			),
 		target: z.string().trim().min(1),
 		verification: z.string().trim().min(1),
 	}),
 	z.object({
 		type: z.literal("ask"),
-		question: z.string().trim().min(1),
-		who: z.string().trim().min(1),
-		why: z.string().trim().min(1),
+		question: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"One self-contained question naming the subject, proposed interpretation, and decision it unlocks."
+			),
 	}),
 	z.object({
 		type: z.literal("watch"),
@@ -219,31 +141,145 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 
 export const investigationOutcomeSchema = z
 	.object({
-		title: z.string().trim().min(1),
-		summary: z.string().trim().min(1),
-		impact: z.string().trim().min(1).nullable(),
-		rootCause: z.string().trim().min(1).nullable(),
-		rootCauseConfidence: z.number().min(0).max(1),
-		impactConfidence: z.number().min(0).max(1),
-		evidence: z.array(z.string().trim().min(1)).min(1).max(3),
-		sources: z.array(insightSourceSchema).min(1).max(5),
+		title: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"Customer-facing title that names the exact entity, page, event, error, goal, or funnel."
+			),
+		summary: z
+			.string()
+			.trim()
+			.min(1)
+			.describe("What changed, with its exact subject, values, and timeframe."),
+		impact: z
+			.string()
+			.trim()
+			.min(1)
+			.nullable()
+			.describe(
+				"Measured material user, workflow, revenue, or decision impact; null when only the metric change is known."
+			),
+		rootCause: z
+			.string()
+			.trim()
+			.min(1)
+			.nullable()
+			.describe(
+				"Known mechanism only; use null for unknown, suspected, or merely correlated explanations."
+			),
+		evidence: z.array(z.string().trim().min(1)).min(1).max(2),
 		next: investigationNextSchema,
+	})
+	.strip()
+	.superRefine((outcome, context) => {
+		if (outcome.next.type === "act" && outcome.impact === null) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions require measured impact",
+				path: ["impact"],
+			});
+		}
+		if (outcome.next.type === "act" && outcome.rootCause === null) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions require a known mechanism",
+				path: ["rootCause"],
+			});
+		}
+	});
+
+const insightStatusSchema = z.enum(["open", "resolved"]);
+const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
+export const insightReplyStatusSchema = z.enum([
+	"queued",
+	"running",
+	"succeeded",
+	"failed",
+]);
+
+export const insightReplySlackDeliverySchema = z
+	.object({
+		channelId: z.string().trim().min(1).max(255),
+		threadTs: z.string().trim().min(1).max(64),
+		type: z.literal("slack"),
 	})
 	.strict();
 
+export const historyInsightSchema = z.object({
+	changePercent: z.number().optional(),
+	description: z.string(),
+	id: z.string(),
+	resolvedReason: insightResolvedReasonSchema.nullable(),
+	sentiment: insightSentimentSchema,
+	severity: insightSeveritySchema,
+	status: insightStatusSchema,
+	title: z.string(),
+	websiteDomain: z.string(),
+	websiteId: z.string(),
+	websiteName: z.string().nullable(),
+});
+
+const insightTimelineInvestigationSchema = z.object({
+	createdAt: z.string(),
+	id: z.string(),
+	kind: z.literal("investigation"),
+	outcome: investigationOutcomeSchema,
+	period: weekOverWeekPeriodSchema,
+	subject: z.string(),
+});
+
+export const insightTimelineReplySchema = z.object({
+	author: z.string(),
+	body: z.string(),
+	createdAt: z.string(),
+	id: z.string(),
+	kind: z.literal("reply"),
+	status: insightReplyStatusSchema,
+});
+
+export const insightTimelineItemSchema = z.discriminatedUnion("kind", [
+	insightTimelineInvestigationSchema,
+	insightTimelineReplySchema,
+]);
+
 export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
-export type InsightSource = z.infer<typeof insightSourceSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
-export type InsightEvidence = z.infer<typeof insightEvidenceSchema>;
-export type StoredInsightType = z.infer<typeof storedInsightTypeSchema>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
-export type InvestigationEvidence = z.infer<typeof investigationEvidenceSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
+export type InsightReplySlackDelivery = z.infer<
+	typeof insightReplySlackDeliverySchema
+>;
+
+export function formatInvestigationNext(
+	outcome: InvestigationOutcome,
+	signal: InvestigationSignal
+): string {
+	const next = outcome.next;
+	if (next.type === "act") {
+		return `${next.action} Target: ${next.target}. Verify: ${next.verification}`;
+	}
+	if (next.type === "ask") {
+		return next.question;
+	}
+	if (next.type === "watch") {
+		return `Watch ${signal.metric.label}. Escalate: ${next.escalation}`;
+	}
+	return next.reason;
+}
 
 export function parseInvestigationOutcome(
 	value: unknown
 ): InvestigationOutcome | null {
 	const direct = investigationOutcomeSchema.safeParse(value);
 	return direct.success ? direct.data : null;
+}
+
+export function parseInvestigationSignal(
+	value: unknown
+): InvestigationSignal | null {
+	const result = storedInvestigationSignalSchema.safeParse(value);
+	return result.success ? result.data : null;
 }

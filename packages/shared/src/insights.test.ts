@@ -1,52 +1,44 @@
 import { describe, expect, it } from "bun:test";
 import {
-	investigationEvidenceSchema,
 	investigationOutcomeSchema,
 	investigationSignalSchema,
 	parseInvestigationOutcome,
+	parseInvestigationSignal,
 } from "./insights";
 
 const signal = {
 	signalKey: "site-1|goal|signup|completion_rate",
-	websiteId: "site-1",
-	insightType: "conversion_leak" as const,
 	entity: {
 		type: "goal" as const,
 		id: "signup",
 		label: "Signup completed",
 	},
 	metric: {
-		key: "goal_completion_rate",
 		label: "Signup completion rate",
 		current: 0,
 		previous: 0.18,
 		format: "percent" as const,
 	},
 	changePercent: -100,
-	direction: "down" as const,
 	severity: "critical" as const,
 	sentiment: "negative" as const,
-	priority: 10,
 	period: {
 		current: { from: "2026-07-01", to: "2026-07-07" },
 		previous: { from: "2026-06-24", to: "2026-06-30" },
 	},
-	detectedAt: "2026-07-08",
-	detection: {
-		method: "rule" as const,
-		reason: "The configured goal received traffic but no completions.",
-		boundary: { comparison: "at_or_below" as const, value: 0.14 },
-	},
-};
-
-const evidenceBase = {
-	source: "product" as const,
-	summary: "The goal is configured for signup_completed.",
 };
 
 describe("investigationSignalSchema", () => {
 	it("accepts a complete backend-owned signal", () => {
 		expect(investigationSignalSchema.parse(signal)).toEqual(signal);
+		expect(
+			parseInvestigationSignal({
+				...signal,
+				detection: { method: "period_comparison" },
+				metric: { ...signal.metric, key: signal.signalKey },
+				websiteId: "legacy-site-id",
+			})
+		).toEqual(signal);
 	});
 
 	it("requires exact entity identity and comparison windows", () => {
@@ -76,7 +68,7 @@ describe("investigationSignalSchema", () => {
 		).toBe(false);
 	});
 
-	it("requires exact sparse baseline dates for zscore signals", () => {
+	it("keeps sparse baseline dates inside the comparison envelope", () => {
 		const baselineDates = [
 			"2026-06-24",
 			"2026-06-25",
@@ -91,58 +83,28 @@ describe("investigationSignalSchema", () => {
 				...signal.period,
 				previous: { from: baselineDates[0], to: baselineDates.at(-1) },
 			},
-			detection: {
-				method: "zscore",
-				reason: "The latest day differs from comparable historical days.",
-				baselineDates,
-			},
+			baselineDates,
 		};
 
 		expect(investigationSignalSchema.safeParse(zscoreSignal).success).toBe(true);
 		expect(
 			investigationSignalSchema.safeParse({
 				...zscoreSignal,
-				detection: { ...zscoreSignal.detection, baselineDates: undefined },
-			}).success
-		).toBe(false);
-		expect(
-			investigationSignalSchema.safeParse({
-				...zscoreSignal,
-				detection: {
-					...zscoreSignal.detection,
-					baselineDates: baselineDates.slice(1),
-				},
-			}).success
-		).toBe(false);
-	});
-});
-
-describe("investigationEvidenceSchema", () => {
-	it("keeps one concise context fact", () => {
-		expect(investigationEvidenceSchema.safeParse(evidenceBase).success).toBe(
-			true
-		);
-		expect(
-			investigationEvidenceSchema.safeParse({
-				...evidenceBase,
-				status: "ok",
+				baselineDates: baselineDates.slice(1),
 			}).success
 		).toBe(false);
 	});
 });
 
 const outcomeBase = {
-	title: "Checkout submission is failing",
-	summary: "Checkout failures began after the latest handler change.",
-	impact: "The failure blocked 18 checkout attempts.",
+	title: "Checkout recovered after rollback",
+	summary: "Checkout failures ended after the latest handler change was rolled back.",
+	impact: "The failure blocked 18 checkout attempts before the rollback.",
 	rootCause: null,
-	rootCauseConfidence: 0.4,
-	impactConfidence: 0,
-	evidence: ["The checkout handler changed before failures increased."],
-	sources: ["code" as const],
+	evidence: ["Checkout submissions resumed after the handler rollback."],
 	next: {
 		type: "resolve" as const,
-		reason: "The change was rolled back.",
+		reason: "Checkout submissions returned to their previous success rate.",
 	},
 };
 
@@ -153,18 +115,48 @@ describe("investigationOutcomeSchema", () => {
 			investigationOutcomeSchema.safeParse({ ...outcomeBase, impact: null })
 				.success
 		).toBe(true);
-	});
-
-	it("keeps copy editorial and requires the outcome structure", () => {
+			expect(
+				investigationOutcomeSchema.safeParse({
+					...outcomeBase,
+					impact: null,
+					rootCause:
+						"The handler change dropped valid checkout submissions.",
+					next: {
+					action: "Roll back the checkout handler.",
+					target: "Checkout handler",
+					type: "act",
+					verification: "Checkout attempts succeed again.",
+				},
+			}).success
+		).toBe(false);
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
-				summary: "x".repeat(401),
+				next: {
+					action: "Roll back the checkout handler.",
+					target: "Checkout handler",
+					type: "act",
+					verification: "Checkout attempts succeed again.",
+				},
+			}).success
+		).toBe(false);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				impact: null,
+				next: {
+					type: "ask",
+					question:
+						"Does ‘Checkout completed’ mean a successful charge? If yes, I’ll correct the goal to the payment event; if not, I’ll keep the current submission definition.",
+				},
 			}).success
 		).toBe(true);
+	});
+
+	it("requires concise evidence", () => {
 		for (const invalid of [
 			{ ...outcomeBase, evidence: [] },
-			{ ...outcomeBase, evidence: Array(6).fill("Measured fact") },
+			{ ...outcomeBase, evidence: Array(3).fill("Measured fact") },
 		]) {
 			expect(investigationOutcomeSchema.safeParse(invalid).success).toBe(false);
 		}
@@ -172,6 +164,13 @@ describe("investigationOutcomeSchema", () => {
 
 	it("reads the canonical outcome", () => {
 		expect(parseInvestigationOutcome(outcomeBase)).toEqual(outcomeBase);
+		expect(
+			parseInvestigationOutcome({
+				...outcomeBase,
+				impactConfidence: 0.8,
+				sources: ["web"],
+			})
+		).toEqual(outcomeBase);
 		expect(parseInvestigationOutcome({ title: "Incomplete" })).toBeNull();
 	});
 });

@@ -1,48 +1,31 @@
-import { and, db, eq, inArray, isNull, ne, sql } from "@databuddy/db";
+import {
+	and,
+	db,
+	eq,
+	inArray,
+	isNotNull,
+	isNull,
+	ne,
+	sql,
+} from "@databuddy/db";
 import {
 	insightRunEffects,
 	insightRunItems,
 	type InsightRunPreparedStatus,
 } from "@databuddy/db/schema";
 import { randomUUIDv7 } from "bun";
-import { z } from "zod";
 import {
 	deliverInsightSlackEffect,
+	insightSlackEffectPayloadSchema,
 	type InsightSlackEffectPayload,
 } from "./delivery";
 
-const slackBlockSchema = z
-	.object({
-		accessory: z.unknown().optional(),
-		elements: z.array(z.unknown()).optional(),
-		text: z
-			.object({
-				emoji: z.boolean().optional(),
-				text: z.string(),
-				type: z.string(),
-			})
-			.strict()
-			.optional(),
-		type: z.string(),
-	})
-	.strict();
-
-const insightSlackEffectPayloadSchema = z
-	.object({
-		blocks: z.array(slackBlockSchema).max(50),
-		channelId: z.string().min(1),
-		organizationId: z.string().min(1),
-		text: z.string().min(1),
-		websiteId: z.string().min(1),
-	})
-	.strict();
-
-export interface InsightRunEffectInput {
+interface InsightRunEffectInput {
 	effectKey: string;
 	payload: InsightSlackEffectPayload;
 }
 
-export interface PreparedResult {
+interface PreparedResult {
 	message?: string;
 	resultCount: number;
 	status: InsightRunPreparedStatus;
@@ -145,16 +128,11 @@ export function prepareInsightRun(
 		result: PreparedResult;
 	}
 ): Promise<PreparedResult> {
-	const effects = params.effects.map((effect) => {
-		const payload = insightSlackEffectPayloadSchema.parse(effect.payload);
-		if (
-			payload.organizationId !== params.organizationId ||
-			payload.websiteId !== params.websiteId
-		) {
-			throw new Error("Insight effect identity does not match its run item");
-		}
-		return { ...effect, id: randomUUIDv7(), payload };
-	});
+	const effects = params.effects.map((effect) => ({
+		...effect,
+		id: randomUUIDv7(),
+		payload: insightSlackEffectPayloadSchema.parse(effect.payload),
+	}));
 	return db.transaction(async (tx) => {
 		const [item] = await tx
 			.select({
@@ -282,6 +260,7 @@ export async function drainInsightRunEffects(
 	}
 	const effects = await db
 		.select({
+			effectKey: insightRunEffects.effectKey,
 			id: insightRunEffects.id,
 			payload: insightRunEffects.payload,
 		})
@@ -322,9 +301,36 @@ export async function drainInsightRunEffects(
 		let externalId: string | null;
 		try {
 			const payload = insightSlackEffectPayloadSchema.parse(effect.payload);
+			const [root] = payload.insightId
+				? await db
+						.select({ externalId: insightRunEffects.externalId })
+						.from(insightRunEffects)
+						.innerJoin(
+							insightRunItems,
+							eq(insightRunEffects.runItemId, insightRunItems.id)
+						)
+						.where(
+							and(
+								eq(insightRunItems.organizationId, identity.organizationId),
+								eq(insightRunItems.websiteId, identity.websiteId),
+								eq(insightRunEffects.effectKey, effect.effectKey),
+								eq(insightRunEffects.status, "succeeded"),
+								isNotNull(insightRunEffects.externalId),
+								sql`${insightRunEffects.payload}->>'insightId' = ${payload.insightId}`
+							)
+						)
+						.orderBy(insightRunEffects.createdAt, insightRunEffects.id)
+						.limit(1)
+				: [];
 			externalId = await (handlers.slack ?? deliverInsightSlackEffect)(
 				payload,
-				effect.id
+				{
+					channelId: effect.effectKey,
+					organizationId: identity.organizationId,
+					websiteId: identity.websiteId,
+				},
+				effect.id,
+				root?.externalId ?? undefined
 			);
 		} catch (error) {
 			firstError ??= error;
@@ -370,9 +376,6 @@ export async function drainInsightRunEffects(
 	);
 }
 
-export interface InsightEffectHandlers {
-	slack?: (
-		payload: InsightSlackEffectPayload,
-		clientMessageId: string
-	) => Promise<string | null>;
+interface InsightEffectHandlers {
+	slack?: typeof deliverInsightSlackEffect;
 }

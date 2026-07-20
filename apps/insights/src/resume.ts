@@ -15,6 +15,12 @@ import {
 	invalidateAgentContextSnapshotsForWebsite,
 	invalidateInsightsCachesForOrganization,
 } from "@databuddy/redis";
+import { createServiceAuth } from "@databuddy/rpc";
+import {
+	insightReplySlackDeliverySchema,
+	parseInvestigationOutcome,
+	parseInvestigationSignal,
+} from "@databuddy/shared/insights";
 import { randomUUIDv7 } from "bun";
 import {
 	type InsightAgentInput,
@@ -22,10 +28,13 @@ import {
 	runInsightAgent,
 } from "./agent";
 import { loadInvestigationHistory, nextRecheckAt } from "./observations";
-import { caseValues, isVisibleInvestigation } from "./persistence";
+import { refreshInvestigationSignal } from "./generation";
+import { caseValues } from "./persistence";
 import { captureInsightsError } from "./lib/evlog-insights";
+import { deliverInsightSlackReply } from "./delivery";
 
 type Investigate = (input: InsightAgentInput) => Promise<InsightAgentResult>;
+type Refresh = typeof refreshInvestigationSignal;
 
 async function invalidateCaseCaches(
 	organizationId: string,
@@ -44,9 +53,60 @@ async function invalidateCaseCaches(
 	}
 }
 
+async function deliverCompletedSlackReply(
+	replyId: string,
+	target: {
+		organizationId: string;
+		slackDelivery: unknown;
+		websiteId: string;
+	},
+	deliver: typeof deliverInsightSlackReply
+): Promise<void> {
+	if (!target.slackDelivery) {
+		return;
+	}
+	const slackDelivery = insightReplySlackDeliverySchema.parse(
+		target.slackDelivery
+	);
+	const [observation] = await db
+		.select({
+			outcome: insightObservations.outcome,
+			signal: insightObservations.signal,
+		})
+		.from(insightReplies)
+		.innerJoin(
+			insightObservations,
+			eq(insightReplies.observationId, insightObservations.id)
+		)
+		.where(
+			and(
+				eq(insightReplies.id, replyId),
+				eq(insightObservations.organizationId, target.organizationId),
+				eq(insightObservations.websiteId, target.websiteId)
+			)
+		)
+		.limit(1);
+	const outcome = parseInvestigationOutcome(observation?.outcome);
+	const signal = parseInvestigationSignal(observation?.signal);
+	if (!(outcome && signal)) {
+		throw new Error("The completed investigation result is unavailable");
+	}
+	await deliver({
+		clientMessageId: `${replyId}-success`,
+		context: {
+			...slackDelivery,
+			organizationId: target.organizationId,
+			websiteId: target.websiteId,
+		},
+		result: { outcome, signal },
+	});
+}
+
 export async function resumeInsightReply(
 	replyId: string,
-	investigate: Investigate = runInsightAgent
+	investigate: Investigate = runInsightAgent,
+	deliverSlackReply: typeof deliverInsightSlackReply = deliverInsightSlackReply,
+	refresh: Refresh = refreshInvestigationSignal
 ): Promise<"skipped" | "succeeded"> {
 	const [trigger] = await db
 		.select({
@@ -56,11 +116,13 @@ export async function resumeInsightReply(
 			insightId: analyticsInsights.id,
 			integrations: websites.integrations,
 			organizationId: analyticsInsights.organizationId,
+			slackDelivery: insightReplies.slackDelivery,
 			status: insightReplies.status,
 			subjectKey: analyticsInsights.subjectKey,
 			timezone: analyticsInsights.timezone,
 			websiteDomain: websites.domain,
 			websiteId: analyticsInsights.websiteId,
+			websiteName: websites.name,
 		})
 		.from(insightReplies)
 		.innerJoin(
@@ -75,6 +137,7 @@ export async function resumeInsightReply(
 		return "skipped";
 	}
 	if (trigger.status === "succeeded") {
+		await deliverCompletedSlackReply(replyId, trigger, deliverSlackReply);
 		return "succeeded";
 	}
 
@@ -130,24 +193,9 @@ export async function resumeInsightReply(
 		latest = history[index];
 	}
 	if (!latest || latest.kind !== "investigation") {
-		throw new Error(
-			"This older finding has no investigation history to resume"
-		);
+		throw new Error("This investigation has no history to resume");
 	}
 
-	const startedAt = new Date();
-	const chatId = `insights:${trigger.organizationId}:${trigger.websiteId}:${latest.signal.signalKey}`;
-	const appContext: AppContext = {
-		chatId,
-		currentDateTime: startedAt.toISOString(),
-		defaultWebsiteId: trigger.websiteId,
-		mutationMode: "dry-run",
-		organizationId: trigger.organizationId,
-		timezone: trigger.timezone,
-		userId: trigger.authorId ?? "system",
-		websiteDomain: trigger.websiteDomain,
-		websiteId: trigger.websiteId,
-	};
 	const billingCustomerId = await resolveAgentBillingCustomerId({
 		organizationId: trigger.organizationId,
 		userId: trigger.authorId,
@@ -155,17 +203,41 @@ export async function resumeInsightReply(
 	if (!(await ensureAgentCreditsAvailable(billingCustomerId))) {
 		throw new Error("AI usage allowance is empty");
 	}
+	const startedAt = new Date();
+	const currentMeasurement = await refresh({
+		asOf: startedAt,
+		signal: latest.signal,
+		timezone: trigger.timezone,
+		websiteId: trigger.websiteId,
+	});
+	if (!currentMeasurement) {
+		throw new Error("The current investigation measurement is unavailable");
+	}
+	const chatId = `insights:${trigger.organizationId}:${trigger.websiteId}:${currentMeasurement.signal.signalKey}`;
+	const appContext: AppContext = {
+		chatId,
+		currentDateTime: startedAt.toISOString(),
+		defaultWebsiteId: trigger.websiteId,
+		mutationMode: "dry-run",
+		organizationId: trigger.organizationId,
+		serviceAuth: createServiceAuth(trigger.organizationId, ["read:data"]),
+		timezone: trigger.timezone,
+		userId: trigger.authorId ?? "system",
+		websiteDomain: trigger.websiteDomain,
+		websiteId: trigger.websiteId,
+		websiteName: trigger.websiteName,
+	};
 
 	const result = await investigate({
 		appContext,
-		evidence: latest.evidence,
+		evidence: currentMeasurement.evidence,
 		githubRepository: trigger.integrations?.github ?? null,
 		history,
 		request: {
 			body: trigger.body,
 			createdAt: trigger.createdAt.toISOString(),
 		},
-		signal: latest.signal,
+		signal: currentMeasurement.signal,
 	});
 	const committed = await db.transaction(async (tx) => {
 		const [locked] = await tx
@@ -182,23 +254,18 @@ export async function resumeInsightReply(
 		}
 
 		const committedAt = new Date();
-		const visible = isVisibleInvestigation({ outcome: result.outcome });
-		const resolvedReason = visible
-			? null
-			: result.outcome.next.type === "resolve"
-				? ("recovered" as const)
-				: ("stale" as const);
+		const open = result.outcome.next.type !== "resolve";
 		const updated = await tx
 			.update(analyticsInsights)
 			.set({
 				...caseValues(
-					{ outcome: result.outcome, signal: latest.signal },
+					{ outcome: result.outcome, signal: currentMeasurement.signal },
 					trigger.timezone
 				),
 				createdAt: committedAt,
-				resolvedAt: visible ? null : committedAt,
-				resolvedReason,
-				status: visible ? "open" : "resolved",
+				resolvedAt: open ? null : committedAt,
+				resolvedReason: open ? null : "recovered",
+				status: open ? "open" : "resolved",
 			})
 			.where(
 				and(
@@ -213,22 +280,23 @@ export async function resumeInsightReply(
 			throw new Error("The investigation changed while the reply was running");
 		}
 
+		const observationId = randomUUIDv7();
 		await tx.insert(insightObservations).values({
 			asOf: committedAt,
-			evidence: latest.evidence,
-			id: randomUUIDv7(),
+			evidence: currentMeasurement.evidence,
+			id: observationId,
 			insightId: current.id,
 			organizationId: trigger.organizationId,
 			outcome: result.outcome,
 			recheckAt: nextRecheckAt(committedAt, result.outcome.next.type),
 			runId: null,
-			signal: latest.signal,
-			signalKey: latest.signal.signalKey,
+			signal: currentMeasurement.signal,
+			signalKey: currentMeasurement.signal.signalKey,
 			websiteId: trigger.websiteId,
 		});
 		await tx
 			.update(insightReplies)
-			.set({ status: "succeeded" })
+			.set({ observationId, status: "succeeded" })
 			.where(eq(insightReplies.id, replyId));
 		return true;
 	});
@@ -257,14 +325,16 @@ export async function resumeInsightReply(
 		}
 		await invalidateCaseCaches(trigger.organizationId, trigger.websiteId);
 	}
+	await deliverCompletedSlackReply(replyId, trigger, deliverSlackReply);
 	return "succeeded";
 }
 
 export async function recordInsightReplyFailure(
 	replyId: string,
-	finalAttempt: boolean
+	finalAttempt: boolean,
+	deliverSlackFailure: typeof deliverInsightSlackReply = deliverInsightSlackReply
 ): Promise<void> {
-	await db
+	const [failed] = await db
 		.update(insightReplies)
 		.set({ status: finalAttempt ? "failed" : "queued" })
 		.where(
@@ -272,5 +342,32 @@ export async function recordInsightReplyFailure(
 				eq(insightReplies.id, replyId),
 				ne(insightReplies.status, "succeeded")
 			)
-		);
+		)
+		.returning({ slackDelivery: insightReplies.slackDelivery });
+	if (!(finalAttempt && failed?.slackDelivery)) {
+		return;
+	}
+	const slackDelivery = insightReplySlackDeliverySchema.parse(
+		failed.slackDelivery
+	);
+	const [target] = await db
+		.select({
+			organizationId: analyticsInsights.organizationId,
+			websiteId: analyticsInsights.websiteId,
+		})
+		.from(insightReplies)
+		.innerJoin(
+			analyticsInsights,
+			eq(insightReplies.insightId, analyticsInsights.id)
+		)
+		.where(eq(insightReplies.id, replyId))
+		.limit(1);
+	if (!target) {
+		return;
+	}
+	await deliverSlackFailure({
+		clientMessageId: `${replyId}-failure`,
+		context: { ...slackDelivery, ...target },
+		result: null,
+	});
 }

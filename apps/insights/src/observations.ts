@@ -5,13 +5,16 @@ import {
 	insightReplies,
 } from "@databuddy/db/schema";
 import type { InvestigationOutcome } from "@databuddy/shared/insights";
-import { parseInvestigationOutcome } from "@databuddy/shared/insights";
+import {
+	parseInvestigationOutcome,
+	parseInvestigationSignal,
+} from "@databuddy/shared/insights";
 import type { DetectedSignal } from "./detection";
 import type { InsightAgentInput } from "./agent";
 import { isRegression, signalKeyForDetectedSignal } from "./investigation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const HISTORY_LIMIT = 40;
+const HISTORY_LIMIT = 12;
 const MATERIALLY_WORSE_MULTIPLIER = 1.5;
 const SEVERITY_RANK: Record<string, number> = {
 	info: 0,
@@ -39,8 +42,12 @@ function isMateriallyWorse(
 
 export type LatestInsightObservation = Pick<
 	typeof insightObservations.$inferSelect,
-	"asOf" | "evidence" | "outcome" | "recheckAt" | "signal"
+	"outcome" | "recheckAt" | "signal"
 >;
+
+export interface DueOpenInvestigation extends LatestInsightObservation {
+	evidence: string[];
+}
 
 export function nextRecheckAt(
 	asOf: Date,
@@ -100,8 +107,6 @@ export async function loadLatestSignalObservations(params: {
 	}
 	const rows = await db
 		.selectDistinctOn([insightObservations.signalKey], {
-			asOf: insightObservations.asOf,
-			evidence: insightObservations.evidence,
 			outcome: insightObservations.outcome,
 			signalKey: insightObservations.signalKey,
 			signal: insightObservations.signal,
@@ -125,11 +130,60 @@ export async function loadLatestSignalObservations(params: {
 	const observations = new Map<string, LatestInsightObservation>();
 	for (const row of rows) {
 		const outcome = parseInvestigationOutcome(row.outcome);
-		if (outcome) {
-			observations.set(row.signalKey, { ...row, outcome });
+		const signal = parseInvestigationSignal(row.signal);
+		if (outcome && signal) {
+			observations.set(row.signalKey, { ...row, outcome, signal });
 		}
 	}
 	return observations;
+}
+
+export async function loadDueOpenInvestigation(params: {
+	asOf: Date;
+	organizationId: string;
+	websiteId: string;
+}): Promise<DueOpenInvestigation | null> {
+	const rows = await db
+		.selectDistinctOn([insightObservations.signalKey], {
+			evidence: insightObservations.evidence,
+			outcome: insightObservations.outcome,
+			recheckAt: insightObservations.recheckAt,
+			signal: insightObservations.signal,
+			signalKey: insightObservations.signalKey,
+		})
+		.from(insightObservations)
+		.innerJoin(
+			analyticsInsights,
+			eq(insightObservations.insightId, analyticsInsights.id)
+		)
+		.where(
+			and(
+				eq(insightObservations.organizationId, params.organizationId),
+				eq(insightObservations.websiteId, params.websiteId),
+				eq(analyticsInsights.status, "open"),
+				lte(insightObservations.asOf, params.asOf)
+			)
+		)
+		.orderBy(
+			insightObservations.signalKey,
+			desc(insightObservations.asOf),
+			desc(insightObservations.createdAt)
+		);
+
+	return (
+		rows
+			.flatMap((row) => {
+				const outcome = parseInvestigationOutcome(row.outcome);
+				const signal = parseInvestigationSignal(row.signal);
+				return outcome &&
+					signal &&
+					outcome.next.type !== "resolve" &&
+					row.recheckAt <= params.asOf
+					? [{ ...row, outcome, signal }]
+					: [];
+			})
+			.sort((a, b) => a.recheckAt.getTime() - b.recheckAt.getTime())[0] ?? null
+	);
 }
 
 export async function loadInvestigationHistory(params: {
@@ -219,7 +273,8 @@ export async function loadInvestigationHistory(params: {
 	return [
 		...observations.flatMap((observation) => {
 			const outcome = parseInvestigationOutcome(observation.outcome);
-			return outcome
+			const signal = parseInvestigationSignal(observation.signal);
+			return outcome && signal
 				? [
 						{
 							createdAt: observation.createdAt,
@@ -229,7 +284,7 @@ export async function loadInvestigationHistory(params: {
 								evidence: observation.evidence,
 								kind: "investigation" as const,
 								outcome,
-								signal: observation.signal,
+								signal,
 							},
 						},
 					]
@@ -279,5 +334,6 @@ export async function findRunObservation(params: {
 		return;
 	}
 	const outcome = parseInvestigationOutcome(observation.outcome);
-	return outcome ? { ...observation, outcome } : undefined;
+	const signal = parseInvestigationSignal(observation.signal);
+	return outcome && signal ? { ...observation, outcome, signal } : undefined;
 }

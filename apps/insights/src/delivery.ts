@@ -8,14 +8,17 @@ import {
 } from "@databuddy/db/schema";
 import { decrypt } from "@databuddy/encryption";
 import { env } from "@databuddy/env/insights";
-import { formatNextStep, type WebsiteInvestigation } from "./persistence";
+import {
+	formatInvestigationNext,
+	type InsightReplySlackDelivery,
+	type InvestigationOutcome,
+	type InvestigationSignal,
+} from "@databuddy/shared/insights";
+import { WebClient } from "@slack/web-api";
+import { z } from "zod";
+import type { WebsiteInvestigation } from "./persistence";
 import { emitInsightsEvent } from "./lib/evlog-insights";
 
-const SLACK_POST_URL = "https://slack.com/api/chat.postMessage";
-const SLACK_POST_TIMEOUT_MS = 10_000;
-const SLACK_RATE_LIMIT_ATTEMPTS = 3;
-const SLACK_RATE_LIMIT_FALLBACK_MS = 1000;
-const SLACK_RATE_LIMIT_MAX_WAIT_MS = 5000;
 const SLACK_HEADER_MAX = 150;
 const SLACK_SECTION_TEXT_MAX = 3000;
 
@@ -23,22 +26,46 @@ function truncate(value: string, max: number): string {
 	return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-type DigestInsight = Pick<WebsiteInvestigation, "id" | "outcome" | "signal">;
+type SlackInvestigation = Pick<
+	WebsiteInvestigation,
+	"id" | "outcome" | "signal"
+>;
 
-export interface SlackBlock {
-	accessory?: unknown;
-	elements?: unknown[];
-	text?: { emoji?: boolean; text: string; type: string };
-	type: string;
-}
+const slackBlockSchema = z
+	.object({
+		accessory: z.unknown().optional(),
+		elements: z.array(z.unknown()).optional(),
+		text: z
+			.object({
+				emoji: z.boolean().optional(),
+				text: z.string(),
+				type: z.string(),
+			})
+			.strict()
+			.optional(),
+		type: z.string(),
+	})
+	.strict();
 
-export interface InsightSlackEffectPayload {
-	blocks: SlackBlock[];
+export const insightSlackEffectPayloadSchema = z.object({
+	blocks: z.array(slackBlockSchema).max(50),
+	insightId: z.string().min(1).optional(),
+	text: z.string().min(1),
+});
+
+type SlackBlock = z.infer<typeof slackBlockSchema>;
+export type InsightSlackEffectPayload = z.infer<
+	typeof insightSlackEffectPayloadSchema
+>;
+
+interface InsightSlackDeliveryContext {
 	channelId: string;
 	organizationId: string;
-	text: string;
 	websiteId: string;
 }
+
+type InsightSlackReplyDeliveryContext = InsightSlackDeliveryContext &
+	InsightReplySlackDelivery;
 
 function escapeMrkdwn(value: string): string {
 	return value
@@ -69,11 +96,43 @@ function formatWebsiteLabel(
 
 export function buildFallbackText(
 	websiteName: string | null | undefined,
-	websiteDomain: string
+	websiteDomain: string,
+	insight: SlackInvestigation
 ): string {
+	const website = formatWebsiteLabel(websiteName, websiteDomain);
 	return escapeMrkdwn(
-		`Findings for ${formatWebsiteLabel(websiteName, websiteDomain)}`
+		userVisibleCopy(
+			`${insight.signal.entity.label}: ${insight.outcome.title} · ${website}`
+		)
 	);
+}
+
+export function buildInsightReplyText(
+	outcome: InvestigationOutcome,
+	signal: InvestigationSignal
+): string {
+	const label =
+		outcome.next.type === "act"
+			? "Action"
+			: outcome.next.type === "ask"
+				? "Question"
+				: outcome.next.type === "watch"
+					? "Watching"
+					: "Resolved";
+	const lines = [
+		`*${label} · ${escapeMrkdwn(userVisibleCopy(outcome.title))}*`,
+		escapeMrkdwn(userVisibleCopy(outcome.summary)),
+	];
+	if (outcome.impact) {
+		lines.push(`*Impact:* ${escapeMrkdwn(userVisibleCopy(outcome.impact))}`);
+	}
+	if (outcome.next.type === "act" && outcome.rootCause) {
+		lines.push(`*Why:* ${escapeMrkdwn(userVisibleCopy(outcome.rootCause))}`);
+	}
+	lines.push(
+		`*${outcome.next.type === "resolve" ? "Result" : "Next"}:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(outcome, signal)))}`
+	);
+	return truncate(lines.join("\n"), SLACK_SECTION_TEXT_MAX);
 }
 
 async function resolveDeliveries(
@@ -114,48 +173,6 @@ async function loadBoundBotToken(
 	};
 }
 
-function digestLabel(insight: DigestInsight): string {
-	const hasAction = insight.outcome.next.type === "act";
-	switch (insight.signal.insightType) {
-		case "referrer_change":
-		case "traffic_spike":
-		case "positive_trend":
-			return insight.signal.sentiment === "positive"
-				? "Opportunity · Acquisition"
-				: "Review · Traffic";
-		case "conversion_leak":
-			return hasAction ? "Fix · Conversion" : "Review · Conversion";
-		case "funnel_regression":
-			return hasAction ? "Fix · Funnel" : "Review · Conversion";
-		case "error_spike":
-		case "new_errors":
-		case "persistent_error_hotspot":
-		case "error_impact":
-			return hasAction ? "Fix · Error" : "Review · Error";
-		case "vitals_degraded":
-		case "performance":
-			return hasAction ? "Fix · Performance" : "Review · Performance";
-		case "performance_improved":
-		case "reliability_improved":
-			return "Improvement · Reliability";
-		case "quality_shift":
-		case "segment_regression":
-			return "Review · Data quality";
-		default:
-			return hasAction ? "Fix" : "Review";
-	}
-}
-
-function digestEmoji(label: string): string {
-	if (label.startsWith("Fix")) {
-		return ":red_circle:";
-	}
-	if (label.startsWith("Opportunity") || label.startsWith("Improvement")) {
-		return ":large_green_circle:";
-	}
-	return ":large_yellow_circle:";
-}
-
 function insightUrl(insightId: string): string {
 	const base = env.DASHBOARD_URL ?? "https://app.databuddy.cc";
 	return `${base}/insights/${insightId}`;
@@ -168,8 +185,8 @@ function quoted(value: string): string {
 		.join("\n");
 }
 
-function nextStepLine(insight: DigestInsight): string {
-	return `*Next:* ${escapeMrkdwn(userVisibleCopy(formatNextStep(insight.outcome, insight.signal)))}`;
+function nextStepLine(insight: SlackInvestigation): string {
+	return `*Next:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(insight.outcome, insight.signal)))}`;
 }
 
 function formatPeriodDay(value: string): string {
@@ -177,29 +194,23 @@ function formatPeriodDay(value: string): string {
 	return parsed.isValid() ? parsed.format("MMM D") : value;
 }
 
-function summaryChip(insight: DigestInsight): string {
-	const label = digestLabel(insight);
-	const kind = label.startsWith("Fix")
-		? "Fix"
-		: label.startsWith("Opportunity") || label.startsWith("Improvement")
-			? "Opportunity"
-			: "Review";
-	return `${kind} · ${formatPeriodDay(insight.signal.period.current.from)} to ${formatPeriodDay(insight.signal.period.current.to)}`;
+function summaryChip(insight: SlackInvestigation, label: string): string {
+	return `${label} · ${insight.signal.entity.label} · ${formatPeriodDay(insight.signal.period.current.from)} to ${formatPeriodDay(insight.signal.period.current.to)}`;
 }
 
 export function buildBlocks(
 	websiteName: string | null | undefined,
 	websiteDomain: string,
-	insight: DigestInsight
+	insight: SlackInvestigation
 ): SlackBlock[] {
 	const websiteLabel = formatWebsiteLabel(websiteName, websiteDomain);
-	const label = digestLabel(insight);
+	const label = insight.outcome.next.type === "act" ? "Action" : "Question";
 	const blocks: SlackBlock[] = [
 		{
 			type: "header",
 			text: {
 				type: "plain_text",
-				text: truncate(`Findings for ${websiteLabel}`, SLACK_HEADER_MAX),
+				text: truncate(`Databuddy · ${websiteLabel}`, SLACK_HEADER_MAX),
 			},
 		},
 		{
@@ -207,7 +218,10 @@ export function buildBlocks(
 			elements: [
 				{
 					type: "mrkdwn",
-					text: truncate(summaryChip(insight), 255),
+					text: truncate(
+						escapeMrkdwn(userVisibleCopy(summaryChip(insight, label))),
+						255
+					),
 				},
 			],
 		},
@@ -217,7 +231,7 @@ export function buildBlocks(
 		text: {
 			type: "mrkdwn",
 			text: truncate(
-				`${digestEmoji(label)} *${escapeMrkdwn(userVisibleCopy(insight.outcome.title))}*`,
+				`${label === "Action" ? ":red_circle:" : ":large_yellow_circle:"} *${escapeMrkdwn(userVisibleCopy(insight.outcome.title))}*`,
 				SLACK_SECTION_TEXT_MAX
 			),
 		},
@@ -231,9 +245,10 @@ export function buildBlocks(
 	const bodyLines = [
 		quoted(escapeMrkdwn(userVisibleCopy(insight.outcome.summary))),
 	];
-	const impact = insight.outcome.impact?.trim();
-	if (impact) {
-		bodyLines.push(escapeMrkdwn(userVisibleCopy(impact)));
+	if (insight.outcome.impact) {
+		bodyLines.push(
+			`*Impact:* ${escapeMrkdwn(userVisibleCopy(insight.outcome.impact))}`
+		);
 	}
 	bodyLines.push(nextStepLine(insight));
 	blocks.push({
@@ -260,7 +275,7 @@ function formatMetricValue(value: number, format?: string): string {
 	}
 }
 
-function metricLine(metric: DigestInsight["signal"]["metric"]): string {
+function metricLine(metric: SlackInvestigation["signal"]["metric"]): string {
 	const current = formatMetricValue(metric.current, metric.format);
 	if (metric.previous === undefined || metric.previous === null) {
 		return `${metric.label}: ${current}`;
@@ -268,7 +283,7 @@ function metricLine(metric: DigestInsight["signal"]["metric"]): string {
 	return `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`;
 }
 
-export function buildThreadBlocks(insight: DigestInsight): SlackBlock[] {
+export function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
 	const lines = [`• ${escapeMrkdwn(metricLine(insight.signal.metric))}`];
 	if (insight.outcome.rootCause?.trim()) {
 		lines.push(
@@ -293,103 +308,12 @@ export function buildThreadBlocks(insight: DigestInsight): SlackBlock[] {
 	];
 }
 
-interface SlackPostDependencies {
-	fetcher?: typeof fetch;
-	random?: () => number;
-	sleep?: (milliseconds: number) => Promise<void>;
-}
-
-function rateLimitDelay(response: Response, random: () => number): number {
-	const seconds = Number(response.headers.get("retry-after"));
-	const requested =
-		Number.isFinite(seconds) && seconds > 0
-			? seconds * 1000
-			: SLACK_RATE_LIMIT_FALLBACK_MS;
-	return (
-		Math.min(requested, SLACK_RATE_LIMIT_MAX_WAIT_MS) +
-		Math.floor(random() * 250)
-	);
-}
-
-export async function postToSlack(
-	token: string,
-	channelId: string,
-	blocks: SlackBlock[],
-	text: string,
-	clientMessageId: string,
-	dependencies: SlackPostDependencies = {}
-): Promise<string> {
-	const payload = buildSlackPostPayload(
-		channelId,
-		blocks,
-		text,
-		clientMessageId
-	);
-	const fetcher = dependencies.fetcher ?? fetch;
-	const random = dependencies.random ?? Math.random;
-	const sleep =
-		dependencies.sleep ??
-		((milliseconds: number) =>
-			new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
-	for (let attempt = 1; attempt <= SLACK_RATE_LIMIT_ATTEMPTS; attempt += 1) {
-		const response = await fetcher(SLACK_POST_URL, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify(payload),
-			signal: AbortSignal.timeout(SLACK_POST_TIMEOUT_MS),
-		});
-		if (response.status === 429) {
-			if (attempt === SLACK_RATE_LIMIT_ATTEMPTS) {
-				throw new Error("slack chat.postMessage remained rate limited");
-			}
-			await sleep(rateLimitDelay(response, random));
-			continue;
-		}
-		if (!response.ok) {
-			throw new Error(
-				`slack chat.postMessage failed with status ${response.status}`
-			);
-		}
-		const body = (await response.json()) as {
-			ok: boolean;
-			error?: string;
-			ts?: string;
-		};
-		if (!body.ok) {
-			throw new Error(
-				`slack chat.postMessage failed: ${body.error ?? "unknown_error"}`
-			);
-		}
-		return body.ts ?? "";
-	}
-	throw new Error("slack chat.postMessage did not complete");
-}
-
-export function buildSlackPostPayload(
-	channelId: string,
-	blocks: SlackBlock[],
-	text: string,
-	clientMessageId: string
-): Record<string, unknown> {
-	return {
-		blocks,
-		channel: channelId,
-		client_msg_id: clientMessageId,
-		text,
-	};
-}
-
 export async function prepareInsightSlackEffects(params: {
-	insight: DigestInsight | null;
+	insight: WebsiteInvestigation | null;
 	organizationId: string;
-	websiteDomain: string;
-	websiteId: string;
-	websiteName?: string | null;
-}): Promise<InsightSlackEffectPayload[]> {
-	if (!params.insight) {
+}) {
+	const { insight } = params;
+	if (!insight) {
 		return [];
 	}
 	const deliveries = await resolveDeliveries(params.organizationId);
@@ -404,9 +328,9 @@ export async function prepareInsightSlackEffects(params: {
 		return [];
 	}
 	const summaryBlocks = buildBlocks(
-		params.websiteName,
-		params.websiteDomain,
-		params.insight
+		insight.websiteName,
+		insight.websiteDomain,
+		insight
 	);
 	const blocks = [
 		...summaryBlocks,
@@ -415,25 +339,32 @@ export async function prepareInsightSlackEffects(params: {
 			type: "context",
 			elements: [{ type: "mrkdwn", text: "Evidence" }],
 		} satisfies SlackBlock,
-		...buildThreadBlocks(params.insight),
+		...buildThreadBlocks(insight),
 	];
-	const text = buildFallbackText(params.websiteName, params.websiteDomain);
+	const text = buildFallbackText(
+		insight.websiteName,
+		insight.websiteDomain,
+		insight
+	);
 	return channelIds.map((channelId) => ({
-		blocks,
-		channelId,
-		organizationId: params.organizationId,
-		text,
-		websiteId: params.websiteId,
+		effectKey: channelId,
+		payload: {
+			blocks,
+			insightId: insight.id,
+			text,
+		} satisfies InsightSlackEffectPayload,
 	}));
 }
 
 export async function deliverInsightSlackEffect(
 	payload: InsightSlackEffectPayload,
-	clientMessageId: string
+	context: InsightSlackDeliveryContext,
+	clientMessageId: string,
+	threadTs?: string
 ): Promise<string | null> {
 	const { bindingCount, token } = await loadBoundBotToken(
-		payload.organizationId,
-		payload.channelId
+		context.organizationId,
+		context.channelId
 	);
 	if (bindingCount !== 1) {
 		emitInsightsEvent(
@@ -442,9 +373,9 @@ export async function deliverInsightSlackEffect(
 				? "delivery.slack.skipped_missing_binding"
 				: "delivery.slack.skipped_ambiguous_binding",
 			{
-				organization_id: payload.organizationId,
-				website_id: payload.websiteId,
-				slack_channel_id: payload.channelId,
+				organization_id: context.organizationId,
+				website_id: context.websiteId,
+				slack_channel_id: context.channelId,
 				binding_count: bindingCount,
 			}
 		);
@@ -456,24 +387,50 @@ export async function deliverInsightSlackEffect(
 	}
 	if (!token) {
 		emitInsightsEvent("warn", "delivery.slack.skipped_missing_encryption_key", {
-			organization_id: payload.organizationId,
-			website_id: payload.websiteId,
-			slack_channel_id: payload.channelId,
+			organization_id: context.organizationId,
+			website_id: context.websiteId,
+			slack_channel_id: context.channelId,
 		});
 		throw new Error("Slack encryption key is unavailable");
 	}
-	const externalId = await postToSlack(
-		token,
-		payload.channelId,
-		payload.blocks,
-		payload.text,
-		clientMessageId
-	);
-	emitInsightsEvent("info", "delivery.slack.posted", {
-		organization_id: payload.organizationId,
-		website_id: payload.websiteId,
-		slack_channel_id: payload.channelId,
-		client_message_id: clientMessageId,
+	const result = await new WebClient(token, {
+		retryConfig: { retries: 2, minTimeout: 1000, maxTimeout: 5000 },
+		timeout: 10_000,
+	}).apiCall("chat.postMessage", {
+		...(payload.blocks.length ? { blocks: payload.blocks } : {}),
+		channel: context.channelId,
+		client_msg_id: clientMessageId,
+		text: payload.text,
+		...(threadTs ? { thread_ts: threadTs } : {}),
 	});
-	return externalId;
+	emitInsightsEvent("info", "delivery.slack.posted", {
+		organization_id: context.organizationId,
+		website_id: context.websiteId,
+		slack_channel_id: context.channelId,
+		client_message_id: clientMessageId,
+		slack_thread_ts: threadTs,
+	});
+	const timestamp = (result as { ts?: unknown }).ts;
+	return typeof timestamp === "string" ? timestamp : null;
+}
+
+export async function deliverInsightSlackReply(params: {
+	clientMessageId: string;
+	context: InsightSlackReplyDeliveryContext;
+	result: {
+		outcome: InvestigationOutcome;
+		signal: InvestigationSignal;
+	} | null;
+}): Promise<string | null> {
+	return await deliverInsightSlackEffect(
+		{
+			blocks: [],
+			text: params.result
+				? buildInsightReplyText(params.result.outcome, params.result.signal)
+				: "I couldn't finish this investigation. Try replying again, or open it from the original message.",
+		},
+		params.context,
+		params.clientMessageId,
+		params.context.threadTs
+	);
 }

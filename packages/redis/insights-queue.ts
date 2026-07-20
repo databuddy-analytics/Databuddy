@@ -26,10 +26,7 @@ export const INSIGHTS_JOB_OPTIONS = {
 	},
 };
 
-export type InsightGenerationReason =
-	| "manual"
-	| "scheduled"
-	| "cooldown_refresh";
+export type InsightGenerationReason = "manual" | "scheduled";
 
 export interface InsightsDispatchJobData {
 	reason: "scheduled";

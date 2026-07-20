@@ -20,14 +20,6 @@ const FAILED_DISPATCH_RETRY_MS = 60 * 1000;
 
 type DueConfig = typeof insightGenerationConfigs.$inferSelect;
 
-export interface DispatchDueInsightRunsResult {
-	claimedConfigs: number;
-	dispatchedRuns: number;
-	queuedItems: number;
-	scannedConfigs: number;
-	skippedConfigs: number;
-}
-
 function dispatchIntervalMs(): number {
 	const raw = process.env.INSIGHTS_DISPATCH_INTERVAL_MS;
 	if (!raw) {
@@ -88,16 +80,6 @@ async function claimConfig(
 	return claimed ?? null;
 }
 
-async function markConfigDispatched(
-	configId: string,
-	now: Date
-): Promise<void> {
-	await db
-		.update(insightGenerationConfigs)
-		.set({ lastRunAt: now, updatedAt: now })
-		.where(eq(insightGenerationConfigs.id, configId));
-}
-
 export async function retryConfigSoon(
 	configId: string,
 	claimedNextRunAt: Date,
@@ -156,12 +138,10 @@ export async function ensureInsightsMaintenanceSchedule(): Promise<void> {
 	});
 }
 
-export async function dispatchDueInsightRuns(
-	now = new Date()
-): Promise<DispatchDueInsightRunsResult> {
+export async function dispatchDueInsightRuns(now = new Date()) {
 	const startedAt = performance.now();
 	const configs = await dueConfigs(now);
-	const result: DispatchDueInsightRunsResult = {
+	const result = {
 		scannedConfigs: configs.length,
 		claimedConfigs: 0,
 		dispatchedRuns: 0,
@@ -194,7 +174,6 @@ export async function dispatchDueInsightRuns(
 				});
 				continue;
 			}
-			await markConfigDispatched(claimed.id, now);
 			if (queued.status !== "queued") {
 				result.skippedConfigs += 1;
 				emitInsightsEvent("warn", "scheduler.config_skipped", {

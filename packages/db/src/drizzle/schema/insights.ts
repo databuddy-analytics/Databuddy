@@ -1,6 +1,6 @@
 import { inArray } from "drizzle-orm";
 import type {
-	InvestigationEvidence,
+	InsightReplySlackDelivery,
 	InvestigationOutcome,
 	InvestigationSignal,
 } from "@databuddy/shared/insights";
@@ -20,10 +20,7 @@ import { organization, user } from "./auth";
 import { websites } from "./websites";
 
 export type InsightGenerationFrequency = "daily" | "weekly";
-export type InsightGenerationReason =
-	| "manual"
-	| "scheduled"
-	| "cooldown_refresh";
+export type InsightGenerationReason = "manual" | "scheduled";
 export type InsightRunStatus =
 	| "queued"
 	| "running"
@@ -64,10 +61,6 @@ export const insightGenerationConfigs = pgTable(
 			.default([])
 			.notNull(),
 		nextRunAt: timestamp("next_run_at", {
-			precision: 3,
-			withTimezone: true,
-		}),
-		lastRunAt: timestamp("last_run_at", {
 			precision: 3,
 			withTimezone: true,
 		}),
@@ -246,6 +239,11 @@ export const insightRunEffects = pgTable(
 			table.status,
 			table.updatedAt
 		),
+		index("insight_run_effects_external_idx").on(
+			table.externalId,
+			table.effectKey,
+			table.status
+		),
 		foreignKey({
 			columns: [table.runItemId],
 			foreignColumns: [insightRunItems.id],
@@ -265,7 +263,7 @@ export const insightObservations = pgTable(
 		signalKey: text("signal_key").notNull(),
 		asOf: timestamp("as_of", { precision: 3, withTimezone: true }).notNull(),
 		signal: jsonb().$type<InvestigationSignal>().notNull(),
-		evidence: jsonb().$type<InvestigationEvidence[]>().default([]).notNull(),
+		evidence: jsonb().$type<string[]>().default([]).notNull(),
 		outcome: jsonb("decision").$type<InvestigationOutcome>().notNull(),
 		recheckAt: timestamp("recheck_at", {
 			precision: 3,
@@ -287,6 +285,10 @@ export const insightObservations = pgTable(
 			table.asOf.desc(),
 			table.createdAt.desc()
 		),
+		index("insight_observations_insight_created_idx").on(
+			table.insightId,
+			table.createdAt.desc()
+		),
 		foreignKey({
 			columns: [table.runId],
 			foreignColumns: [insightRuns.id],
@@ -305,60 +307,16 @@ export const insightObservations = pgTable(
 	]
 );
 
-// Keep the populated legacy table through the additive replies rollout.
-// No application code reads or writes it.
-export const legacyInsightRollups = pgTable(
-	"insight_rollups",
-	{
-		id: text().primaryKey(),
-		organizationId: text("organization_id").notNull(),
-		runId: text("run_id"),
-		range: text().notNull(),
-		narrative: text().notNull(),
-		generatedAt: timestamp("generated_at", {
-			precision: 3,
-			withTimezone: true,
-		})
-			.defaultNow()
-			.notNull(),
-		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
-			.defaultNow()
-			.notNull(),
-		updatedAt: timestamp("updated_at", { precision: 3, withTimezone: true })
-			.defaultNow()
-			.notNull()
-			.$onUpdate(() => new Date()),
-	},
-	(table) => [
-		uniqueIndex("insight_rollups_org_range_uidx").on(
-			table.organizationId,
-			table.range
-		),
-		index("insight_rollups_org_generated_idx").on(
-			table.organizationId,
-			table.generatedAt.desc()
-		),
-		foreignKey({
-			columns: [table.organizationId],
-			foreignColumns: [organization.id],
-			name: "insight_rollups_organization_id_fkey",
-		}).onDelete("cascade"),
-		foreignKey({
-			columns: [table.runId],
-			foreignColumns: [insightRuns.id],
-			name: "insight_rollups_run_id_fkey",
-		}).onDelete("set null"),
-	]
-);
-
 export const insightReplies = pgTable(
 	"insight_replies",
 	{
 		id: text().primaryKey(),
 		insightId: text("insight_id").notNull(),
+		observationId: text("observation_id"),
 		authorId: text("author_id"),
 		authorName: text("author_name").notNull(),
 		body: text().notNull(),
+		slackDelivery: jsonb("slack_delivery").$type<InsightReplySlackDelivery>(),
 		status: text().$type<InsightReplyStatus>().default("queued").notNull(),
 		createdAt: timestamp("created_at", { precision: 3, withTimezone: true })
 			.defaultNow()
@@ -375,6 +333,11 @@ export const insightReplies = pgTable(
 			foreignColumns: [analyticsInsights.id],
 			name: "insight_replies_insight_id_fkey",
 		}).onDelete("cascade"),
+		foreignKey({
+			columns: [table.observationId],
+			foreignColumns: [insightObservations.id],
+			name: "insight_replies_observation_id_fkey",
+		}).onDelete("set null"),
 		foreignKey({
 			columns: [table.authorId],
 			foreignColumns: [user.id],

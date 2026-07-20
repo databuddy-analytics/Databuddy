@@ -61,16 +61,6 @@ interface RunStatusSummary {
 	totalItems: number;
 }
 
-export interface InsightRecoveryResult {
-	failedItems: number;
-	keptItems: number;
-	recoveredReplies: number;
-	scannedItems: number;
-	scannedReplies: number;
-	scannedRuns: number;
-	syncedRuns: number;
-}
-
 async function recoverStaleReplies(cutoff: Date): Promise<{
 	recovered: number;
 	scanned: number;
@@ -367,9 +357,7 @@ export async function syncRunStatus(runId: string): Promise<RunStatusSummary> {
 	return summary;
 }
 
-export async function recoverStaleInsightRuns(
-	now = new Date()
-): Promise<InsightRecoveryResult> {
+export async function recoverStaleInsightRuns(now = new Date()) {
 	const startedAt = performance.now();
 	const cutoff = new Date(now.getTime() - getInsightsStaleItemMs());
 	const replies = await recoverStaleReplies(cutoff);

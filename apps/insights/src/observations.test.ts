@@ -37,27 +37,19 @@ function observed(
 	recheckAt: Date = LATER
 ): LatestInsightObservation {
 	return {
-		asOf: NOW,
-		evidence: [],
 		outcome: {
 			evidence: ["Signup conversion changed in the measured window."],
 			impact: "Signup completion is affected.",
-			impactConfidence: 0.8,
 			next: {
 				escalation: "Escalate if signup conversion falls another 10%.",
 				type: "watch",
 			},
 			rootCause: null,
-			rootCauseConfidence: 0.2,
-			sources: ["web"],
 			summary: "Signup conversion needs attention.",
 			title: "Signup conversion changed",
 		},
 		recheckAt,
-		signal: prepareInvestigation(signal, {
-			lookbackDays: 7,
-			websiteId: "site-1",
-		}).signal,
+		signal: prepareInvestigation(signal, 7).signal,
 	};
 }
 

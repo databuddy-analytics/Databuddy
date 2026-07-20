@@ -12,29 +12,20 @@ import {
 } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
-	investigationOutcomeSchema,
-	insightSentimentSchema,
-	insightSeveritySchema,
+	historyInsightSchema,
+	insightReplySlackDeliverySchema,
+	insightReplyStatusSchema,
+	insightTimelineItemSchema,
+	insightTimelineReplySchema,
 	parseInvestigationOutcome,
-	weekOverWeekPeriodSchema,
 } from "@databuddy/shared/insights";
 import { ORPCError } from "@orpc/server";
-import { roleHasPermission } from "@databuddy/auth/permissions";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
 import { logger } from "../lib/logger";
-import { sessionProcedure } from "../orpc";
+import { type Context, protectedProcedure, sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
-
-const insightStatusSchema = z.enum(["open", "resolved"]);
-const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
-const insightReplyStatusSchema = z.enum([
-	"queued",
-	"running",
-	"succeeded",
-	"failed",
-]);
 
 const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
 
@@ -45,45 +36,21 @@ function isAccessDenied(error: unknown): boolean {
 	);
 }
 
-const historyInsightSchema = z.object({
-	changePercent: z.number().optional(),
-	description: z.string(),
-	id: z.string(),
-	resolvedReason: insightResolvedReasonSchema.nullable(),
-	sentiment: insightSentimentSchema,
-	severity: insightSeveritySchema,
-	status: insightStatusSchema,
-	title: z.string(),
-	websiteDomain: z.string(),
-	websiteId: z.string(),
-	websiteName: z.string().nullable(),
-});
-
-const timelineOutcomeSchema = investigationOutcomeSchema
-	.omit({ sources: true })
-	.strip();
-
-const insightTimelineInvestigationSchema = z.object({
-	createdAt: z.string(),
-	id: z.string(),
-	kind: z.literal("investigation"),
-	outcome: timelineOutcomeSchema,
-	period: weekOverWeekPeriodSchema,
-});
-
-const insightTimelineReplySchema = z.object({
-	author: z.string(),
-	body: z.string(),
-	createdAt: z.string(),
-	id: z.string(),
-	kind: z.literal("reply"),
-	status: insightReplyStatusSchema,
-});
-
-const insightTimelineItemSchema = z.discriminatedUnion("kind", [
-	insightTimelineInvestigationSchema,
-	insightTimelineReplySchema,
-]);
+const appendInvestigationReplyInputSchema = z
+	.object({
+		body: z.string().trim().min(1).max(2000),
+		insightId: z.string().min(1).max(256),
+		replyId: z
+			.string()
+			.trim()
+			.min(1)
+			.max(200)
+			.refine((value) => !value.includes(":"), {
+				message: "Reply ids cannot contain colons",
+			})
+			.optional(),
+	})
+	.strict();
 
 type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
 
@@ -226,13 +193,13 @@ async function loadInsightTimeline(
 			if (!parsed) {
 				return [];
 			}
-			const { sources: _sources, ...outcome } = parsed;
 			return {
 				createdAt: observation.createdAt.toISOString(),
 				id: observation.id,
 				kind: "investigation" as const,
-				outcome,
+				outcome: parsed,
 				period: observation.signal.period,
+				subject: observation.signal.entity.label,
 			};
 		}),
 		...replies.map((reply) => ({
@@ -250,8 +217,224 @@ async function loadInsightTimeline(
 	);
 }
 
+const investigationReplyAuthorNameSchema = z.string().trim().min(1).max(120);
+
+function replyAuthor(
+	context: Context,
+	authorName?: string
+): {
+	authorId: string | null;
+	authorName: string;
+} {
+	if (authorName) {
+		return {
+			authorId: context.user?.id ?? null,
+			authorName,
+		};
+	}
+	if (context.user) {
+		return {
+			authorId: context.user.id,
+			authorName: context.user.name.trim() || "Team member",
+		};
+	}
+
+	return {
+		authorId: null,
+		authorName: context.apiKey?.name.trim() || "API client",
+	};
+}
+
+export async function appendInvestigationReply(
+	input: z.input<typeof appendInvestigationReplyInputSchema> & {
+		authorName?: string;
+		context: Context;
+		slackDelivery?: z.input<typeof insightReplySlackDeliverySchema>;
+	}
+): Promise<{
+	created: boolean;
+	reply: z.infer<typeof insightTimelineReplySchema>;
+}> {
+	const {
+		authorName: rawAuthorName,
+		context,
+		slackDelivery: rawSlackDelivery,
+		...rawInput
+	} = input;
+	const parsed = appendInvestigationReplyInputSchema.parse(rawInput);
+	const slackDelivery =
+		rawSlackDelivery === undefined
+			? null
+			: insightReplySlackDeliverySchema.parse(rawSlackDelivery);
+	const authorName =
+		rawAuthorName === undefined
+			? undefined
+			: investigationReplyAuthorNameSchema.parse(rawAuthorName);
+	const id = parsed.replyId ?? randomUUIDv7();
+	const [insight] = await db
+		.select({
+			organizationId: analyticsInsights.organizationId,
+			subjectKey: analyticsInsights.subjectKey,
+			websiteId: analyticsInsights.websiteId,
+		})
+		.from(analyticsInsights)
+		.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+		.where(
+			and(
+				eq(analyticsInsights.id, parsed.insightId),
+				isNull(websites.deletedAt)
+			)
+		)
+		.limit(1);
+
+	if (!insight) {
+		throw rpcError.notFound("insight", parsed.insightId);
+	}
+
+	await withWorkspace(context, {
+		allowCrossOrg: true,
+		organizationId: insight.organizationId,
+		permissions: ["update"],
+		websiteId: insight.websiteId,
+	});
+
+	const author = replyAuthor(context, authorName);
+	const createdAt = new Date();
+	const stored = await db.transaction(async (tx) => {
+		const insightCase = and(
+			eq(analyticsInsights.organizationId, insight.organizationId),
+			eq(analyticsInsights.websiteId, insight.websiteId),
+			eq(analyticsInsights.subjectKey, insight.subjectKey)
+		);
+		const [current] = await tx
+			.select({ id: analyticsInsights.id })
+			.from(analyticsInsights)
+			.where(insightCase)
+			.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
+			.limit(1)
+			.for("update");
+		if (!current) {
+			throw rpcError.notFound("insight", parsed.insightId);
+		}
+
+		const [existing] = await tx
+			.select({
+				authorName: insightReplies.authorName,
+				body: insightReplies.body,
+				createdAt: insightReplies.createdAt,
+				id: insightReplies.id,
+				organizationId: analyticsInsights.organizationId,
+				slackDelivery: insightReplies.slackDelivery,
+				status: insightReplies.status,
+				subjectKey: analyticsInsights.subjectKey,
+				websiteId: analyticsInsights.websiteId,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				analyticsInsights,
+				eq(insightReplies.insightId, analyticsInsights.id)
+			)
+			.where(eq(insightReplies.id, id))
+			.limit(1);
+		if (existing) {
+			if (
+				existing.organizationId !== insight.organizationId ||
+				existing.websiteId !== insight.websiteId ||
+				existing.subjectKey !== insight.subjectKey ||
+				existing.body !== parsed.body ||
+				existing.slackDelivery?.channelId !== slackDelivery?.channelId ||
+				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
+			) {
+				throw rpcError.conflict(
+					"Reply id is already used for different context"
+				);
+			}
+			return {
+				created: false as const,
+				reply: {
+					author: existing.authorName,
+					body: existing.body,
+					createdAt: existing.createdAt,
+					id: existing.id,
+					status: existing.status,
+				},
+			};
+		}
+
+		const [observation] = await tx
+			.select({ id: insightObservations.id })
+			.from(insightObservations)
+			.where(
+				and(
+					eq(insightObservations.organizationId, insight.organizationId),
+					eq(insightObservations.websiteId, insight.websiteId),
+					eq(insightObservations.signalKey, insight.subjectKey)
+				)
+			)
+			.limit(1);
+		if (!observation) {
+			throw rpcError.badRequest(
+				"This investigation has no history to continue"
+			);
+		}
+
+		const [active] = await tx
+			.select({ id: insightReplies.id })
+			.from(insightReplies)
+			.innerJoin(
+				analyticsInsights,
+				eq(insightReplies.insightId, analyticsInsights.id)
+			)
+			.where(
+				and(inArray(insightReplies.status, ["queued", "running"]), insightCase)
+			)
+			.limit(1);
+		if (active) {
+			throw rpcError.badRequest(
+				"Databuddy is already investigating the latest reply"
+			);
+		}
+
+		await tx.insert(insightReplies).values({
+			...author,
+			body: parsed.body,
+			createdAt,
+			id,
+			insightId: current.id,
+			slackDelivery,
+			status: "queued",
+		});
+		return {
+			created: true as const,
+			reply: {
+				author: author.authorName,
+				body: parsed.body,
+				createdAt,
+				id,
+				status: "queued" as const,
+			},
+		};
+	});
+
+	const status =
+		stored.created || stored.reply.status === "queued"
+			? await queueInsightReply(stored.reply.id)
+			: stored.reply.status;
+	return {
+		created: stored.created,
+		reply: {
+			author: stored.reply.author,
+			body: stored.reply.body,
+			createdAt: stored.reply.createdAt.toISOString(),
+			id: stored.reply.id,
+			kind: "reply",
+			status,
+		},
+	};
+}
+
 export const insightsRouter = {
-	history: sessionProcedure
+	history: protectedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/history",
@@ -273,11 +456,19 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-			});
+			if (input.websiteId) {
+				await withWorkspace(context, {
+					organizationId: input.organizationId,
+					permissions: ["read"],
+					websiteId: input.websiteId,
+				});
+			} else {
+				await withWorkspace(context, {
+					organizationId: input.organizationId,
+					resource: "organization",
+					permissions: ["read"],
+				});
+			}
 
 			const whereClause = input.websiteId
 				? and(
@@ -336,7 +527,7 @@ export const insightsRouter = {
 			};
 		}),
 
-	getById: sessionProcedure
+	getById: protectedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/getById",
@@ -354,11 +545,8 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const rate = await ratelimit(
-				`insights:getById:${context.user.id}`,
-				120,
-				60
-			);
+			const principalId = context.user?.id ?? `apikey:${context.apiKey?.id}`;
+			const rate = await ratelimit(`insights:getById:${principalId}`, 120, 60);
 			if (!rate.success) {
 				throw rpcError.rateLimited(
 					Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
@@ -384,7 +572,7 @@ export const insightsRouter = {
 
 			const workspace = await withWorkspace(context, {
 				organizationId: row.organizationId,
-				resource: "organization",
+				websiteId: row.websiteId,
 				permissions: ["read"],
 				allowCrossOrg: true,
 			}).catch((error) => {
@@ -426,142 +614,43 @@ export const insightsRouter = {
 				};
 			}
 
+			const canReply = await withWorkspace(context, {
+				allowCrossOrg: true,
+				organizationId: row.organizationId,
+				permissions: ["update"],
+				websiteId: row.websiteId,
+			})
+				.then(() => true)
+				.catch((error) => {
+					if (isAccessDenied(error)) {
+						return false;
+					}
+					throw error;
+				});
+
 			return {
-				canReply: roleHasPermission(workspace.role ?? "", "website", [
-					"update",
-				]),
+				canReply,
 				insight: serializeInsight(insight),
 				timeline,
 			};
 		}),
 
-	reply: sessionProcedure
+	reply: protectedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/reply",
 			tags: ["Insights"],
 			summary: "Add context to an investigation",
 		})
-		.input(
-			z.object({
-				body: z.string().trim().min(1).max(2000),
-				insightId: z.string().min(1).max(256),
-			})
-		)
+		.input(appendInvestigationReplyInputSchema)
 		.output(
 			z.object({
 				reply: insightTimelineReplySchema,
 			})
 		)
 		.handler(async ({ context, input }) => {
-			const [insight] = await db
-				.select({
-					organizationId: analyticsInsights.organizationId,
-					subjectKey: analyticsInsights.subjectKey,
-					websiteId: analyticsInsights.websiteId,
-				})
-				.from(analyticsInsights)
-				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
-				.where(
-					and(
-						eq(analyticsInsights.id, input.insightId),
-						isNull(websites.deletedAt)
-					)
-				)
-				.limit(1);
-
-			if (!insight) {
-				throw rpcError.notFound("insight", input.insightId);
-			}
-
-			await withWorkspace(context, {
-				allowCrossOrg: true,
-				organizationId: insight.organizationId,
-				permissions: ["update"],
-				websiteId: insight.websiteId,
-			});
-			const id = randomUUIDv7();
-			const createdAt = new Date();
-			const authorName = context.user.name.trim() || "Team member";
-			await db.transaction(async (tx) => {
-				const insightCase = and(
-					eq(analyticsInsights.organizationId, insight.organizationId),
-					eq(analyticsInsights.websiteId, insight.websiteId),
-					eq(analyticsInsights.subjectKey, insight.subjectKey)
-				);
-				const [current] = await tx
-					.select({ id: analyticsInsights.id })
-					.from(analyticsInsights)
-					.where(insightCase)
-					.orderBy(
-						desc(analyticsInsights.createdAt),
-						desc(analyticsInsights.id)
-					)
-					.limit(1)
-					.for("update");
-				if (!current) {
-					throw rpcError.notFound("insight", input.insightId);
-				}
-
-				const [observation] = await tx
-					.select({ id: insightObservations.id })
-					.from(insightObservations)
-					.where(
-						and(
-							eq(insightObservations.organizationId, insight.organizationId),
-							eq(insightObservations.websiteId, insight.websiteId),
-							eq(insightObservations.signalKey, insight.subjectKey)
-						)
-					)
-					.limit(1);
-				if (!observation) {
-					throw rpcError.badRequest(
-						"This finding has no investigation history to continue"
-					);
-				}
-
-				const [active] = await tx
-					.select({ id: insightReplies.id })
-					.from(insightReplies)
-					.innerJoin(
-						analyticsInsights,
-						eq(insightReplies.insightId, analyticsInsights.id)
-					)
-					.where(
-						and(
-							inArray(insightReplies.status, ["queued", "running"]),
-							insightCase
-						)
-					)
-					.limit(1);
-				if (active) {
-					throw rpcError.badRequest(
-						"Databuddy is already investigating the latest reply"
-					);
-				}
-
-				await tx.insert(insightReplies).values({
-					authorId: context.user.id,
-					authorName,
-					body: input.body,
-					createdAt,
-					id,
-					insightId: current.id,
-					status: "queued",
-				});
-			});
-			const status = await queueInsightReply(id);
-
-			return {
-				reply: {
-					author: authorName,
-					body: input.body,
-					createdAt: createdAt.toISOString(),
-					id,
-					kind: "reply" as const,
-					status,
-				},
-			};
+			const { reply } = await appendInvestigationReply({ context, ...input });
+			return { reply };
 		}),
 
 	retryReply: sessionProcedure
@@ -655,7 +744,7 @@ export const insightsRouter = {
 					.limit(1);
 				if (!observation) {
 					throw rpcError.badRequest(
-						"This finding has no investigation history to continue"
+						"This investigation has no history to continue"
 					);
 				}
 
