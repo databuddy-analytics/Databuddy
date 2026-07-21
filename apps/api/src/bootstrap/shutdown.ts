@@ -15,12 +15,17 @@ export function warmPostgresPool() {
 	);
 }
 
-export function registerShutdownHooks(beforeShutdown?: () => void) {
+export function registerShutdownHooks(
+	beforeShutdown?: () => void | Promise<void>
+) {
 	process.on("SIGINT", () => shutdownApi("SIGINT", beforeShutdown));
 	process.on("SIGTERM", () => shutdownApi("SIGTERM", beforeShutdown));
 }
 
-async function shutdownApi(signal: string, beforeShutdown?: () => void) {
+async function shutdownApi(
+	signal: string,
+	beforeShutdown?: () => void | Promise<void>
+) {
 	if (shuttingDown) {
 		log.info({
 			lifecycle: "shutdown",
@@ -31,7 +36,6 @@ async function shutdownApi(signal: string, beforeShutdown?: () => void) {
 	}
 
 	shuttingDown = true;
-	beforeShutdown?.();
 	const timeout = setTimeout(() => {
 		log.error({
 			lifecycle: "shutdown",
@@ -45,6 +49,15 @@ async function shutdownApi(signal: string, beforeShutdown?: () => void) {
 	let exitCode = 0;
 	try {
 		log.info("lifecycle", `${signal} received, shutting down gracefully`);
+		try {
+			await beforeShutdown?.();
+		} catch (error) {
+			exitCode = 1;
+			log.error({
+				lifecycle: "beforeShutdown",
+				error_message: error instanceof Error ? error.message : String(error),
+			});
+		}
 		const { shutdownRedis } = await import("@databuddy/redis");
 		await Promise.all([
 			shutdownRedis().catch((error) =>

@@ -12,7 +12,7 @@ const REPLAY_BATCH_SIZE = 100;
 
 export interface AutumnWebhookReplayLoop {
 	run(): Promise<void>;
-	stop(): void;
+	stop(): Promise<void>;
 }
 
 export async function runAutumnWebhookMaintenance(): Promise<{
@@ -95,9 +95,10 @@ export function startAutumnWebhookReplayLoop(
 
 	return {
 		run,
-		stop: () => {
+		stop: async () => {
 			stopped = true;
 			clearInterval(timer);
+			await active;
 		},
 	};
 }

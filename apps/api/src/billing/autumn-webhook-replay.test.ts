@@ -110,9 +110,35 @@ describe("Autumn webhook replay loop", () => {
 		await vi.advanceTimersByTimeAsync(60_000);
 		expect(maintenance).toHaveBeenCalledTimes(2);
 
-		loop.stop();
+		await loop.stop();
 		await vi.advanceTimersByTimeAsync(120_000);
 		expect(maintenance).toHaveBeenCalledTimes(2);
+	});
+
+	it("waits for active maintenance before stopping", async () => {
+		let finishMaintenance: (() => void) | undefined;
+		const maintenance = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					finishMaintenance = resolve;
+				})
+		);
+		const loop = startAutumnWebhookReplayLoop(maintenance);
+		await vi.advanceTimersByTimeAsync(0);
+
+		let stopped = false;
+		const stop = loop.stop().then(() => {
+			stopped = true;
+		});
+		await Promise.resolve();
+		expect(stopped).toBe(false);
+
+		finishMaintenance?.();
+		await stop;
+		expect(stopped).toBe(true);
+
+		await vi.advanceTimersByTimeAsync(120_000);
+		expect(maintenance).toHaveBeenCalledTimes(1);
 	});
 
 	it("logs maintenance failures without rejecting or stopping the loop", async () => {
@@ -131,6 +157,6 @@ describe("Autumn webhook replay loop", () => {
 
 		await vi.advanceTimersByTimeAsync(60_000);
 		expect(maintenance).toHaveBeenCalledTimes(2);
-		loop.stop();
+		await loop.stop();
 	});
 });
