@@ -52,6 +52,7 @@ if (!process.env.DATABUDDY_ENCRYPTION_KEY) {
 	});
 }
 
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 let shutdownStarted = false;
 
 async function gracefulShutdown(signal: string, exitCode = 0) {
@@ -59,22 +60,44 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 		return;
 	}
 	shutdownStarted = true;
-	log.info("lifecycle", `${signal} received, shutting down gracefully`);
-	const logErr = (lifecycle: string) => (error: unknown) =>
+	const timeout = setTimeout(() => {
 		log.error({
-			lifecycle,
+			lifecycle: "shutdown",
+			signal,
+			message: "Graceful shutdown timed out",
+		});
+		process.exit(1);
+	}, SHUTDOWN_TIMEOUT_MS);
+	timeout.unref?.();
+
+	let finalExitCode = exitCode;
+	try {
+		log.info("lifecycle", `${signal} received, shutting down gracefully`);
+		const logErr = (lifecycle: string) => (error: unknown) =>
+			log.error({
+				lifecycle,
+				error_message: error instanceof Error ? error.message : String(error),
+			});
+		const { shutdownRedis } = await import("@databuddy/redis");
+		await Promise.all([
+			shutdownRedis().catch(logErr("redisShutdown")),
+			shutdownPostgres().catch(logErr("postgresShutdown")),
+			flushBatchedAxiomDrain().catch(logErr("drainFlush")),
+			runPromise(disconnect).catch(logErr("shutdown")),
+			disposeRuntime().catch(logErr("runtimeDispose")),
+		]);
+		closeGeoIPReader();
+	} catch (error) {
+		finalExitCode = 1;
+		log.error({
+			lifecycle: "shutdown",
+			signal,
 			error_message: error instanceof Error ? error.message : String(error),
 		});
-	const { shutdownRedis } = await import("@databuddy/redis");
-	await Promise.all([
-		shutdownRedis().catch(logErr("redisShutdown")),
-		shutdownPostgres().catch(logErr("postgresShutdown")),
-		flushBatchedAxiomDrain().catch(logErr("drainFlush")),
-		runPromise(disconnect).catch(logErr("shutdown")),
-		disposeRuntime().catch(logErr("runtimeDispose")),
-	]);
-	closeGeoIPReader();
-	process.exit(exitCode);
+	} finally {
+		clearTimeout(timeout);
+		process.exit(finalExitCode);
+	}
 }
 
 process.on("unhandledRejection", (reason) => {
