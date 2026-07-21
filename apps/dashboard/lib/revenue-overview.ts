@@ -34,6 +34,7 @@ export function hasRevenueActivity(
 	return Boolean(
 		overview &&
 			(overview.total_transactions > 0 ||
+				finiteNumber(overview.refund_count) > 0 ||
 				finiteNumber(overview.failed_payment_attempts) > 0 ||
 				finiteNumber(overview.canceled_payment_attempts) > 0)
 	);

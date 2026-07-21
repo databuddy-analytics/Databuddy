@@ -15,12 +15,14 @@ describe("revenue currency", () => {
 	});
 
 	test("formats money in the configured currency", () => {
-		expect(formatRevenueCurrency(1234.5, "EUR")).toBe("€1,235");
+		expect(formatRevenueCurrency(1234.5, "EUR")).toBe("€1,234.50");
 		expect(formatRevenueCurrency(1234.5, "JPY")).toBe("¥1,235");
+		expect(formatRevenueCurrency(0.49, "USD")).toBe("$0.49");
+		expect(formatRevenueCurrency(9.99, "USD")).toBe("$9.99");
 	});
 
 	test("formats invalid configuration as a neutral number instead of USD", () => {
-		expect(formatRevenueCurrency(1234.5, "ZZZ")).toBe("1,235");
+		expect(formatRevenueCurrency(1234.5, "ZZZ")).toBe("1,234.5");
 		expect(() => formatRevenueCurrency(1234.5, "not-a-code")).not.toThrow();
 	});
 

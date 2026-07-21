@@ -46,6 +46,16 @@ describe("revenue overview activity", () => {
 		expect(hasPaymentActivity(overview)).toBe(true);
 	});
 
+	it("shows a refund-only overview instead of the empty state", () => {
+		const overview = {
+			...emptyOverview,
+			refund_amount: -25,
+			refund_count: 1,
+		};
+
+		expect(hasRevenueActivity(overview)).toBe(true);
+	});
+
 	it("keeps a truly empty overview in the setup state", () => {
 		expect(hasRevenueActivity(emptyOverview)).toBe(false);
 		expect(hasPaymentActivity(emptyOverview)).toBe(false);

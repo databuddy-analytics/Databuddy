@@ -9,17 +9,12 @@ export function formatRevenueCurrency(
 ): string {
 	const normalizedCurrency = normalizeRevenueCurrency(currency);
 	if (!normalizedCurrency) {
-		return new Intl.NumberFormat("en-US", {
-			maximumFractionDigits: 0,
-			minimumFractionDigits: 0,
-		}).format(amount);
+		return new Intl.NumberFormat("en-US").format(amount);
 	}
 
 	return new Intl.NumberFormat("en-US", {
 		style: "currency",
 		currency: normalizedCurrency,
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 0,
 	}).format(amount);
 }
 
