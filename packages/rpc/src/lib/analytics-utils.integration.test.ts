@@ -18,6 +18,7 @@ const afterContextWebsiteId = `context-after-${testPrefix}`;
 const crossSessionWebsiteId = `context-cross-session-${testPrefix}`;
 const sameTimeWebsiteId = `context-same-time-${testPrefix}`;
 const reassignedAnonymousWebsiteId = `identity-reassigned-${testPrefix}`;
+const changedSessionProfileWebsiteId = `identity-session-change-${testPrefix}`;
 const repeatedEntryWebsiteId = `funnel-repeated-entry-${testPrefix}`;
 const startDate = "2026-01-01";
 const endDate = "2026-01-02 23:59:59";
@@ -85,8 +86,11 @@ describeIntegration("goal and funnel visitor identity", () => {
 				(id, client_id, event_name, anonymous_id, time, session_id, url, path, ip, user_agent, properties, created_at, profile_id)
 			VALUES
 				(toUUID({firstViewId:String}), {websiteId:String}, 'screen_view', 'shared-browser', toDateTime64('2026-01-01 10:00:00', 3), 'first-session', 'https://example.test/start', '/start', '', '', '{}', toDateTime64('2026-01-01 10:00:00', 3), ''),
-				(toUUID({secondViewId:String}), {websiteId:String}, 'screen_view', 'shared-browser', toDateTime64('2026-01-02 10:00:00', 3), 'second-session', 'https://example.test/start', '/start', '', '', '{}', toDateTime64('2026-01-02 10:00:00', 3), '')`,
+				(toUUID({secondViewId:String}), {websiteId:String}, 'screen_view', 'shared-browser', toDateTime64('2026-01-02 10:00:00', 3), 'second-session', 'https://example.test/start', '/start', '', '', '{}', toDateTime64('2026-01-02 10:00:00', 3), ''),
+				(toUUID({changedEntryId:String}), {changedWebsiteId:String}, 'screen_view', 'changed-session-browser', toDateTime64('2026-01-01 10:00:00', 3), 'changed-profile-session', 'https://example.test/start', '/start', '', '', '{}', toDateTime64('2026-01-01 10:00:00', 3), '')`,
 			{
+				changedEntryId: randomUUIDv7(),
+				changedWebsiteId: changedSessionProfileWebsiteId,
 				firstViewId: randomUUIDv7(),
 				secondViewId: randomUUIDv7(),
 				websiteId: reassignedAnonymousWebsiteId,
@@ -99,8 +103,14 @@ describeIntegration("goal and funnel visitor identity", () => {
 				({websiteId:String}, {websiteId:String}, toDateTime64('2026-01-01 10:01:00', 3), 'identify', '{}', 'shared-browser', 'first-session', 'profile-one'),
 				({websiteId:String}, {websiteId:String}, toDateTime64('2026-01-01 10:02:00', 3), 'purchase', '{}', 'shared-browser', 'first-session', 'profile-one'),
 				({websiteId:String}, {websiteId:String}, toDateTime64('2026-01-02 10:01:00', 3), 'identify', '{}', 'shared-browser', 'second-session', 'profile-two'),
-				({websiteId:String}, {websiteId:String}, toDateTime64('2026-01-02 10:02:00', 3), 'purchase', '{}', 'shared-browser', 'second-session', 'profile-two')`,
-			{ websiteId: reassignedAnonymousWebsiteId }
+				({websiteId:String}, {websiteId:String}, toDateTime64('2026-01-02 10:02:00', 3), 'purchase', '{}', 'shared-browser', 'second-session', 'profile-two'),
+				({changedWebsiteId:String}, {changedWebsiteId:String}, toDateTime64('2026-01-01 10:00:30', 3), 'identify', '{}', 'changed-session-browser', 'changed-profile-session', 'profile-one'),
+				({changedWebsiteId:String}, {changedWebsiteId:String}, toDateTime64('2026-01-01 10:01:00', 3), 'purchase', '{}', 'changed-session-browser', 'changed-profile-session', 'profile-one'),
+				({changedWebsiteId:String}, {changedWebsiteId:String}, toDateTime64('2026-01-01 10:02:00', 3), 'identify', '{}', 'changed-session-browser', 'changed-profile-session', 'profile-two')`,
+			{
+				changedWebsiteId: changedSessionProfileWebsiteId,
+				websiteId: reassignedAnonymousWebsiteId,
+			}
 		);
 		await chCommand(
 			`INSERT INTO analytics.events
@@ -300,6 +310,30 @@ describeIntegration("goal and funnel visitor identity", () => {
 
 		expect(result.entrants).toBe(2);
 		expect(result.completions).toBe(2);
+	});
+
+	it("does not rewrite earlier funnel rows when a profile changes within the session", async () => {
+		const result = await processFunnelConversionCounts(
+			[
+				{
+					name: "Start",
+					step_number: 1,
+					target: "/start",
+					type: "PAGE_VIEW",
+				},
+				{
+					name: "Purchase",
+					step_number: 2,
+					target: "purchase",
+					type: "EVENT",
+				},
+			],
+			[],
+			queryParams(changedSessionProfileWebsiteId)
+		);
+
+		expect(result.entrants).toBe(1);
+		expect(result.completions).toBe(1);
 	});
 
 	for (const [name, websiteId, expected] of [

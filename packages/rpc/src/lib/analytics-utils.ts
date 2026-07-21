@@ -311,7 +311,7 @@ visitor_profiles_by_anonymous AS (
 visitor_identity_by_session AS (
 	SELECT
 		session_id,
-		argMaxIf(profile_id, identity_time, profile_id != '') AS mapped_profile_id,
+		arraySort(groupArrayIf((identity_time, profile_id), profile_id != '')) AS profile_history,
 		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
 	FROM visitor_identity_rows
 	WHERE session_id != ''
@@ -339,12 +339,22 @@ const profileAtRowTime = (
 	2
 )`;
 
+// Keep the initial identify backfill, but apply later profile changes forward only.
+const sessionProfileAtRowTime = (
+	source: string,
+	identityTime = `${source}.identity_time`
+): string => `coalesce(
+	nullIf(${profileAtRowTime(source, "session_identity", identityTime)}, ''),
+	nullIf(tupleElement(arrayElement(session_identity.profile_history, 1), 2), ''),
+	''
+)`;
+
 const canonicalVisitorExpression = (
 	source: string,
 	identityTime?: string
 ): string => `coalesce(
 	nullIf(${source}.profile_id, ''),
-	nullIf(session_identity.mapped_profile_id, ''),
+	nullIf(${sessionProfileAtRowTime(source, identityTime)}, ''),
 	nullIf(${profileAtRowTime(source, "direct_profile", identityTime)}, ''),
 	nullIf(${profileAtRowTime(source, "session_profile", identityTime)}, ''),
 	nullIf(${source}.anonymous_id, ''),
