@@ -187,7 +187,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Use targeted package commands when available, for example:
   - `bun run dev:dashboard`
-  - `cd apps/api && bun test`
+  - `cd apps/api && bun run test`
   - `cd packages/sdk && bun test`
   - `cd packages/tracker && bun run test:unit`
 - If verification depends on services like Postgres, Redis, ClickHouse, or Redpanda, say so explicitly.
