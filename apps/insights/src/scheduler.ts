@@ -57,10 +57,13 @@ async function dueConfigs(now: Date): Promise<DueConfig[]> {
 		.limit(MAX_DUE_CONFIGS_PER_TICK);
 }
 
-async function claimConfig(
+export async function claimDueConfig(
 	config: DueConfig,
 	now: Date
 ): Promise<DueConfig | null> {
+	if (!config.nextRunAt) {
+		return null;
+	}
 	const [claimed] = await db
 		.update(insightGenerationConfigs)
 		.set({
@@ -72,7 +75,8 @@ async function claimConfig(
 			and(
 				eq(insightGenerationConfigs.id, config.id),
 				eq(insightGenerationConfigs.enabled, true),
-				lte(insightGenerationConfigs.nextRunAt, now)
+				eq(insightGenerationConfigs.nextRunAt, config.nextRunAt),
+				eq(insightGenerationConfigs.updatedAt, config.updatedAt)
 			)
 		)
 		.returning();
@@ -81,10 +85,12 @@ async function claimConfig(
 }
 
 export async function retryConfigSoon(
-	configId: string,
-	claimedNextRunAt: Date,
+	config: Pick<DueConfig, "id" | "nextRunAt" | "updatedAt">,
 	now: Date
 ): Promise<void> {
+	if (!config.nextRunAt) {
+		return;
+	}
 	await db
 		.update(insightGenerationConfigs)
 		.set({
@@ -93,9 +99,10 @@ export async function retryConfigSoon(
 		})
 		.where(
 			and(
-				eq(insightGenerationConfigs.id, configId),
+				eq(insightGenerationConfigs.id, config.id),
 				eq(insightGenerationConfigs.enabled, true),
-				eq(insightGenerationConfigs.nextRunAt, claimedNextRunAt)
+				eq(insightGenerationConfigs.nextRunAt, config.nextRunAt),
+				eq(insightGenerationConfigs.updatedAt, config.updatedAt)
 			)
 		);
 }
@@ -150,7 +157,7 @@ export async function dispatchDueInsightRuns(now = new Date()) {
 	};
 
 	for (const config of configs) {
-		const claimed = await claimConfig(config, now);
+		const claimed = await claimDueConfig(config, now);
 		if (!claimed) {
 			result.skippedConfigs += 1;
 			continue;
@@ -163,9 +170,7 @@ export async function dispatchDueInsightRuns(now = new Date()) {
 				reason: "scheduled",
 			});
 			if (queued.reusedRun) {
-				if (claimed.nextRunAt) {
-					await retryConfigSoon(claimed.id, claimed.nextRunAt, now);
-				}
+				await retryConfigSoon(claimed, now);
 				result.skippedConfigs += 1;
 				emitInsightsEvent("warn", "scheduler.config_skipped_active_run", {
 					config_id: claimed.id,
@@ -192,9 +197,7 @@ export async function dispatchDueInsightRuns(now = new Date()) {
 				run_id: queued.runId,
 			});
 		} catch (error) {
-			if (claimed.nextRunAt) {
-				await retryConfigSoon(claimed.id, claimed.nextRunAt, now);
-			}
+			await retryConfigSoon(claimed, now);
 			result.skippedConfigs += 1;
 			captureInsightsError(error, "scheduler.config_dispatch_failed", {
 				config_id: claimed.id,

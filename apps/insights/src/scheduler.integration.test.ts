@@ -25,7 +25,11 @@ import {
 } from "@databuddy/test";
 import { asc, eq } from "drizzle-orm";
 import { randomUUIDv7 } from "bun";
-import { dispatchDueInsightRuns, retryConfigSoon } from "./scheduler";
+import {
+	claimDueConfig,
+	dispatchDueInsightRuns,
+	retryConfigSoon,
+} from "./scheduler";
 
 const runIntegration =
 	process.env.INSIGHTS_INTEGRATION_TESTS === "true" && hasTestDb;
@@ -232,12 +236,16 @@ describeIntegration("insights scheduler integration", () => {
 			enabled: true,
 			nextRunAt: claimedNextRunAt,
 		});
+		const [claimed] = await db()
+			.select()
+			.from(insightGenerationConfigs)
+			.where(eq(insightGenerationConfigs.id, configId));
 		await db()
 			.update(insightGenerationConfigs)
 			.set({ nextRunAt: changedNextRunAt })
 			.where(eq(insightGenerationConfigs.id, configId));
 
-		await retryConfigSoon(configId, claimedNextRunAt, new Date());
+		await retryConfigSoon(claimed, new Date());
 
 		const [config] = await db()
 			.select()
@@ -249,7 +257,7 @@ describeIntegration("insights scheduler integration", () => {
 			.update(insightGenerationConfigs)
 			.set({ enabled: false, nextRunAt: claimedNextRunAt })
 			.where(eq(insightGenerationConfigs.id, configId));
-		await retryConfigSoon(configId, claimedNextRunAt, new Date());
+		await retryConfigSoon(claimed, new Date());
 		const [disabled] = await db()
 			.select()
 			.from(insightGenerationConfigs)
@@ -258,6 +266,66 @@ describeIntegration("insights scheduler integration", () => {
 			enabled: false,
 			nextRunAt: claimedNextRunAt,
 		});
+
+		const [sameTimeClaim] = await db()
+			.update(insightGenerationConfigs)
+			.set({
+				enabled: true,
+				frequency: "daily",
+				nextRunAt: claimedNextRunAt,
+			})
+			.where(eq(insightGenerationConfigs.id, configId))
+			.returning();
+		await db()
+			.update(insightGenerationConfigs)
+			.set({
+				frequency: "weekly",
+				updatedAt: new Date(sameTimeClaim.updatedAt.getTime() + 1000),
+			})
+			.where(eq(insightGenerationConfigs.id, configId));
+
+		await retryConfigSoon(sameTimeClaim, new Date());
+
+		const [sameTimeEdited] = await db()
+			.select()
+			.from(insightGenerationConfigs)
+			.where(eq(insightGenerationConfigs.id, configId));
+		expect(sameTimeEdited).toMatchObject({
+			frequency: "weekly",
+			nextRunAt: claimedNextRunAt,
+		});
+	});
+
+	it("does not claim a stale config snapshot after an admin edit", async () => {
+		const org = await insertOrganization();
+		organizationIds.add(org.id);
+		const now = new Date("2026-01-22T09:00:00.000Z");
+		await db().insert(insightGenerationConfigs).values({
+			id: randomUUIDv7(),
+			organizationId: org.id,
+			enabled: true,
+			frequency: "daily",
+			nextRunAt: new Date(now.getTime() - 1000),
+		});
+		const [stale] = await db()
+			.select()
+			.from(insightGenerationConfigs)
+			.where(eq(insightGenerationConfigs.organizationId, org.id));
+		await db()
+			.update(insightGenerationConfigs)
+			.set({
+				frequency: "weekly",
+				updatedAt: new Date(stale.updatedAt.getTime() + 1000),
+			})
+			.where(eq(insightGenerationConfigs.id, stale.id));
+
+		expect(await claimDueConfig(stale, now)).toBeNull();
+		const [current] = await db()
+			.select()
+			.from(insightGenerationConfigs)
+			.where(eq(insightGenerationConfigs.id, stale.id));
+		expect(current.frequency).toBe("weekly");
+		expect(current.nextRunAt).toEqual(stale.nextRunAt);
 	});
 
 	it("coalesces concurrent queue requests into one active organization run", async () => {
