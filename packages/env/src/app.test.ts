@@ -39,13 +39,19 @@ describe("createConfig", () => {
 		});
 	});
 
-	it("does not let localhost leak into production redirects", () => {
+	it("honors explicit loopback URLs in production", () => {
 		expect(
 			createConfig({
+				API_URL: "http://127.0.0.1:3001/",
 				BETTER_AUTH_URL: "http://localhost:3000",
 				NODE_ENV: "production",
 			})
-		).toMatchObject({ urls: { dashboard: "https://app.databuddy.cc" } });
+		).toMatchObject({
+			urls: {
+				api: "http://127.0.0.1:3001",
+				dashboard: "http://localhost:3000",
+			},
+		});
 	});
 
 	it("uses public URL fallbacks when server-only aliases are absent", () => {

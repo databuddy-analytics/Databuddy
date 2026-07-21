@@ -75,10 +75,6 @@ function defaultUrl(env: Env, setting: UrlConfig): string {
 	return isProduction(env) ? setting.cloud : setting.local;
 }
 
-function isLocalhost(url: URL): boolean {
-	return url.hostname === "localhost" || url.hostname === "127.0.0.1";
-}
-
 function readFirst(env: Env, keys: readonly string[]): string | undefined {
 	return keys.map((key) => env[key]?.trim()).find(Boolean);
 }
@@ -98,12 +94,7 @@ function readUrl(env: Env, setting: UrlConfig): string {
 		return fallback;
 	}
 
-	const normalized = normalizeUrl(value);
-	if (isProduction(env) && isLocalhost(new URL(normalized))) {
-		return fallback;
-	}
-
-	return normalized;
+	return normalizeUrl(value);
 }
 
 function readEmail(env: Env, setting: EmailConfig): string {
