@@ -9,6 +9,7 @@ const MAX_HEADER_LENGTH = 150;
 const MAX_MESSAGE_LENGTH = 2900;
 const MAX_FIELD_LENGTH = 1900;
 const MAX_FIELDS_PER_SECTION = 10;
+const MAX_BLOCKS = 50;
 const FIRST_CHARACTER_PATTERN = /^./;
 
 function truncate(value: string, maxLength: number): string {
@@ -53,10 +54,16 @@ export function buildSlackBlocks(
 			},
 		},
 	];
+	const elevatedPriority =
+		payload.priority && payload.priority !== "normal" ? payload.priority : null;
+	const metadataSectionLimit =
+		MAX_BLOCKS - blocks.length - (elevatedPriority ? 1 : 0);
+	const metadataFieldLimit = metadataSectionLimit * MAX_FIELDS_PER_SECTION;
 
 	const metadataFields = payload.metadata
 		? Object.entries(payload.metadata)
 				.filter(([key]) => isUserFacingMetadata(key))
+				.slice(0, metadataFieldLimit)
 				.map(([key, value]) => ({
 					type: "mrkdwn" as const,
 					text: truncate(
@@ -76,19 +83,19 @@ export function buildSlackBlocks(
 		});
 	}
 
-	if (payload.priority && payload.priority !== "normal") {
+	if (elevatedPriority) {
 		blocks.push({
 			type: "context",
 			elements: [
 				{
 					type: "mrkdwn",
-					text: `Priority: *${payload.priority.toUpperCase()}*`,
+					text: `Priority: *${elevatedPriority.toUpperCase()}*`,
 				},
 			],
 		});
 	}
 
-	return blocks;
+	return blocks.slice(0, MAX_BLOCKS);
 }
 
 export interface SlackProviderConfig {
