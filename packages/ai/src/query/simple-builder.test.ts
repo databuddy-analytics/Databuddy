@@ -1141,6 +1141,24 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).not.toContain("created <= {endDate:DateTime}");
 	});
 
+	it("links sparse Stripe profile revenue by owner and payment intent", () => {
+		for (const type of ["profile_list", "profile_revenue"]) {
+			const config = QueryBuilders[type];
+			if (!config) {
+				throw new Error(`${type} builder is missing`);
+			}
+			const { sql } = compileBuilder(type, config);
+
+			expect(sql, type).toContain("profile_payment_intents AS");
+			expect(sql, type).toContain(
+				"SELECT owner_id, payment_intent_id FROM profile_payment_intents"
+			);
+			expect(sql, type).not.toContain(
+				"SELECT payment_intent_id FROM profile_payment_intents"
+			);
+		}
+	});
+
 	it("counts only terminal successful states in revenue totals", () => {
 		const config = QueryBuilders.revenue_overview;
 		if (!config) {
@@ -1156,9 +1174,31 @@ describe("SimpleQueryBuilder.compile", () => {
 		);
 		expect(sql).toContain("ON rb.provider = csm.provider");
 		expect(sql).toContain("legacy_pi_dedup AS");
-		expect(sql).toContain("scoped_stripe_invoice_keys AS");
+		expect(sql).toContain("scoped_stripe_owners AS");
+		expect(sql).not.toContain("scoped_stripe_invoice_keys AS");
+		expect(sql).toContain("scoped_stripe_payment_intent_keys AS");
+		expect(sql).toContain(
+			"owner_id IN (SELECT owner_id FROM scoped_stripe_owners)"
+		);
+		const ownerScopeSql = sql.slice(
+			sql.indexOf("scoped_stripe_owners AS"),
+			sql.indexOf("scoped_stripe_payment_intent_keys AS")
+		);
+		expect(ownerScopeSql).toContain("created <= {endDate:DateTime}");
+		expect(ownerScopeSql).not.toContain("startDate");
+		expect(ownerScopeSql).toContain("AND owner_id != ''");
 		expect(sql).toContain("stripe_relation_rows AS");
 		expect(sql).toContain("linked_payment_intents AS");
+		const paymentContextSql = sql.slice(
+			sql.indexOf("stripe_payment_context_rows AS"),
+			sql.indexOf("stripe_payment_context AS")
+		);
+		expect(paymentContextSql).toContain(
+			"SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intent_keys"
+		);
+		expect(paymentContextSql).toContain(
+			"SELECT owner_id, payment_intent_id FROM linked_payment_intents"
+		);
 		expect(sql).toContain("stripe_invoice_payment_totals AS");
 		expect(sql).toContain(
 			"JSONExtractString(r.metadata, 'stripe_money_kind') = 'invoice_fallback'"
@@ -1173,17 +1213,37 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).toContain(
 			"coalesce(r.product_name, nullIf(r.linked_product_name, ''))"
 		);
-		expect(sql).toContain("stripe_invoice_failure_attempt_keys AS");
 		expect(sql).toContain("stripe_payment_attempts AS");
+		expect(sql).toContain("OVER (PARTITION BY attempt_key)");
+		expect(sql).toContain("OVER (PARTITION BY invoice_id)");
+		expect(sql).toContain("OVER (PARTITION BY currency)");
+		expect(sql).toContain("attempt.invoice_id != ''");
+		expect(sql).not.toContain("stripe_invoice_failure_attempt_keys AS");
+		expect(sql).not.toContain("stripe_payment_failure_reasons AS");
+		expect(sql).not.toContain("stripe_failure_observations AS");
 		expect(sql).toContain("startsWith(r.transaction_id, 'in_')");
 		expect(sql).toContain(
 			"JSONExtractString(r.metadata, 'databuddy_revenue_model') = ''"
 		);
+		expect(sql).toContain("AND (r.owner_id, r.transaction_id) IN");
 		expect(sql).toContain(
-			"SELECT payment_intent_id FROM linked_payment_intents"
+			"SELECT owner_id, payment_intent_id FROM linked_payment_intents"
 		);
 		expect(sql).toContain("stripe_record_kind') = 'attempt'");
 		expect(sql).toContain("recovered_payment_attempts");
+
+		const organization = compileBuilder("revenue_overview", config, {
+			organizationWebsiteIds: ["site-a", "site-b"],
+			projectId: "org-id",
+		});
+		expect(organization.sql).toContain(
+			"(owner_id = {organizationId:String} OR website_id IN {websiteIds:Array(String)})"
+		);
+		expect(organization.sql).toContain(
+			"owner_id IN (SELECT owner_id FROM scoped_stripe_owners)"
+		);
+		expect(organization.params.organizationId).toBe("org-id");
+		expect(organization.params.websiteIds).toEqual(["site-a", "site-b"]);
 	});
 
 	it("keeps revenue attribution transaction-as-of without truncating exact sessions", () => {
@@ -1247,9 +1307,7 @@ describe("SimpleQueryBuilder.compile", () => {
 
 		expect(config.allowedFilters).toEqual(["currency", "provider"]);
 		expect(paddle.sql).toContain("SELECT * FROM stripe_payment_attempts WHERE 0");
-		expect(paddle.sql).toContain(
-			"SELECT * FROM stripe_failure_observations WHERE 0"
-		);
+		expect(paddle.sql).not.toContain("stripe_failure_observations");
 		expect(paddle.sql).toContain("toUInt8(0) AS payment_metrics_in_scope");
 		expect(paddle.sql).toContain(
 			"any(payment_metrics_in_scope) as payment_diagnostics_available"

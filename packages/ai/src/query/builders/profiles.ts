@@ -258,7 +258,9 @@ function stripeProfileContextCtes(visitorPredicate: string): string {
 	const paymentIntentId = stripePaymentIntentId();
 	return `
     profile_payment_intents AS (
-      SELECT DISTINCT ${paymentIntentId} AS payment_intent_id
+      SELECT DISTINCT
+        owner_id,
+        ${paymentIntentId} AS payment_intent_id
       FROM ${Analytics.revenue}
       WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
         AND provider = 'stripe'
@@ -273,13 +275,25 @@ function stripeProfileContextCtes(visitorPredicate: string): string {
         argMaxIf(ifNull(anonymous_id, ''), synced_at, ifNull(anonymous_id, '') != '') AS anonymous_id,
         argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS session_id
       FROM ${Analytics.revenue}
-      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-        AND provider = 'stripe'
-		AND ${paymentIntentId} IN (
-          SELECT payment_intent_id FROM profile_payment_intents
+      WHERE provider = 'stripe'
+		AND (owner_id, ${paymentIntentId}) IN (
+          SELECT owner_id, payment_intent_id FROM profile_payment_intents
         )
       GROUP BY owner_id, payment_intent_id
     )`;
+}
+
+function stripeProfileRevenueScope(): string {
+	const paymentIntentId = stripePaymentIntentId();
+	return `(
+		(owner_id = {websiteId:String} OR website_id = {websiteId:String})
+		OR (
+			provider = 'stripe'
+			AND (owner_id, ${paymentIntentId}) IN (
+				SELECT owner_id, payment_intent_id FROM profile_payment_intents
+			)
+		)
+	)`;
 }
 
 function attributedProfileRevenueCte(latestCte: string): string {
@@ -395,13 +409,12 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		${revenueLatestCte({
 			candidateWhere: `(
 				${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
-				OR ${stripePaymentIntentId()} IN (
-					SELECT payment_intent_id FROM profile_payment_intents
+				OR (owner_id, ${stripePaymentIntentId()}) IN (
+					SELECT owner_id, payment_intent_id FROM profile_payment_intents
 				)
 			)`,
 			name: "profile_revenue_latest",
-			scope:
-				"(owner_id = {websiteId:String} OR website_id = {websiteId:String})",
+			scope: stripeProfileRevenueScope(),
 		})},
 		${attributedProfileRevenueCte("profile_revenue_latest")},
     visitor_revenue AS (
@@ -644,7 +657,7 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 		candidateWhere: `created >= toDateTime({startDate:String})
 			AND created <= toDateTime({endDate:String})`,
 		name: "profile_revenue_latest",
-		scope: "(owner_id = {websiteId:String} OR website_id = {websiteId:String})",
+		scope: stripeProfileRevenueScope(),
 	})},
 	${attributedProfileRevenueCte("profile_revenue_latest")}
     SELECT

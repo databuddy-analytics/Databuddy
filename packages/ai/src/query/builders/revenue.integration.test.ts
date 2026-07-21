@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { chQuery, clickHouse } from "@databuddy/db/clickhouse";
 import { randomUUIDv7 } from "bun";
+import { SimpleQueryBuilder } from "../simple-builder";
 import type { Filter } from "../types";
 import { ProfilesBuilders } from "./profiles";
 import { RevenueBuilders } from "./revenue";
@@ -63,6 +64,26 @@ async function revenueOverview(
 	if (!query || typeof query === "string") {
 		throw new Error("Revenue overview did not compile");
 	}
+	return chQuery<Record<string, number | string>>(query.sql, query.params);
+}
+
+async function organizationRevenueOverview(
+	organizationId: string,
+	websiteIds: string[],
+	startDate = "2026-07-01",
+	endDate = "2026-08-03"
+): Promise<Record<string, null | number | string>[]> {
+	const config = RevenueBuilders.revenue_overview;
+	if (!config) {
+		throw new Error("Revenue overview builder is missing");
+	}
+	const query = new SimpleQueryBuilder(config, {
+		from: startDate,
+		organizationWebsiteIds: websiteIds,
+		projectId: organizationId,
+		to: endDate,
+		type: "revenue_overview",
+	}).compile();
 	return chQuery<Record<string, number | string>>(query.sql, query.params);
 }
 
@@ -679,11 +700,14 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		]);
 	});
 
-	it("preserves org-owned invoice attribution after sparse delivery and FINAL merge", async () => {
+	it("isolates org-owned invoice attribution by website after FINAL merge", async () => {
 		const ownerId = `revenue-owner-${randomUUIDv7()}`;
 		const websiteId = `revenue-site-${randomUUIDv7()}`;
+		const otherWebsiteId = `revenue-site-${randomUUIDv7()}`;
 		const invoiceId = `in_${randomUUIDv7()}`;
+		const otherInvoiceId = `in_${randomUUIDv7()}`;
 		const paymentId = `inpay_${randomUUIDv7()}`;
+		const otherPaymentId = `inpay_${randomUUIDv7()}`;
 		const at = "2026-08-02 12:00:00";
 
 		await clickHouse.insert({
@@ -704,6 +728,16 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 						synced_at: "2026-08-02 12:01:00",
 						website_id: websiteId,
 					}
+				),
+				revenueRow(
+					ownerId,
+					`evt_invoice_${randomUUIDv7()}`,
+					0,
+					"subscription_event",
+					"linked",
+					stripeMetadata("link", { stripe_invoice_id: otherInvoiceId }),
+					at,
+					{ website_id: otherWebsiteId }
 				),
 			],
 		});
@@ -731,6 +765,20 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 						website_id: null,
 					}
 				),
+				revenueRow(
+					ownerId,
+					otherPaymentId,
+					75,
+					"subscription",
+					"completed",
+					stripeMetadata("money", {
+						stripe_invoice_id: otherInvoiceId,
+						stripe_invoice_payment_id: otherPaymentId,
+						stripe_money_kind: "invoice_payment",
+					}),
+					at,
+					{ website_id: null }
+				),
 			],
 		});
 
@@ -745,6 +793,14 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		);
 		expect(Number(overview?.total_revenue)).toBe(125);
 		expect(Number(overview?.total_transactions)).toBe(1);
+		const [organization] = await organizationRevenueOverview(
+			ownerId,
+			[websiteId, otherWebsiteId],
+			"2026-08-01",
+			"2026-08-03"
+		);
+		expect(Number(organization?.total_revenue)).toBe(200);
+		expect(Number(organization?.total_transactions)).toBe(2);
 		expect(
 			await revenueOverview(
 				`unrelated-site-${randomUUIDv7()}`,
@@ -775,7 +831,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 				transactions: 1,
 			}),
 		]);
-	});
+	}, 15_000);
 
 	it("does not attribute an earlier transaction to a future customer session", async () => {
 		const websiteId = `revenue-as-of-${randomUUIDv7()}`;
@@ -964,6 +1020,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 	});
 
 	it("attributes invoice-only money from its relation context", async () => {
+		const organizationId = `organization-${randomUUIDv7()}`;
 		const websiteId = `revenue-invoice-context-${randomUUIDv7()}`;
 		const sessionId = `session-${randomUUIDv7()}`;
 		const anonymousId = `anon-${randomUUIDv7()}`;
@@ -994,7 +1051,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			format: "JSONEachRow",
 			values: [
 				revenueRow(
-					websiteId,
+					organizationId,
 					"evt_invoice_only_context",
 					0,
 					"subscription_event",
@@ -1007,10 +1064,11 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 						anonymous_id: anonymousId,
 						customer_id: "",
 						session_id: sessionId,
+						website_id: websiteId,
 					}
 				),
 				revenueRow(
-					websiteId,
+					organizationId,
 					"in_invoice_only",
 					125,
 					"subscription",
@@ -1020,7 +1078,7 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 						stripe_money_kind: "invoice",
 					}),
 					at,
-					{ customer_id: "" }
+					{ customer_id: "", website_id: null }
 				),
 			],
 		});
@@ -1044,12 +1102,14 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 		expect(Number(attributed?.transactions)).toBe(1);
 	});
 
-	it("attributes identity-free refunds back to the paying profile", async () => {
+	it("attributes late organization-owned refunds to the website and paying profile", async () => {
 		const websiteId = `revenue-refund-${randomUUIDv7()}`;
+		const organizationId = `organization-${randomUUIDv7()}`;
 		const profileId = `profile-${randomUUIDv7()}`;
 		const anonymousId = `anon-${randomUUIDv7()}`;
 		const sessionId = `session-${randomUUIDv7()}`;
-		const at = "2026-08-02 12:00:00";
+		const paymentAt = "2026-04-01 12:00:00";
+		const refundAt = "2026-08-02 12:00:00";
 		const paymentMetadata = stripeMetadata("money", {
 			stripe_money_kind: "standalone_candidate",
 			stripe_payment_intent_id: "pi_profile_refund",
@@ -1070,13 +1130,13 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					anonymous_id: anonymousId,
 					profile_id: profileId,
 					session_id: sessionId,
-					time: at,
+					time: refundAt,
 					url: "https://example.com/checkout",
 					path: "/checkout",
 					ip: "127.0.0.1",
 					user_agent: "integration-test",
 					properties: "{}",
-					created_at: at,
+					created_at: refundAt,
 				},
 			],
 		});
@@ -1091,9 +1151,10 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"sale",
 					"completed",
 					paymentMetadata,
-					at,
+					paymentAt,
 					{
 						anonymous_id: anonymousId,
+						owner_id: organizationId,
 						profile_id: profileId,
 						session_id: sessionId,
 					}
@@ -1105,10 +1166,26 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 					"refund",
 					"refunded",
 					refundMetadata,
-					at
+					refundAt,
+					{
+						customer_id: "",
+						owner_id: organizationId,
+						website_id: null,
+					}
 				),
 			],
 		});
+
+		const [overview] = (await revenueOverview(
+			websiteId,
+			"2026-08-01",
+			"2026-08-03"
+		)) as {
+			refund_amount: number | string;
+			refund_count: number | string;
+			total_revenue: number | string;
+			total_transactions: number | string;
+		}[];
 
 		const listQuery = ProfilesBuilders.profile_list?.customSql?.({
 			endDate: "2026-08-03",
@@ -1139,9 +1216,14 @@ describeIntegration("revenue query builders against ClickHouse", () => {
 			transaction_id: string;
 		}>(detailQuery.sql, detailQuery.params);
 
-		expect(Number(profiles.find((profile) => profile.profile_id === profileId)?.ltv)).toBe(80);
-		expect(transactions.map((transaction) => transaction.transaction_id).sort()).toEqual([
-			"pi_profile_refund",
+		expect(Number(overview?.total_revenue)).toBe(0);
+		expect(Number(overview?.total_transactions)).toBe(0);
+		expect(Number(overview?.refund_amount)).toBe(-20);
+		expect(Number(overview?.refund_count)).toBe(1);
+		expect(
+			Number(profiles.find((profile) => profile.profile_id === profileId)?.ltv)
+		).toBe(80);
+		expect(transactions.map((transaction) => transaction.transaction_id)).toEqual([
 			"re_profile_refund",
 		]);
 	});

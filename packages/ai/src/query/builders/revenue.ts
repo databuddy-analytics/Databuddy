@@ -189,14 +189,16 @@ function buildAttributionCte(
 	const eventScope = orgScope
 		? "client_id IN {websiteIds:Array(String)}"
 		: "client_id = {websiteId:String}";
-	const relatedInvoiceScope = `(
+	const stripePaymentIntentId = `if(
+		JSONExtractString(metadata, 'stripe_payment_intent_id') != '',
+		JSONExtractString(metadata, 'stripe_payment_intent_id'),
+		if(startsWith(transaction_id, 'pi_'), transaction_id, '')
+	)`;
+	const relatedStripeScope = `(
 		${directScope}
 		OR (
 			provider = 'stripe'
-			AND JSONExtractString(metadata, 'stripe_invoice_id') != ''
-			AND (owner_id, JSONExtractString(metadata, 'stripe_invoice_id')) IN (
-				SELECT owner_id, invoice_id FROM scoped_stripe_invoice_keys
-			)
+			AND owner_id IN (SELECT owner_id FROM scoped_stripe_owners)
 		)
 	)`;
 	const attributedWebsiteScope = orgScope
@@ -220,33 +222,29 @@ function buildAttributionCte(
 				AND amount > 0
 					AND customer_id != ''
 			),
-			scoped_stripe_invoice_keys AS (
-				SELECT DISTINCT
-					owner_id,
-					if(
-						JSONExtractString(metadata, 'stripe_invoice_id') != '',
-						JSONExtractString(metadata, 'stripe_invoice_id'),
-						transaction_id
-					) AS invoice_id
+			scoped_stripe_owners AS (
+				SELECT DISTINCT owner_id
 				FROM ${Analytics.revenue}
 				WHERE ${directScope}
-					AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 					AND provider = 'stripe'
-					AND (
-						JSONExtractString(metadata, 'stripe_invoice_id') != ''
-						OR startsWith(transaction_id, 'in_')
-					)
-					AND (
-						JSONExtractString(metadata, 'stripe_record_kind') IN ('link', 'money')
-						OR JSONExtractString(metadata, 'databuddy_revenue_model') = 'stripe_invoice_v2'
-					)
+					AND owner_id != ''
+			),
+			scoped_stripe_payment_intent_keys AS (
+				SELECT DISTINCT
+					owner_id,
+					${stripePaymentIntentId} AS payment_intent_id
+				FROM ${Analytics.revenue}
+				WHERE ${directScope}
+					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					AND provider = 'stripe'
+					AND ${stripePaymentIntentId} != ''
 			),
 			${revenueLatestCte({
 				candidateWhere: `created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
 				name: "revenue_latest_range",
-				scope: relatedInvoiceScope,
+				scope: relatedStripeScope,
 			})},
 			stripe_relation_rows AS (
 			SELECT
@@ -264,7 +262,7 @@ function buildAttributionCte(
 					ifNull(product_name, '') AS context_product_name,
 					synced_at
 				FROM ${Analytics.revenue}
-				WHERE ${relatedInvoiceScope}
+				WHERE ${relatedStripeScope}
 				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
 				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 				AND provider = 'stripe'
@@ -279,6 +277,7 @@ function buildAttributionCte(
 		),
 		linked_payment_intents AS (
 			SELECT DISTINCT
+				owner_id,
 				payment_intent_id
 			FROM stripe_relation_rows
 			WHERE payment_intent_id != ''
@@ -298,13 +297,15 @@ function buildAttributionCte(
 					ifNull(product_name, '') AS context_product_name,
 					synced_at
 				FROM ${Analytics.revenue}
-				WHERE ${relatedInvoiceScope}
-				AND created >= toDateTime({startDate:String}) - INTERVAL 90 DAY
-				AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-				AND provider = 'stripe'
-				AND (
-					JSONExtractString(metadata, 'stripe_payment_intent_id') != ''
-					OR startsWith(transaction_id, 'pi_')
+				WHERE provider = 'stripe'
+					AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					AND (
+						(owner_id, ${stripePaymentIntentId}) IN (
+							SELECT owner_id, payment_intent_id FROM scoped_stripe_payment_intent_keys
+						)
+						OR (owner_id, ${stripePaymentIntentId}) IN (
+							SELECT owner_id, payment_intent_id FROM linked_payment_intents
+						)
 				)
 		),
 		stripe_payment_context AS (
@@ -443,56 +444,45 @@ function buildAttributionCte(
 				GROUP BY attempt_id
 			)
 		),
-		stripe_invoice_failure_keys AS (
-			SELECT DISTINCT invoice_id
-			FROM stripe_payment_attempt_candidates
-			WHERE event_type = 'invoice.payment_failed' AND invoice_id != ''
-		),
-		stripe_invoice_failure_attempt_keys AS (
-			SELECT DISTINCT attempt_key
-			FROM stripe_payment_attempt_candidates
-			WHERE event_type = 'invoice.payment_failed'
-		),
-		stripe_payment_failure_reasons AS (
-			SELECT
-				attempt_key,
-				argMax(
-					failure_reason,
-					tuple(failure_reason_rank, attempt_id)
-				) AS failure_reason
-			FROM stripe_payment_attempt_candidates
-			GROUP BY attempt_key
-		),
-		stripe_failure_observations AS (
-			SELECT
-				currency,
-				uniqExactIf(
-					event_type,
-					status = 'failed'
-					AND event_type IN (
-						${STRIPE_FAILURE_EVENT_SQL}
-					)
-				) AS observed_failure_event_types
-			FROM stripe_payment_attempt_candidates
-			GROUP BY currency
-		),
 		stripe_payment_attempts AS (
 			SELECT
 				attempt.attempt_id,
 				attempt.attempt_key,
 				attempt.event_type,
-				family.failure_reason AS failure_reason,
+				attempt.family_failure_reason AS failure_reason,
 				attempt.cancellation_reason,
 				attempt.status,
 				attempt.currency,
-				attempt.amount
-			FROM stripe_payment_attempt_candidates attempt
-			LEFT JOIN stripe_payment_failure_reasons family USING (attempt_key)
+				attempt.amount,
+				attempt.observed_failure_event_types
+			FROM (
+				SELECT
+					*,
+					argMax(
+						failure_reason,
+						tuple(failure_reason_rank, attempt_id)
+					) OVER (PARTITION BY attempt_key) AS family_failure_reason,
+					max(event_type = 'invoice.payment_failed')
+						OVER (PARTITION BY attempt_key) AS invoice_failure_for_key,
+					max(event_type = 'invoice.payment_failed')
+						OVER (PARTITION BY invoice_id) AS invoice_failure_for_invoice,
+					uniqExactIf(
+						event_type,
+						status = 'failed'
+						AND event_type IN (
+							${STRIPE_FAILURE_EVENT_SQL}
+						)
+					) OVER (PARTITION BY currency) AS observed_failure_event_types
+				FROM stripe_payment_attempt_candidates
+			) attempt
 			WHERE NOT (
 				attempt.event_type = 'payment_intent.payment_failed'
 				AND (
-					attempt.attempt_key IN (SELECT attempt_key FROM stripe_invoice_failure_attempt_keys)
-					OR attempt.invoice_id IN (SELECT invoice_id FROM stripe_invoice_failure_keys)
+					attempt.invoice_failure_for_key = 1
+					OR (
+						attempt.invoice_id != ''
+						AND attempt.invoice_failure_for_invoice = 1
+					)
 				)
 			)
 		),
@@ -591,8 +581,8 @@ function buildAttributionCte(
 				AND NOT (
 					r.provider = 'stripe'
 					AND startsWith(r.transaction_id, 'pi_')
-					AND r.transaction_id IN (
-						SELECT payment_intent_id FROM linked_payment_intents
+					AND (r.owner_id, r.transaction_id) IN (
+						SELECT owner_id, payment_intent_id FROM linked_payment_intents
 					)
 				)
 				AND NOT (
@@ -1022,16 +1012,12 @@ const revenueBuilderDefinitions: Record<string, SimpleQueryConfig> = {
 					attempts.status AS attempt_status,
 					attempts.amount AS attempt_amount,
 					toUInt8(${paymentMetricsInScope ? 1 : 0}) AS payment_metrics_in_scope,
-					failure_observations.observed_failure_event_types,
+					attempts.observed_failure_event_types,
 					has(summary.successful_payment_keys, attempts.attempt_key) AS attempt_recovered
 				FROM ${source} summary
 				FULL OUTER JOIN (
 					SELECT * FROM stripe_payment_attempts${stripePaymentWhereClause}
 				) attempts USING (currency)
-				LEFT JOIN (
-					SELECT * FROM stripe_failure_observations${stripePaymentWhereClause}
-				) failure_observations
-					ON failure_observations.currency = if(summary.currency = '', attempts.currency, summary.currency)
 			)`,
 			select: `SELECT
 				currency,
