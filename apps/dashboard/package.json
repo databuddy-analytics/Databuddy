@@ -3,9 +3,9 @@
   "version": "0.1.1-beta.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "dotenv -e ../../.env -- next dev -p 3000",
     "build": "bun run --bun next build",
-    "start": "next start -p 3000",
+    "start": "dotenv -e ../../.env -- next start -p 3000",
     "check-types": "tsc --noEmit",
     "test:e2e:local": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e",
     "test:e2e:local:smoke": "./test/e2e/run-local.sh bun run --cwd apps/dashboard test:e2e:smoke",

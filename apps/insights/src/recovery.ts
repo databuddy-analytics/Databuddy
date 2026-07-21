@@ -26,13 +26,7 @@ import {
 import { emitInsightsEvent, setInsightsLog } from "./lib/evlog-insights";
 import { loadCompletedPreparedResult } from "./effects";
 
-const DEFAULT_MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
-const MIN_MAINTENANCE_INTERVAL_MS = 60 * 1000;
-const DEFAULT_STALE_ITEM_MS = Math.max(
-	15 * 60 * 1000,
-	INSIGHTS_JOB_TIMEOUT_MS * 4
-);
-const MIN_STALE_ITEM_MS = INSIGHTS_JOB_TIMEOUT_MS * 2;
+const STALE_ITEM_MS = Math.max(15 * 60 * 1000, INSIGHTS_JOB_TIMEOUT_MS * 4);
 const MAX_STALE_ITEMS_PER_SWEEP = 100;
 const MAX_STALE_REPLIES_PER_SWEEP = 100;
 const MAX_STALE_RUNS_PER_SWEEP = 100;
@@ -105,37 +99,6 @@ async function recoverStaleReplies(cutoff: Date): Promise<{
 		}
 	}
 	return { recovered, scanned: replies.length };
-}
-
-function parseDurationMs(
-	value: string | undefined,
-	fallback: number,
-	min: number
-): number {
-	if (value === undefined || value.trim() === "") {
-		return fallback;
-	}
-	const parsed = Number.parseInt(value, 10);
-	if (!Number.isSafeInteger(parsed) || parsed < min) {
-		return fallback;
-	}
-	return parsed;
-}
-
-export function getInsightsMaintenanceIntervalMs(
-	value = process.env.INSIGHTS_MAINTENANCE_INTERVAL_MS
-): number {
-	return parseDurationMs(
-		value,
-		DEFAULT_MAINTENANCE_INTERVAL_MS,
-		MIN_MAINTENANCE_INTERVAL_MS
-	);
-}
-
-export function getInsightsStaleItemMs(
-	value = process.env.INSIGHTS_STALE_ITEM_MS
-): number {
-	return parseDurationMs(value, DEFAULT_STALE_ITEM_MS, MIN_STALE_ITEM_MS);
 }
 
 async function staleItemFailureReason(
@@ -359,7 +322,7 @@ export async function syncRunStatus(runId: string): Promise<RunStatusSummary> {
 
 export async function recoverStaleInsightRuns(now = new Date()) {
 	const startedAt = performance.now();
-	const cutoff = new Date(now.getTime() - getInsightsStaleItemMs());
+	const cutoff = new Date(now.getTime() - STALE_ITEM_MS);
 	const replies = await recoverStaleReplies(cutoff);
 	const items = await staleItems(cutoff);
 	const affectedRunIds = new Set<string>();

@@ -21,7 +21,7 @@ const URLS = {
 	dashboard: {
 		cloud: "https://app.databuddy.cc",
 		local: "http://localhost:3000",
-		env: ["DASHBOARD_URL", "NEXT_PUBLIC_APP_URL", "APP_URL", "BETTER_AUTH_URL"],
+		env: ["DASHBOARD_URL", "NEXT_PUBLIC_APP_URL", "BETTER_AUTH_URL"],
 	},
 	status: {
 		cloud: "https://status.databuddy.cc",

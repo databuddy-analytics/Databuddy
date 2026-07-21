@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3002",
+    "dev": "dotenv -e ../../.env -- next dev -p 3002",
     "build": "bun run --bun next build",
-    "start": "next start -p 3002",
+    "start": "dotenv -e ../../.env -- next start -p 3002",
     "check-types": "tsc --noEmit"
   },
   "dependencies": {

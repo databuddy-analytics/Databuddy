@@ -30,8 +30,8 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Public REST docs live in `apps/api/src/rpc/openapi.ts`: `/spec.json` is the generated spec, `/` is the reference UI, and hiding a router there also makes its top-level REST paths return 404 because `/*` uses the same filtered docs router.
 - `apps/slack`: Slack agent adapter; Slack installs resolve through org-scoped DB integration records, not a single env bot token/default website. Agent calls use the org-scoped internal principal synthesized from the active integration in `slack/installations.ts`, never a global internal secret.
 - Slack OAuth lives in `apps/api`, but slash commands/events require `apps/slack` to be running too; local `bun run dev:dashboard` runs dashboard + API only, so use `bun run dev:slack` when working on Slack. The Slack package scripts read the root `.env`.
-- Run Slack tests through `bun run test` inside `apps/slack`; the package script supplies `SKIP_VALIDATION=true`, while direct `bun test` can fail during environment validation before loading tests.
-- Slack routing is organization-scoped: OAuth binds a Slack workspace to a Databuddy organization, app mentions from the installed workspace auto-bind channels including Slack Connect, and `/bind` is now a manual fallback for unknown/unapproved channels. DMs/assistant threads work after workspace install. Analytics questions should go through app mentions/DMs using MCP-style website discovery inside the installed organization, never by fanning out across the message sender's user memberships. Slack emits evlog events under `apps/slack/.evlog/logs` in development/`SLACK_EVLOG_FS=1`; Axiom uses `AXIOM_TOKEN` with `SLACK_AXIOM_DATASET` defaulting to `slack`; and reactions need the `reactions:write` bot scope.
+- Run Slack tests through `bun run test` inside `apps/slack`; the package script supplies only the inert Redis URL needed by eager shared imports.
+- Slack routing is organization-scoped: OAuth binds a Slack workspace to a Databuddy organization, app mentions from the installed workspace auto-bind channels including Slack Connect, and `/bind` is now a manual fallback for unknown/unapproved channels. DMs/assistant threads work after workspace install. Analytics questions should go through app mentions/DMs using MCP-style website discovery inside the installed organization, never by fanning out across the message sender's user memberships. Slack emits evlog events under `apps/slack/.evlog/logs` in development/`SLACK_EVLOG_FS=1`; Axiom uses `AXIOM_TOKEN` and the `slack` dataset; reactions need the `reactions:write` bot scope.
 - Slack scope changes require reinstalling/reauthorizing the workspace; updating the local/remote manifest alone does not grant newly-added bot scopes to an existing installation.
 - Slack agent billing flows through an org-scoped automation API key; existing keys may have `userId: null`, so the agent billing resolver must fall back to the organization owner when an API key has `organizationId`.
 - Slack memory is separate from billing/auth: pass a Slack-scoped `memoryUserId` such as `slack-{team}-{user}` plus current-speaker context so one Slack user's saved name/preferences do not bleed into another user's replies.
@@ -63,7 +63,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `packages/rpc`: shared oRPC router, procedures, auth-aware server context
 - `packages/rpc` must declare `drizzle-orm: "catalog:"` before importing `drizzle-orm/*` helpers such as `drizzle-orm/zod`; otherwise TypeScript can resolve a different Drizzle instance than `@databuddy/db` and reject table-derived schemas.
 - `packages/auth`: Better Auth setup, permissions, organization access
-- `packages/env`: per-app env schemas
+- `packages/env`: shared URL, public, and boolean environment helpers
 - `packages/shared`: shared types, flags, analytics schemas, utilities
 - `packages/sdk`: published analytics SDK for React, Vue, and Node
 - `packages/tracker`: internal tracker script build and release package
@@ -94,7 +94,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Dashboard + API together: `bun run dev:dashboard`
 - Tests at root currently target `./apps`: `bun run test`
 - Database scripts are routed from root into `packages/db`
-- Environment schemas live in `packages/env/src/*.ts`; update the matching app schema when adding env vars
+- Runtime environment reads stay in the owning service; shared URL/public helpers live in `packages/env`
 - BullMQ queues use `BULLMQ_REDIS_URL`; generic Redis cache/pubsub code uses `REDIS_URL`.
 
 ## Code Standards
@@ -217,7 +217,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Search Hints
 
 - Use `rg "createRPCContext|appRouter|sessionProcedure" packages/rpc apps/api`
-- Use `rg "NEXT_PUBLIC_API_URL|createEnv|shouldSkipValidation" packages/env apps/dashboard`
+- Use `rg "NEXT_PUBLIC_API_URL|createConfig|publicConfig|readBooleanEnv" packages/env apps/dashboard`
 - Use `rg "clickHouse|ClickHouse|TABLE_NAMES" packages/db apps/basket apps/api`
 - Use `rg "betterAuth|drizzleAdapter|organization" packages/auth packages/rpc apps/dashboard`
 - Use `rg "trackRoute|basketRouter|llmRouter|structured-errors" apps/basket`

@@ -7,7 +7,7 @@ import {
 	slackIntegrations,
 } from "@databuddy/db/schema";
 import { decrypt } from "@databuddy/encryption";
-import { env } from "@databuddy/env/insights";
+import { config } from "@databuddy/env/app";
 import {
 	formatInvestigationNext,
 	type InsightReplySlackDelivery,
@@ -166,7 +166,7 @@ async function loadBoundBotToken(
 	if (integrations.length !== 1) {
 		return { bindingCount: integrations.length, token: null };
 	}
-	const key = env.DATABUDDY_ENCRYPTION_KEY;
+	const key = process.env.DATABUDDY_ENCRYPTION_KEY;
 	return {
 		bindingCount: 1,
 		token: key ? decrypt(integrations[0].ciphertext, key) : null,
@@ -174,8 +174,7 @@ async function loadBoundBotToken(
 }
 
 function insightUrl(insightId: string): string {
-	const base = env.DASHBOARD_URL ?? "https://app.databuddy.cc";
-	return `${base}/insights/${insightId}`;
+	return `${config.urls.dashboard}/insights/${insightId}`;
 }
 
 function quoted(value: string): string {

@@ -1,6 +1,7 @@
 import { setAiRequestLoggerProvider } from "@databuddy/ai/lib/request-logger";
 import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
+import { clickHouse } from "@databuddy/db/clickhouse";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { closeInsightsQueue, getInsightsQueue } from "@databuddy/redis";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
@@ -129,9 +130,7 @@ async function startRuntime() {
 	});
 	if (workerEnabled) {
 		if (!isAiGatewayConfigured) {
-			throw new Error(
-				"INSIGHTS_WORKER_ENABLED requires AI_GATEWAY_API_KEY or AI_API_KEY"
-			);
+			throw new Error("INSIGHTS_WORKER_ENABLED requires AI_GATEWAY_API_KEY");
 		}
 		insightsWorker = startInsightsWorker();
 		await Promise.all([
@@ -197,14 +196,20 @@ const app = new Elysia()
 		);
 	})
 	.get("/health/status", async () => {
-		const [postgres, bullmqRedis] = await Promise.all([
+		const [postgres, clickhouse, bullmqRedis] = await Promise.all([
 			probe("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
+			probe("clickhouse", async () => {
+				const { success } = await clickHouse.ping();
+				if (!success) {
+					throw new Error("ping failed");
+				}
+			}),
 			probe("bullmqRedis", async () => {
 				await getInsightsQueue().count();
 			}),
 		]);
 
-		const services = { postgres, bullmqRedis };
+		const services = { postgres, clickhouse, bullmqRedis };
 		const status = Object.values(services).every((s) => s.status === "ok")
 			? "ok"
 			: "degraded";

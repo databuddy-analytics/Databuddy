@@ -594,9 +594,6 @@
     "packages/env": {
       "name": "@databuddy/env",
       "version": "0.1.0",
-      "dependencies": {
-        "zod": "catalog:",
-      },
       "devDependencies": {
         "@types/node": "^26.0.0",
         "typescript": "catalog:",

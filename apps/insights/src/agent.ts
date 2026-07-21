@@ -106,7 +106,7 @@ export async function runInsightAgent(
 	} = {}
 ): Promise<InsightAgentResult> {
 	if (!(options.model || isAiGatewayConfigured)) {
-		throw new Error("AI_GATEWAY_API_KEY or AI_API_KEY is required");
+		throw new Error("AI_GATEWAY_API_KEY is required");
 	}
 	const organizationId = input.appContext.organizationId;
 	if (!organizationId) {

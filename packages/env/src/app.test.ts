@@ -48,19 +48,6 @@ describe("createConfig", () => {
 		).toMatchObject({ urls: { dashboard: "https://app.databuddy.cc" } });
 	});
 
-	it("uses the documented env fallback order", () => {
-		expect(
-			createConfig({
-				APP_URL: "https://legacy.example.com",
-				DASHBOARD_URL: "https://dashboard.example.com",
-				NEXT_PUBLIC_APP_URL: "https://public.example.com",
-				NODE_ENV: "production",
-			})
-		).toMatchObject({
-			urls: { dashboard: "https://dashboard.example.com" },
-		});
-	});
-
 	it("uses public URL fallbacks when server-only aliases are absent", () => {
 		expect(
 			createConfig({

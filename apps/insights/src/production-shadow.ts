@@ -220,7 +220,7 @@ function disableExternalEffects(): void {
 	process.env.NODE_ENV = "test";
 	process.env.SERVICE_NAME = "insights-production-shadow-readonly";
 	process.env.DB_POOL_MAX = "1";
-	for (const key of ["AXIOM_API_KEY", "AXIOM_TOKEN", "SUPERLOG_API_KEY"]) {
+	for (const key of ["AXIOM_TOKEN", "SUPERLOG_API_KEY"]) {
 		delete process.env[key];
 	}
 }

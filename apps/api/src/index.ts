@@ -1,5 +1,4 @@
 import "./polyfills/compression";
-import { env as apiEnv } from "@databuddy/env/api";
 import cors from "@elysiajs/cors";
 import { Elysia } from "elysia";
 import { evlog } from "evlog/elysia";
@@ -122,8 +121,6 @@ registerShutdownHooks(autumnWebhookReplay.stop);
 
 export default {
 	fetch: app.fetch,
-	// In development env validation is skipped, so zod defaults never apply and
-	// apiEnv.PORT can be undefined — fall back explicitly or Bun binds a random port.
-	port: Number.parseInt(apiEnv.PORT ?? "3001", 10) || 3001,
+	port: Number.parseInt(process.env.PORT ?? "3001", 10) || 3001,
 	idleTimeout: BUN_IDLE_TIMEOUT_SECONDS,
 };

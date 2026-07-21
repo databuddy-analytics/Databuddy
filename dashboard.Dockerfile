@@ -19,8 +19,6 @@ COPY turbo.json turbo.json
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV SKIP_VALIDATION=true
-
 # Build-time defaults keep the image buildable. Override these with real public
 # URLs when building environment-specific dashboard images.
 ARG NEXT_PUBLIC_API_URL=https://api.databuddy.cc
@@ -32,10 +30,6 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_BASKET_URL=$NEXT_PUBLIC_BASKET_URL
 ENV NEXT_PUBLIC_STATUS_URL=$NEXT_PUBLIC_STATUS_URL
-ENV API_URL=$NEXT_PUBLIC_API_URL
-ENV BASKET_URL=$NEXT_PUBLIC_BASKET_URL
-ENV DASHBOARD_URL=$NEXT_PUBLIC_APP_URL
-ENV STATUS_URL=$NEXT_PUBLIC_STATUS_URL
 
 RUN DATABASE_URL=postgres://databuddy:databuddy@localhost:5432/databuddy \
 	REDIS_URL=redis://localhost:6379 \

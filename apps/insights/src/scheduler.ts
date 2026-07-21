@@ -11,26 +11,13 @@ import {
 	INSIGHTS_MAINTENANCE_JOB_NAME,
 } from "@databuddy/redis";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
-import { getInsightsMaintenanceIntervalMs } from "./recovery";
 
-const DEFAULT_DISPATCH_INTERVAL_MS = 5 * 60 * 1000;
-const MIN_DISPATCH_INTERVAL_MS = 60 * 1000;
+const DISPATCH_INTERVAL_MS = 5 * 60 * 1000;
+const MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_DUE_CONFIGS_PER_TICK = 100;
 const FAILED_DISPATCH_RETRY_MS = 60 * 1000;
 
 type DueConfig = typeof insightGenerationConfigs.$inferSelect;
-
-function dispatchIntervalMs(): number {
-	const raw = process.env.INSIGHTS_DISPATCH_INTERVAL_MS;
-	if (!raw) {
-		return DEFAULT_DISPATCH_INTERVAL_MS;
-	}
-	const parsed = Number.parseInt(raw, 10);
-	if (!Number.isSafeInteger(parsed) || parsed < MIN_DISPATCH_INTERVAL_MS) {
-		return DEFAULT_DISPATCH_INTERVAL_MS;
-	}
-	return parsed;
-}
 
 function nextRunAtFor(config: DueConfig, from: Date): Date | null {
 	return getNextInsightRunAt(
@@ -108,10 +95,9 @@ export async function retryConfigSoon(
 }
 
 export async function ensureInsightsDispatchSchedule(): Promise<void> {
-	const intervalMs = dispatchIntervalMs();
 	await getInsightsQueue().upsertJobScheduler(
 		INSIGHTS_DISPATCH_JOB_NAME,
-		{ every: intervalMs },
+		{ every: DISPATCH_INTERVAL_MS },
 		{
 			name: INSIGHTS_DISPATCH_JOB_NAME,
 			data: {
@@ -122,15 +108,14 @@ export async function ensureInsightsDispatchSchedule(): Promise<void> {
 	);
 
 	emitInsightsEvent("info", "scheduler.dispatch_ensured", {
-		interval_ms: intervalMs,
+		interval_ms: DISPATCH_INTERVAL_MS,
 	});
 }
 
 export async function ensureInsightsMaintenanceSchedule(): Promise<void> {
-	const intervalMs = getInsightsMaintenanceIntervalMs();
 	await getInsightsQueue().upsertJobScheduler(
 		INSIGHTS_MAINTENANCE_JOB_NAME,
-		{ every: intervalMs },
+		{ every: MAINTENANCE_INTERVAL_MS },
 		{
 			name: INSIGHTS_MAINTENANCE_JOB_NAME,
 			data: {
@@ -141,7 +126,7 @@ export async function ensureInsightsMaintenanceSchedule(): Promise<void> {
 	);
 
 	emitInsightsEvent("info", "scheduler.maintenance_ensured", {
-		interval_ms: intervalMs,
+		interval_ms: MAINTENANCE_INTERVAL_MS,
 	});
 }
 

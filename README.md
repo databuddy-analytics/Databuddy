@@ -75,7 +75,10 @@ Databuddy can be self-hosted using Docker Compose. The repo includes two compose
 ```bash
 # 1. Configure environment
 cp .env.example .env
-# Edit .env — set IMAGE_TAG, database/cache passwords, URLs, BETTER_AUTH_SECRET, and BETTER_AUTH_URL
+# Edit .env — set IMAGE_TAG, URL-safe database/cache passwords, public URLs,
+# BETTER_AUTH_SECRET, DATABUDDY_ENCRYPTION_KEY, IP_HASH_SALT, and
+# AI_GATEWAY_API_KEY. Make the local database URLs use the same credentials
+# before running the initialization commands below.
 
 # 2. Start databases and cache
 docker compose -f docker-compose.selfhost.yml up -d postgres clickhouse redis
@@ -92,8 +95,8 @@ docker compose -f docker-compose.selfhost.yml up -d
 Services started:
 - **API** → `localhost:3001`
 - **Basket** (event ingestion) → `localhost:4000`
+- **Insights** (investigation worker) → `localhost:4002`
 - **Links** (short links) → `localhost:2500`
-- **Uptime** monitoring is optional — uncomment in the compose file to run the Redis-backed BullMQ worker.
 
 All ports are configurable via env vars (`API_PORT`, `BASKET_PORT`, etc.). See the compose file comments for the full env var reference.
 

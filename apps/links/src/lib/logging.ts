@@ -19,7 +19,7 @@ type LogFields = Record<string, LogField>;
 const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 	batch: { size: 50, intervalMs: 5000 },
 	maxBufferSize: 2000,
-})(createAxiomDrain());
+})(createAxiomDrain({ apiKey: process.env.AXIOM_TOKEN }));
 
 const fsDrain =
 	process.env.NODE_ENV === "development" || readBooleanEnv("LINKS_EVLOG_FS")
@@ -34,6 +34,9 @@ const fsDrain =
 				pretty: false,
 			})
 		: null;
+
+const drainToAxiom =
+	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
 
 const DURATION_RE = /^([\d.]+)(ms|s)$/;
 
@@ -71,7 +74,9 @@ export async function drain(ctx: DrainContext): Promise<void> {
 	if (fsDrain) {
 		await fsDrain(ctx);
 	}
-	batchedAxiomDrain(ctx);
+	if (drainToAxiom) {
+		batchedAxiomDrain(ctx);
+	}
 }
 
 export async function flushDrain(): Promise<void> {

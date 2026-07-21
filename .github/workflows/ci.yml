@@ -75,13 +75,6 @@ jobs:
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/databuddy_test
       REDIS_URL: redis://localhost:6379
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
-      REDPANDA_BROKER: localhost:9092
-      REDPANDA_USER: test-redpanda-user
-      REDPANDA_PASSWORD: test-redpanda-password
-      DATABUDDY_API_KEY: test-databuddy-api-key
-      DATABUDDY_WEBSITE_ID: test-databuddy-website-id
       BETTER_AUTH_SECRET: test-auth-secret-for-ci-testing-only
       BETTER_AUTH_URL: http://localhost:3000
       GITHUB_CLIENT_ID: test-github-client-id
@@ -89,12 +82,8 @@ jobs:
       GOOGLE_CLIENT_ID: test-google-client-id
       GOOGLE_CLIENT_SECRET: test-google-client-secret
       RESEND_API_KEY: test-resend-api-key
-      RECAPTCHA_SECRET_KEY: test-recaptcha-secret-key
-      VERCEL_CLIENT_ID: test-vercel-client-id
-      VERCEL_CLIENT_SECRET: test-vercel-client-secret
       AUTUMN_SECRET_KEY: test-autumn-secret-key
       NEXT_PUBLIC_API_URL: http://localhost:3000/api
-      EMAIL_API_KEY: test-email-api-key
       IP_HASH_SALT: test-ip-hash-salt
 
     services:
