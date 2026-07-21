@@ -915,7 +915,10 @@ export function replayDeferredAutumnWebhook(
 	return processStoredAutumnWebhook(svixId);
 }
 
-export async function replayDeferredAutumnWebhooks(limit = 25): Promise<{
+export async function replayDeferredAutumnWebhooks(
+	limit = 25,
+	shouldContinue: () => boolean = () => true
+): Promise<{
 	completed: number;
 	deadLettered: number;
 	deferred: number;
@@ -930,6 +933,9 @@ export async function replayDeferredAutumnWebhooks(limit = 25): Promise<{
 		failed: [] as string[],
 	};
 	for (const id of ids) {
+		if (!shouldContinue()) {
+			break;
+		}
 		try {
 			const result = await replayDeferredAutumnWebhook(id);
 			if (result.disposition === "dead_letter") {

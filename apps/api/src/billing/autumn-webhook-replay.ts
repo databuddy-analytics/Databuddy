@@ -15,7 +15,9 @@ export interface AutumnWebhookReplayLoop {
 	stop(): Promise<void>;
 }
 
-export async function runAutumnWebhookMaintenance(): Promise<{
+export async function runAutumnWebhookMaintenance(
+	shouldContinue: () => boolean = () => true
+): Promise<{
 	completed: number;
 	deadLettered: number;
 	deadLetters: number;
@@ -23,7 +25,10 @@ export async function runAutumnWebhookMaintenance(): Promise<{
 	deleted: number;
 	failed: string[];
 }> {
-	const replay = await replayDeferredAutumnWebhooks(REPLAY_BATCH_SIZE);
+	const replay = await replayDeferredAutumnWebhooks(
+		REPLAY_BATCH_SIZE,
+		shouldContinue
+	);
 	if (replay.failed.length > 0) {
 		log.warn({
 			service: "api",
@@ -31,6 +36,9 @@ export async function runAutumnWebhookMaintenance(): Promise<{
 			message: "Autumn webhook replay batch had failures",
 			failed_count: replay.failed.length,
 		});
+	}
+	if (!shouldContinue()) {
+		return { ...replay, deadLetters: 0, deleted: 0 };
 	}
 
 	const deadLetters = await listUnalertedAutumnWebhookDeadLetters({
@@ -59,7 +67,9 @@ export async function runAutumnWebhookMaintenance(): Promise<{
 }
 
 export function startAutumnWebhookReplayLoop(
-	maintenance: () => Promise<unknown> = runAutumnWebhookMaintenance
+	maintenance: (
+		shouldContinue: () => boolean
+	) => Promise<unknown> = runAutumnWebhookMaintenance
 ): AutumnWebhookReplayLoop {
 	let active: Promise<void> | null = null;
 	let stopped = false;
@@ -72,7 +82,7 @@ export function startAutumnWebhookReplayLoop(
 			return active;
 		}
 		active = Promise.resolve()
-			.then(maintenance)
+			.then(() => maintenance(() => !stopped))
 			.then(() => undefined)
 			.catch((error) => {
 				log.error({

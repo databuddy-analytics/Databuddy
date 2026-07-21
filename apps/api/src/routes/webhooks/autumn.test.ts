@@ -261,6 +261,7 @@ import {
 	handleLimitReached,
 	handleUsageAlert,
 	replayDeferredAutumnWebhook,
+	replayDeferredAutumnWebhooks,
 	sendAlertEmail,
 } from "./autumn";
 
@@ -716,6 +717,33 @@ describe("Autumn webhook inbox", () => {
 		expect(state.storedWebhooks.get("msg-duplicate")?.status).toBe(
 			"completed"
 		);
+	});
+
+	it("stops before claiming another replay when shutdown starts", async () => {
+		for (const id of ["msg-first", "msg-second"]) {
+			state.storedWebhooks.set(id, {
+				attempts: 0,
+				claimToken: null,
+				id,
+				payload: {
+					customer_id: "user-1",
+					entity_id: "org-1",
+					feature_id: "events",
+					limit_type: "included",
+				},
+				status: "pending",
+				type: "balances.limit_reached",
+			});
+		}
+		let checks = 0;
+
+		await expect(
+			replayDeferredAutumnWebhooks(100, () => checks++ === 0)
+		).resolves.toMatchObject({ completed: 1, failed: [] });
+
+		expect(state.send).toHaveBeenCalledTimes(1);
+		expect(state.storedWebhooks.get("msg-first")?.status).toBe("completed");
+		expect(state.storedWebhooks.get("msg-second")?.status).toBe("pending");
 	});
 
 	it("reuses a hashed provider idempotency key after post-send persistence failure", async () => {
