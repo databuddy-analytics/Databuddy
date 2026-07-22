@@ -1007,6 +1007,7 @@ describeIntegration("insights idempotency integration", () => {
 		const { processInsightsJob } = await import("./jobs");
 		const job = {
 			attemptsMade: 0,
+			attemptsStarted: 1,
 			data: { replyId },
 			id: insightsResumeJobId(replyId),
 			name: INSIGHTS_RESUME_JOB_NAME,
@@ -1023,7 +1024,7 @@ describeIntegration("insights idempotency integration", () => {
 		expect(await replyStatus(replyId)).toBe("queued");
 
 		await expect(
-			processInsightsJob({ ...job, attemptsMade: 2 })
+			processInsightsJob({ ...job, attemptsMade: 2, attemptsStarted: 3 })
 		).rejects.toThrow("no history to resume");
 		expect(await replyStatus(replyId)).toBe("failed");
 	});
@@ -1658,6 +1659,7 @@ describeIntegration("insights idempotency integration", () => {
 			await expect(
 				processInsightsJob({
 					attemptsMade: 2,
+					attemptsStarted: 3,
 					data,
 					id: queueJobId,
 					name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
@@ -1691,6 +1693,70 @@ describeIntegration("insights idempotency integration", () => {
 			status: "succeeded",
 		});
 		expect(item.finishedAt).toBeInstanceOf(Date);
+	});
+
+	it("rejects the same activation and allows the next activation", async () => {
+		const { processInsightsJob } = await import("./jobs");
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const runId = randomUUIDv7();
+		const itemId = randomUUIDv7();
+		const queueJobId = `job-${itemId}`;
+		await db().insert(insightRuns).values({
+			id: runId,
+			organizationId: org.id,
+			status: "running",
+			totalItems: 1,
+		});
+		await db().insert(insightRunItems).values({
+			attempts: 1,
+			id: itemId,
+			queueJobId,
+			runId,
+			organizationId: org.id,
+			websiteId: website.id,
+			status: "running",
+		});
+		await prepareInsightRun({
+			itemId,
+			organizationId: org.id,
+			queueJobId,
+			runId,
+			websiteId: website.id,
+			effects: [],
+			result: { resultCount: 0, status: "succeeded" },
+		});
+
+		const data: InsightsGenerateWebsiteJobData = {
+			itemId,
+			organizationId: org.id,
+			reason: "manual",
+			runId,
+			websiteId: website.id,
+		};
+		const job = {
+			attemptsMade: 0,
+			attemptsStarted: 1,
+			data,
+			id: queueJobId,
+			name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,
+			opts: { attempts: 3 },
+		};
+		await expect(processInsightsJob(job)).rejects.toThrow(
+			"already claimed by this or a newer queue attempt"
+		);
+
+		await expect(
+			processInsightsJob({ ...job, attemptsStarted: 2 })
+		).resolves.toEqual({ resultCount: 0, status: "succeeded" });
+		const [restarted] = await db()
+			.select({
+				attempts: insightRunItems.attempts,
+				status: insightRunItems.status,
+			})
+			.from(insightRunItems)
+			.where(eq(insightRunItems.id, itemId));
+		expect(restarted).toEqual({ attempts: 2, status: "succeeded" });
 	});
 
 	it("rejects a crossed queue item before changing either tenant", async () => {
@@ -1769,6 +1835,7 @@ describeIntegration("insights idempotency integration", () => {
 		await expect(
 			processInsightsJob({
 				attemptsMade: 0,
+				attemptsStarted: 1,
 				data: {
 					itemId: firstItemId,
 					organizationId: secondOrg.id,
@@ -2218,6 +2285,7 @@ describeIntegration("insights idempotency integration", () => {
 		await expect(
 			processInsightsJob({
 				attemptsMade: 2,
+				attemptsStarted: 3,
 				data,
 				id: queueJobId,
 				name: INSIGHTS_GENERATE_WEBSITE_JOB_NAME,

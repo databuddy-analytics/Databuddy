@@ -1,4 +1,4 @@
-import { and, db, eq, notInArray, sql } from "@databuddy/db";
+import { and, db, eq, inArray, lt, notInArray, sql } from "@databuddy/db";
 import { insightRunItems, insightRuns } from "@databuddy/db/schema";
 import {
 	INSIGHTS_DISPATCH_JOB_NAME,
@@ -45,7 +45,7 @@ const resumeJobSchema = z
 
 type InsightsJob = Pick<
 	Job<InsightsQueueJobData>,
-	"attemptsMade" | "data" | "id" | "name" | "opts"
+	"attemptsMade" | "attemptsStarted" | "data" | "id" | "name" | "opts"
 >;
 
 interface CanonicalGenerateItem extends InsightRunIdentity {
@@ -72,6 +72,7 @@ function jobContext(job: InsightsJob) {
 	return {
 		attempts_configured: job.opts.attempts,
 		attempts_made: job.attemptsMade,
+		attempts_started: job.attemptsStarted,
 		job_id: job.id,
 		job_name: job.name,
 		organization_id: data.organizationId,
@@ -199,13 +200,15 @@ async function loadSuccessfulItem(
 
 async function checkpointSuccessfulItem(
 	identity: InsightRunIdentity,
-	result: GenerateWebsiteInsightsResult
+	result: GenerateWebsiteInsightsResult,
+	activation: number
 ): Promise<void> {
 	let lastError: unknown;
 	for (let attempt = 0; attempt < SUCCESS_CHECKPOINT_ATTEMPTS; attempt += 1) {
+		let updated: { id: string }[];
 		try {
 			const now = new Date();
-			const updated = await db
+			updated = await db
 				.update(insightRunItems)
 				.set({
 					errorMessage:
@@ -215,32 +218,41 @@ async function checkpointSuccessfulItem(
 					status: result.status,
 					updatedAt: now,
 				})
-				.where(runIdentityCondition(identity))
+				.where(
+					and(
+						runIdentityCondition(identity),
+						eq(insightRunItems.attempts, activation)
+					)
+				)
 				.returning({ id: insightRunItems.id });
-			if (updated.length === 0) {
-				throw new Error("Insight run item is missing at success checkpoint");
-			}
-			return;
 		} catch (error) {
 			lastError = error;
+			continue;
 		}
+		if (updated.length === 0) {
+			throw new Error(
+				"Insight run item lease was superseded before success checkpoint"
+			);
+		}
+		return;
 	}
 	throw lastError;
 }
 
 async function finishGenerationFailure(params: {
+	activation: number;
 	data: CanonicalGenerateItem;
 	error: unknown;
 	job: InsightsJob;
 }): Promise<GenerateWebsiteInsightsResult> {
 	const recovered = await loadCompletedPreparedResult(params.data);
 	if (recovered) {
-		await checkpointSuccessfulItem(params.data, recovered);
+		await checkpointSuccessfulItem(params.data, recovered, params.activation);
 		await syncRunStatus(params.data.runId);
 		emitInsightsEvent("warn", "job.generate_website.concurrent_success", {
 			...jobContext(params.job),
-			item_id: params.data.itemId,
 			error_message: errorMessage(params.error),
+			item_id: params.data.itemId,
 		});
 		return recovered;
 	}
@@ -260,6 +272,7 @@ async function finishGenerationFailure(params: {
 		.where(
 			and(
 				runIdentityCondition(params.data),
+				eq(insightRunItems.attempts, params.activation),
 				notInArray(insightRunItems.status, SUCCESSFUL_ITEM_STATUSES)
 			)
 		)
@@ -271,6 +284,7 @@ async function finishGenerationFailure(params: {
 			await syncRunStatus(params.data.runId);
 			return completed;
 		}
+		throw params.error;
 	}
 
 	let runStatus: string | undefined;
@@ -285,8 +299,8 @@ async function finishGenerationFailure(params: {
 	}
 	captureInsightsError(params.error, "job.generate_website.failed", {
 		...jobContext(params.job),
-		item_id: params.data.itemId,
 		final_attempt: finalAttempt,
+		item_id: params.data.itemId,
 		next_status: finalAttempt ? "failed" : "queued",
 		run_status: runStatus,
 	});
@@ -305,24 +319,13 @@ async function processGenerateWebsiteJob(
 	}
 
 	const now = new Date();
-	const [, started] = await Promise.all([
-		db
-			.update(insightRuns)
-			.set({
-				status: "running",
-				startedAt: sql`coalesce(${insightRuns.startedAt}, ${now})`,
-				updatedAt: now,
-			})
-			.where(
-				and(
-					eq(insightRuns.id, data.runId),
-					eq(insightRuns.organizationId, data.organizationId)
-				)
-			),
-		db
+	// Unlike attemptsMade, this advances when BullMQ restarts a stalled job.
+	const activation = job.attemptsStarted;
+	const started = await db.transaction(async (tx) => {
+		const claimed = await tx
 			.update(insightRunItems)
 			.set({
-				attempts: job.attemptsMade + 1,
+				attempts: activation,
 				errorMessage: null,
 				finishedAt: null,
 				startedAt: now,
@@ -332,12 +335,30 @@ async function processGenerateWebsiteJob(
 			.where(
 				and(
 					runIdentityCondition(data),
-					notInArray(insightRunItems.status, SUCCESSFUL_ITEM_STATUSES)
+					inArray(insightRunItems.status, ["queued", "running"]),
+					lt(insightRunItems.attempts, activation)
 				)
 			)
-			.returning({ id: insightRunItems.id }),
-	]);
-	if (started.length === 0) {
+			.returning({ id: insightRunItems.id });
+		if (claimed.length === 0) {
+			return false;
+		}
+		await tx
+			.update(insightRuns)
+			.set({
+				startedAt: sql`coalesce(${insightRuns.startedAt}, ${now})`,
+				status: "running",
+				updatedAt: now,
+			})
+			.where(
+				and(
+					eq(insightRuns.id, data.runId),
+					eq(insightRuns.organizationId, data.organizationId)
+				)
+			);
+		return true;
+	});
+	if (!started) {
 		const concurrentlyCompleted = await loadSuccessfulItem(data);
 		if (concurrentlyCompleted) {
 			await syncRunStatus(data.runId);
@@ -346,7 +367,9 @@ async function processGenerateWebsiteJob(
 				status: concurrentlyCompleted.status,
 			};
 		}
-		throw new Error("Insight run item not found");
+		throw new Error(
+			"Insight run item is already claimed by this or a newer queue attempt"
+		);
 	}
 
 	let result: GenerateWebsiteInsightsResult;
@@ -363,11 +386,16 @@ async function processGenerateWebsiteJob(
 			websiteId: data.websiteId,
 		});
 	} catch (error) {
-		const recovered = await finishGenerationFailure({ data, error, job });
+		const recovered = await finishGenerationFailure({
+			activation,
+			data,
+			error,
+			job,
+		});
 		return { resultCount: recovered.resultCount, status: recovered.status };
 	}
 
-	await checkpointSuccessfulItem(data, result);
+	await checkpointSuccessfulItem(data, result, activation);
 	await syncRunStatus(data.runId);
 	return { resultCount: result.resultCount, status: result.status };
 }
@@ -410,10 +438,10 @@ export async function processInsightsJob(job: InsightsJob) {
 			const err = toError(error);
 			logger.error(err);
 			logger.emit({
+				_forceKeep: true,
 				duration_ms: durationMs,
 				error_message: err.message,
 				job_status: "failed",
-				_forceKeep: true,
 			});
 			throw error;
 		}
