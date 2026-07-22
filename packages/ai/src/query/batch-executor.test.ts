@@ -1,29 +1,27 @@
-import { chQuery } from "@databuddy/db/clickhouse";
+import * as actualClickHouse from "@databuddy/db/clickhouse";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import type { RequestLogger } from "evlog";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setAiRequestLoggerProvider } from "../lib/request-logger";
-import {
+import { QueryBuilders } from "./builders";
+import { SimpleQueryBuilder } from "./simple-builder";
+
+const realClickHouseModule = { ...actualClickHouse };
+const realChQuery = realClickHouseModule.chQuery;
+const mockChQuery = mock(realChQuery);
+mock.module("@databuddy/db/clickhouse", () => ({
+	...realClickHouseModule,
+	chQuery: mockChQuery,
+}));
+
+const {
 	areQueriesCompatible,
 	buildUnionQuery,
 	executeBatch,
 	extractOuterSelectColumns,
 	getCompatibleQueries,
 	getSchemaGroups,
-} from "./batch-executor";
-import { QueryBuilders } from "./builders";
-import { SimpleQueryBuilder } from "./simple-builder";
+} = await import("./batch-executor");
 
-vi.mock("@databuddy/db/clickhouse", () => ({
-	chQuery: vi.fn(),
-}));
-
-type MockChQuery = {
-	mockRejectedValueOnce: (value: unknown) => MockChQuery;
-	mockReset: () => void;
-	mockResolvedValueOnce: (value: Record<string, unknown>[]) => MockChQuery;
-};
-
-const mockChQuery = chQuery as unknown as MockChQuery;
 const lastSelectColumns = extractOuterSelectColumns;
 
 function compileSql(type: string): string {
@@ -57,7 +55,12 @@ function transientClickHouseError(): Error {
 
 beforeEach(() => {
 	mockChQuery.mockReset();
+	mockChQuery.mockImplementation(realChQuery);
 	setAiRequestLoggerProvider(null);
+});
+
+afterAll(() => {
+	mock.module("@databuddy/db/clickhouse", () => realClickHouseModule);
 });
 
 describe("batch-executor schema signatures", () => {
@@ -128,7 +131,7 @@ describe("executeBatch single query retry", () => {
 
 		const [result] = await executeBatch([singleQueryRequest]);
 
-		expect(chQuery).toHaveBeenCalledTimes(2);
+		expect(mockChQuery).toHaveBeenCalledTimes(2);
 		expect(result).toEqual({
 			type: "top_pages",
 			data: [{ name: "/", pageviews: 2, visitors: 1 }],
@@ -146,7 +149,7 @@ describe("executeBatch single query retry", () => {
 
 		const [result] = await executeBatch([singleQueryRequest]);
 
-		expect(chQuery).toHaveBeenCalledTimes(2);
+		expect(mockChQuery).toHaveBeenCalledTimes(2);
 		expect(result).toEqual({
 			type: "top_pages",
 			data: [],
@@ -159,7 +162,7 @@ describe("executeBatch single query retry", () => {
 
 		const [result] = await executeBatch([singleQueryRequest]);
 
-		expect(chQuery).toHaveBeenCalledTimes(1);
+		expect(mockChQuery).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({
 			type: "top_pages",
 			data: [],
@@ -176,7 +179,7 @@ describe("executeBatch single query retry", () => {
 
 		const [result] = await executeBatch([singleQueryRequest]);
 
-		expect(chQuery).toHaveBeenCalledTimes(1);
+		expect(mockChQuery).toHaveBeenCalledTimes(1);
 		expect(result).toEqual({
 			type: "top_pages",
 			data: [],
@@ -188,9 +191,9 @@ describe("executeBatch single query retry", () => {
 describe("executeBatch union fallback logging", () => {
 	it("logs batch union fallback as a warning when single queries recover", async () => {
 		const mockLogger = {
-			error: vi.fn(),
-			set: vi.fn(),
-			warn: vi.fn(),
+			error: mock(),
+			set: mock(),
+			warn: mock(),
 		} as unknown as RequestLogger;
 		setAiRequestLoggerProvider(() => mockLogger);
 		mockChQuery
@@ -203,7 +206,7 @@ describe("executeBatch union fallback logging", () => {
 			{ ...singleQueryRequest, type: "top_pages" },
 		]);
 
-		expect(chQuery).toHaveBeenCalledTimes(3);
+		expect(mockChQuery).toHaveBeenCalledTimes(3);
 		expect(mockLogger.warn).toHaveBeenCalledWith(
 			"Union query failed",
 			expect.objectContaining({

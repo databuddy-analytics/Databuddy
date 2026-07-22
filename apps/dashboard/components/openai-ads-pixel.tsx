@@ -2,24 +2,9 @@
 
 import { useEffect } from "react";
 import { publicConfig } from "@databuddy/env/public";
-import type { SignupEventProperties } from "@databuddy/shared/custom-events";
 
 const PIXEL_ID = publicConfig.integrations.openAiAdsPixelId;
 const SCRIPT_SRC = "https://bzrcdn.openai.com/sdk/oaiq.min.js";
-
-interface RegistrationConversionInput {
-	email?: string;
-	eventId?: string;
-	properties?: SignupEventProperties;
-	sourceUrl?: string;
-}
-
-interface RegistrationConversionPayload {
-	email?: string;
-	eventId: string;
-	oppref?: string;
-	sourceUrl: string;
-}
 
 type OpenAiAdsQueue = ((...args: unknown[]) => void) & {
 	q?: unknown[][];
@@ -85,17 +70,6 @@ function createRegistrationEventId(): string {
 		.slice(2)}`;
 }
 
-export function buildOpenAiRegistrationConversionPayload(
-	input: RegistrationConversionInput
-): RegistrationConversionPayload {
-	return {
-		...(input.email ? { email: input.email } : {}),
-		eventId: input.eventId ?? createRegistrationEventId(),
-		...(input.properties?.oppref ? { oppref: input.properties.oppref } : {}),
-		sourceUrl: input.sourceUrl ?? window.location.href,
-	};
-}
-
 export function buildOpenAiRegistrationMeasureArgs(
 	eventId?: string
 ): unknown[] {
@@ -123,31 +97,6 @@ export function measureOpenAiRegistrationCompleted(eventId?: string) {
 	window.oaiq?.(...buildOpenAiRegistrationMeasureArgs(eventId));
 }
 
-export function sendOpenAiRegistrationCompletedConversion(
-	payload: RegistrationConversionPayload
-) {
-	if (
-		typeof window === "undefined" ||
-		!PIXEL_ID ||
-		!isOpenAiAdsPixelHostAllowed(window.location.hostname)
-	) {
-		return;
-	}
-
-	fetch("/api/openai-ads/conversions", {
-		body: JSON.stringify(payload),
-		headers: { "Content-Type": "application/json" },
-		keepalive: true,
-		method: "POST",
-	}).catch(() => {
-		// Signup should not depend on ad-platform reporting.
-	});
-}
-
-export function trackOpenAiRegistrationCompleted(
-	input: RegistrationConversionInput = {}
-) {
-	const payload = buildOpenAiRegistrationConversionPayload(input);
-	measureOpenAiRegistrationCompleted(payload.eventId);
-	sendOpenAiRegistrationCompletedConversion(payload);
+export function trackOpenAiRegistrationCompleted() {
+	measureOpenAiRegistrationCompleted(createRegistrationEventId());
 }

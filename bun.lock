@@ -570,6 +570,7 @@
       "name": "@databuddy/email",
       "version": "0.0.0",
       "dependencies": {
+        "@databuddy/shared": "workspace:*",
         "@types/node": "^26.0.0",
         "react": "catalog:",
         "react-dom": "catalog:",
@@ -593,9 +594,6 @@
     "packages/env": {
       "name": "@databuddy/env",
       "version": "0.1.0",
-      "dependencies": {
-        "zod": "catalog:",
-      },
       "devDependencies": {
         "@types/node": "^26.0.0",
         "typescript": "catalog:",

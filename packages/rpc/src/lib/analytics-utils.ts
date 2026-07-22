@@ -2,6 +2,8 @@ import { chQuery } from "@databuddy/db/clickhouse";
 import { goalFunnelFilterFieldSet } from "@databuddy/shared/analytics-filters";
 import { parseReferrer } from "@databuddy/shared/utils/referrer";
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 export interface AnalyticsStep {
 	name: string;
 	step_number: number;
@@ -20,6 +22,7 @@ export interface StepAnalytics {
 	conversion_rate: number;
 	dropoff_rate: number;
 	dropoffs: number;
+	error_context_available: boolean;
 	error_count: number;
 	error_rate: number;
 	step_name: string;
@@ -43,7 +46,9 @@ export interface FunnelAnalytics {
 	avg_completion_time_formatted: string;
 	biggest_dropoff_rate: number;
 	biggest_dropoff_step: number;
+	duration_available: boolean;
 	error_insights: {
+		available: boolean;
 		total_errors: number;
 		sessions_with_errors: number;
 		dropoffs_with_errors: number;
@@ -92,6 +97,13 @@ interface FunnelAggRow {
 	date: string;
 	step_num: number;
 	users: number;
+}
+
+export interface FunnelConversionCounts {
+	completions: number;
+	entrants: number;
+	rate: number;
+	steps: { stepNumber: number; users: number }[];
 }
 
 interface ReferrerRow {
@@ -166,7 +178,9 @@ const OPS = new Set([
 
 const buildFilterSQL = (
 	filters: Filter[],
-	params: ClickhouseQueryParams
+	params: ClickhouseQueryParams,
+	sourceAlias?: string,
+	paramPrefix = "f"
 ): string => {
 	const parts: string[] = [];
 
@@ -176,8 +190,15 @@ const buildFilterSQL = (
 			continue;
 		}
 
-		const key = `f${i}`;
-		const sqlField = field === "path" ? normalizedPathExpression(field) : field;
+		const key = `${paramPrefix}${i}`;
+		const sourceField = field === "screen_resolution" ? "viewport_size" : field;
+		const qualifiedField = sourceAlias
+			? `${sourceAlias}.${sourceField}`
+			: sourceField;
+		const sqlField =
+			field === "path"
+				? normalizedPathExpression(qualifiedField)
+				: qualifiedField;
 		const normalizeExactPathValue =
 			field === "path" &&
 			(operator === "equals" ||
@@ -244,7 +265,7 @@ const buildFilterSQL = (
 };
 
 // Query building
-const buildTimeRangeWhere = (timeColumn: "time" | "timestamp") =>
+const buildTimeRangeWhere = (timeColumn: string) =>
 	`${timeColumn} >= parseDateTimeBestEffort({startDate:String})
 		AND ${timeColumn} <= parseDateTimeBestEffort({endDate:String})`;
 
@@ -252,6 +273,94 @@ const buildBaseWhere = (
 	timeColumn: "time" | "timestamp"
 ) => `client_id = {websiteId:String}
 		AND ${buildTimeRangeWhere(timeColumn)}`;
+
+const customEventRows = (projection: string): string => `SELECT ${projection}
+	FROM analytics.custom_events
+	WHERE owner_id = {websiteId:String}
+		AND ${buildTimeRangeWhere("timestamp")}
+	UNION ALL
+	SELECT ${projection}
+	FROM analytics.custom_events
+	WHERE website_id = {websiteId:String}
+		AND owner_id != {websiteId:String}
+		AND ${buildTimeRangeWhere("timestamp")}`;
+
+const visitorIdentityCtes = `visitor_identity_rows AS (
+	SELECT
+		profile_id,
+		anonymous_id,
+		session_id,
+		time AS identity_time
+	FROM analytics.events
+	WHERE ${buildBaseWhere("time")}
+	UNION ALL
+	${customEventRows(`
+		profile_id,
+		ifNull(anonymous_id, '') AS anonymous_id,
+		ifNull(session_id, '') AS session_id,
+		timestamp AS identity_time`)}
+),
+visitor_profiles_by_anonymous AS (
+	SELECT
+		anonymous_id,
+		arraySort(groupArray((identity_time, profile_id))) AS profile_history
+	FROM visitor_identity_rows
+	WHERE anonymous_id != '' AND profile_id != ''
+	GROUP BY anonymous_id
+),
+visitor_identity_by_session AS (
+	SELECT
+		session_id,
+		arraySort(groupArrayIf((identity_time, profile_id), profile_id != '')) AS profile_history,
+		argMaxIf(anonymous_id, identity_time, anonymous_id != '') AS mapped_anonymous_id
+	FROM visitor_identity_rows
+	WHERE session_id != ''
+	GROUP BY session_id
+)`;
+
+const identityJoins = (source: string): string => `
+	LEFT JOIN visitor_profiles_by_anonymous direct_profile
+		ON ${source}.anonymous_id = direct_profile.anonymous_id
+	LEFT JOIN visitor_identity_by_session session_identity
+		ON ${source}.session_id = session_identity.session_id
+	LEFT JOIN visitor_profiles_by_anonymous session_profile
+		ON session_identity.mapped_anonymous_id = session_profile.anonymous_id`;
+
+const profileAtRowTime = (
+	source: string,
+	profileSource: string,
+	identityTime = `${source}.identity_time`
+): string =>
+	`tupleElement(
+	arrayLast(
+		identity -> tupleElement(identity, 1) <= ${identityTime},
+		${profileSource}.profile_history
+	),
+	2
+)`;
+
+// Keep the initial identify backfill, but apply later profile changes forward only.
+const sessionProfileAtRowTime = (
+	source: string,
+	identityTime = `${source}.identity_time`
+): string => `coalesce(
+	nullIf(${profileAtRowTime(source, "session_identity", identityTime)}, ''),
+	nullIf(tupleElement(arrayElement(session_identity.profile_history, 1), 2), ''),
+	''
+)`;
+
+const canonicalVisitorExpression = (
+	source: string,
+	identityTime?: string
+): string => `coalesce(
+	nullIf(${source}.profile_id, ''),
+	nullIf(${sessionProfileAtRowTime(source, identityTime)}, ''),
+	nullIf(${profileAtRowTime(source, "direct_profile", identityTime)}, ''),
+	nullIf(${profileAtRowTime(source, "session_profile", identityTime)}, ''),
+	nullIf(${source}.anonymous_id, ''),
+	nullIf(session_identity.mapped_anonymous_id, ''),
+	''
+)`;
 
 const pathOnlyExpression = (field = "path") =>
 	`if(startsWith(${field}, 'http://') OR startsWith(${field}, 'https://'), path(${field}), ${field})`;
@@ -281,248 +390,296 @@ const normalizeGoalPathTarget = (target: string): string => {
 	return withoutTrailingSlash || "/";
 };
 
-const buildStepQuery = (
-	step: AnalyticsStep,
-	idx: number,
-	filterSQL: string,
-	params: ClickhouseQueryParams,
-	includeReferrer = false
-): string => {
-	params[`n${idx}`] = step.name;
-	params[`t${idx}`] = step.target;
-
-	const refCol = includeReferrer ? ", any(referrer) as ref" : "";
-	const base = buildBaseWhere("time");
-
-	if (step.type === "PAGE_VIEW") {
-		params[`t${idx}`] = normalizeGoalPathTarget(step.target);
-		return `SELECT ${idx + 1} as step, {n${idx}:String} as name, anonymous_id as vid, MIN(time) as ts${refCol}
-			FROM analytics.events
-			WHERE ${base} AND event_name = 'screen_view'
-				AND ${normalizedPathExpression("path")} = {t${idx}:String}${filterSQL}
-			GROUP BY vid`;
-	}
-
-	// EVENT: query both analytics.events (track) and analytics.custom_events (api/server)
-	const refJoin = includeReferrer
-		? `LEFT JOIN (
-			SELECT anonymous_id as vid, argMin(referrer, time) as vref
-			FROM analytics.events WHERE ${base} AND event_name = 'screen_view' AND referrer != ''
-			GROUP BY vid
-		) r ON e.vid = r.vid`
-		: "";
-
-	return `SELECT ${idx + 1} as step, {n${idx}:String} as name, e.vid as vid, MIN(ts) as ts${includeReferrer ? ", COALESCE(r.vref, '') as ref" : ""}
-		FROM (
-			SELECT anonymous_id as vid, time as ts FROM analytics.events
-			WHERE ${base} AND event_name = {t${idx}:String}${filterSQL}
-			UNION ALL
-			SELECT COALESCE(anonymous_id, session_id, '') as vid, timestamp as ts FROM analytics.custom_events
-			WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-				AND ${buildTimeRangeWhere("timestamp")}
-				AND event_name = {t${idx}:String}
-				AND coalesce(anonymous_id, session_id, '') != ''
-		) e ${refJoin}
-		GROUP BY e.vid${includeReferrer ? ", r.vref" : ""}`;
-};
-
-interface ErrorRow {
-	error_count: number;
-	error_type: string;
-	message: string;
-	path: string;
-	vid: string;
-}
-
-const buildStepSubquery = (
-	step: AnalyticsStep,
-	paramKey: string,
-	params: ClickhouseQueryParams
-): string => {
-	params[paramKey] = step.target;
-	if (step.type === "PAGE_VIEW") {
-		params[paramKey] = normalizeGoalPathTarget(step.target);
-		return `SELECT DISTINCT anonymous_id FROM analytics.events
-			WHERE client_id = {websiteId:String}
-			AND time >= parseDateTimeBestEffort({startDate:String})
-			AND time <= parseDateTimeBestEffort({endDate:String})
-			AND event_name = 'screen_view'
-			AND ${normalizedPathExpression("path")} = {${paramKey}:String}`;
-	}
-	return `(SELECT DISTINCT anonymous_id FROM analytics.events
-		WHERE client_id = {websiteId:String}
-		AND time >= parseDateTimeBestEffort({startDate:String})
-		AND time <= parseDateTimeBestEffort({endDate:String})
-		AND event_name = {${paramKey}:String}
-		UNION ALL
-		SELECT DISTINCT COALESCE(anonymous_id, session_id, '') FROM analytics.custom_events
-		WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-		AND timestamp >= parseDateTimeBestEffort({startDate:String})
-		AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		AND event_name = {${paramKey}:String}
-		AND COALESCE(anonymous_id, session_id, '') != '')`;
-};
-
-const queryFunnelErrors = async (
+function buildIdentifiedEventStream(
 	steps: AnalyticsStep[],
-	hasVisitors: boolean,
+	filters: Filter[],
 	params: ClickhouseQueryParams,
-	abortSignal?: AbortSignal
-): Promise<{
-	errorsByPath: Map<string, ErrorRow[]>;
-	sessionsWithErrors: Set<string>;
-	totalErrors: number;
-	dropoffsWithErrors: number;
-}> => {
-	const empty = {
-		errorsByPath: new Map<string, ErrorRow[]>(),
-		sessionsWithErrors: new Set<string>(),
-		totalErrors: 0,
-		dropoffsWithErrors: 0,
-	};
-
-	const firstStep = steps[0];
-	if (!(hasVisitors && firstStep)) {
-		return empty;
-	}
-
-	const firstStepSubquery = buildStepSubquery(
-		firstStep,
-		"firstStepTarget",
-		params
+	options: { includeReferrer?: boolean } = {}
+): string {
+	const browserFilter = buildFilterSQL(filters, params, "row", "browserFilter");
+	const directCustomFilters = filters.filter(
+		(filter) => filter.field === "event_name" || filter.field === "path"
 	);
-
-	const lastStep = steps.at(-1);
-	const hasMultipleSteps = lastStep && steps.length > 1;
-	const lastStepSubquery = hasMultipleSteps
-		? buildStepSubquery(lastStep, "lastStepTarget", params)
-		: null;
-
-	const errorQuery = `SELECT
-		path,
-		anonymous_id as vid,
-		error_type,
-		any(message) as message,
-		count() as error_count
-	FROM analytics.error_spans
-	WHERE client_id = {websiteId:String}
-		AND timestamp >= parseDateTimeBestEffort({startDate:String})
-		AND timestamp <= parseDateTimeBestEffort({endDate:String})
-		AND anonymous_id IN (${firstStepSubquery})
-	GROUP BY path, anonymous_id, error_type
-	ORDER BY error_count DESC
-	LIMIT 1000`;
-
-	const dropoffQuery = lastStepSubquery
-		? `SELECT count(DISTINCT anonymous_id) as count
-		   FROM analytics.error_spans
-		   WHERE client_id = {websiteId:String}
-			AND timestamp >= parseDateTimeBestEffort({startDate:String})
-			AND timestamp <= parseDateTimeBestEffort({endDate:String})
-			AND anonymous_id IN (${firstStepSubquery})
-			AND anonymous_id NOT IN (${lastStepSubquery})`
-		: null;
-
-	const [errorRows, dropoffResult] = await Promise.all([
-		chQuery<ErrorRow>(errorQuery, params, { abort_signal: abortSignal }),
-		dropoffQuery
-			? chQuery<{ count: number }>(dropoffQuery, params, {
-					abort_signal: abortSignal,
-				})
-			: Promise.resolve([]),
-	]);
-
-	const errorsByPath = new Map<string, ErrorRow[]>();
-	const sessionsWithErrors = new Set<string>();
-	let totalErrors = 0;
-
-	for (const row of errorRows) {
-		const count = toFiniteNumber(row.error_count, 0);
-		const normalized: ErrorRow = {
-			path: normalizeGoalPathTarget(String(row.path ?? "")),
-			vid: String(row.vid ?? ""),
-			error_type: String(row.error_type ?? ""),
-			message: String(row.message ?? ""),
-			error_count: count,
-		};
-
-		sessionsWithErrors.add(normalized.vid);
-		totalErrors += count;
-
-		const existing = errorsByPath.get(normalized.path);
-		if (existing) {
-			existing.push(normalized);
-		} else {
-			errorsByPath.set(normalized.path, [normalized]);
+	const contextFilters = filters.filter(
+		(filter) => filter.field !== "event_name" && filter.field !== "path"
+	);
+	const directCustomFilter = buildFilterSQL(
+		directCustomFilters,
+		params,
+		"row",
+		"customFilter"
+	);
+	const contextFilter = buildFilterSQL(
+		contextFilters,
+		params,
+		"identified",
+		"contextFilter"
+	);
+	const stepCases = steps.map((step, index) => {
+		const stepNumber = index + 1;
+		const targetKey = `t${index}`;
+		params[targetKey] =
+			step.type === "PAGE_VIEW"
+				? normalizeGoalPathTarget(step.target)
+				: step.target;
+		const baseMatch =
+			step.type === "PAGE_VIEW"
+				? `row.source_kind = 1
+					AND row.event_name = 'screen_view'
+					AND ${normalizedPathExpression("row.path")} = {${targetKey}:String}`
+				: `row.event_name = {${targetKey}:String}`;
+		let matches = baseMatch;
+		if (index === 0 && filters.length > 0) {
+			if (step.type === "PAGE_VIEW") {
+				matches = `${baseMatch}${browserFilter}`;
+			} else {
+				const customHasContext = contextFilters.length
+					? `(row.source_kind = 1${browserFilter}
+						OR (row.source_kind = 2${directCustomFilter}
+							AND row.last_matching_context_ms > 0
+							AND row.last_matching_context_ms <= toUnixTimestamp64Milli(row.identity_time)
+							AND row.last_matching_context_ms >= toUnixTimestamp64Milli(row.identity_time) - 86400000))`
+					: `(row.source_kind = 1${browserFilter}
+						OR (row.source_kind = 2${directCustomFilter}))`;
+				matches = `${baseMatch} AND ${customHasContext}`;
+			}
 		}
-	}
-
-	const dropoffsWithErrors = toFiniteNumber(dropoffResult[0]?.count, 0);
-
-	return { errorsByPath, sessionsWithErrors, totalErrors, dropoffsWithErrors };
-};
+		return `if(ifNull(${matches}, false), toUInt8(${stepNumber}), toUInt8(0))`;
+	});
+	const visitor = canonicalVisitorExpression("source_row");
+	return `analytics_rows AS (
+	SELECT
+		toUInt8(1) AS source_kind,
+		profile_id,
+		anonymous_id,
+		session_id,
+		time AS identity_time,
+		event_name,
+		path,
+		referrer,
+		country,
+		city,
+		device_type,
+		browser_name,
+		os_name,
+		language,
+		utm_source,
+		utm_medium,
+		utm_campaign,
+		utm_term,
+		utm_content,
+		user_agent,
+		viewport_size
+	FROM analytics.events
+	WHERE ${buildBaseWhere("time")}
+	UNION ALL
+	${customEventRows(`
+		toUInt8(2) AS source_kind,
+		profile_id,
+		ifNull(anonymous_id, '') AS anonymous_id,
+		ifNull(session_id, '') AS session_id,
+		timestamp AS identity_time,
+		event_name,
+		path,
+		CAST(NULL, 'Nullable(String)') AS referrer,
+		CAST(NULL, 'Nullable(String)') AS country,
+		CAST(NULL, 'Nullable(String)') AS city,
+		CAST(NULL, 'Nullable(String)') AS device_type,
+		CAST(NULL, 'Nullable(String)') AS browser_name,
+		CAST(NULL, 'Nullable(String)') AS os_name,
+		CAST(NULL, 'Nullable(String)') AS language,
+		CAST(NULL, 'Nullable(String)') AS utm_source,
+		CAST(NULL, 'Nullable(String)') AS utm_medium,
+		CAST(NULL, 'Nullable(String)') AS utm_campaign,
+		CAST(NULL, 'Nullable(String)') AS utm_term,
+		CAST(NULL, 'Nullable(String)') AS utm_content,
+		CAST(NULL, 'Nullable(String)') AS user_agent,
+		CAST(NULL, 'Nullable(String)') AS viewport_size`)}
+),
+identified_rows AS (
+	SELECT
+		source_row.source_kind AS source_kind,
+		source_row.profile_id AS profile_id,
+		source_row.anonymous_id AS anonymous_id,
+		source_row.session_id AS session_id,
+		source_row.identity_time AS identity_time,
+		source_row.event_name AS event_name,
+		source_row.path AS path,
+		source_row.referrer AS referrer,
+		source_row.country AS country,
+		source_row.city AS city,
+		source_row.device_type AS device_type,
+		source_row.browser_name AS browser_name,
+		source_row.os_name AS os_name,
+		source_row.language AS language,
+		source_row.utm_source AS utm_source,
+		source_row.utm_medium AS utm_medium,
+		source_row.utm_campaign AS utm_campaign,
+		source_row.utm_term AS utm_term,
+		source_row.utm_content AS utm_content,
+		source_row.user_agent AS user_agent,
+		source_row.viewport_size AS viewport_size,
+		${visitor} AS vid
+	FROM analytics_rows source_row${identityJoins("source_row")}
+	WHERE ${visitor} != ''
+),
+context_rows AS (
+	SELECT
+		context.*,
+		if(
+			context.session_id != '',
+			context.last_matching_session_context_ms,
+			context.last_matching_visitor_context_ms
+		) AS last_matching_context_ms,
+		${
+			options.includeReferrer
+				? `argMaxIf(
+			ifNull(context.referrer, ''),
+			context.identity_time,
+			context.source_kind = 1
+				AND context.event_name = 'screen_view'
+				AND ifNull(context.referrer, '') != ''
+		) OVER (
+			PARTITION BY context.vid
+			ORDER BY context.identity_time, context.source_kind
+			ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+		)`
+				: "''"
+		} AS last_browser_referrer
+	FROM (
+		SELECT
+			identified.*,
+			${
+				contextFilters.length > 0
+					? `maxIf(
+			toUnixTimestamp64Milli(identified.identity_time),
+			identified.source_kind = 1${contextFilter}
+		) OVER (
+			PARTITION BY identified.vid
+			ORDER BY identified.identity_time, identified.source_kind
+			ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+		)`
+					: "toInt64(0)"
+			} AS last_matching_visitor_context_ms,
+			${
+				contextFilters.length > 0
+					? `maxIf(
+			toUnixTimestamp64Milli(identified.identity_time),
+			identified.source_kind = 1${contextFilter}
+		) OVER (
+			PARTITION BY identified.vid, identified.session_id
+			ORDER BY identified.identity_time, identified.source_kind
+			ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+		)`
+					: "toInt64(0)"
+			} AS last_matching_session_context_ms
+		FROM identified_rows identified
+	) context
+),
+events AS (
+	SELECT
+		arrayJoin(arrayFilter(value -> value > 0, [${stepCases.join(", ")}])) AS step,
+		row.vid AS vid,
+		row.identity_time AS ts,
+		if(
+			row.source_kind = 1,
+			ifNull(row.referrer, ''),
+			row.last_browser_referrer
+		) AS ref
+	FROM context_rows row
+)`;
+}
 
 export const queryLinkVisitorIds = async (
 	linkId: string,
 	params: ClickhouseQueryParams
 ): Promise<Set<string>> => {
 	const refParams = { ...params, linkRefPattern: `%ref=${linkId}%` };
+	const eventVisitor = canonicalVisitorExpression("event", "event.time");
 	const rows = await chQuery<{ vid: string }>(
-		`SELECT DISTINCT anonymous_id as vid
-		 FROM analytics.events
-		 WHERE client_id = {websiteId:String}
-			AND ${buildTimeRangeWhere("time")}
-			AND url LIKE {linkRefPattern:String}`,
+		`WITH ${visitorIdentityCtes}
+		 SELECT DISTINCT ${eventVisitor} as vid
+		 FROM analytics.events event${identityJoins("event")}
+		 WHERE event.client_id = {websiteId:String}
+			AND ${buildTimeRangeWhere("event.time")}
+			AND event.url LIKE {linkRefPattern:String}
+			AND ${eventVisitor} != ''`,
 		refParams
 	);
 	return new Set(rows.map((r) => String(r.vid ?? "")));
 };
 
-// Build chained step CTEs + visitor summary for ClickHouse-side funnel computation
-// Aggregate per-step error insights from the error query results
-const buildStepErrorInsights = (
-	errorsByPath: Map<string, ErrorRow[]>,
-	target: string
-): {
-	stepErrorCount: number;
-	usersWithErrors: number;
-	topErrors: StepErrorInsight[];
-} => {
-	const stepErrors = errorsByPath.get(normalizeGoalPathTarget(target)) ?? [];
-	const stepErrorCount = stepErrors.reduce(
-		(sum, e) => sum + toFiniteNumber(e.error_count, 0),
-		0
-	);
-	const usersWithErrors = new Set(stepErrors.map((e) => e.vid)).size;
-
-	const errorsByType = new Map<
-		string,
-		{ message: string; count: number; type: string }
-	>();
-	for (const e of stepErrors) {
-		const ec = toFiniteNumber(e.error_count, 0);
-		const existing = errorsByType.get(e.error_type);
-		if (existing) {
-			existing.count += ec;
-		} else {
-			errorsByType.set(e.error_type, {
-				message: e.message,
-				count: ec,
-				type: e.error_type,
-			});
-		}
+/**
+ * Cheap detector path: one event stream and one visitor aggregation. It deliberately
+ * excludes time series, duration, and error context; those belong to investigation.
+ */
+export const processFunnelConversionCounts = async (
+	steps: AnalyticsStep[],
+	filters: Filter[],
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
+): Promise<FunnelConversionCounts> => {
+	if (steps.length === 0) {
+		return { completions: 0, entrants: 0, rate: 0, steps: [] };
 	}
 
-	const topErrors = [...errorsByType.values()]
-		.sort((a, b) => b.count - a.count)
-		.slice(0, 3)
-		.map((e) => ({
-			message: e.message,
-			error_type: e.type,
-			count: toFiniteNumber(e.count, 0),
-		}));
+	const conditions = steps.map((_, index) => `step = ${index + 1}`).join(", ");
+	const query = `WITH ${visitorIdentityCtes},
+${buildIdentifiedEventStream(steps, filters, params)},
+visitor_progress AS (
+	SELECT
+		vid,
+		windowFunnel(86400000)(toUInt64(toUnixTimestamp64Milli(ts)), ${conditions}) AS max_step
+	FROM events
+	GROUP BY vid
+)
+SELECT
+	toUInt8(step_number) AS step_num,
+	countIf(max_step >= step_number) AS users
+FROM visitor_progress
+ARRAY JOIN range(1, ${steps.length + 1}) AS step_number
+GROUP BY step_number
+ORDER BY step_number`;
+	const rows = await chQuery<{ step_num: number; users: number }>(
+		query,
+		params,
+		{
+			abort_signal: abortSignal,
+		}
+	);
+	const usersByStep = new Map(
+		rows.map((row) => [
+			toFiniteNumber(row.step_num, 0),
+			toFiniteNumber(row.users, 0),
+		])
+	);
+	const stepCounts = steps.map((_, index) => ({
+		stepNumber: index + 1,
+		users: usersByStep.get(index + 1) ?? 0,
+	}));
+	const entrants = stepCounts[0]?.users ?? 0;
+	const completions = stepCounts.at(-1)?.users ?? 0;
+	return {
+		completions,
+		entrants,
+		rate: pct(completions, entrants),
+		steps: stepCounts,
+	};
+};
 
-	return { stepErrorCount, usersWithErrors, topErrors };
+export const processGoalConversionCount = async (
+	step: AnalyticsStep,
+	filters: Filter[],
+	params: ClickhouseQueryParams,
+	abortSignal?: AbortSignal
+): Promise<number> => {
+	const query = `WITH ${visitorIdentityCtes},
+${buildIdentifiedEventStream([step], filters, params)}
+SELECT uniqExact(vid) AS completions FROM events`;
+	const [row] = await chQuery<{ completions: number }>(query, params, {
+		abort_signal: abortSignal,
+	});
+	return toFiniteNumber(row?.completions, 0);
 };
 
 // Main funnel analytics — step matching, timing, and aggregation happen in ClickHouse
@@ -533,49 +690,88 @@ export const processFunnelAnalytics = async (
 	visitorFilter?: Set<string>,
 	abortSignal?: AbortSignal
 ): Promise<FunnelAnalytics> => {
-	const filterSQL = buildFilterSQL(filters, params);
 	const totalSteps = steps.length;
-	const stepQueries = steps.map((s, i) =>
-		buildStepQuery(s, i, filterSQL, params)
-	);
+	if (totalSteps === 0) {
+		throw new Error("A funnel requires at least one step");
+	}
 
 	let visitorFilterClause = "";
 	if (visitorFilter && visitorFilter.size > 0) {
 		params.visitorFilterIds = [...visitorFilter];
-		visitorFilterClause = " AND vid IN {visitorFilterIds:Array(String)}";
+		visitorFilterClause = " WHERE vid IN {visitorFilterIds:Array(String)}";
 	}
 
-	const stepConditions = steps.map((_, i) => `step = ${i + 1}`).join(", ");
-
-	const fullQuery = `WITH events AS (${stepQueries.join("\nUNION ALL\n")}),
-step_events AS (SELECT DISTINCT step, vid, ts FROM events${visitorFilterClause ? ` WHERE 1=1${visitorFilterClause}` : ""}),
-visitor_funnel AS (
+	const candidateStepConditions = steps
+		.map((_, index) =>
+			index === 0
+				? "event.step = 1 AND toDate(event.ts) = candidate.entry_date"
+				: `event.step = ${index + 1}`
+		)
+		.join(", ");
+	const fullQuery = `WITH ${visitorIdentityCtes},
+${buildIdentifiedEventStream(steps, filters, params)},
+filtered_events AS (
+	SELECT DISTINCT step, vid, ts
+	FROM events${visitorFilterClause}
+),
+entry_dates AS (
+	SELECT DISTINCT vid, toDate(ts) AS entry_date
+	FROM filtered_events
+	WHERE step = 1
+),
+candidate_progress AS (
+	SELECT
+		candidate.vid AS vid,
+		candidate.entry_date AS entry_date,
+		windowFunnel(86400000)(
+			toUInt64(toUnixTimestamp64Milli(event.ts)),
+			${candidateStepConditions}
+		) AS candidate_max_step
+	FROM entry_dates candidate
+	INNER JOIN filtered_events event ON event.vid = candidate.vid
+	WHERE event.ts >= toDateTime(candidate.entry_date)
+		AND event.ts < toDateTime(candidate.entry_date + INTERVAL 2 DAY)
+	GROUP BY candidate.vid, candidate.entry_date
+	HAVING candidate_max_step >= 1
+),
+visitor_progress AS (
 	SELECT
 		vid,
-		windowFunnel(86400)(toDateTime(ts), ${stepConditions}) as max_step,
-		min(ts) as first_ts
-	FROM step_events
+		argMax(
+			entry_date,
+			tuple(candidate_max_step, -toInt32(toRelativeDayNum(entry_date)))
+		) AS entry_date,
+		max(candidate_max_step) AS max_step
+	FROM candidate_progress
 	GROUP BY vid
 	HAVING max_step >= 1
+),
+expanded AS (
+	SELECT
+		entry_date,
+		max_step,
+		arrayJoin(range(0, ${totalSteps + 2})) AS output_index
+	FROM visitor_progress
 )
-SELECT step_num, date, users, avg_time, conversions FROM (
-	${Array.from({ length: totalSteps }, (_, i) => {
-		const stepNum = i + 1;
-		return `SELECT toUInt8(${stepNum}) as step_num, '' as date, countIf(max_step >= ${stepNum}) as users, toFloat64(0) as avg_time, toUInt64(0) as conversions FROM visitor_funnel`;
-	}).join("\nUNION ALL\n")}
-	UNION ALL
-	SELECT toUInt8(${totalSteps + 1}), '', toUInt64(0), toFloat64(0), toUInt64(0) FROM visitor_funnel
-	UNION ALL
-	SELECT toUInt8(0), toString(toDate(first_ts)), count(), toFloat64(0), countIf(max_step >= ${totalSteps}) FROM visitor_funnel GROUP BY toDate(first_ts)
-)
-ORDER BY 1, 2`;
+SELECT
+	toUInt8(output_index) AS step_num,
+	if(output_index = 0, toString(entry_date), '') AS date,
+	if(
+		output_index = 0,
+		count(),
+		if(output_index <= ${totalSteps}, countIf(max_step >= output_index), toUInt64(0))
+	) AS users,
+	toFloat64(0) AS avg_time,
+	if(output_index = 0, countIf(max_step >= ${totalSteps}), toUInt64(0)) AS conversions
+FROM expanded
+GROUP BY output_index, date
+ORDER BY step_num, date`;
 
 	const sentinelStep = totalSteps + 1;
 
-	const [aggRows, errorData] = await Promise.all([
-		chQuery<FunnelAggRow>(fullQuery, params, { abort_signal: abortSignal }),
-		queryFunnelErrors(steps, true, params, abortSignal),
-	]);
+	const aggRows = await chQuery<FunnelAggRow>(fullQuery, params, {
+		abort_signal: abortSignal,
+	});
 
 	const stepRows: FunnelAggRow[] = [];
 	const tsRows: FunnelAggRow[] = [];
@@ -596,10 +792,6 @@ ORDER BY 1, 2`;
 
 	const totalUsers = toFiniteNumber(stepRows[0]?.users, 0);
 	const completedUsers = toFiniteNumber(stepRows.at(-1)?.users, 0);
-	const totalDropoffs = totalUsers - completedUsers;
-
-	const { errorsByPath, totalErrors, sessionsWithErrors, dropoffsWithErrors } =
-		errorData;
 
 	const stepsAnalytics: StepAnalytics[] = steps.map((s, i) => {
 		const stepNum = i + 1;
@@ -611,21 +803,19 @@ ORDER BY 1, 2`;
 				: users;
 		const drops = i > 0 ? prev - users : 0;
 
-		const { stepErrorCount, usersWithErrors, topErrors } =
-			buildStepErrorInsights(errorsByPath, s.target);
-
 		return {
 			step_number: stepNum,
 			step_name: s.name,
 			users,
 			total_users: totalUsers,
-			conversion_rate: i > 0 ? pct(users, prev) : 100,
+			conversion_rate: i > 0 ? pct(users, prev) : users > 0 ? 100 : 0,
 			dropoffs: drops,
 			dropoff_rate: i > 0 ? pct(drops, prev) : 0,
 			avg_time_to_complete: Math.round(toFiniteNumber(row?.avg_time, 0)),
-			error_count: stepErrorCount,
-			error_rate: pct(usersWithErrors, users),
-			top_errors: topErrors,
+			error_context_available: false,
+			error_count: 0,
+			error_rate: 0,
+			top_errors: [],
 		};
 	});
 
@@ -659,13 +849,15 @@ ORDER BY 1, 2`;
 		avg_completion_time_formatted: formatDuration(avgCompletionTime),
 		biggest_dropoff_step: biggestDropoff?.step_number || 1,
 		biggest_dropoff_rate: biggestDropoff?.dropoff_rate || 0,
+		duration_available: false,
 		steps_analytics: stepsAnalytics,
 		time_series: timeSeries.length > 0 ? timeSeries : undefined,
 		error_insights: {
-			total_errors: totalErrors,
-			sessions_with_errors: sessionsWithErrors.size,
-			dropoffs_with_errors: dropoffsWithErrors,
-			error_correlation_rate: pct(dropoffsWithErrors, totalDropoffs),
+			available: false,
+			total_errors: 0,
+			sessions_with_errors: 0,
+			dropoffs_with_errors: 0,
+			error_correlation_rate: 0,
 		},
 	};
 };
@@ -677,26 +869,15 @@ export const processGoalAnalytics = async (
 	totalWebsiteUsers: number,
 	abortSignal?: AbortSignal
 ): Promise<FunnelAnalytics> => {
-	const filterSQL = buildFilterSQL(filters, params);
 	const step = steps[0];
-
-	const sql = `WITH events AS (${buildStepQuery(step, 0, filterSQL, params)})
-		 SELECT DISTINCT step, vid, ts FROM events`;
-	const rows = await chQuery<{ step: number; vid: string; ts: number }>(
-		sql,
+	if (!step) {
+		throw new Error("A goal requires one step");
+	}
+	const completions = await processGoalConversionCount(
+		step,
+		filters,
 		params,
-		{ abort_signal: abortSignal }
-	);
-
-	const goalVids = new Set(rows.map((r) => r.vid));
-	const completions = goalVids.size;
-
-	const { errorsByPath, sessionsWithErrors, totalErrors } =
-		await queryFunnelErrors(steps, goalVids.size > 0, params, abortSignal);
-
-	const { stepErrorCount, usersWithErrors, topErrors } = buildStepErrorInsights(
-		errorsByPath,
-		step.target
+		abortSignal
 	);
 
 	return {
@@ -707,6 +888,7 @@ export const processGoalAnalytics = async (
 		avg_completion_time_formatted: "—",
 		biggest_dropoff_step: 1,
 		biggest_dropoff_rate: 0,
+		duration_available: false,
 		steps_analytics: [
 			{
 				step_number: 1,
@@ -717,14 +899,16 @@ export const processGoalAnalytics = async (
 				dropoffs: 0,
 				dropoff_rate: 0,
 				avg_time_to_complete: 0,
-				error_count: stepErrorCount,
-				error_rate: pct(usersWithErrors, completions),
-				top_errors: topErrors,
+				error_context_available: false,
+				error_count: 0,
+				error_rate: 0,
+				top_errors: [],
 			},
 		],
 		error_insights: {
-			total_errors: totalErrors,
-			sessions_with_errors: sessionsWithErrors.size,
+			available: false,
+			total_errors: 0,
+			sessions_with_errors: 0,
 			dropoffs_with_errors: 0,
 			error_correlation_rate: 0,
 		},
@@ -737,20 +921,21 @@ export const processFunnelAnalyticsByReferrer = async (
 	filters: Filter[],
 	params: ClickhouseQueryParams
 ): Promise<{ referrer_analytics: ReferrerAnalytics[] }> => {
-	const filterSQL = buildFilterSQL(filters, params);
 	const totalSteps = steps.length;
-	const stepQueries = steps.map((s, i) =>
-		buildStepQuery(s, i, filterSQL, params, true)
-	);
+	if (totalSteps === 0) {
+		return { referrer_analytics: [] };
+	}
+	const stepConditions = steps
+		.map((_, index) => `step = ${index + 1}`)
+		.join(", ");
 
-	const stepConditions = steps.map((_, i) => `step = ${i + 1}`).join(", ");
-
-	const fullQuery = `WITH events AS (${stepQueries.join("\nUNION ALL\n")}),
+	const fullQuery = `WITH ${visitorIdentityCtes},
+${buildIdentifiedEventStream(steps, filters, params, { includeReferrer: true })},
 step_events AS (SELECT DISTINCT step, vid, ts, ref FROM events)
 SELECT
 	vid,
-	windowFunnel(86400)(toDateTime(ts), ${stepConditions}) as max_step,
-	any(ref) as referrer
+	windowFunnel(86400000)(toUInt64(toUnixTimestamp64Milli(ts)), ${stepConditions}) as max_step,
+	argMinIf(ref, ts, step = 1) as referrer
 FROM step_events
 GROUP BY vid
 HAVING max_step >= 1`;
@@ -809,18 +994,22 @@ export const getTotalWebsiteUsers = async (
 	const params: ClickhouseQueryParams = {
 		websiteId,
 		startDate,
-		endDate: `${endDate} 23:59:59`,
+		endDate: DATE_ONLY_PATTERN.test(endDate) ? `${endDate} 23:59:59` : endDate,
 	};
 	const denominatorFilters = filters.filter(
 		(filter) => filter.field !== "event_name"
 	);
-	const filterSQL = buildFilterSQL(denominatorFilters, params);
+	const filterSQL = buildFilterSQL(denominatorFilters, params, "event");
+	const eventVisitor = canonicalVisitorExpression("event", "event.time");
 	const [result] = await chQuery<{ count: number }>(
-		`SELECT COUNT(DISTINCT anonymous_id) as count FROM analytics.events
-		 WHERE client_id = {websiteId:String}
-			AND time >= parseDateTimeBestEffort({startDate:String})
-			AND time <= parseDateTimeBestEffort({endDate:String})
-			AND event_name = 'screen_view'${filterSQL}`,
+		`WITH ${visitorIdentityCtes}
+		 SELECT COUNT(DISTINCT ${eventVisitor}) as count
+		 FROM analytics.events event${identityJoins("event")}
+		 WHERE event.client_id = {websiteId:String}
+			AND event.time >= parseDateTimeBestEffort({startDate:String})
+			AND event.time <= parseDateTimeBestEffort({endDate:String})
+			AND event.event_name = 'screen_view'
+			AND ${eventVisitor} != ''${filterSQL}`,
 		params,
 		{ abort_signal: abortSignal }
 	);

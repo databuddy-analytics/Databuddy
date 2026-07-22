@@ -5,6 +5,7 @@ import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import { ArrowLeftIcon, WarningIcon } from "@databuddy/ui/icons";
 import { Button, Spinner, Text } from "@databuddy/ui";
 import {
@@ -20,7 +21,8 @@ function VerificationNeededPage() {
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
 	const [isReady, setIsReady] = useState(false);
-	const loginHref = `/login?callback=${encodeURIComponent(callback)}`;
+	const safeCallback = safeCallbackPath(callback);
+	const loginHref = `/login?callback=${encodeURIComponent(safeCallback)}`;
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -51,7 +53,7 @@ function VerificationNeededPage() {
 		try {
 			const { error } = await authClient.sendVerificationEmail({
 				email,
-				callbackURL: callback,
+				callbackURL: safeCallback,
 			});
 			if (error) {
 				toast.error(

@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { InvestigationRow } from "@/app/(main)/insights/_components/investigation-row";
+import {
+	InvestigationRow,
+	InvestigationRowSkeleton,
+} from "@/app/(main)/insights/_components/investigation-row";
 import type { Insight } from "@/lib/insight-api";
 import { cn } from "@/lib/utils";
 import {
@@ -9,25 +12,7 @@ import {
 	LightbulbIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-import { Button, Card, Skeleton } from "@databuddy/ui";
-
-function InvestigationSkeleton({ wide }: { wide?: boolean }) {
-	return (
-		<div className="flex items-start gap-3 px-5 py-3">
-			<Skeleton className="mt-0.5 size-7 shrink-0 rounded" />
-			<div className="min-w-0 flex-1 space-y-2">
-				<div className="flex items-start justify-between gap-2">
-					<div className="flex-1 space-y-1">
-						<Skeleton className={cn("h-4 rounded", wide ? "w-44" : "w-32")} />
-						<Skeleton className="h-3 w-24 rounded" />
-					</div>
-					<Skeleton className="h-4 w-8 rounded" />
-				</div>
-				<Skeleton className={cn("h-3 rounded", wide ? "w-56" : "w-40")} />
-			</div>
-		</div>
-	);
-}
+import { Button, Card } from "@databuddy/ui";
 
 function InvestigationsLoadingState() {
 	return (
@@ -48,8 +33,8 @@ function InvestigationsLoadingState() {
 					</p>
 				</div>
 			</div>
-			<InvestigationSkeleton />
-			<InvestigationSkeleton wide />
+			<InvestigationRowSkeleton />
+			<InvestigationRowSkeleton />
 		</div>
 	);
 }
@@ -117,7 +102,23 @@ export function InvestigationsSection({
 	isError,
 	onRefreshAction,
 }: InvestigationsSectionProps) {
-	const showInsights = !(isLoading || isError) && insights.length > 0;
+	const loading = isLoading === true;
+	const error = isError === true;
+	const showInsights = !(loading || error) && insights.length > 0;
+	let content = <InvestigationsEmptyState />;
+	if (loading) {
+		content = <InvestigationsLoadingState />;
+	} else if (error) {
+		content = <InvestigationsErrorState onRetryAction={onRefreshAction} />;
+	} else if (showInsights) {
+		content = (
+			<div>
+				{insights.map((insight) => (
+					<InvestigationRow insight={insight} key={insight.id} />
+				))}
+			</div>
+		);
+	}
 
 	return (
 		<Card>
@@ -131,13 +132,13 @@ export function InvestigationsSection({
 						<Card.Title className="text-sm">Investigations</Card.Title>
 					</div>
 				</div>
-				{!(isLoading || isError) && (
+				{loading || error ? null : (
 					<div className="flex shrink-0 items-center gap-2">
-						{showInsights && (
+						{showInsights ? (
 							<span className="text-muted-foreground text-xs">
 								{insights.length} {insights.length === 1 ? "case" : "cases"}
 							</span>
-						)}
+						) : null}
 						<Link
 							className="text-muted-foreground text-xs hover:text-foreground"
 							href="/insights"
@@ -153,24 +154,16 @@ export function InvestigationsSection({
 							variant="ghost"
 						>
 							<ArrowClockwiseIcon
-								className={cn("size-3.5", isFetching && "animate-spin")}
+								className={cn(
+									"size-3.5",
+									isFetching === true && "animate-spin"
+								)}
 							/>
 						</Button>
 					</div>
 				)}
 			</Card.Header>
-			{isLoading && <InvestigationsLoadingState />}
-			{!isLoading && isError && (
-				<InvestigationsErrorState onRetryAction={onRefreshAction} />
-			)}
-			{!(isLoading || isError || showInsights) && <InvestigationsEmptyState />}
-			{showInsights && (
-				<div className="max-h-[min(400px,60dvh)] overflow-y-auto">
-					{insights.map((insight) => (
-						<InvestigationRow insight={insight} key={insight.id} />
-					))}
-				</div>
-			)}
+			{content}
 		</Card>
 	);
 }

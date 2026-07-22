@@ -4,12 +4,14 @@ import { z } from "zod";
 import { getCachedWebsite } from "../../lib/website-utils";
 import {
 	LinkFolderSelectorSchema,
+	getLinkSummary,
 	hasLinkFolderSelector,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
 	resolveLinkFolder,
 	resolveLinkFolderFromList,
+	searchLinks,
 	summarizeLink,
 	summarizeLinkFolder,
 	summarizeLinkFoldersWithUsage,
@@ -44,15 +46,15 @@ export function createLinksTools() {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-				const [folders, links] = await Promise.all([
+				const [folders, summary] = await Promise.all([
 					listLinkFolders(context, organizationId),
-					listLinks(context, organizationId),
+					getLinkSummary(context, organizationId),
 				]);
 
 				return {
-					folders: summarizeLinkFoldersWithUsage(folders, links),
+					folders: summarizeLinkFoldersWithUsage(folders),
 					count: folders.length,
-					unfiledCount: links.filter((link) => !link.folderId).length,
+					unfiledCount: summary.unfiledTotal,
 					hint:
 						folders.length === 0
 							? "No link folders exist yet. Leave links unfiled unless the user creates a folder in Databuddy."
@@ -69,21 +71,38 @@ export function createLinksTools() {
 
 	const listLinksTool = tool({
 		description:
-			"List short links and existing folders for the website org (slug, target URL, folder, metadata).",
-		inputSchema: z.object({ websiteId: z.string() }),
-		execute: async ({ websiteId }, options) => {
+			"List the newest short links and existing folders for the website org. Set search to find a specific link across the full catalog.",
+		inputSchema: z.object({
+			search: z.string().trim().min(1).max(255).optional(),
+			websiteId: z.string(),
+		}),
+		execute: async ({ search, websiteId }, options) => {
 			const context = getAppContext(options);
 			try {
 				const organizationId = await getOrganizationIdFromWebsite(websiteId);
-				const [links, folders] = await Promise.all([
-					listLinks(context, organizationId),
+				const [page, folders, summary] = await Promise.all([
+					search
+						? searchLinks(context, organizationId, search)
+						: listLinks(context, organizationId),
 					listLinkFolders(context, organizationId),
+					search
+						? Promise.resolve(null)
+						: getLinkSummary(context, organizationId),
 				]);
+				const count = summary?.total ?? page.items.length;
 				return {
-					links: links.map((link) => summarizeLink(link, folders)),
-					count: links.length,
-					folders: summarizeLinkFoldersWithUsage(folders, links),
-					unfiledCount: links.filter((link) => !link.folderId).length,
+					links: page.items.map((link) => summarizeLink(link, folders)),
+					count,
+					folders: summarizeLinkFoldersWithUsage(folders, page.items),
+					unfiledCount:
+						summary?.unfiledTotal ??
+						page.items.filter((link) => !link.folderId).length,
+					hint:
+						page.hasMore || count > page.items.length
+							? search
+								? `Showing the ${page.items.length} newest matching links; more matches exist.`
+								: `Showing the ${page.items.length} newest of ${count} links.`
+							: undefined,
 				};
 			} catch (error) {
 				logger.error("Failed to list links", { websiteId, error });

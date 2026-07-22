@@ -4,6 +4,7 @@ description: Attribute Stripe and Paddle revenue to sessions, campaigns, and ide
 ---
 
 import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
+import { STRIPE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 
 Connect your payment provider and every transaction shows up in the Revenue dashboard, attributed to the session, referrer, and user that produced it.
 
@@ -24,13 +25,19 @@ Connect your payment provider and every transaction shows up in the Revenue dash
 
 In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoint with your generated URL and subscribe to these events:
 
-| Event | Purpose |
-|---|---|
-| `payment_intent.succeeded` | Records completed sales and subscriptions (required) |
-| `invoice.paid` | Records recurring subscription payments with attribution (required) |
-| `charge.refunded` | Records refunds (required) |
-| `payment_intent.payment_failed` | Tracks failed payments (optional) |
-| `payment_intent.canceled` | Tracks canceled payments (optional) |
+<table>
+<thead><tr><th>Event</th><th>Purpose</th></tr></thead>
+<tbody>
+{STRIPE_WEBHOOK_EVENTS.required.map(({ event, purpose }) => (
+  <tr key={event}><td><code>{event}</code></td><td>{purpose} ({event === "invoice_payment.paid" ? "required on API 2025-05-28.basil or later" : "required"})</td></tr>
+))}
+{STRIPE_WEBHOOK_EVENTS.optional.map(({ event, purpose }) => (
+  <tr key={event}><td><code>{event}</code></td><td>{purpose} (optional)</td></tr>
+))}
+</tbody>
+</table>
+
+Stripe introduced `invoice_payment.paid` in `2025-05-28.basil`. Subscribe to it on that version or later for exact allocation details. Databuddy also keeps the total from `invoice.paid` as a safe fallback, so adding the newer event after an API upgrade does not drop or double-count revenue. Earlier versions, including the `2025-03-31.basil` transition, use embedded invoice allocations when the full list is available.
 
 Paste the endpoint's **signing secret** into the Revenue settings so Databuddy can verify each delivery.
 
@@ -57,18 +64,29 @@ Metadata connects a payment to the visitor who made it. Include what you have: e
 const { anonId, sessionId } = getTrackingIds();
 const profileId = getProfileId();
 
-// ...send them to your server, then create the payment:
+// ...send them to your server and reuse the same metadata:
+const databuddyMetadata = {
+  databuddy_client_id: websiteId,
+  databuddy_session_id: sessionId,
+  databuddy_anonymous_id: anonId,
+  databuddy_profile_id: profileId,
+};
+
 await stripe.paymentIntents.create({
   amount,
   currency,
-  metadata: {
-    databuddy_client_id: websiteId,
-    databuddy_session_id: sessionId,
-    databuddy_anonymous_id: anonId,
-    databuddy_profile_id: profileId,
-  },
+  metadata: databuddyMetadata,
+});
+
+// For recurring billing, attach it to the Subscription too.
+await stripe.subscriptions.create({
+  customer,
+  items: [{ price: priceId }],
+  metadata: databuddyMetadata,
 });`}
 </CodeBlock>
+
+Stripe does not automatically copy PaymentIntent metadata to future subscription invoices. Put the IDs on the Subscription (or `subscription_data.metadata` when using Checkout) so recurring revenue stays attributable.
 </Tab>
 <Tab value="Paddle">
 <CodeBlock language="ts">

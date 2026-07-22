@@ -8,8 +8,10 @@ Keep it boring: fewer services, readable names, shared variables, and no custom 
 | Template service name | Source | Public domain | Purpose |
 | --- | --- | --- | --- |
 | `Dashboard` | GitHub repo + `dashboard.Dockerfile` | Yes, port `3000` | Web UI and Better Auth routes |
+| `Status` | GitHub repo | Yes, port `3002` | Public status pages |
 | `API` | `ghcr.io/databuddy-analytics/databuddy-api:latest` after CI publish, or repo + `api.Dockerfile` for seed testing | Yes, port `3001` | RPC/API, auth callbacks, AI, admin APIs |
 | `Events` | `ghcr.io/databuddy-analytics/databuddy-basket:latest` | Yes, port `4000` | Analytics event ingestion/webhooks |
+| `Insights` | `ghcr.io/databuddy-analytics/databuddy-insights:latest` | No, port `4002` | Investigation scheduler and worker |
 | `Init` | GitHub repo + `init.Dockerfile` | No | One-shot Postgres/ClickHouse schema setup |
 | `Postgres` | Railway Postgres | No | Relational app data |
 | `Redis` | Railway Redis | No | Cache, sessions, queues |
@@ -23,8 +25,10 @@ Keep `Links` optional unless the template supports Databuddy Links out of the bo
 
 - Template icon: Databuddy mark.
 - `Dashboard`: Databuddy/browser icon.
+- `Status`: pulse/status icon.
 - `API`: server/API icon.
 - `Events`: lightning/activity icon.
+- `Insights`: spark/search icon.
 - `Postgres`, `Redis`, `ClickHouse`: official database icons.
 - `Links`: link icon.
 
@@ -32,8 +36,10 @@ Place services left-to-right by user mental model:
 
 ```txt
 Dashboard → API → Postgres
+Status → API
           ↘ Events → ClickHouse
-             Redis shared by API/Events/Links
+          ↘ Insights → ClickHouse
+             Redis shared by API/Events/Insights/Links
 Links optional, below API
 ```
 
@@ -46,8 +52,10 @@ Prefer Railway references and shared variables. Do not copy generated secrets ac
 ```txt
 NODE_ENV=production
 SELFHOST=true
-REQUIRE_EMAIL_VERIFICATION=false
 BETTER_AUTH_SECRET=${{secret(64)}}
+DATABUDDY_ENCRYPTION_KEY=${{secret(64)}}
+IP_HASH_SALT=${{secret(64)}}
+AI_GATEWAY_API_KEY=<your Vercel AI Gateway key>
 ```
 
 ### Dashboard
@@ -64,15 +72,23 @@ CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
 BETTER_AUTH_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 BETTER_AUTH_SECRET=${{shared.BETTER_AUTH_SECRET}}
 SELFHOST=${{shared.SELFHOST}}
-REQUIRE_EMAIL_VERIFICATION=${{shared.REQUIRE_EMAIL_VERIFICATION}}
-DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
-API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
-BASKET_URL=https://${{Events.RAILWAY_PUBLIC_DOMAIN}}
-STATUS_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_APP_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_BASKET_URL=https://${{Events.RAILWAY_PUBLIC_DOMAIN}}
-NEXT_PUBLIC_STATUS_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
+NEXT_PUBLIC_STATUS_URL=https://${{Status.RAILWAY_PUBLIC_DOMAIN}}
+```
+
+### Status
+
+Keep the repository root as the source directory because Status imports shared
+workspace packages. Set the build command to
+`bun run --filter @databuddy/status build` and the start command to
+`bun run --filter @databuddy/status start`.
+
+```txt
+PORT=3002
+NEXT_PUBLIC_API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
+NEXT_PUBLIC_STATUS_URL=https://${{Status.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
 ### API
@@ -87,16 +103,14 @@ BULLMQ_REDIS_URL=${{Redis.REDIS_URL}}
 CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
 BETTER_AUTH_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 BETTER_AUTH_SECRET=${{shared.BETTER_AUTH_SECRET}}
+DATABUDDY_ENCRYPTION_KEY=${{shared.DATABUDDY_ENCRYPTION_KEY}}
 SELFHOST=${{shared.SELFHOST}}
-REQUIRE_EMAIL_VERIFICATION=${{shared.REQUIRE_EMAIL_VERIFICATION}}
 DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
-API_CORS_ORIGINS=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 # Seed testing only when building API from repo:
 # RAILWAY_DOCKERFILE_PATH=api.Dockerfile
 BASKET_URL=https://${{Events.RAILWAY_PUBLIC_DOMAIN}}
-AI_API_KEY=unset
-RESEND_API_KEY=unset
+AI_GATEWAY_API_KEY=${{shared.AI_GATEWAY_API_KEY}}
 EMAIL_FROM=Databuddy <no-reply@example.com>
 ALERTS_EMAIL_FROM=Databuddy <alerts@example.com>
 ```
@@ -108,6 +122,24 @@ PORT=4000
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
 CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
+DATABUDDY_ENCRYPTION_KEY=${{shared.DATABUDDY_ENCRYPTION_KEY}}
+IP_HASH_SALT=${{shared.IP_HASH_SALT}}
+SELFHOST=${{shared.SELFHOST}}
+```
+
+### Insights
+
+```txt
+PORT=4002
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+REDIS_URL=${{Redis.REDIS_URL}}
+BULLMQ_REDIS_URL=${{Redis.REDIS_URL}}
+CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
+DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
+BETTER_AUTH_SECRET=${{shared.BETTER_AUTH_SECRET}}
+DATABUDDY_ENCRYPTION_KEY=${{shared.DATABUDDY_ENCRYPTION_KEY}}
+AI_GATEWAY_API_KEY=${{shared.AI_GATEWAY_API_KEY}}
+INSIGHTS_WORKER_ENABLED=true
 SELFHOST=${{shared.SELFHOST}}
 ```
 
@@ -133,15 +165,18 @@ bun run --cwd packages/db db:push && bun --cwd packages/db src/clickhouse/setup.
 ```txt
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 REDIS_URL=${{Redis.REDIS_URL}}
-APP_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
+CLICKHOUSE_URL=${{ClickHouse.DATABASE_URL}}
+DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 LINKS_ROOT_REDIRECT_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
 ## Health checks
 
 - `Dashboard`: `/login`
+- `Status`: `/health`
 - `API`: `/health`
 - `Events`: `/health`
+- `Insights`: `/health/status`
 - `Links`: `/health`
 - `ClickHouse`: `/ping`
 

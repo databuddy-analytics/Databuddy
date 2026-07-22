@@ -1,6 +1,7 @@
 import {
 	CUSTOM_EVENTS_VISITOR_KEY,
 	EVENTS_VISITOR_KEY,
+	revenueLatestCte,
 	visitorMatch,
 } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
@@ -241,6 +242,75 @@ const PROFILE_ACTIVITY_CTE = `
           AND timestamp <= toDateTime({endDate:String})
       )`;
 
+function stripePaymentIntentId(alias = ""): string {
+	const prefix = alias ? `${alias}.` : "";
+	return `if(
+  JSONExtractString(${prefix}metadata, 'stripe_payment_intent_id') != '',
+  JSONExtractString(${prefix}metadata, 'stripe_payment_intent_id'),
+  if(${prefix}provider = 'stripe' AND startsWith(${prefix}transaction_id, 'pi_'), ${prefix}transaction_id, '')
+)`;
+}
+
+const ATTRIBUTED_REVENUE_VISITOR_KEY =
+	"if(attributed_profile_id != '', attributed_profile_id, ifNull(attributed_anonymous_id, ''))";
+
+function stripeProfileContextCtes(visitorPredicate: string): string {
+	const paymentIntentId = stripePaymentIntentId();
+	return `
+    profile_payment_intents AS (
+      SELECT DISTINCT
+        owner_id,
+        ${paymentIntentId} AS payment_intent_id
+      FROM ${Analytics.revenue}
+      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
+        AND provider = 'stripe'
+        AND ${visitorPredicate}
+		AND ${paymentIntentId} != ''
+    ),
+    profile_payment_context AS (
+      SELECT
+        owner_id,
+		${paymentIntentId} AS payment_intent_id,
+        argMaxIf(profile_id, synced_at, profile_id != '') AS profile_id,
+        argMaxIf(ifNull(anonymous_id, ''), synced_at, ifNull(anonymous_id, '') != '') AS anonymous_id,
+        argMaxIf(ifNull(session_id, ''), synced_at, ifNull(session_id, '') != '') AS session_id
+      FROM ${Analytics.revenue}
+      WHERE provider = 'stripe'
+		AND (owner_id, ${paymentIntentId}) IN (
+          SELECT owner_id, payment_intent_id FROM profile_payment_intents
+        )
+      GROUP BY owner_id, payment_intent_id
+    )`;
+}
+
+function stripeProfileRevenueScope(): string {
+	const paymentIntentId = stripePaymentIntentId();
+	return `(
+		(owner_id = {websiteId:String} OR website_id = {websiteId:String})
+		OR (
+			provider = 'stripe'
+			AND (owner_id, ${paymentIntentId}) IN (
+				SELECT owner_id, payment_intent_id FROM profile_payment_intents
+			)
+		)
+	)`;
+}
+
+function attributedProfileRevenueCte(latestCte: string): string {
+	return `
+    profile_revenue_attributed AS (
+      SELECT
+        r.*,
+        coalesce(nullIf(r.profile_id, ''), nullIf(context.profile_id, ''), '') AS attributed_profile_id,
+        coalesce(r.anonymous_id, nullIf(context.anonymous_id, '')) AS attributed_anonymous_id,
+        coalesce(r.session_id, nullIf(context.session_id, '')) AS attributed_session_id
+      FROM ${latestCte} r
+      LEFT JOIN profile_payment_context context
+        ON context.owner_id = r.owner_id
+		AND context.payment_intent_id = ${stripePaymentIntentId("r")}
+    )`;
+}
+
 export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
 	profile_list: {
 		meta: {
@@ -333,14 +403,27 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         AND ${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
       GROUP BY visitor_id
     ),
+		${stripeProfileContextCtes(
+			`${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)`
+		)},
+		${revenueLatestCte({
+			candidateWhere: `(
+				${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
+				OR (owner_id, ${stripePaymentIntentId()}) IN (
+					SELECT owner_id, payment_intent_id FROM profile_payment_intents
+				)
+			)`,
+			name: "profile_revenue_latest",
+			scope: stripeProfileRevenueScope(),
+		})},
+		${attributedProfileRevenueCte("profile_revenue_latest")},
     visitor_revenue AS (
       SELECT
-        ${CUSTOM_EVENTS_VISITOR_KEY} as visitor_id,
-        toFloat64(sumIf(amount, status IN ('completed', 'refunded') AND type != 'subscription_event')) as ltv
-      FROM ${Analytics.revenue}
-      WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-        AND ${CUSTOM_EVENTS_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
-      GROUP BY visitor_id
+		${ATTRIBUTED_REVENUE_VISITOR_KEY} as visitor_id,
+		toFloat64(sumIf(amount, status IN ('completed', 'refunded') AND type != 'subscription_event')) as ltv
+			FROM profile_revenue_attributed
+			WHERE ${ATTRIBUTED_REVENUE_VISITOR_KEY} IN (SELECT visitor_id FROM visitor_profiles)
+	      GROUP BY visitor_id
     ),
     visitor_sessions AS (
       SELECT
@@ -564,7 +647,19 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
         AND time >= toDateTime({startDate:String})
         AND time <= toDateTime({endDate:String})
         AND session_id != ''
-    )
+	),
+	${stripeProfileContextCtes(`(
+		${VISITOR_MATCH}
+		OR anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+		OR session_id IN (SELECT session_id FROM visitor_sessions)
+	)`)},
+	${revenueLatestCte({
+		candidateWhere: `created >= toDateTime({startDate:String})
+			AND created <= toDateTime({endDate:String})`,
+		name: "profile_revenue_latest",
+		scope: stripeProfileRevenueScope(),
+	})},
+	${attributedProfileRevenueCte("profile_revenue_latest")}
     SELECT
       transaction_id,
       provider,
@@ -574,15 +669,14 @@ export const ProfilesBuilders: Record<string, SimpleQueryConfig> = {
       currency,
       ifNull(product_name, '') as product_name,
       created
-    FROM ${Analytics.revenue}
-    WHERE (owner_id = {websiteId:String} OR website_id = {websiteId:String})
-      AND type != 'subscription_event'
+	FROM profile_revenue_attributed
+	WHERE type != 'subscription_event'
       AND created >= toDateTime({startDate:String})
       AND created <= toDateTime({endDate:String})
       AND (
-        ${VISITOR_MATCH}
-        OR anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
-        OR session_id IN (SELECT session_id FROM visitor_sessions)
+		attributed_profile_id = {visitorId:String}
+		OR attributed_anonymous_id IN (SELECT anonymous_id FROM visitor_ids)
+		OR attributed_session_id IN (SELECT session_id FROM visitor_sessions)
       )
     ORDER BY created DESC
     LIMIT {limit:Int32} OFFSET {offset:Int32}

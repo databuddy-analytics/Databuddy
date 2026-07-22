@@ -1,6 +1,7 @@
 import {
 	and,
 	asc,
+	count,
 	desc,
 	eq,
 	ilike,
@@ -8,6 +9,7 @@ import {
 	isNull,
 	isUniqueViolationFor,
 	or,
+	sql,
 } from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
 import {
@@ -29,6 +31,8 @@ import {
 	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
+	linksSummaryOutputSchema,
+	linksSummarySchema,
 	listLinksPageOutputSchema,
 	listLinksPageSchema,
 	listLinksSchema,
@@ -167,6 +171,7 @@ function requireLinkAccess(
 }
 
 const LINKS_LIST_MAX = 1000;
+const ILIKE_PATTERN_CHARACTER_REGEX = /[\\%_]/g;
 
 function buildLinkListConditions(
 	input: {
@@ -179,7 +184,10 @@ function buildLinkListConditions(
 	},
 	organizationId: string
 ) {
-	const conditions = [eq(links.organizationId, organizationId)];
+	const conditions = [
+		eq(links.organizationId, organizationId),
+		isNull(links.deletedAt),
+	];
 	if (input.externalId) {
 		conditions.push(eq(links.externalId, input.externalId));
 	}
@@ -204,6 +212,25 @@ function buildLinkListConditions(
 		conditions.push(eq(links.targetDomain, targetDomain));
 	}
 	return conditions;
+}
+
+function buildLinkSearchCondition(search: string | undefined) {
+	const trimmed = search?.trim();
+	if (!trimmed) {
+		return;
+	}
+
+	const term = `%${trimmed.replace(ILIKE_PATTERN_CHARACTER_REGEX, "\\$&")}%`;
+	return or(
+		ilike(links.name, term),
+		ilike(links.slug, term),
+		ilike(links.targetUrl, term),
+		ilike(links.externalId, term),
+		ilike(links.sourceType, term),
+		ilike(links.sourceId, term),
+		ilike(links.sourceOwnerId, term),
+		ilike(links.targetDomain, term)
+	);
 }
 
 const linkSortOrder = {
@@ -264,7 +291,7 @@ export const linksRouter = {
 			tags: ["Links"],
 			summary: "List links (paginated)",
 			description:
-				"Returns a page of links for the organization with server-side search, sort, type filter, and offset pagination. Requires read:links scope.",
+				"Returns a page of links for the organization with server-side search, sort, type filter, and offset pagination. Set includeTotal only when an exact filtered count is needed. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinksPageSchema)
@@ -284,37 +311,83 @@ export const linksRouter = {
 				conditions.push(isNotNull(links.deepLinkApp));
 			}
 
-			const search = input.search?.trim();
-			if (search) {
-				const term = `%${search}%`;
-				const matches = or(
-					ilike(links.name, term),
-					ilike(links.slug, term),
-					ilike(links.targetUrl, term),
-					ilike(links.externalId, term),
-					ilike(links.sourceType, term),
-					ilike(links.sourceId, term),
-					ilike(links.sourceOwnerId, term),
-					ilike(links.targetDomain, term)
-				);
-				if (matches) {
-					conditions.push(matches);
-				}
+			const matches = buildLinkSearchCondition(input.search);
+			if (matches) {
+				conditions.push(matches);
 			}
 
-			const rows = await context.db
+			const where = and(...conditions);
+			const pageQuery = context.db
 				.select()
 				.from(links)
-				.where(and(...conditions))
+				.where(where)
 				.orderBy(...linkSortOrder[input.sort])
 				.limit(input.limit + 1)
 				.offset(input.offset);
+			let rows: LinkRow[];
+			let total: number | undefined;
+
+			if (input.includeTotal) {
+				const [page, [summary]] = await Promise.all([
+					pageQuery,
+					context.db.select({ total: count() }).from(links).where(where),
+				]);
+				rows = page;
+				total = summary?.total ?? 0;
+			} else {
+				rows = await pageQuery;
+			}
 
 			const hasMore = rows.length > input.limit;
 
 			return {
 				items: hasMore ? rows.slice(0, input.limit) : rows,
 				hasMore,
+				...(total === undefined ? {} : { total }),
+			};
+		}),
+
+	summary: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/links/summary",
+			tags: ["Links"],
+			summary: "Summarize links",
+			description:
+				"Returns exact total and unfiled counts. When search is set, both counts cover only matching links. Requires read:links scope.",
+			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
+		})
+		.input(linksSummarySchema)
+		.output(linksSummaryOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = requireOrganizationId(
+				input.organizationId ?? context.organizationId
+			);
+
+			await requireLinkAccess(context, organizationId, "read");
+
+			const matches = buildLinkSearchCondition(input.search);
+			const unfiledMatches = matches
+				? and(isNull(links.folderId), matches)
+				: isNull(links.folderId);
+			const [summary] = await context.db
+				.select({
+					total: matches
+						? sql<number>`count(*) filter (where ${matches})`.mapWith(Number)
+						: count(),
+					unfiledTotal:
+						sql<number>`count(*) filter (where ${unfiledMatches})`.mapWith(
+							Number
+						),
+				})
+				.from(links)
+				.where(
+					and(eq(links.organizationId, organizationId), isNull(links.deletedAt))
+				);
+
+			return {
+				total: summary?.total ?? 0,
+				unfiledTotal: summary?.unfiledTotal ?? 0,
 			};
 		}),
 

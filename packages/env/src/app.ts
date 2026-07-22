@@ -21,7 +21,7 @@ const URLS = {
 	dashboard: {
 		cloud: "https://app.databuddy.cc",
 		local: "http://localhost:3000",
-		env: ["DASHBOARD_URL", "NEXT_PUBLIC_APP_URL", "APP_URL", "BETTER_AUTH_URL"],
+		env: ["DASHBOARD_URL", "NEXT_PUBLIC_APP_URL", "BETTER_AUTH_URL"],
 	},
 	status: {
 		cloud: "https://status.databuddy.cc",
@@ -57,7 +57,6 @@ export interface Config {
 		from: string;
 	};
 	integrations: {
-		openAiAdsConversionsApiKey?: string;
 		openAiAdsPixelId?: string;
 	};
 	urls: {
@@ -74,10 +73,6 @@ function isProduction(env: Env): boolean {
 
 function defaultUrl(env: Env, setting: UrlConfig): string {
 	return isProduction(env) ? setting.cloud : setting.local;
-}
-
-function isLocalhost(url: URL): boolean {
-	return url.hostname === "localhost" || url.hostname === "127.0.0.1";
 }
 
 function readFirst(env: Env, keys: readonly string[]): string | undefined {
@@ -99,12 +94,7 @@ function readUrl(env: Env, setting: UrlConfig): string {
 		return fallback;
 	}
 
-	const normalized = normalizeUrl(value);
-	if (isProduction(env) && isLocalhost(new URL(normalized))) {
-		return fallback;
-	}
-
-	return normalized;
+	return normalizeUrl(value);
 }
 
 function readEmail(env: Env, setting: EmailConfig): string {
@@ -144,10 +134,6 @@ export function createConfig(env: Env = process.env): Config {
 			from: readEmail(env, EMAIL.from),
 		},
 		integrations: {
-			openAiAdsConversionsApiKey: readOptional(
-				env,
-				"OPENAI_ADS_CONVERSIONS_API_KEY"
-			),
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),
 		},
 		urls: {

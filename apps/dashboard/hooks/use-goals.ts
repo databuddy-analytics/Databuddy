@@ -17,7 +17,9 @@ export interface GoalAnalyticsData {
 	avg_completion_time_formatted: string;
 	biggest_dropoff_rate: number;
 	biggest_dropoff_step: number;
+	duration_available: boolean;
 	error_insights: {
+		available: boolean;
 		total_errors: number;
 		sessions_with_errors: number;
 		dropoffs_with_errors: number;
@@ -29,6 +31,7 @@ export interface GoalAnalyticsData {
 		conversion_rate: number;
 		dropoff_rate: number;
 		dropoffs: number;
+		error_context_available: boolean;
 		error_count: number;
 		error_rate: number;
 		step_name: string;

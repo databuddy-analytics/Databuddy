@@ -139,7 +139,13 @@ export const VitalsBuilders: Record<string, SimpleQueryConfig> = {
 						metric_name,
 						quantilesDeterministic(0.50, 0.75, 0.90, 0.95, 0.99)(
 							metric_value,
-							cityHash64(tuple(timestamp, metric_value))
+							cityHash64(tuple(
+								timestamp,
+								metric_value,
+								session_id,
+								anonymous_id,
+								path
+							))
 						) as _q,
 						avg(metric_value) as avg_value,
 						count() as samples

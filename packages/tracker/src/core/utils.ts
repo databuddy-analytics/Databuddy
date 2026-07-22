@@ -75,6 +75,9 @@ export function sanitizePageUrl(value: string): string {
 	}
 	try {
 		const url = new URL(value);
+		if (!(url.protocol === "http:" || url.protocol === "https:")) {
+			return "";
+		}
 		return `${url.origin}${url.pathname}`;
 	} catch {
 		return "";

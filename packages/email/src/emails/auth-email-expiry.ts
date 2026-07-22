@@ -7,11 +7,26 @@ export const AUTH_EMAIL_EXPIRY_SECONDS = {
 	passwordReset: 60 * 60,
 } as const;
 
-export const AUTH_EMAIL_EXPIRY_LABELS = {
-	accountDeletion: "1 hour",
-	emailVerification: "24 hours",
-	invitation: "48 hours",
-	magicLink: "15 minutes",
-	oneTimeCode: "10 minutes",
-	passwordReset: "1 hour",
-} as const;
+function expiryLabel(totalSeconds: number): string {
+	const units = [
+		[60 * 60, "hour"],
+		[60, "minute"],
+		[1, "second"],
+	] as const;
+	for (const [unitSeconds, unit] of units) {
+		if (totalSeconds % unitSeconds === 0) {
+			const value = totalSeconds / unitSeconds;
+			return `${value} ${unit}${value === 1 ? "" : "s"}`;
+		}
+	}
+	return `${totalSeconds} seconds`;
+}
+
+export const AUTH_EMAIL_EXPIRY_LABELS = Object.freeze(
+	Object.fromEntries(
+		Object.entries(AUTH_EMAIL_EXPIRY_SECONDS).map(([key, seconds]) => [
+			key,
+			expiryLabel(seconds),
+		])
+	)
+) as Readonly<Record<keyof typeof AUTH_EMAIL_EXPIRY_SECONDS, string>>;

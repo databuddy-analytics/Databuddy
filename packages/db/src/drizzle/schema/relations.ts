@@ -20,7 +20,12 @@ import {
 	user,
 	userPreferences,
 } from "./auth";
-import { alarmDestinations, alarms, usageAlertLog } from "./billing";
+import {
+	alarmDestinations,
+	alarms,
+	autumnWebhookEvents,
+	usageAlertLog,
+} from "./billing";
 import { feedback, feedbackRedemptions, insightUserFeedback } from "./feedback";
 import { flags, flagsToTargetGroups, targetGroups } from "./flags";
 import { slackChannelBindings, slackIntegrations } from "./integrations";
@@ -70,6 +75,7 @@ const schema = {
 	revenueConfig,
 	alarms,
 	alarmDestinations,
+	autumnWebhookEvents,
 	usageAlertLog,
 	goals,
 	annotations,

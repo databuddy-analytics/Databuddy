@@ -1,3 +1,4 @@
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import { Heading, Link, Section, Text } from "react-email";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
@@ -145,19 +146,18 @@ export const UsageLimitEmail = ({
 };
 
 UsageLimitEmail.PreviewProps = {
-	featureDescription:
-		"This allowance powers Databunny questions and AI analysis. More complex work uses more of it.",
-	featureName: "Databunny usage",
+	featureDescription: DATABUNNY_USAGE.description,
+	featureName: DATABUNNY_USAGE.name,
 	isAvailable: false,
 	limitAmount: 350,
 	limitType: "included",
 	nextResetAt: Date.UTC(2026, 7, 1),
 	organizationName: "Acme Inc",
 	overageAllowed: false,
-	pausedActivity: "Databunny questions and AI analysis",
+	pausedActivity: DATABUNNY_USAGE.pausedActivity,
 	remainingAmount: 0,
 	usageAmount: 350,
-	usageUnit: "allowance units",
+	usageUnit: DATABUNNY_USAGE.unit,
 } satisfies UsageLimitEmailProps;
 
 export default UsageLimitEmail;

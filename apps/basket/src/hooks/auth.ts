@@ -46,17 +46,19 @@ function _resolveOwnerId(
 				return orgMember.userId;
 			}
 		} catch (error) {
-			if (error instanceof EvlogError) {
-				throw error;
-			}
 			captureError(error, {
-				message: "Failed to fetch workspace owner",
+				message: "Workspace owner lookup failed",
 				organizationId,
 			});
-			throw basketErrors.websiteLookupUnavailable();
+			throw basketErrors.billingCheckUnavailable();
 		}
 
-		return null;
+		const error = new Error("Organization has no owner member");
+		captureError(error, {
+			message: "Workspace owner lookup returned no owner",
+			organizationId,
+		});
+		throw basketErrors.billingCheckUnavailable();
 	});
 }
 

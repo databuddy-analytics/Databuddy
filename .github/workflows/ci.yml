@@ -43,8 +43,6 @@ jobs:
     name: Check Types
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
-    env:
-      CLICKHOUSE_READONLY_URL: ${{ secrets.CLICKHOUSE_READONLY_URL }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -61,8 +59,12 @@ jobs:
       - name: ClickHouse types match DDL
         run: bun run --cwd packages/db ch:check
       - name: ClickHouse schema matches cluster
-        if: env.CLICKHOUSE_READONLY_URL != ''
-        run: bun run --cwd packages/db ch:verify
+        env:
+          CLICKHOUSE_READONLY_URL: ${{ secrets.CLICKHOUSE_READONLY_URL }}
+        run: |
+          if [[ -n "$CLICKHOUSE_READONLY_URL" ]]; then
+            bun run --cwd packages/db ch:verify
+          fi
 
   test:
     name: Test
@@ -73,13 +75,6 @@ jobs:
       TURBO_TEAM: ${{ vars.TURBO_TEAM }}
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/databuddy_test
       REDIS_URL: redis://localhost:6379
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
-      REDPANDA_BROKER: localhost:9092
-      REDPANDA_USER: test-redpanda-user
-      REDPANDA_PASSWORD: test-redpanda-password
-      DATABUDDY_API_KEY: test-databuddy-api-key
-      DATABUDDY_WEBSITE_ID: test-databuddy-website-id
       BETTER_AUTH_SECRET: test-auth-secret-for-ci-testing-only
       BETTER_AUTH_URL: http://localhost:3000
       GITHUB_CLIENT_ID: test-github-client-id
@@ -87,12 +82,8 @@ jobs:
       GOOGLE_CLIENT_ID: test-google-client-id
       GOOGLE_CLIENT_SECRET: test-google-client-secret
       RESEND_API_KEY: test-resend-api-key
-      RECAPTCHA_SECRET_KEY: test-recaptcha-secret-key
-      VERCEL_CLIENT_ID: test-vercel-client-id
-      VERCEL_CLIENT_SECRET: test-vercel-client-secret
       AUTUMN_SECRET_KEY: test-autumn-secret-key
       NEXT_PUBLIC_API_URL: http://localhost:3000/api
-      EMAIL_API_KEY: test-email-api-key
       IP_HASH_SALT: test-ip-hash-salt
 
     services:
@@ -127,10 +118,12 @@ jobs:
         ports:
           - 8123:8123
         options: >-
+          --ulimit nofile=262144:262144
           --health-cmd "clickhouse-client --query 'SELECT 1'"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-start-period 30s
+          --health-retries 12
 
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -158,6 +151,8 @@ jobs:
         run: bun run --cwd packages/db clickhouse:init
       - name: Test
         env:
+          CLICKHOUSE_INTEGRATION_TESTS: "true"
+          CLICKHOUSE_URL: http://default:@localhost:8123
           NODE_ENV: test
         run: bun run test
       - name: Insights integration

@@ -14,6 +14,7 @@ import {
 	chartSeriesColorAtIndex,
 	chartSurfaceClassName,
 } from "@/lib/chart-presentation";
+import { formatRevenueCurrency } from "@/lib/revenue-currency";
 import { cn } from "@/lib/utils";
 import type { RevenueMetricVisibilityState } from "@/stores/jotai/chartAtoms";
 import {
@@ -49,65 +50,51 @@ interface RevenueChartMetric {
 	label: string;
 }
 
-const REVENUE_METRICS: RevenueChartMetric[] = [
-	{
-		key: "revenue",
-		label: "Revenue",
-		color: chartSeriesColorAtIndex(0),
-		formatValue: (v) =>
-			new Intl.NumberFormat("en-US", {
-				style: "currency",
-				currency: "USD",
-				minimumFractionDigits: 0,
-				maximumFractionDigits: 0,
-			}).format(v),
-	},
-	{
-		key: "transactions",
-		label: "Transactions",
-		color: chartSeriesColorAtIndex(1),
-		formatValue: (v) => v.toLocaleString(),
-	},
-	{
-		key: "avg_transaction",
-		label: "Avg Transaction",
-		color: chartSeriesColorAtIndex(2),
-		formatValue: (v) =>
-			new Intl.NumberFormat("en-US", {
-				style: "currency",
-				currency: "USD",
-				minimumFractionDigits: 0,
-				maximumFractionDigits: 0,
-			}).format(v),
-	},
-	{
-		key: "customers",
-		label: "Customers",
-		color: chartSeriesColorAtIndex(3),
-		formatValue: (v) => v.toLocaleString(),
-	},
-	{
-		key: "refunds",
-		label: "Refunds",
-		color: chartSeriesColorAtIndex(4),
-		formatValue: (v) =>
-			new Intl.NumberFormat("en-US", {
-				style: "currency",
-				currency: "USD",
-				minimumFractionDigits: 0,
-				maximumFractionDigits: 0,
-			}).format(Math.abs(v)),
-	},
-];
+function createRevenueMetrics(currency: string): RevenueChartMetric[] {
+	return [
+		{
+			key: "revenue",
+			label: "Revenue",
+			color: chartSeriesColorAtIndex(0),
+			formatValue: (v) => formatRevenueCurrency(v, currency),
+		},
+		{
+			key: "transactions",
+			label: "Transactions",
+			color: chartSeriesColorAtIndex(1),
+			formatValue: (v) => v.toLocaleString(),
+		},
+		{
+			key: "avg_transaction",
+			label: "Avg Transaction",
+			color: chartSeriesColorAtIndex(2),
+			formatValue: (v) => formatRevenueCurrency(v, currency),
+		},
+		{
+			key: "customers",
+			label: "Customers",
+			color: chartSeriesColorAtIndex(3),
+			formatValue: (v) => v.toLocaleString(),
+		},
+		{
+			key: "refunds",
+			label: "Refunds",
+			color: chartSeriesColorAtIndex(4),
+			formatValue: (v) => formatRevenueCurrency(Math.abs(v), currency),
+		},
+	];
+}
 
 interface RevenueChartProps {
 	className?: string;
+	currency: string;
 	data: RevenueChartDataPoint[];
 	height?: number;
 	isLoading: boolean;
 }
 
 export function RevenueChart({
+	currency,
 	data,
 	isLoading,
 	height = 350,
@@ -115,16 +102,17 @@ export function RevenueChart({
 }: RevenueChartProps) {
 	const [visibleMetrics] = useAtom(revenueMetricVisibilityAtom);
 	const [, toggleMetric] = useAtom(toggleRevenueMetricAtom);
+	const metrics = useMemo(() => createRevenueMetrics(currency), [currency]);
 
 	const hiddenMetrics = useMemo(
 		() =>
 			Object.fromEntries(
-				REVENUE_METRICS.map((m) => [
+				metrics.map((m) => [
 					m.key,
 					!visibleMetrics[m.key as keyof RevenueMetricVisibilityState],
 				])
 			),
-		[visibleMetrics]
+		[metrics, visibleMetrics]
 	);
 
 	const hasData = data.length > 0;
@@ -177,7 +165,7 @@ export function RevenueChart({
 						}}
 					>
 						<defs>
-							{REVENUE_METRICS.map((metric) => (
+							{metrics.map((metric) => (
 								<linearGradient
 									id={`revenue-gradient-${metric.key}`}
 									key={metric.key}
@@ -216,7 +204,7 @@ export function RevenueChart({
 							content={({ active, payload, label }) => (
 								<Chart.Tooltip
 									active={active}
-									entries={Chart.createTooltipEntries(payload, REVENUE_METRICS)}
+									entries={Chart.createTooltipEntries(payload, metrics)}
 									formatLabelAction={Chart.formatTooltipDate}
 									label={label}
 								/>
@@ -226,7 +214,7 @@ export function RevenueChart({
 						<Legend
 							align="center"
 							formatter={(label) => {
-								const metric = REVENUE_METRICS.find((m) => m.label === label);
+								const metric = metrics.find((m) => m.label === label);
 								const isHidden = metric ? hiddenMetrics[metric.key] : false;
 								return (
 									<span
@@ -241,9 +229,7 @@ export function RevenueChart({
 							iconSize={chartRechartsLegendIconSize}
 							iconType="circle"
 							onClick={(payload: { value?: string }) => {
-								const metric = REVENUE_METRICS.find(
-									(m) => m.label === payload.value
-								);
+								const metric = metrics.find((m) => m.label === payload.value);
 								if (metric) {
 									toggleMetric(
 										metric.key as keyof RevenueMetricVisibilityState
@@ -253,7 +239,7 @@ export function RevenueChart({
 							verticalAlign="bottom"
 							wrapperStyle={chartRechartsLegendInteractiveWrapperStyle}
 						/>
-						{REVENUE_METRICS.map((metric) => (
+						{metrics.map((metric) => (
 							<Area
 								activeDot={{
 									r: 4,

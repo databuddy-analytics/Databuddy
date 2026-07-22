@@ -6,7 +6,6 @@ import type {
 	OutgoingLinksRow,
 	RevenueRow,
 	UptimeMonitorRow,
-	WebVitalsHourlyRow,
 	WebVitalsSpansRow,
 } from "@databuddy/db/clickhouse/tables";
 
@@ -14,7 +13,6 @@ export const Analytics = {
 	events: "analytics.events",
 	error_spans: "analytics.error_spans",
 	web_vitals_spans: "analytics.web_vitals_spans",
-	web_vitals_hourly: "analytics.web_vitals_hourly",
 	custom_events: "analytics.custom_events",
 	blocked_traffic: "analytics.blocked_traffic",
 	outgoing_links: "analytics.outgoing_links",
@@ -32,7 +30,6 @@ export interface TableFieldsMap {
 	"analytics.events": keyof EventsRow;
 	"analytics.outgoing_links": keyof OutgoingLinksRow;
 	"analytics.revenue": keyof RevenueRow;
-	"analytics.web_vitals_hourly": keyof WebVitalsHourlyRow;
 	"analytics.web_vitals_spans": keyof WebVitalsSpansRow;
 	"uptime.uptime_monitor": keyof UptimeMonitorRow;
 }

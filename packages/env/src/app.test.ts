@@ -39,25 +39,18 @@ describe("createConfig", () => {
 		});
 	});
 
-	it("does not let localhost leak into production redirects", () => {
+	it("honors explicit loopback URLs in production", () => {
 		expect(
 			createConfig({
+				API_URL: "http://127.0.0.1:3001/",
 				BETTER_AUTH_URL: "http://localhost:3000",
 				NODE_ENV: "production",
 			})
-		).toMatchObject({ urls: { dashboard: "https://app.databuddy.cc" } });
-	});
-
-	it("uses the documented env fallback order", () => {
-		expect(
-			createConfig({
-				APP_URL: "https://legacy.example.com",
-				DASHBOARD_URL: "https://dashboard.example.com",
-				NEXT_PUBLIC_APP_URL: "https://public.example.com",
-				NODE_ENV: "production",
-			})
 		).toMatchObject({
-			urls: { dashboard: "https://dashboard.example.com" },
+			urls: {
+				api: "http://127.0.0.1:3001",
+				dashboard: "http://localhost:3000",
+			},
 		});
 	});
 
@@ -85,16 +78,6 @@ describe("createConfig", () => {
 			})
 		).toMatchObject({
 			integrations: { openAiAdsPixelId: "px_123" },
-		});
-	});
-
-	it("reads the server-only OpenAI Ads Conversions API key", () => {
-		expect(
-			createConfig({
-				OPENAI_ADS_CONVERSIONS_API_KEY: "  capi_123  ",
-			})
-		).toMatchObject({
-			integrations: { openAiAdsConversionsApiKey: "capi_123" },
 		});
 	});
 

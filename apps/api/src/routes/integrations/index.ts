@@ -118,7 +118,7 @@ function requireConfig(_request: Request): SlackOAuthConfig {
 		clientSecret,
 		encryptionKey,
 		redirectUri:
-			process.env.SLACK_REDIRECT_URI ||
+			process.env.SLACK_REDIRECT_URI?.trim() ||
 			new URL("/v1/integrations/slack/callback", config.urls.api).toString(),
 	};
 }

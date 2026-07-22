@@ -46,12 +46,20 @@ export const linkTypeFilterSchema = z
 	.default("all");
 
 export const listLinksPageSchema = listLinksSchema.unwrap().extend({
+	includeTotal: z.boolean().default(false),
 	limit: z.number().int().min(1).max(100).default(50),
 	offset: z.number().int().min(0).default(0),
-	search: z.string().max(255).optional(),
+	search: z.string().trim().min(1).max(255).optional(),
 	sort: linkSortSchema,
 	type: linkTypeFilterSchema,
 });
+
+export const linksSummarySchema = z
+	.object({
+		organizationId: z.string().optional(),
+		search: z.string().trim().min(1).max(255).optional(),
+	})
+	.default({});
 
 export const listLinkFoldersSchema = z
 	.object({
@@ -224,6 +232,12 @@ export const linkOutputSchema = linkSelectSchema.pick({
 export const listLinksPageOutputSchema = z.object({
 	items: z.array(linkOutputSchema),
 	hasMore: z.boolean(),
+	total: z.number().int().nonnegative().optional(),
+});
+
+export const linksSummaryOutputSchema = z.object({
+	total: z.number().int().nonnegative(),
+	unfiledTotal: z.number().int().nonnegative(),
 });
 
 export const linkFolderOutputSchema = linkFolderSelectSchema.pick({
@@ -235,6 +249,10 @@ export const linkFolderOutputSchema = linkFolderSelectSchema.pick({
 	deletedAt: true,
 	createdAt: true,
 	updatedAt: true,
+});
+
+export const linkFolderWithUsageOutputSchema = linkFolderOutputSchema.extend({
+	linkCount: z.number().int().nonnegative(),
 });
 
 export function slugifyFolderName(name: string): string {

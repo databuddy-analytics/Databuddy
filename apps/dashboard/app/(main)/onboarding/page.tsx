@@ -85,7 +85,7 @@ export default function OnboardingPage() {
 			trackAppEvent(APP_EVENTS.signupCompleted, signupProperties, {
 				flush: true,
 			});
-			trackOpenAiRegistrationCompleted({ properties: signupProperties });
+			trackOpenAiRegistrationCompleted();
 		}
 		trackAppEvent(APP_EVENTS.onboardingStarted);
 	}, []);

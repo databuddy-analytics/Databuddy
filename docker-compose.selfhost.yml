@@ -82,19 +82,25 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3001"
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your environment}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-databuddy}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@postgres:5432/${POSTGRES_DB:-databuddy}"
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       SERVICE_NAME: databuddy-api
-      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in your environment}
-      BULLMQ_REDIS_URL: ${BULLMQ_REDIS_URL:?Set BULLMQ_REDIS_URL in your environment}
-      CLICKHOUSE_URL: ${CLICKHOUSE_URL:?Set CLICKHOUSE_URL in your environment}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Set BETTER_AUTH_URL in your environment}
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
+      BULLMQ_REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
+      CLICKHOUSE_URL: "http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in your environment}@clickhouse:8123/${CLICKHOUSE_DB:-databuddy_analytics}"
+      BETTER_AUTH_URL: ${DASHBOARD_URL:?Set DASHBOARD_URL in your environment}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in your environment}
-      DASHBOARD_URL: ${DASHBOARD_URL:-}
-      API_URL: ${API_URL:-}
+      DATABUDDY_ENCRYPTION_KEY: ${DATABUDDY_ENCRYPTION_KEY:?Set DATABUDDY_ENCRYPTION_KEY in your environment}
+      SELFHOST: "true"
+      DASHBOARD_URL: ${DASHBOARD_URL:?Set DASHBOARD_URL in your environment}
+      API_URL: ${API_URL:?Set API_URL in your environment}
+      BASKET_URL: ${BASKET_URL:?Set BASKET_URL in your environment}
       EMAIL_FROM: ${EMAIL_FROM:-}
       ALERTS_EMAIL_FROM: ${ALERTS_EMAIL_FROM:-}
-      AI_API_KEY: ${AI_API_KEY:-}
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}
+      SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
     healthcheck:
       test: [ "CMD", "bun", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
@@ -122,11 +128,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: "4000"
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your environment}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-databuddy}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@postgres:5432/${POSTGRES_DB:-databuddy}"
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       SERVICE_NAME: databuddy-basket
-      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in your environment}
-      CLICKHOUSE_URL: ${CLICKHOUSE_URL:?Set CLICKHOUSE_URL in your environment}
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
+      CLICKHOUSE_URL: "http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in your environment}@clickhouse:8123/${CLICKHOUSE_DB:-databuddy_analytics}"
+      DATABUDDY_ENCRYPTION_KEY: ${DATABUDDY_ENCRYPTION_KEY:?Set DATABUDDY_ENCRYPTION_KEY in your environment}
+      IP_HASH_SALT: ${IP_HASH_SALT:?Set IP_HASH_SALT in your environment}
+      SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
       SELFHOST: "true"
     healthcheck:
       test: [ "CMD", "bun", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
@@ -154,20 +163,21 @@ services:
     environment:
       NODE_ENV: production
       PORT: "4002"
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your environment}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-databuddy}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@postgres:5432/${POSTGRES_DB:-databuddy}"
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       SERVICE_NAME: databuddy-insights
-      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in your environment}
-      BULLMQ_REDIS_URL: ${BULLMQ_REDIS_URL:?Set BULLMQ_REDIS_URL in your environment}
-      INSIGHTS_BULLMQ_REDIS_URL: ${INSIGHTS_BULLMQ_REDIS_URL:-}
-      INSIGHTS_DISPATCH_INTERVAL_MS: ${INSIGHTS_DISPATCH_INTERVAL_MS:-300000}
-      INSIGHTS_MAINTENANCE_INTERVAL_MS: ${INSIGHTS_MAINTENANCE_INTERVAL_MS:-300000}
-      INSIGHTS_STALE_ITEM_MS: ${INSIGHTS_STALE_ITEM_MS:-900000}
-      INSIGHTS_WORKER_CONCURRENCY: ${INSIGHTS_WORKER_CONCURRENCY:-5}
-      INSIGHTS_WORKER_ENABLED: ${INSIGHTS_WORKER_ENABLED:-false}
-      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:-}
-      AI_API_KEY: ${AI_API_KEY:-}
-      CLICKHOUSE_URL: ${CLICKHOUSE_URL:?Set CLICKHOUSE_URL in your environment}
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
+      BULLMQ_REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
+      INSIGHTS_WORKER_CONCURRENCY: ${INSIGHTS_WORKER_CONCURRENCY:-2}
+      INSIGHTS_WORKER_ENABLED: "true"
+      AI_GATEWAY_API_KEY: ${AI_GATEWAY_API_KEY:?Set AI_GATEWAY_API_KEY in your environment}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      SUPERMEMORY_API_KEY: ${SUPERMEMORY_API_KEY:-}
+      SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
+      CLICKHOUSE_URL: "http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in your environment}@clickhouse:8123/${CLICKHOUSE_DB:-databuddy_analytics}"
+      DASHBOARD_URL: ${DASHBOARD_URL:?Set DASHBOARD_URL in your environment}
+      DATABUDDY_ENCRYPTION_KEY: ${DATABUDDY_ENCRYPTION_KEY:?Set DATABUDDY_ENCRYPTION_KEY in your environment}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in your environment}
     healthcheck:
       test: [ "CMD", "bun", "-e", "fetch('http://localhost:4002/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]
       interval: 30s
@@ -193,11 +203,13 @@ services:
       - "${LINKS_PORT:-2500}:2500"
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your environment}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-databuddy}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}@postgres:5432/${POSTGRES_DB:-databuddy}"
       DB_POOL_MAX: ${DB_POOL_MAX:-10}
       SERVICE_NAME: databuddy-links
-      REDIS_URL: ${REDIS_URL:?Set REDIS_URL in your environment}
-      APP_URL: ${APP_URL:-https://app.databuddy.cc}
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in your environment}@redis:6379"
+      CLICKHOUSE_URL: "http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in your environment}@clickhouse:8123/${CLICKHOUSE_DB:-databuddy_analytics}"
+      DASHBOARD_URL: ${DASHBOARD_URL:?Set DASHBOARD_URL in your environment}
+      SUPERLOG_API_KEY: ${SUPERLOG_API_KEY:-}
       LINKS_ROOT_REDIRECT_URL: ${LINKS_ROOT_REDIRECT_URL:-https://databuddy.cc}
       GEOIP_DB_URL: ${GEOIP_DB_URL:-https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb}
     healthcheck:
@@ -211,39 +223,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - databuddy
     <<: *logging
-  # Uncomment to enable uptime monitoring (uses Redis-backed BullMQ schedules)
-  # uptime:
-  #   image: ghcr.io/databuddy-analytics/databuddy-uptime:${IMAGE_TAG:?Set IMAGE_TAG to a release tag, for example v1.0.0}
-  #   container_name: databuddy-uptime
-  #   ports:
-  #     - "${UPTIME_PORT:-4001}:4000"
-  #   environment:
-  #     NODE_ENV: production
-  #     DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in your environment}
-  #     DB_POOL_MAX: ${DB_POOL_MAX:-10}
-  #     SERVICE_NAME: databuddy-uptime
-  #     BULLMQ_REDIS_URL: ${BULLMQ_REDIS_URL:?Set BULLMQ_REDIS_URL in your environment}
-  #     RESEND_API_KEY: ${RESEND_API_KEY:-}
-  #   healthcheck:
-  #     test: ["CMD", "bun", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-  #     interval: 30s
-  #     timeout: 3s
-  #     start_period: 10s
-  #     retries: 3
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_healthy
-  #   restart: unless-stopped
-  #   networks:
-  #     - databuddy
-  #   <<: *logging
-
 volumes:
   postgres_data:
   clickhouse_data:

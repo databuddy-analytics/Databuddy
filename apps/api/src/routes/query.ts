@@ -61,14 +61,7 @@ import {
 } from "../schemas/query-schemas";
 import { getRequestId } from "../http/request-id";
 
-const parsedPerWebsiteQueryConcurrency = Number(
-	process.env.PER_WEBSITE_QUERY_CONCURRENCY ?? 8
-);
-const PER_WEBSITE_QUERY_CONCURRENCY = Number.isFinite(
-	parsedPerWebsiteQueryConcurrency
-)
-	? Math.max(1, parsedPerWebsiteQueryConcurrency)
-	: 8;
+const PER_WEBSITE_QUERY_CONCURRENCY = 8;
 
 interface KeyedSemaphore {
 	active: number;

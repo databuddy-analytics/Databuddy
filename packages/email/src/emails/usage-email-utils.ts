@@ -9,6 +9,9 @@ const resetDateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 export function formatUsageNumber(value: number): string {
+	if (!Number.isFinite(value)) {
+		return "—";
+	}
 	return usageNumberFormatter.format(value);
 }
 
@@ -19,9 +22,16 @@ export function formatUsagePercentage(usage: number, limit: number): string {
 	return `${Math.round((usage / limit) * 100)}%`;
 }
 
-export function formatResetDate(timestamp?: number | null): string | undefined {
-	if (timestamp == null || !Number.isFinite(timestamp)) {
+/** Formats Autumn's Unix timestamp, which is expressed in milliseconds. */
+export function formatResetDate(
+	timestampMs?: number | null
+): string | undefined {
+	if (timestampMs == null || !Number.isFinite(timestampMs)) {
 		return;
 	}
-	return resetDateFormatter.format(new Date(timestamp));
+	const date = new Date(timestampMs);
+	if (Number.isNaN(date.getTime())) {
+		return;
+	}
+	return resetDateFormatter.format(date);
 }

@@ -17,6 +17,7 @@ import {
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { resetActiveOrganizationQueries } from "@/lib/active-organization-queries";
 import { cn } from "@/lib/utils";
 import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
@@ -161,8 +162,8 @@ export function OrganizationSelector({
 			return;
 		}
 
+		await resetActiveOrganizationQueries(queryClient);
 		router.push("/websites");
-		queryClient.clear();
 		toast.success("Organization updated");
 	};
 

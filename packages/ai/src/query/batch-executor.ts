@@ -21,12 +21,7 @@ interface BatchOptions {
 	websiteDomain?: string | null;
 }
 
-const parsedBatchGroupConcurrency = Number(
-	process.env.BATCH_GROUP_CONCURRENCY ?? 3
-);
-const BATCH_GROUP_CONCURRENCY = Number.isFinite(parsedBatchGroupConcurrency)
-	? Math.max(1, parsedBatchGroupConcurrency)
-	: 3;
+const BATCH_GROUP_CONCURRENCY = 3;
 
 async function mapWithConcurrency<T, R>(
 	items: T[],

@@ -34,4 +34,19 @@ describe("buildSlackBlocks", () => {
 		expect(blocks[0]?.text?.text.length).toBe(150);
 		expect(blocks[1]?.text?.text.length).toBe(2900);
 	});
+
+	test("keeps large payloads within Slack's 50-block limit", () => {
+		const blocks = buildSlackBlocks({
+			title: "Anomaly detected",
+			message: "Traffic changed.",
+			metadata: Object.fromEntries(
+				Array.from({ length: 1000 }, (_, index) => [`field${index}`, index])
+			),
+			priority: "urgent",
+		});
+
+		expect(blocks).toHaveLength(50);
+		expect(blocks.at(-1)?.type).toBe("context");
+		expect(blocks.at(-1)?.elements?.[0]?.text).toContain("URGENT");
+	});
 });

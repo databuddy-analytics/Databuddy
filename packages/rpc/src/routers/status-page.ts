@@ -17,6 +17,7 @@ import {
 } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
+import { parseUptimeGranularity } from "@databuddy/shared/uptime";
 import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
@@ -418,7 +419,7 @@ async function _fetchStatusPageData(
 
 		const freshness: MonitorFreshness = deriveMonitorFreshness(
 			lastCheckedAt,
-			schedule.granularity
+			parseUptimeGranularity(schedule.granularity)
 		);
 		const currentStatus: MonitorStatus = deriveMonitorStatus({
 			lastStatus: latestCheck?.last_status ?? null,

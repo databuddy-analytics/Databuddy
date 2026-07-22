@@ -27,7 +27,12 @@ if (!isClickHouseUp) {
 }
 
 afterAll(async () => {
-	if (isClickHouseUp) {
+	// The explicit integration run has more ClickHouse suites after this file.
+	// Isolated builder runs still close their client normally.
+	if (
+		isClickHouseUp &&
+		process.env.CLICKHOUSE_INTEGRATION_TESTS !== "true"
+	) {
 		await clickHouse.close();
 	}
 });
