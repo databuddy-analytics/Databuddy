@@ -79,6 +79,7 @@ export function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
 		signal.metric === "revenue" ||
 		signal.metric === "error_count" ||
+		signal.metric === "custom_event_count" ||
 		signal.metric === "lcp" ||
 		signal.metric === "inp" ||
 		signal.metric.startsWith("goal:") ||
@@ -161,7 +162,11 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 		};
 	}
 	if (prefix === "custom_event") {
-		return { type: "event", id, label: signal.label.slice(0, 120) };
+		return {
+			id: signal.entityId ?? rawId,
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
+			type: "event",
+		};
 	}
 	if (signal.metric === "error_count") {
 		return {

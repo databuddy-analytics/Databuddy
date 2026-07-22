@@ -1,4 +1,4 @@
-import { executeQuery } from "@databuddy/ai/query";
+import { executeQuery, type Filter } from "@databuddy/ai/query";
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
@@ -105,6 +105,8 @@ const WOW_TRAFFIC_THRESHOLD = 40;
 const WOW_ERROR_THRESHOLD = 40;
 const WOW_REVENUE_THRESHOLD = 30;
 const WOW_VITALS_THRESHOLD = 30;
+const CUSTOM_EVENT_DROP_THRESHOLD = 50;
+const CUSTOM_EVENT_MIN_BASELINE = 10;
 const REVENUE_MIN_ABSOLUTE_CHANGE = 25;
 const REVENUE_MIN_TRANSACTIONS = 5;
 const FILTER_SESSION_DURATION_MIN_DELTA = 60;
@@ -112,8 +114,8 @@ const FILTER_SESSION_DURATION_MIN_PEAK = 20;
 const FILTER_BOUNCE_MIN_DELTA = 10;
 const FILTER_ERROR_MIN_DELTA = 5;
 const FILTER_ERROR_MIN_PEAK = 10;
-const ERROR_MIN_AFFECTED_USERS = 5;
-const ERROR_SIGNIFICANT_AFFECTED_USERS = 20;
+const MIN_AFFECTED_USERS = 5;
+const SIGNIFICANT_AFFECTED_USERS = 20;
 const ERROR_MIN_SESSION_RATE = 1;
 const LOW_TRAFFIC_WEEKLY_SESSIONS = 50;
 const LOW_TRAFFIC_MIN_VALUE = 10;
@@ -176,17 +178,18 @@ function adaptiveWowThreshold(dailyValues: number[], base: number): number {
 type SignalFilter = (signal: DetectedSignal) => boolean;
 
 const METRIC_FILTERS: Record<string, SignalFilter> = {
-	session_duration: (s) =>
-		Math.abs(s.current - s.baseline) >= FILTER_SESSION_DURATION_MIN_DELTA &&
-		Math.max(s.current, s.baseline) >= FILTER_SESSION_DURATION_MIN_PEAK,
 	bounce_rate: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_BOUNCE_MIN_DELTA,
+	custom_event_count: () => true,
 	error_count: (s) =>
 		Math.abs(s.current - s.baseline) >= FILTER_ERROR_MIN_DELTA &&
 		Math.max(s.current, s.baseline) >= FILTER_ERROR_MIN_PEAK,
-	revenue: () => true,
-	lcp: () => true,
 	inp: () => true,
+	lcp: () => true,
+	revenue: () => true,
+	session_duration: (s) =>
+		Math.abs(s.current - s.baseline) >= FILTER_SESSION_DURATION_MIN_DELTA &&
+		Math.max(s.current, s.baseline) >= FILTER_SESSION_DURATION_MIN_PEAK,
 };
 
 const DEFAULT_TRAFFIC_FILTER: SignalFilter = (s) =>
@@ -255,22 +258,45 @@ function hasMeaningfulErrorImpact(
 	errorRate: number
 ): boolean {
 	return (
-		affectedUsers >= ERROR_MIN_AFFECTED_USERS &&
-		(affectedUsers >= ERROR_SIGNIFICANT_AFFECTED_USERS ||
+		affectedUsers >= MIN_AFFECTED_USERS &&
+		(affectedUsers >= SIGNIFICANT_AFFECTED_USERS ||
 			errorRate >= ERROR_MIN_SESSION_RATE)
 	);
 }
 
-function capLowReachErrorSeverity(
+function capLowReachSeverity(
 	signal: DetectedSignal,
 	affectedUsers: number
 ): DetectedSignal {
 	if (
-		affectedUsers < ERROR_SIGNIFICANT_AFFECTED_USERS &&
+		affectedUsers < SIGNIFICANT_AFFECTED_USERS &&
 		signal.severity === "critical"
 	) {
 		return { ...signal, severity: "warning" };
 	}
+	return signal;
+}
+
+function makeCustomEventSignal(
+	name: string,
+	currentRow: Record<string, unknown> | undefined,
+	previousRow: Record<string, unknown> | undefined,
+	detectedAt: string,
+	subjectKey = `custom_event:${name}`
+): DetectedSignal {
+	const current = numberField(currentRow, "total_events");
+	const previous = numberField(previousRow, "total_events");
+	const currentUsers = numberField(currentRow, "unique_users");
+	const previousUsers = numberField(previousRow, "unique_users");
+	const currentSessions = numberField(currentRow, "unique_sessions");
+	const previousSessions = numberField(previousRow, "unique_sessions");
+	const signal = capLowReachSeverity(
+		makeWowSignal("custom_event_count", name, current, previous, detectedAt),
+		Math.max(previousUsers, previousSessions)
+	);
+	signal.subjectKey = subjectKey;
+	signal.entityId = name;
+	signal.definitionEvidence = `Event "${name}" occurred ${current} times across ${currentUsers} users and ${currentSessions} sessions, compared with ${previous} occurrences across ${previousUsers} users and ${previousSessions} sessions previously.`;
 	return signal;
 }
 
@@ -414,7 +440,7 @@ export async function remeasureMetricSignal(
 			abortSignal
 		);
 	const readPair = (
-		family: "errors" | "revenue" | "summary" | "vitals",
+		family: "custom_events" | "errors" | "revenue" | "summary" | "vitals",
 		type: string,
 		filters?: { field: string; op: "eq"; value: string }[]
 	) =>
@@ -475,6 +501,24 @@ export async function remeasureMetricSignal(
 		signal.entityLabel = label;
 		signal.definitionEvidence = `${label} occurred ${signal.current} times and affected ${numberField(currentRow, "users")} users, compared with ${signal.baseline} occurrences affecting ${numberField(previousRow, "users")} users previously.`;
 		return signal;
+	}
+
+	if (prior.signalKey.startsWith("custom_event:")) {
+		const name = prior.entity.id;
+		const pair = await readPair("custom_events", "custom_events", [
+			{ field: "event_name", op: "eq", value: name },
+		]);
+		if (!pair.value) {
+			return null;
+		}
+		const [currentRows, previousRows] = pair.value;
+		return makeCustomEventSignal(
+			name,
+			currentRows[0],
+			previousRows[0],
+			currentTo,
+			prior.signalKey
+		);
 	}
 
 	if (prior.signalKey === "revenue") {
@@ -549,7 +593,13 @@ function rethrowDetectionAbort(
 
 async function readDetectorFamily<T>(params: {
 	abortSignal?: AbortSignal;
-	family: "errors" | "history" | "revenue" | "summary" | "vitals";
+	family:
+		| "custom_events"
+		| "errors"
+		| "history"
+		| "revenue"
+		| "summary"
+		| "vitals";
 	read: () => Promise<T>;
 	websiteId: string;
 }): Promise<DetectorFamilyResult<T>> {
@@ -579,7 +629,7 @@ async function readDetectorFamily<T>(params: {
 async function readDetectorPair<T>(params: {
 	abortSignal?: AbortSignal;
 	current: () => Promise<T>;
-	family: "errors" | "revenue" | "summary" | "vitals";
+	family: "custom_events" | "errors" | "revenue" | "summary" | "vitals";
 	previous: () => Promise<T>;
 	websiteId: string;
 }): Promise<DetectorFamilyResult<[T, T]>> {
@@ -829,9 +879,21 @@ async function detectWow(
 		lookbackDays
 	);
 
-	function query(type: string, from: string, to: string) {
+	function query(
+		type: string,
+		from: string,
+		to: string,
+		options: { filters?: Filter[]; limit?: number } = {}
+	) {
 		return queryFn(
-			{ projectId: websiteId, type, from, to, timezone },
+			{
+				from,
+				projectId: websiteId,
+				timezone,
+				to,
+				type,
+				...options,
+			},
 			undefined,
 			timezone,
 			abortSignal
@@ -874,6 +936,41 @@ async function detectWow(
 	const signals: DetectedSignal[] = [];
 	const currentSessions = numberField(currentSummary[0], "sessions");
 	const previousSessions = numberField(previousSummary[0], "sessions");
+	let customEventsFailed = false;
+	let currentCustomEvents: Record<string, unknown>[] = [];
+	let previousCustomEvents: Record<string, unknown>[] = [];
+	if (!(summary.failed || (previousSessions > 0 && currentSessions === 0))) {
+		const previous = await readDetectorFamily({
+			abortSignal,
+			family: "custom_events",
+			read: () =>
+				query("custom_events", previousFrom, previousTo, { limit: 200 }),
+			websiteId,
+		});
+		customEventsFailed = previous.failed;
+		const baselineEvents = previous.value ?? [];
+		const names = baselineEvents.flatMap((row) => {
+			const name = stringField(row, "name");
+			return name ? [name] : [];
+		});
+		if (!(previous.failed || names.length === 0)) {
+			const current = await readDetectorFamily({
+				abortSignal,
+				family: "custom_events",
+				read: () =>
+					query("custom_events", currentFrom, currentTo, {
+						filters: [{ field: "event_name", op: "in", value: names }],
+						limit: 200,
+					}),
+				websiteId,
+			});
+			customEventsFailed = current.failed;
+			if (!current.failed) {
+				currentCustomEvents = current.value ?? [];
+				previousCustomEvents = baselineEvents;
+			}
+		}
+	}
 
 	for (const metric of ANOMALY_METRICS) {
 		if (
@@ -951,7 +1048,7 @@ async function detectWow(
 			? `${filename}${line > 0 ? `:${line}` : ""}`
 			: path;
 		const label = `${errorType ? `${errorType}: ` : ""}${message}${location ? ` at ${location}` : ""}`;
-		const signal = capLowReachErrorSeverity(
+		const signal = capLowReachSeverity(
 			makeWowSignal("error_count", label, current, previous, currentTo),
 			affectedUsers
 		);
@@ -960,6 +1057,39 @@ async function detectWow(
 		signal.entityLabel = label;
 		signal.definitionEvidence = `${label} occurred ${current} times and affected ${numberField(currentRow, "users")} users, compared with ${previous} occurrences affecting ${numberField(previousRow, "users")} users previously.`;
 		signals.push(signal);
+	}
+
+	const currentByName = mapRowsByStringField(currentCustomEvents, "name");
+	for (const previousRow of previousCustomEvents) {
+		const name = stringField(previousRow, "name");
+		if (!name) {
+			continue;
+		}
+		const currentRow = currentByName.get(name);
+		const current = numberField(currentRow, "total_events");
+		const previous = numberField(previousRow, "total_events");
+		const previousReach = Math.max(
+			numberField(previousRow, "unique_users"),
+			numberField(previousRow, "unique_sessions")
+		);
+		if (
+			previous < CUSTOM_EVENT_MIN_BASELINE ||
+			previousReach < MIN_AFFECTED_USERS ||
+			safeDeltaPercent(current, previous) > -CUSTOM_EVENT_DROP_THRESHOLD
+		) {
+			continue;
+		}
+		if (
+			currentSessions > 0 &&
+			previousSessions > 0 &&
+			safeDeltaPercent(current / currentSessions, previous / previousSessions) >
+				-CUSTOM_EVENT_DROP_THRESHOLD
+		) {
+			continue;
+		}
+		signals.push(
+			makeCustomEventSignal(name, currentRow, previousRow, currentTo)
+		);
 	}
 
 	const revNow = numberField(currentRevenue[0], "total_revenue");
@@ -1025,9 +1155,9 @@ async function detectWow(
 	}
 
 	return {
-		failedFamilies: [summary, errors, revenue, vitals].filter(
-			(result) => result.failed
-		).length,
+		failedFamilies:
+			[summary, errors, revenue, vitals].filter((result) => result.failed)
+				.length + (customEventsFailed ? 1 : 0),
 		signals,
 		weeklySessions:
 			(Math.max(

@@ -104,6 +104,19 @@ function errorRow(
 	};
 }
 
+function customEventRow(
+	name: string,
+	totalEvents: number,
+	uniqueUsers: number
+) {
+	return {
+		name,
+		total_events: totalEvents,
+		unique_sessions: uniqueUsers,
+		unique_users: uniqueUsers,
+	};
+}
+
 describe("assignSeverity", () => {
 	it("assigns critical for z-score >= 3.5", () => {
 		expect(assignSeverity(3.5, 10)).toBe("critical");
@@ -211,16 +224,15 @@ describe("detectSignals", () => {
 		expect(diagnostics.failedFamilies).toBe(2);
 	});
 
-	it("returns no signals and reports an incomplete scan when one family fails", async () => {
+	it("does not infer event changes when summary detection fails", async () => {
 		const diagnostics = { failedFamilies: 0 };
+		let customEventCalls = 0;
 		const queryFn: QueryFn = async (request) => {
-			if (request.type === "revenue_overview") {
-				throw new Error("revenue unavailable");
-			}
 			if (request.type === "summary_metrics") {
-				return [
-					{ unique_visitors: 100, sessions: 100, pageviews: 100 },
-				];
+				throw new Error("summary unavailable");
+			}
+			if (request.type === "custom_events") {
+				customEventCalls += 1;
 			}
 			return [];
 		};
@@ -235,6 +247,7 @@ describe("detectSignals", () => {
 
 		expect(signals).toEqual([]);
 		expect(diagnostics.failedFamilies).toBe(1);
+		expect(customEventCalls).toBe(0);
 	});
 
 	it("retries only the failed period after a transient query failure", async () => {
@@ -1180,6 +1193,115 @@ describe("detectSignals", () => {
 
 			const signals = await detectSignals(BASE_PARAMS, queryFn);
 			expect(signals.find((s) => s.metric === "error_count")).toBeUndefined();
+		});
+	});
+
+	describe("custom event regressions", () => {
+		it("detects and remeasures exact event drops", async () => {
+			const disappeared = "checkout:".repeat(25);
+			const requests: Parameters<QueryFn>[0][] = [];
+			const mockQuery = createMockQueryFn(
+				[],
+				{ sessions: 500 },
+				{ sessions: 500 },
+				{
+					custom_events: [
+						[
+							customEventRow(disappeared, 40, 25),
+							customEventRow("checkout_completed", 80, 45),
+						],
+						[customEventRow("checkout_completed", 30, 20)],
+					],
+				}
+			);
+			const queryFn: QueryFn = async (request) => {
+				requests.push(request);
+				return mockQuery(request);
+			};
+
+			const signals = await detectSignals(BASE_PARAMS, queryFn);
+			const eventSignal = signals.find(
+				(signal) => signal.entityId === disappeared
+			);
+
+			expect(eventSignal).toMatchObject({
+				baseline: 40,
+				current: 0,
+				deltaPercent: -100,
+				direction: "down",
+				entityId: disappeared,
+				label: disappeared,
+				metric: "custom_event_count",
+			});
+			expect(
+				signals.find((signal) => signal.entityId === "checkout_completed")
+			).toMatchObject({ baseline: 80, current: 30, deltaPercent: -62.5 });
+			expect(
+				requests.find((request) => request.filters)?.filters
+			).toEqual([
+				{
+					field: "event_name",
+					op: "in",
+					value: [disappeared, "checkout_completed"],
+				},
+			]);
+			if (!eventSignal) {
+				throw new Error("Expected custom event regression");
+			}
+			expect(eventSignal.definitionEvidence).toContain("occurred 0 times");
+			const prior = prepareInvestigation(eventSignal, 7).signal;
+			expect(prior).toMatchObject({
+				entity: { id: disappeared, type: "event" },
+			});
+			expect(prior.signalKey).toHaveLength(160);
+
+			const remeasureRequests: Parameters<QueryFn>[0][] = [];
+			const current = await remeasureMetricSignal(
+				{ ...BASE_PARAMS, lookbackDays: 7 },
+				prior,
+				async (request) => {
+					remeasureRequests.push(request);
+					return remeasureRequests.length === 1
+						? []
+						: [customEventRow(disappeared, 30, 20)];
+				},
+				dayjs("2026-07-20")
+			);
+			expect(current).toMatchObject({
+				baseline: 30,
+				current: 0,
+				subjectKey: prior.signalKey,
+			});
+			expect(remeasureRequests[0]?.filters).toEqual([
+				{ field: "event_name", op: "eq", value: disappeared },
+			]);
+		});
+
+		it("suppresses new, low-reach, and traffic-proportional event changes", async () => {
+			const queryFn = createMockQueryFn(
+				[],
+				{ sessions: 400 },
+				{ sessions: 1000 },
+				{
+					custom_events: [
+						[
+							customEventRow("low_volume_event", 8, 8),
+							customEventRow("single_user_loop", 100, 1),
+							customEventRow("tracks_with_traffic", 100, 50),
+						],
+						[
+							customEventRow("new_experiment_event", 100, 50),
+							customEventRow("tracks_with_traffic", 40, 20),
+						],
+					],
+				}
+			);
+
+			const customSignals = (await detectSignals(BASE_PARAMS, queryFn)).filter(
+				(signal) => signal.metric === "custom_event_count"
+			);
+
+			expect(customSignals).toEqual([]);
 		});
 	});
 

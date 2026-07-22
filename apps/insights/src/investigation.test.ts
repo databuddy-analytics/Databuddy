@@ -37,9 +37,17 @@ describe("rankSignals", () => {
 				deltaPercent: 45,
 				severity: "info",
 			},
+			{
+				...baseSignal,
+				deltaPercent: -50,
+				metric: "custom_event_count",
+				subjectKey: "custom_event:signup_completed",
+				severity: "info",
+			},
 		]);
 
 		expect(ranked.map((signal) => signal.metric)).toEqual([
+			"custom_event_count",
 			"error_count",
 			"goal:signup",
 			"visitors",
