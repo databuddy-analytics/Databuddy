@@ -16,7 +16,6 @@ import {
 	UserIcon,
 } from "@databuddy/ui/icons";
 import {
-	Badge,
 	Button,
 	Card,
 	dayjs,
@@ -26,6 +25,7 @@ import {
 	fromNow,
 	Skeleton,
 	Spinner,
+	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
 
@@ -58,7 +58,7 @@ export default function InsightDetailPage() {
 				<h1 className="font-semibold text-sm">Investigation</h1>
 			</TopBar.Title>
 
-			<div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-5">
+			<div className="mx-auto w-full max-w-2xl space-y-3 px-3 pt-3 pb-20 sm:space-y-4 sm:p-5">
 				<Link
 					className="inline-flex w-fit items-center gap-1.5 text-muted-foreground text-xs transition-colors hover:text-foreground"
 					href="/insights"
@@ -69,7 +69,7 @@ export default function InsightDetailPage() {
 
 				{isLoading && (
 					<Card aria-label="Investigation">
-						<div className="space-y-3 p-5">
+						<div className="space-y-3 p-4 sm:p-5">
 							<Skeleton className="h-5 w-2/3 rounded" />
 							<Skeleton className="h-4 w-full rounded" />
 							<Skeleton className="h-4 w-4/5 rounded" />
@@ -79,21 +79,21 @@ export default function InsightDetailPage() {
 
 				{!isLoading && insight && (
 					<Card aria-label="Investigation">
-						<header className="space-y-2 border-b px-5 py-4">
+						<header className="space-y-2 border-b px-4 py-4 sm:px-5">
 							<div className="flex items-center justify-between gap-3">
-								<p className="font-medium text-muted-foreground text-xs">
+								<p className="truncate font-medium text-muted-foreground text-xs">
 									{insight.websiteName ?? insight.websiteDomain}
 								</p>
-								<Badge
-									size="sm"
-									variant={
-										insight.status === "resolved" ? "success" : "warning"
-									}
-								>
+								<span className="flex shrink-0 items-center gap-1.5 text-muted-foreground text-xs">
+									<StatusDot
+										color={
+											insight.status === "resolved" ? "success" : "warning"
+										}
+									/>
 									{insight.status === "resolved" ? "Resolved" : "Open"}
-								</Badge>
+								</span>
 							</div>
-							<h2 className="font-semibold text-base text-foreground">
+							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
 								{insight.title}
 							</h2>
 						</header>
@@ -117,6 +117,7 @@ export default function InsightDetailPage() {
 								: "This investigation no longer exists."
 						}
 						icon={<LightbulbIcon weight="duotone" />}
+						className="min-h-[50dvh]"
 						title="Investigation not available"
 						variant="minimal"
 					/>
@@ -165,22 +166,13 @@ function CaseActivity({
 
 	return (
 		<section aria-labelledby="case-activity-title">
-			<div className="border-b bg-muted/40 px-5 py-4">
-				<h2
-					className="font-semibold text-foreground text-sm"
-					id="case-activity-title"
-				>
-					Activity
-				</h2>
-				<p className="mt-1 text-muted-foreground text-xs">
-					Investigation history and context from your team.
-				</p>
-			</div>
+			<h2 className="sr-only" id="case-activity-title">
+				Activity
+			</h2>
 
-			<ol>
-				{items.map((item, index) => (
+			<ol className="divide-y">
+				{items.map((item) => (
 					<TimelineEntry
-						isLast={index === items.length - 1}
 						item={item}
 						key={`${item.kind}-${item.id}`}
 						onRetry={
@@ -199,36 +191,34 @@ function CaseActivity({
 }
 
 function TimelineEntry({
-	isLast,
 	item,
 	onRetry,
 	retrying,
 }: {
-	isLast: boolean;
 	item: TimelineItem;
 	onRetry?: (replyId: string) => void;
 	retrying: boolean;
 }) {
 	return (
-		<li className="grid grid-cols-[24px_minmax(0,1fr)] gap-3 px-5 py-4">
-			<div className="relative">
-				{!isLast && (
-					<span className="absolute top-7 bottom-[-1rem] left-1/2 w-px -translate-x-1/2 bg-border" />
-				)}
-				{item.kind === "reply" ? (
-					<span className="flex size-6 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-						<UserIcon className="size-3.5" weight="duotone" />
-					</span>
-				) : (
-					<span className="flex size-6 items-center justify-center rounded-full bg-primary/10 text-primary">
-						<RobotIcon className="size-3.5" weight="duotone" />
-					</span>
-				)}
-			</div>
-
+		<li
+			className={
+				item.kind === "reply"
+					? "bg-muted/30 px-4 py-4 sm:px-5"
+					: "px-4 py-4 sm:px-5"
+			}
+		>
 			<article className="min-w-0 space-y-3">
-				<div className="flex flex-wrap items-center gap-2">
-					<div className="flex min-w-0 items-center gap-2 text-xs">
+				<header className="flex min-w-0 items-center gap-2 text-xs">
+					{item.kind === "reply" ? (
+						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+							<UserIcon className="size-3" weight="duotone" />
+						</span>
+					) : (
+						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+							<RobotIcon className="size-3" weight="duotone" />
+						</span>
+					)}
+					<div className="flex min-w-0 items-center gap-2">
 						<span className="truncate font-medium text-foreground">
 							{item.kind === "reply" ? item.author : "Databuddy"}
 						</span>
@@ -244,10 +234,10 @@ function TimelineEntry({
 							{fromNow(item.createdAt)}
 						</time>
 					</div>
-				</div>
+				</header>
 				{item.kind === "reply" ? (
 					<>
-						<p className="whitespace-pre-wrap text-[13px] text-foreground/85 leading-relaxed">
+						<p className="whitespace-pre-wrap text-foreground/85 text-sm leading-relaxed">
 							{item.body}
 						</p>
 						{(item.status === "queued" || item.status === "running") && (
@@ -288,8 +278,8 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 
 	return (
 		<div className="space-y-3">
-			<div className="text-[11px] text-muted-foreground">
-				<p className="font-medium text-foreground/75">{item.subject}</p>
+			<div className="text-muted-foreground text-xs">
+				<p className="font-medium text-foreground/80">{item.subject}</p>
 				<p>
 					{formatPeriod(item.period.current)} compared with{" "}
 					{formatPeriod(item.period.previous)}
@@ -297,13 +287,15 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 			</div>
 
 			<div>
-				<h3 className="font-medium text-[13px] text-foreground">
+				<h3 className="text-pretty font-medium text-foreground text-sm leading-snug">
 					{outcome.title}
 				</h3>
-				<p className="mt-1 text-[13px] text-foreground/80 leading-relaxed">
+				<p className="mt-1 text-foreground/80 text-sm leading-relaxed">
 					{outcome.summary}
 				</p>
 			</div>
+
+			<NextStep next={outcome.next} />
 
 			{(outcome.impact || outcome.rootCause) && (
 				<dl className="grid gap-3 sm:grid-cols-2">
@@ -312,7 +304,7 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 								Impact
 							</dt>
-							<dd className="mt-1 text-foreground/80 text-xs leading-relaxed">
+							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
 								{outcome.impact}
 							</dd>
 						</div>
@@ -322,7 +314,7 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 								Cause
 							</dt>
-							<dd className="mt-1 text-foreground/80 text-xs leading-relaxed">
+							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
 								{outcome.rootCause}
 							</dd>
 						</div>
@@ -337,7 +329,7 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 				<ul className="mt-1 space-y-1">
 					{outcome.evidence.map((entry) => (
 						<li
-							className="flex gap-2 text-muted-foreground text-xs leading-relaxed"
+							className="flex gap-2 text-muted-foreground text-sm leading-relaxed"
 							key={entry}
 						>
 							<span aria-hidden className="text-muted-foreground/50">
@@ -348,8 +340,6 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 					))}
 				</ul>
 			</div>
-
-			<NextStep next={outcome.next} />
 		</div>
 	);
 }
@@ -357,15 +347,15 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 function NextStep({ next }: { next: InvestigationNext }) {
 	const copy = nextCopy(next);
 	return (
-		<div className="rounded-md border border-border/60 bg-accent/30 px-3 py-2.5">
+		<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
 			<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 				{copy.label}
 			</p>
-			<p className="mt-1 text-foreground/85 text-xs leading-relaxed">
+			<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
 				{copy.body}
 			</p>
 			{copy.detail && (
-				<p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
+				<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
 					{copy.detail}
 				</p>
 			)}
@@ -412,14 +402,14 @@ function ReplyComposer({
 	};
 
 	return (
-		<form className="border-t bg-muted/20 px-5 py-4" onSubmit={submitReply}>
+		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
 			<Field>
 				<Field.Label>Add context</Field.Label>
 				<Textarea
 					disabled={disabled}
 					maxLength={2000}
 					maxRows={8}
-					minRows={3}
+					minRows={2}
 					onChange={(event) => setBody(event.target.value)}
 					placeholder="Add context, a correction, or what changed…"
 					value={body}

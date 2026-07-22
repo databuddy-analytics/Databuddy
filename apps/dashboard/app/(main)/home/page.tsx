@@ -17,7 +17,7 @@ import { ArrowClockwiseIcon, GlobeIcon, PlusIcon } from "@databuddy/ui/icons";
 import { Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
 
 const WEBSITE_PREVIEW_LIMIT = 3;
-const INSIGHT_PREVIEW_LIMIT = 20;
+const INSIGHT_PREVIEW_LIMIT = 4;
 
 function WebsiteCardSkeleton() {
 	return (

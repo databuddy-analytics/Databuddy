@@ -119,17 +119,19 @@ export function InvestigationSettings({
 
 	const saveMutation = useMutation({
 		...orpc.insightGeneration.upsertConfig.mutationOptions(),
+		onError: (error) =>
+			toast.error(error instanceof Error ? error.message : "Could not save"),
 		onSuccess: async () => {
 			toast.success("Settings saved");
 			await refreshConfig();
 			setOpen(false);
 		},
-		onError: (error) =>
-			toast.error(error instanceof Error ? error.message : "Could not save"),
 	});
 
 	const triggerMutation = useMutation({
 		...orpc.insightGeneration.triggerRun.mutationOptions(),
+		onError: (error) =>
+			toast.error(error instanceof Error ? error.message : "Could not start"),
 		onSuccess: async (data) => {
 			if (data.reusedRun) {
 				toast.info("Analysis is already running");
@@ -150,8 +152,6 @@ export function InvestigationSettings({
 			await refreshConfig();
 			setOpen(false);
 		},
-		onError: (error) =>
-			toast.error(error instanceof Error ? error.message : "Could not start"),
 	});
 
 	const isBusy =
@@ -164,9 +164,14 @@ export function InvestigationSettings({
 		<Sheet onOpenChange={setOpen} open={open}>
 			<Sheet.Trigger
 				render={
-					<Button size="sm" type="button" variant="secondary">
+					<Button
+						aria-label="Analysis settings"
+						size="sm"
+						type="button"
+						variant="secondary"
+					>
 						<GearIcon className="size-4" weight="duotone" />
-						Analysis
+						<span className="hidden sm:inline">Analysis</span>
 					</Button>
 				}
 			/>
