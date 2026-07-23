@@ -4,6 +4,11 @@ import { Elysia } from "elysia";
 import { evlog, useLogger } from "evlog/elysia";
 import { getDailySalt, saltAnonymousId } from "@lib/security";
 import { sanitizeString, VALIDATION_LIMITS } from "@utils/validation";
+import {
+	type NormalizedStripeRecord,
+	type StripeWebhookEvent,
+	normalizeStripeEvent,
+} from "./stripe-normalization";
 import { formatDate, getWebhookConfig, resolveWebsiteId } from "./shared";
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
@@ -14,115 +19,6 @@ interface WebhookConfig {
 	websiteId: string | null;
 }
 
-interface WebhookPaymentIntent {
-	amount: number;
-	amount_received?: number;
-	created: number;
-	currency: string;
-	customer?: string | { id: string } | null;
-	description?: string | null;
-	id: string;
-	invoice?: string | { id: string } | null;
-	metadata?: Record<string, string>;
-}
-
-interface WebhookCharge {
-	amount_refunded: number;
-	currency: string;
-	customer?: string | { id: string } | null;
-	id: string;
-	metadata?: Record<string, string>;
-	refunds?: {
-		data: Array<{
-			id: string;
-			amount: number;
-			created: number;
-		}>;
-	};
-}
-
-interface WebhookInvoice {
-	amount_paid: number;
-	billing_reason?: string | null;
-	created: number;
-	currency: string;
-	customer?: string | { id: string } | null;
-	description?: string | null;
-	id: string;
-	metadata?: Record<string, string>;
-	payment_intent?: string | null;
-	status?: string;
-	subscription?: string | null;
-}
-
-interface WebhookEvent {
-	data: {
-		object: WebhookPaymentIntent | WebhookCharge | WebhookInvoice;
-	};
-	id: string;
-	type: string;
-}
-
-export function verifyStripeSignature(
-	payload: string,
-	header: string,
-	secret: string
-): { valid: true; event: WebhookEvent } | { valid: false; error: string } {
-	const parts: Record<string, string[]> = {};
-
-	for (const item of header.split(",")) {
-		const [key, value] = item.split("=");
-		if (key && value) {
-			if (!parts[key]) {
-				parts[key] = [];
-			}
-			parts[key].push(value);
-		}
-	}
-
-	const timestamp = parts.t?.[0];
-	const signatures = parts.v1 || [];
-
-	if (!timestamp) {
-		return { valid: false, error: "Missing timestamp in signature header" };
-	}
-
-	if (signatures.length === 0) {
-		return { valid: false, error: "No v1 signatures found in header" };
-	}
-
-	const timestampNum = Number.parseInt(timestamp, 10);
-	const now = Math.floor(Date.now() / 1000);
-
-	if (Math.abs(now - timestampNum) > SIGNATURE_TOLERANCE_SECONDS) {
-		return { valid: false, error: "Timestamp outside tolerance zone" };
-	}
-
-	const signedPayload = `${timestamp}.${payload}`;
-	const expectedSignature = createHmac("sha256", secret)
-		.update(signedPayload, "utf8")
-		.digest("hex");
-
-	const signatureMatch = signatures.some((sig) => {
-		try {
-			return timingSafeEqual(Buffer.from(expectedSignature), Buffer.from(sig));
-		} catch {
-			return false;
-		}
-	});
-
-	if (!signatureMatch) {
-		return { valid: false, error: "Signature mismatch" };
-	}
-
-	try {
-		const event = JSON.parse(payload) as WebhookEvent;
-		return { valid: true, event };
-	} catch {
-		return { valid: false, error: "Invalid JSON payload" };
-	}
-}
-
 interface AnalyticsMetadata {
 	anonymous_id?: string;
 	client_id?: string;
@@ -130,39 +26,124 @@ interface AnalyticsMetadata {
 	session_id?: string;
 }
 
-async function extractAnalyticsMetadata(
-	metadata: Record<string, string> | undefined
-): Promise<AnalyticsMetadata> {
-	if (!metadata) {
-		return {};
+export function verifyStripeSignature(
+	payload: string,
+	header: string,
+	secret: string
+):
+	| { valid: true; event: StripeWebhookEvent }
+	| { valid: false; error: string } {
+	const parts: Record<string, string[]> = {};
+	for (const item of header.split(",")) {
+		const [key, value] = item.split("=");
+		if (!(key && value)) {
+			continue;
+		}
+		const values = parts[key] ?? [];
+		values.push(value);
+		parts[key] = values;
 	}
 
-	const rawAnonId = metadata.databuddy_anonymous_id;
-	let anonymousId: string | undefined;
-	if (rawAnonId) {
-		const salt = await getDailySalt();
-		anonymousId = saltAnonymousId(rawAnonId, salt);
+	const timestamp = parts.t?.[0];
+	const signatures = parts.v1 ?? [];
+	if (!timestamp) {
+		return { valid: false, error: "Missing timestamp in signature header" };
+	}
+	if (signatures.length === 0) {
+		return { valid: false, error: "No v1 signatures found in header" };
 	}
 
+	const timestampNumber = Number.parseInt(timestamp, 10);
+	const now = Math.floor(Date.now() / 1000);
+	if (
+		!Number.isSafeInteger(timestampNumber) ||
+		Math.abs(now - timestampNumber) > SIGNATURE_TOLERANCE_SECONDS
+	) {
+		return { valid: false, error: "Timestamp outside tolerance zone" };
+	}
+
+	const expected = createHmac("sha256", secret)
+		.update(`${timestamp}.${payload}`, "utf8")
+		.digest("hex");
+	const signatureMatch = signatures.some((signature) => {
+		try {
+			return timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+		} catch {
+			return false;
+		}
+	});
+	if (!signatureMatch) {
+		return { valid: false, error: "Signature mismatch" };
+	}
+
+	try {
+		return { valid: true, event: JSON.parse(payload) as StripeWebhookEvent };
+	} catch {
+		return { valid: false, error: "Invalid JSON payload" };
+	}
+}
+
+function analyticsMetadata(
+	metadata: Record<string, string>,
+	dailySalt: string | undefined
+): AnalyticsMetadata {
+	const anonymousId =
+		metadata.databuddy_anonymous_id && dailySalt
+			? saltAnonymousId(metadata.databuddy_anonymous_id, dailySalt)
+			: undefined;
+	const clientId = sanitizeString(
+		metadata.databuddy_client_id,
+		VALIDATION_LIMITS.USER_ID_MAX_LENGTH
+	);
+	const profileId = sanitizeString(
+		metadata.databuddy_profile_id,
+		VALIDATION_LIMITS.USER_ID_MAX_LENGTH
+	);
+	const sessionId = sanitizeString(
+		metadata.databuddy_session_id,
+		VALIDATION_LIMITS.SESSION_ID_MAX_LENGTH
+	);
 	return {
-		anonymous_id: anonymousId,
-		profile_id:
-			sanitizeString(
-				metadata.databuddy_profile_id,
-				VALIDATION_LIMITS.USER_ID_MAX_LENGTH
-			) || undefined,
-		session_id: metadata.databuddy_session_id,
-		client_id: metadata.databuddy_client_id,
+		...(anonymousId ? { anonymous_id: anonymousId } : {}),
+		...(clientId ? { client_id: clientId } : {}),
+		...(profileId ? { profile_id: profileId } : {}),
+		...(sessionId ? { session_id: sessionId } : {}),
 	};
 }
 
-function extractCustomerId(
-	customer: string | { id: string } | null | undefined
-): string | undefined {
-	if (!customer) {
-		return;
-	}
-	return typeof customer === "string" ? customer : customer.id;
+export function stripeRecordMetadata(
+	metadata: AnalyticsMetadata,
+	context: NormalizedStripeRecord["context"]
+): Record<string, string | number> {
+	return {
+		...metadata,
+		databuddy_revenue_model: "stripe_events_v1",
+		...(context.cancellationReason
+			? { stripe_cancellation_reason: context.cancellationReason }
+			: {}),
+		stripe_event_created: context.eventCreated,
+		stripe_event_id: context.eventId,
+		...(context.eventType ? { stripe_event_type: context.eventType } : {}),
+		...(context.failureCode
+			? { stripe_failure_code: context.failureCode }
+			: {}),
+		...(context.failureDeclineCode
+			? { stripe_failure_decline_code: context.failureDeclineCode }
+			: {}),
+		...(context.failureType
+			? { stripe_failure_type: context.failureType }
+			: {}),
+		stripe_record_kind: context.recordKind,
+		...(context.apiVersion ? { stripe_api_version: context.apiVersion } : {}),
+		...(context.invoiceId ? { stripe_invoice_id: context.invoiceId } : {}),
+		...(context.invoicePaymentId
+			? { stripe_invoice_payment_id: context.invoicePaymentId }
+			: {}),
+		...(context.moneyKind ? { stripe_money_kind: context.moneyKind } : {}),
+		...(context.paymentIntentId
+			? { stripe_payment_intent_id: context.paymentIntentId }
+			: {}),
+	};
 }
 
 function getConfig(hash: string): Promise<WebhookConfig | { error: string }> {
@@ -171,239 +152,65 @@ function getConfig(hash: string): Promise<WebhookConfig | { error: string }> {
 	>;
 }
 
-async function handlePaymentIntent(
-	pi: WebhookPaymentIntent,
-	config: WebhookConfig
-): Promise<void> {
-	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(pi.metadata);
-	const customerId = extractCustomerId(pi.customer);
-	const descLower = pi.description?.toLowerCase() ?? "";
-	const isSubscription = !!pi.invoice || descLower.startsWith("subscription");
-	const type: "sale" | "subscription" = isSubscription
-		? "subscription"
-		: "sale";
-	const amount = (pi.amount_received ?? pi.amount) / 100;
-	const currency = pi.currency.toUpperCase();
-	const productName =
-		pi.description && !descLower.startsWith("subscription")
-			? pi.description
-			: undefined;
-
-	log.set({
-		revenue: {
-			type,
-			status: "completed",
-			amount,
-			currency,
-			customerId,
-			transactionId: pi.id,
-		},
-	});
-
-	await clickHouse.insert({
-		table: "analytics.revenue",
-		values: [
-			{
-				owner_id: config.ownerId,
-				website_id: await resolveWebsiteId(
-					metadata.client_id,
-					config.websiteId,
-					config.ownerId
-				),
-				transaction_id: pi.id,
-				provider: "stripe",
-				type,
-				status: "completed",
-				amount,
-				original_amount: amount,
-				original_currency: currency,
-				currency,
-				anonymous_id: metadata.anonymous_id || undefined,
-				profile_id: metadata.profile_id || undefined,
-				session_id: metadata.session_id || undefined,
-				customer_id: customerId,
-				product_name: productName,
-				metadata: JSON.stringify(metadata),
-				created: formatDate(new Date(pi.created * 1000)),
-				synced_at: formatDate(new Date()),
-			},
-		],
-		format: "JSONEachRow",
-	});
-}
-
-async function handleFailedPayment(
-	pi: WebhookPaymentIntent,
+async function persistStripeRecords(
 	config: WebhookConfig,
-	status: "failed" | "canceled"
+	records: NormalizedStripeRecord[]
 ): Promise<void> {
-	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(pi.metadata);
-	const customerId = extractCustomerId(pi.customer);
-	const amount = (pi.amount_received ?? pi.amount) / 100;
-	const currency = pi.currency.toUpperCase();
-	const descLower = pi.description?.toLowerCase() ?? "";
-	const isSubscription = !!pi.invoice || descLower.startsWith("subscription");
-	const type: "sale" | "subscription" = isSubscription
-		? "subscription"
-		: "sale";
-	const productName =
-		pi.description && !descLower.startsWith("subscription")
-			? pi.description
-			: undefined;
-
-	log.set({
-		revenue: {
-			type,
-			status,
-			amount,
-			currency,
-			customerId,
-			transactionId: pi.id,
-		},
-	});
-
-	await clickHouse.insert({
-		table: "analytics.revenue",
-		values: [
-			{
-				owner_id: config.ownerId,
-				website_id: await resolveWebsiteId(
-					metadata.client_id,
-					config.websiteId,
-					config.ownerId
-				),
-				transaction_id: pi.id,
-				provider: "stripe",
-				type,
-				status,
-				amount,
-				original_amount: amount,
-				original_currency: currency,
-				currency,
-				anonymous_id: metadata.anonymous_id || undefined,
-				profile_id: metadata.profile_id || undefined,
-				session_id: metadata.session_id || undefined,
-				customer_id: customerId,
-				product_name: productName,
-				metadata: JSON.stringify(metadata),
-				created: formatDate(new Date(pi.created * 1000)),
-				synced_at: formatDate(new Date()),
-			},
-		],
-		format: "JSONEachRow",
-	});
-}
-
-async function handleInvoiceFailed(
-	invoice: WebhookInvoice,
-	config: WebhookConfig
-): Promise<void> {
-	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(invoice.metadata);
-	const customerId = extractCustomerId(invoice.customer);
-	const amount = invoice.amount_paid / 100;
-	const currency = invoice.currency.toUpperCase();
-
-	log.set({
-		revenue: {
-			type: "subscription",
-			status: "failed",
-			amount,
-			currency,
-			customerId,
-			transactionId: invoice.id,
-			billingReason: invoice.billing_reason,
-			subscriptionId: invoice.subscription,
-		},
-	});
-
-	await clickHouse.insert({
-		table: "analytics.revenue",
-		values: [
-			{
-				owner_id: config.ownerId,
-				website_id: await resolveWebsiteId(
-					metadata.client_id,
-					config.websiteId,
-					config.ownerId
-				),
-				transaction_id: invoice.id,
-				provider: "stripe",
-				type: "subscription" as const,
-				status: "failed",
-				amount,
-				original_amount: amount,
-				original_currency: currency,
-				currency,
-				anonymous_id: metadata.anonymous_id || undefined,
-				profile_id: metadata.profile_id || undefined,
-				session_id: metadata.session_id || undefined,
-				customer_id: customerId,
-				product_name: invoice.description || undefined,
-				metadata: JSON.stringify(metadata),
-				created: formatDate(new Date(invoice.created * 1000)),
-				synced_at: formatDate(new Date()),
-			},
-		],
-		format: "JSONEachRow",
-	});
-}
-
-async function handleRefund(
-	charge: WebhookCharge,
-	config: WebhookConfig
-): Promise<void> {
-	const log = useLogger();
-	const metadata = await extractAnalyticsMetadata(charge.metadata);
-	const customerId = extractCustomerId(charge.customer);
-	const currency = charge.currency.toUpperCase();
-	const refunds = charge.refunds?.data || [];
-
-	log.set({
-		revenue: {
-			type: "refund",
-			currency,
-			customerId,
-			refundCount: refunds.length,
-		},
-	});
-
-	for (const refund of refunds) {
-		const amount = refund.amount / 100;
-
-		await clickHouse.insert({
-			table: "analytics.revenue",
-			values: [
-				{
-					owner_id: config.ownerId,
-					website_id: await resolveWebsiteId(
-						metadata.client_id,
-						config.websiteId,
-						config.ownerId
-					),
-					transaction_id: refund.id,
-					provider: "stripe",
-					type: "refund",
-					status: "refunded",
-					amount: -amount,
-					original_amount: -amount,
-					original_currency: currency,
-					currency,
-					anonymous_id: metadata.anonymous_id || undefined,
-					profile_id: metadata.profile_id || undefined,
-					session_id: metadata.session_id || undefined,
-					customer_id: customerId,
-					product_name: "Refund",
-					metadata: JSON.stringify(metadata),
-					created: formatDate(new Date(refund.created * 1000)),
-					synced_at: formatDate(new Date()),
-				},
-			],
-			format: "JSONEachRow",
-		});
+	if (records.length === 0) {
+		return;
 	}
+	const needsAnonymousSalt = records.some(
+		(record) => record.rawMetadata.databuddy_anonymous_id
+	);
+	const dailySalt = needsAnonymousSalt ? await getDailySalt() : undefined;
+	const websiteIds = new Map<string, Promise<string | undefined>>();
+	const resolveRecordWebsite = (metadata: AnalyticsMetadata) => {
+		const key = metadata.client_id ?? "";
+		let pending = websiteIds.get(key);
+		if (!pending) {
+			pending = resolveWebsiteId(
+				metadata.client_id,
+				config.websiteId,
+				config.ownerId
+			);
+			websiteIds.set(key, pending);
+		}
+		return pending;
+	};
+	const syncedAt = formatDate(new Date());
+	const values = await Promise.all(
+		records.map(async (record) => {
+			const metadata = analyticsMetadata(record.rawMetadata, dailySalt);
+			return {
+				owner_id: config.ownerId,
+				website_id: await resolveRecordWebsite(metadata),
+				transaction_id: record.transactionId,
+				provider: "stripe",
+				type: record.type,
+				status: record.status,
+				amount: record.amount,
+				original_amount: record.amount,
+				original_currency: record.currency,
+				currency: record.currency,
+				anonymous_id: metadata.anonymous_id,
+				profile_id: metadata.profile_id,
+				session_id: metadata.session_id,
+				customer_id: record.customerId,
+				product_name: record.productName,
+				metadata: JSON.stringify(
+					stripeRecordMetadata(metadata, record.context)
+				),
+				created: formatDate(new Date(record.createdUnix * 1000)),
+				synced_at: syncedAt,
+			};
+		})
+	);
+
+	await clickHouse.insert({
+		table: "analytics.revenue",
+		values,
+		format: "JSONEachRow",
+	});
 }
 
 export const stripeWebhook = new Elysia().use(evlog()).post(
@@ -412,30 +219,23 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		const log = useLogger();
 		log.set({ provider: "stripe", webhookHash: params.hash });
 
-		const result = await getConfig(params.hash);
-
-		if ("error" in result) {
-			log.set({ configError: result.error });
+		const config = await getConfig(params.hash);
+		if ("error" in config) {
+			log.set({ configError: config.error });
 			set.status = 404;
 			return { error: "Webhook endpoint not found" };
 		}
 
-		log.set({ ownerId: result.ownerId, websiteId: result.websiteId });
-
 		const signature = request.headers.get("stripe-signature");
 		if (!signature) {
-			log.set({ signatureError: "missing_header" });
 			set.status = 400;
 			return { error: "Missing stripe-signature header" };
 		}
-
-		const body = await request.text();
 		const verification = verifyStripeSignature(
-			body,
+			await request.text(),
 			signature,
-			result.stripeWebhookSecret
+			config.stripeWebhookSecret
 		);
-
 		if (!verification.valid) {
 			log.warn("Stripe signature verification failed");
 			log.set({ signatureError: verification.error });
@@ -444,49 +244,23 @@ export const stripeWebhook = new Elysia().use(evlog()).post(
 		}
 
 		const event = verification.event;
-		log.set({ eventType: event.type, eventId: event.id });
-
+		log.set({
+			eventId: event.id,
+			eventType: event.type,
+			stripeApiVersion: event.api_version,
+		});
 		try {
-			switch (event.type) {
-				case "payment_intent.succeeded": {
-					await handlePaymentIntent(
-						event.data.object as WebhookPaymentIntent,
-						result
-					);
-					break;
-				}
-				case "payment_intent.payment_failed": {
-					await handleFailedPayment(
-						event.data.object as WebhookPaymentIntent,
-						result,
-						"failed"
-					);
-					break;
-				}
-				case "payment_intent.canceled": {
-					await handleFailedPayment(
-						event.data.object as WebhookPaymentIntent,
-						result,
-						"canceled"
-					);
-					break;
-				}
-				case "invoice.payment_failed": {
-					await handleInvoiceFailed(
-						event.data.object as WebhookInvoice,
-						result
-					);
-					break;
-				}
-				case "charge.refunded": {
-					await handleRefund(event.data.object as WebhookCharge, result);
-					break;
-				}
-				default: {
-					log.set({ unhandled: true });
-				}
-			}
-
+			const records = normalizeStripeEvent(event);
+			await persistStripeRecords(config, records);
+			log.set({
+				recordCount: records.length,
+				moneyRecordCount: records.filter(
+					(record) => record.context.recordKind === "money"
+				).length,
+				attemptRecordCount: records.filter(
+					(record) => record.context.recordKind === "attempt"
+				).length,
+			});
 			return { received: true, type: event.type };
 		} catch (error) {
 			log.error(error instanceof Error ? error : new Error(String(error)));

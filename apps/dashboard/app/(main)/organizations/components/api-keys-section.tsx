@@ -139,7 +139,7 @@ export function ApiKeysSection({
 					<Card.Title>API Keys</Card.Title>
 					<Card.Description>
 						{isSwitchingOrganization
-							? "Switching workspace…"
+							? "Switching organization…"
 							: isEmpty
 								? `Create keys for programmatic access to ${organization.name}`
 								: `${activeCount} active of ${items.length} key${items.length === 1 ? "" : "s"} for ${organization.name}`}
@@ -220,7 +220,7 @@ export function ApiKeysSection({
 					<>
 						{isSwitchingOrganization && (
 							<p className="sr-only" role="status">
-								Switching workspace…
+								Switching organization…
 							</p>
 						)}
 						<ApiKeysSkeleton />
@@ -236,7 +236,7 @@ export function ApiKeysSection({
 							}
 							description={`API keys created here only authenticate requests for ${organization.name}. Keys are shown once at creation.`}
 							icon={<LockSimpleIcon />}
-							title="No API keys in this workspace"
+							title="No API keys in this organization"
 						/>
 					</div>
 				) : filtered.length === 0 ? (

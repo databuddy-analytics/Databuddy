@@ -233,7 +233,7 @@ export default function GoalsPage() {
 				{!isDemoRoute && deletingGoalId && (
 					<DeleteDialog
 						confirmLabel="Delete Goal"
-						description="Are you sure you want to delete this goal? This action cannot be undone and will permanently remove all associated analytics data."
+						description="Delete this goal definition? Historical events remain in your analytics, but this goal will no longer be available for reporting."
 						isOpen={!!deletingGoalId}
 						onClose={() => setDeletingGoalId(null)}
 						onConfirm={() => {

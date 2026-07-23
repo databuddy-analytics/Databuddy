@@ -43,6 +43,13 @@ function fmtDate(ms: number | undefined): string {
 	return utcFormatter.format(new Date(ms));
 }
 
+function fmtHttp(code: number | undefined): string {
+	if (code === undefined || !Number.isFinite(code) || code <= 0) {
+		return "No HTTP response";
+	}
+	return String(Math.trunc(code));
+}
+
 function safeHref(raw: string | undefined): string {
 	if (!raw) {
 		return "https://app.databuddy.cc/";
@@ -103,6 +110,8 @@ export const UptimeAlertEmail = ({
 	const isDown = kind === "down";
 	const accentBorder = isDown ? "#dc2626" : "#22c55e";
 	const href = safeHref(url);
+	const http = fmtHttp(httpCode);
+	const receivedHttpResponse = http !== "No HTTP response";
 
 	const ttfbStr = fmtMs(ttfbMs);
 	const totalStr = fmtMs(totalMs);
@@ -122,25 +131,29 @@ export const UptimeAlertEmail = ({
 		<EmailLayout
 			preview={
 				isDown
-					? `${safe} failed health check — HTTP ${httpCode || "timeout"}`
-					: `${safe} is responding normally again`
+					? `${safe} failed its latest health check — ${receivedHttpResponse ? `HTTP ${http}` : http}`
+					: `${safe} passed its latest health check`
 			}
-			tagline={isDown ? "Uptime alert" : "Site recovered"}
+			tagline={isDown ? "Health check failed" : "Health check passed"}
 		>
 			<Section className="text-center">
 				<Heading
 					className="m-0 mb-3 font-semibold text-xl tracking-tight"
 					style={{ color: emailBrand.foreground }}
 				>
-					{isDown ? `${safe} is down` : `${safe} is back up`}
+					{isDown
+						? `Health check failed for ${safe}`
+						: `Health check passed for ${safe}`}
 				</Heading>
 				<Text
 					className="m-0 mb-4 text-sm leading-relaxed"
 					style={{ color: emailBrand.muted }}
 				>
 					{isDown
-						? "We could not reach this URL during the latest health check."
-						: "The latest health check succeeded. Your site responded normally."}
+						? receivedHttpResponse
+							? "The latest health check received an HTTP response but did not meet the monitor's success criteria."
+							: "The latest health check did not receive an HTTP response."
+						: "The latest health check passed after a previous failed check."}
 				</Text>
 			</Section>
 
@@ -161,7 +174,7 @@ export const UptimeAlertEmail = ({
 					</Link>
 				</DetailRow>
 				<DetailRow label="Checked at">{fmtDate(checkedAt)}</DetailRow>
-				<DetailRow label="HTTP">{httpCode}</DetailRow>
+				<DetailRow label="HTTP">{http}</DetailRow>
 				{responseLine.length > 0 ? (
 					<DetailRow label="Response">{responseLine}</DetailRow>
 				) : null}

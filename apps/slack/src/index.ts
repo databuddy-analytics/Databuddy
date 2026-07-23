@@ -13,10 +13,16 @@ import {
 	slackLoggerDrain,
 } from "@/lib/evlog-slack";
 import {
+	abortAllSlackActiveRuns,
+	waitForSlackActiveRuns,
+} from "@/slack/active-runs";
+import {
 	createSlackAuthorize,
 	SlackInstallationStore,
 } from "@/slack/installations";
 import { registerSlackListeners } from "@/slack/listeners";
+
+const SHUTDOWN_RUN_SETTLE_TIMEOUT_MS = 10_000;
 
 initLogger({
 	env: { service: "slack" },
@@ -86,21 +92,31 @@ async function main() {
 		process.exit(1);
 	}
 
+	let shuttingDown = false;
+
 	async function shutdown(signal: string) {
-		log.info({ lifecycle: "shutdown", signal });
-		await Promise.all([
-			app
-				.stop()
-				.catch((error) =>
-					captureSlackError(error, { lifecycle: "slack_stop_failed" })
-				),
-			shutdownPostgres().catch((error) =>
-				captureSlackError(error, { lifecycle: "postgres_shutdown_failed" })
-			),
-			flushBatchedSlackDrain().catch((error) =>
-				captureSlackError(error, { lifecycle: "drain_flush_failed" })
-			),
-		]);
+		if (shuttingDown) {
+			return;
+		}
+		shuttingDown = true;
+		const abortedRuns = abortAllSlackActiveRuns("shutdown");
+		log.info({
+			lifecycle: "shutdown",
+			signal,
+			slack_aborted_runs: abortedRuns,
+		});
+		await app
+			.stop()
+			.catch((error) =>
+				captureSlackError(error, { lifecycle: "slack_stop_failed" })
+			);
+		await waitForSlackActiveRuns(SHUTDOWN_RUN_SETTLE_TIMEOUT_MS);
+		await shutdownPostgres().catch((error) =>
+			captureSlackError(error, { lifecycle: "postgres_shutdown_failed" })
+		);
+		await flushBatchedSlackDrain().catch((error) =>
+			captureSlackError(error, { lifecycle: "drain_flush_failed" })
+		);
 		process.exit(0);
 	}
 

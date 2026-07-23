@@ -54,6 +54,10 @@ export class BrowserFlagStorage implements StorageInterface {
 		if (!isBrowser) {
 			return;
 		}
-		localStorage.removeItem(STORAGE_KEY);
+		try {
+			localStorage.removeItem(STORAGE_KEY);
+		} catch {
+			// localStorage blocked
+		}
 	}
 }

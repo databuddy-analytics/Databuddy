@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 import { AlarmSheet } from "./_components/alarm-sheet";
 import { EmailPreferencesCard } from "./_components/email-preferences-card";
+import { summarizeTestDelivery } from "./_components/notification-test-result";
 import { Dialog, DropdownMenu, Switch } from "@databuddy/ui/client";
 import {
 	Badge,
@@ -182,13 +183,15 @@ export default function NotificationsSettingsPage() {
 	const handleTest = async (alarm: Alarm) => {
 		setTestingAlarmId(alarm.id);
 		try {
-			await toast.promise(testMutation.mutateAsync({ alarmId: alarm.id }), {
-				loading: "Sending test…",
-				success: "Test sent",
-				error: "Test failed",
+			const result = await testMutation.mutateAsync({ alarmId: alarm.id });
+			const summary = summarizeTestDelivery(result.results);
+			toast[summary.kind](summary.title, {
+				description: summary.description,
 			});
 		} catch {
-			// toast.promise handles
+			toast.error("Test could not be sent", {
+				description: "Check the alert destinations and try again.",
+			});
 		} finally {
 			setTestingAlarmId(null);
 		}
@@ -292,13 +295,13 @@ export default function NotificationsSettingsPage() {
 												</div>
 												<div className="min-w-0 flex-1">
 													<div className="flex items-center gap-2">
-														<button
-															className="truncate font-medium text-foreground text-sm"
+														<Button
+															className="h-auto min-w-0 truncate p-0 font-medium text-foreground text-sm hover:bg-transparent"
 															onClick={() => handleEdit(alarm)}
-															type="button"
+															variant="ghost"
 														>
 															{alarm.name}
-														</button>
+														</Button>
 														<Badge
 															variant={alarm.enabled ? "success" : "warning"}
 														>

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { useDateFilters } from "@/hooks/use-date-filters";
 import { useTraitKeys, useTraitValues } from "@/hooks/use-profiles";
+import { orpc } from "@/lib/orpc";
 import { getDeviceIcon } from "@/components/device-icon";
 import { dynamicQueryFiltersAtom } from "@/stores/jotai/filterAtoms";
 import type { DynamicQueryFilter } from "@/stores/jotai/filterAtoms";
@@ -27,6 +28,7 @@ import {
 	ArrowUpIcon,
 	GlobeIcon,
 	LightningIcon,
+	MagnifyingGlassIcon,
 	TagIcon,
 	UsersIcon,
 } from "@databuddy/ui/icons";
@@ -40,6 +42,7 @@ import { useAtomValue } from "jotai";
 import Image from "next/image";
 import { notFound, useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { formatCurrency } from "@/lib/formatters";
 import { generateProfileName } from "./[userId]/_components/generate-profile-name";
 import { type ProfileSort, useProfilesData } from "./use-users";
 import { useEventNames } from "./use-event-names";
@@ -47,10 +50,12 @@ import {
 	Badge,
 	Button,
 	EmptyState,
+	Input,
 	Skeleton,
 	Tooltip,
 	dayjs,
 } from "@databuddy/ui";
+import { toast } from "sonner";
 import { DropdownMenu } from "@databuddy/ui/client";
 
 const wwwRegex = /^www\./;
@@ -170,6 +175,9 @@ function SkeletonRow() {
 				<Skeleton className="h-4 w-6" />
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
+				<Skeleton className="h-4 w-12" />
+			</TableCell>
+			<TableCell className="h-[49px] py-2">
 				<Skeleton className="h-5 w-12 rounded-full" />
 			</TableCell>
 			<TableCell className="h-[49px] py-2">
@@ -197,6 +205,8 @@ export default function UsersPage() {
 		order: "desc",
 	});
 	const [eventFilter, setEventFilter] = useState<string | null>(null);
+	const [emailQuery, setEmailQuery] = useState("");
+	const [emailSearching, setEmailSearching] = useState(false);
 	const [traitFilter, setTraitFilter] = useState<{
 		key: string;
 		value: string | null;
@@ -508,6 +518,26 @@ export default function UsersPage() {
 				size: 70,
 			},
 			{
+				id: "ltv",
+				header: () => (
+					<Tooltip content="Lifetime revenue, refunds netted" side="top">
+						<span>LTV</span>
+					</Tooltip>
+				),
+				cell: ({ row }) => {
+					const ltv = row.original.ltv ?? 0;
+					if (ltv === 0) {
+						return <span className="text-muted-foreground text-sm">—</span>;
+					}
+					return (
+						<span className="font-medium tabular-nums">
+							{formatCurrency(ltv)}
+						</span>
+					);
+				},
+				size: 90,
+			},
+			{
 				id: "type",
 				header: "Type",
 				cell: ({ row }) => {
@@ -704,6 +734,44 @@ export default function UsersPage() {
 
 	const refreshAction = (
 		<TopBar.Actions>
+			<form
+				className="flex items-center"
+				onSubmit={async (e) => {
+					e.preventDefault();
+					const email = emailQuery.trim().toLowerCase();
+					if (!email || emailSearching) {
+						return;
+					}
+					setEmailSearching(true);
+					try {
+						const found = await orpc.profiles.findByEmail.call({
+							websiteId,
+							email,
+						});
+						if (found) {
+							router.push(`/websites/${websiteId}/users/${found.profileId}`);
+						} else {
+							toast.info("No user found with that email");
+						}
+					} catch {
+						toast.error("Search failed, try again");
+					} finally {
+						setEmailSearching(false);
+					}
+				}}
+			>
+				<div className="relative">
+					<MagnifyingGlassIcon className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						className="h-8 w-52 pl-7 text-xs"
+						disabled={emailSearching}
+						onChange={(e) => setEmailQuery(e.target.value)}
+						placeholder="Find by email"
+						type="email"
+						value={emailQuery}
+					/>
+				</div>
+			</form>
 			<Button
 				disabled={isFetching}
 				onClick={() => refetch()}

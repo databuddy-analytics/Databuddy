@@ -157,7 +157,7 @@ export function FunnelFlow({ steps }: FunnelFlowProps) {
 										<span className="truncate font-medium text-foreground">
 											{step.step_name}
 										</span>
-										{step.error_count > 0 && (
+										{step.error_context_available && step.error_count > 0 && (
 											<Tooltip
 												content={
 													<div className="max-w-xs space-y-1.5">

@@ -7,6 +7,7 @@ import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import { EnvelopeSimpleIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import {
 	Badge,
@@ -31,20 +32,24 @@ function LoginPage() {
 	const [password, setPassword] = useState("");
 	const [showPassword, setShowPassword] = useState(false);
 	const isHydrated = useHydrated();
+	const safeCallback = safeCallbackPath(callback);
 
 	const lastUsed = isHydrated ? authClient.getLastUsedLoginMethod() : null;
+	const callbackQuery = `?callback=${encodeURIComponent(safeCallback)}`;
 
 	const getProviderLabel = (provider: "github" | "google") =>
 		provider === "github" ? "GitHub" : "Google";
 
 	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
+		const newUserCallbackURL =
+			safeCallback === "/websites" ? "/onboarding" : safeCallback;
 
 		try {
 			const result = await authClient.signIn.social({
 				provider,
-				callbackURL: callback,
-				newUserCallbackURL: "/onboarding",
+				callbackURL: safeCallback,
+				newUserCallbackURL,
 				disableRedirect: true,
 			});
 
@@ -86,7 +91,7 @@ function LoginPage() {
 		await authClient.signIn.email({
 			email,
 			password,
-			callbackURL: callback,
+			callbackURL: safeCallback,
 			fetchOptions: {
 				onError: (error) => {
 					setIsLoading(false);
@@ -95,7 +100,9 @@ function LoginPage() {
 						error?.error?.message?.toLowerCase().includes("not verified")
 					) {
 						storeVerificationEmail(email);
-						router.push("/login/verification-needed");
+						router.push(
+							`/login/verification-needed?callback=${encodeURIComponent(safeCallback)}`
+						);
 					} else {
 						toast.error(
 							error?.error?.message ||
@@ -166,7 +173,7 @@ function LoginPage() {
 							size="lg"
 							variant="outline"
 						>
-							<Link href="/login/magic">
+							<Link href={`/login/magic${callbackQuery}`}>
 								<EnvelopeSimpleIcon className="size-4" weight="duotone" />
 								Sign in with Magic Link
 							</Link>
@@ -258,14 +265,14 @@ function LoginPage() {
 					Don&apos;t have an account?{" "}
 					<Link
 						className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/80"
-						href="/register"
+						href={`/register${callbackQuery}`}
 					>
 						Sign up
 					</Link>
 				</Text>
 				<Link
 					className="flex-1 text-right text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
-					href="/login/forgot"
+					href={`/login/forgot${callbackQuery}`}
 				>
 					Forgot password?
 				</Link>

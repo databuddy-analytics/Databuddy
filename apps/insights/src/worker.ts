@@ -8,12 +8,12 @@ import {
 import { Worker } from "bullmq";
 import { processInsightsJob } from "./jobs";
 import { emitInsightsEvent } from "./lib/evlog-insights";
-import { getInsightsWorkerErrorLevel } from "./worker-errors";
-import { buildInsightsStalledJobEvent } from "./worker-events";
 
-const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 5;
+const DEFAULT_INSIGHTS_WORKER_CONCURRENCY = 2;
+const TRANSIENT_REDIS_ERROR =
+	/^READONLY |^ERR caller gone|ECONNRESET|Connection is closed|Socket closed unexpectedly/;
 
-export function getInsightsWorkerConcurrency(
+function getInsightsWorkerConcurrency(
 	value = process.env.INSIGHTS_WORKER_CONCURRENCY
 ): number {
 	if (value === undefined || value.trim() === "") {
@@ -50,36 +50,14 @@ export function startInsightsWorker() {
 		}
 	);
 
-	worker.on("failed", (job, error) => {
-		emitInsightsEvent("error", "worker.job_failed", {
-			error_message: error.message,
-			error_stack: error.stack,
-			job_id: job?.id,
-			job_name: job?.name,
-			attempts_made: job?.attemptsMade ?? 0,
-		});
-	});
-
-	worker.on("completed", (job) => {
-		emitInsightsEvent("info", "worker.job_completed", {
-			job_id: job.id,
-			job_name: job.name,
-			attempts_made: job.attemptsMade,
-			duration_ms:
-				job.finishedOn && job.processedOn
-					? job.finishedOn - job.processedOn
-					: undefined,
-		});
-	});
-
 	worker.on("stalled", (jobId) => {
 		emitInsightsEvent("warn", "worker.job_stalled", {
-			...buildInsightsStalledJobEvent(jobId),
+			job_id: jobId,
 		});
 	});
 
 	worker.on("error", (error) => {
-		const level = getInsightsWorkerErrorLevel(error);
+		const level = TRANSIENT_REDIS_ERROR.test(error.message) ? "warn" : "error";
 		emitInsightsEvent(level, "worker.error", {
 			error_message: error.message,
 			error_stack: error.stack,

@@ -45,6 +45,12 @@ export const AGENT_MODEL_COSTS_USD_PER_MILLION: Record<
 		cache_read: 0,
 		cache_write: 0,
 	},
+	"openai/gpt-5.6-terra": {
+		input: 2.5,
+		output: 15,
+		cache_read: 0.25,
+		cache_write: 3.125,
+	},
 };
 
 export const AGENT_PRICING_BASELINE_MODEL_ID =

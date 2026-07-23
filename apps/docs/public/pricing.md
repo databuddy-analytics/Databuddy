@@ -1,16 +1,16 @@
 # Databuddy Pricing
 
-Product analytics, web analytics, feature flags, and an in-product AI assistant. Included monthly events and assistant message quotas; pay-as-you-go event overage on paid plans.
+Product analytics, web analytics, feature flags, and Databunny AI analysis. Included monthly events and Databunny processing allowances; pay-as-you-go event overage on paid plans.
 
 Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown` (see `Vary: Accept`).
 
 ## Plans
 
-| Plan | Price | Events / month (included) | Assistant messages / day | Notes |
+| Plan | Price | Events / month (included) | Databunny usage allowance | Notes |
 | --- | --- | --- | --- | --- |
-| Free | $0 | 10,000 | 5 | No paid overage — upgrade for more volume |
-| Hobby | $10/mo | 30,000 | 10 | Tiered event overage |
-| Pro | $50/mo | 1,000,000 | 75 | Tiered event overage |
+| Free | $0 | 10,000 | 10 / month | No paid overage — ingestion pauses at the monthly event allowance |
+| Hobby | $10/mo | 30,000 | 20 / month + 1 daily bonus | Tiered event overage |
+| Pro | $50/mo | 1,000,000 | 350 / month + 5 daily bonus | Tiered event overage |
 | Enterprise | Custom | Custom | Custom | Volume, security, SLAs — [pricing page](https://www.databuddy.cc/pricing) |
 
 ## Events (overage on Hobby & Pro)
@@ -32,9 +32,7 @@ Overage = events **above** the monthly included amount. Cumulative overage is ch
 
 ## Product limits
 
-Checkout **Enterprise** maps to **Scale** entitlements in-app (same column below).
-
-| | Free | Hobby | Pro | Enterprise (Scale) |
+| | Free | Hobby | Pro | Enterprise |
 | --- | --- | --- | --- | --- |
 | Funnels | 1 | 5 | 50 | Unlimited |
 | Goals | 2 | 10 | Unlimited | Unlimited |
@@ -42,24 +40,15 @@ Checkout **Enterprise** maps to **Scale** entitlements in-app (same column below
 | User tracking | Unlimited | Unlimited | Unlimited | Unlimited |
 | Web Vitals | ✓ | ✓ | ✓ | ✓ |
 | Geographic maps | ✓ | ✓ | ✓ | ✓ |
-| Retention | — | ✓ | ✓ | ✓ |
+| Retention | ✓ | ✓ | ✓ | ✓ |
 | Error tracking | — | ✓ | ✓ | ✓ |
-| AI assistant (chat) | ✓ | ✓ | ✓ | ✓ |
-| Target groups | — | 5 | 25 | Unlimited |
-| AI Agent | — | — | ✓ | ✓ |
-| Team members | 2 | 5 | 25 | Unlimited |
+| Databunny questions and analysis | ✓ | ✓ | ✓ | ✓ |
+| Target groups | Unlimited | Unlimited | Unlimited | Unlimited |
+| Team members | Unlimited | Unlimited | Unlimited | Unlimited |
 
-## AI capabilities
+## Databunny usage
 
-| | Free | Hobby | Pro | Enterprise (Scale) |
-| --- | --- | --- | --- | --- |
-| Summarization | ✓ | ✓ | ✓ | ✓ |
-| Workspace Q&A | ✓ | ✓ | ✓ | ✓ |
-| Global search | — | ✓ | ✓ | ✓ |
-| Auto insights | — | — | ✓ | ✓ |
-| Anomaly detection | — | — | ✓ | ✓ |
-| SQL tooling | — | — | ✓ | ✓ |
-| Correlation engine | — | — | — | ✓ |
+Every cloud plan includes an AI processing allowance for Databunny questions and analysis. This is not a message quota: a simple question can use less of the allowance than deeper analysis. Hobby and Pro also receive a daily bonus that replenishes each day.
 
 ## Enterprise
 
@@ -67,10 +56,9 @@ Custom contracts for volume, compliance, onboarding, and support. Use [databuddy
 
 ## Definitions
 
-- **Event:** Pageview or custom event counted toward monthly analytics usage.
-- **Assistant message:** One user turn in the AI assistant; daily quota resets each calendar day.
+- **Event:** A pageview, custom event, captured error, or Web Vital measurement counted toward monthly analytics usage. Feature flag evaluations and uptime checks do not count.
+- **Databunny usage:** AI processing consumed by questions and analysis. It is not one unit per message; consumption depends on the work performed.
 - **Overage:** Events in a billing month above the plan’s included events.
-- **Scale vs Enterprise:** Internal tier id is **scale**; **Enterprise** on billing uses Scale limits and capabilities.
 
 ## Links
 

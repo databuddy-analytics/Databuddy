@@ -140,10 +140,6 @@ jobs:
             echo "tag=edge" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Capture build date
-        id: builddate
-        run: echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
-
       - name: Extract metadata (labels)
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6
@@ -167,10 +163,6 @@ jobs:
           sbom: true
           labels: ${{ steps.meta.outputs.labels }}
           tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:${{ steps.version.outputs.tag }}-${{ matrix.platform.arch }}
-          build-args: |
-            VERSION=${{ steps.version.outputs.tag }}
-            BUILD_DATE=${{ steps.builddate.outputs.timestamp }}
-            GIT_SHA=${{ github.sha }}
           cache-from: type=registry,ref=${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:cache-${{ matrix.platform.arch }}
           cache-to: type=registry,ref=${{ env.IMAGE_PREFIX }}-${{ matrix.service }}:cache-${{ matrix.platform.arch }},mode=max
 

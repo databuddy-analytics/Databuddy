@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import type { OrganizationRole } from "@/hooks/use-organizations";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { dayjs } from "@databuddy/ui";
 import { orpc } from "@/lib/orpc";
 
@@ -54,13 +55,13 @@ export function useOrganizationInvitations(organizationId: string) {
 				throw new Error(error.message);
 			}
 		},
-		onSuccess: () => {
-			toast.success("Member invited successfully");
+		onSuccess: (_data, input) => {
+			toast.success(`Invitation sent to ${input.email}`);
 			queryClient.invalidateQueries({ queryKey: listKey });
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to invite member"
+				getUserFacingErrorMessage(error, "We couldn't send the invitation.")
 			);
 		},
 	});
@@ -75,7 +76,7 @@ export function useOrganizationInvitations(organizationId: string) {
 			}
 		},
 		onSuccess: () => {
-			toast.success("Invitation cancelled successfully");
+			toast.success("Invitation canceled");
 			queryClient.invalidateQueries({ queryKey: listKey });
 		},
 		onError: (error) => {
@@ -117,13 +118,13 @@ export function useOrganizationInvitations(organizationId: string) {
 				throw new Error(error.message);
 			}
 		},
-		onSuccess: () => {
-			toast.success("Invitation resent");
+		onSuccess: (_data, input) => {
+			toast.success(`Invitation resent to ${input.email}`);
 			queryClient.invalidateQueries({ queryKey: listKey });
 		},
 		onError: (error) => {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to resend invitation"
+				getUserFacingErrorMessage(error, "We couldn't resend the invitation.")
 			);
 		},
 	});

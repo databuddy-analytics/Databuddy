@@ -5,6 +5,7 @@ export {
 	recordORPCError,
 	setRpcRequestLoggerProvider,
 } from "./lib/rpc-log-context";
+export { getAutumn } from "./lib/autumn-client";
 export { setTrackingFn } from "./middleware/track-mutation";
 export {
 	type Context,
@@ -24,8 +25,8 @@ export type { WebsiteOutput } from "./routers/websites";
 export type { ExportFormat } from "./services/export-service";
 export {
 	getNextInsightRunAt,
-	isValidCron,
 	isValidTimezone,
+	normalizeInsightScheduleFrequency,
 } from "./services/insight-schedule";
 export { getBillingCustomerId } from "./utils/billing";
 export { getMemberRole } from "./utils/organization";

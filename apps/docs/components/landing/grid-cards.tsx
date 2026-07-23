@@ -14,21 +14,21 @@ import { SciFiGridCard } from "./card";
 const cards = [
 	{
 		id: 1,
-		title: "One script, everything",
+		title: "One connected platform",
 		description:
-			"Analytics, errors, vitals, funnels, and feature flags. One install, one dashboard, one bill.",
+			"One tracker collects analytics, errors, and vitals. Funnels, flags, links, and AI analysis live in the same dashboard.",
 		icon: StackIcon,
 	},
 	{
 		id: 2,
 		title: "No cookies, no banners",
 		description:
-			"Zero consent popups. Stop losing 30-40% of visitors to cookie banners that kill conversions.",
+			"Avoid analytics-specific consent friction when your configuration and jurisdiction allow cookieless measurement.",
 		icon: ShieldCheckIcon,
 	},
 	{
 		id: 3,
-		title: "Under 30 KB",
+		title: "About 10 KB gzip",
 		description:
 			"Your analytics script shouldn't slow your site. Ours is lighter than a single hero image.",
 		icon: LightningIcon,
@@ -63,12 +63,12 @@ export const GridCards = () => (
 					<SectionBullet color="#B24A7E" />
 				</span>
 				<span className="text-foreground">
-					One install. Six tools replaced.
+					One platform. Fewer tools to stitch together.
 				</span>
 			</h2>
 			<p className="mt-3 max-w-2xl text-pretty text-muted-foreground text-sm sm:px-0 sm:text-base lg:text-lg">
-				Analytics, errors, vitals, funnels, and feature flags. Add one script,
-				skip the integration marathon.
+				Collect analytics, errors, and vitals with one tracker, then manage
+				funnels, flags, links, and AI analysis from the same dashboard.
 			</p>
 		</div>
 

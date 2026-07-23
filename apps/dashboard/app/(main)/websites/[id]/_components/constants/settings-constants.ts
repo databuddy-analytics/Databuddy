@@ -102,16 +102,10 @@ export const BASIC_TRACKING_OPTIONS: TrackingOptionConfig[] = [
 
 export const ADVANCED_TRACKING_OPTIONS: TrackingOptionConfig[] = [
 	{
-		key: "trackPerformance",
-		title: "Performance",
-		description: "Track page load and runtime performance",
-		data: ["Page load time", "DOM ready", "First paint"],
-	},
-	{
 		key: "trackWebVitals",
 		title: "Web Vitals",
-		description: "Track Core Web Vitals (LCP, FID, CLS, INP)",
-		data: ["LCP", "FID", "CLS", "INP", "TTFB"],
+		description: "Track page performance and Core Web Vitals",
+		data: ["FCP", "LCP", "CLS", "INP", "TTFB", "FPS"],
 	},
 	{
 		key: "trackErrors",

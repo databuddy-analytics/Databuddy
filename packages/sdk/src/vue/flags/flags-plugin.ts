@@ -1,10 +1,18 @@
 import { type App, reactive } from "vue";
 import { BrowserFlagStorage } from "@/core/flags/browser-storage";
 import { BrowserFlagsManager } from "@/core/flags/flags-manager";
-import type { FlagResult, FlagState, FlagsConfig } from "@/core/flags/types";
+import type {
+	FlagResult,
+	FlagState,
+	FlagsConfig,
+	FlagsRequestFailure,
+} from "@/core/flags/types";
 
 let manager: BrowserFlagsManager | null = null;
-let state: { flags: Record<string, FlagResult> } | null = null;
+let state: {
+	flags: Record<string, FlagResult>;
+	lastError: FlagsRequestFailure | null;
+} | null = null;
 
 export function createFlagsPlugin(options: FlagsConfig) {
 	return {
@@ -12,12 +20,14 @@ export function createFlagsPlugin(options: FlagsConfig) {
 			const storage = options.skipStorage
 				? undefined
 				: new BrowserFlagStorage();
-			state = reactive({ flags: {} });
+			state = reactive({ flags: {}, lastError: null });
 			manager = new BrowserFlagsManager({ config: options, storage });
 			const currentManager = manager;
 			manager.subscribe(() => {
 				if (state) {
-					state.flags = manager?.getSnapshot().flags ?? {};
+					const snapshot = manager?.getSnapshot();
+					state.flags = snapshot?.flags ?? {};
+					state.lastError = snapshot?.lastError ?? null;
 				}
 			});
 
@@ -53,5 +63,6 @@ export function useFlags() {
 		refresh: (forceClear = false) => m.refresh(forceClear),
 		updateConfig: (config: FlagsConfig) => m.updateConfig(config),
 		memoryFlags: s?.flags ?? {},
+		lastError: s?.lastError ?? null,
 	};
 }

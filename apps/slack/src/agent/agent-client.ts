@@ -5,7 +5,7 @@ import { SLACK_COPY } from "@/slack/messages";
 
 const DEFAULT_TIMEZONE = "UTC";
 
-export type SlackAgentTrigger =
+type SlackAgentTrigger =
 	| "app_mention"
 	| "assistant"
 	| "direct_message"
@@ -116,7 +116,7 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 	}
 }
 
-export function getMissingSlackWorkspaceMessage(): string {
+function getMissingSlackWorkspaceMessage(): string {
 	return SLACK_COPY.missingWorkspace;
 }
 

@@ -13,8 +13,13 @@ import type { CreateFunnelData } from "@/types/funnels";
 import { cn } from "@/lib/utils";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import dynamic from "next/dynamic";
-import { useParams, usePathname } from "next/navigation";
-import { useState } from "react";
+import {
+	useParams,
+	usePathname,
+	useRouter,
+	useSearchParams,
+} from "next/navigation";
+import { useEffect, useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import {
 	FunnelAnalytics,
@@ -56,6 +61,19 @@ export default function FunnelsPage() {
 	const [selectedReferrer, setSelectedReferrer] = useState("all");
 	const [editing, setEditing] = useState<FunnelItemData | "new" | null>(null);
 	const [deletingId, setDeletingId] = useState<string | null>(null);
+
+	const router = useRouter();
+	const searchParams = useSearchParams();
+
+	useEffect(() => {
+		if (!isDemoRoute && searchParams.get("new") === "funnel") {
+			setEditing("new");
+			const params = new URLSearchParams(searchParams);
+			params.delete("new");
+			const query = params.toString();
+			router.replace(query ? `${pathname}?${query}` : pathname);
+		}
+	}, [searchParams, router, pathname, isDemoRoute]);
 
 	const {
 		analyticsMap,

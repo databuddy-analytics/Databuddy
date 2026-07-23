@@ -79,7 +79,7 @@ export function BillingControlsCard() {
 					Billing controls
 				</Card.Title>
 				<Card.Description>
-					Guardrails for your credit balance and spend.
+					Control Databunny usage refills, event alerts, and AI spending.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">
@@ -90,7 +90,7 @@ export function BillingControlsCard() {
 						turnOn: "Turn on",
 					}}
 					defaults={TOPUP_DEFAULTS}
-					description="Never get cut off mid-conversation. Credits refill automatically when you run low."
+					description="Refill the organization's AI analysis allowance automatically when Databunny usage runs low."
 					icon={<InfinityIcon size={16} weight="duotone" />}
 					initial={topup}
 					limits={TOPUP_LIMITS}
@@ -115,7 +115,7 @@ export function BillingControlsCard() {
 									min={TOPUP_LIMITS.threshold[0]}
 									onChange={(v) => setForm({ threshold: v })}
 									step={10}
-									suffix="credits"
+									suffix="units"
 									value={form.threshold}
 								/>
 								<LabeledNumberInput
@@ -126,7 +126,7 @@ export function BillingControlsCard() {
 									min={TOPUP_LIMITS.quantity[0]}
 									onChange={(v) => setForm({ quantity: v })}
 									step={100}
-									suffix="credits"
+									suffix="units"
 									value={form.quantity}
 								/>
 							</div>
@@ -178,7 +178,7 @@ export function BillingControlsCard() {
 						turnOn: "Turn on",
 					}}
 					defaults={SPEND_DEFAULTS}
-					description="Cap how much you can spend on credits each month. Purchases stop once the cap is hit."
+					description="Cap monthly spending on Databunny usage. Automatic refills stop when the cap is reached."
 					icon={<ShieldCheckIcon size={16} weight="duotone" />}
 					initial={spend}
 					limits={SPEND_LIMITS}
@@ -190,7 +190,7 @@ export function BillingControlsCard() {
 					mutationOptions={orpc.billing.setSpendLimit.mutationOptions()}
 					onSaved={refetch}
 					switchLabel="Enable spend limit"
-					title="Credit spend limit"
+					title="Databunny spend limit"
 				>
 					{(form, setForm) => (
 						<LabeledNumberInput
@@ -440,8 +440,9 @@ function RefillSummary({ quantity }: { quantity: number }) {
 				to your card on file.
 			</Text>
 			<Text className="tabular-nums" tone="muted" variant="caption">
-				{quantity.toLocaleString()} credits · ≈ ${(cost / quantity).toFixed(4)}
-				/credit
+				{quantity.toLocaleString()} usage units · ≈ $
+				{(cost / quantity).toFixed(4)}
+				/unit
 			</Text>
 		</div>
 	);

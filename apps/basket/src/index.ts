@@ -1,7 +1,5 @@
 import "./polyfills/compression";
 
-import { env as basketEnv } from "@databuddy/env/basket";
-
 import {
 	basketLoggerDrain,
 	enrichBasketWideEvent,
@@ -17,6 +15,7 @@ import {
 	handleUncaughtException,
 	handleUnhandledRejection,
 } from "@lib/process-errors";
+import { sanitizeRequestId } from "@lib/request-id";
 import { buildBasketErrorPayload } from "@lib/structured-errors";
 import { captureError } from "@lib/tracing";
 import basketRouter from "@routes/basket";
@@ -39,13 +38,21 @@ initLogger({
 	},
 });
 
-if (!basketEnv.DATABUDDY_ENCRYPTION_KEY) {
+if (
+	process.env.NODE_ENV === "production" &&
+	!process.env.DATABUDDY_ENCRYPTION_KEY?.trim()
+) {
+	throw new Error("DATABUDDY_ENCRYPTION_KEY is required in production");
+}
+
+if (!process.env.DATABUDDY_ENCRYPTION_KEY) {
 	log.warn({
 		message:
 			"DATABUDDY_ENCRYPTION_KEY is not set — profile display names and emails will be stored unencrypted",
 	});
 }
 
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 let shutdownStarted = false;
 
 async function gracefulShutdown(signal: string, exitCode = 0) {
@@ -53,22 +60,44 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 		return;
 	}
 	shutdownStarted = true;
-	log.info("lifecycle", `${signal} received, shutting down gracefully`);
-	const logErr = (lifecycle: string) => (error: unknown) =>
+	const timeout = setTimeout(() => {
 		log.error({
-			lifecycle,
+			lifecycle: "shutdown",
+			signal,
+			message: "Graceful shutdown timed out",
+		});
+		process.exit(1);
+	}, SHUTDOWN_TIMEOUT_MS);
+	timeout.unref?.();
+
+	let finalExitCode = exitCode;
+	try {
+		log.info("lifecycle", `${signal} received, shutting down gracefully`);
+		const logErr = (lifecycle: string) => (error: unknown) =>
+			log.error({
+				lifecycle,
+				error_message: error instanceof Error ? error.message : String(error),
+			});
+		const { shutdownRedis } = await import("@databuddy/redis");
+		await Promise.all([
+			shutdownRedis().catch(logErr("redisShutdown")),
+			shutdownPostgres().catch(logErr("postgresShutdown")),
+			flushBatchedAxiomDrain().catch(logErr("drainFlush")),
+			runPromise(disconnect).catch(logErr("shutdown")),
+			disposeRuntime().catch(logErr("runtimeDispose")),
+		]);
+		closeGeoIPReader();
+	} catch (error) {
+		finalExitCode = 1;
+		log.error({
+			lifecycle: "shutdown",
+			signal,
 			error_message: error instanceof Error ? error.message : String(error),
 		});
-	const { shutdownRedis } = await import("@databuddy/redis");
-	await Promise.all([
-		shutdownRedis().catch(logErr("redisShutdown")),
-		shutdownPostgres().catch(logErr("postgresShutdown")),
-		flushBatchedAxiomDrain().catch(logErr("drainFlush")),
-		runPromise(disconnect).catch(logErr("shutdown")),
-		disposeRuntime().catch(logErr("runtimeDispose")),
-	]);
-	closeGeoIPReader();
-	process.exit(exitCode);
+	} finally {
+		clearTimeout(timeout);
+		process.exit(finalExitCode);
+	}
 }
 
 process.on("unhandledRejection", (reason) => {
@@ -98,16 +127,21 @@ const app = new Elysia()
 			set.headers["Access-Control-Allow-Credentials"] = "true";
 		}
 	})
-	.onError(function handleError({ error, code }) {
+	.onError(function handleError({ error, code, request, set }) {
 		if (code === "NOT_FOUND") {
 			return new Response(null, { status: 404 });
 		}
 
-		captureError(error);
+		const requestId =
+			sanitizeRequestId(request.headers.get("x-request-id")) ??
+			crypto.randomUUID();
+		captureError(error, { requestId });
 
 		const { status, payload } = buildBasketErrorPayload(error, {
 			elysiaCode: code ?? "INTERNAL_SERVER_ERROR",
+			extra: { requestId },
 		});
+		set.headers["x-request-id"] = requestId;
 
 		return new Response(JSON.stringify(payload), {
 			status,

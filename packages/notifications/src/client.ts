@@ -28,7 +28,7 @@ export class NotificationClient {
 
 	constructor(config: NotificationClientConfig = {}) {
 		this.providers = new Map();
-		this.defaultChannels = config.defaultChannels ?? [];
+		this.defaultChannels = [...(config.defaultChannels ?? [])];
 
 		const defaults = {
 			timeout: config.defaultTimeout ?? 10_000,
@@ -71,10 +71,11 @@ export class NotificationClient {
 		payload: NotificationPayload,
 		options?: NotificationOptions
 	): Promise<NotificationResult[]> {
-		const channels =
-			options?.channels && options.channels.length > 0
+		const channels = [
+			...(options?.channels && options.channels.length > 0
 				? options.channels
-				: this.defaultChannels;
+				: this.defaultChannels),
+		];
 
 		if (channels.length === 0) {
 			return [];
@@ -95,13 +96,21 @@ export class NotificationClient {
 			})
 		);
 
-		return results.map((result, index) => {
+		return channels.map((channel, index) => {
+			const result = results[index];
+			if (!result) {
+				return {
+					success: false,
+					channel,
+					error: "Notification provider returned no result",
+				} satisfies NotificationResult;
+			}
 			if (result.status === "fulfilled") {
 				return result.value;
 			}
 			return {
 				success: false,
-				channel: channels[index],
+				channel,
 				error:
 					result.reason instanceof Error
 						? result.reason.message

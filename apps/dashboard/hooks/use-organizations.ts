@@ -77,6 +77,7 @@ export function useOrganizations() {
 	const clearWorkspaceResourceQueries = () => {
 		queryClient.removeQueries({ queryKey: orpc.websites.key() });
 		queryClient.removeQueries({ queryKey: orpc.links.list.key() });
+		queryClient.removeQueries({ queryKey: orpc.links.paginated.key() });
 		queryClient.removeQueries({ queryKey: orpc.linkFolders.list.key() });
 		queryClient.removeQueries({ queryKey: orpc.apikeys.list.key() });
 	};
@@ -202,9 +203,10 @@ export function useOrganizations() {
 			clearWorkspaceResourceQueries();
 			invalidateOrganizationQueries();
 			queryClient.invalidateQueries({ queryKey: orpc.links.list.key() });
+			queryClient.invalidateQueries({ queryKey: orpc.links.paginated.key() });
 			queryClient.invalidateQueries({ queryKey: orpc.linkFolders.list.key() });
 			queryClient.invalidateQueries({ queryKey: orpc.apikeys.list.key() });
-			toast.success("Workspace updated");
+			toast.success("Organization updated");
 		},
 		onError: () => {
 			setPendingActiveOrganizationId(null);
@@ -295,7 +297,7 @@ export function useOrganizationMembers(organizationId: string) {
 				}
 				return result;
 			},
-			"Member invited successfully",
+			"Invitation sent",
 			"Failed to invite member",
 			invalidateMembers
 		)

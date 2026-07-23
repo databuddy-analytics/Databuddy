@@ -74,8 +74,6 @@ describe("buildTrackEvent — field mapping", () => {
 		// Identity
 		expect(result.id).toBeTruthy(); // randomUUIDv7
 		expect(result.client_id).toBe("ws_test");
-		expect(result.event_id).toBe("evt_123");
-		expect(result.event_type).toBe("track");
 
 		// Names & content
 		expect(result.event_name).toBe("pageview");
@@ -91,7 +89,6 @@ describe("buildTrackEvent — field mapping", () => {
 		// Timestamps — uses trackData values when numeric
 		expect(result.timestamp).toBe(1_700_000_001_000);
 		expect(result.time).toBe(1_700_000_001_000);
-		expect(result.session_start_time).toBe(1_700_000_000_500);
 		expect(result.created_at).toBe(NOW);
 
 		// Geo
@@ -111,13 +108,9 @@ describe("buildTrackEvent — field mapping", () => {
 		expect(result.device_model).toBe("XPS");
 
 		// Client context — passthrough
-		expect(result.screen_resolution).toBe("1920x1080");
 		expect(result.viewport_size).toBe("1024x768");
 		expect(result.language).toBe("en-US");
 		expect(result.timezone).toBe("America/New_York");
-		expect(result.connection_type).toBe("wifi");
-		expect(result.rtt).toBe(50);
-		expect(result.downlink).toBe(10.5);
 
 		// Engagement
 		expect(result.time_on_page).toBe(30_000);
@@ -134,14 +127,9 @@ describe("buildTrackEvent — field mapping", () => {
 		expect(result.gclid).toBe("gclid_abc");
 
 		// Performance — validated through validatePerformanceMetric
-		expect(result.load_time).toBe(1500);
 		expect(result.dom_ready_time).toBe(800);
-		expect(result.dom_interactive).toBe(600);
 		expect(result.ttfb).toBe(200);
-		expect(result.connection_time).toBe(50);
 		expect(result.render_time).toBe(100);
-		expect(result.redirect_time).toBe(10);
-		expect(result.domain_lookup_time).toBe(30);
 
 		// Properties
 		expect(result.properties).toBe('{"plan":"pro","color":"blue"}');
@@ -153,7 +141,6 @@ describe("buildTrackEvent — field mapping", () => {
 		expect(result.event_name).toBe("click");
 		expect(result.timestamp).toBe(NOW); // falls back to ctx.now
 		expect(result.time).toBe(NOW);
-		expect(result.session_start_time).toBe(NOW);
 		expect(result.page_count).toBe(1); // default
 		expect(result.properties).toBe("{}"); // empty
 		expect(result.referrer).toBe("");
@@ -186,15 +173,10 @@ describe("buildTrackEvent — field mapping", () => {
 			fullCtx
 		);
 		expect(result.timestamp).toBe(NOW);
-		expect(result.session_start_time).toBe(NOW);
 	});
 
 	test("performance metrics validated (negative → undefined)", () => {
-		const result = buildTrackEvent(
-			{ name: "x", load_time: -1, ttfb: 999_999 },
-			fullCtx
-		);
-		expect(result.load_time).toBeUndefined();
+		const result = buildTrackEvent({ name: "x", ttfb: 999_999 }, fullCtx);
 		expect(result.ttfb).toBeUndefined(); // >300000
 	});
 
@@ -282,20 +264,17 @@ describe("buildTrackEvent — sanitization boundary", () => {
 		expect(() => JSON.parse(result.properties as string)).not.toThrow();
 	});
 
-	test("passthrough fields (screen_resolution, language, etc.) are NOT sanitized", () => {
+	test("passthrough fields (language, timezone, etc.) are NOT sanitized", () => {
 		const result = buildTrackEvent(
 			{
 				name: "x",
-				screen_resolution: "<script>",
 				language: "<img onerror=alert(1)>",
 				timezone: "America/New_York",
 			},
 			fullCtx
 		);
-		// These pass through raw — this is the current behavior
-		// This test documents it so we notice if it changes
-		expect(result.screen_resolution).toBe("<script>");
 		expect(result.language).toBe("<img onerror=alert(1)>");
+		expect(result.timezone).toBe("America/New_York");
 	});
 
 	test("session_id validated (rejects special chars)", () => {
@@ -319,9 +298,6 @@ describe("buildTrackEvent — output shape completeness", () => {
 		"profile_id",
 		"time",
 		"session_id",
-		"event_type",
-		"event_id",
-		"session_start_time",
 		"timestamp",
 		"referrer",
 		"url",
@@ -339,13 +315,9 @@ describe("buildTrackEvent — output shape completeness", () => {
 		"country",
 		"region",
 		"city",
-		"screen_resolution",
 		"viewport_size",
 		"language",
 		"timezone",
-		"connection_type",
-		"rtt",
-		"downlink",
 		"time_on_page",
 		"scroll_depth",
 		"interaction_count",
@@ -356,14 +328,9 @@ describe("buildTrackEvent — output shape completeness", () => {
 		"utm_term",
 		"utm_content",
 		"gclid",
-		"load_time",
 		"dom_ready_time",
-		"dom_interactive",
 		"ttfb",
-		"connection_time",
 		"render_time",
-		"redirect_time",
-		"domain_lookup_time",
 		"properties",
 		"created_at",
 	] as const;

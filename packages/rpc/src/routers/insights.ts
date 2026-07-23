@@ -1,469 +1,440 @@
-import { and, db, desc, eq, gte, inArray, isNull, sql } from "@databuddy/db";
+import { and, db, desc, eq, inArray, isNull, sql } from "@databuddy/db";
 import {
 	analyticsInsights,
-	type AnalyticsInsightMetric,
-	type AnalyticsInsightSource,
-	insightRollups,
-	insightUserFeedback,
+	insightObservations,
+	insightReplies,
 	websites,
 } from "@databuddy/db/schema";
 import {
-	cacheNamespaces,
-	cacheTags,
-	cacheable,
-	getRedisCache,
-	invalidateAgentContextSnapshotsForOwner,
-	invalidateInsightsCachesForOrganization,
+	enqueueInsightsResume,
+	getInsightsQueue,
+	insightsResumeJobId,
 } from "@databuddy/redis";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import {
+	historyInsightSchema,
+	insightReplySlackDeliverySchema,
+	insightReplyStatusSchema,
+	insightTimelineItemSchema,
+	insightTimelineReplySchema,
+	parseInvestigationOutcome,
+} from "@databuddy/shared/insights";
+import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
-import dayjs from "dayjs";
 import { z } from "zod";
 import { rpcError } from "../errors";
-import { sessionProcedure } from "../orpc";
+import { logger } from "../lib/logger";
+import { type Context, protectedProcedure, sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
-import { queueInsightGenerationRun } from "./insight-generation";
 
-const voteSchema = z.enum(["up", "down"]);
-const rangeSchema = z.enum(["7d", "30d", "90d"]);
-const insightStatusSchema = z.enum(["open", "resolved"]);
-const insightResolvedReasonSchema = z.enum(["recovered", "stale"]);
+const INSIGHT_TIMELINE_ROWS_PER_KIND = 50;
 
-const CACHE_TTL = 900;
-const NEGATIVE_CACHE_TTL = Math.floor(CACHE_TTL / 3);
-const CACHE_KEY_PREFIX = "ai-insights";
-const GENERATION_COOLDOWN_HOURS = 6;
-const STALE_INSIGHTS_LOOKBACK_DAYS = 14;
-const TOP_INSIGHTS_LIMIT = 10;
-const NARRATIVE_RATE_LIMIT = 30;
-const NARRATIVE_RATE_WINDOW_SECS = 3600;
-const NARRATIVE_CACHE_TTL_SECS = 3600;
-const NARRATIVE_INSIGHTS_LIMIT = 5;
-
-const insightMetricSchema = z.object({
-	current: z.number(),
-	format: z.enum(["number", "percent", "duration_ms", "duration_s"]),
-	label: z.string(),
-	previous: z.number().optional(),
-});
-
-const insightEvidenceSchema = z.object({
-	description: z.string(),
-	type: z.string(),
-});
-
-const insightActionSchema = z.object({
-	label: z.string(),
-	params: z.record(z.string(), z.string()),
-	type: z.string(),
-});
-
-const investigationDepthSchema = z.enum(["surface", "investigated", "deep"]);
-
-const websiteInsightSchema = z.object({
-	actions: z.array(insightActionSchema).nullable().optional(),
-	chainId: z.string().nullable().optional(),
-	changePercent: z.number().optional(),
-	confidence: z.number(),
-	description: z.string(),
-	evidence: z.array(insightEvidenceSchema).nullable().optional(),
-	id: z.string(),
-	impactSummary: z.string().optional(),
-	investigationDepth: investigationDepthSchema.nullable().optional(),
-	link: z.string(),
-	metrics: z.array(insightMetricSchema),
-	priority: z.number(),
-	rootCause: z.string().nullable().optional(),
-	sentiment: z.string(),
-	severity: z.string(),
-	sources: z.array(z.enum(["web", "product", "ops", "business"])),
-	subjectKey: z.string(),
-	suggestion: z.string(),
-	title: z.string(),
-	type: z.string(),
-	websiteDomain: z.string(),
-	websiteId: z.string(),
-	websiteName: z.string().nullable(),
-});
-
-const historyInsightSchema = websiteInsightSchema.extend({
-	createdAt: z.string(),
-	currentPeriodFrom: z.string().nullable(),
-	currentPeriodTo: z.string().nullable(),
-	previousPeriodFrom: z.string().nullable(),
-	previousPeriodTo: z.string().nullable(),
-	resolvedAt: z.string().nullable(),
-	resolvedReason: insightResolvedReasonSchema.nullable(),
-	runId: z.string(),
-	status: insightStatusSchema,
-	timezone: z.string().nullable(),
-});
-
-interface RawInsightShape {
-	changePercent: number | null;
-	impactSummary: string | null;
-	metrics: unknown;
-	sentiment: string;
-	severity: string;
-	sources: unknown;
-	type: string;
+function isAccessDenied(error: unknown): boolean {
+	return (
+		error instanceof ORPCError &&
+		(error.code === "FORBIDDEN" || error.code === "UNAUTHORIZED")
+	);
 }
 
-function buildInsightLink(websiteId: string, type: string): string {
-	const base = `/websites/${websiteId}`;
-	if (
-		[
-			"error_spike",
-			"new_errors",
-			"persistent_error_hotspot",
-			"reliability_improved",
-		].includes(type)
-	) {
-		return `${base}/errors`;
+const appendInvestigationReplyInputSchema = z
+	.object({
+		body: z.string().trim().min(1).max(2000),
+		insightId: z.string().min(1).max(256),
+		replyId: z
+			.string()
+			.trim()
+			.min(1)
+			.max(200)
+			.refine((value) => !value.includes(":"), {
+				message: "Reply ids cannot contain colons",
+			})
+			.optional(),
+	})
+	.strict();
+
+type InsightTimelineItem = z.infer<typeof insightTimelineItemSchema>;
+
+async function queueInsightReply(
+	replyId: string
+): Promise<z.infer<typeof insightReplyStatusSchema>> {
+	try {
+		const status = await enqueueInsightsResume(replyId);
+		if (status === "succeeded") {
+			await db
+				.update(insightReplies)
+				.set({ status })
+				.where(eq(insightReplies.id, replyId));
+		}
+		return status;
+	} catch (error) {
+		logger.error({ error, replyId }, "Failed to queue investigation reply");
+		try {
+			if (await getInsightsQueue().getJob(insightsResumeJobId(replyId))) {
+				const status = await enqueueInsightsResume(replyId);
+				if (status === "succeeded") {
+					await db
+						.update(insightReplies)
+						.set({ status })
+						.where(eq(insightReplies.id, replyId));
+				}
+				return status;
+			}
+		} catch (reconciliationError) {
+			logger.warn(
+				{ error: reconciliationError, replyId },
+				"Could not confirm investigation reply queue state"
+			);
+			return "queued";
+		}
+		await db
+			.update(insightReplies)
+			.set({ status: "failed" })
+			.where(
+				and(eq(insightReplies.id, replyId), eq(insightReplies.status, "queued"))
+			);
+		return "failed";
 	}
-	if (
-		["vitals_degraded", "performance", "performance_improved"].includes(type)
-	) {
-		return `${base}/vitals`;
-	}
-	if (["conversion_leak", "funnel_regression"].includes(type)) {
-		return `${base}/funnels`;
-	}
-	if (
-		["custom_event_spike", "engagement_change", "quality_shift"].includes(type)
-	) {
-		return `${base}/events/stream`;
-	}
-	if (type === "uptime_issue") {
-		return `${base}/anomalies`;
-	}
-	return base;
 }
 
-function parseInsightShape(row: RawInsightShape) {
+const insightSelection = {
+	changePercent: analyticsInsights.changePercent,
+	description: analyticsInsights.description,
+	id: analyticsInsights.id,
+	organizationId: analyticsInsights.organizationId,
+	resolvedReason: analyticsInsights.resolvedReason,
+	sentiment: analyticsInsights.sentiment,
+	severity: analyticsInsights.severity,
+	status: analyticsInsights.status,
+	subjectKey: analyticsInsights.subjectKey,
+	title: analyticsInsights.title,
+	websiteDomain: websites.domain,
+	websiteId: analyticsInsights.websiteId,
+	websiteName: websites.name,
+};
+
+function selectInsights() {
+	return db
+		.select(insightSelection)
+		.from(analyticsInsights)
+		.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id));
+}
+
+type InsightRow = Awaited<ReturnType<typeof selectInsights>>[number];
+
+function serializeInsight(
+	row: InsightRow
+): z.infer<typeof historyInsightSchema> {
 	return {
-		severity: row.severity,
-		sentiment: row.sentiment,
-		type: row.type,
-		sources: (row.sources as AnalyticsInsightSource[] | null) ?? [],
-		metrics: (row.metrics as AnalyticsInsightMetric[] | null) ?? [],
 		changePercent: row.changePercent ?? undefined,
-		impactSummary: row.impactSummary ?? undefined,
+		description: row.description,
+		id: row.id,
+		resolvedReason: row.resolvedReason ?? null,
+		sentiment: row.sentiment,
+		severity: row.severity,
+		status: row.status,
+		title: row.title,
+		websiteDomain: row.websiteDomain,
+		websiteId: row.websiteId,
+		websiteName: row.websiteName,
 	};
 }
 
-function getRedis() {
-	try {
-		return getRedisCache();
-	} catch {
-		return null;
-	}
-}
-
-function tryCacheSet(
-	redis: ReturnType<typeof getRedis>,
-	key: string,
-	ttl: number,
-	payload: unknown
-): void {
-	if (!redis) {
-		return;
-	}
-	redis.setex(key, ttl, JSON.stringify(payload)).catch(() => {});
-}
-
-async function invalidateInsightsCacheForOrg(
-	organizationId: string
-): Promise<void> {
-	await Promise.all([
-		invalidateInsightsCachesForOrganization(organizationId),
-		invalidateAgentContextSnapshotsForOwner(organizationId),
-	]);
-}
-
-async function getInsightsFromDb(options: {
-	limit?: number;
-	organizationId: string;
-	since?: Date;
-}): Promise<z.infer<typeof websiteInsightSchema>[]> {
-	const whereClause = options.since
-		? and(
-				eq(analyticsInsights.organizationId, options.organizationId),
-				eq(analyticsInsights.status, "open"),
-				gte(analyticsInsights.createdAt, options.since),
-				isNull(websites.deletedAt)
+async function loadInsightTimeline(
+	insight: InsightRow
+): Promise<InsightTimelineItem[]> {
+	const [observations, replies] = await Promise.all([
+		db
+			.select({
+				createdAt: insightObservations.createdAt,
+				id: insightObservations.id,
+				outcome: insightObservations.outcome,
+				signal: insightObservations.signal,
+			})
+			.from(insightObservations)
+			.where(
+				and(
+					eq(insightObservations.organizationId, insight.organizationId),
+					eq(insightObservations.websiteId, insight.websiteId),
+					eq(insightObservations.signalKey, insight.subjectKey)
+				)
 			)
-		: and(
-				eq(analyticsInsights.organizationId, options.organizationId),
-				eq(analyticsInsights.status, "open"),
-				isNull(websites.deletedAt)
-			);
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
+			.limit(INSIGHT_TIMELINE_ROWS_PER_KIND),
+		db
+			.select({
+				authorName: insightReplies.authorName,
+				body: insightReplies.body,
+				createdAt: insightReplies.createdAt,
+				id: insightReplies.id,
+				status: insightReplies.status,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				analyticsInsights,
+				eq(insightReplies.insightId, analyticsInsights.id)
+			)
+			.where(
+				and(
+					eq(analyticsInsights.organizationId, insight.organizationId),
+					eq(analyticsInsights.websiteId, insight.websiteId),
+					eq(analyticsInsights.subjectKey, insight.subjectKey)
+				)
+			)
+			.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
+			.limit(INSIGHT_TIMELINE_ROWS_PER_KIND),
+	]);
 
-	const rows = await db
+	const timeline: InsightTimelineItem[] = [
+		...observations.flatMap((observation) => {
+			const parsed = parseInvestigationOutcome(observation.outcome);
+			if (!parsed) {
+				return [];
+			}
+			return {
+				createdAt: observation.createdAt.toISOString(),
+				id: observation.id,
+				kind: "investigation" as const,
+				outcome: parsed,
+				period: observation.signal.period,
+				subject: observation.signal.entity.label,
+			};
+		}),
+		...replies.map((reply) => ({
+			author: reply.authorName,
+			body: reply.body,
+			createdAt: reply.createdAt.toISOString(),
+			id: reply.id,
+			kind: "reply" as const,
+			status: reply.status,
+		})),
+	];
+
+	return timeline.sort(
+		(a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)
+	);
+}
+
+const investigationReplyAuthorNameSchema = z.string().trim().min(1).max(120);
+
+function replyAuthor(
+	context: Context,
+	authorName?: string
+): {
+	authorId: string | null;
+	authorName: string;
+} {
+	if (authorName) {
+		return {
+			authorId: context.user?.id ?? null,
+			authorName,
+		};
+	}
+	if (context.user) {
+		return {
+			authorId: context.user.id,
+			authorName: context.user.name.trim() || "Team member",
+		};
+	}
+
+	return {
+		authorId: null,
+		authorName: context.apiKey?.name.trim() || "API client",
+	};
+}
+
+export async function appendInvestigationReply(
+	input: z.input<typeof appendInvestigationReplyInputSchema> & {
+		authorName?: string;
+		context: Context;
+		slackDelivery?: z.input<typeof insightReplySlackDeliverySchema>;
+	}
+): Promise<{
+	created: boolean;
+	reply: z.infer<typeof insightTimelineReplySchema>;
+}> {
+	const {
+		authorName: rawAuthorName,
+		context,
+		slackDelivery: rawSlackDelivery,
+		...rawInput
+	} = input;
+	const parsed = appendInvestigationReplyInputSchema.parse(rawInput);
+	const slackDelivery =
+		rawSlackDelivery === undefined
+			? null
+			: insightReplySlackDeliverySchema.parse(rawSlackDelivery);
+	const authorName =
+		rawAuthorName === undefined
+			? undefined
+			: investigationReplyAuthorNameSchema.parse(rawAuthorName);
+	const id = parsed.replyId ?? randomUUIDv7();
+	const [insight] = await db
 		.select({
-			id: analyticsInsights.id,
-			websiteId: analyticsInsights.websiteId,
-			websiteName: websites.name,
-			websiteDomain: websites.domain,
-			title: analyticsInsights.title,
-			description: analyticsInsights.description,
-			suggestion: analyticsInsights.suggestion,
-			severity: analyticsInsights.severity,
-			sentiment: analyticsInsights.sentiment,
-			type: analyticsInsights.type,
-			priority: analyticsInsights.priority,
-			changePercent: analyticsInsights.changePercent,
+			organizationId: analyticsInsights.organizationId,
 			subjectKey: analyticsInsights.subjectKey,
-			sources: analyticsInsights.sources,
-			confidence: analyticsInsights.confidence,
-			impactSummary: analyticsInsights.impactSummary,
-			rootCause: analyticsInsights.rootCause,
-			evidence: analyticsInsights.evidence,
-			investigationDepth: analyticsInsights.investigationDepth,
-			actions: analyticsInsights.actions,
-			chainId: analyticsInsights.chainId,
-			metrics: analyticsInsights.metrics,
-			createdAt: analyticsInsights.createdAt,
+			websiteId: analyticsInsights.websiteId,
 		})
 		.from(analyticsInsights)
 		.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
-		.where(whereClause)
-		.orderBy(
-			desc(analyticsInsights.priority),
-			desc(analyticsInsights.createdAt)
-		)
-		.limit(options.limit ?? TOP_INSIGHTS_LIMIT);
-
-	return rows.map((row) => ({
-		id: row.id,
-		websiteId: row.websiteId,
-		websiteName: row.websiteName,
-		websiteDomain: row.websiteDomain,
-		link: buildInsightLink(row.websiteId, row.type),
-		title: row.title,
-		description: row.description,
-		suggestion: row.suggestion,
-		priority: row.priority,
-		subjectKey: row.subjectKey,
-		confidence: row.confidence,
-		rootCause: row.rootCause,
-		evidence: row.evidence ?? null,
-		investigationDepth: row.investigationDepth ?? null,
-		actions: row.actions ?? null,
-		chainId: row.chainId ?? null,
-		...parseInsightShape(row),
-	}));
-}
-
-const RANGE_WORDS: Record<z.infer<typeof rangeSchema>, string> = {
-	"7d": "week",
-	"30d": "month",
-	"90d": "quarter",
-};
-
-function rangeWord(range: z.infer<typeof rangeSchema>): string {
-	return RANGE_WORDS[range];
-}
-
-function buildDeterministicNarrative(
-	range: z.infer<typeof rangeSchema>,
-	topInsights: {
-		changePercent: number | null;
-		severity: string;
-		title: string;
-		websiteName: string | null;
-	}[]
-): string {
-	const word = rangeWord(range);
-	const headline = topInsights[0];
-	if (!headline) {
-		return `All systems healthy this ${word}. No actionable signals detected.`;
-	}
-	const siteSuffix = headline.websiteName ? ` on ${headline.websiteName}` : "";
-	const change =
-		headline.changePercent == null
-			? ""
-			: ` (${headline.changePercent > 0 ? "+" : ""}${headline.changePercent.toFixed(0)}%)`;
-	if (topInsights.length === 1) {
-		return `This ${word}: ${headline.title}${change}${siteSuffix}.`;
-	}
-	const extra = topInsights.length - 1;
-	return `This ${word}: ${headline.title}${change}${siteSuffix}, plus ${extra} more signal${extra === 1 ? "" : "s"} worth reviewing.`;
-}
-
-const RANGE_TO_DAYS = { "7d": 7, "30d": 30, "90d": 90 } as const;
-
-const loadNarrativeCached = cacheable(
-	async function loadNarrativeCached(
-		organizationId: string,
-		range: z.infer<typeof rangeSchema>
-	): Promise<{ generatedAt: string; narrative: string }> {
-		const [rollup] = await db
-			.select({
-				generatedAt: insightRollups.generatedAt,
-				narrative: insightRollups.narrative,
-			})
-			.from(insightRollups)
-			.where(
-				and(
-					eq(insightRollups.organizationId, organizationId),
-					eq(insightRollups.range, range)
-				)
+		.where(
+			and(
+				eq(analyticsInsights.id, parsed.insightId),
+				isNull(websites.deletedAt)
 			)
-			.limit(1);
+		)
+		.limit(1);
 
-		if (rollup) {
+	if (!insight) {
+		throw rpcError.notFound("insight", parsed.insightId);
+	}
+
+	await withWorkspace(context, {
+		allowCrossOrg: true,
+		organizationId: insight.organizationId,
+		permissions: ["update"],
+		websiteId: insight.websiteId,
+	});
+
+	const author = replyAuthor(context, authorName);
+	const createdAt = new Date();
+	const stored = await db.transaction(async (tx) => {
+		const insightCase = and(
+			eq(analyticsInsights.organizationId, insight.organizationId),
+			eq(analyticsInsights.websiteId, insight.websiteId),
+			eq(analyticsInsights.subjectKey, insight.subjectKey)
+		);
+		const [current] = await tx
+			.select({ id: analyticsInsights.id })
+			.from(analyticsInsights)
+			.where(insightCase)
+			.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
+			.limit(1)
+			.for("update");
+		if (!current) {
+			throw rpcError.notFound("insight", parsed.insightId);
+		}
+
+		const [existing] = await tx
+			.select({
+				authorName: insightReplies.authorName,
+				body: insightReplies.body,
+				createdAt: insightReplies.createdAt,
+				id: insightReplies.id,
+				organizationId: analyticsInsights.organizationId,
+				slackDelivery: insightReplies.slackDelivery,
+				status: insightReplies.status,
+				subjectKey: analyticsInsights.subjectKey,
+				websiteId: analyticsInsights.websiteId,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				analyticsInsights,
+				eq(insightReplies.insightId, analyticsInsights.id)
+			)
+			.where(eq(insightReplies.id, id))
+			.limit(1);
+		if (existing) {
+			if (
+				existing.organizationId !== insight.organizationId ||
+				existing.websiteId !== insight.websiteId ||
+				existing.subjectKey !== insight.subjectKey ||
+				existing.body !== parsed.body ||
+				existing.slackDelivery?.channelId !== slackDelivery?.channelId ||
+				existing.slackDelivery?.threadTs !== slackDelivery?.threadTs
+			) {
+				throw rpcError.conflict(
+					"Reply id is already used for different context"
+				);
+			}
 			return {
-				generatedAt: rollup.generatedAt.toISOString(),
-				narrative: rollup.narrative,
+				created: false as const,
+				reply: {
+					author: existing.authorName,
+					body: existing.body,
+					createdAt: existing.createdAt,
+					id: existing.id,
+					status: existing.status,
+				},
 			};
 		}
 
-		const cutoff = dayjs().subtract(RANGE_TO_DAYS[range], "day").toDate();
-		const topInsights = await db
-			.select({
-				title: analyticsInsights.title,
-				severity: analyticsInsights.severity,
-				changePercent: analyticsInsights.changePercent,
-				websiteName: websites.name,
-			})
-			.from(analyticsInsights)
-			.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+		const [observation] = await tx
+			.select({ id: insightObservations.id })
+			.from(insightObservations)
 			.where(
 				and(
-					eq(analyticsInsights.organizationId, organizationId),
-					eq(analyticsInsights.status, "open"),
-					gte(analyticsInsights.createdAt, cutoff),
-					isNull(websites.deletedAt)
+					eq(insightObservations.organizationId, insight.organizationId),
+					eq(insightObservations.websiteId, insight.websiteId),
+					eq(insightObservations.signalKey, insight.subjectKey)
 				)
 			)
-			.orderBy(desc(analyticsInsights.priority))
-			.limit(NARRATIVE_INSIGHTS_LIMIT);
+			.limit(1);
+		if (!observation) {
+			throw rpcError.badRequest(
+				"This investigation has no history to continue"
+			);
+		}
 
+		const [active] = await tx
+			.select({ id: insightReplies.id })
+			.from(insightReplies)
+			.innerJoin(
+				analyticsInsights,
+				eq(insightReplies.insightId, analyticsInsights.id)
+			)
+			.where(
+				and(inArray(insightReplies.status, ["queued", "running"]), insightCase)
+			)
+			.limit(1);
+		if (active) {
+			throw rpcError.badRequest(
+				"Databuddy is already investigating the latest reply"
+			);
+		}
+
+		await tx.insert(insightReplies).values({
+			...author,
+			body: parsed.body,
+			createdAt,
+			id,
+			insightId: current.id,
+			slackDelivery,
+			status: "queued",
+		});
 		return {
-			generatedAt: new Date().toISOString(),
-			narrative: buildDeterministicNarrative(range, topInsights),
+			created: true as const,
+			reply: {
+				author: author.authorName,
+				body: parsed.body,
+				createdAt,
+				id,
+				status: "queued" as const,
+			},
 		};
-	},
-	{
-		expireInSec: NARRATIVE_CACHE_TTL_SECS,
-		prefix: cacheNamespaces.insightsNarrative,
-		tags: (_result, organizationId) => [cacheTags.organization(organizationId)],
-	}
-);
+	});
+
+	const status =
+		stored.created || stored.reply.status === "queued"
+			? await queueInsightReply(stored.reply.id)
+			: stored.reply.status;
+	return {
+		created: stored.created,
+		reply: {
+			author: stored.reply.author,
+			body: stored.reply.body,
+			createdAt: stored.reply.createdAt.toISOString(),
+			id: stored.reply.id,
+			kind: "reply",
+			status,
+		},
+	};
+}
 
 export const insightsRouter = {
-	feed: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/feed",
-			tags: ["Insights"],
-			summary: "Get current insight feed and queue generation when stale",
-		})
-		.input(
-			z.object({
-				organizationId: z.string().min(1),
-				timezone: z.string().min(1).max(80).default("UTC"),
-			})
-		)
-		.output(
-			z.object({
-				generation: z
-					.object({
-						queuedItems: z.number().optional(),
-						runId: z.string().optional(),
-						status: z.enum(["queued", "skipped", "disabled", "unavailable"]),
-					})
-					.optional(),
-				insights: z.array(websiteInsightSchema),
-				source: z.enum(["ai", "fallback"]),
-				success: z.literal(true),
-			})
-		)
-		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-			});
-
-			const redis = getRedis();
-			const cacheKey = `${CACHE_KEY_PREFIX}:${input.organizationId}:${input.timezone}`;
-
-			if (redis) {
-				try {
-					const cached = await redis.get(cacheKey);
-					if (cached) {
-						return JSON.parse(cached) as {
-							generation?: {
-								queuedItems?: number;
-								runId?: string;
-								status: "queued" | "skipped" | "disabled" | "unavailable";
-							};
-							insights: z.infer<typeof websiteInsightSchema>[];
-							source: "ai" | "fallback";
-							success: true;
-						};
-					}
-				} catch {
-					// Insights cache is advisory; continue to DB/queue.
-				}
-			}
-
-			const recentInsights = await getInsightsFromDb({
-				organizationId: input.organizationId,
-				since: dayjs().subtract(GENERATION_COOLDOWN_HOURS, "hour").toDate(),
-			});
-
-			if (recentInsights.length > 0) {
-				const payload = {
-					insights: recentInsights,
-					source: "ai" as const,
-					success: true as const,
-				};
-				tryCacheSet(redis, cacheKey, CACHE_TTL, payload);
-				return payload;
-			}
-
-			const staleInsights = await getInsightsFromDb({
-				organizationId: input.organizationId,
-				since: dayjs().subtract(STALE_INSIGHTS_LOOKBACK_DAYS, "day").toDate(),
-			});
-
-			let generation: {
-				queuedItems?: number;
-				runId?: string;
-				status: "queued" | "skipped" | "disabled" | "unavailable";
-			};
-
-			try {
-				const queued = await queueInsightGenerationRun({
-					organizationId: input.organizationId,
-					requestedByUserId: context.user.id,
-					reason: "cooldown_refresh",
-					timezone: input.timezone,
-				});
-				generation = {
-					status: queued.status,
-					runId: queued.runId,
-					queuedItems: queued.queuedItems,
-				};
-			} catch {
-				generation = { status: "unavailable" };
-			}
-
-			const payload = {
-				generation,
-				insights: staleInsights,
-				source:
-					staleInsights.length > 0 ? ("ai" as const) : ("fallback" as const),
-				success: true as const,
-			};
-			tryCacheSet(redis, cacheKey, NEGATIVE_CACHE_TTL, payload);
-			return payload;
-		}),
-
-	history: sessionProcedure
+	history: protectedProcedure
 		.route({
 			method: "POST",
 			path: "/insights/history",
@@ -482,15 +453,22 @@ export const insightsRouter = {
 			z.object({
 				hasMore: z.boolean(),
 				insights: z.array(historyInsightSchema),
-				success: z.literal(true),
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-			});
+			if (input.websiteId) {
+				await withWorkspace(context, {
+					organizationId: input.organizationId,
+					permissions: ["read"],
+					websiteId: input.websiteId,
+				});
+			} else {
+				await withWorkspace(context, {
+					organizationId: input.organizationId,
+					resource: "organization",
+					permissions: ["read"],
+				});
+			}
 
 			const whereClause = input.websiteId
 				? and(
@@ -503,378 +481,312 @@ export const insightsRouter = {
 						isNull(websites.deletedAt)
 					);
 
-			const rows = await db
-				.select({
-					id: analyticsInsights.id,
-					runId: analyticsInsights.runId,
-					websiteId: analyticsInsights.websiteId,
-					websiteName: websites.name,
-					websiteDomain: websites.domain,
-					title: analyticsInsights.title,
-					description: analyticsInsights.description,
-					suggestion: analyticsInsights.suggestion,
-					severity: analyticsInsights.severity,
-					sentiment: analyticsInsights.sentiment,
-					type: analyticsInsights.type,
-					priority: analyticsInsights.priority,
-					changePercent: analyticsInsights.changePercent,
-					subjectKey: analyticsInsights.subjectKey,
-					sources: analyticsInsights.sources,
-					confidence: analyticsInsights.confidence,
-					impactSummary: analyticsInsights.impactSummary,
-					rootCause: analyticsInsights.rootCause,
-					evidence: analyticsInsights.evidence,
-					investigationDepth: analyticsInsights.investigationDepth,
-					actions: analyticsInsights.actions,
-					chainId: analyticsInsights.chainId,
-					metrics: analyticsInsights.metrics,
-					createdAt: analyticsInsights.createdAt,
-					status: analyticsInsights.status,
-					resolvedAt: analyticsInsights.resolvedAt,
-					resolvedReason: analyticsInsights.resolvedReason,
-					currentPeriodFrom: analyticsInsights.currentPeriodFrom,
-					currentPeriodTo: analyticsInsights.currentPeriodTo,
-					previousPeriodFrom: analyticsInsights.previousPeriodFrom,
-					previousPeriodTo: analyticsInsights.previousPeriodTo,
-					timezone: analyticsInsights.timezone,
-				})
+			const latestCases = db
+				.selectDistinctOn(
+					[analyticsInsights.websiteId, analyticsInsights.subjectKey],
+					{
+						...insightSelection,
+						activityAt:
+							sql<Date>`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`.as(
+								"activity_at"
+							),
+					}
+				)
 				.from(analyticsInsights)
 				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
-				.where(whereClause)
-				.orderBy(
-					desc(
-						sql`coalesce(${analyticsInsights.resolvedAt}, ${analyticsInsights.createdAt})`
+				.innerJoin(
+					insightObservations,
+					and(
+						eq(
+							insightObservations.organizationId,
+							analyticsInsights.organizationId
+						),
+						eq(insightObservations.websiteId, analyticsInsights.websiteId),
+						eq(insightObservations.signalKey, analyticsInsights.subjectKey)
 					)
 				)
-				.limit(input.limit)
+				.where(whereClause)
+				.orderBy(
+					analyticsInsights.websiteId,
+					analyticsInsights.subjectKey,
+					desc(analyticsInsights.createdAt),
+					desc(analyticsInsights.id)
+				)
+				.as("latest_insight_cases");
+			const rows = await db
+				.select()
+				.from(latestCases)
+				.orderBy(desc(latestCases.activityAt), desc(latestCases.id))
+				.limit(input.limit + 1)
 				.offset(input.offset);
-
-			const insights = rows.map((row) => ({
-				id: row.id,
-				runId: row.runId,
-				websiteId: row.websiteId,
-				websiteName: row.websiteName,
-				websiteDomain: row.websiteDomain,
-				link: buildInsightLink(row.websiteId, row.type),
-				title: row.title,
-				description: row.description,
-				suggestion: row.suggestion,
-				priority: row.priority,
-				subjectKey: row.subjectKey,
-				confidence: row.confidence,
-				rootCause: row.rootCause,
-				evidence: row.evidence ?? null,
-				investigationDepth: row.investigationDepth ?? null,
-				actions: row.actions ?? null,
-				chainId: row.chainId ?? null,
-				...parseInsightShape(row),
-				createdAt: row.createdAt.toISOString(),
-				status: row.status,
-				resolvedAt: row.resolvedAt?.toISOString() ?? null,
-				resolvedReason: row.resolvedReason ?? null,
-				currentPeriodFrom: row.currentPeriodFrom,
-				currentPeriodTo: row.currentPeriodTo,
-				previousPeriodFrom: row.previousPeriodFrom,
-				previousPeriodTo: row.previousPeriodTo,
-				timezone: row.timezone,
-			}));
+			const page = rows.slice(0, input.limit);
 
 			return {
-				success: true as const,
-				insights,
-				hasMore: rows.length === input.limit,
+				insights: page.map(serializeInsight),
+				hasMore: rows.length > input.limit,
 			};
 		}),
 
-	orgNarrative: sessionProcedure
+	getById: protectedProcedure
 		.route({
 			method: "POST",
-			path: "/insights/orgNarrative",
+			path: "/insights/getById",
 			tags: ["Insights"],
-			summary: "Get organization insights narrative",
+			summary: "Get a single insight by id",
+			description:
+				"Resolves one insight regardless of status or feed position so deep links always open it. Authorized against the insight's own organization.",
 		})
-		.input(
-			z.object({
-				organizationId: z.string().min(1),
-				range: rangeSchema,
-			})
-		)
+		.input(z.object({ insightId: z.string().min(1).max(256) }))
 		.output(
 			z.object({
-				generatedAt: z.string(),
-				narrative: z.string(),
-				success: z.literal(true),
+				canReply: z.boolean(),
+				insight: historyInsightSchema.nullable(),
+				timeline: z.array(insightTimelineItemSchema),
 			})
 		)
 		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
-				permissions: ["read"],
-			});
-
-			const rl = await ratelimit(
-				`insights:narrative:${input.organizationId}:${context.user.id}`,
-				NARRATIVE_RATE_LIMIT,
-				NARRATIVE_RATE_WINDOW_SECS
-			);
-			if (!rl.success) {
+			const principalId = context.user?.id ?? `apikey:${context.apiKey?.id}`;
+			const rate = await ratelimit(`insights:getById:${principalId}`, 120, 60);
+			if (!rate.success) {
 				throw rpcError.rateLimited(
-					Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000))
+					Math.max(1, Math.ceil((rate.reset - Date.now()) / 1000))
 				);
 			}
 
-			const cached = await loadNarrativeCached(
-				input.organizationId,
-				input.range
+			const [row] = await selectInsights()
+				.where(
+					and(
+						eq(analyticsInsights.id, input.insightId),
+						isNull(websites.deletedAt)
+					)
+				)
+				.limit(1);
+
+			if (!row) {
+				return {
+					canReply: false,
+					insight: null,
+					timeline: [],
+				};
+			}
+
+			const workspace = await withWorkspace(context, {
+				organizationId: row.organizationId,
+				websiteId: row.websiteId,
+				permissions: ["read"],
+				allowCrossOrg: true,
+			}).catch((error) => {
+				if (isAccessDenied(error)) {
+					return null;
+				}
+				throw error;
+			});
+
+			if (!workspace) {
+				return {
+					canReply: false,
+					insight: null,
+					timeline: [],
+				};
+			}
+
+			const [current] = await selectInsights()
+				.where(
+					and(
+						eq(analyticsInsights.organizationId, row.organizationId),
+						eq(analyticsInsights.websiteId, row.websiteId),
+						eq(analyticsInsights.subjectKey, row.subjectKey),
+						isNull(websites.deletedAt)
+					)
+				)
+				.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
+				.limit(1);
+			const insight = current ?? row;
+			const timeline = await loadInsightTimeline(insight);
+			const hasInvestigation = timeline.some(
+				(item) => item.kind === "investigation"
 			);
+			if (!hasInvestigation) {
+				return {
+					canReply: false,
+					insight: null,
+					timeline: [],
+				};
+			}
+
+			const canReply = await withWorkspace(context, {
+				allowCrossOrg: true,
+				organizationId: row.organizationId,
+				permissions: ["update"],
+				websiteId: row.websiteId,
+			})
+				.then(() => true)
+				.catch((error) => {
+					if (isAccessDenied(error)) {
+						return false;
+					}
+					throw error;
+				});
+
 			return {
-				success: true as const,
-				narrative: cached.narrative,
-				generatedAt: new Date(cached.generatedAt).toISOString(),
+				canReply,
+				insight: serializeInsight(insight),
+				timeline,
 			};
 		}),
 
-	clearHistory: sessionProcedure
+	reply: protectedProcedure
 		.route({
 			method: "POST",
-			path: "/insights/clearHistory",
+			path: "/insights/reply",
 			tags: ["Insights"],
-			summary: "Clear persisted insights for an organization",
+			summary: "Add context to an investigation",
 		})
-		.input(z.object({ organizationId: z.string().min(1) }))
-		.output(z.object({ deleted: z.number(), success: z.literal(true) }))
-		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				organizationId: input.organizationId,
-				resource: "organization",
-				permissions: ["update"],
-			});
-
-			const idRows = await db
-				.select({ id: analyticsInsights.id })
-				.from(analyticsInsights)
-				.where(eq(analyticsInsights.organizationId, input.organizationId));
-			const ids = idRows.map((row) => row.id);
-
-			await db
-				.delete(insightRollups)
-				.where(eq(insightRollups.organizationId, input.organizationId));
-
-			await db
-				.delete(insightUserFeedback)
-				.where(eq(insightUserFeedback.organizationId, input.organizationId));
-
-			if (ids.length > 0) {
-				await db
-					.delete(analyticsInsights)
-					.where(eq(analyticsInsights.organizationId, input.organizationId));
-			}
-
-			await invalidateInsightsCacheForOrg(input.organizationId);
-			return { success: true as const, deleted: ids.length };
-		}),
-
-	getVotes: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/getVotes",
-			tags: ["Insights"],
-			summary: "Get insight feedback votes",
-			description:
-				"Returns thumbs up/down votes for the given insight ids for the current user in the active organization.",
-		})
-		.input(
-			z.object({
-				insightIds: z.array(z.string().min(1)).max(200),
-			})
-		)
+		.input(appendInvestigationReplyInputSchema)
 		.output(
 			z.object({
-				votes: z.record(z.string(), voteSchema),
+				reply: insightTimelineReplySchema,
 			})
 		)
 		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-			if (input.insightIds.length === 0) {
-				return { votes: {} };
-			}
+			const { reply } = await appendInvestigationReply({ context, ...input });
+			return { reply };
+		}),
 
-			const rows = await context.db
+	retryReply: sessionProcedure
+		.route({
+			method: "POST",
+			path: "/insights/reply/retry",
+			tags: ["Insights"],
+			summary: "Retry an investigation reply",
+		})
+		.input(z.object({ replyId: z.string().min(1).max(256) }))
+		.output(
+			z.object({
+				replyId: z.string(),
+				status: insightReplyStatusSchema,
+			})
+		)
+		.handler(async ({ context, input }) => {
+			const [reply] = await db
 				.select({
-					insightId: insightUserFeedback.insightId,
-					vote: insightUserFeedback.vote,
+					organizationId: analyticsInsights.organizationId,
+					status: insightReplies.status,
+					subjectKey: analyticsInsights.subjectKey,
+					websiteId: analyticsInsights.websiteId,
 				})
-				.from(insightUserFeedback)
+				.from(insightReplies)
+				.innerJoin(
+					analyticsInsights,
+					eq(insightReplies.insightId, analyticsInsights.id)
+				)
+				.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
 				.where(
-					and(
-						eq(insightUserFeedback.userId, context.user.id),
-						eq(insightUserFeedback.organizationId, context.organizationId),
-						inArray(insightUserFeedback.insightId, input.insightIds),
-						inArray(insightUserFeedback.vote, ["up", "down"])
-					)
+					and(eq(insightReplies.id, input.replyId), isNull(websites.deletedAt))
+				)
+				.limit(1);
+			if (!reply) {
+				throw rpcError.notFound("insight reply", input.replyId);
+			}
+			await withWorkspace(context, {
+				allowCrossOrg: true,
+				organizationId: reply.organizationId,
+				permissions: ["update"],
+				websiteId: reply.websiteId,
+			});
+			const pendingStatus = await db.transaction(async (tx) => {
+				const insightCase = and(
+					eq(analyticsInsights.organizationId, reply.organizationId),
+					eq(analyticsInsights.websiteId, reply.websiteId),
+					eq(analyticsInsights.subjectKey, reply.subjectKey)
 				);
-
-			const votes: Record<string, "up" | "down"> = {};
-			for (const row of rows) {
-				if (row.vote === "up" || row.vote === "down") {
-					votes[row.insightId] = row.vote;
+				const [current] = await tx
+					.select({ id: analyticsInsights.id })
+					.from(analyticsInsights)
+					.where(insightCase)
+					.orderBy(
+						desc(analyticsInsights.createdAt),
+						desc(analyticsInsights.id)
+					)
+					.limit(1)
+					.for("update");
+				if (!current) {
+					throw rpcError.notFound("insight reply", input.replyId);
 				}
-			}
-			return { votes };
-		}),
 
-	setVote: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/setVote",
-			tags: ["Insights"],
-			summary: "Set or clear insight vote",
-			description:
-				"Sets thumbs up/down for an insight, or clears the vote when vote is null.",
-		})
-		.input(
-			z.object({
-				insightId: z.string().min(1).max(256),
-				vote: voteSchema.nullable(),
-			})
-		)
-		.output(z.object({ success: z.literal(true) }))
-		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-
-			if (input.vote === null) {
-				await context.db
-					.delete(insightUserFeedback)
-					.where(
-						and(
-							eq(insightUserFeedback.userId, context.user.id),
-							eq(insightUserFeedback.organizationId, context.organizationId),
-							eq(insightUserFeedback.insightId, input.insightId)
-						)
-					);
-				return { success: true as const };
-			}
-
-			const now = new Date();
-			await context.db
-				.insert(insightUserFeedback)
-				.values({
-					id: randomUUIDv7(),
-					userId: context.user.id,
-					organizationId: context.organizationId,
-					insightId: input.insightId,
-					vote: input.vote,
-					createdAt: now,
-					updatedAt: now,
-				})
-				.onConflictDoUpdate({
-					target: [
-						insightUserFeedback.userId,
-						insightUserFeedback.organizationId,
-						insightUserFeedback.insightId,
-					],
-					set: {
-						vote: input.vote,
-						updatedAt: now,
-					},
-				});
-
-			return { success: true as const };
-		}),
-
-	setDismissed: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/setDismissed",
-			tags: ["Insights"],
-			summary: "Dismiss or restore an insight",
-			description:
-				"Marks an insight as dismissed so its pattern is suppressed in future generation, or restores it when dismissed is false.",
-		})
-		.input(
-			z.object({
-				insightId: z.string().min(1).max(256),
-				dismissed: z.boolean(),
-			})
-		)
-		.output(z.object({ success: z.literal(true) }))
-		.handler(async ({ context, input }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-
-			if (!input.dismissed) {
-				await context.db
-					.delete(insightUserFeedback)
-					.where(
-						and(
-							eq(insightUserFeedback.userId, context.user.id),
-							eq(insightUserFeedback.organizationId, context.organizationId),
-							eq(insightUserFeedback.insightId, input.insightId),
-							eq(insightUserFeedback.vote, "dismissed")
-						)
-					);
-				return { success: true as const };
-			}
-
-			const now = new Date();
-			await context.db
-				.insert(insightUserFeedback)
-				.values({
-					id: randomUUIDv7(),
-					userId: context.user.id,
-					organizationId: context.organizationId,
-					insightId: input.insightId,
-					vote: "dismissed",
-					createdAt: now,
-					updatedAt: now,
-				})
-				.onConflictDoUpdate({
-					target: [
-						insightUserFeedback.userId,
-						insightUserFeedback.organizationId,
-						insightUserFeedback.insightId,
-					],
-					set: {
-						vote: "dismissed",
-						updatedAt: now,
-					},
-				});
-
-			return { success: true as const };
-		}),
-
-	clearDismissed: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/insights/clearDismissed",
-			tags: ["Insights"],
-			summary: "Clear all dismissed insights",
-			description:
-				"Removes every dismissal for the current user in the active organization.",
-		})
-		.input(z.object({}))
-		.output(z.object({ success: z.literal(true) }))
-		.handler(async ({ context }) => {
-			if (!context.organizationId) {
-				throw rpcError.badRequest("Organization context is required");
-			}
-
-			await context.db
-				.delete(insightUserFeedback)
-				.where(
-					and(
-						eq(insightUserFeedback.userId, context.user.id),
-						eq(insightUserFeedback.organizationId, context.organizationId),
-						eq(insightUserFeedback.vote, "dismissed")
+				const [latest] = await tx
+					.select({ id: insightReplies.id, status: insightReplies.status })
+					.from(insightReplies)
+					.innerJoin(
+						analyticsInsights,
+						eq(insightReplies.insightId, analyticsInsights.id)
 					)
-				);
+					.where(insightCase)
+					.orderBy(desc(insightReplies.createdAt), desc(insightReplies.id))
+					.limit(1);
+				if (latest?.id !== input.replyId) {
+					throw rpcError.badRequest("Only the latest reply can be retried");
+				}
+				if (latest.status !== "failed") {
+					return latest.status;
+				}
 
-			return { success: true as const };
+				const [observation] = await tx
+					.select({ id: insightObservations.id })
+					.from(insightObservations)
+					.where(
+						and(
+							eq(insightObservations.organizationId, reply.organizationId),
+							eq(insightObservations.websiteId, reply.websiteId),
+							eq(insightObservations.signalKey, reply.subjectKey)
+						)
+					)
+					.limit(1);
+				if (!observation) {
+					throw rpcError.badRequest(
+						"This investigation has no history to continue"
+					);
+				}
+
+				const [active] = await tx
+					.select({ id: insightReplies.id })
+					.from(insightReplies)
+					.innerJoin(
+						analyticsInsights,
+						eq(insightReplies.insightId, analyticsInsights.id)
+					)
+					.where(
+						and(
+							insightCase,
+							inArray(insightReplies.status, ["queued", "running"])
+						)
+					)
+					.limit(1);
+				if (active) {
+					throw rpcError.badRequest(
+						"Databuddy is already investigating the latest reply"
+					);
+				}
+
+				await tx
+					.update(insightReplies)
+					.set({ status: "queued" })
+					.where(
+						and(
+							eq(insightReplies.id, input.replyId),
+							eq(insightReplies.status, "failed")
+						)
+					);
+				return "queued" as const;
+			});
+
+			if (pendingStatus !== "queued") {
+				return {
+					replyId: input.replyId,
+					status: pendingStatus,
+				};
+			}
+			const status = await queueInsightReply(input.replyId);
+			return { replyId: input.replyId, status };
 		}),
 };

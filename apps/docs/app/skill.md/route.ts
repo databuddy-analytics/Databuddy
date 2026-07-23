@@ -54,7 +54,6 @@ export default function RootLayout({ children }) {
 <script
   src="https://cdn.databuddy.cc/databuddy.js"
   data-client-id="your-client-id"
-  data-track-performance
   data-track-web-vitals
   data-track-errors
   async
@@ -132,8 +131,7 @@ Requires \`trackAttributes: true\`:
 |--------|------|---------|-------------|
 | \`clientId\` | \`string\` | Auto-detect | Project client ID |
 | \`disabled\` | \`boolean\` | \`false\` | Disable all tracking |
-| \`trackPerformance\` | \`boolean\` | \`true\` | Page load timing |
-| \`trackWebVitals\` | \`boolean\` | \`false\` | Core Web Vitals (LCP, FID, CLS) |
+| \`trackWebVitals\` | \`boolean\` | \`false\` | Core Web Vitals (LCP, INP, CLS) |
 | \`trackErrors\` | \`boolean\` | \`false\` | JavaScript error tracking |
 | \`trackInteractions\` | \`boolean\` | \`false\` | User interactions |
 | \`trackOutgoingLinks\` | \`boolean\` | \`false\` | External link clicks |

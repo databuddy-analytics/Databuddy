@@ -1,70 +1,91 @@
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import { Heading, Link, Section, Text } from "react-email";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
 import { EmailLayout } from "./email-layout";
+import { formatResetDate, formatUsageNumber } from "./usage-email-utils";
 
-interface UsageLimitEmailProps {
-	featureName?: string;
-	limitAmount?: number;
-	thresholdType?: "limit_reached" | "allowance_used";
-	usageAmount?: number;
-	userName?: string;
+export type UsageLimitType = "included" | "max_purchase" | "spend_limit";
+
+export interface UsageLimitEmailProps {
+	featureDescription: string;
+	featureName: string;
+	isAvailable: boolean;
+	limitAmount: number;
+	limitType: UsageLimitType;
+	nextResetAt?: number | null;
+	organizationName?: string;
+	overageAllowed: boolean;
+	pausedActivity: string;
+	remainingAmount: number;
+	usageAmount: number;
+	usageUnit: string;
 }
 
-function formatNumber(num: number): string {
-	if (num >= 1_000_000) {
-		return `${(num / 1_000_000).toFixed(1)}M`;
-	}
-	if (num >= 1000) {
-		return `${(num / 1000).toFixed(1)}K`;
-	}
-	return num.toLocaleString();
-}
+const LIMIT_HEADINGS: Record<UsageLimitType, string> = {
+	included: "Included allowance used",
+	max_purchase: "Top-up limit reached",
+	spend_limit: "Spending limit reached",
+};
 
 export const UsageLimitEmail = ({
-	featureName = "Events",
-	usageAmount = 10_000,
-	limitAmount = 10_000,
-	userName,
-	thresholdType = "limit_reached",
+	featureDescription,
+	featureName,
+	isAvailable,
+	limitAmount,
+	limitType,
+	nextResetAt,
+	organizationName,
+	overageAllowed,
+	pausedActivity,
+	remainingAmount,
+	usageAmount,
+	usageUnit,
 }: UsageLimitEmailProps) => {
-	const greeting = userName ? `Hi ${userName},` : "Hi there,";
-	const isLimitReached = thresholdType === "limit_reached";
-	const usageFormatted = formatNumber(usageAmount);
-	const limitFormatted = formatNumber(limitAmount);
-	const graceFormatted = formatNumber(Math.floor(limitAmount * 1.5));
+	const usage = formatUsageNumber(usageAmount);
+	const limit = formatUsageNumber(limitAmount);
+	const remaining = formatUsageNumber(Math.max(0, remainingAmount));
+	const resetDate = formatResetDate(nextResetAt);
+	const context = organizationName ? ` for ${organizationName}` : "";
+	const availability = isAvailable ? "can continue" : "is paused";
 
 	return (
 		<EmailLayout
-			preview={`${usageFormatted}/${limitFormatted} ${featureName.toLowerCase()} used. Tracking pauses at ${graceFormatted}.`}
-			tagline="Usage Alert"
+			preview={`${featureName}${context} ${availability}: ${usage} of ${limit} ${usageUnit} used.`}
+			tagline="Usage limit notice"
 		>
 			<Section className="text-center">
 				<Heading
 					className="m-0 mb-3 font-semibold text-xl tracking-tight"
 					style={{ color: emailBrand.foreground }}
 				>
-					{isLimitReached
-						? `${featureName} Limit Reached`
-						: `${featureName} Allowance Used`}
+					{featureName}: {LIMIT_HEADINGS[limitType]}
 				</Heading>
 			</Section>
 
 			<Section className="mt-4">
 				<Text
 					className="m-0 mb-4 text-sm leading-relaxed"
-					style={{ color: emailBrand.foreground }}
+					style={{ color: emailBrand.muted }}
 				>
-					{greeting}
+					Current usage{context} is {usage} of {limit} {usageUnit}, with{" "}
+					{remaining} remaining.
 				</Text>
 				<Text
 					className="m-0 mb-4 text-sm leading-relaxed"
 					style={{ color: emailBrand.muted }}
 				>
-					You've used all {limitFormatted} of your included{" "}
-					{featureName.toLowerCase()} this billing period. You can continue up
-					to {graceFormatted} (1.5x) before tracking is paused. To avoid
-					interruption, consider upgrading your plan.
+					{featureDescription}
+				</Text>
+				<Text
+					className="m-0 mb-4 text-sm leading-relaxed"
+					style={{ color: emailBrand.muted }}
+				>
+					{isAvailable
+						? overageAllowed
+							? `Access to ${pausedActivity} can continue. Additional usage may be billed according to your plan.`
+							: `Access to ${pausedActivity} can continue with the remaining allowance shown above.`
+						: `Access to ${pausedActivity} is currently paused. Change the billing limit or plan to resume it${resetDate ? `, or wait until the allowance resets ${resetDate} UTC` : ""}.`}
 				</Text>
 			</Section>
 
@@ -79,22 +100,22 @@ export const UsageLimitEmail = ({
 					className="m-0 mb-1 text-center text-xs uppercase tracking-wider"
 					style={{ color: emailBrand.muted }}
 				>
-					Current Usage
+					Current usage
 				</Text>
 				<Text
 					className="m-0 text-center font-semibold text-2xl"
 					style={{ color: emailBrand.foreground }}
 				>
-					{usageFormatted}{" "}
+					{usage}{" "}
 					<span style={{ color: emailBrand.muted, fontWeight: "normal" }}>
-						/ {limitFormatted}
+						/ {limit} {usageUnit}
 					</span>
 				</Text>
 			</Section>
 
 			<Section className="text-center">
 				<EmailButton href="https://app.databuddy.cc/billing">
-					View Plans
+					Review billing settings
 				</EmailButton>
 			</Section>
 
@@ -110,6 +131,13 @@ export const UsageLimitEmail = ({
 					>
 						documentation
 					</Link>
+					, or manage these emails in your{" "}
+					<Link
+						href="https://app.databuddy.cc/settings/notifications"
+						style={{ color: emailBrand.coral, textDecoration: "underline" }}
+					>
+						notification settings
+					</Link>
 					.
 				</Text>
 			</Section>
@@ -118,11 +146,18 @@ export const UsageLimitEmail = ({
 };
 
 UsageLimitEmail.PreviewProps = {
-	featureName: "Events",
-	limitAmount: 10_000,
-	thresholdType: "limit_reached",
-	usageAmount: 10_000,
-	userName: "Ada",
+	featureDescription: DATABUNNY_USAGE.description,
+	featureName: DATABUNNY_USAGE.name,
+	isAvailable: false,
+	limitAmount: 350,
+	limitType: "included",
+	nextResetAt: Date.UTC(2026, 7, 1),
+	organizationName: "Acme Inc",
+	overageAllowed: false,
+	pausedActivity: DATABUNNY_USAGE.pausedActivity,
+	remainingAmount: 0,
+	usageAmount: 350,
+	usageUnit: DATABUNNY_USAGE.unit,
 } satisfies UsageLimitEmailProps;
 
 export default UsageLimitEmail;

@@ -12,7 +12,7 @@ import {
 	resolveDatePreset,
 } from "../../lib/date-presets";
 import { QueryBuilders } from "../../query/builders";
-import { suggestQueryTypes } from "../../query";
+import { invalidFilterFieldError, suggestQueryTypes } from "../../query";
 import type { Filter, QueryRequest } from "../../query/types";
 import { z } from "zod";
 
@@ -123,6 +123,14 @@ export function buildBatchQueryRequests(
 				error: "Either preset or both from and to required",
 				type: q.type,
 			});
+			continue;
+		}
+		const filterError = invalidFilterFieldError(
+			resolvedType,
+			q.filters as Filter[] | undefined
+		);
+		if (filterError) {
+			invalid.push({ error: filterError, type: q.type });
 			continue;
 		}
 		requests.push({

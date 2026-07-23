@@ -1,4 +1,4 @@
-import type { BlockedTraffic } from "@databuddy/db/clickhouse/schema";
+import type { BlockedTrafficInsert } from "@databuddy/db/clickhouse/tables";
 import {
 	queueBlockedTrafficAlert,
 	type BlockedTrafficAlertContext,
@@ -37,10 +37,10 @@ async function _logBlockedTrafficAsync(
 			parseUserAgent(userAgent),
 		]);
 		const now = Date.now();
-		const { anonymizedIP, country, region, city } = geo;
+		const { anonymizedIP, country, region } = geo;
 		const { browserName, browserVersion, osName, osVersion, deviceType } = ua;
 
-		const blockedEvent: BlockedTraffic = {
+		const blockedEvent: BlockedTrafficInsert = {
 			id: randomUUIDv7(),
 			client_id: clientId || "",
 			timestamp: now,
@@ -77,7 +77,6 @@ async function _logBlockedTrafficAsync(
 
 			country: country || "",
 			region: region || "",
-			city: city || "",
 			browser_name: browserName || "",
 			browser_version: browserVersion || "",
 			os_name: osName || "",

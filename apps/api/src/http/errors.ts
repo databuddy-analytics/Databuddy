@@ -1,16 +1,20 @@
 import { config } from "@databuddy/env/app";
+import { ValidationError } from "elysia";
 import { EvlogError, parseError } from "evlog";
+import { getRequestId } from "./request-id";
 
 interface AppErrorContext {
 	code?: string | number;
 	error: unknown;
+	request?: Request;
+	requestId?: string;
 }
 
 const HTTP_STATUS_BY_ERROR_CODE: Record<string, number> = {
 	AUTH_REQUIRED: 401,
 	BAD_REQUEST: 400,
 	CONFLICT: 409,
-	FEATURE_UNAVAILABLE: 403,
+	FEATURE_UNAVAILABLE: 402,
 	FORBIDDEN: 403,
 	INTERNAL_SERVER_ERROR: 500,
 	INVALID_COOKIE_SIGNATURE: 400,
@@ -25,8 +29,15 @@ const HTTP_STATUS_BY_ERROR_CODE: Record<string, number> = {
 };
 
 const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
+const LEADING_SLASH_PATTERN = /^\//;
 
-export function handleAppError({ error, code }: AppErrorContext) {
+export function handleAppError({
+	error,
+	code,
+	request,
+	requestId,
+}: AppErrorContext) {
+	const responseRequestId = requestId ?? getRequestId(request);
 	const parsed = parseError(error);
 	const statusCode = getStatusCode({
 		code,
@@ -48,8 +59,10 @@ export function handleAppError({ error, code }: AppErrorContext) {
 		isClientError,
 		statusCode,
 	});
+	const validationDetails = getValidationDetails(error, isDevelopment);
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
+		"X-Request-ID": responseRequestId,
 	};
 	if (statusCode === 401) {
 		headers["WWW-Authenticate"] =
@@ -61,14 +74,64 @@ export function handleAppError({ error, code }: AppErrorContext) {
 			success: false,
 			error: safeClientError,
 			code: errorCode,
+			requestId: responseRequestId,
 			...(hasValue(parsed.why) && exposeStructured ? { why: parsed.why } : {}),
 			...(hasValue(parsed.fix) && exposeStructured ? { fix: parsed.fix } : {}),
 			...(hasValue(parsed.link) && exposeStructured
 				? { link: parsed.link }
 				: {}),
+			...(validationDetails.length > 0 ? { details: validationDetails } : {}),
 		}),
 		{ status: statusCode, headers }
 	);
+}
+
+interface ValidationDetail {
+	field: string;
+	message: string;
+}
+
+function getValidationDetails(
+	error: unknown,
+	isDevelopment: boolean
+): ValidationDetail[] {
+	if (!(error instanceof ValidationError) || error.type === "response") {
+		return [];
+	}
+
+	const details: ValidationDetail[] = [];
+	const seenFields = new Set<string>();
+	for (const issue of error.all) {
+		const path = issue.path
+			.replace(LEADING_SLASH_PATTERN, "")
+			.split("/")
+			.filter(Boolean)
+			.join(".");
+		const field = path ? `${error.type}.${path}` : error.type;
+		if (seenFields.has(field)) {
+			continue;
+		}
+		seenFields.add(field);
+		details.push({
+			field,
+			message: isDevelopment
+				? getDevelopmentValidationMessage(issue)
+				: "Invalid value",
+		});
+		if (details.length === 20) {
+			break;
+		}
+	}
+	return details;
+}
+
+function getDevelopmentValidationMessage(issue: {
+	message: string;
+	summary?: string;
+}): string {
+	return typeof issue.summary === "string" && issue.summary
+		? issue.summary
+		: issue.message;
 }
 
 function getErrorCode({

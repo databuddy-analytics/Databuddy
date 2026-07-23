@@ -1,10 +1,13 @@
-import { repairSlackReply, validateSlackReply } from "@databuddy/ai/agent";
 import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
+import { postChartImages } from "@/slack/chart-images";
 import { SLACK_COPY } from "@/slack/messages";
-import { renderAgentOutputForSlack } from "@/slack/output-adapter";
+import {
+	type DashboardComponentPayload,
+	renderAgentOutputForSlack,
+} from "@/slack/output-adapter";
 import type { SlackAgentClient } from "@/slack/types";
 
 const STREAM_FLUSH_INTERVAL_MS = 900;
@@ -37,7 +40,7 @@ type SayFn = (message: {
 interface StreamAgentToSlackOptions {
 	abortSignal?: AbortSignal;
 	agent: Pick<DatabuddyAgentClient, "stream">;
-	client: Pick<SlackAgentClient, "chat">;
+	client: Pick<SlackAgentClient, "chat" | "files">;
 	eventLog?: RequestLogger;
 	logger: LoggerLike;
 	run: SlackAgentRun;
@@ -85,6 +88,7 @@ export async function streamAgentToSlack({
 	let chunkCount = 0;
 	let convertedComponents = 0;
 	let droppedComponents = 0;
+	let charts: DashboardComponentPayload[] = [];
 	let lastFlushAt = Date.now();
 	let thinkingResolved = false;
 
@@ -120,9 +124,13 @@ export async function streamAgentToSlack({
 	};
 
 	const renderIncremental = (streaming: boolean) => {
-		const rendered = renderAgentOutputForSlack(fullText, { streaming });
+		const rendered = renderAgentOutputForSlack(fullText, {
+			extractCharts: true,
+			streaming,
+		});
 		convertedComponents = rendered.convertedComponents;
 		droppedComponents = rendered.droppedComponents;
+		charts = rendered.charts;
 		if (rendered.markdown.startsWith(safeMarkdown)) {
 			pending += rendered.markdown.slice(safeMarkdown.length);
 			safeMarkdown = rendered.markdown;
@@ -139,14 +147,7 @@ export async function streamAgentToSlack({
 		renderIncremental(false);
 		await flush(true);
 
-		const rawFinalText = safeMarkdown.trim();
-		const repaired = await maybeRepairReply({
-			abortSignal,
-			draft: rawFinalText,
-			eventLog,
-			logger,
-		});
-		const finalText = repaired.text;
+		const finalText = safeMarkdown.trim();
 		if (streamTs) {
 			if (!thinkingResolved) {
 				await resolveThinking(client, run.channelId, streamTs, "complete");
@@ -162,18 +163,10 @@ export async function streamAgentToSlack({
 				startedAt,
 				streamTs,
 			});
-			if (repaired.applied) {
-				await replaceStreamedMessage({
-					channelId: run.channelId,
-					client,
-					logger,
-					text: finalText,
-					ts: streamTs,
-				});
-			}
+			await postChartImages({ charts, client, eventLog, logger, run, say });
 			return result;
 		}
-		return sendFinalMessage({
+		const result = await sendFinalMessage({
 			convertedComponents,
 			droppedComponents,
 			eventLog,
@@ -183,12 +176,19 @@ export async function streamAgentToSlack({
 			chunkCount,
 			startedAt,
 		});
+		await postChartImages({ charts, client, eventLog, logger, run, say });
+		return result;
 	} catch (error) {
+		const abortReason =
+			abortSignal?.aborted && typeof abortSignal.reason === "string"
+				? abortSignal.reason
+				: undefined;
 		if (streamTs && !thinkingResolved) {
 			const status =
-				abortSignal?.aborted ||
-				isAbortError(error) ||
-				isSlackUserCancellation(error)
+				abortReason !== "timeout" &&
+				(abortSignal?.aborted ||
+					isAbortError(error) ||
+					isSlackUserCancellation(error))
 					? "complete"
 					: "error";
 			await resolveThinking(client, run.channelId, streamTs, status);
@@ -196,7 +196,14 @@ export async function streamAgentToSlack({
 
 		if (abortSignal?.aborted || isAbortError(error)) {
 			if (streamTs) {
-				await flushAndStop(client, run.channelId, streamTs, pending, logger);
+				await flushAndStop(
+					client,
+					run.channelId,
+					streamTs,
+					pending,
+					logger,
+					abortStopText(abortReason)
+				);
 			}
 			return abortedResult(safeMarkdown, chunkCount, streamTs);
 		}
@@ -233,80 +240,6 @@ export async function streamAgentToSlack({
 
 function markdownChunk(text: string) {
 	return { text, type: "markdown_text" as const };
-}
-
-interface MaybeRepairOptions {
-	abortSignal?: AbortSignal;
-	draft: string;
-	eventLog?: RequestLogger;
-	logger: LoggerLike;
-}
-
-async function maybeRepairReply({
-	abortSignal,
-	draft,
-	eventLog,
-	logger,
-}: MaybeRepairOptions): Promise<{ applied: boolean; text: string }> {
-	if (!draft) {
-		return { applied: false, text: draft };
-	}
-	const validation = validateSlackReply(draft);
-	if (validation.valid) {
-		return { applied: false, text: draft };
-	}
-	setSlackLog(eventLog, {
-		slack_reply_repair_issues: validation.issues.length,
-		slack_reply_repair_issue_codes: validation.issues
-			.map((i) => i.code)
-			.join(","),
-		slack_reply_repair_triggered: true,
-	});
-	try {
-		const corrected = await repairSlackReply({
-			abortSignal,
-			draft,
-			issues: validation.issues,
-		});
-		if (!(corrected && corrected !== draft)) {
-			setSlackLog(eventLog, { slack_reply_repair_no_change: true });
-			return { applied: false, text: draft };
-		}
-		const post = validateSlackReply(corrected);
-		setSlackLog(eventLog, {
-			slack_reply_repair_applied: true,
-			slack_reply_repair_residual_issues: post.issues.length,
-		});
-		return { applied: true, text: corrected };
-	} catch (error) {
-		logger.warn("Failed to repair slack reply", toError(error));
-		setSlackLog(eventLog, { slack_reply_repair_failed: true });
-		return { applied: false, text: draft };
-	}
-}
-
-async function replaceStreamedMessage({
-	channelId,
-	client,
-	logger,
-	text,
-	ts,
-}: {
-	channelId: string;
-	client: Pick<SlackAgentClient, "chat">;
-	logger: LoggerLike;
-	text: string;
-	ts: string;
-}): Promise<void> {
-	try {
-		await client.chat.update({
-			channel: channelId,
-			text,
-			ts,
-		});
-	} catch (error) {
-		logger.warn("Failed to update slack message with repaired text", error);
-	}
 }
 
 function thinkingTaskChunk(status: "complete" | "error" | "in_progress") {
@@ -501,7 +434,7 @@ async function recoverFromError({
 			streamTs,
 			pending,
 			logger,
-			partialText ? undefined : failureText
+			partialText ? SLACK_COPY.responseInterrupted : failureText
 		);
 		return {
 			answerChars: partialText.length,
@@ -513,7 +446,9 @@ async function recoverFromError({
 	}
 
 	const response = await say({
-		text: partialText || failureText,
+		text: partialText
+			? `${partialText}\n\n${SLACK_COPY.responseInterrupted}`
+			: failureText,
 		thread_ts: run.threadTs,
 	});
 	return {
@@ -558,6 +493,16 @@ function logStreamError(
 		logger.error("Slack agent response failed", err);
 		eventLog?.error(err, { error_step: "agent_response" });
 	}
+}
+
+function abortStopText(reason: string | undefined): string | undefined {
+	if (reason === "timeout") {
+		return SLACK_COPY.agentTimeout;
+	}
+	if (reason === "shutdown") {
+		return SLACK_COPY.agentRestarted;
+	}
+	return;
 }
 
 function abortedResult(

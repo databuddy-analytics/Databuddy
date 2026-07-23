@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Button, Field, Input } from "@databuddy/ui";
 import { Sheet } from "@databuddy/ui/client";
 
@@ -17,21 +17,20 @@ export function LinkFolderSheet({
 	onOpenChange,
 	open,
 }: LinkFolderSheetProps) {
-	const [name, setName] = useState("");
-	const trimmedName = name.trim();
-
-	useEffect(() => {
-		if (!open) {
-			setName("");
-		}
-	}, [open]);
+	const [error, setError] = useState<string | null>(null);
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		if (!trimmedName) {
+		const form = event.currentTarget;
+		const name = new FormData(form).get("name")?.toString().trim() ?? "";
+
+		if (!name) {
+			setError("Enter a folder name.");
 			return;
 		}
-		await onCreate(trimmedName);
+		setError(null);
+		await onCreate(name);
+		form.reset();
 	};
 
 	return (
@@ -51,11 +50,14 @@ export function LinkFolderSheet({
 						<Field>
 							<Field.Label>Folder Name</Field.Label>
 							<Input
+								aria-invalid={error ? true : undefined}
 								autoFocus
-								onChange={(event) => setName(event.target.value)}
+								name="name"
+								onChange={() => setError(null)}
 								placeholder="Posts"
-								value={name}
+								required
 							/>
+							{error ? <Field.Error>{error}</Field.Error> : null}
 						</Field>
 					</Sheet.Body>
 					<Sheet.Footer>
@@ -66,7 +68,7 @@ export function LinkFolderSheet({
 						>
 							Cancel
 						</Button>
-						<Button disabled={!trimmedName} loading={isCreating} type="submit">
+						<Button loading={isCreating} type="submit">
 							Create Folder
 						</Button>
 					</Sheet.Footer>

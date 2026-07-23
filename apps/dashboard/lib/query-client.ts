@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { isAbortError } from "@/lib/is-abort-error";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 
 const SILENCED_ERROR_CODES = new Set([
 	"UNAUTHORIZED",
@@ -53,9 +54,9 @@ function isSilencedError(error: unknown): boolean {
 
 function reportError(error: unknown) {
 	const err = error instanceof Error ? error : new Error(String(error));
-	const message = err.message || "Unknown error";
-	toast.error(message);
-	trackError(message, {
+	const internalMessage = err.message || "Unknown error";
+	toast.error(getUserFacingErrorMessage(error));
+	trackError(internalMessage, {
 		stack: err.stack,
 		error_type: err.name,
 		cause: err.cause ? String(err.cause) : undefined,

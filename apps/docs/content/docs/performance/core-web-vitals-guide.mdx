@@ -1,6 +1,6 @@
 ---
 title: "Core Web Vitals Guide: Improve SEO & User Experience"
-description: "Complete guide to Core Web Vitals - LCP, FID, and CLS. Learn how to measure, optimize, and monitor these crucial SEO ranking factors for better search performance."
+description: "Complete guide to Core Web Vitals - LCP, INP, and CLS. Learn how to measure, optimize, and monitor these user-experience signals."
 icon: "Zap"
 ---
 
@@ -15,7 +15,7 @@ Core Web Vitals are essential metrics that Google uses to evaluate user experien
 ### The Three Core Web Vitals
 
 1. **Largest Contentful Paint (LCP)** - Loading performance
-2. **First Input Delay (FID)** - Interactivity
+2. **Interaction to Next Paint (INP)** - Responsiveness
 3. **Cumulative Layout Shift (CLS)** - Visual stability
 
 ## 1. Largest Contentful Paint (LCP)
@@ -103,25 +103,25 @@ LCP measures how long it takes for the largest content element to become visible
   <link rel="preconnect" href="https://fonts.googleapis.com">`}
 />
 
-## 2. First Input Delay (FID)
+## 2. Interaction to Next Paint (INP)
 
-### What is FID?
-FID measures the time from when a user first interacts with your page (clicks a link, taps a button) to when the browser actually begins processing that interaction.
+### What is INP?
+INP measures how quickly a page responds visually to interactions across the visit, such as clicks, taps, and keyboard input.
 
-### FID Thresholds
-- **Good:** 100 milliseconds or less
-- **Needs Improvement:** 100 to 300 milliseconds
-- **Poor:** More than 300 milliseconds
+### INP Thresholds
+- **Good:** 200 milliseconds or less
+- **Needs Improvement:** 200 to 500 milliseconds
+- **Poor:** More than 500 milliseconds
 
-### How to Measure FID
+### How to Measure INP
 
 **Using Databuddy:**
 <CodeBlock 
   language="javascript"
-  code={`// Databuddy tracks FID automatically
+  code={`// Databuddy tracks INP when Web Vitals are enabled
   databuddy.track('core_web_vital', {
-    metric: 'FID',
-    value: fidValue,
+    metric: 'INP',
+    value: inpValue,
     eventType: eventType
   });`}
 />
@@ -129,15 +129,14 @@ FID measures the time from when a user first interacts with your page (clicks a 
 **Using JavaScript:**
 <CodeBlock 
   language="javascript"
-  code={`new PerformanceObserver((entryList) => {
-    for (const entry of entryList.getEntries()) {
-      const FID = entry.processingStart - entry.startTime;
-      console.log('FID:', FID);
-    }
-  }).observe({entryTypes: ['first-input']});`}
+  code={`import { onINP } from 'web-vitals';
+
+  onINP((metric) => {
+    console.log('INP:', metric.value);
+  });`}
 />
 
-### FID Optimization Strategies
+### INP Optimization Strategies
 
 #### 1. Reduce JavaScript Execution Time
 ```javascript
@@ -279,7 +278,7 @@ Since June 2021, Core Web Vitals are official Google ranking factors:
 // Track Core Web Vitals impact on SEO
 databuddy.track('seo_performance', {
   lcp: lcpValue,
-  fid: fidValue,
+  inp: inpValue,
   cls: clsValue,
   searchRanking: currentRanking,
   organicTraffic: trafficData
@@ -296,8 +295,7 @@ Monitor actual user experiences:
 // Screen views are tracked automatically
 <Databuddy
   clientId="your-client-id"
-  trackPerformance // Enables Core Web Vitals tracking
-  trackWebVitals
+  trackWebVitals // Enables Core Web Vitals tracking
   trackErrors
 />
 ```
@@ -348,7 +346,7 @@ jobs:
 Many analytics tools negatively impact Core Web Vitals:
 
 - **Large script sizes** - Increase LCP
-- **Blocking JavaScript** - Worsen FID
+- **Blocking JavaScript** - Worsen INP
 - **Dynamic content injection** - Cause CLS
 - **Third-party requests** - Slow loading
 
@@ -364,7 +362,7 @@ Many analytics tools negatively impact Core Web Vitals:
 ```
 
 **Performance Benefits:**
-- **Under 30 KB minified** - Full-featured script size
+- **About 11 KB gzipped** - Current tracker bundle size
 - **Async loading** - No render blocking
 - **Edge CDN** - Fast global delivery
 - **No layout shifts** - Stable tracking
@@ -380,7 +378,7 @@ Many analytics tools negatively impact Core Web Vitals:
 - [ ] Remove render-blocking resources
 - [ ] Use a CDN for static assets
 
-### FID Optimization
+### INP Optimization
 - [ ] Minimize JavaScript execution time
 - [ ] Implement code splitting
 - [ ] Use Web Workers for heavy tasks
@@ -409,7 +407,7 @@ Many analytics tools negatively impact Core Web Vitals:
 </picture>
 ```
 
-### Issue 2: Third-Party Scripts Blocking FID
+### Issue 2: Third-Party Scripts Hurting INP
 **Problem:** Synchronous third-party scripts
 **Solution:**
 ```html
@@ -488,7 +486,7 @@ if ('IntersectionObserver' in window) {
 ### Key Performance Indicators
 Track these metrics to measure Core Web Vitals improvement:
 
-- **Core Web Vitals scores** - LCP, FID, CLS values
+- **Core Web Vitals scores** - LCP, INP, CLS values
 - **Search rankings** - Position changes for target keywords
 - **Organic traffic** - Search engine traffic growth
 - **User engagement** - Bounce rate, time on page
@@ -500,8 +498,8 @@ Track these metrics to measure Core Web Vitals improvement:
 databuddy.track('performance_improvement', {
   beforeLCP: 3.2,
   afterLCP: 2.1,
-  beforeFID: 150,
-  afterFID: 80,
+  beforeINP: 320,
+  afterINP: 180,
   beforeCLS: 0.25,
   afterCLS: 0.08,
   trafficIncrease: '15%',

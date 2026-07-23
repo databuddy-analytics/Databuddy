@@ -21,7 +21,7 @@ export default function ErrorPage({
 		<StatusErrorShell
 			action={<StatusRetryButton onClick={reset} />}
 			code="500"
-			description="Our bunny tripped over a wire. Let's try that again."
+			description="An unexpected error prevented this page from loading. Try again in a moment."
 			detail={error.digest}
 			title="Something went wrong"
 		/>

@@ -71,7 +71,7 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Google Analytics",
 			description:
-				"GA4 is powerful. It's also 45KB of tracking script, a cookie consent requirement, and dozens of configuration steps between you and usable data. Databuddy is 3KB, no banners, and tracking in five minutes.",
+				"GA4 is powerful, but it can take time to configure. Databuddy uses an asynchronous tracker of about 11 KB gzip and is designed to start showing data within minutes.",
 			cta: "Switch to privacy-first analytics",
 		},
 		seo: {
@@ -85,7 +85,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: false,
 				benefit:
-					"No consent banners - many EU sites lose 30–40% of visits to consent friction; cookieless keeps that traffic",
+					"Avoid analytics-specific consent friction when your configuration and jurisdiction allow cookieless measurement",
 				category: "privacy",
 			},
 			{
@@ -138,11 +138,11 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: true,
 				competitor: false,
 				benefit:
-					"3KB vs 45KB+ (gtag + GTM) - lighter JS and better Core Web Vitals",
+					"About 11 KB gzip for the current Databuddy tracker; measure both tools on your own site",
 				category: "performance",
 			},
 			{
-				name: "AI insights (Databunny)",
+				name: "Automatic investigations (Databunny)",
 				databuddy: true,
 				competitor: true,
 				benefit: "Ask questions in plain English vs navigating complex reports",
@@ -215,14 +215,14 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is there a free Google Analytics alternative?",
 				answer:
-					"Yes. Databuddy's free plan includes up to 10,000 pageviews/month with all features - AI insights, custom events, real-time analytics - with no hidden costs like BigQuery or consent platform fees.",
+					"Yes. Databuddy's free plan includes 10,000 events per month, core analytics, Web Vitals, one funnel, two goals, and up to three feature flags. Some capabilities, including error tracking, require a paid plan.",
 			},
 		],
 		pricingTiers: [
 			{
 				pageviews: "Up to 10K",
 				competitor: "Free (with sampling, 14-mo retention)",
-				databuddy: "Free (all features)",
+				databuddy: "Free (core analytics)",
 			},
 			{
 				pageviews: "Consent platform",
@@ -248,7 +248,7 @@ export const competitors: Record<string, ComparisonData> = {
 		migrationSection: {
 			heading: "Switch from GA4 to Databuddy in under 10 minutes",
 			steps: [
-				"Add one async script tag (~3KB)",
+				"Add one asynchronous script tag (about 11 KB gzip)",
 				"No GTM configuration required",
 				"Page views and events flow automatically - no Enhanced Measurement setup",
 				"GDPR-friendly by default - you can remove your analytics consent banner",
@@ -273,17 +273,17 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Plausible",
 			description:
-				"Plausible shows you the numbers. Databuddy tells you what they mean. Same privacy values, dramatically more signal - with AI insights, product analytics, and a free plan.",
-			cta: "Everything Plausible does, free - plus AI",
+				"Plausible focuses on traffic totals. Databuddy adds product analytics, automatic investigations, and a free plan.",
+			cta: "Compare analytics capabilities",
 		},
 		seo: {
 			title: "Databuddy vs Plausible: Complete Analytics Comparison 2026",
 			description:
-				"Compare Databuddy and Plausible analytics. Databuddy offers AI insights, product analytics, user identification, and a free plan that Plausible doesn't have.",
+				"Compare Databuddy and Plausible analytics. Databuddy offers automatic investigations, product analytics, user identification, and a free plan that Plausible doesn't have.",
 		},
 		features: [
 			{
-				name: "AI-powered insights (Databunny)",
+				name: "Automatic investigations (Databunny)",
 				databuddy: true,
 				competitor: false,
 				benefit: "Ask questions in plain English, get instant answers",
@@ -307,7 +307,7 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Free plan forever",
 				databuddy: true,
 				competitor: false,
-				benefit: "10K pageviews at $0/mo - Plausible starts at $9/mo",
+				benefit: "10K analytics events are included on Databuddy's free plan",
 				category: "pricing",
 			},
 			{
@@ -392,7 +392,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Plausible Analytics free?",
 				answer:
-					"No. Plausible starts at $9/month for 10K pageviews with a 30-day trial. Databuddy has a free forever plan with up to 10,000 pageviews/month and all features included.",
+					"Databuddy has a free plan with 10,000 analytics events per month and a defined set of included capabilities. Check Plausible's current pricing page for its latest allowance and trial terms.",
 			},
 			{
 				question: "Does Plausible have AI analytics?",
@@ -402,7 +402,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy have that Plausible doesn't?",
 				answer:
-					"Product analytics with user-level tracking, AI-powered insights, user identification, feature flags, uptime monitoring, custom dashboards, raw data export, and a free forever plan.",
+					"Product analytics with user-level tracking, automatic investigations, user identification, feature flags, uptime monitoring, custom dashboards, raw data export, and a free forever plan.",
 			},
 			{
 				question: "Is Databuddy open source?",
@@ -412,7 +412,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Can I switch from Plausible to Databuddy?",
 				answer:
-					"Yes. Add the 3KB Databuddy script to your site and start tracking immediately. No migration needed - you'll see data from the first visit.",
+					"Yes. Add the asynchronous Databuddy tracker alongside Plausible and compare results before removing either tool. The current Databuddy bundle is about 11 KB gzip.",
 			},
 		],
 		pricingTiers: [
@@ -432,7 +432,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Free",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic investigations",
 				competitor: "Not available",
 				databuddy: "Free",
 			},
@@ -465,13 +465,13 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Fathom Analytics",
 			description:
-				"Fathom is great for simple traffic stats. When you need to understand your users, you need Databuddy - product analytics, AI-powered insights, and a free plan. Same privacy values, dramatically more signal.",
+				"Fathom focuses on traffic stats. Databuddy adds product analytics, automatic investigations, and a free plan.",
 			cta: "Get more for less",
 		},
 		seo: {
 			title: "Databuddy vs Fathom Analytics: Feature & Price Comparison 2026",
 			description:
-				"Compare Databuddy and Fathom Analytics. See why Databuddy offers AI insights, product analytics, and a free tier for privacy-first analytics.",
+				"Compare Databuddy and Fathom Analytics. See why Databuddy offers automatic investigations, product analytics, and a free tier for privacy-first analytics.",
 		},
 		features: [
 			{
@@ -523,7 +523,7 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Free tier included",
 				databuddy: true,
 				competitor: false,
-				benefit: "10K pageviews at $0/mo - Fathom minimum is $15/mo",
+				benefit: "10K analytics events are included on Databuddy's free plan",
 				category: "pricing",
 			},
 			{
@@ -579,7 +579,7 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Team collaboration",
 				databuddy: true,
 				competitor: true,
-				benefit: "Share insights across your organization",
+				benefit: "Share findings across your organization",
 				category: "features",
 			},
 			{
@@ -604,7 +604,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Fathom cheaper than Databuddy?",
 				answer:
-					"No. Fathom starts at $15/month with no free plan. Databuddy is free for up to 10,000 pageviews/month with all features included.",
+					"Databuddy has a free plan with 10,000 analytics events per month and a defined set of included capabilities. Check Fathom's current pricing page for its latest terms.",
 			},
 			{
 				question: "Can I self-host Fathom Analytics?",
@@ -614,7 +614,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "What does Databuddy have that Fathom doesn't?",
 				answer:
-					"AI-powered insights, product analytics, custom dashboards, funnels and goals, self-hosting, uptime monitoring, and a free forever plan.",
+					"Automatic investigations, product analytics, custom dashboards, funnels and goals, self-hosting, uptime monitoring, and a free forever plan.",
 			},
 		],
 		pricingTiers: [
@@ -672,7 +672,7 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs PostHog",
 			description:
-				"PostHog is 10+ products. You're probably only using 2. Databuddy gives you what matters - analytics and AI insights - at 1/17th the script size.",
+				"PostHog is 10+ products. You're probably only using 2. Databuddy gives you what matters - analytics and automatic investigations - at 1/17th the script size.",
 			cta: "Lighter, faster, AI-native analytics",
 		},
 		seo: {
@@ -682,17 +682,18 @@ export const competitors: Record<string, ComparisonData> = {
 		},
 		features: [
 			{
-				name: "AI insights (Databunny NLP)",
+				name: "Automatic investigations (Databunny)",
 				databuddy: true,
 				competitor: false,
 				benefit: "Ask questions in plain English, get instant answers",
 				category: "features",
 			},
 			{
-				name: "Lightweight script (3KB)",
+				name: "Lightweight asynchronous tracker",
 				databuddy: true,
 				competitor: false,
-				benefit: "3KB vs 52KB+ - better Core Web Vitals",
+				benefit:
+					"Databuddy's current tracker is about 11 KB gzip; measure production impact on your site",
 				category: "performance",
 			},
 			{
@@ -791,7 +792,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is PostHog free?",
 				answer:
-					"PostHog has a free tier, but costs scale quickly with usage. The median annual contract is ~$54,000/year according to Vendr data. Databuddy's free plan includes 10K pageviews with all features.",
+					"Databuddy's free plan includes 10,000 analytics events per month with core analytics and limited feature flags. Check PostHog's current pricing page for its latest event allowances and product limits.",
 			},
 			{
 				question: "Is PostHog overkill for most teams?",
@@ -806,19 +807,19 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Does Databuddy have session replay?",
 				answer:
-					"Not yet. If session replay is critical for your workflow, PostHog is the better choice. Databuddy focuses on analytics, AI insights, and product analytics.",
+					"Not yet. If session replay is critical for your workflow, PostHog is the better choice. Databuddy focuses on analytics, automatic investigations, and product analytics.",
 			},
 			{
 				question: "Why choose Databuddy over PostHog?",
 				answer:
-					"If you need fast, lightweight, privacy-first analytics with AI insights and don't need session replay or A/B testing, Databuddy is the leaner choice - 3KB script vs 52KB+, simpler pricing, and GDPR compliant by default.",
+					"If you need lightweight analytics and AI-assisted analysis without session replay or A/B testing, Databuddy offers a narrower product surface and a tracker of about 11 KB gzip.",
 			},
 		],
 		pricingTiers: [
 			{
 				pageviews: "Free tier",
 				competitor: "1M events/mo (then $0.00031/event)",
-				databuddy: "10K pageviews/mo (all features)",
+				databuddy: "10K events/mo (core analytics)",
 			},
 			{
 				pageviews: "Session replay",
@@ -853,17 +854,17 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Umami",
 			description:
-				"Same privacy values, dramatically more signal. Umami shows numbers - Databuddy shows what they mean with AI insights, product analytics, and user identification.",
+				"Umami focuses on traffic totals. Databuddy adds automatic investigations, product analytics, and user identification.",
 			cta: "Beyond basic analytics",
 		},
 		seo: {
 			title: "Databuddy vs Umami: Analytics Comparison 2026",
 			description:
-				"Compare Databuddy and Umami analytics. Both are open-source and privacy-first. Databuddy adds AI insights, product analytics, and user identification.",
+				"Compare Databuddy and Umami analytics. Both are open-source and privacy-first. Databuddy adds automatic investigations, product analytics, and user identification.",
 		},
 		features: [
 			{
-				name: "AI insights (Databunny NLP)",
+				name: "Automatic investigations (Databunny)",
 				databuddy: true,
 				competitor: false,
 				benefit: "Ask questions in plain English, get instant answers",
@@ -898,10 +899,10 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "features",
 			},
 			{
-				name: "AI email reports",
+				name: "Scheduled Slack investigations",
 				databuddy: true,
 				competitor: false,
-				benefit: "Auto-generated insights delivered to your inbox",
+				benefit: "New investigations sent to your Slack channels",
 				category: "features",
 			},
 			{
@@ -965,12 +966,12 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Umami free?",
 				answer:
-					"Umami is free to self-host (MIT license). Umami Cloud offers 10K events free, then starts at $9/month. Databuddy's free plan includes 10K pageviews with all features including AI insights.",
+					"Databuddy's free plan includes 10,000 analytics events per month, core analytics, and a small Databunny analysis allowance. Check Umami's current pricing page for its latest cloud allowances.",
 			},
 			{
 				question: "What does Databuddy have that Umami doesn't?",
 				answer:
-					"AI-powered insights (Databunny), product analytics with user-level tracking, user identification, feature flags, uptime monitoring, custom dashboards, funnels, and AI-generated email reports.",
+					"AI-assisted analysis with Databunny, product analytics, feature flags, uptime monitoring, custom dashboards, funnels, and scheduled Slack investigations.",
 			},
 			{
 				question: "Can Umami identify individual users?",
@@ -980,7 +981,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Which is better for developers?",
 				answer:
-					"Both are developer-friendly. If you just need basic pageview analytics, Umami is great. If you want AI insights, product analytics, and feature flags alongside web analytics, Databuddy is the better fit.",
+					"Both are developer-friendly. If you just need basic pageview analytics, Umami is great. If you want automatic investigations, product analytics, and feature flags alongside web analytics, Databuddy is the better fit.",
 			},
 		],
 		pricingTiers: [
@@ -992,7 +993,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Cloud (10K events)",
 				competitor: "Free",
-				databuddy: "Free (all features)",
+				databuddy: "Free (core analytics)",
 			},
 			{
 				pageviews: "Cloud (100K events)",
@@ -1000,7 +1001,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Paid plan",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic investigations",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1033,7 +1034,7 @@ export const competitors: Record<string, ComparisonData> = {
 		seo: {
 			title: "Databuddy vs Mixpanel: Simpler Product Analytics 2026",
 			description:
-				"Compare Databuddy and Mixpanel. Databuddy unifies web and product analytics with AI insights, simpler setup, and a free plan - no data team required.",
+				"Compare Databuddy and Mixpanel. Databuddy unifies web and product analytics with automatic investigations, simpler setup, and a free plan - no data team required.",
 		},
 		features: [
 			{
@@ -1133,7 +1134,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Mixpanel free?",
 				answer:
-					"Mixpanel has a limited free tier (20M events/month) but critical features like group analytics and data pipelines require paid plans starting at ~$24/month. Databuddy's free plan includes 10K pageviews with all features.",
+					"Databuddy's free plan includes 10,000 analytics events per month with core analytics. Check Mixpanel's current pricing page for its latest event allowance and feature limits.",
 			},
 			{
 				question: "Do I need a data team for Mixpanel?",
@@ -1153,14 +1154,14 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Can I switch from Mixpanel to Databuddy?",
 				answer:
-					"Yes. Add the Databuddy script and start tracking immediately. For product analytics, you'll get AI-powered insights without the complex event instrumentation Mixpanel requires.",
+					"Yes. Add the Databuddy script and start tracking immediately. For product analytics, you'll get automatic investigations without the complex event instrumentation Mixpanel requires.",
 			},
 		],
 		pricingTiers: [
 			{
 				pageviews: "Free tier",
 				competitor: "20M events (limited features)",
-				databuddy: "10K pageviews (all features)",
+				databuddy: "10K events (core analytics)",
 			},
 			{
 				pageviews: "Growth plan",
@@ -1173,7 +1174,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Included",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic investigations",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1200,8 +1201,8 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Amplitude",
 			description:
-				"Amplitude is built for companies with analysts. Databuddy is built for founders without one. Same behavioral insights, powered by AI, at a fraction of the cost.",
-			cta: "Enterprise insights without the enterprise price",
+				"Amplitude is built for data teams. Databuddy gives startups simpler product analytics with an AI agent and transparent pricing.",
+			cta: "Product analytics without a data team",
 		},
 		seo: {
 			title: "Databuddy vs Amplitude: Analytics for Startups 2026",
@@ -1314,12 +1315,12 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Amplitude free?",
 				answer:
-					"Amplitude has a free Starter plan with limited features and 50K MTUs. The Plus plan starts at $49/month, and Growth/Enterprise require custom pricing. Databuddy is free for up to 10K pageviews with all features.",
+					"Databuddy's free plan includes 10,000 analytics events per month with core analytics. Check Amplitude's current pricing page for its latest usage model and feature limits.",
 			},
 			{
 				question: "Do I need a data team for Amplitude?",
 				answer:
-					"Most teams that get real value from Amplitude have dedicated analysts or data engineers. Databuddy's AI agent (Databunny) replaces that need - ask questions in plain English, get instant answers.",
+					"Databunny helps non-specialists ask analytics questions in plain English. Complex decisions can still require an analyst to validate definitions and conclusions.",
 			},
 			{
 				question: "Is Amplitude overkill for startups?",
@@ -1336,7 +1337,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Free tier",
 				competitor: "Starter (limited, 50K MTUs)",
-				databuddy: "Free (all features, 10K pageviews)",
+				databuddy: "Free (core analytics, 10K events)",
 			},
 			{
 				pageviews: "Paid plan",
@@ -1349,7 +1350,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Contact us",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic investigations",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1376,13 +1377,13 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Rybbit",
 			description:
-				"We share the same values on privacy. We disagree on whether AI should help you understand your data. Same cookieless analytics, opposite bets on insights.",
+				"Both are cookieless and privacy-first. Databuddy adds an AI agent, automatic investigations, and product analytics.",
 			cta: "Analytics that tells you what your data means",
 		},
 		seo: {
 			title: "Databuddy vs Rybbit: Analytics Comparison 2026",
 			description:
-				"Compare Databuddy and Rybbit analytics. Both are open-source and privacy-first. Databuddy adds AI insights, product analytics, and user identification.",
+				"Compare Databuddy and Rybbit analytics. Both are open-source and privacy-first. Databuddy adds automatic investigations, product analytics, and user identification.",
 		},
 		features: [
 			{
@@ -1421,10 +1422,10 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "features",
 			},
 			{
-				name: "AI email reports",
+				name: "Scheduled Slack investigations",
 				databuddy: true,
 				competitor: false,
-				benefit: "Auto-generated insights delivered to your inbox",
+				benefit: "New investigations sent to your Slack channels",
 				category: "features",
 			},
 			{
@@ -1438,7 +1439,8 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Lightweight script",
 				databuddy: true,
 				competitor: true,
-				benefit: "Databuddy: 3KB / Rybbit: ~9KB - both fast",
+				benefit:
+					"Databuddy's current tracker is about 11 KB gzip; compare current builds directly",
 				category: "performance",
 			},
 			{
@@ -1486,17 +1488,17 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Does Rybbit have AI analytics?",
 				answer:
-					"No. Rybbit's founder has publicly stated that NLP-powered analytics insights are unnecessary. Databuddy's users disagree - Databunny is one of the most requested features.",
+					"Check Rybbit's current feature list. Databuddy includes Databunny for plain-English questions and automatic investigations.",
 			},
 			{
 				question: "Is Rybbit free?",
 				answer:
-					"Rybbit is free to self-host. Their managed cloud is still early. Databuddy offers both a free managed cloud plan (10K pageviews) and self-hosting.",
+					"Databuddy offers a managed free plan with 10,000 analytics events per month as well as a self-hosting option. Check Rybbit's current site for its hosted offering.",
 			},
 			{
 				question: "Which has better privacy?",
 				answer:
-					"Both are excellent on privacy - cookieless, GDPR compliant, open-source. Neither collects personal data. The choice comes down to whether you want AI insights and product analytics.",
+					"Both are excellent on privacy - cookieless, GDPR compliant, open-source. Neither collects personal data. The choice comes down to whether you want automatic investigations and product analytics.",
 			},
 		],
 		pricingTiers: [
@@ -1508,10 +1510,10 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Managed cloud",
 				competitor: "Early / limited",
-				databuddy: "Free (10K pageviews)",
+				databuddy: "Free (10K events)",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic investigations",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1538,18 +1540,18 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Vercel Analytics",
 			description:
-				"Vercel Analytics is built for Vercel. Databuddy is built for your stack. Same framework-native feel, but with error tracking, feature flags, AI insights, and a free tier that works on any host.",
+				"Vercel Analytics is built for Vercel. Databuddy is built for your stack. Same framework-native feel, but with error tracking, feature flags, automatic investigations, and a free tier that works on any host.",
 			cta: "Full analytics on any platform",
 		},
 		seo: {
 			title:
 				"Databuddy vs Vercel Analytics: Next.js Analytics Alternative 2026",
 			description:
-				"Compare Databuddy and Vercel Analytics for Next.js and React apps. Databuddy adds error tracking, feature flags, AI insights, and works on any hosting provider.",
+				"Compare Databuddy and Vercel Analytics for Next.js and React apps. Databuddy adds error tracking, feature flags, automatic investigations, and works on any hosting provider.",
 		},
 		features: [
 			{
-				name: "AI insights (Databunny NLP)",
+				name: "Automatic investigations (Databunny)",
 				databuddy: true,
 				competitor: false,
 				benefit:
@@ -1659,7 +1661,8 @@ export const competitors: Record<string, ComparisonData> = {
 				name: "Lightweight script",
 				databuddy: true,
 				competitor: true,
-				benefit: "Both are lightweight. Databuddy: 3KB, Vercel Analytics: ~1KB",
+				benefit:
+					"Both are designed to be lightweight; Databuddy's current tracker is about 11 KB gzip",
 				category: "performance",
 			},
 		],
@@ -1672,7 +1675,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Vercel Analytics free?",
 				answer:
-					"Vercel includes basic analytics on all plans, but the free tier is limited. Higher volume and features require Vercel Pro ($20/mo per user) or Enterprise. Databuddy is free for up to 10K pageviews with all features, on any host.",
+					"Databuddy's free plan includes 10,000 analytics events per month with core analytics and works across hosting providers. Check Vercel's current pricing page for its latest Analytics allowance.",
 			},
 			{
 				question: "Can I use Databuddy with Next.js?",
@@ -1682,19 +1685,19 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Does Vercel Analytics have error tracking?",
 				answer:
-					"No. Vercel Analytics tracks pageviews and Web Vitals only. For error tracking you need a separate tool. Databuddy includes error tracking, feature flags, and AI insights in the same script.",
+					"No. Vercel Analytics tracks pageviews and Web Vitals only. For error tracking you need a separate tool. Databuddy includes error tracking, feature flags, and automatic investigations in the same script.",
 			},
 			{
 				question: "Why choose Databuddy over Vercel Analytics?",
 				answer:
-					"If you only need basic pageview counts on Vercel, Vercel Analytics is fine. If you want error tracking, feature flags, AI-powered insights, custom events, funnels, and the freedom to host anywhere, Databuddy is the better choice.",
+					"If you only need basic pageview counts on Vercel, Vercel Analytics is fine. If you want error tracking, feature flags, automatic investigations, custom events, funnels, and the freedom to host anywhere, Databuddy is the better choice.",
 			},
 		],
 		pricingTiers: [
 			{
 				pageviews: "Basic analytics",
 				competitor: "Included with Vercel plan",
-				databuddy: "Free (10K pageviews, all features)",
+				databuddy: "Free (10K events, core analytics)",
 			},
 			{
 				pageviews: "Vercel Pro (required for teams)",
@@ -1712,7 +1715,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Included",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic investigations",
 				competitor: "Not available",
 				databuddy: "Included",
 			},
@@ -1734,13 +1737,13 @@ export const competitors: Record<string, ComparisonData> = {
 		hero: {
 			title: "Databuddy vs Matomo",
 			description:
-				"Matomo has been the privacy-first standard since 2007, and the UX shows. Databuddy was built for how modern startup teams actually work - with AI insights out of the box.",
+				"Matomo has been the privacy-first standard since 2007, and the UX shows. Databuddy was built for how modern startup teams actually work - with automatic investigations out of the box.",
 			cta: "Modern analytics, same privacy values",
 		},
 		seo: {
 			title: "Databuddy vs Matomo: Modern Analytics Alternative 2026",
 			description:
-				"Compare Databuddy and Matomo. Both are open-source and privacy-first. Databuddy offers a modern UI, AI insights, and simpler self-hosting without the PHP stack.",
+				"Compare Databuddy and Matomo. Both are open-source and privacy-first. Databuddy offers a modern UI, automatic investigations, and simpler self-hosting without the PHP stack.",
 		},
 		features: [
 			{
@@ -1758,10 +1761,11 @@ export const competitors: Record<string, ComparisonData> = {
 				category: "features",
 			},
 			{
-				name: "Lightweight script (3KB)",
+				name: "Lightweight asynchronous tracker",
 				databuddy: true,
 				competitor: false,
-				benefit: "3KB async vs Matomo's heavier PHP-generated tracking",
+				benefit:
+					"Databuddy's current tracker is about 11 KB gzip and loads asynchronously",
 				category: "performance",
 			},
 			{
@@ -1853,12 +1857,12 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				question: "Is Matomo free?",
 				answer:
-					"Matomo On-Premise is free to self-host, but requires PHP, MySQL, and server maintenance. Matomo Cloud starts at ~€19/month. Premium plugins (heatmaps, session recordings, A/B testing) cost extra. Databuddy is free for up to 10K pageviews with all features.",
+					"Databuddy's free plan includes 10,000 analytics events per month with core analytics. Matomo's hosted and self-hosted requirements differ, so check its current pricing and plugin pages before comparing total cost.",
 			},
 			{
 				question: "Is Matomo's UI outdated?",
 				answer:
-					"Matomo has been around since 2007 (originally Piwik) and its interface reflects that legacy. Databuddy was built from scratch for modern teams with a clean, real-time dashboard and AI-powered insights.",
+					"Matomo has been around since 2007 (originally Piwik) and its interface reflects that legacy. Databuddy was built from scratch for modern teams with a clean, real-time dashboard and automatic investigations.",
 			},
 			{
 				question: "Is Matomo hard to self-host?",
@@ -1885,7 +1889,7 @@ export const competitors: Record<string, ComparisonData> = {
 			{
 				pageviews: "Cloud hosting",
 				competitor: "~€19/mo",
-				databuddy: "Free (10K pageviews)",
+				databuddy: "Free (10K events)",
 			},
 			{
 				pageviews: "Heatmaps plugin",
@@ -1898,7 +1902,7 @@ export const competitors: Record<string, ComparisonData> = {
 				databuddy: "Not available",
 			},
 			{
-				pageviews: "AI insights",
+				pageviews: "Automatic investigations",
 				competitor: "Not available",
 				databuddy: "Included",
 			},

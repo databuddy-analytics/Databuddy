@@ -16,7 +16,9 @@ import { toast } from "sonner";
 import { PricingTiersTooltip } from "@/app/(main)/billing/components/pricing-tiers-tooltip";
 import { getStripeMetadata } from "@/app/(main)/billing/utils/stripe-metadata";
 import AttachDialog from "@/components/autumn/attach-dialog";
+import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { formatLocaleNumber } from "@/lib/format-locale-number";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import {
 	ArrowsDownUpIcon as TreeIcon,
@@ -111,14 +113,14 @@ function getButtonState(
 	isRecommendedTier: boolean,
 	isActivelySelected: boolean
 ): ButtonState {
+	if (eligibility?.canceling) {
+		return { text: "Resume plan", variant: "secondary", disabled: false };
+	}
 	if (eligibility?.status === "active") {
 		return { text: "Current plan", variant: "secondary", disabled: true };
 	}
 	if (eligibility?.status === "scheduled") {
 		return { text: "Scheduled", variant: "secondary", disabled: true };
-	}
-	if (eligibility?.canceling) {
-		return { text: "Resume plan", variant: "secondary", disabled: false };
 	}
 	if (isActivelySelected) {
 		return { text: "Complete purchase", variant: "primary", disabled: false };
@@ -326,10 +328,12 @@ export default function PricingTable({
 									toast.success("Plan updated");
 								} catch (err) {
 									toast.error(
-										err instanceof Error
-											? err.message
-											: "Failed to attach plan."
+										getUserFacingErrorMessage(
+											err,
+											"We couldn't update this plan. Try again."
+										)
 									);
+									throw err;
 								}
 							}}
 							isSelected={selectedPlan === plan.id}
@@ -393,6 +397,7 @@ function PricingCard({
 	if (!plan) {
 		return null;
 	}
+	const planDisplayName = getCustomerPlanName(plan.id, plan.name);
 
 	const eligibility = plan.customerEligibility;
 	const Icon = getPlanIcon(plan.id);
@@ -405,6 +410,11 @@ function PricingCard({
 		isRecommended,
 		isActivelySelected
 	);
+	const dialogAction = eligibility?.canceling
+		? "resume"
+		: eligibility?.trialAvailable
+			? "trial"
+			: eligibility?.attachAction;
 
 	const handleUpgradeClick = async () => {
 		if (!previewAction) {
@@ -425,7 +435,10 @@ function PricingCard({
 			setDialogOpen(true);
 		} catch (err) {
 			toast.error(
-				err instanceof Error ? err.message : "Failed to preview plan."
+				getUserFacingErrorMessage(
+					err,
+					"We couldn't load the billing preview. Try again."
+				)
 			);
 		} finally {
 			setIsAttaching(false);
@@ -488,7 +501,7 @@ function PricingCard({
 				<div className="min-w-0 flex-1">
 					<div className="flex flex-wrap items-center gap-2">
 						<Text as="h3" className="font-semibold text-base" variant="body">
-							{plan.name}
+							{planDisplayName}
 						</Text>
 						{isActive && (
 							<Badge size="sm" variant="muted">
@@ -592,11 +605,12 @@ function PricingCard({
 
 			{preview && (
 				<AttachDialog
+					action={dialogAction}
 					onConfirm={async () => {
 						await attachAction?.();
 					}}
 					open={dialogOpen}
-					planId={plan.id}
+					planName={planDisplayName}
 					preview={preview}
 					setOpen={setDialogOpen}
 				/>

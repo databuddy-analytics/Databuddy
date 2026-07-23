@@ -30,11 +30,9 @@ import {
 export {
 	AGENT_DISCOVERY_UPDATED,
 	API_SCOPES,
-	MCP_UI_RESOURCE_URI,
 	createFaqJsonl,
 	createNlwebSseBody,
 	createWebBotAuthDirectory,
-	mcpTools,
 	parseNlwebAskBody,
 } from "@databuddy/shared/agent-discovery";
 

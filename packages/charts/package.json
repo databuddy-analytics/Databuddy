@@ -1,0 +1,26 @@
+{
+  "name": "@databuddy/charts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "assets"
+  ],
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "^26.0.0",
+    "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "echarts": "^6.1.0"
+  }
+}

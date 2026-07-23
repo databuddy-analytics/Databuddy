@@ -236,7 +236,7 @@ describe("Databuddy Slack agent client", () => {
 		});
 
 		expect(answer).toBe(
-			"I'm not connected to this Slack workspace yet. Connect Slack in Databuddy organization settings, then mention `@Databuddy` again."
+			"I'm not connected to this Slack workspace yet. Connect Slack in Organization settings → Integrations, then mention `@Databuddy` again."
 		);
 	});
 });

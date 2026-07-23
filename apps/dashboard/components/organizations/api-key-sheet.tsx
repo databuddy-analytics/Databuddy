@@ -10,6 +10,7 @@ import { z } from "zod";
 import { ExpirationPicker } from "@/app/(main)/links/_components/expiration-picker";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { orpc } from "@/lib/orpc";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { cn } from "@/lib/utils";
 import {
 	formatMaskedApiKey,
@@ -356,7 +357,7 @@ export function ApiKeySheet({
 			toast.success("API key created");
 		},
 		onError: (err: Error) => {
-			toast.error(err.message || "Failed to create API key");
+			toast.error(getUserFacingErrorMessage(err, "Failed to create API key."));
 		},
 	});
 
@@ -368,7 +369,7 @@ export function ApiKeySheet({
 			handleClose();
 		},
 		onError: (err: Error) => {
-			toast.error(err.message || "Failed to update API key");
+			toast.error(getUserFacingErrorMessage(err, "Failed to update API key."));
 		},
 	});
 
@@ -380,7 +381,7 @@ export function ApiKeySheet({
 			toast.success("API key rotated");
 		},
 		onError: (err: Error) => {
-			toast.error(err.message || "Failed to rotate API key");
+			toast.error(getUserFacingErrorMessage(err, "Failed to rotate API key."));
 		},
 	});
 
@@ -391,7 +392,7 @@ export function ApiKeySheet({
 			toast.success("API key revoked");
 		},
 		onError: (err: Error) => {
-			toast.error(err.message || "Failed to revoke API key");
+			toast.error(getUserFacingErrorMessage(err, "Failed to revoke API key."));
 		},
 	});
 
@@ -404,7 +405,7 @@ export function ApiKeySheet({
 			handleClose();
 		},
 		onError: (err: Error) => {
-			toast.error(err.message || "Failed to delete API key");
+			toast.error(getUserFacingErrorMessage(err, "Failed to delete API key."));
 		},
 	});
 

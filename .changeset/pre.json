@@ -16,7 +16,6 @@
     "@databuddy/devtools": "0.0.0",
     "@databuddy/email": "0.0.0",
     "@databuddy/env": "0.1.0",
-    "@databuddy/evals": "0.0.1",
     "@databuddy/notifications": "0.0.1",
     "@databuddy/redis": "1.0.0",
     "@databuddy/rpc": "0.1.0",

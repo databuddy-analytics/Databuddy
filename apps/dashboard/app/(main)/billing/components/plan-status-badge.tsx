@@ -10,7 +10,7 @@ export function PlanStatusBadge({
 	isScheduled,
 }: PlanStatusBadgeProps) {
 	if (isCanceled) {
-		return <Badge variant="destructive">Cancelling</Badge>;
+		return <Badge variant="destructive">Cancellation scheduled</Badge>;
 	}
 	if (isScheduled) {
 		return <Badge variant="default">Scheduled</Badge>;

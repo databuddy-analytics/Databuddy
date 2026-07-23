@@ -1,5 +1,8 @@
-import { hasKeyScope } from "@databuddy/api-keys/resolve";
-import { MCP_UI_RESOURCE_URI } from "@databuddy/shared/agent-discovery";
+import {
+	getAccessibleWebsiteIds,
+	hasKeyScope,
+	hasWebsiteScope,
+} from "@databuddy/api-keys/resolve";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { AnySchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
@@ -12,41 +15,9 @@ import type {
 } from "../ai/mcp/define-tool";
 import { createMcpTools } from "../ai/mcp/tools";
 import { GUIDE_MARKDOWN, GUIDE_URI, MCP_INSTRUCTIONS } from "./guide";
-import { registerDatabuddyPrompts } from "./prompts";
 
 const DEFAULT_MCP_SERVER_NAME = "databuddy";
 const DEFAULT_MCP_SERVER_VERSION = "1.0.0";
-export { MCP_UI_RESOURCE_URI } from "@databuddy/shared/agent-discovery";
-
-const MCP_UI_RESOURCE_HTML = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Databuddy Analytics Overview</title>
-    <style>
-      body { font-family: Inter, system-ui, sans-serif; margin: 0; padding: 16px; color: #111827; background: #ffffff; }
-      main { display: grid; gap: 12px; }
-      h1 { font-size: 18px; margin: 0; }
-      p { margin: 0; color: #4b5563; line-height: 1.5; }
-      .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-      .metric { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; }
-      .label { color: #6b7280; font-size: 12px; }
-      .value { font-size: 20px; font-weight: 650; margin-top: 4px; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>Databuddy analytics</h1>
-      <p>Interactive MCP Apps surface for analytics summaries returned by Databuddy tools.</p>
-      <section class="grid" aria-label="Analytics summary placeholders">
-        <div class="metric"><div class="label">Visitors</div><div class="value" data-metric="visitors">-</div></div>
-        <div class="metric"><div class="label">Pageviews</div><div class="value" data-metric="pageviews">-</div></div>
-        <div class="metric"><div class="label">Errors</div><div class="value" data-metric="errors">-</div></div>
-      </section>
-    </main>
-  </body>
-</html>`;
 
 export interface DatabuddyMcpHttpOptions extends McpRequestContext {
 	request: Request;
@@ -114,14 +85,12 @@ export async function handleDatabuddyMcpRequest(
 			version: options.serverVersion ?? DEFAULT_MCP_SERVER_VERSION,
 		},
 		{
-			capabilities: { tools: {}, resources: {}, prompts: {} },
+			capabilities: { tools: {}, resources: {} },
 			instructions: MCP_INSTRUCTIONS,
 		}
 	);
 
 	registerGuideResource(server);
-	registerMcpAppsResource(server);
-	registerDatabuddyPrompts(server);
 
 	for (const tool of createMcpTools(options)) {
 		if (apiKeyCanCallTool(options.apiKey, tool)) {
@@ -157,7 +126,12 @@ function apiKeyCanCallTool(
 		// Session-authenticated callers fall through to downstream role checks.
 		return true;
 	}
-	return required.every((scope) => hasKeyScope(apiKey, scope));
+	if (required.every((scope) => hasKeyScope(apiKey, scope))) {
+		return true;
+	}
+	return getAccessibleWebsiteIds(apiKey).some((websiteId) =>
+		required.every((scope) => hasWebsiteScope(apiKey, websiteId, scope))
+	);
 }
 
 function registerTool(server: McpServer, tool: RegisteredMcpTool): void {
@@ -171,7 +145,6 @@ function registerTool(server: McpServer, tool: RegisteredMcpTool): void {
 				outputSchema: toMcpSchema(tool.outputSchema),
 			}),
 			annotations: deriveAnnotations(tool.metadata),
-			_meta: deriveToolMeta(tool.name),
 		},
 		tool.handler
 	);
@@ -215,43 +188,6 @@ function registerGuideResource(server: McpServer): void {
 			],
 		})
 	);
-}
-
-function registerMcpAppsResource(server: McpServer): void {
-	server.registerResource(
-		"databuddy_analytics_overview_ui",
-		MCP_UI_RESOURCE_URI,
-		{
-			title: "Databuddy analytics overview UI",
-			description:
-				"MCP Apps HTML resource for rendering Databuddy analytics summaries inside agent clients.",
-			mimeType: "text/html",
-			_meta: {
-				"openai/widgetDescription":
-					"Shows Databuddy analytics summary metrics returned by MCP tools.",
-				"openai/widgetPrefersBorder": true,
-			},
-		},
-		(uri) => ({
-			contents: [
-				{
-					uri: uri.href,
-					mimeType: "text/html",
-					text: MCP_UI_RESOURCE_HTML,
-				},
-			],
-		})
-	);
-}
-
-function deriveToolMeta(toolName: string): Record<string, unknown> {
-	return {
-		ui: {
-			resourceUri: MCP_UI_RESOURCE_URI,
-		},
-		"openai/outputTemplate": MCP_UI_RESOURCE_URI,
-		"databuddy/toolName": toolName,
-	};
 }
 
 function toMcpSchema(schema: RegisteredMcpTool["inputSchema"]): AnySchema {

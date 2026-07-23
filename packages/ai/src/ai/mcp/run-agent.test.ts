@@ -11,12 +11,44 @@ describe("MCP agent active tool selection", () => {
 		).toEqual([
 			"list_websites",
 			"get_data",
-			"execute_query_builder",
 			"execute_sql_query",
 			"list_profiles",
 			"get_profile",
 			"get_profile_sessions",
+			"list_profile_traits",
+			"submit_feedback",
 		]);
+	});
+
+	it("does not let thread-reference words hijack explicit feedback requests", () => {
+		expect(
+			selectActiveToolsForQuestion({
+				question:
+					"can you send that to the databuddy team as a feature request?",
+				source: "slack",
+			})
+		).toBeUndefined();
+		expect(
+			selectActiveToolsForQuestion({
+				question: "this agent sucks, tell the team",
+				source: "dashboard",
+			})
+		).toBeUndefined();
+	});
+
+	it("keeps all tools available when the user reports something broken", () => {
+		expect(
+			selectActiveToolsForQuestion({
+				question: "the errors page looks broken, can you report it?",
+				source: "slack",
+			})
+		).toBeUndefined();
+		expect(
+			selectActiveToolsForQuestion({
+				question: "i want to send feedback about the dashboard",
+				source: "dashboard",
+			})
+		).toBeUndefined();
 	});
 
 	it("keeps Slack thread context available for thread references", () => {
@@ -26,6 +58,18 @@ describe("MCP agent active tool selection", () => {
 				source: "slack",
 			})
 		).toEqual(["slack_read_current_thread"]);
+	});
+
+	it("keeps every tool available for Slack confirmations and follow-ups", () => {
+		for (const question of ["yes", "which one should we fix first?"]) {
+			expect(
+				selectActiveToolsForQuestion({
+					hasPriorMessages: true,
+					question,
+					source: "slack",
+				})
+			).toBeUndefined();
+		}
 	});
 
 	it("does not hide mutation tools for non-analytics requests with generic timing words", () => {

@@ -4,8 +4,8 @@
   "version": "1.0.50",
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development bun --watch run src/index.ts",
-    "start": "bun run src/index.ts",
+    "dev": "NODE_ENV=development dotenv -e ../../.env -- bun --watch run src/index.ts",
+    "start": "dotenv -e ../../.env -- bun run src/index.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "check-types": "tsc --noEmit"

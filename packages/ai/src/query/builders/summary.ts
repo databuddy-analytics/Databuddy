@@ -138,6 +138,7 @@ export const SummaryBuilders: Record<string, SimpleQueryConfig> = {
 			};
 		},
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 		plugins: { sessionAttribution: true },
 	},

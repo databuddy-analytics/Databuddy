@@ -1,34 +1,28 @@
 import dayjs from "dayjs";
 import { z } from "zod";
-import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
 import {
-	forgetMemory,
-	isMemoryEnabled,
-	primaryContainerTag,
-	sanitizeMemoryContent,
-	saveCuratedMemory,
-	searchMemories,
-} from "../../lib/supermemory";
-import { executeBatch } from "../../query";
-import { isAiGatewayConfigured } from "../config/models";
-import { summarizeDigestConfig } from "../tools/digest-summary";
+	historyInsightSchema,
+	insightTimelineItemSchema,
+	insightTimelineReplySchema,
+} from "@databuddy/shared/insights";
+import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
+import { executeBatch, publicQueryErrorMessage } from "../../query";
+import { runInvestigationAction } from "../tools/investigations";
 import { callRPCProcedure } from "../tools/utils";
 import {
 	LinkFolderSelectorSchema,
 	LinkFolderWithUsageSchema,
 	LinkRowOutputSchema,
+	getLinkSummary,
 	listLinkFolders,
 	listLinks,
 	parseLinkRow,
 	resolveLinkFolder,
+	searchLinks,
 	summarizeLink,
 	summarizeLinkFolder,
 	summarizeLinkFoldersWithUsage,
 } from "../tools/link-catalog";
-import {
-	appendToConversation,
-	getConversationHistory,
-} from "./conversation-store";
 import {
 	defineMcpTool,
 	McpToolError,
@@ -38,8 +32,6 @@ import {
 	type McpToolMetadata,
 	type RegisteredMcpTool,
 } from "./define-tool";
-import { INSIGHT_TOOL_FACTORIES } from "./insights-tools";
-import { investigateTool } from "./investigate";
 import {
 	buildBatchQueryRequests,
 	FilterSchema,
@@ -53,18 +45,12 @@ import {
 	SCHEMA_SECTIONS,
 	type McpQueryItem,
 } from "./mcp-utils";
-import { runMcpAgent } from "./run-agent";
 import {
 	buildRpcContext,
 	getCachedAccessibleWebsites,
 	getOrganizationId,
 	resolveOrganizationIds,
 } from "./tool-context";
-import { createToolRegistry } from "./registry";
-
-const MEMORY_ENABLED = isMemoryEnabled();
-
-const GATEWAY_AUTH_ERROR_RE = /Unauthenticated|AI Gateway|AI_GATEWAY_API_KEY/i;
 
 const TIME_UNIT = ["minute", "hour", "day", "week", "month"] as const;
 
@@ -216,86 +202,6 @@ function createFlagUserRule(
 	};
 }
 
-const askTool = defineMcpTool(
-	{
-		name: "ask",
-		description:
-			"Run a multi-step analytics agent on a free-form question. Use when the question is open-ended and you don't know which specific tool fits. Reuse conversationId for follow-ups.",
-		inputSchema: z.object({
-			question: z
-				.string()
-				.min(1)
-				.max(2000)
-				.describe("Your analytics question in natural language"),
-			conversationId: z
-				.string()
-				.optional()
-				.describe(
-					"Pass from a previous ask response to continue the conversation"
-				),
-			timezone: z
-				.string()
-				.optional()
-				.describe("IANA timezone (e.g. 'America/New_York'). Defaults to UTC."),
-		}),
-		outputSchema: z.object({
-			answer: z.string(),
-			conversationId: z.string(),
-		}),
-		ratelimit: { limit: 10, windowSec: 60 },
-	},
-	async (input, ctx) => {
-		const conversationId = input.conversationId ?? crypto.randomUUID();
-		const priorMessages = await getConversationHistory(
-			conversationId,
-			ctx.userId,
-			ctx.apiKey
-		);
-
-		try {
-			const answer = await runMcpAgent({
-				question: input.question,
-				requestHeaders: ctx.requestHeaders,
-				apiKey: ctx.apiKey,
-				userId: ctx.userId,
-				timezone: input.timezone,
-				conversationId,
-				priorMessages: priorMessages.length > 0 ? priorMessages : undefined,
-			});
-
-			await appendToConversation(
-				conversationId,
-				ctx.userId,
-				ctx.apiKey,
-				input.question,
-				answer,
-				priorMessages
-			);
-
-			return { answer, conversationId };
-		} catch (err) {
-			if (err instanceof Error && err.name === "AbortError") {
-				throw new McpToolError(
-					"upstream_timeout",
-					"Request timed out. Try a simpler question or use get_data for direct queries."
-				);
-			}
-			// Upstream AI gateway auth / config errors — rewrite to a clearer tool-level error.
-			const msg = err instanceof Error ? err.message : String(err);
-			if (GATEWAY_AUTH_ERROR_RE.test(msg)) {
-				throw new McpToolError(
-					"internal",
-					"AI gateway rejected the request (likely missing or invalid key).",
-					{
-						hint: "Check AI_GATEWAY_API_KEY on the API process. Use direct tools (summarize_insights, compare_metric, get_data) in the meantime.",
-					}
-				);
-			}
-			throw err;
-		}
-	}
-);
-
 const listWebsitesTool = defineMcpTool(
 	{
 		name: "list_websites",
@@ -320,6 +226,132 @@ const listWebsitesTool = defineMcpTool(
 			})),
 			total: list.length,
 		};
+	}
+);
+
+const listInvestigationsTool = defineMcpTool(
+	{
+		name: "list_investigations",
+		description:
+			"List the latest durable investigations for an organization or website. Returns current case status and IDs; use get_investigation for evidence, history, and replies.",
+		inputSchema: z.object({
+			...WebsiteSelectorSchema,
+			limit: z.number().int().min(1).max(100).optional().default(20),
+			offset: z.number().int().min(0).optional().default(0),
+		}),
+		outputSchema: z.object({
+			hasMore: z.boolean(),
+			investigations: z.array(historyInsightSchema),
+		}),
+		metadata: {
+			access: { kind: "read", scopes: ["read:data"] },
+			capability: "analytics",
+		},
+		resolveWebsite: "optional",
+		ratelimit: { limit: 60, windowSec: 60 },
+	},
+	async (input, ctx) => {
+		const organizationIds = await resolveOrganizationIds(ctx.websiteId, ctx);
+		if (organizationIds instanceof Error || !organizationIds[0]) {
+			throw new McpToolError(
+				"not_found",
+				organizationIds instanceof Error
+					? organizationIds.message
+					: "Could not determine organization"
+			);
+		}
+		const result = await runInvestigationAction(
+			{
+				action: "list",
+				limit: input.limit,
+				offset: input.offset,
+				...(ctx.websiteId ? { websiteId: ctx.websiteId } : {}),
+			},
+			{
+				...buildRpcContext(ctx),
+				organizationId: organizationIds[0],
+			}
+		);
+		if (result.action !== "list") {
+			throw new McpToolError("internal", "Unexpected investigation action");
+		}
+		return { hasMore: result.hasMore, investigations: result.investigations };
+	}
+);
+
+const getInvestigationTool = defineMcpTool(
+	{
+		name: "get_investigation",
+		description:
+			"Get one durable investigation, including its current status, evidence-backed observations, and human replies. The ID may come from Slack or list_investigations.",
+		inputSchema: z.object({
+			investigationId: z.string().min(1).max(256),
+		}),
+		outputSchema: z.object({
+			canReply: z.boolean(),
+			investigation: historyInsightSchema.nullable(),
+			timeline: z.array(insightTimelineItemSchema),
+		}),
+		metadata: {
+			access: { kind: "read", scopes: ["read:data"] },
+			capability: "analytics",
+		},
+		ratelimit: { limit: 60, windowSec: 60 },
+	},
+	async (input, ctx) => {
+		const result = await runInvestigationAction(
+			{ action: "get", investigationId: input.investigationId },
+			buildRpcContext(ctx)
+		);
+		if (result.action !== "get") {
+			throw new McpToolError("internal", "Unexpected investigation action");
+		}
+		return {
+			canReply: result.canReply,
+			investigation: result.investigation,
+			timeline: result.timeline,
+		};
+	}
+);
+
+const replyToInvestigationTool = defineMcpTool(
+	{
+		name: "reply_to_investigation",
+		description:
+			"Add human context to an investigation and queue the same investigation agent to continue from its existing evidence and history.",
+		inputSchema: z.object({
+			investigationId: z.string().min(1).max(256),
+			body: z.string().trim().min(1).max(2000),
+			replyId: z
+				.string()
+				.trim()
+				.min(1)
+				.max(200)
+				.refine((value) => !value.includes(":"), {
+					message: "Reply ids cannot contain colons",
+				})
+				.describe(
+					"Unique stable idempotency key. Reuse it if this tool call is retried."
+				),
+		}),
+		outputSchema: z.object({ reply: insightTimelineReplySchema }),
+		metadata: writeMetadata(["manage:websites"]),
+		ratelimit: { limit: 20, windowSec: 60 },
+	},
+	async (input, ctx) => {
+		const result = await runInvestigationAction(
+			{
+				action: "reply",
+				body: input.body,
+				investigationId: input.investigationId,
+				replyId: input.replyId,
+			},
+			buildRpcContext(ctx)
+		);
+		if (result.action !== "reply") {
+			throw new McpToolError("internal", "Unexpected investigation action");
+		}
+		return { reply: result.reply };
 	}
 );
 
@@ -365,7 +397,7 @@ const getDataTool = defineMcpTool(
 				.array(FilterSchema)
 				.optional()
 				.describe(
-					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is the ClickHouse column name — call get_schema if unsure. Rejected fields return the allowed list for this query."
+					"Filters [{field, op, value}]. ops: eq, ne, contains, not_contains, starts_with, in, not_in. 'field' is a ClickHouse column name — call get_schema if unsure — or trait:<key> (e.g. trait:plan) to segment by an identified-user trait. Rejected fields return the allowed list for this query."
 				),
 			groupBy: z.array(z.string()).optional().describe("Fields to group by."),
 			orderBy: z.string().optional().describe("Field to order results by."),
@@ -463,7 +495,7 @@ const getDataTool = defineMcpTool(
 				type: r.type,
 				data: r.data,
 				rowCount: r.data.length,
-				...(r.error && { error: r.error }),
+				...(r.error && { error: publicQueryErrorMessage(r.error) }),
 			})),
 			...invalid.map((q) => ({
 				type: q.type,
@@ -541,8 +573,6 @@ const CAPABILITY_SECTIONS = [
 	"hints",
 	"datePresets",
 	"schemaSummary",
-	"availableTools",
-	"toolCatalog",
 	"categories",
 	"queryTypes",
 ] as const;
@@ -551,8 +581,6 @@ const CAPABILITY_DEFAULTS: readonly CapabilitySection[] = [
 	"hints",
 	"datePresets",
 	"schemaSummary",
-	"availableTools",
-	"toolCatalog",
 	"categories",
 ];
 
@@ -597,8 +625,6 @@ const capabilitiesTool = defineMcpTool(
 			datePresets: z.array(z.string()).optional(),
 			dateFormat: z.string().optional(),
 			maxLimit: z.number().optional(),
-			availableTools: z.array(z.string()).optional(),
-			toolCatalog: z.array(z.record(z.string(), z.unknown())).optional(),
 			categories: z.array(z.string()).optional(),
 			queryTypes: z.record(z.string(), z.unknown()).optional(),
 			hints: z.array(z.string()).optional(),
@@ -626,12 +652,6 @@ const capabilitiesTool = defineMcpTool(
 		}
 		if (selected.has("schemaSummary")) {
 			out.schemaSummary = getSchemaSummary();
-		}
-		if (selected.has("availableTools")) {
-			out.availableTools = getRegisteredToolNames();
-		}
-		if (selected.has("toolCatalog")) {
-			out.toolCatalog = getToolCatalog();
 		}
 		if (selected.has("categories")) {
 			out.categories = QUERY_CATEGORY_KEYS;
@@ -943,15 +963,15 @@ const listLinkFoldersTool = defineMcpTool(
 		}
 
 		const rpcContext = buildRpcContext(ctx);
-		const [folders, links] = await Promise.all([
+		const [folders, summary] = await Promise.all([
 			listLinkFolders(rpcContext, orgId),
-			listLinks(rpcContext, orgId),
+			getLinkSummary(rpcContext, orgId),
 		]);
 
 		return {
-			folders: summarizeLinkFoldersWithUsage(folders, links),
+			folders: summarizeLinkFoldersWithUsage(folders),
 			count: folders.length,
-			unfiledCount: links.filter((link) => !link.folderId).length,
+			unfiledCount: summary.unfiledTotal,
 			hint:
 				folders.length === 0
 					? "No link folders exist yet. Leave links unfiled unless the user creates a folder in Databuddy."
@@ -964,7 +984,7 @@ const listLinksTool = defineMcpTool(
 	{
 		name: "list_links",
 		description:
-			"List short links and existing folders for the website's organization. Use to enumerate all links before referencing one or choosing where a new link should go.",
+			"List the newest short links and existing folders for the website's organization. The count covers the full catalog; use search_links to find a specific older link.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 		}),
@@ -984,24 +1004,29 @@ const listLinksTool = defineMcpTool(
 			throw new McpToolError("not_found", orgId.message);
 		}
 		const rpcContext = buildRpcContext(ctx);
-		const [links, folders] = await Promise.all([
+		const [page, folders, summary] = await Promise.all([
 			listLinks(rpcContext, orgId),
 			listLinkFolders(rpcContext, orgId),
+			getLinkSummary(rpcContext, orgId),
 		]);
-		if (links.length === 0) {
+		if (page.items.length === 0) {
 			return {
-				links,
+				links: page.items,
 				count: 0,
-				folders: summarizeLinkFoldersWithUsage(folders, links),
-				unfiledCount: 0,
+				folders: summarizeLinkFoldersWithUsage(folders),
+				unfiledCount: summary.unfiledTotal,
 				hint: "No links yet for this organization.",
 			};
 		}
 		return {
-			links: links.map((link) => summarizeLink(link, folders)),
-			count: links.length,
-			folders: summarizeLinkFoldersWithUsage(folders, links),
-			unfiledCount: links.filter((link) => !link.folderId).length,
+			links: page.items.map((link) => summarizeLink(link, folders)),
+			count: summary.total,
+			folders: summarizeLinkFoldersWithUsage(folders, page.items),
+			unfiledCount: summary.unfiledTotal,
+			hint:
+				page.hasMore || summary.total > page.items.length
+					? `Showing the ${page.items.length} newest of ${summary.total} links. Use search_links for older links.`
+					: undefined,
 		};
 	}
 );
@@ -1010,12 +1035,14 @@ const searchLinksTool = defineMcpTool(
 	{
 		name: "search_links",
 		description:
-			"Find short links matching a substring on name, slug, target URL, or external ID. Use when you know part of a link identifier.",
+			"Find short links across the full catalog matching a substring on name, slug, target URL, or external ID. Returns at most the newest 50 matches.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			query: z
 				.string()
+				.trim()
 				.min(1)
+				.max(255)
 				.describe("Search query (matches name, slug, URL, or external ID)"),
 		}),
 		outputSchema: z.object({
@@ -1031,9 +1058,10 @@ const searchLinksTool = defineMcpTool(
 				})
 			),
 			count: z.number(),
+			hasMore: z.boolean(),
 		}),
 		resolveWebsite: true,
-		ratelimit: { limit: 60, windowSec: 60 },
+		ratelimit: { limit: 20, windowSec: 60 },
 	},
 	async (input, ctx) => {
 		const orgId = await getOrganizationId(getResolvedWebsiteId(ctx));
@@ -1041,20 +1069,12 @@ const searchLinksTool = defineMcpTool(
 			throw new McpToolError("not_found", orgId.message);
 		}
 		const rpcContext = buildRpcContext(ctx);
-		const [allLinks, folders] = await Promise.all([
-			listLinks(rpcContext, orgId),
+		const [page, folders] = await Promise.all([
+			searchLinks(rpcContext, orgId, input.query),
 			listLinkFolders(rpcContext, orgId),
 		]);
-		const queryLower = input.query.toLowerCase();
-		const matches = allLinks.filter(
-			(link) =>
-				link.name.toLowerCase().includes(queryLower) ||
-				link.slug.toLowerCase().includes(queryLower) ||
-				link.targetUrl.toLowerCase().includes(queryLower) ||
-				link.externalId?.toLowerCase().includes(queryLower)
-		);
 		return {
-			links: matches.map((link) => ({
+			links: page.items.map((link) => ({
 				id: link.id,
 				name: link.name,
 				slug: link.slug,
@@ -1063,7 +1083,8 @@ const searchLinksTool = defineMcpTool(
 				folder: summarizeLink(link, folders).folder,
 				externalId: link.externalId,
 			})),
-			count: matches.length,
+			count: page.items.length,
+			hasMore: page.hasMore,
 		};
 	}
 );
@@ -1527,248 +1548,11 @@ const addUsersToFlagTool = defineMcpTool(
 	}
 );
 
-const DigestFrequencySchema = z.enum(["hourly", "daily", "weekly"]);
-
-const manageInsightDigestTool = defineMcpTool(
-	{
-		name: "manage_insight_digest",
-		description:
-			"Route, stop, or inspect Slack delivery of analytics insight digests. action=route sends digests to a channel, unroute stops it, status shows current routing.",
-		inputSchema: z.object({
-			...WebsiteSelectorSchema,
-			action: z
-				.enum(["route", "unroute", "status"])
-				.describe("route to a channel, unroute to stop, or status to inspect"),
-			channelId: z
-				.string()
-				.min(1)
-				.max(120)
-				.optional()
-				.describe("Slack channel ID. Required for route and unroute."),
-			frequency: DigestFrequencySchema.optional().describe(
-				"How often investigations run for this scope. Applied on route."
-			),
-			confirmed: ConfirmedSchema,
-		}),
-		outputSchema: MutationResultSchema,
-		resolveWebsite: "optional",
-		metadata: writeMetadata(["manage:websites"]),
-		ratelimit: { limit: 20, windowSec: 60 },
-	},
-	async (input, ctx) => {
-		const websiteId = ctx.websiteId;
-		const orgIds = await resolveOrganizationIds(websiteId, ctx);
-		if (orgIds instanceof Error) {
-			throw new McpToolError("not_found", orgIds.message);
-		}
-		const organizationId = orgIds[0];
-		const rpcContext = buildRpcContext(ctx);
-		const scopeInput = { organizationId, websiteId: websiteId ?? undefined };
-
-		if (input.action === "status") {
-			const config = await callRPCProcedure(
-				"insightGeneration",
-				"getConfig",
-				scopeInput,
-				rpcContext
-			);
-			const summary = summarizeDigestConfig(config);
-			return {
-				success: true,
-				message:
-					summary.channels.length > 0
-						? `Digest goes to ${summary.channels.length} Slack channel${summary.channels.length === 1 ? "" : "s"} on a ${summary.frequency} cadence.`
-						: "No Slack digest delivery is configured for this scope.",
-				digest: summary,
-			};
-		}
-
-		if (!input.channelId) {
-			throw new McpToolError(
-				"invalid_input",
-				"channelId is required to route or unroute a digest."
-			);
-		}
-
-		if (!input.confirmed) {
-			return {
-				preview: true,
-				confirmationRequired: true,
-				message:
-					input.action === "route"
-						? `Route insight digests to this Slack channel${input.frequency ? ` on a ${input.frequency} cadence` : ""}?`
-						: "Stop routing insight digests to this Slack channel?",
-				digest: {
-					action: input.action,
-					channelId: input.channelId,
-					frequency: input.frequency ?? null,
-					scope: websiteId ? "website" : "organization",
-				},
-			};
-		}
-
-		if (input.action === "unroute") {
-			const config = await callRPCProcedure(
-				"insightGeneration",
-				"removeSlackDelivery",
-				{ ...scopeInput, channelId: input.channelId },
-				rpcContext
-			);
-			return {
-				success: true,
-				message: "Stopped routing insight digests to this Slack channel.",
-				digest: summarizeDigestConfig(config),
-			};
-		}
-
-		const config = await callRPCProcedure(
-			"insightGeneration",
-			"addSlackDelivery",
-			{
-				...scopeInput,
-				channelId: input.channelId,
-				frequency: input.frequency,
-			},
-			rpcContext
-		);
-		const summary = summarizeDigestConfig(config);
-		return {
-			success: true,
-			message: `Insight digests will be delivered to this Slack channel on a ${summary.frequency} cadence.`,
-			digest: summary,
-		};
-	}
-);
-
-const searchMemoryTool = defineMcpTool(
-	{
-		name: "search_memory",
-		description:
-			"Search saved notes from prior conversations. Use to recall preferences or earlier findings before re-asking the user.",
-		inputSchema: z.object({
-			query: z
-				.string()
-				.min(1)
-				.describe(
-					"What to search for (e.g. 'pricing page performance', 'past traffic issues')"
-				),
-			limit: z
-				.number()
-				.min(1)
-				.max(10)
-				.optional()
-				.describe("Max memories to return (default 5)"),
-		}),
-		outputSchema: z.object({
-			found: z.boolean(),
-			memories: z
-				.array(
-					z.object({
-						content: z.string(),
-						relevance: z.number(),
-					})
-				)
-				.optional(),
-			message: z.string().optional(),
-		}),
-		ratelimit: { limit: 30, windowSec: 60 },
-	},
-	async (input, ctx) => {
-		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;
-		const results = await searchMemories(input.query, ctx.userId, apiKeyId, {
-			limit: input.limit ?? 5,
-			threshold: 0.4,
-			websiteId: ctx.websiteId,
-		});
-		if (results.length === 0) {
-			return { found: false, message: "No relevant memories found." };
-		}
-		return {
-			found: true,
-			memories: results.map((r) => ({
-				content: sanitizeMemoryContent(r.memory),
-				relevance: Math.round(r.similarity * 100),
-			})),
-		};
-	}
-);
-
-const saveMemoryTool = defineMcpTool(
-	{
-		name: "save_memory",
-		description:
-			"Persist a short insight, preference, or finding for future conversations. Use after a confirmed answer worth remembering.",
-		inputSchema: z.object({
-			content: z
-				.string()
-				.min(1)
-				.max(2000)
-				.describe(
-					"The insight to save (e.g. 'User focuses on /pricing bounce rate')"
-				),
-			category: z
-				.enum(["preference", "insight", "pattern", "alert", "context"])
-				.optional()
-				.describe("Category (default: insight)"),
-		}),
-		outputSchema: z.object({ queued: z.boolean() }),
-		ratelimit: { limit: 30, windowSec: 60 },
-	},
-	(input, ctx) => {
-		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;
-		saveCuratedMemory(input.content, ctx.userId, apiKeyId, {
-			category: input.category ?? "insight",
-			websiteId: ctx.websiteId,
-		});
-		return { queued: true };
-	}
-);
-
-const forgetMemoryTool = defineMcpTool(
-	{
-		name: "forget_memory",
-		description:
-			"Delete an incorrect or outdated memory. Search for the memory first, then forget it.",
-		inputSchema: z.object({
-			query: z
-				.string()
-				.min(1)
-				.describe("Search query to find the memory to forget"),
-		}),
-		outputSchema: z.object({
-			forgotten: z.boolean(),
-			message: z.string(),
-		}),
-		ratelimit: { limit: 10, windowSec: 60 },
-	},
-	async (input, ctx) => {
-		const apiKeyId = ctx.apiKey ? (ctx.apiKey as { id: string }).id : null;
-		const results = await searchMemories(input.query, ctx.userId, apiKeyId, {
-			limit: 1,
-			threshold: 0.3,
-			websiteId: ctx.websiteId,
-		});
-		if (results.length === 0 || !results[0]) {
-			return {
-				forgotten: false,
-				message: "No matching memory found to forget.",
-			};
-		}
-		const containerTag =
-			results[0].containerTag ?? primaryContainerTag(ctx.userId, apiKeyId);
-		const result = await forgetMemory(containerTag, results[0].memory);
-		return {
-			forgotten: result.success,
-			message: result.success
-				? "Memory forgotten."
-				: "Failed to forget memory.",
-		};
-	}
-);
-
-const TOOL_REGISTRY = createToolRegistry([
-	...(isAiGatewayConfigured ? [askTool, investigateTool] : []),
+const TOOL_FACTORIES = [
 	listWebsitesTool,
+	listInvestigationsTool,
+	getInvestigationTool,
+	replyToInvestigationTool,
 	getDataTool,
 	getSchemaTool,
 	capabilitiesTool,
@@ -1788,21 +1572,8 @@ const TOOL_REGISTRY = createToolRegistry([
 	createFlagTool,
 	updateFlagTool,
 	addUsersToFlagTool,
-	manageInsightDigestTool,
-	...INSIGHT_TOOL_FACTORIES,
-	...(MEMORY_ENABLED
-		? [searchMemoryTool, saveMemoryTool, forgetMemoryTool]
-		: []),
-] satisfies McpToolFactory[]);
-
-function getRegisteredToolNames(): readonly string[] {
-	return TOOL_REGISTRY.names;
-}
-
-function getToolCatalog() {
-	return TOOL_REGISTRY.catalog;
-}
+] satisfies McpToolFactory[];
 
 export function createMcpTools(ctx: McpRequestContext): RegisteredMcpTool[] {
-	return TOOL_REGISTRY.factories.map((factory) => factory.build(ctx));
+	return TOOL_FACTORIES.map((factory) => factory.build(ctx));
 }

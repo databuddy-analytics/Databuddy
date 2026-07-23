@@ -394,9 +394,7 @@ function RevenueSection({
 
 	const totals = new Map<string, number>();
 	for (const tx of transactions) {
-		if (tx.type === "refund") {
-			totals.set(tx.currency, (totals.get(tx.currency) ?? 0) - tx.amount);
-		} else if (tx.status === "completed") {
+		if (tx.type === "refund" || tx.status === "completed") {
 			totals.set(tx.currency, (totals.get(tx.currency) ?? 0) + tx.amount);
 		}
 	}
@@ -422,7 +420,7 @@ function RevenueSection({
 					key={tx.transaction_id}
 					label={`${formatDateOnly(tx.created)} · ${tx.type}`}
 					subValue={tx.product_name || undefined}
-					value={`${tx.type === "refund" ? "-" : ""}${formatCurrency(tx.amount, tx.currency)}`}
+					value={formatCurrency(tx.amount, tx.currency)}
 				/>
 			))}
 		</SidebarSection>

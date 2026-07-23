@@ -366,14 +366,14 @@ export default function Hero({
 
 					<p className="z-10 max-w-2xl text-muted-foreground text-sm sm:text-base lg:text-lg">
 						Databuddy tracks visits, events, errors, funnels, and rollouts, then
-						surfaces the important answers as insight cards with evidence and a
-						next step attached.
+						surfaces the important answers as investigation cards with evidence
+						and a next step attached.
 					</p>
 
 					<div className="flex flex-wrap items-center gap-3 pt-2">
 						<SciFiButton asChild className="px-6 py-5">
 							<a href="https://app.databuddy.cc/register">
-								See answers surfaced
+								Start analyzing for free
 							</a>
 						</SciFiButton>
 

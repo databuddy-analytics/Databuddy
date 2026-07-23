@@ -3,14 +3,21 @@
 import { authClient } from "@databuddy/auth/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeftIcon, EyeIcon, EyeSlashIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
 import { OtpInput } from "@databuddy/ui/client";
+import { safeCallbackPath } from "@/lib/safe-callback";
 
 function ForgotPasswordPage() {
 	const router = useRouter();
+	const [callback] = useQueryState(
+		"callback",
+		parseAsString.withDefault("/websites")
+	);
+	const loginHref = `/login?callback=${encodeURIComponent(safeCallbackPath(callback))}`;
 	const [step, setStep] = useState<"email" | "reset">("email");
 	const [email, setEmail] = useState("");
 	const [otp, setOtp] = useState("");
@@ -79,7 +86,7 @@ function ForgotPasswordPage() {
 		setIsLoading(false);
 		toast.success("Password reset successfully. Redirecting to login...");
 		setTimeout(() => {
-			router.push("/login");
+			router.push(loginHref);
 		}, 1500);
 	};
 
@@ -142,7 +149,7 @@ function ForgotPasswordPage() {
 				<div className="mt-5 flex items-center justify-center px-6">
 					<Link
 						className="text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
-						href="/login"
+						href={loginHref}
 					>
 						<ArrowLeftIcon className="mr-1 inline size-3" />
 						Back to login
@@ -263,7 +270,7 @@ function ForgotPasswordPage() {
 			<div className="mt-5 flex items-center justify-center px-6">
 				<Link
 					className="text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
-					href="/login"
+					href={loginHref}
 				>
 					<ArrowLeftIcon className="mr-1 inline size-3" />
 					Back to login

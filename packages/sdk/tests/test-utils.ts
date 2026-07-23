@@ -1,4 +1,24 @@
-import type { Page } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
+
+export function getFlagRequestBody(request: Request): Record<string, unknown> {
+	const data = request.postData();
+	if (!data) {
+		return {};
+	}
+	try {
+		const parsed = JSON.parse(data);
+		return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+			? (parsed as Record<string, unknown>)
+			: {};
+	} catch {
+		return {};
+	}
+}
+
+export function getFlagRequestKeys(request: Request): string[] {
+	const keys = getFlagRequestBody(request).keys;
+	return Array.isArray(keys) ? keys.map(String).filter(Boolean) : [];
+}
 
 /** Standard mock flag response */
 export const MOCK_FLAG_ENABLED = {

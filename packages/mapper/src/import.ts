@@ -1,4 +1,4 @@
-import type { AnalyticsEvent } from "@databuddy/db/clickhouse/schema";
+import type { EventsInsert } from "@databuddy/db/clickhouse/tables";
 import type { ImportContext, MapperFn } from "./types";
 
 function buildSessionExitMap<TRow>(
@@ -32,7 +32,7 @@ export function createImport<TRow>(options: {
 	getSessionId: (row: TRow) => string;
 	getEventId: (row: TRow) => string;
 	getTime: (row: TRow) => number;
-}): AnalyticsEvent[] {
+}): EventsInsert[] {
 	const exitEventIds = buildSessionExitMap(
 		options.rows,
 		options.getSessionId,

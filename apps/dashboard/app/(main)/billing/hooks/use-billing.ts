@@ -1,6 +1,7 @@
 import { useCustomer, useListPlans } from "autumn-js/react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import { dayjs } from "@databuddy/ui";
 import { trackCancelFeedbackAction } from "../actions/cancel-feedback-action";
 import type { CancelFeedback } from "../components/cancel-subscription-dialog";
@@ -38,7 +39,10 @@ export function useBilling(refetch?: () => void) {
 			});
 		} catch (error) {
 			toast.error(
-				error instanceof Error ? error.message : "An unexpected error occurred."
+				getUserFacingErrorMessage(
+					error,
+					"We couldn't update this subscription. Try again."
+				)
 			);
 		}
 	};
@@ -52,18 +56,21 @@ export function useBilling(refetch?: () => void) {
 			});
 			toast.success(
 				immediate
-					? "Subscription cancelled immediately."
-					: "Subscription cancelled."
+					? "Subscription canceled immediately."
+					: "Subscription cancellation scheduled."
 			);
 			if (refetch) {
 				setTimeout(refetch, 500);
 			}
+			return true;
 		} catch (error) {
 			toast.error(
-				error instanceof Error
-					? error.message
-					: "Failed to cancel subscription."
+				getUserFacingErrorMessage(
+					error,
+					"We couldn't cancel the subscription. Try again."
+				)
 			);
+			return false;
 		} finally {
 			setIsLoading(false);
 		}
@@ -95,7 +102,11 @@ export function useBilling(refetch?: () => void) {
 			setCancelTarget({ id, name, currentPeriodEnd }),
 		onCancelConfirm: async (immediate: boolean, feedback?: CancelFeedback) => {
 			if (!cancelTarget) {
-				return;
+				return false;
+			}
+			const didCancel = await handleCancel(cancelTarget.id, immediate);
+			if (!didCancel) {
+				return false;
 			}
 			if (feedback) {
 				trackCancelFeedbackAction({
@@ -105,8 +116,8 @@ export function useBilling(refetch?: () => void) {
 					immediate,
 				});
 			}
-			await handleCancel(cancelTarget.id, immediate);
 			setCancelTarget(null);
+			return true;
 		},
 		onCancelDialogClose: () => setCancelTarget(null),
 		onManageBilling: () =>

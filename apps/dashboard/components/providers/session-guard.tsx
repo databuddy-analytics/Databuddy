@@ -13,9 +13,7 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
 		}
 
 		clearPersistedQueryCache();
-		authClient.signOut().finally(() => {
-			window.location.href = "/login";
-		});
+		window.location.href = "/login";
 	}, [isPending, session]);
 
 	return <>{children}</>;

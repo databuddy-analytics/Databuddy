@@ -22,8 +22,6 @@ export function enableAllBasicTracking(
 ): TrackingOptions {
 	return {
 		...options,
-		trackScreenViews: true,
-		trackSessions: true,
 		trackInteractions: true,
 		trackOutgoingLinks: true,
 	};
@@ -52,7 +50,6 @@ export function enableAllPerformanceTracking(
 ): TrackingOptions {
 	return {
 		...options,
-		trackPerformance: true,
 		trackWebVitals: true,
 		trackErrors: true,
 	};
@@ -68,7 +65,6 @@ export function enableAllAdvancedTracking(
 		...options,
 		...enableAllPerformanceTracking(options),
 		trackErrors: true,
-		trackPerformance: true,
 		trackWebVitals: true,
 	};
 }
@@ -110,12 +106,9 @@ export function enablePrivacyMode(options: TrackingOptions): TrackingOptions {
 	return {
 		...options,
 		disabled: true,
-		trackScreenViews: false,
-		trackSessions: false,
 		trackInteractions: false,
 		trackOutgoingLinks: false,
 		trackAttributes: false,
-		trackPerformance: false,
 		trackWebVitals: false,
 		trackErrors: false,
 	};

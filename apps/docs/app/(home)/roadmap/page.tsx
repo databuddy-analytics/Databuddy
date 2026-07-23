@@ -76,8 +76,9 @@ export default function RoadmapPage() {
 							Development Timeline
 						</h2>
 						<p className="text-muted-foreground text-sm sm:text-base lg:text-lg">
-							Complete timeline of features, from completed milestones to future
-							plans
+							Completed work and current priorities. Dates appear only after the
+							team has committed to a delivery window; items marked TBD are not
+							a release promise.
 						</p>
 					</div>
 					<RoadmapTimeline items={roadmapItems} />
@@ -96,31 +97,7 @@ export default function RoadmapPage() {
 						us prioritize what matters most.
 					</p>
 
-					{/* Community Stats */}
-					<div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
-						<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
-							<div className="font-bold text-2xl">500+</div>
-							<div className="text-muted-foreground text-sm">
-								Community Members
-							</div>
-						</SciFiCard>
-
-						<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
-							<div className="font-bold text-2xl">150+</div>
-							<div className="text-muted-foreground text-sm">
-								Feature Requests
-							</div>
-						</SciFiCard>
-
-						<SciFiCard className="rounded border border-border bg-card/50 p-6 backdrop-blur-sm transition-all duration-300 hover:border-border/80 hover:bg-card/70">
-							<div className="font-bold text-2xl">95%</div>
-							<div className="text-muted-foreground text-sm">
-								User Satisfaction
-							</div>
-						</SciFiCard>
-					</div>
-
-					<div className="flex flex-col gap-4 sm:flex-row sm:justify-center">
+					<div className="mt-8 flex flex-col gap-4 sm:flex-row sm:justify-center">
 						<a
 							className="inline-flex items-center justify-center rounded bg-primary px-8 py-3 font-medium text-primary-foreground hover:bg-primary/90"
 							href="https://github.com/databuddy-analytics/Databuddy/discussions"

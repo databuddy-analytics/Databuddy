@@ -1,20 +1,32 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-import { cn } from "@databuddy/ui";
+import { cn, StatusDot } from "@databuddy/ui";
 import { CaretDownIcon } from "@databuddy/ui/icons";
 import {
 	type MonitorDailyData,
 	MonitorRowInteractive,
 } from "./monitor-row-interactive";
 
+const LAST_CHECK_FORMATTER = new Intl.DateTimeFormat("en-US", {
+	day: "numeric",
+	hour: "numeric",
+	minute: "2-digit",
+	month: "short",
+	timeZone: "UTC",
+	timeZoneName: "short",
+});
+
 export interface MonitorCardInteractiveProps {
 	anchorId: string;
 	dailyData: MonitorDailyData;
 	days: number;
 	domain?: string;
+	freshness: "fresh" | "stale" | "unknown";
 	id: string;
+	lastCheckedAt: string | null;
 	name: string;
+	status: "up" | "down" | "degraded" | "unknown";
 	uptimePercentage?: number;
 }
 
@@ -34,7 +46,10 @@ export function MonitorCardInteractive({
 	days,
 	domain,
 	id,
+	lastCheckedAt,
 	name,
+	status,
+	freshness,
 	uptimePercentage,
 }: MonitorCardInteractiveProps) {
 	const [isOpen, setIsOpen] = useState(true);
@@ -46,6 +61,18 @@ export function MonitorCardInteractive({
 			),
 		[dailyData]
 	);
+	const statusConfig = {
+		up: { label: "Operational", color: "success" as const },
+		degraded: { label: "Degraded", color: "warning" as const },
+		down: { label: "Down", color: "destructive" as const },
+		unknown: {
+			label: freshness === "stale" ? "Data stale" : "Status unknown",
+			color: "muted" as const,
+		},
+	}[status];
+	const checkedLabel = lastCheckedAt
+		? `Last checked ${LAST_CHECK_FORMATTER.format(new Date(lastCheckedAt))}`
+		: "No completed checks";
 
 	return (
 		<div
@@ -69,15 +96,21 @@ export function MonitorCardInteractive({
 					/>
 				</div>
 				<div className="flex min-w-0 flex-1 items-center gap-3">
-					<span className="min-w-0 flex-1 truncate font-semibold text-sm leading-[1.2] sm:text-base">
-						<span>{name}</span>
-						{domain && (
-							<span className="font-normal text-muted-foreground">
-								{" "}
-								({domain})
-							</span>
-						)}
-					</span>
+					<div className="min-w-0 flex-1">
+						<span className="block truncate font-semibold text-sm leading-[1.2] sm:text-base">
+							{name}
+							{domain && (
+								<span className="font-normal text-muted-foreground">
+									{" "}
+									({domain})
+								</span>
+							)}
+						</span>
+						<span className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+							<StatusDot color={statusConfig.color} size="sm" />
+							{statusConfig.label} · {checkedLabel}
+						</span>
+					</div>
 					{uptimePercentage !== undefined && (
 						<span
 							className={cn(

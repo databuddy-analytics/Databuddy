@@ -265,6 +265,7 @@ export class TraitFilterError extends Error {}
 
 export function isTraitFilterField(field: string): boolean {
 	return (
+		typeof field === "string" &&
 		field.startsWith(TRAIT_FILTER_PREFIX) &&
 		field.length > TRAIT_FILTER_PREFIX.length
 	);
@@ -323,4 +324,118 @@ export async function resolveTraitSegment(
 		);
 	}
 	return rows.map((row) => row.profileId);
+}
+
+export interface TraitDistributionRow {
+	key: string;
+	profiles: number;
+	value: string;
+}
+
+interface TraitDistributionQueryRow
+	extends TraitDistributionRow,
+		Record<string, unknown> {
+	distinct_value_count: number;
+	total_trait_keys: number;
+	values_per_key: number;
+}
+
+const TRAIT_DISTRIBUTION_ROW_LIMIT = 200;
+const MAX_TRAIT_VALUES_PER_KEY = 20;
+
+export async function getTraitDistribution(websiteId: string): Promise<{
+	hasMoreKeys: boolean;
+	hasMoreValues: boolean;
+	identifiedProfiles: number;
+	returnedTraitKeys: number;
+	totalTraitKeys: number;
+	traits: TraitDistributionRow[];
+	valuesPerKey: number;
+}> {
+	const [totals] = await db
+		.select({ identifiedProfiles: sql<number>`count(*)::int` })
+		.from(profiles)
+		.where(eq(profiles.websiteId, websiteId));
+
+	const result = await db.execute<TraitDistributionQueryRow>(sql`
+		with trait_values as (
+			select
+				t.key as key,
+				t.value as value,
+				count(*)::int as profiles
+			from ${profiles} p, jsonb_each_text(p.traits) as t(key, value)
+			where p.website_id = ${websiteId}
+				and jsonb_typeof(p.traits) = 'object'
+			group by t.key, t.value
+		),
+		ranked as (
+			select
+				key,
+				value,
+				profiles,
+				(row_number() over (
+					partition by key
+					order by profiles desc, value asc
+				))::int as value_rank,
+				(count(*) over (partition by key))::int as distinct_value_count
+			from trait_values
+		),
+		key_coverage as (
+			select key, sum(profiles)::bigint as profile_coverage
+			from trait_values
+			group by key
+		),
+		selected_keys as (
+			select key, total_trait_keys
+			from (
+				select
+					key,
+					profile_coverage,
+					(count(*) over ())::int as total_trait_keys
+				from key_coverage
+			) keys
+			order by profile_coverage desc, key asc
+			limit ${TRAIT_DISTRIBUTION_ROW_LIMIT}
+		),
+		budget as (
+			select greatest(
+				1,
+				least(
+					${MAX_TRAIT_VALUES_PER_KEY},
+					floor(${TRAIT_DISTRIBUTION_ROW_LIMIT}::numeric / greatest(count(*), 1))::int
+				)
+			)::int as values_per_key
+			from selected_keys
+		)
+		select
+			ranked.key,
+			ranked.value,
+			ranked.profiles,
+			ranked.distinct_value_count,
+			selected_keys.total_trait_keys,
+			budget.values_per_key
+		from ranked
+		inner join selected_keys on selected_keys.key = ranked.key
+		cross join budget
+		where ranked.value_rank <= budget.values_per_key
+		order by ranked.key asc, ranked.profiles desc, ranked.value asc
+	`);
+	const rows = result.rows;
+	const valuesPerKey = rows[0]?.values_per_key ?? 0;
+	const totalTraitKeys = rows[0]?.total_trait_keys ?? 0;
+	const returnedTraitKeys = new Set(rows.map((row) => row.key)).size;
+
+	return {
+		hasMoreKeys: returnedTraitKeys < totalTraitKeys,
+		hasMoreValues: rows.some((row) => row.distinct_value_count > valuesPerKey),
+		identifiedProfiles: totals?.identifiedProfiles ?? 0,
+		returnedTraitKeys,
+		totalTraitKeys,
+		traits: rows.map((row) => ({
+			key: row.key,
+			profiles: row.profiles,
+			value: row.value,
+		})),
+		valuesPerKey,
+	};
 }

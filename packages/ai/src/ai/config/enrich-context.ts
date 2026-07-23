@@ -1,6 +1,5 @@
-import { and, count, db, desc, eq, gte, isNull } from "@databuddy/db";
+import { and, count, db, eq, isNull } from "@databuddy/db";
 import {
-	analyticsInsights,
 	annotations,
 	funnelDefinitions,
 	goals,
@@ -13,7 +12,7 @@ import {
 } from "@databuddy/shared/types/features";
 import { captureError } from "../../lib/tracing";
 
-export async function fetchPlanContext(
+async function fetchPlanContext(
 	userId: string,
 	organizationId: string | null
 ): Promise<string> {
@@ -41,7 +40,7 @@ export async function fetchPlanContext(
 	}
 }
 
-export async function fetchEntityCounts(
+async function fetchEntityCounts(
 	websiteId: string,
 	organizationId: string | null
 ): Promise<string> {
@@ -97,77 +96,15 @@ export async function fetchEntityCounts(
 	}
 }
 
-export async function fetchRecentInsights(
-	organizationId: string | null,
-	websiteId: string
-): Promise<string> {
-	if (!organizationId) {
-		return "";
-	}
-	try {
-		const fourteenDaysAgo = new Date();
-		fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-		const rows = await db
-			.select({
-				title: analyticsInsights.title,
-				type: analyticsInsights.type,
-				severity: analyticsInsights.severity,
-				changePercent: analyticsInsights.changePercent,
-				createdAt: analyticsInsights.createdAt,
-			})
-			.from(analyticsInsights)
-			.where(
-				and(
-					eq(analyticsInsights.organizationId, organizationId),
-					eq(analyticsInsights.websiteId, websiteId),
-					eq(analyticsInsights.status, "open"),
-					gte(analyticsInsights.createdAt, fourteenDaysAgo)
-				)
-			)
-			.orderBy(desc(analyticsInsights.createdAt))
-			.limit(8);
-
-		if (rows.length === 0) {
-			return "";
-		}
-
-		const lines = rows.map((row) => {
-			const date = row.createdAt.toISOString().slice(0, 10);
-			const pct =
-				row.changePercent == null
-					? ""
-					: ` ${row.changePercent > 0 ? "+" : ""}${Math.round(row.changePercent)}%`;
-			const severityTag =
-				row.severity === "critical" || row.severity === "warning"
-					? `${row.severity}:`
-					: "";
-			const tag = severityTag ? `${severityTag}${row.type}` : row.type;
-			return `- [${tag}] ${row.title}${pct} (${date})`;
-		});
-
-		return `<recent_insights>
-${lines.join("\n")}
-</recent_insights>`;
-	} catch (err) {
-		captureError(err, {
-			enrich_context_step: "insights",
-			website_id: websiteId,
-		});
-		return "";
-	}
-}
-
 export async function enrichAgentContext(opts: {
 	userId: string;
 	websiteId: string;
 	organizationId: string | null;
 }): Promise<string> {
-	const [planCtx, entityCtx, insightsCtx] = await Promise.all([
+	const [planCtx, entityCtx] = await Promise.all([
 		fetchPlanContext(opts.userId, opts.organizationId),
 		fetchEntityCounts(opts.websiteId, opts.organizationId),
-		fetchRecentInsights(opts.organizationId, opts.websiteId),
 	]);
 
-	return [planCtx, entityCtx, insightsCtx].filter(Boolean).join("\n");
+	return [planCtx, entityCtx].filter(Boolean).join("\n");
 }

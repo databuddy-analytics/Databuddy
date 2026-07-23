@@ -22,14 +22,14 @@ import { StructuredData } from "@/components/structured-data";
 export const metadata: Metadata = {
 	title: "AI Analytics Agent - Ask Your Data Questions in Plain English",
 	description:
-		"Ask questions about your analytics in plain English. Databunny is your AI agent with natural language queries, automated insights, anomaly detection, and proactive alerts.",
+		"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
 	alternates: {
 		canonical: "https://www.databuddy.cc/databunny",
 	},
 	openGraph: {
 		title: "AI Analytics Agent - Ask Your Data Questions in Plain English",
 		description:
-			"Ask questions about your analytics in plain English. Databunny is your AI agent with natural language queries, automated insights, anomaly detection, and proactive alerts.",
+			"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
 		url: "https://www.databuddy.cc/databunny",
 		images: ["/og-image.png"],
 	},
@@ -42,24 +42,24 @@ const FAQ_ITEMS = [
 			"Anything about your analytics. Traffic trends, conversion funnels, error patterns, user segments, page performance. Ask in plain English and get an answer with real data behind it.",
 	},
 	{
-		question: "How do automated insights work?",
+		question: "How does automatic analysis work?",
 		answer:
-			"Databunny continuously analyzes your traffic, errors, conversions, and performance across all your websites. When it finds something noteworthy (a traffic spike, a conversion drop, an error pattern), it surfaces it as an insight with context and recommended actions.",
+			"Choose a daily or weekly organization schedule. Databunny investigates noteworthy changes, keeps their evidence and history together, and gives you a concrete next step.",
 	},
 	{
-		question: "What triggers an anomaly alert?",
+		question: "What becomes an investigation?",
 		answer:
-			"Statistical anomaly detection runs on your key metrics. When a value deviates significantly from its baseline (based on configurable thresholds), Databunny flags it as a warning or critical anomaly and can notify you via Slack, email, or webhook.",
+			"Databunny compares recent periods and checks anomaly baselines across traffic, errors, conversions, events, and performance. It saves only changes with enough evidence to act on.",
 	},
 	{
-		question: "Will Databunny send me too many notifications?",
+		question: "Can investigations go to Slack?",
 		answer:
-			"No. Alerts are severity-gated so you choose what level triggers a notification. Insights are batched into digests, not fired one by one. You control the signal-to-noise ratio.",
+			"Yes. Databunny posts actionable investigations to your configured channels, and replies in that thread continue the same investigation.",
 	},
 	{
 		question: "Is Databunny included in all plans?",
 		answer:
-			"Every plan includes Databunny with a monthly credit allowance. The free plan gives you 10 agent credits to start. Paid plans include more credits and higher limits.",
+			"Every plan includes a Databunny usage allowance for questions and analysis. Free includes 10 usage units each month; deeper analysis can use more of the allowance than simple questions.",
 	},
 ] as const;
 
@@ -74,14 +74,14 @@ export default function DatabunnyPage() {
 					title:
 						"AI Analytics Agent - Ask Your Data Questions in Plain English",
 					description:
-						"Ask questions about your analytics in plain English. Natural language queries, automated insights, anomaly detection, and proactive alerts.",
+						"Ask analytics questions in plain English. Run automatic investigations daily or weekly and continue them from Slack.",
 					url: "https://www.databuddy.cc/databunny",
 				}}
 			/>
 			<div className="overflow-x-hidden">
 				<FeatureHero
 					docsHref="/docs"
-					subtitle="Type a question. Get a chart, a number, or an insight backed by real data. Databunny watches your metrics around the clock and surfaces what matters before you think to ask."
+					subtitle="Type a question for an immediate answer, or schedule daily or weekly investigations that keep evidence, context, and replies together."
 					title="Ask your analytics anything in plain English."
 				/>
 
@@ -112,8 +112,8 @@ export default function DatabunnyPage() {
 				<Section className="border-border border-b" id="insights">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Databunny analyzes your data continuously and surfaces what matters. No queries needed, insights come to you."
-							title="Insights that"
+							subtitle="Schedule daily or weekly analysis across your organization. Each noteworthy change becomes one evidence-backed investigation with a clear next move."
+							title="Investigations that"
 							titleMuted="find you."
 						/>
 						<TwoColumnGrid>
@@ -136,7 +136,7 @@ export default function DatabunnyPage() {
 				<Section className="border-border border-b" id="detection">
 					<div className={container}>
 						<SectionHeader
-							subtitle="Statistical anomaly detection on your key metrics. Configurable thresholds, severity levels, and alerts to Slack, email, or webhooks."
+							subtitle="Databunny checks traffic, errors, events, conversions, and performance, then sends actionable investigations to Slack where your team can continue them."
 							title="Catch problems"
 							titleMuted="before users do."
 						/>

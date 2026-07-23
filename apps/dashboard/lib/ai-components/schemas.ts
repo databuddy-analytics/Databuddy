@@ -116,6 +116,21 @@ export const linkPreviewSchema = z
 	})
 	.passthrough();
 
+export const feedbackPreviewSchema = z
+	.object({
+		type: z.literal("feedback-preview"),
+		mode: z.enum(["offer", "sent"]),
+		feedback: z
+			.object({
+				title: z.string(),
+				category: z.string().optional(),
+				description: z.string(),
+			})
+			.passthrough(),
+		message: z.string().optional(),
+	})
+	.passthrough();
+
 const funnelStepSchema = z
 	.object({
 		type: z.enum(["PAGE_VIEW", "EVENT", "CUSTOM"]),
@@ -302,6 +317,7 @@ export const componentSchemaMap: Record<string, z.ZodTypeAny> = {
 	"mini-map": miniMapSchema,
 	"links-list": linksListSchema,
 	"link-preview": linkPreviewSchema,
+	"feedback-preview": feedbackPreviewSchema,
 	"funnels-list": funnelsListSchema,
 	"funnel-preview": funnelPreviewSchema,
 	"dashboard-actions": dashboardActionsSchema,

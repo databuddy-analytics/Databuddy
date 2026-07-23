@@ -64,7 +64,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -95,13 +94,10 @@ jobs:
           docker run -d \
             --name api-health-check \
             --network host \
-            -e NODE_ENV=test \
+            -e NODE_ENV=production \
             -e PORT=3001 \
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
             -e REDIS_URL=redis://localhost:6379 \
-            -e BULLMQ_REDIS_URL=redis://localhost:6379/2 \
-            -e REDIS_HOST=localhost \
-            -e REDIS_PORT=6379 \
             -e BETTER_AUTH_SECRET=test-auth-secret-for-ci \
             -e BETTER_AUTH_URL=http://localhost:3000 \
             -e GITHUB_CLIENT_ID=test-github-client-id \
@@ -110,9 +106,6 @@ jobs:
             -e GOOGLE_CLIENT_SECRET=test-google-client-secret \
             -e RESEND_API_KEY=test-resend-api-key \
             -e AUTUMN_SECRET_KEY=test-autumn-secret-key \
-            -e EMAIL_API_KEY=test-email-api-key \
-            -e IP_HASH_SALT=test-ip-hash-salt \
-            -e AI_API_KEY=test-ai-api-key \
             -e CLICKHOUSE_URL=http://default:@localhost:8123/analytics \
             api:test
 
@@ -168,6 +161,21 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.5.1-alpine
+        env:
+          CLICKHOUSE_DB: databuddy_analytics
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        ports:
+          - 8123:8123
+        options: >-
+          --ulimit nofile=262144:262144
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-start-period 30s
+          --health-retries 12
 
     steps:
       - name: Checkout repository
@@ -224,15 +232,14 @@ jobs:
           docker run -d \
             --name basket-health-check \
             --network host \
-            -e NODE_ENV=test \
+            -e NODE_ENV=production \
             -e PORT=4000 \
             -e REDIS_URL=redis://localhost:6379 \
-            -e REDIS_HOST=localhost \
-            -e REDIS_PORT=6379 \
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
+            -e CLICKHOUSE_URL=http://default:@localhost:8123/databuddy_analytics \
             -e REDPANDA_BROKER=localhost:9092 \
+            -e DATABUDDY_ENCRYPTION_KEY=test-encryption-key \
             -e IP_HASH_SALT=test-ip-hash-salt \
-            -e KAFKA_ENABLED=false \
             basket:test
 
           echo "Waiting for Basket to start..."
@@ -300,6 +307,21 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.5.1-alpine
+        env:
+          CLICKHOUSE_DB: databuddy_analytics
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        ports:
+          - 8123:8123
+        options: >-
+          --ulimit nofile=262144:262144
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-start-period 30s
+          --health-retries 12
 
     steps:
       - name: Checkout repository
@@ -331,20 +353,16 @@ jobs:
           docker run -d \
             --name insights-health-check \
             --network host \
-            -e NODE_ENV=test \
+            -e NODE_ENV=production \
             -e PORT=4002 \
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
+            -e CLICKHOUSE_URL=http://default:@localhost:8123/databuddy_analytics \
             -e REDIS_URL=redis://localhost:6379 \
             -e BULLMQ_REDIS_URL=redis://localhost:6379/4 \
-            -e INSIGHTS_BULLMQ_REDIS_URL= \
-            -e INSIGHTS_DISPATCH_INTERVAL_MS=60000 \
-            -e INSIGHTS_MAINTENANCE_INTERVAL_MS=60000 \
-            -e INSIGHTS_STALE_ITEM_MS=300000 \
             -e INSIGHTS_WORKER_CONCURRENCY=1 \
             -e INSIGHTS_WORKER_ENABLED=true \
             -e BETTER_AUTH_SECRET=test-better-auth-secret-for-health-checks \
             -e AI_GATEWAY_API_KEY=test-ai-gateway-key \
-            -e SUPERMEMORY_API_KEY= \
             insights:test
 
           echo "Waiting for Insights to start..."

@@ -1,15 +1,14 @@
-import { initClickHouseSchema } from "./schema";
+import { applyClickHouseSchema } from "./apply";
 
 (async () => {
-	const result = await initClickHouseSchema();
-	if (result.success) {
-		console.info(result.message);
+	try {
+		const result = await applyClickHouseSchema();
+		console.info(
+			`Applied ClickHouse schema: ${result.tables} tables, ${result.views} views across ${result.databases.join(", ")}`
+		);
 		process.exit(0);
-	} else {
-		console.error(result.message);
-		if (result.error) {
-			console.error(result.error);
-		}
+	} catch (error) {
+		console.error("Failed to apply ClickHouse schema:", error);
 		process.exit(1);
 	}
 })();

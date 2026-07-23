@@ -44,6 +44,16 @@ describe("agent credit math", () => {
 			cost: { input: 0.1, output: 0.5 },
 			fallback: false,
 		});
+		expect(resolveAgentModelCost("openai/gpt-5.6-terra")).toEqual({
+			cost: {
+				input: 2.5,
+				output: 15,
+				cache_read: 0.25,
+				cache_write: 3.125,
+			},
+			fallback: false,
+			id: "openai/gpt-5.6-terra",
+		});
 	});
 
 	test("keeps a small preflight threshold for fractional-credit requests", () => {

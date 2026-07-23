@@ -1,4 +1,3 @@
-import { env } from "@databuddy/env/slack";
 import { LogLevel } from "@slack/bolt";
 
 export interface TokenCryptoConfig {
@@ -21,13 +20,14 @@ export type SlackRuntimeConfig =
 	  };
 
 export function resolveSlackConfig(): SlackRuntimeConfig {
-	if (
-		!(env.SLACK_SOCKET_MODE ? env.SLACK_APP_TOKEN : env.SLACK_SIGNING_SECRET)
-	) {
-		const reason = env.SLACK_SOCKET_MODE
+	const socketMode = readSocketMode();
+	const appToken = process.env.SLACK_APP_TOKEN?.trim() || undefined;
+	const signingSecret = process.env.SLACK_SIGNING_SECRET?.trim() || undefined;
+	if (!(socketMode ? appToken : signingSecret)) {
+		const reason = socketMode
 			? "SLACK_APP_TOKEN is not set"
 			: "SLACK_SIGNING_SECRET is not set";
-		if (env.NODE_ENV === "production") {
+		if (process.env.NODE_ENV === "production") {
 			throw new Error(reason);
 		}
 		return {
@@ -36,23 +36,32 @@ export function resolveSlackConfig(): SlackRuntimeConfig {
 		};
 	}
 
-	if (!env.DATABUDDY_ENCRYPTION_KEY) {
+	const encryptionKey = process.env.DATABUDDY_ENCRYPTION_KEY?.trim();
+	if (!encryptionKey) {
 		throw new Error(
 			"DATABUDDY_ENCRYPTION_KEY is required for Slack integration secrets"
 		);
 	}
 
 	return {
-		appToken: env.SLACK_APP_TOKEN,
-		crypto: {
-			encryptionKey: env.DATABUDDY_ENCRYPTION_KEY,
-		},
+		appToken,
+		crypto: { encryptionKey },
 		enabled: true,
-		logLevel: toBoltLogLevel(env.SLACK_LOG_LEVEL),
-		port: env.SLACK_PORT,
-		signingSecret: env.SLACK_SIGNING_SECRET,
-		socketMode: env.SLACK_SOCKET_MODE,
+		logLevel: toBoltLogLevel(process.env.SLACK_LOG_LEVEL ?? "INFO"),
+		port: readPort(),
+		signingSecret,
+		socketMode,
 	};
+}
+
+function readSocketMode(): boolean {
+	const value = process.env.SLACK_SOCKET_MODE?.trim().toLowerCase();
+	return value ? ["1", "true", "yes", "on"].includes(value) : true;
+}
+
+function readPort(): number {
+	const value = Number(process.env.SLACK_PORT || 3010);
+	return Number.isInteger(value) && value > 0 ? value : 3010;
 }
 
 function toBoltLogLevel(level: string): LogLevel {

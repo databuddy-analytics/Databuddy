@@ -1,5 +1,6 @@
 import { AGENT_CREDIT_SCHEMA } from "./lib/credit-schema";
 import { TOPUP_MAX_QUANTITY, TOPUP_TIERS } from "./lib/topup-math";
+import { DATABUNNY_USAGE, LEGACY_SCALE_PLAN } from "@databuddy/shared/billing";
 import { feature, item, plan } from "atmn";
 
 export const events = feature({
@@ -40,7 +41,7 @@ export const agent_cache_write_tokens = feature({
 
 export const agent_credits = feature({
 	id: "agent_credits",
-	name: "Agent Credits",
+	name: DATABUNNY_USAGE.name,
 	type: "credit_system",
 	creditSchema: [
 		{
@@ -179,8 +180,8 @@ export const pro = plan({
  * parity with Pro. No new bells, no overage tiers.
  */
 export const scale = plan({
-	id: "scale",
-	name: "Scale",
+	id: LEGACY_SCALE_PLAN.id,
+	name: LEGACY_SCALE_PLAN.name,
 	addOn: false,
 	autoEnable: false,
 	price: {
@@ -265,7 +266,7 @@ export const pulse_pro = plan({
  */
 export const credits_booster = plan({
 	id: "credits_booster",
-	name: "Credit Booster",
+	name: "Databunny usage booster",
 	addOn: true,
 	autoEnable: false,
 	price: {
@@ -296,7 +297,7 @@ export const credits_booster = plan({
  */
 export const credits_topup = plan({
 	id: "credits_topup",
-	name: "Agent Credits",
+	name: DATABUNNY_USAGE.name,
 	addOn: true,
 	autoEnable: false,
 	items: [

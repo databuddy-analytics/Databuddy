@@ -1,18 +1,22 @@
 import { logger } from "@/logger";
 import {
 	cacheKeyBelongsToContext,
-	buildQueryParams,
+	buildEvaluationRequest,
 	DEFAULT_RESULT,
 	fetchAllFlags as fetchAllFlagsApi,
+	getCacheContext,
 	getCacheKey,
 	getFlagKey,
 	RequestBatcher,
+	FlagsContextChangedError,
+	FlagsRequestError,
 } from "./shared";
 import type {
 	FlagResult,
 	FlagsConfig,
 	FlagsManager,
 	FlagsManagerOptions,
+	FlagsRequestFailure,
 	FlagsSnapshot,
 	FlagState,
 	StorageInterface,
@@ -27,6 +31,7 @@ const DEFAULT_MAX_CACHE_SIZE = 5000;
 interface CacheEntry {
 	expiresAt: number;
 	promise: Promise<FlagResult>;
+	refreshing: boolean;
 	result: FlagResult | null;
 	staleAt: number;
 }
@@ -39,14 +44,11 @@ function resolved(
 	const now = Date.now();
 	return {
 		promise: Promise.resolve(result),
+		refreshing: false,
 		result,
 		expiresAt: now + ttl,
 		staleAt: now + staleTime,
 	};
-}
-
-function isValid(entry: CacheEntry | undefined): entry is CacheEntry {
-	return entry !== undefined && Date.now() <= entry.expiresAt;
 }
 
 function isStale(entry: CacheEntry): boolean {
@@ -62,7 +64,13 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	private readonly batchers = new Map<string, RequestBatcher>();
 	private ready = false;
 	private readonly listeners = new Set<() => void>();
-	private snapshot: FlagsSnapshot = { flags: {}, isReady: false };
+	private snapshot: FlagsSnapshot = {
+		flags: {},
+		isReady: false,
+		lastError: null,
+	};
+	private lastError: FlagsRequestFailure | null = null;
+	private contextGeneration = 0;
 
 	constructor(options: FlagsManagerOptions) {
 		this.config = {
@@ -95,6 +103,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			await this.fetchAllFlags();
 		}
 		this.ready = true;
+		this.emit();
 	}
 
 	private hydrate(): void {
@@ -104,9 +113,19 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		try {
 			const stored = this.storage.getAll();
 			const { ttl, stale } = this.ttls();
+			let discarded = false;
 			for (const [key, value] of Object.entries(stored)) {
-				if (value && typeof value === "object") {
+				if (value && typeof value === "object" && this.cacheKeyIsActive(key)) {
 					this.setCache(key, resolved(value, ttl, stale));
+				} else {
+					discarded = true;
+				}
+			}
+			if (discarded) {
+				if (this.cache.size > 0) {
+					this.persist();
+				} else {
+					this.storage.clear();
 				}
 			}
 			if (this.cache.size > 0) {
@@ -124,7 +143,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		try {
 			const flags: Record<string, FlagResult> = {};
 			for (const [key, entry] of this.cache) {
-				if (entry.result) {
+				if (entry.result && this.cacheKeyIsActive(key)) {
 					flags[key] = entry.result;
 				}
 			}
@@ -141,12 +160,13 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 	private validEntry(cacheKey: string): CacheEntry | null {
 		const entry = this.cache.get(cacheKey);
-		if (isValid(entry)) {
+		if (!entry) {
+			return null;
+		}
+		if (Date.now() <= entry.expiresAt || entry.result) {
 			return entry;
 		}
-		if (entry) {
-			this.cache.delete(cacheKey);
-		}
+		this.cache.delete(cacheKey);
 		return null;
 	}
 
@@ -167,7 +187,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 		const now = Date.now();
 		for (const [key, entry] of this.cache) {
-			if (now > entry.expiresAt) {
+			if (now > entry.expiresAt && !entry.result) {
 				this.cache.delete(key);
 			}
 		}
@@ -182,8 +202,13 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	}
 
 	private ensureBatcher(user?: UserContext): RequestBatcher {
-		const params = buildQueryParams(this.config, user);
-		const batcherKey = `${this.config.apiUrl ?? DEFAULT_API}?${params}`;
+		const request = buildEvaluationRequest(this.config, user);
+		const batcherKey = getCacheKey(
+			this.config.apiUrl ?? DEFAULT_API,
+			user ?? this.config.user,
+			this.config.environment,
+			this.config.clientId
+		);
 		const existing = this.batchers.get(batcherKey);
 		if (existing) {
 			return existing;
@@ -191,7 +216,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 		const batcher = new RequestBatcher(
 			this.config.apiUrl ?? DEFAULT_API,
-			params,
+			request,
 			this.batchDelay(),
 			() => {
 				if (this.batchers.get(batcherKey) === batcher) {
@@ -207,14 +232,15 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		return 10;
 	}
 
-	private pruneStaleKeys(validKeys: Set<string>, user?: UserContext): void {
+	private pruneStaleKeys(
+		validKeys: Set<string>,
+		user?: UserContext,
+		environment = this.config.environment,
+		clientId = this.config.clientId
+	): void {
 		for (const key of this.cache.keys()) {
 			if (
-				cacheKeyBelongsToContext(
-					key,
-					user ?? this.config.user,
-					this.config.environment
-				) &&
+				cacheKeyBelongsToContext(key, user, environment, clientId) &&
 				!validKeys.has(key)
 			) {
 				this.cache.delete(key);
@@ -224,15 +250,17 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 	private revalidate(key: string, cacheKey: string, user?: UserContext): void {
 		const existing = this.cache.get(cacheKey);
-		if (existing && !existing.result) {
+		if (existing?.refreshing || (existing && !existing.result)) {
 			return;
 		}
 
 		const { ttl, stale } = this.ttls();
+		const requestGeneration = this.contextGeneration;
 		const promise = this.ensureBatcher(user).request(key);
 
 		this.setCache(cacheKey, {
 			promise,
+			refreshing: true,
 			result: existing?.result ?? null,
 			expiresAt: existing?.expiresAt ?? Date.now() + ttl,
 			staleAt: existing?.staleAt ?? Date.now() + stale,
@@ -240,11 +268,32 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 		promise
 			.then((result) => {
+				if (!this.requestGenerationIsCurrent(requestGeneration)) {
+					return;
+				}
+				this.lastError = null;
 				this.setCache(cacheKey, resolved(result, ttl, stale));
 				this.emit();
 				this.onCacheUpdated();
 			})
 			.catch((err) => {
+				if (!this.requestGenerationIsCurrent(requestGeneration)) {
+					return;
+				}
+				const failed = this.cache.get(cacheKey);
+				if (failed?.result) {
+					this.setCache(cacheKey, {
+						...failed,
+						refreshing: false,
+						expiresAt: Date.now() + ttl,
+						staleAt: Date.now() + Math.min(stale, 5000),
+					});
+				}
+				if (err instanceof FlagsContextChangedError) {
+					this.revalidate(key, cacheKey, user);
+					return;
+				}
+				this.captureError(err);
 				logger.error(`Revalidation error: ${key}`, err);
 			});
 	}
@@ -264,7 +313,8 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		const cacheKey = getCacheKey(
 			key,
 			user ?? this.config.user,
-			this.config.environment
+			this.config.environment,
+			this.config.clientId
 		);
 		const entry = this.validEntry(cacheKey);
 
@@ -272,19 +322,35 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			if (isStale(entry) && !this.shouldSkipFetch()) {
 				this.revalidate(key, cacheKey, user);
 			}
-			return entry.result ?? entry.promise;
+			if (entry.result) {
+				this.onFlagEvaluated(key, entry.result);
+				return entry.result;
+			}
+			return this.awaitPendingFlag(
+				key,
+				user,
+				entry.promise,
+				this.contextGeneration
+			);
 		}
 
 		const pending = this.cache.get(cacheKey);
 		if (pending) {
-			return pending.promise;
+			return this.awaitPendingFlag(
+				key,
+				user,
+				pending.promise,
+				this.contextGeneration
+			);
 		}
 
 		const { ttl, stale } = this.ttls();
+		const requestGeneration = this.contextGeneration;
 		const promise = this.ensureBatcher(user).request(key);
 
 		this.setCache(cacheKey, {
 			promise,
+			refreshing: true,
 			result: null,
 			expiresAt: Date.now() + ttl,
 			staleAt: Date.now() + stale,
@@ -292,13 +358,30 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 		try {
 			const result = await promise;
+			if (!this.requestGenerationIsCurrent(requestGeneration)) {
+				return this.getFlag(key, user);
+			}
+			this.lastError = null;
 			this.setCache(cacheKey, resolved(result, ttl, stale));
 			this.emit();
 			this.onCacheUpdated();
 			this.onFlagEvaluated(key, result);
 			return result;
 		} catch (err) {
-			this.cache.delete(cacheKey);
+			if (
+				!this.requestGenerationIsCurrent(requestGeneration) ||
+				err instanceof FlagsContextChangedError
+			) {
+				const stale = this.cache.get(cacheKey);
+				if (stale?.promise === promise && !stale.result) {
+					this.cache.delete(cacheKey);
+				}
+				return this.getFlag(key, user);
+			}
+			this.captureError(err);
+			if (!this.cache.get(cacheKey)?.result) {
+				this.cache.delete(cacheKey);
+			}
 			throw err;
 		}
 	}
@@ -314,26 +397,46 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			return;
 		}
 
-		const params = buildQueryParams(this.config, user);
+		const requestUser = user ?? this.config.user;
+		const requestEnvironment = this.config.environment;
+		const requestClientId = this.config.clientId;
+		const requestContext = getCacheContext(
+			requestUser,
+			requestEnvironment,
+			requestClientId
+		);
+		const requestGeneration = this.contextGeneration;
+		const tracksActiveContext = user === undefined;
+		const request = buildEvaluationRequest(this.config, requestUser);
 		const { ttl, stale } = this.ttls();
 
 		try {
 			const flags = await fetchAllFlagsApi(
 				this.config.apiUrl ?? DEFAULT_API,
-				params
+				request
 			);
+			if (
+				requestGeneration !== this.contextGeneration ||
+				(tracksActiveContext && requestContext !== this.activeCacheContext())
+			) {
+				return;
+			}
+			this.lastError = null;
 			const entries = Object.entries(flags).map(([key, result]) => ({
 				cacheKey: getCacheKey(
 					key,
-					user ?? this.config.user,
-					this.config.environment
+					requestUser,
+					requestEnvironment,
+					requestClientId
 				),
 				entry: resolved(result, ttl, stale),
 			}));
 
 			this.pruneStaleKeys(
 				new Set(entries.map(({ cacheKey }) => cacheKey)),
-				user
+				requestUser,
+				requestEnvironment,
+				requestClientId
 			);
 
 			for (const { cacheKey, entry } of entries) {
@@ -344,6 +447,13 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			this.emit();
 			this.onCacheUpdated();
 		} catch (err) {
+			if (
+				requestGeneration !== this.contextGeneration ||
+				(tracksActiveContext && requestContext !== this.activeCacheContext())
+			) {
+				return;
+			}
+			this.captureError(err);
 			logger.error("Bulk fetch error:", err);
 		}
 	}
@@ -362,7 +472,8 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		const cacheKey = getCacheKey(
 			key,
 			this.config.user,
-			this.config.environment
+			this.config.environment,
+			this.config.clientId
 		);
 		const entry = this.validEntry(cacheKey);
 
@@ -396,7 +507,8 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		const cacheKey = getCacheKey(
 			key,
 			this.config.user,
-			this.config.environment
+			this.config.environment,
+			this.config.clientId
 		);
 		const entry = this.validEntry(cacheKey);
 
@@ -417,8 +529,18 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	}
 
 	updateUser(user: UserContext): void {
-		this.config = { ...this.config, user: this.enrichUser(user) };
-		this.resetBatchers();
+		const nextUser = this.enrichUser(user);
+		const contextChanged = this.activeContextChanged(
+			nextUser,
+			this.config.environment,
+			this.config.clientId
+		);
+		this.config = { ...this.config, user: nextUser };
+		if (contextChanged) {
+			this.clearActiveContextState();
+			this.emit();
+		}
+		this.resetBatchers(new FlagsContextChangedError());
 		this.refresh().catch((err) => logger.error("Refresh error:", err));
 	}
 
@@ -427,8 +549,8 @@ export abstract class BaseFlagsManager implements FlagsManager {
 		options?: { force?: boolean }
 	): Promise<void> {
 		if (forceClear) {
-			this.cache.clear();
-			this.storage?.clear();
+			this.clearActiveContextState();
+			this.resetBatchers(new FlagsContextChangedError());
 			this.emit();
 		}
 		await this.fetchAllFlags(undefined, options);
@@ -436,11 +558,24 @@ export abstract class BaseFlagsManager implements FlagsManager {
 
 	updateConfig(config: FlagsConfig): void {
 		const wasInactive = this.config.disabled || this.config.isPending;
-		this.config = { ...this.config, ...config };
-		this.resetBatchers();
+		const nextConfig = { ...this.config, ...config };
+		const contextChanged = this.activeContextChanged(
+			nextConfig.user,
+			nextConfig.environment,
+			nextConfig.clientId
+		);
+		this.config = nextConfig;
+		if (contextChanged) {
+			this.clearActiveContextState();
+		}
+		this.resetBatchers(new FlagsContextChangedError());
 		this.emit();
 
-		if (wasInactive && !this.config.disabled && !this.config.isPending) {
+		if (
+			(contextChanged || wasInactive) &&
+			!this.config.disabled &&
+			!this.config.isPending
+		) {
 			this.fetchAllFlags().catch((err) => logger.error("Fetch error:", err));
 		}
 	}
@@ -448,7 +583,7 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	getMemoryFlags(): Record<string, FlagResult> {
 		const flags: Record<string, FlagResult> = {};
 		for (const [key, entry] of this.cache) {
-			if (entry.result) {
+			if (entry.result && this.cacheKeyIsActive(key)) {
 				flags[getFlagKey(key)] = entry.result;
 			}
 		}
@@ -456,6 +591,10 @@ export abstract class BaseFlagsManager implements FlagsManager {
 			flags[key] = override;
 		}
 		return flags;
+	}
+
+	getLastError(): FlagsRequestFailure | null {
+		return this.lastError ? { ...this.lastError } : null;
 	}
 
 	setOverride(key: string, override: FlagResult | null): void {
@@ -539,17 +678,96 @@ export abstract class BaseFlagsManager implements FlagsManager {
 	}
 
 	protected emit(): void {
-		this.snapshot = { flags: this.getMemoryFlags(), isReady: this.ready };
+		this.snapshot = {
+			flags: this.getMemoryFlags(),
+			isReady: this.ready,
+			lastError: this.getLastError(),
+		};
 		for (const listener of this.listeners) {
 			listener();
 		}
 	}
 
-	private resetBatchers(): void {
+	private resetBatchers(error?: Error): void {
 		for (const batcher of this.batchers.values()) {
-			batcher.destroy();
+			batcher.destroy(error);
 		}
 		this.batchers.clear();
+	}
+
+	private activeContextChanged(
+		nextUser: UserContext | undefined,
+		nextEnvironment: string | undefined,
+		nextClientId: string
+	): boolean {
+		return (
+			this.activeCacheContext() !==
+			getCacheContext(nextUser, nextEnvironment, nextClientId)
+		);
+	}
+
+	private activeCacheContext(): string {
+		return getCacheContext(
+			this.config.user,
+			this.config.environment,
+			this.config.clientId
+		);
+	}
+
+	private cacheKeyIsActive(cacheKey: string): boolean {
+		return cacheKeyBelongsToContext(
+			cacheKey,
+			this.config.user,
+			this.config.environment,
+			this.config.clientId
+		);
+	}
+
+	private clearActiveContextState(): void {
+		this.contextGeneration += 1;
+		this.cache.clear();
+		this.storage?.clear();
+		this.lastError = null;
+	}
+
+	private requestGenerationIsCurrent(generation: number): boolean {
+		return generation === this.contextGeneration;
+	}
+
+	private async awaitPendingFlag(
+		key: string,
+		user: UserContext | undefined,
+		promise: Promise<FlagResult>,
+		requestGeneration: number
+	): Promise<FlagResult> {
+		try {
+			const result = await promise;
+			return this.requestGenerationIsCurrent(requestGeneration)
+				? result
+				: this.getFlag(key, user);
+		} catch (error) {
+			if (
+				!this.requestGenerationIsCurrent(requestGeneration) ||
+				error instanceof FlagsContextChangedError
+			) {
+				return this.getFlag(key, user);
+			}
+			throw error;
+		}
+	}
+
+	private captureError(error: unknown): void {
+		this.lastError =
+			error instanceof FlagsRequestError
+				? error.toFailure()
+				: {
+						code: "NETWORK_ERROR",
+						message:
+							error instanceof Error ? error.message : "Flag request failed",
+						status: null,
+						retryable: true,
+					};
+		this.emit();
 	}
 
 	protected revalidateStale(): void {

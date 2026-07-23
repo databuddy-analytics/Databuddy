@@ -533,7 +533,7 @@ const FeatureFlagsFeature = () => {
 
 const WEB_VITALS_METRICS = [
 	{ label: "LCP", value: "0.8s", score: 98 },
-	{ label: "FID", value: "12ms", score: 100 },
+	{ label: "INP", value: "148ms", score: 100 },
 	{ label: "CLS", value: "0.02", score: 95 },
 ] as const;
 

@@ -131,6 +131,7 @@ async function resolveGrant(
 		resource: string;
 		permissions: readonly string[];
 		allowCrossOrg: boolean;
+		websiteId?: string;
 	}
 ): Promise<Grant> {
 	const { organizationId, resource, permissions, allowCrossOrg } = input;
@@ -180,7 +181,13 @@ async function resolveGrant(
 		}
 
 		for (const scope of requiredScopesForResource(resource, permissions)) {
-			if (!hasKeyScope(context.apiKey, scope)) {
+			if (
+				!hasKeyScope(
+					context.apiKey,
+					scope,
+					input.websiteId ? `website:${input.websiteId}` : undefined
+				)
+			) {
 				return {
 					granted: false,
 					denied: rpcError.forbidden(
@@ -234,6 +241,9 @@ async function resolveWorkspace(
 	if (!organizationId) {
 		throw rpcError.badRequest("Workspace is required");
 	}
+	if (website && website.organizationId !== organizationId) {
+		throw rpcError.forbidden("Website does not belong to this organization");
+	}
 
 	const effectiveResource =
 		input.resource ?? (input.websiteId ? "website" : "organization");
@@ -245,6 +255,7 @@ async function resolveWorkspace(
 			resource: effectiveResource,
 			permissions: input.permissions,
 			allowCrossOrg: input.allowCrossOrg,
+			websiteId: website?.id,
 		}),
 		planPromise,
 	]);

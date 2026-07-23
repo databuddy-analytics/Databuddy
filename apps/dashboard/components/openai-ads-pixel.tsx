@@ -60,6 +60,27 @@ function initOpenAiQueue(): boolean {
 	return true;
 }
 
+function createRegistrationEventId(): string {
+	if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+		return crypto.randomUUID();
+	}
+
+	return `registration_completed_${Date.now()}_${Math.random()
+		.toString(36)
+		.slice(2)}`;
+}
+
+export function buildOpenAiRegistrationMeasureArgs(
+	eventId?: string
+): unknown[] {
+	return [
+		"measure",
+		"registration_completed",
+		{ type: "customer_action" },
+		...(eventId ? [{ event_id: eventId }] : []),
+	];
+}
+
 export function OpenAiAdsPixel() {
 	useEffect(() => {
 		initOpenAiQueue();
@@ -68,12 +89,14 @@ export function OpenAiAdsPixel() {
 	return null;
 }
 
-export function measureOpenAiRegistrationCompleted() {
+export function measureOpenAiRegistrationCompleted(eventId?: string) {
 	if (!initOpenAiQueue()) {
 		return;
 	}
 
-	window.oaiq?.("measure", "registration_completed", {
-		type: "customer_action",
-	});
+	window.oaiq?.(...buildOpenAiRegistrationMeasureArgs(eventId));
+}
+
+export function trackOpenAiRegistrationCompleted() {
+	measureOpenAiRegistrationCompleted(createRegistrationEventId());
 }

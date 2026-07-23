@@ -123,10 +123,18 @@ function SidebarNavItem({
 
 	if (isLocked) {
 		const el = (
-			<div
-				aria-disabled
-				className={cn(base, "cursor-not-allowed text-sidebar-foreground/30")}
-				title={lockedPlanName ? `Requires ${lockedPlanName} plan` : undefined}
+			<Link
+				aria-label={`${item.name}. Requires ${lockedPlanName ?? "a paid"} plan. Open upgrade options.`}
+				className={cn(
+					base,
+					"text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+				)}
+				href={fullPath}
+				title={
+					lockedPlanName
+						? `Requires ${lockedPlanName} plan — open upgrade options`
+						: "Open upgrade options"
+				}
 			>
 				<Icon aria-hidden className={P.icon} />
 				{!collapsed && (
@@ -140,10 +148,13 @@ function SidebarNavItem({
 						)}
 					</>
 				)}
-			</div>
+			</Link>
 		);
 		return collapsed ? (
-			<Tooltip content={`${item.name} (${lockedPlanName})`} side="right">
+			<Tooltip
+				content={`${item.name} · ${lockedPlanName ?? "Upgrade"}`}
+				side="right"
+			>
 				{el}
 			</Tooltip>
 		) : (

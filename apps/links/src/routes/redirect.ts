@@ -17,7 +17,6 @@ import { UAParser } from "ua-parser-js";
 import { captureError, mergeWideEvent, record } from "../lib/logging";
 import { sendLinkVisit } from "../lib/producer";
 import { extractIp, getGeo } from "../utils/geo";
-import { appendRef } from "../utils/url";
 
 const EXPIRED_URL = `${config.urls.dashboard}/dby/expired`;
 const NOT_FOUND_URL = `${config.urls.dashboard}/dby/not-found`;
@@ -346,9 +345,13 @@ export const redirectRoute = new Elysia().get(
 		const t0 = performance.now();
 		const { slug } = params;
 
-		if (IGNORED_SLUGS.has(slug) || !SLUG_RE.test(slug)) {
+		if (IGNORED_SLUGS.has(slug)) {
 			set.status = 404;
 			return;
+		}
+		if (!SLUG_RE.test(slug)) {
+			set.headers = { "Cache-Control": "private, no-store" };
+			return redirect(NOT_FOUND_URL, 302);
 		}
 		const ip = extractIp(request);
 		const ipHash = hashIp(ip);
@@ -413,8 +416,7 @@ export const redirectRoute = new Elysia().get(
 			}
 		}
 
-		const attributedUrl = appendRef(targetUrl, link.id);
-		const etag = generateETag(link, attributedUrl);
+		const etag = generateETag(link, targetUrl);
 
 		if (request.headers.get("if-none-match") === etag) {
 			emit("not_modified");
@@ -433,7 +435,7 @@ export const redirectRoute = new Elysia().get(
 			"Cache-Control": "private, no-cache",
 			ETag: etag,
 		};
-		return redirect(attributedUrl, 302);
+		return redirect(targetUrl, 302);
 	},
 	{ params: t.Object({ slug: t.String() }) }
 );

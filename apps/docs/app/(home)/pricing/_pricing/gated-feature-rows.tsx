@@ -135,7 +135,10 @@ const PLATFORM_FEATURES: PlatformFeature[] = [
 	{ name: "Team Members", description: "Unlimited seats on all plans" },
 	{ name: "Websites", description: "Unlimited websites on all plans" },
 	{ name: "API Access", description: "REST API with scoped API keys" },
-	{ name: "Slack Integration", description: "Alerts and digests in Slack" },
+	{
+		name: "Slack Integration",
+		description: "Alerts and investigations in Slack",
+	},
 	{ name: "SDKs", description: "JavaScript, React, Vue, Swift" },
 ];
 

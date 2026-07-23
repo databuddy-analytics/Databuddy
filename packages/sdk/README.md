@@ -41,7 +41,6 @@ export default function RootLayout({ children }) {
       <head />
       <Databuddy
         clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-        trackPerformance
         trackWebVitals
         trackErrors
         enableBatching
@@ -101,7 +100,6 @@ All options are type-safe and documented in `DatabuddyConfig`:
 | Option                | Type      | Default      | Description |
 |-----------------------|-----------|--------------|-------------|
 | `clientId`            | string    | —            | **Required.** Your Databuddy Client ID. |
-| `clientSecret`        | string    | —            | (Advanced) For server-side use only. |
 | `apiUrl`              | string    | `https://basket.databuddy.cc` | Custom API endpoint. |
 | `scriptUrl`           | string    | `https://cdn.databuddy.cc/databuddy.js` | Custom script URL. |
 | `sdk`                 | string    | `web`        | SDK name. Only override for custom builds. |
@@ -112,7 +110,6 @@ All options are type-safe and documented in `DatabuddyConfig`:
 | `trackAttributes`     | boolean   | `false`      | Track data-* attributes on elements. |
 | `trackOutgoingLinks`  | boolean   | `false`      | Track clicks on outgoing links. |
 | `trackInteractions`   | boolean   | `false`      | Track user interactions. |
-| `trackPerformance`    | boolean   | `true`       | Track page performance metrics. |
 | `trackWebVitals`      | boolean   | `false`      | Track Web Vitals metrics. |
 | `trackErrors`         | boolean   | `false`      | Track JavaScript errors. |
 | `ignoreBotDetection`  | boolean   | `false`      | Ignore bot detection. |

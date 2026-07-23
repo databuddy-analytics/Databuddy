@@ -2,8 +2,10 @@
 
 import AttachDialog from "@/components/autumn/attach-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
+import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { orpc } from "@/lib/orpc";
 import { TOPUP_PRODUCT_ID } from "@/lib/topup-math";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
@@ -15,6 +17,7 @@ import { BillingControlsCard } from "./components/billing-controls-card";
 import { CancelSubscriptionDialog } from "./components/cancel-subscription-dialog";
 import { ConsumptionChart } from "./components/consumption-chart";
 import { ErrorState } from "./components/empty-states";
+import { PlanStatusBadge } from "./components/plan-status-badge";
 import { TopupCard } from "./components/topup-card";
 import { UsageBreakdownTable } from "./components/usage-breakdown-table";
 import { UsageRow } from "./components/usage-row";
@@ -152,7 +155,10 @@ function AddOnRow({
 			setDialogOpen(true);
 		} catch (err) {
 			toast.error(
-				err instanceof Error ? err.message : "Failed to load preview."
+				getUserFacingErrorMessage(
+					err,
+					"We couldn't load the add-on preview. Try again."
+				)
 			);
 		} finally {
 			setIsLoadingPreview(false);
@@ -173,7 +179,7 @@ function AddOnRow({
 					)}
 				</div>
 				{isCancelled ? (
-					<Badge variant="muted">Cancelled</Badge>
+					<Badge variant="muted">Cancellation scheduled</Badge>
 				) : isActive ? (
 					<div className="flex items-center gap-2">
 						<Badge variant="success">Active</Badge>
@@ -208,9 +214,10 @@ function AddOnRow({
 			</div>
 			{preview && (
 				<AttachDialog
+					action="add"
 					onConfirm={() => onAttach(addOn.id)}
 					open={dialogOpen}
-					planId={addOn.id}
+					planName={addOn.name}
 					preview={preview}
 					setOpen={setDialogOpen}
 				/>
@@ -343,9 +350,16 @@ export default function BillingPage() {
 	}
 
 	const isFree = currentPlan?.id === "free" || currentPlan?.autoEnable === true;
-	const isCanceled = currentPlan?.customerEligibility?.canceling === true;
+	const isCanceled = Boolean(
+		currentSubscription?.canceledAt ||
+			currentPlan?.customerEligibility?.canceling === true
+	);
 	const isMaxPlan = currentPlan?.id === "scale";
 	const showAddOns = addOns.length > 0 && !isFree;
+	const currentPlanDisplayName = getCustomerPlanName(
+		currentPlan?.id,
+		currentPlan?.name || "Free"
+	);
 
 	return (
 		<main className="min-h-0 flex-1 overflow-y-auto">
@@ -355,7 +369,11 @@ export default function BillingPage() {
 				onCancel={onCancelConfirm}
 				onOpenChange={(open) => !open && onCancelDialogClose()}
 				open={showCancelDialog}
-				planName={cancelTarget?.name ?? ""}
+				planName={
+					cancelTarget
+						? getCustomerPlanName(cancelTarget.id, cancelTarget.name)
+						: ""
+				}
 			/>
 
 			<div className="mx-auto max-w-2xl space-y-6 p-5">
@@ -367,17 +385,10 @@ export default function BillingPage() {
 								Subscription and billing management
 							</Card.Description>
 						</div>
-						<Badge
-							variant={
-								currentSubscription?.status === "scheduled"
-									? "muted"
-									: "success"
-							}
-						>
-							{currentSubscription?.status === "scheduled"
-								? "Scheduled"
-								: "Active"}
-						</Badge>
+						<PlanStatusBadge
+							isCanceled={isCanceled}
+							isScheduled={currentSubscription?.status === "scheduled"}
+						/>
 					</Card.Header>
 					<Card.Content className="space-y-4">
 						<div className="flex items-center justify-between gap-3">
@@ -390,7 +401,7 @@ export default function BillingPage() {
 									/>
 								</div>
 								<div>
-									<Text variant="label">{currentPlan?.name || "Free"}</Text>
+									<Text variant="label">{currentPlanDisplayName}</Text>
 									{!isFree && currentPlan?.price?.display?.primaryText && (
 										<Text tone="muted" variant="caption">
 											{currentPlan.price.display.primaryText}
@@ -447,7 +458,7 @@ export default function BillingPage() {
 													currentPlan &&
 													onCancelClick(
 														currentPlan.id,
-														currentPlan.name,
+														currentPlanDisplayName,
 														currentSubscription?.currentPeriodEnd ?? undefined
 													)
 												}
@@ -530,10 +541,12 @@ export default function BillingPage() {
 													toast.success("Add-on attached");
 												} catch (err) {
 													toast.error(
-														err instanceof Error
-															? err.message
-															: "Failed to attach add-on."
+														getUserFacingErrorMessage(
+															err,
+															"We couldn't add this add-on. Try again."
+														)
 													);
+													throw err;
 												}
 											}}
 											onCancel={() =>

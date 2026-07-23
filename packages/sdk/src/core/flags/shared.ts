@@ -1,4 +1,9 @@
-import type { FlagResult, FlagsConfig, UserContext } from "./types";
+import type {
+	FlagResult,
+	FlagsConfig,
+	FlagsRequestFailure,
+	UserContext,
+} from "./types";
 
 const CACHE_CONTEXT_SEPARATOR = "::databuddy-context::";
 
@@ -11,10 +16,14 @@ export const DEFAULT_RESULT: FlagResult = {
 
 export function getCacheContext(
 	user?: UserContext,
-	environment?: string
+	environment?: string,
+	clientId?: string
 ): string {
 	const params = new URLSearchParams();
 
+	if (clientId) {
+		params.set("clientId", clientId);
+	}
 	if (user?.userId) {
 		params.set("userId", user.userId);
 	}
@@ -40,9 +49,10 @@ export function getCacheContext(
 export function getCacheKey(
 	key: string,
 	user?: UserContext,
-	environment?: string
+	environment?: string,
+	clientId?: string
 ): string {
-	const context = getCacheContext(user, environment);
+	const context = getCacheContext(user, environment, clientId);
 	if (!context) {
 		return key;
 	}
@@ -57,38 +67,26 @@ export function getFlagKey(cacheKey: string): string {
 export function cacheKeyBelongsToContext(
 	cacheKey: string,
 	user?: UserContext,
-	environment?: string
+	environment?: string,
+	clientId?: string
 ): boolean {
-	const context = getCacheContext(user, environment);
+	const context = getCacheContext(user, environment, clientId);
 	if (!context) {
 		return !cacheKey.includes(CACHE_CONTEXT_SEPARATOR);
 	}
 	return cacheKey.endsWith(`${CACHE_CONTEXT_SEPARATOR}${context}`);
 }
 
-export function buildQueryParams(
-	config: FlagsConfig,
-	user?: UserContext
-): URLSearchParams {
+export class FlagsContextChangedError extends Error {
+	constructor() {
+		super("Flag evaluation context changed");
+		this.name = "FlagsContextChangedError";
+	}
+}
+
+export function buildQueryParams(config: FlagsConfig): URLSearchParams {
 	const params = new URLSearchParams();
 	params.set("clientId", config.clientId);
-
-	const u = user ?? config.user;
-	if (u?.userId) {
-		params.set("userId", u.userId);
-	}
-	if (u?.email) {
-		params.set("email", u.email);
-	}
-	if (u?.organizationId) {
-		params.set("organizationId", u.organizationId);
-	}
-	if (u?.teamId) {
-		params.set("teamId", u.teamId);
-	}
-	if (u?.properties) {
-		params.set("properties", JSON.stringify(u.properties));
-	}
 	if (config.environment) {
 		params.set("environment", config.environment);
 	}
@@ -96,48 +94,149 @@ export function buildQueryParams(
 	return params;
 }
 
-export async function fetchFlags(
-	apiUrl: string,
-	keys: string[],
-	params: URLSearchParams
-): Promise<Record<string, FlagResult>> {
-	const batchParams = new URLSearchParams(params);
-	batchParams.set("keys", keys.join(","));
-
-	const url = `${apiUrl}/public/v1/flags/bulk?${batchParams}`;
-
-	const response = await fetch(url);
-
-	if (!response.ok) {
-		const result: Record<string, FlagResult> = {};
-		for (const key of keys) {
-			result[key] = { ...DEFAULT_RESULT, reason: "ERROR" };
-		}
-		return result;
-	}
-
-	const data = (await response.json()) as {
-		flags?: Record<string, FlagResult>;
-	};
-	return data.flags ?? {};
+export interface FlagEvaluationRequest {
+	clientId: string;
+	email?: string;
+	environment?: string;
+	organizationId?: string;
+	properties?: Record<string, unknown>;
+	teamId?: string;
+	userId?: string;
 }
 
-export async function fetchAllFlags(
-	apiUrl: string,
-	params: URLSearchParams
-): Promise<Record<string, FlagResult>> {
-	const url = `${apiUrl}/public/v1/flags/bulk?${params}`;
+export function buildEvaluationRequest(
+	config: FlagsConfig,
+	user?: UserContext
+): FlagEvaluationRequest {
+	const context = user ?? config.user;
+	return {
+		clientId: config.clientId,
+		...(context?.userId ? { userId: context.userId } : {}),
+		...(context?.email ? { email: context.email } : {}),
+		...(context?.organizationId
+			? { organizationId: context.organizationId }
+			: {}),
+		...(context?.teamId ? { teamId: context.teamId } : {}),
+		...(context?.properties ? { properties: context.properties } : {}),
+		...(config.environment ? { environment: config.environment } : {}),
+	};
+}
 
-	const response = await fetch(url);
+export class FlagsRequestError extends Error {
+	readonly code: FlagsRequestFailure["code"];
+	readonly requestId?: string;
+	readonly retryable: boolean;
+	readonly status: number | null;
 
-	if (!response.ok) {
-		return {};
+	constructor(failure: FlagsRequestFailure) {
+		super(failure.message);
+		this.name = "FlagsRequestError";
+		this.code = failure.code;
+		this.status = failure.status;
+		this.retryable = failure.retryable;
+		this.requestId = failure.requestId;
 	}
 
-	const data = (await response.json()) as {
-		flags?: Record<string, FlagResult>;
-	};
-	return data.flags ?? {};
+	toFailure(): FlagsRequestFailure {
+		return {
+			code: this.code,
+			message: this.message,
+			status: this.status,
+			retryable: this.retryable,
+			...(this.requestId ? { requestId: this.requestId } : {}),
+		};
+	}
+}
+
+function isRetryableStatus(status: number): boolean {
+	return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function readFlagsResponse(
+	response: Response
+): Promise<Record<string, FlagResult>> {
+	const text = await response.text();
+	let data: unknown = null;
+	try {
+		data = text ? JSON.parse(text) : null;
+	} catch {
+		data = text;
+	}
+
+	if (!response.ok) {
+		const record =
+			data && typeof data === "object"
+				? (data as Record<string, unknown>)
+				: null;
+		const message = record?.error ?? record?.message;
+		throw new FlagsRequestError({
+			code: "HTTP_ERROR",
+			message:
+				typeof message === "string" && message.trim()
+					? message
+					: `Flag evaluation failed with HTTP ${response.status}`,
+			status: response.status,
+			retryable: isRetryableStatus(response.status),
+			requestId:
+				response.headers.get("x-request-id") ??
+				(typeof record?.requestId === "string" ? record.requestId : undefined),
+		});
+	}
+
+	if (!(data && typeof data === "object" && "flags" in data)) {
+		throw new FlagsRequestError({
+			code: "INVALID_RESPONSE",
+			message: "Flag evaluation returned an invalid response",
+			status: response.status,
+			retryable: false,
+		});
+	}
+
+	const flags = (data as { flags?: unknown }).flags;
+	if (!(flags && typeof flags === "object" && !Array.isArray(flags))) {
+		return {};
+	}
+	return flags as Record<string, FlagResult>;
+}
+
+async function requestFlags(
+	apiUrl: string,
+	request: FlagEvaluationRequest,
+	keys?: string[]
+): Promise<Record<string, FlagResult>> {
+	try {
+		const response = await fetch(`${apiUrl}/public/v1/flags/bulk`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ ...request, ...(keys ? { keys } : {}) }),
+		});
+		return await readFlagsResponse(response);
+	} catch (error) {
+		if (error instanceof FlagsRequestError) {
+			throw error;
+		}
+		throw new FlagsRequestError({
+			code: "NETWORK_ERROR",
+			message: error instanceof Error ? error.message : "Flag request failed",
+			status: null,
+			retryable: true,
+		});
+	}
+}
+
+export function fetchFlags(
+	apiUrl: string,
+	keys: string[],
+	request: FlagEvaluationRequest
+): Promise<Record<string, FlagResult>> {
+	return requestFlags(apiUrl, request, keys);
+}
+
+export function fetchAllFlags(
+	apiUrl: string,
+	request: FlagEvaluationRequest
+): Promise<Record<string, FlagResult>> {
+	return requestFlags(apiUrl, request);
 }
 
 export class RequestBatcher {
@@ -149,16 +248,16 @@ export class RequestBatcher {
 	private readonly batchDelayMs: number;
 	private readonly apiUrl: string;
 	private readonly onIdle?: () => void;
-	private readonly params: URLSearchParams;
+	private readonly requestBody: FlagEvaluationRequest;
 
 	constructor(
 		apiUrl: string,
-		params: URLSearchParams,
+		request: FlagEvaluationRequest,
 		batchDelayMs = 10,
 		onIdle?: () => void
 	) {
 		this.apiUrl = apiUrl;
-		this.params = params;
+		this.requestBody = request;
 		this.batchDelayMs = batchDelayMs;
 		this.onIdle = onIdle;
 	}
@@ -191,7 +290,7 @@ export class RequestBatcher {
 		}
 
 		try {
-			const results = await fetchFlags(this.apiUrl, keys, this.params);
+			const results = await fetchFlags(this.apiUrl, keys, this.requestBody);
 
 			for (const [key, cbs] of callbacks) {
 				const result = results[key] ?? {
@@ -216,10 +315,15 @@ export class RequestBatcher {
 		}
 	}
 
-	destroy(): void {
+	destroy(error: Error = new Error("Flag request batcher destroyed")): void {
 		if (this.timer) {
 			clearTimeout(this.timer);
 			this.timer = null;
+		}
+		for (const callbacks of this.pending.values()) {
+			for (const callback of callbacks) {
+				callback.reject(error);
+			}
 		}
 		this.pending.clear();
 	}

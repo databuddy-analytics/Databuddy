@@ -201,10 +201,11 @@ describe("redirect route logic", () => {
     expect(formatted).toBe("2025-01-16 10:30:45.123");
   });
 
-  test("302 redirect preserves target URL", () => {
+  test("302 redirect preserves the target URL without adding attribution parameters", () => {
     for (const url of [
       "https://example.com/path?query=value#hash",
       "https://example.com/path?utm_source=test&utm_medium=link",
+      "https://example.com/path?ref=publisher",
     ]) {
       expect(Response.redirect(url, 302).headers.get("location")).toBe(url);
     }

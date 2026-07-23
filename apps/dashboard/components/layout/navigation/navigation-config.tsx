@@ -58,7 +58,7 @@ export const mainNavigation: NavigationGroup[] = [
 		items: [
 			createNavItem("Home", HouseIcon, "/home"),
 			createNavItem("Websites", GlobeIcon, "/websites"),
-			createNavItem("Insights", LightbulbIcon, "/insights"),
+			createNavItem("Investigations", LightbulbIcon, "/insights"),
 			createNavItem("Databunny", RobotIcon, "/agent", {
 				activeMatch: "prefix",
 				alpha: true,
@@ -265,7 +265,7 @@ export const settingsNavigation: NavigationGroup[] = [
 						searchTags: ["workspace details", "organization id", "slug"],
 					},
 					{
-						name: "Workspace Websites",
+						name: "Organization Websites",
 						href: "#websites",
 						icon: GlobeIcon,
 						searchTags: ["organization websites", "workspace sites"],

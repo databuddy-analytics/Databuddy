@@ -28,9 +28,11 @@ const WEB_VITALS_METRICS = `
 	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'FCP' AND wv.metric_value > 0) as p50_fcp,
 	avgIf(wv.metric_value, wv.metric_name = 'LCP' AND wv.metric_value > 0) as avg_lcp,
 	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'LCP' AND wv.metric_value > 0) as p50_lcp,
+	quantileTDigestIf(0.75)(wv.metric_value, wv.metric_name = 'LCP' AND wv.metric_value > 0) as p75_lcp,
 	avgIf(wv.metric_value, wv.metric_name = 'CLS') as avg_cls,
 	quantileTDigestIf(0.50)(wv.metric_value, wv.metric_name = 'CLS') as p50_cls,
 	avgIf(wv.metric_value, wv.metric_name = 'INP' AND wv.metric_value > 0) as avg_inp,
+	quantileTDigestIf(0.75)(wv.metric_value, wv.metric_name = 'INP' AND wv.metric_value > 0) as p75_inp,
 	avgIf(wv.metric_value, wv.metric_name = 'TTFB' AND wv.metric_value > 0) as avg_ttfb,
 	COUNT(*) as measurements
 `;
@@ -42,9 +44,11 @@ const WEB_VITALS_BREAKDOWN_FIELDS = [
 	{ name: "p50_fcp", type: "number" as const, label: "p50 FCP" },
 	{ name: "avg_lcp", type: "number" as const, label: "Avg LCP" },
 	{ name: "p50_lcp", type: "number" as const, label: "p50 LCP" },
+	{ name: "p75_lcp", type: "number" as const, label: "p75 LCP" },
 	{ name: "avg_cls", type: "number" as const, label: "Avg CLS" },
 	{ name: "p50_cls", type: "number" as const, label: "p50 CLS" },
 	{ name: "avg_inp", type: "number" as const, label: "Avg INP" },
+	{ name: "p75_inp", type: "number" as const, label: "p75 INP" },
 	{ name: "avg_ttfb", type: "number" as const, label: "Avg TTFB" },
 	{ name: "measurements", type: "number" as const, label: "Measurements" },
 ];
@@ -72,9 +76,11 @@ export const PerformanceBuilders: Record<string, SimpleQueryConfig> = {
 						quantileTDigestIf(0.50)(metric_value, metric_name = 'FCP' AND metric_value > 0) as p50_fcp,
 						avgIf(metric_value, metric_name = 'LCP' AND metric_value > 0) as avg_lcp,
 						quantileTDigestIf(0.50)(metric_value, metric_name = 'LCP' AND metric_value > 0) as p50_lcp,
+						quantileTDigestIf(0.75)(metric_value, metric_name = 'LCP' AND metric_value > 0) as p75_lcp,
 						avgIf(metric_value, metric_name = 'CLS') as avg_cls,
 						quantileTDigestIf(0.50)(metric_value, metric_name = 'CLS') as p50_cls,
 						avgIf(metric_value, metric_name = 'INP' AND metric_value > 0) as avg_inp,
+						quantileTDigestIf(0.75)(metric_value, metric_name = 'INP' AND metric_value > 0) as p75_inp,
 						avgIf(metric_value, metric_name = 'TTFB' AND metric_value > 0) as avg_ttfb,
 						COUNT(*) as measurements
 					FROM ${Analytics.web_vitals_spans}

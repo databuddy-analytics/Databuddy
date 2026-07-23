@@ -1,10 +1,6 @@
 import { createGateway } from "ai";
 
-const apiKey = (
-	process.env.AI_GATEWAY_API_KEY ??
-	process.env.AI_API_KEY ??
-	""
-).trim();
+const apiKey = (process.env.AI_GATEWAY_API_KEY ?? "").trim();
 
 export const isAiGatewayConfigured = apiKey.length > 0;
 

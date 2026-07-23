@@ -25,7 +25,8 @@ export default function WebsiteError({
 			<div className="max-w-sm space-y-2 text-center">
 				<h2 className="font-semibold text-lg">Something went wrong</h2>
 				<p className="text-muted-foreground text-sm">
-					{error.message || "An error occurred while loading this page"}
+					We couldn&apos;t load this website. Try again or return to your
+					websites.
 				</p>
 				{error.digest && (
 					<p className="font-mono text-muted-foreground text-xs">

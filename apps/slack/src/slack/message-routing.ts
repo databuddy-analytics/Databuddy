@@ -15,7 +15,9 @@ type SlackMessageFields = Pick<
 	| "user"
 > & {
 	deleted_ts: types.MessageDeletedEvent["deleted_ts"];
+	source_team: string;
 	subtype: string;
+	user_team: string;
 };
 
 export type SlackMessageLike = Partial<SlackMessageFields>;
@@ -36,12 +38,14 @@ export function toSlackMessage(message: unknown): SlackMessageLike | null {
 		channel_type: getChannelType(message.channel_type),
 		client_msg_id: getString(message.client_msg_id),
 		deleted_ts: getString(message.deleted_ts),
+		source_team: getString(message.source_team),
 		subtype: getString(message.subtype),
 		team: getString(message.team),
 		text: getString(message.text),
 		thread_ts: getString(message.thread_ts),
 		ts: getString(message.ts),
 		user: getString(message.user),
+		user_team: getString(message.user_team),
 	};
 }
 

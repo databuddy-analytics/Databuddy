@@ -39,10 +39,17 @@ const STATUS_BANNER: Record<
 		text: "#f87171",
 		label: "Major System Outage",
 	},
+	unknown: {
+		bg: "rgba(163, 164, 171, 0.1)",
+		border: "rgba(163, 164, 171, 0.25)",
+		text: "#a3a4ab",
+		label: "Status Unavailable",
+	},
 };
 
 const MONITOR_STATUS_COLORS: Record<string, string> = {
 	up: "#10b981",
+	degraded: "#f59e0b",
 	down: "#ef4444",
 	unknown: "#a3a4ab",
 };
@@ -80,8 +87,8 @@ export default async function OGImage({
 		.catch(() => null);
 
 	const pageName = data?.statusPage.name || "Status Page";
-	const status = data?.overallStatus ?? "operational";
-	const banner = STATUS_BANNER[status] ?? STATUS_BANNER.operational;
+	const status = data?.overallStatus ?? "unknown";
+	const banner = STATUS_BANNER[status] ?? STATUS_BANNER.unknown;
 	const monitors = data?.monitors.slice(0, MAX_MONITORS) ?? [];
 	const totalMonitors = data?.monitors.length ?? 0;
 
@@ -157,6 +164,15 @@ export default async function OGImage({
 							strokeWidth="2.5"
 						/>
 					)}
+					{status === "unknown" && (
+						<path
+							d="M12 7v6M12 16v1"
+							fill="none"
+							stroke={THEME.background}
+							strokeLinecap="round"
+							strokeWidth="2.5"
+						/>
+					)}
 				</svg>
 				<span style={{ color: banner.text, fontSize: "16px", fontWeight: 600 }}>
 					{banner.label}
@@ -225,13 +241,21 @@ export default async function OGImage({
 													strokeLinecap="round"
 													strokeWidth="2.5"
 												/>
-											) : (
+											) : monitorStatus === "up" ? (
 												<path
 													d="M7 12.5l3 3 7-7"
 													fill="none"
 													stroke={THEME.background}
 													strokeLinecap="round"
 													strokeLinejoin="round"
+													strokeWidth="2.5"
+												/>
+											) : (
+												<path
+													d="M12 7v6M12 16v1"
+													fill="none"
+													stroke={THEME.background}
+													strokeLinecap="round"
 													strokeWidth="2.5"
 												/>
 											)}
@@ -264,7 +288,9 @@ export default async function OGImage({
 											fontFamily: "monospace",
 										}}
 									>
-										{monitor.uptimePercentage?.toFixed(2) ?? "0.00"}%
+										{monitor.uptimePercentage == null
+											? "No uptime data"
+											: `${monitor.uptimePercentage.toFixed(2)}%`}
 									</span>
 								</div>
 
@@ -274,9 +300,10 @@ export default async function OGImage({
 											key={day.date}
 											style={{
 												flex: 1,
-												backgroundColor: getBarColor(
-													day.uptime_percentage ?? 0
-												),
+												backgroundColor:
+													day.uptime_percentage == null
+														? THEME.secondary
+														: getBarColor(day.uptime_percentage),
 												borderRadius: "2px",
 											}}
 										/>

@@ -86,6 +86,12 @@ export const basketErrorCatalog = defineErrorCatalog("basket", {
 		why: "The Client ID is unknown, inactive, or not found.",
 		fix: "Use the client ID from your site snippet and ensure the site is active.",
 	},
+	WEBSITE_LOOKUP_UNAVAILABLE: {
+		message: "Website lookup temporarily unavailable",
+		status: 503,
+		why: "The website configuration store could not be reached.",
+		fix: "Retry the same request after a short delay. Do not change a known-good client ID.",
+	},
 	INGEST_ORIGIN_NOT_AUTHORIZED: {
 		message: "Origin not authorized",
 		status: 403,
@@ -163,6 +169,7 @@ export const basketErrors = {
 	ingestPayloadTooLarge: basketErrorCatalog.INGEST_PAYLOAD_TOO_LARGE,
 	ingestMissingClientId: basketErrorCatalog.INGEST_MISSING_CLIENT_ID,
 	ingestInvalidClientId: basketErrorCatalog.INGEST_INVALID_CLIENT_ID,
+	websiteLookupUnavailable: basketErrorCatalog.WEBSITE_LOOKUP_UNAVAILABLE,
 	ingestOriginNotAuthorized: basketErrorCatalog.INGEST_ORIGIN_NOT_AUTHORIZED,
 	ingestIpNotAuthorized: basketErrorCatalog.INGEST_IP_NOT_AUTHORIZED,
 	ingestWebsiteMissingOrganization:
@@ -241,6 +248,11 @@ export function buildBasketErrorPayload(
 		error: safeClientError,
 		message: safeClientError,
 		code: codeString,
+		retryable:
+			statusCode === 408 ||
+			statusCode === 425 ||
+			statusCode === 429 ||
+			statusCode >= 500,
 		...options.extra,
 	};
 

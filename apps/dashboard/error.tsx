@@ -28,9 +28,11 @@ export default function ErrorPage({ error, reset }: ErrorPageProps) {
 						We encountered an unexpected error. Please try again. If the problem
 						persists, please contact support.
 					</p>
-					<pre className="max-h-[150px] overflow-auto rounded bg-muted p-3 font-mono text-xs">
-						{error.message || "An unknown error occurred."}
-					</pre>
+					{error.digest && (
+						<p className="font-mono text-muted-foreground text-xs">
+							Reference: {error.digest}
+						</p>
+					)}
 					<Button onClick={() => reset()} size="sm">
 						<ArrowClockwiseIcon className="mr-2 size-4" size={16} />
 						Try again

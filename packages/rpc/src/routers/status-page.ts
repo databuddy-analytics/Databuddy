@@ -17,11 +17,20 @@ import {
 } from "@databuddy/redis";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
+import { parseUptimeGranularity } from "@databuddy/shared/uptime";
 import { rpcError } from "../errors";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { protectedProcedure, publicProcedure, trackedProcedure } from "../orpc";
 import { authorizeTransfer, withResource } from "../procedures/with-resource";
 import { withWorkspace } from "../procedures/with-workspace";
+import {
+	deriveMonitorFreshness,
+	deriveMonitorStatus,
+	deriveOverallStatus,
+	normalizeCheckTimestamp,
+	type MonitorFreshness,
+	type MonitorStatus,
+} from "./status-page-health";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
 
@@ -92,6 +101,7 @@ const monitorSchema = z.object({
 	name: z.string(),
 	domain: z.string().optional(),
 	currentStatus: z.enum(["up", "down", "degraded", "unknown"]),
+	freshness: z.enum(["fresh", "stale", "unknown"]),
 	uptimePercentage: z.number().optional(),
 	dailyData: z.array(dailyUptimeSchema),
 	lastCheckedAt: z.string().nullable(),
@@ -152,7 +162,7 @@ const statusPageOutputSchema = z.object({
 			description: z.string().nullable(),
 		})
 		.merge(statusPageCustomizationSchema),
-	overallStatus: z.enum(["operational", "degraded", "outage"]),
+	overallStatus: z.enum(["operational", "degraded", "outage", "unknown"]),
 	monitors: z.array(monitorSchema),
 	incidents: z.array(incidentSchema),
 });
@@ -177,51 +187,6 @@ async function listPublicStatusPageSitemapEntries() {
 		slug: row.slug,
 		updatedAt: row.updatedAt.toISOString(),
 	}));
-}
-
-function deriveOverallStatus(
-	monitors: { currentStatus: "up" | "down" | "degraded" | "unknown" }[],
-	incidents: {
-		status: string;
-		severity: string;
-		affectedMonitors: { impact: string }[];
-	}[] = []
-): "operational" | "degraded" | "outage" {
-	const activeIncidents = incidents.filter(
-		(incident) => incident.status !== "resolved"
-	);
-
-	if (activeIncidents.some((i) => i.severity === "critical")) {
-		return "outage";
-	}
-	if (
-		activeIncidents.some((i) =>
-			i.affectedMonitors.some((m) => m.impact === "down")
-		)
-	) {
-		return "outage";
-	}
-	if (activeIncidents.length > 0) {
-		return "degraded";
-	}
-
-	if (monitors.length === 0) {
-		return "operational";
-	}
-	const hasDown = monitors.some((m) => m.currentStatus === "down");
-	const allDown = monitors.every((m) => m.currentStatus === "down");
-
-	if (allDown) {
-		return "outage";
-	}
-	if (hasDown) {
-		return "degraded";
-	}
-	const hasDegraded = monitors.some((m) => m.currentStatus === "degraded");
-	if (hasDegraded) {
-		return "degraded";
-	}
-	return "operational";
 }
 
 interface DailyRow {
@@ -326,6 +291,7 @@ async function _fetchStatusPageData(
 			websiteId: uptimeSchedules.websiteId,
 			scheduleName: uptimeSchedules.name,
 			scheduleUrl: uptimeSchedules.url,
+			granularity: uptimeSchedules.granularity,
 			monitorDisplayName: statusPageMonitors.displayName,
 			hideUrl: statusPageMonitors.hideUrl,
 			hideUptimePercentage: statusPageMonitors.hideUptimePercentage,
@@ -367,7 +333,7 @@ async function _fetchStatusPageData(
 	};
 
 	const schedules = rows.flatMap((r) => {
-		if (!(r.scheduleId && r.scheduleUrl)) {
+		if (!(r.scheduleId && r.scheduleUrl && r.granularity)) {
 			return [];
 		}
 		return [
@@ -377,6 +343,7 @@ async function _fetchStatusPageData(
 				displayName: r.monitorDisplayName,
 				name: r.scheduleName,
 				url: r.scheduleUrl,
+				granularity: r.granularity,
 				hideUrl: r.hideUrl ?? false,
 				hideUptimePercentage: r.hideUptimePercentage ?? false,
 				hideLatency: r.hideLatency ?? false,
@@ -446,16 +413,19 @@ async function _fetchStatusPageData(
 			: undefined;
 		const dailyData = dailyBySite.get(siteId) ?? [];
 		const latestCheck = latestBySite.get(siteId);
+		const lastCheckedAt = normalizeCheckTimestamp(
+			latestCheck?.last_timestamp ?? null
+		);
 
-		const currentStatus: "up" | "down" | "degraded" | "unknown" = latestCheck
-			? latestCheck.last_status === 1
-				? "up"
-				: latestCheck.last_status === 0
-					? latestCheck.last_http_code > 0 && latestCheck.last_http_code < 500
-						? "degraded"
-						: "down"
-					: "unknown"
-			: "unknown";
+		const freshness: MonitorFreshness = deriveMonitorFreshness(
+			lastCheckedAt,
+			parseUptimeGranularity(schedule.granularity)
+		);
+		const currentStatus: MonitorStatus = deriveMonitorStatus({
+			lastStatus: latestCheck?.last_status ?? null,
+			lastHttpCode: latestCheck?.last_http_code ?? null,
+			freshness,
+		});
 
 		const secondsPerDay = 86_400;
 		const totalCalendarSeconds = dailyData.length * secondsPerDay;
@@ -484,9 +454,11 @@ async function _fetchStatusPageData(
 				schedule.url,
 			domain: schedule.hideUrl ? undefined : (website?.domain ?? schedule.url),
 			currentStatus,
-			uptimePercentage: schedule.hideUptimePercentage
-				? undefined
-				: Math.round(uptimePercentageRaw * 100) / 100,
+			freshness,
+			uptimePercentage:
+				schedule.hideUptimePercentage || dailyData.length === 0
+					? undefined
+					: Math.round(uptimePercentageRaw * 100) / 100,
 			dailyData: dailyData.map((d) => ({
 				date: String(d.date),
 				uptime_percentage: schedule.hideUptimePercentage
@@ -508,7 +480,7 @@ async function _fetchStatusPageData(
 					? undefined
 					: d.p95_response_time,
 			})),
-			lastCheckedAt: latestCheck?.last_timestamp ?? null,
+			lastCheckedAt,
 		};
 	});
 
@@ -576,6 +548,7 @@ export const statusPageRouter = {
 			path: "/statusPage/listPublic",
 			summary: "List public status pages for sitemap generation",
 			tags: ["StatusPage"],
+			spec: (spec) => ({ ...spec, security: [] }),
 		})
 		.output(z.array(publicStatusPageSitemapEntrySchema))
 		.handler(async () => listPublicStatusPageSitemapEntries()),
@@ -586,6 +559,7 @@ export const statusPageRouter = {
 			path: "/statusPage/getBySlug",
 			summary: "Get public status page",
 			tags: ["StatusPage"],
+			spec: (spec) => ({ ...spec, security: [] }),
 		})
 		.input(
 			z.object({

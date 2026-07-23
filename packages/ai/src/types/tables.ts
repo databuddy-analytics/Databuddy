@@ -1,20 +1,18 @@
 import type {
-	AnalyticsEvent,
-	BlockedTraffic,
-	CustomEvent,
-	CustomOutgoingLink,
-	ErrorSpanRow,
-	RevenueTransaction,
-	UptimeMonitor,
-	WebVitalsHourlyAggregate,
-	WebVitalsSpan,
-} from "@databuddy/db/clickhouse/schema";
+	BlockedTrafficRow,
+	CustomEventsRow,
+	ErrorSpansRow,
+	EventsRow,
+	OutgoingLinksRow,
+	RevenueRow,
+	UptimeMonitorRow,
+	WebVitalsSpansRow,
+} from "@databuddy/db/clickhouse/tables";
 
 export const Analytics = {
 	events: "analytics.events",
 	error_spans: "analytics.error_spans",
 	web_vitals_spans: "analytics.web_vitals_spans",
-	web_vitals_hourly: "analytics.web_vitals_hourly",
 	custom_events: "analytics.custom_events",
 	blocked_traffic: "analytics.blocked_traffic",
 	outgoing_links: "analytics.outgoing_links",
@@ -26,13 +24,12 @@ export const Analytics = {
 export type AnalyticsTable = (typeof Analytics)[keyof typeof Analytics];
 
 export interface TableFieldsMap {
-	"analytics.blocked_traffic": keyof BlockedTraffic;
-	"analytics.custom_events": keyof CustomEvent;
-	"analytics.error_spans": keyof ErrorSpanRow;
-	"analytics.events": keyof AnalyticsEvent;
-	"analytics.outgoing_links": keyof CustomOutgoingLink;
-	"analytics.revenue": keyof RevenueTransaction;
-	"analytics.web_vitals_hourly": keyof WebVitalsHourlyAggregate;
-	"analytics.web_vitals_spans": keyof WebVitalsSpan;
-	"uptime.uptime_monitor": keyof UptimeMonitor;
+	"analytics.blocked_traffic": keyof BlockedTrafficRow;
+	"analytics.custom_events": keyof CustomEventsRow;
+	"analytics.error_spans": keyof ErrorSpansRow;
+	"analytics.events": keyof EventsRow;
+	"analytics.outgoing_links": keyof OutgoingLinksRow;
+	"analytics.revenue": keyof RevenueRow;
+	"analytics.web_vitals_spans": keyof WebVitalsSpansRow;
+	"uptime.uptime_monitor": keyof UptimeMonitorRow;
 }

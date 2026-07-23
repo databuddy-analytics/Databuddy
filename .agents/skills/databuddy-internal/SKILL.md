@@ -21,24 +21,32 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 
 - Prod infrastructure repo is local at `/Users/iza/Documents/GitHub/databuddy-infra` (`databuddy-analytics/infra`); ClickHouse cluster inventory is `clickhouse/ansible/inventory.yml`, not `/Users/iza/Dev/Databuddy/infra` or `DatabuddyOPS`.
 - Never use production/customer data as tests, fixtures, snapshots, examples, or copied output. Tests must use placeholders/mocks only (example.com, example IDs). If production ClickHouse is queried for investigation, summarize anonymized aggregates and do not paste customer domains, client IDs, emails, or other identifiers into code or responses.
+- `@databuddy/test/env` targets local `databuddy_test` unless `CI=true`, so a normal `db:push` may update a different database; sync that test database explicitly before debugging removed-column failures.
 - `apps/dashboard`: Next.js app on port `3000` (per-website **agent** chat: `@ai-sdk/react` `useChat` via `contexts/chat-context.tsx` — not the separate `chat-sdk` package; overlapping sends while streaming are queued client-side to mirror a “queue latest” strategy.)
 - Dashboard Playwright webServer commands run under CI PATH from setup-bun; avoid `bash -lc` because login shells can drop Bun from PATH. Build dist-only workspace packages such as `@databuddy/sdk` and `@databuddy/devtools` before starting the API/dashboard. Client `NEXT_PUBLIC_*` flags must use direct env access so Next can inline them. `readBooleanEnv` only treats the literal string `"true"` as enabled, so CI E2E booleans must use `"true"`/`"false"`, not `"1"`/`"0"`.
 - Local E2E dashboard smokes that need `/api/test/e2e/*` should start the API/dashboard directly (or through Playwright's webServer command), not via `bun run dev:dashboard`; Turbo runs in strict env mode and drops `DATABUDDY_E2E_MODE`/`DATABUDDY_E2E_TEST_KEY` unless they are added to `turbo.json` `globalEnv`.
 - Dashboard Playwright public/demo analytics specs call API `/v1/query` anonymously from the browser; keep `DATABUDDY_E2E_MODE` query behavior isolated from production rate limits so CI retries do not exhaust `anon:unknown`.
 - `apps/api`: Elysia API on port `3001`
 - Public REST docs live in `apps/api/src/rpc/openapi.ts`: `/spec.json` is the generated spec, `/` is the reference UI, and hiding a router there also makes its top-level REST paths return 404 because `/*` uses the same filtered docs router.
-- `apps/slack`: Slack agent adapter; Slack installs must resolve through org-scoped DB integration records, not a single env bot token/default website. Agent calls must use an encrypted per-integration Databuddy API key secret as a normal bearer token, never a global internal secret.
+- `apps/slack`: Slack agent adapter; Slack installs resolve through org-scoped DB integration records, not a single env bot token/default website. Agent calls use the org-scoped internal principal synthesized from the active integration in `slack/installations.ts`, never a global internal secret.
 - Slack OAuth lives in `apps/api`, but slash commands/events require `apps/slack` to be running too; local `bun run dev:dashboard` runs dashboard + API only, so use `bun run dev:slack` when working on Slack. The Slack package scripts read the root `.env`.
-- Slack routing is organization-scoped: OAuth binds a Slack workspace to a Databuddy organization, app mentions from the installed workspace auto-bind channels including Slack Connect, and `/bind` is now a manual fallback for unknown/unapproved channels. DMs/assistant threads work after workspace install. Analytics questions should go through app mentions/DMs using MCP-style website discovery inside the installed organization, never by fanning out across the message sender's user memberships. Slack emits evlog events under `apps/slack/.evlog/logs` in development/`SLACK_EVLOG_FS=1`; Axiom uses `AXIOM_TOKEN` with `SLACK_AXIOM_DATASET` defaulting to `slack`; and reactions need the `reactions:write` bot scope. Remote manifest updates need `SLACK_APP_ID` plus a Slack app configuration token in `SLACK_APP_CONFIG_TOKEN`; trust Slack API errors over token-prefix guesses.
+- Run Slack tests through `bun run test` inside `apps/slack`; the package script supplies only the inert Redis URL needed by eager shared imports.
+- Slack routing is organization-scoped: OAuth binds a Slack workspace to a Databuddy organization, app mentions from the installed workspace auto-bind channels including Slack Connect, and `/bind` is now a manual fallback for unknown/unapproved channels. DMs/assistant threads work after workspace install. Analytics questions should go through app mentions/DMs using MCP-style website discovery inside the installed organization, never by fanning out across the message sender's user memberships. Slack emits evlog events under `apps/slack/.evlog/logs` in development/`SLACK_EVLOG_FS=1`; Axiom uses `AXIOM_TOKEN` and the `slack` dataset; reactions need the `reactions:write` bot scope.
 - Slack scope changes require reinstalling/reauthorizing the workspace; updating the local/remote manifest alone does not grant newly-added bot scopes to an existing installation.
 - Slack agent billing flows through an org-scoped automation API key; existing keys may have `userId: null`, so the agent billing resolver must fall back to the organization owner when an API key has `organizationId`.
 - Slack memory is separate from billing/auth: pass a Slack-scoped `memoryUserId` such as `slack-{team}-{user}` plus current-speaker context so one Slack user's saved name/preferences do not bleed into another user's replies.
-- Slack agent write tools need the integration automation API key to include the matching Databuddy API scopes (currently `read:data`, `read:links`, `write:links`, `manage:websites`, `manage:flags`); older installs may need reconnecting so a new key is minted.
+- Slack agent tools use the scopes on the internal principal in `slack/installations.ts`; changing those Databuddy scopes applies without Slack reauthorization. Only changes to Slack OAuth scopes require reconnecting the workspace.
 - Shared agent integrations should call `@databuddy/ai/agent` (`askDatabuddyAgent` / `streamDatabuddyAgent`) instead of importing internal MCP run/history helpers directly.
 - First-party ads attribution work should start by preserving UTMs into registration and signup events only; do not add RPC plumbing, conversion destinations, env hooks, tables, workers, or UI until explicitly needed.
 - Insights generation logic belongs in `apps/insights` and should reuse `@databuddy/ai`; `apps/api` should only read insight data or queue runs, not own prompts, model calls, tool loops, validation, or persistence orchestration.
+- `SPEC.md` is the insights product contract. Keep one investigation agent on the shared analytics/investigation toolkit; do not add a parallel evidence API, fixed query choreography, or an action-specific lifecycle to the core loop.
+- Production insight shadows must freeze `--reference-time`, retain a tool-name trace, and pass available GitHub context before supporting quality claims. Postgres and ClickHouse are read-only, but connector token refreshes or cache writes can still occur; never describe the whole run as zero-write.
+- Automatic investigations have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
+- Insight run items are execution metadata, not rendered insight content; previews should use run status/counts or query real insights, never infer titles or bodies from run items.
+- Insight Slack delivery must resolve each channel binding to its active same-organization integration; never choose an arbitrary organization bot token.
+- Replies beneath delivered Slack investigations must resolve the delivery and enter the existing durable reply/resume path; never route them through generic Slack chat or relevance scoring.
+- One-off insight previews must preserve the real signal entity and use customer-facing product output. Never hand-write Slack copy from eval metadata or expose evaluation and suppression mechanics.
 - Agent ClickHouse SQL must use the canonical analytics.events schema: `client_id`, `time`, `path`, `event_name`, and pageviews as `event_name = 'screen_view'`; never `website_id`, `created_at`, `page_path`, `event_type`, or `pageview`.
-- Slack agent evals live in `packages/evals`: use `bun run eval --surface slack` for the whole Slack surface. `--tag slack` is only a tiny smoke subset, and `cost_fallback` in agent telemetry is pricing-catalog fallback, not proof the model request fell back.
 - Slack agent expected stops such as exhausted Databunny credits should throw `DatabuddyAgentUserError` from `@databuddy/ai/agent/errors`; Slack surfaces those messages directly and reserves the generic reconnect copy for real infrastructure failures.
 - Slack Docker builds use `bun build --compile --bytecode`; keep `apps/slack/src/index.ts` bootstrapping inside an async `main()` instead of top-level `await`, which can fail during compile even when typecheck passes.
 - Insights Docker builds also use `bun build --compile --bytecode`; keep `apps/insights/src/index.ts` startup work inside async functions instead of top-level `await`.
@@ -53,8 +61,9 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Public status pages render from `apps/status`; `apps/dashboard` owns status-page management/config UI only. When cleaning public status UX, update shared `@databuddy/ui/uptime` pieces or `apps/status` wrappers instead of redesigning dashboard-only route remnants.
 - `packages/db`: Drizzle Postgres schema, client, and ClickHouse helpers
 - `packages/rpc`: shared oRPC router, procedures, auth-aware server context
+- `packages/rpc` must declare `drizzle-orm: "catalog:"` before importing `drizzle-orm/*` helpers such as `drizzle-orm/zod`; otherwise TypeScript can resolve a different Drizzle instance than `@databuddy/db` and reject table-derived schemas.
 - `packages/auth`: Better Auth setup, permissions, organization access
-- `packages/env`: per-app env schemas
+- `packages/env`: shared URL, public, and boolean environment helpers
 - `packages/shared`: shared types, flags, analytics schemas, utilities
 - `packages/sdk`: published analytics SDK for React, Vue, and Node
 - `packages/tracker`: internal tracker script build and release package
@@ -85,7 +94,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Dashboard + API together: `bun run dev:dashboard`
 - Tests at root currently target `./apps`: `bun run test`
 - Database scripts are routed from root into `packages/db`
-- Environment schemas live in `packages/env/src/*.ts`; update the matching app schema when adding env vars
+- Runtime environment reads stay in the owning service; shared URL/public helpers live in `packages/env`
 - BullMQ queues use `BULLMQ_REDIS_URL`; generic Redis cache/pubsub code uses `REDIS_URL`.
 
 ## Code Standards
@@ -109,8 +118,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Funnel rows keep the action menu outside the main toggle button; put row padding on the sibling `Button`, not only on `List.Row`, so the visible row surface is clickable without nesting buttons.
 - Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, Anomalies, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
 - Dashboard definitions for feature flags and target groups are admin surfaces; do not expose even sanitized rows to demo-tier/public website access.
-- Insights merged feed (`use-insights-feed`) collapses history + AI by `insightSignalDedupeKey` in `apps/dashboard/lib/insight-signal-key.ts` so the list is one row per signal (latest wins).
-- Insights page (`app/(main)/insights`) should stay focused on the brief + signal queue; do not add generic global analytics KPI cards or top pages/referrers/countries tables there.
+- Insights history is grouped by its backend-owned subject key in the RPC layer so every client sees one current row per investigation; reads must not invoke AI generation.
 - Theme: `apps/dashboard/app/globals.css`. **`--border` is intentionally subtle**; do not crank it darker for “contrast” unless **iza** asks—prefer text tokens or layout for readability.
 - Website analytics filters are two-way synced between Jotai and the `filters` URL param in `app/(main)/websites/[id]/layout.tsx`; guard URL-driven atom writes from echoing stale atom state back into `nuqs`, or adding a filter can lock the page during form submit.
 - Do not centralize, relocate, or otherwise refactor dashboard E2E API route access gates during cleanup; keep test-only access checks local to each route unless iza explicitly asks for that change.
@@ -130,7 +138,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Start in `apps/api/src`
 - Shared API contracts and procedure logic live in `packages/rpc`
 - Prefer changing shared router logic in `packages/rpc` rather than duplicating validation in the dashboard
-- Analytics AI insights: `apps/api/src/routes/insights.ts` — dedupe key is `websiteId|type|direction` (direction from **signed** `changePercent`, not sentiment); within the cooldown window, matching rows are **updated** (same `id`) instead of inserting duplicates. **Do not** show `changePercent` in the UI with sentiment-based sign flips; the stored value is already signed.
+- Investigations run in `apps/insights`; RPC only reads cases and accepts durable replies. Case identity is `websiteId|subjectKey`, where the backend owns the subject key. Persist a new observation for each turn while updating the existing insight row. The stored `changePercent` is already signed.
 
 ### Ingestion and analytics pipeline
 
@@ -139,6 +147,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 ## Billing (Autumn)
 
+- Retried insight jobs must persist immutable external delivery effects (currently Slack) before calling providers and reuse the effect ID as the provider idempotency key. An insight observation is product memory, not a delivery checkpoint.
+- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as Databunny usage or an AI analysis allowance and explain what it enables.
 - `autumn-js` v1.2.2+ — import `autumnHandler` from `autumn-js/fetch` (NOT `autumn-js/elysia`, that export was removed in v1.0)
 - For Elysia, mount with `.mount(autumnHandler(...))` — NOT `.use()`
 - `identify` callback receives `(request: Request)` directly, not `({ request })`
@@ -168,6 +178,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Published SDK logic: `packages/sdk/src`
 - Browser tracker bundle: `packages/tracker/src`
+- When a retryable batch failure restores events to an in-memory queue, it must also restore an automatic retry timer with capped backoff; requeueing alone silently stalls delivery.
 - Public SDK/tracker visitor ID privacy is only `anonymizeVisitorIds` (`true`/omitted = anonymized, `false` = raw IDs, `"auto"` = raw only in Databuddy's conservative country allowlist).
 - Keep visitor ID privacy internals small and direct; avoid exported helper stacks or storage/hashing vocabulary for this option.
 - If the user reports missing analytics events, inspect both the producer side and `apps/basket`
@@ -176,7 +187,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 
 - Use targeted package commands when available, for example:
   - `bun run dev:dashboard`
-  - `cd apps/api && bun test`
+  - `cd apps/api && bun run test`
   - `cd packages/sdk && bun test`
   - `cd packages/tracker && bun run test:unit`
 - If verification depends on services like Postgres, Redis, ClickHouse, or Redpanda, say so explicitly.
@@ -206,8 +217,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Search Hints
 
 - Use `rg "createRPCContext|appRouter|sessionProcedure" packages/rpc apps/api`
-- Use `rg "NEXT_PUBLIC_API_URL|createEnv|shouldSkipValidation" packages/env apps/dashboard`
+- Use `rg "NEXT_PUBLIC_API_URL|createConfig|publicConfig|readBooleanEnv" packages/env apps/dashboard`
 - Use `rg "clickHouse|ClickHouse|TABLE_NAMES" packages/db apps/basket apps/api`
 - Use `rg "betterAuth|drizzleAdapter|organization" packages/auth packages/rpc apps/dashboard`
 - Use `rg "trackRoute|basketRouter|llmRouter|structured-errors" apps/basket`
-- Use `rg "insightDedupeKey|collapseInsightsBySignal|insightSignalDedupeKey" apps/api apps/dashboard`
+- Use `rg "signalKey|subjectKey|insightDedupeKey" apps/insights packages/rpc packages/shared`

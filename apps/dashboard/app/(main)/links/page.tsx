@@ -4,18 +4,27 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import {
 	type Link,
+	type LinkSortOption,
+	type LinkTypeFilter,
 	useCreateLinkFolder,
 	useDeleteLink,
 	useLinkFolders,
-	useLinks,
+	useLinksPaginated,
 } from "@/hooks/use-links";
 import { useFlags } from "@databuddy/sdk/react";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	Suspense,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { DeepLinkSheet } from "./_components/deep-link-sheet";
 import { LinkFolderSheet } from "./_components/link-folder-sheet";
-import { LinkFoldersList } from "./_components/link-folders-list";
 import {
 	LinksListSkeleton,
 	LinksSearchBarSkeleton,
@@ -24,11 +33,7 @@ import {
 import { LinkSheet } from "./_components/link-sheet";
 import { LinksSearchBar } from "./_components/links-search-bar";
 import { QrCodeDialog } from "./_components/qr-code-dialog";
-import {
-	type SortOption,
-	type TypeFilter,
-	useFilteredLinks,
-} from "./_components/use-filtered-links";
+import { VirtualizedLinksList } from "./_components/virtualized-links-list";
 import {
 	ArchiveIcon,
 	LinkIcon as LinkSimpleIcon,
@@ -39,6 +44,14 @@ import {
 } from "@databuddy/ui/icons";
 import { Badge, Button, Card, EmptyState } from "@databuddy/ui";
 import { DeleteDialog, DropdownMenu } from "@databuddy/ui/client";
+
+type ActiveDialog =
+	| { type: "deep-link" }
+	| { id: string; type: "delete" }
+	| { type: "folder" }
+	| { link: Link | null; type: "link" }
+	| { link: Link; type: "qr" }
+	| null;
 
 export default function LinksPage() {
 	return (
@@ -52,41 +65,56 @@ function LinksPageContent() {
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
-	const [sheetLink, setSheetLink] = useState<Link | null>(null);
-	const [isSheetOpen, setIsSheetOpen] = useState(false);
-	const [deleteId, setDeleteId] = useState<string | null>(null);
-	const [qrLink, setQrLink] = useState<Link | null>(null);
-	const [isDeepLinkSheetOpen, setIsDeepLinkSheetOpen] = useState(false);
-	const [isFolderSheetOpen, setIsFolderSheetOpen] = useState(false);
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
 	const [search, setSearch] = useState("");
-	const [sort, setSort] = useState<SortOption>("newest");
-	const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+	const [sort, setSort] = useState<LinkSortOption>("newest");
+	const [typeFilter, setTypeFilter] = useState<LinkTypeFilter>("all");
+	const [folderId, setFolderId] = useState<string | null | undefined>(
+		undefined
+	);
 	const { activeOrganization, isSwitchingOrganization } =
 		useOrganizationsContext();
-	const workspaceName = activeOrganization?.name ?? "this workspace";
+	const organizationName = activeOrganization?.name ?? "this organization";
 
 	const { isOn } = useFlags();
 	const deepLinksEnabled = isOn("deeplinks");
-	const { links, isLoading, isError, isFetching, refetch } = useLinks();
+	const [debouncedSearch] = useDebouncedValue(search, { wait: 250 });
+
+	const {
+		links,
+		isLoading,
+		isError,
+		refetch,
+		fetchNextPage,
+		hasNextPage,
+		isFetchingNextPage,
+	} = useLinksPaginated({
+		search: debouncedSearch,
+		sort,
+		type: typeFilter,
+		folderId,
+	});
 	const { folders } = useLinkFolders();
 	const createFolder = useCreateLinkFolder();
 	const deleteLink = useDeleteLink();
-	const filtered = useFilteredLinks(links, search, sort, typeFilter);
 	const foldersById = useMemo(
 		() => new Map(folders.map((folder) => [folder.id, folder.name])),
 		[folders]
 	);
-	const hasDeepLinks = links.some((l) => !!l.deepLinkApp);
 
-	const busy = isLoading || isFetching || isSwitchingOrganization;
+	const hasActiveFilters =
+		!!debouncedSearch.trim() || typeFilter !== "all" || folderId !== undefined;
+	const busy = isLoading || isSwitchingOrganization;
 	const hasLinks = links.length > 0;
 	const hasFolders = folders.length > 0;
-	const noResults = !busy && hasLinks && filtered.length === 0;
+	const showToolbar = hasLinks || hasActiveFilters || hasFolders;
+	const noResults = !(busy || hasLinks) && hasActiveFilters;
+	const emptyWorkspace = !(busy || hasLinks || hasActiveFilters);
 	const canMutateWorkspace = !isSwitchingOrganization;
 
 	const openCreate = useCallback(() => {
-		setSheetLink(null);
-		setIsSheetOpen(true);
+		setActiveDialog({ link: null, type: "link" });
 	}, []);
 
 	const clearCommandParam = useCallback(() => {
@@ -99,13 +127,7 @@ function LinksPageContent() {
 	}, [pathname, router, searchParams]);
 
 	const openEdit = useCallback((link: Link) => {
-		setSheetLink(link);
-		setIsSheetOpen(true);
-	}, []);
-
-	const closeSheet = useCallback(() => {
-		setIsSheetOpen(false);
-		setSheetLink(null);
+		setActiveDialog({ link, type: "link" });
 	}, []);
 
 	useEffect(() => {
@@ -120,7 +142,7 @@ function LinksPageContent() {
 			return;
 		}
 		if (command === "create-folder") {
-			setIsFolderSheetOpen(true);
+			setActiveDialog({ type: "folder" });
 			clearCommandParam();
 		}
 	}, [clearCommandParam, isSwitchingOrganization, openCreate, searchParams]);
@@ -128,7 +150,7 @@ function LinksPageContent() {
 	const handleDelete = async (id: string) => {
 		try {
 			await deleteLink.mutateAsync({ id });
-			setDeleteId(null);
+			setActiveDialog(null);
 		} catch (error: unknown) {
 			toast.error(
 				error instanceof Error ? error.message : "Failed to delete link"
@@ -139,7 +161,7 @@ function LinksPageContent() {
 	const handleCreateFolder = async (name: string) => {
 		try {
 			await createFolder.mutateAsync({ name });
-			setIsFolderSheetOpen(false);
+			setActiveDialog(null);
 			toast.success("Folder created");
 		} catch (error: unknown) {
 			toast.error(
@@ -148,9 +170,19 @@ function LinksPageContent() {
 		}
 	};
 
+	const sheetLink = activeDialog?.type === "link" ? activeDialog.link : null;
+	const qrLink = activeDialog?.type === "qr" ? activeDialog.link : null;
+	const deleteId = activeDialog?.type === "delete" ? activeDialog.id : null;
+	const closeDialog = () => setActiveDialog(null);
+	const closeDialogOnOpenChange = (open: boolean) => {
+		if (!open) {
+			closeDialog();
+		}
+	};
+
 	return (
 		<ErrorBoundary>
-			<div className="flex-1 overflow-y-auto">
+			<div className="flex-1 overflow-y-auto" ref={scrollRef}>
 				<div className="mx-auto max-w-2xl space-y-6 p-5">
 					<Card>
 						<Card.Header className="flex-row items-start justify-between gap-4">
@@ -161,16 +193,16 @@ function LinksPageContent() {
 								</div>
 								<Card.Description>
 									{isSwitchingOrganization
-										? "Switching workspace…"
-										: hasLinks
-											? `${links.length} link${links.length === 1 ? "" : "s"} in ${workspaceName} · Free while in beta`
-											: `${workspaceName} does not have any links yet. Create short links with workspace-scoped analytics.`}
+										? "Switching organization…"
+										: emptyWorkspace
+											? `${organizationName} does not have any links yet. Create short links with organization-wide analytics.`
+											: `Short links for ${organizationName} · Free while in beta`}
 								</Card.Description>
 							</div>
 							<div className="flex shrink-0 items-center gap-2">
 								<Button
 									disabled={!canMutateWorkspace}
-									onClick={() => setIsFolderSheetOpen(true)}
+									onClick={() => setActiveDialog({ type: "folder" })}
 									size="sm"
 									variant="secondary"
 								>
@@ -193,7 +225,7 @@ function LinksPageContent() {
 											</DropdownMenu.Item>
 											<DropdownMenu.Item
 												className="gap-2"
-												onClick={() => setIsDeepLinkSheetOpen(true)}
+												onClick={() => setActiveDialog({ type: "deep-link" })}
 											>
 												<RocketIcon className="size-4" weight="duotone" />
 												Deep Link
@@ -217,45 +249,52 @@ function LinksPageContent() {
 								<>
 									{isSwitchingOrganization && (
 										<p className="sr-only" role="status">
-											Switching workspace…
+											Switching organization…
 										</p>
 									)}
 									<LinksSearchBarSkeleton />
 									<LinksListSkeleton />
 								</>
-							) : hasLinks || hasFolders ? (
+							) : showToolbar ? (
 								<>
-									{hasLinks && (
-										<div className="border-b px-4 py-2">
-											<LinksSearchBar
-												hasDeepLinks={hasDeepLinks}
-												onSearchQueryChangeAction={setSearch}
-												onSortByChangeAction={setSort}
-												onTypeFilterChangeAction={setTypeFilter}
-												searchQuery={search}
-												sortBy={sort}
-												typeFilter={typeFilter}
-											/>
-										</div>
-									)}
+									<div className="border-b px-4 py-2">
+										<LinksSearchBar
+											folderId={folderId}
+											folders={folders}
+											hasDeepLinks={deepLinksEnabled}
+											onFolderChangeAction={setFolderId}
+											onSearchQueryChangeAction={setSearch}
+											onSortByChangeAction={setSort}
+											onTypeFilterChangeAction={setTypeFilter}
+											searchQuery={search}
+											sortBy={sort}
+											typeFilter={typeFilter}
+										/>
+									</div>
 									{noResults ? (
 										<div className="px-5 py-12">
 											<EmptyState
-												description={`No links match \u201c${search}\u201d`}
+												description={
+													debouncedSearch.trim()
+														? `No links match “${debouncedSearch}”`
+														: "No links match the current filters"
+												}
 												icon={<MagnifyingGlassIcon weight="duotone" />}
 												title="No results"
 												variant="minimal"
 											/>
 										</div>
 									) : (
-										<LinkFoldersList
-											folders={folders}
+										<VirtualizedLinksList
+											fetchNextPage={fetchNextPage}
 											foldersById={foldersById}
-											links={filtered}
-											onCreateLink={openCreate}
-											onDelete={setDeleteId}
+											hasNextPage={hasNextPage}
+											isFetchingNextPage={isFetchingNextPage}
+											links={links}
+											onDelete={(id) => setActiveDialog({ id, type: "delete" })}
 											onEdit={openEdit}
-											onShowQr={setQrLink}
+											onShowQr={(link) => setActiveDialog({ link, type: "qr" })}
+											scrollRef={scrollRef}
 										/>
 									)}
 								</>
@@ -277,9 +316,9 @@ function LinksPageContent() {
 									foldersById={foldersById}
 									links={[]}
 									onCreateLink={openCreate}
-									onDelete={setDeleteId}
+									onDelete={(id) => setActiveDialog({ id, type: "delete" })}
 									onEdit={openEdit}
-									onShowQr={setQrLink}
+									onShowQr={(link) => setActiveDialog({ link, type: "qr" })}
 								/>
 							)}
 						</Card.Content>
@@ -289,29 +328,25 @@ function LinksPageContent() {
 
 			<LinkSheet
 				link={sheetLink}
-				onOpenChange={(open) => (open ? setIsSheetOpen(true) : closeSheet())}
-				open={isSheetOpen && canMutateWorkspace}
+				onOpenChange={closeDialogOnOpenChange}
+				open={activeDialog?.type === "link" && canMutateWorkspace}
 			/>
 
 			<DeepLinkSheet
-				onOpenChange={setIsDeepLinkSheetOpen}
-				open={isDeepLinkSheetOpen && canMutateWorkspace}
+				onOpenChange={closeDialogOnOpenChange}
+				open={activeDialog?.type === "deep-link" && canMutateWorkspace}
 			/>
 
 			<LinkFolderSheet
 				isCreating={createFolder.isPending}
 				onCreate={handleCreateFolder}
-				onOpenChange={setIsFolderSheetOpen}
-				open={isFolderSheetOpen && canMutateWorkspace}
+				onOpenChange={closeDialogOnOpenChange}
+				open={activeDialog?.type === "folder" && canMutateWorkspace}
 			/>
 
 			<QrCodeDialog
 				link={qrLink}
-				onOpenChange={(open) => {
-					if (!open) {
-						setQrLink(null);
-					}
-				}}
+				onOpenChange={closeDialogOnOpenChange}
 				open={!!qrLink}
 			/>
 
@@ -321,7 +356,7 @@ function LinksPageContent() {
 					description="Are you sure you want to delete this link? This action cannot be undone and will permanently remove all click data."
 					isDeleting={deleteLink.isPending}
 					isOpen={!!deleteId}
-					onClose={() => setDeleteId(null)}
+					onClose={closeDialog}
 					onConfirm={() => handleDelete(deleteId)}
 					title="Delete Link"
 				/>

@@ -293,10 +293,10 @@ Discover your global audience and optimize for different regions:
 
 <Callout type="tip" title="Powering the Map View">
   The geographic data displayed on maps and in regional breakdowns is typically
-  derived from the user's IP address at the beginning of a session. This
-  functionality is an integral part of session tracking. Ensure `trackSessions=
-  {true}` (which is enabled by default) in your [SDK
-  configuration](/docs/sdk/configuration) to collect this data.
+  derived from the user's IP address at the beginning of a session. Page views
+  and sessions are tracked automatically; there is no separate SDK option to
+  enable them. See [SDK configuration](/docs/sdk/configuration) for the optional
+  controls.
 </Callout>
 
 ## Technology Stack Analysis
@@ -530,11 +530,9 @@ Monitor your website's technical health and user experience:
 
 <Callout type="tip" title="Enabling Performance Data">
   The performance metrics, including Core Web Vitals, are populated when you
-  enable `trackPerformance={true}` (enabled by default) and `trackWebVitals=
-  {true}` (disabled by default, but recommended) in your [SDK
-  configuration](/docs/sdk/configuration). Enabling these options
-  allows the SDK to collect detailed timing and performance data from the user's
-  browser.
+  enable `trackWebVitals={true}` in your [SDK
+  configuration](/docs/sdk/configuration). This allows the SDK to collect Core
+  Web Vitals from the visitor's browser.
 </Callout>
 
 ### Core Web Vitals
@@ -550,9 +548,9 @@ Monitor your website's technical health and user experience:
     content element is rendered.
   </Card>
 
-<Card title="FID - First Input Delay">
-  **Good**: ≤ 100 milliseconds Measures interactivity. Time from first user
-  interaction to browser response.
+<Card title="INP - Interaction to Next Paint">
+  **Good**: ≤ 200 milliseconds Measures responsiveness across user
+  interactions during the page visit.
 </Card>
 
 <Card title="CLS - Cumulative Layout Shift">
@@ -578,7 +576,7 @@ Monitor your website's technical health and user experience:
 - Minimize resource load times
 - Implement lazy loading
 
-**For FID (Interactivity):**
+**For INP (Responsiveness):**
 
 - Reduce JavaScript bundle size
 - Optimize long-running tasks
@@ -709,8 +707,8 @@ Get your data where you need it:
   Programmatic access to your analytics data via REST API.
 </Card>
 
-<Card title="Scheduled Reports">
-  Automated email reports with key metrics and insights.
+<Card title="Investigations in Slack">
+  Send actionable investigations to the Slack channels configured for your organization after each daily or weekly run. Replies continue the same investigation.
 </Card>
 
   <Card title="Webhooks">

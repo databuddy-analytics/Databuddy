@@ -32,6 +32,7 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 			return {
 				sql: `
 				SELECT
+					toUInt64(countIf(status = 1) + countIf(status = 0)) as total_checks,
 					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,
 					quantileTDigest(0.50)(total_ms) as p50_response_time,

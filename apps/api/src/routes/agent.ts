@@ -636,7 +636,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						return jsonError(
 							400,
 							"WORKSPACE_REQUIRED",
-							"No active workspace. Select an organization and try again."
+							"No active organization. Select an organization and try again."
 						);
 					}
 
@@ -681,7 +681,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						return jsonError(
 							403,
 							"ACCESS_DENIED",
-							"No accessible websites in this workspace"
+							"No accessible websites in this organization"
 						);
 					}
 
@@ -832,7 +832,7 @@ export const agent = new Elysia({ prefix: "/v1/agent" })
 						return jsonError(
 							402,
 							"OUT_OF_CREDITS",
-							"You're out of Databunny credits this month. Upgrade or wait for the monthly reset."
+							"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset."
 						);
 					}
 

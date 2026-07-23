@@ -5,6 +5,7 @@ export function useFlags(): ReturnType<typeof useFlagsVue> {
 	if (!import.meta.client) {
 		// Create a new object per call to avoid cross-request state leakage in SSR.
 		return {
+			lastError: null,
 			getFlag: (_key: string): FlagState => ({
 				on: false,
 				status: "loading" as const,

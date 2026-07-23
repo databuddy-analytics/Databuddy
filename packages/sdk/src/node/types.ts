@@ -58,7 +58,17 @@ export interface CustomEventInput {
 	websiteId?: string | null;
 }
 
-export interface EventResponse {
+export interface FailureDetails {
+	code?: string;
+	fix?: string;
+	requestId?: string;
+	retryable?: boolean;
+	statusCode?: number;
+	why?: string;
+}
+
+export interface EventResponse extends FailureDetails {
+	delivery?: "delivered" | "queued" | "skipped";
 	error?: string;
 	eventId?: string;
 	success: boolean;
@@ -101,7 +111,8 @@ export interface GlobalProperties {
 	[key: string]: unknown;
 }
 
-export interface BatchEventResponse {
+export interface BatchEventResponse extends FailureDetails {
+	delivery?: "delivered" | "skipped";
 	error?: string;
 	processed?: number;
 	results?: Array<{

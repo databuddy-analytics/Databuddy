@@ -57,6 +57,6 @@ export interface RoadmapMilestone {
 	items: string[]; // RoadmapItem IDs
 	progress: number; // 0-100 percentage
 	status: "upcoming" | "current" | "completed" | "delayed";
-	targetDate: string;
+	targetDate?: string;
 	title: string;
 }

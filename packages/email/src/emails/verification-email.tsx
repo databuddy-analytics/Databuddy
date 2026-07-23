@@ -1,4 +1,5 @@
 import { Heading, Section, Text } from "react-email";
+import { AUTH_EMAIL_EXPIRY_LABELS } from "./auth-email-expiry";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
 import { EmailLayout } from "./email-layout";
@@ -11,7 +12,7 @@ interface VerificationEmailProps {
 
 export const VerificationEmail = ({ url }: VerificationEmailProps) => (
 	<EmailLayout
-		preview="Click to verify and start using Databuddy. Link expires in 24 hours."
+		preview={`Verify your email to start using Databuddy. This link expires in ${AUTH_EMAIL_EXPIRY_LABELS.emailVerification}.`}
 		tagline="Welcome to Databuddy"
 	>
 		<Section className="text-center">
@@ -19,7 +20,7 @@ export const VerificationEmail = ({ url }: VerificationEmailProps) => (
 				className="m-0 mb-3 font-semibold text-xl tracking-tight"
 				style={{ color: emailBrand.foreground }}
 			>
-				Verify Your Email
+				Verify your email
 			</Heading>
 			<Text
 				className="m-0 mb-6 text-sm leading-relaxed"
@@ -30,11 +31,11 @@ export const VerificationEmail = ({ url }: VerificationEmailProps) => (
 			</Text>
 		</Section>
 		<Section className="text-center">
-			<EmailButton href={url}>Verify Email Address</EmailButton>
+			<EmailButton href={url}>Verify email address</EmailButton>
 		</Section>
 		<EmailNote>
-			This link expires in 24 hours. If you didn't create an account, you can
-			safely ignore this email.
+			This link expires in {AUTH_EMAIL_EXPIRY_LABELS.emailVerification}. If you
+			did not create an account, you can ignore this email.
 		</EmailNote>
 		<EmailLinkFallback href={url} />
 	</EmailLayout>

@@ -1,101 +1,15 @@
 import { describe, expect, it } from "bun:test";
-import { z } from "zod";
-
-const slugRegex = /^[a-zA-Z0-9_-]+$/;
-
-const createLinkSchema = z.object({
-	organizationId: z.string().optional(),
-	name: z.string().min(1).max(255),
-	targetUrl: z.url(),
-	folderId: z.string().nullable().optional(),
-	slug: z
-		.string()
-		.min(3)
-		.max(50)
-		.regex(
-			slugRegex,
-			"Slug can only contain letters, numbers, hyphens, and underscores"
-		)
-		.optional(),
-	expiresAt: z.date().nullable().optional(),
-	expiredRedirectUrl: z.url().nullable().optional(),
-	ogTitle: z.string().max(200).nullable().optional(),
-	ogDescription: z.string().max(500).nullable().optional(),
-	ogImageUrl: z.url().nullable().optional(),
-	externalId: z.string().max(255).nullable().optional(),
-	sourceType: z.string().max(64).nullable().optional(),
-	sourceId: z.string().max(255).nullable().optional(),
-	sourceOwnerId: z.string().max(255).nullable().optional(),
-	targetDomain: z.string().max(255).nullable().optional(),
-});
-
-const updateLinkSchema = z.object({
-	id: z.string(),
-	name: z.string().min(1).max(255).optional(),
-	targetUrl: z.url().optional(),
-	folderId: z.string().nullable().optional(),
-	slug: z
-		.string()
-		.min(3)
-		.max(50)
-		.regex(
-			slugRegex,
-			"Slug can only contain letters, numbers, hyphens, and underscores"
-		)
-		.optional(),
-	expiresAt: z.string().datetime().nullable().optional(),
-	expiredRedirectUrl: z.url().nullable().optional(),
-	ogTitle: z.string().max(200).nullable().optional(),
-	ogDescription: z.string().max(500).nullable().optional(),
-	ogImageUrl: z.url().nullable().optional(),
-	externalId: z.string().max(255).nullable().optional(),
-	sourceType: z.string().max(64).nullable().optional(),
-	sourceId: z.string().max(255).nullable().optional(),
-	sourceOwnerId: z.string().max(255).nullable().optional(),
-	targetDomain: z.string().max(255).nullable().optional(),
-});
-
-const listLinksSchema = z
-	.object({
-		organizationId: z.string().optional(),
-		externalId: z.string().optional(),
-		folderId: z.string().nullable().optional(),
-		sourceType: z.string().max(64).optional(),
-		sourceId: z.string().max(255).optional(),
-		sourceOwnerId: z.string().max(255).optional(),
-		targetDomain: z.string().max(255).optional(),
-	})
-	.default({});
-
-const getLinkSchema = z.object({
-	id: z.string(),
-});
-
-const deleteLinkSchema = z.object({
-	id: z.string(),
-});
-
-const SLUG_ALPHABET =
-	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-const SLUG_LENGTH = 8;
-
-function generateSlug(): string {
-	let result = "";
-	for (let i = 0; i < SLUG_LENGTH; i++) {
-		result += SLUG_ALPHABET[Math.floor(Math.random() * SLUG_ALPHABET.length)];
-	}
-	return result;
-}
-
-// URL validation helper matching router logic
-function isValidTargetUrl(url: string): boolean {
-	try {
-		const parsed = new URL(url);
-		return parsed.protocol === "http:" || parsed.protocol === "https:";
-	} catch {
-		return false;
-	}
-}
+import {
+	createLinkSchema,
+	deleteLinkSchema,
+	getLinkSchema,
+	linkOutputSchema,
+	linksSummaryOutputSchema,
+	linksSummarySchema,
+	listLinksPageSchema,
+	listLinksSchema,
+	updateLinkSchema,
+} from "./links.schemas";
 
 describe("createLinkSchema validation", () => {
 	it("accepts valid minimal input", () => {
@@ -104,118 +18,61 @@ describe("createLinkSchema validation", () => {
 			name: "My Link",
 			targetUrl: "https://example.com",
 		});
+
 		expect(result.success).toBe(true);
 	});
 
-	it("accepts valid input with all optional fields", () => {
+	it("accepts valid input with optional fields", () => {
 		const result = createLinkSchema.safeParse({
 			organizationId: "org-123",
 			name: "My Link",
 			targetUrl: "https://example.com/path?query=value",
 			slug: "my-custom-slug",
+			folderId: "folder-posts",
 			expiresAt: new Date("2025-12-31"),
 			expiredRedirectUrl: "https://example.com/expired",
 			ogTitle: "Custom Title",
 			ogDescription: "Custom description for social sharing",
 			ogImageUrl: "https://example.com/image.png",
+			ogVideoUrl: "https://example.com/video.mp4",
+			iosUrl: "https://apps.apple.com/app/example",
+			androidUrl: "https://play.google.com/store/apps/details?id=example",
 			externalId: "company-123",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts externalId for third-party reference", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "Invite Link",
-			targetUrl: "https://example.com/signup",
-			externalId: "company_acme",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts internal organization and source metadata", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			folderId: "folder-posts",
-			name: "Post Link",
-			targetUrl: "https://example.com/signup",
-			externalId: "post_link:post_123:0:abc",
 			sourceType: "post",
 			sourceId: "post_123",
 			sourceOwnerId: "user_456",
 			targetDomain: "example.com",
+			deepLinkApp: "example",
 		});
+
 		expect(result.success).toBe(true);
 	});
 
-	it("rejects empty name", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "",
-			targetUrl: "https://example.com",
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects name over 255 characters", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "a".repeat(256),
-			targetUrl: "https://example.com",
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects invalid target URL", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "My Link",
-			targetUrl: "not-a-url",
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects slug shorter than 3 characters", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "My Link",
-			targetUrl: "https://example.com",
-			slug: "ab",
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects slug longer than 50 characters", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "My Link",
-			targetUrl: "https://example.com",
-			slug: "a".repeat(51),
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects slug with invalid characters", () => {
-		const invalidSlugs = [
-			"slug with spaces",
-			"slug.with.dots",
-			"slug@special",
-			"slug#hash",
-			"slug/slash",
-		];
-
-		for (const slug of invalidSlugs) {
-			const result = createLinkSchema.safeParse({
+	it("rejects invalid required fields", () => {
+		expect(
+			createLinkSchema.safeParse({
+				organizationId: "org-123",
+				name: "",
+				targetUrl: "https://example.com",
+			}).success
+		).toBe(false);
+		expect(
+			createLinkSchema.safeParse({
+				organizationId: "org-123",
+				name: "a".repeat(256),
+				targetUrl: "https://example.com",
+			}).success
+		).toBe(false);
+		expect(
+			createLinkSchema.safeParse({
 				organizationId: "org-123",
 				name: "My Link",
-				targetUrl: "https://example.com",
-				slug,
-			});
-			expect(result.success).toBe(false);
-		}
+				targetUrl: "not-a-url",
+			}).success
+		).toBe(false);
 	});
 
-	it("accepts slug with valid characters", () => {
+	it("validates slug length and characters", () => {
 		const validSlugs = [
 			"my-slug",
 			"my_slug",
@@ -223,264 +80,220 @@ describe("createLinkSchema validation", () => {
 			"123-abc",
 			"ABC_xyz_123",
 		];
+		const invalidSlugs = [
+			"ab",
+			"a".repeat(51),
+			"slug with spaces",
+			"slug.with.dots",
+			"slug@special",
+			"slug/slash",
+		];
 
 		for (const slug of validSlugs) {
-			const result = createLinkSchema.safeParse({
-				organizationId: "org-123",
-				name: "My Link",
-				targetUrl: "https://example.com",
-				slug,
-			});
-			expect(result.success).toBe(true);
+			expect(
+				createLinkSchema.safeParse({
+					organizationId: "org-123",
+					name: "My Link",
+					targetUrl: "https://example.com",
+					slug,
+				}).success
+			).toBe(true);
+		}
+
+		for (const slug of invalidSlugs) {
+			expect(
+				createLinkSchema.safeParse({
+					organizationId: "org-123",
+					name: "My Link",
+					targetUrl: "https://example.com",
+					slug,
+				}).success
+			).toBe(false);
 		}
 	});
 
-	it("accepts null for optional URL fields", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "My Link",
-			targetUrl: "https://example.com",
-			expiredRedirectUrl: null,
-			ogImageUrl: null,
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("rejects ogTitle over 200 characters", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "My Link",
-			targetUrl: "https://example.com",
-			ogTitle: "a".repeat(201),
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("rejects ogDescription over 500 characters", () => {
-		const result = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "My Link",
-			targetUrl: "https://example.com",
-			ogDescription: "a".repeat(501),
-		});
-		expect(result.success).toBe(false);
+	it("validates social metadata limits", () => {
+		expect(
+			createLinkSchema.safeParse({
+				organizationId: "org-123",
+				name: "My Link",
+				targetUrl: "https://example.com",
+				ogTitle: "a".repeat(200),
+				ogDescription: "b".repeat(500),
+			}).success
+		).toBe(true);
+		expect(
+			createLinkSchema.safeParse({
+				organizationId: "org-123",
+				name: "My Link",
+				targetUrl: "https://example.com",
+				ogTitle: "a".repeat(201),
+			}).success
+		).toBe(false);
+		expect(
+			createLinkSchema.safeParse({
+				organizationId: "org-123",
+				name: "My Link",
+				targetUrl: "https://example.com",
+				ogDescription: "a".repeat(501),
+			}).success
+		).toBe(false);
 	});
 });
 
 describe("updateLinkSchema validation", () => {
-	it("accepts valid update with only id", () => {
-		const result = updateLinkSchema.safeParse({
-			id: "link-123",
-		});
-		expect(result.success).toBe(true);
+	it("accepts partial updates", () => {
+		expect(updateLinkSchema.safeParse({ id: "link-123" }).success).toBe(true);
+		expect(
+			updateLinkSchema.safeParse({
+				id: "link-123",
+				name: "Updated Name",
+				targetUrl: "https://new-destination.com",
+				slug: "new-slug",
+				expiresAt: "2025-12-31T00:00:00.000Z",
+				ogTitle: "New Title",
+			}).success
+		).toBe(true);
+		expect(
+			updateLinkSchema.safeParse({
+				id: "link-123",
+				expiresAt: null,
+			}).success
+		).toBe(true);
 	});
 
-	it("accepts valid partial update", () => {
-		const result = updateLinkSchema.safeParse({
-			id: "link-123",
-			name: "Updated Name",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts valid full update", () => {
-		const result = updateLinkSchema.safeParse({
-			id: "link-123",
-			name: "Updated Name",
-			targetUrl: "https://new-destination.com",
-			slug: "new-slug",
-			expiresAt: "2025-12-31T00:00:00.000Z",
-			ogTitle: "New Title",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts null expiresAt to remove expiration", () => {
-		const result = updateLinkSchema.safeParse({
-			id: "link-123",
-			expiresAt: null,
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("rejects invalid datetime format for expiresAt", () => {
-		const result = updateLinkSchema.safeParse({
-			id: "link-123",
-			expiresAt: "not-a-date",
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it("requires id field", () => {
-		const result = updateLinkSchema.safeParse({
-			name: "Updated Name",
-		});
-		expect(result.success).toBe(false);
+	it("rejects missing id and invalid datetime", () => {
+		expect(updateLinkSchema.safeParse({ name: "Updated Name" }).success).toBe(
+			false
+		);
+		expect(
+			updateLinkSchema.safeParse({
+				id: "link-123",
+				expiresAt: "not-a-date",
+			}).success
+		).toBe(false);
 	});
 });
 
 describe("listLinksSchema validation", () => {
-	it("accepts empty input (defaults for active org on server)", () => {
+	it("accepts empty input for active organization fallback", () => {
 		const result = listLinksSchema.safeParse({});
+
 		expect(result.success).toBe(true);
 		if (result.success) {
 			expect(result.data).toEqual({});
 		}
 	});
 
-	it("accepts explicit organization id", () => {
-		const result = listLinksSchema.safeParse({
-			organizationId: "org-123",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts optional externalId filter", () => {
-		const result = listLinksSchema.safeParse({
-			organizationId: "org-123",
-			externalId: "company_acme",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts folder and source filters", () => {
-		const result = listLinksSchema.safeParse({
-			organizationId: "org-123",
-			folderId: "folder-posts",
-			sourceType: "post",
-			sourceId: "post_123",
-			sourceOwnerId: "user_456",
-			targetDomain: "example.com",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("accepts null folder filter for unfiled links", () => {
-		const result = listLinksSchema.safeParse({
-			organizationId: "org-123",
-			folderId: null,
-		});
-		expect(result.success).toBe(true);
+	it("accepts organization and source filters", () => {
+		expect(
+			listLinksSchema.safeParse({
+				organizationId: "org-123",
+				externalId: "company_acme",
+				folderId: "folder-posts",
+				sourceType: "post",
+				sourceId: "post_123",
+				sourceOwnerId: "user_456",
+				targetDomain: "example.com",
+			}).success
+		).toBe(true);
+		expect(
+			listLinksSchema.safeParse({
+				organizationId: "org-123",
+				folderId: null,
+			}).success
+		).toBe(true);
 	});
 });
 
-describe("getLinkSchema validation", () => {
-	it("accepts valid id", () => {
-		const result = getLinkSchema.safeParse({
-			id: "link-123",
-		});
+describe("listLinksPageSchema validation", () => {
+	it("applies pagination and filter defaults", () => {
+		const result = listLinksPageSchema.safeParse({});
+
 		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.includeTotal).toBe(false);
+			expect(result.data.limit).toBe(50);
+			expect(result.data.offset).toBe(0);
+			expect(result.data.sort).toBe("newest");
+			expect(result.data.type).toBe("all");
+		}
 	});
 
-	it("requires id", () => {
+	it("accepts search, sort, type, and pagination bounds", () => {
+		expect(
+			listLinksPageSchema.safeParse({
+				organizationId: "org-123",
+				folderId: null,
+				includeTotal: true,
+				search: "campaign",
+				sort: "name-asc",
+				type: "deep",
+				limit: 100,
+				offset: 200,
+			}).success
+		).toBe(true);
+	});
+
+	it("rejects out-of-range pagination and unknown enums", () => {
+		expect(listLinksPageSchema.safeParse({ limit: 0 }).success).toBe(false);
+		expect(listLinksPageSchema.safeParse({ limit: 101 }).success).toBe(false);
+		expect(listLinksPageSchema.safeParse({ offset: -1 }).success).toBe(false);
+		expect(listLinksPageSchema.safeParse({ sort: "random" }).success).toBe(
+			false
+		);
+		expect(listLinksPageSchema.safeParse({ type: "medium" }).success).toBe(
+			false
+		);
+	});
+});
+
+describe("linksSummarySchema validation", () => {
+	it("accepts active-organization fallback and optional search", () => {
+		expect(linksSummarySchema.parse({})).toEqual({});
+		expect(
+			linksSummarySchema.parse({
+				organizationId: "org-123",
+				search: "campaign",
+			})
+		).toEqual({ organizationId: "org-123", search: "campaign" });
+		expect(linksSummarySchema.safeParse({ search: "   " }).success).toBe(
+			false
+		);
+		expect(linksSummarySchema.safeParse({ search: "x".repeat(256) }).success).toBe(
+			false
+		);
+	});
+
+	it("validates exact aggregate output", () => {
+		expect(
+			linksSummaryOutputSchema.parse({ total: 1200, unfiledTotal: 35 })
+		).toEqual({ total: 1200, unfiledTotal: 35 });
+		expect(
+			linksSummaryOutputSchema.safeParse({ total: -1, unfiledTotal: 0 })
+				.success
+		).toBe(false);
+	});
+});
+
+describe("id input schemas", () => {
+	it("accept valid ids and reject missing ids", () => {
+		expect(getLinkSchema.safeParse({ id: "link-123" }).success).toBe(true);
+		expect(deleteLinkSchema.safeParse({ id: "link-123" }).success).toBe(true);
 		expect(getLinkSchema.safeParse({}).success).toBe(false);
+		expect(deleteLinkSchema.safeParse({}).success).toBe(false);
 	});
 });
 
-describe("deleteLinkSchema validation", () => {
-	it("accepts valid id", () => {
-		const result = deleteLinkSchema.safeParse({
-			id: "link-123",
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it("requires id", () => {
-		const result = deleteLinkSchema.safeParse({});
-		expect(result.success).toBe(false);
-	});
-});
-
-describe("slug generation", () => {
-	it("generates slug of correct length", () => {
-		const slug = generateSlug();
-		expect(slug.length).toBe(SLUG_LENGTH);
-	});
-
-	it("generates slug with valid characters only", () => {
-		for (let i = 0; i < 100; i++) {
-			const slug = generateSlug();
-			expect(slugRegex.test(slug)).toBe(true);
-		}
-	});
-
-	it("generates unique slugs", () => {
-		const slugs = new Set<string>();
-		for (let i = 0; i < 1000; i++) {
-			slugs.add(generateSlug());
-		}
-		// With 62^8 possibilities, 1000 slugs should all be unique
-		expect(slugs.size).toBe(1000);
-	});
-});
-
-describe("URL validation helper", () => {
-	it("accepts https URLs", () => {
-		expect(isValidTargetUrl("https://example.com")).toBe(true);
-		expect(isValidTargetUrl("https://example.com/path")).toBe(true);
-		expect(isValidTargetUrl("https://example.com/path?query=value")).toBe(true);
-		expect(isValidTargetUrl("https://sub.example.com")).toBe(true);
-	});
-
-	it("accepts http URLs", () => {
-		expect(isValidTargetUrl("http://example.com")).toBe(true);
-		expect(isValidTargetUrl("http://localhost:3000")).toBe(true);
-	});
-
-	it("rejects non-http protocols", () => {
-		expect(isValidTargetUrl("ftp://example.com")).toBe(false);
-		expect(isValidTargetUrl("file:///path/to/file")).toBe(false);
-		expect(isValidTargetUrl("javascript:alert(1)")).toBe(false);
-		expect(isValidTargetUrl("data:text/html,<h1>Hi</h1>")).toBe(false);
-	});
-
-	it("rejects invalid URLs", () => {
-		expect(isValidTargetUrl("not-a-url")).toBe(false);
-		expect(isValidTargetUrl("")).toBe(false);
-		expect(isValidTargetUrl("example.com")).toBe(false);
-	});
-});
-
-describe("link expiration logic", () => {
-	function isExpired(expiresAt: Date | string | null): boolean {
-		if (!expiresAt) {
-			return false;
-		}
-		return new Date(expiresAt) < new Date();
-	}
-
-	it("returns false for null expiration", () => {
-		expect(isExpired(null)).toBe(false);
-	});
-
-	it("returns true for past date", () => {
-		const past = new Date(Date.now() - 86_400_000); // 1 day ago
-		expect(isExpired(past)).toBe(true);
-	});
-
-	it("returns false for future date", () => {
-		const future = new Date(Date.now() + 86_400_000); // 1 day from now
-		expect(isExpired(future)).toBe(false);
-	});
-
-	it("handles ISO string dates", () => {
-		const past = new Date(Date.now() - 1000).toISOString();
-		const future = new Date(Date.now() + 100_000).toISOString();
-
-		expect(isExpired(past)).toBe(true);
-		expect(isExpired(future)).toBe(false);
-	});
-});
-
-describe("link data structure", () => {
-	it("creates valid link object structure", () => {
-		const linkData = {
+describe("linkOutputSchema validation", () => {
+	it("accepts link rows returned by the router", () => {
+		const result = linkOutputSchema.safeParse({
 			id: "link-123",
 			organizationId: "org-456",
 			createdBy: "user-789",
 			folderId: "folder-posts",
-			name: "Marketing Campaign",
 			slug: "campaign-2025",
+			name: "Marketing Campaign",
 			targetUrl: "https://example.com/landing?utm_source=twitter",
 			targetDomain: "example.com",
 			sourceType: "post",
@@ -489,222 +302,53 @@ describe("link data structure", () => {
 			expiresAt: null,
 			expiredRedirectUrl: null,
 			ogTitle: "Special Offer",
-			ogDescription: "Check out our amazing deal!",
+			ogDescription: "Check out our deal",
 			ogImageUrl: "https://example.com/og-image.png",
+			ogVideoUrl: null,
+			iosUrl: null,
+			androidUrl: null,
+			externalId: "external-123",
+			deepLinkApp: null,
+			deletedAt: null,
 			createdAt: new Date(),
 			updatedAt: new Date(),
+		});
+
+		expect(result.success).toBe(true);
+	});
+
+	it("coerces serialized timestamp fields", () => {
+		const result = linkOutputSchema.safeParse({
+			id: "link-123",
+			organizationId: "org-456",
+			createdBy: "user-789",
+			folderId: null,
+			slug: "campaign-2025",
+			name: "Marketing Campaign",
+			targetUrl: "https://example.com/landing",
+			targetDomain: "example.com",
+			sourceType: null,
+			sourceId: null,
+			sourceOwnerId: null,
+			expiresAt: "2025-12-31T00:00:00.000Z",
+			expiredRedirectUrl: null,
+			ogTitle: null,
+			ogDescription: null,
+			ogImageUrl: null,
+			ogVideoUrl: null,
+			iosUrl: null,
+			androidUrl: null,
+			externalId: null,
+			deepLinkApp: null,
 			deletedAt: null,
-		};
-
-		expect(linkData.id).toBeDefined();
-		expect(linkData.organizationId).toBeDefined();
-		expect(linkData.createdBy).toBeDefined();
-		expect(linkData.name).toBeDefined();
-		expect(linkData.slug).toBeDefined();
-		expect(linkData.targetUrl).toBeDefined();
-		expect(linkData.createdAt).toBeInstanceOf(Date);
-		expect(linkData.updatedAt).toBeInstanceOf(Date);
-		expect(linkData.deletedAt).toBeNull();
-	});
-
-	it("supports soft delete pattern", () => {
-		const activeLink = { deletedAt: null };
-		const deletedLink = { deletedAt: new Date() };
-
-		expect(activeLink.deletedAt).toBeNull();
-		expect(deletedLink.deletedAt).toBeInstanceOf(Date);
-	});
-});
-
-describe("authorization permission mapping", () => {
-	// Test the permission mapping logic from authorizeOrganizationAccess
-	function mapPermission(
-		permission: "read" | "create" | "update" | "delete"
-	): "read" | "create" | "delete" {
-		return permission === "read"
-			? "read"
-			: permission === "delete"
-				? "delete"
-				: "create";
-	}
-
-	it("maps read permission correctly", () => {
-		expect(mapPermission("read")).toBe("read");
-	});
-
-	it("maps create permission correctly", () => {
-		expect(mapPermission("create")).toBe("create");
-	});
-
-	it("maps update permission to create", () => {
-		expect(mapPermission("update")).toBe("create");
-	});
-
-	it("maps delete permission correctly", () => {
-		expect(mapPermission("delete")).toBe("delete");
-	});
-});
-
-describe("slug collision handling", () => {
-	it("should retry up to max attempts on collision", () => {
-		const maxAttempts = 10;
-		let attempts = 0;
-		let success = false;
-
-		// Simulate collision handling
-		while (attempts < maxAttempts && !success) {
-			const slug = generateSlug();
-			attempts++;
-
-			// Simulate: first 9 attempts fail, 10th succeeds
-			if (attempts === 10) {
-				success = true;
-			}
-		}
-
-		expect(attempts).toBe(10);
-		expect(success).toBe(true);
-	});
-
-	it("should fail after max attempts exhausted", () => {
-		const maxAttempts = 10;
-		let attempts = 0;
-		const success = false;
-
-		// Simulate all attempts failing
-		while (attempts < maxAttempts && !success) {
-			attempts++;
-			// Never succeed
-		}
-
-		expect(attempts).toBe(maxAttempts);
-		expect(success).toBe(false);
-	});
-});
-
-describe("cache invalidation scenarios", () => {
-	it("should invalidate cache on create", () => {
-		const cacheOperations: string[] = [];
-
-		// Simulate create flow
-		const slug = "new-slug";
-		cacheOperations.push(`invalidate:${slug}`);
-
-		expect(cacheOperations).toContain(`invalidate:${slug}`);
-	});
-
-	it("should invalidate both old and new slug on update", () => {
-		const cacheOperations: string[] = [];
-
-		// Simulate update flow with slug change
-		const oldSlug = "old-slug";
-		const newSlug = "new-slug";
-
-		cacheOperations.push(`invalidate:${oldSlug}`);
-		cacheOperations.push(`invalidate:${newSlug}`);
-
-		expect(cacheOperations).toContain(`invalidate:${oldSlug}`);
-		expect(cacheOperations).toContain(`invalidate:${newSlug}`);
-	});
-
-	it("should invalidate cache on delete", () => {
-		const cacheOperations: string[] = [];
-
-		// Simulate delete flow
-		const slug = "deleted-slug";
-		cacheOperations.push(`invalidate:${slug}`);
-
-		expect(cacheOperations).toContain(`invalidate:${slug}`);
-	});
-});
-
-describe("OG metadata handling", () => {
-	it("should detect custom OG presence", () => {
-		const hasCustomOg = (link: {
-			ogTitle: string | null;
-			ogDescription: string | null;
-			ogImageUrl: string | null;
-		}) => {
-			return link.ogTitle ?? link.ogDescription ?? link.ogImageUrl;
-		};
-
-		expect(
-			hasCustomOg({ ogTitle: "Title", ogDescription: null, ogImageUrl: null })
-		).toBeTruthy();
-		expect(
-			hasCustomOg({ ogTitle: null, ogDescription: "Desc", ogImageUrl: null })
-		).toBeTruthy();
-		expect(
-			hasCustomOg({
-				ogTitle: null,
-				ogDescription: null,
-				ogImageUrl: "https://img.com",
-			})
-		).toBeTruthy();
-		expect(
-			hasCustomOg({ ogTitle: null, ogDescription: null, ogImageUrl: null })
-		).toBeFalsy();
-	});
-
-	it("should respect OG field length limits", () => {
-		const ogTitle = "a".repeat(200); // Max allowed
-		const ogDescription = "b".repeat(500); // Max allowed
-
-		const titleResult = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "Link",
-			targetUrl: "https://example.com",
-			ogTitle,
+			createdAt: "2025-01-01T00:00:00.000Z",
+			updatedAt: "2025-01-02T00:00:00.000Z",
 		});
-		expect(titleResult.success).toBe(true);
 
-		const descResult = createLinkSchema.safeParse({
-			organizationId: "org-123",
-			name: "Link",
-			targetUrl: "https://example.com",
-			ogDescription,
-		});
-		expect(descResult.success).toBe(true);
-	});
-});
-
-describe("error handling patterns", () => {
-	it("should identify slug conflict errors", () => {
-		const isSlugConflict = (error: { code?: string; constraint?: string }) => {
-			return error.code === "23505" && error.constraint === "links_slug_unique";
-		};
-
-		expect(
-			isSlugConflict({ code: "23505", constraint: "links_slug_unique" })
-		).toBe(true);
-		expect(
-			isSlugConflict({ code: "23505", constraint: "other_constraint" })
-		).toBe(false);
-		expect(isSlugConflict({ code: "other_code" })).toBe(false);
-	});
-
-	it("should map error codes to user messages", () => {
-		const getErrorMessage = (code: string): string => {
-			switch (code) {
-				case "CONFLICT":
-					return "This slug is already taken";
-				case "NOT_FOUND":
-					return "Link not found";
-				case "UNAUTHORIZED":
-					return "Authentication is required";
-				case "FORBIDDEN":
-					return "You do not have permission to access this organization";
-				case "BAD_REQUEST":
-					return "Target URL must be an absolute HTTP or HTTPS URL";
-				default:
-					return "An unexpected error occurred";
-			}
-		};
-
-		expect(getErrorMessage("CONFLICT")).toBe("This slug is already taken");
-		expect(getErrorMessage("NOT_FOUND")).toBe("Link not found");
-		expect(getErrorMessage("UNAUTHORIZED")).toBe("Authentication is required");
-		expect(getErrorMessage("FORBIDDEN")).toContain("permission");
-		expect(getErrorMessage("BAD_REQUEST")).toContain("URL");
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.createdAt).toBeInstanceOf(Date);
+			expect(result.data.expiresAt).toBeInstanceOf(Date);
+		}
 	});
 });

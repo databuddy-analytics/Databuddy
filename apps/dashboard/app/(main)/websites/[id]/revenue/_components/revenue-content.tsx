@@ -1,6 +1,7 @@
 "use client";
 
 import { publicConfig } from "@databuddy/env/public";
+import { STRIPE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -13,11 +14,25 @@ import { useDateFilters } from "@/hooks/use-date-filters";
 import { useBatchDynamicQuery } from "@/hooks/use-dynamic-query";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { orpc } from "@/lib/orpc";
+import {
+	appendRevenueCurrencyFilter,
+	formatRevenueCurrency,
+	normalizeRevenueCurrency,
+} from "@/lib/revenue-currency";
+import {
+	hasPaymentActivity,
+	hasRevenueActivity,
+	paymentFailureObservationDescription,
+	paymentFailureRateLabel,
+	paymentFailureReasonLabel,
+	type RevenueOverview,
+} from "@/lib/revenue-overview";
 import { cn } from "@/lib/utils";
 import {
 	addDynamicFilterAtom,
 	dynamicQueryFiltersAtom,
 } from "@/stores/jotai/filterAtoms";
+import type { DynamicQueryRequest } from "@/types/api";
 import { TopBar } from "@/components/layout/top-bar";
 import { RevenueAttributionTables } from "./revenue-attribution-tables";
 import { RevenueChart } from "./revenue-chart";
@@ -41,24 +56,10 @@ import {
 	UsersIcon,
 } from "@databuddy/ui/icons";
 import { Sheet } from "@databuddy/ui/client";
-import { Button, Card, EmptyState, Input, dayjs } from "@databuddy/ui";
+import { Button, Card, EmptyState, Field, Input, dayjs } from "@databuddy/ui";
 
 interface RevenueContentProps {
 	websiteId: string;
-}
-
-interface RevenueOverview {
-	attributed_revenue: number;
-	attributed_transactions: number;
-	refund_amount: number;
-	refund_count: number;
-	sale_count: number;
-	sale_revenue: number;
-	subscription_count: number;
-	subscription_revenue: number;
-	total_revenue: number;
-	total_transactions: number;
-	unique_customers: number;
 }
 
 interface RevenueTimeSeries {
@@ -72,24 +73,10 @@ interface RevenueTimeSeries {
 
 const BASKET_URL = publicConfig.urls.basket;
 
-const STRIPE_EVENTS = {
-	required: ["payment_intent.succeeded", "charge.refunded"],
-	optional: ["payment_intent.payment_failed", "payment_intent.canceled"],
-};
-
 const PADDLE_EVENTS = {
 	required: ["transaction.completed"],
 	optional: [],
 };
-
-function formatCurrency(amount: number, currency = "USD"): string {
-	return new Intl.NumberFormat("en-US", {
-		style: "currency",
-		currency,
-		minimumFractionDigits: 0,
-		maximumFractionDigits: 0,
-	}).format(amount);
-}
 
 function padTimeSeriesData<T extends { date: string }>(
 	data: T[],
@@ -191,6 +178,7 @@ function RevenueSettingsSheet({
 	const queryClient = useQueryClient();
 	const [stripeSecret, setStripeSecret] = useState("");
 	const [paddleSecret, setPaddleSecret] = useState("");
+	const [currencyDraft, setCurrencyDraft] = useState<string | null>(null);
 	const [showStripeSecret, setShowStripeSecret] = useState(false);
 	const [showPaddleSecret, setShowPaddleSecret] = useState(false);
 	const [expandedSection, setExpandedSection] =
@@ -208,9 +196,30 @@ function RevenueSettingsSheet({
 		queryKey: ["revenue-config", websiteId],
 		queryFn: () => orpc.revenue.get.call({ websiteId }),
 	});
+	const savedCurrency = normalizeRevenueCurrency(config?.currency);
+	const configuredCurrency =
+		typeof config?.currency === "string"
+			? config.currency.trim().toUpperCase()
+			: "USD";
+	const currencyValue = currencyDraft ?? configuredCurrency;
+	const normalizedCurrency = normalizeRevenueCurrency(currencyValue);
+	const currencyInvalid = normalizedCurrency === null;
+	const hasChanges = Boolean(
+		stripeSecret ||
+			paddleSecret ||
+			(normalizedCurrency && normalizedCurrency !== savedCurrency)
+	);
 
 	const createWebhookMutation = useMutation({
-		mutationFn: () => orpc.revenue.upsert.call({ websiteId }),
+		mutationFn: () => {
+			if (!normalizedCurrency) {
+				throw new Error("Invalid revenue currency");
+			}
+			return orpc.revenue.upsert.call({
+				websiteId,
+				currency: normalizedCurrency,
+			});
+		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["revenue-config", websiteId],
@@ -224,6 +233,7 @@ function RevenueSettingsSheet({
 		mutationFn: (data: {
 			stripeWebhookSecret?: string;
 			paddleWebhookSecret?: string;
+			currency: string;
 		}) => orpc.revenue.upsert.call({ websiteId, ...data }),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
@@ -231,6 +241,7 @@ function RevenueSettingsSheet({
 			});
 			setStripeSecret("");
 			setPaddleSecret("");
+			setCurrencyDraft(null);
 			toast.success("Configuration saved");
 		},
 		onError: () => toast.error("Failed to save"),
@@ -248,19 +259,22 @@ function RevenueSettingsSheet({
 	});
 
 	const handleSave = () => {
+		if (!normalizedCurrency) {
+			return;
+		}
+
 		const updates: {
 			stripeWebhookSecret?: string;
 			paddleWebhookSecret?: string;
-		} = {};
+			currency: string;
+		} = { currency: normalizedCurrency };
 		if (stripeSecret) {
 			updates.stripeWebhookSecret = stripeSecret;
 		}
 		if (paddleSecret) {
 			updates.paddleWebhookSecret = paddleSecret;
 		}
-		if (Object.keys(updates).length > 0) {
-			upsertMutation.mutate(updates);
-		}
+		upsertMutation.mutate(updates);
 	};
 
 	const toggleSection = (section: ExpandedSection) => {
@@ -303,193 +317,288 @@ function RevenueSettingsSheet({
 							<SpinnerIcon className="size-6 animate-spin text-muted-foreground" />
 						</div>
 					) : (
-						<div className="space-y-1">
-							<CollapsibleSection
-								badge={
-									webhookHash ? (
-										<CheckCircleIcon
-											className="size-4 text-success"
-											weight="duotone"
-										/>
-									) : undefined
-								}
-								icon={LinkIcon}
-								isExpanded={expandedSection === "webhooks"}
-								onToggleAction={() => toggleSection("webhooks")}
-								title="Webhook URLs"
-							>
-								{webhookHash ? (
+						<div className="space-y-5">
+							<Field error={currencyInvalid}>
+								<Field.Label>Currency</Field.Label>
+								<Input
+									autoCapitalize="characters"
+									className="font-mono uppercase"
+									maxLength={3}
+									onChange={(event) =>
+										setCurrencyDraft(event.target.value.toUpperCase())
+									}
+									placeholder="USD"
+									value={currencyValue}
+								/>
+								{currencyInvalid ? (
+									<Field.Error>
+										Enter a valid three-letter ISO currency code.
+									</Field.Error>
+								) : (
+									<Field.Description>
+										Only matching transactions are shown in revenue reports.
+									</Field.Description>
+								)}
+							</Field>
+
+							<div className="space-y-1">
+								<CollapsibleSection
+									badge={
+										webhookHash ? (
+											<CheckCircleIcon
+												className="size-4 text-success"
+												weight="duotone"
+											/>
+										) : undefined
+									}
+									icon={LinkIcon}
+									isExpanded={expandedSection === "webhooks"}
+									onToggleAction={() => toggleSection("webhooks")}
+									title="Webhook URLs"
+								>
+									{webhookHash ? (
+										<div className="space-y-4">
+											<div className="space-y-1.5">
+												<div className="flex items-center justify-between">
+													<p className="font-medium text-foreground text-xs">
+														Stripe
+													</p>
+													<a
+														className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+														href="https://dashboard.stripe.com/webhooks/create"
+														rel="noopener noreferrer"
+														target="_blank"
+													>
+														Open dashboard
+														<ArrowSquareOutIcon className="size-3" />
+													</a>
+												</div>
+												<div className="flex items-center gap-2">
+													<code className="flex-1 truncate rounded bg-secondary px-2.5 py-2 font-mono text-xs">
+														{stripeUrl}
+													</code>
+													<Button
+														onClick={() =>
+															stripeUrl && copyStripeUrl(stripeUrl)
+														}
+														size="sm"
+														variant="ghost"
+													>
+														{copiedStripeUrl ? (
+															<CheckIcon className="size-4 text-success" />
+														) : (
+															<ClipboardIcon
+																className="size-4"
+																weight="duotone"
+															/>
+														)}
+													</Button>
+												</div>
+											</div>
+
+											<div className="space-y-1.5">
+												<div className="flex items-center justify-between">
+													<p className="font-medium text-foreground text-xs">
+														Paddle
+													</p>
+													<a
+														className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+														href="https://vendors.paddle.com/notifications"
+														rel="noopener noreferrer"
+														target="_blank"
+													>
+														Open dashboard
+														<ArrowSquareOutIcon className="size-3" />
+													</a>
+												</div>
+												<div className="flex items-center gap-2">
+													<code className="flex-1 truncate rounded bg-secondary px-2.5 py-2 font-mono text-xs">
+														{paddleUrl}
+													</code>
+													<Button
+														onClick={() =>
+															paddleUrl && copyPaddleUrl(paddleUrl)
+														}
+														size="sm"
+														variant="ghost"
+													>
+														{copiedPaddleUrl ? (
+															<CheckIcon className="size-4 text-success" />
+														) : (
+															<ClipboardIcon
+																className="size-4"
+																weight="duotone"
+															/>
+														)}
+													</Button>
+												</div>
+											</div>
+
+											<button
+												className="flex w-full items-center justify-center gap-1.5 pt-2 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-50"
+												disabled={regenerateMutation.isPending}
+												onClick={() => regenerateMutation.mutate()}
+												type="button"
+											>
+												{regenerateMutation.isPending ? (
+													<SpinnerIcon className="size-3 animate-spin" />
+												) : (
+													<ArrowClockwiseIcon className="size-3" />
+												)}
+												Regenerate URLs
+											</button>
+										</div>
+									) : (
+										<div>
+											<p className="mb-3 text-muted-foreground text-xs">
+												Generate URLs to receive payment events.
+											</p>
+											<Button
+												className="w-full"
+												disabled={currencyInvalid}
+												loading={createWebhookMutation.isPending}
+												onClick={() => createWebhookMutation.mutate()}
+												size="sm"
+												variant="secondary"
+											>
+												Generate Webhook URLs
+											</Button>
+										</div>
+									)}
+								</CollapsibleSection>
+
+								<CollapsibleSection
+									badge={
+										config?.stripeConfigured ? (
+											<CheckCircleIcon
+												className="size-4 text-success"
+												weight="duotone"
+											/>
+										) : undefined
+									}
+									icon={StripeLogoIcon}
+									isExpanded={expandedSection === "stripe"}
+									onToggleAction={() => toggleSection("stripe")}
+									title="Stripe"
+								>
 									<div className="space-y-4">
 										<div className="space-y-1.5">
-											<div className="flex items-center justify-between">
-												<p className="font-medium text-foreground text-xs">
-													Stripe
-												</p>
-												<a
-													className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-													href="https://dashboard.stripe.com/webhooks/create"
-													rel="noopener noreferrer"
-													target="_blank"
-												>
-													Open dashboard
-													<ArrowSquareOutIcon className="size-3" />
-												</a>
-											</div>
+											<p className="font-medium text-foreground text-xs">
+												Signing secret
+											</p>
 											<div className="flex items-center gap-2">
-												<code className="flex-1 truncate rounded bg-secondary px-2.5 py-2 font-mono text-xs">
-													{stripeUrl}
-												</code>
+												<Input
+													className="flex-1 font-mono text-xs"
+													onChange={(e) => setStripeSecret(e.target.value)}
+													placeholder={
+														config?.stripeConfigured ? "••••••••" : "whsec_..."
+													}
+													type={showStripeSecret ? "text" : "password"}
+													value={stripeSecret}
+												/>
 												<Button
-													onClick={() => stripeUrl && copyStripeUrl(stripeUrl)}
+													onClick={() => setShowStripeSecret(!showStripeSecret)}
 													size="sm"
 													variant="ghost"
 												>
-													{copiedStripeUrl ? (
-														<CheckIcon className="size-4 text-success" />
+													{showStripeSecret ? (
+														<EyeSlashIcon className="size-4" weight="duotone" />
 													) : (
-														<ClipboardIcon
-															className="size-4"
-															weight="duotone"
-														/>
+														<EyeIcon className="size-4" weight="duotone" />
 													)}
 												</Button>
 											</div>
 										</div>
 
+										<div className="space-y-2">
+											<p className="text-muted-foreground text-xs">
+												Required events
+											</p>
+											<div className="flex flex-wrap gap-1">
+												{STRIPE_WEBHOOK_EVENTS.required.map(({ event }) => (
+													<code
+														className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
+														key={event}
+													>
+														{event}
+													</code>
+												))}
+											</div>
+										</div>
+
+										{STRIPE_WEBHOOK_EVENTS.optional.length > 0 && (
+											<div className="space-y-2">
+												<p className="text-muted-foreground text-xs">
+													Optional
+												</p>
+												<div className="flex flex-wrap gap-1">
+													{STRIPE_WEBHOOK_EVENTS.optional.map(({ event }) => (
+														<code
+															className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+															key={event}
+														>
+															{event}
+														</code>
+													))}
+												</div>
+											</div>
+										)}
+									</div>
+								</CollapsibleSection>
+
+								<CollapsibleSection
+									badge={
+										config?.paddleConfigured ? (
+											<CheckCircleIcon
+												className="size-4 text-success"
+												weight="duotone"
+											/>
+										) : undefined
+									}
+									icon={CurrencyDollarIcon}
+									isExpanded={expandedSection === "paddle"}
+									onToggleAction={() => toggleSection("paddle")}
+									title="Paddle"
+								>
+									<div className="space-y-4">
 										<div className="space-y-1.5">
-											<div className="flex items-center justify-between">
-												<p className="font-medium text-foreground text-xs">
-													Paddle
-												</p>
-												<a
-													className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-													href="https://vendors.paddle.com/notifications"
-													rel="noopener noreferrer"
-													target="_blank"
-												>
-													Open dashboard
-													<ArrowSquareOutIcon className="size-3" />
-												</a>
-											</div>
+											<p className="font-medium text-foreground text-xs">
+												Signing secret
+											</p>
 											<div className="flex items-center gap-2">
-												<code className="flex-1 truncate rounded bg-secondary px-2.5 py-2 font-mono text-xs">
-													{paddleUrl}
-												</code>
+												<Input
+													className="flex-1 font-mono text-xs"
+													onChange={(e) => setPaddleSecret(e.target.value)}
+													placeholder={
+														config?.paddleConfigured
+															? "••••••••"
+															: "pdl_ntfset_..."
+													}
+													type={showPaddleSecret ? "text" : "password"}
+													value={paddleSecret}
+												/>
 												<Button
-													onClick={() => paddleUrl && copyPaddleUrl(paddleUrl)}
+													onClick={() => setShowPaddleSecret(!showPaddleSecret)}
 													size="sm"
 													variant="ghost"
 												>
-													{copiedPaddleUrl ? (
-														<CheckIcon className="size-4 text-success" />
+													{showPaddleSecret ? (
+														<EyeSlashIcon className="size-4" weight="duotone" />
 													) : (
-														<ClipboardIcon
-															className="size-4"
-															weight="duotone"
-														/>
+														<EyeIcon className="size-4" weight="duotone" />
 													)}
 												</Button>
 											</div>
 										</div>
 
-										<button
-											className="flex w-full items-center justify-center gap-1.5 pt-2 text-muted-foreground text-xs transition-colors hover:text-foreground disabled:opacity-50"
-											disabled={regenerateMutation.isPending}
-											onClick={() => regenerateMutation.mutate()}
-											type="button"
-										>
-											{regenerateMutation.isPending ? (
-												<SpinnerIcon className="size-3 animate-spin" />
-											) : (
-												<ArrowClockwiseIcon className="size-3" />
-											)}
-											Regenerate URLs
-										</button>
-									</div>
-								) : (
-									<div>
-										<p className="mb-3 text-muted-foreground text-xs">
-											Generate URLs to receive payment events.
-										</p>
-										<Button
-											className="w-full"
-											loading={createWebhookMutation.isPending}
-											onClick={() => createWebhookMutation.mutate()}
-											size="sm"
-											variant="secondary"
-										>
-											Generate Webhook URLs
-										</Button>
-									</div>
-								)}
-							</CollapsibleSection>
-
-							<CollapsibleSection
-								badge={
-									config?.stripeConfigured ? (
-										<CheckCircleIcon
-											className="size-4 text-success"
-											weight="duotone"
-										/>
-									) : undefined
-								}
-								icon={StripeLogoIcon}
-								isExpanded={expandedSection === "stripe"}
-								onToggleAction={() => toggleSection("stripe")}
-								title="Stripe"
-							>
-								<div className="space-y-4">
-									<div className="space-y-1.5">
-										<p className="font-medium text-foreground text-xs">
-											Signing secret
-										</p>
-										<div className="flex items-center gap-2">
-											<Input
-												className="flex-1 font-mono text-xs"
-												onChange={(e) => setStripeSecret(e.target.value)}
-												placeholder={
-													config?.stripeConfigured ? "••••••••" : "whsec_..."
-												}
-												type={showStripeSecret ? "text" : "password"}
-												value={stripeSecret}
-											/>
-											<Button
-												onClick={() => setShowStripeSecret(!showStripeSecret)}
-												size="sm"
-												variant="ghost"
-											>
-												{showStripeSecret ? (
-													<EyeSlashIcon className="size-4" weight="duotone" />
-												) : (
-													<EyeIcon className="size-4" weight="duotone" />
-												)}
-											</Button>
-										</div>
-									</div>
-
-									<div className="space-y-2">
-										<p className="text-muted-foreground text-xs">
-											Required events
-										</p>
-										<div className="flex flex-wrap gap-1">
-											{STRIPE_EVENTS.required.map((event) => (
-												<code
-													className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-													key={event}
-												>
-													{event}
-												</code>
-											))}
-										</div>
-									</div>
-
-									{STRIPE_EVENTS.optional.length > 0 && (
 										<div className="space-y-2">
-											<p className="text-muted-foreground text-xs">Optional</p>
+											<p className="text-muted-foreground text-xs">
+												Required events
+											</p>
 											<div className="flex flex-wrap gap-1">
-												{STRIPE_EVENTS.optional.map((event) => (
+												{PADDLE_EVENTS.required.map((event) => (
 													<code
-														className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+														className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
 														key={event}
 													>
 														{event}
@@ -497,88 +606,27 @@ function RevenueSettingsSheet({
 												))}
 											</div>
 										</div>
-									)}
-								</div>
-							</CollapsibleSection>
 
-							<CollapsibleSection
-								badge={
-									config?.paddleConfigured ? (
-										<CheckCircleIcon
-											className="size-4 text-success"
-											weight="duotone"
-										/>
-									) : undefined
-								}
-								icon={CurrencyDollarIcon}
-								isExpanded={expandedSection === "paddle"}
-								onToggleAction={() => toggleSection("paddle")}
-								title="Paddle"
-							>
-								<div className="space-y-4">
-									<div className="space-y-1.5">
-										<p className="font-medium text-foreground text-xs">
-											Signing secret
-										</p>
-										<div className="flex items-center gap-2">
-											<Input
-												className="flex-1 font-mono text-xs"
-												onChange={(e) => setPaddleSecret(e.target.value)}
-												placeholder={
-													config?.paddleConfigured
-														? "••••••••"
-														: "pdl_ntfset_..."
-												}
-												type={showPaddleSecret ? "text" : "password"}
-												value={paddleSecret}
-											/>
-											<Button
-												onClick={() => setShowPaddleSecret(!showPaddleSecret)}
-												size="sm"
-												variant="ghost"
-											>
-												{showPaddleSecret ? (
-													<EyeSlashIcon className="size-4" weight="duotone" />
-												) : (
-													<EyeIcon className="size-4" weight="duotone" />
-												)}
-											</Button>
-										</div>
-									</div>
-
-									<div className="space-y-2">
-										<p className="text-muted-foreground text-xs">
-											Required events
-										</p>
-										<div className="flex flex-wrap gap-1">
-											{PADDLE_EVENTS.required.map((event) => (
-												<code
-													className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary"
-													key={event}
-												>
-													{event}
-												</code>
-											))}
-										</div>
-									</div>
-
-									{PADDLE_EVENTS.optional.length > 0 && (
-										<div className="space-y-2">
-											<p className="text-muted-foreground text-xs">Optional</p>
-											<div className="flex flex-wrap gap-1">
-												{PADDLE_EVENTS.optional.map((event) => (
-													<code
-														className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
-														key={event}
-													>
-														{event}
-													</code>
-												))}
+										{PADDLE_EVENTS.optional.length > 0 && (
+											<div className="space-y-2">
+												<p className="text-muted-foreground text-xs">
+													Optional
+												</p>
+												<div className="flex flex-wrap gap-1">
+													{PADDLE_EVENTS.optional.map((event) => (
+														<code
+															className="rounded bg-secondary px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
+															key={event}
+														>
+															{event}
+														</code>
+													))}
+												</div>
 											</div>
-										</div>
-									)}
-								</div>
-							</CollapsibleSection>
+										)}
+									</div>
+								</CollapsibleSection>
+							</div>
 						</div>
 					)}
 				</Sheet.Body>
@@ -593,7 +641,7 @@ function RevenueSettingsSheet({
 					</Button>
 					<Button
 						className="min-w-24"
-						disabled={stripeSecret === "" && paddleSecret === ""}
+						disabled={currencyInvalid || !hasChanges}
 						loading={upsertMutation.isPending}
 						onClick={handleSave}
 					>
@@ -618,21 +666,41 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 		[addFilterAction]
 	);
 
-	const { data: config } = useQuery({
+	const { data: config, isLoading: isConfigLoading } = useQuery({
 		queryKey: ["revenue-config", websiteId],
 		queryFn: () => orpc.revenue.get.call({ websiteId }),
 	});
+	const currency = normalizeRevenueCurrency(config?.currency);
+	const revenueQueryEnabled = !isConfigLoading && currency !== null;
+	const displayCurrency = currency ?? "";
+	const revenueFilters = useMemo(
+		() => appendRevenueCurrencyFilter(filters, currency),
+		[filters, currency]
+	);
 
-	const queries = [
-		{ id: "revenue-overview", parameters: ["revenue_overview"], filters },
-		{ id: "revenue-time-series", parameters: ["revenue_time_series"], filters },
-	];
+	const queries = useMemo<DynamicQueryRequest[]>(
+		() => [
+			{
+				id: "revenue-overview",
+				parameters: ["revenue_overview"],
+				filters: revenueFilters,
+			},
+			{
+				id: "revenue-time-series",
+				parameters: ["revenue_time_series"],
+				filters: revenueFilters,
+			},
+		],
+		[revenueFilters]
+	);
 
-	const { isLoading, getDataForQuery } = useBatchDynamicQuery(
+	const { isLoading: isRevenueLoading, getDataForQuery } = useBatchDynamicQuery(
 		websiteId,
 		dateRange,
-		queries
+		queries,
+		{ enabled: revenueQueryEnabled }
 	);
+	const isLoading = isConfigLoading || isRevenueLoading;
 
 	const overviewData = (getDataForQuery(
 		"revenue-overview",
@@ -644,8 +712,10 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 	) ?? []) as RevenueTimeSeries[];
 
 	const overview = overviewData[0];
-	const hasData = overview && overview.total_transactions > 0;
+	const hasData = hasRevenueActivity(overview);
+	const hasPaymentData = hasPaymentActivity(overview);
 	const isConfigured = config?.stripeConfigured || config?.paddleConfigured;
+	const hasInvalidCurrency = config != null && currency === null;
 
 	const paddedTimeSeriesData = useMemo(
 		() =>
@@ -708,7 +778,10 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							id="total-revenue"
 							isLoading={isLoading}
 							title="Revenue"
-							value={formatCurrency(overview?.total_revenue ?? 0)}
+							value={formatRevenueCurrency(
+								overview?.total_revenue ?? 0,
+								displayCurrency
+							)}
 						/>
 						<StatCard
 							displayMode="text"
@@ -724,7 +797,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 							id="avg-transaction"
 							isLoading={isLoading}
 							title="Avg Transaction"
-							value={formatCurrency(avgTransaction)}
+							value={formatRevenueCurrency(avgTransaction, displayCurrency)}
 						/>
 						<StatCard
 							displayMode="text"
@@ -753,6 +826,65 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 						/>
 					</div>
 
+					{hasPaymentData && (
+						<div className="grid grid-cols-1 gap-1.5 rounded-xl bg-secondary p-1.5 sm:grid-cols-2 lg:grid-cols-5">
+							<StatCard
+								description={paymentFailureObservationDescription(overview)}
+								displayMode="text"
+								icon={CreditCardIcon}
+								id="payment-failure-rate"
+								isLoading={isLoading}
+								title="Payment failure rate"
+								value={paymentFailureRateLabel(overview)}
+							/>
+							<StatCard
+								description={
+									overview?.top_payment_failure_reason
+										? `Top cause: ${paymentFailureReasonLabel(overview.top_payment_failure_reason)}`
+										: undefined
+								}
+								displayMode="text"
+								icon={CreditCardIcon}
+								id="failed-payments"
+								isLoading={isLoading}
+								title="Failed payments"
+								value={overview?.failed_payment_attempts ?? 0}
+							/>
+							<StatCard
+								displayMode="text"
+								icon={ArrowClockwiseIcon}
+								id="recovered-payments"
+								isLoading={isLoading}
+								title="Recovered payments"
+								value={overview?.recovered_payment_attempts ?? 0}
+							/>
+							<StatCard
+								description={
+									overview?.top_payment_cancellation_reason
+										? `Top reason: ${paymentFailureReasonLabel(overview.top_payment_cancellation_reason)}`
+										: undefined
+								}
+								displayMode="text"
+								icon={CreditCardIcon}
+								id="canceled-payments"
+								isLoading={isLoading}
+								title="Canceled payments"
+								value={overview?.canceled_payment_attempts ?? 0}
+							/>
+							<StatCard
+								displayMode="text"
+								icon={CurrencyDollarIcon}
+								id="failed-payment-amount"
+								isLoading={isLoading}
+								title="Failed amount"
+								value={formatRevenueCurrency(
+									overview?.failed_payment_amount ?? 0,
+									displayCurrency
+								)}
+							/>
+						</div>
+					)}
+
 					<Card>
 						<Card.Header className="flex-row items-center justify-between gap-3 py-3">
 							<div className="min-w-0 flex-1">
@@ -766,6 +898,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 						</Card.Header>
 						<div className="overflow-x-auto">
 							<RevenueChart
+								currency={displayCurrency}
 								data={chartData}
 								height={isMobile ? 250 : 350}
 								isLoading={isLoading}
@@ -774,30 +907,38 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 					</Card>
 
 					<RevenueAttributionTables
+						currency={displayCurrency}
 						dateRange={dateRange}
-						isLoading={isLoading}
+						enabled={revenueQueryEnabled}
 						onAddFilter={handleAddFilter}
+						queryFilters={revenueFilters}
 						websiteId={websiteId}
 					/>
 				</div>
 			) : (
 				<EmptyState
 					action={{
-						label: isConfigured
-							? "Check webhook settings"
-							: "Configure webhooks",
+						label: hasInvalidCurrency
+							? "Fix currency"
+							: isConfigured
+								? "Check webhook settings"
+								: "Configure webhooks",
 						onClick: () => setSettingsOpen(true),
 					}}
 					description={
-						isConfigured
-							? "Revenue will appear here once your payment provider sends webhook events."
-							: "Connect Stripe or Paddle to start tracking revenue and attribution."
+						hasInvalidCurrency
+							? "Choose the currency used to filter and format revenue reports."
+							: isConfigured
+								? "Revenue will appear here once your payment provider sends webhook events."
+								: "Connect Stripe or Paddle to start tracking revenue and attribution."
 					}
 					icon={<CurrencyDollarIcon />}
 					title={
-						isConfigured
-							? "Waiting for transactions"
-							: "Set up revenue tracking"
+						hasInvalidCurrency
+							? "Choose a valid currency"
+							: isConfigured
+								? "Waiting for transactions"
+								: "Set up revenue tracking"
 					}
 				/>
 			)}

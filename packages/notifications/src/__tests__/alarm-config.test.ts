@@ -3,6 +3,7 @@ import {
 	buildAlarmNotificationConfig,
 	buildAlarmNotificationTargets,
 } from "../alarm-config";
+import { NotificationClient } from "../client";
 
 describe("buildAlarmNotificationTargets", () => {
 	test("keeps same-channel destinations as separate delivery targets", () => {
@@ -38,6 +39,43 @@ describe("buildAlarmNotificationTargets", () => {
 			url: "https://example.com/alarm",
 			headers: { "X-Alarm": "keep-me" },
 		});
+	});
+
+	test("reports email delivery as failed when Resend is not configured", async () => {
+		const previousApiKey = process.env.RESEND_API_KEY;
+		delete process.env.RESEND_API_KEY;
+		try {
+			const [target] = buildAlarmNotificationTargets([
+				{
+					type: "email",
+					identifier: "recipient@example.com",
+					config: {},
+				},
+			]);
+			expect(target).toBeDefined();
+			if (!target) {
+				return;
+			}
+
+			const results = await new NotificationClient(target.clientConfig).send(
+				{ title: "Test alert", message: "Test delivery" },
+				{ channels: [target.channel] }
+			);
+
+			expect(results).toEqual([
+				{
+					success: false,
+					channel: "email",
+					error: "Email delivery is not configured",
+				},
+			]);
+		} finally {
+			if (previousApiKey === undefined) {
+				delete process.env.RESEND_API_KEY;
+			} else {
+				process.env.RESEND_API_KEY = previousApiKey;
+			}
+		}
 	});
 });
 

@@ -70,7 +70,6 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"anonymous_id",
 		"session_id",
 		"timestamp",
-		"path",
 		"href",
 		"text",
 	]),
@@ -148,6 +147,10 @@ const TOP_LEVEL_OR_PATTERN = /\bOR\b/i;
 const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
 const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
+const SELECT_PROJECTION_PATTERN = /\bSELECT\b([\s\S]*?)\bFROM\b/gi;
+const WILDCARD_PROJECTION_PATTERN =
+	/(?:^|,)\s*(?:(?:DISTINCT|ALL)\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\s*\.\s*)?\*\s*(?=,|$|\b(?:APPLY|EXCEPT|REPLACE)\b)/i;
+const SENSITIVE_PROJECTION_PATTERN = /\b(?:ip|properties|url|user_agent)\b/i;
 
 function maskCommentsAndStrings(sql: string): string {
 	let result = "";
@@ -303,6 +306,20 @@ function extractRelationReferences(sql: string): {
 		match = RELATION_PATTERN.exec(sql);
 	}
 	return refs;
+}
+
+function validateSelectProjections(sql: string): string | null {
+	for (const match of sql.matchAll(SELECT_PROJECTION_PATTERN)) {
+		const projection = match[1] ?? "";
+		if (WILDCARD_PROJECTION_PATTERN.test(projection)) {
+			return "Wildcard projections are not allowed; select explicit columns.";
+		}
+		const sensitive = projection.match(SENSITIVE_PROJECTION_PATTERN)?.[0];
+		if (sensitive) {
+			return `Column "${sensitive}" is sensitive and is not allowed in agent SQL projections.`;
+		}
+	}
+	return null;
 }
 
 function whereClauseBodies(sql: string): string[] {
@@ -472,19 +489,21 @@ export function validateAgentSQL(sql: string): {
 	QUALIFIED_COLUMN.lastIndex = 0;
 	let qm = QUALIFIED_COLUMN.exec(sanitized);
 	while (qm) {
-		const alias = qm[1].toLowerCase();
-		const col = qm[2].toLowerCase();
-		const table = aliasToTable.get(alias);
+		const [, aliasRaw, colRaw] = qm;
+		qm = QUALIFIED_COLUMN.exec(sanitized);
+		if (!(aliasRaw && colRaw)) {
+			continue;
+		}
+		const table = aliasToTable.get(aliasRaw.toLowerCase());
 		if (table) {
 			const validCols = AGENT_TABLE_COLUMNS[table];
-			if (validCols && !validCols.has(col)) {
+			if (validCols && !validCols.has(colRaw.toLowerCase())) {
 				return {
 					valid: false,
-					reason: `Column "${qm[2]}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
+					reason: `Column "${colRaw}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
 				};
 			}
 		}
-		qm = QUALIFIED_COLUMN.exec(sanitized);
 	}
 
 	const selectCount = sanitized.match(SELECT_KEYWORD_PATTERN)?.length ?? 0;
@@ -566,6 +585,11 @@ export function validateAgentSQL(sql: string): {
 				};
 			}
 		}
+	}
+
+	const projectionError = validateSelectProjections(sanitized);
+	if (projectionError) {
+		return { valid: false, reason: projectionError };
 	}
 
 	return { valid: true, reason: null };

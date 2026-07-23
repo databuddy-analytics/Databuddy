@@ -159,7 +159,6 @@ export default function RootLayout({
 						scriptUrl="https://cdn.databuddy.cc/databuddy-debug.js"
 						trackAttributes={true}
 						trackErrors={true}
-						trackPerformance={true}
 						trackWebVitals={true}
 					/>
 				)}

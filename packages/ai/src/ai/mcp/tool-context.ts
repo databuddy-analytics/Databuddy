@@ -4,8 +4,6 @@ import {
 } from "../../lib/accessible-websites";
 import {
 	type ApiKeyRow,
-	getAccessibleWebsiteIds,
-	hasGlobalAccess,
 	hasKeyScope,
 	hasWebsiteScope,
 } from "@databuddy/api-keys/resolve";
@@ -42,14 +40,9 @@ export async function ensureWebsiteAccess(
 	const { website } = validation;
 
 	if (apiKey) {
-		if (!hasKeyScope(apiKey, "read:data")) {
-			return new Error("API key missing read:data scope");
-		}
-		const accessibleIds = getAccessibleWebsiteIds(apiKey);
 		const hasWebsiteAccess =
 			hasWebsiteScope(apiKey, websiteId, "read:data") ||
-			accessibleIds.includes(websiteId) ||
-			(hasGlobalAccess(apiKey) &&
+			(hasKeyScope(apiKey, "read:data") &&
 				apiKey.organizationId === website.organizationId);
 		if (!hasWebsiteAccess) {
 			return new Error("Access denied to this website");
@@ -100,7 +93,8 @@ function accessibleWebsitesCacheKey(
 export async function getCachedAccessibleWebsites(
 	principal: RequestPrincipal
 ): Promise<WebsiteSummary[]> {
-	const scopedApiKey = principal.apiKey && !hasGlobalAccess(principal.apiKey);
+	const scopedApiKey =
+		principal.apiKey && !hasKeyScope(principal.apiKey, "read:data");
 	const authCtx = {
 		apiKey: principal.apiKey,
 		organizationId: scopedApiKey
@@ -215,12 +209,20 @@ export async function resolveOrganizationIds(
 		) {
 			return new Error("API key does not belong to the requested organization");
 		}
+		if (principal.apiKey && !hasKeyScope(principal.apiKey, "read:data")) {
+			return new Error(
+				"Scoped API key requires a websiteId for org-level queries"
+			);
+		}
 		return [principal.organizationId];
 	}
-	if (principal.apiKey?.organizationId && hasGlobalAccess(principal.apiKey)) {
+	if (
+		principal.apiKey?.organizationId &&
+		hasKeyScope(principal.apiKey, "read:data")
+	) {
 		return [principal.apiKey.organizationId];
 	}
-	if (principal.apiKey && !hasGlobalAccess(principal.apiKey)) {
+	if (principal.apiKey && !hasKeyScope(principal.apiKey, "read:data")) {
 		return new Error(
 			"Scoped API key requires a websiteId for org-level queries"
 		);
@@ -246,20 +248,8 @@ export function buildRpcContext(
 		organizationId:
 			principal.organizationId ?? principal.apiKey?.organizationId,
 		requestHeaders: principal.requestHeaders,
+		serviceAuth: principal.apiKey
+			? { apiKey: principal.apiKey, session: null }
+			: undefined,
 	};
-}
-
-export function coerceQueriesArray(val: unknown): unknown[] | undefined {
-	if (Array.isArray(val)) {
-		return val;
-	}
-	if (typeof val === "string") {
-		try {
-			const parsed = JSON.parse(val) as unknown;
-			return Array.isArray(parsed) ? parsed : undefined;
-		} catch {
-			return;
-		}
-	}
-	return;
 }

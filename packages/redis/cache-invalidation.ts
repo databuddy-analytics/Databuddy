@@ -51,13 +51,12 @@ export function getCacheableTagIndexKey(prefix: string, tag: string): string {
 export const cacheNamespaces = {
 	agentTelemetryWebsiteExists: "agent-telemetry:website-exists",
 	apiKeyByHash: "api-key-by-hash",
-	apiKeyOwnerId: "api_key_owner_id",
+	apiKeyOwnerId: "api_key_owner_id_v2",
 	billingOwner: "rpc:billing_owner",
 	flag: "flag",
 	flagsClient: "flags-client",
 	flagsDefinitions: "flags-definitions",
 	flagsUser: "flags-user",
-	insightsNarrative: "insights-narrative",
 	mcpInsights: "mcp:insights",
 	memberRole: "rpc:member_role",
 	organizationOwner: "rpc:org_owner",
@@ -69,7 +68,7 @@ export const cacheNamespaces = {
 	websiteCache: "website-cache",
 	websiteDomain: "website-domain",
 	websiteDomainsBatch: "website-domains-batch",
-	websiteWithOwner: "website_with_owner_v2",
+	websiteWithOwner: "website_with_owner_v3",
 } as const;
 
 function cacheTag(scope: string, ...parts: string[]): string {
@@ -541,9 +540,6 @@ export function invalidateInsightsCachesForOrganization(
 		invalidateCacheablePattern(
 			`${LEGACY_INSIGHTS_API_CACHE_PREFIX}:${organizationId}:*`
 		),
-		invalidateCacheableTag(cacheNamespaces.insightsNarrative, organizationTag, {
-			fallbackPattern: `cacheable:${cacheNamespaces.insightsNarrative}:*${organizationId}*`,
-		}),
 		invalidateCacheableTag(cacheNamespaces.mcpInsights, organizationTag, {
 			fallbackPattern: `cacheable:${cacheNamespaces.mcpInsights}:*${organizationId}*`,
 		}),

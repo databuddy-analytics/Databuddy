@@ -5,6 +5,7 @@ import {
 	getClickHouseQuerySettings,
 	SimpleQueryBuilder,
 } from "./simple-builder";
+import { resolveRequestTraitFilters } from "./trait-filters";
 import type { QueryRequest, SimpleQueryConfig } from "./types";
 import { applyPlugins } from "./utils";
 
@@ -20,12 +21,7 @@ interface BatchOptions {
 	websiteDomain?: string | null;
 }
 
-const parsedBatchGroupConcurrency = Number(
-	process.env.BATCH_GROUP_CONCURRENCY ?? 3
-);
-const BATCH_GROUP_CONCURRENCY = Number.isFinite(parsedBatchGroupConcurrency)
-	? Math.max(1, parsedBatchGroupConcurrency)
-	: 3;
+const BATCH_GROUP_CONCURRENCY = 3;
 
 async function mapWithConcurrency<T, R>(
 	items: T[],
@@ -353,16 +349,11 @@ async function runSingle(
 }
 
 function groupBySchema(
-	requests: BatchRequest[]
+	items: { index: number; req: BatchRequest }[]
 ): Map<string, { index: number; req: BatchRequest }[]> {
 	const groups = new Map<string, { index: number; req: BatchRequest }[]>();
 
-	for (let i = 0; i < requests.length; i++) {
-		const req = requests[i];
-		if (!req) {
-			continue;
-		}
-
+	for (const { index, req } of items) {
 		const config = QueryBuilders[req.type];
 		if (!config) {
 			continue;
@@ -370,7 +361,7 @@ function groupBySchema(
 
 		const sig = getSchemaSignature(req.type, config) || `__solo_${req.type}`;
 		const list = groups.get(sig) || [];
-		list.push({ index: i, req });
+		list.push({ index, req });
 		groups.set(sig, list);
 	}
 
@@ -454,12 +445,36 @@ export async function executeBatch(
 		batch_types: requests.map((r) => r.type).join(","),
 	});
 
-	if (requests.length === 1 && requests[0]) {
-		return [await runSingle(requests[0], opts)];
+	const traitFailures = new Map<number, BatchResult>();
+	const resolvedRequests = await Promise.all(
+		requests.map(async (req, index) => {
+			try {
+				return await resolveRequestTraitFilters(req);
+			} catch (e) {
+				const error = e instanceof Error ? e.message : "Trait filter failed";
+				mergeWideEvent({ query_error: error });
+				traitFailures.set(index, { type: req.type, data: [], error });
+				return req;
+			}
+		})
+	);
+
+	if (
+		traitFailures.size === 0 &&
+		resolvedRequests.length === 1 &&
+		resolvedRequests[0]
+	) {
+		return [await runSingle(resolvedRequests[0], opts)];
 	}
 
-	const groups = groupBySchema(requests);
+	const successfulRequests = resolvedRequests.flatMap((req, index) =>
+		traitFailures.has(index) ? [] : [{ index, req }]
+	);
+	const groups = groupBySchema(successfulRequests);
 	const results: BatchResult[] = Array.from({ length: requests.length });
+	for (const [index, failure] of traitFailures) {
+		results[index] = failure;
+	}
 
 	async function runGroup(
 		groupItems: { index: number; req: BatchRequest }[]

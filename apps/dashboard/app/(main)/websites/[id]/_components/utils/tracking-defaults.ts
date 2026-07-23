@@ -3,15 +3,12 @@ import type { TrackingOptions } from "./types";
 // Mirrors the SDK's zero-config behavior. Source of truth: packages/sdk/src/core/types.ts.
 export const ACTUAL_LIBRARY_DEFAULTS: TrackingOptions = {
 	disabled: false,
-	trackScreenViews: true,
 	trackHashChanges: false,
-	trackSessions: true,
 
 	trackAttributes: false,
 	trackOutgoingLinks: false,
 	trackInteractions: false,
 
-	trackPerformance: true,
 	trackWebVitals: false,
 	trackErrors: false,
 
@@ -22,9 +19,10 @@ export const ACTUAL_LIBRARY_DEFAULTS: TrackingOptions = {
 
 	enableBatching: true,
 	batchSize: 10,
-	batchTimeout: 2000,
+	batchTimeout: 5000,
 };
 
 export const RECOMMENDED_DEFAULTS: TrackingOptions = {
 	...ACTUAL_LIBRARY_DEFAULTS,
+	trackWebVitals: true,
 };

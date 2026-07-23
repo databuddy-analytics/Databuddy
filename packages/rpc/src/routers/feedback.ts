@@ -2,6 +2,7 @@ import { and, desc, eq, sql, withTransaction } from "@databuddy/db";
 import type { db as DbType } from "@databuddy/db";
 import { feedback, feedbackRedemptions } from "@databuddy/db/schema";
 import { ratelimit } from "@databuddy/redis/rate-limit";
+import { submitFeedback } from "@databuddy/services/feedback";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -13,102 +14,6 @@ import {
 	updateAutumnBalance,
 } from "../utils/autumn-balance";
 import { getBillingCustomerId } from "../utils/billing";
-
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
-const SLACK_TIMEOUT_MS = 10_000;
-
-const CATEGORY_LABELS: Record<string, string> = {
-	bug_report: "Bug Report",
-	feature_request: "Feature Request",
-	ux_improvement: "UX Improvement",
-	performance: "Performance",
-	documentation: "Documentation",
-	other: "Other",
-};
-
-function escapeMrkdwn(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/\|/g, "&#124;");
-}
-
-async function notifySlack(
-	title: string,
-	category: string,
-	description: string,
-	userEmail: string
-) {
-	if (!SLACK_WEBHOOK_URL) {
-		return;
-	}
-
-	const safeTitle = escapeMrkdwn(title);
-	const safeDescription = escapeMrkdwn(description.slice(0, 500));
-	const safeEmail = escapeMrkdwn(userEmail);
-
-	const blocks = [
-		{
-			type: "header",
-			text: {
-				type: "plain_text",
-				text: "💬 New Feedback Submitted",
-				emoji: true,
-			},
-		},
-		{
-			type: "section",
-			fields: [
-				{
-					type: "mrkdwn",
-					text: `*Title:*\n${safeTitle}`,
-				},
-				{
-					type: "mrkdwn",
-					text: `*Category:*\n${CATEGORY_LABELS[category] ?? category}`,
-				},
-			],
-		},
-		{
-			type: "section",
-			text: {
-				type: "mrkdwn",
-				text: `*Description:*\n${safeDescription}${description.length > 500 ? "..." : ""}`,
-			},
-		},
-		{
-			type: "context",
-			elements: [
-				{
-					type: "mrkdwn",
-					text: `Submitted by ${safeEmail} · ${new Date().toUTCString()}`,
-				},
-			],
-		},
-	];
-
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), SLACK_TIMEOUT_MS);
-
-	try {
-		await fetch(SLACK_WEBHOOK_URL, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ blocks }),
-			signal: controller.signal,
-		});
-	} catch (error) {
-		if (error instanceof Error && error.name !== "AbortError") {
-			logger.error(
-				{ error: error.message },
-				"Failed to send Slack notification for feedback"
-			);
-		}
-	} finally {
-		clearTimeout(timeoutId);
-	}
-}
 
 const REWARD_TIERS = [
 	{ creditsRequired: 50, rewardType: "events", rewardAmount: 1000 },
@@ -231,26 +136,15 @@ export const feedbackRouter = {
 				throw rpcError.rateLimited(rl.reset);
 			}
 
-			const [newFeedback] = await context.db
-				.insert(feedback)
-				.values({
-					id: randomUUIDv7(),
-					userId: context.user.id,
-					organizationId: context.organizationId,
-					title: input.title,
-					description: input.description,
-					category: input.category,
-				})
-				.returning();
-
-			notifySlack(
-				input.title,
-				input.category,
-				input.description,
-				context.user.email
-			).catch(() => {});
-
-			return newFeedback;
+			return await submitFeedback({
+				userId: context.user.id,
+				organizationId: context.organizationId,
+				title: input.title,
+				description: input.description,
+				category: input.category,
+				source: "dashboard",
+				userEmail: context.user.email,
+			});
 		}),
 
 	list: sessionProcedure

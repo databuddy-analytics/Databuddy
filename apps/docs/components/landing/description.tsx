@@ -118,8 +118,8 @@ export const Description = () => {
 					initial={{ opacity: 0, y: 10 }}
 					transition={{ duration: 0.4, delay: 0.2 }}
 				>
-					Databuddy is the opposite. One script. One dashboard. Five minutes to
-					set up. Nothing to configure, nothing to maintain.
+					Databuddy keeps the setup small: one tracker, one dashboard, sensible
+					defaults, and controls when you need them.
 				</motion.p>
 			</div>
 
@@ -150,8 +150,8 @@ export const Description = () => {
 							initial={{ opacity: 0, y: 10 }}
 							transition={{ duration: 0.4, delay: 0.2 }}
 						>
-							Databuddy is the opposite. One script. One dashboard. Five minutes
-							to set up. Nothing to configure, nothing to maintain.
+							Databuddy keeps the setup small: one tracker, one dashboard,
+							sensible defaults, and controls when you need them.
 						</motion.p>
 					</div>
 

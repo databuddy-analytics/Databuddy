@@ -29,18 +29,16 @@ describe("agent discovery builders", () => {
 		);
 	});
 
-	it("advertises MCP Apps metadata on every server-card tool", () => {
+	it("advertises only the real MCP guide resource", () => {
 		const card = createMcpServerCard(urls);
 
-		expect(card.tools.length).toBeGreaterThan(0);
-		for (const tool of card.tools) {
-			expect(tool._meta.ui.resourceUri).toBe(
-				"ui://databuddy/analytics-overview"
-			);
-			expect(tool._meta["openai/outputTemplate"]).toBe(
-				"ui://databuddy/analytics-overview"
-			);
-		}
+		expect(card.resources).toEqual([
+			{
+				uri: "databuddy://guide",
+				mimeType: "text/markdown",
+				description: "MCP workflow guide and query conventions.",
+			},
+		]);
 	});
 
 	it("parses NLWeb ask bodies without casts", () => {

@@ -482,7 +482,7 @@ const fetchChartData = cacheable(_fetchChartData, {
 export const websitesRouter = {
 	list: protectedProcedure
 		.route({
-			description: "Returns websites for the active workspace.",
+			description: "Returns websites for the active organization.",
 			method: "POST",
 			path: "/websites/list",
 			summary: "List websites",
@@ -593,7 +593,8 @@ export const websitesRouter = {
 
 	create: trackedProcedure
 		.route({
-			description: "Creates a website. Requires workspace create permission.",
+			description:
+				"Creates a website. Requires organization create permission.",
 			method: "POST",
 			path: "/websites/create",
 			summary: "Create website",
@@ -752,7 +753,7 @@ export const websitesRouter = {
 
 	transfer: trackedProcedure
 		.route({
-			description: "Transfers website to another workspace.",
+			description: "Transfers a website to another organization.",
 			method: "POST",
 			path: "/websites/transfer",
 			summary: "Transfer website",
@@ -762,7 +763,9 @@ export const websitesRouter = {
 		.output(websiteOutputSchema)
 		.handler(async ({ context, input }) => {
 			if (!input.organizationId) {
-				throw rpcError.badRequest("Website must be transferred to a workspace");
+				throw rpcError.badRequest(
+					"Website must be transferred to an organization"
+				);
 			}
 
 			await authorizeTransfer(context, {

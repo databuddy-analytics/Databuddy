@@ -373,6 +373,7 @@ export const trackRoute = new Elysia().post(
 				timestamp: parseTimestamp(event.timestamp, now),
 				event_name: event.name,
 				namespace: event.namespace,
+				path: event.path,
 				properties: event.properties,
 				anonymous_id: event.anonymousId,
 				anonymizeVisitorIds: event.anonymizeVisitorIds,

@@ -8,7 +8,6 @@
   "ui": "tui",
   "envMode": "strict",
   "globalEnv": [
-    "AI_GATEWAY_API_KEY",
     "AUTUMN_SECRET_KEY",
     "BETTER_AUTH_SECRET",
     "BETTER_AUTH_URL",
@@ -24,37 +23,28 @@
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
     "INSIGHTS_BULLMQ_REDIS_URL",
-    "INSIGHTS_DISPATCH_INTERVAL_MS",
-    "INSIGHTS_MAINTENANCE_INTERVAL_MS",
-    "INSIGHTS_STALE_ITEM_MS",
     "INSIGHTS_WORKER_CONCURRENCY",
     "INSIGHTS_WORKER_ENABLED",
+    "MARBLE_API_KEY",
     "MARBLE_API_URL",
     "MARBLE_WORKSPACE_KEY",
     "NEXT_PUBLIC_API_URL",
+    "NEXT_PUBLIC_APP_URL",
+    "NEXT_PUBLIC_BASKET_URL",
+    "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID",
     "NEXT_PUBLIC_STATUS_URL",
     "NODE_ENV",
     "NOTRA_API_KEY",
-    "OPR_API_KEY",
     "REDIS_URL",
     "REDPANDA_BROKER",
     "REDPANDA_PASSWORD",
+    "REDPANDA_SSL",
     "REDPANDA_USER",
     "RESEND_API_KEY",
     "RESEND_AUDIENCE_ID",
-    "SLACK_APP_CONFIG_TOKEN",
-    "SLACK_APP_ID",
-    "SLACK_APP_TOKEN",
     "SLACK_CLIENT_ID",
     "SLACK_CLIENT_SECRET",
-    "SLACK_EVLOG_FS",
-    "SLACK_LOG_LEVEL",
-    "SLACK_PORT",
-    "SLACK_REDIRECT_URI",
-    "SLACK_SIGNING_SECRET",
-    "SLACK_SOCKET_MODE",
     "SERVICE_NAME",
-    "SUPERMEMORY_API_KEY",
     "TCC_API_KEY",
     "UPTIME_ROUTER_INTEGRATION"
   ],
@@ -82,10 +72,15 @@
       "persistent": true
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["CLICKHOUSE_INTEGRATION_TESTS"]
     },
     "check-types": {
       "dependsOn": ["^build"]
+    },
+    "generate": {
+      "inputs": ["$TURBO_DEFAULT$", "src/clickhouse/schema/**/*.sql"],
+      "outputs": ["src/clickhouse/schema/tables.generated.ts"]
     },
     "clickhouse:init": {
       "cache": false,
