@@ -27,7 +27,7 @@
     "ioredis": "^5.8.2"
   },
   "devDependencies": {
-    "@types/node": "^26.0.0",
+    "@types/node": "^26.1.1",
     "typescript": "catalog:"
   },
   "description": "Redis caching and pub/sub utilities for Databuddy"
