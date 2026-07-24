@@ -360,9 +360,9 @@ export default function BillingPage() {
 		currentSubscription?.canceledAt ||
 			currentPlan?.customerEligibility?.canceling === true
 	);
-	const showUsageUpgrade =
-		!currentPlan?.id ||
-		!PLANS_WITHOUT_SELF_SERVE_UPGRADES.has(currentPlan.id);
+	const showUsageUpgrade = !(
+		currentPlan?.id && PLANS_WITHOUT_SELF_SERVE_UPGRADES.has(currentPlan.id)
+	);
 	const showAddOns = addOns.length > 0 && !isFree;
 	const currentPlanDisplayName = getCustomerPlanName(
 		currentPlan?.id,

@@ -229,9 +229,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				className={cn(
 					"flex size-8 shrink-0 items-center justify-center rounded",
 					positive && "bg-emerald-500/10 text-emerald-600",
-					negative &&
-						!critical &&
-						"bg-amber-500/10 text-amber-600",
+					negative && !critical && "bg-amber-500/10 text-amber-600",
 					critical && "bg-red-500/10 text-red-600",
 					!(positive || negative) && "bg-primary/10 text-primary"
 				)}

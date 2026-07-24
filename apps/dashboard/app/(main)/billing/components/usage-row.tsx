@@ -58,7 +58,11 @@ export const UsageRow = memo(function UsageRowComponent({
 
 	if (isBilledOverage && feature.overage) {
 		return (
-			<BilledOverageRow feature={feature} Icon={Icon} showUpgrade={showUpgrade} />
+			<BilledOverageRow
+				feature={feature}
+				Icon={Icon}
+				showUpgrade={showUpgrade}
+			/>
 		);
 	}
 
