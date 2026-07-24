@@ -51,6 +51,9 @@ export default function InsightDetailPage() {
 	});
 
 	const insight = data?.insight ?? null;
+	const subject = data?.timeline.findLast(
+		(item): item is InvestigationItem => item.kind === "investigation"
+	)?.subject;
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -94,7 +97,7 @@ export default function InsightDetailPage() {
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
-								{insight.title}
+								{subject ?? insight.title}
 							</h2>
 						</header>
 						<CaseActivity
@@ -279,7 +282,6 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 	return (
 		<div className="space-y-3">
 			<div className="text-muted-foreground text-xs">
-				<p className="font-medium text-foreground/80">{item.subject}</p>
 				<p>
 					{formatPeriod(item.period.current)} compared with{" "}
 					{formatPeriod(item.period.previous)}
@@ -450,7 +452,7 @@ function nextCopy(next: InvestigationNext): {
 		case "act":
 			return {
 				body: next.action,
-				detail: `Target: ${next.target} · Verify: ${next.verification}`,
+				detail: `Target: ${next.target} · Done when: ${next.verification}`,
 				label: "Next action",
 			};
 		case "ask":
