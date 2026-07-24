@@ -10,6 +10,7 @@ describe("MCP agent active tool selection", () => {
 			})
 		).toEqual([
 			"list_websites",
+			"investigations",
 			"get_data",
 			"execute_sql_query",
 			"list_profiles",
@@ -18,6 +19,12 @@ describe("MCP agent active tool selection", () => {
 			"list_profile_traits",
 			"submit_feedback",
 		]);
+		expect(
+			selectActiveToolsForQuestion({
+				question: "what is the biggest thing I should fix today?",
+				source: "slack",
+			})
+		).toContain("investigations");
 	});
 
 	it("does not let thread-reference words hijack explicit feedback requests", () => {

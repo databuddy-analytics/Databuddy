@@ -21,7 +21,7 @@ import type { AppMutationMode } from "../config/context";
 import type { DatabuddyAgentSlackContext } from "./slack-context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
-export type AgentBillingMode = "bill" | "skip";
+type AgentBillingMode = "bill" | "skip";
 
 export interface RunMcpAgentOptions {
 	abortSignal?: AbortSignal;
@@ -410,6 +410,7 @@ const SLACK_TEXT_MARKER = "\ntext:\n";
 const SLACK_TEXT_PREFIX = "text:\n";
 const ANALYTICS_ACTIVE_TOOLS = [
 	"list_websites",
+	"investigations",
 	"get_data",
 	"execute_sql_query",
 	"list_profiles",
