@@ -1,6 +1,7 @@
 "use client";
 
 import { publicConfig } from "@databuddy/env/public";
+import { normalizeCurrencyCode } from "@databuddy/shared/currency";
 import { STRIPE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,7 +18,6 @@ import { orpc } from "@/lib/orpc";
 import {
 	appendRevenueCurrencyFilter,
 	formatRevenueCurrency,
-	normalizeRevenueCurrency,
 } from "@/lib/revenue-currency";
 import {
 	hasPaymentActivity,
@@ -196,13 +196,13 @@ function RevenueSettingsSheet({
 		queryKey: ["revenue-config", websiteId],
 		queryFn: () => orpc.revenue.get.call({ websiteId }),
 	});
-	const savedCurrency = normalizeRevenueCurrency(config?.currency);
+	const savedCurrency = normalizeCurrencyCode(config?.currency);
 	const configuredCurrency =
 		typeof config?.currency === "string"
 			? config.currency.trim().toUpperCase()
 			: "USD";
 	const currencyValue = currencyDraft ?? configuredCurrency;
-	const normalizedCurrency = normalizeRevenueCurrency(currencyValue);
+	const normalizedCurrency = normalizeCurrencyCode(currencyValue);
 	const currencyInvalid = normalizedCurrency === null;
 	const hasChanges = Boolean(
 		stripeSecret ||
@@ -670,7 +670,7 @@ export function RevenueContent({ websiteId }: RevenueContentProps) {
 		queryKey: ["revenue-config", websiteId],
 		queryFn: () => orpc.revenue.get.call({ websiteId }),
 	});
-	const currency = normalizeRevenueCurrency(config?.currency);
+	const currency = normalizeCurrencyCode(config?.currency);
 	const revenueQueryEnabled = !isConfigLoading && currency !== null;
 	const displayCurrency = currency ?? "";
 	const revenueFilters = useMemo(
