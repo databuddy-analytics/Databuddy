@@ -1,5 +1,3 @@
-import "./tools.test-env";
-
 import { createInternalPrincipal } from "@databuddy/rpc";
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";

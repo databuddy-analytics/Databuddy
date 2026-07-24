@@ -3,8 +3,7 @@ import { auth } from "@databuddy/auth";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { getAccessibleWebsites } from "../../lib/accessible-websites";
-import { getWebsiteDomain } from "../../lib/website-utils";
-import { executeBatch, publicQueryErrorMessage } from "../../query";
+import { executeBatch } from "../../query";
 import { createAnnotationTools } from "../tools/annotations";
 import { createFeedbackTools } from "../tools/feedback";
 import { createFlagTools } from "../tools/flags";
@@ -12,14 +11,15 @@ import { createFunnelTools } from "../tools/funnels";
 import { createGoalTools } from "../tools/goals";
 import { createLinksTools } from "../tools/links";
 import { createMemoryTools } from "../tools/memory";
+import { buildProfileTools } from "../tools/profiles";
 import { createToolkit } from "../tools/toolkit";
 import { executeAgentSqlForWebsite } from "../tools/execute-sql-query";
 import {
 	buildBatchQueryRequests,
 	FilterSchema,
+	formatMcpQueryResults,
 	MCP_DATE_PRESETS,
 } from "./mcp-utils";
-import { createMcpProfileTools } from "./profile-tools";
 import {
 	createSlackConversationTools,
 	type DatabuddyAgentSlackContext,
@@ -123,11 +123,9 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
-				const websiteDomain =
-					(await getWebsiteDomain(args.websiteId)) ?? "unknown";
 				return executeAgentSqlForWebsite({
 					websiteId: args.websiteId,
-					websiteDomain,
+					websiteDomain: access.domain,
 					sql: args.sql,
 					params: args.params,
 					toolName: "MCP Agent SQL",
@@ -137,7 +135,7 @@ Critical schema footguns: website id column is client_id (not website_id); times
 		}),
 		get_data: tool({
 			description:
-				"Run 1-10 pre-built analytics queries in one call. Preferred for explicit analytics requests. Covers traffic, pages, sessions, errors, performance, vitals, custom events, profiles, links, uptime, LLM, and revenue. Use preset (last_7d/last_30d/etc.) or from/to dates. Supports filters (column names or trait:<key> to segment by identified-user traits, e.g. {field:'trait:plan',op:'in',value:['pro','scale']}), groupBy, orderBy. For plan/subscription/user-segment questions, call list_profile_traits first to see which trait keys and values exist, then filter here with trait:<key> instead of raw SQL. If a type or filter field is invalid, the error lists valid options.",
+				"Run 1-10 analytics builders. Use preset or from/to; supports filters (including trait:<key>), groupBy, and orderBy. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Call list_profile_traits before trait segmentation.",
 			strict: true,
 			inputSchema: z.object({
 				websiteId: z.string(),
@@ -173,39 +171,42 @@ Critical schema footguns: website id column is client_id (not website_id); times
 				if (access instanceof Error) {
 					throw new Error(access.message);
 				}
-				const { requests, invalid } = buildBatchQueryRequests(
+				const plan = buildBatchQueryRequests(
 					args.queries,
 					args.websiteId,
 					args.timezone ?? "UTC"
 				);
-				const websiteDomain =
-					(await getWebsiteDomain(args.websiteId)) ?? "unknown";
-				const results = await executeBatch(requests, {
-					websiteDomain,
+				const results = await executeBatch(plan.requests, {
+					websiteDomain: access.domain,
 					timezone: args.timezone ?? "UTC",
 					abortSignal: options.abortSignal,
 				});
 				return {
 					batch: true,
-					results: [
-						...results.map((r) => ({
-							type: r.type,
-							data: r.data,
-							rowCount: r.data.length,
-							...(r.error && { error: publicQueryErrorMessage(r.error) }),
-						})),
-						...invalid.map((q) => ({
-							type: q.type,
-							data: [] as unknown[],
-							rowCount: 0,
-							error: q.error,
-						})),
-					],
+					results: formatMcpQueryResults(plan, results),
 				};
 			},
 		}),
 		...createMemoryTools(),
-		...createMcpProfileTools(),
+		...buildProfileTools({
+			loggerName: "MCP Profiles",
+			websiteIdSchema: z.string(),
+			resolveSite: async (websiteId, toolOptions) => {
+				if (!websiteId) {
+					throw new Error("websiteId is required");
+				}
+				const ctx = getToolContext(toolOptions);
+				const access = await ensureWebsiteAccess(
+					websiteId,
+					ctx.requestHeaders,
+					ctx.apiKey
+				);
+				if (access instanceof Error) {
+					throw access;
+				}
+				return { websiteId, domain: access.domain };
+			},
+		}),
 		...createFlagTools(),
 		...createFunnelTools(),
 		...createGoalTools(),

@@ -6,7 +6,7 @@ import {
 	insightTimelineReplySchema,
 } from "@databuddy/shared/insights";
 import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
-import { executeBatch, publicQueryErrorMessage } from "../../query";
+import { executeBatch } from "../../query";
 import { runInvestigationAction } from "../tools/investigations";
 import { callRPCProcedure } from "../tools/utils";
 import {
@@ -35,6 +35,7 @@ import {
 import {
 	buildBatchQueryRequests,
 	FilterSchema,
+	formatMcpQueryResults,
 	getFilteredQueryTypeDescriptions,
 	getQueryTypeDescriptions,
 	getQueryTypeDetails,
@@ -359,7 +360,7 @@ const getDataTool = defineMcpTool(
 	{
 		name: "get_data",
 		description:
-			"Run analytics queries against a website. Single: type + preset/from/to. Batch: queries[] (2-10). Defaults to last_7d. Call capabilities for the query-type catalog and get_schema for column names. Filter/groupBy errors list allowed fields.",
+			"Run one analytics query or batch 2-10 for a website. Use preset or from/to; defaults to last_7d. Returns a query summary, full rowCount, returnedRows, truncated, and up to 20 data rows. Use capabilities/get_schema for discovery.",
 		inputSchema: z.object({
 			...WebsiteSelectorSchema,
 			type: z
@@ -417,7 +418,10 @@ const getDataTool = defineMcpTool(
 		outputSchema: z.object({
 			// Single-query shape
 			data: z.array(z.record(z.string(), z.unknown())).optional(),
+			returnedRows: z.number().optional(),
 			rowCount: z.number().optional(),
+			summary: z.string().optional(),
+			truncated: z.boolean().optional(),
 			type: z.string().optional(),
 			// Batch shape
 			batch: z.boolean().optional(),
@@ -426,7 +430,10 @@ const getDataTool = defineMcpTool(
 					z.object({
 						type: z.string(),
 						data: z.array(z.record(z.string(), z.unknown())),
+						returnedRows: z.number(),
 						rowCount: z.number(),
+						summary: z.string(),
+						truncated: z.boolean(),
 						error: z.string().optional(),
 					})
 				)
@@ -472,50 +479,30 @@ const getDataTool = defineMcpTool(
 			);
 		}
 
-		const { requests, invalid } = buildBatchQueryRequests(
-			items,
-			websiteId,
-			timezone
-		);
+		const plan = buildBatchQueryRequests(items, websiteId, timezone);
 
 		// ctx.websiteDomain is guaranteed set by defineMcpTool when resolveWebsite is true
 		const websiteDomain = ctx.websiteDomain ?? "unknown";
-		const results = await executeBatch(requests, {
+		const results = await executeBatch(plan.requests, {
 			websiteDomain,
 			timezone,
 		});
-
-		const merged: Array<{
-			data: unknown[];
-			error?: string;
-			rowCount: number;
-			type: string;
-		}> = [
-			...results.map((r) => ({
-				type: r.type,
-				data: r.data,
-				rowCount: r.data.length,
-				...(r.error && { error: publicQueryErrorMessage(r.error) }),
-			})),
-			...invalid.map((q) => ({
-				type: q.type,
-				data: [] as unknown[],
-				rowCount: 0,
-				error: q.error,
-			})),
-		];
+		const formatted = formatMcpQueryResults(plan, results);
 
 		if (items.length > 1) {
-			return { batch: true, results: merged };
+			return { batch: true, results: formatted };
 		}
 
-		const first = merged[0];
+		const first = formatted[0];
 		if (!first) {
 			throw new McpToolError("internal", "No results returned");
 		}
 		return {
 			data: first.data,
-			rowCount: first.data.length,
+			returnedRows: first.returnedRows,
+			rowCount: first.rowCount,
+			summary: first.summary,
+			truncated: first.truncated,
 			type: first.type,
 			...(first.error && { error: first.error }),
 		};
