@@ -117,6 +117,18 @@ function definitionDescription(description: string | null): string {
 		: "No business description is configured.";
 }
 
+function definitionFilters(filters: DataFilter[] | null): string {
+	if (!filters?.length) {
+		return "No filters are configured.";
+	}
+	const shown = filters.slice(0, 5).map((filter) => {
+		const count = Array.isArray(filter.value) ? filter.value.length : 1;
+		return `${filter.field.trim().slice(0, 60)} ${filter.operator} (${count} ${count === 1 ? "value" : "values"})`;
+	});
+	const remaining = filters.length - shown.length;
+	return `Filter setup: ${shown.join("; ")}${remaining > 0 ? `; ${remaining} more` : ""}.`;
+}
+
 function unavailableDefinitionSignal(
 	prior: InvestigationSignal,
 	metric: string,
@@ -424,7 +436,7 @@ export async function remeasureFunnelGoalSignal(
 			signal.subjectKey = prior.signalKey;
 			signal.entityLabel = goal.name;
 			const state = inactiveDefinitionEvidence(goal, "goal");
-			signal.definitionEvidence = `${state ? `${state} ` : ""}Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors${goal.filters?.length ? " matching its filters" : ""}, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)}`;
+			signal.definitionEvidence = `${state ? `${state} ` : ""}Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`;
 			return signal;
 		}
 
@@ -480,8 +492,8 @@ export async function remeasureFunnelGoalSignal(
 			: funnel.name;
 		const state = inactiveDefinitionEvidence(funnel, "funnel");
 		const measurementEvidence = currentStep
-			? `Step ${currentStep.number} "${currentStep.name}" converted ${currentStep.rate}% of visitors reaching it, compared with ${previousStep?.rate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)}`
-			: `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)}`;
+			? `Step ${currentStep.number} "${currentStep.name}" converted ${currentStep.rate}% of visitors reaching it, compared with ${previousStep?.rate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`
+			: `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
 		signal.definitionEvidence = `${state ? `${state} ` : ""}${measurementEvidence}`;
 		return signal;
 	} catch (error) {
@@ -591,10 +603,10 @@ export function detectFunnelGoalSignals(
 						signal.subjectKey = `funnel:${funnel.id}:step:${changedStep.number}`;
 						signal.entityLabel = `${funnel.name} → ${changedStep.name}`;
 						signal.label = `Funnel "${funnel.name}" step "${changedStep.name}" conversion`;
-						signal.definitionEvidence = `Step ${changedStep.number} "${changedStep.name}" converted ${changedStep.rate}% of visitors reaching it, compared with ${changedStep.previousRate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)}`;
+						signal.definitionEvidence = `Step ${changedStep.number} "${changedStep.name}" converted ${changedStep.rate}% of visitors reaching it, compared with ${changedStep.previousRate}% previously. Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
 					} else {
 						signal.entityLabel = funnel.name;
-						signal.definitionEvidence = `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)}`;
+						signal.definitionEvidence = `Funnel "${funnel.name}" converted ${cur.completions} of ${cur.entrants} entrants, compared with ${prev.completions} previously. ${definitionHistory(funnel, previous.from, params.timezone)} ${definitionDescription(funnel.description)} ${definitionFilters(funnel.filters)}`;
 					}
 					return signal;
 				} catch (error) {
@@ -648,7 +660,7 @@ export function detectFunnelGoalSignals(
 					signal.entityLabel = goal.name;
 					return {
 						...signal,
-						definitionEvidence: `Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors${goal.filters?.length ? " matching its filters" : ""}, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)}`,
+						definitionEvidence: `Goal "${goal.name}" tracks the ${goal.type} target "${goal.target}". It completed for ${cur.completions} of ${cur.entrants} observed website visitors, compared with ${prev.completions} previously. ${definitionHistory(goal, previous.from, params.timezone)} ${definitionDescription(goal.description)} ${definitionFilters(goal.filters)}`,
 					};
 				} catch (error) {
 					return handleDefinitionFailure(error, deadlineSignal, {

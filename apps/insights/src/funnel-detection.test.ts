@@ -376,8 +376,12 @@ describe("detectFunnelGoalSignals", () => {
 
 	it("flags a goal completion-rate drop above threshold", async () => {
 		let call = 0;
+		const filteredGoal: GoalDef = {
+			...GOAL,
+			filters: [{ field: "plan", operator: "equals", value: "pro" }],
+		};
 		const deps = makeDeps({
-			fetchGoals: async () => [GOAL],
+			fetchGoals: async () => [filteredGoal],
 			goalConversion: async () => {
 				call += 1;
 				return call === 1
@@ -395,6 +399,10 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0].definitionEvidence).toContain(GOAL.description);
 		expect(signals[0].definitionEvidence).toContain(GOAL.type);
 		expect(signals[0].definitionEvidence).toContain(GOAL.target);
+		expect(signals[0].definitionEvidence).toContain(
+			"Filter setup: plan equals (1 value)."
+		);
+		expect(signals[0].definitionEvidence).not.toContain("pro");
 	});
 
 	for (const { name, current, previous } of [

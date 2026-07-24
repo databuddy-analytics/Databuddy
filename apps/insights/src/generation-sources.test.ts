@@ -94,7 +94,7 @@ describe("fixture investigation sources", () => {
 			next: {
 				type: "ask",
 				question:
-					"Was the organic search decline expected after a site or acquisition change, or should organic-visit tracking be fixed?",
+					"Did a planned acquisition change begin before the organic traffic decline?",
 			},
 		};
 		const sources = fixtureSources({

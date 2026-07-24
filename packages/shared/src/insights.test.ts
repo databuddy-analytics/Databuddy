@@ -194,8 +194,7 @@ describe("investigationOutcomeSchema", () => {
 				impact: null,
 				next: {
 					type: "ask",
-					question:
-						"Does ‘Checkout completed’ mean a successful charge? If yes, I’ll correct the goal to the payment event; if not, I’ll keep the current submission definition.",
+					question: "Which repository owns the checkout handler?",
 				},
 			}).success
 		).toBe(true);

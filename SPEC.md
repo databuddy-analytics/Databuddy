@@ -112,7 +112,7 @@ Reject output that merely restates a percentage, invents a cause, asks for data 
 
 Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`.
 
-When business meaning is missing, inspect the definition, site, events, and connected code first. If the remaining ambiguity changes the decision, ask one specific question that names the subject and proposes the most evidence-backed interpretation.
+When business meaning is missing, inspect the definition, site, events, and connected code first. Ambiguity alone does not open a case, and the customer should not have to invent a metric's purpose. Keep an unexplained broad metric unchanged, explain what it does measure, recommend narrow metrics only from inspected evidence, and resolve the change when no material harm is proven. Retire or redefine it only when its description, configuration, or source proves a mismatch. Ask only for a specific external fact that cannot be inspected and chooses between concrete next moves.
 
 ## Implementation constraint
 

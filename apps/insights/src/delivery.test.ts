@@ -125,7 +125,7 @@ describe("Slack investigation delivery", () => {
 		const next: InvestigationOutcome["next"] = {
 			type: "ask",
 			question:
-				"Was the Pricing viewers goal intentionally changed to exclude nested billing routes, or should those routes be included?",
+				"Were nested billing routes intentionally removed from the Pricing viewers goal?",
 		};
 		const blocks = buildBlocks(
 			"Databuddy",

@@ -114,7 +114,7 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe(
-				"Concrete product, code, tracking, or configuration change; not more investigation or monitoring."
+				"Concrete product, code, tracking, or configuration change with an exact before and after; not more investigation or monitoring."
 			),
 		target: z.string().trim().min(1),
 		verification: z.string().trim().min(1),
@@ -126,7 +126,7 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe(
-				"One self-contained question naming the subject, proposed interpretation, and decision it unlocks."
+				"One short question requesting a specific external fact that cannot be inspected and chooses between concrete next moves. Never ask the user to define a metric or choose from speculative interpretations."
 			),
 	}),
 	z.object({
@@ -146,20 +146,22 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"Customer-facing title that names the exact entity, page, event, error, goal, or funnel."
+				"Plain-language finding that names the exact entity, page, event, error, goal, or funnel and why it matters."
 			),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
-			.describe("What changed, with its exact subject, values, and timeframe."),
+			.describe(
+				"One or two short sentences stating what changed and the useful conclusion, without repeating the title."
+			),
 		impact: z
 			.string()
 			.trim()
 			.min(1)
 			.nullable()
 			.describe(
-				"Measured material user, workflow, revenue, or decision impact; null when only the metric change is known."
+				"Distinct measured user, workflow, revenue, or decision consequence; for a broken definition, state the decision it cannot support. Null when only the metric change is known."
 			),
 		rootCause: z
 			.string()
@@ -302,7 +304,7 @@ export function formatInvestigationNext(
 ): string {
 	const next = outcome.next;
 	if (next.type === "act") {
-		return `${next.action} Target: ${next.target}. Verify: ${next.verification}`;
+		return `${next.action} Target: ${next.target}. Done when: ${next.verification}`;
 	}
 	if (next.type === "ask") {
 		return next.question;
