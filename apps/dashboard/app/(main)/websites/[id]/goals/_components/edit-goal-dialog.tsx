@@ -1,5 +1,6 @@
 "use client";
 
+import type { InsightGoalEditChanges } from "@databuddy/shared/insights";
 import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { FilterRow } from "@/components/ui/filter-row";
 import type { AutocompleteData } from "@/hooks/use-autocomplete";
@@ -40,6 +41,7 @@ interface EditGoalDialogProps {
 	isSaving: boolean;
 	onClose: () => void;
 	onSave: (data: Goal | Omit<CreateGoalData, "websiteId">) => Promise<void>;
+	suggestedChanges?: InsightGoalEditChanges | null;
 }
 
 export function EditGoalDialog({
@@ -49,6 +51,7 @@ export function EditGoalDialog({
 	goal,
 	isSaving,
 	autocompleteData,
+	suggestedChanges,
 }: EditGoalDialogProps) {
 	const [formData, setFormData] = useState<GoalFormData | null>(null);
 	const isCreateMode = !goal;
@@ -61,7 +64,7 @@ export function EditGoalDialog({
 					operator: f.operator || "equals",
 				})
 			);
-			setFormData({
+			const current = {
 				id: goal.id,
 				name: goal.name,
 				description: goal.description,
@@ -69,6 +72,13 @@ export function EditGoalDialog({
 				target: goal.target,
 				filters: sanitizedFilters,
 				ignoreHistoricData: goal.ignoreHistoricData ?? false,
+			};
+			setFormData({
+				...current,
+				...(suggestedChanges?.description
+					? { description: suggestedChanges.description }
+					: {}),
+				...(suggestedChanges?.name ? { name: suggestedChanges.name } : {}),
 			});
 		} else {
 			setFormData({
@@ -80,7 +90,7 @@ export function EditGoalDialog({
 				ignoreHistoricData: false,
 			});
 		}
-	}, [goal]);
+	}, [goal, suggestedChanges]);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -187,6 +197,29 @@ export function EditGoalDialog({
 	if (!formData) {
 		return null;
 	}
+	const suggestedRows: Array<{
+		after: string;
+		before: string;
+		label: string;
+	}> = [];
+	if (goal && suggestedChanges?.name && goal.name !== suggestedChanges.name) {
+		suggestedRows.push({
+			after: suggestedChanges.name,
+			before: goal.name,
+			label: "Name",
+		});
+	}
+	if (
+		goal &&
+		suggestedChanges?.description &&
+		goal.description !== suggestedChanges.description
+	) {
+		suggestedRows.push({
+			after: suggestedChanges.description,
+			before: goal.description || "No description",
+			label: "Business meaning",
+		});
+	}
 
 	return (
 		<Sheet onOpenChange={handleClose} open={isOpen}>
@@ -203,7 +236,9 @@ export function EditGoalDialog({
 							<Sheet.Description>
 								{isCreateMode
 									? "Track single-step conversions"
-									: "Update goal settings"}
+									: suggestedChanges
+										? "Review Databuddy's suggested changes"
+										: "Update goal settings"}
 							</Sheet.Description>
 						</div>
 					</div>
@@ -211,6 +246,26 @@ export function EditGoalDialog({
 
 				<Sheet.Form onSubmit={handleSubmit}>
 					<Sheet.Body className="space-y-5">
+						{suggestedRows.length > 0 ? (
+							<div className="space-y-2 rounded-md border border-primary/20 bg-primary/5 p-3">
+								<Text variant="label">Suggested changes</Text>
+								{suggestedRows.map((row) => (
+									<div
+										className="grid gap-1 text-xs sm:grid-cols-[8rem_1fr]"
+										key={row.label}
+									>
+										<span className="text-muted-foreground">{row.label}</span>
+										<span className="text-foreground/85">
+											<span className="line-through opacity-60">
+												{row.before}
+											</span>{" "}
+											→ {row.after}
+										</span>
+									</div>
+								))}
+							</div>
+						) : null}
+
 						<div className="grid gap-3 sm:grid-cols-2">
 							<Field>
 								<Field.Label>Name</Field.Label>
@@ -375,7 +430,11 @@ export function EditGoalDialog({
 							Cancel
 						</Button>
 						<Button disabled={!isFormValid} loading={isSaving} type="submit">
-							{isCreateMode ? "Create Goal" : "Save Changes"}
+							{isCreateMode
+								? "Create Goal"
+								: suggestedChanges
+									? "Apply Changes"
+									: "Save Changes"}
 						</Button>
 					</Sheet.Footer>
 				</Sheet.Form>

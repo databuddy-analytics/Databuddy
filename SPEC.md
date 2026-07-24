@@ -73,7 +73,7 @@ Every completed turn reports:
 - **root cause:** the known mechanism, or `unknown`;
 - **evidence:** the few facts that support or contradict it;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
-- **recommendation:** an optional useful next step that does not create a case;
+- **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them;
 - **next:** exactly one outcome.
 
 The next outcome is one of:

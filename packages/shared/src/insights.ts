@@ -145,21 +145,66 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 	}),
 ]);
 
-const insightRecommendationSchema = z
+export const insightGoalEditChangesSchema = z
 	.object({
-		action: z.string().trim().min(1).max(320),
-		operation: z
-			.enum(["delete", "edit"])
+		description: z
+			.string()
+			.trim()
+			.min(1)
+			.max(500)
 			.nullable()
-			.describe(
-				"Goal action the product can open directly; null for non-goal recommendations or when there is no matching editor action."
-			),
+			.describe("Exact replacement description; null to leave unchanged."),
+		name: z
+			.string()
+			.trim()
+			.min(1)
+			.max(100)
+			.nullable()
+			.describe("Exact replacement name; null to leave unchanged."),
 	})
+	.strict()
+	.refine((changes) => changes.description !== null || changes.name !== null, {
+		message: "Goal edits require at least one changed field",
+	});
+
+const recommendationFields = {
+	action: z.string().trim().min(1).max(320),
+	changes: insightGoalEditChangesSchema.nullable().optional(),
+	operation: z
+		.enum(["delete", "edit"])
+		.nullable()
+		.describe(
+			"Goal action the product can open directly; use edit only with exact changed fields, and null for non-goal recommendations."
+		),
+};
+
+const insightRecommendationSchema = z
+	.object(recommendationFields)
 	.strict()
 	.nullable()
 	.describe(
 		"Concrete evidence-backed next step worth suggesting without opening an investigation. Name the exact object and change; use null when there is no useful next step."
 	);
+
+const agentInsightRecommendationSchema = z
+	.object({
+		...recommendationFields,
+		changes: insightGoalEditChangesSchema.nullable(),
+	})
+	.strict()
+	.superRefine((recommendation, context) => {
+		if (
+			(recommendation.operation === "edit") !==
+			(recommendation.changes !== null)
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Only goal edits can include exact changed fields",
+				path: ["changes"],
+			});
+		}
+	})
+	.nullable();
 
 export const investigationOutcomeSchema = z
 	.object({
@@ -255,7 +300,7 @@ export const agentInvestigationOutcomeSchema =
 			.describe(
 				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
 			),
-		recommendation: insightRecommendationSchema,
+		recommendation: agentInsightRecommendationSchema,
 	});
 
 const insightStatusSchema = z.enum(["open", "resolved"]);
@@ -335,6 +380,9 @@ export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
 export type InsightBriefItem = z.infer<typeof insightBriefItemSchema>;
+export type InsightGoalEditChanges = z.infer<
+	typeof insightGoalEditChangesSchema
+>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
 export type InsightReplySlackDelivery = z.infer<

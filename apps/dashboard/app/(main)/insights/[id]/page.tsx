@@ -28,6 +28,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
+import { GoalRecommendationAction } from "../_components/goal-recommendation-action";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -319,28 +320,11 @@ function InvestigationActivity({
 					</p>
 					{item.entity.type === "goal" && outcome.recommendation.operation ? (
 						<div className="mt-2 flex flex-wrap gap-1.5">
-							<Button
-								asChild
-								size="sm"
-								tone={
-									outcome.recommendation.operation === "delete"
-										? "destructive"
-										: "neutral"
-								}
-								variant={
-									outcome.recommendation.operation === "delete"
-										? "ghost"
-										: "secondary"
-								}
-							>
-								<Link
-									href={`/websites/${encodeURIComponent(websiteId)}/goals?command=${outcome.recommendation.operation}-goal&goalId=${encodeURIComponent(item.entity.id)}`}
-								>
-									{outcome.recommendation.operation === "delete"
-										? "Delete goal"
-										: "Edit goal"}
-								</Link>
-							</Button>
+							<GoalRecommendationAction
+								goalId={item.entity.id}
+								recommendation={outcome.recommendation}
+								websiteId={websiteId}
+							/>
 						</div>
 					) : null}
 				</div>

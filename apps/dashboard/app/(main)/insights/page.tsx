@@ -22,6 +22,7 @@ import {
 	InvestigationRow,
 	InvestigationRowSkeleton,
 } from "./_components/investigation-row";
+import { GoalRecommendationAction } from "./_components/goal-recommendation-action";
 import { useInsightsFeed } from "./hooks/use-insights-feed";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -252,28 +253,11 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 						{insight.signal.entity.type === "goal" &&
 						insight.recommendation.operation ? (
 							<div className="mt-2 flex flex-wrap gap-1.5">
-								<Button
-									asChild
-									size="sm"
-									tone={
-										insight.recommendation.operation === "delete"
-											? "destructive"
-											: "neutral"
-									}
-									variant={
-										insight.recommendation.operation === "delete"
-											? "ghost"
-											: "secondary"
-									}
-								>
-									<Link
-										href={`/websites/${encodeURIComponent(insight.websiteId)}/goals?command=${insight.recommendation.operation}-goal&goalId=${encodeURIComponent(insight.signal.entity.id)}`}
-									>
-										{insight.recommendation.operation === "delete"
-											? "Delete goal"
-											: "Edit goal"}
-									</Link>
-								</Button>
+								<GoalRecommendationAction
+									goalId={insight.signal.entity.id}
+									recommendation={insight.recommendation}
+									websiteId={insight.websiteId}
+								/>
 							</div>
 						) : null}
 					</div>
