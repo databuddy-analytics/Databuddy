@@ -292,6 +292,10 @@ describe("insight investigation timeline", () => {
 			recommendation: {
 				action:
 					"Add “Counts completed signup events” to Signup completed’s description.",
+				changes: {
+					description: "Counts completed signup events.",
+					name: null,
+				},
 				operation: "edit",
 			},
 			rootCause: null,
@@ -388,6 +392,10 @@ describe("insight investigation timeline", () => {
 			recommendation: {
 				action:
 					"Add “Counts completed signup events” to Signup completed’s description.",
+				changes: {
+					description: "Counts completed signup events.",
+					name: null,
+				},
 				operation: "edit",
 			},
 			signal: {

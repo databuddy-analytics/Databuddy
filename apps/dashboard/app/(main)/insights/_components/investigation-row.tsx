@@ -1,16 +1,61 @@
 "use client";
 
+import type { InsightBriefItem } from "@databuddy/shared/insights";
+import { Button, Skeleton } from "@databuddy/ui";
 import Link from "next/link";
 import { List } from "@/components/ui/composables/list";
 import type { Insight } from "@/lib/insight-api";
 import { cn } from "@/lib/utils";
-import { Skeleton } from "@databuddy/ui";
 import {
 	ArrowRightIcon,
 	CheckCircleIcon,
 	LightbulbIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
+
+type GoalRecommendation = Extract<
+	NonNullable<InsightBriefItem["recommendation"]>,
+	{ operation: "delete" | "edit" }
+>;
+
+export function GoalRecommendationAction({
+	goalId,
+	recommendation,
+	websiteId,
+}: {
+	goalId: string;
+	recommendation: GoalRecommendation;
+	websiteId: string;
+}) {
+	const deleting = recommendation.operation === "delete";
+
+	return (
+		<Button
+			asChild
+			size="sm"
+			tone={deleting ? "destructive" : "neutral"}
+			variant={deleting ? "ghost" : "secondary"}
+		>
+			<Link
+				href={{
+					pathname: `/websites/${encodeURIComponent(websiteId)}/goals`,
+					query: {
+						command: `${recommendation.operation}-goal`,
+						goalId,
+						...(recommendation.changes?.description
+							? { description: recommendation.changes.description }
+							: {}),
+						...(recommendation.changes?.name
+							? { name: recommendation.changes.name }
+							: {}),
+					},
+				}}
+			>
+				{deleting ? "Delete goal" : "Review goal changes"}
+			</Link>
+		</Button>
+	);
+}
 
 export function InvestigationRowSkeleton() {
 	return (

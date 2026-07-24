@@ -28,7 +28,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
-import { GoalRecommendationAction } from "../_components/goal-recommendation-action";
+import { GoalRecommendationAction } from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;

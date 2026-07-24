@@ -200,6 +200,10 @@ describe("Slack investigation detail", () => {
 				publish: true,
 				recommendation: {
 					action: "Rename Pricing viewers to All billing navigation.",
+					changes: {
+						description: null,
+						name: "All billing navigation",
+					},
 					operation: "edit",
 				},
 			},

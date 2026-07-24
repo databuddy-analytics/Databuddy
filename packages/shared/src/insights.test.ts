@@ -112,6 +112,14 @@ const outcomeBase = {
 
 describe("insightBriefItemSchema", () => {
 	it("keeps readable context and measured signal data without case mechanics", () => {
+		const recommendation = {
+			action: "Rename Signup completed to Checkout completed.",
+			changes: {
+				description: "Counts completed checkout events.",
+				name: "Checkout completed",
+			},
+			operation: "edit" as const,
+		};
 		const parsed = insightBriefItemSchema.parse({
 			asOf: "2026-07-07T00:00:00.000Z",
 			createdAt: "2026-07-07T01:00:00.000Z",
@@ -120,14 +128,7 @@ describe("insightBriefItemSchema", () => {
 			impact: outcomeBase.impact,
 			investigationId: null,
 			next: outcomeBase.next,
-			recommendation: {
-				action: "Rename Signup completed to Checkout completed.",
-				changes: {
-					description: "Counts completed checkout events.",
-					name: "Checkout completed",
-				},
-				operation: "edit",
-			},
+			recommendation,
 			rootCause: outcomeBase.rootCause,
 			signal,
 			summary: outcomeBase.summary,
@@ -138,14 +139,7 @@ describe("insightBriefItemSchema", () => {
 		});
 
 		expect(parsed.investigationId).toBeNull();
-		expect(parsed.recommendation).toEqual({
-			action: "Rename Signup completed to Checkout completed.",
-			changes: {
-				description: "Counts completed checkout events.",
-				name: "Checkout completed",
-			},
-			operation: "edit",
-		});
+		expect(parsed.recommendation).toEqual(recommendation);
 		expect(parsed.signal.entity.label).toBe("Signup completed");
 		expect(parsed).not.toHaveProperty("next");
 	});
@@ -174,30 +168,15 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(true);
 	});
 
-	it("keeps optional recommendations without breaking stored outcomes", () => {
+	it("keeps old stored outcomes while enforcing recommendation lifecycle", () => {
 		expect(investigationOutcomeSchema.parse(outcomeBase)).toEqual(outcomeBase);
-		// Stored observations from before executable recommendations had no changes.
-		expect(
-			investigationOutcomeSchema.parse({
-				...outcomeBase,
-				publish: true,
-				recommendation: {
-					action:
-						"Rename Clicked Nav to Any navigation click so its scope is explicit.",
-					operation: "edit",
-				},
-			}).recommendation
-		).toEqual({
-			action:
-				"Rename Clicked Nav to Any navigation click so its scope is explicit.",
-			operation: "edit",
-		});
 		expect(
 			investigationOutcomeSchema.safeParse({
 				...outcomeBase,
 				publish: false,
 				recommendation: {
 					action: "Rename Clicked Nav.",
+					changes: { description: null, name: "Navigation clicks" },
 					operation: "edit",
 				},
 			}).success
@@ -214,6 +193,7 @@ describe("investigationOutcomeSchema", () => {
 				publish: true,
 				recommendation: {
 					action: "Rename Clicked Nav.",
+					changes: { description: null, name: "Navigation clicks" },
 					operation: "edit",
 				},
 				rootCause: "The goal name does not match its configured target.",
@@ -232,6 +212,11 @@ describe("investigationOutcomeSchema", () => {
 			},
 			operation: "edit" as const,
 		};
+		const deletion = {
+			action: "Delete the duplicate Clicked Nav goal.",
+			changes: null,
+			operation: "delete" as const,
+		};
 		const accepts = (candidate: unknown) =>
 			agentInvestigationOutcomeSchema.safeParse({
 				...outcomeBase,
@@ -239,40 +224,26 @@ describe("investigationOutcomeSchema", () => {
 				recommendation: candidate,
 			}).success;
 
-		expect(accepts(recommendation)).toBe(true);
-		expect(
-			accepts({
-				...recommendation,
-				changes: { description: null, name: "Navigation clicks" },
-			})
-		).toBe(true);
-		expect(
-			accepts({
-				...recommendation,
-				changes: { name: "Navigation clicks" },
-			})
-		).toBe(false);
-		expect(
-			accepts({
-				action: recommendation.action,
-				changes: null,
-				operation: "edit",
-			})
-		).toBe(false);
-		expect(
-			accepts({
-				action: "Delete the duplicate Clicked Nav goal.",
-				changes: recommendation.changes,
-				operation: "delete",
-			})
-		).toBe(false);
-		expect(
-			accepts({
-				action: "Delete the duplicate Clicked Nav goal.",
-				changes: null,
-				operation: "delete",
-			})
-		).toBe(true);
+		for (const [candidate, expected] of [
+			[recommendation, true],
+			[
+				{
+					...recommendation,
+					changes: { description: null, name: "Navigation clicks" },
+				},
+				true,
+			],
+			[{ ...recommendation, changes: { name: "Navigation clicks" } }, false],
+			[{ ...recommendation, changes: null }, false],
+			[{ ...deletion, changes: recommendation.changes }, false],
+			[deletion, true],
+			[
+				{ action: "Review the pricing-page CTA.", changes: null, operation: null },
+				true,
+			],
+		] as const) {
+			expect(accepts(candidate)).toBe(expected);
+		}
 	});
 
 	it("accepts concise output with measured or unknown impact", () => {

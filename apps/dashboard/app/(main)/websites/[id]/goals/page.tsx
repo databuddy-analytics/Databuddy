@@ -1,9 +1,6 @@
 "use client";
 
-import {
-	type InsightGoalEditChanges,
-	insightGoalEditChangesSchema,
-} from "@databuddy/shared/insights";
+import { insightGoalEditChangesSchema } from "@databuddy/shared/insights";
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
 import { Button } from "@databuddy/ui";
 import { DeleteDialog } from "@databuddy/ui/client";
@@ -73,13 +70,7 @@ export default function GoalsPage() {
 	const searchParams = useSearchParams();
 	const isDemoRoute = pathname.startsWith("/demo/");
 	const [deletingGoalId, setDeletingGoalId] = useState<string | null>(null);
-	const [editor, setEditor] = useState<{
-		goal: Goal | null;
-		suggestedChanges: InsightGoalEditChanges | null;
-	} | null>(null);
-	const openEditor = (goal: Goal | null) => {
-		setEditor({ goal, suggestedChanges: null });
-	};
+	const [editingGoal, setEditingGoal] = useState<Goal | null>();
 
 	const { dateRange } = useDateFilters();
 	const globalFilters = useAtomValue(dynamicQueryFiltersAtom);
@@ -122,37 +113,36 @@ export default function GoalsPage() {
 		if (!goal) {
 			toast.error("This goal no longer exists");
 		} else if (command === "edit-goal") {
-			const hasSuggestion =
-				searchParams.has("suggestedName") ||
-				searchParams.has("suggestedDescription");
 			const proposal = insightGoalEditChangesSchema.safeParse({
-				description: searchParams.get("suggestedDescription"),
-				name: searchParams.get("suggestedName"),
+				description: searchParams.get("description"),
+				name: searchParams.get("name"),
 			});
-			if (hasSuggestion && !proposal.success) {
+			if (proposal.success) {
+				const proposedGoal = {
+					...goal,
+					description: proposal.data.description ?? goal.description,
+					name: proposal.data.name ?? goal.name,
+				};
+				if (
+					proposedGoal.description === goal.description &&
+					proposedGoal.name === goal.name
+				) {
+					toast.success("This goal already matches the recommendation");
+				} else {
+					setEditingGoal(proposedGoal);
+				}
+			} else {
 				toast.error("Databuddy's suggested changes could not be loaded");
 			}
-			const proposalChanges = proposal.success ? proposal.data : null;
-			const hasActualChange =
-				(proposalChanges?.name !== null &&
-					proposalChanges?.name !== undefined &&
-					proposalChanges.name !== goal.name) ||
-				(proposalChanges?.description !== null &&
-					proposalChanges?.description !== undefined &&
-					proposalChanges.description !== goal.description);
-			setEditor({
-				goal,
-				suggestedChanges: hasActualChange ? proposalChanges : null,
-			});
 		} else {
 			setDeletingGoalId(goal.id);
 		}
 
 		const params = new URLSearchParams(searchParams.toString());
 		params.delete("command");
+		params.delete("description");
 		params.delete("goalId");
-		params.delete("suggestedDescription");
-		params.delete("suggestedName");
+		params.delete("name");
 		const query = params.toString();
 		router.replace(query ? `${pathname}?${query}` : pathname, {
 			scroll: false,
@@ -207,7 +197,7 @@ export default function GoalsPage() {
 					websiteId,
 				} as CreateGoalData);
 			}
-			setEditor(null);
+			setEditingGoal(undefined);
 		} catch (error) {
 			console.error("Failed to save goal:", error);
 			toast.error(
@@ -249,7 +239,7 @@ export default function GoalsPage() {
 						/>
 					</Button>
 					{!isDemoRoute && (
-						<Button onClick={() => openEditor(null)} size="sm">
+						<Button onClick={() => setEditingGoal(null)} size="sm">
 							<PlusIcon className="size-4 shrink-0" />
 							Create Goal
 						</Button>
@@ -263,7 +253,7 @@ export default function GoalsPage() {
 								? undefined
 								: {
 										label: "Create a goal",
-										onClick: () => openEditor(null),
+										onClick: () => setEditingGoal(null),
 									},
 							description:
 								"Track single-step conversions like signups, purchases, or activation events.",
@@ -287,22 +277,21 @@ export default function GoalsPage() {
 								goalAnalytics={goalAnalytics}
 								goals={items}
 								onDeleteGoal={(goalId) => setDeletingGoalId(goalId)}
-								onEditGoal={openEditor}
+								onEditGoal={setEditingGoal}
 								readOnly={isDemoRoute}
 							/>
 						)}
 					</List.Content>
 				</div>
 
-				{!isDemoRoute && editor && (
+				{!isDemoRoute && editingGoal !== undefined && (
 					<EditGoalDialog
 						autocompleteData={autocompleteQuery.data}
-						goal={editor.goal}
+						goal={editingGoal}
 						isOpen
 						isSaving={isCreating || isUpdating}
-						onClose={() => setEditor(null)}
+						onClose={() => setEditingGoal(undefined)}
 						onSave={handleSaveGoal}
-						suggestedChanges={editor.suggestedChanges}
 					/>
 				)}
 

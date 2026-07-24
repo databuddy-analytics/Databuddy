@@ -19,10 +19,10 @@ import {
 } from "@databuddy/ui/icons";
 import { InvestigationSettings } from "./_components/investigation-settings";
 import {
+	GoalRecommendationAction,
 	InvestigationRow,
 	InvestigationRowSkeleton,
 } from "./_components/investigation-row";
-import { GoalRecommendationAction } from "./_components/goal-recommendation-action";
 import { useInsightsFeed } from "./hooks/use-insights-feed";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
