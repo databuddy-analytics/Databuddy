@@ -113,18 +113,6 @@ async function processResumeJob(
 	}
 }
 
-function itemResult(item: {
-	message: string | null;
-	resultCount: number;
-	status: "skipped" | "succeeded";
-}): GenerateWebsiteInsightsResult {
-	return {
-		...(item.message ? { message: item.message } : {}),
-		resultCount: item.resultCount,
-		status: item.status,
-	};
-}
-
 function successfulItemResult(item: {
 	errorMessage: string | null;
 	resultCount: number;
@@ -133,11 +121,11 @@ function successfulItemResult(item: {
 	if (item.status !== "skipped" && item.status !== "succeeded") {
 		return null;
 	}
-	return itemResult({
-		message: item.errorMessage,
+	return {
+		...(item.errorMessage ? { message: item.errorMessage } : {}),
 		resultCount: item.resultCount,
 		status: item.status,
-	});
+	};
 }
 
 async function loadCanonicalGenerateItem(

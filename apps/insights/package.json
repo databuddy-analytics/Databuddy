@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "dotenv -e ../../.env -- bun --watch run src/index.ts",
-    "test": "bun test src",
+    "test": "bun test src --path-ignore-patterns='**/*.integration.test.ts'",
     "test:integration": "INSIGHTS_INTEGRATION_TESTS=true bun test src/scheduler.integration.test.ts src/idempotency.integration.test.ts",
     "check-types": "tsc --noEmit"
   },

@@ -325,72 +325,54 @@ describe("detectFunnelGoalSignals", () => {
 		expect(investigation.signalKey).toBe("funnel:f1:step:2");
 	});
 
-	it("flags a funnel conversion rise above threshold", async () => {
-		let call = 0;
-		const deps = makeDeps({
-			fetchFunnels: async () => [FUNNEL],
-			funnelConversion: async () => {
-				call += 1;
-				return call === 1
-					? funnelResult(20, 120)
-					: funnelResult(10, 100);
-			},
+	for (const { name, current, previous, expected } of [
+		{
+			name: "flags a funnel conversion rise above threshold",
+			current: funnelResult(20, 120),
+			previous: funnelResult(10, 100),
+			expected: { direction: "up", deltaPercent: 100 },
+		},
+		{
+			name: "ignores funnel changes below threshold",
+			current: funnelResult(18, 100),
+			previous: funnelResult(20, 100),
+			expected: undefined,
+		},
+		{
+			name: "ignores funnels with too few entrants",
+			current: funnelResult(10, 10),
+			previous: funnelResult(40, 8),
+			expected: undefined,
+		},
+		{
+			name: "ignores dramatic funnel deltas caused by only a few completions",
+			current: funnelResult(0, 18_245),
+			previous: funnelResult(0.01, 19_516),
+			expected: undefined,
+		},
+	] as const) {
+		it(name, async () => {
+			let call = 0;
+			const signals = await detectFunnelGoalSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchFunnels: async () => [FUNNEL],
+					funnelConversion: async () => {
+						call += 1;
+						return call === 1 ? current : previous;
+					},
+				})
+			);
+
+			if (expected) {
+				expect(signals).toHaveLength(1);
+				expect(signals[0]).toMatchObject(expected);
+			} else {
+				expect(signals).toEqual([]);
+			}
 		});
-
-		const signals = await detectFunnelGoalSignals(PARAMS, TODAY, deps);
-
-		expect(signals.length).toBe(1);
-		expect(signals[0].direction).toBe("up");
-		expect(signals[0].deltaPercent).toBe(100);
-	});
-
-	it("ignores funnel changes below threshold", async () => {
-		let call = 0;
-		const deps = makeDeps({
-			fetchFunnels: async () => [FUNNEL],
-			funnelConversion: async () => {
-				call += 1;
-				return call === 1
-					? funnelResult(18, 100)
-					: funnelResult(20, 100);
-			},
-		});
-
-		const signals = await detectFunnelGoalSignals(PARAMS, TODAY, deps);
-		expect(signals.length).toBe(0);
-	});
-
-	it("ignores funnels with too few entrants", async () => {
-		let call = 0;
-		const deps = makeDeps({
-			fetchFunnels: async () => [FUNNEL],
-			funnelConversion: async () => {
-				call += 1;
-				return call === 1
-					? funnelResult(10, 10)
-					: funnelResult(40, 8);
-			},
-		});
-
-		const signals = await detectFunnelGoalSignals(PARAMS, TODAY, deps);
-		expect(signals.length).toBe(0);
-	});
-
-	it("ignores dramatic funnel deltas caused by only a few completions", async () => {
-		let call = 0;
-		const deps = makeDeps({
-			fetchFunnels: async () => [FUNNEL],
-			funnelConversion: async () => {
-				call += 1;
-				return call === 1
-					? funnelResult(0, 18_245)
-					: funnelResult(0.01, 19_516);
-			},
-		});
-
-		const signals = await detectFunnelGoalSignals(PARAMS, TODAY, deps);
-		expect(signals).toEqual([]);
-	});
+	}
 
 	it("flags a goal completion-rate drop above threshold", async () => {
 		let call = 0;
@@ -415,40 +397,35 @@ describe("detectFunnelGoalSignals", () => {
 		expect(signals[0].definitionEvidence).toContain(GOAL.target);
 	});
 
-	it("ignores goals with too few completions", async () => {
-		let call = 0;
-		const deps = makeDeps({
-			fetchGoals: async () => [GOAL],
-			goalConversion: async () => {
-				call += 1;
-				return call === 1
-					? goalResult(1, 3, 300)
-					: goalResult(4, 2, 50);
-			},
+	for (const { name, current, previous } of [
+		{
+			name: "ignores goals with too few completions",
+			current: goalResult(1, 3, 300),
+			previous: goalResult(4, 2, 50),
+		},
+		{
+			name: "ignores goal changes with too few current entrants",
+			current: goalResult(0, 0, 16),
+			previous: goalResult(20, 20, 100),
+		},
+	] as const) {
+		it(name, async () => {
+			let call = 0;
+			const signals = await detectFunnelGoalSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchGoals: async () => [GOAL],
+					goalConversion: async () => {
+						call += 1;
+						return call === 1 ? current : previous;
+					},
+				})
+			);
+
+			expect(signals).toEqual([]);
 		});
-
-		const signals = await detectFunnelGoalSignals(PARAMS, TODAY, deps);
-		expect(signals.length).toBe(0);
-	});
-
-	it("ignores goal changes with too few current entrants", async () => {
-		let call = 0;
-		const signals = await detectFunnelGoalSignals(
-			PARAMS,
-			TODAY,
-			makeDeps({
-				fetchGoals: async () => [GOAL],
-				goalConversion: async () => {
-					call += 1;
-					return call === 1
-						? goalResult(0, 0, 16)
-						: goalResult(20, 20, 100);
-				},
-			})
-		);
-
-		expect(signals).toEqual([]);
-	});
+	}
 
 	it("passes the correct week-over-week windows to the analytics deps", async () => {
 		const ranges: Array<{ from: string; to: string }> = [];

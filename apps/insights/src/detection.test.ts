@@ -118,29 +118,18 @@ function customEventRow(
 }
 
 describe("assignSeverity", () => {
-	it("assigns critical for z-score >= 3.5", () => {
-		expect(assignSeverity(3.5, 10)).toBe("critical");
-	});
-
-	it("assigns critical for delta >= 60%", () => {
-		expect(assignSeverity(1.0, 65)).toBe("critical");
-	});
-
-	it("assigns warning for z-score >= 3.0", () => {
-		expect(assignSeverity(3.0, 10)).toBe("warning");
-	});
-
-	it("assigns warning for delta >= 50%", () => {
-		expect(assignSeverity(1.0, 55)).toBe("warning");
-	});
-
-	it("assigns info for values at the floor", () => {
-		expect(assignSeverity(2.5, 40)).toBe("info");
-	});
-
-	it("assigns info when z-score is undefined and delta is moderate", () => {
-		expect(assignSeverity(undefined, 45)).toBe("info");
-	});
+	for (const [name, zScore, delta, expected] of [
+		["critical for z-score >= 3.5", 3.5, 10, "critical"],
+		["critical for delta >= 60%", 1, 65, "critical"],
+		["warning for z-score >= 3.0", 3, 10, "warning"],
+		["warning for delta >= 50%", 1, 55, "warning"],
+		["info for values at the floor", 2.5, 40, "info"],
+		["info when z-score is undefined and delta is moderate", undefined, 45, "info"],
+	] as const) {
+		it(`assigns ${name}`, () => {
+			expect(assignSeverity(zScore, delta)).toBe(expected);
+		});
+	}
 });
 
 describe("wowWindow", () => {
@@ -877,141 +866,56 @@ describe("detectSignals", () => {
 		});
 	});
 
-	describe("low-traffic filter", () => {
-		it("filters out volume metrics when max(current, baseline) < 80", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 50,
-					sessions: 60,
-					pageviews: 70,
-					bounce_rate: 40,
-					median_session_duration: 60,
-				},
-				{
-					unique_visitors: 20,
-					sessions: 25,
-					pageviews: 30,
-					bounce_rate: 40,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const volumeSignals = signals.filter(
-				(s) =>
-					s.metric === "visitors" ||
-					s.metric === "sessions" ||
-					s.metric === "pageviews"
-			);
-			expect(volumeSignals.length).toBe(0);
-		});
-
-		it("filters rate metrics when the comparison has too few sessions", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 10,
-					sessions: 10,
-					pageviews: 10,
-					bounce_rate: 60,
-					median_session_duration: 120,
-				},
-				{
-					unique_visitors: 5,
-					sessions: 5,
-					pageviews: 5,
-					bounce_rate: 30,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const rateSignals = signals.filter(
-				(s) =>
-					s.metric === "bounce_rate" || s.metric === "session_duration"
-			);
-			expect(rateSignals).toEqual([]);
-		});
-	});
-
-	describe("rate metric absolute delta filter", () => {
-		it("filters rate metrics with less than 10pp absolute change", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 200,
-					sessions: 200,
-					pageviews: 200,
-					bounce_rate: 52,
-					median_session_duration: 67,
-				},
-				{
-					unique_visitors: 200,
-					sessions: 200,
-					pageviews: 200,
-					bounce_rate: 45,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const rateSignals = signals.filter(
-				(s) =>
-					s.metric === "bounce_rate" || s.metric === "session_duration"
-			);
-			expect(rateSignals.length).toBe(0);
-		});
-	});
-
-	describe("impact floor filter", () => {
-		it("filters count metrics with impact below 50", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 110,
-					sessions: 110,
-					pageviews: 110,
-					bounce_rate: 30,
-					median_session_duration: 60,
-				},
-				{
-					unique_visitors: 80,
-					sessions: 80,
-					pageviews: 80,
-					bounce_rate: 30,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.filter((s) => s.metric === "visitors").length).toBe(0);
-		});
-
-		it("keeps count metrics with impact at or above 50", async () => {
-			const queryFn = createMockQueryFn(
-				[],
-				{
-					unique_visitors: 200,
-					sessions: 200,
-					pageviews: 200,
-					bounce_rate: 30,
-					median_session_duration: 60,
-				},
-				{
-					unique_visitors: 100,
-					sessions: 100,
-					pageviews: 100,
-					bounce_rate: 30,
-					median_session_duration: 60,
-				}
-			);
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(
-				signals.some((s) => s.metric === "visitors")
-			).toBe(true);
-		});
+	describe("traffic floors", () => {
+		for (const { name, current, previous, metrics, detected } of [
+			{
+				name: "filters out volume metrics when max(current, baseline) < 80",
+				current: { unique_visitors: 50, sessions: 60, pageviews: 70 },
+				previous: { unique_visitors: 20, sessions: 25, pageviews: 30 },
+				metrics: ["visitors", "sessions", "pageviews"],
+				detected: false,
+			},
+			{
+				name: "filters rate metrics when the comparison has too few sessions",
+				current: { sessions: 10, bounce_rate: 60, median_session_duration: 120 },
+				previous: { sessions: 5, bounce_rate: 30, median_session_duration: 60 },
+				metrics: ["bounce_rate", "session_duration"],
+				detected: false,
+			},
+			{
+				name: "filters rate metrics with less than 10pp absolute change",
+				current: { sessions: 200, bounce_rate: 52, median_session_duration: 67 },
+				previous: { sessions: 200, bounce_rate: 45, median_session_duration: 60 },
+				metrics: ["bounce_rate", "session_duration"],
+				detected: false,
+			},
+			{
+				name: "filters count metrics with impact below 50",
+				current: { unique_visitors: 110 },
+				previous: { unique_visitors: 80 },
+				metrics: ["visitors"],
+				detected: false,
+			},
+			{
+				name: "keeps count metrics with impact at or above 50",
+				current: { unique_visitors: 200 },
+				previous: { unique_visitors: 100 },
+				metrics: ["visitors"],
+				detected: true,
+			},
+		] as const) {
+			it(name, async () => {
+				const signals = await detectSignals(
+					BASE_PARAMS,
+					createMockQueryFn([], current, previous)
+				);
+				expect(
+					signals.some((signal) =>
+						metrics.some((metric) => metric === signal.metric)
+					)
+				).toBe(detected);
+			});
+		}
 	});
 
 	describe("z-score vs WoW conflict resolution", () => {
@@ -1429,61 +1333,53 @@ describe("detectSignals", () => {
 	});
 
 	describe("revenue detection", () => {
-		it("flags new revenue appearing", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				revenue_overview: [{ total_revenue: 100 }, { total_revenue: 0 }],
+		for (const { name, current, previous, expected } of [
+			{
+				name: "flags new revenue appearing",
+				current: { total_revenue: 100 },
+				previous: { total_revenue: 0 },
+				expected: { direction: "up" },
+			},
+			{
+				name: "flags revenue drop above 30%",
+				current: { total_revenue: 50 },
+				previous: { total_revenue: 100 },
+				expected: { direction: "down", deltaPercent: -50 },
+			},
+			{
+				name: "skips small revenue changes",
+				current: { total_revenue: 110 },
+				previous: { total_revenue: 100 },
+				expected: undefined,
+			},
+			{
+				name: "skips a one-transaction revenue fluctuation",
+				current: { total_revenue: 0, total_transactions: 0 },
+				previous: { total_revenue: 4.99, total_transactions: 1 },
+				expected: undefined,
+			},
+			{
+				name: "keeps a high-volume revenue change below the amount floor",
+				current: { total_revenue: 2, total_transactions: 8 },
+				previous: { total_revenue: 10, total_transactions: 10 },
+				expected: {},
+			},
+		] as const) {
+			it(name, async () => {
+				const signals = await detectSignals(
+					BASE_PARAMS,
+					createMockQueryFn([], {}, {}, {
+						revenue_overview: [current, previous],
+					})
+				);
+				const revenue = signals.find((signal) => signal.metric === "revenue");
+				if (expected) {
+					expect(revenue).toMatchObject(expected);
+				} else {
+					expect(revenue).toBeUndefined();
+				}
 			});
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const revSignal = signals.find((s) => s.metric === "revenue");
-			expect(revSignal).toBeDefined();
-			expect(revSignal!.direction).toBe("up");
-		});
-
-		it("flags revenue drop above 30%", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				revenue_overview: [{ total_revenue: 50 }, { total_revenue: 100 }],
-			});
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			const revSignal = signals.find((s) => s.metric === "revenue");
-			expect(revSignal).toBeDefined();
-			expect(revSignal!.direction).toBe("down");
-			expect(revSignal!.deltaPercent).toBe(-50);
-		});
-
-		it("skips small revenue changes", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				revenue_overview: [{ total_revenue: 110 }, { total_revenue: 100 }],
-			});
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((s) => s.metric === "revenue")).toBeUndefined();
-		});
-
-		it("skips a one-transaction revenue fluctuation", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				revenue_overview: [
-					{ total_revenue: 0, total_transactions: 0 },
-					{ total_revenue: 4.99, total_transactions: 1 },
-				],
-			});
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((s) => s.metric === "revenue")).toBeUndefined();
-		});
-
-		it("keeps a high-volume revenue change below the amount floor", async () => {
-			const queryFn = createMockQueryFn([], {}, {}, {
-				revenue_overview: [
-					{ total_revenue: 2, total_transactions: 8 },
-					{ total_revenue: 10, total_transactions: 10 },
-				],
-			});
-
-			const signals = await detectSignals(BASE_PARAMS, queryFn);
-			expect(signals.find((s) => s.metric === "revenue")).toBeDefined();
-		});
+		}
 	});
 
 	describe("correlated signal collapsing", () => {
