@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
+	agentInvestigationOutcomeSchema,
+	insightBriefItemSchema,
 	investigationOutcomeSchema,
 	investigationSignalSchema,
 	parseInvestigationOutcome,
@@ -108,7 +110,53 @@ const outcomeBase = {
 	},
 };
 
+describe("insightBriefItemSchema", () => {
+	it("keeps readable context and measured signal data without case mechanics", () => {
+		const parsed = insightBriefItemSchema.parse({
+			asOf: "2026-07-07T00:00:00.000Z",
+			createdAt: "2026-07-07T01:00:00.000Z",
+			evidence: outcomeBase.evidence,
+			id: "observation-1",
+			impact: outcomeBase.impact,
+			investigationId: null,
+			next: outcomeBase.next,
+			rootCause: outcomeBase.rootCause,
+			signal,
+			summary: outcomeBase.summary,
+			title: outcomeBase.title,
+			websiteDomain: "example.com",
+			websiteId: "site-1",
+			websiteName: "Example",
+		});
+
+		expect(parsed.investigationId).toBeNull();
+		expect(parsed.signal.entity.label).toBe("Signup completed");
+		expect(parsed).not.toHaveProperty("next");
+	});
+
+	it("rejects incomplete observations", () => {
+		expect(
+			insightBriefItemSchema.safeParse({
+				id: "observation-1",
+				summary: "Signup improved.",
+			}).success
+		).toBe(false);
+	});
+});
+
 describe("investigationOutcomeSchema", () => {
+	it("requires every new agent turn to make the publish decision", () => {
+		expect(agentInvestigationOutcomeSchema.safeParse(outcomeBase).success).toBe(
+			false
+		);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: true,
+			}).success
+		).toBe(true);
+	});
+
 	it("accepts concise output with measured or unknown impact", () => {
 		expect(investigationOutcomeSchema.safeParse(outcomeBase).success).toBe(true);
 		expect(
@@ -160,6 +208,25 @@ describe("investigationOutcomeSchema", () => {
 		]) {
 			expect(investigationOutcomeSchema.safeParse(invalid).success).toBe(false);
 		}
+	});
+
+	it("keeps routine rechecks private without hiding actions or questions", () => {
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: false,
+			}).success
+		).toBe(true);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: {
+					question: "Which repository owns checkout?",
+					type: "ask",
+				},
+				publish: false,
+			}).success
+		).toBe(false);
 	});
 
 	it("reads the canonical outcome", () => {

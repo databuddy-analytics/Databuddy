@@ -41,6 +41,7 @@ const outcome: InvestigationOutcome = {
 		"Visitors fell from 1,000 to 300.",
 		"The campaign record shows cmp_search_1 is paused.",
 	],
+	publish: true,
 	next: {
 		type: "act",
 		action: "Resume campaign cmp_search_1.",
@@ -84,7 +85,7 @@ function outputModel(value: unknown = outcome) {
 	});
 }
 
-describe("investigation agent", () => {
+describe("intelligence agent", () => {
 	it("returns the model's structured outcome directly", async () => {
 		const model = outputModel();
 		const availableRead = tool({
@@ -99,6 +100,7 @@ describe("investigation agent", () => {
 				evidence,
 				githubRepository: null,
 				history: [],
+				otherOpenWork: [],
 				signal,
 			},
 			{
@@ -146,6 +148,7 @@ describe("investigation agent", () => {
 				evidence,
 				githubRepository: null,
 				history: [],
+				otherOpenWork: [],
 				signal,
 			},
 			{
@@ -173,6 +176,7 @@ describe("investigation agent", () => {
 					evidence,
 					githubRepository: null,
 					history: [],
+					otherOpenWork: [],
 					signal,
 				},
 				{ model: outputModel({ title: "Incomplete" }), tools: {} }
@@ -214,6 +218,17 @@ describe("investigation agent", () => {
 						kind: "reply",
 					},
 				],
+				otherOpenWork: [
+					{
+						asOf: "2026-07-12T00:30:00.000Z",
+						next: {
+							question:
+								"Connect the repository that owns the checkout flow.",
+							type: "ask",
+						},
+						title: "Checkout repository access",
+					},
+				],
 				request: {
 					body: "It was restarted this morning.",
 					createdAt: "2026-07-12T02:00:00.000Z",
@@ -228,6 +243,10 @@ describe("investigation agent", () => {
 		expect(prompt).toContain("checkout_started");
 		expect(prompt).toContain("The campaign was paused intentionally.");
 		expect(prompt).toContain("It was restarted this morning.");
+		expect(prompt).toContain("Checkout repository access");
+		expect(prompt).toContain(
+			"Connect the repository that owns the checkout flow."
+		);
 		expect(prompt.match(/It was restarted this morning\./g)).toHaveLength(1);
 	});
 
@@ -239,6 +258,7 @@ describe("investigation agent", () => {
 					evidence,
 					githubRepository: null,
 					history: [],
+					otherOpenWork: [],
 					signal,
 				},
 				{ model: new MockLanguageModelV3(), tools: {} }

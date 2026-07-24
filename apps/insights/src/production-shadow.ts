@@ -11,7 +11,7 @@ import type {
 	InvestigationSources,
 	WebsiteInvestigationArtifact,
 } from "./generation";
-import type { InsightAgentResult } from "./agent";
+import type { InsightAgentInput, InsightAgentResult } from "./agent";
 import type { FunnelDef, GoalDef } from "./funnel-detection";
 import type { InvestigationAnnotation } from "./investigation";
 import type { LatestInsightObservation } from "./observations";
@@ -148,6 +148,44 @@ interface ShadowReport {
 interface ShadowObservation extends LatestInsightObservation {
 	asOf: Date;
 	evidence: string[];
+}
+
+function otherOpenWorkAt(
+	observations: readonly ShadowObservation[],
+	signalKey: string,
+	through: Date
+): InsightAgentInput["otherOpenWork"] {
+	const seen = new Set<string>();
+	const result: InsightAgentInput["otherOpenWork"] = [];
+	for (const observation of [...observations]
+		.filter(
+			(item) => item.asOf <= through && item.signal.signalKey !== signalKey
+		)
+		.sort(
+			(a, b) =>
+				b.asOf.getTime() - a.asOf.getTime() ||
+				b.signal.signalKey.localeCompare(a.signal.signalKey)
+		)) {
+		const key = observation.signal.signalKey;
+		if (seen.has(key) || observation.outcome.next.type === "watch") {
+			continue;
+		}
+		seen.add(key);
+		if (
+			observation.outcome.next.type === "act" ||
+			observation.outcome.next.type === "ask"
+		) {
+			result.push({
+				asOf: observation.asOf.toISOString(),
+				next: observation.outcome.next,
+				title: observation.outcome.title,
+			});
+			if (result.length === 8) {
+				break;
+			}
+		}
+	}
+	return result;
 }
 
 function integerOption(value: string, name: string, minimum: number): number {
@@ -646,6 +684,8 @@ async function createSources(params: {
 						signal: observation.signal,
 					}))
 			),
+		loadOtherOpenWork: ({ signalKey, through }) =>
+			Promise.resolve(otherOpenWorkAt(params.observations, signalKey, through)),
 		loadObservations: () =>
 			Promise.resolve(
 				new Map<string, LatestInsightObservation>(latestObservations)

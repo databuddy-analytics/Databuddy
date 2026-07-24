@@ -170,6 +170,12 @@ export const investigationOutcomeSchema = z
 				"Known mechanism only; use null for unknown, suspected, or merely correlated explanations."
 			),
 		evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+		publish: z
+			.boolean()
+			.optional()
+			.describe(
+				"True only when this turn adds a new customer-relevant fact worth showing in Insights. False for unchanged, duplicate, or routine rechecks."
+			),
 		next: investigationNextSchema,
 	})
 	.strip()
@@ -188,6 +194,25 @@ export const investigationOutcomeSchema = z
 				path: ["rootCause"],
 			});
 		}
+		if (
+			(outcome.next.type === "act" || outcome.next.type === "ask") &&
+			outcome.publish === false
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions and questions must be published",
+				path: ["publish"],
+			});
+		}
+	});
+
+export const agentInvestigationOutcomeSchema =
+	investigationOutcomeSchema.safeExtend({
+		publish: z
+			.boolean()
+			.describe(
+				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
+			),
 	});
 
 const insightStatusSchema = z.enum(["open", "resolved"]);
@@ -207,6 +232,22 @@ export const insightReplySlackDeliverySchema = z
 	})
 	.strict();
 
+export const insightBriefItemSchema = z.object({
+	asOf: z.iso.datetime(),
+	createdAt: z.iso.datetime(),
+	evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+	id: z.string(),
+	impact: z.string().trim().min(1).nullable(),
+	investigationId: z.string().nullable(),
+	rootCause: z.string().trim().min(1).nullable(),
+	signal: investigationSignalSchema,
+	summary: z.string().trim().min(1),
+	title: z.string().trim().min(1),
+	websiteDomain: z.string(),
+	websiteId: z.string(),
+	websiteName: z.string().nullable(),
+});
+
 export const historyInsightSchema = z.object({
 	changePercent: z.number().optional(),
 	description: z.string(),
@@ -225,6 +266,7 @@ const insightTimelineInvestigationSchema = z.object({
 	createdAt: z.string(),
 	id: z.string(),
 	kind: z.literal("investigation"),
+	metric: insightMetricSchema,
 	outcome: investigationOutcomeSchema,
 	period: weekOverWeekPeriodSchema,
 	subject: z.string(),
@@ -247,6 +289,7 @@ export const insightTimelineItemSchema = z.discriminatedUnion("kind", [
 export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
+export type InsightBriefItem = z.infer<typeof insightBriefItemSchema>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
 export type InsightReplySlackDelivery = z.infer<

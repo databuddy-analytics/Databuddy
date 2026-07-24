@@ -64,6 +64,7 @@ function dedupeKeyFor(investigation: WebsiteInvestigation): string {
 interface PriorInsightRow {
 	dedupeKey: string | null;
 	id: string;
+	status: "open" | "resolved";
 }
 
 async function fetchPriorInsight(
@@ -75,6 +76,7 @@ async function fetchPriorInsight(
 		.select({
 			dedupeKey: analyticsInsights.dedupeKey,
 			id: analyticsInsights.id,
+			status: analyticsInsights.status,
 		})
 		.from(analyticsInsights)
 		.where(
@@ -133,6 +135,11 @@ export async function persistInvestigation(params: {
 		: params.investigation;
 	const persistedAt = params.notNewerThan;
 	const visible = isVisibleInvestigation(investigation);
+	const quietContinuation =
+		prior?.status === "open" &&
+		(investigation.outcome.next.type === "watch" ||
+			investigation.outcome.next.type === "resolve");
+	const shouldPersistCase = visible || quietContinuation;
 	const open = investigation.outcome.next.type !== "resolve";
 	const resolvedAt = open ? null : persistedAt;
 	const resolvedReason = open ? null : ("recovered" as const);
@@ -153,40 +160,42 @@ export async function persistInvestigation(params: {
 	}
 
 	const persisted = await db.transaction(async (tx) => {
-		const rows =
-			open || prior
-				? prior && (prior.dedupeKey !== key || !visible)
-					? await tx
-							.update(analyticsInsights)
-							.set(caseRow(investigation, key))
-							.where(
-								and(
-									eq(analyticsInsights.id, prior.id),
-									lte(analyticsInsights.createdAt, params.notNewerThan)
-								)
+		const rows = shouldPersistCase
+			? prior && (prior.dedupeKey !== key || !visible)
+				? await tx
+						.update(analyticsInsights)
+						.set(caseRow(investigation, key))
+						.where(
+							and(
+								eq(analyticsInsights.id, prior.id),
+								lte(analyticsInsights.createdAt, params.notNewerThan),
+								quietContinuation
+									? eq(analyticsInsights.status, "open")
+									: undefined
 							)
-							.returning({ id: analyticsInsights.id })
-					: await tx
-							.insert(analyticsInsights)
-							.values(caseRow(investigation, key))
-							.onConflictDoUpdate({
-								target: [
-									analyticsInsights.organizationId,
-									analyticsInsights.dedupeKey,
-								],
-								targetWhere: isNotNull(analyticsInsights.dedupeKey),
-								setWhere: lte(analyticsInsights.createdAt, params.notNewerThan),
-								set: {
-									createdAt: persistedAt,
-									status,
-									resolvedAt,
-									resolvedReason,
-									...excludedRefreshSet(),
-								},
-							})
-							.returning({ id: analyticsInsights.id })
-				: [];
-		if ((open || prior) && !rows[0]) {
+						)
+						.returning({ id: analyticsInsights.id })
+				: await tx
+						.insert(analyticsInsights)
+						.values(caseRow(investigation, key))
+						.onConflictDoUpdate({
+							target: [
+								analyticsInsights.organizationId,
+								analyticsInsights.dedupeKey,
+							],
+							targetWhere: isNotNull(analyticsInsights.dedupeKey),
+							setWhere: lte(analyticsInsights.createdAt, params.notNewerThan),
+							set: {
+								createdAt: persistedAt,
+								status,
+								resolvedAt,
+								resolvedReason,
+								...excludedRefreshSet(),
+							},
+						})
+						.returning({ id: analyticsInsights.id })
+			: [];
+		if (shouldPersistCase && !rows[0]) {
 			throw new Error(
 				"The investigation changed while scheduled analysis was running"
 			);

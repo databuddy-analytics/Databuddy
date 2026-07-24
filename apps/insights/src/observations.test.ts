@@ -123,9 +123,9 @@ describe("eligibleSignalsForInvestigation", () => {
 		).toEqual([first]);
 	});
 
-	it("keeps resolved signals closed until they materially worsen", () => {
+	it("cools resolved signals until they change or reach their recheck", () => {
 		const resolvedSignal = detected("goal:signup", { deltaPercent: -40 });
-		const resolution = observed(resolvedSignal, NOW);
+		const resolution = observed(resolvedSignal);
 		resolution.outcome = {
 			...resolution.outcome,
 			next: { reason: "The measured regression recovered.", type: "resolve" },
@@ -147,6 +147,37 @@ describe("eligibleSignalsForInvestigation", () => {
 				NOW
 			)
 		).toEqual([worsened]);
+
+		expect(
+			eligibleSignalsForInvestigation(
+				[resolvedSignal],
+				memory([[resolvedSignal, { ...resolution, recheckAt: NOW }]]),
+				NOW
+			)
+		).toEqual([resolvedSignal]);
+	});
+
+	it("immediately revisits a resolved regression when it recovers", () => {
+		const regression = detected("goal:signup", { deltaPercent: -40 });
+		const resolution = observed(regression);
+		resolution.outcome = {
+			...resolution.outcome,
+			next: { reason: "No corrective work remained.", type: "resolve" },
+		};
+		const recovery = detected("goal:signup", {
+			current: 130,
+			deltaPercent: 30,
+			direction: "up",
+			severity: "info",
+		});
+
+		expect(
+			eligibleSignalsForInvestigation(
+				[recovery],
+				memory([[regression, resolution]]),
+				NOW
+			)
+		).toEqual([recovery]);
 	});
 
 	it("bypasses cooldown for a negative severity or 1.5x magnitude increase", () => {
@@ -250,10 +281,10 @@ describe("eligibleSignalsForInvestigation", () => {
 });
 
 describe("nextRecheckAt", () => {
-	it("uses one comparison window for act/watch and 30 days otherwise", () => {
+	it("makes open work eligible on the next scheduled day", () => {
 		const cases: [InvestigationOutcome["next"]["type"], string][] = [
-			["act", "2026-07-19T12:00:00.000Z"],
-			["watch", "2026-07-19T12:00:00.000Z"],
+			["act", "2026-07-13T12:00:00.000Z"],
+			["watch", "2026-07-13T12:00:00.000Z"],
 			["ask", "2026-08-11T12:00:00.000Z"],
 			["resolve", "2026-08-11T12:00:00.000Z"],
 		];

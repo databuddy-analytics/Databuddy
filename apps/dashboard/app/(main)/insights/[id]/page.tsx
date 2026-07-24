@@ -427,7 +427,7 @@ function ReplyComposer({
 						type="submit"
 					>
 						<PaperPlaneIcon className="size-3.5" weight="bold" />
-						Re-check case
+						Re-check investigation
 					</Button>
 				</div>
 			</Field>
