@@ -222,7 +222,7 @@ describe("Slack listeners", () => {
 			createInstallations({
 				getChannelReadiness: async (input) => {
 					readinessCalls.push(input);
-					return { autoBound: true, message: "", ok: true };
+					return { message: "", ok: true };
 				},
 			}),
 			queue

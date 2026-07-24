@@ -277,37 +277,6 @@ describe("Databuddy Slack response streaming", () => {
 		expect(sayCalls).toEqual([]);
 	});
 
-	it("does not stream dashboard component JSON into Slack", async () => {
-		const { calls, client } = createStreamClient();
-		const agent: Pick<DatabuddyAgentClient, "stream"> = {
-			async *stream() {
-				yield "Here are the top pages:\n";
-				yield JSON.stringify({
-					type: "data-table",
-					title: "Top Pages",
-					columns: ["Page", "Visitors"],
-					rows: [["/", 1500]],
-				});
-			},
-		};
-
-		await streamAgentToSlack({
-			agent,
-			client,
-			logger: silentLogger,
-			run: baseRun(),
-			say: async () => {},
-		});
-
-		const sentText = calls
-			.map((call) => getChunkText(call.options))
-			.filter((value): value is string => typeof value === "string")
-			.join("\n");
-		expect(sentText).toContain("*Top Pages*");
-		expect(sentText).toContain("1,500");
-		expect(sentText).not.toContain('"type"');
-		expect(sentText).not.toContain('"rows"');
-	});
 });
 
 function getChunkText(value: unknown): string | undefined {

@@ -7,7 +7,7 @@ import type { SlackAgentRun } from "@/agent/agent-client";
 
 const MODEL_TIMEOUT_MS = 6000;
 
-export type SlackThreadReplyDecisionSource = "fallback" | "model";
+type SlackThreadReplyDecisionSource = "fallback" | "model";
 
 export interface SlackThreadReplyDecision {
 	confidence: number;
@@ -54,15 +54,14 @@ export async function shouldReplyToSlackThreadFollowUp(
 		};
 	}
 
-	return getFallbackDecision(run.text, context.botUserId, threadMessages);
+	return getFallbackDecision(run.text, context.botUserId);
 }
 
 function getFallbackDecision(
 	text: string,
-	botUserId?: string,
-	threadMessages?: SlackThreadReplyMessage[]
+	botUserId?: string
 ): SlackThreadReplyDecision {
-	const normalized = normalizeText(text);
+	const normalized = text.trim().toLowerCase();
 
 	if (!normalized) {
 		return decision(false, "side_chatter", 0.5);
@@ -70,10 +69,6 @@ function getFallbackDecision(
 
 	if (mentionsBot(normalized, botUserId)) {
 		return decision(true, "bot_mentioned", 0.65);
-	}
-
-	if (getRecentBotMessage(threadMessages, botUserId)) {
-		return decision(false, "ambiguous", 0.5);
 	}
 
 	return decision(false, "ambiguous", 0.5);
@@ -102,39 +97,6 @@ async function readThreadMessages(
 	}
 }
 
-function normalizeText(text: string): string {
-	return text
-		.toLowerCase()
-		.replaceAll("\n", " ")
-		.replaceAll("\r", " ")
-		.replaceAll("\t", " ")
-		.split(" ")
-		.filter(Boolean)
-		.join(" ")
-		.trim();
-}
-
 function mentionsBot(text: string, botUserId?: string): boolean {
 	return Boolean(botUserId && text.includes(`<@${botUserId.toLowerCase()}>`));
-}
-
-function getRecentBotMessage(
-	messages: SlackThreadReplyMessage[] | undefined,
-	botUserId?: string
-): SlackThreadReplyMessage | null {
-	if (!(botUserId && messages?.length)) {
-		return null;
-	}
-
-	const normalizedBotUserId = botUserId.toLowerCase();
-	for (let index = messages.length - 1; index >= 0; index--) {
-		const message = messages[index];
-		if (message.userId?.toLowerCase() === normalizedBotUserId) {
-			return {
-				...message,
-				text: normalizeText(message.text),
-			};
-		}
-	}
-	return null;
 }

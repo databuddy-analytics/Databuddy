@@ -2,12 +2,7 @@ import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
-import { postChartImages } from "@/slack/chart-images";
 import { SLACK_COPY } from "@/slack/messages";
-import {
-	type DashboardComponentPayload,
-	renderAgentOutputForSlack,
-} from "@/slack/output-adapter";
 import type { SlackAgentClient } from "@/slack/types";
 
 const STREAM_FLUSH_INTERVAL_MS = 900;
@@ -40,7 +35,7 @@ type SayFn = (message: {
 interface StreamAgentToSlackOptions {
 	abortSignal?: AbortSignal;
 	agent: Pick<DatabuddyAgentClient, "stream">;
-	client: Pick<SlackAgentClient, "chat" | "files">;
+	client: Pick<SlackAgentClient, "chat">;
 	eventLog?: RequestLogger;
 	logger: LoggerLike;
 	run: SlackAgentRun;
@@ -84,11 +79,7 @@ export async function streamAgentToSlack({
 
 	let pending = "";
 	let fullText = "";
-	let safeMarkdown = "";
 	let chunkCount = 0;
-	let convertedComponents = 0;
-	let droppedComponents = 0;
-	let charts: DashboardComponentPayload[] = [];
 	let lastFlushAt = Date.now();
 	let thinkingResolved = false;
 
@@ -123,39 +114,22 @@ export async function streamAgentToSlack({
 		} while (force && pending);
 	};
 
-	const renderIncremental = (streaming: boolean) => {
-		const rendered = renderAgentOutputForSlack(fullText, {
-			extractCharts: true,
-			streaming,
-		});
-		convertedComponents = rendered.convertedComponents;
-		droppedComponents = rendered.droppedComponents;
-		charts = rendered.charts;
-		if (rendered.markdown.startsWith(safeMarkdown)) {
-			pending += rendered.markdown.slice(safeMarkdown.length);
-			safeMarkdown = rendered.markdown;
-		}
-	};
-
 	try {
 		for await (const chunk of agent.stream(run, { abortSignal })) {
 			chunkCount++;
 			fullText += chunk;
-			renderIncremental(true);
+			pending += chunk;
 			await flush(false);
 		}
-		renderIncremental(false);
 		await flush(true);
 
-		const finalText = safeMarkdown.trim();
+		const finalText = fullText.trim();
 		if (streamTs) {
 			if (!thinkingResolved) {
 				await resolveThinking(client, run.channelId, streamTs, "complete");
 			}
 			const result = await finishStreamedResponse({
 				client,
-				convertedComponents,
-				droppedComponents,
 				eventLog,
 				finalText,
 				run,
@@ -163,12 +137,9 @@ export async function streamAgentToSlack({
 				startedAt,
 				streamTs,
 			});
-			await postChartImages({ charts, client, eventLog, logger, run, say });
 			return result;
 		}
 		const result = await sendFinalMessage({
-			convertedComponents,
-			droppedComponents,
 			eventLog,
 			finalText,
 			run,
@@ -176,7 +147,6 @@ export async function streamAgentToSlack({
 			chunkCount,
 			startedAt,
 		});
-		await postChartImages({ charts, client, eventLog, logger, run, say });
 		return result;
 	} catch (error) {
 		const abortReason =
@@ -205,7 +175,7 @@ export async function streamAgentToSlack({
 					abortStopText(abortReason)
 				);
 			}
-			return abortedResult(safeMarkdown, chunkCount, streamTs);
+			return abortedResult(fullText, chunkCount, streamTs);
 		}
 
 		if (isSlackUserCancellation(error)) {
@@ -213,13 +183,12 @@ export async function streamAgentToSlack({
 				slack_stream_cancelled: true,
 				slack_stream_cancelled_code: getSlackApiErrorCode(error),
 			});
-			return abortedResult(safeMarkdown, chunkCount, streamTs);
+			return abortedResult(fullText, chunkCount, streamTs);
 		}
 
 		logStreamError(error, eventLog, logger);
-		renderIncremental(false);
 
-		const partialText = safeMarkdown.trim();
+		const partialText = fullText.trim();
 		const failureText = isDatabuddyAgentUserError(error)
 			? error.message
 			: SLACK_COPY.agentFailure;
@@ -307,28 +276,17 @@ async function resolveThinking(
 
 interface SuccessLogOptions {
 	chunkCount: number;
-	convertedComponents: number;
-	droppedComponents: number;
 	eventLog?: RequestLogger;
 	finalText: string;
 	startedAt: number;
 }
 
 function logSuccess(
-	{
-		chunkCount,
-		convertedComponents,
-		droppedComponents,
-		eventLog,
-		finalText,
-		startedAt,
-	}: SuccessLogOptions,
+	{ chunkCount, eventLog, finalText, startedAt }: SuccessLogOptions,
 	extra: Record<string, unknown>
 ) {
 	setSlackLog(eventLog, {
 		slack_answer_chars: finalText.length,
-		slack_components_converted: convertedComponents,
-		slack_components_dropped: droppedComponents,
 		slack_stream_chunks: chunkCount,
 		"timing.slack_agent_response_ms": Math.round(performance.now() - startedAt),
 		...extra,
@@ -506,13 +464,13 @@ function abortStopText(reason: string | undefined): string | undefined {
 }
 
 function abortedResult(
-	safeMarkdown: string,
+	answer: string,
 	chunkCount: number,
 	streamTs: string | null
 ): StreamAgentToSlackResult {
 	return {
 		aborted: true,
-		answerChars: safeMarkdown.trim().length,
+		answerChars: answer.trim().length,
 		chunks: chunkCount,
 		ok: false,
 		responseTs: streamTs ?? undefined,

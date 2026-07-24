@@ -25,7 +25,7 @@ interface RedisLike {
 	): Promise<"OK" | null>;
 }
 
-export type SlackFollowUpQueueReason =
+type SlackFollowUpQueueReason =
 	| "empty"
 	| "queue_full"
 	| "redis_error"
