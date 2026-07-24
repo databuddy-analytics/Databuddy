@@ -25,6 +25,12 @@ describe("MCP agent active tool selection", () => {
 				source: "slack",
 			})
 		).toContain("investigations");
+		expect(
+			selectActiveToolsForQuestion({
+				question: "show me the latest insights",
+				source: "slack",
+			})
+		).toContain("investigations");
 	});
 
 	it("does not let thread-reference words hijack explicit feedback requests", () => {

@@ -146,7 +146,7 @@ describe("investigations", () => {
 		expect(config.tools.configure_investigations).toBeDefined();
 	});
 
-	it("is one native list, get, or reply tool", () => {
+	it("is one native brief, list, get, or reply tool", () => {
 		expect(Object.keys(tools).sort()).toEqual([
 			"configure_investigations",
 			"investigations",
@@ -155,6 +155,7 @@ describe("investigations", () => {
 			z.toJSONSchema(investigationActionSchema, { io: "input" }).type
 		).toBe("object");
 		for (const input of [
+			{ action: "brief" },
 			{ action: "list" },
 			{ action: "get", investigationId: "investigation-1" },
 			{
@@ -168,10 +169,13 @@ describe("investigations", () => {
 		}
 	});
 
-	it("delegates list, get, reply permissions, and idempotency to canonical RPC", async () => {
+	it("delegates brief, list, get, reply permissions, and idempotency to canonical RPC", async () => {
 		const calls: Array<{ input: unknown; method: string; router: string }> = [];
 		const callRpc = async (router: string, method: string, input: unknown) => {
 			calls.push({ input, method, router });
+			if (method === "brief") {
+				return { hasMore: false, insights: [] };
+			}
 			if (method === "history") {
 				return { hasMore: false, insights: [investigation] };
 			}
@@ -181,6 +185,12 @@ describe("investigations", () => {
 			return { reply };
 		};
 
+		const briefed = await runInvestigationAction(
+			{ action: "brief", limit: 5, offset: 1 },
+			context,
+			undefined,
+			callRpc
+		);
 		const listed = await runInvestigationAction(
 			{ action: "list", limit: 10, offset: 2 },
 			context,
@@ -207,6 +217,16 @@ describe("investigations", () => {
 
 		expect(calls).toEqual([
 			{
+				method: "brief",
+				router: "insights",
+				input: {
+					limit: 5,
+					offset: 1,
+					organizationId: "organization-1",
+					websiteId: "website-1",
+				},
+			},
+			{
 				method: "history",
 				router: "insights",
 				input: {
@@ -231,6 +251,11 @@ describe("investigations", () => {
 				},
 			},
 		]);
+		expect(briefed).toEqual({
+			action: "brief",
+			hasMore: false,
+			insights: [],
+		});
 		expect(listed).toMatchObject({
 			action: "list",
 			investigations: [investigation],

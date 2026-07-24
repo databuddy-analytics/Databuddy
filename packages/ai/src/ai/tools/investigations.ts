@@ -1,6 +1,7 @@
 import { isValidTimezone } from "@databuddy/rpc/insight-schedule";
 import {
 	historyInsightSchema,
+	insightBriefItemSchema,
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
 } from "@databuddy/shared/insights";
@@ -54,8 +55,10 @@ type Input = z.infer<typeof inputSchema>;
 export const investigationActionSchema = z
 	.object({
 		action: z
-			.enum(["list", "get", "reply"])
-			.describe("List cases, get one case and its timeline, or reply to it"),
+			.enum(["brief", "list", "get", "reply"])
+			.describe(
+				"Read published insights, list cases, get one case and its timeline, or reply to it"
+			),
 		body: z
 			.string()
 			.trim()
@@ -87,7 +90,7 @@ export const investigationActionSchema = z
 			.string()
 			.min(1)
 			.optional()
-			.describe("Optional website scope for list"),
+			.describe("Optional website scope for brief or list"),
 	})
 	.strict();
 
@@ -125,6 +128,41 @@ export async function runInvestigationAction(
 	callRpc: RpcCaller = callRPCProcedure
 ) {
 	const input = investigationActionSchema.parse(rawInput);
+	if (input.action === "brief") {
+		if (!context.organizationId) {
+			throw new Error("Select an organization first");
+		}
+		const websiteId =
+			input.websiteId ??
+			context.defaultWebsiteId ??
+			context.websiteId ??
+			undefined;
+		const result = z
+			.object({
+				hasMore: z.boolean(),
+				insights: z.array(insightBriefItemSchema),
+			})
+			.parse(
+				await callRpc(
+					"insights",
+					"brief",
+					{
+						limit: input.limit,
+						offset: input.offset,
+						organizationId: context.organizationId,
+						...(websiteId ? { websiteId } : {}),
+					},
+					context,
+					abortSignal
+				)
+			);
+		return {
+			action: "brief" as const,
+			hasMore: result.hasMore,
+			insights: result.insights,
+		};
+	}
+
 	if (input.action === "list") {
 		if (!context.organizationId) {
 			throw new Error("Select an organization first");
@@ -241,7 +279,7 @@ export function createInvestigationTools() {
 	return {
 		investigations: tool({
 			description:
-				"Work with durable investigations. list returns current cases, get returns one case and its timeline, and reply adds human context then continues that same investigation asynchronously. For reply, use a stable replyId and reuse it on retries.",
+				"Read existing intelligence. brief returns published insights with their recommendations; list/get/reply handles durable cases. Preserve returned advice instead of adding more.",
 			inputSchema: investigationActionSchema,
 			execute: (input, options) =>
 				runInvestigationAction(

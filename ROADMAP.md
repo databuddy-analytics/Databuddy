@@ -8,7 +8,7 @@
 - Each investigation keeps one signal's agent observations and human replies in one chronological case timeline.
 - Dashboard, Slack, and MCP replies enter the same durable reply path, resume the same-signal case, re-check current data, and append the new outcome.
 - Scheduled revisits remeasure the same error, goal, funnel, or metric even after it falls below the detector threshold; recovered cases close instead of disappearing.
-- The generic agent exposes the same `list | get | reply` investigation path, and recurring Slack updates stay in the original case thread.
+- The generic agent exposes the same Insights brief and `list | get | reply` investigation path, and recurring Slack updates stay in the original case thread.
 - The agent outcome controls delivery directly: `act` and `ask` notify, `watch` rechecks quietly, and `resolve` closes.
 
 ## Now

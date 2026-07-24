@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import { z } from "zod";
 import {
 	historyInsightSchema,
+	insightBriefItemSchema,
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
 } from "@databuddy/shared/insights";
@@ -227,6 +228,56 @@ const listWebsitesTool = defineMcpTool(
 			})),
 			total: list.length,
 		};
+	}
+);
+
+const listInsightsTool = defineMcpTool(
+	{
+		name: "list_insights",
+		description:
+			"List published insights, including quiet findings and their evidence-backed recommendations. Present the returned intelligence as written without adding advice.",
+		inputSchema: z.object({
+			...WebsiteSelectorSchema,
+			limit: z.number().int().min(1).max(100).optional().default(20),
+			offset: z.number().int().min(0).optional().default(0),
+		}),
+		outputSchema: z.object({
+			hasMore: z.boolean(),
+			insights: z.array(insightBriefItemSchema),
+		}),
+		metadata: {
+			access: { kind: "read", scopes: ["read:data"] },
+			capability: "analytics",
+		},
+		resolveWebsite: "optional",
+		ratelimit: { limit: 60, windowSec: 60 },
+	},
+	async (input, ctx) => {
+		const organizationIds = await resolveOrganizationIds(ctx.websiteId, ctx);
+		if (organizationIds instanceof Error || !organizationIds[0]) {
+			throw new McpToolError(
+				"not_found",
+				organizationIds instanceof Error
+					? organizationIds.message
+					: "Could not determine organization"
+			);
+		}
+		const result = await runInvestigationAction(
+			{
+				action: "brief",
+				limit: input.limit,
+				offset: input.offset,
+				...(ctx.websiteId ? { websiteId: ctx.websiteId } : {}),
+			},
+			{
+				...buildRpcContext(ctx),
+				organizationId: organizationIds[0],
+			}
+		);
+		if (result.action !== "brief") {
+			throw new McpToolError("internal", "Unexpected insight action");
+		}
+		return { hasMore: result.hasMore, insights: result.insights };
 	}
 );
 
@@ -1537,6 +1588,7 @@ const addUsersToFlagTool = defineMcpTool(
 
 const TOOL_FACTORIES = [
 	listWebsitesTool,
+	listInsightsTool,
 	listInvestigationsTool,
 	getInvestigationTool,
 	replyToInvestigationTool,
