@@ -1,4 +1,5 @@
 export * from "./client";
+export * from "./dql";
 export * from "./identity";
 export * from "./revenue";
 export * from "./schema";
