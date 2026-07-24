@@ -33,12 +33,8 @@
     "./tools/scrape-page": "./src/ai/tools/scrape-page.ts",
     "./tools/search-console": "./src/ai/tools/search-console.ts",
     "./tools/utils/oauth-token": "./src/ai/tools/utils/oauth-token.ts",
-    "./tools/workspace": "./src/ai/tools/workspace.ts",
     "./query": "./src/query/index.ts",
-    "./query/analytics-tables": "./src/query/analytics-tables.ts",
     "./query/builders": "./src/query/builders/index.ts",
-    "./query/custom-query-builder": "./src/query/custom-query-builder.ts",
-    "./query/custom-query-types": "./src/query/custom-query-types.ts",
     "./query/date-utils": "./src/query/date-utils.ts",
     "./query/types": "./src/query/types.ts"
   },

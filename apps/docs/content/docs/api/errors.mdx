@@ -47,10 +47,8 @@ These are the stable codes returned by `/v1/query` and its subroutes:
 | `AUTH_REQUIRED` | 401 | The protected operation has no valid API key or session | Add authentication and retry |
 | `ACCESS_DENIED` | 403 | Authentication succeeded but cannot access the requested resource | Check the key's organization, resource access, and scopes |
 | `MISSING_PROJECT_ID` | 400 | No website, link, monitor, or organization identifier was supplied | Add the identifier required by the query type |
-| `MISSING_WEBSITE_ID` | 400 | The custom-query endpoint needs `website_id` | Add `website_id` to the query string |
 | `VALIDATION_ERROR` | 400 | The body, date range, filter, or query type is invalid | Correct the reported fields and retry |
 | `COMPILATION_ERROR` | 400 | The query could not be compiled | Correct the query definition |
-| `QUERY_ERROR` | 400 | The custom query could not be executed | Check the message and query definition |
 | `FEATURE_UNAVAILABLE` | 402 | The selected plan does not include the requested query capability | Change plan or remove that query type |
 | `RATE_LIMITED` | 429 | The request limit was reached | Wait for `Retry-After`, then retry |
 | `INTERNAL_SERVER_ERROR` | 500 | An unexpected server error occurred | Retry; if it continues, contact support with the request ID |

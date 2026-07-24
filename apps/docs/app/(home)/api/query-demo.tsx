@@ -33,7 +33,7 @@ export function QueryDemo() {
 		try {
 			const queries: DynamicQueryRequest[] = [
 				{
-					id: "custom-query",
+					id: "analytics-query",
 					parameters,
 					limit: 50,
 				},
@@ -54,7 +54,7 @@ export function QueryDemo() {
 				results: [
 					{
 						success: false,
-						queryId: "custom-query",
+						queryId: "analytics-query",
 						data: [],
 						meta: {
 							parameters,

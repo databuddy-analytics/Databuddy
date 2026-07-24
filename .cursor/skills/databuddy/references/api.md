@@ -266,56 +266,6 @@ POST https://basket.databuddy.cc/batch?client_id={website_id}
 }
 ```
 
-## Custom Queries
-
-For advanced queries with custom aggregations:
-
-```http
-POST /v1/query/custom?website_id={id}
-```
-
-**Request Body:**
-
-```json
-{
-  "query": {
-    "table": "events",
-    "selects": [
-      { "field": "path", "aggregate": "count", "alias": "pageviews" },
-      { "field": "anonymous_id", "aggregate": "uniq", "alias": "visitors" }
-    ],
-    "filters": [
-      { "field": "country", "operator": "eq", "value": "US" }
-    ],
-    "groupBy": ["path"]
-  },
-  "startDate": "2024-01-01",
-  "endDate": "2024-01-31",
-  "limit": 100
-}
-```
-
-### Available Tables
-
-| Table | Description |
-|-------|-------------|
-| `events` | Page views and custom events |
-| `sessions` | Session-level data |
-| `profiles` | User profile data |
-| `errors` | JavaScript errors |
-| `performance` | Web vitals metrics |
-
-### Aggregate Functions
-
-| Function | Description |
-|----------|-------------|
-| `count` | Count rows |
-| `uniq` | Count unique values |
-| `sum` | Sum numeric values |
-| `avg` | Average value |
-| `max` | Maximum value |
-| `min` | Minimum value |
-
 ## Error Codes
 
 | Code | Meaning |
@@ -329,7 +279,6 @@ POST /v1/query/custom?website_id={id}
 ## Rate Limits
 
 - Standard queries: 200+ requests/minute
-- Custom queries: 30 requests/minute
 
 ## Health Check
 

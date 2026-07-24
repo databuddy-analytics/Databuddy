@@ -9,7 +9,6 @@
     "query",
     "events",
     "links",
-    "custom-queries",
     "errors",
     "rate-limits"
   ]

@@ -27,7 +27,6 @@ import {
 	GATED_FEATURES,
 	isFeatureAvailable,
 } from "@databuddy/shared/types/features";
-import type { CustomQueryRequest } from "@databuddy/ai/query/custom-query-types";
 import {
 	allowedFilterFields,
 	compileQuery,
@@ -38,7 +37,6 @@ import {
 	canReadQueryTypesPublicly,
 	QueryBuilders,
 } from "@databuddy/ai/query/builders";
-import { executeCustomQuery } from "@databuddy/ai/query/custom-query-builder";
 import {
 	isNormalizedQueryDate,
 	normalizeClickHouseDateTime,
@@ -359,7 +357,7 @@ function clientIpForQuery(request: Request): string {
 
 async function enforceQueryRateLimit(
 	ctx: AuthContext,
-	endpoint: "compile" | "execute" | "custom",
+	endpoint: "compile" | "execute",
 	limit: number,
 	requestId: string,
 	request: Request
@@ -1520,128 +1518,5 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				DynamicQueryRequestSchema,
 				t.Array(DynamicQueryRequestSchema),
 			]),
-		}
-	)
-
-	.post(
-		"/custom",
-		async ({
-			body,
-			query: q,
-			auth: ctx,
-			request,
-		}: {
-			body: CustomQueryRequest;
-			query: { website_id?: string };
-			auth: AuthContext;
-			request: Request;
-		}) =>
-			(async () => {
-				const requestId = getRequestId(request);
-				const rateLimited = await enforceQueryRateLimit(
-					ctx,
-					"custom",
-					60,
-					requestId,
-					request
-				);
-				if (rateLimited) {
-					return rateLimited;
-				}
-
-				if (!q.website_id) {
-					return createErrorResponse(
-						"website_id is required",
-						"MISSING_WEBSITE_ID",
-						400,
-						requestId
-					);
-				}
-
-				const accessResult = await resolveProjectAccess(ctx, {
-					websiteId: q.website_id,
-				});
-
-				if (!accessResult.success) {
-					return createErrorResponse(
-						accessResult.error,
-						accessResult.code,
-						accessResult.status,
-						requestId
-					);
-				}
-
-				mergeWideEvent({
-					custom_query_table: body.query.table,
-					custom_query_selects: body.query.selects.length,
-					custom_query_filters: body.query.filters?.length || 0,
-				});
-
-				const result = await executeCustomQuery(body, accessResult.projectId);
-
-				if (!result.success) {
-					return createErrorResponse(
-						result.error ?? "Query execution failed",
-						"QUERY_ERROR",
-						400,
-						requestId
-					);
-				}
-
-				return { ...result, requestId };
-			})(),
-		{
-			body: t.Object({
-				query: t.Object({
-					table: t.String(),
-					selects: t.Array(
-						t.Object({
-							field: t.String(),
-							aggregate: t.Union([
-								t.Literal("count"),
-								t.Literal("sum"),
-								t.Literal("avg"),
-								t.Literal("max"),
-								t.Literal("min"),
-								t.Literal("uniq"),
-							]),
-							alias: t.Optional(t.String()),
-						})
-					),
-					filters: t.Optional(
-						t.Array(
-							t.Object({
-								field: t.String(),
-								operator: t.Union([
-									t.Literal("eq"),
-									t.Literal("ne"),
-									t.Literal("gt"),
-									t.Literal("lt"),
-									t.Literal("gte"),
-									t.Literal("lte"),
-									t.Literal("contains"),
-									t.Literal("not_contains"),
-									t.Literal("starts_with"),
-									t.Literal("in"),
-									t.Literal("not_in"),
-								]),
-								value: t.Union([
-									t.String(),
-									t.Number(),
-									t.Array(t.Union([t.String(), t.Number()])),
-								]),
-							})
-						)
-					),
-					groupBy: t.Optional(t.Array(t.String())),
-				}),
-				startDate: t.String(),
-				endDate: t.String(),
-				timezone: t.Optional(t.String()),
-				granularity: t.Optional(
-					t.Union([t.Literal("hourly"), t.Literal("daily")])
-				),
-				limit: t.Optional(t.Number()),
-			}),
 		}
 	);
