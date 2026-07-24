@@ -73,6 +73,7 @@ Every completed turn reports:
 - **root cause:** the known mechanism, or `unknown`;
 - **evidence:** the few facts that support or contradict it;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
+- **recommendation:** an optional useful next step that does not create a case;
 - **next:** exactly one outcome.
 
 The next outcome is one of:
@@ -80,13 +81,13 @@ The next outcome is one of:
 - `act` — exact change, target, and verification condition;
 - `ask` — one self-contained question that says what the answer unlocks;
 - `watch` — keep the backend-owned signal trigger active and state when to escalate;
-- `resolve` — why no further work remains.
+- `resolve` — why no investigation needs to remain open, even if a recommendation remains.
 
 Outcomes may be updated repeatedly. They are operational state, not prose templates.
 
 Customer copy names the exact goal, funnel, page, event, error, or campaign. It describes the operational change, never the detector, agent, evaluation, suppression decision, or other internal mechanics.
 
-The Insights brief presents the title, summary, impact, cause, evidence, and measured signal. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents its current next move and full timeline.
+The Insights brief presents the title, summary, recommendation, impact, cause, evidence, and measured signal. It does not expose `act | ask | watch | resolve` mechanics. An investigation presents its current next move and full timeline.
 
 ## Continuity
 
@@ -112,7 +113,7 @@ Reject output that merely restates a percentage, invents a cause, asks for data 
 
 Summary, impact, cause, and evidence each contribute a different fact. Routine or unchanged rechecks remain in internal history with `publish: false`.
 
-When business meaning is missing, inspect the definition, site, events, and connected code first. Ambiguity alone does not open a case, and the customer should not have to invent a metric's purpose. Keep an unexplained broad metric unchanged, explain what it does measure, recommend narrow metrics only from inspected evidence, and resolve the change when no material harm is proven. Retire or redefine it only when its description, configuration, or source proves a mismatch. Ask only for a specific external fact that cannot be inspected and chooses between concrete next moves.
+When business meaning is missing, inspect the definition, site, events, and connected code first. Ambiguity alone does not open a case, and the customer should not have to invent a metric's purpose. Explain what a broad metric does measure and recommend a concrete edit, replacement, or cleanup only from inspected evidence. Do not recommend deletion merely because a description is missing. A definition that contradicts its configured purpose is broken tracking and becomes an action; an undescribed broad definition resolves when no material harm is proven. Ask only for a specific external fact that cannot be inspected and chooses between concrete next moves.
 
 ## Implementation constraint
 

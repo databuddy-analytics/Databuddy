@@ -202,7 +202,7 @@ function InsightBrief({
 			<Card.Header>
 				<Card.Title>Latest insights</Card.Title>
 				<Card.Description>
-					Changes worth knowing about, even when no action is needed.
+					What changed, why it matters, and what to do next.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">{content}</Card.Content>
@@ -243,6 +243,41 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				<p className="mt-1 text-muted-foreground text-xs leading-relaxed">
 					{insight.summary}
 				</p>
+				{insight.recommendation ? (
+					<div className="mt-2.5 rounded-md border bg-muted/20 p-2.5">
+						<p className="text-foreground/80 text-xs leading-relaxed">
+							<span className="font-medium text-foreground">Recommended:</span>{" "}
+							{insight.recommendation.action}
+						</p>
+						{insight.signal.entity.type === "goal" &&
+						insight.recommendation.operation ? (
+							<div className="mt-2 flex flex-wrap gap-1.5">
+								<Button
+									asChild
+									size="sm"
+									tone={
+										insight.recommendation.operation === "delete"
+											? "destructive"
+											: "neutral"
+									}
+									variant={
+										insight.recommendation.operation === "delete"
+											? "ghost"
+											: "secondary"
+									}
+								>
+									<Link
+										href={`/websites/${encodeURIComponent(insight.websiteId)}/goals?command=${insight.recommendation.operation}-goal&goalId=${encodeURIComponent(insight.signal.entity.id)}`}
+									>
+										{insight.recommendation.operation === "delete"
+											? "Delete goal"
+											: "Edit goal"}
+									</Link>
+								</Button>
+							</div>
+						) : null}
+					</div>
+				) : null}
 				{insight.impact ? (
 					<p className="mt-1.5 text-foreground/75 text-xs leading-relaxed">
 						<span className="font-medium text-foreground">Impact:</span>{" "}

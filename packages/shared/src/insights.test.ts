@@ -120,6 +120,10 @@ describe("insightBriefItemSchema", () => {
 			impact: outcomeBase.impact,
 			investigationId: null,
 			next: outcomeBase.next,
+			recommendation: {
+				action: "Edit Signup completed to use the checkout_completed event.",
+				operation: "edit",
+			},
 			rootCause: outcomeBase.rootCause,
 			signal,
 			summary: outcomeBase.summary,
@@ -130,6 +134,10 @@ describe("insightBriefItemSchema", () => {
 		});
 
 		expect(parsed.investigationId).toBeNull();
+		expect(parsed.recommendation).toEqual({
+			action: "Edit Signup completed to use the checkout_completed event.",
+			operation: "edit",
+		});
 		expect(parsed.signal.entity.label).toBe("Signup completed");
 		expect(parsed).not.toHaveProperty("next");
 	});
@@ -153,8 +161,55 @@ describe("investigationOutcomeSchema", () => {
 			agentInvestigationOutcomeSchema.safeParse({
 				...outcomeBase,
 				publish: true,
+				recommendation: null,
 			}).success
 		).toBe(true);
+	});
+
+	it("keeps optional recommendations without breaking stored outcomes", () => {
+		expect(investigationOutcomeSchema.parse(outcomeBase)).toEqual(outcomeBase);
+		expect(
+			investigationOutcomeSchema.parse({
+				...outcomeBase,
+				publish: true,
+				recommendation: {
+					action:
+						"Rename Clicked Nav to Any navigation click so its scope is explicit.",
+					operation: "edit",
+				},
+			}).recommendation
+		).toEqual({
+			action:
+				"Rename Clicked Nav to Any navigation click so its scope is explicit.",
+			operation: "edit",
+		});
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: false,
+				recommendation: {
+					action: "Rename Clicked Nav.",
+					operation: "edit",
+				},
+			}).success
+		).toBe(false);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: {
+					action: "Rename Clicked Nav.",
+					target: "Goal: Clicked Nav",
+					type: "act",
+					verification: "The goal name reflects its broad scope.",
+				},
+				publish: true,
+				recommendation: {
+					action: "Rename Clicked Nav.",
+					operation: "edit",
+				},
+				rootCause: "The goal name does not match its configured target.",
+			}).success
+		).toBe(false);
 	});
 
 	it("accepts concise output with measured or unknown impact", () => {

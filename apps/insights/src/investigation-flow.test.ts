@@ -42,6 +42,7 @@ const outcome: InvestigationOutcome = {
 		"The campaign record shows cmp_search_1 is paused.",
 	],
 	publish: true,
+	recommendation: null,
 	next: {
 		type: "act",
 		action: "Resume campaign cmp_search_1.",

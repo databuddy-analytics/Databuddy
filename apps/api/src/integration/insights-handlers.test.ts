@@ -289,6 +289,11 @@ describe("insight investigation timeline", () => {
 				type: "resolve",
 			},
 			publish: true,
+			recommendation: {
+				action:
+					"Add “Counts completed signup events” to Signup completed’s description.",
+				operation: "edit",
+			},
 			rootCause: null,
 			summary: "Signup conversion improved from 40% to 50%.",
 			title: "Signup conversion improved",
@@ -380,6 +385,11 @@ describe("insight investigation timeline", () => {
 		expect(firstPage.insights[0]).toMatchObject({
 			impact: "Ten more visitors completed signup per 100 entrants.",
 			investigationId: null,
+			recommendation: {
+				action:
+					"Add “Counts completed signup events” to Signup completed’s description.",
+				operation: "edit",
+			},
 			signal: {
 				changePercent: 25,
 				sentiment: "positive",
@@ -403,6 +413,7 @@ describe("insight investigation timeline", () => {
 			websiteId: secondWebsite.id,
 		});
 		expect(websiteOnly.insights).toHaveLength(1);
+		expect(websiteOnly.insights[0]?.recommendation).toBeNull();
 		expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
 	});
 
@@ -486,6 +497,7 @@ describe("insight investigation timeline", () => {
 			added.reply.id,
 		]);
 		expect(result.timeline[1]).toMatchObject({
+			entity: { id: "signup", label: "Signup", type: "goal" },
 			kind: "investigation",
 			metric: {
 				current: 20,

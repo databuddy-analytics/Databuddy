@@ -1,8 +1,14 @@
 "use client";
 
 import { GATED_FEATURES } from "@databuddy/shared/types/features";
-import { useParams, usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import {
+	useParams,
+	usePathname,
+	useRouter,
+	useSearchParams,
+} from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { FeatureGate } from "@/components/feature-gate";
 import { List } from "@/components/ui/composables/list";
 import { useAutocompleteData } from "@/hooks/use-autocomplete";
@@ -59,6 +65,8 @@ export default function GoalsPage() {
 	const { id } = useParams();
 	const websiteId = id as string;
 	const pathname = usePathname();
+	const router = useRouter();
+	const searchParams = useSearchParams();
 	const isDemoRoute = pathname.startsWith("/demo/");
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
@@ -83,6 +91,50 @@ export default function GoalsPage() {
 		isCreating,
 		isUpdating,
 	} = useGoals(websiteId);
+
+	useEffect(() => {
+		const command = searchParams.get("command");
+		const goalId = searchParams.get("goalId");
+		if (isDemoRoute) {
+			return;
+		}
+
+		if (
+			!goalId ||
+			(command !== "edit-goal" && command !== "delete-goal") ||
+			isFetching ||
+			listOutcome.status === "loading" ||
+			listOutcome.status === "error"
+		) {
+			return;
+		}
+
+		const goal = goals.find((candidate) => candidate.id === goalId);
+		if (!goal) {
+			toast.error("This goal no longer exists");
+		} else if (command === "edit-goal") {
+			setEditingGoal(goal);
+			setIsDialogOpen(true);
+		} else {
+			setDeletingGoalId(goal.id);
+		}
+
+		const params = new URLSearchParams(searchParams.toString());
+		params.delete("command");
+		params.delete("goalId");
+		const query = params.toString();
+		router.replace(query ? `${pathname}?${query}` : pathname, {
+			scroll: false,
+		});
+	}, [
+		goals,
+		isDemoRoute,
+		isFetching,
+		listOutcome.status,
+		pathname,
+		router,
+		searchParams,
+	]);
 
 	const goalIds = useMemo(() => goals.map((goal) => goal.id), [goals]);
 

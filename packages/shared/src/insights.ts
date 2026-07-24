@@ -135,9 +135,31 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		type: z.literal("resolve"),
-		reason: z.string().trim().min(1),
+		reason: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"Why no investigation needs to remain open; a non-interrupting recommendation may still exist."
+			),
 	}),
 ]);
+
+const insightRecommendationSchema = z
+	.object({
+		action: z.string().trim().min(1).max(320),
+		operation: z
+			.enum(["delete", "edit"])
+			.nullable()
+			.describe(
+				"Goal action the product can open directly; null for non-goal recommendations or when there is no matching editor action."
+			),
+	})
+	.strict()
+	.nullable()
+	.describe(
+		"Concrete evidence-backed next step worth suggesting without opening an investigation. Name the exact object and change; use null when there is no useful next step."
+	);
 
 export const investigationOutcomeSchema = z
 	.object({
@@ -178,6 +200,7 @@ export const investigationOutcomeSchema = z
 			.describe(
 				"True only when this turn adds a new customer-relevant fact worth showing in Insights. False for unchanged, duplicate, or routine rechecks."
 			),
+		recommendation: insightRecommendationSchema.optional(),
 		next: investigationNextSchema,
 	})
 	.strip()
@@ -206,6 +229,23 @@ export const investigationOutcomeSchema = z
 				path: ["publish"],
 			});
 		}
+		if (outcome.recommendation && outcome.publish !== true) {
+			context.addIssue({
+				code: "custom",
+				message: "Recommendations must be published",
+				path: ["publish"],
+			});
+		}
+		if (
+			outcome.recommendation &&
+			(outcome.next.type === "act" || outcome.next.type === "ask")
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions and questions cannot also carry a recommendation",
+				path: ["recommendation"],
+			});
+		}
 	});
 
 export const agentInvestigationOutcomeSchema =
@@ -215,6 +255,7 @@ export const agentInvestigationOutcomeSchema =
 			.describe(
 				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
 			),
+		recommendation: insightRecommendationSchema,
 	});
 
 const insightStatusSchema = z.enum(["open", "resolved"]);
@@ -241,6 +282,7 @@ export const insightBriefItemSchema = z.object({
 	id: z.string(),
 	impact: z.string().trim().min(1).nullable(),
 	investigationId: z.string().nullable(),
+	recommendation: insightRecommendationSchema,
 	rootCause: z.string().trim().min(1).nullable(),
 	signal: investigationSignalSchema,
 	summary: z.string().trim().min(1),
@@ -266,6 +308,7 @@ export const historyInsightSchema = z.object({
 
 const insightTimelineInvestigationSchema = z.object({
 	createdAt: z.string(),
+	entity: investigationEntitySchema,
 	id: z.string(),
 	kind: z.literal("investigation"),
 	metric: insightMetricSchema,

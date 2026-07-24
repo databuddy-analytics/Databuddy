@@ -193,12 +193,27 @@ describe("Slack investigation detail", () => {
 			},
 			signal
 		);
+		const recommended = buildInsightReplyText(
+			{
+				...outcome,
+				next: { reason: "The broad goal does not prove a failure.", type: "resolve" },
+				publish: true,
+				recommendation: {
+					action: "Rename Pricing viewers to All billing navigation.",
+					operation: "edit",
+				},
+			},
+			signal
+		);
 
 		expect(action).toStartWith("*Action ·");
 		expect(action).toContain("&lt;@U123&gt;");
 		expect(question).toStartWith("*Question ·");
 		expect(watching).toStartWith("*Watching ·");
 		expect(resolved).toStartWith("*Resolved ·");
+		expect(recommended).toContain(
+			"*Recommended:* Rename Pricing viewers to All billing navigation."
+		);
 	});
 
 	it("renders the measured signal, proven cause, and evidence", () => {

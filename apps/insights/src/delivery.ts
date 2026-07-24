@@ -125,6 +125,11 @@ export function buildInsightReplyText(
 	if (outcome.impact) {
 		lines.push(`*Impact:* ${escapeMrkdwn(userVisibleCopy(outcome.impact))}`);
 	}
+	if (outcome.recommendation) {
+		lines.push(
+			`*Recommended:* ${escapeMrkdwn(userVisibleCopy(outcome.recommendation.action))}`
+		);
+	}
 	if (outcome.next.type === "act" && outcome.rootCause) {
 		lines.push(`*Why:* ${escapeMrkdwn(userVisibleCopy(outcome.rootCause))}`);
 	}

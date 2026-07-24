@@ -180,6 +180,7 @@ function serializeInsightBrief(
 		id: row.id,
 		impact: outcome.impact,
 		investigationId: row.investigationId ?? null,
+		recommendation: outcome.recommendation ?? null,
 		rootCause: outcome.rootCause,
 		signal,
 		summary: outcome.summary,
@@ -265,6 +266,7 @@ async function loadInsightTimeline(
 			}
 			return {
 				createdAt: observation.createdAt.toISOString(),
+				entity: observation.signal.entity,
 				id: observation.id,
 				kind: "investigation" as const,
 				metric: observation.signal.metric,

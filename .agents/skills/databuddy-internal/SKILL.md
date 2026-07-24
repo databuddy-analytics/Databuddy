@@ -100,7 +100,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Code Standards
 
 - Keep one source of truth. If output is AI-generated copy, semantic labels, summaries, or recommendations, fix the upstream prompt/schema/validation contract; do not patch it later with frontend regex/string heuristics.
-- When an undescribed goal or funnel combines unrelated workflows, keep it unchanged, explain its broad scope, recommend narrow evidence-backed metrics, and resolve it when no harm is proven; retire or redefine it only when explicit evidence proves a mismatch.
+- When an undescribed goal or funnel combines unrelated workflows, explain its broad scope and end a published insight with one concrete evidence-backed edit, rename, create, use, or cleanup recommendation even when resolving it. Recommend deletion only when evidence shows duplication or no distinct use. An explicit purpose/config mismatch is material decision harm and becomes an action; ambiguity alone does not.
 - Start small backend slices with one implementation file per owning package; split only when a concrete independent consumer or lifecycle appears.
 - Use deterministic transforms only for deterministic data: stable enums, IDs, namespaces, routes, schema fields, and typed status values. Do not guess meaning from free-form model/user text with regexes.
 - Prefer structured contracts over text parsing. If the UI needs a label, action, link, severity, or metric category, add it to the schema/tool output and validate it at the boundary.

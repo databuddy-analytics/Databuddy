@@ -104,6 +104,7 @@ export default function InsightDetailPage() {
 							canReply={data?.canReply ?? false}
 							insightId={insight.id}
 							items={data?.timeline ?? []}
+							websiteId={insight.websiteId}
 						/>
 					</Card>
 				)}
@@ -134,10 +135,12 @@ function CaseActivity({
 	canReply,
 	insightId,
 	items,
+	websiteId,
 }: {
 	canReply: boolean;
 	insightId: string;
 	items: TimelineItem[];
+	websiteId: string;
 }) {
 	const queryClient = useQueryClient();
 	const retry = useMutation({
@@ -184,6 +187,7 @@ function CaseActivity({
 								: undefined
 						}
 						retrying={retry.isPending && retry.variables.replyId === item.id}
+						websiteId={websiteId}
 					/>
 				))}
 			</ol>
@@ -197,10 +201,12 @@ function TimelineEntry({
 	item,
 	onRetry,
 	retrying,
+	websiteId,
 }: {
 	item: TimelineItem;
 	onRetry?: (replyId: string) => void;
 	retrying: boolean;
+	websiteId: string;
 }) {
 	return (
 		<li
@@ -269,14 +275,20 @@ function TimelineEntry({
 						)}
 					</>
 				) : (
-					<InvestigationActivity item={item} />
+					<InvestigationActivity item={item} websiteId={websiteId} />
 				)}
 			</article>
 		</li>
 	);
 }
 
-function InvestigationActivity({ item }: { item: InvestigationItem }) {
+function InvestigationActivity({
+	item,
+	websiteId,
+}: {
+	item: InvestigationItem;
+	websiteId: string;
+}) {
 	const { outcome } = item;
 
 	return (
@@ -297,7 +309,46 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 				</p>
 			</div>
 
-			<NextStep next={outcome.next} />
+			{outcome.recommendation ? (
+				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
+					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						Recommended
+					</p>
+					<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
+						{outcome.recommendation.action}
+					</p>
+					{item.entity.type === "goal" && outcome.recommendation.operation ? (
+						<div className="mt-2 flex flex-wrap gap-1.5">
+							<Button
+								asChild
+								size="sm"
+								tone={
+									outcome.recommendation.operation === "delete"
+										? "destructive"
+										: "neutral"
+								}
+								variant={
+									outcome.recommendation.operation === "delete"
+										? "ghost"
+										: "secondary"
+								}
+							>
+								<Link
+									href={`/websites/${encodeURIComponent(websiteId)}/goals?command=${outcome.recommendation.operation}-goal&goalId=${encodeURIComponent(item.entity.id)}`}
+								>
+									{outcome.recommendation.operation === "delete"
+										? "Delete goal"
+										: "Edit goal"}
+								</Link>
+							</Button>
+						</div>
+					) : null}
+				</div>
+			) : null}
+
+			{outcome.next.type !== "resolve" || !outcome.recommendation ? (
+				<NextStep next={outcome.next} />
+			) : null}
 
 			{(outcome.impact || outcome.rootCause) && (
 				<dl className="grid gap-3 sm:grid-cols-2">
