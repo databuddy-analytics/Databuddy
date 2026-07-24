@@ -30,6 +30,7 @@ const REPOSITORY_PATH = z
 const COMMIT_SHA = z
 	.string()
 	.regex(/^[0-9a-f]{7,40}$/i, "Use a 7-40 character commit SHA");
+const PULL_REQUEST_NUMBER = z.number().int().positive().max(10_000_000);
 const CODE_QUERY = z
 	.string()
 	.trim()
@@ -60,20 +61,37 @@ interface GitHubDeploymentStatus {
 }
 
 async function githubFetch(path: string, token: string): Promise<unknown> {
-	const res = await fetch(`${GITHUB_API}${path}`, {
-		headers: {
-			Authorization: `Bearer ${token}`,
-			Accept: "application/vnd.github+json",
-			"X-GitHub-Api-Version": "2022-11-28",
-		},
-		signal: AbortSignal.timeout(10_000),
-	});
+	try {
+		const res = await fetch(`${GITHUB_API}${path}`, {
+			headers: {
+				Authorization: `Bearer ${token}`,
+				Accept: "application/vnd.github+json",
+				"X-GitHub-Api-Version": "2022-11-28",
+			},
+			signal: AbortSignal.timeout(10_000),
+		});
 
-	if (!res.ok) {
-		return { error: `GitHub API ${res.status}: ${res.statusText}` };
+		if (!res.ok) {
+			return { error: `GitHub API ${res.status}: ${res.statusText}` };
+		}
+
+		return await res.json();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		return { error: `GitHub request failed: ${message.slice(0, 200)}` };
 	}
+}
 
-	return res.json();
+function githubApiError(value: unknown): string | null {
+	if (
+		value &&
+		typeof value === "object" &&
+		"error" in value &&
+		typeof value.error === "string"
+	) {
+		return value.error;
+	}
+	return null;
 }
 
 export interface GitHubToolsParams {
@@ -85,6 +103,11 @@ export interface GitHubToolsParams {
 export interface GitHubRepository {
 	owner: string;
 	repo: string;
+}
+
+export interface GitHubToolDependencies {
+	getToken?: () => Promise<string | null>;
+	request?: (path: string, token: string) => Promise<unknown>;
 }
 
 function createRepositorySchema<T extends z.ZodRawShape>(
@@ -125,18 +148,19 @@ function filePath(path: string): string {
 	return path.split("/").map(encodeURIComponent).join("/");
 }
 
-export function createGitHubTools(params: GitHubToolsParams): ToolSet {
+export function createGitHubTools(
+	params: GitHubToolsParams,
+	dependencies: GitHubToolDependencies = {}
+): ToolSet {
 	if (params.repository === null) {
 		return {};
 	}
 
 	const repository = params.repository;
-	const getToken = createCachedTokenFn(
-		"github",
-		params.organizationId,
-		params.userId,
-		"repo"
-	);
+	const getToken =
+		dependencies.getToken ??
+		createCachedTokenFn("github", params.organizationId, params.userId, "repo");
+	const request = dependencies.request ?? githubFetch;
 	const deploymentInput = createRepositorySchema(repository, {
 		environment: z
 			.string()
@@ -193,7 +217,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 				envNeedle || since !== null || until !== null ? MAX_DEPLOY_PAGES : 1;
 
 			for (let page = 1; page <= maxPages; page++) {
-				const data = await githubFetch(
+				const data = await request(
 					`/repos/${repositoryPath(repo)}/deployments?per_page=${DEPLOY_FETCH_SIZE}&page=${page}`,
 					token
 				);
@@ -235,7 +259,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 			const availableEnvironments = [...seenEnvironments];
 			const statusResults = await Promise.all(
 				matched.slice(0, input.limit).map(async (deployment) => {
-					const statuses = await githubFetch(
+					const statuses = await request(
 						`/repos/${repositoryPath(repo)}/deployments/${deployment.id}/statuses?per_page=10`,
 						token
 					);
@@ -258,7 +282,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 					DEPLOYMENT_RESULT_STATES.has(status.state)
 				);
 				return {
-					sha: deployment.sha.slice(0, 7),
+					sha: deployment.sha,
 					ref: deployment.ref,
 					environment: deployment.environment,
 					requestedAt: deployment.created_at,
@@ -326,7 +350,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 				queryParams.set("until", input.until);
 			}
 
-			const data = await githubFetch(
+			const data = await request(
 				`/repos/${repositoryPath(repo)}/commits?${queryParams}`,
 				token
 			);
@@ -347,7 +371,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 				repo: `${repo.owner}/${repo.repo}`,
 				count: commits.length,
 				commits: commits.map((c) => ({
-					sha: c.sha.slice(0, 7),
+					sha: c.sha,
 					message: c.commit.message.split("\n")[0].slice(0, 120),
 					author: c.commit.author?.name,
 					date: c.commit.author?.date,
@@ -358,8 +382,13 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 
 	const getRecentPullRequestsTool = tool({
 		description:
-			"Get recently merged PRs from a GitHub repo. Use when you found a deploy or commit that correlates with a metric change and want to understand what feature or fix was shipped. Returns PR title, merge date, and author.",
+			"List recent merged, open, closed, or all pull requests. Defaults to merged for shipped-change investigations. Use open PRs to check whether active work covers an issue; a title is not proof of coverage.",
 		inputSchema: createRepositorySchema(repository, {
+			state: z
+				.enum(["merged", "open", "closed", "all"])
+				.optional()
+				.default("merged")
+				.describe("Pull request state to list"),
 			limit: z
 				.number()
 				.min(1)
@@ -374,9 +403,11 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 				return { error: "No GitHub account connected for this organization" };
 			}
 			const repo = resolveRepository(repository, input);
+			const apiState = input.state === "merged" ? "closed" : input.state;
 
-			const data = await githubFetch(
-				`/repos/${repositoryPath(repo)}/pulls?state=closed&sort=updated&direction=desc&per_page=${input.limit}`,
+			const scanLimit = input.state === "merged" ? 100 : input.limit;
+			const data = await request(
+				`/repos/${repositoryPath(repo)}/pulls?state=${apiState}&sort=updated&direction=desc&per_page=${scanLimit}`,
 				token
 			);
 
@@ -385,25 +416,160 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 			}
 
 			const prs = data as Array<{
-				number: number;
-				title: string;
+				base: { ref: string; sha: string };
+				draft: boolean;
+				head: { sha: string };
+				html_url: string;
 				merged_at: string | null;
+				number: number;
+				state: "open" | "closed";
+				title: string;
+				updated_at: string;
 				user: { login: string } | null;
 				labels: Array<{ name: string }>;
 			}>;
 
-			const merged = prs.filter((pr) => pr.merged_at);
-
+			const matching =
+				input.state === "merged"
+					? prs
+							.filter((pr) => pr.merged_at)
+							.sort(
+								(a, b) =>
+									Date.parse(b.merged_at ?? "") - Date.parse(a.merged_at ?? "")
+							)
+					: prs;
+			const pullRequests = matching.slice(0, input.limit);
 			return {
 				repo: `${repo.owner}/${repo.repo}`,
-				count: merged.length,
-				pullRequests: merged.map((pr) => ({
+				count: pullRequests.length,
+				truncated: prs.length === scanLimit,
+				pullRequests: pullRequests.map((pr) => ({
 					number: pr.number,
 					title: pr.title.slice(0, 120),
+					state: pr.state,
+					draft: pr.draft,
 					mergedAt: pr.merged_at,
+					updatedAt: pr.updated_at,
 					author: pr.user?.login,
 					labels: pr.labels.map((l) => l.name),
+					headSha: pr.head.sha,
+					base: pr.base.ref,
+					baseSha: pr.base.sha,
+					url: pr.html_url,
 				})),
+			};
+		},
+	});
+
+	const getPullRequestTool = tool({
+		description:
+			"Inspect one pull request's changed files and checks. Use after listing a potentially relevant PR. Coverage is full only when inspected changes address every evidenced failure surface; compare its base and head SHAs when file names alone are insufficient. Missing or truncated evidence means coverage or CI is unknown.",
+		inputSchema: createRepositorySchema(repository, {
+			number: PULL_REQUEST_NUMBER.describe("Pull request number"),
+		}),
+		execute: async (input) => {
+			const token = await getToken();
+			if (!token) {
+				return { error: "No GitHub account connected for this organization" };
+			}
+			const repo = resolveRepository(repository, input);
+			const path = repositoryPath(repo);
+			const data = await request(`/repos/${path}/pulls/${input.number}`, token);
+			if (data && typeof data === "object" && "error" in data) {
+				return data;
+			}
+			const pullRequest = data as {
+				base: { sha: string };
+				changed_files: number;
+				draft: boolean;
+				head: {
+					repo: { full_name: string } | null;
+					sha: string;
+				};
+				html_url: string;
+				number: number;
+				state: "open" | "closed";
+				title: string;
+			};
+			const [filesData, checksData, statusData] = await Promise.all([
+				request(
+					`/repos/${path}/pulls/${input.number}/files?per_page=30`,
+					token
+				),
+				request(
+					`/repos/${path}/commits/${pullRequest.head.sha}/check-runs?per_page=50`,
+					token
+				),
+				request(`/repos/${path}/commits/${pullRequest.head.sha}/status`, token),
+			]);
+			const files = Array.isArray(filesData)
+				? (
+						filesData as Array<{
+							filename: string;
+							status: string;
+						}>
+					).map((file) => ({
+						path: file.filename,
+						status: file.status,
+					}))
+				: [];
+			const checks =
+				checksData &&
+				typeof checksData === "object" &&
+				"check_runs" in checksData &&
+				Array.isArray(checksData.check_runs)
+					? (
+							checksData.check_runs as Array<{
+								conclusion: string | null;
+								name: string;
+								status: string;
+							}>
+						).map((check) => ({
+							name: check.name,
+							status: check.status,
+							conclusion: check.conclusion,
+						}))
+					: [];
+			const totalChecks =
+				checksData &&
+				typeof checksData === "object" &&
+				"total_count" in checksData &&
+				typeof checksData.total_count === "number"
+					? checksData.total_count
+					: null;
+			const repoName = `${repo.owner}/${repo.repo}`;
+			const headRepo = pullRequest.head.repo?.full_name ?? null;
+			const fromFork =
+				headRepo !== null && headRepo.toLowerCase() !== repoName.toLowerCase();
+			const commitStatus =
+				statusData &&
+				typeof statusData === "object" &&
+				"state" in statusData &&
+				typeof statusData.state === "string"
+					? statusData.state
+					: null;
+			return {
+				repo: repoName,
+				number: pullRequest.number,
+				title: pullRequest.title,
+				state: pullRequest.state,
+				draft: pullRequest.draft,
+				url: pullRequest.html_url,
+				baseSha: pullRequest.base.sha,
+				headSha: pullRequest.head.sha,
+				headRepo,
+				fromFork,
+				changedFiles: pullRequest.changed_files,
+				files,
+				filesTruncated:
+					!Array.isArray(filesData) || files.length < pullRequest.changed_files,
+				filesError: githubApiError(filesData),
+				checks,
+				checksTruncated:
+					fromFork || totalChecks === null || checks.length < totalChecks,
+				checksError: githubApiError(checksData),
+				commitStatus,
+				commitStatusError: githubApiError(statusData),
 			};
 		},
 	});
@@ -426,7 +592,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 				return { error: "No GitHub account connected for this organization" };
 			}
 
-			const data = await githubFetch(
+			const data = await request(
 				`/user/repos?sort=pushed&direction=desc&per_page=${limit}`,
 				token
 			);
@@ -476,7 +642,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 			const repo = resolveRepository(repository, input);
 
 			const refParam = input.ref ? `?ref=${encodeURIComponent(input.ref)}` : "";
-			const data = await githubFetch(
+			const data = await request(
 				`/repos/${repositoryPath(repo)}/contents/${filePath(input.path)}${refParam}`,
 				token
 			);
@@ -509,8 +675,11 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 
 	const getCommitDiffTool = tool({
 		description:
-			"Get the diff for a specific commit. Use to see exactly what code changed. Returns the list of changed files with their patches.",
+			"Get one commit with patches, or compare changed files between two exact deployed SHAs by passing base. A comparison can rule out untouched files; inspect relevant source at base and head before attributing a failure to changed code.",
 		inputSchema: createRepositorySchema(repository, {
+			base: COMMIT_SHA.optional().describe(
+				"Earlier deployed SHA to compare against"
+			),
 			sha: COMMIT_SHA.describe("Commit SHA (full or short)"),
 		}),
 		execute: async (input) => {
@@ -520,13 +689,46 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 			}
 			const repo = resolveRepository(repository, input);
 
-			const data = await githubFetch(
-				`/repos/${repositoryPath(repo)}/commits/${input.sha}`,
+			const data = await request(
+				input.base
+					? `/repos/${repositoryPath(repo)}/compare/${input.base}...${input.sha}`
+					: `/repos/${repositoryPath(repo)}/commits/${input.sha}`,
 				token
 			);
 
 			if (data && typeof data === "object" && "error" in data) {
 				return data;
+			}
+
+			if (input.base) {
+				const comparison = data as {
+					ahead_by: number;
+					behind_by: number;
+					files?: Array<{
+						additions: number;
+						deletions: number;
+						filename: string;
+						status: string;
+					}>;
+					status: string;
+					total_commits: number;
+				};
+				return {
+					repo: `${repo.owner}/${repo.repo}`,
+					base: input.base,
+					head: input.sha,
+					status: comparison.status,
+					aheadBy: comparison.ahead_by,
+					behindBy: comparison.behind_by,
+					totalCommits: comparison.total_commits,
+					files: (comparison.files ?? []).map((file) => ({
+						file: file.filename,
+						status: file.status,
+						additions: file.additions,
+						deletions: file.deletions,
+					})),
+					filesMayBeTruncated: (comparison.files?.length ?? 0) >= 300,
+				};
 			}
 
 			const commit = data as {
@@ -553,7 +755,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 			}));
 
 			return {
-				sha: commit.sha.slice(0, 7),
+				sha: commit.sha,
 				message: commit.commit.message.split("\n")[0],
 				author: commit.commit.author?.name,
 				date: commit.commit.author?.date,
@@ -578,7 +780,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 			}
 			const repo = resolveRepository(repository, input);
 
-			const data = await githubFetch(
+			const data = await request(
 				`/search/code?q=${encodeURIComponent(input.query)}+repo:${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.repo)}&per_page=10`,
 				token
 			);
@@ -606,6 +808,7 @@ export function createGitHubTools(params: GitHubToolsParams): ToolSet {
 		github_commits: getRecentCommitsTool,
 		github_commit_diff: getCommitDiffTool,
 		github_deploys: getRecentDeploysTool,
+		github_pull_request: getPullRequestTool,
 		github_pull_requests: getRecentPullRequestsTool,
 		github_read_file: readFileTool,
 		github_search_code: searchCodeTool,
