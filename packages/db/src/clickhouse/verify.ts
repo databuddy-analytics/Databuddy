@@ -6,10 +6,13 @@ import {
 	readSql,
 	sqlFiles,
 } from "./schema-parse";
-import { isUnmanagedClickHouseObject } from "./verify-policy";
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
 const DATABASES = ["analytics", "uptime"];
+const UNMANAGED_OBJECTS = new Set([
+	"analytics.web_vitals_hourly",
+	"analytics.web_vitals_hourly_mv",
+]);
 const DATABASE_PATTERN =
 	/CREATE\s+(?:TABLE|MATERIALIZED\s+VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\./i;
 
@@ -177,7 +180,7 @@ for (const key of live.keys()) {
 	if (seenLive.has(key)) {
 		continue;
 	}
-	if (isUnmanagedClickHouseObject(key)) {
+	if (UNMANAGED_OBJECTS.has(key)) {
 		console.info(
 			`${c.yellow("⚠")} ${c.bold(key)} ${c.yellow("— unmanaged legacy object remains on cluster")}`
 		);

@@ -21,7 +21,7 @@ export interface ParsedColumn {
 	type: string;
 }
 
-export interface ParsedIndex {
+interface ParsedIndex {
 	definition: string;
 	name: string;
 }
@@ -58,7 +58,7 @@ export function sqlFiles(dir: string, includeViews = true): string[] {
 	return out.sort();
 }
 
-export function firstParenGroup(sql: string): { body: string; end: number } {
+function firstParenGroup(sql: string): { body: string; end: number } {
 	const start = sql.indexOf("(");
 	let depth = 0;
 	for (let i = start; i < sql.length; i++) {
@@ -74,7 +74,7 @@ export function firstParenGroup(sql: string): { body: string; end: number } {
 	throw new Error("Unbalanced parentheses in DDL");
 }
 
-export function splitTopLevel(body: string): string[] {
+function splitTopLevel(body: string): string[] {
 	const parts: string[] = [];
 	let depth = 0;
 	let cur = "";
@@ -148,7 +148,7 @@ function normalizeDefinition(definition: string): string {
 	return definition.replaceAll("`", "").replace(/\s+/g, " ").trim();
 }
 
-export function parseIndexes(sql: string): ParsedIndex[] {
+function parseIndexes(sql: string): ParsedIndex[] {
 	const indexes: ParsedIndex[] = [];
 	for (const item of splitTopLevel(firstParenGroup(sql).body)) {
 		const match = item.match(INDEX_NAME_PATTERN);
