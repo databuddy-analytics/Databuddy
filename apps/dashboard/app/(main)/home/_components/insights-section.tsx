@@ -65,17 +65,21 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 function InsightRow({ insight }: { insight: BriefInsight }) {
 	const positive = insight.signal.sentiment === "positive";
 	const negative = insight.signal.sentiment === "negative";
-	const Icon = positive
-		? TrendUpIcon
-		: negative
-			? TrendDownIcon
-			: LightbulbIcon;
+	const critical = negative && insight.signal.severity === "critical";
 	const change = insight.signal.changePercent;
-	const tone = positive
-		? "text-emerald-600"
-		: negative
-			? "text-amber-600"
-			: "text-primary";
+	const Icon =
+		change !== null && change > 0
+			? TrendUpIcon
+			: change !== null && change < 0
+				? TrendDownIcon
+				: LightbulbIcon;
+	const tone = critical
+		? "bg-red-500/10 text-red-600"
+		: positive
+			? "bg-emerald-500/10 text-emerald-600"
+			: negative
+				? "bg-amber-500/10 text-amber-600"
+				: "bg-primary/10 text-primary";
 
 	return (
 		<Link
@@ -87,7 +91,7 @@ function InsightRow({ insight }: { insight: BriefInsight }) {
 			}
 		>
 			<span
-				className={`flex size-7 shrink-0 items-center justify-center rounded bg-primary/10 ${tone}`}
+				className={`flex size-7 shrink-0 items-center justify-center rounded ${tone}`}
 			>
 				<Icon className="size-4" weight="duotone" />
 			</span>

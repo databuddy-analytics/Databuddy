@@ -297,7 +297,7 @@ describe("insight investigation timeline", () => {
 		delete legacyOutcome.publish;
 		await db().insert(insightObservations).values([
 			{
-				asOf: new Date("2026-01-11T00:00:00.000Z"),
+				asOf: new Date("2025-12-01T00:00:00.000Z"),
 				createdAt: new Date("2026-01-11T12:00:00.000Z"),
 				id: randomUUIDv7(),
 				insightId: null,

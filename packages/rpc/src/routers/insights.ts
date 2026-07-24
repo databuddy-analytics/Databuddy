@@ -539,7 +539,9 @@ export const insightsRouter = {
 						eq(
 							insightObservations.organizationId,
 							analyticsInsights.organizationId
-						)
+						),
+						eq(insightObservations.websiteId, analyticsInsights.websiteId),
+						eq(insightObservations.signalKey, analyticsInsights.subjectKey)
 					)
 				)
 				.where(
@@ -553,7 +555,6 @@ export const insightsRouter = {
 					)
 				)
 				.orderBy(
-					desc(insightObservations.asOf),
 					desc(insightObservations.createdAt),
 					desc(insightObservations.id)
 				)
@@ -854,6 +855,23 @@ export const insightsRouter = {
 				}
 				if (latest.status !== "failed") {
 					return latest.status;
+				}
+
+				const [observation] = await tx
+					.select({ id: insightObservations.id })
+					.from(insightObservations)
+					.where(
+						and(
+							eq(insightObservations.organizationId, reply.organizationId),
+							eq(insightObservations.websiteId, reply.websiteId),
+							eq(insightObservations.signalKey, reply.subjectKey)
+						)
+					)
+					.limit(1);
+				if (!observation) {
+					throw rpcError.badRequest(
+						"This investigation has no history to continue"
+					);
 				}
 
 				const [active] = await tx

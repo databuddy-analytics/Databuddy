@@ -213,12 +213,14 @@ function InsightBrief({
 function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 	const positive = insight.signal.sentiment === "positive";
 	const negative = insight.signal.sentiment === "negative";
-	const Icon = positive
-		? TrendUpIcon
-		: negative
-			? TrendDownIcon
-			: LightbulbIcon;
+	const critical = negative && insight.signal.severity === "critical";
 	const change = insight.signal.changePercent;
+	const Icon =
+		change !== null && change > 0
+			? TrendUpIcon
+			: change !== null && change < 0
+				? TrendDownIcon
+				: LightbulbIcon;
 	const metric = insight.signal.metric;
 
 	return (
@@ -227,7 +229,10 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				className={cn(
 					"flex size-8 shrink-0 items-center justify-center rounded",
 					positive && "bg-emerald-500/10 text-emerald-600",
-					negative && "bg-amber-500/10 text-amber-600",
+					negative &&
+						!critical &&
+						"bg-amber-500/10 text-amber-600",
+					critical && "bg-red-500/10 text-red-600",
 					!(positive || negative) && "bg-primary/10 text-primary"
 				)}
 			>
@@ -282,7 +287,8 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 								className={cn(
 									"font-medium tabular-nums",
 									positive && "text-emerald-600",
-									negative && "text-amber-600"
+									negative && !critical && "text-amber-600",
+									critical && "text-red-600"
 								)}
 							>
 								{change > 0 ? "+" : ""}
@@ -296,7 +302,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					<span className="text-muted-foreground/30">&middot;</span>
 					<span>{formatComparison(insight.signal.period)}</span>
 					<span className="text-muted-foreground/30">&middot;</span>
-					<span>{fromNow(insight.asOf)}</span>
+					<span>{fromNow(insight.createdAt)}</span>
 				</div>
 				{insight.investigationId ? (
 					<Link
