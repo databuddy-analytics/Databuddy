@@ -1,10 +1,10 @@
 export const DATABUNNY_USAGE = {
 	description:
-		"This allowance powers Databunny questions and AI analysis. More complex work uses more of it.",
-	name: "Databunny usage",
-	pausedActivity: "Databunny questions and AI analysis",
-	unit: "usage units",
-	upgradeMessage: "Add more Databunny usage or upgrade your plan",
+		"Investigation credits pay for the work Databunny performs. Simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
+	name: "Investigation credits",
+	pausedActivity: "Databunny questions and investigations",
+	unit: "investigation credits",
+	upgradeMessage: "Add investigation credits or upgrade your plan",
 } as const;
 
 export const LEGACY_SCALE_PLAN = {

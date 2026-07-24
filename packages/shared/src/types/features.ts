@@ -9,6 +9,19 @@ export const PLAN_IDS = {
 
 export type PlanId = (typeof PLAN_IDS)[keyof typeof PLAN_IDS];
 
+export const INTELLIGENCE_PLAN_IDS = {
+	ANALYST: "intelligence",
+	DATA_TEAM: "intelligence_scale",
+} as const;
+
+export type IntelligencePlanId =
+	(typeof INTELLIGENCE_PLAN_IDS)[keyof typeof INTELLIGENCE_PLAN_IDS];
+
+const PLAN_CAPABILITY_ALIASES: Record<IntelligencePlanId, PlanId> = {
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: PLAN_IDS.SCALE,
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: PLAN_IDS.SCALE,
+};
+
 export const PLAN_HIERARCHY: PlanId[] = [
 	PLAN_IDS.FREE,
 	PLAN_IDS.HOBBY,
@@ -104,6 +117,11 @@ export interface PlanCapabilities {
 
 export function normalizePlanId(planId: PlanId | string | null): PlanId {
 	const normalized = (planId ?? PLAN_IDS.FREE).toLowerCase();
+	const capabilityAlias =
+		PLAN_CAPABILITY_ALIASES[normalized as IntelligencePlanId];
+	if (capabilityAlias) {
+		return capabilityAlias;
+	}
 	return PLAN_HIERARCHY.includes(normalized as PlanId)
 		? (normalized as PlanId)
 		: PLAN_IDS.FREE;

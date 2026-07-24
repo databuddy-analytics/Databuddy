@@ -4,6 +4,7 @@ import {
 	getNextPlanForFeature,
 	getPlanCapabilities,
 	getPlanFeatureLimit,
+	INTELLIGENCE_PLAN_IDS,
 	PLAN_IDS,
 } from "./features";
 
@@ -17,6 +18,15 @@ describe("plan feature helpers", () => {
 		);
 		expect(getPlanCapabilities(PLAN_IDS.HOBBY).features.error_tracking).toBe(
 			true
+		);
+	});
+
+	it("gives invitation-only intelligence plans Scale capabilities", () => {
+		expect(getPlanCapabilities(INTELLIGENCE_PLAN_IDS.ANALYST)).toEqual(
+			getPlanCapabilities(PLAN_IDS.SCALE)
+		);
+		expect(getPlanCapabilities(INTELLIGENCE_PLAN_IDS.DATA_TEAM)).toEqual(
+			getPlanCapabilities(PLAN_IDS.SCALE)
 		);
 	});
 

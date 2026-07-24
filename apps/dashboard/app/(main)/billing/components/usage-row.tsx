@@ -43,10 +43,10 @@ function getFeatureIcon(name: string): typeof ChartBarIcon {
 
 export const UsageRow = memo(function UsageRowComponent({
 	feature,
-	isMaxPlan = false,
+	showUpgrade = true,
 }: {
 	feature: FeatureUsage;
-	isMaxPlan?: boolean;
+	showUpgrade?: boolean;
 }) {
 	const used = feature.includedLimit - feature.balance;
 	const usedClamped = Math.max(0, used);
@@ -58,7 +58,7 @@ export const UsageRow = memo(function UsageRowComponent({
 
 	if (isBilledOverage && feature.overage) {
 		return (
-			<BilledOverageRow feature={feature} Icon={Icon} isMaxPlan={isMaxPlan} />
+			<BilledOverageRow feature={feature} Icon={Icon} showUpgrade={showUpgrade} />
 		);
 	}
 
@@ -122,7 +122,7 @@ export const UsageRow = memo(function UsageRowComponent({
 						tone={hasOverage ? "destructive" : isLow ? "warning" : "primary"}
 						value={hasOverage ? 100 : usedPercent}
 					/>
-					{(isLow || hasOverage) && !isMaxPlan && (
+					{(isLow || hasOverage) && showUpgrade && (
 						<Link
 							className="shrink-0 font-medium text-primary text-xs hover:underline"
 							href="/billing/plans"
@@ -139,11 +139,11 @@ export const UsageRow = memo(function UsageRowComponent({
 function BilledOverageRow({
 	feature,
 	Icon,
-	isMaxPlan,
+	showUpgrade,
 }: {
 	feature: FeatureUsage;
 	Icon: typeof ChartBarIcon;
-	isMaxPlan: boolean;
+	showUpgrade: boolean;
 }) {
 	const overage = feature.overage;
 	if (!overage) {
@@ -224,7 +224,7 @@ function BilledOverageRow({
 					>
 						~{formatCurrency(overage.cost)}
 					</Text>
-					{!isMaxPlan && (
+					{showUpgrade && (
 						<Link
 							className="font-medium text-primary text-xs hover:underline"
 							href="/billing/plans"

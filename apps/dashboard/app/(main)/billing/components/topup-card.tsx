@@ -80,18 +80,18 @@ export function TopupCard() {
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2">
 					<CoinsIcon className="text-primary" size={14} weight="duotone" />
-					Top up Databunny usage
+					Add investigation credits
 				</Card.Title>
 				<Card.Description>
-					{DATABUNNY_USAGE.description} Purchased usage stacks with your plan
-					and does not expire.
+					{DATABUNNY_USAGE.description} Purchased credits stack with your plan
+					and do not expire.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="space-y-5">
 				<div className="flex flex-col items-center gap-3">
 					<div className="w-full max-w-sm">
 						<CreditArcSlider
-							ariaLabel="Databunny usage units to buy"
+							ariaLabel="Investigation credits to buy"
 							max={TOPUP_MAX_QUANTITY}
 							min={TOPUP_MIN_QUANTITY}
 							onValueChange={setQuantity}
@@ -121,10 +121,10 @@ export function TopupCard() {
 				<div className="space-y-2">
 					<Row label="You get">
 						<span className="tabular-nums">
-							{quantity.toLocaleString()} usage units
+							{quantity.toLocaleString()} investigation credits
 						</span>
 					</Row>
-					<Row label="Average per usage unit">
+					<Row label="Average per credit">
 						<span className="tabular-nums">${blendedRate.toFixed(4)}</span>
 					</Row>
 					<Row label="You pay">
@@ -164,7 +164,7 @@ export function TopupCard() {
 					>
 						{isAttaching
 							? "Opening checkout…"
-							: `Buy ${quantity.toLocaleString()} usage units · $${cost.toFixed(2)}`}
+							: `Buy ${quantity.toLocaleString()} credits · $${cost.toFixed(2)}`}
 					</Button>
 				</div>
 
@@ -212,7 +212,7 @@ export function TopupCard() {
 												)}
 											</div>
 											<Text className="tabular-nums" variant="caption">
-												${tier.amount.toFixed(3)} / unit
+												${tier.amount.toFixed(3)} / credit
 											</Text>
 										</div>
 									);
@@ -253,7 +253,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							{nudge.unitsUntilNextTier.toLocaleString()}
 						</span>{" "}
-						more to reach the next tier. Usage units in that tier cost{" "}
+						more to reach the next tier. Credits in that tier cost{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${nudge.nextRate.toFixed(3)}
 						</span>
@@ -291,7 +291,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							{FIRST_TIER_TOP.toLocaleString()}
 						</span>{" "}
-						usage units, additional units cost{" "}
+						credits, additional credits cost{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${SECOND_TIER_RATE.toFixed(3)}
 						</span>

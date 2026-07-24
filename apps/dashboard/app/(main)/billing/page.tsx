@@ -7,6 +7,7 @@ import { orpc } from "@/lib/orpc";
 import { TOPUP_PRODUCT_ID } from "@/lib/topup-math";
 import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
 import type { UsageResponse } from "@/types/billing";
+import { INTELLIGENCE_PLAN_IDS } from "@databuddy/shared/types/features";
 import { useQuery } from "@tanstack/react-query";
 import type { PreviewAttachResponse } from "autumn-js";
 import { useCustomer } from "autumn-js/react";
@@ -44,6 +45,11 @@ import {
 	Text,
 	dayjs,
 } from "@databuddy/ui";
+
+const PLANS_WITHOUT_SELF_SERVE_UPGRADES = new Set([
+	"scale",
+	...Object.values(INTELLIGENCE_PLAN_IDS),
+]);
 
 interface OrgUsageData {
 	balance?: number | null;
@@ -354,7 +360,9 @@ export default function BillingPage() {
 		currentSubscription?.canceledAt ||
 			currentPlan?.customerEligibility?.canceling === true
 	);
-	const isMaxPlan = currentPlan?.id === "scale";
+	const showUsageUpgrade =
+		!currentPlan?.id ||
+		!PLANS_WITHOUT_SELF_SERVE_UPGRADES.has(currentPlan.id);
 	const showAddOns = addOns.length > 0 && !isFree;
 	const currentPlanDisplayName = getCustomerPlanName(
 		currentPlan?.id,
@@ -592,8 +600,8 @@ export default function BillingPage() {
 								{usageStats.map((feature) => (
 									<UsageRow
 										feature={feature}
-										isMaxPlan={isMaxPlan}
 										key={feature.id}
+										showUpgrade={showUsageUpgrade}
 									/>
 								))}
 							</Card.Content>

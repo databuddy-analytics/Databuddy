@@ -29,7 +29,7 @@ interface CreditsPanelProps {
 
 const REWARD_LABELS: Record<string, string> = {
 	events: "events",
-	"agent-credits": "Databunny usage units",
+	"agent-credits": DATABUNNY_USAGE.unit,
 };
 
 const REWARD_ICONS: Record<string, typeof LightningIcon> = {
@@ -243,7 +243,7 @@ export function CreditsPanel({
 				onRedeemAction={onRedeemAction}
 				redeemingTier={redeemingTier}
 				tiers={agentTiers}
-				title="Databunny usage"
+				title={DATABUNNY_USAGE.name}
 			/>
 		</Card>
 	);
