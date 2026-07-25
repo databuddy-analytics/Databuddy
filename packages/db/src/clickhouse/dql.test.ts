@@ -1,4 +1,4 @@
-import { randomUUIDv7 } from "bun";
+import { password as bunPassword, randomUUIDv7 } from "bun";
 import {
 	ClickHouseError,
 	createClient,
@@ -14,7 +14,6 @@ import {
 	DQL_TENANT_SETTING,
 	dqlSettingsForWebsite,
 	type DqlQueryClient,
-	DqlQueryRejectedError,
 	executeDqlQuery,
 } from "./dql";
 import { TABLE_COLUMNS } from "./schema/tables.generated";
@@ -30,9 +29,13 @@ describe("DQL ClickHouse access", () => {
 		expect(sql).toContain(
 			"ALTER ROLE `dql_role` DROP ALL PROFILES DROP ALL SETTINGS"
 		);
-		expect(sql).toContain(
-			"CREATE USER IF NOT EXISTS `dql_user` IDENTIFIED WITH sha256_hash BY 'eb9926bc43efc6c88e1593a1878e2265e0d3bfffb35a01c36e4b0454a1ceb815' HOST IP '127.0.0.1', IP '::1'"
-		);
+		const passwordHash = sql.match(
+			/IDENTIFIED WITH bcrypt_hash BY '([^']+)'/
+		)?.[1];
+		expect(passwordHash).toStartWith("$2b$12$");
+		expect(
+			bunPassword.verifySync("local-test-password", passwordHash ?? "")
+		).toBe(true);
 		expect(sql).not.toContain("local-test-password");
 		expect(sql).toContain(
 			"GRANT `dql_role` TO `dql_user` WITH REPLACE OPTION"

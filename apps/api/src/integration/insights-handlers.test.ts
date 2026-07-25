@@ -331,6 +331,7 @@ describe("insight investigation timeline", () => {
 			},
 			{
 				asOf: new Date("2026-01-09T00:00:00.000Z"),
+				createdAt: new Date("2026-01-09T12:00:00.000Z"),
 				id: randomUUIDv7(),
 				insightId: null,
 				organizationId: organization.id,
@@ -342,6 +343,7 @@ describe("insight investigation timeline", () => {
 			},
 			{
 				asOf: new Date("2026-01-08T00:00:00.000Z"),
+				createdAt: new Date("2026-01-08T12:00:00.000Z"),
 				id: randomUUIDv7(),
 				insightId: null,
 				organizationId: organization.id,
@@ -357,6 +359,7 @@ describe("insight investigation timeline", () => {
 			},
 			{
 				asOf: new Date("2026-01-07T00:00:00.000Z"),
+				createdAt: new Date("2026-01-07T12:00:00.000Z"),
 				id: randomUUIDv7(),
 				insightId: null,
 				organizationId: organization.id,
@@ -368,6 +371,7 @@ describe("insight investigation timeline", () => {
 			},
 			{
 				asOf: new Date("2026-01-12T00:00:00.000Z"),
+				createdAt: new Date("2026-01-12T12:00:00.000Z"),
 				id: randomUUIDv7(),
 				insightId: null,
 				organizationId: otherOrganization.id,

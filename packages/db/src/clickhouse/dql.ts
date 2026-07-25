@@ -5,7 +5,6 @@
  * column grant, and a restrictive row policy. The small SQL guard only keeps
  * unpublished ClickHouse namespaces and dynamic sources out of the public API.
  */
-import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import {
 	ClickHouseError,
@@ -14,6 +13,7 @@ import {
 	type ResponseJSON,
 	type ResultSet,
 } from "@clickhouse/client";
+import { password as bunPassword } from "bun";
 import { clickHouse, CLICKHOUSE_OPTIONS } from "./client";
 import { hasCommaJoinInFrom } from "./sql-validation";
 
@@ -325,9 +325,10 @@ export function buildDqlAccessStatements(
 	const policyPrefix = options.policyPrefix ?? DQL_DEFAULT_POLICY_PREFIX;
 	accessIdentifier(policyPrefix, "policy prefix");
 	const hosts = hostClause(options.hosts);
-	const passwordHash = createHash("sha256")
-		.update(options.password)
-		.digest("hex");
+	const passwordHash = bunPassword.hashSync(options.password, {
+		algorithm: "bcrypt",
+		cost: 12,
+	});
 	const columns = DQL_EVENTS_COLUMNS.map((column) =>
 		accessIdentifier(column.name, "column")
 	).join(", ");
@@ -337,8 +338,8 @@ export function buildDqlAccessStatements(
 	return [
 		`CREATE ROLE IF NOT EXISTS ${role}${onCluster}`,
 		`ALTER ROLE ${role}${onCluster} DROP ALL PROFILES DROP ALL SETTINGS`,
-		`CREATE USER IF NOT EXISTS ${user}${onCluster} IDENTIFIED WITH sha256_hash BY '${passwordHash}'${hosts}`,
-		`ALTER USER ${user}${onCluster} IDENTIFIED WITH sha256_hash BY '${passwordHash}'${hosts} GRANTEES NONE`,
+		`CREATE USER IF NOT EXISTS ${user}${onCluster} IDENTIFIED WITH bcrypt_hash BY '${passwordHash}'${hosts}`,
+		`ALTER USER ${user}${onCluster} IDENTIFIED WITH bcrypt_hash BY '${passwordHash}'${hosts} GRANTEES NONE`,
 		`REVOKE${onCluster} ALL FROM ${user}`,
 		`REVOKE${onCluster} ALL ON *.* FROM ${user}`,
 		`REVOKE${onCluster} ALL FROM ${role}`,
