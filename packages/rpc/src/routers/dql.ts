@@ -6,7 +6,7 @@ import {
 	DqlQueryRejectedError,
 	type DqlQueryResult,
 	executeDqlQuery,
-} from "@databuddy/db/clickhouse";
+} from "@databuddy/db/clickhouse/dql";
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import { z } from "zod";
 import { rpcError } from "../errors";

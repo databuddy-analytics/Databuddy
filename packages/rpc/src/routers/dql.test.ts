@@ -4,7 +4,7 @@ import {
 	type DqlParameterValue,
 	type DqlQueryInput,
 	DqlQueryRejectedError,
-} from "@databuddy/db/clickhouse";
+} from "@databuddy/db/clickhouse/dql";
 import { describe, expect, it } from "bun:test";
 import type { Context } from "../orpc";
 import type { DqlRouterDeps } from "./dql";

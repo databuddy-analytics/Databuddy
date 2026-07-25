@@ -10,6 +10,7 @@
     "./schema": "./src/drizzle/schema/index.ts",
     "./schema/relations": "./src/drizzle/schema/relations.ts",
     "./clickhouse": "./src/clickhouse/index.ts",
+    "./clickhouse/dql": "./src/clickhouse/dql.ts",
     "./clickhouse/schema": "./src/clickhouse/schema.ts",
     "./clickhouse/tables": "./src/clickhouse/schema/tables.generated.ts",
     "./e2e-db-lifecycle": "./src/e2e-db-lifecycle.ts"

@@ -60,6 +60,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `apps/uptime` BullMQ worker concurrency defaults high for Bun async I/O; do not lower it just because `10_000` looks large. Verify downstream saturation or lock/timeout evidence first.
 - Public status pages render from `apps/status`; `apps/dashboard` owns status-page management/config UI only. When cleaning public status UX, update shared `@databuddy/ui/uptime` pieces or `apps/status` wrappers instead of redesigning dashboard-only route remnants.
 - `packages/db`: Drizzle Postgres schema, client, and ClickHouse helpers
+- Keep Bun-only DQL provisioning code off the `@databuddy/db/clickhouse` barrel; dashboard Next routes run under Node and import the shared ClickHouse surface.
 - `packages/rpc`: shared oRPC router, procedures, auth-aware server context
 - `packages/rpc` must declare `drizzle-orm: "catalog:"` before importing `drizzle-orm/*` helpers such as `drizzle-orm/zod`; otherwise TypeScript can resolve a different Drizzle instance than `@databuddy/db` and reject table-derived schemas.
 - `packages/auth`: Better Auth setup, permissions, organization access
