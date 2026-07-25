@@ -1,4 +1,15 @@
-import { and, db, desc, eq, inArray, lt, lte, or } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	lt,
+	lte,
+	ne,
+	or,
+	sql,
+} from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightObservations,
@@ -15,6 +26,7 @@ import { isRegression, signalKeyForDetectedSignal } from "./investigation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HISTORY_LIMIT = 12;
+const OTHER_OPEN_WORK_LIMIT = 8;
 const MATERIALLY_WORSE_MULTIPLIER = 1.5;
 const SEVERITY_RANK: Record<string, number> = {
 	info: 0,
@@ -53,7 +65,7 @@ export function nextRecheckAt(
 	asOf: Date,
 	next: InvestigationOutcome["next"]["type"]
 ): Date {
-	const days = next === "act" || next === "watch" ? 7 : 30;
+	const days = next === "act" || next === "watch" ? 1 : 30;
 	return new Date(asOf.getTime() + days * DAY_MS);
 }
 
@@ -83,12 +95,13 @@ export function eligibleSignalsForInvestigation(
 						severity: observation.signal.severity,
 					}
 				));
-		if (worsened) {
+		const recovered =
+			observation.outcome.next.type === "resolve" &&
+			observation.signal.sentiment === "negative" &&
+			!isRegression(signal);
+		if (worsened || recovered) {
 			buckets[0].push(signal);
-		} else if (
-			observation.outcome.next.type !== "resolve" &&
-			observation.recheckAt <= asOf
-		) {
+		} else if (observation.recheckAt <= asOf) {
 			buckets[2].push(signal);
 		}
 	}
@@ -118,7 +131,8 @@ export async function loadLatestSignalObservations(params: {
 				eq(insightObservations.organizationId, params.organizationId),
 				eq(insightObservations.websiteId, params.websiteId),
 				inArray(insightObservations.signalKey, signalKeys),
-				lte(insightObservations.asOf, params.asOf)
+				lte(insightObservations.asOf, params.asOf),
+				lte(insightObservations.createdAt, params.asOf)
 			)
 		)
 		.orderBy(
@@ -188,27 +202,21 @@ export async function loadDueOpenInvestigation(params: {
 
 export async function loadInvestigationHistory(params: {
 	beforeReply?: { createdAt: Date; id: string };
-	insightId?: string;
 	organizationId: string;
 	signalKey: string;
 	through?: Date;
 	websiteId: string;
 }): Promise<InsightAgentInput["history"]> {
-	const hasSignal = params.signalKey.trim().length > 0;
-	const observationCase = hasSignal
-		? and(
-				eq(insightObservations.organizationId, params.organizationId),
-				eq(insightObservations.websiteId, params.websiteId),
-				eq(insightObservations.signalKey, params.signalKey)
-			)
-		: eq(insightObservations.insightId, params.insightId ?? "");
-	const replyCase = hasSignal
-		? and(
-				eq(analyticsInsights.organizationId, params.organizationId),
-				eq(analyticsInsights.websiteId, params.websiteId),
-				eq(analyticsInsights.subjectKey, params.signalKey)
-			)
-		: eq(insightReplies.insightId, params.insightId ?? "");
+	const observationCase = and(
+		eq(insightObservations.organizationId, params.organizationId),
+		eq(insightObservations.websiteId, params.websiteId),
+		eq(insightObservations.signalKey, params.signalKey)
+	);
+	const replyCase = and(
+		eq(analyticsInsights.organizationId, params.organizationId),
+		eq(analyticsInsights.websiteId, params.websiteId),
+		eq(analyticsInsights.subjectKey, params.signalKey)
+	);
 
 	const [observations, replies] = await Promise.all([
 		db
@@ -308,6 +316,68 @@ export async function loadInvestigationHistory(params: {
 		)
 		.slice(-HISTORY_LIMIT)
 		.map((entry) => entry.item);
+}
+
+export async function loadOtherOpenWork(params: {
+	organizationId: string;
+	signalKey: string;
+	through: Date;
+	websiteId: string;
+}): Promise<InsightAgentInput["otherOpenWork"]> {
+	const rows = await db
+		.selectDistinctOn([insightObservations.signalKey], {
+			asOf: insightObservations.asOf,
+			createdAt: insightObservations.createdAt,
+			id: insightObservations.id,
+			outcome: insightObservations.outcome,
+			signalKey: insightObservations.signalKey,
+		})
+		.from(insightObservations)
+		.where(
+			and(
+				eq(insightObservations.organizationId, params.organizationId),
+				eq(insightObservations.websiteId, params.websiteId),
+				ne(insightObservations.signalKey, params.signalKey),
+				lte(insightObservations.asOf, params.through),
+				lte(insightObservations.createdAt, params.through),
+				sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask', 'resolve')`
+			)
+		)
+		.orderBy(
+			insightObservations.signalKey,
+			desc(insightObservations.asOf),
+			desc(insightObservations.createdAt),
+			desc(insightObservations.id)
+		);
+
+	return rows
+		.flatMap((row) => {
+			const outcome = parseInvestigationOutcome(row.outcome);
+			return outcome &&
+				(outcome.next.type === "act" || outcome.next.type === "ask")
+				? [
+						{
+							asOf: row.asOf,
+							createdAt: row.createdAt,
+							id: row.id,
+							next: outcome.next,
+							title: outcome.title,
+						},
+					]
+				: [];
+		})
+		.sort(
+			(a, b) =>
+				b.asOf.getTime() - a.asOf.getTime() ||
+				b.createdAt.getTime() - a.createdAt.getTime() ||
+				b.id.localeCompare(a.id)
+		)
+		.slice(0, OTHER_OPEN_WORK_LIMIT)
+		.map(({ asOf, next, title }) => ({
+			asOf: asOf.toISOString(),
+			next,
+			title,
+		}));
 }
 
 export async function findRunObservation(params: {

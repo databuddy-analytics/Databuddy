@@ -47,11 +47,13 @@ export const UsageLimitEmail = ({
 	const remaining = formatUsageNumber(Math.max(0, remainingAmount));
 	const resetDate = formatResetDate(nextResetAt);
 	const context = organizationName ? ` for ${organizationName}` : "";
-	const availability = isAvailable ? "can continue" : "is paused";
+	const accessStatus = isAvailable
+		? "Access remains available."
+		: `Access to ${pausedActivity} is paused.`;
 
 	return (
 		<EmailLayout
-			preview={`${featureName}${context} ${availability}: ${usage} of ${limit} ${usageUnit} used.`}
+			preview={`${featureName}${context}: ${usage} of ${limit} ${usageUnit} used. ${accessStatus}`}
 			tagline="Usage limit notice"
 		>
 			<Section className="text-center">

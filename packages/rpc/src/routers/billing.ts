@@ -290,7 +290,7 @@ export const billingRouter = {
 	setAutoTopup: trackedSessionProcedure
 		.route({
 			description:
-				"Configures automatic Databunny usage top-ups for the current billing customer.",
+				"Configures automatic investigation credit top-ups for the current billing customer.",
 			method: "POST",
 			path: "/billing/setAutoTopup",
 			summary: "Set auto top-up",
@@ -344,7 +344,7 @@ export const billingRouter = {
 	setSpendLimit: trackedSessionProcedure
 		.route({
 			description:
-				"Configures a spend limit (maximum overage in USD) for Databunny usage.",
+				"Configures a spend limit (maximum overage in USD) for investigation credits.",
 			method: "POST",
 			path: "/billing/setSpendLimit",
 			summary: "Set spend limit",

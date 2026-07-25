@@ -32,16 +32,20 @@ describe("billing usage email copy", () => {
 		expect(formatResetDate(1_782_864_000)).toContain("1970");
 	});
 
-	test("explains Databunny usage with real values and no owner greeting", async () => {
+	test("explains investigation credits with real values and no owner greeting", async () => {
 		const text = await render(UsageAlertEmail(FEATURE_COPY), {
 			plainText: true,
 		});
 
-		expect(text).toContain("288 of 350 usage units");
+		expect(text.toLowerCase()).toContain("investigation credits: 82% used");
+		expect(text).toContain("288 of 350 investigation credits");
 		expect(text).toContain("62 remain");
-		expect(text).toContain("powers Databunny questions and AI analysis");
-		expect(text).toContain("More complex work uses more of it");
+		expect(text).toContain("pay for the work Databunny performs");
+		expect(text).toContain(
+			"deeper investigations, replies, and rechecks use more"
+		);
 		expect(text).not.toContain("agent credits");
+		expect(text).not.toContain("Investigation credits is");
 		expect(text).not.toContain("Hi ");
 	});
 
@@ -58,9 +62,10 @@ describe("billing usage email copy", () => {
 		);
 
 		expect(text).toContain(
-			"Access to Databunny questions and AI analysis is currently paused"
+			"Access to Databunny questions and investigations is currently paused"
 		);
-		expect(text).toContain("350 of 350 usage units");
+		expect(text).toContain("350 of 350 investigation credits");
+		expect(text).not.toContain("Investigation credits is");
 		expect(text).not.toContain("1.5x");
 		expect(text).not.toContain("10,000");
 	});

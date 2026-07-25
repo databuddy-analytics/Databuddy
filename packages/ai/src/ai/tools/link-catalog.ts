@@ -5,7 +5,7 @@ const DateStringSchema = z
 	.union([z.string(), z.date()])
 	.transform((value) => (value instanceof Date ? value.toISOString() : value));
 
-export const LinkFolderSummarySchema = z.object({
+const LinkFolderSummarySchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	slug: z.string(),
@@ -128,7 +128,7 @@ export function parseLinkRow(value: unknown): LinkRow {
 	return result.data;
 }
 
-export function parseLinkFolders(value: unknown): LinkFolder[] {
+function parseLinkFolders(value: unknown): LinkFolder[] {
 	const result = z.array(LinkFolderSchema).safeParse(value);
 	return result.success ? result.data : [];
 }
@@ -271,7 +271,7 @@ export function summarizeLink(link: LinkRow, folders: LinkFolder[]) {
 	};
 }
 
-export function formatLinkFolderOptions(folders: LinkFolder[]): string {
+function formatLinkFolderOptions(folders: LinkFolder[]): string {
 	if (folders.length === 0) {
 		return "No link folders exist yet.";
 	}

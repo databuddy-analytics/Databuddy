@@ -1,7 +1,7 @@
 import { isCurrencyCode } from "@databuddy/shared/currency";
 import { z } from "zod";
 
-export const revenueCurrencySchema = z
+const revenueCurrencySchema = z
 	.string()
 	.trim()
 	.toUpperCase()

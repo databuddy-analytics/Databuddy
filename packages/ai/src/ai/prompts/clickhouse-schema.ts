@@ -15,7 +15,7 @@ export const SCHEMA_SECTIONS = [
 	"revenue",
 	"blocked_traffic",
 ] as const;
-export type SchemaSection = (typeof SCHEMA_SECTIONS)[number];
+type SchemaSection = (typeof SCHEMA_SECTIONS)[number];
 
 interface TableDef {
 	additionalInfo?: string;
@@ -383,5 +383,3 @@ Primary tables for website traffic, user behavior, and performance:
 ${analyticsDoc}${guidelinesBlock}${examplesBlock}
 </available-data>`;
 }
-
-export const CLICKHOUSE_SCHEMA_DOCS = generateSchemaDocumentation();

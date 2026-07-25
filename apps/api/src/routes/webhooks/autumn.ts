@@ -287,15 +287,6 @@ async function getUsageSnapshot(
 	}
 }
 
-function formatUsageNumber(value: number): string {
-	if (!Number.isFinite(value)) {
-		return "—";
-	}
-	return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(
-		value
-	);
-}
-
 function usagePercentage(snapshot: UsageSnapshot): number | null {
 	if (
 		!(Number.isFinite(snapshot.granted) && Number.isFinite(snapshot.usage)) ||
@@ -491,7 +482,7 @@ export async function handleLimitReached(
 	const feature = getFeatureCopy(feature_id);
 	const isHardStop = !snapshot.isAvailable;
 	const subject = isHardStop
-		? `[Action required] ${feature.name} is paused`
+		? `[Action required] ${feature.name} limit reached`
 		: `${feature.name}: included allowance used`;
 	mergeWideEvent({ customer_id, feature_id, limit_type });
 
@@ -559,8 +550,8 @@ export async function handleUsageAlert(
 	const percentage = usagePercentage(snapshot);
 	const subject =
 		percentage === null
-			? `${feature.name}: ${formatUsageNumber(snapshot.usage)} ${feature.unit} used`
-			: `${feature.name} is at ${percentage}%`;
+			? `${feature.name}: usage update`
+			: `${feature.name}: ${percentage}% used`;
 
 	mergeWideEvent({
 		customer_id,

@@ -9,7 +9,7 @@ export const pricingFaqItems = [
 	{
 		question: "Is there a free trial?",
 		answer:
-			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 Databunny usage units per month. Databunny usage measures AI processing rather than messages, so a deeper analysis can use more than a simple question.",
+			"The Free plan has no trial period and requires no credit card. It includes 10,000 events and 10 investigation credits per month. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
 	},
 	{
 		question: "Can I switch plans?",

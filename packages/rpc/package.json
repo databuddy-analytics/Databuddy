@@ -33,7 +33,6 @@
     "@databuddy/shared": "workspace:*",
     "@databuddy/validation": "workspace:*",
     "@orpc/server": "^1.14.0",
-    "@types/jszip": "^3.4.1",
     "autumn-js": "catalog:",
     "dayjs": "^1.11.19",
     "drizzle-orm": "catalog:",

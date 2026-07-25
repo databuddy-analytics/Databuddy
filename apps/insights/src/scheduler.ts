@@ -12,37 +12,11 @@ import {
 } from "@databuddy/redis";
 import { captureInsightsError, emitInsightsEvent } from "./lib/evlog-insights";
 
-const DISPATCH_INTERVAL_MS = 5 * 60 * 1000;
-const MAINTENANCE_INTERVAL_MS = 5 * 60 * 1000;
+const SCHEDULE_INTERVAL_MS = 5 * 60 * 1000;
 const MAX_DUE_CONFIGS_PER_TICK = 100;
 const FAILED_DISPATCH_RETRY_MS = 60 * 1000;
 
 type DueConfig = typeof insightGenerationConfigs.$inferSelect;
-
-function nextRunAtFor(config: DueConfig, from: Date): Date | null {
-	return getNextInsightRunAt(
-		{
-			enabled: config.enabled,
-			frequency: normalizeInsightScheduleFrequency(config.frequency),
-			timezone: config.timezone,
-		},
-		from
-	);
-}
-
-async function dueConfigs(now: Date): Promise<DueConfig[]> {
-	return await db
-		.select()
-		.from(insightGenerationConfigs)
-		.where(
-			and(
-				eq(insightGenerationConfigs.enabled, true),
-				lte(insightGenerationConfigs.nextRunAt, now)
-			)
-		)
-		.orderBy(asc(insightGenerationConfigs.nextRunAt))
-		.limit(MAX_DUE_CONFIGS_PER_TICK);
-}
 
 export async function claimDueConfig(
 	config: DueConfig,
@@ -55,7 +29,14 @@ export async function claimDueConfig(
 		.update(insightGenerationConfigs)
 		.set({
 			frequency: normalizeInsightScheduleFrequency(config.frequency),
-			nextRunAt: nextRunAtFor(config, now),
+			nextRunAt: getNextInsightRunAt(
+				{
+					enabled: config.enabled,
+					frequency: normalizeInsightScheduleFrequency(config.frequency),
+					timezone: config.timezone,
+				},
+				now
+			),
 			updatedAt: now,
 		})
 		.where(
@@ -97,7 +78,7 @@ export async function retryConfigSoon(
 export async function ensureInsightsDispatchSchedule(): Promise<void> {
 	await getInsightsQueue().upsertJobScheduler(
 		INSIGHTS_DISPATCH_JOB_NAME,
-		{ every: DISPATCH_INTERVAL_MS },
+		{ every: SCHEDULE_INTERVAL_MS },
 		{
 			name: INSIGHTS_DISPATCH_JOB_NAME,
 			data: {
@@ -108,14 +89,14 @@ export async function ensureInsightsDispatchSchedule(): Promise<void> {
 	);
 
 	emitInsightsEvent("info", "scheduler.dispatch_ensured", {
-		interval_ms: DISPATCH_INTERVAL_MS,
+		interval_ms: SCHEDULE_INTERVAL_MS,
 	});
 }
 
 export async function ensureInsightsMaintenanceSchedule(): Promise<void> {
 	await getInsightsQueue().upsertJobScheduler(
 		INSIGHTS_MAINTENANCE_JOB_NAME,
-		{ every: MAINTENANCE_INTERVAL_MS },
+		{ every: SCHEDULE_INTERVAL_MS },
 		{
 			name: INSIGHTS_MAINTENANCE_JOB_NAME,
 			data: {
@@ -126,13 +107,23 @@ export async function ensureInsightsMaintenanceSchedule(): Promise<void> {
 	);
 
 	emitInsightsEvent("info", "scheduler.maintenance_ensured", {
-		interval_ms: MAINTENANCE_INTERVAL_MS,
+		interval_ms: SCHEDULE_INTERVAL_MS,
 	});
 }
 
 export async function dispatchDueInsightRuns(now = new Date()) {
 	const startedAt = performance.now();
-	const configs = await dueConfigs(now);
+	const configs = await db
+		.select()
+		.from(insightGenerationConfigs)
+		.where(
+			and(
+				eq(insightGenerationConfigs.enabled, true),
+				lte(insightGenerationConfigs.nextRunAt, now)
+			)
+		)
+		.orderBy(asc(insightGenerationConfigs.nextRunAt))
+		.limit(MAX_DUE_CONFIGS_PER_TICK);
 	const result = {
 		scannedConfigs: configs.length,
 		claimedConfigs: 0,

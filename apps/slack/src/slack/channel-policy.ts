@@ -1,7 +1,7 @@
 import { getSlackApiErrorCode } from "@/lib/evlog-slack";
 import type { SlackAgentClient } from "@/slack/types";
 
-export type SlackChannelPolicyReason =
+type SlackChannelPolicyReason =
 	| "internal"
 	| "slack_connect"
 	| "missing_scope"
@@ -9,10 +9,8 @@ export type SlackChannelPolicyReason =
 
 export interface SlackChannelMentionPolicy {
 	autoBind: boolean;
-	channelName?: string;
 	errorCode?: string;
 	isExtShared?: boolean;
-	isOrgShared?: boolean;
 	reason: SlackChannelPolicyReason;
 }
 
@@ -44,13 +42,10 @@ export async function getSlackChannelMentionPolicy({
 
 		const isExtShared =
 			channel.is_ext_shared === true || channel.is_pending_ext_shared === true;
-		const isOrgShared = channel.is_org_shared === true;
 
 		return {
 			autoBind: true,
-			channelName: getString(channel.name),
 			isExtShared,
-			isOrgShared,
 			reason: isExtShared ? "slack_connect" : "internal",
 		};
 	} catch (error) {
@@ -62,10 +57,6 @@ export async function getSlackChannelMentionPolicy({
 			reason: code === "missing_scope" ? "missing_scope" : "lookup_failed",
 		};
 	}
-}
-
-function getString(value: unknown): string | undefined {
-	return typeof value === "string" ? value : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

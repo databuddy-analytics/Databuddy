@@ -1,7 +1,6 @@
 import { and, db, eq } from "@databuddy/db";
 import dayjs from "dayjs";
 import {
-	type InsightDelivery,
 	insightGenerationConfigs,
 	slackChannelBindings,
 	slackIntegrations,
@@ -126,6 +125,11 @@ export function buildInsightReplyText(
 	if (outcome.impact) {
 		lines.push(`*Impact:* ${escapeMrkdwn(userVisibleCopy(outcome.impact))}`);
 	}
+	if (outcome.recommendation) {
+		lines.push(
+			`*Recommended:* ${escapeMrkdwn(userVisibleCopy(outcome.recommendation.action))}`
+		);
+	}
 	if (outcome.next.type === "act" && outcome.rootCause) {
 		lines.push(`*Why:* ${escapeMrkdwn(userVisibleCopy(outcome.rootCause))}`);
 	}
@@ -135,66 +139,9 @@ export function buildInsightReplyText(
 	return truncate(lines.join("\n"), SLACK_SECTION_TEXT_MAX);
 }
 
-async function resolveDeliveries(
-	organizationId: string
-): Promise<InsightDelivery[]> {
-	const [orgConfig] = await db
-		.select({ deliveries: insightGenerationConfigs.deliveries })
-		.from(insightGenerationConfigs)
-		.where(eq(insightGenerationConfigs.organizationId, organizationId))
-		.limit(1);
-	return orgConfig?.deliveries ?? [];
-}
-
-async function loadBoundBotToken(
-	organizationId: string,
-	channelId: string
-): Promise<{ bindingCount: number; token: string | null }> {
-	const integrations = await db
-		.select({ ciphertext: slackIntegrations.botTokenCiphertext })
-		.from(slackChannelBindings)
-		.innerJoin(
-			slackIntegrations,
-			and(
-				eq(slackChannelBindings.integrationId, slackIntegrations.id),
-				eq(slackIntegrations.organizationId, organizationId),
-				eq(slackIntegrations.status, "active")
-			)
-		)
-		.where(eq(slackChannelBindings.slackChannelId, channelId))
-		.limit(2);
-	if (integrations.length !== 1) {
-		return { bindingCount: integrations.length, token: null };
-	}
-	const key = process.env.DATABUDDY_ENCRYPTION_KEY;
-	return {
-		bindingCount: 1,
-		token: key ? decrypt(integrations[0].ciphertext, key) : null,
-	};
-}
-
-function insightUrl(insightId: string): string {
-	return `${config.urls.dashboard}/insights/${insightId}`;
-}
-
-function quoted(value: string): string {
-	return value
-		.split("\n")
-		.map((line) => `>${line}`)
-		.join("\n");
-}
-
-function nextStepLine(insight: SlackInvestigation): string {
-	return `*Next:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(insight.outcome, insight.signal)))}`;
-}
-
 function formatPeriodDay(value: string): string {
 	const parsed = dayjs(value);
 	return parsed.isValid() ? parsed.format("MMM D") : value;
-}
-
-function summaryChip(insight: SlackInvestigation, label: string): string {
-	return `${label} · ${insight.signal.entity.label} · ${formatPeriodDay(insight.signal.period.current.from)} to ${formatPeriodDay(insight.signal.period.current.to)}`;
 }
 
 export function buildBlocks(
@@ -218,7 +165,11 @@ export function buildBlocks(
 				{
 					type: "mrkdwn",
 					text: truncate(
-						escapeMrkdwn(userVisibleCopy(summaryChip(insight, label))),
+						escapeMrkdwn(
+							userVisibleCopy(
+								`${label} · ${insight.signal.entity.label} · ${formatPeriodDay(insight.signal.period.current.from)} to ${formatPeriodDay(insight.signal.period.current.to)}`
+							)
+						),
 						255
 					),
 				},
@@ -237,19 +188,24 @@ export function buildBlocks(
 		accessory: {
 			type: "button",
 			text: { type: "plain_text", text: "Open", emoji: true },
-			url: insightUrl(insight.id),
+			url: `${config.urls.dashboard}/insights/${insight.id}`,
 		},
 	});
 
 	const bodyLines = [
-		quoted(escapeMrkdwn(userVisibleCopy(insight.outcome.summary))),
+		escapeMrkdwn(userVisibleCopy(insight.outcome.summary))
+			.split("\n")
+			.map((line) => `>${line}`)
+			.join("\n"),
 	];
 	if (insight.outcome.impact) {
 		bodyLines.push(
 			`*Impact:* ${escapeMrkdwn(userVisibleCopy(insight.outcome.impact))}`
 		);
 	}
-	bodyLines.push(nextStepLine(insight));
+	bodyLines.push(
+		`*Next:* ${escapeMrkdwn(userVisibleCopy(formatInvestigationNext(insight.outcome, insight.signal)))}`
+	);
 	blocks.push({
 		type: "section",
 		text: {
@@ -274,16 +230,16 @@ function formatMetricValue(value: number, format?: string): string {
 	}
 }
 
-function metricLine(metric: SlackInvestigation["signal"]["metric"]): string {
-	const current = formatMetricValue(metric.current, metric.format);
-	if (metric.previous === undefined || metric.previous === null) {
-		return `${metric.label}: ${current}`;
-	}
-	return `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`;
-}
-
 export function buildThreadBlocks(insight: SlackInvestigation): SlackBlock[] {
-	const lines = [`• ${escapeMrkdwn(metricLine(insight.signal.metric))}`];
+	const metric = insight.signal.metric;
+	const current = formatMetricValue(metric.current, metric.format);
+	const lines = [
+		`• ${escapeMrkdwn(
+			metric.previous === undefined || metric.previous === null
+				? `${metric.label}: ${current}`
+				: `${metric.label}: ${current} (was ${formatMetricValue(metric.previous, metric.format)})`
+		)}`,
+	];
 	if (insight.outcome.rootCause?.trim()) {
 		lines.push(
 			`_Why:_ ${escapeMrkdwn(userVisibleCopy(insight.outcome.rootCause))}`
@@ -315,7 +271,12 @@ export async function prepareInsightSlackEffects(params: {
 	if (!insight) {
 		return [];
 	}
-	const deliveries = await resolveDeliveries(params.organizationId);
+	const [orgConfig] = await db
+		.select({ deliveries: insightGenerationConfigs.deliveries })
+		.from(insightGenerationConfigs)
+		.where(eq(insightGenerationConfigs.organizationId, params.organizationId))
+		.limit(1);
+	const deliveries = orgConfig?.deliveries ?? [];
 	const channelIds = [
 		...new Set(
 			deliveries
@@ -361,10 +322,23 @@ export async function deliverInsightSlackEffect(
 	clientMessageId: string,
 	threadTs?: string
 ): Promise<string | null> {
-	const { bindingCount, token } = await loadBoundBotToken(
-		context.organizationId,
-		context.channelId
-	);
+	const integrations = await db
+		.select({ ciphertext: slackIntegrations.botTokenCiphertext })
+		.from(slackChannelBindings)
+		.innerJoin(
+			slackIntegrations,
+			and(
+				eq(slackChannelBindings.integrationId, slackIntegrations.id),
+				eq(slackIntegrations.organizationId, context.organizationId),
+				eq(slackIntegrations.status, "active")
+			)
+		)
+		.where(eq(slackChannelBindings.slackChannelId, context.channelId))
+		.limit(2);
+	const bindingCount = integrations.length;
+	const key = process.env.DATABUDDY_ENCRYPTION_KEY;
+	const token =
+		bindingCount === 1 && key ? decrypt(integrations[0].ciphertext, key) : null;
 	if (bindingCount !== 1) {
 		emitInsightsEvent(
 			"warn",

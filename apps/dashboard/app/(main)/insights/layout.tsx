@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-	title: "Investigations",
-	description: "Organization-wide investigations with evidence and next steps.",
+	title: "Insights",
+	description: "Organization-wide insights and investigations.",
 };
 
 export default function InsightsLayout({ children }: { children: ReactNode }) {

@@ -51,7 +51,10 @@ const AGENT_CREDITS_FEATURE: RawFeature = {
 	id: "agent_credits",
 	name: DATABUNNY_USAGE.name,
 	type: "single_use",
-	display: { singular: "usage unit", plural: DATABUNNY_USAGE.unit },
+	display: {
+		singular: "investigation credit",
+		plural: DATABUNNY_USAGE.unit,
+	},
 };
 
 const EVENTS_FEATURE: RawFeature = {

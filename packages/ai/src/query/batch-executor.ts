@@ -135,7 +135,7 @@ const WORD_BOUNDARY_AFTER = /\s/;
  * used only for structural scanning (keyword/paren/comma detection); columns
  * are sliced from the original SQL so identifiers stay intact.
  */
-export function maskSqlNoise(sql: string): string {
+function maskSqlNoise(sql: string): string {
 	const out = new Array<string>(sql.length);
 	let i = 0;
 	while (i < sql.length) {

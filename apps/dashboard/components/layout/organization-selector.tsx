@@ -18,6 +18,7 @@ import { CreateOrganizationDialog } from "@/components/organizations/create-orga
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { resetActiveOrganizationQueries } from "@/lib/active-organization-queries";
+import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { cn } from "@/lib/utils";
 import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
@@ -136,7 +137,11 @@ export function OrganizationSelector({
 	);
 
 	const planLabel = currentPlanId
-		? currentPlanId.charAt(0).toUpperCase() + currentPlanId.slice(1)
+		? getCustomerPlanName(
+				currentPlanId,
+				currentPlanId.charAt(0).toUpperCase() +
+					currentPlanId.slice(1).replaceAll("_", " ")
+			)
 		: null;
 
 	const navigateTo = (href: string) => {

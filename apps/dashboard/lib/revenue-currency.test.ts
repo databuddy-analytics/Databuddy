@@ -3,17 +3,9 @@ import type { DynamicQueryFilter } from "@/types/api";
 import {
 	appendRevenueCurrencyFilter,
 	formatRevenueCurrency,
-	normalizeRevenueCurrency,
 } from "./revenue-currency";
 
 describe("revenue currency", () => {
-	test("normalizes valid configured currency without inventing a fallback", () => {
-		expect(normalizeRevenueCurrency(" eur ")).toBe("EUR");
-		expect(normalizeRevenueCurrency(undefined)).toBeNull();
-		expect(normalizeRevenueCurrency("US")).toBeNull();
-		expect(normalizeRevenueCurrency("ZZZ")).toBeNull();
-	});
-
 	test("formats money in the configured currency", () => {
 		expect(formatRevenueCurrency(1234.5, "EUR")).toBe("€1,234.50");
 		expect(formatRevenueCurrency(1234.5, "JPY")).toBe("¥1,235");

@@ -1,5 +1,3 @@
-import "./tools.test-env";
-
 import { createInternalPrincipal } from "@databuddy/rpc";
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
@@ -140,6 +138,7 @@ describe("investigation tools", () => {
 
 		expect(response.status).toBe(200);
 		for (const name of [
+			"list_insights",
 			"list_investigations",
 			"get_investigation",
 			"reply_to_investigation",
@@ -148,9 +147,12 @@ describe("investigation tools", () => {
 		}
 	});
 
-	test("exposes the durable investigation lifecycle", () => {
+	test("exposes published insights and the durable investigation lifecycle", () => {
 		const byName = new Map(tools.map((tool) => [tool.name, tool]));
 
+		expect(byName.get("list_insights")?.metadata).toMatchObject({
+			access: { kind: "read", scopes: ["read:data"] },
+		});
 		expect(byName.get("list_investigations")?.metadata).toMatchObject({
 			access: { kind: "read", scopes: ["read:data"] },
 		});
@@ -180,6 +182,6 @@ describe("investigation tools", () => {
 				investigationId: "investigation-1",
 			}).success
 		).toBe(false);
-	});
 
+	});
 });

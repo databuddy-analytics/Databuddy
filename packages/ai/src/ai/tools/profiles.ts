@@ -43,7 +43,7 @@ function today(): string {
 	return new Date().toISOString().split("T").at(0) ?? "";
 }
 
-export interface ResolvedProfileSite {
+interface ResolvedProfileSite {
 	domain: string | null;
 	websiteId: string;
 }

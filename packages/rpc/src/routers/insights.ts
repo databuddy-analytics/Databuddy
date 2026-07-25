@@ -13,11 +13,13 @@ import {
 import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	historyInsightSchema,
+	insightBriefItemSchema,
 	insightReplySlackDeliverySchema,
 	insightReplyStatusSchema,
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
 	parseInvestigationOutcome,
+	parseInvestigationSignal,
 } from "@databuddy/shared/insights";
 import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
@@ -139,6 +141,75 @@ function serializeInsight(
 	};
 }
 
+const insightBriefSelection = {
+	asOf: insightObservations.asOf,
+	createdAt: insightObservations.createdAt,
+	id: insightObservations.id,
+	investigationId: analyticsInsights.id,
+	outcome: insightObservations.outcome,
+	signal: insightObservations.signal,
+	websiteDomain: websites.domain,
+	websiteId: insightObservations.websiteId,
+	websiteName: websites.name,
+};
+
+interface InsightBriefRow {
+	asOf: Date;
+	createdAt: Date;
+	id: string;
+	investigationId: string | null;
+	outcome: (typeof insightObservations.$inferSelect)["outcome"];
+	signal: (typeof insightObservations.$inferSelect)["signal"];
+	websiteDomain: string;
+	websiteId: string;
+	websiteName: string | null;
+}
+
+function serializeInsightBrief(
+	row: InsightBriefRow
+): z.infer<typeof insightBriefItemSchema> | null {
+	const outcome = parseInvestigationOutcome(row.outcome);
+	const signal = parseInvestigationSignal(row.signal);
+	if (!(outcome && signal)) {
+		return null;
+	}
+	return {
+		asOf: row.asOf.toISOString(),
+		createdAt: row.createdAt.toISOString(),
+		evidence: outcome.evidence,
+		id: row.id,
+		impact: outcome.impact,
+		investigationId: row.investigationId ?? null,
+		recommendation: outcome.recommendation ?? null,
+		rootCause: outcome.rootCause,
+		signal,
+		summary: outcome.summary,
+		title: outcome.title,
+		websiteDomain: row.websiteDomain,
+		websiteId: row.websiteId,
+		websiteName: row.websiteName,
+	};
+}
+
+async function authorizeInsightsRead(
+	context: Context,
+	input: { organizationId: string; websiteId?: string }
+) {
+	if (input.websiteId) {
+		await withWorkspace(context, {
+			organizationId: input.organizationId,
+			permissions: ["read"],
+			websiteId: input.websiteId,
+		});
+		return;
+	}
+	await withWorkspace(context, {
+		organizationId: input.organizationId,
+		resource: "organization",
+		permissions: ["read"],
+	});
+}
+
 async function loadInsightTimeline(
 	insight: InsightRow
 ): Promise<InsightTimelineItem[]> {
@@ -195,8 +266,10 @@ async function loadInsightTimeline(
 			}
 			return {
 				createdAt: observation.createdAt.toISOString(),
+				entity: observation.signal.entity,
 				id: observation.id,
 				kind: "investigation" as const,
+				metric: observation.signal.metric,
 				outcome: parsed,
 				period: observation.signal.period,
 				subject: observation.signal.entity.label,
@@ -434,6 +507,71 @@ export async function appendInvestigationReply(
 }
 
 export const insightsRouter = {
+	brief: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/brief",
+			tags: ["Insights"],
+			summary: "List chronological insight observations",
+		})
+		.input(
+			z.object({
+				limit: z.number().int().min(1).max(100).default(50),
+				offset: z.number().int().min(0).default(0),
+				organizationId: z.string().min(1),
+				websiteId: z.string().min(1).optional(),
+			})
+		)
+		.output(
+			z.object({
+				hasMore: z.boolean(),
+				insights: z.array(insightBriefItemSchema),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeInsightsRead(context, input);
+			const rows = await db
+				.select(insightBriefSelection)
+				.from(insightObservations)
+				.innerJoin(websites, eq(insightObservations.websiteId, websites.id))
+				.leftJoin(
+					analyticsInsights,
+					and(
+						eq(insightObservations.insightId, analyticsInsights.id),
+						eq(
+							insightObservations.organizationId,
+							analyticsInsights.organizationId
+						),
+						eq(insightObservations.websiteId, analyticsInsights.websiteId),
+						eq(insightObservations.signalKey, analyticsInsights.subjectKey)
+					)
+				)
+				.where(
+					and(
+						eq(insightObservations.organizationId, input.organizationId),
+						input.websiteId
+							? eq(insightObservations.websiteId, input.websiteId)
+							: undefined,
+						sql`${insightObservations.outcome}->>'publish' = 'true'`,
+						isNull(websites.deletedAt)
+					)
+				)
+				.orderBy(
+					desc(insightObservations.createdAt),
+					desc(insightObservations.id)
+				)
+				.limit(input.limit + 1)
+				.offset(input.offset);
+			const page = rows.slice(0, input.limit).flatMap((row) => {
+				const insight = serializeInsightBrief(row);
+				return insight ? [insight] : [];
+			});
+			return {
+				hasMore: rows.length > input.limit,
+				insights: page,
+			};
+		}),
+
 	history: protectedProcedure
 		.route({
 			method: "POST",
@@ -456,19 +594,7 @@ export const insightsRouter = {
 			})
 		)
 		.handler(async ({ context, input }) => {
-			if (input.websiteId) {
-				await withWorkspace(context, {
-					organizationId: input.organizationId,
-					permissions: ["read"],
-					websiteId: input.websiteId,
-				});
-			} else {
-				await withWorkspace(context, {
-					organizationId: input.organizationId,
-					resource: "organization",
-					permissions: ["read"],
-				});
-			}
+			await authorizeInsightsRead(context, input);
 
 			const whereClause = input.websiteId
 				? and(
@@ -501,8 +627,10 @@ export const insightsRouter = {
 							insightObservations.organizationId,
 							analyticsInsights.organizationId
 						),
+						eq(insightObservations.insightId, analyticsInsights.id),
 						eq(insightObservations.websiteId, analyticsInsights.websiteId),
-						eq(insightObservations.signalKey, analyticsInsights.subjectKey)
+						eq(insightObservations.signalKey, analyticsInsights.subjectKey),
+						sql`${insightObservations.outcome}->'next'->>'type' in ('act', 'ask')`
 					)
 				)
 				.where(whereClause)

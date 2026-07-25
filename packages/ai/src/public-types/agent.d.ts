@@ -1,4 +1,5 @@
 import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
+import type { LanguageModelUsage } from "ai";
 
 export type DatabuddyAgentSource = "dashboard" | "mcp" | "slack";
 export type DatabuddyAgentBillingMode = "bill" | "skip";
@@ -132,11 +133,7 @@ export interface DatabuddyAgentToolTrace {
 export interface DatabuddyAgentTraceResult extends DatabuddyAgentResult {
 	steps: number;
 	toolCalls: DatabuddyAgentToolTrace[];
-	usage: {
-		inputTokens: number;
-		outputTokens: number;
-		totalTokens?: number;
-	};
+	usage: LanguageModelUsage;
 }
 
 export declare function askDatabuddyAgent(

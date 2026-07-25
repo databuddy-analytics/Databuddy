@@ -13,7 +13,6 @@ Rate limits protect the service from bursts and are applied by endpoint and auth
 |----------|---------------------|-----------------|--------|
 | `POST /v1/query/compile` | 300 requests | 60 requests | 1 minute |
 | `POST /v1/query` | 120 requests | 60 requests | 1 minute |
-| `POST /v1/query/custom` | 60 requests | 60 requests | 1 minute |
 
 An API key, signed-in user, or anonymous client receives a separate limit identity. Other API families can apply their own limits.
 

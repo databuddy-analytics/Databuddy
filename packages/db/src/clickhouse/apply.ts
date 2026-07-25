@@ -19,7 +19,7 @@ function databaseOf(sql: string): string {
 	return m[1];
 }
 
-export function toSingleNode(sql: string): string {
+function toSingleNode(sql: string): string {
 	return sql.replace(
 		/ENGINE = Replicated(\w*MergeTree)\(\s*'[^']*'\s*,\s*'[^']*'\s*(?:,\s*)?/g,
 		(_match, engine) => `ENGINE = ${engine}(`

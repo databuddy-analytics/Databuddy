@@ -39,7 +39,7 @@ export interface GatedFeatureAccess {
 export interface BillingContextValue {
 	canUse: (featureId: FeatureId | string) => boolean;
 	canUserUpgrade: boolean;
-	currentPlanId: PlanId | null;
+	currentPlanId: string | null;
 	customer: HookCustomer | null;
 	getBalance: (featureId: FeatureId | string) => HookBalance | null;
 	getGatedFeatureAccess: (feature: GatedFeatureId) => GatedFeatureAccess;
@@ -173,7 +173,10 @@ function AuthenticatedBillingProvider({
 	});
 
 	const value = useMemo<BillingContextValue>(() => {
-		const effectivePlanId = (billingContext?.planId ?? PLAN_IDS.FREE) as PlanId;
+		const effectivePlanId =
+			typeof billingContext?.planId === "string"
+				? billingContext.planId
+				: PLAN_IDS.FREE;
 		const isOrganizationBilling = Boolean(billingContext?.isOrganization);
 		const canUserUpgrade =
 			billingContext?.canUserUpgrade === undefined

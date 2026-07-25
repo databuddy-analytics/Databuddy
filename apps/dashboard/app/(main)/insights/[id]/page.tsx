@@ -28,6 +28,7 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
+import { GoalRecommendationAction } from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -51,6 +52,9 @@ export default function InsightDetailPage() {
 	});
 
 	const insight = data?.insight ?? null;
+	const subject = data?.timeline.findLast(
+		(item): item is InvestigationItem => item.kind === "investigation"
+	)?.subject;
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -94,13 +98,14 @@ export default function InsightDetailPage() {
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
-								{insight.title}
+								{subject ?? insight.title}
 							</h2>
 						</header>
 						<CaseActivity
 							canReply={data?.canReply ?? false}
 							insightId={insight.id}
 							items={data?.timeline ?? []}
+							websiteId={insight.websiteId}
 						/>
 					</Card>
 				)}
@@ -131,10 +136,12 @@ function CaseActivity({
 	canReply,
 	insightId,
 	items,
+	websiteId,
 }: {
 	canReply: boolean;
 	insightId: string;
 	items: TimelineItem[];
+	websiteId: string;
 }) {
 	const queryClient = useQueryClient();
 	const retry = useMutation({
@@ -181,6 +188,7 @@ function CaseActivity({
 								: undefined
 						}
 						retrying={retry.isPending && retry.variables.replyId === item.id}
+						websiteId={websiteId}
 					/>
 				))}
 			</ol>
@@ -194,10 +202,12 @@ function TimelineEntry({
 	item,
 	onRetry,
 	retrying,
+	websiteId,
 }: {
 	item: TimelineItem;
 	onRetry?: (replyId: string) => void;
 	retrying: boolean;
+	websiteId: string;
 }) {
 	return (
 		<li
@@ -266,20 +276,25 @@ function TimelineEntry({
 						)}
 					</>
 				) : (
-					<InvestigationActivity item={item} />
+					<InvestigationActivity item={item} websiteId={websiteId} />
 				)}
 			</article>
 		</li>
 	);
 }
 
-function InvestigationActivity({ item }: { item: InvestigationItem }) {
+function InvestigationActivity({
+	item,
+	websiteId,
+}: {
+	item: InvestigationItem;
+	websiteId: string;
+}) {
 	const { outcome } = item;
 
 	return (
 		<div className="space-y-3">
 			<div className="text-muted-foreground text-xs">
-				<p className="font-medium text-foreground/80">{item.subject}</p>
 				<p>
 					{formatPeriod(item.period.current)} compared with{" "}
 					{formatPeriod(item.period.previous)}
@@ -295,7 +310,29 @@ function InvestigationActivity({ item }: { item: InvestigationItem }) {
 				</p>
 			</div>
 
-			<NextStep next={outcome.next} />
+			{outcome.recommendation ? (
+				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
+					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						Recommended
+					</p>
+					<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
+						{outcome.recommendation.action}
+					</p>
+					{item.entity.type === "goal" && outcome.recommendation.operation ? (
+						<div className="mt-2 flex flex-wrap gap-1.5">
+							<GoalRecommendationAction
+								goalId={item.entity.id}
+								recommendation={outcome.recommendation}
+								websiteId={websiteId}
+							/>
+						</div>
+					) : null}
+				</div>
+			) : null}
+
+			{outcome.next.type !== "resolve" || !outcome.recommendation ? (
+				<NextStep next={outcome.next} />
+			) : null}
 
 			{(outcome.impact || outcome.rootCause) && (
 				<dl className="grid gap-3 sm:grid-cols-2">
@@ -427,7 +464,7 @@ function ReplyComposer({
 						type="submit"
 					>
 						<PaperPlaneIcon className="size-3.5" weight="bold" />
-						Re-check case
+						Re-check investigation
 					</Button>
 				</div>
 			</Field>
@@ -450,7 +487,7 @@ function nextCopy(next: InvestigationNext): {
 		case "act":
 			return {
 				body: next.action,
-				detail: `Target: ${next.target} · Verify: ${next.verification}`,
+				detail: `Target: ${next.target} · Done when: ${next.verification}`,
 				label: "Next action",
 			};
 		case "ask":

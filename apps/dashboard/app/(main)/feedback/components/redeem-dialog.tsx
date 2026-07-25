@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button, Text } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 import { ArrowRightIcon, CreditCardIcon } from "@databuddy/ui/icons";
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import { orpc } from "@/lib/orpc";
 
 interface RedeemDialogProps {
@@ -26,7 +27,7 @@ export function RedeemDialog({
 }: RedeemDialogProps) {
 	const queryClient = useQueryClient();
 	const rewardLabel =
-		rewardType === "agent-credits" ? "Databunny usage units" : "Events";
+		rewardType === "agent-credits" ? DATABUNNY_USAGE.unit : "events";
 
 	const redeemMutation = useMutation({
 		...orpc.feedback.redeemCredits.mutationOptions(),

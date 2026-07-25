@@ -51,7 +51,7 @@ export const UsageAlertEmail = ({
 					className="m-0 mb-3 font-semibold text-xl tracking-tight"
 					style={{ color: emailBrand.foreground }}
 				>
-					{featureName} is at {percentage}
+					{featureName}: {percentage} used
 				</Heading>
 			</Section>
 

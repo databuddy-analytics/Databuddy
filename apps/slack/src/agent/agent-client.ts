@@ -3,8 +3,6 @@ import type { ApiKeyRow } from "@databuddy/api-keys/resolve";
 import { setActiveSlackLog } from "@/lib/evlog-slack";
 import { SLACK_COPY } from "@/slack/messages";
 
-const DEFAULT_TIMEZONE = "UTC";
-
 type SlackAgentTrigger =
 	| "app_mention"
 	| "assistant"
@@ -32,7 +30,6 @@ export interface SlackAgentRun {
 export interface SlackRunContext {
 	apiKey: ApiKeyRow;
 	organizationId: string;
-	teamId: string;
 }
 
 export interface SlackRunContextResolver {
@@ -63,21 +60,13 @@ export class DatabuddyAgentClient {
 		this.#runner = runner;
 	}
 
-	async runToText(run: SlackAgentRun): Promise<string> {
-		let text = "";
-		for await (const chunk of this.stream(run)) {
-			text += chunk;
-		}
-		return text.trim() || SLACK_COPY.noAnswer;
-	}
-
 	async *stream(
 		run: SlackAgentRun,
 		options?: SlackAgentStreamOptions
 	): AsyncGenerator<string> {
 		const context = await this.#contexts.resolve(run);
 		if (!context) {
-			yield getMissingSlackWorkspaceMessage();
+			yield SLACK_COPY.missingWorkspace;
 			return;
 		}
 		yield* this.#runner.stream(run, context, options);
@@ -111,13 +100,9 @@ class SharedDatabuddyAgentRunner implements SlackAgentRunner {
 			memoryUserId: createSlackMemoryUserId(run),
 			slackContext: run.slackContext,
 			source: "slack",
-			timezone: DEFAULT_TIMEZONE,
+			timezone: "UTC",
 		});
 	}
-}
-
-function getMissingSlackWorkspaceMessage(): string {
-	return SLACK_COPY.missingWorkspace;
 }
 
 export function createSlackConversationId(run: SlackAgentRun): string {
@@ -141,7 +126,12 @@ function escapePromptFrame(value: string): string {
 
 export function formatSlackAgentInput(run: SlackAgentRun): string {
 	const followUps = run.followUpMessages ?? [];
-	const context = formatSlackMessageContext(run);
+	const context = [
+		"<slack_context>",
+		`slack_channel_id: ${run.channelId}`,
+		"The message author is the speaker; @mentions in the text are other people.",
+		"</slack_context>",
+	].join("\n");
 	if (followUps.length === 0) {
 		return [
 			context,
@@ -181,76 +171,10 @@ export function formatSlackAgentInput(run: SlackAgentRun): string {
 	].join("\n");
 }
 
-function formatSlackMessageContext(run: SlackAgentRun): string {
-	const mentionedUsers = extractSlackMentionedUsers(run.text);
-	const otherMentionedUsers = mentionedUsers.filter(
-		(userId) => userId !== run.userId
-	);
-	const lines = [
-		"<slack_message_context>",
-		`current_speaker: ${formatSlackUser(run.userId)}`,
-		`current_speaker_user_id: ${run.userId}`,
-		`current_speaker_memory_scope: ${createSlackMemoryUserId(run)}`,
-		`slack_team_id: ${run.teamId ?? "unknown"}`,
-		`slack_channel_id: ${run.channelId}`,
-		`slack_thread_ts: ${run.threadTs ?? run.messageTs ?? "unknown"}`,
-		`slack_trigger: ${run.trigger}`,
-		`mentioned_slack_users_in_latest_message: ${
-			mentionedUsers.length > 0
-				? mentionedUsers.map(formatSlackUser).join(", ")
-				: "none"
-		}`,
-		`other_people_mentioned_in_latest_message: ${
-			otherMentionedUsers.length > 0
-				? otherMentionedUsers.map(formatSlackUser).join(", ")
-				: "none"
-		}`,
-		"Rules: current_speaker is the person asking; memories are scoped to current_speaker_memory_scope; mentioned users are subjects/addressees, not the speaker.",
-		"Rules: for thread follow-ups, use the current thread only when the latest message points at prior context; pull fresh analytics only when this exact message asks for fresh/current/live data or missing metrics.",
-		"Rules: do not read recent channel messages unless the user asks about channel context outside this thread.",
-		"Rules: Slack replies default to 1-3 short sentences; exact copy/rewrite requests get only the final copy with no preamble.",
-		"</slack_message_context>",
-	];
-	return lines.join("\n");
-}
-
 function formatSlackUser(userId: string): string {
 	return `<@${userId}>`;
 }
 
-function extractSlackMentionedUsers(text: string): string[] {
-	const mentionedUsers: string[] = [];
-	for (const token of text.split(" ")) {
-		const start = token.indexOf("<@");
-		if (start === -1) {
-			continue;
-		}
-		const end = token.indexOf(">", start);
-		if (end === -1) {
-			continue;
-		}
-		const userId = token.slice(start + 2, end);
-		if (userId && !mentionedUsers.includes(userId)) {
-			mentionedUsers.push(userId);
-		}
-	}
-	return mentionedUsers;
-}
-
 function safeId(value: string): string {
-	return value
-		.split("")
-		.map((character) => (isSafeIdCharacter(character) ? character : "_"))
-		.join("")
-		.slice(0, 160);
-}
-
-function isSafeIdCharacter(character: string): boolean {
-	return (
-		(character >= "a" && character <= "z") ||
-		(character >= "A" && character <= "Z") ||
-		(character >= "0" && character <= "9") ||
-		character === "_" ||
-		character === "-"
-	);
+	return value.replaceAll(/[^a-zA-Z0-9_-]/g, "_").slice(0, 160);
 }

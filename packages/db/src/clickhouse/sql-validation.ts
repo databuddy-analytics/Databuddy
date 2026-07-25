@@ -146,6 +146,8 @@ const WHERE_KEYWORD_PATTERN = /\bWHERE\b/gi;
 const TOP_LEVEL_OR_PATTERN = /\bOR\b/i;
 const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
+const FROM_CLAUSE_TERMINATOR_PATTERN =
+	/\b(?:PREWHERE|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|UNION|INTERSECT|EXCEPT)\b/i;
 const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
 const SELECT_PROJECTION_PATTERN = /\bSELECT\b([\s\S]*?)\bFROM\b/gi;
 const WILDCARD_PROJECTION_PATTERN =
@@ -228,7 +230,11 @@ function flattenToTopLevel(s: string): string {
 	return out;
 }
 
-function findClauseEnd(sql: string, start: number): number {
+function findClauseEnd(
+	sql: string,
+	start: number,
+	terminator = CLAUSE_TERMINATOR_PATTERN
+): number {
 	let depth = 0;
 	for (let i = start; i < sql.length; i++) {
 		const ch = sql[i];
@@ -240,7 +246,7 @@ function findClauseEnd(sql: string, start: number): number {
 			}
 			depth--;
 		} else if (depth === 0) {
-			const m = sql.slice(i).match(CLAUSE_TERMINATOR_PATTERN);
+			const m = sql.slice(i).match(terminator);
 			if (m && m.index === 0) {
 				return i;
 			}
@@ -336,20 +342,24 @@ function whereClauseBodies(sql: string): string[] {
 	return bodies;
 }
 
-function hasCommaJoinInFrom(sql: string): boolean {
+function hasCommaJoinInSanitizedFrom(sql: string): boolean {
 	FROM_KEYWORD_PATTERN.lastIndex = 0;
 	let m = FROM_KEYWORD_PATTERN.exec(sql);
 	while (m) {
 		const start = m.index + m[0].length;
-		const end = findClauseEnd(sql, start);
+		const end = findClauseEnd(sql, start, FROM_CLAUSE_TERMINATOR_PATTERN);
 		const segment = flattenToTopLevel(sql.slice(start, end));
 		if (segment.includes(",")) {
 			return true;
 		}
-		FROM_KEYWORD_PATTERN.lastIndex = end;
+		FROM_KEYWORD_PATTERN.lastIndex = start;
 		m = FROM_KEYWORD_PATTERN.exec(sql);
 	}
 	return false;
+}
+
+export function hasCommaJoinInFrom(sql: string): boolean {
+	return hasCommaJoinInSanitizedFrom(maskCommentsAndStrings(sql));
 }
 
 function topLevelHasTenantFilter(whereBody: string): boolean {
@@ -514,7 +524,7 @@ export function validateAgentSQL(sql: string): {
 		};
 	}
 
-	if (hasCommaJoinInFrom(sanitized)) {
+	if (hasCommaJoinInSanitizedFrom(sanitized)) {
 		return {
 			valid: false,
 			reason:

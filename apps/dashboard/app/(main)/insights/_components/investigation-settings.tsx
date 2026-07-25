@@ -105,9 +105,7 @@ export function InvestigationSettings({
 		}
 		setRunId(undefined);
 		Promise.all([refreshConfig(), refreshInvestigations()]).catch(() => {
-			toast.error(
-				"Analysis finished, but investigations could not be refreshed"
-			);
+			toast.error("Analysis finished, but results could not be refreshed");
 		});
 	}, [
 		refreshConfig,

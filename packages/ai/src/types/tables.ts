@@ -1,14 +1,3 @@
-import type {
-	BlockedTrafficRow,
-	CustomEventsRow,
-	ErrorSpansRow,
-	EventsRow,
-	OutgoingLinksRow,
-	RevenueRow,
-	UptimeMonitorRow,
-	WebVitalsSpansRow,
-} from "@databuddy/db/clickhouse/tables";
-
 export const Analytics = {
 	events: "analytics.events",
 	error_spans: "analytics.error_spans",
@@ -20,16 +9,3 @@ export const Analytics = {
 	uptime_monitor: "uptime.uptime_monitor",
 	revenue: "analytics.revenue",
 } as const;
-
-export type AnalyticsTable = (typeof Analytics)[keyof typeof Analytics];
-
-export interface TableFieldsMap {
-	"analytics.blocked_traffic": keyof BlockedTrafficRow;
-	"analytics.custom_events": keyof CustomEventsRow;
-	"analytics.error_spans": keyof ErrorSpansRow;
-	"analytics.events": keyof EventsRow;
-	"analytics.outgoing_links": keyof OutgoingLinksRow;
-	"analytics.revenue": keyof RevenueRow;
-	"analytics.web_vitals_spans": keyof WebVitalsSpansRow;
-	"uptime.uptime_monitor": keyof UptimeMonitorRow;
-}

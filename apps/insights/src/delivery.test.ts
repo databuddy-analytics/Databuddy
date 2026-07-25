@@ -125,7 +125,7 @@ describe("Slack investigation delivery", () => {
 		const next: InvestigationOutcome["next"] = {
 			type: "ask",
 			question:
-				"Was the Pricing viewers goal intentionally changed to exclude nested billing routes, or should those routes be included?",
+				"Were nested billing routes intentionally removed from the Pricing viewers goal?",
 		};
 		const blocks = buildBlocks(
 			"Databuddy",
@@ -193,12 +193,31 @@ describe("Slack investigation detail", () => {
 			},
 			signal
 		);
+		const recommended = buildInsightReplyText(
+			{
+				...outcome,
+				next: { reason: "The broad goal does not prove a failure.", type: "resolve" },
+				publish: true,
+				recommendation: {
+					action: "Rename Pricing viewers to All billing navigation.",
+					changes: {
+						description: null,
+						name: "All billing navigation",
+					},
+					operation: "edit",
+				},
+			},
+			signal
+		);
 
 		expect(action).toStartWith("*Action ·");
 		expect(action).toContain("&lt;@U123&gt;");
 		expect(question).toStartWith("*Question ·");
 		expect(watching).toStartWith("*Watching ·");
 		expect(resolved).toStartWith("*Resolved ·");
+		expect(recommended).toContain(
+			"*Recommended:* Rename Pricing viewers to All billing navigation."
+		);
 	});
 
 	it("renders the measured signal, proven cause, and evidence", () => {

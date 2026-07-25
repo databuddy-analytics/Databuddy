@@ -55,6 +55,7 @@ function investigationOutcome(nextType: "act" | "watch"): InvestigationOutcome {
 		evidence: ["Signup conversion changed in the measured window."],
 		impact: "Signup completion is affected.",
 		next,
+		publish: true,
 		rootCause:
 			nextType === "act"
 				? "The signup submit handler stopped emitting completions."
@@ -150,7 +151,7 @@ describe("insight investigation timeline", () => {
 								? ids.checkout
 								: ids.activation,
 					organizationId: organization.id,
-					outcome: investigationOutcome("watch"),
+					outcome: investigationOutcome("act"),
 					recheckAt: new Date("2026-01-10T00:00:00.000Z"),
 					signal: signal(subjectKey),
 					signalKey: subjectKey,
@@ -179,6 +180,253 @@ describe("insight investigation timeline", () => {
 			ids.activation,
 		]);
 		expect(secondPage.hasMore).toBe(false);
+	});
+
+	iit("does not promote a watch-only legacy row through another case's history", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const actionableId = randomUUIDv7();
+		const watchOnlyId = randomUUIDv7();
+		const subjectKey = "goal:signup";
+		await db().insert(analyticsInsights).values([
+			{
+				...insightRow({
+					id: actionableId,
+					organizationId: organization.id,
+					subjectKey,
+					websiteId: website.id,
+				}),
+				createdAt: new Date("2026-01-01T00:00:00.000Z"),
+				dedupeKey: `${website.id}|actionable`,
+			},
+			{
+				...insightRow({
+					id: watchOnlyId,
+					organizationId: organization.id,
+					subjectKey,
+					websiteId: website.id,
+				}),
+				createdAt: new Date("2026-01-02T00:00:00.000Z"),
+				dedupeKey: `${website.id}|watch-only`,
+			},
+		]);
+		await db().insert(insightObservations).values([
+			{
+				asOf: new Date("2026-01-01T00:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: actionableId,
+				organizationId: organization.id,
+				outcome: investigationOutcome("act"),
+				recheckAt: new Date("2026-01-08T00:00:00.000Z"),
+				signal: signal(subjectKey),
+				signalKey: subjectKey,
+				websiteId: website.id,
+			},
+			{
+				asOf: new Date("2026-01-02T00:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: watchOnlyId,
+				organizationId: organization.id,
+				outcome: investigationOutcome("watch"),
+				recheckAt: new Date("2026-01-09T00:00:00.000Z"),
+				signal: signal(subjectKey),
+				signalKey: subjectKey,
+				websiteId: website.id,
+			},
+		]);
+
+		const result = await call(
+			appRouter.insights.history,
+			userContext(member, organization.id)
+		)({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+		});
+		expect(result.insights.map((insight) => insight.id)).toEqual([
+			actionableId,
+		]);
+	});
+
+	iit("returns chronological insights without turning every observation into a case", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const secondWebsite = await insertWebsite({
+			organizationId: organization.id,
+		});
+		const otherOrganization = await insertOrganization();
+		const otherWebsite = await insertWebsite({
+			organizationId: otherOrganization.id,
+		});
+		const investigationId = randomUUIDv7();
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: investigationId,
+				organizationId: organization.id,
+				subjectKey: "goal:signup",
+				websiteId: website.id,
+			})
+		);
+		const improvedSignal = {
+			...signal("goal:signup"),
+			changePercent: 25,
+			metric: {
+				...signal("goal:signup").metric,
+				current: 50,
+				previous: 40,
+			},
+			sentiment: "positive" as const,
+		};
+		const improved: InvestigationOutcome = {
+			evidence: ["Signup conversion rose from 40% to 50%."],
+			impact: "Ten more visitors completed signup per 100 entrants.",
+			next: {
+				reason: "The improvement does not require corrective work.",
+				type: "resolve",
+			},
+			publish: true,
+			recommendation: {
+				action:
+					"Add “Counts completed signup events” to Signup completed’s description.",
+				changes: {
+					description: "Counts completed signup events.",
+					name: null,
+				},
+				operation: "edit",
+			},
+			rootCause: null,
+			summary: "Signup conversion improved from 40% to 50%.",
+			title: "Signup conversion improved",
+		};
+		const legacyOutcome = investigationOutcome("watch");
+		delete legacyOutcome.publish;
+		await db().insert(insightObservations).values([
+			{
+				asOf: new Date("2025-12-01T00:00:00.000Z"),
+				createdAt: new Date("2026-01-11T12:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: organization.id,
+				outcome: improved,
+				recheckAt: new Date("2026-02-10T00:00:00.000Z"),
+				signal: improvedSignal,
+				signalKey: "goal:signup",
+				websiteId: website.id,
+			},
+			{
+				asOf: new Date("2026-01-10T00:00:00.000Z"),
+				createdAt: new Date("2026-01-10T12:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: investigationId,
+				organizationId: organization.id,
+				outcome: investigationOutcome("act"),
+				recheckAt: new Date("2026-01-11T00:00:00.000Z"),
+				signal: signal("goal:signup"),
+				signalKey: "goal:signup",
+				websiteId: website.id,
+			},
+			{
+				asOf: new Date("2026-01-09T00:00:00.000Z"),
+				createdAt: new Date("2026-01-09T12:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: organization.id,
+				outcome: investigationOutcome("watch"),
+				recheckAt: new Date("2026-01-10T00:00:00.000Z"),
+				signal: signal("goal:activation"),
+				signalKey: "goal:activation",
+				websiteId: secondWebsite.id,
+			},
+			{
+				asOf: new Date("2026-01-08T00:00:00.000Z"),
+				createdAt: new Date("2026-01-08T12:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: organization.id,
+				outcome: {
+					...investigationOutcome("watch"),
+					publish: false,
+					title: "Routine activation recheck",
+				},
+				recheckAt: new Date("2026-01-10T00:00:00.000Z"),
+				signal: signal("goal:activation-routine"),
+				signalKey: "goal:activation-routine",
+				websiteId: secondWebsite.id,
+			},
+			{
+				asOf: new Date("2026-01-07T00:00:00.000Z"),
+				createdAt: new Date("2026-01-07T12:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: organization.id,
+				outcome: legacyOutcome,
+				recheckAt: new Date("2026-01-10T00:00:00.000Z"),
+				signal: signal("goal:legacy"),
+				signalKey: "goal:legacy",
+				websiteId: secondWebsite.id,
+			},
+			{
+				asOf: new Date("2026-01-12T00:00:00.000Z"),
+				createdAt: new Date("2026-01-12T12:00:00.000Z"),
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: otherOrganization.id,
+				outcome: investigationOutcome("watch"),
+				recheckAt: new Date("2026-01-13T00:00:00.000Z"),
+				signal: signal("goal:other"),
+				signalKey: "goal:other",
+				websiteId: otherWebsite.id,
+			},
+		]);
+
+		const context = userContext(member, organization.id);
+		const firstPage = await call(appRouter.insights.brief, context)({
+			limit: 1,
+			offset: 0,
+			organizationId: organization.id,
+		});
+		expect(firstPage.hasMore).toBe(true);
+		expect(firstPage.insights[0]).toMatchObject({
+			impact: "Ten more visitors completed signup per 100 entrants.",
+			investigationId: null,
+			recommendation: {
+				action:
+					"Add “Counts completed signup events” to Signup completed’s description.",
+				changes: {
+					description: "Counts completed signup events.",
+					name: null,
+				},
+				operation: "edit",
+			},
+			signal: {
+				changePercent: 25,
+				sentiment: "positive",
+			},
+			title: "Signup conversion improved",
+			websiteId: website.id,
+		});
+		expect(firstPage.insights[0]).not.toHaveProperty("next");
+
+		const secondPage = await call(appRouter.insights.brief, context)({
+			limit: 1,
+			offset: 1,
+			organizationId: organization.id,
+		});
+		expect(secondPage.insights[0]?.investigationId).toBe(investigationId);
+
+		const websiteOnly = await call(appRouter.insights.brief, context)({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+			websiteId: secondWebsite.id,
+		});
+		expect(websiteOnly.insights).toHaveLength(1);
+		expect(websiteOnly.insights[0]?.recommendation).toBeNull();
+		expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
 	});
 
 	iit("persists a reply beside every observation for the same signal", async () => {
@@ -261,7 +509,14 @@ describe("insight investigation timeline", () => {
 			added.reply.id,
 		]);
 		expect(result.timeline[1]).toMatchObject({
+			entity: { id: "signup", label: "Signup", type: "goal" },
 			kind: "investigation",
+			metric: {
+				current: 20,
+				format: "percent",
+				label: "Signup conversion",
+				previous: 40,
+			},
 			period: {
 				current: { from: "2026-01-04", to: "2026-01-10" },
 				previous: { from: "2025-12-28", to: "2026-01-03" },
@@ -333,7 +588,7 @@ describe("insight investigation timeline", () => {
 			id: randomUUIDv7(),
 			insightId,
 			organizationId: organization.id,
-			outcome: investigationOutcome("watch"),
+			outcome: investigationOutcome("act"),
 			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
 			signal: signal("goal:signup"),
 			signalKey: "goal:signup",

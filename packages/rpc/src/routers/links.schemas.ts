@@ -37,13 +37,11 @@ export const listLinksSchema = z
 	})
 	.default({});
 
-export const linkSortSchema = z
+const linkSortSchema = z
 	.enum(["newest", "oldest", "name-asc", "name-desc"])
 	.default("newest");
 
-export const linkTypeFilterSchema = z
-	.enum(["all", "short", "deep"])
-	.default("all");
+const linkTypeFilterSchema = z.enum(["all", "short", "deep"]).default("all");
 
 export const listLinksPageSchema = listLinksSchema.unwrap().extend({
 	includeTotal: z.boolean().default(false),

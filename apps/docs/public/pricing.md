@@ -1,12 +1,12 @@
 # Databuddy Pricing
 
-Product analytics, web analytics, feature flags, and Databunny AI analysis. Included monthly events and Databunny processing allowances; pay-as-you-go event overage on paid plans.
+Product analytics, web analytics, feature flags, and Databunny investigations. Plans include monthly events and Investigation credits, with pay-as-you-go event overage on paid plans.
 
 Machine-readable: [JSON](https://www.databuddy.cc/api/pricing) · static [Markdown](https://www.databuddy.cc/pricing.md) · **GET `/pricing`** with `Accept: text/markdown` (see `Vary: Accept`).
 
 ## Plans
 
-| Plan | Price | Events / month (included) | Databunny usage allowance | Notes |
+| Plan | Price | Events / month (included) | Investigation credits | Notes |
 | --- | --- | --- | --- | --- |
 | Free | $0 | 10,000 | 10 / month | No paid overage — ingestion pauses at the monthly event allowance |
 | Hobby | $10/mo | 30,000 | 20 / month + 1 daily bonus | Tiered event overage |
@@ -46,9 +46,9 @@ Overage = events **above** the monthly included amount. Cumulative overage is ch
 | Target groups | Unlimited | Unlimited | Unlimited | Unlimited |
 | Team members | Unlimited | Unlimited | Unlimited | Unlimited |
 
-## Databunny usage
+## Investigation credits
 
-Every cloud plan includes an AI processing allowance for Databunny questions and analysis. This is not a message quota: a simple question can use less of the allowance than deeper analysis. Hobby and Pro also receive a daily bonus that replenishes each day.
+Every cloud plan includes Investigation credits for Databunny questions and investigations. Credits pay for the work Databunny performs, not a fixed number of messages: simple checks use fewer credits, while deeper investigations, replies, and rechecks use more. Hobby and Pro also receive a daily credit bonus that replenishes each day.
 
 ## Enterprise
 
@@ -57,7 +57,7 @@ Custom contracts for volume, compliance, onboarding, and support. Use [databuddy
 ## Definitions
 
 - **Event:** A pageview, custom event, captured error, or Web Vital measurement counted toward monthly analytics usage. Feature flag evaluations and uptime checks do not count.
-- **Databunny usage:** AI processing consumed by questions and analysis. It is not one unit per message; consumption depends on the work performed.
+- **Investigation credits:** Credits that pay for Databunny's work. Simple checks use fewer credits; deeper investigations, replies, and rechecks use more.
 - **Overage:** Events in a billing month above the plan’s included events.
 
 ## Links

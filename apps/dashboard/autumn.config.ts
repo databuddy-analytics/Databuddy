@@ -216,6 +216,117 @@ export const scale = plan({
 	],
 });
 
+/*
+ * Intelligence is the new credit-led base plan family. The customer-facing
+ * names anchor the plans against analyst capacity, while investigations still
+ * consume agent_credits from actual model usage with the shared markup.
+ * Monthly plan grants reset; paid credits_topup balances persist and can be
+ * replenished automatically with the existing billing controls.
+ *
+ * These are invitation-only beta plans for now, so they stay out of the
+ * self-serve pricing table and public pricing docs. Keep them in the default
+ * group so an attached beta plan replaces Free, Hobby, Pro, or legacy Scale
+ * instead of stacking as a second base subscription.
+ */
+export const intelligence = plan({
+	id: "intelligence",
+	name: "Analyst",
+	description: "An always-on product investigator for founders and engineers.",
+	addOn: false,
+	autoEnable: false,
+	price: {
+		amount: 299,
+		interval: "month",
+	},
+	items: [
+		item({
+			featureId: events.id,
+			included: 2_000_000,
+			price: {
+				tiers: [
+					{ to: 2_000_000, amount: 0.000_035 },
+					{ to: 10_000_000, amount: 0.000_03 },
+					{ to: 50_000_000, amount: 0.000_02 },
+					{ to: 250_000_000, amount: 0.000_015 },
+					{ to: "inf", amount: 0.000_01 },
+				],
+				tierBehaviour: "graduated",
+				billingUnits: 1,
+				billingMethod: "usage_based",
+				interval: "month",
+			},
+		}),
+		item({
+			featureId: agent_credits.id,
+			included: 1500,
+			reset: {
+				interval: "month",
+			},
+		}),
+		item({
+			featureId: agent_credits.id,
+			price: {
+				tiers: TOPUP_TIERS.map((t) => ({ to: t.to, amount: t.amount })),
+				tierBehaviour: "graduated",
+				interval: "one_off",
+				billingMethod: "prepaid",
+				billingUnits: 1,
+				maxPurchase: TOPUP_MAX_QUANTITY,
+			},
+		}),
+	],
+});
+
+export const intelligence_scale = plan({
+	id: "intelligence_scale",
+	name: "Data Team",
+	description:
+		"More investigation capacity for products with higher traffic and faster release cycles.",
+	addOn: false,
+	autoEnable: false,
+	price: {
+		amount: 799,
+		interval: "month",
+	},
+	items: [
+		item({
+			featureId: events.id,
+			included: 10_000_000,
+			price: {
+				tiers: [
+					{ to: 2_000_000, amount: 0.000_035 },
+					{ to: 10_000_000, amount: 0.000_03 },
+					{ to: 50_000_000, amount: 0.000_02 },
+					{ to: 250_000_000, amount: 0.000_015 },
+					{ to: "inf", amount: 0.000_01 },
+				],
+				tierBehaviour: "graduated",
+				billingUnits: 1,
+				billingMethod: "usage_based",
+				interval: "month",
+			},
+		}),
+		item({
+			featureId: agent_credits.id,
+			included: 5000,
+			reset: {
+				interval: "month",
+			},
+		}),
+		item({
+			featureId: agent_credits.id,
+			price: {
+				tiers: TOPUP_TIERS.map((t) => ({ to: t.to, amount: t.amount })),
+				tierBehaviour: "graduated",
+				interval: "one_off",
+				billingMethod: "prepaid",
+				billingUnits: 1,
+				maxPurchase: TOPUP_MAX_QUANTITY,
+			},
+		}),
+	],
+});
+
 export const pulse_hobby = plan({
 	id: "pulse_hobby",
 	name: "Pulse Hobby",
@@ -266,7 +377,8 @@ export const pulse_pro = plan({
  */
 export const credits_booster = plan({
 	id: "credits_booster",
-	name: "Databunny usage booster",
+	name: "Monthly investigation credits",
+	description: "200 additional investigation credits every month.",
 	addOn: true,
 	autoEnable: false,
 	price: {
@@ -297,7 +409,9 @@ export const credits_booster = plan({
  */
 export const credits_topup = plan({
 	id: "credits_topup",
-	name: DATABUNNY_USAGE.name,
+	name: "Additional investigation credits",
+	description:
+		"Prepaid investigation credits that remain available until used.",
 	addOn: true,
 	autoEnable: false,
 	items: [

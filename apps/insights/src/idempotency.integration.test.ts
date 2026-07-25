@@ -42,6 +42,7 @@ import {
 	loadDueOpenInvestigation,
 	loadInvestigationHistory,
 	loadLatestSignalObservations,
+	loadOtherOpenWork,
 } from "./observations";
 import {
 	drainInsightRunEffects,
@@ -263,7 +264,129 @@ describeIntegration("insights idempotency integration", () => {
 		expect(stored.title).toBe(observation.outcome.title);
 	});
 
-	it("keeps first-time watches due without making them visible", async () => {
+	it("loads only unresolved sibling work available at the investigation clock", async () => {
+		const organization = await insertOrganization();
+		const website = await insertWebsite({
+			organizationId: organization.id,
+		});
+		const siblingWebsite = await insertWebsite({
+			organizationId: organization.id,
+		});
+		const otherOrganization = await insertOrganization();
+		const otherWebsite = await insertWebsite({
+			organizationId: otherOrganization.id,
+		});
+		const baseSignal = websiteInvestigation({
+			title: "Base signal",
+			website,
+		}).signal;
+		const observation = (input: {
+			asOf: string;
+			createdAt?: string;
+			next?: "ask" | "resolve" | "watch";
+			organizationId?: string;
+			signalKey: string;
+			title: string;
+			websiteId?: string;
+		}) => ({
+			asOf: new Date(input.asOf),
+			createdAt: new Date(input.createdAt ?? input.asOf),
+			evidence: [`Evidence for ${input.title}.`],
+			id: randomUUIDv7(),
+			organizationId: input.organizationId ?? organization.id,
+			outcome: investigationOutcome(input.next ?? "ask", input.title),
+			recheckAt: new Date("2026-08-01T00:00:00.000Z"),
+			signal: {
+				...baseSignal,
+				entity: {
+					...baseSignal.entity,
+					id: input.signalKey,
+					label: input.title,
+				},
+				signalKey: input.signalKey,
+			},
+			signalKey: input.signalKey,
+			websiteId: input.websiteId ?? website.id,
+		});
+
+		await db()
+			.insert(insightObservations)
+			.values([
+				observation({
+					asOf: "2026-07-08T00:00:00.000Z",
+					signalKey: "error:reader",
+					title: "Connect the reader repository",
+				}),
+				observation({
+					asOf: "2026-07-09T00:00:00.000Z",
+					next: "watch",
+					signalKey: "error:reader",
+					title: "Reader error is being watched",
+				}),
+				observation({
+					asOf: "2026-07-09T12:00:00.000Z",
+					signalKey: "campaign:paid",
+					title: "Confirm the paid campaign owner",
+				}),
+				observation({
+					asOf: "2026-07-09T13:00:00.000Z",
+					signalKey: "goal:current",
+					title: "Current case must be excluded",
+				}),
+				observation({
+					asOf: "2026-07-07T00:00:00.000Z",
+					createdAt: "2026-07-15T00:00:00.000Z",
+					signalKey: "error:backfilled",
+					title: "Future backfill must be excluded",
+				}),
+				observation({
+					asOf: "2026-07-09T14:00:00.000Z",
+					signalKey: "error:sibling-site",
+					title: "Sibling website must be excluded",
+					websiteId: siblingWebsite.id,
+				}),
+				observation({
+					asOf: "2026-07-09T15:00:00.000Z",
+					organizationId: otherOrganization.id,
+					signalKey: "error:other-org",
+					title: "Other organization must be excluded",
+					websiteId: otherWebsite.id,
+				}),
+			]);
+
+		const beforeResolution = await loadOtherOpenWork({
+			organizationId: organization.id,
+			signalKey: "goal:current",
+			through: new Date("2026-07-10T00:00:00.000Z"),
+			websiteId: website.id,
+		});
+		expect(beforeResolution.map((item) => item.title)).toEqual([
+			"Confirm the paid campaign owner",
+			"Connect the reader repository",
+		]);
+
+		await db()
+			.insert(insightObservations)
+			.values(
+				observation({
+					asOf: "2026-07-11T00:00:00.000Z",
+					next: "resolve",
+					signalKey: "error:reader",
+					title: "Reader repository question resolved",
+				})
+			);
+		const afterResolution = await loadOtherOpenWork({
+			organizationId: organization.id,
+			signalKey: "goal:current",
+			through: new Date("2026-07-12T00:00:00.000Z"),
+			websiteId: website.id,
+		});
+		expect(afterResolution.map((item) => item.title)).toEqual([
+			"Confirm the paid campaign owner",
+		]);
+	});
+
+	it("keeps first-time watches and resolutions out of the case queue", async () => {
 		const org = await insertOrganization();
 		for (const { impact, next, title } of [
 			{ impact: undefined, next: "watch", title: "watch outcome" },
@@ -319,12 +442,10 @@ describeIntegration("insights idempotency integration", () => {
 			]);
 
 			expect(saved).toBeNull();
-			expect(cases).toEqual(
-				next === "watch" ? [{ id: expect.any(String), status: "open" }] : []
-			);
+			expect(cases).toEqual([]);
 			expect(observations).toEqual([
 				{
-					insightId: cases[0]?.id ?? null,
+					insightId: null,
 					outcome: {
 						...investigationOutcome(next, title),
 						...(impact === null ? { impact: null } : {}),
@@ -334,10 +455,162 @@ describeIntegration("insights idempotency integration", () => {
 			]);
 			expect(history).toHaveLength(1);
 			expect(history[0]?.kind).toBe("investigation");
-			expect(due?.outcome.next.type ?? null).toBe(
-				next === "watch" ? "watch" : null
-			);
+			expect(due).toBeNull();
 		}
+	});
+
+	it("creates and reopens the same case from an agent action", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const [openedRunId, resolvedRunId, reopenedRunId] = [
+			randomUUIDv7(),
+			randomUUIDv7(),
+			randomUUIDv7(),
+		];
+		await db().insert(insightRuns).values(
+			[openedRunId, resolvedRunId, reopenedRunId].map((id) => ({
+				id,
+				organizationId: org.id,
+				status: "succeeded" as const,
+			}))
+		);
+		const action = (title: string): WebsiteInvestigation => {
+			const investigation = websiteInvestigation({ title, website });
+			return {
+				...investigation,
+				outcome: {
+					...investigation.outcome,
+					next: {
+						action: "Restore checkout completion tracking.",
+						target: "Checkout completion handler",
+						type: "act",
+						verification:
+							"Checkout completion events return and conversion recovers for 24 hours.",
+					},
+					publish: true,
+					rootCause: "The checkout handler stopped emitting completion events.",
+				},
+			};
+		};
+
+		const opened = await persistInvestigation({
+			investigation: action("Restore checkout tracking"),
+			notNewerThan: new Date("2026-07-08T10:00:00.000Z"),
+			organizationId: org.id,
+			recheckAt: new Date("2026-07-15T10:00:00.000Z"),
+			runId: openedRunId,
+			timezone: "UTC",
+		});
+		await persistInvestigation({
+			investigation: websiteInvestigation({
+				next: "resolve",
+				title: "Checkout tracking recovered",
+				website,
+			}),
+			notNewerThan: new Date("2026-07-09T10:00:00.000Z"),
+			organizationId: org.id,
+			recheckAt: new Date("2026-08-08T10:00:00.000Z"),
+			runId: resolvedRunId,
+			timezone: "UTC",
+		});
+		const reopened = await persistInvestigation({
+			investigation: action("Checkout tracking regressed again"),
+			notNewerThan: new Date("2026-07-10T10:00:00.000Z"),
+			organizationId: org.id,
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId: reopenedRunId,
+			timezone: "UTC",
+		});
+
+		const [rows, observations] = await Promise.all([
+			db()
+				.select({
+					id: analyticsInsights.id,
+					status: analyticsInsights.status,
+					title: analyticsInsights.title,
+				})
+				.from(analyticsInsights)
+				.where(eq(analyticsInsights.websiteId, website.id)),
+			db()
+				.select({ insightId: insightObservations.insightId })
+				.from(insightObservations)
+				.where(eq(insightObservations.websiteId, website.id))
+				.orderBy(insightObservations.asOf),
+		]);
+		expect(opened).not.toBeNull();
+		expect(reopened?.id).toBe(opened?.id);
+		expect(rows).toEqual([
+			{
+				id: opened?.id,
+				status: "open",
+				title: "Checkout tracking regressed again",
+			},
+		]);
+		expect(observations).toEqual([
+			{ insightId: opened?.id },
+			{ insightId: opened?.id },
+			{ insightId: opened?.id },
+		]);
+	});
+
+	it("does not reopen a resolved case with a quiet watch", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const insightId = randomUUIDv7();
+		const runId = randomUUIDv7();
+		const resolvedAt = new Date("2026-07-09T10:00:00.000Z");
+		await db().insert(insightRuns).values({
+			id: runId,
+			organizationId: org.id,
+			status: "succeeded",
+		});
+		await db().insert(analyticsInsights).values({
+			...insightRow({
+				dedupeKey: `${website.id}|checkout`,
+				id: insightId,
+				organizationId: org.id,
+				title: "Resolved checkout case",
+				websiteId: website.id,
+			}),
+			resolvedAt,
+			resolvedReason: "recovered",
+			status: "resolved",
+		});
+
+		const saved = await persistInvestigation({
+			investigation: websiteInvestigation({
+				next: "watch",
+				title: "Checkout remains quiet",
+				website,
+			}),
+			notNewerThan: new Date("2026-07-10T10:00:00.000Z"),
+			organizationId: org.id,
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId,
+			timezone: "UTC",
+		});
+		const [[stored], [observation]] = await Promise.all([
+			db()
+				.select({
+					resolvedAt: analyticsInsights.resolvedAt,
+					status: analyticsInsights.status,
+					title: analyticsInsights.title,
+				})
+				.from(analyticsInsights)
+				.where(eq(analyticsInsights.id, insightId)),
+			db()
+				.select({ insightId: insightObservations.insightId })
+				.from(insightObservations)
+				.where(eq(insightObservations.websiteId, website.id)),
+		]);
+
+		expect(saved).toBeNull();
+		expect(stored).toEqual({
+			resolvedAt,
+			status: "resolved",
+			title: "Resolved checkout case",
+		});
+		expect(observation).toEqual({ insightId: null });
 	});
 
 	it("keeps watched cases open and closes resolved cases", async () => {
@@ -413,7 +686,7 @@ describeIntegration("insights idempotency integration", () => {
 		}
 	});
 
-	it("replays a linked quiet observation as zero visible results", async () => {
+	it("replays a quiet observation as one readable insight without delivery", async () => {
 		const org = await insertOrganization();
 		const website = await insertWebsite({ organizationId: org.id });
 		const openedRunId = randomUUIDv7();
@@ -480,8 +753,8 @@ describeIntegration("insights idempotency integration", () => {
 			.from(insightRunEffects)
 			.where(eq(insightRunEffects.runItemId, itemId));
 
-		expect(result).toEqual({ resultCount: 0, status: "succeeded" });
-		expect(item).toEqual({ preparedStatus: "succeeded", resultCount: 0 });
+		expect(result).toEqual({ resultCount: 1, status: "succeeded" });
+		expect(item).toEqual({ preparedStatus: "succeeded", resultCount: 1 });
 		expect(effects).toHaveLength(0);
 	});
 
@@ -608,6 +881,7 @@ describeIntegration("insights idempotency integration", () => {
 				verification:
 					"The submit handler emits signup_completed and signup conversion stays above 35% for 24 hours.",
 			},
+			publish: true,
 			rootCause:
 				"The latest deploy removed signup_completed emission from the signup submit handler.",
 			summary:
@@ -836,6 +1110,57 @@ describeIntegration("insights idempotency integration", () => {
 			{ status: "succeeded" },
 			{ status: "succeeded" },
 		]);
+
+		const watchReplyId = randomUUIDv7();
+		const watch = investigationOutcome(
+			"watch",
+			"Signup recovery needs more history"
+		);
+		await db().insert(insightReplies).values({
+			authorId: author.id,
+			authorName: "Test author",
+			body: "Keep watching the recovery.",
+			id: watchReplyId,
+			insightId: olderInsightId,
+			status: "queued",
+		});
+		await withAgentBillingDisabled(() =>
+			resumeInsightReply(
+				watchReplyId,
+				async () => ({ outcome: watch, toolCallCount: 1 }),
+				undefined,
+				async () => ({
+					evidence: ["Signup remains near its recovered level."],
+					signal: recoveredMeasurement.signal,
+				})
+			)
+		);
+		const [afterResolvedWatch] = await db()
+			.select({
+				status: analyticsInsights.status,
+				title: analyticsInsights.title,
+			})
+			.from(analyticsInsights)
+			.where(eq(analyticsInsights.id, currentInsightId));
+		const [watchObservation] = await db()
+			.select({
+				insightId: insightObservations.insightId,
+				outcome: insightObservations.outcome,
+			})
+			.from(insightReplies)
+			.innerJoin(
+				insightObservations,
+				eq(insightReplies.observationId, insightObservations.id)
+			)
+			.where(eq(insightReplies.id, watchReplyId));
+		expect(afterResolvedWatch).toEqual({
+			status: "resolved",
+			title: resolution.title,
+		});
+		expect(watchObservation).toMatchObject({
+			insightId: currentInsightId,
+			outcome: watch,
+		});
 
 		const failedReplyId = randomUUIDv7();
 		await db().insert(insightReplies).values({
@@ -1123,6 +1448,7 @@ describeIntegration("insights idempotency integration", () => {
 			.values([
 				{
 					asOf: firstAsOf,
+					createdAt: firstAsOf,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -1135,6 +1461,7 @@ describeIntegration("insights idempotency integration", () => {
 				},
 				{
 					asOf: firstAsOf,
+					createdAt: firstAsOf,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -1147,6 +1474,7 @@ describeIntegration("insights idempotency integration", () => {
 				},
 				{
 					asOf: secondAsOf,
+					createdAt: secondAsOf,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -1159,6 +1487,7 @@ describeIntegration("insights idempotency integration", () => {
 				},
 				{
 					asOf: secondaryAsOf,
+					createdAt: secondaryAsOf,
 					id: randomUUIDv7(),
 					insightId: null,
 					organizationId: org.id,
@@ -1226,29 +1555,8 @@ describeIntegration("insights idempotency integration", () => {
 	});
 
 	it("prepares effects once and retries only unfinished provider calls", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
-		const identity = {
-			itemId,
-			organizationId: org.id,
-			queueJobId: null,
-			runId,
-			websiteId: website.id,
-		};
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "running",
-		});
-		await db().insert(insightRunItems).values({
-			id: itemId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "running",
-		});
+		const { identity } = await runItemFixture();
+		const { itemId } = identity;
 		const slackPayload = {
 			blocks: [
 				{
@@ -1489,31 +1797,7 @@ describeIntegration("insights idempotency integration", () => {
 	});
 
 	it("retries a known-success checkpoint without calling the provider again", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
-		const identity = {
-			itemId,
-			organizationId: org.id,
-			queueJobId: null,
-			runId,
-			websiteId: website.id,
-		};
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "running",
-		});
-		await db().insert(insightRunItems).values({
-			id: itemId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "running",
-		});
-		await prepareInsightRun({
-			...identity,
+		const { identity } = await preparedRunFixture({
 			effects: [
 				{
 					effectKey: "checkpoint-retry",
@@ -1523,8 +1807,8 @@ describeIntegration("insights idempotency integration", () => {
 					},
 				},
 			],
-			result: { resultCount: 0, status: "succeeded" },
 		});
+		const { itemId } = identity;
 
 		await db().execute(sql.raw(`
 			CREATE SEQUENCE insight_effect_checkpoint_test_seq START WITH 1;
@@ -1581,34 +1865,12 @@ describeIntegration("insights idempotency integration", () => {
 
 	it("keeps a final-attempt success when run synchronization fails", async () => {
 		const { processInsightsJob } = await import("./jobs");
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
-		const queueJobId = `job-${itemId}`;
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "running",
-			totalItems: 1,
-		});
-		await db().insert(insightRunItems).values({
-			id: itemId,
-			queueJobId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "running",
-		});
-		await prepareInsightRun({
-			itemId,
-			organizationId: org.id,
-			queueJobId,
-			runId,
-			websiteId: website.id,
+		const { identity, jobId: queueJobId } = await preparedRunFixture({
 			effects: [],
-			result: { resultCount: 0, status: "succeeded" },
+			queueJob: true,
+			run: { totalItems: 1 },
 		});
+		const { itemId, organizationId, runId, websiteId } = identity;
 
 		await db().execute(sql.raw(`
 			CREATE SEQUENCE insight_item_checkpoint_test_seq START WITH 1;
@@ -1650,10 +1912,10 @@ describeIntegration("insights idempotency integration", () => {
 
 		const data: InsightsGenerateWebsiteJobData = {
 			itemId,
-			organizationId: org.id,
+			organizationId,
 			reason: "manual",
 			runId,
-			websiteId: website.id,
+			websiteId,
 		};
 		try {
 			await expect(
@@ -1697,42 +1959,20 @@ describeIntegration("insights idempotency integration", () => {
 
 	it("rejects the same activation and allows the next activation", async () => {
 		const { processInsightsJob } = await import("./jobs");
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
-		const queueJobId = `job-${itemId}`;
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "running",
-			totalItems: 1,
-		});
-		await db().insert(insightRunItems).values({
-			attempts: 1,
-			id: itemId,
-			queueJobId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "running",
-		});
-		await prepareInsightRun({
-			itemId,
-			organizationId: org.id,
-			queueJobId,
-			runId,
-			websiteId: website.id,
+		const { identity, jobId: queueJobId } = await preparedRunFixture({
 			effects: [],
-			result: { resultCount: 0, status: "succeeded" },
+			item: { attempts: 1 },
+			queueJob: true,
+			run: { totalItems: 1 },
 		});
+		const { itemId, organizationId, runId, websiteId } = identity;
 
 		const data: InsightsGenerateWebsiteJobData = {
 			itemId,
-			organizationId: org.id,
+			organizationId,
 			reason: "manual",
 			runId,
-			websiteId: website.id,
+			websiteId,
 		};
 		const job = {
 			attemptsMade: 0,
@@ -1858,32 +2098,11 @@ describeIntegration("insights idempotency integration", () => {
 	});
 
 	it("recovers a prepared item after its final worker dies before item success", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "running",
-			totalItems: 1,
-		});
-		await db().insert(insightRunItems).values({
-			id: itemId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "running",
-		});
-		await prepareInsightRun({
-			itemId,
-			organizationId: org.id,
-			queueJobId: null,
-			runId,
-			websiteId: website.id,
+		const { identity } = await preparedRunFixture({
 			effects: [],
-			result: { resultCount: 0, status: "succeeded" },
+			run: { totalItems: 1 },
 		});
+		const { itemId } = identity;
 
 		expect(await finalizeCompletedPreparedItem(itemId)).toBe(true);
 		const [item] = await db()
@@ -2001,27 +2220,18 @@ describeIntegration("insights idempotency integration", () => {
 	});
 
 	it("clears stale failed run fields when item state resolves to success", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
 		const staleAt = new Date("2025-01-01T00:00:00.000Z");
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "failed",
-			totalItems: 1,
-			failedItems: 1,
-			errorMessage: "stale run failure",
-			finishedAt: staleAt,
+		const { identity } = await runItemFixture({
+			item: { status: "succeeded" },
+			run: {
+				errorMessage: "stale run failure",
+				failedItems: 1,
+				finishedAt: staleAt,
+				status: "failed",
+				totalItems: 1,
+			},
 		});
-		await db().insert(insightRunItems).values({
-			id: itemId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "succeeded",
-		});
+		const { runId } = identity;
 
 		const summary = await syncRunStatus(runId);
 		const [run] = await db()
@@ -2051,23 +2261,10 @@ describeIntegration("insights idempotency integration", () => {
 	});
 
 	it("locks the run before deriving status from its items", async () => {
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "running",
-			totalItems: 1,
+		const { identity } = await runItemFixture({
+			run: { totalItems: 1 },
 		});
-		await db().insert(insightRunItems).values({
-			id: itemId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "running",
-		});
+		const { itemId, runId } = identity;
 
 		let releaseLock: (() => void) | undefined;
 		let reportLock: (() => void) | undefined;
@@ -2238,31 +2435,7 @@ describeIntegration("insights idempotency integration", () => {
 
 	it("still fails a final item when its prepared effect genuinely fails", async () => {
 		const { processInsightsJob } = await import("./jobs");
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		const runId = randomUUIDv7();
-		const itemId = randomUUIDv7();
-		const queueJobId = `job-${itemId}`;
-		await db().insert(insightRuns).values({
-			id: runId,
-			organizationId: org.id,
-			status: "running",
-			totalItems: 1,
-		});
-		await db().insert(insightRunItems).values({
-			id: itemId,
-			queueJobId,
-			runId,
-			organizationId: org.id,
-			websiteId: website.id,
-			status: "running",
-		});
-		await prepareInsightRun({
-			itemId,
-			organizationId: org.id,
-			queueJobId,
-			runId,
-			websiteId: website.id,
+		const { identity, jobId: queueJobId } = await preparedRunFixture({
 			effects: [
 				{
 					effectKey: "missing-channel",
@@ -2272,15 +2445,17 @@ describeIntegration("insights idempotency integration", () => {
 					},
 				},
 			],
-			result: { resultCount: 0, status: "succeeded" },
+			queueJob: true,
+			run: { totalItems: 1 },
 		});
+		const { itemId, organizationId, runId, websiteId } = identity;
 
 		const data: InsightsGenerateWebsiteJobData = {
 			itemId,
-			organizationId: org.id,
+			organizationId,
 			reason: "manual",
 			runId,
-			websiteId: website.id,
+			websiteId,
 		};
 		await expect(
 			processInsightsJob({
@@ -2370,6 +2545,7 @@ function investigationOutcome(
 			? "Checkout completion recovered."
 			: "Checkout completion is affected.",
 		next: nextStep,
+		publish: true,
 		rootCause: null,
 		summary: resolved
 			? "Checkout conversion returned to 40%."
@@ -2409,4 +2585,59 @@ function websiteInvestigation(input: {
 		websiteId: input.website.id,
 		websiteName: input.website.name,
 	};
+}
+
+interface RunItemFixtureInput {
+	item?: Partial<typeof insightRunItems.$inferInsert>;
+	queueJob?: boolean;
+	run?: Partial<typeof insightRuns.$inferInsert>;
+}
+
+async function runItemFixture(input: RunItemFixtureInput = {}) {
+	const organization = await insertOrganization();
+	const website = await insertWebsite({ organizationId: organization.id });
+	const runId = randomUUIDv7();
+	const itemId = randomUUIDv7();
+	const jobId = `job-${itemId}`;
+	await db()
+		.insert(insightRuns)
+		.values({
+			...input.run,
+			id: runId,
+			organizationId: organization.id,
+			status: input.run?.status ?? "running",
+		});
+	await db()
+		.insert(insightRunItems)
+		.values({
+			...input.item,
+			id: itemId,
+			organizationId: organization.id,
+			queueJobId: input.queueJob ? jobId : null,
+			runId,
+			status: input.item?.status ?? "running",
+			websiteId: website.id,
+		});
+	const identity = {
+		itemId,
+		organizationId: organization.id,
+		queueJobId: input.queueJob ? jobId : null,
+		runId,
+		websiteId: website.id,
+	};
+	return { identity, jobId };
+}
+
+async function preparedRunFixture(
+	input: RunItemFixtureInput & {
+		effects: Parameters<typeof prepareInsightRun>[0]["effects"];
+	}
+) {
+	const fixture = await runItemFixture(input);
+	await prepareInsightRun({
+		...fixture.identity,
+		effects: input.effects,
+		result: { resultCount: 0, status: "succeeded" },
+	});
+	return fixture;
 }

@@ -3,10 +3,20 @@ import { isAiGatewayConfigured } from "@databuddy/ai/config/models";
 import { db, shutdownPostgres, sql } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { readBooleanEnv } from "@databuddy/env/boolean";
-import { closeInsightsQueue, getInsightsQueue } from "@databuddy/redis";
+import {
+	closeInsightsQueue,
+	getBullMQWorkerConnectionOptions,
+	getInsightsQueue,
+	INSIGHTS_JOB_TIMEOUT_MS,
+	INSIGHTS_QUEUE_ENV_PREFIX,
+	INSIGHTS_QUEUE_NAME,
+	type InsightsQueueJobData,
+} from "@databuddy/redis";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
+import { Worker } from "bullmq";
 import { Elysia } from "elysia";
 import { initLogger } from "evlog";
+import { processInsightsJob } from "./jobs";
 import {
 	captureInsightsError,
 	emitInsightsEvent,
@@ -18,7 +28,6 @@ import {
 	ensureInsightsDispatchSchedule,
 	ensureInsightsMaintenanceSchedule,
 } from "./scheduler";
-import { startInsightsWorker } from "./worker";
 
 const environment =
 	process.env.APP_ENV ??
@@ -26,6 +35,8 @@ const environment =
 	(process.env.NODE_ENV === "development" ? "development" : "production");
 const workerEnabled = readBooleanEnv("INSIGHTS_WORKER_ENABLED");
 const DRAIN_TIMEOUT_MS = 10_000;
+const TRANSIENT_REDIS_ERROR =
+	/^READONLY |^ERR caller gone|ECONNRESET|Connection is closed|Socket closed unexpectedly/;
 
 initLogger({
 	env: {
@@ -57,7 +68,7 @@ process.on("uncaughtException", (error) => {
 });
 
 let shuttingDown = false;
-let insightsWorker: ReturnType<typeof startInsightsWorker> | null = null;
+let insightsWorker: Worker<InsightsQueueJobData> | null = null;
 
 async function withTimeout<T>(
 	promise: Promise<T>,
@@ -132,7 +143,44 @@ async function startRuntime() {
 		if (!isAiGatewayConfigured) {
 			throw new Error("INSIGHTS_WORKER_ENABLED requires AI_GATEWAY_API_KEY");
 		}
-		insightsWorker = startInsightsWorker();
+		const configuredConcurrency = Number.parseInt(
+			process.env.INSIGHTS_WORKER_CONCURRENCY ?? "",
+			10
+		);
+		const concurrency =
+			Number.isSafeInteger(configuredConcurrency) && configuredConcurrency > 0
+				? configuredConcurrency
+				: 2;
+		emitInsightsEvent("info", "worker.starting", {
+			queue_name: INSIGHTS_QUEUE_NAME,
+			concurrency,
+			lock_duration_ms: INSIGHTS_JOB_TIMEOUT_MS * 2,
+			stalled_interval_ms: INSIGHTS_JOB_TIMEOUT_MS * 3,
+		});
+		insightsWorker = new Worker<InsightsQueueJobData>(
+			INSIGHTS_QUEUE_NAME,
+			async (job) => await processInsightsJob(job),
+			{
+				connection: getBullMQWorkerConnectionOptions({
+					envPrefix: INSIGHTS_QUEUE_ENV_PREFIX,
+				}),
+				concurrency,
+				lockDuration: INSIGHTS_JOB_TIMEOUT_MS * 2,
+				stalledInterval: INSIGHTS_JOB_TIMEOUT_MS * 3,
+			}
+		);
+		insightsWorker.on("stalled", (jobId) => {
+			emitInsightsEvent("warn", "worker.job_stalled", { job_id: jobId });
+		});
+		insightsWorker.on("error", (error) => {
+			const level = TRANSIENT_REDIS_ERROR.test(error.message)
+				? "warn"
+				: "error";
+			emitInsightsEvent(level, "worker.error", {
+				error_message: error.message,
+				error_stack: error.stack,
+			});
+		});
 		await Promise.all([
 			ensureInsightsDispatchSchedule(),
 			ensureInsightsMaintenanceSchedule(),

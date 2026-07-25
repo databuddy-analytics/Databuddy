@@ -39,7 +39,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - Shared agent integrations should call `@databuddy/ai/agent` (`askDatabuddyAgent` / `streamDatabuddyAgent`) instead of importing internal MCP run/history helpers directly.
 - First-party ads attribution work should start by preserving UTMs into registration and signup events only; do not add RPC plumbing, conversion destinations, env hooks, tables, workers, or UI until explicitly needed.
 - Insights generation logic belongs in `apps/insights` and should reuse `@databuddy/ai`; `apps/api` should only read insight data or queue runs, not own prompts, model calls, tool loops, validation, or persistence orchestration.
-- `SPEC.md` is the insights product contract. Keep one investigation agent on the shared analytics/investigation toolkit; do not add a parallel evidence API, fixed query choreography, or an action-specific lifecycle to the core loop.
+- `SPEC.md` is the intelligence product contract. `insight_observations` is the readable Insights history; `analytics_insights` is the durable investigation projection. The agent outcome owns brief publication and `act`/`ask` promotion; do not replace either with frontend heuristics or collapse the feed into cases. Do not add a parallel agent, evidence API, fixed query choreography, or action-specific lifecycle.
 - Production insight shadows must freeze `--reference-time`, retain a tool-name trace, and pass available GitHub context before supporting quality claims. Postgres and ClickHouse are read-only, but connector token refreshes or cache writes can still occur; never describe the whole run as zero-write.
 - Automatic investigations have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
 - Insight run items are execution metadata, not rendered insight content; previews should use run status/counts or query real insights, never infer titles or bodies from run items.
@@ -60,6 +60,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `apps/uptime` BullMQ worker concurrency defaults high for Bun async I/O; do not lower it just because `10_000` looks large. Verify downstream saturation or lock/timeout evidence first.
 - Public status pages render from `apps/status`; `apps/dashboard` owns status-page management/config UI only. When cleaning public status UX, update shared `@databuddy/ui/uptime` pieces or `apps/status` wrappers instead of redesigning dashboard-only route remnants.
 - `packages/db`: Drizzle Postgres schema, client, and ClickHouse helpers
+- Keep Bun-only DQL provisioning code off the `@databuddy/db/clickhouse` barrel; dashboard Next routes run under Node and import the shared ClickHouse surface.
 - `packages/rpc`: shared oRPC router, procedures, auth-aware server context
 - `packages/rpc` must declare `drizzle-orm: "catalog:"` before importing `drizzle-orm/*` helpers such as `drizzle-orm/zod`; otherwise TypeScript can resolve a different Drizzle instance than `@databuddy/db` and reject table-derived schemas.
 - `packages/auth`: Better Auth setup, permissions, organization access
@@ -100,6 +101,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Code Standards
 
 - Keep one source of truth. If output is AI-generated copy, semantic labels, summaries, or recommendations, fix the upstream prompt/schema/validation contract; do not patch it later with frontend regex/string heuristics.
+- When an undescribed goal or funnel combines unrelated workflows, explain its broad scope and end a published insight with one concrete evidence-backed edit, rename, create, use, or cleanup recommendation even when resolving it. Recommend deletion only when evidence shows duplication or no distinct use. An explicit purpose/config mismatch is material decision harm and becomes an action; ambiguity alone does not.
+- Start small backend slices with one implementation file per owning package; split only when a concrete independent consumer or lifecycle appears.
 - Use deterministic transforms only for deterministic data: stable enums, IDs, namespaces, routes, schema fields, and typed status values. Do not guess meaning from free-form model/user text with regexes.
 - Prefer structured contracts over text parsing. If the UI needs a label, action, link, severity, or metric category, add it to the schema/tool output and validate it at the boundary.
 - Keep domain concerns at the owning seam. Routers/UI should call domain/service helpers, not know cache keys, raw Redis patterns, billing internals, or provider-specific lifecycle details.
@@ -148,7 +151,8 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 ## Billing (Autumn)
 
 - Retried insight jobs must persist immutable external delivery effects (currently Slack) before calling providers and reuse the effect ID as the provider idempotency key. An insight observation is product memory, not a delivery checkpoint.
-- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as Databunny usage or an AI analysis allowance and explain what it enables.
+- Intelligence pricing should use the existing token-cost-backed `agent_credits` and top-up flow; do not invent per-site or "monitored product" billing without explicit product selection and runtime enforcement.
+- Transactional billing email identity has three separate concepts: Autumn customer/billing owner, organization, and actual `to` recipient. Only personalize from the actual recipient record; if it is unavailable, omit the greeting rather than using the owner name. Keep `agent_credits` as an internal feature ID, but describe it to customers as investigation credits and explain that deeper investigations, replies, and rechecks can use more credits.
 - `autumn-js` v1.2.2+ — import `autumnHandler` from `autumn-js/fetch` (NOT `autumn-js/elysia`, that export was removed in v1.0)
 - For Elysia, mount with `.mount(autumnHandler(...))` — NOT `.use()`
 - `identify` callback receives `(request: Request)` directly, not `({ request })`

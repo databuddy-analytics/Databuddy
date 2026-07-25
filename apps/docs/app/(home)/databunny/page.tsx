@@ -59,7 +59,7 @@ const FAQ_ITEMS = [
 	{
 		question: "Is Databunny included in all plans?",
 		answer:
-			"Every plan includes a Databunny usage allowance for questions and analysis. Free includes 10 usage units each month; deeper analysis can use more of the allowance than simple questions.",
+			"Every plan includes investigation credits for Databunny questions and investigations. Free includes 10 credits each month. Simple checks use fewer credits; deeper investigations, replies, and rechecks use more.",
 	},
 ] as const;
 

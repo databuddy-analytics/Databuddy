@@ -114,7 +114,7 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe(
-				"Concrete product, code, tracking, or configuration change; not more investigation or monitoring."
+				"Concrete product, code, tracking, or configuration change with an exact before and after; not more investigation or monitoring."
 			),
 		target: z.string().trim().min(1),
 		verification: z.string().trim().min(1),
@@ -126,7 +126,7 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe(
-				"One self-contained question naming the subject, proposed interpretation, and decision it unlocks."
+				"One short question requesting a specific external fact that cannot be inspected and chooses between concrete next moves. Never ask the user to define a metric or choose from speculative interpretations."
 			),
 	}),
 	z.object({
@@ -135,9 +135,66 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 	}),
 	z.object({
 		type: z.literal("resolve"),
-		reason: z.string().trim().min(1),
+		reason: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"Why no investigation needs to remain open; a non-interrupting recommendation may still exist."
+			),
 	}),
 ]);
+
+export const insightGoalEditChangesSchema = z
+	.object({
+		description: z
+			.string()
+			.trim()
+			.min(1)
+			.max(500)
+			.nullable()
+			.describe("Exact replacement description; null to leave unchanged."),
+		name: z
+			.string()
+			.trim()
+			.min(1)
+			.max(100)
+			.nullable()
+			.describe("Exact replacement name; null to leave unchanged."),
+	})
+	.strict()
+	.refine((changes) => changes.description !== null || changes.name !== null, {
+		message: "Goal edits require at least one changed field",
+	});
+
+const insightRecommendationSchema = z
+	.discriminatedUnion("operation", [
+		z
+			.object({
+				action: z.string().trim().min(1).max(320),
+				changes: insightGoalEditChangesSchema,
+				operation: z.literal("edit"),
+			})
+			.strict(),
+		z
+			.object({
+				action: z.string().trim().min(1).max(320),
+				changes: z.null(),
+				operation: z.literal("delete"),
+			})
+			.strict(),
+		z
+			.object({
+				action: z.string().trim().min(1).max(320),
+				changes: z.null(),
+				operation: z.null(),
+			})
+			.strict(),
+	])
+	.nullable()
+	.describe(
+		"Concrete evidence-backed next step worth suggesting without opening an investigation. Name the exact object and change; use null when there is no useful next step."
+	);
 
 export const investigationOutcomeSchema = z
 	.object({
@@ -146,20 +203,22 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"Customer-facing title that names the exact entity, page, event, error, goal, or funnel."
+				"Plain-language finding that names the exact entity, page, event, error, goal, or funnel and why it matters."
 			),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
-			.describe("What changed, with its exact subject, values, and timeframe."),
+			.describe(
+				"One or two short sentences stating what changed and the useful conclusion, without repeating the title."
+			),
 		impact: z
 			.string()
 			.trim()
 			.min(1)
 			.nullable()
 			.describe(
-				"Measured material user, workflow, revenue, or decision impact; null when only the metric change is known."
+				"Distinct measured user, workflow, revenue, or decision consequence; for a broken definition, state the decision it cannot support. Null when only the metric change is known."
 			),
 		rootCause: z
 			.string()
@@ -170,6 +229,13 @@ export const investigationOutcomeSchema = z
 				"Known mechanism only; use null for unknown, suspected, or merely correlated explanations."
 			),
 		evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+		publish: z
+			.boolean()
+			.optional()
+			.describe(
+				"True only when this turn adds a new customer-relevant fact worth showing in Insights. False for unchanged, duplicate, or routine rechecks."
+			),
+		recommendation: insightRecommendationSchema.optional(),
 		next: investigationNextSchema,
 	})
 	.strip()
@@ -188,6 +254,43 @@ export const investigationOutcomeSchema = z
 				path: ["rootCause"],
 			});
 		}
+		if (
+			(outcome.next.type === "act" || outcome.next.type === "ask") &&
+			outcome.publish === false
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions and questions must be published",
+				path: ["publish"],
+			});
+		}
+		if (outcome.recommendation && outcome.publish !== true) {
+			context.addIssue({
+				code: "custom",
+				message: "Recommendations must be published",
+				path: ["publish"],
+			});
+		}
+		if (
+			outcome.recommendation &&
+			(outcome.next.type === "act" || outcome.next.type === "ask")
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions and questions cannot also carry a recommendation",
+				path: ["recommendation"],
+			});
+		}
+	});
+
+export const agentInvestigationOutcomeSchema =
+	investigationOutcomeSchema.safeExtend({
+		publish: z
+			.boolean()
+			.describe(
+				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
+			),
+		recommendation: insightRecommendationSchema,
 	});
 
 const insightStatusSchema = z.enum(["open", "resolved"]);
@@ -207,6 +310,23 @@ export const insightReplySlackDeliverySchema = z
 	})
 	.strict();
 
+export const insightBriefItemSchema = z.object({
+	asOf: z.iso.datetime(),
+	createdAt: z.iso.datetime(),
+	evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+	id: z.string(),
+	impact: z.string().trim().min(1).nullable(),
+	investigationId: z.string().nullable(),
+	recommendation: insightRecommendationSchema,
+	rootCause: z.string().trim().min(1).nullable(),
+	signal: investigationSignalSchema,
+	summary: z.string().trim().min(1),
+	title: z.string().trim().min(1),
+	websiteDomain: z.string(),
+	websiteId: z.string(),
+	websiteName: z.string().nullable(),
+});
+
 export const historyInsightSchema = z.object({
 	changePercent: z.number().optional(),
 	description: z.string(),
@@ -223,8 +343,10 @@ export const historyInsightSchema = z.object({
 
 const insightTimelineInvestigationSchema = z.object({
 	createdAt: z.string(),
+	entity: investigationEntitySchema,
 	id: z.string(),
 	kind: z.literal("investigation"),
+	metric: insightMetricSchema,
 	outcome: investigationOutcomeSchema,
 	period: weekOverWeekPeriodSchema,
 	subject: z.string(),
@@ -247,6 +369,7 @@ export const insightTimelineItemSchema = z.discriminatedUnion("kind", [
 export type InsightSeverity = z.infer<typeof insightSeveritySchema>;
 export type InsightSentiment = z.infer<typeof insightSentimentSchema>;
 export type InsightMetric = z.infer<typeof insightMetricSchema>;
+export type InsightBriefItem = z.infer<typeof insightBriefItemSchema>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
 export type InsightReplySlackDelivery = z.infer<
@@ -259,7 +382,7 @@ export function formatInvestigationNext(
 ): string {
 	const next = outcome.next;
 	if (next.type === "act") {
-		return `${next.action} Target: ${next.target}. Verify: ${next.verification}`;
+		return `${next.action} Target: ${next.target}. Done when: ${next.verification}`;
 	}
 	if (next.type === "ask") {
 		return next.question;

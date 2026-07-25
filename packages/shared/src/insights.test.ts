@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
+	agentInvestigationOutcomeSchema,
+	insightBriefItemSchema,
 	investigationOutcomeSchema,
 	investigationSignalSchema,
 	parseInvestigationOutcome,
@@ -108,7 +110,142 @@ const outcomeBase = {
 	},
 };
 
+describe("insightBriefItemSchema", () => {
+	it("keeps readable context and measured signal data without case mechanics", () => {
+		const recommendation = {
+			action: "Rename Signup completed to Checkout completed.",
+			changes: {
+				description: "Counts completed checkout events.",
+				name: "Checkout completed",
+			},
+			operation: "edit" as const,
+		};
+		const parsed = insightBriefItemSchema.parse({
+			asOf: "2026-07-07T00:00:00.000Z",
+			createdAt: "2026-07-07T01:00:00.000Z",
+			evidence: outcomeBase.evidence,
+			id: "observation-1",
+			impact: outcomeBase.impact,
+			investigationId: null,
+			next: outcomeBase.next,
+			recommendation,
+			rootCause: outcomeBase.rootCause,
+			signal,
+			summary: outcomeBase.summary,
+			title: outcomeBase.title,
+			websiteDomain: "example.com",
+			websiteId: "site-1",
+			websiteName: "Example",
+		});
+
+		expect(parsed.investigationId).toBeNull();
+		expect(parsed.recommendation).toEqual(recommendation);
+		expect(parsed.signal.entity.label).toBe("Signup completed");
+		expect(parsed).not.toHaveProperty("next");
+	});
+
+	it("rejects incomplete observations", () => {
+		expect(
+			insightBriefItemSchema.safeParse({
+				id: "observation-1",
+				summary: "Signup improved.",
+			}).success
+		).toBe(false);
+	});
+});
+
 describe("investigationOutcomeSchema", () => {
+	it("requires every new agent turn to make the publish decision", () => {
+		expect(agentInvestigationOutcomeSchema.safeParse(outcomeBase).success).toBe(
+			false
+		);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: true,
+				recommendation: null,
+			}).success
+		).toBe(true);
+	});
+
+	it("keeps old stored outcomes while enforcing recommendation lifecycle", () => {
+		expect(investigationOutcomeSchema.parse(outcomeBase)).toEqual(outcomeBase);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: false,
+				recommendation: {
+					action: "Rename Clicked Nav.",
+					changes: { description: null, name: "Navigation clicks" },
+					operation: "edit",
+				},
+			}).success
+		).toBe(false);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: {
+					action: "Rename Clicked Nav.",
+					target: "Goal: Clicked Nav",
+					type: "act",
+					verification: "The goal name reflects its broad scope.",
+				},
+				publish: true,
+				recommendation: {
+					action: "Rename Clicked Nav.",
+					changes: { description: null, name: "Navigation clicks" },
+					operation: "edit",
+				},
+				rootCause: "The goal name does not match its configured target.",
+			}).success
+		).toBe(false);
+	});
+
+	it("requires exact fields for every new goal edit recommendation", () => {
+		const recommendation = {
+			action:
+				"Rename Clicked Nav to Navigation clicks and describe its broad scope.",
+			changes: {
+				description:
+					"All navigation activity across the navbar, footer, feature menu, and external destinations.",
+				name: "Navigation clicks",
+			},
+			operation: "edit" as const,
+		};
+		const deletion = {
+			action: "Delete the duplicate Clicked Nav goal.",
+			changes: null,
+			operation: "delete" as const,
+		};
+		const accepts = (candidate: unknown) =>
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: true,
+				recommendation: candidate,
+			}).success;
+
+		for (const [candidate, expected] of [
+			[recommendation, true],
+			[
+				{
+					...recommendation,
+					changes: { description: null, name: "Navigation clicks" },
+				},
+				true,
+			],
+			[{ ...recommendation, changes: { name: "Navigation clicks" } }, false],
+			[{ ...recommendation, changes: null }, false],
+			[{ ...deletion, changes: recommendation.changes }, false],
+			[deletion, true],
+			[
+				{ action: "Review the pricing-page CTA.", changes: null, operation: null },
+				true,
+			],
+		] as const) {
+			expect(accepts(candidate)).toBe(expected);
+		}
+	});
+
 	it("accepts concise output with measured or unknown impact", () => {
 		expect(investigationOutcomeSchema.safeParse(outcomeBase).success).toBe(true);
 		expect(
@@ -146,8 +283,7 @@ describe("investigationOutcomeSchema", () => {
 				impact: null,
 				next: {
 					type: "ask",
-					question:
-						"Does ‘Checkout completed’ mean a successful charge? If yes, I’ll correct the goal to the payment event; if not, I’ll keep the current submission definition.",
+					question: "Which repository owns the checkout handler?",
 				},
 			}).success
 		).toBe(true);
@@ -160,6 +296,25 @@ describe("investigationOutcomeSchema", () => {
 		]) {
 			expect(investigationOutcomeSchema.safeParse(invalid).success).toBe(false);
 		}
+	});
+
+	it("keeps routine rechecks private without hiding actions or questions", () => {
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				publish: false,
+			}).success
+		).toBe(true);
+		expect(
+			investigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: {
+					question: "Which repository owns checkout?",
+					type: "ask",
+				},
+				publish: false,
+			}).success
+		).toBe(false);
 	});
 
 	it("reads the canonical outcome", () => {

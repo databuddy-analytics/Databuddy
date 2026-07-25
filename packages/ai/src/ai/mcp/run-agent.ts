@@ -21,7 +21,7 @@ import type { AppMutationMode } from "../config/context";
 import type { DatabuddyAgentSlackContext } from "./slack-context";
 
 const DEFAULT_MCP_AGENT_TIMEOUT_MS = 45_000;
-export type AgentBillingMode = "bill" | "skip";
+type AgentBillingMode = "bill" | "skip";
 
 export interface RunMcpAgentOptions {
 	abortSignal?: AbortSignal;
@@ -394,7 +394,7 @@ const NO_TOOL_CHAT_PATTERN =
 const THREAD_REFERENCE_PATTERN =
 	/\b(above|that|this thread|which one|what first|where do we .*first|poke first|prioriti[sz]e|what'?s the call|do you agree|who said|who asked|recap|from earlier|from above)\b/i;
 const ANALYTICS_REQUEST_PATTERN =
-	/\b(analytics?|metrics?|traffic|visitors?|sessions?|page\s*views?|pageviews?|top pages?|pages?|referrers?|sources?|campaigns?|conversions?|events?|errors?|vitals?|performance|uptime|revenue|transactions?|llm|latency|bounce|countries|country|regions?|cities|devices?|browsers?|operating systems?|utm|fresh|current|latest|live|rerun|last \d+|last week|last month|today|yesterday)\b/i;
+	/\b(analytics?|metrics?|insights?|findings?|traffic|visitors?|sessions?|page\s*views?|pageviews?|top pages?|pages?|referrers?|sources?|campaigns?|conversions?|events?|errors?|vitals?|performance|uptime|revenue|transactions?|llm|latency|bounce|countries|country|regions?|cities|devices?|browsers?|operating systems?|utm|fresh|current|latest|live|rerun|last \d+|last week|last month|today|yesterday)\b/i;
 const NON_ANALYTICS_TOOL_PATTERN =
 	/\b(remember|memory|forget|profile|profiles|flag|flags|feature flag|feature flags|funnel|funnels|goal|goals|annotation|annotations|link|links|short link|short links|investigation|investigations|automatic analysis|subscribe|unsubscribe|create|update|delete|archive|enable|disable|rollout|target|folder|folders|navigate|open|go to|take me|feedback|bug|bugs|broken)\b/i;
 const INVESTIGATION_REQUEST_PATTERN =
@@ -410,6 +410,7 @@ const SLACK_TEXT_MARKER = "\ntext:\n";
 const SLACK_TEXT_PREFIX = "text:\n";
 const ANALYTICS_ACTIVE_TOOLS = [
 	"list_websites",
+	"investigations",
 	"get_data",
 	"execute_sql_query",
 	"list_profiles",

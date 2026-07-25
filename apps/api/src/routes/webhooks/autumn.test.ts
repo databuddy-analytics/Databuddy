@@ -436,7 +436,7 @@ describe("Autumn usage emails", () => {
 		];
 	});
 
-	it("uses live balance data and purpose-based Databunny wording", async () => {
+	it("uses live balance data and investigation-credit wording", async () => {
 		state.userRow = { email: "recipient@example.com", name: "Recipient" };
 		state.check.mockResolvedValueOnce({
 			allowed: true,
@@ -462,12 +462,12 @@ describe("Autumn usage emails", () => {
 
 		expect(UsageAlertEmail).toHaveBeenCalledWith(
 			expect.objectContaining({
-				featureName: "Databunny usage",
+				featureName: "Investigation credits",
 				limitAmount: 350,
 				organizationName: "Acme",
 				remainingAmount: 62,
 				usageAmount: 288,
-				usageUnit: "usage units",
+				usageUnit: "investigation credits",
 			})
 		);
 		expect(UsageAlertEmail).not.toHaveBeenCalledWith(
@@ -475,7 +475,7 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "Databunny usage is at 82%",
+				subject: "Investigation credits: 82% used",
 				to: "recipient@example.com",
 			})
 		);
@@ -553,7 +553,7 @@ describe("Autumn usage emails", () => {
 
 		expect(UsageLimitEmail).toHaveBeenCalledWith(
 			expect.objectContaining({
-				featureName: "Databunny usage",
+				featureName: "Investigation credits",
 				isAvailable: false,
 				limitAmount: 350,
 				limitType: "spend_limit",
@@ -562,7 +562,7 @@ describe("Autumn usage emails", () => {
 		);
 		expect(state.send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				subject: "[Action required] Databunny usage is paused",
+				subject: "[Action required] Investigation credits limit reached",
 			})
 		);
 	});
