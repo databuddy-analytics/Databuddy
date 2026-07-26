@@ -211,24 +211,11 @@ function InsightBrief({
 
 	return (
 		<Card aria-label="Latest insights" className="border-border/70 shadow-sm">
-			<Card.Header className="border-b bg-card px-5 py-5 sm:px-6">
-				<div className="flex items-start justify-between gap-5">
-					<div>
-						<p className="font-medium text-[11px] text-primary uppercase tracking-[0.16em]">
-							Signal desk
-						</p>
-						<Card.Title className="mt-1 text-base">Latest insights</Card.Title>
-						<Card.Description className="mt-1.5 max-w-xl text-sm leading-relaxed">
-							The most meaningful changes, with the context to decide what to do
-							next.
-						</Card.Description>
-					</div>
-					<LightbulbIcon
-						aria-hidden
-						className="mt-0.5 size-5 shrink-0 text-primary/70"
-						weight="duotone"
-					/>
-				</div>
+			<Card.Header className="border-b bg-card px-5 py-4 sm:px-6">
+				<Card.Title>Latest insights</Card.Title>
+				<Card.Description className="mt-1">
+					What changed, why it matters, and what to do next.
+				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">{content}</Card.Content>
 		</Card>
