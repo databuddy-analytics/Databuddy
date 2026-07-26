@@ -114,10 +114,18 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe(
-				"Concrete product, code, tracking, or configuration change with an exact before and after; not more investigation or monitoring."
+				"One short, concrete product, code, tracking, or configuration change with an exact before and after; not more investigation or monitoring."
 			),
-		target: z.string().trim().min(1),
-		verification: z.string().trim().min(1),
+		target: z
+			.string()
+			.trim()
+			.min(1)
+			.describe("Smallest inspected target, using a readable product name."),
+		verification: z
+			.string()
+			.trim()
+			.min(1)
+			.describe("One short measured condition that proves the repair worked."),
 	}),
 	z.object({
 		type: z.literal("ask"),
@@ -126,12 +134,16 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe(
-				"One short question requesting a specific external fact that cannot be inspected and chooses between concrete next moves. Never ask the user to define a metric or choose from speculative interpretations."
+				"One short, teammate-facing question requesting a specific external fact that cannot be inspected and chooses between concrete next moves. Never ask the user to define a metric or choose from speculative interpretations."
 			),
 	}),
 	z.object({
 		type: z.literal("watch"),
-		escalation: z.string().trim().min(1),
+		escalation: z
+			.string()
+			.trim()
+			.min(1)
+			.describe("One short, exact condition for reopening this work."),
 	}),
 	z.object({
 		type: z.literal("resolve"),
@@ -140,7 +152,7 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe(
-				"Why no investigation needs to remain open; a non-interrupting recommendation may still exist."
+				"One short, teammate-facing reason no investigation needs to remain open; a non-interrupting recommendation may still exist."
 			),
 	}),
 ]);
@@ -171,21 +183,42 @@ const insightRecommendationSchema = z
 	.discriminatedUnion("operation", [
 		z
 			.object({
-				action: z.string().trim().min(1).max(320),
+				action: z
+					.string()
+					.trim()
+					.min(1)
+					.max(320)
+					.describe(
+						"One short, concrete recommendation in teammate-facing language."
+					),
 				changes: insightGoalEditChangesSchema,
 				operation: z.literal("edit"),
 			})
 			.strict(),
 		z
 			.object({
-				action: z.string().trim().min(1).max(320),
+				action: z
+					.string()
+					.trim()
+					.min(1)
+					.max(320)
+					.describe(
+						"One short, concrete recommendation in teammate-facing language."
+					),
 				changes: z.null(),
 				operation: z.literal("delete"),
 			})
 			.strict(),
 		z
 			.object({
-				action: z.string().trim().min(1).max(320),
+				action: z
+					.string()
+					.trim()
+					.min(1)
+					.max(320)
+					.describe(
+						"One short, concrete recommendation in teammate-facing language."
+					),
 				changes: z.null(),
 				operation: z.null(),
 			})
@@ -203,14 +236,14 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"Plain-language finding that names the exact entity, page, event, error, goal, or funnel and why it matters."
+				"A 5–12 word, sentence-case headline that states the human outcome. Use the exact entity only when it clarifies the outcome; never use a raw identifier, generic config label, schema label, or arrow relationship as the title."
 			),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
 			.describe(
-				"One or two short sentences stating what changed and the useful conclusion, without repeating the title."
+				"One short sentence with the measured change and useful conclusion. Do not repeat the title, impact, root cause, or evidence."
 			),
 		impact: z
 			.string()
@@ -218,7 +251,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"Distinct measured user, workflow, revenue, or decision consequence; for a broken definition, state the decision it cannot support. Null when only the metric change is known."
+				"One short, distinct measured user, workflow, revenue, or decision consequence. For a broken definition, say the decision it cannot support. Null when only the metric change is known."
 			),
 		rootCause: z
 			.string()
@@ -226,9 +259,20 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"Known mechanism only; use null for unknown, suspected, or merely correlated explanations."
+				"One short, known mechanism only; use null for unknown, suspected, or merely correlated explanations."
 			),
-		evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+		evidence: z
+			.array(
+				z
+					.string()
+					.trim()
+					.min(1)
+					.describe(
+						"One terse fact that supports a distinct claim in the brief."
+					)
+			)
+			.min(1)
+			.max(2),
 		publish: z
 			.boolean()
 			.optional()
