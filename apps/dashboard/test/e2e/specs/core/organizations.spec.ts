@@ -130,7 +130,7 @@ test(
 			})
 		).toBeVisible();
 		await expect(
-			authenticatedPage.getByText("current workspace")
+			authenticatedPage.getByText("current organization")
 		).toBeVisible();
 		await expect(authenticatedPage.getByText(primary.website.domain)).toBeHidden();
 		await authenticatedPage.goto(`/links/${primaryLinkId}`);
@@ -140,7 +140,7 @@ test(
 			})
 		).toBeVisible();
 		await expect(
-			authenticatedPage.getByText("current workspace")
+			authenticatedPage.getByText("current organization")
 		).toBeVisible();
 		await expect(linkRow(authenticatedPage, primary.link.name)).toBeHidden();
 

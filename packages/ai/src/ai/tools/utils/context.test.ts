@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { AppContext } from "../../config/context";
-import { resolveToolWebsite } from "./context";
+import { resolveToolWebsite, toolDateRangeError } from "./context";
 
 function makeCtx(overrides: Partial<AppContext> = {}): AppContext {
 	return {
@@ -150,6 +150,20 @@ describe("resolveToolWebsite", () => {
 
 		expect(() => resolveToolWebsite(ctx, "unknown.com")).toThrow(
 			/not in this workspace/
+		);
+	});
+});
+
+describe("toolDateRangeError", () => {
+	it("keeps historical tools inside their frozen context date", () => {
+		const context = makeCtx({
+			currentDateTime: "2026-05-30T23:00:00.000Z",
+			timezone: "America/New_York",
+		});
+
+		expect(toolDateRangeError("2026-05-01", "2026-05-30", context)).toBeNull();
+		expect(toolDateRangeError("2026-05-01", "2026-05-31", context)).toBe(
+			"Date range cannot extend beyond context date 2026-05-30"
 		);
 	});
 });

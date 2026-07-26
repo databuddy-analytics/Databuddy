@@ -44,6 +44,7 @@ export function createConfig(
 		defaultWebsiteId: context.defaultWebsiteId ?? context.websiteId,
 		accessibleWebsites: context.accessibleWebsites,
 		organizationId: context.organizationId,
+		source: "dashboard",
 		timezone: context.timezone,
 		currentDateTime: new Date().toISOString(),
 		chatId: context.chatId,

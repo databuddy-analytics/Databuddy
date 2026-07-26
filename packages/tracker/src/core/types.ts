@@ -11,6 +11,7 @@ export type TrackerOptions = {
 	trackHashChanges?: boolean;
 	trackAttributes?: boolean;
 	trackOutgoingLinks?: boolean;
+	/** @deprecated Use trackWebVitals. This remains as a compatibility alias. */
 	trackPerformance?: boolean;
 	trackWebVitals?: boolean;
 	trackInteractions?: boolean;
@@ -34,6 +35,23 @@ export type TrackerOptions = {
 	skipPatterns?: string[];
 	maskPatterns?: string[];
 };
+
+export type TrackerSendOutcome =
+	| {
+			count: number;
+			ok: true;
+			status: "delivered" | "queued" | "skipped";
+	  }
+	| {
+			attempts: number;
+			code: "HTTP_ERROR" | "NETWORK_ERROR" | "REQUEST_ERROR";
+			count: number;
+			message: string;
+			ok: false;
+			retryable: boolean;
+			status: "failed";
+			statusCode: number | null;
+	  };
 
 export type EventContext = {
 	path: string;
@@ -88,6 +106,7 @@ export type ErrorSpan = {
 export type TrackEventPayload = {
 	name: string;
 	timestamp: number;
+	path?: string;
 	properties?: Record<string, unknown>;
 	anonymousId?: string;
 	anonymizeVisitorIds?: boolean | "auto";
@@ -155,6 +174,7 @@ declare global {
 	}
 
 	interface Navigator {
+		globalPrivacyControl?: boolean;
 		webdriver?: boolean;
 	}
 }

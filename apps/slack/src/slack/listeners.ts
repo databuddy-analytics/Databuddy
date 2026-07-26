@@ -1,4 +1,12 @@
 import { Assistant, type App } from "@slack/bolt";
+import { and, db, desc, eq } from "@databuddy/db";
+import {
+	insightObservations,
+	insightRunEffects,
+	insightRunItems,
+} from "@databuddy/db/schema";
+import { createRPCContext } from "@databuddy/rpc";
+import { appendInvestigationReply } from "@databuddy/rpc/insights";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { createSlackEventLog } from "@/lib/evlog-slack";
 import { abortSlackActiveRun } from "@/slack/active-runs";
@@ -30,6 +38,15 @@ import {
 	type SlackThreadReplyDecision,
 	type SlackThreadReplyGate,
 } from "@/slack/thread-relevance";
+import type { SlackAgentClient, SlackLogger, SlackSay } from "@/slack/types";
+
+export type SlackInvestigationReplyHandler = (options: {
+	client: SlackAgentClient;
+	installations: SlackInstallationServices;
+	logger: SlackLogger;
+	run: SlackAgentRun;
+	say: SlackSay;
+}) => Promise<boolean>;
 
 function createDatabuddyAssistant({
 	agent,
@@ -123,7 +140,8 @@ export function registerSlackListeners(
 	agent: Pick<DatabuddyAgentClient, "stream">,
 	installations: SlackInstallationServices,
 	threadQueue: SlackThreadQueueStore = slackThreadQueue,
-	threadReplyGate: SlackThreadReplyGate = slackThreadReplyGate
+	threadReplyGate: SlackThreadReplyGate = slackThreadReplyGate,
+	investigationReplyHandler: SlackInvestigationReplyHandler = handleInvestigationThreadReply
 ): void {
 	const dedupe = createRecentDedupe();
 
@@ -136,9 +154,6 @@ export function registerSlackListeners(
 			const teamId = context.teamId ?? event.team;
 			const text = stripLeadingMention(event.text ?? "").trim();
 			if (!event.user) {
-				return;
-			}
-			if (!dedupe.claim([teamId ?? "", event.channel, event.ts].join(":"))) {
 				return;
 			}
 			if (!text) {
@@ -211,6 +226,20 @@ export function registerSlackListeners(
 				trigger: "app_mention",
 				userId: event.user,
 			};
+			if (
+				await investigationReplyHandler({
+					client,
+					installations,
+					logger,
+					run,
+					say,
+				})
+			) {
+				return;
+			}
+			if (!dedupe.claim([teamId ?? "", event.channel, event.ts].join(":"))) {
+				return;
+			}
 			await threadQueue.markEngaged(run);
 			await handleAgentRun({
 				agent,
@@ -298,6 +327,21 @@ export function registerSlackListeners(
 		}
 
 		const teamId = context.teamId ?? msg.team;
+		const sourceTeamId = msg.user_team ?? msg.source_team;
+		if (sourceTeamId && teamId && sourceTeamId !== teamId) {
+			logChannelGate({
+				channelId: msg.channel,
+				messageTs: msg.ts,
+				policyReason: "slack_connect_external_user",
+				teamId,
+				userId: msg.user,
+			});
+			await say({
+				text: SLACK_COPY.slackConnectExternalUser,
+				thread_ts: msg.thread_ts,
+			});
+			return;
+		}
 		const run: SlackAgentRun = {
 			channelId: msg.channel,
 			messageTs: msg.ts,
@@ -307,13 +351,15 @@ export function registerSlackListeners(
 			trigger: "thread_follow_up",
 			userId: msg.user,
 		};
-		if (!(await threadQueue.isEngaged(run))) {
-			logMessageRouteSkipped({
-				botUserId: context.botUserId,
-				message: msg,
-				reason: "thread_not_engaged",
-				teamId,
-			});
+		if (
+			await investigationReplyHandler({
+				client,
+				installations,
+				logger,
+				run,
+				say,
+			})
+		) {
 			return;
 		}
 		if (!dedupe.claim([teamId ?? "", msg.channel, msg.ts].join(":"))) {
@@ -321,6 +367,15 @@ export function registerSlackListeners(
 				botUserId: context.botUserId,
 				message: msg,
 				reason: "duplicate",
+				teamId,
+			});
+			return;
+		}
+		if (!(await threadQueue.isEngaged(run))) {
+			logMessageRouteSkipped({
+				botUserId: context.botUserId,
+				message: msg,
+				reason: "thread_not_engaged",
 				teamId,
 			});
 			return;
@@ -351,6 +406,115 @@ export function registerSlackListeners(
 	registerSlackReactionFeedback(app, installations);
 }
 
+async function handleInvestigationThreadReply({
+	client,
+	installations,
+	logger,
+	run,
+	say,
+}: Parameters<SlackInvestigationReplyHandler>[0]): Promise<boolean> {
+	if (
+		!(run.messageTs && run.teamId && run.threadTs) ||
+		run.threadTs === run.messageTs
+	) {
+		return false;
+	}
+	const resolved = await installations.resolve(run);
+	if (!resolved) {
+		return false;
+	}
+
+	const [delivery] = await db
+		.select({ insightId: insightObservations.insightId })
+		.from(insightRunEffects)
+		.innerJoin(
+			insightRunItems,
+			eq(insightRunEffects.runItemId, insightRunItems.id)
+		)
+		.innerJoin(
+			insightObservations,
+			and(
+				eq(insightObservations.runId, insightRunItems.runId),
+				eq(insightObservations.organizationId, insightRunItems.organizationId),
+				eq(insightObservations.websiteId, insightRunItems.websiteId)
+			)
+		)
+		.where(
+			and(
+				eq(insightRunEffects.externalId, run.threadTs),
+				eq(insightRunEffects.effectKey, run.channelId),
+				eq(insightRunEffects.status, "succeeded"),
+				eq(insightRunItems.organizationId, resolved.organizationId)
+			)
+		)
+		.orderBy(
+			desc(insightRunEffects.completedAt),
+			desc(insightObservations.createdAt)
+		)
+		.limit(1);
+	if (!delivery?.insightId) {
+		return false;
+	}
+
+	const replyId = [
+		"slack",
+		run.teamId,
+		run.channelId,
+		run.messageTs.replaceAll(".", "-"),
+	].join("-");
+	let response: { clientMessageId: string; text: string };
+	try {
+		const context = await createRPCContext(
+			{ headers: new Headers() },
+			{ apiKey: resolved.apiKey, session: null }
+		);
+		const { reply } = await appendInvestigationReply({
+			authorName: "Slack teammate",
+			body: run.text,
+			context,
+			insightId: delivery.insightId,
+			replyId,
+			slackDelivery: {
+				channelId: run.channelId,
+				threadTs: run.threadTs,
+				type: "slack",
+			},
+		});
+		if (reply.status === "succeeded") {
+			return true;
+		}
+		response =
+			reply.status === "failed"
+				? {
+						clientMessageId: `${replyId}-failure`,
+						text: "I couldn't finish this investigation. Try replying again, or open it from the original message.",
+					}
+				: {
+						clientMessageId: `${replyId}-ack`,
+						text: "Continuing this investigation. I’ll post the result here when it’s ready.",
+					};
+	} catch (error) {
+		logger.error("Failed to continue Slack investigation", error);
+		response = {
+			clientMessageId: `${replyId}-failure`,
+			text: "I couldn't continue this investigation. Try replying again, or open it from the original message.",
+		};
+	}
+
+	try {
+		await client.apiCall("chat.postMessage", {
+			channel: run.channelId,
+			client_msg_id: response.clientMessageId,
+			text: response.text,
+			thread_ts: run.threadTs,
+		});
+	} catch (error) {
+		logger.warn("Failed to acknowledge Slack investigation reply", error);
+		await say({ text: response.text, thread_ts: run.threadTs });
+	}
+	return true;
+}
+
 function registerSlackCommands(
 	app: App,
 	installations: SlackInstallationServices
@@ -368,6 +532,13 @@ function registerSlackCommands(
 		}
 	);
 
+	app.command("/databuddy-bind", async ({ ack, command, logger, respond }) => {
+		await ack();
+		await respondToBindCommand({ command, installations, logger, respond });
+	});
+
+	// Keep the original command working for existing installations while new
+	// manifests use the namespaced command.
 	app.command("/bind", async ({ ack, command, logger, respond }) => {
 		await ack();
 		await respondToBindCommand({ command, installations, logger, respond });

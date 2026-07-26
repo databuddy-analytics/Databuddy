@@ -14,7 +14,6 @@ interface ErrorBoundaryProps {
 export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 	const router = useRouter();
 	const [hasError, setHasError] = useState(false);
-	const [error, setError] = useState<Error | null>(null);
 
 	useEffect(() => {
 		const errorHandler = (event: ErrorEvent) => {
@@ -26,7 +25,6 @@ export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 				lineno: event.lineno,
 				colno: event.colno,
 			});
-			setError(err ?? new Error(event.message || "Unknown error"));
 			setHasError(true);
 		};
 
@@ -61,20 +59,13 @@ export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 
 						<div className="mt-6 w-full max-w-sm space-y-4">
 							<h1 className="font-semibold text-foreground text-lg">
-								Something Went Wrong
+								Something went wrong
 							</h1>
 							<p className="text-balance text-muted-foreground text-sm leading-relaxed">
 								We encountered an error while trying to display this content.
 								This could be due to a temporary issue or a problem with the
 								data.
 							</p>
-							{error && (
-								<div className="mx-auto mt-2 max-h-[150px] w-full overflow-auto rounded-md border border-destructive/20 bg-destructive/10 p-2">
-									<p className="wrap-break-word font-mono text-destructive text-xs">
-										{error.toString()}
-									</p>
-								</div>
-							)}
 						</div>
 
 						<div className="mt-6 flex w-full max-w-xs flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
@@ -96,17 +87,16 @@ export function ErrorBoundary({ children, fallback }: ErrorBoundaryProps) {
 								}
 								onClick={() => {
 									setHasError(false);
-									setError(null);
 								}}
 							>
-								Try Again
+								Try again
 							</Button>
 							<Button
 								className={canGoBack ? "flex-1" : "w-full"}
 								onClick={() => window.location.reload()}
 								variant="secondary"
 							>
-								Reload Page
+								Reload page
 							</Button>
 						</div>
 					</Card.Content>

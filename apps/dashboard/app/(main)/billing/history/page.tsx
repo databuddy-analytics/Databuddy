@@ -277,7 +277,7 @@ function SubscriptionItem({
 						{sub.plan?.name ?? sub.planId}
 					</Text>
 					{isActive && <Badge variant="success">Active</Badge>}
-					{isCanceled && <Badge variant="muted">Cancelled</Badge>}
+					{isCanceled && <Badge variant="muted">Canceled</Badge>}
 				</div>
 				<Text tone="muted" variant="caption">
 					Started {dayjs(sub.startedAt).fromNow()}

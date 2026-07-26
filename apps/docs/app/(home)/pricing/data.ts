@@ -1,3 +1,5 @@
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
+
 export interface FeatureDisplay {
 	plural: string;
 	singular: string;
@@ -47,9 +49,12 @@ export interface RawPlan {
 
 const AGENT_CREDITS_FEATURE: RawFeature = {
 	id: "agent_credits",
-	name: "Agent Credits",
+	name: DATABUNNY_USAGE.name,
 	type: "single_use",
-	display: { singular: "agent credit", plural: "agent credits" },
+	display: {
+		singular: "investigation credit",
+		plural: DATABUNNY_USAGE.unit,
+	},
 };
 
 const EVENTS_FEATURE: RawFeature = {

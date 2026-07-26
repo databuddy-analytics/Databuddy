@@ -59,7 +59,6 @@ export interface SlackChannelBindingCommand {
 }
 
 export interface SlackChannelBindingCommandResult {
-	autoBound?: boolean;
 	message: string;
 	ok: boolean;
 }
@@ -71,7 +70,7 @@ export interface SlackTeamContext {
 
 export type SlackInstallationServices = Pick<
 	SlackInstallationStore,
-	"bindChannel" | "getChannelReadiness" | "getTeamContext"
+	"bindChannel" | "getChannelReadiness" | "getTeamContext" | "resolve"
 >;
 
 export class SlackInstallationStore implements SlackRunContextResolver {
@@ -206,7 +205,6 @@ export class SlackInstallationStore implements SlackRunContextResolver {
 					slack_team_id: teamId,
 				}).emit();
 				return {
-					autoBound: true,
 					message: SLACK_COPY.autoBindSuccess,
 					ok: true,
 				};
@@ -227,7 +225,6 @@ export class SlackInstallationStore implements SlackRunContextResolver {
 		return {
 			apiKey: buildSlackApiKey(installation),
 			organizationId: installation.organizationId,
-			teamId: installation.teamId,
 		};
 	}
 }

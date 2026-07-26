@@ -10,6 +10,7 @@ import {
 	verification as verificationTable,
 } from "@databuddy/db/schema";
 import {
+	AUTH_EMAIL_EXPIRY_SECONDS,
 	DeleteAccountEmail,
 	InvitationEmail,
 	MagicLinkEmail,
@@ -27,6 +28,7 @@ import {
 	ratelimit,
 } from "@databuddy/redis";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
 import {
 	emailOTP,
@@ -94,10 +96,10 @@ async function provisionDefaultOrg(input: {
 
 function getOrgNameFromUser(userName: string, email: string): string {
 	if (userName?.trim()) {
-		return `${userName.trim()}'s Workspace`;
+		return `${userName.trim()}'s Organization`;
 	}
 	const emailPrefix = email.split("@").at(0) ?? "user";
-	return `${emailPrefix}'s Workspace`;
+	return `${emailPrefix}'s Organization`;
 }
 
 function isProduction() {
@@ -113,6 +115,83 @@ function shouldRequireEmailVerification() {
 		return readBooleanEnv("REQUIRE_EMAIL_VERIFICATION");
 	}
 	return isProduction() && !isSelfHosted();
+}
+
+type EmailTemplate = Parameters<typeof render>[0];
+
+async function enforceAuthEmailRateLimit(input: {
+	callback: string;
+	email?: string;
+	key: string;
+	limit: number;
+	windowSeconds: number;
+}): Promise<void> {
+	const { success } = await ratelimit(
+		input.key,
+		input.limit,
+		input.windowSeconds
+	);
+	if (success) {
+		return;
+	}
+
+	log.warn({
+		service: "auth",
+		auth_rate_limited: true,
+		auth_callback: input.callback,
+		...(input.email ? { auth_rate_limit_email: input.email } : {}),
+	});
+	throw new APIError("TOO_MANY_REQUESTS", {
+		message: "Too many email requests. Please try again later.",
+	});
+}
+
+async function sendAuthEmail(input: {
+	subject: string;
+	template: EmailTemplate;
+	to: string;
+}): Promise<void> {
+	const apiKey = process.env.RESEND_API_KEY;
+	if (!apiKey) {
+		log.error({
+			service: "auth",
+			auth_email_delivery_failed: true,
+			email_provider_error: "RESEND_API_KEY is not configured",
+		});
+		throw new APIError("SERVICE_UNAVAILABLE", {
+			message: "Email delivery is temporarily unavailable. Please try again.",
+		});
+	}
+	const [html, text] = await Promise.all([
+		render(input.template),
+		render(input.template, { plainText: true }),
+	]);
+	const resend = new Resend(apiKey);
+	const result = await resend.emails.send({
+		from: config.email.from,
+		to: input.to,
+		subject: input.subject,
+		html,
+		text,
+	});
+
+	if (result.error) {
+		log.error({
+			service: "auth",
+			auth_email_delivery_failed: true,
+			email_provider_error: result.error.message,
+		});
+		throw new APIError("INTERNAL_SERVER_ERROR", {
+			message: "We could not send this email. Please try again.",
+		});
+	}
+}
+
+function formatInvitationRole(role: string | string[]): string {
+	const roles = Array.isArray(role) ? role : [role];
+	return roles
+		.map((value) => value.replaceAll(/[_-]+/g, " ").toLowerCase())
+		.join(", ");
 }
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL ?? "";
@@ -254,6 +333,7 @@ export const auth = betterAuth({
 			"/forget-password": { window: 60, max: 3 },
 			"/magic-link/send": { window: 60, max: 3 },
 			"/email-otp/send": { window: 60, max: 3 },
+			"/organization/invite-member": { window: 3600, max: 5 },
 		},
 	},
 	account: {
@@ -366,13 +446,12 @@ export const auth = betterAuth({
 	user: {
 		deleteUser: {
 			enabled: true,
+			deleteTokenExpiresIn: AUTH_EMAIL_EXPIRY_SECONDS.accountDeletion,
 			sendDeleteAccountVerification: async ({ user: targetUser, url }) => {
-				const resend = new Resend(process.env.RESEND_API_KEY as string);
-				await resend.emails.send({
-					from: config.email.from,
+				await sendAuthEmail({
 					to: targetUser.email,
 					subject: "[Action required] Confirm account deletion",
-					html: await render(DeleteAccountEmail({ url })),
+					template: DeleteAccountEmail({ url }),
 				});
 			},
 			beforeDelete: async (userToDelete) => {
@@ -428,59 +507,45 @@ export const auth = betterAuth({
 		maxPasswordLength: 128,
 		autoSignIn: false,
 		requireEmailVerification: shouldRequireEmailVerification(),
+		resetPasswordTokenExpiresIn: AUTH_EMAIL_EXPIRY_SECONDS.passwordReset,
 		revokeSessionsOnPasswordReset: true,
 		onPasswordReset: async ({ user }: { user: { id: string } }) => {
 			await purgeOutstandingResetTokens(user.id);
 		},
-		sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
-			const { success } = await ratelimit(`reset:${user.email}`, 3, 3600);
-			if (!success) {
-				log.warn({
-					service: "auth",
-					auth_rate_limited: true,
-					auth_callback: "reset_password",
-					auth_rate_limit_email: user.email,
-				});
-				return;
-			}
+		sendResetPassword: async ({ user, url }) => {
+			await enforceAuthEmailRateLimit({
+				callback: "reset_password",
+				email: user.email,
+				key: `reset:${user.email}`,
+				limit: 3,
+				windowSeconds: 3600,
+			});
 
-			const resend = new Resend(process.env.RESEND_API_KEY as string);
-			await resend.emails.send({
-				from: config.email.from,
+			await sendAuthEmail({
 				to: user.email,
 				subject: "[Action required] Reset your password",
-				html: await render(ResetPasswordEmail({ url })),
+				template: ResetPasswordEmail({ url }),
 			});
 		},
 	},
 	emailVerification: {
+		expiresIn: AUTH_EMAIL_EXPIRY_SECONDS.emailVerification,
 		sendOnSignUp: process.env.NODE_ENV === "production",
 		sendOnSignIn: process.env.NODE_ENV === "production",
 		autoSignInAfterVerification: true,
-		sendVerificationEmail: async ({
-			user,
-			url,
-		}: {
-			user: any;
-			url: string;
-		}) => {
-			const { success } = await ratelimit(`verify:${user.email}`, 3, 900);
-			if (!success) {
-				log.warn({
-					service: "auth",
-					auth_rate_limited: true,
-					auth_callback: "verify_email",
-					auth_rate_limit_email: user.email,
-				});
-				return;
-			}
+		sendVerificationEmail: async ({ user, url }) => {
+			await enforceAuthEmailRateLimit({
+				callback: "verify_email",
+				email: user.email,
+				key: `verify:${user.email}`,
+				limit: 3,
+				windowSeconds: 900,
+			});
 
-			const resend = new Resend(process.env.RESEND_API_KEY as string);
-			await resend.emails.send({
-				from: config.email.from,
+			await sendAuthEmail({
 				to: user.email,
 				subject: "[Action required] Verify your email to get started",
-				html: await render(VerificationEmail({ url })),
+				template: VerificationEmail({ url }),
 			});
 		},
 	},
@@ -500,20 +565,15 @@ export const auth = betterAuth({
 			},
 		}),
 		emailOTP({
+			expiresIn: AUTH_EMAIL_EXPIRY_SECONDS.oneTimeCode,
 			async sendVerificationOTP({ email, otp, type }) {
-				const { success } = await ratelimit(`otp:${email}`, 3, 900);
-				if (!success) {
-					log.warn({
-						service: "auth",
-						auth_rate_limited: true,
-						auth_callback: "verification_otp",
-						auth_otp_type: type,
-						auth_rate_limit_email: email,
-					});
-					return;
-				}
-
-				const resend = new Resend(process.env.RESEND_API_KEY as string);
+				await enforceAuthEmailRateLimit({
+					callback: `verification_otp_${type}`,
+					email,
+					key: `otp:${email}`,
+					limit: 3,
+					windowSeconds: 900,
+				});
 
 				let subject = `${otp} is your verification code`;
 				if (type === "sign-in") {
@@ -524,38 +584,28 @@ export const auth = betterAuth({
 					subject = `${otp} — Reset your password`;
 				}
 
-				const otpHtml = await render(OtpEmail({ otp }));
-				resend.emails
-					.send({
-						from: config.email.from,
-						to: email,
-						subject,
-						html: otpHtml,
-					})
-					.catch((error) => {
-						console.error("Failed to send OTP email:", error);
-					});
+				await sendAuthEmail({
+					to: email,
+					subject,
+					template: OtpEmail({ otp, type }),
+				});
 			},
 		}),
 		magicLink({
+			expiresIn: AUTH_EMAIL_EXPIRY_SECONDS.magicLink,
 			sendMagicLink: async ({ email, url }) => {
-				const { success } = await ratelimit(`magic:${email}`, 3, 900);
-				if (!success) {
-					log.warn({
-						service: "auth",
-						auth_rate_limited: true,
-						auth_callback: "magic_link",
-						auth_rate_limit_email: email,
-					});
-					return;
-				}
+				await enforceAuthEmailRateLimit({
+					callback: "magic_link",
+					email,
+					key: `magic:${email}`,
+					limit: 3,
+					windowSeconds: 900,
+				});
 
-				const resend = new Resend(process.env.RESEND_API_KEY as string);
-				resend.emails.send({
-					from: config.email.from,
+				await sendAuthEmail({
 					to: email,
 					subject: "Your sign-in link for Databuddy",
-					html: await render(MagicLinkEmail({ url })),
+					template: MagicLinkEmail({ url }),
 				});
 			},
 		}),
@@ -568,6 +618,7 @@ export const auth = betterAuth({
 		twoFactor(),
 		organization({
 			creatorRole: "owner",
+			invitationExpiresIn: AUTH_EMAIL_EXPIRY_SECONDS.invitation,
 			teams: {
 				enabled: false,
 			},
@@ -590,34 +641,17 @@ export const auth = betterAuth({
 				organization,
 				invitation,
 			}) => {
-				const { success } = await ratelimit(
-					`invite:${organization.id}`,
-					5,
-					3600
-				);
-				if (!success) {
-					log.warn({
-						service: "auth",
-						auth_rate_limited: true,
-						auth_callback: "invitation",
-						auth_organization_id: organization.id,
-					});
-					return;
-				}
-
 				const invitationLink = `${config.urls.dashboard}/invitations/${invitation.id}`;
-				const resend = new Resend(process.env.RESEND_API_KEY as string);
-				await resend.emails.send({
-					from: config.email.from,
+				await sendAuthEmail({
 					to: email,
 					subject: `${inviter.user.name ?? "Someone"} invited you to join ${organization.name}`,
-					html: await render(
-						InvitationEmail({
-							inviterName: inviter.user.name ?? "",
-							organizationName: organization.name,
-							invitationLink,
-						})
-					),
+					template: InvitationEmail({
+						inviterName: inviter.user.name ?? "",
+						organizationName: organization.name,
+						invitationLink,
+						recipientEmail: email,
+						role: formatInvitationRole(invitation.role),
+					}),
 				});
 			},
 		}),

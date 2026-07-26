@@ -1,3 +1,4 @@
+import { CUSTOM_EVENTS_VISITOR_KEY } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { Filter, SimpleQueryConfig } from "../types";
@@ -60,12 +61,12 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 					SELECT
 						event_name as name,
 						COUNT(*) as total_events,
-						uniq(anonymous_id) as unique_users,
+						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users,
 						uniq(session_id) as unique_sessions,
 						MAX(timestamp) as last_occurrence,
 						MIN(timestamp) as first_occurrence,
 						countIf(properties != '{}' AND isValidJSON(properties)) as events_with_properties,
-						ROUND((uniq(anonymous_id) / SUM(uniq(anonymous_id)) OVER()) * 100, 2) as percentage
+						ROUND((uniq(${CUSTOM_EVENTS_VISITOR_KEY}) / SUM(uniq(${CUSTOM_EVENTS_VISITOR_KEY})) OVER()) * 100, 2) as percentage
 					FROM ${Analytics.custom_events}
 					WHERE
 						${projectWhereClause(filterParams)}
@@ -196,7 +197,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 						path as name,
 						COUNT(*) as total_events,
 						uniq(event_name) as unique_event_types,
-						uniq(anonymous_id) as unique_users
+						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users
 					FROM ${Analytics.custom_events}
 					WHERE
 						${projectWhereClause(filterParams)}
@@ -246,7 +247,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 						toDate(timestamp) as date,
 						COUNT(*) as total_events,
 						uniq(event_name) as unique_event_types,
-						uniq(anonymous_id) as unique_users,
+						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users,
 						uniq(session_id) as unique_sessions,
 						uniq(path) as unique_pages
 					FROM ${Analytics.custom_events}
@@ -342,7 +343,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 					SELECT
 						COUNT(*) as total_events,
 						uniq(event_name) as unique_event_types,
-						uniq(anonymous_id) as unique_users,
+						uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users,
 						uniq(session_id) as unique_sessions,
 						uniq(path) as unique_pages
 					FROM ${Analytics.custom_events}
@@ -863,7 +864,7 @@ export const CustomEventsBuilders: Record<string, SimpleQueryConfig> = {
 						SELECT
 							event_name,
 							COUNT(*) as total_events,
-							uniq(anonymous_id) as unique_users,
+							uniq(${CUSTOM_EVENTS_VISITOR_KEY}) as unique_users,
 							uniq(session_id) as unique_sessions
 						FROM ${Analytics.custom_events}
 						WHERE

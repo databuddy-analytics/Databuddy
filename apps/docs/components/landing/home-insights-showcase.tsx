@@ -75,7 +75,7 @@ export function HomeInsightsShowcase() {
 					>
 						<div className="relative aspect-[3/4] w-full overflow-hidden sm:aspect-[2986/1668]">
 							<Image
-								alt="Databuddy dashboard home showing actionable insights, monitors, and website snapshot cards."
+								alt="Databuddy dashboard home showing investigations, monitors, and website snapshot cards."
 								className="h-full w-full object-cover object-left-top opacity-95"
 								height={1668}
 								priority
@@ -89,7 +89,9 @@ export function HomeInsightsShowcase() {
 								<span className="flex size-6 items-center justify-center rounded bg-primary/12 text-primary">
 									<LightbulbIcon className="size-3.5" weight="duotone" />
 								</span>
-								<p className="font-medium text-xs">Insight cards live here</p>
+								<p className="font-medium text-xs">
+									Investigation cards live here
+								</p>
 							</div>
 							<p className="mt-1.5 text-[11px] text-muted-foreground leading-relaxed">
 								The dashboard starts with the highest-impact answers, not an

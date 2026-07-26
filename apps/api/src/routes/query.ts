@@ -19,7 +19,7 @@ import {
 } from "@databuddy/services/identity";
 import { validateTimezone } from "@databuddy/validation";
 import { readBooleanEnv } from "@databuddy/env/boolean";
-import { ratelimit } from "@databuddy/redis/rate-limit";
+import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { getBillingOwner } from "@databuddy/rpc/billing";
 import { getOrganizationOwnerId } from "@databuddy/rpc/organization";
 import {
@@ -27,7 +27,6 @@ import {
 	GATED_FEATURES,
 	isFeatureAvailable,
 } from "@databuddy/shared/types/features";
-import type { CustomQueryRequest } from "@databuddy/ai/query/custom-query-types";
 import {
 	allowedFilterFields,
 	compileQuery,
@@ -38,7 +37,6 @@ import {
 	canReadQueryTypesPublicly,
 	QueryBuilders,
 } from "@databuddy/ai/query/builders";
-import { executeCustomQuery } from "@databuddy/ai/query/custom-query-builder";
 import {
 	isNormalizedQueryDate,
 	normalizeClickHouseDateTime,
@@ -59,15 +57,9 @@ import {
 	DynamicQueryRequestSchema,
 	type DynamicQueryRequestType,
 } from "../schemas/query-schemas";
+import { getRequestId } from "../http/request-id";
 
-const parsedPerWebsiteQueryConcurrency = Number(
-	process.env.PER_WEBSITE_QUERY_CONCURRENCY ?? 8
-);
-const PER_WEBSITE_QUERY_CONCURRENCY = Number.isFinite(
-	parsedPerWebsiteQueryConcurrency
-)
-	? Math.max(1, parsedPerWebsiteQueryConcurrency)
-	: 8;
+const PER_WEBSITE_QUERY_CONCURRENCY = 8;
 
 interface KeyedSemaphore {
 	active: number;
@@ -311,10 +303,6 @@ function validatePaginationFields(
 	return errors;
 }
 
-function generateRequestId(): string {
-	return `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
-}
-
 interface AuthContext {
 	// Session active org; used when query omits organization_id.
 	activeOrganizationId: string | null;
@@ -351,6 +339,7 @@ function createAuthFailedResponse(requestId: string): Response {
 			status: 401,
 			headers: {
 				"Content-Type": "application/json",
+				"X-Request-ID": requestId,
 				"WWW-Authenticate": `Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`,
 			},
 		}
@@ -368,7 +357,7 @@ function clientIpForQuery(request: Request): string {
 
 async function enforceQueryRateLimit(
 	ctx: AuthContext,
-	endpoint: "compile" | "execute" | "custom",
+	endpoint: "compile" | "execute",
 	limit: number,
 	requestId: string,
 	request: Request
@@ -391,20 +380,24 @@ async function enforceQueryRateLimit(
 	if (rl.success) {
 		return null;
 	}
+	const retryAfter = Math.max(1, Math.ceil((rl.reset - Date.now()) / 1000));
 	return new Response(
 		JSON.stringify({
 			success: false,
 			error: "Rate limit exceeded",
 			code: "RATE_LIMITED",
 			requestId,
+			limit: rl.limit,
+			remaining: rl.remaining,
+			reset: rl.reset,
+			retryAfter,
 		}),
 		{
 			status: 429,
 			headers: {
 				"Content-Type": "application/json",
-				"X-RateLimit-Limit": String(rl.limit),
-				"X-RateLimit-Remaining": String(rl.remaining),
-				"X-RateLimit-Reset": String(rl.reset),
+				"X-Request-ID": requestId,
+				...getRateLimitHeaders(rl),
 			},
 		}
 	);
@@ -420,6 +413,9 @@ function createErrorResponse(
 	const headers: Record<string, string> = {
 		"Content-Type": "application/json",
 	};
+	if (requestId) {
+		headers["X-Request-ID"] = requestId;
+	}
 	if (status === 401) {
 		headers["WWW-Authenticate"] =
 			`Bearer resource_metadata="${PROTECTED_RESOURCE_METADATA_URL}"`;
@@ -1216,9 +1212,9 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		};
 	})
 
-	.get("/websites", ({ auth: ctx }) =>
+	.get("/websites", ({ auth: ctx, request }) =>
 		(async () => {
-			const requestId = generateRequestId();
+			const requestId = getRequestId(request);
 			if (!ctx.isAuthenticated) {
 				return createAuthFailedResponse(requestId);
 			}
@@ -1232,29 +1228,38 @@ export const query = new Elysia({ prefix: "/v1/query" })
 		})()
 	)
 
-	.get("/types", ({ query: params }: { query: { include_meta?: string } }) => {
-		const requestId = generateRequestId();
-		const includeMeta = params.include_meta === "true";
-		const configs = Object.fromEntries(
-			Object.entries(QueryBuilders).map(([key, cfg]) => [
-				key,
-				{
-					allowedFilters: allowedFilterFields(cfg),
-					customizable: cfg.customizable,
-					defaultLimit: cfg.limit,
-					publicAccess: cfg.publicAccess === true,
-					...(includeMeta && { meta: cfg.meta }),
-				},
-			])
-		);
-		return {
-			success: true,
-			requestId,
-			types: Object.keys(QueryBuilders),
-			configs,
-			presets: Object.keys(DatePresets),
-		};
-	})
+	.get(
+		"/types",
+		({
+			query: params,
+			request,
+		}: {
+			query: { include_meta?: string };
+			request: Request;
+		}) => {
+			const requestId = getRequestId(request);
+			const includeMeta = params.include_meta === "true";
+			const configs = Object.fromEntries(
+				Object.entries(QueryBuilders).map(([key, cfg]) => [
+					key,
+					{
+						allowedFilters: allowedFilterFields(cfg),
+						customizable: cfg.customizable,
+						defaultLimit: cfg.limit,
+						publicAccess: cfg.publicAccess === true,
+						...(includeMeta && { meta: cfg.meta }),
+					},
+				])
+			);
+			return {
+				success: true,
+				requestId,
+				types: Object.keys(QueryBuilders),
+				configs,
+				presets: Object.keys(DatePresets),
+			};
+		}
+	)
 
 	.post(
 		"/compile",
@@ -1269,7 +1274,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			auth: AuthContext;
 			request: Request;
 		}) => {
-			const requestId = generateRequestId();
+			const requestId = getRequestId(request);
 			const rateLimited = await enforceQueryRateLimit(
 				ctx,
 				"compile",
@@ -1339,7 +1344,7 @@ export const query = new Elysia({ prefix: "/v1/query" })
 			request: Request;
 		}) =>
 			(async () => {
-				const requestId = generateRequestId();
+				const requestId = getRequestId(request);
 				const timezone = validateTimezone(q.timezone) || "UTC";
 				const rateLimited = await enforceQueryRateLimit(
 					ctx,
@@ -1513,128 +1518,5 @@ export const query = new Elysia({ prefix: "/v1/query" })
 				DynamicQueryRequestSchema,
 				t.Array(DynamicQueryRequestSchema),
 			]),
-		}
-	)
-
-	.post(
-		"/custom",
-		async ({
-			body,
-			query: q,
-			auth: ctx,
-			request,
-		}: {
-			body: CustomQueryRequest;
-			query: { website_id?: string };
-			auth: AuthContext;
-			request: Request;
-		}) =>
-			(async () => {
-				const requestId = generateRequestId();
-				const rateLimited = await enforceQueryRateLimit(
-					ctx,
-					"custom",
-					60,
-					requestId,
-					request
-				);
-				if (rateLimited) {
-					return rateLimited;
-				}
-
-				if (!q.website_id) {
-					return createErrorResponse(
-						"website_id is required",
-						"MISSING_WEBSITE_ID",
-						400,
-						requestId
-					);
-				}
-
-				const accessResult = await resolveProjectAccess(ctx, {
-					websiteId: q.website_id,
-				});
-
-				if (!accessResult.success) {
-					return createErrorResponse(
-						accessResult.error,
-						accessResult.code,
-						accessResult.status,
-						requestId
-					);
-				}
-
-				mergeWideEvent({
-					custom_query_table: body.query.table,
-					custom_query_selects: body.query.selects.length,
-					custom_query_filters: body.query.filters?.length || 0,
-				});
-
-				const result = await executeCustomQuery(body, accessResult.projectId);
-
-				if (!result.success) {
-					return createErrorResponse(
-						result.error ?? "Query execution failed",
-						"QUERY_ERROR",
-						400,
-						requestId
-					);
-				}
-
-				return { ...result, requestId };
-			})(),
-		{
-			body: t.Object({
-				query: t.Object({
-					table: t.String(),
-					selects: t.Array(
-						t.Object({
-							field: t.String(),
-							aggregate: t.Union([
-								t.Literal("count"),
-								t.Literal("sum"),
-								t.Literal("avg"),
-								t.Literal("max"),
-								t.Literal("min"),
-								t.Literal("uniq"),
-							]),
-							alias: t.Optional(t.String()),
-						})
-					),
-					filters: t.Optional(
-						t.Array(
-							t.Object({
-								field: t.String(),
-								operator: t.Union([
-									t.Literal("eq"),
-									t.Literal("ne"),
-									t.Literal("gt"),
-									t.Literal("lt"),
-									t.Literal("gte"),
-									t.Literal("lte"),
-									t.Literal("contains"),
-									t.Literal("not_contains"),
-									t.Literal("starts_with"),
-									t.Literal("in"),
-									t.Literal("not_in"),
-								]),
-								value: t.Union([
-									t.String(),
-									t.Number(),
-									t.Array(t.Union([t.String(), t.Number()])),
-								]),
-							})
-						)
-					),
-					groupBy: t.Optional(t.Array(t.String())),
-				}),
-				startDate: t.String(),
-				endDate: t.String(),
-				timezone: t.Optional(t.String()),
-				granularity: t.Optional(
-					t.Union([t.Literal("hourly"), t.Literal("daily")])
-				),
-				limit: t.Optional(t.Number()),
-			}),
 		}
 	);

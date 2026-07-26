@@ -47,6 +47,16 @@ async function setCache(key: string, value: string): Promise<void> {
 	r.set(key, value, "EX", CACHE_TTL_SECONDS).catch(() => {});
 }
 
+interface ScrapeCache {
+	read: (key: string) => Promise<string | null>;
+	write: (key: string, value: string) => void;
+}
+
+const DEFAULT_SCRAPE_CACHE: ScrapeCache = {
+	read: getCached,
+	write: setCache,
+};
+
 interface ScrapeResult {
 	cached?: boolean;
 	content: string;
@@ -59,7 +69,9 @@ interface ScrapeResult {
 
 async function scrapePage(
 	domain: string,
-	path: string
+	path: string,
+	cache: ScrapeCache,
+	writeCache: boolean
 ): Promise<ScrapeResult | { error: string }> {
 	const apiKey = getFirecrawlKey();
 	if (!apiKey) {
@@ -69,7 +81,7 @@ async function scrapePage(
 	const cleanPath = path.startsWith("/") ? path : `/${path}`;
 	const key = cacheKey(domain, cleanPath);
 
-	const cached = await getCached(key);
+	const cached = await cache.read(key);
 	if (cached) {
 		try {
 			return { ...(JSON.parse(cached) as ScrapeResult), cached: true };
@@ -164,7 +176,9 @@ async function scrapePage(
 			internalLinks,
 		};
 
-		setCache(key, JSON.stringify(result));
+		if (writeCache) {
+			cache.write(key, JSON.stringify(result));
+		}
 
 		return result;
 	} catch (err) {
@@ -204,7 +218,7 @@ export async function getCachedSiteContext(
 	}
 }
 
-export function createScrapeTools() {
+export function createScrapeTools(cache: ScrapeCache = DEFAULT_SCRAPE_CACHE) {
 	const scrapeTool = tool({
 		description:
 			'Scrape a page from one of the workspace websites and return its content as markdown plus internal links. Use to understand the product: what the site does, key pages, pricing, CTAs. Also use when investigating page-level anomalies. Scrape "/" first for product context, then specific pages as needed. Pass websiteId to target a specific site; omit to use the workspace default. Results are cached for 24h.',
@@ -212,9 +226,7 @@ export function createScrapeTools() {
 			websiteId: z
 				.string()
 				.optional()
-				.describe(
-					"Target website id. Omit to use the workspace default. Get ids from list_websites."
-				),
+				.describe("Target website id. Omit to use the workspace default."),
 			path: z
 				.string()
 				.describe(
@@ -229,7 +241,7 @@ export function createScrapeTools() {
 			if (!domain) {
 				return { error: "Could not resolve a domain for the target website" };
 			}
-			return scrapePage(domain, path);
+			return scrapePage(domain, path, cache, ctx.mutationMode !== "dry-run");
 		},
 	});
 

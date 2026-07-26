@@ -11,6 +11,7 @@ import {
 	type McpAgentToolTrace,
 } from "../ai/mcp/run-agent";
 import type { DatabuddyAgentSlackContext } from "../ai/mcp/slack-context";
+import type { LanguageModelUsage } from "ai";
 
 export type { ConversationMessage } from "../ai/mcp/conversation-store";
 export {
@@ -24,12 +25,6 @@ export {
 	type SlackThreadReplyRelevance,
 	type SlackThreadReplyRelevanceInput,
 } from "./slack-relevance";
-export {
-	repairSlackReply,
-	type ReplyValidationIssue,
-	type ReplyValidationResult,
-	validateSlackReply,
-} from "../ai/mcp/reply-validator";
 export type {
 	DatabuddyAgentSlackChannelHistoryResult,
 	DatabuddyAgentSlackContext,
@@ -90,11 +85,7 @@ export type DatabuddyAgentToolTrace = McpAgentToolTrace;
 export interface DatabuddyAgentTraceResult extends DatabuddyAgentResult {
 	steps: number;
 	toolCalls: DatabuddyAgentToolTrace[];
-	usage: {
-		inputTokens: number;
-		outputTokens: number;
-		totalTokens?: number;
-	};
+	usage: LanguageModelUsage;
 }
 
 interface ResolvedAgentActor {
@@ -165,13 +156,7 @@ export async function traceDatabuddyAgent(
 		conversationId: prepared.conversationId,
 		steps: result.steps,
 		toolCalls: result.toolCalls,
-		usage: {
-			inputTokens: result.usage.inputTokens ?? 0,
-			outputTokens: result.usage.outputTokens ?? 0,
-			...(result.usage.totalTokens === undefined
-				? {}
-				: { totalTokens: result.usage.totalTokens }),
-		},
+		usage: result.usage,
 	};
 }
 

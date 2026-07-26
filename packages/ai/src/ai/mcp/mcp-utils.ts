@@ -12,7 +12,11 @@ import {
 	resolveDatePreset,
 } from "../../lib/date-presets";
 import { QueryBuilders } from "../../query/builders";
-import { suggestQueryTypes } from "../../query";
+import {
+	invalidFilterFieldError,
+	publicQueryErrorMessage,
+	suggestQueryTypes,
+} from "../../query";
 import type { Filter, QueryRequest } from "../../query/types";
 import { z } from "zod";
 
@@ -36,16 +40,9 @@ export const FilterSchema = z.object({
 	having: z.boolean().optional(),
 }) satisfies z.ZodType<Filter>;
 
-export {
-	MCP_DATE_PRESETS,
-	resolveDatePreset as resolveDatePresetForMcp,
-} from "../../lib/date-presets";
+export { MCP_DATE_PRESETS } from "../../lib/date-presets";
 
-export {
-	CLICKHOUSE_SCHEMA_DOCS,
-	SCHEMA_SECTIONS,
-	type SchemaSection,
-} from "../prompts/clickhouse-schema";
+export { SCHEMA_SECTIONS } from "../prompts/clickhouse-schema";
 
 export interface McpQueryItem {
 	filters?: Filter[];
@@ -82,34 +79,103 @@ function resolveQueryType(type: string): string {
 
 export interface InvalidBatchQuery {
 	error: string;
+	inputIndex: number;
+	summary: string;
 	type: string;
+}
+
+interface IndexedQueryRequest extends QueryRequest {
+	inputIndex: number;
+	timezone: string;
+}
+
+interface McpBatchQueryPlan {
+	invalid: InvalidBatchQuery[];
+	requests: IndexedQueryRequest[];
+}
+
+interface ExecutedQueryResult {
+	data: Record<string, unknown>[];
+	error?: string;
+	type: string;
+}
+
+export interface McpQueryResult {
+	data: Record<string, unknown>[];
+	error?: string;
+	returnedRows: number;
+	rowCount: number;
+	summary: string;
+	truncated: boolean;
+	type: string;
+}
+
+const AGENT_RESULT_ROW_LIMIT = 20;
+
+function querySummary(input: {
+	filters?: Filter[];
+	from?: string;
+	groupBy?: string[];
+	limit?: number;
+	orderBy?: string;
+	timeUnit?: QueryRequest["timeUnit"];
+	timezone: string;
+	to?: string;
+	type: string;
+}): string {
+	const filters =
+		input.filters && input.filters.length > 0
+			? JSON.stringify(input.filters)
+			: "none";
+	const groupBy =
+		input.groupBy && input.groupBy.length > 0
+			? JSON.stringify(input.groupBy)
+			: "default";
+	return `${input.type} | ${input.from ?? "unresolved"} to ${input.to ?? "unresolved"} | timezone=${input.timezone} | filters=${filters} | groupBy=${groupBy} | timeUnit=${input.timeUnit ?? "default"} | orderBy=${input.orderBy ?? "default"} | limit=${input.limit ?? "default"}`;
 }
 
 export function buildBatchQueryRequests(
 	items: McpQueryItem[],
 	websiteId: string,
 	timezone: string
-): { invalid: InvalidBatchQuery[]; requests: QueryRequest[] } {
-	const requests: QueryRequest[] = [];
+): McpBatchQueryPlan {
+	const requests: IndexedQueryRequest[] = [];
 	const invalid: InvalidBatchQuery[] = [];
-	for (const q of items) {
+	for (const [inputIndex, q] of items.entries()) {
 		const resolvedType = resolveQueryType(q.type);
+		let from = q.from;
+		let to = q.to;
+		const reject = (error: string, type = resolvedType) => {
+			invalid.push({
+				error,
+				inputIndex,
+				summary: querySummary({
+					filters: q.filters,
+					from,
+					groupBy: q.groupBy,
+					limit: q.limit,
+					orderBy: q.orderBy,
+					timeUnit: q.timeUnit,
+					timezone,
+					to,
+					type,
+				}),
+				type,
+			});
+		};
+
 		if (!(resolvedType in QueryBuilders)) {
 			const hint = suggestQueryTypes(q.type.replace(TOP_QUERY_PREFIX, ""));
 			const message = hint.length
 				? `Unknown type: ${q.type}. Did you mean: ${hint.join(", ")}?`
 				: `Unknown type: ${q.type}. Use the capabilities tool to see valid types.`;
-			invalid.push({ error: message, type: q.type });
+			reject(message, q.type);
 			continue;
 		}
-		q.type = resolvedType;
-		let from = q.from;
-		let to = q.to;
 		if (!q.preset && Boolean(from) !== Boolean(to)) {
-			invalid.push({
-				error: `Both 'from' and 'to' are required when one is provided. Got from=${q.from ?? "(unset)"}, to=${q.to ?? "(unset)"}. Use a 'preset' (e.g. last_7d) or pass both dates as YYYY-MM-DD.`,
-				type: q.type,
-			});
+			reject(
+				`Both 'from' and 'to' are required when one is provided. Got from=${q.from ?? "(unset)"}, to=${q.to ?? "(unset)"}. Use a 'preset' (e.g. last_7d) or pass both dates as YYYY-MM-DD.`
+			);
 			continue;
 		}
 		const preset = q.preset ?? (from && to ? undefined : "last_7d");
@@ -119,15 +185,21 @@ export function buildBatchQueryRequests(
 			to = resolved.to;
 		}
 		if (!(from && to)) {
-			invalid.push({
-				error: "Either preset or both from and to required",
-				type: q.type,
-			});
+			reject("Either preset or both from and to required");
+			continue;
+		}
+		const filterError = invalidFilterFieldError(
+			resolvedType,
+			q.filters as Filter[] | undefined
+		);
+		if (filterError) {
+			reject(filterError);
 			continue;
 		}
 		requests.push({
+			inputIndex,
 			projectId: websiteId,
-			type: q.type,
+			type: resolvedType,
 			from,
 			to,
 			timeUnit: q.timeUnit,
@@ -139,6 +211,50 @@ export function buildBatchQueryRequests(
 		});
 	}
 	return { invalid, requests };
+}
+
+export function formatMcpQueryResults(
+	plan: McpBatchQueryPlan,
+	results: readonly ExecutedQueryResult[]
+): McpQueryResult[] {
+	const formatted = results.map((result, resultIndex) => {
+		const request = plan.requests[resultIndex];
+		if (!request) {
+			throw new Error("Query result does not match its request");
+		}
+		const rowCount = result.data.length;
+		const data =
+			QueryBuilders[request.type]?.meta?.default_visualization === "timeseries"
+				? result.data.slice(-AGENT_RESULT_ROW_LIMIT)
+				: result.data.slice(0, AGENT_RESULT_ROW_LIMIT);
+		return {
+			inputIndex: request.inputIndex,
+			type: result.type,
+			summary: querySummary(request),
+			data,
+			rowCount,
+			returnedRows: data.length,
+			truncated: data.length < rowCount,
+			...(result.error && { error: publicQueryErrorMessage(result.error) }),
+		};
+	});
+
+	for (const item of plan.invalid) {
+		formatted.push({
+			inputIndex: item.inputIndex,
+			type: item.type,
+			summary: item.summary,
+			data: [],
+			rowCount: 0,
+			returnedRows: 0,
+			truncated: false,
+			error: item.error,
+		});
+	}
+
+	return formatted
+		.sort((a, b) => a.inputIndex - b.inputIndex)
+		.map(({ inputIndex: _, ...result }) => result);
 }
 
 const SCHEMA_SUMMARY = Object.keys(AGENT_TENANT_COLUMN_BY_TABLE)

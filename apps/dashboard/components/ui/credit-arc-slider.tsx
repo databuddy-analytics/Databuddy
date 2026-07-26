@@ -22,6 +22,7 @@ import {
 } from "react";
 
 interface CreditArcSliderProps {
+	ariaLabel?: string;
 	className?: string;
 	max?: number;
 	min?: number;
@@ -53,6 +54,7 @@ const ARC_LENGTH = Math.PI * ARC_RADIUS;
 const TRACK_PATH = `M ${TRACK_START.x} ${TRACK_START.y} A ${ARC_RADIUS} ${ARC_RADIUS} 0 0 1 ${TRACK_END.x} ${TRACK_END.y}`;
 
 export function CreditArcSlider({
+	ariaLabel = "Credits to buy",
 	value,
 	onValueChange,
 	min = TOPUP_MIN_QUANTITY,
@@ -191,7 +193,7 @@ export function CreditArcSlider({
 
 	return (
 		<div
-			aria-label="Credits to buy"
+			aria-label={ariaLabel}
 			aria-orientation="horizontal"
 			aria-valuemax={max}
 			aria-valuemin={min}

@@ -77,7 +77,7 @@ export function createMemoryTools(): Record<string, Tool> {
 		}),
 		save_memory: tool({
 			description:
-				"Save an important user preference, pattern, or finding for future conversations.",
+				"Save an important user preference, correction, or project fact for future conversations.",
 			strict: true,
 			inputSchema: z.object({
 				content: z.string(),

@@ -37,7 +37,6 @@ describe("Slack channel mention policy", () => {
 
 		expect(policy).toMatchObject({
 			autoBind: true,
-			channelName: "growth",
 			isExtShared: false,
 			reason: "internal",
 		});

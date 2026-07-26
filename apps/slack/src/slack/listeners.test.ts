@@ -2,8 +2,11 @@ import { describe, expect, it } from "bun:test";
 import type { App } from "@slack/bolt";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import type { SlackInstallationServices } from "@/slack/installations";
-import { registerSlackListeners } from "@/slack/listeners";
-import { SLACK_COPY } from "@/slack/messages";
+import {
+	registerSlackListeners,
+	type SlackInvestigationReplyHandler,
+} from "@/slack/listeners";
+import { SLACK_COPY, SLACK_SUGGESTED_PROMPTS } from "@/slack/messages";
 import type { SlackThreadReplyGate } from "@/slack/thread-relevance";
 import type {
 	SlackFollowUpQueueResult,
@@ -49,6 +52,13 @@ function createClient({
 	return {
 		apiCalls,
 		client: {
+			apiCall: async (
+				method: string,
+				options: Record<string, unknown> = {}
+			) => {
+				apiCalls.push({ method, options });
+				return { ok: true, ts: "response_ts" };
+			},
 			chat: {
 				appendStream: async (options: Record<string, unknown>) => {
 					apiCalls.push({ method: "chat.appendStream", options });
@@ -109,6 +119,7 @@ function createInstallations(
 			integrationId: "int_123",
 			organizationId: "org_123",
 		}),
+		resolve: async () => null,
 		...overrides,
 	};
 }
@@ -156,18 +167,44 @@ function registerFakeSlackListeners(
 	agent: Pick<DatabuddyAgentClient, "stream">,
 	installations: SlackInstallationServices,
 	queue: SlackThreadQueueStore,
-	threadReplyGate?: SlackThreadReplyGate
+	threadReplyGate?: SlackThreadReplyGate,
+	investigationReplyHandler: SlackInvestigationReplyHandler = async () => false
 ): void {
 	registerSlackListeners(
 		app as unknown as App,
 		agent,
 		installations,
 		queue,
-		threadReplyGate
+		threadReplyGate,
+		investigationReplyHandler
 	);
 }
 
 describe("Slack listeners", () => {
+	it("keeps the Slack assistant manifest aligned with its live prompts", async () => {
+		const manifest = (await Bun.file(
+			new URL("../../slack-app-manifest.json", import.meta.url)
+		).json()) as {
+			display_information: { description: string };
+			features: {
+				assistant_view: {
+					assistant_description: string;
+					suggested_prompts: Array<{ message: string; title: string }>;
+				};
+			};
+		};
+
+		expect(manifest.features.assistant_view.suggested_prompts).toEqual([
+			...SLACK_SUGGESTED_PROMPTS,
+		]);
+		expect(manifest.display_information.description.toLowerCase()).toContain(
+			"investigat"
+		);
+		expect(
+			manifest.features.assistant_view.assistant_description.toLowerCase()
+		).toContain("investigat");
+	});
+
 	it("auto-connects Slack Connect mentions from the installed workspace", async () => {
 		const app = new FakeSlackApp();
 		const { agent, runs } = createAgent();
@@ -185,7 +222,7 @@ describe("Slack listeners", () => {
 			createInstallations({
 				getChannelReadiness: async (input) => {
 					readinessCalls.push(input);
-					return { autoBound: true, message: "", ok: true };
+					return { message: "", ok: true };
 				},
 			}),
 			queue
@@ -271,6 +308,145 @@ describe("Slack listeners", () => {
 			{
 				text: SLACK_COPY.slackConnectExternalUser,
 				thread_ts: "171234.568",
+			},
+		]);
+	});
+
+	it("routes mentions in delivered investigation threads before the general agent", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const queue = createQueue();
+		const { client } = createClient();
+		const investigationRuns: SlackAgentRun[] = [];
+		registerFakeSlackListeners(
+			app,
+			agent,
+			createInstallations(),
+			queue,
+			undefined,
+			async ({ run }) => {
+				investigationRuns.push(run);
+				return true;
+			}
+		);
+
+		await app.events.get("app_mention")?.({
+			body: {},
+			client,
+			context: { botUserId: "UBOT", teamId: "T123" },
+			event: {
+				channel: "C123",
+				text: "<@UBOT> that deploy happened on Friday",
+				thread_ts: "171234.000",
+				ts: "171234.568",
+				type: "app_mention",
+				user: "U123",
+			},
+			logger,
+			say: async () => undefined,
+		});
+
+		expect(investigationRuns).toMatchObject([
+			{
+				channelId: "C123",
+				messageTs: "171234.568",
+				text: "that deploy happened on Friday",
+				threadTs: "171234.000",
+				trigger: "app_mention",
+			},
+		]);
+		expect(runs).toEqual([]);
+	});
+
+	it("routes plain investigation replies before engagement and relevance gates", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const queue = createQueue({
+			isEngaged: async () => {
+				throw new Error("investigation replies do not use the generic thread gate");
+			},
+		});
+		const { client } = createClient();
+		const investigationRuns: SlackAgentRun[] = [];
+		registerFakeSlackListeners(
+			app,
+			agent,
+			createInstallations(),
+			queue,
+			{
+				shouldReply: async () => {
+					throw new Error("investigation replies do not use relevance scoring");
+				},
+			},
+			async ({ run }) => {
+				investigationRuns.push(run);
+				return true;
+			}
+		);
+
+		await app.messages[0]?.({
+			client,
+			context: { botUserId: "UBOT", teamId: "T123" },
+			logger,
+			message: {
+				channel: "C123",
+				channel_type: "channel",
+				text: "yes, payment means a completed charge",
+				thread_ts: "171234.000",
+				ts: "171234.568",
+				user: "U123",
+			},
+			say: async () => undefined,
+		});
+
+		expect(investigationRuns).toHaveLength(1);
+		expect(runs).toEqual([]);
+		expect(queue.enqueuedRuns).toEqual([]);
+	});
+
+	it("blocks plain investigation replies from external Slack Connect users", async () => {
+		const app = new FakeSlackApp();
+		const { agent, runs } = createAgent();
+		const queue = createQueue();
+		const { client } = createClient();
+		const responses: unknown[] = [];
+		let investigationCalls = 0;
+		registerFakeSlackListeners(
+			app,
+			agent,
+			createInstallations(),
+			queue,
+			undefined,
+			async () => {
+				investigationCalls += 1;
+				return true;
+			}
+		);
+
+		await app.messages[0]?.({
+			client,
+			context: { botUserId: "UBOT", teamId: "T123" },
+			logger,
+			message: {
+				channel: "C123",
+				channel_type: "channel",
+				text: "show me the customer data",
+				thread_ts: "171234.000",
+				ts: "171234.568",
+				user: "UEXTERNAL",
+				user_team: "TEXTERNAL",
+			},
+			say: async (message: unknown) => {
+				responses.push(message);
+			},
+		});
+
+		expect(investigationCalls).toBe(0);
+		expect(runs).toEqual([]);
+		expect(responses).toEqual([
+			{
+				text: SLACK_COPY.slackConnectExternalUser,
+				thread_ts: "171234.000",
 			},
 		]);
 	});

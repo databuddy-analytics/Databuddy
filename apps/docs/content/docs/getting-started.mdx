@@ -57,7 +57,7 @@ For any website, use the script tag method:
   code={`<script
     src="https://cdn.databuddy.cc/databuddy.js"
     data-client-id="your-client-id"
-    data-track-performance
+    data-track-web-vitals
     async
   ></script>`}
 />
@@ -91,8 +91,7 @@ Add the `<Databuddy />` component once in your root layout:
         <body>
           <Databuddy
             clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-            trackPerformance
-            trackWebVitals
+			trackWebVitals
             trackErrors
           />
           {children}
@@ -130,7 +129,6 @@ Add the script to your HTML before the closing `</body>` tag:
       <script
         src="https://cdn.databuddy.cc/databuddy.js"
         data-client-id="your-client-id"
-        data-track-performance
         data-track-web-vitals
         data-track-errors
         async

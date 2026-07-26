@@ -110,9 +110,10 @@ export function FunnelAnalytics({
 				total_users_completed: selectedReferrerData.completed_users,
 				overall_conversion_rate: selectedReferrerData.conversion_rate,
 				avg_completion_time: 0,
-				avg_completion_time_formatted: "0s",
+				avg_completion_time_formatted: "—",
 				biggest_dropoff_step: 1,
 				biggest_dropoff_rate: 100 - selectedReferrerData.conversion_rate,
+				duration_available: false,
 				steps_analytics: [],
 			}
 		: data;
@@ -127,6 +128,7 @@ export function FunnelAnalytics({
 	const errorInsights = data?.error_insights;
 	const hasErrorCorrelation =
 		errorInsights &&
+		errorInsights.available &&
 		errorInsights.dropoffs_with_errors > 0 &&
 		errorInsights.error_correlation_rate > 0;
 
@@ -216,7 +218,7 @@ export function FunnelAnalytics({
 						v < 60 ? `${Math.round(v)}s` : `${Math.round(v / 60)}m`
 					}
 					icon={ClockIcon}
-					showChart={hasChartData}
+					showChart={hasChartData && displayData.duration_available}
 					title="Avg Time"
 					value={displayData.avg_completion_time_formatted || "—"}
 				/>

@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun --watch run src/index.ts",
+    "dev": "dotenv -e ../../.env -- bun --watch run src/index.ts",
     "test": "bun test src",
     "check-types": "tsc --noEmit"
   },

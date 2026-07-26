@@ -24,6 +24,7 @@ describe("basketErrors", () => {
 		["ingestPayloadTooLarge", 413],
 		["ingestMissingClientId", 400],
 		["ingestInvalidClientId", 400],
+		["websiteLookupUnavailable", 503],
 		["ingestOriginNotAuthorized", 403],
 		["ingestIpNotAuthorized", 403],
 		["ingestWebsiteMissingOrganization", 400],
@@ -155,6 +156,20 @@ describe("buildBasketErrorPayload", () => {
 		expect(payload.success).toBe(false);
 		expect(payload.why).toBe("no id");
 		expect(payload.fix).toBe("add id");
+		expect(payload.retryable).toBe(false);
+	});
+
+	test("temporary dependency errors tell clients to retry", () => {
+		const { status, payload } = buildBasketErrorPayload(
+			basketErrors.websiteLookupUnavailable(),
+			{ extra: { requestId: "req_example" } }
+		);
+		expect(status).toBe(503);
+		expect(payload).toMatchObject({
+			code: basketErrors.websiteLookupUnavailable.code,
+			retryable: true,
+			requestId: "req_example",
+		});
 	});
 
 	test("5xx Error in production → hides message", () => {

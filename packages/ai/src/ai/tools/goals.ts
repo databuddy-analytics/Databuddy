@@ -1,7 +1,12 @@
 import { tool } from "ai";
 import dayjs from "dayjs";
 import { z } from "zod";
-import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
+import {
+	callRPCProcedure,
+	createToolLogger,
+	getAppContext,
+	resolveToolWebsite,
+} from "./utils";
 
 const logger = createToolLogger("Goals Tools");
 
@@ -28,10 +33,12 @@ const updateGoalInputSchema = createGoalInputSchema
 
 export function createGoalTools() {
 	const listGoalsTool = tool({
-		description: "List goals with type, target, filters, metadata.",
-		inputSchema: z.object({ websiteId: z.string() }),
-		execute: async ({ websiteId }, options) => {
+		description:
+			"List goals with type, target, filters, and metadata. Omit websiteId to use the current website.",
+		inputSchema: z.object({ websiteId: z.string().optional() }),
+		execute: async ({ websiteId: inputWebsiteId }, options) => {
 			const context = getAppContext(options);
+			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
 				const result = await callRPCProcedure(
 					"goals",
@@ -54,15 +61,19 @@ export function createGoalTools() {
 
 	const getGoalAnalyticsTool = tool({
 		description:
-			"Goal analytics: conversion rate, users entered, users completed. Dates YYYY-MM-DD, default last 30d.",
+			"Goal analytics for a chosen date range: conversion rate, users entered, and users completed. Do not repeat an exact measurement already supplied by the caller.",
 		inputSchema: z.object({
 			goalId: z.string(),
-			websiteId: z.string(),
+			websiteId: z.string().optional(),
 			startDate: z.string().optional(),
 			endDate: z.string().optional(),
 		}),
-		execute: async ({ goalId, websiteId, startDate, endDate }, options) => {
+		execute: async (
+			{ goalId, websiteId: inputWebsiteId, startDate, endDate },
+			options
+		) => {
 			const context = getAppContext(options);
+			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
 				if (startDate && !dayjs(startDate).isValid()) {
 					throw new Error(

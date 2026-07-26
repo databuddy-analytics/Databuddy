@@ -4,6 +4,7 @@ description: Attribute Stripe and Paddle revenue to sessions, campaigns, and ide
 ---
 
 import { Callout, CodeBlock, Tab, Tabs } from "@/components/docs";
+import { STRIPE_WEBHOOK_EVENTS } from "@databuddy/shared/stripe-webhooks";
 
 Connect your payment provider and every transaction shows up in the Revenue dashboard, attributed to the session, referrer, and user that produced it.
 
@@ -15,7 +16,7 @@ Connect your payment provider and every transaction shows up in the Revenue dash
 
 1. Open your [Databuddy dashboard](https://app.databuddy.cc) and go to **Website → Revenue**.
 2. Click **Generate webhook URLs**. You get one URL per provider, each with a unique secret path.
-3. Keep this page open — you'll paste the URL into your provider next.
+3. Keep this page open, you'll paste the URL into your provider next.
 
 ## 2. Add the webhook to your provider
 
@@ -24,12 +25,19 @@ Connect your payment provider and every transaction shows up in the Revenue dash
 
 In the [Stripe dashboard](https://dashboard.stripe.com/webhooks), add an endpoint with your generated URL and subscribe to these events:
 
-| Event | Purpose |
-|---|---|
-| `payment_intent.succeeded` | Records completed sales and subscriptions (required) |
-| `charge.refunded` | Records refunds (required) |
-| `payment_intent.payment_failed` | Tracks failed payments (optional) |
-| `payment_intent.canceled` | Tracks canceled payments (optional) |
+<table>
+<thead><tr><th>Event</th><th>Purpose</th></tr></thead>
+<tbody>
+{STRIPE_WEBHOOK_EVENTS.required.map(({ event, purpose }) => (
+  <tr key={event}><td><code>{event}</code></td><td>{purpose} ({event === "invoice_payment.paid" ? "required on API 2025-05-28.basil or later" : "required"})</td></tr>
+))}
+{STRIPE_WEBHOOK_EVENTS.optional.map(({ event, purpose }) => (
+  <tr key={event}><td><code>{event}</code></td><td>{purpose} (optional)</td></tr>
+))}
+</tbody>
+</table>
+
+Stripe introduced `invoice_payment.paid` in `2025-05-28.basil`. Subscribe to it on that version or later for exact allocation details. Databuddy also keeps the total from `invoice.paid` as a safe fallback, so adding the newer event after an API upgrade does not drop or double-count revenue. Earlier versions, including the `2025-03-31.basil` transition, use embedded invoice allocations when the full list is available.
 
 Paste the endpoint's **signing secret** into the Revenue settings so Databuddy can verify each delivery.
 
@@ -45,7 +53,7 @@ Paste the **webhook secret key** into the Revenue settings so Databuddy can veri
 
 ## 3. Pass Databuddy IDs with each payment
 
-Metadata connects a payment to the visitor who made it. Include what you have — every field is optional, and more fields mean stronger attribution:
+Metadata connects a payment to the visitor who made it. Include what you have: every field is optional, and more fields mean stronger attribution.
 
 <Tabs items={['Stripe', 'Paddle']}>
 <Tab value="Stripe">
@@ -56,18 +64,29 @@ Metadata connects a payment to the visitor who made it. Include what you have �
 const { anonId, sessionId } = getTrackingIds();
 const profileId = getProfileId();
 
-// ...send them to your server, then create the payment:
+// ...send them to your server and reuse the same metadata:
+const databuddyMetadata = {
+  databuddy_client_id: websiteId,
+  databuddy_session_id: sessionId,
+  databuddy_anonymous_id: anonId,
+  databuddy_profile_id: profileId,
+};
+
 await stripe.paymentIntents.create({
   amount,
   currency,
-  metadata: {
-    databuddy_client_id: websiteId,
-    databuddy_session_id: sessionId,
-    databuddy_anonymous_id: anonId,
-    databuddy_profile_id: profileId,
-  },
+  metadata: databuddyMetadata,
+});
+
+// For recurring billing, attach it to the Subscription too.
+await stripe.subscriptions.create({
+  customer,
+  items: [{ price: priceId }],
+  metadata: databuddyMetadata,
 });`}
 </CodeBlock>
+
+Stripe does not automatically copy PaymentIntent metadata to future subscription invoices. Put the IDs on the Subscription (or `subscription_data.metadata` when using Checkout) so recurring revenue stays attributable.
 </Tab>
 <Tab value="Paddle">
 <CodeBlock language="ts">
@@ -92,10 +111,10 @@ Paddle.Checkout.open({
 |---|---|
 | Session ID | Ties revenue to the exact visit, referrer, and campaign |
 | Anonymous ID | Ties revenue to the device even without a session |
-| Profile ID | Ties revenue to the identified user — see [Identify Users](/docs/sdk/identify-users) |
+| Profile ID | Ties revenue to the identified user, see [Identify Users](/docs/sdk/identify-users) |
 
 <Callout type="info">
-Anonymous IDs are hashed on arrival, the same way the tracker hashes them — raw
+Anonymous IDs are hashed on arrival, the same way the tracker hashes them; raw
 device IDs are never stored. Profile IDs are your own user IDs and are stored
 as sent.
 </Callout>
@@ -106,6 +125,6 @@ Send a test payment (Stripe test mode works), then check **Website → Revenue**
 
 ## Troubleshooting
 
-- **Nothing appears:** confirm the webhook URL matches the generated one exactly and the signing secret is saved in Revenue settings — deliveries with bad signatures are rejected.
+- **Nothing appears:** confirm the webhook URL matches the generated one exactly and the signing secret is saved in Revenue settings; deliveries with bad signatures are rejected.
 - **Revenue appears but isn't attributed:** the payment had no Databuddy metadata. Attribution only works for payments created after you started passing IDs.
-- **Stripe shows failed deliveries:** regenerating webhook URLs invalidates the old path — update Stripe after regenerating.
+- **Stripe shows failed deliveries:** regenerating webhook URLs invalidates the old path, so update Stripe after regenerating.

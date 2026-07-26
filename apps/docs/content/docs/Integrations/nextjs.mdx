@@ -37,8 +37,7 @@ export default function RootLayout({
       <body>
         <Databuddy
           clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-          trackPerformance
-          trackWebVitals
+		  trackWebVitals
           trackErrors
         />
         {children}
@@ -67,8 +66,7 @@ export default function MyApp({ Component, pageProps }: AppProps) {
     <>
       <Databuddy
         clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
-        trackPerformance
-        trackWebVitals
+		trackWebVitals
         trackErrors
       />
       <Component {...pageProps} />
@@ -94,7 +92,6 @@ export default function Document() {
           async
           data-client-id={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID}
           data-track-errors
-          data-track-performance
           data-track-web-vitals
           src="https://cdn.databuddy.cc/databuddy.js"
         />
@@ -148,8 +145,7 @@ To avoid test data, disable tracking outside production:
   clientId={process.env.NEXT_PUBLIC_DATABUDDY_CLIENT_ID!}
   disabled={process.env.NODE_ENV !== "production"}
   trackErrors
-  trackPerformance
-  trackWebVitals
+	trackWebVitals
 />
 ```
 

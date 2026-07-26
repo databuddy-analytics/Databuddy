@@ -39,7 +39,7 @@ export const OPENAPI_TAGS = [
 	{
 		name: "Alarms",
 		description:
-			"Alert rules and notifications for metrics and conditions across your workspace.",
+			"Alert rules and notifications for metrics and conditions across your organization.",
 	},
 	{
 		name: "Annotations",
@@ -58,7 +58,8 @@ export const OPENAPI_TAGS = [
 	},
 	{
 		name: "Feedback",
-		description: "Submit and manage product feedback tied to your workspace.",
+		description:
+			"Submit and manage product feedback tied to your organization.",
 	},
 	{
 		name: "Flags",
@@ -83,7 +84,7 @@ export const OPENAPI_TAGS = [
 	{
 		name: "Organizations",
 		description:
-			"Workspace and organization management: avatar, invitations, billing context, and usage.",
+			"Organization management: avatar, invitations, billing context, and usage.",
 	},
 	{
 		name: "Preferences",
@@ -108,6 +109,6 @@ export const OPENAPI_TAGS = [
 	{
 		name: "Websites",
 		description:
-			"Website management: create, list, update, delete websites; transfer between workspaces; configure settings, tracking, and data export.",
+			"Website management: create, list, update, delete websites; transfer between organizations; configure settings, tracking, and data export.",
 	},
 ] as const;

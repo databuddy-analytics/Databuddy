@@ -1,10 +1,6 @@
 import { createGateway } from "ai";
 
-const apiKey = (
-	process.env.AI_GATEWAY_API_KEY ??
-	process.env.AI_API_KEY ??
-	""
-).trim();
+const apiKey = (process.env.AI_GATEWAY_API_KEY ?? "").trim();
 
 export const isAiGatewayConfigured = apiKey.length > 0;
 
@@ -19,7 +15,7 @@ const gateway = createGateway({
 export const modelNames = {
 	tiny: "openai/gpt-oss-120b",
 	quick: "google/gemini-2.5-flash-lite",
-	balanced: "anthropic/claude-sonnet-4.6",
+	balanced: "openai/gpt-5.6-terra",
 	deep: "deepseek/deepseek-v4-flash",
 } as const;
 

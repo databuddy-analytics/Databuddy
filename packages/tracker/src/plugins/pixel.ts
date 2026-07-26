@@ -1,4 +1,5 @@
 import type { BaseTracker } from "../core/tracker";
+import type { HttpResult } from "../core/client";
 
 const PIXEL_PATH = "/px.jpg";
 
@@ -109,8 +110,30 @@ export function initPixelTracking(tracker: BaseTracker) {
 		return sendOnePixel(eventType, data as Record<string, unknown>);
 	};
 
-	tracker.api.fetch = <T>(endpoint: string, data: unknown): Promise<T | null> =>
-		sendToPixel(endpoint, data) as Promise<T | null>;
+	tracker.api.fetch = async <T>(
+		endpoint: string,
+		data: unknown
+	): Promise<HttpResult<T>> => {
+		const result = await sendToPixel(endpoint, data);
+		if (result.success) {
+			return {
+				ok: true,
+				data: null,
+				status: null,
+				attempts: 1,
+				transport: "beacon",
+			};
+		}
+		return {
+			ok: false,
+			code: "NETWORK_ERROR",
+			message: "Tracking pixel failed to load",
+			status: null,
+			retryable: true,
+			attempts: 1,
+			transport: "fetch",
+		};
+	};
 
 	tracker.sendBeacon = (data: unknown, endpoint = "/") => {
 		sendToPixel(endpoint, data);

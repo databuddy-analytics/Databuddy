@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev --turbo -p 3005",
-    "start": "next start -p 3005",
+    "dev": "dotenv -e ../../.env -- next dev --turbo -p 3005",
+    "start": "dotenv -e ../../.env -- next start -p 3005",
     "postinstall": "fumadocs-mdx",
     "lint:links": "bun ./scripts/validate-links.ts",
     "check-types": "tsc --noEmit",
@@ -91,6 +91,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",
+    "@databuddy/tracker": "workspace:*",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/d3": "^7.4.3",
     "@types/d3-geo": "^3.1.0",

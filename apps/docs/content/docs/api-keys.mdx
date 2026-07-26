@@ -51,7 +51,7 @@ Notes:
 
 ### Scopes
 
-- **read:data**: Read analytics data. Covers query endpoints (`POST /v1/query`, `POST /v1/query/compile`, `POST /v1/query/custom`) and listing accessible websites (`GET /v1/query/websites`). Required for any dashboard-style data retrieval.
+- **read:data**: Read analytics data. Covers query endpoints (`POST /v1/query`, `POST /v1/query/compile`) and listing accessible websites (`GET /v1/query/websites`). Required for any dashboard-style data retrieval.
 - **track:events**: Send custom events via the SDK or `/track` endpoint
 - **read:links**: Read short links and their analytics
 - **write:links**: Create, update, and delete short links
@@ -65,7 +65,7 @@ Grant only what you need. Prefer resource-scoped access where possible.
 
 | Scope | Endpoints / actions |
 |-------|---------------------|
-| `read:data` | `POST /v1/query`, `POST /v1/query/compile`, `POST /v1/query/custom`, `GET /v1/query/websites`, `websites.list` RPC |
+| `read:data` | `POST /v1/query`, `POST /v1/query/compile`, `GET /v1/query/websites`, `websites.list` RPC |
 | `track:events` | `POST /track` (custom events, pageviews, sessions) |
 | `read:links` | `GET /v1/links/*` read endpoints, link analytics queries |
 | `write:links` | `POST /v1/links`, `PATCH /v1/links/:id`, `DELETE /v1/links/:id` |

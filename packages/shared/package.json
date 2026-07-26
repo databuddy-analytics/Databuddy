@@ -20,8 +20,13 @@
     "./custom-events": "./src/custom-events.ts",
     "./analytics-filters": "./src/analytics-filters.ts",
     "./agent-credits": "./src/agent-credits.ts",
+    "./billing": "./src/billing.ts",
+    "./currency": "./src/currency.ts",
     "./tracking-blocks": "./src/tracking-blocks.ts",
+    "./uptime": "./src/uptime.ts",
     "./http-error-response": "./src/http-error-response.ts",
+    "./insights": "./src/insights.ts",
+    "./stripe-webhooks": "./src/stripe-webhooks.ts",
     "./evlog-fields": "./src/evlog-fields.ts",
     "./evlog-redaction": "./src/evlog-redaction.ts",
     "./evlog-superlog": "./src/evlog-superlog.ts"

@@ -25,7 +25,7 @@ export function ResourceUnavailableState({
 				variant: "secondary",
 			}}
 			className={className}
-			description="This resource is unavailable in the current workspace. Switch workspaces or check that you have access."
+			description="This resource is unavailable in the current organization. Switch organizations or check that you have access."
 			icon={<LockIcon />}
 			isMainContent
 			title="Resource unavailable"

@@ -16,11 +16,9 @@ import {
 } from "@databuddy/ui/icons";
 import { CreateOrganizationDialog } from "@/components/organizations/create-organization-dialog";
 import { useBillingContext } from "@/components/providers/billing-provider";
-import {
-	AUTH_QUERY_KEYS,
-	useOrganizationsContext,
-} from "@/components/providers/organizations-provider";
-import { orpc } from "@/lib/orpc";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
+import { resetActiveOrganizationQueries } from "@/lib/active-organization-queries";
+import { getCustomerPlanName } from "@/lib/autumn/customer-plan-name";
 import { cn } from "@/lib/utils";
 import { pendingActiveOrganizationIdAtom } from "@/stores/jotai/organizationsAtoms";
 import { Avatar, DropdownMenu } from "@databuddy/ui/client";
@@ -116,8 +114,10 @@ function OrgDropdownItems({
 
 export function OrganizationSelector({
 	collapsed = false,
+	container,
 }: {
 	collapsed?: boolean;
+	container?: HTMLElement | null;
 }) {
 	const queryClient = useQueryClient();
 	const router = useRouter();
@@ -137,7 +137,11 @@ export function OrganizationSelector({
 	);
 
 	const planLabel = currentPlanId
-		? currentPlanId.charAt(0).toUpperCase() + currentPlanId.slice(1)
+		? getCustomerPlanName(
+				currentPlanId,
+				currentPlanId.charAt(0).toUpperCase() +
+					currentPlanId.slice(1).replaceAll("_", " ")
+			)
 		: null;
 
 	const navigateTo = (href: string) => {
@@ -163,16 +167,8 @@ export function OrganizationSelector({
 			return;
 		}
 
-		queryClient.removeQueries({ queryKey: orpc.websites.key() });
-		queryClient.removeQueries({ queryKey: orpc.links.list.key() });
-		queryClient.removeQueries({ queryKey: orpc.linkFolders.list.key() });
-		queryClient.removeQueries({ queryKey: orpc.apikeys.list.key() });
-
-		await queryClient.invalidateQueries({
-			queryKey: AUTH_QUERY_KEYS.activeOrganization,
-		});
-		queryClient.invalidateQueries();
-
+		await resetActiveOrganizationQueries(queryClient);
+		router.push("/websites");
 		toast.success("Organization updated");
 	};
 
@@ -181,7 +177,7 @@ export function OrganizationSelector({
 	const isSwitching = isSwitchingOrganization;
 	const activeOrganizationName = activeOrganization?.name ?? "Organization";
 	const organizationTriggerLabel = isSwitching
-		? `Switching workspace from ${activeOrganizationName}`
+		? `Switching organization from ${activeOrganizationName}`
 		: `Organization: ${activeOrganizationName}`;
 	const avatarUrl = getDicebearUrl(
 		activeOrganization?.logo || activeOrganization?.id
@@ -250,6 +246,7 @@ export function OrganizationSelector({
 						<DropdownMenu.Content
 							align="start"
 							className="w-56"
+							container={container}
 							side="right"
 							sideOffset={8}
 						>
@@ -295,7 +292,7 @@ export function OrganizationSelector({
 						/>
 						<span className="min-w-0 flex-1 truncate text-left font-semibold text-sidebar-foreground text-sm">
 							{isSwitching
-								? "Switching workspace…"
+								? "Switching organization…"
 								: (activeOrganization?.name ?? "Select organization")}
 						</span>
 						{isSwitching ? (
@@ -312,6 +309,7 @@ export function OrganizationSelector({
 					<DropdownMenu.Content
 						align="start"
 						className="min-w-60"
+						container={container}
 						sideOffset={4}
 					>
 						{dropdownItems}

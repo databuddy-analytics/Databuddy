@@ -303,10 +303,6 @@ export const contents: SidebarSection[] = [
 						href: "/docs/api/links",
 					},
 					{
-						title: "Custom Queries",
-						href: "/docs/api/custom-queries",
-					},
-					{
 						title: "Error Handling",
 						href: "/docs/api/errors",
 					},

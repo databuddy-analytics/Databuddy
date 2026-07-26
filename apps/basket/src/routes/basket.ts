@@ -1,7 +1,7 @@
 import type {
-	AnalyticsEvent,
-	CustomOutgoingLink,
-} from "@databuddy/db/clickhouse/schema";
+	EventsInsert,
+	OutgoingLinksInsert,
+} from "@databuddy/db/clickhouse/tables";
 import type {
 	AnalyticsEventInput,
 	OutgoingLinkInput,
@@ -112,7 +112,7 @@ async function processOutgoingLinkData(
 	linkData: OutgoingLinkInput,
 	clientId: string,
 	visitorCountry?: unknown
-): Promise<CustomOutgoingLink> {
+): Promise<OutgoingLinksInsert> {
 	const timestamp = parseTimestamp(linkData.timestamp);
 	const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
 		linkData.anonymizeVisitorIds,
@@ -484,8 +484,8 @@ const app = new Elysia()
 			const { clientId, userAgent, ip } = validation;
 			log.set({ clientId });
 
-			const trackEvents: AnalyticsEvent[] = [];
-			const outgoingLinkEvents: CustomOutgoingLink[] = [];
+			const trackEvents: EventsInsert[] = [];
+			const outgoingLinkEvents: OutgoingLinksInsert[] = [];
 			const results: Record<string, unknown>[] = [];
 			let batchVisitorCountry: string | undefined;
 			let hasResolvedBatchVisitorCountry = false;

@@ -15,7 +15,7 @@ import { createDrainPipeline } from "evlog/pipeline";
 const batchedAxiomDrain = createDrainPipeline<DrainContext>({
 	batch: { size: 50, intervalMs: 5000 },
 	maxBufferSize: 2000,
-})(createAxiomDrain());
+})(createAxiomDrain({ apiKey: process.env.AXIOM_TOKEN }));
 
 const batchedSuperlogDrain = createBatchedSuperlogDrain();
 
@@ -29,6 +29,9 @@ const devFsLogsDir = join(
 
 const useLocalEvlogFiles =
 	process.env.NODE_ENV === "development" || readBooleanEnv("UPTIME_EVLOG_FS");
+
+const drainToAxiom =
+	process.env.NODE_ENV !== "development" && Boolean(process.env.AXIOM_TOKEN);
 
 const devFsDrain = useLocalEvlogFiles
 	? createFsDrain({ dir: devFsLogsDir, pretty: false })
@@ -82,7 +85,9 @@ export async function uptimeLoggerDrain(ctx: DrainContext): Promise<void> {
 	if (devFsDrain) {
 		await devFsDrain(ctx);
 	}
-	batchedAxiomDrain(ctx);
+	if (drainToAxiom) {
+		batchedAxiomDrain(ctx);
+	}
 	batchedSuperlogDrain?.(ctx);
 }
 

@@ -1,5 +1,5 @@
 import { and, desc, eq } from "@databuddy/db";
-import { agentChats, analyticsInsights } from "@databuddy/db/schema";
+import { agentChats } from "@databuddy/db/schema";
 import { getActiveStream } from "@databuddy/redis/stream-buffer";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -24,37 +24,7 @@ const chatDetailSchema = chatListItemSchema.extend({
 
 const successOutputSchema = z.object({ success: z.literal(true) });
 
-const promptSuggestionSchema = z.object({
-	label: z.string(),
-	prompt: z.string(),
-	source: z.enum(["insight", "default"]),
-});
-
 const MAX_LIST = 100;
-const MAX_INSIGHT_PROMPTS = 4;
-const LABEL_MAX_LEN = 60;
-const PROMPT_MAX_LEN = 240;
-
-const FALLBACK_PROMPTS: Array<{ label: string; prompt: string }> = [
-	{
-		label: "Analyze traffic trends",
-		prompt:
-			"Analyze my traffic trends over the last 30 days and tell me what stands out.",
-	},
-	{
-		label: "Why is bounce rate up?",
-		prompt: "What's causing my bounce rate to increase?",
-	},
-	{
-		label: "Weekly performance report",
-		prompt:
-			"Generate a weekly performance report covering traffic, sources, top pages, and conversions.",
-	},
-	{
-		label: "Best converting sources",
-		prompt: "Find my best converting traffic sources from the last 30 days.",
-	},
-];
 
 export const agentChatsRouter = {
 	list: sessionProcedure
@@ -203,50 +173,5 @@ export const agentChatsRouter = {
 			await context.db.delete(agentChats).where(eq(agentChats.id, input.id));
 
 			return { success: true };
-		}),
-
-	suggestedPrompts: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/agent-chats/suggestedPrompts",
-			summary:
-				"Returns context-aware prompt suggestions seeded from recent insights",
-			tags: ["AgentChats"],
-		})
-		.input(z.object({ websiteId: z.string() }))
-		.output(z.array(promptSuggestionSchema))
-		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["read"],
-			});
-
-			const insights = await context.db
-				.select({
-					title: analyticsInsights.title,
-					description: analyticsInsights.description,
-					severity: analyticsInsights.severity,
-				})
-				.from(analyticsInsights)
-				.where(eq(analyticsInsights.websiteId, input.websiteId))
-				.orderBy(desc(analyticsInsights.createdAt))
-				.limit(MAX_INSIGHT_PROMPTS);
-
-			const fromInsights = insights.map((row) => ({
-				label: row.title.slice(0, LABEL_MAX_LEN),
-				prompt: `${row.title}. ${row.description}`.slice(0, PROMPT_MAX_LEN),
-				source: "insight" as const,
-			}));
-
-			if (fromInsights.length >= MAX_INSIGHT_PROMPTS) {
-				return fromInsights;
-			}
-
-			const fillers = FALLBACK_PROMPTS.slice(
-				0,
-				MAX_INSIGHT_PROMPTS - fromInsights.length
-			).map((p) => ({ ...p, source: "default" as const }));
-
-			return [...fromInsights, ...fillers];
 		}),
 };

@@ -1,10 +1,9 @@
 import { SITE_URL } from "@/app/util/constants";
 
 export const homePageSeo = {
-	title:
-		"Lightweight Analytics for Developers - One Script, Six Tools, Under 30 KB",
+	title: "Lightweight Analytics for Developers - One Connected Platform",
 	description:
-		"Analytics, error tracking, web vitals, feature flags, and AI insights in one script under 30 KB. No cookies, GDPR compliant. Free for small projects. Open-source Google Analytics alternative for developers.",
+		"Analytics, error tracking, web vitals, feature flags, and automatic investigations in one connected platform. No cookies, GDPR compliant. Free for small projects. Open-source Google Analytics alternative for developers.",
 	url: SITE_URL,
 } as const;
 
@@ -15,14 +14,14 @@ export interface LandingFaqItem {
 
 export const homeFaqItems: LandingFaqItem[] = [
 	{
-		question: "What do you mean by six tools in one script?",
+		question: "What does the Databuddy platform include?",
 		answer:
-			"Most teams pay for separate analytics, error tracking, web vitals monitoring, feature flags, link shortening, and AI insight tools. Databuddy combines all six into one connected system - one script, one dashboard, one bill. You see the full picture without switching tabs.",
+			"Databuddy connects analytics, error tracking, web vitals monitoring, feature flags, short links, and AI analysis in one platform. A lightweight browser script collects analytics data; the other capabilities are managed from the same dashboard.",
 	},
 	{
 		question: "How is Databuddy different from Google Analytics?",
 		answer:
-			"Databuddy loads a single script under 30 KB (GA4 is 45 KB+), uses no cookies, and is GDPR compliant by default. It also includes error tracking, Core Web Vitals monitoring, funnels, and feature flags - capabilities that require separate tools with GA.",
+			"Databuddy uses a lightweight asynchronous tracker, uses no cookies, and is GDPR compliant by default. It also connects error tracking, Core Web Vitals monitoring, funnels, and feature flags in the same platform.",
 	},
 	{
 		question: "Do I need cookie consent banners?",
@@ -32,7 +31,7 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "What is included in the free plan?",
 		answer:
-			"The free plan includes up to 10,000 monthly events, real-time analytics, error tracking, Core Web Vitals, and basic feature flags. No credit card required. Enough for most side projects and small sites.",
+			"The free plan includes 10,000 monthly events, real-time analytics, Core Web Vitals, one funnel, two goals, and up to three feature flags. Error tracking starts on Hobby. No credit card is required.",
 	},
 	{
 		question: "How long does setup take?",
@@ -42,17 +41,17 @@ export const homeFaqItems: LandingFaqItem[] = [
 	{
 		question: "Can I migrate from Google Analytics, PostHog, or Plausible?",
 		answer:
-			"Yes. You don't need to rip anything out. Add Databuddy alongside your current tool, compare data for as long as you need, and remove the old script when you're ready. Most teams switch fully within a week.",
+			"Yes. Add Databuddy alongside your current tool, compare the data for as long as you need, and remove the old script when you are satisfied with the results.",
 	},
 	{
 		question: "What happens if I outgrow the free plan?",
 		answer:
-			"You get a heads-up before you hit any limit. Upgrading takes one click, and your data is never lost or paused. Overage pricing is tiered - the more you use, the cheaper each event gets.",
+			"The dashboard can warn you as usage approaches your allowance. Free-plan ingestion pauses after 10,000 monthly events. Hobby and Pro can continue with tiered event overage unless you set a hard billing limit.",
 	},
 	{
 		question: "Will the script slow down my site?",
 		answer:
-			"No. The tracking script is under 3 KB gzipped and loads asynchronously. It has zero impact on your Core Web Vitals. For comparison, Google Analytics is 45 KB+ and blocks rendering.",
+			"The tracker is about 11 KB gzipped and loads asynchronously. Its effect depends on your site and configuration, so measure it in your own performance budget instead of assuming any script has zero impact.",
 	},
 	{
 		question: "Is my data safe? Can I self-host?",

@@ -24,7 +24,12 @@ To deploy the built artifacts to Bunny.net (Production CDN):
 ```bash
 bun run release
 ```
-*Requires `BUNNY_STORAGE_ZONE_NAME` and `BUNNY_STORAGE_ACCESS_KEY` environment variables.*
+
+Release variables belong in the root `.env`:
+
+- Required: `BUNNY_STORAGE_ZONE_NAME`, `BUNNY_STORAGE_ACCESS_KEY`
+- Optional cache purge: `BUNNY_API_KEY`, `BUNNY_PULL_ZONE_ID`
+- Optional: `BUNNY_STORAGE_REGION`, `DISCORD_WEBHOOK_URL`
 
 ## Project Structure
 

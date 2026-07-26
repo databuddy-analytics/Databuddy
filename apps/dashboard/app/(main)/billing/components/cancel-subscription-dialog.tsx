@@ -18,7 +18,7 @@ import { Badge, Button, Textarea, dayjs } from "@databuddy/ui";
 interface CancelSubscriptionDialogProps {
 	currentPeriodEnd?: number;
 	isLoading: boolean;
-	onCancel: (immediate: boolean, feedback?: CancelFeedback) => void;
+	onCancel: (immediate: boolean, feedback?: CancelFeedback) => Promise<boolean>;
 	onOpenChange: (open: boolean) => void;
 	open: boolean;
 	planName: string;
@@ -88,9 +88,13 @@ export function CancelSubscriptionDialog({
 			reason: selectedReason,
 			details: feedbackDetails.trim() || undefined,
 		};
-		await onCancel(selected === "immediate", feedback);
+		const didCancel = await onCancel(selected === "immediate", feedback).catch(
+			() => false
+		);
 		setConfirming(false);
-		resetAndClose();
+		if (didCancel) {
+			resetAndClose();
+		}
 	};
 
 	const resetAndClose = () => {
@@ -120,7 +124,7 @@ export function CancelSubscriptionDialog({
 						<Dialog.Header>
 							<Dialog.Title>Before you go...</Dialog.Title>
 							<Dialog.Description>
-								We'd love to know why you're cancelling so we can improve
+								We'd love to know why you're canceling so we can improve
 							</Dialog.Description>
 						</Dialog.Header>
 
@@ -129,9 +133,9 @@ export function CancelSubscriptionDialog({
 								const IconComponent = reason.icon;
 								const isActive = selectedReason === reason.id;
 								return (
-									<button
+									<Button
 										className={cn(
-											"w-full rounded-md border border-border/60 p-3 text-left",
+											"h-auto w-full justify-start whitespace-normal rounded-md border border-border/60 p-3 text-left font-normal",
 											"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
 											isActive
 												? "border-primary bg-primary/10 ring-2 ring-primary/60"
@@ -139,7 +143,7 @@ export function CancelSubscriptionDialog({
 										)}
 										key={reason.id}
 										onClick={() => setSelectedReason(reason.id)}
-										type="button"
+										variant="secondary"
 									>
 										<div className="flex items-center gap-3">
 											<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
@@ -152,7 +156,7 @@ export function CancelSubscriptionDialog({
 												{reason.label}
 											</span>
 										</div>
-									</button>
+									</Button>
 								);
 							})}
 
@@ -194,9 +198,9 @@ export function CancelSubscriptionDialog({
 						</Dialog.Header>
 
 						<Dialog.Body className="space-y-1.5">
-							<button
+							<Button
 								className={cn(
-									"w-full rounded-md border border-border/60 p-3 text-left",
+									"h-auto w-full justify-start whitespace-normal rounded-md border border-border/60 p-3 text-left font-normal",
 									"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
 									"disabled:pointer-events-none disabled:opacity-50",
 									selected === "end_of_period"
@@ -205,7 +209,7 @@ export function CancelSubscriptionDialog({
 								)}
 								disabled={isLoading || confirming}
 								onClick={() => setSelected("end_of_period")}
-								type="button"
+								variant="secondary"
 							>
 								<div className="flex items-start gap-3">
 									<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-secondary">
@@ -228,11 +232,11 @@ export function CancelSubscriptionDialog({
 										</p>
 									</div>
 								</div>
-							</button>
+							</Button>
 
-							<button
+							<Button
 								className={cn(
-									"w-full rounded-md border border-border/60 p-3 text-left",
+									"h-auto w-full justify-start whitespace-normal rounded-md border border-border/60 p-3 text-left font-normal",
 									"transition-colors duration-(--duration-quick) ease-(--ease-smooth)",
 									"disabled:pointer-events-none disabled:opacity-50",
 									selected === "immediate"
@@ -241,7 +245,7 @@ export function CancelSubscriptionDialog({
 								)}
 								disabled={isLoading || confirming}
 								onClick={() => setSelected("immediate")}
-								type="button"
+								variant="secondary"
 							>
 								<div className="flex items-start gap-3">
 									<div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-destructive/10">
@@ -259,7 +263,7 @@ export function CancelSubscriptionDialog({
 										</p>
 									</div>
 								</div>
-							</button>
+							</Button>
 
 							{selected === "immediate" && (
 								<div className="flex items-start gap-2 rounded-md border border-destructive/20 bg-destructive/5 p-3">

@@ -2,6 +2,8 @@
 
 import { CreditArcSlider } from "@/components/ui/credit-arc-slider";
 import { cn } from "@/lib/utils";
+import { getUserFacingErrorMessage } from "@/lib/user-facing-error";
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import {
 	blendedRatePerCredit,
 	calculateTopupCost,
@@ -63,7 +65,10 @@ export function TopupCard() {
 			});
 		} catch (error) {
 			toast.error(
-				error instanceof Error ? error.message : "Failed to start checkout."
+				getUserFacingErrorMessage(
+					error,
+					"We couldn't open checkout. Try again."
+				)
 			);
 		} finally {
 			setIsAttaching(false);
@@ -75,35 +80,38 @@ export function TopupCard() {
 			<Card.Header>
 				<Card.Title className="flex items-center gap-2">
 					<CoinsIcon className="text-primary" size={14} weight="duotone" />
-					Top up credits
+					Add investigation credits
 				</Card.Title>
 				<Card.Description>
-					Buy more, pay less per credit. Stacks with your plan and never expires
-					— nothing goes to waste.
+					{DATABUNNY_USAGE.description} Purchased credits stack with your plan
+					and do not expire.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="space-y-5">
 				<div className="flex flex-col items-center gap-3">
 					<div className="w-full max-w-sm">
 						<CreditArcSlider
+							ariaLabel="Investigation credits to buy"
 							max={TOPUP_MAX_QUANTITY}
 							min={TOPUP_MIN_QUANTITY}
 							onValueChange={setQuantity}
 							value={quantity}
+							unit={DATABUNNY_USAGE.unit}
 						/>
 					</div>
 
 					<div className="flex flex-wrap items-center justify-center gap-2">
 						{PRESET_QUANTITIES.map((preset) => (
-							<button
+							<Button
 								aria-pressed={quantity === preset}
 								className="rounded border border-border/60 bg-card px-3 py-1 text-xs tabular-nums transition-colors hover:border-primary/60 hover:text-foreground aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground"
 								key={preset}
 								onClick={() => setQuantity(preset)}
-								type="button"
+								size="sm"
+								variant="secondary"
 							>
 								{preset.toLocaleString()}
-							</button>
+							</Button>
 						))}
 					</div>
 				</div>
@@ -113,10 +121,10 @@ export function TopupCard() {
 				<div className="space-y-2">
 					<Row label="You get">
 						<span className="tabular-nums">
-							{quantity.toLocaleString()} credits
+							{quantity.toLocaleString()} investigation credits
 						</span>
 					</Row>
-					<Row label="Per credit">
+					<Row label="Average per credit">
 						<span className="tabular-nums">${blendedRate.toFixed(4)}</span>
 					</Row>
 					<Row label="You pay">
@@ -134,11 +142,12 @@ export function TopupCard() {
 				/>
 
 				<div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<button
+					<Button
 						aria-expanded={showTiers}
 						className="flex items-center gap-1 self-start text-muted-foreground text-xs underline-offset-2 hover:text-foreground hover:underline"
 						onClick={() => setShowTiers((s) => !s)}
-						type="button"
+						size="sm"
+						variant="ghost"
 					>
 						<CaretDownIcon
 							className={cn("transition-transform", showTiers && "rotate-180")}
@@ -146,7 +155,7 @@ export function TopupCard() {
 							weight="bold"
 						/>
 						{showTiers ? "Hide pricing details" : "How pricing works"}
-					</button>
+					</Button>
 					<Button
 						className="sm:min-w-[220px]"
 						disabled={isAttaching}
@@ -171,22 +180,19 @@ export function TopupCard() {
 					<div className="overflow-hidden">
 						<div className="space-y-2 rounded border border-border/60 bg-secondary/40 p-3">
 							<Text tone="muted" variant="caption">
-								Graduated tiers: each credit is billed by the tier it falls
-								into. Buy 5,000 and only the first 100 cost $
-								{BASE_RATE.toFixed(2)} — every credit above that drops to a
-								cheaper rate.
+								With graduated pricing, each unit is priced by its tier.
+								Reaching a lower rate does not change the price of earlier
+								units.
 							</Text>
 							<div className="rounded border border-border/50 bg-background">
 								{TOPUP_TIERS.map((tier, idx) => {
 									const prev = idx === 0 ? null : TOPUP_TIERS[idx - 1];
-									const prevTop =
-										prev === null
-											? TOPUP_MIN_QUANTITY
-											: prev.to === "inf"
-												? 0
-												: prev.to;
-									const topLabel =
-										tier.to === "inf" ? "∞" : tier.to.toLocaleString();
+									const tierStart =
+										prev === null || prev.to === "inf" ? 1 : prev.to + 1;
+									const rangeLabel =
+										tier.to === "inf"
+											? `${tierStart.toLocaleString()}+`
+											: `${tierStart.toLocaleString()} – ${tier.to.toLocaleString()}`;
 									const isActive = tier.amount === tierInfo.currentRate;
 									return (
 										<div
@@ -199,7 +205,7 @@ export function TopupCard() {
 													tone="muted"
 													variant="caption"
 												>
-													{prevTop.toLocaleString()} – {topLabel}
+													{rangeLabel}
 												</Text>
 												{isActive && (
 													<Badge variant="success">You're here</Badge>
@@ -247,7 +253,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							{nudge.unitsUntilNextTier.toLocaleString()}
 						</span>{" "}
-						more and every credit drops to{" "}
+						more to reach the next tier. Credits in that tier cost{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${nudge.nextRate.toFixed(3)}
 						</span>
@@ -266,7 +272,7 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						<span className="font-medium text-foreground tabular-nums">
 							${savings.toFixed(2)}
 						</span>{" "}
-						vs. buying one at a time — that's{" "}
+						compared with the first-tier rate — that's{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							{Math.round((1 - blendedRate / BASE_RATE) * 100)}%
 						</span>{" "}
@@ -281,11 +287,11 @@ function NudgeSlot({ blendedRate, nudge, quantity, savings }: NudgeSlotProps) {
 						weight="duotone"
 					/>
 					<Text variant="caption">
-						Volume discount kicks in at{" "}
+						After the first{" "}
 						<span className="font-medium text-foreground tabular-nums">
-							{FIRST_TIER_TOP.toLocaleString()}+
+							{FIRST_TIER_TOP.toLocaleString()}
 						</span>{" "}
-						credits — every one drops to{" "}
+						credits, additional credits cost{" "}
 						<span className="font-medium text-foreground tabular-nums">
 							${SECOND_TIER_RATE.toFixed(3)}
 						</span>

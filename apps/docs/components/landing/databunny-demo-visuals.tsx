@@ -97,7 +97,7 @@ const SUGGESTED_PROMPTS = [
 	{
 		icon: LightbulbIcon,
 		label: "Why did signups drop this week?",
-		source: "From your insights",
+		source: "From your investigations",
 		color: "bg-amber-500/10 text-amber-400",
 	},
 	{
@@ -115,7 +115,7 @@ const SUGGESTED_PROMPTS = [
 	{
 		icon: LightningIcon,
 		label: "What are my top converting events?",
-		source: "From your insights",
+		source: "From your investigations",
 		color: "bg-amber-500/10 text-amber-400",
 	},
 ] as const;
@@ -309,11 +309,11 @@ const PROACTIVE_ALERTS = [
 	},
 	{
 		icon: LightbulbIcon,
-		title: "Weekly insight: your best performing page",
+		title: "Weekly investigation: your best-performing page",
 		description: "/blog/launch-post drove 42% of new signups this week",
 		time: "6h ago",
 		tone: "info" as const,
-		channel: "Email digest",
+		channel: "Slack #insights",
 	},
 	{
 		icon: TrendUpIcon,

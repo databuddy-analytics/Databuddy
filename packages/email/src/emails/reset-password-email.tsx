@@ -1,4 +1,5 @@
 import { Heading, Section, Text } from "react-email";
+import { AUTH_EMAIL_EXPIRY_LABELS } from "./auth-email-expiry";
 import { emailBrand } from "./email-brand";
 import { EmailButton } from "./email-button";
 import { EmailLayout } from "./email-layout";
@@ -11,7 +12,7 @@ interface ResetPasswordEmailProps {
 
 export const ResetPasswordEmail = ({ url }: ResetPasswordEmailProps) => (
 	<EmailLayout
-		preview="Click to choose a new password. Link expires in 1 hour."
+		preview={`Choose a new password. This link expires in ${AUTH_EMAIL_EXPIRY_LABELS.passwordReset}.`}
 		tagline="Password Reset"
 	>
 		<Section className="text-center">
@@ -19,7 +20,7 @@ export const ResetPasswordEmail = ({ url }: ResetPasswordEmailProps) => (
 				className="m-0 mb-3 font-semibold text-xl tracking-tight"
 				style={{ color: emailBrand.foreground }}
 			>
-				Reset Your Password
+				Reset your password
 			</Heading>
 			<Text
 				className="m-0 mb-6 text-sm leading-relaxed"
@@ -30,11 +31,11 @@ export const ResetPasswordEmail = ({ url }: ResetPasswordEmailProps) => (
 			</Text>
 		</Section>
 		<Section className="text-center">
-			<EmailButton href={url}>Reset Password</EmailButton>
+			<EmailButton href={url}>Reset password</EmailButton>
 		</Section>
 		<EmailNote>
-			This link expires in 1 hour for security reasons. If you didn't request a
-			password reset, please ignore this email or contact support.
+			This link expires in {AUTH_EMAIL_EXPIRY_LABELS.passwordReset}. If you did
+			not request a password reset, you can ignore this email.
 		</EmailNote>
 		<EmailLinkFallback href={url} />
 	</EmailLayout>

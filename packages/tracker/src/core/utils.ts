@@ -61,6 +61,29 @@ export function maskPathname(
 	return pathname;
 }
 
+export function buildPagePath(
+	origin: string,
+	pathname: string,
+	patterns?: readonly string[]
+): string {
+	return `${origin}${maskPathname(pathname, patterns)}`;
+}
+
+export function sanitizePageUrl(value: string): string {
+	if (!value) {
+		return "";
+	}
+	try {
+		const url = new URL(value);
+		if (!(url.protocol === "http:" || url.protocol === "https:")) {
+			return "";
+		}
+		return `${url.origin}${url.pathname}`;
+	} catch {
+		return "";
+	}
+}
+
 function applyMaskPattern(pathname: string, pattern: string): string | null {
 	const normalized =
 		pattern.length > 1 && pattern.endsWith("/")
@@ -73,10 +96,10 @@ function applyMaskPattern(pathname: string, pattern: string): string | null {
 	for (let i = 0; i < patternSegments.length; i++) {
 		const patternSegment = patternSegments[i];
 		if (patternSegment === "**") {
-			if (i < pathSegments.length) {
+			if (pathSegments.slice(i).some((segment) => segment.length > 0)) {
 				masked.push("*");
 			}
-			return masked.join("/");
+			return masked.join("/") || "/";
 		}
 		if (i >= pathSegments.length) {
 			return null;
@@ -145,6 +168,12 @@ export function isOptedOut(): boolean {
 	if (typeof window === "undefined") {
 		return false;
 	}
+	if (
+		typeof navigator !== "undefined" &&
+		(navigator.globalPrivacyControl === true || navigator.doNotTrack === "1")
+	) {
+		return true;
+	}
 	try {
 		return (
 			localStorage.getItem("databuddy_opt_out") === "true" ||
@@ -156,6 +185,31 @@ export function isOptedOut(): boolean {
 		return (
 			window.databuddyOptedOut === true || window.databuddyDisabled === true
 		);
+	}
+}
+
+export function clearStoredTrackingState(): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	if (typeof localStorage !== "undefined") {
+		try {
+			localStorage.removeItem("did");
+			localStorage.removeItem("did_profile");
+			localStorage.removeItem("did_params");
+		} catch {
+			// Local storage may be blocked by the browser.
+		}
+	}
+	if (typeof sessionStorage !== "undefined") {
+		try {
+			sessionStorage.removeItem("did_session");
+			sessionStorage.removeItem("did_session_timestamp");
+			sessionStorage.removeItem("did_session_start");
+			sessionStorage.removeItem("did_profile_sent");
+		} catch {
+			// Session storage may be blocked by the browser.
+		}
 	}
 }
 

@@ -5,17 +5,18 @@ import Link from "next/link";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
-import { measureOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
+import { trackOpenAiRegistrationCompleted } from "@/components/openai-ads-pixel";
 import { GithubMark, GoogleMark } from "@/components/ui/brand-icons";
 import VisuallyHidden from "@/components/ui/visuallyhidden";
 import {
 	APP_EVENTS,
-	readUtmProperties,
+	readMarketingProperties,
 	storePendingSocialSignup,
 	type SignupEventProperties,
 	type SignupMethod,
 	trackAppEvent,
 } from "@/lib/app-events";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import {
 	CaretLeftIcon,
 	EyeIcon,
@@ -38,6 +39,7 @@ function RegisterPageContent() {
 		"callback",
 		parseAsString.withDefault("/websites")
 	);
+	const safeCallback = safeCallbackPath(callback);
 	const [isLoading, setIsLoading] = useState(false);
 	const [formData, setFormData] = useState({
 		name: "",
@@ -60,7 +62,7 @@ function RegisterPageContent() {
 	const getSignupProperties = (
 		method: SignupMethod
 	): SignupEventProperties => ({
-		...readUtmProperties(new URLSearchParams(window.location.search)),
+		...readMarketingProperties(new URLSearchParams(window.location.search)),
 		method,
 		plan: selectedPlan || undefined,
 	});
@@ -79,7 +81,7 @@ function RegisterPageContent() {
 			localStorage.setItem("pendingPlanSelection", selectedPlan);
 			return `/billing/plans?plan=${selectedPlan}`;
 		}
-		return callback;
+		return safeCallback;
 	};
 
 	const getProviderLabel = (provider: "github" | "google") =>
@@ -110,7 +112,7 @@ function RegisterPageContent() {
 			fetchOptions: {
 				onSuccess: () => {
 					trackSignup(APP_EVENTS.signupCompleted, signupProperties);
-					measureOpenAiRegistrationCompleted();
+					trackOpenAiRegistrationCompleted();
 					toast.success(
 						"Account created! Please check your email to verify your account."
 					);
@@ -129,34 +131,38 @@ function RegisterPageContent() {
 	const resendVerificationEmail = async () => {
 		setIsLoading(true);
 
-		await authClient.sendVerificationEmail({
-			email: formData.email,
-			callbackURL: "/onboarding",
-			fetchOptions: {
-				onSuccess: () => {
-					toast.success("Verification email sent!");
-				},
-				onError: () => {
-					toast.error(
-						"Failed to send verification email. Please try again later."
-					);
-				},
-			},
-		});
-
+		try {
+			const { error } = await authClient.sendVerificationEmail({
+				email: formData.email,
+				callbackURL: getCallbackUrl(),
+			});
+			if (error) {
+				toast.error(
+					"We couldn't send the verification email. Try again in a moment."
+				);
+			} else {
+				toast.success("Verification email sent. Check your inbox.");
+			}
+		} catch {
+			toast.error(
+				"We couldn't send the verification email. Try again in a moment."
+			);
+		}
 		setIsLoading(false);
 	};
 
 	const handleSocialLogin = async (provider: "github" | "google") => {
 		setIsLoading(true);
 		const signupProperties = getSignupProperties(`social_${provider}`);
+		const callbackURL = getCallbackUrl();
 		trackSignup(APP_EVENTS.signupStarted, signupProperties);
 
 		try {
 			const result = await authClient.signIn.social({
 				provider,
-				callbackURL: getCallbackUrl(),
-				newUserCallbackURL: "/onboarding",
+				callbackURL,
+				newUserCallbackURL:
+					callbackURL === "/websites" ? "/onboarding" : callbackURL,
 				disableRedirect: true,
 			});
 
@@ -450,11 +456,7 @@ function RegisterPageContent() {
 						Already have an account?{" "}
 						<Link
 							className="font-medium text-accent-foreground duration-200 hover:text-accent-foreground/60"
-							href={
-								callback
-									? `/login?callback=${encodeURIComponent(callback)}`
-									: "/login"
-							}
+							href={`/login?callback=${encodeURIComponent(safeCallback)}`}
 						>
 							Sign in
 						</Link>

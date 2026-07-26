@@ -37,12 +37,12 @@ export default function LinkExpiredPage() {
 						Link has expired
 					</h1>
 					<p className="mb-6 text-balance text-center text-muted-foreground text-sm">
-						This link is no longer available. It may have been set to expire
-						after a certain date.
+						The sender set this link to expire. Ask them to create and share a
+						new link if you still need access.
 					</p>
 
-					<Button asChild className="w-full">
-						<Link href="https://databuddy.cc">Go to Databuddy</Link>
+					<Button asChild className="w-full" variant="outline">
+						<Link href="https://databuddy.cc">Learn about Databuddy</Link>
 					</Button>
 				</div>
 			</main>

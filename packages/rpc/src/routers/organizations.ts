@@ -348,7 +348,7 @@ export const organizationsRouter = {
 
 	getUsage: sessionProcedure
 		.route({
-			description: "Returns Autumn usage for current user/workspace.",
+			description: "Returns usage for the active organization.",
 			method: "POST",
 			path: "/organizations/getUsage",
 			summary: "Get usage",
@@ -395,7 +395,7 @@ export const organizationsRouter = {
 	getBillingContext: publicProcedure
 		.route({
 			description:
-				"Returns billing context for user/workspace/website. Priority: websiteId > user workspace > free tier.",
+				"Returns billing context for the requested website or active organization, with a free-tier fallback.",
 			method: "POST",
 			path: "/organizations/getBillingContext",
 			summary: "Get billing context",

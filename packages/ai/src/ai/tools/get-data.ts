@@ -1,26 +1,27 @@
-import {
-	isTraitFilterField,
-	resolveTraitSegment,
-	type TraitFilter,
-	TraitFilterError,
-} from "@databuddy/services/identity";
+import { TraitFilterError } from "@databuddy/services/identity";
 import { captureError } from "../../lib/tracing";
 import { tool } from "ai";
 import { z } from "zod";
 import { getWebsiteDomain } from "../../lib/website-utils";
-import { executeQuery, QueryBuilders } from "../../query";
+import {
+	executeQuery,
+	publicQueryErrorMessage,
+	QueryBuilders,
+	SANITIZED_QUERY_ERROR,
+} from "../../query";
 import { shiftDate, todayInTimeZone } from "../../query/date-utils";
 import type { QueryRequest } from "../../query/types";
-import { getAppContext, resolveToolWebsite } from "./utils";
+import { getAppContext, resolveToolWebsite, toolDateRangeError } from "./utils";
+
+type QueryType = Extract<keyof typeof QueryBuilders, string>;
+const QUERY_TYPES = Object.keys(QueryBuilders) as [QueryType, ...QueryType[]];
 
 const queryItemSchema = z.object({
-	type: z.string(),
+	type: z.enum(QUERY_TYPES),
 	websiteId: z
 		.string()
 		.optional()
-		.describe(
-			"Target website id. Omit to use the workspace default. Required when comparing or querying a specific site in a multi-website workspace; get ids from list_websites."
-		),
+		.describe("Target website id. Omit to use the workspace default."),
 	from: z.string().optional(),
 	to: z.string().optional(),
 	preset: z
@@ -65,9 +66,10 @@ type QueryItem = z.infer<typeof queryItemSchema>;
 interface QueryItemResult {
 	data: unknown[];
 	error?: string;
-	executionTime: number;
+	returnedRows?: number;
 	rowCount: number;
 	summary?: string;
+	truncated?: boolean;
 	type: string;
 	websiteId?: string;
 }
@@ -95,35 +97,17 @@ function buildResultSummary(
 	return `${title} · ${range} · ${filterPart}${groupPart}`;
 }
 
-const MAX_MODEL_ROWS = 50;
+const MAX_MODEL_ROWS = 20;
 
-function describeTraitFilterError(error: unknown): string {
+function describeQueryError(error: unknown): string {
 	if (error instanceof TraitFilterError) {
 		return error.message;
 	}
-	captureError(error, { tool: "get_data", step: "resolve_trait_segment" });
-	return "Trait filter failed";
-}
-
-async function resolveItemFilters(
-	websiteId: string,
-	filters: QueryItem["filters"]
-): Promise<QueryItem["filters"]> {
-	if (!filters?.length) {
-		return filters;
+	const message = publicQueryErrorMessage(error);
+	if (message === SANITIZED_QUERY_ERROR) {
+		captureError(error, { tool: "get_data", step: "execute_query" });
 	}
-	const traitFilters = filters.filter((f) => isTraitFilterField(f.field));
-	if (traitFilters.length === 0) {
-		return filters;
-	}
-	const segment = await resolveTraitSegment(
-		websiteId,
-		traitFilters as TraitFilter[]
-	);
-	return [
-		...filters.filter((f) => !isTraitFilterField(f.field)),
-		{ field: "profile_id", op: "in" as const, value: segment },
-	];
+	return message;
 }
 
 const PRESET_DAYS = {
@@ -135,13 +119,17 @@ const PRESET_DAYS = {
 
 function resolveDates(
 	item: QueryItem,
-	timeZone: string
+	timeZone: string,
+	currentDateTime?: string
 ): { from: string; to: string } {
+	const reference = currentDateTime ? new Date(currentDateTime) : new Date();
+	const today = todayInTimeZone(
+		timeZone,
+		Number.isNaN(reference.getTime()) ? new Date() : reference
+	);
 	if (item.from && item.to) {
 		return { from: item.from, to: item.to };
 	}
-
-	const today = todayInTimeZone(timeZone);
 
 	if (item.preset === "today") {
 		return { from: today, to: today };
@@ -157,7 +145,7 @@ function resolveDates(
 
 export const getDataTool = tool({
 	description:
-		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. Call discover_query_types to browse available types.",
+		"Run analytics query builders for explicit data questions. Batch 1-10 queries per call. Use preset (last_7d/last_30d/...) or from+to dates. Each query may target a specific website via websiteId; omit to use the workspace default. When truncated is true, data contains only returnedRows examples from rowCount query rows; never aggregate or generalize that sample.",
 	inputSchema: z.object({
 		queries: z
 			.array(queryItemSchema)
@@ -169,22 +157,9 @@ export const getDataTool = tool({
 	}),
 	execute: async ({ queries }, options) => {
 		const ctx = getAppContext(options);
-		const batchStart = Date.now();
 
 		const results = await Promise.all(
 			queries.map(async (item): Promise<QueryItemResult> => {
-				const queryStart = Date.now();
-
-				if (!QueryBuilders[item.type]) {
-					return {
-						type: item.type,
-						data: [],
-						rowCount: 0,
-						executionTime: 0,
-						error: `Unknown query type "${item.type}". Valid types: ${Object.keys(QueryBuilders).join(", ")}`,
-					};
-				}
-
 				let websiteId: string;
 				let resolvedDomain: string | undefined;
 				try {
@@ -197,57 +172,69 @@ export const getDataTool = tool({
 						websiteId: item.websiteId,
 						data: [],
 						rowCount: 0,
-						executionTime: 0,
 						error:
 							error instanceof Error ? error.message : "Website not resolved",
 					};
 				}
 
-				let filters: QueryItem["filters"];
-				try {
-					filters = await resolveItemFilters(websiteId, item.filters);
-				} catch (error) {
+				const domain = resolvedDomain || (await getWebsiteDomain(websiteId));
+				const timezone = item.timezone ?? ctx.timezone ?? "UTC";
+				const { from, to } = resolveDates(item, timezone, ctx.currentDateTime);
+				const dateError = toolDateRangeError(from, to, ctx, timezone);
+				if (dateError) {
 					return {
 						type: item.type,
 						websiteId,
 						data: [],
 						rowCount: 0,
-						executionTime: Date.now() - queryStart,
-						error: describeTraitFilterError(error),
+						error: dateError,
 					};
 				}
-
-				const domain = resolvedDomain || (await getWebsiteDomain(websiteId));
-				const timezone = item.timezone ?? ctx.timezone ?? "UTC";
-				const { from, to } = resolveDates(item, timezone);
 				const req: QueryRequest = {
 					projectId: websiteId,
 					type: item.type,
 					from,
 					to,
 					timeUnit: item.timeUnit,
-					filters: filters as QueryRequest["filters"],
+					filters: item.filters as QueryRequest["filters"],
 					groupBy: item.groupBy,
 					orderBy: item.orderBy,
 					limit: item.limit,
 					timezone,
 				};
 
-				const data = await executeQuery(req, domain, timezone);
-				return {
-					type: item.type,
-					websiteId,
-					summary: buildResultSummary(
-						item.type,
-						from,
-						to,
-						item.filters,
-						item.groupBy
-					),
-					data: data.slice(0, MAX_MODEL_ROWS),
-					rowCount: data.length,
-					executionTime: Date.now() - queryStart,
-				};
+				try {
+					const data = await executeQuery(
+						req,
+						domain,
+						timezone,
+						options.abortSignal
+					);
+					const returnedRows = Math.min(data.length, MAX_MODEL_ROWS);
+					return {
+						type: item.type,
+						websiteId,
+						summary: buildResultSummary(
+							item.type,
+							from,
+							to,
+							item.filters,
+							item.groupBy
+						),
+						data: data.slice(0, MAX_MODEL_ROWS),
+						returnedRows,
+						rowCount: data.length,
+						truncated: returnedRows < data.length,
+					};
+				} catch (error) {
+					return {
+						type: item.type,
+						websiteId,
+						data: [],
+						rowCount: 0,
+						error: describeQueryError(error),
+					};
+				}
 			})
 		);
 
@@ -262,10 +249,6 @@ export const getDataTool = tool({
 			resultMap[key] = r;
 		}
 
-		return {
-			results: resultMap,
-			queryCount: queries.length,
-			totalExecutionTime: Date.now() - batchStart,
-		};
+		return { results: resultMap };
 	},
 });

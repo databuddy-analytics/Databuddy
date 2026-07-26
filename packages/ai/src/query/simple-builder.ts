@@ -28,6 +28,12 @@ import { applyPlugins } from "./utils";
 export function getClickHouseQuerySettings(
 	noCache?: boolean
 ): Record<string, string | number> {
+	if (
+		process.env.CLICKHOUSE_READONLY_URL &&
+		process.env.CLICKHOUSE_URL === process.env.CLICKHOUSE_READONLY_URL
+	) {
+		return {};
+	}
 	if (noCache) {
 		return { use_query_cache: 0 };
 	}
@@ -1048,10 +1054,8 @@ export class SimpleQueryBuilder {
 				if (!filter || filter.target || filter.having) {
 					continue;
 				}
-				// Skip filters for fields not supported by this query type rather
-				// than throwing — in a multi-query batch, a dimension specific to
-				// one query type (e.g. "href" for outbound_links) should simply be
-				// ignored by query types that don't know about it.
+				// Unsupported filters are skipped so one multi-query batch can share
+				// dimension-specific filters without breaking unrelated query types.
 				if (!isFilterFieldAllowed(this.config, filter.field)) {
 					continue;
 				}

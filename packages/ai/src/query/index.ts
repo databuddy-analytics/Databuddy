@@ -2,6 +2,10 @@
 import { z } from "zod";
 import { QueryBuilders, suggestQueryTypes } from "./builders";
 import { SimpleQueryBuilder } from "./simple-builder";
+import {
+	invalidFilterFieldError,
+	resolveRequestTraitFilters,
+} from "./trait-filters";
 import type { FilterOperators, QueryRequest, TimeGranularity } from "./types";
 
 const FILTER_OPS = [
@@ -59,12 +63,15 @@ const QuerySchema = z.object({
 	timezone: z.string().optional(),
 });
 
+function parseRequest(request: QueryRequest): QueryRequest {
+	return QuerySchema.parse(request) as QueryRequest;
+}
+
 function createBuilder(
-	request: QueryRequest,
+	validated: QueryRequest,
 	websiteDomain?: string | null,
 	timezone?: string
 ) {
-	const validated = QuerySchema.parse(request) as QueryRequest;
 	const config = QueryBuilders[validated.type];
 	if (!config) {
 		const suggestions = suggestQueryTypes(validated.type);
@@ -85,13 +92,24 @@ export const executeQuery = async (
 	websiteDomain?: string | null,
 	timezone?: string,
 	abortSignal?: AbortSignal
-) => createBuilder(request, websiteDomain, timezone).execute(abortSignal);
+) => {
+	const validated = parseRequest(request);
+	const filterError = invalidFilterFieldError(
+		validated.type,
+		validated.filters
+	);
+	if (filterError) {
+		throw new Error(filterError);
+	}
+	const resolved = await resolveRequestTraitFilters(validated);
+	return createBuilder(resolved, websiteDomain, timezone).execute(abortSignal);
+};
 
 export const compileQuery = (
 	request: QueryRequest,
 	websiteDomain?: string | null,
 	timezone?: string
-) => createBuilder(request, websiteDomain, timezone).compile();
+) => createBuilder(parseRequest(request), websiteDomain, timezone).compile();
 
 export {
 	areQueriesCompatible,
@@ -102,4 +120,11 @@ export {
 export * from "./builders";
 export * from "./expressions";
 export { allowedFilterFields, isFilterFieldAllowed } from "./simple-builder";
+export {
+	hasTraitFilters,
+	invalidFilterFieldError,
+	publicQueryErrorMessage,
+	resolveRequestTraitFilters,
+	SANITIZED_QUERY_ERROR,
+} from "./trait-filters";
 export * from "./types";

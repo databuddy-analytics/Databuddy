@@ -70,7 +70,6 @@ export const AGENT_TABLE_COLUMNS: Readonly<
 		"anonymous_id",
 		"session_id",
 		"timestamp",
-		"path",
 		"href",
 		"text",
 	]),
@@ -147,7 +146,13 @@ const WHERE_KEYWORD_PATTERN = /\bWHERE\b/gi;
 const TOP_LEVEL_OR_PATTERN = /\bOR\b/i;
 const CLAUSE_TERMINATOR_PATTERN =
 	/\b(?:GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|JOIN)\b/i;
+const FROM_CLAUSE_TERMINATOR_PATTERN =
+	/\b(?:PREWHERE|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|SETTINGS|WINDOW|UNION|INTERSECT|EXCEPT)\b/i;
 const PAGEVIEW_EVENT_PATTERN = /\bevent_name\s*=\s*(['"])pageview\1/i;
+const SELECT_PROJECTION_PATTERN = /\bSELECT\b([\s\S]*?)\bFROM\b/gi;
+const WILDCARD_PROJECTION_PATTERN =
+	/(?:^|,)\s*(?:(?:DISTINCT|ALL)\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\s*\.\s*)?\*\s*(?=,|$|\b(?:APPLY|EXCEPT|REPLACE)\b)/i;
+const SENSITIVE_PROJECTION_PATTERN = /\b(?:ip|properties|url|user_agent)\b/i;
 
 function maskCommentsAndStrings(sql: string): string {
 	let result = "";
@@ -225,7 +230,11 @@ function flattenToTopLevel(s: string): string {
 	return out;
 }
 
-function findClauseEnd(sql: string, start: number): number {
+function findClauseEnd(
+	sql: string,
+	start: number,
+	terminator = CLAUSE_TERMINATOR_PATTERN
+): number {
 	let depth = 0;
 	for (let i = start; i < sql.length; i++) {
 		const ch = sql[i];
@@ -237,7 +246,7 @@ function findClauseEnd(sql: string, start: number): number {
 			}
 			depth--;
 		} else if (depth === 0) {
-			const m = sql.slice(i).match(CLAUSE_TERMINATOR_PATTERN);
+			const m = sql.slice(i).match(terminator);
 			if (m && m.index === 0) {
 				return i;
 			}
@@ -305,6 +314,20 @@ function extractRelationReferences(sql: string): {
 	return refs;
 }
 
+function validateSelectProjections(sql: string): string | null {
+	for (const match of sql.matchAll(SELECT_PROJECTION_PATTERN)) {
+		const projection = match[1] ?? "";
+		if (WILDCARD_PROJECTION_PATTERN.test(projection)) {
+			return "Wildcard projections are not allowed; select explicit columns.";
+		}
+		const sensitive = projection.match(SENSITIVE_PROJECTION_PATTERN)?.[0];
+		if (sensitive) {
+			return `Column "${sensitive}" is sensitive and is not allowed in agent SQL projections.`;
+		}
+	}
+	return null;
+}
+
 function whereClauseBodies(sql: string): string[] {
 	const bodies: string[] = [];
 	WHERE_KEYWORD_PATTERN.lastIndex = 0;
@@ -319,20 +342,24 @@ function whereClauseBodies(sql: string): string[] {
 	return bodies;
 }
 
-function hasCommaJoinInFrom(sql: string): boolean {
+function hasCommaJoinInSanitizedFrom(sql: string): boolean {
 	FROM_KEYWORD_PATTERN.lastIndex = 0;
 	let m = FROM_KEYWORD_PATTERN.exec(sql);
 	while (m) {
 		const start = m.index + m[0].length;
-		const end = findClauseEnd(sql, start);
+		const end = findClauseEnd(sql, start, FROM_CLAUSE_TERMINATOR_PATTERN);
 		const segment = flattenToTopLevel(sql.slice(start, end));
 		if (segment.includes(",")) {
 			return true;
 		}
-		FROM_KEYWORD_PATTERN.lastIndex = end;
+		FROM_KEYWORD_PATTERN.lastIndex = start;
 		m = FROM_KEYWORD_PATTERN.exec(sql);
 	}
 	return false;
+}
+
+export function hasCommaJoinInFrom(sql: string): boolean {
+	return hasCommaJoinInSanitizedFrom(maskCommentsAndStrings(sql));
 }
 
 function topLevelHasTenantFilter(whereBody: string): boolean {
@@ -472,19 +499,21 @@ export function validateAgentSQL(sql: string): {
 	QUALIFIED_COLUMN.lastIndex = 0;
 	let qm = QUALIFIED_COLUMN.exec(sanitized);
 	while (qm) {
-		const alias = qm[1].toLowerCase();
-		const col = qm[2].toLowerCase();
-		const table = aliasToTable.get(alias);
+		const [, aliasRaw, colRaw] = qm;
+		qm = QUALIFIED_COLUMN.exec(sanitized);
+		if (!(aliasRaw && colRaw)) {
+			continue;
+		}
+		const table = aliasToTable.get(aliasRaw.toLowerCase());
 		if (table) {
 			const validCols = AGENT_TABLE_COLUMNS[table];
-			if (validCols && !validCols.has(col)) {
+			if (validCols && !validCols.has(colRaw.toLowerCase())) {
 				return {
 					valid: false,
-					reason: `Column "${qm[2]}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
+					reason: `Column "${colRaw}" does not exist on ${table}. Valid columns: ${[...validCols].join(", ")}.`,
 				};
 			}
 		}
-		qm = QUALIFIED_COLUMN.exec(sanitized);
 	}
 
 	const selectCount = sanitized.match(SELECT_KEYWORD_PATTERN)?.length ?? 0;
@@ -495,7 +524,7 @@ export function validateAgentSQL(sql: string): {
 		};
 	}
 
-	if (hasCommaJoinInFrom(sanitized)) {
+	if (hasCommaJoinInSanitizedFrom(sanitized)) {
 		return {
 			valid: false,
 			reason:
@@ -566,6 +595,11 @@ export function validateAgentSQL(sql: string): {
 				};
 			}
 		}
+	}
+
+	const projectionError = validateSelectProjections(sanitized);
+	if (projectionError) {
+		return { valid: false, reason: projectionError };
 	}
 
 	return { valid: true, reason: null };

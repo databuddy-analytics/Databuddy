@@ -7,7 +7,7 @@ import { type StopCondition, stepCountIs, type ToolSet } from "ai";
  * step's prefill pathologically slow. Wall-clock timeouts in the runner remain
  * the outer safety net.
  */
-export const MAX_AGENT_STEPS = 24;
+const MAX_AGENT_STEPS = 24;
 
 export const stopAtMaxSteps: StopCondition<ToolSet> =
 	stepCountIs(MAX_AGENT_STEPS);

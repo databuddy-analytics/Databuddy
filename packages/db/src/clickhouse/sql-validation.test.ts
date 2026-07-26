@@ -161,14 +161,14 @@ describe("validateAgentSQL", () => {
 
 	it("handles backtick-quoted table names", () => {
 		const result = validateAgentSQL(
-			`SELECT * FROM \`analytics.events\` ${TENANT}`
+			`SELECT path FROM \`analytics.events\` ${TENANT}`
 		);
 		expect(result).toEqual({ valid: true, reason: null });
 	});
 
 	it("handles double-quoted table names", () => {
 		const result = validateAgentSQL(
-			`SELECT * FROM "analytics.events" ${TENANT}`
+			`SELECT path FROM "analytics.events" ${TENANT}`
 		);
 		expect(result).toEqual({ valid: true, reason: null });
 	});
@@ -193,9 +193,76 @@ describe("validateAgentSQL", () => {
 
 	it("validates WITH/CTE queries", () => {
 		const result = validateAgentSQL(
-			`WITH cte AS (SELECT path FROM analytics.events ${TENANT}) SELECT * FROM cte ${TENANT}`
+			`WITH cte AS (SELECT path FROM analytics.events ${TENANT}) SELECT path FROM cte ${TENANT}`
 		);
 		expect(result).toEqual({ valid: true, reason: null });
+	});
+
+	describe("projection safety", () => {
+		it("rejects SELECT *", () => {
+			const result = validateAgentSQL(
+				`SELECT * FROM analytics.events ${TENANT}`
+			);
+			expect(result.valid).toBe(false);
+			expect(result.reason).toContain("Wildcard projections");
+		});
+
+		it("rejects SELECT DISTINCT *", () => {
+			const result = validateAgentSQL(
+				`SELECT DISTINCT * FROM analytics.events ${TENANT}`
+			);
+			expect(result.valid).toBe(false);
+			expect(result.reason).toContain("Wildcard projections");
+		});
+
+		it("rejects ClickHouse wildcard modifiers", () => {
+			const result = validateAgentSQL(
+				`SELECT * APPLY(toString) FROM analytics.events ${TENANT}`
+			);
+			expect(result.valid).toBe(false);
+			expect(result.reason).toContain("Wildcard projections");
+		});
+
+		it("rejects alias.*", () => {
+			const result = validateAgentSQL(
+				"SELECT e.* FROM analytics.events e WHERE e.client_id = {websiteId:String}"
+			);
+			expect(result.valid).toBe(false);
+			expect(result.reason).toContain("Wildcard projections");
+		});
+
+		for (const column of ["ip", "user_agent", "url"] as const) {
+			it(`rejects unqualified ${column} projections`, () => {
+				const result = validateAgentSQL(
+					`SELECT ${column} FROM analytics.events ${TENANT}`
+				);
+				expect(result.valid).toBe(false);
+				expect(result.reason).toContain(column);
+			});
+		}
+
+		it("rejects raw custom-event properties projections", () => {
+			const result = validateAgentSQL(
+				"SELECT properties FROM analytics.custom_events WHERE owner_id = {websiteId:String}"
+			);
+			expect(result.valid).toBe(false);
+			expect(result.reason).toContain("properties");
+			expect(result.reason).toContain("sensitive");
+		});
+
+		it("allows unqualified allowlisted columns and aggregates", () => {
+			const result = validateAgentSQL(
+				`SELECT path, browser_name, count(*) events FROM analytics.events ${TENANT} GROUP BY path, browser_name`
+			);
+			expect(result).toEqual({ valid: true, reason: null });
+		});
+
+		it("allows aggregate CTE projections", () => {
+			const result = validateAgentSQL(
+				`WITH daily AS (SELECT toDate(time) AS day, count(*) AS views FROM analytics.events ${TENANT} GROUP BY day) SELECT day, views FROM daily ${TENANT}`
+			);
+			expect(result).toEqual({ valid: true, reason: null });
+		});
 	});
 
 	it("rejects ClickHouse table functions", () => {
@@ -305,7 +372,7 @@ describe("validateAgentSQL", () => {
 
 		it("allows OR nested inside parentheses", () => {
 			const result = validateAgentSQL(
-				`SELECT * FROM analytics.events ${TENANT} AND (path = '/' OR path = '/home')`
+				`SELECT path FROM analytics.events ${TENANT} AND (path = '/' OR path = '/home')`
 			);
 			expect(result).toEqual({ valid: true, reason: null });
 		});

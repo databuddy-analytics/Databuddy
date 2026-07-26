@@ -1,13 +1,13 @@
 ---
 title: Error Handling
-description: API error codes, formats, and troubleshooting
+description: API error formats, stable query codes, and recovery guidance
 ---
 
 import { CodeBlock } from "@/components/docs";
 
-All API errors follow a consistent format with clear error codes, messages, and request IDs for debugging.
+Every API response includes an `X-Request-ID` header so support can trace a failure without exposing internal details. Query API and direct route errors also include that value as `requestId` in their JSON body. Framework-generated RPC errors may expose it only in the header.
 
-## Error Response Format
+## Error response
 
 <CodeBlock
   language="json"
@@ -19,9 +19,7 @@ All API errors follow a consistent format with clear error codes, messages, and 
 }`}
 />
 
-## Validation Errors
-
-Validation errors include detailed field-level information:
+Some validation failures also include `details` with the affected field and a suggested correction:
 
 <CodeBlock
   language="json"
@@ -40,166 +38,79 @@ Validation errors include detailed field-level information:
 }`}
 />
 
-The `details` array contains all validation issues found, with suggestions when available.
+## Query API codes
 
-## Error Codes
+These are the stable codes returned by `/v1/query` and its subroutes:
 
-### Authentication Errors (4xx)
+| Code | HTTP status | Meaning | Recovery |
+|------|-------------|---------|----------|
+| `AUTH_REQUIRED` | 401 | The protected operation has no valid API key or session | Add authentication and retry |
+| `ACCESS_DENIED` | 403 | Authentication succeeded but cannot access the requested resource | Check the key's organization, resource access, and scopes |
+| `MISSING_PROJECT_ID` | 400 | No website, link, monitor, or organization identifier was supplied | Add the identifier required by the query type |
+| `VALIDATION_ERROR` | 400 | The body, date range, filter, or query type is invalid | Correct the reported fields and retry |
+| `COMPILATION_ERROR` | 400 | The query could not be compiled | Correct the query definition |
+| `FEATURE_UNAVAILABLE` | 402 | The selected plan does not include the requested query capability | Change plan or remove that query type |
+| `RATE_LIMITED` | 429 | The request limit was reached | Wait for `Retry-After`, then retry |
+| `INTERNAL_SERVER_ERROR` | 500 | An unexpected server error occurred | Retry; if it continues, contact support with the request ID |
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `AUTH_REQUIRED` | 401 | No authentication provided |
-| `INVALID_API_KEY` | 401 | API key is invalid, expired, or revoked |
-| `ACCESS_DENIED` | 403 | Authenticated but lacks permission |
-| `INSUFFICIENT_SCOPE` | 403 | API key missing required scope |
+Other API families can define additional codes. Treat `code` as the programmatic value and keep a fallback for unfamiliar codes.
 
-### Request Errors (4xx)
+## Authentication response
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `MISSING_PROJECT_ID` | 400 | No `website_id`, `link_id`, or `schedule_id` provided |
-| `MISSING_WEBSITE_ID` | 400 | Endpoint requires `website_id` parameter |
-| `VALIDATION_ERROR` | 400 | Request body failed validation |
-| `INVALID_QUERY_TYPE` | 400 | Unknown query type in `parameters` |
-| `INVALID_DATE_RANGE` | 400 | Invalid or missing date range |
-| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
-
-### Resource Errors (4xx)
-
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `WEBSITE_NOT_FOUND` | 404 | Website doesn't exist or no access |
-| `LINK_NOT_FOUND` | 404 | Link doesn't exist or no access |
-| `SCHEDULE_NOT_FOUND` | 404 | Uptime schedule doesn't exist or no access |
-
-### Server Errors (5xx)
-
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |
-| `DATABASE_ERROR` | 500 | Database query failed |
-| `TIMEOUT` | 504 | Query took too long |
-
-## Error Examples
-
-### Missing Authentication
-
-401 responses include a discovery hint for agents:
+Protected endpoints return a discovery hint in addition to the JSON body:
 
 <CodeBlock
   language="http"
-  code={`WWW-Authenticate: Bearer resource_metadata="https://api.databuddy.cc/.well-known/oauth-protected-resource"`}
+  code={`HTTP/1.1 401 Unauthorized
+X-Request-ID: req_abc123def456
+WWW-Authenticate: Bearer resource_metadata="https://api.databuddy.cc/.well-known/oauth-protected-resource"`}
 />
 
-<CodeBlock 
+## Rate-limit response
+
+<CodeBlock
   language="json"
   code={`{
   "success": false,
-  "error": "Authentication required",
-  "code": "AUTH_REQUIRED"
-}`}
-/>
-
-### Missing Resource Identifier
-
-<CodeBlock 
-  language="json"
-  code={`{
-  "success": false,
-  "error": "Missing resource identifier (website_id, schedule_id, link_id, or organization_id)",
-  "code": "MISSING_PROJECT_ID"
-}`}
-/>
-
-### Invalid Query Type
-
-<CodeBlock 
-  language="json"
-  code={`{
-  "success": false,
-  "error": "Unknown query type: summry",
-  "code": "INVALID_QUERY_TYPE"
-}`}
-/>
-
-### Rate Limit Exceeded
-
-<CodeBlock 
-  language="json"
-  code={`{
-  "success": false,
-  "error": "Rate limit exceeded. Please try again later.",
-  "code": "RATE_LIMIT_EXCEEDED",
-  "limit": 200,
+  "error": "Rate limit exceeded",
+  "code": "RATE_LIMITED",
+  "requestId": "req_abc123def456",
+  "limit": 120,
   "remaining": 0,
-  "reset": "2024-01-01T12:00:10.000Z",
+  "reset": 1735732810000,
   "retryAfter": 8
 }`}
 />
 
-## Partial Success
+`reset` is a Unix timestamp in milliseconds. `retryAfter` and the `Retry-After` header are seconds.
 
-When querying multiple parameters, individual queries can fail while others succeed:
+## Partial query results
 
-<CodeBlock 
+A valid multi-parameter query can contain a failure for one parameter while other parameters succeed:
+
+<CodeBlock
   language="json"
   code={`{
   "success": true,
+  "requestId": "req_abc123def456",
   "data": [
+    { "parameter": "summary", "success": true, "data": [] },
     {
-      "parameter": "summary",
-      "success": true,
-      "data": [...]
-    },
-    {
-      "parameter": "invalid_type",
+      "parameter": "pages",
       "success": false,
-      "error": "Unknown query type: invalid_type",
+      "error": "Query execution failed",
       "data": []
     }
   ]
 }`}
 />
 
-The top-level `success: true` indicates the request was processed. Check each parameter's `success` field for individual results.
+Check both the top-level `success` value and each result's `success` value.
 
-## Troubleshooting
+## Recovery checklist
 
-### "Authentication required"
-
-- Ensure you're sending the API key in headers
-- Check header format: `x-api-key: dbdy_xxx` or `Authorization: Bearer dbdy_xxx`
-- Verify the API key hasn't been revoked
-
-### "Access denied"
-
-- Check that your API key has access to this website
-- Verify the API key has the required scope (`read:data`)
-- For website-specific keys, ensure the website is in the allowed list
-
-### "Rate limit exceeded"
-
-- Check the `retryAfter` field for when to retry
-- Consider batching multiple queries into one request
-- Upgrade your plan for higher limits
-
-### "Unknown query type"
-
-- Check spelling of the query type
-- Use `GET /v1/query/types` to see available types
-- Some types require specific resource IDs (e.g., `link_*` needs `link_id`)
-
-### "Hourly granularity only supports up to 30 days"
-
-- Reduce your date range to 30 days or less
-- Use `"granularity": "daily"` for longer ranges
-
-## Best Practices
-
-1. **Check `success` at both levels** — Request success and parameter success
-
-2. **Handle rate limits gracefully** — Implement exponential backoff
-
-3. **Log error codes** — Use codes for programmatic handling, messages for debugging
-
-4. **Validate before sending** — Check required fields client-side to avoid validation errors
+1. Record `code`, HTTP status, and `requestId`.
+2. For `401` and `403`, verify authentication, scopes, organization, and resource access.
+3. For `400`, correct the documented field instead of retrying unchanged.
+4. For `429`, wait for `Retry-After`; add jitter when many workers share a key.
+5. For `5xx`, retry with bounded exponential backoff. Contact support with the request ID if the failure continues.

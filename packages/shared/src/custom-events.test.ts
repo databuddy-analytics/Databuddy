@@ -4,6 +4,7 @@ import {
 	MARKETING_PARAM_KEYS,
 	SIGNUP_METHODS,
 	isSignupMethod,
+	readMarketingProperties,
 	readUtmProperties,
 } from "./custom-events";
 
@@ -57,6 +58,28 @@ describe("custom event helpers", () => {
 			utm_source: "openai_ads",
 			utm_medium: "cpc",
 			utm_campaign: "x".repeat(160),
+		});
+	});
+
+	it("reads all trimmed marketing properties for signup attribution", () => {
+		const params = new URLSearchParams({
+			fbclid: "fb-click",
+			oppref: " openai-reference ",
+			utm_campaign: "competitors",
+			utm_content: "ask_why_signups_dropped",
+			utm_medium: "paid",
+			utm_source: "openai_ads",
+			wolref: "w".repeat(200),
+		});
+
+		expect(readMarketingProperties(params)).toEqual({
+			fbclid: "fb-click",
+			oppref: "openai-reference",
+			utm_campaign: "competitors",
+			utm_content: "ask_why_signups_dropped",
+			utm_medium: "paid",
+			utm_source: "openai_ads",
+			wolref: "w".repeat(160),
 		});
 	});
 });

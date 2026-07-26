@@ -1,7 +1,8 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { type NextRequest, NextResponse } from "next/server";
 
-const AUTH_ROUTES = ["/login", "/register"];
+const SIGN_IN_ROUTES = ["/login", "/register"];
+const PUBLIC_AUTH_ROUTES = [...SIGN_IN_ROUTES, "/auth/error"];
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -11,15 +12,25 @@ export function proxy(request: NextRequest) {
 		cookiePrefix: isProduction ? "databuddy" : "databuddy-dev",
 	});
 
-	const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
+	const isSignInRoute = SIGN_IN_ROUTES.some((route) =>
+		pathname.startsWith(route)
+	);
+	const isPublicAuthRoute = PUBLIC_AUTH_ROUTES.some((route) =>
+		pathname.startsWith(route)
+	);
 	const isAddingAccount = searchParams.get("add_account") === "true";
 
-	if (isAuthRoute && sessionCookie && !isAddingAccount) {
+	if (isSignInRoute && sessionCookie && !isAddingAccount) {
 		return NextResponse.redirect(new URL("/websites", request.url));
 	}
 
-	if (!(isAuthRoute || sessionCookie)) {
-		return NextResponse.redirect(new URL("/login", request.url));
+	if (!(isPublicAuthRoute || sessionCookie)) {
+		const loginUrl = new URL("/login", request.url);
+		loginUrl.searchParams.set(
+			"callback",
+			`${pathname}${request.nextUrl.search}`
+		);
+		return NextResponse.redirect(loginUrl);
 	}
 
 	return NextResponse.next();

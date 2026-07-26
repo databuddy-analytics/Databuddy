@@ -348,7 +348,7 @@ export function GoalsListRenderer({ title, goals, className }: GoalsListProps) {
 
 			<DeleteDialog
 				confirmLabel="Delete Goal"
-				description="This action cannot be undone and will permanently remove all goal analytics data."
+				description="Delete this goal definition? Historical events remain in your analytics, but this goal will no longer be available for reporting."
 				isDeleting={isDeleting}
 				isOpen={!!deletingId}
 				onClose={() => setDeletingId(null)}

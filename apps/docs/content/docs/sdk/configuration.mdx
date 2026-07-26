@@ -21,8 +21,7 @@ This page documents all configuration options across the Databuddy SDK platforms
   scriptUrl="https://cdn.databuddy.cc/databuddy.js"
   
   // Core tracking
-  trackPerformance        // default: true
-  trackWebVitals          // default: false
+  trackWebVitals={true}   // opt in; default: false
   trackErrors             // default: false
   trackOutgoingLinks      // default: false
   trackInteractions       // default: false
@@ -49,7 +48,6 @@ This page documents all configuration options across the Databuddy SDK platforms
   // Control
   disabled={false}
   debug={false}
-  waitForProfile={false}
 />`}
 </CodeBlock>
 
@@ -67,13 +65,16 @@ This page documents all configuration options across the Databuddy SDK platforms
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
-| `trackPerformance` | `boolean` | `true` | Page load times and navigation |
-| `trackWebVitals` | `boolean` | `false` | Core Web Vitals (LCP, FID, CLS, TTFB) |
+| `trackWebVitals` | `boolean` | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
 | `trackErrors` | `boolean` | `false` | JavaScript errors |
 | `trackOutgoingLinks` | `boolean` | `false` | External link clicks |
 | `trackInteractions` | `boolean` | `false` | Button clicks and form submissions |
 | `trackAttributes` | `boolean` | `false` | Elements with `data-track` attributes |
 | `trackHashChanges` | `boolean` | `false` | URL hash changes |
+
+<Callout type="info">
+  Use `trackWebVitals` in React, Vue, and Nuxt, or `data-track-web-vitals` with the CDN script. The older `trackPerformance` option remains a deprecated compatibility alias; `trackWebVitals` takes precedence when both are set.
+</Callout>
 
 #### Batching & Performance
 
@@ -142,8 +143,7 @@ Vue uses the same props as React but with kebab-case naming:
 | Attribute | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `data-client-id` | `string` | Required | Your client ID |
-| `data-track-performance` | flag | `true` | Track page performance |
-| `data-track-web-vitals` | flag | `false` | Track Core Web Vitals |
+| `data-track-web-vitals` | flag | `false` | FCP, LCP, INP, CLS, TTFB, and FPS |
 | `data-track-errors` | flag | `false` | Track JavaScript errors |
 | `data-track-outgoing-links` | flag | `false` | Track external links |
 | `data-track-interactions` | flag | `false` | Track interactions |

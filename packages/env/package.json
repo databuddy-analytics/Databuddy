@@ -15,30 +15,6 @@
     "./public": {
       "types": "./src/public.ts",
       "default": "./src/public.ts"
-    },
-    "./dashboard": {
-      "types": "./src/dashboard.ts",
-      "default": "./src/dashboard.ts"
-    },
-    "./api": {
-      "types": "./src/api.ts",
-      "default": "./src/api.ts"
-    },
-    "./basket": {
-      "types": "./src/basket.ts",
-      "default": "./src/basket.ts"
-    },
-    "./docs": {
-      "types": "./src/docs.ts",
-      "default": "./src/docs.ts"
-    },
-    "./slack": {
-      "types": "./src/slack.ts",
-      "default": "./src/slack.ts"
-    },
-    "./insights": {
-      "types": "./src/insights.ts",
-      "default": "./src/insights.ts"
     }
   },
   "files": [
@@ -47,9 +23,6 @@
   "scripts": {
     "check-types": "tsc --noEmit",
     "test": "bun test src"
-  },
-  "dependencies": {
-    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",

@@ -255,7 +255,7 @@ test.describe("Event Context", () => {
 					(e) =>
 						e.name === "screen_view" &&
 						typeof e.path === "string" &&
-						e.path.includes("gclid=new_click_bbb")
+						e.path.endsWith("/landing2")
 				)
 			);
 
@@ -269,10 +269,11 @@ test.describe("Event Context", () => {
 				(e) =>
 					e.name === "screen_view" &&
 					typeof e.path === "string" &&
-					e.path.includes("gclid=new_click_bbb")
+					e.path.endsWith("/landing2")
 			);
 
 			expect(payload?.gclid).toBe("new_click_bbb");
+			expect(payload?.path).not.toContain("gclid");
 
 			const stored = await page.evaluate(() =>
 				localStorage.getItem("did_params")
@@ -521,7 +522,7 @@ test.describe("Event Context", () => {
 			const request = await requestPromise;
 			const payload = findEvent(request, (e) => e.name === "screen_view");
 
-			expect(payload?.referrer).toBe("https://google.com/search?q=test");
+			expect(payload?.referrer).toBe("https://google.com/search");
 		});
 
 		test("uses empty string when no referrer", async ({ page }) => {
@@ -652,7 +653,9 @@ test.describe("Event Context", () => {
 	});
 
 	test.describe("Path", () => {
-		test("captures full path with origin", async ({ page }) => {
+		test("captures the path with origin but omits query strings and hashes", async ({
+			page,
+		}) => {
 			await page.goto("/test");
 			await page.evaluate(() => {
 				history.replaceState({}, "", "/my/custom/path?query=value#section");
@@ -673,8 +676,8 @@ test.describe("Event Context", () => {
 			const payload = findEvent(request, (e) => e.name === "screen_view");
 
 			expect(payload?.path).toContain("/my/custom/path");
-			expect(payload?.path).toContain("query=value");
-			expect(payload?.path).toContain("#section");
+			expect(payload?.path).not.toContain("query=value");
+			expect(payload?.path).not.toContain("#section");
 		});
 	});
 

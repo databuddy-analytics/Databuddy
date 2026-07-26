@@ -1,11 +1,26 @@
+import { DATABUNNY_USAGE, LEGACY_SCALE_PLAN } from "../billing";
+
 export const PLAN_IDS = {
 	FREE: "free",
 	HOBBY: "hobby",
 	PRO: "pro",
-	SCALE: "scale",
+	SCALE: LEGACY_SCALE_PLAN.id,
 } as const;
 
 export type PlanId = (typeof PLAN_IDS)[keyof typeof PLAN_IDS];
+
+export const INTELLIGENCE_PLAN_IDS = {
+	ANALYST: "intelligence",
+	DATA_TEAM: "intelligence_scale",
+} as const;
+
+export type IntelligencePlanId =
+	(typeof INTELLIGENCE_PLAN_IDS)[keyof typeof INTELLIGENCE_PLAN_IDS];
+
+const PLAN_CAPABILITY_ALIASES: Record<IntelligencePlanId, PlanId> = {
+	[INTELLIGENCE_PLAN_IDS.ANALYST]: PLAN_IDS.SCALE,
+	[INTELLIGENCE_PLAN_IDS.DATA_TEAM]: PLAN_IDS.SCALE,
+};
 
 export const PLAN_HIERARCHY: PlanId[] = [
 	PLAN_IDS.FREE,
@@ -102,6 +117,11 @@ export interface PlanCapabilities {
 
 export function normalizePlanId(planId: PlanId | string | null): PlanId {
 	const normalized = (planId ?? PLAN_IDS.FREE).toLowerCase();
+	const capabilityAlias =
+		PLAN_CAPABILITY_ALIASES[normalized as IntelligencePlanId];
+	if (capabilityAlias) {
+		return capabilityAlias;
+	}
 	return PLAN_HIERARCHY.includes(normalized as PlanId)
 		? (normalized as PlanId)
 		: PLAN_IDS.FREE;
@@ -142,11 +162,10 @@ export const FEATURE_METADATA: Record<FeatureId | GatedFeatureId, FeatureMeta> =
 			upgradeMessage: "Upgrade to track more events",
 		},
 		[FEATURE_IDS.AGENT_CREDITS]: {
-			name: "Agent Credits",
-			description:
-				"Credits power Databunny conversations. Heavier questions consume more credits.",
-			upgradeMessage: "Upgrade for more agent credits",
-			unit: "credits",
+			name: DATABUNNY_USAGE.name,
+			description: DATABUNNY_USAGE.description,
+			upgradeMessage: DATABUNNY_USAGE.upgradeMessage,
+			unit: DATABUNNY_USAGE.unit,
 		},
 		[GATED_FEATURES.FUNNELS]: {
 			name: "Funnels",

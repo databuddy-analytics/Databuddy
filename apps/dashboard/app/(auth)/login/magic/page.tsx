@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { parseAsString, useQueryState } from "nuqs";
 import { Suspense, useState } from "react";
 import { toast } from "sonner";
+import { safeCallbackPath } from "@/lib/safe-callback";
 import { ArrowLeftIcon, EnvelopeSimpleIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input, Spinner, Text } from "@databuddy/ui";
 
@@ -17,6 +18,8 @@ function MagicLinkPage() {
 	);
 	const [email, setEmail] = useState("");
 	const [isLoading, setIsLoading] = useState(false);
+	const safeCallback = safeCallbackPath(callback);
+	const loginHref = `/login?callback=${encodeURIComponent(safeCallback)}`;
 
 	const handleMagicLinkLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -26,23 +29,24 @@ function MagicLinkPage() {
 		}
 		setIsLoading(true);
 
-		await authClient.signIn.magicLink({
-			email,
-			callbackURL: callback,
-			fetchOptions: {
-				onSuccess: () => {
-					setIsLoading(false);
-					toast.success("Magic link sent! Please check your email.");
-					sessionStorage.setItem("databuddy:magic-email", email);
-					router.push("/login/magic-sent");
-				},
-				onError: () => {
-					setIsLoading(false);
-					toast.error("Failed to send magic link. Please try again.");
-				},
-			},
-		});
-
+		try {
+			const { error } = await authClient.signIn.magicLink({
+				email,
+				callbackURL: safeCallback,
+				errorCallbackURL: `/auth/error?callback=${encodeURIComponent(safeCallback)}`,
+			});
+			if (error) {
+				toast.error("We couldn't send the magic link. Try again in a moment.");
+			} else {
+				toast.success("Magic link sent. Check your email.");
+				sessionStorage.setItem("databuddy:magic-email", email);
+				router.push(
+					`/login/magic-sent?callback=${encodeURIComponent(safeCallback)}`
+				);
+			}
+		} catch {
+			toast.error("We couldn't send the magic link. Try again in a moment.");
+		}
 		setIsLoading(false);
 	};
 
@@ -93,7 +97,7 @@ function MagicLinkPage() {
 			<div className="mt-5 flex items-center justify-center px-6">
 				<Link
 					className="text-[13px] text-accent-foreground/60 duration-200 hover:text-accent-foreground"
-					href="/login"
+					href={loginHref}
 				>
 					<ArrowLeftIcon className="mr-1 inline size-3" />
 					Back to login

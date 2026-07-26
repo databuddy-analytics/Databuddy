@@ -1,5 +1,6 @@
 import { vi, beforeEach, describe, expect, test } from "vitest";
 import { EvlogError } from "evlog";
+import { basketErrors } from "./structured-errors";
 
 const {
 	mockGetWebsiteByIdV2,
@@ -202,6 +203,22 @@ describe("validateRequest", () => {
 			expect.unreachable("should have thrown");
 		} catch (e) {
 			expect(e).toBeInstanceOf(EvlogError);
+		}
+	});
+
+	test("website lookup outage remains retryable instead of becoming an invalid client ID", async () => {
+		mockGetWebsiteByIdV2.mockRejectedValue(
+			basketErrors.websiteLookupUnavailable()
+		);
+		try {
+			await validateRequest({}, { client_id: "ws_1" }, makeReq());
+			expect.unreachable("should have thrown");
+		} catch (error) {
+			expect(error).toBeInstanceOf(EvlogError);
+			expect((error as EvlogError).status).toBe(503);
+			expect((error as EvlogError).code).toBe(
+				basketErrors.websiteLookupUnavailable.code
+			);
 		}
 	});
 

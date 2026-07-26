@@ -79,7 +79,7 @@ export function BillingControlsCard() {
 					Billing controls
 				</Card.Title>
 				<Card.Description>
-					Guardrails for your credit balance and spend.
+					Control investigation credit refills, event alerts, and AI spending.
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">
@@ -90,7 +90,7 @@ export function BillingControlsCard() {
 						turnOn: "Turn on",
 					}}
 					defaults={TOPUP_DEFAULTS}
-					description="Never get cut off mid-conversation. Credits refill automatically when you run low."
+					description="Add investigation credits automatically when the organization's balance runs low."
 					icon={<InfinityIcon size={16} weight="duotone" />}
 					initial={topup}
 					limits={TOPUP_LIMITS}
@@ -178,7 +178,7 @@ export function BillingControlsCard() {
 						turnOn: "Turn on",
 					}}
 					defaults={SPEND_DEFAULTS}
-					description="Cap how much you can spend on credits each month. Purchases stop once the cap is hit."
+					description="Cap monthly investigation credit spending. Automatic refills stop when the cap is reached."
 					icon={<ShieldCheckIcon size={16} weight="duotone" />}
 					initial={spend}
 					limits={SPEND_LIMITS}
@@ -190,7 +190,7 @@ export function BillingControlsCard() {
 					mutationOptions={orpc.billing.setSpendLimit.mutationOptions()}
 					onSaved={refetch}
 					switchLabel="Enable spend limit"
-					title="Credit spend limit"
+					title="Investigation credit spend limit"
 				>
 					{(form, setForm) => (
 						<LabeledNumberInput

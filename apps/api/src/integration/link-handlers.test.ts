@@ -263,3 +263,88 @@ describe("links.list", () => {
 		expect(result[0].name).toBe("Org A Link");
 	});
 });
+
+describe("links.paginated", () => {
+	iit("paginates results and reports hasMore", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+
+		for (let i = 0; i < 3; i++) {
+			await call(appRouter.links.create, userContext(user, org.id))({
+				name: `Link ${i}`,
+				targetUrl: `https://link-${i}.example.com`,
+				organizationId: org.id,
+			});
+		}
+
+		const firstPage = await call(
+			appRouter.links.paginated,
+			userContext(user, org.id),
+		)({ organizationId: org.id, limit: 2, offset: 0 });
+
+		expect(firstPage.items).toHaveLength(2);
+		expect(firstPage.hasMore).toBe(true);
+
+		const secondPage = await call(
+			appRouter.links.paginated,
+			userContext(user, org.id),
+		)({ organizationId: org.id, limit: 2, offset: 2 });
+
+		expect(secondPage.items).toHaveLength(1);
+		expect(secondPage.hasMore).toBe(false);
+	});
+
+	iit("filters by search term", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+
+		await call(appRouter.links.create, userContext(user, org.id))({
+			name: "Summer Campaign",
+			targetUrl: "https://summer.example.com",
+			organizationId: org.id,
+		});
+		await call(appRouter.links.create, userContext(user, org.id))({
+			name: "Winter Promo",
+			targetUrl: "https://winter.example.com",
+			organizationId: org.id,
+		});
+
+		const result = await call(
+			appRouter.links.paginated,
+			userContext(user, org.id),
+		)({ organizationId: org.id, search: "summer" });
+
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0].name).toBe("Summer Campaign");
+	});
+
+	iit("does not leak links from other orgs", async () => {
+		const userA = await signUp();
+		const userB = await signUp();
+		const orgA = await insertOrganization();
+		const orgB = await insertOrganization();
+		await addToOrganization(userA.id, orgA.id, "member");
+		await addToOrganization(userB.id, orgB.id, "member");
+
+		await call(appRouter.links.create, userContext(userA, orgA.id))({
+			name: "Org A Link",
+			targetUrl: "https://a.example.com",
+			organizationId: orgA.id,
+		});
+		await call(appRouter.links.create, userContext(userB, orgB.id))({
+			name: "Org B Link",
+			targetUrl: "https://b.example.com",
+			organizationId: orgB.id,
+		});
+
+		const result = await call(
+			appRouter.links.paginated,
+			userContext(userA, orgA.id),
+		)({ organizationId: orgA.id });
+
+		expect(result.items).toHaveLength(1);
+		expect(result.items[0].name).toBe("Org A Link");
+	});
+});

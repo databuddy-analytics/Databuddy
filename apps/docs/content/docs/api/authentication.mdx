@@ -5,7 +5,7 @@ description: API keys, scopes, and authentication methods for the Databuddy API
 
 import { Callout, CodeBlock } from "@/components/docs";
 
-All API requests require authentication. Databuddy supports two authentication methods: API keys for server-side integrations and session cookies for browser-based apps.
+Protected API operations require authentication. Operations explicitly documented as public—such as query-type discovery and public status-page reads—do not. Databuddy supports API keys for server-side integrations and session cookies for browser-based apps.
 
 ## API Key Authentication
 
@@ -57,10 +57,14 @@ Scopes control what actions an API key can perform:
 
 | Scope | Permission |
 |-------|------------|
-| `read:data` | Query analytics data **and list accessible websites** — covers `POST /v1/query`, `POST /v1/query/compile`, `POST /v1/query/custom`, and `GET /v1/query/websites` |
+| `read:data` | Query analytics data **and list accessible websites** — covers `POST /v1/query`, `POST /v1/query/compile`, and `GET /v1/query/websites` |
 | `track:events` | Send custom events via `POST /track` |
 | `read:links` | Read short links and their analytics |
 | `write:links` | Create, update, and delete short links |
+| `read:monitors` | Read uptime monitors and their analytics |
+| `write:monitors` | Create, update, pause, resume, and delete uptime monitors |
+| `read:status_pages` | Read status pages, incidents, and monitor visibility |
+| `write:status_pages` | Manage status pages, incidents, and monitor visibility |
 | `manage:websites` | Create, update, and delete websites |
 | `manage:flags` | Manage feature flags and targeting rules |
 | `manage:config` | Integration config and organization settings |
@@ -116,10 +120,8 @@ Browser-based applications using the Databuddy dashboard session can authenticat
 
 | Error Code | Meaning |
 |------------|---------|
-| `AUTH_REQUIRED` | No API key or session provided |
-| `ACCESS_DENIED` | Valid auth but no access to requested resource |
-| `INVALID_API_KEY` | API key is invalid, expired, or revoked |
-| `INSUFFICIENT_SCOPE` | API key lacks required scope |
+| `AUTH_REQUIRED` | The operation needs authentication and none was accepted |
+| `ACCESS_DENIED` | Authentication succeeded but the key cannot access the resource or operation |
 
 Example error response:
 
@@ -128,7 +130,8 @@ Example error response:
   code={`{
   "success": false,
   "error": "Authentication required",
-  "code": "AUTH_REQUIRED"
+  "code": "AUTH_REQUIRED",
+  "requestId": "req_abc123def456"
 }`}
 />
 

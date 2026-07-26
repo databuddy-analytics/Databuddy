@@ -217,14 +217,14 @@ function ComplianceLinks() {
 					<Link
 						aria-label="CCPA Compliance"
 						className="text-foreground transition-colors hover:text-muted-foreground"
-						href="/"
+						href="/privacy"
 					>
 						<CCPAIcon className="size-9" />
 					</Link>
 					<Link
 						aria-label="GDPR Compliance"
 						className="text-foreground transition-colors hover:text-muted-foreground"
-						href="/"
+						href="/dpa"
 					>
 						<GDPRIcon className="size-11" />
 					</Link>

@@ -7,6 +7,7 @@ interface SlackMessageRef {
 }
 
 const activeRuns = new Map<string, AbortController>();
+const inflightRuns = new Set<Promise<unknown>>();
 
 function runKey(ref: SlackMessageRef): string {
 	return [ref.teamId ?? "team", ref.channelId, ref.messageTs].join(":");
@@ -53,6 +54,39 @@ export function abortSlackActiveRun(ref: SlackMessageRef): boolean {
 	}
 
 	return false;
+}
+
+export function trackSlackRunPromise(promise: Promise<unknown>): void {
+	inflightRuns.add(promise);
+	promise
+		.catch(() => {})
+		.finally(() => {
+			inflightRuns.delete(promise);
+		});
+}
+
+export function abortAllSlackActiveRuns(reason: string): number {
+	let aborted = 0;
+	for (const controller of activeRuns.values()) {
+		controller.abort(reason);
+		aborted++;
+	}
+	activeRuns.clear();
+	return aborted;
+}
+
+export async function waitForSlackActiveRuns(timeoutMs: number): Promise<void> {
+	const deadline = Date.now() + timeoutMs;
+	while (inflightRuns.size > 0) {
+		const remaining = deadline - Date.now();
+		if (remaining <= 0) {
+			return;
+		}
+		await Promise.race([
+			Promise.allSettled([...inflightRuns]),
+			new Promise((resolve) => setTimeout(resolve, remaining)),
+		]);
+	}
 }
 
 export function cleanupSlackActiveRun(run: SlackAgentRun): void {

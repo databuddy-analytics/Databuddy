@@ -92,7 +92,7 @@ function authorizeFlagRead(
 function requireAuthedFlagRead(workspace: Workspace) {
 	if (workspace.tier === "demo") {
 		throw rpcError.unauthorized(
-			"Feature flag definitions require authenticated workspace access"
+			"Feature flag definitions require authenticated organization access"
 		);
 	}
 }

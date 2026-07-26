@@ -91,6 +91,17 @@ export interface LinkPreviewInput {
 	type: "link-preview";
 }
 
+export interface FeedbackPreviewInput {
+	feedback: {
+		title: string;
+		category?: string;
+		description: string;
+	};
+	message?: string;
+	mode: "offer" | "sent";
+	type: "feedback-preview";
+}
+
 export interface FunnelStepInput {
 	name: string;
 	target: string;

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
 	MOCK_FLAG_DISABLED,
 	MOCK_FLAG_ENABLED,
+	getFlagRequestKeys,
 	waitForSDK,
 } from "./test-utils";
 
@@ -24,10 +25,8 @@ test.describe("Fuzz — BrowserFlagsManager (many async getFlag tries)", () => {
 			"**/api.databuddy.cc/public/v1/flags/**",
 			async (route) => {
 				const url = new URL(route.request().url());
-				const keysParam = url.searchParams.get("keys");
-
 				if (url.pathname.includes("/bulk")) {
-					const requestedKeys = keysParam?.split(",").filter(Boolean) ?? [];
+					const requestedKeys = getFlagRequestKeys(route.request());
 					const response: Record<string, typeof MOCK_FLAG_ENABLED> = {};
 					for (const k of requestedKeys) {
 						response[k] = k.includes("off")

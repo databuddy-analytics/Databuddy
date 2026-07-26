@@ -7,7 +7,7 @@ const THINKING_PHRASES = [
 	"Hopping to it",
 	"Sniffing through data",
 	"Nibbling queries",
-	"Digging up insights",
+	"Analyzing data",
 	"Twitching whiskers",
 	"Burrowing into events",
 	"Chasing carrots",

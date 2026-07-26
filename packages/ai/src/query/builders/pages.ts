@@ -29,6 +29,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {
@@ -99,6 +101,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {
@@ -127,7 +131,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT
                     e.session_id,
                     argMin(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as entry_page,
-                    argMin(e.anonymous_id, e.time) as anonymous_id,
+                    argMin(e.anonymous_id, e.time) as visitor_id,
                     any(sa.session_referrer) as referrer,
                     any(sa.session_utm_source) as utm_source,
                     any(sa.session_utm_medium) as utm_medium,
@@ -150,7 +154,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT
                     session_id,
                     argMin(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END, time) as entry_page,
-                    argMin(anonymous_id, time) as anonymous_id
+                    argMin(anonymous_id, time) as visitor_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
                     AND time >= toDateTime({startDate:String})
@@ -176,7 +180,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT
                     entry_page as name,
                     COUNT(*) as pageviews,
-                    uniq(anonymous_id) as visitors
+                    uniq(visitor_id) as visitors
                 FROM session_entry
                 GROUP BY entry_page
             )
@@ -212,6 +216,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {
@@ -240,7 +246,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT
                     e.session_id,
                     argMax(CASE WHEN trimRight(path(e.path), '/') = '' THEN '/' ELSE trimRight(path(e.path), '/') END, e.time) as exit_page,
-                    argMax(e.anonymous_id, e.time) as anonymous_id,
+                    argMax(e.anonymous_id, e.time) as visitor_id,
                     any(sa.session_referrer) as referrer,
                     any(sa.session_utm_source) as utm_source,
                     any(sa.session_utm_medium) as utm_medium,
@@ -263,7 +269,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT
                     session_id,
                     argMax(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END, time) as exit_page,
-                    argMax(anonymous_id, time) as anonymous_id
+                    argMax(anonymous_id, time) as visitor_id
                 FROM analytics.events
                 WHERE client_id = {websiteId:String}
                     AND time >= toDateTime({startDate:String})
@@ -286,7 +292,7 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
                 SELECT
                     exit_page as name,
                     uniq(session_id) as pageviews,
-                    uniq(anonymous_id) as visitors
+                    uniq(visitor_id) as visitors
                 FROM session_exit
                 GROUP BY exit_page
             )
@@ -315,7 +321,6 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 		fields: [
 			"decodeURLComponent(CASE WHEN trimRight(path(path), '/') = '' THEN '/' ELSE trimRight(path(path), '/') END) as name",
 			"COUNT(*) as pageviews",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_time_on_page",
 			"uniq(anonymous_id) as visitors",
 		],
 		where: ["event_name = 'screen_view'"],
@@ -336,6 +341,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {
@@ -355,6 +362,8 @@ export const PagesBuilders: Record<string, SimpleQueryConfig> = {
 			"utm_source",
 			"utm_medium",
 			"utm_campaign",
+			"profile_id",
+			"anonymous_id",
 		],
 		customizable: true,
 		plugins: {

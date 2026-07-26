@@ -10,11 +10,16 @@
     "./schema": "./src/drizzle/schema/index.ts",
     "./schema/relations": "./src/drizzle/schema/relations.ts",
     "./clickhouse": "./src/clickhouse/index.ts",
+    "./clickhouse/dql": "./src/clickhouse/dql.ts",
     "./clickhouse/schema": "./src/clickhouse/schema.ts",
+    "./clickhouse/tables": "./src/clickhouse/schema/tables.generated.ts",
     "./e2e-db-lifecycle": "./src/e2e-db-lifecycle.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
+    "generate": "bun src/clickhouse/codegen.ts",
+    "ch:verify": "bun src/clickhouse/verify.ts",
+    "ch:check": "bun run generate && git diff --exit-code src/clickhouse/schema/tables.generated.ts",
     "db:push": "dotenv -- drizzle-kit push",
     "db:studio": "dotenv -- drizzle-kit studio",
     "db:seed": "tsx src/seed.ts",
@@ -26,11 +31,10 @@
   },
   "dependencies": {
     "@clickhouse/client": "^1.14.0",
-    "@databuddy/cache": "workspace:*",
+    "@databuddy/shared": "workspace:*",
     "@faker-js/faker": "^10.5.0",
     "@neondatabase/serverless": "^1.0.2",
     "drizzle-orm": "catalog:",
-    "ioredis": "^5.8.2",
     "pg": "^8.16.3"
   },
   "devDependencies": {

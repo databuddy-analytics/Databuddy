@@ -126,8 +126,8 @@ describe("maskPathname", () => {
 			expect(maskPathname("/admin", ["/admin/**"])).toBe("/admin");
 		});
 
-		test("collapses a lone trailing slash", () => {
-			expect(maskPathname("/admin/", ["/admin/**"])).toBe("/admin/*");
+		test("does not treat a lone trailing slash as globstar content", () => {
+			expect(maskPathname("/admin/", ["/admin/**"])).toBe("/admin");
 		});
 
 		test("combines with single stars", () => {
@@ -142,8 +142,8 @@ describe("maskPathname", () => {
 			expect(maskPathname("/anything/here/at/all", ["/**"])).toBe("/*");
 		});
 
-		test("'/**' collapses root", () => {
-			expect(maskPathname("/", ["/**"])).toBe("/*");
+		test("'/**' leaves root unchanged", () => {
+			expect(maskPathname("/", ["/**"])).toBe("/");
 		});
 
 		test("segments after a mid-pattern globstar are ignored", () => {

@@ -1,7 +1,0 @@
-.env
-node_modules/
-
-# Generated eval run history. Keep only the directory placeholder tracked.
-results/**
-!results/
-!results/.gitkeep

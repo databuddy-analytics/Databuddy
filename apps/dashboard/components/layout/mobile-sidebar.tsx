@@ -22,7 +22,7 @@ import {
 } from "@databuddy/ui/icons";
 import { useBillingContext } from "@/components/providers/billing-provider";
 import { useCommandSearchOpenAction } from "@/components/ui/command-search";
-import { Drawer, DrawerContent } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { clearPersistedQueryCache } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
@@ -120,9 +120,13 @@ function MobileNavItem({
 
 	if (isLocked) {
 		return (
-			<div
-				aria-disabled
-				className={cn(base, "cursor-not-allowed text-sidebar-foreground/30")}
+			<Link
+				aria-label={`${item.name}. Requires ${lockedPlanName ?? "a paid"} plan. Open upgrade options.`}
+				className={cn(
+					base,
+					"text-sidebar-foreground/45 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+				)}
+				href={fullPath}
 			>
 				<Icon aria-hidden className="size-[18px] shrink-0" />
 				<span className="min-w-0 flex-1 truncate">{item.name}</span>
@@ -132,7 +136,7 @@ function MobileNavItem({
 						{lockedPlanName}
 					</span>
 				)}
-			</div>
+			</Link>
 		);
 	}
 
@@ -274,6 +278,9 @@ export function MobileSidebar() {
 	const { isFeatureEnabled, isLoading: isBillingLoading } = useBillingContext();
 
 	const [isOpen, setIsOpen] = useState(false);
+	const [drawerContent, setDrawerContent] = useState<HTMLDivElement | null>(
+		null
+	);
 	const router = useRouter();
 	const openSearch = useCommandSearchOpenAction();
 
@@ -341,7 +348,8 @@ export function MobileSidebar() {
 			</header>
 
 			<Drawer direction="left" onOpenChange={setIsOpen} open={isOpen}>
-				<DrawerContent className="bg-sidebar">
+				<DrawerContent className="bg-sidebar" ref={setDrawerContent}>
+					<DrawerTitle className="sr-only">Navigation menu</DrawerTitle>
 					<div className="flex h-12 shrink-0 items-center border-b px-4">
 						<Link
 							className="flex select-none items-center gap-2 hover:opacity-80"
@@ -352,7 +360,7 @@ export function MobileSidebar() {
 						</Link>
 					</div>
 
-					<OrganizationSelector />
+					<OrganizationSelector container={drawerContent} />
 
 					<ScrollArea className="flex-1">
 						<div className="flex flex-col pb-2">

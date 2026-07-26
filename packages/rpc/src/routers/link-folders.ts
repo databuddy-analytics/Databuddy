@@ -2,8 +2,10 @@ import {
 	and,
 	asc,
 	eq,
+	getTableColumns,
 	isNull,
 	isUniqueViolationFor,
+	sql,
 	withTransaction,
 } from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
@@ -13,78 +15,61 @@ import { z } from "zod";
 import { rpcError } from "../errors";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+import {
+	createLinkFolderSchema,
+	deleteLinkFolderSchema,
+	linkFolderOutputSchema,
+	linkFolderWithUsageOutputSchema,
+	listLinkFoldersSchema,
+	slugifyFolderName,
+	updateLinkFolderSchema,
+} from "./links.schemas";
+
+type LinkPermission = "read" | "create" | "update" | "delete";
+type LinkFolderRow = typeof linkFolders.$inferSelect;
 
 const generateFolderSuffix = customAlphabet(
 	"0123456789abcdefghijklmnopqrstuvwxyz",
 	4
 );
 
-const folderSlugSchema = z
-	.string()
-	.min(1)
-	.max(64)
-	.regex(
-		/^[a-z0-9_-]+$/,
-		"Folder slug can only contain lowercase letters, numbers, hyphens, and underscores"
-	);
-
-const listLinkFoldersSchema = z
-	.object({
-		organizationId: z.string().optional(),
-	})
-	.default({});
-
-const createLinkFolderSchema = z.object({
-	organizationId: z.string().optional(),
-	name: z.string().trim().min(1).max(80),
-	slug: folderSlugSchema.optional(),
-});
-
-const updateLinkFolderSchema = z.object({
-	id: z.string(),
-	name: z.string().trim().min(1).max(80).optional(),
-	slug: folderSlugSchema.optional(),
-});
-
-const deleteLinkFolderSchema = z.object({
-	id: z.string(),
-});
-
-const linkFolderOutputSchema = z.object({
-	id: z.string(),
-	organizationId: z.string(),
-	createdBy: z.string(),
-	name: z.string(),
-	slug: z.string(),
-	deletedAt: z.nullable(z.coerce.date()),
-	createdAt: z.coerce.date(),
-	updatedAt: z.coerce.date(),
-});
-
-function slugifyFolderName(name: string): string {
-	const slug = name
-		.trim()
-		.toLowerCase()
-		.replace(/[^a-z0-9\s_-]/g, "")
-		.replace(/[\s_]+/g, "-")
-		.replace(/-+/g, "-")
-		.replace(/^-|-$/g, "");
-
-	return slug || "folder";
+function requireOrganizationId(
+	organizationId: string | null | undefined
+): string {
+	if (!organizationId) {
+		throw rpcError.badRequest("Organization ID is required");
+	}
+	return organizationId;
 }
 
-async function getFolderOrThrow(context: Context, id: string) {
-	const folder = await context.db
+function requireLinkAccess(
+	context: Context,
+	organizationId: string,
+	permission: LinkPermission
+) {
+	const permissions: [LinkPermission] = [permission];
+	return withWorkspace(context, {
+		organizationId,
+		resource: "link",
+		permissions,
+	});
+}
+
+async function getFolderOrThrow(
+	context: Context,
+	id: string
+): Promise<LinkFolderRow> {
+	const [folder] = await context.db
 		.select()
 		.from(linkFolders)
 		.where(and(eq(linkFolders.id, id), isNull(linkFolders.deletedAt)))
 		.limit(1);
 
-	if (folder.length === 0) {
+	if (!folder) {
 		throw rpcError.notFound("link folder", id);
 	}
 
-	return folder[0];
+	return folder;
 }
 
 export const linkFoldersRouter = {
@@ -95,26 +80,29 @@ export const linkFoldersRouter = {
 			tags: ["Links"],
 			summary: "List link folders",
 			description:
-				"Returns folders used to organize short links inside a workspace. Requires read:links scope.",
+				"Returns folders used to organize short links inside an organization. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinkFoldersSchema)
-		.output(z.array(linkFolderOutputSchema))
+		.output(z.array(linkFolderWithUsageOutputSchema))
 		.handler(async ({ context, input }) => {
-			const organizationId =
-				input.organizationId ?? context.organizationId ?? null;
-			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
-			}
+			const organizationId = requireOrganizationId(
+				input.organizationId ?? context.organizationId
+			);
 
-			await withWorkspace(context, {
-				organizationId,
-				resource: "link",
-				permissions: ["read"],
-			});
+			await requireLinkAccess(context, organizationId, "read");
 
 			return context.db
-				.select()
+				.select({
+					...getTableColumns(linkFolders),
+					linkCount: sql<number>`(
+						select count(*)::int
+						from ${links}
+						where ${links.organizationId} = ${organizationId}
+							and ${links.folderId} = ${linkFolders.id}
+							and ${links.deletedAt} is null
+					)`.mapWith(Number),
+				})
 				.from(linkFolders)
 				.where(
 					and(
@@ -138,17 +126,15 @@ export const linkFoldersRouter = {
 		.input(createLinkFolderSchema)
 		.output(linkFolderOutputSchema)
 		.handler(async ({ context, input }) => {
-			const organizationId =
-				input.organizationId?.trim() || context.organizationId || null;
-			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
-			}
+			const organizationId = requireOrganizationId(
+				input.organizationId?.trim() || context.organizationId
+			);
 
-			const workspace = await withWorkspace(context, {
+			const workspace = await requireLinkAccess(
+				context,
 				organizationId,
-				resource: "link",
-				permissions: ["create"],
-			});
+				"create"
+			);
 			const createdBy = await workspace.getCreatedBy();
 			const baseSlug = (input.slug ?? slugifyFolderName(input.name)).slice(
 				0,
@@ -177,6 +163,10 @@ export const linkFoldersRouter = {
 						})
 						.returning();
 
+					if (!folder) {
+						throw rpcError.internal("Failed to create link folder");
+					}
+
 					return folder;
 				} catch (error) {
 					if (!isUniqueViolationFor(error, "link_folders_org_slug_unique")) {
@@ -204,11 +194,7 @@ export const linkFoldersRouter = {
 		.output(linkFolderOutputSchema)
 		.handler(async ({ context, input }) => {
 			const folder = await getFolderOrThrow(context, input.id);
-			await withWorkspace(context, {
-				organizationId: folder.organizationId,
-				resource: "link",
-				permissions: ["update"],
-			});
+			await requireLinkAccess(context, folder.organizationId, "update");
 
 			try {
 				const [updatedFolder] = await context.db
@@ -220,6 +206,10 @@ export const linkFoldersRouter = {
 					})
 					.where(eq(linkFolders.id, input.id))
 					.returning();
+
+				if (!updatedFolder) {
+					throw rpcError.notFound("link folder", input.id);
+				}
 
 				return updatedFolder;
 			} catch (error) {
@@ -244,11 +234,7 @@ export const linkFoldersRouter = {
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
 			const folder = await getFolderOrThrow(context, input.id);
-			await withWorkspace(context, {
-				organizationId: folder.organizationId,
-				resource: "link",
-				permissions: ["delete"],
-			});
+			await requireLinkAccess(context, folder.organizationId, "delete");
 
 			await withTransaction(async (tx) => {
 				await tx

@@ -8,6 +8,7 @@ import {
 } from "@databuddy/ui/icons";
 import { Button, Card, Skeleton } from "@databuddy/ui";
 import { cn } from "@/lib/utils";
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 
 interface RewardTier {
 	creditsRequired: number;
@@ -28,7 +29,7 @@ interface CreditsPanelProps {
 
 const REWARD_LABELS: Record<string, string> = {
 	events: "events",
-	"agent-credits": "agent credits",
+	"agent-credits": DATABUNNY_USAGE.unit,
 };
 
 const REWARD_ICONS: Record<string, typeof LightningIcon> = {
@@ -77,8 +78,8 @@ function TierRow({
 				</p>
 				<p className="text-muted-foreground text-xs tabular-nums">
 					{canAfford
-						? `${tier.creditsRequired.toLocaleString()} credits`
-						: `${remaining.toLocaleString()} credits short`}
+						? `${tier.creditsRequired.toLocaleString()} feedback credits`
+						: `${remaining.toLocaleString()} feedback credits short`}
 				</p>
 			</div>
 
@@ -123,9 +124,11 @@ function RewardSection({
 	redeemingTier,
 	title,
 	tiers,
+	description,
 }: {
 	available: number;
 	baseIndex: number;
+	description?: string;
 	onRedeemAction: (tierIndex: number) => void;
 	redeemingTier: number | null;
 	title: string;
@@ -133,10 +136,13 @@ function RewardSection({
 }) {
 	return (
 		<div className="border-sidebar-border/50 border-t p-4">
-			<p className="mb-3 font-semibold text-muted-foreground text-xs uppercase">
+			<p className="font-semibold text-muted-foreground text-xs uppercase">
 				{title}
 			</p>
-			<div className="space-y-2">
+			{description && (
+				<p className="mt-1 mb-3 text-muted-foreground text-xs">{description}</p>
+			)}
+			<div className={cn("space-y-2", !description && "mt-3")}>
 				{tiers.map((tier, i) => (
 					<TierRow
 						available={available}
@@ -177,7 +183,7 @@ export function CreditsPanel({
 				<div className="flex items-start justify-between gap-3">
 					<div>
 						<p className="font-semibold text-muted-foreground text-xs uppercase">
-							Available credits
+							Available feedback credits
 						</p>
 						<p className="mt-1 font-semibold text-4xl text-foreground tabular-nums tracking-tight">
 							{available.toLocaleString()}
@@ -197,7 +203,7 @@ export function CreditsPanel({
 					</div>
 					<p className="text-muted-foreground text-xs">
 						{nextTier
-							? `${Math.max(nextTier.creditsRequired - available, 0).toLocaleString()} credits to next redemption`
+							? `${Math.max(nextTier.creditsRequired - available, 0).toLocaleString()} feedback credits to next redemption`
 							: "All rewards are available"}
 					</p>
 				</div>
@@ -233,10 +239,11 @@ export function CreditsPanel({
 			<RewardSection
 				available={available}
 				baseIndex={eventTiers.length}
+				description={DATABUNNY_USAGE.description}
 				onRedeemAction={onRedeemAction}
 				redeemingTier={redeemingTier}
 				tiers={agentTiers}
-				title="Agent credits"
+				title={DATABUNNY_USAGE.name}
 			/>
 		</Card>
 	);

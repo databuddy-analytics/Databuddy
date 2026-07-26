@@ -14,6 +14,7 @@ import {
 	protectedProcedure,
 	sessionProcedure,
 	trackedProcedure,
+	trackedSessionProcedure,
 } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
 
@@ -28,6 +29,44 @@ async function getUserProviderToken(
 		.where(and(eq(account.userId, userId), eq(account.providerId, providerId)))
 		.limit(1);
 	return row?.accessToken ?? null;
+}
+
+const GITHUB_API = "https://api.github.com";
+
+function githubRequest(path: string, token: string): Promise<Response> {
+	return fetch(`${GITHUB_API}${path}`, {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			Accept: "application/vnd.github+json",
+			"X-GitHub-Api-Version": "2022-11-28",
+		},
+		signal: AbortSignal.timeout(10_000),
+	});
+}
+
+function githubAccessError(response: Response): Error {
+	const status = response.status;
+	if (
+		status === 429 ||
+		(status === 403 && response.headers.get("x-ratelimit-remaining") === "0")
+	) {
+		const reset = Number(response.headers.get("x-ratelimit-reset"));
+		return rpcError.rateLimited(Number.isFinite(reset) ? reset * 1000 : 60);
+	}
+	if (status === 401 || status === 403) {
+		return rpcError.badRequest(
+			"GitHub repository access is missing or expired. Grant access and try again."
+		);
+	}
+	if (status === 404) {
+		return rpcError.badRequest(
+			"GitHub repository was not found or is not accessible to this account."
+		);
+	}
+	if (status >= 500) {
+		return rpcError.internal("GitHub is temporarily unavailable");
+	}
+	return rpcError.badRequest(`GitHub request failed (${status}). Try again.`);
 }
 
 const slackChannelBindingOutputSchema = z.object({
@@ -198,7 +237,7 @@ export const integrationsRouter = {
 			return { success: true };
 		}),
 
-	setGitHubRepo: trackedProcedure
+	setGitHubRepo: trackedSessionProcedure
 		.route({
 			description: "Links a GitHub repo to a website for deploy correlation.",
 			method: "POST",
@@ -242,10 +281,49 @@ export const integrationsRouter = {
 				resource: "website",
 				permissions: ["update"],
 			});
+			const token = await getUserProviderToken(
+				context.db,
+				context.user.id,
+				"github"
+			);
+			if (!token) {
+				throw rpcError.badRequest(
+					"Connect GitHub with repository access before linking a repository."
+				);
+			}
+
+			let response: Response;
+			try {
+				response = await githubRequest(
+					`/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}`,
+					token
+				);
+			} catch {
+				throw rpcError.badRequest("GitHub could not verify this repository.");
+			}
+			if (!response.ok) {
+				throw githubAccessError(response);
+			}
+			const repository = await response.json().catch(() => null);
+
+			const verified = z
+				.object({
+					name: z.string().min(1),
+					owner: z.object({ login: z.string().min(1) }),
+				})
+				.safeParse(repository);
+			if (!verified.success) {
+				throw rpcError.badRequest(
+					"GitHub returned an invalid repository response."
+				);
+			}
 
 			const integrations: WebsiteIntegrations = {
 				...(website.integrations ?? {}),
-				github: { owner: input.owner, repo: input.repo },
+				github: {
+					owner: verified.data.owner.login,
+					repo: verified.data.name,
+				},
 			};
 
 			await context.db
@@ -363,28 +441,30 @@ export const integrationsRouter = {
 				"github"
 			);
 			if (!token) {
-				return { repos: [] };
+				throw rpcError.badRequest(
+					"Connect GitHub with repository access before listing repositories."
+				);
 			}
 
-			const res = await fetch(
-				"https://api.github.com/user/repos?sort=pushed&direction=desc&per_page=50",
-				{
-					headers: {
-						Authorization: `Bearer ${token}`,
-						Accept: "application/vnd.github+json",
-						"X-GitHub-Api-Version": "2022-11-28",
-					},
-					signal: AbortSignal.timeout(10_000),
-				}
-			);
+			let res: Response;
+			try {
+				res = await githubRequest(
+					"/user/repos?sort=pushed&direction=desc&per_page=50",
+					token
+				);
+			} catch {
+				throw rpcError.badRequest("GitHub could not be reached. Try again.");
+			}
 
 			if (!res.ok) {
-				return { repos: [] };
+				throw githubAccessError(res);
 			}
 
 			const data = await res.json();
 			if (!Array.isArray(data)) {
-				return { repos: [] };
+				throw rpcError.badRequest(
+					"GitHub returned an invalid repository list."
+				);
 			}
 
 			return {

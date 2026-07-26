@@ -1,0 +1,10 @@
+process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/test";
+process.env.REDIS_URL ??= "redis://localhost:6379";
+process.env.BULLMQ_REDIS_URL ??= process.env.REDIS_URL;
+process.env.BETTER_AUTH_SECRET ??= "test-auth-secret";
+process.env.BETTER_AUTH_URL ??= "http://localhost:3001";
+process.env.GOOGLE_CLIENT_ID ??= "test-google-client";
+process.env.GOOGLE_CLIENT_SECRET ??= "test-google-secret";
+process.env.GITHUB_CLIENT_ID ??= "test-github-client";
+process.env.GITHUB_CLIENT_SECRET ??= "test-github-secret";
+process.env.NODE_ENV ??= "test";

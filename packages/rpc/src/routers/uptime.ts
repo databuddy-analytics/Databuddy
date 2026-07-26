@@ -5,6 +5,10 @@ import {
 	uptimeSchedules,
 } from "@databuddy/db/schema";
 import { invalidateStatusPageCache } from "@databuddy/redis";
+import {
+	uptimeGranularitySchema,
+	type UptimeGranularity,
+} from "@databuddy/shared/uptime";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
@@ -27,21 +31,8 @@ import {
 	hasUptimeSchedule,
 } from "../services/uptime-scheduler";
 
-const granularityEnum = z.enum([
-	"minute",
-	"five_minutes",
-	"ten_minutes",
-	"thirty_minutes",
-	"hour",
-	"six_hours",
-	"twelve_hours",
-	"day",
-]);
-
-function parseStoredGranularity(
-	value: string
-): z.infer<typeof granularityEnum> {
-	const parsed = granularityEnum.safeParse(value);
+function parseStoredGranularity(value: string): UptimeGranularity {
+	const parsed = uptimeGranularitySchema.safeParse(value);
 	if (!parsed.success) {
 		throw rpcError.internal("Invalid monitor granularity");
 	}
@@ -78,7 +69,7 @@ const getScheduleOutputSchema = z
 		organizationId: z.string(),
 		url: z.string(),
 		name: z.string().nullable(),
-		granularity: z.string(),
+		granularity: uptimeGranularitySchema,
 		cron: z.string(),
 		isPaused: z.boolean(),
 		timeout: z.number().nullable().optional(),
@@ -136,7 +127,7 @@ export const uptimeRouter = {
 	listSchedules: protectedProcedure
 		.route({
 			description:
-				"Returns uptime schedules for organization or all user workspaces. Requires read:monitors scope.",
+				"Returns uptime schedules for one organization or all accessible organizations. Requires read:monitors scope.",
 			method: "POST",
 			path: "/uptime/listSchedules",
 			summary: "List schedules",
@@ -224,7 +215,7 @@ export const uptimeRouter = {
 				name: z.string().optional(),
 				organizationId: z.string().optional(),
 				websiteId: z.string().optional(),
-				granularity: granularityEnum,
+				granularity: uptimeGranularitySchema,
 				timeout: z.number().int().min(1000).max(120_000).optional(),
 				cacheBust: z.boolean().optional(),
 				jsonParsingConfig: z
@@ -255,7 +246,7 @@ export const uptimeRouter = {
 
 			if (existing) {
 				throw rpcError.conflict(
-					"Monitor already exists for this URL in this workspace"
+					"Monitor already exists for this URL in this organization"
 				);
 			}
 
@@ -304,7 +295,7 @@ export const uptimeRouter = {
 			z.object({
 				scheduleId: z.string(),
 				name: z.string().nullish(),
-				granularity: granularityEnum.optional(),
+				granularity: uptimeGranularitySchema.optional(),
 				timeout: z.number().int().min(1000).max(120_000).nullish(),
 				cacheBust: z.boolean().optional(),
 				jsonParsingConfig: z

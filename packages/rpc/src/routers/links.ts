@@ -1,4 +1,16 @@
-import { and, desc, eq, isNull, isUniqueViolationFor } from "@databuddy/db";
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	ilike,
+	isNotNull,
+	isNull,
+	isUniqueViolationFor,
+	or,
+	sql,
+} from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
 import {
 	type CachedLink,
@@ -14,111 +26,40 @@ import { logger } from "../lib/logger";
 import { setTrackProperties } from "../middleware/track-mutation";
 import { type Context, protectedProcedure, trackedProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
+import {
+	createLinkSchema,
+	deleteLinkSchema,
+	getLinkSchema,
+	linkOutputSchema,
+	linksSummaryOutputSchema,
+	linksSummarySchema,
+	listLinksPageOutputSchema,
+	listLinksPageSchema,
+	listLinksSchema,
+	updateLinkSchema,
+} from "./links.schemas";
 
-const generateSlug = customAlphabet(
+type LinkPermission = "read" | "create" | "update" | "delete";
+type LinkRow = typeof links.$inferSelect;
+type CacheableLink = Pick<
+	LinkRow,
+	| "id"
+	| "targetUrl"
+	| "expiresAt"
+	| "expiredRedirectUrl"
+	| "ogTitle"
+	| "ogDescription"
+	| "ogImageUrl"
+	| "ogVideoUrl"
+	| "iosUrl"
+	| "androidUrl"
+	| "deepLinkApp"
+>;
+
+const generateLinkSlug = customAlphabet(
 	"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
 	8
 );
-
-const listLinksSchema = z
-	.object({
-		organizationId: z.string().optional(),
-		externalId: z.string().optional(),
-		folderId: z.string().nullable().optional(),
-		sourceType: z.string().max(64).optional(),
-		sourceId: z.string().max(255).optional(),
-		sourceOwnerId: z.string().max(255).optional(),
-		targetDomain: z.string().max(255).optional(),
-	})
-	.default({});
-
-const getLinkSchema = z.object({
-	id: z.string(),
-});
-
-const slugSchema = z
-	.string()
-	.min(3)
-	.max(50)
-	.regex(
-		/^[a-zA-Z0-9_-]+$/,
-		"Slug can only contain letters, numbers, hyphens, and underscores"
-	);
-
-const createLinkSchema = z.object({
-	organizationId: z.string().optional(),
-	name: z.string().min(1).max(255),
-	targetUrl: z.url(),
-	slug: slugSchema.optional(),
-	folderId: z.string().nullable().optional(),
-	expiresAt: z.date().nullable().optional(),
-	expiredRedirectUrl: z.url().nullable().optional(),
-	ogTitle: z.string().max(200).nullable().optional(),
-	ogDescription: z.string().max(500).nullable().optional(),
-	ogImageUrl: z.url().nullable().optional(),
-	ogVideoUrl: z.url().nullable().optional(),
-	iosUrl: z.url().nullable().optional(),
-	androidUrl: z.url().nullable().optional(),
-	externalId: z.string().max(255).nullable().optional(),
-	sourceType: z.string().max(64).nullable().optional(),
-	sourceId: z.string().max(255).nullable().optional(),
-	sourceOwnerId: z.string().max(255).nullable().optional(),
-	targetDomain: z.string().max(255).nullable().optional(),
-	deepLinkApp: z.string().nullable().optional(),
-});
-
-const updateLinkSchema = z.object({
-	id: z.string(),
-	name: z.string().min(1).max(255).optional(),
-	targetUrl: z.url().optional(),
-	slug: slugSchema.optional(),
-	folderId: z.string().nullable().optional(),
-	expiresAt: z.string().datetime().nullable().optional(),
-	expiredRedirectUrl: z.url().nullable().optional(),
-	ogTitle: z.string().max(200).nullable().optional(),
-	ogDescription: z.string().max(500).nullable().optional(),
-	ogImageUrl: z.url().nullable().optional(),
-	ogVideoUrl: z.url().nullable().optional(),
-	iosUrl: z.url().nullable().optional(),
-	androidUrl: z.url().nullable().optional(),
-	externalId: z.string().max(255).nullable().optional(),
-	sourceType: z.string().max(64).nullable().optional(),
-	sourceId: z.string().max(255).nullable().optional(),
-	sourceOwnerId: z.string().max(255).nullable().optional(),
-	targetDomain: z.string().max(255).nullable().optional(),
-	deepLinkApp: z.string().nullable().optional(),
-});
-
-const deleteLinkSchema = z.object({
-	id: z.string(),
-});
-
-const linkOutputSchema = z.object({
-	id: z.string(),
-	organizationId: z.string(),
-	createdBy: z.string(),
-	folderId: z.string().nullable(),
-	slug: z.string(),
-	name: z.string(),
-	targetUrl: z.string(),
-	targetDomain: z.string().nullable(),
-	sourceType: z.string().nullable(),
-	sourceId: z.string().nullable(),
-	sourceOwnerId: z.string().nullable(),
-	expiresAt: z.nullable(z.coerce.date()),
-	expiredRedirectUrl: z.string().nullable(),
-	ogTitle: z.string().nullable(),
-	ogDescription: z.string().nullable(),
-	ogImageUrl: z.string().nullable(),
-	ogVideoUrl: z.string().nullable(),
-	iosUrl: z.string().nullable(),
-	androidUrl: z.string().nullable(),
-	externalId: z.string().nullable(),
-	deepLinkApp: z.string().nullable(),
-	deletedAt: z.nullable(z.coerce.date()),
-	createdAt: z.coerce.date(),
-	updatedAt: z.coerce.date(),
-});
 
 function validateHttpUrl(url: string): void {
 	const parsed = new URL(url);
@@ -191,19 +132,7 @@ async function validateFolderId(
 	throw rpcError.badRequest("Link folder does not exist in this organization");
 }
 
-function toCachedLink(link: {
-	id: string;
-	targetUrl: string;
-	expiresAt: Date | null;
-	expiredRedirectUrl: string | null;
-	ogTitle: string | null;
-	ogDescription: string | null;
-	ogImageUrl: string | null;
-	ogVideoUrl: string | null;
-	iosUrl: string | null;
-	androidUrl: string | null;
-	deepLinkApp: string | null;
-}): CachedLink {
+function toCachedLink(link: CacheableLink): CachedLink {
 	return {
 		id: link.id,
 		targetUrl: link.targetUrl,
@@ -219,6 +148,112 @@ function toCachedLink(link: {
 	};
 }
 
+function requireOrganizationId(
+	organizationId: string | null | undefined
+): string {
+	if (!organizationId) {
+		throw rpcError.badRequest("Organization ID is required");
+	}
+	return organizationId;
+}
+
+function requireLinkAccess(
+	context: Context,
+	organizationId: string,
+	permission: LinkPermission
+) {
+	const permissions: [LinkPermission] = [permission];
+	return withWorkspace(context, {
+		organizationId,
+		resource: "link",
+		permissions,
+	});
+}
+
+const LINKS_LIST_MAX = 1000;
+const ILIKE_PATTERN_CHARACTER_REGEX = /[\\%_]/g;
+
+function buildLinkListConditions(
+	input: {
+		externalId?: string;
+		folderId?: string | null;
+		sourceId?: string;
+		sourceOwnerId?: string;
+		sourceType?: string;
+		targetDomain?: string;
+	},
+	organizationId: string
+) {
+	const conditions = [
+		eq(links.organizationId, organizationId),
+		isNull(links.deletedAt),
+	];
+	if (input.externalId) {
+		conditions.push(eq(links.externalId, input.externalId));
+	}
+	if (input.folderId !== undefined) {
+		conditions.push(
+			input.folderId === null
+				? isNull(links.folderId)
+				: eq(links.folderId, input.folderId)
+		);
+	}
+	if (input.sourceType) {
+		conditions.push(eq(links.sourceType, input.sourceType));
+	}
+	if (input.sourceId) {
+		conditions.push(eq(links.sourceId, input.sourceId));
+	}
+	if (input.sourceOwnerId) {
+		conditions.push(eq(links.sourceOwnerId, input.sourceOwnerId));
+	}
+	const targetDomain = normalizeTargetDomain(input.targetDomain);
+	if (targetDomain) {
+		conditions.push(eq(links.targetDomain, targetDomain));
+	}
+	return conditions;
+}
+
+function buildLinkSearchCondition(search: string | undefined) {
+	const trimmed = search?.trim();
+	if (!trimmed) {
+		return;
+	}
+
+	const term = `%${trimmed.replace(ILIKE_PATTERN_CHARACTER_REGEX, "\\$&")}%`;
+	return or(
+		ilike(links.name, term),
+		ilike(links.slug, term),
+		ilike(links.targetUrl, term),
+		ilike(links.externalId, term),
+		ilike(links.sourceType, term),
+		ilike(links.sourceId, term),
+		ilike(links.sourceOwnerId, term),
+		ilike(links.targetDomain, term)
+	);
+}
+
+const linkSortOrder = {
+	newest: [desc(links.createdAt), desc(links.id)],
+	oldest: [asc(links.createdAt), asc(links.id)],
+	"name-asc": [asc(links.name), desc(links.id)],
+	"name-desc": [desc(links.name), desc(links.id)],
+} as const;
+
+async function getLinkOrThrow(context: Context, id: string): Promise<LinkRow> {
+	const [link] = await context.db
+		.select()
+		.from(links)
+		.where(and(eq(links.id, id), isNull(links.deletedAt)))
+		.limit(1);
+
+	if (!link) {
+		throw rpcError.notFound("link", id);
+	}
+
+	return link;
+}
+
 export const linksRouter = {
 	list: protectedProcedure
 		.route({
@@ -227,54 +262,133 @@ export const linksRouter = {
 			tags: ["Links"],
 			summary: "List links",
 			description:
-				"Returns all links for the workspace. Optional organizationId defaults to the active organization from the session. Requires read:links scope.",
+				"Returns up to the 1000 most recent links for the organization. Optional organizationId defaults to the active organization from the session. Use the paginated endpoint for larger organizations. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(listLinksSchema)
 		.output(z.array(linkOutputSchema))
 		.handler(async ({ context, input }) => {
-			const organizationId =
-				input.organizationId ?? context.organizationId ?? null;
-			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
-			}
+			const organizationId = requireOrganizationId(
+				input.organizationId ?? context.organizationId
+			);
 
-			await withWorkspace(context, {
-				organizationId,
-				resource: "link",
-				permissions: ["read"],
-			});
+			await requireLinkAccess(context, organizationId, "read");
 
-			const conditions = [eq(links.organizationId, organizationId)];
-			if (input.externalId) {
-				conditions.push(eq(links.externalId, input.externalId));
-			}
-			if (input.folderId !== undefined) {
-				conditions.push(
-					input.folderId === null
-						? isNull(links.folderId)
-						: eq(links.folderId, input.folderId)
-				);
-			}
-			if (input.sourceType) {
-				conditions.push(eq(links.sourceType, input.sourceType));
-			}
-			if (input.sourceId) {
-				conditions.push(eq(links.sourceId, input.sourceId));
-			}
-			if (input.sourceOwnerId) {
-				conditions.push(eq(links.sourceOwnerId, input.sourceOwnerId));
-			}
-			const targetDomain = normalizeTargetDomain(input.targetDomain);
-			if (targetDomain) {
-				conditions.push(eq(links.targetDomain, targetDomain));
-			}
+			const conditions = buildLinkListConditions(input, organizationId);
 
 			return context.db
 				.select()
 				.from(links)
 				.where(and(...conditions))
-				.orderBy(desc(links.createdAt));
+				.orderBy(desc(links.createdAt))
+				.limit(LINKS_LIST_MAX);
+		}),
+
+	paginated: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/links/paginated",
+			tags: ["Links"],
+			summary: "List links (paginated)",
+			description:
+				"Returns a page of links for the organization with server-side search, sort, type filter, and offset pagination. Set includeTotal only when an exact filtered count is needed. Requires read:links scope.",
+			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
+		})
+		.input(listLinksPageSchema)
+		.output(listLinksPageOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = requireOrganizationId(
+				input.organizationId ?? context.organizationId
+			);
+
+			await requireLinkAccess(context, organizationId, "read");
+
+			const conditions = buildLinkListConditions(input, organizationId);
+
+			if (input.type === "short") {
+				conditions.push(isNull(links.deepLinkApp));
+			} else if (input.type === "deep") {
+				conditions.push(isNotNull(links.deepLinkApp));
+			}
+
+			const matches = buildLinkSearchCondition(input.search);
+			if (matches) {
+				conditions.push(matches);
+			}
+
+			const where = and(...conditions);
+			const pageQuery = context.db
+				.select()
+				.from(links)
+				.where(where)
+				.orderBy(...linkSortOrder[input.sort])
+				.limit(input.limit + 1)
+				.offset(input.offset);
+			let rows: LinkRow[];
+			let total: number | undefined;
+
+			if (input.includeTotal) {
+				const [page, [summary]] = await Promise.all([
+					pageQuery,
+					context.db.select({ total: count() }).from(links).where(where),
+				]);
+				rows = page;
+				total = summary?.total ?? 0;
+			} else {
+				rows = await pageQuery;
+			}
+
+			const hasMore = rows.length > input.limit;
+
+			return {
+				items: hasMore ? rows.slice(0, input.limit) : rows,
+				hasMore,
+				...(total === undefined ? {} : { total }),
+			};
+		}),
+
+	summary: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/links/summary",
+			tags: ["Links"],
+			summary: "Summarize links",
+			description:
+				"Returns exact total and unfiled counts. When search is set, both counts cover only matching links. Requires read:links scope.",
+			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
+		})
+		.input(linksSummarySchema)
+		.output(linksSummaryOutputSchema)
+		.handler(async ({ context, input }) => {
+			const organizationId = requireOrganizationId(
+				input.organizationId ?? context.organizationId
+			);
+
+			await requireLinkAccess(context, organizationId, "read");
+
+			const matches = buildLinkSearchCondition(input.search);
+			const unfiledMatches = matches
+				? and(isNull(links.folderId), matches)
+				: isNull(links.folderId);
+			const [summary] = await context.db
+				.select({
+					total: matches
+						? sql<number>`count(*) filter (where ${matches})`.mapWith(Number)
+						: count(),
+					unfiledTotal:
+						sql<number>`count(*) filter (where ${unfiledMatches})`.mapWith(
+							Number
+						),
+				})
+				.from(links)
+				.where(
+					and(eq(links.organizationId, organizationId), isNull(links.deletedAt))
+				);
+
+			return {
+				total: summary?.total ?? 0,
+				unfiledTotal: summary?.unfiledTotal ?? 0,
+			};
 		}),
 
 	get: protectedProcedure
@@ -284,33 +398,16 @@ export const linksRouter = {
 			tags: ["Links"],
 			summary: "Get link",
 			description:
-				"Returns a single link by id; workspace is resolved from the link. Requires read:links scope.",
+				"Returns a single link by id; the organization is resolved from the link. Requires read:links scope.",
 			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
 		})
 		.input(getLinkSchema)
 		.output(linkOutputSchema)
 		.handler(async ({ context, input }) => {
-			const result = await context.db
-				.select()
-				.from(links)
-				.where(eq(links.id, input.id))
-				.limit(1);
+			const link = await getLinkOrThrow(context, input.id);
+			await requireLinkAccess(context, link.organizationId, "read");
 
-			if (result.length === 0) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			const linkRow = result[0];
-			if (!linkRow) {
-				throw rpcError.notFound("link", input.id);
-			}
-			await withWorkspace(context, {
-				organizationId: linkRow.organizationId,
-				resource: "link",
-				permissions: ["read"],
-			});
-
-			return linkRow;
+			return link;
 		}),
 
 	create: trackedProcedure
@@ -329,17 +426,15 @@ export const linksRouter = {
 				has_expiry: !!input.expiresAt,
 				has_og: !!(input.ogTitle || input.ogImageUrl),
 			});
-			const organizationId =
-				input.organizationId?.trim() || context.organizationId || null;
-			if (!organizationId) {
-				throw rpcError.badRequest("Organization ID is required");
-			}
+			const organizationId = requireOrganizationId(
+				input.organizationId?.trim() || context.organizationId
+			);
 
-			const workspace = await withWorkspace(context, {
+			const workspace = await requireLinkAccess(
+				context,
 				organizationId,
-				resource: "link",
-				permissions: ["create"],
-			});
+				"create"
+			);
 
 			validateHttpUrl(input.targetUrl);
 			if (input.expiredRedirectUrl) {
@@ -357,7 +452,7 @@ export const linksRouter = {
 
 			const slugsToTry = input.slug
 				? [input.slug]
-				: Array.from({ length: 10 }, () => generateSlug());
+				: Array.from({ length: 10 }, () => generateLinkSlug());
 
 			for (const slug of slugsToTry) {
 				try {
@@ -431,25 +526,8 @@ export const linksRouter = {
 		.input(updateLinkSchema)
 		.output(linkOutputSchema)
 		.handler(async ({ context, input }) => {
-			const existingLink = await context.db
-				.select()
-				.from(links)
-				.where(eq(links.id, input.id))
-				.limit(1);
-
-			if (existingLink.length === 0) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			const link = existingLink[0];
-			if (!link) {
-				throw rpcError.notFound("link", input.id);
-			}
-			await withWorkspace(context, {
-				organizationId: link.organizationId,
-				resource: "link",
-				permissions: ["update"],
-			});
+			const link = await getLinkOrThrow(context, input.id);
+			await requireLinkAccess(context, link.organizationId, "update");
 
 			if (input.targetUrl) {
 				validateHttpUrl(input.targetUrl);
@@ -559,29 +637,8 @@ export const linksRouter = {
 		.input(deleteLinkSchema)
 		.output(z.object({ success: z.literal(true) }))
 		.handler(async ({ context, input }) => {
-			const existingLink = await context.db
-				.select({
-					organizationId: links.organizationId,
-					slug: links.slug,
-				})
-				.from(links)
-				.where(eq(links.id, input.id))
-				.limit(1);
-
-			if (existingLink.length === 0) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			const link = existingLink[0];
-			if (!link) {
-				throw rpcError.notFound("link", input.id);
-			}
-
-			await withWorkspace(context, {
-				organizationId: link.organizationId,
-				resource: "link",
-				permissions: ["delete"],
-			});
+			const link = await getLinkOrThrow(context, input.id);
+			await requireLinkAccess(context, link.organizationId, "delete");
 
 			try {
 				await invalidateLinkCache(link.slug);

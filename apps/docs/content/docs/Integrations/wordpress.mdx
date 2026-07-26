@@ -8,7 +8,7 @@ import { Steps, Step } from "@/components/docs";
 import { CodeBlock } from "@/components/docs";
 import { Card, Cards } from "@/components/docs";
 
-Add Databuddy's privacy-first analytics to your WordPress site without slowing it down. No cookies, fully GDPR compliant, with an under 30 KB script (still far smaller than Google Analytics).
+Add Databuddy's privacy-first analytics to your WordPress site with an asynchronous tracker that is about 11 KB gzipped. No cookies, fully GDPR compliant.
 
 ## Installation Methods
 
@@ -143,7 +143,6 @@ For more detailed analytics, enable additional tracking options:
   data-track-attributes
   data-track-outgoing-links
   data-track-interactions
-  data-track-performance
   data-track-web-vitals
   data-track-errors
   async
@@ -194,9 +193,9 @@ add_action('wp_footer', 'track_custom_post_types');`}
 
 Databuddy is designed to have minimal impact on your WordPress site's performance:
 
-- **Lightweight**: Under 30 KB script size (far smaller than Google Analytics)
+- **Lightweight**: About 11 KB gzipped for the current tracker bundle
 - **Non-blocking**: Loads asynchronously without affecting page speed
-- **Core Web Vitals**: Improves your WordPress performance scores
+- **Core Web Vitals**: Can collect field performance data when enabled
 - **Server Friendly**: Minimal server load compared to other analytics solutions
 
 ## Common Use Cases
@@ -295,4 +294,4 @@ For WordPress multisite networks:
   </Card>
 </Cards>
 
-Need help with your WordPress integration? Contact us at [help@databuddy.cc](mailto:help@databuddy.cc).
+Need help with your WordPress integration? Contact us at [support@databuddy.cc](mailto:support@databuddy.cc).

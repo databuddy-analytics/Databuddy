@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -17,13 +17,7 @@ import {
 import { Calendar } from "@databuddy/ui/client";
 import { Button, dayjs } from "@databuddy/ui";
 
-interface ExpirationPreset {
-	getDate: () => Date;
-	label: string;
-	value: string;
-}
-
-const EXPIRATION_PRESETS: ExpirationPreset[] = [
+const EXPIRATION_PRESETS = [
 	{
 		label: "1 hour",
 		value: "1h",
@@ -56,6 +50,8 @@ const EXPIRATION_PRESETS: ExpirationPreset[] = [
 	},
 ];
 
+type ExpirationPreset = (typeof EXPIRATION_PRESETS)[number];
+
 function formatPresetPreview(preset: ExpirationPreset): string {
 	const date = dayjs(preset.getDate());
 	const now = dayjs();
@@ -71,6 +67,36 @@ function formatPresetPreview(preset: ExpirationPreset): string {
 	return date.format("MMM D, YYYY");
 }
 
+function formatDisplay(date: Date | null): string {
+	if (!date) {
+		return "Never expires";
+	}
+
+	const now = dayjs();
+	const target = dayjs(date);
+	const diffHours = target.diff(now, "hour");
+	const diffDays = target.diff(now, "day");
+
+	if (diffHours < 0) {
+		return `Expired ${target.fromNow()}`;
+	}
+
+	if (diffHours < 24) {
+		return `Expires in ${diffHours}h · ${target.format("h:mm A")}`;
+	}
+
+	if (diffDays < 7) {
+		return `Expires in ${diffDays}d · ${target.format("ddd, MMM D")}`;
+	}
+
+	return `Expires ${target.format("MMM D, YYYY")}`;
+}
+
+function withTime(date: Date, time: string) {
+	const [hours, minutes] = time.split(":").map(Number);
+	return dayjs(date).hour(hours).minute(minutes).second(0);
+}
+
 interface ExpirationPickerProps {
 	className?: string;
 	onChange: (value: string) => void;
@@ -82,111 +108,71 @@ export function ExpirationPicker({
 	onChange,
 	className,
 }: ExpirationPickerProps) {
-	const [isOpen, setIsOpen] = useState(false);
-	const [showCustom, setShowCustom] = useState(false);
-	const [customDate, setCustomDate] = useState<Date | undefined>(undefined);
-	const [customTime, setCustomTime] = useState("12:00");
+	const [picker, setPicker] = useState({
+		customDate: undefined as Date | undefined,
+		customTime: "12:00",
+		isOpen: false,
+		showCustom: false,
+	});
+	const parsedValue = value ? dayjs(value) : null;
+	const currentDate = parsedValue?.isValid() ? parsedValue.toDate() : null;
+	const activePreset = currentDate
+		? (EXPIRATION_PRESETS.find(
+				(preset) =>
+					Math.abs(dayjs(currentDate).diff(dayjs(preset.getDate()), "minute")) <
+					5
+			)?.value ?? "custom")
+		: null;
+	const isExpired = currentDate && dayjs(currentDate).isBefore(dayjs());
 
-	const currentDate = useMemo(() => {
-		if (!value) {
-			return null;
-		}
-		const parsed = dayjs(value);
-		return parsed.isValid() ? parsed.toDate() : null;
-	}, [value]);
+	const closePicker = () => {
+		setPicker((state) => ({ ...state, isOpen: false, showCustom: false }));
+	};
+	const showPresets = () => {
+		setPicker((state) => ({ ...state, showCustom: false }));
+	};
+	const showCustom = () => {
+		setPicker((state) => ({ ...state, showCustom: true }));
+	};
 
-	const activePreset = useMemo(() => {
-		if (!currentDate) {
-			return null;
-		}
-		const target = dayjs(currentDate);
+	const selectPreset = (preset: ExpirationPreset) => {
+		onChange(dayjs(preset.getDate()).format("YYYY-MM-DDTHH:mm"));
+		closePicker();
+	};
 
-		for (const preset of EXPIRATION_PRESETS) {
-			const presetDate = dayjs(preset.getDate());
-			const diffMinutes = Math.abs(target.diff(presetDate, "minute"));
-			if (diffMinutes < 5) {
-				return preset.value;
-			}
-		}
-		return "custom";
-	}, [currentDate]);
-
-	const formatDisplay = useCallback((date: Date | null) => {
-		if (!date) {
-			return "Never expires";
-		}
-
-		const now = dayjs();
-		const target = dayjs(date);
-		const diffHours = target.diff(now, "hour");
-		const diffDays = target.diff(now, "day");
-
-		if (diffHours < 0) {
-			return `Expired ${target.fromNow()}`;
-		}
-
-		if (diffHours < 24) {
-			return `Expires in ${diffHours}h · ${target.format("h:mm A")}`;
-		}
-
-		if (diffDays < 7) {
-			return `Expires in ${diffDays}d · ${target.format("ddd, MMM D")}`;
-		}
-
-		return `Expires ${target.format("MMM D, YYYY")}`;
-	}, []);
-
-	const handlePresetSelect = useCallback(
-		(preset: ExpirationPreset) => {
-			const date = preset.getDate();
-			onChange(dayjs(date).format("YYYY-MM-DDTHH:mm"));
-			setShowCustom(false);
-			setIsOpen(false);
-		},
-		[onChange]
-	);
-
-	const handleClear = useCallback(() => {
+	const clearExpiration = () => {
 		onChange("");
-		setShowCustom(false);
-		setIsOpen(false);
-	}, [onChange]);
+		closePicker();
+	};
 
-	const handleCustomDateSelect = useCallback((date: Date | undefined) => {
-		setCustomDate(date);
-	}, []);
-
-	const handleApplyCustom = useCallback(() => {
-		if (!customDate) {
+	const applyCustom = () => {
+		if (!picker.customDate) {
 			return;
 		}
 
-		const [hours, minutes] = customTime.split(":").map(Number);
-		const finalDate = dayjs(customDate).hour(hours).minute(minutes).second(0);
-
-		onChange(finalDate.format("YYYY-MM-DDTHH:mm"));
-		setShowCustom(false);
-		setIsOpen(false);
-	}, [customDate, customTime, onChange]);
-
-	const handleOpenChange = useCallback(
-		(open: boolean) => {
-			setIsOpen(open);
-			if (open) {
-				setCustomDate(currentDate || undefined);
-				setCustomTime(
-					currentDate ? dayjs(currentDate).format("HH:mm") : "12:00"
-				);
-				setShowCustom(false);
-			}
-		},
-		[currentDate]
-	);
-
-	const isExpired = currentDate && dayjs(currentDate).isBefore(dayjs());
+		onChange(
+			withTime(picker.customDate, picker.customTime).format("YYYY-MM-DDTHH:mm")
+		);
+		closePicker();
+	};
 
 	return (
-		<Popover onOpenChange={handleOpenChange} open={isOpen}>
+		<Popover
+			onOpenChange={(isOpen) => {
+				setPicker((state) => ({
+					...state,
+					customDate: isOpen ? (currentDate ?? undefined) : state.customDate,
+					customTime: isOpen
+						? currentDate
+							? dayjs(currentDate).format("HH:mm")
+							: "12:00"
+						: state.customTime,
+					isOpen,
+					showCustom: isOpen ? false : state.showCustom,
+				}));
+			}}
+			open={picker.isOpen}
+		>
 			<div className="relative flex items-center">
 				<PopoverTrigger asChild>
 					<Button
@@ -221,7 +207,7 @@ export function ExpirationPicker({
 						className="absolute right-2 rounded p-0.5 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						onClick={(e) => {
 							e.stopPropagation();
-							handleClear();
+							clearExpiration();
 						}}
 						type="button"
 					>
@@ -237,13 +223,13 @@ export function ExpirationPicker({
 				side="bottom"
 				sideOffset={4}
 			>
-				{showCustom ? (
+				{picker.showCustom ? (
 					<div className="flex flex-col">
 						<div className="flex items-center justify-between border-b px-4 py-3">
 							<button
 								aria-label="Go back to presets"
 								className="rounded text-muted-foreground text-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								onClick={() => setShowCustom(false)}
+								onClick={showPresets}
 								type="button"
 							>
 								← Back
@@ -254,11 +240,13 @@ export function ExpirationPicker({
 
 						<div className="p-3">
 							<Calendar
-								defaultMonth={customDate || new Date()}
+								defaultMonth={picker.customDate || new Date()}
 								disabled={(date) => dayjs(date).isBefore(dayjs(), "day")}
 								mode="single"
-								onSelect={handleCustomDateSelect}
-								selected={customDate}
+								onSelect={(customDate) =>
+									setPicker((state) => ({ ...state, customDate }))
+								}
+								selected={picker.customDate}
 							/>
 						</div>
 
@@ -275,29 +263,33 @@ export function ExpirationPicker({
 								<input
 									className="ml-auto h-8 rounded border bg-input px-2 text-center font-mono text-sm tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 									id="expiration-time"
-									onChange={(e) => setCustomTime(e.target.value)}
+									onChange={(e) =>
+										setPicker((state) => ({
+											...state,
+											customTime: e.target.value,
+										}))
+									}
 									type="time"
-									value={customTime}
+									value={picker.customTime}
 								/>
 							</div>
 
-							{customDate && (
+							{picker.customDate && (
 								<p
 									aria-live="polite"
 									className="mt-2 text-muted-foreground text-xs"
 								>
 									Expires{" "}
-									{dayjs(customDate)
-										.hour(Number.parseInt(customTime.split(":")[0], 10))
-										.minute(Number.parseInt(customTime.split(":")[1], 10))
-										.format("MMMM D, YYYY [at] h:mm A")}
+									{withTime(picker.customDate, picker.customTime).format(
+										"MMMM D, YYYY [at] h:mm A"
+									)}
 								</p>
 							)}
 						</div>
 
 						<div className="flex items-center justify-end gap-2 border-t bg-secondary/50 px-4 py-3">
 							<Button
-								onClick={() => setShowCustom(false)}
+								onClick={showPresets}
 								size="sm"
 								type="button"
 								variant="ghost"
@@ -305,8 +297,8 @@ export function ExpirationPicker({
 								Cancel
 							</Button>
 							<Button
-								disabled={!customDate}
-								onClick={handleApplyCustom}
+								disabled={!picker.customDate}
+								onClick={applyCustom}
 								size="sm"
 								type="button"
 							>
@@ -333,7 +325,7 @@ export function ExpirationPicker({
 												: "hover:bg-secondary"
 										)}
 										key={preset.value}
-										onClick={() => handlePresetSelect(preset)}
+										onClick={() => selectPreset(preset)}
 										type="button"
 									>
 										<span className="text-sm">{preset.label}</span>
@@ -363,7 +355,7 @@ export function ExpirationPicker({
 									activePreset === "custom" &&
 										"bg-primary text-primary-foreground hover:bg-primary"
 								)}
-								onClick={() => setShowCustom(true)}
+								onClick={showCustom}
 								type="button"
 							>
 								<CalendarIcon
@@ -384,7 +376,7 @@ export function ExpirationPicker({
 									!value &&
 										"bg-primary text-primary-foreground hover:bg-primary"
 								)}
-								onClick={handleClear}
+								onClick={clearExpiration}
 								type="button"
 							>
 								<InfinityIcon

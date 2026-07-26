@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
 	MOCK_FLAG_DISABLED,
 	MOCK_FLAG_ENABLED,
+	getFlagRequestKeys,
 	waitForSDK,
 } from "./test-utils";
 
@@ -11,10 +12,8 @@ function bulkOnlyRoute(
 ) {
 	return page.route("**/api.databuddy.cc/public/v1/flags/**", async (route) => {
 		const url = new URL(route.request().url());
-		const keysParam = url.searchParams.get("keys");
-
 		if (url.pathname.includes("/bulk")) {
-			const requestedKeys = keysParam?.split(",").filter(Boolean) ?? [];
+			const requestedKeys = getFlagRequestKeys(route.request());
 			const flags = handler(requestedKeys);
 			await route.fulfill({
 				status: 200,
@@ -120,8 +119,7 @@ test.describe("BrowserFlagsManager — edge cases", () => {
 				const url = new URL(route.request().url());
 				if (url.pathname.includes("/bulk")) {
 					bulkCount++;
-					const keysParam = url.searchParams.get("keys") ?? "";
-					const keys = keysParam.split(",").filter(Boolean);
+					const keys = getFlagRequestKeys(route.request());
 					const flags = Object.fromEntries(
 						keys.map((k) => [k, MOCK_FLAG_ENABLED])
 					);

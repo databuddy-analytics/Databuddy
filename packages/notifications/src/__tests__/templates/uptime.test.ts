@@ -24,7 +24,7 @@ describe("buildUptimeNotificationPayload", () => {
 			const result = buildUptimeNotificationPayload(
 				makeInput({ kind: "down" })
 			);
-			expect(result.title).toBe("Uptime: Acme Corp is down");
+			expect(result.title).toBe("Health check failed: Acme Corp");
 			expect(result.priority).toBe("urgent");
 		});
 
@@ -32,7 +32,7 @@ describe("buildUptimeNotificationPayload", () => {
 			const result = buildUptimeNotificationPayload(
 				makeInput({ kind: "recovered" })
 			);
-			expect(result.title).toBe("Uptime: Acme Corp is back up");
+			expect(result.title).toBe("Health check passed: Acme Corp");
 			expect(result.priority).toBe("normal");
 		});
 	});
@@ -49,6 +49,12 @@ describe("buildUptimeNotificationPayload", () => {
 				makeInput({ httpCode: 503 })
 			);
 			expect(result.message).toContain("HTTP: 503");
+		});
+
+		test("describes a missing HTTP response without exposing HTTP 0", () => {
+			const result = buildUptimeNotificationPayload(makeInput({ httpCode: 0 }));
+			expect(result.message).toContain("HTTP: No HTTP response");
+			expect(result.message).not.toContain("HTTP: 0");
 		});
 
 		test("includes response timing when provided", () => {
@@ -134,6 +140,11 @@ describe("buildUptimeNotificationPayload", () => {
 				checkedAt: 1_700_000_000_000,
 				httpCode: 503,
 			});
+		});
+
+		test("keeps the raw HTTP result in metadata for webhook routing", () => {
+			const result = buildUptimeNotificationPayload(makeInput({ httpCode: 0 }));
+			expect(result.metadata?.httpCode).toBe(0);
 		});
 
 		test("includes optional keys when present", () => {

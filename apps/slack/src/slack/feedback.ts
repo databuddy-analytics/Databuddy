@@ -2,7 +2,6 @@ import {
 	classifyAgentFeedbackSentiment,
 	normalizeAgentFeedbackSignal,
 	recordAgentFeedback,
-	type AgentFeedbackSentiment,
 } from "@databuddy/ai/agent/feedback";
 import type { types } from "@slack/bolt";
 import { createSlackEventLog, setSlackLog, toError } from "@/lib/evlog-slack";
@@ -10,7 +9,6 @@ import type { SlackInstallationServices } from "@/slack/installations";
 import { SLACK_COPY } from "@/slack/messages";
 
 export type SlackFeedbackAction = "added" | "removed";
-export type SlackFeedbackSentiment = AgentFeedbackSentiment;
 
 type SlackReactionEvent = types.ReactionAddedEvent | types.ReactionRemovedEvent;
 
@@ -77,7 +75,7 @@ export async function logSlackReactionFeedback({
 	}
 
 	const resolvedTeamId = teamId ?? reactionEvent.team;
-	const sentiment = classifySlackReactionSentiment(normalizedReaction);
+	const sentiment = classifyAgentFeedbackSentiment(normalizedReaction);
 	let integrationId: string | undefined;
 	let organizationId: string | undefined;
 	const eventLog = createSlackEventLog({
@@ -120,12 +118,6 @@ export async function logSlackReactionFeedback({
 		setSlackLog(eventLog, feedback.wideEvent);
 		eventLog.emit();
 	}
-}
-
-export function classifySlackReactionSentiment(
-	reaction: string
-): SlackFeedbackSentiment {
-	return classifyAgentFeedbackSentiment(reaction);
 }
 
 function toSlackReactionEvent(event: unknown): SlackReactionEventLike | null {

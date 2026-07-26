@@ -1,10 +1,8 @@
-import { repairSlackReply, validateSlackReply } from "@databuddy/ai/agent";
 import { isDatabuddyAgentUserError } from "@databuddy/ai/agent/errors";
 import type { RequestLogger } from "evlog";
 import type { DatabuddyAgentClient, SlackAgentRun } from "@/agent/agent-client";
 import { getSlackApiErrorCode, setSlackLog, toError } from "@/lib/evlog-slack";
 import { SLACK_COPY } from "@/slack/messages";
-import { renderAgentOutputForSlack } from "@/slack/output-adapter";
 import type { SlackAgentClient } from "@/slack/types";
 
 const STREAM_FLUSH_INTERVAL_MS = 900;
@@ -81,10 +79,7 @@ export async function streamAgentToSlack({
 
 	let pending = "";
 	let fullText = "";
-	let safeMarkdown = "";
 	let chunkCount = 0;
-	let convertedComponents = 0;
-	let droppedComponents = 0;
 	let lastFlushAt = Date.now();
 	let thinkingResolved = false;
 
@@ -119,42 +114,22 @@ export async function streamAgentToSlack({
 		} while (force && pending);
 	};
 
-	const renderIncremental = (streaming: boolean) => {
-		const rendered = renderAgentOutputForSlack(fullText, { streaming });
-		convertedComponents = rendered.convertedComponents;
-		droppedComponents = rendered.droppedComponents;
-		if (rendered.markdown.startsWith(safeMarkdown)) {
-			pending += rendered.markdown.slice(safeMarkdown.length);
-			safeMarkdown = rendered.markdown;
-		}
-	};
-
 	try {
 		for await (const chunk of agent.stream(run, { abortSignal })) {
 			chunkCount++;
 			fullText += chunk;
-			renderIncremental(true);
+			pending += chunk;
 			await flush(false);
 		}
-		renderIncremental(false);
 		await flush(true);
 
-		const rawFinalText = safeMarkdown.trim();
-		const repaired = await maybeRepairReply({
-			abortSignal,
-			draft: rawFinalText,
-			eventLog,
-			logger,
-		});
-		const finalText = repaired.text;
+		const finalText = fullText.trim();
 		if (streamTs) {
 			if (!thinkingResolved) {
 				await resolveThinking(client, run.channelId, streamTs, "complete");
 			}
 			const result = await finishStreamedResponse({
 				client,
-				convertedComponents,
-				droppedComponents,
 				eventLog,
 				finalText,
 				run,
@@ -162,20 +137,9 @@ export async function streamAgentToSlack({
 				startedAt,
 				streamTs,
 			});
-			if (repaired.applied) {
-				await replaceStreamedMessage({
-					channelId: run.channelId,
-					client,
-					logger,
-					text: finalText,
-					ts: streamTs,
-				});
-			}
 			return result;
 		}
-		return sendFinalMessage({
-			convertedComponents,
-			droppedComponents,
+		const result = await sendFinalMessage({
 			eventLog,
 			finalText,
 			run,
@@ -183,12 +147,18 @@ export async function streamAgentToSlack({
 			chunkCount,
 			startedAt,
 		});
+		return result;
 	} catch (error) {
+		const abortReason =
+			abortSignal?.aborted && typeof abortSignal.reason === "string"
+				? abortSignal.reason
+				: undefined;
 		if (streamTs && !thinkingResolved) {
 			const status =
-				abortSignal?.aborted ||
-				isAbortError(error) ||
-				isSlackUserCancellation(error)
+				abortReason !== "timeout" &&
+				(abortSignal?.aborted ||
+					isAbortError(error) ||
+					isSlackUserCancellation(error))
 					? "complete"
 					: "error";
 			await resolveThinking(client, run.channelId, streamTs, status);
@@ -196,9 +166,16 @@ export async function streamAgentToSlack({
 
 		if (abortSignal?.aborted || isAbortError(error)) {
 			if (streamTs) {
-				await flushAndStop(client, run.channelId, streamTs, pending, logger);
+				await flushAndStop(
+					client,
+					run.channelId,
+					streamTs,
+					pending,
+					logger,
+					abortStopText(abortReason)
+				);
 			}
-			return abortedResult(safeMarkdown, chunkCount, streamTs);
+			return abortedResult(fullText, chunkCount, streamTs);
 		}
 
 		if (isSlackUserCancellation(error)) {
@@ -206,13 +183,12 @@ export async function streamAgentToSlack({
 				slack_stream_cancelled: true,
 				slack_stream_cancelled_code: getSlackApiErrorCode(error),
 			});
-			return abortedResult(safeMarkdown, chunkCount, streamTs);
+			return abortedResult(fullText, chunkCount, streamTs);
 		}
 
 		logStreamError(error, eventLog, logger);
-		renderIncremental(false);
 
-		const partialText = safeMarkdown.trim();
+		const partialText = fullText.trim();
 		const failureText = isDatabuddyAgentUserError(error)
 			? error.message
 			: SLACK_COPY.agentFailure;
@@ -233,80 +209,6 @@ export async function streamAgentToSlack({
 
 function markdownChunk(text: string) {
 	return { text, type: "markdown_text" as const };
-}
-
-interface MaybeRepairOptions {
-	abortSignal?: AbortSignal;
-	draft: string;
-	eventLog?: RequestLogger;
-	logger: LoggerLike;
-}
-
-async function maybeRepairReply({
-	abortSignal,
-	draft,
-	eventLog,
-	logger,
-}: MaybeRepairOptions): Promise<{ applied: boolean; text: string }> {
-	if (!draft) {
-		return { applied: false, text: draft };
-	}
-	const validation = validateSlackReply(draft);
-	if (validation.valid) {
-		return { applied: false, text: draft };
-	}
-	setSlackLog(eventLog, {
-		slack_reply_repair_issues: validation.issues.length,
-		slack_reply_repair_issue_codes: validation.issues
-			.map((i) => i.code)
-			.join(","),
-		slack_reply_repair_triggered: true,
-	});
-	try {
-		const corrected = await repairSlackReply({
-			abortSignal,
-			draft,
-			issues: validation.issues,
-		});
-		if (!(corrected && corrected !== draft)) {
-			setSlackLog(eventLog, { slack_reply_repair_no_change: true });
-			return { applied: false, text: draft };
-		}
-		const post = validateSlackReply(corrected);
-		setSlackLog(eventLog, {
-			slack_reply_repair_applied: true,
-			slack_reply_repair_residual_issues: post.issues.length,
-		});
-		return { applied: true, text: corrected };
-	} catch (error) {
-		logger.warn("Failed to repair slack reply", toError(error));
-		setSlackLog(eventLog, { slack_reply_repair_failed: true });
-		return { applied: false, text: draft };
-	}
-}
-
-async function replaceStreamedMessage({
-	channelId,
-	client,
-	logger,
-	text,
-	ts,
-}: {
-	channelId: string;
-	client: Pick<SlackAgentClient, "chat">;
-	logger: LoggerLike;
-	text: string;
-	ts: string;
-}): Promise<void> {
-	try {
-		await client.chat.update({
-			channel: channelId,
-			text,
-			ts,
-		});
-	} catch (error) {
-		logger.warn("Failed to update slack message with repaired text", error);
-	}
 }
 
 function thinkingTaskChunk(status: "complete" | "error" | "in_progress") {
@@ -374,28 +276,17 @@ async function resolveThinking(
 
 interface SuccessLogOptions {
 	chunkCount: number;
-	convertedComponents: number;
-	droppedComponents: number;
 	eventLog?: RequestLogger;
 	finalText: string;
 	startedAt: number;
 }
 
 function logSuccess(
-	{
-		chunkCount,
-		convertedComponents,
-		droppedComponents,
-		eventLog,
-		finalText,
-		startedAt,
-	}: SuccessLogOptions,
+	{ chunkCount, eventLog, finalText, startedAt }: SuccessLogOptions,
 	extra: Record<string, unknown>
 ) {
 	setSlackLog(eventLog, {
 		slack_answer_chars: finalText.length,
-		slack_components_converted: convertedComponents,
-		slack_components_dropped: droppedComponents,
 		slack_stream_chunks: chunkCount,
 		"timing.slack_agent_response_ms": Math.round(performance.now() - startedAt),
 		...extra,
@@ -501,7 +392,7 @@ async function recoverFromError({
 			streamTs,
 			pending,
 			logger,
-			partialText ? undefined : failureText
+			partialText ? SLACK_COPY.responseInterrupted : failureText
 		);
 		return {
 			answerChars: partialText.length,
@@ -513,7 +404,9 @@ async function recoverFromError({
 	}
 
 	const response = await say({
-		text: partialText || failureText,
+		text: partialText
+			? `${partialText}\n\n${SLACK_COPY.responseInterrupted}`
+			: failureText,
 		thread_ts: run.threadTs,
 	});
 	return {
@@ -560,14 +453,24 @@ function logStreamError(
 	}
 }
 
+function abortStopText(reason: string | undefined): string | undefined {
+	if (reason === "timeout") {
+		return SLACK_COPY.agentTimeout;
+	}
+	if (reason === "shutdown") {
+		return SLACK_COPY.agentRestarted;
+	}
+	return;
+}
+
 function abortedResult(
-	safeMarkdown: string,
+	answer: string,
 	chunkCount: number,
 	streamTs: string | null
 ): StreamAgentToSlackResult {
 	return {
 		aborted: true,
-		answerChars: safeMarkdown.trim().length,
+		answerChars: answer.trim().length,
 		chunks: chunkCount,
 		ok: false,
 		responseTs: streamTs ?? undefined,

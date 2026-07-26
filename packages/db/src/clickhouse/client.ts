@@ -19,7 +19,7 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 	request_timeout: 30_000,
 	keep_alive: {
 		enabled: true,
-		idle_socket_ttl: 8000,
+		eagerly_destroy_stale_sockets: true,
 	},
 	compression: {
 		request: true,
@@ -152,6 +152,47 @@ export interface ChQueryOptions {
 	readonly?: boolean;
 }
 
+interface JsonQueryResult {
+	close: () => void;
+	json: <T>() => Promise<ResponseJSON<T>>;
+}
+
+async function readJsonResponse<T>(
+	loadResult: () => Promise<JsonQueryResult>,
+	abortSignal?: AbortSignal
+): Promise<ResponseJSON<T>> {
+	if (!abortSignal) {
+		return (await loadResult()).json<T>();
+	}
+	abortSignal.throwIfAborted();
+
+	let result: JsonQueryResult | undefined;
+	const abortReason = () =>
+		abortSignal.reason ?? new Error("ClickHouse query aborted");
+	let onAbort = () => undefined;
+	const aborted = new Promise<never>((_resolve, reject) => {
+		onAbort = () => {
+			result?.close();
+			reject(abortReason());
+		};
+		abortSignal.addEventListener("abort", onAbort, { once: true });
+	});
+	const reading = (async () => {
+		result = await loadResult();
+		if (abortSignal.aborted) {
+			result.close();
+			throw abortReason();
+		}
+		return result.json<T>();
+	})();
+
+	try {
+		return await Promise.race([reading, aborted]);
+	} finally {
+		abortSignal.removeEventListener("abort", onAbort);
+	}
+}
+
 async function chQueryWithMeta<T>(
 	query: string,
 	params?: Record<string, unknown>,
@@ -161,15 +202,20 @@ async function chQueryWithMeta<T>(
 		? { ...(options.clickhouse_settings ?? {}), readonly: "2" }
 		: (options?.clickhouse_settings ?? {});
 	assertCacheCompatibleSettings(settings);
-	const res = await clickHouse.query({
-		query,
-		query_params: params,
-		...(options?.abort_signal && { abort_signal: options.abort_signal }),
-		...(Object.keys(settings).length > 0 && {
-			clickhouse_settings: settings,
-		}),
-	});
-	const json = await res.json<T>();
+	const json = await readJsonResponse<T>(
+		() =>
+			clickHouse.query({
+				query,
+				query_params: params,
+				...(options?.abort_signal && {
+					abort_signal: options.abort_signal,
+				}),
+				...(Object.keys(settings).length > 0 && {
+					clickhouse_settings: settings,
+				}),
+			}),
+		options?.abort_signal
+	);
 
 	const intColumns = new Set(
 		(json.meta ?? []).filter((m) => m.type.includes("Int")).map((m) => m.name)

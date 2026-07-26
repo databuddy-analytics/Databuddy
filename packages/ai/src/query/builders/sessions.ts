@@ -17,7 +17,9 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["sessions", "metrics", "overview"],
 		},
 		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const filterClause = appendFilterClause(filterConditions);
 			return {
 				sql: `
 				WITH session_rollup AS (
@@ -33,19 +35,21 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 						AND time >= toDateTime({startDate:String})
 						AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
 						AND session_id != ''
+						${filterClause}
 					GROUP BY session_id
 				)
 				SELECT
-					count() as total_sessions,
-					round(avgIf(duration, duration > 0), 2) as avg_session_duration,
-					round((countIf(page_views <= 1 AND duration < 10 AND engagement_events = 0) / nullIf(count(), 0)) * 100, 2) as bounce_rate,
+					countIf(page_views >= 1) as total_sessions,
+					round(avgIf(duration, page_views >= 1 AND duration > 0), 2) as avg_session_duration,
+					round((countIf(page_views = 1 AND duration < 10 AND engagement_events = 0) / nullIf(countIf(page_views >= 1), 0)) * 100, 2) as bounce_rate,
 					sum(total_events) as total_events
 				FROM session_rollup
 			`,
-				params: { websiteId, startDate, endDate },
+				params: { websiteId, startDate, endDate, ...filterParams },
 			};
 		},
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -72,6 +76,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		groupBy: ["duration_range"],
 		orderBy: "sessions DESC",
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -83,15 +88,15 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		},
 		table: Analytics.events,
 		fields: [
-			"device_type as name",
+			"if(ifNull(device_type, '') = '', 'Desktop', initCap(device_type)) as name",
 			"uniq(session_id) as sessions",
 			"uniq(anonymous_id) as visitors",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
-		where: ["event_name = 'screen_view'", "device_type != ''"],
-		groupBy: ["device_type"],
+		where: ["event_name = 'screen_view'"],
+		groupBy: ["name"],
 		orderBy: "sessions DESC",
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -106,13 +111,13 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			"browser_name as name",
 			"uniq(session_id) as sessions",
 			"uniq(anonymous_id) as visitors",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
 		where: ["event_name = 'screen_view'", "browser_name != ''"],
 		groupBy: ["browser_name"],
 		orderBy: "sessions DESC",
 		limit: 100,
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -127,12 +132,12 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			"toDate(time) as date",
 			"uniq(session_id) as sessions",
 			"uniq(anonymous_id) as visitors",
-			"ROUND(AVG(CASE WHEN time_on_page > 0 THEN time_on_page / 1000 ELSE NULL END), 2) as avg_session_duration",
 		],
 		where: ["event_name = 'screen_view'"],
 		groupBy: ["toDate(time)"],
 		orderBy: "date ASC",
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -144,7 +149,9 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["sessions", "flow", "paths", "transitions"],
 		},
 		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
+			const filterClause = appendFilterClause(filterConditions);
 			return {
 				sql: `
 				WITH page_events AS (
@@ -164,6 +171,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 						AND event_name = 'screen_view'
 						AND session_id != ''
 						AND path != ''
+						${filterClause}
 				)
 				SELECT
 					path as from_path,
@@ -177,10 +185,16 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 				ORDER BY transitions DESC
 				LIMIT 100
 			`,
-				params: { websiteId, startDate, endDate: inclusiveEndDate(endDate) },
+				params: {
+					websiteId,
+					startDate,
+					endDate: inclusiveEndDate(endDate),
+					...filterParams,
+				},
 			};
 		},
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -202,6 +216,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 		orderBy: "sessions DESC",
 		limit: 100,
 		timeField: "time",
+		allowedFilters: ["profile_id", "anonymous_id"],
 		customizable: true,
 	} satisfies SimpleQueryConfig,
 
@@ -213,9 +228,11 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 			tags: ["sessions", "investigation", "product-usage"],
 		},
 		customSql: (ctx) => {
-			const { websiteId, startDate, endDate } = ctx;
+			const { websiteId, startDate, endDate, filterConditions, filterParams } =
+				ctx;
 			const limit = ctx.limit ?? 10;
 			const offset = ctx.offset ?? 0;
+			const filterClause = appendFilterClause(filterConditions);
 			return {
 				sql: `
 				WITH base_sessions AS (
@@ -239,6 +256,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 						AND time >= toDateTime({startDate:String})
 						AND time <= toDateTime({endDate:String})
 						AND session_id != ''
+						${filterClause}
 					GROUP BY session_id
 				),
 				custom_counts AS (
@@ -346,9 +364,11 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 					endDate: inclusiveEndDate(endDate),
 					limit,
 					offset,
+					...filterParams,
 				},
 			};
 		},
+		allowedFilters: ["profile_id", "anonymous_id"],
 		plugins: { normalizeGeo: true },
 	} satisfies SimpleQueryConfig,
 
@@ -474,6 +494,7 @@ export const SessionsBuilders: Record<string, SimpleQueryConfig> = {
 				},
 			};
 		},
+		allowedFilters: ["profile_id", "anonymous_id"],
 		plugins: {
 			normalizeGeo: true,
 		},

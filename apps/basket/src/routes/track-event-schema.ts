@@ -48,6 +48,7 @@ const anonymizeVisitorIds = z
 const trackEventObject = z.object({
 	name: z.string().min(1).max(256),
 	namespace: z.string().max(64).optional(),
+	path: z.string().max(VALIDATION_LIMITS.STRING_MAX_LENGTH).optional(),
 	timestamp: timestampSchema.optional(),
 	properties: boundedProperties.optional(),
 	anonymousId: z.string().max(256).optional(),

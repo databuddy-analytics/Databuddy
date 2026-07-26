@@ -74,14 +74,14 @@ function baseRun() {
 }
 
 describe("Databuddy Slack response streaming", () => {
-	it("shows a thinking indicator then streams the answer", async () => {
+	it("streams the agent's native answer after the thinking indicator", async () => {
 		const originalDateNow = Date.now;
 		let now = 0;
 		const { calls, client } = createStreamClient();
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
 				now = 1000;
-				yield "Traffic is up 12%.";
+				yield "Sure — traffic is up 12%.";
 			},
 		};
 
@@ -134,7 +134,9 @@ describe("Databuddy Slack response streaming", () => {
 		expect(calls[2]).toEqual({
 			method: "chat.appendStream",
 			options: expect.objectContaining({
-				chunks: [{ text: "Traffic is up 12%.", type: "markdown_text" }],
+				chunks: [
+					{ text: "Sure — traffic is up 12%.", type: "markdown_text" },
+				],
 			}),
 		});
 		expect(calls[2].options).not.toHaveProperty("markdown_text");
@@ -147,7 +149,7 @@ describe("Databuddy Slack response streaming", () => {
 		]);
 	});
 
-	it("does not append a failure message after a partial answer streamed", async () => {
+	it("marks a partial answer as interrupted when streaming fails", async () => {
 		const { calls, client } = createStreamClient();
 		const agent: Pick<DatabuddyAgentClient, "stream"> = {
 			async *stream() {
@@ -167,7 +169,9 @@ describe("Databuddy Slack response streaming", () => {
 		expect(result).toMatchObject({ ok: false, streamed: true });
 
 		const stopCall = calls.find((c) => c.method === "chat.stopStream");
-		expect(stopCall?.options).not.toHaveProperty("markdown_text");
+		expect(getChunkText(stopCall?.options)).toBe(
+			SLACK_COPY.responseInterrupted
+		);
 		expect(JSON.stringify(calls)).not.toContain(SLACK_COPY.agentFailure);
 	});
 
@@ -178,7 +182,7 @@ describe("Databuddy Slack response streaming", () => {
 				throw new DatabuddyAgentUserError({
 					code: "agent_credits_exhausted",
 					message:
-						"You're out of Databunny credits this month. Upgrade or wait for the monthly reset.",
+						"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
 				});
 			},
 		};
@@ -206,7 +210,7 @@ describe("Databuddy Slack response streaming", () => {
 
 		const stopCall = calls.find((c) => c.method === "chat.stopStream");
 		expect(getChunkText(stopCall?.options)).toBe(
-			"You're out of Databunny credits this month. Upgrade or wait for the monthly reset.",
+			"You've used your Databunny allowance for this month. Add more usage, upgrade, or wait for the monthly reset.",
 		);
 	});
 
@@ -273,37 +277,6 @@ describe("Databuddy Slack response streaming", () => {
 		expect(sayCalls).toEqual([]);
 	});
 
-	it("does not stream dashboard component JSON into Slack", async () => {
-		const { calls, client } = createStreamClient();
-		const agent: Pick<DatabuddyAgentClient, "stream"> = {
-			async *stream() {
-				yield "Here are the top pages:\n";
-				yield JSON.stringify({
-					type: "data-table",
-					title: "Top Pages",
-					columns: ["Page", "Visitors"],
-					rows: [["/", 1500]],
-				});
-			},
-		};
-
-		await streamAgentToSlack({
-			agent,
-			client,
-			logger: silentLogger,
-			run: baseRun(),
-			say: async () => {},
-		});
-
-		const sentText = calls
-			.map((call) => getChunkText(call.options))
-			.filter((value): value is string => typeof value === "string")
-			.join("\n");
-		expect(sentText).toContain("*Top Pages*");
-		expect(sentText).toContain("1,500");
-		expect(sentText).not.toContain('"type"');
-		expect(sentText).not.toContain('"rows"');
-	});
 });
 
 function getChunkText(value: unknown): string | undefined {

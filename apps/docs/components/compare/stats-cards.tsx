@@ -20,7 +20,7 @@ export function StatsCards({
 					<div>
 						<h3 className="font-semibold text-lg text-primary">Databuddy</h3>
 						<p className="text-muted-foreground text-xs">
-							Privacy-first analytics with AI insights
+							Privacy-first analytics with automatic investigations
 						</p>
 					</div>
 					<Badge className="bg-primary text-primary-foreground">
@@ -35,7 +35,7 @@ export function StatsCards({
 					</div>
 					<div className="flex items-center justify-between">
 						<span className="text-muted-foreground">Free tier</span>
-						<span className="font-medium">10K pageviews</span>
+						<span className="font-medium">10K events</span>
 					</div>
 					<div className="flex items-center justify-between">
 						<span className="text-muted-foreground">Advantages</span>

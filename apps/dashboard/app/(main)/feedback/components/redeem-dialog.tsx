@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button, Text } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 import { ArrowRightIcon, CreditCardIcon } from "@databuddy/ui/icons";
+import { DATABUNNY_USAGE } from "@databuddy/shared/billing";
 import { orpc } from "@/lib/orpc";
 
 interface RedeemDialogProps {
@@ -26,13 +27,13 @@ export function RedeemDialog({
 }: RedeemDialogProps) {
 	const queryClient = useQueryClient();
 	const rewardLabel =
-		rewardType === "agent-credits" ? "Agent credits" : "Events";
+		rewardType === "agent-credits" ? DATABUNNY_USAGE.unit : "events";
 
 	const redeemMutation = useMutation({
 		...orpc.feedback.redeemCredits.mutationOptions(),
 		onSuccess: (result) => {
 			toast.success(
-				`Redeemed ${result.rewardAmount.toLocaleString()} ${rewardLabel.toLowerCase()}. ${result.remainingCredits.toLocaleString()} credits remaining.`
+				`Redeemed ${result.rewardAmount.toLocaleString()} ${rewardLabel.toLowerCase()}. ${result.remainingCredits.toLocaleString()} feedback credits remaining.`
 			);
 			queryClient.invalidateQueries({
 				queryKey: orpc.feedback.getCreditsBalance.queryOptions().queryKey,
@@ -40,7 +41,7 @@ export function RedeemDialog({
 			onOpenChangeAction(false);
 		},
 		onError: (error) => {
-			toast.error(error.message || "Failed to redeem credits");
+			toast.error(error.message || "Failed to redeem feedback credits");
 		},
 	});
 
@@ -53,7 +54,9 @@ export function RedeemDialog({
 							<CreditCardIcon className="size-4" />
 						</div>
 						<div>
-							<Dialog.Title className="text-sm">Redeem credits</Dialog.Title>
+							<Dialog.Title className="text-sm">
+								Redeem feedback credits
+							</Dialog.Title>
 							<Dialog.Description>
 								Confirm this exchange before we update your balance.
 							</Dialog.Description>
@@ -70,7 +73,7 @@ export function RedeemDialog({
 								{creditsRequired.toLocaleString()}
 							</p>
 							<Text tone="muted" variant="caption">
-								credits
+								feedback credits
 							</Text>
 						</div>
 

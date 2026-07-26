@@ -15,17 +15,6 @@ export interface WithCacheArgs<T> {
 	ttl?: number;
 }
 
-function debugLog(
-	level: "info" | "error",
-	message: string,
-	...args: unknown[]
-) {
-	if (!process.env.DEBUG) {
-		return;
-	}
-	console[level](`[drizzle-cache] ${message}`, ...args);
-}
-
 const inflightRequests = new Map<string, Promise<unknown>>();
 
 export function createDrizzleCache({
@@ -59,14 +48,7 @@ export function createDrizzleCache({
 		result: unknown,
 		ttl: number
 	) {
-		const start = Date.now();
-		try {
-			await redis.setex(cacheKey, ttl, JSON.stringify(result));
-			const duration = Date.now() - start;
-			debugLog("info", `SET: ${cacheKey} (${duration}ms, ttl=${ttl}s)`);
-		} catch (error) {
-			debugLog("error", `Redis SET failed for ${cacheKey}`, error);
-		}
+		await redis.setex(cacheKey, ttl, JSON.stringify(result));
 	}
 
 	async function setupInvalidationTracking(
@@ -74,36 +56,23 @@ export function createDrizzleCache({
 		tables: string[],
 		tag?: string
 	) {
-		const start = Date.now();
-		try {
-			const operations: Promise<unknown>[] = tables.map((table) =>
-				redis.sadd(formatDependencyKey(table), key)
-			);
+		const operations: Promise<unknown>[] = tables.map((table) =>
+			redis.sadd(formatDependencyKey(table), key)
+		);
 
-			if (tag) {
-				operations.push(redis.sadd(formatTagKey(tag), key));
-			}
-
-			// maintain reverse index of sets containing this logical key
-			const indexMembers: string[] = [
-				...tables.map((table) => formatDependencyKey(table)),
-				...(tag ? [formatTagKey(tag)] : []),
-			];
-			if (indexMembers.length > 0) {
-				operations.push(redis.sadd(formatByKeyIndex(key), ...indexMembers));
-			}
-
-			await Promise.all(operations);
-
-			const duration = Date.now() - start;
-			debugLog(
-				"info",
-				`TRACKING: tables=[${tables.join(",")}] tag=${tag ?? ""} (${duration}ms)`
-			);
-		} catch (error) {
-			debugLog("error", `Invalidation tracking failed for key ${key}`, error);
-			throw error;
+		if (tag) {
+			operations.push(redis.sadd(formatTagKey(tag), key));
 		}
+
+		const indexMembers: string[] = [
+			...tables.map((table) => formatDependencyKey(table)),
+			...(tag ? [formatTagKey(tag)] : []),
+		];
+		if (indexMembers.length > 0) {
+			operations.push(redis.sadd(formatByKeyIndex(key), ...indexMembers));
+		}
+
+		await Promise.all(operations);
 	}
 
 	return {
@@ -121,27 +90,19 @@ export function createDrizzleCache({
 			}
 
 			const cacheKey = formatCacheKey(key);
-			const start = Date.now();
-
 			try {
 				const cached = await redis.get(cacheKey);
 				if (cached) {
-					const duration = Date.now() - start;
-					debugLog("info", `HIT: ${cacheKey} (${duration}ms)`);
 					return JSON.parse(cached);
 				}
-			} catch (error) {
-				debugLog("error", `Redis GET failed for ${cacheKey}`, error);
+			} catch {
+				// Cache reads are best effort; run the source query on failure.
 			}
 
 			// Single-flight protection: wait for existing request
 			if (inflightRequests.has(cacheKey)) {
-				debugLog("info", `WAIT: ${cacheKey} (single-flight)`);
 				return inflightRequests.get(cacheKey) as Promise<T>;
 			}
-
-			const missStart = Date.now();
-			debugLog("info", `MISS: ${cacheKey}`);
 
 			const promise = (async () => {
 				const result = await queryFn();
@@ -151,12 +112,10 @@ export function createDrizzleCache({
 						await setupInvalidationTracking(key, tables, tag);
 					}
 					await setCacheWithTtl(cacheKey, result, ttl);
-				} catch (error) {
-					debugLog("error", `Cache write skipped for ${cacheKey}`, error);
+				} catch {
+					// Cache writes are best effort; return the source result.
 				}
 
-				const duration = Date.now() - missStart;
-				debugLog("info", `RESOLVED: ${cacheKey} (${duration}ms)`);
 				return result;
 			})();
 

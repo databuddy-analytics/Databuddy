@@ -6,7 +6,7 @@ import { relations } from "./drizzle/schema/relations";
 
 type DB = NodePgDatabase<typeof relations>;
 
-const DEFAULT_POOL_MAX = 30;
+const DEFAULT_POOL_MAX = 10;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 2000;
 
 let _pgErrorFn: ((error: Error) => void) | null = null;
@@ -74,10 +74,7 @@ function getDb(): DB {
 			connectionString: connectionStringForNodePg(databaseUrl),
 			max: parsePositiveInt(process.env.DB_POOL_MAX, DEFAULT_POOL_MAX),
 			idleTimeoutMillis: 30_000,
-			connectionTimeoutMillis: parsePositiveInt(
-				process.env.DB_CONNECTION_TIMEOUT_MS,
-				DEFAULT_CONNECTION_TIMEOUT_MS
-			),
+			connectionTimeoutMillis: DEFAULT_CONNECTION_TIMEOUT_MS,
 			application_name: process.env.SERVICE_NAME || "databuddy",
 		});
 		timePoolQueries(_pool);

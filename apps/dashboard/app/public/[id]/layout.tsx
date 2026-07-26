@@ -44,7 +44,10 @@ export default function PublicWebsiteLayout({
 
 	if (!id) {
 		return (
-			<WebsiteErrorState error={{ data: { code: "NOT_FOUND" } }} isDemoRoute />
+			<WebsiteErrorState
+				error={{ data: { code: "NOT_FOUND" } }}
+				isPublicDashboard
+			/>
 		);
 	}
 
@@ -52,7 +55,7 @@ export default function PublicWebsiteLayout({
 		return (
 			<WebsiteErrorState
 				error={websiteError}
-				isDemoRoute
+				isPublicDashboard
 				websiteId={websiteId}
 			/>
 		);

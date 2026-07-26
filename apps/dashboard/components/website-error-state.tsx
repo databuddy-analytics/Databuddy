@@ -55,6 +55,7 @@ function flattenNavigation(groups: NavigationGroup[]): SearchItem[] {
 interface WebsiteErrorStateProps {
 	error: unknown;
 	isDemoRoute?: boolean;
+	isPublicDashboard?: boolean;
 	websiteId?: string;
 }
 
@@ -129,9 +130,11 @@ export function WebsiteErrorState({
 	error,
 	websiteId: _websiteId,
 	isDemoRoute = false,
+	isPublicDashboard = false,
 }: WebsiteErrorStateProps) {
 	const router = useRouter();
-	const { type, message } = getErrorType(error);
+	const { type } = getErrorType(error);
+	const isPublicView = isDemoRoute || isPublicDashboard;
 
 	const _getErrorCode = () => {
 		switch (type) {
@@ -174,32 +177,49 @@ export function WebsiteErrorState({
 	const getTitle = () => {
 		switch (type) {
 			case "not_found":
-				return "Website Not Found";
+				return isPublicDashboard
+					? "Dashboard not available"
+					: "Website not found";
 			case "unauthorized":
-				return isDemoRoute ? "Demo Not Available" : "Authentication Required";
+				if (isPublicDashboard) {
+					return "Dashboard not available";
+				}
+				return isDemoRoute ? "Demo not available" : "Authentication required";
 			case "forbidden":
-				return isDemoRoute ? "Demo Not Available" : "Access Denied";
+				if (isPublicDashboard) {
+					return "Dashboard not available";
+				}
+				return isDemoRoute ? "Demo not available" : "Access denied";
 			default:
-				return "Something Went Wrong";
+				return "Something went wrong";
 		}
 	};
 
 	const getDescription = () => {
 		switch (type) {
 			case "not_found":
+				if (isPublicDashboard) {
+					return "This shared dashboard does not exist or sharing has been turned off.";
+				}
 				return isDemoRoute
 					? "This demo page doesn't exist or is no longer available."
 					: "The website you're looking for doesn't exist or has been removed.";
 			case "unauthorized":
+				if (isPublicDashboard) {
+					return "This dashboard is private or sharing has been turned off.";
+				}
 				return isDemoRoute
 					? "This demo page is private and requires authentication."
 					: "You need to sign in to view this website's analytics.";
 			case "forbidden":
+				if (isPublicDashboard) {
+					return "This dashboard is private or sharing has been turned off.";
+				}
 				return isDemoRoute
 					? "This demo page is private and requires authentication."
 					: "You don't have permission to view this website's analytics.";
 			default:
-				return message || "We encountered an error while loading this website.";
+				return "We couldn't load this website. Try again in a moment.";
 		}
 	};
 
@@ -227,7 +247,7 @@ export function WebsiteErrorState({
 
 	const canGoBack = typeof window !== "undefined" && window.history.length > 1;
 
-	if (!isDemoRoute && (type === "not_found" || type === "forbidden")) {
+	if (!isPublicView && (type === "not_found" || type === "forbidden")) {
 		return (
 			<ResourceUnavailableState
 				backHref="/websites"
@@ -251,15 +271,12 @@ export function WebsiteErrorState({
 							Go Back
 						</Button>
 					)}
-					<Link
-						className={canGoBack ? "flex-1" : "w-full"}
-						href={isDemoRoute ? "/" : "/websites"}
-					>
-						<Button className="w-full">
+					<Button asChild className={canGoBack ? "flex-1" : "w-full"}>
+						<Link href={isPublicView ? "/" : "/websites"}>
 							<HouseIcon className="mr-2 size-4" weight="duotone" />
-							Back to Websites
-						</Button>
-					</Link>
+							{isPublicView ? "Go to homepage" : "Back to websites"}
+						</Link>
+					</Button>
 				</>
 			);
 		}
@@ -267,11 +284,11 @@ export function WebsiteErrorState({
 		if (type === "unauthorized" || type === "forbidden") {
 			return (
 				<div className="flex w-full max-w-xs flex-col gap-4 sm:flex-row">
-					{isDemoRoute ? (
+					{isPublicView ? (
 						<>
 							<Button
 								className="flex-1"
-								onClick={() => router.push("/auth/sign-in")}
+								onClick={() => router.push("/login")}
 								size="lg"
 							>
 								Sign In
@@ -298,7 +315,7 @@ export function WebsiteErrorState({
 							{type === "unauthorized" && (
 								<Button
 									className="flex-1"
-									onClick={() => router.push("/auth/sign-in")}
+									onClick={() => router.push("/login")}
 									size="lg"
 									variant="secondary"
 								>
@@ -318,11 +335,11 @@ export function WebsiteErrorState({
 				</Button>
 				<Button
 					className="flex-1"
-					onClick={() => router.push(isDemoRoute ? "/" : "/websites")}
+					onClick={() => router.push(isPublicView ? "/" : "/websites")}
 					size="lg"
 					variant="secondary"
 				>
-					{isDemoRoute ? "Go to Homepage" : "Back to Websites"}
+					{isPublicView ? "Go to homepage" : "Back to websites"}
 				</Button>
 			</div>
 		);
@@ -368,7 +385,7 @@ export function WebsiteErrorState({
 						</p>
 					</div>
 
-					{type === "not_found" && (
+					{type === "not_found" && !isPublicView && (
 						<Button
 							className="mt-6 w-full max-w-xs"
 							onClick={() => setOpen(true)}
@@ -383,7 +400,7 @@ export function WebsiteErrorState({
 						</Button>
 					)}
 
-					{type === "not_found" && (
+					{type === "not_found" && !isPublicView && (
 						<Dialog onOpenChange={setOpen} open={open}>
 							<Dialog.Content className="gap-0 overflow-hidden p-0 sm:max-w-xl">
 								<Dialog.Header className="sr-only">

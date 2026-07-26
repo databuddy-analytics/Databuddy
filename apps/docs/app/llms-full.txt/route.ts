@@ -9,7 +9,7 @@ export const revalidate = false;
 
 const HEADER = `# Databuddy Documentation (Full)
 
-> Privacy-first web analytics. 65x faster than Google Analytics, GDPR compliant, no cookies required.
+> Lightweight web analytics with an asynchronous tracker, GDPR compliant, no cookies required.
 > This file contains the complete documentation corpus for long-context agents.
 
 `;

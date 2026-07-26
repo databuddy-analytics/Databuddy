@@ -16,7 +16,19 @@ interface StatusPageProps {
 const DAYS = 90;
 
 async function getStatusData(slug: string) {
-	return rpcClient.statusPage.getBySlug({ slug, days: DAYS }).catch(() => null);
+	try {
+		return await rpcClient.statusPage.getBySlug({ slug, days: DAYS });
+	} catch (error) {
+		if (
+			error &&
+			typeof error === "object" &&
+			"code" in error &&
+			error.code === "NOT_FOUND"
+		) {
+			return null;
+		}
+		throw error;
+	}
 }
 
 function slugify(text: string): string {
@@ -190,7 +202,10 @@ export default async function StatusPage({ params }: StatusPageProps) {
 										domain={monitor.domain ?? undefined}
 										id={monitor.id}
 										key={monitor.id}
+										lastCheckedAt={monitor.lastCheckedAt}
 										name={monitor.name}
+										freshness={monitor.freshness}
+										status={monitor.currentStatus}
 										uptimePercentage={monitor.uptimePercentage ?? undefined}
 									/>
 								))}

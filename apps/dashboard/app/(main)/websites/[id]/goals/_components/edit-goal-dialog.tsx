@@ -222,14 +222,18 @@ export function EditGoalDialog({
 							</Field>
 							<Field>
 								<Field.Label>
-									Description{" "}
+									Business meaning{" "}
 									<span className="text-muted-foreground">(optional)</span>
 								</Field.Label>
 								<Input
 									onChange={(e) => updateField("description", e.target.value)}
-									placeholder="What this goal tracks"
+									placeholder="A visitor completes their first paid subscription"
 									value={formData.description || ""}
 								/>
+								<Field.Description>
+									Helps Databuddy distinguish tracking problems from real
+									conversion changes.
+								</Field.Description>
 							</Field>
 						</div>
 

@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "bun:test";
 import {
 	CUSTOM_EVENTS_VISITOR_KEY,
@@ -6,11 +7,19 @@ import {
 	PROFILE_ID_TABLES,
 	visitorMatch,
 } from "./identity";
+import { parseTable, readSql, sqlFiles } from "./schema-parse";
 import { AGENT_TABLE_COLUMNS } from "./sql-validation";
 
-const schemaSource = readFileSync(
-	new URL("./schema.ts", import.meta.url),
-	"utf8"
+const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "schema");
+const tablesByName = new Map(
+	sqlFiles(SCHEMA_DIR, false).flatMap((file) => {
+		try {
+			const parsed = parseTable(readSql(file));
+			return [[parsed.name, parsed] as const];
+		} catch {
+			return [];
+		}
+	})
 );
 
 describe("identity sql expressions", () => {
@@ -21,11 +30,15 @@ describe("identity sql expressions", () => {
 		}
 	});
 
-	test("schema defines profile_id in create and migration paths", () => {
-		expect(schemaSource).toContain("profile_id String DEFAULT ''");
-		expect(
-			schemaSource.match(/ADD COLUMN IF NOT EXISTS profile_id/g)?.length
-		).toBe(PROFILE_ID_TABLES.length);
+	test("every profile table defines profile_id in its .sql schema", () => {
+		for (const table of PROFILE_ID_TABLES) {
+			const parsed = tablesByName.get(table.split(".").at(-1) ?? table);
+			expect(parsed, `${table} .sql schema not found`).toBeDefined();
+			const column = parsed?.columns.find((c) => c.name === "profile_id");
+			expect(column, `${table} is missing a profile_id column`).toBeDefined();
+			expect(column?.type).toBe("String");
+			expect(column?.hasDefault).toBe(true);
+		}
 	});
 
 	test("visitor keys fall back from profile_id to anonymous_id", () => {
@@ -37,5 +50,11 @@ describe("identity sql expressions", () => {
 			expect(expression).toContain("profile_id");
 			expect(expression).toContain("anonymous_id");
 		}
+	});
+
+	test("nullable visitor keys do not invent an unidentified visitor", () => {
+		expect(CUSTOM_EVENTS_VISITOR_KEY).toContain("nullIf(profile_id, '')");
+		expect(CUSTOM_EVENTS_VISITOR_KEY).toContain("nullIf(anonymous_id, '')");
+		expect(CUSTOM_EVENTS_VISITOR_KEY).not.toContain("ifNull(anonymous_id, '')");
 	});
 });

@@ -1,16 +1,23 @@
 import { tool } from "ai";
 import dayjs from "dayjs";
 import { z } from "zod";
-import { callRPCProcedure, createToolLogger, getAppContext } from "./utils";
+import {
+	callRPCProcedure,
+	createToolLogger,
+	getAppContext,
+	resolveToolWebsite,
+} from "./utils";
 
 const logger = createToolLogger("Funnels Tools");
 
 export function createFunnelTools() {
 	const listFunnelsTool = tool({
-		description: "List funnels with steps, filters, metadata.",
-		inputSchema: z.object({ websiteId: z.string() }),
-		execute: async ({ websiteId }, options) => {
+		description:
+			"List funnels with steps, filters, and metadata. Omit websiteId to use the current website.",
+		inputSchema: z.object({ websiteId: z.string().optional() }),
+		execute: async ({ websiteId: inputWebsiteId }, options) => {
 			const context = getAppContext(options);
+			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
 				const result = await callRPCProcedure(
 					"funnels",
@@ -33,15 +40,19 @@ export function createFunnelTools() {
 
 	const getFunnelAnalyticsTool = tool({
 		description:
-			"Funnel analytics: conversion rates, drop-offs, step metrics. Dates YYYY-MM-DD, default last 30d.",
+			"Funnel step conversion and drop-offs for a chosen date range. Do not repeat an exact overall measurement already supplied by the caller.",
 		inputSchema: z.object({
 			funnelId: z.string(),
-			websiteId: z.string(),
+			websiteId: z.string().optional(),
 			startDate: z.string().optional(),
 			endDate: z.string().optional(),
 		}),
-		execute: async ({ funnelId, websiteId, startDate, endDate }, options) => {
+		execute: async (
+			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
+			options
+		) => {
 			const context = getAppContext(options);
+			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
 				if (startDate && !dayjs(startDate).isValid()) {
 					throw new Error(
@@ -80,12 +91,16 @@ export function createFunnelTools() {
 			"Funnel analytics broken down by referrer/source. Shows which sources convert best.",
 		inputSchema: z.object({
 			funnelId: z.string(),
-			websiteId: z.string(),
+			websiteId: z.string().optional(),
 			startDate: z.string().optional(),
 			endDate: z.string().optional(),
 		}),
-		execute: async ({ funnelId, websiteId, startDate, endDate }, options) => {
+		execute: async (
+			{ funnelId, websiteId: inputWebsiteId, startDate, endDate },
+			options
+		) => {
 			const context = getAppContext(options);
+			const { websiteId } = resolveToolWebsite(context, inputWebsiteId);
 			try {
 				if (startDate && !dayjs(startDate).isValid()) {
 					throw new Error(

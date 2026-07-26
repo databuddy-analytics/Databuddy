@@ -1,4 +1,4 @@
-import type { AnalyticsEvent } from "@databuddy/db/clickhouse/schema";
+import type { EventsInsert } from "@databuddy/db/clickhouse/tables";
 import { randomUUIDv7 } from "bun";
 import type { ImportContext } from "../types";
 
@@ -55,7 +55,7 @@ function formatBrowserName(browser: string): string {
 export function mapUmamiRow(
 	row: UmamiCsvRow,
 	ctx: ImportContext
-): AnalyticsEvent {
+): EventsInsert {
 	return {
 		id: randomUUIDv7(),
 		client_id: ctx.clientId,
@@ -63,8 +63,6 @@ export function mapUmamiRow(
 		anonymous_id: row.distinct_id || `anon_${randomUUIDv7()}`,
 		time: new Date(row.created_at).getTime(),
 		session_id: row.session_id || "",
-		event_type: "track",
-		event_id: row.event_id,
 		referrer: row.referrer_domain?.trim() || "direct",
 		url: row.url_path,
 		path: row.url_path,
@@ -77,7 +75,6 @@ export function mapUmamiRow(
 		country: row.country || "",
 		region: row.region || "",
 		city: row.city || "",
-		screen_resolution: row.screen || "",
 		language: row.language || "",
 		page_count: 1,
 		utm_source: row.utm_source || "",

@@ -65,6 +65,17 @@ const STATUS_CONFIG = {
 		lineClass: "bg-[#e1282a] dark:bg-[#cf6675]",
 		textClass: "text-[#915a5a] dark:text-[#ee9b9b]",
 	},
+	unknown: {
+		title: "Status Unavailable",
+		shortLabel: "Unknown",
+		description:
+			"We don't have enough recent monitoring data to confirm service health.",
+		sectionClass:
+			"border-border/70 bg-muted/40 dark:border-border dark:bg-muted/25",
+		headerClass: "bg-muted text-foreground",
+		lineClass: "bg-muted-foreground/50",
+		textClass: "text-muted-foreground",
+	},
 } as const;
 
 function pluralize(count: number, singular: string, plural = `${singular}s`) {
@@ -75,7 +86,7 @@ interface StatusHeaderProps {
 	activeIncidentCount: number;
 	className?: string;
 	description?: string;
-	status: "operational" | "degraded" | "outage";
+	status: "operational" | "degraded" | "outage" | "unknown";
 }
 
 function StatusHeader({

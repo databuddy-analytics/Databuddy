@@ -131,6 +131,7 @@ export function FlagsProvider({ children, ...config }: FlagsProviderProps) {
 			updateUser: (user: UserContext) => manager.updateUser(user),
 			refresh: (forceClear = false) => manager.refresh(forceClear),
 			isReady: store.isReady,
+			lastError: store.lastError,
 		}),
 		[manager, store, config.isPending]
 	);
@@ -161,6 +162,7 @@ export function useFlags(): FlagsContext {
 			updateUser: () => {},
 			refresh: async () => {},
 			isReady: false,
+			lastError: null,
 		};
 	}
 	return context;

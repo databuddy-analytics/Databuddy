@@ -8,6 +8,7 @@ import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { useLogger } from "evlog/elysia";
 import { getResolvedAuth } from "@/lib/auth-wide-event";
+import { getRequestId } from "@/http/request-id";
 import { logOrpcHandlerError } from "./interceptors";
 
 export type OrpcContext = Awaited<ReturnType<typeof createRPCContext>>;
@@ -51,6 +52,7 @@ async function handleOrpcRequest(
 	createContext: (request: Request) => Promise<OrpcContext>,
 	handle: OrpcRouteHandler
 ) {
+	const requestId = getRequestId(request);
 	try {
 		const context = await createContext(request);
 		const result = await handle(request, context);
@@ -61,8 +63,9 @@ async function handleOrpcRequest(
 					success: false,
 					error: "Not found",
 					code: "NOT_FOUND",
+					requestId,
 				},
-				{ status: 404 }
+				{ status: 404, headers: { "X-Request-ID": requestId } }
 			)
 		);
 	} catch (error) {
@@ -78,8 +81,9 @@ async function handleOrpcRequest(
 				success: false,
 				error: "An internal server error occurred",
 				code: "INTERNAL_SERVER_ERROR",
+				requestId,
 			},
-			{ status: 500 }
+			{ status: 500, headers: { "X-Request-ID": requestId } }
 		);
 	}
 }

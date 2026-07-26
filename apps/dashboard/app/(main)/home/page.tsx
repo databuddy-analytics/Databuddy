@@ -1,22 +1,25 @@
 "use client";
 
+import { useInfiniteQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
+import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { WebsiteDialog } from "@/components/website-dialog";
 import { useWebsites } from "@/hooks/use-websites";
+import { insightQueries } from "@/lib/insight-api";
 import { cn } from "@/lib/utils";
 import { WebsiteCard } from "../websites/_components/website-card";
+import { InsightsSection } from "./_components/insights-section";
 import { MonitorsSection } from "./_components/monitors-section";
-import { SmartInsightsSection } from "./_components/smart-insights-section";
 import { SummaryStats } from "./_components/summary-stats";
 import { useGlobalAnalytics } from "./hooks/use-global-analytics";
 import { usePulseStatus } from "./hooks/use-pulse-status";
-import { useSmartInsights } from "./hooks/use-smart-insights";
 import { ArrowClockwiseIcon, GlobeIcon, PlusIcon } from "@databuddy/ui/icons";
 import { Button, Card, EmptyState, Skeleton } from "@databuddy/ui";
 
 const WEBSITE_PREVIEW_LIMIT = 3;
+const INSIGHT_PREVIEW_LIMIT = 4;
 
 function WebsiteCardSkeleton() {
 	return (
@@ -45,6 +48,9 @@ function WebsiteCardSkeleton() {
 
 export default function HomePage() {
 	const [dialogOpen, setDialogOpen] = useState(false);
+	const { activeOrganization, activeOrganizationId } =
+		useOrganizationsContext();
+	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
 
 	const {
 		websites,
@@ -74,15 +80,15 @@ export default function HomePage() {
 		refetch: refetchMonitors,
 	} = usePulseStatus();
 
-	const {
-		insights,
-		isLoading: isInsightsLoading,
-		isRefreshing: isInsightsRefreshing,
-		isFetching: isInsightsFetching,
-		isFetchingFresh: isInsightsFetchingFresh,
-		isError: isInsightsError,
-		refetch: refetchInsights,
-	} = useSmartInsights();
+	const insightBrief = useInfiniteQuery(insightQueries.briefInfinite(orgId));
+	const insights =
+		insightBrief.data?.pages
+			.flatMap((page) => page.insights)
+			.slice(0, INSIGHT_PREVIEW_LIMIT) ?? [];
+	const isInsightsLoading = insightBrief.isLoading;
+	const isInsightsFetching = insightBrief.isFetching;
+	const isInsightsError = insightBrief.isError;
+	const refetchInsights = insightBrief.refetch;
 
 	const handleRefetch = async () => {
 		await Promise.all([
@@ -108,7 +114,8 @@ export default function HomePage() {
 						isFetching ||
 						isPulseLoading ||
 						isPulseFetching ||
-						isInsightsLoading
+						isInsightsLoading ||
+						isInsightsFetching
 					}
 					onClick={handleRefetch}
 					size="sm"
@@ -121,7 +128,7 @@ export default function HomePage() {
 							(isLoading ||
 								isFetching ||
 								isPulseFetching ||
-								isInsightsRefreshing) &&
+								isInsightsFetching) &&
 								"animate-spin"
 						)}
 					/>
@@ -137,7 +144,7 @@ export default function HomePage() {
 					isFetching ||
 					isPulseFetching ||
 					isInsightsLoading ||
-					isInsightsRefreshing
+					isInsightsFetching
 				}
 				className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-5"
 			>
@@ -154,13 +161,16 @@ export default function HomePage() {
 				/>
 
 				<div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-					<SmartInsightsSection
+					<InsightsSection
 						insights={insights}
-						isError={isInsightsError}
-						isFetching={isInsightsFetching}
-						isFetchingFresh={isInsightsFetchingFresh}
-						isLoading={isInsightsLoading}
-						onRefreshAction={refetchInsights}
+						onRetryAction={refetchInsights}
+						state={
+							isInsightsLoading
+								? "loading"
+								: isInsightsError
+									? "error"
+									: "ready"
+						}
 					/>
 					<MonitorsSection
 						activeMonitors={activeMonitors}

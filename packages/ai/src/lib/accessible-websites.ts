@@ -1,7 +1,8 @@
 import {
 	type ApiKeyRow,
 	getAccessibleWebsiteIds,
-	hasGlobalAccess,
+	hasKeyScope,
+	hasWebsiteScope,
 } from "@databuddy/api-keys/resolve";
 import { and, db, eq, inArray, isNull } from "@databuddy/db";
 import { member, websites } from "@databuddy/db/schema";
@@ -38,6 +39,25 @@ export async function getAccessibleWebsites(
 			if (authCtx.apiKey.organizationId !== organizationId) {
 				return [];
 			}
+			if (!hasKeyScope(authCtx.apiKey, "read:data")) {
+				const ids = getAccessibleWebsiteIds(authCtx.apiKey).filter((id) =>
+					hasWebsiteScope(authCtx.apiKey, id, "read:data")
+				);
+				if (ids.length === 0) {
+					return [];
+				}
+				return db
+					.select(select)
+					.from(websites)
+					.where(
+						and(
+							eq(websites.organizationId, organizationId),
+							inArray(websites.id, ids),
+							isNull(websites.deletedAt)
+						)
+					)
+					.orderBy((t) => t.createdAt);
+			}
 		} else if (authCtx.user) {
 			const [membership] = await db
 				.select({ organizationId: member.organizationId })
@@ -69,7 +89,7 @@ export async function getAccessibleWebsites(
 	}
 
 	if (authCtx.apiKey) {
-		if (hasGlobalAccess(authCtx.apiKey)) {
+		if (hasKeyScope(authCtx.apiKey, "read:data")) {
 			if (!authCtx.apiKey.organizationId) {
 				return [];
 			}
@@ -85,7 +105,9 @@ export async function getAccessibleWebsites(
 				.orderBy((t) => t.createdAt);
 		}
 
-		const ids = getAccessibleWebsiteIds(authCtx.apiKey);
+		const ids = getAccessibleWebsiteIds(authCtx.apiKey).filter((id) =>
+			hasWebsiteScope(authCtx.apiKey, id, "read:data")
+		);
 		if (ids.length === 0) {
 			return [];
 		}

@@ -13,6 +13,7 @@ import {
 import {
 	cleanupSlackActiveRun,
 	registerSlackActiveRun,
+	trackSlackRunPromise,
 } from "@/slack/active-runs";
 import { SLACK_COPY } from "@/slack/messages";
 import { streamAgentToSlack } from "@/slack/respond";
@@ -22,27 +23,37 @@ import type { SlackThreadQueueStore } from "@/slack/thread-queue";
 
 const MAX_FOLLOW_UP_ROUNDS = 3;
 const QUEUED_TAKEOVER_RETRY_DELAYS_MS = [0, 25, 75] as const;
+const RUN_TIMEOUT_MS = 5 * 60 * 1000;
 
-export async function handleAgentRun({
-	agent,
-	client,
-	logger,
-	run,
-	say,
-	threadQueue,
-}: {
+interface HandleAgentRunOptions {
 	agent: Pick<DatabuddyAgentClient, "stream">;
 	client: SlackAgentClient;
 	logger: SlackLogger;
 	run: SlackAgentRun;
 	say: SlackSay;
 	threadQueue: SlackThreadQueueStore;
-}): Promise<void> {
+}
+
+export function handleAgentRun(options: HandleAgentRunOptions): Promise<void> {
+	const runPromise = executeAgentRun(options);
+	trackSlackRunPromise(runPromise);
+	return runPromise;
+}
+
+async function executeAgentRun({
+	agent,
+	client,
+	logger,
+	run,
+	say,
+	threadQueue,
+}: HandleAgentRunOptions): Promise<void> {
 	const eventLog = createRunLog(run);
 	const startedAt = performance.now();
 	let lockAcquired = false;
 	let abortController: AbortController | null = null;
 	let registeredRun: SlackAgentRun | null = null;
+	let runTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	await withSlackLogContext(eventLog, async () => {
 		try {
@@ -80,7 +91,12 @@ export async function handleAgentRun({
 			}
 
 			registeredRun = currentRun;
-			abortController = registerSlackActiveRun(registeredRun);
+			abortController =
+				registerSlackActiveRun(registeredRun) ?? new AbortController();
+			runTimeout = setTimeout(() => {
+				setSlackLog(eventLog, { slack_run_timed_out: true });
+				abortController?.abort("timeout");
+			}, RUN_TIMEOUT_MS);
 			await addTriggerReaction({ client, eventLog, logger, run: currentRun });
 			const slackContext =
 				currentRun.slackContext ??
@@ -123,6 +139,9 @@ export async function handleAgentRun({
 				});
 			}
 		} finally {
+			if (runTimeout) {
+				clearTimeout(runTimeout);
+			}
 			if (lockAcquired) {
 				await threadQueue.release(run).catch((error) => {
 					logger.warn("Failed to release Slack thread lock", error);

@@ -8,6 +8,7 @@ import {
 import { eq } from "@databuddy/db";
 import { appRouter, type Context } from "@databuddy/rpc";
 import {
+	getTraitDistribution,
 	resolveTraitSegment,
 	splitTraits,
 	upsertProfile,
@@ -251,6 +252,33 @@ describe("upsertProfile trait history", () => {
 	});
 });
 
+describe("profiles.findByEmail", () => {
+	iit("finds a profile by exact email via the lookup hash", async () => {
+		const user = await signUp();
+		const org = await insertOrganization();
+		await addToOrganization(user.id, org.id, "member");
+		const website = await insertWebsite({ organizationId: org.id });
+		await upsertProfile(
+			website.id,
+			"user_1",
+			splitTraits({ email: "Jo@Acme.com", name: "Jo" })
+		);
+		const ctx = userContext(user, org.id);
+
+		const found = await call(appRouter.profiles.findByEmail, ctx)({
+			websiteId: website.id,
+			email: "jo@acme.com",
+		});
+		expect(found).toEqual({ profileId: "user_1" });
+
+		const missing = await call(appRouter.profiles.findByEmail, ctx)({
+			websiteId: website.id,
+			email: "nobody@acme.com",
+		});
+		expect(missing).toBeNull();
+	});
+});
+
 describe("profiles.traitKeys / traitValues", () => {
 	iit("lists distinct keys and values for the website only", async () => {
 		const user = await signUp();
@@ -289,6 +317,82 @@ describe("profiles.traitKeys / traitValues", () => {
 			call(appRouter.profiles.traitKeys, ctx)({ websiteId: website.id }),
 			"FORBIDDEN"
 		);
+	});
+});
+
+describe("getTraitDistribution", () => {
+	iit("ranks values per key with profile counts", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "u1", { traits: { plan: "pro" } });
+		await seedProfile(website.id, "u2", { traits: { plan: "pro" } });
+		await seedProfile(website.id, "u3", {
+			traits: { plan: "free", beta: true },
+		});
+
+		const distribution = await getTraitDistribution(website.id);
+		expect(distribution).toMatchObject({
+			hasMoreKeys: false,
+			hasMoreValues: false,
+			identifiedProfiles: 3,
+			returnedTraitKeys: 2,
+			totalTraitKeys: 2,
+			valuesPerKey: 20,
+		});
+		expect(distribution.traits).toEqual([
+			{ key: "beta", value: "true", profiles: 1 },
+			{ key: "plan", value: "pro", profiles: 2 },
+			{ key: "plan", value: "free", profiles: 1 },
+		]);
+	});
+
+	iit("gives every returned key a value before adding more values per key", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		const keys = Array.from({ length: 11 }, (_, index) => `trait_${index}`);
+
+		await Promise.all(
+			Array.from({ length: 20 }, (_, valueIndex) =>
+				seedProfile(website.id, `user_${valueIndex}`, {
+					traits: Object.fromEntries(
+						keys.map((key) => [key, `value_${valueIndex}`])
+					),
+				})
+			)
+		);
+
+		const distribution = await getTraitDistribution(website.id);
+		expect(distribution).toMatchObject({
+			hasMoreKeys: false,
+			hasMoreValues: true,
+			returnedTraitKeys: 11,
+			totalTraitKeys: 11,
+			valuesPerKey: 18,
+		});
+		expect(distribution.traits).toHaveLength(198);
+		expect(new Set(distribution.traits.map((trait) => trait.key))).toEqual(
+			new Set(keys)
+		);
+	});
+
+	iit("reports when lower-coverage keys are omitted by the row bound", async () => {
+		const org = await insertOrganization();
+		const website = await insertWebsite({ organizationId: org.id });
+		await seedProfile(website.id, "user_1", {
+			traits: Object.fromEntries(
+				Array.from({ length: 201 }, (_, index) => [`trait_${index}`, true])
+			),
+		});
+
+		const distribution = await getTraitDistribution(website.id);
+		expect(distribution).toMatchObject({
+			hasMoreKeys: true,
+			hasMoreValues: false,
+			returnedTraitKeys: 200,
+			totalTraitKeys: 201,
+			valuesPerKey: 1,
+		});
+		expect(distribution.traits).toHaveLength(200);
 	});
 });
 

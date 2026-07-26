@@ -78,6 +78,7 @@ export function createMcpAgentConfig(context: {
 			organizationId: context.organizationId ?? null,
 			requestHeaders: context.requestHeaders,
 			serviceAuth,
+			source: context.source ?? "mcp",
 			timezone,
 			userId: context.userId ?? "",
 			websiteId,

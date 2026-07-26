@@ -148,16 +148,19 @@ All options are passed under the `databuddy` key in `nuxt.config.ts`:
 | `clientId` | `string` | — | Your Databuddy client ID |
 | `disabled` | `boolean` | `false` | Disable all tracking |
 | `debug` | `boolean` | `false` | Enable verbose logging |
-| `trackWebVitals` | `boolean` | `false` | Core Web Vitals (LCP, CLS, TTFB) |
+| `trackWebVitals` | `boolean` | `false` | Core Web Vitals (LCP, INP, CLS, TTFB) |
 | `trackErrors` | `boolean` | `false` | JS errors + Vue component errors |
 | `trackOutgoingLinks` | `boolean` | `false` | Clicks on external links |
 | `trackInteractions` | `boolean` | `false` | Button clicks and form submissions |
 | `trackAttributes` | `boolean` | `false` | Elements with `data-track` attribute |
-| `trackPerformance` | `boolean` | `true` | Page load timing |
 | `maskPatterns` | `string[]` | `[]` | Glob patterns to anonymise paths |
 | `skipPatterns` | `string[]` | `[]` | Glob patterns to skip entirely |
 | `samplingRate` | `number` | `1.0` | Event sampling rate (0.0–1.0) |
 | `flags` | `FlagsConfig` | — | Feature flag configuration |
+
+<Callout type="info" title="Renamed from trackPerformance">
+  `trackPerformance` still works as a deprecated compatibility alias. Rename it to `trackWebVitals`; if both are set, `trackWebVitals` takes precedence.
+</Callout>
 
 ## Privacy
 

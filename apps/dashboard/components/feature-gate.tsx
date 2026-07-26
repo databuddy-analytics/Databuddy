@@ -36,7 +36,7 @@ const PLAN_CONFIG: Record<
 	},
 	[PLAN_IDS.PRO]: { name: "Pro", icon: StarIcon, color: "text-primary" },
 	[PLAN_IDS.SCALE]: {
-		name: "Scale",
+		name: "Enterprise",
 		icon: CrownIcon,
 		color: "text-brand-amber",
 	},
@@ -57,8 +57,13 @@ export function FeatureGate({
 	description,
 	blockWhileLoading = false,
 }: FeatureGateProps) {
-	const { isFeatureEnabled, currentPlanId, isLoading, canUserUpgrade } =
-		useBillingContext();
+	const {
+		isFeatureEnabled,
+		currentPlanId,
+		isLoading,
+		canUserUpgrade,
+		isOrganizationBilling,
+	} = useBillingContext();
 
 	if (isLoading && !blockWhileLoading) {
 		return <>{children}</>;
@@ -135,10 +140,29 @@ export function FeatureGate({
 							</Link>
 						</Button>
 					) : (
-						<div className="rounded-md border bg-muted/50 px-4 py-3 text-center">
-							<p className="font-medium text-muted-foreground text-sm">
-								Contact your organization owner to upgrade
-							</p>
+						<div className="space-y-3 rounded-md border bg-muted/50 px-4 py-3 text-center">
+							{isOrganizationBilling ? (
+								<>
+									<p className="font-medium text-muted-foreground text-sm">
+										Ask an organization owner or billing admin to upgrade to{" "}
+										{planConfig.name}.
+									</p>
+									<Button
+										asChild
+										className="w-full"
+										size="sm"
+										variant="secondary"
+									>
+										<Link href="/organizations/members">
+											View organization members
+										</Link>
+									</Button>
+								</>
+							) : (
+								<p className="font-medium text-muted-foreground text-sm">
+									Upgrade to {planConfig.name} to access this feature.
+								</p>
+							)}
 						</div>
 					)}
 				</Card.Content>

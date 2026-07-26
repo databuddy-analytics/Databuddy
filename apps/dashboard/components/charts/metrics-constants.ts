@@ -305,7 +305,7 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 	),
 	createMetric(
 		"avg_fid",
-		"FID (Avg)",
+		"FID (Legacy Avg)",
 		"avg_fid",
 		CursorClickIcon,
 		formatPerformanceTime,
@@ -313,7 +313,7 @@ export const CORE_WEB_VITALS_METRICS: MetricConfig[] = [
 	),
 	createMetric(
 		"p50_fid",
-		"FID (P50)",
+		"FID (Legacy P50)",
 		"p50_fid",
 		CursorClickIcon,
 		formatPerformanceTime,
