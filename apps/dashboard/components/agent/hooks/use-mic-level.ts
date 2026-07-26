@@ -4,7 +4,10 @@ import { useEffect, useRef } from "react";
 
 export function useMicLevel(active: boolean, onLevel: (level: number) => void) {
 	const onLevelRef = useRef(onLevel);
-	onLevelRef.current = onLevel;
+
+	useEffect(() => {
+		onLevelRef.current = onLevel;
+	}, [onLevel]);
 
 	useEffect(() => {
 		if (!active) {

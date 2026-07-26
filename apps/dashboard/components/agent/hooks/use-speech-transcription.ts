@@ -83,12 +83,17 @@ export function useSpeechTranscription() {
 
 	const stop = useCallback(() => {
 		shouldListenRef.current = false;
-		recognitionRef.current?.stop();
+		const recognition = recognitionRef.current;
+		recognitionRef.current = null;
+		recognition?.abort();
 		setStatus("idle");
 	}, []);
 
 	const start = useCallback(() => {
 		const Recognition = getSpeechRecognitionConstructor();
+		const previousRecognition = recognitionRef.current;
+		recognitionRef.current = null;
+		previousRecognition?.abort();
 		reset();
 
 		if (!Recognition) {
@@ -103,8 +108,13 @@ export function useSpeechTranscription() {
 		recognition.lang = navigator.language || "en-US";
 		recognitionRef.current = recognition;
 		shouldListenRef.current = true;
+		const isCurrentRecognition = () => recognitionRef.current === recognition;
 
 		recognition.onresult = (event) => {
+			if (!isCurrentRecognition()) {
+				return;
+			}
+
 			const finalParts: string[] = [];
 			const interimParts: string[] = [];
 
@@ -140,7 +150,7 @@ export function useSpeechTranscription() {
 		};
 
 		recognition.onerror = (event) => {
-			if (event.error === "aborted") {
+			if (!isCurrentRecognition() || event.error === "aborted") {
 				return;
 			}
 
@@ -168,7 +178,7 @@ export function useSpeechTranscription() {
 		};
 
 		recognition.onend = () => {
-			if (!shouldListenRef.current) {
+			if (!(shouldListenRef.current && isCurrentRecognition())) {
 				return;
 			}
 
@@ -194,7 +204,9 @@ export function useSpeechTranscription() {
 	useEffect(
 		() => () => {
 			shouldListenRef.current = false;
-			recognitionRef.current?.abort();
+			const recognition = recognitionRef.current;
+			recognitionRef.current = null;
+			recognition?.abort();
 		},
 		[]
 	);

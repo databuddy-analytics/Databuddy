@@ -4,7 +4,13 @@ import { Button, Tooltip } from "@databuddy/ui";
 import { Dialog } from "@databuddy/ui/client";
 import { MicrophoneIcon } from "@databuddy/ui/icons";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import FluidOrb from "@/components/ui/fluid-orb";
 import { cn } from "@/lib/utils";
@@ -72,19 +78,21 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 		handleOpenChange(false);
 	}, [displayTranscript, handleOpenChange, onTranscript]);
 
+	const handleTranscriptKeyDown = useEffectEvent((event: KeyboardEvent) => {
+		if (event.key === "Enter") {
+			event.preventDefault();
+			handleDone();
+		}
+	});
+
 	useEffect(() => {
 		if (!(open && hasTranscript)) {
 			return;
 		}
-		const onKeyDown = (event: KeyboardEvent) => {
-			if (event.key === "Enter") {
-				event.preventDefault();
-				handleDone();
-			}
-		};
+		const onKeyDown = (event: KeyboardEvent) => handleTranscriptKeyDown(event);
 		document.addEventListener("keydown", onKeyDown);
 		return () => document.removeEventListener("keydown", onKeyDown);
-	}, [open, hasTranscript, handleDone]);
+	}, [open, hasTranscript]);
 
 	useEffect(() => {
 		transcriptRef.current?.scrollTo({
@@ -212,11 +220,12 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 				<AnimatePresence initial={false}>
 					{hasTranscript ? (
 						<motion.div
-							animate={{ height: "auto", opacity: 1 }}
+							animate={{ opacity: 1 }}
 							className="overflow-hidden"
-							exit={{ height: 0, opacity: 0 }}
-							initial={reduceMotion ? false : { height: 0, opacity: 0 }}
+							exit={{ opacity: 0 }}
+							initial={reduceMotion ? false : { opacity: 0 }}
 							key="footer"
+							layout
 							transition={{
 								duration: reduceMotion ? 0 : 0.2,
 								ease: "easeOut",
