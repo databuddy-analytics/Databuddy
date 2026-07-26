@@ -8,7 +8,7 @@ import { useOrganizationsContext } from "@/components/providers/organizations-pr
 import { useWebsitesLight } from "@/hooks/use-websites";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
 import { cn } from "@/lib/utils";
-import { Button, Card, EmptyState, fromNow } from "@databuddy/ui";
+import { Badge, Button, Card, EmptyState, fromNow } from "@databuddy/ui";
 import {
 	ArrowClockwiseIcon,
 	ArrowRightIcon,
@@ -81,7 +81,7 @@ export default function InsightsPage() {
 				<EmptyOrg />
 			) : (
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
-					<div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-5">
+					<div className="mx-auto w-full max-w-4xl space-y-8 p-4 sm:p-6">
 						<InsightBrief
 							hasNextPage={brief.hasNextPage ?? false}
 							insights={briefInsights}
@@ -100,13 +100,24 @@ export default function InsightsPage() {
 										: "ready"
 							}
 						/>
-						<Card aria-label="Investigations" id="investigations">
-							<Card.Header>
-								<Card.Title>Investigations</Card.Title>
-								<Card.Description>
-									Questions and fixes Databuddy is following through to
-									resolution.
-								</Card.Description>
+						<Card
+							aria-label="Investigations"
+							className="border-border/70 shadow-sm"
+							id="investigations"
+						>
+							<Card.Header className="border-b bg-card">
+								<div className="flex items-baseline justify-between gap-4">
+									<div>
+										<Card.Title>Investigations</Card.Title>
+										<Card.Description className="mt-1">
+											Open questions Databuddy is following through to
+											resolution.
+										</Card.Description>
+									</div>
+									<span className="hidden text-[11px] text-muted-foreground sm:block">
+										Follow-up queue
+									</span>
+								</div>
 							</Card.Header>
 							<Card.Content className="p-0">
 								<InvestigationList feed={feed} />
@@ -199,12 +210,25 @@ function InsightBrief({
 	}
 
 	return (
-		<Card aria-label="Latest insights">
-			<Card.Header>
-				<Card.Title>Latest insights</Card.Title>
-				<Card.Description>
-					What changed, why it matters, and what to do next.
-				</Card.Description>
+		<Card aria-label="Latest insights" className="border-border/70 shadow-sm">
+			<Card.Header className="border-b bg-card px-5 py-5 sm:px-6">
+				<div className="flex items-start justify-between gap-5">
+					<div>
+						<p className="font-medium text-[11px] text-primary uppercase tracking-[0.16em]">
+							Signal desk
+						</p>
+						<Card.Title className="mt-1 text-base">Latest insights</Card.Title>
+						<Card.Description className="mt-1.5 max-w-xl text-sm leading-relaxed">
+							The most meaningful changes, with the context to decide what to do
+							next.
+						</Card.Description>
+					</div>
+					<LightbulbIcon
+						aria-hidden
+						className="mt-0.5 size-5 shrink-0 text-primary/70"
+						weight="duotone"
+					/>
+				</div>
 			</Card.Header>
 			<Card.Content className="p-0">{content}</Card.Content>
 		</Card>
@@ -224,11 +248,13 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				: LightbulbIcon;
 	const metric = insight.signal.metric;
 
+	const entityType = insight.signal.entity.type.replaceAll("_", " ");
+
 	return (
-		<article className="flex items-start gap-3 px-4 py-4">
+		<article className="group relative flex items-start gap-3 px-5 py-5 sm:gap-4 sm:px-6">
 			<span
 				className={cn(
-					"flex size-8 shrink-0 items-center justify-center rounded",
+					"flex size-9 shrink-0 items-center justify-center rounded-md ring-1 ring-inset",
 					positive && "bg-emerald-500/10 text-emerald-600",
 					negative && !critical && "bg-amber-500/10 text-amber-600",
 					critical && "bg-red-500/10 text-red-600",
@@ -238,16 +264,38 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				<Icon className="size-4" weight="duotone" />
 			</span>
 			<div className="min-w-0 flex-1">
-				<h3 className="font-medium text-foreground text-sm leading-snug">
-					{insight.title}
-				</h3>
-				<p className="mt-1 text-muted-foreground text-xs leading-relaxed">
+				<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+					<h3 className="max-w-2xl font-semibold text-foreground text-sm leading-snug">
+						{insight.title}
+					</h3>
+					{change !== null && change !== 0 ? (
+						<Badge
+							className={cn(
+								"shrink-0 tabular-nums",
+								positive && "bg-emerald-500/10 text-emerald-700",
+								negative && !critical && "bg-amber-500/10 text-amber-700",
+								critical && "bg-red-500/10 text-red-700"
+							)}
+							size="sm"
+							variant="muted"
+						>
+							{change > 0 ? "+" : ""}
+							{change.toLocaleString("en-US", {
+								maximumFractionDigits: 1,
+							})}
+							%
+						</Badge>
+					) : null}
+				</div>
+				<p className="mt-1.5 max-w-3xl text-muted-foreground text-sm leading-relaxed">
 					{insight.summary}
 				</p>
 				{insight.recommendation ? (
-					<div className="mt-2.5 rounded-md border bg-muted/20 p-2.5">
-						<p className="text-foreground/80 text-xs leading-relaxed">
-							<span className="font-medium text-foreground">Recommended:</span>{" "}
+					<div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
+						<p className="text-foreground/85 text-sm leading-relaxed">
+							<span className="mr-1 font-semibold text-primary text-xs uppercase tracking-wide">
+								Next step
+							</span>
 							{insight.recommendation.action}
 						</p>
 						{insight.signal.entity.type === "goal" &&
@@ -262,63 +310,62 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 						) : null}
 					</div>
 				) : null}
-				{insight.impact ? (
-					<p className="mt-1.5 text-foreground/75 text-xs leading-relaxed">
-						<span className="font-medium text-foreground">Impact:</span>{" "}
-						{insight.impact}
-					</p>
+				{insight.impact || insight.rootCause || insight.evidence.length > 0 ? (
+					<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
+						{insight.impact ? (
+							<div>
+								<dt className="font-semibold text-foreground/75">
+									Why it matters
+								</dt>
+								<dd className="mt-0.5 text-muted-foreground">
+									{insight.impact}
+								</dd>
+							</div>
+						) : null}
+						{insight.rootCause ? (
+							<div>
+								<dt className="font-semibold text-foreground/75">
+									What explains it
+								</dt>
+								<dd className="mt-0.5 text-muted-foreground">
+									{insight.rootCause}
+								</dd>
+							</div>
+						) : null}
+						{insight.evidence.length > 0 ? (
+							<div className="sm:col-span-2">
+								<dt className="font-semibold text-foreground/75">Evidence</dt>
+								<dd className="mt-0.5 text-muted-foreground">
+									{insight.evidence.join(" · ")}
+								</dd>
+							</div>
+						) : null}
+					</dl>
 				) : null}
-				{insight.rootCause ? (
-					<p className="mt-1 text-foreground/75 text-xs leading-relaxed">
-						<span className="font-medium text-foreground">Cause:</span>{" "}
-						{insight.rootCause}
-					</p>
-				) : null}
-				{insight.evidence.length > 0 ? (
-					<p className="mt-1 text-muted-foreground text-xs leading-relaxed">
-						<span className="font-medium text-foreground">Evidence:</span>{" "}
-						{insight.evidence.join(" · ")}
-					</p>
-				) : null}
-				<div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-					<span>{insight.websiteName ?? insight.websiteDomain}</span>
-					<span className="text-muted-foreground/30">&middot;</span>
-					<span>
-						<span className="capitalize">
-							{insight.signal.entity.type.replaceAll("_", " ")}
-						</span>
-						: {insight.signal.entity.label}
+				<div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t pt-3 text-[11px] text-muted-foreground">
+					<span className="font-medium text-foreground/70">
+						{insight.websiteName ?? insight.websiteDomain}
 					</span>
-				</div>
-				<div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
-					<span>
-						{metric.label}: {formatMetricValue(metric.current, metric.format)}
+					<span aria-hidden className="text-muted-foreground/30">
+						&middot;
+					</span>
+					<span className="capitalize">{entityType}</span>
+					<span aria-hidden className="text-muted-foreground/30">
+						&middot;
+					</span>
+					<span className="tabular-nums">
+						{formatMetricValue(metric.current, metric.format)}
 						{metric.previous === undefined
 							? ""
-							: ` (was ${formatMetricValue(metric.previous, metric.format)})`}
+							: ` vs ${formatMetricValue(metric.previous, metric.format)}`}
 					</span>
-					{change !== null && change !== 0 ? (
-						<>
-							<span className="text-muted-foreground/30">&middot;</span>
-							<span
-								className={cn(
-									"font-medium tabular-nums",
-									positive && "text-emerald-600",
-									negative && !critical && "text-amber-600",
-									critical && "text-red-600"
-								)}
-							>
-								{change > 0 ? "+" : ""}
-								{change.toLocaleString("en-US", {
-									maximumFractionDigits: 1,
-								})}
-								%
-							</span>
-						</>
-					) : null}
-					<span className="text-muted-foreground/30">&middot;</span>
+					<span aria-hidden className="text-muted-foreground/30">
+						&middot;
+					</span>
 					<span>{formatComparison(insight.signal.period)}</span>
-					<span className="text-muted-foreground/30">&middot;</span>
+					<span aria-hidden className="text-muted-foreground/30">
+						&middot;
+					</span>
 					<span>{fromNow(insight.createdAt)}</span>
 				</div>
 				{insight.investigationId ? (
