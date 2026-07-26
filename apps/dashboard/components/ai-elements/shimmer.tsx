@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { type CSSProperties, type ElementType, memo } from "react";
 import { cn } from "@/lib/utils";
 
@@ -24,10 +24,11 @@ function ShimmerP({
 	duration = 2,
 	spread = 2,
 }: Omit<TextShimmerProps, "as">) {
+	const reduceMotion = useReducedMotion();
 	const dynamicSpread = (children?.length ?? 0) * spread;
 	return (
 		<motion.p
-			animate={shimmerAnimate}
+			animate={reduceMotion ? shimmerInitial : shimmerAnimate}
 			className={cn(shimmerClassName, className)}
 			initial={shimmerInitial}
 			style={
@@ -54,10 +55,11 @@ function ShimmerSpan({
 	duration = 2,
 	spread = 2,
 }: Omit<TextShimmerProps, "as">) {
+	const reduceMotion = useReducedMotion();
 	const dynamicSpread = (children?.length ?? 0) * spread;
 	return (
 		<motion.span
-			animate={shimmerAnimate}
+			animate={reduceMotion ? shimmerInitial : shimmerAnimate}
 			className={cn(shimmerClassName, className)}
 			initial={shimmerInitial}
 			style={
