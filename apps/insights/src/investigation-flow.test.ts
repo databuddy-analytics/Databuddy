@@ -122,6 +122,12 @@ describe("intelligence agent", () => {
 
 		const prompt = JSON.stringify(call?.prompt);
 		expect(prompt).toContain("Example Store");
+		expect(JSON.stringify(call)).toContain(
+			"Treat the Insights feed as scarce teammate attention"
+		);
+		expect(JSON.stringify(call)).toContain(
+			"test the existing verification condition against current data"
+		);
 	});
 
 	it("can inspect evidence before returning structured output", async () => {

@@ -170,6 +170,9 @@ function CaseActivity({
 				(item.status === "queued" || item.status === "running")
 		);
 	const latestReplyId = items.findLast((item) => item.kind === "reply")?.id;
+	const latestNext = items.findLast(
+		(item): item is InvestigationItem => item.kind === "investigation"
+	)?.outcome.next;
 
 	return (
 		<section aria-labelledby="case-activity-title">
@@ -193,7 +196,13 @@ function CaseActivity({
 				))}
 			</ol>
 
-			{canReply && <ReplyComposer disabled={active} insightId={insightId} />}
+			{canReply && (
+				<ReplyComposer
+					disabled={active}
+					insightId={insightId}
+					showActionRecheck={latestNext?.type === "act"}
+				/>
+			)}
 		</section>
 	);
 }
@@ -403,9 +412,11 @@ function NextStep({ next }: { next: InvestigationNext }) {
 function ReplyComposer({
 	disabled,
 	insightId,
+	showActionRecheck,
 }: {
 	disabled: boolean;
 	insightId: string;
+	showActionRecheck: boolean;
 }) {
 	const queryClient = useQueryClient();
 	const [body, setBody] = useState("");
@@ -437,6 +448,15 @@ function ReplyComposer({
 		}
 		replyMutation.mutate({ body: trimmed, insightId });
 	};
+	const confirmAction = () => {
+		if (disabled || replyMutation.isPending) {
+			return;
+		}
+		replyMutation.mutate({
+			body: "I completed the recommended action. Recheck the outcome against current data and its verification condition.",
+			insightId,
+		});
+	};
 
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
@@ -451,6 +471,17 @@ function ReplyComposer({
 					placeholder="Add context, a correction, or what changed…"
 					value={body}
 				/>
+				{showActionRecheck ? (
+					<Button
+						disabled={disabled || replyMutation.isPending}
+						onClick={confirmAction}
+						size="sm"
+						type="button"
+						variant="secondary"
+					>
+						I made this change — recheck it
+					</Button>
+				) : null}
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 					<Field.Description>
 						{disabled
