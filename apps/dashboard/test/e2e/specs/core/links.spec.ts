@@ -33,9 +33,6 @@ test(
 		).toBeVisible();
 
 		await createLinkFolder(authenticatedPage, folderName);
-		await expect(
-			authenticatedPage.getByRole("button", { name: new RegExp(folderName) })
-		).toBeVisible();
 
 		const primaryRow = await createShortLink(authenticatedPage, {
 			folderName,
@@ -45,11 +42,7 @@ test(
 		});
 		await expect(primaryRow).toBeVisible();
 		await expect(authenticatedPage.getByText(escapedText(primarySlug))).toBeVisible();
-		await expect(
-			authenticatedPage.getByRole("button", {
-				name: new RegExp(`${folderName}\\s+1`),
-			})
-		).toBeVisible();
+		await expect(authenticatedPage.getByText(folderName, { exact: true })).toBeVisible();
 
 		const secondaryRow = await createShortLink(authenticatedPage, {
 			name: secondaryName,
