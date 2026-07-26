@@ -128,6 +128,12 @@ describe("intelligence agent", () => {
 		expect(JSON.stringify(call)).toContain(
 			"test the existing verification condition against current data"
 		);
+		expect(JSON.stringify(call)).toContain(
+			"Do not add generic audience fillers"
+		);
+		expect(JSON.stringify(call)).toContain(
+			"Round percentages to at most one decimal place in prose"
+		);
 	});
 
 	it("can inspect evidence before returning structured output", async () => {
