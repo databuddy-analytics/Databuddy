@@ -46,6 +46,7 @@ const outcome: InvestigationOutcome = {
 	next: {
 		type: "act",
 		action: "Resume campaign cmp_search_1.",
+		recheckAt: "2026-07-15T00:00:00.000Z",
 		target: "campaign cmp_search_1",
 		verification: "Paid visits exceed 80 per day for three days.",
 	},

@@ -126,6 +126,12 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe("One short measured condition that proves the repair worked."),
+		recheckAt: z.iso
+			.datetime()
+			.optional()
+			.describe(
+				"Exact ISO 8601 time to remeasure the verification condition. Required from the investigation agent; optional only to preserve historical outcomes."
+			),
 	}),
 	z.object({
 		type: z.literal("ask"),
@@ -144,6 +150,12 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.trim()
 			.min(1)
 			.describe("One short, exact condition for reopening this work."),
+		recheckAt: z.iso
+			.datetime()
+			.optional()
+			.describe(
+				"Exact ISO 8601 time to remeasure the escalation condition. Required from the investigation agent; optional only to preserve historical outcomes."
+			),
 	}),
 	z.object({
 		type: z.literal("resolve"),
@@ -327,14 +339,26 @@ export const investigationOutcomeSchema = z
 		}
 	});
 
-export const agentInvestigationOutcomeSchema =
-	investigationOutcomeSchema.safeExtend({
+export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
+	.safeExtend({
 		publish: z
 			.boolean()
 			.describe(
 				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
 			),
 		recommendation: insightRecommendationSchema,
+	})
+	.superRefine((outcome, context) => {
+		if (
+			(outcome.next.type === "act" || outcome.next.type === "watch") &&
+			!outcome.next.recheckAt
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions and watches require an exact recheck time",
+				path: ["next", "recheckAt"],
+			});
+		}
 	});
 
 const insightStatusSchema = z.enum(["open", "resolved"]);

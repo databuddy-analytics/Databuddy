@@ -749,7 +749,7 @@ export async function generateWebsiteInsights(
 				investigation: candidate,
 				notNewerThan: asOf,
 				organizationId: input.organizationId,
-				recheckAt: nextRecheckAt(asOf, candidate.outcome.next.type),
+				recheckAt: nextRecheckAt(asOf, candidate.outcome.next),
 				runId: input.runId,
 				timezone: input.timezone,
 			})

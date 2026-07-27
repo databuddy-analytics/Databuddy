@@ -297,7 +297,7 @@ export async function resumeInsightReply(
 			insightId: current.id,
 			organizationId: trigger.organizationId,
 			outcome: result.outcome,
-			recheckAt: nextRecheckAt(committedAt, result.outcome.next.type),
+			recheckAt: nextRecheckAt(committedAt, result.outcome.next),
 			runId: null,
 			signal: currentMeasurement.signal,
 			signalKey: currentMeasurement.signal.signalKey,

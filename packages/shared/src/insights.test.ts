@@ -201,6 +201,34 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(false);
 	});
 
+	it("requires an exact future measurement window from the agent", () => {
+		const action = {
+			action: "Roll back the checkout handler.",
+			target: "Checkout handler",
+			type: "act" as const,
+			verification: "Checkout attempts succeed again.",
+		};
+
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: action,
+				publish: true,
+				recommendation: null,
+				rootCause: "The handler rejected valid checkout submissions.",
+			}).success
+		).toBe(false);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+				...outcomeBase,
+				next: { ...action, recheckAt: "2026-07-20T12:00:00.000Z" },
+				publish: true,
+				recommendation: null,
+				rootCause: "The handler rejected valid checkout submissions.",
+			}).success
+		).toBe(true);
+	});
+
 	it("requires exact fields for every new goal edit recommendation", () => {
 		const recommendation = {
 			action:
