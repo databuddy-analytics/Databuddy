@@ -13,6 +13,8 @@ import {
 	ArrowSquareOutIcon,
 	LightbulbIcon,
 	PaperPlaneIcon,
+	RobotIcon,
+	UserIcon,
 } from "@databuddy/ui/icons";
 import {
 	Button,
@@ -82,7 +84,7 @@ export default function InsightDetailPage() {
 
 				{!isLoading && insight && (
 					<Card aria-label="Investigation">
-						<header className="border-b px-4 py-3.5 sm:px-5">
+						<header className="space-y-2 border-b px-4 py-4 sm:px-5">
 							<div className="flex items-center justify-between gap-3">
 								<p className="truncate font-medium text-muted-foreground text-xs">
 									{insight.websiteName ?? insight.websiteDomain}
@@ -96,7 +98,7 @@ export default function InsightDetailPage() {
 									{insight.status === "resolved" ? "Resolved" : "Open"}
 								</span>
 							</div>
-							<h2 className="mt-2 text-pretty font-medium text-base text-foreground leading-snug sm:text-lg">
+							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
 								{latest?.subject ?? insight.title}
 							</h2>
 						</header>
@@ -158,7 +160,7 @@ function CaseState({
 
 	return (
 		<section
-			className="border-b bg-muted/15 px-4 py-3.5 sm:px-5"
+			className="border-b bg-muted/20 px-4 py-4 sm:px-5"
 			aria-label="Current state"
 		>
 			<div className="flex flex-wrap items-start justify-between gap-3">
@@ -277,25 +279,37 @@ function TimelineEntry({
 		<li
 			className={
 				item.kind === "reply"
-					? "bg-muted/15 px-4 py-3.5 sm:px-5"
-					: "px-4 py-3.5 sm:px-5"
+					? "bg-muted/30 px-4 py-4 sm:px-5"
+					: "px-4 py-4 sm:px-5"
 			}
 		>
-			<article className="min-w-0 space-y-2.5">
+			<article className="min-w-0 space-y-3">
 				<header className="flex min-w-0 items-center gap-2 text-xs">
 					{item.kind === "reply" ? (
-						<span className="truncate font-medium text-foreground">
-							{item.author}
+						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+							<UserIcon className="size-3" weight="duotone" />
 						</span>
-					) : null}
-					<time
-						className="shrink-0 text-[11px] text-muted-foreground"
-						dateTime={item.createdAt}
-						suppressHydrationWarning
-						title={formatDateTime(item.createdAt)}
-					>
-						{fromNow(item.createdAt)}
-					</time>
+					) : (
+						<span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+							<RobotIcon className="size-3" weight="duotone" />
+						</span>
+					)}
+					<div className="flex min-w-0 items-center gap-2">
+						<span className="truncate font-medium text-foreground">
+							{item.kind === "reply" ? item.author : "Databuddy"}
+						</span>
+						<span aria-hidden className="text-muted-foreground/50">
+							·
+						</span>
+						<time
+							className="shrink-0 text-[11px] text-muted-foreground"
+							dateTime={item.createdAt}
+							suppressHydrationWarning
+							title={formatDateTime(item.createdAt)}
+						>
+							{fromNow(item.createdAt)}
+						</time>
+					</div>
 				</header>
 				{item.kind === "reply" ? (
 					<>
@@ -346,7 +360,7 @@ function InvestigationActivity({
 	const sourceHref = investigationSourceHref(item, websiteId);
 
 	return (
-		<div className="space-y-2.5">
+		<div className="space-y-3">
 			<div className="text-muted-foreground text-xs">
 				<p>
 					{formatPeriod(item.period.current)} compared with{" "}
@@ -364,12 +378,15 @@ function InvestigationActivity({
 			</div>
 
 			{outcome.recommendation ? (
-				<div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-					<p className="font-medium text-foreground/85 leading-relaxed">
+				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
+					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						Recommended
+					</p>
+					<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
 						{outcome.recommendation.action}
 					</p>
 					{item.entity.type === "goal" && outcome.recommendation.operation ? (
-						<div className="flex flex-wrap gap-1.5">
+						<div className="mt-2 flex flex-wrap gap-1.5">
 							<GoalRecommendationAction
 								goalId={item.entity.id}
 								recommendation={outcome.recommendation}
@@ -385,10 +402,28 @@ function InvestigationActivity({
 			) : null}
 
 			{(outcome.impact || outcome.rootCause) && (
-				<div className="space-y-1 text-foreground/80 text-sm leading-relaxed">
-					{outcome.impact && <p>{outcome.impact}</p>}
-					{outcome.rootCause && <p>{outcome.rootCause}</p>}
-				</div>
+				<dl className="grid gap-3 sm:grid-cols-2">
+					{outcome.impact && (
+						<div>
+							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+								Impact
+							</dt>
+							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+								{outcome.impact}
+							</dd>
+						</div>
+					)}
+					{outcome.rootCause && (
+						<div>
+							<dt className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+								Cause
+							</dt>
+							<dd className="mt-1 text-foreground/80 text-sm leading-relaxed">
+								{outcome.rootCause}
+							</dd>
+						</div>
+					)}
+				</dl>
 			)}
 
 			<div>

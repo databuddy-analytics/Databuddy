@@ -8,12 +8,14 @@ import { useOrganizationsContext } from "@/components/providers/organizations-pr
 import { useWebsitesLight } from "@/hooks/use-websites";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
 import { cn } from "@/lib/utils";
-import { Button, Card, EmptyState, fromNow } from "@databuddy/ui";
+import { Badge, Button, Card, EmptyState, fromNow } from "@databuddy/ui";
 import {
 	ArrowClockwiseIcon,
 	ArrowRightIcon,
 	GlobeIcon,
 	LightbulbIcon,
+	TrendDownIcon,
+	TrendUpIcon,
 } from "@databuddy/ui/icons";
 import { InvestigationSettings } from "./_components/investigation-settings";
 import {
@@ -22,6 +24,13 @@ import {
 	InvestigationRowSkeleton,
 } from "./_components/investigation-row";
 import { useInsightsFeed } from "./hooks/use-insights-feed";
+
+const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+	day: "numeric",
+	month: "short",
+	timeZone: "UTC",
+	year: "numeric",
+});
 
 export default function InsightsPage() {
 	const { activeOrganization, activeOrganizationId } =
@@ -72,7 +81,7 @@ export default function InsightsPage() {
 				<EmptyOrg />
 			) : (
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
-					<div className="mx-auto w-full max-w-4xl space-y-6 px-4 py-5 sm:px-6 sm:py-7">
+					<div className="mx-auto w-full max-w-4xl space-y-8 p-4 sm:p-6">
 						<InsightBrief
 							hasNextPage={brief.hasNextPage ?? false}
 							insights={briefInsights}
@@ -93,11 +102,15 @@ export default function InsightsPage() {
 						/>
 						<Card
 							aria-label="Investigations"
-							className="rounded-lg shadow-none"
+							className="border-border/70 shadow-sm"
 							id="investigations"
 						>
-							<Card.Header className="border-b px-5 py-3.5 sm:px-6">
-								<Card.Title>Investigations</Card.Title>
+							<Card.Header className="border-b bg-card">
+								<div className="flex items-baseline justify-between gap-4">
+									<div>
+										<Card.Title>Investigations</Card.Title>
+									</div>
+								</div>
 							</Card.Header>
 							<Card.Content className="p-0">
 								<InvestigationList feed={feed} />
@@ -190,9 +203,12 @@ function InsightBrief({
 	}
 
 	return (
-		<Card aria-label="Latest insights" className="rounded-lg shadow-none">
-			<Card.Header className="border-b px-5 py-3.5 sm:px-6">
+		<Card aria-label="Latest insights" className="border-border/70 shadow-sm">
+			<Card.Header className="border-b bg-card px-5 py-4 sm:px-6">
 				<Card.Title>Latest insights</Card.Title>
+				<Card.Description className="mt-1">
+					What changed, why it matters, and what to do next.
+				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">{content}</Card.Content>
 		</Card>
@@ -204,48 +220,67 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 	const negative = insight.signal.sentiment === "negative";
 	const critical = negative && insight.signal.severity === "critical";
 	const change = insight.signal.changePercent;
+	const Icon =
+		change !== null && change > 0
+			? TrendUpIcon
+			: change !== null && change < 0
+				? TrendDownIcon
+				: LightbulbIcon;
 	const metric = insight.signal.metric;
 
+	const entityType = insight.signal.entity.type.replaceAll("_", " ");
+
 	return (
-		<article className="px-5 py-4 sm:px-6">
-			<div className="min-w-0">
-				<div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5">
-					<h3 className="max-w-2xl font-medium text-foreground text-sm leading-snug">
+		<article className="group relative flex items-start gap-3 px-5 py-5 sm:gap-4 sm:px-6">
+			<span
+				className={cn(
+					"flex size-9 shrink-0 items-center justify-center rounded-md ring-1 ring-inset",
+					positive && "bg-emerald-500/10 text-emerald-600",
+					negative && !critical && "bg-amber-500/10 text-amber-600",
+					critical && "bg-red-500/10 text-red-600",
+					!(positive || negative) && "bg-primary/10 text-primary"
+				)}
+			>
+				<Icon className="size-4" weight="duotone" />
+			</span>
+			<div className="min-w-0 flex-1">
+				<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+					<h3 className="max-w-2xl font-semibold text-foreground text-sm leading-snug">
 						{insight.title}
 					</h3>
 					{change !== null && change !== 0 ? (
-						<span
+						<Badge
 							className={cn(
-								"shrink-0 font-medium text-xs tabular-nums",
-								positive && "text-emerald-700",
-								negative && !critical && "text-amber-700",
-								critical && "text-red-700"
+								"shrink-0 tabular-nums",
+								positive && "bg-emerald-500/10 text-emerald-700",
+								negative && !critical && "bg-amber-500/10 text-amber-700",
+								critical && "bg-red-500/10 text-red-700"
 							)}
+							size="sm"
+							variant="muted"
 						>
 							{change > 0 ? "+" : ""}
 							{change.toLocaleString("en-US", {
 								maximumFractionDigits: 1,
 							})}
 							%
-						</span>
+						</Badge>
 					) : null}
 				</div>
-				<p className="mt-1 max-w-3xl text-muted-foreground text-sm leading-relaxed">
+				<p className="mt-1.5 max-w-3xl text-muted-foreground text-sm leading-relaxed">
 					{insight.summary}
 				</p>
-				{insight.impact ? (
-					<p className="mt-1 max-w-3xl text-foreground/80 text-sm leading-relaxed">
-						{insight.impact}
-					</p>
-				) : null}
 				{insight.recommendation ? (
-					<div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-						<p className="font-medium text-foreground/85 leading-relaxed">
+					<div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
+						<p className="text-foreground/85 text-sm leading-relaxed">
+							<span className="mr-1 font-semibold text-primary text-xs uppercase tracking-wide">
+								Next step
+							</span>
 							{insight.recommendation.action}
 						</p>
 						{insight.signal.entity.type === "goal" &&
 						insight.recommendation.operation ? (
-							<div className="flex flex-wrap gap-1.5">
+							<div className="mt-2 flex flex-wrap gap-1.5">
 								<GoalRecommendationAction
 									goalId={insight.signal.entity.id}
 									recommendation={insight.recommendation}
@@ -255,10 +290,46 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 						) : null}
 					</div>
 				) : null}
-				<div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+				{insight.impact || insight.rootCause || insight.evidence.length > 0 ? (
+					<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
+						{insight.impact ? (
+							<div>
+								<dt className="font-semibold text-foreground/75">
+									Why it matters
+								</dt>
+								<dd className="mt-0.5 text-muted-foreground">
+									{insight.impact}
+								</dd>
+							</div>
+						) : null}
+						{insight.rootCause ? (
+							<div>
+								<dt className="font-semibold text-foreground/75">
+									What explains it
+								</dt>
+								<dd className="mt-0.5 text-muted-foreground">
+									{insight.rootCause}
+								</dd>
+							</div>
+						) : null}
+						{insight.evidence.length > 0 ? (
+							<div className="sm:col-span-2">
+								<dt className="font-semibold text-foreground/75">Evidence</dt>
+								<dd className="mt-0.5 text-muted-foreground">
+									{insight.evidence.join(" · ")}
+								</dd>
+							</div>
+						) : null}
+					</dl>
+				) : null}
+				<div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t pt-3 text-[11px] text-muted-foreground">
 					<span className="font-medium text-foreground/70">
 						{insight.websiteName ?? insight.websiteDomain}
 					</span>
+					<span aria-hidden className="text-muted-foreground/30">
+						&middot;
+					</span>
+					<span className="capitalize">{entityType}</span>
 					<span aria-hidden className="text-muted-foreground/30">
 						&middot;
 					</span>
@@ -271,15 +342,19 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					<span aria-hidden className="text-muted-foreground/30">
 						&middot;
 					</span>
+					<span>{formatComparison(insight.signal.period)}</span>
+					<span aria-hidden className="text-muted-foreground/30">
+						&middot;
+					</span>
 					<span>{fromNow(insight.createdAt)}</span>
 				</div>
 				{insight.investigationId ? (
-					<Button asChild className="mt-1.5 -ml-2" size="sm" variant="ghost">
+					<Button asChild className="mt-3" size="sm" variant="secondary">
 						<Link
 							aria-label={`Review investigation: ${insight.title}`}
 							href={`/insights/${insight.investigationId}`}
 						>
-							Review
+							Review & respond
 							<ArrowRightIcon className="size-3" weight="bold" />
 						</Link>
 					</Button>
@@ -306,6 +381,20 @@ function formatMetricValue(
 		return `${pretty}s`;
 	}
 	return pretty;
+}
+
+function formatComparison(period: BriefInsight["signal"]["period"]) {
+	return `${formatWindow(period.current)} vs ${formatWindow(period.previous)}`;
+}
+
+function formatWindow(window: { from: string; to: string }) {
+	return window.from === window.to
+		? formatDate(window.from)
+		: `${formatDate(window.from)}–${formatDate(window.to)}`;
+}
+
+function formatDate(value: string) {
+	return PERIOD_DATE_FORMATTER.format(new Date(`${value}T00:00:00Z`));
 }
 
 function InvestigationList({
