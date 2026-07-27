@@ -101,21 +101,21 @@ export default function InsightsPage() {
 							}
 						/>
 						<Card
-							aria-label="Investigations"
+							aria-label="Needs your input"
 							className="border-border/70 shadow-sm"
 							id="investigations"
 						>
 							<Card.Header className="border-b bg-card">
 								<div className="flex items-baseline justify-between gap-4">
 									<div>
-										<Card.Title>Investigations</Card.Title>
+										<Card.Title>Needs your input</Card.Title>
 										<Card.Description className="mt-1">
-											Open questions Databuddy is following through to
-											resolution.
+											Open investigations with a question, decision, or action
+											to follow through.
 										</Card.Description>
 									</div>
 									<span className="hidden text-[11px] text-muted-foreground sm:block">
-										Follow-up queue
+										Decision inbox
 									</span>
 								</div>
 							</Card.Header>
@@ -356,14 +356,15 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					<span>{fromNow(insight.createdAt)}</span>
 				</div>
 				{insight.investigationId ? (
-					<Link
-						aria-label={`Open investigation: ${insight.title}`}
-						className="mt-2 inline-flex items-center gap-1 text-muted-foreground text-xs hover:text-foreground"
-						href={`/insights/${insight.investigationId}`}
-					>
-						Open investigation
-						<ArrowRightIcon className="size-3" weight="bold" />
-					</Link>
+					<Button asChild className="mt-3" size="sm" variant="secondary">
+						<Link
+							aria-label={`Review investigation: ${insight.title}`}
+							href={`/insights/${insight.investigationId}`}
+						>
+							Review & respond
+							<ArrowRightIcon className="size-3" weight="bold" />
+						</Link>
+					</Button>
 				) : null}
 			</div>
 		</article>
@@ -417,6 +418,7 @@ function InvestigationList({
 		isLoading,
 		refetch,
 	} = feed;
+	const openInsights = insights.filter((insight) => insight.status === "open");
 	const loadMore = useCallback(() => {
 		fetchNextPage().catch(() => undefined);
 	}, [fetchNextPage]);
@@ -440,14 +442,20 @@ function InvestigationList({
 		return <ErrorState onRetryAction={refetch} />;
 	}
 
-	if (insights.length === 0) {
-		return <EmptyList />;
+	if (openInsights.length === 0) {
+		return (
+			<EmptyList
+				hasNextPage={hasNextPage}
+				isFetchingNextPage={isFetchingNextPage}
+				onLoadMoreAction={loadMore}
+			/>
+		);
 	}
 
 	return (
 		<>
 			<div>
-				{insights.map((insight) => (
+				{openInsights.map((insight) => (
 					<InvestigationRow insight={insight} key={insight.id} />
 				))}
 			</div>
@@ -487,13 +495,34 @@ function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
 	);
 }
 
-function EmptyList() {
+function EmptyList({
+	hasNextPage,
+	isFetchingNextPage,
+	onLoadMoreAction,
+}: {
+	hasNextPage: boolean;
+	isFetchingNextPage: boolean;
+	onLoadMoreAction: () => void;
+}) {
 	return (
 		<div className="px-5 py-12">
 			<EmptyState
-				description="Databuddy starts an investigation when it finds a question or fix worth following through."
+				action={
+					hasNextPage
+						? {
+								label: isFetchingNextPage ? "Loading…" : "Load more",
+								onClick: onLoadMoreAction,
+								variant: "secondary",
+							}
+						: undefined
+				}
+				description={
+					hasNextPage
+						? "No open investigations in the latest results."
+						: "Databuddy starts an investigation when it finds a question or fix worth following through."
+				}
 				icon={<LightbulbIcon weight="duotone" />}
-				title="No investigations yet"
+				title="Nothing needs your input"
 				variant="minimal"
 			/>
 		</div>

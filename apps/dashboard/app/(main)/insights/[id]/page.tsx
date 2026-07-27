@@ -52,9 +52,9 @@ export default function InsightDetailPage() {
 	});
 
 	const insight = data?.insight ?? null;
-	const subject = data?.timeline.findLast(
+	const latest = data?.timeline.findLast(
 		(item): item is InvestigationItem => item.kind === "investigation"
-	)?.subject;
+	);
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -98,9 +98,10 @@ export default function InsightDetailPage() {
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
-								{subject ?? insight.title}
+								{latest?.subject ?? insight.title}
 							</h2>
 						</header>
+						<CaseState items={data?.timeline ?? []} latest={latest ?? null} />
 						<CaseActivity
 							canReply={data?.canReply ?? false}
 							insightId={insight.id}
@@ -129,6 +130,64 @@ export default function InsightDetailPage() {
 				)}
 			</div>
 		</div>
+	);
+}
+
+function CaseState({
+	items,
+	latest,
+}: {
+	items: TimelineItem[];
+	latest: InvestigationItem | null;
+}) {
+	if (!latest) {
+		return null;
+	}
+	const reported = items.findLast(
+		(item): item is Extract<TimelineItem, { kind: "reply" }> =>
+			item.kind === "reply"
+	);
+	const verifying =
+		reported &&
+		reported.status !== "failed" &&
+		reported.createdAt > latest.createdAt;
+	const copy = verifying
+		? {
+				body: "New context was added. Databuddy is checking the investigation against current data.",
+				label: "Recheck underway",
+			}
+		: nextCopy(latest.outcome.next);
+
+	return (
+		<section
+			className="border-b bg-muted/20 px-4 py-4 sm:px-5"
+			aria-label="Current state"
+		>
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div className="min-w-0">
+					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						{copy.label}
+					</p>
+					<p className="mt-1 text-foreground text-sm leading-relaxed">
+						{copy.body}
+					</p>
+					{"detail" in copy && copy.detail ? (
+						<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
+							{copy.detail}
+						</p>
+					) : null}
+				</div>
+				<StatusDot
+					color={
+						verifying
+							? "warning"
+							: latest.outcome.next.type === "resolve"
+								? "success"
+								: "warning"
+					}
+				/>
+			</div>
+		</section>
 	);
 }
 
@@ -176,9 +235,19 @@ function CaseActivity({
 
 	return (
 		<section aria-labelledby="case-activity-title">
-			<h2 className="sr-only" id="case-activity-title">
-				Activity
-			</h2>
+			<div className="flex items-baseline justify-between gap-3 border-b px-4 py-3 sm:px-5">
+				<div>
+					<h2
+						className="font-medium text-foreground text-sm"
+						id="case-activity-title"
+					>
+						Activity
+					</h2>
+					<p className="mt-0.5 text-muted-foreground text-xs">
+						Context, investigation, and verification in one thread.
+					</p>
+				</div>
+			</div>
 
 			<ol className="divide-y">
 				{items.map((item) => (
@@ -446,17 +515,23 @@ function ReplyComposer({
 		if (!trimmed) {
 			return;
 		}
-		replyMutation.mutate({ body: trimmed, insightId });
+		sendReply(trimmed);
 	};
-	const confirmAction = () => {
+	const sendReply = (message: string) => {
 		if (disabled || replyMutation.isPending) {
 			return;
 		}
-		replyMutation.mutate({
-			body: "I completed the recommended action. Recheck the outcome against current data and its verification condition.",
-			insightId,
-		});
+		replyMutation.mutate({ body: message, insightId });
 	};
+	const confirmAction = () => {
+		sendReply(
+			"I completed the recommended action. Recheck the outcome against current data and its verification condition."
+		);
+	};
+	const markExpected = () =>
+		sendReply(
+			"This change was expected. Verify whether current evidence supports that explanation and close this investigation if no separate issue remains."
+		);
 
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
@@ -471,17 +546,28 @@ function ReplyComposer({
 					placeholder="Add context, a correction, or what changed…"
 					value={body}
 				/>
-				{showActionRecheck ? (
+				<div className="flex flex-wrap gap-2">
 					<Button
 						disabled={disabled || replyMutation.isPending}
-						onClick={confirmAction}
+						onClick={markExpected}
 						size="sm"
 						type="button"
 						variant="secondary"
 					>
-						I made this change — recheck it
+						This was expected
 					</Button>
-				) : null}
+					{showActionRecheck ? (
+						<Button
+							disabled={disabled || replyMutation.isPending}
+							onClick={confirmAction}
+							size="sm"
+							type="button"
+							variant="secondary"
+						>
+							I made this change — recheck it
+						</Button>
+					) : null}
+				</div>
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 					<Field.Description>
 						{disabled
