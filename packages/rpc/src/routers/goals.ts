@@ -20,6 +20,7 @@ import {
 	withWorkspace,
 } from "../procedures/with-workspace";
 import { requireFeatureWithLimit } from "../types/billing";
+import { queueDefinitionChangeRechecks } from "./insights";
 
 const ANALYTICS_CACHE_TTL = 180;
 const cache = createDrizzleCache({ redis, namespace: "goals" });
@@ -315,6 +316,11 @@ export const goalsRouter = {
 				.returning();
 
 			await invalidateGoalsCache(existingGoal.websiteId);
+			await queueDefinitionChangeRechecks({
+				definitionId: id,
+				type: "goal",
+				websiteId: existingGoal.websiteId,
+			});
 
 			return updatedGoal;
 		}),
@@ -351,6 +357,11 @@ export const goalsRouter = {
 				.where(and(eq(goals.id, input.id), isNull(goals.deletedAt)));
 
 			await invalidateGoalsCache(existingGoal.websiteId);
+			await queueDefinitionChangeRechecks({
+				definitionId: input.id,
+				type: "goal",
+				websiteId: existingGoal.websiteId,
+			});
 
 			return { success: true };
 		}),

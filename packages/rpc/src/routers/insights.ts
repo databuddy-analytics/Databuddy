@@ -109,6 +109,127 @@ async function queueInsightReply(
 	}
 }
 
+type RecheckableDefinitionType = "funnel" | "goal";
+
+function definitionChangeReply(type: RecheckableDefinitionType): string {
+	return `Databuddy detected a ${type} definition change. Recheck the current evidence and resolve this investigation if the change addressed it.`;
+}
+
+/**
+ * Wakes only open investigations tied to the exact definition that changed.
+ * The persisted reply gives the normal investigation worker a durable recheck
+ * request; a failed queue must never roll back the teammate's saved edit.
+ */
+export async function queueDefinitionChangeRechecks(input: {
+	definitionId: string;
+	type: RecheckableDefinitionType;
+	websiteId: string;
+}): Promise<void> {
+	const subjectPrefix = `${input.type}:${input.definitionId}`;
+	try {
+		const cases = await db
+			.select({
+				organizationId: analyticsInsights.organizationId,
+				subjectKey: analyticsInsights.subjectKey,
+			})
+			.from(analyticsInsights)
+			.where(
+				and(
+					eq(analyticsInsights.websiteId, input.websiteId),
+					eq(analyticsInsights.status, "open")
+				)
+			);
+		const subjects = new Map<
+			string,
+			{ organizationId: string; subjectKey: string }
+		>();
+		for (const insight of cases) {
+			const matchesDefinition =
+				insight.subjectKey === subjectPrefix ||
+				(input.type === "funnel" &&
+					insight.subjectKey.startsWith(`${subjectPrefix}:step:`));
+			if (matchesDefinition) {
+				subjects.set(
+					`${insight.organizationId}:${insight.subjectKey}`,
+					insight
+				);
+			}
+		}
+
+		const replyIds = await Promise.all(
+			[...subjects.values()].map(async (insight) =>
+				db.transaction(async (tx) => {
+					const insightCase = and(
+						eq(analyticsInsights.organizationId, insight.organizationId),
+						eq(analyticsInsights.websiteId, input.websiteId),
+						eq(analyticsInsights.subjectKey, insight.subjectKey)
+					);
+					const [current] = await tx
+						.select({
+							id: analyticsInsights.id,
+							status: analyticsInsights.status,
+						})
+						.from(analyticsInsights)
+						.where(insightCase)
+						.orderBy(
+							desc(analyticsInsights.createdAt),
+							desc(analyticsInsights.id)
+						)
+						.limit(1)
+						.for("update");
+					if (!current || current.status !== "open") {
+						return null;
+					}
+
+					const [active] = await tx
+						.select({ id: insightReplies.id })
+						.from(insightReplies)
+						.innerJoin(
+							analyticsInsights,
+							eq(insightReplies.insightId, analyticsInsights.id)
+						)
+						.where(
+							and(
+								inArray(insightReplies.status, ["queued", "running"]),
+								insightCase
+							)
+						)
+						.limit(1);
+					if (active) {
+						return null;
+					}
+
+					const id = randomUUIDv7();
+					await tx.insert(insightReplies).values({
+						authorId: null,
+						authorName: "Databuddy",
+						body: definitionChangeReply(input.type),
+						id,
+						insightId: current.id,
+						status: "queued",
+					});
+					return id;
+				})
+			)
+		);
+		await Promise.all(
+			replyIds.flatMap((replyId) =>
+				replyId ? [queueInsightReply(replyId)] : []
+			)
+		);
+	} catch (error) {
+		logger.error(
+			{
+				error,
+				definitionId: input.definitionId,
+				type: input.type,
+				websiteId: input.websiteId,
+			},
+			"Could not queue a definition-change investigation recheck"
+		);
+	}
+}
+
 const insightSelection = {
 	changePercent: analyticsInsights.changePercent,
 	description: analyticsInsights.description,

@@ -27,6 +27,7 @@ import {
 	requireFunnelSteps,
 	toAnalyticsSteps,
 } from "./funnel-steps";
+import { queueDefinitionChangeRechecks } from "./insights";
 
 const cache = createDrizzleCache({ redis, namespace: "funnels" });
 
@@ -380,6 +381,11 @@ export const funnelsRouter = {
 				.returning();
 
 			await invalidateFunnelsCache(existingFunnel.websiteId, id);
+			await queueDefinitionChangeRechecks({
+				definitionId: id,
+				type: "funnel",
+				websiteId: existingFunnel.websiteId,
+			});
 			return updatedFunnel;
 		}),
 
@@ -425,6 +431,11 @@ export const funnelsRouter = {
 				);
 
 			await invalidateFunnelsCache(existingFunnel.websiteId, input.id);
+			await queueDefinitionChangeRechecks({
+				definitionId: input.id,
+				type: "funnel",
+				websiteId: existingFunnel.websiteId,
+			});
 			return { success: true };
 		}),
 
