@@ -10,6 +10,7 @@ import { insightQueries, type InsightByIdResponse } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import {
 	ArrowLeftIcon,
+	ArrowSquareOutIcon,
 	LightbulbIcon,
 	PaperPlaneIcon,
 	RobotIcon,
@@ -356,6 +357,7 @@ function InvestigationActivity({
 	websiteId: string;
 }) {
 	const { outcome } = item;
+	const sourceHref = investigationSourceHref(item, websiteId);
 
 	return (
 		<div className="space-y-3">
@@ -425,9 +427,20 @@ function InvestigationActivity({
 			)}
 
 			<div>
-				<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-					Evidence
-				</p>
+				<div className="flex items-center justify-between gap-3">
+					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						Evidence
+					</p>
+					{sourceHref ? (
+						<Link
+							className="inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+							href={sourceHref}
+						>
+							View source
+							<ArrowSquareOutIcon className="size-3" />
+						</Link>
+					) : null}
+				</div>
 				<ul className="mt-1 space-y-1">
 					{outcome.evidence.map((entry) => (
 						<li
@@ -444,6 +457,28 @@ function InvestigationActivity({
 			</div>
 		</div>
 	);
+}
+
+function investigationSourceHref(
+	item: InvestigationItem,
+	websiteId: string
+): string {
+	const base = `/websites/${encodeURIComponent(websiteId)}`;
+	switch (item.entity.type) {
+		case "event":
+			return `${base}/events/${encodeURIComponent(item.entity.id)}`;
+		case "error":
+			return `${base}/errors`;
+		case "funnel":
+		case "funnel_step":
+			return `${base}/funnels`;
+		case "goal":
+			return `${base}/goals`;
+		case "vital":
+			return `${base}/vitals`;
+		default:
+			return base;
+	}
 }
 
 function NextStep({ next }: { next: InvestigationNext }) {
