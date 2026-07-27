@@ -123,7 +123,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, Anomalies, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
 - Dashboard definitions for feature flags and target groups are admin surfaces; do not expose even sanitized rows to demo-tier/public website access.
 - Insights history is grouped by its backend-owned subject key in the RPC layer so every client sees one current row per investigation; reads must not invoke AI generation.
-- A teammate marking an insight action done is not success: move it out of the action inbox while the durable reply rechecks it, then show a verified result only after measured evidence supports it.
+- An executable Insight action must apply its stored mutation and enqueue verification transactionally; never ask a teammate to mark it done manually. Show a verified result only after measured evidence supports it.
 - Insights case pages should not explain their own structure (for example, "context, investigation, and verification in one thread"). Keep only evidence, current state, and actionable controls visible.
 - Insight visual cleanup must preserve scan hierarchy: retain the compact visual/status anchors and clearly separated proof on dense feed rows; remove redundant explanatory copy before flattening the information structure.
 - Theme: `apps/dashboard/app/globals.css`. **`--border` is intentionally subtle**; do not crank it darker for “contrast” unless **iza** asks—prefer text tokens or layout for readability.
