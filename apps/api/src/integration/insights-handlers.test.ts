@@ -4,6 +4,7 @@ import { createMcpTools } from "@databuddy/ai/mcp/tools";
 import { eq } from "@databuddy/db";
 import {
 	analyticsInsights,
+	goals,
 	insightObservations,
 	insightReplies,
 } from "@databuddy/db/schema";
@@ -279,7 +280,7 @@ describe("insight investigation timeline", () => {
 		await db().insert(insightReplies).values({
 			authorId: member.id,
 			authorName: "Test member",
-			body: "I completed the suggested action.",
+			body: "Databuddy applied the suggested action.",
 			id: randomUUIDv7(),
 			insightId,
 			status: "running",
@@ -295,6 +296,97 @@ describe("insight investigation timeline", () => {
 		});
 
 		expect(result.insights).toEqual([]);
+	});
+
+	iit("applies an executable goal action and queues verification together", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const goalId = randomUUIDv7();
+		const insightId = randomUUIDv7();
+		const subjectKey = "goal:clicked-nav";
+		const outcome: InvestigationOutcome = {
+			...investigationOutcome("act"),
+			next: {
+				action: "Rename Clicked Nav to Navigation clicks.",
+				execution: {
+					action: "Rename Clicked Nav to Navigation clicks.",
+					changes: {
+						description: "Counts navigation activity across the site.",
+						name: "Navigation clicks",
+					},
+					operation: "edit",
+				},
+				target: "Goal: Clicked Nav",
+				type: "act",
+				verification: "The goal definition matches the navigation metric.",
+			},
+			rootCause: "The existing goal name is too narrow for its configured target.",
+		};
+		const actionSignal = {
+			...signal(subjectKey),
+			entity: {
+				id: goalId,
+				label: "Clicked Nav",
+				type: "goal" as const,
+			},
+		};
+
+		await db().insert(goals).values({
+			createdBy: member.id,
+			description: "A narrow description.",
+			id: goalId,
+			name: "Clicked Nav",
+			target: "nav_clicked",
+			type: "EVENT",
+			websiteId: website.id,
+		});
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-10T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome,
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+			signal: actionSignal,
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
+
+		const applied = await call(
+			appRouter.insights.applyGoalAction,
+			userContext(member, organization.id)
+		)({ insightId });
+
+		expect(applied.reply).toMatchObject({
+			body: "Databuddy applied the goal action. Recheck its verification condition against current data.",
+			kind: "reply",
+			status: "queued",
+		});
+		expect(
+			await db()
+				.select({ description: goals.description, name: goals.name })
+				.from(goals)
+				.where(eq(goals.id, goalId))
+		).toEqual([
+			{
+				description: "Counts navigation activity across the site.",
+				name: "Navigation clicks",
+			},
+		]);
+		expect(
+			(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+				?.data
+		).toEqual({ replyId: applied.reply.id });
 	});
 
 	iit("returns chronological insights without turning every observation into a case", async () => {

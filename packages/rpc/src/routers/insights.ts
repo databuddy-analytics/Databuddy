@@ -10,6 +10,7 @@ import {
 } from "@databuddy/db";
 import {
 	analyticsInsights,
+	goals,
 	insightObservations,
 	insightReplies,
 	websites,
@@ -34,6 +35,7 @@ import { ORPCError } from "@orpc/server";
 import { randomUUIDv7 } from "bun";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { invalidateGoalsCache } from "../lib/goals-cache";
 import { logger } from "../lib/logger";
 import { type Context, protectedProcedure, sessionProcedure } from "../orpc";
 import { withWorkspace } from "../procedures/with-workspace";
@@ -515,6 +517,205 @@ export async function appendInvestigationReply(
 	};
 }
 
+const applyInsightGoalActionInputSchema = z
+	.object({ insightId: z.string().trim().min(1).max(256) })
+	.strict();
+
+function executableGoalAction(
+	outcome: NonNullable<ReturnType<typeof parseInvestigationOutcome>>
+) {
+	if (outcome.next.type !== "act") {
+		return null;
+	}
+	const execution = outcome.next.execution;
+	return execution?.operation ? execution : null;
+}
+
+export async function applyInsightGoalAction(input: {
+	context: Context;
+	insightId: string;
+}): Promise<{ reply: z.infer<typeof insightTimelineReplySchema> }> {
+	const parsed = applyInsightGoalActionInputSchema.parse(input);
+	const [target] = await db
+		.select({
+			organizationId: analyticsInsights.organizationId,
+			subjectKey: analyticsInsights.subjectKey,
+			websiteId: analyticsInsights.websiteId,
+		})
+		.from(analyticsInsights)
+		.innerJoin(websites, eq(analyticsInsights.websiteId, websites.id))
+		.where(
+			and(
+				eq(analyticsInsights.id, parsed.insightId),
+				isNull(websites.deletedAt)
+			)
+		)
+		.limit(1);
+	if (!target) {
+		throw rpcError.notFound("insight", parsed.insightId);
+	}
+
+	const [latestObservation] = await db
+		.select({
+			outcome: insightObservations.outcome,
+			signal: insightObservations.signal,
+		})
+		.from(insightObservations)
+		.where(
+			and(
+				eq(insightObservations.insightId, parsed.insightId),
+				eq(insightObservations.organizationId, target.organizationId),
+				eq(insightObservations.websiteId, target.websiteId)
+			)
+		)
+		.orderBy(desc(insightObservations.createdAt), desc(insightObservations.id))
+		.limit(1);
+	const initialOutcome = parseInvestigationOutcome(latestObservation?.outcome);
+	const initialSignal = parseInvestigationSignal(latestObservation?.signal);
+	const initialAction = initialOutcome && executableGoalAction(initialOutcome);
+	if (!initialAction || initialSignal?.entity.type !== "goal") {
+		throw rpcError.badRequest("This investigation has no goal action to apply");
+	}
+
+	await withWorkspace(input.context, {
+		allowCrossOrg: true,
+		organizationId: target.organizationId,
+		permissions: initialAction.operation === "delete" ? ["delete"] : ["update"],
+		websiteId: target.websiteId,
+	});
+
+	const author = replyAuthor(input.context);
+	const completed = await db.transaction(async (tx) => {
+		const [current] = await tx
+			.select({
+				id: analyticsInsights.id,
+				status: analyticsInsights.status,
+			})
+			.from(analyticsInsights)
+			.where(
+				and(
+					eq(analyticsInsights.organizationId, target.organizationId),
+					eq(analyticsInsights.websiteId, target.websiteId),
+					eq(analyticsInsights.subjectKey, target.subjectKey)
+				)
+			)
+			.orderBy(desc(analyticsInsights.createdAt), desc(analyticsInsights.id))
+			.limit(1)
+			.for("update");
+		if (
+			!current ||
+			current.id !== parsed.insightId ||
+			current.status !== "open"
+		) {
+			throw rpcError.conflict(
+				"This investigation changed before the action could apply"
+			);
+		}
+
+		const [observation] = await tx
+			.select({
+				outcome: insightObservations.outcome,
+				signal: insightObservations.signal,
+			})
+			.from(insightObservations)
+			.where(eq(insightObservations.insightId, current.id))
+			.orderBy(
+				desc(insightObservations.createdAt),
+				desc(insightObservations.id)
+			)
+			.limit(1)
+			.for("update");
+		const outcome = parseInvestigationOutcome(observation?.outcome);
+		const signal = parseInvestigationSignal(observation?.signal);
+		const action = outcome && executableGoalAction(outcome);
+		if (!action || signal?.entity.type !== "goal") {
+			throw rpcError.conflict("This goal action is no longer available");
+		}
+		const [activeReply] = await tx
+			.select({ id: insightReplies.id })
+			.from(insightReplies)
+			.where(
+				and(
+					eq(insightReplies.insightId, current.id),
+					inArray(insightReplies.status, ["queued", "running"])
+				)
+			)
+			.limit(1);
+		if (activeReply) {
+			throw rpcError.conflict(
+				"Databuddy is already verifying this investigation"
+			);
+		}
+
+		const [goal] = await tx
+			.select({
+				description: goals.description,
+				id: goals.id,
+				name: goals.name,
+			})
+			.from(goals)
+			.where(
+				and(
+					eq(goals.id, signal.entity.id),
+					eq(goals.websiteId, target.websiteId),
+					isNull(goals.deletedAt)
+				)
+			)
+			.limit(1)
+			.for("update");
+		if (!goal) {
+			throw rpcError.notFound("goal", signal.entity.id);
+		}
+
+		const completedAt = new Date();
+		if (action.operation === "delete") {
+			await tx
+				.update(goals)
+				.set({
+					deletedAt: completedAt,
+					isActive: false,
+					updatedAt: completedAt,
+				})
+				.where(eq(goals.id, goal.id));
+		} else {
+			await tx
+				.update(goals)
+				.set({
+					description: action.changes.description ?? goal.description,
+					name: action.changes.name ?? goal.name,
+					updatedAt: completedAt,
+				})
+				.where(eq(goals.id, goal.id));
+		}
+
+		const replyId = randomUUIDv7();
+		const body =
+			"Databuddy applied the goal action. Recheck its verification condition against current data.";
+		await tx.insert(insightReplies).values({
+			...author,
+			body,
+			createdAt: completedAt,
+			id: replyId,
+			insightId: current.id,
+			status: "queued",
+		});
+		return { body, createdAt: completedAt, id: replyId };
+	});
+
+	await invalidateGoalsCache(target.websiteId);
+	const status = await queueInsightReply(completed.id);
+	return {
+		reply: {
+			author: author.authorName,
+			body: completed.body,
+			createdAt: completed.createdAt.toISOString(),
+			id: completed.id,
+			kind: "reply",
+			status,
+		},
+	};
+}
+
 export const insightsRouter = {
 	brief: protectedProcedure
 		.route({
@@ -802,6 +1003,19 @@ export const insightsRouter = {
 			const { reply } = await appendInvestigationReply({ context, ...input });
 			return { reply };
 		}),
+
+	applyGoalAction: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/actions/goal/apply",
+			tags: ["Insights"],
+			summary: "Apply an executable goal action and verify it",
+		})
+		.input(applyInsightGoalActionInputSchema)
+		.output(z.object({ reply: insightTimelineReplySchema }))
+		.handler(async ({ context, input }) =>
+			applyInsightGoalAction({ context, ...input })
+		),
 
 	retryReply: sessionProcedure
 		.route({

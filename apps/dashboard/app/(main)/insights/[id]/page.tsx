@@ -11,7 +11,6 @@ import { orpc } from "@/lib/orpc";
 import {
 	ArrowLeftIcon,
 	ArrowSquareOutIcon,
-	CheckCircleIcon,
 	LightbulbIcon,
 	PaperPlaneIcon,
 	RobotIcon,
@@ -30,7 +29,10 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
-import { GoalRecommendationAction } from "../_components/investigation-row";
+import {
+	ExecuteGoalAction,
+	GoalRecommendationAction,
+} from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -239,9 +241,9 @@ function CaseActivity({
 				(item.status === "queued" || item.status === "running")
 		);
 	const latestReplyId = items.findLast((item) => item.kind === "reply")?.id;
-	const latestNext = items.findLast(
+	const latestInvestigationId = items.findLast(
 		(item): item is InvestigationItem => item.kind === "investigation"
-	)?.outcome.next;
+	)?.id;
 
 	return (
 		<section aria-label="Investigation activity">
@@ -249,6 +251,11 @@ function CaseActivity({
 				{items.map((item) => (
 					<TimelineEntry
 						item={item}
+						insightId={
+							item.kind === "investigation" && item.id === latestInvestigationId
+								? insightId
+								: null
+						}
 						key={`${item.kind}-${item.id}`}
 						onRetry={
 							canReply && !active && item.id === latestReplyId
@@ -262,24 +269,20 @@ function CaseActivity({
 			</ol>
 
 			{canReply && !isResolved && (
-				<ReplyComposer
-					disabled={active}
-					insightId={insightId}
-					actionVerification={
-						latestNext?.type === "act" ? latestNext.verification : null
-					}
-				/>
+				<ReplyComposer disabled={active} insightId={insightId} />
 			)}
 		</section>
 	);
 }
 
 function TimelineEntry({
+	insightId,
 	item,
 	onRetry,
 	retrying,
 	websiteId,
 }: {
+	insightId: string | null;
 	item: TimelineItem;
 	onRetry?: (replyId: string) => void;
 	retrying: boolean;
@@ -352,7 +355,11 @@ function TimelineEntry({
 						)}
 					</>
 				) : (
-					<InvestigationActivity item={item} websiteId={websiteId} />
+					<InvestigationActivity
+						insightId={insightId}
+						item={item}
+						websiteId={websiteId}
+					/>
 				)}
 			</article>
 		</li>
@@ -360,14 +367,18 @@ function TimelineEntry({
 }
 
 function InvestigationActivity({
+	insightId,
 	item,
 	websiteId,
 }: {
+	insightId: string | null;
 	item: InvestigationItem;
 	websiteId: string;
 }) {
 	const { outcome } = item;
 	const sourceHref = investigationSourceHref(item, websiteId);
+	const execution =
+		outcome.next.type === "act" ? outcome.next.execution : undefined;
 
 	return (
 		<div className="space-y-3">
@@ -409,6 +420,12 @@ function InvestigationActivity({
 
 			{outcome.next.type !== "resolve" || !outcome.recommendation ? (
 				<NextStep next={outcome.next} />
+			) : null}
+
+			{insightId && execution?.operation ? (
+				<div className="flex flex-wrap gap-1.5">
+					<ExecuteGoalAction execution={execution} insightId={insightId} />
+				</div>
 			) : null}
 
 			{(outcome.impact || outcome.rootCause) && (
@@ -511,11 +528,9 @@ function NextStep({ next }: { next: InvestigationNext }) {
 }
 
 function ReplyComposer({
-	actionVerification,
 	disabled,
 	insightId,
 }: {
-	actionVerification: string | null;
 	disabled: boolean;
 	insightId: string;
 }) {
@@ -562,12 +577,6 @@ function ReplyComposer({
 			}
 		);
 	};
-	const confirmAction = () => {
-		sendReply(
-			"I completed the recommended action. Recheck the outcome against current data and its verification condition.",
-			"Marked done — verifying the result"
-		);
-	};
 	const markExpected = () =>
 		sendReply(
 			"This change was expected. Verify whether current evidence supports that explanation and close this investigation if no separate issue remains.",
@@ -597,18 +606,6 @@ function ReplyComposer({
 					>
 						This was expected
 					</Button>
-					{actionVerification ? (
-						<Button
-							disabled={disabled || replyMutation.isPending}
-							onClick={confirmAction}
-							size="sm"
-							type="button"
-							variant="secondary"
-						>
-							<CheckCircleIcon className="size-3.5" weight="fill" />
-							Mark action done
-						</Button>
-					) : null}
 				</div>
 				<div className="flex justify-end">
 					<Button

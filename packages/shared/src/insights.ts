@@ -106,6 +106,73 @@ const storedInvestigationSignalSchema = z
 	.strip()
 	.superRefine(validateBaselineDates);
 
+export const insightGoalEditChangesSchema = z
+	.object({
+		description: z
+			.string()
+			.trim()
+			.min(1)
+			.max(500)
+			.nullable()
+			.describe("Exact replacement description; null to leave unchanged."),
+		name: z
+			.string()
+			.trim()
+			.min(1)
+			.max(100)
+			.nullable()
+			.describe("Exact replacement name; null to leave unchanged."),
+	})
+	.strict()
+	.refine((changes) => changes.description !== null || changes.name !== null, {
+		message: "Goal edits require at least one changed field",
+	});
+
+export const insightGoalOperationSchema = z.discriminatedUnion("operation", [
+	z
+		.object({
+			action: z
+				.string()
+				.trim()
+				.min(1)
+				.max(320)
+				.describe(
+					"One short, concrete recommendation in teammate-facing language."
+				),
+			changes: insightGoalEditChangesSchema,
+			operation: z.literal("edit"),
+		})
+		.strict(),
+	z
+		.object({
+			action: z
+				.string()
+				.trim()
+				.min(1)
+				.max(320)
+				.describe(
+					"One short, concrete recommendation in teammate-facing language."
+				),
+			changes: z.null(),
+			operation: z.literal("delete"),
+		})
+		.strict(),
+	z
+		.object({
+			action: z
+				.string()
+				.trim()
+				.min(1)
+				.max(320)
+				.describe(
+					"One short, concrete recommendation in teammate-facing language."
+				),
+			changes: z.null(),
+			operation: z.null(),
+		})
+		.strict(),
+]);
+
 const investigationNextSchema = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal("act"),
@@ -131,6 +198,11 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.optional()
 			.describe(
 				"Exact ISO 8601 time to remeasure the verification condition. Required from the investigation agent; optional only to preserve historical outcomes."
+			),
+		execution: insightGoalOperationSchema
+			.optional()
+			.describe(
+				"Exact goal mutation Databuddy can apply when this action is clicked. Omit unless the inspected target is that goal."
 			),
 	}),
 	z.object({
@@ -169,73 +241,7 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 	}),
 ]);
 
-export const insightGoalEditChangesSchema = z
-	.object({
-		description: z
-			.string()
-			.trim()
-			.min(1)
-			.max(500)
-			.nullable()
-			.describe("Exact replacement description; null to leave unchanged."),
-		name: z
-			.string()
-			.trim()
-			.min(1)
-			.max(100)
-			.nullable()
-			.describe("Exact replacement name; null to leave unchanged."),
-	})
-	.strict()
-	.refine((changes) => changes.description !== null || changes.name !== null, {
-		message: "Goal edits require at least one changed field",
-	});
-
-const insightRecommendationSchema = z
-	.discriminatedUnion("operation", [
-		z
-			.object({
-				action: z
-					.string()
-					.trim()
-					.min(1)
-					.max(320)
-					.describe(
-						"One short, concrete recommendation in teammate-facing language."
-					),
-				changes: insightGoalEditChangesSchema,
-				operation: z.literal("edit"),
-			})
-			.strict(),
-		z
-			.object({
-				action: z
-					.string()
-					.trim()
-					.min(1)
-					.max(320)
-					.describe(
-						"One short, concrete recommendation in teammate-facing language."
-					),
-				changes: z.null(),
-				operation: z.literal("delete"),
-			})
-			.strict(),
-		z
-			.object({
-				action: z
-					.string()
-					.trim()
-					.min(1)
-					.max(320)
-					.describe(
-						"One short, concrete recommendation in teammate-facing language."
-					),
-				changes: z.null(),
-				operation: z.null(),
-			})
-			.strict(),
-	])
+const insightRecommendationSchema = insightGoalOperationSchema
 	.nullable()
 	.describe(
 		"Concrete evidence-backed next step worth suggesting without opening an investigation. Name the exact object and change; use null when there is no useful next step."
@@ -308,6 +314,17 @@ export const investigationOutcomeSchema = z
 				code: "custom",
 				message: "Actions require a known mechanism",
 				path: ["rootCause"],
+			});
+		}
+		if (
+			outcome.next.type === "act" &&
+			outcome.next.execution?.operation &&
+			outcome.next.execution.action !== outcome.next.action
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Executable actions must match the displayed action",
+				path: ["next", "execution", "action"],
 			});
 		}
 		if (

@@ -229,6 +229,56 @@ describe("investigationOutcomeSchema", () => {
 		).toBe(true);
 	});
 
+	it("allows only exact goal mutations to be attached to actions", () => {
+		const action = {
+			action: "Rename Clicked Nav to Navigation clicks.",
+			execution: {
+				action: "Rename Clicked Nav to Navigation clicks.",
+				changes: { description: null, name: "Navigation clicks" },
+				operation: "edit" as const,
+			},
+			recheckAt: "2026-07-20T12:00:00.000Z",
+			target: "Goal: Clicked Nav",
+			type: "act" as const,
+			verification: "The goal name reflects the mixed navigation scope.",
+		};
+		const candidate = {
+			...outcomeBase,
+			next: action,
+			publish: true,
+			recommendation: null,
+			rootCause: "The goal name does not match its configured target.",
+		};
+
+		expect(agentInvestigationOutcomeSchema.safeParse(candidate).success).toBe(
+			true
+		);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+			...candidate,
+			next: {
+				...action,
+				execution: {
+					...action.execution,
+					changes: { description: null, name: null },
+				},
+			},
+		}).success
+	).toBe(false);
+		expect(
+			agentInvestigationOutcomeSchema.safeParse({
+			...candidate,
+			next: {
+				...action,
+				execution: {
+					...action.execution,
+					action: "Delete Clicked Nav.",
+				},
+			},
+		}).success
+	).toBe(false);
+	});
+
 	it("requires exact fields for every new goal edit recommendation", () => {
 		const recommendation = {
 			action:

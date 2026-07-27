@@ -1,10 +1,16 @@
 "use client";
 
-import type { InsightBriefItem } from "@databuddy/shared/insights";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+	InsightBriefItem,
+	InvestigationOutcome,
+} from "@databuddy/shared/insights";
 import { Button, Skeleton } from "@databuddy/ui";
 import Link from "next/link";
+import { toast } from "sonner";
 import { List } from "@/components/ui/composables/list";
-import type { Insight } from "@/lib/insight-api";
+import { insightQueries, type Insight } from "@/lib/insight-api";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import {
 	ArrowRightIcon,
@@ -15,6 +21,13 @@ import {
 
 type GoalRecommendation = Extract<
 	NonNullable<InsightBriefItem["recommendation"]>,
+	{ operation: "delete" | "edit" }
+>;
+
+type GoalExecution = Extract<
+	NonNullable<
+		Extract<InvestigationOutcome["next"], { type: "act" }>["execution"]
+	>,
 	{ operation: "delete" | "edit" }
 >;
 
@@ -53,6 +66,47 @@ export function GoalRecommendationAction({
 			>
 				{deleting ? "Delete goal" : "Review goal changes"}
 			</Link>
+		</Button>
+	);
+}
+
+export function ExecuteGoalAction({
+	execution,
+	insightId,
+}: {
+	execution: GoalExecution;
+	insightId: string;
+}) {
+	const queryClient = useQueryClient();
+	const apply = useMutation({
+		...orpc.insights.applyGoalAction.mutationOptions(),
+		onError: (error) => {
+			toast.error(
+				error instanceof Error ? error.message : "Could not apply goal action"
+			);
+		},
+		onSuccess: ({ reply }) => {
+			queryClient.invalidateQueries({ queryKey: insightQueries.all() });
+			toast.success(
+				reply.status === "failed"
+					? "Goal change applied, but verification could not start"
+					: "Goal change applied — verifying the result"
+			);
+		},
+	});
+	const deleting = execution.operation === "delete";
+
+	return (
+		<Button
+			disabled={apply.isPending}
+			loading={apply.isPending}
+			onClick={() => apply.mutate({ insightId })}
+			size="sm"
+			tone={deleting ? "destructive" : "neutral"}
+			type="button"
+			variant={deleting ? "ghost" : "secondary"}
+		>
+			{deleting ? "Delete goal & verify" : "Apply goal changes"}
 		</Button>
 	);
 }
