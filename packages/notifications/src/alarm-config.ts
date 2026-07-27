@@ -29,6 +29,17 @@ const FORBIDDEN_WEBHOOK_HEADERS = new Set([
 const CRLF_PATTERN = /[\r\n]/;
 const SLACK_WEBHOOK_HOST = "hooks.slack.com";
 
+let warnedEmailUnconfigured = false;
+function warnAlarmEmailUnconfigured(): void {
+	if (warnedEmailUnconfigured) {
+		return;
+	}
+	warnedEmailUnconfigured = true;
+	console.warn(
+		"[notifications] Email alert delivery disabled: RESEND_API_KEY is not configured"
+	);
+}
+
 function isAllowedSlackWebhook(url: string): boolean {
 	try {
 		const parsed = new URL(url);
@@ -108,6 +119,10 @@ export function buildAlarmNotificationTargets(
 				},
 			});
 		} else if (dest.type === "email") {
+			if (!process.env.RESEND_API_KEY) {
+				warnAlarmEmailUnconfigured();
+				continue;
+			}
 			targets.push({
 				channel: "email",
 				clientConfig: {
