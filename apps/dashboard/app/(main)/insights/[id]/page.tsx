@@ -621,7 +621,13 @@ function nextCopy(next: InvestigationNext): {
 		case "act":
 			return {
 				body: next.action,
-				detail: `Target: ${next.target} · Done when: ${next.verification}`,
+				detail: [
+					`Target: ${next.target}`,
+					`Done when: ${next.verification}`,
+					scheduledRecheck(next),
+				]
+					.filter(Boolean)
+					.join(" · "),
 				label: "Next action",
 			};
 		case "ask":
@@ -632,6 +638,7 @@ function nextCopy(next: InvestigationNext): {
 		case "watch":
 			return {
 				body: next.escalation,
+				detail: scheduledRecheck(next),
 				label: "Watch condition",
 			};
 		case "resolve":
@@ -639,4 +646,14 @@ function nextCopy(next: InvestigationNext): {
 		default:
 			throw new Error("Unknown investigation outcome");
 	}
+}
+
+function scheduledRecheck(
+	next: Extract<InvestigationNext, { type: "act" | "watch" }>
+): string | undefined {
+	if (!next.recheckAt) {
+		return;
+	}
+
+	return `Databuddy will check again ${dayjs.utc(next.recheckAt).format("MMM D")}`;
 }

@@ -45,6 +45,10 @@ export default function InsightsPage() {
 	const { websites, isLoading: websitesLoading } = useWebsitesLight();
 	const hasNoWebsites =
 		!websitesLoading && websites !== undefined && websites.length === 0;
+	const showInvestigationsFirst =
+		isLoading ||
+		feed.isError ||
+		feed.insights.some((insight) => insight.status === "open");
 	const refresh = useCallback(() => {
 		Promise.all([refetch(), refetchBrief()]).catch(() => undefined);
 	}, [refetch, refetchBrief]);
@@ -82,6 +86,9 @@ export default function InsightsPage() {
 			) : (
 				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
 					<div className="mx-auto w-full max-w-4xl space-y-8 p-4 sm:p-6">
+						{showInvestigationsFirst ? (
+							<InvestigationsPanel feed={feed} />
+						) : null}
 						<InsightBrief
 							hasNextPage={brief.hasNextPage ?? false}
 							insights={briefInsights}
@@ -100,26 +107,34 @@ export default function InsightsPage() {
 										: "ready"
 							}
 						/>
-						<Card
-							aria-label="Investigations"
-							className="border-border/70 shadow-sm"
-							id="investigations"
-						>
-							<Card.Header className="border-b bg-card">
-								<div className="flex items-baseline justify-between gap-4">
-									<div>
-										<Card.Title>Investigations</Card.Title>
-									</div>
-								</div>
-							</Card.Header>
-							<Card.Content className="p-0">
-								<InvestigationList feed={feed} />
-							</Card.Content>
-						</Card>
+						{showInvestigationsFirst ? null : (
+							<InvestigationsPanel feed={feed} />
+						)}
 					</div>
 				</div>
 			)}
 		</div>
+	);
+}
+
+function InvestigationsPanel({
+	feed,
+}: {
+	feed: ReturnType<typeof useInsightsFeed>;
+}) {
+	return (
+		<Card
+			aria-label="Investigations"
+			className="border-border/70 shadow-sm"
+			id="investigations"
+		>
+			<Card.Header className="border-b bg-card">
+				<Card.Title>Investigations</Card.Title>
+			</Card.Header>
+			<Card.Content className="p-0">
+				<InvestigationList feed={feed} />
+			</Card.Content>
+		</Card>
 	);
 }
 
