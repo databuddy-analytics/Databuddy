@@ -153,7 +153,6 @@ function CaseState({
 		reported.createdAt > latest.createdAt;
 	const copy = verifying
 		? {
-				body: "New context was added. Databuddy is checking the investigation against current data.",
 				label: "Recheck underway",
 			}
 		: nextCopy(latest.outcome.next);
@@ -168,9 +167,11 @@ function CaseState({
 					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 						{copy.label}
 					</p>
-					<p className="mt-1 text-foreground text-sm leading-relaxed">
-						{copy.body}
-					</p>
+					{"body" in copy ? (
+						<p className="mt-1 text-foreground text-sm leading-relaxed">
+							{copy.body}
+						</p>
+					) : null}
 					{"detail" in copy && copy.detail ? (
 						<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
 							{copy.detail}
@@ -234,21 +235,7 @@ function CaseActivity({
 	)?.outcome.next;
 
 	return (
-		<section aria-labelledby="case-activity-title">
-			<div className="flex items-baseline justify-between gap-3 border-b px-4 py-3 sm:px-5">
-				<div>
-					<h2
-						className="font-medium text-foreground text-sm"
-						id="case-activity-title"
-					>
-						Activity
-					</h2>
-					<p className="mt-0.5 text-muted-foreground text-xs">
-						Context, investigation, and verification in one thread.
-					</p>
-				</div>
-			</div>
-
+		<section aria-label="Investigation activity">
 			<ol className="divide-y">
 				{items.map((item) => (
 					<TimelineEntry
@@ -536,7 +523,7 @@ function ReplyComposer({
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
 			<Field>
-				<Field.Label>Add context</Field.Label>
+				<Field.Label className="sr-only">Add context</Field.Label>
 				<Textarea
 					disabled={disabled}
 					maxLength={2000}
@@ -568,12 +555,7 @@ function ReplyComposer({
 						</Button>
 					) : null}
 				</div>
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<Field.Description>
-						{disabled
-							? "Wait for the current check to finish."
-							: "Databuddy will verify it against current data."}
-					</Field.Description>
+				<div className="flex justify-end">
 					<Button
 						disabled={disabled || !body.trim() || replyMutation.isPending}
 						loading={replyMutation.isPending}

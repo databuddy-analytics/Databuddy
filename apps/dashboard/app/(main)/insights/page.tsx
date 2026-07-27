@@ -101,22 +101,15 @@ export default function InsightsPage() {
 							}
 						/>
 						<Card
-							aria-label="Needs your input"
+							aria-label="Investigations"
 							className="border-border/70 shadow-sm"
 							id="investigations"
 						>
 							<Card.Header className="border-b bg-card">
 								<div className="flex items-baseline justify-between gap-4">
 									<div>
-										<Card.Title>Needs your input</Card.Title>
-										<Card.Description className="mt-1">
-											Open investigations with a question, decision, or action
-											to follow through.
-										</Card.Description>
+										<Card.Title>Investigations</Card.Title>
 									</div>
-									<span className="hidden text-[11px] text-muted-foreground sm:block">
-										Decision inbox
-									</span>
 								</div>
 							</Card.Header>
 							<Card.Content className="p-0">
