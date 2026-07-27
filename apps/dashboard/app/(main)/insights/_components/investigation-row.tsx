@@ -106,7 +106,7 @@ export function ExecuteGoalAction({
 			type="button"
 			variant={deleting ? "ghost" : "secondary"}
 		>
-			{deleting ? "Delete goal & verify" : "Apply goal changes"}
+			{execution.action}
 		</Button>
 	);
 }

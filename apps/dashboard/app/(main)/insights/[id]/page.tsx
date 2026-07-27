@@ -11,6 +11,7 @@ import { orpc } from "@/lib/orpc";
 import {
 	ArrowLeftIcon,
 	ArrowSquareOutIcon,
+	CaretDownIcon,
 	LightbulbIcon,
 	PaperPlaneIcon,
 	RobotIcon,
@@ -160,9 +161,9 @@ function CaseState({
 		? {
 				body:
 					latest.outcome.next.type === "act"
-						? `Measuring: ${latest.outcome.next.verification}`
+						? latest.outcome.next.verification
 						: "Databuddy is checking the latest context.",
-				label: "Verification underway",
+				label: "Measuring",
 			}
 		: nextCopy(latest.outcome.next);
 
@@ -244,12 +245,20 @@ function CaseActivity({
 	const latestInvestigationId = items.findLast(
 		(item): item is InvestigationItem => item.kind === "investigation"
 	)?.id;
+	const settled = active || isResolved;
+	const [historyExpanded, setHistoryExpanded] = useState(false);
+	const visibleItems = settled && !historyExpanded ? items.slice(-1) : items;
 
 	return (
 		<section aria-label="Investigation activity">
 			<ol className="divide-y">
-				{items.map((item) => (
+				{visibleItems.map((item) => (
 					<TimelineEntry
+						collapseEvidence={
+							settled &&
+							item.kind === "investigation" &&
+							item.id === latestInvestigationId
+						}
 						item={item}
 						insightId={
 							item.kind === "investigation" && item.id === latestInvestigationId
@@ -267,21 +276,41 @@ function CaseActivity({
 					/>
 				))}
 			</ol>
+			{settled && items.length > 1 ? (
+				<div className="border-t px-4 py-2 sm:px-5">
+					<Button
+						onClick={() => setHistoryExpanded((expanded) => !expanded)}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						{historyExpanded
+							? "Hide earlier updates"
+							: `Show ${items.length - 1} earlier update${items.length === 2 ? "" : "s"}`}
+						<CaretDownIcon
+							className={historyExpanded ? "rotate-180" : undefined}
+							weight="bold"
+						/>
+					</Button>
+				</div>
+			) : null}
 
 			{canReply && !isResolved && (
-				<ReplyComposer disabled={active} insightId={insightId} />
+				<ContextReply disabled={active} insightId={insightId} />
 			)}
 		</section>
 	);
 }
 
 function TimelineEntry({
+	collapseEvidence,
 	insightId,
 	item,
 	onRetry,
 	retrying,
 	websiteId,
 }: {
+	collapseEvidence: boolean;
 	insightId: string | null;
 	item: TimelineItem;
 	onRetry?: (replyId: string) => void;
@@ -356,6 +385,7 @@ function TimelineEntry({
 					</>
 				) : (
 					<InvestigationActivity
+						collapseEvidence={collapseEvidence}
 						insightId={insightId}
 						item={item}
 						websiteId={websiteId}
@@ -367,10 +397,12 @@ function TimelineEntry({
 }
 
 function InvestigationActivity({
+	collapseEvidence,
 	insightId,
 	item,
 	websiteId,
 }: {
+	collapseEvidence: boolean;
 	insightId: string | null;
 	item: InvestigationItem;
 	websiteId: string;
@@ -419,11 +451,14 @@ function InvestigationActivity({
 			) : null}
 
 			{outcome.next.type !== "resolve" || !outcome.recommendation ? (
-				<NextStep next={outcome.next} />
+				<NextStep
+					hideAction={Boolean(execution?.operation)}
+					next={outcome.next}
+				/>
 			) : null}
 
 			{insightId && execution?.operation ? (
-				<div className="flex flex-wrap gap-1.5">
+				<div className="flex flex-wrap">
 					<ExecuteGoalAction execution={execution} insightId={insightId} />
 				</div>
 			) : null}
@@ -453,23 +488,54 @@ function InvestigationActivity({
 				</dl>
 			)}
 
-			<div>
-				<div className="flex items-center justify-between gap-3">
-					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
-						Evidence
-					</p>
-					{sourceHref ? (
-						<Link
-							className="inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-							href={sourceHref}
-						>
-							View source
-							<ArrowSquareOutIcon className="size-3" />
-						</Link>
-					) : null}
-				</div>
+			<Evidence
+				evidence={outcome.evidence}
+				initiallyCollapsed={collapseEvidence}
+				sourceHref={sourceHref}
+			/>
+		</div>
+	);
+}
+
+function Evidence({
+	evidence,
+	initiallyCollapsed,
+	sourceHref,
+}: {
+	evidence: string[];
+	initiallyCollapsed: boolean;
+	sourceHref: string | null;
+}) {
+	const [expanded, setExpanded] = useState(!initiallyCollapsed);
+
+	return (
+		<div>
+			<div className="flex items-center justify-between gap-3">
+				<Button
+					onClick={() => setExpanded((open) => !open)}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					Evidence
+					<CaretDownIcon
+						className={expanded ? "rotate-180" : undefined}
+						weight="bold"
+					/>
+				</Button>
+				{sourceHref ? (
+					<Link
+						className="inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+						href={sourceHref}
+					>
+						View source
+						<ArrowSquareOutIcon className="size-3" />
+					</Link>
+				) : null}
+			</div>
+			{expanded ? (
 				<ul className="mt-1 space-y-1">
-					{outcome.evidence.map((entry) => (
+					{evidence.map((entry) => (
 						<li
 							className="flex gap-2 text-muted-foreground text-sm leading-relaxed"
 							key={entry}
@@ -481,7 +547,7 @@ function InvestigationActivity({
 						</li>
 					))}
 				</ul>
-			</div>
+			) : null}
 		</div>
 	);
 }
@@ -508,16 +574,24 @@ function investigationSourceHref(
 	}
 }
 
-function NextStep({ next }: { next: InvestigationNext }) {
+function NextStep({
+	hideAction,
+	next,
+}: {
+	hideAction: boolean;
+	next: InvestigationNext;
+}) {
 	const copy = nextCopy(next);
 	return (
 		<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
 			<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 				{copy.label}
 			</p>
-			<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
-				{copy.body}
-			</p>
+			{!hideAction || next.type !== "act" ? (
+				<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
+					{copy.body}
+				</p>
+			) : null}
 			{copy.detail && (
 				<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
 					{copy.detail}
@@ -527,12 +601,48 @@ function NextStep({ next }: { next: InvestigationNext }) {
 	);
 }
 
-function ReplyComposer({
+function ContextReply({
 	disabled,
 	insightId,
 }: {
 	disabled: boolean;
 	insightId: string;
+}) {
+	const [open, setOpen] = useState(false);
+
+	if (!open) {
+		return (
+			<div className="border-t px-4 py-2 sm:px-5">
+				<Button
+					disabled={disabled}
+					onClick={() => setOpen(true)}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					Add context
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<ReplyComposer
+			disabled={disabled}
+			insightId={insightId}
+			onClose={() => setOpen(false)}
+		/>
+	);
+}
+
+function ReplyComposer({
+	disabled,
+	insightId,
+	onClose,
+}: {
+	disabled: boolean;
+	insightId: string;
+	onClose: () => void;
 }) {
 	const queryClient = useQueryClient();
 	const [body, setBody] = useState("");
@@ -545,6 +655,7 @@ function ReplyComposer({
 		},
 		onSuccess: (data) => {
 			setBody("");
+			onClose();
 			queryClient.invalidateQueries({
 				queryKey: insightQueries.all(),
 			});
@@ -577,12 +688,6 @@ function ReplyComposer({
 			}
 		);
 	};
-	const markExpected = () =>
-		sendReply(
-			"This change was expected. Verify whether current evidence supports that explanation and close this investigation if no separate issue remains.",
-			"Databuddy is checking the latest context"
-		);
-
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
 			<Field>
@@ -596,18 +701,16 @@ function ReplyComposer({
 					placeholder="Add context, a correction, or what changed…"
 					value={body}
 				/>
-				<div className="flex flex-wrap gap-2">
+				<div className="flex justify-end gap-2">
 					<Button
-						disabled={disabled || replyMutation.isPending}
-						onClick={markExpected}
+						disabled={replyMutation.isPending}
+						onClick={onClose}
 						size="sm"
 						type="button"
-						variant="secondary"
+						variant="ghost"
 					>
-						This was expected
+						Cancel
 					</Button>
-				</div>
-				<div className="flex justify-end">
 					<Button
 						disabled={disabled || !body.trim() || replyMutation.isPending}
 						loading={replyMutation.isPending}
@@ -638,25 +741,21 @@ function nextCopy(next: InvestigationNext): {
 		case "act":
 			return {
 				body: next.action,
-				detail: [
-					`Target: ${next.target}`,
-					`Done when: ${next.verification}`,
-					scheduledRecheck(next),
-				]
+				detail: [`Checks: ${next.verification}`, scheduledRecheck(next)]
 					.filter(Boolean)
 					.join(" · "),
-				label: "Next action",
+				label: "Needs you",
 			};
 		case "ask":
 			return {
 				body: next.question,
-				label: "Question",
+				label: "Needs your input",
 			};
 		case "watch":
 			return {
 				body: next.escalation,
 				detail: scheduledRecheck(next),
-				label: "Watch condition",
+				label: "Measuring",
 			};
 		case "resolve":
 			return { body: next.reason, label: "Verified" };
