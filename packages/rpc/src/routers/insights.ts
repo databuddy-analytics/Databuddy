@@ -1,4 +1,13 @@
-import { and, db, desc, eq, inArray, isNull, sql } from "@databuddy/db";
+import {
+	and,
+	db,
+	desc,
+	eq,
+	inArray,
+	isNull,
+	notExists,
+	sql,
+} from "@databuddy/db";
 import {
 	analyticsInsights,
 	insightObservations,
@@ -595,15 +604,28 @@ export const insightsRouter = {
 		)
 		.handler(async ({ context, input }) => {
 			await authorizeInsightsRead(context, input);
+			const hasNoActiveReply = notExists(
+				db
+					.select({ id: insightReplies.id })
+					.from(insightReplies)
+					.where(
+						and(
+							eq(insightReplies.insightId, analyticsInsights.id),
+							inArray(insightReplies.status, ["queued", "running"])
+						)
+					)
+			);
 
 			const whereClause = input.websiteId
 				? and(
 						eq(analyticsInsights.organizationId, input.organizationId),
 						eq(analyticsInsights.websiteId, input.websiteId),
+						hasNoActiveReply,
 						isNull(websites.deletedAt)
 					)
 				: and(
 						eq(analyticsInsights.organizationId, input.organizationId),
+						hasNoActiveReply,
 						isNull(websites.deletedAt)
 					);
 

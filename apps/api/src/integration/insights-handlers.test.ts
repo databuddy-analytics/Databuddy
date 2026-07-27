@@ -250,6 +250,53 @@ describe("insight investigation timeline", () => {
 		]);
 	});
 
+	iit("hides a case from the action inbox while a reply is being verified", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const insightId = randomUUIDv7();
+		const subjectKey = "goal:signup";
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-01T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome: investigationOutcome("act"),
+			recheckAt: new Date("2026-01-08T00:00:00.000Z"),
+			signal: signal(subjectKey),
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
+		await db().insert(insightReplies).values({
+			authorId: member.id,
+			authorName: "Test member",
+			body: "I completed the suggested action.",
+			id: randomUUIDv7(),
+			insightId,
+			status: "running",
+		});
+
+		const result = await call(
+			appRouter.insights.history,
+			userContext(member, organization.id)
+		)({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+		});
+
+		expect(result.insights).toEqual([]);
+	});
+
 	iit("returns chronological insights without turning every observation into a case", async () => {
 		const member = await signUp();
 		const organization = await insertOrganization();

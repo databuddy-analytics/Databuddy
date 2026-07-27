@@ -11,6 +11,7 @@ import { orpc } from "@/lib/orpc";
 import {
 	ArrowLeftIcon,
 	ArrowSquareOutIcon,
+	CheckCircleIcon,
 	LightbulbIcon,
 	PaperPlaneIcon,
 	RobotIcon,
@@ -106,6 +107,7 @@ export default function InsightDetailPage() {
 						<CaseActivity
 							canReply={data?.canReply ?? false}
 							insightId={insight.id}
+							isResolved={insight.status === "resolved"}
 							items={data?.timeline ?? []}
 							websiteId={insight.websiteId}
 						/>
@@ -154,7 +156,11 @@ function CaseState({
 		reported.createdAt > latest.createdAt;
 	const copy = verifying
 		? {
-				label: "Recheck underway",
+				body:
+					latest.outcome.next.type === "act"
+						? `Measuring: ${latest.outcome.next.verification}`
+						: "Databuddy is checking the latest context.",
+				label: "Verification underway",
 			}
 		: nextCopy(latest.outcome.next);
 
@@ -196,11 +202,13 @@ function CaseState({
 function CaseActivity({
 	canReply,
 	insightId,
+	isResolved,
 	items,
 	websiteId,
 }: {
 	canReply: boolean;
 	insightId: string;
+	isResolved: boolean;
 	items: TimelineItem[];
 	websiteId: string;
 }) {
@@ -212,7 +220,7 @@ function CaseActivity({
 		},
 		onSuccess: (result) => {
 			queryClient.invalidateQueries({
-				queryKey: insightQueries.byId(insightId).queryKey,
+				queryKey: insightQueries.all(),
 			});
 			if (result.status === "failed") {
 				toast.error(
@@ -253,11 +261,13 @@ function CaseActivity({
 				))}
 			</ol>
 
-			{canReply && (
+			{canReply && !isResolved && (
 				<ReplyComposer
 					disabled={active}
 					insightId={insightId}
-					showActionRecheck={latestNext?.type === "act"}
+					actionVerification={
+						latestNext?.type === "act" ? latestNext.verification : null
+					}
 				/>
 			)}
 		</section>
@@ -501,13 +511,13 @@ function NextStep({ next }: { next: InvestigationNext }) {
 }
 
 function ReplyComposer({
+	actionVerification,
 	disabled,
 	insightId,
-	showActionRecheck,
 }: {
+	actionVerification: string | null;
 	disabled: boolean;
 	insightId: string;
-	showActionRecheck: boolean;
 }) {
 	const queryClient = useQueryClient();
 	const [body, setBody] = useState("");
@@ -521,12 +531,10 @@ function ReplyComposer({
 		onSuccess: (data) => {
 			setBody("");
 			queryClient.invalidateQueries({
-				queryKey: insightQueries.byId(insightId).queryKey,
+				queryKey: insightQueries.all(),
 			});
 			if (data.reply.status === "failed") {
 				toast.error("Reply saved, but the investigation could not start");
-			} else {
-				toast.success("Databuddy is investigating your reply");
 			}
 		},
 	});
@@ -537,22 +545,33 @@ function ReplyComposer({
 		if (!trimmed) {
 			return;
 		}
-		sendReply(trimmed);
+		sendReply(trimmed, "Databuddy is checking the latest context");
 	};
-	const sendReply = (message: string) => {
+	const sendReply = (message: string, successMessage: string) => {
 		if (disabled || replyMutation.isPending) {
 			return;
 		}
-		replyMutation.mutate({ body: message, insightId });
+		replyMutation.mutate(
+			{ body: message, insightId },
+			{
+				onSuccess: (data) => {
+					if (data.reply.status !== "failed") {
+						toast.success(successMessage);
+					}
+				},
+			}
+		);
 	};
 	const confirmAction = () => {
 		sendReply(
-			"I completed the recommended action. Recheck the outcome against current data and its verification condition."
+			"I completed the recommended action. Recheck the outcome against current data and its verification condition.",
+			"Marked done — verifying the result"
 		);
 	};
 	const markExpected = () =>
 		sendReply(
-			"This change was expected. Verify whether current evidence supports that explanation and close this investigation if no separate issue remains."
+			"This change was expected. Verify whether current evidence supports that explanation and close this investigation if no separate issue remains.",
+			"Databuddy is checking the latest context"
 		);
 
 	return (
@@ -578,7 +597,7 @@ function ReplyComposer({
 					>
 						This was expected
 					</Button>
-					{showActionRecheck ? (
+					{actionVerification ? (
 						<Button
 							disabled={disabled || replyMutation.isPending}
 							onClick={confirmAction}
@@ -586,7 +605,8 @@ function ReplyComposer({
 							type="button"
 							variant="secondary"
 						>
-							I made this change — recheck it
+							<CheckCircleIcon className="size-3.5" weight="fill" />
+							Mark action done
 						</Button>
 					) : null}
 				</div>
@@ -598,7 +618,7 @@ function ReplyComposer({
 						type="submit"
 					>
 						<PaperPlaneIcon className="size-3.5" weight="bold" />
-						Re-check investigation
+						Check latest context
 					</Button>
 				</div>
 			</Field>
@@ -642,7 +662,7 @@ function nextCopy(next: InvestigationNext): {
 				label: "Watch condition",
 			};
 		case "resolve":
-			return { body: next.reason, label: "Resolved" };
+			return { body: next.reason, label: "Verified" };
 		default:
 			throw new Error("Unknown investigation outcome");
 	}
