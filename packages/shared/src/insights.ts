@@ -279,7 +279,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, known mechanism only; use null for unknown, suspected, or merely correlated explanations."
+				"One short, known mechanism only; use null for unknown, suspected, or merely correlated explanations. A runtime stack, bundle location, browser document line, or error message is not a source-code mechanism."
 			),
 		evidence: z
 			.array(
