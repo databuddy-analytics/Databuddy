@@ -256,7 +256,7 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"A 5–12 word, sentence-case headline that states the human outcome. Use the exact entity only when it clarifies the outcome; never use a raw identifier, generic config label, schema label, arrow relationship, or measurement language such as tracked, recorded, metric, or event as the title."
+				"A 5–12 word, sentence-case headline that states the human outcome. Use the exact entity only when it clarifies the outcome; never use a raw identifier, generic config label such as Goal 1 or Event 1, schema label, arrow relationship, or measurement language such as tracked, recorded, metric, or event as the title."
 			),
 		summary: z
 			.string()
@@ -271,7 +271,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, distinct measured user, workflow, revenue, or decision consequence. For a broken definition, say the decision it cannot support. Null when only the metric change is known."
+				"One short, distinct measured user, workflow, revenue, or decision consequence. Do not predict lost progress, broken checkout, failed requests, or other downstream effects from an error alone. For a broken definition, say the decision it cannot support. Null when only the metric change is known."
 			),
 		rootCause: z
 			.string()
@@ -279,7 +279,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"One short, known mechanism only; use null for unknown, suspected, or merely correlated explanations. A runtime stack, bundle location, browser document line, or error message is not a source-code mechanism."
+				"One short, known mechanism only; use null for unknown, suspected, or merely correlated explanations. A runtime stack, bundle location, browser document line, or error message is not a source-code mechanism and does not prove teardown order, a missing guard, or a hosting rewrite."
 			),
 		evidence: z
 			.array(
