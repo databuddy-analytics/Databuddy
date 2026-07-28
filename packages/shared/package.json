@@ -27,6 +27,7 @@
     "./http-error-response": "./src/http-error-response.ts",
     "./insights": "./src/insights.ts",
     "./stripe-webhooks": "./src/stripe-webhooks.ts",
+	"./audit": "./src/audit.ts",
     "./evlog-fields": "./src/evlog-fields.ts",
     "./evlog-redaction": "./src/evlog-redaction.ts",
     "./evlog-superlog": "./src/evlog-superlog.ts"

@@ -493,6 +493,8 @@
         "@databuddy/env": "workspace:*",
         "@databuddy/notifications": "workspace:*",
         "@databuddy/redis": "*",
+        "@databuddy/services": "workspace:*",
+        "@databuddy/shared": "workspace:*",
         "better-auth": "^1.4.10",
         "drizzle-kit": "^1.0.0-rc.1",
         "evlog": "catalog:",

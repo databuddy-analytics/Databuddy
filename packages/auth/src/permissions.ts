@@ -31,6 +31,8 @@ export const statement = {
 	monitor: ["create", "read", "update", "delete"],
 
 	status_page: ["create", "read", "update", "delete"],
+
+	audit_log: ["read"],
 } as const;
 
 /**
@@ -78,6 +80,7 @@ const admin = ac.newRole({
 	llm: ["read", "view_analytics", "manage"],
 	monitor: ["create", "read", "update", "delete"],
 	status_page: ["create", "read", "update", "delete"],
+	audit_log: ["read"],
 });
 
 const owner = ac.newRole({
@@ -91,6 +94,7 @@ const owner = ac.newRole({
 	llm: ["read", "view_analytics", "manage"],
 	monitor: ["create", "read", "update", "delete"],
 	status_page: ["create", "read", "update", "delete"],
+	audit_log: ["read"],
 });
 
 const orgRoles = { viewer, member, admin, owner } as const;
