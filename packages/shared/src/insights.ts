@@ -221,7 +221,9 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.string()
 			.trim()
 			.min(1)
-			.describe("One short, exact condition for reopening this work."),
+			.describe(
+				"One short, exact measurable condition for reopening this work. Include an explicit numeric comparison and name its configured target, healthy range, prior baseline, or measured-severity anchor."
+			),
 		recheckAt: z.iso
 			.datetime()
 			.optional()
