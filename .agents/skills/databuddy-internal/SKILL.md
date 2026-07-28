@@ -89,6 +89,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Package manager: `bun`
 - When running `bun install --lockfile-only`, preserve lockfile sync for pre-existing `package.json` changes instead of reverting them as unrelated.
 - Task runner: `turbo`
+- Run filtered Turbo commands such as `bun run check-types --filter=…` from the workspace root; inside a package, its local script invokes `tsc` directly and treats those flags as TypeScript options.
 - Formatting/linting: `bun run format`, `bun run lint`
 - Use neutral branch names, commit messages, and PR copy; do not include tool-attribution prefixes or generated-by language.
 - Lefthook's `no-secrets` guard intentionally ignores the exact `.env.example` template; real `.env`, `.env.*`, key, and credential files should still be blocked.
