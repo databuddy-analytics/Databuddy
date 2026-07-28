@@ -256,7 +256,7 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"A 5–12 word, sentence-case headline that states the human outcome. Use the exact entity only when it clarifies the outcome; never use a raw identifier, generic config label, schema label, or arrow relationship as the title."
+				"A 5–12 word, sentence-case headline that states the human outcome. Use the exact entity only when it clarifies the outcome; never use a raw identifier, generic config label, schema label, arrow relationship, or measurement language such as tracked, recorded, metric, or event as the title."
 			),
 		summary: z
 			.string()
