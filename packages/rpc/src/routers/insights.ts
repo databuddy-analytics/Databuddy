@@ -656,7 +656,9 @@ export async function applyInsightGoalAction(input: {
 	context: Context;
 	insightId: string;
 }): Promise<{ reply: z.infer<typeof insightTimelineReplySchema> }> {
-	const parsed = applyInsightGoalActionInputSchema.parse(input);
+	const parsed = applyInsightGoalActionInputSchema.parse({
+		insightId: input.insightId,
+	});
 	const [target] = await db
 		.select({
 			organizationId: analyticsInsights.organizationId,
