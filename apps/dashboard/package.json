@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "dotenv -e ../../.env -- next dev -p 3000",
+    "dev:intelligence": "dotenv -e ../../.env -e intelligence-dev.defaults -- next dev -p 3003",
     "build": "bun run --bun next build",
     "start": "dotenv -e ../../.env -- next start -p 3000",
     "check-types": "tsc --noEmit",

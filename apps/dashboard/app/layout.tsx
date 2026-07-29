@@ -35,14 +35,22 @@ const ltSuperiorMono = localFont({
 	display: "swap",
 });
 
+const intelligenceDashboard =
+	process.env.NEXT_PUBLIC_DASHBOARD_PRODUCT === "intelligence";
+
 export const metadata: Metadata = {
 	metadataBase: new URL(APP_URL),
 	title: {
-		template: "%s | Databuddy Dashboard",
-		default: "Databuddy Dashboard",
+		template: intelligenceDashboard
+			? "%s | Databuddy Intelligence"
+			: "%s | Databuddy Dashboard",
+		default: intelligenceDashboard
+			? "Databuddy Intelligence"
+			: "Databuddy Dashboard",
 	},
-	description:
-		"Powerful analytics dashboard for your websites. Track visitors, monitor performance, and gain insights into your audience.",
+	description: intelligenceDashboard
+		? "Automated investigations, insights, and product intelligence for your business."
+		: "Powerful analytics dashboard for your websites. Track visitors, monitor performance, and gain insights into your audience.",
 	keywords: [
 		"analytics",
 		"dashboard",
@@ -62,10 +70,15 @@ export const metadata: Metadata = {
 		type: "website",
 		locale: "en_US",
 		url: APP_URL,
-		title: "Databuddy Dashboard",
-		description:
-			"Powerful analytics dashboard for your websites. Track visitors, monitor performance, and gain insights into your audience.",
-		siteName: "Databuddy Dashboard",
+		title: intelligenceDashboard
+			? "Databuddy Intelligence"
+			: "Databuddy Dashboard",
+		description: intelligenceDashboard
+			? "Automated investigations, insights, and product intelligence for your business."
+			: "Powerful analytics dashboard for your websites. Track visitors, monitor performance, and gain insights into your audience.",
+		siteName: intelligenceDashboard
+			? "Databuddy Intelligence"
+			: "Databuddy Dashboard",
 		images: [
 			{
 				url: "/og-image.png",
@@ -77,9 +90,12 @@ export const metadata: Metadata = {
 	},
 	twitter: {
 		card: "summary_large_image",
-		title: "Databuddy Dashboard",
-		description:
-			"Powerful analytics dashboard for your websites. Track visitors, monitor performance, and gain insights into your audience.",
+		title: intelligenceDashboard
+			? "Databuddy Intelligence"
+			: "Databuddy Dashboard",
+		description: intelligenceDashboard
+			? "Automated investigations, insights, and product intelligence for your business."
+			: "Powerful analytics dashboard for your websites. Track visitors, monitor performance, and gain insights into your audience.",
 		images: ["/og-image.png"],
 		creator: "@databuddy",
 	},

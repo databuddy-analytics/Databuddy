@@ -38,6 +38,12 @@ import {
 	TriangleWarningIcon as WarningIcon,
 } from "@databuddy/ui/icons";
 import type { NavigationGroup, NavigationItem } from "./types";
+import { isIntelligenceDashboard } from "@/lib/dashboard-product";
+import {
+	intelligenceMainNavigation,
+	intelligenceSettingsNavigation,
+	intelligenceWebsiteNavigation,
+} from "./intelligence-navigation-config";
 
 export const createNavItem = (
 	name: string,
@@ -349,7 +355,17 @@ export function getNavContext(pathname: string): NavContext {
 }
 
 export function getNavigation(pathname: string): NavigationGroup[] {
+	const intelligence = isIntelligenceDashboard();
 	const ctx = getNavContext(pathname);
+	if (intelligence) {
+		if (ctx === "website") {
+			return intelligenceWebsiteNavigation;
+		}
+		if (ctx === "settings") {
+			return intelligenceSettingsNavigation;
+		}
+		return intelligenceMainNavigation;
+	}
 	if (ctx === "website") {
 		return websiteNavigation;
 	}
@@ -357,6 +373,26 @@ export function getNavigation(pathname: string): NavigationGroup[] {
 		return settingsNavigation;
 	}
 	return mainNavigation;
+}
+
+export function getSearchNavigationGroups(): {
+	main: NavigationGroup[];
+	settings: NavigationGroup[];
+	website: NavigationGroup[];
+} {
+	if (isIntelligenceDashboard()) {
+		return {
+			main: intelligenceMainNavigation,
+			settings: intelligenceSettingsNavigation,
+			website: intelligenceWebsiteNavigation,
+		};
+	}
+
+	return {
+		main: mainNavigation,
+		settings: settingsNavigation,
+		website: websiteNavigation,
+	};
 }
 
 export function getNavDirection(

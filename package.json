@@ -58,6 +58,7 @@
     "email:segments": "dotenv -- sh -c 'cd packages/db && bun run email:segments \"$@\"' --",
     "sdk:build": "turbo run build --filter @databuddy/sdk --filter @databuddy/cache",
     "dev:dashboard": "dotenv -- turbo run dev --env-mode=loose --filter @databuddy/dashboard --filter @databuddy/api --filter @databuddy/insights",
+    "dev:intelligence": "dotenv -- turbo run dev:intelligence --env-mode=loose --filter @databuddy/dashboard --filter @databuddy/api --filter @databuddy/insights",
     "dev:insights": "dotenv -- turbo run dev --env-mode=loose --filter @databuddy/insights",
     "dev:slack": "dotenv -- turbo dev --env-mode=loose --filter @databuddy/slack",
     "dev:status": "dotenv -- turbo dev --env-mode=loose --filter @databuddy/status --filter @databuddy/api",

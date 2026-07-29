@@ -23,6 +23,11 @@ const URLS = {
 		local: "http://localhost:3000",
 		env: ["DASHBOARD_URL", "NEXT_PUBLIC_APP_URL", "BETTER_AUTH_URL"],
 	},
+	intelligence: {
+		cloud: "https://intelligence.databuddy.cc",
+		local: "http://localhost:3003",
+		env: ["INTELLIGENCE_URL", "NEXT_PUBLIC_INTELLIGENCE_URL"],
+	},
 	status: {
 		cloud: "https://status.databuddy.cc",
 		local: "http://localhost:3002",
@@ -64,6 +69,7 @@ export interface Config {
 		api: string;
 		basket: string;
 		dashboard: string;
+		intelligence: string;
 		status: string;
 	};
 }
@@ -121,12 +127,15 @@ function readOrigins(values: Array<string | undefined>): string[] {
 
 export function createConfig(env: Env = process.env): Config {
 	const dashboardUrl = readUrl(env, URLS.dashboard);
+	const intelligenceUrl = readUrl(env, URLS.intelligence);
 
 	return {
 		cors: {
 			apiOrigins: readOrigins([
 				dashboardUrl,
+				intelligenceUrl,
 				env.RAILWAY_SERVICE_DASHBOARD_URL,
+				env.RAILWAY_SERVICE_INTELLIGENCE_URL,
 				env.API_CORS_ORIGINS,
 			]),
 		},
@@ -142,6 +151,7 @@ export function createConfig(env: Env = process.env): Config {
 			api: readUrl(env, URLS.api),
 			basket: readUrl(env, URLS.basket),
 			dashboard: dashboardUrl,
+			intelligence: intelligenceUrl,
 			status: readUrl(env, URLS.status),
 		},
 	};

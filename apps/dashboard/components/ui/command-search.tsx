@@ -18,9 +18,7 @@ import {
 } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import {
-	mainNavigation,
-	settingsNavigation,
-	websiteNavigation,
+	getSearchNavigationGroups,
 } from "@/components/layout/navigation/navigation-config";
 import type {
 	NavIcon,
@@ -36,6 +34,7 @@ import { useBillingContext } from "@/components/providers/billing-provider";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useWebsites } from "@/hooks/use-websites";
 import { orpc } from "@/lib/orpc";
+import { isIntelligenceDashboard } from "@/lib/dashboard-product";
 import { cn } from "@/lib/utils";
 import {
 	ArrowSquareOutIcon,
@@ -361,32 +360,40 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 
 	const groups = useMemo(() => {
 		const result: SearchGroup[] = [];
+		const intelligence = isIntelligenceDashboard();
+		const {
+			main: mainNavigation,
+			settings: settingsNavigation,
+			website: websiteNavigation,
+		} = getSearchNavigationGroups();
 		const websitePrefix = currentWebsiteId
 			? `${isDemoPath ? "/demo" : "/websites"}/${currentWebsiteId}`
 			: "";
 
 		if (!isDemoPath) {
-			result.push({
-				category: "Actions",
-				items: [
-					{
-						id: "action:create-api-key",
-						name: "Create API Key",
-						subtitle: activeOrganization
-							? `Create a key for ${activeOrganization.name}`
-							: "Create an organization API key",
-						icon: KeyIcon,
-						action: openCreateApiKey,
-						disabled: !(organizationId && !isSwitchingOrganization),
-						searchTags: [
-							"new api key",
-							"api token",
-							"access token",
-							"node sdk",
-							"server sdk",
-							"automation key",
-						],
-					},
+			const actionItems: SearchItem[] = [
+				{
+					id: "action:create-api-key",
+					name: "Create API Key",
+					subtitle: activeOrganization
+						? `Create a key for ${activeOrganization.name}`
+						: "Create an organization API key",
+					icon: KeyIcon,
+					action: openCreateApiKey,
+					disabled: !(organizationId && !isSwitchingOrganization),
+					searchTags: [
+						"new api key",
+						"api token",
+						"access token",
+						"node sdk",
+						"server sdk",
+						"automation key",
+					],
+				},
+			];
+
+			if (!intelligence) {
+				actionItems.push(
 					{
 						id: "action:create-link",
 						name: "Create Short Link",
@@ -418,8 +425,13 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 						path: "/monitors/status-pages?command=create-status-page",
 						icon: OpenExternalIcon,
 						searchTags: ["new status page", "incident page", "uptime page"],
-					},
-				],
+					}
+				);
+			}
+
+			result.push({
+				category: "Actions",
+				items: actionItems,
 			});
 
 			result.push(...groupsToSearchGroups(mainNavigation));
@@ -431,7 +443,9 @@ export function CommandSearchProvider({ children }: { children: ReactNode }) {
 				category: "Websites",
 				items: websites.map((w) => ({
 					name: w.name || w.domain,
-					path: `/websites/${w.id}`,
+					path: intelligence
+						? `/websites/${w.id}/settings/tracking`
+						: `/websites/${w.id}`,
 					icon: GlobeIcon,
 					searchTags: [w.domain],
 				})),

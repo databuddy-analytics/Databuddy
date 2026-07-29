@@ -32,6 +32,8 @@
     "NEXT_PUBLIC_API_URL",
     "NEXT_PUBLIC_APP_URL",
     "NEXT_PUBLIC_BASKET_URL",
+    "NEXT_PUBLIC_DASHBOARD_PRODUCT",
+    "NEXT_PUBLIC_INTELLIGENCE_URL",
     "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID",
     "NEXT_PUBLIC_STATUS_URL",
     "NODE_ENV",
@@ -88,6 +90,11 @@
       "persistent": false
     },
     "dev": {
+      "dependsOn": ["@databuddy/sdk#build"],
+      "cache": false,
+      "persistent": true
+    },
+    "dev:intelligence": {
       "dependsOn": ["@databuddy/sdk#build"],
       "cache": false,
       "persistent": true
