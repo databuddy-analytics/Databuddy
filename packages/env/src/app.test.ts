@@ -8,6 +8,7 @@ describe("createConfig", () => {
 				api: "http://localhost:3001",
 				basket: "http://localhost:4000",
 				dashboard: "http://localhost:3000",
+				intelligence: "http://localhost:3003",
 				status: "http://localhost:3002",
 			},
 		});
@@ -19,6 +20,7 @@ describe("createConfig", () => {
 				api: "https://api.databuddy.cc",
 				basket: "https://basket.databuddy.cc",
 				dashboard: "https://app.databuddy.cc",
+				intelligence: "https://intelligence.databuddy.cc",
 				status: "https://status.databuddy.cc",
 			},
 		});
@@ -93,6 +95,7 @@ describe("createConfig", () => {
 			cors: {
 				apiOrigins: [
 					"https://dashboard.example.com",
+					"https://intelligence.databuddy.cc",
 					"https://dashboard-production.up.railway.app",
 					"https://extra.example.com",
 				],
