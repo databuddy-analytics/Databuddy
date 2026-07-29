@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { getTableConfig } from "drizzle-orm/pg-core";
-import { auditEvents } from "./audit";
+import { auditEvents, auditOutboxEvents } from "./audit";
 
 describe("audit event schema", () => {
 	test("keeps tenant-scoped history after related resources are deleted", () => {
@@ -35,5 +35,14 @@ describe("audit event schema", () => {
 		expect(
 			index?.config.columns.map((column) => column.indexConfig.order)
 		).toEqual(["asc", "desc", "desc"]);
+	});
+
+	test("keeps failed writes in a durable replay queue", () => {
+		const config = getTableConfig(auditOutboxEvents);
+
+		expect(config.columns.map((column) => column.name)).toEqual(
+			expect.arrayContaining(["id", "payload", "created_at"])
+		);
+		expect(config.foreignKeys).toEqual([]);
 	});
 });

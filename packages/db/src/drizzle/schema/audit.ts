@@ -8,6 +8,27 @@ import {
 	timestamp,
 } from "drizzle-orm/pg-core";
 
+export interface AuditOutboxPayload {
+	action: string;
+	actorDisplayName?: string;
+	actorId: string;
+	actorType: "agent" | "api" | "system" | "user";
+	changes: AuditChanges;
+	id: string;
+	ip?: string;
+	metadata: AuditMetadata;
+	operation?: string;
+	organizationId: string;
+	outcome: "denied" | "failure" | "success";
+	reason?: string;
+	requestId?: string;
+	source: "better_auth" | "orpc" | "public_api" | "worker";
+	targetDisplayName?: string;
+	targetId: string;
+	targetType: string;
+	userAgent?: string;
+}
+
 export const auditActorType = pgEnum("audit_actor_type", [
 	"user",
 	"api",
@@ -78,4 +99,23 @@ export const auditEvents = pgTable(
 			table.createdAt
 		),
 	]
+);
+
+/**
+ * Durable retry queue for audit writes that fail after their primary mutation
+ * has committed. API workers replay these rows until the ledger accepts them.
+ */
+export const auditOutboxEvents = pgTable(
+	"audit_outbox_events",
+	{
+		id: text().primaryKey(),
+		payload: jsonb().$type<AuditOutboxPayload>().notNull(),
+		createdAt: timestamp("created_at", {
+			precision: 3,
+			withTimezone: true,
+		})
+			.notNull()
+			.defaultNow(),
+	},
+	(table) => [index("audit_outbox_events_created_at_idx").on(table.createdAt)]
 );

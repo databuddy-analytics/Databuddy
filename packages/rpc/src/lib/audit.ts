@@ -9,10 +9,6 @@ import {
 } from "@databuddy/services/audit";
 import type { Context } from "../orpc";
 
-function firstForwardedIp(value: string | null): string | undefined {
-	return value?.split(",")[0]?.trim() || undefined;
-}
-
 export function getAuditActor(context: Context): AuditActor {
 	if (context.user) {
 		return {
@@ -38,10 +34,6 @@ export function getAuditActor(context: Context): AuditActor {
 export function getAuditRequestContext(context: Context): AuditRequestContext {
 	return {
 		requestId: context.headers.get("x-request-id") ?? undefined,
-		ip:
-			firstForwardedIp(context.headers.get("x-forwarded-for")) ??
-			context.headers.get("x-real-ip") ??
-			undefined,
 		userAgent: context.headers.get("user-agent") ?? undefined,
 	};
 }

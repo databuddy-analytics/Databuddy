@@ -1,6 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, lt, or, type InferSelectModel } from "@databuddy/db";
-import { auditEvents } from "@databuddy/db/schema";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	lt,
+	or,
+	type InferSelectModel,
+} from "@databuddy/db";
+import {
+	auditEvents,
+	auditOutboxEvents,
+	type AuditOutboxPayload,
+} from "@databuddy/db/schema";
 import { emitAuditMirror } from "@databuddy/shared/audit";
 import type {
 	AuditActionDefinition,
@@ -14,7 +26,7 @@ import type {
 
 type AuditDatabase = Pick<
 	typeof import("@databuddy/db").db,
-	"insert" | "select"
+	"delete" | "insert" | "select"
 >;
 
 export type AuditEvent = InferSelectModel<typeof auditEvents>;
@@ -37,37 +49,99 @@ export interface AppendAuditEventInput<TAction extends AuditActionDefinition> {
 	target: AuditTarget;
 }
 
+function toAuditOutboxPayload<TAction extends AuditActionDefinition>(
+	organizationId: string,
+	input: AppendAuditEventInput<TAction>
+): AuditOutboxPayload {
+	return {
+		action: input.action.action,
+		actorDisplayName: input.actor.displayName,
+		actorId: input.actor.id,
+		actorType: input.actor.type,
+		changes: input.changes ?? {},
+		id: randomUUID(),
+		ip: input.request?.ip,
+		metadata: input.metadata ?? {},
+		operation: input.operation,
+		organizationId,
+		outcome: input.outcome ?? "success",
+		reason: input.reason,
+		requestId: input.request?.requestId,
+		source: input.source,
+		targetDisplayName: input.target.displayName,
+		targetId: input.target.id,
+		targetType: input.action.targetType,
+		userAgent: input.request?.userAgent,
+	};
+}
+
+async function insertAuditPayload(
+	database: AuditDatabase,
+	payload: AuditOutboxPayload
+): Promise<AuditEvent> {
+	const [event] = await database
+		.insert(auditEvents)
+		.values(payload)
+		.returning();
+	if (!event) {
+		throw new Error("Audit event was not persisted");
+	}
+	return event;
+}
+
+/** Replays a bounded batch of previously durable audit writes. */
+export async function replayAuditOutbox(
+	database: AuditDatabase,
+	limit = 100
+): Promise<number> {
+	const rows = await database
+		.select()
+		.from(auditOutboxEvents)
+		.orderBy(asc(auditOutboxEvents.createdAt))
+		.limit(Math.min(Math.max(limit, 1), 100));
+	let replayed = 0;
+	for (const row of rows) {
+		try {
+			await database
+				.insert(auditEvents)
+				.values(row.payload)
+				.onConflictDoNothing({ target: auditEvents.id });
+			await database
+				.delete(auditOutboxEvents)
+				.where(eq(auditOutboxEvents.id, row.id));
+			replayed += 1;
+		} catch {
+			// Leave the durable entry for the next bounded replay attempt.
+		}
+	}
+	return replayed;
+}
+
 export async function appendAuditEvent<TAction extends AuditActionDefinition>(
 	database: AuditDatabase,
 	organizationId: string,
 	input: AppendAuditEventInput<TAction>
 ): Promise<AuditEvent> {
-	const [event] = await database
-		.insert(auditEvents)
-		.values({
-			id: randomUUID(),
-			organizationId,
-			action: input.action.action,
-			outcome: input.outcome ?? "success",
-			source: input.source,
-			operation: input.operation,
-			actorType: input.actor.type,
-			actorId: input.actor.id,
-			actorDisplayName: input.actor.displayName,
-			targetType: input.action.targetType,
-			targetId: input.target.id,
-			targetDisplayName: input.target.displayName,
-			changes: input.changes ?? {},
-			metadata: input.metadata ?? {},
-			reason: input.reason,
-			requestId: input.request?.requestId,
-			ip: input.request?.ip,
-			userAgent: input.request?.userAgent,
-		})
-		.returning();
-
-	if (!event) {
-		throw new Error("Audit event was not persisted");
+	const payload = toAuditOutboxPayload(organizationId, input);
+	let event: AuditEvent;
+	try {
+		event = await insertAuditPayload(database, payload);
+	} catch {
+		await database
+			.insert(auditOutboxEvents)
+			.values({ id: payload.id, payload })
+			.onConflictDoNothing({ target: auditOutboxEvents.id });
+		return {
+			...payload,
+			actorDisplayName: payload.actorDisplayName ?? null,
+			createdAt: new Date(),
+			ip: payload.ip ?? null,
+			operation: payload.operation ?? null,
+			reason: payload.reason ?? null,
+			requestId: payload.requestId ?? null,
+			targetDisplayName: payload.targetDisplayName ?? null,
+			userAgent: payload.userAgent ?? null,
+		};
 	}
 
 	// The ledger is authoritative. This mirror keeps audit activity visible in
@@ -82,6 +156,8 @@ export async function appendAuditEvent<TAction extends AuditActionDefinition>(
 		reason: input.reason,
 		target: { id: input.target.id },
 	});
+
+	replayAuditOutbox(database).catch(() => undefined);
 
 	return event;
 }
