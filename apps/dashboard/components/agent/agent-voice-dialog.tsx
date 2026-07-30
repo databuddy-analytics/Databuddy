@@ -206,10 +206,7 @@ export function AgentVoiceDialog({ onTranscript }: AgentVoiceDialogProps) {
 										</Shimmer>
 									)}
 									<span className="max-w-60 text-balance text-muted-foreground text-xs leading-5">
-										{error ??
-											(isSupported
-												? "Start speaking when you're ready"
-												: "Voice input is not supported in this browser")}
+										{error ?? "Start speaking when you're ready"}
 									</span>
 								</motion.div>
 							)}
