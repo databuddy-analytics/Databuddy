@@ -656,9 +656,8 @@ export async function applyInsightGoalAction(input: {
 	context: Context;
 	insightId: string;
 }): Promise<{ reply: z.infer<typeof insightTimelineReplySchema> }> {
-	const parsed = applyInsightGoalActionInputSchema.parse({
-		insightId: input.insightId,
-	});
+	const { context, ...rawInput } = input;
+	const parsed = applyInsightGoalActionInputSchema.parse(rawInput);
 	const [target] = await db
 		.select({
 			organizationId: analyticsInsights.organizationId,
@@ -700,14 +699,14 @@ export async function applyInsightGoalAction(input: {
 		throw rpcError.badRequest("This investigation has no goal action to apply");
 	}
 
-	await withWorkspace(input.context, {
+	await withWorkspace(context, {
 		allowCrossOrg: true,
 		organizationId: target.organizationId,
 		permissions: initialAction.operation === "delete" ? ["delete"] : ["update"],
 		websiteId: target.websiteId,
 	});
 
-	const author = replyAuthor(input.context);
+	const author = replyAuthor(context);
 	const completed = await db.transaction(async (tx) => {
 		const [current] = await tx
 			.select({
