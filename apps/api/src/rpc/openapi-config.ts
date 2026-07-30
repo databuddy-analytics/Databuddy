@@ -1,11 +1,25 @@
 import type { AppRouter } from "@databuddy/rpc";
 
-export const HIDDEN_OPENAPI_ROUTERS = [
-	"revenue",
-	"billing",
+export const PUBLIC_OPENAPI_ROUTERS = [
+	"alarms",
+	"annotations",
+	"apikeys",
+	"autocomplete",
+	"feedback",
+	"flags",
+	"funnels",
+	"goals",
+	"linkFolders",
+	"links",
+	"organizations",
+	"statusPage",
+	"targetGroups",
+	"tracker",
+	"uptime",
+	"websites",
 ] as const satisfies readonly (keyof AppRouter)[];
 
-export type HiddenOpenApiRouter = (typeof HIDDEN_OPENAPI_ROUTERS)[number];
+export type PublicOpenApiRouter = (typeof PUBLIC_OPENAPI_ROUTERS)[number];
 
 export const AVAILABLE_API_SCOPES =
 	"read:data | track:events | read:links | write:links | read:monitors | write:monitors | read:status_pages | write:status_pages | manage:websites | manage:flags | manage:config";
@@ -87,11 +101,6 @@ export const OPENAPI_TAGS = [
 			"Organization management: avatar, invitations, billing context, and usage.",
 	},
 	{
-		name: "Preferences",
-		description:
-			"User preferences for date and time formatting. Stored per-user, not per-organization.",
-	},
-	{
 		name: "StatusPage",
 		description:
 			"Public status pages, incidents, and monitor visibility settings. API keys require read:status_pages or write:status_pages scope.",
@@ -100,6 +109,11 @@ export const OPENAPI_TAGS = [
 		name: "Target Groups",
 		description:
 			"Audience targeting for feature flags. Define target groups by rules (country, referrer, etc.) and use them to target flag rollouts.",
+	},
+	{
+		name: "Tracker",
+		description:
+			"Tracker script version metadata and integrity hashes for supported client integrations.",
 	},
 	{
 		name: "Uptime",
