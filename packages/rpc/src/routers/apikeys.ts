@@ -322,40 +322,51 @@ export const apikeysRouter = {
 				expiresAt: input.expiresAt ?? null,
 			});
 
-			const [created] = await context.db
-				.insert(apikey)
-				.values({
-					id: record.id,
-					name: input.name,
-					prefix: secret.split("_")[0] ?? "dbdy",
-					start: secret.slice(0, 8),
-					keyHash: record.keyHash,
-					userId: null,
-					organizationId: input.organizationId,
-					type: input.type,
-					scopes: input.scopes,
-					enabled: true,
-					rateLimitEnabled: input.ratelimit?.enabled ?? true,
-					rateLimitMax: input.ratelimit?.max,
-					rateLimitTimeWindow: input.ratelimit?.window,
-					expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-					metadata: nextMetadata,
-				})
-				.returning();
+			const created = await context.db.transaction(async (tx) => {
+				const [created] = await tx
+					.insert(apikey)
+					.values({
+						id: record.id,
+						name: input.name,
+						prefix: secret.split("_")[0] ?? "dbdy",
+						start: secret.slice(0, 8),
+						keyHash: record.keyHash,
+						userId: null,
+						organizationId: input.organizationId,
+						type: input.type,
+						scopes: input.scopes,
+						enabled: true,
+						rateLimitEnabled: input.ratelimit?.enabled ?? true,
+						rateLimitMax: input.ratelimit?.max,
+						rateLimitTimeWindow: input.ratelimit?.window,
+						expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+						metadata: nextMetadata,
+					})
+					.returning();
+				if (!created) {
+					throw new Error("API key was not created");
+				}
 
-			await appendRpcAuditEvent(context, input.organizationId, {
-				action: auditActions.API_KEY_CREATED,
-				operation: "apikeys.create",
-				target: { id: created.id, displayName: created.name },
-				changes: {
-					name: { after: created.name },
-					type: { after: created.type },
-					scopes: { after: created.scopes },
-				},
-				metadata: {
-					hasExpiry: created.expiresAt !== null,
-					hasResourceScopes: Object.keys(input.resources ?? {}).length > 0,
-				},
+				await appendRpcAuditEvent(
+					context,
+					input.organizationId,
+					{
+						action: auditActions.API_KEY_CREATED,
+						operation: "apikeys.create",
+						target: { id: created.id, displayName: created.name },
+						changes: {
+							name: { after: created.name },
+							type: { after: created.type },
+							scopes: { after: created.scopes },
+						},
+						metadata: {
+							hasExpiry: created.expiresAt !== null,
+							hasResourceScopes: Object.keys(input.resources ?? {}).length > 0,
+						},
+					},
+					tx
+				);
+				return created;
 			});
 
 			return {
@@ -418,64 +429,75 @@ export const apikeysRouter = {
 			};
 			assertMetadataSize(nextMetadata);
 
-			const [updated] = await withApiKeyCacheInvalidation(
+			const updated = await withApiKeyCacheInvalidation(
 				[key.keyHash],
 				() =>
-					context.db
-						.update(apikey)
-						.set({
-							...(input.name !== undefined && { name: input.name }),
-							...(input.enabled !== undefined && { enabled: input.enabled }),
-							...(input.scopes !== undefined && { scopes: input.scopes }),
-							...(input.expiresAt !== undefined && {
-								expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
-							}),
-							...(input.ratelimit?.enabled !== undefined && {
-								rateLimitEnabled: input.ratelimit.enabled,
-							}),
-							...(input.ratelimit?.max !== undefined && {
-								rateLimitMax: input.ratelimit.max,
-							}),
-							...(input.ratelimit?.window !== undefined && {
-								rateLimitTimeWindow: input.ratelimit.window,
-							}),
-							metadata: nextMetadata,
-							updatedAt: new Date(),
-						})
-						.where(eq(apikey.id, input.id))
-						.returning(),
-				(rows) => [rows[0]?.keyHash]
-			);
+					context.db.transaction(async (tx) => {
+						const [updated] = await tx
+							.update(apikey)
+							.set({
+								...(input.name !== undefined && { name: input.name }),
+								...(input.enabled !== undefined && { enabled: input.enabled }),
+								...(input.scopes !== undefined && { scopes: input.scopes }),
+								...(input.expiresAt !== undefined && {
+									expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
+								}),
+								...(input.ratelimit?.enabled !== undefined && {
+									rateLimitEnabled: input.ratelimit.enabled,
+								}),
+								...(input.ratelimit?.max !== undefined && {
+									rateLimitMax: input.ratelimit.max,
+								}),
+								...(input.ratelimit?.window !== undefined && {
+									rateLimitTimeWindow: input.ratelimit.window,
+								}),
+								metadata: nextMetadata,
+								updatedAt: new Date(),
+							})
+							.where(eq(apikey.id, input.id))
+							.returning();
+						if (!updated) {
+							throw rpcError.notFound("API key", input.id);
+						}
 
-			await appendRpcAuditEvent(context, key.organizationId, {
-				action: auditActions.API_KEY_UPDATED,
-				operation: "apikeys.update",
-				target: { id: updated.id, displayName: updated.name },
-				changes: {
-					...(input.name !== undefined && {
-						name: { before: key.name, after: updated.name },
+						await appendRpcAuditEvent(
+							context,
+							key.organizationId,
+							{
+								action: auditActions.API_KEY_UPDATED,
+								operation: "apikeys.update",
+								target: { id: updated.id, displayName: updated.name },
+								changes: {
+									...(input.name !== undefined && {
+										name: { before: key.name, after: updated.name },
+									}),
+									...(input.enabled !== undefined && {
+										enabled: { before: key.enabled, after: updated.enabled },
+									}),
+									...(input.scopes !== undefined && {
+										scopes: { before: key.scopes, after: updated.scopes },
+									}),
+									...(input.expiresAt !== undefined && {
+										expiresAt: {
+											before: key.expiresAt?.toISOString() ?? null,
+											after: updated.expiresAt?.toISOString() ?? null,
+										},
+									}),
+								},
+								metadata: {
+									metadataUpdated:
+										input.description !== undefined ||
+										input.resources !== undefined ||
+										input.tags !== undefined,
+									rateLimitUpdated: input.ratelimit !== undefined,
+								},
+							},
+							tx
+						);
+						return updated;
 					}),
-					...(input.enabled !== undefined && {
-						enabled: { before: key.enabled, after: updated.enabled },
-					}),
-					...(input.scopes !== undefined && {
-						scopes: { before: key.scopes, after: updated.scopes },
-					}),
-					...(input.expiresAt !== undefined && {
-						expiresAt: {
-							before: key.expiresAt?.toISOString() ?? null,
-							after: updated.expiresAt?.toISOString() ?? null,
-						},
-					}),
-				},
-				metadata: {
-					metadataUpdated:
-						input.description !== undefined ||
-						input.resources !== undefined ||
-						input.tags !== undefined,
-					rateLimitUpdated: input.ratelimit !== undefined,
-				},
-			});
+				(result) => [result.keyHash]
+			);
 
 			return mapKey(updated);
 		}),
@@ -499,18 +521,34 @@ export const apikeysRouter = {
 			await assertOrgAdmin(context, key.organizationId, "Revoke API keys");
 
 			await withApiKeyCacheInvalidation([key.keyHash], () =>
-				context.db
-					.update(apikey)
-					.set({ enabled: false, revokedAt: new Date(), updatedAt: new Date() })
-					.where(eq(apikey.id, input.id))
+				context.db.transaction(async (tx) => {
+					const [revoked] = await tx
+						.update(apikey)
+						.set({
+							enabled: false,
+							revokedAt: new Date(),
+							updatedAt: new Date(),
+						})
+						.where(eq(apikey.id, input.id))
+						.returning();
+					if (!revoked) {
+						throw rpcError.notFound("API key", input.id);
+					}
+					await appendRpcAuditEvent(
+						context,
+						key.organizationId,
+						{
+							action: auditActions.API_KEY_REVOKED,
+							operation: "apikeys.revoke",
+							target: { id: revoked.id, displayName: revoked.name },
+							changes: {
+								enabled: { before: key.enabled, after: revoked.enabled },
+							},
+						},
+						tx
+					);
+				})
 			);
-
-			await appendRpcAuditEvent(context, key.organizationId, {
-				action: auditActions.API_KEY_REVOKED,
-				operation: "apikeys.revoke",
-				target: { id: key.id, displayName: key.name },
-				changes: { enabled: { before: key.enabled, after: false } },
-			});
 
 			return { success: true };
 		}),
@@ -545,27 +583,37 @@ export const apikeysRouter = {
 				expiresAt: key.expiresAt?.toISOString() ?? null,
 			});
 
-			const [updated] = await withApiKeyCacheInvalidation(
+			const updated = await withApiKeyCacheInvalidation(
 				[key.keyHash],
 				() =>
-					context.db
-						.update(apikey)
-						.set({
-							prefix: secret.split("_")[0] ?? "dbdy",
-							start: secret.slice(0, 8),
-							keyHash: record.keyHash,
-							updatedAt: new Date(),
-						})
-						.where(eq(apikey.id, input.id))
-						.returning(),
-				(rows) => [rows[0]?.keyHash]
+					context.db.transaction(async (tx) => {
+						const [updated] = await tx
+							.update(apikey)
+							.set({
+								prefix: secret.split("_")[0] ?? "dbdy",
+								start: secret.slice(0, 8),
+								keyHash: record.keyHash,
+								updatedAt: new Date(),
+							})
+							.where(eq(apikey.id, input.id))
+							.returning();
+						if (!updated) {
+							throw rpcError.notFound("API key", input.id);
+						}
+						await appendRpcAuditEvent(
+							context,
+							ownerId,
+							{
+								action: auditActions.API_KEY_ROTATED,
+								operation: "apikeys.rotate",
+								target: { id: updated.id, displayName: updated.name },
+							},
+							tx
+						);
+						return updated;
+					}),
+				(result) => [result.keyHash]
 			);
-
-			await appendRpcAuditEvent(context, ownerId, {
-				action: auditActions.API_KEY_ROTATED,
-				operation: "apikeys.rotate",
-				target: { id: updated.id, displayName: updated.name },
-			});
 
 			return {
 				id: updated.id,
@@ -594,15 +642,27 @@ export const apikeysRouter = {
 			await assertOrgAdmin(context, key.organizationId, "Delete API keys");
 
 			await withApiKeyCacheInvalidation([key.keyHash], () =>
-				context.db.delete(apikey).where(eq(apikey.id, input.id))
+				context.db.transaction(async (tx) => {
+					const [deleted] = await tx
+						.delete(apikey)
+						.where(eq(apikey.id, input.id))
+						.returning();
+					if (!deleted) {
+						throw rpcError.notFound("API key", input.id);
+					}
+					await appendRpcAuditEvent(
+						context,
+						key.organizationId,
+						{
+							action: auditActions.API_KEY_DELETED,
+							operation: "apikeys.delete",
+							target: { id: deleted.id, displayName: deleted.name },
+							changes: { deleted: { after: true } },
+						},
+						tx
+					);
+				})
 			);
-
-			await appendRpcAuditEvent(context, key.organizationId, {
-				action: auditActions.API_KEY_DELETED,
-				operation: "apikeys.delete",
-				target: { id: key.id, displayName: key.name },
-				changes: { deleted: { after: true } },
-			});
 
 			return { success: true };
 		}),

@@ -486,6 +486,7 @@
       "name": "@databuddy/auth",
       "version": "0.0.1",
       "dependencies": {
+        "@better-auth/core": "^1.6.11",
         "@better-auth/redis-storage": "^1.6.5",
         "@better-auth/sso": "^1.4.10",
         "@databuddy/db": "*",
