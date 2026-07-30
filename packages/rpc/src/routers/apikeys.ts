@@ -8,6 +8,7 @@ import {
 import { API_SCOPES } from "@databuddy/api-keys/scopes";
 import { desc, eq } from "@databuddy/db";
 import { apikey } from "@databuddy/db/schema";
+import { auditActions } from "@databuddy/shared/audit";
 import {
 	ApiKeyErrorCode,
 	hasAllScopes,
@@ -17,6 +18,7 @@ import {
 } from "keypal";
 import { z } from "zod";
 import { rpcError } from "../errors";
+import { appendRpcAuditEvent } from "../lib/audit";
 import { setTrackProperties } from "../middleware/track-mutation";
 import type { Context } from "../orpc";
 import {
@@ -155,7 +157,10 @@ async function assertOrgAdmin(
 	}
 }
 
-async function getAuthorizedKey(ctx: Context, id: string) {
+async function getAuthorizedKey(
+	ctx: Context,
+	id: string
+): Promise<ApiKey & { organizationId: string }> {
 	const key = await ctx.db.query.apikey.findFirst({ where: { id } });
 	if (!key) {
 		throw rpcError.notFound("API key", id);
@@ -164,7 +169,7 @@ async function getAuthorizedKey(ctx: Context, id: string) {
 		throw rpcError.notFound("API key", id);
 	}
 	await authorizeKeyManagement(ctx, key.organizationId);
-	return key;
+	return key as ApiKey & { organizationId: string };
 }
 
 function mapKey(key: ApiKey, full = false) {
@@ -338,6 +343,21 @@ export const apikeysRouter = {
 				})
 				.returning();
 
+			await appendRpcAuditEvent(context, input.organizationId, {
+				action: auditActions.API_KEY_CREATED,
+				operation: "apikeys.create",
+				target: { id: created.id, displayName: created.name },
+				changes: {
+					name: { after: created.name },
+					type: { after: created.type },
+					scopes: { after: created.scopes },
+				},
+				metadata: {
+					hasExpiry: created.expiresAt !== null,
+					hasResourceScopes: Object.keys(input.resources ?? {}).length > 0,
+				},
+			});
+
 			return {
 				id: created.id,
 				secret,
@@ -427,6 +447,36 @@ export const apikeysRouter = {
 				(rows) => [rows[0]?.keyHash]
 			);
 
+			await appendRpcAuditEvent(context, key.organizationId, {
+				action: auditActions.API_KEY_UPDATED,
+				operation: "apikeys.update",
+				target: { id: updated.id, displayName: updated.name },
+				changes: {
+					...(input.name !== undefined && {
+						name: { before: key.name, after: updated.name },
+					}),
+					...(input.enabled !== undefined && {
+						enabled: { before: key.enabled, after: updated.enabled },
+					}),
+					...(input.scopes !== undefined && {
+						scopes: { before: key.scopes, after: updated.scopes },
+					}),
+					...(input.expiresAt !== undefined && {
+						expiresAt: {
+							before: key.expiresAt?.toISOString() ?? null,
+							after: updated.expiresAt?.toISOString() ?? null,
+						},
+					}),
+				},
+				metadata: {
+					metadataUpdated:
+						input.description !== undefined ||
+						input.resources !== undefined ||
+						input.tags !== undefined,
+					rateLimitUpdated: input.ratelimit !== undefined,
+				},
+			});
+
 			return mapKey(updated);
 		}),
 
@@ -454,6 +504,13 @@ export const apikeysRouter = {
 					.set({ enabled: false, revokedAt: new Date(), updatedAt: new Date() })
 					.where(eq(apikey.id, input.id))
 			);
+
+			await appendRpcAuditEvent(context, key.organizationId, {
+				action: auditActions.API_KEY_REVOKED,
+				operation: "apikeys.revoke",
+				target: { id: key.id, displayName: key.name },
+				changes: { enabled: { before: key.enabled, after: false } },
+			});
 
 			return { success: true };
 		}),
@@ -504,6 +561,12 @@ export const apikeysRouter = {
 				(rows) => [rows[0]?.keyHash]
 			);
 
+			await appendRpcAuditEvent(context, ownerId, {
+				action: auditActions.API_KEY_ROTATED,
+				operation: "apikeys.rotate",
+				target: { id: updated.id, displayName: updated.name },
+			});
+
 			return {
 				id: updated.id,
 				secret,
@@ -533,6 +596,13 @@ export const apikeysRouter = {
 			await withApiKeyCacheInvalidation([key.keyHash], () =>
 				context.db.delete(apikey).where(eq(apikey.id, input.id))
 			);
+
+			await appendRpcAuditEvent(context, key.organizationId, {
+				action: auditActions.API_KEY_DELETED,
+				operation: "apikeys.delete",
+				target: { id: key.id, displayName: key.name },
+				changes: { deleted: { after: true } },
+			});
 
 			return { success: true };
 		}),

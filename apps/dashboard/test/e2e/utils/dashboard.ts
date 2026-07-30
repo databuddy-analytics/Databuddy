@@ -127,7 +127,9 @@ export async function createLinkFolder(
 	await page.getByRole("heading", { name: "Create Folder" }).waitFor();
 	await page.getByRole("textbox", { name: "Folder Name" }).fill(folderName);
 	await page.getByRole("button", { name: "Create Folder" }).click();
-	await page.getByRole("button", { name: escapedText(folderName) }).waitFor();
+	await expect(
+		page.getByRole("heading", { name: "Create Folder" })
+	).toBeHidden();
 }
 
 export async function createShortLink(

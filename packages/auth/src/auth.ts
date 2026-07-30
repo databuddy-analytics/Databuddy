@@ -27,6 +27,15 @@ import {
 	invalidateOrganizationMembershipCaches,
 	ratelimit,
 } from "@databuddy/redis";
+import {
+	appendAuditEvent,
+	type AppendAuditEventInput,
+} from "@databuddy/services/audit";
+import {
+	auditActions,
+	type AuditActionDefinition,
+	type AuditActor,
+} from "@databuddy/shared/audit";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
@@ -41,6 +50,7 @@ import {
 import { log } from "evlog";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
+import { getAuthAuditContext } from "./audit-context";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -268,6 +278,49 @@ async function invalidateMemberCaches(member: {
 			auth_org_id: member.organizationId,
 			cache_invalidations_failed: result.failed,
 			cache_invalidations_attempted: result.attempted,
+		});
+	}
+}
+
+const betterAuthSystemActor: AuditActor = {
+	type: "system",
+	id: "better-auth",
+	displayName: "Better Auth",
+};
+
+function toAuditActor(user: { id: string; name?: string | null }): AuditActor {
+	return {
+		type: "user",
+		id: user.id,
+		displayName: user.name ?? undefined,
+	};
+}
+
+async function recordAuthAudit<TAction extends AuditActionDefinition>(
+	organizationId: string,
+	input: Omit<
+		AppendAuditEventInput<TAction>,
+		"actor" | "operation" | "request" | "source"
+	>,
+	fallbackActor?: AuditActor
+): Promise<void> {
+	const context = getAuthAuditContext();
+	try {
+		await appendAuditEvent(db, organizationId, {
+			...input,
+			actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
+			operation: context?.operation,
+			request: context?.request,
+			source: "better_auth",
+		});
+	} catch (error) {
+		// Better Auth hooks run after the primary write. Do not turn a successful
+		// account or organization action into a failed response if the ledger is down.
+		log.error({
+			service: "auth",
+			auth_audit_action: input.action.action,
+			auth_audit_organization_id: organizationId,
+			error: error instanceof Error ? error.message : String(error),
 		});
 	}
 }
@@ -630,10 +683,145 @@ export const auth = betterAuth({
 				viewer,
 			},
 			organizationHooks: {
-				afterAddMember: ({ member }) => invalidateMemberCaches(member),
-				afterCreateOrganization: ({ member }) => invalidateMemberCaches(member),
-				afterRemoveMember: ({ member }) => invalidateMemberCaches(member),
-				afterUpdateMemberRole: ({ member }) => invalidateMemberCaches(member),
+				afterAddMember: async ({ member, organization }) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(organization.id, {
+						action: auditActions.ORGANIZATION_MEMBER_ADDED,
+						target: { id: member.id },
+						changes: { role: { after: member.role } },
+						metadata: { memberUserId: member.userId },
+					});
+				},
+				afterCreateOrganization: async ({ member, organization, user }) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_CREATED,
+							target: {
+								id: organization.id,
+								displayName: organization.name,
+							},
+							changes: { name: { after: organization.name } },
+						},
+						toAuditActor(user)
+					);
+				},
+				afterUpdateOrganization: async ({ organization, user }) => {
+					if (!organization) {
+						return;
+					}
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_UPDATED,
+							target: {
+								id: organization.id,
+								displayName: organization.name,
+							},
+							metadata: { updated: true },
+						},
+						toAuditActor(user)
+					);
+				},
+				afterDeleteOrganization: async ({ organization, user }) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_DELETED,
+							target: {
+								id: organization.id,
+								displayName: organization.name,
+							},
+							changes: { deleted: { after: true } },
+						},
+						toAuditActor(user)
+					);
+				},
+				afterRemoveMember: async ({ member, organization }) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(organization.id, {
+						action: auditActions.ORGANIZATION_MEMBER_REMOVED,
+						target: { id: member.id },
+						changes: {
+							deleted: { after: true },
+							role: { before: member.role },
+						},
+						metadata: { memberUserId: member.userId },
+					});
+				},
+				afterUpdateMemberRole: async ({
+					member,
+					organization,
+					previousRole,
+				}) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(organization.id, {
+						action: auditActions.ORGANIZATION_MEMBER_ROLE_UPDATED,
+						target: { id: member.id },
+						changes: { role: { before: previousRole, after: member.role } },
+						metadata: { memberUserId: member.userId },
+					});
+				},
+				afterCreateInvitation: async ({
+					invitation,
+					inviter,
+					organization,
+				}) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_CREATED,
+							target: { id: invitation.id },
+							changes: { role: { after: invitation.role } },
+							metadata: { status: invitation.status },
+						},
+						toAuditActor(inviter)
+					);
+				},
+				afterAcceptInvitation: async ({ invitation, organization, user }) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_ACCEPTED,
+							target: { id: invitation.id },
+							changes: {
+								status: { before: "pending", after: invitation.status },
+							},
+						},
+						toAuditActor(user)
+					);
+				},
+				afterRejectInvitation: async ({ invitation, organization, user }) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_REJECTED,
+							target: { id: invitation.id },
+							changes: {
+								status: { before: "pending", after: invitation.status },
+							},
+						},
+						toAuditActor(user)
+					);
+				},
+				afterCancelInvitation: async ({
+					cancelledBy,
+					invitation,
+					organization,
+				}) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_CANCELLED,
+							target: { id: invitation.id },
+							changes: {
+								status: { before: "pending", after: invitation.status },
+							},
+						},
+						toAuditActor(cancelledBy)
+					);
+				},
 			},
 			sendInvitationEmail: async ({
 				email,

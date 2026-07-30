@@ -1188,7 +1188,7 @@ async function runProductionShadow(options: CliOptions): Promise<ShadowReport> {
 								asOf,
 								evidence: artifact.evidence,
 								outcome: artifact.outcome,
-								recheckAt: nextRecheckAt(asOf, artifact.outcome.next.type),
+								recheckAt: nextRecheckAt(asOf, artifact.outcome.next),
 								signal: artifact.signal,
 							});
 						}

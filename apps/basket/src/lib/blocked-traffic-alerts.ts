@@ -15,6 +15,19 @@ import {
 	matchesTrackingBlockIgnoredOrigin,
 } from "@databuddy/shared/tracking-blocks";
 import { captureError } from "@lib/tracing";
+import { log } from "evlog";
+
+let warnedEmailUnconfigured = false;
+function warnBlockedTrafficEmailUnconfigured(): void {
+	if (warnedEmailUnconfigured) {
+		return;
+	}
+	warnedEmailUnconfigured = true;
+	log.warn({
+		message:
+			"Blocked traffic email alerts disabled: RESEND_API_KEY is not configured",
+	});
+}
 
 const ALERT_WINDOW_MINUTES = 15;
 const RECENT_SUCCESS_MINUTES = 30;
@@ -269,7 +282,7 @@ async function sendAlertEmail(input: {
 	previousBlocked: number;
 	windowBlockedCount: number;
 }): Promise<void> {
-	const apiKey = requireBlockedTrafficEmailApiKey(process.env.RESEND_API_KEY);
+	const apiKey = requireBlockedTrafficEmailApiKey(config.email.resendApiKey);
 
 	const siteLabel =
 		input.context.websiteName ||
@@ -363,6 +376,11 @@ async function maybeSendBlockedTrafficAlertAsync(
 
 	const recipientEmail = await getOwnerEmail(context.ownerId);
 	if (!recipientEmail) {
+		return;
+	}
+
+	if (!config.email.resendApiKey) {
+		warnBlockedTrafficEmailUnconfigured();
 		return;
 	}
 

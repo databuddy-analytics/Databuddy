@@ -281,12 +281,35 @@ describe("eligibleSignalsForInvestigation", () => {
 });
 
 describe("nextRecheckAt", () => {
-	it("makes open work eligible on the next scheduled day", () => {
-		const cases: [InvestigationOutcome["next"]["type"], string][] = [
-			["act", "2026-07-13T12:00:00.000Z"],
-			["watch", "2026-07-13T12:00:00.000Z"],
-			["ask", "2026-08-11T12:00:00.000Z"],
-			["resolve", "2026-08-11T12:00:00.000Z"],
+	it("honors an agent's concrete verification window", () => {
+		const next: InvestigationOutcome["next"] = {
+			action: "Deploy the inspected fix.",
+			recheckAt: "2026-07-19T12:00:00.000Z",
+			target: "Checkout form",
+			type: "act",
+			verification: "Checkout completion returns to its prior baseline.",
+		};
+
+		expect(nextRecheckAt(NOW, next).toISOString()).toBe(next.recheckAt);
+	});
+
+	it("keeps historical outcomes on the safe fallback cadence", () => {
+		const cases: [InvestigationOutcome["next"], string][] = [
+			[
+				{
+					action: "Deploy the inspected fix.",
+					target: "Checkout form",
+					type: "act",
+					verification: "Checkout completion returns to its prior baseline.",
+				},
+				"2026-07-13T12:00:00.000Z",
+			],
+			[
+				{ escalation: "The failure recurs.", type: "watch" },
+				"2026-07-13T12:00:00.000Z",
+			],
+			[{ question: "Who owns this route?", type: "ask" }, "2026-08-11T12:00:00.000Z"],
+			[{ reason: "The metric recovered.", type: "resolve" }, "2026-08-11T12:00:00.000Z"],
 		];
 		for (const [next, expected] of cases) {
 			expect(nextRecheckAt(NOW, next).toISOString()).toBe(expected);

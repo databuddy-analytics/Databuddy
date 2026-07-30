@@ -4,6 +4,8 @@ import { createMcpTools } from "@databuddy/ai/mcp/tools";
 import { eq } from "@databuddy/db";
 import {
 	analyticsInsights,
+	funnelDefinitions,
+	goals,
 	insightObservations,
 	insightReplies,
 } from "@databuddy/db/schema";
@@ -247,6 +249,276 @@ describe("insight investigation timeline", () => {
 		});
 		expect(result.insights.map((insight) => insight.id)).toEqual([
 			actionableId,
+		]);
+	});
+
+	iit("hides a case from the action inbox while a reply is being verified", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const insightId = randomUUIDv7();
+		const subjectKey = "goal:signup";
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-01T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome: investigationOutcome("act"),
+			recheckAt: new Date("2026-01-08T00:00:00.000Z"),
+			signal: signal(subjectKey),
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
+		await db().insert(insightReplies).values({
+			authorId: member.id,
+			authorName: "Test member",
+			body: "Databuddy applied the suggested action.",
+			id: randomUUIDv7(),
+			insightId,
+			status: "running",
+		});
+
+		const result = await call(
+			appRouter.insights.history,
+			userContext(member, organization.id)
+		)({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+		});
+
+		expect(result.insights).toEqual([]);
+	});
+
+	iit("applies an executable goal action and queues verification together", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const goalId = randomUUIDv7();
+		const insightId = randomUUIDv7();
+		const subjectKey = "goal:clicked-nav";
+		const outcome: InvestigationOutcome = {
+			...investigationOutcome("act"),
+			next: {
+				action: "Rename Clicked Nav to Navigation clicks.",
+				execution: {
+					action: "Rename Clicked Nav to Navigation clicks.",
+					changes: {
+						description: "Counts navigation activity across the site.",
+						name: "Navigation clicks",
+					},
+					operation: "edit",
+				},
+				target: "Goal: Clicked Nav",
+				type: "act",
+				verification: "The goal definition matches the navigation metric.",
+			},
+			rootCause: "The existing goal name is too narrow for its configured target.",
+		};
+		const actionSignal = {
+			...signal(subjectKey),
+			entity: {
+				id: goalId,
+				label: "Clicked Nav",
+				type: "goal" as const,
+			},
+		};
+
+		await db().insert(goals).values({
+			createdBy: member.id,
+			description: "A narrow description.",
+			id: goalId,
+			name: "Clicked Nav",
+			target: "nav_clicked",
+			type: "EVENT",
+			websiteId: website.id,
+		});
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-10T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome,
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+			signal: actionSignal,
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
+
+		const applied = await call(
+			appRouter.insights.applyGoalAction,
+			userContext(member, organization.id)
+		)({ insightId });
+
+		expect(applied.reply).toMatchObject({
+			body: "Databuddy applied the goal action. Recheck its verification condition against current data.",
+			kind: "reply",
+			status: "queued",
+		});
+		expect(
+			await db()
+				.select({ description: goals.description, name: goals.name })
+				.from(goals)
+				.where(eq(goals.id, goalId))
+		).toEqual([
+			{
+				description: "Counts navigation activity across the site.",
+				name: "Navigation clicks",
+			},
+		]);
+		expect(
+			(await getInsightsQueue().getJob(insightsResumeJobId(applied.reply.id)))
+				?.data
+		).toEqual({ replyId: applied.reply.id });
+	});
+
+	iit("remeasures an open goal investigation after a teammate edits its definition", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const goalId = randomUUIDv7();
+		const insightId = randomUUIDv7();
+		const subjectKey = `goal:${goalId}`;
+		await db().insert(goals).values({
+			createdBy: member.id,
+			id: goalId,
+			name: "Signup complete",
+			target: "signup_completed",
+			type: "EVENT",
+			websiteId: website.id,
+		});
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-10T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome: investigationOutcome("act"),
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+			signal: {
+				...signal(subjectKey),
+				entity: { id: goalId, label: "Signup complete", type: "goal" },
+			},
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
+
+		const context = userContext(member, organization.id);
+		await call(appRouter.goals.update, context)({
+			id: goalId,
+			name: "Signup conversion",
+		});
+		await call(appRouter.goals.update, context)({
+			description: "Counts completed signup events.",
+			id: goalId,
+		});
+
+		const replies = await db()
+			.select({
+				authorName: insightReplies.authorName,
+				body: insightReplies.body,
+				id: insightReplies.id,
+				status: insightReplies.status,
+			})
+			.from(insightReplies);
+		expect(replies).toEqual([
+			expect.objectContaining({
+				authorName: "Databuddy",
+				body: "Databuddy detected a goal definition change. Recheck the current evidence and resolve this investigation if the change addressed it.",
+				status: "queued",
+			}),
+		]);
+		expect(
+			(await getInsightsQueue().getJob(insightsResumeJobId(replies[0]?.id ?? "")))
+				?.data
+		).toEqual({ replyId: replies[0]?.id });
+	});
+
+	iit("remeasures an open funnel-step investigation after its funnel changes", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const funnelId = randomUUIDv7();
+		const insightId = randomUUIDv7();
+		const subjectKey = `funnel:${funnelId}:step:2`;
+		await db().insert(funnelDefinitions).values({
+			createdBy: member.id,
+			id: funnelId,
+			name: "Signup funnel",
+			steps: [
+				{ name: "Register", target: "/register", type: "PAGE_VIEW" },
+				{ name: "Website", target: "/websites", type: "PAGE_VIEW" },
+			],
+			websiteId: website.id,
+		});
+		await db().insert(analyticsInsights).values(
+			insightRow({
+				id: insightId,
+				organizationId: organization.id,
+				subjectKey,
+				websiteId: website.id,
+			})
+		);
+		await db().insert(insightObservations).values({
+			asOf: new Date("2026-01-10T00:00:00.000Z"),
+			id: randomUUIDv7(),
+			insightId,
+			organizationId: organization.id,
+			outcome: investigationOutcome("act"),
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
+			signal: {
+				...signal(subjectKey),
+				entity: {
+					id: `${funnelId}:step:2`,
+					label: "Signup funnel → Website",
+					type: "funnel_step",
+				},
+			},
+			signalKey: subjectKey,
+			websiteId: website.id,
+		});
+
+		await call(appRouter.funnels.update, userContext(member, organization.id))({
+			description: "Tracks signup progress to the websites page.",
+			id: funnelId,
+		});
+
+		expect(
+			await db()
+				.select({ body: insightReplies.body, status: insightReplies.status })
+				.from(insightReplies)
+		).toEqual([
+			{
+				body: "Databuddy detected a funnel definition change. Recheck the current evidence and resolve this investigation if the change addressed it.",
+				status: "queued",
+			},
 		]);
 	});
 
@@ -644,8 +916,9 @@ describe("insight investigation timeline", () => {
 			.find((tool) => tool.name === "list_investigations")
 			?.handler({ limit: 20, offset: 0, websiteId: website.id });
 		expect(listed?.isError).toBe(false);
-		expect(listed?.structuredContent).toMatchObject({
-			investigations: [expect.objectContaining({ id: insightId })],
+		expect(listed?.structuredContent).toEqual({
+			hasMore: false,
+			investigations: [],
 		});
 		expect(await db().select().from(insightReplies)).toEqual([
 			expect.objectContaining({

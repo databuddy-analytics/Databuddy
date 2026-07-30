@@ -25,7 +25,7 @@ import { paddleWebhook } from "@routes/webhooks/paddle";
 import { stripeWebhook } from "@routes/webhooks/stripe";
 import { closeGeoIPReader } from "@utils/ip-geo";
 import { Elysia } from "elysia";
-import { initLogger, log } from "evlog";
+import { EvlogError, initLogger, log } from "evlog";
 import { evlog } from "evlog/elysia";
 
 initLogger({
@@ -135,7 +135,11 @@ const app = new Elysia()
 		const requestId =
 			sanitizeRequestId(request.headers.get("x-request-id")) ??
 			crypto.randomUUID();
-		captureError(error, { requestId });
+		const isExpectedClientError =
+			error instanceof EvlogError && error.status >= 400 && error.status < 500;
+		if (!isExpectedClientError) {
+			captureError(error, { requestId });
+		}
 
 		const { status, payload } = buildBasketErrorPayload(error, {
 			elysiaCode: code ?? "INTERNAL_SERVER_ERROR",

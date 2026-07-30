@@ -3,7 +3,6 @@ import {
 	buildAlarmNotificationConfig,
 	buildAlarmNotificationTargets,
 } from "../alarm-config";
-import { NotificationClient } from "../client";
 
 describe("buildAlarmNotificationTargets", () => {
 	test("keeps same-channel destinations as separate delivery targets", () => {
@@ -41,9 +40,30 @@ describe("buildAlarmNotificationTargets", () => {
 		});
 	});
 
-	test("reports email delivery as failed when Resend is not configured", async () => {
+	test("skips the email delivery target when Resend is not configured", () => {
 		const previousApiKey = process.env.RESEND_API_KEY;
 		delete process.env.RESEND_API_KEY;
+		try {
+			const targets = buildAlarmNotificationTargets([
+				{
+					type: "email",
+					identifier: "recipient@example.com",
+					config: {},
+				},
+			]);
+			expect(targets).toEqual([]);
+		} finally {
+			if (previousApiKey === undefined) {
+				delete process.env.RESEND_API_KEY;
+			} else {
+				process.env.RESEND_API_KEY = previousApiKey;
+			}
+		}
+	});
+
+	test("builds an email delivery target when Resend is configured", () => {
+		const previousApiKey = process.env.RESEND_API_KEY;
+		process.env.RESEND_API_KEY = "re_test_key";
 		try {
 			const [target] = buildAlarmNotificationTargets([
 				{
@@ -52,23 +72,10 @@ describe("buildAlarmNotificationTargets", () => {
 					config: {},
 				},
 			]);
-			expect(target).toBeDefined();
-			if (!target) {
-				return;
-			}
-
-			const results = await new NotificationClient(target.clientConfig).send(
-				{ title: "Test alert", message: "Test delivery" },
-				{ channels: [target.channel] }
+			expect(target?.channel).toBe("email");
+			expect(target?.clientConfig.email?.defaultTo).toBe(
+				"recipient@example.com"
 			);
-
-			expect(results).toEqual([
-				{
-					success: false,
-					channel: "email",
-					error: "Email delivery is not configured",
-				},
-			]);
 		} finally {
 			if (previousApiKey === undefined) {
 				delete process.env.RESEND_API_KEY;

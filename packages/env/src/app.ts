@@ -55,6 +55,7 @@ export interface Config {
 	email: {
 		alertsFrom: string;
 		from: string;
+		resendApiKey?: string;
 	};
 	integrations: {
 		openAiAdsPixelId?: string;
@@ -132,6 +133,7 @@ export function createConfig(env: Env = process.env): Config {
 		email: {
 			alertsFrom: readEmail(env, EMAIL.alertsFrom),
 			from: readEmail(env, EMAIL.from),
+			resendApiKey: readOptional(env, "RESEND_API_KEY"),
 		},
 		integrations: {
 			openAiAdsPixelId: readOptional(env, "NEXT_PUBLIC_OPENAI_ADS_PIXEL_ID"),

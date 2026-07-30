@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import { useLogger } from "evlog/elysia";
 
 export function logOrpcHandlerError(error: unknown) {
@@ -8,6 +9,17 @@ export function logOrpcHandlerError(error: unknown) {
 	if (error instanceof Error && error.name === "AbortError") {
 		return;
 	}
+
+	if (error instanceof ORPCError && error.status >= 400 && error.status < 500) {
+		useLogger().warn(error.message, {
+			rpc: "interceptor",
+			client_http_error: true,
+			rpc_error_code: error.code,
+			http_status: error.status,
+		});
+		return;
+	}
+
 	useLogger().error(error instanceof Error ? error : new Error(String(error)), {
 		rpc: "interceptor",
 	});

@@ -42,6 +42,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `SPEC.md` is the intelligence product contract. `insight_observations` is the readable Insights history; `analytics_insights` is the durable investigation projection. The agent outcome owns brief publication and `act`/`ask` promotion; do not replace either with frontend heuristics or collapse the feed into cases. Do not add a parallel agent, evidence API, fixed query choreography, or action-specific lifecycle.
 - Production insight shadows must freeze `--reference-time`, retain a tool-name trace, and pass available GitHub context before supporting quality claims. Postgres and ClickHouse are read-only, but connector token refreshes or cache writes can still occur; never describe the whole run as zero-write.
 - Automatic investigations have one organization-wide schedule (`off`, `daily`, or `weekly`) and one organization-wide delivery set; website selection is only for manual runs. Do not reintroduce per-website overrides, hourly/custom cadence, or cron input.
+- A manual insight run is a deliberate recheck: it bypasses automatic cooldown only for currently detected signals, while retaining detector thresholds and normal signal ranking. Otherwise “Run now” can complete without producing an evaluable result.
 - Insight run items are execution metadata, not rendered insight content; previews should use run status/counts or query real insights, never infer titles or bodies from run items.
 - Insight Slack delivery must resolve each channel binding to its active same-organization integration; never choose an arbitrary organization bot token.
 - Replies beneath delivered Slack investigations must resolve the delivery and enter the existing durable reply/resume path; never route them through generic Slack chat or relevance scoring.
@@ -55,6 +56,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - AI link tools must assign link folders by existing folder `id` or `slug` only; folder names are display text and must not be used for routing or dedupe.
 - `apps/basket`: ingest and LLM tracking service, Elysia app on port `4000`
 - `apps/docs`: Next.js + Fumadocs docs app on port `3005`
+- When a user drops a prototype, remove only prototype-specific wiring and preserve the existing product surfaces it temporarily reused.
 - `apps/links`: redirect/link service
 - `apps/uptime`: uptime monitoring service
 - `apps/uptime` BullMQ worker concurrency defaults high for Bun async I/O; do not lower it just because `10_000` looks large. Verify downstream saturation or lock/timeout evidence first.
@@ -88,6 +90,7 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Package manager: `bun`
 - When running `bun install --lockfile-only`, preserve lockfile sync for pre-existing `package.json` changes instead of reverting them as unrelated.
 - Task runner: `turbo`
+- Run filtered Turbo commands such as `bun run check-types --filter=…` from the workspace root; inside a package, its local script invokes `tsc` directly and treats those flags as TypeScript options.
 - Formatting/linting: `bun run format`, `bun run lint`
 - Use neutral branch names, commit messages, and PR copy; do not include tool-attribution prefixes or generated-by language.
 - Lefthook's `no-secrets` guard intentionally ignores the exact `.env.example` template; real `.env`, `.env.*`, key, and credential files should still be blocked.
@@ -122,6 +125,9 @@ Read [codebase-map.md](./references/codebase-map.md) when you need deeper routin
 - Demo website navigation must be public-safe and route-backed; hide sensitive, configuration-heavy, or unavailable website features such as Agent, Feature Flags, Revenue, Users, Realtime, Anomalies, and website Settings instead of inheriting the full website nav. Goals and Funnels may be public demo surfaces, but keep them read-only.
 - Dashboard definitions for feature flags and target groups are admin surfaces; do not expose even sanitized rows to demo-tier/public website access.
 - Insights history is grouped by its backend-owned subject key in the RPC layer so every client sees one current row per investigation; reads must not invoke AI generation.
+- An executable Insight action must apply its stored mutation and enqueue verification transactionally; never ask a teammate to mark it done manually. Show a verified result only after measured evidence supports it.
+- Insights case pages should not explain their own structure (for example, "context, investigation, and verification in one thread"). Keep only evidence, current state, and actionable controls visible.
+- Insight visual cleanup must preserve scan hierarchy: retain the compact visual/status anchors and clearly separated proof on dense feed rows; remove redundant explanatory copy before flattening the information structure.
 - Theme: `apps/dashboard/app/globals.css`. **`--border` is intentionally subtle**; do not crank it darker for “contrast” unless **iza** asks—prefer text tokens or layout for readability.
 - Website analytics filters are two-way synced between Jotai and the `filters` URL param in `app/(main)/websites/[id]/layout.tsx`; guard URL-driven atom writes from echoing stale atom state back into `nuqs`, or adding a filter can lock the page during form submit.
 - Do not centralize, relocate, or otherwise refactor dashboard E2E API route access gates during cleanup; keep test-only access checks local to each route unless iza explicitly asks for that change.

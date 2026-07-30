@@ -33,8 +33,12 @@ test(
 		const websiteId = idFromPath(authenticatedPage.url(), "websites");
 
 		await authenticatedPage.goto(`/websites/${websiteId}/settings/general`);
-		await expect(authenticatedPage.getByText(websiteName)).toBeVisible();
-		await expect(authenticatedPage.getByText(domain)).toBeVisible();
+		await expect(
+			authenticatedPage.getByRole("textbox", { name: "Name" })
+		).toHaveValue(websiteName);
+		await expect(
+			authenticatedPage.getByRole("textbox", { name: "Domain" })
+		).toHaveValue(domain);
 
 		await authenticatedPage.getByRole("button", { name: "Edit" }).first().click();
 		await expect(

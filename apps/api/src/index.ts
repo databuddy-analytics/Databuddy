@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 import { evlog } from "evlog/elysia";
 import { handleAutumnRequest } from "@/billing/autumn";
 import { startAutumnWebhookReplayLoop } from "@/billing/autumn-webhook-replay";
+import { startAuditOutboxReplayLoop } from "@/audit/audit-outbox-replay";
 import { configureApiInstrumentation } from "@/bootstrap/instrumentation";
 import { configureApiLogger } from "@/bootstrap/logger";
 import { registerProcessErrorHandlers } from "@/bootstrap/process-errors";
@@ -130,8 +131,11 @@ const app = new Elysia({ precompile: true })
 	.onError(handleAppError);
 
 const autumnWebhookReplay = startAutumnWebhookReplayLoop();
+const auditOutboxReplay = startAuditOutboxReplayLoop();
 warmPostgresPool();
-registerShutdownHooks(autumnWebhookReplay.stop);
+registerShutdownHooks(async () => {
+	await Promise.all([autumnWebhookReplay.stop(), auditOutboxReplay.stop()]);
+});
 
 export default {
 	fetch: app.fetch,

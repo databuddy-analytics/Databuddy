@@ -106,45 +106,6 @@ const storedInvestigationSignalSchema = z
 	.strip()
 	.superRefine(validateBaselineDates);
 
-const investigationNextSchema = z.discriminatedUnion("type", [
-	z.object({
-		type: z.literal("act"),
-		action: z
-			.string()
-			.trim()
-			.min(1)
-			.describe(
-				"Concrete product, code, tracking, or configuration change with an exact before and after; not more investigation or monitoring."
-			),
-		target: z.string().trim().min(1),
-		verification: z.string().trim().min(1),
-	}),
-	z.object({
-		type: z.literal("ask"),
-		question: z
-			.string()
-			.trim()
-			.min(1)
-			.describe(
-				"One short question requesting a specific external fact that cannot be inspected and chooses between concrete next moves. Never ask the user to define a metric or choose from speculative interpretations."
-			),
-	}),
-	z.object({
-		type: z.literal("watch"),
-		escalation: z.string().trim().min(1),
-	}),
-	z.object({
-		type: z.literal("resolve"),
-		reason: z
-			.string()
-			.trim()
-			.min(1)
-			.describe(
-				"Why no investigation needs to remain open; a non-interrupting recommendation may still exist."
-			),
-	}),
-]);
-
 export const insightGoalEditChangesSchema = z
 	.object({
 		description: z
@@ -167,30 +128,122 @@ export const insightGoalEditChangesSchema = z
 		message: "Goal edits require at least one changed field",
 	});
 
-const insightRecommendationSchema = z
-	.discriminatedUnion("operation", [
-		z
-			.object({
-				action: z.string().trim().min(1).max(320),
-				changes: insightGoalEditChangesSchema,
-				operation: z.literal("edit"),
-			})
-			.strict(),
-		z
-			.object({
-				action: z.string().trim().min(1).max(320),
-				changes: z.null(),
-				operation: z.literal("delete"),
-			})
-			.strict(),
-		z
-			.object({
-				action: z.string().trim().min(1).max(320),
-				changes: z.null(),
-				operation: z.null(),
-			})
-			.strict(),
-	])
+export const insightGoalOperationSchema = z.discriminatedUnion("operation", [
+	z
+		.object({
+			action: z
+				.string()
+				.trim()
+				.min(1)
+				.max(320)
+				.describe(
+					"One short, concrete recommendation in teammate-facing language."
+				),
+			changes: insightGoalEditChangesSchema,
+			operation: z.literal("edit"),
+		})
+		.strict(),
+	z
+		.object({
+			action: z
+				.string()
+				.trim()
+				.min(1)
+				.max(320)
+				.describe(
+					"One short, concrete recommendation in teammate-facing language."
+				),
+			changes: z.null(),
+			operation: z.literal("delete"),
+		})
+		.strict(),
+	z
+		.object({
+			action: z
+				.string()
+				.trim()
+				.min(1)
+				.max(320)
+				.describe(
+					"One short, concrete recommendation in teammate-facing language."
+				),
+			changes: z.null(),
+			operation: z.null(),
+		})
+		.strict(),
+]);
+
+const investigationNextSchema = z.discriminatedUnion("type", [
+	z.object({
+		type: z.literal("act"),
+		action: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"One short, concrete product, code, tracking, or configuration change with an exact before and after; not more investigation or monitoring."
+			),
+		target: z
+			.string()
+			.trim()
+			.min(1)
+			.describe("Smallest inspected target, using a readable product name."),
+		verification: z
+			.string()
+			.trim()
+			.min(1)
+			.describe("One short measured condition that proves the repair worked."),
+		recheckAt: z.iso
+			.datetime()
+			.optional()
+			.describe(
+				"Exact ISO 8601 time to remeasure the verification condition. Required from the investigation agent; optional only to preserve historical outcomes."
+			),
+		execution: insightGoalOperationSchema
+			.optional()
+			.describe(
+				"Exact goal mutation Databuddy can apply when this action is clicked. Omit unless the inspected target is that goal."
+			),
+	}),
+	z.object({
+		type: z.literal("ask"),
+		question: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"One short, teammate-facing question requesting a specific external fact that cannot be inspected and chooses between concrete next moves. Never ask the user to define a metric or choose from speculative interpretations."
+			),
+	}),
+	z.object({
+		type: z.literal("watch"),
+		escalation: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"One short, exact measurable condition for reopening this work. Include an explicit numeric comparison and name its configured target, healthy range, prior baseline, or measured-severity anchor."
+			),
+		recheckAt: z.iso
+			.datetime()
+			.optional()
+			.describe(
+				"Exact ISO 8601 time to remeasure the escalation condition. Required from the investigation agent; optional only to preserve historical outcomes."
+			),
+	}),
+	z.object({
+		type: z.literal("resolve"),
+		reason: z
+			.string()
+			.trim()
+			.min(1)
+			.describe(
+				"One short, teammate-facing reason no investigation needs to remain open; a non-interrupting recommendation may still exist."
+			),
+	}),
+]);
+
+const insightRecommendationSchema = insightGoalOperationSchema
 	.nullable()
 	.describe(
 		"Concrete evidence-backed next step worth suggesting without opening an investigation. Name the exact object and change; use null when there is no useful next step."
@@ -203,14 +256,14 @@ export const investigationOutcomeSchema = z
 			.trim()
 			.min(1)
 			.describe(
-				"Plain-language finding that names the exact entity, page, event, error, goal, or funnel and why it matters."
+				"A 5–12 word, sentence-case headline that states the human outcome. Use the exact entity only when it clarifies the outcome; never use a raw identifier, generic config label such as Goal 1 or Event 1, schema label, arrow relationship, or measurement language such as tracked, recorded, metric, or event as the title."
 			),
 		summary: z
 			.string()
 			.trim()
 			.min(1)
 			.describe(
-				"One or two short sentences stating what changed and the useful conclusion, without repeating the title."
+				"One short sentence with the measured change and useful conclusion. Do not repeat the title, impact, root cause, or evidence."
 			),
 		impact: z
 			.string()
@@ -218,7 +271,7 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"Distinct measured user, workflow, revenue, or decision consequence; for a broken definition, state the decision it cannot support. Null when only the metric change is known."
+				"One short, distinct measured user, workflow, revenue, or decision consequence. Do not predict lost progress, broken checkout, failed requests, or other downstream effects from an error alone. For a broken definition, say the decision it cannot support. Null when only the metric change is known."
 			),
 		rootCause: z
 			.string()
@@ -226,9 +279,20 @@ export const investigationOutcomeSchema = z
 			.min(1)
 			.nullable()
 			.describe(
-				"Known mechanism only; use null for unknown, suspected, or merely correlated explanations."
+				"One short, known mechanism only; use null for unknown, suspected, or merely correlated explanations. A runtime stack, bundle location, browser document line, or error message is not a source-code mechanism and does not prove teardown order, a missing guard, or a hosting rewrite."
 			),
-		evidence: z.array(z.string().trim().min(1)).min(1).max(2),
+		evidence: z
+			.array(
+				z
+					.string()
+					.trim()
+					.min(1)
+					.describe(
+						"One terse fact that supports a distinct claim in the brief."
+					)
+			)
+			.min(1)
+			.max(2),
 		publish: z
 			.boolean()
 			.optional()
@@ -252,6 +316,17 @@ export const investigationOutcomeSchema = z
 				code: "custom",
 				message: "Actions require a known mechanism",
 				path: ["rootCause"],
+			});
+		}
+		if (
+			outcome.next.type === "act" &&
+			outcome.next.execution?.operation &&
+			outcome.next.execution.action !== outcome.next.action
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Executable actions must match the displayed action",
+				path: ["next", "execution", "action"],
 			});
 		}
 		if (
@@ -283,14 +358,26 @@ export const investigationOutcomeSchema = z
 		}
 	});
 
-export const agentInvestigationOutcomeSchema =
-	investigationOutcomeSchema.safeExtend({
+export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
+	.safeExtend({
 		publish: z
 			.boolean()
 			.describe(
 				"True only when this turn adds a new customer-relevant fact worth showing in Insights."
 			),
 		recommendation: insightRecommendationSchema,
+	})
+	.superRefine((outcome, context) => {
+		if (
+			(outcome.next.type === "act" || outcome.next.type === "watch") &&
+			!outcome.next.recheckAt
+		) {
+			context.addIssue({
+				code: "custom",
+				message: "Actions and watches require an exact recheck time",
+				path: ["next", "recheckAt"],
+			});
+		}
 	});
 
 const insightStatusSchema = z.enum(["open", "resolved"]);

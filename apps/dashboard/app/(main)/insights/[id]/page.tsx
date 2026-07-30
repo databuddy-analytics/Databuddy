@@ -10,6 +10,8 @@ import { insightQueries, type InsightByIdResponse } from "@/lib/insight-api";
 import { orpc } from "@/lib/orpc";
 import {
 	ArrowLeftIcon,
+	ArrowSquareOutIcon,
+	CaretDownIcon,
 	LightbulbIcon,
 	PaperPlaneIcon,
 	RobotIcon,
@@ -28,7 +30,10 @@ import {
 	StatusDot,
 	Textarea,
 } from "@databuddy/ui";
-import { GoalRecommendationAction } from "../_components/investigation-row";
+import {
+	ExecuteGoalAction,
+	GoalRecommendationAction,
+} from "../_components/investigation-row";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -52,9 +57,9 @@ export default function InsightDetailPage() {
 	});
 
 	const insight = data?.insight ?? null;
-	const subject = data?.timeline.findLast(
+	const latest = data?.timeline.findLast(
 		(item): item is InvestigationItem => item.kind === "investigation"
-	)?.subject;
+	);
 
 	return (
 		<div className="flex h-full flex-col overflow-y-auto">
@@ -98,12 +103,14 @@ export default function InsightDetailPage() {
 								</span>
 							</div>
 							<h2 className="text-pretty font-semibold text-base text-foreground leading-snug sm:text-lg">
-								{subject ?? insight.title}
+								{latest?.subject ?? insight.title}
 							</h2>
 						</header>
+						<CaseState items={data?.timeline ?? []} latest={latest ?? null} />
 						<CaseActivity
 							canReply={data?.canReply ?? false}
 							insightId={insight.id}
+							isResolved={insight.status === "resolved"}
 							items={data?.timeline ?? []}
 							websiteId={insight.websiteId}
 						/>
@@ -132,14 +139,79 @@ export default function InsightDetailPage() {
 	);
 }
 
+function CaseState({
+	items,
+	latest,
+}: {
+	items: TimelineItem[];
+	latest: InvestigationItem | null;
+}) {
+	if (!latest) {
+		return null;
+	}
+	const reported = items.findLast(
+		(item): item is Extract<TimelineItem, { kind: "reply" }> =>
+			item.kind === "reply"
+	);
+	const verifying =
+		reported &&
+		reported.status !== "failed" &&
+		reported.createdAt > latest.createdAt;
+	const copy = verifying
+		? {
+				body:
+					latest.outcome.next.type === "act"
+						? latest.outcome.next.verification
+						: "Databuddy is checking the latest context.",
+				label: "Measuring",
+			}
+		: nextCopy(latest.outcome.next);
+
+	return (
+		<section
+			className="border-b bg-muted/20 px-4 py-4 sm:px-5"
+			aria-label="Current state"
+		>
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div className="min-w-0">
+					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+						{copy.label}
+					</p>
+					{"body" in copy ? (
+						<p className="mt-1 text-foreground text-sm leading-relaxed">
+							{copy.body}
+						</p>
+					) : null}
+					{"detail" in copy && copy.detail ? (
+						<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
+							{copy.detail}
+						</p>
+					) : null}
+				</div>
+				<StatusDot
+					color={
+						verifying
+							? "warning"
+							: latest.outcome.next.type === "resolve"
+								? "success"
+								: "warning"
+					}
+				/>
+			</div>
+		</section>
+	);
+}
+
 function CaseActivity({
 	canReply,
 	insightId,
+	isResolved,
 	items,
 	websiteId,
 }: {
 	canReply: boolean;
 	insightId: string;
+	isResolved: boolean;
 	items: TimelineItem[];
 	websiteId: string;
 }) {
@@ -151,7 +223,7 @@ function CaseActivity({
 		},
 		onSuccess: (result) => {
 			queryClient.invalidateQueries({
-				queryKey: insightQueries.byId(insightId).queryKey,
+				queryKey: insightQueries.all(),
 			});
 			if (result.status === "failed") {
 				toast.error(
@@ -170,17 +242,29 @@ function CaseActivity({
 				(item.status === "queued" || item.status === "running")
 		);
 	const latestReplyId = items.findLast((item) => item.kind === "reply")?.id;
+	const latestInvestigationId = items.findLast(
+		(item): item is InvestigationItem => item.kind === "investigation"
+	)?.id;
+	const settled = active || isResolved;
+	const [historyExpanded, setHistoryExpanded] = useState(false);
+	const visibleItems = settled && !historyExpanded ? items.slice(-1) : items;
 
 	return (
-		<section aria-labelledby="case-activity-title">
-			<h2 className="sr-only" id="case-activity-title">
-				Activity
-			</h2>
-
+		<section aria-label="Investigation activity">
 			<ol className="divide-y">
-				{items.map((item) => (
+				{visibleItems.map((item) => (
 					<TimelineEntry
+						collapseEvidence={
+							settled &&
+							item.kind === "investigation" &&
+							item.id === latestInvestigationId
+						}
 						item={item}
+						insightId={
+							item.kind === "investigation" && item.id === latestInvestigationId
+								? insightId
+								: null
+						}
 						key={`${item.kind}-${item.id}`}
 						onRetry={
 							canReply && !active && item.id === latestReplyId
@@ -192,18 +276,42 @@ function CaseActivity({
 					/>
 				))}
 			</ol>
+			{settled && items.length > 1 ? (
+				<div className="border-t px-4 py-2 sm:px-5">
+					<Button
+						onClick={() => setHistoryExpanded((expanded) => !expanded)}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						{historyExpanded
+							? "Hide earlier updates"
+							: `Show ${items.length - 1} earlier update${items.length === 2 ? "" : "s"}`}
+						<CaretDownIcon
+							className={historyExpanded ? "rotate-180" : undefined}
+							weight="bold"
+						/>
+					</Button>
+				</div>
+			) : null}
 
-			{canReply && <ReplyComposer disabled={active} insightId={insightId} />}
+			{canReply && !isResolved && (
+				<ContextReply disabled={active} insightId={insightId} />
+			)}
 		</section>
 	);
 }
 
 function TimelineEntry({
+	collapseEvidence,
+	insightId,
 	item,
 	onRetry,
 	retrying,
 	websiteId,
 }: {
+	collapseEvidence: boolean;
+	insightId: string | null;
 	item: TimelineItem;
 	onRetry?: (replyId: string) => void;
 	retrying: boolean;
@@ -276,7 +384,12 @@ function TimelineEntry({
 						)}
 					</>
 				) : (
-					<InvestigationActivity item={item} websiteId={websiteId} />
+					<InvestigationActivity
+						collapseEvidence={collapseEvidence}
+						insightId={insightId}
+						item={item}
+						websiteId={websiteId}
+					/>
 				)}
 			</article>
 		</li>
@@ -284,13 +397,20 @@ function TimelineEntry({
 }
 
 function InvestigationActivity({
+	collapseEvidence,
+	insightId,
 	item,
 	websiteId,
 }: {
+	collapseEvidence: boolean;
+	insightId: string | null;
 	item: InvestigationItem;
 	websiteId: string;
 }) {
 	const { outcome } = item;
+	const sourceHref = investigationSourceHref(item, websiteId);
+	const execution =
+		outcome.next.type === "act" ? outcome.next.execution : undefined;
 
 	return (
 		<div className="space-y-3">
@@ -331,7 +451,16 @@ function InvestigationActivity({
 			) : null}
 
 			{outcome.next.type !== "resolve" || !outcome.recommendation ? (
-				<NextStep next={outcome.next} />
+				<NextStep
+					hideAction={Boolean(execution?.operation)}
+					next={outcome.next}
+				/>
+			) : null}
+
+			{insightId && execution?.operation ? (
+				<div className="flex flex-wrap">
+					<ExecuteGoalAction execution={execution} insightId={insightId} />
+				</div>
 			) : null}
 
 			{(outcome.impact || outcome.rootCause) && (
@@ -359,12 +488,54 @@ function InvestigationActivity({
 				</dl>
 			)}
 
-			<div>
-				<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+			<Evidence
+				evidence={outcome.evidence}
+				initiallyCollapsed={collapseEvidence}
+				sourceHref={sourceHref}
+			/>
+		</div>
+	);
+}
+
+function Evidence({
+	evidence,
+	initiallyCollapsed,
+	sourceHref,
+}: {
+	evidence: string[];
+	initiallyCollapsed: boolean;
+	sourceHref: string | null;
+}) {
+	const [expanded, setExpanded] = useState(!initiallyCollapsed);
+
+	return (
+		<div>
+			<div className="flex items-center justify-between gap-3">
+				<Button
+					onClick={() => setExpanded((open) => !open)}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
 					Evidence
-				</p>
+					<CaretDownIcon
+						className={expanded ? "rotate-180" : undefined}
+						weight="bold"
+					/>
+				</Button>
+				{sourceHref ? (
+					<Link
+						className="inline-flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+						href={sourceHref}
+					>
+						View source
+						<ArrowSquareOutIcon className="size-3" />
+					</Link>
+				) : null}
+			</div>
+			{expanded ? (
 				<ul className="mt-1 space-y-1">
-					{outcome.evidence.map((entry) => (
+					{evidence.map((entry) => (
 						<li
 							className="flex gap-2 text-muted-foreground text-sm leading-relaxed"
 							key={entry}
@@ -376,21 +547,51 @@ function InvestigationActivity({
 						</li>
 					))}
 				</ul>
-			</div>
+			) : null}
 		</div>
 	);
 }
 
-function NextStep({ next }: { next: InvestigationNext }) {
+function investigationSourceHref(
+	item: InvestigationItem,
+	websiteId: string
+): string {
+	const base = `/websites/${encodeURIComponent(websiteId)}`;
+	switch (item.entity.type) {
+		case "event":
+			return `${base}/events/${encodeURIComponent(item.entity.id)}`;
+		case "error":
+			return `${base}/errors`;
+		case "funnel":
+		case "funnel_step":
+			return `${base}/funnels`;
+		case "goal":
+			return `${base}/goals`;
+		case "vital":
+			return `${base}/vitals`;
+		default:
+			return base;
+	}
+}
+
+function NextStep({
+	hideAction,
+	next,
+}: {
+	hideAction: boolean;
+	next: InvestigationNext;
+}) {
 	const copy = nextCopy(next);
 	return (
 		<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
 			<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 				{copy.label}
 			</p>
-			<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
-				{copy.body}
-			</p>
+			{!hideAction || next.type !== "act" ? (
+				<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
+					{copy.body}
+				</p>
+			) : null}
 			{copy.detail && (
 				<p className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
 					{copy.detail}
@@ -400,12 +601,48 @@ function NextStep({ next }: { next: InvestigationNext }) {
 	);
 }
 
-function ReplyComposer({
+function ContextReply({
 	disabled,
 	insightId,
 }: {
 	disabled: boolean;
 	insightId: string;
+}) {
+	const [open, setOpen] = useState(false);
+
+	if (!open) {
+		return (
+			<div className="border-t px-4 py-2 sm:px-5">
+				<Button
+					disabled={disabled}
+					onClick={() => setOpen(true)}
+					size="sm"
+					type="button"
+					variant="ghost"
+				>
+					Add context
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<ReplyComposer
+			disabled={disabled}
+			insightId={insightId}
+			onClose={() => setOpen(false)}
+		/>
+	);
+}
+
+function ReplyComposer({
+	disabled,
+	insightId,
+	onClose,
+}: {
+	disabled: boolean;
+	insightId: string;
+	onClose: () => void;
 }) {
 	const queryClient = useQueryClient();
 	const [body, setBody] = useState("");
@@ -418,13 +655,12 @@ function ReplyComposer({
 		},
 		onSuccess: (data) => {
 			setBody("");
+			onClose();
 			queryClient.invalidateQueries({
-				queryKey: insightQueries.byId(insightId).queryKey,
+				queryKey: insightQueries.all(),
 			});
 			if (data.reply.status === "failed") {
 				toast.error("Reply saved, but the investigation could not start");
-			} else {
-				toast.success("Databuddy is investigating your reply");
 			}
 		},
 	});
@@ -435,13 +671,27 @@ function ReplyComposer({
 		if (!trimmed) {
 			return;
 		}
-		replyMutation.mutate({ body: trimmed, insightId });
+		sendReply(trimmed, "Databuddy is checking the latest context");
 	};
-
+	const sendReply = (message: string, successMessage: string) => {
+		if (disabled || replyMutation.isPending) {
+			return;
+		}
+		replyMutation.mutate(
+			{ body: message, insightId },
+			{
+				onSuccess: (data) => {
+					if (data.reply.status !== "failed") {
+						toast.success(successMessage);
+					}
+				},
+			}
+		);
+	};
 	return (
 		<form className="border-t px-4 py-4 sm:px-5" onSubmit={submitReply}>
 			<Field>
-				<Field.Label>Add context</Field.Label>
+				<Field.Label className="sr-only">Add context</Field.Label>
 				<Textarea
 					disabled={disabled}
 					maxLength={2000}
@@ -451,12 +701,16 @@ function ReplyComposer({
 					placeholder="Add context, a correction, or what changed…"
 					value={body}
 				/>
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<Field.Description>
-						{disabled
-							? "Wait for the current check to finish."
-							: "Databuddy will verify it against current data."}
-					</Field.Description>
+				<div className="flex justify-end gap-2">
+					<Button
+						disabled={replyMutation.isPending}
+						onClick={onClose}
+						size="sm"
+						type="button"
+						variant="ghost"
+					>
+						Cancel
+					</Button>
 					<Button
 						disabled={disabled || !body.trim() || replyMutation.isPending}
 						loading={replyMutation.isPending}
@@ -464,7 +718,7 @@ function ReplyComposer({
 						type="submit"
 					>
 						<PaperPlaneIcon className="size-3.5" weight="bold" />
-						Re-check investigation
+						Check latest context
 					</Button>
 				</div>
 			</Field>
@@ -487,22 +741,35 @@ function nextCopy(next: InvestigationNext): {
 		case "act":
 			return {
 				body: next.action,
-				detail: `Target: ${next.target} · Done when: ${next.verification}`,
-				label: "Next action",
+				detail: [`Checks: ${next.verification}`, scheduledRecheck(next)]
+					.filter(Boolean)
+					.join(" · "),
+				label: "Needs you",
 			};
 		case "ask":
 			return {
 				body: next.question,
-				label: "Question",
+				label: "Needs your input",
 			};
 		case "watch":
 			return {
 				body: next.escalation,
-				label: "Watch condition",
+				detail: scheduledRecheck(next),
+				label: "Measuring",
 			};
 		case "resolve":
-			return { body: next.reason, label: "Resolved" };
+			return { body: next.reason, label: "Verified" };
 		default:
 			throw new Error("Unknown investigation outcome");
 	}
+}
+
+function scheduledRecheck(
+	next: Extract<InvestigationNext, { type: "act" | "watch" }>
+): string | undefined {
+	if (!next.recheckAt) {
+		return;
+	}
+
+	return `Databuddy will check again ${dayjs.utc(next.recheckAt).format("MMM D")}`;
 }

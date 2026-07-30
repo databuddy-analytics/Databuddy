@@ -27,7 +27,7 @@ jobs:
       - name: Set up Docker Builder
         uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
 
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -63,7 +63,7 @@ jobs:
       - name: Set up Docker Builder
         uses: useblacksmith/setup-docker-builder@722e97d12b1d06a961800dd6c05d79d951ad3c80 # v1
 
-      - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+      - uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}

@@ -46,6 +46,7 @@ const outcome: InvestigationOutcome = {
 	next: {
 		type: "act",
 		action: "Resume campaign cmp_search_1.",
+		recheckAt: "2026-07-15T00:00:00.000Z",
 		target: "campaign cmp_search_1",
 		verification: "Paid visits exceed 80 per day for three days.",
 	},
@@ -122,6 +123,18 @@ describe("intelligence agent", () => {
 
 		const prompt = JSON.stringify(call?.prompt);
 		expect(prompt).toContain("Example Store");
+		expect(JSON.stringify(call)).toContain(
+			"Treat the Insights feed as scarce teammate attention"
+		);
+		expect(JSON.stringify(call)).toContain(
+			"test the existing verification condition against current data"
+		);
+		expect(JSON.stringify(call)).toContain(
+			"Do not add generic audience fillers"
+		);
+		expect(JSON.stringify(call)).toContain(
+			"Round percentages to at most one decimal place in prose"
+		);
 	});
 
 	it("can inspect evidence before returning structured output", async () => {

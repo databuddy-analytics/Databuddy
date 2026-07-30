@@ -29,12 +29,14 @@ export function captureError(
 	attributes?: Record<string, string | number | boolean>
 ): void {
 	const err = error instanceof Error ? error : new Error(String(error));
+	const isClientError =
+		err instanceof EvlogError && err.status >= 400 && err.status < 500;
 	try {
 		const requestLog = useLogger();
-		if (err instanceof EvlogError && err.status >= 400 && err.status < 500) {
+		if (isClientError) {
 			requestLog.set({
 				client_http_error: true,
-				http_status: err.status,
+				http_status: (err as EvlogError).status,
 				error_message: err.message,
 			});
 			if (attributes) {
@@ -50,6 +52,16 @@ export function captureError(
 			requestLog.error(err);
 		}
 	} catch {
+		if (isClientError) {
+			log.warn({
+				service: "basket",
+				client_http_error: true,
+				http_status: (err as EvlogError).status,
+				error_message: err.message,
+				...(attributes ?? {}),
+			});
+			return;
+		}
 		log.error({
 			service: "basket",
 			error_message: err.message,

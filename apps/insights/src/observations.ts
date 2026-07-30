@@ -63,9 +63,16 @@ export interface DueOpenInvestigation extends LatestInsightObservation {
 
 export function nextRecheckAt(
 	asOf: Date,
-	next: InvestigationOutcome["next"]["type"]
+	next: InvestigationOutcome["next"]
 ): Date {
-	const days = next === "act" || next === "watch" ? 1 : 30;
+	const requested =
+		(next.type === "act" || next.type === "watch") && next.recheckAt
+			? new Date(next.recheckAt)
+			: null;
+	if (requested && !Number.isNaN(requested.getTime()) && requested > asOf) {
+		return requested;
+	}
+	const days = next.type === "act" || next.type === "watch" ? 1 : 30;
 	return new Date(asOf.getTime() + days * DAY_MS);
 }
 

@@ -600,6 +600,52 @@ describe("fixture investigation sources", () => {
 		).rejects.toThrow("Due remeasurement unavailable");
 	});
 
+	it("rechecks a detected signal when the run was requested manually", async () => {
+		const prior = prepareInvestigation(trafficDrop, 7);
+		const priorOutcome: InvestigationOutcome = {
+			evidence: ["Visitors fell in the previous complete week."],
+			impact: null,
+			next: {
+				escalation: "Escalate if the decline continues into the next period.",
+				type: "watch",
+			},
+			rootCause: null,
+			summary: "Visitors fell without a confirmed broken workflow.",
+			title: "Visitor traffic declined",
+		};
+		let investigated: string | undefined;
+		const sources = fixtureSources({
+			detectDefinitionSignals: async () => [],
+			detectMetricSignals: async () => [trafficDrop],
+			fetchAnnotations: async () => [],
+			investigateSignal: async (input) => {
+				investigated = input.signal.signalKey;
+				return { outcome: priorOutcome, toolCallCount: 1 };
+			},
+			loadDueInvestigation: async () => null,
+			loadHistory: async () => [],
+			loadObservations: async () =>
+				new Map([
+					[
+						prior.signal.signalKey,
+						{
+							outcome: priorOutcome,
+							recheckAt: new Date("2026-07-26T00:00:00.000Z"),
+							signal: prior.signal,
+						},
+					],
+				]),
+		});
+
+		const artifact = await investigateFixture(sources, {
+			forceRecheck: true,
+			asOf: "2026-07-19",
+		});
+
+		expect(investigated).toBe("visitors");
+		expect(artifact.status).toBe("completed");
+	});
+
 	it("retries when the only fresh regression is still in cooldown", async () => {
 		const prior = prepareInvestigation(trafficDrop, 7);
 		const coolingError: DetectedSignal = {
