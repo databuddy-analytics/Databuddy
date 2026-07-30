@@ -35,7 +35,7 @@
     "@orpc/openapi": "^1.14.0",
     "@orpc/server": "^1.14.0",
     "@orpc/zod": "^1.14.0",
-    "ai": "^6.0.188",
+    "ai": "^7.0.37",
     "autumn-js": "catalog:",
     "bullmq": "^5.78.0",
     "dayjs": "^1.11.19",

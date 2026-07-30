@@ -58,7 +58,7 @@
     "@databuddy/validation": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.26.0",
     "@orpc/server": "^1.14.0",
-    "ai": "^6.0.188",
+    "ai": "^7.0.37",
     "dayjs": "^1.11.19",
     "drizzle-orm": "catalog:",
     "evlog": "catalog:",
