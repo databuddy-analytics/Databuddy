@@ -5,10 +5,7 @@ type IconWeight = "regular" | "bold" | "fill" | "duotone";
 import { CodeIcon, TargetIcon } from "@databuddy/ui/icons";
 import { SciFiButton } from "@/components/landing/scifi-btn";
 import { SciFiCard } from "@/components/scifi-card";
-import {
-	type CareerOpening,
-	careerOpenings,
-} from "./careers-openings-data";
+import { type CareerOpening, careerOpenings } from "./careers-openings-data";
 
 const openingIcons: Record<
 	string,

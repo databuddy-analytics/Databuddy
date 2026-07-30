@@ -1,15 +1,15 @@
-export type CareerOpening = {
-	id: string;
-	title: string;
-	type: string;
-	location: string;
-	summary: string;
-	responsibilities: string[];
-	requirements: string[];
-	niceToHaves: string[];
+export interface CareerOpening {
 	applyHref: string;
 	applyLabel: string;
-};
+	id: string;
+	location: string;
+	niceToHaves: string[];
+	requirements: string[];
+	responsibilities: string[];
+	summary: string;
+	title: string;
+	type: string;
+}
 
 export const careerOpenings: CareerOpening[] = [
 	{
