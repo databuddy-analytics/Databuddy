@@ -58,6 +58,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - AI link tools must assign link folders by existing folder `id` or `slug` only; folder names are display text and must not be used for routing or dedupe.
 - `apps/basket`: ingest and LLM tracking service, Elysia app on port `4000`
 - `apps/docs`: Next.js + Fumadocs docs app on port `3005`
+- When a user drops a prototype, remove only prototype-specific wiring and preserve the existing product surfaces it temporarily reused.
 - `apps/links`: redirect/link service
 - `apps/uptime`: uptime monitoring service
 - `apps/uptime` BullMQ worker concurrency defaults high for Bun async I/O; do not lower it just because `10_000` looks large. Verify downstream saturation or lock/timeout evidence first.

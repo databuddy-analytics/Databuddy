@@ -8,6 +8,7 @@ import {
 	revenueConfig,
 } from "./analytics";
 import { apikey } from "./api-keys";
+import { auditEvents } from "./audit";
 import {
 	account,
 	invitation,
@@ -61,6 +62,7 @@ const schema = {
 	analyticsInsights,
 	funnelDefinitions,
 	apikey,
+	auditEvents,
 	flags,
 	targetGroups,
 	flagsToTargetGroups,

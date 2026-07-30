@@ -486,6 +486,7 @@
       "name": "@databuddy/auth",
       "version": "0.0.1",
       "dependencies": {
+        "@better-auth/core": "^1.6.11",
         "@better-auth/redis-storage": "^1.6.5",
         "@better-auth/sso": "^1.4.10",
         "@databuddy/db": "*",
@@ -493,6 +494,8 @@
         "@databuddy/env": "workspace:*",
         "@databuddy/notifications": "workspace:*",
         "@databuddy/redis": "*",
+        "@databuddy/services": "workspace:*",
+        "@databuddy/shared": "workspace:*",
         "better-auth": "^1.4.10",
         "drizzle-kit": "^1.0.0-rc.1",
         "evlog": "catalog:",

@@ -1,5 +1,6 @@
 export * from "./agent";
 export * from "./analytics";
+export * from "./audit";
 export * from "./api-keys";
 export * from "./auth";
 export * from "./billing";

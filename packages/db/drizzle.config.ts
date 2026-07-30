@@ -5,6 +5,7 @@ export default defineConfig({
 	schema: [
 		"./src/drizzle/schema/agent.ts",
 		"./src/drizzle/schema/analytics.ts",
+		"./src/drizzle/schema/audit.ts",
 		"./src/drizzle/schema/api-keys.ts",
 		"./src/drizzle/schema/auth.ts",
 		"./src/drizzle/schema/billing.ts",

@@ -21,6 +21,8 @@ export type UpdateWebsiteInput = Partial<
 	Omit<WebsiteInsert, "id" | "createdAt">
 >;
 
+type WebsiteMutationDatabase = Pick<typeof db, "delete" | "insert" | "update">;
+
 export class DuplicateDomainError extends Error {
 	constructor(domain: string) {
 		super(`A website with the domain "${domain}" already exists.`);
@@ -169,11 +171,49 @@ export class WebsiteService {
 		}
 	}
 
-	async create(input: CreateWebsiteInput): Promise<Website> {
+	/**
+	 * Invalidates read caches after a caller commits a website write in its own
+	 * database transaction. Keeping cache I/O outside that transaction prevents
+	 * rolled-back data from becoming visible through Redis.
+	 */
+	async invalidateCachesAfterMutation(input: {
+		after?: Website;
+		before?: Website;
+	}): Promise<void> {
+		const websitesToInvalidate = [input.before, input.after].filter(
+			(website): website is Website => Boolean(website)
+		);
+		const organizationIds = [
+			...new Set(websitesToInvalidate.map((website) => website.organizationId)),
+		];
+
+		try {
+			await Promise.all(
+				websitesToInvalidate.flatMap((website) => [
+					this.cache?.deleteWebsiteById(website.id),
+					this.cache?.deleteWebsiteByDomain(
+						website.domain,
+						website.organizationId
+					),
+					this.invalidateReadCaches(website.id),
+				])
+			);
+			await this.cache?.invalidateLists(organizationIds);
+		} catch (error) {
+			console.error("WebsiteService.invalidateCachesAfterMutation failed:", {
+				error: String(error),
+			});
+		}
+	}
+
+	async createInTransaction(
+		database: WebsiteMutationDatabase,
+		input: CreateWebsiteInput
+	): Promise<Website> {
 		const normalizedDomain = input.domain.trim().toLowerCase();
 
 		try {
-			const [created] = await this.database
+			const [created] = await database
 				.insert(websites)
 				.values({
 					...input,
@@ -187,15 +227,6 @@ export class WebsiteService {
 				throw new Error("Failed to create website");
 			}
 
-			await this.cache?.setWebsite(created);
-			await this.cache?.setWebsiteByDomain(
-				created.domain,
-				created.organizationId,
-				created
-			);
-			await this.cache?.invalidateLists([created.organizationId]);
-			await this.invalidateReadCaches(created.id);
-
 			return created;
 		} catch (error) {
 			if (isUniqueViolationFor(error, "websites_org_domain_unique")) {
@@ -203,6 +234,55 @@ export class WebsiteService {
 			}
 			console.error("WebsiteService.create failed:", { error: String(error) });
 			throw new Error("Failed to create website");
+		}
+	}
+
+	async create(input: CreateWebsiteInput): Promise<Website> {
+		const created = await this.createInTransaction(this.database, input);
+		await this.cache?.setWebsite(created);
+		await this.cache?.setWebsiteByDomain(
+			created.domain,
+			created.organizationId,
+			created
+		);
+		await this.cache?.invalidateLists([created.organizationId]);
+		await this.invalidateReadCaches(created.id);
+		return created;
+	}
+
+	async updateInTransaction(
+		database: WebsiteMutationDatabase,
+		id: string,
+		updates: UpdateWebsiteInput
+	): Promise<Website> {
+		const normalizedUpdates = { ...updates };
+		if (updates.domain !== undefined) {
+			normalizedUpdates.domain = updates.domain.trim().toLowerCase();
+		}
+
+		try {
+			const [updated] = await database
+				.update(websites)
+				.set({ ...normalizedUpdates, updatedAt: new Date() })
+				.where(eq(websites.id, id))
+				.returning();
+
+			if (!updated) {
+				throw new WebsiteNotFoundError();
+			}
+
+			return updated;
+		} catch (error) {
+			if (isUniqueViolationFor(error, "websites_org_domain_unique")) {
+				throw new DuplicateDomainError(normalizedUpdates.domain ?? "");
+			}
+			if (error instanceof WebsiteNotFoundError) {
+				throw error;
+			}
+			console.error("WebsiteService.updateById failed:", {
+				error: String(error),
+			});
+			throw new Error("Failed to update website");
 		}
 	}
 
@@ -224,72 +304,49 @@ export class WebsiteService {
 			throw new WebsiteNotFoundError();
 		}
 
-		const normalizedUpdates = { ...updates };
-		if (updates.domain !== undefined) {
-			normalizedUpdates.domain = updates.domain.trim().toLowerCase();
-		}
+		const updated = await this.updateInTransaction(this.database, id, updates);
 
-		try {
-			const [updated] = await this.database
-				.update(websites)
-				.set({ ...normalizedUpdates, updatedAt: new Date() })
-				.where(eq(websites.id, id))
-				.returning();
+		await this.cache?.deleteWebsiteById(id);
+		await this.cache?.setWebsite(updated);
 
-			if (!updated) {
-				throw new WebsiteNotFoundError();
-			}
+		const scopeChanged = before.organizationId !== updated.organizationId;
+		const domainChanged =
+			before.domain.toLowerCase() !== updated.domain.toLowerCase();
 
-			await this.cache?.deleteWebsiteById(id);
-			await this.cache?.setWebsite(updated);
-
-			const scopeChanged = before.organizationId !== updated.organizationId;
-			const domainChanged =
-				before.domain.toLowerCase() !== updated.domain.toLowerCase();
-
-			if (scopeChanged || domainChanged) {
-				await this.cache?.deleteWebsiteByDomain(
-					before.domain,
-					before.organizationId
-				);
-			} else {
-				await this.cache?.deleteWebsiteByDomain(
-					updated.domain,
-					updated.organizationId
-				);
-			}
-
-			await this.cache?.setWebsiteByDomain(
+		if (scopeChanged || domainChanged) {
+			await this.cache?.deleteWebsiteByDomain(
+				before.domain,
+				before.organizationId
+			);
+		} else {
+			await this.cache?.deleteWebsiteByDomain(
 				updated.domain,
-				updated.organizationId,
-				updated
+				updated.organizationId
 			);
-
-			const organizationIds = Array.from(
-				new Set([before.organizationId, updated.organizationId])
-			);
-
-			await this.cache?.invalidateLists(organizationIds);
-			await this.invalidateReadCaches(id);
-
-			return updated;
-		} catch (error) {
-			if (isUniqueViolationFor(error, "websites_org_domain_unique")) {
-				throw new DuplicateDomainError(normalizedUpdates.domain ?? "");
-			}
-			if (error instanceof WebsiteNotFoundError) {
-				throw error;
-			}
-			console.error("WebsiteService.updateById failed:", {
-				error: String(error),
-			});
-			throw new Error("Failed to update website");
 		}
+
+		await this.cache?.setWebsiteByDomain(
+			updated.domain,
+			updated.organizationId,
+			updated
+		);
+
+		const organizationIds = Array.from(
+			new Set([before.organizationId, updated.organizationId])
+		);
+
+		await this.cache?.invalidateLists(organizationIds);
+		await this.invalidateReadCaches(id);
+
+		return updated;
 	}
 
-	async deleteById(id: string): Promise<void> {
+	async deleteInTransaction(
+		database: WebsiteMutationDatabase,
+		id: string
+	): Promise<Website> {
 		try {
-			const [deleted] = await this.database
+			const [deleted] = await database
 				.delete(websites)
 				.where(eq(websites.id, id))
 				.returning();
@@ -298,13 +355,7 @@ export class WebsiteService {
 				throw new WebsiteNotFoundError();
 			}
 
-			await this.cache?.deleteWebsiteById(id);
-			await this.cache?.deleteWebsiteByDomain(
-				deleted.domain,
-				deleted.organizationId
-			);
-			await this.cache?.invalidateLists([deleted.organizationId]);
-			await this.invalidateReadCaches(id);
+			return deleted;
 		} catch (error) {
 			if (error instanceof WebsiteNotFoundError) {
 				throw error;
@@ -314,6 +365,17 @@ export class WebsiteService {
 			});
 			throw new Error("Failed to delete website");
 		}
+	}
+
+	async deleteById(id: string): Promise<void> {
+		const deleted = await this.deleteInTransaction(this.database, id);
+		await this.cache?.deleteWebsiteById(id);
+		await this.cache?.deleteWebsiteByDomain(
+			deleted.domain,
+			deleted.organizationId
+		);
+		await this.cache?.invalidateLists([deleted.organizationId]);
+		await this.invalidateReadCaches(id);
 	}
 }
 

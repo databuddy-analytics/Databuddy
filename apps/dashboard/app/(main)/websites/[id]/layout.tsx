@@ -152,6 +152,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 	}, [filtersParam, serializedDynamicFilters, setFiltersParam]);
 
 	const isDemoRoute = pathname?.startsWith("/demo/");
+	const isOverviewRoute = pathname === `/websites/${websiteId}`;
 	const hideToolbar = shouldHideAnalyticsToolbar(pathname, isEmbed);
 
 	const {
@@ -203,6 +204,7 @@ export default function WebsiteLayout({ children }: WebsiteLayoutProps) {
 		websiteData &&
 		isTrackingSetup === false;
 	const showTrackingIssue =
+		isOverviewRoute &&
 		!(isDemoRoute || isTrackingSetupLoading) &&
 		trackingIssue &&
 		!isTrackingIssueDismissed;

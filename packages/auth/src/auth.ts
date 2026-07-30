@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
+import {
+	getCurrentAdapter,
+	runWithTransaction,
+} from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
@@ -27,6 +31,16 @@ import {
 	invalidateOrganizationMembershipCaches,
 	ratelimit,
 } from "@databuddy/redis";
+import {
+	appendAuditEventInTransaction,
+	type AppendAuditEventInput,
+	createAuditEventPayload,
+} from "@databuddy/services/audit";
+import {
+	auditActions,
+	type AuditActionDefinition,
+	type AuditActor,
+} from "@databuddy/shared/audit";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { betterAuth } from "better-auth/minimal";
@@ -41,6 +55,7 @@ import {
 import { log } from "evlog";
 import { Resend } from "resend";
 import { ac, admin, member, owner, viewer } from "./permissions";
+import { getAuthAuditContext } from "./audit-context";
 
 function generateOrgSlug(name: string): string {
 	const base = name
@@ -79,6 +94,14 @@ async function provisionDefaultOrg(input: {
 					userId: input.userId,
 					role: "owner",
 					createdAt: new Date(),
+				});
+				await appendAuditEventInTransaction(tx, orgId, {
+					action: auditActions.ORGANIZATION_CREATED,
+					actor: betterAuthSystemActor,
+					operation: "auth.provisionDefaultOrganization",
+					source: "better_auth",
+					target: { id: orgId, displayName: orgName },
+					metadata: { provisionedDuringAccountSetup: true },
 				});
 			});
 			return orgId;
@@ -272,6 +295,45 @@ async function invalidateMemberCaches(member: {
 	}
 }
 
+const betterAuthSystemActor: AuditActor = {
+	type: "system",
+	id: "better-auth",
+	displayName: "Better Auth",
+};
+
+function toAuditActor(user: { id: string; name?: string | null }): AuditActor {
+	return {
+		type: "user",
+		id: user.id,
+		displayName: user.name ?? undefined,
+	};
+}
+
+async function recordAuthAudit<TAction extends AuditActionDefinition>(
+	organizationId: string,
+	input: Omit<
+		AppendAuditEventInput<TAction>,
+		"actor" | "operation" | "request" | "source"
+	>,
+	fallbackActor?: AuditActor
+): Promise<void> {
+	const context = getAuthAuditContext();
+	const adapter = await getCurrentAdapter(
+		(await auth.$context).adapter as Parameters<typeof getCurrentAdapter>[0]
+	);
+	await adapter.create({
+		model: "auditEvents",
+		data: createAuditEventPayload(organizationId, {
+			...input,
+			actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
+			operation: context?.operation,
+			request: context?.request,
+			source: "better_auth",
+		}),
+		forceAllowId: true,
+	});
+}
+
 type AuthLogLevel = "info" | "warn" | "error" | "debug";
 
 function forwardAuthLog(
@@ -303,6 +365,7 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "pg",
 		schema,
+		transaction: true,
 	}),
 	secondaryStorage: redisStorage({
 		client: getRedisCache(),
@@ -630,10 +693,145 @@ export const auth = betterAuth({
 				viewer,
 			},
 			organizationHooks: {
-				afterAddMember: ({ member }) => invalidateMemberCaches(member),
-				afterCreateOrganization: ({ member }) => invalidateMemberCaches(member),
-				afterRemoveMember: ({ member }) => invalidateMemberCaches(member),
-				afterUpdateMemberRole: ({ member }) => invalidateMemberCaches(member),
+				afterAddMember: async ({ member, organization }) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(organization.id, {
+						action: auditActions.ORGANIZATION_MEMBER_ADDED,
+						target: { id: member.id },
+						changes: { role: { after: member.role } },
+						metadata: { memberUserId: member.userId },
+					});
+				},
+				afterCreateOrganization: async ({ member, organization, user }) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_CREATED,
+							target: {
+								id: organization.id,
+								displayName: organization.name,
+							},
+							changes: { name: { after: organization.name } },
+						},
+						toAuditActor(user)
+					);
+				},
+				afterUpdateOrganization: async ({ organization, user }) => {
+					if (!organization) {
+						return;
+					}
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_UPDATED,
+							target: {
+								id: organization.id,
+								displayName: organization.name,
+							},
+							metadata: { updated: true },
+						},
+						toAuditActor(user)
+					);
+				},
+				afterDeleteOrganization: async ({ organization, user }) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_DELETED,
+							target: {
+								id: organization.id,
+								displayName: organization.name,
+							},
+							changes: { deleted: { after: true } },
+						},
+						toAuditActor(user)
+					);
+				},
+				afterRemoveMember: async ({ member, organization }) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(organization.id, {
+						action: auditActions.ORGANIZATION_MEMBER_REMOVED,
+						target: { id: member.id },
+						changes: {
+							deleted: { after: true },
+							role: { before: member.role },
+						},
+						metadata: { memberUserId: member.userId },
+					});
+				},
+				afterUpdateMemberRole: async ({
+					member,
+					organization,
+					previousRole,
+				}) => {
+					await invalidateMemberCaches(member);
+					await recordAuthAudit(organization.id, {
+						action: auditActions.ORGANIZATION_MEMBER_ROLE_UPDATED,
+						target: { id: member.id },
+						changes: { role: { before: previousRole, after: member.role } },
+						metadata: { memberUserId: member.userId },
+					});
+				},
+				afterCreateInvitation: async ({
+					invitation,
+					inviter,
+					organization,
+				}) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_CREATED,
+							target: { id: invitation.id },
+							changes: { role: { after: invitation.role } },
+							metadata: { status: invitation.status },
+						},
+						toAuditActor(inviter)
+					);
+				},
+				afterAcceptInvitation: async ({ invitation, organization, user }) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_ACCEPTED,
+							target: { id: invitation.id },
+							changes: {
+								status: { before: "pending", after: invitation.status },
+							},
+						},
+						toAuditActor(user)
+					);
+				},
+				afterRejectInvitation: async ({ invitation, organization, user }) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_REJECTED,
+							target: { id: invitation.id },
+							changes: {
+								status: { before: "pending", after: invitation.status },
+							},
+						},
+						toAuditActor(user)
+					);
+				},
+				afterCancelInvitation: async ({
+					cancelledBy,
+					invitation,
+					organization,
+				}) => {
+					await recordAuthAudit(
+						organization.id,
+						{
+							action: auditActions.ORGANIZATION_INVITATION_CANCELLED,
+							target: { id: invitation.id },
+							changes: {
+								status: { before: "pending", after: invitation.status },
+							},
+						},
+						toAuditActor(cancelledBy)
+					);
+				},
 			},
 			sendInvitationEmail: async ({
 				email,
@@ -661,6 +859,16 @@ export const auth = betterAuth({
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,
 };
+
+/** Runs a Better Auth request with its Drizzle adapter pinned to one transaction. */
+export async function runWithAuthTransaction<T>(
+	callback: () => Promise<T>
+): Promise<T> {
+	return runWithTransaction(
+		(await auth.$context).adapter as Parameters<typeof runWithTransaction>[0],
+		callback
+	);
+}
 
 export type User = (typeof auth)["$Infer"]["Session"]["user"];
 export type Session = (typeof auth)["$Infer"]["Session"];
