@@ -45,9 +45,9 @@ const paths: Path[] = [
 	{
 		icon: EnvelopeSimpleIcon,
 		title: "Pitch us directly",
-		tagline: "For senior / specialist roles",
+		tagline: "For roles we haven't posted",
 		description:
-			"No formal openings right now, but if you'd genuinely move the needle (analytics, distributed systems, developer tooling, design, DevRel) send a short note and links to things you've built.",
+			"If you'd genuinely move the needle outside the open roles (analytics, distributed systems, developer tooling, design, DevRel) send a short note and links to things you've built.",
 		cta: { label: "support@databuddy.cc", href: "mailto:support@databuddy.cc" },
 	},
 ];
@@ -116,8 +116,8 @@ export default function CareersPaths() {
 					Three ways to work with us
 				</h2>
 				<p className="mx-auto max-w-2xl text-pretty text-muted-foreground text-sm sm:text-base lg:text-lg">
-					We don't have a careers portal. We have a codebase, a community, and
-					an inbox. Pick the door that fits.
+					Not the open role above? You can still contribute, join the ambassador
+					program, or pitch us directly.
 				</p>
 			</div>
 
