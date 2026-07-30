@@ -20,14 +20,15 @@ describe("cache invalidation policy", () => {
 		const violations: string[] = [];
 
 		for await (const file of sourceFiles.scan({ cwd: ROOT, onlyFiles: true })) {
-			if (ignoredPath.test(file) || allowedPath.test(file)) {
+			const normalized = file.replaceAll("\\", "/");
+			if (ignoredPath.test(normalized) || allowedPath.test(normalized)) {
 				continue;
 			}
 
 			const contents = await readFile(resolve(ROOT, file), "utf8");
 			for (const [pattern, name] of forbidden) {
 				if (pattern.test(contents)) {
-					violations.push(`${file}: ${name}`);
+					violations.push(`${normalized}: ${name}`);
 				}
 			}
 		}
