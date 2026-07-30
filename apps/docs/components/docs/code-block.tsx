@@ -129,10 +129,7 @@ function CodeBlock({
 						},
 						code(node) {
 							node.properties.style = "";
-							node.properties.className = [
-								"border-none",
-								"rounded-none",
-							];
+							node.properties.className = ["border-none", "rounded-none"];
 						},
 					},
 				],
