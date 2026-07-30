@@ -357,7 +357,7 @@ describe("insight investigation timeline", () => {
 			insightId,
 			organizationId: organization.id,
 			outcome,
-			recheckAt: new Date("2099-01-17T00:00:00.000Z"),
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
 			signal: actionSignal,
 			signalKey: subjectKey,
 			websiteId: website.id,
@@ -861,7 +861,7 @@ describe("insight investigation timeline", () => {
 			insightId,
 			organizationId: organization.id,
 			outcome: investigationOutcome("act"),
-			recheckAt: new Date("2099-01-17T00:00:00.000Z"),
+			recheckAt: new Date("2026-01-17T00:00:00.000Z"),
 			signal: signal("goal:signup"),
 			signalKey: "goal:signup",
 			websiteId: website.id,
@@ -916,8 +916,9 @@ describe("insight investigation timeline", () => {
 			.find((tool) => tool.name === "list_investigations")
 			?.handler({ limit: 20, offset: 0, websiteId: website.id });
 		expect(listed?.isError).toBe(false);
-		expect(listed?.structuredContent).toMatchObject({
-			investigations: [expect.objectContaining({ id: insightId })],
+		expect(listed?.structuredContent).toEqual({
+			hasMore: false,
+			investigations: [],
 		});
 		expect(await db().select().from(insightReplies)).toEqual([
 			expect.objectContaining({
