@@ -50,9 +50,9 @@ export default function CareersHero() {
 						</span>
 					</h1>
 					<p className="mx-auto max-w-3xl text-balance font-medium text-muted-foreground text-sm leading-relaxed tracking-tight sm:text-base lg:text-lg">
-						We're a small, remote team building Databuddy in the open. We don't
-						have a recruiting pipeline and we hire rarely, but we always want to
-						hear from sharp builders who care about the same things we do.
+						We're a small, remote team building Databuddy in the open. We're
+						hiring a Founding Engineer and an SDR — and we still want to hear
+						from sharp builders who care about privacy-first analytics.
 					</p>
 				</div>
 

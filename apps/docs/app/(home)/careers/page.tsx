@@ -4,12 +4,13 @@ import Section from "@/components/landing/section";
 
 import { StructuredData } from "@/components/structured-data";
 import CareersHero from "./careers-hero";
+import CareersOpenings from "./careers-openings";
 import CareersPaths from "./careers-paths";
 import CareersPrinciples from "./careers-principles";
 
 const title = "Careers | Databuddy";
 const description =
-	"We're a small, remote team building privacy-first analytics in the open. No formal openings most of the time, but we always want to hear from sharp builders.";
+	"We're hiring a Founding Engineer and an SDR to help build and grow privacy-first analytics. Small remote team, open source, real ownership.";
 const url = "https://www.databuddy.cc/careers";
 
 export const metadata: Metadata = {
@@ -42,6 +43,15 @@ export default function CareersPage() {
 
 			<Section
 				className="border-border border-t bg-background/30"
+				id="careers-openings"
+			>
+				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
+					<CareersOpenings />
+				</div>
+			</Section>
+
+			<Section
+				className="border-border border-t bg-background/50"
 				id="careers-paths"
 			>
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -50,7 +60,7 @@ export default function CareersPage() {
 			</Section>
 
 			<Section
-				className="border-border border-t border-b bg-background/50"
+				className="border-border border-t border-b bg-background/30"
 				id="careers-principles"
 			>
 				<div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8">
