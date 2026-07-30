@@ -9,7 +9,6 @@ import {
 	isNull,
 	isUniqueViolationFor,
 	or,
-	sql,
 } from "@databuddy/db";
 import { linkFolders, links } from "@databuddy/db/schema";
 import {
@@ -31,8 +30,6 @@ import {
 	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
-	linksSummaryOutputSchema,
-	linksSummarySchema,
 	listLinksPageOutputSchema,
 	listLinksPageSchema,
 	listLinksSchema,
@@ -344,50 +341,6 @@ export const linksRouter = {
 				items: hasMore ? rows.slice(0, input.limit) : rows,
 				hasMore,
 				...(total === undefined ? {} : { total }),
-			};
-		}),
-
-	summary: protectedProcedure
-		.route({
-			method: "POST",
-			path: "/links/summary",
-			tags: ["Links"],
-			summary: "Summarize links",
-			description:
-				"Returns exact total and unfiled counts. When search is set, both counts cover only matching links. Requires read:links scope.",
-			spec: (s) => ({ ...s, "x-required-scopes": ["read:links"] as const }),
-		})
-		.input(linksSummarySchema)
-		.output(linksSummaryOutputSchema)
-		.handler(async ({ context, input }) => {
-			const organizationId = requireOrganizationId(
-				input.organizationId ?? context.organizationId
-			);
-
-			await requireLinkAccess(context, organizationId, "read");
-
-			const matches = buildLinkSearchCondition(input.search);
-			const unfiledMatches = matches
-				? and(isNull(links.folderId), matches)
-				: isNull(links.folderId);
-			const [summary] = await context.db
-				.select({
-					total: matches
-						? sql<number>`count(*) filter (where ${matches})`.mapWith(Number)
-						: count(),
-					unfiledTotal:
-						sql<number>`count(*) filter (where ${unfiledMatches})`.mapWith(
-							Number
-						),
-				})
-				.from(links)
-				.where(
-					and(eq(links.organizationId, organizationId), isNull(links.deletedAt))
-				);
-
-			return {
-				total: summary?.total ?? 0,
-				unfiledTotal: summary?.unfiledTotal ?? 0,
 			};
 		}),
 

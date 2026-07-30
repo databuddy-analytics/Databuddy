@@ -96,13 +96,12 @@ export type LinkFolderSelector = z.infer<typeof LinkFolderSelectorSchema>;
 export type LinkRow = z.infer<typeof LinkRowSchema>;
 
 type LinkPageFetcher = (input: {
+	includeTotal?: boolean;
 	limit: number;
 	offset: number;
 	folderId?: string | null;
 	search?: string;
 }) => Promise<unknown>;
-
-type LinkSummaryFetcher = (input: { search?: string }) => Promise<unknown>;
 
 export type LinkPage = z.infer<typeof LinkPageSchema>;
 export type LinkSummary = z.infer<typeof LinkSummarySchema>;
@@ -151,14 +150,32 @@ export async function fetchLinkCatalogPage(
 }
 
 export async function fetchLinkSummary(
-	fetchSummary: LinkSummaryFetcher,
+	fetchPage: LinkPageFetcher,
 	search?: string
 ): Promise<LinkSummary> {
-	const result = LinkSummarySchema.safeParse(await fetchSummary({ search }));
-	if (!result.success) {
-		throw new Error("Received an invalid link summary response.");
+	const input = {
+		includeTotal: true,
+		limit: 1,
+		offset: 0,
+		...(search ? { search } : {}),
+	};
+	const [all, unfiled] = await Promise.all([
+		fetchPage(input),
+		fetchPage({ ...input, folderId: null }),
+	]);
+	const allResult = LinkPageSchema.safeParse(all);
+	const unfiledResult = LinkPageSchema.safeParse(unfiled);
+	if (
+		!(allResult.success && unfiledResult.success) ||
+		allResult.data.total === undefined ||
+		unfiledResult.data.total === undefined
+	) {
+		throw new Error("Received an invalid paginated link summary response.");
 	}
-	return result.data;
+	return {
+		total: allResult.data.total,
+		unfiledTotal: unfiledResult.data.total,
+	};
 }
 
 async function loadLinks(
@@ -209,8 +226,13 @@ export async function getLinkSummary(
 		(input) =>
 			callRPCProcedure(
 				"links",
-				"summary",
-				{ ...input, organizationId },
+				"paginated",
+				{
+					...input,
+					organizationId,
+					sort: "newest",
+					type: "all",
+				},
 				context
 			),
 		search

@@ -52,13 +52,6 @@ export const listLinksPageSchema = listLinksSchema.unwrap().extend({
 	type: linkTypeFilterSchema,
 });
 
-export const linksSummarySchema = z
-	.object({
-		organizationId: z.string().optional(),
-		search: z.string().trim().min(1).max(255).optional(),
-	})
-	.default({});
-
 export const listLinkFoldersSchema = z
 	.object({
 		organizationId: z.string().optional(),
@@ -231,11 +224,6 @@ export const listLinksPageOutputSchema = z.object({
 	items: z.array(linkOutputSchema),
 	hasMore: z.boolean(),
 	total: z.number().int().nonnegative().optional(),
-});
-
-export const linksSummaryOutputSchema = z.object({
-	total: z.number().int().nonnegative(),
-	unfiledTotal: z.number().int().nonnegative(),
 });
 
 export const linkFolderOutputSchema = linkFolderSelectSchema.pick({

@@ -54,50 +54,6 @@ async function seedProfile(
 		});
 }
 
-describe("profiles.getByIds", () => {
-	iit("returns profiles for an organization member", async () => {
-		const user = await signUp();
-		const org = await insertOrganization();
-		await addToOrganization(user.id, org.id, "member");
-		const website = await insertWebsite({ organizationId: org.id });
-		await seedProfile(website.id, "user_1");
-		await seedProfile(website.id, "user_2", { email: null });
-
-		const result = await call(appRouter.profiles.getByIds, {
-			...userContext(user, org.id),
-		})({
-			websiteId: website.id,
-			profileIds: ["user_1", "user_2", "user_missing"],
-		});
-
-		expect(result).toHaveLength(2);
-		const first = result.find((p) => p.profileId === "user_1");
-		expect(first?.email).toBe("user_1@example.com");
-		expect(first?.displayName).toBe("User user_1");
-		expect(first?.traits).toEqual({ plan: "pro" });
-	});
-
-	iit("does not leak profiles from another organization's website", async () => {
-		const outsider = await signUp();
-		const outsiderOrg = await insertOrganization();
-		await addToOrganization(outsider.id, outsiderOrg.id, "member");
-
-		const org = await insertOrganization();
-		const website = await insertWebsite({ organizationId: org.id });
-		await seedProfile(website.id, "user_1");
-
-		await expectCode(
-			call(appRouter.profiles.getByIds, {
-				...userContext(outsider, outsiderOrg.id),
-			})({
-				websiteId: website.id,
-				profileIds: ["user_1"],
-			}),
-			"FORBIDDEN"
-		);
-	});
-});
-
 describe("profiles.get", () => {
 	iit("returns a profile with its device aliases", async () => {
 		const user = await signUp();

@@ -215,18 +215,12 @@ describe("uptime router BullMQ integration", () => {
 			organizationId: org.id,
 		});
 
-		await call(appRouter.uptime.togglePause, context)({
-			scheduleId,
-			pause: true,
-		});
+		await call(appRouter.uptime.pauseSchedule, context)({ scheduleId });
 
 		expect((await scheduleRow(scheduleId))?.isPaused).toBe(true);
 		expect(await scheduler(scheduleId)).toBeFalsy();
 
-		await call(appRouter.uptime.togglePause, context)({
-			scheduleId,
-			pause: false,
-		});
+		await call(appRouter.uptime.resumeSchedule, context)({ scheduleId });
 
 		expect((await scheduleRow(scheduleId))?.isPaused).toBe(false);
 		expect(await scheduler(scheduleId)).toBeTruthy();
@@ -248,10 +242,7 @@ describe("uptime router BullMQ integration", () => {
 		expect(manualJobs).toHaveLength(1);
 		expect(manualJobs[0]?.name).toBe(UPTIME_CHECK_JOB_NAME);
 
-		await call(appRouter.uptime.togglePause, context)({
-			scheduleId,
-			pause: true,
-		});
+		await call(appRouter.uptime.pauseSchedule, context)({ scheduleId });
 
 		await expectCode(
 			call(appRouter.uptime.manualCheck, context)({ scheduleId }),

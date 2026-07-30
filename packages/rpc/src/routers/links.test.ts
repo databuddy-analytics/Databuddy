@@ -4,8 +4,6 @@ import {
 	deleteLinkSchema,
 	getLinkSchema,
 	linkOutputSchema,
-	linksSummaryOutputSchema,
-	linksSummarySchema,
 	listLinksPageSchema,
 	listLinksSchema,
 	updateLinkSchema,
@@ -245,34 +243,6 @@ describe("listLinksPageSchema validation", () => {
 		expect(listLinksPageSchema.safeParse({ type: "medium" }).success).toBe(
 			false
 		);
-	});
-});
-
-describe("linksSummarySchema validation", () => {
-	it("accepts active-organization fallback and optional search", () => {
-		expect(linksSummarySchema.parse({})).toEqual({});
-		expect(
-			linksSummarySchema.parse({
-				organizationId: "org-123",
-				search: "campaign",
-			})
-		).toEqual({ organizationId: "org-123", search: "campaign" });
-		expect(linksSummarySchema.safeParse({ search: "   " }).success).toBe(
-			false
-		);
-		expect(linksSummarySchema.safeParse({ search: "x".repeat(256) }).success).toBe(
-			false
-		);
-	});
-
-	it("validates exact aggregate output", () => {
-		expect(
-			linksSummaryOutputSchema.parse({ total: 1200, unfiledTotal: 35 })
-		).toEqual({ total: 1200, unfiledTotal: 35 });
-		expect(
-			linksSummaryOutputSchema.safeParse({ total: -1, unfiledTotal: 0 })
-				.success
-		).toBe(false);
 	});
 });
 

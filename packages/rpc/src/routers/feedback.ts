@@ -220,25 +220,6 @@ export const feedbackRouter = {
 			);
 		}),
 
-	getRewardTiers: sessionProcedure
-		.route({
-			method: "POST",
-			path: "/feedback/getRewardTiers",
-			tags: ["Feedback"],
-			summary: "Get reward tiers",
-			description: "Get available reward tiers for credit redemption.",
-		})
-		.output(
-			z.array(
-				z.object({
-					creditsRequired: z.number(),
-					rewardType: z.string(),
-					rewardAmount: z.number(),
-				})
-			)
-		)
-		.handler(() => [...REWARD_TIERS]),
-
 	redeemCredits: trackedSessionProcedure
 		.route({
 			method: "POST",

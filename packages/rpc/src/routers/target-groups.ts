@@ -8,7 +8,6 @@ import { rpcError } from "../errors";
 import { publicProcedure, trackedProcedure } from "../orpc";
 import {
 	withPublicWorkspace,
-	withWebsiteRead,
 	withWorkspace,
 } from "../procedures/with-workspace";
 import { invalidateFlagEvaluationCaches } from "../utils/flags";
@@ -25,11 +24,6 @@ const flagsCache = createDrizzleCache({
 const CACHE_DURATION = 60;
 
 const listSchema = z.object({
-	websiteId: z.string(),
-});
-
-const getByIdSchema = z.object({
-	id: z.string(),
 	websiteId: z.string(),
 });
 
@@ -105,47 +99,6 @@ export const targetGroupsRouter = {
 						.orderBy(desc(targetGroups.createdAt));
 
 					return groupsList;
-				},
-			});
-		}),
-
-	getById: publicProcedure
-		.route({
-			description:
-				"Returns a single target group by id. Requires website read permission.",
-			method: "POST",
-			path: "/target-groups/getById",
-			summary: "Get target group",
-			tags: ["Target Groups"],
-		})
-		.input(getByIdSchema)
-		.output(targetGroupOutputSchema)
-		.use(withWebsiteRead)
-		.handler(async ({ context, input }) => {
-			const { workspace } = context;
-			requireAuthedTargetGroupRead(workspace);
-
-			return await targetGroupsCache.withCache({
-				key: scopedCacheKey(
-					"byId",
-					workspace,
-					`website:${input.websiteId}`,
-					`id:${input.id}`
-				),
-				ttl: CACHE_DURATION,
-				tables: ["target_groups"],
-				queryFn: async () => {
-					const row = await context.db.query.targetGroups.findFirst({
-						where: {
-							id: input.id,
-							websiteId: input.websiteId,
-							deletedAt: { isNull: true },
-						},
-					});
-					if (!row) {
-						throw rpcError.notFound("Target group", input.id);
-					}
-					return row;
 				},
 			});
 		}),

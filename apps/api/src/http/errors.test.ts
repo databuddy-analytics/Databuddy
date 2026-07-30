@@ -1,7 +1,7 @@
 import { createError } from "evlog";
 import { t, ValidationError } from "elysia";
 import { afterEach, describe, expect, it } from "vitest";
-import { handleAppError, limitRequestBody } from "./errors";
+import { handleAppError } from "./errors";
 
 const originalNodeEnv = process.env.NODE_ENV;
 
@@ -107,50 +107,5 @@ describe("handleAppError", () => {
 		expect(serialized).not.toContain("867530900");
 		expect(serialized).not.toContain("Expected");
 		expect(serialized).not.toContain("found");
-	});
-});
-
-describe("limitRequestBody", () => {
-	it("rebuilds request bodies within the byte limit", async () => {
-		const request = new Request("http://localhost/dql/execute", {
-			body: '{"sql":"SELECT 1"}',
-			headers: { authorization: "Bearer test" },
-			method: "POST",
-		});
-
-		const limited = await limitRequestBody(request, 32);
-
-		expect(limited).toBe(request);
-		expect(await limited.text()).toBe('{"sql":"SELECT 1"}');
-		expect(limited.headers.get("authorization")).toBe("Bearer test");
-	});
-
-	it("rejects streamed or declared bodies over the byte limit", async () => {
-		await expect(
-			limitRequestBody(
-				new Request("http://localhost/dql/execute", {
-					body: "12345",
-					method: "POST",
-				}),
-				4
-			)
-		).rejects.toMatchObject({
-			code: "PAYLOAD_TOO_LARGE",
-			status: 413,
-		});
-
-		await expect(
-			limitRequestBody(
-				new Request("http://localhost/dql/execute", {
-					body: "x",
-					headers: { "content-length": "100" },
-					method: "POST",
-				}),
-				4
-			)
-		).rejects.toMatchObject({
-			code: "PAYLOAD_TOO_LARGE",
-			status: 413,
-		});
 	});
 });

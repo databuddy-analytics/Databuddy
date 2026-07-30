@@ -386,59 +386,6 @@ export const uptimeRouter = {
 			return { success: true };
 		}),
 
-	togglePause: trackedProcedure
-		.route({
-			description:
-				"Pauses or resumes an uptime schedule. Requires write:monitors scope.",
-			method: "POST",
-			path: "/uptime/togglePause",
-			summary: "Toggle pause",
-			tags: ["Uptime"],
-			spec: (s) => ({ ...s, "x-required-scopes": ["write:monitors"] as const }),
-		})
-		.input(z.object({ scheduleId: z.string(), pause: z.boolean() }))
-		.output(z.object({ success: z.literal(true), isPaused: z.boolean() }))
-		.handler(async ({ context, input }) => {
-			setTrackProperties({ paused: input.pause });
-			const schedule = await withResource(context, {
-				resource: "monitor",
-				id: input.scheduleId,
-				permissions: ["update"],
-			});
-
-			if (schedule.isPaused === input.pause) {
-				throw rpcError.badRequest(
-					input.pause ? "Schedule is already paused" : "Schedule is not paused"
-				);
-			}
-
-			try {
-				if (input.pause) {
-					await pauseScheduleWithScheduler(input.scheduleId);
-				} else {
-					await resumeScheduleWithScheduler(
-						input.scheduleId,
-						parseStoredGranularity(schedule.granularity)
-					);
-				}
-			} catch (error) {
-				logger.error(
-					{ scheduleId: input.scheduleId, error },
-					"Failed to toggle uptime scheduler"
-				);
-				throw rpcError.internal("Failed to update monitor status");
-			}
-
-			await invalidateStatusPageCachesForSchedule(input.scheduleId);
-
-			logger.info(
-				{ scheduleId: input.scheduleId, paused: input.pause },
-				"Schedule toggled"
-			);
-
-			return { success: true, isPaused: input.pause };
-		}),
-
 	pauseSchedule: trackedProcedure
 		.route({
 			description:
