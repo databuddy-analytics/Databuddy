@@ -182,44 +182,4 @@ export const revenueRouter = {
 
 			return { webhookHash: newHash };
 		}),
-
-	delete: sessionProcedure
-		.route({
-			description: "Deletes revenue config. Requires configure permission.",
-			method: "POST",
-			path: "/revenue/delete",
-			summary: "Delete revenue config",
-			tags: ["Revenue"],
-		})
-		.input(z.object({ websiteId: z.string().optional() }))
-		.output(z.object({ deleted: z.literal(true) }))
-		.handler(async ({ context, input }) => {
-			const workspace = input.websiteId
-				? await withWorkspace(context, {
-						websiteId: input.websiteId,
-						permissions: ["update"],
-					})
-				: await withWorkspace(context, {
-						resource: "website",
-						permissions: ["update"],
-					});
-
-			const ownerId = workspace.organizationId;
-
-			const existing = await context.db.query.revenueConfig.findFirst({
-				where: input.websiteId
-					? { ownerId, websiteId: input.websiteId }
-					: { ownerId, websiteId: { isNull: true } },
-			});
-
-			if (!existing) {
-				throw rpcError.notFound("Revenue config");
-			}
-
-			await context.db
-				.delete(revenueConfig)
-				.where(eq(revenueConfig.id, existing.id));
-
-			return { deleted: true };
-		}),
 };

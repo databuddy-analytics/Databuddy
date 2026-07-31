@@ -33,6 +33,7 @@ const footerSections = [
 			{ href: "/blog", label: "Blog", navItem: "blog" },
 			{ href: "/about", label: "About", navItem: "about" },
 			{ href: "/manifesto", label: "Manifesto", navItem: "manifesto" },
+			{ href: "/careers", label: "Careers", navItem: "careers" },
 			{ href: "/contact", label: "Contact", navItem: "contact" },
 			{
 				external: true,

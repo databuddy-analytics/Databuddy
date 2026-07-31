@@ -4,7 +4,8 @@ import type {
 	AuditRequestContext,
 } from "@databuddy/shared/audit";
 import {
-	appendAuditEvent,
+	appendAuditEventInTransaction,
+	type AuditDatabase,
 	type AppendAuditEventInput,
 } from "@databuddy/services/audit";
 import type { Context } from "../orpc";
@@ -43,9 +44,10 @@ export async function appendRpcAuditEvent<
 >(
 	context: Context,
 	organizationId: string,
-	input: Omit<AppendAuditEventInput<TAction>, "actor" | "request" | "source">
+	input: Omit<AppendAuditEventInput<TAction>, "actor" | "request" | "source">,
+	database: AuditDatabase = context.db
 ): Promise<void> {
-	await appendAuditEvent(context.db, organizationId, {
+	await appendAuditEventInTransaction(database, organizationId, {
 		...input,
 		actor: getAuditActor(context),
 		request: getAuditRequestContext(context),

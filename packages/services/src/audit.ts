@@ -24,7 +24,7 @@ import type {
 	AuditSource,
 } from "@databuddy/shared/audit";
 
-type AuditDatabase = Pick<
+export type AuditDatabase = Pick<
 	typeof import("@databuddy/db").db,
 	"delete" | "insert" | "select"
 >;
@@ -49,7 +49,7 @@ export interface AppendAuditEventInput<TAction extends AuditActionDefinition> {
 	target: AuditTarget;
 }
 
-function toAuditOutboxPayload<TAction extends AuditActionDefinition>(
+export function createAuditEventPayload<TAction extends AuditActionDefinition>(
 	organizationId: string,
 	input: AppendAuditEventInput<TAction>
 ): AuditOutboxPayload {
@@ -89,6 +89,24 @@ async function insertAuditPayload(
 	return event;
 }
 
+/**
+ * Persists an audit event with the caller's database transaction. It never
+ * falls back to the outbox: callers use it when the audited mutation must roll
+ * back if the ledger cannot be written.
+ */
+export function appendAuditEventInTransaction<
+	TAction extends AuditActionDefinition,
+>(
+	database: AuditDatabase,
+	organizationId: string,
+	input: AppendAuditEventInput<TAction>
+): Promise<AuditEvent> {
+	return insertAuditPayload(
+		database,
+		createAuditEventPayload(organizationId, input)
+	);
+}
+
 /** Replays a bounded batch of previously durable audit writes. */
 export async function replayAuditOutbox(
 	database: AuditDatabase,
@@ -122,7 +140,7 @@ export async function appendAuditEvent<TAction extends AuditActionDefinition>(
 	organizationId: string,
 	input: AppendAuditEventInput<TAction>
 ): Promise<AuditEvent> {
-	const payload = toAuditOutboxPayload(organizationId, input);
+	const payload = createAuditEventPayload(organizationId, input);
 	let event: AuditEvent;
 	try {
 		event = await insertAuditPayload(database, payload);

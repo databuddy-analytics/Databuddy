@@ -178,28 +178,6 @@ export const alarmsRouter = {
 			return rows.map(redactAlarm);
 		}),
 
-	get: protectedProcedure
-		.route({
-			method: "POST",
-			path: "/alarms/get",
-			tags: ["Alarms"],
-			summary: "Get alarm",
-			description: "Returns a single alarm by ID.",
-		})
-		.input(z.object({ alarmId: z.string() }))
-		.output(alarmOutputSchema)
-		.handler(async ({ context, input }) => {
-			const alarm = await withResource(context, {
-				resource: "alarm",
-				id: input.alarmId,
-				permissions: ["read"],
-			});
-			if (await callerCanReadSecrets(context, alarm.organizationId)) {
-				return alarm;
-			}
-			return redactAlarm(alarm);
-		}),
-
 	create: trackedProcedure
 		.route({
 			method: "POST",

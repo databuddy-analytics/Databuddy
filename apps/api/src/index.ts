@@ -10,7 +10,7 @@ import { configureApiLogger } from "@/bootstrap/logger";
 import { registerProcessErrorHandlers } from "@/bootstrap/process-errors";
 import { registerShutdownHooks, warmPostgresPool } from "@/bootstrap/shutdown";
 import { isAllowedApiOrigin } from "@/http/cors";
-import { handleAppError, limitRequestBody } from "@/http/errors";
+import { handleAppError } from "@/http/errors";
 import { getRequestId } from "@/http/request-id";
 import { AUTUMN_API_PREFIX } from "@/lib/autumn-mount";
 import { enrichApiWideEvent } from "@/lib/evlog-api";
@@ -36,28 +36,16 @@ configureApiInstrumentation();
 registerProcessErrorHandlers();
 
 const BUN_IDLE_TIMEOUT_SECONDS = 255;
-const DQL_BODY_LIMIT_BYTES = 512 * 1024;
-const DQL_PATH_PATTERN = /\/dql(?:\/|\.)(?:execute|schema)\/?$/;
-
 interface RequestContext {
 	request: Request;
 }
 
-function limitDqlBody(request: Request): Promise<Request> | Request {
-	if (!DQL_PATH_PATTERN.test(new URL(request.url).pathname)) {
-		return request;
-	}
-	return limitRequestBody(request, DQL_BODY_LIMIT_BYTES);
-}
-
-async function handleRpcEndpoint({ request }: RequestContext) {
-	return handleAuthenticatedOrpcRequest(
-		await limitDqlBody(request),
-		(orpcRequest, context) =>
-			rpcHandler.handle(orpcRequest, {
-				prefix: "/rpc",
-				context,
-			})
+function handleRpcEndpoint({ request }: RequestContext) {
+	return handleAuthenticatedOrpcRequest(request, (orpcRequest, context) =>
+		rpcHandler.handle(orpcRequest, {
+			prefix: "/rpc",
+			context,
+		})
 	);
 }
 
@@ -65,11 +53,8 @@ function handleOpenApiReference({ request }: RequestContext) {
 	return handleAnonymousOrpcRequest(request, handleOpenApiRequest);
 }
 
-async function handleOpenApiEndpoint({ request }: RequestContext) {
-	return handleAuthenticatedOrpcRequest(
-		await limitDqlBody(request),
-		handleOpenApiRequest
-	);
+function handleOpenApiEndpoint({ request }: RequestContext) {
+	return handleAuthenticatedOrpcRequest(request, handleOpenApiRequest);
 }
 
 function handleOpenApiJson({ request }: RequestContext) {

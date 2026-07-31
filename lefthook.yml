@@ -45,8 +45,7 @@ pre-commit:
 commit-msg:
   commands:
     enforce-format:
-      run: |
-        head -1 {1} | grep -qE '^(feat|fix|refactor|chore|docs|test|style|perf|ci|build|revert)\(.+\): .+' || (echo "Commit message must match: <type>(<scope>): <description>" && exit 1)
+      run: bun scripts/enforce-commit-format.ts {1}
 
 pre-push:
   parallel: true

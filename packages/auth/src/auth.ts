@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { redisStorage } from "@better-auth/redis-storage";
 import { sso } from "@better-auth/sso";
+import {
+	getCurrentAdapter,
+	runWithTransaction,
+} from "@better-auth/core/context";
 import { and, db, eq, like } from "@databuddy/db";
 // biome-ignore lint/performance/noNamespaceImport: Better Auth's Drizzle adapter expects a schema object map.
 import * as schema from "@databuddy/db/schema";
@@ -28,8 +32,9 @@ import {
 	ratelimit,
 } from "@databuddy/redis";
 import {
-	appendAuditEvent,
+	appendAuditEventInTransaction,
 	type AppendAuditEventInput,
+	createAuditEventPayload,
 } from "@databuddy/services/audit";
 import {
 	auditActions,
@@ -89,6 +94,14 @@ async function provisionDefaultOrg(input: {
 					userId: input.userId,
 					role: "owner",
 					createdAt: new Date(),
+				});
+				await appendAuditEventInTransaction(tx, orgId, {
+					action: auditActions.ORGANIZATION_CREATED,
+					actor: betterAuthSystemActor,
+					operation: "auth.provisionDefaultOrganization",
+					source: "better_auth",
+					target: { id: orgId, displayName: orgName },
+					metadata: { provisionedDuringAccountSetup: true },
 				});
 			});
 			return orgId;
@@ -305,24 +318,20 @@ async function recordAuthAudit<TAction extends AuditActionDefinition>(
 	fallbackActor?: AuditActor
 ): Promise<void> {
 	const context = getAuthAuditContext();
-	try {
-		await appendAuditEvent(db, organizationId, {
+	const adapter = await getCurrentAdapter(
+		(await auth.$context).adapter as Parameters<typeof getCurrentAdapter>[0]
+	);
+	await adapter.create({
+		model: "auditEvents",
+		data: createAuditEventPayload(organizationId, {
 			...input,
 			actor: context?.actor ?? fallbackActor ?? betterAuthSystemActor,
 			operation: context?.operation,
 			request: context?.request,
 			source: "better_auth",
-		});
-	} catch (error) {
-		// Better Auth hooks run after the primary write. Do not turn a successful
-		// account or organization action into a failed response if the ledger is down.
-		log.error({
-			service: "auth",
-			auth_audit_action: input.action.action,
-			auth_audit_organization_id: organizationId,
-			error: error instanceof Error ? error.message : String(error),
-		});
-	}
+		}),
+		forceAllowId: true,
+	});
 }
 
 type AuthLogLevel = "info" | "warn" | "error" | "debug";
@@ -356,6 +365,7 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: "pg",
 		schema,
+		transaction: true,
 	}),
 	secondaryStorage: redisStorage({
 		client: getRedisCache(),
@@ -849,6 +859,16 @@ export const auth = betterAuth({
 export const websitesApi = {
 	hasPermission: auth.api.hasPermission,
 };
+
+/** Runs a Better Auth request with its Drizzle adapter pinned to one transaction. */
+export async function runWithAuthTransaction<T>(
+	callback: () => Promise<T>
+): Promise<T> {
+	return runWithTransaction(
+		(await auth.$context).adapter as Parameters<typeof runWithTransaction>[0],
+		callback
+	);
+}
 
 export type User = (typeof auth)["$Infer"]["Session"]["user"];
 export type Session = (typeof auth)["$Infer"]["Session"];

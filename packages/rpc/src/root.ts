@@ -3,10 +3,8 @@ import { alarmsRouter } from "./routers/alarms";
 import { annotationsRouter } from "./routers/annotations";
 import { anomaliesRouter } from "./routers/anomalies";
 import { apikeysRouter } from "./routers/apikeys";
-import { auditLogsRouter } from "./routers/audit-logs";
 import { autocompleteRouter } from "./routers/autocomplete";
 import { billingRouter } from "./routers/billing";
-import { dqlRouter } from "./routers/dql";
 import { feedbackRouter } from "./routers/feedback";
 import { flagsRouter } from "./routers/flags";
 import { funnelsRouter } from "./routers/funnels";
@@ -17,7 +15,6 @@ import { integrationsRouter } from "./routers/integrations";
 import { linkFoldersRouter } from "./routers/link-folders";
 import { linksRouter } from "./routers/links";
 import { organizationsRouter } from "./routers/organizations";
-import { preferencesRouter } from "./routers/preferences";
 import { profilesRouter } from "./routers/profiles";
 import { revenueRouter } from "./routers/revenue";
 import { statusPageRouter } from "./routers/status-page";
@@ -33,11 +30,9 @@ export const appRouter = {
 	annotations: annotationsRouter,
 	websites: websitesRouter,
 	funnels: funnelsRouter,
-	preferences: preferencesRouter,
 	goals: goalsRouter,
 	autocomplete: autocompleteRouter,
 	apikeys: apikeysRouter,
-	auditLogs: auditLogsRouter,
 	integrations: integrationsRouter,
 	feedback: feedbackRouter,
 	flags: flagsRouter,
@@ -47,7 +42,6 @@ export const appRouter = {
 	organizations: organizationsRouter,
 	profiles: profilesRouter,
 	billing: billingRouter,
-	dql: dqlRouter,
 	statusPage: statusPageRouter,
 	uptime: uptimeRouter,
 	linkFolders: linkFoldersRouter,

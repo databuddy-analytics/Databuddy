@@ -113,14 +113,33 @@ describe("paginated link catalog", () => {
 		]);
 	});
 
-	it("loads exact catalog and unfiled totals with one summary call", async () => {
-		const calls: Array<{ search?: string }> = [];
+	it("loads exact catalog and unfiled totals from paginated counts", async () => {
+		const calls: Array<{
+			folderId?: null;
+			includeTotal?: boolean;
+			limit: number;
+			offset: number;
+			search?: string;
+		}> = [];
 		const summary = await fetchLinkSummary(async (input) => {
 			calls.push(input);
-			return { total: 7, unfiledTotal: 3 };
+			return {
+				hasMore: false,
+				items: [],
+				total: input.folderId === null ? 3 : 7,
+			};
 		}, "campaign");
 
 		expect(summary).toEqual({ total: 7, unfiledTotal: 3 });
-		expect(calls).toEqual([{ search: "campaign" }]);
+		expect(calls).toEqual([
+			{ includeTotal: true, limit: 1, offset: 0, search: "campaign" },
+			{
+				folderId: null,
+				includeTotal: true,
+				limit: 1,
+				offset: 0,
+				search: "campaign",
+			},
+		]);
 	});
 });

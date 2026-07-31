@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "@databuddy/db";
+import { and, desc, eq, sql } from "@databuddy/db";
 import {
 	profileAliases,
 	profiles,
@@ -117,52 +117,6 @@ export const profilesRouter = {
 				.limit(50);
 
 			return rows.map((row) => row.value).filter((value) => value !== null);
-		}),
-
-	getByIds: trackedProcedure
-		.route({
-			method: "POST",
-			path: "/profiles/getByIds",
-			tags: ["Profiles"],
-			summary: "Get profiles by ids",
-			description:
-				"Returns identified user profiles for the given profile ids. Requires website read permission.",
-		})
-		.input(
-			z.object({
-				websiteId: z.string(),
-				profileIds: z.array(z.string().min(1).max(128)).min(1).max(100),
-			})
-		)
-		.output(z.array(profileOutputSchema))
-		.handler(async ({ context, input }) => {
-			await withWorkspace(context, {
-				websiteId: input.websiteId,
-				permissions: ["read"],
-			});
-
-			const rows = await context.db
-				.select({
-					profileId: profiles.profileId,
-					displayName: profiles.displayName,
-					email: profiles.email,
-					traits: profiles.traits,
-					firstSeenAt: profiles.firstSeenAt,
-					updatedAt: profiles.updatedAt,
-				})
-				.from(profiles)
-				.where(
-					and(
-						eq(profiles.websiteId, input.websiteId),
-						inArray(profiles.profileId, input.profileIds)
-					)
-				);
-
-			return rows.map((row) => ({
-				...row,
-				displayName: revealPii(row.displayName),
-				email: revealPii(row.email),
-			}));
 		}),
 
 	get: trackedProcedure

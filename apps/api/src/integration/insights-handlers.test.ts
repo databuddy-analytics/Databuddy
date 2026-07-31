@@ -887,13 +887,20 @@ describe("insight investigation timeline", () => {
 			insightId,
 			replyId: "mcp-request-1",
 		};
-		const first = await call(appRouter.insights.reply, context)(input);
 		const mcpTools = createMcpTools({
 			apiKey: principal.apiKey,
 			organizationId: organization.id,
 			requestHeaders: new Headers(),
 			userId: null,
 		});
+		const listed = await mcpTools
+			.find((tool) => tool.name === "list_investigations")
+			?.handler({ limit: 20, offset: 0, websiteId: website.id });
+		expect(listed?.isError).toBe(false);
+		expect(listed?.structuredContent).toMatchObject({
+			investigations: [expect.objectContaining({ id: insightId })],
+		});
+		const first = await call(appRouter.insights.reply, context)(input);
 		const replyTool = mcpTools.find(
 			(tool) => tool.name === "reply_to_investigation"
 		);
@@ -912,12 +919,11 @@ describe("insight investigation timeline", () => {
 			total: 1,
 			websites: [expect.objectContaining({ id: website.id })],
 		});
-		const listed = await mcpTools
+		const listedWhileVerifying = await mcpTools
 			.find((tool) => tool.name === "list_investigations")
 			?.handler({ limit: 20, offset: 0, websiteId: website.id });
-		expect(listed?.isError).toBe(false);
-		expect(listed?.structuredContent).toEqual({
-			hasMore: false,
+		expect(listedWhileVerifying?.isError).toBe(false);
+		expect(listedWhileVerifying?.structuredContent).toMatchObject({
 			investigations: [],
 		});
 		expect(await db().select().from(insightReplies)).toEqual([

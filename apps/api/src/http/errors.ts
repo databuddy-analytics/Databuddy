@@ -1,6 +1,6 @@
 import { config } from "@databuddy/env/app";
 import { ValidationError } from "elysia";
-import { createError, EvlogError, parseError } from "evlog";
+import { EvlogError, parseError } from "evlog";
 import { getRequestId } from "./request-id";
 
 interface AppErrorContext {
@@ -31,51 +31,6 @@ const HTTP_STATUS_BY_ERROR_CODE: Record<string, number> = {
 
 const PROTECTED_RESOURCE_METADATA_URL = `${config.urls.api}/.well-known/oauth-protected-resource`;
 const LEADING_SLASH_PATTERN = /^\//;
-
-export async function limitRequestBody(
-	request: Request,
-	maxBytes: number
-): Promise<Request> {
-	const declaredBytes = Number(request.headers.get("content-length"));
-	if (
-		(request.headers.has("content-length") &&
-			(!Number.isSafeInteger(declaredBytes) || declaredBytes < 0)) ||
-		declaredBytes > maxBytes
-	) {
-		throw createError({
-			code: "PAYLOAD_TOO_LARGE",
-			message: "Payload too large",
-			status: 413,
-		});
-	}
-	if (!request.body) {
-		return request;
-	}
-
-	const measuredBody = request.clone().body;
-	if (!measuredBody) {
-		return request;
-	}
-	const reader = measuredBody.getReader();
-	let totalBytes = 0;
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) {
-			break;
-		}
-		totalBytes += value.byteLength;
-		if (totalBytes > maxBytes) {
-			await Promise.allSettled([reader.cancel(), request.body.cancel()]);
-			throw createError({
-				code: "PAYLOAD_TOO_LARGE",
-				message: "Payload too large",
-				status: 413,
-			});
-		}
-	}
-
-	return request;
-}
 
 export function handleAppError({
 	error,

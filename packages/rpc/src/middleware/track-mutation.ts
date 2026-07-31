@@ -31,7 +31,6 @@ const NAME_OVERRIDES: Record<string, string> = {
 	"uptime.createSchedule": "monitor_created",
 	"uptime.updateSchedule": "monitor_updated",
 	"uptime.deleteSchedule": "monitor_deleted",
-	"uptime.togglePause": "monitor_toggled_pause",
 	"uptime.pauseSchedule": "monitor_paused",
 	"uptime.resumeSchedule": "monitor_resumed",
 	"uptime.manualCheck": "monitor_checked",
@@ -59,7 +58,6 @@ const NAME_OVERRIDES: Record<string, string> = {
 	"organizations.updateEmailNotificationSettings":
 		"email_notifications_updated",
 	"organizations.clearExpiredInvitations": "expired_invitations_cleared",
-	"preferences.updateUserPreferences": "preferences_updated",
 	"billing.setAutoTopup": "auto_topup_set",
 	"billing.setUsageAlert": "usage_alert_set",
 	"billing.setSpendLimit": "spend_limit_set",

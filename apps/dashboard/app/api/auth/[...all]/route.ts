@@ -1,5 +1,10 @@
-import { auth, runWithAuthAuditContext } from "@databuddy/auth";
+import {
+	auth,
+	runWithAuthAuditContext,
+	runWithAuthTransaction,
+} from "@databuddy/auth";
 import { toNextJsHandler } from "better-auth/next-js";
+import { getTrustedClientIp } from "@/lib/trusted-client-ip";
 
 const handlers = toNextJsHandler(auth.handler);
 
@@ -16,10 +21,6 @@ const auditedOrganizationPaths = new Set([
 	"/organization/cancel-invitation",
 ]);
 const authRoutePrefix = /^\/api\/auth/;
-
-function firstForwardedIp(value: string | null): string | undefined {
-	return value?.split(",")[0]?.trim() || undefined;
-}
 
 async function withAuditContext<T>(
 	request: Parameters<typeof handlers.GET>[0],
@@ -43,14 +44,11 @@ async function withAuditContext<T>(
 			operation: `auth${pathname}`,
 			request: {
 				requestId: request.headers.get("x-request-id") ?? undefined,
-				ip:
-					firstForwardedIp(request.headers.get("x-forwarded-for")) ??
-					request.headers.get("x-real-ip") ??
-					undefined,
+				ip: getTrustedClientIp(request.headers),
 				userAgent: request.headers.get("user-agent") ?? undefined,
 			},
 		},
-		handler
+		() => runWithAuthTransaction(handler)
 	);
 }
 
