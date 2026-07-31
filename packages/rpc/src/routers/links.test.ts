@@ -24,7 +24,7 @@ describe("createLinkSchema validation", () => {
 		const result = createLinkSchema.safeParse({
 			organizationId: "org-123",
 			name: "My Link",
-			targetUrl: "https://example.com/path?query=value",
+			targetUrl: "https://instagram.com/example?query=value",
 			slug: "my-custom-slug",
 			folderId: "folder-posts",
 			expiresAt: new Date("2025-12-31"),
@@ -39,8 +39,8 @@ describe("createLinkSchema validation", () => {
 			sourceType: "post",
 			sourceId: "post_123",
 			sourceOwnerId: "user_456",
-			targetDomain: "example.com",
-			deepLinkApp: "example",
+			targetDomain: "instagram.com",
+			deepLinkApp: "instagram",
 		});
 
 		expect(result.success).toBe(true);
@@ -68,6 +68,55 @@ describe("createLinkSchema validation", () => {
 				targetUrl: "not-a-url",
 			}).success
 		).toBe(false);
+	});
+
+	it("rejects unsafe URL schemes and unknown deep-link apps", () => {
+		const httpUrlFields = [
+			"targetUrl",
+			"expiredRedirectUrl",
+			"iosUrl",
+			"androidUrl",
+			"ogImageUrl",
+			"ogVideoUrl",
+		] as const;
+
+		for (const url of [
+			"javascript:alert(1)",
+			"data:text/html,hello",
+			"file:///etc/passwd",
+			"exampleapp://open/profile",
+		]) {
+			for (const field of httpUrlFields) {
+				expect(
+					createLinkSchema.safeParse({
+						name: "My Link",
+						targetUrl: "https://example.com",
+						[field]: url,
+					}).success
+				).toBe(false);
+			}
+		}
+
+		expect(
+			createLinkSchema.safeParse({
+				name: "My Link",
+				targetUrl: "https://example.com",
+				deepLinkApp: "example",
+			}).success
+		).toBe(false);
+	});
+
+	it("accepts HTTPS device fallbacks for known deep-link apps", () => {
+		expect(
+			createLinkSchema.safeParse({
+				name: "Instagram profile",
+				targetUrl: "https://instagram.com/databuddy",
+				iosUrl: "https://apps.apple.com/app/instagram/id389801252",
+				androidUrl:
+					"https://play.google.com/store/apps/details?id=com.instagram.android",
+				deepLinkApp: "instagram",
+			}).success
+		).toBe(true);
 	});
 
 	it("validates slug length and characters", () => {
@@ -170,6 +219,24 @@ describe("updateLinkSchema validation", () => {
 				expiresAt: "not-a-date",
 			}).success
 		).toBe(false);
+	});
+
+	it("rejects unsafe URL schemes in partial updates", () => {
+		for (const field of [
+			"targetUrl",
+			"expiredRedirectUrl",
+			"iosUrl",
+			"androidUrl",
+			"ogImageUrl",
+			"ogVideoUrl",
+		] as const) {
+			expect(
+				updateLinkSchema.safeParse({
+					id: "link-123",
+					[field]: "javascript:alert(1)",
+				}).success
+			).toBe(false);
+		}
 	});
 });
 
