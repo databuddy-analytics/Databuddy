@@ -29,7 +29,13 @@ vi.mock("@lib/tracing", () => ({
 	record: (_name: string, fn: Function) => Promise.resolve().then(() => fn()),
 }));
 
-const { disposeRuntime, getStats, runPromise, send } = await import("./producer");
+const {
+	disposeRuntime,
+	getStats,
+	runPromise,
+	send,
+	sendBuffered,
+} = await import("./producer");
 
 beforeEach(async () => {
 	mockCaptureError.mockClear();
@@ -48,7 +54,7 @@ afterAll(async () => {
 describe("producer fallback topics", () => {
 	test("blocked traffic is buffered for ClickHouse fallback", async () => {
 		await runPromise(
-			send("analytics-blocked-traffic", {
+			sendBuffered("analytics-blocked-traffic", {
 				id: "blocked_1",
 				client_id: "ws_1",
 				timestamp: Date.now(),
@@ -61,13 +67,19 @@ describe("producer fallback topics", () => {
 	});
 
 	test("unknown topics include the missing topic in error context", async () => {
-		await runPromise(
-			send("analytics-unmapped-topic", {
-				id: "evt_1",
-				client_id: "ws_1",
-				timestamp: Date.now(),
-			})
-		);
+		await expect(
+			runPromise(
+				send("analytics-unmapped-topic", {
+					id: "evt_1",
+					client_id: "ws_1",
+					timestamp: Date.now(),
+				})
+			)
+		).rejects.toMatchObject({
+			_tag: "UnknownKafkaTopicError",
+			retryable: false,
+			topic: "analytics-unmapped-topic",
+		});
 
 		const stats = await runPromise(getStats);
 		expect(stats?.errors).toBe(1);

@@ -5,11 +5,13 @@ import type {
 	WebVitalsSpansInsert,
 } from "@databuddy/db/clickhouse/tables";
 import type { ErrorSpan, IndividualVital } from "@databuddy/validation";
-import { runFork, runPromise, send, sendBatch } from "@lib/producer";
+import { runPromise, send, sendBatch } from "@lib/producer";
 import {
-	checkDuplicate,
 	getDailySalt,
 	applyVisitorIdPrivacy,
+	markDuplicateReservationDelivered,
+	releaseDuplicateReservation,
+	reserveDuplicate,
 	shouldAnonymizeVisitorIds,
 } from "@lib/security";
 import { record } from "@lib/tracing";
@@ -23,7 +25,9 @@ import {
 	validateSessionId,
 } from "@utils/validation";
 import { randomUUIDv7 } from "bun";
+import { createError } from "evlog";
 import { useLogger } from "evlog/elysia";
+import { createHash } from "node:crypto";
 
 export interface TrackEventContext {
 	anonymousId: string;
@@ -47,6 +51,36 @@ export interface TrackEventContext {
 	};
 }
 
+function deliveryUnavailable(cause: unknown) {
+	return createError({
+		code: "basket.DELIVERY_UNAVAILABLE",
+		message: "Analytics delivery temporarily unavailable",
+		status: 503,
+		why: "Databuddy could not durably accept the event.",
+		fix: "Retry the same event after a short delay.",
+		cause: cause instanceof Error ? cause : new Error(String(cause)),
+	});
+}
+
+/**
+ * ClickHouse stores analytics ids as UUIDs, while public client event ids can
+ * be arbitrary strings. Derive a valid, stable UUID so the same client retry
+ * preserves its physical identity without accepting arbitrary input as UUID.
+ */
+export function stableAnalyticsEventId(
+	clientId: string,
+	eventType: "outgoing_link" | "track",
+	eventId: string
+): string {
+	const digest = createHash("sha256")
+		.update(JSON.stringify([clientId, eventType, eventId]))
+		.digest("hex");
+	const variant = "89ab".charAt(Number.parseInt(digest.charAt(16), 16) % 4);
+	const uuid = `${digest.slice(0, 12)}5${digest.slice(13, 16)}${variant}${digest.slice(17, 32)}`;
+
+	return `${uuid.slice(0, 8)}-${uuid.slice(8, 12)}-${uuid.slice(12, 16)}-${uuid.slice(16, 20)}-${uuid.slice(20)}`;
+}
+
 export function buildTrackEvent(
 	trackData: any,
 	ctx: TrackEventContext
@@ -55,7 +89,7 @@ export function buildTrackEvent(
 		typeof trackData.timestamp === "number" ? trackData.timestamp : ctx.now;
 
 	return {
-		id: randomUUIDv7(),
+		id: stableAnalyticsEventId(ctx.clientId, "track", ctx.eventId),
 		client_id: ctx.clientId,
 		event_name: sanitizeString(
 			trackData.name,
@@ -130,54 +164,58 @@ export function insertTrackEvent(
 			eventId = randomUUIDv7();
 		}
 
-		const [isDuplicate, geoData] = await Promise.all([
-			checkDuplicate(eventId, "track"),
-			getGeo(ip, request),
-		]);
-
-		if (isDuplicate) {
+		const deliveryId = stableAnalyticsEventId(clientId, "track", eventId);
+		const reservation = await reserveDuplicate(deliveryId, "track", eventId);
+		if (reservation.duplicate) {
 			return;
 		}
 
-		const trustedCountry = extractTrustedClientIp(request)
-			? geoData.country
-			: undefined;
-		const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
-			trackData.anonymizeVisitorIds,
-			trustedCountry
-		);
-		const [salt, ua] = await Promise.all([
-			anonymizeVisitorIds ? getDailySalt() : Promise.resolve(undefined),
-			parseUserAgent(userAgent),
-		]);
+		try {
+			const geoData = await getGeo(ip, request);
+			const trustedCountry = extractTrustedClientIp(request)
+				? geoData.country
+				: undefined;
+			const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
+				trackData.anonymizeVisitorIds,
+				trustedCountry
+			);
+			const [salt, ua] = await Promise.all([
+				anonymizeVisitorIds ? getDailySalt() : Promise.resolve(undefined),
+				parseUserAgent(userAgent),
+			]);
 
-		log.set({
-			event: { id: eventId, name: trackData.name, path: trackData.path },
-			geo: {
-				country: geoData.country,
-				region: geoData.region,
-				city: geoData.city,
-			},
-		});
+			log.set({
+				event: { id: eventId, name: trackData.name, path: trackData.path },
+				geo: {
+					country: geoData.country,
+					region: geoData.region,
+					city: geoData.city,
+				},
+			});
 
-		const anonymousId = applyVisitorIdPrivacy(
-			trackData.anonymousId,
-			anonymizeVisitorIds,
-			salt
-		);
+			const anonymousId = applyVisitorIdPrivacy(
+				trackData.anonymousId,
+				anonymizeVisitorIds,
+				salt
+			);
 
-		const now = Date.now();
+			const now = Date.now();
 
-		const trackEvent = buildTrackEvent(trackData, {
-			clientId,
-			eventId,
-			anonymousId,
-			geo: geoData,
-			ua,
-			now,
-		});
+			const trackEvent = buildTrackEvent(trackData, {
+				clientId,
+				eventId,
+				anonymousId,
+				geo: geoData,
+				ua,
+				now,
+			});
 
-		runFork(send("analytics-events", trackEvent));
+			await runPromise(send("analytics-events", trackEvent));
+			await markDuplicateReservationDelivered(reservation);
+		} catch (error) {
+			await releaseDuplicateReservation(reservation);
+			throw deliveryUnavailable(error);
+		}
 	});
 }
 
@@ -197,46 +235,62 @@ export function insertOutgoingLink(
 			eventId = randomUUIDv7();
 		}
 
-		if (await checkDuplicate(eventId, "outgoing_link")) {
+		const deliveryId = stableAnalyticsEventId(
+			clientId,
+			"outgoing_link",
+			eventId
+		);
+		const reservation = await reserveDuplicate(
+			deliveryId,
+			"outgoing_link",
+			eventId
+		);
+		if (reservation.duplicate) {
 			return;
 		}
 
-		log.set({
-			event: { id: eventId, type: "outgoing_link", href: linkData.href },
-		});
+		try {
+			log.set({
+				event: { id: eventId, type: "outgoing_link", href: linkData.href },
+			});
 
-		const now = Date.now();
+			const now = Date.now();
 
-		const trustedIp = extractTrustedClientIp(request);
-		const visitorCountry =
-			linkData.anonymizeVisitorIds === "auto" && trustedIp
-				? (await getGeo(trustedIp, request)).country
-				: undefined;
-		const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
-			linkData.anonymizeVisitorIds,
-			visitorCountry
-		);
-		const salt = anonymizeVisitorIds ? await getDailySalt() : undefined;
+			const trustedIp = extractTrustedClientIp(request);
+			const visitorCountry =
+				linkData.anonymizeVisitorIds === "auto" && trustedIp
+					? (await getGeo(trustedIp, request)).country
+					: undefined;
+			const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
+				linkData.anonymizeVisitorIds,
+				visitorCountry
+			);
+			const salt = anonymizeVisitorIds ? await getDailySalt() : undefined;
 
-		const outgoingLinkEvent: OutgoingLinksInsert = {
-			id: randomUUIDv7(),
-			client_id: clientId,
-			anonymous_id: applyVisitorIdPrivacy(
-				linkData.anonymousId,
-				anonymizeVisitorIds,
-				salt
-			),
-			session_id: validateSessionId(linkData.sessionId),
-			href: sanitizeUrl(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
-			text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
-			properties: linkData.properties
-				? JSON.stringify(linkData.properties)
-				: "{}",
-			timestamp:
-				typeof linkData.timestamp === "number" ? linkData.timestamp : now,
-		};
+			const outgoingLinkEvent: OutgoingLinksInsert = {
+				id: deliveryId,
+				client_id: clientId,
+				anonymous_id: applyVisitorIdPrivacy(
+					linkData.anonymousId,
+					anonymizeVisitorIds,
+					salt
+				),
+				session_id: validateSessionId(linkData.sessionId),
+				href: sanitizeUrl(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
+				text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
+				properties: linkData.properties
+					? JSON.stringify(linkData.properties)
+					: "{}",
+				timestamp:
+					typeof linkData.timestamp === "number" ? linkData.timestamp : now,
+			};
 
-		runFork(send("analytics-outgoing-links", outgoingLinkEvent));
+			await runPromise(send("analytics-outgoing-links", outgoingLinkEvent));
+			await markDuplicateReservationDelivered(reservation);
+		} catch (error) {
+			await releaseDuplicateReservation(reservation);
+			throw deliveryUnavailable(error);
+		}
 	});
 }
 

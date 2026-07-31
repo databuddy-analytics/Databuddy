@@ -102,6 +102,7 @@ vi.mock("@lib/event-service", () => ({
 	insertIndividualVitals: mockInsertIndividualVitals,
 	insertErrorSpans: mockInsertErrorSpans,
 	insertCustomEvents: mockInsertCustomEvents,
+	stableAnalyticsEventId: vi.fn(() => "stable_id"),
 }));
 
 vi.mock("@lib/security", () => ({
@@ -529,11 +530,12 @@ describe("GET /px.jpg", () => {
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
 	});
 
-	test("always returns pixel even on error", async () => {
+	test("returns a retryable GIF when delivery fails", async () => {
 		mockValidateRequest.mockRejectedValueOnce(new Error("boom"));
 		const res = await get(basketApp, "/px.jpg?name=test");
-		expect(res.status).toBe(200);
+		expect(res.status).toBe(503);
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Retry-After")).toBe("5");
 	});
 });
 

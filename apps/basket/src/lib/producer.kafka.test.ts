@@ -93,7 +93,7 @@ afterAll(async () => {
 });
 
 describe("producer Kafka send failure handling", () => {
-	test("backs off after a send failure and still disconnects on shutdown", async () => {
+	test("falls back to direct ClickHouse writes and still disconnects on shutdown", async () => {
 		await runPromise(
 			send("analytics-events", {
 				client_id: "ws_1",
@@ -116,7 +116,9 @@ describe("producer Kafka send failure handling", () => {
 		expect(mockProducer).toHaveBeenCalledTimes(1);
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);
-		expect(stats?.bufferSize).toBe(2);
+		expect(mockClickHouseInsert).toHaveBeenCalledTimes(2);
+		expect(stats?.bufferSize).toBe(0);
+		expect(stats?.flushed).toBe(2);
 		expect(stats?.connected).toBe(false);
 		expect(stats?.failed).toBe(true);
 		expect(stats?.failedCount).toBe(1);

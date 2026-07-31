@@ -19,6 +19,13 @@ describe("createPixelResponse", () => {
 			new Uint8Array([0x47, 0x49, 0x46])
 		);
 	});
+
+	test("keeps the GIF body but marks delivery failures retryable", () => {
+		const r = createPixelResponse(503);
+		expect(r.status).toBe(503);
+		expect(r.headers.get("Content-Type")).toBe("image/gif");
+		expect(r.headers.get("Retry-After")).toBe("5");
+	});
 });
 
 // ── parsePixelQuery ──

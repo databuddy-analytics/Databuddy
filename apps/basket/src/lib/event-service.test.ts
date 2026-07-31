@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { CONTROL_CHARS, longString, XSS_PAYLOADS } from "../test-helpers";
-import { buildTrackEvent, type TrackEventContext } from "./event-service";
+import {
+	buildTrackEvent,
+	stableAnalyticsEventId,
+	type TrackEventContext,
+} from "./event-service";
 
 // ── Fixtures ──
 
@@ -72,7 +76,7 @@ describe("buildTrackEvent — field mapping", () => {
 		const result = buildTrackEvent(fullTrackData, fullCtx);
 
 		// Identity
-		expect(result.id).toBeTruthy(); // randomUUIDv7
+		expect(result.id).toBe(stableAnalyticsEventId("ws_test", "track", "evt_123"));
 		expect(result.client_id).toBe("ws_test");
 
 		// Names & content
@@ -133,6 +137,21 @@ describe("buildTrackEvent — field mapping", () => {
 
 		// Properties
 		expect(result.properties).toBe('{"plan":"pro","color":"blue"}');
+	});
+
+	test("uses a stable UUID for the same client retry", () => {
+		const first = buildTrackEvent(fullTrackData, fullCtx);
+		const retry = buildTrackEvent(fullTrackData, fullCtx);
+		const otherClient = buildTrackEvent(fullTrackData, {
+			...fullCtx,
+			clientId: "ws_other",
+		});
+
+		expect(first.id).toBe(retry.id);
+		expect(first.id).not.toBe(otherClient.id);
+		expect(first.id).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+		);
 	});
 
 	test("minimal input → defaults applied", () => {

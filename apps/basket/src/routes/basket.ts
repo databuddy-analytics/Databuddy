@@ -24,6 +24,7 @@ import {
 	insertOutgoingLinksBatch,
 	insertTrackEvent,
 	insertTrackEventsBatch,
+	stableAnalyticsEventId,
 } from "@lib/event-service";
 import { summarizeRejectedBody } from "@lib/rejection-summary";
 import {
@@ -113,6 +114,7 @@ async function processOutgoingLinkData(
 	clientId: string,
 	visitorCountry?: unknown
 ): Promise<OutgoingLinksInsert> {
+	const eventId = parseEventId(linkData.eventId, () => randomUUIDv7());
 	const timestamp = parseTimestamp(linkData.timestamp);
 	const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
 		linkData.anonymizeVisitorIds,
@@ -127,7 +129,7 @@ async function processOutgoingLinkData(
 	);
 
 	return {
-		id: randomUUIDv7(),
+		id: stableAnalyticsEventId(clientId, "outgoing_link", eventId),
 		client_id: clientId,
 		anonymous_id: anonymousId,
 		session_id: validateSessionId(linkData.sessionId),
@@ -169,9 +171,9 @@ const app = new Elysia()
 			}
 
 			if (eventType === "track") {
-				insertTrackEvent(eventData, clientId, userAgent, ip, request);
+				await insertTrackEvent(eventData, clientId, userAgent, ip, request);
 			} else if (eventType === "outgoing_link") {
-				insertOutgoingLink(eventData, clientId, request);
+				await insertOutgoingLink(eventData, clientId, request);
 			} else if (eventType === "web_vitals") {
 				const vitalParse = individualVitalSchema.safeParse(eventData);
 				if (!vitalParse.success) {
@@ -182,7 +184,11 @@ const app = new Elysia()
 					[vitalParse.data],
 					request
 				);
-				insertIndividualVitals([vitalParse.data], clientId, visitorCountry);
+				await insertIndividualVitals(
+					[vitalParse.data],
+					clientId,
+					visitorCountry
+				);
 			} else if (eventType === "error") {
 				const errorParse = errorSpanSchema.safeParse(eventData);
 				if (!errorParse.success) {
@@ -193,16 +199,18 @@ const app = new Elysia()
 					[errorParse.data],
 					request
 				);
-				insertErrorSpans([errorParse.data], clientId, visitorCountry);
+				await insertErrorSpans([errorParse.data], clientId, visitorCountry);
 			}
 
 			return createPixelResponse();
 		} catch (error) {
-			if (error instanceof EvlogError) {
+			if (error instanceof EvlogError && error.status < 500) {
 				return createPixelResponse();
 			}
 			log.error(error instanceof Error ? error : new Error(String(error)));
-			return createPixelResponse();
+			// Do not report a successful image load before the event has durable
+			// storage; callers that can retry need an honest failure response.
+			return createPixelResponse(503);
 		}
 	})
 	.post("/vitals", async ({ body, query, request }) => {
