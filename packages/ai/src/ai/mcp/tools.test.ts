@@ -43,6 +43,49 @@ describe("MCP tools/list JSON Schema rendering", () => {
 });
 
 describe("MCP tool invariants", () => {
+	test("create_link matches the HTTP(S) and deep-link app contract", () => {
+		const createLink = tools.find((tool) => tool.name === "create_link");
+		if (!createLink) {
+			throw new Error("create_link tool is not registered");
+		}
+
+		expect(
+			createLink.inputSchema.safeParse({
+				confirmed: false,
+				name: "Unsafe link",
+				targetUrl: "javascript:alert(1)",
+				websiteId: "website-1",
+			}).success
+		).toBe(false);
+		expect(
+			createLink.inputSchema.safeParse({
+				confirmed: false,
+				deepLinkApp: "instagram",
+				name: "Mismatched app",
+				targetUrl: "https://example.com",
+				websiteId: "website-1",
+			}).success
+		).toBe(false);
+		expect(
+			createLink.inputSchema.safeParse({
+				confirmed: false,
+				deepLinkApp: "unknown",
+				name: "Unknown app",
+				targetUrl: "https://example.com",
+				websiteId: "website-1",
+			}).success
+		).toBe(false);
+		expect(
+			createLink.inputSchema.safeParse({
+				confirmed: false,
+				deepLinkApp: "instagram",
+				name: "Instagram profile",
+				targetUrl: "https://instagram.com/databuddy",
+				websiteId: "website-1",
+			}).success
+		).toBe(true);
+	});
+
 	test("tool names are unique snake_case", () => {
 		const names = tools.map((tool) => tool.name);
 		expect(new Set(names).size).toBe(names.length);

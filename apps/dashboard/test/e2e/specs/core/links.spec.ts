@@ -115,6 +115,7 @@ test(
 
 		await authenticatedPage.goto("/links");
 		await authenticatedPage.getByRole("button", { name: "New Link" }).click();
+		await authenticatedPage.getByRole("menuitem", { name: "Short Link" }).click();
 		const dialog = authenticatedPage.getByRole("dialog", { name: "Create Link" });
 		await dialog.getByRole("textbox", { name: "Destination URL" }).fill(targetUrl);
 		await dialog.getByRole("textbox", { name: "Name" }).fill(name);
@@ -136,6 +137,7 @@ test(
 		await expect(linkRow(authenticatedPage, name)).toBeVisible();
 
 		await authenticatedPage.getByRole("button", { name: "New Link" }).click();
+		await authenticatedPage.getByRole("menuitem", { name: "Short Link" }).click();
 		const duplicateDialog = authenticatedPage.getByRole("dialog", {
 			name: "Create Link",
 		});
@@ -153,5 +155,42 @@ test(
 			authenticatedPage.getByText(SLUG_CONFLICT_RE).first()
 		).toBeVisible();
 		await expect(linkRow(authenticatedPage, `${name} duplicate`)).toBeHidden();
+	}
+);
+
+test(
+	"creates deep links without a feature flag",
+	{ tag: "@core" },
+	async ({ authenticatedPage, e2eSession }) => {
+		const suffix = scopeSuffix(e2eSession);
+		const name = `E2E Instagram ${suffix}`;
+		const slug = `e2e-instagram-${suffix}`;
+
+		await authenticatedPage.goto("/links");
+		await authenticatedPage.getByRole("button", { name: "New Link" }).click();
+		await expect(
+			authenticatedPage.getByRole("menuitem", { name: "Short Link" })
+		).toBeVisible();
+		await authenticatedPage.getByRole("menuitem", { name: "Deep Link" }).click();
+		await expect(
+			authenticatedPage.getByRole("heading", { name: "Create Deep Link" })
+		).toBeVisible();
+		await authenticatedPage
+			.getByRole("button", { name: /Instagram/ })
+			.click();
+		await authenticatedPage
+			.getByRole("textbox", { name: "Instagram URL" })
+			.fill(`instagram.com/e2e-${suffix}`);
+		await authenticatedPage.getByRole("textbox", { name: "Name" }).fill(name);
+		await authenticatedPage
+			.getByRole("textbox", { name: SHORT_LINK_LABEL_RE })
+			.fill(slug);
+		await authenticatedPage
+			.getByRole("button", { name: "Create Deep Link" })
+			.click();
+
+		const row = linkRow(authenticatedPage, name);
+		await expect(row).toBeVisible();
+		await expect(row.getByText("Instagram", { exact: true })).toBeVisible();
 	}
 );

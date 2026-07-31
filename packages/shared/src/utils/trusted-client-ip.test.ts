@@ -54,7 +54,7 @@ describe("getTrustedClientIp", () => {
 		).toBe("203.0.113.10");
 	});
 
-	test("does not persist malformed values", () => {
+	test("rejects malformed trusted header values", () => {
 		process.env.IP_HEADER_VERIFIED = "true";
 		process.env.TRUSTED_IP_HEADER = "cf-connecting-ip";
 

@@ -90,6 +90,7 @@ describe("paginated link catalog", () => {
 			name: `Example ${index}`,
 			slug: `example-${index}`,
 			targetUrl: `https://example.com/${index}`,
+			deepLinkApp: index === 1000 ? "instagram" : null,
 		}));
 		const calls: Array<{ limit: number; offset: number; search?: string }> = [];
 
@@ -107,6 +108,7 @@ describe("paginated link catalog", () => {
 
 		expect(page.items).toHaveLength(1);
 		expect(page.items[0]?.id).toBe("link-1000");
+		expect(page.items[0]?.deepLinkApp).toBe("instagram");
 		expect(page.total).toBeUndefined();
 		expect(calls).toEqual([
 			{ limit: 50, offset: 0, search: "Example 1000" },
