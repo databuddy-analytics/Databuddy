@@ -2,19 +2,16 @@ import { beforeEach, describe, expect, it, mock } from "bun:test";
 
 const UPTIME_CHECK_JOB_NAME = "uptime-check";
 const UPTIME_JOB_OPTIONS = {
-	attempts: 3,
+	attempts: 1_000_000,
 	backoff: {
-		type: "exponential",
-		delay: 2000,
+		type: "fixed",
+		delay: 30_000,
 	},
 	removeOnComplete: {
 		age: 24 * 3600,
 		count: 1000,
 	},
-	removeOnFail: {
-		age: 7 * 24 * 3600,
-		count: 5000,
-	},
+	removeOnFail: false,
 };
 
 const calls: {

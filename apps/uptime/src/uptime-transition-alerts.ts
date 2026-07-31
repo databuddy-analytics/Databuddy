@@ -91,7 +91,7 @@ export function shouldReleaseTransitionClaim(
 	if (firedAlarmCount > 0) {
 		// A successful non-email destination owns the transition claim. Releasing
 		// it would duplicate that delivery; retrying only the deferred email needs
-		// a durable per-destination outbox.
+		// a dedicated durable delivery record.
 		return false;
 	}
 	return sendableAlarmCount > 0 || emailDeliveryDeferred;

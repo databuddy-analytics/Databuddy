@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { connect } from "node:tls";
 import { db } from "@databuddy/db";
 import {
@@ -429,6 +430,7 @@ const runUptimeCheck = (
 			site_id: siteId,
 			url: normalizedUrl,
 			timestamp,
+			event_id: randomUUID(),
 			status: pingResult.ok ? MonitorStatus.UP : MonitorStatus.DOWN,
 			http_code: pingResult.statusCode,
 			ttfb_ms: pingResult.ttfb,

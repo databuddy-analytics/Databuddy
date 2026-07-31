@@ -1,14 +1,7 @@
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
-import { Context, Data, Effect, Layer } from "effect";
 import { captureError } from "./tracing";
 
 const TOPIC = "analytics-uptime-checks";
-
-class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
-	cause: unknown;
-}> {}
-
-const KafkaProducer = Context.Service<Producer>("KafkaProducer");
 
 const connectProducer = (): Promise<Producer> => {
 	const broker = process.env.REDPANDA_BROKER;
@@ -21,11 +14,10 @@ const connectProducer = (): Promise<Producer> => {
 	const kafka = new Kafka({
 		brokers: [broker],
 		clientId: "uptime-producer",
-		...(username &&
-			password && {
-				sasl: { mechanism: "scram-sha-256", username, password },
-				ssl: process.env.REDPANDA_SSL === "true",
-			}),
+		...(username && password
+			? { sasl: { mechanism: "scram-sha-256", username, password } }
+			: {}),
+		...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
 	});
 
 	const producer = kafka.producer({
@@ -37,89 +29,73 @@ const connectProducer = (): Promise<Producer> => {
 	return producer.connect().then(() => producer);
 };
 
-const KafkaProducerLive = Layer.effect(
-	KafkaProducer,
-	Effect.acquireRelease(
-		Effect.tryPromise({
-			try: connectProducer,
-			catch: (cause) => {
-				captureError(cause, { error_step: "kafka_producer_connect" });
-				return cause as Error;
-			},
-		}),
-		(producer) =>
-			Effect.tryPromise({
-				try: () => producer.disconnect(),
-				catch: (cause) => cause,
-			}).pipe(
-				Effect.catch((cause) => {
-					captureError(cause, {
-						error_step: "kafka_producer_disconnect",
-					});
-					return Effect.void;
-				})
-			)
-	)
-);
-
-const sendEvent = (event: unknown, key?: string) =>
-	Effect.gen(function* () {
-		const producer = yield* KafkaProducer;
-		yield* Effect.tryPromise({
-			try: () =>
-				producer.send({
-					topic: TOPIC,
-					messages: [
-						{
-							value: JSON.stringify(event, (_k, v) =>
-								v === undefined ? null : v
-							),
-							key,
-						},
-					],
-					compression: CompressionTypes.GZIP,
-				}),
-			catch: (cause) => new KafkaSendError({ cause }),
-		});
-	});
-
-export { KafkaProducer, KafkaProducerLive, KafkaSendError, sendEvent };
-
 let singletonProducer: Producer | null = null;
-let singletonConnected = false;
+let singletonConnection: Promise<Producer | null> | null = null;
 
-async function ensureProducer(): Promise<Producer | null> {
-	if (singletonConnected && singletonProducer) {
-		return singletonProducer;
+export type UptimeEventSendResult =
+	| { sent: true }
+	| {
+			sent: false;
+			reason: "producer_unavailable" | "send_failed";
+	  };
+
+function ensureProducer(): Promise<Producer | null> {
+	if (singletonProducer) {
+		return Promise.resolve(singletonProducer);
 	}
 
 	if (!process.env.REDPANDA_BROKER) {
-		return null;
+		return Promise.resolve(null);
 	}
 
+	if (singletonConnection) {
+		return singletonConnection;
+	}
+
+	singletonConnection = connectProducer()
+		.then((producer) => {
+			singletonProducer = producer;
+			return producer;
+		})
+		.catch((error) => {
+			captureError(error, { error_step: "kafka_producer_connect" });
+			singletonProducer = null;
+			return null;
+		})
+		.finally(() => {
+			singletonConnection = null;
+		});
+
+	return singletonConnection;
+}
+
+async function resetProducer(producer: Producer): Promise<void> {
+	if (singletonProducer !== producer) {
+		return;
+	}
+
+	singletonProducer = null;
+
 	try {
-		singletonProducer = await connectProducer();
-		singletonConnected = true;
-		return singletonProducer;
+		await producer.disconnect();
 	} catch (error) {
-		captureError(error, { error_step: "kafka_producer_connect" });
-		singletonConnected = false;
-		return null;
+		captureError(error, { error_step: "kafka_producer_disconnect" });
 	}
 }
 
 export async function sendUptimeEvent(
 	event: unknown,
 	key?: string
-): Promise<void> {
+): Promise<UptimeEventSendResult> {
 	const p = await ensureProducer();
 	if (!p) {
-		return;
+		return { sent: false, reason: "producer_unavailable" };
 	}
 
 	try {
 		await p.send({
 			topic: TOPIC,
+			acks: -1,
 			messages: [
 				{
 					value: JSON.stringify(event, (_k, v) => (v === undefined ? null : v)),
@@ -128,20 +104,18 @@ export async function sendUptimeEvent(
 			],
 			compression: CompressionTypes.GZIP,
 		});
+		return { sent: true };
 	} catch (error) {
 		captureError(error, { error_step: "kafka_producer_send" });
+		await resetProducer(p);
+		return { sent: false, reason: "send_failed" };
 	}
 }
 
 export async function disconnectProducer(): Promise<void> {
-	if (!singletonProducer) {
+	const producer = singletonProducer ?? (await singletonConnection);
+	if (!producer) {
 		return;
 	}
-	try {
-		await singletonProducer.disconnect();
-	} catch (error) {
-		captureError(error, { error_step: "kafka_producer_disconnect" });
-	}
-	singletonProducer = null;
-	singletonConnected = false;
+	await resetProducer(producer);
 }

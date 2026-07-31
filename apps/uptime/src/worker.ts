@@ -1,10 +1,15 @@
 import {
 	getBullMQWorkerConnectionOptions,
+	getUptimeDeliveryQueue,
 	getUptimeQueue,
 	type UptimeCheckJobData,
+	type UptimeDeliveryJobData,
 	UPTIME_CHECK_JOB_NAME,
+	UPTIME_DELIVERY_JOB_NAME,
+	UPTIME_DELIVERY_QUEUE_NAME,
 	UPTIME_JOB_TIMEOUT_MS,
 	UPTIME_QUEUE_NAME,
+	uptimeDeliveryJobId,
 	uptimeSchedulerId,
 } from "@databuddy/redis";
 import { Worker } from "bullmq";
@@ -18,7 +23,7 @@ import {
 	lookupSchedule,
 } from "./actions";
 import { isHealthExtractionEnabled } from "./json-parser";
-import { sendUptimeEvent } from "./lib/producer";
+import { sendUptimeEvent, type UptimeEventSendResult } from "./lib/producer";
 import { captureError } from "./lib/tracing";
 import {
 	MonitorStatus,
@@ -54,6 +59,10 @@ class CheckFailed extends Data.TaggedError("CheckFailed")<{
 	message: string;
 }> {}
 
+class DeliveryHandoffFailed extends Data.TaggedError("DeliveryHandoffFailed")<{
+	message: string;
+}> {}
+
 export interface UptimeWorkerDeps {
 	captureError: (
 		error: unknown,
@@ -68,6 +77,7 @@ export interface UptimeWorkerDeps {
 	createLogger: (
 		fields: Record<string, string | number | boolean>
 	) => RequestLogger;
+	enqueueUptimeDelivery: (data: UptimeData) => Promise<void>;
 	fireTransitionAlerts: (options: {
 		schedule: ScheduleData;
 		data: UptimeData;
@@ -80,13 +90,25 @@ export interface UptimeWorkerDeps {
 	isHealthExtractionEnabled: (config: unknown) => boolean;
 	lookupSchedule: (scheduleId: string) => Promise<ActionResult<ScheduleData>>;
 	reapOrphanScheduler: (scheduleId: string) => Promise<void>;
-	sendUptimeEvent: (data: UptimeData, monitorId: string) => Promise<void>;
+	sendUptimeEvent: (
+		event: unknown,
+		key?: string
+	) => Promise<UptimeEventSendResult>;
+}
+
+async function defaultEnqueueUptimeDelivery(data: UptimeData): Promise<void> {
+	await getUptimeDeliveryQueue().add(
+		UPTIME_DELIVERY_JOB_NAME,
+		{ event: data },
+		{ jobId: uptimeDeliveryJobId(data.event_id) }
+	);
 }
 
 const uptimeWorkerDeps: UptimeWorkerDeps = {
 	captureError,
 	checkUptime,
 	createLogger: (fields) => createLogger(fields),
+	enqueueUptimeDelivery: defaultEnqueueUptimeDelivery,
 	getPreviousMonitorStatus,
 	isHealthExtractionEnabled,
 	lookupSchedule,
@@ -96,6 +118,7 @@ const uptimeWorkerDeps: UptimeWorkerDeps = {
 };
 
 export const DEFAULT_UPTIME_WORKER_CONCURRENCY = 10_000;
+const MAX_STALLED_COUNT = 1_000_000;
 
 export function getUptimeWorkerConcurrency(
 	value = process.env.UPTIME_WORKER_CONCURRENCY
@@ -115,6 +138,14 @@ export function getUptimeWorkerConcurrency(
 export interface UptimeWorkerJob {
 	attemptsMade?: number;
 	data: UptimeCheckJobData;
+	id?: string;
+	name: string;
+	updateData: (data: UptimeCheckJobData) => Promise<void>;
+}
+
+export interface UptimeDeliveryWorkerJob {
+	attemptsMade?: number;
+	data: UptimeDeliveryJobData;
 	id?: string;
 	name: string;
 }
@@ -171,26 +202,24 @@ const fetchPreviousStatus = (monitorId: string, deps: UptimeWorkerDeps) =>
 		Effect.orElseSucceed(() => undefined)
 	);
 
-const publishEvent = (
+type UptimeEventCheckpoint = (data: UptimeData) => Promise<void>;
+
+const handoffDelivery = (
 	data: UptimeData,
-	monitorId: string,
-	deps: UptimeWorkerDeps,
-	log: RequestLogger
+	handoff: () => Promise<void>,
+	errorStep: "uptime_delivery_checkpoint" | "uptime_delivery_enqueue",
+	deps: UptimeWorkerDeps
 ) =>
 	Effect.tryPromise({
-		try: () => deps.sendUptimeEvent(data, monitorId),
-		catch: (cause) => cause,
-	}).pipe(
-		Effect.tap(() => Effect.sync(() => log.set({ kafka_sent: true }))),
-		Effect.catch((error) =>
-			Effect.sync(() =>
-				log.set({
-					kafka_sent: false,
-					kafka_error: error instanceof Error ? error.message : "unknown",
-				})
-			)
-		)
-	);
+		try: handoff,
+		catch: (cause) => {
+			deps.captureError(cause, {
+				error_step: errorStep,
+				event_id: data.event_id,
+			});
+			return new DeliveryHandoffFailed({ message: String(cause) });
+		},
+	});
 
 const runTransitionAlerts = (
 	schedule: ScheduleData,
@@ -250,7 +279,8 @@ function reapScheduler(
 const processCheck = (
 	scheduleId: string,
 	log: RequestLogger,
-	deps: UptimeWorkerDeps
+	deps: UptimeWorkerDeps,
+	checkpoint: UptimeEventCheckpoint
 ) =>
 	Effect.gen(function* () {
 		const schedule = yield* timed(
@@ -320,6 +350,7 @@ const processCheck = (
 		);
 
 		log.set({
+			event_id: data.event_id,
 			outcome: data.status === MonitorStatus.UP ? "up" : "down",
 			previous_uptime_status:
 				previousStatus === undefined ? -1 : previousStatus,
@@ -337,7 +368,31 @@ const processCheck = (
 			error_message: data.error || "",
 		});
 
-		yield* timed("kafka", publishEvent(data, monitorId, deps, log), log);
+		// The source BullMQ job is the durable checkpoint. Persist the exact
+		// probe result before queuing it for delivery so a retry never runs a
+		// replacement probe with a new timestamp or event ID.
+		yield* timed(
+			"delivery_checkpoint",
+			handoffDelivery(
+				data,
+				() => checkpoint(data),
+				"uptime_delivery_checkpoint",
+				deps
+			),
+			log
+		);
+
+		yield* timed(
+			"delivery_queue_admission",
+			handoffDelivery(
+				data,
+				() => deps.enqueueUptimeDelivery(data),
+				"uptime_delivery_enqueue",
+				deps
+			),
+			log
+		);
+		log.set({ delivery_queue_admitted: true });
 
 		yield* timed(
 			"transition_email",
@@ -349,8 +404,9 @@ const processCheck = (
 export async function processUptimeCheck(
 	scheduleId: string,
 	trigger: UptimeCheckJobData["trigger"],
-	deps: UptimeWorkerDeps = uptimeWorkerDeps,
-	jobMeta?: { id?: string; attempt?: number }
+	deps: UptimeWorkerDeps,
+	jobMeta: { id?: string; attempt?: number } | undefined,
+	checkpoint: UptimeEventCheckpoint
 ) {
 	const startedAt = performance.now();
 	const log = deps.createLogger({
@@ -360,16 +416,95 @@ export async function processUptimeCheck(
 		...(jobMeta?.attempt ? { job_attempt: jobMeta.attempt } : {}),
 	});
 
-	const exit = await Effect.runPromiseExit(processCheck(scheduleId, log, deps));
+	const exit = await Effect.runPromiseExit(
+		processCheck(scheduleId, log, deps, checkpoint)
+	);
 
 	log.set({ check_duration_ms: Math.round(performance.now() - startedAt) });
 	log.emit();
 
 	if (Exit.isFailure(exit)) {
 		const error = Cause.squash(exit.cause);
-		if (error instanceof CheckFailed) {
+		if (
+			error instanceof CheckFailed ||
+			error instanceof DeliveryHandoffFailed
+		) {
 			throw new Error(error.message);
 		}
+	}
+}
+
+function isUptimeData(value: unknown): value is UptimeData {
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
+
+	const event = value as {
+		event_id?: unknown;
+		site_id?: unknown;
+		timestamp?: unknown;
+	};
+	return (
+		typeof event.event_id === "string" &&
+		typeof event.site_id === "string" &&
+		typeof event.timestamp === "number"
+	);
+}
+
+async function replayPersistedUptimeDelivery(
+	job: UptimeWorkerJob,
+	data: UptimeData,
+	deps: UptimeWorkerDeps
+): Promise<void> {
+	const startedAt = performance.now();
+	const log = deps.createLogger({
+		schedule_id: job.data.scheduleId,
+		uptime_trigger: job.data.trigger,
+		event_id: data.event_id,
+		delivery_replay: true,
+		...(job.id ? { job_id: job.id } : {}),
+		...(job.attemptsMade ? { job_attempt: job.attemptsMade } : {}),
+	});
+
+	try {
+		await Effect.runPromise(
+			timed(
+				"delivery_queue_admission",
+				handoffDelivery(
+					data,
+					() => deps.enqueueUptimeDelivery(data),
+					"uptime_delivery_enqueue",
+					deps
+				),
+				log
+			)
+		);
+		log.set({ delivery_queue_admitted: true });
+
+		const scheduleExit = await Effect.runPromiseExit(
+			resolveSchedule(job.data.scheduleId, deps)
+		);
+		if (Exit.isSuccess(scheduleExit)) {
+			await Effect.runPromise(
+				timed(
+					"transition_email",
+					runTransitionAlerts(scheduleExit.value, data, undefined, deps, log),
+					log
+				)
+			);
+		} else {
+			const error = Cause.squash(scheduleExit.cause);
+			log.set({
+				transition_alert_skipped: true,
+				transition_alert_skip_reason:
+					error instanceof Error ? error.message : String(error),
+			});
+		}
+	} finally {
+		log.set({
+			delivery_replay_duration_ms: Math.round(performance.now() - startedAt),
+		});
+		log.emit();
 	}
 }
 
@@ -380,10 +515,57 @@ export async function processUptimeJob(
 	if (job.name !== UPTIME_CHECK_JOB_NAME) {
 		throw new Error(`Unknown uptime job: ${job.name}`);
 	}
-	await processUptimeCheck(job.data.scheduleId, job.data.trigger, deps, {
-		id: job.id,
-		attempt: job.attemptsMade,
-	});
+
+	const persistedEvent = job.data.delivery?.event;
+	if (persistedEvent !== undefined) {
+		if (!isUptimeData(persistedEvent)) {
+			throw new Error("Invalid persisted uptime delivery payload");
+		}
+		await replayPersistedUptimeDelivery(job, persistedEvent, deps);
+		return;
+	}
+
+	await processUptimeCheck(
+		job.data.scheduleId,
+		job.data.trigger,
+		deps,
+		{
+			id: job.id,
+			attempt: job.attemptsMade,
+		},
+		async (data) =>
+			job.updateData({
+				...job.data,
+				delivery: { event: data },
+			})
+	);
+}
+
+export async function processUptimeDeliveryJob(
+	job: UptimeDeliveryWorkerJob,
+	deps: UptimeWorkerDeps = uptimeWorkerDeps
+): Promise<void> {
+	if (job.name !== UPTIME_DELIVERY_JOB_NAME) {
+		throw new Error(`Unknown uptime delivery job: ${job.name}`);
+	}
+	if (!isUptimeData(job.data.event)) {
+		throw new Error("Invalid uptime delivery payload");
+	}
+
+	const data = job.data.event;
+	try {
+		const result = await deps.sendUptimeEvent(data, data.site_id);
+		if (!result.sent) {
+			throw new Error(`Redpanda delivery failed: ${result.reason}`);
+		}
+	} catch (error) {
+		deps.captureError(error, {
+			error_step: "uptime_delivery_send",
+			event_id: data.event_id,
+			job_id: job.id ?? "",
+		});
+		throw error;
+	}
 }
 
 export function startUptimeWorker() {
@@ -394,13 +576,14 @@ export function startUptimeWorker() {
 			connection: getBullMQWorkerConnectionOptions(),
 			concurrency: getUptimeWorkerConcurrency(),
 			lockDuration: UPTIME_JOB_TIMEOUT_MS * 3,
+			maxStalledCount: MAX_STALLED_COUNT,
 			stalledInterval: UPTIME_JOB_TIMEOUT_MS * 4,
 		}
 	);
 
 	worker.on("failed", (job, error) => {
 		const attemptsMade = job?.attemptsMade ?? 0;
-		const maxAttempts = job?.opts?.attempts ?? 3;
+		const maxAttempts = job?.opts?.attempts ?? 1_000_000;
 		const isFinalAttempt = attemptsMade >= maxAttempts;
 
 		captureError(error, {
@@ -426,6 +609,48 @@ export function startUptimeWorker() {
 	worker.on("error", (error) => {
 		captureError(error, {
 			error_step: "uptime_worker_error",
+		});
+	});
+
+	return worker;
+}
+
+export function startUptimeDeliveryWorker() {
+	const worker = new Worker<UptimeDeliveryJobData>(
+		UPTIME_DELIVERY_QUEUE_NAME,
+		(job) => processUptimeDeliveryJob(job),
+		{
+			connection: getBullMQWorkerConnectionOptions(),
+			concurrency: 1,
+			lockDuration: UPTIME_JOB_TIMEOUT_MS * 3,
+			maxStalledCount: MAX_STALLED_COUNT,
+			stalledInterval: UPTIME_JOB_TIMEOUT_MS * 4,
+		}
+	);
+
+	worker.on("failed", (job, error) => {
+		captureError(error, {
+			error_step: "uptime_delivery_worker_job_failed",
+			event_id:
+				job && isUptimeData(job.data.event) ? job.data.event.event_id : "",
+			job_id: job?.id ?? "",
+			attempts_used: job?.attemptsMade ?? 0,
+			attempts_max: job?.opts?.attempts ?? 1_000_000,
+		});
+	});
+
+	worker.on("stalled", (jobId) => {
+		log.warn({
+			service: "uptime",
+			error_step: "uptime_delivery_worker_job_stalled",
+			error_message: "BullMQ delivery job stalled",
+			job_id: jobId,
+		});
+	});
+
+	worker.on("error", (error) => {
+		captureError(error, {
+			error_step: "uptime_delivery_worker_error",
 		});
 	});
 

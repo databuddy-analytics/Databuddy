@@ -11,6 +11,7 @@ export interface UptimeData {
 	content_hash: string;
 	env: string;
 	error: string;
+	event_id: string;
 	failure_streak: number;
 	http_code: number;
 	json_data?: string;
