@@ -1,4 +1,10 @@
 import { z } from "zod";
+import { isPublicLinkSlug } from "@/lib/links-url";
+
+const linkSlugSchema = z.string().refine(isPublicLinkSlug, {
+	message:
+		"Slug must be 3-50 characters and use only letters, numbers, hyphens, or underscores",
+});
 
 export const timeSeriesSchema = z
 	.object({
@@ -72,7 +78,7 @@ const linkItemSchema = z
 	.object({
 		id: z.string(),
 		name: z.string(),
-		slug: z.string(),
+		slug: linkSlugSchema,
 		targetUrl: z.string(),
 		expiresAt: z.string().nullable().optional(),
 		createdAt: z.string().optional(),

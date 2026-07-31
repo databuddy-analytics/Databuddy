@@ -213,7 +213,7 @@ services:
       LINKS_ROOT_REDIRECT_URL: ${LINKS_ROOT_REDIRECT_URL:-https://databuddy.cc}
       GEOIP_DB_URL: ${GEOIP_DB_URL:-https://cdn.databuddy.cc/mmdb/GeoLite2-City.mmdb}
     healthcheck:
-      test: [ "CMD", "bun", "-e", "fetch('http://localhost:2500/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" ]
+      test: [ "CMD", "bun", "-e", "fetch('http://localhost:2500/health/status').then(async r=>process.exit(r.ok&&(await r.json()).status==='ok'?0:1)).catch(()=>process.exit(1))" ]
       interval: 30s
       timeout: 3s
       start_period: 10s

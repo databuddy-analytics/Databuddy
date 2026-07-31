@@ -1,6 +1,8 @@
 import type { OgData } from "./og-preview";
 import { appendUtmToUrl, type UtmParams } from "./utm-builder";
 
+const HTTP_PROTOCOL_PREFIX = /^https?:\/\//i;
+
 export function formatTarget(targetUrl: string): string {
 	try {
 		const parsed = new URL(targetUrl);
@@ -29,13 +31,7 @@ export function stripProtocol(url: string | null): string {
 	if (!url) {
 		return "";
 	}
-	if (url.startsWith("https://")) {
-		return url.slice(8);
-	}
-	if (url.startsWith("http://")) {
-		return url.slice(7);
-	}
-	return url;
+	return url.replace(HTTP_PROTOCOL_PREFIX, "");
 }
 
 export function ensureProtocol(url: string): string {
@@ -43,7 +39,7 @@ export function ensureProtocol(url: string): string {
 	if (!trimmed) {
 		return trimmed;
 	}
-	if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+	if (HTTP_PROTOCOL_PREFIX.test(trimmed)) {
 		return trimmed;
 	}
 	return `https://${trimmed}`;
@@ -51,7 +47,7 @@ export function ensureProtocol(url: string): string {
 
 export function normalizeUrlInput(url: string): string {
 	const trimmed = url.trim();
-	if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+	if (HTTP_PROTOCOL_PREFIX.test(trimmed)) {
 		try {
 			const parsed = new URL(trimmed);
 			return parsed.host + parsed.pathname + parsed.search + parsed.hash;

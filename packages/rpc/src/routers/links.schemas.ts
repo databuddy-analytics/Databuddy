@@ -4,6 +4,9 @@ import {
 	createSelectSchema,
 	createUpdateSchema,
 } from "drizzle-orm/zod";
+import { DEEP_LINK_APP_IDS } from "@databuddy/shared/constants/deep-link-apps";
+import { LINK_SLUG_REGEX } from "@databuddy/shared/constants/links";
+import { httpUrlSchema } from "@databuddy/validation";
 import { z } from "zod";
 
 const linkSelectSchema = createSelectSchema(links, {
@@ -67,7 +70,7 @@ const slugSchema = z
 	.min(3)
 	.max(50)
 	.regex(
-		/^[a-zA-Z0-9_-]+$/,
+		LINK_SLUG_REGEX,
 		"Slug can only contain letters, numbers, hyphens, and underscores"
 	);
 
@@ -105,20 +108,21 @@ export const createLinkSchema = linkInsertSchema
 	.extend({
 		organizationId: z.string().optional(),
 		name: z.string().min(1).max(255),
-		targetUrl: z.url(),
+		targetUrl: httpUrlSchema,
 		slug: slugSchema.optional(),
-		expiredRedirectUrl: z.url().nullable().optional(),
+		expiredRedirectUrl: httpUrlSchema.nullable().optional(),
 		ogTitle: z.string().max(200).nullable().optional(),
 		ogDescription: z.string().max(500).nullable().optional(),
-		ogImageUrl: z.url().nullable().optional(),
-		ogVideoUrl: z.url().nullable().optional(),
-		iosUrl: z.url().nullable().optional(),
-		androidUrl: z.url().nullable().optional(),
+		ogImageUrl: httpUrlSchema.nullable().optional(),
+		ogVideoUrl: httpUrlSchema.nullable().optional(),
+		iosUrl: httpUrlSchema.nullable().optional(),
+		androidUrl: httpUrlSchema.nullable().optional(),
 		externalId: z.string().max(255).nullable().optional(),
 		sourceType: z.string().max(64).nullable().optional(),
 		sourceId: z.string().max(255).nullable().optional(),
 		sourceOwnerId: z.string().max(255).nullable().optional(),
 		targetDomain: z.string().max(255).nullable().optional(),
+		deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
 	});
 
 export const createLinkFolderSchema = linkFolderInsertSchema
@@ -158,21 +162,22 @@ export const updateLinkSchema = linkUpdateSchema
 	.extend({
 		id: z.string(),
 		name: z.string().min(1).max(255).optional(),
-		targetUrl: z.url().optional(),
+		targetUrl: httpUrlSchema.optional(),
 		slug: slugSchema.optional(),
 		expiresAt: z.string().datetime().nullable().optional(),
-		expiredRedirectUrl: z.url().nullable().optional(),
+		expiredRedirectUrl: httpUrlSchema.nullable().optional(),
 		ogTitle: z.string().max(200).nullable().optional(),
 		ogDescription: z.string().max(500).nullable().optional(),
-		ogImageUrl: z.url().nullable().optional(),
-		ogVideoUrl: z.url().nullable().optional(),
-		iosUrl: z.url().nullable().optional(),
-		androidUrl: z.url().nullable().optional(),
+		ogImageUrl: httpUrlSchema.nullable().optional(),
+		ogVideoUrl: httpUrlSchema.nullable().optional(),
+		iosUrl: httpUrlSchema.nullable().optional(),
+		androidUrl: httpUrlSchema.nullable().optional(),
 		externalId: z.string().max(255).nullable().optional(),
 		sourceType: z.string().max(64).nullable().optional(),
 		sourceId: z.string().max(255).nullable().optional(),
 		sourceOwnerId: z.string().max(255).nullable().optional(),
 		targetDomain: z.string().max(255).nullable().optional(),
+		deepLinkApp: z.enum(DEEP_LINK_APP_IDS).nullable().optional(),
 	});
 
 export const updateLinkFolderSchema = linkFolderUpdateSchema
