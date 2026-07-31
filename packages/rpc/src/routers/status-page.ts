@@ -33,6 +33,46 @@ import {
 } from "./status-page-health";
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
+const UPTIME_REPLAY_IDENTITY = [
+	"site_id",
+	"url",
+	"timestamp",
+	"status",
+	"http_code",
+	"ttfb_ms",
+	"total_ms",
+	"attempt",
+	"retries",
+	"failure_streak",
+	"response_bytes",
+	"content_hash",
+	"redirect_count",
+	"probe_region",
+	"probe_ip",
+	"ssl_expiry",
+	"ssl_valid",
+	"env",
+	"check_type",
+	"user_agent",
+	"error",
+	"json_data",
+].join(", ");
+
+/**
+ * Replaying a persisted delivery preserves its original check payload and timestamp.
+ * Deduplicate exact physical payloads using only existing ClickHouse columns
+ * before status-page aggregates and windows consume the source.
+ */
+function uptimeEventSource(scope: string): string {
+	return `(
+		SELECT *
+		FROM ${UPTIME_TABLE}
+		WHERE
+			${scope}
+		ORDER BY timestamp DESC
+		LIMIT 1 BY ${UPTIME_REPLAY_IDENTITY}
+	)`;
+}
 
 const DAILY_UPTIME_SQL = `SELECT
 					site_id,
@@ -66,11 +106,11 @@ const DAILY_UPTIME_SQL = `SELECT
 								ORDER BY timestamp ASC
 								ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
 							) as next_ts
-						FROM ${UPTIME_TABLE}
-						WHERE
+						FROM ${uptimeEventSource(`
 							site_id IN ({siteIds:Array(String)})
 							AND timestamp >= toDateTime({startDate:String})
 							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+						`)}
 					)
 					GROUP BY site_id, date
 				)
@@ -81,9 +121,10 @@ const LATEST_CHECK_SQL = `SELECT
 						max(timestamp) as last_timestamp,
 						argMax(status, timestamp) as last_status,
 						argMax(http_code, timestamp) as last_http_code
-					FROM ${UPTIME_TABLE}
-					WHERE site_id IN ({siteIds:Array(String)})
+					FROM ${uptimeEventSource(`
+						site_id IN ({siteIds:Array(String)})
 						AND timestamp >= now() - INTERVAL 7 DAY
+					`)}
 					GROUP BY site_id`;
 
 const dailyUptimeSchema = z.object({

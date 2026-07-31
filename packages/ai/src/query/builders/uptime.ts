@@ -18,6 +18,47 @@ import type { SimpleQueryConfig } from "../types";
  */
 
 const UPTIME_TABLE = "uptime.uptime_monitor";
+const UPTIME_REPLAY_IDENTITY = [
+	"site_id",
+	"url",
+	"timestamp",
+	"status",
+	"http_code",
+	"ttfb_ms",
+	"total_ms",
+	"attempt",
+	"retries",
+	"failure_streak",
+	"response_bytes",
+	"content_hash",
+	"redirect_count",
+	"probe_region",
+	"probe_ip",
+	"ssl_expiry",
+	"ssl_valid",
+	"env",
+	"check_type",
+	"user_agent",
+	"error",
+	"json_data",
+].join(", ");
+
+/**
+ * A replay keeps the original check payload and timestamp. The deployed
+ * ClickHouse table deliberately remains migration-free, so reduce only exact
+ * duplicate payloads with fields already present in that schema before
+ * aggregates or window functions consume the source.
+ */
+function uptimeEventSource(scope: string): string {
+	return `(
+		SELECT *
+		FROM ${UPTIME_TABLE}
+		WHERE
+			${scope}
+		ORDER BY timestamp DESC
+		LIMIT 1 BY ${UPTIME_REPLAY_IDENTITY}
+	)`;
+}
 
 export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 	uptime_overview: {
@@ -44,11 +85,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					avg(ttfb_ms) as avg_ttfb,
 					any(ssl_expiry) as ssl_expiry,
 					min(ssl_valid) as ssl_valid
-				FROM ${UPTIME_TABLE}
-				WHERE 
+				FROM ${uptimeEventSource(`
 					site_id = {websiteId:String}
 					AND timestamp >= toDateTime({startDate:String})
 					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				`)}
 			`,
 				params: { websiteId, startDate, endDate },
 			};
@@ -125,11 +166,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 									ORDER BY timestamp ASC
 									ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
 								) as next_ts
-							FROM ${UPTIME_TABLE}
-							WHERE
+							FROM ${uptimeEventSource(`
 								site_id = {websiteId:String}
 								AND timestamp >= parseDateTimeBestEffort({startDate:String}, {timezone:String})
 								AND timestamp <= parseDateTimeBestEffort(concat({endDate:String}, ' 23:59:59'), {timezone:String})
+							`)}
 						)
 						GROUP BY date
 					)
@@ -157,11 +198,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					http_code,
 					COUNT(*) as count,
 					round((COUNT(*) / sum(COUNT(*)) OVER ()) * 100, 2) as percentage
-				FROM ${UPTIME_TABLE}
-				WHERE 
+				FROM ${uptimeEventSource(`
 					site_id = {websiteId:String}
 					AND timestamp >= toDateTime({startDate:String})
 					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				`)}
 				GROUP BY status, http_code
 				ORDER BY count DESC
 			`,
@@ -195,11 +236,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 						probe_ip,
 						ssl_valid,
 						error
-					FROM ${UPTIME_TABLE}
-					WHERE 
+					FROM ${uptimeEventSource(`
 						site_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					`)}
 					ORDER BY timestamp DESC
 					LIMIT {limit:UInt32}
 					OFFSET {offset:UInt32}
@@ -242,12 +283,12 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 						min(total_ms) as min_response_time,
 						max(total_ms) as max_response_time,
 						avg(ttfb_ms) as avg_ttfb
-					FROM ${UPTIME_TABLE}
-					WHERE 
+					FROM ${uptimeEventSource(`
 						site_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
-						AND status = 1
+					`)}
+					WHERE status = 1
 					GROUP BY date
 					ORDER BY date ASC
 				`,
@@ -277,11 +318,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 						argMax(ssl_expiry, timestamp) as latest_ssl_expiry,
 						argMax(ssl_valid, timestamp) as latest_ssl_valid,
 						countIf(ssl_valid = 0) as invalid_ssl_checks
-					FROM ${UPTIME_TABLE}
-					WHERE 
+					FROM ${uptimeEventSource(`
 						site_id = {websiteId:String}
 						AND timestamp >= toDateTime({startDate:String})
 						AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					`)}
 					GROUP BY site_id
 				)
 			`,
@@ -308,11 +349,11 @@ export const UptimeBuilders: Record<string, SimpleQueryConfig> = {
 					if((countIf(status = 1) + countIf(status = 0)) = 0, 0, round((countIf(status = 1) / (countIf(status = 1) + countIf(status = 0))) * 100, 2)) as uptime_percentage,
 					avg(total_ms) as avg_response_time,
 					quantileTDigest(0.95)(total_ms) as p95_response_time
-				FROM ${UPTIME_TABLE}
-				WHERE 
+				FROM ${uptimeEventSource(`
 					site_id = {websiteId:String}
 					AND timestamp >= toDateTime({startDate:String})
 					AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+				`)}
 				GROUP BY probe_region
 				ORDER BY uptime_percentage DESC
 			`,

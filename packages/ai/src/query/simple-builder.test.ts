@@ -1029,6 +1029,46 @@ describe("SimpleQueryBuilder.compile", () => {
 		expect(sql).not.toContain("event_name = 'pageview'");
 	});
 
+	it.each([
+		"uptime_overview",
+		"uptime_time_series",
+		"uptime_status_breakdown",
+		"uptime_recent_checks",
+		"uptime_response_time_trends",
+		"uptime_ssl_status",
+		"uptime_by_region",
+	])(
+		"deduplicates replayed uptime deliveries in %s using existing check fields",
+		(type) => {
+			const config = QueryBuilders[type];
+			if (!config) {
+				throw new Error(`${type} builder is missing`);
+			}
+
+			const { sql } = compileBuilder(type, config);
+
+			expect(sql).toContain(
+				"LIMIT 1 BY site_id, url, timestamp, status, http_code, ttfb_ms, total_ms"
+			);
+			expect(sql).toContain("user_agent, error, json_data");
+			expect(sql).not.toContain("event_id");
+			expect(sql.match(/FROM uptime\.uptime_monitor/g)).toHaveLength(1);
+		}
+	);
+
+	it("deduplicates uptime events before the downtime window function", () => {
+		const config = QueryBuilders.uptime_time_series;
+		if (!config) {
+			throw new Error("uptime_time_series builder is missing");
+		}
+
+		const { sql } = compileBuilder("uptime_time_series", config);
+
+	expect(sql).toMatch(
+			/leadInFrame\(timestamp, 1, now\(\)\)[\s\S]*?FROM \([\s\S]*?LIMIT 1 BY site_id, url, timestamp, status, http_code, ttfb_ms, total_ms/
+		);
+	});
+
 	it("counts only page-view sessions in session metrics", () => {
 		const config = QueryBuilders.session_metrics;
 		if (!config) {
