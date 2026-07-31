@@ -68,7 +68,11 @@ const app = new Elysia()
 		}
 
 		const [postgres, cache] = await Promise.all([
-			ping("postgres", () => db.execute(sql`SELECT 1`).then(() => {})),
+			ping("postgres", async () => {
+				await db
+					.execute(sql`SELECT "deep_link_app" FROM "links" LIMIT 0`)
+					.then(() => {});
+			}),
 			ping("redis", () => redis.ping().then(() => {})),
 		]);
 

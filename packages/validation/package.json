@@ -13,6 +13,7 @@
     "test": "bun test src"
   },
   "dependencies": {
+    "@databuddy/shared": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

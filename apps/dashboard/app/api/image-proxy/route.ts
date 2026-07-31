@@ -1,5 +1,6 @@
 import { getRateLimitHeaders, ratelimit } from "@databuddy/redis/rate-limit";
 import { safeFetch, SsrfError } from "@databuddy/shared/ssrf-guard";
+import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
 import { type NextRequest, NextResponse } from "next/server";
 
 const ALLOWED_CONTENT_TYPES = [
@@ -13,18 +14,11 @@ const ALLOWED_CONTENT_TYPES = [
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const TIMEOUT_MESSAGE_PATTERN = /timed out/;
 
-function getClientIp(request: NextRequest): string {
-	return (
-		request.headers.get("cf-connecting-ip") ||
-		request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-		request.headers.get("x-real-ip") ||
-		"unknown"
-	);
-}
-
 export async function GET(request: NextRequest) {
-	const ip = getClientIp(request);
-	const rl = await ratelimit(`image-proxy:${ip}`, 30, 60);
+	// Without a configured trusted proxy, unverified traffic shares one bucket
+	// instead of letting client-controlled forwarding headers bypass the limit.
+	const clientIp = getTrustedClientIp(request.headers) ?? "unverified";
+	const rl = await ratelimit(`image-proxy:${clientIp}`, 30, 60);
 	if (!rl.success) {
 		return NextResponse.json(
 			{ error: "Too many requests" },

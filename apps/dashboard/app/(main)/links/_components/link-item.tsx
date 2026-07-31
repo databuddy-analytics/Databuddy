@@ -2,12 +2,12 @@
 
 import { FaviconImage } from "@/components/analytics/favicon-image";
 import type { Link } from "@/hooks/use-links";
+import { LINKS_BASE_URL, getPublicLinkUrl } from "@/lib/links-url";
 import { cn } from "@/lib/utils";
 import { getDeepLinkApp } from "@databuddy/shared/constants/deep-link-apps";
 import NextLink from "next/link";
 import { toast } from "sonner";
 import { DeepLinkAppIcon } from "./deep-link-icons";
-import { LINKS_BASE_URL, LINKS_FULL_URL } from "./link-constants";
 import {
 	ClockCountdownIcon,
 	CopyIcon,
@@ -28,7 +28,7 @@ import {
 
 function copyShortUrl(slug: string) {
 	navigator.clipboard
-		.writeText(`${LINKS_FULL_URL}/${slug}`)
+		.writeText(getPublicLinkUrl(slug))
 		.then(() => toast.success("Copied to clipboard"))
 		.catch(() => toast.error("Failed to copy"));
 }

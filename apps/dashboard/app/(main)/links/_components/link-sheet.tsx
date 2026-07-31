@@ -6,13 +6,13 @@ import { Controller, type SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { LINKS_BASE_URL, getPublicLinkUrl } from "@/lib/links-url";
 import {
 	type Link,
 	useCreateLink,
 	useLinkFolders,
 	useUpdateLink,
 } from "@/hooks/use-links";
-import { LINKS_BASE_URL, LINKS_FULL_URL } from "./link-constants";
 import type { LinkFormData } from "./link-form-schema";
 import { linkFormSchema } from "./link-form-schema";
 import { LinkQrCode } from "./link-qr-code";
@@ -212,7 +212,7 @@ function LinkSheetInner({ open, onOpenChange, link, onSave }: LinkSheetProps) {
 						</div>
 						<Button
 							className="shrink-0"
-							onClick={() => copyToClipboard(`${LINKS_FULL_URL}/${link.slug}`)}
+							onClick={() => copyToClipboard(getPublicLinkUrl(link.slug))}
 							size="sm"
 							type="button"
 							variant="secondary"

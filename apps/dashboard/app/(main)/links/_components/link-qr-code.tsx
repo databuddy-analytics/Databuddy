@@ -3,8 +3,8 @@
 import { type ChangeEvent, useRef, useState } from "react";
 import { QRCode } from "react-qrcode-logo";
 import { toast } from "sonner";
+import { getPublicLinkUrl } from "@/lib/links-url";
 import { cn } from "@/lib/utils";
-import { LINKS_FULL_URL } from "./link-constants";
 import {
 	CopyIcon,
 	DownloadSimpleIcon,
@@ -47,7 +47,7 @@ export function LinkQrCode({
 	const qrRef = useRef<QRCode>(null);
 	const qrContainerRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
-	const shortUrl = `${LINKS_FULL_URL}/${slug}`;
+	const shortUrl = getPublicLinkUrl(slug);
 
 	const [qr, setQr] = useState({
 		color: "#000000",

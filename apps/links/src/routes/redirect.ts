@@ -3,32 +3,32 @@ import { config } from "@databuddy/env/app";
 import {
 	type CachedLink,
 	getCachedLink,
-	setCachedLink,
-	setCachedLinkNotFound,
-	shouldRecordClick,
+	getRateLimitHeaders,
+	ratelimit,
+	setCachedLinkIfAbsent,
+	setCachedLinkNotFoundIfAbsent,
 } from "@databuddy/redis";
 import { links } from "@databuddy/db/schema";
 import { BotCategory, detectBot } from "@databuddy/shared/bot-detection";
 import { resolveDeepLink } from "@databuddy/shared/constants/deep-link-apps";
+import {
+	isHttpUrl,
+	PUBLIC_LINK_SLUG_REGEX,
+} from "@databuddy/shared/constants/links";
 import { Elysia, redirect, t } from "elysia";
 import { LRUCache } from "lru-cache";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { UAParser } from "ua-parser-js";
 import { captureError, mergeWideEvent, record } from "../lib/logging";
-import { sendLinkVisit } from "../lib/producer";
+import { createDeepLinkFallbackResponse } from "../lib/deep-link-fallback";
+import { sendLinkVisit, type LinkVisitEvent } from "../lib/producer";
 import { extractIp, getGeo } from "../utils/geo";
 
 const EXPIRED_URL = `${config.urls.dashboard}/dby/expired`;
 const NOT_FOUND_URL = `${config.urls.dashboard}/dby/not-found`;
 const OG_PROXY_URL = `${config.urls.dashboard}/dby/l`;
 
-const NULL_SENTINEL = Symbol("null");
-const linkCache = new LRUCache<string, CachedLink | typeof NULL_SENTINEL>({
-	max: 1000,
-	ttl: 5000,
-});
 const etagCache = new LRUCache<string, string>({ max: 1000, ttl: 60_000 });
-const dedupCache = new LRUCache<string, true>({ max: 10_000, ttl: 300_000 });
 const botCache = new LRUCache<string, { isBot: boolean; isSocial: boolean }>({
 	max: 500,
 	ttl: 300_000,
@@ -106,17 +106,22 @@ function getTargetUrl(link: CachedLink, ua: string | null): string {
 		const lower = ua.toLowerCase();
 		if (
 			link.iosUrl &&
+			isHttpUrl(link.iosUrl) &&
 			(lower.includes("iphone") ||
 				lower.includes("ipad") ||
 				lower.includes("ipod"))
 		) {
 			return link.iosUrl;
 		}
-		if (link.androidUrl && lower.includes("android")) {
+		if (
+			link.androidUrl &&
+			isHttpUrl(link.androidUrl) &&
+			lower.includes("android")
+		) {
 			return link.androidUrl;
 		}
 	}
-	return link.targetUrl;
+	return isHttpUrl(link.targetUrl) ? link.targetUrl : NOT_FOUND_URL;
 }
 
 function isMobile(ua: string | null): boolean {
@@ -144,33 +149,56 @@ function generateETag(link: CachedLink, targetUrl: string): string {
 	return etag;
 }
 
-async function lookupLink(slug: string) {
-	const memHit = linkCache.get(slug);
-	if (memHit !== undefined) {
-		return {
-			link: memHit === NULL_SENTINEL ? null : memHit,
-			cacheHit: true,
-			lookup_source: "mem",
-			redis_ms: 0,
-			db_ms: 0,
-		};
-	}
-
+async function lookupLink(slug: string, ipHash: string) {
 	const t0 = performance.now();
 	const cached = await record("link.cache.get", () =>
 		getCachedLink(slug).catch((err) => {
 			captureError(err, { error_step: "cache_get" });
-			return null;
+			return { state: "miss" as const };
 		})
 	);
 	const redis_ms = ms(t0);
 
-	if (cached) {
-		linkCache.set(slug, cached);
+	if (cached.state === "hit") {
 		return {
-			link: cached,
+			link: cached.link,
 			cacheHit: true,
 			lookup_source: "redis",
+			rateLimitHeaders: null,
+			redis_ms,
+			db_ms: 0,
+		};
+	}
+	if (cached.state === "not_found") {
+		return {
+			link: null,
+			cacheHit: true,
+			lookup_source: "redis_not_found",
+			rateLimitHeaders: null,
+			redis_ms,
+			db_ms: 0,
+		};
+	}
+	if (cached.state === "pending") {
+		return {
+			link: null,
+			cacheHit: true,
+			lookup_source: "redis_pending",
+			rateLimitHeaders: null,
+			redis_ms,
+			db_ms: 0,
+		};
+	}
+
+	const limit = await record("link.cache_miss.rate_limit", () =>
+		ratelimit(`link-cache-miss:${ipHash}`, 60, 60)
+	);
+	if (!limit.success) {
+		return {
+			link: null,
+			cacheHit: false,
+			lookup_source: "rate_limited",
+			rateLimitHeaders: getRateLimitHeaders(limit),
 			redis_ms,
 			db_ms: 0,
 		};
@@ -200,9 +228,8 @@ async function lookupLink(slug: string) {
 	const db_ms = ms(t1);
 
 	if (!row) {
-		linkCache.set(slug, NULL_SENTINEL);
 		await record("link.cache.set_not_found", () =>
-			setCachedLinkNotFound(slug).catch((err) =>
+			setCachedLinkNotFoundIfAbsent(slug).catch((err) =>
 				captureError(err, { error_step: "cache_set_not_found" })
 			)
 		);
@@ -210,6 +237,7 @@ async function lookupLink(slug: string) {
 			link: null,
 			cacheHit: false,
 			lookup_source: "db_miss",
+			rateLimitHeaders: null,
 			redis_ms,
 			db_ms,
 		};
@@ -229,92 +257,75 @@ async function lookupLink(slug: string) {
 		deepLinkApp: row.deepLinkApp,
 	};
 
-	linkCache.set(slug, link);
 	await record("link.cache.set", () =>
-		setCachedLink(slug, link).catch((err) =>
+		setCachedLinkIfAbsent(slug, link).catch((err) =>
 			captureError(err, { error_step: "cache_backfill" })
 		)
 	);
-	return { link, cacheHit: false, lookup_source: "db", redis_ms, db_ms };
+	return {
+		link,
+		cacheHit: false,
+		lookup_source: "db",
+		rateLimitHeaders: null,
+		redis_ms,
+		db_ms,
+	};
 }
 
 async function recordClick(
 	link: CachedLink,
-	_slug: string,
 	ipHash: string,
 	ip: string,
 	request: Request
 ): Promise<void> {
 	const t0 = performance.now();
-	const dedupKey = `${link.id}:${ipHash}`;
-
-	if (dedupCache.has(dedupKey)) {
-		mergeWideEvent({
-			click_recorded: false,
-			click_reason: "mem_deduplicated",
-			"timing.click": ms(t0),
-		});
-		return;
-	}
-
-	const t1 = performance.now();
-	const shouldRecord = await record("link.click.dedup", () =>
-		shouldRecordClick(link.id, ipHash).catch((err) => {
-			captureError(err, { error_step: "dedup_check" });
-			return true;
-		})
-	);
-	const dedup_ms = ms(t1);
-
-	if (!shouldRecord) {
-		dedupCache.set(dedupKey, true);
-		mergeWideEvent({
-			click_recorded: false,
-			click_reason: "deduplicated",
-			"timing.click.dedup": dedup_ms,
-			"timing.click": ms(t0),
-		});
-		return;
-	}
 
 	const userAgent = request.headers.get("user-agent");
 	const ua = parseUA(userAgent);
 
-	const t2 = performance.now();
-	const geo = await record("link.click.geo", () => getGeo(ip, request));
-	const geo_ms = ms(t2);
-
-	const t3 = performance.now();
-	const kafkaResult = await record("link.click.analytics", () =>
-		sendLinkVisit(
-			{
-				link_id: link.id,
-				timestamp: new Date().toISOString().replace("T", " ").replace("Z", ""),
-				referrer: request.headers.get("referer"),
-				user_agent: userAgent,
-				ip_hash: ipHash,
-				country: geo.country,
-				region: geo.region,
-				city: geo.city,
-				browser_name: ua.browser,
-				device_type: ua.device,
-			},
-			link.id
-		)
+	const tGeo = performance.now();
+	const geo = await record("link.click.geo", () => getGeo(ip, request)).catch(
+		(error) => {
+			captureError(error, { error_step: "click_geo" });
+			return { city: null, country: null, region: null };
+		}
 	);
-	const kafka_ms = ms(t3);
+	const geo_ms = ms(tGeo);
+
+	const event: LinkVisitEvent = {
+		browser_name: ua.browser,
+		city: geo.city,
+		country: geo.country,
+		device_type: ua.device,
+		id: randomUUID(),
+		ip_hash: ipHash,
+		link_id: link.id,
+		referrer: request.headers.get("referer"),
+		region: geo.region,
+		timestamp: new Date().toISOString().replace("T", " ").replace("Z", ""),
+		user_agent: userAgent,
+	};
+	const tDelivery = performance.now();
+	const acknowledged = await record("link.click.kafka", () =>
+		sendLinkVisit(event, link.id)
+	);
+	const delivery_ms = ms(tDelivery);
+
+	// Kafka's full acknowledgement is the only success boundary. A timeout or
+	// disconnect is intentionally treated as ambiguous: returning a 503 lets
+	// the caller retry instead of claiming a click that might be lost.
+	if (!acknowledged) {
+		throw new Error("Link visit was not acknowledged by Redpanda");
+	}
 
 	mergeWideEvent({
 		click_recorded: true,
+		click_reason: "kafka_acknowledged",
 		...(ua.browser ? { click_browser: ua.browser } : {}),
 		...(ua.device ? { click_device: ua.device } : {}),
 		...(geo.country ? { click_country: geo.country } : {}),
-		kafka_send_success: kafkaResult.kafka_send_success,
-		kafka_connected: kafkaResult.kafka_connected,
-		clickhouse_fallback_success: kafkaResult.clickhouse_fallback_success,
-		"timing.click.dedup": dedup_ms,
 		"timing.click.geo": geo_ms,
-		"timing.click.analytics": kafka_ms,
+		"timing.click.delivery": delivery_ms,
 		"timing.click": ms(t0),
 	});
 }
@@ -325,17 +336,17 @@ const IGNORED_SLUGS = new Set([
 	"sitemap.xml",
 	".well-known",
 ]);
-const SLUG_RE = /^[a-zA-Z0-9_-]{3,50}$/;
-
-function trackClick(
-	link: CachedLink,
-	slug: string,
-	ipHash: string,
-	ip: string,
-	request: Request
-): void {
-	recordClick(link, slug, ipHash, ip, request).catch((err) =>
-		captureError(err, { error_step: "record_click", link_id: link.id })
+function retryResponse(error: string, retryAfter: string): Response {
+	// policy-ignore http/no-custom-json-error-response: These edge retry paths must preserve Retry-After when a cache mutation or click admission is unavailable.
+	return Response.json(
+		{ error },
+		{
+			status: 503,
+			headers: {
+				"Cache-Control": "private, no-store",
+				"Retry-After": retryAfter,
+			},
+		}
 	);
 }
 
@@ -349,7 +360,7 @@ export const redirectRoute = new Elysia().get(
 			set.status = 404;
 			return;
 		}
-		if (!SLUG_RE.test(slug)) {
+		if (!PUBLIC_LINK_SLUG_REGEX.test(slug)) {
 			set.headers = { "Cache-Control": "private, no-store" };
 			return redirect(NOT_FOUND_URL, 302);
 		}
@@ -365,15 +376,33 @@ export const redirectRoute = new Elysia().get(
 		}
 
 		const tLookup = performance.now();
-		const { link, cacheHit, lookup_source, redis_ms, db_ms } = await record(
-			"redirect.lookup",
-			() => lookupLink(slug)
-		);
+		const { link, cacheHit, lookup_source, rateLimitHeaders, redis_ms, db_ms } =
+			await record("redirect.lookup", () => lookupLink(slug, ipHash));
 		ev.lookup_ms = ms(tLookup);
 		ev.lookup_source = lookup_source;
 		ev.cache_hit = cacheHit;
 		ev.redis_ms = redis_ms;
 		ev.db_ms = db_ms;
+
+		if (rateLimitHeaders) {
+			emit("rate_limited");
+			// policy-ignore http/no-custom-json-error-response: The cache-miss limiter returns per-request rate-limit headers that this edge route must preserve.
+			return Response.json(
+				{ error: "Too many uncached links requested" },
+				{
+					status: 429,
+					headers: {
+						"Cache-Control": "private, no-store",
+						...rateLimitHeaders,
+					},
+				}
+			);
+		}
+
+		if (lookup_source === "redis_pending") {
+			emit("mutation_pending");
+			return retryResponse("This link is being updated. Please retry.", "1");
+		}
 
 		if (!link) {
 			emit("not_found");
@@ -386,7 +415,12 @@ export const redirectRoute = new Elysia().get(
 		if (link.expiresAt && new Date(link.expiresAt) < new Date()) {
 			emit("expired");
 			set.headers = { "Cache-Control": "private, no-store" };
-			return redirect(link.expiredRedirectUrl ?? EXPIRED_URL, 302);
+			return redirect(
+				link.expiredRedirectUrl && isHttpUrl(link.expiredRedirectUrl)
+					? link.expiredRedirectUrl
+					: EXPIRED_URL,
+				302
+			);
 		}
 
 		const userAgent = request.headers.get("user-agent");
@@ -406,36 +440,54 @@ export const redirectRoute = new Elysia().get(
 			return redirect(targetUrl, 302);
 		}
 
-		if (link.deepLinkApp && isMobile(userAgent)) {
-			const deepUri = resolveDeepLink(link.deepLinkApp, targetUrl);
-			if (deepUri) {
-				trackClick(link, slug, ipHash, ip, request);
-				emit("deep_link");
-				set.headers = { "Cache-Control": "private, no-store" };
-				return redirect(deepUri, 302);
+		const deepUri =
+			link.deepLinkApp && isMobile(userAgent)
+				? resolveDeepLink(link.deepLinkApp, link.targetUrl)
+				: null;
+		let response: Response;
+		let result: "deep_link" | "success";
+		let etag: string | undefined;
+
+		if (deepUri) {
+			result = "deep_link";
+			response = createDeepLinkFallbackResponse(deepUri, targetUrl);
+		} else {
+			etag = generateETag(link, targetUrl);
+			if (request.headers.get("if-none-match") === etag) {
+				emit("not_modified");
+				set.status = 304;
+				set.headers = {
+					"Cache-Control": "private, no-cache",
+					ETag: etag,
+				};
+				return;
 			}
+			result = "success";
+			response = redirect(targetUrl, 302);
 		}
 
-		const etag = generateETag(link, targetUrl);
+		try {
+			await recordClick(link, ipHash, ip, request);
+		} catch (error) {
+			captureError(error, {
+				error_step: "click_admission",
+				link_id: link.id,
+			});
+			emit("analytics_unavailable");
+			return retryResponse(
+				"Click tracking is temporarily unavailable. Please retry.",
+				"5"
+			);
+		}
 
-		if (request.headers.get("if-none-match") === etag) {
-			emit("not_modified");
-			set.status = 304;
+		emit(result);
+		if (etag) {
 			set.headers = {
 				"Cache-Control": "private, no-cache",
 				ETag: etag,
 			};
-			return;
 		}
-
-		trackClick(link, slug, ipHash, ip, request);
-
-		emit("success");
-		set.headers = {
-			"Cache-Control": "private, no-cache",
-			ETag: etag,
-		};
-		return redirect(targetUrl, 302);
+		return response;
 	},
 	{ params: t.Object({ slug: t.String() }) }
 );

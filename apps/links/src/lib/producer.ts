@@ -1,4 +1,3 @@
-import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 import { captureError, setAttributes } from "./logging";
 
@@ -10,15 +9,20 @@ const reconnectCooldownMs = 60_000;
 const sendTimeoutMs = 3000;
 
 let producer: Producer | null = null;
-let connected = false;
 let connectPromise: Promise<boolean> | null = null;
 let nextReconnectAt = 0;
 
+/**
+ * Immutable wire payload for a short-link click. The generated ID stays with
+ * the record through Kafka and consumer retries, letting downstream queries
+ * collapse pipeline replays without relying on a relational outbox.
+ */
 export interface LinkVisitEvent {
 	browser_name: string | null;
 	city: string | null;
 	country: string | null;
 	device_type: string | null;
+	id: string;
 	ip_hash: string;
 	link_id: string;
 	referrer: string | null;
@@ -27,29 +31,45 @@ export interface LinkVisitEvent {
 	user_agent: string | null;
 }
 
-export interface LinkVisitSendResult {
-	clickhouse_fallback_success: boolean;
-	kafka_broker_configured: boolean;
-	kafka_connected: boolean;
-	kafka_send_ambiguous: boolean;
-	kafka_send_skipped: boolean;
-	kafka_send_success: boolean;
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timeout = setTimeout(
+			() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)),
+			timeoutMs
+		);
+
+		promise.then(
+			(value) => {
+				clearTimeout(timeout);
+				resolve(value);
+			},
+			(error) => {
+				clearTimeout(timeout);
+				reject(error);
+			}
+		);
+	});
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-	return Promise.race([
-		promise,
-		new Promise<never>((_, reject) =>
-			setTimeout(
-				() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)),
-				timeoutMs
-			)
-		),
-	]);
+function discardProducer(
+	candidate: Producer,
+	operation: "kafka_connect_disconnect" | "kafka_send_disconnect"
+): void {
+	if (producer === candidate) {
+		producer = null;
+	}
+
+	try {
+		withTimeout(candidate.disconnect(), sendTimeoutMs).catch((error) => {
+			captureError(error, { operation });
+		});
+	} catch (error) {
+		captureError(error, { operation });
+	}
 }
 
 function connect(): Promise<boolean> {
-	if (connected && producer) {
+	if (producer) {
 		return Promise.resolve(true);
 	}
 	if (!broker) {
@@ -68,32 +88,38 @@ function connect(): Promise<boolean> {
 	}
 
 	connectPromise = (async () => {
+		let candidate: Producer | null = null;
+
 		try {
 			const kafka = new Kafka({
 				brokers: [broker],
 				clientId: "links-producer",
+				connectionTimeout: sendTimeoutMs,
+				authenticationTimeout: sendTimeoutMs,
 				requestTimeout: sendTimeoutMs,
-				...(username &&
-					password && {
-						sasl: { mechanism: "scram-sha-256", username, password },
-						ssl: process.env.REDPANDA_SSL === "true",
-					}),
+				enforceRequestTimeout: true,
+				...(username && password
+					? { sasl: { mechanism: "scram-sha-256", username, password } }
+					: {}),
+				...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
 			});
 
-			producer = kafka.producer({
+			candidate = kafka.producer({
 				maxInFlightRequests: 5,
 				idempotent: true,
 				transactionTimeout: 30_000,
 			});
 
-			await withTimeout(producer.connect(), sendTimeoutMs);
-			connected = true;
+			await withTimeout(candidate.connect(), sendTimeoutMs);
+			producer = candidate;
 			nextReconnectAt = 0;
 			setAttributes({ kafka_connected: true });
 			return true;
 		} catch (error) {
 			captureError(error, { operation: "kafka_connect" });
-			connected = false;
+			if (candidate) {
+				discardProducer(candidate, "kafka_connect_disconnect");
+			}
 			producer = null;
 			nextReconnectAt = Date.now() + reconnectCooldownMs;
 			setAttributes({ kafka_connected: false });
@@ -106,96 +132,61 @@ function connect(): Promise<boolean> {
 	return connectPromise;
 }
 
-async function insertClickHouseFallback(
-	event: LinkVisitEvent
-): Promise<boolean> {
-	if (!process.env.CLICKHOUSE_URL) {
-		setAttributes({ clickhouse_fallback_configured: false });
-		return false;
-	}
-
-	try {
-		await clickHouse.insert({
-			table: TABLE_NAMES.link_visits,
-			values: [event],
-			format: "JSONEachRow",
-		});
-		setAttributes({ clickhouse_fallback_success: true });
-		return true;
-	} catch (error) {
-		captureError(error, {
-			operation: "clickhouse_link_visit_fallback",
-			clickhouse_table: TABLE_NAMES.link_visits,
-		});
-		setAttributes({ clickhouse_fallback_success: false });
-		return false;
-	}
-}
-
 export async function sendLinkVisit(
 	event: LinkVisitEvent,
 	key?: string
-): Promise<LinkVisitSendResult> {
+): Promise<boolean> {
 	const eventKey = key ?? event.link_id;
 	setAttributes({
+		kafka_broker_configured: Boolean(broker),
 		kafka_topic: TOPIC,
 		kafka_message_key: eventKey ?? "unknown",
 	});
 
-	let kafkaSent = false;
-	let kafkaSkipped = false;
-	let kafkaAmbiguous = false;
-
-	if ((await connect()) && producer) {
-		try {
-			await withTimeout(
-				producer.send({
-					topic: TOPIC,
-					messages: [
-						{
-							value: JSON.stringify(event, (_k, v) =>
-								v === undefined ? null : v
-							),
-							key: eventKey,
-						},
-					],
-					compression: CompressionTypes.GZIP,
-				}),
-				sendTimeoutMs
-			);
-			kafkaSent = true;
-			setAttributes({ kafka_send_success: true });
-		} catch (error) {
-			kafkaAmbiguous = true;
-			captureError(error, {
-				operation: "kafka_send",
-				kafka_topic: TOPIC,
-			});
-			connected = false;
-			nextReconnectAt = Date.now() + reconnectCooldownMs;
-			setAttributes({
-				kafka_send_success: false,
-				kafka_send_ambiguous: true,
-			});
-		}
-	} else {
-		kafkaSkipped = true;
-		setAttributes({ kafka_send_skipped: true });
+	const kafkaReady = await connect();
+	const activeProducer = producer;
+	if (!(kafkaReady && activeProducer)) {
+		setAttributes({
+			kafka_connected: false,
+			kafka_send_skipped: true,
+		});
+		return false;
 	}
 
-	const shouldFallback = !(kafkaSent || kafkaAmbiguous);
-	const fallbackSuccess = shouldFallback
-		? await insertClickHouseFallback(event)
-		: false;
-
-	return {
-		clickhouse_fallback_success: fallbackSuccess,
-		kafka_broker_configured: Boolean(broker),
-		kafka_connected: connected,
-		kafka_send_ambiguous: kafkaAmbiguous,
-		kafka_send_skipped: kafkaSkipped,
-		kafka_send_success: kafkaSent,
-	};
+	setAttributes({ kafka_connected: true });
+	try {
+		await withTimeout(
+			activeProducer.send({
+				topic: TOPIC,
+				acks: -1,
+				messages: [
+					{
+						value: JSON.stringify(event, (_k, v) =>
+							v === undefined ? null : v
+						),
+						key: eventKey,
+					},
+				],
+				compression: CompressionTypes.GZIP,
+			}),
+			sendTimeoutMs
+		);
+		setAttributes({ kafka_send_success: true });
+		return true;
+	} catch (error) {
+		captureError(error, {
+			operation: "kafka_send",
+			kafka_topic: TOPIC,
+		});
+		discardProducer(activeProducer, "kafka_send_disconnect");
+		nextReconnectAt = Date.now() + reconnectCooldownMs;
+		setAttributes({
+			kafka_connected: false,
+			kafka_send_ambiguous: true,
+			kafka_send_success: false,
+		});
+		return false;
+	}
 }
 
 export async function disconnectProducer(): Promise<void> {
@@ -208,5 +199,4 @@ export async function disconnectProducer(): Promise<void> {
 		captureError(error, { operation: "kafka_disconnect" });
 	}
 	producer = null;
-	connected = false;
 }

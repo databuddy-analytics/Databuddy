@@ -1,4 +1,5 @@
 import { cacheable } from "@databuddy/redis";
+import { getTrustedClientIp } from "@databuddy/shared/utils/trusted-client-ip";
 import type { City } from "@maxmind/geoip2-node";
 import {
 	AddressNotFoundError,
@@ -7,6 +8,7 @@ import {
 } from "@maxmind/geoip2-node";
 import { log } from "evlog";
 import { LRUCache } from "lru-cache";
+import { isIP } from "node:net";
 import { captureError, record, setAttributes } from "../lib/logging";
 
 interface GeoIPReader extends Reader {
@@ -75,13 +77,8 @@ function loadDatabase(): Promise<void> {
 	return loadPromise;
 }
 
-const IPV4_RE =
-	/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/;
-const IPV6_RE =
-	/^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:))$/;
-
 function isValidIp(ip: string): boolean {
-	return Boolean(ip && (IPV4_RE.test(ip) || IPV6_RE.test(ip)));
+	return isIP(ip) !== 0;
 }
 
 const IGNORED_IPS = new Set(["127.0.0.1", "::1", "unknown"]);
@@ -183,21 +180,6 @@ export async function getGeo(
 	return geo;
 }
 
-const TRUSTED_IP_HEADER = (
-	process.env.TRUSTED_IP_HEADER ?? "cf-connecting-ip"
-).toLowerCase();
-
 export function extractIp(request: Request): string {
-	const raw = request.headers.get(TRUSTED_IP_HEADER);
-	if (!raw) {
-		return "unknown";
-	}
-	const candidate =
-		TRUSTED_IP_HEADER === "x-forwarded-for"
-			? raw.split(",")[0]?.trim()
-			: raw.trim();
-	if (!(candidate && isValidIp(candidate))) {
-		return "unknown";
-	}
-	return candidate;
+	return getTrustedClientIp(request.headers) ?? "unknown";
 }

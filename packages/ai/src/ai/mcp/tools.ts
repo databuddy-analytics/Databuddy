@@ -6,6 +6,11 @@ import {
 	insightTimelineItemSchema,
 	insightTimelineReplySchema,
 } from "@databuddy/shared/insights";
+import {
+	DEEP_LINK_APP_IDS,
+	isDeepLinkTarget,
+} from "@databuddy/shared/constants/deep-link-apps";
+import { httpUrlSchema } from "@databuddy/validation";
 import { userRuleSchema, variantSchema } from "@databuddy/shared/flags";
 import { executeBatch } from "../../query";
 import { runInvestigationAction } from "../tools/investigations";
@@ -1090,6 +1095,7 @@ const searchLinksTool = defineMcpTool(
 					name: z.string(),
 					slug: z.string(),
 					targetUrl: z.string(),
+					deepLinkApp: z.string().nullable(),
 					folderId: z.string().nullable(),
 					folder: LinkRowOutputSchema.shape.folder,
 					externalId: z.string().nullable(),
@@ -1117,6 +1123,7 @@ const searchLinksTool = defineMcpTool(
 				name: link.name,
 				slug: link.slug,
 				targetUrl: link.targetUrl,
+				deepLinkApp: link.deepLinkApp ?? null,
 				folderId: link.folderId ?? null,
 				folder: summarizeLink(link, folders).folder,
 				externalId: link.externalId,
@@ -1132,26 +1139,37 @@ const createLinkTool = defineMcpTool(
 		name: "create_link",
 		description:
 			"Create a short link for the website organization. Call with confirmed=false for preview first.",
-		inputSchema: z.object({
-			...WebsiteSelectorSchema,
-			name: z.string().min(1).max(255),
-			targetUrl: z.string().url(),
-			slug: z
-				.string()
-				.min(3)
-				.max(50)
-				.regex(/^[a-zA-Z0-9_-]+$/)
-				.optional(),
-			expiresAt: z.string().optional(),
-			expiredRedirectUrl: z.string().url().optional(),
-			ogTitle: z.string().max(200).optional(),
-			ogDescription: z.string().max(500).optional(),
-			ogImageUrl: z.string().url().optional(),
-			externalId: z.string().max(255).optional(),
-			...LinkFolderSelectorSchema.shape,
-			deepLinkApp: z.string().optional(),
-			confirmed: ConfirmedSchema,
-		}),
+		inputSchema: z
+			.object({
+				...WebsiteSelectorSchema,
+				name: z.string().min(1).max(255),
+				targetUrl: httpUrlSchema,
+				slug: z
+					.string()
+					.min(3)
+					.max(50)
+					.regex(/^[a-zA-Z0-9_-]+$/)
+					.optional(),
+				expiresAt: z.string().optional(),
+				expiredRedirectUrl: httpUrlSchema.optional(),
+				ogTitle: z.string().max(200).optional(),
+				ogDescription: z.string().max(500).optional(),
+				ogImageUrl: httpUrlSchema.optional(),
+				externalId: z.string().max(255).optional(),
+				...LinkFolderSelectorSchema.shape,
+				deepLinkApp: z.enum(DEEP_LINK_APP_IDS).optional(),
+				confirmed: ConfirmedSchema,
+			})
+			.superRefine(({ deepLinkApp, targetUrl }, context) => {
+				if (deepLinkApp && !isDeepLinkTarget(deepLinkApp, targetUrl)) {
+					context.addIssue({
+						code: "custom",
+						message:
+							"Deep link URLs must use HTTPS and match the selected app.",
+						path: ["targetUrl"],
+					});
+				}
+			}),
 		outputSchema: MutationResultSchema,
 		resolveWebsite: true,
 		metadata: writeMetadata(["write:links"]),

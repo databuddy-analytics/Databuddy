@@ -76,6 +76,8 @@ NEXT_PUBLIC_APP_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_BASKET_URL=https://${{Events.RAILWAY_PUBLIC_DOMAIN}}
 NEXT_PUBLIC_STATUS_URL=https://${{Status.RAILWAY_PUBLIC_DOMAIN}}
+# When Links is enabled and has a public domain, set this before rebuilding Dashboard:
+# NEXT_PUBLIC_LINKS_URL=https://${{Links.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
 ### Status
@@ -170,6 +172,11 @@ DASHBOARD_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 LINKS_ROOT_REDIRECT_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
+Run the `Init` job after any Links schema change before deploying the Links
+service. Its `/health/status` readiness check verifies that the
+`links.deep_link_app` column is available, so a stale database cannot serve
+deep links.
+
 ## Health checks
 
 - `Dashboard`: `/login`
@@ -177,7 +184,7 @@ LINKS_ROOT_REDIRECT_URL=https://${{Dashboard.RAILWAY_PUBLIC_DOMAIN}}
 - `API`: `/health`
 - `Events`: `/health`
 - `Insights`: `/health/status`
-- `Links`: `/health`
+- `Links`: `/health/status`
 - `ClickHouse`: `/ping`
 
 ## First-run schema setup
