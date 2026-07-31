@@ -169,6 +169,11 @@ export function insertTrackEvent(
 		if (reservation.duplicate) {
 			return;
 		}
+		if (reservation.retryable) {
+			throw deliveryUnavailable(
+				new Error("A concurrent attempt owns this analytics event")
+			);
+		}
 
 		try {
 			const geoData = await getGeo(ip, request);
@@ -247,6 +252,11 @@ export function insertOutgoingLink(
 		);
 		if (reservation.duplicate) {
 			return;
+		}
+		if (reservation.retryable) {
+			throw deliveryUnavailable(
+				new Error("A concurrent attempt owns this analytics event")
+			);
 		}
 
 		try {

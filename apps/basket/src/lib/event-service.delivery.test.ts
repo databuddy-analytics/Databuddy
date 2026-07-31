@@ -78,6 +78,7 @@ const request = new Request("http://localhost/ingest");
 const trackReservation = {
 	duplicate: false,
 	key: "dedup:track:evt_1",
+	token: "pending:reservation-token",
 	ttl: 86_400,
 };
 
@@ -220,5 +221,71 @@ describe("core event delivery", () => {
 
 		expect(mockSend).not.toHaveBeenCalled();
 		expect(mockRunPromise).not.toHaveBeenCalled();
+	});
+
+	test("returns retryable 503 without publishing a track event owned by another request", async () => {
+		mockReserveDuplicate.mockResolvedValueOnce({
+			duplicate: false,
+			retryable: true,
+		});
+
+		await expect(
+			insertTrackEvent(
+				{ anonymousId: "anon_1", eventId: "evt_1", name: "pageview" },
+				"ws_test",
+				"Mozilla/5.0",
+				"1.2.3.4",
+				request
+			)
+		).rejects.toMatchObject({ status: 503 });
+
+		expect(mockSend).not.toHaveBeenCalled();
+		expect(mockRunPromise).not.toHaveBeenCalled();
+		expect(mockMarkDuplicateReservationDelivered).not.toHaveBeenCalled();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+	});
+
+	test("returns retryable 503 without publishing an outgoing link owned by another request", async () => {
+		mockReserveDuplicate.mockResolvedValueOnce({
+			duplicate: false,
+			retryable: true,
+		});
+
+		await expect(
+			insertOutgoingLink(
+				{
+					anonymousId: "anon_1",
+					eventId: "evt_link_1",
+					href: "https://example.com/pricing",
+				},
+				"ws_test",
+				request
+			)
+		).rejects.toMatchObject({ status: 503 });
+
+		expect(mockSend).not.toHaveBeenCalled();
+		expect(mockRunPromise).not.toHaveBeenCalled();
+		expect(mockMarkDuplicateReservationDelivered).not.toHaveBeenCalled();
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+	});
+
+	test("continues delivery when Redis is unavailable and no reservation was acquired", async () => {
+		const unavailableReservation = { duplicate: false };
+		mockReserveDuplicate.mockResolvedValueOnce(unavailableReservation);
+
+		await insertTrackEvent(
+			{ anonymousId: "anon_1", eventId: "evt_1", name: "pageview" },
+			"ws_test",
+			"Mozilla/5.0",
+			"1.2.3.4",
+			request
+		);
+
+		expect(mockSend).toHaveBeenCalledOnce();
+		expect(mockRunPromise).toHaveBeenCalledOnce();
+		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledWith(
+			unavailableReservation
+		);
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
 	});
 });

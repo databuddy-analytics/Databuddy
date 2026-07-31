@@ -186,18 +186,22 @@ describe("duplicate reservations", () => {
 		});
 	});
 
-	test("retries a stale pending reservation instead of falsely suppressing it", async () => {
+	test("requires a retry when another request owns a pending reservation", async () => {
 		mockRedisSet.mockResolvedValue(null);
 		mockRedisGet.mockResolvedValue("pending:other-attempt");
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toMatchObject({
-			duplicate: false,
-			key: "dedup:track:evt_1",
-			token: undefined,
-			ttl: 86_400,
-		});
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
+	});
+
+	test("requires a retry when a lost reservation vanishes before it can be read", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockResolvedValue(null);
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
 	});
 
 	test("recovers ownership when an ambiguous SET wrote this request's token", async () => {
@@ -241,7 +245,7 @@ describe("duplicate reservations", () => {
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toMatchObject({ duplicate: false, ttl: 86_400 });
+		expect(reservation).toEqual({ duplicate: false });
 		expect(mockRedisSet).toHaveBeenCalledTimes(2);
 		expect(mockCaptureError).toHaveBeenCalledOnce();
 	});
@@ -252,21 +256,45 @@ describe("duplicate reservations", () => {
 		expect(mockRedisEval).not.toHaveBeenCalled();
 	});
 
-	test("marks a confirmed delivery before suppressing future retries", async () => {
-		mockRedisSet.mockResolvedValue("OK");
+	test("marks only an owned pending reservation as delivered", async () => {
+		mockRedisEval.mockResolvedValue("OK");
+		await markDuplicateReservationDelivered({
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: "pending:owner-attempt",
+			ttl: 86_400,
+		});
+
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"pending:owner-attempt",
+			"delivered",
+			86_400
+		);
+	});
+
+	test("does not let a stale delivery promote a newer reservation", async () => {
+		let storedToken = "pending:newer-attempt";
+		mockRedisEval.mockImplementation(
+			async (_script, _keys, _key, expectedToken: string, deliveredValue: string) => {
+				if (storedToken === expectedToken) {
+					storedToken = deliveredValue;
+					return "OK";
+				}
+				return 0;
+			}
+		);
 
 		await markDuplicateReservationDelivered({
 			duplicate: false,
 			key: "dedup:track:evt_1",
+			token: "pending:stale-attempt",
 			ttl: 86_400,
 		});
 
-		expect(mockRedisSet).toHaveBeenCalledWith(
-			"dedup:track:evt_1",
-			"delivered",
-			"EX",
-			86_400
-		);
+		expect(storedToken).toBe("pending:newer-attempt");
 	});
 
 	test("releases only the pending reservation owned by the failed request", async () => {

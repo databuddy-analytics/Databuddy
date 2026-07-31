@@ -15,6 +15,10 @@ const RELEASE_PENDING_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV
 	return redis.call("DEL", KEYS[1])
 end
 return 0`;
+const MARK_PENDING_DEDUP_RESERVATION_DELIVERED = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+end
+return 0`;
 
 const RAW_VISITOR_ID_COUNTRIES = ["US"];
 const COUNTRY_CODES: Record<string, string> = {
@@ -133,6 +137,12 @@ export interface DuplicateReservation {
 	readonly duplicate: boolean;
 	readonly key?: string;
 	/**
+	 * Redis confirmed that this request did not acquire the reservation. The
+	 * caller must retry instead of publishing alongside its current owner.
+	 * Omitted when Redis is unavailable so ingestion remains fail-open.
+	 */
+	readonly retryable?: true;
+	/**
 	 * Present only when this request atomically acquired the pending key. It is
 	 * required to release the key so an older failed request cannot erase a
 	 * newer retry's reservation.
@@ -211,13 +221,16 @@ export function reserveDuplicate(
 				return { duplicate: true };
 			}
 
-			// A pending key may be a concurrent attempt, an interrupted request, or
-			// a release that timed out. Retrying the same stable delivery id is safer
-			// than falsely reporting success for an event that never reached storage.
+			// This request did not acquire a pending key. Publishing without ownership
+			// can duplicate a concurrent delivery or overwrite its confirmed state.
+			if (result === "pending" || result === "unreserved") {
+				return { duplicate: false, retryable: true };
+			}
+
 			return {
 				duplicate: false,
 				key,
-				token: result === "acquired" ? token : undefined,
+				token,
 				ttl,
 			};
 		} catch (error) {
@@ -226,29 +239,31 @@ export function reserveDuplicate(
 				eventId,
 				eventType,
 			});
-			return { duplicate: false, key, ttl };
+			return { duplicate: false };
 		}
 	});
 }
 
 /**
  * Only a confirmed Kafka or ClickHouse acknowledgement may turn a pending
- * retry guard into a duplicate suppression key. A Redis failure here preserves
- * the pending state, which deliberately favors an idempotent retry over loss.
+ * retry guard into a duplicate suppression key. The promotion is conditional
+ * on the owner's token so a stale request cannot overwrite a newer reservation.
  */
 export function markDuplicateReservationDelivered(
 	reservation: DuplicateReservation
 ): Promise<void> {
 	return record("markDuplicateReservationDelivered", async () => {
-		if (!(reservation.key && reservation.ttl)) {
+		if (!(reservation.key && reservation.token && reservation.ttl)) {
 			return;
 		}
 
 		try {
-			await redis.set(
+			await redis.eval(
+				MARK_PENDING_DEDUP_RESERVATION_DELIVERED,
+				1,
 				reservation.key,
+				reservation.token,
 				DELIVERED_DEDUP_VALUE,
-				"EX",
 				reservation.ttl
 			);
 		} catch (error) {
