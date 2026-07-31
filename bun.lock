@@ -798,6 +798,7 @@
       "name": "@databuddy/validation",
       "version": "0.1.0",
       "dependencies": {
+        "@databuddy/shared": "workspace:*",
         "zod": "catalog:",
       },
       "devDependencies": {
