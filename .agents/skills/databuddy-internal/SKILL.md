@@ -60,6 +60,7 @@ Keep additions **minimal**: one bullet, a new `rg` hint, or a routing note—eno
 - `apps/docs`: Next.js + Fumadocs docs app on port `3005`
 - When a user drops a prototype, remove only prototype-specific wiring and preserve the existing product surfaces it temporarily reused.
 - `apps/links`: redirect/link service
+- `apps/links` tests share Bun `mock.module` state; mocks of `../lib/logging` must include every export used by later test files, including `setAttributes` for producer imports.
 - `apps/uptime`: uptime monitoring service
 - `apps/uptime` BullMQ worker concurrency defaults high for Bun async I/O; do not lower it just because `10_000` looks large. Verify downstream saturation or lock/timeout evidence first.
 - Public status pages render from `apps/status`; `apps/dashboard` owns status-page management/config UI only. When cleaning public status UX, update shared `@databuddy/ui/uptime` pieces or `apps/status` wrappers instead of redesigning dashboard-only route remnants.

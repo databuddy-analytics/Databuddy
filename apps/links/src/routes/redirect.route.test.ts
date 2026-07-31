@@ -74,6 +74,7 @@ mock.module("../lib/logging", () => ({
 	captureError: mock(() => {}),
 	mergeWideEvent: mock(() => {}),
 	record: async <T>(_name: string, run: () => Promise<T> | T) => run(),
+	setAttributes: mock(() => {}),
 }));
 
 mock.module("../lib/producer", () => ({
