@@ -5,6 +5,9 @@ FROM timberio/vector:0.50.0-alpine
 # When building from infra/ingest/: docker build -f vector.Dockerfile -t vector .
 COPY infra/ingest/vector.yaml /etc/vector/vector.yaml
 
+# Vector's source of truth is Redpanda. This service intentionally keeps no
+# delivery state on Railway's ephemeral filesystem.
+
 WORKDIR /etc/vector
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=10s \
