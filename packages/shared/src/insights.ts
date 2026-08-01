@@ -433,7 +433,7 @@ export const insightRecommendationSchema = z
 	])
 	.nullable()
 	.describe(
-		"Concrete evidence-backed next step worth suggesting without opening an investigation. This may recommend a Databuddy feature such as user identification or a custom event only when measured coverage proves the exact blind spot it would remove. Name the exact object, setup, and unlock; use null when there is no useful next step."
+		"Concrete evidence-backed next step worth suggesting without opening an investigation. Databuddy setup must use a backend-verified setup or instrumentation candidate that names the exact blind spot and future decision it unlocks. Use null when there is no useful next step."
 	);
 
 export const investigationOutcomeSchema = z
