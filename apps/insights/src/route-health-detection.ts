@@ -9,9 +9,10 @@ import {
 	wowWindow,
 } from "./detection";
 
-// The query API caps limits at 1000; use the ceiling because dynamic routes
-// are filtered after the aggregate query returns.
+// The query API caps limits at 1000; page through a bounded sample because
+// dynamic routes are filtered after the aggregate query returns.
 const ROUTE_QUERY_LIMIT = 1000;
+const ROUTE_QUERY_MAX_PAGES = 5;
 const MIN_ERROR_COUNT = 10;
 const MIN_ERROR_DELTA = 5;
 const MIN_ERROR_USERS = 5;
@@ -76,6 +77,7 @@ export interface RouteHealthQueryInput {
 	filters?: Array<{ field: "path"; op: "eq"; value: string }>;
 	from: string;
 	limit: number;
+	offset?: number;
 	projectId: string;
 	timezone: string;
 	to: string;
@@ -398,6 +400,30 @@ function queryInput(params: {
 	};
 }
 
+async function queryRouteHealthPages(
+	query: RouteHealthQuery,
+	input: RouteHealthQueryInput,
+	abortSignal?: AbortSignal
+): Promise<Record<string, unknown>[]> {
+	const rows: Record<string, unknown>[] = [];
+	for (let page = 1; page <= ROUTE_QUERY_MAX_PAGES; page += 1) {
+		const pageRows = await query(
+			page === 1
+				? input
+				: {
+						...input,
+						offset: (page - 1) * ROUTE_QUERY_LIMIT,
+					},
+			abortSignal
+		);
+		rows.push(...pageRows);
+		if (pageRows.length < ROUTE_QUERY_LIMIT) {
+			break;
+		}
+	}
+	return rows;
+}
+
 /**
  * Detect high-confidence route regressions from aggregate error and web-vital
  * queries. It deliberately omits arbitrary routes rather than leaking a
@@ -413,7 +439,8 @@ export async function detectRouteHealthSignals(
 	const window = wowWindow(today, params.lookbackDays);
 	const [currentErrors, previousErrors, currentVitals, previousVitals] =
 		await Promise.all([
-			query(
+			queryRouteHealthPages(
+				query,
 				queryInput({
 					from: window.currentFrom,
 					to: window.currentTo,
@@ -422,7 +449,8 @@ export async function detectRouteHealthSignals(
 				}),
 				abortSignal
 			),
-			query(
+			queryRouteHealthPages(
+				query,
 				queryInput({
 					from: window.previousFrom,
 					to: window.previousTo,
@@ -431,7 +459,8 @@ export async function detectRouteHealthSignals(
 				}),
 				abortSignal
 			),
-			query(
+			queryRouteHealthPages(
+				query,
 				queryInput({
 					from: window.currentFrom,
 					to: window.currentTo,
@@ -440,7 +469,8 @@ export async function detectRouteHealthSignals(
 				}),
 				abortSignal
 			),
-			query(
+			queryRouteHealthPages(
+				query,
 				queryInput({
 					from: window.previousFrom,
 					to: window.previousTo,
