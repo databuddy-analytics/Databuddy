@@ -37,8 +37,10 @@ The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
 stable row identity and an `ingested_at` version. Background merges reclaim
 duplicate storage asynchronously; the shared ClickHouse readers add `FINAL`
 to these table relations without changing other MergeTree reads. Because retry
-timestamps are immutable, versions stay in one partition and reads also enable
-`do_not_merge_across_partitions_select_final = 1`.
+timestamps on historical Vector rows may differ from their payload timestamps,
+reads intentionally finalize across partitions. The date/month partitions and
+timestamp minmax indexes retain time-range pruning while stable identity stays
+the replacement key.
 
 Custom events, error spans, and web-vital spans may contain historical rows
 created before `delivery_id` existed. Their materialized `delivery_key` gives

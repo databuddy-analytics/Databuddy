@@ -90,26 +90,40 @@ describe("hand-maintained registries stay in sync with the generated DDL columns
 		}
 	});
 
-	it("delivery identity extends the existing analytics sort locality", () => {
+	it("delivery replacement keys do not depend on Vector record time", () => {
 		const keys = {
-			"analytics.custom_events":
-				"(owner_id, event_name, timestamp, delivery_key)",
-			"analytics.error_spans":
-				"(client_id, error_type, path, timestamp, delivery_key)",
-			"analytics.events": "(client_id, time, id)",
-			"analytics.link_visits": "(link_id, timestamp, id)",
-			"analytics.outgoing_links": "(client_id, timestamp, id)",
-			"analytics.web_vitals_spans":
-				"(client_id, metric_name, path, timestamp, delivery_key)",
+			"analytics.custom_events": "(owner_id, delivery_key)",
+			"analytics.error_spans": "(client_id, delivery_key)",
+			"analytics.events": "(client_id, id)",
+			"analytics.link_visits": "(link_id, id)",
+			"analytics.outgoing_links": "(client_id, id)",
+			"analytics.web_vitals_spans": "(client_id, delivery_key)",
 		} as const;
 
 		for (const [table, expected] of Object.entries(keys)) {
 			const file = DELIVERY_TABLE_FILES[
 				table as keyof typeof DELIVERY_TABLE_FILES
 			];
+			const parsed = parseTable(readSql(`${import.meta.dir}/schema/${file}`));
+			expect(parsed.orderBy).toBe(expected);
+			expect(parsed.indexes.some((index) => index.name.includes("time"))).toBe(
+				true
+			);
+		}
+	});
+
+	it("shadow mirrors can append the version without column misalignment", () => {
+		for (const file of Object.values(DELIVERY_TABLE_FILES)) {
+			const columns = parseTable(
+				readSql(`${import.meta.dir}/schema/${file}`)
+			).columns;
+			expect(columns.at(-1)?.name).toBe("ingested_at");
+			expect(columns.at(-1)?.hasDefault).toBe(true);
 			expect(
-				parseTable(readSql(`${import.meta.dir}/schema/${file}`)).orderBy
-			).toBe(expected);
+				columns
+					.filter((column) => column.computed)
+					.every((column) => column.name === "delivery_key")
+			).toBe(true);
 		}
 	});
 
