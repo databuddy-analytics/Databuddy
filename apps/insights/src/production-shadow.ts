@@ -599,6 +599,21 @@ function shadowNextRecheckAt(
 	return new Date(asOf.getTime() + days * 86_400_000);
 }
 
+function keepsShadowInvestigationOpen(
+	outcome: InsightAgentResult["outcome"],
+	previous: ShadowObservation | undefined
+): boolean {
+	if (outcome.next.type === "act" || outcome.next.type === "ask") {
+		return true;
+	}
+	if (outcome.publish === true && outcome.recommendation != null) {
+		return true;
+	}
+	return (
+		outcome.next.type === "watch" && previous?.hasOpenInvestigation === true
+	);
+}
+
 function definitionsAt<T extends { createdAt: Date; updatedAt: Date }>(
 	rows: T[],
 	asOf: Date
@@ -628,6 +643,7 @@ async function createSources(params: {
 			detectMeasurementRecommendationSignals,
 		},
 		{ signalAnnotationWindow },
+		{ loadErrorCustomerImpact },
 		{ createToolkit },
 		{ remeasureStoredSignal },
 		{ detectRouteHealthSignals },
@@ -638,6 +654,7 @@ async function createSources(params: {
 		import("./funnel-detection"),
 		import("./measurement-recommendation-detection"),
 		import("./investigation"),
+		import("./error-customer-impact"),
 		import("@databuddy/ai/tools/toolkit"),
 		import("./generation"),
 		import("./route-health-detection"),
@@ -776,11 +793,10 @@ async function createSources(params: {
 				attempt.agent = projectAgentUsage(result);
 				attempt.result = result;
 				const previous = latestObservations.get(input.signal.signalKey);
-				const hasOpenInvestigation =
-					result.outcome.next.type === "act" ||
-					result.outcome.next.type === "ask" ||
-					(result.outcome.next.type === "watch" &&
-						previous?.hasOpenInvestigation === true);
+				const hasOpenInvestigation = keepsShadowInvestigationOpen(
+					result.outcome,
+					previous
+				);
 				const observation: ShadowObservation = {
 					asOf: params.asOf,
 					evidence: input.evidence,
@@ -827,6 +843,7 @@ async function createSources(params: {
 					: null
 			);
 		},
+		loadErrorCustomerImpact,
 		loadHistory: ({ signalKey, through }) =>
 			Promise.resolve(
 				params.observations

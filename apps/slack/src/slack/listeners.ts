@@ -446,6 +446,10 @@ async function handleInvestigationThreadReply({
 					eq(insightRunEffects.effectKey, run.channelId),
 					sql`${insightRunEffects.payload}->>'channelId' = ${run.channelId}`
 				),
+				or(
+					sql`${insightRunEffects.payload}->>'insightId' = ${insightObservations.insightId}`,
+					sql`${insightRunEffects.payload}->>'insightId' is null`
+				),
 				eq(insightRunEffects.status, "succeeded"),
 				eq(insightRunItems.organizationId, resolved.organizationId)
 			)

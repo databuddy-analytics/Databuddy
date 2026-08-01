@@ -33,4 +33,15 @@ describe("isVisibleInvestigation", () => {
 	it("keeps plain quiet resolves out of the feed", () => {
 		expect(isVisibleInvestigation({ outcome: quietResolve })).toBe(false);
 	});
+
+	it("does not treat omitted recommendations as visible", () => {
+		expect(
+			isVisibleInvestigation({
+				outcome: {
+					...quietResolve,
+					publish: true,
+				},
+			})
+		).toBe(false);
+	});
 });

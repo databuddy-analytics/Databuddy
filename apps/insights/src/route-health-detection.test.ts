@@ -251,8 +251,8 @@ describe("remeasureRouteHealthSignal", () => {
 			subjectKey: "route:error:/explore",
 		});
 		expect(requests.map((request) => request.filters)).toEqual([
-			[{ field: "path", op: "eq", value: "/explore" }],
-			[{ field: "path", op: "eq", value: "/explore" }],
+			undefined,
+			undefined,
 		]);
 	});
 

@@ -213,10 +213,16 @@ describe("intelligence agent", () => {
 			"test the existing verification condition against current data"
 		);
 		expect(JSON.stringify(call)).toContain(
-			"Do not add generic audience fillers"
+			"A quantified cohort is useful context, not generic audience filler"
 		);
 		expect(JSON.stringify(call)).toContain(
-			"Round percentages to at most one decimal place in prose"
+			"Round percentages to one decimal place"
+		);
+		expect(JSON.stringify(call)).toContain(
+			"Write every published outcome like a short news brief"
+		);
+		expect(JSON.stringify(call)).toContain(
+			"You may recommend a Databuddy feature such as identify()"
 		);
 	});
 
@@ -435,15 +441,15 @@ describe("intelligence agent", () => {
 		expect(result.outcome.next.type).toBe("resolve");
 	});
 
-	it("accepts a canonical inspected event outside the discovery allowlist", async () => {
+	it("accepts a safe inspected event from typed analytics fields", async () => {
 		const inspectedOutcome = {
 			...goalDraftOutcome,
 			recommendation: {
 				...goalDraftOutcome.recommendation,
 				draft: {
 					...goalDraftOutcome.recommendation.draft,
-					name: "Workspace created",
-					target: "workspace_created",
+					name: "Purchase completed",
+					target: "purchase_completed",
 				},
 			},
 		};
@@ -466,7 +472,7 @@ describe("intelligence agent", () => {
 				tools: {
 					inspect: tool({
 						description: "Inspect the website event schema.",
-						execute: () => ({ target: "workspace_created" }),
+						execute: () => ({ event_name: "purchase_completed" }),
 						inputSchema: z.object({}).strict(),
 					}),
 				},
@@ -474,9 +480,41 @@ describe("intelligence agent", () => {
 		);
 
 		expect(result.outcome.recommendation).toMatchObject({
-			draft: { target: "workspace_created" },
+			draft: { target: "purchase_completed" },
 			kind: "goal_draft",
 		});
+	});
+
+	it("rejects generic inspected names as goal draft evidence", async () => {
+		await expect(
+			runInsightAgent(
+				{
+					appContext: appContext(),
+					evidence,
+					githubRepository: null,
+					history: [],
+					otherOpenWork: [],
+					signal,
+				},
+				{
+					model: new MockLanguageModelV3({
+						doGenerate: mockValues(
+							toolCallResponse(),
+							outputResponse(goalDraftOutcome)
+						),
+					}),
+					tools: {
+						inspect: tool({
+							description: "Inspect a website object label.",
+							execute: () => ({ name: "signup_completed" }),
+							inputSchema: z.object({}).strict(),
+						}),
+					},
+				}
+			)
+		).rejects.toThrow(
+			"Insights goal drafts require an observed event candidate or inspected target"
+		);
 	});
 
 	it("accepts a funnel draft only when every step was inspected", async () => {

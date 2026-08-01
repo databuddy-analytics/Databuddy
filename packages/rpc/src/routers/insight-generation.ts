@@ -646,6 +646,7 @@ export const insightGenerationRouter = {
 			z
 				.object({
 					analyzedSignalCount: z.number(),
+					analyzedWebsiteCount: z.number(),
 					completedItems: z.number(),
 					failedItems: z.number(),
 					id: z.string(),
@@ -677,13 +678,12 @@ export const insightGenerationRouter = {
 			const [count] = await db
 				.select({
 					analyzedSignalCount: sql<number>`count(*)::integer`,
+					analyzedWebsiteCount: sql<number>`count(distinct ${
+						insightObservations.websiteId
+					})::integer`,
 					insightCount: sql<number>`count(*) filter (where ${
 						insightObservations.outcome
-					}->>'publish' = 'true' or (${
-						insightObservations.outcome
-					}->>'publish' is null and ${
-						insightObservations.insightId
-					} is not null))::integer`,
+					}->>'publish' = 'true')::integer`,
 				})
 				.from(insightObservations)
 				.where(
@@ -696,6 +696,7 @@ export const insightGenerationRouter = {
 			return {
 				...run,
 				analyzedSignalCount: count?.analyzedSignalCount ?? 0,
+				analyzedWebsiteCount: count?.analyzedWebsiteCount ?? 0,
 				insightCount: count?.insightCount ?? 0,
 			};
 		}),
