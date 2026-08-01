@@ -36,7 +36,13 @@ pre-commit:
         fi
         bun run check-types
     policy-lint:
-      glob: "**/*.{css,ts,tsx}"
+      glob:
+        - "apps/dashboard/**/*.{css,ts,tsx}"
+        - "apps/api/**/*.{ts,tsx}"
+        - "apps/basket/**/*.{ts,tsx}"
+        - "apps/links/**/*.{ts,tsx}"
+        - "apps/uptime/**/*.{ts,tsx}"
+        - "scripts/lint-policy.ts"
       run: bun scripts/lint-policy.ts --staged
     lockfile-check:
       glob:
