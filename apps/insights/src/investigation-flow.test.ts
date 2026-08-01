@@ -222,7 +222,48 @@ describe("intelligence agent", () => {
 			"Write every published outcome like a short news brief"
 		);
 		expect(JSON.stringify(call)).toContain(
-			"You may recommend a Databuddy feature such as identify()"
+			"copy that candidate exactly as kind databuddy_setup"
+		);
+	});
+
+	it("accepts only the supplied Databuddy setup recommendation", async () => {
+		const setupRecommendationCandidate = {
+			action:
+				"Verify or add Databuddy identify() after successful authentication so future error reports can distinguish affected signed-in users from anonymous visitors.",
+			feature: "user_identification" as const,
+			kind: "databuddy_setup" as const,
+		};
+		const setupOutcome = {
+			...agentOutcome,
+			next: {
+				reason: "Identification coverage is the remaining measurement gap.",
+				type: "resolve" as const,
+			},
+			recommendation: setupRecommendationCandidate,
+		};
+		const input = {
+			appContext: appContext(),
+			evidence,
+			githubRepository: null,
+			history: [],
+			otherOpenWork: [],
+			setupRecommendationCandidate,
+			signal,
+		};
+
+		const result = await runInsightAgent(input, {
+			model: outputModel(setupOutcome),
+			tools: {},
+		});
+		expect(result.outcome.recommendation).toEqual(setupRecommendationCandidate);
+
+		await expect(
+			runInsightAgent(
+				{ ...input, setupRecommendationCandidate: null },
+				{ model: outputModel(setupOutcome), tools: {} }
+			)
+		).rejects.toThrow(
+			"Databuddy setup recommendations must match the evidence-backed candidate exactly"
 		);
 	});
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import type { InvestigationSignal } from "@databuddy/shared/insights";
 import {
 	errorCustomerImpactEvidence,
+	errorIdentitySetupRecommendation,
 	loadErrorCustomerImpact,
 	parseErrorCustomerImpact,
 } from "./error-customer-impact";
@@ -40,7 +41,7 @@ const row = {
 	linked_visitor_identifiers: 5,
 	payment_match_is_lower_bound: 1,
 	qualifying_profile_payment_history_observed: 1,
-	sessions_with_later_tracked_activity: 20,
+	sessions_with_later_telemetry: 20,
 	unlinked_visitor_identifiers: 30,
 };
 
@@ -139,5 +140,33 @@ describe("error customer impact", () => {
 		expect(evidence).not.toContain("anonymous_id");
 		expect(evidence).not.toContain("profile_id");
 		expect(evidence).not.toContain("session_id");
+	});
+
+	it("offers identification only for a material fully unlinked cohort", () => {
+		const impact = parseErrorCustomerImpact({
+			...row,
+			identified_profiles: 0,
+			identified_profiles_with_prior_attributed_completed_payment: 0,
+			identity_coverage_percent: 0,
+			linked_visitor_identifiers: 0,
+			unlinked_visitor_identifiers: 35,
+		});
+		if (!impact) {
+			throw new Error("Expected impact fixture");
+		}
+
+		expect(errorIdentitySetupRecommendation(impact)).toEqual({
+			action:
+				"Verify or add Databuddy identify() after successful authentication so future error reports can distinguish affected signed-in users from anonymous visitors.",
+			feature: "user_identification",
+			kind: "databuddy_setup",
+		});
+		expect(
+			errorIdentitySetupRecommendation({
+				...impact,
+				affectedVisitorIdentifiers: 9,
+				unlinkedVisitorIdentifiers: 9,
+			})
+		).toBeNull();
 	});
 });

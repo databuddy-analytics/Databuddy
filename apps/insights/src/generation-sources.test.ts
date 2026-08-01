@@ -270,7 +270,7 @@ describe("fixture investigation sources", () => {
 			null;
 		const outcome: InvestigationOutcome = {
 			evidence: ["The exact error cohort was measured."],
-			impact: "Five identified profiles were affected.",
+			impact: "Thirty-five visitor identifiers were affected.",
 			next: { reason: "No case is required in this fixture.", type: "resolve" },
 			rootCause: null,
 			summary: "Route-loading failures affected the explore route.",
@@ -288,17 +288,17 @@ describe("fixture investigation sources", () => {
 			loadErrorCustomerImpact: async () => ({
 				affectedSessions: 34,
 				affectedVisitorIdentifiers: 35,
-				ambiguousProfileSessions: 1,
+				ambiguousProfileSessions: 0,
 				errorOccurrences: 36,
-				identifiedProfiles: 5,
-				identifiedProfilesWithPriorAttributedCompletedPayment: 2,
-				identityCoveragePercent: 14.3,
-				linkedVisitorIdentifiers: 5,
+				identifiedProfiles: 0,
+				identifiedProfilesWithPriorAttributedCompletedPayment: 0,
+				identityCoveragePercent: 0,
+				linkedVisitorIdentifiers: 0,
 				paymentMatchIsLowerBound: true,
-				qualifyingProfilePaymentHistoryObserved: true,
-				sessionsWithLaterTrackedActivity: 20,
+				qualifyingProfilePaymentHistoryObserved: false,
+				sessionsWithLaterTelemetry: 20,
 				scope: "route",
-				unlinkedVisitorIdentifiers: 30,
+				unlinkedVisitorIdentifiers: 35,
 			}),
 			loadHistory: async () => [],
 			loadObservations: async () => new Map(),
@@ -308,11 +308,19 @@ describe("fixture investigation sources", () => {
 
 		expect(received?.customerImpact).toMatchObject({
 			affectedVisitorIdentifiers: 35,
-			identifiedProfilesWithPriorAttributedCompletedPayment: 2,
+			identifiedProfilesWithPriorAttributedCompletedPayment: 0,
 		});
-		expect(received?.evidence.some((item) => item.includes("At least 2"))).toBe(
-			true
-		);
+		expect(received?.setupRecommendationCandidate).toEqual({
+			action:
+				"Verify or add Databuddy identify() after successful authentication so future error reports can distinguish affected signed-in users from anonymous visitors.",
+			feature: "user_identification",
+			kind: "databuddy_setup",
+		});
+		expect(
+			received?.evidence.some((item) =>
+				item.includes("affected payment status remains unknown")
+			)
+		).toBe(true);
 		expect(artifact.evidence).toEqual(received?.evidence ?? []);
 	});
 

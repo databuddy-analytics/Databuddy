@@ -163,6 +163,13 @@ const instrumentationRecommendation = {
 	kind: "instrumentation" as const,
 };
 
+const databuddySetupRecommendation = {
+	action:
+		"Verify or add Databuddy identify() after successful authentication so future error reports can distinguish affected signed-in users from anonymous visitors.",
+	feature: "user_identification" as const,
+	kind: "databuddy_setup" as const,
+};
+
 describe("insightMeasurementRecommendationSchema", () => {
 	it("accepts strict goal, funnel, and instrumentation recommendations", () => {
 		for (const recommendation of [
@@ -174,6 +181,18 @@ describe("insightMeasurementRecommendationSchema", () => {
 				insightMeasurementRecommendationSchema.safeParse(recommendation).success
 			).toBe(true);
 		}
+	});
+
+	it("accepts a typed Databuddy setup recommendation", () => {
+		expect(
+			insightRecommendationSchema.safeParse(databuddySetupRecommendation).success
+		).toBe(true);
+		expect(
+			insightRecommendationSchema.safeParse({
+				...databuddySetupRecommendation,
+				feature: "revenue_attribution",
+			}).success
+		).toBe(false);
 	});
 
 	it("keeps draft targets executable without widening goal actions", () => {
