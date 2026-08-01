@@ -713,6 +713,7 @@ export class BaseTracker {
 		}
 
 		const event: TrackEventPayload = {
+			eventId: generateUUIDv4(),
 			name,
 			timestamp: Date.now(),
 			path: this.isServer() ? undefined : this.currentPath(),
