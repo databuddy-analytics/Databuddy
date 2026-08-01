@@ -20,11 +20,12 @@ describe("createPixelResponse", () => {
 		);
 	});
 
-	test("keeps the GIF body but marks delivery failures retryable", () => {
+	test("returns an empty retryable response so image transport can retry", async () => {
 		const r = createPixelResponse(503);
 		expect(r.status).toBe(503);
-		expect(r.headers.get("Content-Type")).toBe("image/gif");
+		expect(r.headers.get("Content-Type")).toBeNull();
 		expect(r.headers.get("Retry-After")).toBe("5");
+		expect(new Uint8Array(await r.arrayBuffer())).toHaveLength(0);
 	});
 });
 

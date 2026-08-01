@@ -51,6 +51,11 @@ export interface TrackEventContext {
 	};
 }
 
+export interface BatchEvent<T extends { id: string }> {
+	event: T;
+	sourceEventId: string;
+}
+
 function deliveryUnavailable(cause: unknown) {
 	return createError({
 		code: "basket.DELIVERY_UNAVAILABLE",
@@ -216,11 +221,12 @@ export function insertTrackEvent(
 			});
 
 			await runPromise(send("analytics-events", trackEvent));
-			await markDuplicateReservationDelivered(reservation);
 		} catch (error) {
 			await releaseDuplicateReservation(reservation);
 			throw deliveryUnavailable(error);
 		}
+
+		await markDuplicateReservationDelivered(reservation);
 	});
 }
 
@@ -296,22 +302,94 @@ export function insertOutgoingLink(
 			};
 
 			await runPromise(send("analytics-outgoing-links", outgoingLinkEvent));
-			await markDuplicateReservationDelivered(reservation);
 		} catch (error) {
 			await releaseDuplicateReservation(reservation);
 			throw deliveryUnavailable(error);
 		}
+
+		await markDuplicateReservationDelivered(reservation);
 	});
 }
 
-export function insertTrackEventsBatch(events: EventsInsert[]): Promise<void> {
-	return record("insertTrackEventsBatch", async () => {
-		if (events.length === 0) {
-			return;
-		}
+async function deliverBatch<T extends { id: string }>(
+	eventType: "outgoing_link" | "track",
+	topic: string,
+	items: BatchEvent<T>[]
+): Promise<void> {
+	const uniqueItems = Array.from(
+		new Map(items.map((item) => [item.event.id, item])).values()
+	);
+	if (uniqueItems.length === 0) {
+		return;
+	}
 
-		await runPromise(sendBatch("analytics-events", events));
-	});
+	const reservationResults = await Promise.allSettled(
+		uniqueItems.map(async (item) => ({
+			item,
+			reservation: await reserveDuplicate(
+				item.event.id,
+				eventType,
+				item.sourceEventId
+			),
+		}))
+	);
+	const reservations = reservationResults.flatMap((result) =>
+		result.status === "fulfilled" ? [result.value] : []
+	);
+	const reservationFailure = reservationResults.find(
+		(result): result is PromiseRejectedResult => result.status === "rejected"
+	);
+	const retryableReservation = reservations.find(
+		({ reservation }) => reservation.retryable
+	);
+	if (reservationFailure || retryableReservation) {
+		await Promise.allSettled(
+			reservations.map(({ reservation }) =>
+				releaseDuplicateReservation(reservation)
+			)
+		);
+		throw deliveryUnavailable(
+			reservationFailure?.reason ??
+				new Error("A concurrent attempt owns this analytics event")
+		);
+	}
+
+	const accepted = reservations.filter(
+		({ reservation }) => !reservation.duplicate
+	);
+	if (accepted.length === 0) {
+		return;
+	}
+
+	try {
+		await runPromise(
+			sendBatch(
+				topic,
+				accepted.map(({ item }) => item.event)
+			)
+		);
+	} catch (error) {
+		await Promise.allSettled(
+			accepted.map(({ reservation }) =>
+				releaseDuplicateReservation(reservation)
+			)
+		);
+		throw deliveryUnavailable(error);
+	}
+
+	await Promise.allSettled(
+		accepted.map(({ reservation }) =>
+			markDuplicateReservationDelivered(reservation)
+		)
+	);
+}
+
+export function insertTrackEventsBatch(
+	events: BatchEvent<EventsInsert>[]
+): Promise<void> {
+	return record("insertTrackEventsBatch", () =>
+		deliverBatch("track", "analytics-events", events)
+	);
 }
 
 export function insertErrorSpans(
@@ -399,15 +477,11 @@ export function insertIndividualVitals(
 }
 
 export function insertOutgoingLinksBatch(
-	events: OutgoingLinksInsert[]
+	events: BatchEvent<OutgoingLinksInsert>[]
 ): Promise<void> {
-	return record("insertOutgoingLinksBatch", async () => {
-		if (events.length === 0) {
-			return;
-		}
-
-		await runPromise(sendBatch("analytics-outgoing-links", events));
-	});
+	return record("insertOutgoingLinksBatch", () =>
+		deliverBatch("outgoing_link", "analytics-outgoing-links", events)
+	);
 }
 
 export function insertCustomEvents(

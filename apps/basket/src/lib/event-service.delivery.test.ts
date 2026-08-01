@@ -11,6 +11,7 @@ const {
 	mockReserveDuplicate,
 	mockRunPromise,
 	mockSend,
+	mockSendBatch,
 	mockShouldAnonymizeVisitorIds,
 } = vi.hoisted(() => ({
 	mockApplyVisitorIdPrivacy: vi.fn((value: unknown) => String(value ?? "")),
@@ -36,13 +37,14 @@ const {
 	),
 	mockRunPromise: vi.fn(() => Promise.resolve()),
 	mockSend: vi.fn(() => ({ _tag: "MockEffect" })),
+	mockSendBatch: vi.fn(() => ({ _tag: "MockEffect" })),
 	mockShouldAnonymizeVisitorIds: vi.fn(() => false),
 }));
 
 vi.mock("@lib/producer", () => ({
 	runPromise: mockRunPromise,
 	send: mockSend,
-	sendBatch: vi.fn(() => ({ _tag: "MockEffect" })),
+	sendBatch: mockSendBatch,
 }));
 
 vi.mock("@lib/security", () => ({
@@ -71,8 +73,13 @@ vi.mock("evlog/elysia", () => ({
 	useLogger: () => ({ set: mockLoggerSet }),
 }));
 
-const { insertOutgoingLink, insertTrackEvent, stableAnalyticsEventId } =
-	await import("./event-service");
+const {
+	buildTrackEvent,
+	insertOutgoingLink,
+	insertTrackEvent,
+	insertTrackEventsBatch,
+	stableAnalyticsEventId,
+} = await import("./event-service");
 
 const request = new Request("http://localhost/ingest");
 const trackReservation = {
@@ -81,6 +88,23 @@ const trackReservation = {
 	token: "pending:reservation-token",
 	ttl: 86_400,
 };
+
+function trackBatchItem(eventId: string) {
+	return {
+		event: buildTrackEvent(
+			{ anonymousId: "anon_1", eventId, name: "pageview" },
+			{
+				anonymousId: "anon_1",
+				clientId: "ws_test",
+				eventId,
+				geo: { anonymizedIP: "anonymous-ip" },
+				now: 1,
+				ua: {},
+			}
+		),
+		sourceEventId: eventId,
+	};
+}
 
 describe("core event delivery", () => {
 	beforeEach(() => {
@@ -95,6 +119,7 @@ describe("core event delivery", () => {
 		mockReserveDuplicate.mockResolvedValue(trackReservation);
 		mockRunPromise.mockResolvedValue(undefined);
 		mockSend.mockReturnValue({ _tag: "MockEffect" });
+		mockSendBatch.mockReturnValue({ _tag: "MockEffect" });
 		mockShouldAnonymizeVisitorIds.mockReturnValue(false);
 	});
 
@@ -287,5 +312,65 @@ describe("core event delivery", () => {
 			unavailableReservation
 		);
 		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
+	});
+
+	test("delivers one logical batch event and promotes its reservation after acknowledgement", async () => {
+		const first = trackBatchItem("evt_1");
+		const duplicate = trackBatchItem("evt_1");
+
+		await insertTrackEventsBatch([first, duplicate]);
+
+		expect(mockReserveDuplicate).toHaveBeenCalledOnce();
+		expect(mockReserveDuplicate).toHaveBeenCalledWith(
+			first.event.id,
+			"track",
+			"evt_1"
+		);
+		expect(mockSendBatch).toHaveBeenCalledWith("analytics-events", [first.event]);
+		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledWith(
+			trackReservation
+		);
+	});
+
+	test("releases acquired batch reservations when another request owns an item", async () => {
+		mockReserveDuplicate
+			.mockResolvedValueOnce(trackReservation)
+			.mockResolvedValueOnce({ duplicate: false, retryable: true });
+
+		await expect(
+			insertTrackEventsBatch([trackBatchItem("evt_1"), trackBatchItem("evt_2")])
+		).rejects.toMatchObject({ status: 503 });
+
+		expect(mockSendBatch).not.toHaveBeenCalled();
+		expect(mockReleaseDuplicateReservation).toHaveBeenCalledWith(
+			trackReservation
+		);
+	});
+
+	test("releases acquired batch reservations when reservation lookup fails", async () => {
+		mockReserveDuplicate
+			.mockResolvedValueOnce(trackReservation)
+			.mockRejectedValueOnce(new Error("Redis lookup failed"));
+
+		await expect(
+			insertTrackEventsBatch([trackBatchItem("evt_1"), trackBatchItem("evt_2")])
+		).rejects.toMatchObject({ status: 503 });
+
+		expect(mockSendBatch).not.toHaveBeenCalled();
+		expect(mockReleaseDuplicateReservation).toHaveBeenCalledWith(
+			trackReservation
+		);
+	});
+
+	test("releases batch reservations when durable delivery fails", async () => {
+		mockRunPromise.mockRejectedValueOnce(new Error("ClickHouse unavailable"));
+
+		await expect(insertTrackEventsBatch([trackBatchItem("evt_1")])).rejects.toMatchObject({
+			status: 503,
+		});
+
+		expect(mockReleaseDuplicateReservation).toHaveBeenCalledWith(
+			trackReservation
+		);
 	});
 });

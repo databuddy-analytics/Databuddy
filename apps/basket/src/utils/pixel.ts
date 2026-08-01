@@ -14,14 +14,25 @@ const TRANSPARENT_PIXEL = Buffer.from(
  * Returns a 1x1 transparent GIF response
  */
 export function createPixelResponse(status = 200): Response {
+	const headers = {
+		"Cache-Control": "no-cache, no-store, must-revalidate",
+		Pragma: "no-cache",
+		Expires: "0",
+		...(status >= 500 ? { "Retry-After": "5" } : {}),
+	};
+
+	// Browsers report a decodable GIF as an image load even when its HTTP status
+	// is 5xx. Return no image body for failures so pixel transport receives an
+	// error event and retains the event for retry.
+	if (status >= 400) {
+		return new Response(null, { status, headers });
+	}
+
 	return new Response(TRANSPARENT_PIXEL, {
 		status,
 		headers: {
 			"Content-Type": "image/gif",
-			"Cache-Control": "no-cache, no-store, must-revalidate",
-			Pragma: "no-cache",
-			Expires: "0",
-			...(status >= 500 ? { "Retry-After": "5" } : {}),
+			...headers,
 		},
 	});
 }

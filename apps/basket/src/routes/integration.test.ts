@@ -1,3 +1,4 @@
+import { createError } from "evlog";
 import { vi, beforeEach, describe, expect, test } from "vitest";
 
 const {
@@ -444,6 +445,11 @@ describe("POST /events", () => {
 // ── POST /batch ──
 
 describe("POST /batch", () => {
+	beforeEach(() => {
+		mockInsertOutgoingLinksBatch.mockClear();
+		mockInsertTrackEventsBatch.mockClear();
+	});
+
 	test("batch of track events → 200", async () => {
 		const res = await post(basketApp, "/batch", [
 			{
@@ -463,6 +469,59 @@ describe("POST /batch", () => {
 		const body = await json(res);
 		expect(body.batch).toBe(true);
 		expect(body.processed).toBe(2);
+		expect(mockInsertTrackEventsBatch).toHaveBeenCalledWith([
+			{
+				event: expect.objectContaining({ id: "built_id" }),
+				sourceEventId: "evt_1",
+			},
+			{
+				event: expect.objectContaining({ id: "built_id" }),
+				sourceEventId: "evt_2",
+			},
+		]);
+	});
+
+	test("waits for both delivery topics before returning a retryable failure", async () => {
+		let releaseOutgoingDelivery: (() => void) | undefined;
+		let responseSettled = false;
+		mockInsertTrackEventsBatch.mockRejectedValueOnce(
+			createError({
+				message: "Analytics delivery temporarily unavailable",
+				status: 503,
+			})
+		);
+		mockInsertOutgoingLinksBatch.mockImplementationOnce(
+			() =>
+				new Promise<void>((resolve) => {
+					releaseOutgoingDelivery = resolve;
+				})
+		);
+
+		const response = post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+			{
+				type: "outgoing_link",
+				eventId: "evt_link_1",
+				href: "https://external.com",
+			},
+		]);
+		void response.then(() => {
+			responseSettled = true;
+		});
+
+		await vi.waitFor(() =>
+			expect(mockInsertOutgoingLinksBatch).toHaveBeenCalledOnce()
+		);
+		expect(responseSettled).toBe(false);
+
+		releaseOutgoingDelivery?.();
+		const result = await response;
+		expect(result.status).toBe(503);
 	});
 
 	test("not an array → 400", async () => {
@@ -530,12 +589,13 @@ describe("GET /px.jpg", () => {
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
 	});
 
-	test("returns a retryable GIF when delivery fails", async () => {
+	test("returns an empty retryable response when delivery fails", async () => {
 		mockValidateRequest.mockRejectedValueOnce(new Error("boom"));
 		const res = await get(basketApp, "/px.jpg?name=test");
 		expect(res.status).toBe(503);
-		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Content-Type")).toBeNull();
 		expect(res.headers.get("Retry-After")).toBe("5");
+		expect(new Uint8Array(await res.arrayBuffer())).toHaveLength(0);
 	});
 });
 
