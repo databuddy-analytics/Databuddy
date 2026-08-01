@@ -90,7 +90,7 @@ function RecommendationList({
 						variant: "secondary",
 					}}
 					description="Databuddy couldn't load current recommendations."
-					icon={<WrenchIcon weight="duotone" />}
+					icon={<WrenchIcon aria-hidden weight="duotone" />}
 					title="Couldn't load recommendations"
 					variant="error"
 				/>
@@ -103,7 +103,7 @@ function RecommendationList({
 			<div className="px-5 py-12">
 				<EmptyState
 					description="Suggestions from published insights will appear here."
-					icon={<WrenchIcon weight="duotone" />}
+					icon={<WrenchIcon aria-hidden weight="duotone" />}
 					title="No recommendations"
 					variant="minimal"
 				/>
@@ -113,11 +113,11 @@ function RecommendationList({
 
 	return (
 		<>
-			<div>
+			<ul>
 				{items.map((insight) => (
 					<RecommendationRow insight={insight} key={insight.id} />
 				))}
-			</div>
+			</ul>
 			{recommendations.hasNextPage ? (
 				<div className="flex justify-center border-t px-5 py-4">
 					<Button
@@ -154,43 +154,49 @@ function RecommendationRow({ insight }: { insight: InsightRecommendation }) {
 	const { recommendation } = insight;
 
 	return (
-		<List.Row align="start" interactive={false}>
-			<span className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-				<WrenchIcon className="size-4" weight="duotone" />
-			</span>
-			<div className="min-w-0 flex-1">
-				<span className="flex flex-wrap items-center gap-2">
-					<Badge size="sm" variant="muted">
-						{recommendationLabel(recommendation)}
-					</Badge>
-					<span className="text-[11px] text-muted-foreground">
-						{insight.websiteName ?? insight.websiteDomain} ·{" "}
-						{fromNow(insight.createdAt)}
+		<List.Row align="start" asChild interactive={false}>
+			<li>
+				<span className="flex size-8 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
+					<WrenchIcon aria-hidden className="size-4" weight="duotone" />
+				</span>
+				<div className="min-w-0 flex-1">
+					<span className="flex flex-wrap items-center gap-2">
+						<Badge size="sm" variant="muted">
+							{recommendationLabel(recommendation)}
+						</Badge>
+						<span className="min-w-0 truncate text-[11px] text-muted-foreground">
+							{insight.websiteName ?? insight.websiteDomain} ·{" "}
+							{fromNow(insight.createdAt)}
+						</span>
 					</span>
-				</span>
-				<span className="mt-2 block font-medium text-foreground text-sm leading-relaxed">
-					{recommendation.action}
-				</span>
-				{isInstrumentationRecommendation(recommendation) ? (
-					<InstrumentationRecommendationDetails
-						recommendation={recommendation}
-					/>
-				) : null}
-				<span className="mt-2 block text-muted-foreground text-xs leading-relaxed">
-					From{" "}
-					{insight.investigationId ? (
-						<Link
-							className="font-medium text-foreground/80 transition-colors hover:text-foreground"
-							href={`/insights/${insight.investigationId}`}
-						>
-							{insight.title}
-						</Link>
-					) : (
-						<span className="text-foreground/80">{insight.title}</span>
-					)}
-				</span>
-				<RecommendationAction insight={insight} />
-			</div>
+					<p className="mt-2 break-words font-medium text-foreground text-sm leading-relaxed [overflow-wrap:anywhere]">
+						{recommendation.action}
+					</p>
+					<p className="mt-1.5 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
+						<span className="font-medium text-foreground/75">Why: </span>
+						{insight.impact ?? insight.summary}
+					</p>
+					{isInstrumentationRecommendation(recommendation) ? (
+						<InstrumentationRecommendationDetails
+							recommendation={recommendation}
+						/>
+					) : null}
+					<p className="mt-2 break-words text-muted-foreground text-xs leading-relaxed [overflow-wrap:anywhere]">
+						Based on{" "}
+						{insight.investigationId ? (
+							<Link
+								className="font-medium text-foreground/80 transition-colors hover:text-foreground"
+								href={`/insights/${insight.investigationId}`}
+							>
+								{insight.title}
+							</Link>
+						) : (
+							<span className="text-foreground/80">{insight.title}</span>
+						)}
+					</p>
+					<RecommendationAction insight={insight} />
+				</div>
+			</li>
 		</List.Row>
 	);
 }

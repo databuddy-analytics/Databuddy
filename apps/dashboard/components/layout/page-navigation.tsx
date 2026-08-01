@@ -58,7 +58,7 @@ export function PageNavigation(props: PageNavigationProps) {
 					href={props.breadcrumb.href}
 				>
 					<span className="inline-flex transition-transform duration-200 group-hover:-translate-x-0.5">
-						<ArrowLeftIcon className="size-3.5" weight="bold" />
+						<ArrowLeftIcon aria-hidden className="size-3.5" weight="bold" />
 					</span>
 					<span>{props.breadcrumb.label}</span>
 				</Link>
@@ -76,7 +76,7 @@ export function PageNavigation(props: PageNavigationProps) {
 		<nav
 			aria-label="Page sections"
 			className={cn(
-				"flex h-10 shrink-0 border-border border-b bg-accent/30",
+				"flex h-10 shrink-0 overflow-x-auto overscroll-x-contain border-border border-b bg-accent/30",
 				props.className
 			)}
 		>
@@ -88,7 +88,7 @@ export function PageNavigation(props: PageNavigationProps) {
 					<Link
 						aria-current={isActive ? "page" : undefined}
 						className={cn(
-							"relative flex cursor-pointer items-center gap-2 px-3 py-2.5 font-medium text-sm transition-colors",
+							"relative flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-2.5 font-medium text-sm transition-colors",
 							isActive
 								? "text-foreground"
 								: "text-muted-foreground hover:text-foreground"
@@ -99,6 +99,7 @@ export function PageNavigation(props: PageNavigationProps) {
 						{IconComponent && (
 							<span className="inline-flex">
 								<IconComponent
+									aria-hidden
 									className={cn(
 										"size-4 transition-colors",
 										isActive && "text-primary"
