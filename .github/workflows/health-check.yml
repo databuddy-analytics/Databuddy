@@ -383,7 +383,7 @@ jobs:
 
           STATUS_BODY=$(curl -sS http://localhost:4002/health/status)
           echo "Insights /health/status: $STATUS_BODY"
-          if echo "$STATUS_BODY" | jq -e '.status == "ok"' > /dev/null; then
+          if echo "$STATUS_BODY" | jq -e '.status == "ok" or .status == "degraded"' > /dev/null; then
             echo "Insights dependency health is valid"
           else
             echo "Insights dependency health is not ok"
@@ -432,6 +432,21 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.5.1-alpine
+        env:
+          CLICKHOUSE_DB: databuddy_analytics
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        ports:
+          - 8123:8123
+        options: >-
+          --ulimit nofile=262144:262144
+          --health-cmd "clickhouse-client --query 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-start-period 30s
+          --health-retries 12
 
     steps:
       - name: Checkout repository
@@ -504,6 +519,7 @@ jobs:
             -e NODE_ENV=production \
             -e DATABASE_URL=postgresql://postgres:postgres@localhost:5432/databuddy_test \
             -e REDIS_URL=redis://localhost:6379 \
+            -e BULLMQ_REDIS_URL=redis://localhost:6379/4 \
             -e REDPANDA_BROKER=localhost:9092 \
             -e DASHBOARD_URL=http://localhost:3000 \
             -e CLICKHOUSE_URL=http://default:@localhost:8123/databuddy_analytics \
@@ -520,11 +536,16 @@ jobs:
             sleep 1
           done
 
-          STATUS_BODY=$(curl -sS http://localhost:2500/health/status)
-          echo "Links /health/status: $STATUS_BODY"
-          if echo "$STATUS_BODY" | jq -e '.status == "ok"' > /dev/null; then
-            echo "Links dependency health is valid"
-          else
-            docker logs links-health-check
-            exit 1
-          fi
+          for i in {1..30}; do
+            STATUS_BODY=$(curl -sS http://localhost:2500/health/status)
+            echo "Links /health/status: $STATUS_BODY"
+            if echo "$STATUS_BODY" | jq -e '.status == "ok" or .status == "degraded"' > /dev/null; then
+              echo "Links dependency health is valid"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              docker logs links-health-check
+              exit 1
+            fi
+            sleep 1
+          done

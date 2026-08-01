@@ -64,6 +64,28 @@ describe("policy lint", () => {
 		);
 	});
 
+	it("blocks Tailwind palette classes with postfix important modifiers", () => {
+		const violations = findPolicyViolations(
+			"apps/dashboard/app/example.tsx",
+			'export const className = "bg-red-500! hover:text-blue-600!";'
+		);
+
+		expect(violations.map((violation) => violation.rule)).toContain(
+			"dashboard/no-custom-color"
+		);
+	});
+
+	it("blocks literal colors in camel-case style properties", () => {
+		const violations = findPolicyViolations(
+			"apps/dashboard/app/example.tsx",
+			'export const style = { backgroundColor: "#ffffff", borderColor: "rgba(0, 0, 0, 0.2)" };'
+		);
+
+		expect(violations.map((violation) => violation.rule)).toContain(
+			"dashboard/no-custom-color"
+		);
+	});
+
 	it("allows hash link targets that are not color values", () => {
 		expect(
 			findPolicyViolations(
