@@ -8,107 +8,14 @@ import {
 	type MeasurementCandidate,
 	wowWindow,
 } from "./detection";
+import {
+	canonicalMeasurementEventTarget,
+	canonicalMeasurementRouteTarget,
+} from "./measurement-targets";
 
 const MIN_ACTIVE_PAGEVIEWS = 30;
 const MIN_ACTIVE_SESSIONS = 30;
-const MAX_CANONICAL_EVENT_LENGTH = 64;
-const MAX_CANONICAL_ROUTE_LENGTH = 120;
-const ABSOLUTE_URL_PATTERN = /^[a-z][a-z\d.+-]*:\/\//i;
-const CANONICAL_EVENT_PATTERN = /^[a-z][a-z_]{0,63}$/;
-const QUERY_OR_FRAGMENT_PATTERN = /[?#]/;
-const STATIC_ROUTE_SEGMENT_PATTERN = /^[a-z][a-z-]{0,47}$/;
 const TARGET_SEGMENT_DELIMITER_PATTERN = /[/_-]/;
-const TRAILING_SLASH_PATTERN = /\/+$/;
-const SAFE_EVENT_SEGMENTS = new Set([
-	"account",
-	"activated",
-	"application",
-	"book",
-	"booking",
-	"button",
-	"checkout",
-	"click",
-	"clicked",
-	"complete",
-	"completed",
-	"confirmation",
-	"contact",
-	"created",
-	"demo",
-	"download",
-	"form",
-	"lead",
-	"login",
-	"logged",
-	"order",
-	"paid",
-	"payment",
-	"plan",
-	"purchase",
-	"purchased",
-	"register",
-	"registered",
-	"registration",
-	"request",
-	"requested",
-	"screen",
-	"sign",
-	"signed",
-	"signup",
-	"started",
-	"submit",
-	"submitted",
-	"subscribe",
-	"subscribed",
-	"subscription",
-	"success",
-	"succeeded",
-	"trial",
-	"up",
-	"upgrade",
-	"user",
-	"view",
-	"welcome",
-]);
-const SAFE_ROUTE_SEGMENTS = new Set([
-	"account",
-	"accounts",
-	"app",
-	"auth",
-	"billing",
-	"book",
-	"booking",
-	"cart",
-	"checkout",
-	"complete",
-	"confirmation",
-	"contact",
-	"demo",
-	"home",
-	"login",
-	"onboarding",
-	"order",
-	"payment",
-	"plans",
-	"pricing",
-	"purchase",
-	"register",
-	"registration",
-	"settings",
-	"sign-in",
-	"sign-up",
-	"signin",
-	"signup",
-	"shop",
-	"store",
-	"subscribe",
-	"subscription",
-	"success",
-	"thank-you",
-	"trial",
-	"upgrade",
-	"welcome",
-]);
 const CONVERSION_TERMS = new Set([
 	"book",
 	"booking",
@@ -185,59 +92,6 @@ function stringField(
 		: null;
 }
 
-/**
- * Retain only exact, canonical event identifiers. This rejects identifiers
- * with values embedded in them instead of attempting to redact and then
- * accidentally turning the redacted value into a target that cannot match.
- */
-function canonicalEventName(value: string): string | null {
-	return CANONICAL_EVENT_PATTERN.test(value) &&
-		value.length <= MAX_CANONICAL_EVENT_LENGTH &&
-		value.split("_").every((segment) => SAFE_EVENT_SEGMENTS.has(segment))
-		? value
-		: null;
-}
-
-/**
- * Return an exact target only when every segment is static. Dynamic, encoded,
- * numeric, or otherwise noncanonical segments are omitted entirely rather
- * than exposing a raw path or a nonmatching placeholder.
- */
-function canonicalRoute(value: string): string | null {
-	let pathname = value;
-	if (ABSOLUTE_URL_PATTERN.test(value)) {
-		try {
-			pathname = new URL(value).pathname;
-		} catch {
-			return null;
-		}
-	}
-	pathname = pathname.split(QUERY_OR_FRAGMENT_PATTERN, 1)[0] ?? "";
-	pathname = pathname.replace(TRAILING_SLASH_PATTERN, "");
-	if (
-		!pathname ||
-		pathname === "/" ||
-		!pathname.startsWith("/") ||
-		pathname.length > MAX_CANONICAL_ROUTE_LENGTH
-	) {
-		return null;
-	}
-	const segments = pathname.split("/").filter(Boolean);
-	if (
-		segments.length === 0 ||
-		segments.some(
-			(segment) =>
-				!(
-					STATIC_ROUTE_SEGMENT_PATTERN.test(segment) &&
-					SAFE_ROUTE_SEGMENTS.has(segment)
-				)
-		)
-	) {
-		return null;
-	}
-	return `/${segments.join("/")}`;
-}
-
 function hasConversionTerm(target: string): boolean {
 	if (target.includes("sign_up") || target.includes("sign-up")) {
 		return true;
@@ -251,7 +105,7 @@ function eventCandidate(
 	eventNames: string[]
 ): MeasurementCandidate | undefined {
 	const target = eventNames
-		.map(canonicalEventName)
+		.map(canonicalMeasurementEventTarget)
 		.find((eventName) => eventName !== null && hasConversionTerm(eventName));
 	return target
 		? {
@@ -265,7 +119,7 @@ function eventCandidate(
 
 function routeCandidate(routes: string[]): MeasurementCandidate | undefined {
 	const target = routes
-		.map(canonicalRoute)
+		.map(canonicalMeasurementRouteTarget)
 		.find((route) => route !== null && hasConversionTerm(route));
 	return target
 		? {
@@ -405,16 +259,16 @@ export async function detectMeasurementRecommendationSignals(
 	abortSignal?: AbortSignal
 ): Promise<DetectedSignal[]> {
 	const window = wowWindow(today, params.lookbackDays);
-	const [definitions, telemetry] = await Promise.all([
-		dependencies.fetchDefinitionCounts(),
-		dependencies.fetchTelemetry(
-			{ from: window.currentFrom, to: window.currentTo },
-			abortSignal
-		),
-	]);
+	const definitions = await dependencies.fetchDefinitionCounts();
+	if (definitions.activeGoals > 0 || definitions.activeFunnels > 0) {
+		return [];
+	}
+
+	const telemetry = await dependencies.fetchTelemetry(
+		{ from: window.currentFrom, to: window.currentTo },
+		abortSignal
+	);
 	if (
-		definitions.activeGoals > 0 ||
-		definitions.activeFunnels > 0 ||
 		telemetry.sessions < MIN_ACTIVE_SESSIONS ||
 		telemetry.pageviews < MIN_ACTIVE_PAGEVIEWS
 	) {
@@ -424,7 +278,7 @@ export async function detectMeasurementRecommendationSignals(
 	const canonicalEvents = [
 		...new Set(
 			telemetry.customEventNames
-				.map(canonicalEventName)
+				.map(canonicalMeasurementEventTarget)
 				.filter((eventName): eventName is string => eventName !== null)
 		),
 	];

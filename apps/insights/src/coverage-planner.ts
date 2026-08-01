@@ -14,6 +14,8 @@ export type CoveragePortfolioReason = keyof typeof PORTFOLIO_LIMIT;
 export interface CoveragePortfolioOptions {
 	/** An exact open investigation to remeasure before newly detected work. */
 	dueSignalKey?: string | null;
+	/** Fill from these signals before using lower-priority fallback work. */
+	preferredSignalKeys?: ReadonlySet<string>;
 	reason: CoveragePortfolioReason;
 }
 
@@ -105,6 +107,9 @@ function stableIdentity(signal: DetectedSignal): string {
 		String(signal.current),
 		String(signal.baseline),
 		String(signal.deltaPercent),
+		JSON.stringify(signal.baselineDates ?? []),
+		signal.definitionEvidence ?? "",
+		JSON.stringify(signal.measurementCandidate ?? null),
 		signal.detectedAt,
 	].join("\u0000");
 }
@@ -167,13 +172,19 @@ export function planCoveragePortfolio(
 			(candidate) =>
 				!(usedKeys.has(candidate.key) || usedGroups.has(candidate.group))
 		);
-		const top = available[0];
+		const preferred = options.preferredSignalKeys
+			? available.filter((candidate) =>
+					options.preferredSignalKeys?.has(candidate.key)
+				)
+			: available;
+		const pool = preferred.length > 0 ? preferred : available;
+		const top = pool[0];
 		if (!top) {
 			break;
 		}
 		const topPriority = priority(top.signal);
 		add(
-			available.find(
+			pool.find(
 				(candidate) =>
 					priority(candidate.signal) === topPriority &&
 					!usedFamilies.has(candidate.family)

@@ -6,6 +6,7 @@ import {
 	isNotNull,
 	isNull,
 	ne,
+	or,
 	sql,
 } from "@databuddy/db";
 import {
@@ -356,7 +357,11 @@ export async function drainInsightRunEffects(
 							and(
 								eq(insightRunItems.organizationId, identity.organizationId),
 								eq(insightRunItems.websiteId, identity.websiteId),
-								eq(insightRunEffects.effectKey, effect.effectKey),
+								or(
+									eq(insightRunEffects.effectKey, effect.effectKey),
+									eq(insightRunEffects.effectKey, channelId),
+									sql`${insightRunEffects.payload}->>'channelId' = ${channelId}`
+								),
 								eq(insightRunEffects.status, "succeeded"),
 								isNotNull(insightRunEffects.externalId),
 								sql`${insightRunEffects.payload}->>'insightId' = ${payload.insightId}`

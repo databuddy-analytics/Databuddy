@@ -82,11 +82,62 @@ describe("parseFrozenInvestigationPlan", () => {
 		);
 	});
 
-	it("rejects empty snapshots because there is no agent work to retry", () => {
+	it("rejects falsy malformed snapshots", () => {
+		expect(() => parseFrozenInvestigationPlan(false)).toThrow();
+	});
+
+	it("rejects noncanonical persisted measurement candidates", () => {
+		expect(() =>
+			parseFrozenInvestigationPlan({
+				asOf: "2026-08-01T12:00:00.000Z",
+				candidates: [
+					{
+						...candidate,
+						measurementCandidate: {
+							basis: "observed_navigation_proxy",
+							kind: "page_navigation_proxy",
+							target: "//signup",
+							type: "PAGE_VIEW",
+						},
+					},
+				],
+				reason: "manual",
+			})
+		).toThrow("Measurement candidate target must be canonical");
+	});
+
+	it("accepts a typed empty snapshot so retries keep the same discovery result", () => {
+		expect(
+			parseFrozenInvestigationPlan({
+				asOf: "2026-08-01T12:00:00.000Z",
+				candidates: [],
+				emptyStatus: "no_signals",
+				reason: "scheduled",
+			})
+		).toEqual({
+			asOf: "2026-08-01T12:00:00.000Z",
+			candidates: [],
+			emptyStatus: "no_signals",
+			reason: "scheduled",
+		});
+	});
+
+	it("rejects an empty snapshot without its terminal discovery status", () => {
 		expect(() =>
 			parseFrozenInvestigationPlan({
 				asOf: "2026-08-01T12:00:00.000Z",
 				candidates: [],
+				reason: "scheduled",
+			})
+		).toThrow();
+	});
+
+	it("rejects a candidate snapshot with an empty discovery status", () => {
+		expect(() =>
+			parseFrozenInvestigationPlan({
+				asOf: "2026-08-01T12:00:00.000Z",
+				candidates: [candidate],
+				emptyStatus: "deferred",
 				reason: "scheduled",
 			})
 		).toThrow();

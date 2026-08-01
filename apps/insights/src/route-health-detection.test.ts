@@ -59,11 +59,12 @@ describe("canonicalStaticRoute", () => {
 		expect(canonicalStaticRoute("/users/ari")).toBeNull();
 		expect(canonicalStaticRoute("/creations/019fb864-acd8-7000-8186-24934df81e46")).toBeNull();
 		expect(canonicalStaticRoute("/explore/12345")).toBeNull();
-		expect(canonicalStaticRoute("/explore/ari@example.com")).toBeNull();
-		expect(canonicalStaticRoute("/explore/%61ri")).toBeNull();
-		expect(canonicalStaticRoute("explore")).toBeNull();
+			expect(canonicalStaticRoute("/explore/ari@example.com")).toBeNull();
+			expect(canonicalStaticRoute("/explore/%61ri")).toBeNull();
+			expect(canonicalStaticRoute("/Explore")).toBeNull();
+			expect(canonicalStaticRoute("explore")).toBeNull();
+		});
 	});
-});
 
 describe("detectRouteHealthSignals", () => {
 	it("finds high-reach route regressions and omits raw dynamic paths", async () => {
@@ -110,7 +111,7 @@ describe("detectRouteHealthSignals", () => {
 			"vitals_by_page",
 			"vitals_by_page",
 		]);
-		expect(requests.every((request) => request.limit === 500)).toBe(true);
+		expect(requests.every((request) => request.limit === 1000)).toBe(true);
 		expect(signals).toHaveLength(2);
 		expect(signals).toContainEqual(
 			expect.objectContaining({

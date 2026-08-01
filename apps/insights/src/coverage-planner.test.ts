@@ -197,6 +197,41 @@ describe("planCoveragePortfolio", () => {
 		).toHaveLength(3);
 	});
 
+	it("resolves duplicate same-key candidates deterministically", () => {
+		const first = signal({
+			baseline: 0,
+			baselineDates: ["2026-07-25"],
+			current: 0,
+			definitionEvidence: "Observed signup event candidate.",
+			deltaPercent: 0,
+			direction: "up",
+			measurementCandidate: {
+				basis: "observed_custom_event",
+				kind: "event_goal_candidate",
+				target: "signup_completed",
+				type: "EVENT",
+			},
+			metric: "measurement_coverage",
+			subjectKey: "measurement:conversion-coverage",
+		});
+		const second = signal({
+			...first,
+			baselineDates: ["2026-07-26"],
+			definitionEvidence: "Observed demo request candidate.",
+			measurementCandidate: {
+				basis: "observed_custom_event",
+				kind: "event_goal_candidate",
+				target: "demo_requested",
+				type: "EVENT",
+			},
+		});
+
+		const forward = planCoveragePortfolio([first, second], { reason: "manual" });
+		const reversed = planCoveragePortfolio([second, first], { reason: "manual" });
+
+		expect(forward).toEqual(reversed);
+	});
+
 	it("treats errors and slow vitals on one route as one health cluster", () => {
 		const routeError = signal({
 			baseline: 10,
@@ -320,17 +355,66 @@ describe("planCoveragePortfolio", () => {
 				] as const;
 			})
 		);
-		const second = planCoveragePortfolio(
-			eligibleSignalsForInvestigation(
-				candidates,
-				observations,
-				new Date("2026-08-01T00:00:00.000Z")
-			),
-			{ reason: "manual" }
+		const eligible = eligibleSignalsForInvestigation(
+			candidates,
+			observations,
+			new Date("2026-08-01T00:00:00.000Z")
 		);
+		const second = planCoveragePortfolio(candidates, {
+			preferredSignalKeys: new Set(keys(eligible)),
+			reason: "manual",
+		});
 
 		expect(first).toHaveLength(3);
 		expect(second).toHaveLength(3);
 		expect(keys(second).some((key) => keys(first).includes(key))).toBe(false);
+	});
+
+	it("fills a manual portfolio from cooling signals when every signal was seen", () => {
+		const candidates = [
+			signal({ metric: "error_count", subjectKey: "error:manifest" }),
+			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
+			signal({ metric: "pageviews" }),
+		];
+
+		const plan = planCoveragePortfolio(candidates, {
+			preferredSignalKeys: new Set(),
+			reason: "manual",
+		});
+
+		expect(plan).toHaveLength(3);
+		expect(new Set(keys(plan))).toEqual(new Set(keys(candidates)));
+	});
+
+	it("keeps a due recheck first while preferring fresh signals over cooling work", () => {
+		const due = signal({ metric: "visitors", subjectKey: "traffic:due" });
+		const fresh = signal({
+			metric: "goal:signup",
+			subjectKey: "goal:signup",
+		});
+		const coolingError = signal({
+			baseline: 20,
+			current: 80,
+			deltaPercent: 300,
+			direction: "up",
+			metric: "error_count",
+			severity: "critical",
+			subjectKey: "error:checkout",
+		});
+
+		const plan = planCoveragePortfolio([coolingError, fresh, due], {
+			dueSignalKey: signalKeyForDetectedSignal(due),
+			preferredSignalKeys: new Set([
+				signalKeyForDetectedSignal(due),
+				signalKeyForDetectedSignal(fresh),
+			]),
+			reason: "manual",
+		});
+
+		expect(keys(plan)).toEqual([
+			signalKeyForDetectedSignal(due),
+			signalKeyForDetectedSignal(fresh),
+			signalKeyForDetectedSignal(coolingError),
+		]);
 	});
 });

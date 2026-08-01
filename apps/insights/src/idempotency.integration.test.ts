@@ -45,6 +45,10 @@ import {
 	loadOtherOpenWork,
 } from "./observations";
 import {
+	freezeInsightRunCandidatePlan,
+	loadInsightRunCandidatePlan,
+} from "./run-candidate-plan";
+import {
 	drainInsightRunEffects,
 	enqueueInsightRunEffects,
 	loadPreparedInsightRun,
@@ -110,6 +114,23 @@ describeIntegration("insights idempotency integration", () => {
 		await truncatePostgres();
 		await shutdownPostgres();
 		await closePostgres();
+	});
+
+	it("freezes an empty discovery snapshot for deterministic retries", async () => {
+		const { identity } = await runItemFixture();
+		const proposed = {
+			asOf: "2026-08-01T12:00:00.000Z",
+			candidates: [],
+			emptyStatus: "no_signals" as const,
+		};
+		const snapshot = { ...proposed, reason: "manual" as const };
+
+		expect(
+			await freezeInsightRunCandidatePlan(identity, "manual", proposed)
+		).toEqual(snapshot);
+		expect(await loadInsightRunCandidatePlan(identity, "manual")).toEqual(
+			snapshot
+		);
 	});
 
 	it("does not overwrite a reply committed after scheduled analysis began", async () => {
@@ -1855,18 +1876,26 @@ describeIntegration("insights idempotency integration", () => {
 				}))
 			);
 
-		const payload = {
-			blocks: [],
-			insightId,
-			text: "Checkout conversion fell",
-		};
-		for (const run of [first, second]) {
+			const legacyPayload = {
+				blocks: [],
+				insightId,
+				text: "Checkout conversion fell",
+			};
 			await prepareInsightRun({
-				...run,
-				effects: [{ effectKey: "C_TEST", payload }],
+				...first,
+				effects: [{ effectKey: "C_TEST", payload: legacyPayload }],
 				result: { resultCount: 1, status: "succeeded" },
 			});
-		}
+			await prepareInsightRun({
+				...second,
+				effects: [
+					{
+						effectKey: `C_TEST:${insightId}`,
+						payload: { ...legacyPayload, channelId: "C_TEST" },
+					},
+				],
+				result: { resultCount: 1, status: "succeeded" },
+			});
 
 		const threadTimestamps: Array<string | undefined> = [];
 		const deliver = async (

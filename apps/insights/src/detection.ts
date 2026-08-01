@@ -145,7 +145,7 @@ const MATERIAL_VOLUME_DROP_PERCENT = 60;
 const ADAPTIVE_CV_SCALE = 200;
 const DETECTOR_RETRY_DELAY_MS = 100;
 
-const VITALS = {
+export const INSIGHT_VITALS = {
 	LCP: {
 		badThreshold: 2500,
 		label: "Page load time (LCP)",
@@ -157,6 +157,7 @@ const VITALS = {
 		maxPlausible: 10_000,
 	},
 } as const;
+const VITALS = INSIGHT_VITALS;
 const VITALS_MIN_SAMPLES = 10;
 
 export function wowWindow(today: dayjs.Dayjs, lookbackDays: number) {
