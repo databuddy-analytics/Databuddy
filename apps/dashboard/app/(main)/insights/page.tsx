@@ -397,7 +397,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					!(positive || negative) && "bg-primary/10 text-primary"
 				)}
 			>
-				<Icon className="size-4" weight="duotone" />
+				<Icon aria-hidden className="size-4" weight="duotone" />
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -426,7 +426,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
 					<div className="sm:col-span-2">
 						<dt className="font-semibold text-foreground/75">What happened</dt>
-						<dd className="mt-0.5 max-w-3xl text-muted-foreground">
+						<dd className="mt-0.5 max-w-3xl text-muted-foreground text-sm leading-relaxed">
 							{insight.summary}
 						</dd>
 					</div>
