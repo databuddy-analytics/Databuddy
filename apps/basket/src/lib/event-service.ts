@@ -13,6 +13,7 @@ import {
 	markDuplicateReservationDelivered,
 	releaseDuplicateReservation,
 	reserveDuplicate,
+	reserveDuplicateBatch,
 	shouldAnonymizeVisitorIds,
 } from "@lib/security";
 import { record } from "@lib/tracing";
@@ -57,8 +58,6 @@ export interface BatchEvent<T extends { id: string }> {
 	sourceEventId: string;
 }
 
-const BATCH_RESERVATION_DEADLINE_MS = 2000;
-
 function isAmbiguousKafkaSend(error: unknown): boolean {
 	return (
 		typeof error === "object" &&
@@ -72,11 +71,12 @@ async function settleFailedReservations(
 	error: unknown,
 	reservations: Awaited<ReturnType<typeof reserveDuplicate>>[]
 ): Promise<void> {
-	const settle = isAmbiguousKafkaSend(error)
-		? markDuplicateReservationAmbiguous
-		: releaseDuplicateReservation;
 	await Promise.allSettled(
-		reservations.map((reservation) => settle(reservation))
+		reservations.map((reservation) =>
+			reservation.ambiguous || isAmbiguousKafkaSend(error)
+				? markDuplicateReservationAmbiguous(reservation)
+				: releaseDuplicateReservation(reservation)
+		)
 	);
 }
 
@@ -124,12 +124,6 @@ export function stableBatchDeliveryId(
 			: ["payload", index, canonicalizeDeliverySource(source)];
 	return createHash("sha256")
 		.update(JSON.stringify([scope, eventType, sourceIdentity]))
-		.digest("hex");
-}
-
-function batchDeliveryId(eventType: string, deliveryIds: string[]): string {
-	return createHash("sha256")
-		.update(JSON.stringify([eventType, deliveryIds]))
 		.digest("hex");
 }
 
@@ -297,7 +291,11 @@ export function insertTrackEvent(
 				now,
 			});
 
-			await runPromise(send("analytics-events", trackEvent));
+			await runPromise(
+				send("analytics-events", trackEvent, undefined, {
+					allowDirectFallback: reservation.ambiguous !== true,
+				})
+			);
 		} catch (error) {
 			await settleFailedReservations(error, [reservation]);
 			throw deliveryUnavailable(error);
@@ -378,7 +376,11 @@ export function insertOutgoingLink(
 					typeof linkData.timestamp === "number" ? linkData.timestamp : now,
 			};
 
-			await runPromise(send("analytics-outgoing-links", outgoingLinkEvent));
+			await runPromise(
+				send("analytics-outgoing-links", outgoingLinkEvent, undefined, {
+					allowDirectFallback: reservation.ambiguous !== true,
+				})
+			);
 		} catch (error) {
 			await settleFailedReservations(error, [reservation]);
 			throw deliveryUnavailable(error);
@@ -388,91 +390,91 @@ export function insertOutgoingLink(
 	});
 }
 
-async function deliverBatch<T extends { id: string }>(
-	eventType: "outgoing_link" | "track",
+interface DeliveryItem<T> {
+	readonly deliveryId: string;
+	readonly event: T;
+	readonly sourceEventId: string;
+}
+
+async function deliverItems<T>(
+	eventType: string,
 	topic: string,
-	items: BatchEvent<T>[]
+	items: DeliveryItem<T>[]
 ): Promise<void> {
 	const uniqueItems = Array.from(
-		new Map(items.map((item) => [item.event.id, item])).values()
+		new Map(items.map((item) => [item.deliveryId, item])).values()
 	);
 	if (uniqueItems.length === 0) {
 		return;
 	}
 
-	// Acquire in a deterministic order. Parallel acquisition lets two retries
-	// split ownership of the same batch, after which both release and retry
-	// forever. Sorted sequential acquisition gives one request a consistent
-	// winner and stops at the first conflict.
 	const acquisitionItems = [...uniqueItems].sort((left, right) =>
-		left.event.id.localeCompare(right.event.id)
+		left.deliveryId.localeCompare(right.deliveryId)
 	);
-	const reservations: Array<{
-		item: BatchEvent<T>;
-		reservation: Awaited<ReturnType<typeof reserveDuplicate>>;
-	}> = [];
-	const reservationDeadline = Date.now() + BATCH_RESERVATION_DEADLINE_MS;
-	try {
-		for (const item of acquisitionItems) {
-			if (Date.now() >= reservationDeadline) {
-				throw new Error("Batch duplicate reservation deadline exceeded");
-			}
-			const reservation = await reserveDuplicate(
-				item.event.id,
-				eventType,
-				item.sourceEventId
-			);
-			if (reservation.retryable) {
-				throw new Error("A concurrent attempt owns this analytics event");
-			}
-			reservations.push({ item, reservation });
-			if (
-				reservations.length < acquisitionItems.length &&
-				Date.now() >= reservationDeadline
-			) {
-				throw new Error("Batch duplicate reservation deadline exceeded");
-			}
-		}
-	} catch (error) {
-		await Promise.allSettled(
-			reservations.map(({ reservation }) =>
-				releaseDuplicateReservation(reservation)
-			)
+	const reservations = await reserveDuplicateBatch(
+		acquisitionItems.map((item) => ({
+			eventId: item.deliveryId,
+			eventType,
+			sourceEventId: item.sourceEventId,
+		}))
+	);
+	if (reservations.some((reservation) => reservation.retryable)) {
+		throw deliveryUnavailable(
+			new Error("A concurrent attempt owns this analytics batch")
 		);
-		throw deliveryUnavailable(error);
 	}
 
 	const reservationById = new Map(
-		reservations.map(({ item, reservation }) => [item.event.id, reservation])
+		acquisitionItems.map((item, index) => [
+			item.deliveryId,
+			reservations[index],
+		])
 	);
 	const accepted = uniqueItems.flatMap((item) => {
-		const reservation = reservationById.get(item.event.id);
+		const reservation = reservationById.get(item.deliveryId);
 		return reservation && !reservation.duplicate ? [{ item, reservation }] : [];
 	});
 	if (accepted.length === 0) {
 		return;
 	}
 
-	try {
-		await runPromise(
-			sendBatch(
-				topic,
-				accepted.map(({ item }) => item.event)
-			)
-		);
-	} catch (error) {
-		await settleFailedReservations(
-			error,
-			accepted.map(({ reservation }) => reservation)
-		);
-		throw deliveryUnavailable(error);
-	}
-
-	await Promise.allSettled(
-		accepted.map(({ reservation }) =>
-			markDuplicateReservationDelivered(reservation)
-		)
+	const groups = [
+		accepted.filter(({ reservation }) => !reservation.ambiguous),
+		accepted.filter(({ reservation }) => reservation.ambiguous),
+	].filter((group) => group.length > 0);
+	const deliveryResults = await Promise.allSettled(
+		groups.map(async (group) => {
+			try {
+				await runPromise(
+					sendBatch(
+						topic,
+						group.map(({ item }) => item.event),
+						group.map(({ item }) => item.deliveryId),
+						{
+							allowDirectFallback: group[0]?.reservation.ambiguous !== true,
+						}
+					)
+				);
+			} catch (error) {
+				await settleFailedReservations(
+					error,
+					group.map(({ reservation }) => reservation)
+				);
+				throw error;
+			}
+			await Promise.allSettled(
+				group.map(({ reservation }) =>
+					markDuplicateReservationDelivered(reservation)
+				)
+			);
+		})
 	);
+	const failure = deliveryResults.find(
+		(result): result is PromiseRejectedResult => result.status === "rejected"
+	);
+	if (failure) {
+		throw deliveryUnavailable(failure.reason);
+	}
 }
 
 async function deliverSpanBatch<TSource, TEvent>(
@@ -492,36 +494,30 @@ async function deliverSpanBatch<TSource, TEvent>(
 	const deliveryIds = sources.map((source, index) =>
 		stableBatchDeliveryId(scope, eventType, source, index)
 	);
-	const deliveryId = batchDeliveryId(eventType, deliveryIds);
-	const reservation = await reserveDuplicate(
-		deliveryId,
-		`${eventType}_batch`,
-		deliveryId
+	await deliverItems(
+		eventType,
+		topic,
+		events.map((event, index) => ({
+			deliveryId: deliveryIds[index] as string,
+			event,
+			sourceEventId: deliveryIds[index] as string,
+		}))
 	);
-	if (reservation.duplicate) {
-		return;
-	}
-	if (reservation.retryable) {
-		throw deliveryUnavailable(
-			new Error("A concurrent attempt owns this analytics batch")
-		);
-	}
-
-	try {
-		await runPromise(sendBatch(topic, events, deliveryIds));
-	} catch (error) {
-		await settleFailedReservations(error, [reservation]);
-		throw deliveryUnavailable(error);
-	}
-
-	await markDuplicateReservationDelivered(reservation);
 }
 
 export function insertTrackEventsBatch(
 	events: BatchEvent<EventsInsert>[]
 ): Promise<void> {
 	return record("insertTrackEventsBatch", () =>
-		deliverBatch("track", "analytics-events", events)
+		deliverItems(
+			"track",
+			"analytics-events",
+			events.map((item) => ({
+				deliveryId: item.event.id,
+				event: item.event,
+				sourceEventId: item.sourceEventId,
+			}))
+		)
 	);
 }
 
@@ -625,7 +621,15 @@ export function insertOutgoingLinksBatch(
 	events: BatchEvent<OutgoingLinksInsert>[]
 ): Promise<void> {
 	return record("insertOutgoingLinksBatch", () =>
-		deliverBatch("outgoing_link", "analytics-outgoing-links", events)
+		deliverItems(
+			"outgoing_link",
+			"analytics-outgoing-links",
+			events.map((item) => ({
+				deliveryId: item.event.id,
+				event: item.event,
+				sourceEventId: item.sourceEventId,
+			}))
+		)
 	);
 }
 

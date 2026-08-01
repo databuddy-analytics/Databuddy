@@ -278,6 +278,51 @@ describe("producer delivery guarantees", () => {
 		});
 	});
 
+	test("checks the same shared producer connection used for delivery", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const kafka = {
+			connect: vi.fn(() => Promise.resolve()),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.resolve([])),
+		} as unknown as Producer;
+		const effects = await makeEffects(
+			insert,
+			{
+				broker: "redpanda.test:9092",
+				selfHost: false,
+			},
+			kafka
+		);
+
+		await Effect.runPromise(effects.checkConnection);
+		await Effect.runPromise(effects.sendOne("analytics-events", event("event_1")));
+
+		expect(kafka.connect).toHaveBeenCalledTimes(1);
+		expect(kafka.send).toHaveBeenCalledOnce();
+		expect(insert).not.toHaveBeenCalled();
+	});
+
+	test("fails the producer health check when its connection cannot be established", async () => {
+		const kafka = {
+			connect: vi.fn(() => Promise.reject(new Error("broker unavailable"))),
+			disconnect: vi.fn(() => Promise.resolve()),
+			send: vi.fn(() => Promise.resolve([])),
+		} as unknown as Producer;
+		const effects = await makeEffects(
+			vi.fn(() => Promise.resolve()),
+			{
+				broker: "redpanda.test:9092",
+				selfHost: false,
+			},
+			kafka
+		);
+
+		await expect(Effect.runPromise(effects.checkConnection)).rejects.toMatchObject({
+			_tag: "ProducerUnavailableError",
+			retryable: true,
+		});
+	});
+
 	test("logs one failed connection and uses direct persistence during cooldown", async () => {
 		let rejectConnect: ((error: Error) => void) | undefined;
 		const insert = vi.fn(() => Promise.resolve());
@@ -328,7 +373,7 @@ describe("producer delivery guarantees", () => {
 		expect(insert).toHaveBeenCalledTimes(51);
 	});
 
-	test("uses direct fallback during reconnect cooldown after an ambiguous Kafka send", async () => {
+	test("keeps an ambiguous retry on Kafka while unrelated events may fall back", async () => {
 		const insert = vi.fn(() => Promise.resolve());
 		const kafka = {
 			connect: vi.fn(() => Promise.resolve()),
@@ -351,6 +396,18 @@ describe("producer delivery guarantees", () => {
 			_tag: "KafkaSendError",
 			topic: "analytics-events",
 		});
+
+		await expect(
+			Effect.runPromise(
+				effects.sendOne("analytics-events", event("event_1"), undefined, {
+					allowDirectFallback: false,
+				})
+			)
+		).rejects.toMatchObject({
+			_tag: "ProducerUnavailableError",
+			retryable: true,
+		});
+		expect(insert).not.toHaveBeenCalled();
 
 		await Effect.runPromise(
 			effects.sendOne("analytics-events", event("unrelated_event"))

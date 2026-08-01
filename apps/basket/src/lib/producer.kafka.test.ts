@@ -9,8 +9,8 @@ const originalEnv = {
 
 process.env.SELFHOST = "false";
 process.env.REDPANDA_BROKER = "localhost:9092";
-process.env.REDPANDA_USER = "user";
-process.env.REDPANDA_PASSWORD = "password";
+delete process.env.REDPANDA_USER;
+delete process.env.REDPANDA_PASSWORD;
 
 const {
 	mockCaptureError,
@@ -117,6 +117,13 @@ describe("producer Kafka send failure handling", () => {
 		const stats = await runPromise(getStats);
 
 		expect(mockKafka).toHaveBeenCalledTimes(1);
+		expect(mockKafka).toHaveBeenCalledWith(
+			expect.objectContaining({
+				brokers: ["localhost:9092"],
+				clientId: "basket",
+			})
+		);
+		expect(mockKafka.mock.calls[0]?.[0]).not.toHaveProperty("sasl");
 		expect(mockProducer).toHaveBeenCalledTimes(1);
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);

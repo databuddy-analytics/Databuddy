@@ -9,12 +9,12 @@ import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { getRedisCache } from "@databuddy/redis/redis";
 import {
+	checkProducerConnection,
 	disconnect,
 	disposeRuntime,
 	runPromise,
 	ShutdownDrainError,
 } from "@lib/producer";
-import { Kafka } from "kafkajs";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import {
 	handleUncaughtException,
@@ -221,30 +221,7 @@ const app = new Elysia()
 				}
 			}),
 			ping("redpanda", async () => {
-				const broker = process.env.REDPANDA_BROKER;
-				if (!broker) {
-					throw new Error("not configured");
-				}
-				const kafka = new Kafka({
-					clientId: "health",
-					brokers: [broker],
-					connectionTimeout: 5000,
-					...(process.env.REDPANDA_USER &&
-						process.env.REDPANDA_PASSWORD && {
-							sasl: {
-								mechanism: "scram-sha-256",
-								username: process.env.REDPANDA_USER,
-								password: process.env.REDPANDA_PASSWORD,
-							},
-						}),
-					...(process.env.REDPANDA_SSL === "true" ? { ssl: true } : {}),
-				});
-				const admin = kafka.admin();
-				try {
-					await admin.connect();
-				} finally {
-					await admin.disconnect().catch(() => {});
-				}
+				await runPromise(checkProducerConnection);
 			}),
 		]);
 

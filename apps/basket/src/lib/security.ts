@@ -27,6 +27,37 @@ const MARK_PENDING_DEDUP_RESERVATION_AMBIGUOUS = `if redis.call("GET", KEYS[1]) 
 	return redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
 end
 return 0`;
+const CLAIM_AMBIGUOUS_DEDUP_RESERVATION = `if redis.call("GET", KEYS[1]) == ARGV[1] then
+	redis.call("SET", KEYS[1], ARGV[2], "EX", ARGV[3])
+	return 1
+end
+return 0`;
+const RESERVE_DEDUP_BATCH = `local states = {}
+for i, key in ipairs(KEYS) do
+	local value = redis.call("GET", key)
+	if value == ARGV[2] then
+		states[i] = "delivered"
+	elseif value == ARGV[3] then
+		states[i] = "ambiguous-acquired"
+	elseif value == ARGV[1] or not value then
+		states[i] = "acquired"
+	else
+		return { "retryable" }
+	end
+end
+for i, key in ipairs(KEYS) do
+	if states[i] == "acquired" or states[i] == "ambiguous-acquired" then
+		redis.call("SET", key, ARGV[1], "EX", ARGV[4])
+	end
+end
+return states`;
+const RELEASE_DEDUP_BATCH = `local released = 0
+for _, key in ipairs(KEYS) do
+	if redis.call("GET", key) == ARGV[1] then
+		released = released + redis.call("DEL", key)
+	end
+end
+return released`;
 
 const RAW_VISITOR_ID_COUNTRIES = ["US"];
 const COUNTRY_CODES: Record<string, string> = {
@@ -207,6 +238,8 @@ function wait(ms: number): Promise<void> {
 }
 
 export interface DuplicateReservation {
+	/** This retry owns a payload whose earlier Kafka acknowledgement was unknown. */
+	readonly ambiguous?: true;
 	readonly deliveredTtl?: number;
 	readonly duplicate: boolean;
 	readonly key?: string;
@@ -227,6 +260,7 @@ export interface DuplicateReservation {
 type DedupReservationState =
 	| "acquired"
 	| "ambiguous"
+	| "ambiguous-acquired"
 	| "delivered"
 	| "pending"
 	| "unreserved";
@@ -253,9 +287,29 @@ async function setDedupKey(
 	ttl: number,
 	token: string
 ): Promise<DedupReservationState> {
+	const resolveExistingState = async (): Promise<DedupReservationState> => {
+		const state = await readDedupReservationState(key, token);
+		if (state !== "ambiguous") {
+			return state;
+		}
+		const claimed = await redis.eval(
+			CLAIM_AMBIGUOUS_DEDUP_RESERVATION,
+			1,
+			key,
+			AMBIGUOUS_DEDUP_VALUE,
+			token,
+			PENDING_DEDUP_TTL
+		);
+		if (claimed === 1) {
+			return "ambiguous-acquired";
+		}
+		const current = await readDedupReservationState(key, token);
+		return current === "ambiguous" ? "pending" : current;
+	};
+
 	try {
 		const result = await redis.set(key, token, "EX", ttl, "NX");
-		return result === null ? readDedupReservationState(key, token) : "acquired";
+		return result === null ? resolveExistingState() : "acquired";
 	} catch (firstError) {
 		await wait(DEDUP_RETRY_DELAY_MS);
 		try {
@@ -268,10 +322,10 @@ async function setDedupKey(
 			// Seeing our token again proves that this request owns the reservation.
 			// Any other pending token is retryable: only a confirmed delivery may
 			// suppress the event.
-			return await readDedupReservationState(key, token);
+			return await resolveExistingState();
 		} catch {
 			try {
-				const state = await readDedupReservationState(key, token);
+				const state = await resolveExistingState();
 				// Both writes failed and Redis confirms there is no reservation.
 				// Preserve fail-open ingestion instead of converting a write-only
 				// Redis degradation into a service-wide 503.
@@ -313,13 +367,9 @@ export function reserveDuplicate(
 		const reservationOperation = setDedupKey(key, PENDING_DEDUP_TTL, token);
 		try {
 			const result = await withDedupDeadline(reservationOperation);
-			if (result === "delivered" || result === "ambiguous") {
+			if (result === "delivered") {
 				useLogger().set({
-					dedup: {
-						ambiguous: result === "ambiguous",
-						duplicate: true,
-						eventType,
-					},
+					dedup: { duplicate: true, eventType },
 				});
 				return { duplicate: true };
 			}
@@ -331,6 +381,9 @@ export function reserveDuplicate(
 			}
 
 			return {
+				...(result === "ambiguous-acquired"
+					? { ambiguous: true as const }
+					: {}),
 				duplicate: false,
 				deliveredTtl,
 				key,
@@ -343,7 +396,7 @@ export function reserveDuplicate(
 				// token so it cannot strand an ownerless 120-second reservation.
 				reservationOperation
 					.then(async (state) => {
-						if (state !== "acquired") {
+						if (!(state === "acquired" || state === "ambiguous-acquired")) {
 							return;
 						}
 						await withDedupDeadline(
@@ -373,6 +426,136 @@ export function reserveDuplicate(
 				return { duplicate: false, retryable: true };
 			}
 			return { duplicate: false };
+		}
+	});
+}
+
+export interface DuplicateReservationInput {
+	readonly eventId: string;
+	readonly eventType: string;
+	readonly sourceEventId?: string;
+}
+
+function deliveredTtlFor(sourceEventId: string): number {
+	return sourceEventId.startsWith("exit_")
+		? EXIT_EVENT_TTL
+		: STANDARD_EVENT_TTL;
+}
+
+type BatchDedupReservationState = DedupReservationState | "retryable";
+
+function parseBatchReservationStates(
+	value: unknown
+): BatchDedupReservationState[] {
+	if (
+		!Array.isArray(value) ||
+		value.some((state) => typeof state !== "string")
+	) {
+		throw new Error("Redis returned an invalid batch reservation result");
+	}
+	return value as BatchDedupReservationState[];
+}
+
+/**
+ * Atomically reserves a set of stable delivery IDs in one Redis round trip.
+ * A pending owner blocks the whole attempt, while delivered items are skipped
+ * and ambiguous items are claimed for a Kafka-only retry.
+ */
+export function reserveDuplicateBatch(
+	inputs: DuplicateReservationInput[]
+): Promise<DuplicateReservation[]> {
+	return record("reserveDuplicateBatch", async () => {
+		if (inputs.length === 0) {
+			return [];
+		}
+		const keys = inputs.map(
+			({ eventId, eventType }) => `dedup:${eventType}:${eventId}`
+		);
+		const now = Date.now();
+		for (const key of keys) {
+			const timedOutUntil = timedOutReservationKeys.get(key);
+			if (timedOutUntil && now < timedOutUntil) {
+				return inputs.map(() => ({ duplicate: false, retryable: true }));
+			}
+			if (timedOutUntil) {
+				timedOutReservationKeys.delete(key);
+			}
+		}
+		if (now < dedupBypassUntil) {
+			return inputs.map(() => ({ duplicate: false }));
+		}
+
+		const token = `${PENDING_DEDUP_PREFIX}${crypto.randomUUID()}`;
+		const reservationOperation = redis
+			.eval(
+				RESERVE_DEDUP_BATCH,
+				keys.length,
+				...keys,
+				token,
+				DELIVERED_DEDUP_VALUE,
+				AMBIGUOUS_DEDUP_VALUE,
+				PENDING_DEDUP_TTL
+			)
+			.then(parseBatchReservationStates);
+
+		try {
+			const states = await withDedupDeadline(reservationOperation);
+			if (states[0] === "retryable") {
+				return inputs.map(() => ({ duplicate: false, retryable: true }));
+			}
+			return inputs.map((input, index) => {
+				const state = states[index];
+				if (state === "delivered") {
+					return { duplicate: true };
+				}
+				return {
+					...(state === "ambiguous-acquired"
+						? { ambiguous: true as const }
+						: {}),
+					deliveredTtl: deliveredTtlFor(input.sourceEventId ?? input.eventId),
+					duplicate: false,
+					key: keys[index],
+					token,
+				};
+			});
+		} catch (error) {
+			if (error instanceof DeduplicationDeadlineError) {
+				reservationOperation
+					.then(async (states) => {
+						if (
+							!states.some(
+								(state) =>
+									state === "acquired" || state === "ambiguous-acquired"
+							)
+						) {
+							return;
+						}
+						await withDedupDeadline(
+							redis.eval(RELEASE_DEDUP_BATCH, keys.length, ...keys, token)
+						);
+					})
+					.catch((cleanupError) => {
+						captureError(cleanupError, {
+							message: "Failed to clean up late Redis batch reservations",
+						});
+					});
+			}
+			dedupBypassUntil = Date.now() + DEDUP_BYPASS_COOLDOWN_MS;
+			if (error instanceof DeduplicationDeadlineError) {
+				for (const key of keys) {
+					timedOutReservationKeys.set(key, dedupBypassUntil);
+				}
+				scheduleTimedOutReservationCleanup();
+			}
+			captureError(error, {
+				message: "Failed to reserve analytics batch in Redis",
+				eventCount: inputs.length,
+			});
+			return inputs.map(() =>
+				error instanceof DeduplicationDeadlineError
+					? { duplicate: false, retryable: true as const }
+					: { duplicate: false }
+			);
 		}
 	});
 }
