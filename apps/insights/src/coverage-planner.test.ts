@@ -4,7 +4,11 @@ import {
 	coveragePortfolioLimit,
 	planCoveragePortfolio,
 } from "./coverage-planner";
-import { signalKeyForDetectedSignal } from "./investigation";
+import {
+	prepareInvestigation,
+	signalKeyForDetectedSignal,
+} from "./investigation";
+import { eligibleSignalsForInvestigation } from "./observations";
 
 function signal(
 	overrides: Partial<DetectedSignal> & Pick<DetectedSignal, "metric">
@@ -270,5 +274,63 @@ describe("planCoveragePortfolio", () => {
 		).toEqual(
 			keys(planCoveragePortfolio([...candidates].reverse(), { reason: "manual" }))
 		);
+	});
+
+	it("rotates a repeated scan to unseen signals instead of repeating the first portfolio", () => {
+		const candidates = [
+			signal({ metric: "error_count", subjectKey: "error:manifest" }),
+			signal({
+				baseline: 2000,
+				current: 4000,
+				direction: "up",
+				entityId: "/billing",
+				metric: "lcp",
+				subjectKey: "route:lcp:/billing",
+			}),
+			signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
+			signal({ metric: "custom_event_count", subjectKey: "custom_event:share" }),
+			signal({ metric: "pageviews" }),
+			signal({
+				baseline: 0,
+				current: 0,
+				deltaPercent: 0,
+				direction: "up",
+				metric: "measurement_coverage",
+				subjectKey: "measurement:conversion-coverage",
+			}),
+		];
+		const first = planCoveragePortfolio(candidates, { reason: "manual" });
+		const observations = new Map(
+			first.map((candidate) => {
+				const prepared = prepareInvestigation(candidate, 7).signal;
+				return [
+					prepared.signalKey,
+					{
+						outcome: {
+							evidence: ["The signal was investigated."],
+							impact: null,
+							next: { reason: "No immediate action.", type: "resolve" as const },
+							rootCause: null,
+							summary: "The signal was investigated.",
+							title: "Investigated signal",
+						},
+						recheckAt: new Date("2026-08-08T00:00:00.000Z"),
+						signal: prepared,
+					},
+				] as const;
+			})
+		);
+		const second = planCoveragePortfolio(
+			eligibleSignalsForInvestigation(
+				candidates,
+				observations,
+				new Date("2026-08-01T00:00:00.000Z")
+			),
+			{ reason: "manual" }
+		);
+
+		expect(first).toHaveLength(3);
+		expect(second).toHaveLength(3);
+		expect(keys(second).some((key) => keys(first).includes(key))).toBe(false);
 	});
 });

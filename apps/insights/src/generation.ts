@@ -98,8 +98,6 @@ export interface GenerateWebsiteInsightsResult {
 interface InvestigateWebsiteInput {
 	asOf: Date | string;
 	domain: string;
-	/** A deliberate user request may revisit a detected signal before its scheduled recheck. */
-	forceRecheck?: boolean;
 	githubRepository?: { owner: string; repo: string } | null;
 	name?: string | null;
 	organizationId: string;
@@ -513,13 +511,11 @@ async function discoverWebsiteSignals(
 		signalKeys: detectedSignals.map(signalKeyForDetectedSignal),
 		websiteId: input.websiteId,
 	});
-	const eligibleSignals = input.forceRecheck
-		? detectedSignals
-		: eligibleSignalsForInvestigation(
-				detectedSignals,
-				observations,
-				asOf.toDate()
-			);
+	const eligibleSignals = eligibleSignalsForInvestigation(
+		detectedSignals,
+		observations,
+		asOf.toDate()
+	);
 	const dueSignalKey = remeasuredDue
 		? signalKeyForDetectedSignal(remeasuredDue)
 		: null;
@@ -879,7 +875,6 @@ export async function generateWebsiteInsights(
 	const investigationInput: InvestigateWebsiteInput = {
 		asOf: new Date(),
 		domain: site.domain,
-		forceRecheck: input.reason === "manual",
 		githubRepository: site.integrations?.github ?? null,
 		name: site.name,
 		organizationId: input.organizationId,
