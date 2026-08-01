@@ -1,5 +1,7 @@
 import { afterAll, describe, expect, it } from "bun:test";
 import {
+	createLinkCacheRedisConnectionOptions,
+	createRateLimitRedisConnectionOptions,
 	createRedisConnectionOptions,
 	getRedisUrl,
 } from "./redis-options";
@@ -26,6 +28,42 @@ describe("redis", () => {
 
 		it("sets maxRetriesPerRequest to 3", () => {
 			expect(options.maxRetriesPerRequest).toBe(3);
+		});
+	});
+
+	describe("latency-sensitive link cache options", () => {
+		const options = createLinkCacheRedisConnectionOptions();
+
+		it("bounds connection and command admission", () => {
+			expect(options.connectTimeout).toBe(1000);
+			expect(options.commandTimeout).toBe(1000);
+			expect(options.maxRetriesPerRequest).toBe(1);
+		});
+
+		it("does not queue commands or reconnect after failure", () => {
+			expect(options.enableOfflineQueue).toBe(false);
+			expect(options.lazyConnect).toBe(true);
+			expect(options.retryStrategy(1)).toBeNull();
+		});
+	});
+
+	describe("latency-sensitive rate limit options", () => {
+		const options = createRateLimitRedisConnectionOptions();
+
+		it("uses a distinct bounded connection identity", () => {
+			expect(options.connectionName).toBe("databuddy-rate-limit");
+			expect(options.connectionName).not.toBe(
+				createLinkCacheRedisConnectionOptions().connectionName
+			);
+			expect(options.connectTimeout).toBe(1000);
+			expect(options.commandTimeout).toBe(1000);
+		});
+
+		it("does not queue commands or reconnect after failure", () => {
+			expect(options.enableOfflineQueue).toBe(false);
+			expect(options.lazyConnect).toBe(true);
+			expect(options.maxRetriesPerRequest).toBe(1);
+			expect(options.retryStrategy(1)).toBeNull();
 		});
 	});
 

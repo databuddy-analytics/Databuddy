@@ -1,29 +1,20 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { type ReactNode, useCallback } from "react";
-import { TopBar } from "@/components/layout/top-bar";
+import type { ReactNode } from "react";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
-import { useWebsitesLight } from "@/hooks/use-websites";
 import { type BriefInsight, insightQueries } from "@/lib/insight-api";
+import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 import { Badge, Button, Card, EmptyState, fromNow } from "@databuddy/ui";
 import {
-	ArrowClockwiseIcon,
 	ArrowRightIcon,
-	GlobeIcon,
 	LightbulbIcon,
 	TrendDownIcon,
 	TrendUpIcon,
 } from "@databuddy/ui/icons";
-import { InvestigationSettings } from "./_components/investigation-settings";
-import {
-	GoalRecommendationAction,
-	InvestigationRow,
-	InvestigationRowSkeleton,
-} from "./_components/investigation-row";
-import { useInsightsFeed } from "./hooks/use-insights-feed";
+import { latestRunDescription } from "./_lib/insight-run";
 
 const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 	day: "numeric",
@@ -35,110 +26,45 @@ const PERIOD_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
 export default function InsightsPage() {
 	const { activeOrganization, activeOrganizationId } =
 		useOrganizationsContext();
-	const orgId = activeOrganization?.id ?? activeOrganizationId ?? undefined;
-	const feed = useInsightsFeed();
-	const { isLoading, isRefreshing, refetch } = feed;
-	const brief = useInfiniteQuery(insightQueries.briefInfinite(orgId));
-	const briefInsights =
-		brief.data?.pages.flatMap((page) => page.insights) ?? [];
-	const refetchBrief = brief.refetch;
-	const { websites, isLoading: websitesLoading } = useWebsitesLight();
-	const hasNoWebsites =
-		!websitesLoading && websites !== undefined && websites.length === 0;
-	const showInvestigationsFirst =
-		isLoading ||
-		feed.isError ||
-		feed.insights.some((insight) => insight.status === "open");
-	const refresh = useCallback(() => {
-		Promise.all([refetch(), refetchBrief()]).catch(() => undefined);
-	}, [refetch, refetchBrief]);
+	const organizationId =
+		activeOrganization?.id ?? activeOrganizationId ?? undefined;
+	const brief = useInfiniteQuery(insightQueries.briefInfinite(organizationId));
+	const latestRun = useQuery({
+		...orpc.insightGeneration.getLatestRun.queryOptions({
+			input: { organizationId },
+		}),
+		enabled: Boolean(organizationId),
+		meta: { suppressGlobalErrorToast: true },
+	});
+	const insights = brief.data?.pages.flatMap((page) => page.insights) ?? [];
 
 	return (
-		<div
-			aria-busy={isLoading || brief.isLoading || websitesLoading}
-			className="flex h-full flex-col"
-		>
-			<TopBar.Title>
-				<h1 className="font-semibold text-sm">Insights</h1>
-			</TopBar.Title>
-			<TopBar.Actions>
-				<Button
-					aria-label="Refresh insights"
-					disabled={isLoading || brief.isLoading || websitesLoading}
-					onClick={refresh}
-					size="sm"
-					type="button"
-					variant="ghost"
-				>
-					<ArrowClockwiseIcon
-						aria-hidden
-						className={cn(
-							"size-3.5 shrink-0",
-							(isRefreshing || brief.isFetching) && "animate-spin"
-						)}
-					/>
-				</Button>
-				<InvestigationSettings organizationId={orgId} />
-			</TopBar.Actions>
-
-			{hasNoWebsites ? (
-				<EmptyOrg />
-			) : (
-				<div className="min-h-0 flex-1 overflow-y-auto overscroll-none">
-					<div className="mx-auto w-full max-w-4xl space-y-8 p-4 sm:p-6">
-						{showInvestigationsFirst ? (
-							<InvestigationsPanel feed={feed} />
-						) : null}
-						<InsightBrief
-							hasNextPage={brief.hasNextPage ?? false}
-							insights={briefInsights}
-							isFetchingNextPage={brief.isFetchingNextPage}
-							onLoadMoreAction={() => {
-								brief.fetchNextPage().catch(() => undefined);
-							}}
-							onRetryAction={() => {
-								brief.refetch().catch(() => undefined);
-							}}
-							state={
-								brief.isLoading
-									? "loading"
-									: briefInsights.length === 0 && brief.isError
-										? "error"
-										: "ready"
-							}
-						/>
-						{showInvestigationsFirst ? null : (
-							<InvestigationsPanel feed={feed} />
-						)}
-					</div>
-				</div>
-			)}
+		<div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
+			<InsightBrief
+				description={latestRunDescription(latestRun.data)}
+				hasNextPage={brief.hasNextPage ?? false}
+				insights={insights}
+				isFetchingNextPage={brief.isFetchingNextPage}
+				onLoadMoreAction={() => {
+					brief.fetchNextPage().catch(() => undefined);
+				}}
+				onRetryAction={() => {
+					brief.refetch().catch(() => undefined);
+				}}
+				state={
+					brief.isLoading
+						? "loading"
+						: insights.length === 0 && brief.isError
+							? "error"
+							: "ready"
+				}
+			/>
 		</div>
 	);
 }
 
-function InvestigationsPanel({
-	feed,
-}: {
-	feed: ReturnType<typeof useInsightsFeed>;
-}) {
-	return (
-		<Card
-			aria-label="Investigations"
-			className="border-border/70 shadow-sm"
-			id="investigations"
-		>
-			<Card.Header className="border-b bg-card">
-				<Card.Title>Investigations</Card.Title>
-			</Card.Header>
-			<Card.Content className="p-0">
-				<InvestigationList feed={feed} />
-			</Card.Content>
-		</Card>
-	);
-}
-
 function InsightBrief({
+	description,
 	hasNextPage,
 	insights,
 	isFetchingNextPage,
@@ -146,6 +72,7 @@ function InsightBrief({
 	onRetryAction,
 	state,
 }: {
+	description: string;
 	hasNextPage: boolean;
 	insights: BriefInsight[];
 	isFetchingNextPage: boolean;
@@ -221,8 +148,8 @@ function InsightBrief({
 		<Card aria-label="Latest insights" className="border-border/70 shadow-sm">
 			<Card.Header className="border-b bg-card px-5 py-4 sm:px-6">
 				<Card.Title>Latest insights</Card.Title>
-				<Card.Description className="mt-1">
-					What changed, why it matters, and what to do next.
+				<Card.Description aria-live="polite" className="mt-1">
+					{description}
 				</Card.Description>
 			</Card.Header>
 			<Card.Content className="p-0">{content}</Card.Content>
@@ -242,7 +169,6 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 				? TrendDownIcon
 				: LightbulbIcon;
 	const metric = insight.signal.metric;
-
 	const entityType = insight.signal.entity.type.replaceAll("_", " ");
 
 	return (
@@ -256,7 +182,7 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 					!(positive || negative) && "bg-primary/10 text-primary"
 				)}
 			>
-				<Icon className="size-4" weight="duotone" />
+				<Icon aria-hidden className="size-4" weight="duotone" />
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -282,61 +208,38 @@ function InsightBriefRow({ insight }: { insight: BriefInsight }) {
 						</Badge>
 					) : null}
 				</div>
-				<p className="mt-1.5 max-w-3xl text-muted-foreground text-sm leading-relaxed">
-					{insight.summary}
-				</p>
-				{insight.recommendation ? (
-					<div className="mt-3 rounded-md border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
-						<p className="text-foreground/85 text-sm leading-relaxed">
-							<span className="mr-1 font-semibold text-primary text-xs uppercase tracking-wide">
-								Next step
-							</span>
-							{insight.recommendation.action}
-						</p>
-						{insight.signal.entity.type === "goal" &&
-						insight.recommendation.operation ? (
-							<div className="mt-2 flex flex-wrap gap-1.5">
-								<GoalRecommendationAction
-									goalId={insight.signal.entity.id}
-									recommendation={insight.recommendation}
-									websiteId={insight.websiteId}
-								/>
-							</div>
-						) : null}
+				<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
+					<div className="sm:col-span-2">
+						<dt className="font-semibold text-foreground/75">What happened</dt>
+						<dd className="mt-0.5 max-w-3xl text-muted-foreground text-sm leading-relaxed">
+							{insight.summary}
+						</dd>
 					</div>
-				) : null}
-				{insight.impact || insight.rootCause || insight.evidence.length > 0 ? (
-					<dl className="mt-3 grid gap-2 border-muted border-l-2 pl-3 text-xs leading-relaxed sm:grid-cols-2 sm:gap-x-5">
-						{insight.impact ? (
-							<div>
-								<dt className="font-semibold text-foreground/75">
-									Why it matters
-								</dt>
-								<dd className="mt-0.5 text-muted-foreground">
-									{insight.impact}
-								</dd>
-							</div>
-						) : null}
-						{insight.rootCause ? (
-							<div>
-								<dt className="font-semibold text-foreground/75">
-									What explains it
-								</dt>
-								<dd className="mt-0.5 text-muted-foreground">
-									{insight.rootCause}
-								</dd>
-							</div>
-						) : null}
-						{insight.evidence.length > 0 ? (
-							<div className="sm:col-span-2">
-								<dt className="font-semibold text-foreground/75">Evidence</dt>
-								<dd className="mt-0.5 text-muted-foreground">
-									{insight.evidence.join(" · ")}
-								</dd>
-							</div>
-						) : null}
-					</dl>
-				) : null}
+					{insight.impact ? (
+						<div>
+							<dt className="font-semibold text-foreground/75">
+								Why it matters
+							</dt>
+							<dd className="mt-0.5 text-muted-foreground">{insight.impact}</dd>
+						</div>
+					) : null}
+					{insight.rootCause ? (
+						<div>
+							<dt className="font-semibold text-foreground/75">
+								Why it happened
+							</dt>
+							<dd className="mt-0.5 text-muted-foreground">
+								{insight.rootCause}
+							</dd>
+						</div>
+					) : null}
+					<div className="sm:col-span-2">
+						<dt className="font-semibold text-foreground/75">Evidence</dt>
+						<dd className="mt-0.5 text-muted-foreground">
+							{insight.evidence.join(" · ")}
+						</dd>
+					</div>
+				</dl>
 				<div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5 border-t pt-3 text-[11px] text-muted-foreground">
 					<span className="font-medium text-foreground/70">
 						{insight.websiteName ?? insight.websiteDomain}
@@ -410,146 +313,4 @@ function formatWindow(window: { from: string; to: string }) {
 
 function formatDate(value: string) {
 	return PERIOD_DATE_FORMATTER.format(new Date(`${value}T00:00:00Z`));
-}
-
-function InvestigationList({
-	feed,
-}: {
-	feed: ReturnType<typeof useInsightsFeed>;
-}) {
-	const {
-		fetchNextPage,
-		hasNextPage,
-		insights,
-		isError,
-		isFetchingNextPage,
-		isLoading,
-		refetch,
-	} = feed;
-	const openInsights = insights.filter((insight) => insight.status === "open");
-	const loadMore = useCallback(() => {
-		fetchNextPage().catch(() => undefined);
-	}, [fetchNextPage]);
-
-	if (isLoading) {
-		return (
-			<div
-				aria-label="Loading investigations"
-				aria-live="polite"
-				className="divide-y"
-				role="status"
-			>
-				{Array.from({ length: 4 }, (_, index) => (
-					<InvestigationRowSkeleton key={`investigation-${index + 1}`} />
-				))}
-			</div>
-		);
-	}
-
-	if (isError) {
-		return <ErrorState onRetryAction={refetch} />;
-	}
-
-	if (openInsights.length === 0) {
-		return (
-			<EmptyList
-				hasNextPage={hasNextPage}
-				isFetchingNextPage={isFetchingNextPage}
-				onLoadMoreAction={loadMore}
-			/>
-		);
-	}
-
-	return (
-		<>
-			<div>
-				{openInsights.map((insight) => (
-					<InvestigationRow insight={insight} key={insight.id} />
-				))}
-			</div>
-
-			{hasNextPage ? (
-				<div className="flex justify-center border-t px-5 py-4">
-					<Button
-						disabled={isFetchingNextPage}
-						loading={isFetchingNextPage}
-						onClick={loadMore}
-						type="button"
-						variant="secondary"
-					>
-						Load more
-					</Button>
-				</div>
-			) : null}
-		</>
-	);
-}
-
-function ErrorState({ onRetryAction }: { onRetryAction: () => void }) {
-	return (
-		<div className="px-5 py-12">
-			<EmptyState
-				action={{
-					label: "Try again",
-					onClick: onRetryAction,
-					variant: "secondary",
-				}}
-				description="Databuddy couldn't load recent investigations."
-				icon={<LightbulbIcon weight="duotone" />}
-				title="Couldn't load investigations"
-				variant="error"
-			/>
-		</div>
-	);
-}
-
-function EmptyList({
-	hasNextPage,
-	isFetchingNextPage,
-	onLoadMoreAction,
-}: {
-	hasNextPage: boolean;
-	isFetchingNextPage: boolean;
-	onLoadMoreAction: () => void;
-}) {
-	return (
-		<div className="px-5 py-12">
-			<EmptyState
-				action={
-					hasNextPage
-						? {
-								label: isFetchingNextPage ? "Loading…" : "Load more",
-								onClick: onLoadMoreAction,
-								variant: "secondary",
-							}
-						: undefined
-				}
-				description={
-					hasNextPage
-						? "No open investigations in the latest results."
-						: "Databuddy starts an investigation when it finds a question or fix worth following through."
-				}
-				icon={<LightbulbIcon weight="duotone" />}
-				title="Nothing needs your input"
-				variant="minimal"
-			/>
-		</div>
-	);
-}
-
-function EmptyOrg() {
-	return (
-		<EmptyState
-			action={{
-				label: "Go to websites",
-				onClick: () => {
-					window.location.href = "/websites";
-				},
-			}}
-			description="Add a website to start receiving insights across your organization."
-			icon={<GlobeIcon weight="duotone" />}
-			title="No websites yet"
-			variant="minimal"
-		/>
-	);
 }

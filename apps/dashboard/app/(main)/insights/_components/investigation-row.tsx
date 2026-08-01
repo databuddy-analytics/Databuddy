@@ -1,10 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type {
-	InsightBriefItem,
-	InvestigationOutcome,
-} from "@databuddy/shared/insights";
+import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import { Button, Skeleton } from "@databuddy/ui";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -19,56 +16,12 @@ import {
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
 
-type GoalRecommendation = Extract<
-	NonNullable<InsightBriefItem["recommendation"]>,
-	{ operation: "delete" | "edit" }
->;
-
 type GoalExecution = Extract<
 	NonNullable<
 		Extract<InvestigationOutcome["next"], { type: "act" }>["execution"]
 	>,
 	{ operation: "delete" | "edit" }
 >;
-
-export function GoalRecommendationAction({
-	goalId,
-	recommendation,
-	websiteId,
-}: {
-	goalId: string;
-	recommendation: GoalRecommendation;
-	websiteId: string;
-}) {
-	const deleting = recommendation.operation === "delete";
-
-	return (
-		<Button
-			asChild
-			size="sm"
-			tone={deleting ? "destructive" : "neutral"}
-			variant={deleting ? "ghost" : "secondary"}
-		>
-			<Link
-				href={{
-					pathname: `/websites/${encodeURIComponent(websiteId)}/goals`,
-					query: {
-						command: `${recommendation.operation}-goal`,
-						goalId,
-						...(recommendation.changes?.description
-							? { description: recommendation.changes.description }
-							: {}),
-						...(recommendation.changes?.name
-							? { name: recommendation.changes.name }
-							: {}),
-					},
-				}}
-			>
-				{deleting ? "Delete goal" : "Review goal changes"}
-			</Link>
-		</Button>
-	);
-}
 
 export function ExecuteGoalAction({
 	execution,

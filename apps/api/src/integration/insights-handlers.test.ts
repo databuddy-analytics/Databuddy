@@ -701,6 +701,193 @@ describe("insight investigation timeline", () => {
 		expect(websiteOnly.insights[0]?.websiteId).toBe(secondWebsite.id);
 	});
 
+	iit("returns only the current published recommendation for each signal", async () => {
+		const member = await signUp();
+		const organization = await insertOrganization();
+		await addToOrganization(member.id, organization.id, "member");
+		const website = await insertWebsite({ organizationId: organization.id });
+		const secondWebsite = await insertWebsite({
+			organizationId: organization.id,
+		});
+		const emptyWebsite = await insertWebsite({
+			organizationId: organization.id,
+		});
+		const otherOrganization = await insertOrganization();
+		const otherWebsite = await insertWebsite({
+			organizationId: otherOrganization.id,
+		});
+		const recommendationOutcome = (
+			title: string,
+			action: string
+		): InvestigationOutcome => ({
+			evidence: [`${title} is supported by current analytics.`],
+			impact: null,
+			next: {
+				reason: "This suggestion does not need an investigation.",
+				type: "resolve",
+			},
+			publish: true,
+			recommendation: {
+				action,
+				changes: null,
+				operation: null,
+			},
+			rootCause: null,
+			summary: `${title} has a concrete improvement available.`,
+			title,
+		});
+		const observation = (input: {
+			action?: string;
+			asOf: string;
+			createdAt?: string;
+			organizationId?: string;
+			publish?: boolean;
+			signalKey: string;
+			title: string;
+			websiteId?: string;
+		}) => {
+			const outcome = input.action
+				? recommendationOutcome(input.title, input.action)
+				: {
+						...investigationOutcome("watch"),
+						recommendation: null,
+						title: input.title,
+					};
+			outcome.publish = input.publish ?? true;
+			return {
+				asOf: new Date(input.asOf),
+				createdAt: new Date(input.createdAt ?? input.asOf),
+				id: randomUUIDv7(),
+				insightId: null,
+				organizationId: input.organizationId ?? organization.id,
+				outcome,
+				recheckAt: new Date("2026-02-01T00:00:00.000Z"),
+				signal: signal(input.signalKey),
+				signalKey: input.signalKey,
+				websiteId: input.websiteId ?? website.id,
+			};
+		};
+
+		await db().insert(insightObservations).values([
+			observation({
+				action: "Use the original signup goal.",
+				asOf: "2026-01-01T00:00:00.000Z",
+				signalKey: "goal:signup",
+				title: "Original signup recommendation",
+			}),
+			observation({
+				asOf: "2026-01-03T00:00:00.000Z",
+				publish: false,
+				signalKey: "goal:signup",
+				title: "Routine signup recheck",
+			}),
+			observation({
+				action: "Use the updated signup goal.",
+				asOf: "2026-01-02T00:00:00.000Z",
+				signalKey: "goal:signup",
+				title: "Updated signup recommendation",
+			}),
+			observation({
+				action: "Add the measured checkout goal.",
+				asOf: "2026-01-04T00:00:00.000Z",
+				signalKey: "goal:checkout",
+				title: "Checkout recommendation",
+			}),
+			observation({
+				action: "Use the old activation goal.",
+				asOf: "2026-01-05T00:00:00.000Z",
+				signalKey: "goal:stale",
+				title: "Stale recommendation",
+			}),
+			observation({
+				asOf: "2026-01-06T00:00:00.000Z",
+				signalKey: "goal:stale",
+				title: "Stale recommendation retired",
+			}),
+			observation({
+				action: "Add the activation goal.",
+				asOf: "2026-01-07T00:00:00.000Z",
+				signalKey: "goal:activation",
+				title: "Activation recommendation",
+				websiteId: secondWebsite.id,
+			}),
+			observation({
+				action: "Do not expose this recommendation.",
+				asOf: "2026-01-08T00:00:00.000Z",
+				organizationId: otherOrganization.id,
+				signalKey: "goal:other",
+				title: "Other organization recommendation",
+				websiteId: otherWebsite.id,
+			}),
+		]);
+
+		const context = userContext(member, organization.id);
+		const firstPage = await call(appRouter.insights.recommendations, context)({
+			limit: 2,
+			offset: 0,
+			organizationId: organization.id,
+		});
+		expect(firstPage.hasMore).toBe(true);
+		expect(firstPage.total).toBe(3);
+		expect(
+			firstPage.recommendations.map((item) => item.recommendation.action)
+		).toEqual([
+			"Add the activation goal.",
+			"Add the measured checkout goal.",
+		]);
+
+		const secondPage = await call(appRouter.insights.recommendations, context)({
+			limit: 2,
+			offset: 2,
+			organizationId: organization.id,
+		});
+		expect(secondPage.hasMore).toBe(false);
+		expect(secondPage.total).toBe(3);
+		expect(
+			secondPage.recommendations.map((item) => item.recommendation.action)
+		).toEqual(["Use the updated signup goal."]);
+
+		const websiteOnly = await call(
+			appRouter.insights.recommendations,
+			context
+		)({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+			websiteId: website.id,
+		});
+		expect(
+			websiteOnly.recommendations.map((item) => item.recommendation.action)
+		).toEqual([
+			"Add the measured checkout goal.",
+			"Use the updated signup goal.",
+		]);
+		expect(websiteOnly.total).toBe(2);
+
+		const pastEnd = await call(appRouter.insights.recommendations, context)({
+			limit: 2,
+			offset: 10,
+			organizationId: organization.id,
+		});
+		expect(pastEnd).toMatchObject({
+			hasMore: false,
+			recommendations: [],
+			total: 3,
+		});
+
+		const emptyScope = await call(appRouter.insights.recommendations, context)({
+			limit: 10,
+			offset: 0,
+			organizationId: organization.id,
+			websiteId: emptyWebsite.id,
+		});
+		expect(emptyScope).toMatchObject({
+			hasMore: false,
+			recommendations: [],
+			total: 0,
+		});
+	});
+
 	iit("persists a reply beside every observation for the same signal", async () => {
 		const member = await signUp();
 		const organization = await insertOrganization();

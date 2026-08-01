@@ -13,15 +13,21 @@ const TRANSPARENT_PIXEL = Buffer.from(
 /**
  * Returns a 1x1 transparent GIF response
  */
-export function createPixelResponse(): Response {
+export function createPixelResponse(
+	options: { retryAfterSeconds?: number; status?: number } = {}
+): Response {
+	const headers = new Headers({
+		"Content-Type": "image/gif",
+		"Cache-Control": "no-cache, no-store, must-revalidate",
+		Pragma: "no-cache",
+		Expires: "0",
+	});
+	if (options.retryAfterSeconds !== undefined) {
+		headers.set("Retry-After", String(options.retryAfterSeconds));
+	}
 	return new Response(TRANSPARENT_PIXEL, {
-		status: 200,
-		headers: {
-			"Content-Type": "image/gif",
-			"Cache-Control": "no-cache, no-store, must-revalidate",
-			Pragma: "no-cache",
-			Expires: "0",
-		},
+		status: options.status ?? 200,
+		headers,
 	});
 }
 

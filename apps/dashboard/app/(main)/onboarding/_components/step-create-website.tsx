@@ -6,7 +6,11 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useOrganizationsContext } from "@/components/providers/organizations-provider";
 import { useCreateWebsite } from "@/hooks/use-websites";
-import { APP_EVENTS, trackAppEvent } from "@/lib/app-events";
+import {
+	APP_EVENTS,
+	type OnboardingAttributionProperties,
+	trackAppEvent,
+} from "@/lib/app-events";
 import { GlobeIcon } from "@databuddy/ui/icons";
 import { Button, Field, Input } from "@databuddy/ui";
 
@@ -29,10 +33,14 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 interface StepCreateWebsiteProps {
+	attribution: OnboardingAttributionProperties;
 	onComplete: (websiteId: string) => void;
 }
 
-export function StepCreateWebsite({ onComplete }: StepCreateWebsiteProps) {
+export function StepCreateWebsite({
+	attribution,
+	onComplete,
+}: StepCreateWebsiteProps) {
 	const { activeOrganization } = useOrganizationsContext();
 	const createWebsiteMutation = useCreateWebsite();
 
@@ -62,7 +70,7 @@ export function StepCreateWebsite({ onComplete }: StepCreateWebsiteProps) {
 				organizationId: activeOrganization?.id,
 			});
 			toast.success("Website created!");
-			trackAppEvent(APP_EVENTS.onboardingWebsiteCreated);
+			trackAppEvent(APP_EVENTS.onboardingWebsiteCreated, attribution);
 			onComplete(result.id);
 		} catch (error: unknown) {
 			const rpcError = error as {

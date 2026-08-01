@@ -26,11 +26,16 @@ export interface DatabuddyConfig {
 	logger?: Logger;
 	/** Max deduplication cache entries (default: 10000) */
 	maxDeduplicationCacheSize?: number;
-	/** Max queued events before forced flush (default: 1000) */
+	/**
+	 * Max queued + in-flight events. Overflow returns retryable `QUEUE_FULL`.
+	 * Default: 1000.
+	 */
 	maxQueueSize?: number;
 	middleware?: Middleware[];
 	/** Logical grouping for events (e.g. `'auth'`, `'jobs'`) */
 	namespace?: string;
+	/** Overall request deadline in ms (default: 10000) */
+	requestTimeoutMs?: number;
 	/** Origin identifier (e.g. `'backend'`, `'webhook'`, `'cli'`) */
 	source?: string;
 	/** Default Databuddy Client ID to scope events to */

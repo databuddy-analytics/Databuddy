@@ -1,3 +1,10 @@
+acknowledgements:
+  enabled: true
+
+log_schema:
+  # Keep Kafka record time separate from the analytics event's immutable time.
+  timestamp_key: kafka_timestamp
+
 sources:
   redpanda:
     type: kafka
@@ -15,12 +22,12 @@ sources:
       - analytics-link-visits
     auto_offset_reset: earliest
     sasl:
-      enabled: true
+      enabled: ${VECTOR_KAFKA_SASL_ENABLED:-true}
       mechanism: SCRAM-SHA-256
       username: "${VECTOR_KAFKA_USER}"
       password: "${VECTOR_KAFKA_PASSWORD}"
     tls:
-      enabled: true
+      enabled: ${VECTOR_KAFKA_TLS_ENABLED:-true}
     decoding:
       codec: json
 

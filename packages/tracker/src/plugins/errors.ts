@@ -1,6 +1,6 @@
 import type { BaseTracker } from "../core/tracker";
 import type { ErrorSpan } from "../core/types";
-import { logger } from "../core/utils";
+import { generateUUIDv4, logger } from "../core/utils";
 
 const extensionSchemes = [
 	"chrome-extension://",
@@ -45,6 +45,7 @@ export function initErrorTracking(tracker: BaseTracker): () => void {
 		}
 
 		const errorSpan: ErrorSpan = {
+			eventId: generateUUIDv4(),
 			timestamp: Date.now(),
 			path: window.location.pathname,
 			anonymousId: tracker.anonymousId,

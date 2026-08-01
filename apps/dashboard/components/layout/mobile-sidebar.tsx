@@ -174,18 +174,24 @@ function MobileNavItem({
 				</span>
 			)}
 			{item.badge && (
-				<span
-					className={cn(
-						"rounded px-1.5 py-0.5 font-semibold text-[10px]",
-						item.badge.variant === "orange"
-							? "bg-amber-500/10 text-amber-600 dark:text-amber-500"
-							: item.badge.variant === "red"
-								? "bg-destructive/10 text-destructive"
-								: "bg-accent text-accent-foreground"
-					)}
-				>
-					{item.badge.text}
-				</span>
+				<>
+					<span
+						aria-hidden={item.badge.label ? true : undefined}
+						className={cn(
+							"rounded px-1.5 py-0.5 font-semibold text-[10px]",
+							item.badge.variant === "orange"
+								? "bg-warning/10 text-warning"
+								: item.badge.variant === "red"
+									? "bg-destructive text-destructive-foreground"
+									: "bg-accent text-accent-foreground"
+						)}
+					>
+						{item.badge.text}
+					</span>
+					{item.badge.label ? (
+						<span className="sr-only">{item.badge.label}</span>
+					) : null}
+				</>
 			)}
 			{item.external && (
 				<ArrowSquareOutIcon

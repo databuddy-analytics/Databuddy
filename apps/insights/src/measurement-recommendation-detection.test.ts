@@ -1,0 +1,197 @@
+import { describe, expect, it } from "bun:test";
+import dayjs from "dayjs";
+import type { DetectSignalsParams } from "./detection";
+import {
+	detectMeasurementRecommendationSignals,
+	type MeasurementRecommendationDeps,
+} from "./measurement-recommendation-detection";
+
+const TODAY = dayjs("2026-08-01");
+
+const PARAMS: DetectSignalsParams = {
+	lookbackDays: 7,
+	timezone: "UTC",
+	websiteId: "test-site",
+};
+
+function makeDeps(
+	overrides: Partial<MeasurementRecommendationDeps> = {}
+): MeasurementRecommendationDeps {
+	return {
+		fetchDefinitionCounts: async () => ({ activeFunnels: 0, activeGoals: 0 }),
+		fetchTelemetry: async () => ({
+			customEventNames: [],
+			pageviews: 60,
+			routes: ["/explore"],
+			sessions: 40,
+		}),
+		...overrides,
+	};
+}
+
+describe("detectMeasurementRecommendationSignals", () => {
+	it("emits one sanitized navigation-coverage signal without definitions or custom events", async () => {
+		const signals = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: [],
+					pageviews: 72,
+					routes: ["https://example.com/signup?email=ari@example.com&token=abc123"],
+					sessions: 48,
+				}),
+			})
+		);
+
+		expect(signals).toHaveLength(1);
+		expect(signals[0]).toMatchObject({
+			current: 0,
+			metric: "measurement_coverage",
+			measurementCandidate: {
+				basis: "observed_navigation_proxy",
+				kind: "page_navigation_proxy",
+				target: "/signup",
+				type: "PAGE_VIEW",
+			},
+			severity: "info",
+			subjectKey: "measurement:conversion-coverage",
+		});
+		expect(signals[0]?.definitionEvidence).toContain("navigation proxy");
+		expect(JSON.stringify(signals[0])).not.toContain("ari@example.com");
+		expect(JSON.stringify(signals[0])).not.toContain("abc123");
+	});
+
+	it("uses an observed canonical conversion event as a bounded goal candidate", async () => {
+		const [signal] = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: ["signup_completed", "button_click"],
+					pageviews: 60,
+					routes: [],
+					sessions: 40,
+				}),
+			})
+		);
+
+		expect(signal?.measurementCandidate).toEqual({
+			basis: "observed_custom_event",
+			kind: "event_goal_candidate",
+			target: "signup_completed",
+			type: "EVENT",
+		});
+		expect(signal?.definitionEvidence).toContain("not that the event is a business conversion");
+	});
+
+	it("withholds dynamic route and event identifiers from candidates", async () => {
+		const [signal] = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: ["purchase_ari"],
+					pageviews: 60,
+					routes: ["/checkout/ari?token=private"],
+					sessions: 40,
+				}),
+			})
+		);
+
+		expect(signal?.measurementCandidate).toBeUndefined();
+		expect(JSON.stringify(signal)).not.toContain("ari");
+		expect(JSON.stringify(signal)).not.toContain("private");
+	});
+
+	it("rejects double-slash route candidates", async () => {
+		const [signal] = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: [],
+					pageviews: 60,
+					routes: ["//signup", "https://example.com//checkout"],
+					sessions: 40,
+				}),
+			})
+		);
+
+		expect(signal?.measurementCandidate).toBeUndefined();
+	});
+
+	it("labels no-candidate evidence as sampled when custom event discovery hits its cap", async () => {
+		const [signal] = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: ["button_click", "screen_view"],
+					customEventSampleLimit: 1000,
+					customEventSampled: true,
+					pageviews: 60,
+					routes: [],
+					sessions: 40,
+				}),
+			})
+		);
+
+		expect(signal?.measurementCandidate).toBeUndefined();
+		expect(signal?.definitionEvidence).toContain(
+			"top 1000 custom event types"
+		);
+	});
+
+	it("suppresses the signal when usable measurement definitions already exist", async () => {
+		let telemetryCalls = 0;
+		const signals = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchDefinitionCounts: async () => ({
+					activeFunnels: 0,
+					activeGoals: 1,
+				}),
+				fetchTelemetry: async () => {
+					telemetryCalls += 1;
+					throw new Error("telemetry should not be fetched");
+				},
+			})
+		);
+
+		expect(signals).toEqual([]);
+		expect(telemetryCalls).toBe(0);
+	});
+
+	it("suppresses the signal for insufficient current activity", async () => {
+		const signals = await detectMeasurementRecommendationSignals(
+			PARAMS,
+			TODAY,
+			makeDeps({
+				fetchTelemetry: async () => ({
+					customEventNames: [],
+					pageviews: 29,
+					routes: ["/signup"],
+					sessions: 29,
+				}),
+			})
+		);
+
+		expect(signals).toEqual([]);
+	});
+
+	it("does not hide telemetry failures", async () => {
+		await expect(
+			detectMeasurementRecommendationSignals(
+				PARAMS,
+				TODAY,
+				makeDeps({
+					fetchTelemetry: async () => {
+						throw new Error("telemetry unavailable");
+					},
+				})
+			)
+		).rejects.toThrow("telemetry unavailable");
+	});
+});

@@ -1,5 +1,6 @@
 import {
 	and,
+	count,
 	db,
 	desc,
 	eq,
@@ -24,6 +25,7 @@ import { ratelimit } from "@databuddy/redis/rate-limit";
 import {
 	historyInsightSchema,
 	insightBriefItemSchema,
+	insightRecommendationItemSchema,
 	insightReplySlackDeliverySchema,
 	insightReplyStatusSchema,
 	insightTimelineItemSchema,
@@ -321,6 +323,16 @@ function serializeInsightBrief(
 		websiteId: row.websiteId,
 		websiteName: row.websiteName,
 	};
+}
+
+function serializeInsightRecommendation(
+	row: InsightBriefRow
+): z.infer<typeof insightRecommendationItemSchema> | null {
+	const insight = serializeInsightBrief(row);
+	if (!insight?.recommendation) {
+		return null;
+	}
+	return { ...insight, recommendation: insight.recommendation };
 }
 
 async function authorizeInsightsRead(
@@ -904,6 +916,107 @@ export const insightsRouter = {
 			};
 		}),
 
+	recommendations: protectedProcedure
+		.route({
+			method: "POST",
+			path: "/insights/recommendations",
+			tags: ["Insights"],
+			summary: "List current insight recommendations",
+		})
+		.input(
+			z.object({
+				limit: z.number().int().min(1).max(100).default(50),
+				offset: z.number().int().min(0).default(0),
+				organizationId: z.string().min(1),
+				websiteId: z.string().min(1).optional(),
+			})
+		)
+		.output(
+			z.object({
+				hasMore: z.boolean(),
+				recommendations: z.array(insightRecommendationItemSchema),
+				total: z.number().int().nonnegative(),
+			})
+		)
+		.handler(async ({ context, input }) => {
+			await authorizeInsightsRead(context, input);
+			const latestPublished = (alias: string) =>
+				db
+					.selectDistinctOn(
+						[insightObservations.websiteId, insightObservations.signalKey],
+						{
+							...insightBriefSelection,
+							investigationId: sql<string | null>`${analyticsInsights.id}`.as(
+								"investigation_id"
+							),
+							signalKey: insightObservations.signalKey,
+						}
+					)
+					.from(insightObservations)
+					.innerJoin(websites, eq(insightObservations.websiteId, websites.id))
+					.leftJoin(
+						analyticsInsights,
+						and(
+							eq(insightObservations.insightId, analyticsInsights.id),
+							eq(
+								insightObservations.organizationId,
+								analyticsInsights.organizationId
+							),
+							eq(insightObservations.websiteId, analyticsInsights.websiteId),
+							eq(insightObservations.signalKey, analyticsInsights.subjectKey)
+						)
+					)
+					.where(
+						and(
+							eq(insightObservations.organizationId, input.organizationId),
+							input.websiteId
+								? eq(insightObservations.websiteId, input.websiteId)
+								: undefined,
+							sql`${insightObservations.outcome}->>'publish' = 'true'`,
+							isNull(websites.deletedAt)
+						)
+					)
+					.orderBy(
+						insightObservations.websiteId,
+						insightObservations.signalKey,
+						desc(insightObservations.asOf),
+						desc(insightObservations.createdAt),
+						desc(insightObservations.id)
+					)
+					.as(alias);
+
+			const pageSource = latestPublished("latest_published_recommendations");
+			const countSource = latestPublished(
+				"latest_published_recommendations_count"
+			);
+			const [rows, [summary]] = await Promise.all([
+				db
+					.select()
+					.from(pageSource)
+					.where(sql`${pageSource.outcome}->>'recommendation' is not null`)
+					.orderBy(
+						desc(pageSource.asOf),
+						desc(pageSource.createdAt),
+						desc(pageSource.id)
+					)
+					.limit(input.limit + 1)
+					.offset(input.offset),
+				db
+					.select({ total: count() })
+					.from(countSource)
+					.where(sql`${countSource.outcome}->>'recommendation' is not null`),
+			]);
+			const page = rows.slice(0, input.limit).flatMap((row) => {
+				const recommendation = serializeInsightRecommendation(row);
+				return recommendation ? [recommendation] : [];
+			});
+			return {
+				hasMore: rows.length > input.limit,
+				recommendations: page,
+				total: summary?.total ?? 0,
+			};
+		}),
+
 	history: protectedProcedure
 		.route({
 			method: "POST",
@@ -916,6 +1029,7 @@ export const insightsRouter = {
 				limit: z.number().int().min(1).max(100).default(50),
 				offset: z.number().int().min(0).default(0),
 				organizationId: z.string().min(1),
+				status: z.enum(["open", "resolved"]).optional(),
 				websiteId: z.string().min(1).optional(),
 			})
 		)
@@ -989,6 +1103,7 @@ export const insightsRouter = {
 			const rows = await db
 				.select()
 				.from(latestCases)
+				.where(input.status ? eq(latestCases.status, input.status) : undefined)
 				.orderBy(desc(latestCases.activityAt), desc(latestCases.id))
 				.limit(input.limit + 1)
 				.offset(input.offset);

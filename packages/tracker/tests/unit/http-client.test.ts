@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, jest, mock, test } from "bun:test";
 import { HttpClient, type HttpResult } from "../../src/core/client";
 import { BaseTracker } from "../../src/core/tracker";
+import { Databuddy as BrowserDatabuddy } from "../../src/index";
 
 const originalFetch = globalThis.fetch;
+const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 
 class DeliveryTestTracker extends BaseTracker {
 	private deliveryBlocked = false;
@@ -21,12 +23,53 @@ class DeliveryTestTracker extends BaseTracker {
 	}
 }
 
+class BeaconTestTracker extends BaseTracker {
+	private browserRuntime = false;
+
+	override isServer(): boolean {
+		return !this.browserRuntime;
+	}
+
+	protected override shouldSkipTracking(): boolean {
+		return false;
+	}
+
+	enableBrowserRuntime(): void {
+		this.browserRuntime = true;
+	}
+}
+
+class UnloadTestTracker extends BrowserDatabuddy {
+	protected override shouldSkipTracking(): boolean {
+		return false;
+	}
+
+	flushForPageUnload(sendExit = false): void {
+		(
+			this as unknown as {
+				handlePageUnload: () => void;
+				hasSentExitBeacon: boolean;
+			}
+		).hasSentExitBeacon = !sendExit;
+		(
+			this as unknown as {
+				handlePageUnload: () => void;
+			}
+		).handlePageUnload();
+	}
+}
+
 afterEach(() => {
 	if (jest.isFakeTimers()) {
 		jest.clearAllTimers();
 		jest.useRealTimers();
 	}
 	globalThis.fetch = originalFetch;
+	if (originalNavigator) {
+		Object.defineProperty(globalThis, "navigator", originalNavigator);
+	} else {
+		Reflect.deleteProperty(globalThis, "navigator");
+	}
 });
 
 async function flushMicrotasks(): Promise<void> {
@@ -67,6 +110,64 @@ describe("HttpClient", () => {
 			status: 202,
 			attempts: 1,
 			transport: "fetch",
+		});
+	});
+
+	test("uses acknowledged fetch for normal keepalive delivery", async () => {
+		const sendBeacon = mock(() => true);
+		Object.defineProperty(globalThis, "navigator", {
+			configurable: true,
+			value: { sendBeacon },
+		});
+		const fetchMock = mock(async () =>
+			Response.json({ status: "accepted" }, { status: 202 })
+		);
+		globalThis.fetch = fetchMock as typeof fetch;
+		const client = new HttpClient({ baseUrl: "https://example.com" });
+
+		const result = await client.post(
+			"https://example.com/events",
+			{},
+			{ keepalive: true }
+		);
+
+		expect(result).toMatchObject({ ok: true, status: 202, transport: "fetch" });
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+		expect(sendBeacon).not.toHaveBeenCalled();
+	});
+
+	test("returns a retryable result when an HTTP request exceeds its deadline", async () => {
+		jest.useFakeTimers();
+		globalThis.fetch = mock(
+			(_input: RequestInfo | URL, init?: RequestInit) =>
+				new Promise<Response>((_resolve, reject) => {
+					init?.signal?.addEventListener(
+						"abort",
+						() => {
+							const error = new Error("Request aborted");
+							error.name = "AbortError";
+							reject(error);
+						},
+						{ once: true }
+					);
+				})
+		) as typeof fetch;
+		const client = new HttpClient({
+			baseUrl: "https://example.com",
+			maxRetries: 0,
+			requestTimeoutMs: 20,
+		});
+
+		const delivery = client.post("https://example.com/events", {}, { keepalive: true });
+		await flushMicrotasks();
+		jest.advanceTimersByTime(20);
+		await flushMicrotasks();
+
+		await expect(delivery).resolves.toMatchObject({
+			ok: false,
+			code: "NETWORK_ERROR",
+			message: "Request timed out after 20ms",
+			retryable: true,
 		});
 	});
 
@@ -201,6 +302,183 @@ describe("HttpClient", () => {
 });
 
 describe("BaseTracker delivery outcomes", () => {
+	test("uses a CORS-safelisted JSON payload for unload beacons", async () => {
+		const sendBeacon = mock(
+			(_url: string | URL, _data?: BodyInit | null) => true
+		);
+		Object.defineProperty(globalThis, "navigator", {
+			configurable: true,
+			value: { sendBeacon },
+		});
+		const tracker = new BeaconTestTracker({ clientId: "site_example" });
+		tracker.enableBrowserRuntime();
+		const events = [{ eventId: "event_stable", name: "signup" }];
+
+		expect(tracker.sendBeacon(events, "/track")).toBe(true);
+		expect(sendBeacon).toHaveBeenCalledTimes(1);
+		const [url, data] = sendBeacon.mock.calls[0] ?? [];
+		expect(url).toBe(
+			"https://basket.databuddy.cc/track?client_id=site_example"
+		);
+		if (!(data instanceof Blob)) {
+			throw new Error("Expected sendBeacon to receive a Blob payload");
+		}
+		expect(data.type).toBe("text/plain;charset=utf-8");
+		expect(JSON.parse(await data.text())).toEqual(events);
+	});
+
+	test("flushes backlogs in endpoint-sized chunks without keepalive", async () => {
+		jest.useFakeTimers();
+		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
+		const send = mock(async () => ({
+			ok: true as const,
+			data: { status: "success" },
+			status: 202,
+			attempts: 1,
+			transport: "fetch" as const,
+		}));
+		tracker.api.fetch = send;
+		tracker.batchQueue.push(
+			...Array.from({ length: 205 }, (_, index) => ({
+				eventId: `event_${index}`,
+				timestamp: index,
+			}))
+		);
+
+		expect(await tracker.flushBatch()).toMatchObject({
+			ok: true,
+			count: 100,
+		});
+		expect(tracker.batchQueue).toHaveLength(105);
+		expect(send.mock.calls[0]?.[1]).toHaveLength(100);
+		expect(send.mock.calls[0]?.[2]).toEqual({ keepalive: false });
+
+		await tracker.flushBatch();
+		await tracker.flushBatch();
+		expect(send.mock.calls.map((call) => call[1].length)).toEqual([100, 100, 5]);
+		expect(tracker.batchQueue).toHaveLength(0);
+	});
+
+	test("drops only a rejected chunk and preserves the unsent backlog", async () => {
+		jest.useFakeTimers();
+		const tracker = new DeliveryTestTracker({ clientId: "site_example" });
+		tracker.api.fetch = mock(async () => ({
+			ok: false as const,
+			code: "HTTP_ERROR" as const,
+			message: "invalid batch",
+			status: 400,
+			retryable: false,
+			attempts: 1,
+			transport: "fetch" as const,
+		}));
+		tracker.batchQueue.push(
+			...Array.from({ length: 101 }, (_, index) => ({
+				eventId: `event_${index}`,
+				timestamp: index,
+			}))
+		);
+
+		expect(await tracker.flushBatch()).toMatchObject({
+			ok: false,
+			statusCode: 400,
+			count: 100,
+		});
+		expect(tracker.batchQueue).toEqual([
+			{ eventId: "event_100", timestamp: 100 },
+		]);
+	});
+
+	test("beacons the analytics queue on unload in count and byte bounded chunks", () => {
+		const tracker = new UnloadTestTracker({ clientId: "site_example" });
+		const sendBeacon = mock(() => true);
+		tracker.sendBeacon = sendBeacon;
+		tracker.batchQueue.push(
+			...Array.from({ length: 100 }, (_, index) => ({
+				eventId: `small_${index}`,
+				timestamp: index,
+			})),
+			{ eventId: "large_1", timestamp: 101, value: "x".repeat(40_000) },
+			{ eventId: "large_2", timestamp: 102, value: "x".repeat(40_000) }
+		);
+
+		tracker.flushForPageUnload();
+
+		expect(sendBeacon.mock.calls.map((call) => call[1])).toEqual([
+			"/batch",
+			"/batch",
+			"/batch",
+		]);
+		expect(sendBeacon.mock.calls.map((call) => call[0].length)).toEqual([
+			100, 1, 1,
+		]);
+		expect(tracker.batchQueue).toHaveLength(0);
+	});
+
+	test("reclaims an in-flight analytics chunk for the unload beacon", async () => {
+		const tracker = new UnloadTestTracker({ clientId: "site_example" });
+		const delivery = createDeferred<HttpResult<unknown>>();
+		tracker.api.fetch = mock(() => delivery.promise);
+		const sendBeacon = mock(() => true);
+		tracker.sendBeacon = sendBeacon;
+		await tracker.addToBatch({ eventId: "event_in_flight", timestamp: 1 });
+
+		const flush = tracker.flushBatch();
+		await flushMicrotasks();
+		expect(tracker.batchQueue).toHaveLength(0);
+
+		tracker.flushForPageUnload();
+
+		expect(sendBeacon).toHaveBeenCalledWith(
+			[{ eventId: "event_in_flight", timestamp: 1 }],
+			"/batch"
+		);
+		expect(tracker.batchQueue).toHaveLength(0);
+
+		delivery.resolve({
+			ok: false,
+			code: "REQUEST_ERROR",
+			message: "Request aborted",
+			status: null,
+			retryable: false,
+			attempts: 1,
+			transport: "fetch",
+		});
+		await flush;
+	});
+
+	test("drops only an unserializable unload event and continues flushing", () => {
+		const tracker = new UnloadTestTracker({ clientId: "site_example" });
+		const sendBeacon = mock(() => true);
+		tracker.sendBeacon = sendBeacon;
+		const cyclic: Record<string, unknown> = {
+			eventId: "event_cyclic",
+			timestamp: 1,
+		};
+		cyclic.self = cyclic;
+		tracker.batchQueue.push(
+			cyclic as never,
+			{ eventId: "event_valid", timestamp: 2 }
+		);
+		tracker.trackQueue.push({
+			eventId: "track_valid",
+			name: "signup",
+			timestamp: 3,
+		});
+
+		expect(() => tracker.flushForPageUnload(true)).not.toThrow();
+
+		expect(sendBeacon.mock.calls.map((call) => call[1])).toEqual([
+			"/batch",
+			"/track",
+			"/batch",
+		]);
+		expect(sendBeacon.mock.calls[0]?.[0]).toEqual([
+			{ eventId: "event_valid", timestamp: 2 },
+		]);
+		expect(tracker.batchQueue).toHaveLength(0);
+		expect(tracker.trackQueue).toHaveLength(0);
+	});
+
 	test("keeps a retryable failed batch queued", async () => {
 		jest.useFakeTimers();
 		const tracker = new DeliveryTestTracker({ clientId: "site_example" });

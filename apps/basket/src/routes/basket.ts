@@ -24,7 +24,10 @@ import {
 	insertOutgoingLinksBatch,
 	insertTrackEvent,
 	insertTrackEventsBatch,
+	stableAnalyticsEventId,
+	type BatchEvent,
 } from "@lib/event-service";
+import { parseCorsSafeJson } from "@lib/cors-safe-json";
 import { summarizeRejectedBody } from "@lib/rejection-summary";
 import {
 	checkForBot,
@@ -38,7 +41,6 @@ import {
 } from "@lib/security";
 import {
 	basketErrors,
-	buildBasketErrorPayload,
 	createIngestSchemaValidationError,
 	rethrowOrWrap,
 } from "@lib/structured-errors";
@@ -97,14 +99,17 @@ function processTrackEventData(
 			salt
 		);
 
-		return buildTrackEvent(trackData, {
-			clientId,
-			eventId,
-			anonymousId,
-			geo: geoData,
-			ua,
-			now: Date.now(),
-		});
+		return {
+			event: buildTrackEvent(trackData, {
+				clientId,
+				eventId,
+				anonymousId,
+				geo: geoData,
+				ua,
+				now: Date.now(),
+			}),
+			sourceEventId: eventId,
+		};
 	});
 }
 
@@ -112,7 +117,8 @@ async function processOutgoingLinkData(
 	linkData: OutgoingLinkInput,
 	clientId: string,
 	visitorCountry?: unknown
-): Promise<OutgoingLinksInsert> {
+): Promise<BatchEvent<OutgoingLinksInsert>> {
+	const eventId = parseEventId(linkData.eventId, () => randomUUIDv7());
 	const timestamp = parseTimestamp(linkData.timestamp);
 	const anonymizeVisitorIds = shouldAnonymizeVisitorIds(
 		linkData.anonymizeVisitorIds,
@@ -127,21 +133,38 @@ async function processOutgoingLinkData(
 	);
 
 	return {
-		id: randomUUIDv7(),
-		client_id: clientId,
-		anonymous_id: anonymousId,
-		session_id: validateSessionId(linkData.sessionId),
-		href: sanitizeString(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
-		text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
-		properties: parseProperties(linkData.properties),
-		timestamp,
+		event: {
+			id: stableAnalyticsEventId(clientId, "outgoing_link", eventId),
+			client_id: clientId,
+			anonymous_id: anonymousId,
+			session_id: validateSessionId(linkData.sessionId),
+			href: sanitizeString(linkData.href, VALIDATION_LIMITS.PATH_MAX_LENGTH),
+			text: sanitizeString(linkData.text, VALIDATION_LIMITS.TEXT_MAX_LENGTH),
+			properties: parseProperties(linkData.properties),
+			timestamp,
+		},
+		sourceEventId: eventId,
 	};
 }
 
 const app = new Elysia()
+	.onParse(parseCorsSafeJson)
 	.get("/px.jpg", async ({ query, request }) => {
 		const log = useLogger();
 		log.set({ route: "pixel" });
+		const retryablePixelResponse = (error: unknown) => {
+			const status =
+				error instanceof EvlogError && error.status >= 400 && error.status < 600
+					? error.status
+					: 503;
+			const retryable =
+				status === 408 || status === 425 || status === 429 || status >= 500;
+			if (!retryable) {
+				return createPixelResponse();
+			}
+			log.error(error instanceof Error ? error : new Error(String(error)));
+			return createPixelResponse({ retryAfterSeconds: 5, status });
+		};
 
 		try {
 			const { eventData, eventType } = parsePixelQuery(
@@ -169,9 +192,9 @@ const app = new Elysia()
 			}
 
 			if (eventType === "track") {
-				insertTrackEvent(eventData, clientId, userAgent, ip, request);
+				await insertTrackEvent(eventData, clientId, userAgent, ip, request);
 			} else if (eventType === "outgoing_link") {
-				insertOutgoingLink(eventData, clientId, request);
+				await insertOutgoingLink(eventData, clientId, request);
 			} else if (eventType === "web_vitals") {
 				const vitalParse = individualVitalSchema.safeParse(eventData);
 				if (!vitalParse.success) {
@@ -182,7 +205,11 @@ const app = new Elysia()
 					[vitalParse.data],
 					request
 				);
-				insertIndividualVitals([vitalParse.data], clientId, visitorCountry);
+				await insertIndividualVitals(
+					[vitalParse.data],
+					clientId,
+					visitorCountry
+				);
 			} else if (eventType === "error") {
 				const errorParse = errorSpanSchema.safeParse(eventData);
 				if (!errorParse.success) {
@@ -193,16 +220,12 @@ const app = new Elysia()
 					[errorParse.data],
 					request
 				);
-				insertErrorSpans([errorParse.data], clientId, visitorCountry);
+				await insertErrorSpans([errorParse.data], clientId, visitorCountry);
 			}
 
 			return createPixelResponse();
 		} catch (error) {
-			if (error instanceof EvlogError) {
-				return createPixelResponse();
-			}
-			log.error(error instanceof Error ? error : new Error(String(error)));
-			return createPixelResponse();
+			return retryablePixelResponse(error);
 		}
 	})
 	.post("/vitals", async ({ body, query, request }) => {
@@ -346,6 +369,7 @@ const app = new Elysia()
 			}
 
 			const events = parseResult.data.map((event) => ({
+				...(event.eventId ? { event_id: event.eventId } : {}),
 				owner_id: organizationId,
 				website_id: clientId,
 				timestamp: event.timestamp,
@@ -468,24 +492,17 @@ const app = new Elysia()
 				throw basketErrors.ingestBatchTooLarge();
 			}
 
-			let validation: ValidatedRequest;
-			try {
-				validation = await validateRequest(body, query, request);
-			} catch (error) {
-				if (error instanceof EvlogError) {
-					const { status, payload } = buildBasketErrorPayload(error, {
-						extra: { batch: true },
-					});
-					return Response.json(payload, { status });
-				}
-				throw error;
-			}
+			const validation: ValidatedRequest = await validateRequest(
+				body,
+				query,
+				request
+			);
 
 			const { clientId, userAgent, ip } = validation;
 			log.set({ clientId });
 
-			const trackEvents: EventsInsert[] = [];
-			const outgoingLinkEvents: OutgoingLinksInsert[] = [];
+			const trackEvents: BatchEvent<EventsInsert>[] = [];
+			const outgoingLinkEvents: BatchEvent<OutgoingLinksInsert>[] = [];
 			const results: Record<string, unknown>[] = [];
 			let batchVisitorCountry: string | undefined;
 			let hasResolvedBatchVisitorCountry = false;
@@ -614,10 +631,17 @@ const app = new Elysia()
 				}
 			}
 
-			await Promise.all([
+			const deliveryResults = await Promise.allSettled([
 				insertTrackEventsBatch(trackEvents),
 				insertOutgoingLinksBatch(outgoingLinkEvents),
 			]);
+			const deliveryFailure = deliveryResults.find(
+				(result): result is PromiseRejectedResult =>
+					result.status === "rejected"
+			);
+			if (deliveryFailure) {
+				throw deliveryFailure.reason;
+			}
 
 			log.set({
 				processed: results.length,

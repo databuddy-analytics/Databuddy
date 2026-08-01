@@ -155,6 +155,16 @@ describe("DQL ClickHouse client", () => {
 			[DQL_TENANT_SETTING]: "website-a",
 			readonly: 1,
 		});
+		expect(
+			dqlSettingsForWebsite(
+				"website-a",
+				"SELECT count() FROM analytics.events"
+			)
+		).toEqual({
+			[DQL_TENANT_SETTING]: "website-a",
+			final: 1,
+			readonly: 1,
+		});
 		expect(() => dqlSettingsForWebsite(" ")).toThrow(
 			"authorized website identifier"
 		);
@@ -201,6 +211,7 @@ describe("DQL ClickHouse client", () => {
 			format: "JSON",
 			clickhouse_settings: {
 				[DQL_TENANT_SETTING]: "website-a",
+				final: 1,
 				readonly: 1,
 			},
 		});

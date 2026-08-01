@@ -1,7 +1,13 @@
 import { vi, beforeEach, describe, expect, test } from "vitest";
 import {
-	checkDuplicate,
 	applyVisitorIdPrivacy,
+	DEDUP_RESERVATION_TIMEOUT_MS,
+	markDuplicateReservationAmbiguous,
+	markDuplicateReservationDelivered,
+	releaseDuplicateReservation,
+	reserveDuplicate,
+	reserveDuplicateBatch,
+	resetDeduplicationCircuitForTesting,
 	saltAnonymousId,
 	shouldAnonymizeVisitorIds,
 } from "./security";
@@ -114,16 +120,19 @@ describe("visitor ID anonymization helpers", () => {
 	});
 });
 
-// ── checkDuplicate (needs Redis mock) ──
+// ── duplicate reservations (needs Redis mock) ──
 
-const { mockRedisSet, mockLoggerSet, mockCaptureError } = vi.hoisted(() => ({
-	mockRedisSet: vi.fn(() => Promise.resolve("OK")),
-	mockLoggerSet: vi.fn(() => {}),
-	mockCaptureError: vi.fn(),
-}));
+const { mockRedisSet, mockRedisGet, mockRedisEval, mockLoggerSet, mockCaptureError } =
+	vi.hoisted(() => ({
+		mockRedisSet: vi.fn(() => Promise.resolve("OK")),
+		mockRedisGet: vi.fn(() => Promise.resolve(null)),
+		mockRedisEval: vi.fn(() => Promise.resolve(1)),
+		mockLoggerSet: vi.fn(() => {}),
+		mockCaptureError: vi.fn(),
+	}));
 
 vi.mock("@databuddy/redis/redis", () => ({
-	redis: { set: mockRedisSet },
+	redis: { set: mockRedisSet, get: mockRedisGet, eval: mockRedisEval },
 	getRedisCache: () => ({ set: mockRedisSet }),
 }));
 vi.mock("@databuddy/redis/cacheable", () => ({
@@ -140,106 +149,484 @@ vi.mock("@lib/tracing", () => ({
 	captureError: mockCaptureError,
 }));
 
-describe("checkDuplicate", () => {
+describe("duplicate reservations", () => {
 	beforeEach(() => {
 		mockRedisSet.mockReset();
+		mockRedisGet.mockReset();
+		mockRedisEval.mockReset();
 		mockLoggerSet.mockReset();
 		mockCaptureError.mockReset();
+		resetDeduplicationCircuitForTesting();
 	});
 
-	test("first event (NX returns OK) → not duplicate", async () => {
+	test("writes a pending reservation for a new event", async () => {
 		mockRedisSet.mockResolvedValue("OK");
-		const result = await checkDuplicate("evt_1", "track");
-		expect(result).toBe(false);
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toMatchObject({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: expect.stringMatching(/^pending:/),
+		});
 		expect(mockRedisSet).toHaveBeenCalledWith(
 			"dedup:track:evt_1",
-			"1",
+			expect.stringMatching(/^pending:/),
 			"EX",
-			86_400,
+			120,
 			"NX"
 		);
 	});
 
-	test("duplicate event (NX returns null) → is duplicate", async () => {
+	test("suppresses only a confirmed delivered reservation", async () => {
 		mockRedisSet.mockResolvedValue(null);
-		const result = await checkDuplicate("evt_1", "track");
-		expect(result).toBe(true);
+		mockRedisGet.mockResolvedValue("delivered");
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: true });
+		expect(mockLoggerSet).toHaveBeenCalledWith({
+			dedup: { duplicate: true, eventType: "track" },
+		});
 	});
 
-	test("exit_ prefix → uses longer TTL (172800)", async () => {
-		mockRedisSet.mockResolvedValue("OK");
-		await checkDuplicate("exit_abc", "track");
-		expect(mockRedisSet).toHaveBeenCalledWith(
-			"dedup:track:exit_abc",
-			"1",
-			"EX",
-			172_800,
-			"NX"
-		);
-	});
+	test("claims an ambiguous Kafka acknowledgement for a Kafka-only retry", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockResolvedValue("ambiguous");
+		mockRedisEval.mockResolvedValue(1);
 
-	test("non-exit prefix → uses standard TTL (86400)", async () => {
-		mockRedisSet.mockResolvedValue("OK");
-		await checkDuplicate("normal_abc", "track");
-		expect(mockRedisSet).toHaveBeenCalledWith(
-			"dedup:track:normal_abc",
-			"1",
-			"EX",
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toMatchObject({
+			ambiguous: true,
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: expect.stringMatching(/^ambiguous-pending:\d+:/),
+		});
+		expect(mockLoggerSet).not.toHaveBeenCalled();
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"ambiguous",
+			expect.stringMatching(/^ambiguous-pending:\d+:/),
 			86_400,
-			"NX"
+			expect.any(Number),
+			"ambiguous-pending:"
 		);
 	});
 
-	test("different event types → different keys", async () => {
-		mockRedisSet.mockResolvedValue("OK");
-		await checkDuplicate("evt_1", "outgoing_link");
-		expect(mockRedisSet).toHaveBeenCalledWith(
-			"dedup:outgoing_link:evt_1",
-			"1",
-			"EX",
+	test("atomically reserves new and ambiguous items while skipping delivered ones", async () => {
+		mockRedisEval.mockResolvedValue([
+			"acquired",
+			"delivered",
+			"ambiguous-acquired",
+		]);
+
+		const reservations = await reserveDuplicateBatch([
+			{ eventId: "new", eventType: "error" },
+			{ eventId: "done", eventType: "error" },
+			{ eventId: "unknown", eventType: "error" },
+		]);
+
+		expect(reservations[0]).toMatchObject({ duplicate: false });
+		expect(reservations[1]).toEqual({ duplicate: true });
+		expect(reservations[2]).toMatchObject({
+			ambiguous: true,
+			duplicate: false,
+			token: expect.stringMatching(/^ambiguous-pending:\d+:/),
+		});
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining("ambiguous%-pending"),
+			3,
+			"dedup:error:new",
+			"dedup:error:done",
+			"dedup:error:unknown",
+			expect.stringMatching(/^pending:/),
+			expect.stringMatching(/^ambiguous-pending:\d+:/),
+			"delivered",
+			"ambiguous",
+			120,
+			expect.any(Number),
+			"ambiguous-pending:",
 			86_400,
+			86_400,
+			86_400
+		);
+	});
+
+	test("does not partially acquire a batch when another owner is pending", async () => {
+		mockRedisEval.mockResolvedValue(["retryable"]);
+
+		await expect(
+			reserveDuplicateBatch([
+				{ eventId: "a", eventType: "error" },
+				{ eventId: "b", eventType: "error" },
+			])
+		).resolves.toEqual([
+			{ duplicate: false, retryable: true },
+			{ duplicate: false, retryable: true },
+		]);
+	});
+
+	test("does not publish after an unknown batch EVAL outcome", async () => {
+		mockRedisEval.mockRejectedValue(new Error("connection reset after write"));
+
+		await expect(
+			reserveDuplicateBatch([
+				{ eventId: "a", eventType: "error" },
+				{ eventId: "b", eventType: "error" },
+			])
+		).resolves.toEqual([
+			{ duplicate: false, retryable: true },
+			{ duplicate: false, retryable: true },
+		]);
+		expect(mockRedisEval.mock.calls.length).toBeGreaterThanOrEqual(2);
+	});
+
+	test("requires a retry when another request owns a pending reservation", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockResolvedValue("pending:other-attempt");
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
+	});
+
+	test("requires a retry when a lost reservation vanishes before it can be read", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockResolvedValue(null);
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
+	});
+
+	test("recovers ownership when an ambiguous SET wrote this request's token", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockImplementation(async () => mockRedisSet.mock.calls[0]?.[1]);
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation.token).toBe(mockRedisSet.mock.calls[0]?.[1]);
+	});
+
+	test("preserves the exit-event retention when its delivery id is hashed", async () => {
+		mockRedisSet.mockResolvedValue("OK");
+
+		await reserveDuplicate("stable-delivery-id", "track", "exit_abc");
+
+		expect(mockRedisSet).toHaveBeenCalledWith(
+			"dedup:track:stable-delivery-id",
+			expect.stringMatching(/^pending:/),
+			"EX",
+			120,
 			"NX"
 		);
 	});
 
-	test("transient Redis error → retries once before failing open", async () => {
+	test("retries a Redis error before acquiring the reservation", async () => {
 		mockRedisSet
 			.mockRejectedValueOnce(new Error("stale connection"))
 			.mockResolvedValueOnce("OK");
 
-		const result = await checkDuplicate("evt_1", "track");
+		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(result).toBe(false);
+		expect(reservation.duplicate).toBe(false);
 		expect(mockRedisSet).toHaveBeenCalledTimes(2);
 		expect(mockCaptureError).not.toHaveBeenCalled();
 	});
 
-	test("ambiguous retry null after Redis error → not duplicate", async () => {
-		mockRedisSet
-			.mockRejectedValueOnce(new Error("stale connection"))
-			.mockResolvedValueOnce(null);
-
-		const result = await checkDuplicate("evt_1", "track");
-
-		expect(result).toBe(false);
-		expect(mockRedisSet).toHaveBeenCalledTimes(2);
-		expect(mockLoggerSet).not.toHaveBeenCalled();
-		expect(mockCaptureError).not.toHaveBeenCalled();
-	});
-
-	test("Redis error → returns false (fail-open)", async () => {
+	test("rejects admission for a Redis outage without publishing unowned", async () => {
 		mockRedisSet.mockRejectedValue(new Error("Redis down"));
-		const result = await checkDuplicate("evt_1", "track");
-		expect(result).toBe(false);
+		mockRedisGet.mockRejectedValue(new Error("Redis down"));
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
 		expect(mockRedisSet).toHaveBeenCalledTimes(2);
 		expect(mockCaptureError).toHaveBeenCalledOnce();
 	});
 
-	test("duplicate event logs dedup context", async () => {
-		mockRedisSet.mockResolvedValue(null);
-		await checkDuplicate("evt_dup", "track");
-		expect(mockLoggerSet).toHaveBeenCalledWith({
-			dedup: { duplicate: true, eventType: "track" },
+	test("keeps Redis write failures retryable even when a read sees no reservation", async () => {
+		mockRedisSet.mockRejectedValue(new Error("Redis writes unavailable"));
+		mockRedisGet.mockResolvedValue(null);
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: false, retryable: true });
+		expect(mockRedisSet).toHaveBeenCalledTimes(2);
+		expect(mockRedisGet).toHaveBeenCalledOnce();
+		expect(mockCaptureError).toHaveBeenCalledOnce();
+	});
+
+	test("bounds a stalled reservation and opens a retryable circuit", async () => {
+		vi.useFakeTimers();
+		try {
+			mockRedisSet.mockImplementation(
+				() => new Promise<string | null>(() => undefined)
+			);
+
+			const stalled = reserveDuplicate("evt_1", "track");
+			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
+			await expect(stalled).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
+			await expect(reserveDuplicate("evt_1", "track")).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
+
+			await expect(reserveDuplicate("evt_2", "track")).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
+			expect(mockRedisSet).toHaveBeenCalledOnce();
+			expect(mockCaptureError).toHaveBeenCalledOnce();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("conditionally cleans up a reservation acquired after the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			mockRedisSet.mockImplementation(
+				() =>
+					new Promise<string | null>((resolve) => {
+						setTimeout(
+							() => resolve("OK"),
+							DEDUP_RESERVATION_TIMEOUT_MS + 50
+						);
+					})
+			);
+			mockRedisEval.mockResolvedValue(1);
+
+			const reservation = reserveDuplicate("evt_late", "track");
+			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
+			await expect(reservation).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
+			expect(mockRedisEval).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(mockRedisEval).toHaveBeenCalledWith(
+				expect.stringContaining('redis.call("DEL", KEYS[1])'),
+				1,
+				"dedup:track:evt_late",
+				expect.stringMatching(/^pending:/)
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("restores ambiguity when a claim completes after the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			mockRedisSet.mockImplementation(
+				() =>
+					new Promise<string | null>((resolve) => {
+						setTimeout(
+							() => resolve(null),
+							DEDUP_RESERVATION_TIMEOUT_MS + 50
+						);
+					})
+			);
+			mockRedisGet.mockResolvedValue("ambiguous");
+			mockRedisEval.mockResolvedValue(1);
+
+			const reservation = reserveDuplicate("evt_ambiguous_late", "track");
+			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
+			await expect(reservation).resolves.toEqual({
+				duplicate: false,
+				retryable: true,
+			});
+
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(mockRedisEval).toHaveBeenLastCalledWith(
+				expect.stringContaining('redis.call("SET", KEYS[1], ARGV[2]'),
+				1,
+				"dedup:track:evt_ambiguous_late",
+				expect.stringMatching(/^ambiguous-pending:\d+:/),
+				"ambiguous",
+				86_400
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("restores ambiguous batch leases that complete after the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			mockRedisEval
+				.mockImplementationOnce(
+					() =>
+						new Promise<string[]>((resolve) => {
+							setTimeout(
+								() => resolve(["ambiguous-acquired", "acquired"]),
+								DEDUP_RESERVATION_TIMEOUT_MS + 50
+							);
+						})
+				)
+				.mockResolvedValueOnce(2);
+
+			const reservation = reserveDuplicateBatch([
+				{ eventId: "unknown", eventType: "error" },
+				{ eventId: "new", eventType: "error" },
+			]);
+			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
+			await expect(reservation).resolves.toEqual([
+				{ duplicate: false, retryable: true },
+				{ duplicate: false, retryable: true },
+			]);
+
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(mockRedisEval).toHaveBeenLastCalledWith(
+				expect.stringContaining("local reconciled = 0"),
+				2,
+				"dedup:error:unknown",
+				"dedup:error:new",
+				expect.stringMatching(/^pending:/),
+				expect.stringMatching(/^ambiguous-pending:\d+:/),
+				"ambiguous",
+				86_400,
+				86_400
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	test("does not release a reservation it does not own", async () => {
+		await releaseDuplicateReservation({ duplicate: false });
+
+		expect(mockRedisEval).not.toHaveBeenCalled();
+	});
+
+	test("marks only an owned pending reservation as delivered", async () => {
+		mockRedisEval.mockResolvedValue("OK");
+		await markDuplicateReservationDelivered({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: "pending:owner-attempt",
 		});
+
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"pending:owner-attempt",
+			"delivered",
+			86_400
+		);
+	});
+
+	test("marks only an owned pending reservation as Kafka-ambiguous", async () => {
+		mockRedisEval.mockResolvedValue("OK");
+		await markDuplicateReservationAmbiguous({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: "pending:owner-attempt",
+		});
+
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"pending:owner-attempt",
+			"ambiguous",
+			86_400
+		);
+	});
+
+	test("does not let a stale delivery promote a newer reservation", async () => {
+		let storedToken = "pending:newer-attempt";
+		mockRedisEval.mockImplementation(
+			async (_script, _keys, _key, expectedToken: string, deliveredValue: string) => {
+				if (storedToken === expectedToken) {
+					storedToken = deliveredValue;
+					return "OK";
+				}
+				return 0;
+			}
+		);
+
+		await markDuplicateReservationDelivered({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: "pending:stale-attempt",
+		});
+
+		expect(storedToken).toBe("pending:newer-attempt");
+	});
+
+	test("releases only the pending reservation owned by the failed request", async () => {
+		mockRedisEval.mockResolvedValue(1);
+
+		await releaseDuplicateReservation({
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: "pending:owner-attempt",
+		});
+
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"pending:owner-attempt"
+		);
+	});
+
+	test("does not let a stale attempt release a newer reservation", async () => {
+		let storedToken = "pending:newer-attempt";
+		mockRedisEval.mockImplementation(
+			async (_script, _keys, _key, expectedToken: string) => {
+				if (storedToken === expectedToken) {
+					storedToken = "";
+					return 1;
+				}
+				return 0;
+			}
+		);
+
+		await releaseDuplicateReservation({
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: "pending:stale-attempt",
+		});
+
+		expect(storedToken).toBe("pending:newer-attempt");
+	});
+
+	test("captures release failures without hiding the original delivery failure", async () => {
+		mockRedisEval.mockRejectedValue(new Error("Redis down"));
+
+		await expect(
+			releaseDuplicateReservation({
+				duplicate: false,
+				key: "dedup:track:evt_1",
+				token: "pending:owner-attempt",
+			})
+		).resolves.toBeUndefined();
+
+		expect(mockCaptureError).toHaveBeenCalledWith(
+			expect.any(Error),
+			expect.objectContaining({
+				message:
+					"Failed to release duplicate reservation after delivery failure",
+			})
+		);
 	});
 });

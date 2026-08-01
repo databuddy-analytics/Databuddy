@@ -63,9 +63,15 @@ export const mainNavigation: NavigationGroup[] = [
 				searchItems: [
 					{
 						name: "Investigations",
-						href: "/insights#investigations",
+						href: "/insights/investigations",
 						icon: LightbulbIcon,
 						searchTags: ["cases", "open work"],
+					},
+					{
+						name: "Recommendations",
+						href: "/insights/recommendations",
+						icon: LightbulbIcon,
+						searchTags: ["suggestions", "improvements", "setup"],
 					},
 				],
 			}),

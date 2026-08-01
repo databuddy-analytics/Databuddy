@@ -3,6 +3,7 @@ export interface ClientConfig {
 	defaultHeaders?: Record<string, string>;
 	initialRetryDelay?: number;
 	maxRetries?: number;
+	requestTimeoutMs?: number;
 }
 
 export type HttpResult<T> =
@@ -52,11 +53,22 @@ function isRetryableStatus(status: number): boolean {
 	return status === 408 || status === 425 || status === 429 || status >= 500;
 }
 
+class RequestTimeoutError extends Error {
+	readonly timeoutMs: number;
+
+	constructor(timeoutMs: number) {
+		super(`Request timed out after ${timeoutMs}ms`);
+		this.name = "RequestTimeoutError";
+		this.timeoutMs = timeoutMs;
+	}
+}
+
 export class HttpClient {
 	baseUrl: string;
 	headers: Record<string, string>;
 	maxRetries: number;
 	initialRetryDelay: number;
+	requestTimeoutMs: number;
 	private readonly activeRequests = new Set<AbortController>();
 
 	constructor(config: ClientConfig) {
@@ -67,6 +79,7 @@ export class HttpClient {
 		};
 		this.maxRetries = config.maxRetries ?? 3;
 		this.initialRetryDelay = config.initialRetryDelay ?? 500;
+		this.requestTimeoutMs = config.requestTimeoutMs ?? 10_000;
 	}
 
 	async post<T>(
@@ -78,6 +91,7 @@ export class HttpClient {
 		const controller = new AbortController();
 		const callerSignal = options.signal;
 		const abortFromCaller = () => controller.abort();
+		let timeout: ReturnType<typeof setTimeout> | undefined;
 
 		if (callerSignal?.aborted) {
 			controller.abort();
@@ -85,6 +99,12 @@ export class HttpClient {
 			callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
 		}
 		this.activeRequests.add(controller);
+		if (this.requestTimeoutMs > 0) {
+			timeout = setTimeout(() => {
+				controller.abort(new RequestTimeoutError(this.requestTimeoutMs));
+			}, this.requestTimeoutMs);
+			timeout.unref?.();
+		}
 
 		try {
 			return await this.postAttempt<T>(
@@ -94,6 +114,9 @@ export class HttpClient {
 				retryCount
 			);
 		} finally {
+			if (timeout) {
+				clearTimeout(timeout);
+			}
 			this.activeRequests.delete(controller);
 			callerSignal?.removeEventListener("abort", abortFromCaller);
 		}
@@ -113,31 +136,7 @@ export class HttpClient {
 	): Promise<HttpResult<T>> {
 		const signal = options.signal;
 		if (signal?.aborted) {
-			return this.abortedResult(retryCount);
-		}
-
-		if (
-			retryCount === 0 &&
-			typeof navigator !== "undefined" &&
-			navigator.sendBeacon &&
-			options.keepalive
-		) {
-			try {
-				const blob = new Blob([JSON.stringify(data ?? {})], {
-					type: "application/json",
-				});
-				if (navigator.sendBeacon(url, blob)) {
-					return {
-						ok: true,
-						data: null,
-						status: null,
-						attempts: 1,
-						transport: "beacon",
-					};
-				}
-			} catch {
-				// Fall through to fetch so callers receive a verifiable outcome.
-			}
+			return this.abortedResult(retryCount, signal);
 		}
 
 		try {
@@ -145,13 +144,13 @@ export class HttpClient {
 				method: "POST",
 				headers: this.headers,
 				body: JSON.stringify(data ?? {}),
-				keepalive: true,
+				keepalive: false,
 				credentials: "omit",
 				...options,
 			});
 			const text = await response.text();
 			if (signal?.aborted) {
-				return this.abortedResult(retryCount + 1);
+				return this.abortedResult(retryCount + 1, signal);
 			}
 			const body = parseResponseBody(text);
 
@@ -160,7 +159,7 @@ export class HttpClient {
 				if (retryable && retryCount < this.maxRetries) {
 					const shouldRetry = await this.waitBeforeRetry(retryCount, signal);
 					if (!shouldRetry) {
-						return this.abortedResult(retryCount + 1);
+						return this.abortedResult(retryCount + 1, signal);
 					}
 					return this.postAttempt(url, data, options, retryCount + 1);
 				}
@@ -187,7 +186,7 @@ export class HttpClient {
 				signal?.aborted ||
 				(error instanceof Error && error.name === "AbortError")
 			) {
-				return this.abortedResult(retryCount + 1);
+				return this.abortedResult(retryCount + 1, signal);
 			}
 			const isNetworkError =
 				error instanceof TypeError ||
@@ -196,7 +195,7 @@ export class HttpClient {
 			if (retryCount < this.maxRetries && isNetworkError) {
 				const shouldRetry = await this.waitBeforeRetry(retryCount, signal);
 				if (!shouldRetry) {
-					return this.abortedResult(retryCount + 1);
+					return this.abortedResult(retryCount + 1, signal);
 				}
 				return this.postAttempt(url, data, options, retryCount + 1);
 			}
@@ -227,13 +226,17 @@ export class HttpClient {
 		return this.post(url, data, options, 0);
 	}
 
-	private abortedResult<T>(attempts: number): HttpResult<T> {
+	private abortedResult<T>(
+		attempts: number,
+		signal?: AbortSignal | null
+	): HttpResult<T> {
+		const timeout = signal?.reason instanceof RequestTimeoutError;
 		return {
 			ok: false,
-			code: "REQUEST_ERROR",
-			message: "Request aborted",
+			code: timeout ? "NETWORK_ERROR" : "REQUEST_ERROR",
+			message: timeout ? signal.reason.message : "Request aborted",
 			status: null,
-			retryable: false,
+			retryable: timeout,
 			attempts,
 			transport: "fetch",
 		};

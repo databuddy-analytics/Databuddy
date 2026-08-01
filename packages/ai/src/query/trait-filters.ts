@@ -13,9 +13,11 @@ export const SANITIZED_QUERY_ERROR = "Query failed";
 const PUBLIC_QUERY_ERROR_PATTERNS = [
 	/^Unknown query type:/,
 	/^Filter on field '[^']+' is not permitted/,
+	/^Operator '[^']+' is not permitted for filter '[^']+'\./,
 	/^Grouping by '[^']+' is not permitted/,
 	/^Ordering by '[^']+' is not permitted/,
 	/^Missing required filters?:/,
+	/^error_customer_impact requires exactly one scalar message or path equality filter$/,
 	/^Trait filters /,
 	/^Trait segment exceeds /,
 	/^[a-z_]+ filter is required for [a-z_]+ query$/,

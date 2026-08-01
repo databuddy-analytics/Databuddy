@@ -28,7 +28,9 @@ const mockRedisClient = {
 };
 
 mock.module("./redis", () => ({
-	getRedisCache: () => mockRedisClient,
+	runRateLimitCommand: <T>(
+		operation: (client: typeof mockRedisClient) => Promise<T>
+	) => operation(mockRedisClient),
 }));
 
 const { ratelimit } = await import("./rate-limit");
@@ -68,6 +70,7 @@ describe("ratelimit", () => {
 		const result = await ratelimit("user-2", 5, 60);
 
 		expect(result.success).toBe(true);
+		expect(result.degraded).toBe(true);
 		expect(result.limit).toBe(5);
 		expect(result.remaining).toBe(4);
 		expect(buckets.has("rl:user-2")).toBe(false);

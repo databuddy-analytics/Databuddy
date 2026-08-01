@@ -7,9 +7,12 @@ CREATE TABLE IF NOT EXISTS analytics.outgoing_links
 	`href` String,
 	`text` Nullable(String),
 	`properties` String,
-	`timestamp` DateTime64(3, 'UTC') DEFAULT now()
+	`timestamp` DateTime64(3, 'UTC') DEFAULT now(),
+	`ingested_at` DateTime64(6, 'UTC') DEFAULT now64(6) CODEC(Delta(8), ZSTD(1)),
+	INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
 )
-ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_outgoing_links', '{replica}')
+ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_outgoing_links_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (client_id, timestamp, id)
+PRIMARY KEY client_id
+ORDER BY (client_id, id)
 SETTINGS index_granularity = 8192

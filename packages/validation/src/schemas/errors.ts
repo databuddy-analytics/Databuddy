@@ -74,6 +74,7 @@ export const errorEventSchema = z.object({
 
 // New format (v2.x): lean error spans
 export const errorSpanSchema = z.object({
+	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH).optional(),
 	timestamp: timestampSchema,
 	path: z.string().max(VALIDATION_LIMITS.PATH_MAX_LENGTH),
 	message: z.string().max(VALIDATION_LIMITS.MESSAGE_MAX_LENGTH),

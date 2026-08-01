@@ -5,11 +5,17 @@ import {
 	enrichBasketWideEvent,
 	flushBatchedAxiomDrain,
 } from "@lib/evlog-basket";
+import { withHealthProbeDeadline } from "@lib/health-probe";
 import { shutdownPostgres } from "@databuddy/db";
 import { clickHouse } from "@databuddy/db/clickhouse";
 import { getRedisCache } from "@databuddy/redis/redis";
-import { disconnect, disposeRuntime, runPromise } from "@lib/producer";
-import { Kafka } from "kafkajs";
+import {
+	checkProducerConnection,
+	disconnect,
+	disposeRuntime,
+	runPromise,
+	ShutdownDrainError,
+} from "@lib/producer";
 import { databuddyEvlogRedaction } from "@databuddy/shared/evlog-redaction";
 import {
 	handleUncaughtException,
@@ -18,6 +24,7 @@ import {
 import { sanitizeRequestId } from "@lib/request-id";
 import { buildBasketErrorPayload } from "@lib/structured-errors";
 import { captureError } from "@lib/tracing";
+import { BASKET_SHUTDOWN_TIMEOUT_MS } from "@lib/shutdown-budget";
 import basketRouter from "@routes/basket";
 import { identifyRoute } from "@routes/identify";
 import { trackRoute } from "@routes/track";
@@ -52,7 +59,6 @@ if (!process.env.DATABUDDY_ENCRYPTION_KEY) {
 	});
 }
 
-const SHUTDOWN_TIMEOUT_MS = 10_000;
 let shutdownStarted = false;
 
 async function gracefulShutdown(signal: string, exitCode = 0) {
@@ -67,7 +73,7 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 			message: "Graceful shutdown timed out",
 		});
 		process.exit(1);
-	}, SHUTDOWN_TIMEOUT_MS);
+	}, BASKET_SHUTDOWN_TIMEOUT_MS);
 	timeout.unref?.();
 
 	let finalExitCode = exitCode;
@@ -79,13 +85,35 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 				error_message: error instanceof Error ? error.message : String(error),
 			});
 		const { shutdownRedis } = await import("@databuddy/redis");
+		// Wait for acknowledged delivery before tearing down its dependencies.
+		try {
+			await runPromise(disconnect);
+		} catch (error) {
+			finalExitCode = 1;
+			if (error instanceof ShutdownDrainError) {
+				log.error({
+					lifecycle: "producerDrain",
+					error_message:
+						"Basket producer drain timed out waiting for in-flight delivery",
+					in_flight: error.inFlight,
+					drain_timeout_ms: error.deadlineMs,
+				});
+			} else {
+				logErr("producerDrain")(error);
+			}
+		} finally {
+			try {
+				await disposeRuntime();
+			} catch (error) {
+				finalExitCode = 1;
+				logErr("runtimeDispose")(error);
+			}
+		}
 		await Promise.all([
 			shutdownRedis().catch(logErr("redisShutdown")),
 			shutdownPostgres().catch(logErr("postgresShutdown")),
-			flushBatchedAxiomDrain().catch(logErr("drainFlush")),
-			runPromise(disconnect).catch(logErr("shutdown")),
-			disposeRuntime().catch(logErr("runtimeDispose")),
 		]);
+		await flushBatchedAxiomDrain().catch(logErr("drainFlush"));
 		closeGeoIPReader();
 	} catch (error) {
 		finalExitCode = 1;
@@ -162,7 +190,7 @@ const app = new Elysia()
 		async function ping(name: string, probe: () => Promise<void>) {
 			const start = performance.now();
 			try {
-				await probe();
+				await withHealthProbeDeadline(probe);
 				return {
 					status: "ok" as const,
 					latency_ms: Math.round(performance.now() - start),
@@ -194,30 +222,7 @@ const app = new Elysia()
 				}
 			}),
 			ping("redpanda", async () => {
-				const broker = process.env.REDPANDA_BROKER;
-				if (!broker) {
-					throw new Error("not configured");
-				}
-				const kafka = new Kafka({
-					clientId: "health",
-					brokers: [broker],
-					connectionTimeout: 5000,
-					...(process.env.REDPANDA_USER &&
-						process.env.REDPANDA_PASSWORD && {
-							sasl: {
-								mechanism: "scram-sha-256",
-								username: process.env.REDPANDA_USER,
-								password: process.env.REDPANDA_PASSWORD,
-							},
-							ssl: false,
-						}),
-				});
-				const admin = kafka.admin();
-				try {
-					await admin.connect();
-				} finally {
-					await admin.disconnect().catch(() => {});
-				}
+				await runPromise(checkProducerConnection);
 			}),
 		]);
 

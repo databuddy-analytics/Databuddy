@@ -9,6 +9,7 @@ const INSIGHT_CACHE = {
 const INSIGHTS_ROOT = ["insights"] as const;
 const BRIEF_PAGE_SIZE = 5;
 const HISTORY_PAGE_SIZE = 50;
+const RECOMMENDATIONS_PAGE_SIZE = 20;
 
 export const insightQueries = {
 	all: () => INSIGHTS_ROOT,
@@ -27,11 +28,16 @@ export const insightQueries = {
 			retry: 2,
 			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
 		}),
-	historyInfinite: (orgId: string | undefined) =>
+	historyInfinite: (orgId: string | undefined, status?: "open" | "resolved") =>
 		infiniteQueryOptions({
-			queryKey: [...INSIGHTS_ROOT, "history-infinite", orgId] as const,
+			queryKey: [...INSIGHTS_ROOT, "history-infinite", orgId, status] as const,
 			queryFn: ({ pageParam }) =>
-				fetchInsightsHistoryPage(orgId ?? "", pageParam, HISTORY_PAGE_SIZE),
+				fetchInsightsHistoryPage(
+					orgId ?? "",
+					pageParam,
+					HISTORY_PAGE_SIZE,
+					status
+				),
 			initialPageParam: 0,
 			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
 				lastPage.hasMore ? lastPageParam + HISTORY_PAGE_SIZE : undefined,
@@ -39,6 +45,41 @@ export const insightQueries = {
 			staleTime: INSIGHT_CACHE.historyStaleTime,
 			gcTime: INSIGHT_CACHE.gcTime,
 			refetchOnWindowFocus: false,
+			retry: 2,
+			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
+		}),
+	recommendationsInfinite: (orgId: string | undefined) =>
+		infiniteQueryOptions({
+			queryKey: [...INSIGHTS_ROOT, "recommendations-infinite", orgId] as const,
+			queryFn: ({ pageParam }) =>
+				fetchInsightRecommendationsPage(
+					orgId ?? "",
+					pageParam,
+					RECOMMENDATIONS_PAGE_SIZE
+				),
+			initialPageParam: 0,
+			getNextPageParam: (lastPage, _allPages, lastPageParam) =>
+				lastPage.hasMore
+					? lastPageParam + RECOMMENDATIONS_PAGE_SIZE
+					: undefined,
+			enabled: !!orgId,
+			staleTime: INSIGHT_CACHE.historyStaleTime,
+			gcTime: INSIGHT_CACHE.gcTime,
+			refetchOnWindowFocus: false,
+			retry: 2,
+			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
+		}),
+	recommendationTotal: (orgId: string | undefined) =>
+		queryOptions({
+			queryKey: [...INSIGHTS_ROOT, "recommendation-total", orgId] as const,
+			queryFn: async () =>
+				(await fetchInsightRecommendationsPage(orgId ?? "", 0, 1)).total,
+			enabled: !!orgId,
+			staleTime: INSIGHT_CACHE.historyStaleTime,
+			gcTime: INSIGHT_CACHE.gcTime,
+			meta: { suppressGlobalErrorToast: true },
+			refetchInterval: 60_000,
+			refetchOnWindowFocus: true,
 			retry: 2,
 			retryDelay: (attempt: number) => Math.min(2000 * 2 ** attempt, 15_000),
 		}),
@@ -68,13 +109,37 @@ export type BriefInsight = InsightsBriefPage["insights"][number];
 function fetchInsightsHistoryPage(
 	organizationId: string,
 	offset: number,
-	limit = 50
+	limit = 50,
+	status?: "open" | "resolved"
 ) {
-	return orpc.insights.history.call({ organizationId, limit, offset });
+	return orpc.insights.history.call({
+		organizationId,
+		limit,
+		offset,
+		status,
+	});
 }
 
 type InsightsHistoryPage = Awaited<ReturnType<typeof fetchInsightsHistoryPage>>;
 export type Insight = InsightsHistoryPage["insights"][number];
+
+function fetchInsightRecommendationsPage(
+	organizationId: string,
+	offset: number,
+	limit = 50
+) {
+	return orpc.insights.recommendations.call({
+		organizationId,
+		limit,
+		offset,
+	});
+}
+
+type InsightRecommendationsPage = Awaited<
+	ReturnType<typeof fetchInsightRecommendationsPage>
+>;
+export type InsightRecommendation =
+	InsightRecommendationsPage["recommendations"][number];
 
 function fetchInsightById(insightId: string) {
 	return orpc.insights.getById.call({ insightId });

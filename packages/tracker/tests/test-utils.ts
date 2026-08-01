@@ -34,7 +34,10 @@ export const test = base.extend<{ basketGuard: undefined }>({
 			const unknown: { method: string; path: string }[] = [];
 
 			await page.addInitScript(() => {
-				Object.defineProperty(navigator, "sendBeacon", { value: undefined });
+				Object.defineProperty(navigator, "sendBeacon", {
+					configurable: true,
+					value: undefined,
+				});
 			});
 
 			page.on("request", (req) => {

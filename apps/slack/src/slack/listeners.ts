@@ -1,5 +1,5 @@
 import { Assistant, type App } from "@slack/bolt";
-import { and, db, desc, eq } from "@databuddy/db";
+import { and, db, desc, eq, or, sql } from "@databuddy/db";
 import {
 	insightObservations,
 	insightRunEffects,
@@ -442,7 +442,14 @@ async function handleInvestigationThreadReply({
 		.where(
 			and(
 				eq(insightRunEffects.externalId, run.threadTs),
-				eq(insightRunEffects.effectKey, run.channelId),
+				or(
+					eq(insightRunEffects.effectKey, run.channelId),
+					sql`${insightRunEffects.payload}->>'channelId' = ${run.channelId}`
+				),
+				or(
+					sql`${insightRunEffects.payload}->>'insightId' = ${insightObservations.insightId}`,
+					sql`${insightRunEffects.payload}->>'insightId' is null`
+				),
 				eq(insightRunEffects.status, "succeeded"),
 				eq(insightRunItems.organizationId, resolved.organizationId)
 			)

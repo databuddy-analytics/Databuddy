@@ -46,8 +46,10 @@ const MAX_RETRY_DELAY = 30_000;
 
 interface QueueMeta {
 	activeDeliveryGeneration: number | null;
+	activeItems: unknown[] | null;
 	endpoint: string;
 	flushing: boolean;
+	maxBatchSize: number;
 	queryParam: string;
 	retryAttempts: number;
 	threshold: number;
@@ -135,8 +137,10 @@ export class BaseTracker {
 		this._meta = {
 			batch: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 100,
 				endpoint: "/batch",
 				queryParam: "client_id",
 				retryAttempts: 0,
@@ -144,8 +148,10 @@ export class BaseTracker {
 			},
 			vitals: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 20,
 				endpoint: "/vitals",
 				queryParam: "client_id",
 				retryAttempts: 0,
@@ -153,8 +159,10 @@ export class BaseTracker {
 			},
 			errors: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 50,
 				endpoint: "/errors",
 				queryParam: "client_id",
 				retryAttempts: 0,
@@ -162,8 +170,10 @@ export class BaseTracker {
 			},
 			track: {
 				activeDeliveryGeneration: null,
+				activeItems: null,
 				timer: null,
 				flushing: false,
+				maxBatchSize: 100,
 				endpoint: "/track",
 				queryParam: "website_id",
 				retryAttempts: 0,
@@ -362,7 +372,7 @@ export class BaseTracker {
 			.fetch(
 				"/identify",
 				{ profileId, anonymousId: this.anonymousId, traits },
-				{ keepalive: true },
+				{ keepalive: false },
 				{ client_id: this.options.clientId }
 			)
 			.then((result) => {
@@ -441,8 +451,40 @@ export class BaseTracker {
 				meta.timer = null;
 			}
 			meta.activeDeliveryGeneration = null;
+			meta.activeItems = null;
 			meta.flushing = false;
 			meta.retryAttempts = 0;
+		}
+	}
+
+	private requeueActiveItems<T>(queue: T[], meta: QueueMeta): boolean {
+		if (!meta.activeItems || meta.activeItems.length === 0) {
+			return false;
+		}
+
+		queue.unshift(...(meta.activeItems as T[]));
+		meta.activeDeliveryGeneration = null;
+		meta.activeItems = null;
+		meta.flushing = false;
+		return true;
+	}
+
+	/**
+	 * An ordinary fetch may still be pending when the browser starts unloading.
+	 * Reclaim its removed queue items so the lifecycle handler can send the same
+	 * stable event identities through the unload beacon path.
+	 */
+	protected requeueActiveDeliveriesForUnload(): void {
+		const reclaimed = [
+			this.requeueActiveItems(this.batchQueue, this._meta.batch),
+			this.requeueActiveItems(this.trackQueue, this._meta.track),
+			this.requeueActiveItems(this.vitalsQueue, this._meta.vitals),
+			this.requeueActiveItems(this.errorsQueue, this._meta.errors),
+		].some(Boolean);
+
+		if (reclaimed) {
+			this.deliveryGeneration += 1;
+			this.api.cancelPendingRequests();
 		}
 	}
 
@@ -573,7 +615,7 @@ export class BaseTracker {
 			.fetch(
 				"/",
 				event,
-				{ keepalive: true },
+				{ keepalive: false },
 				{ client_id: this.options.clientId }
 			)
 			.then((result) => this.toSendOutcome(result, 1));
@@ -635,14 +677,15 @@ export class BaseTracker {
 		const deliveryGeneration = this.deliveryGeneration;
 		meta.flushing = true;
 		meta.activeDeliveryGeneration = deliveryGeneration;
-		const items = queue.slice();
-		queue.length = 0;
+		const items = queue.splice(0, meta.maxBatchSize);
+		meta.activeItems = items;
+		let retryScheduled = false;
 
 		try {
 			const result = await this.api.fetch(
 				meta.endpoint,
 				items,
-				{ keepalive: true },
+				{ keepalive: false },
 				{ [meta.queryParam]: this.options.clientId }
 			);
 			if (
@@ -654,11 +697,16 @@ export class BaseTracker {
 			) {
 				queue.unshift(...items);
 				meta.retryAttempts += 1;
+				if (meta.timer) {
+					clearTimeout(meta.timer);
+					meta.timer = null;
+				}
 				this._scheduleQueueFlush(
 					queue,
 					meta,
 					this._retryDelay(meta.retryAttempts)
 				);
+				retryScheduled = true;
 			} else if (deliveryGeneration === this.deliveryGeneration) {
 				meta.retryAttempts = 0;
 			}
@@ -666,7 +714,19 @@ export class BaseTracker {
 		} finally {
 			if (meta.activeDeliveryGeneration === deliveryGeneration) {
 				meta.activeDeliveryGeneration = null;
+				meta.activeItems = null;
 				meta.flushing = false;
+				if (
+					queue.length > 0 &&
+					!retryScheduled &&
+					!this.shouldBlockQueuedDelivery()
+				) {
+					if (meta.timer) {
+						clearTimeout(meta.timer);
+						meta.timer = null;
+					}
+					this._scheduleQueueFlush(queue, meta, 0);
+				}
 			}
 		}
 	}
@@ -713,6 +773,7 @@ export class BaseTracker {
 		}
 
 		const event: TrackEventPayload = {
+			eventId: generateUUIDv4(),
 			name,
 			timestamp: Date.now(),
 			path: this.isServer() ? undefined : this.currentPath(),
@@ -766,10 +827,14 @@ export class BaseTracker {
 		}
 
 		try {
+			// text/plain is CORS-safelisted, so an unload beacon does not depend on
+			// completing a preflight while the document is being torn down.
 			const blob = new Blob([JSON.stringify(data)], {
-				type: "application/json",
+				type: "text/plain;charset=UTF-8",
 			});
 			const baseUrl = this.options.apiUrl || "https://basket.databuddy.cc";
+			// A true result only means the user agent accepted the payload for
+			// transfer; sendBeacon cannot acknowledge server-side persistence.
 			return navigator.sendBeacon(
 				`${baseUrl}${endpoint}?client_id=${encodeURIComponent(this.options.clientId)}`,
 				blob

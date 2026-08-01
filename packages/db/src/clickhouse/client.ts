@@ -1,5 +1,6 @@
 import { createClient, type ResponseJSON } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
+import { finalizeDeliveryTables } from "./logical-reads";
 /**
  * ClickHouse table names used throughout the application
  */
@@ -26,6 +27,10 @@ export const CLICKHOUSE_OPTIONS: NodeClickHouseClientConfigOptions = {
 		response: true,
 	},
 };
+
+export const FINAL_READ_SETTINGS = {
+	final: 1,
+} as const;
 
 function assertCacheCompatibleSettings(
 	settings: Record<string, string | number>
@@ -198,14 +203,20 @@ async function chQueryWithMeta<T>(
 	params?: Record<string, unknown>,
 	options?: ChQueryOptions
 ): Promise<ResponseJSON<T>> {
+	const logical = finalizeDeliveryTables(query);
+	const finalSettings = logical.usesFinal ? FINAL_READ_SETTINGS : {};
 	const settings: Record<string, string | number> = options?.readonly
-		? { ...(options.clickhouse_settings ?? {}), readonly: "2" }
-		: (options?.clickhouse_settings ?? {});
+		? {
+				...(options.clickhouse_settings ?? {}),
+				...finalSettings,
+				readonly: "2",
+			}
+		: { ...(options?.clickhouse_settings ?? {}), ...finalSettings };
 	assertCacheCompatibleSettings(settings);
 	const json = await readJsonResponse<T>(
 		() =>
 			clickHouse.query({
-				query,
+				query: logical.query,
 				query_params: params,
 				...(options?.abort_signal && {
 					abort_signal: options.abort_signal,

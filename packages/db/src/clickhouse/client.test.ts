@@ -101,4 +101,38 @@ describe("chQuery", () => {
 		).rejects.toBe(reason);
 		expect(querySpy).not.toHaveBeenCalled();
 	});
+
+	test("enables FINAL only for queries that touch delivery tables", async () => {
+		let settings: Record<string, string | number> | undefined;
+		let query = "";
+		spyOn(clickHouse, "query").mockImplementation(async (options) => {
+			settings = options.clickhouse_settings as Record<string, string | number>;
+			query = options.query;
+			return {
+				close: () => undefined,
+				json: async () => ({ data: [] }),
+			} as unknown as ResultSet<"JSON">;
+		});
+
+		await chQuery("SELECT count() FROM analytics.events");
+
+		expect(settings).toMatchObject({
+			final: 1,
+		});
+		expect(query).toBe("SELECT count() FROM analytics.events");
+	});
+
+	test("does not finalize unrelated MergeTree queries", async () => {
+		let settings: unknown;
+		spyOn(clickHouse, "query").mockImplementation(async (options) => {
+			settings = options.clickhouse_settings;
+			return {
+				close: () => undefined,
+				json: async () => ({ data: [] }),
+			} as unknown as ResultSet<"JSON">;
+		});
+
+		await chQuery("SELECT count() FROM analytics.revenue");
+		expect(settings).toBeUndefined();
+	});
 });

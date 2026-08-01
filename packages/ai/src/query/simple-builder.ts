@@ -353,6 +353,12 @@ export class SimpleQueryBuilder {
 				`Filter on field '${filter.field}' is not permitted. Allowed fields for this query: ${listAllowed(allowedFilterFields(this.config))}.`
 			);
 		}
+		const allowedOperators = this.config.allowedFilterOperators?.[filter.field];
+		if (allowedOperators && !allowedOperators.includes(filter.op)) {
+			throw new Error(
+				`Operator '${filter.op}' is not permitted for filter '${filter.field}'. Allowed operators: ${allowedOperators.join(", ")}.`
+			);
+		}
 
 		const key = `f${index}`;
 		const operator = FilterOperators[filter.op];
@@ -490,12 +496,17 @@ export class SimpleQueryBuilder {
 	}
 
 	private validateRequiredFilters(): void {
-		if (!this.config.requiredFilters?.length) {
+		if (
+			!(
+				this.config.requiredFilters?.length ||
+				this.config.requiredAnyFilter?.length
+			)
+		) {
 			return;
 		}
 
 		const requestFilters = this.request.filters ?? [];
-		const missingFilters = this.config.requiredFilters.filter(
+		const missingFilters = (this.config.requiredFilters ?? []).filter(
 			(requiredField) =>
 				!requestFilters.some(
 					(filter) => filter.field === requiredField && !filter.having
@@ -505,6 +516,20 @@ export class SimpleQueryBuilder {
 		if (missingFilters.length > 0) {
 			throw new Error(
 				`Missing required filter${missingFilters.length > 1 ? "s" : ""}: ${missingFilters
+					.map((field) => `'${field}'`)
+					.join(", ")}.`
+			);
+		}
+		if (
+			this.config.requiredAnyFilter?.length &&
+			!requestFilters.some(
+				(filter) =>
+					!(filter.having || filter.target) &&
+					this.config.requiredAnyFilter?.includes(filter.field)
+			)
+		) {
+			throw new Error(
+				`Missing required filter: one of ${this.config.requiredAnyFilter
 					.map((field) => `'${field}'`)
 					.join(", ")}.`
 			);

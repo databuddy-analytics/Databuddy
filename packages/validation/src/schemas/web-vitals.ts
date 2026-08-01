@@ -69,6 +69,7 @@ const webVitalMetricNames = [
 ] as const;
 
 export const individualVitalSchema = z.object({
+	eventId: z.string().max(VALIDATION_LIMITS.EVENT_ID_MAX_LENGTH).optional(),
 	timestamp: timestampSchema,
 	path: z.string().max(VALIDATION_LIMITS.PATH_MAX_LENGTH),
 	metricName: z.enum(webVitalMetricNames),

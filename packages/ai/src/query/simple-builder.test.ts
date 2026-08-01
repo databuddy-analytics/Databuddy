@@ -75,9 +75,11 @@ const QUERY_BUILDER_ENTRIES = Object.entries(QueryBuilders);
 const FILTERABLE_BUILDER_CASES = QUERY_BUILDER_ENTRIES.flatMap(
 	([type, config]) =>
 		(config.allowedFilters ?? []).flatMap((field) =>
-			FILTER_OPERATORS.filter((op) => isSensibleFilterOperator(field, op)).map(
-				(op) => ({ config, field, op, type })
+			(
+				config.allowedFilterOperators?.[field] ?? FILTER_OPERATORS
 			)
+				.filter((op) => isSensibleFilterOperator(field, op))
+				.map((op) => ({ config, field, op, type }))
 		)
 );
 
@@ -92,7 +94,11 @@ function filterValueForOperator(field: string, op: Filter["op"]): Filter["value"
 }
 
 function makeRequiredFilters(config: SimpleQueryConfig): Filter[] {
-	return (config.requiredFilters ?? []).map((field) => ({
+	const fields = [
+		...(config.requiredFilters ?? []),
+		...(config.requiredAnyFilter?.slice(0, 1) ?? []),
+	];
+	return [...new Set(fields)].map((field) => ({
 		field,
 		op: "eq",
 		value: `${field}-required-value`,
@@ -191,8 +197,16 @@ describe("SimpleQueryBuilder.compile", () => {
 	it.each(FILTERABLE_BUILDER_CASES)(
 		"allows $type filter $field with $op",
 		({ config, field, op, type }) => {
+			const replacesAlternative = config.requiredAnyFilter?.includes(field);
 			const filters: Filter[] = [
-				...makeRequiredFilters(config),
+				...makeRequiredFilters(config).filter(
+					(required) =>
+						required.field !== field &&
+						!(
+							replacesAlternative &&
+							config.requiredAnyFilter?.includes(required.field)
+						)
+				),
 				{ field, op, value: filterValueForOperator(field, op) },
 			];
 

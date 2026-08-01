@@ -38,14 +38,19 @@ import {
 } from "./persistence";
 import { recordInsightReplyFailure, resumeInsightReply } from "./resume";
 import {
-	findRunObservation,
+	findRunObservations,
 	loadDueOpenInvestigation,
 	loadInvestigationHistory,
 	loadLatestSignalObservations,
 	loadOtherOpenWork,
 } from "./observations";
 import {
+	freezeInsightRunCandidatePlan,
+	loadInsightRunCandidatePlan,
+} from "./run-candidate-plan";
+import {
 	drainInsightRunEffects,
+	enqueueInsightRunEffects,
 	loadPreparedInsightRun,
 	prepareInsightRun,
 } from "./effects";
@@ -109,6 +114,23 @@ describeIntegration("insights idempotency integration", () => {
 		await truncatePostgres();
 		await shutdownPostgres();
 		await closePostgres();
+	});
+
+	it("freezes an empty discovery snapshot for deterministic retries", async () => {
+		const { identity } = await runItemFixture();
+		const proposed = {
+			asOf: "2026-08-01T12:00:00.000Z",
+			candidates: [],
+			emptyStatus: "no_signals" as const,
+		};
+		const snapshot = { ...proposed, reason: "manual" as const };
+
+		expect(
+			await freezeInsightRunCandidatePlan(identity, "manual", proposed)
+		).toEqual(snapshot);
+		expect(await loadInsightRunCandidatePlan(identity, "manual")).toEqual(
+			snapshot
+		);
 	});
 
 	it("does not overwrite a reply committed after scheduled analysis began", async () => {
@@ -262,6 +284,80 @@ describeIntegration("insights idempotency integration", () => {
 				.where(eq(insightObservations.runId, runId)),
 		]);
 		expect(stored.title).toBe(observation.outcome.title);
+	});
+
+	it("persists and replays distinct signal observations from one website run", async () => {
+		const organization = await insertOrganization();
+		const website = await insertWebsite({ organizationId: organization.id });
+		const runId = randomUUIDv7();
+		const asOf = new Date("2026-07-10T10:00:00.000Z");
+		await db().insert(insightRuns).values({
+			id: runId,
+			organizationId: organization.id,
+			status: "running",
+		});
+		const checkout = websiteInvestigation({
+			title: "Checkout completion fell",
+			website,
+		});
+		const revenue = {
+			...websiteInvestigation({ title: "Revenue declined", website }),
+			signal: prepareInvestigation(
+				{
+					baseline: 500,
+					current: 250,
+					deltaPercent: -50,
+					detectedAt: "2026-07-10",
+					direction: "down",
+					label: "Revenue",
+					method: "wow",
+					metric: "revenue",
+					severity: "warning",
+				},
+				7
+			).signal,
+		};
+
+		await persistInvestigation({
+			investigation: checkout,
+			notNewerThan: asOf,
+			organizationId: organization.id,
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId,
+			timezone: "UTC",
+		});
+		await persistInvestigation({
+			investigation: revenue,
+			notNewerThan: asOf,
+			organizationId: organization.id,
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId,
+			timezone: "UTC",
+		});
+		await db().insert(insightObservations).values({
+			asOf,
+			createdAt: new Date("2026-07-10T10:00:00.000Z"),
+			evidence: ["Malformed historical row."],
+			id: randomUUIDv7(),
+			insightId: checkout.id,
+			organizationId: organization.id,
+			outcome: { next: { type: "unsupported" } },
+			recheckAt: new Date("2026-07-17T10:00:00.000Z"),
+			runId,
+			signal: {},
+			signalKey: "malformed",
+			websiteId: website.id,
+		});
+
+		const replay = await findRunObservations({
+			organizationId: organization.id,
+			runId,
+			websiteId: website.id,
+		});
+		expect(replay.map((observation) => observation.signal.signalKey)).toEqual([
+			"checkout",
+			"revenue",
+		]);
 	});
 
 	it("loads only unresolved sibling work available at the investigation clock", async () => {
@@ -1500,14 +1596,18 @@ describeIntegration("insights idempotency integration", () => {
 				},
 			])
 			.onConflictDoNothing({
-				target: [insightObservations.runId, insightObservations.websiteId],
+				target: [
+					insightObservations.runId,
+					insightObservations.websiteId,
+					insightObservations.signalKey,
+				],
 			});
 
 		const rows = await db()
 			.select({ outcome: insightObservations.outcome })
 			.from(insightObservations)
 			.where(eq(insightObservations.websiteId, website.id));
-		const replay = await findRunObservation({
+		const [replay] = await findRunObservations({
 			organizationId: org.id,
 			runId: firstRunId,
 			websiteId: website.id,
@@ -1715,6 +1815,38 @@ describeIntegration("insights idempotency integration", () => {
 		expect(replayCalls).toBe(0);
 	});
 
+	it("queues a persisted portfolio candidate effect without completing its run", async () => {
+		const { identity } = await runItemFixture();
+		const effects = [
+			{
+				effectKey: "channel-a:insight-a",
+				payload: {
+					blocks: [],
+					channelId: "channel-a",
+					insightId: "insight-a",
+					text: "A completed candidate",
+				},
+			},
+		];
+
+		await enqueueInsightRunEffects({ ...identity, effects });
+		await enqueueInsightRunEffects({ ...identity, effects });
+
+		const [[item], rows] = await Promise.all([
+			db()
+				.select({ preparedAt: insightRunItems.preparedAt })
+				.from(insightRunItems)
+				.where(eq(insightRunItems.id, identity.itemId)),
+			db()
+				.select({ effectKey: insightRunEffects.effectKey })
+				.from(insightRunEffects)
+				.where(eq(insightRunEffects.runItemId, identity.itemId)),
+		]);
+
+		expect(item.preparedAt).toBeNull();
+		expect(rows).toEqual([{ effectKey: "channel-a:insight-a" }]);
+	});
+
 	it("reuses the original Slack thread for recurring case delivery", async () => {
 		const org = await insertOrganization();
 		const website = await insertWebsite({ organizationId: org.id });
@@ -1758,18 +1890,29 @@ describeIntegration("insights idempotency integration", () => {
 				}))
 			);
 
-		const payload = {
+		const legacyPayload = {
 			blocks: [],
-			insightId,
 			text: "Checkout conversion fell",
 		};
-		for (const run of [first, second]) {
-			await prepareInsightRun({
-				...run,
-				effects: [{ effectKey: "C_TEST", payload }],
-				result: { resultCount: 1, status: "succeeded" },
-			});
-		}
+		await prepareInsightRun({
+			...first,
+			effects: [{ effectKey: "C_TEST", payload: legacyPayload }],
+			result: { resultCount: 1, status: "succeeded" },
+		});
+		await prepareInsightRun({
+			...second,
+			effects: [
+				{
+					effectKey: `C_TEST:${insightId}`,
+					payload: {
+						...legacyPayload,
+						channelId: "C_TEST",
+						insightId,
+					},
+				},
+			],
+			result: { resultCount: 1, status: "succeeded" },
+		});
 
 		const threadTimestamps: Array<string | undefined> = [];
 		const deliver = async (

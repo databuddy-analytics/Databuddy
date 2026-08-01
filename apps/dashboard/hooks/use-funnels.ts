@@ -16,18 +16,80 @@ import type {
 	FunnelStep,
 } from "@/types/funnels";
 
+export function useFunnelActions(websiteId: string) {
+	const queryClient = useQueryClient();
+	const invalidateAll = () =>
+		Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: orpc.funnels.list.key({ input: { websiteId } }),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.funnels.getById.key(),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.funnels.getAnalytics.key(),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.funnels.getAnalyticsByReferrer.key(),
+			}),
+			queryClient.invalidateQueries({
+				queryKey: orpc.funnels.getAnalyticsByLink.key(),
+			}),
+		]);
+
+	const createMutation = useMutation({
+		...orpc.funnels.create.mutationOptions(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.funnels.list.key({ input: { websiteId } }),
+			});
+			toast.success("Funnel created successfully");
+		},
+	});
+
+	const updateMutation = useMutation({
+		...orpc.funnels.update.mutationOptions(),
+		onSuccess: () => {
+			invalidateAll();
+			toast.success("Funnel updated successfully");
+		},
+	});
+
+	const deleteMutation = useMutation({
+		...orpc.funnels.delete.mutationOptions(),
+		onSuccess: () => {
+			invalidateAll();
+			toast.success("Funnel deleted successfully");
+		},
+	});
+
+	return {
+		refreshAction: invalidateAll,
+
+		createAction: (data: CreateFunnelData) =>
+			createMutation.mutateAsync({ websiteId, ...data }),
+		updateAction: (funnelId: string, updates: Partial<CreateFunnelData>) =>
+			updateMutation.mutateAsync({ id: funnelId, ...updates }),
+		deleteAction: (funnelId: string) =>
+			deleteMutation.mutateAsync({ id: funnelId }),
+
+		isCreating: createMutation.isPending,
+		isUpdating: updateMutation.isPending,
+		isDeleting: deleteMutation.isPending,
+	};
+}
+
 export function useFunnels(
 	websiteId: string,
 	options?: { dateRange?: DateRange; enabled?: boolean }
 ) {
 	const enabled = options?.enabled ?? true;
 	const dateRange = options?.dateRange;
-	const queryClient = useQueryClient();
-
 	const query = useQuery({
 		...orpc.funnels.list.queryOptions({ input: { websiteId } }),
 		enabled: enabled && !!websiteId,
 	});
+	const actions = useFunnelActions(websiteId);
 
 	const funnels = useMemo(
 		() =>
@@ -84,51 +146,6 @@ export function useFunnels(
 		[funnels, query.isError, query.isPending, query.isSuccess]
 	);
 
-	const invalidateAll = () =>
-		Promise.all([
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.list.key({ input: { websiteId } }),
-			}),
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.getById.key(),
-			}),
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.getAnalytics.key(),
-			}),
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.getAnalyticsByReferrer.key(),
-			}),
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.getAnalyticsByLink.key(),
-			}),
-		]);
-
-	const createMutation = useMutation({
-		...orpc.funnels.create.mutationOptions(),
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.funnels.list.key({ input: { websiteId } }),
-			});
-			toast.success("Funnel created successfully");
-		},
-	});
-
-	const updateMutation = useMutation({
-		...orpc.funnels.update.mutationOptions(),
-		onSuccess: () => {
-			invalidateAll();
-			toast.success("Funnel updated successfully");
-		},
-	});
-
-	const deleteMutation = useMutation({
-		...orpc.funnels.delete.mutationOptions(),
-		onSuccess: () => {
-			invalidateAll();
-			toast.success("Funnel deleted successfully");
-		},
-	});
-
 	return {
 		funnels,
 		analyticsMap,
@@ -137,18 +154,7 @@ export function useFunnels(
 		isLoading: query.isLoading,
 		isFetching: query.isFetching || analyticsResults.some((r) => r.isFetching),
 		error: query.error,
-		refreshAction: invalidateAll,
-
-		createAction: (data: CreateFunnelData) =>
-			createMutation.mutateAsync({ websiteId, ...data }),
-		updateAction: (funnelId: string, updates: Partial<CreateFunnelData>) =>
-			updateMutation.mutateAsync({ id: funnelId, ...updates }),
-		deleteAction: (funnelId: string) =>
-			deleteMutation.mutateAsync({ id: funnelId }),
-
-		isCreating: createMutation.isPending,
-		isUpdating: updateMutation.isPending,
-		isDeleting: deleteMutation.isPending,
+		...actions,
 	};
 }
 

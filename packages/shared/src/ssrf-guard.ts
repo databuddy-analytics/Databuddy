@@ -1,5 +1,5 @@
 import { isValid, parse } from "ipaddr.js";
-import { resolve4, resolve6 } from "node:dns/promises";
+import { Resolver } from "node:dns/promises";
 import type { Agent, RequestInit as UndiciRequestInit } from "undici";
 
 const BLOCKED_HOSTNAMES = new Set([
@@ -13,6 +13,7 @@ const BLOCKED_SUFFIXES = [".local", ".internal", ".localhost"];
 
 const DEFAULT_MAX_REDIRECTS = 3;
 const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_DNS_TIMEOUT_MS = 5000;
 
 function isPrivateOrReserved(ip: string): boolean {
 	try {
@@ -40,12 +41,28 @@ export interface UrlValidation {
 }
 
 async function resolveFirstPublicIp(
-	hostname: string
+	hostname: string,
+	signal: AbortSignal
 ): Promise<{ ip: string } | { error: string }> {
-	const [v4, v6] = await Promise.all([
-		resolve4(hostname).catch(() => [] as string[]),
-		resolve6(hostname).catch(() => [] as string[]),
-	]);
+	if (signal.aborted) {
+		return { error: "DNS resolution timed out" };
+	}
+	const resolver = new Resolver();
+	const cancel = () => resolver.cancel();
+	signal.addEventListener("abort", cancel, { once: true });
+	let v4: string[];
+	let v6: string[];
+	try {
+		[v4, v6] = await Promise.all([
+			resolver.resolve4(hostname).catch(() => [] as string[]),
+			resolver.resolve6(hostname).catch(() => [] as string[]),
+		]);
+	} finally {
+		signal.removeEventListener("abort", cancel);
+	}
+	if (signal.aborted) {
+		return { error: "DNS resolution timed out" };
+	}
 	const all = [...v4, ...v6];
 	if (all.length === 0) {
 		return { error: "DNS resolution failed" };
@@ -58,7 +75,15 @@ async function resolveFirstPublicIp(
 	return { ip: all[0] };
 }
 
-export async function validateUrl(url: string): Promise<UrlValidation> {
+export interface UrlValidationOptions {
+	dnsTimeoutMs?: number;
+	signal?: AbortSignal | null;
+}
+
+export async function validateUrl(
+	url: string,
+	options: UrlValidationOptions = {}
+): Promise<UrlValidation> {
 	let parsed: URL;
 	try {
 		parsed = new URL(url);
@@ -93,7 +118,13 @@ export async function validateUrl(url: string): Promise<UrlValidation> {
 		return { safe: true, hostname, ip: hostname };
 	}
 
-	const resolved = await resolveFirstPublicIp(hostname);
+	const dnsTimeoutSignal = AbortSignal.timeout(
+		options.dnsTimeoutMs ?? DEFAULT_DNS_TIMEOUT_MS
+	);
+	const signal = options.signal
+		? AbortSignal.any([dnsTimeoutSignal, options.signal])
+		: dnsTimeoutSignal;
+	const resolved = await resolveFirstPublicIp(hostname, signal);
 	if ("error" in resolved) {
 		return { safe: false, hostname, error: resolved.error };
 	}
@@ -156,7 +187,7 @@ export async function safeFetch(
 	let current = url;
 
 	for (let hop = 0; hop <= maxRedirects; hop++) {
-		const check = await validateUrl(current);
+		const check = await validateUrl(current, { signal });
 		if (!(check.safe && check.ip)) {
 			throw new SsrfError(
 				check.error ?? "URL failed SSRF validation",

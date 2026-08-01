@@ -6,6 +6,7 @@ import {
 	isNotNull,
 	isNull,
 	ne,
+	or,
 	sql,
 } from "@databuddy/db";
 import {
@@ -20,7 +21,7 @@ import {
 	type InsightSlackEffectPayload,
 } from "./delivery";
 
-interface InsightRunEffectInput {
+export interface InsightRunEffectInput {
 	effectKey: string;
 	payload: InsightSlackEffectPayload;
 }
@@ -185,6 +186,48 @@ export function prepareInsightRun(
 	});
 }
 
+/**
+ * Persist effects as soon as an individual portfolio candidate is durable.
+ * This intentionally does not prepare the whole run: retries still need to
+ * finish the remaining frozen candidates before the run receives a terminal
+ * result.
+ */
+export function enqueueInsightRunEffects(
+	params: InsightRunIdentity & { effects: InsightRunEffectInput[] }
+): Promise<void> {
+	const effects = params.effects.map((effect) => ({
+		...effect,
+		id: randomUUIDv7(),
+		payload: insightSlackEffectPayloadSchema.parse(effect.payload),
+	}));
+	if (effects.length === 0) {
+		return Promise.resolve();
+	}
+	return db.transaction(async (tx) => {
+		const [item] = await tx
+			.select({ id: insightRunItems.id })
+			.from(insightRunItems)
+			.where(runIdentityCondition(params))
+			.limit(1);
+		if (!item) {
+			throw new Error("Insight run item not found while queuing effects");
+		}
+		await tx
+			.insert(insightRunEffects)
+			.values(
+				effects.map((effect) => ({
+					id: effect.id,
+					runItemId: params.itemId,
+					effectKey: effect.effectKey,
+					payload: effect.payload,
+				}))
+			)
+			.onConflictDoNothing({
+				target: [insightRunEffects.runItemId, insightRunEffects.effectKey],
+			});
+	});
+}
+
 function errorMessage(error: unknown): string {
 	return (error instanceof Error ? error.message : String(error)).slice(0, 500);
 }
@@ -301,6 +344,7 @@ export async function drainInsightRunEffects(
 		let externalId: string | null;
 		try {
 			const payload = insightSlackEffectPayloadSchema.parse(effect.payload);
+			const channelId = payload.channelId ?? effect.effectKey;
 			const [root] = payload.insightId
 				? await db
 						.select({ externalId: insightRunEffects.externalId })
@@ -313,10 +357,20 @@ export async function drainInsightRunEffects(
 							and(
 								eq(insightRunItems.organizationId, identity.organizationId),
 								eq(insightRunItems.websiteId, identity.websiteId),
-								eq(insightRunEffects.effectKey, effect.effectKey),
+								or(
+									eq(insightRunEffects.effectKey, effect.effectKey),
+									eq(insightRunEffects.effectKey, channelId),
+									sql`${insightRunEffects.payload}->>'channelId' = ${channelId}`
+								),
 								eq(insightRunEffects.status, "succeeded"),
 								isNotNull(insightRunEffects.externalId),
-								sql`${insightRunEffects.payload}->>'insightId' = ${payload.insightId}`
+								or(
+									sql`${insightRunEffects.payload}->>'insightId' = ${payload.insightId}`,
+									and(
+										eq(insightRunEffects.effectKey, channelId),
+										sql`${insightRunEffects.payload}->>'insightId' is null`
+									)
+								)
 							)
 						)
 						.orderBy(insightRunEffects.createdAt, insightRunEffects.id)
@@ -325,7 +379,7 @@ export async function drainInsightRunEffects(
 			externalId = await (handlers.slack ?? deliverInsightSlackEffect)(
 				payload,
 				{
-					channelId: effect.effectKey,
+					channelId,
 					organizationId: identity.organizationId,
 					websiteId: identity.websiteId,
 				},

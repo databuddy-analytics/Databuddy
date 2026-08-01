@@ -1,3 +1,4 @@
+import { revenueLatestCte } from "@databuddy/db/clickhouse";
 import { Analytics } from "../../types/tables";
 import { appendFilterClause } from "../simple-builder";
 import type { SimpleQueryConfig } from "../types";
@@ -185,6 +186,235 @@ export const ErrorsBuilders: Record<string, SimpleQueryConfig> = {
 		allowedFilters: ["message", "path", "error_type"],
 		customizable: true,
 		noCache: true,
+	},
+
+	error_customer_impact: {
+		meta: {
+			description:
+				"Privacy-safe aggregate impact for one exact error fingerprint or canonical route. Returns counts and identity/payment coverage only; never visitor, profile, session, or transaction identifiers. Payment matches prove prior attributed completed payments, not active subscription status.",
+			category: "Errors",
+			tags: ["errors", "impact", "identity", "revenue", "internal"],
+			output_fields: [
+				{ name: "error_occurrences", type: "number" },
+				{ name: "affected_sessions", type: "number" },
+				{ name: "affected_visitor_identifiers", type: "number" },
+				{ name: "linked_visitor_identifiers", type: "number" },
+				{ name: "identified_profiles", type: "number" },
+				{ name: "unlinked_visitor_identifiers", type: "number" },
+				{ name: "ambiguous_profile_sessions", type: "number" },
+				{ name: "identity_coverage_percent", type: "number", unit: "%" },
+				{ name: "sessions_with_later_telemetry", type: "number" },
+				{
+					name: "identified_profiles_with_prior_attributed_completed_payment",
+					type: "number",
+				},
+				{
+					name: "qualifying_profile_payment_history_observed",
+					type: "boolean",
+				},
+				{ name: "payment_match_is_lower_bound", type: "boolean" },
+			],
+		},
+		allowedFilters: ["message", "path"],
+		allowedFilterOperators: { message: ["eq"], path: ["eq"] },
+		customSql: (ctx) => {
+			const {
+				websiteId,
+				startDate,
+				endDate,
+				filters,
+				filterConditions,
+				filterParams,
+			} = ctx;
+			const selectors = (filters ?? []).filter(
+				(filter) => !(filter.having || filter.target)
+			);
+			if (
+				selectors.length !== 1 ||
+				(selectors[0]?.field !== "message" && selectors[0]?.field !== "path") ||
+				selectors[0]?.op !== "eq" ||
+				Array.isArray(selectors[0].value)
+			) {
+				throw new Error(
+					"error_customer_impact requires exactly one scalar message or path equality filter"
+				);
+			}
+			const filterClause = appendFilterClause(filterConditions);
+			const latestRevenue = revenueLatestCte({
+				candidateWhere:
+					"created <= toDateTime(concat({endDate:String}, ' 23:59:59')) AND profile_id IN (SELECT resolved_profile_id FROM affected_profiles)",
+				name: "impact_revenue_latest",
+				scope: `(owner_id = {websiteId:String} OR website_id = {websiteId:String})
+					AND synced_at <= toDateTime(concat({endDate:String}, ' 23:59:59'))`,
+			});
+
+			return {
+				sql: `
+					WITH matched_errors AS (
+						SELECT anonymous_id, session_id, timestamp
+						FROM ${Analytics.error_spans}
+						WHERE client_id = {websiteId:String}
+							AND timestamp >= toDateTime({startDate:String})
+							AND timestamp <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND message != ''
+							${filterClause}
+					),
+					affected_anonymous_ids AS (
+						SELECT DISTINCT anonymous_id
+						FROM matched_errors
+						WHERE anonymous_id != ''
+					),
+					affected_sessions AS (
+						SELECT DISTINCT session_id
+						FROM matched_errors
+						WHERE session_id != ''
+					),
+					anonymous_identity AS (
+						SELECT
+							anonymous_id,
+							uniqExactIf(profile_id, profile_id != '') AS profile_count,
+							if(
+								uniqExactIf(profile_id, profile_id != '') = 1,
+								anyIf(profile_id, profile_id != ''),
+								''
+							) AS resolved_profile_id
+						FROM ${Analytics.events}
+						WHERE client_id = {websiteId:String}
+							AND time >= toDateTime({startDate:String})
+							AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND anonymous_id IN (SELECT anonymous_id FROM affected_anonymous_ids)
+						GROUP BY anonymous_id
+					),
+					session_identity AS (
+						SELECT
+							session_id,
+							uniqExactIf(profile_id, profile_id != '') AS profile_count,
+							if(
+								uniqExactIf(profile_id, profile_id != '') = 1,
+								anyIf(profile_id, profile_id != ''),
+								''
+							) AS resolved_profile_id
+						FROM ${Analytics.events}
+						WHERE client_id = {websiteId:String}
+							AND time >= toDateTime({startDate:String})
+							AND time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND session_id IN (SELECT session_id FROM affected_sessions)
+						GROUP BY session_id
+					),
+					identity_rows AS (
+						SELECT
+							matched.anonymous_id AS error_anonymous_id,
+							matched.session_id AS error_session_id,
+							matched.first_error_at,
+							if(
+								ifNull(session.profile_count, 0) = 1
+									AND ifNull(anonymous.profile_count, 0) <= 1
+									AND (
+										ifNull(anonymous.resolved_profile_id, '') = ''
+										OR anonymous.resolved_profile_id = session.resolved_profile_id
+									),
+								session.resolved_profile_id,
+								if(
+									ifNull(session.profile_count, 0) = 0
+										AND ifNull(anonymous.profile_count, 0) = 1,
+									anonymous.resolved_profile_id,
+									''
+								)
+							) AS resolved_profile_id,
+							toUInt8(
+								ifNull(session.profile_count, 0) > 1
+								OR ifNull(anonymous.profile_count, 0) > 1
+								OR (
+									ifNull(session.resolved_profile_id, '') != ''
+									AND ifNull(anonymous.resolved_profile_id, '') != ''
+									AND session.resolved_profile_id != anonymous.resolved_profile_id
+								)
+							) AS profile_ambiguous
+						FROM (
+							SELECT anonymous_id, session_id, min(timestamp) AS first_error_at
+							FROM matched_errors
+							GROUP BY anonymous_id, session_id
+						) matched
+						LEFT JOIN anonymous_identity anonymous
+							ON matched.anonymous_id = anonymous.anonymous_id
+						LEFT JOIN session_identity session
+							ON matched.session_id = session.session_id
+					),
+					last_error_by_session AS (
+						SELECT session_id, max(timestamp) AS last_error_at
+						FROM matched_errors
+						WHERE session_id != ''
+						GROUP BY session_id
+					),
+					later_telemetry_sessions AS (
+						SELECT DISTINCT event.session_id
+						FROM ${Analytics.events} event
+						INNER JOIN last_error_by_session matched
+							ON event.session_id = matched.session_id
+						WHERE event.client_id = {websiteId:String}
+							AND event.time > matched.last_error_at
+							AND event.time <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+					),
+					affected_profiles AS (
+						SELECT resolved_profile_id, min(first_error_at) AS first_error_at
+						FROM identity_rows
+						WHERE resolved_profile_id != ''
+						GROUP BY resolved_profile_id
+					),
+					${latestRevenue},
+					paying_profiles AS (
+						SELECT profile_id, min(created) AS first_completed_payment_at
+						FROM impact_revenue_latest
+						WHERE profile_id != ''
+							AND created <= toDateTime(concat({endDate:String}, ' 23:59:59'))
+							AND status = 'completed'
+							AND amount > 0
+							AND type IN ('sale', 'subscription')
+						GROUP BY profile_id
+					),
+					affected_paying_profiles AS (
+						SELECT affected.resolved_profile_id
+						FROM affected_profiles affected
+						INNER JOIN paying_profiles payment
+							ON affected.resolved_profile_id = payment.profile_id
+						WHERE payment.first_completed_payment_at <= affected.first_error_at
+					)
+					SELECT
+						toUInt64((SELECT count() FROM matched_errors)) AS error_occurrences,
+						toUInt64((SELECT count() FROM affected_sessions)) AS affected_sessions,
+						toUInt64((SELECT count() FROM affected_anonymous_ids)) AS affected_visitor_identifiers,
+						uniqExactIf(error_anonymous_id, error_anonymous_id != '' AND resolved_profile_id != '') AS linked_visitor_identifiers,
+						uniqExactIf(resolved_profile_id, resolved_profile_id != '') AS identified_profiles,
+						toUInt64((SELECT count() FROM affected_anonymous_ids))
+							- uniqExactIf(error_anonymous_id, error_anonymous_id != '' AND resolved_profile_id != '') AS unlinked_visitor_identifiers,
+						uniqExactIf(error_session_id, error_session_id != '' AND profile_ambiguous = 1) AS ambiguous_profile_sessions,
+						if(
+							(SELECT count() FROM affected_anonymous_ids) = 0,
+							0,
+							round(
+								100 * uniqExactIf(error_anonymous_id, error_anonymous_id != '' AND resolved_profile_id != '')
+									/ (SELECT count() FROM affected_anonymous_ids),
+								1
+							)
+						) AS identity_coverage_percent,
+						toUInt64((SELECT count() FROM later_telemetry_sessions)) AS sessions_with_later_telemetry,
+						toUInt64((SELECT count() FROM affected_paying_profiles)) AS identified_profiles_with_prior_attributed_completed_payment,
+						toUInt8((SELECT count() FROM paying_profiles) > 0) AS qualifying_profile_payment_history_observed,
+						toUInt8(1) AS payment_match_is_lower_bound
+					FROM identity_rows
+				`,
+				params: {
+					websiteId,
+					startDate,
+					endDate,
+					...filterParams,
+				},
+			};
+		},
+		customizable: false,
+		noCache: true,
+		requiredAnyFilter: ["message", "path"],
+		timeField: "timestamp",
 	},
 
 	error_trends: {

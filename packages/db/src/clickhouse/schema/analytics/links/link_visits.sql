@@ -11,9 +11,12 @@ CREATE TABLE IF NOT EXISTS analytics.link_visits
 	`city` Nullable(String) CODEC(ZSTD(1)),
 	`browser_name` Nullable(String) CODEC(ZSTD(1)),
 	`device_type` Nullable(String) CODEC(ZSTD(1)),
-	INDEX idx_link_id link_id TYPE bloom_filter(0.01) GRANULARITY 1
+	`ingested_at` DateTime64(6, 'UTC') DEFAULT now64(6) CODEC(Delta(8), ZSTD(1)),
+	INDEX idx_link_id link_id TYPE bloom_filter(0.01) GRANULARITY 1,
+	INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1
 )
-ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/analytics_link_visits', '{replica}')
+ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/analytics_link_visits_delivery_v2', '{replica}', ingested_at)
 PARTITION BY toDate(timestamp)
-ORDER BY (link_id, timestamp)
+PRIMARY KEY link_id
+ORDER BY (link_id, id)
 SETTINGS index_granularity = 8192
