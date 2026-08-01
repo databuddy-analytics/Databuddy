@@ -2,8 +2,9 @@
 
 The `.sql` files in this directory are reference definitions for the deployed
 ClickHouse schema. `ch:verify` compares their columns, secondary indexes,
-engine (including the Keeper path), partition and sorting keys, and settings
-with the live cluster. One file exists per object and is named after it.
+engine (including the Keeper path), partition, primary and sorting keys, and
+settings with the live cluster. One file exists per object and is named after
+it.
 
 ## Layout
 
@@ -31,6 +32,23 @@ an existing object's indexes, sorting key, engine, or Keeper path.
 All tables use the `Replicated*MergeTree` engine family with `{shard}` /
 `{replica}` macros, matching the production cluster. Single-node deployments
 need ClickHouse Keeper enabled (a one-node Keeper is fine).
+
+The Basket/Vector delivery tables use `ReplicatedReplacingMergeTree` with a
+stable row identity and an `ingested_at` version. Background merges reclaim
+duplicate storage asynchronously; correct reads use `FINAL` (the shared
+ClickHouse clients set `final = 1`). Because retry timestamps are immutable,
+versions stay in one partition and reads also enable
+`do_not_merge_across_partitions_select_final = 1`.
+
+Custom events, error spans, and web-vital spans may contain historical rows
+created before `delivery_id` existed. Their materialized `delivery_key` gives
+every empty legacy ID a unique key while mapping every non-empty delivery ID to
+a stable key. This prevents a migration from collapsing unrelated legacy rows.
+
+`analytics.daily_pageviews` stores one identity-bearing row per pageview rather
+than aggregating raw insert blocks. This is deliberate: an incremental view
+over a replayed block runs before a `ReplacingMergeTree` merge and would
+otherwise reintroduce duplicate counts.
 
 ## Unmanaged legacy objects
 

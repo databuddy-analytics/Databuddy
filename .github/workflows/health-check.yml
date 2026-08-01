@@ -93,9 +93,12 @@ jobs:
             --data-binary 'CREATE DATABASE IF NOT EXISTS analytics' \
             http://localhost:8123/
           sed -E \
-            "s@ENGINE = ReplicatedMergeTree\\([^)]*\\)@ENGINE = MergeTree@" \
+            "s@ENGINE = ReplicatedReplacingMergeTree\\('[^']*', '[^']*', ([^)]+)\\)@ENGINE = ReplacingMergeTree(\\1)@" \
             packages/db/src/clickhouse/schema/analytics/core/custom_events.sql \
             | curl -fsS --data-binary @- http://localhost:8123/
+          curl -fsS \
+            --data-binary 'SYSTEM STOP MERGES analytics.custom_events' \
+            http://localhost:8123/
 
           docker run -d \
             --name vector-canary-redpanda \
@@ -159,14 +162,40 @@ jobs:
             | docker exec -i vector-canary-redpanda \
                 rpk topic produce analytics-custom-events
 
-          for i in {1..45}; do
-            COUNT=$(curl -fsSG \
+          for i in {1..30}; do
+            FIRST_COUNT=$(curl -fsSG \
               --data-urlencode \
                 'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
               --data-urlencode "param_delivery_id=$CANARY_ID" \
               http://localhost:8123/)
-            if [ "$COUNT" = "1" ]; then
-              echo "Vector delivered the canary with its delivery_id intact"
+            if [ "$FIRST_COUNT" = "1" ]; then
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "First canary delivery did not reach ClickHouse"
+              docker logs vector-delivery-canary
+              exit 1
+            fi
+            sleep 1
+          done
+
+          printf '%s\n' "$CANARY_PAYLOAD" \
+            | docker exec -i vector-canary-redpanda \
+                rpk topic produce analytics-custom-events
+
+          for i in {1..45}; do
+            PHYSICAL_COUNT=$(curl -fsSG \
+              --data-urlencode \
+                'query=SELECT count() FROM analytics.custom_events WHERE delivery_id = {delivery_id:String}' \
+              --data-urlencode "param_delivery_id=$CANARY_ID" \
+              http://localhost:8123/)
+            LOGICAL_COUNT=$(curl -fsSG \
+              --data-urlencode \
+                'query=SELECT count() FROM analytics.custom_events FINAL WHERE delivery_id = {delivery_id:String}' \
+              --data-urlencode "param_delivery_id=$CANARY_ID" \
+              http://localhost:8123/)
+            if [ "$PHYSICAL_COUNT" = "2" ] && [ "$LOGICAL_COUNT" = "1" ]; then
+              echo "Vector replay produced two physical rows and one logical delivery"
               exit 0
             fi
             if ! docker inspect -f '{{.State.Running}}' vector-delivery-canary | grep -q true; then
@@ -176,7 +205,7 @@ jobs:
             sleep 1
           done
 
-          echo "Canary was not delivered to ClickHouse within 45 seconds"
+          echo "Canary replay was not logically deduplicated within 45 seconds"
           docker logs vector-delivery-canary
           docker logs vector-canary-redpanda
           exit 1

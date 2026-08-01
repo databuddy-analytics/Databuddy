@@ -153,6 +153,8 @@ describe("DQL ClickHouse client", () => {
 	test("binds the tenant and readonly mode", () => {
 		expect(dqlSettingsForWebsite("website-a")).toEqual({
 			[DQL_TENANT_SETTING]: "website-a",
+			do_not_merge_across_partitions_select_final: 1,
+			final: 1,
 			readonly: 1,
 		});
 		expect(() => dqlSettingsForWebsite(" ")).toThrow(
@@ -201,6 +203,8 @@ describe("DQL ClickHouse client", () => {
 			format: "JSON",
 			clickhouse_settings: {
 				[DQL_TENANT_SETTING]: "website-a",
+				do_not_merge_across_partitions_select_final: 1,
+				final: 1,
 				readonly: 1,
 			},
 		});

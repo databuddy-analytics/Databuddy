@@ -14,7 +14,11 @@ import {
 	type ResultSet,
 } from "@clickhouse/client";
 import { password as bunPassword } from "bun";
-import { clickHouse, CLICKHOUSE_OPTIONS } from "./client";
+import {
+	clickHouse,
+	CLICKHOUSE_OPTIONS,
+	LOGICAL_READ_SETTINGS,
+} from "./client";
 import { hasCommaJoinInFrom } from "./sql-validation";
 
 export const DQL_DEFAULT_USER = "dql_user";
@@ -196,6 +200,7 @@ export function dqlSettingsForWebsite(
 
 	return {
 		[DQL_TENANT_SETTING]: websiteId,
+		...LOGICAL_READ_SETTINGS,
 		readonly: 1,
 	};
 }

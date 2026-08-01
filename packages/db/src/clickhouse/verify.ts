@@ -133,7 +133,13 @@ function diffTable(repo: ParsedTable, live: ParsedTable): string[] {
 		}
 	}
 
-	for (const key of ["engine", "partitionBy", "orderBy", "settings"] as const) {
+	for (const key of [
+		"engine",
+		"partitionBy",
+		"primaryKey",
+		"orderBy",
+		"settings",
+	] as const) {
 		if (repo[key] !== live[key]) {
 			lines.push(
 				c.yellow(`    ~ ${key}`) +
