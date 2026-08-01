@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 import {
 	createLinkCacheRedisConnectionOptions,
+	createRateLimitRedisConnectionOptions,
 	createRedisConnectionOptions,
 	getRedisUrl,
 } from "./redis-options";
@@ -8,9 +9,13 @@ import {
 let redisInstance: Redis | null = null;
 let linkCacheRedisInstance: Redis | null = null;
 let linkCacheConnectPromise: Promise<Redis> | null = null;
+let rateLimitRedisInstance: Redis | null = null;
+let rateLimitConnectPromise: Promise<Redis> | null = null;
 
 const LINK_CACHE_CONNECT_DEADLINE_MS = 1250;
 export const LINK_CACHE_OPERATION_DEADLINE_MS = 1500;
+const RATE_LIMIT_CONNECT_DEADLINE_MS = 1250;
+export const RATE_LIMIT_OPERATION_DEADLINE_MS = 1500;
 
 function withDeadline<T>(
 	operation: Promise<T>,
@@ -77,7 +82,72 @@ function getLinkCacheRedis(): Promise<Redis> {
 	return connection;
 }
 
-export async function runLinkCacheCommand<T>(
+function discardRateLimitRedis(instance: Redis): void {
+	if (rateLimitRedisInstance === instance) {
+		rateLimitRedisInstance = null;
+	}
+	try {
+		instance.disconnect(false);
+	} catch {
+		// The instance is already closed.
+	}
+}
+
+function getRateLimitRedis(): Promise<Redis> {
+	if (rateLimitRedisInstance?.status === "ready") {
+		return Promise.resolve(rateLimitRedisInstance);
+	}
+	if (rateLimitConnectPromise) {
+		return rateLimitConnectPromise;
+	}
+
+	const instance = new Redis(
+		getRedisUrl(),
+		createRateLimitRedisConnectionOptions()
+	);
+	rateLimitRedisInstance = instance;
+	instance.on("end", () => {
+		if (rateLimitRedisInstance === instance) {
+			rateLimitRedisInstance = null;
+		}
+	});
+
+	const connection = withDeadline(
+		instance.connect().then(() => instance),
+		RATE_LIMIT_CONNECT_DEADLINE_MS,
+		`Rate limit connection exceeded ${RATE_LIMIT_CONNECT_DEADLINE_MS}ms`
+	).catch((error) => {
+		discardRateLimitRedis(instance);
+		throw error;
+	});
+	rateLimitConnectPromise = connection;
+	const clearConnection = () => {
+		if (rateLimitConnectPromise === connection) {
+			rateLimitConnectPromise = null;
+		}
+	};
+	connection.then(clearConnection, clearConnection);
+	return connection;
+}
+
+export function runLinkCacheCommand<T>(
+	operation: (redis: Redis) => Promise<T>
+): Promise<T> {
+	return runLinkCacheRedisCommand(operation);
+}
+
+/**
+ * Execute admission-control work on its own bounded, no-offline-queue Redis
+ * connection. Rate limiting is fail-open, so it must neither inherit the
+ * shared client's retry window nor head-of-line block link cache mutations.
+ */
+export function runRateLimitCommand<T>(
+	operation: (redis: Redis) => Promise<T>
+): Promise<T> {
+	return runRateLimitRedisCommand(operation);
+}
+
+async function runLinkCacheRedisCommand<T>(
 	operation: (redis: Redis) => Promise<T>
 ): Promise<T> {
 	let instance: Redis | null = null;
@@ -100,12 +170,41 @@ export async function runLinkCacheCommand<T>(
 	}
 }
 
+async function runRateLimitRedisCommand<T>(
+	operation: (redis: Redis) => Promise<T>
+): Promise<T> {
+	let instance: Redis | null = null;
+	const command = getRateLimitRedis().then((redis) => {
+		instance = redis;
+		return operation(redis);
+	});
+
+	try {
+		return await withDeadline(
+			command,
+			RATE_LIMIT_OPERATION_DEADLINE_MS,
+			`Rate limit operation exceeded ${RATE_LIMIT_OPERATION_DEADLINE_MS}ms`
+		);
+	} catch (error) {
+		if (instance) {
+			discardRateLimitRedis(instance);
+		}
+		throw error;
+	}
+}
+
 export async function shutdownRedis() {
 	const linkCacheInstance = linkCacheRedisInstance;
 	linkCacheRedisInstance = null;
 	linkCacheConnectPromise = null;
 	if (linkCacheInstance) {
 		discardLinkCacheRedis(linkCacheInstance);
+	}
+	const rateLimitInstance = rateLimitRedisInstance;
+	rateLimitRedisInstance = null;
+	rateLimitConnectPromise = null;
+	if (rateLimitInstance) {
+		discardRateLimitRedis(rateLimitInstance);
 	}
 
 	if (!redisInstance) {
