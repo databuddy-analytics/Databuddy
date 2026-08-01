@@ -34,7 +34,6 @@ const {
 	getStats,
 	runPromise,
 	send,
-	sendBuffered,
 } = await import("./producer");
 
 beforeEach(async () => {
@@ -52,9 +51,9 @@ afterAll(async () => {
 });
 
 describe("producer fallback topics", () => {
-	test("blocked traffic is buffered for ClickHouse fallback", async () => {
+	test("blocked traffic is delivered through the direct ClickHouse fallback", async () => {
 		await runPromise(
-			sendBuffered("analytics-blocked-traffic", {
+			send("analytics-blocked-traffic", {
 				id: "blocked_1",
 				client_id: "ws_1",
 				timestamp: Date.now(),
@@ -63,7 +62,15 @@ describe("producer fallback topics", () => {
 
 		const stats = await runPromise(getStats);
 		expect(stats?.errors).toBe(0);
-		expect(stats?.bufferSize).toBe(1);
+		expect(stats?.sent).toBe(1);
+		expect(mockClickHouseInsert).toHaveBeenCalledWith(
+			expect.objectContaining({
+				table: "analytics.blocked_traffic",
+				values: [
+					expect.objectContaining({ id: "blocked_1", client_id: "ws_1" }),
+				],
+			})
+		);
 	});
 
 	test("unknown topics include the missing topic in error context", async () => {

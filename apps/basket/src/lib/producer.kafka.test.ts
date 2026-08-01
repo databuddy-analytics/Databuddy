@@ -117,8 +117,7 @@ describe("producer Kafka send failure handling", () => {
 		expect(mockConnect).toHaveBeenCalledTimes(1);
 		expect(mockSend).toHaveBeenCalledTimes(1);
 		expect(mockClickHouseInsert).toHaveBeenCalledTimes(2);
-		expect(stats?.bufferSize).toBe(0);
-		expect(stats?.flushed).toBe(2);
+		expect(stats?.sent).toBe(2);
 		expect(stats?.connected).toBe(false);
 		expect(stats?.failed).toBe(true);
 		expect(stats?.failedCount).toBe(1);

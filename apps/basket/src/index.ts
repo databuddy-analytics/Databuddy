@@ -84,8 +84,7 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 				error_message: error instanceof Error ? error.message : String(error),
 			});
 		const { shutdownRedis } = await import("@databuddy/redis");
-		// A buffered fallback can still need ClickHouse after Kafka is unavailable.
-		// Drain it before flushing its failure telemetry or tearing down services.
+		// Wait for acknowledged delivery before tearing down its dependencies.
 		try {
 			await runPromise(disconnect);
 		} catch (error) {
@@ -94,9 +93,8 @@ async function gracefulShutdown(signal: string, exitCode = 0) {
 				log.error({
 					lifecycle: "producerDrain",
 					error_message:
-						"Basket producer drain timed out with undelivered events",
+						"Basket producer drain timed out waiting for in-flight delivery",
 					in_flight: error.inFlight,
-					residual_count: error.residualCount,
 					drain_timeout_ms: error.deadlineMs,
 				});
 			} else {

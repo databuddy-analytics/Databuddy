@@ -31,9 +31,6 @@ const { createProducerEffects } = await import("./producer");
 const topicMap = { "analytics-events": "analytics.events" };
 
 const baseConfig: ProducerConfig = {
-	bufferHardMax: 2,
-	bufferInterval: 60_000,
-	bufferMax: 1,
 	broker: undefined,
 	chunkSize: 100,
 	kafkaTimeout: 1_000,
@@ -42,7 +39,6 @@ const baseConfig: ProducerConfig = {
 	producerRetryDelay: 1,
 	reconnectCooldown: 1,
 	selfHost: true,
-	shutdownDrainRetryDelay: 1,
 	shutdownDrainTimeout: 50,
 	username: undefined,
 };
@@ -82,7 +78,7 @@ describe("producer delivery guarantees", () => {
 			})
 		);
 		const stats = await Effect.runPromise(effects.stats);
-		expect(stats).toMatchObject({ bufferSize: 0, flushed: 1 });
+		expect(stats).toMatchObject({ inFlight: 0, sent: 1 });
 	});
 
 	test("returns a retryable error instead of acknowledging a failed direct fallback", async () => {
@@ -98,77 +94,7 @@ describe("producer delivery guarantees", () => {
 		});
 
 		const stats = await Effect.runPromise(effects.stats);
-		expect(stats).toMatchObject({ bufferSize: 0, errors: 1 });
-	});
-
-	test("rejects buffered delivery atomically when the in-memory buffer is full", async () => {
-		const effects = await makeEffects(() => Promise.resolve());
-
-		await Effect.runPromise(
-			effects.sendManyBuffered("analytics-events", [event("event_1"), event("event_2")])
-		);
-		await expect(
-			Effect.runPromise(
-				effects.sendOneBuffered("analytics-events", event("event_3"))
-			)
-		).rejects.toMatchObject({
-			_tag: "BufferOverflowError",
-			bufferHardMax: 2,
-			bufferLength: 2,
-			eventCount: 1,
-			retryable: true,
-		});
-
-		const stats = await Effect.runPromise(effects.stats);
-		expect(stats).toMatchObject({ bufferSize: 2, dropped: 0 });
-	});
-
-	test("drains every buffered event before shutdown completes", async () => {
-		const insert = vi.fn(() => Promise.resolve());
-		const effects = await makeEffects(insert, { bufferHardMax: 3 });
-
-		await Effect.runPromise(
-			effects.sendManyBuffered("analytics-events", [
-				event("event_1"),
-				event("event_2"),
-				event("event_3"),
-			])
-		);
-		await Effect.runPromise(effects.shutDown);
-
-		expect(insert).toHaveBeenCalledTimes(3);
-		const stats = await Effect.runPromise(effects.stats);
-		expect(stats).toMatchObject({ bufferSize: 0, flushed: 3 });
-	});
-
-	test("rejects new events with a retryable error once shutdown begins", async () => {
-		let releaseInsert: (() => void) | undefined;
-		const effects = await makeEffects(
-			() =>
-				new Promise<void>((resolve) => {
-					releaseInsert = resolve;
-				}),
-			{ shutdownDrainTimeout: 500 }
-		);
-
-		await Effect.runPromise(
-			effects.sendOneBuffered("analytics-events", event("event_1"))
-		);
-		const shutdown = Effect.runPromise(effects.shutDown);
-		await vi.waitFor(() => expect(releaseInsert).toBeTypeOf("function"));
-
-		await expect(
-			Effect.runPromise(
-				effects.sendOneBuffered("analytics-events", event("event_2"))
-			)
-		).rejects.toMatchObject({
-			_tag: "ProducerShuttingDownError",
-			eventCount: 1,
-			retryable: true,
-		});
-
-		releaseInsert?.();
-		await shutdown;
+		expect(stats).toMatchObject({ errors: 1, inFlight: 0, sent: 0 });
 	});
 
 	test("keeps an active direct delivery counted when shutdown rejects another send", async () => {
@@ -202,23 +128,27 @@ describe("producer delivery guarantees", () => {
 		await shutdown;
 	});
 
-	test("reports retained residual events when shutdown cannot drain before its deadline", async () => {
+	test("reports an in-flight direct delivery when shutdown reaches its deadline", async () => {
+		let releaseInsert: (() => void) | undefined;
 		const effects = await makeEffects(
-			() => Promise.reject(new Error("ClickHouse unavailable")),
+			() =>
+				new Promise<void>((resolve) => {
+					releaseInsert = resolve;
+				}),
 			{ shutdownDrainTimeout: 20 }
 		);
 
-		await Effect.runPromise(
-			effects.sendOneBuffered("analytics-events", event("event_1"))
+		const activeDelivery = Effect.runPromise(
+			effects.sendOne("analytics-events", event("event_1"))
 		);
+		await vi.waitFor(() => expect(releaseInsert).toBeTypeOf("function"));
 		await expect(Effect.runPromise(effects.shutDown)).rejects.toMatchObject({
 			_tag: "ShutdownDrainError",
-			inFlight: 0,
-			residualCount: 1,
+			inFlight: 1,
 			retryable: true,
 		});
 
-		const stats = await Effect.runPromise(effects.stats);
-		expect(stats.bufferSize).toBe(1);
+		releaseInsert?.();
+		await activeDelivery;
 	});
 });

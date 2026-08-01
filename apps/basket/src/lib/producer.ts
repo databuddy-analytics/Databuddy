@@ -2,7 +2,7 @@ import type { ClickHouseClient } from "@clickhouse/client";
 import { clickHouse, TABLE_NAMES } from "@databuddy/db/clickhouse";
 import { readBooleanEnv } from "@databuddy/env/boolean";
 import { captureError, record } from "@lib/tracing";
-import { Data, Effect, Layer, ManagedRuntime, Ref, Schedule } from "effect";
+import { Data, Effect, Layer, ManagedRuntime, Ref } from "effect";
 import { createError } from "evlog";
 import { CompressionTypes, Kafka, type Producer } from "kafkajs";
 
@@ -18,15 +18,6 @@ export class KafkaConnectionError extends Data.TaggedError(
 export class KafkaSendError extends Data.TaggedError("KafkaSendError")<{
 	readonly topic: string;
 	readonly cause?: Error;
-}> {}
-export class BufferOverflowError extends Data.TaggedError(
-	"BufferOverflowError"
-)<{
-	readonly bufferHardMax: number;
-	readonly bufferLength: number;
-	readonly eventCount: number;
-	readonly retryable: true;
-	readonly topic: string;
 }> {}
 export class ProducerShuttingDownError extends Data.TaggedError(
 	"ProducerShuttingDownError"
@@ -51,42 +42,25 @@ export class ClickHouseFallbackError extends Data.TaggedError(
 	readonly table: string;
 	readonly topic: string;
 }> {}
-export class FlushError extends Data.TaggedError("FlushError")<{
-	readonly table: string;
-	readonly cause?: Error;
-}> {}
 export class ShutdownDrainError extends Data.TaggedError("ShutdownDrainError")<{
 	readonly deadlineMs: number;
 	readonly inFlight: number;
-	readonly residualCount: number;
 	readonly retryable: true;
 }> {}
 
 export type ProducerError =
 	| KafkaConnectionError
 	| KafkaSendError
-	| BufferOverflowError
-	| FlushError
 	| ProducerShuttingDownError
 	| ProducerUnavailableError
 	| UnknownKafkaTopicError
 	| ClickHouseFallbackError;
 
-interface BufferedEvent {
-	event: unknown;
-	table: string;
-}
-
 interface ProducerState {
-	buffer: BufferedEvent[];
-	buffered: number;
 	connected: boolean;
 	connectionFailed: boolean;
-	dropped: number;
 	errors: number;
 	failedCount: number;
-	flushed: number;
-	flushing: boolean;
 	inFlight: number;
 	lastErrorTime: number | null;
 	lastRetry: number;
@@ -97,9 +71,6 @@ interface ProducerState {
 
 export interface ProducerConfig {
 	broker?: string;
-	bufferHardMax: number;
-	bufferInterval: number;
-	bufferMax: number;
 	chunkSize: number;
 	kafkaTimeout: number;
 	maxProducerRetries: number;
@@ -107,27 +78,16 @@ export interface ProducerConfig {
 	producerRetryDelay: number;
 	reconnectCooldown: number;
 	selfHost: boolean;
-	shutdownDrainRetryDelay: number;
 	shutdownDrainTimeout: number;
 	username?: string;
 }
 
 export interface ProducerEffects {
-	flush: Effect.Effect<boolean>;
 	sendMany: (
 		topic: string,
 		events: unknown[]
 	) => Effect.Effect<void, ProducerError>;
-	sendManyBuffered: (
-		topic: string,
-		events: unknown[]
-	) => Effect.Effect<void, ProducerError>;
 	sendOne: (
-		topic: string,
-		event: unknown,
-		key?: string
-	) => Effect.Effect<void, ProducerError>;
-	sendOneBuffered: (
 		topic: string,
 		event: unknown,
 		key?: string
@@ -137,12 +97,8 @@ export interface ProducerEffects {
 }
 
 const INITIAL_STATE: ProducerState = {
-	buffer: [],
 	sent: 0,
 	failedCount: 0,
-	buffered: 0,
-	flushed: 0,
-	dropped: 0,
 	errors: 0,
 	lastErrorTime: null,
 	connected: false,
@@ -150,27 +106,11 @@ const INITIAL_STATE: ProducerState = {
 	lastRetry: 0,
 	producerInitialized: false,
 	shuttingDown: false,
-	flushing: false,
 	inFlight: 0,
 };
 
 function toError(err: unknown): Error {
 	return err instanceof Error ? err : new Error(String(err));
-}
-
-function groupBufferedEvents(
-	items: BufferedEvent[]
-): Map<string, BufferedEvent[]> {
-	const grouped = new Map<string, BufferedEvent[]>();
-	for (const item of items) {
-		const tableEvents = grouped.get(item.table);
-		if (tableEvents) {
-			tableEvents.push(item);
-			continue;
-		}
-		grouped.set(item.table, [item]);
-	}
-	return grouped;
 }
 
 async function insertClickHouseChunks(
@@ -251,68 +191,6 @@ function makeProducerEffects(
 		);
 	});
 
-	const flush: Effect.Effect<boolean> = Effect.gen(function* () {
-		const items = yield* Ref.modify(ref, (s) => {
-			if (s.buffer.length === 0 || s.flushing) {
-				return [null, s] as const;
-			}
-
-			const batchSize = Math.min(s.buffer.length, config.bufferMax);
-			return [s.buffer.slice(0, batchSize), { ...s, flushing: true }] as const;
-		});
-
-		if (!items) {
-			return true;
-		}
-
-		const grouped = groupBufferedEvents(items);
-		return yield* Effect.forEach(
-			Array.from(grouped.entries()),
-			([table, entries]) => {
-				const events = entries.map((entry) => entry.event);
-				const flushedEntries = new Set(entries);
-				return Effect.tryPromise({
-					try: () =>
-						record("clickhouseFallbackInsert", () =>
-							insertClickHouseChunks(ch, table, events, config.chunkSize)
-						),
-					catch: (e) => new FlushError({ table, cause: toError(e) }),
-				}).pipe(
-					Effect.tap(() =>
-						Ref.update(ref, (s) => ({
-							...s,
-							buffer: s.buffer.filter((entry) => !flushedEntries.has(entry)),
-							flushed: s.flushed + entries.length,
-						}))
-					),
-					Effect.as(true),
-					Effect.catchTag("FlushError", (error) =>
-						Ref.update(ref, (s) => ({
-							...s,
-							errors: s.errors + 1,
-							lastErrorTime: Date.now(),
-						})).pipe(
-							Effect.tap(() =>
-								Effect.sync(() =>
-									captureError(error.cause, {
-										message:
-											"ClickHouse fallback insert failed; retaining events for retry",
-										table,
-									})
-								)
-							),
-							Effect.as(false)
-						)
-					)
-				);
-			},
-			{ concurrency: "unbounded" }
-		).pipe(
-			Effect.map((results) => results.every(Boolean)),
-			Effect.ensuring(Ref.update(ref, (s) => ({ ...s, flushing: false })))
-		);
-	});
-
 	const resolveTopic = (
 		topic: string
 	): Effect.Effect<string, UnknownKafkaTopicError> =>
@@ -359,7 +237,7 @@ function makeProducerEffects(
 						topic,
 					}),
 			}).pipe(
-				Effect.tap(() => inc("flushed", events.length)),
+				Effect.tap(() => inc("sent", events.length)),
 				Effect.catchTag("ClickHouseFallbackError", (error) =>
 					Ref.update(ref, (s) => ({
 						...s,
@@ -380,62 +258,6 @@ function makeProducerEffects(
 					)
 				)
 			);
-		});
-
-	const bufferAll = (
-		topic: string,
-		events: unknown[]
-	): Effect.Effect<void, BufferOverflowError | UnknownKafkaTopicError> =>
-		Effect.gen(function* () {
-			const table = yield* resolveTopic(topic);
-
-			type BufferAppendResult =
-				| { bufferLength: number; overflow: true }
-				| { overflow: false };
-			const result = yield* Ref.modify(
-				ref,
-				(s): [BufferAppendResult, ProducerState] => {
-					if (s.buffer.length + events.length > config.bufferHardMax) {
-						return [
-							{ bufferLength: s.buffer.length, overflow: true },
-							{
-								...s,
-								errors: s.errors + 1,
-								lastErrorTime: Date.now(),
-							},
-						];
-					}
-
-					return [
-						{ overflow: false },
-						{
-							...s,
-							buffer: [
-								...s.buffer,
-								...events.map<BufferedEvent>((event) => ({ table, event })),
-							],
-							buffered: s.buffered + events.length,
-						},
-					];
-				}
-			);
-
-			if (result.overflow) {
-				const error = new BufferOverflowError({
-					bufferHardMax: config.bufferHardMax,
-					bufferLength: result.bufferLength,
-					eventCount: events.length,
-					retryable: true,
-					topic,
-				});
-				yield* Effect.sync(() =>
-					captureError(error, {
-						message: "ClickHouse fallback buffer is full",
-						topic,
-					})
-				);
-				return yield* Effect.fail(error);
-			}
 		});
 
 	const acquireSendSlot = (eventCount: number) =>
@@ -466,8 +288,7 @@ function makeProducerEffects(
 	const sendViaKafka = (
 		topic: string,
 		messages: Array<{ value: string; key?: string }>,
-		fallbackEvents: unknown[],
-		fallback: "buffer" | "direct"
+		fallbackEvents: unknown[]
 	): Effect.Effect<void, ProducerError> =>
 		acquireSendSlot(fallbackEvents.length).pipe(
 			Effect.flatMap(() =>
@@ -515,12 +336,7 @@ function makeProducerEffects(
 						}
 					}
 
-					if (fallback === "direct") {
-						yield* persistDirectly(topic, fallbackEvents);
-						return;
-					}
-
-					yield* bufferAll(topic, fallbackEvents);
+					yield* persistDirectly(topic, fallbackEvents);
 				}).pipe(Effect.ensuring(releaseSendSlot(fallbackEvents.length)))
 			)
 		);
@@ -538,8 +354,7 @@ function makeProducerEffects(
 					key: key || (event as { client_id?: string }).client_id,
 				},
 			],
-			[event],
-			"direct"
+			[event]
 		);
 
 	const sendMany = (
@@ -557,45 +372,7 @@ function makeProducerEffects(
 					(e as { client_id?: string }).client_id ||
 					(e as { event_id?: string }).event_id,
 			})),
-			events,
-			"direct"
-		);
-	};
-
-	const sendOneBuffered = (
-		topic: string,
-		event: unknown,
-		key?: string
-	): Effect.Effect<void, ProducerError> =>
-		sendViaKafka(
-			topic,
-			[
-				{
-					value: stringifyEvent(event),
-					key: key || (event as { client_id?: string }).client_id,
-				},
-			],
-			[event],
-			"buffer"
-		);
-
-	const sendManyBuffered = (
-		topic: string,
-		events: unknown[]
-	): Effect.Effect<void, ProducerError> => {
-		if (events.length === 0) {
-			return Effect.void;
-		}
-		return sendViaKafka(
-			topic,
-			events.map((e) => ({
-				value: stringifyEvent(e),
-				key:
-					(e as { client_id?: string }).client_id ||
-					(e as { event_id?: string }).event_id,
-			})),
-			events,
-			"buffer"
+			events
 		);
 	};
 
@@ -626,28 +403,16 @@ function makeProducerEffects(
 		);
 	});
 
-	const drainUntilEmpty = Effect.gen(function* () {
-		while (true) {
-			const state = yield* Ref.get(ref);
-			if (state.inFlight > 0 || state.flushing) {
-				yield* Effect.sleep("10 millis");
-				continue;
-			}
-			if (state.buffer.length === 0) {
-				return;
-			}
-
-			const didFlush = yield* flush;
-			if (!didFlush) {
-				yield* Effect.sleep(`${config.shutdownDrainRetryDelay} millis`);
-			}
+	const drainInFlight = Effect.gen(function* () {
+		while ((yield* Ref.get(ref)).inFlight > 0) {
+			yield* Effect.sleep("10 millis");
 		}
 	});
 
 	const shutDown: Effect.Effect<void, ShutdownDrainError> = Effect.gen(
 		function* () {
 			yield* Ref.update(ref, (s) => ({ ...s, shuttingDown: true }));
-			yield* drainUntilEmpty.pipe(
+			yield* drainInFlight.pipe(
 				Effect.timeout(`${config.shutdownDrainTimeout} millis`),
 				Effect.catch(() =>
 					Ref.get(ref).pipe(
@@ -656,7 +421,6 @@ function makeProducerEffects(
 								new ShutdownDrainError({
 									deadlineMs: config.shutdownDrainTimeout,
 									inFlight: state.inFlight,
-									residualCount: state.buffer.length + state.inFlight,
 									retryable: true,
 								})
 							)
@@ -671,8 +435,6 @@ function makeProducerEffects(
 	const stats: Effect.Effect<ProducerStatsSnapshot> = Ref.get(ref).pipe(
 		Effect.map(
 			({
-				buffer,
-				flushing: _f,
 				shuttingDown: _s,
 				connectionFailed,
 				producerInitialized: _p,
@@ -680,18 +442,14 @@ function makeProducerEffects(
 			}) => ({
 				...rest,
 				failed: connectionFailed,
-				bufferSize: buffer.length,
 				kafkaEnabled: enabled,
 			})
 		)
 	);
 
 	return {
-		flush,
 		sendOne,
 		sendMany,
-		sendOneBuffered,
-		sendManyBuffered,
 		shutDown,
 		stats,
 	};
@@ -703,7 +461,7 @@ export const createProducerEffects = (
 	ch: ClickHouseClient,
 	topicMap: Record<string, string>
 ): Effect.Effect<ProducerEffects> =>
-	Ref.make<ProducerState>({ ...INITIAL_STATE, buffer: [] }).pipe(
+	Ref.make<ProducerState>(INITIAL_STATE).pipe(
 		Effect.map((ref) => makeProducerEffects(config, kafka, ch, topicMap, ref))
 	);
 
@@ -748,14 +506,10 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 }
 
 export interface ProducerStatsSnapshot {
-	buffered: number;
-	bufferSize: number;
 	connected: boolean;
-	dropped: number;
 	errors: number;
 	failed: boolean;
 	failedCount: number;
-	flushed: number;
 	inFlight: number;
 	kafkaEnabled: boolean;
 	lastErrorTime: number | null;
@@ -772,11 +526,7 @@ const CONFIG: ProducerConfig = {
 	kafkaTimeout: 10_000,
 	maxProducerRetries: 3,
 	producerRetryDelay: 300,
-	bufferInterval: 5000,
-	bufferMax: 1000,
-	bufferHardMax: 10_000,
 	chunkSize: 5000,
-	shutdownDrainRetryDelay: 250,
 	shutdownDrainTimeout: 8000,
 };
 
@@ -802,11 +552,6 @@ const ProducerLive = Layer.effectDiscard(
 			TOPIC_MAP
 		);
 		fx = effects;
-		yield* effects.flush.pipe(
-			Effect.catch(() => Effect.void),
-			Effect.repeat(Schedule.spaced(CONFIG.bufferInterval)),
-			Effect.forkScoped
-		);
 	})
 );
 
@@ -832,12 +577,6 @@ export const send = (topic: string, event: unknown, key?: string) =>
 
 export const sendBatch = (topic: string, events: unknown[]) =>
 	withActiveFx((f) => f.sendMany(topic, events));
-
-export const sendBuffered = (topic: string, event: unknown, key?: string) =>
-	withActiveFx((f) => f.sendOneBuffered(topic, event, key));
-
-export const sendBufferedBatch = (topic: string, events: unknown[]) =>
-	withActiveFx((f) => f.sendManyBuffered(topic, events));
 
 export const disconnect = withFx((f) => f.shutDown);
 
