@@ -244,7 +244,7 @@ describe("API key rate limit admission", () => {
 		expect(getHandlerCalls()).toBe(3);
 	});
 
-	it("keeps plan-default keys on the paid-safe distributed quota", async () => {
+	it("keeps plan-default keys on the conservative distributed quota", async () => {
 		const planDefault = createApiKey("plan-default", {
 			rateLimitMax: null,
 			rateLimitTimeWindow: null,
@@ -543,7 +543,7 @@ describe("API key rate limit admission", () => {
 		).toBe(200);
 	});
 
-	it("uses the paid-safe default for either missing or invalid value", () => {
+	it("uses the conservative default for either missing or invalid value", () => {
 		expect(
 			getApiKeyRateLimitConfig(
 				createApiKey("missing-max", { rateLimitMax: null })

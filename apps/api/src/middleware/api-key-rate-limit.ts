@@ -22,12 +22,12 @@ export const API_KEY_IN_FLIGHT_LIMIT = 20;
 
 /**
  * API-key admission does not currently resolve the organization's plan. Use
- * the highest documented self-serve plan default so null-backed paid keys are
- * not silently throttled at the Free-plan ceiling. Custom/enterprise limits
- * remain available through the persisted per-key override.
+ * the conservative Free-plan ceiling so null-backed Free keys are never
+ * silently granted a paid quota. Paid/custom limits remain available through
+ * the persisted per-key override until admission becomes plan-aware.
  */
 export const DEFAULT_API_KEY_RATE_LIMIT = {
-	limit: 1200,
+	limit: 300,
 	windowSeconds: 60,
 } as const;
 
