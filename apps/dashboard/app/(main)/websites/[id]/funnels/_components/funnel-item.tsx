@@ -104,7 +104,10 @@ export function FunnelItem({
 	const stepsData = analytics?.steps_analytics ?? [];
 
 	return (
-		<div className={cn("w-full", className)}>
+		<div
+			className={cn("w-full scroll-mt-6", className)}
+			id={`funnel-${funnel.id}`}
+		>
 			<List.Row
 				className={cn(
 					"gap-0 px-0 py-0",

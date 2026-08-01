@@ -7,13 +7,14 @@ import type {
 import dayjs from "dayjs";
 import timezonePlugin from "dayjs/plugin/timezone";
 import utcPlugin from "dayjs/plugin/utc";
-import type { DetectedSignal } from "./detection";
+import type { DetectedSignal, MeasurementCandidate } from "./detection";
 
 dayjs.extend(utcPlugin);
 dayjs.extend(timezonePlugin);
 
 interface InvestigationInput {
 	evidence: string[];
+	measurementCandidate?: MeasurementCandidate;
 	signal: InvestigationSignal;
 }
 
@@ -74,6 +75,16 @@ function isLowerBetter(metric: string): boolean {
 }
 
 const SEVERITY_RANK = { critical: 2, warning: 1, info: 0 } as const;
+const ZERO_COMPLETION_SUBJECT_SUFFIX = ":zero-completions";
+
+function isPersistentZeroCompletionSignal(signal: DetectedSignal): boolean {
+	return (
+		signal.current === 0 &&
+		(signal.metric.startsWith("goal:") ||
+			signal.metric.startsWith("funnel:")) &&
+		signal.subjectKey?.endsWith(ZERO_COMPLETION_SUBJECT_SUFFIX) === true
+	);
+}
 
 export function isDirectSignal(signal: DetectedSignal): boolean {
 	return (
@@ -157,7 +168,10 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 	if (prefix === "funnel" || prefix === "goal") {
 		return {
 			type: prefix,
-			id,
+			// State-qualified conversion signals remain distinct investigations, but
+			// their entity must stay the configured definition so goal actions and
+			// funnel links continue to resolve the real ID.
+			id: boundedKey(idParts[0]?.trim() || rawId),
 			label: (signal.entityLabel ?? signal.label).slice(0, 120),
 		};
 	}
@@ -166,6 +180,13 @@ function entity(signal: DetectedSignal): InvestigationSignal["entity"] {
 			id: signal.entityId ?? rawId,
 			label: (signal.entityLabel ?? signal.label).slice(0, 120),
 			type: "event",
+		};
+	}
+	if (prefix === "route") {
+		return {
+			type: "page",
+			id: signal.entityId ?? rawId,
+			label: (signal.entityLabel ?? signal.label).slice(0, 120),
 		};
 	}
 	if (signal.metric === "error_count") {
@@ -192,8 +213,9 @@ export function prepareInvestigation(
 ): InvestigationInput {
 	const subject = entity(candidate);
 	const window = signalWindow(candidate, lookbackDays);
-	const sentiment =
-		candidate.current === candidate.baseline
+	const sentiment = isPersistentZeroCompletionSignal(candidate)
+		? "negative"
+		: candidate.current === candidate.baseline
 			? "neutral"
 			: isRegression(candidate)
 				? "negative"
@@ -233,7 +255,10 @@ export function prepareInvestigation(
 	}
 
 	return {
-		signal: investigationSignalSchema.parse(signal),
 		evidence,
+		...(candidate.measurementCandidate
+			? { measurementCandidate: candidate.measurementCandidate }
+			: {}),
+		signal: investigationSignalSchema.parse(signal),
 	};
 }

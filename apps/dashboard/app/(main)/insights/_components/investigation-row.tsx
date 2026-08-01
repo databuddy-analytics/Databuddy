@@ -1,10 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type {
-	InsightBriefItem,
-	InvestigationOutcome,
-} from "@databuddy/shared/insights";
+import type { InvestigationOutcome } from "@databuddy/shared/insights";
 import { Button, Skeleton } from "@databuddy/ui";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -18,11 +15,7 @@ import {
 	LightbulbIcon,
 	WarningCircleIcon,
 } from "@databuddy/ui/icons";
-
-type GoalRecommendation = Extract<
-	NonNullable<InsightBriefItem["recommendation"]>,
-	{ operation: "delete" | "edit" }
->;
+import type { GoalRecommendation } from "./recommendation-guards";
 
 type GoalExecution = Extract<
 	NonNullable<

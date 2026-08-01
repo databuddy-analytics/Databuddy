@@ -45,7 +45,7 @@ describe("insight generation config schema", () => {
 });
 
 describe("insight observations schema", () => {
-	test("stores one investigation outcome per website run", () => {
+	test("stores one investigation outcome per distinct signal in a website run", () => {
 		const config = getTableConfig(insightObservations);
 		expect(config.columns.map((column) => column.name)).toEqual(
 			expect.arrayContaining([
@@ -66,12 +66,14 @@ describe("insight observations schema", () => {
 		expect(insightObservations).not.toHaveProperty("decision");
 
 		const unique = config.indexes.find(
-			(index) => index.config.name === "insight_observations_run_website_uidx"
+			(index) =>
+				index.config.name === "insight_observations_run_website_signal_uidx"
 		);
 		expect(unique?.config.unique).toBe(true);
 		expect(unique?.config.columns.map((column) => column.name)).toEqual([
 			"run_id",
 			"website_id",
+			"signal_key",
 		]);
 
 		const history = config.indexes.find(
@@ -131,11 +133,13 @@ describe("insight runs schema", () => {
 		expect(INSIGHT_RUN_ACTIVE_STATUSES).toEqual(["queued", "running"]);
 	});
 
-	test("stores prepared state and one durable effect per provider target", () => {
+	test("stores prepared state and one durable effect per insight delivery", () => {
 		expect(
 			getTableConfig(insightRunItems).columns.map((column) => column.name)
 		).toEqual(
 			expect.arrayContaining([
+				"candidate_plan",
+				"candidate_plan_as_of",
 				"prepared_at",
 				"prepared_status",
 				"prepared_message",

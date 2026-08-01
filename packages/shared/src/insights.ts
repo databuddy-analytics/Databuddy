@@ -173,6 +173,172 @@ export const insightGoalOperationSchema = z.discriminatedUnion("operation", [
 		.strict(),
 ]);
 
+const measurementRecommendationActionSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(320)
+	.describe("One short, concrete measurement recommendation for a teammate.");
+
+const measurementGoalFilterSchema = z
+	.object({
+		field: z.string().trim().min(1),
+		operator: z.enum([
+			"equals",
+			"contains",
+			"not_contains",
+			"starts_with",
+			"ends_with",
+			"not_equals",
+			"in",
+			"not_in",
+		]),
+		value: z.union([
+			z.string().trim().min(1),
+			z.array(z.string().trim().min(1)).min(1),
+		]),
+	})
+	.strict();
+
+const measurementFunnelFilterSchema = z
+	.object({
+		field: z.string().trim().min(1),
+		operator: z.enum(["equals", "contains", "not_equals", "in", "not_in"]),
+		value: z.union([
+			z.string().trim().min(1),
+			z.array(z.string().trim().min(1)).min(1),
+		]),
+	})
+	.strict();
+
+const measurementDraftTypeSchema = z.enum(["PAGE_VIEW", "EVENT"]);
+
+export const insightGoalDraftSchema = z
+	.object({
+		description: z.string().trim().min(1).max(500).nullable(),
+		filters: z
+			.array(measurementGoalFilterSchema)
+			.length(0, "Measurement goal drafts cannot include filters."),
+		ignoreHistoricData: z.boolean(),
+		name: z.string().trim().min(1).max(100),
+		target: z.string().trim().min(1).max(500),
+		type: measurementDraftTypeSchema,
+	})
+	.strict();
+
+const insightFunnelDraftStepSchema = z
+	.object({
+		name: z.string().trim().min(1).max(100),
+		target: z.string().trim().min(1).max(500),
+		type: measurementDraftTypeSchema,
+	})
+	.strict();
+
+export const insightFunnelDraftSchema = z
+	.object({
+		description: z.string().trim().min(1).max(500).nullable(),
+		filters: z
+			.array(measurementFunnelFilterSchema)
+			.length(0, "Measurement funnel drafts cannot include filters."),
+		ignoreHistoricData: z.boolean(),
+		name: z.string().trim().min(1).max(100),
+		steps: z.array(insightFunnelDraftStepSchema).min(2).max(10),
+	})
+	.strict();
+
+const insightInstrumentationEventAdviceSchema = z
+	.object({
+		description: z.string().trim().min(1).max(500),
+		name: z.string().trim().min(1).max(100),
+	})
+	.strict();
+
+export const insightMeasurementRecommendationSchema = z.discriminatedUnion(
+	"kind",
+	[
+		z
+			.object({
+				action: measurementRecommendationActionSchema,
+				draft: insightGoalDraftSchema,
+				kind: z.literal("goal_draft"),
+			})
+			.strict(),
+		z
+			.object({
+				action: measurementRecommendationActionSchema,
+				draft: insightFunnelDraftSchema,
+				kind: z.literal("funnel_draft"),
+			})
+			.strict(),
+		z
+			.object({
+				action: measurementRecommendationActionSchema,
+				events: z
+					.array(insightInstrumentationEventAdviceSchema)
+					.min(1)
+					.max(10)
+					.refine(
+						(events) =>
+							new Set(events.map((event) => event.name)).size === events.length,
+						"Instrumentation recommendations cannot repeat an event name."
+					),
+				kind: z.literal("instrumentation"),
+			})
+			.strict(),
+	]
+);
+
+const agentEvidenceReferenceSchema = z.discriminatedUnion("source", [
+	z
+		.object({
+			index: z
+				.number()
+				.int()
+				.nonnegative()
+				.describe("Zero-based index in the supplied evidence array."),
+			source: z.literal("provided"),
+		})
+		.strict(),
+	z
+		.object({
+			name: z
+				.string()
+				.trim()
+				.min(1)
+				.max(100)
+				.describe("Exact name of a read tool used during this investigation."),
+			source: z.literal("tool"),
+		})
+		.strict(),
+]);
+
+export const insightWatchThresholdSchema = z
+	.object({
+		anchor: z
+			.enum([
+				"configured_target",
+				"healthy_range",
+				"prior_baseline",
+				"measured_severity",
+			])
+			.describe(
+				"Why this threshold is defensible; never use an invented round-number target."
+			),
+		comparison: z
+			.enum(["above", "at_or_above", "below", "at_or_below"])
+			.describe("How the next measurement must compare with the threshold."),
+		evidenceRef: agentEvidenceReferenceSchema
+			.optional()
+			.describe(
+				"Source that establishes the threshold. Required from the investigation agent; optional only to preserve historical outcomes."
+			),
+		value: z
+			.number()
+			.finite()
+			.describe("Exact threshold in the signal metric's native unit."),
+	})
+	.strict();
+
 const investigationNextSchema = z.discriminatedUnion("type", [
 	z.object({
 		type: z.literal("act"),
@@ -230,6 +396,11 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 			.describe(
 				"Exact ISO 8601 time to remeasure the escalation condition. Required from the investigation agent; optional only to preserve historical outcomes."
 			),
+		threshold: insightWatchThresholdSchema
+			.optional()
+			.describe(
+				"Machine-readable watch condition. Required from the investigation agent; optional only to preserve historical outcomes."
+			),
 	}),
 	z.object({
 		type: z.literal("resolve"),
@@ -243,7 +414,8 @@ const investigationNextSchema = z.discriminatedUnion("type", [
 	}),
 ]);
 
-const insightRecommendationSchema = insightGoalOperationSchema
+export const insightRecommendationSchema = z
+	.union([insightGoalOperationSchema, insightMeasurementRecommendationSchema])
 	.nullable()
 	.describe(
 		"Concrete evidence-backed next step worth suggesting without opening an investigation. Name the exact object and change; use null when there is no useful next step."
@@ -360,6 +532,13 @@ export const investigationOutcomeSchema = z
 
 export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 	.safeExtend({
+		evidenceRefs: z
+			.array(agentEvidenceReferenceSchema)
+			.min(1)
+			.max(2)
+			.describe(
+				"One source reference for each evidence item, in the same order."
+			),
 		publish: z
 			.boolean()
 			.describe(
@@ -376,6 +555,27 @@ export const agentInvestigationOutcomeSchema = investigationOutcomeSchema
 				code: "custom",
 				message: "Actions and watches require an exact recheck time",
 				path: ["next", "recheckAt"],
+			});
+		}
+		if (outcome.next.type === "watch" && !outcome.next.threshold) {
+			context.addIssue({
+				code: "custom",
+				message: "Watches require a machine-readable threshold",
+				path: ["next", "threshold"],
+			});
+		}
+		if (outcome.next.type === "watch" && !outcome.next.threshold?.evidenceRef) {
+			context.addIssue({
+				code: "custom",
+				message: "Watch thresholds require a source reference",
+				path: ["next", "threshold", "evidenceRef"],
+			});
+		}
+		if (outcome.evidenceRefs.length !== outcome.evidence.length) {
+			context.addIssue({
+				code: "custom",
+				message: "Every evidence item requires one source reference",
+				path: ["evidenceRefs"],
 			});
 		}
 	});
@@ -459,6 +659,14 @@ export type InsightMetric = z.infer<typeof insightMetricSchema>;
 export type InsightBriefItem = z.infer<typeof insightBriefItemSchema>;
 export type InvestigationSignal = z.infer<typeof investigationSignalSchema>;
 export type InvestigationOutcome = z.infer<typeof investigationOutcomeSchema>;
+export type AgentInvestigationOutcome = z.infer<
+	typeof agentInvestigationOutcomeSchema
+>;
+export type InsightMeasurementRecommendation = z.infer<
+	typeof insightMeasurementRecommendationSchema
+>;
+export type InsightRecommendation = z.infer<typeof insightRecommendationSchema>;
+export type InsightWatchThreshold = z.infer<typeof insightWatchThresholdSchema>;
 export type InsightReplySlackDelivery = z.infer<
 	typeof insightReplySlackDeliverySchema
 >;

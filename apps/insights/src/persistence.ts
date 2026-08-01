@@ -216,11 +216,17 @@ export async function persistInvestigation(params: {
 				websiteId: investigation.websiteId,
 			})
 			.onConflictDoNothing({
-				target: [insightObservations.runId, insightObservations.websiteId],
+				target: [
+					insightObservations.runId,
+					insightObservations.websiteId,
+					insightObservations.signalKey,
+				],
 			})
 			.returning({ id: insightObservations.id });
 		if (observations.length === 0) {
-			throw new Error("This website run already has an investigation outcome");
+			throw new Error(
+				"This website run already has an outcome for this signal"
+			);
 		}
 		return rows[0] ?? null;
 	});

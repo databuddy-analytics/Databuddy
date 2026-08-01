@@ -34,6 +34,15 @@ import {
 	ExecuteGoalAction,
 	GoalRecommendationAction,
 } from "../_components/investigation-row";
+import {
+	ConversionDraftRecommendationAction,
+	InstrumentationRecommendationDetails,
+} from "../_components/conversion-draft-recommendation";
+import {
+	isConversionDraftRecommendation,
+	isGoalRecommendation,
+	isInstrumentationRecommendation,
+} from "../_components/recommendation-guards";
 
 type TimelineItem = InsightByIdResponse["timeline"][number];
 type InvestigationItem = Extract<TimelineItem, { kind: "investigation" }>;
@@ -409,6 +418,7 @@ function InvestigationActivity({
 }) {
 	const { outcome } = item;
 	const sourceHref = investigationSourceHref(item, websiteId);
+	const recommendation = outcome.recommendation;
 	const execution =
 		outcome.next.type === "act" ? outcome.next.execution : undefined;
 
@@ -430,19 +440,32 @@ function InvestigationActivity({
 				</p>
 			</div>
 
-			{outcome.recommendation ? (
+			{recommendation ? (
 				<div className="rounded-md border border-primary/15 bg-primary/5 px-3 py-3">
 					<p className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
 						Recommended
 					</p>
 					<p className="mt-1 font-medium text-foreground/85 text-sm leading-relaxed">
-						{outcome.recommendation.action}
+						{recommendation.action}
 					</p>
-					{item.entity.type === "goal" && outcome.recommendation.operation ? (
+					{isInstrumentationRecommendation(recommendation) ? (
+						<InstrumentationRecommendationDetails
+							recommendation={recommendation}
+						/>
+					) : null}
+					{isConversionDraftRecommendation(recommendation) ? (
+						<div className="mt-2 flex flex-wrap gap-1.5">
+							<ConversionDraftRecommendationAction
+								recommendation={recommendation}
+								websiteId={websiteId}
+							/>
+						</div>
+					) : item.entity.type === "goal" &&
+						isGoalRecommendation(recommendation) ? (
 						<div className="mt-2 flex flex-wrap gap-1.5">
 							<GoalRecommendationAction
 								goalId={item.entity.id}
-								recommendation={outcome.recommendation}
+								recommendation={recommendation}
 								websiteId={websiteId}
 							/>
 						</div>
