@@ -2,6 +2,7 @@ import { vi, beforeEach, describe, expect, test } from "vitest";
 import {
 	applyVisitorIdPrivacy,
 	DEDUP_RESERVATION_TIMEOUT_MS,
+	markDuplicateReservationAmbiguous,
 	markDuplicateReservationDelivered,
 	releaseDuplicateReservation,
 	reserveDuplicate,
@@ -185,7 +186,19 @@ describe("duplicate reservations", () => {
 
 		expect(reservation).toEqual({ duplicate: true });
 		expect(mockLoggerSet).toHaveBeenCalledWith({
-			dedup: { duplicate: true, eventType: "track" },
+			dedup: { ambiguous: false, duplicate: true, eventType: "track" },
+		});
+	});
+
+	test("suppresses a retry whose Kafka acknowledgement is ambiguous", async () => {
+		mockRedisSet.mockResolvedValue(null);
+		mockRedisGet.mockResolvedValue("ambiguous");
+
+		const reservation = await reserveDuplicate("evt_1", "track");
+
+		expect(reservation).toEqual({ duplicate: true });
+		expect(mockLoggerSet).toHaveBeenCalledWith({
+			dedup: { ambiguous: true, duplicate: true, eventType: "track" },
 		});
 	});
 
@@ -286,6 +299,38 @@ describe("duplicate reservations", () => {
 		}
 	});
 
+	test("conditionally cleans up a reservation acquired after the deadline", async () => {
+		vi.useFakeTimers();
+		try {
+			mockRedisSet.mockImplementation(
+				() =>
+					new Promise<string | null>((resolve) => {
+						setTimeout(
+							() => resolve("OK"),
+							DEDUP_RESERVATION_TIMEOUT_MS + 50
+						);
+					})
+			);
+			mockRedisEval.mockResolvedValue(1);
+
+			const reservation = reserveDuplicate("evt_late", "track");
+			await vi.advanceTimersByTimeAsync(DEDUP_RESERVATION_TIMEOUT_MS);
+			await expect(reservation).resolves.toEqual({ duplicate: false });
+			expect(mockRedisEval).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(50);
+
+			expect(mockRedisEval).toHaveBeenCalledWith(
+				expect.stringContaining('redis.call("DEL", KEYS[1])'),
+				1,
+				"dedup:track:evt_late",
+				expect.stringMatching(/^pending:/)
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	test("does not release a reservation it does not own", async () => {
 		await releaseDuplicateReservation({ duplicate: false });
 
@@ -307,6 +352,25 @@ describe("duplicate reservations", () => {
 			"dedup:track:evt_1",
 			"pending:owner-attempt",
 			"delivered",
+			86_400
+		);
+	});
+
+	test("marks only an owned pending reservation as Kafka-ambiguous", async () => {
+		mockRedisEval.mockResolvedValue("OK");
+		await markDuplicateReservationAmbiguous({
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: "pending:owner-attempt",
+		});
+
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('redis.call("GET", KEYS[1]) == ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"pending:owner-attempt",
+			"ambiguous",
 			86_400
 		);
 	});

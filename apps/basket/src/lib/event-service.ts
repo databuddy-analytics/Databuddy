@@ -9,6 +9,7 @@ import { runPromise, send, sendBatch } from "@lib/producer";
 import {
 	getDailySalt,
 	applyVisitorIdPrivacy,
+	markDuplicateReservationAmbiguous,
 	markDuplicateReservationDelivered,
 	releaseDuplicateReservation,
 	reserveDuplicate,
@@ -57,6 +58,72 @@ export interface BatchEvent<T extends { id: string }> {
 }
 
 const BATCH_RESERVATION_DEADLINE_MS = 2000;
+
+function isAmbiguousKafkaSend(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"_tag" in error &&
+		error._tag === "KafkaSendError"
+	);
+}
+
+async function settleFailedReservations(
+	error: unknown,
+	reservations: Array<Awaited<ReturnType<typeof reserveDuplicate>>>
+): Promise<void> {
+	const settle = isAmbiguousKafkaSend(error)
+		? markDuplicateReservationAmbiguous
+		: releaseDuplicateReservation;
+	await Promise.allSettled(reservations.map((reservation) => settle(reservation)));
+}
+
+function canonicalizeDeliverySource(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value.map(canonicalizeDeliverySource);
+	}
+	if (value && typeof value === "object") {
+		const result: Record<string, unknown> = {};
+		for (const key of Object.keys(value).sort()) {
+			const nested = (value as Record<string, unknown>)[key];
+			if (nested !== undefined) {
+				result[key] = canonicalizeDeliverySource(nested);
+			}
+		}
+		return result;
+	}
+	return value;
+}
+
+/**
+ * Stable side-channel identity for tables that do not expose an id column.
+ * New clients can provide eventId; legacy payloads fall back to their canonical
+ * source payload plus batch position so an exact HTTP retry stays identifiable.
+ */
+export function stableBatchDeliveryId(
+	scope: string,
+	eventType: string,
+	source: unknown,
+	index: number
+): string {
+	const candidate =
+		source && typeof source === "object"
+			? (source as { eventId?: unknown }).eventId
+			: undefined;
+	const sourceIdentity =
+		typeof candidate === "string" && candidate.length > 0
+			? ["event-id", candidate]
+			: ["payload", index, canonicalizeDeliverySource(source)];
+	return createHash("sha256")
+		.update(JSON.stringify([scope, eventType, sourceIdentity]))
+		.digest("hex");
+}
+
+function batchDeliveryId(eventType: string, deliveryIds: string[]): string {
+	return createHash("sha256")
+		.update(JSON.stringify([eventType, deliveryIds]))
+		.digest("hex");
+}
 
 function deliveryUnavailable(cause: unknown) {
 	return createError({
@@ -224,7 +291,7 @@ export function insertTrackEvent(
 
 			await runPromise(send("analytics-events", trackEvent));
 		} catch (error) {
-			await releaseDuplicateReservation(reservation);
+			await settleFailedReservations(error, [reservation]);
 			throw deliveryUnavailable(error);
 		}
 
@@ -305,7 +372,7 @@ export function insertOutgoingLink(
 
 			await runPromise(send("analytics-outgoing-links", outgoingLinkEvent));
 		} catch (error) {
-			await releaseDuplicateReservation(reservation);
+			await settleFailedReservations(error, [reservation]);
 			throw deliveryUnavailable(error);
 		}
 
@@ -386,10 +453,9 @@ async function deliverBatch<T extends { id: string }>(
 			)
 		);
 	} catch (error) {
-		await Promise.allSettled(
-			accepted.map(({ reservation }) =>
-				releaseDuplicateReservation(reservation)
-			)
+		await settleFailedReservations(
+			error,
+			accepted.map(({ reservation }) => reservation)
 		);
 		throw deliveryUnavailable(error);
 	}
@@ -399,6 +465,48 @@ async function deliverBatch<T extends { id: string }>(
 			markDuplicateReservationDelivered(reservation)
 		)
 	);
+}
+
+async function deliverSpanBatch<TSource, TEvent>(
+	eventType: string,
+	topic: string,
+	scope: string,
+	sources: TSource[],
+	events: TEvent[]
+): Promise<void> {
+	if (events.length === 0) {
+		return;
+	}
+	if (sources.length !== events.length) {
+		throw new Error("Analytics source and delivery batch lengths differ");
+	}
+
+	const deliveryIds = sources.map((source, index) =>
+		stableBatchDeliveryId(scope, eventType, source, index)
+	);
+	const deliveryId = batchDeliveryId(eventType, deliveryIds);
+	const reservation = await reserveDuplicate(
+		deliveryId,
+		`${eventType}_batch`,
+		deliveryId
+	);
+	if (reservation.duplicate) {
+		return;
+	}
+	if (reservation.retryable) {
+		throw deliveryUnavailable(
+			new Error("A concurrent attempt owns this analytics batch")
+		);
+	}
+
+	try {
+		await runPromise(sendBatch(topic, events, deliveryIds));
+	} catch (error) {
+		await settleFailedReservations(error, [reservation]);
+		throw deliveryUnavailable(error);
+	}
+
+	await markDuplicateReservationDelivered(reservation);
 }
 
 export function insertTrackEventsBatch(
@@ -454,7 +562,13 @@ export function insertErrorSpans(
 				) || "Error",
 		}));
 
-		await runPromise(sendBatch("analytics-error-spans", spans));
+		await deliverSpanBatch(
+			"error",
+			"analytics-error-spans",
+			clientId,
+			errors,
+			spans
+		);
 	});
 }
 
@@ -489,7 +603,13 @@ export function insertIndividualVitals(
 			metric_value: vital.metricValue,
 		}));
 
-		await runPromise(sendBatch("analytics-vitals-spans", spans));
+		await deliverSpanBatch(
+			"vital",
+			"analytics-vitals-spans",
+			clientId,
+			vitals,
+			spans
+		);
 	});
 }
 
@@ -569,6 +689,14 @@ export function insertCustomEvents(
 				: undefined,
 		}));
 
-		await runPromise(sendBatch("analytics-custom-events", spans));
+		await deliverSpanBatch(
+			"custom_event",
+			"analytics-custom-events",
+			events.map((event) => `${event.owner_id}:${event.website_id ?? ""}`).join(
+				"|"
+			),
+			events,
+			spans
+		);
 	});
 }
