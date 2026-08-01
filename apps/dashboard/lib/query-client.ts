@@ -52,10 +52,12 @@ function isSilencedError(error: unknown): boolean {
 	);
 }
 
-function reportError(error: unknown) {
+function reportError(error: unknown, showToast = true) {
 	const err = error instanceof Error ? error : new Error(String(error));
 	const internalMessage = err.message || "Unknown error";
-	toast.error(getUserFacingErrorMessage(error));
+	if (showToast) {
+		toast.error(getUserFacingErrorMessage(error));
+	}
 	trackError(internalMessage, {
 		stack: err.stack,
 		error_type: err.name,
@@ -88,19 +90,15 @@ export function makeQueryClient() {
 				if (query.queryKey[0] === "og-preview") {
 					return;
 				}
-				reportError(error);
+				reportError(error, !query.meta?.suppressGlobalErrorToast);
 			},
 		}),
 		mutationCache: new MutationCache({
 			onError: (error, _variables, _context, mutation) => {
-				if (
-					isAbortError(error) ||
-					isSilencedError(error) ||
-					mutation.meta?.suppressGlobalErrorToast
-				) {
+				if (isAbortError(error) || isSilencedError(error)) {
 					return;
 				}
-				reportError(error);
+				reportError(error, !mutation.meta?.suppressGlobalErrorToast);
 			},
 		}),
 	});

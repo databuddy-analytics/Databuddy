@@ -82,7 +82,7 @@ function trimStoredString(value: unknown, maxLength = 160): string | undefined {
 	return trimmed ? trimmed.slice(0, maxLength) : undefined;
 }
 
-function readStoredOnboardingAttribution(
+export function toOnboardingAttribution(
 	value: unknown
 ): OnboardingAttributionProperties {
 	if (!value || typeof value !== "object") {
@@ -127,14 +127,15 @@ function readStoredSignupProperties(
 		return null;
 	}
 
-	return { ...readStoredOnboardingAttribution(source), method };
+	return { ...toOnboardingAttribution(source), method };
 }
 
 export function storeOnboardingAttribution(
 	properties: OnboardingAttributionProperties
 ): void {
-	const attribution = readStoredOnboardingAttribution(properties);
+	const attribution = toOnboardingAttribution(properties);
 	if (!hasOnboardingAttribution(attribution)) {
+		clearOnboardingAttribution();
 		return;
 	}
 
@@ -154,7 +155,7 @@ export function readOnboardingAttribution(): OnboardingAttributionProperties {
 		if (!raw) {
 			return {};
 		}
-		return readStoredOnboardingAttribution(JSON.parse(raw));
+		return toOnboardingAttribution(JSON.parse(raw));
 	} catch {
 		return {};
 	}

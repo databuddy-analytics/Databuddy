@@ -7,6 +7,7 @@ import {
 	readOnboardingAttribution,
 	storeOnboardingAttribution,
 	storePendingSocialSignup,
+	toOnboardingAttribution,
 } from "./app-events";
 
 const originalSessionStorage = globalThis.sessionStorage;
@@ -111,6 +112,31 @@ describe("isSocialSignupMethod", () => {
 			utm_content: "analytics_you_can_ask",
 			utm_medium: "paid",
 			utm_source: "openai_ads",
+		});
+	});
+
+	it("clears stale onboarding attribution when a new signup has none", () => {
+		installSessionStorageMock();
+
+		storeOnboardingAttribution({
+			utm_campaign: "competitors",
+			utm_source: "openai_ads",
+		});
+		storeOnboardingAttribution({});
+
+		expect(readOnboardingAttribution()).toEqual({});
+	});
+
+	it("normalizes signup properties before onboarding events reuse them", () => {
+		expect(
+			toOnboardingAttribution({
+				method: "social_google",
+				plan: " scale ",
+				utm_campaign: " competitors ",
+			})
+		).toEqual({
+			plan: "scale",
+			utm_campaign: "competitors",
 		});
 	});
 });

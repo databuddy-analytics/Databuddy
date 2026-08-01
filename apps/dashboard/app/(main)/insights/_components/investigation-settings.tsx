@@ -4,7 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
-import { Button, Field, Skeleton, Spinner, guessTimezone } from "@databuddy/ui";
+import {
+	Button,
+	EmptyState,
+	Field,
+	Skeleton,
+	Spinner,
+	guessTimezone,
+} from "@databuddy/ui";
 import {
 	CaretUpDownIcon,
 	FloppyDiskIcon,
@@ -25,11 +32,6 @@ interface InvestigationSettingsProps {
 	organizationId?: string;
 }
 
-const DEFAULT_FORM: ConfigFormState = {
-	schedule: "weekly",
-	timezone: "UTC",
-};
-
 const SCHEDULE_OPTIONS: { label: string; value: Schedule }[] = [
 	{ label: "Off", value: "off" },
 	{ label: "Daily", value: "daily" },
@@ -44,7 +46,7 @@ export function InvestigationSettings({
 }: InvestigationSettingsProps) {
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
-	const [form, setForm] = useState(DEFAULT_FORM);
+	const [form, setForm] = useState<ConfigFormState | null>(null);
 	const refreshConfig = useCallback(
 		() =>
 			queryClient.invalidateQueries({
@@ -61,7 +63,7 @@ export function InvestigationSettings({
 
 	useEffect(() => {
 		const config = configQuery.data;
-		if (!config) {
+		if (!(config && configQuery.isSuccess && organizationId)) {
 			return;
 		}
 		let schedule: Schedule = "off";
@@ -72,7 +74,7 @@ export function InvestigationSettings({
 			schedule,
 			timezone: config.timezone || guessTimezone(),
 		});
-	}, [configQuery.data]);
+	}, [configQuery.data, configQuery.isSuccess, organizationId]);
 
 	const saveMutation = useMutation({
 		...orpc.insightGeneration.upsertConfig.mutationOptions(),
@@ -104,9 +106,9 @@ export function InvestigationSettings({
 		},
 	});
 
+	const configReady = Boolean(organizationId && configQuery.isSuccess && form);
 	const analysisPending = isAnalyzing || triggerMutation.isPending;
-	const isBusy =
-		configQuery.isLoading || saveMutation.isPending || analysisPending;
+	const isBusy = !configReady || saveMutation.isPending || analysisPending;
 
 	return (
 		<Sheet onOpenChange={setOpen} open={open}>
@@ -138,12 +140,21 @@ export function InvestigationSettings({
 				</Sheet.Header>
 
 				<Sheet.Body className="space-y-6">
-					{configQuery.isLoading ? (
-						<div className="space-y-4">
-							<Skeleton className="h-10 rounded" />
-							<Skeleton className="h-10 rounded" />
-						</div>
-					) : (
+					{!configReady && configQuery.isError && !configQuery.isFetching ? (
+						<EmptyState
+							action={{
+								label: "Try again",
+								onClick: () => {
+									configQuery.refetch().catch(() => undefined);
+								},
+								variant: "secondary",
+							}}
+							description="Databuddy couldn't load analysis settings for this organization."
+							icon={<GearIcon weight="duotone" />}
+							title="Couldn't load settings"
+							variant="error"
+						/>
+					) : configReady && form ? (
 						<>
 							<div className="space-y-2">
 								<p className="font-medium text-sm">Schedule</p>
@@ -154,10 +165,10 @@ export function InvestigationSettings({
 											disabled={isBusy}
 											key={option.value}
 											onClick={() =>
-												setForm((current) => ({
-													...current,
+												setForm({
+													...form,
 													schedule: option.value,
-												}))
+												})
 											}
 											size="sm"
 											type="button"
@@ -174,25 +185,31 @@ export function InvestigationSettings({
 								<Field.Label>Timezone</Field.Label>
 								<TimezonePicker
 									disabled={isBusy}
-									onChange={(timezone) =>
-										setForm((current) => ({ ...current, timezone }))
-									}
+									onChange={(timezone) => setForm({ ...form, timezone })}
 									value={form.timezone}
 								/>
 							</Field>
 						</>
+					) : (
+						<div className="space-y-4">
+							<Skeleton className="h-10 rounded" />
+							<Skeleton className="h-10 rounded" />
+						</div>
 					)}
 				</Sheet.Body>
 
 				<Sheet.Footer className="flex items-center justify-between gap-3">
 					<Button
-						disabled={!organizationId || isBusy}
-						onClick={() =>
+						disabled={isBusy}
+						onClick={() => {
+							if (!(form && organizationId)) {
+								return;
+							}
 							triggerMutation.mutate({
 								organizationId,
 								timezone: form.timezone || guessTimezone(),
-							})
-						}
+							});
+						}}
 						size="sm"
 						type="button"
 						variant="secondary"
@@ -205,8 +222,11 @@ export function InvestigationSettings({
 						{analysisPending ? "Analyzing…" : "Run now"}
 					</Button>
 					<Button
-						disabled={!organizationId || isBusy}
-						onClick={() =>
+						disabled={isBusy}
+						onClick={() => {
+							if (!(form && organizationId)) {
+								return;
+							}
 							saveMutation.mutate({
 								enabled: form.schedule !== "off",
 								...(form.schedule === "off"
@@ -214,8 +234,8 @@ export function InvestigationSettings({
 									: { frequency: form.schedule }),
 								organizationId,
 								timezone: form.timezone || guessTimezone(),
-							})
-						}
+							});
+						}}
 						size="sm"
 						type="button"
 					>
