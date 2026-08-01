@@ -30,21 +30,24 @@ when the base event is later replaced.
 
 1. Apply `20260801_add_span_delivery_ids.sql` everywhere.
 2. Deploy Basket code that assigns a stable `delivery_id`, and deploy the
-   shared ClickHouse reader that adds `FINAL` only to delivery-table relations
-   before changing any engine.
-3. Keep Vector acknowledgements enabled and wait for Kafka consumer lag to
+   shared ClickHouse reader that enables `final = 1` only for queries touching
+   delivery tables before changing any engine.
+3. Deploy Vector with `log_schema.timestamp_key = kafka_timestamp`. Without
+   this, the Kafka source overwrites the analytics payload's `timestamp` with
+   the record time.
+4. Keep Vector acknowledgements enabled and wait for Kafka consumer lag to
    reach zero. Confirm newly inserted custom/error/vital rows have non-empty
    delivery IDs. Old empty IDs are allowed.
-4. Confirm `analytics` uses the `Atomic` or `Replicated` database engine and
+5. Confirm `analytics` uses the `Atomic` or `Replicated` database engine and
    confirm the production cluster name. Commands below use
    `databuddy_cluster`; stop if the live name differs.
-5. Take and verify a ClickHouse backup. Benchmark representative `FINAL`
-   queries before cutover. The new sorting keys retain every existing
-   tenant/time dimension and append stable identity.
+6. Take and verify a ClickHouse backup. Benchmark representative `FINAL`
+   queries before cutover. Stable identity is the replacement key; date/month
+   partitions and timestamp minmax indexes retain time-range pruning.
 
-Stable retries must retain their original event timestamp. This keeps every
-version in the same date/month partition and makes
-`do_not_merge_across_partitions_select_final = 1` correct.
+Historical Vector rows may already carry Kafka record time while a replay after
+the fix carries payload time. Reads therefore finalize across partitions; do
+not enable `do_not_merge_across_partitions_select_final` for these tables.
 
 ## 1. Create shadow tables
 
@@ -78,6 +81,9 @@ the backfill on every replica: run it exactly once per shard.
 
 Create the transient views on every replica before starting the backfill.
 Replicated parts received from another replica do not fire the view again.
+The reference schemas keep `ingested_at` last, and ClickHouse maps a `TO`
+materialized view by output column name. The computed `delivery_key` is omitted
+from the view output and is materialized by the target table.
 
 ```sql
 CREATE MATERIALIZED VIEW analytics.events_delivery_mirror_mv

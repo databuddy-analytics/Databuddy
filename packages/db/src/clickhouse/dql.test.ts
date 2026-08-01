@@ -162,7 +162,6 @@ describe("DQL ClickHouse client", () => {
 			)
 		).toEqual({
 			[DQL_TENANT_SETTING]: "website-a",
-			do_not_merge_across_partitions_select_final: 1,
 			final: 1,
 			readonly: 1,
 		});
@@ -212,7 +211,6 @@ describe("DQL ClickHouse client", () => {
 			format: "JSON",
 			clickhouse_settings: {
 				[DQL_TENANT_SETTING]: "website-a",
-				do_not_merge_across_partitions_select_final: 1,
 				final: 1,
 				readonly: 1,
 			},

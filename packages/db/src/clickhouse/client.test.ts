@@ -117,7 +117,6 @@ describe("chQuery", () => {
 		await chQuery("SELECT count() FROM analytics.events");
 
 		expect(settings).toMatchObject({
-			do_not_merge_across_partitions_select_final: 1,
 			final: 1,
 		});
 		expect(query).toBe("SELECT count() FROM analytics.events");
