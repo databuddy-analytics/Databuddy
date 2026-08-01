@@ -73,6 +73,9 @@ function signalFamily(signal: DetectedSignal): SignalFamily {
 }
 
 function signalGroup(signal: DetectedSignal, family: SignalFamily): string {
+	if (signal.subjectKey?.startsWith("route:") && signal.entityId) {
+		return `route-health:${signal.entityId}`;
+	}
 	if (family === "traffic") {
 		return "traffic:top-level";
 	}
@@ -110,10 +113,6 @@ function priority(signal: DetectedSignal): number {
 	return (isRegression(signal) ? 0 : 2) + (isDirectSignal(signal) ? 0 : 1);
 }
 
-function isPositive(signal: DetectedSignal): boolean {
-	return signal.current !== signal.baseline && !isRegression(signal);
-}
-
 function rankedCandidates(signals: DetectedSignal[]): Candidate[] {
 	const stable = [...signals].sort((a, b) => {
 		const left = stableIdentity(a);
@@ -149,17 +148,12 @@ export function planCoveragePortfolio(
 	const usedFamilies = new Set<SignalFamily>();
 	const usedGroups = new Set<string>();
 	const usedKeys = new Set<string>();
-	const allowMultiplePositive = candidates.every((item) =>
-		isPositive(item.signal)
-	);
-	let hasPositive = false;
 
 	const add = (candidate: Candidate) => {
 		selected.push(candidate);
 		usedFamilies.add(candidate.family);
 		usedGroups.add(candidate.group);
 		usedKeys.add(candidate.key);
-		hasPositive ||= isPositive(candidate.signal);
 	};
 	const due = candidates.find(
 		(candidate) => candidate.key === options.dueSignalKey
@@ -171,8 +165,7 @@ export function planCoveragePortfolio(
 	while (selected.length < coveragePortfolioLimit(options.reason)) {
 		const available = candidates.filter(
 			(candidate) =>
-				!(usedKeys.has(candidate.key) || usedGroups.has(candidate.group)) &&
-				(allowMultiplePositive || !hasPositive || !isPositive(candidate.signal))
+				!(usedKeys.has(candidate.key) || usedGroups.has(candidate.group))
 		);
 		const top = available[0];
 		if (!top) {

@@ -126,7 +126,7 @@ describe("planCoveragePortfolio", () => {
 		).toHaveLength(1);
 	});
 
-	it("keeps direct regressions ahead of generic changes and limits positive signals", () => {
+	it("keeps direct regressions ahead of generic changes", () => {
 		const error = signal({
 			baseline: 50,
 			current: 100,
@@ -162,6 +162,71 @@ describe("planCoveragePortfolio", () => {
 			plan.filter(
 				(item) => item === recovery || item === anotherRecovery
 			)
+		).toHaveLength(1);
+	});
+
+	it("does not let a neutral measurement gap suppress useful improvements", () => {
+		const candidates = [
+			signal({
+				baseline: 50,
+				current: 100,
+				deltaPercent: 100,
+				direction: "up",
+				metric: "revenue",
+			}),
+			signal({
+				metric: "error_count",
+				subjectKey: "error:checkout",
+			}),
+			signal({
+				baseline: 0,
+				current: 0,
+				deltaPercent: 0,
+				direction: "up",
+				metric: "measurement_coverage",
+				subjectKey: "measurement:conversion-coverage",
+			}),
+		];
+
+		expect(
+			planCoveragePortfolio(candidates, { reason: "manual" })
+		).toHaveLength(3);
+	});
+
+	it("treats errors and slow vitals on one route as one health cluster", () => {
+		const routeError = signal({
+			baseline: 10,
+			current: 30,
+			deltaPercent: 200,
+			direction: "up",
+			entityId: "/explore",
+			metric: "error_count",
+			severity: "critical",
+			subjectKey: "route:error:/explore",
+		});
+		const routeLcp = signal({
+			baseline: 2000,
+			current: 4000,
+			deltaPercent: 100,
+			direction: "up",
+			entityId: "/explore",
+			metric: "lcp",
+			severity: "warning",
+			subjectKey: "route:lcp:/explore",
+		});
+		const plan = planCoveragePortfolio(
+			[
+				routeError,
+				routeLcp,
+				signal({ metric: "goal:signup", subjectKey: "goal:signup" }),
+				signal({ metric: "visitors" }),
+			],
+			{ reason: "manual" }
+		);
+
+		expect(plan).toHaveLength(3);
+		expect(
+			plan.filter((item) => item.entityId === "/explore")
 		).toHaveLength(1);
 	});
 
