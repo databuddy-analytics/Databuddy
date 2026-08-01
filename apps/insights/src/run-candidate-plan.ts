@@ -12,7 +12,6 @@ import {
 } from "./effects";
 
 const frozenPlanReasonSchema = z.enum(["manual", "scheduled"]);
-const emptyPlanStatusSchema = z.enum(["deferred", "no_signals"]);
 
 const measurementCandidateSchema = z.discriminatedUnion("kind", [
 	z
@@ -44,11 +43,8 @@ const plannedCandidateSchema = z
 const frozenInvestigationPlanSchema = z
 	.object({
 		asOf: z.string().datetime({ offset: true }),
-		candidates: z.array(plannedCandidateSchema).max(3),
-		/** Optional only to parse plans written before this field was introduced. */
-		emptyStatus: emptyPlanStatusSchema.optional(),
-		/** Optional only to parse plans written before this field was introduced. */
-		reason: frozenPlanReasonSchema.optional(),
+		candidates: z.array(plannedCandidateSchema).min(1).max(3),
+		reason: frozenPlanReasonSchema,
 	})
 	.strict()
 	.superRefine((plan, context) => {
@@ -58,13 +54,6 @@ const frozenInvestigationPlanSchema = z
 				code: "custom",
 				message: "A run candidate plan cannot repeat a signal",
 				path: ["candidates"],
-			});
-		}
-		if (plan.candidates.length > 0 && plan.emptyStatus) {
-			context.addIssue({
-				code: "custom",
-				message: "Only an empty candidate plan may have an empty status",
-				path: ["emptyStatus"],
 			});
 		}
 	});
@@ -81,11 +70,11 @@ export function parseFrozenInvestigationPlan(
 	expectedReason?: CoveragePortfolioReason
 ): FrozenInvestigationPlan {
 	const plan = frozenInvestigationPlanSchema.parse(value);
-	if (expectedReason && plan.reason && plan.reason !== expectedReason) {
+	if (expectedReason && plan.reason !== expectedReason) {
 		throw new Error("Frozen candidate plan reason does not match its run");
 	}
 	const reason = expectedReason ?? plan.reason;
-	if (reason && plan.candidates.length > coveragePortfolioLimit(reason)) {
+	if (plan.candidates.length > coveragePortfolioLimit(reason)) {
 		throw new Error(
 			`Frozen ${reason} candidate plan exceeds its portfolio limit`
 		);
@@ -136,7 +125,6 @@ export function freezeInsightRunCandidatePlan(
 			.update(insightRunItems)
 			.set({
 				candidatePlan: parsedProposed,
-				candidatePlanAsOf: new Date(parsedProposed.asOf),
 				updatedAt: new Date(),
 			})
 			.where(runIdentityCondition(identity));

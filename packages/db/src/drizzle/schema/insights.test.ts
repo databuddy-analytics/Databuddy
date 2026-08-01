@@ -139,7 +139,6 @@ describe("insight runs schema", () => {
 		).toEqual(
 			expect.arrayContaining([
 				"candidate_plan",
-				"candidate_plan_as_of",
 				"prepared_at",
 				"prepared_status",
 				"prepared_message",
