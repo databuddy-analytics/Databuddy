@@ -6,7 +6,7 @@ import { relations } from "./drizzle/schema/relations";
 
 type DB = NodePgDatabase<typeof relations>;
 
-const DEFAULT_POOL_MAX = 20;
+const DEFAULT_POOL_MAX = 50;
 const DEFAULT_CONNECTION_TIMEOUT_MS = 10_000;
 
 let _pgErrorFn: ((error: Error) => void) | null = null;
