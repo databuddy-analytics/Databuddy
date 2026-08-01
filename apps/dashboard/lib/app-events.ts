@@ -169,6 +169,14 @@ export function clearOnboardingAttribution(): void {
 	}
 }
 
+export function clearPendingSocialSignup(): void {
+	try {
+		sessionStorage.removeItem(PENDING_SOCIAL_SIGNUP_KEY);
+	} catch {
+		// Session storage can be unavailable in hardened browser contexts.
+	}
+}
+
 export function storePendingSocialSignup(
 	properties: SignupEventProperties
 ): void {
@@ -191,7 +199,7 @@ export function storePendingSocialSignup(
 export function consumePendingSocialSignup(): SignupEventProperties | null {
 	try {
 		const raw = sessionStorage.getItem(PENDING_SOCIAL_SIGNUP_KEY);
-		sessionStorage.removeItem(PENDING_SOCIAL_SIGNUP_KEY);
+		clearPendingSocialSignup();
 		if (!raw) {
 			return null;
 		}
