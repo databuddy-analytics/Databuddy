@@ -33,6 +33,11 @@ describe("basketErrors", () => {
 		["ingestBatchTooLarge", 400],
 		["billingLimitExceeded", 402],
 		["billingCheckUnavailable", 503],
+		["webhookEndpointNotFound", 404],
+		["webhookMissingSignature", 400],
+		["webhookInvalidSignature", 401],
+		["webhookInvalidPayload", 400],
+		["webhookProcessingFailed", 500],
 	];
 
 	for (const [key, expectedStatus] of errorTable) {

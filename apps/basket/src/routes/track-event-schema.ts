@@ -4,7 +4,7 @@ import {
 	profileIdSchema,
 } from "@databuddy/validation";
 import { VALIDATION_LIMITS } from "@utils/validation";
-import { z } from "zod";
+import z from "zod";
 
 const boundedProperties = z
 	.record(z.string().max(128), z.unknown())

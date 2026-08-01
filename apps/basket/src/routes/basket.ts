@@ -38,7 +38,6 @@ import {
 } from "@lib/security";
 import {
 	basketErrors,
-	buildBasketErrorPayload,
 	createIngestSchemaValidationError,
 	rethrowOrWrap,
 } from "@lib/structured-errors";
@@ -468,18 +467,11 @@ const app = new Elysia()
 				throw basketErrors.ingestBatchTooLarge();
 			}
 
-			let validation: ValidatedRequest;
-			try {
-				validation = await validateRequest(body, query, request);
-			} catch (error) {
-				if (error instanceof EvlogError) {
-					const { status, payload } = buildBasketErrorPayload(error, {
-						extra: { batch: true },
-					});
-					return Response.json(payload, { status });
-				}
-				throw error;
-			}
+			const validation: ValidatedRequest = await validateRequest(
+				body,
+				query,
+				request
+			);
 
 			const { clientId, userAgent, ip } = validation;
 			log.set({ clientId });

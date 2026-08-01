@@ -178,13 +178,18 @@ vi.mock("@lib/producer", () => ({
 
 // ── Import routes after mocks ──
 
-const { buildBasketErrorPayload } = await import("@lib/structured-errors");
+const { basketErrors, buildBasketErrorPayload } = await import(
+	"@lib/structured-errors"
+);
+const { createError } = await import("evlog");
 const { Elysia } = await import("elysia");
+const mockGlobalErrorHandler = vi.fn();
 
 // Wrap basket routes with the same onError handler as index.ts
 const rawBasket = (await import("./basket")).default;
 const basketApp = new Elysia()
 	.onError(({ error, code }) => {
+		mockGlobalErrorHandler(error);
 		if (code === "NOT_FOUND") {
 			return new Response(null, { status: 404 });
 		}
@@ -271,6 +276,30 @@ describe("POST /", () => {
 		expect(res.status).toBe(200);
 		const body = await json(res);
 		expect(body.type).toBe("outgoing_link");
+	});
+
+	test("durable core delivery failure → retryable 503", async () => {
+		mockInsertTrackEvent.mockRejectedValueOnce(
+			createError({
+				code: "basket.DELIVERY_UNAVAILABLE",
+				message: "Analytics delivery temporarily unavailable",
+				status: 503,
+			})
+		);
+
+		const res = await post(basketApp, "/", {
+			type: "track",
+			eventId: "evt_delivery_failure",
+			name: "pageview",
+			path: "https://example.com/page",
+		});
+
+		expect(res.status).toBe(503);
+		const body = await json(res);
+		expect(body).toMatchObject({
+			code: "basket.DELIVERY_UNAVAILABLE",
+			retryable: true,
+		});
 	});
 
 	test("unknown event type → 400", async () => {
@@ -443,6 +472,24 @@ describe("POST /events", () => {
 // ── POST /batch ──
 
 describe("POST /batch", () => {
+	test("validation quota errors reach the global error handler", async () => {
+		mockGlobalErrorHandler.mockClear();
+		const quotaError = basketErrors.billingLimitExceeded();
+		mockValidateRequest.mockRejectedValueOnce(quotaError);
+
+		const res = await post(basketApp, "/batch", [
+			{
+				type: "track",
+				eventId: "evt_1",
+				name: "pageview",
+				path: "https://example.com/a",
+			},
+		]);
+
+		expect(res.status).toBe(402);
+		expect(mockGlobalErrorHandler).toHaveBeenCalledWith(quotaError);
+	});
+
 	test("batch of track events → 200", async () => {
 		const res = await post(basketApp, "/batch", [
 			{
@@ -529,11 +576,53 @@ describe("GET /px.jpg", () => {
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
 	});
 
-	test("always returns pixel even on error", async () => {
+	test("returns a retryable GIF when an unexpected delivery path fails", async () => {
 		mockValidateRequest.mockRejectedValueOnce(new Error("boom"));
 		const res = await get(basketApp, "/px.jpg?name=test");
-		expect(res.status).toBe(200);
+		expect(res.status).toBe(503);
 		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Retry-After")).toBe("5");
+	});
+
+	test("returns a retryable GIF when core delivery rejects", async () => {
+		mockInsertTrackEvent.mockClear();
+		mockLogger.error.mockClear();
+		mockInsertTrackEvent.mockRejectedValueOnce(
+			createError({
+				code: "basket.DELIVERY_UNAVAILABLE",
+				message: "Analytics delivery temporarily unavailable",
+				status: 503,
+			})
+		);
+
+		const res = await get(basketApp, "/px.jpg?type=track&name=pageview");
+
+		expect(res.status).toBe(503);
+		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Retry-After")).toBe("5");
+		expect(mockLogger.error).toHaveBeenCalledWith(expect.any(Error));
+	});
+
+	test("returns a retryable GIF when outgoing-link delivery rejects", async () => {
+		mockInsertOutgoingLink.mockClear();
+		mockLogger.error.mockClear();
+		mockInsertOutgoingLink.mockRejectedValueOnce(
+			createError({
+				code: "basket.DELIVERY_UNAVAILABLE",
+				message: "Analytics delivery temporarily unavailable",
+				status: 503,
+			})
+		);
+
+		const res = await get(
+			basketApp,
+			"/px.jpg?type=outgoing_link&href=https%3A%2F%2Fexample.com"
+		);
+
+		expect(res.status).toBe(503);
+		expect(res.headers.get("Content-Type")).toBe("image/gif");
+		expect(res.headers.get("Retry-After")).toBe("5");
+		expect(mockLogger.error).toHaveBeenCalledWith(expect.any(Error));
 	});
 });
 

@@ -40,9 +40,8 @@ export function checkAutumnUsage(
 
 			if (!response.allowed) {
 				log.warn("Event quota exceeded", {
-					customerId,
 					featureId,
-					properties,
+					quantity,
 					billing: {
 						usage: b?.usage,
 						granted: b?.granted,

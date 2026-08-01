@@ -140,6 +140,36 @@ export const basketErrorCatalog = defineErrorCatalog("basket", {
 		why: "The event quota could not be verified before ingestion.",
 		fix: "Retry after the billing provider is reachable.",
 	},
+	WEBHOOK_ENDPOINT_NOT_FOUND: {
+		message: "Webhook endpoint not found",
+		status: 404,
+		why: "The webhook URL does not match an active revenue configuration.",
+		fix: "Use the webhook URL configured in Databuddy.",
+	},
+	WEBHOOK_MISSING_SIGNATURE: {
+		message: "Webhook signature header is required",
+		status: 400,
+		why: "The provider did not send its signature header.",
+		fix: "Send the event through the configured payment provider.",
+	},
+	WEBHOOK_INVALID_SIGNATURE: {
+		message: "Invalid webhook signature",
+		status: 401,
+		why: "The payload could not be verified with the configured webhook secret.",
+		fix: "Confirm that the webhook secret matches the provider configuration.",
+	},
+	WEBHOOK_INVALID_PAYLOAD: {
+		message: "Invalid webhook payload",
+		status: 400,
+		why: "The verified webhook body was not valid JSON.",
+		fix: "Send the unmodified JSON payload from the payment provider.",
+	},
+	WEBHOOK_PROCESSING_FAILED: {
+		message: "Failed to process webhook event",
+		status: 500,
+		why: "Databuddy could not persist the provider event.",
+		fix: "Retry delivery after the service is available.",
+	},
 	INVALID_EVENT_SCHEMA: {
 		message: "Invalid event schema",
 		status: 400,
@@ -179,6 +209,11 @@ export const basketErrors = {
 	ingestBatchTooLarge: basketErrorCatalog.INGEST_BATCH_TOO_LARGE,
 	billingLimitExceeded: basketErrorCatalog.BILLING_LIMIT_EXCEEDED,
 	billingCheckUnavailable: basketErrorCatalog.BILLING_CHECK_UNAVAILABLE,
+	webhookEndpointNotFound: basketErrorCatalog.WEBHOOK_ENDPOINT_NOT_FOUND,
+	webhookMissingSignature: basketErrorCatalog.WEBHOOK_MISSING_SIGNATURE,
+	webhookInvalidSignature: basketErrorCatalog.WEBHOOK_INVALID_SIGNATURE,
+	webhookInvalidPayload: basketErrorCatalog.WEBHOOK_INVALID_PAYLOAD,
+	webhookProcessingFailed: basketErrorCatalog.WEBHOOK_PROCESSING_FAILED,
 };
 
 export type IngestSchemaValidationError = EvlogError & {
