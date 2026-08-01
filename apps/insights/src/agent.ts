@@ -17,6 +17,7 @@ import {
 import {
 	type LanguageModel,
 	type LanguageModelUsage,
+	NoObjectGeneratedError,
 	Output,
 	stepCountIs,
 	type ToolLoopAgentOnStepFinishCallback,
@@ -27,8 +28,40 @@ import type { MeasurementCandidate } from "./detection";
 
 const MAX_STEPS = 8;
 const TIMEOUT_MS = 2 * 60_000;
+const STRUCTURED_OUTPUT_ATTEMPTS = 2;
 const INSIGHTS_MODEL_ID = "openai/gpt-5.6-terra";
 const INSIGHTS_MODEL = createModelFromId(INSIGHTS_MODEL_ID);
+
+function aggregateUsage(usages: LanguageModelUsage[]): LanguageModelUsage {
+	const sum = (values: Array<number | undefined>) =>
+		values.reduce<number>((total, value) => total + (value ?? 0), 0);
+	return {
+		cachedInputTokens: sum(usages.map((usage) => usage.cachedInputTokens)),
+		inputTokenDetails: {
+			cacheReadTokens: sum(
+				usages.map((usage) => usage.inputTokenDetails.cacheReadTokens)
+			),
+			cacheWriteTokens: sum(
+				usages.map((usage) => usage.inputTokenDetails.cacheWriteTokens)
+			),
+			noCacheTokens: sum(
+				usages.map((usage) => usage.inputTokenDetails.noCacheTokens)
+			),
+		},
+		inputTokens: sum(usages.map((usage) => usage.inputTokens)),
+		outputTokenDetails: {
+			reasoningTokens: sum(
+				usages.map((usage) => usage.outputTokenDetails.reasoningTokens)
+			),
+			textTokens: sum(
+				usages.map((usage) => usage.outputTokenDetails.textTokens)
+			),
+		},
+		outputTokens: sum(usages.map((usage) => usage.outputTokens)),
+		reasoningTokens: sum(usages.map((usage) => usage.reasoningTokens)),
+		totalTokens: sum(usages.map((usage) => usage.totalTokens)),
+	};
+}
 
 type InterruptingNext = Extract<
 	InvestigationOutcome["next"],
@@ -346,7 +379,11 @@ export async function runInsightAgent(
 			? `${INSTRUCTIONS}\n\n${REPLY_INSTRUCTIONS}`
 			: INSTRUCTIONS,
 		tools: investigationTools,
-		output: Output.object({ schema: agentInvestigationOutcomeSchema }),
+		output: Output.object({
+			description: "One complete, evidence-backed investigation outcome.",
+			name: "investigation_outcome",
+			schema: agentInvestigationOutcomeSchema,
+		}),
 		stopWhen: stepCountIs(MAX_STEPS),
 		maxRetries: AI_MODEL_MAX_RETRIES,
 		maxOutputTokens: 1800,
@@ -358,60 +395,94 @@ export async function runInsightAgent(
 			functionId: "databuddy.insights.investigate",
 		},
 	});
-	const result = await agent.generate({
-		abortSignal: options.abortSignal,
-		onStepFinish: options.onStepFinish,
-		prompt: JSON.stringify({
-			asOf: input.appContext.currentDateTime,
-			website: {
-				domain: input.appContext.websiteDomain ?? null,
-				id: input.appContext.websiteId ?? null,
-				name: input.appContext.websiteName ?? null,
-			},
-			repository: input.githubRepository,
-			evidence: input.evidence,
-			history: input.history.map((item) =>
-				item.kind === "investigation"
-					? {
-							asOf: item.asOf,
-							evidence: item.evidence,
-							kind: item.kind,
-							outcome: item.outcome,
-							signal: promptSignal(item.signal),
-						}
-					: item
-			),
-			otherOpenWork: input.otherOpenWork,
-			measurementCandidate: input.measurementCandidate ?? null,
-			...(input.request
+	const prompt = {
+		asOf: input.appContext.currentDateTime,
+		website: {
+			domain: input.appContext.websiteDomain ?? null,
+			id: input.appContext.websiteId ?? null,
+			name: input.appContext.websiteName ?? null,
+		},
+		repository: input.githubRepository,
+		evidence: input.evidence,
+		history: input.history.map((item) =>
+			item.kind === "investigation"
 				? {
-						request: {
-							body: input.request.body,
-							createdAt: input.request.createdAt,
-						},
+						asOf: item.asOf,
+						evidence: item.evidence,
+						kind: item.kind,
+						outcome: item.outcome,
+						signal: promptSignal(item.signal),
 					}
-				: {}),
-			relatedSignals: (input.relatedSignals ?? []).map(promptSignal),
-			signal: promptSignal(input.signal),
-		}),
-		timeout: { totalMs: TIMEOUT_MS },
-	});
-	const toolCallCount = result.steps.reduce(
-		(count, step) => count + step.toolCalls.length,
-		0
-	);
-	return {
-		modelId: result.response.modelId,
-		outcome: validateAgentOutcome(
-			result.output,
-			input,
-			new Set(
-				result.steps.flatMap((step) =>
-					step.toolCalls.map((toolCall) => toolCall.toolName)
-				)
-			)
+				: item
 		),
-		toolCallCount,
-		usage: result.totalUsage,
+		otherOpenWork: input.otherOpenWork,
+		measurementCandidate: input.measurementCandidate ?? null,
+		...(input.request
+			? {
+					request: {
+						body: input.request.body,
+						createdAt: input.request.createdAt,
+					},
+				}
+			: {}),
+		relatedSignals: (input.relatedSignals ?? []).map(promptSignal),
+		signal: promptSignal(input.signal),
 	};
+	const deadline = Date.now() + TIMEOUT_MS;
+	const usages: LanguageModelUsage[] = [];
+	let toolCallCount = 0;
+	let lastOutputError: unknown;
+	for (let attempt = 0; attempt < STRUCTURED_OUTPUT_ATTEMPTS; attempt += 1) {
+		const usageCount = usages.length;
+		try {
+			const result = await agent.generate({
+				abortSignal: options.abortSignal,
+				onStepFinish: async (step) => {
+					usages.push(step.usage);
+					toolCallCount += step.toolCalls.length;
+					await options.onStepFinish?.(step);
+				},
+				prompt: JSON.stringify({
+					...prompt,
+					...(attempt > 0
+						? {
+								outputRetry:
+									"The prior final response was not valid structured output. Return exactly one complete object matching the required schema.",
+							}
+						: {}),
+				}),
+				timeout: { totalMs: Math.max(1, deadline - Date.now()) },
+			});
+			return {
+				modelId: result.response.modelId,
+				outcome: validateAgentOutcome(
+					result.output,
+					input,
+					new Set(
+						result.steps.flatMap((step) =>
+							step.toolCalls.map((toolCall) => toolCall.toolName)
+						)
+					)
+				),
+				toolCallCount,
+				usage: aggregateUsage(usages),
+			};
+		} catch (error) {
+			if (!NoObjectGeneratedError.isInstance(error)) {
+				throw error;
+			}
+			if (usages.length === usageCount && error.usage) {
+				usages.push(error.usage);
+			}
+			lastOutputError = error;
+			if (
+				attempt === STRUCTURED_OUTPUT_ATTEMPTS - 1 ||
+				error.finishReason === "content-filter" ||
+				Date.now() >= deadline
+			) {
+				throw error;
+			}
+		}
+	}
+	throw lastOutputError;
 }
