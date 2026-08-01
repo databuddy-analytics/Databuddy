@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { db } from "@databuddy/db";
-import { analyticsInsights, insightObservations } from "@databuddy/db/schema";
+import { insightObservations } from "@databuddy/db/schema";
 import type {
 	InvestigationOutcome,
 	InvestigationSignal,
@@ -16,7 +16,6 @@ test(
 			throw new Error("Expected the E2E session to include a website");
 		}
 
-		const insightId = randomUUID();
 		const signalKey = "measurement:conversion-coverage";
 		const createdAt = new Date();
 		const signal: InvestigationSignal = {
@@ -68,26 +67,11 @@ test(
 			},
 		};
 
-		await db.insert(analyticsInsights).values({
-			id: insightId,
-			organizationId: e2eSession.organizationId,
-			websiteId: e2eSession.websiteId,
-			title: outcome.title,
-			description: outcome.summary,
-			severity: "info",
-			sentiment: "neutral",
-			changePercent: null,
-			dedupeKey: `${e2eSession.websiteId}|${signalKey}`,
-			subjectKey: signalKey,
-			timezone: "UTC",
-			status: "resolved",
-			createdAt,
-		});
 		await db.insert(insightObservations).values({
 			id: randomUUID(),
 			organizationId: e2eSession.organizationId,
 			websiteId: e2eSession.websiteId,
-			insightId,
+			insightId: null,
 			signalKey,
 			asOf: createdAt,
 			signal,
@@ -98,6 +82,22 @@ test(
 		});
 
 		await authenticatedPage.goto("/insights");
+		await expect(
+			authenticatedPage.getByText(outcome.title, { exact: true })
+		).toBeVisible();
+		await expect(
+			authenticatedPage.getByRole("button", { name: "Review goal draft" })
+		).toHaveCount(0);
+
+		await authenticatedPage.goto("/insights/investigations");
+		await expect(
+			authenticatedPage.getByText(outcome.title, { exact: true })
+		).toHaveCount(0);
+
+		await authenticatedPage.goto("/insights/recommendations");
+		await expect(
+			authenticatedPage.getByRole("link", { name: "Recommendations" })
+		).toHaveAttribute("aria-current", "page");
 
 		await expect(
 			authenticatedPage.getByText(outcome.title, { exact: true })

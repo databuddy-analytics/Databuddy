@@ -46,7 +46,8 @@ export function PageNavigation(props: PageNavigationProps) {
 
 	if (props.variant === "breadcrumb") {
 		return (
-			<div
+			<nav
+				aria-label="Breadcrumb"
 				className={cn(
 					"flex h-10 shrink-0 items-center gap-2 border-border border-b bg-accent/30 px-3",
 					props.className
@@ -65,14 +66,15 @@ export function PageNavigation(props: PageNavigationProps) {
 				<span className="font-medium text-foreground text-sm">
 					{props.currentPage}
 				</span>
-			</div>
+			</nav>
 		);
 	}
 
 	const activeTabId = getActivePageNavigationTabId(props.tabs, pathname);
 
 	return (
-		<div
+		<nav
+			aria-label="Page sections"
 			className={cn(
 				"flex h-10 shrink-0 border-border border-b bg-accent/30",
 				props.className
@@ -84,6 +86,7 @@ export function PageNavigation(props: PageNavigationProps) {
 
 				return (
 					<Link
+						aria-current={isActive ? "page" : undefined}
 						className={cn(
 							"relative flex cursor-pointer items-center gap-2 px-3 py-2.5 font-medium text-sm transition-colors",
 							isActive
@@ -123,6 +126,6 @@ export function PageNavigation(props: PageNavigationProps) {
 					</Link>
 				);
 			})}
-		</div>
+		</nav>
 	);
 }
