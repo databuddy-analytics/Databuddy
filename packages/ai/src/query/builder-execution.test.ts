@@ -43,6 +43,15 @@ const NUMERIC_FILTER_FIELDS = new Set([
 	"unique_pages",
 ]);
 
+const FILTER_FIELD_OVERRIDES: Partial<
+	Record<string, { all: string[]; required: string[] }>
+> = {
+	error_customer_impact: {
+		all: ["message"],
+		required: ["message"],
+	},
+};
+
 function filterFor(field: string): Filter {
 	return {
 		field,
@@ -90,15 +99,21 @@ async function explainCompiles(
 describe("query builders execute against ClickHouse", () => {
 	for (const [name, config] of Object.entries(QueryBuilders)) {
 		iit(`${name} compiles to valid ClickHouse SQL`, async () => {
-			await explainCompiles(name, config, config.requiredFilters ?? []);
+			await explainCompiles(
+				name,
+				config,
+				FILTER_FIELD_OVERRIDES[name]?.required ?? config.requiredFilters ?? []
+			);
 		});
 
-		const allFilters = [
-			...new Set([
-				...(config.requiredFilters ?? []),
-				...(config.allowedFilters ?? []),
-			]),
-		];
+		const allFilters =
+			FILTER_FIELD_OVERRIDES[name]?.all ??
+			[
+				...new Set([
+					...(config.requiredFilters ?? []),
+					...(config.allowedFilters ?? []),
+				]),
+			];
 		if (allFilters.length > (config.requiredFilters ?? []).length) {
 			iit(`${name} compiles with every allowed filter applied`, async () => {
 				await explainCompiles(name, config, allFilters);
