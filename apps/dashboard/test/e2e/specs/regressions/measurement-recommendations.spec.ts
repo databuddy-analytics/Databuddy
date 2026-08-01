@@ -105,14 +105,15 @@ test(
 		await authenticatedPage
 			.getByRole("button", { name: "Review goal draft" })
 			.click();
-		await expect(
-			authenticatedPage.getByText("Review Goal Draft", { exact: true })
-		).toBeVisible();
-		await expect(
-			authenticatedPage.getByDisplayValue("Checkout completed")
-		).toBeVisible();
-		await expect(
-			authenticatedPage.getByDisplayValue("checkout_completed")
-		).toBeVisible();
+		const dialog = authenticatedPage.getByRole("dialog", {
+			name: "Review Goal Draft",
+		});
+		await expect(dialog).toBeVisible();
+		await expect(dialog.getByRole("textbox", { name: "Name" })).toHaveValue(
+			"Checkout completed"
+		);
+		await expect(dialog.locator('input[placeholder="event_name"]')).toHaveValue(
+			"checkout_completed"
+		);
 	}
 );
