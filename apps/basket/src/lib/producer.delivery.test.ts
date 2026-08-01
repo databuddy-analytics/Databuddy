@@ -114,6 +114,35 @@ describe("producer delivery guarantees", () => {
 		expect(tokenAt(1)).toBe(tokenAt(0));
 	});
 
+	test("uses side-channel identities for id-less ClickHouse retries", async () => {
+		const insert = vi.fn(() => Promise.resolve());
+		const effects = await makeEffects(insert);
+
+		await Effect.runPromise(
+			effects.sendMany(
+				"analytics-events",
+				[{ client_id: "ws_1", timestamp: 1 }],
+				["stable-delivery-id"]
+			)
+		);
+		await Effect.runPromise(
+			effects.sendMany(
+				"analytics-events",
+				[{ client_id: "ws_1", timestamp: 2 }],
+				["stable-delivery-id"]
+			)
+		);
+
+		const tokenAt = (call: number) =>
+			(
+				insert.mock.calls[call]?.[0] as {
+					clickhouse_settings?: { insert_deduplication_token?: string };
+				}
+			).clickhouse_settings?.insert_deduplication_token;
+		expect(tokenAt(0)).toBeTruthy();
+		expect(tokenAt(1)).toBe(tokenAt(0));
+	});
+
 	test("returns a retryable error instead of acknowledging a failed direct fallback", async () => {
 		const effects = await makeEffects(() => Promise.reject(new Error("offline")));
 
@@ -324,7 +353,7 @@ describe("producer delivery guarantees", () => {
 		});
 
 		await Effect.runPromise(
-			effects.sendOne("analytics-events", event("event_1"))
+			effects.sendOne("analytics-events", event("unrelated_event"))
 		);
 		expect(insert).toHaveBeenCalledTimes(1);
 		expect(await Effect.runPromise(effects.stats)).toMatchObject({

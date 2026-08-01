@@ -304,7 +304,9 @@ export function reserveDuplicate(
 						if (state !== "acquired") {
 							return;
 						}
-						await redis.eval(RELEASE_PENDING_DEDUP_RESERVATION, 1, key, token);
+						await withDedupDeadline(
+							redis.eval(RELEASE_PENDING_DEDUP_RESERVATION, 1, key, token)
+						);
 					})
 					.catch((cleanupError) => {
 						captureError(cleanupError, {
