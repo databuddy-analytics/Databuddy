@@ -10,6 +10,7 @@ const {
 	mockParseUserAgent,
 	mockReleaseDuplicateReservation,
 	mockReserveDuplicate,
+	mockReserveDuplicateBatch,
 	mockRunPromise,
 	mockSend,
 	mockSendBatch,
@@ -48,6 +49,17 @@ const {
 			token: "pending:test",
 		})
 	),
+	mockReserveDuplicateBatch: vi.fn(
+		(inputs: Array<{ eventId: string; eventType: string }>) =>
+			Promise.resolve(
+				inputs.map(({ eventId, eventType }) => ({
+					deliveredTtl: 86_400,
+					duplicate: false,
+					key: `dedup:${eventType}:${eventId}`,
+					token: "pending:batch-test",
+				}))
+			)
+	),
 	mockRunPromise: vi.fn(() => Promise.resolve()),
 	mockSend: vi.fn(() => ({ type: "producer-effect" })),
 	mockSendBatch: vi.fn(() => ({ type: "batch-producer-effect" })),
@@ -70,6 +82,7 @@ vi.mock("@lib/security", () => ({
 	markDuplicateReservationDelivered: mockMarkDuplicateReservationDelivered,
 	releaseDuplicateReservation: mockReleaseDuplicateReservation,
 	reserveDuplicate: mockReserveDuplicate,
+	reserveDuplicateBatch: mockReserveDuplicateBatch,
 	shouldAnonymizeVisitorIds: mockShouldAnonymizeVisitorIds,
 }));
 
@@ -115,6 +128,18 @@ describe("event-service producer handoff", () => {
 			key: "dedup:track:stable-id",
 			token: "pending:test",
 		});
+		mockReserveDuplicateBatch.mockReset();
+		mockReserveDuplicateBatch.mockImplementation(
+			(inputs: Array<{ eventId: string; eventType: string }>) =>
+				Promise.resolve(
+					inputs.map(({ eventId, eventType }) => ({
+						deliveredTtl: 86_400,
+						duplicate: false,
+						key: `dedup:${eventType}:${eventId}`,
+						token: "pending:batch-test",
+					}))
+				)
+		);
 		mockRunPromise.mockClear();
 		mockSend.mockClear();
 		mockSendBatch.mockClear();
@@ -146,7 +171,9 @@ describe("event-service producer handoff", () => {
 				anonymous_id: "anon_1",
 				client_id: "ws_1",
 				event_name: "pageview",
-			})
+			}),
+			undefined,
+			{ allowDirectFallback: true }
 		);
 		expect(mockRunPromise).toHaveBeenCalledWith(effect);
 		expect(mockMarkDuplicateReservationDelivered).toHaveBeenCalledOnce();
@@ -210,16 +237,9 @@ describe("event-service producer handoff", () => {
 		expect(mockSend).not.toHaveBeenCalled();
 	});
 
-	test("acquires batch reservations in sorted order and releases on conflict", async () => {
-		mockReserveDuplicate.mockImplementation(async (id: string) =>
-			id === "m"
-				? { duplicate: false, retryable: true }
-				: {
-						deliveredTtl: 86_400,
-						duplicate: false,
-						key: `dedup:track:${id}`,
-						token: `pending:${id}`,
-					}
+	test("atomically reserves a sorted batch and rejects a conflict", async () => {
+		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
+			inputs.map(() => ({ duplicate: false, retryable: true as const }))
 		);
 		const batchItem = (id: string) => ({
 			event: { id } as EventsInsert,
@@ -234,13 +254,12 @@ describe("event-service producer handoff", () => {
 			])
 		).rejects.toMatchObject({ status: 503 });
 
-		expect(mockReserveDuplicate.mock.calls.map(([id]) => id)).toEqual([
-			"a",
-			"m",
+		expect(mockReserveDuplicateBatch).toHaveBeenCalledWith([
+			{ eventId: "a", eventType: "track", sourceEventId: "a" },
+			{ eventId: "m", eventType: "track", sourceEventId: "m" },
+			{ eventId: "z", eventType: "track", sourceEventId: "z" },
 		]);
-		expect(mockReleaseDuplicateReservation).toHaveBeenCalledWith(
-			expect.objectContaining({ key: "dedup:track:a" })
-		);
+		expect(mockReleaseDuplicateReservation).not.toHaveBeenCalled();
 		expect(mockSendBatch).not.toHaveBeenCalled();
 	});
 
@@ -274,7 +293,8 @@ describe("event-service producer handoff", () => {
 		expect(mockSendBatch).toHaveBeenCalledWith(
 			"analytics-error-spans",
 			[expect.objectContaining({ message: "boom", path: "/checkout" })],
-			[expectedDeliveryId]
+			[expectedDeliveryId],
+			{ allowDirectFallback: true }
 		);
 		expect(expectedDeliveryId).toMatch(/^[\da-f]{64}$/);
 	});
@@ -294,6 +314,43 @@ describe("event-service producer handoff", () => {
 		);
 
 		expect(retry).toBe(first);
+	});
+
+	test("filters an already delivered item from a recomposed retry batch", async () => {
+		const first = {
+			eventId: "evt_error_a",
+			errorType: "Error",
+			message: "a",
+			path: "/",
+			timestamp: 1_780_000_000_000,
+		};
+		const second = {
+			...first,
+			eventId: "evt_error_b",
+			message: "b",
+		};
+		const firstId = stableBatchDeliveryId("ws_1", "error", first, 0);
+		mockReserveDuplicateBatch.mockImplementationOnce(async (inputs) =>
+			inputs.map(({ eventId, eventType }) =>
+				eventId === firstId
+					? { duplicate: true }
+					: {
+							deliveredTtl: 86_400,
+							duplicate: false,
+							key: `dedup:${eventType}:${eventId}`,
+							token: "pending:new-item",
+						}
+			)
+		);
+
+		await insertErrorSpans([first, second], "ws_1");
+
+		expect(mockSendBatch).toHaveBeenCalledWith(
+			"analytics-error-spans",
+			[expect.objectContaining({ message: "b" })],
+			[stableBatchDeliveryId("ws_1", "error", second, 1)],
+			{ allowDirectFallback: true }
+		);
 	});
 
 	test("preserves an ambiguous id-less batch reservation", async () => {

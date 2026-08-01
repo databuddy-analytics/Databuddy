@@ -6,6 +6,7 @@ import {
 	markDuplicateReservationDelivered,
 	releaseDuplicateReservation,
 	reserveDuplicate,
+	reserveDuplicateBatch,
 	resetDeduplicationCircuitForTesting,
 	saltAnonymousId,
 	shouldAnonymizeVisitorIds,
@@ -186,20 +187,68 @@ describe("duplicate reservations", () => {
 
 		expect(reservation).toEqual({ duplicate: true });
 		expect(mockLoggerSet).toHaveBeenCalledWith({
-			dedup: { ambiguous: false, duplicate: true, eventType: "track" },
+			dedup: { duplicate: true, eventType: "track" },
 		});
 	});
 
-	test("suppresses a retry whose Kafka acknowledgement is ambiguous", async () => {
+	test("claims an ambiguous Kafka acknowledgement for a Kafka-only retry", async () => {
 		mockRedisSet.mockResolvedValue(null);
 		mockRedisGet.mockResolvedValue("ambiguous");
+		mockRedisEval.mockResolvedValue(1);
 
 		const reservation = await reserveDuplicate("evt_1", "track");
 
-		expect(reservation).toEqual({ duplicate: true });
-		expect(mockLoggerSet).toHaveBeenCalledWith({
-			dedup: { ambiguous: true, duplicate: true, eventType: "track" },
+		expect(reservation).toMatchObject({
+			ambiguous: true,
+			deliveredTtl: 86_400,
+			duplicate: false,
+			key: "dedup:track:evt_1",
+			token: expect.stringMatching(/^pending:/),
 		});
+		expect(mockLoggerSet).not.toHaveBeenCalled();
+		expect(mockRedisEval).toHaveBeenCalledWith(
+			expect.stringContaining('ARGV[1]'),
+			1,
+			"dedup:track:evt_1",
+			"ambiguous",
+			expect.stringMatching(/^pending:/),
+			120
+		);
+	});
+
+	test("atomically reserves new and ambiguous items while skipping delivered ones", async () => {
+		mockRedisEval.mockResolvedValue([
+			"acquired",
+			"delivered",
+			"ambiguous-acquired",
+		]);
+
+		const reservations = await reserveDuplicateBatch([
+			{ eventId: "new", eventType: "error" },
+			{ eventId: "done", eventType: "error" },
+			{ eventId: "unknown", eventType: "error" },
+		]);
+
+		expect(reservations[0]).toMatchObject({ duplicate: false });
+		expect(reservations[1]).toEqual({ duplicate: true });
+		expect(reservations[2]).toMatchObject({
+			ambiguous: true,
+			duplicate: false,
+		});
+	});
+
+	test("does not partially acquire a batch when another owner is pending", async () => {
+		mockRedisEval.mockResolvedValue(["retryable"]);
+
+		await expect(
+			reserveDuplicateBatch([
+				{ eventId: "a", eventType: "error" },
+				{ eventId: "b", eventType: "error" },
+			])
+		).resolves.toEqual([
+			{ duplicate: false, retryable: true },
+			{ duplicate: false, retryable: true },
+		]);
 	});
 
 	test("requires a retry when another request owns a pending reservation", async () => {

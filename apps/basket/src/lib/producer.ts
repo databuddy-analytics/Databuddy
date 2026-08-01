@@ -95,18 +95,26 @@ export interface ProducerConfig {
 }
 
 export interface ProducerEffects {
+	checkConnection: Effect.Effect<void, ProducerUnavailableError>;
 	sendMany: (
 		topic: string,
 		events: unknown[],
-		deliveryIds?: string[]
+		deliveryIds?: string[],
+		options?: ProducerDeliveryOptions
 	) => Effect.Effect<void, ProducerError>;
 	sendOne: (
 		topic: string,
 		event: unknown,
-		key?: string
+		key?: string,
+		options?: ProducerDeliveryOptions
 	) => Effect.Effect<void, ProducerError>;
 	shutDown: Effect.Effect<void, ShutdownDrainError>;
 	stats: Effect.Effect<ProducerStatsSnapshot>;
+}
+
+export interface ProducerDeliveryOptions {
+	/** Prevent an uncertain Kafka retry from switching to ClickHouse. */
+	readonly allowDirectFallback?: boolean;
 }
 
 const INITIAL_STATE: ProducerState = {
@@ -306,6 +314,15 @@ function makeProducerEffects(
 		);
 	});
 
+	const checkConnection: Effect.Effect<void, ProducerUnavailableError> =
+		connect.pipe(
+			Effect.flatMap((connected) =>
+				connected
+					? Effect.void
+					: Effect.fail(new ProducerUnavailableError({ retryable: true }))
+			)
+		);
+
 	const resolveTopic = (
 		topic: string
 	): Effect.Effect<string, UnknownKafkaTopicError> =>
@@ -412,7 +429,8 @@ function makeProducerEffects(
 		topic: string,
 		messages: Array<{ value: string; key?: string }>,
 		fallbackEvents: unknown[],
-		deliveryIds?: string[]
+		deliveryIds?: string[],
+		options: ProducerDeliveryOptions = {}
 	): Effect.Effect<void, ProducerError> =>
 		acquireSendSlot(fallbackEvents.length).pipe(
 			Effect.flatMap(() =>
@@ -459,6 +477,11 @@ function makeProducerEffects(
 						}
 					}
 
+					if (options.allowDirectFallback === false) {
+						return yield* Effect.fail(
+							new ProducerUnavailableError({ retryable: true })
+						);
+					}
 					yield* persistDirectly(topic, fallbackEvents, deliveryIds);
 				}).pipe(Effect.ensuring(releaseSendSlot(fallbackEvents.length)))
 			)
@@ -467,7 +490,8 @@ function makeProducerEffects(
 	const sendOne = (
 		topic: string,
 		event: unknown,
-		key?: string
+		key?: string,
+		options?: ProducerDeliveryOptions
 	): Effect.Effect<void, ProducerError> =>
 		sendViaKafka(
 			topic,
@@ -477,13 +501,16 @@ function makeProducerEffects(
 					key: key || (event as { client_id?: string }).client_id,
 				},
 			],
-			[event]
+			[event],
+			undefined,
+			options
 		);
 
 	const sendMany = (
 		topic: string,
 		events: unknown[],
-		deliveryIds?: string[]
+		deliveryIds?: string[],
+		options?: ProducerDeliveryOptions
 	): Effect.Effect<void, ProducerError> => {
 		if (events.length === 0) {
 			return Effect.void;
@@ -497,7 +524,8 @@ function makeProducerEffects(
 					(e as { event_id?: string }).event_id,
 			})),
 			events,
-			deliveryIds
+			deliveryIds,
+			options
 		);
 	};
 
@@ -576,6 +604,7 @@ function makeProducerEffects(
 	);
 
 	return {
+		checkConnection,
 		sendOne,
 		sendMany,
 		shutDown,
@@ -593,18 +622,20 @@ export const createProducerEffects = (
 		Effect.map((ref) => makeProducerEffects(config, kafka, ch, topicMap, ref))
 	);
 
-function initializeKafka(config: ProducerConfig): Producer | null {
+export function initializeKafka(config: ProducerConfig): Producer | null {
 	if (config.selfHost || !config.broker) {
 		return null;
 	}
-	if (!(config.username && config.password)) {
+	const hasUsername = Boolean(config.username);
+	const hasPassword = Boolean(config.password);
+	if (hasUsername !== hasPassword) {
 		captureError(
 			createError({
-				code: "basket.KAFKA_CREDENTIALS_MISSING",
-				message: "Kafka producer disabled: credentials missing",
+				code: "basket.KAFKA_CREDENTIALS_INCOMPLETE",
+				message: "Kafka producer disabled: credentials incomplete",
 				status: 500,
-				why: "REDPANDA_BROKER was set without username and password.",
-				fix: "Set broker credentials or use ClickHouse-only mode.",
+				why: "REDPANDA_BROKER was set with only one of REDPANDA_USER or REDPANDA_PASSWORD.",
+				fix: "Set both broker credentials, remove both for an unauthenticated broker, or use ClickHouse-only mode.",
 			})
 		);
 		return null;
@@ -622,11 +653,14 @@ function initializeKafka(config: ProducerConfig): Producer | null {
 			maxRetryTime: 1000,
 			retries: 0,
 		},
-		sasl: {
-			mechanism: "scram-sha-256",
-			username: config.username,
-			password: config.password,
-		},
+		...(config.username &&
+			config.password && {
+				sasl: {
+					mechanism: "scram-sha-256" as const,
+					username: config.username,
+					password: config.password,
+				},
+			}),
 		ssl: process.env.REDPANDA_SSL === "true",
 	}).producer({
 		allowAutoTopicCreation: true,
@@ -709,14 +743,21 @@ const withActiveFx = <A, E>(
 				: Effect.fail(new ProducerUnavailableError({ retryable: true }))
 	);
 
-export const send = (topic: string, event: unknown, key?: string) =>
-	withActiveFx((f) => f.sendOne(topic, event, key));
+export const send = (
+	topic: string,
+	event: unknown,
+	key?: string,
+	options?: ProducerDeliveryOptions
+) => withActiveFx((f) => f.sendOne(topic, event, key, options));
 
 export const sendBatch = (
 	topic: string,
 	events: unknown[],
-	deliveryIds?: string[]
-) => withActiveFx((f) => f.sendMany(topic, events, deliveryIds));
+	deliveryIds?: string[],
+	options?: ProducerDeliveryOptions
+) => withActiveFx((f) => f.sendMany(topic, events, deliveryIds, options));
+
+export const checkProducerConnection = withActiveFx((f) => f.checkConnection);
 
 export const disconnect = withFx((f) => f.shutDown);
 
