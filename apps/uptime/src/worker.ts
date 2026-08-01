@@ -29,7 +29,9 @@ import {
 	MonitorStatus,
 	type ActionResult,
 	type ScheduleLookupReason,
+	uptimeCheckJobDataSchema,
 	uptimeDataSchema,
+	uptimeDeliveryJobDataSchema,
 	type UptimeData,
 } from "./types";
 import {
@@ -500,7 +502,13 @@ export async function processUptimeJob(
 		throw new Error(`Unknown uptime job: ${job.name}`);
 	}
 
-	const persistedEvent = job.data.delivery?.event;
+	const parsedJobData = uptimeCheckJobDataSchema.safeParse(job.data);
+	if (!parsedJobData.success) {
+		throw new Error("Invalid uptime job payload");
+	}
+
+	const jobData = parsedJobData.data;
+	const persistedEvent = jobData.delivery?.event;
 	if (persistedEvent !== undefined) {
 		const parsedEvent = uptimeDataSchema.safeParse(persistedEvent);
 		if (!parsedEvent.success) {
@@ -511,8 +519,8 @@ export async function processUptimeJob(
 	}
 
 	await processUptimeCheck(
-		job.data.scheduleId,
-		job.data.trigger,
+		jobData.scheduleId,
+		jobData.trigger,
 		deps,
 		{
 			id: job.id,
@@ -520,7 +528,7 @@ export async function processUptimeJob(
 		},
 		async (data) =>
 			job.updateData({
-				...job.data,
+				...jobData,
 				delivery: { event: data },
 			})
 	);
@@ -533,7 +541,12 @@ export async function processUptimeDeliveryJob(
 	if (job.name !== UPTIME_DELIVERY_JOB_NAME) {
 		throw new Error(`Unknown uptime delivery job: ${job.name}`);
 	}
-	const parsedEvent = uptimeDataSchema.safeParse(job.data.event);
+	const parsedJobData = uptimeDeliveryJobDataSchema.safeParse(job.data);
+	if (!parsedJobData.success) {
+		throw new Error("Invalid uptime delivery job payload");
+	}
+
+	const parsedEvent = uptimeDataSchema.safeParse(parsedJobData.data.event);
 	if (!parsedEvent.success) {
 		throw new Error("Invalid uptime delivery payload");
 	}
@@ -571,12 +584,17 @@ export function startUptimeWorker() {
 		const attemptsMade = job?.attemptsMade ?? 0;
 		const maxAttempts = job?.opts?.attempts ?? 1_000_000;
 		const isFinalAttempt = attemptsMade >= maxAttempts;
+		const parsedJobData = job
+			? uptimeCheckJobDataSchema.safeParse(job.data)
+			: undefined;
 
 		captureError(error, {
 			error_step: "uptime_worker_job_failed",
-			schedule_id: job?.data.scheduleId ?? "",
+			schedule_id: parsedJobData?.success
+				? parsedJobData.data.scheduleId
+				: "",
 			job_id: job?.id ?? "",
-			trigger: job?.data.trigger ?? "",
+			trigger: parsedJobData?.success ? parsedJobData.data.trigger : "",
 			attempts_used: attemptsMade,
 			attempts_max: maxAttempts,
 			is_final_attempt: isFinalAttempt,
@@ -615,8 +633,11 @@ export function startUptimeDeliveryWorker() {
 	);
 
 	worker.on("failed", (job, error) => {
-		const parsedEvent = job
-			? uptimeDataSchema.safeParse(job.data.event)
+		const parsedJobData = job
+			? uptimeDeliveryJobDataSchema.safeParse(job.data)
+			: undefined;
+		const parsedEvent = parsedJobData?.success
+			? uptimeDataSchema.safeParse(parsedJobData.data.event)
 			: undefined;
 		captureError(error, {
 			error_step: "uptime_delivery_worker_job_failed",

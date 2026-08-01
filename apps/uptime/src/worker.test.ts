@@ -229,6 +229,21 @@ describe("processUptimeCheck", () => {
 		);
 	});
 
+	it("rejects malformed BullMQ job envelopes before accessing their fields", async () => {
+		await expect(
+			processUptimeJob(
+				{
+					name: "uptime-check",
+					data: null as never,
+					updateData: async () => {},
+				},
+				deps()
+			)
+		).rejects.toThrow("Invalid uptime job payload");
+
+		expect(calls.check).toEqual([]);
+	});
+
 	it("runs a scheduled check and emits events, status, and transition email work", async () => {
 		await processUptimeCheckForTest("schedule-1", "scheduled", deps());
 
@@ -593,5 +608,20 @@ describe("processUptimeCheck", () => {
 		).rejects.toThrow("Invalid uptime delivery payload");
 
 		expect(calls.captureError).toEqual([]);
+	});
+
+	it("rejects malformed delivery job envelopes before accessing their fields", async () => {
+		await expect(
+			processUptimeDeliveryJob(
+				{
+					data: null as never,
+					id: "uptime-delivery-uptime-event-1",
+					name: "uptime-event-delivery",
+				},
+				deps()
+			)
+		).rejects.toThrow("Invalid uptime delivery job payload");
+
+		expect(calls.delivery).toEqual([]);
 	});
 });
