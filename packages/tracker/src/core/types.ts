@@ -106,6 +106,7 @@ export type ErrorSpan = {
 };
 
 export type TrackEventPayload = {
+	eventId: string;
 	name: string;
 	timestamp: number;
 	path?: string;
