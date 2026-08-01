@@ -6,7 +6,9 @@ import {
 } from "@databuddy/rpc";
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
+import { createError } from "evlog";
 import { useLogger } from "evlog/elysia";
+import { handleAppError } from "@/http/errors";
 import { getResolvedAuth } from "@/lib/auth-wide-event";
 import { getRequestId } from "@/http/request-id";
 import { logOrpcHandlerError } from "./interceptors";
@@ -58,15 +60,15 @@ async function handleOrpcRequest(
 		const result = await handle(request, context);
 		return (
 			result.response ??
-			Response.json(
-				{
-					success: false,
-					error: "Not found",
+			handleAppError({
+				error: createError({
 					code: "NOT_FOUND",
-					requestId,
-				},
-				{ status: 404, headers: { "X-Request-ID": requestId } }
-			)
+					message: "Not found",
+					status: 404,
+				}),
+				request,
+				requestId,
+			})
 		);
 	} catch (error) {
 		if (error instanceof ORPCError) {
@@ -76,15 +78,15 @@ async function handleOrpcRequest(
 			error instanceof Error ? error : new Error(String(error)),
 			{ rpc: "handler" }
 		);
-		return Response.json(
-			{
-				success: false,
-				error: "An internal server error occurred",
+		return handleAppError({
+			error: createError({
 				code: "INTERNAL_SERVER_ERROR",
-				requestId,
-			},
-			{ status: 500, headers: { "X-Request-ID": requestId } }
-		);
+				message: "An internal server error occurred",
+				status: 500,
+			}),
+			request,
+			requestId,
+		});
 	}
 }
 

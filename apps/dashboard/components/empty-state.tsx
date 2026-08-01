@@ -123,24 +123,18 @@ export const EmptyState = memo(function EmptyState({
 					})}
 				</div>
 				{showPlusBadge && (
-					<button
+					<Button
 						aria-label="Create new item"
-						className="absolute -top-2 -right-2 cursor-pointer select-none rounded-full border-2 border-primary/10 bg-background p-2"
+						className="absolute -top-2 -right-2 rounded-full border-2 border-primary/10 bg-background"
 						onClick={(e) => {
 							e.stopPropagation();
 							action?.onClick();
 						}}
-						onKeyDown={(e) => {
-							if (e.key === "Enter" || e.key === " ") {
-								e.preventDefault();
-								action?.onClick();
-							}
-						}}
-						tabIndex={0}
-						type="button"
+						size="icon"
+						variant="secondary"
 					>
 						<PlusIcon className="size-6 text-accent-foreground" size={16} />
-					</button>
+					</Button>
 				)}
 			</div>
 		);

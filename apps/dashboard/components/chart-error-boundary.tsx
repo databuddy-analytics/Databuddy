@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@databuddy/ui";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface ChartErrorBoundaryProps {
@@ -34,13 +35,14 @@ export class ChartErrorBoundary extends Component<
 				<div
 					className={`flex items-center justify-center ${this.props.fallbackClassName ?? ""}`}
 				>
-					<button
-						className="text-muted-foreground text-xs transition-colors hover:text-foreground"
+					<Button
+						className="h-auto px-0 py-0 text-xs"
 						onClick={() => this.setState({ hasError: false })}
 						type="button"
+						variant="ghost"
 					>
 						Failed to render chart — click to retry
-					</button>
+					</Button>
 				</div>
 			);
 		}
