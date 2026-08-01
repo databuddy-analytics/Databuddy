@@ -51,6 +51,13 @@ detect signal
 
 One exact signal starts an agent turn. The Insights brief aggregates useful turns across websites and time.
 
+A run may first freeze a small, deterministic portfolio of distinct signals.
+Scheduled runs investigate at most two; a deliberate manual full scan investigates at
+most three. The portfolio is diversified across correlated subjects and survives a
+retry unchanged. Each selected signal still gets its own exact agent turn, durable
+observation, and investigation history; a model does not manufacture a broad report
+from ungrounded raw data.
+
 ## Agent context
 
 The agent receives:
@@ -73,7 +80,7 @@ Every completed turn reports:
 - **root cause:** the known mechanism, or `unknown`;
 - **evidence:** the few facts that support or contradict it;
 - **publish:** whether this turn adds a new customer-relevant fact to Insights;
-- **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them;
+- **recommendation:** an optional useful next step that does not create a case; goal edits include the exact proposed name or description so the existing editor can review and apply them. A recommendation may also carry an evidence-backed goal or funnel draft, or explain the tracking needed before one is useful. Drafts open in the normal editable setup flow and are never created automatically;
 - **next:** exactly one outcome.
 
 The next outcome is one of:
