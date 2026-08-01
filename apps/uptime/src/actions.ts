@@ -98,7 +98,7 @@ function applyCacheBust(url: string): string {
 }
 
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
-const TIMED_OUT_PATTERN = /timed out/;
+const TIMED_OUT_PATTERN = /tim(?:ed out|eout)/i;
 
 class ResponseTooLargeError extends Error {
 	constructor(limit: number) {
@@ -139,6 +139,7 @@ async function pingWebsite(
 	let redirects = 0;
 	let current = cacheBust ? applyCacheBust(url) : url;
 	let ttfb = 0;
+	const checkSignal = AbortSignal.timeout(timeout);
 
 	try {
 		while (redirects < MAX_REDIRECTS) {
@@ -146,6 +147,7 @@ async function pingWebsite(
 				method: "GET",
 				headers: HEADERS,
 				followRedirects: false,
+				signal: checkSignal,
 				timeoutMs: timeout,
 			});
 
@@ -272,7 +274,7 @@ const checkCertificate = (url: string) =>
 			}
 
 			const urlCheck = await validateUrl(url);
-			if (!urlCheck.safe) {
+			if (!(urlCheck.safe && urlCheck.ip)) {
 				return fallback;
 			}
 
@@ -282,7 +284,7 @@ const checkCertificate = (url: string) =>
 				(resolve) => {
 					const socket = connect(
 						{
-							host: parsed.hostname,
+							host: urlCheck.ip,
 							port,
 							servername: parsed.hostname,
 							timeout: 5000,
