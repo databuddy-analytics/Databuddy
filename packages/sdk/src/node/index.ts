@@ -55,7 +55,7 @@ function isRetryableStatus(status: number): boolean {
 }
 
 async function responseFailure(response: Response): Promise<FailedResponse> {
-	const text = await response.text().catch(() => "");
+	const text = await response.text();
 	let payload: Record<string, unknown> | null = null;
 	try {
 		const parsed = text ? JSON.parse(text) : null;
@@ -310,31 +310,36 @@ export class Databuddy {
 
 		try {
 			const url = `${this.apiUrl}/identify`;
-			const response = await this.fetchWithDeadline(url, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${this.apiKey}`,
+			return await this.fetchWithDeadline(
+				url,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${this.apiKey}`,
+					},
+					body: JSON.stringify({
+						profileId: input.profileId.trim(),
+						anonymousId: input.anonymousId ?? undefined,
+						traits: input.traits ?? undefined,
+						websiteId,
+					}),
 				},
-				body: JSON.stringify({
-					profileId: input.profileId.trim(),
-					anonymousId: input.anonymousId ?? undefined,
-					traits: input.traits ?? undefined,
-					websiteId,
-				}),
-			});
+				async (response) => {
+					if (!response.ok) {
+						const failure = await responseFailure(response);
+						this.logger.error("Identify failed", {
+							status: response.status,
+							code: failure.code,
+							requestId: failure.requestId,
+						});
+						return failure;
+					}
 
-			if (!response.ok) {
-				const failure = await responseFailure(response);
-				this.logger.error("Identify failed", {
-					status: response.status,
-					code: failure.code,
-					requestId: failure.requestId,
-				});
-				return failure;
-			}
-
-			return { success: true, delivery: "delivered" };
+					await response.arrayBuffer();
+					return { success: true, delivery: "delivered" };
+				}
+			);
 		} catch (error) {
 			this.logger.error("Identify error", { error });
 			return networkFailure(error);
@@ -368,41 +373,45 @@ export class Databuddy {
 				source: payload.source,
 			});
 
-			const response = await this.fetchWithDeadline(url, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${this.apiKey}`,
+			return await this.fetchWithDeadline(
+				url,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${this.apiKey}`,
+					},
+					body: JSON.stringify(payload),
 				},
-				body: JSON.stringify(payload),
-			});
+				async (response) => {
+					if (!response.ok) {
+						const failure = await responseFailure(response);
+						this.logger.error("Request failed", {
+							status: response.status,
+							statusText: response.statusText,
+							code: failure.code,
+							requestId: failure.requestId,
+						});
+						return failure;
+					}
 
-			if (!response.ok) {
-				const failure = await responseFailure(response);
-				this.logger.error("Request failed", {
-					status: response.status,
-					statusText: response.statusText,
-					code: failure.code,
-					requestId: failure.requestId,
-				});
-				return failure;
-			}
+					const data = await response.json();
+					this.logger.info("Response received", data);
 
-			const data = await response.json();
-			this.logger.info("Response received", data);
+					if (data.status === "success") {
+						return {
+							success: true,
+							eventId: data.eventId,
+							delivery: "delivered",
+						};
+					}
 
-			if (data.status === "success") {
-				return {
-					success: true,
-					eventId: data.eventId,
-					delivery: "delivered",
-				};
-			}
-
-			return {
-				success: false,
-				error: data.message || "Unknown error from server",
-			};
+					return {
+						success: false,
+						error: data.message || "Unknown error from server",
+					};
+				}
+			);
 		} catch (error) {
 			this.logger.error("Request error", {
 				error: error instanceof Error ? error.message : String(error),
@@ -453,72 +462,60 @@ export class Databuddy {
 	}
 
 	private async flushQueue(): Promise<BatchEventResponse> {
-		if (this.flushTimer) {
-			clearTimeout(this.flushTimer);
-			this.flushTimer = null;
-		}
-
-		if (this.queue.length === 0) {
-			this.retryAttempts = 0;
-			return {
-				success: true,
-				processed: 0,
-				results: [],
-				delivery: "skipped",
-			};
-		}
-
-		const events = this.queue;
-		this.queue = [];
-
-		this.logger.info("Flushing events", { count: events.length });
-
 		let processed = 0;
 		const results: NonNullable<BatchEventResponse["results"]> = [];
-		for (let offset = 0; offset < events.length; offset += MAX_BATCH_EVENTS) {
-			const chunk = events.slice(offset, offset + MAX_BATCH_EVENTS);
-			const result = await this.batch(chunk);
-			if (!result.success) {
-				const unsent = events.slice(offset + chunk.length);
-				const pending = [
-					...(result.retryable === true ? chunk : []),
-					...unsent,
-					...this.queue,
-				];
-				this.queue = pending.slice(0, this.maxQueueSize);
-
-				if (result.retryable === true) {
-					this.retryAttempts += 1;
-					this.scheduleFlush(this.retryDelay());
-					this.logger.warn("Retryable batch failure kept events queued", {
-						queued: this.queue.length,
-						dropped: Math.max(0, pending.length - this.queue.length),
-						retryAttempt: this.retryAttempts,
-						code: result.code,
-						requestId: result.requestId,
-					});
-				} else if (this.queue.length > 0) {
-					this.retryAttempts = 0;
-					this.scheduleFlush(0);
-				}
-				return result;
+		while (this.queue.length > 0) {
+			if (this.flushTimer) {
+				clearTimeout(this.flushTimer);
+				this.flushTimer = null;
 			}
 
-			processed += result.processed ?? 0;
-			if (result.results) {
-				results.push(...result.results);
+			const events = this.queue;
+			this.queue = [];
+			this.logger.info("Flushing events", { count: events.length });
+
+			for (let offset = 0; offset < events.length; offset += MAX_BATCH_EVENTS) {
+				const chunk = events.slice(offset, offset + MAX_BATCH_EVENTS);
+				const result = await this.batch(chunk);
+				if (!result.success) {
+					const unsent = events.slice(offset + chunk.length);
+					const pending = [
+						...(result.retryable === true ? chunk : []),
+						...unsent,
+						...this.queue,
+					];
+					this.queue = pending.slice(0, this.maxQueueSize);
+
+					if (result.retryable === true) {
+						this.retryAttempts += 1;
+						this.scheduleFlush(this.retryDelay());
+						this.logger.warn("Retryable batch failure kept events queued", {
+							queued: this.queue.length,
+							dropped: Math.max(0, pending.length - this.queue.length),
+							retryAttempt: this.retryAttempts,
+							code: result.code,
+							requestId: result.requestId,
+						});
+					} else if (this.queue.length > 0) {
+						this.retryAttempts = 0;
+						this.scheduleFlush(0);
+					}
+					return result;
+				}
+
+				processed += result.processed ?? 0;
+				if (result.results) {
+					results.push(...result.results);
+				}
 			}
 		}
 
 		this.retryAttempts = 0;
-		if (this.queue.length > 0) {
-			this.scheduleFlush(0);
-		}
 		return {
 			success: true,
 			processed,
 			results,
-			delivery: "delivered",
+			delivery: processed > 0 ? "delivered" : "skipped",
 		};
 	}
 
@@ -587,43 +584,47 @@ export class Databuddy {
 				firstSource: payloads[0]?.source,
 			});
 
-			const response = await this.fetchWithDeadline(url, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${this.apiKey}`,
+			return await this.fetchWithDeadline(
+				url,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${this.apiKey}`,
+					},
+					body: JSON.stringify(payloads),
 				},
-				body: JSON.stringify(payloads),
-			});
+				async (response) => {
+					if (!response.ok) {
+						const failure = await responseFailure(response);
+						this.logger.error("Batch request failed", {
+							status: response.status,
+							statusText: response.statusText,
+							code: failure.code,
+							requestId: failure.requestId,
+						});
+						return failure;
+					}
 
-			if (!response.ok) {
-				const failure = await responseFailure(response);
-				this.logger.error("Batch request failed", {
-					status: response.status,
-					statusText: response.statusText,
-					code: failure.code,
-					requestId: failure.requestId,
-				});
-				return failure;
-			}
+					const data = await response.json();
+					this.logger.info("Batch response received", data);
 
-			const data = await response.json();
-			this.logger.info("Batch response received", data);
+					if (data.status === "success") {
+						this.rememberEvents(processedEvents);
+						return {
+							success: true,
+							delivery: "delivered",
+							processed: data.processed || processedEvents.length,
+							results: data.results,
+						};
+					}
 
-			if (data.status === "success") {
-				this.rememberEvents(processedEvents);
-				return {
-					success: true,
-					delivery: "delivered",
-					processed: data.processed || processedEvents.length,
-					results: data.results,
-				};
-			}
-
-			return {
-				success: false,
-				error: data.message || "Unknown error from server",
-			};
+					return {
+						success: false,
+						error: data.message || "Unknown error from server",
+					};
+				}
+			);
 		} catch (error) {
 			this.logger.error("Batch request error", {
 				error: error instanceof Error ? error.message : String(error),
@@ -664,10 +665,11 @@ export class Databuddy {
 		return processedEvent;
 	}
 
-	private async fetchWithDeadline(
+	private async fetchWithDeadline<T>(
 		input: string | URL | Request,
-		init: RequestInit
-	): Promise<Response> {
+		init: RequestInit,
+		consume: (response: Response) => Promise<T>
+	): Promise<T> {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => {
 			controller.abort(new RequestTimeoutError(this.requestTimeoutMs));
@@ -675,7 +677,11 @@ export class Databuddy {
 		timeout.unref?.();
 
 		try {
-			return await fetch(input, { ...init, signal: controller.signal });
+			const response = await fetch(input, {
+				...init,
+				signal: controller.signal,
+			});
+			return await consume(response);
 		} catch (error) {
 			if (controller.signal.reason instanceof RequestTimeoutError) {
 				throw controller.signal.reason;

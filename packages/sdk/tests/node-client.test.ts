@@ -24,7 +24,10 @@ function parseBody(body: BodyInit | null | undefined): unknown {
 }
 
 function mockFetch(
-	handler: (callNumber: number) => Response | Promise<Response>
+	handler: (
+		callNumber: number,
+		init?: RequestInit
+	) => Response | Promise<Response>
 ): FetchCall[] {
 	const calls: FetchCall[] = [];
 
@@ -33,7 +36,7 @@ function mockFetch(
 			url: typeof input === "string" ? input : input.toString(),
 			body: parseBody(init?.body),
 		});
-		return handler(calls.length);
+		return handler(calls.length, init);
 	}) as typeof fetch;
 
 	return calls;
@@ -64,6 +67,31 @@ function createDeferred<T>(): {
 		resolvePromise = resolve;
 	});
 	return { promise, resolve: resolvePromise };
+}
+
+function stalledResponse(
+	signal: AbortSignal | null | undefined,
+	status = 200
+): Response {
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			if (signal?.aborted) {
+				controller.error(signal.reason);
+				return;
+			}
+
+			signal?.addEventListener(
+				"abort",
+				() => controller.error(signal.reason),
+				{ once: true }
+			);
+		},
+	});
+	return new Response(body, {
+		status,
+		statusText: status >= 500 ? "Service Unavailable" : "OK",
+		headers: { "Content-Type": "application/json" },
+	});
 }
 
 describe("Databuddy Node client", () => {
@@ -192,16 +220,76 @@ describe("Databuddy Node client", () => {
 		expect(calls).toHaveLength(1);
 
 		firstRequest.resolve(jsonResponse({ status: "success", processed: 1 }));
-		await firstDelivery;
+		expect(await firstDelivery).toMatchObject({
+			success: true,
+			processed: 151,
+		});
 		await Promise.all(queuedDeliveries);
 		expect(await client.flush()).toMatchObject({
 			success: true,
-			processed: 150,
+			delivery: "skipped",
+			processed: 0,
 		});
 
 		expect(calls.map((call) => (call.body as unknown[]).length)).toEqual([
 			1, 100, 50,
 		]);
+	});
+
+	it("drains events queued during an active flush before joined callers resolve", async () => {
+		const firstResponse = createDeferred<Response>();
+		const secondResponse = createDeferred<Response>();
+		const calls = mockFetch((callNumber) =>
+			callNumber === 1 ? firstResponse.promise : secondResponse.promise
+		);
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			batchTimeout: 60_000,
+		});
+
+		const firstDelivery = client.track({
+			name: "first",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		expect(calls).toHaveLength(1);
+
+		let secondSettled = false;
+		const secondDelivery = client
+			.track({ name: "second", websiteId: "site_1" })
+			.finally(() => {
+				secondSettled = true;
+			});
+		await flushMicrotasks();
+		expect(calls).toHaveLength(1);
+		expect(secondSettled).toBe(false);
+
+		firstResponse.resolve(jsonResponse({ status: "success", processed: 1 }));
+		await flushMicrotasks();
+		expect(calls).toHaveLength(2);
+		expect(secondSettled).toBe(false);
+
+		secondResponse.resolve(jsonResponse({ status: "success", processed: 1 }));
+		expect(await firstDelivery).toMatchObject({
+			success: true,
+			delivery: "delivered",
+			processed: 2,
+		});
+		expect(await secondDelivery).toMatchObject({
+			success: true,
+			delivery: "delivered",
+			processed: 2,
+		});
+		expect(calls.map((call) => call.body)).toEqual([
+			[expect.objectContaining({ name: "first" })],
+			[expect.objectContaining({ name: "second" })],
+		]);
+		expect(await client.flush()).toMatchObject({
+			success: true,
+			delivery: "skipped",
+			processed: 0,
+		});
 	});
 
 	it("bounds blackholed batch requests and keeps them retryable", async () => {
@@ -227,6 +315,78 @@ describe("Databuddy Node client", () => {
 		});
 
 		expect(result).toMatchObject({
+			success: false,
+			code: "NETWORK_ERROR",
+			retryable: true,
+			error: "Request timed out after 20ms",
+		});
+	});
+
+	it("keeps the deadline active while reading an unbatched response body", async () => {
+		jest.useFakeTimers();
+		mockFetch((_callNumber, init) => stalledResponse(init?.signal));
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			enableBatching: false,
+			requestTimeoutMs: 20,
+		});
+
+		const delivery = client.track({
+			name: "stalled_body",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		jest.advanceTimersByTime(20);
+
+		expect(await delivery).toMatchObject({
+			success: false,
+			code: "NETWORK_ERROR",
+			retryable: true,
+			error: "Request timed out after 20ms",
+		});
+	});
+
+	it("keeps the deadline active while reading a batch response body", async () => {
+		jest.useFakeTimers();
+		mockFetch((_callNumber, init) => stalledResponse(init?.signal));
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			batchSize: 1,
+			requestTimeoutMs: 20,
+		});
+
+		const delivery = client.track({
+			name: "stalled_batch_body",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		jest.advanceTimersByTime(20);
+
+		expect(await delivery).toMatchObject({
+			success: false,
+			code: "NETWORK_ERROR",
+			retryable: true,
+			error: "Request timed out after 20ms",
+		});
+	});
+
+	it("keeps the deadline active while reading an error response body", async () => {
+		jest.useFakeTimers();
+		mockFetch((_callNumber, init) => stalledResponse(init?.signal, 503));
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			enableBatching: false,
+			requestTimeoutMs: 20,
+		});
+
+		const delivery = client.track({
+			name: "stalled_error_body",
+			websiteId: "site_1",
+		});
+		await flushMicrotasks();
+		jest.advanceTimersByTime(20);
+
+		expect(await delivery).toMatchObject({
 			success: false,
 			code: "NETWORK_ERROR",
 			retryable: true,
@@ -550,5 +710,26 @@ describe("identify", () => {
 
 		expect(result.success).toBe(false);
 		expect(result.error).toContain("403");
+	});
+
+	it("keeps the deadline active while consuming the response body", async () => {
+		jest.useFakeTimers();
+		mockFetch((_callNumber, init) => stalledResponse(init?.signal));
+		const client = new Databuddy({
+			apiKey: "dbdy_test",
+			websiteId: "site_1",
+			requestTimeoutMs: 20,
+		});
+
+		const delivery = client.identify({ profileId: "user_42" });
+		await flushMicrotasks();
+		jest.advanceTimersByTime(20);
+
+		expect(await delivery).toMatchObject({
+			success: false,
+			code: "NETWORK_ERROR",
+			retryable: true,
+			error: "Request timed out after 20ms",
+		});
 	});
 });
